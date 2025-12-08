@@ -888,10 +888,14 @@ clouds:
         providerImage:
           digest: sha256:c34ca57730d55189e843ebfb8343ef6b865e73b80adc3fd43f6181227c1320a7 # v1.7.2 (2025-11-18 22:23)
       # Cluster Service
+      # TEMPORARY: Using sandbox image to test workers throughput improvements for ARO-23081
+      # Theoretical improvements can be observed by running the script at: https://go.dev/play/p/5fzvXdBB-_O
+      # Previous: app-sre/aro-hcp-clusters-service @ sha256:dff593b00a629d8366ef63502c56fadd66c627eca60e0d10f1663d74e0998b28
       clustersService:
         environment: "arohcpdev"
         image:
-          digest: sha256:dff593b00a629d8366ef63502c56fadd66c627eca60e0d10f1663d74e0998b28 # a68ce00 (2025-12-05 07:23)
+          repository: app-sre/aro-hcp-clusters-service-sandbox
+          digest: sha256:4570fb5348b43773aec99f488cb47aa3cf1b05ce5f196a05f6271cd101b07e4d # latest (2025-12-08)
         azureOperatorsManagedIdentities:
           roleSetName: dev
         azureRuntimeConfig:

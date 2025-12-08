@@ -82,8 +82,9 @@ images:
         url: "https://arohcpdev-global.vault.azure.net/"
         secretName: "component-sync-pull-secret"
     targets:
-    - jsonPath: clouds.dev.defaults.clustersService.image.digest
-      filePath: ../../config/config.yaml
+    # TEMPORARY DISABLED: Testing sandbox image for ARO-23081 workers throughput improvements
+    # - jsonPath: clouds.dev.defaults.clustersService.image.digest
+    #   filePath: ../../config/config.yaml
     - jsonPath: clouds.public.environments.int.defaults.clustersService.image.digest
       filePath: ../../config/config.msft.clouds-overlay.yaml
   # Frontend and Backend images
