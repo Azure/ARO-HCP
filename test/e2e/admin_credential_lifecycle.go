@@ -21,13 +21,15 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"github.com/openshift-eng/openshift-tests-extension/pkg/util/sets"
 
 	"k8s.io/apimachinery/pkg/util/rand"
 	"k8s.io/client-go/rest"
+
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+
+	"github.com/openshift-eng/openshift-tests-extension/pkg/util/sets"
 
 	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
