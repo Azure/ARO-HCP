@@ -128,7 +128,7 @@ func (t *cosmosDBTransaction) PatchResourceDoc(itemID string, ops ResourceDocume
 }
 
 func (t *cosmosDBTransaction) CreateOperationDoc(doc *OperationDocument, o *azcosmos.TransactionalBatchItemOptions) string {
-	typedDoc := newTypedDocument(doc.ExternalID.SubscriptionID, OperationResourceType)
+	typedDoc := newTypedDocument(doc.ExternalID.SubscriptionID, api.OperationStatusResourceType)
 	typedDoc.TimeToLive = operationTimeToLive
 
 	doc.OperationID = api.Must(azcorearm.ParseResourceID(path.Join("/",

@@ -20,12 +20,12 @@ import (
 	"io/fs"
 	"testing"
 
-	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/stretchr/testify/require"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
 	"github.com/Azure/ARO-HCP/frontend/test/simulate/integrationutils"
+	"github.com/Azure/ARO-HCP/internal/api"
 )
 
 type loadStep struct {

@@ -216,7 +216,7 @@ func (s *SimulationTestInfo) saveContainerContent(ctx context.Context, container
 			obj, hasProperties := docMap["properties"]
 			if hasProperties {
 				properties = obj.(map[string]any)
-				if resourceID, hasResourceID := properties["resourceId"]; hasResourceID {
+				if resourceID, hasResourceID := properties["resourceId"]; hasResourceID && resourceID != nil {
 					armResourceID, _ = azcorearm.ParseResourceID(resourceID.(string))
 				}
 			}
@@ -232,7 +232,7 @@ func (s *SimulationTestInfo) saveContainerContent(ctx context.Context, container
 					"subscriptions",
 					fmt.Sprintf("subscription_%s.json", docMap["id"].(string)))
 
-			case strings.EqualFold(resourceType.(string), database.OperationResourceType.String()):
+			case strings.EqualFold(resourceType.(string), api.OperationStatusResourceType.String()):
 				externalID := properties["externalId"].(string)
 				if clusterResourceID, _ := azcorearm.ParseResourceID(externalID); clusterResourceID != nil {
 					clusterDir := resourceIDToDir(clusterResourceID)

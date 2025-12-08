@@ -19,10 +19,11 @@ import (
 	"io/fs"
 	"testing"
 
-	"github.com/Azure/ARO-HCP/frontend/test/simulate/databasemutationhelpers"
-	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 	"github.com/stretchr/testify/require"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
+
+	"github.com/Azure/ARO-HCP/frontend/test/simulate/databasemutationhelpers"
 	"github.com/Azure/ARO-HCP/internal/api"
 )
 

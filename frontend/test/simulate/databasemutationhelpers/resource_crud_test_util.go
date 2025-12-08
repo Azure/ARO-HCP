@@ -116,6 +116,9 @@ func newStep[InternalAPIType any](indexString, stepType, stepName string, testDi
 	case "list":
 		return newListStep(stepID, specializer, cosmosContainer, stepDir)
 
+	case "listActiveOperations":
+		return newListActiveOperationsStep(stepID, cosmosContainer, stepDir)
+
 	default:
 		return nil, fmt.Errorf("unknown step type: %s", stepType)
 	}

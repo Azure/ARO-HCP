@@ -31,8 +31,8 @@ type listStep[InternalAPIType any] struct {
 	key         CosmosCRUDKey
 	specializer ResourceCRUDTestSpecializer[InternalAPIType]
 
-	cosmosContainer     *azcosmos.ContainerClient
-	expectedControllers []*InternalAPIType
+	cosmosContainer   *azcosmos.ContainerClient
+	expectedResources []*InternalAPIType
 }
 
 func newListStep[InternalAPIType any](stepID stepID, specializer ResourceCRUDTestSpecializer[InternalAPIType], cosmosContainer *azcosmos.ContainerClient, stepDir fs.FS) (*listStep[InternalAPIType], error) {
@@ -51,11 +51,11 @@ func newListStep[InternalAPIType any](stepID stepID, specializer ResourceCRUDTes
 	}
 
 	return &listStep[InternalAPIType]{
-		stepID:              stepID,
-		key:                 key,
-		specializer:         specializer,
-		cosmosContainer:     cosmosContainer,
-		expectedControllers: expectedResources,
+		stepID:            stepID,
+		key:               key,
+		specializer:       specializer,
+		cosmosContainer:   cosmosContainer,
+		expectedResources: expectedResources,
 	}, nil
 }
 
@@ -76,13 +76,13 @@ func (l *listStep[InternalAPIType]) RunTest(ctx context.Context, t *testing.T) {
 	}
 	require.NoError(t, actualControllersIterator.GetError())
 
-	if len(l.expectedControllers) != len(actualControllers) {
+	if len(l.expectedResources) != len(actualControllers) {
 		t.Logf("actual:\n%v", stringifyResource(actualControllers))
 	}
 
-	require.Equal(t, len(l.expectedControllers), len(actualControllers), "unexpected number of controllers")
+	require.Equal(t, len(l.expectedResources), len(actualControllers), "unexpected number of controllers")
 	// all the expected must be present
-	for _, expected := range l.expectedControllers {
+	for _, expected := range l.expectedResources {
 		found := false
 		for _, actual := range actualControllers {
 			if l.specializer.InstanceEquals(expected, actual) {
@@ -99,14 +99,14 @@ func (l *listStep[InternalAPIType]) RunTest(ctx context.Context, t *testing.T) {
 	// all the actual must be expected
 	for _, actual := range actualControllers {
 		found := false
-		for _, expected := range l.expectedControllers {
+		for _, expected := range l.expectedResources {
 			if l.specializer.InstanceEquals(expected, actual) {
 				found = true
 				break
 			}
 		}
 		if !found {
-			t.Logf("expected:\n%v", stringifyResource(l.expectedControllers))
+			t.Logf("expected:\n%v", stringifyResource(l.expectedResources))
 		}
 		require.True(t, found, "actual controller not found: %v", l.specializer.NameFromInstance(actual))
 	}

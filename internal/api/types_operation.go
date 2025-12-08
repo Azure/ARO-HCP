@@ -18,9 +18,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Azure/ARO-HCP/internal/api/arm"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
+
+	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
 
 type OperationRequest string
@@ -72,6 +73,11 @@ type Operation struct {
 	Status arm.ProvisioningState `json:"status,omitempty"`
 	// Error is an OData error, present when Status is "Failed" or "Canceled"
 	Error *arm.CloudErrorBody `json:"error,omitempty"`
+}
+
+// GetValidTypes returns the valid resource types for an OperationDocument.
+func (doc Operation) GetValidTypes() []string {
+	return []string{OperationStatusResourceType.String()}
 }
 
 var _ CosmosPersistable = &Operation{}

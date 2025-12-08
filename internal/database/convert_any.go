@@ -37,6 +37,9 @@ func CosmosToInternal[InternalAPIType, CosmosAPIType any](obj *CosmosAPIType) (*
 	case *Controller:
 		internalObj, err = CosmosToInternalController(cosmosObj)
 
+	case *Operation:
+		internalObj, err = CosmosToInternalOperation(cosmosObj)
+
 	default:
 		return nil, fmt.Errorf("unknown type %T", cosmosObj)
 	}
@@ -67,6 +70,9 @@ func InternalToCosmos[InternalAPIType, CosmosAPIType any](obj *InternalAPIType) 
 
 	case *api.Controller:
 		cosmosObj, err = InternalToCosmosController(internalObj)
+
+	case *api.Operation:
+		cosmosObj, err = InternalToCosmosOperation(internalObj)
 
 	default:
 		return nil, fmt.Errorf("unknown type %T", internalObj)
