@@ -21,7 +21,7 @@ environments:
     cxStamp: 1
 - name: pers
   description: |
-    Used for personal development and testing.
+    Used for personal development and testing. 
   defaults:
     region: westus3
     cloud: dev
