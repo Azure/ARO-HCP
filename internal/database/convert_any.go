@@ -34,6 +34,9 @@ func CosmosToInternal[InternalAPIType, CosmosAPIType any](obj *CosmosAPIType) (*
 	case *NodePool:
 		internalObj, err = CosmosToInternalNodePool(cosmosObj)
 
+	case *Controller:
+		internalObj, err = CosmosToInternalController(cosmosObj)
+
 	default:
 		return nil, fmt.Errorf("unknown type %T", cosmosObj)
 	}
@@ -61,6 +64,9 @@ func InternalToCosmos[InternalAPIType, CosmosAPIType any](obj *InternalAPIType) 
 
 	case *api.HCPOpenShiftClusterNodePool:
 		cosmosObj, err = InternalToCosmosNodePool(internalObj)
+
+	case *api.Controller:
+		cosmosObj, err = InternalToCosmosController(internalObj)
 
 	default:
 		return nil, fmt.Errorf("unknown type %T", internalObj)
