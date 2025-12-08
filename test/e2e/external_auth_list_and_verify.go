@@ -18,7 +18,9 @@ package e2e
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"net/http"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -26,9 +28,11 @@ import (
 
 	"k8s.io/apimachinery/pkg/util/rand"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 
+	"github.com/Azure/ARO-HCP/internal/api/arm"
 	hcpsdk "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
@@ -147,6 +151,12 @@ var _ = Describe("Customer", func() {
 				15*time.Minute,
 			)
 			Expect(err).To(HaveOccurred())
+
+			// validate the error is the one we expect
+			var respErr *azcore.ResponseError
+			Expect(errors.As(err, &respErr)).To(BeTrue())
+			Expect(respErr.StatusCode).To(Equal(http.StatusBadRequest))
+			Expect(respErr.ErrorCode).To(Equal(arm.CloudErrorCodeInvalidResource))
 
 			By("listing all external auth configs to verify a list call works")
 			externalAuthClient := tc.Get20240610ClientFactoryOrDie(ctx).NewExternalAuthsClient()

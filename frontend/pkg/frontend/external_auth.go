@@ -145,7 +145,7 @@ func (f *Frontend) CreateOrUpdateExternalAuth(writer http.ResponseWriter, reques
 
 	// This handles both PUT and PATCH requests. PATCH requests will
 	// never create a new resource. The only other notable difference
-	// is the target struct that request bodies are overlayed onto:
+	// is the target struct that request bodies are overlaid onto:
 	//
 	// PUT requests overlay the request body onto a default resource
 	// struct, which only has API-specified non-zero default values.
@@ -257,6 +257,21 @@ func (f *Frontend) createExternalAuth(writer http.ResponseWriter, request *http.
 	newInternalExternalAuth, err := decodeDesiredExternalAuthCreate(ctx)
 	if err != nil {
 		return utils.TrackError(err)
+	}
+
+	// Only one External Authentication resource can exist per cluster.
+	externalAuthIterator, err := f.dbClient.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).ExternalAuth(resourceID.Parent.Name).List(ctx, &database.DBClientListResourceDocsOptions{})
+	if err != nil {
+		return utils.TrackError(err)
+	}
+
+	eaCount := 0
+	for range externalAuthIterator.Items(ctx) {
+		eaCount++
+	}
+
+	if eaCount > 0 {
+		return arm.NewCloudError(http.StatusBadRequest, arm.CloudErrorCodeInvalidResource, resourceID.String(), "Only one External Authentication resource can be created")
 	}
 
 	validationErrs := validation.ValidateExternalAuthCreate(ctx, newInternalExternalAuth)
