@@ -26,6 +26,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -328,8 +329,16 @@ func getAzureConfigDir(ctx context.Context, logger logr.Logger) (string, error) 
 		return "", fmt.Errorf("failed to run az config get: %w", err)
 	}
 
-	// Trim whitespace and extract directory from the config file path
-	configFile := string(bytes.TrimSpace(output))
+	var configFile string
+	for _, line := range strings.Split(string(output), "\n") {
+		// This loop is done to filter out unwanted logs, i.e. warnings.
+		// could improve by using some regex, but az config with query allows for assumptions...
+		if strings.HasPrefix(line, "/") {
+			configFile = line
+			break
+		}
+	}
+
 	if configFile == "" {
 		return "", fmt.Errorf("no source path found in az config get output")
 	}
