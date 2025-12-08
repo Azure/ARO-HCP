@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package controllermutation
+package databasemutationhelpers
 
 import (
 	"context"
@@ -24,73 +24,60 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
-
-	"github.com/Azure/ARO-HCP/internal/api"
 )
 
-type listStep struct {
-	stepID stepID
-	key    ControllerCRUDKey
+type listStep[InternalAPIType any] struct {
+	stepID      stepID
+	key         CosmosCRUDKey
+	specializer ResourceCRUDTestSpecializer[InternalAPIType]
 
 	cosmosContainer     *azcosmos.ContainerClient
-	expectedControllers []*api.Controller
+	expectedControllers []*InternalAPIType
 }
 
-func newListStep(stepID stepID, cosmosContainer *azcosmos.ContainerClient, stepDir fs.FS) (*listStep, error) {
+func newListStep[InternalAPIType any](stepID stepID, specializer ResourceCRUDTestSpecializer[InternalAPIType], cosmosContainer *azcosmos.ContainerClient, stepDir fs.FS) (*listStep[InternalAPIType], error) {
 	keyBytes, err := fs.ReadFile(stepDir, "00-key.json")
 	if err != nil {
 		return nil, fmt.Errorf("failed to read key.json: %w", err)
 	}
-	var key ControllerCRUDKey
+	var key CosmosCRUDKey
 	if err := json.Unmarshal(keyBytes, &key); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal key.json: %w", err)
 	}
 
-	expectedControllers := []*api.Controller{}
-	testContent := api.Must(fs.ReadDir(stepDir, "."))
-	for _, dirEntry := range testContent {
-		if dirEntry.Name() == "00-key.json" {
-			continue
-		}
-
-		content, err := fs.ReadFile(stepDir, dirEntry.Name())
-		if err != nil {
-			return nil, fmt.Errorf("failed to read expected.json: %w", err)
-		}
-		var controller api.Controller
-		if err := json.Unmarshal(content, &controller); err != nil {
-			return nil, fmt.Errorf("failed to unmarshal instance.json: %w", err)
-		}
-		expectedControllers = append(expectedControllers, &controller)
+	expectedResources, err := readResourcesInDir[InternalAPIType](stepDir)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read resource in dir: %w", err)
 	}
 
-	return &listStep{
+	return &listStep[InternalAPIType]{
 		stepID:              stepID,
 		key:                 key,
+		specializer:         specializer,
 		cosmosContainer:     cosmosContainer,
-		expectedControllers: expectedControllers,
+		expectedControllers: expectedResources,
 	}, nil
 }
 
-var _ controllerMutationStep = &listStep{}
+var _ resourceMutationStep = &listStep[any]{}
 
-func (l *listStep) StepID() stepID {
+func (l *listStep[InternalAPIType]) StepID() stepID {
 	return l.stepID
 }
 
-func (l *listStep) RunTest(ctx context.Context, t *testing.T) {
-	controllerCRUDClient := controllerCRUDFromKey(t, l.cosmosContainer, l.key)
+func (l *listStep[InternalAPIType]) RunTest(ctx context.Context, t *testing.T) {
+	controllerCRUDClient := l.specializer.ResourceCRUDFromKey(t, l.cosmosContainer, l.key)
 	actualControllersIterator, err := controllerCRUDClient.List(ctx, nil)
 	require.NoError(t, err)
 
-	actualControllers := []*api.Controller{}
+	actualControllers := []*InternalAPIType{}
 	for _, actual := range actualControllersIterator.Items(ctx) {
 		actualControllers = append(actualControllers, actual)
 	}
 	require.NoError(t, actualControllersIterator.GetError())
 
 	if len(l.expectedControllers) != len(actualControllers) {
-		t.Logf("actual:\n%v", stringifyControllers(actualControllers))
+		t.Logf("actual:\n%v", stringifyResource(actualControllers))
 	}
 
 	require.Equal(t, len(l.expectedControllers), len(actualControllers), "unexpected number of controllers")
@@ -98,29 +85,29 @@ func (l *listStep) RunTest(ctx context.Context, t *testing.T) {
 	for _, expected := range l.expectedControllers {
 		found := false
 		for _, actual := range actualControllers {
-			if controllersEqual(expected, actual) {
+			if l.specializer.InstanceEquals(expected, actual) {
 				found = true
 				break
 			}
 		}
 		if !found {
-			t.Logf("actual:\n%v", stringifyControllers(actualControllers))
+			t.Logf("actual:\n%v", stringifyResource(actualControllers))
 		}
-		require.True(t, found, "expected controller not found: %v", expected.ControllerName)
+		require.True(t, found, "expected controller not found: %v", l.specializer.NameFromInstance(expected))
 	}
 
 	// all the actual must be expected
 	for _, actual := range actualControllers {
 		found := false
 		for _, expected := range l.expectedControllers {
-			if controllersEqual(expected, actual) {
+			if l.specializer.InstanceEquals(expected, actual) {
 				found = true
 				break
 			}
 		}
 		if !found {
-			t.Logf("expected:\n%v", stringifyControllers(l.expectedControllers))
+			t.Logf("expected:\n%v", stringifyResource(l.expectedControllers))
 		}
-		require.True(t, found, "actual controller not found: %v", actual.ControllerName)
+		require.True(t, found, "actual controller not found: %v", l.specializer.NameFromInstance(actual))
 	}
 }

@@ -19,13 +19,14 @@ import (
 	"io/fs"
 	"testing"
 
+	"github.com/Azure/ARO-HCP/frontend/test/simulate/databasemutationhelpers"
+	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 	"github.com/stretchr/testify/require"
 
-	"github.com/Azure/ARO-HCP/frontend/test/simulate/controllermutation"
 	"github.com/Azure/ARO-HCP/internal/api"
 )
 
-func TestControllerCRUD(t *testing.T) {
+func TestDatabaseCRUD(t *testing.T) {
 	SkipIfNotSimulationTesting(t)
 
 	ctx := context.Background()
@@ -36,50 +37,53 @@ func TestControllerCRUD(t *testing.T) {
 	require.NoError(t, err)
 	defer testInfo.Cleanup(context.Background())
 
-	//controllerCRUDClient := database.NewControllerCRUD(
-	//	testInfo.CosmosResourcesContainer(),
-	//	api.ClusterResourceType,
-	//	"subscriptionID",
-	//	"resourceGroupName",
-	//	"parentCluster")
-	//
-	//clusterResourceID := api.Must(azcorearm.ParseResourceID("/subscriptions/subscriptionID/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/parentCluster"))
-	//controllerName := "test-controller"
-	//controllerResourceID := api.Must(azcorearm.ParseResourceID(clusterResourceID.String() + "/" + api.ControllerResourceTypeName + "/" + controllerName))
-	//_, err = controllerCRUDClient.Create(ctx, &api.Controller{
-	//	CosmosUID:      "e29415cf-5bde-463e-802f-6c475131d67b",
-	//	ExternalID:     clusterResourceID,
-	//	ControllerName: "test-controller",
-	//	ResourceID:     controllerResourceID,
-	//	Status: api.ControllerStatus{
-	//		Conditions: []api.Condition{
-	//			{
-	//				Type:               "Degraded",
-	//				Status:             api.ConditionTrue,
-	//				LastTransitionTime: time.Now(),
-	//				Reason:             "UpdateFailed",
-	//				Message:            "Updating cosmos failed for some reason.",
-	//			},
-	//		},
-	//	},
-	//}, nil)
-	//require.NoError(t, err)
-	//
-	//return
-
-	controllerCRUDFS, err := fs.Sub(artifacts, "artifacts/ControllerCRUD")
+	allCRUDDirFS, err := fs.Sub(artifacts, "artifacts/DatabaseCRUD")
 	require.NoError(t, err)
 
-	dirContent := api.Must(fs.ReadDir(controllerCRUDFS, "."))
-	for _, dirEntry := range dirContent {
-		currTest, err := controllermutation.NewControllerMutationTest(
+	crudSuiteDirs := api.Must(fs.ReadDir(allCRUDDirFS, "."))
+	for _, crudSuiteDirEntry := range crudSuiteDirs {
+		crudSuiteDir := api.Must(fs.Sub(allCRUDDirFS, crudSuiteDirEntry.Name()))
+		switch crudSuiteDirEntry.Name() {
+		case "ControllerCRUD":
+			t.Run(crudSuiteDirEntry.Name(), func(t *testing.T) {
+				testCRUDSuite(
+					ctx,
+					t,
+					databasemutationhelpers.ControllerCRUDSpecializer{},
+					testInfo.CosmosResourcesContainer(),
+					crudSuiteDir)
+			})
+
+		case "OperationCRUD":
+			t.Run(crudSuiteDirEntry.Name(), func(t *testing.T) {
+				testCRUDSuite(
+					ctx,
+					t,
+					databasemutationhelpers.OperationCRUDSpecializer{},
+					testInfo.CosmosResourcesContainer(),
+					crudSuiteDir)
+			})
+
+		default:
+			t.Fatalf("unknown crud suite dir: %s", crudSuiteDirEntry.Name())
+		}
+	}
+}
+
+func testCRUDSuite[InternalAPIType any](ctx context.Context, t *testing.T, specializer databasemutationhelpers.ResourceCRUDTestSpecializer[InternalAPIType], cosmosContainer *azcosmos.ContainerClient, crudSuiteDir fs.FS) {
+	testDirs := api.Must(fs.ReadDir(crudSuiteDir, "."))
+	for _, testDirEntry := range testDirs {
+		testDir := api.Must(fs.Sub(crudSuiteDir, testDirEntry.Name()))
+
+		currTest, err := databasemutationhelpers.NewResourceMutationTest(
 			ctx,
-			testInfo.CosmosResourcesContainer(),
-			dirEntry.Name(),
-			api.Must(fs.Sub(controllerCRUDFS, dirEntry.Name())),
+			specializer,
+			cosmosContainer,
+			testDirEntry.Name(),
+			testDir,
 		)
 		require.NoError(t, err)
 
-		t.Run(dirEntry.Name(), currTest.RunTest)
+		t.Run(testDirEntry.Name(), currTest.RunTest)
 	}
 }

@@ -34,7 +34,8 @@ func CreateInitialCosmosContent(ctx context.Context, cosmosContainer *azcosmos.C
 
 	var err error
 	switch {
-	case strings.EqualFold(contentMap["resourceType"].(string), api.ClusterResourceType.String()),
+	case strings.EqualFold(contentMap["resourceType"].(string), api.OperationStatusResourceType.String()),
+		strings.EqualFold(contentMap["resourceType"].(string), api.ClusterResourceType.String()),
 		strings.EqualFold(contentMap["resourceType"].(string), api.NodePoolResourceType.String()),
 		strings.EqualFold(contentMap["resourceType"].(string), api.ExternalAuthResourceType.String()),
 		strings.EqualFold(contentMap["resourceType"].(string), api.ClusterControllerResourceType.String()),

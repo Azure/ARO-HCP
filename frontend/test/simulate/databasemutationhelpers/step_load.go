@@ -12,12 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package controllermutation
+package databasemutationhelpers
 
 import (
 	"context"
+	"fmt"
+	"io/fs"
 	"testing"
 
+	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/stretchr/testify/require"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
@@ -29,24 +32,44 @@ type loadStep struct {
 	stepID stepID
 
 	cosmosContainer *azcosmos.ContainerClient
-	content         []byte
+	contents        [][]byte
 }
 
-func newLoadStep(stepID stepID, cosmosContainer *azcosmos.ContainerClient, content []byte) *loadStep {
+func newLoadStep(stepID stepID, cosmosContainer *azcosmos.ContainerClient, stepDir fs.FS) (*loadStep, error) {
+
+	contents := [][]byte{}
+	testContent := api.Must(fs.ReadDir(stepDir, "."))
+	for _, dirEntry := range testContent {
+		if dirEntry.Name() == "00-key.json" { // standard filenames to skip
+			continue
+		}
+		if dirEntry.Name() == "expected-error.txt" { // standard filenames to skip
+			continue
+		}
+
+		currContent, err := fs.ReadFile(stepDir, dirEntry.Name())
+		if err != nil {
+			return nil, fmt.Errorf("failed to read expected.json: %w", err)
+		}
+		contents = append(contents, currContent)
+	}
+
 	return &loadStep{
 		stepID:          stepID,
 		cosmosContainer: cosmosContainer,
-		content:         content,
-	}
+		contents:        contents,
+	}, nil
 }
 
-var _ controllerMutationStep = &loadStep{}
+var _ resourceMutationStep = &loadStep{}
 
 func (l *loadStep) StepID() stepID {
 	return l.stepID
 }
 
 func (l *loadStep) RunTest(ctx context.Context, t *testing.T) {
-	err := integrationutils.CreateInitialCosmosContent(ctx, l.cosmosContainer, l.content)
-	require.NoError(t, err, "failed to load cosmos content")
+	for _, content := range l.contents {
+		err := integrationutils.CreateInitialCosmosContent(ctx, l.cosmosContainer, content)
+		require.NoError(t, err, "failed to load cosmos content")
+	}
 }

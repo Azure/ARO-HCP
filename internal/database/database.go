@@ -698,7 +698,7 @@ func (d *cosmosDBClient) HCPClusters(subscriptionID, resourceGroupName string) H
 	parentResourceID := api.Must(azcorearm.ParseResourceID(path.Join(parts...)))
 
 	return &hcpClusterCRUD{
-		nestedCosmosResourceCRUD: newNestedCosmosResourceCRUD[api.HCPOpenShiftCluster, HCPCluster](d.resources, parentResourceID, api.ClusterResourceType),
+		nestedCosmosResourceCRUD: NewCosmosResourceCRUD[api.HCPOpenShiftCluster, HCPCluster](d.resources, parentResourceID, api.ClusterResourceType),
 	}
 }
 

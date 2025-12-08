@@ -41,8 +41,18 @@ const (
 // in Cosmos DB. It omits the location segment from actual operation endpoints.
 var OperationResourceType = azcorearm.NewResourceType(api.ProviderNamespace, api.OperationStatusResourceTypeName)
 
+type OperationStatus struct {
+	TypedDocument `json:",inline"`
+
+	OperationProperties OperationDocument `json:"properties"`
+}
+
 // OperationDocument tracks an asynchronous operation.
 type OperationDocument struct {
+	// ResourceID must be serialized exactly here for the generic CRUD to work.
+	// ResourceID here is NOT an ARM resourceID, it just parses like and one and is guarantee unique
+	ResourceID *azcorearm.ResourceID `json:"resourceId"`
+
 	// TenantID is the tenant ID of the client that requested the operation
 	TenantID string `json:"tenantId,omitempty"`
 	// ClientID is the object ID of the client that requested the operation
