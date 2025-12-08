@@ -19,6 +19,7 @@ import (
 	"fmt"
 
 	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 // ResourceDocumentToInternalAPI is convenient for old code that uses ResourceDocument and needs to get to the internalAPI
@@ -26,19 +27,19 @@ import (
 func ResourceDocumentToInternalAPI[InternalAPIType, CosmosAPIType any](src *ResourceDocument) (*InternalAPIType, error) {
 	resourceDocumentJSON, err := json.Marshal(src)
 	if err != nil {
-		return nil, err
+		return nil, utils.TrackError(err)
 	}
 	fullDocument := &TypedDocument{
 		Properties: resourceDocumentJSON,
 	}
 	fullDocumentJSON, err := json.Marshal(fullDocument)
 	if err != nil {
-		return nil, err
+		return nil, utils.TrackError(err)
 	}
 
 	var cosmosObj CosmosAPIType
 	if err := json.Unmarshal(fullDocumentJSON, &cosmosObj); err != nil {
-		return nil, err
+		return nil, utils.TrackError(err)
 	}
 
 	return CosmosToInternal[InternalAPIType, CosmosAPIType](&cosmosObj)
@@ -62,7 +63,7 @@ func CosmosToInternal[InternalAPIType, CosmosAPIType any](obj *CosmosAPIType) (*
 	}
 
 	if err != nil {
-		return nil, err
+		return nil, utils.TrackError(err)
 	}
 	castInternalObj, ok := internalObj.(*InternalAPIType)
 	if !ok {
@@ -90,7 +91,7 @@ func InternalToCosmos[InternalAPIType, CosmosAPIType any](obj *InternalAPIType) 
 	}
 
 	if err != nil {
-		return nil, err
+		return nil, utils.TrackError(err)
 	}
 	castCosmosObj, ok := cosmosObj.(*CosmosAPIType)
 	if !ok {

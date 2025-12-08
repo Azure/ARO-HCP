@@ -16,16 +16,21 @@ package conversion
 
 import (
 	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
 
-func CopyReadOnlyExternalAuthValues(dest, src *api.HCPOpenShiftClusterExternalAuth) {
-	// the old code appeared to shallow copies only
-
+func CopyReadOnlyProxyResourceValues(dest, src *arm.ProxyResource) {
 	dest.ID = src.ID
 	dest.Name = src.Name
 	dest.Type = src.Type
 	dest.SystemData = src.SystemData
+}
+
+func CopyReadOnlyExternalAuthValues(dest, src *api.HCPOpenShiftClusterExternalAuth) {
+	// the old code appeared to shallow copies only
+	CopyReadOnlyProxyResourceValues(&dest.ProxyResource, &src.ProxyResource)
 
 	dest.Properties.ProvisioningState = src.Properties.ProvisioningState
 	dest.Properties.Condition = src.Properties.Condition
+	dest.ServiceProviderProperties = src.ServiceProviderProperties
 }

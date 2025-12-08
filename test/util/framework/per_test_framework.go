@@ -23,6 +23,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -37,6 +38,7 @@ import (
 	"sigs.k8s.io/yaml"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	armcompute "github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v5"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armsubscriptions"
 
@@ -53,6 +55,7 @@ type perItOrDescribeTestContext struct {
 	knownAppRegistrationIDs       []string
 	subscriptionID                string
 	clientFactory20240610         *hcpsdk20240610preview.ClientFactory
+	armComputeClientFactory       *armcompute.ClientFactory
 	armResourcesClientFactory     *armresources.ClientFactory
 	armSubscriptionsClientFactory *armsubscriptions.ClientFactory
 	graphClient                   *graphutil.Client
@@ -499,6 +502,10 @@ func (tc *perItOrDescribeTestContext) GetARMResourcesClientFactoryOrDie(ctx cont
 	return Must(tc.GetARMResourcesClientFactory(ctx))
 }
 
+func (tc *perItOrDescribeTestContext) GetARMComputeClientFactoryOrDie(ctx context.Context) *armcompute.ClientFactory {
+	return Must(tc.GetARMComputeClientFactory(ctx))
+}
+
 func (tc *perItOrDescribeTestContext) Get20240610ClientFactoryOrDie(ctx context.Context) *hcpsdk20240610preview.ClientFactory {
 	return Must(tc.Get20240610ClientFactory(ctx))
 }
@@ -549,6 +556,20 @@ func (tc *perItOrDescribeTestContext) GetARMResourcesClientFactory(ctx context.C
 	return tc.getARMResourcesClientFactoryUnlocked(ctx)
 }
 
+func (tc *perItOrDescribeTestContext) GetARMComputeClientFactory(ctx context.Context) (*armcompute.ClientFactory, error) {
+	tc.contextLock.RLock()
+	if tc.armComputeClientFactory != nil {
+		defer tc.contextLock.RUnlock()
+		return tc.armComputeClientFactory, nil
+	}
+	tc.contextLock.RUnlock()
+
+	tc.contextLock.Lock()
+	defer tc.contextLock.Unlock()
+
+	return tc.getARMComputeClientFactoryUnlocked(ctx)
+}
+
 func (tc *perItOrDescribeTestContext) getARMResourcesClientFactoryUnlocked(ctx context.Context) (*armresources.ClientFactory, error) {
 	if tc.armResourcesClientFactory != nil {
 		return tc.armResourcesClientFactory, nil
@@ -568,6 +589,28 @@ func (tc *perItOrDescribeTestContext) getARMResourcesClientFactoryUnlocked(ctx c
 	tc.armResourcesClientFactory = clientFactory
 
 	return tc.armResourcesClientFactory, nil
+}
+
+func (tc *perItOrDescribeTestContext) getARMComputeClientFactoryUnlocked(ctx context.Context) (*armcompute.ClientFactory, error) {
+	if tc.armComputeClientFactory != nil {
+		return tc.armComputeClientFactory, nil
+	}
+
+	creds, err := tc.perBinaryInvocationTestContext.getAzureCredentials()
+	if err != nil {
+		return nil, err
+	}
+	subscriptionID, err := tc.getSubscriptionIDUnlocked(ctx)
+	if err != nil {
+		return nil, err
+	}
+	clientFactory, err := armcompute.NewClientFactory(subscriptionID, creds, tc.perBinaryInvocationTestContext.getClientFactoryOptions())
+	if err != nil {
+		return nil, err
+	}
+	tc.armComputeClientFactory = clientFactory
+
+	return tc.armComputeClientFactory, nil
 }
 
 func (tc *perItOrDescribeTestContext) Get20240610ClientFactory(ctx context.Context) (*hcpsdk20240610preview.ClientFactory, error) {
@@ -647,6 +690,48 @@ func (tc *perItOrDescribeTestContext) getGraphClientUnlocked(ctx context.Context
 
 func (tc *perItOrDescribeTestContext) Location() string {
 	return tc.perBinaryInvocationTestContext.Location()
+}
+
+func (tc *perItOrDescribeTestContext) FindVirtualMachineSizeMatching(ctx context.Context, pattern *regexp.Regexp) (string, error) {
+	if pattern == nil {
+		return "", fmt.Errorf("pattern cannot be nil")
+	}
+
+	clientFactory, err := tc.GetARMComputeClientFactory(ctx)
+	if err != nil {
+		return "", fmt.Errorf("failed to get ARM compute client factory: %w", err)
+	}
+
+	location := tc.Location()
+	matches := make([]string, 0)
+
+	vmSizesClient := clientFactory.NewVirtualMachineSizesClient()
+	pager := vmSizesClient.NewListPager(location, nil)
+	for pager.More() {
+		page, err := pager.NextPage(ctx)
+		if err != nil {
+			return "", fmt.Errorf("failed to list VM sizes in %s: %w", location, err)
+		}
+		if page.Value == nil {
+			continue
+		}
+		for _, size := range page.Value {
+			if size.Name == nil {
+				continue
+			}
+			if pattern.MatchString(*size.Name) {
+				matches = append(matches, *size.Name)
+			}
+		}
+	}
+
+	if len(matches) == 0 {
+		return "", fmt.Errorf("no VM size matching %q found in %s", pattern.String(), location)
+	}
+
+	// Randomly select a VM size from the matches to avoid bias towards the first or last size in the list.
+	selected := matches[rand.Intn(len(matches))]
+	return selected, nil
 }
 
 func (tc *perItOrDescribeTestContext) TenantID() string {

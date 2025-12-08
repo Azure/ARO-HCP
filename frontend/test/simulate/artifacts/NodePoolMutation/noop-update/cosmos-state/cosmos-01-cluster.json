@@ -13,6 +13,7 @@
     "tags" : {
       "foo" : "bar"
     },
+    "provisioningState": "Succeeded",
     "customerDesiredState" : null,
     "serviceProviderState" : null
   }

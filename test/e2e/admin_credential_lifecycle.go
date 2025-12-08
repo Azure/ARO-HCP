@@ -16,7 +16,6 @@ package e2e
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"time"
 
@@ -26,9 +25,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/rand"
 	"k8s.io/client-go/rest"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
-
 	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
@@ -36,12 +32,12 @@ import (
 )
 
 var _ = Describe("Customer", func() {
-	BeforeEach(func() {
-		// do nothing.  per test initialization usually ages better than shared.
-	})
 
 	It("should be able to test admin credentials before cluster ready, then full admin credential lifecycle",
-		labels.RequireNothing, labels.High, labels.Positive,
+		labels.RequireNothing,
+		labels.High,
+		labels.Positive,
+		labels.AroRpApiCompatible,
 		func(ctx context.Context) {
 			clusterName := "admin-cred-lifecycle-" + rand.String(6)
 			tc := framework.NewTestContext()
@@ -50,50 +46,44 @@ var _ = Describe("Customer", func() {
 			resourceGroup, err := tc.NewResourceGroup(ctx, "admin-credential-lifecycle-test", tc.Location())
 			Expect(err).NotTo(HaveOccurred())
 
-			By("starting cluster-only template deployment asynchronously")
-			deploymentsClient := tc.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient()
+			By("creating cluster parameters")
+			clusterParams := framework.NewDefaultClusterParams()
+			clusterParams.ClusterName = clusterName
+			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
+			clusterParams.ManagedResourceGroupName = managedResourceGroupName
 
-			// Prepare the template and parameters
-			templateBytes := framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/cluster-only.json"))
-			bicepTemplateMap := map[string]interface{}{}
-			err = json.Unmarshal(templateBytes, &bicepTemplateMap)
+			By("creating customer resources")
+			clusterParams, err = tc.CreateClusterCustomerResources(ctx,
+				resourceGroup,
+				clusterParams,
+				map[string]any{
+					"persistTagValue": false,
+				},
+				TestArtifactsFS,
+			)
 			Expect(err).NotTo(HaveOccurred())
 
-			bicepParameters := map[string]interface{}{
-				"clusterName": map[string]interface{}{
-					"value": clusterName,
-				},
-			}
-
-			// Start deployment without waiting
-			// Apply 45-minute timeout for the entire cluster deployment process (matches all other tests)
-			// This timeout covers both the initial deployment call and the subsequent polling
+			By("starting HCP cluster creation asynchronously")
+			clusterClient := tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient()
 			timeout := 45 * time.Minute
 			deploymentCtx, deploymentCancel := context.WithTimeoutCause(ctx, timeout, fmt.Errorf("timeout '%f' minutes exceeded during admin credential lifecycle test", timeout.Minutes()))
 			defer deploymentCancel()
 
-			_, err = deploymentsClient.BeginCreateOrUpdate(
+			_, err = framework.BeginCreateHCPCluster(
 				deploymentCtx,
+				clusterClient,
 				*resourceGroup.Name,
-				"aro-hcp-cluster-only",
-				armresources.Deployment{
-					Properties: &armresources.DeploymentProperties{
-						Template:   bicepTemplateMap,
-						Parameters: bicepParameters,
-						Mode:       to.Ptr(armresources.DeploymentModeIncremental),
-					},
-				},
-				nil,
+				clusterName,
+				clusterParams,
+				tc.Location(),
 			)
 			Expect(err).NotTo(HaveOccurred())
 
 			By("waiting for cluster to appear and testing admin credentials while in deploying state")
-			clusterClient := tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient()
-
 			// Poll the cluster state and test admin credentials when we find it deploying
 			var testedWhileDeploying bool
 			Eventually(func() error {
-				cluster, getErr := clusterClient.Get(ctx, *resourceGroup.Name, clusterName, nil)
+				cluster, getErr := framework.GetHCPCluster(ctx, clusterClient, *resourceGroup.Name, clusterName)
 				if getErr != nil {
 					GinkgoWriter.Printf("Cluster not yet available: %v\n", getErr)
 					return getErr // Keep waiting for cluster to appear
@@ -145,7 +135,7 @@ var _ = Describe("Customer", func() {
 			}, 45*time.Minute, 30*time.Second).Should(Succeed(), "Cluster should become ready within 45 minutes")
 
 			By("verifying cluster is now ready for admin credential operations")
-			cluster, err := clusterClient.Get(ctx, *resourceGroup.Name, clusterName, nil)
+			cluster, err := framework.GetHCPCluster(ctx, clusterClient, *resourceGroup.Name, clusterName)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(cluster.HcpOpenShiftCluster.ID).NotTo(BeNil())
 
@@ -168,7 +158,7 @@ var _ = Describe("Customer", func() {
 			credentialCount := 3
 
 			By(fmt.Sprintf("creating %d admin credentials for the ready cluster", credentialCount))
-			for i := 0; i < credentialCount; i++ {
+			for i := range credentialCount {
 				By(fmt.Sprintf("requesting admin credential %d", i+1))
 				adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster(
 					ctx,
@@ -188,7 +178,7 @@ var _ = Describe("Customer", func() {
 				Expect(verifiers.VerifyHCPCluster(ctx, cred)).To(Succeed())
 			}
 
-			By("revoking all cluster admin credentials via ARM API")
+			By("revoking all cluster admin credentials via ARO HCP RP API")
 			poller, err := clusterClient.BeginRevokeCredentials(ctx, *resourceGroup.Name, clusterName, nil)
 			Expect(err).NotTo(HaveOccurred())
 

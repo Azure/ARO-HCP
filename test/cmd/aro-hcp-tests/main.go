@@ -47,7 +47,7 @@ func main() {
 			// TODO we will need per-env markers eventually, but it's ok to start here
 			fmt.Sprintf(`labels.exists(l, l=="%s")`, labels.RequireNothing[0]),
 		},
-		Parallelism: 20,
+		Parallelism: 10,
 	})
 
 	ext.AddSuite(e.Suite{
@@ -57,7 +57,7 @@ func main() {
 			// TODO we will need per-env markers eventually, but it's ok to start here
 			fmt.Sprintf(`labels.exists(l, l=="%s") && !labels.exists(l, l=="%s")`, labels.RequireNothing[0], labels.IntegrationOnly[0]),
 		},
-		Parallelism: 20,
+		Parallelism: 10,
 	})
 
 	ext.AddSuite(e.Suite{
@@ -67,7 +67,7 @@ func main() {
 			// TODO we will need per-env markers eventually, but it's ok to start here
 			fmt.Sprintf(`labels.exists(l, l=="%s") && !labels.exists(l, l=="%s")`, labels.RequireNothing[0], labels.IntegrationOnly[0]),
 		},
-		Parallelism: 20,
+		Parallelism: 10,
 	})
 
 	ext.AddSuite(e.Suite{
@@ -78,7 +78,7 @@ func main() {
 			// TODO: revisit labels to tweak which tests to select here
 			fmt.Sprintf(`labels.exists(l, l=="%s" ) && labels.exists(l, l=="%s")`, labels.AroRpApiCompatible[0], labels.Positive[0]),
 		},
-		Parallelism: 20,
+		Parallelism: 10,
 	})
 
 	ext.AddSuite(e.Suite{
@@ -89,7 +89,7 @@ func main() {
 			// them against ARO HCP dev instance via RP API endpoint).
 			fmt.Sprintf(`labels.exists(l, l=="%s")`, labels.AroRpApiCompatible[0]),
 		},
-		Parallelism: 20,
+		Parallelism: 10,
 	})
 
 	// If using Ginkgo, build test specs automatically
@@ -177,7 +177,7 @@ func main() {
 	if err := func() error {
 		return root.Execute()
 	}(); err != nil {
-		fmt.Println(err.Error())
+		fmt.Fprintln(os.Stderr, err.Error())
 		os.Exit(1)
 	}
 }
