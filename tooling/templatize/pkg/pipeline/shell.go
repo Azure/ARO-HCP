@@ -353,13 +353,11 @@ func getAzureConfigDir(ctx context.Context, logger logr.Logger) (string, error) 
 func configureAzureCLILogin(ctx context.Context, subscriptionID string) (string, error) {
 	logger := logr.FromContextOrDiscard(ctx)
 
-	// Create a temporary directory for the Azure CLI login
 	tmpDir, err := os.MkdirTemp("", "azure-cli-config-*")
 	if err != nil {
 		return "", fmt.Errorf("failed to create temporary directory: %w", err)
 	}
 
-	// Get azure cli config directory using az config get
 	azureConfigDir, err := getAzureConfigDir(ctx, logger)
 	if err != nil {
 		return "", fmt.Errorf("failed to get Azure CLI config directory: %w", err)
@@ -369,28 +367,23 @@ func configureAzureCLILogin(ctx context.Context, subscriptionID string) (string,
 		return azureConfigDir, nil
 	}
 
-	// Copy the config directory to the temporary directory
-	if err := os.CopyFS(azureConfigDir, os.DirFS(tmpDir)); err != nil {
+	if err := os.CopyFS(tmpDir, os.DirFS(azureConfigDir)); err != nil {
 		return "", fmt.Errorf("failed to copy Azure CLI config directory: %w", err)
 	}
 
-	// Set the AZURE_CONFIG_DIR environment variable to the temporary directory
-	// and run az config get to ensure the config is set correctly
 	env := os.Environ()
 	env = append(env, fmt.Sprintf("AZURE_CONFIG_DIR=%s", tmpDir))
 	cmd := exec.CommandContext(ctx, "az", "config", "get")
 	cmd.Env = env
 	if output, err := cmd.CombinedOutput(); err != nil {
 		logger.V(4).Info("az config get failed (may be expected if config is empty)", "output", string(output), "err", err)
-		// Don't fail here, as empty config is valid
 	}
 
-	// Run az account set --subscription $subscriptionID
 	cmd = exec.CommandContext(ctx, "az", "account", "set", "--subscription", subscriptionID)
+
 	cmd.Env = env
 	if output, err := cmd.CombinedOutput(); err != nil {
 		return "", fmt.Errorf("failed to set Azure subscription: %s %w", string(output), err)
 	}
-	// Return the temporary directory
 	return tmpDir, nil
 }
