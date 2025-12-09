@@ -253,8 +253,6 @@ func DeleteAllHCPClusters(
 	// deletion takes a while, it's worth it to do this in parallel
 	waitGroup, ctx := errgroup.WithContext(ctx)
 	for _, hcpClusterName := range hcpClusterNames {
-		// https://golang.org/doc/faq#closures_and_goroutines
-		hcpClusterName := hcpClusterName
 		waitGroup.Go(func() error {
 			// prevent a stray panic from exiting the process. Don't do this generally because ginkgo/gomega rely on panics to function.
 			utilruntime.HandleCrashWithContext(ctx)
