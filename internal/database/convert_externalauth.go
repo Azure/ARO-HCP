@@ -35,10 +35,9 @@ func InternalToCosmosExternalAuth(internalObj *api.HCPOpenShiftClusterExternalAu
 		},
 		ExternalAuthProperties: ExternalAuthProperties{
 			ResourceDocument: ResourceDocument{
-				ResourceID: internalObj.ID,
-				InternalID: internalObj.ServiceProviderProperties.ClusterServiceID,
-				// TODO
-				//ActiveOperationID: "",
+				ResourceID:        internalObj.ID,
+				InternalID:        internalObj.ServiceProviderProperties.ClusterServiceID,
+				ActiveOperationID: internalObj.ServiceProviderProperties.ActiveOperationID,
 				ProvisioningState: internalObj.Properties.ProvisioningState,
 				Identity:          nil,
 				SystemData:        internalObj.SystemData,
@@ -57,6 +56,7 @@ func InternalToCosmosExternalAuth(internalObj *api.HCPOpenShiftClusterExternalAu
 	cosmosObj.InternalState.InternalAPI.SystemData = nil
 	cosmosObj.InternalState.InternalAPI.ServiceProviderProperties.CosmosUID = ""
 	cosmosObj.InternalState.InternalAPI.ServiceProviderProperties.ClusterServiceID = ocm.InternalID{}
+	cosmosObj.InternalState.InternalAPI.ServiceProviderProperties.ActiveOperationID = ""
 
 	return cosmosObj, nil
 }
@@ -82,6 +82,7 @@ func CosmosToInternalExternalAuth(cosmosObj *ExternalAuth) (*api.HCPOpenShiftClu
 	internalObj.SystemData = cosmosObj.SystemData
 	internalObj.ServiceProviderProperties.CosmosUID = cosmosObj.ID
 	internalObj.ServiceProviderProperties.ClusterServiceID = cosmosObj.InternalID
+	internalObj.ServiceProviderProperties.ActiveOperationID = cosmosObj.ActiveOperationID
 
 	return internalObj, nil
 }

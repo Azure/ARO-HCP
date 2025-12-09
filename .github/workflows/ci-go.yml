@@ -23,12 +23,13 @@ jobs:
             - '**/go.work.sum'
             - '**/Makefile'
             - '**/.golangci.{yml,yaml}'
+            - '.github/workflows/ci-go.yml'
   test:
     needs: changes
     if: needs.changes.outputs.go == 'true'
     permissions:
-      id-token: 'write'
       contents: 'read'
+      id-token: 'write'
     runs-on: 'ubuntu-latest'
     steps:
     - name: "install azure-cli"

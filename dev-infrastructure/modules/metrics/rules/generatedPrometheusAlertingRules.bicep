@@ -40,7 +40,7 @@ Check the status of the Prometheus pods, service endpoints, and network connecti
         }
         expression: 'min by (job, namespace) (up{job="prometheus/prometheus",namespace="prometheus"}) == 0'
         for: 'PT5M'
-        severity: 2
+        severity: 3
       }
       {
         actions: [
@@ -72,7 +72,7 @@ Please check the status of the Prometheus pods, service endpoints, and network c
         }
         expression: 'avg by (job, namespace) (avg_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d])) < 0.95'
         for: 'PT10M'
-        severity: 2
+        severity: 3
       }
       {
         actions: [
@@ -108,7 +108,7 @@ Investigate the health and performance of the remote storage endpoint, network l
         }
         expression: '( prometheus_remote_storage_samples_pending / prometheus_remote_storage_samples_in_flight ) > 0.4'
         for: 'PT15M'
-        severity: 2
+        severity: 3
       }
       {
         actions: [
@@ -144,7 +144,7 @@ Please check the health and performance of the remote storage endpoint, network 
         }
         expression: '( rate(prometheus_remote_storage_samples_failed_total[5m]) / rate(prometheus_remote_storage_samples_total[5m]) ) > 0.1'
         for: 'PT15M'
-        severity: 2
+        severity: 3
       }
     ]
     scopes: [
@@ -183,7 +183,7 @@ resource prometheusRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-0
         }
         expression: '((rate(prometheus_remote_storage_failed_samples_total{job="prometheus-prometheus",namespace="prometheus"}[5m]) or rate(prometheus_remote_storage_samples_failed_total{job="prometheus-prometheus",namespace="prometheus"}[5m])) / ((rate(prometheus_remote_storage_failed_samples_total{job="prometheus-prometheus",namespace="prometheus"}[5m]) or rate(prometheus_remote_storage_samples_failed_total{job="prometheus-prometheus",namespace="prometheus"}[5m])) + (rate(prometheus_remote_storage_succeeded_samples_total{job="prometheus-prometheus",namespace="prometheus"}[5m]) or rate(prometheus_remote_storage_samples_total{job="prometheus-prometheus",namespace="prometheus"}[5m])))) * 100 > 1'
         for: 'PT15M'
-        severity: 2
+        severity: 3
       }
       {
         actions: [
@@ -235,7 +235,7 @@ resource prometheusRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-0
         }
         expression: 'max_over_time(prometheus_config_last_reload_successful{job="prometheus-prometheus",namespace="prometheus"}[5m]) == 0'
         for: 'PT10M'
-        severity: 2
+        severity: 3
       }
       {
         actions: [
@@ -261,7 +261,7 @@ resource prometheusRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-0
         }
         expression: 'increase(prometheus_rule_evaluation_failures_total{job="prometheus-prometheus",namespace="prometheus"}[5m]) > 0'
         for: 'PT15M'
-        severity: 2
+        severity: 3
       }
       {
         actions: [
@@ -540,7 +540,7 @@ Check the status of the Arobit forwarder pods, service endpoints, and network co
         }
         expression: 'min by (job, namespace) (up{job="arobit-forwarder",namespace="arobit"}) == 0'
         for: 'PT15M'
-        severity: 2
+        severity: 3
       }
     ]
     scopes: [

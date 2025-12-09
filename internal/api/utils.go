@@ -26,6 +26,7 @@ import (
 	jsonpatch "github.com/evanphx/json-patch"
 
 	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 const (
@@ -183,7 +184,7 @@ func MergeStringPtrMap(src map[string]*string, dst *map[string]string) {
 // If the request method is PATCH, the request body is applied to v using JSON
 // Merge Patch (RFC 7396) semantics. Otherwise the request body is unmarshalled
 // directly to v.
-func ApplyRequestBody(requestMethod string, body []byte, v any) *arm.CloudError {
+func ApplyRequestBody(requestMethod string, body []byte, v any) error {
 	rv := reflect.ValueOf(v)
 	if rv.Kind() != reflect.Pointer || rv.IsNil() {
 		return arm.NewInvalidRequestContentError(&json.InvalidUnmarshalError{Type: rv.Type()})
@@ -193,12 +194,12 @@ func ApplyRequestBody(requestMethod string, body []byte, v any) *arm.CloudError 
 	case http.MethodPatch:
 		originalData, err := json.Marshal(v)
 		if err != nil {
-			return arm.NewInternalServerError()
+			return utils.TrackError(err)
 		}
 
 		modifiedData, err := jsonpatch.MergePatch(originalData, body)
 		if err != nil {
-			return arm.NewInvalidRequestContentError(err)
+			return utils.TrackError(err)
 		}
 
 		// Reset *v to its zero value.
@@ -235,7 +236,7 @@ func ApplyRequestBody(requestMethod string, body []byte, v any) *arm.CloudError 
 
 		err = mergo.Merge(v, src, mergo.WithOverride)
 		if err != nil {
-			return arm.NewInternalServerError()
+			return utils.TrackError(err)
 		}
 	}
 

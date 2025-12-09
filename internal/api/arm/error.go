@@ -188,6 +188,9 @@ func WriteError(w http.ResponseWriter, statusCode int, code, target, format stri
 
 // WriteCloudError writes a CloudError to the given ResponseWriter
 func WriteCloudError(w http.ResponseWriter, err *CloudError) {
+	if err.Code == CloudErrorCodeServiceUnavailable {
+		w.Header().Set("Retry-After", "59") // never choose a round number
+	}
 	w.Header()[HeaderNameErrorCode] = []string{err.Code}
 	_, _ = WriteJSONResponse(w, err.StatusCode, err)
 }

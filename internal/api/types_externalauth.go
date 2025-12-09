@@ -57,8 +57,9 @@ type HCPOpenShiftClusterExternalAuthProperties struct {
 }
 
 type HCPOpenShiftClusterExternalAuthServiceProviderProperties struct {
-	CosmosUID        string     `json:"cosmosUID,omitempty"`
-	ClusterServiceID InternalID `json:"clusterServiceID,omitempty"`
+	CosmosUID         string     `json:"cosmosUID,omitempty"`
+	ClusterServiceID  InternalID `json:"clusterServiceID,omitempty"`
+	ActiveOperationID string     `json:"activeOperationId,omitempty"`
 }
 
 // Condition defines an observation of the external auth state.
