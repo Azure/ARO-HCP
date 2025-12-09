@@ -1124,12 +1124,6 @@ clouds:
             cosmosDB:
               private: false
               zoneRedundantMode: 'Disabled'
-          hypershift:
-            additionalInstallArg: '--enable-cpo-overrides=true'
-            image:
-              registry: quay.io
-              repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
-              digest: sha256:2b33a38c788fd8cbc16c1f353d417bee4646140dbfbfaa847b4d81941c601c36 # 046886e (2025-12-04 03:04)
       ntly:
         # this is an environment to test the deployability of infra nightly
         defaults:
@@ -1259,12 +1253,6 @@ clouds:
             tracing:
               address: "http://ingest.observability:4318"
               exporter: "otlp"
-          hypershift:
-            additionalInstallArg: '--enable-cpo-overrides=true'
-            image:
-              registry: quay.io
-              repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
-              digest: sha256:2b33a38c788fd8cbc16c1f353d417bee4646140dbfbfaa847b4d81941c601c36 # 046886e (2025-12-04 03:04)
           # MC
           mgmt:
             rg: "hcp-underlay-{{ .ctx.environment }}-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}"
@@ -1418,12 +1406,6 @@ clouds:
             tracing:
               address: "http://ingest.observability:4318"
               exporter: "otlp"
-          hypershift:
-            additionalInstallArg: '--enable-cpo-overrides=true'
-            image:
-              registry: quay.io
-              repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
-              digest: sha256:2b33a38c788fd8cbc16c1f353d417bee4646140dbfbfaa847b4d81941c601c36 # 046886e (2025-12-04 03:04)
           # MC
           mgmt:
             rg: "hcp-underlay-{{ .ctx.environment }}-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}"
