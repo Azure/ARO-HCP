@@ -17,11 +17,7 @@ package frontend
 import (
 	"context"
 	"fmt"
-	"log/slog"
 
-	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
-
-	"github.com/Azure/ARO-HCP/frontend/pkg/util"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
@@ -47,14 +43,10 @@ func (c contextKey) String() string {
 		return "originalPath"
 	case contextKeyBody:
 		return "body"
-	case contextKeyLogger:
-		return "logger"
 	case contextKeyVersion:
 		return "version"
 	case contextKeyDBClient:
 		return "dbClient"
-	case contextKeyResourceID:
-		return "resourceID"
 	case contextKeyCorrelationData:
 		return "correlationData"
 	case contextKeySystemData:
@@ -72,7 +64,6 @@ const (
 	contextKeyLogger
 	contextKeyVersion
 	contextKeyDBClient
-	contextKeyResourceID
 	contextKeyCorrelationData
 	contextKeySystemData
 	contextKeyPattern
@@ -110,25 +101,6 @@ func BodyFromContext(ctx context.Context) ([]byte, error) {
 	return body, nil
 }
 
-func ContextWithLogger(ctx context.Context, logger *slog.Logger) context.Context {
-	return context.WithValue(ctx, contextKeyLogger, logger)
-}
-
-func LoggerFromContext(ctx context.Context) *slog.Logger {
-	logger, ok := ctx.Value(contextKeyLogger).(*slog.Logger)
-	if !ok {
-		err := &ContextError{
-			got: logger,
-			key: contextKeyLogger,
-		}
-		// Return the default logger as a fail-safe, but log
-		// the failure to obtain the logger from the context.
-		logger = util.DefaultLogger()
-		logger.Error(err.Error())
-	}
-	return logger
-}
-
 func ContextWithVersion(ctx context.Context, version api.Version) context.Context {
 	return context.WithValue(ctx, contextKeyVersion, version)
 }
@@ -143,22 +115,6 @@ func VersionFromContext(ctx context.Context) (api.Version, error) {
 		return version, err
 	}
 	return version, nil
-}
-
-func ContextWithResourceID(ctx context.Context, resourceID *azcorearm.ResourceID) context.Context {
-	return context.WithValue(ctx, contextKeyResourceID, resourceID)
-}
-
-func ResourceIDFromContext(ctx context.Context) (*azcorearm.ResourceID, error) {
-	resourceID, ok := ctx.Value(contextKeyResourceID).(*azcorearm.ResourceID)
-	if !ok {
-		err := &ContextError{
-			got: resourceID,
-			key: contextKeyResourceID,
-		}
-		return resourceID, err
-	}
-	return resourceID, nil
 }
 
 func ContextWithCorrelationData(ctx context.Context, correlationData *arm.CorrelationData) context.Context {

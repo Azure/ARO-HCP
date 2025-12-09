@@ -27,6 +27,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 // ReqPathModifier is an alias to a function that receives a request
@@ -106,7 +107,7 @@ func TestMiddlewareLoggingPostMux(t *testing.T) {
 				logger = slog.New(slog.NewTextHandler(&buf, nil))
 			)
 
-			ctx := ContextWithLogger(context.Background(), logger)
+			ctx := utils.ContextWithLogger(context.Background(), logger)
 			ctx, sr := initSpanRecorder(ctx)
 			req, err := http.NewRequestWithContext(ctx, "GET", "http://example.com"+tt.requestURL, nil)
 			assert.NoError(t, err)
@@ -115,7 +116,7 @@ func TestMiddlewareLoggingPostMux(t *testing.T) {
 			}
 
 			next := func(w http.ResponseWriter, r *http.Request) {
-				logger := LoggerFromContext(r.Context())
+				logger := utils.LoggerFromContext(r.Context())
 				// Emit a log message to check that it includes the expected attributes.
 				logger.Info("test")
 				w.WriteHeader(http.StatusOK)

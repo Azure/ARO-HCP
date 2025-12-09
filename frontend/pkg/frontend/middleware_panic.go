@@ -21,6 +21,7 @@ import (
 	"testing"
 
 	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 func MiddlewarePanic(w http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
@@ -28,7 +29,7 @@ func MiddlewarePanic(w http.ResponseWriter, r *http.Request, next http.HandlerFu
 	if !testing.Testing() {
 		defer func() {
 			if e := recover(); e != nil {
-				logger := LoggerFromContext(r.Context())
+				logger := utils.LoggerFromContext(r.Context())
 				logger.Error(fmt.Sprintf("panic: %#v\n%s\n", e, string(debug.Stack())))
 				arm.WriteInternalServerError(w)
 			}

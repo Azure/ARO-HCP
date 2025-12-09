@@ -260,7 +260,7 @@ func (f *Frontend) DeleteResource(ctx context.Context, transaction database.DBTr
 	const operationRequest = database.OperationRequestDelete
 	var err error
 
-	logger := LoggerFromContext(ctx)
+	logger := utils.LoggerFromContext(ctx)
 
 	correlationData, err := CorrelationDataFromContext(ctx)
 	if err != nil {

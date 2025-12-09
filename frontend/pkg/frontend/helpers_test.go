@@ -29,6 +29,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/mocks"
+	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 func TestCheckForProvisioningStateConflict(t *testing.T) {
@@ -106,7 +107,7 @@ func TestCheckForProvisioningStateConflict(t *testing.T) {
 		for provisioningState := range arm.ListProvisioningStates() {
 			name = fmt.Sprintf("%s (provisioningState=%s)", tt.name, provisioningState)
 			t.Run(name, func(t *testing.T) {
-				ctx := ContextWithLogger(context.Background(), api.NewTestLogger())
+				ctx := utils.ContextWithLogger(context.Background(), api.NewTestLogger())
 				ctrl := gomock.NewController(t)
 				mockDBClient := mocks.NewMockDBClient(ctrl)
 
@@ -145,7 +146,7 @@ func TestCheckForProvisioningStateConflict(t *testing.T) {
 			for provisioningState := range arm.ListProvisioningStates() {
 				name = fmt.Sprintf("%s (parent provisioningState=%s)", tt.name, provisioningState)
 				t.Run(name, func(t *testing.T) {
-					ctx := ContextWithLogger(context.Background(), api.NewTestLogger())
+					ctx := utils.ContextWithLogger(context.Background(), api.NewTestLogger())
 					ctrl := gomock.NewController(t)
 					mockDBClient := mocks.NewMockDBClient(ctrl)
 

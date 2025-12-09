@@ -84,14 +84,14 @@ func NewFrontend(
 			ErrorLog: slog.NewLogLogger(logger.Handler(), slog.LevelError),
 			BaseContext: func(net.Listener) context.Context {
 				ctx := context.Background()
-				ctx = ContextWithLogger(ctx, logger)
+				ctx = utils.ContextWithLogger(ctx, logger)
 				return ctx
 			},
 		},
 		metricsServer: http.Server{
 			ErrorLog: slog.NewLogLogger(logger.Handler(), slog.LevelError),
 			BaseContext: func(net.Listener) context.Context {
-				return ContextWithLogger(context.Background(), logger)
+				return utils.ContextWithLogger(context.Background(), logger)
 			},
 		},
 		auditClient: auditClient,
@@ -115,7 +115,7 @@ func NewFrontend(
 
 func (f *Frontend) Run(ctx context.Context, stop <-chan struct{}) {
 	// This just digs up the logger passed to NewFrontend.
-	logger := LoggerFromContext(f.server.BaseContext(f.listener))
+	logger := utils.LoggerFromContext(f.server.BaseContext(f.listener))
 
 	if stop != nil {
 		go func() {
@@ -245,7 +245,7 @@ func (f *Frontend) GetOpenshiftVersions(writer http.ResponseWriter, request *htt
 	if err != nil {
 		return utils.TrackError(err)
 	}
-	resourceID, err := ResourceIDFromContext(ctx)
+	resourceID, err := utils.ResourceIDFromContext(ctx)
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -276,7 +276,7 @@ func (f *Frontend) ArmResourceDelete(writer http.ResponseWriter, request *http.R
 
 	ctx := request.Context()
 
-	resourceID, err := ResourceIDFromContext(ctx)
+	resourceID, err := utils.ResourceIDFromContext(ctx)
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -332,7 +332,7 @@ func (f *Frontend) ArmResourceActionRequestAdminCredential(writer http.ResponseW
 
 	ctx := request.Context()
 
-	resourceID, err := ResourceIDFromContext(ctx)
+	resourceID, err := utils.ResourceIDFromContext(ctx)
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -408,7 +408,7 @@ func (f *Frontend) ArmResourceActionRevokeCredentials(writer http.ResponseWriter
 
 	ctx := request.Context()
 
-	resourceID, err := ResourceIDFromContext(ctx)
+	resourceID, err := utils.ResourceIDFromContext(ctx)
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -487,7 +487,7 @@ func (f *Frontend) ArmResourceActionRevokeCredentials(writer http.ResponseWriter
 func (f *Frontend) ArmSubscriptionGet(writer http.ResponseWriter, request *http.Request) error {
 	ctx := request.Context()
 
-	resourceID, err := ResourceIDFromContext(ctx)
+	resourceID, err := utils.ResourceIDFromContext(ctx)
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -511,7 +511,7 @@ func (f *Frontend) ArmSubscriptionGet(writer http.ResponseWriter, request *http.
 
 func (f *Frontend) ArmSubscriptionPut(writer http.ResponseWriter, request *http.Request) error {
 	ctx := request.Context()
-	logger := LoggerFromContext(ctx)
+	logger := utils.LoggerFromContext(ctx)
 
 	body, err := BodyFromContext(ctx)
 	if err != nil {
@@ -578,7 +578,7 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 	var resourceGroup = request.PathValue(PathSegmentResourceGroupName)
 
 	ctx := request.Context()
-	logger := LoggerFromContext(ctx)
+	logger := utils.LoggerFromContext(ctx)
 
 	body, err := BodyFromContext(ctx)
 	if err != nil {
@@ -749,7 +749,7 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 func (f *Frontend) OperationStatus(writer http.ResponseWriter, request *http.Request) error {
 	ctx := request.Context()
 
-	resourceID, err := ResourceIDFromContext(ctx)
+	resourceID, err := utils.ResourceIDFromContext(ctx)
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -833,7 +833,7 @@ func (f *Frontend) OperationResult(writer http.ResponseWriter, request *http.Req
 		return utils.TrackError(err)
 	}
 
-	resourceID, err := ResourceIDFromContext(ctx)
+	resourceID, err := utils.ResourceIDFromContext(ctx)
 	if err != nil {
 		return utils.TrackError(err)
 	}
