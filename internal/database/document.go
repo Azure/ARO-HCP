@@ -14,8 +14,6 @@
 
 package database
 
-import azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
-
 // DocumentProperties is an interface for types that can serve as
 // TypedDocument.Properties.
 type DocumentProperties interface {
@@ -27,6 +25,4 @@ type DocumentProperties interface {
 type ResourceProperties interface {
 	ValidateResourceType() error
 	GetTypedDocument() *TypedDocument
-	// SetResourceID allows setting a value, but panics if it is not matching (case-insensitive)
-	SetResourceID(*azcorearm.ResourceID)
 }
