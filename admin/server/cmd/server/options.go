@@ -34,6 +34,7 @@ import (
 	sdk "github.com/openshift-online/ocm-sdk-go"
 
 	"github.com/Azure/ARO-HCP/admin/server/handlers"
+	"github.com/Azure/ARO-HCP/admin/server/handlers/cosmosdump"
 	"github.com/Azure/ARO-HCP/admin/server/handlers/hcp"
 	"github.com/Azure/ARO-HCP/admin/server/interrupts"
 	"github.com/Azure/ARO-HCP/admin/server/middleware"
@@ -216,6 +217,7 @@ func (opts *Options) Run(ctx context.Context) error {
 	// Submux for V1 HCP endpoints
 	v1HCPMux := middleware.NewHCPResourceServerMux()
 	v1HCPMux.Handle("GET", "/helloworld", hcp.HCPHelloWorld(opts.DbClient, opts.ClustersServiceClient, opts.FpaCredentialRetriever))
+	v1HCPMux.Handle("GET", "/cosmosdump", cosmosdump.NewCosmosDumpHandler(opts.DbClient))
 
 	rootMux := http.NewServeMux()
 	rootMux.Handle("/admin/helloworld", handlers.HelloWorldHandler())
