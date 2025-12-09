@@ -26,3 +26,7 @@ type ResourceProperties interface {
 	ValidateResourceType() error
 	GetTypedDocument() *TypedDocument
 }
+
+type TypedDocumentAccessor interface {
+	GetTypedDocument() *TypedDocument
+}

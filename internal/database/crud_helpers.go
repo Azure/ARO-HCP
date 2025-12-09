@@ -90,7 +90,7 @@ func get[InternalAPIType, CosmosAPIType any](ctx context.Context, containerClien
 	return internalObj, nil
 }
 
-func list[InternalAPIType, CosmosAPIType any](ctx context.Context, containerClient *azcosmos.ContainerClient, resourceType azcorearm.ResourceType, prefix *azcorearm.ResourceID, options *DBClientListResourceDocsOptions) (DBClientIterator[InternalAPIType], error) {
+func list[InternalAPIType, CosmosAPIType any](ctx context.Context, containerClient *azcosmos.ContainerClient, resourceType *azcorearm.ResourceType, prefix *azcorearm.ResourceID, options *DBClientListResourceDocsOptions) (DBClientIterator[InternalAPIType], error) {
 	pk := NewPartitionKey(prefix.SubscriptionID)
 
 	query := "SELECT * FROM c WHERE STARTSWITH(c.properties.resourceId, @prefix, true)"
@@ -105,12 +105,14 @@ func list[InternalAPIType, CosmosAPIType any](ctx context.Context, containerClie
 		},
 	}
 
-	query += " AND STRINGEQUALS(c.resourceType, @resourceType, true)"
-	queryParameter := azcosmos.QueryParameter{
-		Name:  "@resourceType",
-		Value: resourceType.String(),
+	if resourceType != nil {
+		query += " AND STRINGEQUALS(c.resourceType, @resourceType, true)"
+		queryParameter := azcosmos.QueryParameter{
+			Name:  "@resourceType",
+			Value: resourceType.String(),
+		}
+		queryOptions.QueryParameters = append(queryOptions.QueryParameters, queryParameter)
 	}
-	queryOptions.QueryParameters = append(queryOptions.QueryParameters, queryParameter)
 
 	if options != nil {
 		// XXX The Cosmos DB REST API gives special meaning to -1 for "x-ms-max-item-count"

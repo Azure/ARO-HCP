@@ -18,106 +18,82 @@ import (
 	"context"
 	"fmt"
 	"path"
+	"strings"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
 	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
-type ResourceCRUD[InternalAPIType any] interface {
-	Get(ctx context.Context, resourceID string) (*InternalAPIType, error)
-	List(ctx context.Context, opts *DBClientListResourceDocsOptions) (DBClientIterator[InternalAPIType], error)
-	Create(ctx context.Context, newObj *InternalAPIType, options *azcosmos.ItemOptions) (*InternalAPIType, error)
-	Replace(ctx context.Context, newObj *InternalAPIType, options *azcosmos.ItemOptions) (*InternalAPIType, error)
+type UntypedResourceCRUD interface {
+	Get(ctx context.Context, resourceID *azcorearm.ResourceID) (*TypedDocument, error)
+	// ListRecursive returns back every descendent from the parent.  For instance, if you ListRecursive on a cluster,
+	// you will get the controllers for the cluster, the nodepools, the controllers for each nodepool, the external auths,
+	// the controllers for the external auths, etc.
+	ListRecursive(ctx context.Context, opts *DBClientListResourceDocsOptions) (DBClientIterator[TypedDocument], error)
 
-	AddCreateToTransaction(ctx context.Context, transaction DBTransaction, newObj *InternalAPIType, opts *azcosmos.TransactionalBatchItemOptions) (string, error)
+	Child(resourceType azcorearm.ResourceType, resourceName string) (UntypedResourceCRUD, error)
 }
 
-type nestedCosmosResourceCRUD[InternalAPIType, CosmosAPIType any] struct {
+type untypedCRUD struct {
 	containerClient *azcosmos.ContainerClient
 
 	// parentResourceID is relative to the storage we're using.  it can be as high as a subscription and as low as we go.
 	// resources directly under a subscription or resourcegroup are handled a little specially when computing a resourceIDPath.
-	parentResourceID *azcorearm.ResourceID
-	resourceType     azcorearm.ResourceType
+	parentResourceID azcorearm.ResourceID
 }
 
-var _ ResourceCRUD[api.HCPOpenShiftClusterNodePool] = &nestedCosmosResourceCRUD[api.HCPOpenShiftClusterNodePool, NodePool]{}
+var _ UntypedResourceCRUD = &untypedCRUD{}
 
-func newNestedCosmosResourceCRUD[InternalAPIType, CosmosAPIType any](
-	containerClient *azcosmos.ContainerClient, parentResourceID *azcorearm.ResourceID, resourceType azcorearm.ResourceType) *nestedCosmosResourceCRUD[InternalAPIType, CosmosAPIType] {
-
-	ret := &nestedCosmosResourceCRUD[InternalAPIType, CosmosAPIType]{
+func NewUntypedCRUD(containerClient *azcosmos.ContainerClient, parentResourceID azcorearm.ResourceID) UntypedResourceCRUD {
+	ret := &untypedCRUD{
 		containerClient:  containerClient,
 		parentResourceID: parentResourceID,
-		resourceType:     resourceType,
 	}
 
 	return ret
 }
 
-func (d *nestedCosmosResourceCRUD[InternalAPIType, CosmosAPIType]) makeResourceIDPath(resourceID string) (*azcorearm.ResourceID, error) {
-	if len(d.parentResourceID.SubscriptionID) == 0 {
-		return nil, fmt.Errorf("subscriptionID is required")
+func (d *untypedCRUD) Get(ctx context.Context, resourceID *azcorearm.ResourceID) (*TypedDocument, error) {
+	if !strings.HasPrefix(resourceID.String(), d.parentResourceID.String()) {
+		return nil, fmt.Errorf("resourceID %q must be a descendent of parentResourceID %q", resourceID.String(), d.parentResourceID.String())
 	}
+
+	return get[TypedDocument, TypedDocument](ctx, d.containerClient, resourceID)
+}
+
+func (d *untypedCRUD) ListRecursive(ctx context.Context, options *DBClientListResourceDocsOptions) (DBClientIterator[TypedDocument], error) {
+	return list[TypedDocument, TypedDocument](ctx, d.containerClient, nil, &d.parentResourceID, options)
+}
+
+func (d *untypedCRUD) Child(resourceType azcorearm.ResourceType, resourceName string) (UntypedResourceCRUD, error) {
+	if len(resourceName) == 0 {
+		return nil, fmt.Errorf("resourceName is required")
+	}
+
 	parts := []string{d.parentResourceID.String()}
 
-	if d.parentResourceID.ResourceType.Namespace != api.ProviderNamespace {
-		if len(resourceID) == 0 {
-			// in this case, adding the actual provider type results in an illegal resourceID
-			// for instance /subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters does not parse
-			resourcePathString := path.Join(parts...)
-			return azcorearm.ParseResourceID(resourcePathString)
-		}
-
+	switch {
+	case strings.EqualFold(resourceType.Type, "resourcegroups"):
+		// no provider needed here.
+	case resourceType.Namespace == api.ProviderNamespace && d.parentResourceID.ResourceType.Namespace != api.ProviderNamespace:
 		parts = append(parts,
 			"providers",
-			d.resourceType.Namespace,
+			resourceType.Namespace,
 		)
-
-	} else {
-		// for non-top level resources, we must have a resourceGroup
-		if len(d.parentResourceID.ResourceGroupName) == 0 {
-			return nil, fmt.Errorf("resourceGroup is required")
-		}
+	case resourceType.Namespace != api.ProviderNamespace && d.parentResourceID.ResourceType.Namespace == api.ProviderNamespace:
+		return nil, fmt.Errorf("cannot switch to a non-RH provider: %q", resourceType.Namespace)
 	}
-	parts = append(parts, d.resourceType.Types[len(d.resourceType.Types)-1])
-
-	if len(resourceID) > 0 {
-		parts = append(parts, resourceID)
-	}
+	parts = append(parts, resourceType.Types[len(resourceType.Types)-1])
+	parts = append(parts, resourceName)
 
 	resourcePathString := path.Join(parts...)
-	return azcorearm.ParseResourceID(resourcePathString)
-}
-
-func (d *nestedCosmosResourceCRUD[InternalAPIType, CosmosAPIType]) Get(ctx context.Context, resourceID string) (*InternalAPIType, error) {
-	completeResourceID, err := d.makeResourceIDPath(resourceID)
+	newParentResourceID, err := azcorearm.ParseResourceID(resourcePathString)
 	if err != nil {
-		return nil, fmt.Errorf("failed to make ResourceID path for '%s': %w", resourceID, err)
+		return nil, utils.TrackError(err)
 	}
 
-	return get[InternalAPIType, CosmosAPIType](ctx, d.containerClient, completeResourceID)
-}
-
-func (d *nestedCosmosResourceCRUD[InternalAPIType, CosmosAPIType]) List(ctx context.Context, options *DBClientListResourceDocsOptions) (DBClientIterator[InternalAPIType], error) {
-	prefix, err := d.makeResourceIDPath("")
-	if err != nil {
-		return nil, fmt.Errorf("failed to make ResourceID path for '%s': %w", d.parentResourceID.ResourceGroupName, err)
-	}
-
-	return list[InternalAPIType, CosmosAPIType](ctx, d.containerClient, d.resourceType, prefix, options)
-}
-
-func (d *nestedCosmosResourceCRUD[InternalAPIType, CosmosAPIType]) AddCreateToTransaction(ctx context.Context, transaction DBTransaction, newObj *InternalAPIType, opts *azcosmos.TransactionalBatchItemOptions) (string, error) {
-	return addCreateToTransaction[InternalAPIType, CosmosAPIType](ctx, transaction, newObj, opts)
-}
-
-func (d *nestedCosmosResourceCRUD[InternalAPIType, CosmosAPIType]) Create(ctx context.Context, newObj *InternalAPIType, options *azcosmos.ItemOptions) (*InternalAPIType, error) {
-	return create[InternalAPIType, CosmosAPIType](ctx, d.containerClient, newObj, options)
-}
-
-func (d *nestedCosmosResourceCRUD[InternalAPIType, CosmosAPIType]) Replace(ctx context.Context, newObj *InternalAPIType, options *azcosmos.ItemOptions) (*InternalAPIType, error) {
-	return replace[InternalAPIType, CosmosAPIType](ctx, d.containerClient, newObj, options)
+	return NewUntypedCRUD(d.containerClient, *newParentResourceID), nil
 }

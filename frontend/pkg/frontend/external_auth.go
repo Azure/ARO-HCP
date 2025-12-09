@@ -552,7 +552,7 @@ func (f *Frontend) getInternalExternalAuthFromStorage(ctx context.Context, resou
 		return nil, utils.TrackError(err)
 	}
 
-	// Replace the key field from Cosmos with the given resourceID,
+	// Replace the ID field from Cosmos with the given resourceID,
 	// which typically comes from the URL. This helps preserve the
 	// casing of the resource group and resource name from the URL
 	// to meet RPC requirements:

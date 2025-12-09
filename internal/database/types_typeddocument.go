@@ -50,6 +50,14 @@ type TypedDocument struct {
 	Properties   json.RawMessage `json:"properties"`
 }
 
+var (
+	_ TypedDocumentAccessor = &TypedDocument{}
+)
+
+func (td *TypedDocument) GetTypedDocument() *TypedDocument {
+	return td
+}
+
 const typedDocumentJSONPathProperties = "/properties"
 
 // newTypedDocument returns a TypedDocument from a ResourceType.
