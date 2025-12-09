@@ -7,6 +7,9 @@ param msiRefresherMIName string
 @description('The name of the Admin API managed identity')
 param adminApiMIName string
 
+@description('The name of the Backend managed identity')
+param backendMIName string
+
 // CS MI resource ID
 resource csMSI 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
   name: csMIName
@@ -27,5 +30,12 @@ resource adminApiMSI 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-3
 }
 
 output adminApi string = adminApiMSI.id
+
+// RP Backend MI resource ID
+resource rpBackendMSI 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
+  name: backendMIName
+}
+
+output backend string = rpBackendMSI.id
 
 output subscriptionId string = subscription().id

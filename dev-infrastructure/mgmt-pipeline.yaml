@@ -107,6 +107,11 @@ resourceGroups:
         resourceGroup: service
         step: output
         name: adminApi
+    - name: rpBackendMIResourceId
+      input:
+        resourceGroup: service
+        step: output
+        name: backend
     dependsOn:
     - resourceGroup: management
       step: infra

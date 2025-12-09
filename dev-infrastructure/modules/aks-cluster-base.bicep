@@ -576,7 +576,7 @@ module acrPullRole 'acr/acr-permissions.bicep' = [
     name: guid(acrRef.name, aksCluster.id, acrPullRoleDefinitionId)
     scope: resourceGroup(acrRef.resourceGroup.subscriptionId, acrRef.resourceGroup.name)
     params: {
-      principalId: aksCluster.properties.identityProfile.kubeletidentity.objectId
+      principalIds: [aksCluster.properties.identityProfile.kubeletidentity.objectId]
       acrName: acrRef.name
       grantPullAccess: true
     }
@@ -621,7 +621,7 @@ module acrPullerRoles 'acr/acr-permissions.bicep' = [
     name: guid(acrRef.name, aksCluster.id, acrPullRoleDefinitionId, 'puller-identity')
     scope: resourceGroup(acrRef.resourceGroup.subscriptionId, acrRef.resourceGroup.name)
     params: {
-      principalId: pullerIdentity.properties.principalId
+      principalIds: [pullerIdentity.properties.principalId]
       acrName: acrRef.name
       grantPullAccess: true
     }
