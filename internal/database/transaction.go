@@ -54,12 +54,6 @@ type DBTransaction interface {
 }
 
 type DBTransactionResult interface {
-	// GetResourceDoc returns the ResourceDocument for itemID.
-	// The ResourceDocument is only available if the transaction was
-	// executed with the EnableContentResponseOnWrite option set, or
-	// the document was requested with DBTransaction.ReadDoc.
-	GetResourceDoc(itemID string) (*ResourceDocument, error)
-
 	// GetItem returns the internal API representation for the cosmosUID.
 	// That is consistent with other returns from our database layer.
 	// The Item is only available if the transaction was
@@ -261,10 +255,6 @@ func getCastResult[InternalAPIType, CosmosAPIType any](r *cosmosDBTransactionRes
 	}
 
 	return CosmosToInternal[InternalAPIType, CosmosAPIType](&cosmosObj)
-}
-
-func (r *cosmosDBTransactionResult) GetResourceDoc(itemID string) (*ResourceDocument, error) {
-	return getCosmosDBTransactionResultDoc[ResourceDocument](r, itemID)
 }
 
 func (r *cosmosDBTransactionResult) GetItem(cosmosUID string) (any, error) {

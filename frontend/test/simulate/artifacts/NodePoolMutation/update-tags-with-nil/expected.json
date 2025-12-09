@@ -1,0 +1,41 @@
+{
+	"id": "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/update-tags-with-nil/nodePools/nil-tags-np",
+	"location": "globals-are-evil",
+	"name": "nil-tags-np",
+	"properties": {
+		"autoRepair": true,
+		"autoScaling": {
+			"max": 5,
+			"min": 1
+		},
+		"labels": [
+			{
+				"key": "label-ky",
+				"value": "label-value"
+			}
+		],
+		"nodeDrainTimeoutMinutes": 2,
+		"platform": {
+			"osDisk": {
+				"diskStorageAccountType": "Premium_LRS",
+				"sizeGiB": 64
+			},
+			"vmSize": "large"
+		},
+		"provisioningState": "Accepted",
+		"taints": [
+			{
+				"effect": "NoExecute",
+				"key": "foo.com/key",
+				"value": "valid"
+			}
+		],
+		"version": {
+			"channelGroup": "stable"
+		}
+	},
+	"tags": {
+		"foo": "bar"
+	},
+	"type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/nodePools"
+}

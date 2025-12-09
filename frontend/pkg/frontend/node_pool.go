@@ -403,6 +403,15 @@ func decodeDesiredNodePoolReplace(ctx context.Context, oldInternalNodePool *api.
 	conversion.CopyReadOnlyNodePoolValues(newInternalNodePool, oldInternalNodePool)
 	newInternalNodePool.SystemData = systemData
 
+	// Here the difference between a nil map and an empty map is significant.
+	// If the Tags map is nil, that means it was omitted from the request body,
+	// so we leave any existing tags alone. If the Tags map is non-nil, even if
+	// empty, that means it was specified in the request body and should fully
+	// replace any existing tags.
+	if newInternalNodePool.Tags == nil {
+		newInternalNodePool.Tags = maps.Clone(oldInternalNodePool.Tags)
+	}
+
 	// Clear the user-assigned identities map since that is reconstructed from Cluster Service data.
 	// TODO we'd like to have the instance complete when we go to validate it.  Right now validation fails if we clear this.
 	// TODO we probably update validation to require this field is cleared.
@@ -447,6 +456,15 @@ func decodeDesiredNodePoolPatch(ctx context.Context, oldInternalNodePool *api.HC
 
 	conversion.CopyReadOnlyNodePoolValues(newInternalNodePool, oldInternalNodePool)
 	newInternalNodePool.SystemData = systemData
+
+	// Here the difference between a nil map and an empty map is significant.
+	// If the Tags map is nil, that means it was omitted from the request body,
+	// so we leave any existing tags alone. If the Tags map is non-nil, even if
+	// empty, that means it was specified in the request body and should fully
+	// replace any existing tags.
+	if newInternalNodePool.Tags == nil {
+		newInternalNodePool.Tags = maps.Clone(oldInternalNodePool.Tags)
+	}
 
 	// Clear the user-assigned identities map since that is reconstructed from Cluster Service data.
 	// TODO we'd like to have the instance complete when we go to validate it.  Right now validation fails if we clear this.
@@ -514,25 +532,19 @@ func (f *Frontend) updateNodePoolInCosmos(ctx context.Context, writer http.Respo
 	nodePoolUpdateOperation.ClientID = request.Header.Get(arm.HeaderNameClientObjectID)
 	nodePoolUpdateOperation.NotificationURI = request.Header.Get(arm.HeaderNameAsyncNotificationURI)
 	operationCosmosUID := transaction.CreateOperationDoc(nodePoolUpdateOperation, nil)
+	transaction.OnSuccess(addOperationResponseHeaders(writer, request, nodePoolUpdateOperation.NotificationURI, nodePoolUpdateOperation.OperationID))
 
-	f.ExposeOperation(writer, request, operationCosmosUID, transaction)
+	// set fields that were not known until the operation doc instance was created.
+	// TODO once we we have separate creation/validation of operation documents, this can be done ahead of time.
+	newInternalNodePool.ServiceProviderProperties.ActiveOperationID = operationCosmosUID
+	newInternalNodePool.Properties.ProvisioningState = nodePoolUpdateOperation.Status
 
-	var patchOperations database.ResourceDocumentPatchOperations
-
-	patchOperations.SetActiveOperationID(&operationCosmosUID)
-	patchOperations.SetProvisioningState(nodePoolUpdateOperation.Status)
-	patchOperations.SetSystemData(newInternalNodePool.SystemData)
-
-	// Here the difference between a nil map and an empty map is significant.
-	// If the Tags map is nil, that means it was omitted from the request body,
-	// so we leave any existing tags alone. If the Tags map is non-nil, even if
-	// empty, that means it was specified in the request body and should fully
-	// replace any existing tags.
-	if newInternalNodePool.Tags != nil {
-		patchOperations.SetTags(newInternalNodePool.Tags)
+	_, err = f.dbClient.HCPClusters(newInternalNodePool.ID.SubscriptionID, newInternalNodePool.ID.ResourceGroupName).
+		NodePools(newInternalNodePool.ID.Parent.Name).
+		AddReplaceToTransaction(ctx, transaction, newInternalNodePool, nil)
+	if err != nil {
+		return utils.TrackError(err)
 	}
-
-	transaction.PatchResourceDoc(oldInternalNodePool.ServiceProviderProperties.CosmosUID, patchOperations, nil)
 
 	transactionResult, err := transaction.Execute(ctx, &azcosmos.TransactionalBatchOptions{
 		EnableContentResponseOnWrite: true,
