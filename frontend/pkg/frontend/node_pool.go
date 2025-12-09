@@ -591,6 +591,25 @@ func (f *Frontend) getInternalNodePoolFromStorage(ctx context.Context, resourceI
 		return nil, utils.TrackError(err)
 	}
 
+	// Replace the key field from Cosmos with the given resourceID,
+	// which typically comes from the URL. This helps preserve the
+	// casing of the resource group and resource name from the URL
+	// to meet RPC requirements:
+	//
+	// Put Resource | Arguments
+	//
+	// The resource group names and resource names should be matched
+	// case insensitively. ... Additionally, the Resource Provider must
+	// preserve the casing provided by the user. The service must return
+	// the most recently specified casing to the client and must not
+	// normalize or return a toupper or tolower form of the resource
+	// group or resource name. The resource group name and resource
+	// name must come from the URL and not the request body.
+	if !strings.EqualFold(internalNodePool.ID.String(), resourceID.String()) {
+		return nil, fmt.Errorf("unexpected resourceID: %s", internalNodePool.ID.String())
+	}
+	internalNodePool.ID = resourceID
+
 	return f.readInternalNodePoolFromClusterService(ctx, internalNodePool)
 
 }

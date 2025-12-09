@@ -82,26 +82,6 @@ func get[InternalAPIType, CosmosAPIType any](ctx context.Context, containerClien
 	}
 	cosmosObj := &obj
 
-	// Replace the key field from Cosmos with the given resourceID,
-	// which typically comes from the URL. This helps preserve the
-	// casing of the resource group and resource name from the URL
-	// to meet RPC requirements:
-	//
-	// Put Resource | Arguments
-	//
-	// The resource group names and resource names should be matched
-	// case insensitively. ... Additionally, the Resource Provier must
-	// preserve the casing provided by the user. The service must return
-	// the most recently specified casing to the client and must not
-	// normalize or return a toupper or tolower form of the resource
-	// group or resource name. The resource group name and resource
-	// name must come from the URL and not the request body.
-	retAsResourceProperties, ok := any(cosmosObj).(ResourceProperties)
-	if !ok {
-		return nil, fmt.Errorf("type %T does not implement ResourceProperties interface", cosmosObj)
-	}
-	retAsResourceProperties.SetResourceID(completeResourceID)
-
 	internalObj, err := CosmosToInternal[InternalAPIType, CosmosAPIType](cosmosObj)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert Cosmos object to internal type: %w", err)
