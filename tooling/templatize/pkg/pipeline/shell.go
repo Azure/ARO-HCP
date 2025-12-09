@@ -363,7 +363,7 @@ func configureAzureCLILogin(ctx context.Context, subscriptionID string) (string,
 		return "", fmt.Errorf("failed to get Azure CLI config directory: %w", err)
 	}
 
-	if subscriptionID == TEST_SUBCRIPTION_ID {
+	if subscriptionID == TEST_SUBSCRIPTION_ID {
 		return azureConfigDir, nil
 	}
 
