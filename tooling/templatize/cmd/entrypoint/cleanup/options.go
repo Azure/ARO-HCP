@@ -41,7 +41,7 @@ import (
 func DefaultOptions() *RawOptions {
 	return &RawOptions{
 		RawOptions:           entrypointutils.DefaultOptions(),
-		IgnoreResourceGroups: []string{"global"},
+		IgnoreResourceGroups: []string{"global", "hcp-kusto-us"},
 	}
 }
 
