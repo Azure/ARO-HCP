@@ -53,6 +53,21 @@ This command creates a personal DEV environment with a unique name that is deriv
 > This command can be used to update your personal DEV environment as well. It will apply the latest changes to the infrastructure and services. Steps are cached, so it's quick and safe to re-run the entire environment setup.
 > If you only want to update individual aspects of the environment, follow the [partial setup](#partial-personal-dev-environment-setup) instructions.
 
+### Local Cluster Service Development Setup
+
+If you plan to run the Cluster Service locally (not deployed to Kubernetes) for development, use the following command instead:
+
+   ```bash
+   make local-pers-dev-env
+   ```
+
+This command performs all the steps of `personal-dev-env` plus:
+- Grants your user permissions to access Key Vaults (service and management)
+- Grants your user permissions to access OIDC storage
+- Generates the local configuration files for cluster service: provision-shards, ocp-versions, azure-runtime, azure-operators-mi
+
+After this, the config files are created in `cluster-service/local/`. This contains the configuration needed to run the Cluster Service locally against your personal dev environment.
+
 ## Partial Personal DEV Environment Setup
 
 The process described in the previous section caches steps, but even the process of determining that a step should not run again will take a second or two. In case you want to install or update only a specific part of the environment for maximum speed, you can use the following commands.

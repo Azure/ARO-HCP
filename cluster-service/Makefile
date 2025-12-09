@@ -163,7 +163,7 @@ personal-runtime-config:
 local-azure-operators-managed-identities-config:
 	helm template helm-charts/cluster-service -s templates/azure-operators-managed-identities-config.configmap.yaml \
 	  --set azureOperatorsMI.roleSetName=${OPERATOR_ROLE_SET_NAME} \
-	  | yq '.data["azure-operators-managed-identities-config.yaml"]' > ./azure-operators-managed-identities-config.yaml
+	  | yq '.data["azure-operators-managed-identities-config.yaml"]' > local/azure-operators-managed-identities-config.yaml
 .PHONY: local-azure-operators-managed-identities-config
 
 local-aro-hcp-ocp-versions-config:
@@ -172,7 +172,7 @@ local-aro-hcp-ocp-versions-config:
 	--set ocpVersions.channelGroups.stable.minVersion=${OCP_VERSIONS_CHANNEL_GROUPS_STABLE_MIN_VERSION} \
 	--set ocpVersions.channelGroups.stable.maxVersion=${OCP_VERSIONS_CHANNEL_GROUPS_STABLE_MAX_VERSION} \
 	--set azureOperatorsMI.roleSetName=${OPERATOR_ROLE_SET_NAME} \
-	-s templates/aro-hcp-ocp-versions-config.configmap.yaml | yq '.data["aro-hcp-ocp-versions-config.yaml"]' > ./aro-hcp-ocp-versions-config.yaml
+	-s templates/aro-hcp-ocp-versions-config.configmap.yaml | yq '.data["aro-hcp-ocp-versions-config.yaml"]' > local/aro-hcp-ocp-versions-config.yaml
 .PHONY: local-aro-hcp-ocp-versions-config
 
 #
