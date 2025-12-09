@@ -24,7 +24,7 @@ resource roleDef 'Microsoft.Authorization/roleDefinitions@2022-04-01' = [
       ]
       assignableScopes: [
         subscription().id
-        format('/subscriptions/%s', e2eTestSubscription)
+        '/subscriptions/${e2eTestSubscription}'
       ]
     }
   }
