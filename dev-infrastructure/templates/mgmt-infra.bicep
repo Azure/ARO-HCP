@@ -101,7 +101,7 @@ module cxKeyVaultAccess '../modules/keyvault/keyvault-secret-access.bicep' = [
     params: {
       keyVaultName: cxKeyVaultName
       roleName: role
-      managedIdentityPrincipalId: kvCertOfficerPrincipalId
+      managedIdentityPrincipalIds: [kvCertOfficerPrincipalId]
     }
     dependsOn: [
       cxKeyVault
@@ -148,7 +148,7 @@ module mgmtKeyVaultAccess '../modules/keyvault/keyvault-secret-access.bicep' = [
     params: {
       keyVaultName: mgmtKeyVaultName
       roleName: role
-      managedIdentityPrincipalId: kvCertOfficerPrincipalId
+      managedIdentityPrincipalIds: [kvCertOfficerPrincipalId]
     }
     dependsOn: [
       mgmtKeyVault

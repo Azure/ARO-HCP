@@ -74,7 +74,7 @@ module serviceKeyVaultCertOfficer '../modules/keyvault/keyvault-secret-access.bi
   params: {
     keyVaultName: serviceKeyVaultName
     roleName: 'Key Vault Certificates Officer'
-    managedIdentityPrincipalId: kvCertOfficerPrincipalId
+    managedIdentityPrincipalIds: [kvCertOfficerPrincipalId]
   }
   dependsOn: [
     serviceKeyVault
@@ -87,7 +87,7 @@ module serviceKeyVaultSecretsOfficer '../modules/keyvault/keyvault-secret-access
   params: {
     keyVaultName: serviceKeyVaultName
     roleName: 'Key Vault Secrets Officer'
-    managedIdentityPrincipalId: kvCertOfficerPrincipalId
+    managedIdentityPrincipalIds: [kvCertOfficerPrincipalId]
   }
   dependsOn: [
     serviceKeyVault
@@ -100,7 +100,7 @@ module serviceKeyVaultDevopsSecretsOfficer '../modules/keyvault/keyvault-secret-
   params: {
     keyVaultName: serviceKeyVaultName
     roleName: 'Key Vault Secrets Officer'
-    managedIdentityPrincipalId: reference(globalMSIId, '2023-01-31').principalId
+    managedIdentityPrincipalIds: [reference(globalMSIId, '2023-01-31').principalId]
   }
   dependsOn: [
     serviceKeyVault

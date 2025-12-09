@@ -706,20 +706,6 @@ module maestroServer '../modules/maestro/maestro-server.bicep' = {
 }
 
 //
-//   K E Y V A U L T S
-//
-
-module logsServiceKeyVaultAccess '../modules/keyvault/keyvault-secret-access.bicep' = {
-  name: guid(serviceKeyVaultName, logsMSI, 'certuser')
-  scope: resourceGroup(serviceKeyVaultResourceGroup)
-  params: {
-    keyVaultName: serviceKeyVaultName
-    roleName: 'Key Vault Certificate User'
-    managedIdentityPrincipalId: mi.getManagedIdentityByName(managedIdentities.outputs.managedIdentities, logsMSI).uamiPrincipalID
-  }
-}
-
-//
 //   C L U S T E R   S E R V I C E
 //
 
@@ -753,6 +739,60 @@ module cs '../modules/cluster-service.bicep' = {
     postgresAdministrationManagedIdentityId: globalMSIId
   }
   dependsOn: csPostgresDeploy && deployMaestroPostgres ? [maestroServer] : []
+}
+
+//
+//   S V C   K E Y V A U L T   A C C E S S
+//
+
+module serviceKeyVaultSecretsUserAccess '../modules/keyvault/keyvault-secret-access.bicep' = {
+  name: 'kv-sec-user-${uniqueString(resourceGroup().name)}'
+  scope: resourceGroup(serviceKeyVaultResourceGroup)
+  params: {
+    keyVaultName: serviceKeyVaultName
+    roleName: 'Key Vault Secrets User'
+    managedIdentityPrincipalIds: [csManagedIdentityPrincipalId, backendMI.uamiPrincipalID, adminApiMI.uamiPrincipalID]
+  }
+}
+
+module serviceKeyVaultCertUserAccess '../modules/keyvault/keyvault-secret-access.bicep' = {
+  name: 'kv-cert-user-${uniqueString(resourceGroup().name)}'
+  scope: resourceGroup(serviceKeyVaultResourceGroup)
+  params: {
+    keyVaultName: serviceKeyVaultName
+    roleName: 'Key Vault Certificate User'
+    managedIdentityPrincipalIds: [
+      mi.getManagedIdentityByName(managedIdentities.outputs.managedIdentities, logsMSI).uamiPrincipalID
+    ]
+  }
+}
+
+//
+//   D N S   A C C E S S
+//
+
+module cxDnsZoneContributor '../modules/dns/zone-contributor.bicep' = {
+  name: 'cs-dns-zone-contributor'
+  scope: resourceGroup(regionalResourceGroup)
+  params: {
+    zoneName: regionalCXDNSZoneName
+    zoneContributerManagedIdentityPrincipalIds: [csManagedIdentityPrincipalId, backendMI.uamiPrincipalID]
+  }
+}
+
+//
+//   O C P   A C R   P E R M I S S I O N S
+//
+
+var ocpAcrRef = res.acrRefFromId(ocpAcrResourceId)
+module acrManageTokenRole '../modules/acr/acr-permissions.bicep' = {
+  name: 'ocp-acr-manage-tokens-${uniqueString(resourceGroup().name)}'
+  scope: resourceGroup(ocpAcrRef.resourceGroup.subscriptionId, ocpAcrRef.resourceGroup.name)
+  params: {
+    principalIds: [csManagedIdentityPrincipalId, backendMI.uamiPrincipalID]
+    grantManageTokenAccess: true
+    acrName: ocpAcrRef.name
+  }
 }
 
 //
@@ -798,7 +838,7 @@ module oidc '../modules/oidc/region/main.bicep' = {
     originGroupName: azureFrontDoorRegionalSubdomain
     originName: azureFrontDoorRegionalSubdomain
     privateLinkLocation: oidcStoragePrivateLinkLocation
-    storageAccountAccessPrincipalId: csManagedIdentityPrincipalId
+    storageAccountAccessPrincipalIds: [csManagedIdentityPrincipalId, backendMI.uamiPrincipalID]
     skuName: determineZoneRedundancy(locationAvailabilityZoneList, oidcZoneRedundantMode)
       ? 'Standard_ZRS'
       : 'Standard_LRS'
@@ -861,7 +901,7 @@ module frontendIngressCertCSIAccess '../modules/keyvault/keyvault-secret-access.
   params: {
     keyVaultName: serviceKeyVaultName
     roleName: 'Key Vault Secrets User'
-    managedIdentityPrincipalId: svcCluster.outputs.aksClusterKeyVaultSecretsProviderPrincipalId
+    managedIdentityPrincipalIds: [svcCluster.outputs.aksClusterKeyVaultSecretsProviderPrincipalId]
     secretName: frontendIngressCertName
   }
 }
@@ -905,7 +945,7 @@ module adminApiIngressCertCSIAccess '../modules/keyvault/keyvault-secret-access.
   params: {
     keyVaultName: serviceKeyVaultName
     roleName: 'Key Vault Secrets User'
-    managedIdentityPrincipalId: svcCluster.outputs.aksClusterKeyVaultSecretsProviderPrincipalId
+    managedIdentityPrincipalIds: [svcCluster.outputs.aksClusterKeyVaultSecretsProviderPrincipalId]
     secretName: adminApiIngressCertName
   }
 }
@@ -918,16 +958,6 @@ module adminApiDNS '../modules/dns/a-record.bicep' = {
     recordName: adminApiDnsName
     ipAddress: svcCluster.outputs.istioIngressGatewayIPAddress
     ttl: 300
-  }
-}
-
-module adminApiServiceKeyVaultAccess '../modules/keyvault/keyvault-secret-access.bicep' = {
-  name: 'admin-api-svc-kv-${uniqueString(resourceGroup().name)}'
-  scope: resourceGroup(serviceKeyVaultResourceGroup)
-  params: {
-    keyVaultName: serviceKeyVaultName
-    roleName: 'Key Vault Secrets User'
-    managedIdentityPrincipalId: adminApiMI.uamiPrincipalID
   }
 }
 

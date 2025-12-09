@@ -59,7 +59,7 @@ module kvCertOfficer 'keyvault-secret-access.bicep' = if (kvCertOfficerPrincipal
   params: {
     keyVaultName: keyVaultName
     roleName: 'Key Vault Certificates Officer'
-    managedIdentityPrincipalId: kvCertOfficerPrincipalId
+    managedIdentityPrincipalIds: [kvCertOfficerPrincipalId]
   }
 }
 
@@ -68,7 +68,7 @@ module kvSecretsOfficer 'keyvault-secret-access.bicep' = if (kvCertOfficerPrinci
   params: {
     keyVaultName: keyVaultName
     roleName: 'Key Vault Secrets Officer'
-    managedIdentityPrincipalId: kvCertOfficerPrincipalId
+    managedIdentityPrincipalIds: [kvCertOfficerPrincipalId]
   }
 }
 
@@ -77,7 +77,7 @@ module ev2CertAccess 'keyvault-secret-access.bicep' = if (kvCertAccessPrincipalI
   params: {
     keyVaultName: keyVaultName
     roleName: 'Azure Service Deploy Release Management Key Vault Secrets User'
-    managedIdentityPrincipalId: kvCertAccessPrincipalId
+    managedIdentityPrincipalIds: [kvCertAccessPrincipalId]
     kvCertAccessRoleId: kvCertAccessRoleId
   }
 }

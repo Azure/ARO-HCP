@@ -203,7 +203,7 @@ module acrPushPullPermissions '../modules/acr/acr-permissions.bicep' = [
     name: '${imageSyncManagedIdentity}-${acrName}-acr-pushpull'
     scope: resourceGroup(acrResourceGroup)
     params: {
-      principalId: uami.properties.principalId
+      principalIds: [uami.properties.principalId]
       grantPushAccess: true
       grantPullAccess: true
       acrName: acrName
@@ -218,7 +218,7 @@ module pullSecretPermission '../modules/keyvault/keyvault-secret-access.bicep' =
       keyVaultName: keyVaultName
       secretName: secretName
       roleName: 'Key Vault Secrets User'
-      managedIdentityPrincipalId: uami.properties.principalId
+      managedIdentityPrincipalIds: [uami.properties.principalId]
     }
     dependsOn: [
       kv

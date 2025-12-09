@@ -2,7 +2,7 @@
 param accountName string
 
 @description('The service principal ID to be added to Azure Storage account.')
-param principalId string = ''
+param principalIds array
 
 @description('Id of the MSI that will be used to run the deploymentScript')
 param deploymentMsiId string
@@ -24,15 +24,17 @@ resource storageAccountResource 'Microsoft.Storage/storageAccounts@2023-01-01' e
   name: accountName
 }
 
-resource roleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (principalId != '') {
-  name: guid(storageAccountResource.id, principalId, storageBlobDataContributorRole)
-  scope: storageAccountResource
-  properties: {
-    principalId: principalId
-    principalType: 'ServicePrincipal'
-    roleDefinitionId: resourceId('Microsoft.Authorization/roleDefinitions', storageBlobDataContributorRole)
+resource roleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = [
+  for principalId in principalIds: {
+    name: guid(storageAccountResource.id, principalId, storageBlobDataContributorRole)
+    scope: storageAccountResource
+    properties: {
+      principalId: principalId
+      principalType: 'ServicePrincipal'
+      roleDefinitionId: resourceId('Microsoft.Authorization/roleDefinitions', storageBlobDataContributorRole)
+    }
   }
-}
+]
 
 resource storageAccountContributor 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   name: guid(storageAccountResource.id, deploymentMsiId, storageAccountContributorRole)
