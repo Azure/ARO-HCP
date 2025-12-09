@@ -113,6 +113,56 @@ func listOperationLabelValues() iter.Seq[string] {
 	})
 }
 
+// listResourceOperationTypes returns an iterator over all operation type label values for resource operation metrics.
+func listResourceOperationTypes() iter.Seq[string] {
+	return slices.Values([]string{
+		strings.ToLower(string(database.OperationRequestCreate)),
+		strings.ToLower(string(database.OperationRequestUpdate)),
+		strings.ToLower(string(database.OperationRequestDelete)),
+		strings.ToLower(string(database.OperationRequestRequestCredential)),
+		strings.ToLower(string(database.OperationRequestRevokeCredentials)),
+	})
+}
+
+// listResourceOperationKinds returns an iterator over all resource kind label values for resource operation metrics.
+func listResourceOperationKinds() iter.Seq[string] {
+	return slices.Values([]string{
+		strings.ToLower(arohcpv1alpha1.ClusterKind),
+		strings.ToLower(arohcpv1alpha1.NodePoolKind),
+		strings.ToLower(cmv1.ExternalAuthKind),
+		strings.ToLower(cmv1.BreakGlassCredentialKind),
+	})
+}
+
+// listResourceOperationStatuses returns an iterator over all status label values for resource operation metrics.
+func listResourceOperationStatuses() iter.Seq[string] {
+	return slices.Values([]string{
+		strings.ToLower(string(arm.ProvisioningStateSucceeded)),
+		strings.ToLower(string(arm.ProvisioningStateFailed)),
+		strings.ToLower(string(arm.ProvisioningStateCanceled)),
+	})
+}
+
+// recordOperationResult records resource operation metrics for a completed operation.
+// This should be called when an operation reaches a terminal state.
+func (s *OperationsScanner) recordOperationResult(op operation, opStatus arm.ProvisioningState) {
+	// Skip if metrics are not initialized (e.g., in tests)
+	if s.operationResultsTotal == nil || s.operationDurationSeconds == nil {
+		return
+	}
+
+	operationType := strings.ToLower(string(op.doc.Request))
+	resourceKind := strings.ToLower(op.doc.InternalID.Kind())
+	status := strings.ToLower(string(opStatus))
+
+	// Record the operation result counter
+	s.operationResultsTotal.WithLabelValues(operationType, resourceKind, status).Inc()
+
+	// Record the operation duration histogram
+	duration := time.Since(op.doc.StartTime).Seconds()
+	s.operationDurationSeconds.WithLabelValues(operationType, resourceKind, status).Observe(duration)
+}
+
 // setSpanAttributes sets the operation and resource attributes on the span.
 func (o *operation) setSpanAttributes(span trace.Span) {
 	// Operation attributes.
@@ -158,6 +208,10 @@ type OperationsScanner struct {
 	operationsDuration     *prometheus.HistogramVec
 	lastOperationTimestamp *prometheus.GaugeVec
 	subscriptionsByState   *prometheus.GaugeVec
+
+	// Resource operation metrics for tracking completed ARM operations with multiple dimensions
+	operationResultsTotal    *prometheus.CounterVec
+	operationDurationSeconds *prometheus.HistogramVec
 }
 
 func NewOperationsScanner(dbClient database.DBClient, ocmConnection *ocmsdk.Connection) *OperationsScanner {
@@ -231,6 +285,28 @@ func NewOperationsScanner(dbClient database.DBClient, ocmConnection *ocmsdk.Conn
 			},
 			[]string{"state"},
 		),
+
+		// Resource operation metrics for tracking completed ARM operations with multiple dimensions
+		operationResultsTotal: promauto.With(prometheus.DefaultRegisterer).NewCounterVec(
+			prometheus.CounterOpts{
+				Name: "backend_resource_operations_total",
+				Help: "Total count of completed operations by type, resource kind, and status.",
+			},
+			[]string{"operation_type", "resource_kind", "status"},
+		),
+		operationDurationSeconds: promauto.With(prometheus.DefaultRegisterer).NewHistogramVec(
+			prometheus.HistogramOpts{
+				Name: "backend_resource_operations_duration_seconds",
+				Help: "Duration of operations from start to completion.",
+				Buckets: []float64{
+					1, 5, 10, 30, // seconds
+					60, 120, 300, 600, // 1, 2, 5, 10 min
+					900, 1800, 2700, // 15, 30, 45 min
+					3600, 7200, 10800, 14400, // 1, 2, 3, 4 hr
+				},
+			},
+			[]string{"operation_type", "resource_kind", "status"},
+		),
 	}
 
 	// Initialize the counter and histogram metrics.
@@ -243,6 +319,16 @@ func NewOperationsScanner(dbClient database.DBClient, ocmConnection *ocmsdk.Conn
 
 	for subscriptionState := range arm.ListSubscriptionStates() {
 		s.subscriptionsByState.WithLabelValues(string(subscriptionState))
+	}
+
+	// Initialize the resource operation metrics for all label combinations.
+	for opType := range listResourceOperationTypes() {
+		for resourceKind := range listResourceOperationKinds() {
+			for status := range listResourceOperationStatuses() {
+				s.operationResultsTotal.WithLabelValues(opType, resourceKind, status)
+				s.operationDurationSeconds.WithLabelValues(opType, resourceKind, status)
+			}
+		}
 	}
 
 	return s
@@ -575,7 +661,7 @@ func (s *OperationsScanner) pollClusterOperation(ctx context.Context, op operati
 		}
 	}
 
-	err = database.UpdateOperationStatus(ctx, s.dbClient, op.doc, opStatus, opError, s.postAsyncNotification)
+	err = s.updateOperationStatusWithMetrics(ctx, op, opStatus, opError)
 	if err != nil {
 		s.recordOperationError(ctx, pollClusterOperationLabel, err)
 		op.logger.Error(fmt.Sprintf("Failed to update operation status: %v", err))
@@ -626,7 +712,7 @@ func (s *OperationsScanner) pollNodePoolOperation(ctx context.Context, op operat
 		return
 	}
 
-	err = database.UpdateOperationStatus(ctx, s.dbClient, op.doc, opStatus, opError, s.postAsyncNotification)
+	err = s.updateOperationStatusWithMetrics(ctx, op, opStatus, opError)
 	if err != nil {
 		s.recordOperationError(ctx, pollNodePoolOperationLabel, err)
 		op.logger.Error(fmt.Sprintf("Failed to update operation status: %v", err))
@@ -656,7 +742,7 @@ func (s *OperationsScanner) pollExternalAuthOperation(ctx context.Context, op op
 
 		return
 	}
-	err = database.UpdateOperationStatus(ctx, s.dbClient, op.doc, arm.ProvisioningStateSucceeded, nil, s.postAsyncNotification)
+	err = s.updateOperationStatusWithMetrics(ctx, op, arm.ProvisioningStateSucceeded, nil)
 	if err != nil {
 		s.recordOperationError(ctx, pollExternalAuthOperationLabel, err)
 		op.logger.Error(fmt.Sprintf("Failed to update operation status: %v", err))
@@ -699,7 +785,7 @@ func (s *OperationsScanner) pollBreakGlassCredential(ctx context.Context, op ope
 		return
 	}
 
-	err = database.PatchOperationDocument(ctx, s.dbClient, op.doc, opStatus, opError, s.postAsyncNotification)
+	err = s.patchOperationDocumentWithMetrics(ctx, op, opStatus, opError)
 	if err != nil {
 		s.recordOperationError(ctx, pollBreakGlassCredential, err)
 		op.logger.Error(fmt.Sprintf("Failed to update operation status: %v", err))
@@ -764,7 +850,7 @@ loop:
 		return
 	}
 
-	err = database.PatchOperationDocument(ctx, s.dbClient, op.doc, opStatus, opError, s.postAsyncNotification)
+	err = s.patchOperationDocumentWithMetrics(ctx, op, opStatus, opError)
 	if err != nil {
 		s.recordOperationError(ctx, pollBreakGlassCredentialRevoke, err)
 		op.logger.Error(fmt.Sprintf("Failed to update operation status: %v", err))
@@ -845,12 +931,34 @@ func (s *OperationsScanner) setDeleteOperationAsCompleted(ctx context.Context, o
 	}
 
 	// Save a final "succeeded" operation status until TTL expires.
-	err = database.PatchOperationDocument(ctx, s.dbClient, op.doc, arm.ProvisioningStateSucceeded, nil, s.postAsyncNotification)
+	err = s.patchOperationDocumentWithMetrics(ctx, op, arm.ProvisioningStateSucceeded, nil)
 	if err != nil {
 		return utils.TrackError(err)
 	}
 
 	return nil
+}
+
+// updateOperationStatusWithMetrics updates the operation status in the database and records metrics.
+// This is a wrapper around database.UpdateOperationStatus that also records resource operation metrics.
+func (s *OperationsScanner) updateOperationStatusWithMetrics(ctx context.Context, op operation, opStatus arm.ProvisioningState, opError *arm.CloudErrorBody) error {
+	err := database.UpdateOperationStatus(ctx, s.dbClient, op.doc, opStatus, opError, s.postAsyncNotification)
+	if err == nil && opStatus.IsTerminal() {
+		// Record resource operation metrics when operation reaches a terminal state
+		s.recordOperationResult(op, opStatus)
+	}
+	return err
+}
+
+// patchOperationDocumentWithMetrics patches the operation document in the database and records metrics.
+// This is a wrapper around database.PatchOperationDocument that also records resource operation metrics.
+func (s *OperationsScanner) patchOperationDocumentWithMetrics(ctx context.Context, op operation, opStatus arm.ProvisioningState, opError *arm.CloudErrorBody) error {
+	err := database.PatchOperationDocument(ctx, s.dbClient, op.doc, opStatus, opError, s.postAsyncNotification)
+	if err == nil && opStatus.IsTerminal() {
+		// Record resource operation metrics when operation reaches a terminal state
+		s.recordOperationResult(op, opStatus)
+	}
+	return err
 }
 
 // postAsyncNotification submits an POST request with status payload to the given URL.
