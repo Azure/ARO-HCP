@@ -17,6 +17,8 @@ package database
 import (
 	"fmt"
 
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+
 	"github.com/Azure/ARO-HCP/internal/api"
 )
 
@@ -50,10 +52,6 @@ func (o *ExternalAuth) GetTypedDocument() *TypedDocument {
 	return &o.TypedDocument
 }
 
-func (o *ExternalAuth) GetResourceDocument() *ResourceDocument {
-	return &o.ResourceDocument
+func (o *ExternalAuth) SetResourceID(newResourceID *azcorearm.ResourceID) {
+	o.ResourceDocument.SetResourceID(newResourceID)
 }
-
-var FilterExternalAuthState ResourceDocumentStateFilter = newJSONRoundTripFilterer(
-	func() any { return &ExternalAuthInternalState{} },
-)
