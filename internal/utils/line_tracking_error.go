@@ -30,7 +30,7 @@ type LineTrackingError struct {
 
 // TrackError creates a new LineTrackingError that wraps the provided error
 // and captures the caller's file and line number information.
-func TrackError(err error) *LineTrackingError {
+func TrackError(err error) error {
 	if err == nil {
 		return nil
 	}
