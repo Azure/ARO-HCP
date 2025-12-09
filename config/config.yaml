@@ -801,7 +801,7 @@ defaults:
       globalKeyVaultTokenSecret: "prow-token"
     regionTest:
       prowJobName: ""
-      gatePromotion: false
+      gatePromotion: true
 clouds:
   dev:
     # this configuration serves as a template for for all RH DEV subscription deployments

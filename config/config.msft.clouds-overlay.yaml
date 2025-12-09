@@ -13,7 +13,6 @@ clouds:
           e2e:
             regionTest:
               prowJobName: periodic-ci-Azure-ARO-HCP-main-periodic-integration-e2e-parallel
-              gatePromotion: true
           # Cluster Service
           clustersService:
             image:
