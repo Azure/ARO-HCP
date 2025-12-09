@@ -357,6 +357,9 @@ func TestPipelineRun(t *testing.T) {
 	}, pipeline, logr.NewContext(t.Context(), testr.New(t)), &PipelineRunOptions{
 		BaseRunOptions: BaseRunOptions{
 			BicepClient: lspClient,
+			SubscriptionIdToAzureConfigDirectory: map[string]string{
+				TEST_SUBSCRIPTION_ID: "test",
+			},
 		},
 		SubsciptionLookupFunc: func(_ context.Context, _ string) (string, error) {
 			return "test", nil

@@ -65,6 +65,8 @@ type BaseRunOptions struct {
 	DeploymentTimeoutSeconds int
 	StepCacheDir             string
 	BicepClient              *bicep.LSPClient
+
+	SubscriptionIdToAzureConfigDirectory map[string]string
 }
 
 type StepRunOptions struct {
@@ -591,9 +593,9 @@ func RunStep(id graph.Identifier, s types.Step, ctx context.Context, executionTa
 			return nil, nil, fmt.Errorf("failed to prepare kubeconfig: %w", err)
 		}
 
-		azureConfigDir, err := configureAzureCLILogin(ctx, executionTarget.GetSubscriptionID())
-		if err != nil {
-			return nil, nil, fmt.Errorf("failed to configure Azure CLI login: %w", err)
+		azureConfigDir, exists := options.SubscriptionIdToAzureConfigDirectory[executionTarget.GetSubscriptionID()]
+		if !exists {
+			return nil, nil, fmt.Errorf("azure client not configured for subscription: %s", executionTarget.GetSubscriptionID())
 		}
 
 		err = runShellStep(id, step, ctx, azureConfigDir, kubeconfigFile, options, state, &buf)
@@ -736,4 +738,38 @@ func (m *multiSink) WithName(name string) logr.LogSink {
 		newSinks[i] = s.WithName(name)
 	}
 	return &multiSink{sinks: newSinks}
+}
+
+func setupAzureConfigDirectory(ctx context.Context, subscriptionID string) (string, error) {
+	azureConfigDir, err := configureAzureCLILogin(ctx, subscriptionID)
+	if err != nil {
+		return "", fmt.Errorf("failed to configure Azure CLI login: %w", err)
+	}
+	return azureConfigDir, nil
+}
+
+func getAllSubscriptions(pipelines map[string]*types.Pipeline) []string {
+	subscriptions := make([]string, 0)
+	for _, pipeline := range pipelines {
+		for _, resourceGroup := range pipeline.ResourceGroups {
+			subscriptions = append(subscriptions, resourceGroup.Subscription)
+		}
+	}
+	return subscriptions
+}
+
+func GetAllRequiredAzureClients(ctx context.Context, pipelines map[string]*types.Pipeline) (map[string]string, error) {
+	subscriptionIdToAzureConfigDirectory := make(map[string]string)
+	for _, subscription := range getAllSubscriptions(pipelines) {
+		subscriptionID, err := LookupSubscriptionID(map[string]string{})(ctx, subscription)
+		if err != nil {
+			return nil, fmt.Errorf("failed to lookup subscription ID for %q: %w", subscription, err)
+		}
+		azureConfigDir, err := setupAzureConfigDirectory(ctx, subscriptionID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to setup Azure CLI config directory: %w", err)
+		}
+		subscriptionIdToAzureConfigDirectory[subscriptionID] = azureConfigDir
+	}
+	return subscriptionIdToAzureConfigDirectory, nil
 }
