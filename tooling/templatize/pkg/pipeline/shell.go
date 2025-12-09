@@ -41,7 +41,7 @@ import (
 	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/utils"
 )
 
-var TEST_SUBCRIPTION_ID = "test"
+var TEST_SUBSCRIPTION_ID = "test"
 
 func createCommand(ctx context.Context, scriptCommand, pipelineWorkingDir string, dryRun *types.DryRun, envVars map[string]string) (*exec.Cmd, bool) {
 	if dryRun != nil {
