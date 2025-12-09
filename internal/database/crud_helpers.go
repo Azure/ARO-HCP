@@ -179,6 +179,23 @@ func addCreateToTransaction[InternalAPIType, CosmosAPIType any](ctx context.Cont
 	return newCosmosUID, nil
 }
 
+func addReplaceToTransaction[InternalAPIType, CosmosAPIType any](ctx context.Context, transaction DBTransaction, newObj *InternalAPIType, opts *azcosmos.TransactionalBatchItemOptions) (string, error) {
+	cosmosUID, _, data, err := serializeItem[InternalAPIType, CosmosAPIType](newObj)
+	if err != nil {
+		return "", err
+	}
+
+	transaction.AddStep(
+		func(b *azcosmos.TransactionalBatch) (string, error) {
+			// TODO decide if, when, and how we ever add etags.  Currently we do unconditional replaces.
+			b.ReplaceItem(cosmosUID, data, opts)
+			return cosmosUID, nil
+		},
+	)
+
+	return cosmosUID, nil
+}
+
 func create[InternalAPIType, CosmosAPIType any](ctx context.Context, containerClient *azcosmos.ContainerClient, newObj *InternalAPIType, opts *azcosmos.ItemOptions) (*InternalAPIType, error) {
 	newCosmosUID, partitionKey, data, err := serializeItem[InternalAPIType, CosmosAPIType](newObj)
 	if err != nil {

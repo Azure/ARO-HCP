@@ -481,16 +481,19 @@ func (f *Frontend) updateExternalAuthInCosmos(ctx context.Context, writer http.R
 	externalAuthUpdateOperation.ClientID = request.Header.Get(arm.HeaderNameClientObjectID)
 	externalAuthUpdateOperation.NotificationURI = request.Header.Get(arm.HeaderNameAsyncNotificationURI)
 	operationCosmosUID := transaction.CreateOperationDoc(externalAuthUpdateOperation, nil)
+	transaction.OnSuccess(addOperationResponseHeaders(writer, request, externalAuthUpdateOperation.NotificationURI, externalAuthUpdateOperation.OperationID))
 
-	f.ExposeOperation(writer, request, operationCosmosUID, transaction)
+	// set fields that were not known until the operation doc instance was created.
+	// TODO once we we have separate creation/validation of operation documents, this can be done ahead of time.
+	newInternalExternalAuth.ServiceProviderProperties.ActiveOperationID = operationCosmosUID
+	newInternalExternalAuth.Properties.ProvisioningState = externalAuthUpdateOperation.Status
 
-	var patchOperations database.ResourceDocumentPatchOperations
-
-	patchOperations.SetActiveOperationID(&operationCosmosUID)
-	patchOperations.SetProvisioningState(externalAuthUpdateOperation.Status)
-	patchOperations.SetSystemData(newInternalExternalAuth.SystemData)
-
-	transaction.PatchResourceDoc(oldInternalExternalAuth.ServiceProviderProperties.CosmosUID, patchOperations, nil)
+	_, err = f.dbClient.HCPClusters(newInternalExternalAuth.ID.SubscriptionID, newInternalExternalAuth.ID.ResourceGroupName).
+		ExternalAuth(newInternalExternalAuth.ID.Parent.Name).
+		AddReplaceToTransaction(ctx, transaction, newInternalExternalAuth, nil)
+	if err != nil {
+		return utils.TrackError(err)
+	}
 
 	transactionResult, err := transaction.Execute(ctx, &azcosmos.TransactionalBatchOptions{
 		EnableContentResponseOnWrite: true,

@@ -416,6 +416,15 @@ func decodeDesiredClusterReplace(ctx context.Context, oldInternalCluster *api.HC
 	conversion.CopyReadOnlyClusterValues(newInternalCluster, oldInternalCluster)
 	newInternalCluster.SystemData = systemData
 
+	// Here the difference between a nil map and an empty map is significant.
+	// If the Tags map is nil, that means it was omitted from the request body,
+	// so we leave any existing tags alone. If the Tags map is non-nil, even if
+	// empty, that means it was specified in the request body and should fully
+	// replace any existing tags.
+	if newInternalCluster.Tags == nil {
+		newInternalCluster.Tags = maps.Clone(oldInternalCluster.Tags)
+	}
+
 	// Clear the user-assigned identities map since that is reconstructed from Cluster Service data.
 	// TODO we'd like to have the instance complete when we go to validate it.  Right now validation fails if we clear this.
 	// TODO we probably update validation to require this field is cleared.
@@ -477,6 +486,15 @@ func decodeDesiredClusterPatch(ctx context.Context, oldInternalCluster *api.HCPO
 	// TODO we probably update validation to require this field is cleared.
 	//newInternalCluster.Identity.UserAssignedIdentities = nil
 
+	// Here the difference between a nil map and an empty map is significant.
+	// If the Tags map is nil, that means it was omitted from the request body,
+	// so we leave any existing tags alone. If the Tags map is non-nil, even if
+	// empty, that means it was specified in the request body and should fully
+	// replace any existing tags.
+	if newInternalCluster.Tags == nil {
+		newInternalCluster.Tags = maps.Clone(oldInternalCluster.Tags)
+	}
+
 	return newInternalCluster, nil
 }
 
@@ -532,33 +550,17 @@ func (f *Frontend) updateHCPClusterInCosmos(ctx context.Context, writer http.Res
 	clusterUpdateOperation.ClientID = request.Header.Get(arm.HeaderNameClientObjectID)
 	clusterUpdateOperation.NotificationURI = request.Header.Get(arm.HeaderNameAsyncNotificationURI)
 	operationCosmosUID := transaction.CreateOperationDoc(clusterUpdateOperation, nil)
+	transaction.OnSuccess(addOperationResponseHeaders(writer, request, clusterUpdateOperation.NotificationURI, clusterUpdateOperation.OperationID))
 
-	f.ExposeOperation(writer, request, operationCosmosUID, transaction)
+	// set fields that were not known until the operation doc instance was created.
+	// TODO once we we have separate creation/validation of operation documents, this can be done ahead of time.
+	newInternalCluster.ServiceProviderProperties.ActiveOperationID = operationCosmosUID
+	newInternalCluster.ServiceProviderProperties.ProvisioningState = clusterUpdateOperation.Status
 
-	var patchOperations database.ResourceDocumentPatchOperations
-
-	patchOperations.SetActiveOperationID(&operationCosmosUID)
-	patchOperations.SetProvisioningState(clusterUpdateOperation.Status)
-
-	// Record the latest system data values form ARM, if present.
-	patchOperations.SetSystemData(newInternalCluster.SystemData)
-
-	// Record managed identity type an any system-assigned identifiers.
-	// Omit the user-assigned identities map since that is reconstructed
-	// from Cluster Service data.
-	patchOperations.SetIdentity(newInternalCluster.Identity)
-
-	// TODO is this statement also true for PUT?
-	// Here the difference between a nil map and an empty map is significant.
-	// If the Tags map is nil, that means it was omitted from the request body,
-	// so we leave any existing tags alone. If the Tags map is non-nil, even if
-	// empty, that means it was specified in the request body and should fully
-	// replace any existing tags.
-	if newInternalCluster.Tags != nil {
-		patchOperations.SetTags(newInternalCluster.Tags)
+	_, err = f.dbClient.HCPClusters(newInternalCluster.ID.SubscriptionID, newInternalCluster.ID.ResourceGroupName).AddReplaceToTransaction(ctx, transaction, newInternalCluster, nil)
+	if err != nil {
+		return utils.TrackError(err)
 	}
-
-	transaction.PatchResourceDoc(oldInternalCluster.ServiceProviderProperties.CosmosUID, patchOperations, nil)
 
 	transactionResult, err := transaction.Execute(ctx, &azcosmos.TransactionalBatchOptions{
 		EnableContentResponseOnWrite: true,
