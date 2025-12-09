@@ -591,7 +591,11 @@ func severityFor(labels map[string]*string, forceInfoSeverity bool) *int32 {
 
 	switch *severity {
 	case "critical":
-		return ptr.To(int32(2)) // SEV 2: Single service SLA impact.
+		// return ptr.To(int32(2)) // SEV 2: Single service SLA impact.
+		// @jboll
+		// Does it really make sense to have generated SEV2 Alerts?
+		// Consider adding such an alert manually, ensuring it has right quality.
+		return ptr.To(int32(3))
 	case "warning":
 		return ptr.To(int32(3)) // SEV 3: Urgent/high business impact, no SLA impact.
 	case "info":
