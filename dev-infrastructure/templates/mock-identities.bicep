@@ -83,7 +83,7 @@ resource customRole 'Microsoft.Authorization/roleDefinitions@2022-04-01' = {
     assignableScopes: [
       subscription().id
       subscriptionResourceId('Microsoft.Resources/resourceGroups/', globalResourceGroupName)
-      format('/subscriptions/%s', e2eTestSubscription)
+      '/subscriptions/${e2eTestSubscription}'
     ]
   }
 }
@@ -156,7 +156,7 @@ resource msiCustomRole 'Microsoft.Authorization/roleDefinitions@2022-04-01' = {
     assignableScopes: [
       subscription().id
       subscriptionResourceId('Microsoft.Resources/resourceGroups/', globalResourceGroupName)
-      format('/subscriptions/%s', e2eTestSubscription)
+      '/subscriptions/${e2eTestSubscription}'
     ]
   }
 }
