@@ -63,7 +63,7 @@ func (h *hcpClusterCRUD) ExternalAuth(hcpClusterName string) ExternalAuthsCRUD {
 			hcpClusterName)))
 
 	return &externalAuthCRUD{
-		nestedCosmosResourceCRUD: newNestedCosmosResourceCRUD[api.HCPOpenShiftClusterExternalAuth, ExternalAuth](
+		nestedCosmosResourceCRUD: NewCosmosResourceCRUD[api.HCPOpenShiftClusterExternalAuth, ExternalAuth](
 			h.containerClient,
 			parentResourceID,
 			api.ExternalAuthResourceType,
@@ -81,7 +81,7 @@ func (h *hcpClusterCRUD) NodePools(hcpClusterName string) NodePoolsCRUD {
 			hcpClusterName)))
 
 	return &nodePoolsCRUD{
-		nestedCosmosResourceCRUD: newNestedCosmosResourceCRUD[api.HCPOpenShiftClusterNodePool, NodePool](
+		nestedCosmosResourceCRUD: NewCosmosResourceCRUD[api.HCPOpenShiftClusterNodePool, NodePool](
 			h.containerClient,
 			parentResourceID,
 			api.NodePoolResourceType),
@@ -133,5 +133,5 @@ func (h *nodePoolsCRUD) Controllers(nodePoolName string) ResourceCRUD[api.Contro
 func NewControllerCRUD(
 	containerClient *azcosmos.ContainerClient, parentResourceID *azcorearm.ResourceID, resourceType azcorearm.ResourceType) ResourceCRUD[api.Controller] {
 
-	return newNestedCosmosResourceCRUD[api.Controller, Controller](containerClient, parentResourceID, resourceType)
+	return NewCosmosResourceCRUD[api.Controller, Controller](containerClient, parentResourceID, resourceType)
 }

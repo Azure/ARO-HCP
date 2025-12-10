@@ -15,6 +15,7 @@
 package database
 
 import (
+	"fmt"
 	"time"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -25,7 +26,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/ocm"
 )
 
-type OperationRequest string
+type OperationRequest = api.OperationRequest
 
 const (
 	OperationRequestCreate OperationRequest = "Create"
@@ -37,43 +38,33 @@ const (
 	OperationRequestRevokeCredentials OperationRequest = "RevokeCredentials"
 )
 
-// OperationResourceType is an artificial resource type for OperationDocuments
-// in Cosmos DB. It omits the location segment from actual operation endpoints.
-var OperationResourceType = azcorearm.NewResourceType(api.ProviderNamespace, api.OperationStatusResourceTypeName)
+type Operation struct {
+	TypedDocument `json:",inline"`
 
-// OperationDocument tracks an asynchronous operation.
-type OperationDocument struct {
-	// TenantID is the tenant ID of the client that requested the operation
-	TenantID string `json:"tenantId,omitempty"`
-	// ClientID is the object ID of the client that requested the operation
-	ClientID string `json:"clientId,omitempty"`
-	// Request is the type of asynchronous operation requested
-	Request OperationRequest `json:"request,omitempty"`
-	// ExternalID is the Azure resource ID of the cluster or node pool
-	ExternalID *azcorearm.ResourceID `json:"externalId,omitempty"`
-	// InternalID is the Cluster Service resource identifier in the form of a URL path
-	InternalID ocm.InternalID `json:"internalId,omitempty"`
-	// OperationID is the Azure resource ID of the operation status (may be nil if the
-	// operation was implicit, such as deleting a child resource along with the parent)
-	OperationID *azcorearm.ResourceID `json:"operationId,omitempty"`
-	// ClientRequestID is provided by the "x-ms-client-request-id" request header
-	ClientRequestID string `json:"clientRequestId,omitempty"`
-	// CorrelationRequstID is provided by the "x-ms-correlation-request-id" request header
-	CorrelationRequestID string `json:"correlationRequestId,omitempty"`
-	// NotificationURI is provided by the Azure-AsyncNotificationUri header if the
-	// Async Operation Callbacks ARM feature is enabled
-	NotificationURI string `json:"notificationUri,omitempty"`
-
-	// StartTime marks the start of the operation
-	StartTime time.Time `json:"startTime,omitempty"`
-	// LastTransitionTime marks the most recent state change
-	LastTransitionTime time.Time `json:"lastTransitionTime,omitempty"`
-	// Status is the current operation status, using the same set of values
-	// as the resource's provisioning state
-	Status arm.ProvisioningState `json:"status,omitempty"`
-	// Error is an OData error, present when Status is "Failed" or "Canceled"
-	Error *arm.CloudErrorBody `json:"error,omitempty"`
+	OperationProperties OperationDocument `json:"properties"`
 }
+
+var _ ResourceProperties = &Operation{}
+
+func (o *Operation) ValidateResourceType() error {
+	switch o.ResourceType {
+	case api.OperationStatusResourceType.String():
+	default:
+		return fmt.Errorf("invalid resource type: %s", o.ResourceType)
+	}
+	return nil
+}
+
+func (o *Operation) GetTypedDocument() *TypedDocument {
+	return &o.TypedDocument
+}
+
+func (o *Operation) SetResourceID(_ *azcorearm.ResourceID) {
+	// do nothing.  There is no real resource ID to set and we don't need to worry about conforming to ARM casing rules.
+	// TODO, consider whether this should be done in the frontend and not in storage (likely)
+}
+
+type OperationDocument = api.Operation
 
 func NewOperationDocument(request OperationRequest, externalID *azcorearm.ResourceID, internalID ocm.InternalID, correlationData *arm.CorrelationData) *OperationDocument {
 	now := time.Now().UTC()
@@ -101,13 +92,8 @@ func NewOperationDocument(request OperationRequest, externalID *azcorearm.Resour
 	return doc
 }
 
-// GetValidTypes returns the valid resource types for an OperationDocument.
-func (doc OperationDocument) GetValidTypes() []string {
-	return []string{OperationResourceType.String()}
-}
-
 // ToStatus converts an OperationDocument to the ARM operation status format.
-func (doc *OperationDocument) ToStatus() *arm.Operation {
+func ToStatus(doc *OperationDocument) *arm.Operation {
 	operation := &arm.Operation{
 		ID:        doc.OperationID,
 		Name:      doc.OperationID.Name,
@@ -121,20 +107,6 @@ func (doc *OperationDocument) ToStatus() *arm.Operation {
 	}
 
 	return operation
-}
-
-// UpdateStatus conditionally updates the document if the status given differs
-// from the status already present. If so, it sets the Status and Error fields
-// to the values given, updates the LastTransitionTime, and returns true. This
-// is intended to be used with DBClient.UpdateOperationDoc.
-func (doc *OperationDocument) UpdateStatus(status arm.ProvisioningState, err *arm.CloudErrorBody) bool {
-	if doc.Status != status {
-		doc.LastTransitionTime = time.Now().UTC()
-		doc.Status = status
-		doc.Error = err
-		return true
-	}
-	return false
 }
 
 // OperationDocumentPatchOperations represents a patch request for an OperationDocument.

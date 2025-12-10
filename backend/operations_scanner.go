@@ -880,7 +880,7 @@ func (s *OperationsScanner) patchOperationDocument(ctx context.Context, op opera
 
 // postAsyncNotification submits an POST request with status payload to the given URL.
 func (s *OperationsScanner) postAsyncNotification(ctx context.Context, op operation) error {
-	data, err := arm.MarshalJSON(op.doc.ToStatus())
+	data, err := arm.MarshalJSON(database.ToStatus(op.doc))
 	if err != nil {
 		return err
 	}

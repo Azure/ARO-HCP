@@ -76,6 +76,7 @@ const (
 )
 
 var (
+	OperationStatusResourceType        = azcorearm.NewResourceType(ProviderNamespace, OperationStatusResourceTypeName)
 	ClusterResourceType                = azcorearm.NewResourceType(ProviderNamespace, ClusterResourceTypeName)
 	NodePoolResourceType               = azcorearm.NewResourceType(ProviderNamespace, ClusterResourceTypeName+"/"+NodePoolResourceTypeName)
 	ExternalAuthResourceType           = azcorearm.NewResourceType(ProviderNamespace, ClusterResourceTypeName+"/"+ExternalAuthResourceTypeName)

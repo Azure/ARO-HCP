@@ -65,7 +65,7 @@ func (iter *queryResourcesIterator[InternalAPIType, CosmosAPIType]) Items(ctx co
 
 				decodedItemAsResourceProperties, ok := any(decodedItem).(ResourceProperties)
 				if !ok {
-					iter.err = fmt.Errorf("type %T does not implement DocumentProperties interface", decodedItem)
+					iter.err = fmt.Errorf("type %T does not implement ResourceProperties interface", decodedItem)
 					return
 				}
 

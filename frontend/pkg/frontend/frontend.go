@@ -771,7 +771,7 @@ func (f *Frontend) OperationStatus(writer http.ResponseWriter, request *http.Req
 		return nil
 	}
 
-	_, err = arm.WriteJSONResponse(writer, http.StatusOK, doc.ToStatus())
+	_, err = arm.WriteJSONResponse(writer, http.StatusOK, database.ToStatus(doc))
 	if err != nil {
 		return utils.TrackError(err)
 	}

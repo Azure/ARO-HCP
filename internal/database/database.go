@@ -510,7 +510,7 @@ func (d *cosmosDBClient) CreateOperationDoc(ctx context.Context, doc *OperationD
 	// Make sure partition key is lowercase.
 	subscriptionID := strings.ToLower(doc.ExternalID.SubscriptionID)
 
-	typedDoc := newTypedDocument(subscriptionID, OperationResourceType)
+	typedDoc := newTypedDocument(subscriptionID, api.OperationStatusResourceType)
 	typedDoc.TimeToLive = operationTimeToLive
 
 	data, err := typedDocumentMarshal(typedDoc, doc)
@@ -542,12 +542,16 @@ func (d *cosmosDBClient) PatchOperationDoc(ctx context.Context, pk azcosmos.Part
 }
 
 func (d *cosmosDBClient) ListActiveOperationDocs(pk azcosmos.PartitionKey, options *DBClientListActiveOperationDocsOptions) DBClientIterator[OperationDocument] {
+	return ListActiveOperationDocs(d.resources, pk, options)
+}
+
+func ListActiveOperationDocs(resources *azcosmos.ContainerClient, pk azcosmos.PartitionKey, options *DBClientListActiveOperationDocsOptions) DBClientIterator[OperationDocument] {
 	var queryOptions azcosmos.QueryOptions
 
 	query := fmt.Sprintf(
 		"SELECT * FROM c WHERE STRINGEQUALS(c.resourceType, %q, true) "+
 			"AND NOT ARRAYCONTAINS([%q, %q, %q], c.properties.status)",
-		OperationResourceType.String(),
+		api.OperationStatusResourceType.String(),
 		arm.ProvisioningStateSucceeded,
 		arm.ProvisioningStateFailed,
 		arm.ProvisioningStateCanceled)
@@ -579,7 +583,7 @@ func (d *cosmosDBClient) ListActiveOperationDocs(pk azcosmos.PartitionKey, optio
 		}
 	}
 
-	pager := d.resources.NewQueryItemsPager(query, pk, &queryOptions)
+	pager := resources.NewQueryItemsPager(query, pk, &queryOptions)
 
 	return newQueryItemsIterator[OperationDocument](pager)
 }
@@ -698,7 +702,7 @@ func (d *cosmosDBClient) HCPClusters(subscriptionID, resourceGroupName string) H
 	parentResourceID := api.Must(azcorearm.ParseResourceID(path.Join(parts...)))
 
 	return &hcpClusterCRUD{
-		nestedCosmosResourceCRUD: newNestedCosmosResourceCRUD[api.HCPOpenShiftCluster, HCPCluster](d.resources, parentResourceID, api.ClusterResourceType),
+		nestedCosmosResourceCRUD: NewCosmosResourceCRUD[api.HCPOpenShiftCluster, HCPCluster](d.resources, parentResourceID, api.ClusterResourceType),
 	}
 }
 

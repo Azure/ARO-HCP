@@ -1,0 +1,97 @@
+// Copyright 2025 Microsoft Corporation
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package databasemutationhelpers
+
+import (
+	"path/filepath"
+	"testing"
+
+	"github.com/stretchr/testify/require"
+
+	"k8s.io/apimachinery/pkg/api/equality"
+
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
+
+	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/database"
+)
+
+type ResourceCRUDTestSpecializer[InternalAPIType any] interface {
+	ResourceCRUDFromKey(t *testing.T, cosmosContainer *azcosmos.ContainerClient, key CosmosCRUDKey) database.ResourceCRUD[InternalAPIType]
+	InstanceEquals(expected, actual *InternalAPIType) bool
+	NameFromInstance(*InternalAPIType) string
+	WriteCosmosID(newObj, oldObj *InternalAPIType)
+}
+
+type ControllerCRUDSpecializer struct {
+}
+
+var _ ResourceCRUDTestSpecializer[api.Controller] = &ControllerCRUDSpecializer{}
+
+func (ControllerCRUDSpecializer) ResourceCRUDFromKey(t *testing.T, cosmosContainer *azcosmos.ContainerClient, key CosmosCRUDKey) database.ResourceCRUD[api.Controller] {
+	parentResourceID, err := azcorearm.ParseResourceID(key.ParentResourceID)
+	require.NoError(t, err)
+	controllerResourceType, err := azcorearm.ParseResourceType(filepath.Join(parentResourceID.ResourceType.String(), api.ControllerResourceTypeName))
+	require.NoError(t, err)
+
+	return database.NewControllerCRUD(cosmosContainer, parentResourceID, controllerResourceType)
+}
+
+func (ControllerCRUDSpecializer) InstanceEquals(expected, actual *api.Controller) bool {
+	// clear the fields that don't compare
+	shallowExpected := *expected
+	shallowActual := *actual
+	shallowExpected.CosmosUID = ""
+	shallowActual.CosmosUID = ""
+	return equality.Semantic.DeepEqual(shallowExpected, shallowActual)
+}
+
+func (ControllerCRUDSpecializer) NameFromInstance(obj *api.Controller) string {
+	return obj.ControllerName
+}
+
+func (ControllerCRUDSpecializer) WriteCosmosID(newObj, oldObj *api.Controller) {
+	newObj.CosmosUID = oldObj.CosmosUID
+}
+
+type OperationCRUDSpecializer struct {
+}
+
+var _ ResourceCRUDTestSpecializer[api.Operation] = &OperationCRUDSpecializer{}
+
+func (OperationCRUDSpecializer) ResourceCRUDFromKey(t *testing.T, cosmosContainer *azcosmos.ContainerClient, key CosmosCRUDKey) database.ResourceCRUD[api.Operation] {
+	parentResourceID, err := azcorearm.ParseResourceID(key.ParentResourceID)
+	require.NoError(t, err)
+
+	return database.NewCosmosResourceCRUD[api.Operation, database.Operation](cosmosContainer, parentResourceID, api.OperationStatusResourceType)
+}
+
+func (OperationCRUDSpecializer) InstanceEquals(expected, actual *api.Operation) bool {
+	// clear the fields that don't compare
+	shallowExpected := *expected
+	shallowActual := *actual
+	shallowExpected.CosmosUID = ""
+	shallowActual.CosmosUID = ""
+	return equality.Semantic.DeepEqual(shallowExpected, shallowActual)
+}
+
+func (OperationCRUDSpecializer) NameFromInstance(obj *api.Operation) string {
+	return obj.CosmosUID
+}
+
+func (OperationCRUDSpecializer) WriteCosmosID(newObj, oldObj *api.Operation) {
+	newObj.CosmosUID = oldObj.CosmosUID
+}
