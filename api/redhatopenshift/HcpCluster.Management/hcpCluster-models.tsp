@@ -507,11 +507,56 @@ union EtcdDataEncryptionKeyManagementModeType {
  * =======================================
  */
 
+/** Condition defines an observation of the node pool state. */
+model NodePoolCondition {
+  /** This is a PascalCase (or in foo.example.com/PascalCase) code to represent the type of condition. */
+  @visibility(Lifecycle.Read)
+  type: NodePoolConditionType;
+
+  /** The status of the condition. */
+  @visibility(Lifecycle.Read)
+  status: StatusType;
+
+  /** The last time the condition transitioned from one status to another. */
+  @visibility(Lifecycle.Read)
+  lastTransitionTime: utcDateTime;
+
+  /** This contains a programmatic identifier indicating the reason for the condition's last transition. */
+  @visibility(Lifecycle.Read)
+  reason: string;
+
+  /** This is a human readable message indicating details about the transition.
+   * This may be an empty string.
+   */
+  @visibility(Lifecycle.Read)
+  message: string;
+}
+
+/** Representation of the possible types of a node pool condition. */
+union NodePoolConditionType {
+  string,
+
+  /** Indicates that the node pool resource is available. */
+  Available: "Available",
+
+  /** Indicates that the node pool resource is in a degraded state. */
+  Degraded: "Degraded",
+
+  /** Indicates that the node pool resource is in a progressing state. */
+  Progressing: "Progressing",
+}
+
 /** Represents the node pool properties */
 model NodePoolProperties {
   /** Provisioning state */
   @visibility(Lifecycle.Read)
   provisioningState?: ProvisioningState;
+
+  /** Observations of the current state with additional information. */
+  @visibility(Lifecycle.Read)
+  @maxItems(10)
+  @OpenAPI.extension("x-ms-identifiers", #["type"])
+  conditions?: NodePoolCondition[];
 
   /** OpenShift version for the nodepool */
   @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)

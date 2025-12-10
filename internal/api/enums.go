@@ -212,6 +212,25 @@ var (
 	)
 )
 
+type NodePoolConditionType string
+
+const (
+	// NodePoolConditionTypeAvailable - the node pool resource is in an available state.
+	NodePoolConditionTypeAvailable NodePoolConditionType = "Available"
+	// NodePoolConditionTypeDegraded - the node pool resource is in a degraded state.
+	NodePoolConditionTypeDegraded NodePoolConditionType = "Degraded"
+	// NodePoolConditionTypeProgressing - the node pool resource is in a progressing state.
+	NodePoolConditionTypeProgressing NodePoolConditionType = "Progressing"
+)
+
+var (
+	ValidNodePoolConditionTypes = sets.New[NodePoolConditionType](
+		NodePoolConditionTypeAvailable,
+		NodePoolConditionTypeDegraded,
+		NodePoolConditionTypeProgressing,
+	)
+)
+
 type UsernameClaimPrefixPolicy string
 
 const (
