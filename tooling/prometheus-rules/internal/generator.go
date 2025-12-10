@@ -285,6 +285,14 @@ param azureMonitoring string
 		}
 	}
 
+	// First pass: merge groups with the same name across files
+	// Groups from later files override rules from earlier files
+	type groupWithMetadata struct {
+		group                     monitoringv1.RuleGroup
+		defaultEvaluationInterval string
+	}
+	mergedGroups := make(map[string]*groupWithMetadata)
+
 	for _, irf := range o.ruleFiles {
 		for _, group := range irf.Rules.Spec.Groups {
 			// Skip this group if not in includedAlerts
@@ -294,124 +302,170 @@ param azureMonitoring string
 				}
 			}
 
-			logger := logrus.WithFields(logrus.Fields{
-				"group": group.Name,
-			})
-			if group.QueryOffset != nil {
-				logger.Warn("query offset is not supported in Microsoft.AlertsManagement/prometheusRuleGroups")
-			}
-			if group.Limit != nil {
-				logger.Warn("alert limit is not supported in Microsoft.AlertsManagement/prometheusRuleGroups")
-			}
-			if group.Interval == nil {
-				if irf.DefaultEvaluationInterval == "" {
-					group.Interval = monitoringv1.DurationPointer(defaultEvaluationInterval)
-				} else {
-					group.Interval = monitoringv1.DurationPointer(irf.DefaultEvaluationInterval)
+			if existing, exists := mergedGroups[group.Name]; exists {
+				// Merge rules: create a map of existing alerts by name
+				existingAlerts := make(map[string]monitoringv1.Rule)
+				for _, rule := range existing.group.Rules {
+					if rule.Alert != "" {
+						existingAlerts[rule.Alert] = rule
+					} else if rule.Record != "" {
+						existingAlerts[rule.Record] = rule
+					}
+				}
+
+				// Add/override with new rules
+				for _, rule := range group.Rules {
+					ruleName := rule.Alert
+					if ruleName == "" {
+						ruleName = rule.Record
+					}
+					existingAlerts[ruleName] = rule
+				}
+
+				// Rebuild the rules list from the map
+				existing.group.Rules = make([]monitoringv1.Rule, 0, len(existingAlerts))
+				for _, rule := range existingAlerts {
+					existing.group.Rules = append(existing.group.Rules, rule)
+				}
+
+				// Update other group properties from the later file
+				if group.Interval != nil {
+					existing.group.Interval = group.Interval
+				}
+				if group.Labels != nil {
+					existing.group.Labels = group.Labels
+				}
+			} else {
+				// New group
+				mergedGroups[group.Name] = &groupWithMetadata{
+					group:                     group,
+					defaultEvaluationInterval: irf.DefaultEvaluationInterval,
 				}
 			}
-			armGroup := armalertsmanagement.PrometheusRuleGroupResource{
-				Name: ptr.To(group.Name),
-				Properties: &armalertsmanagement.PrometheusRuleGroupProperties{
-					Interval: parseToAzureDurationString(group.Interval),
-					Enabled:  ptr.To(true),
-				},
-			}
+		}
+	}
 
-			for _, rule := range group.Rules {
-				// If includedAlerts is set for this group, ONLY include those alerts
-				if len(o.includedAlerts) > 0 {
-					if includedAlerts, exists := o.includedAlerts[group.Name]; exists {
-						shouldInclude := false
-						for _, includedAlert := range includedAlerts {
-							if rule.Alert == includedAlert {
-								shouldInclude = true
-								break
-							}
+	// Second pass: process merged groups
+	for _, gwm := range mergedGroups {
+		group := gwm.group
+
+		logger := logrus.WithFields(logrus.Fields{
+			"group": group.Name,
+		})
+		if group.QueryOffset != nil {
+			logger.Warn("query offset is not supported in Microsoft.AlertsManagement/prometheusRuleGroups")
+		}
+		if group.Limit != nil {
+			logger.Warn("alert limit is not supported in Microsoft.AlertsManagement/prometheusRuleGroups")
+		}
+		if group.Interval == nil {
+			if gwm.defaultEvaluationInterval == "" {
+				group.Interval = monitoringv1.DurationPointer(defaultEvaluationInterval)
+			} else {
+				group.Interval = monitoringv1.DurationPointer(gwm.defaultEvaluationInterval)
+			}
+		}
+		armGroup := armalertsmanagement.PrometheusRuleGroupResource{
+			Name: ptr.To(group.Name),
+			Properties: &armalertsmanagement.PrometheusRuleGroupProperties{
+				Interval: parseToAzureDurationString(group.Interval),
+				Enabled:  ptr.To(true),
+			},
+		}
+
+		for _, rule := range group.Rules {
+			// If includedAlerts is set for this group, ONLY include those alerts
+			if len(o.includedAlerts) > 0 {
+				if includedAlerts, exists := o.includedAlerts[group.Name]; exists {
+					shouldInclude := false
+					for _, includedAlert := range includedAlerts {
+						if rule.Alert == includedAlert {
+							shouldInclude = true
+							break
 						}
-						if !shouldInclude {
-							continue
-						}
 					}
-				}
-
-				labels := map[string]*string{}
-				for k, v := range group.Labels {
-					labels[k] = ptr.To(strings.ReplaceAll(v, "'", "\\'"))
-				}
-				for k, v := range rule.Labels {
-					labels[k] = ptr.To(strings.ReplaceAll(v, "'", "\\'"))
-				}
-
-				annotations := map[string]*string{}
-				for k, v := range rule.Annotations {
-					annotations[k] = ptr.To(strings.ReplaceAll(v, "'", "\\'"))
-				}
-				// Some part of the Azure Monitor stack consumes the `description` annotation, removing it from the
-				// alert context. We want to use this value in our IcM connector, so we need to have it in the alert
-				// context - simply duplicating it in the annotations and referring to our new copy is enough to side-
-				// step the post-processing.
-				if description, exists := annotations["description"]; exists {
-					annotations["title"] = description
-				}
-
-				// We want to provide a sufficiently specific set of distinct labels to use for the correlation ID in IcM,
-				// where insufficiently specific IDs will mean that alerts get aggregated under one incident.
-				// For alerts we write ourselves, we can add the set of labels manually. For alerts we're importing, though,
-				// we will make the assumption that the `description` annotation refers to all the critical dimensions and use
-				// those in the correlation ID.
-				dimensions := sets.New[string]("{{ $labels.cluster }}") // we always want to be cluster-specific
-				if description, exists := annotations["description"]; exists && description != nil {
-					labelMatcher := regexp.MustCompile(`\$labels\.[^\s}]+`)
-					for _, match := range labelMatcher.FindAllString(*description, -1) {
-						dimensions.Insert(fmt.Sprintf("{{ %s }}", match))
+					if !shouldInclude {
+						continue
 					}
-				}
-				annotations["correlationId"] = ptr.To(strings.Join(append([]string{rule.Alert}, sets.List(dimensions)...), "/"))
-
-				// Filter rules based on the output file type
-				if rule.Alert != "" && isAlertingRulesFile {
-					armGroup.Properties.Rules = append(armGroup.Properties.Rules, &armalertsmanagement.PrometheusRule{
-						Alert:       ptr.To(rule.Alert),
-						Enabled:     ptr.To(true),
-						Labels:      labels,
-						Annotations: annotations,
-						For:         parseToAzureDurationString(rule.For),
-						Expression: ptr.To(
-							strings.TrimSpace(
-								whitespaceMatcher.ReplaceAllString(rule.Expr.String(), " "),
-							),
-						),
-						Severity: severityFor(labels, o.forceInfoSeverity),
-					})
-				} else if rule.Record != "" && isRecordingRulesFile {
-					armGroup.Properties.Rules = append(armGroup.Properties.Rules, &armalertsmanagement.PrometheusRule{
-						Record:  ptr.To(rule.Record),
-						Enabled: ptr.To(true),
-						Labels:  labels,
-						Expression: ptr.To(
-							strings.TrimSpace(
-								whitespaceMatcher.ReplaceAllString(rule.Expr.String(), " "),
-							),
-						),
-					})
 				}
 			}
 
-			if len(armGroup.Properties.Rules) > 0 {
-				// Use the file type to determine which function to call
-				// Groups are guaranteed to contain only one type of rule
+			labels := map[string]*string{}
+			for k, v := range group.Labels {
+				labels[k] = ptr.To(strings.ReplaceAll(v, "'", "\\'"))
+			}
+			for k, v := range rule.Labels {
+				labels[k] = ptr.To(strings.ReplaceAll(v, "'", "\\'"))
+			}
 
-				replacementWriter := NewReplacementWriter(output, o.outputReplacements)
+			annotations := map[string]*string{}
+			for k, v := range rule.Annotations {
+				annotations[k] = ptr.To(strings.ReplaceAll(v, "'", "\\'"))
+			}
+			// Some part of the Azure Monitor stack consumes the `description` annotation, removing it from the
+			// alert context. We want to use this value in our IcM connector, so we need to have it in the alert
+			// context - simply duplicating it in the annotations and referring to our new copy is enough to side-
+			// step the post-processing.
+			if description, exists := annotations["description"]; exists {
+				annotations["title"] = description
+			}
 
-				if isRecordingRulesFile {
-					if err := writeRecordingGroups(armGroup, replacementWriter); err != nil {
-						return err
-					}
-				} else if isAlertingRulesFile {
-					if err := writeAlertGroups(armGroup, replacementWriter); err != nil {
-						return err
-					}
+			// We want to provide a sufficiently specific set of distinct labels to use for the correlation ID in IcM,
+			// where insufficiently specific IDs will mean that alerts get aggregated under one incident.
+			// For alerts we write ourselves, we can add the set of labels manually. For alerts we're importing, though,
+			// we will make the assumption that the `description` annotation refers to all the critical dimensions and use
+			// those in the correlation ID.
+			dimensions := sets.New[string]("{{ $labels.cluster }}") // we always want to be cluster-specific
+			if description, exists := annotations["description"]; exists && description != nil {
+				labelMatcher := regexp.MustCompile(`\$labels\.[^\s}]+`)
+				for _, match := range labelMatcher.FindAllString(*description, -1) {
+					dimensions.Insert(fmt.Sprintf("{{ %s }}", match))
+				}
+			}
+			annotations["correlationId"] = ptr.To(strings.Join(append([]string{rule.Alert}, sets.List(dimensions)...), "/"))
+
+			// Filter rules based on the output file type
+			if rule.Alert != "" && isAlertingRulesFile {
+				armGroup.Properties.Rules = append(armGroup.Properties.Rules, &armalertsmanagement.PrometheusRule{
+					Alert:       ptr.To(rule.Alert),
+					Enabled:     ptr.To(true),
+					Labels:      labels,
+					Annotations: annotations,
+					For:         parseToAzureDurationString(rule.For),
+					Expression: ptr.To(
+						strings.TrimSpace(
+							whitespaceMatcher.ReplaceAllString(rule.Expr.String(), " "),
+						),
+					),
+					Severity: severityFor(labels, o.forceInfoSeverity),
+				})
+			} else if rule.Record != "" && isRecordingRulesFile {
+				armGroup.Properties.Rules = append(armGroup.Properties.Rules, &armalertsmanagement.PrometheusRule{
+					Record:  ptr.To(rule.Record),
+					Enabled: ptr.To(true),
+					Labels:  labels,
+					Expression: ptr.To(
+						strings.TrimSpace(
+							whitespaceMatcher.ReplaceAllString(rule.Expr.String(), " "),
+						),
+					),
+				})
+			}
+		}
+
+		if len(armGroup.Properties.Rules) > 0 {
+			// Use the file type to determine which function to call
+			// Groups are guaranteed to contain only one type of rule
+
+			replacementWriter := NewReplacementWriter(output, o.outputReplacements)
+
+			if isRecordingRulesFile {
+				if err := writeRecordingGroups(armGroup, replacementWriter); err != nil {
+					return err
+				}
+			} else if isAlertingRulesFile {
+				if err := writeAlertGroups(armGroup, replacementWriter); err != nil {
+					return err
 				}
 			}
 		}

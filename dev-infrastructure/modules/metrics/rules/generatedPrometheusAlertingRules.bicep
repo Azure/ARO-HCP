@@ -4,155 +4,6 @@ param azureMonitoring string
 #disable-next-line no-unused-params
 param actionGroups array
 
-resource prometheusWipRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
-  name: 'prometheus-wip-rules'
-  location: resourceGroup().location
-  properties: {
-    interval: 'PT1M'
-    rules: [
-      {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
-          }
-        ]
-        alert: 'PrometheusJobUp'
-        enabled: true
-        labels: {
-          severity: 'critical'
-        }
-        annotations: {
-          correlationId: 'PrometheusJobUp/{{ $labels.cluster }}'
-          description: '''Prometheus has not been reachable for the past 5 minutes.
-This may indicate that the Prometheus server is down, unreachable due to network issues, or experiencing a crash loop.
-Check the status of the Prometheus pods, service endpoints, and network connectivity.
-'''
-          runbook_url: 'TBD'
-          summary: 'Prometheus is unreachable for 5 minutes.'
-          title: '''Prometheus has not been reachable for the past 5 minutes.
-This may indicate that the Prometheus server is down, unreachable due to network issues, or experiencing a crash loop.
-Check the status of the Prometheus pods, service endpoints, and network connectivity.
-'''
-        }
-        expression: 'min by (job, namespace) (up{job="prometheus/prometheus",namespace="prometheus"}) == 0'
-        for: 'PT5M'
-        severity: 3
-      }
-      {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
-          }
-        ]
-        alert: 'PrometheusUptime'
-        enabled: true
-        labels: {
-          severity: 'critical'
-        }
-        annotations: {
-          correlationId: 'PrometheusUptime/{{ $labels.cluster }}'
-          description: '''Prometheus has been unreachable for more than 5% of the time over the past 24 hours.
-This may indicate that the Prometheus server is down, experiencing network issues, or stuck in a crash loop.
-Please check the status of the Prometheus pods, service endpoints, and network connectivity.
-'''
-          runbook_url: 'TBD'
-          summary: 'Prometheus is unreachable for 1 day.'
-          title: '''Prometheus has been unreachable for more than 5% of the time over the past 24 hours.
-This may indicate that the Prometheus server is down, experiencing network issues, or stuck in a crash loop.
-Please check the status of the Prometheus pods, service endpoints, and network connectivity.
-'''
-        }
-        expression: 'avg by (job, namespace) (avg_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d])) < 0.95'
-        for: 'PT10M'
-        severity: 3
-      }
-      {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
-          }
-        ]
-        alert: 'PrometheusPendingRate'
-        enabled: true
-        labels: {
-          severity: 'critical'
-        }
-        annotations: {
-          correlationId: 'PrometheusPendingRate/{{ $labels.cluster }}'
-          description: '''The pending sample rate of Prometheus remote storage is above 40% for the last 15 minutes.
-This means that more than 40% of samples are waiting to be sent to remote storage, which may indicate
-a bottleneck or issue with the remote write endpoint, network connectivity, or Prometheus performance.
-If this condition persists, it could lead to increased memory usage and potential data loss if the buffer overflows.
-Investigate the health and performance of the remote storage endpoint, network latency, and Prometheus resource utilization.
-'''
-          runbook_url: 'TBD'
-          summary: 'Prometheus pending sample rate is above 40%.'
-          title: '''The pending sample rate of Prometheus remote storage is above 40% for the last 15 minutes.
-This means that more than 40% of samples are waiting to be sent to remote storage, which may indicate
-a bottleneck or issue with the remote write endpoint, network connectivity, or Prometheus performance.
-If this condition persists, it could lead to increased memory usage and potential data loss if the buffer overflows.
-Investigate the health and performance of the remote storage endpoint, network latency, and Prometheus resource utilization.
-'''
-        }
-        expression: '( prometheus_remote_storage_samples_pending / prometheus_remote_storage_samples_in_flight ) > 0.4'
-        for: 'PT15M'
-        severity: 3
-      }
-      {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
-          }
-        ]
-        alert: 'PrometheusFailedRate'
-        enabled: true
-        labels: {
-          severity: 'critical'
-        }
-        annotations: {
-          correlationId: 'PrometheusFailedRate/{{ $labels.cluster }}'
-          description: '''The failed sample rate for Prometheus remote storage has exceeded 10% over the past 15 minutes.
-This indicates that more than 10% of samples are not being successfully sent to remote storage, which could be caused by
-issues with the remote write endpoint, network instability, or Prometheus resource constraints.
-Persistent failures may result in increased memory usage and potential data loss if the buffer overflows.
-Please check the health and performance of the remote storage endpoint, network connectivity, and Prometheus resource utilization.
-'''
-          runbook_url: 'TBD'
-          summary: 'Prometheus failed sample rate to remote storage is above 10%.'
-          title: '''The failed sample rate for Prometheus remote storage has exceeded 10% over the past 15 minutes.
-This indicates that more than 10% of samples are not being successfully sent to remote storage, which could be caused by
-issues with the remote write endpoint, network instability, or Prometheus resource constraints.
-Persistent failures may result in increased memory usage and potential data loss if the buffer overflows.
-Please check the health and performance of the remote storage endpoint, network connectivity, and Prometheus resource utilization.
-'''
-        }
-        expression: '( rate(prometheus_remote_storage_samples_failed_total[5m]) / rate(prometheus_remote_storage_samples_total[5m]) ) > 0.1'
-        for: 'PT15M'
-        severity: 3
-      }
-    ]
-    scopes: [
-      azureMonitoring
-    ]
-  }
-}
-
 resource prometheusRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
   name: 'prometheus-rules'
   location: resourceGroup().location
@@ -539,6 +390,155 @@ Check the status of the Arobit forwarder pods, service endpoints, and network co
 '''
         }
         expression: 'min by (job, namespace) (up{job="arobit-forwarder",namespace="arobit"}) == 0'
+        for: 'PT15M'
+        severity: 3
+      }
+    ]
+    scopes: [
+      azureMonitoring
+    ]
+  }
+}
+
+resource prometheusWipRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'prometheus-wip-rules'
+  location: resourceGroup().location
+  properties: {
+    interval: 'PT1M'
+    rules: [
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'PrometheusJobUp'
+        enabled: true
+        labels: {
+          severity: 'critical'
+        }
+        annotations: {
+          correlationId: 'PrometheusJobUp/{{ $labels.cluster }}'
+          description: '''Prometheus has not been reachable for the past 5 minutes.
+This may indicate that the Prometheus server is down, unreachable due to network issues, or experiencing a crash loop.
+Check the status of the Prometheus pods, service endpoints, and network connectivity.
+'''
+          runbook_url: 'TBD'
+          summary: 'Prometheus is unreachable for 5 minutes.'
+          title: '''Prometheus has not been reachable for the past 5 minutes.
+This may indicate that the Prometheus server is down, unreachable due to network issues, or experiencing a crash loop.
+Check the status of the Prometheus pods, service endpoints, and network connectivity.
+'''
+        }
+        expression: 'min by (job, namespace) (up{job="prometheus/prometheus",namespace="prometheus"}) == 0'
+        for: 'PT5M'
+        severity: 3
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'PrometheusUptime'
+        enabled: true
+        labels: {
+          severity: 'critical'
+        }
+        annotations: {
+          correlationId: 'PrometheusUptime/{{ $labels.cluster }}'
+          description: '''Prometheus has been unreachable for more than 5% of the time over the past 24 hours.
+This may indicate that the Prometheus server is down, experiencing network issues, or stuck in a crash loop.
+Please check the status of the Prometheus pods, service endpoints, and network connectivity.
+'''
+          runbook_url: 'TBD'
+          summary: 'Prometheus is unreachable for 1 day.'
+          title: '''Prometheus has been unreachable for more than 5% of the time over the past 24 hours.
+This may indicate that the Prometheus server is down, experiencing network issues, or stuck in a crash loop.
+Please check the status of the Prometheus pods, service endpoints, and network connectivity.
+'''
+        }
+        expression: 'avg by (job, namespace) (avg_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d])) < 0.95'
+        for: 'PT10M'
+        severity: 3
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'PrometheusPendingRate'
+        enabled: true
+        labels: {
+          severity: 'critical'
+        }
+        annotations: {
+          correlationId: 'PrometheusPendingRate/{{ $labels.cluster }}'
+          description: '''The pending sample rate of Prometheus remote storage is above 40% for the last 15 minutes.
+This means that more than 40% of samples are waiting to be sent to remote storage, which may indicate
+a bottleneck or issue with the remote write endpoint, network connectivity, or Prometheus performance.
+If this condition persists, it could lead to increased memory usage and potential data loss if the buffer overflows.
+Investigate the health and performance of the remote storage endpoint, network latency, and Prometheus resource utilization.
+'''
+          runbook_url: 'TBD'
+          summary: 'Prometheus pending sample rate is above 40%.'
+          title: '''The pending sample rate of Prometheus remote storage is above 40% for the last 15 minutes.
+This means that more than 40% of samples are waiting to be sent to remote storage, which may indicate
+a bottleneck or issue with the remote write endpoint, network connectivity, or Prometheus performance.
+If this condition persists, it could lead to increased memory usage and potential data loss if the buffer overflows.
+Investigate the health and performance of the remote storage endpoint, network latency, and Prometheus resource utilization.
+'''
+        }
+        expression: '( prometheus_remote_storage_samples_pending / prometheus_remote_storage_samples_in_flight ) > 0.4'
+        for: 'PT15M'
+        severity: 3
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'PrometheusFailedRate'
+        enabled: true
+        labels: {
+          severity: 'critical'
+        }
+        annotations: {
+          correlationId: 'PrometheusFailedRate/{{ $labels.cluster }}'
+          description: '''The failed sample rate for Prometheus remote storage has exceeded 10% over the past 15 minutes.
+This indicates that more than 10% of samples are not being successfully sent to remote storage, which could be caused by
+issues with the remote write endpoint, network instability, or Prometheus resource constraints.
+Persistent failures may result in increased memory usage and potential data loss if the buffer overflows.
+Please check the health and performance of the remote storage endpoint, network connectivity, and Prometheus resource utilization.
+'''
+          runbook_url: 'TBD'
+          summary: 'Prometheus failed sample rate to remote storage is above 10%.'
+          title: '''The failed sample rate for Prometheus remote storage has exceeded 10% over the past 15 minutes.
+This indicates that more than 10% of samples are not being successfully sent to remote storage, which could be caused by
+issues with the remote write endpoint, network instability, or Prometheus resource constraints.
+Persistent failures may result in increased memory usage and potential data loss if the buffer overflows.
+Please check the health and performance of the remote storage endpoint, network connectivity, and Prometheus resource utilization.
+'''
+        }
+        expression: '( rate(prometheus_remote_storage_samples_failed_total[5m]) / rate(prometheus_remote_storage_samples_total[5m]) ) > 0.1'
         for: 'PT15M'
         severity: 3
       }
