@@ -288,6 +288,36 @@ personal-dev-env:
 endif
 .PHONY: personal-dev-env
 
+#
+# Local Cluster Service Development Environment
+#
+ifeq ($(DEPLOY_ENV),pers)
+local-pers-dev-env: personal-dev-env
+	@echo ""
+	@echo "===================================================================="
+	@echo "Personal dev environment setup complete"
+	@echo "===================================================================="
+	@echo ""
+	@echo "Granting local development permissions..."
+	@$(MAKE) -C dev-infrastructure local-cs-permissions
+	@echo ""
+	@echo "===================================================================="
+	@echo "Local CS permissions granted successfully"
+	@echo "===================================================================="
+	@echo "Generating local provision-shard config..."
+	@echo ""
+	@cd cluster-service && $(MAKE) local-deploy-provision-shard && $(MAKE) personal-runtime-config && $(MAKE) local-aro-hcp-ocp-versions-config && $(MAKE) local-azure-operators-managed-identities-config
+	@echo ""
+	@echo "===================================================================="
+	@echo "Cluster service configuration files generated at:"
+	@echo "cluster-service/local/"
+	@echo "===================================================================="
+else
+local-pers-dev-env:
+	$(error local-pers-dev-env: DEPLOY_ENV must be set to "pers", not "$(DEPLOY_ENV)")
+endif
+.PHONY: local-pers-dev-env
+
 ifeq ($(wildcard $(YQ)),$(YQ))
 entrypoints = $(shell $(YQ) '.entrypoints[] | .identifier | sub("Microsoft.Azure.ARO.HCP.", "")' topology.yaml )
 pipelines = $(shell $(YQ) '.services[] | .. | select(key == "serviceGroup") | sub("Microsoft.Azure.ARO.HCP.", "")' topology.yaml )
