@@ -194,12 +194,12 @@ func (t *cosmosDBTransaction) Execute(ctx context.Context, o *azcosmos.Transacti
 		}
 
 		if !response.Success {
-			for _, result := range response.OperationResults {
+			for step, result := range response.OperationResults {
 				if result.StatusCode != http.StatusFailedDependency {
 					// FIXME Return an error type that allows checking the StatusCode.
 					//       I was tempted to use azcore.ResponseError but it formats
 					//       poorly in a log message without an http.Response.
-					return nil, fmt.Errorf("%d %s", result.StatusCode, http.StatusText(int(result.StatusCode)))
+					return nil, fmt.Errorf("transaction step %d of %d failed with %d %s", step+1, len(response.OperationResults), result.StatusCode, http.StatusText(int(result.StatusCode)))
 				}
 			}
 		}
