@@ -96,3 +96,7 @@ services:
 - serviceGroup: Microsoft.Azure.ARO.HCP.Management.Kubeconfig
   pipelinePath: dev-infrastructure/mgmt-kubeconfig.yaml
   purpose: Grant access to AKS SVC AKS Clusters, mainly intended for E2E test setup.
+# SRE Tooling Infra pipeline
+- serviceGroup: Microsoft.Azure.ARO.HCP.SRETooling.Infra
+  pipelinePath: dev-infrastructure/sre-tooling-pipeline.yaml
+  purpose: Deploy the SRE tooling AKS cluster infrastructure.
