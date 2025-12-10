@@ -1,0 +1,48 @@
+{
+  "id": "8feb19cd-3d3c-4575-863b-b26acafebabe",
+  "partitionKey": "0465bc32-c654-41b8-8d87-9815d7abe8f6",
+  "resourceType": "microsoft.redhatopenshift/hcpopenshiftclusters/externalauths",
+  "properties": {
+    "resourceId": "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/multiple-external-auth/externalAuths/multiple-external-auth",
+    "claim": {
+      "mappings": {
+        "groups": {
+          "claim": "groups"
+        },
+        "username": {
+          "claim": "sub",
+          "prefix": "prefix-",
+          "prefixPolicy": "Prefix"
+        }
+      },
+      "validationRules": []
+    },
+    "clients": [
+      {
+        "clientId": "87654321-4321-4321-4321-abcdefghijkl",
+        "component": {
+          "authClientNamespace": "openshift-console",
+          "name": "console"
+        },
+        "extraScopes": [],
+        "type": "Confidential"
+      },
+      {
+        "clientId": "87654321-4321-4321-4321-abcdefghijkl",
+        "component": {
+          "authClientNamespace": "openshift-console",
+          "name": "cli"
+        },
+        "extraScopes": [],
+        "type": "Public"
+      }
+    ],
+    "issuer": {
+      "audiences": [
+        "87654321-4321-4321-4321-abcdefghijkl"
+      ],
+      "url": "https://login.microsoftonline.com/12345678-1234-1234-1234-123456789abc/v2.0"
+    },
+    "provisioningState": "Accepted"
+  }
+}

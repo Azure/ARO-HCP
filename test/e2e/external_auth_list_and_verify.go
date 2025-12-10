@@ -152,11 +152,12 @@ var _ = Describe("Customer", func() {
 			)
 			Expect(err).To(HaveOccurred())
 
-			// validate the error is the one we expect
+			// validate the error is the one we expect, don't do strict parsing of error message
+			// as it may change over time.  But we can check for the right status code and error code.
 			var respErr *azcore.ResponseError
 			Expect(errors.As(err, &respErr)).To(BeTrue())
 			Expect(respErr.StatusCode).To(Equal(http.StatusBadRequest))
-			Expect(respErr.ErrorCode).To(Equal(arm.CloudErrorCodeInvalidResource))
+			Expect(respErr.ErrorCode).To(Equal(arm.CloudErrorCodeInvalidRequestContent))
 
 			By("listing all external auth configs to verify a list call works")
 			externalAuthClient := tc.Get20240610ClientFactoryOrDie(ctx).NewExternalAuthsClient()

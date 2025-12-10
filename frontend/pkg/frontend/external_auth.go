@@ -28,6 +28,7 @@ import (
 
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 
+	"github.com/Azure/ARO-HCP/internal/admission"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/conversion"
@@ -259,31 +260,26 @@ func (f *Frontend) createExternalAuth(writer http.ResponseWriter, request *http.
 		return utils.TrackError(err)
 	}
 
-	// Only one External Authentication resource can exist per cluster.
-	externalAuthIterator, err := f.dbClient.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).ExternalAuth(resourceID.Parent.Name).List(ctx, &database.DBClientListResourceDocsOptions{})
-	if err != nil {
-		return utils.TrackError(err)
-	}
-
-	eaCount := 0
-	for range externalAuthIterator.Items(ctx) {
-		eaCount++
-	}
-
-	if eaCount > 0 {
-		return arm.NewCloudError(http.StatusBadRequest, arm.CloudErrorCodeInvalidResource, resourceID.String(), "Only one External Authentication resource can be created")
-	}
-
-	validationErrs := validation.ValidateExternalAuthCreate(ctx, newInternalExternalAuth)
-	if err := arm.CloudErrorFromFieldErrors(validationErrs); err != nil {
-		return utils.TrackError(err)
-	}
-
-	logger.Info(fmt.Sprintf("creating resource %s", resourceID))
 	cluster, err := f.getInternalClusterFromStorage(ctx, resourceID.Parent)
 	if err != nil {
 		return utils.TrackError(err)
 	}
+
+	if err := arm.CloudErrorFromFieldErrors(validation.ValidateExternalAuthCreate(ctx, newInternalExternalAuth)); err != nil {
+		return utils.TrackError(err)
+	}
+
+	// in addition to static validation, we have dynamic validation based on current state
+	externalAuthCosmosClient := f.dbClient.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).ExternalAuth(resourceID.Parent.Name)
+	admissionErrors, err := admission.AdmitExternalAuth(ctx, externalAuthCosmosClient, newInternalExternalAuth)
+	if err != nil {
+		return utils.TrackError(err)
+	}
+	if err := arm.CloudErrorFromFieldErrors(admissionErrors); err != nil {
+		return utils.TrackError(err)
+	}
+
+	logger.Info(fmt.Sprintf("creating resource %s", resourceID))
 	if err := checkForProvisioningStateConflict(ctx, f.dbClient, database.OperationRequestUpdate, cluster.ID, cluster.ServiceProviderProperties.ProvisioningState); err != nil {
 		return utils.TrackError(err)
 	}
@@ -317,7 +313,6 @@ func (f *Frontend) createExternalAuth(writer http.ResponseWriter, request *http.
 	newInternalExternalAuth.ServiceProviderProperties.ActiveOperationID = operationCosmosUID
 	newInternalExternalAuth.Properties.ProvisioningState = createExternalAuthOperation.Status
 
-	externalAuthCosmosClient := f.dbClient.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).ExternalAuth(resourceID.Parent.Name)
 	cosmosUID, err := externalAuthCosmosClient.AddCreateToTransaction(ctx, transaction, newInternalExternalAuth, nil)
 	if err != nil {
 		return utils.TrackError(err)
@@ -474,6 +469,16 @@ func (f *Frontend) updateExternalAuthInCosmos(ctx context.Context, writer http.R
 
 	validationErrs := validation.ValidateExternalAuthUpdate(ctx, newInternalExternalAuth, oldInternalExternalAuth)
 	if err := arm.CloudErrorFromFieldErrors(validationErrs); err != nil {
+		return utils.TrackError(err)
+	}
+
+	// in addition to static validation, we have dynamic validation
+	externalAuthCosmosClient := f.dbClient.HCPClusters(newInternalExternalAuth.ID.Parent.SubscriptionID, newInternalExternalAuth.ID.Parent.ResourceGroupName).ExternalAuth(newInternalExternalAuth.ID.Parent.Name)
+	admissionErrors, err := admission.AdmitExternalAuth(ctx, externalAuthCosmosClient, newInternalExternalAuth)
+	if err != nil {
+		return utils.TrackError(err)
+	}
+	if err := arm.CloudErrorFromFieldErrors(admissionErrors); err != nil {
 		return utils.TrackError(err)
 	}
 

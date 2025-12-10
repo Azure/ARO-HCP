@@ -1,0 +1,1 @@
+InvalidRequestContent: name: Invalid value: "no-more-than-one-ea": Only one external authentication resource is allowed per cluster
