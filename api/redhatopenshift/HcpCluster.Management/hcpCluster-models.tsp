@@ -151,6 +151,7 @@ union ExternalAuthProvisioningState {
 model ClusterCondition {
   /** This is a PascalCase (or in foo.example.com/PascalCase) code to represent the type of condition. */
   @visibility(Lifecycle.Read)
+  @maxLength(128)
   type: ClusterConditionType;
 
   /** The status of the condition. */
@@ -163,12 +164,14 @@ model ClusterCondition {
 
   /** This contains a programmatic identifier indicating the reason for the condition's last transition. */
   @visibility(Lifecycle.Read)
+  @maxLength(512)
   reason: string;
 
   /** This is a human readable message indicating details about the transition.
    * This may be an empty string.
    */
   @visibility(Lifecycle.Read)
+  @maxLength(2000)
   message: string;
 }
 
@@ -556,6 +559,7 @@ union EtcdDataEncryptionKeyManagementModeType {
 model NodePoolCondition {
   /** This is a PascalCase (or in foo.example.com/PascalCase) code to represent the type of condition. */
   @visibility(Lifecycle.Read)
+  @maxLength(128)
   type: NodePoolConditionType;
 
   /** The status of the condition. */
@@ -568,12 +572,14 @@ model NodePoolCondition {
 
   /** This contains a programmatic identifier indicating the reason for the condition's last transition. */
   @visibility(Lifecycle.Read)
+  @maxLength(512)
   reason: string;
 
   /** This is a human readable message indicating details about the transition.
    * This may be an empty string.
    */
   @visibility(Lifecycle.Read)
+  @maxLength(2000)
   message: string;
 }
 
