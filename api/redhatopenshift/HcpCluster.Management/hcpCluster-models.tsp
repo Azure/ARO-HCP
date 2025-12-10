@@ -56,6 +56,12 @@ model HcpOpenShiftClusterProperties {
   @visibility(Lifecycle.Read)
   provisioningState?: ProvisioningState;
 
+  /** Observations of the current state with additional information. */
+  @visibility(Lifecycle.Read)
+  @maxItems(10)
+  @OpenAPI.extension("x-ms-identifiers", #["type"])
+  conditions?: ClusterCondition[];
+
   /** Version of the control plane components */
   @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
   version?: VersionProfile;
@@ -139,6 +145,45 @@ union ExternalAuthProvisioningState {
 
   /** Non-terminal state indicating the resource is awaiting secret */
   "AwaitingSecret",
+}
+
+/** Condition defines an observation of the cluster state. */
+model ClusterCondition {
+  /** This is a PascalCase (or in foo.example.com/PascalCase) code to represent the type of condition. */
+  @visibility(Lifecycle.Read)
+  type: ClusterConditionType;
+
+  /** The status of the condition. */
+  @visibility(Lifecycle.Read)
+  status: StatusType;
+
+  /** The last time the condition transitioned from one status to another. */
+  @visibility(Lifecycle.Read)
+  lastTransitionTime: utcDateTime;
+
+  /** This contains a programmatic identifier indicating the reason for the condition's last transition. */
+  @visibility(Lifecycle.Read)
+  reason: string;
+
+  /** This is a human readable message indicating details about the transition.
+   * This may be an empty string.
+   */
+  @visibility(Lifecycle.Read)
+  message: string;
+}
+
+/** Representation of the possible types of a cluster condition. */
+union ClusterConditionType {
+  string,
+
+  /** Indicates that the cluster resource is available. */
+  Available: "Available",
+
+  /** Indicates that the cluster resource is in a degraded state. */
+  Degraded: "Degraded",
+
+  /** Indicates that the cluster resource is in a progressing state. */
+  Progressing: "Progressing",
 }
 
 /** Versions represents an OpenShift version. */

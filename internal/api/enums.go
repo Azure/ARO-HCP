@@ -212,6 +212,25 @@ var (
 	)
 )
 
+type ClusterConditionType string
+
+const (
+	// ClusterConditionTypeAvailable - the cluster resource is in an available state.
+	ClusterConditionTypeAvailable ClusterConditionType = "Available"
+	// ClusterConditionTypeDegraded - the cluster resource is in a degraded state.
+	ClusterConditionTypeDegraded ClusterConditionType = "Degraded"
+	// ClusterConditionTypeProgressing - the cluster resource is in a progressing state.
+	ClusterConditionTypeProgressing ClusterConditionType = "Progressing"
+)
+
+var (
+	ValidClusterConditionTypes = sets.New[ClusterConditionType](
+		ClusterConditionTypeAvailable,
+		ClusterConditionTypeDegraded,
+		ClusterConditionTypeProgressing,
+	)
+)
+
 type NodePoolConditionType string
 
 const (

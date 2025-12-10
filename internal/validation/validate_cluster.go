@@ -292,6 +292,9 @@ var (
 	toHCPOpenShiftClusterServiceProviderPropertiesProvisioningState = func(oldObj *api.HCPOpenShiftClusterServiceProviderProperties) *arm.ProvisioningState {
 		return &oldObj.ProvisioningState
 	}
+	toHCPOpenShiftClusterServiceProviderPropertiesConditions = func(oldObj *api.HCPOpenShiftClusterServiceProviderProperties) []api.ClusterCondition {
+		return oldObj.Conditions
+	}
 	toServiceProviderDNS = func(oldObj *api.HCPOpenShiftClusterServiceProviderProperties) *api.ServiceProviderDNSProfile {
 		return &oldObj.DNS
 	}
@@ -317,6 +320,16 @@ func validateClusterServiceProviderProperties(ctx context.Context, op operation.
 
 	// ProvisioningState       arm.ProvisioningState       `json:"provisioningState,omitempty"`
 	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("provisioningState"), &newObj.ProvisioningState, safe.Field(oldObj, toHCPOpenShiftClusterServiceProviderPropertiesProvisioningState))...)
+
+	// Conditions              []ClusterCondition          `json:"conditions,omitempty"              visibility:"read"                     validate:"omitempty,max=10,dive"`
+	errs = append(errs, validate.ImmutableByReflect(ctx, op, fldPath.Child("conditions"), newObj.Conditions, safe.Field(oldObj, toHCPOpenShiftClusterServiceProviderPropertiesConditions))...)
+	errs = append(errs, MaxItems(ctx, op, fldPath.Child("conditions"), newObj.Conditions, safe.Field(oldObj, toHCPOpenShiftClusterServiceProviderPropertiesConditions), 10)...)
+	errs = append(errs, validate.EachSliceVal(
+		ctx, op, fldPath.Child("conditions"),
+		newObj.Conditions, safe.Field(oldObj, toHCPOpenShiftClusterServiceProviderPropertiesConditions),
+		nil, nil,
+		validateClusterCondition,
+	)...)
 
 	//CosmosUID         string                         `json:"cosmosUID,omitempty"`
 	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("cosmosUID"), &newObj.CosmosUID, safe.Field(oldObj, toServiceProviderCosmosUID))...)
@@ -867,6 +880,27 @@ func validateUserAssignedIdentity(ctx context.Context, op operation.Operation, f
 
 	//PrincipalID *string `json:"principalId,omitempty"`
 	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("principalId"), (*newObj).PrincipalID, safe.Field(oldObj, toUserAssignedIdentityPrincipalID))...)
+
+	return errs
+}
+
+var (
+	toClusterConditionType   = func(oldObj *api.ClusterCondition) *api.ClusterConditionType { return &oldObj.Type }
+	toClusterConditionStatus = func(oldObj *api.ClusterCondition) *api.ConditionStatusType { return &oldObj.Status }
+)
+
+func validateClusterCondition(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *api.ClusterCondition) field.ErrorList {
+	errs := field.ErrorList{}
+
+	//Type               ClusterConditionType `json:"type"               validate:"enum_clusterconditiontype"`
+	errs = append(errs, validate.Enum(ctx, op, fldPath.Child("type"), &newObj.Type, safe.Field(oldObj, toClusterConditionType), api.ValidClusterConditionTypes)...)
+
+	//Status             ConditionStatusType  `json:"status"             validate:"enum_conditionstatustype"`
+	errs = append(errs, validate.Enum(ctx, op, fldPath.Child("status"), &newObj.Status, safe.Field(oldObj, toClusterConditionStatus), api.ValidConditionStatusTypes)...)
+
+	//LastTransitionTime time.Time            `json:"lastTransitionTime"`
+	//Reason             string               `json:"reason"`
+	//Message            string               `json:"message"`
 
 	return errs
 }
