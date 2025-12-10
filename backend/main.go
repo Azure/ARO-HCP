@@ -137,6 +137,7 @@ func Run(cmd *cobra.Command, args []string) error {
 		cmd.Short,
 		version.CommitSHA,
 		arm.GetAzureLocation()))
+	logger.Info(fmt.Sprintf("Also listening Backend on a Dummy branch %s", "Hello"))
 
 	// Use pod name as the lock identity.
 	hostname, err := os.Hostname()
