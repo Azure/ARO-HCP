@@ -678,6 +678,86 @@ serviceKeyVault:
   softDelete: true
   tagKey: aroHCPPurpose
   tagValue: service
+sretooling:
+  adminApi:
+    managedIdentityName: sre-tooling-admin-api
+  aks:
+    clusterOutboundIPAddressIPTags: ""
+    etcd:
+      name: ah-pers-tool-usw3test-1
+      private: true
+      softDelete: true
+      tagKey: aroHCPPurpose
+      tagValue: sre-tooling-etcd
+    infraAgentPool:
+      maxCount: 2
+      minCount: 1
+      osDiskSizeGB: 64
+      poolCount: 1
+      vmSize: Standard_D4ds_v5
+      zoneRedundantMode: Auto
+      zones: ""
+    kubernetesVersion: 1.32.5
+    name: pers-westus3-sre-tooling
+    networkDataplane: cilium
+    networkPolicy: cilium
+    podSubnetPrefix: 10.140.64.0/18
+    subnetPrefix: 10.140.8.0/21
+    systemAgentPool:
+      maxCount: 3
+      minCount: 1
+      osDiskSizeGB: 32
+      poolCount: 1
+      vmSize: Standard_D2s_v3
+      zoneRedundantMode: Auto
+      zones: ""
+    userAgentPool:
+      maxCount: 3
+      minCount: 1
+      osDiskSizeGB: 32
+      poolCount: 1
+      vmSize: Standard_D2s_v3
+      zoneRedundantMode: Auto
+      zones: ""
+    vnetAddressPrefix: 10.140.0.0/14
+  enabled: true
+  prometheus:
+    kubeStateMetrics:
+      image:
+        digest: sha256:4893b3f6e4d9b2d960a6afbce18ba025d47955d10d400587bf5450d5a3f9c5bc
+        registry: mcr.microsoft.com/oss/v2
+        repository: kubernetes/kube-state-metrics
+    prometheusConfigReloader:
+      image:
+        registry: mcr.microsoft.com/oss/v2
+        repository: prometheus/prometheus-config-reloader
+        sha: d5b35ba0ac17927a46e74eb024d864dabd8c3f58ce67b9269bc81a85d9fc146f
+    prometheusOperator:
+      image:
+        registry: mcr.microsoft.com/oss/v2
+        repository: prometheus/prometheus-operator
+        sha: 5c3fd99a70fb43aa5ea4672ccaf04c68ac60d7adb7e205d2bf75d1b46395455c
+    prometheusSpec:
+      image:
+        registry: mcr.microsoft.com/oss/v2
+        repository: prometheus/prometheus
+        sha: 70296b2f2cc69c88d070fe8b627d347bd070e084c14babbc93e91583e03eca06
+      replicas: 1
+      shards: 1
+  rg: hcp-underlay-pers-westus3-sre-tooling
+  subscription:
+    displayName: Azure Red Hat OpenShift HCP - pers - westus3 - SRE Tooling
+    key: ARO Hosted Control Planes (EA Subscription 1)
+    providers:
+      Microsoft.Compute:
+        poll: true
+      Microsoft.ContainerService:
+        poll: true
+      Microsoft.Insights:
+        poll: true
+      Microsoft.Network:
+        poll: true
+    usePlannedQuota: false
 svc:
   aks:
     clusterOutboundIPAddressIPTags: ""

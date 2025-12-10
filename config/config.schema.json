@@ -2618,6 +2618,49 @@
         "istio"
       ]
     },
+    "sretooling": {
+      "type": "object",
+      "description": "SRE Tooling AKS cluster configuration",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable or disable SRE Tooling AKS cluster deployment"
+        },
+        "subscription": {
+          "$ref": "#/definitions/subscriptionMetadata"
+        },
+        "rg": {
+          "$ref": "#/definitions/resourceGroupName"
+        },
+        "aks": {
+          "$ref": "#/definitions/aksConfig"
+        },
+        "prometheus": {
+          "description": "Prometheus deployment configuration",
+          "$ref": "#/definitions/prometheus"
+        },
+        "adminApi": {
+          "type": "object",
+          "properties": {
+            "managedIdentityName": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "managedIdentityName"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "rg",
+        "subscription",
+        "aks",
+        "prometheus",
+        "adminApi"
+      ]
+    },
     "acr": {
       "type": "object",
       "properties": {

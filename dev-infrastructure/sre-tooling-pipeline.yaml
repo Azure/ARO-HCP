@@ -1,0 +1,261 @@
+$schema: "pipeline.schema.v1"
+serviceGroup: Microsoft.Azure.ARO.HCP.SRETooling.Infra
+rolloutName: SRE Tooling Cluster Rollout
+resourceGroups:
+# Query parameters from global deployment, e.g. ACR resource IDs
+- name: global
+  resourceGroup: '{{ .global.rg }}'
+  subscription: '{{ .global.subscription.key }}'
+  steps:
+  - name: output
+    action: ARM
+    template: templates/output-global.bicep
+    parameters: configurations/output-global.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
+  - name: geneva-output
+    action: ARM
+    template: templates/geneva-identities-lookup.bicep
+    parameters: configurations/geneva-identities-lookup.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
+# Query parameters from regional deployment, e.g. Azure Monitor workspace ID
+- name: regional
+  resourceGroup: '{{ .regionRG }}'
+  subscription: '{{ .sretooling.subscription.key }}'
+  steps:
+  - name: output
+    action: ARM
+    template: templates/output-region.bicep
+    parameters: configurations/output-region.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
+- name: kusto
+  resourceGroup: '{{ .kusto.rg }}'
+  subscription: '{{ .global.subscription.key }}'
+  steps:
+  - name: output
+    action: ARM
+    template: templates/kusto-lookup.bicep
+    parameters: configurations/kusto-lookup.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
+- name: sre-tooling
+  resourceGroup: '{{ .sretooling.rg }}'
+  subscription: '{{ .sretooling.subscription.key }}'
+  steps:
+  # Create TOOLING KV
+  - name: infra
+    action: ARM
+    template: templates/sre-tooling-infra.bicep
+    parameters: configurations/sre-tooling-infra.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    variables:
+    - name: globalMSIId
+      input:
+        resourceGroup: global
+        step: output
+        name: globalMSIId
+  - name: infra-output
+    action: ARM
+    template: templates/sre-tooling-infra-lookup.bicep
+    parameters: configurations/sre-tooling-infra-lookup.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
+    dependsOn:
+    - resourceGroup: sre-tooling
+      step: infra
+  # Configure certificate issuers for the TOOLING KV
+  - name: oncert-private-kv-issuer
+    action: SetCertificateIssuer
+    secretKeyVault:
+      configRef: ev2.assistedId.certificate.keyVault
+    secretName:
+      configRef: ev2.assistedId.certificate.name
+    applicationId:
+      configRef: ev2.assistedId.applicationId
+    vaultBaseUrl:
+      input:
+        resourceGroup: sre-tooling
+        step: infra-output
+        name: sreToolingKeyVaultUrl
+    issuer:
+      value: OneCertV2-PrivateCA
+  - name: oncert-public-kv-issuer
+    action: SetCertificateIssuer
+    secretKeyVault:
+      configRef: ev2.assistedId.certificate.keyVault
+    secretName:
+      configRef: ev2.assistedId.certificate.name
+    applicationId:
+      configRef: ev2.assistedId.applicationId
+    vaultBaseUrl:
+      input:
+        resourceGroup: sre-tooling
+        step: infra-output
+        name: sreToolingKeyVaultUrl
+    issuer:
+      value: OneCertV2-PublicCA
+  # Create TOOLING cluster
+  - name: cluster
+    action: ARM
+    template: templates/sre-tooling-cluster.bicep
+    parameters: configurations/sre-tooling-cluster.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    variables:
+    - name: globalMSIId
+      input:
+        resourceGroup: global
+        step: output
+        name: globalMSIId
+    - name: svcAcrResourceId
+      input:
+        resourceGroup: global
+        step: output
+        name: svcAcrResourceId
+    - name: azureMonitoringWorkspaceId
+      input:
+        resourceGroup: regional
+        step: output
+        name: azureMonitoringWorkspaceId
+    dependsOn:
+    - resourceGroup: sre-tooling
+      step: oncert-private-kv-issuer
+    - resourceGroup: sre-tooling
+      step: oncert-public-kv-issuer
+  - name: cluster-output
+    action: ARM
+    template: templates/output-sre-tooling-cluster.bicep
+    parameters: configurations/output-sre-tooling-cluster.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
+    dependsOn:
+    - resourceGroup: regional
+      step: output
+    - resourceGroup: sre-tooling
+      step: cluster
+  - name: kusto-ingest-sre-tooling-logs
+    action: ARM
+    template: templates/kusto-grant-ingest.bicep
+    parameters: configurations/kusto-sre-tooling-ingest.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    variables:
+    - name: clusterLogPrincipalId
+      input:
+        resourceGroup: sre-tooling
+        step: cluster-output
+        name: clusterLogPrincipalId
+    - name: kustoResourceId
+      input:
+        resourceGroup: kusto
+        step: output
+        name: kustoResourceId
+    - name: adminApiPrincipalId
+      input:
+        resourceGroup: sre-tooling
+        step: cluster-output
+        name: adminApiPrincipalId
+    automatedRetry:
+      errorContainsAny:
+      - "AAD principal was not found"
+      maximumRetryCount: 7
+      durationBetweenRetries: 1m
+    dependsOn:
+    - resourceGroup: kusto
+      step: output
+    - resourceGroup: sre-tooling
+      step: cluster-output
+  - name: prometheus
+    # Deploy prometheus
+    aksCluster: '{{ .sretooling.aks.name }}'
+    action: Helm
+    releaseName: 'arohcp-monitor'
+    releaseNamespace: 'prometheus'
+    namespaceFiles:
+    - ../observability/prometheus/namespace.sre-tooling.yaml
+    chartDir: ../observability/prometheus/deploy
+    valuesFile: ../observability/prometheus/values-sre-tooling.yaml
+    inputVariables:
+      dcrRemoteWriteUrl:
+        resourceGroup: sre-tooling
+        step: cluster-output
+        name: dcrRemoteWriteUrl
+      hcpDcrRemoteWriteUrl:
+        resourceGroup: sre-tooling
+        step: cluster-output
+        name: hcpDcrRemoteWriteUrl
+      prometheusUAMIClientId:
+        resourceGroup: sre-tooling
+        step: cluster-output
+        name: prometheusUAMIClientId
+    dependsOn:
+    - resourceGroup: sre-tooling
+      step: cluster
+    identityFrom:
+      resourceGroup: global
+      step: output
+      name: globalMSIId
+  - name: acrpull
+    aksCluster: '{{ .sretooling.aks.name }}'
+    action: Helm
+    releaseName: acrpull
+    releaseNamespace: acrpull
+    chartDir: ./../acrpull/deploy
+    valuesFile: ./../acrpull/deploy/values.yaml
+    dependsOn:
+    - resourceGroup: sre-tooling
+      step: prometheus
+    identityFrom:
+      resourceGroup: global
+      step: output
+      name: globalMSIId
+  - name: arobit-output
+    action: ARM
+    template: templates/arobit-lookup.bicep
+    parameters: configurations/arobit-lookup.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
+    dependsOn:
+    - resourceGroup: sre-tooling
+      step: cluster
+  - name: arobit
+    aksCluster: '{{ .sretooling.aks.name }}'
+    action: Helm
+    releaseName: 'arobit'
+    releaseNamespace: 'arobit'
+    chartDir: ../observability/arobit/deploy
+    valuesFile: ../observability/arobit/values-sre-tooling.yaml
+    dependsOn:
+    - resourceGroup: sre-tooling
+      step: prometheus
+    inputVariables:
+      tenantId:
+        resourceGroup: sre-tooling
+        step: arobit-output
+        name: tenantId
+      msiClientId:
+        resourceGroup: sre-tooling
+        step: arobit-output
+        name: msiClientId
+      kustoDataIngestionUri:
+        resourceGroup: kusto
+        step: output
+        name: kustoDataIngestionUri
+    identityFrom:
+      resourceGroup: global
+      step: output
+      name: globalMSIId
+  - name: kube-events
+    aksCluster: '{{ .sretooling.aks.name }}'
+    action: Helm
+    releaseName: kube-events
+    releaseNamespace: monitoring
+    chartDir: ./../observability/kube-events/deploy
+    valuesFile: ./../observability/kube-events/values.yaml
+    dependsOn:
+    - resourceGroup: sre-tooling
+      step: cluster
+    identityFrom:
+      resourceGroup: global
+      step: output
+      name: globalMSIId
