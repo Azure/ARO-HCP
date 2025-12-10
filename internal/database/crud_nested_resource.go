@@ -18,6 +18,7 @@ import (
 	"context"
 	"fmt"
 	"path"
+	"strings"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
@@ -93,13 +94,23 @@ func (d *nestedCosmosResourceCRUD[InternalAPIType, CosmosAPIType]) makeResourceI
 	return azcorearm.ParseResourceID(resourcePathString)
 }
 
+func (d *nestedCosmosResourceCRUD[InternalAPIType, CosmosAPIType]) GetByID(ctx context.Context, cosmosID string) (*InternalAPIType, error) {
+	if strings.ToLower(cosmosID) != cosmosID {
+		return nil, fmt.Errorf("cosmosID must be lowercase, not: %q", cosmosID)
+	}
+	partitionKey := strings.ToLower(d.parentResourceID.SubscriptionID)
+
+	return getByItemID[InternalAPIType, CosmosAPIType](ctx, d.containerClient, partitionKey, cosmosID)
+}
+
 func (d *nestedCosmosResourceCRUD[InternalAPIType, CosmosAPIType]) Get(ctx context.Context, resourceID string) (*InternalAPIType, error) {
 	completeResourceID, err := d.makeResourceIDPath(resourceID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to make ResourceID path for '%s': %w", resourceID, err)
 	}
+	partitionKey := strings.ToLower(d.parentResourceID.SubscriptionID)
 
-	return get[InternalAPIType, CosmosAPIType](ctx, d.containerClient, completeResourceID)
+	return get[InternalAPIType, CosmosAPIType](ctx, d.containerClient, partitionKey, completeResourceID)
 }
 
 func (d *nestedCosmosResourceCRUD[InternalAPIType, CosmosAPIType]) List(ctx context.Context, options *DBClientListResourceDocsOptions) (DBClientIterator[InternalAPIType], error) {
@@ -107,8 +118,9 @@ func (d *nestedCosmosResourceCRUD[InternalAPIType, CosmosAPIType]) List(ctx cont
 	if err != nil {
 		return nil, fmt.Errorf("failed to make ResourceID path for '%s': %w", d.parentResourceID.ResourceGroupName, err)
 	}
+	partitionKey := strings.ToLower(d.parentResourceID.SubscriptionID)
 
-	return list[InternalAPIType, CosmosAPIType](ctx, d.containerClient, &d.resourceType, prefix, options)
+	return list[InternalAPIType, CosmosAPIType](ctx, d.containerClient, partitionKey, &d.resourceType, prefix, options)
 }
 
 func (d *nestedCosmosResourceCRUD[InternalAPIType, CosmosAPIType]) AddCreateToTransaction(ctx context.Context, transaction DBTransaction, newObj *InternalAPIType, opts *azcosmos.TransactionalBatchItemOptions) (string, error) {
@@ -120,9 +132,11 @@ func (d *nestedCosmosResourceCRUD[InternalAPIType, CosmosAPIType]) AddReplaceToT
 }
 
 func (d *nestedCosmosResourceCRUD[InternalAPIType, CosmosAPIType]) Create(ctx context.Context, newObj *InternalAPIType, options *azcosmos.ItemOptions) (*InternalAPIType, error) {
-	return create[InternalAPIType, CosmosAPIType](ctx, d.containerClient, newObj, options)
+	partitionKey := strings.ToLower(d.parentResourceID.SubscriptionID)
+	return create[InternalAPIType, CosmosAPIType](ctx, d.containerClient, partitionKey, newObj, options)
 }
 
 func (d *nestedCosmosResourceCRUD[InternalAPIType, CosmosAPIType]) Replace(ctx context.Context, newObj *InternalAPIType, options *azcosmos.ItemOptions) (*InternalAPIType, error) {
-	return replace[InternalAPIType, CosmosAPIType](ctx, d.containerClient, newObj, options)
+	partitionKey := strings.ToLower(d.parentResourceID.SubscriptionID)
+	return replace[InternalAPIType, CosmosAPIType](ctx, d.containerClient, partitionKey, newObj, options)
 }

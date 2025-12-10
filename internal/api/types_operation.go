@@ -18,10 +18,8 @@ import (
 	"strings"
 	"time"
 
-	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
-	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
-
 	"github.com/Azure/ARO-HCP/internal/api/arm"
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 )
 
 type OperationRequest string
@@ -89,7 +87,7 @@ func (o *Operation) ComputeLogicalResourceID() *azcorearm.ResourceID {
 func (o *Operation) GetCosmosData() CosmosData {
 	return CosmosData{
 		CosmosUID:    o.CosmosUID,
-		PartitionKey: azcosmos.NewPartitionKeyString(strings.ToLower(o.ExternalID.SubscriptionID)),
+		PartitionKey: strings.ToLower(o.ExternalID.SubscriptionID),
 		ItemID:       o.ComputeLogicalResourceID(),
 	}
 }

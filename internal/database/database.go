@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"iter"
 	"net/http"
-	"path"
 	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
@@ -115,8 +114,12 @@ type DBClient interface {
 	// UntypedCRUD provides access documents in the subscription
 	UntypedCRUD(parentResourceID azcorearm.ResourceID) (UntypedResourceCRUD, error)
 
-	// GetHCPClusterCRUD retrieves a CRUD interface for managing HCPCluster resources and their nested resources.
+	// HCPClusters retrieves a CRUD interface for managing HCPCluster resources and their nested resources.
 	HCPClusters(subscriptionID, resourceGroupName string) HCPClusterCRUD
+
+	// Operations retrieves a CRUD interface for managing operations.  Remember that operations are not directly accessible
+	// to end users via ARM.  They must also survive the thing they are deleting, so they live under a subscription directly.
+	Operations(subscriptionID string) OperationCRUD
 
 	// GetResourceDoc queries the "Resources" container for a cluster or node pool document with a
 	// matching resourceID.
@@ -145,9 +148,6 @@ type DBClient interface {
 
 	// GetOperationDoc retrieves an asynchronous operation document from the "Resources" container.
 	GetOperationDoc(ctx context.Context, pk azcosmos.PartitionKey, operationID string) (*OperationDocument, error)
-
-	// CreateResourceDoc creates a new asynchronous operation document in the "Resources" container.
-	CreateOperationDoc(ctx context.Context, doc *OperationDocument) (string, error)
 
 	// PatchOperationDoc patches an asynchronous operation document in the "Resources" container
 	// by applying a sequence of patch operations. The patch operations may include a precondition
@@ -509,26 +509,6 @@ func (d *cosmosDBClient) GetOperationDoc(ctx context.Context, pk azcosmos.Partit
 	return innerDoc, err
 }
 
-func (d *cosmosDBClient) CreateOperationDoc(ctx context.Context, doc *OperationDocument) (string, error) {
-	// Make sure partition key is lowercase.
-	subscriptionID := strings.ToLower(doc.ExternalID.SubscriptionID)
-
-	typedDoc := newTypedDocument(subscriptionID, api.OperationStatusResourceType)
-	typedDoc.TimeToLive = operationTimeToLive
-
-	data, err := typedDocumentMarshal(typedDoc, doc)
-	if err != nil {
-		return "", fmt.Errorf("failed to marshal Operations container item for '%s': %w", typedDoc.ID, err)
-	}
-
-	_, err = d.resources.CreateItem(ctx, typedDoc.getPartitionKey(), data, nil)
-	if err != nil {
-		return "", fmt.Errorf("failed to create Operations container item for '%s': %w", typedDoc.ID, err)
-	}
-
-	return typedDoc.ID, nil
-}
-
 func (d *cosmosDBClient) PatchOperationDoc(ctx context.Context, pk azcosmos.PartitionKey, operationID string, ops OperationDocumentPatchOperations) (*OperationDocument, error) {
 	options := &azcosmos.ItemOptions{EnableContentResponseOnWrite: true}
 	response, err := d.resources.PatchItem(ctx, pk, operationID, ops.PatchOperations, options)
@@ -693,20 +673,11 @@ func (d *cosmosDBClient) ListAllSubscriptionDocs() DBClientIterator[arm.Subscrip
 }
 
 func (d *cosmosDBClient) HCPClusters(subscriptionID, resourceGroupName string) HCPClusterCRUD {
-	parts := []string{
-		"/subscriptions",
-		subscriptionID,
-	}
-	if len(resourceGroupName) > 0 {
-		parts = append(parts,
-			"resourceGroups",
-			resourceGroupName)
-	}
-	parentResourceID := api.Must(azcorearm.ParseResourceID(path.Join(parts...)))
+	return NewHCPClusterCRUD(d.resources, subscriptionID, resourceGroupName)
+}
 
-	return &hcpClusterCRUD{
-		nestedCosmosResourceCRUD: NewCosmosResourceCRUD[api.HCPOpenShiftCluster, HCPCluster](d.resources, parentResourceID, api.ClusterResourceType),
-	}
+func (d *cosmosDBClient) Operations(subscriptionID string) OperationCRUD {
+	return NewOperationCRUD(d.resources, subscriptionID)
 }
 
 func (d *cosmosDBClient) UntypedCRUD(parentResourceID azcorearm.ResourceID) (UntypedResourceCRUD, error) {

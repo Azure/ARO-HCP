@@ -18,10 +18,8 @@ import (
 	"fmt"
 	"strings"
 
-	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
-	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
-
 	"github.com/Azure/ARO-HCP/internal/api/arm"
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 )
 
 // HCPOpenShiftClusterNodePool represents a node pool resource for ARO HCP
@@ -38,7 +36,7 @@ var _ CosmosPersistable = &HCPOpenShiftClusterNodePool{}
 func (o *HCPOpenShiftClusterNodePool) GetCosmosData() CosmosData {
 	return CosmosData{
 		CosmosUID:    o.ServiceProviderProperties.CosmosUID,
-		PartitionKey: azcosmos.NewPartitionKeyString(strings.ToLower(o.ID.SubscriptionID)),
+		PartitionKey: strings.ToLower(o.ID.SubscriptionID),
 		ItemID:       o.ID,
 	}
 }

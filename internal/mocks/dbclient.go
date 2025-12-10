@@ -221,45 +221,6 @@ func (c *MockDBClientCreateBillingDocCall) DoAndReturn(f func(context.Context, *
 	return c
 }
 
-// CreateOperationDoc mocks base method.
-func (m *MockDBClient) CreateOperationDoc(ctx context.Context, doc *database.OperationDocument) (string, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CreateOperationDoc", ctx, doc)
-	ret0, _ := ret[0].(string)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// CreateOperationDoc indicates an expected call of CreateOperationDoc.
-func (mr *MockDBClientMockRecorder) CreateOperationDoc(ctx, doc any) *MockDBClientCreateOperationDocCall {
-	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateOperationDoc", reflect.TypeOf((*MockDBClient)(nil).CreateOperationDoc), ctx, doc)
-	return &MockDBClientCreateOperationDocCall{Call: call}
-}
-
-// MockDBClientCreateOperationDocCall wrap *gomock.Call
-type MockDBClientCreateOperationDocCall struct {
-	*gomock.Call
-}
-
-// Return rewrite *gomock.Call.Return
-func (c *MockDBClientCreateOperationDocCall) Return(arg0 string, arg1 error) *MockDBClientCreateOperationDocCall {
-	c.Call = c.Call.Return(arg0, arg1)
-	return c
-}
-
-// Do rewrite *gomock.Call.Do
-func (c *MockDBClientCreateOperationDocCall) Do(f func(context.Context, *database.OperationDocument) (string, error)) *MockDBClientCreateOperationDocCall {
-	c.Call = c.Call.Do(f)
-	return c
-}
-
-// DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockDBClientCreateOperationDocCall) DoAndReturn(f func(context.Context, *database.OperationDocument) (string, error)) *MockDBClientCreateOperationDocCall {
-	c.Call = c.Call.DoAndReturn(f)
-	return c
-}
-
 // CreateSubscriptionDoc mocks base method.
 func (m *MockDBClient) CreateSubscriptionDoc(ctx context.Context, subscriptionID string, subscription *arm.Subscription) error {
 	m.ctrl.T.Helper()
