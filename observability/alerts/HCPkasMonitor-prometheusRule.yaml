@@ -10,7 +10,7 @@ spec:
     - alert: kas-monitor-ErrorBudgetBurn
       expr: |
         1 - (sum by (probe_url, namespace, _id, cluster) (sum_over_time(probe_success{}[30m])) / sum by (probe_url, namespace, _id, cluster) (count_over_time(probe_success{}[30m]))) > (14.4 * (1 - 0.9995)) and sum by (probe_url, namespace, _id, cluster) (count_over_time(probe_success{}[30m])) > 5 and 1 - (sum by (probe_url, namespace, _id, cluster) (sum_over_time(probe_success{}[1h])) / sum by (probe_url, namespace, _id, cluster) (count_over_time(probe_success{}[1h]))) > (14.4 * (1 - 0.9995)) and sum by (probe_url, namespace, _id, cluster) (count_over_time(probe_success{}[1h])) > 60
-      for: 2m
+      for: 15m
       labels:
         long_window: 1h
         severity: warning

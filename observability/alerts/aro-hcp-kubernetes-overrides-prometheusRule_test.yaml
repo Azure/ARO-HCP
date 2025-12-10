@@ -1,0 +1,93 @@
+rule_files:
+- aro-hcp-kubernetes-overrides-prometheusRule.yaml
+evaluation_interval: 1m
+tests:
+# Test 1: Normal operation - no alerts should fire
+- interval: 1m
+  input_series:
+  # Deployment with healthy replicas
+  - series: 'kube_deployment_spec_replicas{job="kube-state-metrics", namespace="default", deployment="test-app"}'
+    values: '3+0x60'
+  - series: 'kube_deployment_status_replicas_available{job="kube-state-metrics", namespace="default", deployment="test-app"}'
+    values: '3+0x60'
+  - series: 'kube_deployment_status_replicas_updated{job="kube-state-metrics", namespace="default", deployment="test-app"}'
+    values: '3+0x60'
+  # Pod containers running normally
+  - series: 'kube_pod_container_status_waiting_reason{job="kube-state-metrics", namespace="default", pod="test-pod", container="app", cluster="test", reason="ImagePullBackOff"}'
+    values: '0+0x60'
+  alert_rule_test:
+  - eval_time: 60m
+    alertname: KubeDeploymentReplicasMismatch
+    exp_alerts: []
+  - eval_time: 60m
+    alertname: KubeContainerWaiting
+    exp_alerts: []
+# Test 2: KubeDeploymentReplicasMismatch should fire when >50% replicas missing for 30m
+- interval: 1m
+  input_series:
+  - series: 'kube_deployment_spec_replicas{job="kube-state-metrics", namespace="default", deployment="broken-app", cluster="test"}'
+    values: '3+0x60'
+  - series: 'kube_deployment_status_replicas_available{job="kube-state-metrics", namespace="default", deployment="broken-app", cluster="test"}'
+    values: '1+0x60' # Only 1 of 3 replicas available (66% missing)
+  - series: 'kube_deployment_status_replicas_updated{job="kube-state-metrics", namespace="default", deployment="broken-app", cluster="test"}'
+    values: '1+0x60' # No changes
+  alert_rule_test:
+  - eval_time: 31m
+    alertname: KubeDeploymentReplicasMismatch
+    exp_alerts:
+    - exp_labels:
+        severity: warning
+        namespace: default
+        deployment: broken-app
+        cluster: test
+        job: kube-state-metrics
+      exp_annotations:
+        description: "Deployment default/broken-app has not matched the expected number of replicas for longer than 30 minutes. Missing 66.67% of replicas."
+        runbook_url: https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubedeploymentreplicasmismatch
+        summary: Deployment has not matched the expected number of replicas.
+# Test 3: KubeContainerWaiting should fire for ImagePullBackOff after 1h
+- interval: 1m
+  input_series:
+  - series: 'kube_pod_container_status_waiting_reason{job="kube-state-metrics", namespace="default", pod="image-fail-pod", container="app", cluster="test", reason="ImagePullBackOff"}'
+    values: '1+0x70'
+  - series: 'kube_pod_owner{namespace="default", pod="image-fail-pod", cluster="test", owner_kind="Deployment", owner_name="test-deploy"}'
+    values: '1+0x70'
+  alert_rule_test:
+  - eval_time: 61m
+    alertname: KubeContainerWaiting
+    exp_alerts:
+    - exp_labels:
+        severity: warning
+        namespace: default
+        pod: image-fail-pod
+        container: app
+        cluster: test
+        reason: ImagePullBackOff
+      exp_annotations:
+        description: "pod/image-fail-pod in namespace default on container app has been in waiting state (ImagePullBackOff) for longer than 1 hour."
+        runbook_url: https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubecontainerwaiting
+        summary: Pod container waiting longer than 1 hour
+# Test 4: KubeContainerWaiting should NOT fire for Job pods
+- interval: 1m
+  input_series:
+  - series: 'kube_pod_container_status_waiting_reason{job="kube-state-metrics", namespace="default", pod="job-pod", container="worker", cluster="test", reason="ImagePullBackOff"}'
+    values: '1+0x70'
+  - series: 'kube_pod_owner{namespace="default", pod="job-pod", cluster="test", owner_kind="Job", owner_name="batch-job"}'
+    values: '1+0x70'
+  alert_rule_test:
+  - eval_time: 61m
+    alertname: KubeContainerWaiting
+    exp_alerts: [] # Should not fire for Job pods
+# Test 5: KubeDeploymentReplicasMismatch should NOT fire when <50% replicas missing
+- interval: 1m
+  input_series:
+  - series: 'kube_deployment_spec_replicas{job="kube-state-metrics", namespace="default", deployment="minor-issue", cluster="test"}'
+    values: '5+0x60'
+  - series: 'kube_deployment_status_replicas_available{job="kube-state-metrics", namespace="default", deployment="minor-issue", cluster="test"}'
+    values: '3+0x60' # 3 of 5 available (40% missing, below 50% threshold)
+  - series: 'kube_deployment_status_replicas_updated{job="kube-state-metrics", namespace="default", deployment="minor-issue", cluster="test"}'
+    values: '3+0x60'
+  alert_rule_test:
+  - eval_time: 31m
+    alertname: KubeDeploymentReplicasMismatch
+    exp_alerts: [] # Should not fire - only 40% missing

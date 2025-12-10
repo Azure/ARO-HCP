@@ -1608,7 +1608,7 @@ resource kasMonitorRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-0
           title: 'High error budget burn for {{ $labels.probe_url }} (current value: {{ $value }})'
         }
         expression: '1 - (sum by (probe_url, namespace, _id, cluster) (sum_over_time(probe_success{}[30m])) / sum by (probe_url, namespace, _id, cluster) (count_over_time(probe_success{}[30m]))) > (14.4 * (1 - 0.9995)) and sum by (probe_url, namespace, _id, cluster) (count_over_time(probe_success{}[30m])) > 5 and 1 - (sum by (probe_url, namespace, _id, cluster) (sum_over_time(probe_success{}[1h])) / sum by (probe_url, namespace, _id, cluster) (count_over_time(probe_success{}[1h]))) > (14.4 * (1 - 0.9995)) and sum by (probe_url, namespace, _id, cluster) (count_over_time(probe_success{}[1h])) > 60'
-        for: 'PT2M'
+        for: 'PT15M'
         severity: 3
       }
       {
@@ -1688,6 +1688,71 @@ resource kasMonitorRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-0
         expression: '1 - (sum by (probe_url, namespace, _id, cluster) (sum_over_time(probe_success{}[6h])) / sum by (probe_url, namespace, _id, cluster) (count_over_time(probe_success{}[6h]))) > (1 * (1 - 0.9995)) and sum by (probe_url, namespace, _id, cluster) (count_over_time(probe_success{}[6h])) > 360 and 1 - (sum by (probe_url, namespace, _id, cluster) (sum_over_time(probe_success{}[3d])) / sum by (probe_url, namespace, _id, cluster) (count_over_time(probe_success{}[3d]))) > (1 * (1 - 0.9995)) and sum by (probe_url, namespace, _id, cluster) (count_over_time(probe_success{}[3d])) > 4320'
         for: 'PT3H'
         severity: 4
+      }
+    ]
+    scopes: [
+      azureMonitoring
+    ]
+  }
+}
+
+resource kubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'kubernetes-apps'
+  location: resourceGroup().location
+  properties: {
+    interval: 'PT1M'
+    rules: [
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'KubeDeploymentReplicasMismatch'
+        enabled: true
+        labels: {
+          severity: 'warning'
+        }
+        annotations: {
+          correlationId: 'KubeDeploymentReplicasMismatch/{{ $labels.cluster }}/{{ $labels.deployment }}/{{ $labels.namespace }}'
+          description: 'Deployment {{ $labels.namespace }}/{{ $labels.deployment }} has not matched the expected number of replicas for longer than 30 minutes. Missing {{ $value | humanizePercentage }} of replicas.'
+          runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubedeploymentreplicasmismatch'
+          summary: 'Deployment has not matched the expected number of replicas.'
+          title: 'Deployment {{ $labels.namespace }}/{{ $labels.deployment }} has not matched the expected number of replicas for longer than 30 minutes. Missing {{ $value | humanizePercentage }} of replicas.'
+        }
+        expression: '( ( kube_deployment_spec_replicas{job="kube-state-metrics"} - kube_deployment_status_replicas_available{job="kube-state-metrics"} ) / kube_deployment_spec_replicas{job="kube-state-metrics"} > 0.5 ) and ( kube_deployment_spec_replicas{job="kube-state-metrics"} > 0 ) and ( changes(kube_deployment_status_replicas_updated{job="kube-state-metrics"}[10m]) == 0 )'
+        for: 'PT30M'
+        severity: 3
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'KubeContainerWaiting'
+        enabled: true
+        labels: {
+          severity: 'warning'
+        }
+        annotations: {
+          correlationId: 'KubeContainerWaiting/{{ $labels.cluster }}/{{ $labels.container }}/{{ $labels.namespace }}/{{ $labels.pod }}/{{ $labels.reason }}'
+          description: 'pod/{{ $labels.pod }} in namespace {{ $labels.namespace }} on container {{ $labels.container}} has been in waiting state ({{ $labels.reason }}) for longer than 1 hour.'
+          runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubecontainerwaiting'
+          summary: 'Pod container waiting longer than 1 hour'
+          title: 'pod/{{ $labels.pod }} in namespace {{ $labels.namespace }} on container {{ $labels.container}} has been in waiting state ({{ $labels.reason }}) for longer than 1 hour.'
+        }
+        expression: 'sum by (namespace, pod, container, cluster, reason) ( kube_pod_container_status_waiting_reason{ job="kube-state-metrics", reason=~"ImagePullBackOff|ErrImagePull|CreateContainerConfigError|InvalidImageName" } ) > 0 unless on (namespace, pod, cluster) kube_pod_owner{owner_kind=~"Job|CronJob"}'
+        for: 'PT1H'
+        severity: 3
       }
     ]
     scopes: [

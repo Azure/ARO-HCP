@@ -11,17 +11,17 @@ tests:
   - eval_time: 65m
     alertname: kas-monitor-ErrorBudgetBurn
     exp_alerts: [] # Should not fire with perfect success
-# Test 2: Complete failure should trigger fast burn alert (30m/1h windows, for: 2m)
+# Test 2: Complete failure should trigger fast burn alert (30m/1h windows, for: 15m)
 - interval: 30s # Generate data every 30 seconds to meet sample count requirements
   input_series:
   - series: 'probe_success{probe_url="https://api.example.com/health", namespace="test-hcp-namespace", _id="test-hcp-id", cluster="test-cluster"}'
     # Complete failure: 0% success (100% failure) for sufficient duration
     # With 30s interval: 30m window has 60 samples (>5 ✓), 1h window has 120 samples (>60 ✓)
     # Alert condition: 1 - (0/60) > 0.0072 AND 1 - (0/120) > 0.0072 = TRUE
-    # With 'for: 2m', alert should fire at 63m (condition true at 61m + 2m)
-    values: "0+0x130" # Complete failure for 65+ minutes (130 * 30s = 65m)
+    # With 'for: 15m', alert should fire at 76m (condition true at 61m + 15m)
+    values: "0+0x160" # Complete failure for 80 minutes (160 * 30s = 80m)
   alert_rule_test:
-  - eval_time: 63m # When first alert should fire (after 'for' condition satisfied)
+  - eval_time: 76m # When first alert should fire (after 'for' condition satisfied)
     alertname: kas-monitor-ErrorBudgetBurn
     exp_alerts:
     - exp_labels:
@@ -34,6 +34,19 @@ tests:
         cluster: test-cluster
       exp_annotations:
         description: "High error budget burn for https://api.example.com/health (current value: 1)"
+# Test 2b: Transient 8-minute failure should NOT trigger alert (verifies 'for: 15m' prevents false positives)
+- interval: 30s
+  input_series:
+  - series: 'probe_success{probe_url="https://api.example.com/health", namespace="test-hcp-namespace", _id="test-hcp-id", cluster="test-cluster"}'
+    # Pattern: 1 hour success, 8 minutes failure, then recovery
+    # First hour: success (120 samples)
+    # Next 8 min: failure (16 samples)
+    # Then success for evaluation window
+    values: "1+0x120 0+0x16 1+0x120"
+  alert_rule_test:
+  - eval_time: 140m # After failure window has passed
+    alertname: kas-monitor-ErrorBudgetBurn
+    exp_alerts: [] # Should NOT fire - failure duration < 15m threshold
 # Test 3: Medium burn rate - Alert 2 (30m/6h windows, for: 15m)
 - interval: 30s # Generate data every 30 seconds
   input_series:
