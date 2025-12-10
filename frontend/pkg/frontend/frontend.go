@@ -43,6 +43,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/audit"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
+	"github.com/Azure/ARO-HCP/internal/serverutils"
 	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/internal/validation"
 )
@@ -275,10 +276,17 @@ func (f *Frontend) ArmResourceDelete(writer http.ResponseWriter, request *http.R
 	const operationRequest = database.OperationRequestDelete
 
 	ctx := request.Context()
+	logger := utils.LoggerFromContext(ctx)
 
 	resourceID, err := utils.ResourceIDFromContext(ctx)
 	if err != nil {
 		return utils.TrackError(err)
+	}
+
+	// when we get a delete call (this happens from CI quite a bit), dump the state of the cluster resources.
+	if err := serverutils.DumpDataToLogger(ctx, f.dbClient, resourceID); err != nil {
+		// never fail, this is best effort
+		logger.Error(err.Error())
 	}
 
 	pk := database.NewPartitionKey(resourceID.SubscriptionID)
