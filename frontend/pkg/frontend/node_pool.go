@@ -292,15 +292,21 @@ func (f *Frontend) createNodePool(writer http.ResponseWriter, request *http.Requ
 		return utils.TrackError(err)
 	}
 
-	pk := database.NewPartitionKey(newInternalNodePool.ID.SubscriptionID)
-	transaction := f.dbClient.NewTransaction(pk)
+	transaction := f.dbClient.NewTransaction(newInternalNodePool.ID.SubscriptionID)
 
-	createNodePoolOperation := database.NewOperationDocument(database.OperationRequestCreate, newInternalNodePool.ID, newInternalNodePool.ServiceProviderProperties.ClusterServiceID, correlationData)
-	createNodePoolOperation.TenantID = request.Header.Get(arm.HeaderNameHomeTenantID)
-	createNodePoolOperation.ClientID = request.Header.Get(arm.HeaderNameClientObjectID)
-	createNodePoolOperation.NotificationURI = request.Header.Get(arm.HeaderNameAsyncNotificationURI)
-	operationCosmosUID := transaction.CreateOperationDoc(createNodePoolOperation, nil)
+	createNodePoolOperation := database.NewOperationDocument(
+		database.OperationRequestCreate,
+		newInternalNodePool.ID,
+		newInternalNodePool.ServiceProviderProperties.ClusterServiceID,
+		request.Header.Get(arm.HeaderNameHomeTenantID),
+		request.Header.Get(arm.HeaderNameClientObjectID),
+		request.Header.Get(arm.HeaderNameAsyncNotificationURI),
+		correlationData)
 	transaction.OnSuccess(addOperationResponseHeaders(writer, request, createNodePoolOperation.NotificationURI, createNodePoolOperation.OperationID))
+	operationCosmosUID, err := f.dbClient.Operations(newInternalNodePool.ID.SubscriptionID).AddCreateToTransaction(ctx, transaction, createNodePoolOperation, nil)
+	if err != nil {
+		return utils.TrackError(err)
+	}
 
 	// set fields that were not known until the operation doc instance was created.
 	// TODO once we we have separate creation/validation of operation documents, this can be done ahead of time.
@@ -524,15 +530,21 @@ func (f *Frontend) updateNodePoolInCosmos(ctx context.Context, writer http.Respo
 		return utils.TrackError(err)
 	}
 
-	pk := database.NewPartitionKey(oldInternalNodePool.ID.SubscriptionID)
-	transaction := f.dbClient.NewTransaction(pk)
+	transaction := f.dbClient.NewTransaction(oldInternalNodePool.ID.SubscriptionID)
 
-	nodePoolUpdateOperation := database.NewOperationDocument(database.OperationRequestUpdate, newInternalNodePool.ID, newInternalNodePool.ServiceProviderProperties.ClusterServiceID, correlationData)
-	nodePoolUpdateOperation.TenantID = request.Header.Get(arm.HeaderNameHomeTenantID)
-	nodePoolUpdateOperation.ClientID = request.Header.Get(arm.HeaderNameClientObjectID)
-	nodePoolUpdateOperation.NotificationURI = request.Header.Get(arm.HeaderNameAsyncNotificationURI)
-	operationCosmosUID := transaction.CreateOperationDoc(nodePoolUpdateOperation, nil)
+	nodePoolUpdateOperation := database.NewOperationDocument(
+		database.OperationRequestUpdate,
+		newInternalNodePool.ID,
+		newInternalNodePool.ServiceProviderProperties.ClusterServiceID,
+		request.Header.Get(arm.HeaderNameHomeTenantID),
+		request.Header.Get(arm.HeaderNameClientObjectID),
+		request.Header.Get(arm.HeaderNameAsyncNotificationURI),
+		correlationData)
 	transaction.OnSuccess(addOperationResponseHeaders(writer, request, nodePoolUpdateOperation.NotificationURI, nodePoolUpdateOperation.OperationID))
+	operationCosmosUID, err := f.dbClient.Operations(newInternalNodePool.ID.SubscriptionID).AddCreateToTransaction(ctx, transaction, nodePoolUpdateOperation, nil)
+	if err != nil {
+		return utils.TrackError(err)
+	}
 
 	// set fields that were not known until the operation doc instance was created.
 	// TODO once we we have separate creation/validation of operation documents, this can be done ahead of time.

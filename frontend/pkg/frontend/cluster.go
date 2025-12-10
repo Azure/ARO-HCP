@@ -305,16 +305,22 @@ func (f *Frontend) createHCPCluster(writer http.ResponseWriter, request *http.Re
 		return utils.TrackError(err)
 	}
 
-	pk := database.NewPartitionKey(newInternalCluster.ID.SubscriptionID)
-	transaction := f.dbClient.NewTransaction(pk)
+	transaction := f.dbClient.NewTransaction(newInternalCluster.ID.SubscriptionID)
 
 	// TODO extract to straight instance creation and then validation.
-	clusterCreateOperation := database.NewOperationDocument(database.OperationRequestCreate, newInternalCluster.ID, newInternalCluster.ServiceProviderProperties.ClusterServiceID, correlationData)
-	clusterCreateOperation.TenantID = request.Header.Get(arm.HeaderNameHomeTenantID)
-	clusterCreateOperation.ClientID = request.Header.Get(arm.HeaderNameClientObjectID)
-	clusterCreateOperation.NotificationURI = request.Header.Get(arm.HeaderNameAsyncNotificationURI)
-	operationCosmosUID := transaction.CreateOperationDoc(clusterCreateOperation, nil)
+	clusterCreateOperation := database.NewOperationDocument(
+		database.OperationRequestCreate,
+		newInternalCluster.ID,
+		newInternalCluster.ServiceProviderProperties.ClusterServiceID,
+		request.Header.Get(arm.HeaderNameHomeTenantID),
+		request.Header.Get(arm.HeaderNameClientObjectID),
+		request.Header.Get(arm.HeaderNameAsyncNotificationURI),
+		correlationData)
 	transaction.OnSuccess(addOperationResponseHeaders(writer, request, clusterCreateOperation.NotificationURI, clusterCreateOperation.OperationID))
+	operationCosmosUID, err := f.dbClient.Operations(newInternalCluster.ID.SubscriptionID).AddCreateToTransaction(ctx, transaction, clusterCreateOperation, nil)
+	if err != nil {
+		return utils.TrackError(err)
+	}
 
 	// set fields that were not known until the operation doc instance was created.
 	// TODO once we we have separate creation/validation of operation documents, this can be done ahead of time.
@@ -543,14 +549,20 @@ func (f *Frontend) updateHCPClusterInCosmos(ctx context.Context, writer http.Res
 		return utils.TrackError(err)
 	}
 
-	pk := database.NewPartitionKey(oldInternalCluster.ID.SubscriptionID)
-	transaction := f.dbClient.NewTransaction(pk)
-	clusterUpdateOperation := database.NewOperationDocument(database.OperationRequestUpdate, oldInternalCluster.ID, oldInternalCluster.ServiceProviderProperties.ClusterServiceID, correlationData)
-	clusterUpdateOperation.TenantID = request.Header.Get(arm.HeaderNameHomeTenantID)
-	clusterUpdateOperation.ClientID = request.Header.Get(arm.HeaderNameClientObjectID)
-	clusterUpdateOperation.NotificationURI = request.Header.Get(arm.HeaderNameAsyncNotificationURI)
-	operationCosmosUID := transaction.CreateOperationDoc(clusterUpdateOperation, nil)
+	transaction := f.dbClient.NewTransaction(oldInternalCluster.ID.SubscriptionID)
+	clusterUpdateOperation := database.NewOperationDocument(
+		database.OperationRequestUpdate,
+		oldInternalCluster.ID,
+		oldInternalCluster.ServiceProviderProperties.ClusterServiceID,
+		request.Header.Get(arm.HeaderNameHomeTenantID),
+		request.Header.Get(arm.HeaderNameClientObjectID),
+		request.Header.Get(arm.HeaderNameAsyncNotificationURI),
+		correlationData)
 	transaction.OnSuccess(addOperationResponseHeaders(writer, request, clusterUpdateOperation.NotificationURI, clusterUpdateOperation.OperationID))
+	operationCosmosUID, err := f.dbClient.Operations(newInternalCluster.ID.SubscriptionID).AddCreateToTransaction(ctx, transaction, clusterUpdateOperation, nil)
+	if err != nil {
+		return utils.TrackError(err)
+	}
 
 	// set fields that were not known until the operation doc instance was created.
 	// TODO once we we have separate creation/validation of operation documents, this can be done ahead of time.

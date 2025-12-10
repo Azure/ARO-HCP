@@ -87,6 +87,7 @@ func TestSetDeleteOperationAsCompleted(t *testing.T) {
 			ctx := context.Background()
 			ctrl := gomock.NewController(t)
 			mockDBClient := mocks.NewMockDBClient(ctrl)
+			mockOperationCRUD := mocks.NewMockOperationCRUD(ctrl)
 
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				if r.Method == http.MethodPost {
@@ -101,7 +102,14 @@ func TestSetDeleteOperationAsCompleted(t *testing.T) {
 				newTimestamp:       func() time.Time { return time.Now().UTC() },
 			}
 
-			operationDoc := database.NewOperationDocument(database.OperationRequestDelete, resourceID, internalID, nil)
+			operationDoc := database.NewOperationDocument(
+				database.OperationRequestDelete,
+				resourceID,
+				internalID,
+				"",
+				"",
+				"",
+				nil)
 			operationDoc.OperationID = operationID
 			operationDoc.NotificationURI = server.URL
 			operationDoc.Status = tt.operationStatus
@@ -121,19 +129,29 @@ func TestSetDeleteOperationAsCompleted(t *testing.T) {
 					return nil
 				})
 			mockDBClient.EXPECT().
-				PatchOperationDoc(gomock.Any(), op.pk, op.id, gomock.Any()).
-				DoAndReturn(func(ctx context.Context, pk azcosmos.PartitionKey, operationID string, ops database.OperationDocumentPatchOperations) (*database.OperationDocument, error) {
+				Operations(op.doc.OperationID.SubscriptionID).
+				DoAndReturn(func(s string) database.OperationCRUD {
+					return mockOperationCRUD
+				})
+			mockOperationCRUD.EXPECT().
+				Replace(gomock.Any(), gomock.Any(), nil).
+				DoAndReturn(func(ctx context.Context, a *api.Operation, options *azcosmos.ItemOptions) (*api.Operation, error) {
 					if operationDoc.Status != arm.ProvisioningStateSucceeded {
 						operationDoc.Status = arm.ProvisioningStateSucceeded
 						return operationDoc, nil
 					} else {
-						return nil, &azcore.ResponseError{StatusCode: http.StatusPreconditionFailed}
+						return operationDoc, nil
 					}
 				})
 			if tt.expectAsyncNotification {
 				mockDBClient.EXPECT().
-					PatchOperationDoc(gomock.Any(), op.pk, op.id, gomock.Any()).
-					DoAndReturn(func(ctx context.Context, pk azcosmos.PartitionKey, operationID string, ops database.OperationDocumentPatchOperations) (*database.OperationDocument, error) {
+					Operations(op.doc.OperationID.SubscriptionID).
+					DoAndReturn(func(s string) database.OperationCRUD {
+						return mockOperationCRUD
+					})
+				mockOperationCRUD.EXPECT().
+					Replace(gomock.Any(), gomock.Any(), nil).
+					DoAndReturn(func(ctx context.Context, a *api.Operation, options *azcosmos.ItemOptions) (*api.Operation, error) {
 						operationDoc.NotificationURI = ""
 						return operationDoc, nil
 					})
@@ -249,6 +267,7 @@ func TestUpdateOperationStatus(t *testing.T) {
 			ctx := context.Background()
 			ctrl := gomock.NewController(t)
 			mockDBClient := mocks.NewMockDBClient(ctrl)
+			mockOperationCRUD := mocks.NewMockOperationCRUD(ctrl)
 
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				if r.Method == http.MethodPost {
@@ -263,7 +282,14 @@ func TestUpdateOperationStatus(t *testing.T) {
 				newTimestamp:       func() time.Time { return time.Now().UTC() },
 			}
 
-			operationDoc := database.NewOperationDocument(database.OperationRequestCreate, resourceID, internalID, nil)
+			operationDoc := database.NewOperationDocument(
+				database.OperationRequestCreate,
+				resourceID,
+				internalID,
+				"",
+				"",
+				"",
+				nil)
 			operationDoc.OperationID = operationID
 			operationDoc.NotificationURI = server.URL
 			operationDoc.Status = tt.currentOperationStatus
@@ -287,13 +313,18 @@ func TestUpdateOperationStatus(t *testing.T) {
 			}
 
 			mockDBClient.EXPECT().
-				PatchOperationDoc(gomock.Any(), op.pk, op.id, gomock.Any()).
-				DoAndReturn(func(ctx context.Context, pk azcosmos.PartitionKey, operationID string, ops database.OperationDocumentPatchOperations) (*database.OperationDocument, error) {
+				Operations(op.doc.OperationID.SubscriptionID).
+				DoAndReturn(func(s string) database.OperationCRUD {
+					return mockOperationCRUD
+				})
+			mockOperationCRUD.EXPECT().
+				Replace(gomock.Any(), gomock.Any(), nil).
+				DoAndReturn(func(ctx context.Context, a *api.Operation, options *azcosmos.ItemOptions) (*api.Operation, error) {
 					if operationDoc.Status != tt.updatedOperationStatus {
 						operationDoc.Status = tt.updatedOperationStatus
 						return operationDoc, nil
 					} else {
-						return nil, &azcore.ResponseError{StatusCode: http.StatusPreconditionFailed}
+						return operationDoc, nil
 					}
 				})
 			mockDBClient.EXPECT().
@@ -313,8 +344,13 @@ func TestUpdateOperationStatus(t *testing.T) {
 				})
 			if tt.expectAsyncNotification {
 				mockDBClient.EXPECT().
-					PatchOperationDoc(gomock.Any(), op.pk, op.id, gomock.Any()).
-					DoAndReturn(func(ctx context.Context, pk azcosmos.PartitionKey, operationID string, ops database.OperationDocumentPatchOperations) (*database.OperationDocument, error) {
+					Operations(op.doc.OperationID.SubscriptionID).
+					DoAndReturn(func(s string) database.OperationCRUD {
+						return mockOperationCRUD
+					})
+				mockOperationCRUD.EXPECT().
+					Replace(gomock.Any(), gomock.Any(), nil).
+					DoAndReturn(func(ctx context.Context, a *api.Operation, options *azcosmos.ItemOptions) (*api.Operation, error) {
 						operationDoc.NotificationURI = ""
 						return operationDoc, nil
 					})

@@ -17,8 +17,9 @@ package api
 import (
 	"strings"
 
-	"github.com/Azure/ARO-HCP/internal/api/arm"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+
+	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
 
 // HCPOpenShiftCluster represents an ARO HCP OpenShift cluster resource.

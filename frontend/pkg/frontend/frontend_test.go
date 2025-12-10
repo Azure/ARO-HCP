@@ -38,6 +38,7 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
 	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
 
@@ -68,13 +69,13 @@ func equalResourceID(expectResourceID *azcorearm.ResourceID) gomock.Matcher {
 	})
 }
 
-func equalListActiveOperationDocsOptions(expectRequest database.OperationRequest, expectExternalID *azcorearm.ResourceID) gomock.Matcher {
-	return gomock.Cond(func(actualOptions *database.DBClientListActiveOperationDocsOptions) bool {
-		return actualOptions != nil &&
-			actualOptions.Request != nil && *actualOptions.Request == expectRequest &&
-			strings.EqualFold(actualOptions.ExternalID.String(), expectExternalID.String())
-	})
-}
+//func equalListActiveOperationDocsOptions(expectRequest database.OperationRequest, expectExternalID *azcorearm.ResourceID) gomock.Matcher {
+//	return gomock.Cond(func(actualOptions *database.DBClientListActiveOperationDocsOptions) bool {
+//		return actualOptions != nil &&
+//			actualOptions.Request != nil && *actualOptions.Request == expectRequest &&
+//			strings.EqualFold(actualOptions.ExternalID.String(), expectExternalID.String())
+//	})
+//}
 
 func newClusterInternalID(t *testing.T) ocm.InternalID {
 	internalID, err := api.NewInternalID(ocm.GenerateClusterHREF("myCluster"))
@@ -608,7 +609,6 @@ func TestRequestAdminCredential(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			clusterResourceID := newClusterResourceID(t)
 			clusterInternalID := newClusterInternalID(t)
-			pk := database.NewPartitionKey(api.TestSubscriptionID)
 
 			requestPath := path.Join(clusterResourceID.String(), "requestAdminCredential")
 
@@ -616,6 +616,7 @@ func TestRequestAdminCredential(t *testing.T) {
 			reg := prometheus.NewRegistry()
 			mockDBClient := mocks.NewMockDBClient(ctrl)
 			mockCSClient := mocks.NewMockClusterServiceClientSpec(ctrl)
+			mockOperationCRUD := mocks.NewMockOperationCRUD(ctrl)
 
 			f := NewFrontend(
 				api.NewTestLogger(),
@@ -670,8 +671,12 @@ func TestRequestAdminCredential(t *testing.T) {
 
 				// ArmResourceActionRequestAdminCredential
 				mockDBClient.EXPECT().
-					ListActiveOperationDocs(gomock.Any(), equalListActiveOperationDocsOptions(database.OperationRequestRevokeCredentials, clusterResourceID)).
+					Operations(clusterResourceID.SubscriptionID).
+					Return(mockOperationCRUD)
+				mockOperationCRUD.EXPECT().
+					ListActiveOperations(gomock.Any()).
 					Return(mockOperationIter)
+
 				if test.revokeCredentialsStatus.IsTerminal() {
 					mockDBTransaction := mocks.NewMockDBTransaction(ctrl)
 					mockDBTransactionResult := mocks.NewMockDBTransactionResult(ctrl)
@@ -686,20 +691,20 @@ func TestRequestAdminCredential(t *testing.T) {
 							HREF(ocm.GenerateBreakGlassCredentialHREF(clusterInternalID.String(), "0")).Build())
 					// ArmResourceActionRequestAdminCredential
 					mockDBClient.EXPECT().
-						NewTransaction(pk).
+						NewTransaction(api.TestSubscriptionID).
 						Return(mockDBTransaction)
 					// ArmResourceActionRequestAdminCredential
 					operationID := uuid.New().String()
 					mockDBTransaction.EXPECT().
-						CreateOperationDoc(gomock.Any(), nil).
-						Return(operationID)
-
-					// ExposeOperation
-					mockDBTransaction.EXPECT().
-						PatchOperationDoc(operationID, gomock.Any(), nil)
-					// ExposeOperation
-					mockDBTransaction.EXPECT().
 						OnSuccess(gomock.Any())
+					mockDBClient.EXPECT().
+						Operations(clusterResourceID.SubscriptionID).
+						DoAndReturn(func(s string) database.OperationCRUD {
+							return mockOperationCRUD
+						})
+					mockOperationCRUD.EXPECT().
+						AddCreateToTransaction(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+						Return(operationID, nil)
 
 					// ArmResourceActionRequestAdminCredential
 					mockDBTransaction.EXPECT().
@@ -766,7 +771,6 @@ func TestRevokeCredentials(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			clusterResourceID := newClusterResourceID(t)
 			clusterInternalID := newClusterInternalID(t)
-			pk := database.NewPartitionKey(api.TestSubscriptionID)
 
 			requestPath := path.Join(clusterResourceID.String(), "revokeCredentials")
 
@@ -774,6 +778,7 @@ func TestRevokeCredentials(t *testing.T) {
 			reg := prometheus.NewRegistry()
 			mockDBClient := mocks.NewMockDBClient(ctrl)
 			mockCSClient := mocks.NewMockClusterServiceClientSpec(ctrl)
+			mockOperationCRUD := mocks.NewMockOperationCRUD(ctrl)
 
 			f := NewFrontend(
 				api.NewTestLogger(),
@@ -828,7 +833,10 @@ func TestRevokeCredentials(t *testing.T) {
 
 				// ArmResourceActionRequestAdminCredential
 				mockDBClient.EXPECT().
-					ListActiveOperationDocs(gomock.Any(), equalListActiveOperationDocsOptions(database.OperationRequestRevokeCredentials, clusterResourceID)).
+					Operations(clusterResourceID.SubscriptionID).
+					Return(mockOperationCRUD)
+				mockOperationCRUD.EXPECT().
+					ListActiveOperations(gomock.Any()).
 					Return(mockOperationIter)
 				if test.revokeCredentialsStatus.IsTerminal() {
 					mockDBTransaction := mocks.NewMockDBTransaction(ctrl)
@@ -861,30 +869,41 @@ func TestRevokeCredentials(t *testing.T) {
 
 					// ArmResourceActionRequestAdminCredential
 					mockDBClient.EXPECT().
-						NewTransaction(pk).
+						NewTransaction(api.TestSubscriptionID).
 						Return(mockDBTransaction)
 
 					// CancelActiveOperations
 					mockDBTransaction.EXPECT().
 						GetPartitionKey().
-						Return(pk)
+						Return(api.TestSubscriptionID)
 					// CancelActiveOperations
 					mockDBClient.EXPECT().
-						ListActiveOperationDocs(gomock.Any(), equalListActiveOperationDocsOptions(database.OperationRequestRequestCredential, clusterResourceID)).
+						Operations(clusterResourceID.SubscriptionID).
+						Return(mockOperationCRUD)
+					mockOperationCRUD.EXPECT().
+						ListActiveOperations(gomock.Any()).
 						Return(mockOperationIter)
 					// CancelActiveOperations
-					mockDBTransaction.EXPECT().
-						PatchOperationDoc(requestOperationID, gomock.Any(), nil)
+					mockDBClient.EXPECT().
+						Operations(clusterResourceID.SubscriptionID).
+						Return(mockOperationCRUD)
+					mockOperationCRUD.EXPECT().
+						AddReplaceToTransaction(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+						DoAndReturn(func(ctx context.Context, transaction database.DBTransaction, operation *api.Operation, options *azcosmos.TransactionalBatchItemOptions) (string, error) {
+							return "", nil
+						})
 
 					// ArmResourceActionRequestAdminCredential
 					operationID := uuid.New().String()
-					mockDBTransaction.EXPECT().
-						CreateOperationDoc(gomock.Any(), gomock.Any()).
-						Return(operationID)
+					mockDBClient.EXPECT().
+						Operations(clusterResourceID.SubscriptionID).
+						Return(mockOperationCRUD)
+					mockOperationCRUD.EXPECT().
+						AddCreateToTransaction(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+						DoAndReturn(func(ctx context.Context, transaction database.DBTransaction, operation *api.Operation, options *azcosmos.TransactionalBatchItemOptions) (string, error) {
+							return operationID, nil
+						})
 
-					// ExposeOperation
-					mockDBTransaction.EXPECT().
-						PatchOperationDoc(operationID, gomock.Any(), nil)
 					// ExposeOperation
 					mockDBTransaction.EXPECT().
 						OnSuccess(gomock.Any())

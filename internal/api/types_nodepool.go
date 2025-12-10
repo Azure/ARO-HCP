@@ -18,8 +18,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/Azure/ARO-HCP/internal/api/arm"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+
+	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
 
 // HCPOpenShiftClusterNodePool represents a node pool resource for ARO HCP

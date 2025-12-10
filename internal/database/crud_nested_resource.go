@@ -27,6 +27,7 @@ import (
 )
 
 type ResourceCRUD[InternalAPIType any] interface {
+	GetByID(ctx context.Context, cosmosID string) (*InternalAPIType, error)
 	Get(ctx context.Context, resourceID string) (*InternalAPIType, error)
 	List(ctx context.Context, opts *DBClientListResourceDocsOptions) (DBClientIterator[InternalAPIType], error)
 	Create(ctx context.Context, newObj *InternalAPIType, options *azcosmos.ItemOptions) (*InternalAPIType, error)

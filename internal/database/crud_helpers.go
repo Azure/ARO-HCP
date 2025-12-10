@@ -21,7 +21,6 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/google/uuid"
 
 	"k8s.io/utils/ptr"
@@ -31,6 +30,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
 	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 // TODO this will eventually be the standard GET, but until we rewrite all records with new `id` values, it must remain separate and specifically called.
@@ -198,9 +198,16 @@ func serializeItem[InternalAPIType, CosmosAPIType any](newObj *InternalAPIType) 
 }
 
 func addCreateToTransaction[InternalAPIType, CosmosAPIType any](ctx context.Context, transaction DBTransaction, newObj *InternalAPIType, opts *azcosmos.TransactionalBatchItemOptions) (string, error) {
-	newCosmosUID, _, data, err := serializeItem[InternalAPIType, CosmosAPIType](newObj)
+	partitionKeyString := transaction.GetPartitionKey()
+	if strings.ToLower(partitionKeyString) != partitionKeyString {
+		return "", fmt.Errorf("partitionKeyString must be lowercase, not: %q", partitionKeyString)
+	}
+	newCosmosUID, itemPartitionKey, data, err := serializeItem[InternalAPIType, CosmosAPIType](newObj)
 	if err != nil {
 		return "", err
+	}
+	if partitionKeyString != itemPartitionKey {
+		return "", fmt.Errorf("item partition key does not match partition key: %q vs %q", partitionKeyString, itemPartitionKey)
 	}
 
 	transaction.AddStep(
@@ -214,9 +221,16 @@ func addCreateToTransaction[InternalAPIType, CosmosAPIType any](ctx context.Cont
 }
 
 func addReplaceToTransaction[InternalAPIType, CosmosAPIType any](ctx context.Context, transaction DBTransaction, newObj *InternalAPIType, opts *azcosmos.TransactionalBatchItemOptions) (string, error) {
-	cosmosUID, _, data, err := serializeItem[InternalAPIType, CosmosAPIType](newObj)
+	partitionKeyString := transaction.GetPartitionKey()
+	if strings.ToLower(partitionKeyString) != partitionKeyString {
+		return "", fmt.Errorf("partitionKeyString must be lowercase, not: %q", partitionKeyString)
+	}
+	cosmosUID, itemPartitionKey, data, err := serializeItem[InternalAPIType, CosmosAPIType](newObj)
 	if err != nil {
 		return "", err
+	}
+	if partitionKeyString != itemPartitionKey {
+		return "", fmt.Errorf("item partition key does not match partition key: %q vs %q", partitionKeyString, itemPartitionKey)
 	}
 
 	transaction.AddStep(
