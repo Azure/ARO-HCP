@@ -740,22 +740,18 @@ func (m *multiSink) WithName(name string) logr.LogSink {
 	return &multiSink{sinks: newSinks}
 }
 
-func setupAzureConfigDirectory(ctx context.Context, subscriptionID string) (string, error) {
-	azureConfigDir, err := configureAzureCLILogin(ctx, subscriptionID)
-	if err != nil {
-		return "", fmt.Errorf("failed to configure Azure CLI login: %w", err)
-	}
-	return azureConfigDir, nil
-}
-
 func getAllSubscriptions(pipelines map[string]*types.Pipeline) []string {
-	subscriptions := make([]string, 0)
+	subscriptions := make(map[string]bool, 0)
 	for _, pipeline := range pipelines {
 		for _, resourceGroup := range pipeline.ResourceGroups {
-			subscriptions = append(subscriptions, resourceGroup.Subscription)
+			subscriptions[resourceGroup.Subscription] = true
 		}
 	}
-	return subscriptions
+	allSubs := make([]string, 0)
+	for k := range subscriptions {
+		allSubs = append(allSubs, k)
+	}
+	return allSubs
 }
 
 func GetAllRequiredAzureClients(ctx context.Context, pipelines map[string]*types.Pipeline) (map[string]string, error) {
@@ -765,7 +761,7 @@ func GetAllRequiredAzureClients(ctx context.Context, pipelines map[string]*types
 		if err != nil {
 			return nil, fmt.Errorf("failed to lookup subscription ID for %q: %w", subscription, err)
 		}
-		azureConfigDir, err := setupAzureConfigDirectory(ctx, subscriptionID)
+		azureConfigDir, err := configureAzureCLILogin(ctx, subscriptionID)
 		if err != nil {
 			return nil, fmt.Errorf("failed to setup Azure CLI config directory: %w", err)
 		}
