@@ -4,194 +4,6 @@ param azureMonitoring string
 #disable-next-line no-unused-params
 param actionGroups array
 
-resource mise 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
-  name: 'mise'
-  location: resourceGroup().location
-  properties: {
-    interval: 'PT1M'
-    rules: [
-      {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
-          }
-        ]
-        alert: 'MiseEnvoyScrapeDown'
-        enabled: true
-        labels: {
-          severity: 'info'
-        }
-        annotations: {
-          correlationId: 'MiseEnvoyScrapeDown/{{ $labels.cluster }}'
-          description: 'Prometheus scrape for envoy-stats job in namespace mise is failing or missing.'
-          runbook_url: 'TBD'
-          summary: 'Envoy scrape target down for namespace=mise'
-          title: 'Prometheus scrape for envoy-stats job in namespace mise is failing or missing.'
-        }
-        expression: 'absent(up{endpoint="http-envoy-prom", container="istio-proxy", namespace="mise"}) or (up{endpoint="http-envoy-prom", container="istio-proxy", namespace="mise"} == 0)'
-        for: 'PT5M'
-        severity: 4
-      }
-    ]
-    scopes: [
-      azureMonitoring
-    ]
-  }
-}
-
-resource frontend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
-  name: 'frontend'
-  location: resourceGroup().location
-  properties: {
-    interval: 'PT1M'
-    rules: [
-      {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
-          }
-        ]
-        alert: 'FrontendLatency'
-        enabled: true
-        labels: {
-          severity: 'info'
-        }
-        annotations: {
-          correlationId: 'FrontendLatency/{{ $labels.cluster }}'
-          description: 'The 95th percentile of frontend request latency has exceeded 5 seconds over the past hour.'
-          runbook_url: 'TBD'
-          summary: 'Frontend latency is high: 95th percentile exceeds 5 seconds'
-          title: 'The 95th percentile of frontend request latency has exceeded 5 seconds over the past hour.'
-        }
-        expression: 'histogram_quantile(0.95, rate(frontend_http_requests_duration_seconds_bucket[1h])) > 5'
-        for: 'PT15M'
-        severity: 4
-      }
-      {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
-          }
-        ]
-        alert: 'FrontendClusterServiceErrorRate'
-        enabled: true
-        labels: {
-          severity: 'info'
-        }
-        annotations: {
-          correlationId: 'FrontendClusterServiceErrorRate/{{ $labels.cluster }}'
-          description: 'The Frontend Cluster Service 5xx error rate is above 5% for the last hour. Current value: {{ $value | humanizePercentage }}.'
-          runbook_url: 'TBD'
-          summary: 'High 4xx|5xx Error Rate on Frontend Cluster Service'
-          title: 'The Frontend Cluster Service 5xx error rate is above 5% for the last hour. Current value: {{ $value | humanizePercentage }}.'
-        }
-        expression: '(sum(max without(prometheus_replica) (rate(frontend_clusters_service_client_request_count{code=~"4..|5.."}[1h])))) / (sum(max without(prometheus_replica) (rate(frontend_clusters_service_client_request_count[1h])))) > 0.05'
-        for: 'PT5M'
-        severity: 4
-      }
-    ]
-    scopes: [
-      azureMonitoring
-    ]
-  }
-}
-
-resource backend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
-  name: 'backend'
-  location: resourceGroup().location
-  properties: {
-    interval: 'PT1M'
-    rules: [
-      {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
-          }
-        ]
-        alert: 'BackendOperationErrorRate'
-        enabled: true
-        labels: {
-          severity: 'info'
-        }
-        annotations: {
-          correlationId: 'BackendOperationErrorRate/{{ $labels.cluster }}'
-          description: 'The Backend operation error rate is above 5% for the last hour. Current value: {{ $value | humanizePercentage }}.'
-          runbook_url: 'TBD'
-          summary: 'High Error Rate on Backend Operations'
-          title: 'The Backend operation error rate is above 5% for the last hour. Current value: {{ $value | humanizePercentage }}.'
-        }
-        expression: '(sum(rate(backend_failed_operations_total[1h]))) / (sum(rate(backend_operations_total[1h]))) > 0.05'
-        for: 'PT5M'
-        severity: 4
-      }
-    ]
-    scopes: [
-      azureMonitoring
-    ]
-  }
-}
-
-resource arobitRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
-  name: 'arobit-rules'
-  location: resourceGroup().location
-  properties: {
-    interval: 'PT1M'
-    rules: [
-      {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
-          }
-        ]
-        alert: 'ArobitForwarderJobUp'
-        enabled: true
-        labels: {
-          severity: 'critical'
-        }
-        annotations: {
-          correlationId: 'ArobitForwarderJobUp/{{ $labels.cluster }}'
-          description: '''Arobit forwarder has not been reachable for the past 15 minutes.
-This may indicate that the Arobit forwarder is down, or experiencing a crash loop.
-Check the status of the Arobit forwarder pods, service endpoints, and network connectivity.
-'''
-          runbook_url: 'TBD'
-          summary: 'Arobit forwarder is unreachable for 15 minutes.'
-          title: '''Arobit forwarder has not been reachable for the past 15 minutes.
-This may indicate that the Arobit forwarder is down, or experiencing a crash loop.
-Check the status of the Arobit forwarder pods, service endpoints, and network connectivity.
-'''
-        }
-        expression: 'min by (job, namespace) (up{job="arobit-forwarder",namespace="arobit"}) == 0'
-        for: 'PT15M'
-        severity: 3
-      }
-    ]
-    scopes: [
-      azureMonitoring
-    ]
-  }
-}
-
 resource prometheusWipRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
   name: 'prometheus-wip-rules'
   location: resourceGroup().location
@@ -540,6 +352,194 @@ resource prometheusOperatorRules 'Microsoft.AlertsManagement/prometheusRuleGroup
         }
         expression: 'min_over_time(prometheus_operator_managed_resources{job="prometheus-operator",namespace="prometheus",state="rejected"}[5m]) > 0'
         for: 'PT5M'
+        severity: 3
+      }
+    ]
+    scopes: [
+      azureMonitoring
+    ]
+  }
+}
+
+resource mise 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'mise'
+  location: resourceGroup().location
+  properties: {
+    interval: 'PT1M'
+    rules: [
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'MiseEnvoyScrapeDown'
+        enabled: true
+        labels: {
+          severity: 'info'
+        }
+        annotations: {
+          correlationId: 'MiseEnvoyScrapeDown/{{ $labels.cluster }}'
+          description: 'Prometheus scrape for envoy-stats job in namespace mise is failing or missing.'
+          runbook_url: 'TBD'
+          summary: 'Envoy scrape target down for namespace=mise'
+          title: 'Prometheus scrape for envoy-stats job in namespace mise is failing or missing.'
+        }
+        expression: 'absent(up{endpoint="http-envoy-prom", container="istio-proxy", namespace="mise"}) or (up{endpoint="http-envoy-prom", container="istio-proxy", namespace="mise"} == 0)'
+        for: 'PT5M'
+        severity: 4
+      }
+    ]
+    scopes: [
+      azureMonitoring
+    ]
+  }
+}
+
+resource frontend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'frontend'
+  location: resourceGroup().location
+  properties: {
+    interval: 'PT1M'
+    rules: [
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'FrontendLatency'
+        enabled: true
+        labels: {
+          severity: 'info'
+        }
+        annotations: {
+          correlationId: 'FrontendLatency/{{ $labels.cluster }}'
+          description: 'The 95th percentile of frontend request latency has exceeded 5 seconds over the past hour.'
+          runbook_url: 'TBD'
+          summary: 'Frontend latency is high: 95th percentile exceeds 5 seconds'
+          title: 'The 95th percentile of frontend request latency has exceeded 5 seconds over the past hour.'
+        }
+        expression: 'histogram_quantile(0.95, rate(frontend_http_requests_duration_seconds_bucket[1h])) > 5'
+        for: 'PT15M'
+        severity: 4
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'FrontendClusterServiceErrorRate'
+        enabled: true
+        labels: {
+          severity: 'info'
+        }
+        annotations: {
+          correlationId: 'FrontendClusterServiceErrorRate/{{ $labels.cluster }}'
+          description: 'The Frontend Cluster Service 5xx error rate is above 5% for the last hour. Current value: {{ $value | humanizePercentage }}.'
+          runbook_url: 'TBD'
+          summary: 'High 4xx|5xx Error Rate on Frontend Cluster Service'
+          title: 'The Frontend Cluster Service 5xx error rate is above 5% for the last hour. Current value: {{ $value | humanizePercentage }}.'
+        }
+        expression: '(sum(max without(prometheus_replica) (rate(frontend_clusters_service_client_request_count{code=~"4..|5.."}[1h])))) / (sum(max without(prometheus_replica) (rate(frontend_clusters_service_client_request_count[1h])))) > 0.05'
+        for: 'PT5M'
+        severity: 4
+      }
+    ]
+    scopes: [
+      azureMonitoring
+    ]
+  }
+}
+
+resource backend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'backend'
+  location: resourceGroup().location
+  properties: {
+    interval: 'PT1M'
+    rules: [
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'BackendOperationErrorRate'
+        enabled: true
+        labels: {
+          severity: 'info'
+        }
+        annotations: {
+          correlationId: 'BackendOperationErrorRate/{{ $labels.cluster }}'
+          description: 'The Backend operation error rate is above 5% for the last hour. Current value: {{ $value | humanizePercentage }}.'
+          runbook_url: 'TBD'
+          summary: 'High Error Rate on Backend Operations'
+          title: 'The Backend operation error rate is above 5% for the last hour. Current value: {{ $value | humanizePercentage }}.'
+        }
+        expression: '(sum(rate(backend_failed_operations_total[1h]))) / (sum(rate(backend_operations_total[1h]))) > 0.05'
+        for: 'PT5M'
+        severity: 4
+      }
+    ]
+    scopes: [
+      azureMonitoring
+    ]
+  }
+}
+
+resource arobitRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'arobit-rules'
+  location: resourceGroup().location
+  properties: {
+    interval: 'PT1M'
+    rules: [
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'ArobitForwarderJobUp'
+        enabled: true
+        labels: {
+          severity: 'critical'
+        }
+        annotations: {
+          correlationId: 'ArobitForwarderJobUp/{{ $labels.cluster }}'
+          description: '''Arobit forwarder has not been reachable for the past 15 minutes.
+This may indicate that the Arobit forwarder is down, or experiencing a crash loop.
+Check the status of the Arobit forwarder pods, service endpoints, and network connectivity.
+'''
+          runbook_url: 'TBD'
+          summary: 'Arobit forwarder is unreachable for 15 minutes.'
+          title: '''Arobit forwarder has not been reachable for the past 15 minutes.
+This may indicate that the Arobit forwarder is down, or experiencing a crash loop.
+Check the status of the Arobit forwarder pods, service endpoints, and network connectivity.
+'''
+        }
+        expression: 'min by (job, namespace) (up{job="arobit-forwarder",namespace="arobit"}) == 0'
+        for: 'PT15M'
         severity: 3
       }
     ]
