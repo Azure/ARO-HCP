@@ -593,8 +593,7 @@ func getBaseCSClusterBuilder(updating bool) *arohcpv1alpha1.ClusterBuilder {
 	if updating {
 		builder = arohcpv1alpha1.NewCluster()
 	} else {
-		// remove autoscaler as BuildCSCluster returns it separately
-		builder = ocmClusterDefaults().Autoscaler(nil)
+		builder = ocmClusterDefaults()
 		clusterAPIBuilder = clusterAPIBuilder.Listening(arohcpv1alpha1.ListeningMethodExternal)
 	}
 
@@ -620,6 +619,7 @@ func TestBuildCSCluster(t *testing.T) {
 		hcpCluster        *api.HCPOpenShiftCluster
 		updating          bool
 		expectedCSCluster *arohcpv1alpha1.ClusterBuilder
+		expectedError     string
 	}{
 		{
 			name:     "CREATE - sets CIDRBlockAccess with nil AuthorizedCIDRs",
@@ -634,16 +634,14 @@ func TestBuildCSCluster(t *testing.T) {
 			expectedCSCluster: getBaseCSClusterBuilder(false),
 		},
 		{
-			name:     "CREATE - sets CIDRBlockAccess with empty AuthorizedCIDRs",
+			name:     "CREATE - rejects empty AuthorizedCIDRs",
 			updating: false,
-			hcpCluster: &api.HCPOpenShiftCluster{
-				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
-					API: api.CustomerAPIProfile{
-						AuthorizedCIDRs: []string{},
-					},
-				},
-			},
-			expectedCSCluster: getBaseCSClusterBuilder(false),
+			hcpCluster: func() *api.HCPOpenShiftCluster {
+				cluster := api.MinimumValidClusterTestCase()
+				cluster.CustomerProperties.API.AuthorizedCIDRs = make([]string, 0)
+				return cluster
+			}(),
+			expectedError: "AuthorizedCIDRs cannot be an empty list",
 		},
 		{
 			name:     "CREATE - sets CIDRBlockAccess with non-empty AuthorizedCIDRs",
@@ -677,16 +675,14 @@ func TestBuildCSCluster(t *testing.T) {
 			expectedCSCluster: getBaseCSClusterBuilder(true),
 		},
 		{
-			name:     "UPDATE - sets CIDRBlockAccess with empty AuthorizedCIDRs",
+			name:     "UPDATE - rejects empty AuthorizedCIDRs",
 			updating: true,
-			hcpCluster: &api.HCPOpenShiftCluster{
-				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
-					API: api.CustomerAPIProfile{
-						AuthorizedCIDRs: []string{},
-					},
-				},
-			},
-			expectedCSCluster: getBaseCSClusterBuilder(true),
+			hcpCluster: func() *api.HCPOpenShiftCluster {
+				cluster := api.MinimumValidClusterTestCase()
+				cluster.CustomerProperties.API.AuthorizedCIDRs = make([]string, 0)
+				return cluster
+			}(),
+			expectedError: "AuthorizedCIDRs cannot be an empty list",
 		},
 		{
 			name:     "UPDATE - sets only CIDRBlockAccess with non-empty AuthorizedCIDRs",
@@ -710,7 +706,13 @@ func TestBuildCSCluster(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			// Create a complete minimal cluster for testing
-			hcpCluster := api.ClusterTestCase(t, tc.hcpCluster)
+			// For error test cases with expected errors, use the cluster as-is to preserve empty slices
+			var hcpCluster *api.HCPOpenShiftCluster
+			if tc.expectedError != "" {
+				hcpCluster = tc.hcpCluster
+			} else {
+				hcpCluster = api.ClusterTestCase(t, tc.hcpCluster)
+			}
 
 			// Create request headers
 			requestHeader := http.Header{}
@@ -720,13 +722,21 @@ func TestBuildCSCluster(t *testing.T) {
 			resourceID, err := azcorearm.ParseResourceID(api.TestClusterResourceID)
 			require.NoError(t, err)
 
+			// Build actual CS cluster
+			actualBuilder, err := BuildCSCluster(resourceID, requestHeader, hcpCluster, tc.updating)
+
+			if tc.expectedError != "" {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tc.expectedError)
+				return
+			}
+
+			require.NoError(t, err)
+
 			// Build expected CS cluster
 			expected, err := tc.expectedCSCluster.Build()
 			require.NoError(t, err)
 
-			// Build actual CS cluster
-			actualBuilder, err := BuildCSCluster(resourceID, requestHeader, hcpCluster, tc.updating)
-			require.NoError(t, err)
 			actual, err := actualBuilder.Build()
 			require.NoError(t, err)
 

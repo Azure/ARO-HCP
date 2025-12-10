@@ -348,15 +348,19 @@ func convertEtcdRPToCS(in api.EtcdProfile) (*arohcpv1alpha1.AzureEtcdEncryptionB
 	return arohcpv1alpha1.NewAzureEtcdEncryption().DataEncryption(azureEtcdDataEncryptionBuilder), nil
 }
 
-func convertCIDRBlockAllowAccessRPToCS(in api.CustomerAPIProfile) *arohcpv1alpha1.CIDRBlockAccessBuilder {
+func convertCIDRBlockAllowAccessRPToCS(in api.CustomerAPIProfile) (*arohcpv1alpha1.CIDRBlockAccessBuilder, error) {
 	cidrBlockAllowAccess := arohcpv1alpha1.NewCIDRBlockAllowAccess()
-	if len(in.AuthorizedCIDRs) > 0 {
+
+	if in.AuthorizedCIDRs == nil {
+		cidrBlockAllowAccess.Mode(csCIDRBlockAllowAccessModeAllowAll)
+	} else if len(in.AuthorizedCIDRs) > 0 {
 		cidrBlockAllowAccess.Mode(csCIDRBlockAllowAccessModeAllowList)
 		cidrBlockAllowAccess.Values(in.AuthorizedCIDRs...)
 	} else {
-		cidrBlockAllowAccess.Mode(csCIDRBlockAllowAccessModeAllowAll)
+		return nil, fmt.Errorf("AuthorizedCIDRs cannot be an empty list")
 	}
-	return arohcpv1alpha1.NewCIDRBlockAccess().Allow(cidrBlockAllowAccess)
+
+	return arohcpv1alpha1.NewCIDRBlockAccess().Allow(cidrBlockAllowAccess), nil
 }
 
 // ConvertCStoHCPOpenShiftCluster converts a CS Cluster object into an HCPOpenShiftCluster object.
@@ -590,8 +594,11 @@ func BuildCSCluster(resourceID *azcorearm.ResourceID, requestHeader http.Header,
 		Unit(csNodeDrainGracePeriodUnit).
 		Value(float64(hcpCluster.CustomerProperties.NodeDrainTimeoutMinutes)))
 
-	clusterBuilder.API(clusterAPIBuilder.
-		CIDRBlockAccess(convertCIDRBlockAllowAccessRPToCS(hcpCluster.CustomerProperties.API)))
+	cidrBlockAccess, err := convertCIDRBlockAllowAccessRPToCS(hcpCluster.CustomerProperties.API)
+	if err != nil {
+		return nil, err
+	}
+	clusterBuilder.API(clusterAPIBuilder.CIDRBlockAccess(cidrBlockAccess))
 
 	clusterAutoscalerBuilder, err := convertRpAutoscalarToCSBuilder(&hcpCluster.CustomerProperties.Autoscaling)
 	if err != nil {
