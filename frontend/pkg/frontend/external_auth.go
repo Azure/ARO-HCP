@@ -44,7 +44,7 @@ func (f *Frontend) GetExternalAuth(writer http.ResponseWriter, request *http.Req
 	if err != nil {
 		return utils.TrackError(err)
 	}
-	resourceID, err := ResourceIDFromContext(ctx) // used for error reporting
+	resourceID, err := utils.ResourceIDFromContext(ctx) // used for error reporting
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -67,7 +67,7 @@ func (f *Frontend) GetExternalAuth(writer http.ResponseWriter, request *http.Req
 
 func (f *Frontend) ArmResourceListExternalAuths(writer http.ResponseWriter, request *http.Request) error {
 	ctx := request.Context()
-	logger := LoggerFromContext(ctx)
+	logger := utils.LoggerFromContext(ctx)
 
 	versionedInterface, err := VersionFromContext(ctx)
 	if err != nil {
@@ -157,7 +157,7 @@ func (f *Frontend) CreateOrUpdateExternalAuth(writer http.ResponseWriter, reques
 
 	ctx := request.Context()
 
-	resourceID, err := ResourceIDFromContext(ctx)
+	resourceID, err := utils.ResourceIDFromContext(ctx)
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -204,7 +204,7 @@ func decodeDesiredExternalAuthCreate(ctx context.Context) (*api.HCPOpenShiftClus
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}
-	resourceID, err := ResourceIDFromContext(ctx)
+	resourceID, err := utils.ResourceIDFromContext(ctx)
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}
@@ -239,13 +239,13 @@ func decodeDesiredExternalAuthCreate(ctx context.Context) (*api.HCPOpenShiftClus
 
 func (f *Frontend) createExternalAuth(writer http.ResponseWriter, request *http.Request) error {
 	ctx := request.Context()
-	logger := LoggerFromContext(ctx)
+	logger := utils.LoggerFromContext(ctx)
 
 	versionedInterface, err := VersionFromContext(ctx)
 	if err != nil {
 		return utils.TrackError(err)
 	}
-	resourceID, err := ResourceIDFromContext(ctx)
+	resourceID, err := utils.ResourceIDFromContext(ctx)
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -446,7 +446,7 @@ func (f *Frontend) patchExternalAuth(writer http.ResponseWriter, request *http.R
 }
 
 func (f *Frontend) updateExternalAuthInCosmos(ctx context.Context, writer http.ResponseWriter, request *http.Request, httpStatusCode int, newInternalExternalAuth, oldInternalExternalAuth *api.HCPOpenShiftClusterExternalAuth) error {
-	logger := LoggerFromContext(ctx)
+	logger := utils.LoggerFromContext(ctx)
 
 	versionedInterface, err := VersionFromContext(ctx)
 	if err != nil {
@@ -552,7 +552,7 @@ func (f *Frontend) getInternalExternalAuthFromStorage(ctx context.Context, resou
 		return nil, utils.TrackError(err)
 	}
 
-	// Replace the key field from Cosmos with the given resourceID,
+	// Replace the ID field from Cosmos with the given resourceID,
 	// which typically comes from the URL. This helps preserve the
 	// casing of the resource group and resource name from the URL
 	// to meet RPC requirements:

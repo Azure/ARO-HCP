@@ -107,7 +107,7 @@ func (d *nestedCosmosResourceCRUD[InternalAPIType, CosmosAPIType]) List(ctx cont
 		return nil, fmt.Errorf("failed to make ResourceID path for '%s': %w", d.parentResourceID.ResourceGroupName, err)
 	}
 
-	return list[InternalAPIType, CosmosAPIType](ctx, d.containerClient, d.resourceType, prefix, options)
+	return list[InternalAPIType, CosmosAPIType](ctx, d.containerClient, &d.resourceType, prefix, options)
 }
 
 func (d *nestedCosmosResourceCRUD[InternalAPIType, CosmosAPIType]) AddCreateToTransaction(ctx context.Context, transaction DBTransaction, newObj *InternalAPIType, opts *azcosmos.TransactionalBatchItemOptions) (string, error) {

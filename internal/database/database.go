@@ -112,6 +112,9 @@ type DBClient interface {
 	// of http.StatusPreconditionFailed.
 	PatchBillingDoc(ctx context.Context, resourceID *azcorearm.ResourceID, ops BillingDocumentPatchOperations) error
 
+	// UntypedCRUD provides access documents in the subscription
+	UntypedCRUD(parentResourceID azcorearm.ResourceID) (UntypedResourceCRUD, error)
+
 	// GetHCPClusterCRUD retrieves a CRUD interface for managing HCPCluster resources and their nested resources.
 	HCPClusters(subscriptionID, resourceGroupName string) HCPClusterCRUD
 
@@ -704,6 +707,10 @@ func (d *cosmosDBClient) HCPClusters(subscriptionID, resourceGroupName string) H
 	return &hcpClusterCRUD{
 		nestedCosmosResourceCRUD: NewCosmosResourceCRUD[api.HCPOpenShiftCluster, HCPCluster](d.resources, parentResourceID, api.ClusterResourceType),
 	}
+}
+
+func (d *cosmosDBClient) UntypedCRUD(parentResourceID azcorearm.ResourceID) (UntypedResourceCRUD, error) {
+	return NewUntypedCRUD(d.resources, parentResourceID), nil
 }
 
 // NewCosmosDatabaseClient instantiates a generic Cosmos database client.

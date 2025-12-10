@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package frontend
+package errorutils
 
 import (
 	"context"
@@ -25,18 +25,19 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
+	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 // erroringHTTPHandler is an http handler that leaves error reporting to a higher layer
 // This allows the function itself to return errors for consistent logging and returning to users instead of
 // leaving the error handling itself where we see problems with inconsistent logging, forgotten returns, and
 // missing metadata.
-type erroringHTTPHandlerFunc func(w http.ResponseWriter, r *http.Request) error
+type ErroringHTTPHandlerFunc func(w http.ResponseWriter, r *http.Request) error
 
-// reportError allows an http handler to have an error handling flow that is "normal" where encountered errors are
+// ReportError allows an http handler to have an error handling flow that is "normal" where encountered errors are
 // returned.  If the error is non-nil, then the standard error reporting (special cases baked in for known types of errors)
 // are logged and then reported to a client with an appropriate http code.
-func reportError(delegate erroringHTTPHandlerFunc) http.HandlerFunc {
+func ReportError(delegate ErroringHTTPHandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		err := delegate(w, r)
 		if err == nil {
@@ -53,13 +54,13 @@ func reportError(delegate erroringHTTPHandlerFunc) http.HandlerFunc {
 // The return value is always nil.  This allows direct usage in an http handler to local context
 // and allows the same handler function to return an error
 func writeError(ctx context.Context, w http.ResponseWriter, err error, args ...interface{}) error {
-	logger := LoggerFromContext(ctx)
+	logger := utils.LoggerFromContext(ctx)
 
 	logger.Error(fmt.Sprintf("%v", err), args...) // fmt used to handle nil
 
 	var ocmError *ocmerrors.Error
 	if errors.As(err, &ocmError) {
-		resourceID, _ := ResourceIDFromContext(ctx) // used for error reporting
+		resourceID, _ := utils.ResourceIDFromContext(ctx) // used for error reporting
 		cloudErr := ocm.CSErrorToCloudError(err, resourceID)
 		arm.WriteCloudError(w, cloudErr)
 		return nil
@@ -74,7 +75,7 @@ func writeError(ctx context.Context, w http.ResponseWriter, err error, args ...i
 	}
 
 	if database.IsResponseError(err, http.StatusNotFound) {
-		resourceID, err := ResourceIDFromContext(ctx) // used for error reporting
+		resourceID, err := utils.ResourceIDFromContext(ctx) // used for error reporting
 		if err != nil {
 			arm.WriteInternalServerError(w)
 			return nil

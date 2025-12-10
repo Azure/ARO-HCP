@@ -26,6 +26,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/tracing"
+	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 // MiddlewareTracing starts an OpenTelemetry span wrapping all incoming HTTP
@@ -43,7 +44,7 @@ func middlewareTracing(w http.ResponseWriter, r *http.Request, next http.Handler
 		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			var (
 				ctx    = r.Context()
-				logger = LoggerFromContext(ctx)
+				logger = utils.LoggerFromContext(ctx)
 			)
 
 			data, err := CorrelationDataFromContext(ctx)
@@ -72,7 +73,7 @@ func middlewareTracing(w http.ResponseWriter, r *http.Request, next http.Handler
 // the context does not maintain a span, the function has no effect.
 func addCorrelationDataToSpanContext(ctx context.Context, data *arm.CorrelationData) context.Context {
 	var (
-		logger = LoggerFromContext(ctx)
+		logger = utils.LoggerFromContext(ctx)
 		span   = trace.SpanFromContext(ctx)
 	)
 

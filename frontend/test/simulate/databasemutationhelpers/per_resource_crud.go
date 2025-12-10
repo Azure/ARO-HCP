@@ -15,6 +15,7 @@
 package databasemutationhelpers
 
 import (
+	"encoding/json"
 	"path/filepath"
 	"testing"
 
@@ -94,4 +95,53 @@ func (OperationCRUDSpecializer) NameFromInstance(obj *api.Operation) string {
 
 func (OperationCRUDSpecializer) WriteCosmosID(newObj, oldObj *api.Operation) {
 	newObj.CosmosUID = oldObj.CosmosUID
+}
+
+type UntypedCRUDSpecializer struct {
+}
+
+var _ ResourceCRUDTestSpecializer[database.TypedDocument] = &UntypedCRUDSpecializer{}
+
+func (UntypedCRUDSpecializer) ResourceCRUDFromKey(t *testing.T, cosmosContainer *azcosmos.ContainerClient, key CosmosCRUDKey) database.ResourceCRUD[database.TypedDocument] {
+	panic("unsupported")
+}
+
+func (UntypedCRUDSpecializer) InstanceEquals(expected, actual *database.TypedDocument) bool {
+	// clear the fields that don't compare
+	shallowExpected := *expected
+	shallowActual := *actual
+	shallowExpected.CosmosResourceID = ""
+	shallowExpected.CosmosSelf = ""
+	shallowExpected.CosmosETag = ""
+	shallowExpected.CosmosAttachments = ""
+	shallowExpected.CosmosTimestamp = 0
+	shallowActual.CosmosResourceID = ""
+	shallowActual.CosmosSelf = ""
+	shallowActual.CosmosETag = ""
+	shallowActual.CosmosAttachments = ""
+	shallowActual.CosmosTimestamp = 0
+
+	expectedProperties := map[string]any{}
+	actualProperties := map[string]any{}
+	if err := json.Unmarshal(shallowExpected.Properties, &expectedProperties); err != nil {
+		panic(err)
+	}
+	if err := json.Unmarshal(shallowActual.Properties, &actualProperties); err != nil {
+		panic(err)
+	}
+	shallowExpected.Properties = nil
+	shallowActual.Properties = nil
+
+	if !equality.Semantic.DeepEqual(shallowExpected, shallowActual) {
+		return false
+	}
+	return equality.Semantic.DeepEqual(expectedProperties, actualProperties)
+}
+
+func (UntypedCRUDSpecializer) NameFromInstance(obj *database.TypedDocument) string {
+	return obj.ID
+}
+
+func (UntypedCRUDSpecializer) WriteCosmosID(newObj, oldObj *database.TypedDocument) {
+	newObj.ID = oldObj.ID
 }

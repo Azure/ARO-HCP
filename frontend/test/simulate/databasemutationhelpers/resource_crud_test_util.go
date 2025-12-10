@@ -113,11 +113,17 @@ func newStep[InternalAPIType any](indexString, stepType, stepName string, testDi
 	case "get":
 		return newGetStep(stepID, specializer, cosmosContainer, stepDir)
 
+	case "untypedGet":
+		return newUntypedGetStep(stepID, cosmosContainer, stepDir)
+
 	case "list":
 		return newListStep(stepID, specializer, cosmosContainer, stepDir)
 
 	case "listActiveOperations":
 		return newListActiveOperationsStep(stepID, cosmosContainer, stepDir)
+
+	case "untypedList":
+		return newUntypedListStep(stepID, cosmosContainer, stepDir)
 
 	default:
 		return nil, fmt.Errorf("unknown step type: %s", stepType)
@@ -155,7 +161,7 @@ func readResourcesInDir[InternalAPIType any](dir fs.FS) ([]*InternalAPIType, err
 		if dirEntry.Name() == "00-key.json" { // standard filenames to skip
 			continue
 		}
-		if dirEntry.Name() == "expected-error.txt" { // standard filenames to skip
+		if !strings.HasSuffix(dirEntry.Name(), ".json") {
 			continue
 		}
 

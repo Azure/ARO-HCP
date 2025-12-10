@@ -42,11 +42,11 @@ import (
 
 	"github.com/Azure/ARO-HCP/frontend/cmd"
 	"github.com/Azure/ARO-HCP/frontend/pkg/frontend"
-	"github.com/Azure/ARO-HCP/frontend/pkg/util"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/audit"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/mocks"
+	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 func SkipIfNotSimulationTesting(t *testing.T) {
@@ -78,7 +78,7 @@ func NewFrontendFromTestingEnv(ctx context.Context, t *testing.T) (*frontend.Fro
 		return nil, nil, fmt.Errorf("failed to create artifact directory %s: %w", artifactDir, err)
 	}
 
-	logger := util.DefaultLogger()
+	logger := utils.DefaultLogger()
 
 	listener, err := net.Listen("tcp4", "127.0.0.1:0")
 	if err != nil {

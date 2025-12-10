@@ -798,6 +798,45 @@ func (c *MockDBClientPatchResourceDocCall) DoAndReturn(f func(context.Context, *
 	return c
 }
 
+// UntypedCRUD mocks base method.
+func (m *MockDBClient) UntypedCRUD(parentResourceID arm0.ResourceID) (database.UntypedResourceCRUD, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UntypedCRUD", parentResourceID)
+	ret0, _ := ret[0].(database.UntypedResourceCRUD)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UntypedCRUD indicates an expected call of UntypedCRUD.
+func (mr *MockDBClientMockRecorder) UntypedCRUD(parentResourceID any) *MockDBClientUntypedCRUDCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UntypedCRUD", reflect.TypeOf((*MockDBClient)(nil).UntypedCRUD), parentResourceID)
+	return &MockDBClientUntypedCRUDCall{Call: call}
+}
+
+// MockDBClientUntypedCRUDCall wrap *gomock.Call
+type MockDBClientUntypedCRUDCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockDBClientUntypedCRUDCall) Return(arg0 database.UntypedResourceCRUD, arg1 error) *MockDBClientUntypedCRUDCall {
+	c.Call = c.Call.Return(arg0, arg1)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockDBClientUntypedCRUDCall) Do(f func(arm0.ResourceID) (database.UntypedResourceCRUD, error)) *MockDBClientUntypedCRUDCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockDBClientUntypedCRUDCall) DoAndReturn(f func(arm0.ResourceID) (database.UntypedResourceCRUD, error)) *MockDBClientUntypedCRUDCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
 // UpdateSubscriptionDoc mocks base method.
 func (m *MockDBClient) UpdateSubscriptionDoc(ctx context.Context, subscriptionID string, callback func(*arm.Subscription) bool) (bool, error) {
 	m.ctrl.T.Helper()

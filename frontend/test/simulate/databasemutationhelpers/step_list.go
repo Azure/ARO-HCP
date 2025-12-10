@@ -70,34 +70,34 @@ func (l *listStep[InternalAPIType]) RunTest(ctx context.Context, t *testing.T) {
 	actualControllersIterator, err := controllerCRUDClient.List(ctx, nil)
 	require.NoError(t, err)
 
-	actualControllers := []*InternalAPIType{}
+	actualResources := []*InternalAPIType{}
 	for _, actual := range actualControllersIterator.Items(ctx) {
-		actualControllers = append(actualControllers, actual)
+		actualResources = append(actualResources, actual)
 	}
 	require.NoError(t, actualControllersIterator.GetError())
 
-	if len(l.expectedResources) != len(actualControllers) {
-		t.Logf("actual:\n%v", stringifyResource(actualControllers))
+	if len(l.expectedResources) != len(actualResources) {
+		t.Logf("actual:\n%v", stringifyResource(actualResources))
 	}
 
-	require.Equal(t, len(l.expectedResources), len(actualControllers), "unexpected number of controllers")
+	require.Equal(t, len(l.expectedResources), len(actualResources), "unexpected number of resources")
 	// all the expected must be present
 	for _, expected := range l.expectedResources {
 		found := false
-		for _, actual := range actualControllers {
+		for _, actual := range actualResources {
 			if l.specializer.InstanceEquals(expected, actual) {
 				found = true
 				break
 			}
 		}
 		if !found {
-			t.Logf("actual:\n%v", stringifyResource(actualControllers))
+			t.Logf("actual:\n%v", stringifyResource(actualResources))
 		}
-		require.True(t, found, "expected controller not found: %v", l.specializer.NameFromInstance(expected))
+		require.True(t, found, "expected resource not found: %v", l.specializer.NameFromInstance(expected))
 	}
 
 	// all the actual must be expected
-	for _, actual := range actualControllers {
+	for _, actual := range actualResources {
 		found := false
 		for _, expected := range l.expectedResources {
 			if l.specializer.InstanceEquals(expected, actual) {
@@ -108,6 +108,6 @@ func (l *listStep[InternalAPIType]) RunTest(ctx context.Context, t *testing.T) {
 		if !found {
 			t.Logf("expected:\n%v", stringifyResource(l.expectedResources))
 		}
-		require.True(t, found, "actual controller not found: %v", l.specializer.NameFromInstance(actual))
+		require.True(t, found, "actual resource not found: %v", l.specializer.NameFromInstance(actual))
 	}
 }

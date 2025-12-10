@@ -27,6 +27,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 func TestMiddlewareSystemData(t *testing.T) {
@@ -86,7 +87,7 @@ func TestMiddlewareSystemData(t *testing.T) {
 			}
 
 			// Add a logger to the context so parsing errors will be logged.
-			ctx := ContextWithLogger(request.Context(), slog.Default())
+			ctx := utils.ContextWithLogger(request.Context(), slog.Default())
 			request = request.WithContext(ctx)
 
 			next := func(w http.ResponseWriter, r *http.Request) {

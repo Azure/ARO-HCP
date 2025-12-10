@@ -86,7 +86,7 @@ func (l *listActiveOperationsStep) RunTest(ctx context.Context, t *testing.T) {
 	}
 
 	specializer := OperationCRUDSpecializer{}
-	require.Equal(t, len(l.expectedOperations), len(actualControllers), "unexpected number of controllers")
+	require.Equal(t, len(l.expectedOperations), len(actualControllers), "unexpected number of resources")
 	// all the expected must be present
 	for _, expected := range l.expectedOperations {
 		found := false
@@ -100,7 +100,7 @@ func (l *listActiveOperationsStep) RunTest(ctx context.Context, t *testing.T) {
 		if !found {
 			t.Logf("actual:\n%v", stringifyResource(actualControllers))
 		}
-		require.True(t, found, "expected controller not found: %v", specializer.NameFromInstance(expected))
+		require.True(t, found, "expected resource not found: %v", specializer.NameFromInstance(expected))
 	}
 
 	// all the actual must be expected
@@ -115,6 +115,6 @@ func (l *listActiveOperationsStep) RunTest(ctx context.Context, t *testing.T) {
 		if !found {
 			t.Logf("expected:\n%v", stringifyResource(l.expectedOperations))
 		}
-		require.True(t, found, "actual controller not found: %v", specializer.NameFromInstance(actual))
+		require.True(t, found, "actual resource not found: %v", specializer.NameFromInstance(actual))
 	}
 }

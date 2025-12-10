@@ -28,12 +28,13 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 // AddAsyncOperationHeader adds an "Azure-AsyncOperation" header to the ResponseWriter
 // with a URL of the operation status endpoint.
 func AddAsyncOperationHeader(writer http.ResponseWriter, request *http.Request, operationID *azcorearm.ResourceID) {
-	logger := LoggerFromContext(request.Context())
+	logger := utils.LoggerFromContext(request.Context())
 
 	// MiddlewareReferer ensures Referer is present.
 	u, err := url.ParseRequestURI(request.Referer())
@@ -57,7 +58,7 @@ func AddAsyncOperationHeader(writer http.ResponseWriter, request *http.Request, 
 // AddLocationHeader adds a "Location" header to the ResponseWriter with a URL of the
 // operation result endpoint.
 func AddLocationHeader(writer http.ResponseWriter, request *http.Request, operationID *azcorearm.ResourceID) {
-	logger := LoggerFromContext(request.Context())
+	logger := utils.LoggerFromContext(request.Context())
 
 	// MiddlewareReferer ensures Referer is present.
 	u, err := url.ParseRequestURI(request.Referer())
@@ -94,7 +95,7 @@ func (f *Frontend) ExposeOperation(writer http.ResponseWriter, request *http.Req
 		"locations", arm.GetAzureLocation(),
 		api.OperationStatusResourceTypeName, operationID))
 	if err != nil {
-		LoggerFromContext(request.Context()).Error(err.Error())
+		utils.LoggerFromContext(request.Context()).Error(err.Error())
 		return
 	}
 
@@ -156,7 +157,7 @@ func (f *Frontend) CancelActiveOperations(ctx context.Context, transaction datab
 func (f *Frontend) OperationIsVisible(request *http.Request, operationID string, doc *database.OperationDocument) bool {
 	var visible = true
 
-	logger := LoggerFromContext(request.Context())
+	logger := utils.LoggerFromContext(request.Context())
 
 	tenantID := request.Header.Get(arm.HeaderNameHomeTenantID)
 	clientID := request.Header.Get(arm.HeaderNameClientObjectID)

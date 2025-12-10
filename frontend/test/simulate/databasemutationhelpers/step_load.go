@@ -70,6 +70,6 @@ func (l *loadStep) StepID() stepID {
 func (l *loadStep) RunTest(ctx context.Context, t *testing.T) {
 	for _, content := range l.contents {
 		err := integrationutils.CreateInitialCosmosContent(ctx, l.cosmosContainer, content)
-		require.NoError(t, err, "failed to load cosmos content")
+		require.NoError(t, err, "failed to load cosmos content: %v", string(content))
 	}
 }

@@ -65,6 +65,16 @@ func TestDatabaseCRUD(t *testing.T) {
 					crudSuiteDir)
 			})
 
+		case "UntypedCRUD":
+			t.Run(crudSuiteDirEntry.Name(), func(t *testing.T) {
+				testCRUDSuite(
+					ctx,
+					t,
+					databasemutationhelpers.OperationCRUDSpecializer{},
+					testInfo.CosmosResourcesContainer(),
+					crudSuiteDir)
+			})
+
 		default:
 			t.Fatalf("unknown crud suite dir: %s", crudSuiteDirEntry.Name())
 		}
