@@ -5,10 +5,7 @@ include ./test/Makefile
 SHELL = /bin/bash
 PATH := $(GOBIN):$(PATH)
 
-# This build tag is currently leveraged by tooling/image-sync
-# https://github.com/containers/image?tab=readme-ov-file#building
-GOTAGS?='containers_image_openpgp'
-LINT_GOTAGS?='${GOTAGS},E2Etests'
+LINT_GOTAGS?='E2Etests'
 TOOLS_BIN_DIR := tooling/bin
 DEPLOY_ENV ?= pers
 CONFIG_FILE ?= config/config.yaml
@@ -21,7 +18,7 @@ all: test lint
 # There is currently no convenient way to run tests against a whole Go workspace
 # https://github.com/golang/go/issues/50745
 test:
-	go list -f '{{.Dir}}/...' -m |RUN_TEMPLATIZE_E2E=true xargs go test -timeout 1200s -tags=$(GOTAGS) -cover
+	go list -f '{{.Dir}}/...' -m |RUN_TEMPLATIZE_E2E=true xargs go test -timeout 1200s -cover
 .PHONY: test
 
 test-compile:

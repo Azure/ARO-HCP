@@ -90,7 +90,6 @@ Each service follows consistent patterns:
 - Go services include standard `main.go`, `go.mod`
 
 ### Build Tags
-- Default build tags: `GOTAGS='containers_image_openpgp'`
 - Lint tags: `LINT_GOTAGS='${GOTAGS},E2Etests'`
 
 ### Infrastructure as Code
