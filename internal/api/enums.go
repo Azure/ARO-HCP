@@ -215,38 +215,32 @@ var (
 type ClusterConditionType string
 
 const (
-	// ClusterConditionTypeAvailable - the cluster resource is in an available state.
-	ClusterConditionTypeAvailable ClusterConditionType = "Available"
+	// ClusterConditionTypeCompleted - the cluster resource is in an completed state.
+	ClusterConditionTypeCompleted ClusterConditionType = "Completed"
 	// ClusterConditionTypeDegraded - the cluster resource is in a degraded state.
 	ClusterConditionTypeDegraded ClusterConditionType = "Degraded"
-	// ClusterConditionTypeProgressing - the cluster resource is in a progressing state.
-	ClusterConditionTypeProgressing ClusterConditionType = "Progressing"
 )
 
 var (
 	ValidClusterConditionTypes = sets.New[ClusterConditionType](
-		ClusterConditionTypeAvailable,
+		ClusterConditionTypeCompleted,
 		ClusterConditionTypeDegraded,
-		ClusterConditionTypeProgressing,
 	)
 )
 
 type NodePoolConditionType string
 
 const (
-	// NodePoolConditionTypeAvailable - the node pool resource is in an available state.
-	NodePoolConditionTypeAvailable NodePoolConditionType = "Available"
+	// NodePoolConditionTypeCompleted - the node pool resource is in an completed state.
+	NodePoolConditionTypeCompleted NodePoolConditionType = "Completed"
 	// NodePoolConditionTypeDegraded - the node pool resource is in a degraded state.
 	NodePoolConditionTypeDegraded NodePoolConditionType = "Degraded"
-	// NodePoolConditionTypeProgressing - the node pool resource is in a progressing state.
-	NodePoolConditionTypeProgressing NodePoolConditionType = "Progressing"
 )
 
 var (
 	ValidNodePoolConditionTypes = sets.New[NodePoolConditionType](
-		NodePoolConditionTypeAvailable,
+		NodePoolConditionTypeCompleted,
 		NodePoolConditionTypeDegraded,
-		NodePoolConditionTypeProgressing,
 	)
 )
 
