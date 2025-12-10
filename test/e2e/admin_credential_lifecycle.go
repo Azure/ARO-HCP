@@ -105,7 +105,7 @@ var _ = Describe("Customer", func() {
 
 				// only log state changes
 				if previousState != *cluster.Properties.ProvisioningState {
-					GinkgoLogr.Info(fmt.Sprintf("Cluster provisioning state changed: '%v' -> '%v'", previousState, *cluster.Properties.ProvisioningState))
+					GinkgoLogr.Info("Cluster provisioning state updated", "provisioningState", *cluster.Properties.ProvisioningState)
 					previousState = *cluster.Properties.ProvisioningState
 				}
 
