@@ -48,7 +48,7 @@ var _ = Describe("Customer", func() {
 				openshiftNodeVersionId           = "4.19.7"
 			)
 			// This pattern matches a subset of the smallest (2GiB) ARM64-capable VM sizes listed in https://issues.redhat.com/browse/ARO-22443
-			vmSizePattern := regexp.MustCompile(`^Standard_D(?:2|4|8|16|32|48|64|96)pl(?:d)?s_v6$`)
+			vmSizePattern := regexp.MustCompile(`^Standard_D(?:2|4)pl(?:d)?s_v6$`)
 
 			tc := framework.NewTestContext()
 
