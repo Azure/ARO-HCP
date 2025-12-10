@@ -1,0 +1,52 @@
+# Velero HCP CLI-based deployment values
+# These values are templated by the pipeline
+# Azure configuration
+azureCloud: AzurePublicCloud
+tenantId: "__tenantId__"
+subscriptionId: "__subscriptionId__"
+clientId: "__veleroMsiClientId__"
+resourceGroup: "{{ .mgmt.rg }}"
+bucket: "{{ .mgmt.hcpBackups.storageAccountContainerName }}"
+storageAccount: "__storageAccountName__"
+# Image registry (ACR)
+imageRegistry: "{{ .acr.svc.name }}.{{ .acrDNSSuffix }}"
+# Image pull binding
+pullBinding:
+  workloadIdentityClientId: "__imagePullerMsiClientId__"
+  workloadIdentityTenantId: "__imagePullerMsiTenantId__"
+# Velero server image
+veleroServer:
+  repository: "{{ .velero.server.repository }}"
+  digest: "{{ .velero.server.digest }}"
+# Azure plugin image
+azurePlugin:
+  repository: "{{ .velero.azurePlugin.repository }}"
+  digest: "{{ .velero.azurePlugin.digest }}"
+# Hypershift plugin image
+hypershiftPlugin:
+  repository: "{{ .velero.hypershiftPlugin.repository }}"
+  digest: "{{ .velero.hypershiftPlugin.digest }}"
+# Velero configuration
+configuration:
+  # Features to enable
+  features: EnableCSI
+  # Uploader type for file system backups
+  uploaderType: kopia
+  # Deploy node agent for file system backups
+  deployNodeAgent: true
+  # Backup storage location prefix
+  backupPrefix: velero
+# Pod scheduling
+nodeSelector:
+  aro-hcp.azure.com/role: infra
+tolerations:
+- key: "infra"
+  operator: "Equal"
+  value: "true"
+  effect: "NoSchedule"
+# Installer job configuration
+installer:
+  # Job timeout in seconds (30 minutes)
+  activeDeadlineSeconds: 1800
+  # Number of retries
+  backoffLimit: 3
