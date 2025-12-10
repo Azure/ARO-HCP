@@ -292,6 +292,8 @@ param azureMonitoring string
 		defaultEvaluationInterval string
 	}
 	mergedGroups := make(map[string]*groupWithMetadata)
+	// Track insertion order to ensure deterministic output
+	groupOrder := []string{}
 
 	for _, irf := range o.ruleFiles {
 		for _, group := range irf.Rules.Spec.Groups {
@@ -303,13 +305,20 @@ param azureMonitoring string
 			}
 
 			if existing, exists := mergedGroups[group.Name]; exists {
-				// Merge rules: create a map of existing alerts by name
+				// Merge rules: create a map of existing alerts by name for lookups
 				existingAlerts := make(map[string]monitoringv1.Rule)
+				// Track the order of rules as they appear
+				ruleOrder := []string{}
 				for _, rule := range existing.group.Rules {
+					ruleName := ""
 					if rule.Alert != "" {
-						existingAlerts[rule.Alert] = rule
+						ruleName = rule.Alert
+						existingAlerts[ruleName] = rule
+						ruleOrder = append(ruleOrder, ruleName)
 					} else if rule.Record != "" {
-						existingAlerts[rule.Record] = rule
+						ruleName = rule.Record
+						existingAlerts[ruleName] = rule
+						ruleOrder = append(ruleOrder, ruleName)
 					}
 				}
 
@@ -319,13 +328,17 @@ param azureMonitoring string
 					if ruleName == "" {
 						ruleName = rule.Record
 					}
+					// If this is a new rule (not an override), add it to the order
+					if _, exists := existingAlerts[ruleName]; !exists {
+						ruleOrder = append(ruleOrder, ruleName)
+					}
 					existingAlerts[ruleName] = rule
 				}
 
-				// Rebuild the rules list from the map
-				existing.group.Rules = make([]monitoringv1.Rule, 0, len(existingAlerts))
-				for _, rule := range existingAlerts {
-					existing.group.Rules = append(existing.group.Rules, rule)
+				// Rebuild the rules list preserving order
+				existing.group.Rules = make([]monitoringv1.Rule, 0, len(ruleOrder))
+				for _, ruleName := range ruleOrder {
+					existing.group.Rules = append(existing.group.Rules, existingAlerts[ruleName])
 				}
 
 				// Update other group properties from the later file
@@ -341,12 +354,14 @@ param azureMonitoring string
 					group:                     group,
 					defaultEvaluationInterval: irf.DefaultEvaluationInterval,
 				}
+				groupOrder = append(groupOrder, group.Name)
 			}
 		}
 	}
 
-	// Second pass: process merged groups
-	for _, gwm := range mergedGroups {
+	// Second pass: process merged groups in order
+	for _, groupName := range groupOrder {
+		gwm := mergedGroups[groupName]
 		group := gwm.group
 
 		logger := logrus.WithFields(logrus.Fields{
