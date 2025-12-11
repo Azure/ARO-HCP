@@ -31,7 +31,6 @@ import (
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/cleanup"
 	customlinktools "github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/custom-link-tools"
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/visualize"
-	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 )
 
@@ -105,14 +104,8 @@ func main() {
 	// You can add hooks to run before/after tests. There are BeforeEach, BeforeAll, AfterEach,
 	// and AfterAll. "Each" functions must be thread safe.
 	//
-	specs.AddBeforeAll(func() {
-		tc := framework.NewTestContext()
-		if tc.UsePooledIdentities() {
-			if err := tc.CreateIdentitiesPoolStateFile(); err != nil {
-				panic(fmt.Sprintf("failed to create managed identities pool state file: %v", err))
-			}
-		}
-	})
+	// specs.AddBeforeAll(func() {
+	// })
 	//
 	// specs.AddBeforeEach(func(spec ExtensionTestSpec) {
 	//	if spec.Name == "my test" {

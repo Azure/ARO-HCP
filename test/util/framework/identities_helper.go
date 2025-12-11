@@ -21,7 +21,6 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -40,10 +39,6 @@ import (
 const (
 	UsePooledIdentitiesEnvvar = "POOLED_IDENTITIES"
 	LeasedMSIContainersEnvvar = "LEASED_MSI_CONTAINERS"
-)
-
-const (
-	msiPoolStateFileName = "identities-pool-state.yaml"
 )
 
 // ErrNotEnoughFreeIdentityContainers is returned when a reservation request
@@ -210,51 +205,11 @@ func (tc *perItOrDescribeTestContext) DeployManagedIdentities(
 	return deploymentResult, nil
 }
 
-func (tc *perItOrDescribeTestContext) CreateIdentitiesPoolStateFile() error {
-
-	f, err := os.OpenFile(tc.msiPoolStateFilePath(), os.O_RDWR|os.O_CREATE, 0666)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-
-	state := LeasedIdentityPoolState{file: f}
-
-	if err := state.lock(); err != nil {
-		return fmt.Errorf("failed to acquire managed identities pool state file lock: %w", err)
-	}
-	defer func() {
-		if err := state.unlock(); err != nil {
-			log.Logger.WithError(err).Warn("failed to release managed identities pool state file lock")
-		}
-	}()
-
-	if err := state.readUnlocked(); err != nil {
-		return fmt.Errorf("failed to read managed identities pool state file: %w", err)
-	}
-
-	if state.isInitialized() {
-		return nil
-	}
-
-	leasedRGs := tc.perBinaryInvocationTestContext.LeasedIdentityContainers()
-	if len(leasedRGs) == 0 {
-		return fmt.Errorf("expected envvar %s to not be empty", LeasedMSIContainersEnvvar)
-	}
-
-	if err := state.initializeUnlocked(leasedRGs); err != nil {
-		return fmt.Errorf("failed to initialize managed identities pool state: %w", err)
-	}
-
-	return nil
-}
-
 func (tc *perItOrDescribeTestContext) AssignIdentityContainers(ctx context.Context, count uint8, waitBetweenRetries time.Duration) error {
-	state, err := NewLeasedIdentityPoolState(tc.msiPoolStateFilePath())
+	state, err := tc.perBinaryInvocationTestContext.getLeasedIdentityPoolState()
 	if err != nil {
 		return fmt.Errorf("failed to open managed identities pool state file: %w", err)
 	}
-	defer state.Close()
 
 	for {
 		err := state.AssignNTo(specID(), count)
@@ -275,11 +230,10 @@ func (tc *perItOrDescribeTestContext) AssignIdentityContainers(ctx context.Conte
 
 func (tc *perItOrDescribeTestContext) GetLeasedIdentities() (LeasedIdentityPool, error) {
 
-	state, err := NewLeasedIdentityPoolState(tc.msiPoolStateFilePath())
+	state, err := tc.perBinaryInvocationTestContext.getLeasedIdentityPoolState()
 	if err != nil {
 		return LeasedIdentityPool{}, fmt.Errorf("failed to open managed identities pool state file: %w", err)
 	}
-	defer state.Close()
 
 	leasedRG, err := state.UseNextAssigned(specID(), tc.registerLeasedIdentityContainer)
 	if err != nil {
@@ -311,11 +265,10 @@ func (tc *perItOrDescribeTestContext) ReleaseLeasedIdentities(ctx context.Contex
 		return err
 	}
 
-	state, err := NewLeasedIdentityPoolState(tc.msiPoolStateFilePath())
+	state, err := tc.perBinaryInvocationTestContext.getLeasedIdentityPoolState()
 	if err != nil {
 		return fmt.Errorf("failed to open managed identities pool state file: %w", err)
 	}
-	defer state.Close()
 
 	var errs []error
 	for _, resourceGroup := range leasedContainers {
@@ -331,10 +284,6 @@ func (tc *perItOrDescribeTestContext) ReleaseLeasedIdentities(ctx context.Contex
 		return fmt.Errorf("failed cleanup operations: %w", errors.Join(errs...))
 	}
 	return nil
-}
-
-func (tc *perItOrDescribeTestContext) msiPoolStateFilePath() string {
-	return filepath.Join(tc.perBinaryInvocationTestContext.sharedDir, msiPoolStateFileName)
 }
 
 func (tc *perItOrDescribeTestContext) registerLeasedIdentityContainer(resourceGroupName string) error {
@@ -454,17 +403,49 @@ type LeasedIdentityPoolState struct {
 	entries []LeasedIdentityPoolEntry
 }
 
-func NewLeasedIdentityPoolState(path string) (LeasedIdentityPoolState, error) {
-	f, err := os.OpenFile(path, os.O_RDWR, 0)
+func newLeasedIdentityPoolState(path string) (*LeasedIdentityPoolState, error) {
+
+	f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE, 0666)
 	if err != nil {
-		return LeasedIdentityPoolState{}, fmt.Errorf("failed to open managed identities pool state file %s: %w", path, err)
+		return &LeasedIdentityPoolState{}, fmt.Errorf("failed to open managed identities pool state file %s: %w", path, err)
 	}
 
-	return LeasedIdentityPoolState{file: f}, nil
+	state := LeasedIdentityPoolState{file: f}
+
+	if err := state.lock(); err != nil {
+		return &LeasedIdentityPoolState{}, fmt.Errorf("failed to acquire managed identities pool state file lock: %w", err)
+	}
+	defer func() {
+		if err := state.unlock(); err != nil {
+			log.Logger.WithError(err).Warn("failed to release managed identities pool state file lock")
+		}
+	}()
+
+	if err := state.readUnlocked(); err != nil {
+		return &LeasedIdentityPoolState{}, fmt.Errorf("failed to read managed identities pool state file: %w", err)
+	}
+
+	if state.isInitialized() {
+		return &state, nil
+	}
+
+	leasedRGs := strings.Fields(strings.TrimSpace(os.Getenv(LeasedMSIContainersEnvvar)))
+	if len(leasedRGs) == 0 {
+		return &LeasedIdentityPoolState{}, fmt.Errorf("expected envvar %s to not be empty", LeasedMSIContainersEnvvar)
+	}
+
+	if err := state.initializeUnlocked(leasedRGs); err != nil {
+		return &LeasedIdentityPoolState{}, fmt.Errorf("failed to initialize managed identities pool state: %w", err)
+	}
+
+	return &state, nil
 }
 
 func (state *LeasedIdentityPoolState) Close() {
-	_ = state.file.Close()
+	err := state.file.Close()
+	if err != nil {
+		log.Logger.WithError(err).Warn("failed to close managed identities pool state file")
+	}
 	state.file = nil
 }
 
@@ -505,7 +486,7 @@ func (state *LeasedIdentityPoolState) UseNextAssigned(me string, registerFn func
 	return leasedRG, nil
 }
 
-// ReserveContainers attempts to reserve n free identity containers by marking
+// AssignNTo attempts to assign n free identity containers to the caller by marking
 // them as "assigned". It does not perform any waiting or retries: if there are
 // fewer than n free entries, it returns an error and leaves the state
 // unchanged.

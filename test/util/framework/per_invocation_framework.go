@@ -21,6 +21,7 @@ import (
 	"net/http"
 	"os"
 	"path"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -46,11 +47,11 @@ type perBinaryInvocationTestContext struct {
 	isDevelopmentEnvironment bool
 	skipCleanup              bool
 	pooledIdentities         bool
-	leasedIdentityContainers []string
 
-	contextLock      sync.RWMutex
-	subscriptionID   string
-	azureCredentials azcore.TokenCredential
+	contextLock       sync.RWMutex
+	subscriptionID    string
+	azureCredentials  azcore.TokenCredential
+	identityPoolState *LeasedIdentityPoolState
 }
 
 type CleanupFunc func(ctx context.Context) error
@@ -82,7 +83,6 @@ func invocationContext() *perBinaryInvocationTestContext {
 			isDevelopmentEnvironment: IsDevelopmentEnvironment(),
 			skipCleanup:              skipCleanup(),
 			pooledIdentities:         pooledIdentities(),
-			leasedIdentityContainers: leasedIdentityContainers(),
 		}
 	})
 	return invocationContextInstance
@@ -195,8 +195,31 @@ func (tc *perBinaryInvocationTestContext) UsePooledIdentities() bool {
 	return tc.pooledIdentities
 }
 
-func (tc *perBinaryInvocationTestContext) LeasedIdentityContainers() []string {
-	return tc.leasedIdentityContainers
+func (tc *perBinaryInvocationTestContext) getLeasedIdentityPoolState() (*LeasedIdentityPoolState, error) {
+	tc.contextLock.RLock()
+	if tc.identityPoolState != nil {
+		defer tc.contextLock.RUnlock()
+		return tc.identityPoolState, nil
+	}
+	tc.contextLock.RUnlock()
+
+	tc.contextLock.Lock()
+	defer tc.contextLock.Unlock()
+
+	if tc.identityPoolState != nil {
+		return tc.identityPoolState, nil
+	}
+
+	state, err := newLeasedIdentityPoolState(msiPoolStateFilePath())
+	if err != nil {
+		return nil, fmt.Errorf("failed to get managed identities pool state: %w", err)
+	}
+	tc.identityPoolState = state
+	return tc.identityPoolState, nil
+}
+
+func msiPoolStateFilePath() string {
+	return filepath.Join(artifactDir(), "identities-pool-state.yaml")
 }
 
 func skipCleanup() bool {
@@ -213,11 +236,6 @@ func artifactDir() string {
 func pooledIdentities() bool {
 	b, _ := strconv.ParseBool(strings.TrimSpace(os.Getenv(UsePooledIdentitiesEnvvar)))
 	return b
-}
-
-func leasedIdentityContainers() []string {
-	leased := strings.Fields(strings.TrimSpace(os.Getenv(LeasedMSIContainersEnvvar)))
-	return leased
 }
 
 // SharedDir is SHARED_DIR.  It is a spot to store *files only* that can be shared between ci-operator steps.
