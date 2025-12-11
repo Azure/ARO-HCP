@@ -29,6 +29,8 @@ import (
 
 type UntypedResourceCRUD interface {
 	Get(ctx context.Context, resourceID *azcorearm.ResourceID) (*TypedDocument, error)
+	// List returns back only direct descendents from the parent.
+	List(ctx context.Context, opts *DBClientListResourceDocsOptions) (DBClientIterator[TypedDocument], error)
 	// ListRecursive returns back every descendent from the parent.  For instance, if you ListRecursive on a cluster,
 	// you will get the controllers for the cluster, the nodepools, the controllers for each nodepool, the external auths,
 	// the controllers for the external auths, etc.
@@ -69,9 +71,14 @@ func (d *untypedCRUD) Get(ctx context.Context, resourceID *azcorearm.ResourceID)
 	return get[TypedDocument, TypedDocument](ctx, d.containerClient, partitionKey, resourceID)
 }
 
+func (d *untypedCRUD) List(ctx context.Context, options *DBClientListResourceDocsOptions) (DBClientIterator[TypedDocument], error) {
+	partitionKey := strings.ToLower(d.parentResourceID.SubscriptionID)
+	return list[TypedDocument, TypedDocument](ctx, d.containerClient, partitionKey, nil, &d.parentResourceID, options, true)
+}
+
 func (d *untypedCRUD) ListRecursive(ctx context.Context, options *DBClientListResourceDocsOptions) (DBClientIterator[TypedDocument], error) {
 	partitionKey := strings.ToLower(d.parentResourceID.SubscriptionID)
-	return list[TypedDocument, TypedDocument](ctx, d.containerClient, partitionKey, nil, &d.parentResourceID, options)
+	return list[TypedDocument, TypedDocument](ctx, d.containerClient, partitionKey, nil, &d.parentResourceID, options, false)
 }
 
 func (d *untypedCRUD) Child(resourceType azcorearm.ResourceType, resourceName string) (UntypedResourceCRUD, error) {

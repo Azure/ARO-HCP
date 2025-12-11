@@ -125,6 +125,9 @@ func newStep[InternalAPIType any](indexString, stepType, stepName string, testDi
 	case "listActiveOperations":
 		return newListActiveOperationsStep(stepID, cosmosContainer, stepDir)
 
+	case "untypedListRecursive":
+		return newUntypedListRecursiveStep(stepID, cosmosContainer, stepDir)
+
 	case "untypedList":
 		return newUntypedListStep(stepID, cosmosContainer, stepDir)
 

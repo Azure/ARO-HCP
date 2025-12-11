@@ -29,7 +29,18 @@ import (
 	"github.com/Azure/ARO-HCP/internal/database"
 )
 
-type untypedListStep struct {
+type UntypedCRUDKey struct {
+	CosmosCRUDKey `json:",inline"`
+
+	Descendents []UntypedChild `json:"descendents"`
+}
+
+type UntypedChild struct {
+	ResourceType string `json:"resourceType"`
+	ResourceName string `json:"resourceName"`
+}
+
+type untypedListRecursiveStep struct {
 	stepID      stepID
 	key         UntypedCRUDKey
 	specializer ResourceCRUDTestSpecializer[database.TypedDocument]
@@ -38,7 +49,7 @@ type untypedListStep struct {
 	expectedResources []*database.TypedDocument
 }
 
-func newUntypedListStep(stepID stepID, cosmosContainer *azcosmos.ContainerClient, stepDir fs.FS) (*untypedListStep, error) {
+func newUntypedListRecursiveStep(stepID stepID, cosmosContainer *azcosmos.ContainerClient, stepDir fs.FS) (*untypedListRecursiveStep, error) {
 	keyBytes, err := fs.ReadFile(stepDir, "00-key.json")
 	if err != nil {
 		return nil, fmt.Errorf("failed to read key.json: %w", err)
@@ -53,7 +64,7 @@ func newUntypedListStep(stepID stepID, cosmosContainer *azcosmos.ContainerClient
 		return nil, fmt.Errorf("failed to read resource in dir: %w", err)
 	}
 
-	return &untypedListStep{
+	return &untypedListRecursiveStep{
 		stepID:            stepID,
 		key:               key,
 		specializer:       UntypedCRUDSpecializer{},
@@ -62,13 +73,13 @@ func newUntypedListStep(stepID stepID, cosmosContainer *azcosmos.ContainerClient
 	}, nil
 }
 
-var _ resourceMutationStep = &untypedListStep{}
+var _ resourceMutationStep = &untypedListRecursiveStep{}
 
-func (l *untypedListStep) StepID() stepID {
+func (l *untypedListRecursiveStep) StepID() stepID {
 	return l.stepID
 }
 
-func (l *untypedListStep) RunTest(ctx context.Context, t *testing.T) {
+func (l *untypedListRecursiveStep) RunTest(ctx context.Context, t *testing.T) {
 	parentResourceID, err := azcorearm.ParseResourceID(l.key.ParentResourceID)
 	require.NoError(t, err)
 
@@ -79,7 +90,7 @@ func (l *untypedListStep) RunTest(ctx context.Context, t *testing.T) {
 		untypedCRUD, err = untypedCRUD.Child(childResourceType, childKey.ResourceName)
 		require.NoError(t, err)
 	}
-	actualResourcesIterator, err := untypedCRUD.List(ctx, nil)
+	actualResourcesIterator, err := untypedCRUD.ListRecursive(ctx, nil)
 	require.NoError(t, err)
 
 	actualResources := []*database.TypedDocument{}
