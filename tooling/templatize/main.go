@@ -57,7 +57,7 @@ func main() {
 		},
 	}
 
-	cmd.PersistentFlags().IntVarP(&logVerbosity, "verbosity", "v", 0, "set the verbosity level")
+	cmd.PersistentFlags().IntVarP(&logVerbosity, "verbosity", "v", 0, "set the  verbosity level")
 
 	commands := []func() (*cobra.Command, error){
 		generate.NewCommand,
