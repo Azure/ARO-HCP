@@ -386,7 +386,7 @@ To modify or add jobs:
 
 ## Related Documentation
 
-- [OpenShift CI Documentation](https://docs.ci.openshift.org/)
+- [OpenShift CI Documentation](https://docs.ci.openshift.org/docs/)
 - [Prow Documentation](https://docs.prow.k8s.io/)
 - [ARO HCP E2E Testing](../test/e2e/README.md)
 - [ARO HCP Environments](environments.md)
