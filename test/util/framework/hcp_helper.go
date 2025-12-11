@@ -672,3 +672,78 @@ func BuildNodePoolFromParams(
 		},
 	}
 }
+
+// ValidateNodePoolMatchesParams verifies that a retrieved NodePool matches the parameters used to create it
+func ValidateNodePoolMatchesParams(
+	nodePool hcpsdk20240610preview.NodePoolsClientGetResponse,
+	params NodePoolParams,
+	location string,
+) error {
+	var errs []error
+
+	if nodePool.Properties == nil {
+		return fmt.Errorf("nodePool.Properties is nil")
+	}
+
+	if nodePool.Location == nil {
+		errs = append(errs, fmt.Errorf("nodePool.Location is nil"))
+	} else if *nodePool.Location != location {
+		errs = append(errs, fmt.Errorf("location mismatch: expected %q, got %q", location, *nodePool.Location))
+	}
+
+	if nodePool.Properties.Version == nil {
+		errs = append(errs, fmt.Errorf("nodePool.Properties.Version is nil"))
+	} else {
+		if nodePool.Properties.Version.ID == nil {
+			errs = append(errs, fmt.Errorf("nodePool.Properties.Version.ID is nil"))
+		} else if *nodePool.Properties.Version.ID != params.OpenshiftVersionId {
+			errs = append(errs, fmt.Errorf("version ID mismatch: expected %q, got %q", params.OpenshiftVersionId, *nodePool.Properties.Version.ID))
+		}
+
+		if nodePool.Properties.Version.ChannelGroup == nil {
+			errs = append(errs, fmt.Errorf("nodePool.Properties.Version.ChannelGroup is nil"))
+		} else if *nodePool.Properties.Version.ChannelGroup != params.ChannelGroup {
+			errs = append(errs, fmt.Errorf("channel group mismatch: expected %q, got %q", params.ChannelGroup, *nodePool.Properties.Version.ChannelGroup))
+		}
+	}
+
+	if nodePool.Properties.Replicas == nil {
+		errs = append(errs, fmt.Errorf("nodePool.Properties.Replicas is nil"))
+	} else if *nodePool.Properties.Replicas != params.Replicas {
+		errs = append(errs, fmt.Errorf("replicas mismatch: expected %d, got %d", params.Replicas, *nodePool.Properties.Replicas))
+	}
+
+	if nodePool.Properties.Platform == nil {
+		errs = append(errs, fmt.Errorf("nodePool.Properties.Platform is nil"))
+	} else {
+		if nodePool.Properties.Platform.VMSize == nil {
+			errs = append(errs, fmt.Errorf("nodePool.Properties.Platform.VMSize is nil"))
+		} else if *nodePool.Properties.Platform.VMSize != params.VMSize {
+			errs = append(errs, fmt.Errorf("VM size mismatch: expected %q, got %q", params.VMSize, *nodePool.Properties.Platform.VMSize))
+		}
+
+		if nodePool.Properties.Platform.OSDisk == nil {
+			errs = append(errs, fmt.Errorf("nodePool.Properties.Platform.OSDisk is nil"))
+		} else {
+			if nodePool.Properties.Platform.OSDisk.SizeGiB == nil {
+				errs = append(errs, fmt.Errorf("nodePool.Properties.Platform.OSDisk.SizeGiB is nil"))
+			} else if *nodePool.Properties.Platform.OSDisk.SizeGiB != params.OSDiskSizeGiB {
+				errs = append(errs, fmt.Errorf("OS disk size mismatch: expected %d GiB, got %d GiB", params.OSDiskSizeGiB, *nodePool.Properties.Platform.OSDisk.SizeGiB))
+			}
+
+			if nodePool.Properties.Platform.OSDisk.DiskStorageAccountType == nil {
+				errs = append(errs, fmt.Errorf("nodePool.Properties.Platform.OSDisk.DiskStorageAccountType is nil"))
+			} else if string(*nodePool.Properties.Platform.OSDisk.DiskStorageAccountType) != params.DiskStorageAccountType {
+				errs = append(errs, fmt.Errorf("disk storage account type mismatch: expected %q, got %q",
+					params.DiskStorageAccountType,
+					string(*nodePool.Properties.Platform.OSDisk.DiskStorageAccountType)))
+			}
+		}
+	}
+
+	if len(errs) > 0 {
+		return errors.Join(errs...)
+	}
+
+	return nil
+}
