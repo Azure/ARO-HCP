@@ -78,13 +78,8 @@ type ResourceDocumentStateFilter interface {
 }
 
 const (
-	ResourceDocumentJSONPathResourceID        = typedDocumentJSONPathProperties + "/resourceId"
-	ResourceDocumentJSONPathInternalID        = typedDocumentJSONPathProperties + "/internalId"
 	ResourceDocumentJSONPathActiveOperationID = typedDocumentJSONPathProperties + "/activeOperationId"
 	ResourceDocumentJSONPathProvisioningState = typedDocumentJSONPathProperties + "/provisioningState"
-	ResourceDocumentJSONPathIdentity          = typedDocumentJSONPathProperties + "/identity"
-	ResourceDocumentJSONPathSystemData        = typedDocumentJSONPathProperties + "/systemData"
-	ResourceDocumentJSONPathTags              = typedDocumentJSONPathProperties + "/tags"
 )
 
 // ResourceDocumentPatchOperations represents a patch request for a ResourceDocument.
@@ -109,48 +104,6 @@ func (p *ResourceDocumentPatchOperations) SetActiveOperationID(activeOperationID
 // SetProvisioningState appends a set operation for the ProvisioningState field.
 func (p *ResourceDocumentPatchOperations) SetProvisioningState(provisioningState arm.ProvisioningState) {
 	p.AppendSet(ResourceDocumentJSONPathProvisioningState, provisioningState)
-}
-
-// SetIdentity appends a set or remove operation for the Identity field,
-// depending on whether identity is nil.
-//
-// Be careful when appending a remove patch operation as it is NOT idempotent.
-// If the field to remove is not present in the Cosmos DB document, the entire
-// patch request will fail with a "400 Bad Request" status code.
-func (p *ResourceDocumentPatchOperations) SetIdentity(identity *arm.ManagedServiceIdentity) {
-	if identity != nil {
-		p.AppendSet(ResourceDocumentJSONPathIdentity, identity)
-	} else {
-		p.AppendRemove(ResourceDocumentJSONPathIdentity)
-	}
-}
-
-// SetSystemData appends a set or remove operation for the SystemData field,
-// depending on whether systemData is nil.
-//
-// Be careful when appending a remove patch operation as it is NOT idempotent.
-// If the field to remove is not present in the Cosmos DB document, the entire
-// patch request will fail with a "400 Bad Request" status code.
-func (p *ResourceDocumentPatchOperations) SetSystemData(systemData *arm.SystemData) {
-	if systemData != nil {
-		p.AppendSet(ResourceDocumentJSONPathSystemData, systemData)
-	} else {
-		p.AppendRemove(ResourceDocumentJSONPathSystemData)
-	}
-}
-
-// SetTags appends a set or remove operation for the Tags field, depending on
-// whether tags is nil.
-//
-// Be careful when appending a remove patch operation as it is NOT idempotent.
-// If the field to remove is not present in the Cosmos DB document, the entire
-// patch request will fail with a "400 Bad Request" status code.
-func (p *ResourceDocumentPatchOperations) SetTags(tags map[string]string) {
-	if tags != nil {
-		p.AppendSet(ResourceDocumentJSONPathTags, tags)
-	} else {
-		p.AppendRemove(ResourceDocumentJSONPathTags)
-	}
 }
 
 // resourceDocumentMarshal returns the JSON encoding of typedDoc with innerDoc
