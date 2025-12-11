@@ -43,7 +43,6 @@ import (
 	"github.com/Azure/ARO-HCP/internal/audit"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
-	"github.com/Azure/ARO-HCP/internal/serverutils"
 	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/internal/validation"
 )
@@ -265,70 +264,6 @@ func (f *Frontend) GetOpenshiftVersions(writer http.ResponseWriter, request *htt
 	if err != nil {
 		return utils.TrackError(err)
 	}
-	return nil
-}
-
-// ArmResourceDelete implements the deletion API contract for ARM
-// * 200 if a deletion is successful
-// * 202 if an asynchronous delete is initiated
-// * 204 if a well-formed request attempts to delete a nonexistent resource
-func (f *Frontend) ArmResourceDelete(writer http.ResponseWriter, request *http.Request) error {
-	const operationRequest = database.OperationRequestDelete
-
-	ctx := request.Context()
-	logger := utils.LoggerFromContext(ctx)
-
-	resourceID, err := utils.ResourceIDFromContext(ctx)
-	if err != nil {
-		return utils.TrackError(err)
-	}
-
-	// when we get a delete call (this happens from CI quite a bit), dump the state of the cluster resources.
-	if err := serverutils.DumpDataToLogger(ctx, f.dbClient, resourceID); err != nil {
-		// never fail, this is best effort
-		logger.Error(err.Error())
-	}
-
-	resourceItemID, resourceDoc, err := f.dbClient.GetResourceDoc(ctx, resourceID)
-	if database.IsResponseError(err, http.StatusNotFound) {
-		// For resource not found errors on deletion, ARM requires
-		writer.WriteHeader(http.StatusNoContent)
-		return nil
-	}
-	if err != nil {
-		return utils.TrackError(err)
-	}
-
-	// CheckForProvisioningStateConflict does not log conflict errors
-	// but does log unexpected errors like database failures.
-	if err := f.CheckForProvisioningStateConflict(ctx, operationRequest, resourceDoc); err != nil {
-		return utils.TrackError(err)
-	}
-
-	transaction := f.dbClient.NewTransaction(resourceID.SubscriptionID)
-
-	operation, err := f.DeleteResource(ctx, transaction, resourceItemID, resourceDoc, request)
-	if err != nil {
-		// notice we never return this and if we aren't a not found, we return the original error back.
-		cloudErr := ocm.CSErrorToCloudError(err, resourceDoc.ResourceID)
-		if cloudErr.StatusCode == http.StatusNotFound {
-			// For resource not found errors on deletion, ARM requires
-			// us to simply return 204 No Content and no response body.
-			writer.WriteHeader(http.StatusNoContent)
-			return nil
-		}
-	}
-	if err != nil {
-		return utils.TrackError(err)
-	}
-	transaction.OnSuccess(addOperationResponseHeaders(writer, request, operation.NotificationURI, operation.OperationID))
-
-	_, err = transaction.Execute(ctx, nil)
-	if err != nil {
-		return utils.TrackError(err)
-	}
-
-	writer.WriteHeader(http.StatusAccepted)
 	return nil
 }
 
@@ -582,7 +517,7 @@ func (f *Frontend) ArmSubscriptionPut(writer http.ResponseWriter, request *http.
 
 	// Clean up resources if subscription is deleted.
 	if subscription.State == arm.SubscriptionStateDeleted {
-		if err := f.DeleteAllResources(ctx, subscriptionID); err != nil {
+		if err := f.DeleteAllResources(ctx, writer, request, subscriptionID); err != nil {
 			return utils.TrackError(err)
 		}
 	}
