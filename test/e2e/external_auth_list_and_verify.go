@@ -32,6 +32,8 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 
+	g "github.com/openshift-eng/openshift-tests-extension/pkg/ginkgo"
+
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	hcpsdk "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
@@ -47,7 +49,7 @@ var _ = Describe("Customer", func() {
 	dummyUID := "00000000-0000-0000-0000-000000000000"
 
 	It("should be able to lifecycle and confirm external auth on a cluster",
-		labels.RequireNothing, labels.High, labels.Positive,
+		labels.RequireNothing, labels.High, labels.Positive, g.Informing(),
 		func(ctx context.Context) {
 			clusterName := testingPrefix + rand.String(6)
 			tc := framework.NewTestContext()
