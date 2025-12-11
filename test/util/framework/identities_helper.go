@@ -21,6 +21,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -424,18 +425,22 @@ func (e *LeasedIdentityPoolEntry) release(cleanup func() error) error {
 }
 
 type LeasedIdentityPoolState struct {
-	file    *os.File
-	entries []LeasedIdentityPoolEntry
+	lockFile  *os.File
+	statePath string
+	entries   []LeasedIdentityPoolEntry
 }
 
 func newLeasedIdentityPoolState(path string) (*LeasedIdentityPoolState, error) {
 
-	f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE, 0666)
+	lockFileName := fmt.Sprintf("identities-pool-state-%d-%d.lock", os.Getpid(), time.Now().UnixNano())
+	lockFilePath := filepath.Join(os.TempDir(), lockFileName)
+
+	lf, err := os.OpenFile(lockFilePath, os.O_RDWR|os.O_CREATE, 0666)
 	if err != nil {
-		return &LeasedIdentityPoolState{}, fmt.Errorf("failed to open managed identities pool state file %s: %w", path, err)
+		return &LeasedIdentityPoolState{}, fmt.Errorf("failed to open managed identities pool state lock file: %w", err)
 	}
 
-	state := LeasedIdentityPoolState{file: f}
+	state := LeasedIdentityPoolState{statePath: path, lockFile: lf}
 
 	if err := state.lock(); err != nil {
 		return &LeasedIdentityPoolState{}, fmt.Errorf("failed to acquire managed identities pool state file lock: %w", err)
@@ -606,14 +611,14 @@ func (state *LeasedIdentityPoolState) getLeasedIdentityContainers(me string) ([]
 }
 
 func (state *LeasedIdentityPoolState) lock() error {
-	if err := syscall.Flock(int(state.file.Fd()), syscall.LOCK_EX); err != nil {
+	if err := syscall.Flock(int(state.lockFile.Fd()), syscall.LOCK_EX); err != nil {
 		return fmt.Errorf("failed to acquire state file lock: %w", err)
 	}
 	return nil
 }
 
 func (state *LeasedIdentityPoolState) unlock() error {
-	if err := syscall.Flock(int(state.file.Fd()), syscall.LOCK_UN); err != nil {
+	if err := syscall.Flock(int(state.lockFile.Fd()), syscall.LOCK_UN); err != nil {
 		return fmt.Errorf("failed to release managed identities pool state file lock: %w", err)
 	}
 	return nil
@@ -621,10 +626,20 @@ func (state *LeasedIdentityPoolState) unlock() error {
 
 func (state *LeasedIdentityPoolState) readUnlocked() error {
 
-	if _, err := state.file.Seek(0, io.SeekStart); err != nil {
+	f, err := os.OpenFile(state.statePath, os.O_RDWR|os.O_CREATE, 0666)
+	if err != nil {
+		return fmt.Errorf("failed to open managed identities pool state file %s: %w", state.statePath, err)
+	}
+	defer func() {
+		if err := f.Close(); err != nil {
+			log.Logger.WithError(err).Warn("failed to close managed identities pool state file after read")
+		}
+	}()
+
+	if _, err := f.Seek(0, io.SeekStart); err != nil {
 		return fmt.Errorf("failed to seek to start of managed identities pool state file: %w", err)
 	}
-	data, err := io.ReadAll(state.file)
+	data, err := io.ReadAll(f)
 	if err != nil {
 		return fmt.Errorf("failed to read managed identities pool state file: %w", err)
 	}
@@ -644,25 +659,42 @@ func (state *LeasedIdentityPoolState) writeUnlocked() error {
 		return fmt.Errorf("failed to marshal updated managed identities pool state: %w", err)
 	}
 
-	// Rewrite the file in place under the existing flock
-	if _, err := state.file.Seek(0, io.SeekStart); err != nil {
-		return fmt.Errorf("failed to seek to start of state file: %w", err)
+	tmp, err := os.CreateTemp(os.TempDir(), "identities-pool-state-*.tmp")
+	if err != nil {
+		return fmt.Errorf("failed to create temporary managed identities pool state file: %w", err)
 	}
-	if err := state.file.Truncate(0); err != nil {
-		return fmt.Errorf("failed to truncate state file: %w", err)
+
+	cleanupTemp := func() {
+		if err := os.Remove(tmp.Name()); err != nil && !os.IsNotExist(err) {
+			log.Logger.WithError(err).Warn("failed to remove temporary managed identities pool state file")
+		}
 	}
-	if _, err := state.file.Write(updated); err != nil {
-		return fmt.Errorf("failed to write updated state file: %w", err)
+
+	if _, err := tmp.Write(updated); err != nil {
+		tmp.Close()
+		cleanupTemp()
+		return fmt.Errorf("failed to write temporary managed identities pool state file: %w", err)
 	}
-	if err := state.file.Sync(); err != nil {
-		return fmt.Errorf("failed to sync state file: %w", err)
+	if err := tmp.Sync(); err != nil {
+		tmp.Close()
+		cleanupTemp()
+		return fmt.Errorf("failed to sync temporary managed identities pool state file: %w", err)
+	}
+	if err := tmp.Close(); err != nil {
+		cleanupTemp()
+		return fmt.Errorf("failed to close temporary managed identities pool state file: %w", err)
+	}
+
+	if err := os.Rename(tmp.Name(), state.statePath); err != nil {
+		cleanupTemp()
+		return fmt.Errorf("failed to replace managed identities pool state file: %w", err)
 	}
 
 	return nil
 }
 
 func (state *LeasedIdentityPoolState) isInitialized() bool {
-	return state.file != nil && state.entries != nil && len(state.entries) > 0
+	return len(state.entries) > 0
 }
 
 func (state *LeasedIdentityPoolState) initializeUnlocked(leasedRGs []string) error {
