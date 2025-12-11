@@ -17,6 +17,7 @@ package frontend
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -27,12 +28,14 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
+	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/conversion"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
+	"github.com/Azure/ARO-HCP/internal/serverutils"
 	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/internal/validation"
 )
@@ -537,6 +540,120 @@ func (f *Frontend) updateExternalAuthInCosmos(ctx context.Context, writer http.R
 	if err != nil {
 		return utils.TrackError(err)
 	}
+	return nil
+}
+
+// DeleteNodePool implements the deletion API contract for ARM
+// * 200 if a deletion is successful
+// * 202 if an asynchronous delete is initiated
+// * 204 if a well-formed request attempts to delete a nonexistent resource
+func (f *Frontend) DeleteExternalAuth(writer http.ResponseWriter, request *http.Request) error {
+	ctx := request.Context()
+	logger := utils.LoggerFromContext(ctx)
+
+	resourceID, err := utils.ResourceIDFromContext(ctx)
+	if err != nil {
+		return utils.TrackError(err)
+	}
+
+	// when we get a delete call (this happens from CI quite a bit), dump the state of the cluster resources.
+	if err := serverutils.DumpDataToLogger(ctx, f.dbClient, resourceID); err != nil {
+		// never fail, this is best effort
+		logger.Error(err.Error())
+	}
+
+	externalAuth, err := f.dbClient.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).ExternalAuth(resourceID.Parent.Name).Get(ctx, resourceID.Name)
+	if database.IsResponseError(err, http.StatusNotFound) {
+		// For resource not found errors on deletion, ARM requires
+		writer.WriteHeader(http.StatusNoContent)
+		return nil
+	}
+	if err != nil {
+		return utils.TrackError(err)
+	}
+
+	transaction := f.dbClient.NewTransaction(externalAuth.ID.SubscriptionID)
+	if err := f.addDeleteExternalAuthToTransaction(ctx, writer, request, transaction, externalAuth); err != nil {
+		return utils.TrackError(err)
+	}
+	_, err = transaction.Execute(ctx, nil)
+	if err != nil {
+		return utils.TrackError(err)
+	}
+
+	writer.WriteHeader(http.StatusAccepted)
+	return nil
+}
+
+func (f *Frontend) addDeleteExternalAuthToTransaction(ctx context.Context, writer http.ResponseWriter, request *http.Request, transaction database.DBTransaction, externalAuth *api.HCPOpenShiftClusterExternalAuth) error {
+	logger := utils.LoggerFromContext(ctx)
+
+	correlationData, err := CorrelationDataFromContext(ctx)
+	if err != nil {
+		return utils.TrackError(err)
+	}
+
+	if externalAuth.Properties.ProvisioningState == arm.ProvisioningStateDeleting {
+		return nil
+	}
+	if err := checkForProvisioningStateConflict(ctx, f.dbClient, database.OperationRequestDelete, externalAuth.ID, externalAuth.Properties.ProvisioningState); err != nil {
+		return utils.TrackError(err)
+	}
+
+	err = f.clusterServiceClient.DeleteExternalAuth(ctx, externalAuth.ServiceProviderProperties.ClusterServiceID)
+	var ocmError *ocmerrors.Error
+	if errors.As(err, &ocmError) && ocmError.Status() == http.StatusNotFound {
+		// StatusNotFound means we have stale data in Cosmos DB.
+		// This can happen in test environments if a user bypasses
+		// the RP to delete a resource (e.g. "ocm delete"). It can
+		// also happen if an asynchronous deletion operation fails.
+		// we will fall through and cancel all operations and go through as normal a deletion flow as we can to avoid
+		// leaking data related to the resource, like controller status.
+		logger.Info("clusterService nodepool missing, trying to clean up", "err", err)
+	} else {
+		return utils.TrackError(err)
+	}
+
+	// Cluster Service will take care of canceling any ongoing operations
+	// on the resource or child resources, but we need to do some database
+	// bookkeeping to reflect that.
+	err = f.CancelActiveOperations(ctx, transaction, &database.DBClientListActiveOperationDocsOptions{
+		ExternalID:             externalAuth.ID,
+		IncludeNestedResources: true,
+	})
+	if err != nil {
+		return utils.TrackError(err)
+	}
+
+	operationDoc := database.NewOperationDocument(
+		database.OperationRequestDelete,
+		externalAuth.ID,
+		externalAuth.ServiceProviderProperties.ClusterServiceID,
+		"",
+		"",
+		"",
+		correlationData)
+	if request != nil {
+		// these are optional because when this is triggered via the subscription deletion flow, there is no notification URI
+		// so these operations cannot be directly tracked.
+		operationDoc.TenantID = request.Header.Get(arm.HeaderNameHomeTenantID)
+		operationDoc.ClientID = request.Header.Get(arm.HeaderNameClientObjectID)
+		operationDoc.NotificationURI = request.Header.Get(arm.HeaderNameAsyncNotificationURI)
+		transaction.OnSuccess(addOperationResponseHeaders(writer, request, operationDoc.NotificationURI, operationDoc.OperationID))
+	}
+	_, err = f.dbClient.Operations(operationDoc.OperationID.SubscriptionID).AddCreateToTransaction(ctx, transaction, operationDoc, nil)
+	if err != nil {
+		return utils.TrackError(err)
+	}
+
+	externalAuth.ServiceProviderProperties.ActiveOperationID = operationDoc.OperationID.Name
+	externalAuth.Properties.ProvisioningState = operationDoc.Status
+	_, err = f.dbClient.HCPClusters(externalAuth.ID.SubscriptionID, externalAuth.ID.ResourceGroupName).ExternalAuth(externalAuth.ID.Parent.Name).
+		AddReplaceToTransaction(ctx, transaction, externalAuth, nil)
+	if err != nil {
+		return utils.TrackError(err)
+	}
+
 	return nil
 }
 

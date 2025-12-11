@@ -139,7 +139,7 @@ func (f *Frontend) routes(r prometheus.Registerer) http.Handler {
 		postMuxMiddleware.HandlerFunc(errorutils.ReportError(f.CreateOrUpdateHCPCluster)))
 	middlewareMux.Handle(
 		MuxPattern(http.MethodDelete, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternClusters),
-		postMuxMiddleware.HandlerFunc(errorutils.ReportError(f.ArmResourceDelete)))
+		postMuxMiddleware.HandlerFunc(errorutils.ReportError(f.DeleteCluster)))
 	middlewareMux.Handle(
 		MuxPattern(http.MethodPost, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternClusters, ActionRequestAdminCredential),
 		postMuxMiddleware.HandlerFunc(errorutils.ReportError(f.ArmResourceActionRequestAdminCredential)))
@@ -154,7 +154,7 @@ func (f *Frontend) routes(r prometheus.Registerer) http.Handler {
 		postMuxMiddleware.HandlerFunc(errorutils.ReportError(f.CreateOrUpdateNodePool)))
 	middlewareMux.Handle(
 		MuxPattern(http.MethodDelete, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternClusters, PatternNodePools),
-		postMuxMiddleware.HandlerFunc(errorutils.ReportError(f.ArmResourceDelete)))
+		postMuxMiddleware.HandlerFunc(errorutils.ReportError(f.DeleteNodePool)))
 	middlewareMux.Handle(
 		MuxPattern(http.MethodPut, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternClusters, PatternExternalAuth),
 		postMuxMiddleware.HandlerFunc(errorutils.ReportError(f.CreateOrUpdateExternalAuth)))
@@ -163,7 +163,7 @@ func (f *Frontend) routes(r prometheus.Registerer) http.Handler {
 		postMuxMiddleware.HandlerFunc(errorutils.ReportError(f.CreateOrUpdateExternalAuth)))
 	middlewareMux.Handle(
 		MuxPattern(http.MethodDelete, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternClusters, PatternExternalAuth),
-		postMuxMiddleware.HandlerFunc(errorutils.ReportError(f.ArmResourceDelete)))
+		postMuxMiddleware.HandlerFunc(errorutils.ReportError(f.DeleteExternalAuth)))
 
 	// Operation endpoints
 	postMuxMiddleware = NewMiddleware(
