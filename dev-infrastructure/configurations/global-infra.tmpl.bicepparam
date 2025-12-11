@@ -17,6 +17,7 @@ param grafanaName = '{{ .monitoring.grafanaName }}'
 param grafanaMajorVersion = '{{ .monitoring.grafanaMajorVersion }}'
 param grafanaZoneRedundantMode = '{{ .monitoring.grafanaZoneRedundantMode }}'
 param grafanaRoles = '{{ .monitoring.grafanaRoles }}'
+param crossTenantSecurityGroup = '{{ .monitoring.crossTenantSecurityGroup }}'
 
 param globalNSPName = '{{ .global.nsp.name }}'
 param globalNSPAccessMode = '{{ .global.nsp.accessMode }}'
