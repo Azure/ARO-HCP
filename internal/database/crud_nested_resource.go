@@ -32,6 +32,7 @@ type ResourceCRUD[InternalAPIType any] interface {
 	List(ctx context.Context, opts *DBClientListResourceDocsOptions) (DBClientIterator[InternalAPIType], error)
 	Create(ctx context.Context, newObj *InternalAPIType, options *azcosmos.ItemOptions) (*InternalAPIType, error)
 	Replace(ctx context.Context, newObj *InternalAPIType, options *azcosmos.ItemOptions) (*InternalAPIType, error)
+	Delete(ctx context.Context, resourceID string) error
 
 	AddCreateToTransaction(ctx context.Context, transaction DBTransaction, newObj *InternalAPIType, opts *azcosmos.TransactionalBatchItemOptions) (string, error)
 	AddReplaceToTransaction(ctx context.Context, transaction DBTransaction, newObj *InternalAPIType, opts *azcosmos.TransactionalBatchItemOptions) (string, error)
@@ -140,4 +141,14 @@ func (d *nestedCosmosResourceCRUD[InternalAPIType, CosmosAPIType]) Create(ctx co
 func (d *nestedCosmosResourceCRUD[InternalAPIType, CosmosAPIType]) Replace(ctx context.Context, newObj *InternalAPIType, options *azcosmos.ItemOptions) (*InternalAPIType, error) {
 	partitionKey := strings.ToLower(d.parentResourceID.SubscriptionID)
 	return replace[InternalAPIType, CosmosAPIType](ctx, d.containerClient, partitionKey, newObj, options)
+}
+
+func (d *nestedCosmosResourceCRUD[InternalAPIType, CosmosAPIType]) Delete(ctx context.Context, resourceName string) error {
+	completeResourceID, err := d.makeResourceIDPath(resourceName)
+	if err != nil {
+		return fmt.Errorf("failed to make ResourceID path for '%s': %w", resourceName, err)
+	}
+	partitionKey := strings.ToLower(d.parentResourceID.SubscriptionID)
+
+	return deleteResource(ctx, d.containerClient, partitionKey, completeResourceID)
 }
