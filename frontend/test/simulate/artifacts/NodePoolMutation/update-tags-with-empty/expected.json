@@ -16,6 +16,7 @@
 		],
 		"nodeDrainTimeoutMinutes": 2,
 		"platform": {
+			"enableEncryptionAtHost": false,
 			"osDisk": {
 				"diskStorageAccountType": "Premium_LRS",
 				"sizeGiB": 64
