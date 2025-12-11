@@ -272,6 +272,10 @@ svc.aks.kubeconfig:
 	@kubelogin convert-kubeconfig -l azurecli --kubeconfig "${SVC_KUBECONFIG_FILE}"
 .PHONY: svc.aks.kubeconfig
 
+svc.aks.kubeconfig.pipeline:
+	make -C .. pipeline/Service.Kubeconfig DEPLOY_ENV=$(DEPLOY_ENV)
+.PHONY: svc.aks.kubeconfig.pipeline
+
 svc.aks.kubeconfigfile:
 	@echo ${SVC_KUBECONFIG_FILE}
 .PHONY: svc.aks.kubeconfigfile
@@ -337,6 +341,10 @@ mgmt.aks.kubeconfig:
 	@az aks get-credentials --overwrite-existing --only-show-errors -n ${MGMT_AKS_NAME} -g $(MGMT_RESOURCEGROUP) -f "${MGMT_KUBECONFIG_FILE}"
 	@kubelogin convert-kubeconfig -l azurecli --kubeconfig "${MGMT_KUBECONFIG_FILE}"
 .PHONY: mgmt.aks.kubeconfig
+
+mgmt.aks.kubeconfig.pipeline:
+	make -C .. pipeline/Management.Kubeconfig DEPLOY_ENV=$(DEPLOY_ENV)
+.PHONY: mgmt.aks.kubeconfig.pipeline
 
 mgmt.aks.kubeconfigfile:
 	@echo ${MGMT_KUBECONFIG_FILE}
