@@ -322,3 +322,19 @@ func replace[InternalAPIType, CosmosAPIType any](ctx context.Context, containerC
 
 	return internalObj, nil
 }
+
+func deleteResource(ctx context.Context, containerClient *azcosmos.ContainerClient, partitionKeyString string, resourceID *azcorearm.ResourceID) error {
+	typedObj, err := get[TypedDocument, TypedDocument](ctx, containerClient, partitionKeyString, resourceID)
+	if IsResponseError(err, http.StatusNotFound) {
+		return nil
+	}
+	if err != nil {
+		return utils.TrackError(err)
+	}
+
+	_, err = containerClient.DeleteItem(ctx, azcosmos.NewPartitionKeyString(partitionKeyString), typedObj.ID, nil)
+	if err != nil {
+		return utils.TrackError(err)
+	}
+	return nil
+}

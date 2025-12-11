@@ -223,6 +223,44 @@ func (c *MockOperationCRUDCreateCall) DoAndReturn(f func(context.Context, *api.O
 	return c
 }
 
+// Delete mocks base method.
+func (m *MockOperationCRUD) Delete(ctx context.Context, resourceID string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Delete", ctx, resourceID)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Delete indicates an expected call of Delete.
+func (mr *MockOperationCRUDMockRecorder) Delete(ctx, resourceID any) *MockOperationCRUDDeleteCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Delete", reflect.TypeOf((*MockOperationCRUD)(nil).Delete), ctx, resourceID)
+	return &MockOperationCRUDDeleteCall{Call: call}
+}
+
+// MockOperationCRUDDeleteCall wrap *gomock.Call
+type MockOperationCRUDDeleteCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockOperationCRUDDeleteCall) Return(arg0 error) *MockOperationCRUDDeleteCall {
+	c.Call = c.Call.Return(arg0)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockOperationCRUDDeleteCall) Do(f func(context.Context, string) error) *MockOperationCRUDDeleteCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockOperationCRUDDeleteCall) DoAndReturn(f func(context.Context, string) error) *MockOperationCRUDDeleteCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
 // Get mocks base method.
 func (m *MockOperationCRUD) Get(ctx context.Context, resourceID string) (*api.Operation, error) {
 	m.ctrl.T.Helper()
@@ -592,6 +630,44 @@ func (c *MockHCPClusterCRUDCreateCall) Do(f func(context.Context, *api.HCPOpenSh
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
 func (c *MockHCPClusterCRUDCreateCall) DoAndReturn(f func(context.Context, *api.HCPOpenShiftCluster, *azcosmos.ItemOptions) (*api.HCPOpenShiftCluster, error)) *MockHCPClusterCRUDCreateCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
+// Delete mocks base method.
+func (m *MockHCPClusterCRUD) Delete(ctx context.Context, resourceID string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Delete", ctx, resourceID)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Delete indicates an expected call of Delete.
+func (mr *MockHCPClusterCRUDMockRecorder) Delete(ctx, resourceID any) *MockHCPClusterCRUDDeleteCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Delete", reflect.TypeOf((*MockHCPClusterCRUD)(nil).Delete), ctx, resourceID)
+	return &MockHCPClusterCRUDDeleteCall{Call: call}
+}
+
+// MockHCPClusterCRUDDeleteCall wrap *gomock.Call
+type MockHCPClusterCRUDDeleteCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockHCPClusterCRUDDeleteCall) Return(arg0 error) *MockHCPClusterCRUDDeleteCall {
+	c.Call = c.Call.Return(arg0)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockHCPClusterCRUDDeleteCall) Do(f func(context.Context, string) error) *MockHCPClusterCRUDDeleteCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockHCPClusterCRUDDeleteCall) DoAndReturn(f func(context.Context, string) error) *MockHCPClusterCRUDDeleteCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -1007,6 +1083,44 @@ func (c *MockNodePoolsCRUDCreateCall) DoAndReturn(f func(context.Context, *api.H
 	return c
 }
 
+// Delete mocks base method.
+func (m *MockNodePoolsCRUD) Delete(ctx context.Context, resourceID string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Delete", ctx, resourceID)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Delete indicates an expected call of Delete.
+func (mr *MockNodePoolsCRUDMockRecorder) Delete(ctx, resourceID any) *MockNodePoolsCRUDDeleteCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Delete", reflect.TypeOf((*MockNodePoolsCRUD)(nil).Delete), ctx, resourceID)
+	return &MockNodePoolsCRUDDeleteCall{Call: call}
+}
+
+// MockNodePoolsCRUDDeleteCall wrap *gomock.Call
+type MockNodePoolsCRUDDeleteCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockNodePoolsCRUDDeleteCall) Return(arg0 error) *MockNodePoolsCRUDDeleteCall {
+	c.Call = c.Call.Return(arg0)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockNodePoolsCRUDDeleteCall) Do(f func(context.Context, string) error) *MockNodePoolsCRUDDeleteCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockNodePoolsCRUDDeleteCall) DoAndReturn(f func(context.Context, string) error) *MockNodePoolsCRUDDeleteCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
 // Get mocks base method.
 func (m *MockNodePoolsCRUD) Get(ctx context.Context, resourceID string) (*api.HCPOpenShiftClusterNodePool, error) {
 	m.ctrl.T.Helper()
@@ -1338,6 +1452,44 @@ func (c *MockExternalAuthsCRUDCreateCall) Do(f func(context.Context, *api.HCPOpe
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
 func (c *MockExternalAuthsCRUDCreateCall) DoAndReturn(f func(context.Context, *api.HCPOpenShiftClusterExternalAuth, *azcosmos.ItemOptions) (*api.HCPOpenShiftClusterExternalAuth, error)) *MockExternalAuthsCRUDCreateCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
+// Delete mocks base method.
+func (m *MockExternalAuthsCRUD) Delete(ctx context.Context, resourceID string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Delete", ctx, resourceID)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Delete indicates an expected call of Delete.
+func (mr *MockExternalAuthsCRUDMockRecorder) Delete(ctx, resourceID any) *MockExternalAuthsCRUDDeleteCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Delete", reflect.TypeOf((*MockExternalAuthsCRUD)(nil).Delete), ctx, resourceID)
+	return &MockExternalAuthsCRUDDeleteCall{Call: call}
+}
+
+// MockExternalAuthsCRUDDeleteCall wrap *gomock.Call
+type MockExternalAuthsCRUDDeleteCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockExternalAuthsCRUDDeleteCall) Return(arg0 error) *MockExternalAuthsCRUDDeleteCall {
+	c.Call = c.Call.Return(arg0)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockExternalAuthsCRUDDeleteCall) Do(f func(context.Context, string) error) *MockExternalAuthsCRUDDeleteCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockExternalAuthsCRUDDeleteCall) DoAndReturn(f func(context.Context, string) error) *MockExternalAuthsCRUDDeleteCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }

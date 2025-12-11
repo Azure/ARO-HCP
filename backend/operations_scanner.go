@@ -17,6 +17,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"iter"
@@ -802,15 +803,48 @@ func (s *OperationsScanner) withSubscriptionLock(ctx context.Context, logger *sl
 func (s *OperationsScanner) setDeleteOperationAsCompleted(ctx context.Context, op operation) error {
 	// Delete the resource document first. If it fails the backend will retry
 	// by virtue of the operation document still having a non-terminal status.
-	err := s.dbClient.DeleteResourceDoc(ctx, op.doc.ExternalID)
+	untypedCRUD, err := s.dbClient.UntypedCRUD(*op.doc.ExternalID)
 	if err != nil {
-		return err
+		return utils.TrackError(err)
+	}
+	if err := untypedCRUD.Delete(ctx, op.doc.ExternalID); err != nil {
+		return utils.TrackError(err)
+	}
+
+	// TODO once we rekey based on resourceID, consider doing this all in a transaction.
+	// If any fail, we re-enter because the operation still exists
+	// If a controller starts working the first time and the cluster is deleted in that timeframe, then the controller
+	// may create an instance of its controller status.  We can create a controller to periodically scrape orphans
+	// and either delete them or call them out.
+	childIterator, err := untypedCRUD.List(ctx, nil)
+	if err != nil {
+		return utils.TrackError(err)
+	}
+	for _, childResource := range childIterator.Items(ctx) {
+		// clusters, nodepools, and externalauths have special deletion handling, so don't delete them from here.
+		switch strings.ToLower(childResource.ResourceType) {
+		case strings.ToLower(api.ClusterControllerResourceType.String()),
+			strings.ToLower(api.NodePoolControllerResourceType.String()),
+			strings.ToLower(api.ExternalAuthControllerResourceType.String()):
+			continue
+		}
+
+		resourceInfo := database.ResourceDocument{}
+		if err := json.Unmarshal(childResource.Properties, &resourceInfo); err != nil {
+			return utils.TrackError(err)
+		}
+		if err := untypedCRUD.Delete(ctx, resourceInfo.ResourceID); err != nil {
+			return utils.TrackError(err)
+		}
+	}
+	if err := childIterator.GetError(); err != nil {
+		return utils.TrackError(err)
 	}
 
 	// Save a final "succeeded" operation status until TTL expires.
 	err = s.patchOperationDocument(ctx, op, arm.ProvisioningStateSucceeded, nil)
 	if err != nil {
-		return err
+		return utils.TrackError(err)
 	}
 
 	return nil
