@@ -249,9 +249,10 @@ func newNodePoolPlatformProfile(from *api.NodePoolPlatformProfile) generated.Nod
 		return generated.NodePoolPlatformProfile{}
 	}
 	return generated.NodePoolPlatformProfile{
-		VMSize:                 api.PtrOrNil(from.VMSize),
-		AvailabilityZone:       api.PtrOrNil(from.AvailabilityZone),
-		EnableEncryptionAtHost: api.PtrOrNil(from.EnableEncryptionAtHost),
+		VMSize:           api.PtrOrNil(from.VMSize),
+		AvailabilityZone: api.PtrOrNil(from.AvailabilityZone),
+		// Use Ptr (not PtrOrNil) to ensure boolean is always present in JSON response, even when false
+		EnableEncryptionAtHost: api.Ptr(from.EnableEncryptionAtHost),
 		OSDisk:                 api.PtrOrNil(newOSDiskProfile(&from.OSDisk)),
 		SubnetID:               api.PtrOrNil(from.SubnetID),
 	}
@@ -299,9 +300,10 @@ func (v version) NewHCPOpenShiftClusterNodePool(from *api.HCPOpenShiftClusterNod
 			Location:   api.PtrOrNil(from.Location),
 			Tags:       api.StringMapToStringPtrMap(from.Tags),
 			Properties: &generated.NodePoolProperties{
-				ProvisioningState:       api.PtrOrNil(generated.ProvisioningState(from.Properties.ProvisioningState)),
-				Platform:                api.PtrOrNil(newNodePoolPlatformProfile(&from.Properties.Platform)),
-				Version:                 api.PtrOrNil(newNodePoolVersionProfile(&from.Properties.Version)),
+				ProvisioningState: api.PtrOrNil(generated.ProvisioningState(from.Properties.ProvisioningState)),
+				Platform:          api.PtrOrNil(newNodePoolPlatformProfile(&from.Properties.Platform)),
+				Version:           api.PtrOrNil(newNodePoolVersionProfile(&from.Properties.Version)),
+				// Keep PtrOrNil for AutoRepair since default is true - omitting false allows client to use default
 				AutoRepair:              api.PtrOrNil(from.Properties.AutoRepair),
 				AutoScaling:             api.PtrOrNil(newNodePoolAutoScaling(from.Properties.AutoScaling)),
 				Replicas:                api.PtrOrNil(from.Properties.Replicas),
