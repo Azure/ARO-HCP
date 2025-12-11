@@ -122,7 +122,7 @@ func (tc *perItOrDescribeTestContext) ResolveIdentitiesForTemplate(resourceGroup
 		}, false, nil
 	}
 
-	leased, err := tc.GetLeasedIdentities()
+	leased, err := tc.getLeasedIdentities()
 	if err != nil {
 		return LeasedIdentityPool{}, false, err
 	}
@@ -168,7 +168,7 @@ func (tc *perItOrDescribeTestContext) DeployManagedIdentities(
 	var identities Identities
 
 	if usePooled {
-		msiPool, err := tc.GetLeasedIdentities()
+		msiPool, err := tc.getLeasedIdentities()
 		if err != nil {
 			return nil, fmt.Errorf("failed to get leased MSIs: %w", err)
 		}
@@ -212,7 +212,7 @@ func (tc *perItOrDescribeTestContext) AssignIdentityContainers(ctx context.Conte
 	}
 
 	for {
-		err := state.AssignNTo(specID(), count)
+		err := state.assignNTo(specID(), count)
 		if err == nil {
 			return nil
 		}
@@ -228,14 +228,14 @@ func (tc *perItOrDescribeTestContext) AssignIdentityContainers(ctx context.Conte
 	}
 }
 
-func (tc *perItOrDescribeTestContext) GetLeasedIdentities() (LeasedIdentityPool, error) {
+func (tc *perItOrDescribeTestContext) getLeasedIdentities() (LeasedIdentityPool, error) {
 
 	state, err := tc.perBinaryInvocationTestContext.getLeasedIdentityPoolState()
 	if err != nil {
 		return LeasedIdentityPool{}, fmt.Errorf("failed to open managed identities pool state file: %w", err)
 	}
 
-	leasedRG, err := state.UseNextAssigned(specID(), tc.registerLeasedIdentityContainer)
+	leasedRG, err := state.useNextAssigned(specID())
 	if err != nil {
 		return LeasedIdentityPool{}, fmt.Errorf("failed to lease next managed identities resource group: %w", err)
 	}
@@ -246,9 +246,39 @@ func (tc *perItOrDescribeTestContext) GetLeasedIdentities() (LeasedIdentityPool,
 	}, nil
 }
 
-func (tc *perItOrDescribeTestContext) ReleaseLeasedIdentities(ctx context.Context, leasedContainers []string) error {
+func (tc *perItOrDescribeTestContext) leasedIdentityContainers() ([]string, error) {
+	if !tc.UsePooledIdentities() {
+		return nil, nil
+	}
 
-	if !tc.UsePooledIdentities() || len(leasedContainers) == 0 {
+	state, err := tc.perBinaryInvocationTestContext.getLeasedIdentityPoolState()
+	if err != nil {
+		return nil, fmt.Errorf("failed to open managed identities pool state file: %w", err)
+	}
+
+	leasedContainers, err := state.getLeasedIdentityContainers(specID())
+	if err != nil {
+		return nil, fmt.Errorf("failed to get leased identity containers: %w", err)
+	}
+	return leasedContainers, nil
+}
+
+func (tc *perItOrDescribeTestContext) releaseLeasedIdentities(ctx context.Context) error {
+	if !tc.UsePooledIdentities() {
+		return nil
+	}
+
+	state, err := tc.perBinaryInvocationTestContext.getLeasedIdentityPoolState()
+	if err != nil {
+		return fmt.Errorf("failed to open managed identities pool state file: %w", err)
+	}
+
+	leasedContainers, err := state.getLeasedIdentityContainers(specID())
+	if err != nil {
+		return fmt.Errorf("failed to get leased identity containers: %w", err)
+	}
+
+	if len(leasedContainers) == 0 {
 		return nil
 	}
 
@@ -265,14 +295,9 @@ func (tc *perItOrDescribeTestContext) ReleaseLeasedIdentities(ctx context.Contex
 		return err
 	}
 
-	state, err := tc.perBinaryInvocationTestContext.getLeasedIdentityPoolState()
-	if err != nil {
-		return fmt.Errorf("failed to open managed identities pool state file: %w", err)
-	}
-
 	var errs []error
 	for _, resourceGroup := range leasedContainers {
-		err := state.ReleaseByContainerName(resourceGroup, func() error {
+		err := state.releaseByContainerName(resourceGroup, func() error {
 			return tc.cleanupLeasedIdentityContainer(ctx, client, resourceGroup)
 		})
 		if err != nil {
@@ -286,12 +311,12 @@ func (tc *perItOrDescribeTestContext) ReleaseLeasedIdentities(ctx context.Contex
 	return nil
 }
 
-func (tc *perItOrDescribeTestContext) registerLeasedIdentityContainer(resourceGroupName string) error {
-	tc.contextLock.Lock()
-	defer tc.contextLock.Unlock()
-	tc.knownLeasedIdentityContainers = append(tc.knownLeasedIdentityContainers, resourceGroupName)
-	return nil
-}
+// func (tc *perItOrDescribeTestContext) registerLeasedIdentityContainer(resourceGroupName string) error {
+// 	tc.contextLock.Lock()
+// 	defer tc.contextLock.Unlock()
+// 	tc.knownLeasedIdentityContainers = append(tc.knownLeasedIdentityContainers, resourceGroupName)
+// 	return nil
+// }
 
 func (tc *perItOrDescribeTestContext) cleanupLeasedIdentityContainer(ctx context.Context,
 	client *armauthorization.RoleAssignmentsClient, resourceGroup string) error {
@@ -351,20 +376,20 @@ type LeasedIdentityPoolEntry struct {
 	History       []LeaseEntry `yaml:"history"`
 }
 
-func (e *LeasedIdentityPoolEntry) IsFree() bool {
+func (e *LeasedIdentityPoolEntry) isFree() bool {
 	return e.Current.State == LeaseStateFree
 }
 
-func (e *LeasedIdentityPoolEntry) IsAssignedTo(me string) bool {
+func (e *LeasedIdentityPoolEntry) isAssignedTo(me string) bool {
 	return e.Current.State == LeaseStateAssigned && e.Current.LeasedBy == me
 }
 
-func (e *LeasedIdentityPoolEntry) IsBusy() bool {
+func (e *LeasedIdentityPoolEntry) isBusy() bool {
 	return e.Current.State == LeaseStateBusy
 }
 
-func (e *LeasedIdentityPoolEntry) AssignTo(me string) error {
-	if !e.IsFree() {
+func (e *LeasedIdentityPoolEntry) assignTo(me string) error {
+	if !e.isFree() {
 		return errors.New("not free")
 	}
 	e.History = append(e.History, e.Current)
@@ -375,18 +400,18 @@ func (e *LeasedIdentityPoolEntry) AssignTo(me string) error {
 	return nil
 }
 
-func (e *LeasedIdentityPoolEntry) Use(me string, registerFn func(rg string) error) error {
-	if !e.IsAssignedTo(me) || e.IsBusy() {
+func (e *LeasedIdentityPoolEntry) use(me string) error {
+	if !e.isAssignedTo(me) || e.isBusy() {
 		return errors.New("not assigned to me or already busy")
 	}
 	e.History = append(e.History, e.Current)
 	e.Current.State = LeaseStateBusy
 	e.Current.TransitionedAt = time.Now().UTC().Format(time.RFC3339)
 
-	return registerFn(e.ResourceGroup)
+	return nil
 }
 
-func (e *LeasedIdentityPoolEntry) Release(cleanup func() error) error {
+func (e *LeasedIdentityPoolEntry) release(cleanup func() error) error {
 	if e.Current.State == LeaseStateFree {
 		return nil
 	}
@@ -441,15 +466,15 @@ func newLeasedIdentityPoolState(path string) (*LeasedIdentityPoolState, error) {
 	return &state, nil
 }
 
-func (state *LeasedIdentityPoolState) Close() {
-	err := state.file.Close()
-	if err != nil {
-		log.Logger.WithError(err).Warn("failed to close managed identities pool state file")
-	}
-	state.file = nil
-}
+// func (state *LeasedIdentityPoolState) close() {
+// 	err := state.file.Close()
+// 	if err != nil {
+// 		log.Logger.WithError(err).Warn("failed to close managed identities pool state file")
+// 	}
+// 	state.file = nil
+// }
 
-func (state *LeasedIdentityPoolState) UseNextAssigned(me string, registerFn func(rg string) error) (string, error) {
+func (state *LeasedIdentityPoolState) useNextAssigned(me string) (string, error) {
 	if err := state.lock(); err != nil {
 		return "", fmt.Errorf("failed to acquire managed identities pool state file lock: %w", err)
 	}
@@ -467,7 +492,7 @@ func (state *LeasedIdentityPoolState) UseNextAssigned(me string, registerFn func
 	var leasedRG string
 	for i := range state.entries {
 
-		if err := state.entries[i].Use(me, registerFn); err != nil {
+		if err := state.entries[i].use(me); err != nil {
 			continue
 		}
 
@@ -486,11 +511,11 @@ func (state *LeasedIdentityPoolState) UseNextAssigned(me string, registerFn func
 	return leasedRG, nil
 }
 
-// AssignNTo attempts to assign n free identity containers to the caller by marking
+// assignNTo attempts to assign n free identity containers to the caller by marking
 // them as "assigned". It does not perform any waiting or retries: if there are
 // fewer than n free entries, it returns an error and leaves the state
 // unchanged.
-func (state *LeasedIdentityPoolState) AssignNTo(me string, n uint8) error {
+func (state *LeasedIdentityPoolState) assignNTo(me string, n uint8) error {
 	if err := state.lock(); err != nil {
 		return fmt.Errorf("failed to acquire managed identities pool state file lock: %w", err)
 	}
@@ -506,7 +531,7 @@ func (state *LeasedIdentityPoolState) AssignNTo(me string, n uint8) error {
 
 	count := 0
 	for i := range state.entries {
-		if err := state.entries[i].AssignTo(me); err != nil {
+		if err := state.entries[i].assignTo(me); err != nil {
 			continue
 		}
 		count++
@@ -527,7 +552,7 @@ func (state *LeasedIdentityPoolState) AssignNTo(me string, n uint8) error {
 	return nil
 }
 
-func (state *LeasedIdentityPoolState) ReleaseByContainerName(resourceGroup string, cleanupFn func() error) error {
+func (state *LeasedIdentityPoolState) releaseByContainerName(resourceGroup string, cleanupFn func() error) error {
 	if err := state.lock(); err != nil {
 		return fmt.Errorf("failed to acquire managed identities pool state file lock: %w", err)
 	}
@@ -543,7 +568,7 @@ func (state *LeasedIdentityPoolState) ReleaseByContainerName(resourceGroup strin
 	}
 	for i := range state.entries {
 		if state.entries[i].ResourceGroup == resourceGroup {
-			if err := state.entries[i].Release(cleanupFn); err != nil {
+			if err := state.entries[i].release(cleanupFn); err != nil {
 				// cleanup is best effort, just log errors and continue
 				log.Logger.WithError(err).Warnf("failed to release managed identities resource group %s", resourceGroup)
 			}
@@ -555,6 +580,29 @@ func (state *LeasedIdentityPoolState) ReleaseByContainerName(resourceGroup strin
 	}
 
 	return nil
+}
+
+func (state *LeasedIdentityPoolState) getLeasedIdentityContainers(me string) ([]string, error) {
+	if err := state.lock(); err != nil {
+		return nil, fmt.Errorf("failed to acquire managed identities pool state file lock: %w", err)
+	}
+	defer func() {
+		if err := state.unlock(); err != nil {
+			log.Logger.WithError(err).Warn("failed to release managed identities pool state file lock")
+		}
+	}()
+
+	if err := state.readUnlocked(); err != nil {
+		return nil, fmt.Errorf("failed to read managed identities pool state file: %w", err)
+	}
+
+	resourceGroups := make([]string, 0, len(state.entries))
+	for _, entry := range state.entries {
+		if entry.Current.LeasedBy == me {
+			resourceGroups = append(resourceGroups, entry.ResourceGroup)
+		}
+	}
+	return resourceGroups, nil
 }
 
 func (state *LeasedIdentityPoolState) lock() error {

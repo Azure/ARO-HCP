@@ -53,7 +53,6 @@ type perItOrDescribeTestContext struct {
 	contextLock                   sync.RWMutex
 	knownResourceGroups           []string
 	knownAppRegistrationIDs       []string
-	knownLeasedIdentityContainers []string
 	subscriptionID                string
 	clientFactory20240610         *hcpsdk20240610preview.ClientFactory
 	armComputeClientFactory       *armcompute.ClientFactory
@@ -155,7 +154,6 @@ func (tc *perItOrDescribeTestContext) deleteCreatedResources(ctx context.Context
 	tc.contextLock.RLock()
 	resourceGroupNames := tc.knownResourceGroups
 	appRegistrations := tc.knownAppRegistrationIDs
-	leasedContainers := tc.knownLeasedIdentityContainers
 	defer tc.contextLock.RUnlock()
 	ginkgo.GinkgoLogr.Info("deleting created resources")
 
@@ -174,7 +172,7 @@ func (tc *perItOrDescribeTestContext) deleteCreatedResources(ctx context.Context
 		ginkgo.GinkgoLogr.Error(err, "at least one app registration failed to delete")
 	}
 
-	if err := tc.ReleaseLeasedIdentities(ctx, leasedContainers); err != nil {
+	if err := tc.releaseLeasedIdentities(ctx); err != nil {
 		ginkgo.GinkgoLogr.Error(err, "failed to release leased identities")
 	}
 
@@ -261,11 +259,17 @@ func (tc *perItOrDescribeTestContext) collectDebugInfo(ctx context.Context) {
 	defer tc.contextLock.RUnlock()
 	ginkgo.GinkgoLogr.Info("collecting debug info")
 
+	leasedContainers, err := tc.leasedIdentityContainers()
+	if err != nil {
+		ginkgo.GinkgoLogr.Error(err, "failed to get leased identity containers")
+		return
+	}
+
 	// deletion takes a while, it's worth it to do this in parallel
 	waitGroup, ctx := errgroup.WithContext(ctx)
 	resourceGroups := append(
 		append([]string(nil), tc.knownResourceGroups...),
-		tc.knownLeasedIdentityContainers...,
+		leasedContainers...,
 	)
 	for _, resourceGroupName := range resourceGroups {
 		currResourceGroupName := resourceGroupName
