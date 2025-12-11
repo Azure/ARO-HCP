@@ -21,9 +21,23 @@ test:
 	go list -f '{{.Dir}}/...' -m |RUN_TEMPLATIZE_E2E=true xargs go test -timeout 1200s -cover
 .PHONY: test
 
+test-unit:
+	go list -f '{{.Dir}}/...' -m | xargs go test -timeout 1200s -cover
+.PHONY: test-unit
+
 test-compile:
 	go list -f '{{.Dir}}/...' -m |xargs go test -c -o /dev/null
 .PHONY: test-compile
+
+generate: mocks fmt record-nonlocal-e2e all-tidy
+
+verify-generate: generate
+	./hack/verify.sh generate
+.PHONY: verify-generate
+
+verify-yamlfmt: yamlfmt
+	./hack/verify.sh yamlfmt
+.PHONY: verify-generate
 
 mocks: $(MOCKGEN) $(GOIMPORTS)
 	MOCKGEN=${MOCKGEN} go generate ./internal/mocks
