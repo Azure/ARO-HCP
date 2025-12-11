@@ -1,13 +1,3 @@
 {
-	"parentResourceID": "/subscriptions/f52dfea2-47ee-4396-8006-4a27d47d59c5",
-	"descendents": [
-		{
-			"resourceType": "resourceGroups",
-			"resourceName": "some-resource-group"
-		},
-		{
-			"resourceType": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters",
-			"resourceName": "immutability"
-		}
-	]
+	"parentResourceID": "/subscriptions/f52dfea2-47ee-4396-8006-4a27d47d59c5/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/immutability"
 }
