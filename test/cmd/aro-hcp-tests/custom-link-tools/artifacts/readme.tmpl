@@ -1,0 +1,38 @@
+<html>
+<head>
+    <title>ARO HCP Debug Readme</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/4.6.1/css/bootstrap.min.css" integrity="sha512-T584yQ/tdRR5QwOpfvDfVQUidzfgc2339Lc8uBDtcp/wYu80d7jwBgAxbyMh0a9YM9F8N3tdErpFI8iaGx6x5g==" crossorigin="anonymous">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-icons/1.5.0/font/bootstrap-icons.min.css">
+    <style>
+        @media (max-width: 992px) {
+            .container {
+                width: 100%;
+                max-width: none;
+            }
+        }
+    </style>
+</head>
+
+<body>
+<p>
+The post-step that produces this file is in openshift/release at this location: .
+</p>
+
+<p>
+The code for the command that produces this file is in <a href="https://github.com/Azure/ARO-HCP/tree/main/test/cmd/aro-hcp-tests">https://github.com/Azure/ARO-HCP/tree/main/test/cmd/aro-hcp-tests</a>.
+</p>
+
+<p>
+PRs welcome.
+</p>
+
+<p>
+When you get to the data explorer, you should be looking at logs for a particular job (maybe a particular component or a resourcegroup).
+If you look to the left, you can see some schema hints.
+In theory, the "log" column has the raw message.
+As of the time of writing, I cannot figure out why the contest appears to be missing from the backend logs.
+</p>
+
+</body>
+</html>
+
