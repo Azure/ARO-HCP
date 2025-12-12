@@ -43,7 +43,7 @@ jobs:
       contents: 'read'
     runs-on: 'ubuntu-latest'
     steps:
-    - uses: actions/checkout@ff7abcd0c3c05ccf6adc123a8cd1fd4fb30fb493 # v4.2.2
+    - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v4.2.2
       with:
         fetch-depth: 1
     - name: "install azure-cli"
@@ -69,7 +69,7 @@ jobs:
     needs:
     - deploy_region_rg
     steps:
-    - uses: actions/checkout@ff7abcd0c3c05ccf6adc123a8cd1fd4fb30fb493 # v4.2.2
+    - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v4.2.2
       with:
         fetch-depth: 1
     - name: "install azure-cli"
@@ -96,7 +96,7 @@ jobs:
       contents: 'read'
     runs-on: 'ubuntu-latest'
     steps:
-    - uses: actions/checkout@ff7abcd0c3c05ccf6adc123a8cd1fd4fb30fb493 # v4.2.2
+    - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v4.2.2
       with:
         fetch-depth: 1
     - name: "install azure-cli"
@@ -144,7 +144,7 @@ jobs:
       contents: 'read'
     runs-on: 'ubuntu-latest'
     steps:
-    - uses: actions/checkout@ff7abcd0c3c05ccf6adc123a8cd1fd4fb30fb493 # v4.2.2
+    - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v4.2.2
       with:
         fetch-depth: 1
     - uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4.3.1
@@ -191,7 +191,7 @@ jobs:
       contents: 'read'
     runs-on: 'ubuntu-latest'
     steps:
-    - uses: actions/checkout@ff7abcd0c3c05ccf6adc123a8cd1fd4fb30fb493 # v4.2.2
+    - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v4.2.2
       with:
         fetch-depth: 1
     - uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4.3.1
