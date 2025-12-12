@@ -48,6 +48,7 @@ func TestFrontendClusterRead(t *testing.T) {
 	clusterServiceCluster, err := csarhcpv1alpha1.UnmarshalCluster(api.Must(artifacts.ReadFile("artifacts/ClusterReadOldData/initial-cluster-service-state/02-some-cluster.json")))
 	require.NoError(t, err)
 	testInfo.MockClusterServiceClient.EXPECT().GetCluster(gomock.Any(), api.Must(api.NewInternalID("/api/aro_hcp/v1alpha1/clusters/fixed-value"))).Return(clusterServiceCluster, nil)
+	testInfo.MockClusterServiceClient.EXPECT().DeleteCluster(gomock.Any(), api.Must(api.NewInternalID("/api/aro_hcp/v1alpha1/clusters/fixed-value"))).Return(nil)
 
 	resourceGroup := "some-resource-group"
 	hcpClusterName := "some-hcp-cluster"
@@ -61,6 +62,9 @@ func TestFrontendClusterRead(t *testing.T) {
 	require.NoError(t, json.Unmarshal(actualJSON, &actualMap))
 	expectedMap := map[string]any{}
 	require.NoError(t, json.Unmarshal(api.Must(artifacts.ReadFile("artifacts/ClusterReadOldData/some-hcp-cluster--expected.json")), &expectedMap))
-
 	require.Equal(t, expectedMap, actualMap)
+
+	_, err = testInfo.Get20240610ClientFactory(subscriptionID).NewHcpOpenShiftClustersClient().BeginDelete(ctx, resourceGroup, hcpClusterName, nil)
+	require.NoError(t, err)
+	// the poller will never be done because we aren't running the backend.  Just let it be.
 }
