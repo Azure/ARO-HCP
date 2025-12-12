@@ -25,6 +25,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/cmd/base"
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/kusto"
+	"github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/mustgather"
 )
 
 // RawMustGatherOptions represents the initial, unvalidated configuration for must-gather operations.
@@ -110,7 +111,7 @@ func BindMustGatherOptions(opts *RawMustGatherOptions, cmd *cobra.Command) error
 // ValidatedMustGatherOptions represents must-gather configuration that has passed validation.
 type ValidatedMustGatherOptions struct {
 	*RawMustGatherOptions
-	QueryOptions QueryOptions
+	QueryOptions mustgather.QueryOptions
 }
 
 // Validate performs comprehensive validation of all must-gather input parameters.
@@ -150,7 +151,7 @@ func (o *RawMustGatherOptions) Validate(ctx context.Context) (*ValidatedMustGath
 
 	return &ValidatedMustGatherOptions{
 		RawMustGatherOptions: o,
-		QueryOptions: QueryOptions{
+		QueryOptions: mustgather.QueryOptions{
 			SubscriptionId:    o.SubscriptionID,
 			ResourceGroupName: o.ResourceGroup,
 			TimestampMin:      o.TimestampMin,
@@ -168,7 +169,7 @@ func (o *ValidatedMustGatherOptions) Complete(ctx context.Context) (*MustGatherO
 	}
 
 	endpoint := fmt.Sprintf("https://%s.%s.kusto.windows.net", o.Kusto, o.Region)
-	client, err := kusto.NewClient(endpoint)
+	client, err := kusto.NewClient(endpoint, o.QueryTimeout)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Kusto client: %w", err)
 	}
@@ -187,7 +188,7 @@ func (o *ValidatedMustGatherOptions) Complete(ctx context.Context) (*MustGatherO
 
 	return &MustGatherOptions{
 		ValidatedMustGatherOptions: o,
-		QueryClient: &QueryClient{
+		QueryClient: &mustgather.QueryClient{
 			Client:       client,
 			QueryTimeout: o.QueryTimeout,
 			OutputPath:   o.OutputPath,
@@ -198,5 +199,5 @@ func (o *ValidatedMustGatherOptions) Complete(ctx context.Context) (*MustGatherO
 // MustGatherOptions represents the final, fully validated and initialized configuration for must-gather operations.
 type MustGatherOptions struct {
 	*ValidatedMustGatherOptions
-	QueryClient *QueryClient
+	QueryClient *mustgather.QueryClient
 }

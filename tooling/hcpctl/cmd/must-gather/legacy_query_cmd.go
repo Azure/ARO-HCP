@@ -18,14 +18,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strings"
 
 	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
 
-	"github.com/Azure/azure-kusto-go/kusto/data/table"
-
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/kusto"
+	"github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/mustgather"
 )
 
 func newQueryCommandLegacy() (*cobra.Command, error) {
@@ -51,18 +49,18 @@ func newQueryCommandLegacy() (*cobra.Command, error) {
 
 func (opts *MustGatherOptions) RunLegacy(ctx context.Context) error {
 	logger := logr.FromContextOrDiscard(ctx)
-	clusterIds, err := executeClusterIdQuery(ctx, opts, getKubeSystemClusterIdQuery(opts.SubscriptionID, opts.ResourceGroup))
-	if err != nil {
-		return fmt.Errorf("failed to execute cluster id query: %w", err)
-	}
-	logger.V(1).Info("Obtained following clusterIDs", "clusterIds", strings.Join(clusterIds, ", "))
-	opts.QueryOptions.ClusterIds = clusterIds
-	err = serializeOutputToFile(opts.OutputPath, OptionsOutputFile, opts.QueryOptions)
-	if err != nil {
-		return fmt.Errorf("failed to write query options to file: %w", err)
-	}
+	// clusterIds, err := executeClusterIdQuery(ctx, opts, mustgather.GetKubeSystemClusterIdQuery(opts.SubscriptionID, opts.ResourceGroup))
+	// if err != nil {
+	// 	return fmt.Errorf("failed to execute cluster id query: %w", err)
+	// }
+	// logger.V(1).Info("Obtained following clusterIDs", "clusterIds", strings.Join(clusterIds, ", "))
+	// opts.QueryOptions.ClusterIds = clusterIds
+	// err = serializeOutputToFile(opts.OutputPath, OptionsOutputFile, opts.QueryOptions)
+	// if err != nil {
+	// 	return fmt.Errorf("failed to write query options to file: %w", err)
+	// }
 
-	err = executeKubeSystemQueries(ctx, opts, opts.QueryOptions)
+	err := executeKubeSystemQueries(ctx, opts, opts.QueryOptions)
 	if err != nil {
 		return fmt.Errorf("failed to execute query: %w", err)
 	}
@@ -84,7 +82,7 @@ type kubernetesCol struct {
 	Namespace     string `json:"namespace_name"`
 }
 
-func processKubesystemLogsRow(row *KubesystemLogsRow) error {
+func processKubesystemLogsRow(row *mustgather.KubesystemLogsRow) error {
 	// read containername/namespace from the row
 	// handle inconsitent columns
 
@@ -101,33 +99,34 @@ func processKubesystemLogsRow(row *KubesystemLogsRow) error {
 	return nil
 }
 
-func executeKubeSystemQueries(ctx context.Context, opts *MustGatherOptions, queryOpts QueryOptions) error {
-	query := getKubeSystemQuery(opts.SubscriptionID, opts.ResourceGroup, queryOpts.ClusterIds)
+func executeKubeSystemQueries(ctx context.Context, opts *MustGatherOptions, queryOpts mustgather.QueryOptions) error {
+	query := mustgather.GetKubeSystemQuery(opts.SubscriptionID, opts.ResourceGroup, queryOpts.ClusterIds)
 	return castQueryAndWriteToFile(ctx, opts, ServicesLogDirectory, []*kusto.ConfigurableQuery{query})
 }
 
-func executeKubeSystemHostedControlPlaneLogsQuery(ctx context.Context, opts *MustGatherOptions, queryOpts QueryOptions) error {
-	query := getKubeSystemHostedControlPlaneLogsQuery(queryOpts)
+func executeKubeSystemHostedControlPlaneLogsQuery(ctx context.Context, opts *MustGatherOptions, queryOpts mustgather.QueryOptions) error {
+	query := mustgather.GetKubeSystemHostedControlPlaneLogsQuery(queryOpts)
 	return castQueryAndWriteToFile(ctx, opts, HostedControlPlaneLogDirectory, query)
 }
 
 func castQueryAndWriteToFile(ctx context.Context, opts *MustGatherOptions, targetDirectory string, queries []*kusto.ConfigurableQuery) error {
-	castFunction := func(input *table.Row) (*NormalizedLogLine, error) {
-		// can directly cast, cause the row is already normalized
-		legacyLogLine := &KubesystemLogsRow{}
-		if err := input.ToStruct(legacyLogLine); err != nil {
-			return nil, fmt.Errorf("failed to convert row to struct: %w", err)
-		}
-		err := processKubesystemLogsRow(legacyLogLine)
-		if err != nil {
-			return nil, fmt.Errorf("failed to process kubesystem logs row: %w", err)
-		}
-		return &NormalizedLogLine{
-			Log:           []byte(legacyLogLine.Log),
-			Cluster:       legacyLogLine.Cluster,
-			Namespace:     legacyLogLine.Namespace,
-			ContainerName: legacyLogLine.ContainerName,
-		}, nil
-	}
-	return queryAndWriteToFile(ctx, opts, targetDirectory, castFunction, queries)
+	// castFunction := func(input *table.Row) (*NormalizedLogLine, error) {
+	// 	// can directly cast, cause the row is already normalized
+	// 	legacyLogLine := &mustgather.KubesystemLogsRow{}
+	// 	if err := input.ToStruct(legacyLogLine); err != nil {
+	// 		return nil, fmt.Errorf("failed to convert row to struct: %w", err)
+	// 	}
+	// 	err := processKubesystemLogsRow(legacyLogLine)
+	// 	if err != nil {
+	// 		return nil, fmt.Errorf("failed to process kubesystem logs row: %w", err)
+	// 	}
+	// 	return &NormalizedLogLine{
+	// 		Log:           []byte(legacyLogLine.Log),
+	// 		Cluster:       legacyLogLine.Cluster,
+	// 		Namespace:     legacyLogLine.Namespace,
+	// 		ContainerName: legacyLogLine.ContainerName,
+	// 	}, nil
+	// }
+	// return queryAndWriteToFile(ctx, opts, targetDirectory, castFunction, queries)
+	return nil
 }

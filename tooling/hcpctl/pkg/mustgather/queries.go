@@ -20,6 +20,14 @@ import (
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/kusto"
 )
 
+type QueryType string
+
+const (
+	QueryTypeServices           QueryType = "services"
+	QueryTypeHostedControlPlane QueryType = "hosted-control-plane"
+	QueryTypeClusterId          QueryType = "cluster-id"
+)
+
 var servicesDatabase = "ServiceLogs"
 var hostedControlPlaneLogsDatabase = "HostedControlPlaneLogs"
 
@@ -47,7 +55,7 @@ type QueryOptions struct {
 	Limit             int
 }
 
-func getServicesQueries(opts QueryOptions) []*kusto.ConfigurableQuery {
+func GetServicesQueries(opts GathererOptions) []*kusto.ConfigurableQuery {
 	queries := []*kusto.ConfigurableQuery{}
 	for _, table := range servicesTables {
 		query := kusto.NewConfigurableQuery(table, servicesDatabase)
@@ -57,7 +65,7 @@ func getServicesQueries(opts QueryOptions) []*kusto.ConfigurableQuery {
 		query.WithTable(table).WithDefaultFields()
 
 		query.WithTimestampMinAndMax(getTimeMinMax(opts.TimestampMin, opts.TimestampMax))
-		query.WithClusterIdOrSubscriptionAndResourceGroup(opts.ClusterIds, opts.SubscriptionId, opts.ResourceGroupName)
+		query.WithClusterIdOrSubscriptionAndResourceGroup(opts.ClusterIds, opts.SubscriptionID, opts.ResourceGroup)
 		if opts.Limit > 0 {
 			query.WithLimit(opts.Limit)
 		}
@@ -66,7 +74,7 @@ func getServicesQueries(opts QueryOptions) []*kusto.ConfigurableQuery {
 	return queries
 }
 
-func getHostedControlPlaneLogsQuery(opts QueryOptions) []*kusto.ConfigurableQuery {
+func GetHostedControlPlaneLogsQuery(opts GathererOptions) []*kusto.ConfigurableQuery {
 	queries := []*kusto.ConfigurableQuery{}
 	for _, clusterId := range opts.ClusterIds {
 		query := kusto.NewConfigurableQuery("hostedControlPlaneLogs", hostedControlPlaneLogsDatabase)
@@ -85,7 +93,7 @@ func getHostedControlPlaneLogsQuery(opts QueryOptions) []*kusto.ConfigurableQuer
 	return queries
 }
 
-func getClusterIdQuery(subscriptionId, resourceGroupName string) *kusto.ConfigurableQuery {
+func GetClusterIdQuery(subscriptionId, resourceGroupName string) *kusto.ConfigurableQuery {
 	return kusto.NewClusterIdQuery(servicesDatabase, containerLogsTable, subscriptionId, resourceGroupName)
 }
 
@@ -112,15 +120,15 @@ type KubesystemLogsRow struct {
 	Kubernetes    string `kusto:"kubernetes"`
 }
 
-func getKubeSystemClusterIdQuery(subscriptionId, resourceGroupName string) *kusto.ConfigurableQuery {
+func GetKubeSystemClusterIdQuery(subscriptionId, resourceGroupName string) *kusto.ConfigurableQuery {
 	return kusto.NewClusterIdQuery(servicesDatabaseLegacy, "kubesystem", subscriptionId, resourceGroupName)
 }
 
-func getKubeSystemQuery(subscriptionId, resourceGroupName string, clusterIds []string) *kusto.ConfigurableQuery {
+func GetKubeSystemQuery(subscriptionId, resourceGroupName string, clusterIds []string) *kusto.ConfigurableQuery {
 	return kusto.NewKubeSystemQuery(subscriptionId, resourceGroupName, clusterIds)
 }
 
-func getKubeSystemHostedControlPlaneLogsQuery(opts QueryOptions) []*kusto.ConfigurableQuery {
+func GetKubeSystemHostedControlPlaneLogsQuery(opts QueryOptions) []*kusto.ConfigurableQuery {
 	queries := []*kusto.ConfigurableQuery{}
 	for _, clusterId := range opts.ClusterIds {
 		query := kusto.NewCustomerKubeSystemQuery(clusterId, opts.Limit)
