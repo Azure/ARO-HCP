@@ -1,0 +1,97 @@
+kube-prometheus-stack:
+  fullnameOverride: "prometheus"
+  crds:
+    enabled: true
+  global:
+    rbac:
+      create: true
+  alertmanager:
+    enabled: false # Disabled for now.
+  grafana:
+    enabled: false
+  # Azure Managed Prometheus will scrape or expose these metrics
+  coreDns:
+    enabled: false
+  kubeDns:
+    enabled: false
+  nodeExporter:
+    enabled: false
+  kubeEtcd:
+    enabled: false
+  kubeScheduler:
+    enabled: false
+  kubeControllerManager:
+    enabled: false
+  kubeProxy:
+    enabled: false
+  kubelet:
+    enabled: false
+  kubeApiServer:
+    enabled: false
+  kubeStateMetrics:
+    enabled: true # OSS prometheus scrapes kube-state-metrics so the HCP ksm are routed to the hcp Azure Monitor Workspace
+  prometheus:
+    enabled: false # Prometheus is deployed using templates/prometheus.yaml
+  prometheusOperator:
+    enabled: true
+    fullnameOverride: ""
+    image:
+      registry: "{{ .sretooling.prometheus.prometheusOperator.image.registry }}"
+      repository: "{{ .sretooling.prometheus.prometheusOperator.image.repository }}"
+      sha: "{{ .sretooling.prometheus.prometheusOperator.image.sha }}"
+    prometheusConfigReloader:
+      image:
+        registry: "{{ .sretooling.prometheus.prometheusConfigReloader.image.registry }}"
+        repository: "{{ .sretooling.prometheus.prometheusConfigReloader.image.repository }}"
+        sha: "{{ .sretooling.prometheus.prometheusConfigReloader.image.sha }}"
+    affinity:
+      nodeAffinity:
+        requiredDuringSchedulingIgnoredDuringExecution:
+          nodeSelectorTerms:
+          - matchExpressions:
+            - key: aro-hcp.azure.com/role
+              operator: In
+              values:
+              - "infra"
+    tolerations:
+    - key: "infra"
+      operator: "Equal"
+      value: "true"
+      effect: "NoSchedule"
+  ## Setting to true produces cleaner resource names, but requires a data migration because the name of the persistent volume changes. Therefore this should only be set once on initial installation.
+  cleanPrometheusOperatorObjectNames: true
+  # config for kube-state-metrics subchart that is imported by the kube-prometheus-stack chart conditionally
+  kube-state-metrics:
+    image:
+      registry: "{{ .sretooling.prometheus.kubeStateMetrics.image.registry }}"
+      repository: "{{ .sretooling.prometheus.kubeStateMetrics.image.repository }}"
+      sha: "{{ .sretooling.prometheus.kubeStateMetrics.image.digest }}"
+# this is our own config for the files in templates/
+prometheusSpec:
+  image:
+    registry: "{{ .sretooling.prometheus.prometheusSpec.image.registry }}"
+    repository: "{{ .sretooling.prometheus.prometheusSpec.image.repository }}"
+    sha: "{{ .sretooling.prometheus.prometheusSpec.image.sha }}"
+  version: "" # derived from the sha
+  externalLabels:
+    cluster: "{{ .sretooling.aks.name }}"
+  remoteWriteUrl: "__dcrRemoteWriteUrl__"
+  hcpRemoteWriteUrl: "__hcpDcrRemoteWriteUrl__"
+  zoneCount: {{ .azureRegionAvailabilityZoneCount }}
+  maximumStartupDurationSeconds: 360
+  retention: 6h
+  retentionSize: 45GiB
+  resources:
+    requests:
+      cpu: 1
+      memory: 2Gi
+    limits:
+      cpu: 2
+      memory: "6Gi"
+prometheus:
+  prometheusSpec:
+    shards: {{ .sretooling.prometheus.prometheusSpec.shards }}
+    replicas: {{ .sretooling.prometheus.prometheusSpec.replicas }}
+  serviceAccount:
+    managedIdentity: "__prometheusUAMIClientId__"
+environment: "{{ .clustersService.environment }}"

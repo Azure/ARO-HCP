@@ -1,0 +1,84 @@
+clouds:
+  dev:
+    environments:
+      dev:
+        defaults:
+          sretooling:
+            subscription:
+              key: ARO Hosted Control Planes (EA Subscription 1)
+              displayName: "Azure Red Hat OpenShift HCP - {{ .ctx.environment }} - {{ .ctx.region }} - SRE Tooling"
+              usePlannedQuota: false
+              providers:
+                'Microsoft.Insights':
+                  poll: true
+                'Microsoft.Network':
+                  poll: true
+                'Microsoft.Compute':
+                  poll: true
+                'Microsoft.ContainerService':
+                  poll: true
+            rg: "hcp-underlay-{{ .ctx.environment }}-{{ .ctx.region }}-sre-tooling"
+            aks:
+              name: "{{ .ctx.environment }}-{{ .ctx.region }}-sre-tooling"
+              vnetAddressPrefix: "10.140.0.0/14"
+              subnetPrefix: "10.140.8.0/21"
+              podSubnetPrefix: "10.140.64.0/18"
+              kubernetesVersion: 1.32.5
+              networkDataplane: "cilium"
+              networkPolicy: "cilium"
+              systemAgentPool:
+                minCount: 1
+                maxCount: 3
+                vmSize: 'Standard_D2s_v3'
+                osDiskSizeGB: 32
+                poolCount: 1
+                zones: ""
+                zoneRedundantMode: "Auto"
+              userAgentPool:
+                minCount: 1
+                maxCount: 3
+                vmSize: 'Standard_D2s_v3'
+                osDiskSizeGB: 32
+                poolCount: 1
+                zones: ""
+                zoneRedundantMode: "Auto"
+              infraAgentPool:
+                minCount: 1
+                maxCount: 2
+                vmSize: 'Standard_D4ds_v5'
+                osDiskSizeGB: 64
+                poolCount: 1
+                zones: ""
+                zoneRedundantMode: "Auto"
+              etcd:
+                name: "ah-{{ .ctx.environment }}-tool-{{ .ctx.regionShort }}-1"
+                softDelete: true
+                private: true
+                tagKey: aroHCPPurpose
+                tagValue: sre-tooling-etcd
+              clusterOutboundIPAddressIPTags: ""
+            prometheus:
+              prometheusConfigReloader:
+                image:
+                  registry: mcr.microsoft.com/oss/v2
+                  repository: prometheus/prometheus-config-reloader
+                  sha: d5b35ba0ac17927a46e74eb024d864dabd8c3f58ce67b9269bc81a85d9fc146f # v0.85.0 (2025-11-21 17:11)
+              kubeStateMetrics:
+                image:
+                  registry: mcr.microsoft.com/oss/v2
+                  repository: kubernetes/kube-state-metrics
+                  digest: sha256:4893b3f6e4d9b2d960a6afbce18ba025d47955d10d400587bf5450d5a3f9c5bc # v2.16.0 (2025-11-20 19:27)
+              prometheusOperator:
+                image:
+                  registry: mcr.microsoft.com/oss/v2
+                  repository: prometheus/prometheus-operator
+                  sha: 5c3fd99a70fb43aa5ea4672ccaf04c68ac60d7adb7e205d2bf75d1b46395455c # v0.87.0-1 (2025-11-21 17:21)
+              prometheusSpec:
+                image:
+                  registry: mcr.microsoft.com/oss/v2
+                  repository: prometheus/prometheus
+                  sha: 70296b2f2cc69c88d070fe8b627d347bd070e084c14babbc93e91583e03eca06 # v3.8.0-1 (2025-12-02 17:33)
+                replicas: 1
+                shards: 1
+            adminApi:
+              managedIdentityName: sre-tooling-admin-api

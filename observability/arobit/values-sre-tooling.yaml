@@ -1,0 +1,64 @@
+# Global Docker image parameters
+##
+# imagePullSecrets:
+#   - linuxgeneva-microsoft
+forwarder:
+  geoShortId: "{{ .azureGeoShortId }}"
+  clusterType: "sre-tooling"
+  environment: "{{ .arobit.kusto.environmentName }}"
+  clusterName: "{{ .sretooling.aks.name }}"
+  region: "{{ .region }}"
+  ## Enable forwarder daemonset
+  ##
+  dynamicConfig: false
+  ## K8s Security Context for forwarder pods
+  ## ref: https://kubernetes.io/docs/tasks/configure-pod-container/security-context/
+  ##
+  securityContext:
+    enabled: true
+    runAsUser: 65532
+    runAsGroup: 65532
+  ## Pods Service Account
+  ## ref: https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/
+  serviceAccountName: arobit-forwarder
+  fluentbit:
+    ## Fluent Bit image version
+    ##
+    image:
+      registry: "{{ .arobit.forwarder.image.registry }}"
+      repository: "{{ .arobit.forwarder.image.repository }}"
+      digest: "{{ .arobit.forwarder.image.digest }}"
+      pullPolicy: IfNotPresent
+  mdsd:
+    # Geneva Config
+    geneva:
+      role: "{{ .sretooling.rg }}"
+      rpAccountName: "{{ .geneva.logs.rp.accountName }}"
+      rpSecretName: "{{ .geneva.logs.rp.secretName }}"
+      rpSan: "{{ .geneva.logs.rp.san }}"
+      rpNamespace: "{{ .geneva.logs.rp.namespace }}"
+      clusterLogsAccountName: "{{ .geneva.logs.cluster.accountName }}"
+      clusterLogsSecretName: "{{ .geneva.logs.cluster.secretName }}"
+      clusterLogsSan: "{{ .geneva.logs.cluster.san }}"
+      clusterLogsNamespace: "{{ .geneva.logs.cluster.namespace }}"
+      configVersion: 1
+      environment: "{{ .geneva.logs.environment }}"
+      region: "{{ .region }}"
+    ## Specifies whether mdsd should enabled
+    enabled: {{ .arobit.mdsd.enabled }}
+    ## mdsd image version
+    ##
+    image:
+      registry: "{{ .arobit.mdsd.image.registry }}"
+      repository: "{{ .arobit.mdsd.image.repository }}"
+      digest: "{{ .arobit.mdsd.image.digest }}"
+      pullPolicy: IfNotPresent
+  kusto:
+    serviceLogsDatabase: {{ .kusto.serviceLogsDatabase }}
+    hostedControlPlaneLogsDatabase: {{ .kusto.hostedControlPlaneLogsDatabase }}
+    enabled: {{ .arobit.kusto.enabled }}
+    ingestionEndpoint: "__kustoDataIngestionUri__"
+  msiClientId: "__msiClientId__"
+  tenantId: "__tenantId__"
+  secretProvider:
+    keyVault: "{{ .serviceKeyVault.name }}"
