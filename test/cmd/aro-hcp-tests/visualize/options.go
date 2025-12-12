@@ -311,6 +311,11 @@ func (o *Options) Visualize(ctx context.Context) error {
 		return err
 	}
 
+	if len(o.Times) == 0 {
+		logger.Info("No tests seem to have run, exiting.")
+		return nil
+	}
+
 	slices.SortFunc(o.Times, func(a, b TestInfo) int {
 		t := a.StartedAt.Compare(b.StartedAt)
 		if t != 0 {
