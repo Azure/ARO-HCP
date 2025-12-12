@@ -84,15 +84,17 @@ func (OperationCRUDSpecializer) InstanceEquals(expected, actual *api.Operation) 
 	// clear the fields that don't compare
 	shallowExpected := *expected
 	shallowActual := *actual
+	shallowExpected.CosmosUID = ""
+	shallowActual.CosmosUID = ""
 	return equality.Semantic.DeepEqual(shallowExpected, shallowActual)
 }
 
 func (OperationCRUDSpecializer) NameFromInstance(obj *api.Operation) string {
-	return obj.OperationID.Name
+	return obj.CosmosUID
 }
 
 func (OperationCRUDSpecializer) WriteCosmosID(newObj, oldObj *api.Operation) {
-	// the cosmosID is derived from the operationID
+	newObj.CosmosUID = oldObj.CosmosUID
 }
 
 type UntypedCRUDSpecializer struct {

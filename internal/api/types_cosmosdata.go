@@ -16,6 +16,7 @@ package api
 
 import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 )
 
 type CosmosPersistable interface {
@@ -27,6 +28,6 @@ type CosmosPersistable interface {
 // These are not (currently) all stored in the same place in our various types.
 type CosmosData struct {
 	CosmosUID    string
-	PartitionKey string
+	PartitionKey azcosmos.PartitionKey
 	ItemID       *azcorearm.ResourceID
 }

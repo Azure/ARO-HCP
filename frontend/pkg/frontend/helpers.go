@@ -223,7 +223,7 @@ func (f *Frontend) DeleteAllResources(ctx context.Context, subscriptionID string
 		return utils.TrackError(err)
 	}
 
-	transaction := f.dbClient.NewTransaction(subscriptionID)
+	transaction := f.dbClient.NewTransaction(database.NewPartitionKey(subscriptionID))
 
 	dbIterator := f.dbClient.ListResourceDocs(prefix, nil)
 
@@ -256,7 +256,7 @@ func (f *Frontend) DeleteAllResources(ctx context.Context, subscriptionID string
 	return nil
 }
 
-func (f *Frontend) DeleteResource(ctx context.Context, transaction database.DBTransaction, resourceItemID string, resourceDoc *database.ResourceDocument) (*api.Operation, error) {
+func (f *Frontend) DeleteResource(ctx context.Context, transaction database.DBTransaction, resourceItemID string, resourceDoc *database.ResourceDocument) (string, error) {
 	const operationRequest = database.OperationRequestDelete
 	var err error
 
@@ -264,7 +264,7 @@ func (f *Frontend) DeleteResource(ctx context.Context, transaction database.DBTr
 
 	correlationData, err := CorrelationDataFromContext(ctx)
 	if err != nil {
-		return nil, utils.TrackError(err)
+		return "", err
 	}
 
 	switch resourceDoc.InternalID.Kind() {
@@ -278,7 +278,7 @@ func (f *Frontend) DeleteResource(ctx context.Context, transaction database.DBTr
 		err = f.clusterServiceClient.DeleteExternalAuth(ctx, resourceDoc.InternalID)
 
 	default:
-		return nil, fmt.Errorf("unsupported Cluster Service path: %s", resourceDoc.InternalID)
+		return "", fmt.Errorf("unsupported Cluster Service path: %s", resourceDoc.InternalID)
 	}
 
 	if err != nil {
@@ -298,7 +298,7 @@ func (f *Frontend) DeleteResource(ctx context.Context, transaction database.DBTr
 		} else {
 			logger.Error(err.Error())
 		}
-		return nil, utils.TrackError(err)
+		return "", err
 	}
 
 	// Cluster Service will take care of canceling any ongoing operations
@@ -310,24 +310,14 @@ func (f *Frontend) DeleteResource(ctx context.Context, transaction database.DBTr
 		IncludeNestedResources: true,
 	})
 	if err != nil {
-		return nil, utils.TrackError(err)
+		return "", err
 	}
 
-	operationDoc := database.NewOperationDocument(
-		operationRequest,
-		resourceDoc.ResourceID,
-		resourceDoc.InternalID,
-		"",
-		"",
-		"",
-		correlationData)
-	_, err = f.dbClient.Operations(operationDoc.OperationID.SubscriptionID).AddCreateToTransaction(ctx, transaction, operationDoc, nil)
-	if err != nil {
-		return nil, utils.TrackError(err)
-	}
+	operationDoc := database.NewOperationDocument(operationRequest, resourceDoc.ResourceID, resourceDoc.InternalID, correlationData)
+	operationID := transaction.CreateOperationDoc(operationDoc, nil)
 
 	var patchOperations database.ResourceDocumentPatchOperations
-	patchOperations.SetActiveOperationID(&operationDoc.OperationID.Name)
+	patchOperations.SetActiveOperationID(&operationID)
 	patchOperations.SetProvisioningState(operationDoc.Status)
 	transaction.PatchResourceDoc(resourceItemID, patchOperations, nil)
 
@@ -338,18 +328,8 @@ func (f *Frontend) DeleteResource(ctx context.Context, transaction database.DBTr
 		// Its purpose is to cause the backend to delete the resource
 		// document once resource deletion completes.
 
-		childOperationDoc := database.NewOperationDocument(
-			operationRequest,
-			childResourceDoc.ResourceID,
-			childResourceDoc.InternalID,
-			"",
-			"",
-			"",
-			correlationData)
-		childOperationID, err := f.dbClient.Operations(childOperationDoc.OperationID.SubscriptionID).AddCreateToTransaction(ctx, transaction, childOperationDoc, nil)
-		if err != nil {
-			return nil, utils.TrackError(err)
-		}
+		childOperationDoc := database.NewOperationDocument(operationRequest, childResourceDoc.ResourceID, childResourceDoc.InternalID, correlationData)
+		childOperationID := transaction.CreateOperationDoc(childOperationDoc, nil)
 
 		var patchOperations database.ResourceDocumentPatchOperations
 		patchOperations.SetActiveOperationID(&childOperationID)
@@ -359,8 +339,8 @@ func (f *Frontend) DeleteResource(ctx context.Context, transaction database.DBTr
 
 	err = iterator.GetError()
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 
-	return operationDoc, nil
+	return operationID, nil
 }

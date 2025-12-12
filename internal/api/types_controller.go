@@ -19,6 +19,7 @@ import (
 	"time"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 )
 
 type Controller struct {
@@ -42,7 +43,7 @@ func (o *Controller) ComputeLogicalResourceID() *azcorearm.ResourceID {
 func (o *Controller) GetCosmosData() CosmosData {
 	return CosmosData{
 		CosmosUID:    o.CosmosUID,
-		PartitionKey: strings.ToLower(o.ExternalID.SubscriptionID),
+		PartitionKey: azcosmos.NewPartitionKeyString(strings.ToLower(o.ExternalID.SubscriptionID)),
 		ItemID:       o.ComputeLogicalResourceID(),
 	}
 }

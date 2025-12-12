@@ -215,7 +215,7 @@ func initializeCosmosDBForFrontend(ctx context.Context, cosmosClient *azcosmos.C
 }
 
 func MarkOperationsCompleteForName(ctx context.Context, dbClient database.DBClient, subscriptionID, resourceName string) error {
-	operationsIterator := dbClient.Operations(subscriptionID).ListActiveOperations(nil)
+	operationsIterator := dbClient.ListActiveOperationDocs(azcosmos.NewPartitionKeyString(subscriptionID), nil)
 	for _, operation := range operationsIterator.Items(ctx) {
 		if operation.ExternalID.Name != resourceName {
 			continue
@@ -255,12 +255,19 @@ func UpdateOperationStatus(ctx context.Context, dbClient database.DBClient, oper
 
 // TODO this needs to simplified into something the database client can do on behalf of callers to make it more idiot-proof
 func patchOperationDocument(ctx context.Context, dbClient database.DBClient, operation *database.OperationDocument, opStatus arm.ProvisioningState, opError *arm.CloudErrorBody) error {
-	operationToWrite := *operation
-	operationToWrite.LastTransitionTime = time.Now()
-	operationToWrite.Status = opStatus
+	var patchOperations database.OperationDocumentPatchOperations
+
+	scalar := strings.ReplaceAll(database.OperationDocumentJSONPathStatus, "/", ".")
+	condition := fmt.Sprintf("FROM doc WHERE doc%s != '%s'", scalar, opStatus)
+
+	patchOperations.SetCondition(condition)
+	patchOperations.SetLastTransitionTime(time.Now())
+	patchOperations.SetStatus(opStatus)
 	if opError != nil {
-		operationToWrite.Error = opError
+		patchOperations.SetError(opError)
 	}
-	_, err := dbClient.Operations(operation.OperationID.SubscriptionID).Replace(ctx, &operationToWrite, nil)
+
+	operationPartitionKey := azcosmos.NewPartitionKeyString(operation.OperationID.SubscriptionID)
+	_, err := dbClient.PatchOperationDoc(ctx, operationPartitionKey, operation.OperationID.Name, patchOperations)
 	return err
 }

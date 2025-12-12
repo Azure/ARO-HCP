@@ -15,15 +15,12 @@
 package database
 
 import (
-	"fmt"
 	"path"
-	"strings"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
 	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
 
 type ControllerContainer interface {
@@ -32,102 +29,12 @@ type ControllerContainer interface {
 	Controllers(hcpClusterID string) ResourceCRUD[api.Controller]
 }
 
-type OperationCRUD interface {
-	ResourceCRUD[api.Operation]
-
-	// ListActiveOperations returns an iterator that searches for asynchronous operation documents
-	// with a non-terminal status in the "Resources" container under the given partition key. The
-	// options argument can further limit the search to documents that match the provided values.
-	//
-	// Note that ListActiveOperations does not perform the search, but merely prepares an iterator
-	// to do so. Hence the lack of a Context argument. The search is performed by calling Items() on
-	// the iterator in a ranged for loop.
-	ListActiveOperations(options *DBClientListActiveOperationDocsOptions) DBClientIterator[OperationDocument]
-}
-
-type operationCRUD struct {
-	*nestedCosmosResourceCRUD[api.Operation, Operation]
-}
-
-func NewOperationCRUD(containerClient *azcosmos.ContainerClient, subscriptionID string) OperationCRUD {
-	parts := []string{
-		"/subscriptions",
-		strings.ToLower(subscriptionID),
-	}
-	parentResourceID := api.Must(azcorearm.ParseResourceID(path.Join(parts...)))
-
-	return &operationCRUD{
-		nestedCosmosResourceCRUD: NewCosmosResourceCRUD[api.Operation, Operation](containerClient, parentResourceID, api.OperationStatusResourceType),
-	}
-}
-
-var _ OperationCRUD = &operationCRUD{}
-
-func (d *operationCRUD) ListActiveOperations(options *DBClientListActiveOperationDocsOptions) DBClientIterator[OperationDocument] {
-	var queryOptions azcosmos.QueryOptions
-
-	query := fmt.Sprintf(
-		"SELECT * FROM c WHERE STRINGEQUALS(c.resourceType, %q, true) "+
-			"AND NOT ARRAYCONTAINS([%q, %q, %q], c.properties.status)",
-		api.OperationStatusResourceType.String(),
-		arm.ProvisioningStateSucceeded,
-		arm.ProvisioningStateFailed,
-		arm.ProvisioningStateCanceled)
-
-	if options != nil {
-		if options.Request != nil {
-			query += " AND c.properties.request = @request"
-			queryParameter := azcosmos.QueryParameter{
-				Name:  "@request",
-				Value: string(*options.Request),
-			}
-			queryOptions.QueryParameters = append(queryOptions.QueryParameters, queryParameter)
-		}
-
-		if options.ExternalID != nil {
-			query += " AND "
-			const resourceFilter = "STRINGEQUALS(c.properties.externalId, @externalId, true)"
-			if options.IncludeNestedResources {
-				const nestedResourceFilter = "STARTSWITH(c.properties.externalId, CONCAT(@externalId, \"/\"), true)"
-				query += fmt.Sprintf("(%s OR %s)", resourceFilter, nestedResourceFilter)
-			} else {
-				query += resourceFilter
-			}
-			queryParameter := azcosmos.QueryParameter{
-				Name:  "@externalId",
-				Value: options.ExternalID.String(),
-			}
-			queryOptions.QueryParameters = append(queryOptions.QueryParameters, queryParameter)
-		}
-	}
-
-	pager := d.containerClient.NewQueryItemsPager(query, NewPartitionKey(d.parentResourceID.SubscriptionID), &queryOptions)
-	return newQueryResourcesIterator[api.Operation, Operation](pager)
-}
-
 type HCPClusterCRUD interface {
 	ResourceCRUD[api.HCPOpenShiftCluster]
 	ControllerContainer
 
 	ExternalAuth(hcpClusterID string) ExternalAuthsCRUD
 	NodePools(hcpClusterID string) NodePoolsCRUD
-}
-
-func NewHCPClusterCRUD(containerClient *azcosmos.ContainerClient, subscriptionID, resourceGroupName string) HCPClusterCRUD {
-	parts := []string{
-		"/subscriptions",
-		strings.ToLower(subscriptionID),
-	}
-	if len(resourceGroupName) > 0 {
-		parts = append(parts,
-			"resourceGroups",
-			resourceGroupName)
-	}
-	parentResourceID := api.Must(azcorearm.ParseResourceID(strings.ToLower(path.Join(parts...))))
-
-	return &hcpClusterCRUD{
-		nestedCosmosResourceCRUD: NewCosmosResourceCRUD[api.HCPOpenShiftCluster, HCPCluster](containerClient, parentResourceID, api.ClusterResourceType),
-	}
 }
 
 type NodePoolsCRUD interface {

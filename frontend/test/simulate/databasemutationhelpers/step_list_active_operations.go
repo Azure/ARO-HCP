@@ -70,9 +70,9 @@ func (l *listActiveOperationsStep) StepID() stepID {
 func (l *listActiveOperationsStep) RunTest(ctx context.Context, t *testing.T) {
 	parentResourceID, err := azcorearm.ParseResourceID(l.key.ParentResourceID)
 	require.NoError(t, err)
+	pk := database.NewPartitionKey(parentResourceID.SubscriptionID)
 
-	operationsCRUD := database.NewOperationCRUD(l.cosmosContainer, parentResourceID.SubscriptionID)
-	actualControllersIterator := operationsCRUD.ListActiveOperations(nil)
+	actualControllersIterator := database.ListActiveOperationDocs(l.cosmosContainer, pk, nil)
 	require.NoError(t, err)
 
 	actualControllers := []*database.OperationDocument{}
