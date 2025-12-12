@@ -128,6 +128,7 @@ func (f *Frontend) Run(ctx context.Context, stop <-chan struct{}) {
 	}
 
 	logger.Info(fmt.Sprintf("listening on %s", f.listener.Addr().String()))
+	logger.Info(fmt.Sprintf("Also listening Frontend on a Dummy branch %s", "Hello"))
 	logger.Info(fmt.Sprintf("metrics listening on %s", f.metricsListener.Addr().String()))
 
 	errs, ctx := errgroup.WithContext(ctx)
