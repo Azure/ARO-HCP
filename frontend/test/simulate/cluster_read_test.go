@@ -16,6 +16,7 @@ package simulate
 
 import (
 	"context"
+	"embed"
 	"encoding/json"
 	"io/fs"
 	"testing"
@@ -26,16 +27,20 @@ import (
 	csarhcpv1alpha1 "github.com/openshift-online/ocm-api-model/clientapi/arohcp/v1alpha1"
 
 	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/test-integration/utils/integrationutils"
 )
 
+//go:embed artifacts/*
+var artifacts embed.FS
+
 func TestFrontendClusterRead(t *testing.T) {
-	SkipIfNotSimulationTesting(t)
+	integrationutils.SkipIfNotSimulationTesting(t)
 
 	ctx := context.Background()
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	frontend, testInfo, err := NewFrontendFromTestingEnv(ctx, t)
+	frontend, testInfo, err := integrationutils.NewFrontendFromTestingEnv(ctx, t)
 	require.NoError(t, err)
 	defer testInfo.Cleanup(context.Background())
 

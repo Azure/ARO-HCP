@@ -23,18 +23,19 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
-	"github.com/Azure/ARO-HCP/frontend/test/simulate/databasemutationhelpers"
 	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/test-integration/utils/databasemutationhelpers"
+	"github.com/Azure/ARO-HCP/test-integration/utils/integrationutils"
 )
 
 func TestDatabaseCRUD(t *testing.T) {
-	SkipIfNotSimulationTesting(t)
+	integrationutils.SkipIfNotSimulationTesting(t)
 
 	ctx := context.Background()
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	_, testInfo, err := NewFrontendFromTestingEnv(ctx, t)
+	_, testInfo, err := integrationutils.NewFrontendFromTestingEnv(ctx, t)
 	require.NoError(t, err)
 	defer testInfo.Cleanup(context.Background())
 

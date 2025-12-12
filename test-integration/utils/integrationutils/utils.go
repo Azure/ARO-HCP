@@ -12,12 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package simulate
+package integrationutils
 
 import (
 	"context"
 	"crypto/tls"
-	"embed"
 	"fmt"
 	"net"
 	"net/http"
@@ -36,7 +35,6 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
 	"github.com/Azure/ARO-HCP/frontend/cmd"
@@ -53,11 +51,6 @@ func SkipIfNotSimulationTesting(t *testing.T) {
 		t.Skip("Skipping test")
 	}
 }
-
-//go:embed artifacts/*
-var artifacts embed.FS
-
-var FastPollOptions = &runtime.PollUntilDoneOptions{Frequency: 5 * time.Millisecond}
 
 func NewFrontendFromTestingEnv(ctx context.Context, t *testing.T) (*frontend.Frontend, *SimulationTestInfo, error) {
 	arm.SetAzureLocation("globals-are-evil")
@@ -104,7 +97,7 @@ func NewFrontendFromTestingEnv(ctx context.Context, t *testing.T) (*frontend.Fro
 	cosmosDatabaseName := "frontend-simulation-testing-" + rand.String(5)
 	cosmosDatabaseClient, err := initializeCosmosDBForFrontend(ctx, cosmosClient, cosmosDatabaseName)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to initialize Cosmos DB: %w", err)
+		return nil, nil, fmt.Errorf("failed to Initialize Cosmos DB: %w", err)
 	}
 	dbClient, err := database.NewDBClient(ctx, cosmosDatabaseClient)
 	if err != nil {

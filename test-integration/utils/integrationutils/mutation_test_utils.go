@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package simulate
+package integrationutils
 
 import (
 	"bytes"
@@ -42,7 +42,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/ocm"
 )
 
-func trivialPassThroughClusterServiceMock(t *testing.T, testInfo *SimulationTestInfo, initialDataDir fs.FS) error {
+func TrivialPassThroughClusterServiceMock(t *testing.T, testInfo *SimulationTestInfo, initialDataDir fs.FS) error {
 	internalIDToCluster := map[string][]any{}
 	internalIDToAutoscaler := map[string][]any{}
 	internalIDToExternalAuth := map[string][]any{}
@@ -407,7 +407,7 @@ func marshalClusterServiceAny(clusterServiceData any) ([]byte, error) {
 	}
 }
 
-func readGenericMutationTest(testDir fs.FS) (*genericMutationTest, error) {
+func ReadGenericMutationTest(testDir fs.FS) (*GenericMutationTest, error) {
 	createJSON, err := fs.ReadFile(testDir, "create.json")
 	if err != nil {
 		return nil, fmt.Errorf("failed to read create.json: %w", err)
@@ -443,26 +443,26 @@ func readGenericMutationTest(testDir fs.FS) (*genericMutationTest, error) {
 		}
 	}
 
-	return &genericMutationTest{
+	return &GenericMutationTest{
 		initialCosmosState: initialCosmosState,
-		createJSON:         createJSON,
-		updateJSON:         updateJSON,
-		patchJSON:          patchJSON,
+		CreateJSON:         createJSON,
+		UpdateJSON:         updateJSON,
+		PatchJSON:          patchJSON,
 		expectedJSON:       expectedJSON,
 		expectedErrors:     expectedErrors,
 	}, nil
 }
 
-type genericMutationTest struct {
+type GenericMutationTest struct {
 	initialCosmosState fs.FS
-	createJSON         []byte
-	updateJSON         []byte
-	patchJSON          []byte
+	CreateJSON         []byte
+	UpdateJSON         []byte
+	PatchJSON          []byte
 	expectedJSON       []byte
 	expectedErrors     []expectedFieldError
 }
 
-func (h *genericMutationTest) initialize(ctx context.Context, testInfo *SimulationTestInfo) error {
+func (h *GenericMutationTest) Initialize(ctx context.Context, testInfo *SimulationTestInfo) error {
 	if h.initialCosmosState != nil {
 		err := testInfo.CreateInitialCosmosContent(ctx, h.initialCosmosState)
 		if err != nil {
@@ -472,19 +472,19 @@ func (h *genericMutationTest) initialize(ctx context.Context, testInfo *Simulati
 	return nil
 }
 
-func (h *genericMutationTest) isUpdateTest() bool {
-	return len(h.updateJSON) > 0
+func (h *GenericMutationTest) IsUpdateTest() bool {
+	return len(h.UpdateJSON) > 0
 }
 
-func (h *genericMutationTest) isPatchTest() bool {
-	return len(h.patchJSON) > 0
+func (h *GenericMutationTest) IsPatchTest() bool {
+	return len(h.PatchJSON) > 0
 }
 
-func (h *genericMutationTest) expectsResult() bool {
+func (h *GenericMutationTest) ExpectsResult() bool {
 	return len(h.expectedJSON) > 0
 }
 
-func (h *genericMutationTest) verifyActualError(t *testing.T, actualErr error) {
+func (h *GenericMutationTest) VerifyActualError(t *testing.T, actualErr error) {
 	if len(h.expectedErrors) == 0 {
 		require.NoError(t, actualErr)
 
@@ -543,7 +543,7 @@ func (h *genericMutationTest) verifyActualError(t *testing.T, actualErr error) {
 	}
 }
 
-func (h *genericMutationTest) verifyActualResult(t *testing.T, actualCreated any) {
+func (h *GenericMutationTest) VerifyActualResult(t *testing.T, actualCreated any) {
 	actualJSON, err := json.MarshalIndent(actualCreated, "", "    ")
 	require.NoError(t, err)
 	actualMap := map[string]any{}

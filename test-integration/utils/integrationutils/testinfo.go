@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package simulate
+package integrationutils
 
 import (
 	"context"
@@ -34,7 +34,6 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
-	"github.com/Azure/ARO-HCP/frontend/test/simulate/integrationutils"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
@@ -344,7 +343,7 @@ func (s *SimulationTestInfo) CreateInitialCosmosContent(ctx context.Context, cre
 }
 
 func (s *SimulationTestInfo) createInitialCosmosContent(ctx context.Context, content []byte) error {
-	return integrationutils.CreateInitialCosmosContent(ctx, s.CosmosResourcesContainer(), content)
+	return CreateInitialCosmosContent(ctx, s.CosmosResourcesContainer(), content)
 }
 
 func (s *SimulationTestInfo) saveClusterServiceMockData(ctx context.Context) error {
