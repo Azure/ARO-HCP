@@ -20,16 +20,18 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/Azure/ARO-HCP/test-integration/utils/integrationutils"
 )
 
 func TestLaunch(t *testing.T) {
-	SkipIfNotSimulationTesting(t)
+	integrationutils.SkipIfNotSimulationTesting(t)
 
 	ctx := context.Background()
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	frontend, testInfo, err := NewFrontendFromTestingEnv(ctx, t)
+	frontend, testInfo, err := integrationutils.NewFrontendFromTestingEnv(ctx, t)
 	require.NoError(t, err)
 	defer testInfo.Cleanup(context.Background())
 
