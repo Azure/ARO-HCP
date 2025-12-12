@@ -15,29 +15,42 @@
 package database
 
 import (
+	"fmt"
+	"path"
 	"strings"
 
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+
 	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
+
+const operationTimeToLive = 604800 // 7 days
 
 func InternalToCosmosOperation(internalObj *api.Operation) (*Operation, error) {
 	if internalObj == nil {
 		return nil, nil
 	}
+	if internalObj.OperationID == nil {
+		return nil, fmt.Errorf("operation id cannot be nil")
+	}
+	if len(internalObj.OperationID.Name) == 0 {
+		return nil, fmt.Errorf("operation id name cannot be empty")
+	}
 
 	cosmosObj := &Operation{
 		TypedDocument: TypedDocument{
 			BaseDocument: BaseDocument{
-				ID: internalObj.CosmosUID,
+				ID:         internalObj.OperationID.Name,
+				TimeToLive: operationTimeToLive,
 			},
 			PartitionKey: strings.ToLower(internalObj.ExternalID.SubscriptionID),
-			ResourceType: internalObj.ComputeLogicalResourceID().ResourceType.String(),
+			ResourceType: api.OperationStatusResourceType.String(),
 		},
 		OperationProperties: *internalObj,
 	}
 
 	// some pieces of data conflict with standard fields.  We may evolve over time, but for now avoid persisting those.
-	cosmosObj.OperationProperties.CosmosUID = ""
 
 	return cosmosObj, nil
 }
@@ -51,7 +64,20 @@ func CosmosToInternalOperation(cosmosObj *Operation) (*api.Operation, error) {
 	internalObj := &tempInternalAPI
 
 	// some pieces of data are stored on the BaseDocument, so we need to restore that data
-	internalObj.CosmosUID = cosmosObj.ID
+	if internalObj.OperationID == nil {
+		var err error
+		internalObj.OperationID, err = azcorearm.ParseResourceID(
+			strings.ToLower(
+				path.Join("/",
+					"subscriptions", cosmosObj.PartitionKey,
+					"providers", api.ProviderNamespace,
+					"locations", arm.GetAzureLocation(),
+					api.OperationStatusResourceTypeName,
+					cosmosObj.ID)))
+		if err != nil {
+			return nil, fmt.Errorf("unable to create operationID for %q in %q: %w", cosmosObj.ID, cosmosObj.PartitionKey, err)
+		}
+	}
 
 	return internalObj, nil
 }

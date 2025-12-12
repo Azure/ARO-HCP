@@ -1,0 +1,31 @@
+{
+	"name": "nil-tags-np",
+	"properties": {
+		"autoRepair": true,
+		"autoScaling": {
+			"min": 1,
+			"max": 5
+		},
+		"labels": [
+			{
+				"key": "label-ky",
+				"value": "label-value"
+			}
+		],
+		"nodeDrainTimeoutMinutes": 2,
+		"platform": {
+			"vmSize": "large"
+		},
+		"taints": [
+			{
+				"effect": "NoExecute",
+				"key": "foo.com/key",
+				"value": "valid"
+			}
+		]
+	},
+	"tags": {
+		"foo": "bar"
+	},
+	"type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/nodePools"
+}

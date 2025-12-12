@@ -25,28 +25,31 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
-
-	"github.com/Azure/ARO-HCP/internal/database"
 )
 
-type untypedGetStep struct {
+type GetByIDCRUDKey struct {
+	CosmosCRUDKey `json:",inline"`
+
+	CosmosID string `json:"cosmosID"`
+}
+
+type getByIDStep[InternalAPIType any] struct {
 	stepID      stepID
-	key         UntypedCRUDKey
-	specializer ResourceCRUDTestSpecializer[database.TypedDocument]
+	key         GetByIDCRUDKey
+	specializer ResourceCRUDTestSpecializer[InternalAPIType]
 
 	cosmosContainer  *azcosmos.ContainerClient
-	expectedResource *database.TypedDocument
+	expectedResource *InternalAPIType
 	expectedError    string
 }
 
-func newUntypedGetStep(stepID stepID, cosmosContainer *azcosmos.ContainerClient, stepDir fs.FS) (*untypedGetStep, error) {
+func newGetByIDStep[InternalAPIType any](stepID stepID, specializer ResourceCRUDTestSpecializer[InternalAPIType], cosmosContainer *azcosmos.ContainerClient, stepDir fs.FS) (*getByIDStep[InternalAPIType], error) {
 	keyBytes, err := fs.ReadFile(stepDir, "00-key.json")
 	if err != nil {
 		return nil, fmt.Errorf("failed to read key.json: %w", err)
 	}
-	var key UntypedCRUDKey
+	var key GetByIDCRUDKey
 	if err := json.Unmarshal(keyBytes, &key); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal key.json: %w", err)
 	}
@@ -57,8 +60,8 @@ func newUntypedGetStep(stepID stepID, cosmosContainer *azcosmos.ContainerClient,
 	}
 	expectedError := strings.TrimSpace(string(expectedErrorBytes))
 
-	var expectedResource *database.TypedDocument
-	expectedResources, err := readResourcesInDir[database.TypedDocument](stepDir)
+	var expectedResource *InternalAPIType
+	expectedResources, err := readResourcesInDir[InternalAPIType](stepDir)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read resource in dir: %w", err)
 	}
@@ -74,34 +77,25 @@ func newUntypedGetStep(stepID stepID, cosmosContainer *azcosmos.ContainerClient,
 		return nil, fmt.Errorf("must expect either error and value")
 	}
 
-	return &untypedGetStep{
+	return &getByIDStep[InternalAPIType]{
 		stepID:           stepID,
 		key:              key,
-		specializer:      UntypedCRUDSpecializer{},
+		specializer:      specializer,
 		cosmosContainer:  cosmosContainer,
 		expectedResource: expectedResource,
 		expectedError:    expectedError,
 	}, nil
 }
 
-var _ resourceMutationStep = &untypedGetStep{}
+var _ resourceMutationStep = &getByIDStep[any]{}
 
-func (l *untypedGetStep) StepID() stepID {
+func (l *getByIDStep[InternalAPIType]) StepID() stepID {
 	return l.stepID
 }
 
-func (l *untypedGetStep) RunTest(ctx context.Context, t *testing.T) {
-	parentResourceID, err := azcorearm.ParseResourceID(l.key.ParentResourceID)
-	require.NoError(t, err)
-
-	untypedCRUD := database.NewUntypedCRUD(l.cosmosContainer, *parentResourceID)
-	for _, childKey := range l.key.Descendents {
-		childResourceType, err := azcorearm.ParseResourceType(childKey.ResourceType)
-		require.NoError(t, err)
-		untypedCRUD, err = untypedCRUD.Child(childResourceType, childKey.ResourceName)
-		require.NoError(t, err)
-	}
-	actualResource, err := untypedCRUD.Get(ctx, parentResourceID)
+func (l *getByIDStep[InternalAPIType]) RunTest(ctx context.Context, t *testing.T) {
+	controllerCRUDClient := l.specializer.ResourceCRUDFromKey(t, l.cosmosContainer, l.key.CosmosCRUDKey)
+	actualController, err := controllerCRUDClient.GetByID(ctx, l.key.CosmosID)
 	switch {
 	case len(l.expectedError) > 0:
 		require.ErrorContains(t, err, l.expectedError)
@@ -110,10 +104,10 @@ func (l *untypedGetStep) RunTest(ctx context.Context, t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	if !l.specializer.InstanceEquals(l.expectedResource, actualResource) {
-		t.Logf("actual:\n%v", stringifyResource(actualResource))
+	if !l.specializer.InstanceEquals(l.expectedResource, actualController) {
+		t.Logf("actual:\n%v", stringifyResource(actualController))
 		// cmpdiff doesn't handle private fields gracefully
-		require.Equal(t, l.expectedResource, actualResource)
+		require.Equal(t, l.expectedResource, actualController)
 		t.Fatal("unexpected")
 	}
 }

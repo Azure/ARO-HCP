@@ -79,44 +79,6 @@ func (c *MockDBTransactionAddStepCall) DoAndReturn(f func(database.CosmosDBTrans
 	return c
 }
 
-// CreateOperationDoc mocks base method.
-func (m *MockDBTransaction) CreateOperationDoc(doc *database.OperationDocument, o *azcosmos.TransactionalBatchItemOptions) string {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CreateOperationDoc", doc, o)
-	ret0, _ := ret[0].(string)
-	return ret0
-}
-
-// CreateOperationDoc indicates an expected call of CreateOperationDoc.
-func (mr *MockDBTransactionMockRecorder) CreateOperationDoc(doc, o any) *MockDBTransactionCreateOperationDocCall {
-	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateOperationDoc", reflect.TypeOf((*MockDBTransaction)(nil).CreateOperationDoc), doc, o)
-	return &MockDBTransactionCreateOperationDocCall{Call: call}
-}
-
-// MockDBTransactionCreateOperationDocCall wrap *gomock.Call
-type MockDBTransactionCreateOperationDocCall struct {
-	*gomock.Call
-}
-
-// Return rewrite *gomock.Call.Return
-func (c *MockDBTransactionCreateOperationDocCall) Return(arg0 string) *MockDBTransactionCreateOperationDocCall {
-	c.Call = c.Call.Return(arg0)
-	return c
-}
-
-// Do rewrite *gomock.Call.Do
-func (c *MockDBTransactionCreateOperationDocCall) Do(f func(*database.OperationDocument, *azcosmos.TransactionalBatchItemOptions) string) *MockDBTransactionCreateOperationDocCall {
-	c.Call = c.Call.Do(f)
-	return c
-}
-
-// DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockDBTransactionCreateOperationDocCall) DoAndReturn(f func(*database.OperationDocument, *azcosmos.TransactionalBatchItemOptions) string) *MockDBTransactionCreateOperationDocCall {
-	c.Call = c.Call.DoAndReturn(f)
-	return c
-}
-
 // DeleteDoc mocks base method.
 func (m *MockDBTransaction) DeleteDoc(itemID string, o *azcosmos.TransactionalBatchItemOptions) {
 	m.ctrl.T.Helper()
@@ -193,10 +155,10 @@ func (c *MockDBTransactionExecuteCall) DoAndReturn(f func(context.Context, *azco
 }
 
 // GetPartitionKey mocks base method.
-func (m *MockDBTransaction) GetPartitionKey() azcosmos.PartitionKey {
+func (m *MockDBTransaction) GetPartitionKey() string {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetPartitionKey")
-	ret0, _ := ret[0].(azcosmos.PartitionKey)
+	ret0, _ := ret[0].(string)
 	return ret0
 }
 
@@ -213,19 +175,19 @@ type MockDBTransactionGetPartitionKeyCall struct {
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *MockDBTransactionGetPartitionKeyCall) Return(arg0 azcosmos.PartitionKey) *MockDBTransactionGetPartitionKeyCall {
+func (c *MockDBTransactionGetPartitionKeyCall) Return(arg0 string) *MockDBTransactionGetPartitionKeyCall {
 	c.Call = c.Call.Return(arg0)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockDBTransactionGetPartitionKeyCall) Do(f func() azcosmos.PartitionKey) *MockDBTransactionGetPartitionKeyCall {
+func (c *MockDBTransactionGetPartitionKeyCall) Do(f func() string) *MockDBTransactionGetPartitionKeyCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockDBTransactionGetPartitionKeyCall) DoAndReturn(f func() azcosmos.PartitionKey) *MockDBTransactionGetPartitionKeyCall {
+func (c *MockDBTransactionGetPartitionKeyCall) DoAndReturn(f func() string) *MockDBTransactionGetPartitionKeyCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -262,42 +224,6 @@ func (c *MockDBTransactionOnSuccessCall) Do(f func(database.DBTransactionCallbac
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
 func (c *MockDBTransactionOnSuccessCall) DoAndReturn(f func(database.DBTransactionCallback)) *MockDBTransactionOnSuccessCall {
-	c.Call = c.Call.DoAndReturn(f)
-	return c
-}
-
-// PatchOperationDoc mocks base method.
-func (m *MockDBTransaction) PatchOperationDoc(itemID string, ops database.OperationDocumentPatchOperations, o *azcosmos.TransactionalBatchItemOptions) {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "PatchOperationDoc", itemID, ops, o)
-}
-
-// PatchOperationDoc indicates an expected call of PatchOperationDoc.
-func (mr *MockDBTransactionMockRecorder) PatchOperationDoc(itemID, ops, o any) *MockDBTransactionPatchOperationDocCall {
-	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PatchOperationDoc", reflect.TypeOf((*MockDBTransaction)(nil).PatchOperationDoc), itemID, ops, o)
-	return &MockDBTransactionPatchOperationDocCall{Call: call}
-}
-
-// MockDBTransactionPatchOperationDocCall wrap *gomock.Call
-type MockDBTransactionPatchOperationDocCall struct {
-	*gomock.Call
-}
-
-// Return rewrite *gomock.Call.Return
-func (c *MockDBTransactionPatchOperationDocCall) Return() *MockDBTransactionPatchOperationDocCall {
-	c.Call = c.Call.Return()
-	return c
-}
-
-// Do rewrite *gomock.Call.Do
-func (c *MockDBTransactionPatchOperationDocCall) Do(f func(string, database.OperationDocumentPatchOperations, *azcosmos.TransactionalBatchItemOptions)) *MockDBTransactionPatchOperationDocCall {
-	c.Call = c.Call.Do(f)
-	return c
-}
-
-// DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockDBTransactionPatchOperationDocCall) DoAndReturn(f func(string, database.OperationDocumentPatchOperations, *azcosmos.TransactionalBatchItemOptions)) *MockDBTransactionPatchOperationDocCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -433,84 +359,6 @@ func (c *MockDBTransactionResultGetItemCall) Do(f func(string) (any, error)) *Mo
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
 func (c *MockDBTransactionResultGetItemCall) DoAndReturn(f func(string) (any, error)) *MockDBTransactionResultGetItemCall {
-	c.Call = c.Call.DoAndReturn(f)
-	return c
-}
-
-// GetOperationDoc mocks base method.
-func (m *MockDBTransactionResult) GetOperationDoc(itemID string) (*database.OperationDocument, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetOperationDoc", itemID)
-	ret0, _ := ret[0].(*database.OperationDocument)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetOperationDoc indicates an expected call of GetOperationDoc.
-func (mr *MockDBTransactionResultMockRecorder) GetOperationDoc(itemID any) *MockDBTransactionResultGetOperationDocCall {
-	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOperationDoc", reflect.TypeOf((*MockDBTransactionResult)(nil).GetOperationDoc), itemID)
-	return &MockDBTransactionResultGetOperationDocCall{Call: call}
-}
-
-// MockDBTransactionResultGetOperationDocCall wrap *gomock.Call
-type MockDBTransactionResultGetOperationDocCall struct {
-	*gomock.Call
-}
-
-// Return rewrite *gomock.Call.Return
-func (c *MockDBTransactionResultGetOperationDocCall) Return(arg0 *database.OperationDocument, arg1 error) *MockDBTransactionResultGetOperationDocCall {
-	c.Call = c.Call.Return(arg0, arg1)
-	return c
-}
-
-// Do rewrite *gomock.Call.Do
-func (c *MockDBTransactionResultGetOperationDocCall) Do(f func(string) (*database.OperationDocument, error)) *MockDBTransactionResultGetOperationDocCall {
-	c.Call = c.Call.Do(f)
-	return c
-}
-
-// DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockDBTransactionResultGetOperationDocCall) DoAndReturn(f func(string) (*database.OperationDocument, error)) *MockDBTransactionResultGetOperationDocCall {
-	c.Call = c.Call.DoAndReturn(f)
-	return c
-}
-
-// GetResourceDoc mocks base method.
-func (m *MockDBTransactionResult) GetResourceDoc(itemID string) (*database.ResourceDocument, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetResourceDoc", itemID)
-	ret0, _ := ret[0].(*database.ResourceDocument)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetResourceDoc indicates an expected call of GetResourceDoc.
-func (mr *MockDBTransactionResultMockRecorder) GetResourceDoc(itemID any) *MockDBTransactionResultGetResourceDocCall {
-	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetResourceDoc", reflect.TypeOf((*MockDBTransactionResult)(nil).GetResourceDoc), itemID)
-	return &MockDBTransactionResultGetResourceDocCall{Call: call}
-}
-
-// MockDBTransactionResultGetResourceDocCall wrap *gomock.Call
-type MockDBTransactionResultGetResourceDocCall struct {
-	*gomock.Call
-}
-
-// Return rewrite *gomock.Call.Return
-func (c *MockDBTransactionResultGetResourceDocCall) Return(arg0 *database.ResourceDocument, arg1 error) *MockDBTransactionResultGetResourceDocCall {
-	c.Call = c.Call.Return(arg0, arg1)
-	return c
-}
-
-// Do rewrite *gomock.Call.Do
-func (c *MockDBTransactionResultGetResourceDocCall) Do(f func(string) (*database.ResourceDocument, error)) *MockDBTransactionResultGetResourceDocCall {
-	c.Call = c.Call.Do(f)
-	return c
-}
-
-// DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockDBTransactionResultGetResourceDocCall) DoAndReturn(f func(string) (*database.ResourceDocument, error)) *MockDBTransactionResultGetResourceDocCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
