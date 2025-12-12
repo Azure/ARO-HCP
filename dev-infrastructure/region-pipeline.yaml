@@ -66,6 +66,7 @@ resourceGroups:
     automatedRetry:
       errorContainsAny:
       - "is invalid as it is being provisioned with state"
+      - "503 Server Error: Service Unavailable for url"
       maximumRetryCount: 5
       durationBetweenRetries: 2m
     variables:
