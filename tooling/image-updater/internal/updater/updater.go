@@ -151,9 +151,10 @@ func (u *Updater) promoteImages(ctx context.Context) error {
 		var sourceTarget, destTarget *config.Target
 		for i := range imageConfig.Targets {
 			target := &imageConfig.Targets[i]
-			if target.Env == sourceEnv {
+			switch target.Env {
+			case sourceEnv:
 				sourceTarget = target
-			} else if target.Env == targetEnv {
+			case targetEnv:
 				destTarget = target
 			}
 		}
