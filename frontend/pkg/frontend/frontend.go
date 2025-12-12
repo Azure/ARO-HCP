@@ -307,7 +307,7 @@ func (f *Frontend) ArmResourceDelete(writer http.ResponseWriter, request *http.R
 
 	transaction := f.dbClient.NewTransaction(resourceID.SubscriptionID)
 
-	operation, err := f.DeleteResource(ctx, transaction, resourceItemID, resourceDoc)
+	operation, err := f.DeleteResource(ctx, transaction, resourceItemID, resourceDoc, request)
 	if err != nil {
 		// notice we never return this and if we aren't a not found, we return the original error back.
 		cloudErr := ocm.CSErrorToCloudError(err, resourceDoc.ResourceID)

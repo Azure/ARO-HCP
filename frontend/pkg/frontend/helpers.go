@@ -237,7 +237,7 @@ func (f *Frontend) DeleteAllResources(ctx context.Context, subscriptionID string
 
 		// Allow this method to be idempotent.
 		if resourceDoc.ProvisioningState != arm.ProvisioningStateDeleting {
-			if _, err := f.DeleteResource(ctx, transaction, resourceItemID, resourceDoc); err != nil {
+			if _, err := f.DeleteResource(ctx, transaction, resourceItemID, resourceDoc, nil); err != nil {
 				return utils.TrackError(err)
 			}
 		}
@@ -256,7 +256,7 @@ func (f *Frontend) DeleteAllResources(ctx context.Context, subscriptionID string
 	return nil
 }
 
-func (f *Frontend) DeleteResource(ctx context.Context, transaction database.DBTransaction, resourceItemID string, resourceDoc *database.ResourceDocument) (*api.Operation, error) {
+func (f *Frontend) DeleteResource(ctx context.Context, transaction database.DBTransaction, resourceItemID string, resourceDoc *database.ResourceDocument, request *http.Request) (*api.Operation, error) {
 	const operationRequest = database.OperationRequestDelete
 	var err error
 
@@ -313,13 +313,23 @@ func (f *Frontend) DeleteResource(ctx context.Context, transaction database.DBTr
 		return nil, utils.TrackError(err)
 	}
 
+	// these are optional because when this is triggered via the subscription deletion flow, there is no notification URI
+	// so these operations cannot be directly tracked.
+	tenantID := ""
+	clientID := ""
+	notificationURI := ""
+	if request != nil {
+		tenantID = request.Header.Get(arm.HeaderNameHomeTenantID)
+		clientID = request.Header.Get(arm.HeaderNameClientObjectID)
+		notificationURI = request.Header.Get(arm.HeaderNameAsyncNotificationURI)
+	}
 	operationDoc := database.NewOperationDocument(
 		operationRequest,
 		resourceDoc.ResourceID,
 		resourceDoc.InternalID,
-		"",
-		"",
-		"",
+		tenantID,
+		clientID,
+		notificationURI,
 		correlationData)
 	_, err = f.dbClient.Operations(operationDoc.OperationID.SubscriptionID).AddCreateToTransaction(ctx, transaction, operationDoc, nil)
 	if err != nil {
