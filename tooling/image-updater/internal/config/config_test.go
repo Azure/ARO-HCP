@@ -857,7 +857,7 @@ func TestFilterByEnvironments(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := cfg.FilterByEnvironments(tt.environments)
-			
+
 			// Handle error cases
 			if tt.wantTargets == nil {
 				if err == nil {
@@ -865,7 +865,7 @@ func TestFilterByEnvironments(t *testing.T) {
 				}
 				return
 			}
-			
+
 			if err != nil {
 				t.Fatalf("FilterByEnvironments() unexpected error: %v", err)
 			}
