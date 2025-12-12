@@ -33,7 +33,7 @@ import (
 
 type untypedGetStep struct {
 	stepID      stepID
-	key         UntypedCRUDKey
+	key         CosmosCRUDKey
 	specializer ResourceCRUDTestSpecializer[database.TypedDocument]
 
 	cosmosContainer  *azcosmos.ContainerClient
@@ -46,7 +46,7 @@ func newUntypedGetStep(stepID stepID, cosmosContainer *azcosmos.ContainerClient,
 	if err != nil {
 		return nil, fmt.Errorf("failed to read key.json: %w", err)
 	}
-	var key UntypedCRUDKey
+	var key CosmosCRUDKey
 	if err := json.Unmarshal(keyBytes, &key); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal key.json: %w", err)
 	}
@@ -95,12 +95,6 @@ func (l *untypedGetStep) RunTest(ctx context.Context, t *testing.T) {
 	require.NoError(t, err)
 
 	untypedCRUD := database.NewUntypedCRUD(l.cosmosContainer, *parentResourceID)
-	for _, childKey := range l.key.Descendents {
-		childResourceType, err := azcorearm.ParseResourceType(childKey.ResourceType)
-		require.NoError(t, err)
-		untypedCRUD, err = untypedCRUD.Child(childResourceType, childKey.ResourceName)
-		require.NoError(t, err)
-	}
 	actualResource, err := untypedCRUD.Get(ctx, parentResourceID)
 	switch {
 	case len(l.expectedError) > 0:

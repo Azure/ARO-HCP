@@ -16,10 +16,7 @@ package database
 
 import (
 	"fmt"
-	"path"
 	"time"
-
-	"github.com/google/uuid"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
@@ -69,33 +66,17 @@ func (o *Operation) SetResourceID(_ *azcorearm.ResourceID) {
 
 type OperationDocument = api.Operation
 
-func NewOperationDocument(
-	request OperationRequest,
-	externalID *azcorearm.ResourceID,
-	internalID ocm.InternalID,
-	tenantID, clientID, notificationURI string,
-	correlationData *arm.CorrelationData,
-) *OperationDocument {
-
+func NewOperationDocument(request OperationRequest, externalID *azcorearm.ResourceID, internalID ocm.InternalID, correlationData *arm.CorrelationData) *OperationDocument {
 	now := time.Now().UTC()
 
 	doc := &OperationDocument{
 		Request:            request,
 		ExternalID:         externalID,
 		InternalID:         internalID,
-		TenantID:           tenantID,
-		ClientID:           clientID,
-		NotificationURI:    notificationURI,
 		StartTime:          now,
 		LastTransitionTime: now,
 		Status:             arm.ProvisioningStateAccepted,
 	}
-	doc.OperationID = api.Must(azcorearm.ParseResourceID(path.Join("/",
-		"subscriptions", doc.ExternalID.SubscriptionID,
-		"providers", api.ProviderNamespace,
-		"locations", arm.GetAzureLocation(),
-		api.OperationStatusResourceTypeName,
-		uuid.New().String())))
 
 	if correlationData != nil {
 		doc.ClientRequestID = correlationData.ClientRequestID

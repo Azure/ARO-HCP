@@ -37,13 +37,13 @@ import (
 	"k8s.io/utils/lru"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
 	ocmsdk "github.com/openshift-online/ocm-sdk-go"
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
 	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
 
-	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -93,7 +93,8 @@ const (
 
 type operation struct {
 	id     string
-	doc    *api.Operation
+	pk     azcosmos.PartitionKey
+	doc    *database.OperationDocument
 	logger *slog.Logger
 }
 
@@ -435,7 +436,9 @@ func (s *OperationsScanner) processSubscriptions(ctx context.Context, logger *sl
 func (s *OperationsScanner) processOperations(ctx context.Context, subscriptionID string, logger *slog.Logger) {
 	defer s.updateOperationMetrics(processOperationsLabel)()
 
-	iterator := s.dbClient.Operations(subscriptionID).ListActiveOperations(nil)
+	pk := database.NewPartitionKey(subscriptionID)
+
+	iterator := s.dbClient.ListActiveOperationDocs(pk, nil)
 
 	var n int
 	for operationID, operationDoc := range iterator.Items(ctx) {
@@ -444,6 +447,7 @@ func (s *OperationsScanner) processOperations(ctx context.Context, subscriptionI
 			ctx,
 			operation{
 				id:  operationID,
+				pk:  pk,
 				doc: operationDoc,
 				logger: logger.With(
 					"operation", operationDoc.Request,
@@ -840,61 +844,58 @@ func (s *OperationsScanner) updateOperationStatus(ctx context.Context, op operat
 
 // patchOperationDocument patches the status and error fields of an OperationDocument.
 func (s *OperationsScanner) patchOperationDocument(ctx context.Context, op operation, opStatus arm.ProvisioningState, opError *arm.CloudErrorBody) error {
-	if len(op.doc.NotificationURI) == 0 && op.doc.Status == opStatus {
-		// we rewrite the status when we missed a notification
-		return fmt.Errorf("status must be different in order to write new status")
-	}
+	var patchOperations database.OperationDocumentPatchOperations
 
-	// shallow copy works since all the fields we're touching are shallow
-	operationToWrite := *op.doc
-	operationToWrite.LastTransitionTime = s.newTimestamp()
-	operationToWrite.Status = opStatus
+	scalar := strings.ReplaceAll(database.OperationDocumentJSONPathStatus, "/", ".")
+	condition := fmt.Sprintf("FROM doc WHERE doc%s != '%s'", scalar, opStatus)
+
+	patchOperations.SetCondition(condition)
+	patchOperations.SetLastTransitionTime(s.newTimestamp())
+	patchOperations.SetStatus(opStatus)
 	if opError != nil {
-		operationToWrite.Error = opError
+		patchOperations.SetError(opError)
 	}
 
-	// TODO see if we want to plumb etags through to prevent stomping.  Right now this will stomp a concurrent write.
-	// we don't expect concurrent writes and the last one winning is ok.
-	latestOperation, err := s.dbClient.Operations(operationToWrite.OperationID.SubscriptionID).Replace(ctx, &operationToWrite, nil)
-	if err != nil {
-		return utils.TrackError(err)
-	}
-
-	op.doc = latestOperation
-	message := fmt.Sprintf("Updated status to '%s'", opStatus)
-	switch opStatus {
-	case arm.ProvisioningStateSucceeded:
-		switch op.doc.Request {
-		case database.OperationRequestCreate:
-			message = "Resource creation succeeded"
-		case database.OperationRequestUpdate:
-			message = "Resource update succeeded"
-		case database.OperationRequestDelete:
-			message = "Resource deletion succeeded"
-		case database.OperationRequestRequestCredential:
-			message = "Credential request succeeded"
-		case database.OperationRequestRevokeCredentials:
-			message = "Credential revocation succeeded"
+	updatedDoc, err := s.dbClient.PatchOperationDoc(ctx, op.pk, op.id, patchOperations)
+	if err == nil {
+		op.doc = updatedDoc
+		message := fmt.Sprintf("Updated status to '%s'", opStatus)
+		switch opStatus {
+		case arm.ProvisioningStateSucceeded:
+			switch op.doc.Request {
+			case database.OperationRequestCreate:
+				message = "Resource creation succeeded"
+			case database.OperationRequestUpdate:
+				message = "Resource update succeeded"
+			case database.OperationRequestDelete:
+				message = "Resource deletion succeeded"
+			case database.OperationRequestRequestCredential:
+				message = "Credential request succeeded"
+			case database.OperationRequestRevokeCredentials:
+				message = "Credential revocation succeeded"
+			}
+		case arm.ProvisioningStateFailed:
+			switch op.doc.Request {
+			case database.OperationRequestCreate:
+				message = "Resource creation failed"
+			case database.OperationRequestUpdate:
+				message = "Resource update failed"
+			case database.OperationRequestDelete:
+				message = "Resource deletion failed"
+			case database.OperationRequestRequestCredential:
+				message = "Credential request failed"
+			case database.OperationRequestRevokeCredentials:
+				message = "Credential revocation failed"
+			}
 		}
-	case arm.ProvisioningStateFailed:
-		switch op.doc.Request {
-		case database.OperationRequestCreate:
-			message = "Resource creation failed"
-		case database.OperationRequestUpdate:
-			message = "Resource update failed"
-		case database.OperationRequestDelete:
-			message = "Resource deletion failed"
-		case database.OperationRequestRequestCredential:
-			message = "Credential request failed"
-		case database.OperationRequestRevokeCredentials:
-			message = "Credential revocation failed"
-		}
-	}
 
-	if opError != nil {
-		op.logger.With("cloud_error_code", opError.Code, "cloud_error_message", opError.Message).Error(message)
-	} else {
-		op.logger.Info(message)
+		if opError != nil {
+			op.logger.With("cloud_error_code", opError.Code, "cloud_error_message", opError.Message).Error(message)
+		} else {
+			op.logger.Info(message)
+		}
+	} else if !database.IsResponseError(err, http.StatusPreconditionFailed) {
+		return err
 	}
 
 	if opStatus.IsTerminal() && len(op.doc.NotificationURI) > 0 {
@@ -904,11 +905,11 @@ func (s *OperationsScanner) patchOperationDocument(ctx context.Context, op opera
 
 			// Remove the notification URI from the document
 			// so the ARM notification is only sent once.
-			operationWithoutNotificationURI := *latestOperation
-			operationWithoutNotificationURI.NotificationURI = ""
-			latestOperation, err = s.dbClient.Operations(operationToWrite.OperationID.SubscriptionID).Replace(ctx, &operationToWrite, nil)
+			var patchOperations database.OperationDocumentPatchOperations
+			patchOperations.SetNotificationURI(nil)
+			updatedDoc, err = s.dbClient.PatchOperationDoc(ctx, op.pk, op.id, patchOperations)
 			if err == nil {
-				op.doc = latestOperation
+				op.doc = updatedDoc
 			} else {
 				op.logger.Error(fmt.Sprintf("Failed to clear notification URI: %v", err))
 			}

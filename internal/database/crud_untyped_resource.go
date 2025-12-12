@@ -56,22 +56,16 @@ func NewUntypedCRUD(containerClient *azcosmos.ContainerClient, parentResourceID 
 	return ret
 }
 
-func (d *untypedCRUD) GetByID(ctx context.Context, cosmosID string) (*TypedDocument, error) {
-	panic("this function cannot work (yet) because we cannot guarantee that the item is under the parent")
-}
-
 func (d *untypedCRUD) Get(ctx context.Context, resourceID *azcorearm.ResourceID) (*TypedDocument, error) {
-	if !strings.HasPrefix(strings.ToLower(resourceID.String()), strings.ToLower(d.parentResourceID.String())) {
+	if !strings.HasPrefix(resourceID.String(), d.parentResourceID.String()) {
 		return nil, fmt.Errorf("resourceID %q must be a descendent of parentResourceID %q", resourceID.String(), d.parentResourceID.String())
 	}
-	partitionKey := strings.ToLower(d.parentResourceID.SubscriptionID)
 
-	return get[TypedDocument, TypedDocument](ctx, d.containerClient, partitionKey, resourceID)
+	return get[TypedDocument, TypedDocument](ctx, d.containerClient, resourceID)
 }
 
 func (d *untypedCRUD) ListRecursive(ctx context.Context, options *DBClientListResourceDocsOptions) (DBClientIterator[TypedDocument], error) {
-	partitionKey := strings.ToLower(d.parentResourceID.SubscriptionID)
-	return list[TypedDocument, TypedDocument](ctx, d.containerClient, partitionKey, nil, &d.parentResourceID, options)
+	return list[TypedDocument, TypedDocument](ctx, d.containerClient, nil, &d.parentResourceID, options)
 }
 
 func (d *untypedCRUD) Child(resourceType azcorearm.ResourceType, resourceName string) (UntypedResourceCRUD, error) {
