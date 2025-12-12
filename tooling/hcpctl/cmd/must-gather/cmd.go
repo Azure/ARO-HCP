@@ -15,8 +15,6 @@
 package mustgather
 
 import (
-	"time"
-
 	"github.com/spf13/cobra"
 )
 
@@ -62,13 +60,4 @@ and collecting diagnostic data for troubleshooting and analysis.`,
 	cmd.AddCommand(cleanCommand)
 
 	return cmd, nil
-}
-
-// NormalizedLogLine represents a as expected for output
-type NormalizedLogLine struct {
-	Log           []byte    `kusto:"log"`
-	Cluster       string    `kusto:"cluster"`
-	Namespace     string    `kusto:"namespace_name"`
-	ContainerName string    `kusto:"container_name"`
-	Timestamp     time.Time `kusto:"timestamp"`
 }

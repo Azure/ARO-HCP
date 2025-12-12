@@ -31,8 +31,6 @@ const (
 var servicesDatabase = "ServiceLogs"
 var hostedControlPlaneLogsDatabase = "HostedControlPlaneLogs"
 
-var servicesDatabaseLegacy = "HCPServiceLogs"
-
 var servicesTables = []string{
 	"containerLogs",
 	"frontendLogs",
@@ -105,34 +103,4 @@ func getTimeMinMax(timestampMin, timestampMax time.Time) (time.Time, time.Time) 
 		timestampMax = time.Now()
 	}
 	return timestampMin, timestampMax
-}
-
-// --------------------------------------------------------------------------------------------------
-// Legacy single table queries
-
-// Row represents a row in the query result
-type KubesystemLogsRow struct {
-	Log           string `kusto:"log"`
-	Cluster       string `kusto:"Role"`
-	Namespace     string `kusto:"namespace_name"`
-	ContainerName string `kusto:"container_name"`
-	Timestamp     string `kusto:"timestamp"`
-	Kubernetes    string `kusto:"kubernetes"`
-}
-
-func GetKubeSystemClusterIdQuery(subscriptionId, resourceGroupName string) *kusto.ConfigurableQuery {
-	return kusto.NewClusterIdQuery(servicesDatabaseLegacy, "kubesystem", subscriptionId, resourceGroupName)
-}
-
-func GetKubeSystemQuery(subscriptionId, resourceGroupName string, clusterIds []string) *kusto.ConfigurableQuery {
-	return kusto.NewKubeSystemQuery(subscriptionId, resourceGroupName, clusterIds)
-}
-
-func GetKubeSystemHostedControlPlaneLogsQuery(opts QueryOptions) []*kusto.ConfigurableQuery {
-	queries := []*kusto.ConfigurableQuery{}
-	for _, clusterId := range opts.ClusterIds {
-		query := kusto.NewCustomerKubeSystemQuery(clusterId, opts.Limit)
-		queries = append(queries, query)
-	}
-	return queries
 }

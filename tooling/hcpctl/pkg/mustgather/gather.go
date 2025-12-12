@@ -157,7 +157,7 @@ func (g *Gatherer) queryAndWriteToFile(ctx context.Context, queryType QueryType,
 
 	queryGroup := new(errgroup.Group)
 	queryGroup.Go(func() error {
-		return g.QueryClient.concurrentQueries(ctx, queries, queryOutputChannel)
+		return g.QueryClient.ConcurrentQueries(ctx, queries, queryOutputChannel)
 	})
 
 	consumerGroup := new(errgroup.Group)

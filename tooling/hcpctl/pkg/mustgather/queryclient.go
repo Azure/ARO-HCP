@@ -21,7 +21,7 @@ type QueryClient struct {
 	OutputPath   string
 }
 
-func (q *QueryClient) concurrentQueries(ctx context.Context, queries []*kusto.ConfigurableQuery, outputChannel chan *table.Row) error {
+func (q *QueryClient) ConcurrentQueries(ctx context.Context, queries []*kusto.ConfigurableQuery, outputChannel chan *table.Row) error {
 	logger := logr.FromContextOrDiscard(ctx)
 	wg := sync.WaitGroup{}
 	wg.Add(len(queries))
