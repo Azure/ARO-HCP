@@ -113,6 +113,9 @@ func newStep[InternalAPIType any](indexString, stepType, stepName string, testDi
 	case "get":
 		return newGetStep(stepID, specializer, cosmosContainer, stepDir)
 
+	case "getByID":
+		return newGetByIDStep(stepID, specializer, cosmosContainer, stepDir)
+
 	case "untypedGet":
 		return newUntypedGetStep(stepID, cosmosContainer, stepDir)
 
