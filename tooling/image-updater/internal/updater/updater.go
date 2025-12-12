@@ -17,6 +17,7 @@ package updater
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/go-logr/logr"
