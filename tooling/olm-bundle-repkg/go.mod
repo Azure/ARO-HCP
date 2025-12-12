@@ -12,7 +12,7 @@ require (
 	helm.sh/helm/v3 v3.18.5
 	k8s.io/api v0.34.1
 	k8s.io/apiextensions-apiserver v0.34.1
-	k8s.io/apimachinery v0.34.1
+	k8s.io/apimachinery v0.34.3
 	pkg.package-operator.run/cardboard/kubeutils v0.0.3
 	sigs.k8s.io/controller-runtime v0.22.3
 	sigs.k8s.io/yaml v1.6.0

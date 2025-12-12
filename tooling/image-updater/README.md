@@ -33,23 +33,6 @@ The image-updater supports multiple container registry types with optimized clie
 - **Timestamp Enrichment**: Automatic tag timestamp retrieval and sorting for both Quay API and Registry V2 API
 - **Descriptor Caching**: Eliminates duplicate API calls by caching image descriptors during tag processing (~50% reduction in API calls)
 
-## Managed Images
-
-| Image Name | Image Reference | Registry Type |
-|------------|-----------------|---------------|
-| maestro | quay.io/redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro | Quay.io |
-| hypershift | quay.io/acm-d/rhtap-hypershift-operator | Quay.io |
-| pko-package | quay.io/package-operator/package-operator-package | Quay.io |
-| pko-manager | quay.io/package-operator/package-operator-manager | Quay.io |
-| pko-remote-phase-manager | quay.io/package-operator/remote-phase-manager | Quay.io |
-| arohcpfrontend | arohcpsvcdev.azurecr.io/arohcpfrontend | ACR (Private) |
-| arohcpbackend | arohcpsvcdev.azurecr.io/arohcpbackend | ACR (Private) |
-| admin-api | arohcpsvcdev.azurecr.io/arohcpadminapi | ACR (Private) |
-| clusters-service | quay.io/app-sre/aro-hcp-clusters-service | Quay.io (Private) |
-| kubeEvents | kubernetesshared.azurecr.io/shared/kube-events | ACR (Public) |
-| acrPull | mcr.microsoft.com/aks/msi-acrpull | MCR |
-| secretSyncController | registry.k8s.io/secrets-store-sync/controller | Generic |
-
 ## Usage
 
 ```bash
@@ -68,30 +51,9 @@ make update
 # Update all components except specific ones
 ./image-updater update --config config.yaml --exclude arohcpfrontend,arohcpbackend
 
-# Enable verbose logging for debugging (shows retry attempts, detailed operations)
-./image-updater update --config config.yaml -v=1
-
-# Maximum verbosity (shows all debug details including HTTP requests)
+# Enable verbose logging for debugging (shows all details including retry attempts, API calls)
 ./image-updater update --config config.yaml -v=2
 ```
-
-## Output Format
-
-When the tool updates image digests in YAML files, it automatically adds inline comments with version tag and timestamp information:
-
-```yaml
-defaults:
-  pko:
-    imagePackage:
-      digest: sha256:abc123... # v1.18.4 (2025-11-24 14:30)
-```
-
-This helps track:
-
-- **Tag name**: The version or tag name (e.g., `v1.18.4`)
-- **Timestamp**: When the image was created/published (format: `YYYY-MM-DD HH:MM`)
-
-The comments are automatically generated and updated each time the tool runs.
 
 ## Configuration
 
@@ -388,7 +350,7 @@ Flags:
       --dry-run                   Preview changes without modifying files
       --components string         Comma-separated list of components to update (optional)
       --exclude-components string Comma-separated list of components to exclude (optional)
-  -v, --verbosity int             Log verbosity level: 0=info (default), 1=debug, 2=trace
+  -v, --verbosity int             Log verbosity level (default 0)
 ```
 
 **Component Filtering**:
@@ -400,21 +362,22 @@ Flags:
 
 **Logging Verbosity Levels**:
 
-- **Level 0** (default): Info-level logging - shows high-level operations and results
-  - Component updates, digest changes, file modifications
-  - Errors and warnings
-- **Level 1** (debug): Adds detailed operation logs
+- **Level 0 or 1** (default): Clean summary output only
+  - Shows a formatted summary table with total images checked and updates applied
+  - Displays markdown-formatted commit message with changes
+  - No verbose logging noise
+  - Ideal for CI/CD pipelines and regular usage
+
+- **Level 2+** (debug): Detailed debug logging for troubleshooting
   - Registry API calls and responses
   - Retry attempts with backoff durations
   - Tag filtering and architecture validation steps
   - Key Vault authentication details
-- **Level 2** (trace): Maximum verbosity for troubleshooting
-  - HTTP request/response details
   - Individual tag inspection operations
   - Manifest fetching and parsing details
-  - Docker config merging operations
+  - All debug information for troubleshooting
 
-Use higher verbosity levels when debugging authentication issues, tag filtering problems, or transient network failures.
+Use `--verbosity 2` or higher when debugging authentication issues, tag filtering problems, or transient network failures.
 
 ## Configuration Reference
 
@@ -522,40 +485,6 @@ Context is propagated through all layers:
 
 5. **Digest Update**: Updates the specified YAML files with the latest digest using JSONPath notation
 
-6. **Tag and Timestamp Comments**: Automatically adds inline comments with the tag name and creation timestamp (e.g., `# v1.2.3 (2025-11-24 14:30)`)
+6. **Tag and Timestamp Comments**: Automatically adds inline comments with the tag name and creation timestamp
 
 7. **Preserves Formatting**: Maintains YAML structure, comments, and formatting when updating files
-
-## Testing
-
-The image-updater includes comprehensive test coverage:
-
-```bash
-# Run all tests
-go test ./...
-
-# Run tests with coverage
-go test ./... -cover
-
-# Run specific test packages
-go test ./internal/config/...
-go test ./internal/clients/...
-go test ./internal/options/...
-```
-
-**Test Coverage**:
-
-- Config parsing and validation: 97.9%
-- Options and Key Vault deduplication: 78.5%
-- YAML editing: 81.9%
-- Update logic: 89.8%
-- Client authentication: 18.0%
-
-**Key Test Areas**:
-
-- Per-image Key Vault configuration parsing
-- Docker config merging with Key Vault credentials
-- Key Vault deduplication across multiple images
-- Base64 and raw JSON secret decoding
-- Registry client selection and authentication
-- YAML file updates with format preservation

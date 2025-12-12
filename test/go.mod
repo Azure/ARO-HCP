@@ -21,7 +21,7 @@ require (
 	github.com/spf13/cobra v1.10.1
 	golang.org/x/sync v0.17.0
 	k8s.io/api v0.34.1
-	k8s.io/apimachinery v0.34.1
+	k8s.io/apimachinery v0.34.3
 	k8s.io/client-go v0.34.1
 	k8s.io/klog/v2 v2.130.1
 	k8s.io/kube-aggregator v0.34.0
