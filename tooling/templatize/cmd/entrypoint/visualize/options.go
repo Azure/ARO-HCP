@@ -415,7 +415,8 @@ func (o *Options) Visualize(ctx context.Context) error {
 	if err := os.MkdirAll(o.OutputDir, 0755); err != nil {
 		return fmt.Errorf("unable to create output directory: %w", err)
 	}
-	stepFile := filepath.Join(o.OutputDir, "steps.html")
+	// filename matches the regex for display in https://github.com/openshift/release/blob/ef035a66f45a195fb6d5f68ce8ec284434aebe9f/core-services/prow/02_config/_config.yaml#L251-L252
+	stepFile := filepath.Join(o.OutputDir, "e2e-timelines_spyglass_steps.html")
 	output, err := os.Create(stepFile)
 	if err != nil {
 		return fmt.Errorf("failed to create output file: %w", err)
