@@ -113,6 +113,18 @@ var _ = Describe("Customer", func() {
 				45*time.Minute,
 			)
 			Expect(err).NotTo(HaveOccurred())
+
+			By("verifying the node pool matches creation parameters")
+			createdNodePool, err := framework.GetNodePool(ctx,
+				tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient(),
+				*resourceGroup.Name,
+				customerClusterName,
+				customerNodePoolName,
+			)
+			Expect(err).NotTo(HaveOccurred())
+			err = framework.ValidateNodePoolMatchesParams(createdNodePool, nodePoolParams, tc.Location())
+			Expect(err).NotTo(HaveOccurred())
+
 			By("verifying a simple web app can run")
 			err = verifiers.VerifySimpleWebApp().Verify(ctx, adminRESTConfig)
 			Expect(err).NotTo(HaveOccurred())
