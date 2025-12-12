@@ -610,7 +610,7 @@ func (f *Frontend) addDeleteExternalAuthToTransaction(ctx context.Context, write
 		// we will fall through and cancel all operations and go through as normal a deletion flow as we can to avoid
 		// leaking data related to the resource, like controller status.
 		logger.Info("clusterService nodepool missing, trying to clean up", "err", err)
-	} else {
+	} else if err != nil {
 		return utils.TrackError(err)
 	}
 
