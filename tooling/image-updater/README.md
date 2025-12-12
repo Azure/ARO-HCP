@@ -36,24 +36,76 @@ The image-updater supports multiple container registry types with optimized clie
 ## Usage
 
 ```bash
-# Update all images
+# Update all images (default: dev and int environments)
 make update
 
 # Preview changes without modifying files
 ./image-updater update --config config.yaml --dry-run
 
-# Update with custom config
+# Update dev and int environments (default behavior - omit --env flag)
 ./image-updater update --config config.yaml
+
+# Promote images from int to stage (copies digests, no registry fetch)
+./image-updater update --config config.yaml --env stg --dry-run
+
+# Promote images from stage to production (copies digests, no registry fetch)
+./image-updater update --config config.yaml --env prod --dry-run
 
 # Update specific components only
 ./image-updater update --config config.yaml --components maestro,hypershift
 
 # Update all components except specific ones
-./image-updater update --config config.yaml --exclude arohcpfrontend,arohcpbackend
+./image-updater update --config config.yaml --exclude-components arohcpfrontend,arohcpbackend
+
+# Combine environment and component filters
+./image-updater update --config config.yaml --env stg --components maestro,hypershift --dry-run
 
 # Enable verbose logging for debugging (shows all details including retry attempts, API calls)
 ./image-updater update --config config.yaml -v=2
 ```
+
+## Environment Promotion Flow
+
+The image updater supports a structured promotion flow across environments:
+
+1. **dev & int** (default when `--env` omitted): Fetches latest images from registries
+2. **stage** (`--env stg`): Promotes (copies) digests from int environment
+3. **prod** (`--env prod`): Promotes (copies) digests from stage environment
+
+When using `--env stg` or `--env prod`, the tool operates in **promotion mode**:
+- No registry lookups are performed
+- Digests are copied from the source environment to the target environment
+- Ensures consistent promotion path: dev/int → stage → prod
+
+**Example promotion workflow:**
+```bash
+# Step 1: Update dev and int with latest images
+./image-updater update --config config.yaml
+
+# Step 2: After validation, promote to stage
+./image-updater update --config config.yaml --env stg
+
+# Step 3: After stage validation, promote to production
+./image-updater update --config config.yaml --env prod
+```
+
+## Output Format
+
+When the tool updates image digests in YAML files, it automatically adds inline comments with version tag and timestamp information:
+
+```yaml
+defaults:
+  pko:
+    imagePackage:
+      digest: sha256:abc123... # v1.18.4 (2025-11-24 14:30)
+```
+
+This helps track:
+
+- **Tag name**: The version or tag name (e.g., `v1.18.4`)
+- **Timestamp**: When the image was created/published (format: `YYYY-MM-DD HH:MM`)
+
+The comments are automatically generated and updated each time the tool runs.
 
 ## Configuration
 
@@ -63,7 +115,7 @@ Define images to monitor and target files to update. Each image can optionally s
 
 ```yaml
 images:
-  # Quay.io image with commit hash tag pattern
+  # Image with multi-environment targets
   maestro:
     source:
       image: quay.io/redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro
@@ -71,6 +123,16 @@ images:
     targets:
     - jsonPath: clouds.dev.defaults.maestro.image.digest
       filePath: ../../config/config.yaml
+      env: dev
+    - jsonPath: clouds.public.environments.int.defaults.maestro.image.digest
+      filePath: ../../config/config.msft.clouds-overlay.yaml
+      env: int
+    - jsonPath: clouds.public.environments.stg.defaults.maestro.image.digest
+      filePath: ../../config/config.msft.clouds-overlay.yaml
+      env: stg
+    - jsonPath: clouds.public.environments.prod.defaults.maestro.image.digest
+      filePath: ../../config/config.msft.clouds-overlay.yaml
+      env: prod
 
   # Single-arch image (explicitly targets amd64 only)
   hypershift:
@@ -81,6 +143,10 @@ images:
     targets:
     - jsonPath: clouds.dev.defaults.hypershift.image.digest
       filePath: ../../config/config.yaml
+      env: dev
+    - jsonPath: clouds.public.environments.int.defaults.hypershift.image.digest
+      filePath: ../../config/config.msft.clouds-overlay.yaml
+      env: int
 
   # Quay.io image with semantic version tags
   pko-package:
@@ -90,6 +156,7 @@ images:
     targets:
     - jsonPath: defaults.pko.imagePackage.digest
       filePath: ../../config/config.yaml
+      env: dev
 
   # Private ACR image requiring authentication
   arohcpfrontend:
@@ -99,6 +166,7 @@ images:
     targets:
     - jsonPath: clouds.dev.defaults.frontend.image.digest
       filePath: ../../config/config.yaml
+      env: dev
 
   # Public ACR image (anonymous access)
   kubeEvents:
@@ -109,6 +177,7 @@ images:
     targets:
     - jsonPath: defaults.kubeEvents.image.digest
       filePath: ../../config/config.yaml
+      env: dev
 
   # MCR (Microsoft Container Registry) image
   acrPull:
@@ -119,6 +188,7 @@ images:
     targets:
     - jsonPath: defaults.acrPull.image.digest
       filePath: ../../config/config.yaml
+      env: dev
 
   # Multi-arch manifest list (returns digest of manifest list, not single-arch image)
   secretSyncController:

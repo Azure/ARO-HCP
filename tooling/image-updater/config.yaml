@@ -5,10 +5,18 @@ images:
       image: quay.io/redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro
       tagPattern: "^[a-f0-9]{40}$"
     targets:
-    - jsonPath: clouds.public.environments.int.defaults.maestro.image.digest
-      filePath: ../../config/config.msft.clouds-overlay.yaml
     - jsonPath: clouds.dev.defaults.maestro.image.digest
       filePath: ../../config/config.yaml
+      env: dev
+    - jsonPath: clouds.public.environments.int.defaults.maestro.image.digest
+      filePath: ../../config/config.msft.clouds-overlay.yaml
+      env: int
+    - jsonPath: clouds.public.environments.stg.defaults.maestro.image.digest
+      filePath: ../../config/config.msft.clouds-overlay.yaml
+      env: stg
+    - jsonPath: clouds.public.environments.prod.defaults.maestro.image.digest
+      filePath: ../../config/config.msft.clouds-overlay.yaml
+      env: prod
   # Maestro Agent Sidecar image
   maestro-agent-sidecar:
     source:
@@ -16,10 +24,18 @@ images:
       tagPattern: "^\\d+\\.\\d+\\.\\d+-\\d+-azl\\d+\\.\\d+\\.\\d+$"
       multiArch: true
     targets:
-    - jsonPath: clouds.public.environments.int.defaults.maestro.agent.sidecar.image.digest
-      filePath: ../../config/config.msft.clouds-overlay.yaml
     - jsonPath: clouds.dev.defaults.maestro.agent.sidecar.image.digest
       filePath: ../../config/config.yaml
+      env: dev
+    - jsonPath: clouds.public.environments.int.defaults.maestro.agent.sidecar.image.digest
+      filePath: ../../config/config.msft.clouds-overlay.yaml
+      env: int
+    - jsonPath: clouds.public.environments.stg.defaults.maestro.agent.sidecar.image.digest
+      filePath: ../../config/config.msft.clouds-overlay.yaml
+      env: stg
+    - jsonPath: clouds.public.environments.prod.defaults.maestro.agent.sidecar.image.digest
+      filePath: ../../config/config.msft.clouds-overlay.yaml
+      env: prod
   # Hypershift image
   hypershift:
     source:
@@ -31,10 +47,18 @@ images:
         url: "https://arohcpdev-global.vault.azure.net/"
         secretName: "component-sync-pull-secret"
     targets:
-    - jsonPath: clouds.public.environments.int.defaults.hypershift.image.digest
-      filePath: ../../config/config.msft.clouds-overlay.yaml
     - jsonPath: clouds.dev.defaults.hypershift.image.digest
       filePath: ../../config/config.yaml
+      env: dev
+    - jsonPath: clouds.public.environments.int.defaults.hypershift.image.digest
+      filePath: ../../config/config.msft.clouds-overlay.yaml
+      env: int
+    - jsonPath: clouds.public.environments.stg.defaults.hypershift.image.digest
+      filePath: ../../config/config.msft.clouds-overlay.yaml
+      env: stg
+    - jsonPath: clouds.public.environments.prod.defaults.hypershift.image.digest
+      filePath: ../../config/config.msft.clouds-overlay.yaml
+      env: prod
   # PKO imagess
   pko-package:
     source:
@@ -42,30 +66,54 @@ images:
       # tagPattern: "^v\\d+\\.\\d+\\.\\d+$"
       tagPattern: "v1.18.3" # Current image is failing, we needed to rollback
     targets:
-    - jsonPath: clouds.public.environments.int.defaults.pko.imagePackage.digest
-      filePath: ../../config/config.msft.clouds-overlay.yaml
     - jsonPath: defaults.pko.imagePackage.digest
       filePath: ../../config/config.yaml
+      env: dev
+    - jsonPath: clouds.public.environments.int.defaults.pko.imagePackage.digest
+      filePath: ../../config/config.msft.clouds-overlay.yaml
+      env: int
+    - jsonPath: clouds.public.environments.stg.defaults.pko.imagePackage.digest
+      filePath: ../../config/config.msft.clouds-overlay.yaml
+      env: stg
+    - jsonPath: clouds.public.environments.prod.defaults.pko.imagePackage.digest
+      filePath: ../../config/config.msft.clouds-overlay.yaml
+      env: prod
   pko-manager:
     source:
       image: quay.io/package-operator/package-operator-manager
       # tagPattern: "^v\\d+\\.\\d+\\.\\d+$"
       tagPattern: "v1.18.3" # Current image is failing, we needed to rollback
     targets:
-    - jsonPath: clouds.public.environments.int.defaults.pko.imageManager.digest
-      filePath: ../../config/config.msft.clouds-overlay.yaml
     - jsonPath: defaults.pko.imageManager.digest
       filePath: ../../config/config.yaml
+      env: dev
+    - jsonPath: clouds.public.environments.int.defaults.pko.imageManager.digest
+      filePath: ../../config/config.msft.clouds-overlay.yaml
+      env: int
+    - jsonPath: clouds.public.environments.stg.defaults.pko.imageManager.digest
+      filePath: ../../config/config.msft.clouds-overlay.yaml
+      env: stg
+    - jsonPath: clouds.public.environments.prod.defaults.pko.imageManager.digest
+      filePath: ../../config/config.msft.clouds-overlay.yaml
+      env: prod
   pko-remote-phase-manager:
     source:
       image: quay.io/package-operator/remote-phase-manager
       # tagPattern: "^v\\d+\\.\\d+\\.\\d+$"
       tagPattern: "v1.18.3" # Current image is failing, we needed to rollback
     targets:
-    - jsonPath: clouds.public.environments.int.defaults.pko.remotePhaseManager.digest
-      filePath: ../../config/config.msft.clouds-overlay.yaml
     - jsonPath: defaults.pko.remotePhaseManager.digest
       filePath: ../../config/config.yaml
+      env: dev
+    - jsonPath: clouds.public.environments.int.defaults.pko.remotePhaseManager.digest
+      filePath: ../../config/config.msft.clouds-overlay.yaml
+      env: int
+    - jsonPath: clouds.public.environments.stg.defaults.pko.remotePhaseManager.digest
+      filePath: ../../config/config.msft.clouds-overlay.yaml
+      env: stg
+    - jsonPath: clouds.public.environments.prod.defaults.pko.remotePhaseManager.digest
+      filePath: ../../config/config.msft.clouds-overlay.yaml
+      env: prod
   # Clusters Service image
   clusters-service:
     source:
@@ -78,27 +126,51 @@ images:
     targets:
     - jsonPath: clouds.dev.defaults.clustersService.image.digest
       filePath: ../../config/config.yaml
+      env: dev
     - jsonPath: clouds.public.environments.int.defaults.clustersService.image.digest
       filePath: ../../config/config.msft.clouds-overlay.yaml
+      env: int
+    - jsonPath: clouds.public.environments.stg.defaults.clustersService.image.digest
+      filePath: ../../config/config.msft.clouds-overlay.yaml
+      env: stg
+    - jsonPath: clouds.public.environments.prod.defaults.clustersService.image.digest
+      filePath: ../../config/config.msft.clouds-overlay.yaml
+      env: prod
   # Frontend and Backend images
   arohcpfrontend:
     source:
       image: arohcpsvcdev.azurecr.io/arohcpfrontend
       useAuth: true
     targets:
-    - jsonPath: clouds.public.environments.int.defaults.frontend.image.digest
-      filePath: ../../config/config.msft.clouds-overlay.yaml
     - jsonPath: clouds.dev.defaults.frontend.image.digest
       filePath: ../../config/config.yaml
+      env: dev
+    - jsonPath: clouds.public.environments.int.defaults.frontend.image.digest
+      filePath: ../../config/config.msft.clouds-overlay.yaml
+      env: int
+    - jsonPath: clouds.public.environments.stg.defaults.frontend.image.digest
+      filePath: ../../config/config.msft.clouds-overlay.yaml
+      env: stg
+    - jsonPath: clouds.public.environments.prod.defaults.frontend.image.digest
+      filePath: ../../config/config.msft.clouds-overlay.yaml
+      env: prod
   arohcpbackend:
     source:
       image: arohcpsvcdev.azurecr.io/arohcpbackend
       useAuth: true
     targets:
-    - jsonPath: clouds.public.environments.int.defaults.backend.image.digest
-      filePath: ../../config/config.msft.clouds-overlay.yaml
     - jsonPath: clouds.dev.defaults.backend.image.digest
       filePath: ../../config/config.yaml
+      env: dev
+    - jsonPath: clouds.public.environments.int.defaults.backend.image.digest
+      filePath: ../../config/config.msft.clouds-overlay.yaml
+      env: int
+    - jsonPath: clouds.public.environments.stg.defaults.backend.image.digest
+      filePath: ../../config/config.msft.clouds-overlay.yaml
+      env: stg
+    - jsonPath: clouds.public.environments.prod.defaults.backend.image.digest
+      filePath: ../../config/config.msft.clouds-overlay.yaml
+      env: prod
   # backplaneAPI
   backplaneAPI:
     source:
@@ -109,10 +181,18 @@ images:
         url: "https://arohcpdev-global.vault.azure.net/"
         secretName: "component-sync-pull-secret"
     targets:
-    - jsonPath: clouds.public.environments.int.defaults.backplaneAPI.image.digest
-      filePath: ../../config/config.msft.clouds-overlay.yaml
     - jsonPath: clouds.dev.defaults.backplaneAPI.image.digest
       filePath: ../../config/config.yaml
+      env: dev
+    - jsonPath: clouds.public.environments.int.defaults.backplaneAPI.image.digest
+      filePath: ../../config/config.msft.clouds-overlay.yaml
+      env: int
+    - jsonPath: clouds.public.environments.stg.defaults.backplaneAPI.image.digest
+      filePath: ../../config/config.msft.clouds-overlay.yaml
+      env: stg
+    - jsonPath: clouds.public.environments.prod.defaults.backplaneAPI.image.digest
+      filePath: ../../config/config.msft.clouds-overlay.yaml
+      env: prod
   # Kube Events image
   kubeEvents:
     source:
@@ -144,8 +224,16 @@ images:
     targets:
     - jsonPath: clouds.dev.defaults.acrPull.image.digest
       filePath: ../../config/config.yaml
+      env: dev
     - jsonPath: clouds.public.environments.int.defaults.acrPull.image.digest
       filePath: ../../config/config.msft.clouds-overlay.yaml
+      env: int
+    - jsonPath: clouds.public.environments.stg.defaults.acrPull.image.digest
+      filePath: ../../config/config.msft.clouds-overlay.yaml
+      env: stg
+    - jsonPath: clouds.public.environments.prod.defaults.acrPull.image.digest
+      filePath: ../../config/config.msft.clouds-overlay.yaml
+      env: prod
   # Arobit images
   arobit-forwarder:
     source:
@@ -170,10 +258,18 @@ images:
       tagPattern: "^v\\d+\\.\\d+\\.\\d+$"
       multiArch: true # This image only publishes multi-arch manifests
     targets:
-    - jsonPath: clouds.public.environments.int.defaults.secretSyncController.image.digest
-      filePath: ../../config/config.msft.clouds-overlay.yaml
     - jsonPath: clouds.dev.defaults.secretSyncController.image.digest
       filePath: ../../config/config.yaml
+      env: dev
+    - jsonPath: clouds.public.environments.int.defaults.secretSyncController.image.digest
+      filePath: ../../config/config.msft.clouds-overlay.yaml
+      env: int
+    - jsonPath: clouds.public.environments.stg.defaults.secretSyncController.image.digest
+      filePath: ../../config/config.msft.clouds-overlay.yaml
+      env: stg
+    - jsonPath: clouds.public.environments.prod.defaults.secretSyncController.image.digest
+      filePath: ../../config/config.msft.clouds-overlay.yaml
+      env: prod
   # Secret Sync Azure Provider
   secretSyncProvider:
     source:
@@ -181,10 +277,18 @@ images:
       tagPattern: "^v\\d+\\.\\d+\\.\\d+(-\\d+)?$"
       multiArch: true
     targets:
-    - jsonPath: clouds.public.environments.int.defaults.secretSyncController.providerImage.digest
-      filePath: ../../config/config.msft.clouds-overlay.yaml
     - jsonPath: clouds.dev.defaults.secretSyncController.providerImage.digest
       filePath: ../../config/config.yaml
+      env: dev
+    - jsonPath: clouds.public.environments.int.defaults.secretSyncController.providerImage.digest
+      filePath: ../../config/config.msft.clouds-overlay.yaml
+      env: int
+    - jsonPath: clouds.public.environments.stg.defaults.secretSyncController.providerImage.digest
+      filePath: ../../config/config.msft.clouds-overlay.yaml
+      env: stg
+    - jsonPath: clouds.public.environments.prod.defaults.secretSyncController.providerImage.digest
+      filePath: ../../config/config.msft.clouds-overlay.yaml
+      env: prod
   # Image Sync
   imageSync:
     source:
@@ -192,10 +296,18 @@ images:
       tagPattern: "^[a-f0-9]{7}$"
       useAuth: true
     targets:
-    - jsonPath: clouds.public.environments.int.defaults.imageSync.ocMirror.image.digest
-      filePath: ../../config/config.msft.clouds-overlay.yaml
     - jsonPath: clouds.dev.defaults.imageSync.ocMirror.image.digest
       filePath: ../../config/config.yaml
+      env: dev
+    - jsonPath: clouds.public.environments.int.defaults.imageSync.ocMirror.image.digest
+      filePath: ../../config/config.msft.clouds-overlay.yaml
+      env: int
+    - jsonPath: clouds.public.environments.stg.defaults.imageSync.ocMirror.image.digest
+      filePath: ../../config/config.msft.clouds-overlay.yaml
+      env: stg
+    - jsonPath: clouds.public.environments.prod.defaults.imageSync.ocMirror.image.digest
+      filePath: ../../config/config.msft.clouds-overlay.yaml
+      env: prod
   # Prometheus images
   prometheus-operator:
     source:
@@ -203,62 +315,134 @@ images:
       tagPattern: "^v\\d+\\.\\d+\\.\\d+-?\\d?$"
       multiArch: true # This image only publishes multi-arch manifests
     targets:
-    - jsonPath: clouds.public.environments.int.defaults.svc.prometheus.prometheusOperator.image.sha
-      filePath: ../../config/config.msft.clouds-overlay.yaml
-    - jsonPath: clouds.public.environments.int.defaults.mgmt.prometheus.prometheusOperator.image.sha
-      filePath: ../../config/config.msft.clouds-overlay.yaml
     - jsonPath: clouds.dev.defaults.svc.prometheus.prometheusOperator.image.sha
       filePath: ../../config/config.yaml
+      env: dev
     - jsonPath: clouds.dev.defaults.mgmt.prometheus.prometheusOperator.image.sha
       filePath: ../../config/config.yaml
+      env: dev
+    - jsonPath: clouds.public.environments.int.defaults.svc.prometheus.prometheusOperator.image.sha
+      filePath: ../../config/config.msft.clouds-overlay.yaml
+      env: int
+    - jsonPath: clouds.public.environments.int.defaults.mgmt.prometheus.prometheusOperator.image.sha
+      filePath: ../../config/config.msft.clouds-overlay.yaml
+      env: int
+    - jsonPath: clouds.public.environments.stg.defaults.svc.prometheus.prometheusOperator.image.sha
+      filePath: ../../config/config.msft.clouds-overlay.yaml
+      env: stg
+    - jsonPath: clouds.public.environments.stg.defaults.mgmt.prometheus.prometheusOperator.image.sha
+      filePath: ../../config/config.msft.clouds-overlay.yaml
+      env: stg
+    - jsonPath: clouds.public.environments.prod.defaults.svc.prometheus.prometheusOperator.image.sha
+      filePath: ../../config/config.msft.clouds-overlay.yaml
+      env: prod
+    - jsonPath: clouds.public.environments.prod.defaults.mgmt.prometheus.prometheusOperator.image.sha
+      filePath: ../../config/config.msft.clouds-overlay.yaml
+      env: prod
   prometheus:
     source:
       image: mcr.microsoft.com/oss/v2/prometheus/prometheus
       tagPattern: "^v\\d+\\.\\d+\\.\\d+-?\\d?$"
       multiArch: true # This image only publishes multi-arch manifests
     targets:
-    - jsonPath: clouds.public.environments.int.defaults.svc.prometheus.prometheusSpec.image.sha
-      filePath: ../../config/config.msft.clouds-overlay.yaml
-    - jsonPath: clouds.public.environments.int.defaults.mgmt.prometheus.prometheusSpec.image.sha
-      filePath: ../../config/config.msft.clouds-overlay.yaml
     - jsonPath: clouds.dev.defaults.svc.prometheus.prometheusSpec.image.sha
       filePath: ../../config/config.yaml
+      env: dev
     - jsonPath: clouds.dev.defaults.mgmt.prometheus.prometheusSpec.image.sha
       filePath: ../../config/config.yaml
+      env: dev
+    - jsonPath: clouds.public.environments.int.defaults.svc.prometheus.prometheusSpec.image.sha
+      filePath: ../../config/config.msft.clouds-overlay.yaml
+      env: int
+    - jsonPath: clouds.public.environments.int.defaults.mgmt.prometheus.prometheusSpec.image.sha
+      filePath: ../../config/config.msft.clouds-overlay.yaml
+      env: int
+    - jsonPath: clouds.public.environments.stg.defaults.svc.prometheus.prometheusSpec.image.sha
+      filePath: ../../config/config.msft.clouds-overlay.yaml
+      env: stg
+    - jsonPath: clouds.public.environments.stg.defaults.mgmt.prometheus.prometheusSpec.image.sha
+      filePath: ../../config/config.msft.clouds-overlay.yaml
+      env: stg
+    - jsonPath: clouds.public.environments.prod.defaults.svc.prometheus.prometheusSpec.image.sha
+      filePath: ../../config/config.msft.clouds-overlay.yaml
+      env: prod
+    - jsonPath: clouds.public.environments.prod.defaults.mgmt.prometheus.prometheusSpec.image.sha
+      filePath: ../../config/config.msft.clouds-overlay.yaml
+      env: prod
   prometheus-config-reloader:
     source:
       image: mcr.microsoft.com/oss/v2/prometheus/prometheus-config-reloader
       tagPattern: "^v\\d+\\.\\d+\\.\\d+-?\\d?$"
       multiArch: true # This image only publishes multi-arch manifests
     targets:
-    - jsonPath: clouds.public.environments.int.defaults.svc.prometheus.prometheusConfigReloader.image.sha
-      filePath: ../../config/config.msft.clouds-overlay.yaml
-    - jsonPath: clouds.public.environments.int.defaults.mgmt.prometheus.prometheusConfigReloader.image.sha
-      filePath: ../../config/config.msft.clouds-overlay.yaml
     - jsonPath: clouds.dev.defaults.svc.prometheus.prometheusConfigReloader.image.sha
       filePath: ../../config/config.yaml
+      env: dev
     - jsonPath: clouds.dev.defaults.mgmt.prometheus.prometheusConfigReloader.image.sha
       filePath: ../../config/config.yaml
+      env: dev
+    - jsonPath: clouds.public.environments.int.defaults.svc.prometheus.prometheusConfigReloader.image.sha
+      filePath: ../../config/config.msft.clouds-overlay.yaml
+      env: int
+    - jsonPath: clouds.public.environments.int.defaults.mgmt.prometheus.prometheusConfigReloader.image.sha
+      filePath: ../../config/config.msft.clouds-overlay.yaml
+      env: int
+    - jsonPath: clouds.public.environments.stg.defaults.svc.prometheus.prometheusConfigReloader.image.sha
+      filePath: ../../config/config.msft.clouds-overlay.yaml
+      env: stg
+    - jsonPath: clouds.public.environments.stg.defaults.mgmt.prometheus.prometheusConfigReloader.image.sha
+      filePath: ../../config/config.msft.clouds-overlay.yaml
+      env: stg
+    - jsonPath: clouds.public.environments.prod.defaults.svc.prometheus.prometheusConfigReloader.image.sha
+      filePath: ../../config/config.msft.clouds-overlay.yaml
+      env: prod
+    - jsonPath: clouds.public.environments.prod.defaults.mgmt.prometheus.prometheusConfigReloader.image.sha
+      filePath: ../../config/config.msft.clouds-overlay.yaml
+      env: prod
   kube-state-metrics:
     source:
       image: mcr.microsoft.com/oss/v2/kubernetes/kube-state-metrics
       tagPattern: "^v\\d+\\.\\d+\\.\\d+-?\\d?$"
       multiArch: true # This image only publishes multi-arch manifests
     targets:
-    - jsonPath: clouds.public.environments.int.defaults.svc.prometheus.kubeStateMetrics.image.digest
-      filePath: ../../config/config.msft.clouds-overlay.yaml
-    - jsonPath: clouds.public.environments.int.defaults.mgmt.prometheus.kubeStateMetrics.image.digest
-      filePath: ../../config/config.msft.clouds-overlay.yaml
     - jsonPath: clouds.dev.defaults.svc.prometheus.kubeStateMetrics.image.digest
       filePath: ../../config/config.yaml
+      env: dev
     - jsonPath: clouds.dev.defaults.mgmt.prometheus.kubeStateMetrics.image.digest
       filePath: ../../config/config.yaml
+      env: dev
+    - jsonPath: clouds.public.environments.int.defaults.svc.prometheus.kubeStateMetrics.image.digest
+      filePath: ../../config/config.msft.clouds-overlay.yaml
+      env: int
+    - jsonPath: clouds.public.environments.int.defaults.mgmt.prometheus.kubeStateMetrics.image.digest
+      filePath: ../../config/config.msft.clouds-overlay.yaml
+      env: int
+    - jsonPath: clouds.public.environments.stg.defaults.svc.prometheus.kubeStateMetrics.image.digest
+      filePath: ../../config/config.msft.clouds-overlay.yaml
+      env: stg
+    - jsonPath: clouds.public.environments.stg.defaults.mgmt.prometheus.kubeStateMetrics.image.digest
+      filePath: ../../config/config.msft.clouds-overlay.yaml
+      env: stg
+    - jsonPath: clouds.public.environments.prod.defaults.svc.prometheus.kubeStateMetrics.image.digest
+      filePath: ../../config/config.msft.clouds-overlay.yaml
+      env: prod
+    - jsonPath: clouds.public.environments.prod.defaults.mgmt.prometheus.kubeStateMetrics.image.digest
+      filePath: ../../config/config.msft.clouds-overlay.yaml
+      env: prod
   admin-api:
     source:
       image: arohcpsvcdev.azurecr.io/arohcpadminapi
       useAuth: true
     targets:
-    - jsonPath: clouds.public.environments.int.defaults.adminApi.image.digest
-      filePath: ../../config/config.msft.clouds-overlay.yaml
     - jsonPath: clouds.dev.defaults.adminApi.image.digest
       filePath: ../../config/config.yaml
+      env: dev
+    - jsonPath: clouds.public.environments.int.defaults.adminApi.image.digest
+      filePath: ../../config/config.msft.clouds-overlay.yaml
+      env: int
+    - jsonPath: clouds.public.environments.stg.defaults.adminApi.image.digest
+      filePath: ../../config/config.msft.clouds-overlay.yaml
+      env: stg
+    - jsonPath: clouds.public.environments.prod.defaults.adminApi.image.digest
+      filePath: ../../config/config.msft.clouds-overlay.yaml
+      env: prod
