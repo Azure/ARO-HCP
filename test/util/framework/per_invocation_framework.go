@@ -51,7 +51,7 @@ type perBinaryInvocationTestContext struct {
 	contextLock       sync.RWMutex
 	subscriptionID    string
 	azureCredentials  azcore.TokenCredential
-	identityPoolState *LeasedIdentityPoolState
+	identityPoolState *leasedIdentityPoolState
 }
 
 type CleanupFunc func(ctx context.Context) error
@@ -195,7 +195,7 @@ func (tc *perBinaryInvocationTestContext) UsePooledIdentities() bool {
 	return tc.pooledIdentities
 }
 
-func (tc *perBinaryInvocationTestContext) getLeasedIdentityPoolState() (*LeasedIdentityPoolState, error) {
+func (tc *perBinaryInvocationTestContext) getLeasedIdentityPoolState() (*leasedIdentityPoolState, error) {
 	tc.contextLock.RLock()
 	if tc.identityPoolState != nil {
 		defer tc.contextLock.RUnlock()
