@@ -15,10 +15,38 @@ import (
 	"github.com/go-logr/logr"
 )
 
+// FileWriter provides an interface for writing files to support testing
+type FileWriter interface {
+	WriteFile(outputPath, fileName string, data any) error
+}
+
+// DefaultFileWriter implements FileWriter using the standard file system
+type DefaultFileWriter struct{}
+
+func (d *DefaultFileWriter) WriteFile(outputPath, fileName string, data any) error {
+	file, err := os.Create(path.Join(outputPath, fileName))
+	if err != nil {
+		return fmt.Errorf("failed to create output file: %w", err)
+	}
+	defer file.Close()
+	return json.NewEncoder(file).Encode(data)
+}
+
 type QueryClient struct {
 	Client       kusto.KustoClient
 	QueryTimeout time.Duration
 	OutputPath   string
+	FileWriter   FileWriter
+}
+
+// NewQueryClient creates a new QueryClient with default dependencies
+func NewQueryClient(client kusto.KustoClient, queryTimeout time.Duration, outputPath string) *QueryClient {
+	return &QueryClient{
+		Client:       client,
+		QueryTimeout: queryTimeout,
+		OutputPath:   outputPath,
+		FileWriter:   &DefaultFileWriter{},
+	}
 }
 
 func (q *QueryClient) ConcurrentQueries(ctx context.Context, queries []*kusto.ConfigurableQuery, outputChannel chan *table.Row) error {
@@ -37,7 +65,7 @@ func (q *QueryClient) ConcurrentQueries(ctx context.Context, queries []*kusto.Co
 				errorCh <- fmt.Errorf("failed to execute query: %w", err)
 				return
 			}
-			err = serializeOutputToFile(q.OutputPath, fmt.Sprintf("%s.json", query.Name), result)
+			err = q.FileWriter.WriteFile(q.OutputPath, fmt.Sprintf("%s.json", query.Name), result)
 			if err != nil {
 				errorCh <- fmt.Errorf("failed to write query result to file: %w", err)
 			}
@@ -58,11 +86,3 @@ func (q *QueryClient) Close() error {
 	return q.Client.Close()
 }
 
-func serializeOutputToFile(outputPath string, outputFile string, output any) error {
-	file, err := os.Create(path.Join(outputPath, outputFile))
-	if err != nil {
-		return fmt.Errorf("failed to create output file: %w", err)
-	}
-	defer file.Close()
-	return json.NewEncoder(file).Encode(output)
-}
