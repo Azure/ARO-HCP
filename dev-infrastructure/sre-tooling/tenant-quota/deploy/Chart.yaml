@@ -1,0 +1,6 @@
+apiVersion: v2
+name: custom-metrics-collector
+version: 0.1.0
+appVersion: 0.1.0
+kubeVersion: ">=1.27.0"
+description: Used to deploy the Custom Metrics Collector for built-in Go collectors.

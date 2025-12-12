@@ -1,0 +1,90 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: custom-metrics-collector
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: custom-metrics-collector
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: custom-metrics-collector
+  template:
+    metadata:
+      labels:
+        app: custom-metrics-collector
+      annotations:
+        azure.workload.identity/use: "true"
+    spec:
+      serviceAccountName: custom-metrics-collector
+      containers:
+      - name: custom-metrics-collector
+        image: '{{ .Values.imageRegistry }}/{{ .Values.imageRepository }}{{ if .Values.imageDigest }}@{{ .Values.imageDigest }}{{ end }}'
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8080
+          name: metrics
+        env:
+        - name: CONFIG_PATH
+          value: "/etc/config/config.yaml"
+        - name: PORT
+          value: "8080"
+        - name: LOG_LEVEL
+          value: "info"
+        - name: AZURE_CLIENT_ID
+          value: "{{ if .Values.servicePrincipal.clientId }}{{ .Values.servicePrincipal.clientId }}{{ else }}{{ .Values.msiClientId }}{{ end }}"
+        - name: AZURE_TENANT_ID
+          value: "{{ .Values.msiTenantId }}"
+{{- if .Values.secretProvider.keyVault }}
+        - name: AZURE_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: custom-metrics-collector-secret
+              key: client-secret
+{{- else if .Values.msiClientSecret }}
+        - name: AZURE_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: custom-metrics-collector-secret
+              key: client-secret
+{{- end }}
+        volumeMounts:
+        - name: config
+          mountPath: /etc/config
+{{- if .Values.secretProvider.keyVault }}
+        - name: secrets-store
+          mountPath: "/mnt/secrets-store"
+          readOnly: true
+{{- end }}
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 30
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 10
+      volumes:
+      - name: config
+        configMap:
+          name: custom-metrics-config
+{{- if .Values.secretProvider.keyVault }}
+      - name: secrets-store
+        csi:
+          driver: secrets-store.csi.k8s.io
+          readOnly: true
+          volumeAttributes:
+            secretProviderClass: custom-metrics-collector-secretprovider
+{{- end }}

@@ -2017,6 +2017,27 @@
         "ocMirror"
       ]
     },
+    "customMetricsCollector": {
+      "type": "object",
+      "properties": {
+        "image": {
+          "$ref": "#/definitions/containerImage"
+        },
+        "bundleVersion": {
+          "type": "string",
+          "description": "Version of the custom metrics collector bundle"
+        },
+        "servicePrincipalClientId": {
+          "type": "string",
+          "description": "Client ID of the service principal used for Microsoft Graph API access."
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "image",
+        "bundleVersion"
+      ]
+    },
     "arobit": {
       "type": "object",
       "properties": {
@@ -2275,6 +2296,45 @@
         "rg",
         "subscription",
         "prometheus"
+      ]
+    },
+    "sretooling": {
+      "type": "object",
+      "description": "SRE Tooling AKS cluster configuration",
+      "properties": {
+        "subscription": {
+          "$ref": "#/definitions/subscriptionMetadata"
+        },
+        "rg": {
+          "$ref": "#/definitions/resourceGroupName"
+        },
+        "aks": {
+          "$ref": "#/definitions/aksConfig"
+        },
+        "prometheus": {
+          "description": "Prometheus deployment configuration",
+          "$ref": "#/definitions/prometheus"
+        },
+        "adminApi": {
+          "type": "object",
+          "properties": {
+            "managedIdentityName": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "managedIdentityName"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "rg",
+        "subscription",
+        "aks",
+        "prometheus",
+        "adminApi"
       ]
     },
     "mgmtKeyVault": {
@@ -2723,6 +2783,7 @@
     "kvCertOfficerPrincipalId",
     "backplaneAPI",
     "clustersService",
+    "customMetricsCollector",
     "cxKeyVault",
     "firstPartyAppClientId",
     "firstPartyAppCertificate",

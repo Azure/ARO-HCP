@@ -1,0 +1,31 @@
+# Dockerfile for local development
+FROM golang:1.24-alpine AS builder
+
+WORKDIR /app
+
+COPY dev-infrastructure/sre-tooling/tenant-quota/go.mod dev-infrastructure/sre-tooling/tenant-quota/go.sum ./
+RUN go mod download
+
+COPY dev-infrastructure/sre-tooling/tenant-quota/ ./
+
+RUN go build -o custom-metrics-collector .
+
+FROM debian:bookworm-slim
+
+RUN apt-get update && apt-get install -y \
+    ca-certificates \
+    curl \
+    gnupg \
+    lsb-release \
+    jq \
+    && curl -sL https://aka.ms/InstallAzureCLIDeb | bash \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /root/
+
+COPY --from=builder /app/custom-metrics-collector .
+
+EXPOSE 8080
+
+CMD ["./custom-metrics-collector"]

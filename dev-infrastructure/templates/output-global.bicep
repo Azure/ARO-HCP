@@ -87,6 +87,8 @@ resource globalMSI 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31'
 }
 
 output globalMSIId string = globalMSI.id
+output globalMSIClientId string = globalMSI.properties.clientId
+output globalMSITenantId string = tenant().tenantId
 
 //
 //   G L O B A L   KV

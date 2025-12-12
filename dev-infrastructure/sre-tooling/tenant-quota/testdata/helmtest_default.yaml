@@ -1,0 +1,16 @@
+values: ../values.yaml
+name: helmtest-default
+namespace: tenant-quota
+testData:
+  customMetricsCollector:
+    image:
+      registry: arohcpsvcdev.azurecr.io
+      repository: custom-metrics-collector
+      digest: sha256:1234567890
+    bundleVersion: "v1.0.0"
+    servicePrincipalClientId: "test-client-id"
+  serviceKeyVault:
+    name: "test-keyvault"
+  acr:
+    svc:
+      name: "testacr"

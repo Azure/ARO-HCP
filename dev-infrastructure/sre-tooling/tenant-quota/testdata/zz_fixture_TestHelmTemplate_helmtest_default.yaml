@@ -1,0 +1,251 @@
+---
+# Source: custom-metrics-collector/templates/serviceaccount.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: custom-metrics-collector
+  namespace: tenant-quota
+  labels:
+    app: custom-metrics-collector
+  annotations:
+    azure.workload.identity/use: "true"
+    azure.workload.identity/client-id: "__msiClientId__"
+    azure.workload.identity/tenant-id: "__msiTenantId__"
+---
+# Source: custom-metrics-collector/templates/configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: custom-metrics-config
+  namespace: tenant-quota
+data:
+  config.yaml: |
+    collectors:
+      - name: "tenant-quota"
+        type: "builtin"
+        id: "tenant-quota"
+        interval: "5m"
+        timeout: "30s"
+        # Tenant lookup table - collector detects which tenant it's running in
+        # and uses the matching entry's credentials
+        tenants:
+          - tenantId: "64dc69e4-d083-49fc-9569-ebece1dd1408"
+            tenantName: "RedHat0"
+            servicePrincipalClientId: "test-client-id"
+            keyVaultSecretName: "custom-metrics-collector-redhat0-client-secret"
+        metrics:
+          - name: "tenant_quota_usage_percentage"
+            type: "gauge"
+            help: "Tenant quota usage percentage"
+            labels: ["tenant_id", "tenant_name"]
+            source: "USAGE_PERCENTAGE"
+          - name: "tenant_quota_total"
+            type: "gauge"
+            help: "Total tenant quota limit"
+            labels: ["tenant_id", "tenant_name"]
+            source: "QUOTA_TOTAL"
+          - name: "tenant_quota_used"
+            type: "gauge"
+            help: "Used tenant quota from API"
+            labels: ["tenant_id", "tenant_name"]
+            source: "QUOTA_USED"
+          - name: "tenant_remaining_capacity"
+            type: "gauge"
+            help: "Remaining tenant capacity"
+            labels: ["tenant_id", "tenant_name"]
+            source: "REMAINING_CAPACITY"
+---
+# Source: custom-metrics-collector/templates/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: custom-metrics-collector
+  namespace: tenant-quota
+  labels:
+    app: custom-metrics-collector
+spec:
+  selector:
+    app: custom-metrics-collector
+  ports:
+  - name: metrics
+    port: 8080
+    targetPort: 8080
+---
+# Source: custom-metrics-collector/templates/deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: custom-metrics-collector
+  namespace: tenant-quota
+  labels:
+    app: custom-metrics-collector
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: custom-metrics-collector
+  template:
+    metadata:
+      labels:
+        app: custom-metrics-collector
+      annotations:
+        azure.workload.identity/use: "true"
+    spec:
+      serviceAccountName: custom-metrics-collector
+      containers:
+      - name: custom-metrics-collector
+        image: 'testacr.azurecr.io/custom-metrics-collector@sha256:1234567890'
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8080
+          name: metrics
+        env:
+        - name: CONFIG_PATH
+          value: "/etc/config/config.yaml"
+        - name: PORT
+          value: "8080"
+        - name: LOG_LEVEL
+          value: "info"
+        - name: AZURE_CLIENT_ID
+          value: "test-client-id"
+        - name: AZURE_TENANT_ID
+          value: "__msiTenantId__"
+        - name: AZURE_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: custom-metrics-collector-secret
+              key: client-secret
+        volumeMounts:
+        - name: config
+          mountPath: /etc/config
+        - name: secrets-store
+          mountPath: "/mnt/secrets-store"
+          readOnly: true
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 30
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 10
+      volumes:
+      - name: config
+        configMap:
+          name: custom-metrics-config
+      - name: secrets-store
+        csi:
+          driver: secrets-store.csi.k8s.io
+          readOnly: true
+          volumeAttributes:
+            secretProviderClass: custom-metrics-collector-secretprovider
+---
+# Source: custom-metrics-collector/templates/probe.yaml
+apiVersion: monitoring.coreos.com/v1
+kind: Probe
+metadata:
+  name: custom-metrics-collector-probe
+  namespace: tenant-quota
+  labels:
+    release: arohcp-monitor
+spec:
+  jobName: custom-metrics-collector-health
+  prober:
+    url: blackbox-exporter:9115
+    path: /probe
+  module: http_2xx
+  targets:
+    staticConfig:
+      static: ['custom-metrics-collector:8080/healthz']
+---
+# Source: custom-metrics-collector/templates/prometheusrule.yaml
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: custom-metrics-alerts
+  namespace: tenant-quota
+  labels:
+    release: arohcp-monitor
+spec:
+  groups:
+  - name: custom-metrics
+    rules:
+    - alert: TenantQuotaCritical
+      expr: tenant_quota_usage_percentage >= 95
+      for: 5m
+      labels:
+        severity: critical
+      annotations:
+        summary: "Tenant quota usage is critical"
+        description: 'Tenant {{ $labels.tenant_name }} is at {{ $value }}% capacity'
+    - alert: TenantQuotaWarning
+      expr: tenant_quota_usage_percentage >= 90
+      for: 10m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Tenant quota usage is high"
+        description: 'Tenant {{ $labels.tenant_name }} is at {{ $value }}% capacity'
+    - alert: TenantQuotaInfo
+      expr: tenant_quota_usage_percentage >= 80
+      for: 15m
+      labels:
+        severity: info
+      annotations:
+        summary: "Tenant quota usage is elevated"
+        description: 'Tenant {{ $labels.tenant_name }} is at {{ $value }}% capacity'
+---
+# Source: custom-metrics-collector/templates/secretproviderclass.yaml
+apiVersion: secrets-store.csi.x-k8s.io/v1
+kind: SecretProviderClass
+metadata:
+  name: custom-metrics-collector-secretprovider
+  namespace: tenant-quota
+spec:
+  provider: azure
+  parameters:
+    clientID: '__msiClientId__'
+    keyvaultName: "__sreToolingKeyVaultName__"
+    objects: |
+      array:
+        - |
+          objectName: "custom-metrics-collector-redhat0-client-secret"
+          objectAlias: "client-secret"
+          objectType: secret
+    tenantId: "__msiTenantId__"
+    usePodIdentity: "false"
+  secretObjects:
+    - secretName: custom-metrics-collector-secret
+      type: Opaque
+      data:
+        - objectName: "client-secret"
+          key: client-secret
+---
+# Source: custom-metrics-collector/templates/servicemonitor.yaml
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: custom-metrics-collector
+  namespace: tenant-quota
+  labels:
+    release: arohcp-monitor
+spec:
+  selector:
+    matchLabels:
+      app: custom-metrics-collector
+  endpoints:
+  - port: metrics
+    interval: 30s
+    path: /metrics
+

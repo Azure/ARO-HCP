@@ -34,7 +34,12 @@ resource logsUAMI 'Microsoft.ManagedIdentity/userAssignedIdentities@2024-11-30' 
   name: logsMSI
 }
 
+resource customMetricsCollectorUAMI 'Microsoft.ManagedIdentity/userAssignedIdentities@2024-11-30' existing = {
+  name: 'custom-metrics-collector'
+}
+
 output dcrRemoteWriteUrl string = '${dce.properties.metricsIngestion.endpoint}/dataCollectionRules/${dcr.properties.immutableId}/streams/Microsoft-PrometheusMetrics/api/v1/write?api-version=2023-04-24'
 output hcpDcrRemoteWriteUrl string = '${dce.properties.metricsIngestion.endpoint}/dataCollectionRules/${hcpDcr!.properties.immutableId}/streams/Microsoft-PrometheusMetrics/api/v1/write?api-version=2023-04-24'
 output prometheusUAMIClientId string = prometheusUAMI.properties.clientId
 output clusterLogPrincipalId string = logsUAMI.properties.principalId
+output customMetricsCollectorUAMIClientId string = customMetricsCollectorUAMI.properties.clientId
