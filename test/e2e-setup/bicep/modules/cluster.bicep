@@ -37,6 +37,9 @@ param keyVaultName string
 @description('The name of the etcd encryption key in the KeyVault')
 param etcdEncryptionKeyName string
 
+@description('List of authorized IP ranges for API server access')
+param authorizedCidrs array?
+
 //
 // E X I S T I N G   R E S O U R C E S
 //
@@ -95,6 +98,7 @@ resource hcp 'Microsoft.RedHatOpenShift/hcpOpenShiftClusters@2024-06-10-preview'
     }
     api: {
       visibility: 'Public'
+      authorizedCidrs: authorizedCidrs
     }
     clusterImageRegistry: {
       state: 'Enabled'
