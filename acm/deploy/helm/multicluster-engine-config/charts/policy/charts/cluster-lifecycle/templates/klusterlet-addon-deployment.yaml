@@ -72,7 +72,7 @@ spec:
       {{- range . }}
       - {{ if .Key }} key: {{ .Key }} {{- end }}
         {{ if .Operator }} operator: {{ .Operator }} {{- end }}
-        {{ if .Value }} value: {{ .Value }} {{- end }}
+        {{ if .Value }} value: "{{ .Value }}" {{- end }}
         {{ if .Effect }} effect: {{ .Effect }} {{- end }}
         {{ if .TolerationSeconds }} tolerationSeconds: {{ .TolerationSeconds }} {{- end }}
         {{- end }}
