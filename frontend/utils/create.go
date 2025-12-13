@@ -20,6 +20,8 @@ import (
 	"fmt"
 	"os"
 
+	"k8s.io/utils/ptr"
+
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
@@ -112,7 +114,7 @@ func CreateNodePool() error {
 			Platform: api.NodePoolPlatformProfile{
 				SubnetID: "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/dev-test-rg/providers/Microsoft.Network/virtualNetworks/xyz/subnets/xyz",
 				OSDisk: api.OSDiskProfile{
-					SizeGiB:                30,
+					SizeGiB:                ptr.To[int32](64),
 					DiskStorageAccountType: "StandardSSD_LRS",
 				},
 
