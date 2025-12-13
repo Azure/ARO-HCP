@@ -24,8 +24,8 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
-	"github.com/Azure/ARO-HCP/frontend/test/simulate/integrationutils"
 	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/test-integration/utils/integrationutils"
 )
 
 type loadStep struct {
