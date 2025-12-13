@@ -17,6 +17,7 @@ package main
 import (
 	"context"
 	"log/slog"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -88,6 +89,16 @@ func TestSetDeleteOperationAsCompleted(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			mockDBClient := mocks.NewMockDBClient(ctrl)
 			mockOperationCRUD := mocks.NewMockOperationCRUD(ctrl)
+			mockUntypedResourceCRUD := mocks.NewMockUntypedResourceCRUD(ctrl)
+
+			noTypedDocs := maps.All(map[string]*database.TypedDocument{})
+			mockIter := mocks.NewMockDBClientIterator[database.TypedDocument](ctrl)
+			mockIter.EXPECT().
+				Items(gomock.Any()).
+				Return(database.DBClientIteratorItem[database.TypedDocument](noTypedDocs))
+			mockIter.EXPECT().
+				GetError().
+				Return(nil)
 
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				if r.Method == http.MethodPost {
@@ -123,11 +134,18 @@ func TestSetDeleteOperationAsCompleted(t *testing.T) {
 			var resourceDocDeleted bool
 
 			mockDBClient.EXPECT().
-				DeleteResourceDoc(gomock.Any(), resourceID).
+				UntypedCRUD(*resourceID).
+				Return(mockUntypedResourceCRUD, nil)
+			mockUntypedResourceCRUD.EXPECT().
+				Delete(gomock.Any(), resourceID).
 				Do(func(ctx context.Context, resourceID *azcorearm.ResourceID) error {
 					resourceDocDeleted = tt.resourceDocPresent
 					return nil
 				})
+			mockUntypedResourceCRUD.EXPECT().
+				List(gomock.Any(), nil).
+				Return(mockIter, nil)
+
 			mockDBClient.EXPECT().
 				Operations(op.doc.OperationID.SubscriptionID).
 				DoAndReturn(func(s string) database.OperationCRUD {
