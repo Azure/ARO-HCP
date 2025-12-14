@@ -61,7 +61,7 @@ type NetworkConfig struct {
 func DefaultOpenshiftControlPlaneVersionId() string {
 	version := os.Getenv("ARO_HCP_OPENSHIFT_CONTROLPLANE_VERSION")
 	if version == "" {
-		return "4.19"
+		return "4.20"
 	}
 	return version
 }
@@ -69,7 +69,7 @@ func DefaultOpenshiftControlPlaneVersionId() string {
 func DefaultOpenshiftNodePoolVersionId() string {
 	version := os.Getenv("ARO_HCP_OPENSHIFT_NODEPOOL_VERSION")
 	if version == "" {
-		return "4.19.7"
+		return "4.20.5"
 	}
 	return version
 }

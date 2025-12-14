@@ -13,10 +13,10 @@ param identities object
 param usePooledIdentities bool = false
 
 @description('ControlPlane OpenShift Version ID')
-param openshiftControlPlaneVersionId string = '4.19'
+param openshiftControlPlaneVersionId string = '4.20'
 
 @description('NodePool OpenShift Version ID')
-param openshiftNodePoolVersionId string = '4.19.7'
+param openshiftNodePoolVersionId string = '4.20.5'
 
 @description('Node pool osDisk Size in GiB')
 param nodePoolOsDiskSizeGiB int = 128

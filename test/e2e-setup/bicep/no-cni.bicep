@@ -10,7 +10,7 @@ param clusterName string
 param identities object
 
 @description('ControlPlane OpenShift Version ID')
-param openshiftControlPlaneVersionId string = '4.19'
+param openshiftControlPlaneVersionId string = '4.20'
 
 module customerInfra 'modules/customer-infra.bicep' = {
   name: 'customerInfra'

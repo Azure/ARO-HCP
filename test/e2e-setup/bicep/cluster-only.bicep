@@ -13,7 +13,7 @@ param identities object
 param usePooledIdentities bool = false
 
 @description('ControlPlane OpenShift Version ID')
-param openshiftControlPlaneVersionId string = '4.19'
+param openshiftControlPlaneVersionId string = '4.20'
 
 module customerInfra 'modules/customer-infra.bicep' = {
   name: 'customerInfra'
