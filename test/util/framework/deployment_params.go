@@ -19,6 +19,7 @@ import (
 	"embed"
 	"encoding/json"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
@@ -57,9 +58,25 @@ type NetworkConfig struct {
 	HostPrefix  int32
 }
 
+func DefaultOpenshiftControlPlaneVersionId() string {
+	version := os.Getenv("ARO_HCP_OPENSHIFT_CONTROLPLANE_VERSION")
+	if version == "" {
+		return "4.19"
+	}
+	return version
+}
+
+func DefaultOpenshiftNodePoolVersionId() string {
+	version := os.Getenv("ARO_HCP_OPENSHIFT_NODEPOOL_VERSION")
+	if version == "" {
+		return "4.19.7"
+	}
+	return version
+}
+
 func NewDefaultClusterParams() ClusterParams {
 	return ClusterParams{
-		OpenshiftVersionId: "4.19",
+		OpenshiftVersionId: DefaultOpenshiftControlPlaneVersionId(),
 		Network: NetworkConfig{
 			NetworkType: "OVNKubernetes",
 			PodCIDR:     "10.128.0.0/14",
@@ -88,7 +105,7 @@ type NodePoolParams struct {
 
 func NewDefaultNodePoolParams() NodePoolParams {
 	return NodePoolParams{
-		OpenshiftVersionId:     "4.19.7",
+		OpenshiftVersionId:     DefaultOpenshiftNodePoolVersionId(),
 		Replicas:               int32(2),
 		VMSize:                 "Standard_D8s_v3",
 		OSDiskSizeGiB:          int32(64),
