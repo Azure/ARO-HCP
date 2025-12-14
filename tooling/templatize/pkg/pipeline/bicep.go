@@ -79,7 +79,12 @@ func transformParameters(ctx context.Context, bicepClient *bicep.LSPClient, cfg 
 		return nil, nil, fmt.Errorf("failed to write to target file: %w", err)
 	}
 
-	rawTemplate, rawParams, err := bicepClient.BuildParams(ctx, bicepParamFile.Name())
+	// Ensure absolute path for BuildParams (temporary fix for path resolution issue)
+	bicepParamAbsPath, err := filepath.Abs(bicepParamFile.Name())
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to get absolute path: %w", err)
+	}
+	rawTemplate, rawParams, err := bicepClient.BuildParams(ctx, bicepParamAbsPath)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to build params: %w", err)
 	}

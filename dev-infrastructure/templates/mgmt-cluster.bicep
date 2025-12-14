@@ -234,6 +234,7 @@ var workloadIdentities = items({
     namespace: 'prometheus'
     serviceAccountName: 'prometheus'
   }
+<<<<<<< HEAD
   velero_wi: {
     uamiName: 'velero'
     namespace: 'openshift-adp'
@@ -243,6 +244,11 @@ var workloadIdentities = items({
     uamiName: 'openshift-adp-controller-manager'
     namespace: 'openshift-adp'
     serviceAccountName: 'openshift-adp-controller-manager'
+  }
+  custom_metrics_collector_wi: {
+    uamiName: 'custom-metrics-collector'
+    namespace: 'observability'
+    serviceAccountName: 'custom-metrics-collector'
   }
 })
 

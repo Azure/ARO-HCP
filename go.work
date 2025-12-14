@@ -4,6 +4,7 @@ use (
 	./admin/client
 	./admin/server
 	./backend
+	./dev-infrastructure/sre-tooling/tenant-quota
 	./frontend
 	./internal
 	./test

@@ -163,6 +163,13 @@ clustersService:
   tracing:
     address: http://ingest.observability:4318
     exporter: otlp
+customMetricsCollector:
+  bundleVersion: v1.0.0
+  image:
+    digest: ""
+    registry: arohcpsvcdev.azurecr.io
+    repository: custom-metrics-collector
+  servicePrincipalClientId: 1ef710d1-afd7-4bf3-8095-e8126650607f
 cxKeyVault:
   name: ah-pers-cx-usw3test-1
   private: false
@@ -680,6 +687,65 @@ serviceKeyVault:
   softDelete: true
   tagKey: aroHCPPurpose
   tagValue: service
+sretooling:
+  adminApi:
+    managedIdentityName: admin-api
+  aks:
+    clusterOutboundIPAddressIPTags: ""
+    etcd:
+      name: ah-pers-tool-usw3test-1
+      private: true
+      softDelete: true
+      tagKey: aroHCPPurpose
+      tagValue: etcd
+    infraAgentPool:
+      maxCount: 2
+      minCount: 1
+      osDiskSizeGB: 64
+      poolCount: 1
+      vmSize: Standard_D4ds_v5
+      zoneRedundantMode: Auto
+      zones: ""
+    kubernetesVersion: 1.32.5
+    name: pers-westus3-sre-tooling
+    networkDataplane: cilium
+    networkPolicy: cilium
+    podSubnetPrefix: 10.140.64.0/18
+    subnetPrefix: 10.140.8.0/21
+    systemAgentPool:
+      maxCount: 3
+      minCount: 1
+      osDiskSizeGB: 32
+      poolCount: 1
+      vmSize: Standard_D2s_v3
+      zoneRedundantMode: Auto
+      zones: ""
+    userAgentPool:
+      maxCount: 3
+      minCount: 1
+      osDiskSizeGB: 32
+      poolCount: 1
+      vmSize: Standard_D2s_v3
+      zoneRedundantMode: Auto
+      zones: ""
+    vnetAddressPrefix: 10.140.0.0/14
+  prometheus:
+    namespace: prometheus
+    namespaceNetworkPolicyGroup: ""
+  rg: hcp-underlay-pers-westus3-sre-tooling
+  subscription:
+    displayName: Azure Red Hat OpenShift HCP - pers - westus3 - SRE Tooling
+    key: ARO Hosted Control Planes (EA Subscription 1)
+    providers:
+      Microsoft.Compute:
+        poll: true
+      Microsoft.ContainerService:
+        poll: true
+      Microsoft.Insights:
+        poll: true
+      Microsoft.Network:
+        poll: true
+    usePlannedQuota: false
 svc:
   aks:
     clusterOutboundIPAddressIPTags: ""

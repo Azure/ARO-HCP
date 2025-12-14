@@ -1,0 +1,41 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: custom-metrics-config
+  namespace: {{ .Release.Namespace }}
+data:
+  config.yaml: |
+    collectors:
+      - name: "tenant-quota"
+        type: "builtin"
+        id: "tenant-quota"
+        interval: "5m"
+        timeout: "30s"
+        # Tenant lookup table - collector detects which tenant it's running in
+        # and uses the matching entry's credentials
+        tenants:
+          - tenantId: "64dc69e4-d083-49fc-9569-ebece1dd1408"
+            tenantName: "RedHat0"
+            servicePrincipalClientId: "{{ .Values.servicePrincipal.clientId }}"
+            keyVaultSecretName: "{{ .Values.secretProvider.secretName }}"
+        metrics:
+          - name: "tenant_quota_usage_percentage"
+            type: "gauge"
+            help: "Tenant quota usage percentage"
+            labels: ["tenant_id", "tenant_name"]
+            source: "USAGE_PERCENTAGE"
+          - name: "tenant_quota_total"
+            type: "gauge"
+            help: "Total tenant quota limit"
+            labels: ["tenant_id", "tenant_name"]
+            source: "QUOTA_TOTAL"
+          - name: "tenant_quota_used"
+            type: "gauge"
+            help: "Used tenant quota from API"
+            labels: ["tenant_id", "tenant_name"]
+            source: "QUOTA_USED"
+          - name: "tenant_remaining_capacity"
+            type: "gauge"
+            help: "Remaining tenant capacity"
+            labels: ["tenant_id", "tenant_name"]
+            source: "REMAINING_CAPACITY"

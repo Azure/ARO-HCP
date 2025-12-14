@@ -27,6 +27,10 @@ ignore:
 - 'observability/arobit/deploy/templates/serviceaccount.yaml'
 - 'observability/arobit/deploy/templates/forwarder-secretprovider.yaml'
 - 'observability/kube-events/deploy/templates/deployment.yaml'
+- 'observability/custom-metrics-collector/deploy/templates/deployment.yaml'
+- 'observability/custom-metrics-collector/deploy/templates/secret.yaml'
+- 'observability/custom-metrics-collector/deploy/templates/secretproviderclass.yaml'
+- 'dev-infrastructure/sre-tooling/tenant-quota/deploy/templates/*.yaml'
 - 'mgmt-fixes/deploy/kubelet-ds/templates/ds-kubelet-parameters.yaml'
 - '**/zz_fixture_TestHelmTemplate*.yaml'
 rules:

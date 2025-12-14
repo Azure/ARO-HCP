@@ -1,0 +1,108 @@
+$schema: "pipeline.schema.v1"
+serviceGroup: Microsoft.Azure.ARO.HCP.CustomMetricsCollector
+rolloutName: Custom Metrics Collector Rollout
+resourceGroups:
+- name: global
+  resourceGroup: '{{ .global.rg }}'
+  subscription: '{{ .global.subscription.key }}'
+  steps:
+  - name: output
+    action: ARM
+    template: ../../templates/output-global.bicep
+    parameters: ../../configurations/output-global.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
+  - name: mirror-image
+    action: ImageMirror
+    targetACR:
+      configRef: 'acr.svc.name'
+    sourceRegistry:
+      configRef: customMetricsCollector.image.registry
+    repository:
+      configRef: customMetricsCollector.image.repository
+    digest:
+      configRef: customMetricsCollector.image.digest
+    pullSecretKeyVault:
+      configRef: global.keyVault.name
+    pullSecretName:
+      configRef: imageSync.ondemandSync.pullSecretName
+    shellIdentity:
+      input:
+        resourceGroup: global
+        step: output
+        name: globalMSIId
+- name: sre-tooling
+  resourceGroup: '{{ .sretooling.rg }}'
+  subscription: '{{ .sretooling.subscription.key }}'
+  steps:
+  - name: kv-lookup
+    action: ARM
+    template: templates/sre-tooling-kv-lookup.bicep
+    parameters: templates/sre-tooling-kv-lookup.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
+    externalDependsOn:
+    - serviceGroup: Microsoft.Azure.ARO.HCP.SRETooling.Infra
+      resourceGroup: sre-tooling
+      step: infra
+  - name: create-identity
+    action: ARM
+    template: templates/custom-metrics-collector-identity.bicep
+    parameters: templates/custom-metrics-collector-identity.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+  - name: grant-kv-permissions
+    action: ARM
+    template: templates/custom-metrics-collector-kv-permissions.bicep
+    parameters: templates/custom-metrics-collector-kv-permissions.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    variables:
+    - name: msiClientId
+      input:
+        resourceGroup: sre-tooling
+        step: create-identity
+        name: customMetricsCollectorUAMIClientId
+    - name: keyVaultName
+      input:
+        resourceGroup: sre-tooling
+        step: kv-lookup
+        name: sreToolingKeyVaultName
+    dependsOn:
+    - resourceGroup: sre-tooling
+      step: create-identity
+    - resourceGroup: sre-tooling
+      step: kv-lookup
+  - name: deploy
+    aksCluster: '{{ .sretooling.aks.name }}'
+    action: Helm
+    releaseName: tenant-quota
+    releaseNamespace: 'tenant-quota'
+    chartDir: ./deploy
+    valuesFile: ./values.yaml
+    namespaceFiles:
+    - namespace.yaml
+    inputVariables:
+      msiClientId:
+        resourceGroup: sre-tooling
+        step: create-identity
+        name: customMetricsCollectorUAMIClientId
+      msiTenantId:
+        resourceGroup: global
+        step: output
+        name: globalMSITenantId
+      sreToolingKeyVaultName:
+        resourceGroup: sre-tooling
+        step: kv-lookup
+        name: sreToolingKeyVaultName
+    dependsOn:
+    - resourceGroup: global
+      step: mirror-image
+    - resourceGroup: sre-tooling
+      step: kv-lookup
+    - resourceGroup: sre-tooling
+      step: create-identity
+    - resourceGroup: sre-tooling
+      step: grant-kv-permissions
+    identityFrom:
+      resourceGroup: global
+      step: output
+      name: globalMSIId

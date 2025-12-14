@@ -25,6 +25,7 @@ Each service component defines its image digest in the [configuration](../config
 | Prometheus Server (MGMT)      | `mgmt.prometheus.prometheusSpec.image.digest`     |
 | Maestro Agent Sidecar (nginx) | `maestro.agent.sidecar.image.digest`              |
 | Mise                          | `mise.image.digest`                               |
+| Custom Metrics Collector      | `customMetricsCollector.image.digest`             |
 
 > **Note**: Some components, such as `backend.image.digest` and `frontend.image.digest`, may be unset in development environments. In these cases, the commit SHA is used to resolve the image and digest. Components deployed to both service (SVC) and management (MGMT) clusters have distinct configuration paths per cluster type.
 
