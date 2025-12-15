@@ -68,14 +68,14 @@ func TestFrontendExternalAuthMutation(t *testing.T) {
 type externalAuthMutationTest struct {
 	ctx               context.Context
 	testDir           fs.FS
-	testInfo          *integrationutils.SimulationTestInfo
+	testInfo          *integrationutils.FrontendIntegrationTestInfo
 	subscriptionID    string
 	resourceGroupName string
 
 	genericMutationTestInfo *integrationutils.GenericMutationTest
 }
 
-func newExternalAuthMutationTest(ctx context.Context, testDir fs.FS, testInfo *integrationutils.SimulationTestInfo, subscriptionID, resourceGroupName string) (*externalAuthMutationTest, error) {
+func newExternalAuthMutationTest(ctx context.Context, testDir fs.FS, testInfo *integrationutils.FrontendIntegrationTestInfo, subscriptionID, resourceGroupName string) (*externalAuthMutationTest, error) {
 	genericMutationTestInfo, err := integrationutils.ReadGenericMutationTest(testDir)
 	if err != nil {
 		return nil, err

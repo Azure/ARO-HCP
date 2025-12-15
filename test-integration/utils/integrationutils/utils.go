@@ -16,14 +16,11 @@ package integrationutils
 
 import (
 	"context"
-	"crypto/tls"
 	"fmt"
 	"net"
-	"net/http"
 	"os"
-	"path/filepath"
+	"sync"
 	"testing"
-	"time"
 
 	// register the APIs.
 	_ "github.com/Azure/ARO-HCP/internal/api/v20240610preview"
@@ -31,13 +28,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/mock/gomock"
 
-	"k8s.io/apimachinery/pkg/util/rand"
-
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
-	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
-
-	"github.com/Azure/ARO-HCP/frontend/cmd"
 	"github.com/Azure/ARO-HCP/frontend/pkg/frontend"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/audit"
@@ -48,27 +38,36 @@ import (
 
 func SkipIfNotSimulationTesting(t *testing.T) {
 	if os.Getenv("FRONTEND_SIMULATION_TESTING") != "true" {
-		t.Skip("Skipping test")
+		//t.Skip("Skipping test")
 	}
 }
 
-func NewFrontendFromTestingEnv(ctx context.Context, t *testing.T) (*frontend.Frontend, *SimulationTestInfo, error) {
-	arm.SetAzureLocation("globals-are-evil")
+var (
+	artifactDir     string
+	artifactDirInit sync.Once
+)
 
-	artifactDir := os.Getenv("ARTIFACT_DIR")
-	if artifactDir == "" {
-		// Default to temp directory if ARTIFACT_DIR not set
-		var err error
-		artifactDir, err = os.MkdirTemp("", "simulation-testing")
-		if err != nil {
-			return nil, nil, fmt.Errorf("failed to create temp directory: %w", err)
+func getArtifactDir() string {
+	artifactDirInit.Do(func() {
+		artifactDir = os.Getenv("ARTIFACT_DIR")
+		if artifactDir == "" {
+			// Default to temp directory if ARTIFACT_DIR not set
+			var err error
+			artifactDir, err = os.MkdirTemp("", "integration-testing")
+			if err != nil {
+				panic(err)
+			}
 		}
+	})
+	return artifactDir
+}
+
+func NewFrontendFromTestingEnv(ctx context.Context, t *testing.T) (*frontend.Frontend, *FrontendIntegrationTestInfo, error) {
+	cosmosTestEnv, err := NewCosmosFromTestingEnv(ctx)
+	if err != nil {
+		return nil, nil, err
 	}
-	artifactDir = filepath.Join(artifactDir, t.Name())
-	t.Logf("ARTIFACT_DIR: %s\n", artifactDir)
-	if err := os.MkdirAll(artifactDir, 0755); err != nil {
-		return nil, nil, fmt.Errorf("failed to create artifact directory %s: %w", artifactDir, err)
-	}
+	arm.SetAzureLocation("globals-are-evil")
 
 	logger := utils.DefaultLogger()
 
@@ -90,120 +89,17 @@ func NewFrontendFromTestingEnv(ctx context.Context, t *testing.T) (*frontend.Fro
 		return nil, nil, err
 	}
 
-	cosmosClient, err := createCosmosClientFromEnv()
-	if err != nil {
-		return nil, nil, err
-	}
-	cosmosDatabaseName := "frontend-simulation-testing-" + rand.String(5)
-	cosmosDatabaseClient, err := initializeCosmosDBForFrontend(ctx, cosmosClient, cosmosDatabaseName)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to Initialize Cosmos DB: %w", err)
-	}
-	dbClient, err := database.NewDBClient(ctx, cosmosDatabaseClient)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to create the database client: %w", err)
-	}
-
 	metricsRegistry := prometheus.NewRegistry()
 
-	frontend := frontend.NewFrontend(logger, listener, metricsListener, metricsRegistry, dbClient, clusterServiceClient, noOpAuditClient)
-	testInfo := &SimulationTestInfo{
-		ArtifactsDir:             artifactDir,
-		mockData:                 make(map[string]map[string][]any),
-		CosmosDatabaseClient:     cosmosDatabaseClient,
-		DBClient:                 dbClient,
-		MockClusterServiceClient: clusterServiceClient,
-		CosmosClient:             cosmosClient,
-		DatabaseName:             cosmosDatabaseName,
-		FrontendURL:              fmt.Sprintf("http://%s", listener.Addr().String()),
+	aroHCPFrontend := frontend.NewFrontend(logger, listener, metricsListener, metricsRegistry, cosmosTestEnv.DBClient, clusterServiceClient, noOpAuditClient)
+	testInfo := &FrontendIntegrationTestInfo{
+		CosmosIntegrationTestInfo: cosmosTestEnv,
+		ArtifactsDir:              artifactDir,
+		mockData:                  make(map[string]map[string][]any),
+		MockClusterServiceClient:  clusterServiceClient,
+		FrontendURL:               fmt.Sprintf("http://%s", listener.Addr().String()),
 	}
-	return frontend, testInfo, nil
-}
-
-func createCosmosClientFromEnv() (*azcosmos.Client, error) {
-	// Emulator endpoint and key
-	emulatorEndpoint := os.Getenv("FRONTEND_COSMOS_ENDPOINT")
-	emulatorKey := os.Getenv("FRONTEND_COSMOS_KEY")
-	if len(emulatorEndpoint) == 0 {
-		emulatorEndpoint = "https://localhost:8081" // emulator default
-	}
-	if len(emulatorKey) == 0 {
-		emulatorKey = "C2y6yDjf5/R+ob0N8A7Cgv30VRDJIWEHLM+4QDU5DE2nQ9nDuVTqobD4b8mGGyPMbIZnqyMsEcaGQy67XIw/Jw==" // emulator default
-	}
-
-	// Configure HTTP client to skip certificate verification for the emulator
-	httpClient := &http.Client{
-		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-		},
-	}
-
-	// Create a custom pipeline option for the client
-	clientOptions := &azcosmos.ClientOptions{
-		ClientOptions: azcore.ClientOptions{
-			Transport:       httpClient,
-			PerCallPolicies: []policy.Policy{cmd.PolicyFunc(cmd.CorrelationIDPolicy)},
-		},
-	}
-
-	// Create key credential
-	keyCredential, err := azcosmos.NewKeyCredential(emulatorKey)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create key credential: %w", err)
-	}
-
-	// Create Cosmos DB client
-	cosmosClient, err := azcosmos.NewClientWithKey(emulatorEndpoint, keyCredential, clientOptions)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create Cosmos DB client: %w", err)
-	}
-	return cosmosClient, nil
-}
-
-func initializeCosmosDBForFrontend(ctx context.Context, cosmosClient *azcosmos.Client, cosmosDatabaseName string) (*azcosmos.DatabaseClient, error) {
-	// Create the database if it doesn't exist
-	databaseProperties := azcosmos.DatabaseProperties{ID: cosmosDatabaseName}
-	_, err := cosmosClient.CreateDatabase(ctx, databaseProperties, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create database: %w", err)
-	}
-
-	// Get the database client
-	cosmosDatabaseClient, err := cosmosClient.NewDatabase(cosmosDatabaseName)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create database client: %w", err)
-	}
-
-	// Create required containers
-	containers := []struct {
-		name         string
-		partitionKey string
-		defaultTTL   *int32
-	}{
-		{"Resources", "/partitionKey", nil},
-		{"Billing", "/subscriptionId", nil},
-		{"Locks", "/id", &[]int32{10}[0]}, // 10 second TTL for locks
-	}
-
-	for _, container := range containers {
-		containerProperties := azcosmos.ContainerProperties{
-			ID: container.name,
-			PartitionKeyDefinition: azcosmos.PartitionKeyDefinition{
-				Paths: []string{container.partitionKey},
-			},
-		}
-		if container.defaultTTL != nil {
-			containerProperties.DefaultTimeToLive = container.defaultTTL
-		}
-
-		_, err = cosmosDatabaseClient.CreateContainer(ctx, containerProperties, nil)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create container: %w", err)
-		}
-	}
-
-	return cosmosDatabaseClient, nil
-
+	return aroHCPFrontend, testInfo, nil
 }
 
 func MarkOperationsCompleteForName(ctx context.Context, dbClient database.DBClient, subscriptionID, resourceName string) error {

@@ -42,7 +42,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/ocm"
 )
 
-func TrivialPassThroughClusterServiceMock(t *testing.T, testInfo *SimulationTestInfo, initialDataDir fs.FS) error {
+func TrivialPassThroughClusterServiceMock(t *testing.T, testInfo *FrontendIntegrationTestInfo, initialDataDir fs.FS) error {
 	internalIDToCluster := map[string][]any{}
 	internalIDToAutoscaler := map[string][]any{}
 	internalIDToExternalAuth := map[string][]any{}
@@ -462,7 +462,7 @@ type GenericMutationTest struct {
 	expectedErrors     []expectedFieldError
 }
 
-func (h *GenericMutationTest) Initialize(ctx context.Context, testInfo *SimulationTestInfo) error {
+func (h *GenericMutationTest) Initialize(ctx context.Context, testInfo *FrontendIntegrationTestInfo) error {
 	if h.initialCosmosState != nil {
 		err := testInfo.CreateInitialCosmosContent(ctx, h.initialCosmosState)
 		if err != nil {

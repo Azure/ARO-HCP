@@ -69,14 +69,14 @@ func TestFrontendNodePoolMutation(t *testing.T) {
 type nodePoolMutationTest struct {
 	ctx               context.Context
 	testDir           fs.FS
-	testInfo          *integrationutils.SimulationTestInfo
+	testInfo          *integrationutils.FrontendIntegrationTestInfo
 	subscriptionID    string
 	resourceGroupName string
 
 	genericMutationTestInfo *integrationutils.GenericMutationTest
 }
 
-func newNodePoolMutationTest(ctx context.Context, testDir fs.FS, testInfo *integrationutils.SimulationTestInfo, subscriptionID, resourceGroupName string) (*nodePoolMutationTest, error) {
+func newNodePoolMutationTest(ctx context.Context, testDir fs.FS, testInfo *integrationutils.FrontendIntegrationTestInfo, subscriptionID, resourceGroupName string) (*nodePoolMutationTest, error) {
 	genericMutationTestInfo, err := integrationutils.ReadGenericMutationTest(testDir)
 	if err != nil {
 		return nil, err

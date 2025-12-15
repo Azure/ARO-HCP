@@ -67,14 +67,14 @@ func TestFrontendClusterMutation(t *testing.T) {
 type clusterMutationTest struct {
 	ctx               context.Context
 	testDir           fs.FS
-	testInfo          *integrationutils.SimulationTestInfo
+	testInfo          *integrationutils.FrontendIntegrationTestInfo
 	subscriptionID    string
 	resourceGroupName string
 
 	genericMutationTestInfo *integrationutils.GenericMutationTest
 }
 
-func newClusterMutationTest(ctx context.Context, testDir fs.FS, testInfo *integrationutils.SimulationTestInfo, subscriptionID, resourceGroupName string) (*clusterMutationTest, error) {
+func newClusterMutationTest(ctx context.Context, testDir fs.FS, testInfo *integrationutils.FrontendIntegrationTestInfo, subscriptionID, resourceGroupName string) (*clusterMutationTest, error) {
 	genericMutationTestInfo, err := integrationutils.ReadGenericMutationTest(testDir)
 	if err != nil {
 		return nil, err
