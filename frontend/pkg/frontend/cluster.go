@@ -608,7 +608,7 @@ func (f *Frontend) updateHCPClusterInCosmos(ctx context.Context, writer http.Res
 	return nil
 }
 
-// DeleteNodePool implements the deletion API contract for ARM
+// DeleteCluster implements the deletion API contract for ARM
 // * 200 if a deletion is successful
 // * 202 if an asynchronous delete is initiated
 // * 204 if a well-formed request attempts to delete a nonexistent resource
@@ -674,7 +674,7 @@ func (f *Frontend) addDeleteClusterToTransaction(ctx context.Context, writer htt
 		// also happen if an asynchronous deletion operation fails.
 		// we will fall through and cancel all operations and go through as normal a deletion flow as we can to avoid
 		// leaking data related to the resource, like controller status.
-		logger.Info("clusterService nodepool missing, trying to clean up", "err", err)
+		logger.Info("clusterService cluster missing, trying to clean up", "err", err)
 	} else if err != nil {
 		return utils.TrackError(err)
 	}
@@ -699,8 +699,8 @@ func (f *Frontend) addDeleteClusterToTransaction(ctx context.Context, writer htt
 		"",
 		correlationData)
 	if request != nil {
-		// these are optional because when this is triggered via the subscription deletion flow, there is no notification URI
-		// so these operations cannot be directly tracked.
+		// these are optional because when this is triggered via the subscription deletion flow, there is no
+		// deletion request containing these headers so these operations cannot be directly tracked.
 		operationDoc.TenantID = request.Header.Get(arm.HeaderNameHomeTenantID)
 		operationDoc.ClientID = request.Header.Get(arm.HeaderNameClientObjectID)
 		operationDoc.NotificationURI = request.Header.Get(arm.HeaderNameAsyncNotificationURI)

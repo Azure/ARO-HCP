@@ -685,8 +685,8 @@ func (f *Frontend) addDeleteNodePoolToTransaction(ctx context.Context, writer ht
 		"",
 		correlationData)
 	if request != nil {
-		// these are optional because when this is triggered via the subscription deletion flow, there is no notification URI
-		// so these operations cannot be directly tracked.
+		// these are optional because when this is triggered via the subscription deletion flow, there is no
+		// deletion request containing these headers so these operations cannot be directly tracked.
 		operationDoc.TenantID = request.Header.Get(arm.HeaderNameHomeTenantID)
 		operationDoc.ClientID = request.Header.Get(arm.HeaderNameClientObjectID)
 		operationDoc.NotificationURI = request.Header.Get(arm.HeaderNameAsyncNotificationURI)

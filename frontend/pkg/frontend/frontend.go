@@ -517,7 +517,7 @@ func (f *Frontend) ArmSubscriptionPut(writer http.ResponseWriter, request *http.
 
 	// Clean up resources if subscription is deleted.
 	if subscription.State == arm.SubscriptionStateDeleted {
-		if err := f.DeleteAllResources(ctx, writer, request, subscriptionID); err != nil {
+		if err := f.DeleteAllResources(ctx, writer, nil, subscriptionID); err != nil {
 			return utils.TrackError(err)
 		}
 	}
