@@ -1,7 +1,7 @@
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: multicluster-engine-b7nrbi1l72ksyla9jvl2u952m51krftpz1e93w1bxie
+  name: multicluster-engine-puhm437v5po94yo4pnpdg7554ai27rlzm4m8u5qh7bd
 rules:
 - apiGroups:
   - ""
@@ -687,6 +687,7 @@ rules:
   - clusterclasses
   - clusterclasses/status
   - clusters/finalizers
+  - machinedrainrules
   - machinehealthchecks/finalizers
   - machinehealthchecks/status
   verbs:
@@ -721,14 +722,6 @@ rules:
   - list
   - patch
   - update
-  - watch
-- apiGroups:
-  - cluster.x-k8s.io
-  resources:
-  - machinedrainrules
-  verbs:
-  - get
-  - list
   - watch
 - apiGroups:
   - clusterview.open-cluster-management.io
@@ -847,6 +840,14 @@ rules:
 - apiGroups:
   - controlplane.cluster.x-k8s.io
   resources:
+  - awsmanagedcontrolplanes/finalizers
+  - openshiftassistedcontrolplanes/finalizers
+  - rosacontrolplanes/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - controlplane.cluster.x-k8s.io
+  resources:
   - awsmanagedcontrolplanes/status
   - rosacontrolplanes/status
   verbs:
@@ -867,13 +868,6 @@ rules:
   - patch
   - update
   - watch
-- apiGroups:
-  - controlplane.cluster.x-k8s.io
-  resources:
-  - openshiftassistedcontrolplanes/finalizers
-  - rosacontrolplanes/finalizers
-  verbs:
-  - update
 - apiGroups:
   - controlplane.cluster.x-k8s.io
   resources:
@@ -1099,7 +1093,6 @@ rules:
   - awsmanagedclusters
   - awsmanagedmachinepools
   - rosaclusters
-  - rosamachinepools
   verbs:
   - delete
   - get
@@ -1119,7 +1112,7 @@ rules:
   - metal3machines/status
   - metal3remediations/status
   - rosaclusters/status
-  - rosamachinepools/status
+  - rosaroleconfigs/status
   verbs:
   - get
   - patch
@@ -1148,6 +1141,8 @@ rules:
   - metal3machines
   - metal3machinetemplates
   - metal3remediations
+  - rosamachinepools
+  - rosaroleconfigs
   verbs:
   - create
   - delete
@@ -1160,8 +1155,20 @@ rules:
   - infrastructure.cluster.x-k8s.io
   resources:
   - rosamachinepools/finalizers
+  - rosaroleconfigs/finalizers
   verbs:
   - update
+- apiGroups:
+  - infrastructure.cluster.x-k8s.io
+  resources:
+  - rosamachinepools/status
+  verbs:
+  - create
+  - get
+  - list
+  - patch
+  - update
+  - watch
 - apiGroups:
   - internal.open-cluster-management.io
   resources:
@@ -1193,6 +1200,18 @@ rules:
   - ipaddressclaims/status
   verbs:
   - get
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ipam.cluster.x-k8s.io
+  resources:
+  - ipaddresses
+  verbs:
+  - get
+  - list
+  - patch
+  - update
   - watch
 - apiGroups:
   - ipam.cluster.x-k8s.io
@@ -1213,9 +1232,7 @@ rules:
 - apiGroups:
   - ipam.metal3.io
   resources:
-  - ipaddresses
   - ipclaims
-  - ippools
   verbs:
   - create
   - delete
@@ -1227,20 +1244,9 @@ rules:
 - apiGroups:
   - ipam.metal3.io
   resources:
-  - ipaddresses/status
-  - ippools/status
-  verbs:
-  - get
-  - patch
-  - update
-- apiGroups:
-  - ipam.metal3.io
-  resources:
   - ipclaims/status
   verbs:
   - get
-  - patch
-  - update
   - watch
 - apiGroups:
   - metal3.io
@@ -1524,6 +1530,7 @@ rules:
   - rbac.open-cluster-management.io
   resources:
   - clusterpermissions
+  - multiclusterroleassignments
   verbs:
   - get
   - list
@@ -1593,6 +1600,15 @@ rules:
   resources:
   - submarinerconfigs
   verbs:
+  - list
+  - watch
+- apiGroups:
+  - user.openshift.io
+  resources:
+  - groups
+  - users
+  verbs:
+  - get
   - list
   - watch
 - apiGroups:

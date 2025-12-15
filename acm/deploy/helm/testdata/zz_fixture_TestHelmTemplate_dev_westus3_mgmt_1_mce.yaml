@@ -47,11 +47,11 @@ metadata:
   name: multicluster-engine-operator-config
   namespace: 'multicluster-engine'
 ---
-# Source: multicluster-engine/templates/multicluster-engine-b7nrbi1l72ksyla9jvl2u952m51krftpz1e93w1bxie.clusterrole.yaml
+# Source: multicluster-engine/templates/multicluster-engine-puhm437v5po94yo4pnpdg7554ai27rlzm4m8u5qh7bd.clusterrole.yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: multicluster-engine-b7nrbi1l72ksyla9jvl2u952m51krftpz1e93w1bxie
+  name: multicluster-engine-puhm437v5po94yo4pnpdg7554ai27rlzm4m8u5qh7bd
 rules:
 - apiGroups:
   - ""
@@ -737,6 +737,7 @@ rules:
   - clusterclasses
   - clusterclasses/status
   - clusters/finalizers
+  - machinedrainrules
   - machinehealthchecks/finalizers
   - machinehealthchecks/status
   verbs:
@@ -771,14 +772,6 @@ rules:
   - list
   - patch
   - update
-  - watch
-- apiGroups:
-  - cluster.x-k8s.io
-  resources:
-  - machinedrainrules
-  verbs:
-  - get
-  - list
   - watch
 - apiGroups:
   - clusterview.open-cluster-management.io
@@ -897,6 +890,14 @@ rules:
 - apiGroups:
   - controlplane.cluster.x-k8s.io
   resources:
+  - awsmanagedcontrolplanes/finalizers
+  - openshiftassistedcontrolplanes/finalizers
+  - rosacontrolplanes/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - controlplane.cluster.x-k8s.io
+  resources:
   - awsmanagedcontrolplanes/status
   - rosacontrolplanes/status
   verbs:
@@ -917,13 +918,6 @@ rules:
   - patch
   - update
   - watch
-- apiGroups:
-  - controlplane.cluster.x-k8s.io
-  resources:
-  - openshiftassistedcontrolplanes/finalizers
-  - rosacontrolplanes/finalizers
-  verbs:
-  - update
 - apiGroups:
   - controlplane.cluster.x-k8s.io
   resources:
@@ -1149,7 +1143,6 @@ rules:
   - awsmanagedclusters
   - awsmanagedmachinepools
   - rosaclusters
-  - rosamachinepools
   verbs:
   - delete
   - get
@@ -1169,7 +1162,7 @@ rules:
   - metal3machines/status
   - metal3remediations/status
   - rosaclusters/status
-  - rosamachinepools/status
+  - rosaroleconfigs/status
   verbs:
   - get
   - patch
@@ -1198,6 +1191,8 @@ rules:
   - metal3machines
   - metal3machinetemplates
   - metal3remediations
+  - rosamachinepools
+  - rosaroleconfigs
   verbs:
   - create
   - delete
@@ -1210,8 +1205,20 @@ rules:
   - infrastructure.cluster.x-k8s.io
   resources:
   - rosamachinepools/finalizers
+  - rosaroleconfigs/finalizers
   verbs:
   - update
+- apiGroups:
+  - infrastructure.cluster.x-k8s.io
+  resources:
+  - rosamachinepools/status
+  verbs:
+  - create
+  - get
+  - list
+  - patch
+  - update
+  - watch
 - apiGroups:
   - internal.open-cluster-management.io
   resources:
@@ -1243,6 +1250,18 @@ rules:
   - ipaddressclaims/status
   verbs:
   - get
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ipam.cluster.x-k8s.io
+  resources:
+  - ipaddresses
+  verbs:
+  - get
+  - list
+  - patch
+  - update
   - watch
 - apiGroups:
   - ipam.cluster.x-k8s.io
@@ -1263,9 +1282,7 @@ rules:
 - apiGroups:
   - ipam.metal3.io
   resources:
-  - ipaddresses
   - ipclaims
-  - ippools
   verbs:
   - create
   - delete
@@ -1277,20 +1294,9 @@ rules:
 - apiGroups:
   - ipam.metal3.io
   resources:
-  - ipaddresses/status
-  - ippools/status
-  verbs:
-  - get
-  - patch
-  - update
-- apiGroups:
-  - ipam.metal3.io
-  resources:
   - ipclaims/status
   verbs:
   - get
-  - patch
-  - update
   - watch
 - apiGroups:
   - metal3.io
@@ -1574,6 +1580,7 @@ rules:
   - rbac.open-cluster-management.io
   resources:
   - clusterpermissions
+  - multiclusterroleassignments
   verbs:
   - get
   - list
@@ -1643,6 +1650,15 @@ rules:
   resources:
   - submarinerconfigs
   verbs:
+  - list
+  - watch
+- apiGroups:
+  - user.openshift.io
+  resources:
+  - groups
+  - users
+  verbs:
+  - get
   - list
   - watch
 - apiGroups:
@@ -1735,15 +1751,15 @@ rules:
   - update
   - watch
 ---
-# Source: multicluster-engine/templates/multicluster-engine-b7nrbi1l72ksyla9jvl2u952m51krftpz1e93w1bxie.clusterrolebinding.yaml
+# Source: multicluster-engine/templates/multicluster-engine-puhm437v5po94yo4pnpdg7554ai27rlzm4m8u5qh7bd.clusterrolebinding.yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: multicluster-engine-b7nrbi1l72ksyla9jvl2u952m51krftpz1e93w1bxie
+  name: multicluster-engine-puhm437v5po94yo4pnpdg7554ai27rlzm4m8u5qh7bd
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: multicluster-engine-b7nrbi1l72ksyla9jvl2u952m51krftpz1e93w1bxie
+  name: multicluster-engine-puhm437v5po94yo4pnpdg7554ai27rlzm4m8u5qh7bd
 subjects:
 - kind: ServiceAccount
   name: multicluster-engine-operator
@@ -1885,6 +1901,8 @@ spec:
           value: 'arohcpsvcdev.azurecr.io/acm-d-cache/backplane-rhel9-operator@sha256:1234567890'
         - name: OPERAND_IMAGE_CLUSTER_API_PROVIDER_AGENT
           value: 'arohcpsvcdev.azurecr.io/acm-d-cache/cluster-api-provider-agent-rhel9@sha256:1234567890'
+        - name: OPERAND_IMAGE_CLUSTER_API_PROVIDER_AWS_RHEL9
+          value: 'arohcpsvcdev.azurecr.io/acm-d-cache/cluster-api-provider-aws-rhel9@sha256:1234567890'
         - name: OPERAND_IMAGE_CLUSTER_API_PROVIDER_KUBEVIRT
           value: 'arohcpsvcdev.azurecr.io/acm-d-cache/cluster-api-provider-kubevirt-rhel9@sha256:1234567890'
         - name: OPERAND_IMAGE_CLUSTER_API_PROVIDER_OPENSHIFT_ASSISTED_BOOTSTRAP
@@ -1945,20 +1963,16 @@ spec:
           value: 'arohcpsvcdev.azurecr.io/acm-d-cache/assisted-installer-agent-rhel9@sha256:1234567890'
         - name: OPERAND_IMAGE_ASSISTED_INSTALLER_CONTROLLER
           value: 'arohcpsvcdev.azurecr.io/acm-d-cache/assisted-installer-controller-rhel9@sha256:1234567890'
-        - name: OPERAND_IMAGE_ASSISTED_SERVICE_8
-          value: 'arohcpsvcdev.azurecr.io/acm-d-cache/assisted-service-8-rhel8@sha256:1234567890'
         - name: OPERAND_IMAGE_ASSISTED_SERVICE_9
           value: 'arohcpsvcdev.azurecr.io/acm-d-cache/assisted-service-9-rhel9@sha256:1234567890'
         - name: OPERAND_IMAGE_OSE_CLUSTER_API_RHEL9
           value: 'arohcpsvcdev.azurecr.io/acm-d-cache/ose-cluster-api-rhel9@sha256:1234567890'
-        - name: OPERAND_IMAGE_OSE_AWS_CLUSTER_API_CONTROLLERS_RHEL9
-          value: 'arohcpsvcdev.azurecr.io/acm-d-cache/ose-aws-cluster-api-controllers-rhel9@sha256:1234567890'
         - name: OPERAND_IMAGE_OSE_BAREMETAL_CLUSTER_API_CONTROLLERS_RHEL9
           value: 'arohcpsvcdev.azurecr.io/acm-d-cache/ose-baremetal-cluster-api-controllers-rhel9@sha256:1234567890'
         - name: OPERAND_IMAGE_POSTGRESQL_12
           value: 'arohcpsvcdev.azurecr.io/acm-d-cache/postgresql-12@sha256:1234567890'
         - name: OPERATOR_VERSION
-          value: 2.9.2
+          value: 2.11.0-117
         - name: OPERATOR_PACKAGE
           value: multicluster-engine
         image: 'arohcpsvcdev.azurecr.io/acm-d-cache/backplane-rhel9-operator@sha256:1234567890'
