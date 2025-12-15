@@ -27,17 +27,19 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/Azure/ARO-HCP/frontend/cmd"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/google/uuid"
+
+	"k8s.io/apimachinery/pkg/util/rand"
+
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
-	"github.com/google/uuid"
-	"k8s.io/apimachinery/pkg/util/rand"
 
+	"github.com/Azure/ARO-HCP/frontend/cmd"
 	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/database"
 )
 
 func NewCosmosFromTestingEnv(ctx context.Context) (*CosmosIntegrationTestInfo, error) {
