@@ -31,26 +31,26 @@ type NormalizedLogLine struct {
 // These options are used to configure the Gatherer and are passed to the Gatherer constructor
 // They are used to generate the queries as well
 type GathererOptions struct {
-	ClusterIds                  []string  // Cluster IDs
-	SubscriptionID              string    // Subscription ID
-	ResourceGroup               string    // Resource group
-	SkipHostedControlePlaneLogs bool      // Skip hosted control plane logs
-	TimestampMin                time.Time // Timestamp minimum
-	TimestampMax                time.Time // Timestamp maximum
-	Limit                       int       // Limit the number of results
+	ClusterIds                 []string  // Cluster IDs
+	SubscriptionID             string    // Subscription ID
+	ResourceGroup              string    // Resource group
+	SkipHostedControlPlaneLogs bool      // Skip hosted control plane logs
+	TimestampMin               time.Time // Timestamp minimum
+	TimestampMax               time.Time // Timestamp maximum
+	Limit                      int       // Limit the number of results
 }
 
 // Gatherer represents the Gatherer
 type Gatherer struct {
 	opts          GathererOptions
-	QueryClient   QueryClient
+	QueryClient   QueryClientInterface
 	outputFunc    RowOutputFunc
 	outputOptions RowOutputOptions
 }
 
 // NewCliGatherer creates a new Gatherer
 // It configures a Gatherer configured for using in the must-gather cli command
-func NewCliGatherer(queryClient QueryClient, outputPath, serviceLogsDirectory, hostedControlPlaneLogsDirectory string, opts GathererOptions) *Gatherer {
+func NewCliGatherer(queryClient QueryClientInterface, outputPath, serviceLogsDirectory, hostedControlPlaneLogsDirectory string, opts GathererOptions) *Gatherer {
 	outputOptions := map[string]any{
 		"outputPath":                        outputPath,
 		string(QueryTypeServices):           serviceLogsDirectory,
@@ -72,51 +72,63 @@ func cliOutputFunc(logLineChan chan *NormalizedLogLine, queryType QueryType, opt
 
 	var allErrors error
 
+	// Ensure all files are properly closed when the function exits
+	defer func() {
+		for _, file := range openedFiles {
+			if closeErr := file.Close(); closeErr != nil {
+				allErrors = errors.Join(allErrors, fmt.Errorf("failed to close file: %w", closeErr))
+			}
+		}
+	}()
+
 	for logLine := range logLineChan {
 		fileName := fmt.Sprintf("%s-%s-%s.log", logLine.Cluster, logLine.Namespace, logLine.ContainerName)
 
 		file, ok := openedFiles[fileName]
 		if !ok {
-			file, err := os.Create(path.Join(outputPath, directory, fileName))
+			newFile, err := os.Create(path.Join(outputPath, directory, fileName))
 			if err != nil {
 				allErrors = errors.Join(allErrors, fmt.Errorf("failed to create output file: %w", err))
 				return allErrors
 			}
-			openedFiles[fileName] = file
+			openedFiles[fileName] = newFile
+			file = newFile
 		}
-		defer file.Close()
-		fmt.Fprintf(openedFiles[fileName], "%s\n", string(logLine.Log))
+
+		if _, err := fmt.Fprintf(file, "%s\n", string(logLine.Log)); err != nil {
+			allErrors = errors.Join(allErrors, fmt.Errorf("failed to write to file %s: %w", fileName, err))
+			continue
+		}
 	}
 	return allErrors
 }
 
 func (g *Gatherer) GatherLogs(ctx context.Context) error {
 	logger := logr.FromContextOrDiscard(ctx)
+
+	// First, get all cluster IDs
 	clusterIds, err := g.executeClusterIdQuery(ctx, GetClusterIdQuery(g.opts.SubscriptionID, g.opts.ResourceGroup))
 	if err != nil {
 		return fmt.Errorf("failed to execute cluster id query: %w", err)
 	}
 	logger.V(1).Info("Obtained following clusterIDs", "clusterIds", strings.Join(clusterIds, ", "))
 	g.opts.ClusterIds = clusterIds
-	// err = serializeOutputToFile(g.cliRunOpts.OutputPath, OptionsOutputFile, g.cliRunOpts.QueryOptions)
-	// if err != nil {
-	// 	return fmt.Errorf("failed to write query options to file: %w", err)
-	// }
 
-	err = g.queryAndWriteToFile(ctx, QueryTypeServices, GetServicesQueries(g.opts))
-	if err != nil {
-		return fmt.Errorf("failed to execute query: %w", err)
+	// Gather service logs
+	if err := g.queryAndWriteToFile(ctx, QueryTypeServices, GetServicesQueries(g.opts)); err != nil {
+		return fmt.Errorf("failed to execute services query: %w", err)
 	}
 
-	if g.opts.SkipHostedControlePlaneLogs {
+	// Gather hosted control plane logs if not skipped
+	if g.opts.SkipHostedControlPlaneLogs {
 		logger.V(2).Info("Skipping hosted control plane logs")
 	} else {
 		logger.V(1).Info("Executing hosted control plane logs")
-		err := g.queryAndWriteToFile(ctx, QueryTypeHostedControlPlane, GetHostedControlPlaneLogsQuery(g.opts))
-		if err != nil {
+		if err := g.queryAndWriteToFile(ctx, QueryTypeHostedControlPlane, GetHostedControlPlaneLogsQuery(g.opts)); err != nil {
 			return fmt.Errorf("failed to execute hosted control plane logs query: %w", err)
 		}
 	}
+
 	return nil
 }
 
@@ -138,7 +150,7 @@ func (g *Gatherer) executeClusterIdQuery(ctx context.Context, query *kusto.Confi
 		return nil
 	})
 
-	_, err := g.QueryClient.Client.ExecutePreconfiguredQuery(ctx, query, outputChannel)
+	_, err := g.QueryClient.ExecutePreconfiguredQuery(ctx, query, outputChannel)
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute query: %w", err)
 	}
@@ -177,15 +189,30 @@ func (g *Gatherer) queryAndWriteToFile(ctx context.Context, queryType QueryType,
 
 func (g *Gatherer) convertRowsAndOutput(outputChannel chan *table.Row, queryType QueryType) error {
 	logLineChan := make(chan *NormalizedLogLine)
-	defer close(logLineChan)
-	go g.outputFunc(logLineChan, queryType, g.outputOptions)
 
+	// Start output processing in background
+	outputErrChan := make(chan error, 1)
+	go func() {
+		outputErrChan <- g.outputFunc(logLineChan, queryType, g.outputOptions)
+	}()
+
+	// Process rows and send to output
 	for row := range outputChannel {
 		normalizedLogLine := &NormalizedLogLine{}
 		if err := row.ToStruct(normalizedLogLine); err != nil {
+			close(logLineChan)
 			return fmt.Errorf("failed to convert row to struct: %w", err)
 		}
 		logLineChan <- normalizedLogLine
 	}
+
+	// Close the channel to signal completion to the output function
+	close(logLineChan)
+
+	// Wait for output processing to complete and check for errors
+	if outputErr := <-outputErrChan; outputErr != nil {
+		return fmt.Errorf("failed to output data: %w", outputErr)
+	}
+
 	return nil
 }

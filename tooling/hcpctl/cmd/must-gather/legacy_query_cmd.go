@@ -82,7 +82,7 @@ func (opts *MustGatherOptions) RunLegacy(ctx context.Context) error {
 		return fmt.Errorf("failed to execute query: %w", err)
 	}
 
-	if opts.SkipHostedControlePlaneLogs {
+	if opts.SkipHostedControlPlaneLogs {
 		logger.V(2).Info("Skipping hosted control plane logs")
 	} else {
 		err = executeKubeSystemHostedControlPlaneLogsQuery(ctx, opts, opts.QueryOptions)

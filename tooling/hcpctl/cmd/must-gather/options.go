@@ -30,17 +30,17 @@ import (
 
 // RawMustGatherOptions represents the initial, unvalidated configuration for must-gather operations.
 type RawMustGatherOptions struct {
-	BaseOptions                 *base.RawBaseOptions
-	Kusto                       string        // Name of the Azure Data Explorer cluster
-	Region                      string        // Region of the Azure Data Explorer cluster
-	OutputPath                  string        // Path to write the output file
-	QueryTimeout                time.Duration // Timeout for query execution
-	SubscriptionID              string        // Subscription ID
-	ResourceGroup               string        // Resource group
-	SkipHostedControlePlaneLogs bool          // Skip hosted control plane logs
-	TimestampMin                time.Time     // Timestamp minimum
-	TimestampMax                time.Time     // Timestamp maximum
-	Limit                       int           // Limit the number of results
+	BaseOptions                *base.RawBaseOptions
+	Kusto                      string        // Name of the Azure Data Explorer cluster
+	Region                     string        // Region of the Azure Data Explorer cluster
+	OutputPath                 string        // Path to write the output file
+	QueryTimeout               time.Duration // Timeout for query execution
+	SubscriptionID             string        // Subscription ID
+	ResourceGroup              string        // Resource group
+	SkipHostedControlPlaneLogs bool          // Skip hosted control plane logs
+	TimestampMin               time.Time     // Timestamp minimum
+	TimestampMax               time.Time     // Timestamp maximum
+	Limit                      int           // Limit the number of results
 }
 
 // DefaultMustGatherOptions returns a new RawMustGatherOptions struct initialized with sensible defaults.
@@ -86,7 +86,7 @@ func BindMustGatherOptions(opts *RawMustGatherOptions, cmd *cobra.Command) error
 	cmd.Flags().StringVar(&opts.OutputPath, "output-path", opts.OutputPath, "path to write the output file")
 	cmd.Flags().StringVar(&opts.SubscriptionID, "subscription-id", opts.SubscriptionID, "subscription ID")
 	cmd.Flags().StringVar(&opts.ResourceGroup, "resource-group", opts.ResourceGroup, "resource group")
-	cmd.Flags().BoolVar(&opts.SkipHostedControlePlaneLogs, "skip-hcp-logs", opts.SkipHostedControlePlaneLogs, "Do not gather customer (ocm namespaces) logs")
+	cmd.Flags().BoolVar(&opts.SkipHostedControlPlaneLogs, "skip-hcp-logs", opts.SkipHostedControlPlaneLogs, "Do not gather customer (ocm namespaces) logs")
 	cmd.Flags().TimeVar(&opts.TimestampMin, "timestamp-min", opts.TimestampMin, []string{time.DateTime}, "timestamp minimum")
 	cmd.Flags().TimeVar(&opts.TimestampMax, "timestamp-max", opts.TimestampMax, []string{time.DateTime}, "timestamp maximum")
 	cmd.Flags().IntVar(&opts.Limit, "limit", opts.Limit, "limit the number of results")
@@ -179,7 +179,7 @@ func (o *ValidatedMustGatherOptions) Complete(ctx context.Context) (*MustGatherO
 		return nil, fmt.Errorf("failed to create service logs directory: %w", err)
 	}
 
-	if !o.SkipHostedControlePlaneLogs {
+	if !o.SkipHostedControlPlaneLogs {
 		err = os.MkdirAll(path.Join(o.OutputPath, HostedControlPlaneLogDirectory), 0755)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create customer logs directory: %w", err)
@@ -188,16 +188,12 @@ func (o *ValidatedMustGatherOptions) Complete(ctx context.Context) (*MustGatherO
 
 	return &MustGatherOptions{
 		ValidatedMustGatherOptions: o,
-		QueryClient: &mustgather.QueryClient{
-			Client:       client,
-			QueryTimeout: o.QueryTimeout,
-			OutputPath:   o.OutputPath,
-		},
+		QueryClient:                mustgather.NewQueryClient(client, o.QueryTimeout, o.OutputPath),
 	}, nil
 }
 
 // MustGatherOptions represents the final, fully validated and initialized configuration for must-gather operations.
 type MustGatherOptions struct {
 	*ValidatedMustGatherOptions
-	QueryClient *mustgather.QueryClient
+	QueryClient mustgather.QueryClientInterface
 }

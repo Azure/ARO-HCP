@@ -12,6 +12,13 @@ import (
 	"github.com/go-logr/logr"
 )
 
+// QueryClientInterface defines the interface for querying data
+type QueryClientInterface interface {
+	ConcurrentQueries(ctx context.Context, queries []*kusto.ConfigurableQuery, outputChannel chan *table.Row) error
+	Close() error
+	ExecutePreconfiguredQuery(ctx context.Context, query *kusto.ConfigurableQuery, outputChannel chan *table.Row) (*kusto.QueryResult, error)
+}
+
 type QueryClient struct {
 	Client       kusto.KustoClient
 	QueryTimeout time.Duration
@@ -64,4 +71,8 @@ func (q *QueryClient) ConcurrentQueries(ctx context.Context, queries []*kusto.Co
 
 func (q *QueryClient) Close() error {
 	return q.Client.Close()
+}
+
+func (q *QueryClient) ExecutePreconfiguredQuery(ctx context.Context, query *kusto.ConfigurableQuery, outputChannel chan *table.Row) (*kusto.QueryResult, error) {
+	return q.Client.ExecutePreconfiguredQuery(ctx, query, outputChannel)
 }
