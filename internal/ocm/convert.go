@@ -357,6 +357,7 @@ func convertCIDRBlockAllowAccessRPToCS(in api.CustomerAPIProfile) (*arohcpv1alph
 		cidrBlockAllowAccess.Mode(csCIDRBlockAllowAccessModeAllowList)
 		cidrBlockAllowAccess.Values(in.AuthorizedCIDRs...)
 	} else {
+		// Unreachable: empty AuthorizedCIDRs list is disallowed by validation
 		return nil, fmt.Errorf("AuthorizedCIDRs cannot be an empty list")
 	}
 
