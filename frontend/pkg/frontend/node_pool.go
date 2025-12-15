@@ -623,6 +623,10 @@ func (f *Frontend) DeleteNodePool(writer http.ResponseWriter, request *http.Requ
 		return utils.TrackError(err)
 	}
 
+	if err := checkForProvisioningStateConflict(ctx, f.dbClient, database.OperationRequestDelete, nodePool.ID, nodePool.Properties.ProvisioningState); err != nil {
+		return utils.TrackError(err)
+	}
+
 	transaction := f.dbClient.NewTransaction(nodePool.ID.SubscriptionID)
 	if err := f.addDeleteNodePoolToTransaction(ctx, writer, request, transaction, nodePool); err != nil {
 		return utils.TrackError(err)
@@ -641,10 +645,6 @@ func (f *Frontend) addDeleteNodePoolToTransaction(ctx context.Context, writer ht
 
 	correlationData, err := CorrelationDataFromContext(ctx)
 	if err != nil {
-		return utils.TrackError(err)
-	}
-
-	if err := checkForProvisioningStateConflict(ctx, f.dbClient, database.OperationRequestDelete, nodePool.ID, nodePool.Properties.ProvisioningState); err != nil {
 		return utils.TrackError(err)
 	}
 

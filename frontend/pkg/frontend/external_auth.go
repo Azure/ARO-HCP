@@ -572,6 +572,10 @@ func (f *Frontend) DeleteExternalAuth(writer http.ResponseWriter, request *http.
 		return utils.TrackError(err)
 	}
 
+	if err := checkForProvisioningStateConflict(ctx, f.dbClient, database.OperationRequestDelete, externalAuth.ID, externalAuth.Properties.ProvisioningState); err != nil {
+		return utils.TrackError(err)
+	}
+
 	transaction := f.dbClient.NewTransaction(externalAuth.ID.SubscriptionID)
 	if err := f.addDeleteExternalAuthToTransaction(ctx, writer, request, transaction, externalAuth); err != nil {
 		return utils.TrackError(err)
@@ -590,10 +594,6 @@ func (f *Frontend) addDeleteExternalAuthToTransaction(ctx context.Context, write
 
 	correlationData, err := CorrelationDataFromContext(ctx)
 	if err != nil {
-		return utils.TrackError(err)
-	}
-
-	if err := checkForProvisioningStateConflict(ctx, f.dbClient, database.OperationRequestDelete, externalAuth.ID, externalAuth.Properties.ProvisioningState); err != nil {
 		return utils.TrackError(err)
 	}
 

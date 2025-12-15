@@ -637,6 +637,10 @@ func (f *Frontend) DeleteCluster(writer http.ResponseWriter, request *http.Reque
 		return utils.TrackError(err)
 	}
 
+	if err := checkForProvisioningStateConflict(ctx, f.dbClient, database.OperationRequestDelete, cluster.ID, cluster.ServiceProviderProperties.ProvisioningState); err != nil {
+		return utils.TrackError(err)
+	}
+
 	transaction := f.dbClient.NewTransaction(cluster.ID.SubscriptionID)
 	if err := f.addDeleteClusterToTransaction(ctx, writer, request, transaction, cluster); err != nil {
 		return utils.TrackError(err)
@@ -655,10 +659,6 @@ func (f *Frontend) addDeleteClusterToTransaction(ctx context.Context, writer htt
 
 	correlationData, err := CorrelationDataFromContext(ctx)
 	if err != nil {
-		return utils.TrackError(err)
-	}
-
-	if err := checkForProvisioningStateConflict(ctx, f.dbClient, database.OperationRequestDelete, cluster.ID, cluster.ServiceProviderProperties.ProvisioningState); err != nil {
 		return utils.TrackError(err)
 	}
 
