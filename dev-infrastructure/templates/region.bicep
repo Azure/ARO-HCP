@@ -119,7 +119,6 @@ module maestroInfra '../modules/maestro/maestro-infra.bicep' = {
     maxClientSessionsPerAuthName: maestroEventGridMaxClientSessionsPerAuthName
     publicNetworkAccess: maestroEventGridPrivate ? 'Disabled' : 'Enabled'
     certificateIssuer: maestroCertificateIssuer
-    logAnalyticsWorkspaceId: enableLogAnalytics ? logAnalyticsWorkspace.id : ''
   }
 }
 
@@ -165,7 +164,6 @@ module grafanaObservabilityPermissions '../modules/grafana/observability-permiss
   name: 'grafana-observability-permissions'
   params: {
     grafanaPrincipalId: grafanaPrincipalId
-    logAnalyticsWorkspaceId: enableLogAnalytics ? logAnalyticsWorkspace.id : ''
     // AFD permissions will be granted in svc-cluster.bicep where AFD resource ID is available
     frontDoorProfileId: ''
   }

@@ -70,11 +70,6 @@ resourceGroups:
         resourceGroup: global
         step: output
         name: globalMSIId
-    - name: logAnalyticsWorkspaceId
-      input:
-        resourceGroup: regional
-        step: output
-        name: logAnalyticsWorkspaceId
   - name: infra-output
     action: ARM
     template: templates/svc-infra-lookup.bicep
@@ -142,11 +137,6 @@ resourceGroups:
         resourceGroup: regional
         step: output
         name: azureMonitoringWorkspaceId
-    - name: logAnalyticsWorkspaceId
-      input:
-        resourceGroup: regional
-        step: output
-        name: logAnalyticsWorkspaceId
     - name: azureFrontDoorResourceId
       input:
         resourceGroup: global

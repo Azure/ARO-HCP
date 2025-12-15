@@ -194,9 +194,6 @@ param genevaCertificateDomain string
 @description('Should geneva certificates be managed')
 param genevaManageCertificates bool
 
-// Log Analytics Workspace ID will be passed from region pipeline if enabled in config
-param logAnalyticsWorkspaceId string = ''
-
 @description('Name of the MSI for the PKO')
 param pkoMIName string
 
@@ -341,7 +338,6 @@ module mgmtCluster '../modules/aks-cluster-base.bicep' = {
     aksKeyVaultName: aksKeyVaultName
     aksKeyVaultTagName: aksKeyVaultTagName
     aksKeyVaultTagValue: aksKeyVaultTagValue
-    logAnalyticsWorkspaceId: logAnalyticsWorkspaceId
     pullAcrResourceIds: [ocpAcrResourceId, svcAcrResourceId]
     systemAgentMinCount: systemAgentMinCount
     systemAgentMaxCount: systemAgentMaxCount
@@ -381,19 +377,6 @@ module mgmtCluster '../modules/aks-cluster-base.bicep' = {
 }
 
 output aksClusterName string = mgmtCluster.outputs.aksClusterName
-
-//
-// L O G S
-//
-
-// NOTE: This is only enabled for non-prod environments
-module logsCollection '../modules/logs/collection.bicep' = if (logAnalyticsWorkspaceId != '') {
-  name: 'logs-collection'
-  params: {
-    aksClusterName: mgmtCluster.outputs.aksClusterName
-    logAnalyticsWorkspaceId: logAnalyticsWorkspaceId
-  }
-}
 
 //
 // M E T R I C S

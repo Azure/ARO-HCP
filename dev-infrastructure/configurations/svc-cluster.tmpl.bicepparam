@@ -142,9 +142,6 @@ param logsNamespace = '{{ .logs.mdsd.namespace }}'
 param logsMSI = '{{ .logs.mdsd.msiName }}'
 param logsServiceAccount = '{{ .logs.mdsd.serviceAccountName }}'
 
-// Log Analytics Workspace ID will be passed from region pipeline if enabled in config
-param logAnalyticsWorkspaceId = '__logAnalyticsWorkspaceId__'
-
 param svcNSPName = '{{ .svc.nsp.name }}'
 param svcNSPAccessMode = '{{ .svc.nsp.accessMode }}'
 param serviceKeyVaultAsignNSP = {{ .serviceKeyVault.assignNSP }}
