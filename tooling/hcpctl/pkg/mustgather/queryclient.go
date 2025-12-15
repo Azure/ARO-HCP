@@ -21,8 +21,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Azure/azure-kusto-go/kusto/data/table"
 	"github.com/go-logr/logr"
+
+	"github.com/Azure/azure-kusto-go/kusto/data/table"
 
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/kusto"
 )

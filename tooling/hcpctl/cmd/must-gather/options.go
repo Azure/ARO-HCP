@@ -21,6 +21,7 @@ import (
 	"path"
 	"time"
 
+	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
 
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/cmd/base"
@@ -37,6 +38,7 @@ type RawMustGatherOptions struct {
 	QueryTimeout               time.Duration // Timeout for query execution
 	SubscriptionID             string        // Subscription ID
 	ResourceGroup              string        // Resource group
+	ResourceId                 string        // Resource ID
 	SkipHostedControlPlaneLogs bool          // Skip hosted control plane logs
 	TimestampMin               time.Time     // Timestamp minimum
 	TimestampMax               time.Time     // Timestamp maximum
@@ -86,6 +88,7 @@ func BindMustGatherOptions(opts *RawMustGatherOptions, cmd *cobra.Command) error
 	cmd.Flags().StringVar(&opts.OutputPath, "output-path", opts.OutputPath, "path to write the output file")
 	cmd.Flags().StringVar(&opts.SubscriptionID, "subscription-id", opts.SubscriptionID, "subscription ID")
 	cmd.Flags().StringVar(&opts.ResourceGroup, "resource-group", opts.ResourceGroup, "resource group")
+	cmd.Flags().StringVar(&opts.ResourceId, "resource-id", opts.ResourceId, "resource ID")
 	cmd.Flags().BoolVar(&opts.SkipHostedControlPlaneLogs, "skip-hcp-logs", opts.SkipHostedControlPlaneLogs, "Do not gather customer (ocm namespaces) logs")
 	cmd.Flags().TimeVar(&opts.TimestampMin, "timestamp-min", opts.TimestampMin, []string{time.DateTime}, "timestamp minimum")
 	cmd.Flags().TimeVar(&opts.TimestampMax, "timestamp-max", opts.TimestampMax, []string{time.DateTime}, "timestamp maximum")
@@ -97,12 +100,6 @@ func BindMustGatherOptions(opts *RawMustGatherOptions, cmd *cobra.Command) error
 	}
 	if err := cmd.MarkFlagRequired("region"); err != nil {
 		return fmt.Errorf("failed to mark region as required: %w", err)
-	}
-	if err := cmd.MarkFlagRequired("subscription-id"); err != nil {
-		return fmt.Errorf("failed to mark subscription-id as required: %w", err)
-	}
-	if err := cmd.MarkFlagRequired("resource-group"); err != nil {
-		return fmt.Errorf("failed to mark resource-group as required: %w", err)
 	}
 
 	return nil
@@ -116,6 +113,8 @@ type ValidatedMustGatherOptions struct {
 
 // Validate performs comprehensive validation of all must-gather input parameters.
 func (o *RawMustGatherOptions) Validate(ctx context.Context) (*ValidatedMustGatherOptions, error) {
+	logger := logr.FromContextOrDiscard(ctx)
+
 	// Validate base options first
 	if err := base.ValidateBaseOptions(o.BaseOptions); err != nil {
 		return nil, err
@@ -140,13 +139,17 @@ func (o *RawMustGatherOptions) Validate(ctx context.Context) (*ValidatedMustGath
 	}
 
 	// Validate subscription ID
-	if o.SubscriptionID == "" {
+	if o.SubscriptionID == "" && o.ResourceId == "" {
 		return nil, fmt.Errorf("subscription-id is required")
 	}
 
 	// Validate resource group
-	if o.ResourceGroup == "" {
+	if o.ResourceGroup == "" && o.ResourceId == "" {
 		return nil, fmt.Errorf("resource-group is required")
+	}
+
+	if o.ResourceId != "" && (o.ResourceGroup != "" || o.SubscriptionID != "") {
+		logger.Info("warning: both resource-id and resource-group/subscription-id are provided, will use resource-id to gather cluster ID")
 	}
 
 	return &ValidatedMustGatherOptions{

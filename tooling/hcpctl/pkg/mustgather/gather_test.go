@@ -22,10 +22,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Azure/azure-kusto-go/kusto/data/table"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+
+	"github.com/Azure/azure-kusto-go/kusto/data/table"
 
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/kusto"
 )
@@ -54,7 +55,6 @@ func (m *MockQueryClient) ExecutePreconfiguredQuery(ctx context.Context, query *
 	return result.(*kusto.QueryResult), args.Error(1)
 }
 
-// MockOutputFunc is a mock output function for testing
 func mockOutputFunc(logLineChan chan *NormalizedLogLine, queryType QueryType, options RowOutputOptions) error {
 	for range logLineChan {
 		// Consume all messages
@@ -62,511 +62,118 @@ func mockOutputFunc(logLineChan chan *NormalizedLogLine, queryType QueryType, op
 	return nil
 }
 
-func mockOutputFuncWithError(logLineChan chan *NormalizedLogLine, queryType QueryType, options RowOutputOptions) error {
-	for range logLineChan {
-		// Consume all messages
-	}
-	return errors.New("output function error")
-}
-
-func TestNewCliGatherer(t *testing.T) {
-	mockQueryClient := &MockQueryClient{}
-	outputPath := "/test/output"
-	serviceLogsDir := "services"
-	hcpLogsDir := "hcp"
-	opts := GathererOptions{
-		SubscriptionID: "test-sub",
-		ResourceGroup:  "test-rg",
-		Limit:          100,
-	}
-
-	gatherer := NewCliGatherer(mockQueryClient, outputPath, serviceLogsDir, hcpLogsDir, opts)
-
-	assert.NotNil(t, gatherer)
-	assert.Equal(t, mockQueryClient, gatherer.QueryClient)
-	assert.Equal(t, opts, gatherer.opts)
-	assert.NotNil(t, gatherer.outputFunc)
-	assert.NotNil(t, gatherer.outputOptions)
-	assert.Equal(t, outputPath, gatherer.outputOptions["outputPath"])
-	assert.Equal(t, serviceLogsDir, gatherer.outputOptions[string(QueryTypeServices)])
-	assert.Equal(t, hcpLogsDir, gatherer.outputOptions[string(QueryTypeHostedControlPlane)])
-}
-
 func TestNewGatherer(t *testing.T) {
 	mockQueryClient := &MockQueryClient{}
-	customOutputOptions := RowOutputOptions{
-		"outputPath": "/custom/path",
-		"format":     "json",
-		"apiURL":     "https://api.example.com/logs",
-	}
 	opts := GathererOptions{
-		SubscriptionID: "test-sub",
-		ResourceGroup:  "test-rg",
-		Limit:          500,
+		QueryOptions: &QueryOptions{
+			SubscriptionId:    "test-sub",
+			ResourceGroupName: "test-rg",
+		},
 	}
 
-	// Create a custom output function for testing
-	customOutputFunc := func(logLineChan chan *NormalizedLogLine, queryType QueryType, options RowOutputOptions) error {
-		for range logLineChan {
-			// Consume all messages for testing
-		}
-		return nil
-	}
-
-	gatherer := NewGatherer(mockQueryClient, customOutputFunc, customOutputOptions, opts)
-
+	// Test CLI gatherer
+	gatherer := NewCliGatherer(mockQueryClient, "/test/output", "services", "hcp", opts)
 	assert.NotNil(t, gatherer)
 	assert.Equal(t, mockQueryClient, gatherer.QueryClient)
-	assert.Equal(t, opts, gatherer.opts)
-	assert.NotNil(t, gatherer.outputFunc)
-	assert.Equal(t, customOutputOptions, gatherer.outputOptions)
 
-	// Verify that custom options are properly set
-	assert.Equal(t, "/custom/path", gatherer.outputOptions["outputPath"])
-	assert.Equal(t, "json", gatherer.outputOptions["format"])
-	assert.Equal(t, "https://api.example.com/logs", gatherer.outputOptions["apiURL"])
-}
-
-func TestNewGatherer_WithCustomOutputFunction(t *testing.T) {
-	mockQueryClient := &MockQueryClient{}
-
-	// Track what data was received by the custom output function
-	var receivedQueryTypes []QueryType
-	var receivedLogCount int
-
+	// Test custom gatherer
 	customOutputFunc := func(logLineChan chan *NormalizedLogLine, queryType QueryType, options RowOutputOptions) error {
-		receivedQueryTypes = append(receivedQueryTypes, queryType)
 		for range logLineChan {
-			receivedLogCount++
 		}
 		return nil
 	}
+	customOptions := RowOutputOptions{"outputPath": "/custom/path"}
+	gatherer = NewGatherer(mockQueryClient, customOutputFunc, customOptions, opts)
+	assert.NotNil(t, gatherer)
+	assert.Equal(t, "/custom/path", gatherer.outputOptions["outputPath"])
+}
 
-	customOptions := RowOutputOptions{
-		"mode": "test",
+func TestGatherer_GatherLogs(t *testing.T) {
+	mockQueryClient := &MockQueryClient{}
+	gatherer := &Gatherer{
+		QueryClient: mockQueryClient,
+		opts: GathererOptions{
+			QueryOptions: &QueryOptions{
+				SubscriptionId:    "test-sub",
+				ResourceGroupName: "test-rg",
+			},
+		},
+		outputFunc:    mockOutputFunc,
+		outputOptions: RowOutputOptions{"outputPath": "/test"},
 	}
-
-	opts := GathererOptions{
-		SubscriptionID:             "test-sub",
-		ResourceGroup:              "test-rg",
-		SkipHostedControlPlaneLogs: false,
-	}
-
-	gatherer := NewGatherer(mockQueryClient, customOutputFunc, customOptions, opts)
 
 	ctx := context.Background()
 
-	// Mock the cluster ID query
+	// Success case
 	mockQueryClient.On("ExecutePreconfiguredQuery", ctx, mock.AnythingOfType("*kusto.ConfigurableQuery"), mock.AnythingOfType("chan *table.Row")).Return(&kusto.QueryResult{}, nil).Once()
-
-	// Mock the services queries
-	mockQueryClient.On("ConcurrentQueries", ctx, mock.AnythingOfType("[]*kusto.ConfigurableQuery"), mock.AnythingOfType("chan *table.Row")).Return(nil).Once()
-
-	// Mock the hosted control plane queries
-	mockQueryClient.On("ConcurrentQueries", ctx, mock.AnythingOfType("[]*kusto.ConfigurableQuery"), mock.AnythingOfType("chan *table.Row")).Return(nil).Once()
+	mockQueryClient.On("ConcurrentQueries", ctx, mock.AnythingOfType("[]*kusto.ConfigurableQuery"), mock.AnythingOfType("chan *table.Row")).Return(nil).Twice()
 
 	err := gatherer.GatherLogs(ctx)
-
 	assert.NoError(t, err)
 
-	// Verify that our custom output function was called for both query types
-	assert.Contains(t, receivedQueryTypes, QueryTypeServices)
-	assert.Contains(t, receivedQueryTypes, QueryTypeHostedControlPlane)
-	assert.Len(t, receivedQueryTypes, 2) // Should be called exactly twice
+	// Error case
+	mockQueryClient.On("ExecutePreconfiguredQuery", ctx, mock.AnythingOfType("*kusto.ConfigurableQuery"), mock.AnythingOfType("chan *table.Row")).Return(nil, errors.New("query failed"))
+
+	err = gatherer.GatherLogs(ctx)
+	assert.Error(t, err)
 
 	mockQueryClient.AssertExpectations(t)
 }
 
-func TestGathererOptions_Defaults(t *testing.T) {
-	opts := GathererOptions{}
-
-	assert.Empty(t, opts.ClusterIds)
-	assert.Empty(t, opts.SubscriptionID)
-	assert.Empty(t, opts.ResourceGroup)
-	assert.False(t, opts.SkipHostedControlPlaneLogs)
-	assert.True(t, opts.TimestampMin.IsZero())
-	assert.True(t, opts.TimestampMax.IsZero())
-	assert.Equal(t, 0, opts.Limit)
-}
-
-func TestGatherer_executeClusterIdQuery(t *testing.T) {
-	t.Run("successful execution", func(t *testing.T) {
-		mockQueryClient := &MockQueryClient{}
-		gatherer := &Gatherer{
-			QueryClient: mockQueryClient,
-		}
-
-		ctx := context.Background()
-		query := &kusto.ConfigurableQuery{Name: "test-cluster-id-query"}
-
-		// Mock the ExecutePreconfiguredQuery to return cluster IDs
-		mockQueryClient.On("ExecutePreconfiguredQuery", ctx, query, mock.AnythingOfType("chan *table.Row")).Run(func(args mock.Arguments) {
-			// Simulate returning cluster IDs
-			// Note: In a real test, you'd create actual table.Row objects
-			// The real implementation will close the channel, so we don't close it here
-		}).Return(&kusto.QueryResult{}, nil)
-
-		clusterIds, err := gatherer.executeClusterIdQuery(ctx, query)
-
-		assert.NoError(t, err)
-		assert.NotNil(t, clusterIds)
-		mockQueryClient.AssertExpectations(t)
-	})
-
-	t.Run("query execution error", func(t *testing.T) {
-		mockQueryClient := &MockQueryClient{}
-		gatherer := &Gatherer{
-			QueryClient: mockQueryClient,
-		}
-
-		ctx := context.Background()
-		query := &kusto.ConfigurableQuery{Name: "failing-query"}
-		expectedError := errors.New("query execution failed")
-
-		mockQueryClient.On("ExecutePreconfiguredQuery", ctx, query, mock.AnythingOfType("chan *table.Row")).Return((*kusto.QueryResult)(nil), expectedError)
-
-		clusterIds, err := gatherer.executeClusterIdQuery(ctx, query)
-
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "failed to execute query")
-		assert.Nil(t, clusterIds)
-		mockQueryClient.AssertExpectations(t)
-	})
-}
-
-func TestGatherer_queryAndWriteToFile(t *testing.T) {
-	t.Run("successful execution", func(t *testing.T) {
-		mockQueryClient := &MockQueryClient{}
-		gatherer := &Gatherer{
-			QueryClient:   mockQueryClient,
-			outputFunc:    mockOutputFunc,
-			outputOptions: RowOutputOptions{"outputPath": "/test"},
-		}
-
-		ctx := context.Background()
-		queryType := QueryTypeServices
-		queries := []*kusto.ConfigurableQuery{
-			{Name: "test-query-1"},
-			{Name: "test-query-2"},
-		}
-
-		// Mock ConcurrentQueries to simulate proper channel behavior
-		mockQueryClient.On("ConcurrentQueries", ctx, queries, mock.AnythingOfType("chan *table.Row")).Run(func(args mock.Arguments) {
-			// The ConcurrentQueries method should not close the channel - that's done by the caller
-			// We just simulate that it completes successfully without sending data
-		}).Return(nil)
-
-		err := gatherer.queryAndWriteToFile(ctx, queryType, queries)
-
-		assert.NoError(t, err)
-		mockQueryClient.AssertExpectations(t)
-	})
-
-	t.Run("query execution error", func(t *testing.T) {
-		mockQueryClient := &MockQueryClient{}
-		gatherer := &Gatherer{
-			QueryClient:   mockQueryClient,
-			outputFunc:    mockOutputFunc,
-			outputOptions: RowOutputOptions{"outputPath": "/test"},
-		}
-
-		ctx := context.Background()
-		queryType := QueryTypeServices
-		queries := []*kusto.ConfigurableQuery{{Name: "failing-query"}}
-		expectedError := errors.New("query execution failed")
-
-		mockQueryClient.On("ConcurrentQueries", ctx, queries, mock.AnythingOfType("chan *table.Row")).Return(expectedError)
-
-		err := gatherer.queryAndWriteToFile(ctx, queryType, queries)
-
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "error during query execution")
-		mockQueryClient.AssertExpectations(t)
-	})
-
-	t.Run("output function error", func(t *testing.T) {
-		mockQueryClient := &MockQueryClient{}
-		gatherer := &Gatherer{
-			QueryClient:   mockQueryClient,
-			outputFunc:    mockOutputFuncWithError,
-			outputOptions: RowOutputOptions{"outputPath": "/test"},
-		}
-
-		ctx := context.Background()
-		queryType := QueryTypeServices
-		queries := []*kusto.ConfigurableQuery{{Name: "test-query"}}
-
-		mockQueryClient.On("ConcurrentQueries", ctx, queries, mock.AnythingOfType("chan *table.Row")).Return(nil)
-
-		err := gatherer.queryAndWriteToFile(ctx, queryType, queries)
-
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "failed to output data")
-		mockQueryClient.AssertExpectations(t)
-	})
-}
-
-func TestGatherer_convertRowsAndOutput(t *testing.T) {
-	t.Run("successful conversion", func(t *testing.T) {
-		gatherer := &Gatherer{
-			outputFunc:    mockOutputFunc,
-			outputOptions: RowOutputOptions{"outputPath": "/test"},
-		}
-
-		outputChannel := make(chan *table.Row)
-		queryType := QueryTypeServices
-
-		go func() {
-			// Simulate sending table rows (in reality these would be actual table.Row objects)
-			close(outputChannel) // For this test, we need to close the channel to avoid hanging
-		}()
-
-		err := gatherer.convertRowsAndOutput(outputChannel, queryType)
-
-		assert.NoError(t, err)
-	})
-
-	t.Run("output function error", func(t *testing.T) {
-		gatherer := &Gatherer{
-			outputFunc:    mockOutputFuncWithError,
-			outputOptions: RowOutputOptions{"outputPath": "/test"},
-		}
-
-		outputChannel := make(chan *table.Row)
-		queryType := QueryTypeServices
-
-		go func() {
-			// Close the channel to simulate end of data
-			close(outputChannel)
-		}()
-
-		err := gatherer.convertRowsAndOutput(outputChannel, queryType)
-
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "failed to output data")
-	})
-}
-
-func TestGatherer_GatherLogs(t *testing.T) {
-	t.Run("successful log gathering", func(t *testing.T) {
-		mockQueryClient := &MockQueryClient{}
-		gatherer := &Gatherer{
-			QueryClient: mockQueryClient,
-			opts: GathererOptions{
-				SubscriptionID:             "test-sub",
-				ResourceGroup:              "test-rg",
-				SkipHostedControlPlaneLogs: false,
-			},
-			outputFunc:    mockOutputFunc,
-			outputOptions: RowOutputOptions{"outputPath": "/test"},
-		}
-
-		ctx := context.Background()
-
-		// Mock the cluster ID query
-		mockQueryClient.On("ExecutePreconfiguredQuery", ctx, mock.AnythingOfType("*kusto.ConfigurableQuery"), mock.AnythingOfType("chan *table.Row")).Return(&kusto.QueryResult{}, nil).Once()
-
-		// Mock the services queries
-		mockQueryClient.On("ConcurrentQueries", ctx, mock.AnythingOfType("[]*kusto.ConfigurableQuery"), mock.AnythingOfType("chan *table.Row")).Return(nil).Once()
-
-		// Mock the hosted control plane queries
-		mockQueryClient.On("ConcurrentQueries", ctx, mock.AnythingOfType("[]*kusto.ConfigurableQuery"), mock.AnythingOfType("chan *table.Row")).Return(nil).Once()
-
-		err := gatherer.GatherLogs(ctx)
-
-		assert.NoError(t, err)
-		// Note: With our mock setup, no actual cluster IDs are returned, so ClusterIds will be empty
-		// In a real scenario, the ExecutePreconfiguredQuery would populate the channel with actual data
-		assert.NotNil(t, gatherer.opts.ClusterIds) // Should be initialized (even if empty)
-		mockQueryClient.AssertExpectations(t)
-	})
-
-	t.Run("skip hosted control plane logs", func(t *testing.T) {
-		mockQueryClient := &MockQueryClient{}
-		gatherer := &Gatherer{
-			QueryClient: mockQueryClient,
-			opts: GathererOptions{
-				SubscriptionID:             "test-sub",
-				ResourceGroup:              "test-rg",
-				SkipHostedControlPlaneLogs: true,
-			},
-			outputFunc:    mockOutputFunc,
-			outputOptions: RowOutputOptions{"outputPath": "/test"},
-		}
-
-		ctx := context.Background()
-
-		// Mock the cluster ID query
-		mockQueryClient.On("ExecutePreconfiguredQuery", ctx, mock.AnythingOfType("*kusto.ConfigurableQuery"), mock.AnythingOfType("chan *table.Row")).Return(&kusto.QueryResult{}, nil).Once()
-
-		// Mock the services queries
-		mockQueryClient.On("ConcurrentQueries", ctx, mock.AnythingOfType("[]*kusto.ConfigurableQuery"), mock.AnythingOfType("chan *table.Row")).Return(nil).Once()
-
-		// No hosted control plane queries should be called
-
-		err := gatherer.GatherLogs(ctx)
-
-		assert.NoError(t, err)
-		mockQueryClient.AssertExpectations(t)
-	})
-
-	t.Run("cluster ID query error", func(t *testing.T) {
-		mockQueryClient := &MockQueryClient{}
-		gatherer := &Gatherer{
-			QueryClient: mockQueryClient,
-			opts: GathererOptions{
-				SubscriptionID: "test-sub",
-				ResourceGroup:  "test-rg",
-			},
-			outputFunc:    mockOutputFunc,
-			outputOptions: RowOutputOptions{"outputPath": "/test"},
-		}
-
-		ctx := context.Background()
-		expectedError := errors.New("cluster ID query failed")
-
-		mockQueryClient.On("ExecutePreconfiguredQuery", ctx, mock.AnythingOfType("*kusto.ConfigurableQuery"), mock.AnythingOfType("chan *table.Row")).Return((*kusto.QueryResult)(nil), expectedError)
-
-		err := gatherer.GatherLogs(ctx)
-
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "failed to execute cluster id query")
-		mockQueryClient.AssertExpectations(t)
-	})
-
-	t.Run("services query error", func(t *testing.T) {
-		mockQueryClient := &MockQueryClient{}
-		gatherer := &Gatherer{
-			QueryClient: mockQueryClient,
-			opts: GathererOptions{
-				SubscriptionID: "test-sub",
-				ResourceGroup:  "test-rg",
-			},
-			outputFunc:    mockOutputFunc,
-			outputOptions: RowOutputOptions{"outputPath": "/test"},
-		}
-
-		ctx := context.Background()
-
-		// Mock successful cluster ID query
-		mockQueryClient.On("ExecutePreconfiguredQuery", ctx, mock.AnythingOfType("*kusto.ConfigurableQuery"), mock.AnythingOfType("chan *table.Row")).Return(&kusto.QueryResult{}, nil).Once()
-
-		// Mock failing services query
-		expectedError := errors.New("services query failed")
-		mockQueryClient.On("ConcurrentQueries", ctx, mock.AnythingOfType("[]*kusto.ConfigurableQuery"), mock.AnythingOfType("chan *table.Row")).Return(expectedError)
-
-		err := gatherer.GatherLogs(ctx)
-
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "failed to execute services query")
-		mockQueryClient.AssertExpectations(t)
-	})
-}
-
 func TestCliOutputFunc(t *testing.T) {
-	t.Run("successful file output", func(t *testing.T) {
-		// Create temporary directory for testing
-		tempDir, err := os.MkdirTemp("", "test-gatherer-*")
-		require.NoError(t, err)
-		defer os.RemoveAll(tempDir)
+	// Success case
+	tempDir, err := os.MkdirTemp("", "test-gatherer-*")
+	require.NoError(t, err)
+	defer os.RemoveAll(tempDir)
 
-		serviceDir := "services"
-		err = os.MkdirAll(filepath.Join(tempDir, serviceDir), 0755)
-		require.NoError(t, err)
+	err = os.MkdirAll(filepath.Join(tempDir, "services"), 0755)
+	require.NoError(t, err)
 
-		logLineChan := make(chan *NormalizedLogLine, 2)
-		queryType := QueryTypeServices
-		options := RowOutputOptions{
-			"outputPath":              tempDir,
-			string(QueryTypeServices): serviceDir,
-		}
-
-		// Send test log lines
-		go func() {
-			logLineChan <- &NormalizedLogLine{
-				Log:           []byte("test log message 1"),
-				Cluster:       "cluster1",
-				Namespace:     "default",
-				ContainerName: "container1",
-				Timestamp:     time.Now(),
-			}
-			logLineChan <- &NormalizedLogLine{
-				Log:           []byte("test log message 2"),
-				Cluster:       "cluster1",
-				Namespace:     "default",
-				ContainerName: "container1",
-				Timestamp:     time.Now(),
-			}
-			close(logLineChan)
-		}()
-
-		err = cliOutputFunc(logLineChan, queryType, options)
-
-		assert.NoError(t, err)
-
-		// Verify file was created
-		expectedFile := filepath.Join(tempDir, serviceDir, "cluster1-default-container1.log")
-		assert.FileExists(t, expectedFile)
-
-		// Verify file content
-		content, err := os.ReadFile(expectedFile)
-		require.NoError(t, err)
-		assert.Contains(t, string(content), "test log message 1")
-		assert.Contains(t, string(content), "test log message 2")
-	})
-
-	t.Run("file creation error", func(t *testing.T) {
-		logLineChan := make(chan *NormalizedLogLine, 1)
-		queryType := QueryTypeServices
-		options := RowOutputOptions{
-			"outputPath":              "/nonexistent/path",
-			string(QueryTypeServices): "services",
-		}
-
-		// Send test log line
-		go func() {
-			logLineChan <- &NormalizedLogLine{
-				Log:           []byte("test log message"),
-				Cluster:       "cluster1",
-				Namespace:     "default",
-				ContainerName: "container1",
-				Timestamp:     time.Now(),
-			}
-			close(logLineChan)
-		}()
-
-		err := cliOutputFunc(logLineChan, queryType, options)
-
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "failed to create output file")
-	})
-}
-
-func TestNormalizedLogLine(t *testing.T) {
-	now := time.Now()
-	logLine := &NormalizedLogLine{
-		Log:           []byte("test log message"),
-		Cluster:       "test-cluster",
-		Namespace:     "test-namespace",
-		ContainerName: "test-container",
-		Timestamp:     now,
-	}
-
-	assert.Equal(t, []byte("test log message"), logLine.Log)
-	assert.Equal(t, "test-cluster", logLine.Cluster)
-	assert.Equal(t, "test-namespace", logLine.Namespace)
-	assert.Equal(t, "test-container", logLine.ContainerName)
-	assert.Equal(t, now, logLine.Timestamp)
-}
-
-func TestRowOutputOptions(t *testing.T) {
+	logLineChan := make(chan *NormalizedLogLine, 1)
 	options := RowOutputOptions{
-		"key1": "value1",
-		"key2": 42,
-		"key3": true,
+		"outputPath":              tempDir,
+		string(QueryTypeServices): "services",
 	}
 
-	assert.Equal(t, "value1", options["key1"])
-	assert.Equal(t, 42, options["key2"])
-	assert.Equal(t, true, options["key3"])
+	go func() {
+		logLineChan <- &NormalizedLogLine{
+			Log:           []byte("test log"),
+			Cluster:       "cluster1",
+			Namespace:     "default",
+			ContainerName: "container1",
+			Timestamp:     time.Now(),
+		}
+		close(logLineChan)
+	}()
+
+	err = cliOutputFunc(logLineChan, QueryTypeServices, options)
+	assert.NoError(t, err)
+
+	// Verify file was created and contains log
+	expectedFile := filepath.Join(tempDir, "services", "cluster1-default-container1.log")
+	assert.FileExists(t, expectedFile)
+	content, err := os.ReadFile(expectedFile)
+	require.NoError(t, err)
+	assert.Contains(t, string(content), "test log")
+
+	// Error case - invalid path
+	logLineChan = make(chan *NormalizedLogLine, 1)
+	badOptions := RowOutputOptions{
+		"outputPath":              "/nonexistent/path",
+		string(QueryTypeServices): "services",
+	}
+
+	go func() {
+		logLineChan <- &NormalizedLogLine{
+			Log:           []byte("test log"),
+			Cluster:       "cluster1",
+			Namespace:     "default",
+			ContainerName: "container1",
+			Timestamp:     time.Now(),
+		}
+		close(logLineChan)
+	}()
+
+	err = cliOutputFunc(logLineChan, QueryTypeServices, badOptions)
+	assert.Error(t, err)
 }

@@ -58,16 +58,17 @@ func (opts *MustGatherOptions) Run(ctx context.Context) error {
 		}
 	}()
 
+	queryOptions, err := mustgather.NewQueryOptions(opts.SubscriptionID, opts.ResourceGroup, opts.ResourceId, opts.TimestampMin, opts.TimestampMax, opts.Limit)
+	if err != nil {
+		return fmt.Errorf("failed to create query options: %w", err)
+	}
+
 	gatherer := mustgather.NewCliGatherer(opts.QueryClient, opts.OutputPath, ServicesLogDirectory, HostedControlPlaneLogDirectory, mustgather.GathererOptions{
-		SubscriptionID:             opts.SubscriptionID,
-		ResourceGroup:              opts.ResourceGroup,
+		QueryOptions:               queryOptions,
 		SkipHostedControlPlaneLogs: opts.SkipHostedControlPlaneLogs,
-		TimestampMin:               opts.TimestampMin,
-		TimestampMax:               opts.TimestampMax,
-		Limit:                      opts.Limit,
 	})
 
-	err := gatherer.GatherLogs(ctx)
+	err = gatherer.GatherLogs(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to gather logs: %w", err)
 	}

@@ -24,10 +24,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Azure/azure-kusto-go/kusto/data/table"
 	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
 	"golang.org/x/sync/errgroup"
+
+	"github.com/Azure/azure-kusto-go/kusto/data/table"
 
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/kusto"
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/mustgather"

@@ -23,9 +23,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Azure/azure-kusto-go/kusto/data/table"
 	"github.com/go-logr/logr"
 	"golang.org/x/sync/errgroup"
+
+	"github.com/Azure/azure-kusto-go/kusto/data/table"
 
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/kusto"
 )
@@ -83,13 +84,8 @@ type NormalizedLogLine struct {
 // These options are used to configure the Gatherer and are passed to the Gatherer constructor
 // They are used to generate the queries as well
 type GathererOptions struct {
-	ClusterIds                 []string  // Cluster IDs
-	SubscriptionID             string    // Subscription ID
-	ResourceGroup              string    // Resource group
-	SkipHostedControlPlaneLogs bool      // Skip hosted control plane logs
-	TimestampMin               time.Time // Timestamp minimum
-	TimestampMax               time.Time // Timestamp maximum
-	Limit                      int       // Limit the number of results
+	SkipHostedControlPlaneLogs bool          // Skip hosted control plane logs
+	QueryOptions               *QueryOptions // Query options
 }
 
 // Gatherer coordinates the collection and processing of log data from Azure resources.
@@ -97,10 +93,10 @@ type GathererOptions struct {
 // processes the results through a configurable output function.
 //
 // The Gatherer follows this workflow:
-//   1. Discovers cluster IDs from the specified subscription and resource group
-//   2. Gathers service logs from all discovered clusters
-//   3. Optionally gathers hosted control plane logs (unless skipped)
-//   4. Processes all log data through the configured outputFunc
+//  1. Discovers cluster IDs from the specified subscription and resource group
+//  2. Gathers service logs from all discovered clusters
+//  3. Optionally gathers hosted control plane logs (unless skipped)
+//  4. Processes all log data through the configured outputFunc
 //
 // # Creating Custom Output Functions
 //
@@ -287,15 +283,15 @@ func (g *Gatherer) GatherLogs(ctx context.Context) error {
 	logger := logr.FromContextOrDiscard(ctx)
 
 	// First, get all cluster IDs
-	clusterIds, err := g.executeClusterIdQuery(ctx, GetClusterIdQuery(g.opts.SubscriptionID, g.opts.ResourceGroup))
+	clusterIds, err := g.executeClusterIdQuery(ctx, g.opts.QueryOptions.GetClusterIdQuery())
 	if err != nil {
 		return fmt.Errorf("failed to execute cluster id query: %w", err)
 	}
 	logger.V(1).Info("Obtained following clusterIDs", "clusterIds", strings.Join(clusterIds, ", "))
-	g.opts.ClusterIds = clusterIds
+	g.opts.QueryOptions.ClusterIds = clusterIds
 
 	// Gather service logs
-	if err := g.queryAndWriteToFile(ctx, QueryTypeServices, GetServicesQueries(g.opts)); err != nil {
+	if err := g.queryAndWriteToFile(ctx, QueryTypeServices, g.opts.QueryOptions.GetServicesQueries()); err != nil {
 		return fmt.Errorf("failed to execute services query: %w", err)
 	}
 
@@ -304,7 +300,7 @@ func (g *Gatherer) GatherLogs(ctx context.Context) error {
 		logger.V(2).Info("Skipping hosted control plane logs")
 	} else {
 		logger.V(1).Info("Executing hosted control plane logs")
-		if err := g.queryAndWriteToFile(ctx, QueryTypeHostedControlPlane, GetHostedControlPlaneLogsQuery(g.opts)); err != nil {
+		if err := g.queryAndWriteToFile(ctx, QueryTypeHostedControlPlane, g.opts.QueryOptions.GetHostedControlPlaneLogsQuery()); err != nil {
 			return fmt.Errorf("failed to execute hosted control plane logs query: %w", err)
 		}
 	}
