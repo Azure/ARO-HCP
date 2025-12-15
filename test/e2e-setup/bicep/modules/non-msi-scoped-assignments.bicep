@@ -68,7 +68,9 @@ resource clusterApiAzureMi 'Microsoft.ManagedIdentity/userAssignedIdentities@202
   scope: resourceGroup(resourceGroupName)
 }
 
-// Azure Red Hat OpenShift Hosted Control Planes Cluster API Provider
+// Azure Red Hat OpenShift Hosted Control Planes Cluster API Provider: Enables permissions to allow cluster API to 
+// manage nodes, networks and disks for OpenShift cluster.
+// https://www.azadvertizer.net/azrolesadvertizer/88366f10-ed47-4cc0-9fab-c8a06148393e.html
 var hcpClusterApiProviderRoleId = subscriptionResourceId(
   'Microsoft.Authorization/roleDefinitions',
   '88366f10-ed47-4cc0-9fab-c8a06148393e'
@@ -94,7 +96,9 @@ resource controlPlaneMi 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-0
   scope: resourceGroup(resourceGroupName)
 }
 
-// Azure Red Hat OpenShift Hosted Control Planes Control Plane Operator
+// Azure Red Hat OpenShift Hosted Control Planes Control Plane Operator: Enables the control plane operator to read 
+// resources necessary for OpenShift cluster.
+// https://www.azadvertizer.net/azrolesadvertizer/fc0c873f-45e9-4d0d-a7d1-585aab30c6ed.html
 var hcpControlPlaneOperatorRoleId = subscriptionResourceId(
   'Microsoft.Authorization/roleDefinitions',
   'fc0c873f-45e9-4d0d-a7d1-585aab30c6ed'
@@ -130,7 +134,8 @@ resource cloudControllerManagerMi 'Microsoft.ManagedIdentity/userAssignedIdentit
   scope: resourceGroup(resourceGroupName)
 }
 
-// Azure Red Hat OpenShift Cloud Controller Manager
+// Azure Red Hat OpenShift Cloud Controller Manager: Manage and update the cloud controller manager deployed on top of OpenShift.
+// https://www.azadvertizer.net/azrolesadvertizer/a1f96423-95ce-4224-ab27-4e3dc72facd4.html
 var cloudControllerManagerRoleId = subscriptionResourceId(
   'Microsoft.Authorization/roleDefinitions',
   'a1f96423-95ce-4224-ab27-4e3dc72facd4'
@@ -166,7 +171,8 @@ resource ingressMi 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31'
   scope: resourceGroup(resourceGroupName)
 }
 
-// Azure Red Hat OpenShift Cluster Ingress Operator
+// Azure Red Hat OpenShift Cluster Ingress Operator: Manage and configure the OpenShift router.
+// https://www.azadvertizer.net/azrolesadvertizer/0336e1d3-7a87-462b-b6db-342b63f7802c.html
 var ingressOperatorRoleId = subscriptionResourceId(
   'Microsoft.Authorization/roleDefinitions',
   '0336e1d3-7a87-462b-b6db-342b63f7802c'
@@ -202,7 +208,9 @@ resource fileCsiDriverMi 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-
   scope: resourceGroup(resourceGroupName)
 }
 
-// Azure Red Hat OpenShift File Storage Operator
+// Azure Red Hat OpenShift File Storage Operator: Install Container Storage Interface (CSI) drivers that enable your
+// cluster to use Azure Files. Set OpenShift cluster-wide storage defaults to ensure a default storageclass exists for clusters.
+// https://www.azadvertizer.net/azrolesadvertizer/0d7aedc0-15fd-4a67-a412-efad370c947e.html
 var fileStorageOperatorRoleId = subscriptionResourceId(
   'Microsoft.Authorization/roleDefinitions',
   '0d7aedc0-15fd-4a67-a412-efad370c947e'
@@ -248,7 +256,8 @@ resource cloudNetworkConfigMi 'Microsoft.ManagedIdentity/userAssignedIdentities@
   scope: resourceGroup(resourceGroupName)
 }
 
-// Azure Red Hat OpenShift Network Operator
+// Azure Red Hat OpenShift Network Operator: Install and upgrade the networking components on an OpenShift cluster.
+// https://www.azadvertizer.net/azrolesadvertizer/be7a6435-15ae-4171-8f30-4a343eff9e8f.html
 var networkOperatorRoleId = subscriptionResourceId(
   'Microsoft.Authorization/roleDefinitions',
   'be7a6435-15ae-4171-8f30-4a343eff9e8f'
@@ -324,6 +333,7 @@ resource serviceManagedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentitie
 }
 
 // Azure Red Hat OpenShift Hosted Control Planes Service Managed Identity
+// https://www.azadvertizer.net/azrolesadvertizer/c0ff367d-66d8-445e-917c-583feb0ef0d4.html
 var hcpServiceManagedIdentityRoleId = subscriptionResourceId(
   'Microsoft.Authorization/roleDefinitions',
   'c0ff367d-66d8-445e-917c-583feb0ef0d4'
@@ -371,6 +381,9 @@ resource kmsMi 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' exi
   scope: resourceGroup(resourceGroupName)
 }
 
+// Key Vault Crypto User: Perform cryptographic operations using keys. Only works for key vaults that use the
+//'Azure role-based access control' permission model.
+// https://www.azadvertizer.net/azrolesadvertizer/12338af0-0e69-4776-bea7-57ae8d297424.html
 var keyVaultCryptoUserRoleId = subscriptionResourceId(
   'Microsoft.Authorization/roleDefinitions',
   '12338af0-0e69-4776-bea7-57ae8d297424'

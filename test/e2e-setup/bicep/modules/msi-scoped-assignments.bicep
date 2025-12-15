@@ -73,11 +73,17 @@ resource serviceManagedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentitie
 //
 // R O L E   D E F I N I T I O N S
 //
+
+// Reader: Grants permission to read Azure resources
+// https://www.azadvertizer.net/azrolesadvertizer/acdd72a7-3385-48ef-bd42-f606fba81ae7.html
 var readerRoleId = subscriptionResourceId(
   'Microsoft.Authorization/roleDefinitions',
   'acdd72a7-3385-48ef-bd42-f606fba81ae7'
 )
 
+// Azure Red Hat OpenShift Federated Credential: Create, update and delete federated credentials on user assigned 
+// managed identities in order to build a trust relationship between the managed identity, OpenID Connect (OIDC), and the service account.
+// https://www.azadvertizer.net/azrolesadvertizer/ef318e2a-8334-4a05-9e4a-295a196c6a6e.html
 var federatedCredentialsRoleId = subscriptionResourceId(
   'Microsoft.Authorization/roleDefinitions',
   'ef318e2a-8334-4a05-9e4a-295a196c6a6e'
