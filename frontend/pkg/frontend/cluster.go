@@ -658,9 +658,6 @@ func (f *Frontend) addDeleteClusterToTransaction(ctx context.Context, writer htt
 		return utils.TrackError(err)
 	}
 
-	if cluster.ServiceProviderProperties.ProvisioningState == arm.ProvisioningStateDeleting {
-		return nil
-	}
 	if err := checkForProvisioningStateConflict(ctx, f.dbClient, database.OperationRequestDelete, cluster.ID, cluster.ServiceProviderProperties.ProvisioningState); err != nil {
 		return utils.TrackError(err)
 	}

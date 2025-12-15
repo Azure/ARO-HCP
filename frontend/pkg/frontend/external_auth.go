@@ -593,9 +593,6 @@ func (f *Frontend) addDeleteExternalAuthToTransaction(ctx context.Context, write
 		return utils.TrackError(err)
 	}
 
-	if externalAuth.Properties.ProvisioningState == arm.ProvisioningStateDeleting {
-		return nil
-	}
 	if err := checkForProvisioningStateConflict(ctx, f.dbClient, database.OperationRequestDelete, externalAuth.ID, externalAuth.Properties.ProvisioningState); err != nil {
 		return utils.TrackError(err)
 	}

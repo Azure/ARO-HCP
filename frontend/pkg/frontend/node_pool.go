@@ -644,9 +644,6 @@ func (f *Frontend) addDeleteNodePoolToTransaction(ctx context.Context, writer ht
 		return utils.TrackError(err)
 	}
 
-	if nodePool.Properties.ProvisioningState == arm.ProvisioningStateDeleting {
-		return nil
-	}
 	if err := checkForProvisioningStateConflict(ctx, f.dbClient, database.OperationRequestDelete, nodePool.ID, nodePool.Properties.ProvisioningState); err != nil {
 		return utils.TrackError(err)
 	}
