@@ -139,7 +139,7 @@ func (f *Frontend) CheckForProvisioningStateConflict(ctx context.Context, operat
 	return checkForProvisioningStateConflict(ctx, f.dbClient, operationRequest, doc.ResourceID, doc.ProvisioningState)
 }
 
-func (f *Frontend) DeleteAllResources(ctx context.Context, writer http.ResponseWriter, request *http.Request, subscriptionID string) error {
+func (f *Frontend) DeleteAllResourcesInSubscription(ctx context.Context, subscriptionID string) error {
 	transaction := f.dbClient.NewTransaction(subscriptionID)
 
 	clusterIterator, err := f.dbClient.HCPClusters(subscriptionID, "").List(ctx, nil)
@@ -147,7 +147,12 @@ func (f *Frontend) DeleteAllResources(ctx context.Context, writer http.ResponseW
 		return utils.TrackError(err)
 	}
 	for _, cluster := range clusterIterator.Items(ctx) {
-		if err := f.addDeleteClusterToTransaction(ctx, writer, request, transaction, cluster); err != nil {
+		if cluster.ServiceProviderProperties.ProvisioningState == arm.ProvisioningStateDeleting {
+			// don't try to delete already deleting clusters.  If we call the delete on them, the call will fail
+			// on various problems from cluster-service. We trust the existing delete is doing good things.
+			continue
+		}
+		if err := f.addDeleteClusterToTransaction(ctx, nil, nil, transaction, cluster); err != nil {
 			return utils.TrackError(err)
 		}
 	}
