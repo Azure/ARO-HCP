@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"strings"
 	"time"
 
 	"github.com/Azure/azure-kusto-go/kusto/data/table"
@@ -66,18 +67,14 @@ func newQueryCommandLegacy() (*cobra.Command, error) {
 
 func (opts *MustGatherOptions) RunLegacy(ctx context.Context) error {
 	logger := logr.FromContextOrDiscard(ctx)
-	// clusterIds, err := executeClusterIdQuery(ctx, opts, mustgather.GetKubeSystemClusterIdQuery(opts.SubscriptionID, opts.ResourceGroup))
-	// if err != nil {
-	// 	return fmt.Errorf("failed to execute cluster id query: %w", err)
-	// }
-	// logger.V(1).Info("Obtained following clusterIDs", "clusterIds", strings.Join(clusterIds, ", "))
-	// opts.QueryOptions.ClusterIds = clusterIds
-	// err = serializeOutputToFile(opts.OutputPath, OptionsOutputFile, opts.QueryOptions)
-	// if err != nil {
-	// 	return fmt.Errorf("failed to write query options to file: %w", err)
-	// }
+	clusterIds, err := executeClusterIdQuery(ctx, opts, GetKubeSystemClusterIdQuery(opts.SubscriptionID, opts.ResourceGroup))
+	if err != nil {
+		return fmt.Errorf("failed to execute cluster id query: %w", err)
+	}
+	logger.V(1).Info("Obtained following clusterIDs", "clusterIds", strings.Join(clusterIds, ", "))
+	opts.QueryOptions.ClusterIds = clusterIds
 
-	err := executeKubeSystemQueries(ctx, opts, opts.QueryOptions)
+	err = executeKubeSystemQueries(ctx, opts, opts.QueryOptions)
 	if err != nil {
 		return fmt.Errorf("failed to execute query: %w", err)
 	}
@@ -221,4 +218,35 @@ func writeNormalizedLogsToFile(outputChannel chan *table.Row, castFunction func(
 		fmt.Fprintf(openedFiles[fileName], "%s\n", string(normalizedRow.Log))
 	}
 	return allErrors
+}
+
+func executeClusterIdQuery(ctx context.Context, opts *MustGatherOptions, query *kusto.ConfigurableQuery) ([]string, error) {
+	outputChannel := make(chan *table.Row)
+	allClusterIds := make([]string, 0)
+
+	g := new(errgroup.Group)
+	g.Go(func() error {
+		for row := range outputChannel {
+			cidRow := &mustgather.ClusterIdRow{}
+			if err := row.ToStruct(cidRow); err != nil {
+				return fmt.Errorf("failed to convert row to struct: %w", err)
+			}
+			if cidRow.ClusterId != "" {
+				allClusterIds = append(allClusterIds, cidRow.ClusterId)
+			}
+		}
+		return nil
+	})
+
+	_, err := opts.QueryClient.ExecutePreconfiguredQuery(ctx, query, outputChannel)
+	if err != nil {
+		return nil, fmt.Errorf("failed to execute query: %w", err)
+	}
+	close(outputChannel)
+
+	if err := g.Wait(); err != nil {
+		return nil, fmt.Errorf("failed to execute query: %w", err)
+	}
+
+	return allClusterIds, nil
 }
