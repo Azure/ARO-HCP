@@ -46,7 +46,7 @@ module genevaKvSecretsUserAccessToGenevaApp '../modules/keyvault/keyvault-secret
   params: {
     keyVaultName: genevaKv.outputs.kvName
     roleName: 'Key Vault Secrets User'
-    managedIdentityPrincipalId: genevaActionsPrincipalId
+    managedIdentityPrincipalIds: [genevaActionsPrincipalId]
   }
 }
 
@@ -55,7 +55,7 @@ module genevaKvReaderAccessToGenevaApp '../modules/keyvault/keyvault-secret-acce
   params: {
     keyVaultName: genevaKv.outputs.kvName
     roleName: 'Key Vault Reader'
-    managedIdentityPrincipalId: genevaActionsPrincipalId
+    managedIdentityPrincipalIds: [genevaActionsPrincipalId]
   }
 }
 

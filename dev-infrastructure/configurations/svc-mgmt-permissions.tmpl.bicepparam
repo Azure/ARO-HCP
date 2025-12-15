@@ -17,3 +17,7 @@ param msiRefresherMIResourceId = '__msiRefresherMIResourceId__'
 // Admin API identity
 // used for Resource Group introspection
 param adminApiMIResourceId = '__adminApiMIResourceId__'
+
+// RP Backend identity
+// used for Key Vault access
+param rpBackendMIResourceId = '__rpBackendMIResourceId__'

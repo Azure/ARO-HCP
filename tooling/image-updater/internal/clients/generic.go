@@ -90,7 +90,7 @@ func (c *GenericRegistryClient) doRequestWithRetry(ctx context.Context, req *htt
 		var err error
 		resp, err = c.httpClient.Do(req)
 		if err != nil {
-			logger.V(1).Info("request failed, will retry", "url", req.URL.String(), "error", err.Error())
+			logger.V(2).Info("request failed, will retry", "url", req.URL.String(), "error", err.Error())
 			return err
 		}
 
@@ -98,7 +98,7 @@ func (c *GenericRegistryClient) doRequestWithRetry(ctx context.Context, req *htt
 		if resp.StatusCode >= 500 || resp.StatusCode == http.StatusTooManyRequests {
 			resp.Body.Close()
 			err = fmt.Errorf("server returned status %d", resp.StatusCode)
-			logger.V(1).Info("request failed with retryable status code", "url", req.URL.String(), "status", resp.StatusCode)
+			logger.V(2).Info("request failed with retryable status code", "url", req.URL.String(), "status", resp.StatusCode)
 			return err
 		}
 
@@ -107,7 +107,7 @@ func (c *GenericRegistryClient) doRequestWithRetry(ctx context.Context, req *htt
 	}
 
 	notify := func(err error, duration time.Duration) {
-		logger.Info("retrying request after backoff", "url", req.URL.String(), "error", err.Error(), "backoff", duration.String())
+		logger.V(2).Info("retrying request after backoff", "url", req.URL.String(), "error", err.Error(), "backoff", duration.String())
 	}
 
 	// Use backoff.RetryNotify with context to respect cancellation
@@ -149,7 +149,7 @@ func (c *GenericRegistryClient) getAllTags(ctx context.Context, repository strin
 		return nil, fmt.Errorf("failed to decode registry API response (url: %s): %w", url, err)
 	}
 
-	logger.V(1).Info("fetched tags from generic registry", "registry", c.registryURL, "repository", repository, "totalTags", len(tagsResp.Tags))
+	logger.V(2).Info("fetched tags from generic registry", "registry", c.registryURL, "repository", repository, "totalTags", len(tagsResp.Tags))
 
 	var allTags []Tag
 	for _, tagName := range tagsResp.Tags {
@@ -170,7 +170,7 @@ func (c *GenericRegistryClient) GetArchSpecificDigest(ctx context.Context, repos
 		return nil, fmt.Errorf("logger not found in context: %w", err)
 	}
 
-	logger.V(1).Info("fetching tags from generic registry", "registry", c.registryURL, "repository", repository, "useAuth", c.useAuth)
+	logger.V(2).Info("fetching tags from generic registry", "registry", c.registryURL, "repository", repository, "useAuth", c.useAuth)
 
 	allTags, err := c.getAllTags(ctx, repository)
 	if err != nil {
@@ -194,13 +194,13 @@ func (c *GenericRegistryClient) GetArchSpecificDigest(ctx context.Context, repos
 
 		ref, err := name.ParseReference(fmt.Sprintf("%s/%s:%s", c.registryURL, repository, tag.Name))
 		if err != nil {
-			logger.V(1).Info("failed to parse reference, skipping", "tag", tag.Name, "error", err)
+			logger.V(2).Info("failed to parse reference, skipping", "tag", tag.Name, "error", err)
 			continue
 		}
 
 		desc, err := remote.Get(ref, remoteOpts...)
 		if err != nil {
-			logger.V(1).Info("failed to fetch image descriptor, skipping", "tag", tag.Name, "error", err)
+			logger.V(2).Info("failed to fetch image descriptor, skipping", "tag", tag.Name, "error", err)
 			continue
 		}
 
@@ -220,11 +220,11 @@ func (c *GenericRegistryClient) GetArchSpecificDigest(ctx context.Context, repos
 
 	tags, err := PrepareTagsForArchValidation(enrichedTags, repository, tagPattern)
 	if err != nil {
-		logger.Error(err, "failed to prepare tags for arch validation", "registry", c.registryURL, "repository", repository, "tagPattern", tagPattern, "totalTags", len(enrichedTags))
+		logger.V(2).Error(err, "failed to prepare tags for arch validation", "registry", c.registryURL, "repository", repository, "tagPattern", tagPattern, "totalTags", len(enrichedTags))
 		return nil, err
 	}
 
-	logger.V(1).Info("filtered tags by pattern", "registry", c.registryURL, "repository", repository, "tagPattern", tagPattern, "matchingTags", len(tags))
+	logger.V(2).Info("filtered tags by pattern", "registry", c.registryURL, "repository", repository, "tagPattern", tagPattern, "matchingTags", len(tags))
 
 	for _, tag := range tags {
 		// Check if context is cancelled before processing each tag
@@ -237,31 +237,31 @@ func (c *GenericRegistryClient) GetArchSpecificDigest(ctx context.Context, repos
 		// Use cached descriptor instead of calling remote.Get again
 		desc, ok := descriptorCache[tag.Name]
 		if !ok {
-			logger.Error(fmt.Errorf("descriptor not found in cache"), "missing descriptor for tag", "tag", tag.Name)
+			logger.V(2).Error(fmt.Errorf("descriptor not found in cache"), "missing descriptor for tag", "tag", tag.Name)
 			continue
 		}
 
 		// If multiArch is requested, return the multi-arch manifest list digest
 		if multiArch && desc.MediaType.IsIndex() {
-			logger.Info("found multi-arch manifest", "tag", tag.Name, "mediaType", desc.MediaType, "digest", desc.Digest.String())
+			logger.V(2).Info("found multi-arch manifest", "tag", tag.Name, "mediaType", desc.MediaType, "digest", desc.Digest.String())
 			tag.Digest = desc.Digest.String()
 			return &tag, nil
 		}
 
 		if desc.MediaType.IsIndex() {
-			logger.Info("skipping multi-arch manifest", "tag", tag.Name, "mediaType", desc.MediaType)
+			logger.V(2).Info("skipping multi-arch manifest", "tag", tag.Name, "mediaType", desc.MediaType)
 			continue
 		}
 
 		img, err := desc.Image()
 		if err != nil {
-			logger.Error(err, "failed to get image", "tag", tag.Name)
+			logger.V(2).Error(err, "failed to get image", "tag", tag.Name)
 			continue
 		}
 
 		configFile, err := img.ConfigFile()
 		if err != nil {
-			logger.Error(err, "failed to get config", "tag", tag.Name)
+			logger.V(2).Error(err, "failed to get config", "tag", tag.Name)
 			continue
 		}
 
@@ -270,14 +270,14 @@ func (c *GenericRegistryClient) GetArchSpecificDigest(ctx context.Context, repos
 		if normalizedArch == arch && configFile.OS == "linux" {
 			digest, err := img.Digest()
 			if err != nil {
-				logger.Error(err, "failed to get image digest", "tag", tag.Name)
+				logger.V(2).Error(err, "failed to get image digest", "tag", tag.Name)
 				continue
 			}
 			tag.Digest = digest.String()
 			return &tag, nil
 		}
 
-		logger.Info("skipping non-matching architecture", "tag", tag.Name, "arch", configFile.Architecture, "os", configFile.OS, "wantArch", arch)
+		logger.V(2).Info("skipping non-matching architecture", "tag", tag.Name, "arch", configFile.Architecture, "os", configFile.OS, "wantArch", arch)
 	}
 
 	if multiArch {

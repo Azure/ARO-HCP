@@ -15,7 +15,7 @@
 package api
 
 import (
-	"github.com/google/uuid"
+	"strings"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
@@ -35,14 +35,14 @@ var _ CosmosPersistable = &HCPOpenShiftCluster{}
 
 func (o *HCPOpenShiftCluster) GetCosmosData() CosmosData {
 	return CosmosData{
-		ID:                o.ID,
-		ProvisioningState: o.ServiceProviderProperties.ProvisioningState,
-		ClusterServiceID:  o.ServiceProviderProperties.ClusterServiceID,
+		CosmosUID:    o.ServiceProviderProperties.CosmosUID,
+		PartitionKey: strings.ToLower(o.ID.SubscriptionID),
+		ItemID:       o.ID,
 	}
 }
 
-func (o *HCPOpenShiftCluster) SetCosmosDocumentData(cosmosUID uuid.UUID) {
-	o.ServiceProviderProperties.CosmosUID = cosmosUID.String()
+func (o *HCPOpenShiftCluster) SetCosmosDocumentData(cosmosUID string) {
+	o.ServiceProviderProperties.CosmosUID = cosmosUID
 }
 
 // HCPOpenShiftClusterCustomerProperties represents the property bag of a HCPOpenShiftCluster resource.

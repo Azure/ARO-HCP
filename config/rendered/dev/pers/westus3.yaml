@@ -1,13 +1,13 @@
 acm:
   mce:
     bundle:
-      digest: sha256:ee51dbe4a8c18f7624890c7ce071583d186694d9aed06a3c8576b17f11dab92c
+      digest: sha256:da02429809dffd3337e17c52b7a312b738bb0e701ffa1909859b6f207763609a
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-29
     version: 2.9.2
   operator:
     bundle:
-      digest: sha256:7a0af97e0e1c5651a7e979f752e515d82cc78e5349babebe9e354ff297a2815c
+      digest: sha256:7ee5067be2366829c389df7670b7d03c93c3bd433bc977544292daf69ece66ab
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-214
     version: 2.14.2
@@ -35,7 +35,7 @@ adminApi:
     issuer: Self
     name: admin-api-cert-pers-usw3test
   image:
-    digest: sha256:6689a91b1a0422e563fee00f40c9d9c3b16ddc541d263627ef0c727c79edcffc
+    digest: sha256:4ba6e83afc921f6c7fc5a977e9034def6e664eb65192b83279b1e9c3d86e62c7
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpadminapi
   k8s:
@@ -69,7 +69,7 @@ azureGeoShortId: us
 azureRegionAvailabilityZoneCount: 4
 backend:
   image:
-    digest: sha256:accfff6438ad546dabf2547709afb1e099dcd0d1fcba24f54012194c1fa7d28c
+    digest: sha256:42dd00d80a5df2c9a564fe939d7aec52b5519439f8a85ae226dbfba383f575f8
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpbackend
   k8s:
@@ -82,7 +82,7 @@ backend:
     exporter: otlp
 backplaneAPI:
   image:
-    digest: sha256:6d0c964c97c5a737b9270445eaeae05292f6b2b281493796b991ef708ca4f9db
+    digest: sha256:6c6c20dfaf63d02243bc08a0aab913bc659ed1d7a9cddcb85bd3e675dcbee924
     registry: quay.io
     repository: app-sre/backplane-api
 billing:
@@ -125,7 +125,7 @@ clustersService:
   deployDebugJobs: false
   environment: arohcpdev
   image:
-    digest: sha256:dff593b00a629d8366ef63502c56fadd66c627eca60e0d10f1663d74e0998b28
+    digest: sha256:2f51c98788c688f92d6905977829891a4d6fc586050fbc3f7335f5c9994e6134
     registry: quay.io
     repository: app-sre/aro-hcp-clusters-service
   k8s:
@@ -140,7 +140,7 @@ clustersService:
   ocpVersions:
     channelGroups:
       stable:
-        maxVersion: 4.19.8
+        maxVersion: 4.20.6
         minVersion: 4.19.0
     defaultVersion:
       version: 4.19.7
@@ -180,7 +180,7 @@ e2e:
   prow:
     globalKeyVaultTokenSecret: prow-token
   regionTest:
-    gatePromotion: false
+    gatePromotion: true
     prowJobName: ""
 environmentName: pers
 ev2:
@@ -208,7 +208,7 @@ frontend:
     private: false
     zoneRedundantMode: Disabled
   image:
-    digest: sha256:2c3b877314500fa336e5e642b80876f29d5533c909b45226fa64f38447ccfdca
+    digest: sha256:9cdc146bd1d45ef50abc52f8343a2b46823d50a30462190672ecee621fc449aa
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpfrontend
   k8s:
@@ -311,7 +311,7 @@ global:
           poll: true
         poll: true
 hypershift:
-  additionalInstallArg: --enable-cpo-overrides=true
+  additionalInstallArg: --enable-cpo-overrides
   image:
     digest: sha256:2b33a38c788fd8cbc16c1f353d417bee4646140dbfbfaa847b4d81941c601c36
     registry: quay.io
@@ -323,7 +323,7 @@ imageSync:
   ocMirror:
     enabled: true
     image:
-      digest: sha256:58352276ca9d7640cfa69a6fe9b75ef62b77553c0fc961d7dccf8d244f6f0f57
+      digest: sha256:84a371ce715e1aa6d7f8ca7bfb99a2d7b41dc2bb3af42d887aa64cc1432a3519
       registry: arohcpsvcdev.azurecr.io
       repository: image-sync/oc-mirror
     jobNamePrefix: ""
@@ -336,7 +336,7 @@ keyVaultDNSSuffix: vault.azure.net
 kubeEvents:
   enabled: false
   image:
-    digest: sha256:053401cc862f54e181c5b308d1082cfe1ecc9322721a237e15216abc90e3707a
+    digest: sha256:9d5fa4bc7852bb0a5cf7d892f256c52b457a4e5182318daec6648d8263606edb
     registry: kubernetesshared.azurecr.io
     repository: shared/kube-events
 kusto:
@@ -385,7 +385,7 @@ maestro:
     name: arohcp-pers-maestro-usw3test
     private: false
   image:
-    digest: sha256:2f92b1a26199f7075a33530cebea0c709088d16c3a129271ce7123b38a309664
+    digest: sha256:8bfd08bbafec5e4d4de8ae15c6a2d5cd8b11067136a9b88f800566a992a6a010
     registry: quay.io
     repository: redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro
   postgres:
@@ -558,6 +558,7 @@ mise:
     address: ""
     exporter: ""
 monitoring:
+  crossTenantSecurityGroup: ""
   grafanaMajorVersion: "11"
   grafanaName: arohcp-dev
   grafanaRoles: 6b6d3adf-8476-4727-9812-20ffdef2b85c/Group/Admin

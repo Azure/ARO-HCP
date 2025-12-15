@@ -167,6 +167,12 @@ resourceGroups:
       step: oncert-private-kv-issuer
     - resourceGroup: service
       step: oncert-public-kv-issuer
+    automatedRetry:
+      errorContainsAny:
+      - "Internal server error"
+      - "Resource is in Updating state"
+      maximumRetryCount: 3
+      durationBetweenRetries: 2m
   - name: cluster-output
     action: ARM
     template: templates/output-svc-cluster.bicep

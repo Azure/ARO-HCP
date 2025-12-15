@@ -34,6 +34,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
+	"github.com/Azure/ARO-HCP/frontend/test/simulate/integrationutils"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
@@ -215,7 +216,7 @@ func (s *SimulationTestInfo) saveContainerContent(ctx context.Context, container
 			obj, hasProperties := docMap["properties"]
 			if hasProperties {
 				properties = obj.(map[string]any)
-				if resourceID, hasResourceID := properties["resourceId"]; hasResourceID {
+				if resourceID, hasResourceID := properties["resourceId"]; hasResourceID && resourceID != nil {
 					armResourceID, _ = azcorearm.ParseResourceID(resourceID.(string))
 				}
 			}
@@ -231,7 +232,7 @@ func (s *SimulationTestInfo) saveContainerContent(ctx context.Context, container
 					"subscriptions",
 					fmt.Sprintf("subscription_%s.json", docMap["id"].(string)))
 
-			case strings.EqualFold(resourceType.(string), database.OperationResourceType.String()):
+			case strings.EqualFold(resourceType.(string), api.OperationStatusResourceType.String()):
 				externalID := properties["externalId"].(string)
 				if clusterResourceID, _ := azcorearm.ParseResourceID(externalID); clusterResourceID != nil {
 					clusterDir := resourceIDToDir(clusterResourceID)
@@ -311,7 +312,7 @@ func resourceIDToDir(resourceID *azcorearm.ResourceID) string {
 
 		return filepath.Join(
 			startingDir,
-			resourceID.ResourceType.Type,
+			resourceID.ResourceType.Types[len(resourceID.ResourceType.Types)-1],
 			resourceID.Name,
 		)
 	}
@@ -343,30 +344,7 @@ func (s *SimulationTestInfo) CreateInitialCosmosContent(ctx context.Context, cre
 }
 
 func (s *SimulationTestInfo) createInitialCosmosContent(ctx context.Context, content []byte) error {
-	contentMap := map[string]any{}
-	if err := json.Unmarshal(content, &contentMap); err != nil {
-		return fmt.Errorf("failed to unmarshal content: %w", err)
-	}
-
-	var err error
-	switch {
-	case strings.EqualFold(contentMap["resourceType"].(string), api.ClusterResourceType.String()):
-		partitionKey := azcosmos.NewPartitionKeyString(contentMap["partitionKey"].(string))
-		_, err = s.CosmosResourcesContainer().CreateItem(ctx, partitionKey, content, nil)
-
-	case strings.EqualFold(contentMap["resourceType"].(string), azcorearm.SubscriptionResourceType.String()):
-		partitionKey := azcosmos.NewPartitionKeyString(contentMap["partitionKey"].(string))
-		_, err = s.CosmosResourcesContainer().CreateItem(ctx, partitionKey, content, nil)
-
-	default:
-		return fmt.Errorf("unknown content type: %v", contentMap["resourceType"])
-	}
-
-	if err != nil {
-		return fmt.Errorf("failed to create item: %w", err)
-	}
-
-	return nil
+	return integrationutils.CreateInitialCosmosContent(ctx, s.CosmosResourcesContainer(), content)
 }
 
 func (s *SimulationTestInfo) saveClusterServiceMockData(ctx context.Context) error {

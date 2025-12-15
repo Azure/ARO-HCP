@@ -43,6 +43,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/audit"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
+	"github.com/Azure/ARO-HCP/internal/serverutils"
 	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/internal/validation"
 )
@@ -84,14 +85,14 @@ func NewFrontend(
 			ErrorLog: slog.NewLogLogger(logger.Handler(), slog.LevelError),
 			BaseContext: func(net.Listener) context.Context {
 				ctx := context.Background()
-				ctx = ContextWithLogger(ctx, logger)
+				ctx = utils.ContextWithLogger(ctx, logger)
 				return ctx
 			},
 		},
 		metricsServer: http.Server{
 			ErrorLog: slog.NewLogLogger(logger.Handler(), slog.LevelError),
 			BaseContext: func(net.Listener) context.Context {
-				return ContextWithLogger(context.Background(), logger)
+				return utils.ContextWithLogger(context.Background(), logger)
 			},
 		},
 		auditClient: auditClient,
@@ -115,7 +116,7 @@ func NewFrontend(
 
 func (f *Frontend) Run(ctx context.Context, stop <-chan struct{}) {
 	// This just digs up the logger passed to NewFrontend.
-	logger := LoggerFromContext(f.server.BaseContext(f.listener))
+	logger := utils.LoggerFromContext(f.server.BaseContext(f.listener))
 
 	if stop != nil {
 		go func() {
@@ -245,7 +246,7 @@ func (f *Frontend) GetOpenshiftVersions(writer http.ResponseWriter, request *htt
 	if err != nil {
 		return utils.TrackError(err)
 	}
-	resourceID, err := ResourceIDFromContext(ctx)
+	resourceID, err := utils.ResourceIDFromContext(ctx)
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -275,13 +276,18 @@ func (f *Frontend) ArmResourceDelete(writer http.ResponseWriter, request *http.R
 	const operationRequest = database.OperationRequestDelete
 
 	ctx := request.Context()
+	logger := utils.LoggerFromContext(ctx)
 
-	resourceID, err := ResourceIDFromContext(ctx)
+	resourceID, err := utils.ResourceIDFromContext(ctx)
 	if err != nil {
 		return utils.TrackError(err)
 	}
 
-	pk := database.NewPartitionKey(resourceID.SubscriptionID)
+	// when we get a delete call (this happens from CI quite a bit), dump the state of the cluster resources.
+	if err := serverutils.DumpDataToLogger(ctx, f.dbClient, resourceID); err != nil {
+		// never fail, this is best effort
+		logger.Error(err.Error())
+	}
 
 	resourceItemID, resourceDoc, err := f.dbClient.GetResourceDoc(ctx, resourceID)
 	if database.IsResponseError(err, http.StatusNotFound) {
@@ -299,9 +305,9 @@ func (f *Frontend) ArmResourceDelete(writer http.ResponseWriter, request *http.R
 		return utils.TrackError(err)
 	}
 
-	transaction := f.dbClient.NewTransaction(pk)
+	transaction := f.dbClient.NewTransaction(resourceID.SubscriptionID)
 
-	operationID, err := f.DeleteResource(ctx, transaction, resourceItemID, resourceDoc)
+	operation, err := f.DeleteResource(ctx, transaction, resourceItemID, resourceDoc, request)
 	if err != nil {
 		// notice we never return this and if we aren't a not found, we return the original error back.
 		cloudErr := ocm.CSErrorToCloudError(err, resourceDoc.ResourceID)
@@ -315,8 +321,7 @@ func (f *Frontend) ArmResourceDelete(writer http.ResponseWriter, request *http.R
 	if err != nil {
 		return utils.TrackError(err)
 	}
-
-	f.ExposeOperation(writer, request, operationID, transaction)
+	transaction.OnSuccess(addOperationResponseHeaders(writer, request, operation.NotificationURI, operation.OperationID))
 
 	_, err = transaction.Execute(ctx, nil)
 	if err != nil {
@@ -332,14 +337,13 @@ func (f *Frontend) ArmResourceActionRequestAdminCredential(writer http.ResponseW
 
 	ctx := request.Context()
 
-	resourceID, err := ResourceIDFromContext(ctx)
+	resourceID, err := utils.ResourceIDFromContext(ctx)
 	if err != nil {
 		return utils.TrackError(err)
 	}
 
 	// Parent resource is the hcpOpenShiftCluster.
 	resourceID = resourceID.Parent
-	pk := database.NewPartitionKey(resourceID.SubscriptionID)
 
 	correlationData, err := CorrelationDataFromContext(ctx)
 	if err != nil {
@@ -362,7 +366,7 @@ func (f *Frontend) ArmResourceActionRequestAdminCredential(writer http.ResponseW
 
 	// New credential cannot be requested while credentials are being revoked.
 
-	iterator := f.dbClient.ListActiveOperationDocs(pk, &database.DBClientListActiveOperationDocsOptions{
+	iterator := f.dbClient.Operations(resourceID.SubscriptionID).ListActiveOperations(&database.DBClientListActiveOperationDocsOptions{
 		Request:    api.Ptr(database.OperationRequestRevokeCredentials),
 		ExternalID: resourceID,
 	})
@@ -387,12 +391,21 @@ func (f *Frontend) ArmResourceActionRequestAdminCredential(writer http.ResponseW
 		return utils.TrackError(err)
 	}
 
-	transaction := f.dbClient.NewTransaction(pk)
+	transaction := f.dbClient.NewTransaction(resourceID.SubscriptionID)
 
-	operationDoc := database.NewOperationDocument(operationRequest, resourceID, internalID, correlationData)
-	operationID := transaction.CreateOperationDoc(operationDoc, nil)
-
-	f.ExposeOperation(writer, request, operationID, transaction)
+	operationDoc := database.NewOperationDocument(
+		operationRequest,
+		resourceID,
+		internalID,
+		request.Header.Get(arm.HeaderNameHomeTenantID),
+		request.Header.Get(arm.HeaderNameClientObjectID),
+		request.Header.Get(arm.HeaderNameAsyncNotificationURI),
+		correlationData)
+	transaction.OnSuccess(addOperationResponseHeaders(writer, request, operationDoc.NotificationURI, operationDoc.OperationID))
+	_, err = f.dbClient.Operations(resourceID.SubscriptionID).AddCreateToTransaction(ctx, transaction, operationDoc, nil)
+	if err != nil {
+		return utils.TrackError(err)
+	}
 
 	_, err = transaction.Execute(ctx, nil)
 	if err != nil {
@@ -408,14 +421,13 @@ func (f *Frontend) ArmResourceActionRevokeCredentials(writer http.ResponseWriter
 
 	ctx := request.Context()
 
-	resourceID, err := ResourceIDFromContext(ctx)
+	resourceID, err := utils.ResourceIDFromContext(ctx)
 	if err != nil {
 		return utils.TrackError(err)
 	}
 
 	// Parent resource is the hcpOpenShiftCluster.
 	resourceID = resourceID.Parent
-	pk := database.NewPartitionKey(resourceID.SubscriptionID)
 
 	correlationData, err := CorrelationDataFromContext(ctx)
 	if err != nil {
@@ -438,7 +450,7 @@ func (f *Frontend) ArmResourceActionRevokeCredentials(writer http.ResponseWriter
 
 	// Credential revocation cannot be requested while another revocation is in progress.
 
-	iterator := f.dbClient.ListActiveOperationDocs(pk, &database.DBClientListActiveOperationDocsOptions{
+	iterator := f.dbClient.Operations(resourceID.SubscriptionID).ListActiveOperations(&database.DBClientListActiveOperationDocsOptions{
 		Request:    api.Ptr(database.OperationRequestRevokeCredentials),
 		ExternalID: resourceID,
 	})
@@ -458,7 +470,7 @@ func (f *Frontend) ArmResourceActionRevokeCredentials(writer http.ResponseWriter
 		return utils.TrackError(err)
 	}
 
-	transaction := f.dbClient.NewTransaction(pk)
+	transaction := f.dbClient.NewTransaction(resourceID.SubscriptionID)
 
 	// Just as deleting an ARM resource cancels any other operations on the resource,
 	// revoking credentials cancels any credential requests in progress.
@@ -470,10 +482,19 @@ func (f *Frontend) ArmResourceActionRevokeCredentials(writer http.ResponseWriter
 		return utils.TrackError(err)
 	}
 
-	operationDoc := database.NewOperationDocument(operationRequest, resourceID, resourceDoc.InternalID, correlationData)
-	operationID := transaction.CreateOperationDoc(operationDoc, nil)
-
-	f.ExposeOperation(writer, request, operationID, transaction)
+	operationDoc := database.NewOperationDocument(
+		operationRequest,
+		resourceID,
+		resourceDoc.InternalID,
+		request.Header.Get(arm.HeaderNameHomeTenantID),
+		request.Header.Get(arm.HeaderNameClientObjectID),
+		request.Header.Get(arm.HeaderNameAsyncNotificationURI),
+		correlationData)
+	transaction.OnSuccess(addOperationResponseHeaders(writer, request, operationDoc.NotificationURI, operationDoc.OperationID))
+	_, err = f.dbClient.Operations(operationDoc.OperationID.SubscriptionID).AddCreateToTransaction(ctx, transaction, operationDoc, nil)
+	if err != nil {
+		return utils.TrackError(err)
+	}
 
 	_, err = transaction.Execute(ctx, nil)
 	if err != nil {
@@ -487,7 +508,7 @@ func (f *Frontend) ArmResourceActionRevokeCredentials(writer http.ResponseWriter
 func (f *Frontend) ArmSubscriptionGet(writer http.ResponseWriter, request *http.Request) error {
 	ctx := request.Context()
 
-	resourceID, err := ResourceIDFromContext(ctx)
+	resourceID, err := utils.ResourceIDFromContext(ctx)
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -511,7 +532,7 @@ func (f *Frontend) ArmSubscriptionGet(writer http.ResponseWriter, request *http.
 
 func (f *Frontend) ArmSubscriptionPut(writer http.ResponseWriter, request *http.Request) error {
 	ctx := request.Context()
-	logger := LoggerFromContext(ctx)
+	logger := utils.LoggerFromContext(ctx)
 
 	body, err := BodyFromContext(ctx)
 	if err != nil {
@@ -578,7 +599,7 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 	var resourceGroup = request.PathValue(PathSegmentResourceGroupName)
 
 	ctx := request.Context()
-	logger := LoggerFromContext(ctx)
+	logger := utils.LoggerFromContext(ctx)
 
 	body, err := BodyFromContext(ctx)
 	if err != nil {
@@ -749,29 +770,24 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 func (f *Frontend) OperationStatus(writer http.ResponseWriter, request *http.Request) error {
 	ctx := request.Context()
 
-	resourceID, err := ResourceIDFromContext(ctx)
+	resourceID, err := utils.ResourceIDFromContext(ctx)
 	if err != nil {
 		return utils.TrackError(err)
 	}
 
-	pk := database.NewPartitionKey(resourceID.SubscriptionID)
-
-	doc, err := f.dbClient.GetOperationDoc(ctx, pk, resourceID.Name)
-	if database.IsResponseError(err, http.StatusNotFound) {
-		return arm.NewResourceNotFoundError(resourceID)
-	}
+	operation, err := f.dbClient.Operations(resourceID.SubscriptionID).GetByID(ctx, resourceID.Name)
 	if err != nil {
 		return utils.TrackError(err)
 	}
 
 	// Validate the identity retrieving the operation result is the
 	// same identity that triggered the operation. Return 404 if not.
-	if !f.OperationIsVisible(request, resourceID.Name, doc) {
+	if !f.OperationIsVisible(request, operation) {
 		writer.WriteHeader(http.StatusNotFound)
 		return nil
 	}
 
-	_, err = arm.WriteJSONResponse(writer, http.StatusOK, doc.ToStatus())
+	_, err = arm.WriteJSONResponse(writer, http.StatusOK, database.ToStatus(operation))
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -833,24 +849,19 @@ func (f *Frontend) OperationResult(writer http.ResponseWriter, request *http.Req
 		return utils.TrackError(err)
 	}
 
-	resourceID, err := ResourceIDFromContext(ctx)
+	resourceID, err := utils.ResourceIDFromContext(ctx)
 	if err != nil {
 		return utils.TrackError(err)
 	}
 
-	pk := database.NewPartitionKey(resourceID.SubscriptionID)
-
-	cosmosOperation, err := f.dbClient.GetOperationDoc(ctx, pk, resourceID.Name)
-	if database.IsResponseError(err, http.StatusNotFound) {
-		return arm.NewResourceNotFoundError(resourceID)
-	}
+	operation, err := f.dbClient.Operations(resourceID.SubscriptionID).GetByID(ctx, resourceID.Name)
 	if err != nil {
 		return utils.TrackError(err)
 	}
 
 	// Validate the identity retrieving the operation result is the
 	// same identity that triggered the operation. Return 404 if not.
-	if !f.OperationIsVisible(request, resourceID.Name, cosmosOperation) {
+	if !f.OperationIsVisible(request, operation) {
 		return arm.NewResourceNotFoundError(resourceID)
 	}
 
@@ -874,14 +885,14 @@ func (f *Frontend) OperationResult(writer http.ResponseWriter, request *http.Req
 	//
 	//     [1] https://stackoverflow.microsoft.com/a/318573/106707
 	//
-	switch cosmosOperation.Status {
+	switch operation.Status {
 	case arm.ProvisioningStateSucceeded:
 		// Handled below.
 	case arm.ProvisioningStateFailed, arm.ProvisioningStateCanceled:
-		return fmt.Errorf("invalid operation status: %s", cosmosOperation.Status)
+		return fmt.Errorf("invalid operation status: %s", operation.Status)
 	default:
 		// Operation is still in progress.
-		AddLocationHeader(writer, request, cosmosOperation.OperationID)
+		AddLocationHeader(writer, request, operation.OperationID)
 		writer.WriteHeader(http.StatusAccepted)
 		return nil
 	}
@@ -891,7 +902,7 @@ func (f *Frontend) OperationResult(writer http.ResponseWriter, request *http.Req
 
 	var successStatusCode int
 
-	switch cosmosOperation.Request {
+	switch operation.Request {
 	case database.OperationRequestCreate:
 		successStatusCode = http.StatusCreated
 	case database.OperationRequestUpdate:
@@ -905,14 +916,14 @@ func (f *Frontend) OperationResult(writer http.ResponseWriter, request *http.Req
 		writer.WriteHeader(http.StatusNoContent)
 		return nil
 	default:
-		return fmt.Errorf("unhandled request type: %s", cosmosOperation.Request)
+		return fmt.Errorf("unhandled request type: %s", operation.Request)
 	}
 
 	var responseBody []byte
 
 	switch {
-	case cosmosOperation.InternalID.Kind() == cmv1.BreakGlassCredentialKind:
-		csBreakGlassCredential, err := f.clusterServiceClient.GetBreakGlassCredential(ctx, cosmosOperation.InternalID)
+	case operation.InternalID.Kind() == cmv1.BreakGlassCredentialKind:
+		csBreakGlassCredential, err := f.clusterServiceClient.GetBreakGlassCredential(ctx, operation.InternalID)
 		if err != nil {
 			return utils.TrackError(err)
 		}
@@ -922,8 +933,8 @@ func (f *Frontend) OperationResult(writer http.ResponseWriter, request *http.Req
 			return utils.TrackError(err)
 		}
 
-	case cosmosOperation.InternalID.Kind() == arohcpv1alpha1.ClusterKind:
-		resultingInternalCluster, err := f.getInternalClusterFromStorage(ctx, cosmosOperation.ExternalID)
+	case operation.InternalID.Kind() == arohcpv1alpha1.ClusterKind:
+		resultingInternalCluster, err := f.getInternalClusterFromStorage(ctx, operation.ExternalID)
 		if err != nil {
 			return utils.TrackError(err)
 		}
@@ -932,8 +943,8 @@ func (f *Frontend) OperationResult(writer http.ResponseWriter, request *http.Req
 			return utils.TrackError(err)
 		}
 
-	case cosmosOperation.ExternalID.ResourceType.String() == api.NodePoolResourceType.String():
-		resultingInternalNodePool, err := f.getInternalNodePoolFromStorage(ctx, cosmosOperation.ExternalID)
+	case operation.ExternalID.ResourceType.String() == api.NodePoolResourceType.String():
+		resultingInternalNodePool, err := f.getInternalNodePoolFromStorage(ctx, operation.ExternalID)
 		if err != nil {
 			return utils.TrackError(err)
 		}
@@ -942,8 +953,8 @@ func (f *Frontend) OperationResult(writer http.ResponseWriter, request *http.Req
 			return utils.TrackError(err)
 		}
 
-	case cosmosOperation.ExternalID.ResourceType.String() == api.ExternalAuthResourceType.String():
-		resultingInternalExternalAuth, err := f.getInternalExternalAuthFromStorage(ctx, cosmosOperation.ExternalID)
+	case operation.ExternalID.ResourceType.String() == api.ExternalAuthResourceType.String():
+		resultingInternalExternalAuth, err := f.getInternalExternalAuthFromStorage(ctx, operation.ExternalID)
 		if err != nil {
 			return utils.TrackError(err)
 		}
@@ -953,7 +964,7 @@ func (f *Frontend) OperationResult(writer http.ResponseWriter, request *http.Req
 		}
 
 	default:
-		return fmt.Errorf("unsupported operator reference: %s", cosmosOperation.ExternalID)
+		return fmt.Errorf("unsupported operation reference: %s", operation.ExternalID)
 	}
 
 	_, err = arm.WriteJSONResponse(writer, successStatusCode, responseBody)

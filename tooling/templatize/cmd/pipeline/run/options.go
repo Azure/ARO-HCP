@@ -17,8 +17,11 @@ package run
 import (
 	"context"
 	"fmt"
+	"os"
 
 	"github.com/spf13/cobra"
+
+	"github.com/Azure/ARO-Tools/pkg/types"
 
 	"github.com/Azure/ARO-HCP/tooling/templatize/cmd/pipeline/options"
 	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/pipeline"
@@ -103,14 +106,25 @@ func (o *ValidatedRunOptions) Complete(ctx context.Context) (*RunOptions, error)
 }
 
 func (o *RunOptions) RunPipeline(ctx context.Context) error {
-	_, err := pipeline.RunPipeline(o.PipelineOptions.Service, o.PipelineOptions.Pipeline, ctx, &pipeline.PipelineRunOptions{
+	subscriptionIdToAzureConfigDirectory, err := pipeline.GetAllRequiredAzureClients(ctx, map[string]*types.Pipeline{"default": o.PipelineOptions.Pipeline})
+	if err != nil {
+		return fmt.Errorf("failed to get all required Azure clients: %w", err)
+	}
+	defer func() {
+		for _, azureConfigDir := range subscriptionIdToAzureConfigDirectory {
+			os.RemoveAll(azureConfigDir)
+		}
+	}()
+
+	_, err = pipeline.RunPipeline(o.PipelineOptions.Service, o.PipelineOptions.Pipeline, ctx, &pipeline.PipelineRunOptions{
 		BaseRunOptions: pipeline.BaseRunOptions{
-			DryRun:                   o.DryRun,
-			Cloud:                    o.PipelineOptions.RolloutOptions.Cloud,
-			Configuration:            o.PipelineOptions.RolloutOptions.Config,
-			NoPersist:                o.NoPersist,
-			DeploymentTimeoutSeconds: o.DeploymentTimeoutSeconds,
-			BicepClient:              o.PipelineOptions.RolloutOptions.BicepClient,
+			DryRun:                               o.DryRun,
+			Cloud:                                o.PipelineOptions.RolloutOptions.Cloud,
+			Configuration:                        o.PipelineOptions.RolloutOptions.Config,
+			NoPersist:                            o.NoPersist,
+			DeploymentTimeoutSeconds:             o.DeploymentTimeoutSeconds,
+			BicepClient:                          o.PipelineOptions.RolloutOptions.BicepClient,
+			SubscriptionIdToAzureConfigDirectory: subscriptionIdToAzureConfigDirectory,
 		},
 		Region:                o.PipelineOptions.RolloutOptions.Region,
 		Step:                  o.PipelineOptions.Step,

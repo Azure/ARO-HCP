@@ -35,8 +35,9 @@ func (v version) NewHCPOpenShiftVersion(from *api.HCPOpenShiftVersion) api.Versi
 			Name: api.PtrOrNil(from.Name),
 			Type: api.PtrOrNil(from.Type),
 			Properties: &generated.HcpOpenShiftVersionProperties{
-				ChannelGroup:       api.PtrOrNil(from.Properties.ChannelGroup),
-				Enabled:            api.PtrOrNil(from.Properties.Enabled),
+				ChannelGroup: api.PtrOrNil(from.Properties.ChannelGroup),
+				// Use Ptr (not PtrOrNil) to ensure boolean is always present in JSON response, even when false
+				Enabled:            api.Ptr(from.Properties.Enabled),
 				EndOfLifeTimestamp: api.PtrOrNil(from.Properties.EndOfLifeTimestamp),
 			},
 		},

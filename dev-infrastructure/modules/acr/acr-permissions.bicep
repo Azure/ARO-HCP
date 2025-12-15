@@ -1,7 +1,7 @@
 // Execution context: the Subscription and Resource Group where the ACR resides
 
-@description('The principal id of the service principal that will be assigned access to the ACR')
-param principalId string
+@description('The principal ids of the service principals that will be assigned access to the ACR')
+param principalIds array
 
 @description('Whether to grant push access to the ACR')
 param grantPushAccess bool = false
@@ -43,42 +43,50 @@ resource acrInstance 'Microsoft.ContainerRegistry/registries@2023-11-01-preview'
   name: acrName
 }
 
-resource acrPullRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (grantPullAccess) {
-  name: guid(acrName, principalId, acrPullRoleDefinitionId)
-  scope: acrInstance
-  properties: {
-    principalId: principalId
-    roleDefinitionId: acrPullRoleDefinitionId
-    principalType: 'ServicePrincipal'
+resource acrPullRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = [
+  for principalId in principalIds: if (grantPullAccess) {
+    name: guid(acrName, principalId, acrPullRoleDefinitionId)
+    scope: acrInstance
+    properties: {
+      principalId: principalId
+      roleDefinitionId: acrPullRoleDefinitionId
+      principalType: 'ServicePrincipal'
+    }
   }
-}
+]
 
-resource acrPushRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (grantPushAccess) {
-  name: guid(acrName, principalId, acrPushRoleDefinitionId)
-  scope: acrInstance
-  properties: {
-    principalId: principalId
-    roleDefinitionId: acrPushRoleDefinitionId
-    principalType: 'ServicePrincipal'
+resource acrPushRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = [
+  for principalId in principalIds: if (grantPushAccess) {
+    name: guid(acrName, principalId, acrPushRoleDefinitionId)
+    scope: acrInstance
+    properties: {
+      principalId: principalId
+      roleDefinitionId: acrPushRoleDefinitionId
+      principalType: 'ServicePrincipal'
+    }
   }
-}
+]
 
-resource acrDeleteRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (grantPushAccess) {
-  name: guid(acrName, principalId, acrDeleteRoleDefinitionId)
-  scope: acrInstance
-  properties: {
-    principalId: principalId
-    roleDefinitionId: acrDeleteRoleDefinitionId
-    principalType: 'ServicePrincipal'
+resource acrDeleteRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = [
+  for principalId in principalIds: if (grantPushAccess) {
+    name: guid(acrName, principalId, acrDeleteRoleDefinitionId)
+    scope: acrInstance
+    properties: {
+      principalId: principalId
+      roleDefinitionId: acrDeleteRoleDefinitionId
+      principalType: 'ServicePrincipal'
+    }
   }
-}
+]
 
-resource acrContributorAndDataAccessConfigurationAdministratorRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (grantManageTokenAccess) {
-  name: guid(acrName, principalId, acrContributorAndDataAccessConfigurationAdministratorRoleDefinitionId)
-  scope: acrInstance
-  properties: {
-    roleDefinitionId: acrContributorAndDataAccessConfigurationAdministratorRoleDefinitionId
-    principalId: principalId
-    principalType: 'ServicePrincipal'
+resource acrContributorAndDataAccessConfigurationAdministratorRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = [
+  for principalId in principalIds: if (grantManageTokenAccess) {
+    name: guid(acrName, principalId, acrContributorAndDataAccessConfigurationAdministratorRoleDefinitionId)
+    scope: acrInstance
+    properties: {
+      roleDefinitionId: acrContributorAndDataAccessConfigurationAdministratorRoleDefinitionId
+      principalId: principalId
+      principalType: 'ServicePrincipal'
+    }
   }
-}
+]

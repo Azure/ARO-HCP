@@ -15,7 +15,7 @@ param useManagedCertificates bool
 param deploymentScriptLocation string
 param storageAccountBlobPublicAccess bool
 param globalMSIId string
-param storageAccountAccessPrincipalId string
+param storageAccountAccessPrincipalIds array
 param frontDoorManage bool
 
 var certificateName = 'afd-oic-${location}'
@@ -29,7 +29,7 @@ module storageAccount 'storage.bicep' = {
   params: {
     accountName: storageAccountName
     location: location
-    principalId: storageAccountAccessPrincipalId
+    principalIds: storageAccountAccessPrincipalIds
     skuName: skuName
     deploymentMsiId: globalMSIId
     deploymentScriptLocation: deploymentScriptLocation

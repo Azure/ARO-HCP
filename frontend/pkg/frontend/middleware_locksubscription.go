@@ -22,6 +22,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 type middlewareLockSubscription struct {
@@ -37,7 +38,7 @@ func newMiddlewareLockSubscription(dbClient database.DBClient) *middlewareLockSu
 // handleRequest this is best effort, not guaranteed correct.  This must not be relied upon for guaranteeing correctness.
 func (h *middlewareLockSubscription) handleRequest(w http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
 	ctx := r.Context()
-	logger := LoggerFromContext(ctx)
+	logger := utils.LoggerFromContext(ctx)
 
 	subscriptionID := r.PathValue(PathSegmentSubscriptionID)
 

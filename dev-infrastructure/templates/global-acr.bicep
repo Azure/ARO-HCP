@@ -129,7 +129,7 @@ module miseArtifactSync '../modules/acr/mcr-artifact-sync.bicep' = if (deployMis
 module globalMSISvcAcrAccess '../modules/acr/acr-permissions.bicep' = {
   name: '${globalMSIName}-svc-acr-access'
   params: {
-    principalId: globalMSI.properties.principalId
+    principalIds: [globalMSI.properties.principalId]
     grantPushAccess: true
     grantPullAccess: true
     acrName: svcAcrName

@@ -26,6 +26,8 @@ import (
 	"github.com/microsoft/go-otel-audit/audit/msgs"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 type testClient struct {
@@ -60,7 +62,7 @@ func TestMiddlewareAudit(t *testing.T) {
 			ctx := context.Background()
 			testClient := testClient{messages: []msgs.Msg{}}
 
-			ctx = ContextWithLogger(ctx, slog.Default())
+			ctx = utils.ContextWithLogger(ctx, slog.Default())
 
 			writer := httptest.NewRecorder()
 			request, err := http.NewRequest("GET", "", bytes.NewReader([]byte{}))

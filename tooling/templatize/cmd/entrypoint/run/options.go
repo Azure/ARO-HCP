@@ -16,6 +16,8 @@ package run
 
 import (
 	"context"
+	"fmt"
+	"os"
 
 	"github.com/spf13/cobra"
 
@@ -119,15 +121,26 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 }
 
 func (o *Options) Run(ctx context.Context) error {
+	subscriptionIdToAzureConfigDirectory, err := pipeline.GetAllRequiredAzureClients(ctx, o.Pipelines)
+	if err != nil {
+		return fmt.Errorf("failed to get all required Azure clients: %w", err)
+	}
+	defer func() {
+		for _, azureConfigDir := range subscriptionIdToAzureConfigDirectory {
+			os.RemoveAll(azureConfigDir)
+		}
+	}()
+
 	runOpts := &pipeline.PipelineRunOptions{
 		BaseRunOptions: pipeline.BaseRunOptions{
-			DryRun:                   o.DryRun,
-			Cloud:                    o.Cloud,
-			Configuration:            o.Config,
-			NoPersist:                o.NoPersist,
-			DeploymentTimeoutSeconds: o.DeploymentTimeoutSeconds,
-			StepCacheDir:             o.StepCacheDir,
-			BicepClient:              o.BicepClient,
+			DryRun:                               o.DryRun,
+			Cloud:                                o.Cloud,
+			Configuration:                        o.Config,
+			NoPersist:                            o.NoPersist,
+			DeploymentTimeoutSeconds:             o.DeploymentTimeoutSeconds,
+			StepCacheDir:                         o.StepCacheDir,
+			BicepClient:                          o.BicepClient,
+			SubscriptionIdToAzureConfigDirectory: subscriptionIdToAzureConfigDirectory,
 		},
 		TopologyDir:           o.TopoDir,
 		Region:                o.Region,
@@ -142,6 +155,6 @@ func (o *Options) Run(ctx context.Context) error {
 		return err
 	}
 
-	_, err := pipeline.RunPipeline(o.Service, o.Pipelines[o.Service.ServiceGroup], ctx, runOpts, pipeline.RunStep)
+	_, err = pipeline.RunPipeline(o.Service, o.Pipelines[o.Service.ServiceGroup], ctx, runOpts, pipeline.RunStep)
 	return err
 }

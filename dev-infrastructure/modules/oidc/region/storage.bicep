@@ -17,7 +17,7 @@ param location string
 param skuName string
 
 @description('The service principal ID to be added to Azure Storage account.')
-param principalId string = ''
+param principalIds array
 
 @description('Id of the MSI that will be used to run the deploymentScript')
 param deploymentMsiId string
@@ -47,7 +47,7 @@ module storageRbac './storage-setup.bicep' = {
   name: 'oidcStorageRbac'
   params: {
     accountName: accountName
-    principalId: principalId
+    principalIds: principalIds
     deploymentMsiId: deploymentMsiId
     deploymentScriptLocation: deploymentScriptLocation
   }

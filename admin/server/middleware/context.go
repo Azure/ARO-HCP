@@ -17,8 +17,6 @@ package middleware
 import (
 	"context"
 	"fmt"
-
-	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 )
 
 // contextKey is an unexported type used to embed content in the request context, so users must acquire the value with our getters.
@@ -76,22 +74,6 @@ func UrlPathValueFromContext(ctx context.Context) (string, error) {
 		return urlPathValue, err
 	}
 	return urlPathValue, nil
-}
-
-func ContextWithResourceID(ctx context.Context, resourceID *azcorearm.ResourceID) context.Context {
-	return context.WithValue(ctx, contextKeyHCPResourceID, resourceID)
-}
-
-func ResourceIDFromContext(ctx context.Context) (*azcorearm.ResourceID, error) {
-	resourceID, ok := ctx.Value(contextKeyHCPResourceID).(*azcorearm.ResourceID)
-	if !ok {
-		err := &ContextError{
-			got: resourceID,
-			key: contextKeyHCPResourceID,
-		}
-		return resourceID, err
-	}
-	return resourceID, nil
 }
 
 func ContextWithClientPrincipalName(ctx context.Context, clientPrincipalName string) context.Context {

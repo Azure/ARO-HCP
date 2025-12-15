@@ -22,7 +22,7 @@ module certificateOfficerAccess 'keyvault-secret-access.bicep' = {
   params: {
     keyVaultName: keyVaultName
     roleName: 'Key Vault Certificates Officer'
-    managedIdentityPrincipalId: reference(keyVaultManagedIdentityId, '2023-01-31').principalId
+    managedIdentityPrincipalIds: [reference(keyVaultManagedIdentityId, '2023-01-31').principalId]
   }
 }
 

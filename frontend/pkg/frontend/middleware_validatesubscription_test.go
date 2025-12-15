@@ -28,6 +28,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/mocks"
+	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 func TestMiddlewareValidateSubscription(t *testing.T) {
@@ -199,7 +200,7 @@ func TestMiddlewareValidateSubscription(t *testing.T) {
 
 			// Add a logger to the context so parsing errors will be logged.
 			ctx := request.Context()
-			ctx = ContextWithLogger(ctx, slog.Default())
+			ctx = utils.ContextWithLogger(ctx, slog.Default())
 			ctx, sr := initSpanRecorder(ctx)
 			request = request.WithContext(ctx)
 
@@ -247,7 +248,7 @@ func TestMiddlewareValidateSubscription(t *testing.T) {
 		request.SetPathValue(PathSegmentSubscriptionID, subscriptionId)
 
 		ctx := request.Context()
-		ctx = ContextWithLogger(ctx, slog.Default())
+		ctx = utils.ContextWithLogger(ctx, slog.Default())
 		request = request.WithContext(ctx)
 
 		next := func(w http.ResponseWriter, r *http.Request) {

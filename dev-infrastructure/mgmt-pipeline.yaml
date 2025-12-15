@@ -107,6 +107,11 @@ resourceGroups:
         resourceGroup: service
         step: output
         name: adminApi
+    - name: rpBackendMIResourceId
+      input:
+        resourceGroup: service
+        step: output
+        name: backend
     dependsOn:
     - resourceGroup: management
       step: infra
@@ -214,6 +219,12 @@ resourceGroups:
       step: oncert-private-kv-issuer
     - resourceGroup: management
       step: oncert-public-kv-issuer
+    automatedRetry:
+      errorContainsAny:
+      - "Internal server error"
+      - "Resource is in Updating state"
+      maximumRetryCount: 3
+      durationBetweenRetries: 2m
   - name: nsp
     action: ARM
     omitFromServiceGroupCompletion: true

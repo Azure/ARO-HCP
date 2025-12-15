@@ -3,7 +3,7 @@ module github.com/Azure/ARO-HCP/tooling/templatize
 go 1.24.4
 
 require (
-	github.com/Azure/ARO-Tools v0.0.0-20251117205342-e4b53f47dfdd
+	github.com/Azure/ARO-Tools v0.0.0-20251210160534-1cb8cc444c30
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.20.0
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.12.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v3 v3.0.0-beta.2
@@ -25,7 +25,7 @@ require (
 	go.lsp.dev/jsonrpc2 v0.10.0
 	go.lsp.dev/protocol v0.12.0
 	golang.org/x/sync v0.17.0
-	k8s.io/apimachinery v0.34.1
+	k8s.io/apimachinery v0.34.3
 	k8s.io/client-go v0.34.1
 	k8s.io/utils v0.0.0-20250820121507-0af2bda4dd1d
 	sigs.k8s.io/yaml v1.6.0

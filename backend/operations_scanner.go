@@ -34,18 +34,22 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
 
+	"k8s.io/utils/lru"
+
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
-	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
 	ocmsdk "github.com/openshift-online/ocm-sdk-go"
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
 	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
 
+	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
+	"github.com/Azure/ARO-HCP/internal/serverutils"
 	"github.com/Azure/ARO-HCP/internal/tracing"
+	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 const (
@@ -89,8 +93,7 @@ const (
 
 type operation struct {
 	id     string
-	pk     azcosmos.PartitionKey
-	doc    *database.OperationDocument
+	doc    *api.Operation
 	logger *slog.Logger
 }
 
@@ -138,6 +141,12 @@ type OperationsScanner struct {
 	subscriptionChannel chan string
 	subscriptionWorkers sync.WaitGroup
 
+	// nextDataDumpTime is a map of resourceID strings to a time at which all information related to them should be dumped.
+	// This should work for any resource, though we're starting with Clusters because of coverage.  Every time we dump
+	// we set the value forward by 10 minutes.  We only actually dump if an entry already exists in the LRU.  This prevents
+	// us from spamming the log if we get super busy, but could be reconsidered if it doesn't work well.
+	nextDataDumpTime *lru.Cache
+
 	// Allow overriding timestamps for testing.
 	newTimestamp func() time.Time
 
@@ -165,7 +174,10 @@ func NewOperationsScanner(dbClient database.DBClient, ocmConnection *ocmsdk.Conn
 		),
 		notificationClient: http.DefaultClient,
 		subscriptions:      make([]string, 0),
-		newTimestamp:       func() time.Time { return time.Now().UTC() },
+
+		nextDataDumpTime: lru.New(16000),
+
+		newTimestamp: func() time.Time { return time.Now().UTC() },
 
 		leaderGauge: promauto.With(prometheus.DefaultRegisterer).NewGauge(
 			prometheus.GaugeOpts{
@@ -423,9 +435,7 @@ func (s *OperationsScanner) processSubscriptions(ctx context.Context, logger *sl
 func (s *OperationsScanner) processOperations(ctx context.Context, subscriptionID string, logger *slog.Logger) {
 	defer s.updateOperationMetrics(processOperationsLabel)()
 
-	pk := database.NewPartitionKey(subscriptionID)
-
-	iterator := s.dbClient.ListActiveOperationDocs(pk, nil)
+	iterator := s.dbClient.Operations(subscriptionID).ListActiveOperations(nil)
 
 	var n int
 	for operationID, operationDoc := range iterator.Items(ctx) {
@@ -434,7 +444,6 @@ func (s *OperationsScanner) processOperations(ctx context.Context, subscriptionI
 			ctx,
 			operation{
 				id:  operationID,
-				pk:  pk,
 				doc: operationDoc,
 				logger: logger.With(
 					"operation", operationDoc.Request,
@@ -459,6 +468,10 @@ func (s *OperationsScanner) processOperations(ctx context.Context, subscriptionI
 
 // processOperation processes a single operation on a resource.
 func (s *OperationsScanner) processOperation(ctx context.Context, op operation) {
+	if op.logger != nil {
+		ctx = utils.ContextWithLogger(ctx, op.logger)
+	}
+
 	ctx, span := startChildSpan(ctx, "processOperation")
 	defer span.End()
 
@@ -495,6 +508,19 @@ func (s *OperationsScanner) pollClusterOperation(ctx context.Context, op operati
 	defer span.End()
 	defer s.updateOperationMetrics(pollClusterOperationLabel)()
 	op.setSpanAttributes(span)
+
+	// if it has been at least five minutes since the last dump, dump the current state from cosmos
+	// when we get a delete call (this happens from CI quite a bit), dump the state of the cluster resources.
+	if op.doc != nil && op.doc.ExternalID != nil {
+		resourceIDString := op.doc.ExternalID.String()
+		if nextDataDumpTime, exists := s.nextDataDumpTime.Get(resourceIDString); exists && time.Now().After(nextDataDumpTime.(time.Time)) {
+			if err := serverutils.DumpDataToLogger(ctx, s.dbClient, op.doc.ExternalID); err != nil {
+				// never fail, this is best effort
+				op.logger.Error(err.Error())
+			}
+		}
+		s.nextDataDumpTime.Add(resourceIDString, time.Now().Add(5*time.Minute))
+	}
 
 	clusterStatus, err := s.clusterService.GetClusterStatus(ctx, op.doc.InternalID)
 	if err != nil {
@@ -557,6 +583,19 @@ func (s *OperationsScanner) pollNodePoolOperation(ctx context.Context, op operat
 	defer span.End()
 	defer s.updateOperationMetrics(pollNodePoolOperationLabel)()
 	op.setSpanAttributes(span)
+
+	// if it has been at least five minutes since the last dump, dump the current state from cosmos
+	// when we get a delete call (this happens from CI quite a bit), dump the state of the cluster resources.
+	if op.doc != nil && op.doc.ExternalID != nil {
+		resourceIDString := op.doc.ExternalID.String()
+		if nextDataDumpTime, exists := s.nextDataDumpTime.Get(resourceIDString); exists && time.Now().After(nextDataDumpTime.(time.Time)) {
+			if err := serverutils.DumpDataToLogger(ctx, s.dbClient, op.doc.ExternalID); err != nil {
+				// never fail, this is best effort
+				op.logger.Error(err.Error())
+			}
+		}
+		s.nextDataDumpTime.Add(resourceIDString, time.Now().Add(5*time.Minute))
+	}
 
 	nodePoolStatus, err := s.clusterService.GetNodePoolStatus(ctx, op.doc.InternalID)
 	if err != nil {
@@ -801,58 +840,61 @@ func (s *OperationsScanner) updateOperationStatus(ctx context.Context, op operat
 
 // patchOperationDocument patches the status and error fields of an OperationDocument.
 func (s *OperationsScanner) patchOperationDocument(ctx context.Context, op operation, opStatus arm.ProvisioningState, opError *arm.CloudErrorBody) error {
-	var patchOperations database.OperationDocumentPatchOperations
-
-	scalar := strings.ReplaceAll(database.OperationDocumentJSONPathStatus, "/", ".")
-	condition := fmt.Sprintf("FROM doc WHERE doc%s != '%s'", scalar, opStatus)
-
-	patchOperations.SetCondition(condition)
-	patchOperations.SetLastTransitionTime(s.newTimestamp())
-	patchOperations.SetStatus(opStatus)
-	if opError != nil {
-		patchOperations.SetError(opError)
+	if len(op.doc.NotificationURI) == 0 && op.doc.Status == opStatus {
+		// we rewrite the status when we missed a notification
+		return fmt.Errorf("status must be different in order to write new status")
 	}
 
-	updatedDoc, err := s.dbClient.PatchOperationDoc(ctx, op.pk, op.id, patchOperations)
-	if err == nil {
-		op.doc = updatedDoc
-		message := fmt.Sprintf("Updated status to '%s'", opStatus)
-		switch opStatus {
-		case arm.ProvisioningStateSucceeded:
-			switch op.doc.Request {
-			case database.OperationRequestCreate:
-				message = "Resource creation succeeded"
-			case database.OperationRequestUpdate:
-				message = "Resource update succeeded"
-			case database.OperationRequestDelete:
-				message = "Resource deletion succeeded"
-			case database.OperationRequestRequestCredential:
-				message = "Credential request succeeded"
-			case database.OperationRequestRevokeCredentials:
-				message = "Credential revocation succeeded"
-			}
-		case arm.ProvisioningStateFailed:
-			switch op.doc.Request {
-			case database.OperationRequestCreate:
-				message = "Resource creation failed"
-			case database.OperationRequestUpdate:
-				message = "Resource update failed"
-			case database.OperationRequestDelete:
-				message = "Resource deletion failed"
-			case database.OperationRequestRequestCredential:
-				message = "Credential request failed"
-			case database.OperationRequestRevokeCredentials:
-				message = "Credential revocation failed"
-			}
-		}
+	// shallow copy works since all the fields we're touching are shallow
+	operationToWrite := *op.doc
+	operationToWrite.LastTransitionTime = s.newTimestamp()
+	operationToWrite.Status = opStatus
+	if opError != nil {
+		operationToWrite.Error = opError
+	}
 
-		if opError != nil {
-			op.logger.With("cloud_error_code", opError.Code, "cloud_error_message", opError.Message).Error(message)
-		} else {
-			op.logger.Info(message)
+	// TODO see if we want to plumb etags through to prevent stomping.  Right now this will stomp a concurrent write.
+	// we don't expect concurrent writes and the last one winning is ok.
+	latestOperation, err := s.dbClient.Operations(operationToWrite.OperationID.SubscriptionID).Replace(ctx, &operationToWrite, nil)
+	if err != nil {
+		return utils.TrackError(err)
+	}
+
+	op.doc = latestOperation
+	message := fmt.Sprintf("Updated status to '%s'", opStatus)
+	switch opStatus {
+	case arm.ProvisioningStateSucceeded:
+		switch op.doc.Request {
+		case database.OperationRequestCreate:
+			message = "Resource creation succeeded"
+		case database.OperationRequestUpdate:
+			message = "Resource update succeeded"
+		case database.OperationRequestDelete:
+			message = "Resource deletion succeeded"
+		case database.OperationRequestRequestCredential:
+			message = "Credential request succeeded"
+		case database.OperationRequestRevokeCredentials:
+			message = "Credential revocation succeeded"
 		}
-	} else if !database.IsResponseError(err, http.StatusPreconditionFailed) {
-		return err
+	case arm.ProvisioningStateFailed:
+		switch op.doc.Request {
+		case database.OperationRequestCreate:
+			message = "Resource creation failed"
+		case database.OperationRequestUpdate:
+			message = "Resource update failed"
+		case database.OperationRequestDelete:
+			message = "Resource deletion failed"
+		case database.OperationRequestRequestCredential:
+			message = "Credential request failed"
+		case database.OperationRequestRevokeCredentials:
+			message = "Credential revocation failed"
+		}
+	}
+
+	if opError != nil {
+		op.logger.With("cloud_error_code", opError.Code, "cloud_error_message", opError.Message).Error(message)
+	} else {
+		op.logger.Info(message)
 	}
 
 	if opStatus.IsTerminal() && len(op.doc.NotificationURI) > 0 {
@@ -862,11 +904,11 @@ func (s *OperationsScanner) patchOperationDocument(ctx context.Context, op opera
 
 			// Remove the notification URI from the document
 			// so the ARM notification is only sent once.
-			var patchOperations database.OperationDocumentPatchOperations
-			patchOperations.SetNotificationURI(nil)
-			updatedDoc, err = s.dbClient.PatchOperationDoc(ctx, op.pk, op.id, patchOperations)
+			operationWithoutNotificationURI := *latestOperation
+			operationWithoutNotificationURI.NotificationURI = ""
+			latestOperation, err = s.dbClient.Operations(operationToWrite.OperationID.SubscriptionID).Replace(ctx, &operationToWrite, nil)
 			if err == nil {
-				op.doc = updatedDoc
+				op.doc = latestOperation
 			} else {
 				op.logger.Error(fmt.Sprintf("Failed to clear notification URI: %v", err))
 			}
@@ -880,7 +922,7 @@ func (s *OperationsScanner) patchOperationDocument(ctx context.Context, op opera
 
 // postAsyncNotification submits an POST request with status payload to the given URL.
 func (s *OperationsScanner) postAsyncNotification(ctx context.Context, op operation) error {
-	data, err := arm.MarshalJSON(op.doc.ToStatus())
+	data, err := arm.MarshalJSON(database.ToStatus(op.doc))
 	if err != nil {
 		return err
 	}

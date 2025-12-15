@@ -30,7 +30,7 @@ module keyVaultCertificateOfficer '../../keyvault/keyvault-secret-access.bicep' 
   params: {
     keyVaultName: keyVaultName
     roleName: 'Key Vault Certificates Officer'
-    managedIdentityPrincipalId: keyVaultAdminPrincipalId
+    managedIdentityPrincipalIds: [keyVaultAdminPrincipalId]
   }
   dependsOn: [
     keyVault
@@ -42,7 +42,7 @@ module keyVaultSecretsUser '../../keyvault/keyvault-secret-access.bicep' = {
   params: {
     keyVaultName: keyVaultName
     roleName: 'Key Vault Secrets User'
-    managedIdentityPrincipalId: frontDoorPrincipalId
+    managedIdentityPrincipalIds: [frontDoorPrincipalId]
   }
   dependsOn: [
     keyVault

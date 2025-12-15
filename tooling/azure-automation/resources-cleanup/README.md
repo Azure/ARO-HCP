@@ -133,59 +133,52 @@ In other words, if we were considering the script a regular Python program, we c
 The instructions below are intended to be used when modifying the script locally for development purposes and when running the unit test. If we want to install the required dependencies in Azure automation (when "deploying" the script), we should go to the _Python packages_ section and this section does not apply.
 
 For development purposes, we need:
-- [Python 3.8](https://www.python.org/downloads/release/python-380/)
-- [Pyenv](https://github.com/pyenv/pyenv) ([tutorial](https://towardsdatascience.com/managing-virtual-environment-with-pyenv-ae6f3fb835f8))
+- [Python 3.10+](https://www.python.org/downloads/) (Python 3.10 or higher required to avoid dependency conflicts with urllib3)
 - The dependencies listed in _requirements.txt_
 
 ### Accessing variables defined in Azure Automation
 Instead of hardcoding some values in the script (like the subscription_id) we _[Manage variables](https://learn.microsoft.com/en-us/azure/automation/shared-resources/variables?tabs=azure-powershell#python-functions-to-access-variables)_ in the Variables view (Shared resources) in the Automation Account in Azure (like if they were environment variables) and access them in the code using the [automationassets](https://learn.microsoft.com/en-us/azure/automation/shared-resources/variables?tabs=azure-powershell#python-functions-to-access-variables) module (_import automationassets_). In regard to this Python module, we do NOT need to install it explicitly in Python Packages (Shared resources section) in the Automation Account as it exists by default. But, in order to make that work locally when developing (or running unit tests), we should have a file called _automationassets.py_ with the contents of [this file](https://github.com/azureautomation/python_emulated_assets/blob/master/automationassets/automationassets.py). We can also use a file _localassets.json_ which can contain the variables that are defined in Azure but for local development. [Instructions about this _automationassets.py_](https://github.com/azureautomation/python_emulated_assets). We should not include any of those two files when deploying the resources_cleanup.py script to Azure as this is just to emulate those variables in the cloud when working locally.
 
-### virtual environment activation
-After we install Pyenv, we change to the folder where the .py file exists and we create a virtual environment (we just need to do it once)
+### Setting up the virtual environment
+
+#### Install Python 3.10
+If you don't have Python 3.10 installed, you can install it using Homebrew (macOS):
 ```sh
-pyenv virtualenv 3.8 env 
+brew install python@3.10
 ```
 
-Then, we need to activate the virtual environment:
+#### Create virtual environment
+Create a virtual environment in the project directory:
 ```sh
-pyenv activate env 
+python3.10 -m venv venv
 ```
 
-After that, we can check the virtual environment is active to ensure that when we install a package, it gets installed in the virtual environment. If we execute
+#### Activate virtual environment
+Activate the virtual environment:
 ```sh
-pyenv virtualenvs
-```
-we should see an asterisk (indicating that this environment is activated) just before the environment details, something like
-```
-* env (created from /Users/<user>/.pyenv/versions/3.8.18)
+source venv/bin/activate
 ```
 
-### requirements.txt
-Once the virtual environment is activated, we need to install the dependencies by doing:
+You should see `(venv)` prefix in your terminal prompt.
+
+#### Install dependencies
+Once the virtual environment is activated, install the dependencies:
 ```sh
 pip install -r requirements.txt
+pip install pylint pytest
 ```
 
 ### Run the unit tests
-We can run the unit tests by doing:
+You can run the unit tests by doing:
 ```sh
 pytest
 ```
-(we can add "-v" to see the verbose output)
+(you can add "-v" to see the verbose output)
 
-### virtual environment deactivation (optional)
-If we want to deactivate the virtual environment, we can deactivate it by doing:
+### Deactivate virtual environment (optional)
+If you want to deactivate the virtual environment, you can do so by running:
 ```sh
-pyenv deactivate
-```
-and
-```sh
-pyenv virtualenvs
-```
-
-should not show an asterisk before the env details (indicating the environment is not active):
-```
-env (created from /Users/afustert/.pyenv/versions/3.8.18)
+deactivate
 ```
 
 ## Custom tags

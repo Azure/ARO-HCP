@@ -22,6 +22,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 type middlewareValidatedAPIVersion struct {
@@ -36,7 +37,7 @@ func newMiddlewareValidatedAPIVersion(apiRegistry api.APIRegistry) *middlewareVa
 
 func (h *middlewareValidatedAPIVersion) handleRequest(w http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
 	ctx := r.Context()
-	logger := LoggerFromContext(ctx)
+	logger := utils.LoggerFromContext(ctx)
 
 	apiVersion := r.URL.Query().Get(APIVersionKey)
 	if apiVersion == "" {
@@ -54,7 +55,7 @@ func (h *middlewareValidatedAPIVersion) handleRequest(w http.ResponseWriter, r *
 			apiVersion)
 	} else {
 		logger = logger.With("api_version", apiVersion)
-		ctx = ContextWithLogger(ctx, logger)
+		ctx = utils.ContextWithLogger(ctx, logger)
 		ctx = ContextWithVersion(ctx, version)
 		r = r.WithContext(ctx)
 

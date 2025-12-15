@@ -422,7 +422,9 @@ module logsMgmtKeyVaultAccess '../modules/keyvault/keyvault-secret-access.bicep'
   params: {
     keyVaultName: mgmtKeyVaultName
     roleName: 'Key Vault Certificate User'
-    managedIdentityPrincipalId: mi.getManagedIdentityByName(managedIdentities.outputs.managedIdentities, logsMSI).uamiPrincipalID
+    managedIdentityPrincipalIds: [
+      mi.getManagedIdentityByName(managedIdentities.outputs.managedIdentities, logsMSI).uamiPrincipalID
+    ]
   }
 }
 
@@ -436,7 +438,7 @@ module cxCSIKeyVaultAccess '../modules/keyvault/keyvault-secret-access.bicep' = 
     params: {
       keyVaultName: cxKeyVaultName
       roleName: role
-      managedIdentityPrincipalId: mgmtCluster.outputs.aksClusterKeyVaultSecretsProviderPrincipalId
+      managedIdentityPrincipalIds: [mgmtCluster.outputs.aksClusterKeyVaultSecretsProviderPrincipalId]
     }
   }
 ]
@@ -451,7 +453,7 @@ module msiCSIKeyVaultAccess '../modules/keyvault/keyvault-secret-access.bicep' =
     params: {
       keyVaultName: msiKeyVaultName
       roleName: role
-      managedIdentityPrincipalId: mgmtCluster.outputs.aksClusterKeyVaultSecretsProviderPrincipalId
+      managedIdentityPrincipalIds: [mgmtCluster.outputs.aksClusterKeyVaultSecretsProviderPrincipalId]
     }
   }
 ]

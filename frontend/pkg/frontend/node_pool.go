@@ -46,7 +46,7 @@ func (f *Frontend) GetNodePool(writer http.ResponseWriter, request *http.Request
 	if err != nil {
 		return utils.TrackError(err)
 	}
-	resourceID, err := ResourceIDFromContext(ctx)
+	resourceID, err := utils.ResourceIDFromContext(ctx)
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -69,7 +69,7 @@ func (f *Frontend) GetNodePool(writer http.ResponseWriter, request *http.Request
 
 func (f *Frontend) ArmResourceListNodePools(writer http.ResponseWriter, request *http.Request) error {
 	ctx := request.Context()
-	logger := LoggerFromContext(ctx)
+	logger := utils.LoggerFromContext(ctx)
 
 	versionedInterface, err := VersionFromContext(ctx)
 	if err != nil {
@@ -159,7 +159,7 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 
 	ctx := request.Context()
 
-	resourceID, err := ResourceIDFromContext(ctx)
+	resourceID, err := utils.ResourceIDFromContext(ctx)
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -206,7 +206,7 @@ func decodeDesiredNodePoolCreate(ctx context.Context) (*api.HCPOpenShiftClusterN
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}
-	resourceID, err := ResourceIDFromContext(ctx)
+	resourceID, err := utils.ResourceIDFromContext(ctx)
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}
@@ -241,13 +241,13 @@ func decodeDesiredNodePoolCreate(ctx context.Context) (*api.HCPOpenShiftClusterN
 
 func (f *Frontend) createNodePool(writer http.ResponseWriter, request *http.Request) error {
 	ctx := request.Context()
-	logger := LoggerFromContext(ctx)
+	logger := utils.LoggerFromContext(ctx)
 
 	versionedInterface, err := VersionFromContext(ctx)
 	if err != nil {
 		return utils.TrackError(err)
 	}
-	resourceID, err := ResourceIDFromContext(ctx)
+	resourceID, err := utils.ResourceIDFromContext(ctx)
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -292,15 +292,21 @@ func (f *Frontend) createNodePool(writer http.ResponseWriter, request *http.Requ
 		return utils.TrackError(err)
 	}
 
-	pk := database.NewPartitionKey(newInternalNodePool.ID.SubscriptionID)
-	transaction := f.dbClient.NewTransaction(pk)
+	transaction := f.dbClient.NewTransaction(newInternalNodePool.ID.SubscriptionID)
 
-	createNodePoolOperation := database.NewOperationDocument(database.OperationRequestCreate, newInternalNodePool.ID, newInternalNodePool.ServiceProviderProperties.ClusterServiceID, correlationData)
-	createNodePoolOperation.TenantID = request.Header.Get(arm.HeaderNameHomeTenantID)
-	createNodePoolOperation.ClientID = request.Header.Get(arm.HeaderNameClientObjectID)
-	createNodePoolOperation.NotificationURI = request.Header.Get(arm.HeaderNameAsyncNotificationURI)
-	operationCosmosUID := transaction.CreateOperationDoc(createNodePoolOperation, nil)
+	createNodePoolOperation := database.NewOperationDocument(
+		database.OperationRequestCreate,
+		newInternalNodePool.ID,
+		newInternalNodePool.ServiceProviderProperties.ClusterServiceID,
+		request.Header.Get(arm.HeaderNameHomeTenantID),
+		request.Header.Get(arm.HeaderNameClientObjectID),
+		request.Header.Get(arm.HeaderNameAsyncNotificationURI),
+		correlationData)
 	transaction.OnSuccess(addOperationResponseHeaders(writer, request, createNodePoolOperation.NotificationURI, createNodePoolOperation.OperationID))
+	operationCosmosUID, err := f.dbClient.Operations(newInternalNodePool.ID.SubscriptionID).AddCreateToTransaction(ctx, transaction, createNodePoolOperation, nil)
+	if err != nil {
+		return utils.TrackError(err)
+	}
 
 	// set fields that were not known until the operation doc instance was created.
 	// TODO once we we have separate creation/validation of operation documents, this can be done ahead of time.
@@ -403,6 +409,15 @@ func decodeDesiredNodePoolReplace(ctx context.Context, oldInternalNodePool *api.
 	conversion.CopyReadOnlyNodePoolValues(newInternalNodePool, oldInternalNodePool)
 	newInternalNodePool.SystemData = systemData
 
+	// Here the difference between a nil map and an empty map is significant.
+	// If the Tags map is nil, that means it was omitted from the request body,
+	// so we leave any existing tags alone. If the Tags map is non-nil, even if
+	// empty, that means it was specified in the request body and should fully
+	// replace any existing tags.
+	if newInternalNodePool.Tags == nil {
+		newInternalNodePool.Tags = maps.Clone(oldInternalNodePool.Tags)
+	}
+
 	// Clear the user-assigned identities map since that is reconstructed from Cluster Service data.
 	// TODO we'd like to have the instance complete when we go to validate it.  Right now validation fails if we clear this.
 	// TODO we probably update validation to require this field is cleared.
@@ -448,6 +463,15 @@ func decodeDesiredNodePoolPatch(ctx context.Context, oldInternalNodePool *api.HC
 	conversion.CopyReadOnlyNodePoolValues(newInternalNodePool, oldInternalNodePool)
 	newInternalNodePool.SystemData = systemData
 
+	// Here the difference between a nil map and an empty map is significant.
+	// If the Tags map is nil, that means it was omitted from the request body,
+	// so we leave any existing tags alone. If the Tags map is non-nil, even if
+	// empty, that means it was specified in the request body and should fully
+	// replace any existing tags.
+	if newInternalNodePool.Tags == nil {
+		newInternalNodePool.Tags = maps.Clone(oldInternalNodePool.Tags)
+	}
+
 	// Clear the user-assigned identities map since that is reconstructed from Cluster Service data.
 	// TODO we'd like to have the instance complete when we go to validate it.  Right now validation fails if we clear this.
 	// TODO we probably update validation to require this field is cleared.
@@ -470,7 +494,7 @@ func (f *Frontend) patchNodePool(writer http.ResponseWriter, request *http.Reque
 }
 
 func (f *Frontend) updateNodePoolInCosmos(ctx context.Context, writer http.ResponseWriter, request *http.Request, httpStatusCode int, newInternalNodePool, oldInternalNodePool *api.HCPOpenShiftClusterNodePool) error {
-	logger := LoggerFromContext(ctx)
+	logger := utils.LoggerFromContext(ctx)
 
 	versionedInterface, err := VersionFromContext(ctx)
 	if err != nil {
@@ -506,33 +530,33 @@ func (f *Frontend) updateNodePoolInCosmos(ctx context.Context, writer http.Respo
 		return utils.TrackError(err)
 	}
 
-	pk := database.NewPartitionKey(oldInternalNodePool.ID.SubscriptionID)
-	transaction := f.dbClient.NewTransaction(pk)
+	transaction := f.dbClient.NewTransaction(oldInternalNodePool.ID.SubscriptionID)
 
-	nodePoolUpdateOperation := database.NewOperationDocument(database.OperationRequestUpdate, newInternalNodePool.ID, newInternalNodePool.ServiceProviderProperties.ClusterServiceID, correlationData)
-	nodePoolUpdateOperation.TenantID = request.Header.Get(arm.HeaderNameHomeTenantID)
-	nodePoolUpdateOperation.ClientID = request.Header.Get(arm.HeaderNameClientObjectID)
-	nodePoolUpdateOperation.NotificationURI = request.Header.Get(arm.HeaderNameAsyncNotificationURI)
-	operationCosmosUID := transaction.CreateOperationDoc(nodePoolUpdateOperation, nil)
-
-	f.ExposeOperation(writer, request, operationCosmosUID, transaction)
-
-	var patchOperations database.ResourceDocumentPatchOperations
-
-	patchOperations.SetActiveOperationID(&operationCosmosUID)
-	patchOperations.SetProvisioningState(nodePoolUpdateOperation.Status)
-	patchOperations.SetSystemData(newInternalNodePool.SystemData)
-
-	// Here the difference between a nil map and an empty map is significant.
-	// If the Tags map is nil, that means it was omitted from the request body,
-	// so we leave any existing tags alone. If the Tags map is non-nil, even if
-	// empty, that means it was specified in the request body and should fully
-	// replace any existing tags.
-	if newInternalNodePool.Tags != nil {
-		patchOperations.SetTags(newInternalNodePool.Tags)
+	nodePoolUpdateOperation := database.NewOperationDocument(
+		database.OperationRequestUpdate,
+		newInternalNodePool.ID,
+		newInternalNodePool.ServiceProviderProperties.ClusterServiceID,
+		request.Header.Get(arm.HeaderNameHomeTenantID),
+		request.Header.Get(arm.HeaderNameClientObjectID),
+		request.Header.Get(arm.HeaderNameAsyncNotificationURI),
+		correlationData)
+	transaction.OnSuccess(addOperationResponseHeaders(writer, request, nodePoolUpdateOperation.NotificationURI, nodePoolUpdateOperation.OperationID))
+	operationCosmosUID, err := f.dbClient.Operations(newInternalNodePool.ID.SubscriptionID).AddCreateToTransaction(ctx, transaction, nodePoolUpdateOperation, nil)
+	if err != nil {
+		return utils.TrackError(err)
 	}
 
-	transaction.PatchResourceDoc(oldInternalNodePool.ServiceProviderProperties.CosmosUID, patchOperations, nil)
+	// set fields that were not known until the operation doc instance was created.
+	// TODO once we we have separate creation/validation of operation documents, this can be done ahead of time.
+	newInternalNodePool.ServiceProviderProperties.ActiveOperationID = operationCosmosUID
+	newInternalNodePool.Properties.ProvisioningState = nodePoolUpdateOperation.Status
+
+	_, err = f.dbClient.HCPClusters(newInternalNodePool.ID.SubscriptionID, newInternalNodePool.ID.ResourceGroupName).
+		NodePools(newInternalNodePool.ID.Parent.Name).
+		AddReplaceToTransaction(ctx, transaction, newInternalNodePool, nil)
+	if err != nil {
+		return utils.TrackError(err)
+	}
 
 	transactionResult, err := transaction.Execute(ctx, &azcosmos.TransactionalBatchOptions{
 		EnableContentResponseOnWrite: true,
@@ -590,6 +614,25 @@ func (f *Frontend) getInternalNodePoolFromStorage(ctx context.Context, resourceI
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}
+
+	// Replace the ID field from Cosmos with the given resourceID,
+	// which typically comes from the URL. This helps preserve the
+	// casing of the resource group and resource name from the URL
+	// to meet RPC requirements:
+	//
+	// Put Resource | Arguments
+	//
+	// The resource group names and resource names should be matched
+	// case insensitively. ... Additionally, the Resource Provider must
+	// preserve the casing provided by the user. The service must return
+	// the most recently specified casing to the client and must not
+	// normalize or return a toupper or tolower form of the resource
+	// group or resource name. The resource group name and resource
+	// name must come from the URL and not the request body.
+	if !strings.EqualFold(internalNodePool.ID.String(), resourceID.String()) {
+		return nil, fmt.Errorf("unexpected resourceID: %s", internalNodePool.ID.String())
+	}
+	internalNodePool.ID = resourceID
 
 	return f.readInternalNodePoolFromClusterService(ctx, internalNodePool)
 

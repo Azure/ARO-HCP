@@ -3,7 +3,7 @@ module github.com/Azure/ARO-HCP/tooling/hcpctl
 go 1.24.4
 
 require (
-	github.com/Azure/ARO-Tools v0.0.0-20251117205342-e4b53f47dfdd
+	github.com/Azure/ARO-Tools v0.0.0-20251210160534-1cb8cc444c30
 	github.com/Azure/azure-kusto-go v0.16.1
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.20.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice v1.0.0
@@ -19,7 +19,7 @@ require (
 	golang.org/x/sync v0.17.0
 	gopkg.in/yaml.v3 v3.0.1
 	k8s.io/api v0.34.1
-	k8s.io/apimachinery v0.34.1
+	k8s.io/apimachinery v0.34.3
 	k8s.io/cli-runtime v0.34.1
 	k8s.io/client-go v0.34.1
 	k8s.io/kubectl v0.34.1

@@ -20,11 +20,12 @@ import (
 	"net/http"
 
 	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 func MiddlewareSystemData(w http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
 	ctx := r.Context()
-	logger := LoggerFromContext(ctx)
+	logger := utils.LoggerFromContext(ctx)
 
 	// See https://eng.ms/docs/products/arm/api_contracts/resourcesystemdata
 	data := r.Header.Get(arm.HeaderNameARMResourceSystemData)

@@ -30,7 +30,7 @@ resource InstancesDownV1 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-0
           title: 'All instances of the App are down'
         }
         expression: 'sum(up{job="app"}) == 0'
-        severity: 2
+        severity: 3
       }
       {
         actions: [for g in actionGroups: {

@@ -28,7 +28,6 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
-	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -37,8 +36,6 @@ const (
 	billingContainer   = "Billing"
 	locksContainer     = "Locks"
 	resourcesContainer = "Resources"
-
-	operationTimeToLive = 604800 // 7 days
 )
 
 // ErrAmbiguousResult occurs when a database query intended
@@ -100,7 +97,7 @@ type DBClient interface {
 	GetLockClient() LockClientInterface
 
 	// NewTransaction initiates a new transactional batch for the given partition key.
-	NewTransaction(pk azcosmos.PartitionKey) DBTransaction
+	NewTransaction(pk string) DBTransaction
 
 	// CreateBillingDoc creates a new document in the "Billing" container.
 	CreateBillingDoc(ctx context.Context, doc *BillingDocument) error
@@ -111,8 +108,15 @@ type DBClient interface {
 	// of http.StatusPreconditionFailed.
 	PatchBillingDoc(ctx context.Context, resourceID *azcorearm.ResourceID, ops BillingDocumentPatchOperations) error
 
-	// GetHCPClusterCRUD retrieves a CRUD interface for managing HCPCluster resources and their nested resources.
+	// UntypedCRUD provides access documents in the subscription
+	UntypedCRUD(parentResourceID azcorearm.ResourceID) (UntypedResourceCRUD, error)
+
+	// HCPClusters retrieves a CRUD interface for managing HCPCluster resources and their nested resources.
 	HCPClusters(subscriptionID, resourceGroupName string) HCPClusterCRUD
+
+	// Operations retrieves a CRUD interface for managing operations.  Remember that operations are not directly accessible
+	// to end users via ARM.  They must also survive the thing they are deleting, so they live under a subscription directly.
+	Operations(subscriptionID string) OperationCRUD
 
 	// GetResourceDoc queries the "Resources" container for a cluster or node pool document with a
 	// matching resourceID.
@@ -138,28 +142,6 @@ type DBClient interface {
 	// do so. Hence the lack of a Context argument. The search is performed by calling Items() on
 	// the iterator in a ranged for loop.
 	ListResourceDocs(prefix *azcorearm.ResourceID, options *DBClientListResourceDocsOptions) DBClientIterator[ResourceDocument]
-
-	// GetOperationDoc retrieves an asynchronous operation document from the "Resources" container.
-	GetOperationDoc(ctx context.Context, pk azcosmos.PartitionKey, operationID string) (*OperationDocument, error)
-
-	// CreateResourceDoc creates a new asynchronous operation document in the "Resources" container.
-	CreateOperationDoc(ctx context.Context, doc *OperationDocument) (string, error)
-
-	// PatchOperationDoc patches an asynchronous operation document in the "Resources" container
-	// by applying a sequence of patch operations. The patch operations may include a precondition
-	// which, if not satisfied, will cause the function to return an azcore.ResponseError with a
-	// StatusCode of http.StatusPreconditionFailed. If successful, PatchOperationDoc returns the
-	// updated document.
-	PatchOperationDoc(ctx context.Context, pk azcosmos.PartitionKey, operationID string, ops OperationDocumentPatchOperations) (*OperationDocument, error)
-
-	// ListActiveOperationDocs returns an iterator that searches for asynchronous operation documents
-	// with a non-terminal status in the "Resources" container under the given partition key. The
-	// options argument can further limit the search to documents that match the provided values.
-	//
-	// Note that ListActiveOperationDocs does not perform the search, but merely prepares an iterator
-	// to do so. Hence the lack of a Context argument. The search is performed by calling Items() on
-	// the iterator in a ranged for loop.
-	ListActiveOperationDocs(pk azcosmos.PartitionKey, options *DBClientListActiveOperationDocsOptions) DBClientIterator[OperationDocument]
 
 	// GetSubscriptionDoc retrieves a subscription document from the "Resources" container.
 	GetSubscriptionDoc(ctx context.Context, subscriptionID string) (*arm.Subscription, error)
@@ -234,7 +216,7 @@ func (d *cosmosDBClient) GetLockClient() LockClientInterface {
 	return d.lockClient
 }
 
-func (d *cosmosDBClient) NewTransaction(pk azcosmos.PartitionKey) DBTransaction {
+func (d *cosmosDBClient) NewTransaction(pk string) DBTransaction {
 	return newCosmosDBTransaction(pk, d.resources)
 }
 
@@ -483,106 +465,6 @@ func (d *cosmosDBClient) ListResourceDocs(prefix *azcorearm.ResourceID, options 
 	}
 }
 
-func (d *cosmosDBClient) getOperationDoc(ctx context.Context, pk azcosmos.PartitionKey, operationID string) (*TypedDocument, *OperationDocument, error) {
-	// Make sure lookup keys are lowercase.
-	operationID = strings.ToLower(operationID)
-
-	response, err := d.resources.ReadItem(ctx, pk, operationID, nil)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to read Operations container item for '%s': %w", operationID, err)
-	}
-
-	typedDoc, innerDoc, err := typedDocumentUnmarshal[OperationDocument](response.Value)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to unmarshal Operations container item for '%s': %w", operationID, err)
-	}
-
-	return typedDoc, innerDoc, nil
-}
-
-func (d *cosmosDBClient) GetOperationDoc(ctx context.Context, pk azcosmos.PartitionKey, operationID string) (*OperationDocument, error) {
-	_, innerDoc, err := d.getOperationDoc(ctx, pk, operationID)
-	return innerDoc, err
-}
-
-func (d *cosmosDBClient) CreateOperationDoc(ctx context.Context, doc *OperationDocument) (string, error) {
-	// Make sure partition key is lowercase.
-	subscriptionID := strings.ToLower(doc.ExternalID.SubscriptionID)
-
-	typedDoc := newTypedDocument(subscriptionID, OperationResourceType)
-	typedDoc.TimeToLive = operationTimeToLive
-
-	data, err := typedDocumentMarshal(typedDoc, doc)
-	if err != nil {
-		return "", fmt.Errorf("failed to marshal Operations container item for '%s': %w", typedDoc.ID, err)
-	}
-
-	_, err = d.resources.CreateItem(ctx, typedDoc.getPartitionKey(), data, nil)
-	if err != nil {
-		return "", fmt.Errorf("failed to create Operations container item for '%s': %w", typedDoc.ID, err)
-	}
-
-	return typedDoc.ID, nil
-}
-
-func (d *cosmosDBClient) PatchOperationDoc(ctx context.Context, pk azcosmos.PartitionKey, operationID string, ops OperationDocumentPatchOperations) (*OperationDocument, error) {
-	options := &azcosmos.ItemOptions{EnableContentResponseOnWrite: true}
-	response, err := d.resources.PatchItem(ctx, pk, operationID, ops.PatchOperations, options)
-	if err != nil {
-		return nil, fmt.Errorf("failed to patch Operations container item for '%s': %w", operationID, err)
-	}
-
-	_, innerDoc, err := typedDocumentUnmarshal[OperationDocument](response.Value)
-	if err != nil {
-		return nil, fmt.Errorf("failed to unmarshal Operations container item for '%s': %w", operationID, err)
-	}
-
-	return innerDoc, nil
-}
-
-func (d *cosmosDBClient) ListActiveOperationDocs(pk azcosmos.PartitionKey, options *DBClientListActiveOperationDocsOptions) DBClientIterator[OperationDocument] {
-	var queryOptions azcosmos.QueryOptions
-
-	query := fmt.Sprintf(
-		"SELECT * FROM c WHERE STRINGEQUALS(c.resourceType, %q, true) "+
-			"AND NOT ARRAYCONTAINS([%q, %q, %q], c.properties.status)",
-		OperationResourceType.String(),
-		arm.ProvisioningStateSucceeded,
-		arm.ProvisioningStateFailed,
-		arm.ProvisioningStateCanceled)
-
-	if options != nil {
-		if options.Request != nil {
-			query += " AND c.properties.request = @request"
-			queryParameter := azcosmos.QueryParameter{
-				Name:  "@request",
-				Value: string(*options.Request),
-			}
-			queryOptions.QueryParameters = append(queryOptions.QueryParameters, queryParameter)
-		}
-
-		if options.ExternalID != nil {
-			query += " AND "
-			const resourceFilter = "STRINGEQUALS(c.properties.externalId, @externalId, true)"
-			if options.IncludeNestedResources {
-				const nestedResourceFilter = "STARTSWITH(c.properties.externalId, CONCAT(@externalId, \"/\"), true)"
-				query += fmt.Sprintf("(%s OR %s)", resourceFilter, nestedResourceFilter)
-			} else {
-				query += resourceFilter
-			}
-			queryParameter := azcosmos.QueryParameter{
-				Name:  "@externalId",
-				Value: options.ExternalID.String(),
-			}
-			queryOptions.QueryParameters = append(queryOptions.QueryParameters, queryParameter)
-		}
-	}
-
-	pager := d.resources.NewQueryItemsPager(query, pk, &queryOptions)
-
-	return newQueryItemsIterator[OperationDocument](pager)
-}
-
 func (d *cosmosDBClient) getSubscriptionDoc(ctx context.Context, subscriptionID string) (*TypedDocument, *arm.Subscription, error) {
 	// Make sure lookup keys are lowercase.
 	subscriptionID = strings.ToLower(subscriptionID)
@@ -685,9 +567,15 @@ func (d *cosmosDBClient) ListAllSubscriptionDocs() DBClientIterator[arm.Subscrip
 }
 
 func (d *cosmosDBClient) HCPClusters(subscriptionID, resourceGroupName string) HCPClusterCRUD {
-	return &hcpClusterCRUD{
-		topLevelCosmosResourceCRUD: newTopLevelResourceCRUD[api.HCPOpenShiftCluster, HCPCluster](d.resources, api.ClusterResourceType, subscriptionID, resourceGroupName),
-	}
+	return NewHCPClusterCRUD(d.resources, subscriptionID, resourceGroupName)
+}
+
+func (d *cosmosDBClient) Operations(subscriptionID string) OperationCRUD {
+	return NewOperationCRUD(d.resources, subscriptionID)
+}
+
+func (d *cosmosDBClient) UntypedCRUD(parentResourceID azcorearm.ResourceID) (UntypedResourceCRUD, error) {
+	return NewUntypedCRUD(d.resources, parentResourceID), nil
 }
 
 // NewCosmosDatabaseClient instantiates a generic Cosmos database client.

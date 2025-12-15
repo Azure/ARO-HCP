@@ -32,8 +32,8 @@ func (e *CustomError) Error() string {
 }
 
 func TestReturningNilForNil(t *testing.T) {
-	wrappedErr := TrackError(nil)
-	if wrappedErr != nil {
+	var err = TrackError(nil)
+	if err != nil {
 		t.Error("expected nil for nil input error")
 	}
 }
@@ -73,7 +73,7 @@ func TestLineTrackingError_ErrorsAs(t *testing.T) {
 		originalErr := errors.New("standard error")
 		wrappedErr := TrackError(originalErr)
 
-		unwrapped := wrappedErr.Unwrap()
+		unwrapped := wrappedErr.(*LineTrackingError).Unwrap()
 		if unwrapped != originalErr {
 			t.Error("expected Unwrap to return original error")
 		}
