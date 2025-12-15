@@ -22,11 +22,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/kusto"
 	"github.com/Azure/azure-kusto-go/kusto/data/table"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+
+	"github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/kusto"
 )
 
 // MockQueryClient is a mock implementation of QueryClientInterface for testing
@@ -391,8 +392,8 @@ func TestCliOutputFunc(t *testing.T) {
 		logLineChan := make(chan *NormalizedLogLine, 2)
 		queryType := QueryTypeServices
 		options := RowOutputOptions{
-			"outputPath":                tempDir,
-			string(QueryTypeServices):   serviceDir,
+			"outputPath":              tempDir,
+			string(QueryTypeServices): serviceDir,
 		}
 
 		// Send test log lines
@@ -433,8 +434,8 @@ func TestCliOutputFunc(t *testing.T) {
 		logLineChan := make(chan *NormalizedLogLine, 1)
 		queryType := QueryTypeServices
 		options := RowOutputOptions{
-			"outputPath":                "/nonexistent/path",
-			string(QueryTypeServices):   "services",
+			"outputPath":              "/nonexistent/path",
+			string(QueryTypeServices): "services",
 		}
 
 		// Send test log line

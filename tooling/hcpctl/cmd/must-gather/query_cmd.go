@@ -59,12 +59,12 @@ func (opts *MustGatherOptions) Run(ctx context.Context) error {
 	}()
 
 	gatherer := mustgather.NewCliGatherer(opts.QueryClient, opts.OutputPath, ServicesLogDirectory, HostedControlPlaneLogDirectory, mustgather.GathererOptions{
-		SubscriptionID:              opts.SubscriptionID,
-		ResourceGroup:               opts.ResourceGroup,
+		SubscriptionID:             opts.SubscriptionID,
+		ResourceGroup:              opts.ResourceGroup,
 		SkipHostedControlPlaneLogs: opts.SkipHostedControlPlaneLogs,
-		TimestampMin:                opts.TimestampMin,
-		TimestampMax:                opts.TimestampMax,
-		Limit:                       opts.Limit,
+		TimestampMin:               opts.TimestampMin,
+		TimestampMax:               opts.TimestampMax,
+		Limit:                      opts.Limit,
 	})
 
 	err := gatherer.GatherLogs(ctx)
