@@ -30,10 +30,47 @@ import (
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/kusto"
 )
 
+// RowOutputOptions provides configuration options to RowOutputFunc implementations.
+// Common options include:
+//   - "outputPath": base directory for output files
+//   - string(QueryTypeServices): subdirectory for service logs
+//   - string(QueryTypeHostedControlPlane): subdirectory for HCP logs
 type RowOutputOptions map[string]any
+
+// RowOutputFunc defines how normalized log lines should be processed and output.
+// This function receives log data through logLineChan and should process it according
+// to the queryType and configuration in options.
+//
+// The function should:
+//   - Consume all data from logLineChan until it's closed
+//   - Handle the queryType to determine output format/location
+//   - Use options for configuration (paths, formats, etc.)
+//   - Return an error if processing fails
+//
+// Custom implementations can output to files, databases, APIs, or any other destination.
+// The channel will be closed by the caller when all data has been sent.
 type RowOutputFunc func(logLineChan chan *NormalizedLogLine, queryType QueryType, options RowOutputOptions) error
 
-// NormalizedLogLine represents a as expected for output
+// NormalizedLogLine represents a single log entry with standardized fields.
+// This structure is passed to RowOutputFunc implementations for processing.
+//
+// Fields available for custom output functions:
+//   - Log: The actual log message content as bytes
+//   - Cluster: The cluster ID where this log originated
+//   - Namespace: The Kubernetes namespace (for HCP logs) or service name
+//   - ContainerName: The container that generated this log
+//   - Timestamp: When the log entry was created
+//
+// Example usage in a custom output function:
+//
+//	for logLine := range logLineChan {
+//		fmt.Printf("[%s] %s/%s/%s: %s\n",
+//			logLine.Timestamp.Format(time.RFC3339),
+//			logLine.Cluster,
+//			logLine.Namespace,
+//			logLine.ContainerName,
+//			string(logLine.Log))
+//	}
 type NormalizedLogLine struct {
 	Log           []byte    `kusto:"log"`
 	Cluster       string    `kusto:"cluster"`
@@ -55,7 +92,87 @@ type GathererOptions struct {
 	Limit                      int       // Limit the number of results
 }
 
-// Gatherer represents the Gatherer
+// Gatherer coordinates the collection and processing of log data from Azure resources.
+// It executes queries to gather logs from services and hosted control planes, then
+// processes the results through a configurable output function.
+//
+// The Gatherer follows this workflow:
+//   1. Discovers cluster IDs from the specified subscription and resource group
+//   2. Gathers service logs from all discovered clusters
+//   3. Optionally gathers hosted control plane logs (unless skipped)
+//   4. Processes all log data through the configured outputFunc
+//
+// # Creating Custom Output Functions
+//
+// You can create custom output functions to handle log data differently. Your function
+// must implement the RowOutputFunc signature:
+//
+//	func myCustomOutput(logLineChan chan *NormalizedLogLine, queryType QueryType, options RowOutputOptions) error {
+//		for logLine := range logLineChan {
+//			// Process each log line
+//			switch queryType {
+//			case QueryTypeServices:
+//				// Handle service logs
+//				fmt.Printf("[SVC] %s: %s\n", logLine.Cluster, string(logLine.Log))
+//			case QueryTypeHostedControlPlane:
+//				// Handle HCP logs
+//				fmt.Printf("[HCP] %s: %s\n", logLine.Cluster, string(logLine.Log))
+//			}
+//		}
+//		return nil
+//	}
+//
+// Then create a Gatherer with your custom function:
+//
+//	gatherer := NewGatherer(
+//		myQueryClient,
+//		myCustomOutput,
+//		RowOutputOptions{"format": "json"},
+//		GathererOptions{...},
+//	)
+//
+// # Example Custom Output Functions
+//
+// JSON output to a single file:
+//
+//	func jsonOutput(logLineChan chan *NormalizedLogLine, queryType QueryType, options RowOutputOptions) error {
+//		outputPath := options["outputPath"].(string)
+//		file, err := os.Create(filepath.Join(outputPath, fmt.Sprintf("%s.json", queryType)))
+//		if err != nil {
+//			return err
+//		}
+//		defer file.Close()
+//
+//		encoder := json.NewEncoder(file)
+//		for logLine := range logLineChan {
+//			if err := encoder.Encode(logLine); err != nil {
+//				return err
+//			}
+//		}
+//		return nil
+//	}
+//
+// Send logs to an external API:
+//
+//	func apiOutput(logLineChan chan *NormalizedLogLine, queryType QueryType, options RowOutputOptions) error {
+//		apiURL := options["apiURL"].(string)
+//		client := &http.Client{}
+//
+//		for logLine := range logLineChan {
+//			jsonData, _ := json.Marshal(logLine)
+//			resp, err := client.Post(apiURL, "application/json", bytes.NewBuffer(jsonData))
+//			if err != nil {
+//				return err
+//			}
+//			resp.Body.Close()
+//		}
+//		return nil
+//	}
+//
+// # Constructors
+//
+// Use NewGatherer() for full control with custom output functions.
+// Use NewCliGatherer() for file-based output suitable for must-gather CLI usage.
 type Gatherer struct {
 	opts          GathererOptions
 	QueryClient   QueryClientInterface
@@ -63,8 +180,56 @@ type Gatherer struct {
 	outputOptions RowOutputOptions
 }
 
-// NewCliGatherer creates a new Gatherer
-// It configures a Gatherer configured for using in the must-gather cli command
+// NewGatherer creates a new Gatherer with custom output function and options.
+// This constructor provides full control over how log data is processed and output.
+//
+// Parameters:
+//   - queryClient: Interface for executing database queries
+//   - outputFunc: Custom function to process and output log data
+//   - outputOptions: Configuration options passed to the output function
+//   - opts: Gatherer configuration (clusters, timeframes, etc.)
+//
+// Example usage:
+//
+//	// Create custom JSON output function
+//	jsonOutput := func(logLineChan chan *NormalizedLogLine, queryType QueryType, options RowOutputOptions) error {
+//		outputPath := options["outputPath"].(string)
+//		file, err := os.Create(filepath.Join(outputPath, fmt.Sprintf("%s.json", queryType)))
+//		if err != nil {
+//			return err
+//		}
+//		defer file.Close()
+//
+//		encoder := json.NewEncoder(file)
+//		for logLine := range logLineChan {
+//			if err := encoder.Encode(logLine); err != nil {
+//				return err
+//			}
+//		}
+//		return nil
+//	}
+//
+//	// Create gatherer with custom output
+//	gatherer := NewGatherer(
+//		queryClient,
+//		jsonOutput,
+//		RowOutputOptions{"outputPath": "/tmp/logs", "format": "json"},
+//		GathererOptions{SubscriptionID: "sub-123", ResourceGroup: "rg-test"},
+//	)
+func NewGatherer(queryClient QueryClientInterface, outputFunc RowOutputFunc, outputOptions RowOutputOptions, opts GathererOptions) *Gatherer {
+	return &Gatherer{
+		QueryClient:   queryClient,
+		outputFunc:    outputFunc,
+		outputOptions: outputOptions,
+		opts:          opts,
+	}
+}
+
+// NewCliGatherer creates a new Gatherer with file-based output for CLI usage.
+// This is a convenience constructor that configures the Gatherer for the must-gather CLI command
+// with the default file-based output function.
+//
+// For custom output handling, use NewGatherer() instead.
 func NewCliGatherer(queryClient QueryClientInterface, outputPath, serviceLogsDirectory, hostedControlPlaneLogsDirectory string, opts GathererOptions) *Gatherer {
 	outputOptions := map[string]any{
 		"outputPath":                        outputPath,

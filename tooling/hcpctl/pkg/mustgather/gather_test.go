@@ -92,6 +92,91 @@ func TestNewCliGatherer(t *testing.T) {
 	assert.Equal(t, hcpLogsDir, gatherer.outputOptions[string(QueryTypeHostedControlPlane)])
 }
 
+func TestNewGatherer(t *testing.T) {
+	mockQueryClient := &MockQueryClient{}
+	customOutputOptions := RowOutputOptions{
+		"outputPath": "/custom/path",
+		"format":     "json",
+		"apiURL":     "https://api.example.com/logs",
+	}
+	opts := GathererOptions{
+		SubscriptionID: "test-sub",
+		ResourceGroup:  "test-rg",
+		Limit:          500,
+	}
+
+	// Create a custom output function for testing
+	customOutputFunc := func(logLineChan chan *NormalizedLogLine, queryType QueryType, options RowOutputOptions) error {
+		for range logLineChan {
+			// Consume all messages for testing
+		}
+		return nil
+	}
+
+	gatherer := NewGatherer(mockQueryClient, customOutputFunc, customOutputOptions, opts)
+
+	assert.NotNil(t, gatherer)
+	assert.Equal(t, mockQueryClient, gatherer.QueryClient)
+	assert.Equal(t, opts, gatherer.opts)
+	assert.NotNil(t, gatherer.outputFunc)
+	assert.Equal(t, customOutputOptions, gatherer.outputOptions)
+
+	// Verify that custom options are properly set
+	assert.Equal(t, "/custom/path", gatherer.outputOptions["outputPath"])
+	assert.Equal(t, "json", gatherer.outputOptions["format"])
+	assert.Equal(t, "https://api.example.com/logs", gatherer.outputOptions["apiURL"])
+}
+
+func TestNewGatherer_WithCustomOutputFunction(t *testing.T) {
+	mockQueryClient := &MockQueryClient{}
+
+	// Track what data was received by the custom output function
+	var receivedQueryTypes []QueryType
+	var receivedLogCount int
+
+	customOutputFunc := func(logLineChan chan *NormalizedLogLine, queryType QueryType, options RowOutputOptions) error {
+		receivedQueryTypes = append(receivedQueryTypes, queryType)
+		for range logLineChan {
+			receivedLogCount++
+		}
+		return nil
+	}
+
+	customOptions := RowOutputOptions{
+		"mode": "test",
+	}
+
+	opts := GathererOptions{
+		SubscriptionID:             "test-sub",
+		ResourceGroup:              "test-rg",
+		SkipHostedControlPlaneLogs: false,
+	}
+
+	gatherer := NewGatherer(mockQueryClient, customOutputFunc, customOptions, opts)
+
+	ctx := context.Background()
+
+	// Mock the cluster ID query
+	mockQueryClient.On("ExecutePreconfiguredQuery", ctx, mock.AnythingOfType("*kusto.ConfigurableQuery"), mock.AnythingOfType("chan *table.Row")).Return(&kusto.QueryResult{}, nil).Once()
+
+	// Mock the services queries
+	mockQueryClient.On("ConcurrentQueries", ctx, mock.AnythingOfType("[]*kusto.ConfigurableQuery"), mock.AnythingOfType("chan *table.Row")).Return(nil).Once()
+
+	// Mock the hosted control plane queries
+	mockQueryClient.On("ConcurrentQueries", ctx, mock.AnythingOfType("[]*kusto.ConfigurableQuery"), mock.AnythingOfType("chan *table.Row")).Return(nil).Once()
+
+	err := gatherer.GatherLogs(ctx)
+
+	assert.NoError(t, err)
+
+	// Verify that our custom output function was called for both query types
+	assert.Contains(t, receivedQueryTypes, QueryTypeServices)
+	assert.Contains(t, receivedQueryTypes, QueryTypeHostedControlPlane)
+	assert.Len(t, receivedQueryTypes, 2) // Should be called exactly twice
+
+	mockQueryClient.AssertExpectations(t)
+}
+
 func TestGathererOptions_Defaults(t *testing.T) {
 	opts := GathererOptions{}
 
