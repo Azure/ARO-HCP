@@ -18,7 +18,7 @@ clouds:
           westus3: d9cd374155e4e6f8d91323c6ddb9d02448ed7c97e313f19f53ccf1cfe83e23a4
       prow:
         regions:
-          westus3: ba23c7e39ace9d710924f94ce2bb50725076b6358dd2bc0e826fcb3d32f74ac0
+          westus3: 6b02f331013287f11e3cc6423749784f2287109c157dc4af4664a4444a653ae9
       swft:
         regions:
           uksouth: eefd156de5602e9525e96d3033c2ffd89c8fafa7617a8f13c5707fa19b496f2e
