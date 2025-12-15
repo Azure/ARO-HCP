@@ -1,0 +1,42 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: mgmt-capacity-monitoring-rules
+  namespace: monitoring
+spec:
+  groups:
+  - name: mgmt-capacity.rules
+    rules:
+    # Management cluster HCP capacity monitoring
+    # Owner: Service Lifecycle team (hcp-sl)
+    # Both alerts set to 'info' (Sev 4) as requested
+    - alert: MgmtClusterHCPCapacityWarning
+      annotations:
+        description: Management cluster {{ $labels.cluster }} is at {{ $value | humanizePercentage }} of its HCP capacity (60 HCP limit). Current count exceeds warning threshold of 60%.
+        runbook_url: https://aka.ms/arohcp-runbook/mgmt-cluster-capacity
+        summary: Management cluster HCP capacity is approaching limit (60% threshold).
+        owning_team: hcp-sl
+      expr: |
+        (
+          count(kube_namespace_labels{namespace=~"^ocm-[^-]+-[^-]+$"}) by (cluster)
+          / 60
+        ) > 0.60
+      for: 15m
+      labels:
+        severity: info
+        team: hcp-sl
+    - alert: MgmtClusterHCPCapacityCritical
+      annotations:
+        description: Management cluster {{ $labels.cluster }} is at {{ $value | humanizePercentage }} of its HCP capacity (60 HCP limit). Current count exceeds critical threshold of 85%. Immediate action required to provision additional management cluster capacity.
+        runbook_url: https://aka.ms/arohcp-runbook/mgmt-cluster-capacity
+        summary: Management cluster HCP capacity is critically high (85% threshold).
+        owning_team: hcp-sl
+      expr: |
+        (
+          count(kube_namespace_labels{namespace=~"^ocm-[^-]+-[^-]+$"}) by (cluster)
+          / 60
+        ) > 0.85
+      for: 5m
+      labels:
+        severity: info
+        team: hcp-sl

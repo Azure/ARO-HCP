@@ -1,0 +1,284 @@
+rule_files:
+- mgmt-capacity-prometheusRule.yaml
+evaluation_interval: 1m
+tests:
+# Test warning threshold (60%) - need 37 namespaces (37/60 = 61.6% > 60%)
+- interval: 1m
+  input_series:
+  - series: 'kube_namespace_labels{cluster="mgmt-test",namespace="ocm-prod-001"}'
+    values: "1+0x20"
+  - series: 'kube_namespace_labels{cluster="mgmt-test",namespace="ocm-prod-002"}'
+    values: "1+0x20"
+  - series: 'kube_namespace_labels{cluster="mgmt-test",namespace="ocm-prod-003"}'
+    values: "1+0x20"
+  - series: 'kube_namespace_labels{cluster="mgmt-test",namespace="ocm-prod-004"}'
+    values: "1+0x20"
+  - series: 'kube_namespace_labels{cluster="mgmt-test",namespace="ocm-prod-005"}'
+    values: "1+0x20"
+  - series: 'kube_namespace_labels{cluster="mgmt-test",namespace="ocm-prod-006"}'
+    values: "1+0x20"
+  - series: 'kube_namespace_labels{cluster="mgmt-test",namespace="ocm-prod-007"}'
+    values: "1+0x20"
+  - series: 'kube_namespace_labels{cluster="mgmt-test",namespace="ocm-prod-008"}'
+    values: "1+0x20"
+  - series: 'kube_namespace_labels{cluster="mgmt-test",namespace="ocm-prod-009"}'
+    values: "1+0x20"
+  - series: 'kube_namespace_labels{cluster="mgmt-test",namespace="ocm-prod-010"}'
+    values: "1+0x20"
+  - series: 'kube_namespace_labels{cluster="mgmt-test",namespace="ocm-prod-011"}'
+    values: "1+0x20"
+  - series: 'kube_namespace_labels{cluster="mgmt-test",namespace="ocm-prod-012"}'
+    values: "1+0x20"
+  - series: 'kube_namespace_labels{cluster="mgmt-test",namespace="ocm-prod-013"}'
+    values: "1+0x20"
+  - series: 'kube_namespace_labels{cluster="mgmt-test",namespace="ocm-prod-014"}'
+    values: "1+0x20"
+  - series: 'kube_namespace_labels{cluster="mgmt-test",namespace="ocm-prod-015"}'
+    values: "1+0x20"
+  - series: 'kube_namespace_labels{cluster="mgmt-test",namespace="ocm-prod-016"}'
+    values: "1+0x20"
+  - series: 'kube_namespace_labels{cluster="mgmt-test",namespace="ocm-prod-017"}'
+    values: "1+0x20"
+  - series: 'kube_namespace_labels{cluster="mgmt-test",namespace="ocm-prod-018"}'
+    values: "1+0x20"
+  - series: 'kube_namespace_labels{cluster="mgmt-test",namespace="ocm-prod-019"}'
+    values: "1+0x20"
+  - series: 'kube_namespace_labels{cluster="mgmt-test",namespace="ocm-prod-020"}'
+    values: "1+0x20"
+  - series: 'kube_namespace_labels{cluster="mgmt-test",namespace="ocm-prod-021"}'
+    values: "1+0x20"
+  - series: 'kube_namespace_labels{cluster="mgmt-test",namespace="ocm-prod-022"}'
+    values: "1+0x20"
+  - series: 'kube_namespace_labels{cluster="mgmt-test",namespace="ocm-prod-023"}'
+    values: "1+0x20"
+  - series: 'kube_namespace_labels{cluster="mgmt-test",namespace="ocm-prod-024"}'
+    values: "1+0x20"
+  - series: 'kube_namespace_labels{cluster="mgmt-test",namespace="ocm-prod-025"}'
+    values: "1+0x20"
+  - series: 'kube_namespace_labels{cluster="mgmt-test",namespace="ocm-prod-026"}'
+    values: "1+0x20"
+  - series: 'kube_namespace_labels{cluster="mgmt-test",namespace="ocm-prod-027"}'
+    values: "1+0x20"
+  - series: 'kube_namespace_labels{cluster="mgmt-test",namespace="ocm-prod-028"}'
+    values: "1+0x20"
+  - series: 'kube_namespace_labels{cluster="mgmt-test",namespace="ocm-prod-029"}'
+    values: "1+0x20"
+  - series: 'kube_namespace_labels{cluster="mgmt-test",namespace="ocm-prod-030"}'
+    values: "1+0x20"
+  - series: 'kube_namespace_labels{cluster="mgmt-test",namespace="ocm-prod-031"}'
+    values: "1+0x20"
+  - series: 'kube_namespace_labels{cluster="mgmt-test",namespace="ocm-prod-032"}'
+    values: "1+0x20"
+  - series: 'kube_namespace_labels{cluster="mgmt-test",namespace="ocm-prod-033"}'
+    values: "1+0x20"
+  - series: 'kube_namespace_labels{cluster="mgmt-test",namespace="ocm-prod-034"}'
+    values: "1+0x20"
+  - series: 'kube_namespace_labels{cluster="mgmt-test",namespace="ocm-prod-035"}'
+    values: "1+0x20"
+  - series: 'kube_namespace_labels{cluster="mgmt-test",namespace="ocm-prod-036"}'
+    values: "1+0x20"
+  - series: 'kube_namespace_labels{cluster="mgmt-test",namespace="ocm-prod-037"}'
+    values: "1+0x20"
+  alert_rule_test:
+  - eval_time: 15m
+    alertname: MgmtClusterHCPCapacityWarning
+    exp_alerts:
+    - exp_labels:
+        severity: info
+        team: hcp-sl
+        cluster: mgmt-test
+      exp_annotations:
+        summary: Management cluster HCP capacity is approaching limit (60% threshold).
+        description: Management cluster mgmt-test is at 61.67% of its HCP capacity (60 HCP limit). Current count exceeds warning threshold of 60%.
+        runbook_url: https://aka.ms/arohcp-runbook/mgmt-cluster-capacity
+        owning_team: hcp-sl
+# Test critical threshold (85%) - need 52 namespaces (52/60 = 86.67% > 85%)
+- interval: 1m
+  input_series:
+  - series: 'kube_namespace_labels{cluster="mgmt-critical",namespace="ocm-prod-001"}'
+    values: "1+0x10"
+  - series: 'kube_namespace_labels{cluster="mgmt-critical",namespace="ocm-prod-002"}'
+    values: "1+0x10"
+  - series: 'kube_namespace_labels{cluster="mgmt-critical",namespace="ocm-prod-003"}'
+    values: "1+0x10"
+  - series: 'kube_namespace_labels{cluster="mgmt-critical",namespace="ocm-prod-004"}'
+    values: "1+0x10"
+  - series: 'kube_namespace_labels{cluster="mgmt-critical",namespace="ocm-prod-005"}'
+    values: "1+0x10"
+  - series: 'kube_namespace_labels{cluster="mgmt-critical",namespace="ocm-prod-006"}'
+    values: "1+0x10"
+  - series: 'kube_namespace_labels{cluster="mgmt-critical",namespace="ocm-prod-007"}'
+    values: "1+0x10"
+  - series: 'kube_namespace_labels{cluster="mgmt-critical",namespace="ocm-prod-008"}'
+    values: "1+0x10"
+  - series: 'kube_namespace_labels{cluster="mgmt-critical",namespace="ocm-prod-009"}'
+    values: "1+0x10"
+  - series: 'kube_namespace_labels{cluster="mgmt-critical",namespace="ocm-prod-010"}'
+    values: "1+0x10"
+  - series: 'kube_namespace_labels{cluster="mgmt-critical",namespace="ocm-prod-011"}'
+    values: "1+0x10"
+  - series: 'kube_namespace_labels{cluster="mgmt-critical",namespace="ocm-prod-012"}'
+    values: "1+0x10"
+  - series: 'kube_namespace_labels{cluster="mgmt-critical",namespace="ocm-prod-013"}'
+    values: "1+0x10"
+  - series: 'kube_namespace_labels{cluster="mgmt-critical",namespace="ocm-prod-014"}'
+    values: "1+0x10"
+  - series: 'kube_namespace_labels{cluster="mgmt-critical",namespace="ocm-prod-015"}'
+    values: "1+0x10"
+  - series: 'kube_namespace_labels{cluster="mgmt-critical",namespace="ocm-prod-016"}'
+    values: "1+0x10"
+  - series: 'kube_namespace_labels{cluster="mgmt-critical",namespace="ocm-prod-017"}'
+    values: "1+0x10"
+  - series: 'kube_namespace_labels{cluster="mgmt-critical",namespace="ocm-prod-018"}'
+    values: "1+0x10"
+  - series: 'kube_namespace_labels{cluster="mgmt-critical",namespace="ocm-prod-019"}'
+    values: "1+0x10"
+  - series: 'kube_namespace_labels{cluster="mgmt-critical",namespace="ocm-prod-020"}'
+    values: "1+0x10"
+  - series: 'kube_namespace_labels{cluster="mgmt-critical",namespace="ocm-prod-021"}'
+    values: "1+0x10"
+  - series: 'kube_namespace_labels{cluster="mgmt-critical",namespace="ocm-prod-022"}'
+    values: "1+0x10"
+  - series: 'kube_namespace_labels{cluster="mgmt-critical",namespace="ocm-prod-023"}'
+    values: "1+0x10"
+  - series: 'kube_namespace_labels{cluster="mgmt-critical",namespace="ocm-prod-024"}'
+    values: "1+0x10"
+  - series: 'kube_namespace_labels{cluster="mgmt-critical",namespace="ocm-prod-025"}'
+    values: "1+0x10"
+  - series: 'kube_namespace_labels{cluster="mgmt-critical",namespace="ocm-prod-026"}'
+    values: "1+0x10"
+  - series: 'kube_namespace_labels{cluster="mgmt-critical",namespace="ocm-prod-027"}'
+    values: "1+0x10"
+  - series: 'kube_namespace_labels{cluster="mgmt-critical",namespace="ocm-prod-028"}'
+    values: "1+0x10"
+  - series: 'kube_namespace_labels{cluster="mgmt-critical",namespace="ocm-prod-029"}'
+    values: "1+0x10"
+  - series: 'kube_namespace_labels{cluster="mgmt-critical",namespace="ocm-prod-030"}'
+    values: "1+0x10"
+  - series: 'kube_namespace_labels{cluster="mgmt-critical",namespace="ocm-prod-031"}'
+    values: "1+0x10"
+  - series: 'kube_namespace_labels{cluster="mgmt-critical",namespace="ocm-prod-032"}'
+    values: "1+0x10"
+  - series: 'kube_namespace_labels{cluster="mgmt-critical",namespace="ocm-prod-033"}'
+    values: "1+0x10"
+  - series: 'kube_namespace_labels{cluster="mgmt-critical",namespace="ocm-prod-034"}'
+    values: "1+0x10"
+  - series: 'kube_namespace_labels{cluster="mgmt-critical",namespace="ocm-prod-035"}'
+    values: "1+0x10"
+  - series: 'kube_namespace_labels{cluster="mgmt-critical",namespace="ocm-prod-036"}'
+    values: "1+0x10"
+  - series: 'kube_namespace_labels{cluster="mgmt-critical",namespace="ocm-prod-037"}'
+    values: "1+0x10"
+  - series: 'kube_namespace_labels{cluster="mgmt-critical",namespace="ocm-prod-038"}'
+    values: "1+0x10"
+  - series: 'kube_namespace_labels{cluster="mgmt-critical",namespace="ocm-prod-039"}'
+    values: "1+0x10"
+  - series: 'kube_namespace_labels{cluster="mgmt-critical",namespace="ocm-prod-040"}'
+    values: "1+0x10"
+  - series: 'kube_namespace_labels{cluster="mgmt-critical",namespace="ocm-prod-041"}'
+    values: "1+0x10"
+  - series: 'kube_namespace_labels{cluster="mgmt-critical",namespace="ocm-prod-042"}'
+    values: "1+0x10"
+  - series: 'kube_namespace_labels{cluster="mgmt-critical",namespace="ocm-prod-043"}'
+    values: "1+0x10"
+  - series: 'kube_namespace_labels{cluster="mgmt-critical",namespace="ocm-prod-044"}'
+    values: "1+0x10"
+  - series: 'kube_namespace_labels{cluster="mgmt-critical",namespace="ocm-prod-045"}'
+    values: "1+0x10"
+  - series: 'kube_namespace_labels{cluster="mgmt-critical",namespace="ocm-prod-046"}'
+    values: "1+0x10"
+  - series: 'kube_namespace_labels{cluster="mgmt-critical",namespace="ocm-prod-047"}'
+    values: "1+0x10"
+  - series: 'kube_namespace_labels{cluster="mgmt-critical",namespace="ocm-prod-048"}'
+    values: "1+0x10"
+  - series: 'kube_namespace_labels{cluster="mgmt-critical",namespace="ocm-prod-049"}'
+    values: "1+0x10"
+  - series: 'kube_namespace_labels{cluster="mgmt-critical",namespace="ocm-prod-050"}'
+    values: "1+0x10"
+  - series: 'kube_namespace_labels{cluster="mgmt-critical",namespace="ocm-prod-051"}'
+    values: "1+0x10"
+  - series: 'kube_namespace_labels{cluster="mgmt-critical",namespace="ocm-prod-052"}'
+    values: "1+0x10"
+  alert_rule_test:
+  - eval_time: 5m
+    alertname: MgmtClusterHCPCapacityCritical
+    exp_alerts:
+    - exp_labels:
+        severity: info
+        team: hcp-sl
+        cluster: mgmt-critical
+      exp_annotations:
+        summary: Management cluster HCP capacity is critically high (85% threshold).
+        description: Management cluster mgmt-critical is at 86.67% of its HCP capacity (60 HCP limit). Current count exceeds critical threshold of 85%. Immediate action required to provision additional management cluster capacity.
+        runbook_url: https://aka.ms/arohcp-runbook/mgmt-cluster-capacity
+        owning_team: hcp-sl
+# Test no alert when below threshold (30 namespaces = 50%)
+- interval: 1m
+  input_series:
+  - series: 'kube_namespace_labels{cluster="mgmt-ok",namespace="ocm-prod-001"}'
+    values: "1+0x20"
+  - series: 'kube_namespace_labels{cluster="mgmt-ok",namespace="ocm-prod-002"}'
+    values: "1+0x20"
+  - series: 'kube_namespace_labels{cluster="mgmt-ok",namespace="ocm-prod-003"}'
+    values: "1+0x20"
+  - series: 'kube_namespace_labels{cluster="mgmt-ok",namespace="ocm-prod-004"}'
+    values: "1+0x20"
+  - series: 'kube_namespace_labels{cluster="mgmt-ok",namespace="ocm-prod-005"}'
+    values: "1+0x20"
+  - series: 'kube_namespace_labels{cluster="mgmt-ok",namespace="ocm-prod-006"}'
+    values: "1+0x20"
+  - series: 'kube_namespace_labels{cluster="mgmt-ok",namespace="ocm-prod-007"}'
+    values: "1+0x20"
+  - series: 'kube_namespace_labels{cluster="mgmt-ok",namespace="ocm-prod-008"}'
+    values: "1+0x20"
+  - series: 'kube_namespace_labels{cluster="mgmt-ok",namespace="ocm-prod-009"}'
+    values: "1+0x20"
+  - series: 'kube_namespace_labels{cluster="mgmt-ok",namespace="ocm-prod-010"}'
+    values: "1+0x20"
+  - series: 'kube_namespace_labels{cluster="mgmt-ok",namespace="ocm-prod-011"}'
+    values: "1+0x20"
+  - series: 'kube_namespace_labels{cluster="mgmt-ok",namespace="ocm-prod-012"}'
+    values: "1+0x20"
+  - series: 'kube_namespace_labels{cluster="mgmt-ok",namespace="ocm-prod-013"}'
+    values: "1+0x20"
+  - series: 'kube_namespace_labels{cluster="mgmt-ok",namespace="ocm-prod-014"}'
+    values: "1+0x20"
+  - series: 'kube_namespace_labels{cluster="mgmt-ok",namespace="ocm-prod-015"}'
+    values: "1+0x20"
+  - series: 'kube_namespace_labels{cluster="mgmt-ok",namespace="ocm-prod-016"}'
+    values: "1+0x20"
+  - series: 'kube_namespace_labels{cluster="mgmt-ok",namespace="ocm-prod-017"}'
+    values: "1+0x20"
+  - series: 'kube_namespace_labels{cluster="mgmt-ok",namespace="ocm-prod-018"}'
+    values: "1+0x20"
+  - series: 'kube_namespace_labels{cluster="mgmt-ok",namespace="ocm-prod-019"}'
+    values: "1+0x20"
+  - series: 'kube_namespace_labels{cluster="mgmt-ok",namespace="ocm-prod-020"}'
+    values: "1+0x20"
+  - series: 'kube_namespace_labels{cluster="mgmt-ok",namespace="ocm-prod-021"}'
+    values: "1+0x20"
+  - series: 'kube_namespace_labels{cluster="mgmt-ok",namespace="ocm-prod-022"}'
+    values: "1+0x20"
+  - series: 'kube_namespace_labels{cluster="mgmt-ok",namespace="ocm-prod-023"}'
+    values: "1+0x20"
+  - series: 'kube_namespace_labels{cluster="mgmt-ok",namespace="ocm-prod-024"}'
+    values: "1+0x20"
+  - series: 'kube_namespace_labels{cluster="mgmt-ok",namespace="ocm-prod-025"}'
+    values: "1+0x20"
+  - series: 'kube_namespace_labels{cluster="mgmt-ok",namespace="ocm-prod-026"}'
+    values: "1+0x20"
+  - series: 'kube_namespace_labels{cluster="mgmt-ok",namespace="ocm-prod-027"}'
+    values: "1+0x20"
+  - series: 'kube_namespace_labels{cluster="mgmt-ok",namespace="ocm-prod-028"}'
+    values: "1+0x20"
+  - series: 'kube_namespace_labels{cluster="mgmt-ok",namespace="ocm-prod-029"}'
+    values: "1+0x20"
+  - series: 'kube_namespace_labels{cluster="mgmt-ok",namespace="ocm-prod-030"}'
+    values: "1+0x20"
+  alert_rule_test:
+  - eval_time: 20m
+    alertname: MgmtClusterHCPCapacityWarning
+    exp_alerts: []
+  - eval_time: 20m
+    alertname: MgmtClusterHCPCapacityCritical
+    exp_alerts: []
