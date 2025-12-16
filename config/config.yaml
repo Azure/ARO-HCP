@@ -220,8 +220,6 @@ defaults:
         type: ""
         issuer: ""
       subscriptions: []
-    loganalytics:
-      enable: false
   # Monitoring
   monitoring:
     grafanaName: "arohcp-{{ .ctx.environment }}"
@@ -1055,9 +1053,6 @@ clouds:
         # this is the integrated DEV environment
         defaults:
           regionRG: hcp-underlay-{{ .ctx.environment }}-{{ .ctx.region }}
-          logs:
-            loganalytics:
-              enable: true
           mgmt:
             aks:
               systemAgentPool:
@@ -1093,9 +1088,6 @@ clouds:
           # Service Key Vault
           serviceKeyVault:
             assignNSP: false
-          logs:
-            loganalytics:
-              enable: true
           monitoring:
             svcWorkspaceName: 'services-{{ .ctx.environment }}-{{ .ctx.regionShort }}'
             hcpWorkspaceName: 'hcps-{{ .ctx.environment }}-{{ .ctx.regionShort }}'
@@ -1212,10 +1204,6 @@ clouds:
           # Service Key Vault
           serviceKeyVault:
             assignNSP: false
-          # Logs
-          logs:
-            loganalytics:
-              enable: true
           # Cluster Service
           clustersService:
             postgres:
@@ -1365,10 +1353,6 @@ clouds:
           # Service Key Vault
           serviceKeyVault:
             assignNSP: false
-          # Logs
-          logs:
-            loganalytics:
-              enable: true
           # Cluster Service
           clustersService:
             postgres:

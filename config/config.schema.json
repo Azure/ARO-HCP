@@ -2387,16 +2387,13 @@
       "properties": {
         "loganalytics": {
           "type": "object",
-          "description": "Log Analytics configuration",
+          "description": "DEPRECATED, remove after updating sdp-pipelines",
           "properties": {
             "enable": {
               "type": "boolean"
             }
           },
-          "additionalProperties": false,
-          "required": [
-            "enable"
-          ]
+          "additionalProperties": false
         },
         "mdsd": {
           "type": "object",
@@ -2449,8 +2446,7 @@
         }
       },
       "required": [
-        "mdsd",
-        "loganalytics"
+        "mdsd"
       ]
     },
     "msiKeyVault": {

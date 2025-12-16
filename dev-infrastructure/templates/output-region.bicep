@@ -7,9 +7,6 @@ param hcpAzureMonitorWorkspaceName string
 @description('The name of the eventgrid namespace for Maestro.')
 param maestroEventGridNamespacesName string
 
-@description('Enable Log Analytics')
-param enableLogAnalytics bool
-
 //
 //   A Z U R E   M O N I T O R
 //
