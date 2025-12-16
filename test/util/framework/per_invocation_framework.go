@@ -15,9 +15,14 @@
 package framework
 
 import (
+	"bytes"
 	"context"
+	"crypto/tls"
+	"errors"
 	"fmt"
 	"hash/fnv"
+	"io"
+	"net"
 	"net/http"
 	"os"
 	"path"
@@ -27,7 +32,12 @@ import (
 	"sync"
 	"time"
 
+	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/ginkgo/v2/types"
+	"golang.org/x/net/http2"
+
+	"k8s.io/apimachinery/pkg/util/sets"
+	"k8s.io/apimachinery/pkg/util/wait"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -54,6 +64,7 @@ type perBinaryInvocationTestContext struct {
 	subscriptionID    string
 	azureCredentials  azcore.TokenCredential
 	identityPoolState *leasedIdentityPoolState
+	defaultTransport  *http.Transport
 }
 
 type CleanupFunc func(ctx context.Context) error
@@ -87,6 +98,7 @@ func invocationContext() *perBinaryInvocationTestContext {
 			skipCleanup:              skipCleanup(),
 			pooledIdentities:         pooledIdentities(),
 			compressTimingMetadata:   compressTimingMetadata(),
+			defaultTransport:         defaultHTTPTransport(),
 		}
 	})
 	return invocationContextInstance
@@ -142,6 +154,15 @@ func (p *armSystemDataPolicy) Do(req *policy.Request) (*http.Response, error) {
 }
 
 func (tc *perBinaryInvocationTestContext) getClientFactoryOptions() *azcorearm.ClientOptions {
+	if tc.isDevelopmentEnvironment {
+		return &azcorearm.ClientOptions{
+			ClientOptions: azcore.ClientOptions{
+				Transport: &proxiedConnectionTransporter{
+					delegate: tc.defaultTransport,
+				},
+			},
+		}
+	}
 	return nil
 }
 
@@ -162,6 +183,9 @@ func (tc *perBinaryInvocationTestContext) getHCPClientFactoryOptions() *azcorear
 						},
 					},
 				},
+				Transport: &proxiedConnectionTransporter{
+					delegate: tc.defaultTransport,
+				},
 				InsecureAllowCredentialWithHTTP: true,
 				PerCallPolicies: []policy.Policy{
 					&armSystemDataPolicy{},
@@ -170,6 +194,86 @@ func (tc *perBinaryInvocationTestContext) getHCPClientFactoryOptions() *azcorear
 		}
 	}
 	return nil
+}
+
+// default transport taken judiciously from azcore library to mimick their behavior when no transporter is provided
+func defaultHTTPTransport() *http.Transport {
+	dialer := &net.Dialer{
+		Timeout:   30 * time.Second,
+		KeepAlive: 30 * time.Second,
+	}
+	defaultTransport := &http.Transport{
+		Proxy:                 http.ProxyFromEnvironment,
+		DialContext:           dialer.DialContext,
+		ForceAttemptHTTP2:     true,
+		MaxIdleConns:          100,
+		MaxIdleConnsPerHost:   10,
+		IdleConnTimeout:       90 * time.Second,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ExpectContinueTimeout: 1 * time.Second,
+		TLSClientConfig: &tls.Config{
+			MinVersion:    tls.VersionTLS12,
+			Renegotiation: tls.RenegotiateFreelyAsClient,
+		},
+	}
+	// TODO: evaluate removing this once https://github.com/golang/go/issues/59690 has been fixed
+	if http2Transport, err := http2.ConfigureTransports(defaultTransport); err == nil {
+		// if the connection has been idle for 10 seconds, send a ping frame for a health check
+		http2Transport.ReadIdleTimeout = 10 * time.Second
+		// if there's no response to the ping within the timeout, the connection will be closed
+		http2Transport.PingTimeout = 5 * time.Second
+	}
+	return defaultTransport
+}
+
+// proxiedConnectionTransporter retries connections done across the proxy path to a local RP,
+// in order to paper over transient errors in the proxied connection
+type proxiedConnectionTransporter struct {
+	delegate *http.Transport
+}
+
+func (t *proxiedConnectionTransporter) Do(req *http.Request) (*http.Response, error) {
+	retryCtx, cancel := context.WithTimeoutCause(req.Context(), 2*time.Minute, errors.New("proxy transport retry timeout"))
+	defer cancel()
+
+	var body []byte
+	if req != nil && req.Body != nil {
+		b, err := io.ReadAll(req.Body)
+		if err != nil {
+			return nil, err
+		}
+		if err := req.Body.Close(); err != nil {
+			return nil, err
+		}
+		body = b
+	}
+
+	var response *http.Response
+	responseErr := wait.ExponentialBackoffWithContext(retryCtx, wait.Backoff{
+		Duration: 800 * time.Millisecond,
+		Factor:   2,
+		Jitter:   0.1,
+		Steps:    10,
+		Cap:      20 * time.Second,
+	}, func(ctx context.Context) (done bool, err error) {
+		thisReq := req.Clone(ctx)
+		thisReq.Body = io.NopCloser(bytes.NewReader(body))
+		resp, err := t.delegate.RoundTrip(thisReq)
+		response = resp
+		if err != nil {
+			if sets.NewString(
+				"connect: connection refused",
+				"connect: connection reset by peer",
+				"proxy error from localhost",
+			).Has(err.Error()) {
+				ginkgo.GinkgoLogr.Info("Re-trying request.", "err", err)
+				return false, nil
+			}
+			return true, err
+		}
+		return true, nil
+	})
+	return response, responseErr
 }
 
 func (tc *perBinaryInvocationTestContext) getSubscriptionID(ctx context.Context, subscriptionClient *armsubscriptions.Client) (string, error) {
