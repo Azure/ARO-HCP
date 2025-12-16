@@ -473,6 +473,12 @@ mgmt:
     accessMode: Learning
     name: nsp-usw3-mgmt-1
   prometheus:
+    admissionWebhook:
+      patch:
+        image:
+          registry: arohcpsvcdev.azurecr.io
+          repository: k8s-cache/ingress-nginx/kube-webhook-certgen
+          tag: v1.5.2
     kubeStateMetrics:
       image:
         digest: sha256:377bd55d97824dfee27b3c577869bc793fc3970623433627c7f0ee1b1b74e725
@@ -735,6 +741,12 @@ svc:
     accessMode: Learning
     name: nsp-usw3-svc
   prometheus:
+    admissionWebhook:
+      patch:
+        image:
+          registry: arohcpsvcdev.azurecr.io
+          repository: k8s-cache/ingress-nginx/kube-webhook-certgen
+          tag: v1.5.2
     kubeStateMetrics:
       image:
         digest: sha256:377bd55d97824dfee27b3c577869bc793fc3970623433627c7f0ee1b1b74e725

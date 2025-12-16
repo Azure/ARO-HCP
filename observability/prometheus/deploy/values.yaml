@@ -102,6 +102,15 @@ kube-prometheus-stack:
       operator: "Equal"
       value: "true"
       effect: "NoSchedule"
+    ## Admission webhooks configuration
+    ##
+    admissionWebhooks:
+      patch:
+        enabled: true
+        image:
+          registry: registry.k8s.io
+          repository: ingress-nginx/kube-webhook-certgen
+          tag: v1.5.2
   ## Deploy a Prometheus instance
   ##
   prometheus:
