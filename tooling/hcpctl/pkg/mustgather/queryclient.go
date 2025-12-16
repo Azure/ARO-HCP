@@ -78,8 +78,12 @@ func (q *QueryClient) ConcurrentQueries(ctx context.Context, queries []*kusto.Co
 	wg.Wait()
 	close(errorCh)
 
-	if allErrors := errors.Join(<-errorCh); allErrors != nil {
-		return fmt.Errorf("failed to execute queries: %v", allErrors)
+	var allErrors error
+	for err := range errorCh {
+		allErrors = errors.Join(allErrors, err)
+	}
+	if allErrors != nil {
+		return fmt.Errorf("failed to execute queries: %w", allErrors)
 	}
 
 	return nil
