@@ -201,6 +201,7 @@ images:
     targets:
     - jsonPath: defaults.kubeEvents.image.digest
       filePath: ../../config/config.yaml
+      env: dev
   # ACM images
   acm-operator:
     source:
@@ -209,6 +210,7 @@ images:
     targets:
     - jsonPath: defaults.acm.operator.bundle.digest
       filePath: ../../config/config.yaml
+      env: dev
   acm-mce:
     source:
       image: quay.io/redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-211
@@ -216,6 +218,7 @@ images:
     targets:
     - jsonPath: defaults.acm.mce.bundle.digest
       filePath: ../../config/config.yaml
+      env: dev
   # MSI-Acrpull image
   acrPull:
     source:
@@ -243,6 +246,7 @@ images:
     targets:
     - jsonPath: defaults.arobit.forwarder.image.digest
       filePath: ../../config/config.yaml
+      env: dev
   arobit-mdsd:
     source:
       image: mcr.microsoft.com/geneva/distroless/mdsd
@@ -251,6 +255,7 @@ images:
     targets:
     - jsonPath: defaults.arobit.mdsd.image.digest
       filePath: ../../config/config.yaml
+      env: dev
   # Secret Sync Controller image
   secretSyncController:
     source:
