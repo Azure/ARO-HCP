@@ -24,6 +24,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
 	"github.com/Azure/ARO-HCP/internal/api"
@@ -104,6 +105,9 @@ func newStep[InternalAPIType any](indexString, stepType, stepName string, testDi
 	case "load":
 		return NewLoadStep(stepID, cosmosContainer, stepDir)
 
+	case "cosmosCompare":
+		return NewCosmosCompareStep(stepID, cosmosContainer, stepDir)
+
 	case "create":
 		return newCreateStep(stepID, specializer, cosmosContainer, stepDir)
 
@@ -148,8 +152,12 @@ type StepID struct {
 	stepName string
 }
 
-func NewStepID(index int) StepID {
-	return StepID{index: index}
+func NewStepID(index int, stepType, stepName string) StepID {
+	return StepID{
+		index:    index,
+		stepType: stepType,
+		stepName: stepName,
+	}
 }
 
 func (s StepID) String() string {
@@ -172,7 +180,10 @@ type CosmosCRUDKey struct {
 
 func readResourcesInDir[InternalAPIType any](dir fs.FS) ([]*InternalAPIType, error) {
 	resources := []*InternalAPIType{}
-	testContent := api.Must(fs.ReadDir(dir, "."))
+	testContent, err := fs.ReadDir(dir, ".")
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
 	for _, dirEntry := range testContent {
 		if dirEntry.Name() == "00-key.json" { // standard filenames to skip
 			continue

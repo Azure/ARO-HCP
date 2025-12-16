@@ -68,6 +68,10 @@ func NewCosmosFromTestingEnv(ctx context.Context) (*CosmosIntegrationTestInfo, e
 	return testInfo, nil
 }
 
+func JSONOnly(entry fs.DirEntry) bool {
+	return strings.HasSuffix(entry.Name(), ".json")
+}
+
 func LoadCosmosContentFromFS(ctx context.Context, cosmosContainer *azcosmos.ContainerClient, stepDir fs.FS, filterFn func(fs.DirEntry) bool) error {
 	testContent, err := fs.ReadDir(stepDir, ".")
 	if err != nil {

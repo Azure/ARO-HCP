@@ -18,6 +18,7 @@ import (
 	"context"
 	"fmt"
 	"io/fs"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -44,6 +45,9 @@ func NewLoadStep(stepID StepID, cosmosContainer *azcosmos.ContainerClient, stepD
 			continue
 		}
 		if dirEntry.Name() == "expected-error.txt" { // standard filenames to skip
+			continue
+		}
+		if !strings.HasSuffix(dirEntry.Name(), ".json") { // we can only understand JSON
 			continue
 		}
 
