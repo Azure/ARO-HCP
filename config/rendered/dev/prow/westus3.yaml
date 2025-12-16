@@ -1,13 +1,13 @@
 acm:
   mce:
     bundle:
-      digest: sha256:2b79c0d65e995529404f4f94fe2c1b935215377851829fe1c1a4270fed3ab28b
+      digest: sha256:e035a7933f26abd7fce5be3252bb7991d0086adb334bac709a56d24937c65418
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-211
     version: 2.11.0
   operator:
     bundle:
-      digest: sha256:324a2a5b88ad24796591712f006e6960c7fc103b4a089aa092359a5509049c63
+      digest: sha256:3657ead46e6187af3aa5689b18ca977a9b64eff26458816cc4f4ba3834b2e7e7
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-216
     version: 2.16.0
@@ -33,7 +33,7 @@ acrPull:
 adminApi:
   cert:
     issuer: Self
-    name: admin-api-cert-prow-usw3j
+    name: admin-api-cert-prow-usw3j672
   image:
     digest: sha256:4ba6e83afc921f6c7fc5a977e9034def6e664eb65192b83279b1e9c3d86e62c7
     registry: arohcpsvcdev.azurecr.io
@@ -125,7 +125,7 @@ clustersService:
   deployDebugJobs: false
   environment: arohcpdev
   image:
-    digest: sha256:2f51c98788c688f92d6905977829891a4d6fc586050fbc3f7335f5c9994e6134
+    digest: sha256:0c1734cb33e00558843e812008ce4cae67c191131ba5aa4790802f8fe17148e0
     registry: quay.io
     repository: app-sre/aro-hcp-clusters-service
   k8s:
@@ -153,7 +153,7 @@ clustersService:
     deploy: false
     geoRedundantBackup: false
     minTLSVersion: TLSV1.2
-    name: arohcp-prow-dbcs-usw3j
+    name: arohcp-prow-dbcs-usw3j672
     password: TheBlurstOfTimes
     private: false
     serverStorageSizeGB: 128
@@ -164,7 +164,7 @@ clustersService:
     address: http://ingest.observability:4318
     exporter: otlp
 cxKeyVault:
-  name: ah-prow-cx-usw3j-1
+  name: ah-prow-cx-usw3j672-1
   private: false
   softDelete: false
   tagKey: aroHCPPurpose
@@ -174,7 +174,7 @@ dns:
   cxParentZoneName: hcp.osadev.cloud
   globalCertificatesDomain: hcp-global.osadev.cloud
   parentZoneName: osadev.cloud
-  regionalSubdomain: usw3j
+  regionalSubdomain: usw3j672
   svcParentZoneName: hcpsvc.osadev.cloud
 e2e:
   prow:
@@ -200,11 +200,11 @@ frontend:
     connectSocket: false
   cert:
     issuer: Self
-    name: frontend-cert-prow-usw3j
+    name: frontend-cert-prow-usw3j672
   cosmosDB:
     deploy: true
     disableLocalAuth: true
-    name: arohcpprow-rp-usw3j
+    name: arohcpprow-rp-usw3j672
     private: false
     zoneRedundantMode: Disabled
   image:
@@ -336,7 +336,7 @@ keyVaultDNSSuffix: vault.azure.net
 kubeEvents:
   enabled: false
   image:
-    digest: sha256:9d5fa4bc7852bb0a5cf7d892f256c52b457a4e5182318daec6648d8263606edb
+    digest: sha256:a6e275cf0ab51fc16a0d2574cd50c46defc005e887821974062335814ee18272
     registry: kubernetesshared.azurecr.io
     repository: shared/kube-events
 kusto:
@@ -364,7 +364,7 @@ logs:
     subscriptions: []
 maestro:
   agent:
-    consumerName: hcp-underlay-usw3j-mgmt-1
+    consumerName: hcp-underlay-usw3j672-mgmt-1
     k8s:
       namespace: maestro
       replicas: 3
@@ -373,17 +373,17 @@ maestro:
     managedIdentityName: maestro-consumer
     sidecar:
       image:
-        digest: sha256:c9932f5875ba5e0be70d174dc96f45d5474e77df8fe57ed6327b8d8208ee1635
+        digest: sha256:c925c4dfce3a0140d36073cc66e70567ffa0d82b71033d752d2d7e668637804b
         registry: mcr.microsoft.com
         repository: azurelinux/base/nginx
   certDomain: selfsigned.maestro.keyvault.azure.com
   certIssuer: Self
   eventGrid:
     maxClientSessionsPerAuthName: 6
-    name: arohcp-prow-maestro-usw3j
+    name: arohcp-prow-maestro-usw3j672
     private: false
   image:
-    digest: sha256:8bfd08bbafec5e4d4de8ae15c6a2d5cd8b11067136a9b88f800566a992a6a010
+    digest: sha256:4014c1d8106786ec26c2aec39904b82fbeff957f913b7fdd6a59ad6448b1338f
     registry: quay.io
     repository: redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro
   postgres:
@@ -395,7 +395,7 @@ maestro:
     deploy: false
     geoRedundantBackup: false
     minTLSVersion: TLSV1.2
-    name: arohcp-prow-dbmaestro-usw3j
+    name: arohcp-prow-dbmaestro-usw3j672
     password: TheBlurstOfTimes
     private: false
     serverStorageSizeGB: 32
@@ -409,7 +409,7 @@ maestro:
       serviceAccountName: maestro
     loglevel: 2
     managedIdentityName: maestro-server
-    mqttClientName: maestro-server-usw3j
+    mqttClientName: maestro-server-usw3j672
     tracing:
       address: http://ingest.observability:4318
       exporter: otlp
@@ -419,7 +419,7 @@ mgmt:
     enableSwiftV2Nodepools: false
     enableSwiftV2Vnet: false
     etcd:
-      name: ah-prow-me-usw3j-1
+      name: ah-prow-me-usw3j672-1
       private: true
       softDelete: false
       tagKey: aroHCPPurpose
@@ -433,7 +433,7 @@ mgmt:
       zoneRedundantMode: Auto
       zones: ""
     kubernetesVersion: 1.32.5
-    name: prow-usw3j-mgmt-1
+    name: prow-usw3j672-mgmt-1
     networkDataplane: azure
     networkPolicy: azure
     podSubnetPrefix: 10.128.64.0/18
@@ -458,7 +458,7 @@ mgmt:
   applyKubeletFixes: false
   hcpBackups:
     storageAccount:
-      name: oadpprowusw3j1
+      name: oadpprowusw3j6721
       public: false
       zoneRedundantMode: Auto
     storageAccountContainerName: backups
@@ -466,7 +466,7 @@ mgmt:
     deploy: false
   nsp:
     accessMode: Learning
-    name: nsp-usw3j-mgmt-1
+    name: nsp-usw3j672-mgmt-1
   prometheus:
     kubeStateMetrics:
       image:
@@ -500,7 +500,7 @@ mgmt:
           cpu: NONE
           memory: NONE
       shards: 1
-  rg: hcp-underlay-prow-usw3j-mgmt-1
+  rg: hcp-underlay-prow-usw3j672-mgmt-1
   subscription:
     certificateDomains:
     - '*.hcp.osadev.cloud'
@@ -529,7 +529,7 @@ mgmt:
         poll: true
     usePlannedQuota: true
 mgmtKeyVault:
-  name: ah-prow-mg-usw3j-1
+  name: ah-prow-mg-usw3j672-1
   private: false
   softDelete: false
   tagKey: aroHCPPurpose
@@ -561,7 +561,7 @@ monitoring:
   grafanaName: arohcp-dev
   grafanaRoles: 6b6d3adf-8476-4727-9812-20ffdef2b85c/Group/Admin
   grafanaZoneRedundantMode: Disabled
-  hcpWorkspaceName: hcps-usw3j
+  hcpWorkspaceName: hcps-usw3j672
   icm:
     connectionId: ""
     connectionName: ""
@@ -582,7 +582,7 @@ monitoring:
       actionGroupShortName: ""
       automitigationEnabled: ""
       routingId: ""
-  svcWorkspaceName: services-usw3j
+  svcWorkspaceName: services-usw3j672
 msiCredentialsRefresher:
   certificate:
     commonName: ""
@@ -605,7 +605,7 @@ msiCredentialsRefresher:
     serviceAccountName: msi-credential-refresher
   managedIdentityName: msi-credential-refresher
 msiKeyVault:
-  name: ah-prow-mi-usw3j-1
+  name: ah-prow-mi-usw3j672-1
   private: false
   softDelete: false
   tagKey: aroHCPPurpose
@@ -627,7 +627,7 @@ oidc:
     subdomain: oic
     useManagedCertificates: true
   storageAccount:
-    name: arohcpprowoidcusw3j
+    name: arohcpprowoidcusw3j672
     privateLinkLocation: westus3
     public: true
     zoneRedundantMode: Auto
@@ -650,7 +650,7 @@ pko:
     repository: package-operator/remote-phase-manager
 region: westus3
 regionBuildout: false
-regionRG: hcp-underlay-prow-usw3j
+regionRG: hcp-underlay-prow-usw3j672
 routeMonitorOperator:
   blackboxExporterImage:
     digest: sha256:b04a9fef4fa086a02fc7fcd8dcdbc4b7b35cc30cdee860fdc6a19dd8b208d63e
@@ -682,7 +682,7 @@ svc:
   aks:
     clusterOutboundIPAddressIPTags: ""
     etcd:
-      name: ah-prow-se-usw3j-1
+      name: ah-prow-se-usw3j672-1
       private: true
       softDelete: false
       tagKey: aroHCPPurpose
@@ -696,7 +696,7 @@ svc:
       zoneRedundantMode: Auto
       zones: ""
     kubernetesVersion: 1.32.5
-    name: prow-usw3j-svc
+    name: prow-usw3j672-svc
     networkDataplane: cilium
     networkPolicy: cilium
     podSubnetPrefix: 10.128.64.0/18
@@ -729,7 +729,7 @@ svc:
     deploy: true
   nsp:
     accessMode: Learning
-    name: nsp-usw3j-svc
+    name: nsp-usw3j672-svc
   prometheus:
     kubeStateMetrics:
       image:
@@ -764,7 +764,7 @@ svc:
           memory: NONE
       shards: 1
       version: ""
-  rg: hcp-underlay-prow-usw3j-svc
+  rg: hcp-underlay-prow-usw3j672-svc
   subscription:
     certificateDomains:
     - '*.hcpsvc.osadev.cloud'
