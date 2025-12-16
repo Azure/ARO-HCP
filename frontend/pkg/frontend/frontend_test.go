@@ -24,7 +24,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path"
-	"strings"
 	"testing"
 	"time"
 
@@ -62,20 +61,6 @@ func newClusterResourceID(t *testing.T) *azcorearm.ResourceID {
 	require.NoError(t, err)
 	return resourceID
 }
-
-func equalResourceID(expectResourceID *azcorearm.ResourceID) gomock.Matcher {
-	return gomock.Cond(func(actualResourceID *azcorearm.ResourceID) bool {
-		return strings.EqualFold(actualResourceID.String(), expectResourceID.String())
-	})
-}
-
-//func equalListActiveOperationDocsOptions(expectRequest database.OperationRequest, expectExternalID *azcorearm.ResourceID) gomock.Matcher {
-//	return gomock.Cond(func(actualOptions *database.DBClientListActiveOperationDocsOptions) bool {
-//		return actualOptions != nil &&
-//			actualOptions.Request != nil && *actualOptions.Request == expectRequest &&
-//			strings.EqualFold(actualOptions.ExternalID.String(), expectExternalID.String())
-//	})
-//}
 
 func newClusterInternalID(t *testing.T) ocm.InternalID {
 	internalID, err := api.NewInternalID(ocm.GenerateClusterHREF("myCluster"))
@@ -617,6 +602,7 @@ func TestRequestAdminCredential(t *testing.T) {
 			mockDBClient := mocks.NewMockDBClient(ctrl)
 			mockCSClient := mocks.NewMockClusterServiceClientSpec(ctrl)
 			mockOperationCRUD := mocks.NewMockOperationCRUD(ctrl)
+			mockClusterCRUD := mocks.NewMockHCPClusterCRUD(ctrl)
 
 			f := NewFrontend(
 				api.NewTestLogger(),
@@ -641,19 +627,23 @@ func TestRequestAdminCredential(t *testing.T) {
 				Return(nil)
 			// ArmResourceActionRequestAdminCredential
 			mockDBClient.EXPECT().
-				GetResourceDoc(gomock.Any(), equalResourceID(clusterResourceID)).
-				Return(func() (string, *database.ResourceDocument, error) {
-					var itemID string
-					doc, err := getMockDBDoc(&database.ResourceDocument{
-						ResourceID:        clusterResourceID,
-						InternalID:        clusterInternalID,
-						ProvisioningState: test.clusterProvisioningState,
-					})
-					if err != nil {
-						itemID = "itemID"
-					}
-					return itemID, doc, err
-				}())
+				HCPClusters(clusterResourceID.SubscriptionID, clusterResourceID.ResourceGroupName).
+				Return(mockClusterCRUD)
+			mockClusterCRUD.EXPECT().
+				Get(gomock.Any(), clusterResourceID.Name).
+				Return(
+					&api.HCPOpenShiftCluster{
+						TrackedResource: arm.TrackedResource{
+							Resource: arm.Resource{
+								ID: clusterResourceID,
+							},
+						},
+						ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
+							ProvisioningState: test.clusterProvisioningState,
+							ClusterServiceID:  clusterInternalID,
+						},
+					},
+					nil)
 			if test.clusterProvisioningState.IsTerminal() {
 				revokeOperations := make(map[string]*database.OperationDocument)
 				if !test.revokeCredentialsStatus.IsTerminal() {
@@ -779,6 +769,7 @@ func TestRevokeCredentials(t *testing.T) {
 			mockDBClient := mocks.NewMockDBClient(ctrl)
 			mockCSClient := mocks.NewMockClusterServiceClientSpec(ctrl)
 			mockOperationCRUD := mocks.NewMockOperationCRUD(ctrl)
+			mockClusterCRUD := mocks.NewMockHCPClusterCRUD(ctrl)
 
 			f := NewFrontend(
 				api.NewTestLogger(),
@@ -803,19 +794,23 @@ func TestRevokeCredentials(t *testing.T) {
 				Return(nil)
 			// ArmResourceActionRequestAdminCredential
 			mockDBClient.EXPECT().
-				GetResourceDoc(gomock.Any(), equalResourceID(clusterResourceID)).
-				Return(func() (string, *database.ResourceDocument, error) {
-					var itemID string
-					doc, err := getMockDBDoc(&database.ResourceDocument{
-						ResourceID:        clusterResourceID,
-						InternalID:        clusterInternalID,
-						ProvisioningState: test.clusterProvisioningState,
-					})
-					if err != nil {
-						itemID = "itemID"
-					}
-					return itemID, doc, err
-				}())
+				HCPClusters(clusterResourceID.SubscriptionID, clusterResourceID.ResourceGroupName).
+				Return(mockClusterCRUD)
+			mockClusterCRUD.EXPECT().
+				Get(gomock.Any(), clusterResourceID.Name).
+				Return(
+					&api.HCPOpenShiftCluster{
+						TrackedResource: arm.TrackedResource{
+							Resource: arm.Resource{
+								ID: clusterResourceID,
+							},
+						},
+						ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
+							ProvisioningState: test.clusterProvisioningState,
+							ClusterServiceID:  clusterInternalID,
+						},
+					},
+					nil)
 			if test.clusterProvisioningState.IsTerminal() {
 				revokeOperations := make(map[string]*database.OperationDocument)
 				if !test.revokeCredentialsStatus.IsTerminal() {
