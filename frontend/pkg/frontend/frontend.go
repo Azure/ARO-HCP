@@ -36,6 +36,7 @@ import (
 	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
 
 	"github.com/Azure/ARO-HCP/frontend/pkg/metrics"
+	"github.com/Azure/ARO-HCP/internal/admission"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/api/v20240610preview"
@@ -536,6 +537,11 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 	ctx := request.Context()
 	logger := utils.LoggerFromContext(ctx)
 
+	subscription, err := f.dbClient.GetSubscriptionDoc(ctx, subscriptionID)
+	if err != nil {
+		return err
+	}
+
 	body, err := BodyFromContext(ctx)
 	if err != nil {
 		return utils.TrackError(err)
@@ -605,6 +611,7 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 			newInternalCluster := &api.HCPOpenShiftCluster{}
 			versionedCluster.Normalize(newInternalCluster)
 			validationErrs := validation.ValidateClusterCreate(ctx, newInternalCluster, api.Must(versionedInterface.ValidationPathRewriter(&api.HCPOpenShiftCluster{})))
+			validationErrs = append(validationErrs, admission.AdmitClusterOnCreate(ctx, newInternalCluster, subscription)...)
 			cloudError = arm.CloudErrorFromFieldErrors(validationErrs)
 
 		case strings.ToLower(api.NodePoolResourceType.String()):
