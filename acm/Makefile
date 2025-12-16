@@ -23,11 +23,17 @@ export DRY_RUN
 export ACM_VERSION
 export ACM_OPERATOR_BUNDLE_IMAGE
 
+SKOPEO ?= $(shell which skopeo 2>/dev/null)
+
 policy-helm-chart:
 	./update-policy-chart.sh "${MCE_CONFIG_DIR}/charts/policy"
 
 mce-helm-chart:
-	@skopeo copy --override-arch amd64 docker://${MCE_OPERATOR_BUNDLE_IMAGE} docker-archive:${MCE_OPERATOR_BUNDLE_FILE}
+ifeq ($(SKOPEO),)
+	@echo "Please install skopeo: https://github.com/containers/skopeo/blob/main/install.md"
+	@exit 1
+endif
+	@$(SKOPEO) copy --override-arch amd64 docker://${MCE_OPERATOR_BUNDLE_IMAGE} docker-archive:${MCE_OPERATOR_BUNDLE_FILE}
 	rm -rf ${MCE_CHART_DIR}
 	go run ../tooling/olm-bundle-repkg/main.go \
 		--crd-chart-name multicluster-engine-crds \
