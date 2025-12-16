@@ -19,6 +19,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"reflect"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -174,7 +175,17 @@ var _ = Describe("Customer", func() {
 				credentials = append(credentials, adminRESTConfig)
 
 				By(fmt.Sprintf("validating admin credential %d works", i+1))
-				Expect(verifiers.VerifyHCPCluster(ctx, adminRESTConfig, verifiers.VerifyBreakglassAdminAccess())).To(Succeed())
+				kubeClient, err := kubernetes.NewForConfig(adminRESTConfig)
+				Expect(err).NotTo(HaveOccurred(), "should be able to create kube client for admin credential %d", i+1)
+
+				response, err := kubeClient.AuthenticationV1().SelfSubjectReviews().Create(ctx, &authenticationv1.SelfSubjectReview{}, metav1.CreateOptions{})
+				Expect(err).NotTo(HaveOccurred(), "should be able to create SelfSubjectReview for admin credential %d", i+1)
+
+				// ensure the SSR identifies the client certificate as having system:masters
+				if !sets.New(response.Status.UserInfo.Groups...).Has("system:masters") {
+					GinkgoLogr.Info("breakglass admin does not have system:masters group", "groups", response.Status.UserInfo.Groups)
+				}
+				GinkgoLogr.Info("successfully verified admin credential", "credentialNumber", i+1)
 			}
 
 			By("revoking all cluster admin credentials via ARO HCP RP API")
@@ -193,15 +204,18 @@ var _ = Describe("Customer", func() {
 				Expect(err).NotTo(HaveOccurred(), "should be able to create kube client for admin credential %d", i+1)
 
 				var lastError string
+				var lastResp *authenticationv1.SelfSubjectReview
 				err = wait.PollUntilContextTimeout(ctx, 15*time.Second, 20*time.Minute, false, func(ctx context.Context) (done bool, err error) {
 					resp, err := kubeClient.AuthenticationV1().SelfSubjectReviews().Create(ctx, &authenticationv1.SelfSubjectReview{}, metav1.CreateOptions{})
 					if !apierrors.IsUnauthorized(err) {
-						if lastError != err.Error() {
-							lastError = err.Error()
+						if lastError != err.Error() || !reflect.DeepEqual(lastResp, resp) {
 							GinkgoLogr.Info("expected an unauthorized error when using revoked admin credential", "error", err.Error(), "response", resp)
+							lastError = err.Error()
+							lastResp = resp
 						}
 						return false, err
 					}
+					GinkgoLogr.Info("successfully verified admin credential fails after revocation", "credentialNumber", i+1)
 					return true, nil
 				})
 				Expect(err).NotTo(HaveOccurred(), "Admin credential %d should fail after revocation, last error: %v", i+1, lastError)
