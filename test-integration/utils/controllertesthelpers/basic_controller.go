@@ -1,3 +1,17 @@
+// Copyright 2025 Microsoft Corporation
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package controllertesthelpers
 
 import (
@@ -8,12 +22,14 @@ import (
 	"path"
 	"testing"
 
+	"github.com/neilotoole/slogt"
+	"github.com/stretchr/testify/require"
+
 	"github.com/Azure/ARO-HCP/backend/controllers"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/test-integration/utils/databasemutationhelpers"
 	"github.com/Azure/ARO-HCP/test-integration/utils/integrationutils"
-	"github.com/stretchr/testify/require"
 )
 
 type ControllerInitializerFunc func(ctx context.Context, t *testing.T, cosmosClient database.DBClient) (controller controllers.Controller, testMemory map[string]any)
@@ -40,13 +56,14 @@ func (tc *BasicControllerTest) RunTest(t *testing.T) {
 	testDir, err := fs.Sub(tc.ArtifactDir, tc.Name)
 	require.NoError(t, err)
 
+	ctx = utils.ContextWithLogger(ctx, slogt.New(t, slogt.JSON()))
 	logger := utils.LoggerFromContext(ctx)
 	logger = tc.ControllerKey.AddLoggerValues(logger)
 	ctx = utils.ContextWithLogger(ctx, logger)
 
 	cosmosTestInfo, err := integrationutils.NewCosmosFromTestingEnv(ctx)
 	require.NoError(t, err)
-	defer cosmosTestInfo.Cleanup(context.Background())
+	defer cosmosTestInfo.Cleanup(utils.ContextWithLogger(context.Background(), slogt.New(t, slogt.JSON())))
 
 	initialState, err := fs.Sub(testDir, path.Join("00-load-initial-state"))
 	require.NoError(t, err)

@@ -24,10 +24,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
 	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 type ResourceMutationTest struct {
