@@ -85,6 +85,14 @@ type NodePoolParams struct {
 	OSDiskSizeGiB          int32
 	DiskStorageAccountType string
 	ChannelGroup           string
+	// AutoScaling enables nodepool autoscaling. When set, Replicas is ignored.
+	AutoScaling *NodePoolAutoScalingParams
+}
+
+// NodePoolAutoScalingParams contains min/max node counts for nodepool autoscaling
+type NodePoolAutoScalingParams struct {
+	Min int32
+	Max int32
 }
 
 func NewDefaultNodePoolParams() NodePoolParams {
