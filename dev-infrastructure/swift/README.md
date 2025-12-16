@@ -6,7 +6,7 @@ The sal_env_vars script stores some basic configuration that is specific to the 
 
 NOTE: Yes when you start creating the SAL, PotNetwork etc you will get logged in and out of Azure becuase we're switching between the mock 1p and the dev sub
 
-You need to create a cluster in dev with the correct vnet tag, instance types and agent pool flags. This can be done with the following; 
+You need to create a cluster in dev with the correct vnet tag, instance types and agent pool flags. This can be done with the following;
 
 `DEPLOY_ENV=swft make entrypoint/Region`
 
@@ -49,11 +49,11 @@ You need to create a cluster in dev with the correct vnet tag, instance types an
 
 6. Create labels on kube-apiserver pods (this is an example not the solution)
 
-`./05_create_labels_kube_api.sh.sh <ocm namespace>`
+`./05_create_labels_kube_api.sh <ocm namespace>`
 
 7. Validate multitenantpodnetworkconfig CR which should show status with interface details
 
-`./06_validate_mtpnc.sh`
+`./06_validate_mtpnc.sh <ocm namespace>`
 
 Note: You cannot delete the the mtpnc or pni until all IP's have been released. This happens when the linked pods (kube-api server in this example) are deleted. This section needs to be extended.
 

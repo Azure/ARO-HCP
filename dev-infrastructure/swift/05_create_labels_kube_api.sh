@@ -15,4 +15,4 @@ elif [ $# -eq 1 ]; then
   NAMESPACE=$1
 fi
 
-kubectl get pods --selector=app=kube-apiserver -n $NAMESPACE --no-headers | awk '{print $1}' | xargs -I {} kubectl label pod {} kubernetes.azure.com/pod-network-instance=pni1 -n $NAMESPACE
+kubectl -n $NAMESPACE patch deployment kube-apiserver -p '{"spec":{"template":{"metadata":{"labels":{"kubernetes.azure.com/pod-network-instance":"pni1"}}}}}'
