@@ -40,6 +40,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 func NewCosmosFromTestingEnv(ctx context.Context) (*CosmosIntegrationTestInfo, error) {
@@ -67,7 +68,29 @@ func NewCosmosFromTestingEnv(ctx context.Context) (*CosmosIntegrationTestInfo, e
 	return testInfo, nil
 }
 
-func CreateInitialCosmosContent(ctx context.Context, cosmosContainer *azcosmos.ContainerClient, content []byte) error {
+func LoadCosmosContentFromFS(ctx context.Context, cosmosContainer *azcosmos.ContainerClient, stepDir fs.FS, filterFn func(fs.DirEntry) bool) error {
+	testContent, err := fs.ReadDir(stepDir, ".")
+	if err != nil {
+		return utils.TrackError(err)
+	}
+	for _, dirEntry := range testContent {
+		if filterFn != nil && !filterFn(dirEntry) {
+			continue
+		}
+
+		content, err := fs.ReadFile(stepDir, dirEntry.Name())
+		if err != nil {
+			return utils.TrackError(err)
+		}
+		if err := LoadCosmosContent(ctx, cosmosContainer, content); err != nil {
+			return utils.TrackError(err)
+		}
+	}
+
+	return nil
+}
+
+func LoadCosmosContent(ctx context.Context, cosmosContainer *azcosmos.ContainerClient, content []byte) error {
 	contentMap := map[string]any{}
 	if err := json.Unmarshal(content, &contentMap); err != nil {
 		return fmt.Errorf("failed to unmarshal content: %w", err)
@@ -311,7 +334,7 @@ func (s *CosmosIntegrationTestInfo) CreateInitialCosmosContent(ctx context.Conte
 }
 
 func (s *CosmosIntegrationTestInfo) createInitialCosmosContent(ctx context.Context, content []byte) error {
-	return CreateInitialCosmosContent(ctx, s.CosmosResourcesContainer(), content)
+	return LoadCosmosContent(ctx, s.CosmosResourcesContainer(), content)
 }
 
 func createCosmosClientFromEnv() (*azcosmos.Client, error) {

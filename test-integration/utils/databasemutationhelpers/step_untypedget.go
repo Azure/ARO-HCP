@@ -32,7 +32,7 @@ import (
 )
 
 type untypedGetStep struct {
-	stepID      stepID
+	stepID      StepID
 	key         UntypedCRUDKey
 	specializer ResourceCRUDTestSpecializer[database.TypedDocument]
 
@@ -41,7 +41,7 @@ type untypedGetStep struct {
 	expectedError    string
 }
 
-func newUntypedGetStep(stepID stepID, cosmosContainer *azcosmos.ContainerClient, stepDir fs.FS) (*untypedGetStep, error) {
+func newUntypedGetStep(stepID StepID, cosmosContainer *azcosmos.ContainerClient, stepDir fs.FS) (*untypedGetStep, error) {
 	keyBytes, err := fs.ReadFile(stepDir, "00-key.json")
 	if err != nil {
 		return nil, fmt.Errorf("failed to read key.json: %w", err)
@@ -84,9 +84,9 @@ func newUntypedGetStep(stepID stepID, cosmosContainer *azcosmos.ContainerClient,
 	}, nil
 }
 
-var _ resourceMutationStep = &untypedGetStep{}
+var _ IntegrationTestStep = &untypedGetStep{}
 
-func (l *untypedGetStep) StepID() stepID {
+func (l *untypedGetStep) StepID() StepID {
 	return l.stepID
 }
 

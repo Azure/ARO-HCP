@@ -39,7 +39,7 @@ type UntypedDeleteKey struct {
 }
 
 type untypedDeleteStep struct {
-	stepID      stepID
+	stepID      StepID
 	key         UntypedDeleteKey
 	specializer ResourceCRUDTestSpecializer[database.TypedDocument]
 
@@ -47,7 +47,7 @@ type untypedDeleteStep struct {
 	expectedError   string
 }
 
-func newUntypedDeleteStep(stepID stepID, cosmosContainer *azcosmos.ContainerClient, stepDir fs.FS) (*untypedDeleteStep, error) {
+func newUntypedDeleteStep(stepID StepID, cosmosContainer *azcosmos.ContainerClient, stepDir fs.FS) (*untypedDeleteStep, error) {
 	keyBytes, err := fs.ReadFile(stepDir, "00-key.json")
 	if err != nil {
 		return nil, fmt.Errorf("failed to read key.json: %w", err)
@@ -72,9 +72,9 @@ func newUntypedDeleteStep(stepID stepID, cosmosContainer *azcosmos.ContainerClie
 	}, nil
 }
 
-var _ resourceMutationStep = &untypedDeleteStep{}
+var _ IntegrationTestStep = &untypedDeleteStep{}
 
-func (l *untypedDeleteStep) StepID() stepID {
+func (l *untypedDeleteStep) StepID() StepID {
 	return l.stepID
 }
 

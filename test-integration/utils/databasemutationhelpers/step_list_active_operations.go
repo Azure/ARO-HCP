@@ -31,14 +31,14 @@ import (
 )
 
 type listActiveOperationsStep struct {
-	stepID stepID
+	stepID StepID
 	key    CosmosCRUDKey
 
 	cosmosContainer    *azcosmos.ContainerClient
 	expectedOperations []*api.Operation
 }
 
-func newListActiveOperationsStep(stepID stepID, cosmosContainer *azcosmos.ContainerClient, stepDir fs.FS) (*listActiveOperationsStep, error) {
+func newListActiveOperationsStep(stepID StepID, cosmosContainer *azcosmos.ContainerClient, stepDir fs.FS) (*listActiveOperationsStep, error) {
 	keyBytes, err := fs.ReadFile(stepDir, "00-key.json")
 	if err != nil {
 		return nil, fmt.Errorf("failed to read key.json: %w", err)
@@ -61,9 +61,9 @@ func newListActiveOperationsStep(stepID stepID, cosmosContainer *azcosmos.Contai
 	}, nil
 }
 
-var _ resourceMutationStep = &listActiveOperationsStep{}
+var _ IntegrationTestStep = &listActiveOperationsStep{}
 
-func (l *listActiveOperationsStep) StepID() stepID {
+func (l *listActiveOperationsStep) StepID() StepID {
 	return l.stepID
 }
 

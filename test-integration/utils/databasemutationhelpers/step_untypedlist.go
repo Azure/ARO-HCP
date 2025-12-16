@@ -30,7 +30,7 @@ import (
 )
 
 type untypedListStep struct {
-	stepID      stepID
+	stepID      StepID
 	key         UntypedCRUDKey
 	specializer ResourceCRUDTestSpecializer[database.TypedDocument]
 
@@ -38,7 +38,7 @@ type untypedListStep struct {
 	expectedResources []*database.TypedDocument
 }
 
-func newUntypedListStep(stepID stepID, cosmosContainer *azcosmos.ContainerClient, stepDir fs.FS) (*untypedListStep, error) {
+func newUntypedListStep(stepID StepID, cosmosContainer *azcosmos.ContainerClient, stepDir fs.FS) (*untypedListStep, error) {
 	keyBytes, err := fs.ReadFile(stepDir, "00-key.json")
 	if err != nil {
 		return nil, fmt.Errorf("failed to read key.json: %w", err)
@@ -62,9 +62,9 @@ func newUntypedListStep(stepID stepID, cosmosContainer *azcosmos.ContainerClient
 	}, nil
 }
 
-var _ resourceMutationStep = &untypedListStep{}
+var _ IntegrationTestStep = &untypedListStep{}
 
-func (l *untypedListStep) StepID() stepID {
+func (l *untypedListStep) StepID() StepID {
 	return l.stepID
 }
 

@@ -33,11 +33,11 @@ type ResourceMutationTest struct {
 	testDir         fs.FS
 	cosmosContainer *azcosmos.ContainerClient
 
-	steps []resourceMutationStep
+	steps []IntegrationTestStep
 }
 
-type resourceMutationStep interface {
-	StepID() stepID
+type IntegrationTestStep interface {
+	StepID() StepID
 	RunTest(ctx context.Context, t *testing.T)
 }
 
@@ -53,8 +53,8 @@ func NewResourceMutationTest[InternalAPIType any](ctx context.Context, specializ
 	}, nil
 }
 
-func readSteps[InternalAPIType any](ctx context.Context, testDir fs.FS, specializer ResourceCRUDTestSpecializer[InternalAPIType], cosmosContainer *azcosmos.ContainerClient) ([]resourceMutationStep, error) {
-	steps := []resourceMutationStep{}
+func readSteps[InternalAPIType any](ctx context.Context, testDir fs.FS, specializer ResourceCRUDTestSpecializer[InternalAPIType], cosmosContainer *azcosmos.ContainerClient) ([]IntegrationTestStep, error) {
+	steps := []IntegrationTestStep{}
 
 	testContent := api.Must(fs.ReadDir(testDir, "."))
 	for _, dirEntry := range testContent {
@@ -89,12 +89,12 @@ func (tt *ResourceMutationTest) RunTest(t *testing.T) {
 	}
 }
 
-func newStep[InternalAPIType any](indexString, stepType, stepName string, testDir fs.FS, path string, specializer ResourceCRUDTestSpecializer[InternalAPIType], cosmosContainer *azcosmos.ContainerClient) (resourceMutationStep, error) {
+func newStep[InternalAPIType any](indexString, stepType, stepName string, testDir fs.FS, path string, specializer ResourceCRUDTestSpecializer[InternalAPIType], cosmosContainer *azcosmos.ContainerClient) (IntegrationTestStep, error) {
 	itoInt, err := strconv.Atoi(indexString)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert %s to int: %w", indexString, err)
 	}
-	stepID := stepID{index: itoInt, stepType: stepType, stepName: stepName}
+	stepID := StepID{index: itoInt, stepType: stepType, stepName: stepName}
 	stepDir, err := fs.Sub(testDir, path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read %s: %w", path, err)
@@ -102,7 +102,7 @@ func newStep[InternalAPIType any](indexString, stepType, stepName string, testDi
 
 	switch stepType {
 	case "load":
-		return newLoadStep(stepID, cosmosContainer, stepDir)
+		return NewLoadStep(stepID, cosmosContainer, stepDir)
 
 	case "create":
 		return newCreateStep(stepID, specializer, cosmosContainer, stepDir)
@@ -142,17 +142,21 @@ func newStep[InternalAPIType any](indexString, stepType, stepName string, testDi
 	}
 }
 
-type stepID struct {
+type StepID struct {
 	index    int
 	stepType string
 	stepName string
 }
 
-func (s stepID) String() string {
+func NewStepID(index int) StepID {
+	return StepID{index: index}
+}
+
+func (s StepID) String() string {
 	return fmt.Sprintf("%d-%s-%s", s.index, s.stepType, s.stepName)
 }
 
-type byIndex []resourceMutationStep
+type byIndex []IntegrationTestStep
 
 func (s byIndex) Len() int           { return len(s) }
 func (s byIndex) Less(i, j int) bool { return s[i].StepID().index < s[j].StepID().index }

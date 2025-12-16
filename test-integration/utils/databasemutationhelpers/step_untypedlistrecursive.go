@@ -41,7 +41,7 @@ type UntypedChild struct {
 }
 
 type untypedListRecursiveStep struct {
-	stepID      stepID
+	stepID      StepID
 	key         UntypedCRUDKey
 	specializer ResourceCRUDTestSpecializer[database.TypedDocument]
 
@@ -49,7 +49,7 @@ type untypedListRecursiveStep struct {
 	expectedResources []*database.TypedDocument
 }
 
-func newUntypedListRecursiveStep(stepID stepID, cosmosContainer *azcosmos.ContainerClient, stepDir fs.FS) (*untypedListRecursiveStep, error) {
+func newUntypedListRecursiveStep(stepID StepID, cosmosContainer *azcosmos.ContainerClient, stepDir fs.FS) (*untypedListRecursiveStep, error) {
 	keyBytes, err := fs.ReadFile(stepDir, "00-key.json")
 	if err != nil {
 		return nil, fmt.Errorf("failed to read key.json: %w", err)
@@ -73,9 +73,9 @@ func newUntypedListRecursiveStep(stepID stepID, cosmosContainer *azcosmos.Contai
 	}, nil
 }
 
-var _ resourceMutationStep = &untypedListRecursiveStep{}
+var _ IntegrationTestStep = &untypedListRecursiveStep{}
 
-func (l *untypedListRecursiveStep) StepID() stepID {
+func (l *untypedListRecursiveStep) StepID() StepID {
 	return l.stepID
 }
 

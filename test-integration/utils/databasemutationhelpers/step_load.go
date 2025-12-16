@@ -29,13 +29,13 @@ import (
 )
 
 type loadStep struct {
-	stepID stepID
+	stepID StepID
 
 	cosmosContainer *azcosmos.ContainerClient
 	contents        [][]byte
 }
 
-func newLoadStep(stepID stepID, cosmosContainer *azcosmos.ContainerClient, stepDir fs.FS) (*loadStep, error) {
+func NewLoadStep(stepID StepID, cosmosContainer *azcosmos.ContainerClient, stepDir fs.FS) (*loadStep, error) {
 
 	contents := [][]byte{}
 	testContent := api.Must(fs.ReadDir(stepDir, "."))
@@ -61,15 +61,15 @@ func newLoadStep(stepID stepID, cosmosContainer *azcosmos.ContainerClient, stepD
 	}, nil
 }
 
-var _ resourceMutationStep = &loadStep{}
+var _ IntegrationTestStep = &loadStep{}
 
-func (l *loadStep) StepID() stepID {
+func (l *loadStep) StepID() StepID {
 	return l.stepID
 }
 
 func (l *loadStep) RunTest(ctx context.Context, t *testing.T) {
 	for _, content := range l.contents {
-		err := integrationutils.CreateInitialCosmosContent(ctx, l.cosmosContainer, content)
+		err := integrationutils.LoadCosmosContent(ctx, l.cosmosContainer, content)
 		require.NoError(t, err, "failed to load cosmos content: %v", string(content))
 	}
 }

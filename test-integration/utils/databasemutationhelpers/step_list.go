@@ -27,7 +27,7 @@ import (
 )
 
 type listStep[InternalAPIType any] struct {
-	stepID      stepID
+	stepID      StepID
 	key         CosmosCRUDKey
 	specializer ResourceCRUDTestSpecializer[InternalAPIType]
 
@@ -35,7 +35,7 @@ type listStep[InternalAPIType any] struct {
 	expectedResources []*InternalAPIType
 }
 
-func newListStep[InternalAPIType any](stepID stepID, specializer ResourceCRUDTestSpecializer[InternalAPIType], cosmosContainer *azcosmos.ContainerClient, stepDir fs.FS) (*listStep[InternalAPIType], error) {
+func newListStep[InternalAPIType any](stepID StepID, specializer ResourceCRUDTestSpecializer[InternalAPIType], cosmosContainer *azcosmos.ContainerClient, stepDir fs.FS) (*listStep[InternalAPIType], error) {
 	keyBytes, err := fs.ReadFile(stepDir, "00-key.json")
 	if err != nil {
 		return nil, fmt.Errorf("failed to read key.json: %w", err)
@@ -59,9 +59,9 @@ func newListStep[InternalAPIType any](stepID stepID, specializer ResourceCRUDTes
 	}, nil
 }
 
-var _ resourceMutationStep = &listStep[any]{}
+var _ IntegrationTestStep = &listStep[any]{}
 
-func (l *listStep[InternalAPIType]) StepID() stepID {
+func (l *listStep[InternalAPIType]) StepID() StepID {
 	return l.stepID
 }
 

@@ -35,7 +35,7 @@ type CosmosDeleteKey struct {
 }
 
 type deleteStep[InternalAPIType any] struct {
-	stepID      stepID
+	stepID      StepID
 	key         CosmosDeleteKey
 	specializer ResourceCRUDTestSpecializer[InternalAPIType]
 
@@ -43,7 +43,7 @@ type deleteStep[InternalAPIType any] struct {
 	expectedError   string
 }
 
-func newDeleteStep[InternalAPIType any](stepID stepID, specializer ResourceCRUDTestSpecializer[InternalAPIType], cosmosContainer *azcosmos.ContainerClient, stepDir fs.FS) (*deleteStep[InternalAPIType], error) {
+func newDeleteStep[InternalAPIType any](stepID StepID, specializer ResourceCRUDTestSpecializer[InternalAPIType], cosmosContainer *azcosmos.ContainerClient, stepDir fs.FS) (*deleteStep[InternalAPIType], error) {
 	keyBytes, err := fs.ReadFile(stepDir, "00-key.json")
 	if err != nil {
 		return nil, fmt.Errorf("failed to read key.json: %w", err)
@@ -68,9 +68,9 @@ func newDeleteStep[InternalAPIType any](stepID stepID, specializer ResourceCRUDT
 	}, nil
 }
 
-var _ resourceMutationStep = &deleteStep[any]{}
+var _ IntegrationTestStep = &deleteStep[any]{}
 
-func (l *deleteStep[InternalAPIType]) StepID() stepID {
+func (l *deleteStep[InternalAPIType]) StepID() StepID {
 	return l.stepID
 }
 
