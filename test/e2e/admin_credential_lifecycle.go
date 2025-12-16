@@ -84,6 +84,7 @@ var _ = Describe("Customer", func() {
 
 			_, err = framework.BeginCreateHCPCluster(
 				deploymentCtx,
+				GinkgoLogr,
 				clusterClient,
 				*resourceGroup.Name,
 				clusterName,
