@@ -24,7 +24,12 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
+	authenticationv1 "k8s.io/api/authentication/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/rand"
+	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
@@ -169,7 +174,7 @@ var _ = Describe("Customer", func() {
 				credentials = append(credentials, adminRESTConfig)
 
 				By(fmt.Sprintf("validating admin credential %d works", i+1))
-				Expect(verifiers.VerifyHCPCluster(ctx, adminRESTConfig)).To(Succeed())
+				Expect(verifiers.VerifyHCPCluster(ctx, adminRESTConfig, verifiers.VerifyBreakglassAdminAccess())).To(Succeed())
 			}
 
 			By("revoking all cluster admin credentials via ARO HCP RP API")
@@ -184,7 +189,22 @@ var _ = Describe("Customer", func() {
 			for i, cred := range credentials {
 				By(fmt.Sprintf("verifying admin credential %d now fails", i+1))
 				// TODO(bvesel) remove once OCPBUGS-62177 is implemented
-				Eventually(verifiers.VerifyHCPCluster(ctx, cred), 20*time.Minute, 15*time.Second).ToNot(Succeed(), "Revoked admin credential %d should no longer work", i+1)
+				kubeClient, err := kubernetes.NewForConfig(cred)
+				Expect(err).NotTo(HaveOccurred(), "should be able to create kube client for admin credential %d", i+1)
+
+				var lastError string
+				err = wait.PollUntilContextTimeout(ctx, 15*time.Second, 20*time.Minute, false, func(ctx context.Context) (done bool, err error) {
+					resp, err := kubeClient.AuthenticationV1().SelfSubjectReviews().Create(ctx, &authenticationv1.SelfSubjectReview{}, metav1.CreateOptions{})
+					if !apierrors.IsUnauthorized(err) {
+						if lastError != err.Error() {
+							lastError = err.Error()
+							GinkgoLogr.Info("expected an unauthorized error when using revoked admin credential", "error", err.Error(), "response", resp)
+						}
+						return false, err
+					}
+					return true, nil
+				})
+				Expect(err).NotTo(HaveOccurred(), "Admin credential %d should fail after revocation, last error: %v", i+1, lastError)
 			}
 
 			By("verifying new admin credentials can still be requested after revocation")

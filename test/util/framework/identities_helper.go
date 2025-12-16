@@ -164,9 +164,8 @@ func (tc *perItOrDescribeTestContext) DeployManagedIdentities(
 	}
 
 	usePooled := tc.UsePooledIdentities()
-
-	var msiRGName string
-	var identities Identities
+	msiRGName := cfg.resourceGroup
+	identities := NewDefaultIdentities()
 
 	if usePooled {
 		msiPool, err := tc.getLeasedIdentities()
@@ -175,20 +174,17 @@ func (tc *perItOrDescribeTestContext) DeployManagedIdentities(
 		}
 		msiRGName = msiPool.ResourceGroupName
 		identities = msiPool.Identities
-	} else {
-		msiRGName = cfg.resourceGroup
-		identities = NewDefaultIdentities()
 	}
 
 	parameters := map[string]interface{}{
-		"clusterResourceGroupName": cfg.resourceGroup,
-		"msiResourceGroupName":     msiRGName,
-		"useMsiPool":               usePooled,
-		"identities":               identities,
 		"nsgName":                  cfg.parameters["nsgName"],
 		"vnetName":                 cfg.parameters["vnetName"],
 		"subnetName":               cfg.parameters["subnetName"],
 		"keyVaultName":             cfg.parameters["keyVaultName"],
+		"useMsiPool":               usePooled,
+		"clusterResourceGroupName": cfg.resourceGroup,
+		"msiResourceGroupName":     msiRGName,
+		"identities":               identities,
 	}
 
 	deploymentResult, err := tc.CreateBicepTemplateAndWait(ctx,
