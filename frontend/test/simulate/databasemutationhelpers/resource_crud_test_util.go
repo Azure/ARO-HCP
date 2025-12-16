@@ -73,7 +73,7 @@ func readSteps[InternalAPIType any](ctx context.Context, testDir fs.FS, speciali
 
 		testStep, err := newStep(index, stepType, stepName, testDir, dirEntry.Name(), specializer, cosmosContainer)
 		if err != nil {
-			return nil, fmt.Errorf("failed to upsert step %q: %w", dirEntry.Name(), err)
+			return nil, fmt.Errorf("failed to create new step %q: %w", dirEntry.Name(), err)
 		}
 		steps = append(steps, testStep)
 	}
@@ -125,8 +125,17 @@ func newStep[InternalAPIType any](indexString, stepType, stepName string, testDi
 	case "listActiveOperations":
 		return newListActiveOperationsStep(stepID, cosmosContainer, stepDir)
 
+	case "untypedListRecursive":
+		return newUntypedListRecursiveStep(stepID, cosmosContainer, stepDir)
+
 	case "untypedList":
 		return newUntypedListStep(stepID, cosmosContainer, stepDir)
+
+	case "delete":
+		return newDeleteStep(stepID, specializer, cosmosContainer, stepDir)
+
+	case "untypedDelete":
+		return newUntypedDeleteStep(stepID, cosmosContainer, stepDir)
 
 	default:
 		return nil, fmt.Errorf("unknown step type: %s", stepType)

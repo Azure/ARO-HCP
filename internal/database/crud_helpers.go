@@ -122,7 +122,7 @@ func get[InternalAPIType, CosmosAPIType any](ctx context.Context, containerClien
 	return internalObj, nil
 }
 
-func list[InternalAPIType, CosmosAPIType any](ctx context.Context, containerClient *azcosmos.ContainerClient, partitionKeyString string, resourceType *azcorearm.ResourceType, prefix *azcorearm.ResourceID, options *DBClientListResourceDocsOptions) (DBClientIterator[InternalAPIType], error) {
+func list[InternalAPIType, CosmosAPIType any](ctx context.Context, containerClient *azcosmos.ContainerClient, partitionKeyString string, resourceType *azcorearm.ResourceType, prefix *azcorearm.ResourceID, options *DBClientListResourceDocsOptions, untypedNonRecursive bool) (DBClientIterator[InternalAPIType], error) {
 	if strings.ToLower(partitionKeyString) != partitionKeyString {
 		return nil, fmt.Errorf("partitionKeyString must be lowercase, not: %q", partitionKeyString)
 	}
@@ -146,6 +146,19 @@ func list[InternalAPIType, CosmosAPIType any](ctx context.Context, containerClie
 			Value: resourceType.String(),
 		}
 		queryOptions.QueryParameters = append(queryOptions.QueryParameters, queryParameter)
+	}
+
+	if untypedNonRecursive {
+		// resourceIDs are /subscriptions/<name>/resourceGroups/<name>/providers/RH/type[0]/<name>/type[1]/<name.../type[n]/<name>
+		// if we count the slashes, then a non-recursive list should only include resource ID that have numSlashesInPrefix+2 for most
+		requiredNumSlashes := strings.Count(prefix.String(), "/") + 2
+		if strings.EqualFold(prefix.ResourceType.Type, "resourceGroups") {
+			// if it's a resourceGroup, then we need to add four to select clusters
+			requiredNumSlashes = strings.Count(prefix.String(), "/") + 4
+		}
+
+		// no sql injection risk because it's an int we control
+		query += fmt.Sprintf(" AND (LENGTH(c.properties.resourceId) - LENGTH(REPLACE(c.properties.resourceId, '/', ''))) = %d", requiredNumSlashes)
 	}
 
 	if options != nil {
@@ -308,4 +321,20 @@ func replace[InternalAPIType, CosmosAPIType any](ctx context.Context, containerC
 	}
 
 	return internalObj, nil
+}
+
+func deleteResource(ctx context.Context, containerClient *azcosmos.ContainerClient, partitionKeyString string, resourceID *azcorearm.ResourceID) error {
+	typedObj, err := get[TypedDocument, TypedDocument](ctx, containerClient, partitionKeyString, resourceID)
+	if IsResponseError(err, http.StatusNotFound) {
+		return nil
+	}
+	if err != nil {
+		return utils.TrackError(err)
+	}
+
+	_, err = containerClient.DeleteItem(ctx, azcosmos.NewPartitionKeyString(partitionKeyString), typedObj.ID, nil)
+	if err != nil {
+		return utils.TrackError(err)
+	}
+	return nil
 }

@@ -129,20 +129,6 @@ type DBClient interface {
 	// the updated document.
 	PatchResourceDoc(ctx context.Context, resourceID *azcorearm.ResourceID, ops ResourceDocumentPatchOperations) (*ResourceDocument, error)
 
-	// DeleteResourceDoc deletes a cluster or node pool document in the "Resources" container.
-	// If no matching document is found, DeleteResourceDoc returns nil as though it had succeeded.
-	DeleteResourceDoc(ctx context.Context, resourceID *azcorearm.ResourceID) error
-
-	// ListResourceDocs returns an iterator that searches for cluster or node pool documents in
-	// the "Resources" container that match the given resource ID prefix. The prefix must include
-	// a subscription ID so the correct partition key can be inferred. The options argument can
-	// further limit the search to documents that match the provided values.
-	//
-	// Note that ListResourceDocs does not perform the search, but merely prepares an iterator to
-	// do so. Hence the lack of a Context argument. The search is performed by calling Items() on
-	// the iterator in a ranged for loop.
-	ListResourceDocs(prefix *azcorearm.ResourceID, options *DBClientListResourceDocsOptions) DBClientIterator[ResourceDocument]
-
 	// GetSubscriptionDoc retrieves a subscription document from the "Resources" container.
 	GetSubscriptionDoc(ctx context.Context, subscriptionID string) (*arm.Subscription, error)
 
@@ -403,66 +389,6 @@ func (d *cosmosDBClient) PatchResourceDoc(ctx context.Context, resourceID *azcor
 	}
 
 	return innerDoc, nil
-}
-
-func (d *cosmosDBClient) DeleteResourceDoc(ctx context.Context, resourceID *azcorearm.ResourceID) error {
-	typedDoc, _, err := d.getResourceDoc(ctx, resourceID)
-	if err != nil {
-		if IsResponseError(err, http.StatusNotFound) {
-			return nil
-		}
-		return err
-	}
-
-	_, err = d.resources.DeleteItem(ctx, typedDoc.getPartitionKey(), typedDoc.ID, nil)
-	if err != nil {
-		return fmt.Errorf("failed to delete Resources container item for '%s': %w", resourceID, err)
-	}
-	return nil
-}
-
-func (d *cosmosDBClient) ListResourceDocs(prefix *azcorearm.ResourceID, options *DBClientListResourceDocsOptions) DBClientIterator[ResourceDocument] {
-	pk := NewPartitionKey(prefix.SubscriptionID)
-
-	query := "SELECT * FROM c WHERE STARTSWITH(c.properties.resourceId, @prefix, true)"
-
-	queryOptions := azcosmos.QueryOptions{
-		PageSizeHint: -1,
-		QueryParameters: []azcosmos.QueryParameter{
-			{
-				Name:  "@prefix",
-				Value: prefix.String() + "/",
-			},
-		},
-	}
-
-	if options != nil {
-		if options.ResourceType != nil {
-			query += " AND STRINGEQUALS(c.resourceType, @resourceType, true)"
-			queryParameter := azcosmos.QueryParameter{
-				Name:  "@resourceType",
-				Value: string(options.ResourceType.String()),
-			}
-			queryOptions.QueryParameters = append(queryOptions.QueryParameters, queryParameter)
-		}
-
-		// XXX The Cosmos DB REST API gives special meaning to -1 for "x-ms-max-item-count"
-		//     but it's not clear if it treats all negative values equivalently. The Go SDK
-		//     passes the PageSizeHint value as provided so normalize negative values to -1
-		//     to be safe.
-		if options.PageSizeHint != nil {
-			queryOptions.PageSizeHint = max(*options.PageSizeHint, -1)
-		}
-		queryOptions.ContinuationToken = options.ContinuationToken
-	}
-
-	pager := d.resources.NewQueryItemsPager(query, pk, &queryOptions)
-
-	if queryOptions.PageSizeHint > 0 {
-		return newQueryItemsSinglePageIterator[ResourceDocument](pager)
-	} else {
-		return newQueryItemsIterator[ResourceDocument](pager)
-	}
 }
 
 func (d *cosmosDBClient) getSubscriptionDoc(ctx context.Context, subscriptionID string) (*TypedDocument, *arm.Subscription, error) {
