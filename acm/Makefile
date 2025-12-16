@@ -27,8 +27,7 @@ policy-helm-chart:
 	./update-policy-chart.sh "${MCE_CONFIG_DIR}/charts/policy"
 
 mce-helm-chart:
-	@podman pull --arch amd64 ${MCE_OPERATOR_BUNDLE_IMAGE}
-	@podman save -o ${MCE_OPERATOR_BUNDLE_FILE} ${MCE_OPERATOR_BUNDLE_IMAGE}
+	@skopeo copy --override-arch amd64 docker://${MCE_OPERATOR_BUNDLE_IMAGE} docker-archive:${MCE_OPERATOR_BUNDLE_FILE}
 	rm -rf ${MCE_CHART_DIR}
 	go run ../tooling/olm-bundle-repkg/main.go \
 		--crd-chart-name multicluster-engine-crds \
