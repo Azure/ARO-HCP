@@ -1919,8 +1919,6 @@ spec:
           value: 'arohcpsvcdev.azurecr.io/acm-d-cache/cluster-image-set-controller-rhel9@sha256:1234567890'
         - name: OPERAND_IMAGE_CLUSTERLIFECYCLE_STATE_METRICS
           value: 'arohcpsvcdev.azurecr.io/acm-d-cache/clusterlifecycle-state-metrics-rhel9@sha256:1234567890'
-        - name: OPERAND_IMAGE_CLUSTER_PROXY_ADDON
-          value: 'arohcpsvcdev.azurecr.io/acm-d-cache/cluster-proxy-addon-rhel9@sha256:1234567890'
         - name: OPERAND_IMAGE_CLUSTER_PROXY
           value: 'arohcpsvcdev.azurecr.io/acm-d-cache/cluster-proxy-rhel9@sha256:1234567890'
         - name: OPERAND_IMAGE_CONSOLE_MCE
@@ -1972,7 +1970,7 @@ spec:
         - name: OPERAND_IMAGE_POSTGRESQL_12
           value: 'arohcpsvcdev.azurecr.io/acm-d-cache/postgresql-12@sha256:1234567890'
         - name: OPERATOR_VERSION
-          value: 2.11.0-117
+          value: 2.11.0-119
         - name: OPERATOR_PACKAGE
           value: multicluster-engine
         image: 'arohcpsvcdev.azurecr.io/acm-d-cache/backplane-rhel9-operator@sha256:1234567890'
