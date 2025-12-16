@@ -191,6 +191,7 @@ shard:
   cxSecretsKeyVaultMiClientId: ""
   maestroRestUrl: ""
   maestroGrpUrl: ""
+  aksManagementClusterResourceId: ""
 # ocm client id
 clientId: "foo"
 # ocm secret
