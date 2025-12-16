@@ -84,7 +84,9 @@ var _ = Describe("Customer", func() {
 
 				Expect(err).NotTo(HaveOccurred())
 
-				err = tc.CreateHCPClusterFromParam(ctx,
+				err = tc.CreateHCPClusterFromParam(
+					ctx,
+					GinkgoLogr,
 					*resourceGroup.Name,
 					clusterParams,
 					45*time.Minute,
@@ -158,7 +160,9 @@ var _ = Describe("Customer", func() {
 				testClusterParams := baseClusterParams
 				testClusterParams.ClusterName = nameCase.clusterName
 
-				err = tc.CreateHCPClusterFromParam(ctx,
+				err = tc.CreateHCPClusterFromParam(
+					ctx,
+					GinkgoLogr,
 					*resourceGroup.Name,
 					testClusterParams,
 					45*time.Minute,

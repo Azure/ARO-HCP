@@ -75,7 +75,9 @@ var _ = Describe("Update HCPOpenShiftCluster", func() {
 				Expect(err).NotTo(HaveOccurred())
 
 				By("creating the HCP cluster")
-				err = tc.CreateHCPClusterFromParam(ctx,
+				err = tc.CreateHCPClusterFromParam(
+					ctx,
+					GinkgoLogr,
 					*resourceGroup.Name,
 					clusterParams,
 					45*time.Minute,
@@ -150,7 +152,9 @@ var _ = Describe("Update HCPOpenShiftCluster", func() {
 				Expect(err).NotTo(HaveOccurred())
 
 				By("creating the HCP cluster")
-				err = tc.CreateHCPClusterFromParam(ctx,
+				err = tc.CreateHCPClusterFromParam(
+					ctx,
+					GinkgoLogr,
 					*resourceGroup.Name,
 					clusterParams,
 					45*time.Minute,

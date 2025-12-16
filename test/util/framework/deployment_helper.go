@@ -22,6 +22,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/go-logr/logr"
+
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
@@ -319,6 +321,7 @@ func ListAllOperations(
 
 func (tc *perItOrDescribeTestContext) CreateHCPClusterFromParam(
 	ctx context.Context,
+	logger logr.Logger,
 	resourceGroupName string,
 	parameters ClusterParams,
 	timeout time.Duration,
@@ -340,6 +343,7 @@ func (tc *perItOrDescribeTestContext) CreateHCPClusterFromParam(
 
 	if _, err := CreateHCPClusterAndWait(
 		ctx,
+		logger,
 		tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 		resourceGroupName,
 		clusterName,
