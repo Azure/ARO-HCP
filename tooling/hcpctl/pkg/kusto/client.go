@@ -27,15 +27,16 @@ import (
 )
 
 type KustoClient interface {
-	ExecutePreconfiguredQuery(ctx context.Context, query *ConfigurableQuery, outputChannel chan<- *table.Row, timeout time.Duration) (*QueryResult, error)
+	ExecutePreconfiguredQuery(ctx context.Context, query *ConfigurableQuery, outputChannel chan<- *table.Row) (*QueryResult, error)
 	Close() error
 }
 
 // Client represents an Azure Data Explorer client for executing queries
 type Client struct {
-	ClusterName string
-	Endpoint    string
-	kustoClient *kusto.Client
+	ClusterName  string
+	Endpoint     string
+	QueryTimeout time.Duration
+	kustoClient  *kusto.Client
 }
 
 var _ KustoClient = &Client{}
@@ -60,7 +61,7 @@ type QueryStats struct {
 }
 
 // NewClient creates a new Azure Data Explorer client
-func NewClient(endpoint string) (*Client, error) {
+func NewClient(endpoint string, queryTimeout time.Duration) (*Client, error) {
 	if endpoint == "" {
 		return nil, fmt.Errorf("cluster endpoint is required")
 	}
@@ -78,14 +79,15 @@ func NewClient(endpoint string) (*Client, error) {
 	}
 
 	return &Client{
-		Endpoint:    endpoint,
-		kustoClient: kustoClient,
+		Endpoint:     endpoint,
+		kustoClient:  kustoClient,
+		QueryTimeout: queryTimeout,
 	}, nil
 }
 
 // ExecutePreconfiguredQuery executes a KQL query against the Azure Data Explorer cluster
-func (c *Client) ExecutePreconfiguredQuery(ctx context.Context, query *ConfigurableQuery, outputChannel chan<- *table.Row, timeout time.Duration) (*QueryResult, error) {
-	queryCtx, cancel := context.WithTimeout(ctx, timeout)
+func (c *Client) ExecutePreconfiguredQuery(ctx context.Context, query *ConfigurableQuery, outputChannel chan<- *table.Row) (*QueryResult, error) {
+	queryCtx, cancel := context.WithTimeout(ctx, c.QueryTimeout)
 	defer cancel()
 
 	logger := logr.FromContextOrDiscard(ctx)
