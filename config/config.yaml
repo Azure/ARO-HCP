@@ -116,7 +116,7 @@ defaults:
     image:
       registry: kubernetesshared.azurecr.io
       repository: shared/kube-events
-      digest: sha256:9d5fa4bc7852bb0a5cf7d892f256c52b457a4e5182318daec6648d8263606edb # 20251214.1 (2025-12-14 03:25)
+      digest: sha256:a6e275cf0ab51fc16a0d2574cd50c46defc005e887821974062335814ee18272 # 20251215.1 (2025-12-15 23:15)
   # Secret Sync Controller
   secretSyncController:
     image:
@@ -667,13 +667,13 @@ defaults:
       bundle:
         registry: quay.io
         repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-216
-        digest: sha256:0ff8926865ca3c39040b6985db2dd4cfb398803b48bc1a3973181ce383ac02cd # v2.16.0-91 (2025-12-15 10:10)
+        digest: sha256:324a2a5b88ad24796591712f006e6960c7fc103b4a089aa092359a5509049c63 # v2.16.0-93 (2025-12-15 22:07)
     mce:
       version: "2.11"
       bundle:
         registry: quay.io
         repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-211
-        digest: sha256:d3f0f0060daa7d9035613ba9ef8591f19039934643b19725f4238469aa0d8d73 # v2.11.0-117 (2025-12-15 04:20)
+        digest: sha256:2b79c0d65e995529404f4f94fe2c1b935215377851829fe1c1a4270fed3ab28b # v2.11.0-119 (2025-12-15 22:05)
   # Cluster Service
   clustersService:
     image:
@@ -877,7 +877,7 @@ clouds:
         agent:
           sidecar:
             image:
-              digest: sha256:c9932f5875ba5e0be70d174dc96f45d5474e77df8fe57ed6327b8d8208ee1635 # 1.25.4-6-azl3.0.20251106 (2025-11-07 03:08)
+              digest: sha256:c925c4dfce3a0140d36073cc66e70567ffa0d82b71033d752d2d7e668637804b # 1.25.4-6-azl3.0.20251206 (2025-12-06 10:21)
       # ACR Pull
       acrPull:
         image:
@@ -892,7 +892,7 @@ clouds:
       clustersService:
         environment: "arohcpdev"
         image:
-          digest: sha256:2f51c98788c688f92d6905977829891a4d6fc586050fbc3f7335f5c9994e6134 # 345fbe7 (2025-12-12 13:51)
+          digest: sha256:f92c708f2706ed72fb9cc776704ce6ba8f9a97d8ae118277947b121e65ff656b # 1c113fd (2025-12-15 09:57)
         azureOperatorsManagedIdentities:
           roleSetName: dev
         azureRuntimeConfig:
