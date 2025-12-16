@@ -50,6 +50,11 @@ var _ = Describe("Customer", func() {
 			clusterName := "admin-cred-lifecycle-" + rand.String(6)
 			tc := framework.NewTestContext()
 
+			if tc.UsePooledIdentities() {
+				err := tc.AssignIdentityContainers(ctx, 1, 60*time.Second)
+				Expect(err).NotTo(HaveOccurred())
+			}
+
 			By("creating resource group for admin credential lifecycle testing")
 			resourceGroup, err := tc.NewResourceGroup(ctx, "admin-credential-lifecycle-test", tc.Location())
 			Expect(err).NotTo(HaveOccurred())

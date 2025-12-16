@@ -28,6 +28,7 @@ import (
 	g "github.com/openshift-eng/openshift-tests-extension/pkg/ginkgo"
 
 	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/cleanup"
 	customlinktools "github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/custom-link-tools"
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/visualize"
 	"github.com/Azure/ARO-HCP/test/util/labels"
@@ -104,7 +105,6 @@ func main() {
 	// and AfterAll. "Each" functions must be thread safe.
 	//
 	// specs.AddBeforeAll(func() {
-	// 	initializeTestFramework()
 	// })
 	//
 	// specs.AddBeforeEach(func(spec ExtensionTestSpec) {
@@ -169,7 +169,7 @@ func main() {
 	}
 
 	root.AddCommand(cmd.DefaultExtensionCommands(registry)...)
-	root.AddCommand(newCleanupCommand())
+	root.AddCommand(cleanup.NewCommand())
 	root.AddCommand(api.Must(visualize.NewCommand()))
 	root.AddCommand(api.Must(customlinktools.NewCommand()))
 

@@ -48,6 +48,11 @@ var _ = Describe("Customer", func() {
 			clusterName := testingPrefix + rand.String(6)
 			tc := framework.NewTestContext()
 
+			if tc.UsePooledIdentities() {
+				err := tc.AssignIdentityContainers(ctx, 1, 60*time.Second)
+				Expect(err).NotTo(HaveOccurred())
+			}
+
 			By("creating resource group for the HCP cluster")
 			resourceGroup, err := tc.NewResourceGroup(ctx, testingPrefix, tc.Location())
 			Expect(err).NotTo(HaveOccurred())
@@ -61,9 +66,18 @@ var _ = Describe("Customer", func() {
 			err = json.Unmarshal(templateBytes, &bicepTemplateMap)
 			Expect(err).NotTo(HaveOccurred())
 
+			identities, usePooled, err := tc.ResolveIdentitiesForTemplate(*resourceGroup.Name)
+			Expect(err).NotTo(HaveOccurred())
+
 			bicepParameters := map[string]interface{}{
 				"clusterName": map[string]interface{}{
 					"value": clusterName,
+				},
+				"identities": map[string]interface{}{
+					"value": identities,
+				},
+				"usePooledIdentities": map[string]interface{}{
+					"value": usePooled,
 				},
 			}
 

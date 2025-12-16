@@ -16,12 +16,11 @@ package framework
 
 import (
 	"context"
+	"embed"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
-
-	"github.com/davecgh/go-spew/spew"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
@@ -84,29 +83,120 @@ func GetOutputValueBytes(deploymentInfo *armresources.DeploymentExtended, output
 	return bytes, nil
 }
 
-// CreateBicepTemplateAndWait creates a Bicep template deployment in the specified resource group and waits for completion.
+type bicepDeploymentScope int
+
+const (
+	// BicepDeploymentScopeResourceGroup deploys into a specific resource group.
+	BicepDeploymentScopeResourceGroup bicepDeploymentScope = iota
+	// BicepDeploymentScopeSubscription deploys at subscription scope.
+	BicepDeploymentScopeSubscription
+)
+
+type bicepDeploymentConfig struct {
+	scope            bicepDeploymentScope
+	resourceGroup    string
+	deploymentName   string
+	parameters       map[string]interface{}
+	timeout          time.Duration
+	debugDetailLevel string
+	location         string
+	template         []byte
+}
+
+type BicepDeploymentOption func(*bicepDeploymentConfig)
+
+func WithDeploymentName(name string) BicepDeploymentOption {
+	return func(cfg *bicepDeploymentConfig) {
+		cfg.deploymentName = name
+	}
+}
+
+func WithScope(scope bicepDeploymentScope) BicepDeploymentOption {
+	return func(cfg *bicepDeploymentConfig) {
+		cfg.scope = scope
+	}
+}
+
+func WithClusterResourceGroup(resourceGroupName string) BicepDeploymentOption {
+	return func(cfg *bicepDeploymentConfig) {
+		cfg.resourceGroup = resourceGroupName
+	}
+}
+
+func WithParameters(parameters map[string]interface{}) BicepDeploymentOption {
+	return func(cfg *bicepDeploymentConfig) {
+		cfg.parameters = parameters
+	}
+}
+
+func WithTimeout(timeout time.Duration) BicepDeploymentOption {
+	return func(cfg *bicepDeploymentConfig) {
+		cfg.timeout = timeout
+	}
+}
+
+func WithDebugDetailLevel(level string) BicepDeploymentOption {
+	return func(cfg *bicepDeploymentConfig) {
+		cfg.debugDetailLevel = level
+	}
+}
+
+func WithLocation(location string) BicepDeploymentOption {
+	return func(cfg *bicepDeploymentConfig) {
+		cfg.location = location
+	}
+}
+
+func WithTemplateFromFS(fs embed.FS, path string) BicepDeploymentOption {
+	return func(cfg *bicepDeploymentConfig) {
+		cfg.template = Must(fs.ReadFile(path))
+	}
+}
+
+func WithTemplateFromBytes(template []byte) BicepDeploymentOption {
+	return func(cfg *bicepDeploymentConfig) {
+		cfg.template = template
+	}
+}
+
 func (tc *perItOrDescribeTestContext) CreateBicepTemplateAndWait(
 	ctx context.Context,
-	resourceGroupName string,
-	deploymentName string,
-	bicepTemplateJSON []byte,
-	parameters map[string]interface{},
-	timeout time.Duration,
+	opts ...BicepDeploymentOption,
 ) (*armresources.DeploymentExtended, error) {
-	ctx, cancel := context.WithTimeoutCause(ctx, timeout, fmt.Errorf("timeout '%f' minutes exceeded during CreateBicepTemplateAndWait for deployment %s in resource group %s", timeout.Minutes(), deploymentName, resourceGroupName))
+	cfg := &bicepDeploymentConfig{
+		scope:            BicepDeploymentScopeResourceGroup,
+		timeout:          30 * time.Minute,
+		debugDetailLevel: "requestContent",
+		parameters:       map[string]interface{}{},
+	}
+	for _, opt := range opts {
+		opt(cfg)
+	}
+
+	if cfg.deploymentName == "" {
+		return nil, fmt.Errorf("deployment name must be specified")
+	}
+	if cfg.scope == BicepDeploymentScopeResourceGroup && cfg.resourceGroup == "" {
+		return nil, fmt.Errorf("resource group name must be specified for resource-group scoped deployments")
+	}
+	if cfg.scope == BicepDeploymentScopeSubscription && cfg.location == "" {
+		return nil, fmt.Errorf("location must be specified for subscription-scoped deployments")
+	}
+
+	ctx, cancel := context.WithTimeoutCause(ctx, cfg.timeout, fmt.Errorf("timeout '%f' minutes exceeded during CreateBicepTemplateAndWait for deployment %s in resource group %s", cfg.timeout.Minutes(), cfg.deploymentName, cfg.resourceGroup))
 	defer cancel()
 
 	startTime := time.Now()
 	defer func() {
 		finishTime := time.Now()
-		tc.RecordTestStep(fmt.Sprintf("Deploy ARM template %s/%s", resourceGroupName, deploymentName), startTime, finishTime)
+		tc.RecordTestStep(fmt.Sprintf("Deploy ARM template %s/%s", cfg.resourceGroup, cfg.deploymentName), startTime, finishTime)
 	}()
-	tc.RecordKnownDeployment(resourceGroupName, deploymentName)
+	tc.RecordKnownDeployment(cfg.resourceGroup, cfg.deploymentName)
 
 	deploymentsClient := tc.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient()
 
 	bicepParameters := map[string]interface{}{}
-	for k, v := range parameters {
+	for k, v := range cfg.parameters {
 		bicepParameters[k] = map[string]interface{}{
 			"value": v,
 		}
@@ -114,51 +204,64 @@ func (tc *perItOrDescribeTestContext) CreateBicepTemplateAndWait(
 
 	// TODO deads2k: couldn't work out why, but for some reason this works when passed as a map, not when sending json. My guess is newlines.
 	bicepTemplateMap := map[string]interface{}{}
-	if err := json.Unmarshal(bicepTemplateJSON, &bicepTemplateMap); err != nil {
-		panic(err)
+	if err := json.Unmarshal(cfg.template, &bicepTemplateMap); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal Bicep template JSON: %w", err)
 	}
 
 	deploymentProperties := armresources.Deployment{
+		Location: to.Ptr(cfg.location),
 		Properties: &armresources.DeploymentProperties{
-			DebugSetting: &armresources.DebugSetting{DetailLevel: to.Ptr("requestContent")},
+			DebugSetting: &armresources.DebugSetting{DetailLevel: to.Ptr(cfg.debugDetailLevel)},
 			Template:     bicepTemplateMap,
 			Parameters:   bicepParameters,
-			Mode:         to.Ptr(armresources.DeploymentModeIncremental), // or Complete
+			Mode:         to.Ptr(armresources.DeploymentModeIncremental),
 		},
 	}
 
-	pollerResp, err := deploymentsClient.BeginCreateOrUpdate(
-		ctx,
-		resourceGroupName,
-		deploymentName,
-		deploymentProperties,
-		nil,
-	)
-	if err != nil {
-		if errors.Is(err, context.DeadlineExceeded) {
-			return nil, fmt.Errorf("failed creating deployment %q in resourcegroup=%q, caused by: %w, error: %w", deploymentName, resourceGroupName, context.Cause(ctx), err)
+	switch cfg.scope {
+	case BicepDeploymentScopeResourceGroup:
+		pollerResp, err := deploymentsClient.BeginCreateOrUpdate(
+			ctx,
+			cfg.resourceGroup,
+			cfg.deploymentName,
+			deploymentProperties,
+			nil,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed creating deployment %q in resourcegroup=%q: %w", cfg.deploymentName, cfg.resourceGroup, err)
 		}
-		return nil, fmt.Errorf("failed creating deployment %q in resourcegroup=%q: %w", deploymentName, resourceGroupName, err)
-	}
-	operationResult, err := pollerResp.PollUntilDone(ctx, &runtime.PollUntilDoneOptions{
-		Frequency: StandardPollInterval,
-	})
-	if err != nil {
-		if errors.Is(err, context.DeadlineExceeded) {
-			return nil, fmt.Errorf("failed waiting for deployment %q in resourcegroup=%q to finish, caused by: %w, error: %w", deploymentName, resourceGroupName, context.Cause(ctx), err)
+		resp, err := pollerResp.PollUntilDone(ctx, &runtime.PollUntilDoneOptions{
+			Frequency: StandardPollInterval,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed waiting for deployment %q in resourcegroup=%q to finish: %w", cfg.deploymentName, cfg.resourceGroup, err)
 		}
-		return nil, fmt.Errorf("failed waiting for deployment %q in resourcegroup=%q to finish: %w", deploymentName, resourceGroupName, err)
+
+		return &resp.DeploymentExtended, nil
+
+	case BicepDeploymentScopeSubscription:
+		pollerResp, err := deploymentsClient.BeginCreateOrUpdateAtSubscriptionScope(
+			ctx,
+			cfg.deploymentName,
+			deploymentProperties,
+			nil,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed creating deployment %q at subscription scope: %w", cfg.deploymentName, err)
+		}
+		resp, err := pollerResp.PollUntilDone(ctx, &runtime.PollUntilDoneOptions{
+			Frequency: StandardPollInterval,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed waiting for deployment %q at subscription scope to finish: %w", cfg.deploymentName, err)
+		}
+
+		return &resp.DeploymentExtended, nil
+
+	default:
+		return nil, fmt.Errorf("unsupported deployment scope %v", cfg.scope)
 	}
 
-	switch m := any(operationResult).(type) {
-	case armresources.DeploymentsClientCreateOrUpdateResponse:
-		// TODO someone may want this return value.  We'll have to work it out then.
-		//fmt.Printf("#### got back: %v\n", spew.Sdump(m))
-		return &m.DeploymentExtended, nil
-	default:
-		fmt.Printf("#### unknown type %T: content=%v", m, spew.Sdump(m))
-		return nil, fmt.Errorf("unknown type %T", m)
-	}
 }
 
 func ListAllDeployments(

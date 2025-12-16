@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package main
+package cleanup
 
 import (
 	"log/slog"
@@ -27,7 +27,7 @@ import (
 	"github.com/Azure/ARO-HCP/test/util/cleanup/resourcegroups"
 )
 
-func newCleanupCommand() *cobra.Command {
+func NewCommand() *cobra.Command {
 
 	opt := cleanup.NewBaseOptions()
 
@@ -56,15 +56,18 @@ func newCleanupResourceGroupsCommand() *cobra.Command {
 		SilenceUsage: true,
 	}
 
-	rawOpt := resourcegroups.NewOptions()
+	rawOpt := resourcegroups.DefaultOptions()
 	cmd.Flags().StringArrayVar(&rawOpt.ResourceGroups, "resource-group", rawOpt.ResourceGroups, "Resource group to clean (repeat)")
 	cmd.Flags().BoolVar(&rawOpt.DeleteExpired, "expired", rawOpt.DeleteExpired, "Delete all expired e2e resource groups")
 	cmd.Flags().StringVar(&rawOpt.EvaluationTime, "evaluation-time", rawOpt.EvaluationTime, "Time at which to evaluate resource group expiration (RFC3339,defaults to current time)")
 	cmd.Flags().BoolVar(&rawOpt.DryRun, "dry-run", rawOpt.DryRun, "Print which resource groups would be deleted without deleting")
-	cmd.Flags().StringVar(&rawOpt.CleanupWorkflow, "env-type", string(rawOpt.CleanupWorkflow), "Cleanup workflow (standard or no-rp)")
+	cmd.Flags().StringVar(&rawOpt.CleanupWorkflow, "mode", string(rawOpt.CleanupWorkflow), "Cleanup workflow: 'standard' (default, via RP) or 'no-rp' (only to be used when the infra has already been cleaned up)")
+	cmd.Flags().BoolVar(&rawOpt.IsDevelopment, "is-development", rawOpt.IsDevelopment, "Use development (local RP) endpoint instead of ARM (only valid with mode=standard)")
 	cmd.Flags().DurationVar(&rawOpt.Timeout, "timeout", rawOpt.Timeout, "Timeout for deleting each resource group (e.g. 60m)")
 	cmd.Flags().StringArrayVar(&rawOpt.IncludeLocations, "include-location", rawOpt.IncludeLocations, "Only delete resource groups in these Azure locations (repeatable)")
 	cmd.Flags().StringArrayVar(&rawOpt.ExcludeLocations, "exclude-location", rawOpt.ExcludeLocations, "Do not delete resource groups in these Azure locations (repeatable)")
+	cmd.Flags().BoolVar(&rawOpt.Tracked, "tracked", rawOpt.Tracked, "Use tracked resource groups")
+	cmd.Flags().StringVar(&rawOpt.SharedDir, "shared-dir", rawOpt.SharedDir, "Shared directory to use for tracked resource groups")
 
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
 		ctx, cancel := signal.NotifyContext(cmd.Context(), os.Interrupt)
@@ -75,7 +78,12 @@ func newCleanupResourceGroupsCommand() *cobra.Command {
 			return err
 		}
 
-		return validatedOpt.Run(ctx)
+		completedOpt, err := validatedOpt.Complete()
+		if err != nil {
+			return err
+		}
+
+		return completedOpt.Run(ctx)
 	}
 
 	return cmd
