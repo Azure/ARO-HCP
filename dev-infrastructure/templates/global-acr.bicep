@@ -112,6 +112,23 @@ module svcCaching '../modules/acr/cache.bicep' = {
   ]
 }
 
+module svcPublicCaching '../modules/acr/public-cache.bicep' = {
+  name: '${svcAcrName}-public-caching'
+  params: {
+    acrName: svcAcrName
+    publicRepositoriesToCache: [
+      {
+        ruleName: 'k8s-ingress-nginx'
+        sourceRepo: 'registry.k8s.io/ingress-nginx/*'
+        targetRepo: 'k8s-cache/ingress-nginx/*'
+      }
+    ]
+  }
+  dependsOn: [
+    svcAcr
+  ]
+}
+
 module miseArtifactSync '../modules/acr/mcr-artifact-sync.bicep' = if (deployMiseArtifactSync) {
   name: 'mise-artifact-sync'
   params: {

@@ -367,6 +367,12 @@ defaults:
         image:
           registry: mcr.microsoft.com/oss/v2
           repository: kubernetes/kube-state-metrics
+      admissionWebhook:
+        patch:
+          image:
+            registry: arohcpsvcdev.azurecr.io
+            repository: k8s-cache/ingress-nginx/kube-webhook-certgen
+            tag: v1.5.2
   # MGMT cluster specifics
   mgmt:
     hcpBackups:
@@ -471,6 +477,12 @@ defaults:
         image:
           registry: mcr.microsoft.com/oss/v2
           repository: kubernetes/kube-state-metrics
+      admissionWebhook:
+        patch:
+          image:
+            registry: arohcpsvcdev.azurecr.io
+            repository: k8s-cache/ingress-nginx/kube-webhook-certgen
+            tag: v1.5.2
   # Backend
   backend:
     image:
