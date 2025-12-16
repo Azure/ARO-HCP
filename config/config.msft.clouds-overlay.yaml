@@ -218,7 +218,7 @@ clouds:
           clustersService:
             deployDebugJobs: true
             image:
-              digest: sha256:16eeccb0f7fb1536328d0e2a66299b7d8613143c56320d251104648204a6aca3
+              digest: sha256:2f51c98788c688f92d6905977829891a4d6fc586050fbc3f7335f5c9994e6134
           # ACR Pull
           acrPull:
             image:
@@ -274,25 +274,25 @@ clouds:
           # RP Frontend
           frontend:
             image:
-              digest: sha256:8dda919da906c3919ff9b55a7306abcc84143fd546c7a176cee8d573250beda0 # 8289751
+              digest: sha256:9cdc146bd1d45ef50abc52f8343a2b46823d50a30462190672ecee621fc449aa # 8289751
             audit:
               connectSocket: true
           # RP Backend
           backend:
             image:
-              digest: sha256:8da889b84d8079406fd474289d97eb3b1e7a959482983065cc412ae6a0b9999f # 8289751
+              digest: sha256:42dd00d80a5df2c9a564fe939d7aec52b5519439f8a85ae226dbfba383f575f8 # 8289751
           # Admin API
           adminApi:
             image:
-              digest: "sha256:ca81fd62029113611e9e6ed5d325f8f609778c057f6a61cb7c476715ce542418"
+              digest: "sha256:4ba6e83afc921f6c7fc5a977e9034def6e664eb65192b83279b1e9c3d86e62c7"
           # Hypershift
           hypershift:
             image:
-              digest: sha256:2671f155c8ac246026e28b5dab8032750c90d2a2fb91ec5f7297de5fb4ca9351
+              digest: sha256:2b33a38c788fd8cbc16c1f353d417bee4646140dbfbfaa847b4d81941c601c36
           # Maestro
           maestro:
             image:
-              digest: sha256:93ef343969f515279beb13787fbe49f80cd67803ec8ec307838b2d6662e0b86e
+              digest: sha256:8bfd08bbafec5e4d4de8ae15c6a2d5cd8b11067136a9b88f800566a992a6a010
             agent:
               sidecar:
                 image:
@@ -301,7 +301,7 @@ clouds:
           imageSync:
             ocMirror:
               image:
-                digest: sha256:36bd7ecf6ebbee2998e419bc74f18fa852be5da599e5f0d29f887df48e2b276f
+                digest: sha256:84a371ce715e1aa6d7f8ca7bfb99a2d7b41dc2bb3af42d887aa64cc1432a3519
           # Mise
           mise:
             image:
