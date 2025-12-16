@@ -32,8 +32,8 @@ func NewCommand(group string) (*cobra.Command, error) {
 
 This command group includes subcommands for querying Azure Data Explorer instances
 and collecting diagnostic data for troubleshooting and analysis.`,
-		Example: `  hcpctl must-gather query --kusto-endpoint https://my-kusto-cluster.eastus.kusto.windows.net
-  hcpctl must-gather query --kusto-endpoint https://my-kusto-cluster.eastus.kusto.windows.net --output results.json`,
+		Example: `  hcpctl must-gather query --kusto my-kusto-cluster --region eastus
+  hcpctl must-gather query --kusto my-kusto-cluster --region eastus --output results.json`,
 		CompletionOptions: cobra.CompletionOptions{
 			HiddenDefaultCmd: true,
 		},
