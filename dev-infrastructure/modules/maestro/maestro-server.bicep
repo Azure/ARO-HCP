@@ -75,9 +75,6 @@ param postgresBackupRetentionDays int
 @description('Enable geo-redundant backups for the PostgreSQL server.')
 param postgresGeoRedundantBackup bool
 
-@description('The log analytics workspace ID to link to the server.')
-param logAnalyticsWorkspaceId string = ''
-
 @description('The regional resource group')
 param regionalResourceGroup string
 
@@ -134,7 +131,6 @@ module maestroPostgres '../postgres/postgres.bicep' = if (deployPostgres) {
     subnetId: privateEndpointSubnetId
     vnetId: privateEndpointVnetId
     managedPrivateEndpoint: true
-    logAnalyticsWorkspaceId: logAnalyticsWorkspaceId
     managedPrivateEndpointResourceGroup: privateEndpointResourceGroup
   }
 }

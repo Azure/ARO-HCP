@@ -35,11 +35,6 @@ resourceGroups:
     - name: clusterServiceMIResourceId
       # we don't need to grant KV permissions to CS as there is no CS in the MC solo deployment
       value: "-"
-    - name: logAnalyticsWorkspaceId
-      input:
-        resourceGroup: regional
-        step: output
-        name: logAnalyticsWorkspaceId
   # Build the MC
   - name: cluster
     action: ARM
@@ -67,11 +62,6 @@ resourceGroups:
         resourceGroup: regional
         step: output
         name: maestroEventGridNamespaceId
-    - name: logAnalyticsWorkspaceId
-      input:
-        resourceGroup: regional
-        step: output
-        name: logAnalyticsWorkspaceId
     dependsOn:
     - resourceGroup: management
       step: infra

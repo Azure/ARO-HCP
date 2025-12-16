@@ -70,9 +70,6 @@ param geoRedundantBackup bool
 ])
 param storageSizeGB int
 
-@description('The log analytics workspace ID to link to the server.')
-param logAnalyticsWorkspaceId string = ''
-
 param version string
 
 param private bool
@@ -216,28 +213,4 @@ module servicePostgresPrivateEndpoint '../private-endpoint.bicep' = if (managedP
   dependsOn: [
     postgres_database
   ]
-}
-
-//
-//   L O G   A N A L Y T I C S
-//
-
-resource aksDiagnosticSettings 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' = if (logAnalyticsWorkspaceId != '') {
-  scope: postgres
-  name: name
-  properties: {
-    metrics: [
-      {
-        category: 'AllMetrics'
-        enabled: true
-      }
-    ]
-    logs: [
-      {
-        categoryGroup: 'allLogs'
-        enabled: true
-      }
-    ]
-    workspaceId: logAnalyticsWorkspaceId
-  }
 }

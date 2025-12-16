@@ -166,11 +166,6 @@ resourceGroups:
         resourceGroup: global
         step: output
         name: grafanaResourceId
-    - name: grafanaPrincipalId
-      input:
-        resourceGroup: global
-        step: output
-        name: grafanaPrincipalId
     dependsOn:
     - resourceGroup: regional
       step: rpRegistration

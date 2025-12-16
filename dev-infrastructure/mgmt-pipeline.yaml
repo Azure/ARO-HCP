@@ -72,11 +72,6 @@ resourceGroups:
     parameters: configurations/mgmt-infra.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     variables:
-    - name: logAnalyticsWorkspaceId
-      input:
-        resourceGroup: regional
-        step: output
-        name: logAnalyticsWorkspaceId
     - name: globalMSIId
       input:
         resourceGroup: global
@@ -207,11 +202,6 @@ resourceGroups:
         resourceGroup: regional
         step: output
         name: maestroEventGridNamespaceId
-    - name: logAnalyticsWorkspaceId
-      input:
-        resourceGroup: regional
-        step: output
-        name: logAnalyticsWorkspaceId
     dependsOn:
     - resourceGroup: management
       step: cx-oncert-public-kv-issuer

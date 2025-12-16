@@ -13,6 +13,3 @@ param globalMSIId = '__globalMSIId__'
 
 // SP for KV certificate issuer registration
 param kvCertOfficerPrincipalId = '{{ .kvCertOfficerPrincipalId }}'
-
-// Log Analytics Workspace ID will be passed from region pipeline if enabled in config
-param logAnalyticsWorkspaceId = '__logAnalyticsWorkspaceId__'

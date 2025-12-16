@@ -397,9 +397,6 @@ param adminApiIngressCertName string
 @description('The issuer of the Admin API certificate')
 param adminApiIngressCertIssuer string
 
-// Log Analytics Workspace ID will be passed from region pipeline if enabled in config
-param logAnalyticsWorkspaceId string = ''
-
 resource serviceKeyVault 'Microsoft.KeyVault/vaults@2024-04-01-preview' existing = {
   name: serviceKeyVaultName
   scope: resourceGroup(serviceKeyVaultResourceGroup)
@@ -584,7 +581,6 @@ module svcCluster '../modules/aks-cluster-base.bicep' = {
     aksKeyVaultName: aksKeyVaultName
     aksKeyVaultTagName: aksKeyVaultTagName
     aksKeyVaultTagValue: aksKeyVaultTagValue
-    logAnalyticsWorkspaceId: logAnalyticsWorkspaceId
     pullAcrResourceIds: [svcAcrResourceId]
     deploymentMsiId: globalMSIId
     enableSwiftV2Nodepools: false
@@ -595,19 +591,6 @@ module svcCluster '../modules/aks-cluster-base.bicep' = {
 }
 
 output aksClusterName string = svcCluster.outputs.aksClusterName
-
-//
-// L O G S
-//
-
-// NOTE: This is only enabled for non-prod environments
-module logsCollection '../modules/logs/collection.bicep' = if (logAnalyticsWorkspaceId != '') {
-  name: 'logs-collection'
-  params: {
-    aksClusterName: svcCluster.outputs.aksClusterName
-    logAnalyticsWorkspaceId: logAnalyticsWorkspaceId
-  }
-}
 
 //
 // M E T R I C S
@@ -698,7 +681,6 @@ module maestroServer '../modules/maestro/maestro-server.bicep' = {
       maestroMIName
     ).uamiPrincipalID
     maestroServerManagedIdentityName: maestroMIName
-    logAnalyticsWorkspaceId: logAnalyticsWorkspaceId
   }
   dependsOn: [
     serviceKeyVault
@@ -801,16 +783,6 @@ module acrManageTokenRole '../modules/acr/acr-permissions.bicep' = {
 
 var frontDoorRef = res.frontdoorProfileRefFromId(azureFrontDoorResourceId)
 
-// Export AFD metrics and logs to Log Analytics for Grafana visibility
-module afdDataCollection '../modules/oidc/afd-datacollection.bicep' = if (logAnalyticsWorkspaceId != '') {
-  name: 'afd-datacollection'
-  scope: resourceGroup(frontDoorRef.resourceGroup.subscriptionId, frontDoorRef.resourceGroup.name)
-  params: {
-    frontDoorProfileName: frontDoorRef.name
-    logAnalyticsWorkspaceId: logAnalyticsWorkspaceId
-  }
-}
-
 // Grant Grafana permissions to query AFD metrics directly from Azure Monitor
 // This enables real-time AFD metrics visualization in Grafana dashboards
 module grafanaAfdPermissions '../modules/grafana/observability-permissions.bicep' = {
@@ -818,7 +790,6 @@ module grafanaAfdPermissions '../modules/grafana/observability-permissions.bicep
   scope: resourceGroup(frontDoorRef.resourceGroup.subscriptionId, frontDoorRef.resourceGroup.name)
   params: {
     grafanaPrincipalId: grafanaPrincipalId
-    logAnalyticsWorkspaceId: '' // Log Analytics permissions granted in region.bicep
     frontDoorProfileId: azureFrontDoorResourceId
   }
 }

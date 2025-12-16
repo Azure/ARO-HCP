@@ -16,9 +16,6 @@ param tagKey string
 @description('Tag value for the keyvault.')
 param tagValue string
 
-@description('Log Analytics Workspace ID if logging to Log Analytics')
-param logAnalyticsWorkspaceId string = ''
-
 @description('Principal ID for KV certificate officer')
 param kvCertOfficerPrincipalId string = ''
 
@@ -79,28 +76,6 @@ module ev2CertAccess 'keyvault-secret-access.bicep' = if (kvCertAccessPrincipalI
     roleName: 'Azure Service Deploy Release Management Key Vault Secrets User'
     managedIdentityPrincipalIds: [kvCertAccessPrincipalId]
     kvCertAccessRoleId: kvCertAccessRoleId
-  }
-}
-
-//
-//   D I A G N O S T I C    S E T T I N G S
-//
-
-resource keyVaultDiagnosticSettings 'Microsoft.Insights/diagnosticSettings@2017-05-01-preview' = if (logAnalyticsWorkspaceId != '') {
-  scope: keyVault
-  name: keyVaultName
-  properties: {
-    logs: [
-      {
-        category: 'AuditEvent'
-        enabled: true
-      }
-      {
-        category: 'AzurePolicyEvaluationDetails'
-        enabled: true
-      }
-    ]
-    workspaceId: logAnalyticsWorkspaceId
   }
 }
 

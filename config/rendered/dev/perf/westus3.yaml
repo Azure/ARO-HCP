@@ -353,8 +353,6 @@ kvCertAccessPrincipalId: c9b1819d-bb29-4ac2-9abe-39e4fe9b59eb
 kvCertAccessRoleId: ""
 kvCertOfficerPrincipalId: c9b1819d-bb29-4ac2-9abe-39e4fe9b59eb
 logs:
-  loganalytics:
-    enable: false
   mdsd:
     cert:
       issuer: ""
