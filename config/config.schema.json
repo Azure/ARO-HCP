@@ -2432,7 +2432,8 @@
         "crossTenantSecurityGroup",
         "grafanaZoneRedundantMode",
         "svcWorkspaceName",
-        "hcpWorkspaceName"
+        "hcpWorkspaceName",
+        "alertRuleOwningTeamTag"
       ]
     },
     "routeMonitorOperator": {
