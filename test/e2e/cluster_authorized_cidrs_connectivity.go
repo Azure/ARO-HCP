@@ -83,16 +83,17 @@ var _ = Describe("Authorized CIDRs", func() {
 				By("deploying test VM")
 				vmName := fmt.Sprintf("%s-test-vm", clusterName)
 				vmDeployment, err := tc.CreateBicepTemplateAndWait(ctx,
-					*resourceGroup.Name,
-					"test-vm",
-					framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/modules/test-vm.json")),
-					map[string]interface{}{
+					framework.WithTemplateFromFS(TestArtifactsFS, "test-artifacts/generated-test-artifacts/modules/test-vm.json"),
+					framework.WithDeploymentName("test-vm"),
+					framework.WithScope(framework.BicepDeploymentScopeResourceGroup),
+					framework.WithClusterResourceGroup(*resourceGroup.Name),
+					framework.WithParameters(map[string]any{
 						"vmName":       vmName,
 						"vnetName":     customerVnetName,
 						"subnetName":   customerVnetSubnetName,
 						"sshPublicKey": sshPublicKey,
-					},
-					30*time.Minute,
+					}),
+					framework.WithTimeout(30*time.Minute),
 				)
 				Expect(err).NotTo(HaveOccurred())
 
@@ -106,7 +107,9 @@ var _ = Describe("Authorized CIDRs", func() {
 					to.Ptr(fmt.Sprintf("%s/32", vmPublicIP)),
 				}
 
-				err = tc.CreateHCPClusterFromParam(ctx,
+				err = tc.CreateHCPClusterFromParam(
+					ctx,
+					GinkgoLogr,
 					*resourceGroup.Name,
 					clusterParams,
 					45*time.Minute,
