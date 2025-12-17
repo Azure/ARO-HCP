@@ -31,3 +31,5 @@ resourcegroups
 .graph.html
 report.json
 _artifacts
+test/aro-hcp-tests
+test/prow-job-executor
