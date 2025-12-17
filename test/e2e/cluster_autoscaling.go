@@ -69,8 +69,7 @@ var _ = Describe("Customer", func() {
 			}
 
 			By("creating customer resources")
-			clusterParams, err = framework.CreateClusterCustomerResources(ctx,
-				tc.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient(),
+			clusterParams, err = tc.CreateClusterCustomerResources(ctx,
 				resourceGroup,
 				clusterParams,
 				map[string]interface{}{
@@ -83,8 +82,8 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			By("creating the cluster")
-			err = framework.CreateHCPClusterFromParam(ctx,
-				tc,
+			err = tc.CreateHCPClusterFromParam(ctx,
+				GinkgoLogr,
 				*resourceGroup.Name,
 				clusterParams,
 				45*time.Minute,
@@ -110,8 +109,7 @@ var _ = Describe("Customer", func() {
 			nodePoolParams.NodePoolName = customerNodePoolName
 			nodePoolParams.Replicas = int32(2)
 
-			err = framework.CreateNodePoolFromParam(ctx,
-				tc,
+			err = tc.CreateNodePoolFromParam(ctx,
 				*resourceGroup.Name,
 				customerClusterName,
 				nodePoolParams,
@@ -137,5 +135,143 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred())
 			Expect(got.Properties.Autoscaling).ToNot(BeNil())
 			Expect(update.Properties.Autoscaling.MaxNodesTotal).To(Equal(to.Ptr(autoscalingMaxNodesTotal)))
+		})
+
+	It("should reject cluster creation with invalid autoscaling parameters",
+		labels.RequireNothing,
+		labels.High,
+		labels.Negative,
+		labels.AroRpApiCompatible,
+		func(ctx context.Context) {
+			testCases := []struct {
+				name        string
+				autoscaling *hcpsdk20240610preview.ClusterAutoscalingProfile
+				description string
+			}{
+				{
+					name: "negativeMaxNodeProvisionTimeSeconds",
+					autoscaling: &hcpsdk20240610preview.ClusterAutoscalingProfile{
+						MaxNodeProvisionTimeSeconds: to.Ptr(int32(-1)),
+					},
+					description: "should reject negative MaxNodeProvisionTimeSeconds",
+				},
+				{
+					name: "negativeMaxPodGracePeriodSeconds",
+					autoscaling: &hcpsdk20240610preview.ClusterAutoscalingProfile{
+						MaxPodGracePeriodSeconds: to.Ptr(int32(-1)),
+					},
+					description: "should reject zero MaxPodGracePeriodSeconds",
+				},
+				{
+					name: "highMaxNodesTotal",
+					autoscaling: &hcpsdk20240610preview.ClusterAutoscalingProfile{
+						MaxNodesTotal: to.Ptr(int32(100000)),
+					},
+					description: "should reject unreasonably high MaxNodesTotal",
+				},
+			}
+
+			for _, testCase := range testCases {
+				By(testCase.description)
+				tc := framework.NewTestContext()
+
+				resourceGroup, err := tc.NewResourceGroup(ctx, "autoscaling-"+testCase.name, tc.Location())
+				Expect(err).NotTo(HaveOccurred())
+
+				clusterParams := framework.NewDefaultClusterParams()
+				clusterParams.ClusterName = "invalid-cluster-" + testCase.name
+				clusterParams.ManagedResourceGroupName = framework.SuffixName(*resourceGroup.Name, "-managed", 64)
+				clusterParams.Autoscaling = testCase.autoscaling
+
+				clusterParams, err = tc.CreateClusterCustomerResources(ctx,
+					resourceGroup,
+					clusterParams,
+					map[string]interface{}{
+						"persistTagValue": false,
+					},
+					TestArtifactsFS)
+				Expect(err).NotTo(HaveOccurred())
+
+				// Creating cluster with invalid autoscaling should fail
+				err = tc.CreateHCPClusterFromParam(ctx,
+					GinkgoLogr,
+					*resourceGroup.Name,
+					clusterParams,
+					45*time.Minute,
+				)
+				Expect(err).To(HaveOccurred(), "Expected cluster creation to fail with invalid autoscaling parameter: %s", testCase.name)
+			}
+		})
+
+	It("should reject cluster updates with invalid autoscaling values",
+		labels.RequireNothing,
+		labels.High,
+		labels.Negative,
+		labels.AroRpApiCompatible,
+		func(ctx context.Context) {
+			const (
+				customerClusterName = "update-invalid-cluster"
+			)
+			tc := framework.NewTestContext()
+
+			By("creating a resource group")
+			resourceGroup, err := tc.NewResourceGroup(ctx, "update-invalid-autoscaling", tc.Location())
+			Expect(err).NotTo(HaveOccurred())
+
+			By("creating a valid cluster first")
+			clusterParams := framework.NewDefaultClusterParams()
+			clusterParams.ClusterName = customerClusterName
+			clusterParams.ManagedResourceGroupName = framework.SuffixName(*resourceGroup.Name, "-managed", 64)
+
+			clusterParams, err = tc.CreateClusterCustomerResources(ctx,
+				resourceGroup,
+				clusterParams,
+				map[string]interface{}{
+					"persistTagValue": false,
+				},
+				TestArtifactsFS)
+			Expect(err).NotTo(HaveOccurred())
+
+			err = tc.CreateHCPClusterFromParam(ctx,
+				GinkgoLogr,
+				*resourceGroup.Name,
+				clusterParams,
+				45*time.Minute,
+			)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("creating a nodepool to establish current node count")
+			nodePoolParams := framework.NewDefaultNodePoolParams()
+			nodePoolParams.ClusterName = customerClusterName
+			nodePoolParams.NodePoolName = "test-nodepool"
+			nodePoolParams.Replicas = int32(3)
+
+			err = tc.CreateNodePoolFromParam(ctx,
+				*resourceGroup.Name,
+				customerClusterName,
+				nodePoolParams,
+				45*time.Minute,
+			)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("attempting invalid cluster autoscaling updates")
+			client := tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient()
+
+			// Try to set MaxNodesTotal below current node count
+			_, err = framework.UpdateHCPCluster(
+				ctx,
+				client,
+				*resourceGroup.Name,
+				customerClusterName,
+				hcpsdk20240610preview.HcpOpenShiftClusterUpdate{
+					Properties: &hcpsdk20240610preview.HcpOpenShiftClusterPropertiesUpdate{
+						Autoscaling: &hcpsdk20240610preview.ClusterAutoscalingProfile{
+							MaxNodesTotal: to.Ptr(int32(1)), // Lower than existing nodes (3)
+						},
+					},
+				},
+				5*time.Minute,
+			)
+			Expect(err).To(HaveOccurred(), "Expected update to fail when MaxNodesTotal is below current node count")
 		})
 })

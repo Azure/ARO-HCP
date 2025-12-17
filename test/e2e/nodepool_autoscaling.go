@@ -28,7 +28,7 @@ import (
 	"github.com/Azure/ARO-HCP/test/util/labels"
 )
 
-var _ = Describe("NodePool Autoscaling", func() {
+var _ = Describe("Customer", func() {
 	BeforeEach(func() {
 		// do nothing. per test initialization usually ages better than shared.
 	})
@@ -59,8 +59,7 @@ var _ = Describe("NodePool Autoscaling", func() {
 			clusterParams.ManagedResourceGroupName = framework.SuffixName(*resourceGroup.Name, "-managed", 64)
 
 			By("creating customer resources")
-			clusterParams, err = framework.CreateClusterCustomerResources(ctx,
-				tc.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient(),
+			clusterParams, err = tc.CreateClusterCustomerResources(ctx,
 				resourceGroup,
 				clusterParams,
 				map[string]interface{}{
@@ -71,8 +70,8 @@ var _ = Describe("NodePool Autoscaling", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			By("creating the HCP cluster")
-			err = framework.CreateHCPClusterFromParam(ctx,
-				tc,
+			err = tc.CreateHCPClusterFromParam(ctx,
+				GinkgoLogr,
 				*resourceGroup.Name,
 				clusterParams,
 				45*time.Minute,
@@ -90,8 +89,7 @@ var _ = Describe("NodePool Autoscaling", func() {
 			}
 
 			By("creating the autoscaling nodepool")
-			err = framework.CreateNodePoolFromParam(ctx,
-				tc,
+			err = tc.CreateNodePoolFromParam(ctx,
 				*resourceGroup.Name,
 				customerClusterName,
 				nodePoolParams,
@@ -99,47 +97,45 @@ var _ = Describe("NodePool Autoscaling", func() {
 			)
 			Expect(err).NotTo(HaveOccurred())
 
-			By("verifying the nodepool has autoscaling configured")
-			nodePoolClient := tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient()
-			nodePoolResp, err := nodePoolClient.Get(ctx, *resourceGroup.Name, customerClusterName, customerNodePoolName, nil)
+			By("verifying the cluster has default autoscaling parameters")
+			clusterResp, err := framework.GetHCPCluster(ctx,
+				tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
+				*resourceGroup.Name,
+				customerClusterName)
 			Expect(err).NotTo(HaveOccurred())
 
-			Expect(nodePoolResp.Properties).NotTo(BeNil())
-			Expect(nodePoolResp.Properties.AutoScaling).NotTo(BeNil(), "Expected autoscaling to be configured on the nodepool")
-			Expect(nodePoolResp.Properties.AutoScaling.Min).To(Equal(to.Ptr(autoscalingMin)), "Expected autoscaling min to be %d", autoscalingMin)
-			Expect(nodePoolResp.Properties.AutoScaling.Max).To(Equal(to.Ptr(autoscalingMax)), "Expected autoscaling max to be %d", autoscalingMax)
-			// Replicas should be nil when autoscaling is enabled
-			Expect(nodePoolResp.Properties.Replicas).To(BeNil(), "Expected replicas to be nil when autoscaling is enabled")
+			// Verify cluster autoscaling defaults are applied
+			Expect(clusterResp.Properties.Autoscaling).NotTo(BeNil(), "Expected cluster to have default autoscaling configuration")
+			Expect(clusterResp.Properties.Autoscaling.MaxNodeProvisionTimeSeconds).To(Equal(to.Ptr(int32(900))), "Expected default MaxNodeProvisionTimeSeconds to be 900 seconds")
+			Expect(clusterResp.Properties.Autoscaling.MaxPodGracePeriodSeconds).To(Equal(to.Ptr(int32(600))), "Expected default MaxPodGracePeriodSeconds to be 600 seconds")
+			Expect(clusterResp.Properties.Autoscaling.PodPriorityThreshold).To(Equal(to.Ptr(int32(-10))), "Expected default PodPriorityThreshold to be -10")
+			// MaxNodesTotal should be nil (no maximum limit) when not explicitly set
+			Expect(clusterResp.Properties.Autoscaling.MaxNodesTotal).To(BeNil(), "Expected MaxNodesTotal to be nil when not explicitly set")
+
 		})
 
-	It("should be able to update a nodepool from fixed replicas to autoscaling",
+	It("should reject nodepool creation with both replicas and autoscaling configured",
 		labels.RequireNothing,
-		labels.Medium,
-		labels.Positive,
+		labels.Critical,
+		labels.Negative,
 		labels.AroRpApiCompatible,
 		func(ctx context.Context) {
 			const (
-				customerClusterName  = "np-scale-update"
-				customerNodePoolName = "update-np"
-
-				initialReplicas    int32 = 2
-				updatedMinReplicas int32 = 1
-				updatedMaxReplicas int32 = 4
+				customerClusterName  = "mutual-exclusion-cluster"
+				customerNodePoolName = "conflicted-nodepool"
 			)
 			tc := framework.NewTestContext()
 
 			By("creating a resource group")
-			resourceGroup, err := tc.NewResourceGroup(ctx, "np-scale-update", tc.Location())
+			resourceGroup, err := tc.NewResourceGroup(ctx, "mutual-exclusion-test", tc.Location())
 			Expect(err).NotTo(HaveOccurred())
 
-			By("creating cluster parameters")
+			By("creating cluster")
 			clusterParams := framework.NewDefaultClusterParams()
 			clusterParams.ClusterName = customerClusterName
 			clusterParams.ManagedResourceGroupName = framework.SuffixName(*resourceGroup.Name, "-managed", 64)
 
-			By("creating customer resources")
-			clusterParams, err = framework.CreateClusterCustomerResources(ctx,
-				tc.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient(),
+			clusterParams, err = tc.CreateClusterCustomerResources(ctx,
 				resourceGroup,
 				clusterParams,
 				map[string]interface{}{
@@ -149,70 +145,91 @@ var _ = Describe("NodePool Autoscaling", func() {
 			)
 			Expect(err).NotTo(HaveOccurred())
 
-			By("creating the HCP cluster")
-			err = framework.CreateHCPClusterFromParam(ctx,
-				tc,
+			err = tc.CreateHCPClusterFromParam(ctx,
+				GinkgoLogr,
 				*resourceGroup.Name,
 				clusterParams,
 				45*time.Minute,
 			)
 			Expect(err).NotTo(HaveOccurred())
 
-			By("creating nodepool with fixed replicas")
+			By("attempting to create nodepool with both replicas and autoscaling")
 			nodePoolParams := framework.NewDefaultNodePoolParams()
 			nodePoolParams.ClusterName = customerClusterName
 			nodePoolParams.NodePoolName = customerNodePoolName
-			nodePoolParams.Replicas = initialReplicas
+			nodePoolParams.Replicas = int32(3) // Fixed replicas
+			nodePoolParams.AutoScaling = &framework.NodePoolAutoScalingParams{
+				Min: 1,
+				Max: 5,
+			} // AND autoscaling - this should be rejected
 
-			err = framework.CreateNodePoolFromParam(ctx,
-				tc,
+			// This should fail due to mutual exclusion constraint
+			err = tc.CreateNodePoolFromParam(ctx,
 				*resourceGroup.Name,
 				customerClusterName,
 				nodePoolParams,
 				45*time.Minute,
 			)
+			Expect(err).To(HaveOccurred(), "Expected nodepool creation to fail when both replicas and autoscaling are specified")
+		})
+
+	It("should respect cluster-wide node limits with nodepool autoscaling",
+		labels.RequireNothing,
+		labels.Medium,
+		labels.Negative,
+		labels.AroRpApiCompatible,
+		func(ctx context.Context) {
+			const (
+				customerClusterName  = "node-limit-cluster"
+				customerNodePoolName = "exceeding-nodepool"
+			)
+			tc := framework.NewTestContext()
+
+			By("creating a resource group")
+			resourceGroup, err := tc.NewResourceGroup(ctx, "node-limit-test", tc.Location())
 			Expect(err).NotTo(HaveOccurred())
 
-			By("verifying the nodepool has fixed replicas")
-			nodePoolClient := tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient()
-			nodePoolResp, err := nodePoolClient.Get(ctx, *resourceGroup.Name, customerClusterName, customerNodePoolName, nil)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(nodePoolResp.Properties.Replicas).To(Equal(to.Ptr(initialReplicas)))
-			Expect(nodePoolResp.Properties.AutoScaling).To(BeNil())
+			By("creating cluster with MaxNodesTotal limit")
+			clusterParams := framework.NewDefaultClusterParams()
+			clusterParams.ClusterName = customerClusterName
+			clusterParams.ManagedResourceGroupName = framework.SuffixName(*resourceGroup.Name, "-managed", 64)
+			clusterParams.Autoscaling = &hcpsdk20240610preview.ClusterAutoscalingProfile{
+				MaxNodesTotal: to.Ptr(int32(3)), // Set low limit
+			}
 
-			By("updating the nodepool to use autoscaling")
-			updateResp, err := nodePoolClient.BeginCreateOrUpdate(
-				ctx,
-				*resourceGroup.Name,
-				customerClusterName,
-				customerNodePoolName,
-				hcpsdk20240610preview.NodePool{
-					Location: to.Ptr(tc.Location()),
-					Properties: &hcpsdk20240610preview.NodePoolProperties{
-						Version: nodePoolResp.Properties.Version,
-						Platform: &hcpsdk20240610preview.NodePoolPlatformProfile{
-							VMSize: nodePoolResp.Properties.Platform.VMSize,
-							OSDisk: nodePoolResp.Properties.Platform.OSDisk,
-						},
-						AutoScaling: &hcpsdk20240610preview.NodePoolAutoScaling{
-							Min: to.Ptr(updatedMinReplicas),
-							Max: to.Ptr(updatedMaxReplicas),
-						},
-					},
+			clusterParams, err = tc.CreateClusterCustomerResources(ctx,
+				resourceGroup,
+				clusterParams,
+				map[string]interface{}{
+					"persistTagValue": false,
 				},
-				nil,
+				TestArtifactsFS)
+			Expect(err).NotTo(HaveOccurred())
+
+			err = tc.CreateHCPClusterFromParam(ctx,
+				GinkgoLogr,
+				*resourceGroup.Name,
+				clusterParams,
+				45*time.Minute,
 			)
 			Expect(err).NotTo(HaveOccurred())
 
-			_, err = updateResp.PollUntilDone(ctx, nil)
-			Expect(err).NotTo(HaveOccurred())
+			By("attempting to create nodepool with Min > MaxNodesTotal")
+			nodePoolParams := framework.NewDefaultNodePoolParams()
+			nodePoolParams.ClusterName = customerClusterName
+			nodePoolParams.NodePoolName = customerNodePoolName
+			nodePoolParams.AutoScaling = &framework.NodePoolAutoScalingParams{
+				Min: 5, // Greater than cluster MaxNodesTotal (3)
+				Max: 10,
+			}
 
-			By("verifying the nodepool now has autoscaling enabled")
-			updatedNodePool, err := nodePoolClient.Get(ctx, *resourceGroup.Name, customerClusterName, customerNodePoolName, nil)
-			Expect(err).NotTo(HaveOccurred())
-
-			Expect(updatedNodePool.Properties.AutoScaling).NotTo(BeNil(), "Expected autoscaling to be configured after update")
-			Expect(updatedNodePool.Properties.AutoScaling.Min).To(Equal(to.Ptr(updatedMinReplicas)))
-			Expect(updatedNodePool.Properties.AutoScaling.Max).To(Equal(to.Ptr(updatedMaxReplicas)))
+			// Should fail validation
+			err = tc.CreateNodePoolFromParam(ctx,
+				*resourceGroup.Name,
+				customerClusterName,
+				nodePoolParams,
+				45*time.Minute,
+			)
+			Expect(err).To(HaveOccurred(), "Expected nodepool creation to fail when Min exceeds cluster MaxNodesTotal")
 		})
 })
