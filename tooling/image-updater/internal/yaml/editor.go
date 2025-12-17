@@ -18,6 +18,7 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 
@@ -129,10 +130,16 @@ func (e *Editor) ApplyUpdates(updates []Update) error {
 	}
 	defer file.Close()
 
-	tempFile, err := os.CreateTemp("/tmp", strings.Split(e.filePath, "/")[len(strings.Split(e.filePath, "/"))-1])
+	targetDir := filepath.Dir(e.filePath)
+	targetName := filepath.Base(e.filePath)
+
+	tempFile, err := os.CreateTemp(targetDir, targetName+".*")
 	if err != nil {
 		return fmt.Errorf("failed to create temp file for %s: %v", e.filePath, err)
 	}
+
+	// Ensure temp file is cleaned up if we panic or error out early
+	defer os.Remove(tempFile.Name())
 	defer tempFile.Close()
 
 	scanner := bufio.NewScanner(file)
