@@ -26,17 +26,18 @@ import (
 	"k8s.io/utils/ptr"
 
 	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/test-integration/utils/integrationutils"
 	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/v20240610preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 )
 
 func TestFrontendNodePoolMutation(t *testing.T) {
-	SkipIfNotSimulationTesting(t)
+	integrationutils.SkipIfNotSimulationTesting(t)
 
 	ctx := context.Background()
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	frontend, testInfo, err := NewFrontendFromTestingEnv(ctx, t)
+	frontend, testInfo, err := integrationutils.NewFrontendFromTestingEnv(ctx, t)
 	require.NoError(t, err)
 	defer testInfo.Cleanup(context.Background())
 
@@ -49,7 +50,7 @@ func TestFrontendNodePoolMutation(t *testing.T) {
 
 	// create anything and round trip anything for nodePool-service
 	// this happens here because the mock is associated with frontend. it's a little awkward to add instances, but we'll deal
-	err = trivialPassThroughClusterServiceMock(t, testInfo, api.Must(fs.Sub(artifacts, "artifacts/NodePoolMutation/initial-cluster-service-state")))
+	err = integrationutils.TrivialPassThroughClusterServiceMock(t, testInfo, api.Must(fs.Sub(artifacts, "artifacts/NodePoolMutation/initial-cluster-service-state")))
 	require.NoError(t, err)
 
 	dirContent := api.Must(artifacts.ReadDir("artifacts/NodePoolMutation"))
@@ -68,15 +69,15 @@ func TestFrontendNodePoolMutation(t *testing.T) {
 type nodePoolMutationTest struct {
 	ctx               context.Context
 	testDir           fs.FS
-	testInfo          *SimulationTestInfo
+	testInfo          *integrationutils.FrontendIntegrationTestInfo
 	subscriptionID    string
 	resourceGroupName string
 
-	genericMutationTestInfo *genericMutationTest
+	genericMutationTestInfo *integrationutils.GenericMutationTest
 }
 
-func newNodePoolMutationTest(ctx context.Context, testDir fs.FS, testInfo *SimulationTestInfo, subscriptionID, resourceGroupName string) (*nodePoolMutationTest, error) {
-	genericMutationTestInfo, err := readGenericMutationTest(testDir)
+func newNodePoolMutationTest(ctx context.Context, testDir fs.FS, testInfo *integrationutils.FrontendIntegrationTestInfo, subscriptionID, resourceGroupName string) (*nodePoolMutationTest, error) {
+	genericMutationTestInfo, err := integrationutils.ReadGenericMutationTest(testDir)
 	if err != nil {
 		return nil, err
 	}
@@ -94,34 +95,34 @@ func newNodePoolMutationTest(ctx context.Context, testDir fs.FS, testInfo *Simul
 func (tt *nodePoolMutationTest) runTest(t *testing.T) {
 	ctx := tt.ctx
 
-	require.NoError(t, tt.genericMutationTestInfo.initialize(ctx, tt.testInfo))
+	require.NoError(t, tt.genericMutationTestInfo.Initialize(ctx, tt.testInfo))
 
 	// better solutions welcome to be coded. This is simple and works for the moment.
 	hcpClusterName := strings.Split(t.Name(), "/")[1]
 	toCreate := &hcpsdk20240610preview.NodePool{}
-	require.NoError(t, json.Unmarshal(tt.genericMutationTestInfo.createJSON, toCreate))
+	require.NoError(t, json.Unmarshal(tt.genericMutationTestInfo.CreateJSON, toCreate))
 	nodePoolClient := tt.testInfo.Get20240610ClientFactory(tt.subscriptionID).NewNodePoolsClient()
 	_, mutationErr := nodePoolClient.BeginCreateOrUpdate(ctx, tt.resourceGroupName, hcpClusterName, *toCreate.Name, *toCreate, nil)
 
-	if tt.genericMutationTestInfo.isUpdateTest() || tt.genericMutationTestInfo.isPatchTest() {
+	if tt.genericMutationTestInfo.IsUpdateTest() || tt.genericMutationTestInfo.IsPatchTest() {
 		require.NoError(t, mutationErr)
-		require.NoError(t, MarkOperationsCompleteForName(ctx, tt.testInfo.DBClient, tt.subscriptionID, ptr.Deref(toCreate.Name, "")))
+		require.NoError(t, integrationutils.MarkOperationsCompleteForName(ctx, tt.testInfo.DBClient, tt.subscriptionID, ptr.Deref(toCreate.Name, "")))
 	}
 
 	switch {
-	case tt.genericMutationTestInfo.isUpdateTest():
+	case tt.genericMutationTestInfo.IsUpdateTest():
 		toUpdate := &hcpsdk20240610preview.NodePool{}
-		require.NoError(t, json.Unmarshal(tt.genericMutationTestInfo.updateJSON, toUpdate))
+		require.NoError(t, json.Unmarshal(tt.genericMutationTestInfo.UpdateJSON, toUpdate))
 		_, mutationErr = nodePoolClient.BeginCreateOrUpdate(ctx, tt.resourceGroupName, hcpClusterName, *toUpdate.Name, *toUpdate, nil)
 
-	case tt.genericMutationTestInfo.isPatchTest():
+	case tt.genericMutationTestInfo.IsPatchTest():
 		toPatch := &hcpsdk20240610preview.NodePoolUpdate{}
-		require.NoError(t, json.Unmarshal(tt.genericMutationTestInfo.patchJSON, toPatch))
+		require.NoError(t, json.Unmarshal(tt.genericMutationTestInfo.PatchJSON, toPatch))
 		_, mutationErr = nodePoolClient.BeginUpdate(ctx, tt.resourceGroupName, hcpClusterName, *toCreate.Name, *toPatch, nil)
 	}
 
-	tt.genericMutationTestInfo.verifyActualError(t, mutationErr)
-	if !tt.genericMutationTestInfo.expectsResult() {
+	tt.genericMutationTestInfo.VerifyActualError(t, mutationErr)
+	if !tt.genericMutationTestInfo.ExpectsResult() {
 		return
 	}
 
@@ -129,7 +130,7 @@ func (tt *nodePoolMutationTest) runTest(t *testing.T) {
 	// if the data we read back matches what we expect.
 	actualCreated, err := nodePoolClient.Get(ctx, tt.resourceGroupName, hcpClusterName, *toCreate.Name, nil)
 	require.NoError(t, err)
-	tt.genericMutationTestInfo.verifyActualResult(t, actualCreated)
+	tt.genericMutationTestInfo.VerifyActualResult(t, actualCreated)
 
 	currNodePoolFromList := &hcpsdk20240610preview.NodePool{}
 	nodePoolPager := nodePoolClient.NewListByParentPager(tt.resourceGroupName, hcpClusterName, nil)

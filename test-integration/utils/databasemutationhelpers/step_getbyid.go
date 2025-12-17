@@ -28,9 +28,15 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 )
 
-type getStep[InternalAPIType any] struct {
-	stepID      stepID
-	key         CosmosCRUDKey
+type GetByIDCRUDKey struct {
+	CosmosCRUDKey `json:",inline"`
+
+	CosmosID string `json:"cosmosID"`
+}
+
+type getByIDStep[InternalAPIType any] struct {
+	stepID      StepID
+	key         GetByIDCRUDKey
 	specializer ResourceCRUDTestSpecializer[InternalAPIType]
 
 	cosmosContainer  *azcosmos.ContainerClient
@@ -38,12 +44,12 @@ type getStep[InternalAPIType any] struct {
 	expectedError    string
 }
 
-func newGetStep[InternalAPIType any](stepID stepID, specializer ResourceCRUDTestSpecializer[InternalAPIType], cosmosContainer *azcosmos.ContainerClient, stepDir fs.FS) (*getStep[InternalAPIType], error) {
+func newGetByIDStep[InternalAPIType any](stepID StepID, specializer ResourceCRUDTestSpecializer[InternalAPIType], cosmosContainer *azcosmos.ContainerClient, stepDir fs.FS) (*getByIDStep[InternalAPIType], error) {
 	keyBytes, err := fs.ReadFile(stepDir, "00-key.json")
 	if err != nil {
 		return nil, fmt.Errorf("failed to read key.json: %w", err)
 	}
-	var key CosmosCRUDKey
+	var key GetByIDCRUDKey
 	if err := json.Unmarshal(keyBytes, &key); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal key.json: %w", err)
 	}
@@ -71,7 +77,7 @@ func newGetStep[InternalAPIType any](stepID stepID, specializer ResourceCRUDTest
 		return nil, fmt.Errorf("must expect either error and value")
 	}
 
-	return &getStep[InternalAPIType]{
+	return &getByIDStep[InternalAPIType]{
 		stepID:           stepID,
 		key:              key,
 		specializer:      specializer,
@@ -81,16 +87,15 @@ func newGetStep[InternalAPIType any](stepID stepID, specializer ResourceCRUDTest
 	}, nil
 }
 
-var _ resourceMutationStep = &getStep[any]{}
+var _ IntegrationTestStep = &getByIDStep[any]{}
 
-func (l *getStep[InternalAPIType]) StepID() stepID {
+func (l *getByIDStep[InternalAPIType]) StepID() StepID {
 	return l.stepID
 }
 
-func (l *getStep[InternalAPIType]) RunTest(ctx context.Context, t *testing.T) {
-	controllerCRUDClient := l.specializer.ResourceCRUDFromKey(t, l.cosmosContainer, l.key)
-	resourceName := l.specializer.NameFromInstance(l.expectedResource)
-	actualController, err := controllerCRUDClient.Get(ctx, resourceName)
+func (l *getByIDStep[InternalAPIType]) RunTest(ctx context.Context, t *testing.T) {
+	controllerCRUDClient := l.specializer.ResourceCRUDFromKey(t, l.cosmosContainer, l.key.CosmosCRUDKey)
+	actualController, err := controllerCRUDClient.GetByID(ctx, l.key.CosmosID)
 	switch {
 	case len(l.expectedError) > 0:
 		require.ErrorContains(t, err, l.expectedError)

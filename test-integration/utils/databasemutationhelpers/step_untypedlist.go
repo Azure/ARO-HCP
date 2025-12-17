@@ -23,64 +23,76 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
+
+	"github.com/Azure/ARO-HCP/internal/database"
 )
 
-type listStep[InternalAPIType any] struct {
-	stepID      stepID
-	key         CosmosCRUDKey
-	specializer ResourceCRUDTestSpecializer[InternalAPIType]
+type untypedListStep struct {
+	stepID      StepID
+	key         UntypedCRUDKey
+	specializer ResourceCRUDTestSpecializer[database.TypedDocument]
 
 	cosmosContainer   *azcosmos.ContainerClient
-	expectedResources []*InternalAPIType
+	expectedResources []*database.TypedDocument
 }
 
-func newListStep[InternalAPIType any](stepID stepID, specializer ResourceCRUDTestSpecializer[InternalAPIType], cosmosContainer *azcosmos.ContainerClient, stepDir fs.FS) (*listStep[InternalAPIType], error) {
+func newUntypedListStep(stepID StepID, cosmosContainer *azcosmos.ContainerClient, stepDir fs.FS) (*untypedListStep, error) {
 	keyBytes, err := fs.ReadFile(stepDir, "00-key.json")
 	if err != nil {
 		return nil, fmt.Errorf("failed to read key.json: %w", err)
 	}
-	var key CosmosCRUDKey
+	var key UntypedCRUDKey
 	if err := json.Unmarshal(keyBytes, &key); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal key.json: %w", err)
 	}
 
-	expectedResources, err := readResourcesInDir[InternalAPIType](stepDir)
+	expectedResources, err := readResourcesInDir[database.TypedDocument](stepDir)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read resource in dir: %w", err)
 	}
 
-	return &listStep[InternalAPIType]{
+	return &untypedListStep{
 		stepID:            stepID,
 		key:               key,
-		specializer:       specializer,
+		specializer:       UntypedCRUDSpecializer{},
 		cosmosContainer:   cosmosContainer,
 		expectedResources: expectedResources,
 	}, nil
 }
 
-var _ resourceMutationStep = &listStep[any]{}
+var _ IntegrationTestStep = &untypedListStep{}
 
-func (l *listStep[InternalAPIType]) StepID() stepID {
+func (l *untypedListStep) StepID() StepID {
 	return l.stepID
 }
 
-func (l *listStep[InternalAPIType]) RunTest(ctx context.Context, t *testing.T) {
-	controllerCRUDClient := l.specializer.ResourceCRUDFromKey(t, l.cosmosContainer, l.key)
-	actualControllersIterator, err := controllerCRUDClient.List(ctx, nil)
+func (l *untypedListStep) RunTest(ctx context.Context, t *testing.T) {
+	parentResourceID, err := azcorearm.ParseResourceID(l.key.ParentResourceID)
 	require.NoError(t, err)
 
-	actualResources := []*InternalAPIType{}
-	for _, actual := range actualControllersIterator.Items(ctx) {
+	untypedCRUD := database.NewUntypedCRUD(l.cosmosContainer, *parentResourceID)
+	for _, childKey := range l.key.Descendents {
+		childResourceType, err := azcorearm.ParseResourceType(childKey.ResourceType)
+		require.NoError(t, err)
+		untypedCRUD, err = untypedCRUD.Child(childResourceType, childKey.ResourceName)
+		require.NoError(t, err)
+	}
+	actualResourcesIterator, err := untypedCRUD.List(ctx, nil)
+	require.NoError(t, err)
+
+	actualResources := []*database.TypedDocument{}
+	for _, actual := range actualResourcesIterator.Items(ctx) {
 		actualResources = append(actualResources, actual)
 	}
-	require.NoError(t, actualControllersIterator.GetError())
+	require.NoError(t, actualResourcesIterator.GetError())
 
 	if len(l.expectedResources) != len(actualResources) {
 		t.Logf("actual:\n%v", stringifyResource(actualResources))
 	}
 
-	require.Equal(t, len(l.expectedResources), len(actualResources), "unexpected number of resources")
+	require.Equal(t, len(l.expectedResources), len(actualResources), "unexpected number of resource")
 	// all the expected must be present
 	for _, expected := range l.expectedResources {
 		found := false

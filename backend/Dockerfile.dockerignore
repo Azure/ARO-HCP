@@ -2,6 +2,7 @@
 !image-environment
 !internal/
 !backend/
+!test-integration/
 
 # https://github.com/containers/podman/discussions/22910
 # !image-environment

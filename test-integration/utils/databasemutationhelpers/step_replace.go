@@ -27,7 +27,7 @@ import (
 )
 
 type replaceStep[InternalAPIType any] struct {
-	stepID      stepID
+	stepID      StepID
 	key         CosmosCRUDKey
 	specializer ResourceCRUDTestSpecializer[InternalAPIType]
 
@@ -35,7 +35,7 @@ type replaceStep[InternalAPIType any] struct {
 	resources       []*InternalAPIType
 }
 
-func newReplaceStep[InternalAPIType any](stepID stepID, specializer ResourceCRUDTestSpecializer[InternalAPIType], cosmosContainer *azcosmos.ContainerClient, stepDir fs.FS) (*replaceStep[InternalAPIType], error) {
+func newReplaceStep[InternalAPIType any](stepID StepID, specializer ResourceCRUDTestSpecializer[InternalAPIType], cosmosContainer *azcosmos.ContainerClient, stepDir fs.FS) (*replaceStep[InternalAPIType], error) {
 	keyBytes, err := fs.ReadFile(stepDir, "00-key.json")
 	if err != nil {
 		return nil, fmt.Errorf("failed to read key.json: %w", err)
@@ -59,9 +59,9 @@ func newReplaceStep[InternalAPIType any](stepID stepID, specializer ResourceCRUD
 	}, nil
 }
 
-var _ resourceMutationStep = &replaceStep[any]{}
+var _ IntegrationTestStep = &replaceStep[any]{}
 
-func (l *replaceStep[InternalAPIType]) StepID() stepID {
+func (l *replaceStep[InternalAPIType]) StepID() StepID {
 	return l.stepID
 }
 
