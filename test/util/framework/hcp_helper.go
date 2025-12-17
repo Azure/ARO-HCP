@@ -18,6 +18,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
@@ -34,6 +35,7 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 
@@ -159,6 +161,16 @@ func DeleteHCPCluster(
 	default:
 		fmt.Printf("#### unknown type %T: content=%v", m, spew.Sdump(m))
 		return fmt.Errorf("unknown type %T", m)
+	}
+
+	// ensure the resource is actually gone after the delete operation completes
+	_, err = hcpClient.Get(ctx, resourceGroupName, hcpClusterName, nil)
+	if err == nil {
+		return fmt.Errorf("hcpCluster=%q in resourcegroup=%q still present after delete operation", hcpClusterName, resourceGroupName)
+	}
+	var responseErr *azcore.ResponseError
+	if !errors.As(err, &responseErr) || responseErr.StatusCode != http.StatusNotFound {
+		return fmt.Errorf("failed checking status of deleted hcpCluster=%q in resourcegroup=%q: %w", hcpClusterName, resourceGroupName, err)
 	}
 
 	return nil
