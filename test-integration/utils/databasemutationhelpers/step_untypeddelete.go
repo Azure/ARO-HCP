@@ -43,11 +43,10 @@ type untypedDeleteStep struct {
 	key         UntypedDeleteKey
 	specializer ResourceCRUDTestSpecializer[database.TypedDocument]
 
-	cosmosContainer *azcosmos.ContainerClient
-	expectedError   string
+	expectedError string
 }
 
-func newUntypedDeleteStep(stepID StepID, cosmosContainer *azcosmos.ContainerClient, stepDir fs.FS) (*untypedDeleteStep, error) {
+func newUntypedDeleteStep(stepID StepID, stepDir fs.FS) (*untypedDeleteStep, error) {
 	keyBytes, err := fs.ReadFile(stepDir, "00-key.json")
 	if err != nil {
 		return nil, fmt.Errorf("failed to read key.json: %w", err)
@@ -64,11 +63,10 @@ func newUntypedDeleteStep(stepID StepID, cosmosContainer *azcosmos.ContainerClie
 	expectedError := strings.TrimSpace(string(expectedErrorBytes))
 
 	return &untypedDeleteStep{
-		stepID:          stepID,
-		key:             key,
-		specializer:     UntypedCRUDSpecializer{},
-		cosmosContainer: cosmosContainer,
-		expectedError:   expectedError,
+		stepID:        stepID,
+		key:           key,
+		specializer:   UntypedCRUDSpecializer{},
+		expectedError: expectedError,
 	}, nil
 }
 
@@ -78,11 +76,11 @@ func (l *untypedDeleteStep) StepID() StepID {
 	return l.stepID
 }
 
-func (l *untypedDeleteStep) RunTest(ctx context.Context, t *testing.T) {
+func (l *untypedDeleteStep) RunTest(ctx context.Context, t *testing.T, cosmosContainer *azcosmos.ContainerClient) {
 	parentResourceID, err := azcorearm.ParseResourceID(l.key.ParentResourceID)
 	require.NoError(t, err)
 
-	untypedCRUD := database.NewUntypedCRUD(l.cosmosContainer, *parentResourceID)
+	untypedCRUD := database.NewUntypedCRUD(cosmosContainer, *parentResourceID)
 	for _, childKey := range l.key.Descendents {
 		childResourceType, err := azcorearm.ParseResourceType(childKey.ResourceType)
 		require.NoError(t, err)

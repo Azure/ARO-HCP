@@ -32,11 +32,10 @@ import (
 type cosmosCompare struct {
 	stepID StepID
 
-	cosmosContainer *azcosmos.ContainerClient
 	expectedContent []*database.TypedDocument
 }
 
-func NewCosmosCompareStep(stepID StepID, cosmosContainer *azcosmos.ContainerClient, stepDir fs.FS) (*cosmosCompare, error) {
+func NewCosmosCompareStep(stepID StepID, stepDir fs.FS) (*cosmosCompare, error) {
 	expectedContent, err := readResourcesInDir[database.TypedDocument](stepDir)
 	if err != nil {
 		return nil, utils.TrackError(err)
@@ -44,7 +43,6 @@ func NewCosmosCompareStep(stepID StepID, cosmosContainer *azcosmos.ContainerClie
 
 	return &cosmosCompare{
 		stepID:          stepID,
-		cosmosContainer: cosmosContainer,
 		expectedContent: expectedContent,
 	}, nil
 }
@@ -55,14 +53,14 @@ func (l *cosmosCompare) StepID() StepID {
 	return l.stepID
 }
 
-func (l *cosmosCompare) RunTest(ctx context.Context, t *testing.T) {
+func (l *cosmosCompare) RunTest(ctx context.Context, t *testing.T, cosmosContainer *azcosmos.ContainerClient) {
 	// Query all documents in the container
 	querySQL := "SELECT * FROM c"
 	queryOptions := &azcosmos.QueryOptions{
 		QueryParameters: []azcosmos.QueryParameter{},
 	}
 
-	queryPager := l.cosmosContainer.NewQueryItemsPager(querySQL, azcosmos.PartitionKey{}, queryOptions)
+	queryPager := cosmosContainer.NewQueryItemsPager(querySQL, azcosmos.PartitionKey{}, queryOptions)
 
 	allActual := []*database.TypedDocument{}
 	for queryPager.More() {

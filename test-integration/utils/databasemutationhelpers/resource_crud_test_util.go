@@ -24,37 +24,38 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/utils"
+	"github.com/Azure/ARO-HCP/test-integration/utils/integrationutils"
 )
 
 type ResourceMutationTest struct {
-	testDir         fs.FS
-	cosmosContainer *azcosmos.ContainerClient
+	testDir fs.FS
 
 	steps []IntegrationTestStep
 }
 
 type IntegrationTestStep interface {
 	StepID() StepID
-	RunTest(ctx context.Context, t *testing.T)
+	RunTest(ctx context.Context, t *testing.T, cosmosContainer *azcosmos.ContainerClient)
 }
 
-func NewResourceMutationTest[InternalAPIType any](ctx context.Context, specializer ResourceCRUDTestSpecializer[InternalAPIType], cosmosContainer *azcosmos.ContainerClient, testName string, testDir fs.FS) (*ResourceMutationTest, error) {
-	steps, err := readSteps(ctx, testDir, specializer, cosmosContainer)
+func NewResourceMutationTest[InternalAPIType any](ctx context.Context, specializer ResourceCRUDTestSpecializer[InternalAPIType], testName string, testDir fs.FS) (*ResourceMutationTest, error) {
+	steps, err := readSteps(ctx, testDir, specializer)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read steps for test %q: %w", testName, err)
 	}
 	return &ResourceMutationTest{
-		testDir:         testDir,
-		cosmosContainer: cosmosContainer,
-		steps:           steps,
+		testDir: testDir,
+		steps:   steps,
 	}, nil
 }
 
-func readSteps[InternalAPIType any](ctx context.Context, testDir fs.FS, specializer ResourceCRUDTestSpecializer[InternalAPIType], cosmosContainer *azcosmos.ContainerClient) ([]IntegrationTestStep, error) {
+func readSteps[InternalAPIType any](ctx context.Context, testDir fs.FS, specializer ResourceCRUDTestSpecializer[InternalAPIType]) ([]IntegrationTestStep, error) {
 	steps := []IntegrationTestStep{}
 
 	testContent := api.Must(fs.ReadDir(testDir, "."))
@@ -72,7 +73,7 @@ func readSteps[InternalAPIType any](ctx context.Context, testDir fs.FS, speciali
 		stepType := filenameParts[1]
 		stepName, _ := strings.CutSuffix(filenameParts[2], ".json")
 
-		testStep, err := newStep(index, stepType, stepName, testDir, dirEntry.Name(), specializer, cosmosContainer)
+		testStep, err := newStep(index, stepType, stepName, testDir, dirEntry.Name(), specializer)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create new step %q: %w", dirEntry.Name(), err)
 		}
@@ -84,17 +85,17 @@ func readSteps[InternalAPIType any](ctx context.Context, testDir fs.FS, speciali
 }
 
 func (tt *ResourceMutationTest) RunTest(t *testing.T) {
-	_, testInfo, err := NewFrontendFromTestingEnv(ctx, t)
+	testInfo, err := integrationutils.NewCosmosFromTestingEnv(t.Context())
 	require.NoError(t, err)
 	defer testInfo.Cleanup(context.Background())
 
 	for _, step := range tt.steps {
 		t.Logf("Running step %s", step.StepID())
-		step.RunTest(t.Context(), t)
+		step.RunTest(t.Context(), t, testInfo.CosmosResourcesContainer())
 	}
 }
 
-func newStep[InternalAPIType any](indexString, stepType, stepName string, testDir fs.FS, path string, specializer ResourceCRUDTestSpecializer[InternalAPIType], cosmosContainer *azcosmos.ContainerClient) (IntegrationTestStep, error) {
+func newStep[InternalAPIType any](indexString, stepType, stepName string, testDir fs.FS, path string, specializer ResourceCRUDTestSpecializer[InternalAPIType]) (IntegrationTestStep, error) {
 	itoInt, err := strconv.Atoi(indexString)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert %s to int: %w", indexString, err)
@@ -107,43 +108,43 @@ func newStep[InternalAPIType any](indexString, stepType, stepName string, testDi
 
 	switch stepType {
 	case "load":
-		return NewLoadStep(stepID, cosmosContainer, stepDir)
+		return NewLoadStep(stepID, stepDir)
 
 	case "cosmosCompare":
-		return NewCosmosCompareStep(stepID, cosmosContainer, stepDir)
+		return NewCosmosCompareStep(stepID, stepDir)
 
 	case "create":
-		return newCreateStep(stepID, specializer, cosmosContainer, stepDir)
+		return newCreateStep(stepID, specializer, stepDir)
 
 	case "replace":
-		return newReplaceStep(stepID, specializer, cosmosContainer, stepDir)
+		return newReplaceStep(stepID, specializer, stepDir)
 
 	case "get":
-		return newGetStep(stepID, specializer, cosmosContainer, stepDir)
+		return newGetStep(stepID, specializer, stepDir)
 
 	case "getByID":
-		return newGetByIDStep(stepID, specializer, cosmosContainer, stepDir)
+		return newGetByIDStep(stepID, specializer, stepDir)
 
 	case "untypedGet":
-		return newUntypedGetStep(stepID, cosmosContainer, stepDir)
+		return newUntypedGetStep(stepID, stepDir)
 
 	case "list":
-		return newListStep(stepID, specializer, cosmosContainer, stepDir)
+		return newListStep(stepID, specializer, stepDir)
 
 	case "listActiveOperations":
-		return newListActiveOperationsStep(stepID, cosmosContainer, stepDir)
+		return newListActiveOperationsStep(stepID, stepDir)
 
 	case "untypedListRecursive":
-		return newUntypedListRecursiveStep(stepID, cosmosContainer, stepDir)
+		return newUntypedListRecursiveStep(stepID, stepDir)
 
 	case "untypedList":
-		return newUntypedListStep(stepID, cosmosContainer, stepDir)
+		return newUntypedListStep(stepID, stepDir)
 
 	case "delete":
-		return newDeleteStep(stepID, specializer, cosmosContainer, stepDir)
+		return newDeleteStep(stepID, specializer, stepDir)
 
 	case "untypedDelete":
-		return newUntypedDeleteStep(stepID, cosmosContainer, stepDir)
+		return newUntypedDeleteStep(stepID, stepDir)
 
 	default:
 		return nil, fmt.Errorf("unknown step type: %s", stepType)
