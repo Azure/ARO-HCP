@@ -571,7 +571,7 @@ func (s *OperationsScanner) pollClusterOperation(ctx context.Context, op operati
 		}
 	}
 
-	err = s.updateOperationStatus(ctx, op, opStatus, opError)
+	err = database.UpdateOperationStatus(ctx, s.dbClient, op.doc, opStatus, opError, s.postAsyncNotification)
 	if err != nil {
 		s.recordOperationError(ctx, pollClusterOperationLabel, err)
 		op.logger.Error(fmt.Sprintf("Failed to update operation status: %v", err))
@@ -622,7 +622,7 @@ func (s *OperationsScanner) pollNodePoolOperation(ctx context.Context, op operat
 		return
 	}
 
-	err = s.updateOperationStatus(ctx, op, opStatus, opError)
+	err = database.UpdateOperationStatus(ctx, s.dbClient, op.doc, opStatus, opError, s.postAsyncNotification)
 	if err != nil {
 		s.recordOperationError(ctx, pollNodePoolOperationLabel, err)
 		op.logger.Error(fmt.Sprintf("Failed to update operation status: %v", err))
@@ -652,8 +652,7 @@ func (s *OperationsScanner) pollExternalAuthOperation(ctx context.Context, op op
 
 		return
 	}
-
-	err = s.updateOperationStatus(ctx, op, arm.ProvisioningStateSucceeded, nil)
+	err = database.UpdateOperationStatus(ctx, s.dbClient, op.doc, arm.ProvisioningStateSucceeded, nil, s.postAsyncNotification)
 	if err != nil {
 		s.recordOperationError(ctx, pollExternalAuthOperationLabel, err)
 		op.logger.Error(fmt.Sprintf("Failed to update operation status: %v", err))
@@ -696,7 +695,7 @@ func (s *OperationsScanner) pollBreakGlassCredential(ctx context.Context, op ope
 		return
 	}
 
-	err = s.patchOperationDocument(ctx, op, opStatus, opError)
+	err = database.PatchOperationDocument(ctx, s.dbClient, op.doc, opStatus, opError, s.postAsyncNotification)
 	if err != nil {
 		s.recordOperationError(ctx, pollBreakGlassCredential, err)
 		op.logger.Error(fmt.Sprintf("Failed to update operation status: %v", err))
@@ -761,7 +760,7 @@ loop:
 		return
 	}
 
-	err = s.patchOperationDocument(ctx, op, opStatus, opError)
+	err = database.PatchOperationDocument(ctx, s.dbClient, op.doc, opStatus, opError, s.postAsyncNotification)
 	if err != nil {
 		s.recordOperationError(ctx, pollBreakGlassCredentialRevoke, err)
 		op.logger.Error(fmt.Sprintf("Failed to update operation status: %v", err))
@@ -842,126 +841,22 @@ func (s *OperationsScanner) setDeleteOperationAsCompleted(ctx context.Context, o
 	}
 
 	// Save a final "succeeded" operation status until TTL expires.
-	err = s.patchOperationDocument(ctx, op, arm.ProvisioningStateSucceeded, nil)
+	err = database.PatchOperationDocument(ctx, s.dbClient, op.doc, arm.ProvisioningStateSucceeded, nil, s.postAsyncNotification)
 	if err != nil {
 		return utils.TrackError(err)
-	}
-
-	return nil
-}
-
-// updateOperationStatus updates Cosmos DB to reflect an updated resource status.
-func (s *OperationsScanner) updateOperationStatus(ctx context.Context, op operation, opStatus arm.ProvisioningState, opError *arm.CloudErrorBody) error {
-	err := s.patchOperationDocument(ctx, op, opStatus, opError)
-	if err != nil {
-		return err
-	}
-
-	var patchOperations database.ResourceDocumentPatchOperations
-
-	scalar := strings.ReplaceAll(database.ResourceDocumentJSONPathActiveOperationID, "/", ".")
-	condition := fmt.Sprintf("FROM doc WHERE doc%s = '%s'", scalar, op.id)
-
-	patchOperations.SetCondition(condition)
-	patchOperations.SetProvisioningState(opStatus)
-	if opStatus.IsTerminal() {
-		patchOperations.SetActiveOperationID(nil)
-	}
-
-	_, err = s.dbClient.PatchResourceDoc(ctx, op.doc.ExternalID, patchOperations)
-	return err
-}
-
-// patchOperationDocument patches the status and error fields of an OperationDocument.
-func (s *OperationsScanner) patchOperationDocument(ctx context.Context, op operation, opStatus arm.ProvisioningState, opError *arm.CloudErrorBody) error {
-	if len(op.doc.NotificationURI) == 0 && op.doc.Status == opStatus {
-		// we rewrite the status when we missed a notification
-		return fmt.Errorf("status must be different in order to write new status")
-	}
-
-	// shallow copy works since all the fields we're touching are shallow
-	operationToWrite := *op.doc
-	operationToWrite.LastTransitionTime = s.newTimestamp()
-	operationToWrite.Status = opStatus
-	if opError != nil {
-		operationToWrite.Error = opError
-	}
-
-	// TODO see if we want to plumb etags through to prevent stomping.  Right now this will stomp a concurrent write.
-	// we don't expect concurrent writes and the last one winning is ok.
-	latestOperation, err := s.dbClient.Operations(operationToWrite.OperationID.SubscriptionID).Replace(ctx, &operationToWrite, nil)
-	if err != nil {
-		return utils.TrackError(err)
-	}
-
-	op.doc = latestOperation
-	message := fmt.Sprintf("Updated status to '%s'", opStatus)
-	switch opStatus {
-	case arm.ProvisioningStateSucceeded:
-		switch op.doc.Request {
-		case database.OperationRequestCreate:
-			message = "Resource creation succeeded"
-		case database.OperationRequestUpdate:
-			message = "Resource update succeeded"
-		case database.OperationRequestDelete:
-			message = "Resource deletion succeeded"
-		case database.OperationRequestRequestCredential:
-			message = "Credential request succeeded"
-		case database.OperationRequestRevokeCredentials:
-			message = "Credential revocation succeeded"
-		}
-	case arm.ProvisioningStateFailed:
-		switch op.doc.Request {
-		case database.OperationRequestCreate:
-			message = "Resource creation failed"
-		case database.OperationRequestUpdate:
-			message = "Resource update failed"
-		case database.OperationRequestDelete:
-			message = "Resource deletion failed"
-		case database.OperationRequestRequestCredential:
-			message = "Credential request failed"
-		case database.OperationRequestRevokeCredentials:
-			message = "Credential revocation failed"
-		}
-	}
-
-	if opError != nil {
-		op.logger.With("cloud_error_code", opError.Code, "cloud_error_message", opError.Message).Error(message)
-	} else {
-		op.logger.Info(message)
-	}
-
-	if opStatus.IsTerminal() && len(op.doc.NotificationURI) > 0 {
-		err = s.postAsyncNotification(ctx, op)
-		if err == nil {
-			op.logger.Info("Posted async notification")
-
-			// Remove the notification URI from the document
-			// so the ARM notification is only sent once.
-			operationWithoutNotificationURI := *latestOperation
-			operationWithoutNotificationURI.NotificationURI = ""
-			latestOperation, err = s.dbClient.Operations(operationToWrite.OperationID.SubscriptionID).Replace(ctx, &operationToWrite, nil)
-			if err == nil {
-				op.doc = latestOperation
-			} else {
-				op.logger.Error(fmt.Sprintf("Failed to clear notification URI: %v", err))
-			}
-		} else {
-			op.logger.Error(fmt.Sprintf("Failed to post async notification: %v", err.Error()))
-		}
 	}
 
 	return nil
 }
 
 // postAsyncNotification submits an POST request with status payload to the given URL.
-func (s *OperationsScanner) postAsyncNotification(ctx context.Context, op operation) error {
-	data, err := arm.MarshalJSON(database.ToStatus(op.doc))
+func (s *OperationsScanner) postAsyncNotification(ctx context.Context, operation *api.Operation) error {
+	data, err := arm.MarshalJSON(database.ToStatus(operation))
 	if err != nil {
 		return err
 	}
 
-	request, err := http.NewRequestWithContext(ctx, http.MethodPost, op.doc.NotificationURI, bytes.NewBuffer(data))
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, operation.NotificationURI, bytes.NewBuffer(data))
 	if err != nil {
 		return err
 	}

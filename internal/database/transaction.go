@@ -25,16 +25,6 @@ type DBTransaction interface {
 	// GetPartitionKey returns the transaction's partition key.
 	GetPartitionKey() string
 
-	// ReadDoc adds a read request to the transaction whose result
-	// is obtained through the DBTransactionResult interface.
-	ReadDoc(itemID string, o *azcosmos.TransactionalBatchItemOptions)
-
-	// DeleteDoc adds a delete request to the transaction.
-	DeleteDoc(itemID string, o *azcosmos.TransactionalBatchItemOptions)
-
-	// PatchResourceDoc adds a set of patch operations to the transaction.
-	PatchResourceDoc(itemID string, ops ResourceDocumentPatchOperations, o *azcosmos.TransactionalBatchItemOptions)
-
 	// OnSuccess adds a function to call if the transaction executes successfully.
 	OnSuccess(callback DBTransactionCallback)
 
@@ -83,29 +73,8 @@ func (t *cosmosDBTransaction) GetPartitionKey() string {
 	return t.pk
 }
 
-func (t *cosmosDBTransaction) ReadDoc(itemID string, o *azcosmos.TransactionalBatchItemOptions) {
-	t.steps = append(t.steps, func(b *azcosmos.TransactionalBatch) (string, error) {
-		b.ReadItem(itemID, o)
-		return itemID, nil
-	})
-}
-
-func (t *cosmosDBTransaction) DeleteDoc(itemID string, o *azcosmos.TransactionalBatchItemOptions) {
-	t.steps = append(t.steps, func(b *azcosmos.TransactionalBatch) (string, error) {
-		b.DeleteItem(itemID, o)
-		return itemID, nil
-	})
-}
-
 func (t *cosmosDBTransaction) AddStep(stepFn CosmosDBTransactionStep) {
 	t.steps = append(t.steps, stepFn)
-}
-
-func (t *cosmosDBTransaction) PatchResourceDoc(itemID string, ops ResourceDocumentPatchOperations, o *azcosmos.TransactionalBatchItemOptions) {
-	t.steps = append(t.steps, func(b *azcosmos.TransactionalBatch) (string, error) {
-		b.PatchItem(itemID, ops.PatchOperations, o)
-		return itemID, nil
-	})
 }
 
 func (t *cosmosDBTransaction) OnSuccess(callback DBTransactionCallback) {
