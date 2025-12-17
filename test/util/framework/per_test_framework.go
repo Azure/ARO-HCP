@@ -752,6 +752,10 @@ func (tc *perItOrDescribeTestContext) TenantID() string {
 	return tc.perBinaryInvocationTestContext.tenantID
 }
 
+func (tc *perItOrDescribeTestContext) PullSecretPath() string {
+	return tc.perBinaryInvocationTestContext.pullSecretPath
+}
+
 func (tc *perItOrDescribeTestContext) recordDeploymentOperationsUnlocked(resourceGroup, deployment string, operations []timing.Operation) {
 	if _, exists := tc.timingMetadata.Deployments[resourceGroup]; !exists {
 		tc.timingMetadata.Deployments[resourceGroup] = make(map[string][]timing.Operation)
