@@ -84,6 +84,10 @@ func readSteps[InternalAPIType any](ctx context.Context, testDir fs.FS, speciali
 }
 
 func (tt *ResourceMutationTest) RunTest(t *testing.T) {
+	_, testInfo, err := NewFrontendFromTestingEnv(ctx, t)
+	require.NoError(t, err)
+	defer testInfo.Cleanup(context.Background())
+
 	for _, step := range tt.steps {
 		t.Logf("Running step %s", step.StepID())
 		step.RunTest(t.Context(), t)

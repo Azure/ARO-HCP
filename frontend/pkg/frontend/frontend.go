@@ -445,7 +445,7 @@ func (f *Frontend) ArmSubscriptionGet(writer http.ResponseWriter, request *http.
 
 	subscriptionID := request.PathValue(PathSegmentSubscriptionID)
 
-	subscription, err := f.dbClient.GetSubscriptionDoc(ctx, subscriptionID)
+	subscription, err := f.dbClient.Subscriptions().Get(ctx, subscriptionID)
 	if database.IsResponseError(err, http.StatusNotFound) {
 		return arm.NewResourceNotFoundError(resourceID)
 	}
@@ -468,23 +468,27 @@ func (f *Frontend) ArmSubscriptionPut(writer http.ResponseWriter, request *http.
 	if err != nil {
 		return utils.TrackError(err)
 	}
+	subscriptionID := request.PathValue(PathSegmentSubscriptionID)
 
-	var subscription arm.Subscription
-	err = json.Unmarshal(body, &subscription)
+	var requestSubscription arm.Subscription
+	err = json.Unmarshal(body, &requestSubscription)
 	if err != nil {
 		return arm.NewInvalidRequestContentError(err)
 	}
+	requestSubscription.ResourceID, err = arm.ToSubscriptionResourceID(subscriptionID)
+	if err != nil {
+		return utils.TrackError(err)
+	}
 
-	validationErrs := validation.ValidateSubscriptionCreate(ctx, &subscription)
+	validationErrs := validation.ValidateSubscriptionCreate(ctx, &requestSubscription)
 	if err := arm.CloudErrorFromFieldErrors(validationErrs); err != nil {
 		return utils.TrackError(err)
 	}
 
-	subscriptionID := request.PathValue(PathSegmentSubscriptionID)
-
-	_, err = f.dbClient.GetSubscriptionDoc(ctx, subscriptionID)
+	var resultingSubscription *arm.Subscription
+	existingSubscription, err := f.dbClient.Subscriptions().Get(ctx, subscriptionID)
 	if database.IsResponseError(err, http.StatusNotFound) {
-		err = f.dbClient.CreateSubscriptionDoc(ctx, subscriptionID, &subscription)
+		resultingSubscription, err = f.dbClient.Subscriptions().Create(ctx, &requestSubscription, nil)
 		if err != nil {
 			return utils.TrackError(err)
 		}
@@ -492,32 +496,29 @@ func (f *Frontend) ArmSubscriptionPut(writer http.ResponseWriter, request *http.
 	} else if err != nil {
 		return utils.TrackError(err)
 	} else {
-		updated, err := f.dbClient.UpdateSubscriptionDoc(ctx, subscriptionID, func(updateSubscription *arm.Subscription) bool {
-			messages := getSubscriptionDifferences(updateSubscription, &subscription)
-			for _, message := range messages {
-				logger.Info(message)
-			}
-
-			*updateSubscription = subscription
-
-			return len(messages) > 0
-		})
-		if err != nil {
-			return utils.TrackError(err)
+		messages := getSubscriptionDifferences(existingSubscription, &requestSubscription)
+		for _, message := range messages {
+			logger.Info(message)
 		}
-		if updated {
+		if len(messages) > 0 {
+			resultingSubscription, err = f.dbClient.Subscriptions().Replace(ctx, &requestSubscription, nil)
+			if err != nil {
+				return utils.TrackError(err)
+			}
 			logger.Info(fmt.Sprintf("updated document for subscription %s", subscriptionID))
+		} else {
+			resultingSubscription = existingSubscription
 		}
 	}
 
 	// Clean up resources if subscription is deleted.
-	if subscription.State == arm.SubscriptionStateDeleted {
+	if resultingSubscription.State == arm.SubscriptionStateDeleted {
 		if err := f.DeleteAllResourcesInSubscription(ctx, subscriptionID); err != nil {
 			return utils.TrackError(err)
 		}
 	}
 
-	_, err = arm.WriteJSONResponse(writer, http.StatusOK, subscription)
+	_, err = arm.WriteJSONResponse(writer, http.StatusOK, resultingSubscription)
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -531,7 +532,7 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 	ctx := request.Context()
 	logger := utils.LoggerFromContext(ctx)
 
-	subscription, err := f.dbClient.GetSubscriptionDoc(ctx, subscriptionID)
+	subscription, err := f.dbClient.Subscriptions().Get(ctx, subscriptionID)
 	if err != nil {
 		return err
 	}
