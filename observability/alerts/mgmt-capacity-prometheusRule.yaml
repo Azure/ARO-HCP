@@ -5,7 +5,7 @@ metadata:
   namespace: monitoring
 spec:
   groups:
-  - name: mgmt-capacity.rules
+  - name: mgmt-capacity-rules
     rules:
     # Management cluster HCP capacity monitoring
     # Owner: Service Lifecycle team (hcp-sl)

@@ -1697,7 +1697,7 @@ resource kasMonitorRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-0
 }
 
 resource mgmtCapacityRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
-  name: 'mgmt-capacity.rules'
+  name: 'mgmt-capacity-rules'
   location: resourceGroup().location
   properties: {
     interval: 'PT1M'
