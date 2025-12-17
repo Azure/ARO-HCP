@@ -21,7 +21,6 @@ import (
 	"net/http"
 	"os"
 	"path"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -44,14 +43,13 @@ type perBinaryInvocationTestContext struct {
 	tenantID                 string
 	testUserClientID         string
 	location                 string
+	pullSecretPath           string
 	isDevelopmentEnvironment bool
 	skipCleanup              bool
-	pooledIdentities         bool
 
-	contextLock       sync.RWMutex
-	subscriptionID    string
-	azureCredentials  azcore.TokenCredential
-	identityPoolState *leasedIdentityPoolState
+	contextLock      sync.RWMutex
+	subscriptionID   string
+	azureCredentials azcore.TokenCredential
 }
 
 type CleanupFunc func(ctx context.Context) error
@@ -75,14 +73,14 @@ func invocationContext() *perBinaryInvocationTestContext {
 	initializeOnce.Do(func() {
 		invocationContextInstance = &perBinaryInvocationTestContext{
 			artifactDir:              artifactDir(),
-			sharedDir:                SharedDir(),
+			sharedDir:                sharedDir(),
 			subscriptionName:         subscriptionName(),
 			tenantID:                 tenantID(),
 			testUserClientID:         testUserClientID(),
 			location:                 location(),
+			pullSecretPath:           pullSecretPath(),
 			isDevelopmentEnvironment: IsDevelopmentEnvironment(),
 			skipCleanup:              skipCleanup(),
-			pooledIdentities:         pooledIdentities(),
 		}
 	})
 	return invocationContextInstance
@@ -191,37 +189,6 @@ func (tc *perBinaryInvocationTestContext) Location() string {
 	return tc.location
 }
 
-func (tc *perBinaryInvocationTestContext) UsePooledIdentities() bool {
-	return tc.pooledIdentities
-}
-
-func (tc *perBinaryInvocationTestContext) getLeasedIdentityPoolState() (*leasedIdentityPoolState, error) {
-	tc.contextLock.RLock()
-	if tc.identityPoolState != nil {
-		defer tc.contextLock.RUnlock()
-		return tc.identityPoolState, nil
-	}
-	tc.contextLock.RUnlock()
-
-	tc.contextLock.Lock()
-	defer tc.contextLock.Unlock()
-
-	if tc.identityPoolState != nil {
-		return tc.identityPoolState, nil
-	}
-
-	state, err := newLeasedIdentityPoolState(msiPoolStateFilePath())
-	if err != nil {
-		return nil, fmt.Errorf("failed to get managed identities pool state: %w", err)
-	}
-	tc.identityPoolState = state
-	return tc.identityPoolState, nil
-}
-
-func msiPoolStateFilePath() string {
-	return filepath.Join(artifactDir(), "identities-pool-state.yaml")
-}
-
 func skipCleanup() bool {
 	ret, _ := strconv.ParseBool(os.Getenv("ARO_E2E_SKIP_CLEANUP"))
 	return ret
@@ -233,15 +200,10 @@ func artifactDir() string {
 	return os.Getenv("ARTIFACT_DIR")
 }
 
-func pooledIdentities() bool {
-	b, _ := strconv.ParseBool(strings.TrimSpace(os.Getenv(UsePooledIdentitiesEnvvar)))
-	return b
-}
-
-// SharedDir is SHARED_DIR.  It is a spot to store *files only* that can be shared between ci-operator steps.
+// sharedDir is SHARED_DIR.  It is a spot to store *files only* that can be shared between ci-operator steps.
 // We can use this for anything, but currently we have a backup cleanup and collection scripts that use files
 // here to cleanup and debug testing resources.
-func SharedDir() string {
+func sharedDir() string {
 	// can't use gomega in this method since it is used outside of It()
 	return os.Getenv("SHARED_DIR")
 }
@@ -268,6 +230,16 @@ func testUserClientID() string {
 func tenantID() string {
 	// can't use gomega in this method since it is used outside of It()
 	return os.Getenv("AZURE_TENANT_ID")
+}
+
+// pullSecretPath returns the value of ARO_HCP_QE_PULL_SECRET_PATH environment variable
+// If not set, defaults to /var/run/aro-hcp-qe-pull-secret
+func pullSecretPath() string {
+	path := os.Getenv("ARO_HCP_QE_PULL_SECRET_PATH")
+	if path == "" {
+		return "/var/run/aro-hcp-qe-pull-secret"
+	}
+	return path
 }
 
 // IsDevelopmentEnvironment indicates when this environment is development.  This controls client endpoints and disables security

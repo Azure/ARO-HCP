@@ -164,16 +164,12 @@ func (tc *perItOrDescribeTestContext) deleteCreatedResources(ctx context.Context
 	}
 	errCleanupResourceGroups := tc.CleanupResourceGroups(ctx, hcpClientFactory.NewHcpOpenShiftClustersClient(), resourceGroupsClientFactory.NewResourceGroupsClient(), opts)
 	if errCleanupResourceGroups != nil {
-		ginkgo.GinkgoLogr.Error(errCleanupResourceGroups, "at least one resource group failed to delete")
+		ginkgo.GinkgoLogr.Error(errCleanupResourceGroups, "at least one resource group failed to delete: %w", errCleanupResourceGroups)
 	}
 
 	err = CleanupAppRegistrations(ctx, graphClient, appRegistrations)
 	if err != nil {
-		ginkgo.GinkgoLogr.Error(err, "at least one app registration failed to delete")
-	}
-
-	if err := tc.releaseLeasedIdentities(ctx); err != nil {
-		ginkgo.GinkgoLogr.Error(err, "failed to release leased identities")
+		ginkgo.GinkgoLogr.Error(err, "at least one app registration failed to delete: %w", err)
 	}
 
 	ginkgo.GinkgoLogr.Info("finished deleting created resources")
@@ -259,19 +255,9 @@ func (tc *perItOrDescribeTestContext) collectDebugInfo(ctx context.Context) {
 	defer tc.contextLock.RUnlock()
 	ginkgo.GinkgoLogr.Info("collecting debug info")
 
-	leasedContainers, err := tc.leasedIdentityContainers()
-	if err != nil {
-		ginkgo.GinkgoLogr.Error(err, "failed to get leased identity containers")
-		return
-	}
-
 	// deletion takes a while, it's worth it to do this in parallel
 	waitGroup, ctx := errgroup.WithContext(ctx)
-	resourceGroups := append(
-		append([]string(nil), tc.knownResourceGroups...),
-		leasedContainers...,
-	)
-	for _, resourceGroupName := range resourceGroups {
+	for _, resourceGroupName := range tc.knownResourceGroups {
 		currResourceGroupName := resourceGroupName
 		waitGroup.Go(func() error {
 			// prevent a stray panic from exiting the process. Don't do this generally because ginkgo/gomega rely on panics to function.
@@ -282,7 +268,7 @@ func (tc *perItOrDescribeTestContext) collectDebugInfo(ctx context.Context) {
 	}
 	if err := waitGroup.Wait(); err != nil {
 		// remember that Wait only shows the first error, not all the errors.
-		ginkgo.GinkgoLogr.Error(err, "at least one resource group failed to collect")
+		ginkgo.GinkgoLogr.Error(err, "at least one resource group failed to collect: %w", err)
 	}
 
 	ginkgo.GinkgoLogr.Info("finished collecting debug info")
@@ -750,6 +736,10 @@ func (tc *perItOrDescribeTestContext) FindVirtualMachineSizeMatching(ctx context
 
 func (tc *perItOrDescribeTestContext) TenantID() string {
 	return tc.perBinaryInvocationTestContext.tenantID
+}
+
+func (tc *perItOrDescribeTestContext) PullSecretPath() string {
+	return tc.perBinaryInvocationTestContext.pullSecretPath
 }
 
 func (tc *perItOrDescribeTestContext) recordDeploymentOperationsUnlocked(resourceGroup, deployment string, operations []timing.Operation) {
