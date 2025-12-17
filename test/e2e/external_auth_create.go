@@ -58,8 +58,8 @@ var _ = Describe("Customer", func() {
 				externalAuthSubjectPrefix        = "prefix-" // TODO: ARO-21008 preventing us setting NoPrefix
 			)
 			tc := framework.NewTestContext()
-			openshiftControlPlaneVersionId   := framework.DefaultOpenshiftControlPlaneVersionId()
-			openshiftNodeVersionId           := framework.DefaultOpenshiftNodePoolVersionId()
+			openshiftControlPlaneVersionId := framework.DefaultOpenshiftControlPlaneVersionId()
+			openshiftNodeVersionId := framework.DefaultOpenshiftNodePoolVersionId()
 
 			if tc.UsePooledIdentities() {
 				err := tc.AssignIdentityContainers(ctx, 1, 60*time.Second)

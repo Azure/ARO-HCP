@@ -46,8 +46,8 @@ var _ = Describe("Customer", func() {
 			customerNodePoolName             = "np-1"
 		)
 		tc := framework.NewTestContext()
-		openshiftControlPlaneVersionId   := framework.DefaultOpenshiftControlPlaneVersionId()
-		openshiftNodeVersionId           := framework.DefaultOpenshiftNodePoolVersionId()
+		openshiftControlPlaneVersionId := framework.DefaultOpenshiftControlPlaneVersionId()
+		openshiftNodeVersionId := framework.DefaultOpenshiftNodePoolVersionId()
 
 		if tc.UsePooledIdentities() {
 			err := tc.AssignIdentityContainers(ctx, 1, 60*time.Second)

@@ -40,6 +40,7 @@ var _ = Describe("Customer", func() {
 			const createClustersCount = 2
 
 			tc := framework.NewTestContext()
+			openshiftControlPlaneVersionId := framework.DefaultOpenshiftControlPlaneVersionId()
 
 			if tc.UsePooledIdentities() {
 				err := tc.AssignIdentityContainers(ctx, createClustersCount, 60*time.Second)
@@ -69,10 +70,11 @@ var _ = Describe("Customer", func() {
 					framework.WithScope(framework.BicepDeploymentScopeResourceGroup),
 					framework.WithClusterResourceGroup(*resourceGroup.Name),
 					framework.WithParameters(map[string]any{
-						"clusterName":         clusterName,
-						"persistTagValue":     false,
-						"identities":          identities,
-						"usePooledIdentities": usePooledForCluster,
+						"openshiftControlPlaneVersionId": openshiftControlPlaneVersionId,
+						"clusterName":                    clusterName,
+						"persistTagValue":                false,
+						"identities":                     identities,
+						"usePooledIdentities":            usePooledForCluster,
 					}),
 					framework.WithTimeout(45*time.Minute),
 				)

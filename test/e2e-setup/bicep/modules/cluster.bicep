@@ -14,7 +14,7 @@ param vnetName string
 param subnetName string
 
 @description('OpenShift Version ID to use')
-param openshiftVersionId string = '4.19'
+param openshiftVersionId string
 
 @description('Network configuration of the hosted cluster')
 param networkConfig object = {
