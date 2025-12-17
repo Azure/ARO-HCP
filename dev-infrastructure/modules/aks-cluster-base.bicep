@@ -80,6 +80,9 @@ param aksKeyVaultName string
 param aksKeyVaultTagName string
 param aksKeyVaultTagValue string
 
+// Owning team tag
+param owningTeamTagValue string
+
 // Local Params
 @description('Optional DNS prefix to use with hosted Kubernetes API server FQDN.')
 param dnsPrefix string = aksClusterName
@@ -294,6 +297,7 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-10-01' = {
   tags: {
     persist: 'true'
     clusterType: clusterType
+    owningTeam: owningTeamTagValue
   }
   identity: {
     type: 'UserAssigned'

@@ -397,6 +397,9 @@ param adminApiIngressCertName string
 @description('The issuer of the Admin API certificate')
 param adminApiIngressCertIssuer string
 
+@description('The cluster tag value for the owning team')
+param owningTeamTagValue string
+
 resource serviceKeyVault 'Microsoft.KeyVault/vaults@2024-04-01-preview' existing = {
   name: serviceKeyVaultName
   scope: resourceGroup(serviceKeyVaultResourceGroup)
@@ -584,6 +587,7 @@ module svcCluster '../modules/aks-cluster-base.bicep' = {
     pullAcrResourceIds: [svcAcrResourceId]
     deploymentMsiId: globalMSIId
     enableSwiftV2Nodepools: false
+    owningTeamTagValue: owningTeamTagValue
   }
   dependsOn: [
     managedIdentities
