@@ -143,14 +143,14 @@ func (s *CosmosIntegrationTestInfo) CreateNewSubscription(ctx context.Context) (
 
 func (s *CosmosIntegrationTestInfo) CreateSpecificSubscription(ctx context.Context, subscriptionID string) (string, *arm.Subscription, error) {
 	subscription := &arm.Subscription{
-		State: arm.SubscriptionStateRegistered,
+		ResourceID: api.Must(arm.ToSubscriptionResourceID(subscriptionID)),
+		State:      arm.SubscriptionStateRegistered,
 	}
-	err := s.DBClient.CreateSubscriptionDoc(ctx, subscriptionID, subscription)
+	ret, err := s.DBClient.Subscriptions().Create(ctx, subscription, nil)
 	if err != nil {
 		return "", nil, err
 	}
 
-	ret, err := s.DBClient.GetSubscriptionDoc(ctx, subscriptionID)
 	return subscriptionID, ret, err
 }
 
