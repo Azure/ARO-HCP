@@ -3,7 +3,7 @@ module github.com/Azure/ARO-HCP/tooling/secret-sync
 go 1.24.4
 
 require (
-	github.com/Azure/ARO-Tools v0.0.0-20251210160534-1cb8cc444c30
+	github.com/Azure/ARO-Tools v0.0.0-20251217212052-baa2e4c6d49a
 	github.com/dusted-go/logging v1.3.0
 	github.com/go-logr/logr v1.4.3
 	github.com/spf13/cobra v1.10.1
@@ -26,6 +26,7 @@ require (
 	go.yaml.in/yaml/v2 v2.4.2 // indirect
 	golang.org/x/crypto v0.46.0 // indirect
 	golang.org/x/net v0.47.0 // indirect
+	golang.org/x/sync v0.19.0 // indirect
 	golang.org/x/sys v0.39.0 // indirect
 	golang.org/x/text v0.32.0 // indirect
 	k8s.io/apimachinery v0.34.3 // indirect
