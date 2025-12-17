@@ -32,11 +32,10 @@ import (
 type loadStep struct {
 	stepID StepID
 
-	cosmosContainer *azcosmos.ContainerClient
-	contents        [][]byte
+	contents [][]byte
 }
 
-func NewLoadStep(stepID StepID, cosmosContainer *azcosmos.ContainerClient, stepDir fs.FS) (*loadStep, error) {
+func NewLoadStep(stepID StepID, stepDir fs.FS) (*loadStep, error) {
 
 	contents := [][]byte{}
 	testContent := api.Must(fs.ReadDir(stepDir, "."))
@@ -59,9 +58,8 @@ func NewLoadStep(stepID StepID, cosmosContainer *azcosmos.ContainerClient, stepD
 	}
 
 	return &loadStep{
-		stepID:          stepID,
-		cosmosContainer: cosmosContainer,
-		contents:        contents,
+		stepID:   stepID,
+		contents: contents,
 	}, nil
 }
 
@@ -71,9 +69,9 @@ func (l *loadStep) StepID() StepID {
 	return l.stepID
 }
 
-func (l *loadStep) RunTest(ctx context.Context, t *testing.T) {
+func (l *loadStep) RunTest(ctx context.Context, t *testing.T, cosmosContainer *azcosmos.ContainerClient) {
 	for _, content := range l.contents {
-		err := integrationutils.LoadCosmosContent(ctx, l.cosmosContainer, content)
+		err := integrationutils.LoadCosmosContent(ctx, cosmosContainer, content)
 		require.NoError(t, err, "failed to load cosmos content: %v", string(content))
 	}
 }
