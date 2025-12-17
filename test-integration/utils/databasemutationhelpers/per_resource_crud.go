@@ -29,6 +29,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
 	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
 )
 
@@ -174,4 +175,30 @@ func (UntypedCRUDSpecializer) NameFromInstance(obj *database.TypedDocument) stri
 
 func (UntypedCRUDSpecializer) WriteCosmosID(newObj, oldObj *database.TypedDocument) {
 	newObj.ID = oldObj.ID
+}
+
+type SubscriptionCRUDSpecializer struct {
+}
+
+var _ ResourceCRUDTestSpecializer[arm.Subscription] = &SubscriptionCRUDSpecializer{}
+
+func (SubscriptionCRUDSpecializer) ResourceCRUDFromKey(t *testing.T, cosmosContainer *azcosmos.ContainerClient, key CosmosCRUDKey) database.ResourceCRUD[arm.Subscription] {
+	return database.NewSubscriptionCRUD(cosmosContainer)
+}
+
+func (SubscriptionCRUDSpecializer) InstanceEquals(expected, actual *arm.Subscription) bool {
+	// clear the fields that don't compare
+	shallowExpected := *expected
+	shallowActual := *actual
+	shallowExpected.LastUpdated = 0
+	shallowActual.LastUpdated = 0
+	return equality.Semantic.DeepEqual(shallowExpected, shallowActual)
+}
+
+func (SubscriptionCRUDSpecializer) NameFromInstance(obj *arm.Subscription) string {
+	return obj.ResourceID.Name
+}
+
+func (SubscriptionCRUDSpecializer) WriteCosmosID(newObj, oldObj *arm.Subscription) {
+	newObj.ResourceID = oldObj.ResourceID
 }
