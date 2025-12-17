@@ -12,7 +12,7 @@ clouds:
           # Cluster Service
           clustersService:
             image:
-              digest: sha256:2f51c98788c688f92d6905977829891a4d6fc586050fbc3f7335f5c9994e6134 # 345fbe7 (2025-12-12 13:51)
+              digest: sha256:e2020885131e7dd4e7145367596f847bb0813bb3d45d9579fef1b245019ef5f9 # 1d5ab1e (2025-12-17 16:30)
           # ACR Pull
           acrPull:
             image:
@@ -26,7 +26,7 @@ clouds:
           # Backplane API
           backplaneAPI:
             image:
-              digest: sha256:6c6c20dfaf63d02243bc08a0aab913bc659ed1d7a9cddcb85bd3e675dcbee924 # 288511c (2025-12-09 05:08)
+              digest: sha256:605c77ef38a89934a9e70b8c379116cf3382c0bf9fcb9418833ca46bed701f3e # 1cccc06 (2025-12-17 06:07)
           # PKO
           pko:
             imagePackage:
@@ -86,11 +86,11 @@ clouds:
           # Maestro
           maestro:
             image:
-              digest: sha256:8bfd08bbafec5e4d4de8ae15c6a2d5cd8b11067136a9b88f800566a992a6a010 # d9322b950e7edf34c29479cf40648252197d563e (2025-12-12 06:37)
+              digest: sha256:7465f0efe79bdb533178621053bf39a16376066e7417b61e4c791b269290114d # 785b4e14ce0a519b17e45bc268c345d91838e31b (2025-12-17 07:00)
             agent:
               sidecar:
                 image:
-                  digest: sha256:c9932f5875ba5e0be70d174dc96f45d5474e77df8fe57ed6327b8d8208ee1635 # 1.25.4-6-azl3.0.20251106 (2025-11-07 03:08)
+                  digest: sha256:c925c4dfce3a0140d36073cc66e70567ffa0d82b71033d752d2d7e668637804b # 1.25.4-6-azl3.0.20251206 (2025-12-06 10:21)
           # OCP image sync
           imageSync:
             ocMirror:
