@@ -486,6 +486,7 @@ func validateCustomerAPIProfile(ctx context.Context, op operation.Operation, fld
 
 	// AuthorizedCIDRs []string   `json:"authorizedCidrs,omitempty"`
 	errs = append(errs, MaxItems(ctx, op, fldPath.Child("authorizedCidrs"), newObj.AuthorizedCIDRs, nil, 500)...)
+	errs = append(errs, MinItems(ctx, op, fldPath.Child("authorizedCidrs"), newObj.AuthorizedCIDRs, nil, 1)...)
 	errs = append(errs,
 		validate.EachSliceVal(
 			ctx, op, fldPath.Child("authorizedCidrs"),

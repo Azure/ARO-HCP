@@ -23,7 +23,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 	"time"
 
@@ -220,7 +219,7 @@ func MarkOperationsCompleteForName(ctx context.Context, dbClient database.DBClie
 		if operation.ExternalID.Name != resourceName {
 			continue
 		}
-		err := UpdateOperationStatus(ctx, dbClient, operation, arm.ProvisioningStateSucceeded, nil)
+		err := database.UpdateOperationStatus(ctx, dbClient, operation, arm.ProvisioningStateSucceeded, nil, nil)
 		if err != nil {
 			return err
 		}
@@ -229,38 +228,4 @@ func MarkOperationsCompleteForName(ctx context.Context, dbClient database.DBClie
 		return operationsIterator.GetError()
 	}
 	return nil
-}
-
-// TODO this needs to simplified into something the database client can do on behalf of callers to make it more idiot-proof
-func UpdateOperationStatus(ctx context.Context, dbClient database.DBClient, operation *database.OperationDocument, opStatus arm.ProvisioningState, opError *arm.CloudErrorBody) error {
-	err := patchOperationDocument(ctx, dbClient, operation, opStatus, opError)
-	if err != nil {
-		return err
-	}
-
-	var patchOperations database.ResourceDocumentPatchOperations
-
-	scalar := strings.ReplaceAll(database.ResourceDocumentJSONPathActiveOperationID, "/", ".")
-	condition := fmt.Sprintf("FROM doc WHERE doc%s = '%s'", scalar, operation.OperationID.Name)
-
-	patchOperations.SetCondition(condition)
-	patchOperations.SetProvisioningState(opStatus)
-	if opStatus.IsTerminal() {
-		patchOperations.SetActiveOperationID(nil)
-	}
-
-	_, err = dbClient.PatchResourceDoc(ctx, operation.ExternalID, patchOperations)
-	return err
-}
-
-// TODO this needs to simplified into something the database client can do on behalf of callers to make it more idiot-proof
-func patchOperationDocument(ctx context.Context, dbClient database.DBClient, operation *database.OperationDocument, opStatus arm.ProvisioningState, opError *arm.CloudErrorBody) error {
-	operationToWrite := *operation
-	operationToWrite.LastTransitionTime = time.Now()
-	operationToWrite.Status = opStatus
-	if opError != nil {
-		operationToWrite.Error = opError
-	}
-	_, err := dbClient.Operations(operation.OperationID.SubscriptionID).Replace(ctx, &operationToWrite, nil)
-	return err
 }

@@ -16,6 +16,7 @@ package validation
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -163,6 +164,17 @@ func TestValidateClusterCreate(t *testing.T) {
 			},
 		},
 		{
+			name: "empty list authorized CIDR - create",
+			cluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.API.AuthorizedCIDRs = []string{}
+				return c
+			}(),
+			expectErrors: []expectedError{
+				{message: "must have at least 1 items", fieldPath: "customerProperties.api.authorizedCidrs"},
+			},
+		},
+		{
 			name: "authorized CIDR with leading whitespace - create",
 			cluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
@@ -270,6 +282,17 @@ func TestValidateClusterCreate(t *testing.T) {
 				{message: "not an IP", fieldPath: "customerProperties.api.authorizedCidrs[2]"},
 				{message: "invalid CIDR address", fieldPath: "customerProperties.api.authorizedCidrs[3]"},
 				{message: "not IPv4", fieldPath: "customerProperties.api.authorizedCidrs[3]"},
+			},
+		},
+		{
+			name: "501 unique authorized CIDR blocks - create",
+			cluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.API.AuthorizedCIDRs = makeUniqueCIDRs(501)
+				return c
+			}(),
+			expectErrors: []expectedError{
+				{message: "must have at most 500 items", fieldPath: "customerProperties.api.authorizedCidrs"},
 			},
 		},
 		{
@@ -1124,6 +1147,18 @@ func TestValidateClusterUpdate(t *testing.T) {
 			},
 		},
 		{
+			name: "empty list authorized CIDR - create",
+			newCluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.API.AuthorizedCIDRs = []string{}
+				return c
+			}(),
+			oldCluster: createValidCluster(),
+			expectErrors: []expectedError{
+				{message: "must have at least 1 items", fieldPath: "customerProperties.api.authorizedCidrs"},
+			},
+		},
+		{
 			name: "too many authorized CIDRs on update - update",
 			newCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
@@ -1136,6 +1171,18 @@ func TestValidateClusterUpdate(t *testing.T) {
 			oldCluster: createValidCluster(),
 			expectErrors: []expectedError{
 				{message: "Too many", fieldPath: "customerProperties.api.authorizedCidrs"},
+			},
+		},
+		{
+			name: "501 unique authorized CIDR blocks on update - update",
+			newCluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.API.AuthorizedCIDRs = makeUniqueCIDRs(501)
+				return c
+			}(),
+			oldCluster: createValidCluster(),
+			expectErrors: []expectedError{
+				{message: "must have at most 500 items", fieldPath: "customerProperties.api.authorizedCidrs"},
 			},
 		},
 		{
@@ -1170,7 +1217,7 @@ func TestValidateClusterUpdate(t *testing.T) {
 			name: "clear all authorized CIDRs on update - update",
 			newCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.CustomerProperties.API.AuthorizedCIDRs = []string{}
+				c.CustomerProperties.API.AuthorizedCIDRs = nil
 				return c
 			}(),
 			oldCluster: func() *api.HCPOpenShiftCluster {
@@ -1353,6 +1400,16 @@ func TestValidateClusterUpdate(t *testing.T) {
 			verifyErrorsMatch(t, tt.expectErrors, errs)
 		})
 	}
+}
+
+func makeUniqueCIDRs(n int) []string {
+	cidrs := make([]string, n)
+	for i := range cidrs {
+		octet3 := i / 256
+		octet4 := i % 256
+		cidrs[i] = fmt.Sprintf("10.0.%d.%d", octet3, octet4)
+	}
+	return cidrs
 }
 
 // Helper function to create a valid cluster for testing

@@ -19,8 +19,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-
-	"github.com/Azure/ARO-HCP/internal/api"
 )
 
 const testResourceType = "test"
@@ -108,47 +106,6 @@ func TestTypedDocumentUnmarshal(t *testing.T) {
 				assert.Equal(t, testResourceType, typedDoc.ResourceType)
 				assert.Equal(t, testPropertiesValue, innerDoc.Value)
 			}
-		})
-	}
-}
-
-func Test_resourceDocumentMarshal(t *testing.T) {
-	type args struct {
-		typedDoc       *TypedDocument
-		innerDoc       *ResourceDocument
-		documentFilter ResourceDocumentStateFilter
-	}
-	tests := []struct {
-		name    string
-		args    args
-		want    string
-		wantErr assert.ErrorAssertionFunc
-	}{
-		{
-			name: "clear everything",
-			args: args{
-				typedDoc: &TypedDocument{
-					ResourceType: api.ClusterResourceType.String(),
-				},
-				innerDoc: &ResourceDocument{
-					InternalState: map[string]any{
-						"alligator": "adept",
-					},
-				},
-				documentFilter: RemoveAllState,
-			},
-			want:    `{"partitionKey":"","resourceType":"Microsoft.RedHatOpenShift/hcpOpenShiftClusters","properties":{"internalId":""}}`,
-			wantErr: assert.NoError,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got, err := resourceDocumentMarshal(tt.args.typedDoc, tt.args.innerDoc, tt.args.documentFilter)
-			if !tt.wantErr(t, err, fmt.Sprintf("resourceDocumentMarshal(%v, %v, %v)", tt.args.typedDoc, tt.args.innerDoc, tt.args.documentFilter)) {
-				return
-			}
-			t.Log(string(got))
-			assert.Equalf(t, tt.want, string(got), "resourceDocumentMarshal(%v, %v, %v)", tt.args.typedDoc, tt.args.innerDoc, tt.args.documentFilter)
 		})
 	}
 }

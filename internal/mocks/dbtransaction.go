@@ -79,42 +79,6 @@ func (c *MockDBTransactionAddStepCall) DoAndReturn(f func(database.CosmosDBTrans
 	return c
 }
 
-// DeleteDoc mocks base method.
-func (m *MockDBTransaction) DeleteDoc(itemID string, o *azcosmos.TransactionalBatchItemOptions) {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "DeleteDoc", itemID, o)
-}
-
-// DeleteDoc indicates an expected call of DeleteDoc.
-func (mr *MockDBTransactionMockRecorder) DeleteDoc(itemID, o any) *MockDBTransactionDeleteDocCall {
-	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteDoc", reflect.TypeOf((*MockDBTransaction)(nil).DeleteDoc), itemID, o)
-	return &MockDBTransactionDeleteDocCall{Call: call}
-}
-
-// MockDBTransactionDeleteDocCall wrap *gomock.Call
-type MockDBTransactionDeleteDocCall struct {
-	*gomock.Call
-}
-
-// Return rewrite *gomock.Call.Return
-func (c *MockDBTransactionDeleteDocCall) Return() *MockDBTransactionDeleteDocCall {
-	c.Call = c.Call.Return()
-	return c
-}
-
-// Do rewrite *gomock.Call.Do
-func (c *MockDBTransactionDeleteDocCall) Do(f func(string, *azcosmos.TransactionalBatchItemOptions)) *MockDBTransactionDeleteDocCall {
-	c.Call = c.Call.Do(f)
-	return c
-}
-
-// DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockDBTransactionDeleteDocCall) DoAndReturn(f func(string, *azcosmos.TransactionalBatchItemOptions)) *MockDBTransactionDeleteDocCall {
-	c.Call = c.Call.DoAndReturn(f)
-	return c
-}
-
 // Execute mocks base method.
 func (m *MockDBTransaction) Execute(ctx context.Context, o *azcosmos.TransactionalBatchOptions) (database.DBTransactionResult, error) {
 	m.ctrl.T.Helper()
@@ -224,78 +188,6 @@ func (c *MockDBTransactionOnSuccessCall) Do(f func(database.DBTransactionCallbac
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
 func (c *MockDBTransactionOnSuccessCall) DoAndReturn(f func(database.DBTransactionCallback)) *MockDBTransactionOnSuccessCall {
-	c.Call = c.Call.DoAndReturn(f)
-	return c
-}
-
-// PatchResourceDoc mocks base method.
-func (m *MockDBTransaction) PatchResourceDoc(itemID string, ops database.ResourceDocumentPatchOperations, o *azcosmos.TransactionalBatchItemOptions) {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "PatchResourceDoc", itemID, ops, o)
-}
-
-// PatchResourceDoc indicates an expected call of PatchResourceDoc.
-func (mr *MockDBTransactionMockRecorder) PatchResourceDoc(itemID, ops, o any) *MockDBTransactionPatchResourceDocCall {
-	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PatchResourceDoc", reflect.TypeOf((*MockDBTransaction)(nil).PatchResourceDoc), itemID, ops, o)
-	return &MockDBTransactionPatchResourceDocCall{Call: call}
-}
-
-// MockDBTransactionPatchResourceDocCall wrap *gomock.Call
-type MockDBTransactionPatchResourceDocCall struct {
-	*gomock.Call
-}
-
-// Return rewrite *gomock.Call.Return
-func (c *MockDBTransactionPatchResourceDocCall) Return() *MockDBTransactionPatchResourceDocCall {
-	c.Call = c.Call.Return()
-	return c
-}
-
-// Do rewrite *gomock.Call.Do
-func (c *MockDBTransactionPatchResourceDocCall) Do(f func(string, database.ResourceDocumentPatchOperations, *azcosmos.TransactionalBatchItemOptions)) *MockDBTransactionPatchResourceDocCall {
-	c.Call = c.Call.Do(f)
-	return c
-}
-
-// DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockDBTransactionPatchResourceDocCall) DoAndReturn(f func(string, database.ResourceDocumentPatchOperations, *azcosmos.TransactionalBatchItemOptions)) *MockDBTransactionPatchResourceDocCall {
-	c.Call = c.Call.DoAndReturn(f)
-	return c
-}
-
-// ReadDoc mocks base method.
-func (m *MockDBTransaction) ReadDoc(itemID string, o *azcosmos.TransactionalBatchItemOptions) {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "ReadDoc", itemID, o)
-}
-
-// ReadDoc indicates an expected call of ReadDoc.
-func (mr *MockDBTransactionMockRecorder) ReadDoc(itemID, o any) *MockDBTransactionReadDocCall {
-	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadDoc", reflect.TypeOf((*MockDBTransaction)(nil).ReadDoc), itemID, o)
-	return &MockDBTransactionReadDocCall{Call: call}
-}
-
-// MockDBTransactionReadDocCall wrap *gomock.Call
-type MockDBTransactionReadDocCall struct {
-	*gomock.Call
-}
-
-// Return rewrite *gomock.Call.Return
-func (c *MockDBTransactionReadDocCall) Return() *MockDBTransactionReadDocCall {
-	c.Call = c.Call.Return()
-	return c
-}
-
-// Do rewrite *gomock.Call.Do
-func (c *MockDBTransactionReadDocCall) Do(f func(string, *azcosmos.TransactionalBatchItemOptions)) *MockDBTransactionReadDocCall {
-	c.Call = c.Call.Do(f)
-	return c
-}
-
-// DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockDBTransactionReadDocCall) DoAndReturn(f func(string, *azcosmos.TransactionalBatchItemOptions)) *MockDBTransactionReadDocCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }

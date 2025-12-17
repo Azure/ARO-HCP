@@ -16,11 +16,13 @@ package frontend
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"strings"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
+	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -99,7 +101,10 @@ func checkForProvisioningStateConflict(
 	// ResourceType casing is preserved for parents in the same namespace.
 	// TODO if I understand this correctly, this is ONLY the Cluster itself, in which case these calls could change.
 	for parent.ResourceType.Namespace == resourceID.ResourceType.Namespace {
-		_, parentDoc, err := cosmosClient.GetResourceDoc(ctx, parent)
+		if !strings.EqualFold(parent.ResourceType.String(), api.ClusterResourceType.String()) {
+			return fmt.Errorf("unable to determine provisioning state of %q", parent.ResourceType.String())
+		}
+		cluster, err := cosmosClient.HCPClusters(parent.SubscriptionID, parent.ResourceGroupName).Get(ctx, parent.Name)
 		if err != nil {
 			return utils.TrackError(err)
 		}
@@ -112,14 +117,14 @@ func checkForProvisioningStateConflict(
 		//     Cluster Service will catch and correctly reject such requests, so I'm
 		//     leaving this gap open until Cluster Service is out of the picture and
 		//     the RP has more direct control over resource provisioning.
-		if parentDoc.ProvisioningState == arm.ProvisioningStateProvisioning {
+		if cluster.ServiceProviderProperties.ProvisioningState == arm.ProvisioningStateProvisioning {
 			return arm.NewConflictError(
 				resourceID,
 				"Cannot %s resource while parent resource is provisioning",
 				strings.ToLower(string(operationRequest)))
 		}
 
-		if parentDoc.ProvisioningState == arm.ProvisioningStateDeleting {
+		if cluster.ServiceProviderProperties.ProvisioningState == arm.ProvisioningStateDeleting {
 			return arm.NewConflictError(
 				resourceID,
 				"Cannot %s resource while parent resource is deleting",
@@ -130,13 +135,6 @@ func checkForProvisioningStateConflict(
 	}
 
 	return nil
-}
-
-// CheckForProvisioningStateConflict returns a "409 Conflict" error response if the
-// provisioning state of the resource is non-terminal, or any of its parent resources
-// within the same provider namespace are in a "Provisioning" or "Deleting" state.
-func (f *Frontend) CheckForProvisioningStateConflict(ctx context.Context, operationRequest database.OperationRequest, doc *database.ResourceDocument) error {
-	return checkForProvisioningStateConflict(ctx, f.dbClient, operationRequest, doc.ResourceID, doc.ProvisioningState)
 }
 
 func (f *Frontend) DeleteAllResourcesInSubscription(ctx context.Context, subscriptionID string) error {

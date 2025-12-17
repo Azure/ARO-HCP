@@ -58,8 +58,6 @@ func (td *TypedDocument) GetTypedDocument() *TypedDocument {
 	return td
 }
 
-const typedDocumentJSONPathProperties = "/properties"
-
 // newTypedDocument returns a TypedDocument from a ResourceType.
 func newTypedDocument(partitionKey string, resourceType azcorearm.ResourceType) *TypedDocument {
 	return &TypedDocument{

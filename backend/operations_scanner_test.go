@@ -286,6 +286,7 @@ func TestUpdateOperationStatus(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			mockDBClient := mocks.NewMockDBClient(ctrl)
 			mockOperationCRUD := mocks.NewMockOperationCRUD(ctrl)
+			mockHCPCluster := mocks.NewMockHCPClusterCRUD(ctrl)
 
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				if r.Method == http.MethodPost {
@@ -295,7 +296,6 @@ func TestUpdateOperationStatus(t *testing.T) {
 			defer server.Close()
 
 			scanner := &OperationsScanner{
-				dbClient:           mockDBClient,
 				notificationClient: server.Client(),
 				newTimestamp:       func() time.Time { return time.Now().UTC() },
 			}
@@ -312,26 +312,27 @@ func TestUpdateOperationStatus(t *testing.T) {
 			operationDoc.NotificationURI = server.URL
 			operationDoc.Status = tt.currentOperationStatus
 
-			op := operation{
-				id:     operationID.Name,
-				doc:    operationDoc,
-				logger: slog.Default(),
-			}
-
-			var resourceDoc *database.ResourceDocument
-
+			var resourceDoc *api.HCPOpenShiftCluster
+			var clusterCopy api.HCPOpenShiftCluster
 			if tt.resourceDocPresent {
-				resourceDoc = database.NewResourceDocument(resourceID)
-				if tt.resourceMatchOperationID {
-					resourceDoc.ActiveOperationID = op.id
-				} else {
-					resourceDoc.ActiveOperationID = "another operation"
+				resourceDoc = &api.HCPOpenShiftCluster{
+					TrackedResource: arm.TrackedResource{
+						Resource: arm.Resource{
+							ID: resourceID,
+						},
+					},
 				}
-				resourceDoc.ProvisioningState = tt.resourceProvisioningState
+				if tt.resourceMatchOperationID {
+					resourceDoc.ServiceProviderProperties.ActiveOperationID = operationDoc.OperationID.Name
+				} else {
+					resourceDoc.ServiceProviderProperties.ActiveOperationID = "another operation"
+				}
+				resourceDoc.ServiceProviderProperties.ProvisioningState = tt.resourceProvisioningState
+				clusterCopy = *resourceDoc
 			}
 
 			mockDBClient.EXPECT().
-				Operations(op.doc.OperationID.SubscriptionID).
+				Operations(operationDoc.OperationID.SubscriptionID).
 				DoAndReturn(func(s string) database.OperationCRUD {
 					return mockOperationCRUD
 				})
@@ -346,23 +347,35 @@ func TestUpdateOperationStatus(t *testing.T) {
 					}
 				})
 			mockDBClient.EXPECT().
-				PatchResourceDoc(gomock.Any(), resourceID, gomock.Any()).
-				DoAndReturn(func(ctx context.Context, resourceID *azcorearm.ResourceID, ops database.ResourceDocumentPatchOperations) (*database.ResourceDocument, error) {
-					if resourceDoc == nil {
-						return nil, &azcore.ResponseError{StatusCode: http.StatusNotFound}
-					} else if resourceDoc.ActiveOperationID == op.id {
-						resourceDoc.ProvisioningState = operationDoc.Status
-						if operationDoc.Status.IsTerminal() {
-							resourceDoc.ActiveOperationID = ""
-						}
-						return resourceDoc, nil
-					} else {
-						return nil, &azcore.ResponseError{StatusCode: http.StatusPreconditionFailed}
+				HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).
+				Return(mockHCPCluster)
+			mockHCPCluster.EXPECT().
+				Get(gomock.Any(), resourceID.Name).
+				DoAndReturn(func(ctx context.Context, s string) (*api.HCPOpenShiftCluster, error) {
+					if resourceDoc != nil {
+						return &clusterCopy, nil
 					}
+					return nil, &azcore.ResponseError{StatusCode: http.StatusNotFound}
 				})
+			if tt.resourceDocPresent && resourceDoc.ServiceProviderProperties.ActiveOperationID == operationDoc.OperationID.Name {
+				mockHCPCluster.EXPECT().
+					Replace(gomock.Any(), gomock.Any(), nil).
+					DoAndReturn(func(ctx context.Context, cluster *api.HCPOpenShiftCluster, options *azcosmos.ItemOptions) (*api.HCPOpenShiftCluster, error) {
+						if resourceDoc.ServiceProviderProperties.ActiveOperationID == operationDoc.OperationID.Name {
+							resourceDoc.ServiceProviderProperties.ProvisioningState = operationDoc.Status
+							if operationDoc.Status.IsTerminal() {
+								resourceDoc.ServiceProviderProperties.ActiveOperationID = ""
+							}
+							return resourceDoc, nil
+						} else {
+							return nil, &azcore.ResponseError{StatusCode: http.StatusPreconditionFailed}
+						}
+
+					})
+			}
 			if tt.expectAsyncNotification {
 				mockDBClient.EXPECT().
-					Operations(op.doc.OperationID.SubscriptionID).
+					Operations(operationDoc.OperationID.SubscriptionID).
 					DoAndReturn(func(s string) database.OperationCRUD {
 						return mockOperationCRUD
 					})
@@ -374,7 +387,7 @@ func TestUpdateOperationStatus(t *testing.T) {
 					})
 			}
 
-			err = scanner.updateOperationStatus(ctx, op, tt.updatedOperationStatus, nil)
+			err = database.UpdateOperationStatus(ctx, mockDBClient, operationDoc, tt.updatedOperationStatus, nil, scanner.postAsyncNotification)
 
 			if tt.expectError {
 				assert.Error(t, err)
@@ -382,12 +395,12 @@ func TestUpdateOperationStatus(t *testing.T) {
 			} else if assert.NoError(t, err) {
 				if tt.resourceDocPresent {
 					if tt.expectResourceOperationIDCleared {
-						assert.Empty(t, resourceDoc.ActiveOperationID, "Resource's active operation ID was not cleared")
+						assert.Empty(t, resourceDoc.ServiceProviderProperties.ActiveOperationID, "Resource's active operation ID was not cleared")
 					} else {
-						assert.NotEmpty(t, resourceDoc.ActiveOperationID, "Resource's active operation ID is unexpectedly empty")
+						assert.NotEmpty(t, resourceDoc.ServiceProviderProperties.ActiveOperationID, "Resource's active operation ID is unexpectedly empty")
 					}
 
-					assert.Equal(t, tt.expectResourceProvisioningState, resourceDoc.ProvisioningState)
+					assert.Equal(t, tt.expectResourceProvisioningState, resourceDoc.ServiceProviderProperties.ProvisioningState)
 				}
 
 				if tt.expectAsyncNotification {

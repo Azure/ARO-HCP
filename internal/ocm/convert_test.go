@@ -18,6 +18,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"net/http"
 	"strings"
 	"testing"
 
@@ -716,6 +717,166 @@ func TestBuildCSExternalAuth(t *testing.T) {
 			generatedCSExternalAuth, err := generatedCSExternalAuthBuilder.Build()
 			require.NoError(t, err)
 			assert.Equalf(t, expected, generatedCSExternalAuth, "BuildCSExternalAuth(%v, %v)", resourceID, expected)
+		})
+	}
+}
+
+func getBaseCSClusterBuilder(updating bool) *arohcpv1alpha1.ClusterBuilder {
+	var builder *arohcpv1alpha1.ClusterBuilder
+	clusterAPIBuilder := arohcpv1alpha1.NewClusterAPI()
+
+	if updating {
+		builder = arohcpv1alpha1.NewCluster()
+	} else {
+		builder = ocmClusterDefaults()
+		clusterAPIBuilder = clusterAPIBuilder.Listening(arohcpv1alpha1.ListeningMethodExternal)
+	}
+
+	// Add common mutable fields that BuildCSCluster always sets
+	return builder.
+		NodeDrainGracePeriod(arohcpv1alpha1.NewValue().
+			Unit(csNodeDrainGracePeriodUnit).
+			Value(float64(0))).
+		Autoscaler(arohcpv1alpha1.NewClusterAutoscaler().
+			PodPriorityThreshold(-10).
+			MaxNodeProvisionTime("15m").
+			MaxPodGracePeriod(600).
+			ResourceLimits(arohcpv1alpha1.NewAutoscalerResourceLimits().
+				MaxNodesTotal(0))).
+		API(clusterAPIBuilder.CIDRBlockAccess(arohcpv1alpha1.NewCIDRBlockAccess().
+			Allow(arohcpv1alpha1.NewCIDRBlockAllowAccess().
+				Mode(csCIDRBlockAllowAccessModeAllowAll))))
+}
+
+func TestBuildCSCluster(t *testing.T) {
+	testCases := []struct {
+		name              string
+		hcpCluster        *api.HCPOpenShiftCluster
+		updating          bool
+		expectedCSCluster *arohcpv1alpha1.ClusterBuilder
+		expectedError     string
+	}{
+		{
+			name:     "CREATE - sets CIDRBlockAccess with nil AuthorizedCIDRs",
+			updating: false,
+			hcpCluster: &api.HCPOpenShiftCluster{
+				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
+					API: api.CustomerAPIProfile{
+						AuthorizedCIDRs: nil,
+					},
+				},
+			},
+			expectedCSCluster: getBaseCSClusterBuilder(false),
+		},
+		{
+			name:     "CREATE - rejects empty AuthorizedCIDRs",
+			updating: false,
+			hcpCluster: func() *api.HCPOpenShiftCluster {
+				cluster := api.MinimumValidClusterTestCase()
+				cluster.CustomerProperties.API.AuthorizedCIDRs = make([]string, 0)
+				return cluster
+			}(),
+			expectedError: "AuthorizedCIDRs cannot be an empty list",
+		},
+		{
+			name:     "CREATE - sets CIDRBlockAccess with non-empty AuthorizedCIDRs",
+			updating: false,
+			hcpCluster: &api.HCPOpenShiftCluster{
+				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
+					API: api.CustomerAPIProfile{
+						Visibility:      api.VisibilityPrivate,
+						AuthorizedCIDRs: []string{"10.0.0.0/8", "192.168.0.0/16"},
+					},
+				},
+			},
+			expectedCSCluster: getBaseCSClusterBuilder(false).
+				API(arohcpv1alpha1.NewClusterAPI().
+					Listening(arohcpv1alpha1.ListeningMethodInternal).
+					CIDRBlockAccess(arohcpv1alpha1.NewCIDRBlockAccess().
+						Allow(arohcpv1alpha1.NewCIDRBlockAllowAccess().
+							Mode(csCIDRBlockAllowAccessModeAllowList).
+							Values("10.0.0.0/8", "192.168.0.0/16")))),
+		},
+		{
+			name:     "UPDATE - sets CIDRBlockAccess with nil AuthorizedCIDRs",
+			updating: true,
+			hcpCluster: &api.HCPOpenShiftCluster{
+				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
+					API: api.CustomerAPIProfile{
+						AuthorizedCIDRs: nil,
+					},
+				},
+			},
+			expectedCSCluster: getBaseCSClusterBuilder(true),
+		},
+		{
+			name:     "UPDATE - rejects empty AuthorizedCIDRs",
+			updating: true,
+			hcpCluster: func() *api.HCPOpenShiftCluster {
+				cluster := api.MinimumValidClusterTestCase()
+				cluster.CustomerProperties.API.AuthorizedCIDRs = make([]string, 0)
+				return cluster
+			}(),
+			expectedError: "AuthorizedCIDRs cannot be an empty list",
+		},
+		{
+			name:     "UPDATE - sets only CIDRBlockAccess with non-empty AuthorizedCIDRs",
+			updating: true,
+			hcpCluster: &api.HCPOpenShiftCluster{
+				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
+					API: api.CustomerAPIProfile{
+						AuthorizedCIDRs: []string{"172.16.0.0/12", "203.0.113.0/24"},
+					},
+				},
+			},
+			expectedCSCluster: getBaseCSClusterBuilder(true).
+				API(arohcpv1alpha1.NewClusterAPI().
+					CIDRBlockAccess(arohcpv1alpha1.NewCIDRBlockAccess().
+						Allow(arohcpv1alpha1.NewCIDRBlockAllowAccess().
+							Mode(csCIDRBlockAllowAccessModeAllowList).
+							Values("172.16.0.0/12", "203.0.113.0/24")))),
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Create a complete minimal cluster for testing
+			// For error test cases with expected errors, use the cluster as-is to preserve empty slices
+			var hcpCluster *api.HCPOpenShiftCluster
+			if tc.expectedError != "" {
+				hcpCluster = tc.hcpCluster
+			} else {
+				hcpCluster = api.ClusterTestCase(t, tc.hcpCluster)
+			}
+
+			// Create request headers
+			requestHeader := http.Header{}
+			requestHeader.Set(arm.HeaderNameHomeTenantID, api.TestTenantID)
+			requestHeader.Set(arm.HeaderNameIdentityURL, "")
+
+			resourceID, err := azcorearm.ParseResourceID(api.TestClusterResourceID)
+			require.NoError(t, err)
+
+			// Build actual CS cluster
+			actualBuilder, err := BuildCSCluster(resourceID, requestHeader, hcpCluster, tc.updating)
+
+			if tc.expectedError != "" {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tc.expectedError)
+				return
+			}
+
+			require.NoError(t, err)
+
+			// Build expected CS cluster
+			expected, err := tc.expectedCSCluster.Build()
+			require.NoError(t, err)
+
+			actual, err := actualBuilder.Build()
+			require.NoError(t, err)
+
+			// Compare
+			assert.Equal(t, expected, actual)
 		})
 	}
 }

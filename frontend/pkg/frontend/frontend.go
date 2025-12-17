@@ -279,37 +279,34 @@ func (f *Frontend) ArmResourceActionRequestAdminCredential(writer http.ResponseW
 	}
 
 	// Parent resource is the hcpOpenShiftCluster.
-	resourceID = resourceID.Parent
+	clusterResourceID := resourceID.Parent
 
 	correlationData, err := CorrelationDataFromContext(ctx)
 	if err != nil {
 		return utils.TrackError(err)
 	}
 
-	_, resourceDoc, err := f.dbClient.GetResourceDoc(ctx, resourceID)
-	if database.IsResponseError(err, http.StatusNotFound) {
-		return arm.NewResourceNotFoundError(resourceID)
-	}
+	cluster, err := f.dbClient.HCPClusters(clusterResourceID.SubscriptionID, clusterResourceID.ResourceGroupName).Get(ctx, clusterResourceID.Name)
 	if err != nil {
 		return utils.TrackError(err)
 	}
 
 	// CheckForProvisioningStateConflict does not log conflict errors
 	// but does log unexpected errors like database failures.
-	if err := f.CheckForProvisioningStateConflict(ctx, operationRequest, resourceDoc); err != nil {
+	if err := checkForProvisioningStateConflict(ctx, f.dbClient, operationRequest, cluster.ID, cluster.ServiceProviderProperties.ProvisioningState); err != nil {
 		return utils.TrackError(err)
 	}
 
 	// New credential cannot be requested while credentials are being revoked.
 
-	iterator := f.dbClient.Operations(resourceID.SubscriptionID).ListActiveOperations(&database.DBClientListActiveOperationDocsOptions{
+	iterator := f.dbClient.Operations(clusterResourceID.SubscriptionID).ListActiveOperations(&database.DBClientListActiveOperationDocsOptions{
 		Request:    api.Ptr(database.OperationRequestRevokeCredentials),
-		ExternalID: resourceID,
+		ExternalID: clusterResourceID,
 	})
 
 	for range iterator.Items(ctx) {
 		writer.Header().Set("Retry-After", strconv.Itoa(10))
-		return arm.NewConflictError(resourceID, "Cannot request credential while credentials are being revoked")
+		return arm.NewConflictError(clusterResourceID, "Cannot request credential while credentials are being revoked")
 	}
 
 	err = iterator.GetError()
@@ -317,28 +314,28 @@ func (f *Frontend) ArmResourceActionRequestAdminCredential(writer http.ResponseW
 		return utils.TrackError(err)
 	}
 
-	csCredential, err := f.clusterServiceClient.PostBreakGlassCredential(ctx, resourceDoc.InternalID)
+	csCredential, err := f.clusterServiceClient.PostBreakGlassCredential(ctx, cluster.ServiceProviderProperties.ClusterServiceID)
 	if err != nil {
 		return utils.TrackError(err)
 	}
 
-	internalID, err := api.NewInternalID(csCredential.HREF())
+	csCredentialClusterServiceID, err := api.NewInternalID(csCredential.HREF())
 	if err != nil {
 		return utils.TrackError(err)
 	}
 
-	transaction := f.dbClient.NewTransaction(resourceID.SubscriptionID)
+	transaction := f.dbClient.NewTransaction(clusterResourceID.SubscriptionID)
 
 	operationDoc := database.NewOperationDocument(
 		operationRequest,
-		resourceID,
-		internalID,
+		clusterResourceID,
+		csCredentialClusterServiceID,
 		request.Header.Get(arm.HeaderNameHomeTenantID),
 		request.Header.Get(arm.HeaderNameClientObjectID),
 		request.Header.Get(arm.HeaderNameAsyncNotificationURI),
 		correlationData)
 	transaction.OnSuccess(addOperationResponseHeaders(writer, request, operationDoc.NotificationURI, operationDoc.OperationID))
-	_, err = f.dbClient.Operations(resourceID.SubscriptionID).AddCreateToTransaction(ctx, transaction, operationDoc, nil)
+	_, err = f.dbClient.Operations(clusterResourceID.SubscriptionID).AddCreateToTransaction(ctx, transaction, operationDoc, nil)
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -363,37 +360,34 @@ func (f *Frontend) ArmResourceActionRevokeCredentials(writer http.ResponseWriter
 	}
 
 	// Parent resource is the hcpOpenShiftCluster.
-	resourceID = resourceID.Parent
+	clusterResourceID := resourceID.Parent
 
 	correlationData, err := CorrelationDataFromContext(ctx)
 	if err != nil {
 		return utils.TrackError(err)
 	}
 
-	_, resourceDoc, err := f.dbClient.GetResourceDoc(ctx, resourceID)
-	if database.IsResponseError(err, http.StatusNotFound) {
-		return arm.NewResourceNotFoundError(resourceID)
-	}
+	cluster, err := f.dbClient.HCPClusters(clusterResourceID.SubscriptionID, clusterResourceID.ResourceGroupName).Get(ctx, clusterResourceID.Name)
 	if err != nil {
 		return utils.TrackError(err)
 	}
 
 	// CheckForProvisioningStateConflict does not log conflict errors
 	// but does log unexpected errors like database failures.
-	if err := f.CheckForProvisioningStateConflict(ctx, operationRequest, resourceDoc); err != nil {
+	if err := checkForProvisioningStateConflict(ctx, f.dbClient, operationRequest, cluster.ID, cluster.ServiceProviderProperties.ProvisioningState); err != nil {
 		return utils.TrackError(err)
 	}
 
 	// Credential revocation cannot be requested while another revocation is in progress.
 
-	iterator := f.dbClient.Operations(resourceID.SubscriptionID).ListActiveOperations(&database.DBClientListActiveOperationDocsOptions{
+	iterator := f.dbClient.Operations(clusterResourceID.SubscriptionID).ListActiveOperations(&database.DBClientListActiveOperationDocsOptions{
 		Request:    api.Ptr(database.OperationRequestRevokeCredentials),
-		ExternalID: resourceID,
+		ExternalID: clusterResourceID,
 	})
 
 	for range iterator.Items(ctx) {
 		writer.Header().Set("Retry-After", strconv.Itoa(10))
-		return arm.NewConflictError(resourceID, "Credentials are already being revoked")
+		return arm.NewConflictError(clusterResourceID, "Credentials are already being revoked")
 	}
 
 	err = iterator.GetError()
@@ -401,18 +395,18 @@ func (f *Frontend) ArmResourceActionRevokeCredentials(writer http.ResponseWriter
 		return utils.TrackError(err)
 	}
 
-	err = f.clusterServiceClient.DeleteBreakGlassCredentials(ctx, resourceDoc.InternalID)
+	err = f.clusterServiceClient.DeleteBreakGlassCredentials(ctx, cluster.ServiceProviderProperties.ClusterServiceID)
 	if err != nil {
 		return utils.TrackError(err)
 	}
 
-	transaction := f.dbClient.NewTransaction(resourceID.SubscriptionID)
+	transaction := f.dbClient.NewTransaction(clusterResourceID.SubscriptionID)
 
 	// Just as deleting an ARM resource cancels any other operations on the resource,
 	// revoking credentials cancels any credential requests in progress.
 	err = f.CancelActiveOperations(ctx, transaction, &database.DBClientListActiveOperationDocsOptions{
 		Request:    api.Ptr(database.OperationRequestRequestCredential),
-		ExternalID: resourceID,
+		ExternalID: clusterResourceID,
 	})
 	if err != nil {
 		return utils.TrackError(err)
@@ -420,8 +414,8 @@ func (f *Frontend) ArmResourceActionRevokeCredentials(writer http.ResponseWriter
 
 	operationDoc := database.NewOperationDocument(
 		operationRequest,
-		resourceID,
-		resourceDoc.InternalID,
+		clusterResourceID,
+		cluster.ServiceProviderProperties.ClusterServiceID,
 		request.Header.Get(arm.HeaderNameHomeTenantID),
 		request.Header.Get(arm.HeaderNameClientObjectID),
 		request.Header.Get(arm.HeaderNameAsyncNotificationURI),
