@@ -103,14 +103,12 @@ kube-prometheus-stack:
       value: "true"
       effect: "NoSchedule"
     ## Admission webhooks configuration
+    ## Image configuration is provided by environment-specific values files
+    ## (values-mgmt.yaml and values-svc.yaml) to ensure ACR cached images are used
     ##
     admissionWebhooks:
       patch:
         enabled: true
-        image:
-          registry: registry.k8s.io
-          repository: ingress-nginx/kube-webhook-certgen
-          tag: v1.5.2
   ## Deploy a Prometheus instance
   ##
   prometheus:
