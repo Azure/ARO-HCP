@@ -70,11 +70,10 @@ func (tc *BasicControllerTest) RunTest(t *testing.T) {
 	if fsMightContainFiles(initialState) {
 		loadInitialStateStep, err := databasemutationhelpers.NewLoadStep(
 			databasemutationhelpers.NewStepID(00, "load", "initial-state"),
-			cosmosTestInfo.CosmosResourcesContainer(),
 			initialState,
 		)
 		require.NoError(t, err)
-		loadInitialStateStep.RunTest(ctx, t)
+		loadInitialStateStep.RunTest(ctx, t, cosmosTestInfo.CosmosResourcesContainer())
 	}
 
 	controllerInstance, testMemory := tc.ControllerInitializerFn(ctx, t, cosmosTestInfo.DBClient)
@@ -86,11 +85,10 @@ func (tc *BasicControllerTest) RunTest(t *testing.T) {
 	if fsMightContainFiles(endState) {
 		verifyEndStateStep, err := databasemutationhelpers.NewCosmosCompareStep(
 			databasemutationhelpers.NewStepID(99, "cosmosCompare", "end-state"),
-			cosmosTestInfo.CosmosResourcesContainer(),
 			endState,
 		)
 		require.NoError(t, err)
-		verifyEndStateStep.RunTest(ctx, t)
+		verifyEndStateStep.RunTest(ctx, t, cosmosTestInfo.CosmosResourcesContainer())
 	}
 
 	tc.ControllerVerifierFn(ctx, t, controllerInstance, testMemory)

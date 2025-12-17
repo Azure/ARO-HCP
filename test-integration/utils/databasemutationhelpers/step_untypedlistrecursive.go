@@ -45,11 +45,10 @@ type untypedListRecursiveStep struct {
 	key         UntypedCRUDKey
 	specializer ResourceCRUDTestSpecializer[database.TypedDocument]
 
-	cosmosContainer   *azcosmos.ContainerClient
 	expectedResources []*database.TypedDocument
 }
 
-func newUntypedListRecursiveStep(stepID StepID, cosmosContainer *azcosmos.ContainerClient, stepDir fs.FS) (*untypedListRecursiveStep, error) {
+func newUntypedListRecursiveStep(stepID StepID, stepDir fs.FS) (*untypedListRecursiveStep, error) {
 	keyBytes, err := fs.ReadFile(stepDir, "00-key.json")
 	if err != nil {
 		return nil, fmt.Errorf("failed to read key.json: %w", err)
@@ -68,7 +67,6 @@ func newUntypedListRecursiveStep(stepID StepID, cosmosContainer *azcosmos.Contai
 		stepID:            stepID,
 		key:               key,
 		specializer:       UntypedCRUDSpecializer{},
-		cosmosContainer:   cosmosContainer,
 		expectedResources: expectedResources,
 	}, nil
 }
@@ -79,11 +77,11 @@ func (l *untypedListRecursiveStep) StepID() StepID {
 	return l.stepID
 }
 
-func (l *untypedListRecursiveStep) RunTest(ctx context.Context, t *testing.T) {
+func (l *untypedListRecursiveStep) RunTest(ctx context.Context, t *testing.T, cosmosContainer *azcosmos.ContainerClient) {
 	parentResourceID, err := azcorearm.ParseResourceID(l.key.ParentResourceID)
 	require.NoError(t, err)
 
-	untypedCRUD := database.NewUntypedCRUD(l.cosmosContainer, *parentResourceID)
+	untypedCRUD := database.NewUntypedCRUD(cosmosContainer, *parentResourceID)
 	for _, childKey := range l.key.Descendents {
 		childResourceType, err := azcorearm.ParseResourceType(childKey.ResourceType)
 		require.NoError(t, err)
