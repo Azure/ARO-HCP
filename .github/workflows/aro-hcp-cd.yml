@@ -38,9 +38,6 @@ on:
     - 'tooling/templatize/**'
     - 'config/*'
     types:
-    - opened
-    - synchronize
-    - reopened
     - closed
 concurrency:
   group: ${{ github.workflow }}
