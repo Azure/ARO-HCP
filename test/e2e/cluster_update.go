@@ -48,6 +48,11 @@ var _ = Describe("Update HCPOpenShiftCluster", func() {
 
 				tc := framework.NewTestContext()
 
+				if tc.UsePooledIdentities() {
+					err := tc.AssignIdentityContainers(ctx, 1, 60*time.Second)
+					Expect(err).NotTo(HaveOccurred())
+				}
+
 				By("creating a resource group")
 				resourceGroup, err := tc.NewResourceGroup(ctx, "patch-name", tc.Location())
 				Expect(err).NotTo(HaveOccurred())
@@ -70,7 +75,9 @@ var _ = Describe("Update HCPOpenShiftCluster", func() {
 				Expect(err).NotTo(HaveOccurred())
 
 				By("creating the HCP cluster")
-				err = tc.CreateHCPClusterFromParam(ctx,
+				err = tc.CreateHCPClusterFromParam(
+					ctx,
+					GinkgoLogr,
 					*resourceGroup.Name,
 					clusterParams,
 					45*time.Minute,
@@ -118,6 +125,11 @@ var _ = Describe("Update HCPOpenShiftCluster", func() {
 
 				tc := framework.NewTestContext()
 
+				if tc.UsePooledIdentities() {
+					err := tc.AssignIdentityContainers(ctx, 1, 60*time.Second)
+					Expect(err).NotTo(HaveOccurred())
+				}
+
 				By("creating a resource group")
 				resourceGroup, err := tc.NewResourceGroup(ctx, "patch-tags", tc.Location())
 				Expect(err).NotTo(HaveOccurred())
@@ -140,7 +152,9 @@ var _ = Describe("Update HCPOpenShiftCluster", func() {
 				Expect(err).NotTo(HaveOccurred())
 
 				By("creating the HCP cluster")
-				err = tc.CreateHCPClusterFromParam(ctx,
+				err = tc.CreateHCPClusterFromParam(
+					ctx,
+					GinkgoLogr,
 					*resourceGroup.Name,
 					clusterParams,
 					45*time.Minute,

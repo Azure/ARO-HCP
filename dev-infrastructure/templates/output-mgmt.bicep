@@ -9,6 +9,8 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-10-01' exis
 }
 output azureKeyvaultSecretsProviderIdentityClientId string = aksCluster.properties.addonProfiles.azureKeyvaultSecretsProvider.identity.clientId
 
+output azureAksManagementClusterResourceId string = aksCluster.id
+
 // Why not retreive the account name from config/config.yaml?
 // Because the config could contain account name with an upper case (regionShortName), storage accounts must be lower case.
 resource hcpBackupsStorageAccount 'Microsoft.Storage/storageAccounts@2023-01-01' existing = {

@@ -17,6 +17,7 @@ package mustgather
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"os"
 	"path"
 	"time"
@@ -95,11 +96,11 @@ func BindMustGatherOptions(opts *RawMustGatherOptions, cmd *cobra.Command) error
 	cmd.Flags().IntVar(&opts.Limit, "limit", opts.Limit, "limit the number of results")
 
 	// Mark required flags
-	if err := cmd.MarkFlagRequired("kusto"); err != nil {
-		return fmt.Errorf("failed to mark kusto as required: %w", err)
-	}
-	if err := cmd.MarkFlagRequired("region"); err != nil {
-		return fmt.Errorf("failed to mark region as required: %w", err)
+	requiredFlags := []string{"kusto", "region"}
+	for _, flag := range requiredFlags {
+		if err := cmd.MarkFlagRequired(flag); err != nil {
+			return fmt.Errorf("failed to mark %s as required: %w", flag, err)
+		}
 	}
 
 	return nil
@@ -171,8 +172,12 @@ func (o *ValidatedMustGatherOptions) Complete(ctx context.Context) (*MustGatherO
 		o.OutputPath = fmt.Sprintf("must-gather-%s", time.Now().Format("20060102-150405"))
 	}
 
-	endpoint := fmt.Sprintf("https://%s.%s.kusto.windows.net", o.Kusto, o.Region)
-	client, err := kusto.NewClient(endpoint, o.QueryTimeout)
+	url, err := url.Parse(fmt.Sprintf("https://%s.%s.kusto.windows.net", o.Kusto, o.Region))
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse Kusto endpoint URL: %w", err)
+	}
+
+	client, err := kusto.NewClient(url.String(), o.QueryTimeout)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Kusto client: %w", err)
 	}

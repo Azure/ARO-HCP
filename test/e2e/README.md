@@ -166,7 +166,7 @@ which contains all E2E test cases compatible with dev environment.
 ./test/aro-hcp-tests list tests --suite "rp-api-compat-all/parallel" | jq '.[].name'
 ./test/aro-hcp-tests run-suite "rp-api-compat-all/parallel"
 ```
-Or this could be similified by just running the following make command which would set the required environment variable, build the binary and execute the complete suite against your RP .
+Or this could be simplified by just running the following make command which would set the required environment variable, build the binary and execute the complete suite against your RP .
 ```bash
 make e2e/local
 ```
@@ -174,7 +174,7 @@ make e2e/local
 Currently there are only few such E2E test cases, but in the future, most (but
 not all) of the E2E tests will use ARO-HCP RP API to communicate with ARO HCP
 so that it will be possible to run them in all environments, from development
-environment to produciton.
+environment to production.
 
 ## Guidelines for Writing E2E Test Cases
 

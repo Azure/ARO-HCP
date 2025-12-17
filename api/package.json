@@ -1,15 +1,15 @@
 {
   "dependencies": {
-    "@azure-tools/typespec-autorest": "^0.61.0",
-    "@azure-tools/typespec-azure-core": "^0.61.0",
-    "@azure-tools/typespec-azure-resource-manager": "^0.61.0",
-    "@azure-tools/typespec-azure-rulesets": "^0.61.0",
-    "@typespec/http": "^1.5.0",
-    "@typespec/openapi": "^1.5.0",
-    "@typespec/openapi3": "^1.5.0",
-    "@typespec/rest": "^0.75.0",
-    "@typespec/versioning": "^0.75.0",
-    "oav": "^4.0.2"
+    "@azure-tools/typespec-autorest": "^0.62.0",
+    "@azure-tools/typespec-azure-core": "^0.62.0",
+    "@azure-tools/typespec-azure-resource-manager": "^0.62.0",
+    "@azure-tools/typespec-azure-rulesets": "^0.62.0",
+    "@typespec/http": "^1.6.0",
+    "@typespec/openapi": "^1.6.0",
+    "@typespec/openapi3": "^1.6.0",
+    "@typespec/rest": "^0.76.0",
+    "@typespec/versioning": "^0.76.0",
+    "oav": "^4.0.3"
   },
   "scripts": {
     "format": "tsp format \"**/*.tsp\"",
@@ -19,7 +19,7 @@
     "testsdk": "autorest testsdk.md --verbose --tag=${VERSION}"
   },
   "devDependencies": {
-    "@typespec/compiler": "^1.5.0",
+    "@typespec/compiler": "^1.6.0",
     "@microsoft.azure/openapi-validator": "2.2.4",
     "@microsoft.azure/openapi-validator-rulesets": "2.1.10",
     "autorest": "^3.7.2"

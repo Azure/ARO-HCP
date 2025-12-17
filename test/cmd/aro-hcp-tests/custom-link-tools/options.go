@@ -124,6 +124,11 @@ var (
 | where cluster == '%s'
 | where container_name == 'aro-hcp-frontend'
 | project timestamp, msg, log`,
+
+		"Cluster Service Logs": `database('ServiceLogs').table('containerLogs')
+| where cluster == '%s'
+| where container_name == 'clusters-service-server'
+| project timestamp, log`,
 	}
 )
 

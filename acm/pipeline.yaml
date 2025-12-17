@@ -27,6 +27,13 @@ resourceGroups:
       resourceGroup: global
       step: output
       name: globalMSIId
+    automatedRetry:
+      errorContainsAny:
+      - "500 Internal Server Error"
+      - "Internal error occurred"
+      - "context deadline exceeded"
+      maximumRetryCount: 3
+      durationBetweenRetries: 1m
   - name: deploy-mce
     aksCluster: '{{ .mgmt.aks.name }}'
     action: Helm
@@ -41,6 +48,13 @@ resourceGroups:
       resourceGroup: global
       step: output
       name: globalMSIId
+    automatedRetry:
+      errorContainsAny:
+      - "500 Internal Server Error"
+      - "Internal error occurred"
+      - "context deadline exceeded"
+      maximumRetryCount: 3
+      durationBetweenRetries: 1m
   - name: deploy-mce-config
     aksCluster: '{{ .mgmt.aks.name }}'
     action: Helm
@@ -58,6 +72,8 @@ resourceGroups:
     automatedRetry:
       errorContainsAny:
       - "500 Internal Server Error"
+      - "Internal error occurred"
+      - "context deadline exceeded"
       maximumRetryCount: 3
       durationBetweenRetries: 1m
   - name: deploy-policies
@@ -74,3 +90,10 @@ resourceGroups:
       resourceGroup: global
       step: output
       name: globalMSIId
+    automatedRetry:
+      errorContainsAny:
+      - "500 Internal Server Error"
+      - "Internal error occurred"
+      - "context deadline exceeded"
+      maximumRetryCount: 3
+      durationBetweenRetries: 1m

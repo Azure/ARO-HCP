@@ -12,7 +12,7 @@ git config --global core.editor "code --wait"
 source /usr/share/bash-completion/completions/git
 echo "source /usr/share/bash-completion/completions/git" >> ~/.bashrc
 
-cd api && npm ci
+cd api && npm ci --legacy-peer-deps
 
 # Setup the welcome screen
 echo "cat .devcontainer/motd" >> ~/.bashrc

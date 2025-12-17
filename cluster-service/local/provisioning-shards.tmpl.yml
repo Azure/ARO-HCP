@@ -20,3 +20,4 @@ provision_shards:
     cx_secrets_key_vault_url: "{{ .extraVars.cxSecretsKeyVaultUrl }}"
     cx_managed_identities_key_vault_url: "{{ .extraVars.cxMiKeyVaultUrl }}"
     cx_secrets_key_vault_managed_identity_client_id: "{{ .extraVars.cxSecretsKeyVaultMiClientId }}"
+    aks_management_cluster_resource_id: "{{ .extraVars.aksManagementClusterResourceId }}"
