@@ -105,6 +105,7 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			// Verify cluster autoscaling defaults are applied
+			Expect(clusterResp.Properties).NotTo(BeNil())
 			Expect(clusterResp.Properties.Autoscaling).NotTo(BeNil(), "Expected cluster to have default autoscaling configuration")
 			Expect(clusterResp.Properties.Autoscaling.MaxNodeProvisionTimeSeconds).To(Equal(to.Ptr(int32(900))), "Expected default MaxNodeProvisionTimeSeconds to be 900 seconds")
 			Expect(clusterResp.Properties.Autoscaling.MaxPodGracePeriodSeconds).To(Equal(to.Ptr(int32(600))), "Expected default MaxPodGracePeriodSeconds to be 600 seconds")
@@ -163,12 +164,12 @@ var _ = Describe("Customer", func() {
 				Max: 5,
 			} // AND autoscaling - this should be rejected
 
-			// This should fail due to mutual exclusion constraint
+			// This should fail quickly during validation due to mutual exclusion constraint
 			err = tc.CreateNodePoolFromParam(ctx,
 				*resourceGroup.Name,
 				customerClusterName,
 				nodePoolParams,
-				45*time.Minute,
+				5*time.Minute,
 			)
 			Expect(err).To(HaveOccurred(), "Expected nodepool creation to fail when both replicas and autoscaling are specified")
 		})
@@ -223,12 +224,12 @@ var _ = Describe("Customer", func() {
 				Max: 10,
 			}
 
-			// Should fail validation
+			// Should fail quickly during validation
 			err = tc.CreateNodePoolFromParam(ctx,
 				*resourceGroup.Name,
 				customerClusterName,
 				nodePoolParams,
-				45*time.Minute,
+				5*time.Minute,
 			)
 			Expect(err).To(HaveOccurred(), "Expected nodepool creation to fail when Min exceeds cluster MaxNodesTotal")
 		})
