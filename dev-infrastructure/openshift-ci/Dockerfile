@@ -17,3 +17,7 @@ RUN curl -LO "https://mirror.openshift.com/pub/openshift-v4/clients/ocp/stable/o
     tar -xzf openshift-client-linux.tar.gz -C /usr/local/bin oc && \
     rm openshift-client-linux.tar.gz && \
     chmod +x /usr/local/bin/oc
+RUN curl -sfLo - https://github.com/prometheus/prometheus/releases/download/v3.2.1/prometheus-3.2.1.linux-amd64.tar.gz | tar xzf - && \
+    mv prometheus-3.2.1.linux-amd64/promtool /usr/local/bin/promtool && \
+    chmod +x /usr/local/bin/promtool && \
+    rm -rf prometheus-3.2.1.linux-amd64
