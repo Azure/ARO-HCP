@@ -9,6 +9,9 @@ param clusterName string
 @description('Managed identities to use')
 param identities object
 
+@description('When true, use the pre-created MSI pool instead of creating identities in the cluster resource group')
+param usePooledIdentities bool = false
+
 @description('Node pool osDisk Size in GiB')
 param nodePoolOsDiskSizeGiB int = 128
 
@@ -32,6 +35,7 @@ module managedIdentities 'modules/managed-identities.bicep' = {
     msiResourceGroupName: identities.resourceGroup
     clusterResourceGroupName: resourceGroup().name
     identities: identities.identities
+    useMsiPool: usePooledIdentities
     vnetName: customerInfra.outputs.vnetName
     subnetName: customerInfra.outputs.vnetSubnetName
     nsgName: customerInfra.outputs.nsgName
