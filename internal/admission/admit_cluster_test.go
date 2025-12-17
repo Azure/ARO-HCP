@@ -18,12 +18,8 @@ import (
 	"context"
 	"strings"
 	"testing"
-	"time"
 
 	"k8s.io/apimachinery/pkg/util/validation/field"
-	"k8s.io/utils/ptr"
-
-	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
@@ -79,49 +75,6 @@ func verifyErrorsMatch(t *testing.T, expectedErrors []expectedError, errs field.
 	}
 }
 
-// Helper function to create a valid cluster for testing
-func createValidCluster() *api.HCPOpenShiftCluster {
-	cluster := api.NewDefaultHCPOpenShiftCluster(api.Must(azcorearm.ParseResourceID("/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster")))
-
-	// Set required fields
-	cluster.Location = "eastus"
-	cluster.CustomerProperties.Version.ID = "4.15"
-	cluster.CustomerProperties.Version.ChannelGroup = "stable"
-	cluster.CustomerProperties.DNS.BaseDomainPrefix = "test-cluster"
-	cluster.CustomerProperties.Platform.SubnetID = "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.Network/virtualNetworks/test-vnet/subnets/test-subnet"
-	cluster.CustomerProperties.Platform.NetworkSecurityGroupID = "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.Network/networkSecurityGroups/test-nsg"
-	cluster.CustomerProperties.Platform.ManagedResourceGroup = "managed-rg"
-
-	return cluster
-}
-
-// Helper function to create a subscription with AllowDevNonStableChannels feature flag
-func createSubscriptionWithNonStableChannels() *arm.Subscription {
-	return &arm.Subscription{
-		State:            arm.SubscriptionStateRegistered,
-		RegistrationDate: ptr.To(time.Now().Format(time.RFC1123)),
-		Properties: &arm.SubscriptionProperties{
-			RegisteredFeatures: &[]arm.Feature{
-				{
-					Name:  ptr.To(api.FeatureAllowDevNonStableChannels),
-					State: ptr.To("Registered"),
-				},
-			},
-		},
-	}
-}
-
-// Helper function to create a subscription without AllowDevNonStableChannels feature flag
-func createStandardSubscription() *arm.Subscription {
-	return &arm.Subscription{
-		State:            arm.SubscriptionStateRegistered,
-		RegistrationDate: ptr.To(time.Now().Format(time.RFC1123)),
-		Properties: &arm.SubscriptionProperties{
-			RegisteredFeatures: &[]arm.Feature{},
-		},
-	}
-}
-
 // Tests for AdmitClusterOnCreate without AllowDevNonStableChannels feature flag
 func TestAdmitClusterOnCreate(t *testing.T) {
 	ctx := context.Background()
@@ -134,25 +87,25 @@ func TestAdmitClusterOnCreate(t *testing.T) {
 	}{
 		{
 			name:         "valid cluster with stable channel group",
-			cluster:      createValidCluster(),
-			subscription: createStandardSubscription(),
+			cluster:      api.MinimumValidClusterTestCase(),
+			subscription: api.CreateTestSubscription(),
 			expectErrors: []expectedError{},
 		},
 		{
 			name:         "valid cluster with nil subscription",
-			cluster:      createValidCluster(),
+			cluster:      api.MinimumValidClusterTestCase(),
 			subscription: nil,
 			expectErrors: []expectedError{},
 		},
 		{
 			name: "invalid channel group without feature flag - candidate",
 			cluster: func() *api.HCPOpenShiftCluster {
-				c := createValidCluster()
+				c := api.MinimumValidClusterTestCase()
 				c.CustomerProperties.Version.ChannelGroup = "candidate"
 				c.CustomerProperties.Version.ID = "4.15"
 				return c
 			}(),
-			subscription: createStandardSubscription(),
+			subscription: api.CreateTestSubscription(),
 			expectErrors: []expectedError{
 				{message: "supported values: \"stable\"",
 					fieldPath: "properties.version.channelGroup",
@@ -162,12 +115,12 @@ func TestAdmitClusterOnCreate(t *testing.T) {
 		{
 			name: "invalid channel group without feature flag - fast",
 			cluster: func() *api.HCPOpenShiftCluster {
-				c := createValidCluster()
+				c := api.MinimumValidClusterTestCase()
 				c.CustomerProperties.Version.ChannelGroup = "fast"
 				c.CustomerProperties.Version.ID = "4.15"
 				return c
 			}(),
-			subscription: createStandardSubscription(),
+			subscription: api.CreateTestSubscription(),
 			expectErrors: []expectedError{
 				{message: "supported values: \"stable\"",
 					fieldPath: "properties.version.channelGroup"},
@@ -176,12 +129,12 @@ func TestAdmitClusterOnCreate(t *testing.T) {
 		{
 			name: "invalid channel group without feature flag - nightly",
 			cluster: func() *api.HCPOpenShiftCluster {
-				c := createValidCluster()
+				c := api.MinimumValidClusterTestCase()
 				c.CustomerProperties.Version.ChannelGroup = "nightly"
 				c.CustomerProperties.Version.ID = "4.15"
 				return c
 			}(),
-			subscription: createStandardSubscription(),
+			subscription: api.CreateTestSubscription(),
 			expectErrors: []expectedError{
 				{message: "supported values: \"stable\"",
 					fieldPath: "properties.version.channelGroup"},
@@ -190,7 +143,7 @@ func TestAdmitClusterOnCreate(t *testing.T) {
 		{
 			name: "invalid version with malformed version",
 			cluster: func() *api.HCPOpenShiftCluster {
-				c := createValidCluster()
+				c := api.MinimumValidClusterTestCase()
 				c.CustomerProperties.Version.ID = "invalid-version"
 				return c
 			}(),
@@ -201,11 +154,11 @@ func TestAdmitClusterOnCreate(t *testing.T) {
 		{
 			name: "invalid version format with patch version",
 			cluster: func() *api.HCPOpenShiftCluster {
-				c := createValidCluster()
+				c := api.MinimumValidClusterTestCase()
 				c.CustomerProperties.Version.ID = "4.15.1"
 				return c
 			}(),
-			subscription: createStandardSubscription(),
+			subscription: api.CreateTestSubscription(),
 			expectErrors: []expectedError{
 				{message: "must be specified as MAJOR.MINOR", fieldPath: "properties.version.id"},
 			},
@@ -213,11 +166,11 @@ func TestAdmitClusterOnCreate(t *testing.T) {
 		{
 			name: "invalid version format with prerelease",
 			cluster: func() *api.HCPOpenShiftCluster {
-				c := createValidCluster()
+				c := api.MinimumValidClusterTestCase()
 				c.CustomerProperties.Version.ID = "4.15.0-rc.1"
 				return c
 			}(),
-			subscription: createStandardSubscription(),
+			subscription: api.CreateTestSubscription(),
 			expectErrors: []expectedError{
 				{message: "must be specified as MAJOR.MINOR", fieldPath: "properties.version.id"},
 			},
@@ -226,7 +179,7 @@ func TestAdmitClusterOnCreate(t *testing.T) {
 		{
 			name: "valid cluster with fast channel group",
 			cluster: func() *api.HCPOpenShiftCluster {
-				c := createValidCluster()
+				c := api.MinimumValidClusterTestCase()
 				c.CustomerProperties.Version.ChannelGroup = "fast"
 				c.CustomerProperties.Version.ID = "4.17"
 				return c
@@ -246,7 +199,7 @@ func TestAdmitClusterOnCreate(t *testing.T) {
 // Tests for AdmitClusterOnCreate with AllowDevNonStableChannels feature flag enabled
 func TestAdmitClusterOnCreateWithNonStableChannels(t *testing.T) {
 	ctx := context.Background()
-	subscription := createSubscriptionWithNonStableChannels()
+	subscription := api.CreateTestSubscription(api.FeatureAllowDevNonStableChannels)
 
 	tests := []struct {
 		name         string
@@ -256,7 +209,7 @@ func TestAdmitClusterOnCreateWithNonStableChannels(t *testing.T) {
 		{
 			name: "valid cluster with candidate channel group and MAJOR.MINOR version",
 			cluster: func() *api.HCPOpenShiftCluster {
-				c := createValidCluster()
+				c := api.MinimumValidClusterTestCase()
 				c.CustomerProperties.Version.ChannelGroup = "candidate"
 				c.CustomerProperties.Version.ID = "4.15"
 				return c
@@ -266,7 +219,7 @@ func TestAdmitClusterOnCreateWithNonStableChannels(t *testing.T) {
 		{
 			name: "valid cluster with fast channel group and MAJOR.MINOR version",
 			cluster: func() *api.HCPOpenShiftCluster {
-				c := createValidCluster()
+				c := api.MinimumValidClusterTestCase()
 				c.CustomerProperties.Version.ChannelGroup = "fast"
 				c.CustomerProperties.Version.ID = "4.16"
 				return c
@@ -276,7 +229,7 @@ func TestAdmitClusterOnCreateWithNonStableChannels(t *testing.T) {
 		{
 			name: "valid cluster with nightly channel group and full semver",
 			cluster: func() *api.HCPOpenShiftCluster {
-				c := createValidCluster()
+				c := api.MinimumValidClusterTestCase()
 				c.CustomerProperties.Version.ChannelGroup = "nightly"
 				c.CustomerProperties.Version.ID = "4.17.0-0.nightly-2024-01-15-123456"
 				return c
@@ -286,7 +239,7 @@ func TestAdmitClusterOnCreateWithNonStableChannels(t *testing.T) {
 		{
 			name: "valid cluster with candidate channel group and prerelease version",
 			cluster: func() *api.HCPOpenShiftCluster {
-				c := createValidCluster()
+				c := api.MinimumValidClusterTestCase()
 				c.CustomerProperties.Version.ChannelGroup = "candidate"
 				c.CustomerProperties.Version.ID = "4.15.0-rc.1"
 				return c
@@ -296,7 +249,7 @@ func TestAdmitClusterOnCreateWithNonStableChannels(t *testing.T) {
 		{
 			name: "valid cluster with custom channel group",
 			cluster: func() *api.HCPOpenShiftCluster {
-				c := createValidCluster()
+				c := api.MinimumValidClusterTestCase()
 				c.CustomerProperties.Version.ChannelGroup = "custom-channel"
 				c.CustomerProperties.Version.ID = "4.15.0-custom.1"
 				return c
@@ -306,7 +259,7 @@ func TestAdmitClusterOnCreateWithNonStableChannels(t *testing.T) {
 		{
 			name: "stable channel group still requires MAJOR.MINOR version",
 			cluster: func() *api.HCPOpenShiftCluster {
-				c := createValidCluster()
+				c := api.MinimumValidClusterTestCase()
 				c.CustomerProperties.Version.ChannelGroup = "stable"
 				c.CustomerProperties.Version.ID = "4.15"
 				return c
@@ -316,7 +269,7 @@ func TestAdmitClusterOnCreateWithNonStableChannels(t *testing.T) {
 		{
 			name: "stable channel group rejects full semver",
 			cluster: func() *api.HCPOpenShiftCluster {
-				c := createValidCluster()
+				c := api.MinimumValidClusterTestCase()
 				c.CustomerProperties.Version.ChannelGroup = "stable"
 				c.CustomerProperties.Version.ID = "4.15.1"
 				return c
