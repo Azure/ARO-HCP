@@ -66,3 +66,35 @@ func (v verifyNodesReady) Verify(ctx context.Context, adminRESTConfig *rest.Conf
 func VerifyNodesReady() HostedClusterVerifier {
 	return verifyNodesReady{}
 }
+
+type verifyNodeCount struct {
+	expected int
+}
+
+func (v verifyNodeCount) Name() string {
+	return fmt.Sprintf("VerifyNodeCount(%d)", v.expected)
+}
+
+func (v verifyNodeCount) Verify(ctx context.Context, adminRESTConfig *rest.Config) error {
+	kubeClient, err := kubernetes.NewForConfig(adminRESTConfig)
+	if err != nil {
+		return fmt.Errorf("failed to create kubernetes client: %w", err)
+	}
+
+	nodes, err := kubeClient.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return fmt.Errorf("can't list nodes in the cluster: %w", err)
+	}
+
+	if len(nodes.Items) != v.expected {
+		return fmt.Errorf("expected %d nodes, found %d", v.expected, len(nodes.Items))
+	}
+
+	return nil
+}
+
+func VerifyNodeCount(expected int) HostedClusterVerifier {
+	return verifyNodeCount{
+		expected: expected,
+	}
+}
