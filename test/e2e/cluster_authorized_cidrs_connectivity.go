@@ -40,6 +40,7 @@ var _ = Describe("Authorized CIDRs", func() {
 			labels.RequireNothing,
 			labels.Critical,
 			labels.Positive,
+			labels.IntegrationOnly,
 			func(ctx context.Context) {
 				const (
 					clusterName                      = "cidr-connectivity-test"
