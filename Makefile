@@ -1,14 +1,12 @@
 include ./.bingo/Variables.mk
 include ./.bingo/Symlinks.mk
 include ./tooling/templatize/Makefile
+include ./tooling/yamlwrap/Makefile
 include ./test/Makefile
 SHELL = /bin/bash
 PATH := $(GOBIN):$(PATH)
 
-# This build tag is currently leveraged by tooling/image-sync
-# https://github.com/containers/image?tab=readme-ov-file#building
-GOTAGS?='containers_image_openpgp'
-LINT_GOTAGS?='${GOTAGS},E2Etests'
+LINT_GOTAGS?='E2Etests'
 TOOLS_BIN_DIR := tooling/bin
 DEPLOY_ENV ?= pers
 CONFIG_FILE ?= config/config.yaml
@@ -21,12 +19,26 @@ all: test lint
 # There is currently no convenient way to run tests against a whole Go workspace
 # https://github.com/golang/go/issues/50745
 test:
-	go list -f '{{.Dir}}/...' -m |RUN_TEMPLATIZE_E2E=true xargs go test -timeout 1200s -tags=$(GOTAGS) -cover
+	go list -f '{{.Dir}}/...' -m |RUN_TEMPLATIZE_E2E=true xargs go test -timeout 1200s -cover
 .PHONY: test
+
+test-unit:
+	go list -f '{{.Dir}}/...' -m | xargs go test -timeout 1200s -cover
+.PHONY: test-unit
 
 test-compile:
 	go list -f '{{.Dir}}/...' -m |xargs go test -c -o /dev/null
 .PHONY: test-compile
+
+generate: mocks fmt record-nonlocal-e2e all-tidy
+
+verify-generate: generate
+	./hack/verify.sh generate
+.PHONY: verify-generate
+
+verify-yamlfmt: yamlfmt
+	./hack/verify.sh yamlfmt
+.PHONY: verify-generate
 
 mocks: $(MOCKGEN) $(GOIMPORTS)
 	MOCKGEN=${MOCKGEN} go generate ./internal/mocks
@@ -55,13 +67,13 @@ fmt: $(GOIMPORTS)
 	$(GOIMPORTS) -w -local github.com/Azure/ARO-HCP $(shell go list -f '{{.Dir}}' -m | xargs)
 .PHONY: fmt
 
-yamlfmt: $(YAMLFMT)
+yamlfmt: $(YAMLFMT) $(YAMLWRAP)
 	# first, wrap all templated values in quotes, so they are correct YAML
-	./yamlfmt.wrap.sh
+	$(YAMLWRAP) wrap --dir . --no-validate-result
 	# run the formatter
 	$(YAMLFMT) -dstar -exclude './api/**' '**/*.{yaml,yml}'
 	# "fix" any non-string fields we cast to strings for the formatting
-	./yamlfmt.unwrap.sh
+	$(YAMLWRAP) unwrap --dir .
 .PHONY: yamlfmt
 
 tidy: $(MODULES:/...=.tidy)
@@ -72,10 +84,10 @@ tidy: $(MODULES:/...=.tidy)
 all-tidy: tidy fmt licenses
 	go work sync
 
-record-nonlocal-e2e:
+record-nonlocal-e2e: $(GOJQ)
 	go run github.com/onsi/ginkgo/v2/ginkgo run \
 		--no-color --tags E2Etests --label-filter='!ARO-HCP-RP-API-Compatible' --dry-run --output-dir=test/e2e --json-report=report.json test/e2e && \
-		jq '[.[] | .SpecReports[]? | select(.State == "passed") | .LeafNodeText] | sort' test/e2e/report.json > ./nonlocal-e2e-specs.txt
+		$(GOJQ) '[.[] | .SpecReports[]? | select(.State == "passed") | .LeafNodeText] | sort' test/e2e/report.json > ./nonlocal-e2e-specs.txt
 .PHONY: record-nonlocal-e2e
 
 e2e/local: e2e-local/setup
@@ -98,8 +110,9 @@ e2e-local/run: $(ARO_HCP_TESTS)
 	export CUSTOMER_SUBSCRIPTION="$$(az account show --output tsv --query 'name')"; \
 	export ARTIFACT_DIR=$${ARTIFACT_DIR:-_artifacts}; \
 	export JUNIT_PATH=$${JUNIT_PATH:-$$ARTIFACT_DIR/junit.xml}; \
+	export HTML_PATH=$${HTML_PATH:-$$ARTIFACT_DIR/extension-test-result-summary.html}; \
 	mkdir -p "$$ARTIFACT_DIR"; \
-	$(ARO_HCP_TESTS) run-suite "rp-api-compat-all/parallel" --junit-path="$$JUNIT_PATH"
+	$(ARO_HCP_TESTS) run-suite "rp-api-compat-all/parallel" --junit-path="$$JUNIT_PATH" --html-path="$$HTML_PATH"
 .PHONY: e2e-local/run
 
 mega-lint:
@@ -287,6 +300,36 @@ personal-dev-env:
 	$(error personal-dev-env: DEPLOY_ENV must be set to "pers", not "$(DEPLOY_ENV)")
 endif
 .PHONY: personal-dev-env
+
+#
+# Local Cluster Service Development Environment
+#
+ifeq ($(DEPLOY_ENV),pers)
+local-pers-dev-env: personal-dev-env
+	@echo ""
+	@echo "===================================================================="
+	@echo "Personal dev environment setup complete"
+	@echo "===================================================================="
+	@echo ""
+	@echo "Granting local development permissions..."
+	@$(MAKE) -C dev-infrastructure local-cs-permissions
+	@echo ""
+	@echo "===================================================================="
+	@echo "Local CS permissions granted successfully"
+	@echo "===================================================================="
+	@echo "Generating local provision-shard config..."
+	@echo ""
+	@cd cluster-service && $(MAKE) local-deploy-provision-shard && $(MAKE) personal-runtime-config && $(MAKE) local-aro-hcp-ocp-versions-config && $(MAKE) local-azure-operators-managed-identities-config
+	@echo ""
+	@echo "===================================================================="
+	@echo "Cluster service configuration files generated at:"
+	@echo "cluster-service/local/"
+	@echo "===================================================================="
+else
+local-pers-dev-env:
+	$(error local-pers-dev-env: DEPLOY_ENV must be set to "pers", not "$(DEPLOY_ENV)")
+endif
+.PHONY: local-pers-dev-env
 
 ifeq ($(wildcard $(YQ)),$(YQ))
 entrypoints = $(shell $(YQ) '.entrypoints[] | .identifier | sub("Microsoft.Azure.ARO.HCP.", "")' topology.yaml )

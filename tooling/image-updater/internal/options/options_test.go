@@ -420,6 +420,7 @@ images:
     targets:
       - filePath: ` + filepath.Join(tmpDir, "test.yaml") + `
         jsonPath: image.digest
+        env: dev
 `
 			},
 			targetFiles: []string{"test.yaml"},
@@ -440,6 +441,7 @@ images:
     targets:
       - filePath: ` + filepath.Join(tmpDir, "test.yaml") + `
         jsonPath: image.digest
+        env: dev
 `
 			},
 			targetFiles: []string{"test.yaml"},
@@ -459,6 +461,7 @@ images:
     targets:
       - filePath: ` + filepath.Join(tmpDir, "test.yaml") + `
         jsonPath: image.digest
+        env: dev
 `
 			},
 			targetFiles: []string{"test.yaml"},
@@ -479,6 +482,7 @@ images:
     targets:
       - filePath: ` + filepath.Join(tmpDir, "test1.yaml") + `
         jsonPath: image.digest
+        env: dev
   test2:
     source:
       image: registry.azurecr.io/test/app2
@@ -486,6 +490,7 @@ images:
     targets:
       - filePath: ` + filepath.Join(tmpDir, "test2.yaml") + `
         jsonPath: image.digest
+        env: dev
 `
 			},
 			targetFiles: []string{"test1.yaml", "test2.yaml"},
@@ -557,26 +562,42 @@ images:
     source:
       image: quay.io/test/frontend
     targets:
-      - filePath: frontend.yaml
+      - filePath: frontend-dev.yaml
         jsonPath: image.digest
+        env: dev
+      - filePath: frontend-int.yaml
+        jsonPath: image.digest
+        env: int
   backend:
     source:
       image: quay.io/test/backend
     targets:
-      - filePath: backend.yaml
+      - filePath: backend-dev.yaml
         jsonPath: image.digest
+        env: dev
+      - filePath: backend-int.yaml
+        jsonPath: image.digest
+        env: int
   database:
     source:
       image: quay.io/test/database
     targets:
-      - filePath: db.yaml
+      - filePath: db-dev.yaml
         jsonPath: image.digest
+        env: dev
+      - filePath: db-int.yaml
+        jsonPath: image.digest
+        env: int
   cache:
     source:
       image: quay.io/test/cache
     targets:
-      - filePath: cache.yaml
+      - filePath: cache-dev.yaml
         jsonPath: image.digest
+        env: dev
+      - filePath: cache-int.yaml
+        jsonPath: image.digest
+        env: int
 `
 
 	if err := os.WriteFile(configPath, []byte(content), 0644); err != nil {
@@ -607,6 +628,7 @@ images:
     targets:
       - filePath: test.yaml
         jsonPath: image.digest
+        env: dev
 `,
 			wantKVConfigs: 1,
 			wantErr:       false,
@@ -625,6 +647,7 @@ images:
     targets:
       - filePath: test1.yaml
         jsonPath: image.digest
+        env: dev
   test2:
     source:
       image: quay.io/test/app2
@@ -635,6 +658,7 @@ images:
     targets:
       - filePath: test2.yaml
         jsonPath: image.digest
+        env: dev
 `,
 			wantKVConfigs: 1, // Same vault+secret should be deduplicated
 			wantErr:       false,
@@ -653,6 +677,7 @@ images:
     targets:
       - filePath: test1.yaml
         jsonPath: image.digest
+        env: dev
   test2:
     source:
       image: quay.io/test/app2
@@ -663,6 +688,7 @@ images:
     targets:
       - filePath: test2.yaml
         jsonPath: image.digest
+        env: dev
 `,
 			wantKVConfigs: 2, // Different vaults
 			wantErr:       false,
@@ -681,6 +707,7 @@ images:
     targets:
       - filePath: test1.yaml
         jsonPath: image.digest
+        env: dev
   test2:
     source:
       image: quay.io/test/app2
@@ -691,6 +718,7 @@ images:
     targets:
       - filePath: test2.yaml
         jsonPath: image.digest
+        env: dev
 `,
 			wantKVConfigs: 2, // Same vault but different secrets
 			wantErr:       false,
@@ -709,6 +737,7 @@ images:
     targets:
       - filePath: test1.yaml
         jsonPath: image.digest
+        env: dev
   test2:
     source:
       image: quay.io/test/app2
@@ -716,6 +745,7 @@ images:
     targets:
       - filePath: test2.yaml
         jsonPath: image.digest
+        env: dev
 `,
 			wantKVConfigs: 1, // Only test1 has keyVault
 			wantErr:       false,
@@ -730,6 +760,7 @@ images:
     targets:
       - filePath: test1.yaml
         jsonPath: image.digest
+        env: dev
 `,
 			wantKVConfigs: 0,
 			wantErr:       false,
@@ -765,6 +796,106 @@ images:
 			gotCount := len(kvConfigs)
 			if gotCount != tt.wantKVConfigs {
 				t.Errorf("KeyVault config count = %v, want %v", gotCount, tt.wantKVConfigs)
+			}
+		})
+	}
+}
+
+func TestParseAndValidateEnvironments(t *testing.T) {
+	tests := []struct {
+		name    string
+		envFlag string
+		want    []string
+		wantErr bool
+		errMsg  string
+	}{
+		{
+			name:    "empty flag defaults to dev and int",
+			envFlag: "",
+			want:    []string{"dev", "int"},
+			wantErr: false,
+		},
+		{
+			name:    "stg is valid",
+			envFlag: "stg",
+			want:    []string{"stg"},
+			wantErr: false,
+		},
+		{
+			name:    "prod is valid",
+			envFlag: "prod",
+			want:    []string{"prod"},
+			wantErr: false,
+		},
+		{
+			name:    "dev is rejected",
+			envFlag: "dev",
+			want:    nil,
+			wantErr: true,
+			errMsg:  "must be 'stg' or 'prod'",
+		},
+		{
+			name:    "int is rejected",
+			envFlag: "int",
+			want:    nil,
+			wantErr: true,
+			errMsg:  "must be 'stg' or 'prod'",
+		},
+		{
+			name:    "dev,int is rejected",
+			envFlag: "dev,int",
+			want:    nil,
+			wantErr: true,
+			errMsg:  "must be 'stg' or 'prod'",
+		},
+		{
+			name:    "invalid environment is rejected",
+			envFlag: "qa",
+			want:    nil,
+			wantErr: true,
+			errMsg:  "must be 'stg' or 'prod'",
+		},
+		{
+			name:    "multiple environments comma separated is rejected",
+			envFlag: "stg,prod",
+			want:    nil,
+			wantErr: true,
+			errMsg:  "must be 'stg' or 'prod'",
+		},
+		{
+			name:    "whitespace is rejected",
+			envFlag: "  ",
+			want:    nil,
+			wantErr: true,
+			errMsg:  "must be 'stg' or 'prod'",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := parseAndValidateEnvironments(tt.envFlag)
+
+			if (err != nil) != tt.wantErr {
+				t.Errorf("parseAndValidateEnvironments() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+
+			if tt.wantErr {
+				if tt.errMsg != "" && !strings.Contains(err.Error(), tt.errMsg) {
+					t.Errorf("parseAndValidateEnvironments() error = %v, should contain %v", err.Error(), tt.errMsg)
+				}
+				return
+			}
+
+			if len(got) != len(tt.want) {
+				t.Errorf("parseAndValidateEnvironments() returned %d environments, want %d", len(got), len(tt.want))
+				return
+			}
+
+			for i, env := range tt.want {
+				if got[i] != env {
+					t.Errorf("parseAndValidateEnvironments()[%d] = %v, want %v", i, got[i], env)
+				}
 			}
 		})
 	}

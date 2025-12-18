@@ -30,6 +30,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/tracing"
+	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 type LoggingReadCloser struct {
@@ -63,7 +64,7 @@ func (w *LoggingResponseWriter) WriteHeader(statusCode int) {
 // MiddlewareLogging logs the HTTP request and response.
 func MiddlewareLogging(w http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
 	ctx := r.Context()
-	logger := LoggerFromContext(ctx)
+	logger := utils.LoggerFromContext(ctx)
 
 	// Capture the request and response data for logging.
 	r.Body = &LoggingReadCloser{ReadCloser: r.Body}
@@ -101,7 +102,7 @@ func MiddlewareLogging(w http.ResponseWriter, r *http.Request, next http.Handler
 	}
 
 	// include the context values (logger.With) with every line so we can grep for them.
-	ctx = ContextWithLogger(ctx, logger)
+	ctx = utils.ContextWithLogger(ctx, logger)
 	r = r.WithContext(ctx)
 
 	logger.Info("read request",
@@ -127,7 +128,7 @@ func MiddlewareLogging(w http.ResponseWriter, r *http.Request, next http.Handler
 // attributes after the request has been matched by the ServeMux.
 func MiddlewareLoggingPostMux(w http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
 	ctx := r.Context()
-	logger := LoggerFromContext(ctx)
+	logger := utils.LoggerFromContext(ctx)
 
 	attrs := &attributes{
 		subscriptionID: r.PathValue(PathSegmentSubscriptionID),
@@ -135,7 +136,7 @@ func MiddlewareLoggingPostMux(w http.ResponseWriter, r *http.Request, next http.
 		resourceName:   r.PathValue(PathSegmentResourceName),
 	}
 	attrs.addToCurrentSpan(ctx)
-	ctx = ContextWithLogger(ctx, attrs.extendLogger(logger))
+	ctx = utils.ContextWithLogger(ctx, attrs.extendLogger(logger))
 	r = r.WithContext(ctx)
 
 	next(w, r)

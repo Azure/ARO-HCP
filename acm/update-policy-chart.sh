@@ -131,43 +131,35 @@ done
 
 echo "# The Policy helm chart is updated."
 
-# Check for podman or docker
-if command -v podman &> /dev/null; then
-  OCI_TOOL="podman"
-elif command -v docker &> /dev/null; then
-  OCI_TOOL="docker"
+echo "# Start updating the images in the values.yaml."
+echo "## Download the acm-operator-bundle image $ACM_OPERATOR_BUNDLE_IMAGE."
+
+# Download image as tarball using skopeo
+ACM_BUNDLE_TARBALL="$TMP_DIR/acm-operator-bundle.tar"
+skopeo copy --override-arch amd64 "docker://$ACM_OPERATOR_BUNDLE_IMAGE" "docker-archive:$ACM_BUNDLE_TARBALL"
+
+echo "## Extract the image JSON file from the tarball."
+image_json_file="$ACM_VERSION.json"
+
+# Extract the tarball and find the extras directory
+tar -xf "$ACM_BUNDLE_TARBALL" -C "$TMP_DIR"
+
+# Find and extract the layer containing /extras directory
+for layer in "$TMP_DIR"/*.tar; do
+  if [ -f "$layer" ]; then
+    if tar -tf "$layer" 2>/dev/null | grep -q "extras/$image_json_file"; then
+      tar -xf "$layer" -C "$TMP_DIR" "extras/$image_json_file" 2>/dev/null && break
+    fi
+  fi
+done
+
+# Move the extracted file to the expected location
+if [ -f "$TMP_DIR/extras/$image_json_file" ]; then
+  mv "$TMP_DIR/extras/$image_json_file" "$TMP_DIR/"
 else
-  echo "Error: Neither podman nor docker is installed."
+  echo "Error: Could not find $image_json_file in the ACM operator bundle image"
   exit 1
 fi
-
-echo "# Start updating the images in the values.yaml."
-echo "## Pull the acm-operator-bundle image $ACM_OPERATOR_BUNDLE_IMAGE."
-if [ "$OCI_TOOL" = "podman" ]; then
-  $OCI_TOOL pull --arch amd64 "$ACM_OPERATOR_BUNDLE_IMAGE"
-else
-  $OCI_TOOL pull "$ACM_OPERATOR_BUNDLE_IMAGE"
-fi
-
-echo "## Create a temporary container temp_acm_bundle."
-if [ "$OCI_TOOL" = "podman" ]; then
-  if $OCI_TOOL container exists temp_acm_bundle; then
-    $OCI_TOOL rm -f temp_acm_bundle
-  fi
-  $OCI_TOOL create --arch amd64 --name temp_acm_bundle "$ACM_OPERATOR_BUNDLE_IMAGE"
-else
-  if $OCI_TOOL ps -a --format '{{.Names}}' | grep -w temp_acm_bundle &>/dev/null; then
-    $OCI_TOOL rm -f temp_acm_bundle
-  fi
-  $OCI_TOOL create --name temp_acm_bundle "$ACM_OPERATOR_BUNDLE_IMAGE" sh
-fi
-
-echo "## Copy the contents out of the container to local directory."
-image_json_file=$ACM_VERSION.json
-$OCI_TOOL cp "temp_acm_bundle:/extras/$image_json_file" "$TMP_DIR/"
-
-echo "## Remove the temporary container temp_acm_bundle."
-$OCI_TOOL rm -f temp_acm_bundle
 
 values_file="$POLICY_HELM_CHART_BASE_DIR/values.yaml"
 

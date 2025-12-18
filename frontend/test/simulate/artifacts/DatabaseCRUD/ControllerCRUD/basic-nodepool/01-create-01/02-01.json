@@ -1,0 +1,12 @@
+{
+	"controllerName": "first-controller",
+	"externalId": "/subscriptions/subscriptionID/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/basic/nodePools/second-node-pool",
+	"status": {
+		"conditions": [
+			{
+				"message": "write 01",
+				"reason": "nodepool/2 controller/1"
+			}
+		]
+	}
+}

@@ -16,6 +16,7 @@ package frontend
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -28,12 +29,13 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 // AddAsyncOperationHeader adds an "Azure-AsyncOperation" header to the ResponseWriter
 // with a URL of the operation status endpoint.
 func AddAsyncOperationHeader(writer http.ResponseWriter, request *http.Request, operationID *azcorearm.ResourceID) {
-	logger := LoggerFromContext(request.Context())
+	logger := utils.LoggerFromContext(request.Context())
 
 	// MiddlewareReferer ensures Referer is present.
 	u, err := url.ParseRequestURI(request.Referer())
@@ -57,7 +59,7 @@ func AddAsyncOperationHeader(writer http.ResponseWriter, request *http.Request, 
 // AddLocationHeader adds a "Location" header to the ResponseWriter with a URL of the
 // operation result endpoint.
 func AddLocationHeader(writer http.ResponseWriter, request *http.Request, operationID *azcorearm.ResourceID) {
-	logger := LoggerFromContext(request.Context())
+	logger := utils.LoggerFromContext(request.Context())
 
 	// MiddlewareReferer ensures Referer is present.
 	u, err := url.ParseRequestURI(request.Referer())
@@ -82,50 +84,6 @@ func AddLocationHeader(writer http.ResponseWriter, request *http.Request, operat
 	writer.Header().Set("Location", u.String())
 }
 
-// ExposeOperation fully initiates a new asynchronous operation by enriching
-// the operation database item and adding the necessary response headers.
-func (f *Frontend) ExposeOperation(writer http.ResponseWriter, request *http.Request, operationID string, transaction database.DBTransaction) {
-	var patchOperations database.OperationDocumentPatchOperations
-
-	// This should never fail since we are building a trusted resource ID string.
-	operationResourceID, err := azcorearm.ParseResourceID(path.Join("/",
-		"subscriptions", request.PathValue(PathSegmentSubscriptionID),
-		"providers", api.ProviderNamespace,
-		"locations", arm.GetAzureLocation(),
-		api.OperationStatusResourceTypeName, operationID))
-	if err != nil {
-		LoggerFromContext(request.Context()).Error(err.Error())
-		return
-	}
-
-	patchOperations.SetTenantID(request.Header.Get(arm.HeaderNameHomeTenantID))
-	patchOperations.SetClientID(request.Header.Get(arm.HeaderNameClientObjectID))
-	patchOperations.SetOperationID(operationResourceID)
-
-	notificationURI := request.Header.Get(arm.HeaderNameAsyncNotificationURI)
-	if notificationURI != "" {
-		patchOperations.SetNotificationURI(&notificationURI)
-	}
-
-	transaction.PatchOperationDoc(operationID, patchOperations, nil)
-
-	transaction.OnSuccess(func(result database.DBTransactionResult) {
-		// If ARM passed a notification URI, acknowledge it.
-		if notificationURI != "" {
-			writer.Header().Set(arm.HeaderNameAsyncNotification, "Enabled")
-		}
-
-		// Add callback header(s) based on the request method.
-		switch request.Method {
-		case http.MethodDelete, http.MethodPatch, http.MethodPost:
-			AddLocationHeader(writer, request, operationResourceID)
-			fallthrough
-		case http.MethodPut:
-			AddAsyncOperationHeader(writer, request, operationResourceID)
-		}
-	})
-}
-
 // CancelActiveOperations queries for operation documents with a non-terminal
 // status using the filters specified in opts. For every document returned in
 // the query result, CancelActiveOperations adds patch operations to the given
@@ -133,52 +91,59 @@ func (f *Frontend) ExposeOperation(writer http.ResponseWriter, request *http.Req
 func (f *Frontend) CancelActiveOperations(ctx context.Context, transaction database.DBTransaction, opts *database.DBClientListActiveOperationDocsOptions) error {
 	var now = time.Now().UTC()
 
-	iterator := f.dbClient.ListActiveOperationDocs(transaction.GetPartitionKey(), opts)
-
-	for operationID := range iterator.Items(ctx) {
-		var patchOperations database.OperationDocumentPatchOperations
-
-		patchOperations.SetLastTransitionTime(now)
-		patchOperations.SetStatus(arm.ProvisioningStateCanceled)
-		patchOperations.SetError(&arm.CloudErrorBody{
+	errs := []error{}
+	subscriptionID := transaction.GetPartitionKey()
+	iterator := f.dbClient.Operations(subscriptionID).ListActiveOperations(opts)
+	for _, operation := range iterator.Items(ctx) {
+		// TODO deep copy once available
+		operationToWrite := *operation
+		operationToWrite.LastTransitionTime = now
+		operationToWrite.Status = arm.ProvisioningStateCanceled
+		operationToWrite.Error = &arm.CloudErrorBody{
 			Code:    arm.CloudErrorCodeCanceled,
 			Message: "This operation was superseded by another",
-		})
+		}
 
-		transaction.PatchOperationDoc(operationID, patchOperations, nil)
+		_, err := f.dbClient.Operations(subscriptionID).AddReplaceToTransaction(ctx, transaction, &operationToWrite, nil)
+		if err != nil {
+			errs = append(errs, utils.TrackError(err))
+		}
+	}
+	if err := iterator.GetError(); err != nil {
+		errs = append(errs, utils.TrackError(err))
 	}
 
-	return iterator.GetError()
+	return errors.Join(errs...)
 }
 
 // OperationIsVisible returns true if the request is being called from the same
 // tenant and subscription that the operation originated in.
-func (f *Frontend) OperationIsVisible(request *http.Request, operationID string, doc *database.OperationDocument) bool {
+func (f *Frontend) OperationIsVisible(request *http.Request, operation *api.Operation) bool {
 	var visible = true
 
-	logger := LoggerFromContext(request.Context())
+	logger := utils.LoggerFromContext(request.Context())
 
 	tenantID := request.Header.Get(arm.HeaderNameHomeTenantID)
 	clientID := request.Header.Get(arm.HeaderNameClientObjectID)
 	subscriptionID := request.PathValue(PathSegmentSubscriptionID)
 
-	if doc.OperationID != nil {
-		if doc.TenantID != "" && !strings.EqualFold(tenantID, doc.TenantID) {
-			logger.Info(fmt.Sprintf("Unauthorized tenant '%s' in status request for operation '%s'", tenantID, operationID))
+	if operation.OperationID != nil {
+		if operation.TenantID != "" && !strings.EqualFold(tenantID, operation.TenantID) {
+			logger.Info(fmt.Sprintf("Unauthorized tenant '%s' in status request for operation '%s'", tenantID, operation.OperationID))
 			visible = false
 		}
 
-		if doc.ClientID != "" && !strings.EqualFold(clientID, doc.ClientID) {
-			logger.Info(fmt.Sprintf("Unauthorized client '%s' in status request for operation '%s'", clientID, operationID))
+		if operation.ClientID != "" && !strings.EqualFold(clientID, operation.ClientID) {
+			logger.Info(fmt.Sprintf("Unauthorized client '%s' in status request for operation '%s'", clientID, operation.OperationID))
 			visible = false
 		}
 
-		if !strings.EqualFold(subscriptionID, doc.OperationID.SubscriptionID) {
-			logger.Info(fmt.Sprintf("Unauthorized subscription '%s' in status request for operation '%s'", subscriptionID, operationID))
+		if !strings.EqualFold(subscriptionID, operation.OperationID.SubscriptionID) {
+			logger.Info(fmt.Sprintf("Unauthorized subscription '%s' in status request for operation '%s'", subscriptionID, operation.OperationID))
 			visible = false
 		}
 	} else {
-		logger.Info(fmt.Sprintf("Status request for implicit operation '%s'", operationID))
+		logger.Info(fmt.Sprintf("Status request for implicit operation '%s'", operation.OperationID))
 		visible = false
 	}
 

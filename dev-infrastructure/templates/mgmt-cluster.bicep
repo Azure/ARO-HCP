@@ -194,9 +194,6 @@ param genevaCertificateDomain string
 @description('Should geneva certificates be managed')
 param genevaManageCertificates bool
 
-// Log Analytics Workspace ID will be passed from region pipeline if enabled in config
-param logAnalyticsWorkspaceId string = ''
-
 @description('Name of the MSI for the PKO')
 param pkoMIName string
 
@@ -341,7 +338,6 @@ module mgmtCluster '../modules/aks-cluster-base.bicep' = {
     aksKeyVaultName: aksKeyVaultName
     aksKeyVaultTagName: aksKeyVaultTagName
     aksKeyVaultTagValue: aksKeyVaultTagValue
-    logAnalyticsWorkspaceId: logAnalyticsWorkspaceId
     pullAcrResourceIds: [ocpAcrResourceId, svcAcrResourceId]
     systemAgentMinCount: systemAgentMinCount
     systemAgentMaxCount: systemAgentMaxCount
@@ -383,19 +379,6 @@ module mgmtCluster '../modules/aks-cluster-base.bicep' = {
 output aksClusterName string = mgmtCluster.outputs.aksClusterName
 
 //
-// L O G S
-//
-
-// NOTE: This is only enabled for non-prod environments
-module logsCollection '../modules/logs/collection.bicep' = if (logAnalyticsWorkspaceId != '') {
-  name: 'logs-collection'
-  params: {
-    aksClusterName: mgmtCluster.outputs.aksClusterName
-    logAnalyticsWorkspaceId: logAnalyticsWorkspaceId
-  }
-}
-
-//
 // M E T R I C S
 //
 
@@ -422,7 +405,9 @@ module logsMgmtKeyVaultAccess '../modules/keyvault/keyvault-secret-access.bicep'
   params: {
     keyVaultName: mgmtKeyVaultName
     roleName: 'Key Vault Certificate User'
-    managedIdentityPrincipalId: mi.getManagedIdentityByName(managedIdentities.outputs.managedIdentities, logsMSI).uamiPrincipalID
+    managedIdentityPrincipalIds: [
+      mi.getManagedIdentityByName(managedIdentities.outputs.managedIdentities, logsMSI).uamiPrincipalID
+    ]
   }
 }
 
@@ -436,7 +421,7 @@ module cxCSIKeyVaultAccess '../modules/keyvault/keyvault-secret-access.bicep' = 
     params: {
       keyVaultName: cxKeyVaultName
       roleName: role
-      managedIdentityPrincipalId: mgmtCluster.outputs.aksClusterKeyVaultSecretsProviderPrincipalId
+      managedIdentityPrincipalIds: [mgmtCluster.outputs.aksClusterKeyVaultSecretsProviderPrincipalId]
     }
   }
 ]
@@ -451,7 +436,7 @@ module msiCSIKeyVaultAccess '../modules/keyvault/keyvault-secret-access.bicep' =
     params: {
       keyVaultName: msiKeyVaultName
       roleName: role
-      managedIdentityPrincipalId: mgmtCluster.outputs.aksClusterKeyVaultSecretsProviderPrincipalId
+      managedIdentityPrincipalIds: [mgmtCluster.outputs.aksClusterKeyVaultSecretsProviderPrincipalId]
     }
   }
 ]

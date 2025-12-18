@@ -80,8 +80,6 @@ param aksKeyVaultName string
 param aksKeyVaultTagName string
 param aksKeyVaultTagValue string
 
-param logAnalyticsWorkspaceId string = ''
-
 // Local Params
 @description('Optional DNS prefix to use with hosted Kubernetes API server FQDN.')
 param dnsPrefix string = aksClusterName
@@ -316,17 +314,9 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-10-01' = {
           rotationPollInterval: '1h'
         }
       }
-      omsagent: (logAnalyticsWorkspaceId != '')
-        ? {
-            enabled: true
-            config: {
-              logAnalyticsWorkspaceResourceID: logAnalyticsWorkspaceId
-              useAADAuth: 'true'
-            }
-          }
-        : {
-            enabled: false
-          }
+      omsagent: {
+        enabled: false
+      }
     }
     agentPoolProfiles: [
       {
@@ -576,7 +566,7 @@ module acrPullRole 'acr/acr-permissions.bicep' = [
     name: guid(acrRef.name, aksCluster.id, acrPullRoleDefinitionId)
     scope: resourceGroup(acrRef.resourceGroup.subscriptionId, acrRef.resourceGroup.name)
     params: {
-      principalId: aksCluster.properties.identityProfile.kubeletidentity.objectId
+      principalIds: [aksCluster.properties.identityProfile.kubeletidentity.objectId]
       acrName: acrRef.name
       grantPullAccess: true
     }
@@ -621,7 +611,7 @@ module acrPullerRoles 'acr/acr-permissions.bicep' = [
     name: guid(acrRef.name, aksCluster.id, acrPullRoleDefinitionId, 'puller-identity')
     scope: resourceGroup(acrRef.resourceGroup.subscriptionId, acrRef.resourceGroup.name)
     params: {
-      principalId: pullerIdentity.properties.principalId
+      principalIds: [pullerIdentity.properties.principalId]
       acrName: acrRef.name
       grantPullAccess: true
     }

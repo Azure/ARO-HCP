@@ -22,6 +22,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/audit"
+	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 type AuditResponseWriter struct {
@@ -48,7 +49,7 @@ func newMiddlewareAudit(auditClient audit.Client) *middlewareAudit {
 // MiddlewareAudit writes audit messages upon receiving a request.
 func (h *middlewareAudit) handleRequest(w http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
 	ctx := r.Context()
-	logger := LoggerFromContext(ctx)
+	logger := utils.LoggerFromContext(ctx)
 
 	msg := audit.CreateOtelAuditMsg(logger, r)
 	correlationData := arm.NewCorrelationData(r)

@@ -100,7 +100,7 @@ defaults:
       image:
         registry: mcr.microsoft.com
         repository: oss/v2/fluent/fluent-bit
-        digest: sha256:52f8ae477198b02739555ffdb745132ac670536193e8763269d38a6c4dd81d7a # v4.1.1 (2025-11-20 19:33)
+        digest: sha256:a0fcf0bc1d75294427b152b68b35959a0860b874cfbbe2b29392dfbd51289171 # v4.1.1 (2025-12-17 22:21)
     kusto:
       enabled: false
       environmentName: "{{ .ctx.environment }}"
@@ -116,7 +116,7 @@ defaults:
     image:
       registry: kubernetesshared.azurecr.io
       repository: shared/kube-events
-      digest: sha256:053401cc862f54e181c5b308d1082cfe1ecc9322721a237e15216abc90e3707a # 20251130.1 (2025-11-30 03:23)
+      digest: sha256:a6e275cf0ab51fc16a0d2574cd50c46defc005e887821974062335814ee18272 # 20251215.1 (2025-12-15 23:15)
   # Secret Sync Controller
   secretSyncController:
     image:
@@ -220,8 +220,6 @@ defaults:
         type: ""
         issuer: ""
       subscriptions: []
-    loganalytics:
-      enable: false
   # Monitoring
   monitoring:
     grafanaName: "arohcp-{{ .ctx.environment }}"
@@ -231,6 +229,7 @@ defaults:
     # Our yaml formatter does not allow >- when there is no value, so remember
     # to chage "" to >- when you add a value.
     grafanaRoles: ""
+    crossTenantSecurityGroup: ""
     svcWorkspaceName: 'services-{{ .ctx.region }}'
     hcpWorkspaceName: 'hcps-{{ .ctx.region }}'
     icm:
@@ -662,17 +661,17 @@ defaults:
   # ACM
   acm:
     operator:
-      version: "2.14.2"
+      version: "2.16.0"
       bundle:
         registry: quay.io
-        repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-214
-        digest: sha256:7a0af97e0e1c5651a7e979f752e515d82cc78e5349babebe9e354ff297a2815c # v2.14.2-304 (2025-12-05 00:08)
+        repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-216
+        digest: sha256:01f7dcd12493f2676de8ee4db4fd9ff97bb885b90f10c76e6f73cb2990828997 # v2.16.0-101 (2025-12-18 04:17)
     mce:
-      version: "2.9.2"
+      version: "2.11.0"
       bundle:
         registry: quay.io
-        repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-29
-        digest: sha256:ee51dbe4a8c18f7624890c7ce071583d186694d9aed06a3c8576b17f11dab92c # v2.9.2-143 (2025-12-05 00:09)
+        repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-211
+        digest: sha256:be8959f175fe14aea5e16af403730e1bfd7fa9a0b69eb7f14eb3c3a03098eed3 # v2.11.0-126 (2025-12-17 22:05)
   # Cluster Service
   clustersService:
     image:
@@ -801,7 +800,7 @@ defaults:
       globalKeyVaultTokenSecret: "prow-token"
     regionTest:
       prowJobName: ""
-      gatePromotion: false
+      gatePromotion: true
 clouds:
   dev:
     # this configuration serves as a template for for all RH DEV subscription deployments
@@ -872,11 +871,11 @@ clouds:
         certDomain: selfsigned.maestro.keyvault.azure.com
         certIssuer: Self
         image:
-          digest: sha256:2f92b1a26199f7075a33530cebea0c709088d16c3a129271ce7123b38a309664 # d0b44e26559c7f9702cdcf86e0d74efd0a64dd44 (2025-12-05 06:10)
+          digest: sha256:7465f0efe79bdb533178621053bf39a16376066e7417b61e4c791b269290114d # 785b4e14ce0a519b17e45bc268c345d91838e31b (2025-12-17 07:00)
         agent:
           sidecar:
             image:
-              digest: sha256:c9932f5875ba5e0be70d174dc96f45d5474e77df8fe57ed6327b8d8208ee1635 # 1.25.4-6-azl3.0.20251106 (2025-11-07 03:08)
+              digest: sha256:c925c4dfce3a0140d36073cc66e70567ffa0d82b71033d752d2d7e668637804b # 1.25.4-6-azl3.0.20251206 (2025-12-06 10:21)
       # ACR Pull
       acrPull:
         image:
@@ -891,11 +890,25 @@ clouds:
       clustersService:
         environment: "arohcpdev"
         image:
-          digest: sha256:dff593b00a629d8366ef63502c56fadd66c627eca60e0d10f1663d74e0998b28 # a68ce00 (2025-12-05 07:23)
+          digest: sha256:e2020885131e7dd4e7145367596f847bb0813bb3d45d9579fef1b245019ef5f9 # 1d5ab1e (2025-12-17 16:30)
         azureOperatorsManagedIdentities:
           roleSetName: dev
         azureRuntimeConfig:
           tlsCertificatesIssuer: Self
+        # OCP Versions configuration
+        ocpVersions:
+          defaultVersion:
+            version: 4.19.7
+          channelGroups:
+            stable:
+              minVersion: 4.19.0
+              maxVersion: 4.20.6
+            candidate:
+              minVersion: 4.19.7
+              maxVersion: ""
+            nightly:
+              minVersion: 4.19.0-0.nightly-20200101
+              maxVersion: ""
       # Hypershift Operator
       hypershift:
         image:
@@ -905,11 +918,11 @@ clouds:
       # Backplane API
       backplaneAPI:
         image:
-          digest: sha256:6d0c964c97c5a737b9270445eaeae05292f6b2b281493796b991ef708ca4f9db # 21a9913 (2025-12-04 08:17)
+          digest: sha256:d57484b215f2a4e920d18e9690140efc5073ed89f7db51383764fdfff792731c # 20db699 (2025-12-17 23:54)
       # Admin API
       adminApi:
         image:
-          digest: sha256:6689a91b1a0422e563fee00f40c9d9c3b16ddc541d263627ef0c727c79edcffc # 21f3f7a (2025-12-05 09:19)
+          digest: sha256:c991702f5e6986bb2631436662fcc6d121ddaa31b48f30204e74dfd7d9d26b93 # 0ce40ca (2025-12-18 03:42)
         cert:
           issuer: Self
       # Frontend
@@ -917,17 +930,17 @@ clouds:
         cert:
           issuer: Self
         image:
-          digest: sha256:2c3b877314500fa336e5e642b80876f29d5533c909b45226fa64f38447ccfdca # 21f3f7a (2025-12-05 09:19)
+          digest: sha256:06968697f40d694a2eafe53dafe75a85e9398a243429458304eb9a3bf6d8489a # 0ce40ca (2025-12-18 03:41)
       # Backend
       backend:
         image:
-          digest: sha256:accfff6438ad546dabf2547709afb1e099dcd0d1fcba24f54012194c1fa7d28c # 21f3f7a (2025-12-05 09:19)
+          digest: sha256:dd5562696b89f869b7e46a728de7a5efcea58be5028638e25d2d409f8b5ec7de # 0ce40ca (2025-12-18 03:42)
       # Image Sync
       imageSync:
         ocMirror:
           jobNamePrefix: ''
           image:
-            digest: sha256:58352276ca9d7640cfa69a6fe9b75ef62b77553c0fc961d7dccf8d244f6f0f57 # 21f3f7a (2025-12-05 09:21)
+            digest: sha256:9bb2066d357caedb11664834fa4150e23dc1cad18822d4719656a92ef74e59d8 # 0ce40ca (2025-12-18 03:41)
       # Shared SVC KV
       serviceKeyVault:
         name: 'aro-hcp-dev-svc-kv'
@@ -968,7 +981,7 @@ clouds:
               sha: 5c3fd99a70fb43aa5ea4672ccaf04c68ac60d7adb7e205d2bf75d1b46395455c # v0.87.0-1 (2025-11-21 17:21)
           prometheusSpec:
             image:
-              sha: 70296b2f2cc69c88d070fe8b627d347bd070e084c14babbc93e91583e03eca06 # v3.8.0-1 (2025-12-02 17:33)
+              sha: 385d647d7c2027aa867da0afe30995726686237e473a3284962e4bad1ae3ef1e # v3.8.1 (2025-12-17 22:30)
             shards: 1
       mgmt:
         subscription:
@@ -1007,7 +1020,7 @@ clouds:
               sha: 5c3fd99a70fb43aa5ea4672ccaf04c68ac60d7adb7e205d2bf75d1b46395455c # v0.87.0-1 (2025-11-21 17:21)
           prometheusSpec:
             image:
-              sha: 70296b2f2cc69c88d070fe8b627d347bd070e084c14babbc93e91583e03eca06 # v3.8.0-1 (2025-12-02 17:33)
+              sha: 385d647d7c2027aa867da0afe30995726686237e473a3284962e4bad1ae3ef1e # v3.8.1 (2025-12-17 22:30)
             shards: 1
       # ACRs
       acr:
@@ -1046,9 +1059,6 @@ clouds:
         # this is the integrated DEV environment
         defaults:
           regionRG: hcp-underlay-{{ .ctx.environment }}-{{ .ctx.region }}
-          logs:
-            loganalytics:
-              enable: true
           mgmt:
             aks:
               systemAgentPool:
@@ -1084,9 +1094,6 @@ clouds:
           # Service Key Vault
           serviceKeyVault:
             assignNSP: false
-          logs:
-            loganalytics:
-              enable: true
           monitoring:
             svcWorkspaceName: 'services-{{ .ctx.environment }}-{{ .ctx.regionShort }}'
             hcpWorkspaceName: 'hcps-{{ .ctx.environment }}-{{ .ctx.regionShort }}'
@@ -1203,10 +1210,6 @@ clouds:
           # Service Key Vault
           serviceKeyVault:
             assignNSP: false
-          # Logs
-          logs:
-            loganalytics:
-              enable: true
           # Cluster Service
           clustersService:
             postgres:
@@ -1356,10 +1359,6 @@ clouds:
           # Service Key Vault
           serviceKeyVault:
             assignNSP: false
-          # Logs
-          logs:
-            loganalytics:
-              enable: true
           # Cluster Service
           clustersService:
             postgres:

@@ -48,9 +48,14 @@ var _ = Describe("Customer", func() {
 				openshiftNodeVersionId           = "4.19.7"
 			)
 			// This pattern matches a subset of the smallest (2GiB) ARM64-capable VM sizes listed in https://issues.redhat.com/browse/ARO-22443
-			vmSizePattern := regexp.MustCompile(`^Standard_D(?:2|4|8|16|32|48|64|96)pl(?:d)?s_v6$`)
+			vmSizePattern := regexp.MustCompile(`^Standard_D(?:2|4)pl(?:d)?s_v6$`)
 
 			tc := framework.NewTestContext()
+
+			if tc.UsePooledIdentities() {
+				err := tc.AssignIdentityContainers(ctx, 1, 60*time.Second)
+				Expect(err).NotTo(HaveOccurred())
+			}
 
 			By("creating a resource group")
 			resourceGroup, err := tc.NewResourceGroup(ctx, "arm64-vm-cluster", tc.Location())
@@ -78,7 +83,9 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			By("creating the HCP cluster")
-			err = tc.CreateHCPClusterFromParam(ctx,
+			err = tc.CreateHCPClusterFromParam(
+				ctx,
+				GinkgoLogr,
 				*resourceGroup.Name,
 				clusterParams,
 				45*time.Minute,

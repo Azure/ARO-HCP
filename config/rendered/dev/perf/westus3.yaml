@@ -1,16 +1,16 @@
 acm:
   mce:
     bundle:
-      digest: sha256:ee51dbe4a8c18f7624890c7ce071583d186694d9aed06a3c8576b17f11dab92c
+      digest: sha256:be8959f175fe14aea5e16af403730e1bfd7fa9a0b69eb7f14eb3c3a03098eed3
       registry: quay.io
-      repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-29
-    version: 2.9.2
+      repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-211
+    version: 2.11.0
   operator:
     bundle:
-      digest: sha256:7a0af97e0e1c5651a7e979f752e515d82cc78e5349babebe9e354ff297a2815c
+      digest: sha256:01f7dcd12493f2676de8ee4db4fd9ff97bb885b90f10c76e6f73cb2990828997
       registry: quay.io
-      repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-214
-    version: 2.14.2
+      repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-216
+    version: 2.16.0
 acr:
   ocp:
     name: arohcpocpdev
@@ -35,7 +35,7 @@ adminApi:
     issuer: Self
     name: admin-api-cert-perf-usw3ptest
   image:
-    digest: sha256:6689a91b1a0422e563fee00f40c9d9c3b16ddc541d263627ef0c727c79edcffc
+    digest: sha256:c991702f5e6986bb2631436662fcc6d121ddaa31b48f30204e74dfd7d9d26b93
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpadminapi
   k8s:
@@ -52,7 +52,7 @@ armHelperFPAPrincipalId: 47f69502-0065-4d9a-b19b-d403e183d2f4
 arobit:
   forwarder:
     image:
-      digest: sha256:52f8ae477198b02739555ffdb745132ac670536193e8763269d38a6c4dd81d7a
+      digest: sha256:a0fcf0bc1d75294427b152b68b35959a0860b874cfbbe2b29392dfbd51289171
       registry: mcr.microsoft.com
       repository: oss/v2/fluent/fluent-bit
   kusto:
@@ -69,7 +69,7 @@ azureGeoShortId: us
 azureRegionAvailabilityZoneCount: 4
 backend:
   image:
-    digest: sha256:accfff6438ad546dabf2547709afb1e099dcd0d1fcba24f54012194c1fa7d28c
+    digest: sha256:dd5562696b89f869b7e46a728de7a5efcea58be5028638e25d2d409f8b5ec7de
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpbackend
   k8s:
@@ -82,7 +82,7 @@ backend:
     exporter: ""
 backplaneAPI:
   image:
-    digest: sha256:6d0c964c97c5a737b9270445eaeae05292f6b2b281493796b991ef708ca4f9db
+    digest: sha256:d57484b215f2a4e920d18e9690140efc5073ed89f7db51383764fdfff792731c
     registry: quay.io
     repository: app-sre/backplane-api
 billing:
@@ -125,7 +125,7 @@ clustersService:
   deployDebugJobs: false
   environment: arohcpdev
   image:
-    digest: sha256:dff593b00a629d8366ef63502c56fadd66c627eca60e0d10f1663d74e0998b28
+    digest: sha256:e2020885131e7dd4e7145367596f847bb0813bb3d45d9579fef1b245019ef5f9
     registry: quay.io
     repository: app-sre/aro-hcp-clusters-service
   k8s:
@@ -139,8 +139,14 @@ clustersService:
   managedIdentityName: clusters-service
   ocpVersions:
     channelGroups:
+      candidate:
+        maxVersion: ""
+        minVersion: 4.19.7
+      nightly:
+        maxVersion: ""
+        minVersion: 4.19.0-0.nightly-20200101
       stable:
-        maxVersion: 4.19.8
+        maxVersion: 4.20.6
         minVersion: 4.19.0
     defaultVersion:
       version: 4.19.7
@@ -180,7 +186,7 @@ e2e:
   prow:
     globalKeyVaultTokenSecret: prow-token
   regionTest:
-    gatePromotion: false
+    gatePromotion: true
     prowJobName: ""
 environmentName: perf
 ev2:
@@ -208,7 +214,7 @@ frontend:
     private: true
     zoneRedundantMode: Auto
   image:
-    digest: sha256:2c3b877314500fa336e5e642b80876f29d5533c909b45226fa64f38447ccfdca
+    digest: sha256:06968697f40d694a2eafe53dafe75a85e9398a243429458304eb9a3bf6d8489a
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpfrontend
   k8s:
@@ -323,7 +329,7 @@ imageSync:
   ocMirror:
     enabled: true
     image:
-      digest: sha256:58352276ca9d7640cfa69a6fe9b75ef62b77553c0fc961d7dccf8d244f6f0f57
+      digest: sha256:9bb2066d357caedb11664834fa4150e23dc1cad18822d4719656a92ef74e59d8
       registry: arohcpsvcdev.azurecr.io
       repository: image-sync/oc-mirror
     jobNamePrefix: ""
@@ -336,7 +342,7 @@ keyVaultDNSSuffix: vault.azure.net
 kubeEvents:
   enabled: false
   image:
-    digest: sha256:053401cc862f54e181c5b308d1082cfe1ecc9322721a237e15216abc90e3707a
+    digest: sha256:a6e275cf0ab51fc16a0d2574cd50c46defc005e887821974062335814ee18272
     registry: kubernetesshared.azurecr.io
     repository: shared/kube-events
 kusto:
@@ -353,8 +359,6 @@ kvCertAccessPrincipalId: c9b1819d-bb29-4ac2-9abe-39e4fe9b59eb
 kvCertAccessRoleId: ""
 kvCertOfficerPrincipalId: c9b1819d-bb29-4ac2-9abe-39e4fe9b59eb
 logs:
-  loganalytics:
-    enable: false
   mdsd:
     cert:
       issuer: ""
@@ -375,7 +379,7 @@ maestro:
     managedIdentityName: maestro-consumer
     sidecar:
       image:
-        digest: sha256:c9932f5875ba5e0be70d174dc96f45d5474e77df8fe57ed6327b8d8208ee1635
+        digest: sha256:c925c4dfce3a0140d36073cc66e70567ffa0d82b71033d752d2d7e668637804b
         registry: mcr.microsoft.com
         repository: azurelinux/base/nginx
   certDomain: selfsigned.maestro.keyvault.azure.com
@@ -385,7 +389,7 @@ maestro:
     name: arohcp-perf-maestro-usw3ptest
     private: false
   image:
-    digest: sha256:2f92b1a26199f7075a33530cebea0c709088d16c3a129271ce7123b38a309664
+    digest: sha256:7465f0efe79bdb533178621053bf39a16376066e7417b61e4c791b269290114d
     registry: quay.io
     repository: redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro
   postgres:
@@ -490,7 +494,7 @@ mgmt:
       image:
         registry: mcr.microsoft.com/oss/v2
         repository: prometheus/prometheus
-        sha: 70296b2f2cc69c88d070fe8b627d347bd070e084c14babbc93e91583e03eca06
+        sha: 385d647d7c2027aa867da0afe30995726686237e473a3284962e4bad1ae3ef1e
       replicas: 2
       resources:
         limits:
@@ -556,6 +560,7 @@ mise:
     address: ""
     exporter: ""
 monitoring:
+  crossTenantSecurityGroup: ""
   grafanaMajorVersion: "11"
   grafanaName: arohcp-dev
   grafanaRoles: 6b6d3adf-8476-4727-9812-20ffdef2b85c/Group/Admin
@@ -750,7 +755,7 @@ svc:
       image:
         registry: mcr.microsoft.com/oss/v2
         repository: prometheus/prometheus
-        sha: 70296b2f2cc69c88d070fe8b627d347bd070e084c14babbc93e91583e03eca06
+        sha: 385d647d7c2027aa867da0afe30995726686237e473a3284962e4bad1ae3ef1e
       replicas: 2
       resources:
         limits:

@@ -17,29 +17,33 @@ package mustgather
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"os"
 	"path"
 	"time"
 
+	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
 
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/cmd/base"
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/kusto"
+	"github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/mustgather"
 )
 
 // RawMustGatherOptions represents the initial, unvalidated configuration for must-gather operations.
 type RawMustGatherOptions struct {
-	BaseOptions                 *base.RawBaseOptions
-	Kusto                       string        // Name of the Azure Data Explorer cluster
-	Region                      string        // Region of the Azure Data Explorer cluster
-	OutputPath                  string        // Path to write the output file
-	QueryTimeout                time.Duration // Timeout for query execution
-	SubscriptionID              string        // Subscription ID
-	ResourceGroup               string        // Resource group
-	SkipHostedControlePlaneLogs bool          // Skip hosted control plane logs
-	TimestampMin                time.Time     // Timestamp minimum
-	TimestampMax                time.Time     // Timestamp maximum
-	Limit                       int           // Limit the number of results
+	BaseOptions                *base.RawBaseOptions
+	Kusto                      string        // Name of the Azure Data Explorer cluster
+	Region                     string        // Region of the Azure Data Explorer cluster
+	OutputPath                 string        // Path to write the output file
+	QueryTimeout               time.Duration // Timeout for query execution
+	SubscriptionID             string        // Subscription ID
+	ResourceGroup              string        // Resource group
+	ResourceId                 string        // Resource ID
+	SkipHostedControlPlaneLogs bool          // Skip hosted control plane logs
+	TimestampMin               time.Time     // Timestamp minimum
+	TimestampMax               time.Time     // Timestamp maximum
+	Limit                      int           // Limit the number of results
 }
 
 // DefaultMustGatherOptions returns a new RawMustGatherOptions struct initialized with sensible defaults.
@@ -85,23 +89,18 @@ func BindMustGatherOptions(opts *RawMustGatherOptions, cmd *cobra.Command) error
 	cmd.Flags().StringVar(&opts.OutputPath, "output-path", opts.OutputPath, "path to write the output file")
 	cmd.Flags().StringVar(&opts.SubscriptionID, "subscription-id", opts.SubscriptionID, "subscription ID")
 	cmd.Flags().StringVar(&opts.ResourceGroup, "resource-group", opts.ResourceGroup, "resource group")
-	cmd.Flags().BoolVar(&opts.SkipHostedControlePlaneLogs, "skip-hcp-logs", opts.SkipHostedControlePlaneLogs, "Do not gather customer (ocm namespaces) logs")
+	cmd.Flags().StringVar(&opts.ResourceId, "resource-id", opts.ResourceId, "resource ID")
+	cmd.Flags().BoolVar(&opts.SkipHostedControlPlaneLogs, "skip-hcp-logs", opts.SkipHostedControlPlaneLogs, "Do not gather customer (ocm namespaces) logs")
 	cmd.Flags().TimeVar(&opts.TimestampMin, "timestamp-min", opts.TimestampMin, []string{time.DateTime}, "timestamp minimum")
 	cmd.Flags().TimeVar(&opts.TimestampMax, "timestamp-max", opts.TimestampMax, []string{time.DateTime}, "timestamp maximum")
 	cmd.Flags().IntVar(&opts.Limit, "limit", opts.Limit, "limit the number of results")
 
 	// Mark required flags
-	if err := cmd.MarkFlagRequired("kusto"); err != nil {
-		return fmt.Errorf("failed to mark kusto as required: %w", err)
-	}
-	if err := cmd.MarkFlagRequired("region"); err != nil {
-		return fmt.Errorf("failed to mark region as required: %w", err)
-	}
-	if err := cmd.MarkFlagRequired("subscription-id"); err != nil {
-		return fmt.Errorf("failed to mark subscription-id as required: %w", err)
-	}
-	if err := cmd.MarkFlagRequired("resource-group"); err != nil {
-		return fmt.Errorf("failed to mark resource-group as required: %w", err)
+	requiredFlags := []string{"kusto", "region"}
+	for _, flag := range requiredFlags {
+		if err := cmd.MarkFlagRequired(flag); err != nil {
+			return fmt.Errorf("failed to mark %s as required: %w", flag, err)
+		}
 	}
 
 	return nil
@@ -110,11 +109,13 @@ func BindMustGatherOptions(opts *RawMustGatherOptions, cmd *cobra.Command) error
 // ValidatedMustGatherOptions represents must-gather configuration that has passed validation.
 type ValidatedMustGatherOptions struct {
 	*RawMustGatherOptions
-	QueryOptions QueryOptions
+	QueryOptions mustgather.QueryOptions
 }
 
 // Validate performs comprehensive validation of all must-gather input parameters.
 func (o *RawMustGatherOptions) Validate(ctx context.Context) (*ValidatedMustGatherOptions, error) {
+	logger := logr.FromContextOrDiscard(ctx)
+
 	// Validate base options first
 	if err := base.ValidateBaseOptions(o.BaseOptions); err != nil {
 		return nil, err
@@ -139,18 +140,22 @@ func (o *RawMustGatherOptions) Validate(ctx context.Context) (*ValidatedMustGath
 	}
 
 	// Validate subscription ID
-	if o.SubscriptionID == "" {
+	if o.SubscriptionID == "" && o.ResourceId == "" {
 		return nil, fmt.Errorf("subscription-id is required")
 	}
 
 	// Validate resource group
-	if o.ResourceGroup == "" {
+	if o.ResourceGroup == "" && o.ResourceId == "" {
 		return nil, fmt.Errorf("resource-group is required")
+	}
+
+	if o.ResourceId != "" && (o.ResourceGroup != "" || o.SubscriptionID != "") {
+		logger.Info("warning: both resource-id and resource-group/subscription-id are provided, will use resource-id to gather cluster ID")
 	}
 
 	return &ValidatedMustGatherOptions{
 		RawMustGatherOptions: o,
-		QueryOptions: QueryOptions{
+		QueryOptions: mustgather.QueryOptions{
 			SubscriptionId:    o.SubscriptionID,
 			ResourceGroupName: o.ResourceGroup,
 			TimestampMin:      o.TimestampMin,
@@ -167,8 +172,12 @@ func (o *ValidatedMustGatherOptions) Complete(ctx context.Context) (*MustGatherO
 		o.OutputPath = fmt.Sprintf("must-gather-%s", time.Now().Format("20060102-150405"))
 	}
 
-	endpoint := fmt.Sprintf("https://%s.%s.kusto.windows.net", o.Kusto, o.Region)
-	client, err := kusto.NewClient(endpoint)
+	url, err := url.Parse(fmt.Sprintf("https://%s.%s.kusto.windows.net", o.Kusto, o.Region))
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse Kusto endpoint URL: %w", err)
+	}
+
+	client, err := kusto.NewClient(url.String(), o.QueryTimeout)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Kusto client: %w", err)
 	}
@@ -178,7 +187,7 @@ func (o *ValidatedMustGatherOptions) Complete(ctx context.Context) (*MustGatherO
 		return nil, fmt.Errorf("failed to create service logs directory: %w", err)
 	}
 
-	if !o.SkipHostedControlePlaneLogs {
+	if !o.SkipHostedControlPlaneLogs {
 		err = os.MkdirAll(path.Join(o.OutputPath, HostedControlPlaneLogDirectory), 0755)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create customer logs directory: %w", err)
@@ -187,16 +196,12 @@ func (o *ValidatedMustGatherOptions) Complete(ctx context.Context) (*MustGatherO
 
 	return &MustGatherOptions{
 		ValidatedMustGatherOptions: o,
-		QueryClient: &QueryClient{
-			Client:       client,
-			QueryTimeout: o.QueryTimeout,
-			OutputPath:   o.OutputPath,
-		},
+		QueryClient:                mustgather.NewQueryClient(client, o.QueryTimeout, o.OutputPath),
 	}, nil
 }
 
 // MustGatherOptions represents the final, fully validated and initialized configuration for must-gather operations.
 type MustGatherOptions struct {
 	*ValidatedMustGatherOptions
-	QueryClient *QueryClient
+	QueryClient mustgather.QueryClientInterface
 }

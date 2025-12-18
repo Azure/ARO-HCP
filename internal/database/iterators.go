@@ -63,9 +63,9 @@ func (iter *queryResourcesIterator[InternalAPIType, CosmosAPIType]) Items(ctx co
 				}
 				decodedItem := &obj
 
-				decodedItemAsResourceProperties, ok := any(decodedItem).(ResourceProperties)
+				decodedItemAsTypedDocumentAccessor, ok := any(decodedItem).(TypedDocumentAccessor)
 				if !ok {
-					iter.err = fmt.Errorf("type %T does not implement DocumentProperties interface", decodedItem)
+					iter.err = fmt.Errorf("type %T does not implement TypedDocumentAccessor interface", decodedItem)
 					return
 				}
 
@@ -75,7 +75,7 @@ func (iter *queryResourcesIterator[InternalAPIType, CosmosAPIType]) Items(ctx co
 					return
 				}
 
-				if !yield(decodedItemAsResourceProperties.GetTypedDocument().ID, internalObj) {
+				if !yield(decodedItemAsTypedDocumentAccessor.GetTypedDocument().ID, internalObj) {
 					return
 				}
 			}

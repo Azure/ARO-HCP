@@ -69,6 +69,7 @@ var _ = Describe("Customer", func() {
 
 				By("attempting to create the hcp cluster with invalid version")
 				err = tc.CreateHCPClusterFromParam(ctx,
+					GinkgoLogr,
 					*resourceGroup.Name,
 					clusterParams,
 					45*time.Minute,

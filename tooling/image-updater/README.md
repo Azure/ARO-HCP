@@ -33,46 +33,60 @@ The image-updater supports multiple container registry types with optimized clie
 - **Timestamp Enrichment**: Automatic tag timestamp retrieval and sorting for both Quay API and Registry V2 API
 - **Descriptor Caching**: Eliminates duplicate API calls by caching image descriptors during tag processing (~50% reduction in API calls)
 
-## Managed Images
-
-| Image Name | Image Reference | Registry Type |
-|------------|-----------------|---------------|
-| maestro | quay.io/redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro | Quay.io |
-| hypershift | quay.io/acm-d/rhtap-hypershift-operator | Quay.io |
-| pko-package | quay.io/package-operator/package-operator-package | Quay.io |
-| pko-manager | quay.io/package-operator/package-operator-manager | Quay.io |
-| pko-remote-phase-manager | quay.io/package-operator/remote-phase-manager | Quay.io |
-| arohcpfrontend | arohcpsvcdev.azurecr.io/arohcpfrontend | ACR (Private) |
-| arohcpbackend | arohcpsvcdev.azurecr.io/arohcpbackend | ACR (Private) |
-| admin-api | arohcpsvcdev.azurecr.io/arohcpadminapi | ACR (Private) |
-| clusters-service | quay.io/app-sre/aro-hcp-clusters-service | Quay.io (Private) |
-| kubeEvents | kubernetesshared.azurecr.io/shared/kube-events | ACR (Public) |
-| acrPull | mcr.microsoft.com/aks/msi-acrpull | MCR |
-| secretSyncController | registry.k8s.io/secrets-store-sync/controller | Generic |
-
 ## Usage
 
 ```bash
-# Update all images
+# Update all images (default: dev and int environments)
 make update
 
 # Preview changes without modifying files
 ./image-updater update --config config.yaml --dry-run
 
-# Update with custom config
+# Update dev and int environments (default behavior - omit --env flag)
 ./image-updater update --config config.yaml
+
+# Promote images from int to stage (copies digests, no registry fetch)
+./image-updater update --config config.yaml --env stg --dry-run
+
+# Promote images from stage to production (copies digests, no registry fetch)
+./image-updater update --config config.yaml --env prod --dry-run
 
 # Update specific components only
 ./image-updater update --config config.yaml --components maestro,hypershift
 
 # Update all components except specific ones
-./image-updater update --config config.yaml --exclude arohcpfrontend,arohcpbackend
+./image-updater update --config config.yaml --exclude-components arohcpfrontend,arohcpbackend
 
-# Enable verbose logging for debugging (shows retry attempts, detailed operations)
-./image-updater update --config config.yaml -v=1
+# Combine environment and component filters
+./image-updater update --config config.yaml --env stg --components maestro,hypershift --dry-run
 
-# Maximum verbosity (shows all debug details including HTTP requests)
+# Enable verbose logging for debugging (shows all details including retry attempts, API calls)
 ./image-updater update --config config.yaml -v=2
+```
+
+## Environment Promotion Flow
+
+The image updater supports a structured promotion flow across environments:
+
+1. **dev & int** (default when `--env` omitted): Fetches latest images from registries
+2. **stage** (`--env stg`): Promotes (copies) digests from int environment
+3. **prod** (`--env prod`): Promotes (copies) digests from stage environment
+
+When using `--env stg` or `--env prod`, the tool operates in **promotion mode**:
+- No registry lookups are performed
+- Digests are copied from the source environment to the target environment
+- Ensures consistent promotion path: dev/int → stage → prod
+
+**Example promotion workflow:**
+```bash
+# Step 1: Update dev and int with latest images
+./image-updater update --config config.yaml
+
+# Step 2: After validation, promote to stage
+./image-updater update --config config.yaml --env stg
+
+# Step 3: After stage validation, promote to production
+./image-updater update --config config.yaml --env prod
 ```
 
 ## Output Format
@@ -101,7 +115,7 @@ Define images to monitor and target files to update. Each image can optionally s
 
 ```yaml
 images:
-  # Quay.io image with commit hash tag pattern
+  # Image with multi-environment targets
   maestro:
     source:
       image: quay.io/redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro
@@ -109,6 +123,16 @@ images:
     targets:
     - jsonPath: clouds.dev.defaults.maestro.image.digest
       filePath: ../../config/config.yaml
+      env: dev
+    - jsonPath: clouds.public.environments.int.defaults.maestro.image.digest
+      filePath: ../../config/config.msft.clouds-overlay.yaml
+      env: int
+    - jsonPath: clouds.public.environments.stg.defaults.maestro.image.digest
+      filePath: ../../config/config.msft.clouds-overlay.yaml
+      env: stg
+    - jsonPath: clouds.public.environments.prod.defaults.maestro.image.digest
+      filePath: ../../config/config.msft.clouds-overlay.yaml
+      env: prod
 
   # Single-arch image (explicitly targets amd64 only)
   hypershift:
@@ -119,6 +143,10 @@ images:
     targets:
     - jsonPath: clouds.dev.defaults.hypershift.image.digest
       filePath: ../../config/config.yaml
+      env: dev
+    - jsonPath: clouds.public.environments.int.defaults.hypershift.image.digest
+      filePath: ../../config/config.msft.clouds-overlay.yaml
+      env: int
 
   # Quay.io image with semantic version tags
   pko-package:
@@ -128,6 +156,7 @@ images:
     targets:
     - jsonPath: defaults.pko.imagePackage.digest
       filePath: ../../config/config.yaml
+      env: dev
 
   # Private ACR image requiring authentication
   arohcpfrontend:
@@ -137,6 +166,7 @@ images:
     targets:
     - jsonPath: clouds.dev.defaults.frontend.image.digest
       filePath: ../../config/config.yaml
+      env: dev
 
   # Public ACR image (anonymous access)
   kubeEvents:
@@ -147,6 +177,7 @@ images:
     targets:
     - jsonPath: defaults.kubeEvents.image.digest
       filePath: ../../config/config.yaml
+      env: dev
 
   # MCR (Microsoft Container Registry) image
   acrPull:
@@ -157,6 +188,7 @@ images:
     targets:
     - jsonPath: defaults.acrPull.image.digest
       filePath: ../../config/config.yaml
+      env: dev
 
   # Multi-arch manifest list (returns digest of manifest list, not single-arch image)
   secretSyncController:
@@ -388,7 +420,7 @@ Flags:
       --dry-run                   Preview changes without modifying files
       --components string         Comma-separated list of components to update (optional)
       --exclude-components string Comma-separated list of components to exclude (optional)
-  -v, --verbosity int             Log verbosity level: 0=info (default), 1=debug, 2=trace
+  -v, --verbosity int             Log verbosity level (default 0)
 ```
 
 **Component Filtering**:
@@ -400,21 +432,22 @@ Flags:
 
 **Logging Verbosity Levels**:
 
-- **Level 0** (default): Info-level logging - shows high-level operations and results
-  - Component updates, digest changes, file modifications
-  - Errors and warnings
-- **Level 1** (debug): Adds detailed operation logs
+- **Level 0 or 1** (default): Clean summary output only
+  - Shows a formatted summary table with total images checked and updates applied
+  - Displays markdown-formatted commit message with changes
+  - No verbose logging noise
+  - Ideal for CI/CD pipelines and regular usage
+
+- **Level 2+** (debug): Detailed debug logging for troubleshooting
   - Registry API calls and responses
   - Retry attempts with backoff durations
   - Tag filtering and architecture validation steps
   - Key Vault authentication details
-- **Level 2** (trace): Maximum verbosity for troubleshooting
-  - HTTP request/response details
   - Individual tag inspection operations
   - Manifest fetching and parsing details
-  - Docker config merging operations
+  - All debug information for troubleshooting
 
-Use higher verbosity levels when debugging authentication issues, tag filtering problems, or transient network failures.
+Use `--verbosity 2` or higher when debugging authentication issues, tag filtering problems, or transient network failures.
 
 ## Configuration Reference
 
@@ -522,40 +555,6 @@ Context is propagated through all layers:
 
 5. **Digest Update**: Updates the specified YAML files with the latest digest using JSONPath notation
 
-6. **Tag and Timestamp Comments**: Automatically adds inline comments with the tag name and creation timestamp (e.g., `# v1.2.3 (2025-11-24 14:30)`)
+6. **Tag and Timestamp Comments**: Automatically adds inline comments with the tag name and creation timestamp
 
 7. **Preserves Formatting**: Maintains YAML structure, comments, and formatting when updating files
-
-## Testing
-
-The image-updater includes comprehensive test coverage:
-
-```bash
-# Run all tests
-go test ./...
-
-# Run tests with coverage
-go test ./... -cover
-
-# Run specific test packages
-go test ./internal/config/...
-go test ./internal/clients/...
-go test ./internal/options/...
-```
-
-**Test Coverage**:
-
-- Config parsing and validation: 97.9%
-- Options and Key Vault deduplication: 78.5%
-- YAML editing: 81.9%
-- Update logic: 89.8%
-- Client authentication: 18.0%
-
-**Key Test Areas**:
-
-- Per-image Key Vault configuration parsing
-- Docker config merging with Key Vault credentials
-- Key Vault deduplication across multiple images
-- Base64 and raw JSON secret decoding
-- Registry client selection and authentication
-- YAML file updates with format preservation

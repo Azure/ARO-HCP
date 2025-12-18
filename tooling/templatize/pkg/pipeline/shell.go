@@ -26,6 +26,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -39,6 +40,8 @@ import (
 
 	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/utils"
 )
+
+var TEST_SUBSCRIPTION_ID = "test"
 
 func createCommand(ctx context.Context, scriptCommand, pipelineWorkingDir string, dryRun *types.DryRun, envVars map[string]string) (*exec.Cmd, bool) {
 	if dryRun != nil {
@@ -59,7 +62,7 @@ func buildBashScript(command string) string {
 	return fmt.Sprintf("set -o errexit -o nounset  -o pipefail\n%s", command)
 }
 
-func runShellStep(id graph.Identifier, s *types.ShellStep, ctx context.Context, kubeconfigFile string, options *StepRunOptions, state *ExecutionState, outputWriter io.Writer) error {
+func runShellStep(id graph.Identifier, s *types.ShellStep, ctx context.Context, azureConfigDir, kubeconfigFile string, options *StepRunOptions, state *ExecutionState, outputWriter io.Writer) error {
 	logger := logr.FromContextOrDiscard(ctx)
 
 	// set dryRun config if needed
@@ -115,6 +118,10 @@ func runShellStep(id graph.Identifier, s *types.ShellStep, ctx context.Context, 
 			return nil
 		}
 		commit = commitFunc
+	}
+
+	if azureConfigDir != "" {
+		envVars["AZURE_CONFIG_DIR"] = azureConfigDir
 	}
 
 	cmd, skipCommand := createCommand(ctx, s.Command, workingDir, dryRun, envVars)
@@ -313,4 +320,66 @@ func mapStepVariables(serviceGroup string, vars []types.Variable, cfg configtype
 		envVars[k] = utils.AnyToString(v)
 	}
 	return envVars, nil
+}
+
+// getAzureConfigDir gets the Azure CLI config directory by running `az config get --query 'cloud[0].source' -o tsv`
+// and extracting the directory from the source path in the output
+func getAzureConfigDir(ctx context.Context, logger logr.Logger) (string, error) {
+	cmd := exec.CommandContext(ctx, "az", "config", "get", "--query", "cloud[0].source", "-o", "tsv")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return "", fmt.Errorf("failed to run az config get: %w", err)
+	}
+
+	var configFile string
+	for _, line := range strings.Split(string(output), "\n") {
+		// This loop is done to filter out unwanted logs, i.e. warnings.
+		// could improve by using some regex, but az config with query allows for assumptions...
+		if strings.HasPrefix(line, "/") {
+			configFile = line
+			break
+		}
+	}
+
+	if configFile == "" {
+		return "", fmt.Errorf("no source path found in az config get output")
+	}
+
+	configDir := filepath.Dir(configFile)
+	logger.V(4).Info("Found Azure CLI config directory from az config get", "dir", configDir)
+	return configDir, nil
+}
+
+func configureAzureCLILogin(ctx context.Context, subscriptionID string) (string, error) {
+	logger := logr.FromContextOrDiscard(ctx)
+
+	tmpDir, err := os.MkdirTemp("", "azure-cli-config-*")
+	if err != nil {
+		return "", fmt.Errorf("failed to create temporary directory: %w", err)
+	}
+
+	azureConfigDir, err := getAzureConfigDir(ctx, logger)
+	if err != nil {
+		return "", fmt.Errorf("failed to get Azure CLI config directory: %w", err)
+	}
+
+	if err := os.CopyFS(tmpDir, os.DirFS(azureConfigDir)); err != nil {
+		return "", fmt.Errorf("failed to copy Azure CLI config directory: %w", err)
+	}
+
+	env := os.Environ()
+	env = append(env, fmt.Sprintf("AZURE_CONFIG_DIR=%s", tmpDir))
+	cmd := exec.CommandContext(ctx, "az", "config", "get")
+	cmd.Env = env
+	if output, err := cmd.CombinedOutput(); err != nil {
+		logger.V(4).Info("az config get failed (may be expected if config is empty)", "output", string(output), "err", err)
+	}
+
+	cmd = exec.CommandContext(ctx, "az", "account", "set", "--subscription", subscriptionID)
+
+	cmd.Env = env
+	if output, err := cmd.CombinedOutput(); err != nil {
+		return "", fmt.Errorf("failed to set Azure subscription: %s %w", string(output), err)
+	}
+	return tmpDir, nil
 }

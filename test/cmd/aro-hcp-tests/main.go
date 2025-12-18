@@ -27,6 +27,9 @@ import (
 	e "github.com/openshift-eng/openshift-tests-extension/pkg/extension"
 	g "github.com/openshift-eng/openshift-tests-extension/pkg/ginkgo"
 
+	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/cleanup"
+	customlinktools "github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/custom-link-tools"
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/visualize"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 )
@@ -47,7 +50,7 @@ func main() {
 			// TODO we will need per-env markers eventually, but it's ok to start here
 			fmt.Sprintf(`labels.exists(l, l=="%s")`, labels.RequireNothing[0]),
 		},
-		Parallelism: 10,
+		Parallelism: 20,
 	})
 
 	ext.AddSuite(e.Suite{
@@ -78,7 +81,7 @@ func main() {
 			// TODO: revisit labels to tweak which tests to select here
 			fmt.Sprintf(`labels.exists(l, l=="%s" ) && labels.exists(l, l=="%s")`, labels.AroRpApiCompatible[0], labels.Positive[0]),
 		},
-		Parallelism: 10,
+		Parallelism: 20,
 	})
 
 	ext.AddSuite(e.Suite{
@@ -89,7 +92,7 @@ func main() {
 			// them against ARO HCP dev instance via RP API endpoint).
 			fmt.Sprintf(`labels.exists(l, l=="%s")`, labels.AroRpApiCompatible[0]),
 		},
-		Parallelism: 10,
+		Parallelism: 20,
 	})
 
 	// If using Ginkgo, build test specs automatically
@@ -102,7 +105,6 @@ func main() {
 	// and AfterAll. "Each" functions must be thread safe.
 	//
 	// specs.AddBeforeAll(func() {
-	// 	initializeTestFramework()
 	// })
 	//
 	// specs.AddBeforeEach(func(spec ExtensionTestSpec) {
@@ -167,12 +169,9 @@ func main() {
 	}
 
 	root.AddCommand(cmd.DefaultExtensionCommands(registry)...)
-	root.AddCommand(newCleanupCommand())
-	visualizeCmd, err := visualize.NewCommand()
-	if err != nil {
-		panic(err)
-	}
-	root.AddCommand(visualizeCmd)
+	root.AddCommand(cleanup.NewCommand())
+	root.AddCommand(api.Must(visualize.NewCommand()))
+	root.AddCommand(api.Must(customlinktools.NewCommand()))
 
 	if err := func() error {
 		return root.Execute()

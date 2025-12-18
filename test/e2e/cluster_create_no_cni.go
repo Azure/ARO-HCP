@@ -41,6 +41,11 @@ var _ = Describe("Customer", func() {
 			)
 			tc := framework.NewTestContext()
 
+			if tc.UsePooledIdentities() {
+				err := tc.AssignIdentityContainers(ctx, 1, 60*time.Second)
+				Expect(err).NotTo(HaveOccurred())
+			}
+
 			By("creating a resource group")
 			resourceGroup, err := tc.NewResourceGroup(ctx, "e2e-no-cni", tc.Location())
 			Expect(err).NotTo(HaveOccurred())
@@ -69,7 +74,9 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			By("creating no-cni HCP cluster")
-			err = tc.CreateHCPClusterFromParam(ctx,
+			err = tc.CreateHCPClusterFromParam(
+				ctx,
+				GinkgoLogr,
 				*resourceGroup.Name,
 				clusterParams,
 				45*time.Minute,

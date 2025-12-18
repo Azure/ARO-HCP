@@ -22,6 +22,7 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 const (
@@ -87,7 +88,8 @@ func withHCPResourceID(next http.Handler) http.Handler {
 			return
 		}
 
-		ctx := ContextWithResourceID(r.Context(), resourceID)
+		// using the general utils allows usage with the error wrapping and reporting which is handy.
+		ctx := utils.ContextWithResourceID(r.Context(), resourceID)
 
 		// Strip the static prefix and the resource ID path from the URL path
 		strippedRequest := r.Clone(ctx)

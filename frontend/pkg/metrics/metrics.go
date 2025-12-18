@@ -25,8 +25,8 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/Azure/ARO-HCP/frontend/pkg/util"
 	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 type subscription struct {
@@ -121,7 +121,7 @@ func (sc *SubscriptionCollector) Run(logger *slog.Logger, stop <-chan struct{}) 
 
 func (sc *SubscriptionCollector) refresh(ctx context.Context, logger *slog.Logger) {
 	ctx, span := otel.GetTracerProvider().
-		Tracer(util.TracerName).
+		Tracer(utils.TracerName).
 		Start(
 			ctx,
 			"SubscriptionCollector.refresh",

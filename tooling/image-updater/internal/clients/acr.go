@@ -93,7 +93,7 @@ func (c *ACRClient) getAllTagsWithClient(ctx context.Context, repository string,
 			return nil, fmt.Errorf("failed to get ACR tags page %d for repository %s: %w", pageCount, repository, err)
 		}
 
-		logger.V(1).Info("fetched ACR tags page", "repository", repository, "page", pageCount, "tagsInPage", len(pageResp.Tags))
+		logger.V(2).Info("fetched ACR tags page", "repository", repository, "page", pageCount, "tagsInPage", len(pageResp.Tags))
 
 		for _, tagAttributes := range pageResp.Tags {
 			if tagAttributes.Name == nil {
@@ -110,7 +110,7 @@ func (c *ACRClient) getAllTagsWithClient(ctx context.Context, repository string,
 
 			tagProps, err := client.GetTagProperties(ctx, repository, *tagAttributes.Name, nil)
 			if err != nil {
-				logger.V(1).Info("could not get tag properties", "tag", *tagAttributes.Name, "error", err)
+				logger.V(2).Info("could not get tag properties", "tag", *tagAttributes.Name, "error", err)
 				tag.LastModified = time.Time{}
 			} else {
 				if tagProps.Tag.CreatedOn != nil {
@@ -138,22 +138,22 @@ func (c *ACRClient) GetArchSpecificDigest(ctx context.Context, repository string
 		return nil, fmt.Errorf("logger not found in context: %w", err)
 	}
 
-	logger.V(1).Info("fetching tags from ACR", "registry", c.registryURL, "repository", repository)
+	logger.V(2).Info("fetching tags from ACR", "registry", c.registryURL, "repository", repository)
 
 	allTags, err := c.getAllTags(ctx, repository)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch all tags: %w", err)
 	}
 
-	logger.V(1).Info("fetched tags from ACR", "registry", c.registryURL, "repository", repository, "totalTags", len(allTags))
+	logger.V(2).Info("fetched tags from ACR", "registry", c.registryURL, "repository", repository, "totalTags", len(allTags))
 
 	tags, err := PrepareTagsForArchValidation(allTags, repository, tagPattern)
 	if err != nil {
-		logger.Error(err, "failed to prepare tags for arch validation", "registry", c.registryURL, "repository", repository, "tagPattern", tagPattern, "totalTags", len(allTags))
+		logger.V(2).Error(err, "failed to prepare tags for arch validation", "registry", c.registryURL, "repository", repository, "tagPattern", tagPattern, "totalTags", len(allTags))
 		return nil, err
 	}
 
-	logger.V(1).Info("filtered tags by pattern", "registry", c.registryURL, "repository", repository, "tagPattern", tagPattern, "matchingTags", len(tags))
+	logger.V(2).Info("filtered tags by pattern", "registry", c.registryURL, "repository", repository, "tagPattern", tagPattern, "matchingTags", len(tags))
 
 	client := c.getClient()
 
@@ -165,16 +165,16 @@ func (c *ACRClient) GetArchSpecificDigest(ctx context.Context, repository string
 		default:
 		}
 
-		logger.V(1).Info("checking tag", "tag", tag.Name, "digest", tag.Digest)
+		logger.V(2).Info("checking tag", "tag", tag.Name, "digest", tag.Digest)
 
 		manifestProps, err := client.GetManifestProperties(ctx, repository, tag.Digest, nil)
 		if err != nil {
-			logger.Error(err, "failed to fetch manifest properties", "tag", tag.Name, "digest", tag.Digest)
+			logger.V(2).Error(err, "failed to fetch manifest properties", "tag", tag.Name, "digest", tag.Digest)
 			continue
 		}
 
 		if manifestProps.Manifest == nil {
-			logger.Info("manifest properties has no manifest info, skipping", "tag", tag.Name)
+			logger.V(2).Info("manifest properties has no manifest info, skipping", "tag", tag.Name)
 			continue
 		}
 
@@ -182,17 +182,17 @@ func (c *ACRClient) GetArchSpecificDigest(ctx context.Context, repository string
 
 		// If multiArch is requested and this is a multi-arch manifest, return it
 		if multiArch && len(manifest.RelatedArtifacts) > 0 {
-			logger.Info("found multi-arch manifest", "tag", tag.Name, "relatedArtifacts", len(manifest.RelatedArtifacts), "digest", tag.Digest)
+			logger.V(2).Info("found multi-arch manifest", "tag", tag.Name, "relatedArtifacts", len(manifest.RelatedArtifacts), "digest", tag.Digest)
 			return &tag, nil
 		}
 
 		if len(manifest.RelatedArtifacts) > 0 {
-			logger.Info("skipping multi-arch manifest", "tag", tag.Name, "relatedArtifacts", len(manifest.RelatedArtifacts))
+			logger.V(2).Info("skipping multi-arch manifest", "tag", tag.Name, "relatedArtifacts", len(manifest.RelatedArtifacts))
 			continue
 		}
 
 		if manifest.Architecture == nil || manifest.OperatingSystem == nil {
-			logger.Info("manifest missing architecture or OS info, skipping", "tag", tag.Name)
+			logger.V(2).Info("manifest missing architecture or OS info, skipping", "tag", tag.Name)
 			continue
 		}
 
@@ -202,7 +202,7 @@ func (c *ACRClient) GetArchSpecificDigest(ctx context.Context, repository string
 			return &tag, nil
 		}
 
-		logger.Info("skipping non-matching architecture", "tag", tag.Name, "arch", string(*manifest.Architecture), "os", string(*manifest.OperatingSystem), "wantArch", arch)
+		logger.V(2).Info("skipping non-matching architecture", "tag", tag.Name, "arch", string(*manifest.Architecture), "os", string(*manifest.OperatingSystem), "wantArch", arch)
 	}
 
 	if multiArch {

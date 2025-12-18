@@ -72,6 +72,7 @@ var _ = Describe("Customer", func() {
 
 			By("creating HCP cluster")
 			err = tc.CreateHCPClusterFromParam(ctx,
+				GinkgoLogr,
 				*resourceGroup.Name,
 				clusterParams,
 				45*time.Minute,

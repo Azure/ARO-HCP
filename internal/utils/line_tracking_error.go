@@ -30,7 +30,7 @@ type LineTrackingError struct {
 
 // TrackError creates a new LineTrackingError that wraps the provided error
 // and captures the caller's file and line number information.
-func TrackError(err error) *LineTrackingError {
+func TrackError(err error) error {
 	if err == nil {
 		return nil
 	}
@@ -46,7 +46,17 @@ func TrackError(err error) *LineTrackingError {
 // Error implements the error interface and returns a formatted string showing
 // both the original error and the location where it was wrapped.
 func (e *LineTrackingError) Error() string {
-	return fmt.Sprintf("(wrapped at %s:%d) %s", filepath.Base(e.file), e.line, e.originalError.Error())
+	fileString := "nil"
+	lineString := "nil"
+	originalErrorString := "nil"
+	if e != nil {
+		fileString = e.file
+		lineString = fmt.Sprintf("%d", e.line)
+		if e.originalError != nil {
+			originalErrorString = e.originalError.Error()
+		}
+	}
+	return fmt.Sprintf("(wrapped at %s:%s) %s", filepath.Base(fileString), lineString, originalErrorString)
 }
 
 // Unwrap returns the original wrapped error, enabling errors.As and errors.Is

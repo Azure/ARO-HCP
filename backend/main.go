@@ -49,6 +49,7 @@ import (
 
 	ocmsdk "github.com/openshift-online/ocm-sdk-go"
 
+	"github.com/Azure/ARO-HCP/backend/controllers"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/tracing"
@@ -274,8 +275,9 @@ func Run(cmd *cobra.Command, args []string) error {
 
 	group.Go(func() error {
 		var (
-			startedLeading    atomic.Bool
-			operationsScanner = NewOperationsScanner(dbClient, ocmConnection)
+			startedLeading      atomic.Bool
+			operationsScanner   = NewOperationsScanner(dbClient, ocmConnection)
+			doNothingController = controllers.NewDoNothingExampleController(dbClient)
 		)
 
 		le, err := leaderelection.NewLeaderElector(leaderelection.LeaderElectionConfig{
@@ -288,6 +290,7 @@ func Run(cmd *cobra.Command, args []string) error {
 					operationsScanner.leaderGauge.Set(1)
 					startedLeading.Store(true)
 					go operationsScanner.Run(ctx, logger)
+					go doNothingController.Run(ctx, 20)
 				},
 				OnStoppedLeading: func() {
 					operationsScanner.leaderGauge.Set(0)

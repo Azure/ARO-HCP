@@ -1,0 +1,15 @@
+{
+	"externalId": "/subscriptions/subscriptionID/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/parentCluster",
+	"controllerName": "test-controller",
+	"status": {
+		"conditions": [
+			{
+				"type": "Degraded",
+				"status": "True",
+				"lastTransitionTime": "2025-12-05T08:01:57.129283149-05:00",
+				"reason": "UpdateFailed",
+				"message": "Updating cosmos failed for some reason."
+			}
+		]
+	}
+}

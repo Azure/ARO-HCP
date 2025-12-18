@@ -70,6 +70,11 @@ resourceGroups:
         resourceGroup: management
         step: output
         name: azureKeyvaultSecretsProviderIdentityClientId
+    - name: AKS_MGMT_CLUSTER_RESOURCE_ID
+      input:
+        resourceGroup: management
+        step: output
+        name: azureAksManagementClusterResourceId
     - name: OPERATOR_ROLE_SET_NAME
       configRef: clustersService.azureOperatorsManagedIdentities.roleSetName
     - name: REGION
@@ -160,6 +165,14 @@ resourceGroups:
       configRef: clustersService.ocpVersions.channelGroups.stable.minVersion
     - name: OCP_VERSIONS_CHANNEL_GROUPS_STABLE_MAX_VERSION
       configRef: clustersService.ocpVersions.channelGroups.stable.maxVersion
+    - name: OCP_VERSIONS_CHANNEL_GROUPS_CANDIDATE_MIN_VERSION
+      configRef: clustersService.ocpVersions.channelGroups.candidate.minVersion
+    - name: OCP_VERSIONS_CHANNEL_GROUPS_CANDIDATE_MAX_VERSION
+      configRef: clustersService.ocpVersions.channelGroups.candidate.maxVersion
+    - name: OCP_VERSIONS_CHANNEL_GROUPS_NIGHTLY_MIN_VERSION
+      configRef: clustersService.ocpVersions.channelGroups.nightly.minVersion
+    - name: OCP_VERSIONS_CHANNEL_GROUPS_NIGHTLY_MAX_VERSION
+      configRef: clustersService.ocpVersions.channelGroups.nightly.maxVersion
     # this is maestro consumer registration stuff
     # this goes away when we have a real registration process
     - name: CONSUMER_NAME

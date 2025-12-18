@@ -1,0 +1,3 @@
+{
+	"parentResourceID": "/subscriptions/subscriptionID/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/basic/nodePools/second-node-pool"
+}

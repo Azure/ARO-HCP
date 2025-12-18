@@ -42,6 +42,9 @@ param grafanaRoles string
 @description('The zone redundant mode of Grafana')
 param grafanaZoneRedundantMode string
 
+@description('Cross-tenant security group for Grafana access (format: GroupObjectId;TenantId)')
+param crossTenantSecurityGroup string
+
 @description('Availability Zones to use for the infrastructure, as a CSV string. Defaults to all the zones of the location')
 param locationAvailabilityZones string = getLocationAvailabilityZonesCSV(location)
 var locationAvailabilityZoneList = csvToArray(locationAvailabilityZones)
@@ -122,7 +125,7 @@ module globalMSIKVSecretUser '../modules/keyvault/keyvault-secret-access.bicep' 
   params: {
     keyVaultName: keyVaultName
     roleName: 'Key Vault Secrets Officer'
-    managedIdentityPrincipalId: globalMSI.properties.principalId
+    managedIdentityPrincipalIds: [globalMSI.properties.principalId]
   }
 }
 
@@ -131,7 +134,7 @@ module globalMSIKVCryptoUser '../modules/keyvault/keyvault-secret-access.bicep' 
   params: {
     keyVaultName: keyVaultName
     roleName: 'Key Vault Crypto Officer'
-    managedIdentityPrincipalId: globalMSI.properties.principalId
+    managedIdentityPrincipalIds: [globalMSI.properties.principalId]
   }
 }
 
@@ -140,7 +143,7 @@ module kvCertOfficer '../modules/keyvault/keyvault-secret-access.bicep' = {
   params: {
     keyVaultName: keyVaultName
     roleName: 'Key Vault Certificates Officer'
-    managedIdentityPrincipalId: kvCertOfficerPrincipalId
+    managedIdentityPrincipalIds: [kvCertOfficerPrincipalId]
   }
 }
 
@@ -149,7 +152,7 @@ module kvSecretsOfficer '../modules/keyvault/keyvault-secret-access.bicep' = {
   params: {
     keyVaultName: keyVaultName
     roleName: 'Key Vault Secrets Officer'
-    managedIdentityPrincipalId: kvCertOfficerPrincipalId
+    managedIdentityPrincipalIds: [kvCertOfficerPrincipalId]
   }
 }
 
@@ -158,7 +161,7 @@ module ev2CertAccess '../modules/keyvault/keyvault-secret-access.bicep' = if (kv
   params: {
     keyVaultName: keyVaultName
     roleName: 'Azure Service Deploy Release Management Key Vault Secrets User'
-    managedIdentityPrincipalId: kvCertAccessPrincipalId
+    managedIdentityPrincipalIds: [kvCertAccessPrincipalId]
     kvCertAccessRoleId: kvCertAccessRoleId
   }
 }
@@ -335,6 +338,7 @@ module grafana '../modules/grafana/instance.bicep' = {
     grafanaRoles: grafanaRoles
     zoneRedundancy: determineZoneRedundancy(locationAvailabilityZoneList, grafanaZoneRedundantMode)
     azureMonitorWorkspaceIds: grafanaWorkspaceIdLookup.outputs.azureMonitorWorkspaceIds
+    crossTenantSecurityGroup: crossTenantSecurityGroup
   }
 }
 

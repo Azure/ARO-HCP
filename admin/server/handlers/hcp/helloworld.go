@@ -25,6 +25,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/fpa"
 	"github.com/Azure/ARO-HCP/internal/ocm"
+	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 //
@@ -38,7 +39,7 @@ import (
 func HCPHelloWorld(dbClient database.DBClient, csClient ocm.ClusterServiceClientSpec, fpaCredentialRetriever fpa.FirstPartyApplicationTokenCredentialRetriever) http.Handler {
 	return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		// get the azure resource ID for this HCP
-		resourceID, err := middleware.ResourceIDFromContext(request.Context())
+		resourceID, err := utils.ResourceIDFromContext(request.Context())
 		if err != nil {
 			http.Error(writer, fmt.Sprintf("failed to get resource ID: %v", err), http.StatusInternalServerError)
 			return

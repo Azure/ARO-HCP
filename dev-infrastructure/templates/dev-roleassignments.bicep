@@ -59,7 +59,7 @@ module keyVaultAccess '../modules/keyvault/keyvault-secret-access.bicep' = [
     params: {
       keyVaultName: name
       roleName: 'Key Vault Secrets User'
-      managedIdentityPrincipalId: principalID
+      managedIdentityPrincipalIds: [principalID]
     }
   }
 ]

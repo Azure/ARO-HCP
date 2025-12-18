@@ -16,8 +16,8 @@ param secretName string = ''
 ])
 param roleName string
 
-@description('The principal id of the managed identity that will be assigned access to the secret in KV')
-param managedIdentityPrincipalId string
+@description('The principal ids of the managed identity that will be assigned access to the secret in KV')
+param managedIdentityPrincipalIds array
 
 @description('Roles used for EV2 KeyVault access, i.e. geneva log access')
 param kvCertAccessRoleId string = ''
@@ -69,22 +69,26 @@ resource secret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' existing = if (se
   name: secretName
 }
 
-resource secretAccessPermission 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (secretName != '') {
-  scope: secret
-  name: guid(kv.id, managedIdentityPrincipalId, secretName, roleResourceIds[roleName])
-  properties: {
-    roleDefinitionId: roleResourceIds[roleName]
-    principalId: managedIdentityPrincipalId
-    principalType: 'ServicePrincipal'
+resource secretAccessPermission 'Microsoft.Authorization/roleAssignments@2022-04-01' = [
+  for managedIdentityPrincipalId in managedIdentityPrincipalIds: if (secretName != '') {
+    scope: secret
+    name: guid(kv.id, managedIdentityPrincipalId, secretName, roleResourceIds[roleName])
+    properties: {
+      roleDefinitionId: roleResourceIds[roleName]
+      principalId: managedIdentityPrincipalId
+      principalType: 'ServicePrincipal'
+    }
   }
-}
+]
 
-resource keyVaultAccessPermission 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (secretName == '') {
-  scope: kv
-  name: guid(kv.id, managedIdentityPrincipalId, roleResourceIds[roleName])
-  properties: {
-    roleDefinitionId: roleResourceIds[roleName]
-    principalId: managedIdentityPrincipalId
-    principalType: 'ServicePrincipal'
+resource keyVaultAccessPermission 'Microsoft.Authorization/roleAssignments@2022-04-01' = [
+  for managedIdentityPrincipalId in managedIdentityPrincipalIds: if (secretName == '') {
+    scope: kv
+    name: guid(kv.id, managedIdentityPrincipalId, roleResourceIds[roleName])
+    properties: {
+      roleDefinitionId: roleResourceIds[roleName]
+      principalId: managedIdentityPrincipalId
+      principalType: 'ServicePrincipal'
+    }
   }
-}
+]

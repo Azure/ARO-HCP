@@ -90,3 +90,9 @@ services:
 - serviceGroup: Microsoft.Azure.ARO.HCP.Log.Infra
   pipelinePath: dev-infrastructure/kusto-pipeline.yaml
   purpose: Deploy the kusto log infrastructure.
+- serviceGroup: Microsoft.Azure.ARO.HCP.Service.Kubeconfig
+  pipelinePath: dev-infrastructure/svc-kubeconfig.yaml
+  purpose: Grant access to AKS SVC AKS Clusters, mainly intended for E2E test setup.
+- serviceGroup: Microsoft.Azure.ARO.HCP.Management.Kubeconfig
+  pipelinePath: dev-infrastructure/mgmt-kubeconfig.yaml
+  purpose: Grant access to AKS SVC AKS Clusters, mainly intended for E2E test setup.

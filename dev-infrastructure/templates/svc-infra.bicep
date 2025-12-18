@@ -23,9 +23,6 @@ param kvCertOfficerPrincipalId string
 @description('MSI that will be used during pipeline runs')
 param globalMSIId string
 
-// Log Analytics Workspace ID will be passed from region pipeline if enabled in config
-param logAnalyticsWorkspaceId string = ''
-
 // Reader role
 // https://www.azadvertizer.net/azrolesadvertizer/acdd72a7-3385-48ef-bd42-f606fba81ae7.html
 var readerRoleId = subscriptionResourceId(
@@ -64,7 +61,6 @@ module serviceKeyVault '../modules/keyvault/keyvault.bicep' = {
     enableSoftDelete: serviceKeyVaultSoftDelete
     tagKey: serviceKeyVaultTagName
     tagValue: serviceKeyVaultTagValue
-    logAnalyticsWorkspaceId: logAnalyticsWorkspaceId
   }
 }
 
@@ -74,7 +70,7 @@ module serviceKeyVaultCertOfficer '../modules/keyvault/keyvault-secret-access.bi
   params: {
     keyVaultName: serviceKeyVaultName
     roleName: 'Key Vault Certificates Officer'
-    managedIdentityPrincipalId: kvCertOfficerPrincipalId
+    managedIdentityPrincipalIds: [kvCertOfficerPrincipalId]
   }
   dependsOn: [
     serviceKeyVault
@@ -87,7 +83,7 @@ module serviceKeyVaultSecretsOfficer '../modules/keyvault/keyvault-secret-access
   params: {
     keyVaultName: serviceKeyVaultName
     roleName: 'Key Vault Secrets Officer'
-    managedIdentityPrincipalId: kvCertOfficerPrincipalId
+    managedIdentityPrincipalIds: [kvCertOfficerPrincipalId]
   }
   dependsOn: [
     serviceKeyVault
@@ -100,7 +96,7 @@ module serviceKeyVaultDevopsSecretsOfficer '../modules/keyvault/keyvault-secret-
   params: {
     keyVaultName: serviceKeyVaultName
     roleName: 'Key Vault Secrets Officer'
-    managedIdentityPrincipalId: reference(globalMSIId, '2023-01-31').principalId
+    managedIdentityPrincipalIds: [reference(globalMSIId, '2023-01-31').principalId]
   }
   dependsOn: [
     serviceKeyVault

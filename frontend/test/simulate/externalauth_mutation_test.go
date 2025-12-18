@@ -26,17 +26,18 @@ import (
 	"k8s.io/utils/ptr"
 
 	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/test-integration/utils/integrationutils"
 	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/v20240610preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 )
 
 func TestFrontendExternalAuthMutation(t *testing.T) {
-	SkipIfNotSimulationTesting(t)
+	integrationutils.SkipIfNotSimulationTesting(t)
 
 	ctx := context.Background()
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	frontend, testInfo, err := NewFrontendFromTestingEnv(ctx, t)
+	frontend, testInfo, err := integrationutils.NewFrontendFromTestingEnv(ctx, t)
 	require.NoError(t, err)
 	defer testInfo.Cleanup(context.Background())
 
@@ -48,7 +49,7 @@ func TestFrontendExternalAuthMutation(t *testing.T) {
 	require.NoError(t, err)
 
 	// create anything and round trip anything for externalAuth-service
-	err = trivialPassThroughClusterServiceMock(t, testInfo, nil)
+	err = integrationutils.TrivialPassThroughClusterServiceMock(t, testInfo, nil)
 	require.NoError(t, err)
 
 	dirContent := api.Must(artifacts.ReadDir("artifacts/ExternalAuthMutation"))
@@ -67,15 +68,15 @@ func TestFrontendExternalAuthMutation(t *testing.T) {
 type externalAuthMutationTest struct {
 	ctx               context.Context
 	testDir           fs.FS
-	testInfo          *SimulationTestInfo
+	testInfo          *integrationutils.FrontendIntegrationTestInfo
 	subscriptionID    string
 	resourceGroupName string
 
-	genericMutationTestInfo *genericMutationTest
+	genericMutationTestInfo *integrationutils.GenericMutationTest
 }
 
-func newExternalAuthMutationTest(ctx context.Context, testDir fs.FS, testInfo *SimulationTestInfo, subscriptionID, resourceGroupName string) (*externalAuthMutationTest, error) {
-	genericMutationTestInfo, err := readGenericMutationTest(testDir)
+func newExternalAuthMutationTest(ctx context.Context, testDir fs.FS, testInfo *integrationutils.FrontendIntegrationTestInfo, subscriptionID, resourceGroupName string) (*externalAuthMutationTest, error) {
+	genericMutationTestInfo, err := integrationutils.ReadGenericMutationTest(testDir)
 	if err != nil {
 		return nil, err
 	}
@@ -93,34 +94,34 @@ func newExternalAuthMutationTest(ctx context.Context, testDir fs.FS, testInfo *S
 func (tt *externalAuthMutationTest) runTest(t *testing.T) {
 	ctx := tt.ctx
 
-	require.NoError(t, tt.genericMutationTestInfo.initialize(ctx, tt.testInfo))
+	require.NoError(t, tt.genericMutationTestInfo.Initialize(ctx, tt.testInfo))
 
 	// better solutions welcome to be coded. This is simple and works for the moment.
 	hcpClusterName := strings.Split(t.Name(), "/")[1]
 	toCreate := &hcpsdk20240610preview.ExternalAuth{}
-	require.NoError(t, json.Unmarshal(tt.genericMutationTestInfo.createJSON, toCreate))
+	require.NoError(t, json.Unmarshal(tt.genericMutationTestInfo.CreateJSON, toCreate))
 	externalAuthClient := tt.testInfo.Get20240610ClientFactory(tt.subscriptionID).NewExternalAuthsClient()
 	_, mutationErr := externalAuthClient.BeginCreateOrUpdate(ctx, tt.resourceGroupName, hcpClusterName, *toCreate.Name, *toCreate, nil)
 
-	if tt.genericMutationTestInfo.isUpdateTest() || tt.genericMutationTestInfo.isPatchTest() {
+	if tt.genericMutationTestInfo.IsUpdateTest() || tt.genericMutationTestInfo.IsPatchTest() {
 		require.NoError(t, mutationErr)
-		require.NoError(t, MarkOperationsCompleteForName(ctx, tt.testInfo.DBClient, tt.subscriptionID, ptr.Deref(toCreate.Name, "")))
+		require.NoError(t, integrationutils.MarkOperationsCompleteForName(ctx, tt.testInfo.DBClient, tt.subscriptionID, ptr.Deref(toCreate.Name, "")))
 	}
 
 	switch {
-	case tt.genericMutationTestInfo.isUpdateTest():
+	case tt.genericMutationTestInfo.IsUpdateTest():
 		toUpdate := &hcpsdk20240610preview.ExternalAuth{}
-		require.NoError(t, json.Unmarshal(tt.genericMutationTestInfo.updateJSON, toUpdate))
+		require.NoError(t, json.Unmarshal(tt.genericMutationTestInfo.UpdateJSON, toUpdate))
 		_, mutationErr = externalAuthClient.BeginCreateOrUpdate(ctx, tt.resourceGroupName, hcpClusterName, *toUpdate.Name, *toUpdate, nil)
 
-	case tt.genericMutationTestInfo.isPatchTest():
+	case tt.genericMutationTestInfo.IsPatchTest():
 		toPatch := &hcpsdk20240610preview.ExternalAuthUpdate{}
-		require.NoError(t, json.Unmarshal(tt.genericMutationTestInfo.patchJSON, toPatch))
+		require.NoError(t, json.Unmarshal(tt.genericMutationTestInfo.PatchJSON, toPatch))
 		_, mutationErr = externalAuthClient.BeginUpdate(ctx, tt.resourceGroupName, hcpClusterName, *toCreate.Name, *toPatch, nil)
 	}
 
-	tt.genericMutationTestInfo.verifyActualError(t, mutationErr)
-	if !tt.genericMutationTestInfo.expectsResult() {
+	tt.genericMutationTestInfo.VerifyActualError(t, mutationErr)
+	if !tt.genericMutationTestInfo.ExpectsResult() {
 		return
 	}
 
@@ -128,7 +129,7 @@ func (tt *externalAuthMutationTest) runTest(t *testing.T) {
 	// if the data we read back matches what we expect.
 	actualCreated, err := externalAuthClient.Get(ctx, tt.resourceGroupName, hcpClusterName, *toCreate.Name, nil)
 	require.NoError(t, err)
-	tt.genericMutationTestInfo.verifyActualResult(t, actualCreated)
+	tt.genericMutationTestInfo.VerifyActualResult(t, actualCreated)
 
 	currExternalAuthFromList := &hcpsdk20240610preview.ExternalAuth{}
 	externalAuthPager := externalAuthClient.NewListByParentPager(tt.resourceGroupName, hcpClusterName, nil)

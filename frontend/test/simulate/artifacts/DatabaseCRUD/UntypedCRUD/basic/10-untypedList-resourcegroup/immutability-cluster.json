@@ -1,0 +1,25 @@
+{
+    "_attachments": "attachments/",
+    "_etag": "\"00000000-0000-0000-6625-fc640c0501dc\"",
+    "_rid": "zT0eAODBiq0FAAAAAAAAAA==",
+    "_self": "dbs/zT0eAA==/colls/zT0eAODBiq0=/docs/zT0eAODBiq0FAAAAAAAAAA==/",
+    "_ts": 1764966624,
+    "id": "8feb19cd-3d3c-4575-863b-b26ad817ce33",
+    "partitionKey": "f52dfea2-47ee-4396-8006-4a27d47d59c5",
+    "properties": {
+        "customerDesiredState": null,
+        "identity": {
+            "principalId": "the-principal",
+            "tenantId": "the-tenant",
+            "type": ""
+        },
+        "internalId": "/api/aro_hcp/v1alpha1/clusters/cs-immutability",
+        "provisioningState": "Succeeded",
+        "resourceId": "/subscriptions/f52dfea2-47ee-4396-8006-4a27d47d59c5/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/immutability",
+        "serviceProviderState": null,
+        "tags": {
+            "foo": "bar"
+        }
+    },
+    "resourceType": "microsoft.redhatopenshift/hcpopenshiftclusters"
+}

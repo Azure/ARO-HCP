@@ -272,6 +272,10 @@ svc.aks.kubeconfig:
 	@kubelogin convert-kubeconfig -l azurecli --kubeconfig "${SVC_KUBECONFIG_FILE}"
 .PHONY: svc.aks.kubeconfig
 
+svc.aks.kubeconfig.pipeline:
+	make -C .. pipeline/Service.Kubeconfig DEPLOY_ENV=$(DEPLOY_ENV)
+.PHONY: svc.aks.kubeconfig.pipeline
+
 svc.aks.kubeconfigfile:
 	@echo ${SVC_KUBECONFIG_FILE}
 .PHONY: svc.aks.kubeconfigfile
@@ -338,6 +342,10 @@ mgmt.aks.kubeconfig:
 	@kubelogin convert-kubeconfig -l azurecli --kubeconfig "${MGMT_KUBECONFIG_FILE}"
 .PHONY: mgmt.aks.kubeconfig
 
+mgmt.aks.kubeconfig.pipeline:
+	make -C .. pipeline/Management.Kubeconfig DEPLOY_ENV=$(DEPLOY_ENV)
+.PHONY: mgmt.aks.kubeconfig.pipeline
+
 mgmt.aks.kubeconfigfile:
 	@echo ${MGMT_KUBECONFIG_FILE}
 .PHONY: mgmt.aks.kubeconfigfile
@@ -373,6 +381,8 @@ mgmt.dev.permissions: mgmt.kv.permission
 #
 kusto: configurations/kusto.bicepparam
 	make -C .. pipeline/Log.Infra DEPLOY_ENV=$(DEPLOY_ENV) EXTRA_ARGS="--region eastus2"
+	az tag create --resource-id /subscriptions/$(DEV_TESTING_SUBSCRIPTION_ID)/resourceGroups/hcp-kusto-us --tags persist=true
+.PHONY: kusto
 
 monitoring:
 	make -C .. pipeline/Monitoring DEPLOY_ENV=$(DEPLOY_ENV)

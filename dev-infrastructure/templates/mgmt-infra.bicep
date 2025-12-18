@@ -46,9 +46,6 @@ param kvCertOfficerPrincipalId string
 @description('MSI that will be used during pipeline runs')
 param globalMSIId string
 
-// Log Analytics Workspace ID will be passed from region pipeline if enabled in config
-param logAnalyticsWorkspaceId string = ''
-
 // Storage Account for HCP Backups
 @minLength(3)
 // @maxLength(24) Fails on EV2 pipelines, probably because the EV2 placeholder is longer than 24.
@@ -88,7 +85,6 @@ module cxKeyVault '../modules/keyvault/keyvault.bicep' = {
     enableSoftDelete: cxKeyVaultSoftDelete
     tagKey: cxKeyVaultTagName
     tagValue: cxKeyVaultTagValue
-    logAnalyticsWorkspaceId: logAnalyticsWorkspaceId
   }
 }
 
@@ -101,7 +97,7 @@ module cxKeyVaultAccess '../modules/keyvault/keyvault-secret-access.bicep' = [
     params: {
       keyVaultName: cxKeyVaultName
       roleName: role
-      managedIdentityPrincipalId: kvCertOfficerPrincipalId
+      managedIdentityPrincipalIds: [kvCertOfficerPrincipalId]
     }
     dependsOn: [
       cxKeyVault
@@ -120,7 +116,6 @@ module msiKeyVault '../modules/keyvault/keyvault.bicep' = {
     enableSoftDelete: msiKeyVaultSoftDelete
     tagKey: msiKeyVaultTagName
     tagValue: msiKeyVaultTagValue
-    logAnalyticsWorkspaceId: logAnalyticsWorkspaceId
   }
 }
 
@@ -135,7 +130,6 @@ module mgmtKeyVault '../modules/keyvault/keyvault.bicep' = {
     enableSoftDelete: mgmtKeyVaultSoftDelete
     tagKey: mgmtKeyVaultTagName
     tagValue: mgmtKeyVaultTagValue
-    logAnalyticsWorkspaceId: logAnalyticsWorkspaceId
   }
 }
 
@@ -148,7 +142,7 @@ module mgmtKeyVaultAccess '../modules/keyvault/keyvault-secret-access.bicep' = [
     params: {
       keyVaultName: mgmtKeyVaultName
       roleName: role
-      managedIdentityPrincipalId: kvCertOfficerPrincipalId
+      managedIdentityPrincipalIds: [kvCertOfficerPrincipalId]
     }
     dependsOn: [
       mgmtKeyVault

@@ -16,6 +16,7 @@ package simulate
 
 import (
 	"context"
+	"embed"
 	"encoding/json"
 	"io/fs"
 	"testing"
@@ -26,16 +27,20 @@ import (
 	csarhcpv1alpha1 "github.com/openshift-online/ocm-api-model/clientapi/arohcp/v1alpha1"
 
 	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/test-integration/utils/integrationutils"
 )
 
+//go:embed artifacts/*
+var artifacts embed.FS
+
 func TestFrontendClusterRead(t *testing.T) {
-	SkipIfNotSimulationTesting(t)
+	integrationutils.SkipIfNotSimulationTesting(t)
 
 	ctx := context.Background()
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	frontend, testInfo, err := NewFrontendFromTestingEnv(ctx, t)
+	frontend, testInfo, err := integrationutils.NewFrontendFromTestingEnv(ctx, t)
 	require.NoError(t, err)
 	defer testInfo.Cleanup(context.Background())
 
@@ -48,6 +53,7 @@ func TestFrontendClusterRead(t *testing.T) {
 	clusterServiceCluster, err := csarhcpv1alpha1.UnmarshalCluster(api.Must(artifacts.ReadFile("artifacts/ClusterReadOldData/initial-cluster-service-state/02-some-cluster.json")))
 	require.NoError(t, err)
 	testInfo.MockClusterServiceClient.EXPECT().GetCluster(gomock.Any(), api.Must(api.NewInternalID("/api/aro_hcp/v1alpha1/clusters/fixed-value"))).Return(clusterServiceCluster, nil)
+	testInfo.MockClusterServiceClient.EXPECT().DeleteCluster(gomock.Any(), api.Must(api.NewInternalID("/api/aro_hcp/v1alpha1/clusters/fixed-value"))).Return(nil)
 
 	resourceGroup := "some-resource-group"
 	hcpClusterName := "some-hcp-cluster"
@@ -61,6 +67,9 @@ func TestFrontendClusterRead(t *testing.T) {
 	require.NoError(t, json.Unmarshal(actualJSON, &actualMap))
 	expectedMap := map[string]any{}
 	require.NoError(t, json.Unmarshal(api.Must(artifacts.ReadFile("artifacts/ClusterReadOldData/some-hcp-cluster--expected.json")), &expectedMap))
-
 	require.Equal(t, expectedMap, actualMap)
+
+	_, err = testInfo.Get20240610ClientFactory(subscriptionID).NewHcpOpenShiftClustersClient().BeginDelete(ctx, resourceGroup, hcpClusterName, nil)
+	require.NoError(t, err)
+	// the poller will never be done because we aren't running the backend.  Just let it be.
 }

@@ -10,6 +10,9 @@ param msiRefresherMIResourceId string
 @description('CS MI resource ID, used to grant KeyVault access')
 param clusterServiceMIResourceId string
 
+@description('RP Backend MI resource ID, used to grant KeyVault access')
+param rpBackendMIResourceId string
+
 @description('Admin API MI resource ID, used to grant resource group introspection access')
 param adminApiMIResourceId string
 
@@ -28,9 +31,9 @@ resource msiKeyVault 'Microsoft.KeyVault/vaults@2024-04-01-preview' existing = {
 import * as res from '../modules/resource.bicep'
 
 module csKeyVaultAccess '../modules/mgmt-kv-access.bicep' = if (res.isMsiResourceId(clusterServiceMIResourceId)) {
-  name: 'cs-msi-kv-access'
+  name: 'cx-backend-kv-access'
   params: {
-    managedIdentityResourceId: clusterServiceMIResourceId
+    managedIdentityResourceIds: [clusterServiceMIResourceId, rpBackendMIResourceId]
     cxKeyVaultName: cxKeyVault.name
     msiKeyVaultName: msiKeyVault.name
   }
@@ -43,7 +46,7 @@ module csKeyVaultAccess '../modules/mgmt-kv-access.bicep' = if (res.isMsiResourc
 module msiRefresherKeyVaultAccess '../modules/mgmt-kv-access.bicep' = if (res.isMsiResourceId(msiRefresherMIResourceId)) {
   name: 'msi-refresher-msi-kv-access'
   params: {
-    managedIdentityResourceId: msiRefresherMIResourceId
+    managedIdentityResourceIds: [msiRefresherMIResourceId]
     cxKeyVaultName: ''
     msiKeyVaultName: msiKeyVault.name
   }

@@ -50,7 +50,13 @@ type TypedDocument struct {
 	Properties   json.RawMessage `json:"properties"`
 }
 
-const typedDocumentJSONPathProperties = "/properties"
+var (
+	_ TypedDocumentAccessor = &TypedDocument{}
+)
+
+func (td *TypedDocument) GetTypedDocument() *TypedDocument {
+	return td
+}
 
 // newTypedDocument returns a TypedDocument from a ResourceType.
 func newTypedDocument(partitionKey string, resourceType azcorearm.ResourceType) *TypedDocument {

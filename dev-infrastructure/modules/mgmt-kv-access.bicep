@@ -1,5 +1,5 @@
-@description('Managed identity resource id that gets access to the specified KeyVaults.')
-param managedIdentityResourceId string
+@description('Managed identity resource ids that gets access to the specified KeyVaults.')
+param managedIdentityResourceIds array
 
 @description('The name of the CX KeyVault')
 param cxKeyVaultName string
@@ -12,39 +12,41 @@ param msiKeyVaultName string
 //
 
 import * as res from 'resource.bicep'
-var mIRef = res.msiRefFromId(managedIdentityResourceId)
+var miRefs = [for miId in managedIdentityResourceIds: res.msiRefFromId(miId)]
 
-resource managedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
-  scope: resourceGroup(mIRef.resourceGroup.subscriptionId, mIRef.resourceGroup.name)
-  name: mIRef.name
-}
+resource managedIdentities 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = [
+  for miRef in miRefs: {
+    scope: resourceGroup(miRef.resourceGroup.subscriptionId, miRef.resourceGroup.name)
+    name: miRef.name
+  }
+]
 
-module cxClusterServiceKeyVaultAccess '../modules/keyvault/keyvault-secret-access.bicep' = [
+module cxKeyVaultAccess '../modules/keyvault/keyvault-secret-access.bicep' = [
   for role in [
     'Key Vault Secrets Officer'
     'Key Vault Certificate User'
     'Key Vault Certificates Officer'
   ]: if (cxKeyVaultName != '') {
-    name: guid(cxKeyVaultName, managedIdentityResourceId, role)
+    name: 'cx-access-${uniqueString(role, join(managedIdentityResourceIds, ','))}'
     params: {
       keyVaultName: cxKeyVaultName
       roleName: role
-      managedIdentityPrincipalId: managedIdentity.properties.principalId
+      managedIdentityPrincipalIds: [for (miRef, i) in miRefs: managedIdentities[i].properties.principalId]
     }
   }
 ]
 
-module msiClusterServiceKeyVaultAccess '../modules/keyvault/keyvault-secret-access.bicep' = [
+module msiKeyVaultAccess '../modules/keyvault/keyvault-secret-access.bicep' = [
   for role in [
     'Key Vault Secrets Officer'
     'Key Vault Certificate User'
     'Key Vault Certificates Officer'
   ]: if (msiKeyVaultName != '') {
-    name: guid(msiKeyVaultName, managedIdentityResourceId, role)
+    name: 'msi-access-${uniqueString(role, join(managedIdentityResourceIds, ','))}'
     params: {
       keyVaultName: msiKeyVaultName
       roleName: role
-      managedIdentityPrincipalId: managedIdentity.properties.principalId
+      managedIdentityPrincipalIds: [for (miRef, i) in miRefs: managedIdentities[i].properties.principalId]
     }
   }
 ]

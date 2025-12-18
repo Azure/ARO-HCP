@@ -28,6 +28,8 @@ import (
 	semconv "go.opentelemetry.io/otel/semconv/v1.27.0"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+
+	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 func TestMiddlewareResourceID(t *testing.T) {
@@ -126,7 +128,7 @@ func TestMiddlewareResourceID(t *testing.T) {
 			url := "http://example.com" + strings.ToLower(tt.path)
 
 			ctx := context.Background()
-			ctx = ContextWithLogger(ctx, slog.Default())
+			ctx = utils.ContextWithLogger(ctx, slog.Default())
 			ctx = ContextWithOriginalPath(ctx, tt.path)
 
 			ctx, sr := initSpanRecorder(ctx)
@@ -140,7 +142,7 @@ func TestMiddlewareResourceID(t *testing.T) {
 
 			MiddlewareResourceID(writer, request, next)
 
-			resourceID, err := ResourceIDFromContext(request.Context())
+			resourceID, err := utils.ResourceIDFromContext(request.Context())
 			if tt.expectedErr {
 				require.Error(t, err)
 				return

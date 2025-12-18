@@ -28,20 +28,37 @@ import (
 
 func fetchOperationsFor(ctx context.Context, client *armresources.DeploymentOperationsClient, resourceGroup, deploymentName string) ([]timing.Operation, error) {
 	var operations []timing.Operation
-	pager := client.NewListPager(resourceGroup, deploymentName, nil)
-	for pager.More() {
-		page, err := pager.NextPage(ctx)
-		if err != nil {
-			return []timing.Operation{}, fmt.Errorf("failed to fetch operations: %w", err)
-		}
-		for _, item := range page.Value {
-			op, err := operationFor(item)
+
+	var deploymentOperations []*armresources.DeploymentOperation
+	if resourceGroup != "" {
+		// Resource-group scoped deployment
+		pager := client.NewListPager(resourceGroup, deploymentName, nil)
+		for pager.More() {
+			page, err := pager.NextPage(ctx)
 			if err != nil {
-				return []timing.Operation{}, err
+				return []timing.Operation{}, fmt.Errorf("failed to fetch operations: %w", err)
 			}
-			if op != nil {
-				operations = append(operations, *op)
+			deploymentOperations = append(deploymentOperations, page.Value...)
+		}
+	} else {
+		// Subscription-scoped deployment
+		pager := client.NewListAtSubscriptionScopePager(deploymentName, nil)
+		for pager.More() {
+			page, err := pager.NextPage(ctx)
+			if err != nil {
+				return []timing.Operation{}, fmt.Errorf("failed to fetch operations: %w", err)
 			}
+			deploymentOperations = append(deploymentOperations, page.Value...)
+		}
+	}
+
+	for _, item := range deploymentOperations {
+		op, err := operationFor(item)
+		if err != nil {
+			return []timing.Operation{}, err
+		}
+		if op != nil {
+			operations = append(operations, *op)
 		}
 	}
 

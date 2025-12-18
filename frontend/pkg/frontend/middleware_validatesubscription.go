@@ -23,6 +23,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/tracing"
+	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 const (
@@ -45,7 +46,7 @@ func newMiddlewareValidateSubscriptionState(dbClient database.DBClient) *middlew
 // https://github.com/cloud-and-ai-microsoft/resource-provider-contract/blob/master/v1.0/subscription-lifecycle-api-reference.md
 func (h *middlewareValidateSubscriptionState) handleRequest(w http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
 	ctx := r.Context()
-	logger := LoggerFromContext(ctx)
+	logger := utils.LoggerFromContext(ctx)
 
 	subscriptionId := r.PathValue(PathSegmentSubscriptionID)
 	if subscriptionId == "" {

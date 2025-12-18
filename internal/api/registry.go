@@ -16,6 +16,7 @@ package api
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -70,15 +71,20 @@ const (
 	ExternalAuthResourceTypeName    = "externalAuths"
 	OperationResultResourceTypeName = "hcpOperationResults"
 	OperationStatusResourceTypeName = "hcpOperationStatuses"
+	ControllerResourceTypeName      = "hcpOpenShiftControllers"
 	ResourceTypeDisplay             = "Hosted Control Plane (HCP) OpenShift Clusters"
 )
 
 var (
-	ClusterResourceType      = azcorearm.NewResourceType(ProviderNamespace, ClusterResourceTypeName)
-	NodePoolResourceType     = azcorearm.NewResourceType(ProviderNamespace, ClusterResourceTypeName+"/"+NodePoolResourceTypeName)
-	ExternalAuthResourceType = azcorearm.NewResourceType(ProviderNamespace, ClusterResourceTypeName+"/"+ExternalAuthResourceTypeName)
-	PreflightResourceType    = azcorearm.NewResourceType(ProviderNamespace, "deployments/preflight")
-	VersionResourceType      = azcorearm.NewResourceType(ProviderNamespace, "locations/"+VersionResourceTypeName)
+	OperationStatusResourceType        = azcorearm.NewResourceType(ProviderNamespace, OperationStatusResourceTypeName)
+	ClusterResourceType                = azcorearm.NewResourceType(ProviderNamespace, ClusterResourceTypeName)
+	NodePoolResourceType               = azcorearm.NewResourceType(ProviderNamespace, ClusterResourceTypeName+"/"+NodePoolResourceTypeName)
+	ExternalAuthResourceType           = azcorearm.NewResourceType(ProviderNamespace, ClusterResourceTypeName+"/"+ExternalAuthResourceTypeName)
+	PreflightResourceType              = azcorearm.NewResourceType(ProviderNamespace, "deployments/preflight")
+	VersionResourceType                = azcorearm.NewResourceType(ProviderNamespace, "locations/"+VersionResourceTypeName)
+	ClusterControllerResourceType      = azcorearm.NewResourceType(ProviderNamespace, filepath.Join(ClusterResourceTypeName, ControllerResourceTypeName))
+	NodePoolControllerResourceType     = azcorearm.NewResourceType(ProviderNamespace, filepath.Join(ClusterResourceTypeName, NodePoolResourceTypeName, ControllerResourceTypeName))
+	ExternalAuthControllerResourceType = azcorearm.NewResourceType(ProviderNamespace, filepath.Join(ClusterResourceTypeName, ExternalAuthResourceTypeName, ControllerResourceTypeName))
 )
 
 type VersionedResource interface {

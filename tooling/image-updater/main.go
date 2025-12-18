@@ -57,7 +57,7 @@ checking for new image versions and updating configuration files accordingly.`,
 		},
 	}
 
-	rootCmd.PersistentFlags().IntVarP(&logVerbosity, "verbosity", "v", 0, "set the verbosity level")
+	rootCmd.PersistentFlags().IntVarP(&logVerbosity, "verbosity", "v", 0, "set the verbosity level (0-1: summary only, 2+: detailed debug info)")
 
 	rootCmd.AddCommand(cmd.NewUpdateCommand())
 

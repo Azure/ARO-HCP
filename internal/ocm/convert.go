@@ -54,6 +54,8 @@ const (
 	csOutboundType                      string = "load_balancer"
 	csUsernameClaimPrefixPolicyNoPrefix string = "NoPrefix"
 	csUsernameClaimPrefixPolicyPrefix   string = "Prefix"
+	csCIDRBlockAllowAccessModeAllowAll  string = "allow_all"
+	csCIDRBlockAllowAccessModeAllowList string = "allow_list"
 )
 
 // Sentinel error for use with errors.Is
@@ -157,6 +159,17 @@ func convertUsernameClaimPrefixPolicyRPToCS(prefixPolicyRP api.UsernameClaimPref
 	default:
 		return "", conversionError[string](prefixPolicyRP)
 	}
+}
+
+func convertAuthorizedCidrs(clusterAPI *arohcpv1alpha1.ClusterAPI) []string {
+	cidrAccess := clusterAPI.CIDRBlockAccess()
+	if cidrAccess.Empty() {
+		return nil
+	}
+	if cidr := cidrAccess.Allow(); cidr != nil {
+		return cidr.Values()
+	}
+	return nil
 }
 
 func convertEnableEncryptionAtHostToCSBuilder(in api.NodePoolPlatformProfile) *arohcpv1alpha1.AzureNodePoolEncryptionAtHostBuilder {
@@ -335,6 +348,22 @@ func convertEtcdRPToCS(in api.EtcdProfile) (*arohcpv1alpha1.AzureEtcdEncryptionB
 	return arohcpv1alpha1.NewAzureEtcdEncryption().DataEncryption(azureEtcdDataEncryptionBuilder), nil
 }
 
+func convertCIDRBlockAllowAccessRPToCS(in api.CustomerAPIProfile) (*arohcpv1alpha1.CIDRBlockAccessBuilder, error) {
+	cidrBlockAllowAccess := arohcpv1alpha1.NewCIDRBlockAllowAccess()
+
+	if in.AuthorizedCIDRs == nil {
+		cidrBlockAllowAccess.Mode(csCIDRBlockAllowAccessModeAllowAll)
+	} else if len(in.AuthorizedCIDRs) > 0 {
+		cidrBlockAllowAccess.Mode(csCIDRBlockAllowAccessModeAllowList)
+		cidrBlockAllowAccess.Values(in.AuthorizedCIDRs...)
+	} else {
+		// Unreachable: empty AuthorizedCIDRs list is disallowed by validation
+		return nil, fmt.Errorf("AuthorizedCIDRs cannot be an empty list")
+	}
+
+	return arohcpv1alpha1.NewCIDRBlockAccess().Allow(cidrBlockAllowAccess), nil
+}
+
 // ConvertCStoHCPOpenShiftCluster converts a CS Cluster object into an HCPOpenShiftCluster object.
 func ConvertCStoHCPOpenShiftCluster(resourceID *azcorearm.ResourceID, cluster *arohcpv1alpha1.Cluster) (*api.HCPOpenShiftCluster, error) {
 	// A word about ProvisioningState:
@@ -389,7 +418,8 @@ func ConvertCStoHCPOpenShiftCluster(resourceID *azcorearm.ResourceID, cluster *a
 			},
 
 			API: api.CustomerAPIProfile{
-				Visibility: apiVisibility,
+				Visibility:      apiVisibility,
+				AuthorizedCIDRs: convertAuthorizedCidrs(cluster.API()),
 			},
 			Platform: api.CustomerPlatformProfile{
 				ManagedResourceGroup:   cluster.Azure().ManagedResourceGroupName(),
@@ -540,6 +570,7 @@ func BuildCSCluster(resourceID *azcorearm.ResourceID, requestHeader http.Header,
 	}
 
 	clusterBuilder := arohcpv1alpha1.NewCluster()
+	clusterAPIBuilder := arohcpv1alpha1.NewClusterAPI()
 
 	// These attributes cannot be updated after cluster creation.
 	if !updating {
@@ -553,11 +584,22 @@ func BuildCSCluster(resourceID *azcorearm.ResourceID, requestHeader http.Header,
 		if err != nil {
 			return nil, err
 		}
+		apiListening, err := convertVisibilityToListening(hcpCluster.CustomerProperties.API.Visibility)
+		if err != nil {
+			return nil, err
+		}
+		clusterAPIBuilder.Listening(apiListening)
 	}
 
 	clusterBuilder.NodeDrainGracePeriod(arohcpv1alpha1.NewValue().
 		Unit(csNodeDrainGracePeriodUnit).
 		Value(float64(hcpCluster.CustomerProperties.NodeDrainTimeoutMinutes)))
+
+	cidrBlockAccess, err := convertCIDRBlockAllowAccessRPToCS(hcpCluster.CustomerProperties.API)
+	if err != nil {
+		return nil, err
+	}
+	clusterBuilder.API(clusterAPIBuilder.CIDRBlockAccess(cidrBlockAccess))
 
 	clusterAutoscalerBuilder, err := convertRpAutoscalarToCSBuilder(&hcpCluster.CustomerProperties.Autoscaling)
 	if err != nil {
@@ -570,10 +612,6 @@ func BuildCSCluster(resourceID *azcorearm.ResourceID, requestHeader http.Header,
 }
 
 func withImmutableAttributes(clusterBuilder *arohcpv1alpha1.ClusterBuilder, hcpCluster *api.HCPOpenShiftCluster, subscriptionID, resourceGroupName, tenantID, identityURL string) (*arohcpv1alpha1.ClusterBuilder, error) {
-	apiListening, err := convertVisibilityToListening(hcpCluster.CustomerProperties.API.Visibility)
-	if err != nil {
-		return nil, err
-	}
 	clusterImageRegistryState, err := convertClusterImageRegistryStateRPToCS(hcpCluster.CustomerProperties.ClusterImageRegistry)
 	if err != nil {
 		return nil, err
@@ -597,7 +635,7 @@ func withImmutableAttributes(clusterBuilder *arohcpv1alpha1.ClusterBuilder, hcpC
 			Enabled(csHypershifEnabled)).
 		CCS(arohcpv1alpha1.NewCCS().Enabled(csCCSEnabled)).
 		Version(arohcpv1alpha1.NewVersion().
-			ID(NewOpenShiftVersionXYZ(hcpCluster.CustomerProperties.Version.ID)).
+			ID(NewOpenShiftVersionXYZ(hcpCluster.CustomerProperties.Version.ID, hcpCluster.CustomerProperties.Version.ChannelGroup)).
 			ChannelGroup(hcpCluster.CustomerProperties.Version.ChannelGroup)).
 		Network(arohcpv1alpha1.NewNetwork().
 			Type(string(hcpCluster.CustomerProperties.Network.NetworkType)).
@@ -605,8 +643,6 @@ func withImmutableAttributes(clusterBuilder *arohcpv1alpha1.ClusterBuilder, hcpC
 			ServiceCIDR(hcpCluster.CustomerProperties.Network.ServiceCIDR).
 			MachineCIDR(hcpCluster.CustomerProperties.Network.MachineCIDR).
 			HostPrefix(int(hcpCluster.CustomerProperties.Network.HostPrefix))).
-		API(arohcpv1alpha1.NewClusterAPI().
-			Listening(apiListening)).
 		ImageRegistry(arohcpv1alpha1.NewClusterImageRegistry().
 			State(clusterImageRegistryState))
 	azureBuilder := arohcpv1alpha1.NewAzure().
@@ -737,7 +773,7 @@ func BuildCSNodePool(ctx context.Context, nodePool *api.HCPOpenShiftClusterNodeP
 		nodePoolBuilder.
 			ID(strings.ToLower(nodePool.Name)).
 			Version(arohcpv1alpha1.NewVersion().
-				ID(ConvertOpenShiftVersionAddPrefix(nodePool.Properties.Version.ID)).
+				ID(NewOpenShiftVersionXYZ(nodePool.Properties.Version.ID, nodePool.Properties.Version.ChannelGroup)).
 				ChannelGroup(nodePool.Properties.Version.ChannelGroup)).
 			Subnet(nodePool.Properties.Platform.SubnetID).
 			AzureNodePool(arohcpv1alpha1.NewAzureNodePool().

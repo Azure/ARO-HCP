@@ -16,6 +16,7 @@ package validation
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -28,6 +29,7 @@ import (
 )
 
 // Comprehensive tests for ValidateClusterCreate
+// using a subscription without AllowNonStableChannel flags
 func TestValidateClusterCreate(t *testing.T) {
 	ctx := context.Background()
 
@@ -49,17 +51,6 @@ func TestValidateClusterCreate(t *testing.T) {
 				return c
 			}(),
 			expectErrors: []expectedError{},
-		},
-		{
-			name: "invalid version - create",
-			cluster: func() *api.HCPOpenShiftCluster {
-				c := createValidCluster()
-				c.CustomerProperties.Version.ID = "invalid-version"
-				return c
-			}(),
-			expectErrors: []expectedError{
-				{message: "Malformed version", fieldPath: "customerProperties.version.id"},
-			},
 		},
 		{
 			name: "invalid DNS prefix - create",
@@ -173,6 +164,17 @@ func TestValidateClusterCreate(t *testing.T) {
 			},
 		},
 		{
+			name: "empty list authorized CIDR - create",
+			cluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.API.AuthorizedCIDRs = []string{}
+				return c
+			}(),
+			expectErrors: []expectedError{
+				{message: "must have at least 1 items", fieldPath: "customerProperties.api.authorizedCidrs"},
+			},
+		},
+		{
 			name: "authorized CIDR with leading whitespace - create",
 			cluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
@@ -280,6 +282,17 @@ func TestValidateClusterCreate(t *testing.T) {
 				{message: "not an IP", fieldPath: "customerProperties.api.authorizedCidrs[2]"},
 				{message: "invalid CIDR address", fieldPath: "customerProperties.api.authorizedCidrs[3]"},
 				{message: "not IPv4", fieldPath: "customerProperties.api.authorizedCidrs[3]"},
+			},
+		},
+		{
+			name: "501 unique authorized CIDR blocks - create",
+			cluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.API.AuthorizedCIDRs = makeUniqueCIDRs(501)
+				return c
+			}(),
+			expectErrors: []expectedError{
+				{message: "must have at most 500 items", fieldPath: "customerProperties.api.authorizedCidrs"},
 			},
 		},
 		{
@@ -461,14 +474,12 @@ func TestValidateClusterCreate(t *testing.T) {
 			name: "multiple validation errors - create",
 			cluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.CustomerProperties.Version.ID = "invalid-version"
 				c.CustomerProperties.DNS.BaseDomainPrefix = "Invalid-Name"
 				c.CustomerProperties.Network.NetworkType = "InvalidType"
 				c.CustomerProperties.API.Visibility = "InvalidVisibility"
 				return c
 			}(),
 			expectErrors: []expectedError{
-				{message: "Malformed version", fieldPath: "customerProperties.version.id"},
 				{message: "must be a valid DNS RFC 1035 label", fieldPath: "customerProperties.dns.baseDomainPrefix"},
 				{message: "Unsupported value", fieldPath: "customerProperties.network.networkType"},
 				{message: "Unsupported value", fieldPath: "customerProperties.api.visiblity"},
@@ -903,17 +914,32 @@ func TestValidateClusterUpdate(t *testing.T) {
 			name: "immutable version ID - update",
 			newCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.CustomerProperties.Version.ID = "4.15.2"
+				c.CustomerProperties.Version.ID = "4.15"
 				return c
 			}(),
 			oldCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.CustomerProperties.Version.ID = "4.15.1"
+				c.CustomerProperties.Version.ID = "4.16"
 				return c
 			}(),
 			expectErrors: []expectedError{
 				{message: "field is immutable", fieldPath: "customerProperties.version.id"},
-				{message: "must be specified as MAJOR.MINOR", fieldPath: "customerProperties.version.id"},
+			},
+		},
+		{
+			name: "immutable version ChannelGroup - update",
+			newCluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.Version.ChannelGroup = "fast"
+				return c
+			}(),
+			oldCluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.Version.ChannelGroup = "stable"
+				return c
+			}(),
+			expectErrors: []expectedError{
+				{message: "field is immutable", fieldPath: "customerProperties.version.channelGroup"},
 			},
 		},
 		{
@@ -1121,6 +1147,18 @@ func TestValidateClusterUpdate(t *testing.T) {
 			},
 		},
 		{
+			name: "empty list authorized CIDR - create",
+			newCluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.API.AuthorizedCIDRs = []string{}
+				return c
+			}(),
+			oldCluster: createValidCluster(),
+			expectErrors: []expectedError{
+				{message: "must have at least 1 items", fieldPath: "customerProperties.api.authorizedCidrs"},
+			},
+		},
+		{
 			name: "too many authorized CIDRs on update - update",
 			newCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
@@ -1133,6 +1171,18 @@ func TestValidateClusterUpdate(t *testing.T) {
 			oldCluster: createValidCluster(),
 			expectErrors: []expectedError{
 				{message: "Too many", fieldPath: "customerProperties.api.authorizedCidrs"},
+			},
+		},
+		{
+			name: "501 unique authorized CIDR blocks on update - update",
+			newCluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.API.AuthorizedCIDRs = makeUniqueCIDRs(501)
+				return c
+			}(),
+			oldCluster: createValidCluster(),
+			expectErrors: []expectedError{
+				{message: "must have at most 500 items", fieldPath: "customerProperties.api.authorizedCidrs"},
 			},
 		},
 		{
@@ -1167,7 +1217,7 @@ func TestValidateClusterUpdate(t *testing.T) {
 			name: "clear all authorized CIDRs on update - update",
 			newCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.CustomerProperties.API.AuthorizedCIDRs = []string{}
+				c.CustomerProperties.API.AuthorizedCIDRs = nil
 				return c
 			}(),
 			oldCluster: func() *api.HCPOpenShiftCluster {
@@ -1321,21 +1371,23 @@ func TestValidateClusterUpdate(t *testing.T) {
 			name: "multiple immutable field changes - update",
 			newCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.CustomerProperties.Version.ID = "4.15.2"
+				c.CustomerProperties.Version.ID = "4.16"
+				c.CustomerProperties.Version.ChannelGroup = "fast"
 				c.CustomerProperties.DNS.BaseDomainPrefix = "new-prefix"
 				c.CustomerProperties.API.Visibility = api.VisibilityPrivate
 				return c
 			}(),
 			oldCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.CustomerProperties.Version.ID = "4.15.1"
+				c.CustomerProperties.Version.ID = "4.15"
+				c.CustomerProperties.Version.ChannelGroup = "stable"
 				c.CustomerProperties.DNS.BaseDomainPrefix = "old-prefix"
 				c.CustomerProperties.API.Visibility = api.VisibilityPublic
 				return c
 			}(),
 			expectErrors: []expectedError{
 				{message: "field is immutable", fieldPath: "customerProperties.version.id"},
-				{message: "must be specified as MAJOR.MINOR; the PATCH value is managed", fieldPath: "customerProperties.version.id"},
+				{message: "field is immutable", fieldPath: "customerProperties.version.channelGroup"},
 				{message: "field is immutable", fieldPath: "customerProperties.dns.baseDomainPrefix"},
 				{message: "field is immutable", fieldPath: "customerProperties.api.visiblity"},
 			},
@@ -1348,6 +1400,16 @@ func TestValidateClusterUpdate(t *testing.T) {
 			verifyErrorsMatch(t, tt.expectErrors, errs)
 		})
 	}
+}
+
+func makeUniqueCIDRs(n int) []string {
+	cidrs := make([]string, n)
+	for i := range cidrs {
+		octet3 := i / 256
+		octet4 := i % 256
+		cidrs[i] = fmt.Sprintf("10.0.%d.%d", octet3, octet4)
+	}
+	return cidrs
 }
 
 // Helper function to create a valid cluster for testing

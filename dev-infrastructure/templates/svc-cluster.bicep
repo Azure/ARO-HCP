@@ -397,9 +397,6 @@ param adminApiIngressCertName string
 @description('The issuer of the Admin API certificate')
 param adminApiIngressCertIssuer string
 
-// Log Analytics Workspace ID will be passed from region pipeline if enabled in config
-param logAnalyticsWorkspaceId string = ''
-
 resource serviceKeyVault 'Microsoft.KeyVault/vaults@2024-04-01-preview' existing = {
   name: serviceKeyVaultName
   scope: resourceGroup(serviceKeyVaultResourceGroup)
@@ -584,7 +581,6 @@ module svcCluster '../modules/aks-cluster-base.bicep' = {
     aksKeyVaultName: aksKeyVaultName
     aksKeyVaultTagName: aksKeyVaultTagName
     aksKeyVaultTagValue: aksKeyVaultTagValue
-    logAnalyticsWorkspaceId: logAnalyticsWorkspaceId
     pullAcrResourceIds: [svcAcrResourceId]
     deploymentMsiId: globalMSIId
     enableSwiftV2Nodepools: false
@@ -595,19 +591,6 @@ module svcCluster '../modules/aks-cluster-base.bicep' = {
 }
 
 output aksClusterName string = svcCluster.outputs.aksClusterName
-
-//
-// L O G S
-//
-
-// NOTE: This is only enabled for non-prod environments
-module logsCollection '../modules/logs/collection.bicep' = if (logAnalyticsWorkspaceId != '') {
-  name: 'logs-collection'
-  params: {
-    aksClusterName: svcCluster.outputs.aksClusterName
-    logAnalyticsWorkspaceId: logAnalyticsWorkspaceId
-  }
-}
 
 //
 // M E T R I C S
@@ -698,25 +681,10 @@ module maestroServer '../modules/maestro/maestro-server.bicep' = {
       maestroMIName
     ).uamiPrincipalID
     maestroServerManagedIdentityName: maestroMIName
-    logAnalyticsWorkspaceId: logAnalyticsWorkspaceId
   }
   dependsOn: [
     serviceKeyVault
   ]
-}
-
-//
-//   K E Y V A U L T S
-//
-
-module logsServiceKeyVaultAccess '../modules/keyvault/keyvault-secret-access.bicep' = {
-  name: guid(serviceKeyVaultName, logsMSI, 'certuser')
-  scope: resourceGroup(serviceKeyVaultResourceGroup)
-  params: {
-    keyVaultName: serviceKeyVaultName
-    roleName: 'Key Vault Certificate User'
-    managedIdentityPrincipalId: mi.getManagedIdentityByName(managedIdentities.outputs.managedIdentities, logsMSI).uamiPrincipalID
-  }
 }
 
 //
@@ -756,20 +724,64 @@ module cs '../modules/cluster-service.bicep' = {
 }
 
 //
+//   S V C   K E Y V A U L T   A C C E S S
+//
+
+module serviceKeyVaultSecretsUserAccess '../modules/keyvault/keyvault-secret-access.bicep' = {
+  name: 'kv-sec-user-${uniqueString(resourceGroup().name)}'
+  scope: resourceGroup(serviceKeyVaultResourceGroup)
+  params: {
+    keyVaultName: serviceKeyVaultName
+    roleName: 'Key Vault Secrets User'
+    managedIdentityPrincipalIds: [csManagedIdentityPrincipalId, backendMI.uamiPrincipalID, adminApiMI.uamiPrincipalID]
+  }
+}
+
+module serviceKeyVaultCertUserAccess '../modules/keyvault/keyvault-secret-access.bicep' = {
+  name: 'kv-cert-user-${uniqueString(resourceGroup().name)}'
+  scope: resourceGroup(serviceKeyVaultResourceGroup)
+  params: {
+    keyVaultName: serviceKeyVaultName
+    roleName: 'Key Vault Certificate User'
+    managedIdentityPrincipalIds: [
+      mi.getManagedIdentityByName(managedIdentities.outputs.managedIdentities, logsMSI).uamiPrincipalID
+    ]
+  }
+}
+
+//
+//   D N S   A C C E S S
+//
+
+module cxDnsZoneContributor '../modules/dns/zone-contributor.bicep' = {
+  name: 'cs-dns-zone-contributor'
+  scope: resourceGroup(regionalResourceGroup)
+  params: {
+    zoneName: regionalCXDNSZoneName
+    zoneContributerManagedIdentityPrincipalIds: [csManagedIdentityPrincipalId, backendMI.uamiPrincipalID]
+  }
+}
+
+//
+//   O C P   A C R   P E R M I S S I O N S
+//
+
+var ocpAcrRef = res.acrRefFromId(ocpAcrResourceId)
+module acrManageTokenRole '../modules/acr/acr-permissions.bicep' = {
+  name: 'ocp-acr-manage-tokens-${uniqueString(resourceGroup().name)}'
+  scope: resourceGroup(ocpAcrRef.resourceGroup.subscriptionId, ocpAcrRef.resourceGroup.name)
+  params: {
+    principalIds: [csManagedIdentityPrincipalId, backendMI.uamiPrincipalID]
+    grantManageTokenAccess: true
+    acrName: ocpAcrRef.name
+  }
+}
+
+//
 //   O I D C
 //
 
 var frontDoorRef = res.frontdoorProfileRefFromId(azureFrontDoorResourceId)
-
-// Export AFD metrics and logs to Log Analytics for Grafana visibility
-module afdDataCollection '../modules/oidc/afd-datacollection.bicep' = if (logAnalyticsWorkspaceId != '') {
-  name: 'afd-datacollection'
-  scope: resourceGroup(frontDoorRef.resourceGroup.subscriptionId, frontDoorRef.resourceGroup.name)
-  params: {
-    frontDoorProfileName: frontDoorRef.name
-    logAnalyticsWorkspaceId: logAnalyticsWorkspaceId
-  }
-}
 
 // Grant Grafana permissions to query AFD metrics directly from Azure Monitor
 // This enables real-time AFD metrics visualization in Grafana dashboards
@@ -778,7 +790,6 @@ module grafanaAfdPermissions '../modules/grafana/observability-permissions.bicep
   scope: resourceGroup(frontDoorRef.resourceGroup.subscriptionId, frontDoorRef.resourceGroup.name)
   params: {
     grafanaPrincipalId: grafanaPrincipalId
-    logAnalyticsWorkspaceId: '' // Log Analytics permissions granted in region.bicep
     frontDoorProfileId: azureFrontDoorResourceId
   }
 }
@@ -798,7 +809,7 @@ module oidc '../modules/oidc/region/main.bicep' = {
     originGroupName: azureFrontDoorRegionalSubdomain
     originName: azureFrontDoorRegionalSubdomain
     privateLinkLocation: oidcStoragePrivateLinkLocation
-    storageAccountAccessPrincipalId: csManagedIdentityPrincipalId
+    storageAccountAccessPrincipalIds: [csManagedIdentityPrincipalId, backendMI.uamiPrincipalID]
     skuName: determineZoneRedundancy(locationAvailabilityZoneList, oidcZoneRedundantMode)
       ? 'Standard_ZRS'
       : 'Standard_LRS'
@@ -861,7 +872,7 @@ module frontendIngressCertCSIAccess '../modules/keyvault/keyvault-secret-access.
   params: {
     keyVaultName: serviceKeyVaultName
     roleName: 'Key Vault Secrets User'
-    managedIdentityPrincipalId: svcCluster.outputs.aksClusterKeyVaultSecretsProviderPrincipalId
+    managedIdentityPrincipalIds: [svcCluster.outputs.aksClusterKeyVaultSecretsProviderPrincipalId]
     secretName: frontendIngressCertName
   }
 }
@@ -905,7 +916,7 @@ module adminApiIngressCertCSIAccess '../modules/keyvault/keyvault-secret-access.
   params: {
     keyVaultName: serviceKeyVaultName
     roleName: 'Key Vault Secrets User'
-    managedIdentityPrincipalId: svcCluster.outputs.aksClusterKeyVaultSecretsProviderPrincipalId
+    managedIdentityPrincipalIds: [svcCluster.outputs.aksClusterKeyVaultSecretsProviderPrincipalId]
     secretName: adminApiIngressCertName
   }
 }
@@ -918,16 +929,6 @@ module adminApiDNS '../modules/dns/a-record.bicep' = {
     recordName: adminApiDnsName
     ipAddress: svcCluster.outputs.istioIngressGatewayIPAddress
     ttl: 300
-  }
-}
-
-module adminApiServiceKeyVaultAccess '../modules/keyvault/keyvault-secret-access.bicep' = {
-  name: 'admin-api-svc-kv-${uniqueString(resourceGroup().name)}'
-  scope: resourceGroup(serviceKeyVaultResourceGroup)
-  params: {
-    keyVaultName: serviceKeyVaultName
-    roleName: 'Key Vault Secrets User'
-    managedIdentityPrincipalId: adminApiMI.uamiPrincipalID
   }
 }
 

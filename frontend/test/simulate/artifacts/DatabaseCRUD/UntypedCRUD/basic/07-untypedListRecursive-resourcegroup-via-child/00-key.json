@@ -1,0 +1,9 @@
+{
+	"parentResourceID": "/subscriptions/f52dfea2-47ee-4396-8006-4a27d47d59c5/",
+	"descendents": [
+		{
+			"resourceType": "resourceGroups",
+			"resourceName": "some-resource-group"
+		}
+	]
+}

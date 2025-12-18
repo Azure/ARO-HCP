@@ -55,6 +55,10 @@
       "type": "string",
       "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
     },
+    "semVerWithPrerelease": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(-[0-9A-Za-z-]+(\\.[0-9A-Za-z-]+)*)?$"
+    },
     "k8sRollingUpdateDeploymentStrategy": {
       "type": "object",
       "description": "Spec to control the desired behavior of rolling update.",
@@ -1105,6 +1109,70 @@
                       "oneOf": [
                         {
                           "$ref": "#/definitions/semVer"
+                        },
+                        {
+                          "type": "string",
+                          "pattern": "^$"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "minVersion",
+                    "maxVersion"
+                  ],
+                  "additionalProperties": false
+                },
+                "candidate": {
+                  "type": "object",
+                  "properties": {
+                    "minVersion": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/definitions/semVerWithPrerelease"
+                        },
+                        {
+                          "type": "string",
+                          "pattern": "^$"
+                        }
+                      ]
+                    },
+                    "maxVersion": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/definitions/semVerWithPrerelease"
+                        },
+                        {
+                          "type": "string",
+                          "pattern": "^$"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "minVersion",
+                    "maxVersion"
+                  ],
+                  "additionalProperties": false
+                },
+                "nightly": {
+                  "type": "object",
+                  "properties": {
+                    "minVersion": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/definitions/semVerWithPrerelease"
+                        },
+                        {
+                          "type": "string",
+                          "pattern": "^$"
+                        }
+                      ]
+                    },
+                    "maxVersion": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/definitions/semVerWithPrerelease"
                         },
                         {
                           "type": "string",
@@ -2297,6 +2365,11 @@
           "description": "A space-separated list of Service Principals IDs, Types and their desired grafana roles The format is: <principalId>/<principalType>/<role>, e.g. 12345678-1234-1234-1234-123456789012/Group/Admin",
           "pattern": "^$|^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\\/(Group|ServicePrincipal|User)\\/(Contributor|Admin|Viewer)\\s*)+$"
         },
+        "crossTenantSecurityGroup": {
+          "type": "string",
+          "description": "Cross-tenant security group for Grafana access. Format: GroupObjectId;TenantId",
+          "pattern": "^$|^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12};[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+        },
         "svcWorkspaceName": {
           "type": "string",
           "minLength": 4,
@@ -2353,6 +2426,7 @@
       "required": [
         "grafanaName",
         "grafanaRoles",
+        "crossTenantSecurityGroup",
         "grafanaZoneRedundantMode",
         "svcWorkspaceName",
         "hcpWorkspaceName"
@@ -2381,16 +2455,13 @@
       "properties": {
         "loganalytics": {
           "type": "object",
-          "description": "Log Analytics configuration",
+          "description": "DEPRECATED, remove after updating sdp-pipelines",
           "properties": {
             "enable": {
               "type": "boolean"
             }
           },
-          "additionalProperties": false,
-          "required": [
-            "enable"
-          ]
+          "additionalProperties": false
         },
         "mdsd": {
           "type": "object",
@@ -2443,8 +2514,7 @@
         }
       },
       "required": [
-        "mdsd",
-        "loganalytics"
+        "mdsd"
       ]
     },
     "msiKeyVault": {

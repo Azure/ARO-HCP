@@ -23,13 +23,14 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/tracing"
+	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 // This middleware only applies to endpoints whose path form a valid Azure
 // resource ID. It should follow the MiddlewareLowercase function.
 func MiddlewareResourceID(w http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
 	ctx := r.Context()
-	logger := LoggerFromContext(ctx)
+	logger := utils.LoggerFromContext(ctx)
 
 	originalPath, _ := OriginalPathFromContext(ctx)
 	if originalPath == "" {
@@ -43,7 +44,7 @@ func MiddlewareResourceID(w http.ResponseWriter, r *http.Request, next http.Hand
 		span := trace.SpanFromContext(ctx)
 		span.SetAttributes(tracing.ResourceIDKey.String(resourceID.String()))
 
-		ctx = ContextWithResourceID(ctx, resourceID)
+		ctx = utils.ContextWithResourceID(ctx, resourceID)
 		r = r.WithContext(ctx)
 	} else {
 		logger.Warn(fmt.Sprintf("Failed to parse '%s' as resource ID: %v", originalPath, err))

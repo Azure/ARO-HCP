@@ -46,6 +46,7 @@ type ClusterParams struct {
 	APIVisibility                 string
 	ImageRegistryState            string
 	ChannelGroup                  string
+	AuthorizedCIDRs               []*string
 }
 
 type NetworkConfig struct {
@@ -222,11 +223,12 @@ func (tc *perItOrDescribeTestContext) CreateClusterCustomerResources(ctx context
 	}()
 
 	customerInfraDeploymentResult, err := tc.CreateBicepTemplateAndWait(ctx,
-		*resourceGroup.Name,
-		"customer-infra",
-		Must(artifactsFS.ReadFile("test-artifacts/generated-test-artifacts/modules/customer-infra.json")),
-		infraParameters,
-		45*time.Minute,
+		WithTemplateFromFS(artifactsFS, "test-artifacts/generated-test-artifacts/modules/customer-infra.json"),
+		WithDeploymentName("customer-infra"),
+		WithScope(BicepDeploymentScopeResourceGroup),
+		WithClusterResourceGroup(*resourceGroup.Name),
+		WithParameters(infraParameters),
+		WithTimeout(45*time.Minute),
 	)
 	if err != nil {
 		return clusterParams, fmt.Errorf("failed to create customer-infra: %w", err)
@@ -236,19 +238,17 @@ func (tc *perItOrDescribeTestContext) CreateClusterCustomerResources(ctx context
 		return clusterParams, fmt.Errorf("failed to populate cluster params from customer-infra: %w", err)
 	}
 
-	managedIdentityDeploymentResult, err := tc.CreateBicepTemplateAndWait(ctx,
-		*resourceGroup.Name,
-		"managed-identities",
-		Must(artifactsFS.ReadFile("test-artifacts/generated-test-artifacts/modules/managed-identities.json")),
-		map[string]interface{}{
-			"clusterName":  clusterParams.ClusterName,
+	managedIdentityDeploymentResult, err := tc.DeployManagedIdentities(ctx,
+		WithTemplateFromFS(artifactsFS, "test-artifacts/generated-test-artifacts/modules/managed-identities.json"),
+		WithClusterResourceGroup(*resourceGroup.Name),
+		WithParameters(map[string]interface{}{
 			"nsgName":      clusterParams.NsgName,
 			"vnetName":     clusterParams.VnetName,
 			"subnetName":   clusterParams.SubnetName,
 			"keyVaultName": clusterParams.KeyVaultName,
-		},
-		45*time.Minute,
+		}),
 	)
+
 	if err != nil {
 		return clusterParams, fmt.Errorf("failed to create managed identities: %w", err)
 	}
