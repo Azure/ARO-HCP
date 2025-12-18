@@ -29,7 +29,7 @@ module customerInfra 'modules/customer-infra.bicep' = {
 }
 
 module managedIdentities 'modules/managed-identities.bicep' = {
-  name: 'managedIdentities'
+  name: 'mi-${resourceGroup().name}'
   scope: subscription()
   params: {
     msiResourceGroupName: identities.resourceGroup
