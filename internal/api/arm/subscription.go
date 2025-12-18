@@ -53,18 +53,26 @@ type Subscription struct {
 	// LastUpdated is a copy of the Cosmos DB system generated
 	// "_ts" last updated timestamp field for metrics reporting.
 	LastUpdated int `json:"-"`
+
+	// CosmosUID is used to keep track of whether we have transitioned to a new cosmosUID scheme for this item
+	CosmosUID string `json:"-"`
 }
 
 func (o *Subscription) GetCosmosData() CosmosData {
+	cosmosUID := strings.ReplaceAll(strings.ToLower(o.ResourceID.String()), "/", "|")
+	if len(o.CosmosUID) != 0 {
+		// if this is an item that is being serialized for the first time, then we can force it to use the new scheme.
+		// if it already thinks it knows its CosmosID, then we must accept what it thinks because this could be a case
+		// where we have a new backend and an old frontend.  In that case, the content still has random UIDs, but the backend
+		// must be able to read AND write the records. This means we cannot assume that all UIDs have already changed.
+		cosmosUID = o.CosmosUID
+	}
+
 	return CosmosData{
-		CosmosUID:    o.ResourceID.Name, // this is compatible with preexisting code
+		CosmosUID:    cosmosUID,
 		PartitionKey: strings.ToLower(o.ResourceID.Name),
 		ItemID:       o.ResourceID,
 	}
-}
-
-func (o *Subscription) SetCosmosDocumentData(cosmosUID string) {
-	panic("unsupported")
 }
 
 type SubscriptionProperties struct {

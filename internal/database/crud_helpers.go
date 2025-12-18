@@ -21,8 +21,6 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/google/uuid"
-
 	"k8s.io/utils/ptr"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
@@ -122,18 +120,32 @@ func get[InternalAPIType, CosmosAPIType any](ctx context.Context, containerClien
 		return nil, fmt.Errorf("failed to read Resources container item for '%s': %w", completeResourceID, err)
 	}
 
-	var obj CosmosAPIType
-	if err := json.Unmarshal(responseItem, &obj); err != nil {
+	// To get here, we didn't find the item by direct cosmos ID, but after re-keying we will.
+	// We also know for sure it exists.  Let's go ahead and create the replacement item and delete the original
+	// Old frontends will continue to work because the query used will still match since all the non-cosmos ID data remains the same.
+	// After a successful create, we will delete the original.
+	// If we crash after the create and before the delete or the delete fails, we will get a detectable failure of `ErrAmbiguousResult`
+	// which will force a manual cleanup. Given how few of these we have, it should be uncommon.
+	objAsMap := map[string]any{}
+	if err := json.Unmarshal(responseItem, &objAsMap); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal Resources container item for '%s': %w", completeResourceID, err)
 	}
-	cosmosObj := &obj
-
-	internalObj, err := CosmosToInternal[InternalAPIType, CosmosAPIType](cosmosObj)
+	originalCosmosID := objAsMap["id"].(string)
+	newCosmosID := api.Must(api.ResourceIDToCosmosID(completeResourceID))
+	objAsMap["id"] = newCosmosID
+	newBytes, err := json.Marshal(objAsMap)
 	if err != nil {
-		return nil, fmt.Errorf("failed to convert Cosmos object to internal type: %w", err)
+		return nil, fmt.Errorf("failed to marshal Cosmos DB item for '%s': %w", completeResourceID, err)
 	}
 
-	return internalObj, nil
+	if _, err := containerClient.CreateItem(ctx, azcosmos.NewPartitionKeyString(partitionKeyString), newBytes, nil); err != nil {
+		return nil, utils.TrackError(err)
+	}
+	if _, err = containerClient.DeleteItem(ctx, azcosmos.NewPartitionKeyString(partitionKeyString), originalCosmosID, nil); err != nil {
+		return nil, utils.TrackError(err)
+	}
+
+	return getByItemID[InternalAPIType, CosmosAPIType](ctx, containerClient, partitionKeyString, newCosmosID)
 }
 
 func list[InternalAPIType, CosmosAPIType any](ctx context.Context, containerClient *azcosmos.ContainerClient, partitionKeyString string, resourceType *azcorearm.ResourceType, prefix *azcorearm.ResourceID, options *DBClientListResourceDocsOptions, untypedNonRecursive bool) (DBClientIterator[InternalAPIType], error) {
@@ -223,13 +235,14 @@ func serializeItem[InternalAPIType, CosmosAPIType any](newObj *InternalAPIType) 
 		return "", "", nil, fmt.Errorf("type %T does not implement CosmosPersistable interface", newObj)
 	}
 	cosmosData := cosmosPersistable.GetCosmosData()
-
-	var cosmosUID string
-	if len(cosmosData.CosmosUID) != 0 {
-		cosmosUID = cosmosData.CosmosUID
-	} else {
-		cosmosUID = uuid.New().String()
-		cosmosPersistable.SetCosmosDocumentData(cosmosUID)
+	if len(cosmosData.CosmosUID) == 0 {
+		return "", "", nil, fmt.Errorf("no cosmos id found in object")
+	}
+	if !strings.EqualFold(cosmosData.CosmosUID, strings.ToLower(cosmosData.CosmosUID)) {
+		return "", "", nil, fmt.Errorf("invalid cosmos id found in object")
+	}
+	if !strings.EqualFold(cosmosData.PartitionKey, strings.ToLower(cosmosData.PartitionKey)) {
+		return "", "", nil, fmt.Errorf("invalid partitionKey found in object")
 	}
 
 	cosmosObj, err := InternalToCosmos[InternalAPIType, CosmosAPIType](newObj)
@@ -241,7 +254,7 @@ func serializeItem[InternalAPIType, CosmosAPIType any](newObj *InternalAPIType) 
 		return "", "", nil, fmt.Errorf("failed to marshal Cosmos DB item for '%s': %w", cosmosData.ItemID, err)
 	}
 
-	return cosmosUID, cosmosData.PartitionKey, data, nil
+	return cosmosData.CosmosUID, cosmosData.PartitionKey, data, nil
 }
 
 func addCreateToTransaction[InternalAPIType, CosmosAPIType any](ctx context.Context, transaction DBTransaction, newObj *InternalAPIType, opts *azcosmos.TransactionalBatchItemOptions) (string, error) {
