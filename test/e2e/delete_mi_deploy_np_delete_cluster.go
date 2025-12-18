@@ -117,7 +117,7 @@ var _ = Describe("Customer", func() {
 
 			By("creating the node pool")
 			nodePoolParams := framework.NewDefaultNodePoolParams()
-			nodePoolParams.NodePoolName = "np"
+			nodePoolParams.NodePoolName = "np1"
 			err = tc.CreateNodePoolFromParam(ctx, *resourceGroup.Name, clusterName, nodePoolParams, 45*time.Minute)
 			Expect(err).To(HaveOccurred())
 
