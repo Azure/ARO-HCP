@@ -73,7 +73,7 @@ func readSteps[InternalAPIType any](ctx context.Context, testDir fs.FS, speciali
 		stepType := filenameParts[1]
 		stepName, _ := strings.CutSuffix(filenameParts[2], ".json")
 
-		testStep, err := newStep(index, stepType, stepName, testDir, dirEntry.Name(), specializer)
+		testStep, err := NewStep(index, stepType, stepName, testDir, dirEntry.Name(), specializer)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create new step %q: %w", dirEntry.Name(), err)
 		}
@@ -95,7 +95,7 @@ func (tt *ResourceMutationTest) RunTest(t *testing.T) {
 	}
 }
 
-func newStep[InternalAPIType any](indexString, stepType, stepName string, testDir fs.FS, path string, specializer ResourceCRUDTestSpecializer[InternalAPIType]) (IntegrationTestStep, error) {
+func NewStep[InternalAPIType any](indexString, stepType, stepName string, testDir fs.FS, path string, specializer ResourceCRUDTestSpecializer[InternalAPIType]) (IntegrationTestStep, error) {
 	itoInt, err := strconv.Atoi(indexString)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert %s to int: %w", indexString, err)
