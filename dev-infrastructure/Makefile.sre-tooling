@@ -1,0 +1,142 @@
+#
+# SRE Tooling AKS Cluster
+# Standalone Makefile - does not require main Makefile
+#
+# Environment variables required:
+#   SRE_TOOLING_ENV: dev or pers
+#   SRE_TOOLING_RG: Resource group name (e.g., hcp-dev-sre-tooling or hcp-pers-sre-tooling)
+#   SRE_TOOLING_SUBSCRIPTION_ID: Subscription ID
+#   SERVICE_KEYVAULT_NAME: Name of existing service key vault
+#   SERVICE_KEYVAULT_RG: Resource group of service key vault
+#   REGIONAL_RG: Regional resource group name
+#   SVC_ACR_RESOURCE_ID: Resource ID of SVC ACR
+#   GLOBAL_MSI_ID: Resource ID of global MSI
+#   KV_CERT_OFFICER_PRINCIPAL_ID: Principal ID for KV certificate officer
+#   AZURE_MONITORING_WORKSPACE_ID: Resource ID of Azure Monitor Workspace (optional)
+#   ADMIN_API_MI_NAME: Name of Admin API managed identity
+#
+# Usage: make -f Makefile.sre-tooling <target>
+#
+
+# Set SKIP_CONFIRM to a non-empty value to skip "what-if" confirmation prompts.
+ifndef SKIP_CONFIRM
+PROMPT_TO_CONFIRM = "--confirm-with-what-if"
+endif
+
+SRE_TOOLING_ENVS = dev pers
+
+sre-tooling-infra:
+	@[ "${SRE_TOOLING_ENV}" ] || ( echo ">> SRE_TOOLING_ENV is not set (dev or pers)"; exit 1 )
+	@[ "${SRE_TOOLING_ENV}" = "dev" ] || [ "${SRE_TOOLING_ENV}" = "pers" ] || ( echo ">> SRE_TOOLING_ENV must be 'dev' or 'pers', got: ${SRE_TOOLING_ENV}"; exit 1 )
+	@[ "${SRE_TOOLING_RG}" ] || ( echo ">> SRE_TOOLING_RG is not set"; exit 1 )
+	@[ "${SRE_TOOLING_SUBSCRIPTION_ID}" ] || ( echo ">> SRE_TOOLING_SUBSCRIPTION_ID is not set"; exit 1 )
+	@[ "${SERVICE_KEYVAULT_NAME}" ] || ( echo ">> SERVICE_KEYVAULT_NAME is not set"; exit 1 )
+	@[ "${SERVICE_KEYVAULT_RG}" ] || ( echo ">> SERVICE_KEYVAULT_RG is not set"; exit 1 )
+	@[ "${GLOBAL_MSI_ID}" ] || ( echo ">> GLOBAL_MSI_ID is not set"; exit 1 )
+	@[ "${KV_CERT_OFFICER_PRINCIPAL_ID}" ] || ( echo ">> KV_CERT_OFFICER_PRINCIPAL_ID is not set"; exit 1 )
+	az group create \
+		--resource-group ${SRE_TOOLING_RG} --subscription ${SRE_TOOLING_SUBSCRIPTION_ID} \
+		--location westus3 --tags persist=true environment=${SRE_TOOLING_ENV} || true
+	az deployment group create \
+		--name sre-tooling-infra-${SRE_TOOLING_ENV} \
+		--resource-group ${SRE_TOOLING_RG} \
+		--mode complete \
+		--subscription ${SRE_TOOLING_SUBSCRIPTION_ID} \
+		--template-file templates/sre-tooling-infra.bicep \
+		$(PROMPT_TO_CONFIRM) \
+		--parameters configurations/sre-tooling-infra.bicepparam \
+		--parameters serviceKeyVaultName=${SERVICE_KEYVAULT_NAME} \
+		--parameters serviceKeyVaultResourceGroup=${SERVICE_KEYVAULT_RG} \
+		--parameters globalMSIId=${GLOBAL_MSI_ID} \
+		--parameters kvCertOfficerPrincipalId=${KV_CERT_OFFICER_PRINCIPAL_ID} \
+		--parameters serviceKeyVaultTagValue=${SRE_TOOLING_ENV}
+.PHONY: sre-tooling-infra
+
+sre-tooling-infra.what-if:
+	@[ "${SRE_TOOLING_ENV}" ] || ( echo ">> SRE_TOOLING_ENV is not set (dev or pers)"; exit 1 )
+	@[ "${SRE_TOOLING_ENV}" = "dev" ] || [ "${SRE_TOOLING_ENV}" = "pers" ] || ( echo ">> SRE_TOOLING_ENV must be 'dev' or 'pers', got: ${SRE_TOOLING_ENV}"; exit 1 )
+	@[ "${SRE_TOOLING_RG}" ] || ( echo ">> SRE_TOOLING_RG is not set"; exit 1 )
+	@[ "${SRE_TOOLING_SUBSCRIPTION_ID}" ] || ( echo ">> SRE_TOOLING_SUBSCRIPTION_ID is not set"; exit 1 )
+	@[ "${SERVICE_KEYVAULT_NAME}" ] || ( echo ">> SERVICE_KEYVAULT_NAME is not set"; exit 1 )
+	@[ "${SERVICE_KEYVAULT_RG}" ] || ( echo ">> SERVICE_KEYVAULT_RG is not set"; exit 1 )
+	@[ "${GLOBAL_MSI_ID}" ] || ( echo ">> GLOBAL_MSI_ID is not set"; exit 1 )
+	@[ "${KV_CERT_OFFICER_PRINCIPAL_ID}" ] || ( echo ">> KV_CERT_OFFICER_PRINCIPAL_ID is not set"; exit 1 )
+	az deployment group what-if \
+		--name sre-tooling-infra-${SRE_TOOLING_ENV} \
+		--resource-group ${SRE_TOOLING_RG} \
+		--subscription ${SRE_TOOLING_SUBSCRIPTION_ID} \
+		--template-file templates/sre-tooling-infra.bicep \
+		--parameters configurations/sre-tooling-infra.bicepparam \
+		--parameters serviceKeyVaultName=${SERVICE_KEYVAULT_NAME} \
+		--parameters serviceKeyVaultResourceGroup=${SERVICE_KEYVAULT_RG} \
+		--parameters globalMSIId=${GLOBAL_MSI_ID} \
+		--parameters kvCertOfficerPrincipalId=${KV_CERT_OFFICER_PRINCIPAL_ID} \
+		--parameters serviceKeyVaultTagValue=${SRE_TOOLING_ENV}
+.PHONY: sre-tooling-infra.what-if
+
+sre-tooling-cluster:
+	@[ "${SRE_TOOLING_ENV}" ] || ( echo ">> SRE_TOOLING_ENV is not set (dev or pers)"; exit 1 )
+	@[ "${SRE_TOOLING_ENV}" = "dev" ] || [ "${SRE_TOOLING_ENV}" = "pers" ] || ( echo ">> SRE_TOOLING_ENV must be 'dev' or 'pers', got: ${SRE_TOOLING_ENV}"; exit 1 )
+	@[ "${SRE_TOOLING_RG}" ] || ( echo ">> SRE_TOOLING_RG is not set"; exit 1 )
+	@[ "${SRE_TOOLING_SUBSCRIPTION_ID}" ] || ( echo ">> SRE_TOOLING_SUBSCRIPTION_ID is not set"; exit 1 )
+	@[ "${SERVICE_KEYVAULT_NAME}" ] || ( echo ">> SERVICE_KEYVAULT_NAME is not set"; exit 1 )
+	@[ "${SERVICE_KEYVAULT_RG}" ] || ( echo ">> SERVICE_KEYVAULT_RG is not set"; exit 1 )
+	@[ "${REGIONAL_RG}" ] || ( echo ">> REGIONAL_RG is not set"; exit 1 )
+	@[ "${SVC_ACR_RESOURCE_ID}" ] || ( echo ">> SVC_ACR_RESOURCE_ID is not set"; exit 1 )
+	@[ "${GLOBAL_MSI_ID}" ] || ( echo ">> GLOBAL_MSI_ID is not set"; exit 1 )
+	@[ "${ADMIN_API_MI_NAME}" ] || ( echo ">> ADMIN_API_MI_NAME is not set"; exit 1 )
+	@$(eval DEFAULT_CLUSTER_NAME = $(if $(filter pers,${SRE_TOOLING_ENV}),pers-westus3-sre-tooling,sre-tooling-aks))
+	@$(eval AKS_CLUSTER_NAME = $(or ${AKS_CLUSTER_NAME},${DEFAULT_CLUSTER_NAME}))
+	@echo "Using cluster name: ${AKS_CLUSTER_NAME}"
+	az deployment group create \
+		--name sre-tooling-cluster-${SRE_TOOLING_ENV} \
+		--resource-group ${SRE_TOOLING_RG} \
+		--mode complete \
+		--subscription ${SRE_TOOLING_SUBSCRIPTION_ID} \
+		--template-file templates/sre-tooling-cluster.bicep \
+		$(PROMPT_TO_CONFIRM) \
+		--parameters configurations/sre-tooling-cluster.bicepparam \
+		--parameters serviceKeyVaultName=${SERVICE_KEYVAULT_NAME} \
+		--parameters serviceKeyVaultResourceGroup=${SERVICE_KEYVAULT_RG} \
+		--parameters regionalResourceGroup=${REGIONAL_RG} \
+		--parameters svcAcrResourceId=${SVC_ACR_RESOURCE_ID} \
+		--parameters globalMSIId=${GLOBAL_MSI_ID} \
+		--parameters adminApiMIName=${ADMIN_API_MI_NAME} \
+		--parameters aksKeyVaultName=sre-tooling-${SRE_TOOLING_ENV}-etcd-kv \
+		--parameters aksKeyVaultTagValue=${SRE_TOOLING_ENV} \
+		--parameters aksClusterName=${AKS_CLUSTER_NAME} \
+		$(if $(AZURE_MONITORING_WORKSPACE_ID),--parameters azureMonitoringWorkspaceId=${AZURE_MONITORING_WORKSPACE_ID})
+.PHONY: sre-tooling-cluster
+
+sre-tooling-cluster.what-if:
+	@[ "${SRE_TOOLING_ENV}" ] || ( echo ">> SRE_TOOLING_ENV is not set (dev or pers)"; exit 1 )
+	@[ "${SRE_TOOLING_ENV}" = "dev" ] || [ "${SRE_TOOLING_ENV}" = "pers" ] || ( echo ">> SRE_TOOLING_ENV must be 'dev' or 'pers', got: ${SRE_TOOLING_ENV}"; exit 1 )
+	@[ "${SRE_TOOLING_RG}" ] || ( echo ">> SRE_TOOLING_RG is not set"; exit 1 )
+	@[ "${SRE_TOOLING_SUBSCRIPTION_ID}" ] || ( echo ">> SRE_TOOLING_SUBSCRIPTION_ID is not set"; exit 1 )
+	@[ "${SERVICE_KEYVAULT_NAME}" ] || ( echo ">> SERVICE_KEYVAULT_NAME is not set"; exit 1 )
+	@[ "${SERVICE_KEYVAULT_RG}" ] || ( echo ">> SERVICE_KEYVAULT_RG is not set"; exit 1 )
+	@[ "${REGIONAL_RG}" ] || ( echo ">> REGIONAL_RG is not set"; exit 1 )
+	@[ "${SVC_ACR_RESOURCE_ID}" ] || ( echo ">> SVC_ACR_RESOURCE_ID is not set"; exit 1 )
+	@[ "${GLOBAL_MSI_ID}" ] || ( echo ">> GLOBAL_MSI_ID is not set"; exit 1 )
+	@[ "${ADMIN_API_MI_NAME}" ] || ( echo ">> ADMIN_API_MI_NAME is not set"; exit 1 )
+	@$(eval DEFAULT_CLUSTER_NAME = $(if $(filter pers,${SRE_TOOLING_ENV}),pers-westus3-sre-tooling,sre-tooling-aks))
+	@$(eval AKS_CLUSTER_NAME = $(or ${AKS_CLUSTER_NAME},${DEFAULT_CLUSTER_NAME}))
+	@echo "Using cluster name: ${AKS_CLUSTER_NAME}"
+	az deployment group what-if \
+		--name sre-tooling-cluster-${SRE_TOOLING_ENV} \
+		--resource-group ${SRE_TOOLING_RG} \
+		--subscription ${SRE_TOOLING_SUBSCRIPTION_ID} \
+		--template-file templates/sre-tooling-cluster.bicep \
+		--parameters configurations/sre-tooling-cluster.bicepparam \
+		--parameters serviceKeyVaultName=${SERVICE_KEYVAULT_NAME} \
+		--parameters serviceKeyVaultResourceGroup=${SERVICE_KEYVAULT_RG} \
+		--parameters regionalResourceGroup=${REGIONAL_RG} \
+		--parameters svcAcrResourceId=${SVC_ACR_RESOURCE_ID} \
+		--parameters globalMSIId=${GLOBAL_MSI_ID} \
+		--parameters adminApiMIName=${ADMIN_API_MI_NAME} \
+		--parameters aksKeyVaultName=sre-tooling-${SRE_TOOLING_ENV}-etcd-kv \
+		--parameters aksKeyVaultTagValue=${SRE_TOOLING_ENV} \
+		--parameters aksClusterName=${AKS_CLUSTER_NAME} \
+		$(if $(AZURE_MONITORING_WORKSPACE_ID),--parameters azureMonitoringWorkspaceId=${AZURE_MONITORING_WORKSPACE_ID})
+.PHONY: sre-tooling-cluster.what-if
+
