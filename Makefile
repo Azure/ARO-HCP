@@ -115,12 +115,14 @@ e2e-local/run: $(ARO_HCP_TESTS)
 	$(ARO_HCP_TESTS) run-suite "rp-api-compat-all/parallel" --junit-path="$$JUNIT_PATH" --html-path="$$HTML_PATH"
 .PHONY: e2e-local/run
 
+CONTAINER_RUNTIME ?= docker
+
 mega-lint:
-	docker run --rm \
-		-e FILTER_REGEX_EXCLUDE='hypershiftoperator/deploy/crds/|maestro/server/deploy/templates/allow-cluster-service.authorizationpolicy.yaml|acm/deploy/helm/multicluster-engine-config/charts/policy/charts' \
+	$(CONTAINER_RUNTIME) run --rm \
+		-e FILTER_REGEX_EXCLUDE='hypershiftoperator/deploy/crds/|maestro/server/deploy/templates/allow-cluster-service.authorizationpolicy.yaml|acm/deploy/helm/multicluster-engine-config/charts/policy/charts|dev-infrastructure/global-pipeline.yaml|tooling/templatize/testdata/pipeline.yaml' \
 		-e REPORT_OUTPUT_FOLDER=/tmp/report \
 		-v $${PWD}:/tmp/lint:Z \
-		oxsecurity/megalinter:v8
+		docker.io/oxsecurity/megalinter-ci_light:v9
 .PHONY: mega-lint
 
 #
