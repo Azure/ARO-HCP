@@ -1169,6 +1169,42 @@ clouds:
           svc:
             subscription:
               key: ARO HCP nightly service (EA Subscription)
+      tool:
+        # this is an environment to test the deployability of infra nightly
+        defaults:
+          regionRG: "{{ .ctx.region }}-shared-resources"
+          serviceKeyVault:
+            name: "arohcp{{ .ctx.environment }}-svc-{{ .ctx.regionShort }}" # [globally-unique]
+            rg: "{{ .ctx.region }}-shared-resources"
+            region: "{{ .ctx.region }}"
+            softDelete: false
+          monitoring:
+            svcWorkspaceName: 'aro-hcp-tool-svc-{{ .ctx.regionShort }}'
+            hcpWorkspaceName: 'aro-hcp-tool-hcp-{{ .ctx.regionShort }}'
+          # Cluster Service
+          clustersService:
+            postgres:
+              deploy: false
+              password: 'TheBlurstOfTimes'
+              containerizedDb:
+                image: "docker.io/library/postgres:14.2"
+                pvcCapacity: 512Mi
+          # DNS
+          dns:
+            regionalSubdomain: '{{ .ctx.regionShort }}-tool'
+          # Maestro
+          maestro:
+            postgres:
+              deploy: false
+              password: 'TheBlurstOfTimes'
+              containerizedDb:
+                image: "docker.io/library/postgres:14.2"
+                pvcCapacity: 512Mi
+          # Frontend
+          frontend:
+            cosmosDB:
+              private: false
+              zoneRedundantMode: 'Disabled'
       pers:
         # Regional overrides
         regions:

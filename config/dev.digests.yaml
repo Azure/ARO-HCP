@@ -22,3 +22,6 @@ clouds:
       swft:
         regions:
           uksouth: 14e9216a7a4476d03b4db351057bdc3218fbf4b5176ae33e23e88423f834b7a4
+      tool:
+        regions:
+          uksouth: dbfc8d7fe67bdd385c22911018108415229b92f0180f399a3e5ac9de3c61910d

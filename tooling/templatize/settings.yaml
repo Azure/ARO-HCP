@@ -64,3 +64,12 @@ environments:
     ev2Cloud: public
     cxStamp: 1
     regionShortSuffix: "s${USER:0:4}"
+- name: tool
+  description: |
+    Used for dev tooling.
+  defaults:
+    region: uksouth
+    cloud: dev
+    ev2Cloud: public
+    cxStamp: 1
+    regionShortSuffix: "tool"
