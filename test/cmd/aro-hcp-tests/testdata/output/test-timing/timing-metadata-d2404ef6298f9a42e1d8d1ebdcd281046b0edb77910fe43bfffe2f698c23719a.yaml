@@ -1,0 +1,460 @@
+deployments:
+  "":
+    mi-rg-cluster-name-duplicate-qhkh6g:
+    - children:
+      - duration: PT2.4608903S
+        operationType: Create
+        resource:
+          name: 224f2870-ce44-5f78-aed8-a828125b30b9
+          resourceGroup: rg-cluster-name-duplicate-qhkh6g
+          resourceType: Microsoft.Authorization/roleAssignments
+        startTimestamp: "2025-12-17T03:45:28Z"
+      - duration: PT2.4608903S
+        operationType: Create
+        resource:
+          name: fdb76615-a5c4-5ccd-8e1b-50f8a8300c42
+          resourceGroup: rg-cluster-name-duplicate-qhkh6g
+          resourceType: Microsoft.Authorization/roleAssignments
+        startTimestamp: "2025-12-17T03:45:28Z"
+      - duration: PT2.3984514S
+        operationType: Create
+        resource:
+          name: 0cfb19e7-4ec1-5e8c-af81-be83ad29c609
+          resourceGroup: rg-cluster-name-duplicate-qhkh6g
+          resourceType: Microsoft.Authorization/roleAssignments
+        startTimestamp: "2025-12-17T03:45:28Z"
+      - duration: PT2.1871537S
+        operationType: Create
+        resource:
+          name: 29222078-9089-5fec-bed7-7795fc9b67bb
+          resourceGroup: rg-cluster-name-duplicate-qhkh6g
+          resourceType: Microsoft.Authorization/roleAssignments
+        startTimestamp: "2025-12-17T03:45:29Z"
+      - duration: PT2.176199S
+        operationType: Create
+        resource:
+          name: 3db7a90a-63c8-52ba-a9e5-711c4a6677e2
+          resourceGroup: rg-cluster-name-duplicate-qhkh6g
+          resourceType: Microsoft.Authorization/roleAssignments
+        startTimestamp: "2025-12-17T03:45:29Z"
+      - duration: PT2.1887178S
+        operationType: Create
+        resource:
+          name: 158107d0-3c88-5ee5-b6a7-b345ce2458ab
+          resourceGroup: rg-cluster-name-duplicate-qhkh6g
+          resourceType: Microsoft.Authorization/roleAssignments
+        startTimestamp: "2025-12-17T03:45:29Z"
+      - duration: PT2.1281824S
+        operationType: Create
+        resource:
+          name: 448312ed-1236-597d-bbce-e926ae1387d4
+          resourceGroup: rg-cluster-name-duplicate-qhkh6g
+          resourceType: Microsoft.Authorization/roleAssignments
+        startTimestamp: "2025-12-17T03:45:29Z"
+      - duration: PT2.1233824S
+        operationType: Create
+        resource:
+          name: 30b1824c-8602-57f4-9838-19ef6fb1e613
+          resourceGroup: rg-cluster-name-duplicate-qhkh6g
+          resourceType: Microsoft.Authorization/roleAssignments
+        startTimestamp: "2025-12-17T03:45:29Z"
+      - duration: PT2.2890672S
+        operationType: Create
+        resource:
+          name: 932a3c6d-3778-5617-a815-e1e9b158a4ca
+          resourceGroup: rg-cluster-name-duplicate-qhkh6g
+          resourceType: Microsoft.Authorization/roleAssignments
+        startTimestamp: "2025-12-17T03:45:28Z"
+      - duration: PT2.1380181S
+        operationType: Create
+        resource:
+          name: 9d14a0ff-601b-5632-96b9-4dc8220f3825
+          resourceGroup: rg-cluster-name-duplicate-qhkh6g
+          resourceType: Microsoft.Authorization/roleAssignments
+        startTimestamp: "2025-12-17T03:45:29Z"
+      - duration: PT2.1380181S
+        operationType: Create
+        resource:
+          name: ed7c7960-77b1-58f4-aaf4-b63160883026
+          resourceGroup: rg-cluster-name-duplicate-qhkh6g
+          resourceType: Microsoft.Authorization/roleAssignments
+        startTimestamp: "2025-12-17T03:45:29Z"
+      - duration: PT2.2890672S
+        operationType: Create
+        resource:
+          name: d9813686-61d1-5f54-855f-1d38bbaf95e4
+          resourceGroup: rg-cluster-name-duplicate-qhkh6g
+          resourceType: Microsoft.Authorization/roleAssignments
+        startTimestamp: "2025-12-17T03:45:28Z"
+      - duration: PT2.2890672S
+        operationType: Create
+        resource:
+          name: 3b4a79f6-a1ac-59a9-8fa3-a0ded20e97d3
+          resourceGroup: rg-cluster-name-duplicate-qhkh6g
+          resourceType: Microsoft.Authorization/roleAssignments
+        startTimestamp: "2025-12-17T03:45:28Z"
+      - duration: PT2.2733926S
+        operationType: Create
+        resource:
+          name: 6c615631-46ac-561b-939b-84c7aebf9d48
+          resourceGroup: rg-cluster-name-duplicate-qhkh6g
+          resourceType: Microsoft.Authorization/roleAssignments
+        startTimestamp: "2025-12-17T03:45:28Z"
+      - duration: PT2.1797736S
+        operationType: Create
+        resource:
+          name: 0951ee2f-7b14-5f54-8d43-24e16dd025d7
+          resourceGroup: rg-cluster-name-duplicate-qhkh6g
+          resourceType: Microsoft.Authorization/roleAssignments
+        startTimestamp: "2025-12-17T03:45:28Z"
+      - duration: PT2.1640151S
+        operationType: Create
+        resource:
+          name: 09f35cb0-4b77-5602-8c1c-fc493a0f454a
+          resourceGroup: rg-cluster-name-duplicate-qhkh6g
+          resourceType: Microsoft.Authorization/roleAssignments
+        startTimestamp: "2025-12-17T03:45:28Z"
+      - duration: PT0.1014939S
+        operationType: Read
+        resource:
+          name: kms
+          resourceGroup: rg-cluster-name-duplicate-qhkh6g
+          resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+        startTimestamp: "2025-12-17T03:45:28Z"
+      - duration: PT0.1014939S
+        operationType: Read
+        resource:
+          name: cluster-api-azure
+          resourceGroup: rg-cluster-name-duplicate-qhkh6g
+          resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+        startTimestamp: "2025-12-17T03:45:28Z"
+      - duration: PT0.1014939S
+        operationType: Read
+        resource:
+          name: cloud-network-config
+          resourceGroup: rg-cluster-name-duplicate-qhkh6g
+          resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+        startTimestamp: "2025-12-17T03:45:28Z"
+      - duration: PT0.1014939S
+        operationType: Read
+        resource:
+          name: file-csi-driver
+          resourceGroup: rg-cluster-name-duplicate-qhkh6g
+          resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+        startTimestamp: "2025-12-17T03:45:28Z"
+      - duration: PT0.1014939S
+        operationType: Read
+        resource:
+          name: control-plane
+          resourceGroup: rg-cluster-name-duplicate-qhkh6g
+          resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+        startTimestamp: "2025-12-17T03:45:28Z"
+      - duration: PT0.1014939S
+        operationType: Read
+        resource:
+          name: dp-file-csi-driver
+          resourceGroup: rg-cluster-name-duplicate-qhkh6g
+          resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+        startTimestamp: "2025-12-17T03:45:28Z"
+      - duration: PT0.0858648S
+        operationType: Read
+        resource:
+          name: cloud-controller-manager
+          resourceGroup: rg-cluster-name-duplicate-qhkh6g
+          resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+        startTimestamp: "2025-12-17T03:45:28Z"
+      - duration: PT0.0858648S
+        operationType: Read
+        resource:
+          name: ingress
+          resourceGroup: rg-cluster-name-duplicate-qhkh6g
+          resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+        startTimestamp: "2025-12-17T03:45:28Z"
+      - duration: PT0.0858648S
+        operationType: Read
+        resource:
+          name: service
+          resourceGroup: rg-cluster-name-duplicate-qhkh6g
+          resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+        startTimestamp: "2025-12-17T03:45:28Z"
+      - duration: PT0.1799219S
+        operationType: EvaluateDeploymentOutput
+        startTimestamp: "2025-12-17T03:45:31Z"
+      duration: PT5.4407834S
+      operationType: Create
+      resource:
+        name: clusterNonMsiScopedAssignments
+        resourceGroup: rg-cluster-name-duplicate-qhkh6g
+        resourceType: Microsoft.Resources/deployments
+      startTimestamp: "2025-12-17T03:45:26Z"
+    - children:
+      - duration: PT2.3922672S
+        operationType: Create
+        resource:
+          name: 580ac6c9-8c41-5647-be44-094150814046
+          resourceGroup: rg-cluster-name-duplicate-qhkh6g
+          resourceType: Microsoft.Authorization/roleAssignments
+        startTimestamp: "2025-12-17T03:45:28Z"
+      - duration: PT2.2672718S
+        operationType: Create
+        resource:
+          name: edad2ee5-7c66-5560-8956-2a03e8b7a5ba
+          resourceGroup: rg-cluster-name-duplicate-qhkh6g
+          resourceType: Microsoft.Authorization/roleAssignments
+        startTimestamp: "2025-12-17T03:45:28Z"
+      - duration: PT2.4410189S
+        operationType: Create
+        resource:
+          name: 5f0dff33-f2ac-590c-8797-6132c2e9e78e
+          resourceGroup: rg-cluster-name-duplicate-qhkh6g
+          resourceType: Microsoft.Authorization/roleAssignments
+        startTimestamp: "2025-12-17T03:45:28Z"
+      - duration: PT2.2672718S
+        operationType: Create
+        resource:
+          name: 6f01e00d-bca3-51f3-bdd1-c828e83c9ea1
+          resourceGroup: rg-cluster-name-duplicate-qhkh6g
+          resourceType: Microsoft.Authorization/roleAssignments
+        startTimestamp: "2025-12-17T03:45:28Z"
+      - duration: PT2.2516446S
+        operationType: Create
+        resource:
+          name: 0968c762-eaa8-5dd5-86a4-9319cea03176
+          resourceGroup: rg-cluster-name-duplicate-qhkh6g
+          resourceType: Microsoft.Authorization/roleAssignments
+        startTimestamp: "2025-12-17T03:45:28Z"
+      - duration: PT2.1735223S
+        operationType: Create
+        resource:
+          name: c1347560-d630-5869-94c9-8befd4396120
+          resourceGroup: rg-cluster-name-duplicate-qhkh6g
+          resourceType: Microsoft.Authorization/roleAssignments
+        startTimestamp: "2025-12-17T03:45:28Z"
+      - duration: PT2.1110235S
+        operationType: Create
+        resource:
+          name: c4af43dd-2339-5991-8a85-e80a37881ec6
+          resourceGroup: rg-cluster-name-duplicate-qhkh6g
+          resourceType: Microsoft.Authorization/roleAssignments
+        startTimestamp: "2025-12-17T03:45:28Z"
+      - duration: PT2.1110235S
+        operationType: Create
+        resource:
+          name: b1fe7019-d66b-5bab-9ce5-37d97b78fcbf
+          resourceGroup: rg-cluster-name-duplicate-qhkh6g
+          resourceType: Microsoft.Authorization/roleAssignments
+        startTimestamp: "2025-12-17T03:45:28Z"
+      - duration: PT2.0953993S
+        operationType: Create
+        resource:
+          name: 22afec4c-71a8-56c8-8a7e-b2f3288bc68a
+          resourceGroup: rg-cluster-name-duplicate-qhkh6g
+          resourceType: Microsoft.Authorization/roleAssignments
+        startTimestamp: "2025-12-17T03:45:28Z"
+      - duration: PT2.0953993S
+        operationType: Create
+        resource:
+          name: a256a8b6-6de9-5631-854c-4411365c8b16
+          resourceGroup: rg-cluster-name-duplicate-qhkh6g
+          resourceType: Microsoft.Authorization/roleAssignments
+        startTimestamp: "2025-12-17T03:45:28Z"
+      - duration: PT2.0797752S
+        operationType: Create
+        resource:
+          name: 953ead55-3b59-5641-9001-7ee9da79f1de
+          resourceGroup: rg-cluster-name-duplicate-qhkh6g
+          resourceType: Microsoft.Authorization/roleAssignments
+        startTimestamp: "2025-12-17T03:45:28Z"
+      - duration: PT2.0797752S
+        operationType: Create
+        resource:
+          name: 34b5060e-67a1-591e-b696-d52d38e014e9
+          resourceGroup: rg-cluster-name-duplicate-qhkh6g
+          resourceType: Microsoft.Authorization/roleAssignments
+        startTimestamp: "2025-12-17T03:45:28Z"
+      - duration: PT0.0973045S
+        operationType: Read
+        resource:
+          name: service
+          resourceGroup: rg-cluster-name-duplicate-qhkh6g
+          resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+        startTimestamp: "2025-12-17T03:45:28Z"
+      - duration: PT0.0984063S
+        operationType: EvaluateDeploymentOutput
+        startTimestamp: "2025-12-17T03:45:30Z"
+      duration: PT9.5530872S
+      operationType: Create
+      resource:
+        name: clusterMsiScopedAssignments
+        resourceGroup: rg-cluster-name-duplicate-qhkh6g
+        resourceType: Microsoft.Resources/deployments
+      startTimestamp: "2025-12-17T03:45:22Z"
+    - children:
+      - duration: PT0.8196255S
+        operationType: Create
+        resource:
+          name: file-csi-driver
+          resourceGroup: rg-cluster-name-duplicate-qhkh6g
+          resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+        startTimestamp: "2025-12-17T03:45:24Z"
+      - duration: PT0.6946209S
+        operationType: Create
+        resource:
+          name: disk-csi-driver
+          resourceGroup: rg-cluster-name-duplicate-qhkh6g
+          resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+        startTimestamp: "2025-12-17T03:45:24Z"
+      - duration: PT0.6477457S
+        operationType: Create
+        resource:
+          name: image-registry
+          resourceGroup: rg-cluster-name-duplicate-qhkh6g
+          resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+        startTimestamp: "2025-12-17T03:45:24Z"
+      - duration: PT0.6321205S
+        operationType: Create
+        resource:
+          name: cloud-network-config
+          resourceGroup: rg-cluster-name-duplicate-qhkh6g
+          resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+        startTimestamp: "2025-12-17T03:45:24Z"
+      - duration: PT0.6321205S
+        operationType: Create
+        resource:
+          name: control-plane
+          resourceGroup: rg-cluster-name-duplicate-qhkh6g
+          resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+        startTimestamp: "2025-12-17T03:45:24Z"
+      - duration: PT0.6321205S
+        operationType: Create
+        resource:
+          name: dp-disk-csi-driver
+          resourceGroup: rg-cluster-name-duplicate-qhkh6g
+          resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+        startTimestamp: "2025-12-17T03:45:24Z"
+      - duration: PT0.6164967S
+        operationType: Create
+        resource:
+          name: dp-image-registry
+          resourceGroup: rg-cluster-name-duplicate-qhkh6g
+          resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+        startTimestamp: "2025-12-17T03:45:24Z"
+      - duration: PT0.5227466S
+        operationType: Create
+        resource:
+          name: ingress
+          resourceGroup: rg-cluster-name-duplicate-qhkh6g
+          resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+        startTimestamp: "2025-12-17T03:45:24Z"
+      - duration: PT0.5227466S
+        operationType: Create
+        resource:
+          name: service
+          resourceGroup: rg-cluster-name-duplicate-qhkh6g
+          resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+        startTimestamp: "2025-12-17T03:45:24Z"
+      - duration: PT0.5071204S
+        operationType: Create
+        resource:
+          name: kms
+          resourceGroup: rg-cluster-name-duplicate-qhkh6g
+          resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+        startTimestamp: "2025-12-17T03:45:24Z"
+      - duration: PT0.5071204S
+        operationType: Create
+        resource:
+          name: cloud-controller-manager
+          resourceGroup: rg-cluster-name-duplicate-qhkh6g
+          resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+        startTimestamp: "2025-12-17T03:45:24Z"
+      - duration: PT0.4758712S
+        operationType: Create
+        resource:
+          name: dp-file-csi-driver
+          resourceGroup: rg-cluster-name-duplicate-qhkh6g
+          resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+        startTimestamp: "2025-12-17T03:45:24Z"
+      - duration: PT0.4602436S
+        operationType: Create
+        resource:
+          name: cluster-api-azure
+          resourceGroup: rg-cluster-name-duplicate-qhkh6g
+          resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+        startTimestamp: "2025-12-17T03:45:24Z"
+      - duration: PT0.1027512S
+        operationType: EvaluateDeploymentOutput
+        startTimestamp: "2025-12-17T03:45:25Z"
+      duration: PT3.9303568S
+      operationType: Create
+      resource:
+        name: clusterIdentities
+        resourceGroup: rg-cluster-name-duplicate-qhkh6g
+        resourceType: Microsoft.Resources/deployments
+      startTimestamp: "2025-12-17T03:45:22Z"
+    - duration: PT0.4168397S
+      operationType: EvaluateDeploymentOutput
+      startTimestamp: "2025-12-17T03:45:32Z"
+  rg-cluster-name-duplicate-qhkh6g:
+    customer-infra:
+    - duration: PT3.4822957S
+      operationType: Create
+      resource:
+        name: customer-vnet
+        resourceGroup: rg-cluster-name-duplicate-qhkh6g
+        resourceType: Microsoft.Network/virtualNetworks
+      startTimestamp: "2025-12-17T03:45:11Z"
+    - duration: PT0.6931306S
+      operationType: Create
+      resource:
+        name: etcd-data-kms-encryption-key
+        resourceGroup: rg-cluster-name-duplicate-qhkh6g
+        resourceType: Microsoft.KeyVault/vaults/keys
+      startTimestamp: "2025-12-17T03:45:11Z"
+    - duration: PT2.5447981S
+      operationType: Create
+      resource:
+        name: customer-nsg
+        resourceGroup: rg-cluster-name-duplicate-qhkh6g
+        resourceType: Microsoft.Network/networkSecurityGroups
+      startTimestamp: "2025-12-17T03:45:11Z"
+    - duration: PT0.4275025S
+      operationType: Create
+      resource:
+        name: cust-kv-raie6vvewpfz6
+        resourceGroup: rg-cluster-name-duplicate-qhkh6g
+        resourceType: Microsoft.KeyVault/vaults
+      startTimestamp: "2025-12-17T03:45:11Z"
+    - duration: PT0.3842825S
+      operationType: EvaluateDeploymentOutput
+      startTimestamp: "2025-12-17T03:45:14Z"
+finishedAt: "2025-12-17T03:45:44Z"
+identifier:
+- Customer
+- should not be able to deploy 2 identically named clusters within the same resource
+  group
+startedAt: "2025-12-17T03:24:08Z"
+steps:
+- finishedAt: "2025-12-17T03:24:43Z"
+  name: Deploy ARM template rg-cluster-name-duplicate-qhkh6g/customer-infra
+  startedAt: "2025-12-17T03:24:10Z"
+- finishedAt: "2025-12-17T03:25:05Z"
+  name: Deploy ARM template /mi-rg-cluster-name-duplicate-qhkh6g
+  startedAt: "2025-12-17T03:24:43Z"
+- finishedAt: "2025-12-17T03:25:05Z"
+  name: Deploy customer resources in resource group rg-cluster-name-duplicate-qhkh6g
+  startedAt: "2025-12-17T03:24:10Z"
+- finishedAt: "2025-12-17T03:45:07Z"
+  name: Deploy HCP cluster rg-cluster-name-duplicate-qhkh6g/name-duplicateqc8t7p
+  startedAt: "2025-12-17T03:25:05Z"
+- finishedAt: "2025-12-17T03:45:19Z"
+  name: Deploy ARM template rg-cluster-name-duplicate-qhkh6g/customer-infra
+  startedAt: "2025-12-17T03:45:07Z"
+- finishedAt: "2025-12-17T03:45:41Z"
+  name: Deploy ARM template /mi-rg-cluster-name-duplicate-qhkh6g
+  startedAt: "2025-12-17T03:45:19Z"
+- finishedAt: "2025-12-17T03:45:41Z"
+  name: Deploy customer resources in resource group rg-cluster-name-duplicate-qhkh6g
+  startedAt: "2025-12-17T03:45:07Z"
+- finishedAt: "2025-12-17T03:45:41Z"
+  name: Deploy HCP cluster rg-cluster-name-duplicate-qhkh6g/name-duplicateqc8t7p
+  startedAt: "2025-12-17T03:45:41Z"

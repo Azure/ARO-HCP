@@ -72,7 +72,7 @@
       {{range $index, $element := .Elements}}
       <tr class="status-{{$element.Status}}">
         <td>{{$element.TestName}}</td>
-        <td>tbd</td>
+        <td>{{$element.Status}}</td>
         <td>{{$element.ResourceGroupName}}</td>
         <td>
           {{range $element.Links}}

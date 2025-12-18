@@ -1,27 +1,18 @@
-// Recommended is to first get the cluster ID from the service logs, then hard code it in the below query.
-// Alternative query to get the cluster ID
+let _startTime = datetime("{{.StartTime}}");
+let _endTime = datetime("{{.EndTime}}");
+let _resource_group = '{{.ResourceGroupName}}';
 database('ServiceLogs').table('containerLogs')
-| where log has '{{.ResourceGroupName}}'
+| where timestamp between (_startTime .. _endTime)
+| where log has _resource_group
 | extend cid=extract(@"cid='([a-v0-9]{32})'", 1, tostring(log)) 
 | where strlen( cid) > 0
 | distinct cid
 
 // Copy the cid from the above query to the below query to get the hosted control plane logs
 let cid = 'paste value here';
+let _startTime = datetime("{{.StartTime}}");
+let _endTime = datetime("{{.EndTime}}");
 database('HostedControlPlaneLogs').table('containerLogs')
+| where timestamp between (_startTime .. _endTime)
 | where namespace_name has cid
 | project timestamp, log
-
-
-// Alternative query to get the cluster ID, slower, but only one query.
-set notruncation;
- database('ServiceLogs').table('containerLogs')
-    | where log has '{{.ResourceGroupName}}'
-    | extend cid=extract(@"cid='([a-v0-9]{32})'", 1, tostring(log)) 
-    | where strlen( cid) > 0
-    | distinct cid
-    | join  kind=inner  (
-        database('HostedControlPlaneLogs').table('containerLogs')
-    | extend cid=extract(@"([a-v0-9]{32})", 1, tostring(namespace_name))
-    )
-    on $left.cid ==   $right.cid  

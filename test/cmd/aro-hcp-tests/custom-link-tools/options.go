@@ -35,7 +35,6 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/test/util/timing"
-	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/pipeline"
 )
 
 //go:embed artifacts/*.tmpl
@@ -78,7 +77,6 @@ type ValidatedOptions struct {
 
 // completedOptions is a private wrapper that enforces a call of Complete() before config generation can be invoked.
 type completedOptions struct {
-	Steps          []pipeline.NodeInfo
 	TimingInputDir string
 	OutputDir      string
 }
@@ -124,7 +122,15 @@ type LinkDetails struct {
 
 type QueryInfo struct {
 	ResourceGroupName string
+	StartTime         string
+	EndTime           string
 	Database          string
+}
+
+type TimingInfo struct {
+	StartTime          string
+	EndTime            string
+	ResourceGroupNames []string
 }
 
 func createQueryURL(templatePath string, info QueryInfo) string {
@@ -178,20 +184,8 @@ func encodeKustoQuery(query string) string {
 }
 
 func (o *ValidatedOptions) Complete(logger logr.Logger) (*Options, error) {
-	// we consume steps.yaml (output of templatize and stored for us by the visualization) to determine the cluster name
-	stepsYamlBytes, err := os.ReadFile(path.Join(o.TimingInputDir, "steps.yaml"))
-	if err != nil {
-		return nil, utils.TrackError(err)
-	}
-
-	var steps []pipeline.NodeInfo
-	if err := yaml.Unmarshal(stepsYamlBytes, &steps); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal timing input file: %w", err)
-	}
-
 	return &Options{
 		completedOptions: &completedOptions{
-			Steps:          steps,
 			OutputDir:      o.OutputDir,
 			TimingInputDir: o.TimingInputDir,
 		},
@@ -201,13 +195,13 @@ func (o *ValidatedOptions) Complete(logger logr.Logger) (*Options, error) {
 func (o Options) Run(ctx context.Context) error {
 	allTestRows := []TestRow{}
 
-	deploymentResourceGroups, err := gatherResourceGroups(o.TimingInputDir)
+	timingInfo, err := gatherTimingInfo(o.TimingInputDir)
 	if err != nil {
 		return utils.TrackError(err)
 	}
 
-	for testName, rgs := range deploymentResourceGroups {
-		for _, rg := range rgs {
+	for testName, timing := range timingInfo {
+		for _, rg := range timing.ResourceGroupNames {
 			allTestRows = append(allTestRows, TestRow{
 				TestName:          testName,
 				ResourceGroupName: rg,
@@ -215,13 +209,18 @@ func (o Options) Run(ctx context.Context) error {
 					createLinkForTest("Hosted Control Plane Logs", "hosted-controlplane.kql.tmpl", QueryInfo{
 						ResourceGroupName: rg,
 						Database:          "HostedControlPlaneLogs",
+						StartTime:         timing.StartTime,
+						EndTime:           timing.EndTime,
 					}),
 					createLinkForTest("Service Logs", "service-logs.kql.tmpl", QueryInfo{
 						ResourceGroupName: rg,
 						Database:          "ServiceLogs",
+						StartTime:         timing.StartTime,
+						EndTime:           timing.EndTime,
 					}),
 				},
 				Database: "HostedControlPlaneLogs",
+				Status:   "tbd",
 			})
 		}
 	}
@@ -259,7 +258,7 @@ func (o Options) Run(ctx context.Context) error {
 	return nil
 }
 
-func gatherResourceGroups(timingInputDir string) (map[string][]string, error) {
+func gatherTimingInfo(timingInputDir string) (map[string]TimingInfo, error) {
 	timingDir, err := os.Stat(path.Join(timingInputDir, "test-timing/"))
 	if err != nil {
 		return nil, err
@@ -269,7 +268,7 @@ func gatherResourceGroups(timingInputDir string) (map[string][]string, error) {
 	}
 
 	var allTimingFiles []string
-	filepath.Walk(path.Join(timingInputDir, "test-timing/"), func(path string, info os.FileInfo, err error) error {
+	err = filepath.Walk(path.Join(timingInputDir, "test-timing/"), func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
@@ -278,8 +277,11 @@ func gatherResourceGroups(timingInputDir string) (map[string][]string, error) {
 		}
 		return nil
 	})
+	if err != nil {
+		return nil, err
+	}
 
-	var allResourceGroups map[string][]string = make(map[string][]string)
+	var allTimingInfo = make(map[string]TimingInfo)
 
 	for _, timingFile := range allTimingFiles {
 		timingFileBytes, err := os.ReadFile(timingFile)
@@ -293,18 +295,24 @@ func gatherResourceGroups(timingInputDir string) (map[string][]string, error) {
 		}
 		deployment := strings.Join(timing.Identifier, " ")
 
-		var rgNames map[string]bool = make(map[string]bool)
+		var rgNames = make(map[string]bool)
 		for resourceGroup := range timing.Deployments {
 			rgNames[resourceGroup] = true
 		}
 
+		rgNameList := make([]string, 0)
 		for rgName := range rgNames {
 			if rgName == "" {
 				continue
 			}
-			allResourceGroups[deployment] = append(allResourceGroups[deployment], rgName)
+			rgNameList = append(rgNameList, rgName)
+		}
+		allTimingInfo[deployment] = TimingInfo{
+			StartTime:          timing.StartedAt,
+			EndTime:            timing.FinishedAt,
+			ResourceGroupNames: rgNameList,
 		}
 	}
 
-	return allResourceGroups, nil
+	return allTimingInfo, nil
 }
