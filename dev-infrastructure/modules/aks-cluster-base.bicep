@@ -17,7 +17,6 @@ param systemAgentMinCount int
 param systemAgentMaxCount int
 param systemAgentVMSize string
 param systemAgentPoolZones array
-param systemAgentPoolCount int
 param systemZoneRedundantMode string
 
 // User agentpool spec (Worker)
