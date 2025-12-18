@@ -1,6 +1,7 @@
 include ./.bingo/Variables.mk
 include ./.bingo/Symlinks.mk
 include ./tooling/templatize/Makefile
+include ./tooling/yamlwrap/Makefile
 include ./test/Makefile
 SHELL = /bin/bash
 PATH := $(GOBIN):$(PATH)
@@ -66,13 +67,13 @@ fmt: $(GOIMPORTS)
 	$(GOIMPORTS) -w -local github.com/Azure/ARO-HCP $(shell go list -f '{{.Dir}}' -m | xargs)
 .PHONY: fmt
 
-yamlfmt: $(YAMLFMT)
+yamlfmt: $(YAMLFMT) $(YAMLWRAP)
 	# first, wrap all templated values in quotes, so they are correct YAML
-	./yamlfmt.wrap.sh
+	$(YAMLWRAP) wrap --dir . --no-validate-result
 	# run the formatter
 	$(YAMLFMT) -dstar -exclude './api/**' '**/*.{yaml,yml}'
 	# "fix" any non-string fields we cast to strings for the formatting
-	./yamlfmt.unwrap.sh
+	$(YAMLWRAP) unwrap --dir .
 .PHONY: yamlfmt
 
 tidy: $(MODULES:/...=.tidy)
