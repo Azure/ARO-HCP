@@ -30,7 +30,7 @@ func InternalToCosmosExternalAuth(internalObj *api.HCPOpenShiftClusterExternalAu
 	cosmosObj := &ExternalAuth{
 		TypedDocument: TypedDocument{
 			BaseDocument: BaseDocument{
-				ID: internalObj.ServiceProviderProperties.CosmosUID,
+				ID: internalObj.GetCosmosData().CosmosUID,
 			},
 			PartitionKey: strings.ToLower(internalObj.ID.SubscriptionID),
 			ResourceType: internalObj.ID.ResourceType.String(),
