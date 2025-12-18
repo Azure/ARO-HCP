@@ -20,7 +20,6 @@ import (
 	"io/fs"
 	"testing"
 
-	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
@@ -53,14 +52,14 @@ func (l *cosmosCompare) StepID() StepID {
 	return l.stepID
 }
 
-func (l *cosmosCompare) RunTest(ctx context.Context, t *testing.T, cosmosContainer *azcosmos.ContainerClient) {
+func (l *cosmosCompare) RunTest(ctx context.Context, t *testing.T, stepInput StepInput) {
 	// Query all documents in the container
 	querySQL := "SELECT * FROM c"
 	queryOptions := &azcosmos.QueryOptions{
 		QueryParameters: []azcosmos.QueryParameter{},
 	}
 
-	queryPager := cosmosContainer.NewQueryItemsPager(querySQL, azcosmos.PartitionKey{}, queryOptions)
+	queryPager := stepInput.CosmosContainer.NewQueryItemsPager(querySQL, azcosmos.PartitionKey{}, queryOptions)
 
 	allActual := []*database.TypedDocument{}
 	for queryPager.More() {
@@ -76,16 +75,16 @@ func (l *cosmosCompare) RunTest(ctx context.Context, t *testing.T, cosmosContain
 		}
 	}
 
-	typedDocumentSpecializer := UntypedCRUDSpecializer{}
 	for _, currExpected := range l.expectedContent {
 		found := false
 		currDiffs := []string{}
 		for _, currActual := range allActual {
-			if typedDocumentSpecializer.InstanceEquals(currExpected, currActual) {
+			diff, equals := ResourceInstanceEquals(t, currExpected, currActual)
+			if equals {
 				found = true
 				break
 			}
-			currDiffs = append(currDiffs, cmp.Diff(stringifyResource(currExpected), stringifyResource(currActual)))
+			currDiffs = append(currDiffs, diff)
 		}
 		if !found {
 			t.Log(stringifyResource(allActual))
