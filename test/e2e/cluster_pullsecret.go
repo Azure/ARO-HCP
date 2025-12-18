@@ -59,6 +59,12 @@ var _ = Describe("Cluster Pull Secret Management", func() {
 			)
 			tc := framework.NewTestContext()
 
+			By("checking pull secret file exists")
+			pullSecretFilePath := filepath.Join(tc.PullSecretPath(), "pull-secret")
+			if _, err := os.Stat(pullSecretFilePath); os.IsNotExist(err) {
+				Skip(fmt.Sprintf("Pull secret file not found at %s, skipping test", pullSecretFilePath))
+			}
+
 			By("creating a resource group")
 			resourceGroup, err := tc.NewResourceGroup(ctx, "pullsecret-test", tc.Location())
 			Expect(err).NotTo(HaveOccurred())
@@ -138,14 +144,24 @@ var _ = Describe("Cluster Pull Secret Management", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			By("waiting for HCCO to merge the additional pull secret with the global pull secret")
+			verifier := verifiers.VerifyPullSecretMergedIntoGlobal(testPullSecretHost)
 			Eventually(func() error {
-				return verifiers.VerifyPullSecretMergedIntoGlobal(testPullSecretHost).Verify(ctx, adminRESTConfig)
-			}, 300*time.Second, 15*time.Second).Should(Succeed(), "additional pull secret should be merged into global-pull-secret by HCCO")
+				err := verifier.Verify(ctx, adminRESTConfig)
+				if err != nil {
+					GinkgoLogr.Info("Verifier check", "name", verifier.Name(), "status", "failed", "error", err.Error())
+				}
+				return err
+			}, 5*time.Minute, 15*time.Second).Should(Succeed(), "additional pull secret should be merged into global-pull-secret by HCCO")
 
 			By("verifying the DaemonSet for global pull secret synchronization is created")
+			verifier = verifiers.VerifyGlobalPullSecretSyncer()
 			Eventually(func() error {
-				return verifiers.VerifyGlobalPullSecretSyncer().Verify(ctx, adminRESTConfig)
-			}, 60*time.Second, 10*time.Second).Should(Succeed(), "global-pull-secret-syncer DaemonSet should be created")
+				err := verifier.Verify(ctx, adminRESTConfig)
+				if err != nil {
+					GinkgoLogr.Info("Verifier check", "name", verifier.Name(), "status", "failed", "error", err.Error())
+				}
+				return err
+			}, 1*time.Minute, 10*time.Second).Should(Succeed(), "global-pull-secret-syncer DaemonSet should be created")
 
 			By("verifying the pull secret was merged into the global pull secret")
 			err = verifiers.VerifyPullSecretAuthData(
@@ -158,7 +174,6 @@ var _ = Describe("Cluster Pull Secret Management", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			By("reading pull-secret file from aro-hcp-qe-pull-secret directory")
-			pullSecretFilePath := filepath.Join(tc.PullSecretPath(), "pull-secret")
 			pullSecretFileData, err := os.ReadFile(pullSecretFilePath)
 			Expect(err).NotTo(HaveOccurred(), "failed to read pull-secret file from %s", pullSecretFilePath)
 
@@ -201,9 +216,14 @@ var _ = Describe("Cluster Pull Secret Management", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			By("waiting for HCCO to merge the updated pull secret (with registry.redhat.io) into global pull secret")
+			verifier = verifiers.VerifyPullSecretMergedIntoGlobal(redhatRegistryHost)
 			Eventually(func() error {
-				return verifiers.VerifyPullSecretMergedIntoGlobal(redhatRegistryHost).Verify(ctx, adminRESTConfig)
-			}, 300*time.Second, 15*time.Second).Should(Succeed(), "registry.redhat.io pull secret should be merged into global-pull-secret by HCCO")
+				err := verifier.Verify(ctx, adminRESTConfig)
+				if err != nil {
+					GinkgoLogr.Info("Verifier check", "name", verifier.Name(), "status", "failed", "error", err.Error())
+				}
+				return err
+			}, 5*time.Minute, 15*time.Second).Should(Succeed(), "registry.redhat.io pull secret should be merged into global-pull-secret by HCCO")
 
 			By("verifying both test registries are now in the global pull secret")
 			err = verifiers.VerifyPullSecretMergedIntoGlobal(testPullSecretHost).Verify(ctx, adminRESTConfig)
@@ -280,9 +300,14 @@ var _ = Describe("Cluster Pull Secret Management", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			By("waiting for NFD operator to be installed")
+			verifier = verifiers.VerifyOperatorInstalled(nfdNamespace, "nfd")
 			Eventually(func() error {
-				return verifiers.VerifyOperatorInstalled(nfdNamespace, "nfd").Verify(ctx, adminRESTConfig)
-			}, 300*time.Second, 15*time.Second).Should(Succeed(), "NFD operator should be installed successfully")
+				err := verifier.Verify(ctx, adminRESTConfig)
+				if err != nil {
+					GinkgoLogr.Info("Verifier check", "name", verifier.Name(), "status", "failed", "error", err.Error())
+				}
+				return err
+			}, 5*time.Minute, 15*time.Second).Should(Succeed(), "NFD operator should be installed successfully")
 
 			By("creating NodeFeatureDiscovery CR to deploy NFD worker")
 			nfdGVR := schema.GroupVersionResource{
@@ -324,11 +349,16 @@ var _ = Describe("Cluster Pull Secret Management", func() {
 					}
 				}
 				return fmt.Errorf("nfd-worker DaemonSet not found")
-			}, 300*time.Second, 15*time.Second).Should(Succeed(), "NFD worker DaemonSet should be created and have ready pods")
+			}, 5*time.Minute, 15*time.Second).Should(Succeed(), "NFD worker DaemonSet should be created and have ready pods")
 
 			By("waiting for NFD worker pods to be created and verify images from registry.redhat.io can be pulled")
+			verifier = verifiers.VerifyImagePulled(nfdNamespace, "registry.redhat.io", "ose-node-feature-discovery")
 			Eventually(func() error {
-				return verifiers.VerifyImagePulled(nfdNamespace, "registry.redhat.io", "ose-node-feature-discovery").Verify(ctx, adminRESTConfig)
-			}, 300*time.Second, 15*time.Second).Should(Succeed(), "NFD worker images from registry.redhat.io should be pulled successfully with the added pull secret")
+				err := verifier.Verify(ctx, adminRESTConfig)
+				if err != nil {
+					GinkgoLogr.Info("Verifier check", "name", verifier.Name(), "status", "failed", "error", err.Error())
+				}
+				return err
+			}, 5*time.Minute, 15*time.Second).Should(Succeed(), "NFD worker images from registry.redhat.io should be pulled successfully with the added pull secret")
 		})
 })
