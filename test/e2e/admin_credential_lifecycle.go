@@ -219,8 +219,7 @@ var _ = Describe("Customer", func() {
 							lastError = errMessage
 							lastResp = resp
 						}
-
-						return false, err
+						return false, nil
 					}
 					GinkgoLogr.Info("successfully verified admin credential fails after revocation", "credentialNumber", i+1)
 					return true, nil
