@@ -623,6 +623,8 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 			// Perform static validation as if for a node pool creation request.
 			newInternalNodePool := &api.HCPOpenShiftClusterNodePool{}
 			versionedNodePool.Normalize(newInternalNodePool)
+			// Set API version in context for version-aware validation
+			ctx = utils.ContextWithAPIVersionString(ctx, preflightResource.APIVersion)
 			validationErrs := validation.ValidateNodePoolCreate(ctx, newInternalNodePool)
 			cloudError = arm.CloudErrorFromFieldErrors(validationErrs)
 

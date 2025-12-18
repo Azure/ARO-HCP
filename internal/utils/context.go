@@ -43,6 +43,8 @@ func (c contextKey) String() string {
 		return "logger"
 	case contextKeyResourceID:
 		return "resourceID"
+	case contextKeyAPIVersion:
+		return "apiVersion"
 	}
 	return "<unknown>"
 }
@@ -51,6 +53,7 @@ const (
 	// Keys for request-scoped data in http.Request contexts
 	contextKeyLogger contextKey = iota
 	contextKeyResourceID
+	contextKeyAPIVersion
 )
 
 func ContextWithLogger(ctx context.Context, logger *slog.Logger) context.Context {
@@ -86,4 +89,16 @@ func ResourceIDFromContext(ctx context.Context) (*azcorearm.ResourceID, error) {
 		return resourceID, err
 	}
 	return resourceID, nil
+}
+
+func ContextWithAPIVersionString(ctx context.Context, apiVersion string) context.Context {
+	return context.WithValue(ctx, contextKeyAPIVersion, apiVersion)
+}
+
+func APIVersionStringFromContext(ctx context.Context) string {
+	apiVersion, ok := ctx.Value(contextKeyAPIVersion).(string)
+	if !ok {
+		return ""
+	}
+	return apiVersion
 }
