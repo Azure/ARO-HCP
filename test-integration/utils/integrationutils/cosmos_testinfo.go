@@ -68,6 +68,10 @@ func NewCosmosFromTestingEnv(ctx context.Context) (*CosmosIntegrationTestInfo, e
 	return testInfo, nil
 }
 
+func JSONOnly(entry fs.DirEntry) bool {
+	return strings.HasSuffix(entry.Name(), ".json")
+}
+
 func LoadCosmosContentFromFS(ctx context.Context, cosmosContainer *azcosmos.ContainerClient, stepDir fs.FS, filterFn func(fs.DirEntry) bool) error {
 	testContent, err := fs.ReadDir(stepDir, ".")
 	if err != nil {
@@ -151,20 +155,22 @@ func (s *CosmosIntegrationTestInfo) CreateSpecificSubscription(ctx context.Conte
 }
 
 func (s *CosmosIntegrationTestInfo) Cleanup(ctx context.Context) {
+	logger := utils.LoggerFromContext(ctx)
 	if err := s.cleanupDatabase(ctx); err != nil {
-		fmt.Printf("Failed to cleanup database: %v\n", err)
+		logger.Error("Failed to cleanup database", "error", err)
 	}
 }
 
 // CleanupDatabase reads all records from all containers and saves them to artifacts, then deletes the database
 func (s *CosmosIntegrationTestInfo) cleanupDatabase(ctx context.Context) error {
+	logger := utils.LoggerFromContext(ctx)
 	if s.CosmosDatabaseClient == nil || s.DatabaseName == "" {
 		return nil // Nothing to cleanup
 	}
 
 	// Save all database content before deleting
 	if err := s.saveAllDatabaseContent(ctx); err != nil {
-		fmt.Printf("Failed to save database content: %v\n", err)
+		logger.Error("Failed to save database content", "error", err)
 		// Continue with deletion even if saving fails
 	}
 
@@ -183,18 +189,20 @@ func (s *CosmosIntegrationTestInfo) cleanupDatabase(ctx context.Context) error {
 
 // saveAllDatabaseContent reads all records from all containers and saves them to files
 func (s *CosmosIntegrationTestInfo) saveAllDatabaseContent(ctx context.Context) error {
+	logger := utils.LoggerFromContext(ctx)
+
 	// Create timestamped subdirectory for this database
 	cosmosDir := filepath.Join(s.ArtifactsDir, "cosmos-content")
 	if err := os.MkdirAll(cosmosDir, 0755); err != nil {
 		return fmt.Errorf("failed to create artifact directory %s: %w", cosmosDir, err)
 	}
-	fmt.Printf("Saving Cosmos DB content to: %s\n", cosmosDir)
+	logger.Info("Saving Cosmos DB content", "cosmosDir", cosmosDir)
 
 	// List all containers in the database
 	containers := []string{"Resources", "Billing", "Locks"}
 	for _, containerName := range containers {
 		if err := s.saveContainerContent(ctx, containerName, cosmosDir); err != nil {
-			fmt.Printf("Failed to save container %s: %v\n", containerName, err)
+			logger.Error("Failed to save container content", "error", err, "containerName", containerName)
 			// Continue with other containers
 		}
 	}
@@ -204,6 +212,8 @@ func (s *CosmosIntegrationTestInfo) saveAllDatabaseContent(ctx context.Context) 
 
 // saveContainerContent saves all documents from a specific container
 func (s *CosmosIntegrationTestInfo) saveContainerContent(ctx context.Context, containerName, outputDir string) error {
+	logger := utils.LoggerFromContext(ctx)
+
 	containerClient, err := s.CosmosDatabaseClient.NewContainer(containerName)
 	if err != nil {
 		return fmt.Errorf("failed to get container client for %s: %w", containerName, err)
@@ -234,7 +244,7 @@ func (s *CosmosIntegrationTestInfo) saveContainerContent(ctx context.Context, co
 			// Parse the document to get its ID for filename
 			var docMap map[string]interface{}
 			if err := json.Unmarshal(item, &docMap); err != nil {
-				fmt.Printf("Failed to parse document in %s: %v\n", containerName, err)
+				logger.Error("Failed to parse document in", "error", err, "containerName", containerName)
 				continue
 			}
 
@@ -284,7 +294,7 @@ func (s *CosmosIntegrationTestInfo) saveContainerContent(ctx context.Context, co
 				}
 			}
 			filename = filepath.Join(containerDir, filename)
-			fmt.Printf("Saving document %s\n", filename)
+			logger.Info("Saving document", "filename", filename)
 
 			dirName := filepath.Dir(filename)
 			if err := os.MkdirAll(dirName, 0755); err != nil {
@@ -296,7 +306,7 @@ func (s *CosmosIntegrationTestInfo) saveContainerContent(ctx context.Context, co
 			}
 			// Write document to file
 			if err := os.WriteFile(filename, prettyPrint, 0644); err != nil {
-				fmt.Printf("Failed to write document to %s: %v\n", filename, err)
+				logger.Error("Failed to write document", "error", err, "filename", filename)
 				continue
 			}
 
@@ -304,7 +314,7 @@ func (s *CosmosIntegrationTestInfo) saveContainerContent(ctx context.Context, co
 		}
 	}
 
-	fmt.Printf("Saved %d documents from container %s\n", docCount, containerName)
+	logger.Info("Saved documents from container", "numDocs", docCount, "containerName", containerName)
 	return nil
 }
 

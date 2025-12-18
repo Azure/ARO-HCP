@@ -17,11 +17,13 @@ package databasemutationhelpers
 import (
 	"encoding/json"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
 	"k8s.io/apimachinery/pkg/api/equality"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
@@ -108,11 +110,13 @@ func (UntypedCRUDSpecializer) InstanceEquals(expected, actual *database.TypedDoc
 	// clear the fields that don't compare
 	shallowExpected := *expected
 	shallowActual := *actual
+	shallowExpected.ID = ""
 	shallowExpected.CosmosResourceID = ""
 	shallowExpected.CosmosSelf = ""
 	shallowExpected.CosmosETag = ""
 	shallowExpected.CosmosAttachments = ""
 	shallowExpected.CosmosTimestamp = 0
+	shallowActual.ID = ""
 	shallowActual.CosmosResourceID = ""
 	shallowActual.CosmosSelf = ""
 	shallowActual.CosmosETag = ""
@@ -133,6 +137,34 @@ func (UntypedCRUDSpecializer) InstanceEquals(expected, actual *database.TypedDoc
 	if !equality.Semantic.DeepEqual(shallowExpected, shallowActual) {
 		return false
 	}
+
+	// clear some per-type details
+	switch strings.ToLower(actual.ResourceType) {
+	case strings.ToLower(api.ClusterControllerResourceType.String()),
+		strings.ToLower(api.NodePoolControllerResourceType.String()),
+		strings.ToLower(api.ExternalAuthControllerResourceType.String()):
+
+		expectedConditions, found, err := unstructured.NestedSlice(expectedProperties, "internalState", "status", "conditions")
+		if found && err == nil {
+			for i := range expectedConditions {
+				delete(expectedConditions[i].(map[string]any), "lastTransitionTime")
+			}
+			if err := unstructured.SetNestedSlice(expectedProperties, expectedConditions, "internalState", "status", "conditions"); err != nil {
+				panic(err)
+			}
+		}
+
+		actualConditions, found, err := unstructured.NestedSlice(actualProperties, "internalState", "status", "conditions")
+		if found && err == nil {
+			for i := range actualConditions {
+				delete(actualConditions[i].(map[string]any), "lastTransitionTime")
+			}
+			if err := unstructured.SetNestedSlice(actualProperties, actualConditions, "internalState", "status", "conditions"); err != nil {
+				panic(err)
+			}
+		}
+	}
+
 	return equality.Semantic.DeepEqual(expectedProperties, actualProperties)
 }
 
