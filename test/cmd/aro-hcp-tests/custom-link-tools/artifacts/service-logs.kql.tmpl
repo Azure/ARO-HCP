@@ -1,0 +1,18 @@
+// Get the service logs for the given resource group
+database('ServiceLogs').table('containerLogs')
+| where log has '{{.ResourceGroupName}}'
+
+
+// Get Frontend logs for the given resource group
+database('ServiceLogs').table('frontendLogs')
+| where log has '{{.ResourceGroupName}}'
+
+
+// Get Backend logs for the given resource group
+database('ServiceLogs').table('backendLogs')
+| where log has '{{.ResourceGroupName}}'
+
+
+// Get ClustersService logs for the given resource group
+database('ServiceLogs').table('clustersServiceLogs')
+| where log has '{{.ResourceGroupName}}'
