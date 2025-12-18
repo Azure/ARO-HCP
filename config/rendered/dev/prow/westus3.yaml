@@ -139,6 +139,12 @@ clustersService:
   managedIdentityName: clusters-service
   ocpVersions:
     channelGroups:
+      candidate:
+        maxVersion: ""
+        minVersion: 4.19.7
+      nightly:
+        maxVersion: ""
+        minVersion: 4.19.0-0.nightly-20200101
       stable:
         maxVersion: 4.20.6
         minVersion: 4.19.0

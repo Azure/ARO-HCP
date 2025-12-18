@@ -55,6 +55,10 @@
       "type": "string",
       "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
     },
+    "semVerWithPrerelease": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(-[0-9A-Za-z-]+(\\.[0-9A-Za-z-]+)*)?$"
+    },
     "k8sRollingUpdateDeploymentStrategy": {
       "type": "object",
       "description": "Spec to control the desired behavior of rolling update.",
@@ -1105,6 +1109,70 @@
                       "oneOf": [
                         {
                           "$ref": "#/definitions/semVer"
+                        },
+                        {
+                          "type": "string",
+                          "pattern": "^$"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "minVersion",
+                    "maxVersion"
+                  ],
+                  "additionalProperties": false
+                },
+                "candidate": {
+                  "type": "object",
+                  "properties": {
+                    "minVersion": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/definitions/semVerWithPrerelease"
+                        },
+                        {
+                          "type": "string",
+                          "pattern": "^$"
+                        }
+                      ]
+                    },
+                    "maxVersion": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/definitions/semVerWithPrerelease"
+                        },
+                        {
+                          "type": "string",
+                          "pattern": "^$"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "minVersion",
+                    "maxVersion"
+                  ],
+                  "additionalProperties": false
+                },
+                "nightly": {
+                  "type": "object",
+                  "properties": {
+                    "minVersion": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/definitions/semVerWithPrerelease"
+                        },
+                        {
+                          "type": "string",
+                          "pattern": "^$"
+                        }
+                      ]
+                    },
+                    "maxVersion": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/definitions/semVerWithPrerelease"
                         },
                         {
                           "type": "string",

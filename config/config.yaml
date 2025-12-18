@@ -903,6 +903,12 @@ clouds:
             stable:
               minVersion: 4.19.0
               maxVersion: 4.20.6
+            candidate:
+              minVersion: 4.19.7
+              maxVersion: ""
+            nightly:
+              minVersion: 4.19.0-0.nightly-20200101
+              maxVersion: ""
       # Hypershift Operator
       hypershift:
         image:

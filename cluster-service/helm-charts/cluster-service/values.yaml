@@ -310,6 +310,14 @@ ocpVersions:
       url: ""
       minVersion: ""
       maxVersion: ""
+    candidate:
+      url: ""
+      minVersion: ""
+      maxVersion: ""
+    nightly:
+      url: ""
+      minVersion: ""
+      maxVersion: ""
 deployment:
   zoneCount: ""
 # controls if a debug job is deployed to the cluster.
