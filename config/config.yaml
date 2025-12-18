@@ -232,6 +232,7 @@ defaults:
     crossTenantSecurityGroup: ""
     svcWorkspaceName: 'services-{{ .ctx.region }}'
     hcpWorkspaceName: 'hcps-{{ .ctx.region }}'
+    alertRuleOwningTeamTag: ""
     icm:
       manageConnection: true
       connectionName: ""

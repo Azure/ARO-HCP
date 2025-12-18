@@ -562,6 +562,7 @@ mise:
     address: ""
     exporter: ""
 monitoring:
+  alertRuleOwningTeamTag: ""
   crossTenantSecurityGroup: ""
   grafanaMajorVersion: "11"
   grafanaName: arohcp-dev

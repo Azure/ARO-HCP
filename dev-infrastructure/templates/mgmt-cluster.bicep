@@ -206,6 +206,9 @@ param pkoServiceAccountName string
 @description('The name of the Azure Storage account to create for HCP Backups')
 param hcpBackupsStorageAccountName string
 
+@description('The cluster tag value for the owning team')
+param owningTeamTagValue string
+
 //
 //   M A N A G E D   I D E N T I T I E S
 //
@@ -370,6 +373,7 @@ module mgmtCluster '../modules/aks-cluster-base.bicep' = {
     networkPolicy: aksNetworkPolicy
     deploymentMsiId: globalMSIId
     enableSwiftV2Nodepools: aksEnableSwiftNodepools
+    owningTeamTagValue: owningTeamTagValue
   }
   dependsOn: [
     managedIdentities
