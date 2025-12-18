@@ -383,7 +383,7 @@ type HcpOpenShiftClusterPropertiesUpdate struct {
 	Platform *PlatformProfileUpdate
 
 	// Version of the control plane components
-	Version *VersionProfile
+	Version *VersionProfileUpdate
 }
 
 // HcpOpenShiftClusterUpdate - HCP cluster resource
@@ -1066,6 +1066,28 @@ type UsernameClaimProfileUpdate struct {
 
 // VersionProfile - Versions represents an OpenShift version.
 type VersionProfile struct {
+	// READ-ONLY; Status contains the current cluster's control plane version and status of any upgrades
+	Status *VersionProfileStatus
+
+	// ChannelGroup is the name of the set to which this version belongs. Each version belongs to only a single set.
+	// If not specified, the default value is 'stable'.
+	// Note: The default value is not declared in the API specification because of a TypeSpec bug with updatable fields. The default
+	// value will be declared in a future API version once the TypeSpec bug is
+	// fixed. https://github.com/Azure/typespec-azure/issues/1586
+	ChannelGroup *string
+
+	// ID is the unique identifier of the version.
+	ID *string
+}
+
+// VersionProfileStatus - VersionStatus represents the status of the cluster's version and any upgrades
+type VersionProfileStatus struct {
+	// REQUIRED; ID is the current version of the cluster's control plane
+	ID *string
+}
+
+// VersionProfileUpdate - Versions represents an OpenShift version.
+type VersionProfileUpdate struct {
 	// ChannelGroup is the name of the set to which this version belongs. Each version belongs to only a single set.
 	// If not specified, the default value is 'stable'.
 	// Note: The default value is not declared in the API specification because of a TypeSpec bug with updatable fields. The default
