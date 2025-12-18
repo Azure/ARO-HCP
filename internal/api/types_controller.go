@@ -36,19 +36,15 @@ type Controller struct {
 var _ CosmosPersistable = &Controller{}
 
 func (o *Controller) ComputeLogicalResourceID() *azcorearm.ResourceID {
-	return Must(azcorearm.ParseResourceID(o.ExternalID.String() + "/" + ControllerResourceTypeName + "/" + o.ControllerName))
+	return Must(azcorearm.ParseResourceID(strings.ToLower(o.ExternalID.String() + "/" + ControllerResourceTypeName + "/" + o.ControllerName)))
 }
 
 func (o *Controller) GetCosmosData() CosmosData {
 	return CosmosData{
-		CosmosUID:    o.CosmosUID,
-		PartitionKey: strings.ToLower(o.ExternalID.SubscriptionID),
+		CosmosUID:    o.ComputeLogicalResourceID().String(),
+		PartitionKey: strings.ToLower(o.ComputeLogicalResourceID().SubscriptionID),
 		ItemID:       o.ComputeLogicalResourceID(),
 	}
-}
-
-func (o *Controller) SetCosmosDocumentData(cosmosUID string) {
-	o.CosmosUID = cosmosUID
 }
 
 type ControllerStatus struct {

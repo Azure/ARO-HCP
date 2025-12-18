@@ -57,14 +57,10 @@ type Subscription struct {
 
 func (o *Subscription) GetCosmosData() CosmosData {
 	return CosmosData{
-		CosmosUID:    o.ResourceID.Name, // this is compatible with preexisting code
+		CosmosUID:    o.ResourceID.String(), // this is compatible with preexisting code
 		PartitionKey: strings.ToLower(o.ResourceID.Name),
 		ItemID:       o.ResourceID,
 	}
-}
-
-func (o *Subscription) SetCosmosDocumentData(cosmosUID string) {
-	panic("unsupported")
 }
 
 // GetValidTypes returns the valid resource types for a Subscription.

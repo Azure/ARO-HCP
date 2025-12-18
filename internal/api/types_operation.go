@@ -15,6 +15,7 @@
 package api
 
 import (
+	"path"
 	"strings"
 	"time"
 
@@ -80,17 +81,20 @@ func (doc Operation) GetValidTypes() []string {
 var _ CosmosPersistable = &Operation{}
 
 func (o *Operation) ComputeLogicalResourceID() *azcorearm.ResourceID {
-	return o.ResourceID
+	return Must(azcorearm.ParseResourceID(
+		strings.ToLower(
+			path.Join(
+				"/subscriptions",
+				o.OperationID.SubscriptionID,
+				OperationStatusResourceType.String(),
+				o.OperationID.Name,
+			))))
 }
 
 func (o *Operation) GetCosmosData() CosmosData {
 	return CosmosData{
-		CosmosUID:    o.OperationID.Name,
-		PartitionKey: strings.ToLower(o.ExternalID.SubscriptionID),
+		CosmosUID:    o.ComputeLogicalResourceID().String(),
+		PartitionKey: o.ComputeLogicalResourceID().SubscriptionID,
 		ItemID:       o.ComputeLogicalResourceID(),
 	}
-}
-
-func (o *Operation) SetCosmosDocumentData(cosmosUID string) {
-	panic("coding error: all operations must initialize with a cosmosID")
 }

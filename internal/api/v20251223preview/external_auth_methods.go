@@ -16,6 +16,7 @@ package v20251223preview
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"k8s.io/utils/ptr"
@@ -71,7 +72,7 @@ func (h *ExternalAuth) GetVersion() api.Version {
 
 func (h *ExternalAuth) Normalize(out *api.HCPOpenShiftClusterExternalAuth) {
 	if h.ID != nil {
-		out.ID = api.Must(azcorearm.ParseResourceID(*h.ID))
+		out.ID = api.Must(azcorearm.ParseResourceID(strings.ToLower(*h.ID)))
 	}
 	if h.Name != nil {
 		out.Name = *h.Name
