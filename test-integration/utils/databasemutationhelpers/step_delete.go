@@ -39,11 +39,10 @@ type deleteStep[InternalAPIType any] struct {
 	key         CosmosDeleteKey
 	specializer ResourceCRUDTestSpecializer[InternalAPIType]
 
-	cosmosContainer *azcosmos.ContainerClient
-	expectedError   string
+	expectedError string
 }
 
-func newDeleteStep[InternalAPIType any](stepID StepID, specializer ResourceCRUDTestSpecializer[InternalAPIType], cosmosContainer *azcosmos.ContainerClient, stepDir fs.FS) (*deleteStep[InternalAPIType], error) {
+func newDeleteStep[InternalAPIType any](stepID StepID, specializer ResourceCRUDTestSpecializer[InternalAPIType], stepDir fs.FS) (*deleteStep[InternalAPIType], error) {
 	keyBytes, err := fs.ReadFile(stepDir, "00-key.json")
 	if err != nil {
 		return nil, fmt.Errorf("failed to read key.json: %w", err)
@@ -60,11 +59,10 @@ func newDeleteStep[InternalAPIType any](stepID StepID, specializer ResourceCRUDT
 	expectedError := strings.TrimSpace(string(expectedErrorBytes))
 
 	return &deleteStep[InternalAPIType]{
-		stepID:          stepID,
-		key:             key,
-		specializer:     specializer,
-		cosmosContainer: cosmosContainer,
-		expectedError:   expectedError,
+		stepID:        stepID,
+		key:           key,
+		specializer:   specializer,
+		expectedError: expectedError,
 	}, nil
 }
 
@@ -74,8 +72,8 @@ func (l *deleteStep[InternalAPIType]) StepID() StepID {
 	return l.stepID
 }
 
-func (l *deleteStep[InternalAPIType]) RunTest(ctx context.Context, t *testing.T) {
-	controllerCRUDClient := l.specializer.ResourceCRUDFromKey(t, l.cosmosContainer, l.key.CosmosCRUDKey)
+func (l *deleteStep[InternalAPIType]) RunTest(ctx context.Context, t *testing.T, cosmosContainer *azcosmos.ContainerClient) {
+	controllerCRUDClient := l.specializer.ResourceCRUDFromKey(t, cosmosContainer, l.key.CosmosCRUDKey)
 	err := controllerCRUDClient.Delete(ctx, l.key.DeleteResourceName)
 	switch {
 	case len(l.expectedError) > 0:

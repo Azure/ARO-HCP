@@ -36,14 +36,10 @@ var _ CosmosPersistable = &HCPOpenShiftClusterNodePool{}
 
 func (o *HCPOpenShiftClusterNodePool) GetCosmosData() CosmosData {
 	return CosmosData{
-		CosmosUID:    o.ServiceProviderProperties.CosmosUID,
+		CosmosUID:    o.ID.String(),
 		PartitionKey: strings.ToLower(o.ID.SubscriptionID),
 		ItemID:       o.ID,
 	}
-}
-
-func (o *HCPOpenShiftClusterNodePool) SetCosmosDocumentData(cosmosUID string) {
-	o.ServiceProviderProperties.CosmosUID = cosmosUID
 }
 
 // HCPOpenShiftClusterNodePoolProperties represents the property bag of a

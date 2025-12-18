@@ -16,6 +16,7 @@ package v20251223preview
 
 import (
 	"fmt"
+	"strings"
 
 	"k8s.io/utils/ptr"
 
@@ -79,7 +80,7 @@ func (h *NodePool) GetVersion() api.Version {
 
 func (h *NodePool) Normalize(out *api.HCPOpenShiftClusterNodePool) {
 	if h.ID != nil {
-		out.ID = api.Must(azcorearm.ParseResourceID(*h.ID))
+		out.ID = api.Must(azcorearm.ParseResourceID(strings.ToLower(*h.ID)))
 	}
 	if h.Name != nil {
 		out.Name = *h.Name
