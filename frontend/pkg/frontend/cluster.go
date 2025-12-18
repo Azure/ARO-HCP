@@ -559,11 +559,20 @@ func (f *Frontend) updateHCPClusterInCosmos(ctx context.Context, writer http.Res
 	}
 
 	logger.Info(fmt.Sprintf("updating resource %s", oldInternalCluster.ID))
-	_, err = f.clusterServiceClient.UpdateClusterAutoscaler(ctx, oldInternalCluster.ServiceProviderProperties.ClusterServiceID, newClusterServiceAutoscalerBuilder)
+	resultingClusterServiceAutoscaler, err := f.clusterServiceClient.UpdateClusterAutoscaler(ctx, oldInternalCluster.ServiceProviderProperties.ClusterServiceID, newClusterServiceAutoscalerBuilder)
 	if err != nil {
 		return utils.TrackError(err)
 	}
 	resultingClusterServiceCluster, err := f.clusterServiceClient.UpdateCluster(ctx, oldInternalCluster.ServiceProviderProperties.ClusterServiceID, newClusterServiceClusterBuilder)
+	if err != nil {
+		return utils.TrackError(err)
+	}
+
+	// Merge the autoscaler model into the cluster model.
+	resultingClusterServiceCluster, err = arohcpv1alpha1.NewCluster().
+		Copy(resultingClusterServiceCluster).
+		Autoscaler(arohcpv1alpha1.NewClusterAutoscaler().Copy(resultingClusterServiceAutoscaler)).
+		Build()
 	if err != nil {
 		return utils.TrackError(err)
 	}
