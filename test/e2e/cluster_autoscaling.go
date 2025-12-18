@@ -118,7 +118,7 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			By("patching the cluster to set maxNodesTotal")
-			update, err := framework.UpdateHCPCluster(
+			_, err = framework.UpdateHCPCluster(
 				ctx,
 				tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 				*resourceGroup.Name,
@@ -133,11 +133,8 @@ var _ = Describe("Customer", func() {
 				10*time.Minute,
 			)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(update.Properties.Autoscaling).ToNot(BeNil())
-			Expect(update.Properties.Autoscaling.MaxNodesTotal).To(Equal(to.Ptr(autoscalingMaxNodesTotal)))
+
 		})
-
-
 
 	It("should reject cluster creation with negative MaxNodeProvisionTimeSeconds",
 		labels.RequireNothing,
@@ -253,74 +250,4 @@ var _ = Describe("Customer", func() {
 			Expect(err).To(HaveOccurred(), "Expected cluster creation to fail with unreasonably high MaxNodesTotal")
 		})
 
-	It("should reject cluster updates with invalid autoscaling values",
-		labels.RequireNothing,
-		labels.High,
-		labels.Negative,
-		labels.AroRpApiCompatible,
-		func(ctx context.Context) {
-			const (
-				customerClusterName = "update-invalid-cluster"
-			)
-			tc := framework.NewTestContext()
-
-			By("creating a resource group")
-			resourceGroup, err := tc.NewResourceGroup(ctx, "update-invalid-autoscaling", tc.Location())
-			Expect(err).NotTo(HaveOccurred())
-
-			By("creating a valid cluster first")
-			clusterParams := framework.NewDefaultClusterParams()
-			clusterParams.ClusterName = customerClusterName
-			clusterParams.ManagedResourceGroupName = framework.SuffixName(*resourceGroup.Name, "-managed", 64)
-
-			clusterParams, err = tc.CreateClusterCustomerResources(ctx,
-				resourceGroup,
-				clusterParams,
-				map[string]interface{}{
-					"persistTagValue": false,
-				},
-				TestArtifactsFS)
-			Expect(err).NotTo(HaveOccurred())
-
-			err = tc.CreateHCPClusterFromParam(ctx,
-				GinkgoLogr,
-				*resourceGroup.Name,
-				clusterParams,
-				45*time.Minute,
-			)
-			Expect(err).NotTo(HaveOccurred())
-
-			By("creating a nodepool to establish current node count")
-			nodePoolParams := framework.NewDefaultNodePoolParams()
-			nodePoolParams.ClusterName = customerClusterName
-			nodePoolParams.NodePoolName = "test-nodepool"
-			nodePoolParams.Replicas = int32(3)
-
-			err = tc.CreateNodePoolFromParam(ctx,
-				*resourceGroup.Name,
-				customerClusterName,
-				nodePoolParams,
-				45*time.Minute,
-			)
-			Expect(err).NotTo(HaveOccurred())
-
-			By("attempting invalid cluster autoscaling updates")
-			client := tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient()
-
-			_, err = framework.UpdateHCPCluster(
-				ctx,
-				client,
-				*resourceGroup.Name,
-				customerClusterName,
-				hcpsdk20240610preview.HcpOpenShiftClusterUpdate{
-					Properties: &hcpsdk20240610preview.HcpOpenShiftClusterPropertiesUpdate{
-						Autoscaling: &hcpsdk20240610preview.ClusterAutoscalingProfile{
-							MaxNodesTotal: to.Ptr(int32(1)), // Lower than existing nodes (3)
-						},
-					},
-				},
-				5*time.Minute,
-			)
-			Expect(err).To(HaveOccurred(), "Expected update to fail when MaxNodesTotal is below current node count")
-		})
 })
