@@ -24,6 +24,8 @@ import (
 
 	"github.com/google/uuid"
 
+	"k8s.io/utils/ptr"
+
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
@@ -722,7 +724,7 @@ func ConvertCStoNodePool(resourceID *azcorearm.ResourceID, np *arohcpv1alpha1.No
 				VMSize:                 np.AzureNodePool().VMSize(),
 				EnableEncryptionAtHost: np.AzureNodePool().EncryptionAtHost().State() == csEncryptionAtHostStateEnabled,
 				OSDisk: api.OSDiskProfile{
-					SizeGiB:                int32(np.AzureNodePool().OsDisk().SizeGibibytes()),
+					SizeGiB:                ptr.To(int32(np.AzureNodePool().OsDisk().SizeGibibytes())),
 					DiskStorageAccountType: api.DiskStorageAccountType(np.AzureNodePool().OsDisk().StorageAccountType()),
 				},
 				AvailabilityZone: np.AvailabilityZone(),
@@ -781,7 +783,7 @@ func BuildCSNodePool(ctx context.Context, nodePool *api.HCPOpenShiftClusterNodeP
 				VMSize(nodePool.Properties.Platform.VMSize).
 				EncryptionAtHost(convertEnableEncryptionAtHostToCSBuilder(nodePool.Properties.Platform)).
 				OsDisk(arohcpv1alpha1.NewAzureNodePoolOsDisk().
-					SizeGibibytes(int(nodePool.Properties.Platform.OSDisk.SizeGiB)).
+					SizeGibibytes(int(*nodePool.Properties.Platform.OSDisk.SizeGiB)).
 					StorageAccountType(string(nodePool.Properties.Platform.OSDisk.DiskStorageAccountType)))).
 			AvailabilityZone(nodePool.Properties.Platform.AvailabilityZone).
 			AutoRepair(nodePool.Properties.AutoRepair)

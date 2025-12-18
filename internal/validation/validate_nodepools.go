@@ -24,11 +24,15 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 const (
 	// See https://learn.microsoft.com/en-us/azure/azure-resource-manager/management/azure-subscription-service-limits#azure-virtual-machines-limits---azure-resource-manager
 	MaxNodePoolNodes = 200
+
+	// API version constants
+	APIVersion20240610Preview = "2024-06-10-preview"
 )
 
 func ValidateNodePoolCreate(ctx context.Context, newObj *api.HCPOpenShiftClusterNodePool) field.ErrorList {
@@ -216,7 +220,7 @@ func validateNodePoolPlatformProfile(ctx context.Context, op operation.Operation
 }
 
 var (
-	toOSDiskProfileSizeGiB                = func(oldObj *api.OSDiskProfile) *int32 { return &oldObj.SizeGiB }
+	toOSDiskProfileSizeGiB                = func(oldObj *api.OSDiskProfile) *int32 { return oldObj.SizeGiB }
 	toOSDiskProfileDiskStorageAccountType = func(oldObj *api.OSDiskProfile) *api.DiskStorageAccountType { return &oldObj.DiskStorageAccountType }
 	toOSDiskProfileEncryptionSetID        = func(oldObj *api.OSDiskProfile) *string { return &oldObj.EncryptionSetID }
 )
@@ -224,8 +228,13 @@ var (
 func validateOSDiskProfile(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *api.OSDiskProfile) field.ErrorList {
 	errs := field.ErrorList{}
 
-	//SizeGiB                int32                  `json:"sizeGiB,omitempty"`
-	errs = append(errs, validate.Minimum(ctx, op, fldPath.Child("sizeGiB"), &newObj.SizeGiB, safe.Field(oldObj, toOSDiskProfileSizeGiB), 1)...)
+	//SizeGiB                *int32                 `json:"sizeGiB,omitempty"`
+	// API-version-aware validation: old API version allows minimum 1, new version requires minimum 64
+	minSizeGiB := int32(64)
+	if apiVersion := utils.APIVersionStringFromContext(ctx); apiVersion == APIVersion20240610Preview {
+		minSizeGiB = 1
+	}
+	errs = append(errs, validate.Minimum(ctx, op, fldPath.Child("sizeGiB"), newObj.SizeGiB, safe.Field(oldObj, toOSDiskProfileSizeGiB), minSizeGiB)...)
 
 	//DiskStorageAccountType DiskStorageAccountType `json:"diskStorageAccountType,omitempty"`
 	errs = append(errs, validate.Enum(ctx, op, fldPath.Child("diskStorageAccountType"), &newObj.DiskStorageAccountType, safe.Field(oldObj, toOSDiskProfileDiskStorageAccountType), api.ValidDiskStorageAccountTypes)...)
