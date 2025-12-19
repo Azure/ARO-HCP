@@ -61,7 +61,7 @@ func (tc *BasicControllerTest) RunTest(t *testing.T) {
 	logger = tc.ControllerKey.AddLoggerValues(logger)
 	ctx = utils.ContextWithLogger(ctx, logger)
 
-	cosmosTestInfo, err := integrationutils.NewCosmosFromTestingEnv(ctx)
+	cosmosTestInfo, err := integrationutils.NewCosmosFromTestingEnv(ctx, t)
 	require.NoError(t, err)
 	defer cosmosTestInfo.Cleanup(utils.ContextWithLogger(context.Background(), slogt.New(t, slogt.JSON())))
 

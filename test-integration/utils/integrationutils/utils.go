@@ -63,7 +63,7 @@ func getArtifactDir() string {
 }
 
 func NewFrontendFromTestingEnv(ctx context.Context, t *testing.T) (*frontend.Frontend, *FrontendIntegrationTestInfo, error) {
-	cosmosTestEnv, err := NewCosmosFromTestingEnv(ctx)
+	cosmosTestEnv, err := NewCosmosFromTestingEnv(ctx, t)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -94,7 +94,7 @@ func NewFrontendFromTestingEnv(ctx context.Context, t *testing.T) (*frontend.Fro
 	aroHCPFrontend := frontend.NewFrontend(logger, listener, metricsListener, metricsRegistry, cosmosTestEnv.DBClient, clusterServiceClient, noOpAuditClient)
 	testInfo := &FrontendIntegrationTestInfo{
 		CosmosIntegrationTestInfo: cosmosTestEnv,
-		ArtifactsDir:              artifactDir,
+		ArtifactsDir:              cosmosTestEnv.ArtifactsDir,
 		mockData:                  make(map[string]map[string][]any),
 		MockClusterServiceClient:  clusterServiceClient,
 		FrontendURL:               fmt.Sprintf("http://%s", listener.Addr().String()),
