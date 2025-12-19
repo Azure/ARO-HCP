@@ -96,6 +96,10 @@ func (tt *ResourceMutationTest) RunTest(t *testing.T) {
 	defer testInfo.Cleanup(context.Background())
 	go frontend.Run(ctx, ctx.Done())
 
+	// create anything and round trip anything for cluster-service
+	err = integrationutils.TrivialPassThroughClusterServiceMock(t, testInfo, nil)
+	require.NoError(t, err)
+
 	stepInput := StepInput{
 		CosmosContainer: testInfo.CosmosResourcesContainer(),
 		DBClient:        testInfo.DBClient,
