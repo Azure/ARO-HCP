@@ -87,11 +87,12 @@ func (l *listActiveOperationsStep) RunTest(ctx context.Context, t *testing.T, st
 	for _, expected := range l.expectedOperations {
 		found := false
 		for _, actual := range actualControllers {
-			if specializer.InstanceEquals(expected, actual) {
+			diff, equals := ResourceInstanceEquals(t, expected, actual)
+			if equals {
 				found = true
 				break
 			}
-			//t.Log(cmp.Diff(stringifyResource(expected), stringifyResource(actual)))
+			t.Log(diff)
 		}
 		if !found {
 			t.Logf("actual:\n%v", stringifyResource(actualControllers))
@@ -103,10 +104,12 @@ func (l *listActiveOperationsStep) RunTest(ctx context.Context, t *testing.T, st
 	for _, actual := range actualControllers {
 		found := false
 		for _, expected := range l.expectedOperations {
-			if specializer.InstanceEquals(expected, actual) {
+			diff, equals := ResourceInstanceEquals(t, expected, actual)
+			if equals {
 				found = true
 				break
 			}
+			t.Log(diff)
 		}
 		if !found {
 			t.Logf("expected:\n%v", stringifyResource(l.expectedOperations))

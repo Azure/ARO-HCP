@@ -39,8 +39,6 @@ func TestFrontendCRUD(t *testing.T) {
 	crudSuiteDirs := api.Must(fs.ReadDir(allCRUDDirFS, "."))
 	for _, crudSuiteDirEntry := range crudSuiteDirs {
 		crudSuiteDir := api.Must(fs.Sub(allCRUDDirFS, crudSuiteDirEntry.Name()))
-		switch crudSuiteDirEntry.Name() {
-		case "Cluster":
 			t.Run(crudSuiteDirEntry.Name(), func(t *testing.T) {
 				testCRUDSuite(
 					ctx,
@@ -48,9 +46,5 @@ func TestFrontendCRUD(t *testing.T) {
 					databasemutationhelpers.NothingCRUDSpecializer{},
 					crudSuiteDir)
 			})
-
-		default:
-			t.Fatalf("unknown crud suite dir: %s", crudSuiteDirEntry.Name())
-		}
 	}
 }

@@ -174,6 +174,9 @@ func NewStep[InternalAPIType any](indexString, stepType, stepName string, testDi
 	case "httpCreate":
 		return newHTTPCreateStep(stepID, stepDir)
 
+	case "completeOperation":
+		return newCompleteOperationStep(stepID, stepDir)
+
 	default:
 		return nil, fmt.Errorf("unknown step type: %s", stepType)
 	}
