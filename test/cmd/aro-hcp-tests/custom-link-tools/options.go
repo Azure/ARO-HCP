@@ -270,8 +270,12 @@ func gatherTimingInfo(sharedDir string) (map[string]TimingInfo, error) {
 		if err != nil {
 			return err
 		}
-		if !info.IsDir() && strings.HasSuffix(path, ".yaml") && strings.HasPrefix(path, "timing-metadata-") {
-			allTimingFiles = append(allTimingFiles, path)
+		if !info.IsDir() {
+			fileName := filepath.Base(path)
+			if strings.HasSuffix(fileName, ".yaml") && strings.HasPrefix(fileName, "timing-metadata-") {
+				allTimingFiles = append(allTimingFiles, path)
+
+			}
 		}
 		return nil
 	})
