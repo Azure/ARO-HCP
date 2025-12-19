@@ -60,7 +60,7 @@ func main() {
 			// TODO we will need per-env markers eventually, but it's ok to start here
 			fmt.Sprintf(`labels.exists(l, l=="%s") && !labels.exists(l, l=="%s")`, labels.RequireNothing[0], labels.IntegrationOnly[0]),
 		},
-		Parallelism: 10,
+		Parallelism: 4,
 	})
 
 	ext.AddSuite(e.Suite{
@@ -70,7 +70,7 @@ func main() {
 			// TODO we will need per-env markers eventually, but it's ok to start here
 			fmt.Sprintf(`labels.exists(l, l=="%s") && !labels.exists(l, l=="%s")`, labels.RequireNothing[0], labels.IntegrationOnly[0]),
 		},
-		Parallelism: 10,
+		Parallelism: 4,
 	})
 
 	ext.AddSuite(e.Suite{
