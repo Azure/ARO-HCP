@@ -40,6 +40,11 @@ var _ = Describe("Customer", func() {
 		func(ctx context.Context) {
 			tc := framework.NewTestContext()
 
+			if tc.UsePooledIdentities() {
+				err := tc.AssignIdentityContainers(ctx, 1, 60*time.Second)
+				Expect(err).NotTo(HaveOccurred())
+			}
+
 			var resourceGroups []*armresources.ResourceGroup
 			var clusterNames []string
 			const createClustersCount = 2

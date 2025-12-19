@@ -49,6 +49,11 @@ var _ = Describe("Customer", func() {
 			clusterName := testingPrefix + rand.String(6)
 			tc := framework.NewTestContext()
 
+			if tc.UsePooledIdentities() {
+				err := tc.AssignIdentityContainers(ctx, 1, 60*time.Second)
+				Expect(err).NotTo(HaveOccurred())
+			}
+
 			By("creating resource group for the HCP cluster")
 			resourceGroup, err := tc.NewResourceGroup(ctx, testingPrefix, tc.Location())
 			Expect(err).NotTo(HaveOccurred())
