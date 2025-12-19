@@ -430,8 +430,7 @@ deployments:
 finishedAt: "2025-12-17T03:45:44Z"
 identifier:
 - Customer
-- should not be able to deploy 2 identically named clusters within the same resource
-  group
+- should not be able to deploy 2 identically named clusters within the same resource group
 startedAt: "2025-12-17T03:24:08Z"
 steps:
 - finishedAt: "2025-12-17T03:24:43Z"
