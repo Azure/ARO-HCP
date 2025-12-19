@@ -1,13 +1,13 @@
 acm:
   mce:
     bundle:
-      digest: sha256:be8959f175fe14aea5e16af403730e1bfd7fa9a0b69eb7f14eb3c3a03098eed3
+      digest: sha256:9e05f8e5dfe82060b5196534ae5d62d90e009c70c24063949a55331e6b46de09
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-211
     version: 2.11.0
   operator:
     bundle:
-      digest: sha256:01f7dcd12493f2676de8ee4db4fd9ff97bb885b90f10c76e6f73cb2990828997
+      digest: sha256:83371a5abe04c8e4e3c9ac7c8ba8ffde56835d74f09411a3ccf21cdb2fec8d31
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-216
     version: 2.16.0
@@ -35,7 +35,7 @@ adminApi:
     issuer: Self
     name: admin-api-cert-cspr-usw3
   image:
-    digest: sha256:c991702f5e6986bb2631436662fcc6d121ddaa31b48f30204e74dfd7d9d26b93
+    digest: sha256:8f9e58487d21cce9bae552ecbe90f2dd62bed09ca406e9b9f967449aab26fce5
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpadminapi
   k8s:
@@ -69,7 +69,7 @@ azureGeoShortId: us
 azureRegionAvailabilityZoneCount: 4
 backend:
   image:
-    digest: sha256:dd5562696b89f869b7e46a728de7a5efcea58be5028638e25d2d409f8b5ec7de
+    digest: sha256:36d60c0a2cf59f2c66c9d51cf6d0156fd39075122f29ce884c83083aedf53c3d
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpbackend
   k8s:
@@ -125,7 +125,7 @@ clustersService:
   deployDebugJobs: false
   environment: arohcpdev
   image:
-    digest: sha256:e2020885131e7dd4e7145367596f847bb0813bb3d45d9579fef1b245019ef5f9
+    digest: sha256:f59a9b8a8283168696ee2c8bbd35b03aa35e8e33ae447087352b1c49a04286ed
     registry: quay.io
     repository: app-sre/aro-hcp-clusters-service
   k8s:
@@ -214,7 +214,7 @@ frontend:
     private: false
     zoneRedundantMode: Disabled
   image:
-    digest: sha256:06968697f40d694a2eafe53dafe75a85e9398a243429458304eb9a3bf6d8489a
+    digest: sha256:fba32dd31449763da903a680ee4f8a9c425d78c3b1a67fc6315457f9e0a87b46
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpfrontend
   k8s:
@@ -329,7 +329,7 @@ imageSync:
   ocMirror:
     enabled: true
     image:
-      digest: sha256:9bb2066d357caedb11664834fa4150e23dc1cad18822d4719656a92ef74e59d8
+      digest: sha256:ec8a7311a03fb5a367171f22c2f7cec234974d514c9cd2a847e2e5c6be474be4
       registry: arohcpsvcdev.azurecr.io
       repository: image-sync/oc-mirror
     jobNamePrefix: ""
