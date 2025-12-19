@@ -23,27 +23,32 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Azure/ARO-HCP/internal/api"
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/stretchr/testify/require"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 )
 
-type httpGetStep[InternalAPIType any] struct {
-	stepID      StepID
-	key         CosmosCRUDKey
-	specializer ResourceCRUDTestSpecializer[InternalAPIType]
+type FrontendResourceKey struct {
+	ResourceID string `json:"resourceId"`
+}
+
+type httpGetStep struct {
+	stepID StepID
+	key    FrontendResourceKey
 
 	cosmosContainer  *azcosmos.ContainerClient
-	expectedResource *InternalAPIType
+	expectedResource map[string]any
 	expectedError    string
 }
 
-func newHTTPGetStep[InternalAPIType any](stepID StepID, specializer ResourceCRUDTestSpecializer[InternalAPIType], cosmosContainer *azcosmos.ContainerClient, stepDir fs.FS) (*httpGetStep[InternalAPIType], error) {
+func newHTTPGetStep(stepID StepID, stepDir fs.FS) (*httpGetStep, error) {
 	keyBytes, err := fs.ReadFile(stepDir, "00-key.json")
 	if err != nil {
 		return nil, fmt.Errorf("failed to read key.json: %w", err)
 	}
-	var key CosmosCRUDKey
+	var key FrontendResourceKey
 	if err := json.Unmarshal(keyBytes, &key); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal key.json: %w", err)
 	}
@@ -54,15 +59,15 @@ func newHTTPGetStep[InternalAPIType any](stepID StepID, specializer ResourceCRUD
 	}
 	expectedError := strings.TrimSpace(string(expectedErrorBytes))
 
-	var expectedResource *InternalAPIType
-	expectedResources, err := readResourcesInDir[InternalAPIType](stepDir)
+	var expectedResource map[string]any
+	expectedResources, err := readResourcesInDir[map[string]any](stepDir)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read resource in dir: %w", err)
 	}
 	switch len(expectedResources) {
 	case 0:
 	case 1:
-		expectedResource = expectedResources[0]
+		expectedResource = *expectedResources[0]
 	default:
 		return nil, fmt.Errorf("cannot expect more than one resource")
 	}
@@ -71,26 +76,24 @@ func newHTTPGetStep[InternalAPIType any](stepID StepID, specializer ResourceCRUD
 		return nil, fmt.Errorf("must expect either error and value")
 	}
 
-	return &httpGetStep[InternalAPIType]{
+	return &httpGetStep{
 		stepID:           stepID,
 		key:              key,
-		specializer:      specializer,
-		cosmosContainer:  cosmosContainer,
 		expectedResource: expectedResource,
 		expectedError:    expectedError,
 	}, nil
 }
 
-var _ IntegrationTestStep = &httpGetStep[any]{}
+var _ IntegrationTestStep = &httpGetStep{}
 
-func (l *httpGetStep[InternalAPIType]) StepID() StepID {
+func (l *httpGetStep) StepID() StepID {
 	return l.stepID
 }
 
-func (l *httpGetStep[InternalAPIType]) RunTest(ctx context.Context, t *testing.T) {
-	controllerCRUDClient := l.specializer.ResourceCRUDFromKey(t, l.cosmosContainer, l.key)
-	resourceName := l.specializer.NameFromInstance(l.expectedResource)
-	actualController, err := controllerCRUDClient.Get(ctx, resourceName)
+func (l *httpGetStep) RunTest(ctx context.Context, t *testing.T, stepInput StepInput) {
+	subscriptionID := api.Must(azcorearm.ParseResourceID(l.key.ResourceID)).SubscriptionID
+	accessor := newFrontendHTTPTestAccessor(stepInput.FrontendURL, stepInput.FrontendClient(subscriptionID))
+	actual, err := accessor.Get(ctx, l.key.ResourceID)
 	switch {
 	case len(l.expectedError) > 0:
 		require.ErrorContains(t, err, l.expectedError)
@@ -99,10 +102,8 @@ func (l *httpGetStep[InternalAPIType]) RunTest(ctx context.Context, t *testing.T
 		require.NoError(t, err)
 	}
 
-	if !l.specializer.InstanceEquals(l.expectedResource, actualController) {
-		t.Logf("actual:\n%v", stringifyResource(actualController))
-		// cmpdiff doesn't handle private fields gracefully
-		require.Equal(t, l.expectedResource, actualController)
-		t.Fatal("unexpected")
+	if diff, equals := ResourceInstanceEquals(t, l.expectedResource, actual); !equals {
+		t.Logf("actual:\n%v", stringifyResource(actual))
+		t.Error(diff)
 	}
 }

@@ -24,8 +24,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-
-	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 )
 
 type getStep[InternalAPIType any] struct {
@@ -85,8 +83,8 @@ func (l *getStep[InternalAPIType]) StepID() StepID {
 	return l.stepID
 }
 
-func (l *getStep[InternalAPIType]) RunTest(ctx context.Context, t *testing.T, cosmosContainer *azcosmos.ContainerClient) {
-	controllerCRUDClient := l.specializer.ResourceCRUDFromKey(t, cosmosContainer, l.key)
+func (l *getStep[InternalAPIType]) RunTest(ctx context.Context, t *testing.T, stepInput StepInput) {
+	controllerCRUDClient := l.specializer.ResourceCRUDFromKey(t, stepInput.CosmosContainer, l.key)
 	resourceName := l.specializer.NameFromInstance(l.expectedResource)
 	actualController, err := controllerCRUDClient.Get(ctx, resourceName)
 	switch {

@@ -1,34 +1,43 @@
 package databasemutationhelpers
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
+	"path"
 	"strings"
 
 	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/utils"
-	"github.com/Azure/ARO-HCP/test-integration/utils/integrationutils"
 	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/v20240610preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 )
 
-type HTTPTestSpecializer interface {
+type HTTPTestAccessor interface {
 	Get(ctx context.Context, resourceIDString string) (any, error)
+	List(ctx context.Context, parentResourceIDString string) ([]any, error)
 	CreateOrUpdate(ctx context.Context, resourceIDString string, content []byte) error
 	Patch(ctx context.Context, resourceIDString string, content []byte) error
 	Delete(ctx context.Context, resourceIDString string) error
 }
 
-type frontendHTTPTestSpecializer struct {
-	dbClient       database.DBClient
+type frontendHTTPTestAccessor struct {
+	frontEndURL    string
 	frontendClient *hcpsdk20240610preview.ClientFactory
 }
 
-var _ HTTPTestSpecializer = &frontendHTTPTestSpecializer{}
+func newFrontendHTTPTestAccessor(frontEndURL string, frontendClient *hcpsdk20240610preview.ClientFactory) *frontendHTTPTestAccessor {
+	return &frontendHTTPTestAccessor{
+		frontEndURL:    frontEndURL,
+		frontendClient: frontendClient,
+	}
+}
 
-func (c frontendHTTPTestSpecializer) Get(ctx context.Context, resourceIDString string) (any, error) {
+var _ HTTPTestAccessor = &frontendHTTPTestAccessor{}
+
+func (c frontendHTTPTestAccessor) Get(ctx context.Context, resourceIDString string) (any, error) {
 	resourceID, err := azcorearm.ParseResourceID(resourceIDString)
 	if err != nil {
 		return nil, utils.TrackError(err)
@@ -49,7 +58,61 @@ func (c frontendHTTPTestSpecializer) Get(ctx context.Context, resourceIDString s
 	}
 }
 
-func (c frontendHTTPTestSpecializer) CreateOrUpdate(ctx context.Context, resourceIDString string, content []byte) error {
+func (c frontendHTTPTestAccessor) List(ctx context.Context, parentResourceIDString string) ([]any, error) {
+	parentResourceID, err := azcorearm.ParseResourceID(parentResourceIDString)
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
+
+	switch strings.ToLower(parentResourceID.ResourceType.String()) {
+	case strings.ToLower(api.ClusterResourceType.String()):
+		pager := c.frontendClient.NewHcpOpenShiftClustersClient().NewListByResourceGroupPager(parentResourceID.ResourceGroupName, nil)
+		ret := []any{}
+		for pager.More() {
+			page, err := pager.NextPage(ctx)
+			if err != nil {
+				return nil, utils.TrackError(err)
+			}
+			for i := range page.Value {
+				ret = append(ret, page.Value[i])
+			}
+		}
+		return ret, nil
+
+	case strings.ToLower(api.NodePoolResourceType.String()):
+		pager := c.frontendClient.NewNodePoolsClient().NewListByParentPager(parentResourceID.ResourceGroupName, parentResourceID.Name, nil)
+		ret := []any{}
+		for pager.More() {
+			page, err := pager.NextPage(ctx)
+			if err != nil {
+				return nil, utils.TrackError(err)
+			}
+			for i := range page.Value {
+				ret = append(ret, page.Value[i])
+			}
+		}
+		return ret, nil
+
+	case strings.ToLower(api.ExternalAuthResourceType.String()):
+		pager := c.frontendClient.NewExternalAuthsClient().NewListByParentPager(parentResourceID.ResourceGroupName, parentResourceID.Name, nil)
+		ret := []any{}
+		for pager.More() {
+			page, err := pager.NextPage(ctx)
+			if err != nil {
+				return nil, utils.TrackError(err)
+			}
+			for i := range page.Value {
+				ret = append(ret, page.Value[i])
+			}
+		}
+		return ret, nil
+
+	default:
+		return nil, utils.TrackError(fmt.Errorf("unknown resource type: %s", parentResourceID.ResourceType.String()))
+	}
+}
+
+func (c frontendHTTPTestAccessor) CreateOrUpdate(ctx context.Context, resourceIDString string, content []byte) error {
 	resourceID, err := azcorearm.ParseResourceID(resourceIDString)
 	if err != nil {
 		return utils.TrackError(err)
@@ -65,9 +128,6 @@ func (c frontendHTTPTestSpecializer) CreateOrUpdate(ctx context.Context, resourc
 		if err != nil {
 			return utils.TrackError(err)
 		}
-		if err := integrationutils.MarkOperationsCompleteForName(ctx, c.dbClient, resourceID.SubscriptionID, resourceID.Name); err != nil {
-			return utils.TrackError(err)
-		}
 		return nil
 
 	case strings.ToLower(api.NodePoolResourceType.String()):
@@ -77,9 +137,6 @@ func (c frontendHTTPTestSpecializer) CreateOrUpdate(ctx context.Context, resourc
 		}
 		_, err := c.frontendClient.NewNodePoolsClient().BeginCreateOrUpdate(ctx, resourceID.ResourceGroupName, resourceID.Parent.Name, resourceID.Name, obj, nil)
 		if err != nil {
-			return utils.TrackError(err)
-		}
-		if err := integrationutils.MarkOperationsCompleteForName(ctx, c.dbClient, resourceID.SubscriptionID, resourceID.Name); err != nil {
 			return utils.TrackError(err)
 		}
 		return nil
@@ -93,9 +150,28 @@ func (c frontendHTTPTestSpecializer) CreateOrUpdate(ctx context.Context, resourc
 		if err != nil {
 			return utils.TrackError(err)
 		}
-		if err := integrationutils.MarkOperationsCompleteForName(ctx, c.dbClient, resourceID.SubscriptionID, resourceID.Name); err != nil {
+		return nil
+
+	case strings.ToLower(azcorearm.SubscriptionResourceType.String()):
+		fullURL := c.frontEndURL + path.Join("/subscriptions", resourceID.Name)
+		req, err := http.NewRequest("PUT", fullURL, bytes.NewReader(content))
+		if err != nil {
 			return utils.TrackError(err)
 		}
+		req.Header.Set("Content-Type", "application/json")
+		response, err := http.DefaultClient.Do(req)
+		if err != nil {
+			return utils.TrackError(err)
+		}
+		if response.StatusCode != 200 {
+			return utils.TrackError(fmt.Errorf("expected 200 status code, got %d", response.StatusCode))
+		}
+		//responseBytes, err := httputil.DumpResponse(response, true)
+		//if err != nil {
+		//	return utils.TrackError(err)
+		//}
+		//fmt.Printf("%s", string(responseBytes))
+
 		return nil
 
 	default:
@@ -103,7 +179,7 @@ func (c frontendHTTPTestSpecializer) CreateOrUpdate(ctx context.Context, resourc
 	}
 }
 
-func (c frontendHTTPTestSpecializer) Patch(ctx context.Context, resourceIDString string, content []byte) error {
+func (c frontendHTTPTestAccessor) Patch(ctx context.Context, resourceIDString string, content []byte) error {
 	resourceID, err := azcorearm.ParseResourceID(resourceIDString)
 	if err != nil {
 		return utils.TrackError(err)
@@ -148,7 +224,7 @@ func (c frontendHTTPTestSpecializer) Patch(ctx context.Context, resourceIDString
 	}
 }
 
-func (c frontendHTTPTestSpecializer) Delete(ctx context.Context, resourceIDString string) error {
+func (c frontendHTTPTestAccessor) Delete(ctx context.Context, resourceIDString string) error {
 	resourceID, err := azcorearm.ParseResourceID(resourceIDString)
 	if err != nil {
 		return utils.TrackError(err)

@@ -53,14 +53,14 @@ func (l *cosmosCompare) StepID() StepID {
 	return l.stepID
 }
 
-func (l *cosmosCompare) RunTest(ctx context.Context, t *testing.T, cosmosContainer *azcosmos.ContainerClient) {
+func (l *cosmosCompare) RunTest(ctx context.Context, t *testing.T, stepInput StepInput) {
 	// Query all documents in the container
 	querySQL := "SELECT * FROM c"
 	queryOptions := &azcosmos.QueryOptions{
 		QueryParameters: []azcosmos.QueryParameter{},
 	}
 
-	queryPager := cosmosContainer.NewQueryItemsPager(querySQL, azcosmos.PartitionKey{}, queryOptions)
+	queryPager := stepInput.CosmosContainer.NewQueryItemsPager(querySQL, azcosmos.PartitionKey{}, queryOptions)
 
 	allActual := []*database.TypedDocument{}
 	for queryPager.More() {

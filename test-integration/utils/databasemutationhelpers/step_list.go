@@ -22,8 +22,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-
-	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 )
 
 type listStep[InternalAPIType any] struct {
@@ -63,8 +61,8 @@ func (l *listStep[InternalAPIType]) StepID() StepID {
 	return l.stepID
 }
 
-func (l *listStep[InternalAPIType]) RunTest(ctx context.Context, t *testing.T, cosmosContainer *azcosmos.ContainerClient) {
-	controllerCRUDClient := l.specializer.ResourceCRUDFromKey(t, cosmosContainer, l.key)
+func (l *listStep[InternalAPIType]) RunTest(ctx context.Context, t *testing.T, stepInput StepInput) {
+	controllerCRUDClient := l.specializer.ResourceCRUDFromKey(t, stepInput.CosmosContainer, l.key)
 	actualControllersIterator, err := controllerCRUDClient.List(ctx, nil)
 	require.NoError(t, err)
 

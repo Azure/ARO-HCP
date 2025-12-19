@@ -16,16 +16,12 @@ package databasemutationhelpers
 
 import (
 	"context"
-	"fmt"
 	"io/fs"
-	"strings"
 	"testing"
 
+	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/stretchr/testify/require"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
-
-	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/test-integration/utils/integrationutils"
 )
 
@@ -36,25 +32,9 @@ type loadStep struct {
 }
 
 func NewLoadStep(stepID StepID, stepDir fs.FS) (*loadStep, error) {
-
-	contents := [][]byte{}
-	testContent := api.Must(fs.ReadDir(stepDir, "."))
-	for _, dirEntry := range testContent {
-		if dirEntry.Name() == "00-key.json" { // standard filenames to skip
-			continue
-		}
-		if dirEntry.Name() == "expected-error.txt" { // standard filenames to skip
-			continue
-		}
-		if !strings.HasSuffix(dirEntry.Name(), ".json") { // we can only understand JSON
-			continue
-		}
-
-		currContent, err := fs.ReadFile(stepDir, dirEntry.Name())
-		if err != nil {
-			return nil, fmt.Errorf("failed to read expected.json: %w", err)
-		}
-		contents = append(contents, currContent)
+	contents, err := readRawBytesInDir(stepDir)
+	if err != nil {
+		return nil, utils.TrackError(err)
 	}
 
 	return &loadStep{
@@ -69,9 +49,9 @@ func (l *loadStep) StepID() StepID {
 	return l.stepID
 }
 
-func (l *loadStep) RunTest(ctx context.Context, t *testing.T, cosmosContainer *azcosmos.ContainerClient) {
+func (l *loadStep) RunTest(ctx context.Context, t *testing.T, stepInput StepInput) {
 	for _, content := range l.contents {
-		err := integrationutils.LoadCosmosContent(ctx, cosmosContainer, content)
+		err := integrationutils.LoadCosmosContent(ctx, stepInput.CosmosContainer, content)
 		require.NoError(t, err, "failed to load cosmos content: %v", string(content))
 	}
 }

@@ -24,6 +24,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Azure/ARO-HCP/internal/database"
+	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/v20240610preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/stretchr/testify/require"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
@@ -41,7 +43,7 @@ type ResourceMutationTest struct {
 
 type IntegrationTestStep interface {
 	StepID() StepID
-	RunTest(ctx context.Context, t *testing.T, cosmosContainer *azcosmos.ContainerClient)
+	RunTest(ctx context.Context, t *testing.T, stepInput StepInput)
 }
 
 func NewResourceMutationTest[InternalAPIType any](ctx context.Context, specializer ResourceCRUDTestSpecializer[InternalAPIType], testName string, testDir fs.FS) (*ResourceMutationTest, error) {
@@ -85,13 +87,24 @@ func readSteps[InternalAPIType any](ctx context.Context, testDir fs.FS, speciali
 }
 
 func (tt *ResourceMutationTest) RunTest(t *testing.T) {
-	testInfo, err := integrationutils.NewCosmosFromTestingEnv(t.Context())
+	ctx := t.Context()
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	frontend, testInfo, err := integrationutils.NewFrontendFromTestingEnv(ctx, t)
 	require.NoError(t, err)
 	defer testInfo.Cleanup(context.Background())
+	go frontend.Run(ctx, ctx.Done())
 
+	stepInput := StepInput{
+		CosmosContainer: testInfo.CosmosResourcesContainer(),
+		DBClient:        testInfo.DBClient,
+		FrontendClient:  testInfo.Get20240610ClientFactory,
+		FrontendURL:     testInfo.FrontendURL,
+	}
 	for _, step := range tt.steps {
 		t.Logf("Running step %s", step.StepID())
-		step.RunTest(t.Context(), t, testInfo.CosmosResourcesContainer())
+		step.RunTest(t.Context(), t, stepInput)
 	}
 }
 
@@ -145,6 +158,12 @@ func NewStep[InternalAPIType any](indexString, stepType, stepName string, testDi
 
 	case "untypedDelete":
 		return newUntypedDeleteStep(stepID, stepDir)
+
+	case "httpGet":
+		return newHTTPGetStep(stepID, stepDir)
+
+	case "httpCreate":
+		return newHTTPCreateStep(stepID, stepDir)
 
 	default:
 		return nil, fmt.Errorf("unknown step type: %s", stepType)
@@ -209,4 +228,35 @@ func readResourcesInDir[InternalAPIType any](dir fs.FS) ([]*InternalAPIType, err
 	}
 
 	return resources, nil
+}
+
+func readRawBytesInDir(dir fs.FS) ([][]byte, error) {
+	contents := [][]byte{}
+	testContent := api.Must(fs.ReadDir(dir, "."))
+	for _, dirEntry := range testContent {
+		if dirEntry.Name() == "00-key.json" { // standard filenames to skip
+			continue
+		}
+		if dirEntry.Name() == "expected-error.txt" { // standard filenames to skip
+			continue
+		}
+		if !strings.HasSuffix(dirEntry.Name(), ".json") { // we can only understand JSON
+			continue
+		}
+
+		currContent, err := fs.ReadFile(dir, dirEntry.Name())
+		if err != nil {
+			return nil, fmt.Errorf("failed to read expected.json: %w", err)
+		}
+		contents = append(contents, currContent)
+	}
+
+	return contents, nil
+}
+
+type StepInput struct {
+	CosmosContainer *azcosmos.ContainerClient
+	DBClient        database.DBClient
+	FrontendClient  func(subscriptionID string) *hcpsdk20240610preview.ClientFactory
+	FrontendURL     string
 }

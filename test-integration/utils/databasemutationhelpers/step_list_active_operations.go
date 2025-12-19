@@ -23,11 +23,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
-	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
-
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/database"
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 )
 
 type listActiveOperationsStep struct {
@@ -65,11 +63,11 @@ func (l *listActiveOperationsStep) StepID() StepID {
 	return l.stepID
 }
 
-func (l *listActiveOperationsStep) RunTest(ctx context.Context, t *testing.T, cosmosContainer *azcosmos.ContainerClient) {
+func (l *listActiveOperationsStep) RunTest(ctx context.Context, t *testing.T, stepInput StepInput) {
 	parentResourceID, err := azcorearm.ParseResourceID(l.key.ParentResourceID)
 	require.NoError(t, err)
 
-	operationsCRUD := database.NewOperationCRUD(cosmosContainer, parentResourceID.SubscriptionID)
+	operationsCRUD := database.NewOperationCRUD(stepInput.CosmosContainer, parentResourceID.SubscriptionID)
 	actualControllersIterator := operationsCRUD.ListActiveOperations(nil)
 	require.NoError(t, err)
 

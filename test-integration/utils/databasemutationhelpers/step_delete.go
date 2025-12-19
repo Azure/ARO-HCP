@@ -24,8 +24,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-
-	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 )
 
 type CosmosDeleteKey struct {
@@ -72,8 +70,8 @@ func (l *deleteStep[InternalAPIType]) StepID() StepID {
 	return l.stepID
 }
 
-func (l *deleteStep[InternalAPIType]) RunTest(ctx context.Context, t *testing.T, cosmosContainer *azcosmos.ContainerClient) {
-	controllerCRUDClient := l.specializer.ResourceCRUDFromKey(t, cosmosContainer, l.key.CosmosCRUDKey)
+func (l *deleteStep[InternalAPIType]) RunTest(ctx context.Context, t *testing.T, stepInput StepInput) {
+	controllerCRUDClient := l.specializer.ResourceCRUDFromKey(t, stepInput.CosmosContainer, l.key.CosmosCRUDKey)
 	err := controllerCRUDClient.Delete(ctx, l.key.DeleteResourceName)
 	switch {
 	case len(l.expectedError) > 0:

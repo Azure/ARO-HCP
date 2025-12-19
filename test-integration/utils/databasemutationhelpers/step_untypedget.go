@@ -25,10 +25,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
-	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
-
 	"github.com/Azure/ARO-HCP/internal/database"
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 )
 
 type untypedGetStep struct {
@@ -88,11 +86,11 @@ func (l *untypedGetStep) StepID() StepID {
 	return l.stepID
 }
 
-func (l *untypedGetStep) RunTest(ctx context.Context, t *testing.T, cosmosContainer *azcosmos.ContainerClient) {
+func (l *untypedGetStep) RunTest(ctx context.Context, t *testing.T, stepInput StepInput) {
 	parentResourceID, err := azcorearm.ParseResourceID(l.key.ParentResourceID)
 	require.NoError(t, err)
 
-	untypedCRUD := database.NewUntypedCRUD(cosmosContainer, *parentResourceID)
+	untypedCRUD := database.NewUntypedCRUD(stepInput.CosmosContainer, *parentResourceID)
 	for _, childKey := range l.key.Descendents {
 		childResourceType, err := azcorearm.ParseResourceType(childKey.ResourceType)
 		require.NoError(t, err)
