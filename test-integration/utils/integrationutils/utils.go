@@ -38,7 +38,7 @@ import (
 
 func SkipIfNotSimulationTesting(t *testing.T) {
 	if os.Getenv("FRONTEND_SIMULATION_TESTING") != "true" {
-		//t.Skip("Skipping test")
+		t.Skip("Skipping test")
 	}
 }
 
