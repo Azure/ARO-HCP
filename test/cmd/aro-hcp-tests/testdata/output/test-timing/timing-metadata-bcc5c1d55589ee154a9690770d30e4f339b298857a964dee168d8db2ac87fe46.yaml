@@ -1,0 +1,453 @@
+deployments:
+  "":
+    mi-rg-cluster-name-validation-kplk68:
+    - children:
+      - duration: PT4.2471293S
+        operationType: Create
+        resource:
+          name: 7cd0b665-e36e-5e30-860f-979526207da8
+          resourceGroup: rg-cluster-name-validation-kplk68
+          resourceType: Microsoft.Authorization/roleAssignments
+        startTimestamp: "2025-12-17T03:24:53Z"
+      - duration: PT3.3955377S
+        operationType: Create
+        resource:
+          name: e03c0ff1-70da-5c83-8a13-d88c866fd742
+          resourceGroup: rg-cluster-name-validation-kplk68
+          resourceType: Microsoft.Authorization/roleAssignments
+        startTimestamp: "2025-12-17T03:24:53Z"
+      - duration: PT3.9815068S
+        operationType: Create
+        resource:
+          name: 8839555a-8e87-5306-a57d-079a71ffd975
+          resourceGroup: rg-cluster-name-validation-kplk68
+          resourceType: Microsoft.Authorization/roleAssignments
+        startTimestamp: "2025-12-17T03:24:53Z"
+      - duration: PT3.9815068S
+        operationType: Create
+        resource:
+          name: 029a4f8e-83cb-5de4-85a4-a75c98acd185
+          resourceGroup: rg-cluster-name-validation-kplk68
+          resourceType: Microsoft.Authorization/roleAssignments
+        startTimestamp: "2025-12-17T03:24:53Z"
+      - duration: PT3.2520567S
+        operationType: Create
+        resource:
+          name: ffea7222-066e-5161-a170-8122c170e558
+          resourceGroup: rg-cluster-name-validation-kplk68
+          resourceType: Microsoft.Authorization/roleAssignments
+        startTimestamp: "2025-12-17T03:24:53Z"
+      - duration: PT3.16127S
+        operationType: Create
+        resource:
+          name: aaa558dc-d24f-57ae-ac54-62cd10f4a9dd
+          resourceGroup: rg-cluster-name-validation-kplk68
+          resourceType: Microsoft.Authorization/roleAssignments
+        startTimestamp: "2025-12-17T03:24:53Z"
+      - duration: PT3.8721649S
+        operationType: Create
+        resource:
+          name: d2cb6d82-e874-57f5-a18b-4f96dade5e71
+          resourceGroup: rg-cluster-name-validation-kplk68
+          resourceType: Microsoft.Authorization/roleAssignments
+        startTimestamp: "2025-12-17T03:24:53Z"
+      - duration: PT3.8096306S
+        operationType: Create
+        resource:
+          name: 22ffab23-f236-57fc-87fc-20b39f183432
+          resourceGroup: rg-cluster-name-validation-kplk68
+          resourceType: Microsoft.Authorization/roleAssignments
+        startTimestamp: "2025-12-17T03:24:53Z"
+      - duration: PT3.0830622S
+        operationType: Create
+        resource:
+          name: e65beebf-310c-50dd-bda5-39504b287ec2
+          resourceGroup: rg-cluster-name-validation-kplk68
+          resourceType: Microsoft.Authorization/roleAssignments
+        startTimestamp: "2025-12-17T03:24:53Z"
+      - duration: PT3.0104898S
+        operationType: Create
+        resource:
+          name: d82136f1-c7af-5bfc-929d-d6509738bb4a
+          resourceGroup: rg-cluster-name-validation-kplk68
+          resourceType: Microsoft.Authorization/roleAssignments
+        startTimestamp: "2025-12-17T03:24:54Z"
+      - duration: PT3.098042S
+        operationType: Create
+        resource:
+          name: 528f2561-805a-5e7a-8e37-829c3e565536
+          resourceGroup: rg-cluster-name-validation-kplk68
+          resourceType: Microsoft.Authorization/roleAssignments
+        startTimestamp: "2025-12-17T03:24:53Z"
+      - duration: PT3.7627571S
+        operationType: Create
+        resource:
+          name: 4a9a00f8-bac0-5b69-8c45-12fb87e9e2b2
+          resourceGroup: rg-cluster-name-validation-kplk68
+          resourceType: Microsoft.Authorization/roleAssignments
+        startTimestamp: "2025-12-17T03:24:53Z"
+      - duration: PT3.7627571S
+        operationType: Create
+        resource:
+          name: cc50b5c6-3f72-5c35-a0a4-4f442faf577c
+          resourceGroup: rg-cluster-name-validation-kplk68
+          resourceType: Microsoft.Authorization/roleAssignments
+        startTimestamp: "2025-12-17T03:24:53Z"
+      - duration: PT3.7627571S
+        operationType: Create
+        resource:
+          name: 58f3e471-a00d-5689-b8a2-6a7dac72bf12
+          resourceGroup: rg-cluster-name-validation-kplk68
+          resourceType: Microsoft.Authorization/roleAssignments
+        startTimestamp: "2025-12-17T03:24:53Z"
+      - duration: PT3.7627571S
+        operationType: Create
+        resource:
+          name: f96dca88-1bff-5e90-b0d9-edabf6837db6
+          resourceGroup: rg-cluster-name-validation-kplk68
+          resourceType: Microsoft.Authorization/roleAssignments
+        startTimestamp: "2025-12-17T03:24:53Z"
+      - duration: PT3.0361659S
+        operationType: Create
+        resource:
+          name: c5e3deec-a268-5162-a769-9f0fb9ca914b
+          resourceGroup: rg-cluster-name-validation-kplk68
+          resourceType: Microsoft.Authorization/roleAssignments
+        startTimestamp: "2025-12-17T03:24:53Z"
+      - duration: PT0.4815237S
+        operationType: Read
+        resource:
+          name: kms
+          resourceGroup: rg-cluster-name-validation-kplk68
+          resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+        startTimestamp: "2025-12-17T03:24:53Z"
+      - duration: PT0.4658981S
+        operationType: Read
+        resource:
+          name: cluster-api-azure
+          resourceGroup: rg-cluster-name-validation-kplk68
+          resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+        startTimestamp: "2025-12-17T03:24:53Z"
+      - duration: PT0.4658981S
+        operationType: Read
+        resource:
+          name: dp-file-csi-driver
+          resourceGroup: rg-cluster-name-validation-kplk68
+          resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+        startTimestamp: "2025-12-17T03:24:53Z"
+      - duration: PT0.4502738S
+        operationType: Read
+        resource:
+          name: ingress
+          resourceGroup: rg-cluster-name-validation-kplk68
+          resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+        startTimestamp: "2025-12-17T03:24:53Z"
+      - duration: PT0.4502738S
+        operationType: Read
+        resource:
+          name: cloud-network-config
+          resourceGroup: rg-cluster-name-validation-kplk68
+          resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+        startTimestamp: "2025-12-17T03:24:53Z"
+      - duration: PT0.4502738S
+        operationType: Read
+        resource:
+          name: service
+          resourceGroup: rg-cluster-name-validation-kplk68
+          resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+        startTimestamp: "2025-12-17T03:24:53Z"
+      - duration: PT0.4502738S
+        operationType: Read
+        resource:
+          name: control-plane
+          resourceGroup: rg-cluster-name-validation-kplk68
+          resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+        startTimestamp: "2025-12-17T03:24:53Z"
+      - duration: PT0.4502738S
+        operationType: Read
+        resource:
+          name: file-csi-driver
+          resourceGroup: rg-cluster-name-validation-kplk68
+          resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+        startTimestamp: "2025-12-17T03:24:53Z"
+      - duration: PT0.4502738S
+        operationType: Read
+        resource:
+          name: cloud-controller-manager
+          resourceGroup: rg-cluster-name-validation-kplk68
+          resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+        startTimestamp: "2025-12-17T03:24:53Z"
+      - duration: PT0.464243S
+        operationType: EvaluateDeploymentOutput
+        startTimestamp: "2025-12-17T03:24:57Z"
+      duration: PT7.9314088S
+      operationType: Create
+      resource:
+        name: clusterNonMsiScopedAssignments
+        resourceGroup: rg-cluster-name-validation-kplk68
+        resourceType: Microsoft.Resources/deployments
+      startTimestamp: "2025-12-17T03:24:51Z"
+    - children:
+      - duration: PT3.1938023S
+        operationType: Create
+        resource:
+          name: a244aec5-4aef-5466-af0f-15bfcf7e902f
+          resourceGroup: rg-cluster-name-validation-kplk68
+          resourceType: Microsoft.Authorization/roleAssignments
+        startTimestamp: "2025-12-17T03:24:53Z"
+      - duration: PT3.1938023S
+        operationType: Create
+        resource:
+          name: e3c01e67-2b64-515d-83e8-b002c074dd8d
+          resourceGroup: rg-cluster-name-validation-kplk68
+          resourceType: Microsoft.Authorization/roleAssignments
+        startTimestamp: "2025-12-17T03:24:53Z"
+      - duration: PT3.1781774S
+        operationType: Create
+        resource:
+          name: 8a47baf9-8468-56ab-800d-727674316582
+          resourceGroup: rg-cluster-name-validation-kplk68
+          resourceType: Microsoft.Authorization/roleAssignments
+        startTimestamp: "2025-12-17T03:24:53Z"
+      - duration: PT3.1781774S
+        operationType: Create
+        resource:
+          name: baaa13c5-941e-5bd6-89da-8a4e66f61703
+          resourceGroup: rg-cluster-name-validation-kplk68
+          resourceType: Microsoft.Authorization/roleAssignments
+        startTimestamp: "2025-12-17T03:24:53Z"
+      - duration: PT3.1313052S
+        operationType: Create
+        resource:
+          name: f57e59ce-45ce-5ae3-bcab-8ae165e92086
+          resourceGroup: rg-cluster-name-validation-kplk68
+          resourceType: Microsoft.Authorization/roleAssignments
+        startTimestamp: "2025-12-17T03:24:53Z"
+      - duration: PT3.8167499S
+        operationType: Create
+        resource:
+          name: 0e45f357-7bda-580a-a6c3-5221449489e2
+          resourceGroup: rg-cluster-name-validation-kplk68
+          resourceType: Microsoft.Authorization/roleAssignments
+        startTimestamp: "2025-12-17T03:24:53Z"
+      - duration: PT3.0219302S
+        operationType: Create
+        resource:
+          name: f1311eac-721c-54fe-b7c5-42222b03fa2c
+          resourceGroup: rg-cluster-name-validation-kplk68
+          resourceType: Microsoft.Authorization/roleAssignments
+        startTimestamp: "2025-12-17T03:24:53Z"
+      - duration: PT3.0219302S
+        operationType: Create
+        resource:
+          name: 7094ae10-c522-54c6-b139-ed0e7204b6c8
+          resourceGroup: rg-cluster-name-validation-kplk68
+          resourceType: Microsoft.Authorization/roleAssignments
+        startTimestamp: "2025-12-17T03:24:53Z"
+      - duration: PT2.943805S
+        operationType: Create
+        resource:
+          name: 5fae2a36-ea47-5047-a4ae-deb4b7eae7c2
+          resourceGroup: rg-cluster-name-validation-kplk68
+          resourceType: Microsoft.Authorization/roleAssignments
+        startTimestamp: "2025-12-17T03:24:53Z"
+      - duration: PT2.8813044S
+        operationType: Create
+        resource:
+          name: 98f28fe1-1914-5e32-82c1-0373171993fb
+          resourceGroup: rg-cluster-name-validation-kplk68
+          resourceType: Microsoft.Authorization/roleAssignments
+        startTimestamp: "2025-12-17T03:24:53Z"
+      - duration: PT2.8656799S
+        operationType: Create
+        resource:
+          name: 81d88d8a-f047-5a91-ae16-bde200d20e6c
+          resourceGroup: rg-cluster-name-validation-kplk68
+          resourceType: Microsoft.Authorization/roleAssignments
+        startTimestamp: "2025-12-17T03:24:53Z"
+      - duration: PT2.6000556S
+        operationType: Create
+        resource:
+          name: 8bc8ad37-8160-57ad-af16-587cc2bbb08c
+          resourceGroup: rg-cluster-name-validation-kplk68
+          resourceType: Microsoft.Authorization/roleAssignments
+        startTimestamp: "2025-12-17T03:24:53Z"
+      - duration: PT0.3948926S
+        operationType: Read
+        resource:
+          name: service
+          resourceGroup: rg-cluster-name-validation-kplk68
+          resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+        startTimestamp: "2025-12-17T03:24:53Z"
+      - duration: PT0.4084915S
+        operationType: EvaluateDeploymentOutput
+        startTimestamp: "2025-12-17T03:24:57Z"
+      duration: PT15.494284S
+      operationType: Create
+      resource:
+        name: clusterMsiScopedAssignments
+        resourceGroup: rg-cluster-name-validation-kplk68
+        resourceType: Microsoft.Resources/deployments
+      startTimestamp: "2025-12-17T03:24:45Z"
+    - children:
+      - duration: PT1.4256007S
+        operationType: Create
+        resource:
+          name: service
+          resourceGroup: rg-cluster-name-validation-kplk68
+          resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+        startTimestamp: "2025-12-17T03:24:48Z"
+      - duration: PT1.3474765S
+        operationType: Create
+        resource:
+          name: dp-file-csi-driver
+          resourceGroup: rg-cluster-name-validation-kplk68
+          resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+        startTimestamp: "2025-12-17T03:24:48Z"
+      - duration: PT1.2849813S
+        operationType: Create
+        resource:
+          name: cloud-controller-manager
+          resourceGroup: rg-cluster-name-validation-kplk68
+          resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+        startTimestamp: "2025-12-17T03:24:48Z"
+      - duration: PT1.2849813S
+        operationType: Create
+        resource:
+          name: control-plane
+          resourceGroup: rg-cluster-name-validation-kplk68
+          resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+        startTimestamp: "2025-12-17T03:24:48Z"
+      - duration: PT1.2849813S
+        operationType: Create
+        resource:
+          name: dp-disk-csi-driver
+          resourceGroup: rg-cluster-name-validation-kplk68
+          resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+        startTimestamp: "2025-12-17T03:24:48Z"
+      - duration: PT1.2693538S
+        operationType: Create
+        resource:
+          name: image-registry
+          resourceGroup: rg-cluster-name-validation-kplk68
+          resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+        startTimestamp: "2025-12-17T03:24:48Z"
+      - duration: PT1.2537287S
+        operationType: Create
+        resource:
+          name: cloud-network-config
+          resourceGroup: rg-cluster-name-validation-kplk68
+          resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+        startTimestamp: "2025-12-17T03:24:48Z"
+      - duration: PT1.2537287S
+        operationType: Create
+        resource:
+          name: file-csi-driver
+          resourceGroup: rg-cluster-name-validation-kplk68
+          resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+        startTimestamp: "2025-12-17T03:24:48Z"
+      - duration: PT1.2381035S
+        operationType: Create
+        resource:
+          name: cluster-api-azure
+          resourceGroup: rg-cluster-name-validation-kplk68
+          resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+        startTimestamp: "2025-12-17T03:24:48Z"
+      - duration: PT1.2224799S
+        operationType: Create
+        resource:
+          name: ingress
+          resourceGroup: rg-cluster-name-validation-kplk68
+          resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+        startTimestamp: "2025-12-17T03:24:48Z"
+      - duration: PT1.1912291S
+        operationType: Create
+        resource:
+          name: dp-image-registry
+          resourceGroup: rg-cluster-name-validation-kplk68
+          resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+        startTimestamp: "2025-12-17T03:24:48Z"
+      - duration: PT1.1912291S
+        operationType: Create
+        resource:
+          name: kms
+          resourceGroup: rg-cluster-name-validation-kplk68
+          resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+        startTimestamp: "2025-12-17T03:24:48Z"
+      - duration: PT1.1287305S
+        operationType: Create
+        resource:
+          name: disk-csi-driver
+          resourceGroup: rg-cluster-name-validation-kplk68
+          resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+        startTimestamp: "2025-12-17T03:24:48Z"
+      - duration: PT0.1000287S
+        operationType: EvaluateDeploymentOutput
+        startTimestamp: "2025-12-17T03:24:49Z"
+      duration: PT6.2794176S
+      operationType: Create
+      resource:
+        name: clusterIdentities
+        resourceGroup: rg-cluster-name-validation-kplk68
+        resourceType: Microsoft.Resources/deployments
+      startTimestamp: "2025-12-17T03:24:45Z"
+    - duration: PT0.411859S
+      operationType: EvaluateDeploymentOutput
+      startTimestamp: "2025-12-17T03:25:00Z"
+  rg-cluster-name-validation-kplk68:
+    customer-infra:
+    - duration: PT20.6369562S
+      operationType: Create
+      resource:
+        name: etcd-data-kms-encryption-key
+        resourceGroup: rg-cluster-name-validation-kplk68
+        resourceType: Microsoft.KeyVault/vaults/keys
+      startTimestamp: "2025-12-17T03:24:13Z"
+    - duration: PT7.057609S
+      operationType: Create
+      resource:
+        name: customer-vnet
+        resourceGroup: rg-cluster-name-validation-kplk68
+        resourceType: Microsoft.Network/virtualNetworks
+      startTimestamp: "2025-12-17T03:24:13Z"
+    - duration: PT19.4963367S
+      operationType: Create
+      resource:
+        name: cust-kv-uyqk64jl42y2o
+        resourceGroup: rg-cluster-name-validation-kplk68
+        resourceType: Microsoft.KeyVault/vaults
+      startTimestamp: "2025-12-17T03:24:13Z"
+    - duration: PT3.4076125S
+      operationType: Create
+      resource:
+        name: customer-nsg
+        resourceGroup: rg-cluster-name-validation-kplk68
+        resourceType: Microsoft.Network/networkSecurityGroups
+      startTimestamp: "2025-12-17T03:24:13Z"
+    - duration: PT0.4214577S
+      operationType: EvaluateDeploymentOutput
+      startTimestamp: "2025-12-17T03:24:33Z"
+finishedAt: "2025-12-17T03:25:07Z"
+identifier:
+- Customer
+- should not be able to deploy cluster with invalid name
+startedAt: "2025-12-17T03:24:08Z"
+steps:
+- finishedAt: "2025-12-17T03:24:43Z"
+  name: Deploy ARM template rg-cluster-name-validation-kplk68/customer-infra
+  startedAt: "2025-12-17T03:24:10Z"
+- finishedAt: "2025-12-17T03:25:05Z"
+  name: Deploy ARM template /mi-rg-cluster-name-validation-kplk68
+  startedAt: "2025-12-17T03:24:43Z"
+- finishedAt: "2025-12-17T03:25:05Z"
+  name: Deploy customer resources in resource group rg-cluster-name-validation-kplk68
+  startedAt: "2025-12-17T03:24:10Z"
+- finishedAt: "2025-12-17T03:25:05Z"
+  name: Deploy HCP cluster rg-cluster-name-validation-kplk68/cluster-name-that-is-definitely-longer-than-fifty-four-characters-and-should-fail-validation
+  startedAt: "2025-12-17T03:25:05Z"
+- finishedAt: "2025-12-17T03:25:06Z"
+  name: Deploy HCP cluster rg-cluster-name-validation-kplk68/1cluster
+  startedAt: "2025-12-17T03:25:05Z"
+- finishedAt: "2025-12-17T03:25:06Z"
+  name: Deploy HCP cluster rg-cluster-name-validation-kplk68/clu$ter
+  startedAt: "2025-12-17T03:25:06Z"

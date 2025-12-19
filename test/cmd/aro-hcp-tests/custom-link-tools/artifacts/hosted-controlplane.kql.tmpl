@@ -1,0 +1,18 @@
+let _startTime = datetime("{{.StartTime}}");
+let _endTime = datetime("{{.EndTime}}");
+let _resource_group = '{{.ResourceGroupName}}';
+database('ServiceLogs').table('containerLogs')
+| where timestamp between (_startTime .. _endTime)
+| where log has _resource_group
+| extend cid=extract(@"cid='([a-v0-9]{32})'", 1, tostring(log)) 
+| where strlen( cid) > 0
+| distinct cid
+
+// Copy the cid from the above query to the below query to get the hosted control plane logs
+let cid = 'paste value here';
+let _startTime = datetime("{{.StartTime}}");
+let _endTime = datetime("{{.EndTime}}");
+database('HostedControlPlaneLogs').table('containerLogs')
+| where timestamp between (_startTime .. _endTime)
+| where namespace_name has cid
+| project timestamp, log

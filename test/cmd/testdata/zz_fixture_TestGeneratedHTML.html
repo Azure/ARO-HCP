@@ -1,0 +1,90 @@
+<html>
+<head>
+  <title>Debug tools</title>
+  <meta name="description" content="Contains links to job run tools like kusto, etc.">
+  <link rel="stylesheet" type="text/css" href="/static/style.css">
+  <link rel="stylesheet" type="text/css" href="/static/extensions/style.css">
+  <link href="https://fonts.googleapis.com/css?family=Roboto:400,700" rel="stylesheet">
+  <link rel="stylesheet" href="https://code.getmdl.io/1.3.0/material.indigo-pink.min.css">
+  <link rel="stylesheet" type="text/css" href="/static/spyglass/spyglass.css">
+  <style>
+    body {
+        background-color: #000;
+        color: #fff;
+    }
+    table {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 20px 0;
+    }
+    th, td {
+        padding: 12px 15px;
+        text-align: left;
+        border: 1px solid #333;
+    }
+    th {
+        background-color: #222;
+        font-weight: bold;
+    }
+    .status-success {
+        background-color: #1b5e20;
+    }
+    .status-failure {
+        background-color: #b71c1c;
+    }
+    .status-skipped {
+        background-color: #f57f17;
+        color: #000;
+    }
+    .status-pending {
+        background-color: #424242;
+    }
+    a {
+        display: inline-block;
+        padding: 4px 12px;
+        margin: 2px;
+        border: 1px solid #4E9AF1;
+        border-radius: 0.5em;
+        text-decoration: none;
+        color: #FFFFFF !important;
+        text-align: center;
+        transition: all 0.2s;
+        background-color: #4E9AF1;
+    }
+    a:hover {
+        border-color: #FFFFFF;
+    }
+  </style>
+</head>
+
+<body>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Testname</th>
+        <th>Status</th>
+        <th>ResourceGroupName</th>
+        <th>Links</th>
+      </tr>
+    </thead>
+    <tbody>
+      
+      <tr class="status-tbd">
+        <td>Customer should not be able to deploy cluster with invalid name</td>
+        <td>tbd</td>
+        <td>rg-cluster-name-validation-kplk68</td>
+        <td>
+          
+          <a target="_blank" href="https://dataexplorer.azure.com/clusters/hcp-dev-us.westus3/databases/HostedControlPlaneLogs?query=H4sIAAAAAAAA%2F7SSQW%2FUMBCF7%2FkVo704kZptNqW0bLUIqRcOHJDoCYRWE%2BeRNXXsYE%2ByrVj%2BO3KKGsSFU2%2BeJ73xN%2FPGQmgfhYPcmR60o5YFYnrkq7qqL8tNXW6u7qqLbf1qW11%2FXhU32WyBa%2F9nuNxWV4shIPoxaOy74MeBdqRCV2o7RkEoHfcoJ7amZTHelfeDvX99rW6yloUbjsjVJ4TJaHzwXVTFWrixyJX2Ttg4hCc5O9HxgABKPFG4H6iBHAFH%2BV9DrtfP%2FIvF%2Bo4OHP8FzU6EB4FrSZt2hwcJrCV%2Ft0qVyr9wOVXlm68%2FL%2BpfhVqd0eaMxEcJxnW59V1R0PMHUYKFy1Ofgt5SlZ2oNVGM05K0LDs%2Fp1s%2FPJIckAT6Fnw%2FF9z4CfRjRHgk8bPUwPrjInWQWT74KGgprSV4S4NlN08W5wxS0x2pgaOAJrYjKJGpPwm98BUsUb6fKW%2BfID8mxhdLNR1WHFhjn15zwGnXJxqC%2Fw4tS8%2BztKfsdwAAAP%2F%2FJYicvA8DAAA%3D" title="Hosted Control Plane Logs">Hosted Control Plane Logs</a>
+          
+          <a target="_blank" href="https://dataexplorer.azure.com/clusters/hcp-dev-us.westus3/databases/ServiceLogs?query=H4sIAAAAAAAA%2F9STTXPTMBCG7%2F4VO7lInlr5gtKSTmbgzo2e2pTMRt44IrZkpHVTmPx4xk4am7TQ8tEDOeQg6bH22XeVE8M8MHq%2BNAXBFFJkYlOQ7I2H41M1GqvR2eXw1WT8ejI8v%2BrFF1GDkE2fAk4nw7MW8BRc5TXNM%2B%2BqEqYgfKZ0XgUmrywWpG4xNymycVaty3z95lzs0P2h9gsmhSnIFBkXGEiKj%2BRvjaYPLgsi7jMucpJi6Z1lsuluNdrCZkWeoK40MBYlLIg3RBZkR7%2FfP5i1yHHl02OZw8kiZLDCAEJ7QjY2O7Ai2gLd1fVAR2NKd%2BxRs3zXe0CAvH6vrlB9G6q3MzXrzwY3J3EvgVEC7AJ7YzOZuyyOIdpCagIbq7nd6txSm%2BSmMAyj%2BCKqrHE2AgCQzX%2F9e6KVC9TrtpP30B909BjtJmosyEeS7kKld5%2Bplry%2FMQHtLKOx5Of1CCV1Ag0QJ7%2BneDQtL%2BH40%2Bn5K0EYDGDpPFi3SWBDoNFCiT7Qc80PF%2Fx79briUKKmpvZaXewTDirsahEd6Jfvo7sq5PWnmbg5icXj7%2BHlxyx3D1MwFnhFsKy48tRk8aUi%2F%2FXZOew788Pmf%2FLYvgcAAP%2F%2FpG16g0UGAAA%3D" title="Service Logs">Service Logs</a>
+          
+        </td>
+      </tr>
+      
+    </tbody>
+  </table>
+
+</body>
+</html>
