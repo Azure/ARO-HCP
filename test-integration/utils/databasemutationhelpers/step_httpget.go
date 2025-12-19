@@ -91,7 +91,8 @@ func (l *httpGetStep) StepID() StepID {
 }
 
 func (l *httpGetStep) RunTest(ctx context.Context, t *testing.T, stepInput StepInput) {
-	subscriptionID := api.Must(azcorearm.ParseResourceID(l.key.ResourceID)).SubscriptionID
+	resourceID := api.Must(azcorearm.ParseResourceID(l.key.ResourceID))
+	subscriptionID := resourceID.SubscriptionID
 	accessor := newFrontendHTTPTestAccessor(stepInput.FrontendURL, stepInput.FrontendClient(subscriptionID))
 	actual, err := accessor.Get(ctx, l.key.ResourceID)
 	switch {

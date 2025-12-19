@@ -26,6 +26,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/database"
 	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/v20240610preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
+	"github.com/neilotoole/slogt"
 	"github.com/stretchr/testify/require"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
@@ -90,6 +91,7 @@ func (tt *ResourceMutationTest) RunTest(t *testing.T) {
 	ctx := t.Context()
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
+	ctx = utils.ContextWithLogger(ctx, slogt.New(t, slogt.JSON()))
 
 	frontend, testInfo, err := integrationutils.NewFrontendFromTestingEnv(ctx, t)
 	require.NoError(t, err)
@@ -165,6 +167,9 @@ func NewStep[InternalAPIType any](indexString, stepType, stepName string, testDi
 
 	case "httpGet":
 		return newHTTPGetStep(stepID, stepDir)
+
+	case "httpList":
+		return newHTTPListStep(stepID, stepDir)
 
 	case "httpCreate":
 		return newHTTPCreateStep(stepID, stepDir)
