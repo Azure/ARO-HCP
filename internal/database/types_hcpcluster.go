@@ -17,8 +17,6 @@ package database
 import (
 	"fmt"
 
-	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
-
 	"github.com/Azure/ARO-HCP/internal/api"
 )
 
@@ -50,8 +48,4 @@ func (o *HCPCluster) ValidateResourceType() error {
 
 func (o *HCPCluster) GetTypedDocument() *TypedDocument {
 	return &o.TypedDocument
-}
-
-func (o *HCPCluster) SetResourceID(newResourceID *azcorearm.ResourceID) {
-	o.ResourceDocument.SetResourceID(newResourceID)
 }

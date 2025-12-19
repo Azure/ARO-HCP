@@ -366,7 +366,12 @@ func (s *OperationsScanner) collectSubscriptions(ctx context.Context, logger *sl
 
 	var subscriptions []string
 
-	iterator := s.dbClient.ListAllSubscriptionDocs()
+	iterator, err := s.dbClient.Subscriptions().List(ctx, nil)
+	if err != nil {
+		s.recordOperationError(ctx, collectSubscriptionsLabel, err)
+		logger.Error(fmt.Sprintf("Error creating iterator: %v", err.Error()))
+		return
+	}
 
 	subscriptionStates := map[arm.SubscriptionState]int{}
 	for subscriptionState := range arm.ListSubscriptionStates() {
@@ -382,8 +387,7 @@ func (s *OperationsScanner) collectSubscriptions(ctx context.Context, logger *sl
 	}
 
 	span.SetAttributes(tracing.ProcessedItemsKey.Int(len(subscriptions)))
-	err := iterator.GetError()
-	if err != nil {
+	if err := iterator.GetError(); err != nil {
 		s.recordOperationError(ctx, collectSubscriptionsLabel, err)
 		logger.Error(fmt.Sprintf("Error while paging through Cosmos query results: %v", err.Error()))
 		return

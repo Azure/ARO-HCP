@@ -17,8 +17,6 @@ package database
 import (
 	"fmt"
 
-	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
-
 	"github.com/Azure/ARO-HCP/internal/api"
 )
 
@@ -50,8 +48,4 @@ func (o *ExternalAuth) ValidateResourceType() error {
 
 func (o *ExternalAuth) GetTypedDocument() *TypedDocument {
 	return &o.TypedDocument
-}
-
-func (o *ExternalAuth) SetResourceID(newResourceID *azcorearm.ResourceID) {
-	o.ResourceDocument.SetResourceID(newResourceID)
 }

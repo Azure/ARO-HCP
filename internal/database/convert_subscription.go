@@ -1,0 +1,71 @@
+// Copyright 2025 Microsoft Corporation
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package database
+
+import (
+	"fmt"
+	"path"
+	"strings"
+
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+
+	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/utils"
+)
+
+func InternalToCosmosSubscription(internalObj *arm.Subscription) (*Subscription, error) {
+	if internalObj == nil {
+		return nil, nil
+	}
+
+	if len(internalObj.ResourceID.Name) == 0 {
+		return nil, fmt.Errorf("invalid resource id: %q", internalObj.ResourceID.String())
+	}
+
+	cosmosObj := &Subscription{
+		TypedDocument: TypedDocument{
+			BaseDocument: BaseDocument{
+				ID: strings.ToLower(internalObj.ResourceID.Name),
+			},
+			PartitionKey: strings.ToLower(internalObj.ResourceID.Name),
+			ResourceType: internalObj.ResourceID.ResourceType.String(),
+		},
+		InternalState: SubscriptionProperties{
+			Subscription: *internalObj,
+		},
+	}
+
+	return cosmosObj, nil
+}
+
+func CosmosToInternalSubscription(cosmosObj *Subscription) (*arm.Subscription, error) {
+	if cosmosObj == nil {
+		return nil, nil
+	}
+
+	tempInternalAPI := cosmosObj.InternalState.Subscription
+	internalObj := &tempInternalAPI
+
+	// some pieces of data are stored on the ResourceDocument, so we need to restore that data
+	// this allows us to read old data until we migrate all existing data
+	resourceID, err := azcorearm.ParseResourceID(path.Join("/subscriptions", cosmosObj.ID))
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
+	internalObj.ResourceID = resourceID
+	internalObj.LastUpdated = cosmosObj.CosmosTimestamp
+
+	return internalObj, nil
+}
