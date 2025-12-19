@@ -1936,6 +1936,12 @@ spec:
                   operator: In
                   values:
                   - klusterletaddon
+      tolerations:
+      -  key: infra
+         operator: Equal
+         value: "true"
+         effect: NoSchedule
+        
       containers:
       - name: klusterlet-addon-controller
         image: "arohcpsvcdev.azurecr.io/acm-d-cache/klusterlet-addon-controller-rhel9@sha256:1234567890"
@@ -1973,6 +1979,8 @@ spec:
             valueFrom:
               fieldRef:
                 fieldPath: metadata.namespace
+      nodeSelector:
+        aro-hcp.azure.com/role: infra
 ---
 # Source: multicluster-engine-local-cluster/charts/policy/charts/grc/templates/grc-policy-addon-controller.yaml
 apiVersion: apps/v1
@@ -2014,6 +2022,11 @@ spec:
                 - ppc64le
                 - s390x
                 - arm64
+            - matchExpressions:
+              - key: aro-hcp.azure.com/role
+                operator: In
+                values:
+                - infra
         podAntiAffinity:
           preferredDuringSchedulingIgnoredDuringExecution:
           - podAffinityTerm:
@@ -2083,6 +2096,10 @@ spec:
       - effect: NoSchedule
         key: node-role.kubernetes.io/infra
         operator: Exists
+      - effect: NoSchedule
+        key: infra
+        operator: "Equal"
+        value: "true"
       volumes:
       - emptyDir: {}
         name: tmp
@@ -2130,6 +2147,11 @@ spec:
                 - ppc64le
                 - s390x
                 - arm64
+            - matchExpressions:
+              - key: aro-hcp.azure.com/role
+                operator: In
+                values:
+                - infra
         podAntiAffinity:
           preferredDuringSchedulingIgnoredDuringExecution:
           - podAffinityTerm:
@@ -2227,6 +2249,10 @@ spec:
       - effect: NoSchedule
         key: node-role.kubernetes.io/infra
         operator: Exists
+      - effect: NoSchedule
+        key: infra
+        operator: "Equal"
+        value: "true"
       volumes:
       - emptyDir: {}
         name: tmp
@@ -2241,6 +2267,14 @@ spec:
   customizedVariables:
   - name: managedKubeConfigSecret
     value: external-managed-kubeconfig
+  nodePlacement:
+    tolerations:
+    - effect: NoSchedule
+      key: infra
+      operator: "Equal"
+      value: "true"
+    nodeSelector:
+      aro-hcp.azure.com/role: infra
 ---
 # Source: multicluster-engine-local-cluster/charts/policy/charts/grc/templates/config-policy-clustermanagementaddon.yaml
 apiVersion: addon.open-cluster-management.io/v1alpha1
@@ -2297,6 +2331,14 @@ metadata:
   name: global
 spec:
   hubKubeAPIServerURL: "https://kubernetes.default.svc"
+  nodePlacement:
+    tolerations:
+    - effect: NoSchedule
+      key: infra
+      operator: "Equal"
+      value: "true"
+    nodeSelector:
+      aro-hcp.azure.com/role: infra
 ---
 # Source: multicluster-engine-local-cluster/templates/hypershift-management-clusters.managedclusterset.yaml
 apiVersion: cluster.open-cluster-management.io/v1beta2
