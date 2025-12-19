@@ -78,6 +78,7 @@ type ValidatedOptions struct {
 // completedOptions is a private wrapper that enforces a call of Complete() before config generation can be invoked.
 type completedOptions struct {
 	TimingInputDir string
+	SharedDir      string
 	OutputDir      string
 }
 
@@ -103,6 +104,20 @@ func (o *RawOptions) Validate() (*ValidatedOptions, error) {
 	return &ValidatedOptions{
 		validatedOptions: &validatedOptions{
 			RawOptions: o,
+		},
+	}, nil
+}
+
+func (o *ValidatedOptions) Complete(logger logr.Logger) (*Options, error) {
+	sharedDir := os.Getenv("SHARED_DIR")
+	if sharedDir == "" {
+		return nil, fmt.Errorf("SHARED_DIR environment variable is not set")
+	}
+	return &Options{
+		completedOptions: &completedOptions{
+			OutputDir:      o.OutputDir,
+			SharedDir:      sharedDir,
+			TimingInputDir: o.TimingInputDir,
 		},
 	}, nil
 }
@@ -183,19 +198,10 @@ func encodeKustoQuery(query string) string {
 	return base64.StdEncoding.EncodeToString(buf.Bytes())
 }
 
-func (o *ValidatedOptions) Complete(logger logr.Logger) (*Options, error) {
-	return &Options{
-		completedOptions: &completedOptions{
-			OutputDir:      o.OutputDir,
-			TimingInputDir: o.TimingInputDir,
-		},
-	}, nil
-}
-
 func (o Options) Run(ctx context.Context) error {
 	allTestRows := []TestRow{}
 
-	timingInfo, err := gatherTimingInfo(o.TimingInputDir)
+	timingInfo, err := gatherTimingInfo(o.SharedDir)
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -258,21 +264,13 @@ func (o Options) Run(ctx context.Context) error {
 	return nil
 }
 
-func gatherTimingInfo(timingInputDir string) (map[string]TimingInfo, error) {
-	timingDir, err := os.Stat(path.Join(timingInputDir, "test-timing/"))
-	if err != nil {
-		return nil, err
-	}
-	if !timingDir.IsDir() {
-		return nil, fmt.Errorf("test-timing is not a directory")
-	}
-
+func gatherTimingInfo(sharedDir string) (map[string]TimingInfo, error) {
 	var allTimingFiles []string
-	err = filepath.Walk(path.Join(timingInputDir, "test-timing/"), func(path string, info os.FileInfo, err error) error {
+	err := filepath.Walk(sharedDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
-		if !info.IsDir() {
+		if !info.IsDir() && strings.HasSuffix(path, ".yaml") && strings.HasPrefix(path, "timing-metadata-") {
 			allTimingFiles = append(allTimingFiles, path)
 		}
 		return nil
