@@ -37,6 +37,7 @@ import (
 
 	"github.com/openshift-eng/openshift-tests-extension/pkg/util/sets"
 
+	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 	"github.com/Azure/ARO-HCP/test/util/verifiers"
@@ -44,7 +45,7 @@ import (
 
 var _ = Describe("Customer", func() {
 
-	terminalProvisioningStates := sets.New(framework.ProvisioningStateSucceeded, framework.ProvisioningStateFailed, framework.ProvisioningStateCanceled)
+	terminalProvisioningStates := sets.New(hcpsdk20240610preview.ProvisioningStateSucceeded, hcpsdk20240610preview.ProvisioningStateFailed, hcpsdk20240610preview.ProvisioningStateCanceled)
 
 	It("should be able to test admin credentials before cluster ready, then full admin credential lifecycle",
 		labels.RequireNothing,
@@ -101,7 +102,7 @@ var _ = Describe("Customer", func() {
 			By("waiting for cluster to appear and testing admin credentials while in deploying state")
 			// Poll the cluster state and test admin credentials when we find it deploying
 			var testedWhileDeploying bool
-			var previousState framework.ProvisioningState
+			var previousState hcpsdk20240610preview.ProvisioningState
 			GinkgoLogr.Info("creating cluster, waiting for it to reach a terminal state")
 			Eventually(func() bool {
 				cluster, err := framework.GetHCPCluster(ctx, clusterClient, *resourceGroup.Name, clusterName)
@@ -124,11 +125,11 @@ var _ = Describe("Customer", func() {
 				if !testedWhileDeploying && !terminalProvisioningStates.Has(*cluster.Properties.ProvisioningState) {
 					By("testing admin credentials while cluster is in deploying state")
 					testedWhileDeploying = true
-					_, err := framework.RequestAdminCredential(
+					_, err := clusterClient.BeginRequestAdminCredential(
 						ctx,
-						clusterClient,
 						*resourceGroup.Name,
 						clusterName,
+						nil,
 					)
 					var respErr *azcore.ResponseError
 					if err != nil && errors.As(err, &respErr) && http.StatusConflict == respErr.StatusCode {
@@ -140,7 +141,7 @@ var _ = Describe("Customer", func() {
 				}
 
 				// If cluster is ready, we're done
-				if *cluster.Properties.ProvisioningState == framework.ProvisioningStateSucceeded {
+				if *cluster.Properties.ProvisioningState == hcpsdk20240610preview.ProvisioningStateSucceeded {
 					if !testedWhileDeploying {
 						Fail("Cluster provisioned too quickly to test 409 behavior - unable to validate admin credentials fail during deployment")
 					}
@@ -148,7 +149,7 @@ var _ = Describe("Customer", func() {
 				}
 
 				// If cluster failed, that's an error
-				if *cluster.Properties.ProvisioningState == framework.ProvisioningStateFailed {
+				if *cluster.Properties.ProvisioningState == hcpsdk20240610preview.ProvisioningStateFailed {
 					Fail("Cluster provisioning failed")
 				}
 

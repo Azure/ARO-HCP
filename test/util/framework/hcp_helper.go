@@ -40,14 +40,6 @@ import (
 	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 )
 
-const (
-	ProvisioningStateSucceeded = hcpsdk20240610preview.ProvisioningStateSucceeded
-	ProvisioningStateFailed    = hcpsdk20240610preview.ProvisioningStateFailed
-	ProvisioningStateCanceled  = hcpsdk20240610preview.ProvisioningStateCanceled
-)
-
-type ProvisioningState = hcpsdk20240610preview.ProvisioningState
-
 // checkOperationResult ensures the result model returned by a runtime.Poller
 // matches the resource model returned from a GET request.
 func checkOperationResult(expectModel, resultModel any) error {
@@ -111,24 +103,6 @@ func readStaticRESTConfig(kubeconfigContent *string) (*rest.Config, error) {
 	}
 
 	return ret, nil
-}
-
-func RequestAdminCredential(
-	ctx context.Context,
-	hcpClient *hcpsdk20240610preview.HcpOpenShiftClustersClient,
-	resourceGroupName string,
-	hcpClusterName string,
-) (*runtime.Poller[hcpsdk20240610preview.HcpOpenShiftClustersClientRequestAdminCredentialResponse], error) {
-	return hcpClient.BeginRequestAdminCredential(ctx, resourceGroupName, hcpClusterName, nil)
-}
-
-func RevokeCredentials(
-	ctx context.Context,
-	hcpClient *hcpsdk20240610preview.HcpOpenShiftClustersClient,
-	resourceGroupName string,
-	hcpClusterName string,
-) (*runtime.Poller[hcpsdk20240610preview.HcpOpenShiftClustersClientRevokeCredentialsResponse], error) {
-	return hcpClient.BeginRevokeCredentials(ctx, resourceGroupName, hcpClusterName, nil)
 }
 
 func RequestAdminCredentialAndWait(
