@@ -24,8 +24,10 @@ import (
 	"io/fs"
 	"net/http"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
+	"testing"
 
 	"github.com/google/uuid"
 
@@ -43,7 +45,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
-func NewCosmosFromTestingEnv(ctx context.Context) (*CosmosIntegrationTestInfo, error) {
+func NewCosmosFromTestingEnv(ctx context.Context, t *testing.T) (*CosmosIntegrationTestInfo, error) {
 	cosmosClient, err := createCosmosClientFromEnv()
 	if err != nil {
 		return nil, err
@@ -59,7 +61,7 @@ func NewCosmosFromTestingEnv(ctx context.Context) (*CosmosIntegrationTestInfo, e
 	}
 
 	testInfo := &CosmosIntegrationTestInfo{
-		ArtifactsDir:         getArtifactDir(),
+		ArtifactsDir:         path.Join(getArtifactDir(), t.Name()),
 		CosmosDatabaseClient: cosmosDatabaseClient,
 		DBClient:             dbClient,
 		CosmosClient:         cosmosClient,
