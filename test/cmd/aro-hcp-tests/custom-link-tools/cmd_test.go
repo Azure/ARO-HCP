@@ -29,8 +29,8 @@ func TestGeneratedHTML(t *testing.T) {
 	tmpdir := t.TempDir()
 	opts := Options{
 		completedOptions: &completedOptions{
-			TimingInputDir: "../testdata/output",
-			OutputDir:      tmpdir,
+			SharedDir: "../testdata/output",
+			OutputDir: tmpdir,
 		},
 	}
 	err := opts.Run(ctx)
