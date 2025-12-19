@@ -341,7 +341,7 @@ func (tc *perItOrDescribeTestContext) cleanupResourceGroup(ctx context.Context, 
 	startTime := time.Now()
 	defer func() {
 		finishTime := time.Now()
-		tc.recordTestStepUnlocked(fmt.Sprintf("Clean up resource group %s", resourceGroupName), startTime, finishTime)
+		tc.RecordTestStep(fmt.Sprintf("Clean up resource group %s", resourceGroupName), startTime, finishTime)
 	}()
 
 	resourceClientFactory, err := tc.GetARMResourcesClientFactory(ctx)
