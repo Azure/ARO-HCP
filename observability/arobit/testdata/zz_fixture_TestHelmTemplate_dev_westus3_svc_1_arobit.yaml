@@ -169,13 +169,14 @@ data:
         Match           other.logs
         Rule            $kubernetes['container_name'] ^aro-hcp-frontend* aro-hcp-frontend.logs true
         Rule            $kubernetes['container_name'] ^aro-hcp-backend* aro-hcp-backend.logs true
+        Rule            $kubernetes['container_name'] ^clusters-service* clusters-service.logs true
         Rule            $kubernetes['container_name'] ^kube-events* kube-events.logs true
         Emitter_Name    re_emitted_container_name_router
 
     [FILTER]
         # Parse the log key and make it a json object again under $
         Name Parser
-        Match_regex (aro-hcp-(frontend|backend)|kube-events)\.logs
+        Match_regex (aro-hcp-(frontend|backend)|kube-events|clusters-service)\.logs
         Key_Name log
         Parser containerlogs
         Preserve_Key On
@@ -210,6 +211,19 @@ data:
         Ingestion_Endpoint __kustoDataIngestionUri__
         Database_Name ServiceLogs
         Table_Name backendLogs
+        ingestion_mapping_reference ingestionMapping
+        buffer_dir /var/kusto
+
+    [OUTPUT]
+        Match clusters-service.logs
+        Name azure_kusto
+        auth_type workload_identity
+        tenant_id __tenantId__
+        client_id __msiClientId__
+        workload_identity_token_file ${AZURE_FEDERATED_TOKEN_FILE}
+        Ingestion_Endpoint __kustoDataIngestionUri__
+        Database_Name ServiceLogs
+        Table_Name clustersServiceLogs
         ingestion_mapping_reference ingestionMapping
         buffer_dir /var/kusto
     [OUTPUT]
@@ -371,7 +385,7 @@ spec:
         app: arobit-forwarder
         azure.workload.identity/use: "true"
       annotations:
-        checksum/configmap: 2221a6a0326a35bf704979a3ff4cfcb0fe9a8851c71406c8ac716e01a37e1eaf
+        checksum/configmap: 2ce14d9df5bfde4bcd6d4cbbd4fb0f998b5f5482f71d758101c183159c165120
     spec:
       serviceAccountName: 'arobit-forwarder'
       shareProcessNamespace: true
