@@ -349,8 +349,6 @@ func (tc *perItOrDescribeTestContext) cleanupResourceGroup(ctx context.Context, 
 		tc.recordTestStepUnlocked(fmt.Sprintf("Clean up resource group %s", resourceGroupName), startTime, finishTime)
 	}()
 
-	errs := []error{}
-
 	ginkgo.GinkgoLogr.Info("deleting all hcp clusters in resource group", "resourceGroup", resourceGroupName)
 	if err := DeleteAllHCPClusters(ctx, hcpClient, resourceGroupName, timeout); err != nil {
 		return fmt.Errorf("failed to cleanup resource group: %w", err)
@@ -372,7 +370,7 @@ func (tc *perItOrDescribeTestContext) cleanupResourceGroup(ctx context.Context, 
 		return fmt.Errorf("failed to cleanup resource group: %w", err)
 	}
 
-	return errors.Join(errs...)
+	return nil
 }
 
 // cleanupResourceGroupNoRP performs cleanup when the resource provider is not available.
