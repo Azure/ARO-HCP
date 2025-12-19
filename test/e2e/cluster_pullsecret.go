@@ -65,6 +65,11 @@ var _ = Describe("Cluster Pull Secret Management", func() {
 				Skip(fmt.Sprintf("Pull secret file not found at %s, skipping test", pullSecretFilePath))
 			}
 
+			if tc.UsePooledIdentities() {
+				err := tc.AssignIdentityContainers(ctx, 1, 60*time.Second)
+				Expect(err).NotTo(HaveOccurred())
+			}
+
 			By("creating a resource group")
 			resourceGroup, err := tc.NewResourceGroup(ctx, "pullsecret-test", tc.Location())
 			Expect(err).NotTo(HaveOccurred())
