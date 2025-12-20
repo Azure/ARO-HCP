@@ -39,6 +39,7 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	armcompute "github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v5"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v6"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armsubscriptions"
 
@@ -58,6 +59,7 @@ type perItOrDescribeTestContext struct {
 	armComputeClientFactory       *armcompute.ClientFactory
 	armResourcesClientFactory     *armresources.ClientFactory
 	armSubscriptionsClientFactory *armsubscriptions.ClientFactory
+	armNetworkClientFactory       *armnetwork.ClientFactory
 	graphClient                   *graphutil.Client
 
 	timingMetadata   timing.SpecTimingMetadata
@@ -349,6 +351,11 @@ func (tc *perItOrDescribeTestContext) cleanupResourceGroup(ctx context.Context, 
 		return err
 	}
 
+	networkClientFactory, err := tc.GetARMNetworkClientFactory(ctx)
+	if err != nil {
+		return err
+	}
+
 	hcpClientFactory, err := tc.Get20240610ClientFactory(ctx)
 	if err != nil {
 		return err
@@ -371,7 +378,7 @@ func (tc *perItOrDescribeTestContext) cleanupResourceGroup(ctx context.Context, 
 	}
 
 	ginkgo.GinkgoLogr.Info("deleting resource group", "resourceGroup", resourceGroupName)
-	if err := DeleteResourceGroup(ctx, resourceClientFactory.NewResourceGroupsClient(), resourceGroupName, false, timeout); err != nil {
+	if err := DeleteResourceGroup(ctx, resourceClientFactory.NewResourceGroupsClient(), networkClientFactory, resourceGroupName, false, timeout); err != nil {
 		return fmt.Errorf("failed to cleanup resource group: %w", err)
 	}
 
@@ -398,14 +405,19 @@ func (tc *perItOrDescribeTestContext) cleanupResourceGroupNoRP(ctx context.Conte
 		return fmt.Errorf("failed to search for managed resource groups: %w", err)
 	}
 
-	clientFactory, err := tc.GetARMResourcesClientFactory(ctx)
+	resourceClientFactory, err := tc.GetARMResourcesClientFactory(ctx)
+	if err != nil {
+		return err
+	}
+
+	networkClientFactory, err := tc.GetARMNetworkClientFactory(ctx)
 	if err != nil {
 		return err
 	}
 
 	for _, managedRG := range managedResourceGroups {
 		ginkgo.GinkgoLogr.Info("deleting managed resource group", "resourceGroup", managedRG, "parentResourceGroup", resourceGroupName)
-		if err := DeleteResourceGroup(ctx, clientFactory.NewResourceGroupsClient(), managedRG, true, timeout); err != nil {
+		if err := DeleteResourceGroup(ctx, resourceClientFactory.NewResourceGroupsClient(), networkClientFactory, managedRG, true, timeout); err != nil {
 			if isIgnorableResourceGroupCleanupError(err) {
 				ginkgo.GinkgoLogr.Info("ignoring not found resource group", "resourceGroup", managedRG)
 			} else {
@@ -415,7 +427,7 @@ func (tc *perItOrDescribeTestContext) cleanupResourceGroupNoRP(ctx context.Conte
 	}
 
 	ginkgo.GinkgoLogr.Info("deleting resource group", "resourceGroup", resourceGroupName)
-	if err := DeleteResourceGroup(ctx, clientFactory.NewResourceGroupsClient(), resourceGroupName, false, timeout); err != nil {
+	if err := DeleteResourceGroup(ctx, resourceClientFactory.NewResourceGroupsClient(), networkClientFactory, resourceGroupName, false, timeout); err != nil {
 		return fmt.Errorf("failed to cleanup resource group: %w", err)
 	}
 
@@ -562,6 +574,44 @@ func (tc *perItOrDescribeTestContext) getARMSubscriptionsClientFactoryUnlocked()
 	tc.armSubscriptionsClientFactory = clientFactory
 
 	return tc.armSubscriptionsClientFactory, nil
+}
+
+func (tc *perItOrDescribeTestContext) GetARMNetworkClientFactory(ctx context.Context) (*armnetwork.ClientFactory, error) {
+	tc.contextLock.RLock()
+	if tc.armNetworkClientFactory != nil {
+		defer tc.contextLock.RUnlock()
+		return tc.armNetworkClientFactory, nil
+	}
+	tc.contextLock.RUnlock()
+
+	tc.contextLock.Lock()
+	defer tc.contextLock.Unlock()
+
+	return tc.getARMNetworkClientFactoryUnlocked(ctx)
+}
+
+func (tc *perItOrDescribeTestContext) getARMNetworkClientFactoryUnlocked(ctx context.Context) (*armnetwork.ClientFactory, error) {
+	if tc.armNetworkClientFactory != nil {
+		return tc.armNetworkClientFactory, nil
+	}
+
+	creds, err := tc.perBinaryInvocationTestContext.getAzureCredentials()
+	if err != nil {
+		return nil, err
+	}
+
+	// We already hold the lock, so we call the unlocked version
+	subscriptionID, err := tc.getSubscriptionIDUnlocked(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	clientFactory, err := armnetwork.NewClientFactory(subscriptionID, creds, tc.perBinaryInvocationTestContext.getClientFactoryOptions())
+	if err != nil {
+		return nil, err
+	}
+	tc.armNetworkClientFactory = clientFactory
+	return tc.armNetworkClientFactory, nil
 }
 
 func (tc *perItOrDescribeTestContext) GetARMResourcesClientFactory(ctx context.Context) (*armresources.ClientFactory, error) {
