@@ -17,7 +17,6 @@ param systemAgentMinCount int
 param systemAgentMaxCount int
 param systemAgentVMSize string
 param systemAgentPoolZones array
-param systemAgentPoolCount int
 param systemZoneRedundantMode string
 
 // User agentpool spec (Worker)
@@ -335,7 +334,6 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-10-01' = {
         kubeletDiskType: 'OS'
         osDiskType: 'Ephemeral'
         osDiskSizeGB: systemOsDiskSizeGB
-        count: systemAgentMinCount
         minCount: systemAgentMinCount
         maxCount: systemAgentMaxCount
         vmSize: systemAgentVMSize

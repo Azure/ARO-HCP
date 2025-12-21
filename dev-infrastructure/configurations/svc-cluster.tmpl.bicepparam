@@ -16,7 +16,6 @@ param aksKeyVaultTagValue = '{{ .svc.aks.etcd.tagValue }}'
 param aksEtcdKVEnableSoftDelete = {{ .svc.aks.etcd.softDelete }}
 param systemAgentMinCount = {{ .svc.aks.systemAgentPool.minCount}}
 param systemAgentMaxCount = {{ .svc.aks.systemAgentPool.maxCount }}
-param systemAgentPoolCount = {{ .svc.aks.systemAgentPool.poolCount }}
 param systemAgentPoolZones = '{{ .svc.aks.systemAgentPool.zones }}'
 param systemAgentVMSize = '{{ .svc.aks.systemAgentPool.vmSize }}'
 param systemZoneRedundantMode = '{{ .svc.aks.systemAgentPool.zoneRedundantMode }}'

@@ -13,7 +13,6 @@ param aksEtcdKVEnableSoftDelete = {{ .mgmt.aks.etcd.softDelete }}
 param systemAgentMinCount = {{ .mgmt.aks.systemAgentPool.minCount}}
 param systemAgentMaxCount = {{ .mgmt.aks.systemAgentPool.maxCount }}
 param systemAgentVMSize = '{{ .mgmt.aks.systemAgentPool.vmSize }}'
-param systemAgentPoolCount = {{ .mgmt.aks.systemAgentPool.poolCount }}
 param systemAgentPoolZones = '{{ .mgmt.aks.systemAgentPool.zones }}'
 param systemOsDiskSizeGB = {{ .mgmt.aks.systemAgentPool.osDiskSizeGB }}
 param systemZoneRedundantMode = '{{ .mgmt.aks.systemAgentPool.zoneRedundantMode }}'
