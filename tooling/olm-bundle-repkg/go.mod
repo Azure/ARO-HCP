@@ -6,7 +6,7 @@ require (
 	github.com/MakeNowJust/heredoc v1.0.0
 	github.com/google/go-containerregistry v0.20.6
 	github.com/operator-framework/api v0.27.0
-	github.com/spf13/cobra v1.10.1
+	github.com/spf13/cobra v1.10.2
 	github.com/stretchr/testify v1.11.1
 	golang.org/x/text v0.32.0
 	helm.sh/helm/v3 v3.18.5
