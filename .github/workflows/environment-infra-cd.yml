@@ -119,6 +119,9 @@ jobs:
         az config set bicep.use_binary_from_path=false
         az bicep install
         cd dev-infrastructure/
+        if [ "${{ inputs.deploy_env }}" = "opstool" ]; then
+          export TOPOLOGY_CONFIG=topology-opstool.yaml
+        fi
         PRINCIPAL_ID=${{ secrets.GHA_PRINCIPAL_ID }} make svc
     - name: 'Az CLI login again'
       uses: azure/login@a65d910e8af852a8061c627c456678983e180302 # v2.2.0

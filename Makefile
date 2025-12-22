@@ -356,10 +356,12 @@ PERSIST ?= "false"
 TIMING_OUTPUT ?= timing/steps.yaml
 ENTRYPOINT_JUNIT_OUTPUT ?= _artifacts/junit_entrypoint.xml
 
+TOPOLOGY_CONFIG ?= topology.yaml
+
 local-run: $(TEMPLATIZE)
 	$(TEMPLATIZE) entrypoint run --config-file "${CONFIG_FILE}" \
 								     --config-file-override "${OVERRIDE_CONFIG_FILE}" \
-	                                 --topology-config topology.yaml \
+	                                 --topology-config $(TOPOLOGY_CONFIG) \
 	                                 --dev-settings-file tooling/templatize/settings.yaml \
 	                                 --dev-environment $(DEPLOY_ENV) \
 	                                 $(WHAT) $(EXTRA_ARGS) \

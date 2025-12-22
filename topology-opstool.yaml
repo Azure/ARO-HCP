@@ -1,0 +1,48 @@
+entrypoints:
+- identifier: 'Microsoft.Azure.ARO.HCP.Global'
+  metadata:
+    name: Global
+    scopeDoc: high-level-architecture.md
+    incremental: "true"
+- identifier: 'Microsoft.Azure.ARO.HCP.Region'
+  metadata:
+    name: Region
+    scopeDoc: high-level-architecture.md#regional-scope
+- identifier: 'Microsoft.Azure.ARO.HCP.Service.Infra'
+  metadata:
+    name: Service Cluster
+    scopeDoc: high-level-architecture.md#service-cluster
+services:
+- serviceGroup: Microsoft.Azure.ARO.HCP.Global
+  children:
+  - serviceGroup: Microsoft.Azure.ARO.HCP.Region
+    children:
+    - serviceGroup: Microsoft.Azure.ARO.HCP.Service.Infra
+      children:
+      pipelinePath: dev-infrastructure/svc-pipeline.yaml
+      purpose: Deploy the service cluster and supporting infrastructure.
+    - serviceGroup: Microsoft.Azure.ARO.HCP.Monitoring
+      pipelinePath: dev-infrastructure/monitoring-pipeline.yaml
+      purpose: Deploy the Monitoring resources
+    pipelinePath: dev-infrastructure/region-pipeline.yaml
+    purpose: Deploy regional shared infrastructure.
+  pipelinePath: dev-infrastructure/global-pipeline.yaml
+  purpose: Deploy global shared infrastructure.
+# Cleanup pipelines
+- serviceGroup: Microsoft.Azure.ARO.HCP.Service.Delete
+  pipelinePath: dev-infrastructure/cleanup/delete.svc.pipeline.yaml
+  purpose: Delete the service resources and service resource group
+- serviceGroup: Microsoft.Azure.ARO.HCP.Region.Delete
+  pipelinePath: dev-infrastructure/cleanup/delete.region.pipeline.yaml
+  purpose: Delete the region resources and resource group
+# Dev-only pipelines
+- serviceGroup: Microsoft.Azure.ARO.HCP.Observability
+  pipelinePath: observability/tracing/pipeline.yaml
+  purpose: Deploy the development tracing stack.
+# Kusto Infra pipeline
+- serviceGroup: Microsoft.Azure.ARO.HCP.Log.Infra
+  pipelinePath: dev-infrastructure/kusto-pipeline.yaml
+  purpose: Deploy the kusto log infrastructure.
+- serviceGroup: Microsoft.Azure.ARO.HCP.Service.Kubeconfig
+  pipelinePath: dev-infrastructure/svc-kubeconfig.yaml
+  purpose: Grant access to AKS SVC AKS Clusters, mainly intended for E2E test setup.
