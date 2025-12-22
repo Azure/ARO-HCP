@@ -92,8 +92,9 @@ resourceGroups:
           configVersion:
             name: configVersion
             value: version
-          events:
-            akskubesystem: kubesystem
+          eventSources:
+            akskubesystem:
+              name: kubesystem
           namespace:
             name: namespace
             value: ns
@@ -111,8 +112,9 @@ resourceGroups:
           configVersion:
             name: configVersion
             value: version
-          events:
-            akskubesystem: kubesystem
+          eventSources:
+            akskubesystem:
+              name: kubesystem
           namespace:
             name: namespace
             value: ns
