@@ -20,7 +20,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/microsoft/kiota-authentication-azure-go v1.3.0
 	github.com/microsoftgraph/msgraph-sdk-go v1.69.0
-	github.com/spf13/cobra v1.10.1
+	github.com/spf13/cobra v1.10.2
 	github.com/stretchr/testify v1.11.1
 	go.lsp.dev/jsonrpc2 v0.10.0
 	go.lsp.dev/protocol v0.12.0
