@@ -17,3 +17,6 @@ aliases:
   - sclarkso 
   - venkateshsredhat 
   - weherdh
+  clusters-service-global-approvers:
+  - zgalor
+
