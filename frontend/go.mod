@@ -10,7 +10,7 @@ require (
 	github.com/microsoft/go-otel-audit v0.2.2
 	github.com/openshift-online/ocm-sdk-go v0.1.480
 	github.com/prometheus/client_golang v1.23.2
-	github.com/spf13/cobra v1.10.1
+	github.com/spf13/cobra v1.10.2
 	github.com/stretchr/testify v1.11.1
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.63.0
 	go.opentelemetry.io/otel v1.38.0
