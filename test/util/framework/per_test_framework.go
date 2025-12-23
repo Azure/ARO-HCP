@@ -146,7 +146,7 @@ func (tc *perItOrDescribeTestContext) deleteCreatedResources(ctx context.Context
 	tc.contextLock.RLock()
 	resourceGroupNames := tc.knownResourceGroups
 	appRegistrations := tc.knownAppRegistrationIDs
-	defer tc.contextLock.RUnlock()
+	tc.contextLock.RUnlock()
 	ginkgo.GinkgoLogr.Info("deleting created resources")
 
 	opts := CleanupResourceGroupsOptions{
@@ -247,8 +247,6 @@ func (tc *perItOrDescribeTestContext) CleanupResourceGroups(ctx context.Context,
 
 // collectDebugInfo collects information and saves it in artifact dir
 func (tc *perItOrDescribeTestContext) collectDebugInfo(ctx context.Context) {
-	tc.contextLock.RLock()
-	defer tc.contextLock.RUnlock()
 	ginkgo.GinkgoLogr.Info("collecting debug info")
 
 	leasedContainers, err := tc.leasedIdentityContainers()
@@ -259,10 +257,12 @@ func (tc *perItOrDescribeTestContext) collectDebugInfo(ctx context.Context) {
 
 	// deletion takes a while, it's worth it to do this in parallel
 	waitGroup, ctx := errgroup.WithContext(ctx)
+	tc.contextLock.RLock()
 	resourceGroups := append(
 		append([]string(nil), tc.knownResourceGroups...),
 		leasedContainers...,
 	)
+	tc.contextLock.RUnlock()
 	for _, resourceGroupName := range resourceGroups {
 		currResourceGroupName := resourceGroupName
 		waitGroup.Go(func() error {
@@ -444,7 +444,7 @@ func (tc *perItOrDescribeTestContext) collectDebugInfoForResourceGroup(ctx conte
 	startTime := time.Now()
 	defer func() {
 		finishTime := time.Now()
-		tc.recordTestStepUnlocked(fmt.Sprintf("Collect debug info for resource group %s", resourceGroupName), startTime, finishTime)
+		tc.RecordTestStep(fmt.Sprintf("Collect debug info for resource group %s", resourceGroupName), startTime, finishTime)
 	}()
 
 	errs := []error{}
