@@ -92,7 +92,11 @@ func (u *Updater) UpdateImages(ctx context.Context) error {
 	updatedCount := 0
 	for name, imageConfig := range u.Config.Images {
 		imageNum++
-		logger.V(2).Info("processing image", "name", name, "source", imageConfig.Source.Image, "tagPattern", imageConfig.Source.TagPattern)
+		tagInfo := imageConfig.Source.TagPattern
+		if imageConfig.Source.Tag != "" {
+			tagInfo = imageConfig.Source.Tag
+		}
+		logger.V(2).Info("processing image", "name", name, "source", imageConfig.Source.Image, "tag", tagInfo)
 
 		imageInfo, err := u.fetchLatestDigest(ctx, imageConfig.Source)
 		if err != nil {
@@ -293,6 +297,11 @@ func (u *Updater) getPromotionModeString() string {
 
 // fetchLatestDigest retrieves the latest digest from the appropriate registry
 func (u *Updater) fetchLatestDigest(ctx context.Context, source config.Source) (*clients.Tag, error) {
+	logger, err := logr.FromContext(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("logger not found in context: %w", err)
+	}
+
 	registry, repository, err := source.ParseImageReference()
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse registry from image reference: %w", err)
@@ -316,7 +325,15 @@ func (u *Updater) fetchLatestDigest(ctx context.Context, source config.Source) (
 		arch = DefaultArchitecture
 	}
 
-	return client.GetArchSpecificDigest(ctx, repository, source.TagPattern, arch, source.MultiArch)
+	// If a specific tag is provided, use the more efficient GetDigestForTag method
+	// Otherwise, use GetArchSpecificDigest which requires pagination
+	if source.Tag != "" {
+		logger.V(2).Info("fetching digest for specific tag (no pagination)", "tag", source.Tag)
+		return client.GetDigestForTag(ctx, repository, source.Tag, arch, source.MultiArch)
+	}
+
+	logger.V(2).Info("fetching latest digest using pattern (requires pagination)", "tagPattern", source.TagPattern)
+	return client.GetArchSpecificDigest(ctx, repository, source.GetEffectiveTagPattern(), arch, source.MultiArch)
 }
 
 // ProcessImageUpdates sets up the updates needed for a specific image and target

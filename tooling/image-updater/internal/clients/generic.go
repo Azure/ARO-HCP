@@ -285,3 +285,83 @@ func (c *GenericRegistryClient) GetArchSpecificDigest(ctx context.Context, repos
 	}
 	return nil, fmt.Errorf("no single-arch %s/linux image found for repository %s (all tags are either multi-arch or different architecture)", arch, repository)
 }
+
+// GetDigestForTag fetches the digest for a specific tag without pagination
+func (c *GenericRegistryClient) GetDigestForTag(ctx context.Context, repository string, tagName string, arch string, multiArch bool) (*Tag, error) {
+	logger, err := logr.FromContext(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("logger not found in context: %w", err)
+	}
+
+	logger.V(2).Info("fetching digest for specific tag", "registry", c.registryURL, "repository", repository, "tag", tagName, "useAuth", c.useAuth)
+
+	// Check if context is cancelled before processing
+	select {
+	case <-ctx.Done():
+		return nil, fmt.Errorf("operation cancelled: %w", ctx.Err())
+	default:
+	}
+
+	remoteOpts := GetRemoteOptions(c.useAuth)
+	ref, err := name.ParseReference(fmt.Sprintf("%s/%s:%s", c.registryURL, repository, tagName))
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse reference for tag %s: %w", tagName, err)
+	}
+
+	desc, err := remote.Get(ref, remoteOpts...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch image descriptor for tag %s: %w", tagName, err)
+	}
+
+	tag := Tag{
+		Name:   tagName,
+		Digest: desc.Digest.String(),
+	}
+
+	// Try to get creation time from config
+	if img, err := desc.Image(); err == nil {
+		if configFile, err := img.ConfigFile(); err == nil {
+			tag.LastModified = configFile.Created.Time
+		}
+	}
+
+	// If multiArch is requested, return the multi-arch manifest list digest
+	if multiArch {
+		if !desc.MediaType.IsIndex() {
+			return nil, fmt.Errorf("tag %s is not a multi-arch manifest (mediaType: %s)", tagName, desc.MediaType)
+		}
+		logger.V(2).Info("found multi-arch manifest", "tag", tagName, "mediaType", desc.MediaType, "digest", desc.Digest.String())
+		return &tag, nil
+	}
+
+	// For single-arch, verify architecture matches
+	if desc.MediaType.IsIndex() {
+		return nil, fmt.Errorf("tag %s is a multi-arch manifest, but single-arch was requested (use multiArch: true)", tagName)
+	}
+
+	img, err := desc.Image()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get image for tag %s: %w", tagName, err)
+	}
+
+	configFile, err := img.ConfigFile()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get config for tag %s: %w", tagName, err)
+	}
+
+	normalizedArch := NormalizeArchitecture(configFile.Architecture)
+
+	if normalizedArch != arch || configFile.OS != "linux" {
+		return nil, fmt.Errorf("tag %s has architecture %s/%s, but %s/linux was requested", tagName, configFile.Architecture, configFile.OS, arch)
+	}
+
+	digest, err := img.Digest()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get image digest for tag %s: %w", tagName, err)
+	}
+
+	tag.Digest = digest.String()
+	logger.V(2).Info("found matching image", "tag", tagName, "arch", normalizedArch, "digest", tag.Digest)
+
+	return &tag, nil
+}

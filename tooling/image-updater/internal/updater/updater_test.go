@@ -55,6 +55,17 @@ func (m *mockRegistryClient) GetArchSpecificDigest(ctx context.Context, reposito
 	return &clients.Tag{Digest: m.digest, Name: m.tag}, nil
 }
 
+func (m *mockRegistryClient) GetDigestForTag(ctx context.Context, repository string, tag string, arch string, multiArch bool) (*clients.Tag, error) {
+	if m.err != nil {
+		return nil, m.err
+	}
+	// Verify the architecture passed is the expected constant (or empty, which defaults to amd64)
+	if arch != DefaultArchitecture && arch != "" {
+		return nil, fmt.Errorf("unexpected architecture: %s, expected %s", arch, DefaultArchitecture)
+	}
+	return &clients.Tag{Digest: m.digest, Name: tag}, nil
+}
+
 func TestUpdater_UpdateImages(t *testing.T) {
 	tests := []struct {
 		name            string

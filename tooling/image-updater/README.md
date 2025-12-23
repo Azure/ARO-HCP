@@ -158,6 +158,16 @@ images:
       filePath: ../../config/config.yaml
       env: dev
 
+  # Quay.io image pinned to specific version (e.g., during rollback)
+  pko-manager:
+    source:
+      image: quay.io/package-operator/package-operator-manager
+      tag: "v1.18.3"  # Pin to specific version instead of using pattern
+    targets:
+    - jsonPath: defaults.pko.imageManager.digest
+      filePath: ../../config/config.yaml
+      env: dev
+
   # Private ACR image requiring authentication
   arohcpfrontend:
     source:
@@ -344,10 +354,40 @@ images:
 - Read access to the specified Key Vault
 - Pull secret must be stored in Key Vault in Docker config.json format (supports both base64-encoded and raw JSON)
 
-## Tag Patterns
+## Tag Selection
 
-Common regex patterns for filtering tags:
+You can specify which image tag to use in two ways:
 
+### Option 1: Specific Tag (Recommended for pinning versions)
+
+Use the `tag` field to specify an exact tag name:
+
+```yaml
+source:
+  image: quay.io/package-operator/package-operator-package
+  tag: "v1.18.3"  # Pin to specific version
+```
+
+**Use cases:**
+- Pinning to a specific version temporarily (e.g., during a rollback)
+- Testing a specific release
+- Production stability requirements
+
+**Performance benefits:**
+- **No pagination required** - fetches only the specified tag directly from the registry
+- Faster execution compared to pattern matching which requires listing all tags
+
+### Option 2: Tag Pattern (Recommended for automatic updates)
+
+Use the `tagPattern` field with a regex pattern to automatically select the latest matching tag:
+
+```yaml
+source:
+  image: quay.io/package-operator/package-operator-package
+  tagPattern: "^v\\d+\\.\\d+\\.\\d+$"  # Match any semantic version
+```
+
+**Common regex patterns:**
 - `^[a-f0-9]{7}$` - 7-character commit hashes (short)
 - `^[a-f0-9]{40}$` - 40-character commit hashes (full)
 - `^sha256-[a-f0-9]{64}$` - SHA256-prefixed single-arch images
@@ -355,7 +395,16 @@ Common regex patterns for filtering tags:
 - `^v\\d+\\.\\d+\\.\\d+$` - Semantic versions (v1.2.3)
 - `^main-.*` - Tags starting with 'main-'
 
-If no pattern is specified, uses the most recently pushed tag.
+**Use cases:**
+- Continuous updates to the latest version matching a pattern
+- Development and staging environments
+- Following a release branch
+
+### Important Notes
+
+- `tag` and `tagPattern` are **mutually exclusive** - you can only specify one
+- If neither is specified, the tool uses the most recently pushed tag
+- When using `tag`, the tool will find and use that exact tag (case-sensitive)
 
 ## Architecture Filtering
 
@@ -456,7 +505,8 @@ Use `--verbosity 2` or higher when debugging authentication issues, tag filterin
 | Field | Type | Required | Default | Description |
 |-------|------|----------|---------|-------------|
 | `image` | string | Yes | - | Full image reference (registry/repository) |
-| `tagPattern` | string | No | - | Regex pattern to filter tags (uses most recent if omitted) |
+| `tag` | string | No | - | Exact tag to use (mutually exclusive with `tagPattern`) |
+| `tagPattern` | string | No | - | Regex pattern to filter tags (mutually exclusive with `tag`) |
 | `architecture` | string | No | `amd64` | Target architecture for single-arch images (`amd64`, `arm64`, etc.) |
 | `multiArch` | bool | No | `false` | If `true`, fetches multi-arch manifest list digest |
 | `useAuth` | bool | No | `false` | If `true`, uses authentication (required for private registries) |
@@ -466,6 +516,8 @@ Use `--verbosity 2` or higher when debugging authentication issues, tag filterin
 
 **Notes**:
 
+- `tag` and `tagPattern` are mutually exclusive - only one can be specified
+- If neither `tag` nor `tagPattern` is specified, uses the most recently pushed tag
 - `multiArch` and `architecture` are mutually exclusive
 - `useAuth` defaults to `false` for all registries
 - For private registries, explicitly set `useAuth: true`

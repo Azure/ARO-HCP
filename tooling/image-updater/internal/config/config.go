@@ -17,6 +17,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"regexp"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -38,7 +39,8 @@ type ImageConfig struct {
 // Source defines where to fetch the latest image digest from
 type Source struct {
 	Image        string          `yaml:"image"`
-	TagPattern   string          `yaml:"tagPattern,omitempty"`
+	Tag          string          `yaml:"tag,omitempty"`          // Exact tag to use (mutually exclusive with TagPattern)
+	TagPattern   string          `yaml:"tagPattern,omitempty"`   // Regex pattern to filter tags (mutually exclusive with Tag)
 	Architecture string          `yaml:"architecture,omitempty"` // Specific architecture to use (e.g., "amd64", "arm64"). Mutually exclusive with MultiArch.
 	MultiArch    bool            `yaml:"multiArch,omitempty"`    // If true, fetch the multi-arch manifest list digest instead of a specific architecture
 	UseAuth      *bool           `yaml:"useAuth,omitempty"`      // true = use auth, nil/false = anonymous (default)
@@ -56,6 +58,33 @@ type Target struct {
 	JsonPath string `yaml:"jsonPath"`
 	FilePath string `yaml:"filePath"`
 	Env      string `yaml:"env,omitempty"` // Environment (dev, int, stg, prod)
+}
+
+// Validate checks if the Source configuration is valid
+func (s *Source) Validate() error {
+	// Tag and TagPattern are mutually exclusive
+	if s.Tag != "" && s.TagPattern != "" {
+		return fmt.Errorf("tag and tagPattern are mutually exclusive, only one can be specified")
+	}
+
+	// Architecture and MultiArch are mutually exclusive
+	if s.Architecture != "" && s.MultiArch {
+		return fmt.Errorf("architecture and multiArch are mutually exclusive")
+	}
+
+	return nil
+}
+
+// GetEffectiveTagPattern returns the effective tag pattern to use
+// If Tag is specified, it returns an exact match pattern
+// If TagPattern is specified, it returns TagPattern
+// Otherwise, it returns an empty string (match all tags)
+func (s *Source) GetEffectiveTagPattern() string {
+	if s.Tag != "" {
+		// Create an exact match pattern for the specific tag
+		return "^" + regexp.QuoteMeta(s.Tag) + "$"
+	}
+	return s.TagPattern
 }
 
 // ParseImageReference splits an image reference into registry and repository parts
@@ -93,6 +122,13 @@ func Load(configPath string) (*Config, error) {
 	var cfg Config
 	if err := yaml.Unmarshal(data, &cfg); err != nil {
 		return nil, fmt.Errorf("failed to parse config file %s: %w", configPath, err)
+	}
+
+	// Validate each image source configuration
+	for name, imageConfig := range cfg.Images {
+		if err := imageConfig.Source.Validate(); err != nil {
+			return nil, fmt.Errorf("invalid configuration for image %q: %w", name, err)
+		}
 	}
 
 	return &cfg, nil
