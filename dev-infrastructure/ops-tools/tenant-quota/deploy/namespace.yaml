@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: tenant-quota
+  labels:
+    app.kubernetes.io/name: tenant-quota
+    app.kubernetes.io/component: metrics-collector

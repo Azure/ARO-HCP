@@ -26,6 +26,24 @@ resourceGroups:
     dependsOn:
     - resourceGroup: opstool
       step: cluster
+  # Placeholder kusto output for schema compatibility (opstool doesn't use kusto - a breaking fix)
+  - name: kusto-placeholder
+    action: ARM
+    template: templates/output-opstool-cluster.bicep
+    parameters: configurations/output-opstool-cluster.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
+    dependsOn:
+    - resourceGroup: opstool
+      step: cluster-output
+  - name: alerting
+    action: ARM
+    template: templates/opstool-alerting.bicep
+    parameters: configurations/opstool-alerting.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    dependsOn:
+    - resourceGroup: opstool
+      step: cluster
   - name: prometheus
     aksCluster: '{{ .opstool.aks.name }}'
     action: Helm
@@ -35,6 +53,12 @@ resourceGroups:
     - ../observability/prometheus/namespace.opstool.yaml
     chartDir: ../observability/prometheus/deploy
     valuesFile: ../observability/prometheus/values-opstool.yaml
+    kustoEndpoint:
+      resourceGroup: opstool
+      step: kusto-placeholder
+      name: kustoUri
+    kustoDatabase: ''
+    kustoTable: ''
     inputVariables:
       prometheusUAMIClientId:
         resourceGroup: opstool
@@ -46,7 +70,7 @@ resourceGroups:
         name: dcrRemoteWriteUrl
     dependsOn:
     - resourceGroup: opstool
-      step: cluster-output
+      step: kusto-placeholder
     identityFrom:
       resourceGroup: opstool
       step: cluster-output

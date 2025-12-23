@@ -1,0 +1,126 @@
+# Default values for tenant-quota collector
+# This chart deploys the tenant-quota collector to the opstool environment
+#
+# =============================================================================
+# HOW TO ADD A NEW TENANT (4 Steps)
+# =============================================================================
+#
+# STEP 1: Create a Service Principal in the Target Tenant
+# --------------------------------------------------------
+# The service principal needs permission to read organization quota data.
+# Run these commands while logged into the TARGET tenant:
+#
+#   # Login to the target tenant
+#   az login --tenant <target-tenant-id>
+#
+#   # Create the service principal (note the appId and password in output)
+#   az ad sp create-for-rbac --name "tenant-quota-collector-<tenant-name>" \
+#       --role "Reader" --scopes "/subscriptions/<subscription-id>"
+#
+#   # Grant Directory.Read.All permission (requires admin consent)
+#   az ad app permission add --id <app-id> \
+#       --api 00000003-0000-0000-c000-000000000000 \
+#       --api-permissions 7ab1d382-f21e-4acd-a863-ba3e13f7da61=Role
+#
+#   # Request admin consent (or ask an admin to approve in Azure Portal)
+#   az ad app permission admin-consent --id <app-id>
+#
+# STEP 2: Store the Client Secret in Key Vault
+# --------------------------------------------------------
+# Store the service principal's password in the opstool Key Vault.
+# The collector reads secrets from this Key Vault at runtime.
+#
+#   # Login back to the dev tenant (where Key Vault is)
+#   az login
+#
+#   # Store the secret (use the password from step 1)
+#   az keyvault secret set \
+#       --vault-name "opstool-kv-wus3" \
+#       --name "custom-metrics-collector-<tenant-name>-client-secret" \
+#       --value "<password-from-step-1>"
+#
+# STEP 3: Add the Tenant Entry Below
+# --------------------------------------------------------
+# Add a new entry to the 'tenants' list with the values from step 1.
+# The tenantId is the Azure AD tenant where the SP was created.
+# The servicePrincipalClientId is the appId from step 1.
+# The keyVaultSecretName is the secret name from step 2.
+#
+# STEP 4: Redeploy with Templatize
+# --------------------------------------------------------
+# After adding the tenant entry, redeploy the collector:
+#
+#   # From the repo root
+#   ./templatize-bin pipeline run \
+#       --service-group Microsoft.Azure.ARO.HCP.Opstool.TenantQuota \
+#       --topology-file topology-opstool.yaml \
+#       --config-file config/config-opstool.yaml \
+#       --dev-settings-file tooling/templatize/settings.yaml \
+#       --dev-environment opstool \
+#       --step deploy
+#
+# =============================================================================
+# Image configuration - uses templatize variable substitution
+imageRegistry: "{{ .opstool.tenantQuota.image.registry }}"
+imageRepository: "{{ .opstool.tenantQuota.image.repository }}"
+imageTag: "{{ .opstool.tenantQuota.image.tag }}"
+# Managed Identity (injected by templatize from pipeline outputs)
+# This UAMI is used to read secrets from Key Vault
+msiClientId: "__tenantQuotaUAMIClientId__"
+# Secret Provider configuration
+# Key Vault where all tenant SP secrets are stored (in the dev tenant)
+secretProvider:
+  keyVault: "__keyVaultName__"
+  msiClientId: "__tenantQuotaUAMIClientId__"
+  tenantId: "64dc69e4-d083-49fc-9569-ebece1dd1408" # Dev tenant ID
+# =============================================================================
+# TENANT CONFIGURATIONS
+# =============================================================================
+# Each tenant entry collects quota metrics from a specific Azure AD tenant.
+# Metrics are labeled with tenant_id and tenant_name for easy identification.
+#
+# MULTI-TENANT SUPPORT:
+# This collector monitors Azure AD directory quota (users, groups, apps, etc.)
+# which is per-tenant, NOT per-subscription. Each Azure AD tenant has one quota.
+#
+# - To monitor DIFFERENT Azure AD tenants: Add an entry for each tenant
+#   Example: RedHat0 tenant + Microsoft tenant (each has separate quota)
+# - Multiple SPs from the SAME tenant would return identical data (not useful)
+#
+# SECRET RENEWAL:
+# When SP secrets expire, use the renewal script:
+#   cd dev-infrastructure/ops-tools/tenant-quota
+#   ./scripts/renew-sp-secret.sh --list                 # Check expiry dates
+#   ./scripts/renew-sp-secret.sh --tenant <name>        # Renew specific SP
+#
+# Example Prometheus metrics output:
+#   tenant_quota_usage_percentage{tenant_id="abc...",tenant_name="RedHat0"} 64
+#   tenant_quota_usage_percentage{tenant_id="xyz...",tenant_name="Microsoft"} 45
+#
+tenants:
+# -------------------------------------------------------------------------
+# RedHat0 Tenant
+# -------------------------------------------------------------------------
+- tenantId: "64dc69e4-d083-49fc-9569-ebece1dd1408" # Azure AD tenant ID
+  tenantName: "RedHat0" # Display name (appears in metrics/alerts)
+  servicePrincipalClientId: "1ef710d1-afd7-4bf3-8095-e8126650607f" # SP app ID
+  keyVaultSecretName: "custom-metrics-collector-redhat0-client-secret" # Secret in Key Vault
+
+# -------------------------------------------------------------------------
+# Example: Add another Tenant (uncomment and fill in values)
+# -------------------------------------------------------------------------
+# - tenantId: "72f988bf-86f1-41af-91ab-2d7cd011db47"    # Microsoft tenant
+#   tenantName: "Microsoft"
+#   servicePrincipalClientId: "<sp-app-id>"
+#   keyVaultSecretName: "custom-metrics-collector-microsoft-client-secret"
+
+# -------------------------------------------------------------------------
+# Example: Add SP from DIFFERENT Azure AD Tenant
+# -------------------------------------------------------------------------
+# Each Azure AD tenant has its own directory quota. To monitor multiple
+# tenants, add an entry for each one with its own SP credentials.
+#
+# - tenantId: "<different-azure-ad-tenant-id>"
+#   tenantName: "<friendly-display-name>"
+#   servicePrincipalClientId: "<service-principal-app-id>"
+#   keyVaultSecretName: "<key-vault-secret-name>"
