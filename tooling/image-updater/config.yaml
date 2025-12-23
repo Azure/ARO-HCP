@@ -118,7 +118,8 @@ images:
   clusters-service:
     source:
       image: quay.io/app-sre/aro-hcp-clusters-service
-      tagPattern: "^[a-f0-9]{7}$"
+      tag: "latest"
+      versionLabel: "vcs-ref"
       useAuth: true
       keyVault:
         url: "https://arohcpdev-global.vault.azure.net/"

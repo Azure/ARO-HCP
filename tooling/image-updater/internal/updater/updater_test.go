@@ -44,7 +44,7 @@ type mockRegistryClient struct {
 	err    error
 }
 
-func (m *mockRegistryClient) GetArchSpecificDigest(ctx context.Context, repository string, tagPattern string, arch string, multiArch bool) (*clients.Tag, error) {
+func (m *mockRegistryClient) GetArchSpecificDigest(ctx context.Context, repository string, tagPattern string, arch string, multiArch bool, versionLabel string) (*clients.Tag, error) {
 	if m.err != nil {
 		return nil, m.err
 	}
@@ -55,7 +55,7 @@ func (m *mockRegistryClient) GetArchSpecificDigest(ctx context.Context, reposito
 	return &clients.Tag{Digest: m.digest, Name: m.tag}, nil
 }
 
-func (m *mockRegistryClient) GetDigestForTag(ctx context.Context, repository string, tag string, arch string, multiArch bool) (*clients.Tag, error) {
+func (m *mockRegistryClient) GetDigestForTag(ctx context.Context, repository string, tag string, arch string, multiArch bool, versionLabel string) (*clients.Tag, error) {
 	if m.err != nil {
 		return nil, m.err
 	}

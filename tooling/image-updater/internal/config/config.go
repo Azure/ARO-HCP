@@ -25,6 +25,11 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 )
 
+const (
+	// DefaultVersionLabel is the default container label used for version extraction when using 'tag' field
+	DefaultVersionLabel = "org.opencontainers.image.revision"
+)
+
 // Config represents the image updater configuration
 type Config struct {
 	Images map[string]ImageConfig `yaml:"images"`
@@ -41,6 +46,7 @@ type Source struct {
 	Image        string          `yaml:"image"`
 	Tag          string          `yaml:"tag,omitempty"`          // Exact tag to use (mutually exclusive with TagPattern)
 	TagPattern   string          `yaml:"tagPattern,omitempty"`   // Regex pattern to filter tags (mutually exclusive with Tag)
+	VersionLabel string          `yaml:"versionLabel,omitempty"` // Container label to fetch for human-friendly version (defaults to "org.opencontainers.image.revision" when tag is used, empty when tagPattern is used)
 	Architecture string          `yaml:"architecture,omitempty"` // Specific architecture to use (e.g., "amd64", "arm64"). Mutually exclusive with MultiArch.
 	MultiArch    bool            `yaml:"multiArch,omitempty"`    // If true, fetch the multi-arch manifest list digest instead of a specific architecture
 	UseAuth      *bool           `yaml:"useAuth,omitempty"`      // true = use auth, nil/false = anonymous (default)
@@ -85,6 +91,21 @@ func (s *Source) GetEffectiveTagPattern() string {
 		return "^" + regexp.QuoteMeta(s.Tag) + "$"
 	}
 	return s.TagPattern
+}
+
+// GetEffectiveVersionLabel returns the effective version label to use
+// If VersionLabel is explicitly set, it returns that value
+// If Tag is set (not TagPattern), it defaults to DefaultVersionLabel
+// Otherwise, it returns an empty string
+func (s *Source) GetEffectiveVersionLabel() string {
+	if s.VersionLabel != "" {
+		return s.VersionLabel
+	}
+	// Default to DefaultVersionLabel when using a specific tag
+	if s.Tag != "" {
+		return DefaultVersionLabel
+	}
+	return ""
 }
 
 // ParseImageReference splits an image reference into registry and repository parts

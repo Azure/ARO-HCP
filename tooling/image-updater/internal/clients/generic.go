@@ -164,13 +164,13 @@ func (c *GenericRegistryClient) getAllTags(ctx context.Context, repository strin
 	return allTags, nil
 }
 
-func (c *GenericRegistryClient) GetArchSpecificDigest(ctx context.Context, repository string, tagPattern string, arch string, multiArch bool) (*Tag, error) {
+func (c *GenericRegistryClient) GetArchSpecificDigest(ctx context.Context, repository string, tagPattern string, arch string, multiArch bool, versionLabel string) (*Tag, error) {
 	logger, err := logr.FromContext(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("logger not found in context: %w", err)
 	}
 
-	logger.V(2).Info("fetching tags from generic registry", "registry", c.registryURL, "repository", repository, "useAuth", c.useAuth)
+	logger.V(2).Info("fetching tags from generic registry", "registry", c.registryURL, "repository", repository, "useAuth", c.useAuth, "versionLabel", versionLabel)
 
 	allTags, err := c.getAllTags(ctx, repository)
 	if err != nil {
@@ -207,10 +207,14 @@ func (c *GenericRegistryClient) GetArchSpecificDigest(ctx context.Context, repos
 		// Cache the descriptor for later use
 		descriptorCache[tag.Name] = desc
 
-		// Try to get creation time from config
+		// Try to get creation time and version label from config
 		if img, err := desc.Image(); err == nil {
 			if configFile, err := img.ConfigFile(); err == nil {
 				tag.LastModified = configFile.Created.Time
+				tag.Version = extractVersionFromConfigLabels(configFile.Config.Labels, versionLabel)
+				if tag.Version != "" {
+					logger.V(2).Info("extracted version from label", "tag", tag.Name, "label", versionLabel, "version", tag.Version)
+				}
 			}
 		}
 
@@ -287,13 +291,13 @@ func (c *GenericRegistryClient) GetArchSpecificDigest(ctx context.Context, repos
 }
 
 // GetDigestForTag fetches the digest for a specific tag without pagination
-func (c *GenericRegistryClient) GetDigestForTag(ctx context.Context, repository string, tagName string, arch string, multiArch bool) (*Tag, error) {
+func (c *GenericRegistryClient) GetDigestForTag(ctx context.Context, repository string, tagName string, arch string, multiArch bool, versionLabel string) (*Tag, error) {
 	logger, err := logr.FromContext(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("logger not found in context: %w", err)
 	}
 
-	logger.V(2).Info("fetching digest for specific tag", "registry", c.registryURL, "repository", repository, "tag", tagName, "useAuth", c.useAuth)
+	logger.V(2).Info("fetching digest for specific tag", "registry", c.registryURL, "repository", repository, "tag", tagName, "useAuth", c.useAuth, "versionLabel", versionLabel)
 
 	// Check if context is cancelled before processing
 	select {
@@ -318,10 +322,14 @@ func (c *GenericRegistryClient) GetDigestForTag(ctx context.Context, repository 
 		Digest: desc.Digest.String(),
 	}
 
-	// Try to get creation time from config
+	// Try to get creation time and version label from config
 	if img, err := desc.Image(); err == nil {
 		if configFile, err := img.ConfigFile(); err == nil {
 			tag.LastModified = configFile.Created.Time
+			tag.Version = extractVersionFromConfigLabels(configFile.Config.Labels, versionLabel)
+			if tag.Version != "" {
+				logger.V(2).Info("extracted version from label", "tag", tagName, "label", versionLabel, "version", tag.Version)
+			}
 		}
 	}
 
