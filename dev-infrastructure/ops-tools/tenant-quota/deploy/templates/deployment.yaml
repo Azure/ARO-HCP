@@ -1,0 +1,74 @@
+# Purpose: Main workload - deploys the tenant-quota-collector pod that collects quota metrics from configured tenants
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tenant-quota-collector
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: tenant-quota-collector
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: tenant-quota-collector
+  template:
+    metadata:
+      labels:
+        app: tenant-quota-collector
+      annotations:
+        azure.workload.identity/use: "true"
+    spec:
+      serviceAccountName: tenant-quota-collector
+      containers:
+      - name: tenant-quota-collector
+        image: '{{ .Values.imageRegistry }}/{{ .Values.imageRepository }}{{ if .Values.imageDigest }}@{{ .Values.imageDigest }}{{ else if .Values.imageTag }}:{{ .Values.imageTag }}{{ end }}'
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8080
+          name: metrics
+        env:
+        - name: CONFIG_PATH
+          value: "/etc/config/config.yaml"
+        - name: PORT
+          value: "8080"
+        - name: LOG_LEVEL
+          value: "info"
+        - name: AZURE_CLIENT_ID
+          value: "{{ .Values.msiClientId }}"
+        - name: AZURE_TENANT_ID
+          value: "{{ .Values.msiTenantId }}"
+        volumeMounts:
+        - name: config
+          mountPath: /etc/config
+        - name: secrets-store
+          mountPath: "/mnt/secrets-store"
+          readOnly: true
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 30
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 10
+      volumes:
+      - name: config
+        configMap:
+          name: tenant-quota-config
+      - name: secrets-store
+        csi:
+          driver: secrets-store.csi.k8s.io
+          readOnly: true
+          volumeAttributes:
+            secretProviderClass: tenant-quota-collector-secretprovider

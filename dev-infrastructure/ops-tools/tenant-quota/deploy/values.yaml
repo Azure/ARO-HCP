@@ -1,0 +1,44 @@
+# Default values for tenant-quota collector
+# This chart deploys the tenant-quota collector to the opstool environment
+#
+# IMPORTANT: Service principals are created in their respective tenant subscriptions,
+# and their secrets are stored in the dev Key Vault (aro-hcp-dev-svc-kv in the global resource group).
+#
+# To add multiple tenants:
+# 1. Create a service principal in each target tenant (can be different subscriptions)
+# 2. Store each service principal's secret in the dev Key Vault (aro-hcp-dev-svc-kv)
+# 3. Add tenant entries below with:
+#    - tenantId: The Azure AD tenant ID (where the SP was created)
+#    - tenantName: Display name for the tenant
+#    - servicePrincipalClientId: The SP client ID (can have any name, created in target tenant)
+#    - keyVaultSecretName: Name of the secret in dev Key Vault (aro-hcp-dev-svc-kv)
+
+imageRegistry: arohcpsvcdev.azurecr.io
+imageRepository: tenant-quota-collector
+imageDigest: ""  # Set during deployment
+
+# Managed Identity (for Key Vault access in opstool subscription)
+msiClientId: ""  # Set during deployment
+msiTenantId: ""  # Set during deployment (opstool subscription tenant)
+
+# Secret Provider configuration (dev Key Vault where secrets are stored)
+secretProvider:
+  keyVault: ""  # Set during deployment (e.g., aro-hcp-dev-svc-kv)
+  msiClientId: ""  # Set during deployment
+
+# Tenant configurations
+# Each tenant can be in a different subscription, but secrets are stored in dev Key Vault (aro-hcp-dev-svc-kv)
+tenants:
+  # Example: RedHat0 tenant
+  - tenantId: "64dc69e4-d083-49fc-9569-ebece1dd1408"
+    tenantName: "RedHat0"
+    servicePrincipalClientId: "1ef710d1-afd7-4bf3-8095-e8126650607f"
+    keyVaultSecretName: "custom-metrics-collector-redhat0-client-secret"
+
+  # Example: Adding another tenant (e.g., TEST TEST)
+  # The service principal can be created in a different subscription/tenant
+  # but the secret must be stored in the dev Key Vault (aro-hcp-dev-svc-kv)
+  # - tenantId: "<test-tenant-id>"
+  #   tenantName: "TEST TEST"
+  #   servicePrincipalClientId: "<test-sp-client-id>"  # SP created in TEST TEST tenant/subscription
+  #   keyVaultSecretName: "custom-metrics-collector-testtest-client-secret"  # Stored in dev KV

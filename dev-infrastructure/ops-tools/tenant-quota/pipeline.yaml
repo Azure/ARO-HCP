@@ -1,0 +1,43 @@
+$schema: "pipeline.schema.v1"
+serviceGroup: Microsoft.Azure.ARO.HCP.OpsTools.TenantQuota
+rolloutName: Tenant Quota Collector Rollout
+resourceGroups:
+- name: global
+  resourceGroup: '{{ .global.rg }}'
+  subscription: '{{ .global.subscription.key }}'
+  steps:
+  - name: output
+    action: ARM
+    template: templates/output-global.bicep
+    parameters: ./../../dev-infrastructure/configurations/output-global.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
+- name: service
+  resourceGroup: '{{ .svc.rg }}'
+  subscription: '{{ .svc.subscription.key }}'
+  steps:
+  - name: deploy
+    aksCluster: '{{ .svc.aks.name }}'
+    action: Shell
+    workingDir: dev-infrastructure/ops-tools/tenant-quota
+    command: make tenant-quota-deploy
+    variables:
+    - name: OPSTOOL_RG
+      configRef: 'svc.rg'
+    - name: OPSTOOL_SUBSCRIPTION_ID
+      configRef: 'svc.subscription.key'
+    - name: OPSTOOL_CLUSTER_NAME
+      configRef: 'svc.aks.name'
+    - name: OPSTOOL_KEYVAULT_NAME
+      configRef: 'svc.keyVault.name'
+    - name: OPSTOOL_KEYVAULT_RG
+      configRef: 'svc.keyVault.resourceGroup'
+    dryRun:
+      variables:
+      - name: DRY_RUN
+        value: "true"
+    shellIdentity:
+      input:
+        resourceGroup: global
+        step: output
+        name: globalMSIId
