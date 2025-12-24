@@ -224,11 +224,11 @@ func (c *QuayClient) doRequestWithRetry(ctx context.Context, req *http.Request) 
 	return resp, nil
 }
 
-func (c *QuayClient) getAllTagsWithCache(ctx context.Context, repository string, descriptorCache map[string]*remote.Descriptor) ([]Tag, error) {
+func (c *QuayClient) getAllTagsWithCache(ctx context.Context, repository string, descriptorCache map[string]*remote.Descriptor, versionLabel string) ([]Tag, error) {
 	// If authentication is required, use Docker Registry V2 API instead of Quay's proprietary API
 	// This is because Quay's API requires different credentials (OAuth2 tokens) than registry access
 	if c.useAuth {
-		return c.getAllTagsViaRegistryAPIWithCache(ctx, repository, descriptorCache)
+		return c.getAllTagsViaRegistryAPIWithCache(ctx, repository, descriptorCache, versionLabel)
 	}
 
 	logger, err := logr.FromContext(ctx)
@@ -298,7 +298,7 @@ func (c *QuayClient) getAllTagsWithCache(ctx context.Context, repository string,
 	return allTags, nil
 }
 
-func (c *QuayClient) getAllTagsViaRegistryAPIWithCache(ctx context.Context, repository string, descriptorCache map[string]*remote.Descriptor) ([]Tag, error) {
+func (c *QuayClient) getAllTagsViaRegistryAPIWithCache(ctx context.Context, repository string, descriptorCache map[string]*remote.Descriptor, versionLabel string) ([]Tag, error) {
 	logger, err := logr.FromContext(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("logger not found in context: %w", err)
@@ -396,6 +396,10 @@ func (c *QuayClient) getAllTagsViaRegistryAPIWithCache(ctx context.Context, repo
 									if configFile, err := platformImg.ConfigFile(); err == nil {
 										tag.LastModified = configFile.Created.Time
 										logger.V(2).Info("got timestamp from multi-arch manifest", "tag", tag.Name, "timestamp", tag.LastModified)
+										tag.Version = extractVersionFromConfigLabels(configFile.Config.Labels, versionLabel)
+										if tag.Version != "" {
+											logger.V(2).Info("extracted version from label", "tag", tag.Name, "label", versionLabel, "version", tag.Version)
+										}
 									}
 								}
 							}
@@ -410,6 +414,10 @@ func (c *QuayClient) getAllTagsViaRegistryAPIWithCache(ctx context.Context, repo
 				if configFile, err := img.ConfigFile(); err == nil {
 					tag.LastModified = configFile.Created.Time
 					logger.V(2).Info("got timestamp from single-arch image", "tag", tag.Name, "timestamp", tag.LastModified)
+					tag.Version = extractVersionFromConfigLabels(configFile.Config.Labels, versionLabel)
+					if tag.Version != "" {
+						logger.V(2).Info("extracted version from label", "tag", tag.Name, "label", versionLabel, "version", tag.Version)
+					}
 				} else {
 					logger.V(2).Info("failed to get config file", "tag", tag.Name, "error", err)
 				}
@@ -430,7 +438,7 @@ func (c *QuayClient) getAllTagsViaRegistryAPIWithCache(ctx context.Context, repo
 	return enrichedTags, nil
 }
 
-func (c *QuayClient) GetArchSpecificDigest(ctx context.Context, repository string, tagPattern string, arch string, multiArch bool) (*Tag, error) {
+func (c *QuayClient) GetArchSpecificDigest(ctx context.Context, repository string, tagPattern string, arch string, multiArch bool, versionLabel string) (*Tag, error) {
 	logger, err := logr.FromContext(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("logger not found in context: %w", err)
@@ -441,7 +449,7 @@ func (c *QuayClient) GetArchSpecificDigest(ctx context.Context, repository strin
 	// Cache for remote descriptors to avoid duplicate remote.Get calls
 	descriptorCache := make(map[string]*remote.Descriptor)
 
-	allTags, err := c.getAllTagsWithCache(ctx, repository, descriptorCache)
+	allTags, err := c.getAllTagsWithCache(ctx, repository, descriptorCache, versionLabel)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch all tags: %w", err)
 	}
@@ -527,4 +535,88 @@ func (c *QuayClient) GetArchSpecificDigest(ctx context.Context, repository strin
 		return nil, fmt.Errorf("no multi-arch manifest found for repository %s", repository)
 	}
 	return nil, fmt.Errorf("no single-arch %s/linux image found for repository %s (all tags are either multi-arch or different architecture)", arch, repository)
+}
+
+// GetDigestForTag fetches the digest for a specific tag without pagination
+func (c *QuayClient) GetDigestForTag(ctx context.Context, repository string, tagName string, arch string, multiArch bool, versionLabel string) (*Tag, error) {
+	logger, err := logr.FromContext(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("logger not found in context: %w", err)
+	}
+
+	logger.V(2).Info("fetching digest for specific tag", "repository", repository, "tag", tagName, "useAuth", c.useAuth, "versionLabel", versionLabel)
+
+	// Check if context is cancelled before processing
+	select {
+	case <-ctx.Done():
+		return nil, fmt.Errorf("operation cancelled: %w", ctx.Err())
+	default:
+	}
+
+	remoteOpts := GetRemoteOptions(c.useAuth)
+	ref, err := name.ParseReference(fmt.Sprintf("quay.io/%s:%s", repository, tagName))
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse reference for tag %s: %w", tagName, err)
+	}
+
+	desc, err := remote.Get(ref, remoteOpts...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch image descriptor for tag %s: %w", tagName, err)
+	}
+
+	tag := Tag{
+		Name:   tagName,
+		Digest: desc.Digest.String(),
+	}
+
+	// Try to get creation time and version label from config
+	if img, err := desc.Image(); err == nil {
+		if configFile, err := img.ConfigFile(); err == nil {
+			tag.LastModified = configFile.Created.Time
+			tag.Version = extractVersionFromConfigLabels(configFile.Config.Labels, versionLabel)
+			if tag.Version != "" {
+				logger.V(2).Info("extracted version from label", "tag", tagName, "label", versionLabel, "version", tag.Version)
+			}
+		}
+	}
+
+	// If multiArch is requested, return the multi-arch manifest list digest
+	if multiArch {
+		if !desc.MediaType.IsIndex() {
+			return nil, fmt.Errorf("tag %s is not a multi-arch manifest (mediaType: %s)", tagName, desc.MediaType)
+		}
+		logger.V(2).Info("found multi-arch manifest", "repository", repository, "tag", tagName, "mediaType", desc.MediaType, "digest", desc.Digest.String())
+		return &tag, nil
+	}
+
+	// For single-arch, verify architecture matches
+	if desc.MediaType.IsIndex() {
+		return nil, fmt.Errorf("tag %s is a multi-arch manifest, but single-arch was requested (use multiArch: true)", tagName)
+	}
+
+	img, err := desc.Image()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get image for tag %s: %w", tagName, err)
+	}
+
+	configFile, err := img.ConfigFile()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get config for tag %s: %w", tagName, err)
+	}
+
+	normalizedArch := NormalizeArchitecture(configFile.Architecture)
+
+	if normalizedArch != arch || configFile.OS != "linux" {
+		return nil, fmt.Errorf("tag %s has architecture %s/%s, but %s/linux was requested", tagName, configFile.Architecture, configFile.OS, arch)
+	}
+
+	digest, err := img.Digest()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get image digest for tag %s: %w", tagName, err)
+	}
+
+	tag.Digest = digest.String()
+	logger.V(2).Info("found matching image", "repository", repository, "tag", tagName, "arch", normalizedArch, "digest", tag.Digest)
+
+	return &tag, nil
 }

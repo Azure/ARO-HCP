@@ -31,6 +31,7 @@ type Update struct {
 	OldDigest string // Current digest value
 	NewDigest string // New digest value
 	Tag       string // Image tag (e.g., "v1.2.3")
+	Version   string // Human-friendly version from container label (if configured and available)
 	Date      string // Image creation date (e.g., "2025-11-24 14:30")
 	FilePath  string // Path to the YAML file
 	JsonPath  string // JSON path to the value in the YAML
@@ -166,8 +167,13 @@ func (e *Editor) ApplyUpdates(updates []Update) error {
 
 				// Build the new value with the digest and optional comment
 				newValue := updates[updateIndex].NewDigest
-				if updates[updateIndex].Tag != "" {
-					comment := updates[updateIndex].Tag
+				// Use Version if available, otherwise fall back to Tag
+				versionInfo := updates[updateIndex].Version
+				if versionInfo == "" {
+					versionInfo = updates[updateIndex].Tag
+				}
+				if versionInfo != "" {
+					comment := versionInfo
 					if updates[updateIndex].Date != "" {
 						comment = comment + " (" + updates[updateIndex].Date + ")"
 					}
@@ -180,9 +186,13 @@ func (e *Editor) ApplyUpdates(updates []Update) error {
 				// This shouldn't normally happen but provides a safety net
 				line = strings.Replace(line, updates[updateIndex].OldDigest, updates[updateIndex].NewDigest, 1)
 
-				// Add the tag and date comment
-				if updates[updateIndex].Tag != "" {
-					comment := updates[updateIndex].Tag
+				// Add the version/tag and date comment
+				versionInfo := updates[updateIndex].Version
+				if versionInfo == "" {
+					versionInfo = updates[updateIndex].Tag
+				}
+				if versionInfo != "" {
+					comment := versionInfo
 					if updates[updateIndex].Date != "" {
 						comment = comment + " (" + updates[updateIndex].Date + ")"
 					}

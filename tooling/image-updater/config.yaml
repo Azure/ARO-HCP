@@ -40,7 +40,7 @@ images:
   hypershift:
     source:
       image: quay.io/redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
-      tagPattern: "^[a-f0-9]{7}$"
+      tag: "latest"
       multiArch: true # Use multi-arch manifest
       useAuth: true
       keyVault:
@@ -64,7 +64,7 @@ images:
     source:
       image: quay.io/package-operator/package-operator-package
       # tagPattern: "^v\\d+\\.\\d+\\.\\d+$"
-      tagPattern: "v1.18.3" # Current image is failing, we needed to rollback
+      tag: "v1.18.3" # Current image is failing, we needed to rollback
     targets:
     - jsonPath: defaults.pko.imagePackage.digest
       filePath: ../../config/config.yaml
@@ -82,7 +82,7 @@ images:
     source:
       image: quay.io/package-operator/package-operator-manager
       # tagPattern: "^v\\d+\\.\\d+\\.\\d+$"
-      tagPattern: "v1.18.3" # Current image is failing, we needed to rollback
+      tag: "v1.18.3" # Current image is failing, we needed to rollback
     targets:
     - jsonPath: defaults.pko.imageManager.digest
       filePath: ../../config/config.yaml
@@ -100,7 +100,7 @@ images:
     source:
       image: quay.io/package-operator/remote-phase-manager
       # tagPattern: "^v\\d+\\.\\d+\\.\\d+$"
-      tagPattern: "v1.18.3" # Current image is failing, we needed to rollback
+      tag: "v1.18.3" # Current image is failing, we needed to rollback
     targets:
     - jsonPath: defaults.pko.remotePhaseManager.digest
       filePath: ../../config/config.yaml
@@ -118,7 +118,8 @@ images:
   clusters-service:
     source:
       image: quay.io/app-sre/aro-hcp-clusters-service
-      tagPattern: "^[a-f0-9]{7}$"
+      tag: "latest"
+      versionLabel: "vcs-ref"
       useAuth: true
       keyVault:
         url: "https://arohcpdev-global.vault.azure.net/"
