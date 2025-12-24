@@ -1001,7 +1001,7 @@ clouds:
             maxCount: 4
             poolCount: 1
           userAgentPool:
-            maxCount: 6
+            maxCount: 14
             vmSize: 'Standard_D4s_v3'
             osDiskSizeGB: 100
           infraAgentPool:
@@ -1420,7 +1420,7 @@ clouds:
                 osDiskSizeGB: 32
                 vmSize: Standard_D2s_v3
               userAgentPool:
-                maxCount: 6
+                maxCount: 14
                 osDiskSizeGB: 100
                 vmSize: Standard_D4s_v3
               infraAgentPool:
