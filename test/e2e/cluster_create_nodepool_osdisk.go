@@ -44,6 +44,8 @@ var _ = Describe("Customer", func() {
 				customerNodeReplicas      int32 = 2
 			)
 			tc := framework.NewTestContext()
+			openshiftControlPlaneVersionId := framework.DefaultOpenshiftControlPlaneVersionId()
+			openshiftNodeVersionId := framework.DefaultOpenshiftNodePoolVersionId()
 
 			if tc.UsePooledIdentities() {
 				err := tc.AssignIdentityContainers(ctx, 1, 60*time.Second)
@@ -65,13 +67,15 @@ var _ = Describe("Customer", func() {
 				framework.WithScope(framework.BicepDeploymentScopeResourceGroup),
 				framework.WithClusterResourceGroup(*resourceGroup.Name),
 				framework.WithParameters(map[string]interface{}{
-					"persistTagValue":       false,
-					"clusterName":           customerClusterName,
-					"nodePoolName":          customerNodePoolName,
-					"nodePoolOsDiskSizeGiB": customerNodeOsDiskSizeGiB,
-					"nodeReplicas":          customerNodeReplicas,
-					"identities":            identities,
-					"usePooledIdentities":   usePooled,
+					"openshiftControlPlaneVersionId": openshiftControlPlaneVersionId,
+					"openshiftNodePoolVersionId":     openshiftNodeVersionId,
+					"persistTagValue":                false,
+					"clusterName":                    customerClusterName,
+					"nodePoolName":                   customerNodePoolName,
+					"nodePoolOsDiskSizeGiB":          customerNodeOsDiskSizeGiB,
+					"nodeReplicas":                   customerNodeReplicas,
+					"identities":                     identities,
+					"usePooledIdentities":            usePooled,
 				}),
 				framework.WithTimeout(45*time.Minute),
 			)
