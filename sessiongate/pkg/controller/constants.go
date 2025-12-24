@@ -25,6 +25,10 @@ const (
 
 	// LabelManagedBy identifies resources managed by the sessiongate controller
 	LabelManagedBy = "app.kubernetes.io/managed-by"
+
+	// AnnotationSessiongate identifies the namespace/session pair that the resource belongs to
+	// this is used on resources where owner references are not possible (e.g. cross cluster resources)
+	AnnotationSessiongate = "sessiongate.aro-hcp.azure.com/session"
 )
 
 // ManagedByLabelSelector returns a label selector string for resources managed by this controller
