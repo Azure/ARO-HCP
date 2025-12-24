@@ -23,11 +23,13 @@ import (
 // SessionStatusApplyConfiguration represents a declarative configuration of the SessionStatus type for use
 // with apply.
 type SessionStatusApplyConfiguration struct {
-	Conditions           []v1.ConditionApplyConfiguration `json:"conditions,omitempty"`
-	ExpiresAt            *metav1.Time                     `json:"expiresAt,omitempty"`
-	Endpoint             *string                          `json:"endpoint,omitempty"`
-	CredentialsSecretRef *string                          `json:"credentialsSecretRef,omitempty"`
-	BackendKASURL        *string                          `json:"backendKASURL,omitempty"`
+	Conditions             []v1.ConditionApplyConfiguration `json:"conditions,omitempty"`
+	ExpiresAt              *metav1.Time                     `json:"expiresAt,omitempty"`
+	Endpoint               *string                          `json:"endpoint,omitempty"`
+	AuthorizationPolicyRef *string                          `json:"authorizationPolicyRef,omitempty"`
+	CredentialsSecretRef   *string                          `json:"credentialsSecretRef,omitempty"`
+	CSRRef                 *string                          `json:"csrRef,omitempty"`
+	BackendKASURL          *string                          `json:"backendKASURL,omitempty"`
 }
 
 // SessionStatusApplyConfiguration constructs a declarative configuration of the SessionStatus type for use with
@@ -65,11 +67,27 @@ func (b *SessionStatusApplyConfiguration) WithEndpoint(value string) *SessionSta
 	return b
 }
 
+// WithAuthorizationPolicyRef sets the AuthorizationPolicyRef field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the AuthorizationPolicyRef field is set to the value of the last call.
+func (b *SessionStatusApplyConfiguration) WithAuthorizationPolicyRef(value string) *SessionStatusApplyConfiguration {
+	b.AuthorizationPolicyRef = &value
+	return b
+}
+
 // WithCredentialsSecretRef sets the CredentialsSecretRef field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the CredentialsSecretRef field is set to the value of the last call.
 func (b *SessionStatusApplyConfiguration) WithCredentialsSecretRef(value string) *SessionStatusApplyConfiguration {
 	b.CredentialsSecretRef = &value
+	return b
+}
+
+// WithCSRRef sets the CSRRef field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the CSRRef field is set to the value of the last call.
+func (b *SessionStatusApplyConfiguration) WithCSRRef(value string) *SessionStatusApplyConfiguration {
+	b.CSRRef = &value
 	return b
 }
 

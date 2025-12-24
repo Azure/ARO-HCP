@@ -27,21 +27,24 @@ import (
 	istioclientset "istio.io/client-go/pkg/clientset/versioned"
 	istioinformers "istio.io/client-go/pkg/informers/externalversions"
 
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	kubeinformers "k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/kubernetes/scheme"
+	typedcorev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
+	"k8s.io/client-go/tools/record"
 	"k8s.io/klog/v2"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 
+	sessiongatev1alpha1 "github.com/Azure/ARO-HCP/sessiongate/pkg/apis/sessiongate/v1alpha1"
 	"github.com/Azure/ARO-HCP/sessiongate/pkg/controller"
-	"github.com/Azure/ARO-HCP/sessiongate/pkg/controller/controlplane"
-	"github.com/Azure/ARO-HCP/sessiongate/pkg/controller/dataplane"
 	clientset "github.com/Azure/ARO-HCP/sessiongate/pkg/generated/clientset/versioned"
 	informers "github.com/Azure/ARO-HCP/sessiongate/pkg/generated/informers/externalversions"
-	"github.com/Azure/ARO-HCP/sessiongate/pkg/mc"
 	"github.com/Azure/ARO-HCP/sessiongate/pkg/server"
 	"github.com/Azure/ARO-HCP/sessiongate/pkg/signals"
 )
@@ -101,12 +104,13 @@ type ValidatedControllerOptions struct {
 
 type completedControllerOptions struct {
 	server                     *server.Server
-	controlPlaneController     *controlplane.Controller
-	dataPlaneController        *dataplane.Controller
+	controlPlaneController     *controller.SessionController
+	dataPlaneController        *controller.DataPlaneController
 	sessiongateInformerFactory informers.SharedInformerFactory
 	istioInformerFactory       istioinformers.SharedInformerFactory
 	kubeInformerFactory        kubeinformers.SharedInformerFactory
 	workers                    int
+	leaderElectionCfg          *controller.LeaderElectionConfig
 }
 
 type ControllerOptions struct {
@@ -170,7 +174,6 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 			opts.LabelSelector = controller.ManagedByLabelSelector()
 		}),
 	)
-	authzPolicyInformer := istioInformers.Security().V1beta1().AuthorizationPolicies()
 
 	// create Secret informer for watching session credentials
 	kubeInformers := kubeinformers.NewSharedInformerFactoryWithOptions(
@@ -181,25 +184,11 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 			opts.LabelSelector = controller.ManagedByLabelSelector()
 		}),
 	)
-	secretsInformer := kubeInformers.Core().V1().Secrets().Informer()
 
 	klog.V(4).Info("Successfully built kubeconfig and clientsets")
 
 	// create server
 	srv := server.NewServer(o.BindAddress, o.IngressBaseURL, prometheus.DefaultRegisterer)
-
-	// create secret store
-	secretStore := controller.NewDefaultSecretStore(
-		kubeClientset,
-		o.Namespace,
-		kubeInformers.Core().V1().Secrets().Lister(),
-	)
-
-	// create credential provider
-	credentialProvider := controller.NewDefaultCredentialProvider(
-		secretStore,
-		mc.NewAKSHCPProviderBuilder(azureCredential),
-	)
 
 	// setup leader election config
 	leaderElectionCfg := &controller.LeaderElectionConfig{
@@ -211,34 +200,52 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 		KubeConfig:    kubeConfig,
 	}
 
+	// create event recorders
+	eventScheme := runtime.NewScheme()
+	err = scheme.AddToScheme(eventScheme)
+	if err != nil {
+		return nil, fmt.Errorf("failed to add scheme to event scheme: %w", err)
+	}
+	err = sessiongatev1alpha1.AddToScheme(eventScheme)
+	if err != nil {
+		return nil, fmt.Errorf("failed to add scheme to event scheme: %w", err)
+	}
+
+	eventBroadcaster := record.NewBroadcaster()
+	eventBroadcaster.StartRecordingToSink(&typedcorev1.EventSinkImpl{
+		Interface: kubeClientset.CoreV1().Events(o.Namespace),
+	})
+	controlPlaneEventRecorder := eventBroadcaster.NewRecorder(eventScheme, corev1.EventSource{
+		Component: "sessiongate-control-plane",
+	})
+	dataPlaneEventRecorder := eventBroadcaster.NewRecorder(eventScheme, corev1.EventSource{
+		Component: "sessiongate-data-plane",
+	})
+
 	// create control plane controller (leader-elected)
-	controlPlaneCtrl, err := controlplane.NewController(
-		ctx,
-		klog.LoggerWithValues(logger, "controller", "control-plane"),
+	controlPlaneCtrl, err := controller.NewSessionController(
 		kubeClientset,
 		sessiongateClientset,
 		istioClientset.SecurityV1beta1(),
-		sessiongateInformers.Sessiongate().V1alpha1().Sessions(),
-		authzPolicyInformer,
-		secretsInformer,
+		sessiongateInformers,
+		istioInformers,
+		kubeInformers,
+		controlPlaneEventRecorder,
+		controller.NewAKSManagermentClusterBuilder(azureCredential),
 		srv,
-		mc.NewAKSHCPProviderBuilder(azureCredential),
-		credentialProvider,
-		o.Namespace,
-		leaderElectionCfg,
-		o.CredentialCheckInterval,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create control plane controller: %w", err)
 	}
 
 	// create data plane controller (no leader election, runs on all replicas)
-	dataPlaneCtrl, err := dataplane.NewController(
+	dataPlaneCtrl, err := controller.NewDataPlaneController(
 		ctx,
 		klog.LoggerWithValues(logger, "controller", "data-plane"),
-		sessiongateInformers.Sessiongate().V1alpha1().Sessions(),
+		sessiongateInformers,
+		kubeInformers,
 		srv,
-		credentialProvider,
+		dataPlaneEventRecorder,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create data plane controller: %w", err)
@@ -253,12 +260,13 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 			controlPlaneController:     controlPlaneCtrl,
 			dataPlaneController:        dataPlaneCtrl,
 			workers:                    o.Workers,
+			leaderElectionCfg:          leaderElectionCfg,
 		},
 	}, nil
 }
 
-// buildKubeConfig builds a Kubernetes REST config, trying in-cluster config first
-// and falling back to out-of-cluster config using default loading rules.
+// build a Kubernetes REST config, trying in-cluster config first
+// and falling back to out-of-cluster config using default loading rules
 func (o *ValidatedControllerOptions) buildKubeConfig() (*rest.Config, error) {
 	// try in-cluster config first
 	config, err := rest.InClusterConfig()
@@ -311,7 +319,9 @@ func (o *ControllerOptions) Run(ctx context.Context) error {
 	// run control plane controller
 	g.Go(func() error {
 		logger.Info("Starting control plane controller")
-		if err := o.controlPlaneController.Run(ctx, o.workers); err != nil {
+		if err := controller.RunWithLeaderElection(ctx, "controlplane", o.leaderElectionCfg, func() error {
+			return o.controlPlaneController.Run(ctx, o.workers)
+		}); err != nil {
 			logger.Error(err, "Control plane controller stopped with error")
 			return err
 		}
@@ -322,7 +332,7 @@ func (o *ControllerOptions) Run(ctx context.Context) error {
 	// run data plane controller
 	g.Go(func() error {
 		logger.Info("Starting data plane controller")
-		if err := o.dataPlaneController.Run(ctx); err != nil {
+		if err := o.dataPlaneController.Run(ctx, o.workers); err != nil {
 			logger.Error(err, "Data plane controller stopped with error")
 			return err
 		}
