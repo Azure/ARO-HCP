@@ -59,7 +59,7 @@ spec:
                   resourceId:
                     description: resourceId is the Azure resource ID of the hosted control plane
                     type: string
-                    pattern: '^/subscriptions/[a-fA-F0-9-]+/resourceGroups/[^/]+/providers/Microsoft\.RedHatOpenshift/hcpOpenShiftClusters/[^/]+$'
+                    pattern: '^/subscriptions/[a-fA-F0-9-]+/resourceGroups/[^/]+/providers/[^/]+/[^/]+/[^/]+$'
                   namespace:
                     description: namespace of the HostedControlPlane CR
                     type: string
@@ -73,13 +73,16 @@ spec:
                   resourceId:
                     description: resourceId is the Azure resource ID of the management cluster
                     type: string
-                    pattern: '^/subscriptions/[a-fA-F0-9-]+/resourceGroups/[^/]+/providers/Microsoft\.ContainerService/managedClusters/[^/]+$'
+                    pattern: '^/subscriptions/[a-fA-F0-9-]+/resourceGroups/[^/]+/providers/[^/]+/[^/]+/[^/]+$'
                 required:
                 - resourceId
                 type: object
               ttl:
                 description: ttl is the time-to-live duration for the session
                 type: string
+                x-kubernetes-validations:
+                - rule: "duration(self) > duration('0s')"
+                  message: "spec.ttl must be a positive duration"
               owner:
                 description: owner identifies the principal (user or service account) that owns this session
                 properties:

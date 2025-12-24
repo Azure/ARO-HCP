@@ -18,7 +18,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"strings"
 	"time"
 
 	"golang.org/x/time/rate"
@@ -42,8 +41,6 @@ import (
 	"k8s.io/client-go/tools/leaderelection/resourcelock"
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog/v2"
-
-	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	sessiongatev1alpha1 "github.com/Azure/ARO-HCP/sessiongate/pkg/apis/sessiongate/v1alpha1"
 	"github.com/Azure/ARO-HCP/sessiongate/pkg/controller"
@@ -363,12 +360,6 @@ func (c *Controller) syncHandler(ctx context.Context, logger klog.Logger, sessio
 		return 0, nil
 	}
 
-	// validation
-	if err := validateSession(session); err != nil {
-		session.StopProgressing(sessiongatev1alpha1.ReasonInvalidConfiguration, err.Error())
-		logger.Error(err, "Session has invalid configuration")
-		return 0, nil
-	}
 
 	//
 	// Phase 2: authorization policy
@@ -524,57 +515,6 @@ func (c *Controller) enqueueOwningSession(obj interface{}) {
 	}
 }
 
-// validateSession validates the session specification using Azure SDK parsing
-func validateSession(session *sessiongatev1alpha1.Session) error {
-	// validate TTL is positive
-	if session.Spec.TTL.Duration <= 0 {
-		return fmt.Errorf("spec.ttl must be a positive duration")
-	}
-
-	// validate managementCluster is provided
-	if session.Spec.ManagementCluster.ResourceID == "" {
-		return fmt.Errorf("spec.managementCluster.resourceId is required")
-	}
-
-	// validate managementCluster resource ID format and provider type
-	mgmtResourceID, err := azcorearm.ParseResourceID(session.Spec.ManagementCluster.ResourceID)
-	if err != nil {
-		return fmt.Errorf("spec.managementCluster.resourceId is not a valid Azure resource ID: %w", err)
-	}
-	expectedMgmtProvider := "Microsoft.ContainerService"
-	expectedMgmtType := "managedClusters"
-	if !strings.EqualFold(mgmtResourceID.ResourceType.Namespace, expectedMgmtProvider) {
-		return fmt.Errorf("spec.managementCluster must be a %s resource, got %s", expectedMgmtProvider, mgmtResourceID.ResourceType.Namespace)
-	}
-	if !strings.EqualFold(mgmtResourceID.ResourceType.Type, expectedMgmtType) {
-		return fmt.Errorf("spec.managementCluster must be a %s/%s resource, got %s/%s",
-			expectedMgmtProvider, expectedMgmtType,
-			mgmtResourceID.ResourceType.Namespace, mgmtResourceID.ResourceType.Type)
-	}
-
-	// Validate hostedControlPlane is provided
-	if session.Spec.HostedControlPlane.ResourceID == "" {
-		return fmt.Errorf("spec.hostedControlPlane.resourceId is required")
-	}
-
-	// Validate hostedControlPlane resource ID format and provider type
-	hcpResourceID, err := azcorearm.ParseResourceID(session.Spec.HostedControlPlane.ResourceID)
-	if err != nil {
-		return fmt.Errorf("spec.hostedControlPlane.resourceId is not a valid Azure resource ID: %w", err)
-	}
-	expectedHCPProvider := "Microsoft.RedHatOpenShift"
-	expectedHCPType := "hcpOpenShiftClusters"
-	if !strings.EqualFold(hcpResourceID.ResourceType.Namespace, expectedHCPProvider) {
-		return fmt.Errorf("spec.hostedControlPlane must be a %s resource, got %s", expectedHCPProvider, hcpResourceID.ResourceType.Namespace)
-	}
-	if !strings.EqualFold(hcpResourceID.ResourceType.Type, expectedHCPType) {
-		return fmt.Errorf("spec.hostedControlPlane must be a %s/%s resource, got %s/%s",
-			expectedHCPProvider, expectedHCPType,
-			hcpResourceID.ResourceType.Namespace, hcpResourceID.ResourceType.Type)
-	}
-
-	return nil
-}
 
 // patchSessionStatus patches the session status using SSA
 func (c *Controller) patchSessionStatus(ctx context.Context, logger klog.Logger, session *sessiongatev1alpha1.Session) error {

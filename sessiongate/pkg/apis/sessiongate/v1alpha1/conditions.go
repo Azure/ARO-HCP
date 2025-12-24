@@ -23,7 +23,6 @@ import (
 
 const (
 	ReasonUnknown                    = "Unknown"
-	ReasonInvalidConfiguration       = "InvalidConfiguration"
 	ReasonExpired                    = "Expired"
 	ReasonAuthorizationFailed        = "AuthorizationPolicyFailed"
 	ReasonConfiguringAuthorization   = "ConfiguringAuthorization"
