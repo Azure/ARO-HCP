@@ -37,6 +37,7 @@ on:
     - 'image-sync/**/'
     - 'tooling/templatize/**'
     - 'config/*'
+    - 'topology-opstool.yaml'
     types:
     - closed
 concurrency:
@@ -157,3 +158,15 @@ jobs:
     with:
       deploy_env: cspr
       deploy_cs_pr_check_deps: true
+  deploy_opstool_environment_infra:
+    name: 'Deploy opstool infrastructure'
+    if: github.event.pull_request.merged == true || github.event_name == 'workflow_dispatch'
+    needs:
+    - deploy_global_rg
+    permissions:
+      id-token: 'write'
+      contents: 'read'
+    secrets: inherit
+    uses: ./.github/workflows/environment-infra-cd.yml
+    with:
+      deploy_env: opstool

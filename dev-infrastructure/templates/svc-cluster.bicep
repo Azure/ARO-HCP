@@ -627,7 +627,7 @@ module rpCosmosDb '../modules/rp-cosmos.bicep' = if (deployFrontendCosmos) {
   }
 }
 
-module rpCosmosdbPrivateEndpoint '../modules/private-endpoint.bicep' = {
+module rpCosmosdbPrivateEndpoint '../modules/private-endpoint.bicep' = if (deployFrontendCosmos) {
   name: 'rp-pe-${uniqueString(deployment().name)}'
   params: {
     location: location
@@ -983,6 +983,15 @@ module svcNSP '../modules/network/nsp.bicep' = {
   }
 }
 
+var nspAssociatedResources = deployFrontendCosmos
+  ? [
+      svcCluster.outputs.etcKeyVaultId
+      rpCosmosDb.outputs.cosmosDBAccountId
+    ]
+  : [
+      svcCluster.outputs.etcKeyVaultId
+    ]
+
 module svcClusterNSPProfile '../modules/network/nsp-profile.bicep' = {
   name: 'profile-${uniqueString(resourceGroup().name)}'
   params: {
@@ -990,10 +999,7 @@ module svcClusterNSPProfile '../modules/network/nsp-profile.bicep' = {
     nspName: svcNSPName
     profileName: svcNSPName
     location: location
-    associatedResources: [
-      svcCluster.outputs.etcKeyVaultId
-      rpCosmosDb.outputs.cosmosDBAccountId
-    ]
+    associatedResources: nspAssociatedResources
     // TODO Add EV2 access here
     subscriptions: [
       subscription().id

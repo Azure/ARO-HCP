@@ -1180,6 +1180,42 @@ clouds:
           svc:
             subscription:
               key: ARO HCP nightly service (EA Subscription)
+      opstool:
+        # this is an environment for SRE tooling AKS cluster
+        defaults:
+          regionRG: "{{ .ctx.region }}-shared-resources"
+          serviceKeyVault:
+            name: "arohcp{{ .ctx.environment }}-svc-{{ .ctx.regionShort }}" # [globally-unique]
+            rg: "{{ .ctx.region }}-shared-resources"
+            region: "{{ .ctx.region }}"
+            softDelete: false
+          monitoring:
+            svcWorkspaceName: 'aro-hcp-{{ .ctx.environment }}-svc-{{ .ctx.regionShort }}'
+          # DNS
+          dns:
+            regionalSubdomain: '{{ .ctx.regionShort }}-{{ .ctx.environment }}'
+          frontend:
+            cosmosDB:
+              deploy: false
+          clustersService:
+            postgres:
+              deploy: false
+          maestro:
+            eventGrid:
+              name: "arohcp-{{ .ctx.environment }}-maestro-{{ .ctx.regionShort }}"
+              maxClientSessionsPerAuthName: 6
+              private: false
+            certIssuer: OneCertV2-PrivateCA
+            postgres:
+              deploy: false
+          adminApi:
+            managedIdentityName: admin-api
+            k8s:
+              namespace: aro-hcp
+              serviceAccountName: admin-api
+            cert:
+              name: admin-api-cert-{{ .ctx.environment }}-{{ .ctx.regionShort }}
+              issuer: Self
       pers:
         # Regional overrides
         regions:

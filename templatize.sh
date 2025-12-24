@@ -108,22 +108,24 @@ elif [ $PIPELINE_MODE == "inspect" ] && [ -n "${SERVICE_GROUP+x}" ] && [ -n "${P
         ${LOG_VERBOSITY_OPTION} \
         --format makefile
 elif [ $PIPELINE_MODE == "run" ] && [ -n "${SERVICE_GROUP+x}" ] && [ -n "${PIPELINE_STEP+x}" ]; then
+    TOPOLOGY_FILE="${TOPOLOGY_FILE:-${PROJECT_ROOT_DIR}/topology.yaml}"
     $TEMPLATIZE pipeline run \
         --config-file="${CONFIG_FILE}" \
         --dev-settings-file="${PROJECT_ROOT_DIR}/tooling/templatize/settings.yaml" \
         --dev-environment="${DEPLOY_ENV}" "${REGION:+"--region=${REGION}"}" \
-        --topology-file="${PROJECT_ROOT_DIR}/topology.yaml" \
+        --topology-file="${TOPOLOGY_FILE}" \
         --service-group="${SERVICE_GROUP}" \
         --step="${PIPELINE_STEP}" \
         ${PERSIST_FLAG} \
         ${LOG_VERBOSITY_OPTION} \
         ${DRY_RUN}
 elif [ $PIPELINE_MODE == "run" ] && [ -n "${SERVICE_GROUP+x}" ]; then
+    TOPOLOGY_FILE="${TOPOLOGY_FILE:-${PROJECT_ROOT_DIR}/topology.yaml}"
     $TEMPLATIZE pipeline run \
         --config-file="${CONFIG_FILE}" \
         --dev-settings-file="${PROJECT_ROOT_DIR}/tooling/templatize/settings.yaml" \
         --dev-environment="${DEPLOY_ENV}" "${REGION:+"--region=${REGION}"}" \
-        --topology-file="${PROJECT_ROOT_DIR}/topology.yaml" \
+        --topology-file="${TOPOLOGY_FILE}" \
         --service-group="${SERVICE_GROUP}" \
         ${PERSIST_FLAG} \
         ${LOG_VERBOSITY_OPTION} \
