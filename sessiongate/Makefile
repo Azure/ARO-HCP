@@ -17,18 +17,19 @@ BINARY = bin/sessiongate
 SESSION_GATE_SOURCES = $(shell find . -name '*.go' -o -name 'go.mod' -o -name 'go.sum')
 LDFLAGS = -ldflags ""
 
-# K8S Codegen Dir
-K8S_CODEGEN_DIR = /tmp/code-generator
+# K8S Codegen
+KUBE_CODEGEN_TAG=v0.34.3
+KUBE_CODEGEN_SH=hack/kube-codegen.sh
 
 # Default target
 .DEFAULT_GOAL := build
 
-update-codegen:
-	@rm -rf vendor
-	GOWORK=off go mod vendor
-	./hack/update-codegen.sh
+$(KUBE_CODEGEN_SH):
+	curl -o "$@" https://raw.githubusercontent.com/kubernetes/code-generator/refs/tags/${KUBE_CODEGEN_TAG}/kube_codegen.sh
+
+update-codegen: $(KUBE_CODEGEN_SH) $(INFORMER_GEN) $(CLIENT_GEN) $(LISTER_GEN) $(INFORMER_GEN) $(APPLYCONFIGURATION_GEN)
+	KUBE_CODEGEN_SH=$(KUBE_CODEGEN_SH) ./hack/update-codegen.sh
 	make -C .. fmt
-	@rm -rf vendor
 .PHONY: update-codegen
 
 build: $(BINARY)
