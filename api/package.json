@@ -21,7 +21,7 @@
   "devDependencies": {
     "@typespec/compiler": "^1.5.0",
     "@microsoft.azure/openapi-validator": "2.2.4",
-    "@microsoft.azure/openapi-validator-rulesets": "2.1.10",
+    "@microsoft.azure/openapi-validator-rulesets": "2.2.0",
     "autorest": "^3.7.2"
   }
 }
