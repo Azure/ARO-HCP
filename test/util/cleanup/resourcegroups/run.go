@@ -102,9 +102,9 @@ func (o *Options) Run(ctx context.Context) error {
 		CleanupWorkflow:    o.CleanupWorkflow,
 	}
 
-	err := tc.CleanupResourceGroups(ctx,
-		tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
-		resourceGroupsClient, opts)
+	err := tc.CleanupResourceGroups(
+		ctx,
+		opts)
 	if err != nil {
 		logger.Error(err, "Failed to delete some resource groups", "count", len(resourceGroupsToDelete))
 		return err
