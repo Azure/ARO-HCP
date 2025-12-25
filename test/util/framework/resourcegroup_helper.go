@@ -24,6 +24,7 @@ import (
 
 	"k8s.io/utils/ptr"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
@@ -160,6 +161,51 @@ func DeleteResourceGroup(
 	default:
 		fmt.Printf("#### unknown type %T: content=%v", m, spew.Sdump(m))
 		return fmt.Errorf("unknown type %T", m)
+	}
+
+	return nil
+}
+
+// DeleteResourceByID deletes an Azure resource by its full resource ID and waits for the operation to complete
+func DeleteResourceByID(
+	ctx context.Context,
+	resourcesClient *armresources.Client,
+	resourceID string,
+	timeout time.Duration,
+) error {
+	ctx, cancel := context.WithTimeoutCause(ctx, timeout, fmt.Errorf("timeout '%f' minutes exceeded during DeleteResourceByID for resource %s", timeout.Minutes(), resourceID))
+	defer cancel()
+
+	// Extract API version from the resource ID or use a default
+	// For managed identities, the API version is 2023-01-31
+	apiVersion := "2023-01-31"
+
+	poller, err := resourcesClient.BeginDeleteByID(ctx, resourceID, apiVersion, nil)
+	if err != nil {
+		// If the resource is already deleted (NotFound), treat it as success
+		var respErr *azcore.ResponseError
+		if errors.As(err, &respErr) && respErr.StatusCode == 404 {
+			return nil
+		}
+		if errors.Is(err, context.DeadlineExceeded) {
+			return fmt.Errorf("failed to delete resource, caused by: %w, error: %w", context.Cause(ctx), err)
+		}
+		return fmt.Errorf("failed to start delete operation for resource %s: %w", resourceID, err)
+	}
+
+	_, err = poller.PollUntilDone(ctx, &runtime.PollUntilDoneOptions{
+		Frequency: StandardPollInterval,
+	})
+	if err != nil {
+		// If the resource was deleted during polling (NotFound), treat it as success
+		var respErr *azcore.ResponseError
+		if errors.As(err, &respErr) && respErr.StatusCode == 404 {
+			return nil
+		}
+		if errors.Is(err, context.DeadlineExceeded) {
+			return fmt.Errorf("failed to delete resource, caused by: %w, error: %w", context.Cause(ctx), err)
+		}
+		return fmt.Errorf("failed waiting for resource %s to finish deleting: %w", resourceID, err)
 	}
 
 	return nil
