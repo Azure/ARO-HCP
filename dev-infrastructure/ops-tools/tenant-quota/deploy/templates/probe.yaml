@@ -1,0 +1,17 @@
+# Purpose: Health check probes - configures Prometheus blackbox exporter to probe the /healthz endpoint
+apiVersion: monitoring.coreos.com/v1
+kind: Probe
+metadata:
+  name: tenant-quota-collector-probe
+  namespace: {{ .Release.Namespace }}
+  labels:
+    release: arohcp-monitor
+spec:
+  jobName: tenant-quota-collector-health
+  prober:
+    url: blackbox-exporter:9115
+    path: /probe
+  module: http_2xx
+  targets:
+    staticConfig:
+      static: ['tenant-quota-collector:8080/healthz']

@@ -1,0 +1,27 @@
+# Purpose: Tenant configuration - defines which tenants to collect quota from and their service principal credentials
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tenant-quota-config
+  namespace: {{ .Release.Namespace }}
+data:
+  config.yaml: |
+    # Tenant Quota Collector Configuration
+    # This collector runs in the opstool environment and collects quota from configured tenants.
+    #
+    # Configuration is synced from Helm values. To add a new tenant:
+    # 1. Create a service principal in that tenant with Microsoft Graph API permissions
+    # 2. Store the service principal secret in the dev Key Vault (aro-hcp-dev-svc-kv)
+    # 3. Update the Helm values (values.yaml or --set) to include the new tenant
+    # 4. Redeploy: helm upgrade tenant-quota ./deploy --namespace tenant-quota [--set ...]
+    #
+    interval: "5m"
+    timeout: "30s"
+    tenants:
+      {{- range .Values.tenants }}
+      - tenantId: "{{ .tenantId }}"
+        tenantName: "{{ .tenantName }}"
+        servicePrincipalClientId: "{{ .servicePrincipalClientId }}"
+        keyVaultSecretName: "{{ .keyVaultSecretName }}"
+        scope: "https://graph.microsoft.com/.default"
+      {{- end }}
