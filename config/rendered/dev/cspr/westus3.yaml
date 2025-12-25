@@ -1,7 +1,7 @@
 acm:
   mce:
     bundle:
-      digest: sha256:f2d18eb263fddc05af71f90335618334563fe45b77b41a459c607160a6223135
+      digest: sha256:bd3cf8f532917c0b7492af3276f36140edd32709c91295992f4c26e8cd4fd0a0
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-211
     version: 2.11.0
@@ -35,7 +35,7 @@ adminApi:
     issuer: Self
     name: admin-api-cert-cspr-usw3
   image:
-    digest: sha256:3ea133876bda3ebacbe9f2f34be4e27baab54c994e94cdab84762e2d8952570e
+    digest: sha256:96fe50f947903e11cc9b23227702d9a260216ac9c05dc871bd3b0e81fdacbca2
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpadminapi
   k8s:
@@ -69,7 +69,7 @@ azureGeoShortId: us
 azureRegionAvailabilityZoneCount: 4
 backend:
   image:
-    digest: sha256:9ac96b2f04b2370de8240fcd393f8a1c0aa4c7e6771b060472ae4bceb1941de6
+    digest: sha256:afd68b46b0a2032fda48fae8dd2807cacbf5bad4850bfb0c7188472a6ee00d64
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpbackend
   k8s:
@@ -125,7 +125,7 @@ clustersService:
   deployDebugJobs: false
   environment: arohcpdev
   image:
-    digest: sha256:a6c1df92344d5754e92bad90f41f89a44c1bea1230a8bf49fda3257ee7ff1967
+    digest: sha256:1388f28c1084841072a6d9712936b2c67062757a71278a67e20abcc9077f782b
     registry: quay.io
     repository: app-sre/aro-hcp-clusters-service
   k8s:
@@ -214,7 +214,7 @@ frontend:
     private: false
     zoneRedundantMode: Disabled
   image:
-    digest: sha256:bae8cf60572408411e1f06eeed23ae78981fc3856e46584e50123ffcf2c53e0a
+    digest: sha256:4e5f4b6a309c52ba7e6920238eb04347710123990a0758e7f90db97a6b1af954
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpfrontend
   k8s:
@@ -329,7 +329,7 @@ imageSync:
   ocMirror:
     enabled: true
     image:
-      digest: sha256:5a9d9b5dced834931fa7adca21b78e54283eafda407efa55544900e7e0b5a25f
+      digest: sha256:b4f8cc1c4769f64e02344aae3a83e9b3353a78c3fcaa8cbde6417030eb6af06e
       registry: arohcpsvcdev.azurecr.io
       repository: image-sync/oc-mirror
     jobNamePrefix: ""
@@ -389,7 +389,7 @@ maestro:
     name: arohcp-cspr-maestro-usw3
     private: false
   image:
-    digest: sha256:5a5f19580b2e4dca62661e0eeeb6e98e18f06f7a0750b9fb02f348bbfcf77cdf
+    digest: sha256:3abc8156d2b4c265f0f6ab57679da34e76dc927e17fca98a6750c7aa5690481b
     registry: quay.io
     repository: redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro
   postgres:
