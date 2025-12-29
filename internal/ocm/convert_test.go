@@ -377,8 +377,6 @@ func ocmClusterDefaults(azureLocation string) *arohcpv1alpha1.ClusterBuilder {
 		CloudProvider(arohcpv1alpha1.NewCloudProvider().
 			ID("azure")).
 		DomainPrefix("testcluster").
-		Flavour(arohcpv1alpha1.NewFlavour().
-			ID("osd-4")).
 		Hypershift(arohcpv1alpha1.NewHypershift().
 			Enabled(true)).
 		Name(strings.ToLower(api.TestClusterName)).
