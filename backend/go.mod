@@ -5,7 +5,7 @@ go 1.25.0
 require (
 	github.com/Azure/ARO-HCP/internal v0.0.0-00010101000000-000000000000
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.20.0
-	github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos v1.4.1
+	github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos v1.4.2
 	github.com/Azure/azure-sdk-for-go/sdk/tracing/azotel v0.4.0
 	github.com/go-logr/logr v1.4.3
 	github.com/openshift-online/ocm-sdk-go v0.1.480
