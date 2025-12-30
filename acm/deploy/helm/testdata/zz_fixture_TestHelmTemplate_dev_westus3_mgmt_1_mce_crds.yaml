@@ -1,4 +1,1302 @@
 ---
+# Source: multicluster-engine-crds/templates/addondeploymentconfigs.addon.open-cluster-management.io.customresourcedefinition.yaml
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: addondeploymentconfigs.addon.open-cluster-management.io
+spec:
+  group: addon.open-cluster-management.io
+  names:
+    kind: AddOnDeploymentConfig
+    listKind: AddOnDeploymentConfigList
+    plural: addondeploymentconfigs
+    singular: addondeploymentconfig
+  preserveUnknownFields: false
+  scope: Namespaced
+  versions:
+  - name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: |-
+          AddOnDeploymentConfig represents a configuration to customize the deployments of an add-on.
+          For example, you can specify the NodePlacement to control the scheduling of the add-on agents.
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: spec represents a desired configuration for an add-on.
+            properties:
+              agentInstallNamespace:
+                default: open-cluster-management-agent-addon
+                description: |-
+                  AgentInstallNamespace is the namespace where the add-on agent should be installed on the managed cluster.
+                  For template-type addons: set to empty string "" to use the namespace defined in the addonTemplate.
+                  For non-template addons: defaults to "open-cluster-management-agent-addon" if not specified.
+                maxLength: 63
+                pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$
+                type: string
+              customizedVariables:
+                description: |-
+                  customizedVariables is a list of name-value variables for the current add-on deployment.
+                  The add-on implementation can use these variables to render its add-on deployment.
+                  The default is an empty list.
+                items:
+                  description: CustomizedVariable represents a customized variable for add-on deployment.
+                  properties:
+                    name:
+                      description: Name of this variable.
+                      maxLength: 255
+                      pattern: ^[a-zA-Z_][_a-zA-Z0-9]*$
+                      type: string
+                    value:
+                      description: Value of this variable.
+                      maxLength: 1024
+                      type: string
+                  required:
+                  - name
+                  type: object
+                type: array
+                x-kubernetes-list-map-keys:
+                - name
+                x-kubernetes-list-type: map
+              nodePlacement:
+                description: |-
+                  nodePlacement enables explicit control over the scheduling of the add-on agents on the
+                  managed cluster.
+                  All add-on agent pods are expected to comply with this node placement.
+                  If the placement is nil, the placement is not specified, it will be omitted.
+                  If the placement is an empty object, the placement will match all nodes and tolerate nothing.
+                properties:
+                  nodeSelector:
+                    additionalProperties:
+                      type: string
+                    description: |-
+                      NodeSelector defines which Nodes the Pods are scheduled on.
+                      If the selector is an empty list, it will match all nodes.
+                      The default is an empty list.
+                    type: object
+                  tolerations:
+                    description: |-
+                      Tolerations is attached by pods to tolerate any taint that matches
+                      the triple <key,value,effect> using the matching operator <operator>.
+                      If the tolerations is an empty list, it will tolerate nothing.
+                      The default is an empty list.
+                    items:
+                      description: |-
+                        The pod this Toleration is attached to tolerates any taint that matches
+                        the triple <key,value,effect> using the matching operator <operator>.
+                      properties:
+                        effect:
+                          description: |-
+                            Effect indicates the taint effect to match. Empty means match all taint effects.
+                            When specified, allowed values are NoSchedule, PreferNoSchedule and NoExecute.
+                          type: string
+                        key:
+                          description: |-
+                            Key is the taint key that the toleration applies to. Empty means match all taint keys.
+                            If the key is empty, operator must be Exists; this combination means to match all values and all keys.
+                          type: string
+                        operator:
+                          description: |-
+                            Operator represents a key's relationship to the value.
+                            Valid operators are Exists and Equal. Defaults to Equal.
+                            Exists is equivalent to wildcard for value, so that a pod can
+                            tolerate all taints of a particular category.
+                          type: string
+                        tolerationSeconds:
+                          description: |-
+                            TolerationSeconds represents the period of time the toleration (which must be
+                            of effect NoExecute, otherwise this field is ignored) tolerates the taint. By default,
+                            it is not set, which means tolerate the taint forever (do not evict). Zero and
+                            negative values will be treated as 0 (evict immediately) by the system.
+                          format: int64
+                          type: integer
+                        value:
+                          description: |-
+                            Value is the taint value the toleration matches to.
+                            If the operator is Exists, the value should be empty, otherwise just a regular string.
+                          type: string
+                      type: object
+                    type: array
+                type: object
+              proxyConfig:
+                description: |-
+                  ProxyConfig holds proxy settings for add-on agent on the managed cluster.
+                  Empty means no proxy settings is available.
+                properties:
+                  caBundle:
+                    description: |-
+                      CABundle is a CA certificate bundle to verify the proxy server.
+                      And it's only useful when HTTPSProxy is set and a HTTPS proxy server is specified.
+                    format: byte
+                    type: string
+                  httpProxy:
+                    description: HTTPProxy is the URL of the proxy for HTTP requests
+                    type: string
+                  httpsProxy:
+                    description: HTTPSProxy is the URL of the proxy for HTTPS requests
+                    type: string
+                  noProxy:
+                    description: |-
+                      NoProxy is a comma-separated list of hostnames and/or CIDRs and/or IPs for which the proxy
+                      should not be used.
+                    type: string
+                type: object
+              registries:
+                description: |-
+                  registries describes how to override images used by the addon agent on the managed cluster.
+                  the following example will override image "quay.io/open-cluster-management/addon-agent" to
+                  "quay.io/ocm/addon-agent" when deploying the addon agent
+
+                  registries:
+                    - source: quay.io/open-cluster-management/addon-agent
+                      mirror: quay.io/ocm/addon-agent
+                items:
+                  description: ImageMirror describes how to mirror images from a source
+                  properties:
+                    mirror:
+                      description: Mirror is the mirrored registry of the Source. Will be ignored if Mirror is empty.
+                      type: string
+                    source:
+                      description: Source is the source registry. All image registries will be replaced by Mirror if Source is empty.
+                      type: string
+                  required:
+                  - mirror
+                  type: object
+                type: array
+              resourceRequirements:
+                description: |-
+                  ResourceRequirements specify the resources required by add-on agents.
+                  If a container matches multiple ContainerResourceRequirements, the last matched configuration in the
+                  array will take precedence.
+                items:
+                  description: ContainerResourceRequirements defines resources required by one or a group of containers.
+                  properties:
+                    containerID:
+                      description: |-
+                        ContainerID is a unique identifier for an agent container. It consists of three parts: resource types,
+                        resource name, and container name, separated by ':'. The format follows
+                        '{resource_types}:{resource_name}:{container_name}' where
+                          1). Supported resource types include deployments, daemonsets, statefulsets, replicasets, jobs,
+                            cronjobs and pods;
+                          2). Wildcards (*) can be used in any part to match multiple containers. For example, '*:*:*'
+                            matches all containers of the agent.
+                      pattern: ^(deployments|daemonsets|statefulsets|replicasets|jobs|cronjobs|pods|\*):.+:.+$
+                      type: string
+                    resources:
+                      description: Compute resources required by matched containers.
+                      properties:
+                        claims:
+                          description: |-
+                            Claims lists the names of resources, defined in spec.resourceClaims,
+                            that are used by this container.
+
+                            This field depends on the
+                            DynamicResourceAllocation feature gate.
+
+                            This field is immutable. It can only be set for containers.
+                          items:
+                            description: ResourceClaim references one entry in PodSpec.ResourceClaims.
+                            properties:
+                              name:
+                                description: |-
+                                  Name must match the name of one entry in pod.spec.resourceClaims of
+                                  the Pod where this field is used. It makes that resource available
+                                  inside a container.
+                                type: string
+                              request:
+                                description: |-
+                                  Request is the name chosen for a request in the referenced claim.
+                                  If empty, everything from the claim is made available, otherwise
+                                  only the result of this request.
+                                type: string
+                            required:
+                            - name
+                            type: object
+                          type: array
+                          x-kubernetes-list-map-keys:
+                          - name
+                          x-kubernetes-list-type: map
+                        limits:
+                          additionalProperties:
+                            anyOf:
+                            - type: integer
+                            - type: string
+                            pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                            x-kubernetes-int-or-string: true
+                          description: |-
+                            Limits describes the maximum amount of compute resources allowed.
+                            More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
+                          type: object
+                        requests:
+                          additionalProperties:
+                            anyOf:
+                            - type: integer
+                            - type: string
+                            pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                            x-kubernetes-int-or-string: true
+                          description: |-
+                            Requests describes the minimum amount of compute resources required.
+                            If Requests is omitted for a container, it defaults to Limits if that is explicitly specified,
+                            otherwise to an implementation-defined value. Requests cannot exceed Limits.
+                            More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
+                          type: object
+                      type: object
+                  required:
+                  - containerID
+                  - resources
+                  type: object
+                type: array
+                x-kubernetes-list-map-keys:
+                - containerID
+                x-kubernetes-list-type: map
+            type: object
+        required:
+        - spec
+        type: object
+    served: true
+    storage: true
+status:
+  acceptedNames:
+    kind: ""
+    plural: ""
+  conditions: []
+  storedVersions: []
+---
+# Source: multicluster-engine-crds/templates/clustermanagementaddons.addon.open-cluster-management.io.customresourcedefinition.yaml
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: clustermanagementaddons.addon.open-cluster-management.io
+spec:
+  group: addon.open-cluster-management.io
+  names:
+    kind: ClusterManagementAddOn
+    listKind: ClusterManagementAddOnList
+    plural: clustermanagementaddons
+    shortNames:
+    - cma
+    - cmas
+    singular: clustermanagementaddon
+  preserveUnknownFields: false
+  scope: Cluster
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .spec.addOnMeta.displayName
+      name: DISPLAY NAME
+      type: string
+    - jsonPath: .spec.addOnConfiguration.crdName
+      name: CRD NAME
+      type: string
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: |-
+          ClusterManagementAddOn represents the registration of an add-on to the cluster manager.
+          This resource allows you to discover which add-ons are available for the cluster manager
+          and provides metadata information about the add-ons. The ClusterManagementAddOn name is used
+          for the namespace-scoped ManagedClusterAddOn resource.
+          ClusterManagementAddOn is a cluster-scoped resource.
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: spec represents a desired configuration for the agent on the cluster management add-on.
+            properties:
+              addOnConfiguration:
+                description: |-
+                  Deprecated: Use supportedConfigs filed instead
+                  addOnConfiguration is a reference to configuration information for the add-on.
+                  In scenario where a multiple add-ons share the same add-on CRD, multiple ClusterManagementAddOn
+                  resources need to be created and reference the same AddOnConfiguration.
+                properties:
+                  crName:
+                    description: |-
+                      crName is the name of the CR used to configure instances of the managed add-on.
+                      This field should be configured if add-on CR have a consistent name across the all of the ManagedCluster instaces.
+                    type: string
+                  crdName:
+                    description: |-
+                      crdName is the name of the CRD used to configure instances of the managed add-on.
+                      This field should be configured if the add-on have a CRD that controls the configuration of the add-on.
+                    type: string
+                  lastObservedGeneration:
+                    description: lastObservedGeneration is the observed generation of the custom resource for the configuration of the addon.
+                    format: int64
+                    type: integer
+                type: object
+              addOnMeta:
+                description: addOnMeta is a reference to the metadata information for the add-on.
+                properties:
+                  description:
+                    description: description represents the detailed description of the add-on.
+                    type: string
+                  displayName:
+                    description: displayName represents the name of add-on that will be displayed.
+                    type: string
+                type: object
+              installStrategy:
+                default:
+                  type: Manual
+                description: |-
+                  InstallStrategy represents that related ManagedClusterAddOns should be installed
+                  on certain clusters.
+                properties:
+                  placements:
+                    description: |-
+                      Placements is a list of placement references honored when install strategy type is
+                      Placements. All clusters selected by these placements will install the addon
+                      If one cluster belongs to multiple placements, it will only apply the strategy defined
+                      later in the order. That is to say, The latter strategy overrides the previous one.
+                    items:
+                      properties:
+                        configs:
+                          description: |-
+                            Configs is the configuration of managedClusterAddon during installation.
+                            User can override the configuration by updating the managedClusterAddon directly.
+                          items:
+                            properties:
+                              group:
+                                default: ""
+                                description: group of the add-on configuration.
+                                type: string
+                              name:
+                                description: name of the add-on configuration.
+                                minLength: 1
+                                type: string
+                              namespace:
+                                description: |-
+                                  namespace of the add-on configuration.
+                                  If this field is not set, the configuration is in the cluster scope.
+                                type: string
+                              resource:
+                                description: resource of the add-on configuration.
+                                minLength: 1
+                                type: string
+                            required:
+                            - name
+                            - resource
+                            type: object
+                          type: array
+                        name:
+                          description: Name is the name of the placement
+                          minLength: 1
+                          type: string
+                        namespace:
+                          description: Namespace is the namespace of the placement
+                          minLength: 1
+                          type: string
+                        rolloutStrategy:
+                          default:
+                            type: All
+                          description: |-
+                            The rollout strategy to apply addon configurations change.
+                            The rollout strategy only watches the addon configurations defined in ClusterManagementAddOn.
+                          properties:
+                            all:
+                              description: all defines required fields for RolloutStrategy type All
+                              properties:
+                                maxFailures:
+                                  anyOf:
+                                  - type: integer
+                                  - type: string
+                                  default: 0
+                                  description: |-
+                                    MaxFailures is a percentage or number of clusters in the current rollout that can fail before
+                                    proceeding to the next rollout. Fail means the cluster has a failed status or timeout status
+                                    (does not reach successful status after ProgressDeadline).
+                                    Once the MaxFailures is breached, the rollout will stop.
+                                    MaxFailures is only considered for rollout types Progressive and ProgressivePerGroup. For
+                                    Progressive, this is considered over the total number of clusters. For ProgressivePerGroup,
+                                    this is considered according to the size of the current group. For both Progressive and
+                                    ProgressivePerGroup, the MaxFailures does not apply for MandatoryDecisionGroups, which tolerate
+                                    no failures.
+                                    Default is that no failures are tolerated.
+                                  pattern: ^((100|[0-9]{1,2})%|[0-9]+)$
+                                  x-kubernetes-int-or-string: true
+                                minSuccessTime:
+                                  default: "0"
+                                  description: |-
+                                    MinSuccessTime is a "soak" time. In other words, the minimum amount of time the workload
+                                    applier controller will wait from the start of each rollout before proceeding (assuming a
+                                    successful state has been reached and MaxFailures wasn't breached).
+                                    MinSuccessTime is only considered for rollout types Progressive and ProgressivePerGroup.
+                                    The default value is 0 meaning the workload applier proceeds immediately after a successful
+                                    state is reached.
+                                    MinSuccessTime must be defined in [0-9h]|[0-9m]|[0-9s] format examples; 2h , 90m , 360s
+                                  type: string
+                                progressDeadline:
+                                  default: None
+                                  description: |-
+                                    ProgressDeadline defines how long workload applier controller will wait for the workload to
+                                    reach a successful state in the cluster.
+                                    If the workload does not reach a successful state after ProgressDeadline, will stop waiting
+                                    and workload will be treated as "timeout" and be counted into MaxFailures. Once the MaxFailures
+                                    is breached, the rollout will stop.
+                                    ProgressDeadline default value is "None", meaning the workload applier will wait for a
+                                    successful state indefinitely.
+                                    ProgressDeadline must be defined in [0-9h]|[0-9m]|[0-9s] format examples; 2h , 90m , 360s
+                                  pattern: ^(([0-9])+[h|m|s])|None$
+                                  type: string
+                              type: object
+                            progressive:
+                              description: progressive defines required fields for RolloutStrategy type Progressive
+                              properties:
+                                mandatoryDecisionGroups:
+                                  description: |-
+                                    List of the decision groups names or indexes to apply the workload first and fail if workload
+                                    did not reach successful state.
+                                    GroupName or GroupIndex must match with the decisionGroups defined in the placement's
+                                    decisionStrategy
+                                  items:
+                                    description: |-
+                                      MandatoryDecisionGroup set the decision group name or group index.
+                                      GroupName is considered first to select the decisionGroups then GroupIndex.
+                                    properties:
+                                      groupIndex:
+                                        description: |-
+                                          groupIndex of the decision group should match the placementDecisions label value with label key
+                                          cluster.open-cluster-management.io/decision-group-index
+                                        format: int32
+                                        type: integer
+                                      groupName:
+                                        description: |-
+                                          groupName of the decision group should match the placementDecisions label value with label key
+                                          cluster.open-cluster-management.io/decision-group-name
+                                        type: string
+                                    type: object
+                                  type: array
+                                maxConcurrency:
+                                  anyOf:
+                                  - type: integer
+                                  - type: string
+                                  description: |-
+                                    maxConcurrency is the max number of clusters to deploy workload concurrently. The default value
+                                    for MaxConcurrency is determined from the clustersPerDecisionGroup defined in the
+                                    placement->DecisionStrategy.
+                                  pattern: ^((100|[0-9]{1,2})%|[0-9]+)$
+                                  x-kubernetes-int-or-string: true
+                                maxFailures:
+                                  anyOf:
+                                  - type: integer
+                                  - type: string
+                                  default: 0
+                                  description: |-
+                                    MaxFailures is a percentage or number of clusters in the current rollout that can fail before
+                                    proceeding to the next rollout. Fail means the cluster has a failed status or timeout status
+                                    (does not reach successful status after ProgressDeadline).
+                                    Once the MaxFailures is breached, the rollout will stop.
+                                    MaxFailures is only considered for rollout types Progressive and ProgressivePerGroup. For
+                                    Progressive, this is considered over the total number of clusters. For ProgressivePerGroup,
+                                    this is considered according to the size of the current group. For both Progressive and
+                                    ProgressivePerGroup, the MaxFailures does not apply for MandatoryDecisionGroups, which tolerate
+                                    no failures.
+                                    Default is that no failures are tolerated.
+                                  pattern: ^((100|[0-9]{1,2})%|[0-9]+)$
+                                  x-kubernetes-int-or-string: true
+                                minSuccessTime:
+                                  default: "0"
+                                  description: |-
+                                    MinSuccessTime is a "soak" time. In other words, the minimum amount of time the workload
+                                    applier controller will wait from the start of each rollout before proceeding (assuming a
+                                    successful state has been reached and MaxFailures wasn't breached).
+                                    MinSuccessTime is only considered for rollout types Progressive and ProgressivePerGroup.
+                                    The default value is 0 meaning the workload applier proceeds immediately after a successful
+                                    state is reached.
+                                    MinSuccessTime must be defined in [0-9h]|[0-9m]|[0-9s] format examples; 2h , 90m , 360s
+                                  type: string
+                                progressDeadline:
+                                  default: None
+                                  description: |-
+                                    ProgressDeadline defines how long workload applier controller will wait for the workload to
+                                    reach a successful state in the cluster.
+                                    If the workload does not reach a successful state after ProgressDeadline, will stop waiting
+                                    and workload will be treated as "timeout" and be counted into MaxFailures. Once the MaxFailures
+                                    is breached, the rollout will stop.
+                                    ProgressDeadline default value is "None", meaning the workload applier will wait for a
+                                    successful state indefinitely.
+                                    ProgressDeadline must be defined in [0-9h]|[0-9m]|[0-9s] format examples; 2h , 90m , 360s
+                                  pattern: ^(([0-9])+[h|m|s])|None$
+                                  type: string
+                              type: object
+                            progressivePerGroup:
+                              description: progressivePerGroup defines required fields for RolloutStrategy type ProgressivePerGroup
+                              properties:
+                                mandatoryDecisionGroups:
+                                  description: |-
+                                    List of the decision groups names or indexes to apply the workload first and fail if workload
+                                    did not reach successful state.
+                                    GroupName or GroupIndex must match with the decisionGroups defined in the placement's
+                                    decisionStrategy
+                                  items:
+                                    description: |-
+                                      MandatoryDecisionGroup set the decision group name or group index.
+                                      GroupName is considered first to select the decisionGroups then GroupIndex.
+                                    properties:
+                                      groupIndex:
+                                        description: |-
+                                          groupIndex of the decision group should match the placementDecisions label value with label key
+                                          cluster.open-cluster-management.io/decision-group-index
+                                        format: int32
+                                        type: integer
+                                      groupName:
+                                        description: |-
+                                          groupName of the decision group should match the placementDecisions label value with label key
+                                          cluster.open-cluster-management.io/decision-group-name
+                                        type: string
+                                    type: object
+                                  type: array
+                                maxFailures:
+                                  anyOf:
+                                  - type: integer
+                                  - type: string
+                                  default: 0
+                                  description: |-
+                                    MaxFailures is a percentage or number of clusters in the current rollout that can fail before
+                                    proceeding to the next rollout. Fail means the cluster has a failed status or timeout status
+                                    (does not reach successful status after ProgressDeadline).
+                                    Once the MaxFailures is breached, the rollout will stop.
+                                    MaxFailures is only considered for rollout types Progressive and ProgressivePerGroup. For
+                                    Progressive, this is considered over the total number of clusters. For ProgressivePerGroup,
+                                    this is considered according to the size of the current group. For both Progressive and
+                                    ProgressivePerGroup, the MaxFailures does not apply for MandatoryDecisionGroups, which tolerate
+                                    no failures.
+                                    Default is that no failures are tolerated.
+                                  pattern: ^((100|[0-9]{1,2})%|[0-9]+)$
+                                  x-kubernetes-int-or-string: true
+                                minSuccessTime:
+                                  default: "0"
+                                  description: |-
+                                    MinSuccessTime is a "soak" time. In other words, the minimum amount of time the workload
+                                    applier controller will wait from the start of each rollout before proceeding (assuming a
+                                    successful state has been reached and MaxFailures wasn't breached).
+                                    MinSuccessTime is only considered for rollout types Progressive and ProgressivePerGroup.
+                                    The default value is 0 meaning the workload applier proceeds immediately after a successful
+                                    state is reached.
+                                    MinSuccessTime must be defined in [0-9h]|[0-9m]|[0-9s] format examples; 2h , 90m , 360s
+                                  type: string
+                                progressDeadline:
+                                  default: None
+                                  description: |-
+                                    ProgressDeadline defines how long workload applier controller will wait for the workload to
+                                    reach a successful state in the cluster.
+                                    If the workload does not reach a successful state after ProgressDeadline, will stop waiting
+                                    and workload will be treated as "timeout" and be counted into MaxFailures. Once the MaxFailures
+                                    is breached, the rollout will stop.
+                                    ProgressDeadline default value is "None", meaning the workload applier will wait for a
+                                    successful state indefinitely.
+                                    ProgressDeadline must be defined in [0-9h]|[0-9m]|[0-9s] format examples; 2h , 90m , 360s
+                                  pattern: ^(([0-9])+[h|m|s])|None$
+                                  type: string
+                              type: object
+                            type:
+                              default: All
+                              enum:
+                              - All
+                              - Progressive
+                              - ProgressivePerGroup
+                              type: string
+                          type: object
+                      required:
+                      - name
+                      - namespace
+                      type: object
+                    type: array
+                    x-kubernetes-list-map-keys:
+                    - namespace
+                    - name
+                    x-kubernetes-list-type: map
+                  type:
+                    default: Manual
+                    description: |-
+                      Type is the type of the install strategy, it can be:
+                      - Manual: no automatic install
+                      - Placements: install to clusters selected by placements.
+                    enum:
+                    - Manual
+                    - Placements
+                    type: string
+                type: object
+              supportedConfigs:
+                description: |-
+                  Deprecated: Will be removed and replaced with DefaultConfigs in v1beta1.
+                  supportedConfigs is a list of configuration types supported by add-on.
+                  An empty list means the add-on does not require configurations.
+                  The default is an empty list
+                items:
+                  description: ConfigMeta represents a collection of metadata information for add-on configuration.
+                  properties:
+                    defaultConfig:
+                      description: |-
+                        defaultConfig represents the namespace and name of the default add-on configuration.
+                        In scenario where all add-ons have a same configuration.
+                      properties:
+                        name:
+                          description: name of the add-on configuration.
+                          minLength: 1
+                          type: string
+                        namespace:
+                          description: |-
+                            namespace of the add-on configuration.
+                            If this field is not set, the configuration is in the cluster scope.
+                          type: string
+                      required:
+                      - name
+                      type: object
+                    group:
+                      default: ""
+                      description: group of the add-on configuration.
+                      type: string
+                    resource:
+                      description: resource of the add-on configuration.
+                      minLength: 1
+                      type: string
+                  required:
+                  - resource
+                  type: object
+                type: array
+                x-kubernetes-list-map-keys:
+                - group
+                - resource
+                x-kubernetes-list-type: map
+            type: object
+          status:
+            description: status represents the current status of cluster management add-on.
+            properties:
+              defaultconfigReferences:
+                description: DefaultConfigReferences is a list of current add-on default configuration references.
+                items:
+                  description: |-
+                    DefaultConfigReference is a reference to the current add-on configuration.
+                    This resource is used to record the configuration resource for the current add-on.
+                  properties:
+                    desiredConfig:
+                      description: desiredConfig record the desired config spec hash.
+                      properties:
+                        name:
+                          description: name of the add-on configuration.
+                          minLength: 1
+                          type: string
+                        namespace:
+                          description: |-
+                            namespace of the add-on configuration.
+                            If this field is not set, the configuration is in the cluster scope.
+                          type: string
+                        specHash:
+                          description: spec hash for an add-on configuration.
+                          type: string
+                      required:
+                      - name
+                      type: object
+                    group:
+                      default: ""
+                      description: group of the add-on configuration.
+                      type: string
+                    resource:
+                      description: resource of the add-on configuration.
+                      minLength: 1
+                      type: string
+                  required:
+                  - resource
+                  type: object
+                type: array
+              installProgressions:
+                description: installProgression is a list of current add-on configuration references per placement.
+                items:
+                  properties:
+                    conditions:
+                      description: conditions describe the state of the managed and monitored components for the operator.
+                      items:
+                        description: Condition contains details for one aspect of the current state of this API Resource.
+                        properties:
+                          lastTransitionTime:
+                            description: |-
+                              lastTransitionTime is the last time the condition transitioned from one status to another.
+                              This should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.
+                            format: date-time
+                            type: string
+                          message:
+                            description: |-
+                              message is a human readable message indicating details about the transition.
+                              This may be an empty string.
+                            maxLength: 32768
+                            type: string
+                          observedGeneration:
+                            description: |-
+                              observedGeneration represents the .metadata.generation that the condition was set based upon.
+                              For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date
+                              with respect to the current state of the instance.
+                            format: int64
+                            minimum: 0
+                            type: integer
+                          reason:
+                            description: |-
+                              reason contains a programmatic identifier indicating the reason for the condition's last transition.
+                              Producers of specific condition types may define expected values and meanings for this field,
+                              and whether the values are considered a guaranteed API.
+                              The value should be a CamelCase string.
+                              This field may not be empty.
+                            maxLength: 1024
+                            minLength: 1
+                            pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
+                            type: string
+                          status:
+                            description: status of the condition, one of True, False, Unknown.
+                            enum:
+                            - "True"
+                            - "False"
+                            - Unknown
+                            type: string
+                          type:
+                            description: type of condition in CamelCase or in foo.example.com/CamelCase.
+                            maxLength: 316
+                            pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
+                            type: string
+                        required:
+                        - lastTransitionTime
+                        - message
+                        - reason
+                        - status
+                        - type
+                        type: object
+                      type: array
+                    configReferences:
+                      description: configReferences is a list of current add-on configuration references.
+                      items:
+                        description: |-
+                          InstallConfigReference is a reference to the current add-on configuration.
+                          This resource is used to record the configuration resource for the current add-on.
+                        properties:
+                          desiredConfig:
+                            description: desiredConfig record the desired config name and spec hash.
+                            properties:
+                              name:
+                                description: name of the add-on configuration.
+                                minLength: 1
+                                type: string
+                              namespace:
+                                description: |-
+                                  namespace of the add-on configuration.
+                                  If this field is not set, the configuration is in the cluster scope.
+                                type: string
+                              specHash:
+                                description: spec hash for an add-on configuration.
+                                type: string
+                            required:
+                            - name
+                            type: object
+                          group:
+                            default: ""
+                            description: group of the add-on configuration.
+                            type: string
+                          lastAppliedConfig:
+                            description: |-
+                              lastAppliedConfig records the config spec hash when the all the corresponding
+                              ManagedClusterAddOn are applied successfully.
+                            properties:
+                              name:
+                                description: name of the add-on configuration.
+                                minLength: 1
+                                type: string
+                              namespace:
+                                description: |-
+                                  namespace of the add-on configuration.
+                                  If this field is not set, the configuration is in the cluster scope.
+                                type: string
+                              specHash:
+                                description: spec hash for an add-on configuration.
+                                type: string
+                            required:
+                            - name
+                            type: object
+                          lastKnownGoodConfig:
+                            description: |-
+                              lastKnownGoodConfig records the last known good config spec hash.
+                              For fresh install or rollout with type UpdateAll or RollingUpdate, the
+                              lastKnownGoodConfig is the same as lastAppliedConfig.
+                              For rollout with type RollingUpdateWithCanary, the lastKnownGoodConfig
+                              is the last successfully applied config spec hash of the canary placement.
+                            properties:
+                              name:
+                                description: name of the add-on configuration.
+                                minLength: 1
+                                type: string
+                              namespace:
+                                description: |-
+                                  namespace of the add-on configuration.
+                                  If this field is not set, the configuration is in the cluster scope.
+                                type: string
+                              specHash:
+                                description: spec hash for an add-on configuration.
+                                type: string
+                            required:
+                            - name
+                            type: object
+                          resource:
+                            description: resource of the add-on configuration.
+                            minLength: 1
+                            type: string
+                        required:
+                        - resource
+                        type: object
+                      type: array
+                    name:
+                      description: Name is the name of the placement
+                      minLength: 1
+                      type: string
+                    namespace:
+                      description: Namespace is the namespace of the placement
+                      minLength: 1
+                      type: string
+                  required:
+                  - name
+                  - namespace
+                  type: object
+                type: array
+            type: object
+        required:
+        - spec
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
+status:
+  acceptedNames:
+    kind: ""
+    plural: ""
+  conditions: []
+  storedVersions: []
+---
+# Source: multicluster-engine-crds/templates/managedclusteraddons.addon.open-cluster-management.io.customresourcedefinition.yaml
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: managedclusteraddons.addon.open-cluster-management.io
+spec:
+  group: addon.open-cluster-management.io
+  names:
+    kind: ManagedClusterAddOn
+    listKind: ManagedClusterAddOnList
+    plural: managedclusteraddons
+    shortNames:
+    - mca
+    - mcas
+    singular: managedclusteraddon
+  preserveUnknownFields: false
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .status.conditions[?(@.type=="Available")].status
+      name: Available
+      type: string
+    - jsonPath: .status.conditions[?(@.type=="Degraded")].status
+      name: Degraded
+      type: string
+    - jsonPath: .status.conditions[?(@.type=="Progressing")].status
+      name: Progressing
+      type: string
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: |-
+          ManagedClusterAddOn is the Custom Resource object which holds the current state
+          of an add-on. This object is used by add-on operators to convey their state.
+          This resource should be created in the ManagedCluster namespace.
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: spec holds configuration that could apply to any operator.
+            properties:
+              configs:
+                description: |-
+                  configs is a list of add-on configurations.
+                  In scenario where the current add-on has its own configurations.
+                  An empty list means there are no default configurations for add-on.
+                  The default is an empty list
+                items:
+                  properties:
+                    group:
+                      default: ""
+                      description: group of the add-on configuration.
+                      type: string
+                    name:
+                      description: name of the add-on configuration.
+                      minLength: 1
+                      type: string
+                    namespace:
+                      description: |-
+                        namespace of the add-on configuration.
+                        If this field is not set, the configuration is in the cluster scope.
+                      type: string
+                    resource:
+                      description: resource of the add-on configuration.
+                      minLength: 1
+                      type: string
+                  required:
+                  - name
+                  - resource
+                  type: object
+                type: array
+              installNamespace:
+                default: open-cluster-management-agent-addon
+                description: |-
+                  Deprecated: Use AddonDeploymentConfig instead.
+                  installNamespace is the namespace on the managed cluster to install the addon agent.
+                  If it is not set, open-cluster-management-agent-addon namespace is used to install the addon agent.
+                maxLength: 63
+                pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                type: string
+            type: object
+          status:
+            description: |-
+              status holds the information about the state of an operator.  It is consistent with status information across
+              the Kubernetes ecosystem.
+            properties:
+              addOnConfiguration:
+                description: |-
+                  Deprecated: Use configReferences instead.
+                  addOnConfiguration is a reference to configuration information for the add-on.
+                  This resource is used to locate the configuration resource for the add-on.
+                properties:
+                  crName:
+                    description: |-
+                      crName is the name of the CR used to configure instances of the managed add-on.
+                      This field should be configured if add-on CR have a consistent name across the all of the ManagedCluster instaces.
+                    type: string
+                  crdName:
+                    description: |-
+                      crdName is the name of the CRD used to configure instances of the managed add-on.
+                      This field should be configured if the add-on have a CRD that controls the configuration of the add-on.
+                    type: string
+                  lastObservedGeneration:
+                    description: lastObservedGeneration is the observed generation of the custom resource for the configuration of the addon.
+                    format: int64
+                    type: integer
+                type: object
+              addOnMeta:
+                description: |-
+                  addOnMeta is a reference to the metadata information for the add-on.
+                  This should be same as the addOnMeta for the corresponding ClusterManagementAddOn resource.
+                properties:
+                  description:
+                    description: description represents the detailed description of the add-on.
+                    type: string
+                  displayName:
+                    description: displayName represents the name of add-on that will be displayed.
+                    type: string
+                type: object
+              conditions:
+                description: conditions describe the state of the managed and monitored components for the operator.
+                items:
+                  description: Condition contains details for one aspect of the current state of this API Resource.
+                  properties:
+                    lastTransitionTime:
+                      description: |-
+                        lastTransitionTime is the last time the condition transitioned from one status to another.
+                        This should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.
+                      format: date-time
+                      type: string
+                    message:
+                      description: |-
+                        message is a human readable message indicating details about the transition.
+                        This may be an empty string.
+                      maxLength: 32768
+                      type: string
+                    observedGeneration:
+                      description: |-
+                        observedGeneration represents the .metadata.generation that the condition was set based upon.
+                        For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date
+                        with respect to the current state of the instance.
+                      format: int64
+                      minimum: 0
+                      type: integer
+                    reason:
+                      description: |-
+                        reason contains a programmatic identifier indicating the reason for the condition's last transition.
+                        Producers of specific condition types may define expected values and meanings for this field,
+                        and whether the values are considered a guaranteed API.
+                        The value should be a CamelCase string.
+                        This field may not be empty.
+                      maxLength: 1024
+                      minLength: 1
+                      pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
+                      type: string
+                    status:
+                      description: status of the condition, one of True, False, Unknown.
+                      enum:
+                      - "True"
+                      - "False"
+                      - Unknown
+                      type: string
+                    type:
+                      description: type of condition in CamelCase or in foo.example.com/CamelCase.
+                      maxLength: 316
+                      pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - message
+                  - reason
+                  - status
+                  - type
+                  type: object
+                type: array
+              configReferences:
+                description: |-
+                  configReferences is a list of current add-on configuration references.
+                  This will be overridden by the clustermanagementaddon configuration references.
+                items:
+                  description: |-
+                    ConfigReference is a reference to the current add-on configuration.
+                    This resource is used to locate the configuration resource for the current add-on.
+                  properties:
+                    desiredConfig:
+                      description: desiredConfig record the desired config spec hash.
+                      properties:
+                        name:
+                          description: name of the add-on configuration.
+                          minLength: 1
+                          type: string
+                        namespace:
+                          description: |-
+                            namespace of the add-on configuration.
+                            If this field is not set, the configuration is in the cluster scope.
+                          type: string
+                        specHash:
+                          description: spec hash for an add-on configuration.
+                          type: string
+                      required:
+                      - name
+                      type: object
+                    group:
+                      default: ""
+                      description: group of the add-on configuration.
+                      type: string
+                    lastAppliedConfig:
+                      description: lastAppliedConfig record the config spec hash when the corresponding ManifestWork is applied successfully.
+                      properties:
+                        name:
+                          description: name of the add-on configuration.
+                          minLength: 1
+                          type: string
+                        namespace:
+                          description: |-
+                            namespace of the add-on configuration.
+                            If this field is not set, the configuration is in the cluster scope.
+                          type: string
+                        specHash:
+                          description: spec hash for an add-on configuration.
+                          type: string
+                      required:
+                      - name
+                      type: object
+                    lastObservedGeneration:
+                      description: lastObservedGeneration is the observed generation of the add-on configuration.
+                      format: int64
+                      type: integer
+                    name:
+                      description: name of the add-on configuration.
+                      minLength: 1
+                      type: string
+                    namespace:
+                      description: |-
+                        namespace of the add-on configuration.
+                        If this field is not set, the configuration is in the cluster scope.
+                      type: string
+                    resource:
+                      description: resource of the add-on configuration.
+                      minLength: 1
+                      type: string
+                  required:
+                  - name
+                  - resource
+                  type: object
+                type: array
+              healthCheck:
+                description: |-
+                  healthCheck indicates how to check the healthiness status of the current addon. It should be
+                  set by each addon implementation, by default, the lease mode will be used.
+                properties:
+                  mode:
+                    default: Lease
+                    description: mode indicates which mode will be used to check the healthiness status of the addon.
+                    enum:
+                    - Lease
+                    - Customized
+                    type: string
+                type: object
+              namespace:
+                description: |-
+                  namespace is the namespace on the managedcluster to put registration secret or lease for the addon. It is
+                  required when registration is set or healthcheck mode is Lease.
+                type: string
+              registrations:
+                description: |-
+                  registrations is the configurations for the addon agent to register to hub. It should be set by each addon controller
+                  on hub to define how the addon agent on managedcluster is registered. With the registration defined,
+                  The addon agent can access to kube apiserver with kube style API or other endpoints on hub cluster with client
+                  certificate authentication. A csr will be created per registration configuration. If more than one
+                  registrationConfig is defined, a csr will be created for each registration configuration. It is not allowed that
+                  multiple registrationConfigs have the same signer name. After the csr is approved on the hub cluster, the klusterlet
+                  agent will create a secret in the installNamespace for the registrationConfig. If the signerName is
+                  "kubernetes.io/kube-apiserver-client", the secret name will be "{addon name}-hub-kubeconfig" whose contents includes
+                  key/cert and kubeconfig. Otherwise, the secret name will be "{addon name}-{signer name}-client-cert" whose contents includes key/cert.
+                items:
+                  description: |-
+                    RegistrationConfig defines the configuration of the addon agent to register to hub. The Klusterlet agent will
+                    create a csr for the addon agent with the registrationConfig.
+                  properties:
+                    signerName:
+                      description: |-
+                        Deprecated: Will be replaced with type: kubeClient and type: csr in v1beta1.
+                        signerName is the name of signer that addon agent will use to create csr.
+                      maxLength: 571
+                      minLength: 5
+                      pattern: ^([a-z0-9][a-z0-9-]*[a-z0-9]\.)+[a-z]+\/[a-z0-9-\.]+$
+                      type: string
+                    subject:
+                      description: |-
+                        Deprecated: Will be replaced with type: kubeClient and type: csr in v1beta1.
+                        subject is the user subject of the addon agent to be registered to the hub.
+                        If it is not set, the addon agent will have the default subject
+                        "subject": {
+                          "user": "system:open-cluster-management:cluster:{clusterName}:addon:{addonName}:agent:{agentName}",
+                          "groups: ["system:open-cluster-management:cluster:{clusterName}:addon:{addonName}",
+                                    "system:open-cluster-management:addon:{addonName}", "system:authenticated"]
+                        }
+                      properties:
+                        groups:
+                          description: groups is the user group of the addon agent.
+                          items:
+                            type: string
+                          type: array
+                        organizationUnit:
+                          description: organizationUnit is the ou of the addon agent
+                          items:
+                            type: string
+                          type: array
+                        user:
+                          description: user is the user name of the addon agent.
+                          type: string
+                      type: object
+                  required:
+                  - signerName
+                  type: object
+                type: array
+              relatedObjects:
+                description: |-
+                  relatedObjects is a list of objects that are "interesting" or related to this operator. Common uses are:
+                  1. the detailed resource driving the operator
+                  2. operator namespaces
+                  3. operand namespaces
+                  4. related ClusterManagementAddon resource
+                items:
+                  description: ObjectReference contains enough information to let you inspect or modify the referred object.
+                  properties:
+                    group:
+                      description: group of the referent.
+                      type: string
+                    name:
+                      description: name of the referent.
+                      type: string
+                    namespace:
+                      description: namespace of the referent.
+                      type: string
+                    resource:
+                      description: resource of the referent.
+                      type: string
+                  required:
+                  - group
+                  - name
+                  - resource
+                  type: object
+                type: array
+              supportedConfigs:
+                description: |-
+                  SupportedConfigs is a list of configuration types that are allowed to override the add-on configurations defined
+                  in ClusterManagementAddOn spec.
+                  The default is an empty list, which means the add-on configurations can not be overridden.
+                items:
+                  description: ConfigGroupResource represents the GroupResource of the add-on configuration
+                  properties:
+                    group:
+                      default: ""
+                      description: group of the add-on configuration.
+                      type: string
+                    resource:
+                      description: resource of the add-on configuration.
+                      minLength: 1
+                      type: string
+                  required:
+                  - resource
+                  type: object
+                type: array
+                x-kubernetes-list-map-keys:
+                - group
+                - resource
+                x-kubernetes-list-type: map
+            type: object
+        required:
+        - spec
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
+status:
+  acceptedNames:
+    kind: ""
+    plural: ""
+  conditions: []
+  storedVersions: []
+---
 # Source: multicluster-engine-crds/templates/multiclusterengines.multicluster.openshift.io.customresourcedefinition.yaml
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition

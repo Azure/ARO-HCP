@@ -42,6 +42,8 @@ endif
 		-o ${HELM_BASE_DIR} -s scaffold \
 		-l ${MCE_OPERATOR_BUNDLE_IMAGE}
 	@rm ${MCE_OPERATOR_BUNDLE_FILE}
+	@echo "Adding OCM addon CRDs..."
+	@./add-ocm-crds.sh
 
 helm-charts: mce-helm-chart policy-helm-chart
 	make -C ../ yamlfmt
