@@ -56,7 +56,7 @@ func admitVersionProfileOnCreate(ctx context.Context, newVersion *api.VersionPro
 	// Channel group validation based on subscription feature flags
 	if !allowNonStableChannels {
 		// Without feature flag: only "stable" is allowed (empty would have failed static validation)
-		errs = append(errs, validate.Enum(ctx, op, fldPath.Child("channelGroup"), &newVersion.ChannelGroup, nil, sets.New("stable"))...)
+		errs = append(errs, validate.Enum(ctx, op, fldPath.Child("channelGroup"), &newVersion.ChannelGroup, nil, sets.New("stable"), nil)...)
 	}
 
 	return errs

@@ -89,13 +89,13 @@ func validateNodePoolProperties(ctx context.Context, op operation.Operation, fld
 	errs := field.ErrorList{}
 
 	//ProvisioningState arm.ProvisioningState       `json:"provisioningState"`
-	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("provisioningState"), &newObj.ProvisioningState, safe.Field(oldObj, toNodePoolPropertiesProvisioningState))...)
+	errs = append(errs, validate.Immutable(ctx, op, fldPath.Child("provisioningState"), &newObj.ProvisioningState, safe.Field(oldObj, toNodePoolPropertiesProvisioningState))...)
 
 	//Version                 NodePoolVersionProfile  `json:"version,omitempty"`
 	errs = append(errs, validateNodePoolVersionProfile(ctx, op, fldPath.Child("version"), &newObj.Version, safe.Field(oldObj, toNodePoolPropertiesVersion))...)
 
 	//Platform                NodePoolPlatformProfile `json:"platform,omitempty"`
-	errs = append(errs, validate.ImmutableByReflect(ctx, op, fldPath.Child("platform"), &newObj.Platform, safe.Field(oldObj, toNodePoolPropertiesPlatform))...)
+	errs = append(errs, validate.Immutable(ctx, op, fldPath.Child("platform"), &newObj.Platform, safe.Field(oldObj, toNodePoolPropertiesPlatform))...)
 	errs = append(errs, validateNodePoolPlatformProfile(ctx, op, fldPath.Child("platform"), &newObj.Platform, safe.Field(oldObj, toNodePoolPropertiesPlatform))...)
 
 	//Replicas                int32                   `json:"replicas,omitempty"`
@@ -107,7 +107,7 @@ func validateNodePoolProperties(ctx context.Context, op operation.Operation, fld
 	}
 
 	//AutoRepair              bool                    `json:"autoRepair,omitempty"`
-	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("autoRepair"), &newObj.AutoRepair, safe.Field(oldObj, toNodePoolPropertiesAutoRepair))...)
+	errs = append(errs, validate.Immutable(ctx, op, fldPath.Child("autoRepair"), &newObj.AutoRepair, safe.Field(oldObj, toNodePoolPropertiesAutoRepair))...)
 
 	//AutoScaling             *NodePoolAutoScaling    `json:"autoScaling,omitempty"`
 	errs = append(errs, validateNodePoolAutoScaling(ctx, op, fldPath.Child("autoScaling"), newObj.AutoScaling, safe.Field(oldObj, toNodePoolPropertiesAutoScaling), newObj.Platform.AvailabilityZone)...)
@@ -150,13 +150,13 @@ func validateNodePoolServiceProviderProperties(ctx context.Context, op operation
 	errs := field.ErrorList{}
 
 	//CosmosUID         string                         `json:"cosmosUID,omitempty"`
-	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("cosmosUID"), &newObj.CosmosUID, safe.Field(oldObj, toNodePoolServiceProviderCosmosUID))...)
+	errs = append(errs, validate.Immutable(ctx, op, fldPath.Child("cosmosUID"), &newObj.CosmosUID, safe.Field(oldObj, toNodePoolServiceProviderCosmosUID))...)
 	if oldObj == nil { // must be unset on creation because we don't know it yet.
 		errs = append(errs, validate.ForbiddenValue(ctx, op, fldPath.Child("cosmosUID"), &newObj.CosmosUID, nil)...)
 	}
 
 	//ClusterServiceID  InternalID                     `json:"clusterServiceID,omitempty"`
-	errs = append(errs, validate.ImmutableByReflect(ctx, op, fldPath.Child("clusterServiceID"), &newObj.ClusterServiceID, safe.Field(oldObj, toNodePoolServiceProviderClusterServiceID))...)
+	errs = append(errs, validate.Immutable(ctx, op, fldPath.Child("clusterServiceID"), &newObj.ClusterServiceID, safe.Field(oldObj, toNodePoolServiceProviderClusterServiceID))...)
 
 	return errs
 }
@@ -195,22 +195,22 @@ func validateNodePoolPlatformProfile(ctx context.Context, op operation.Operation
 	errs := field.ErrorList{}
 
 	//SubnetID               string        `json:"subnetId,omitempty"`
-	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("subnetId"), &newObj.SubnetID, safe.Field(oldObj, toNodePoolPlatformProfileSubnetID))...)
+	errs = append(errs, validate.Immutable(ctx, op, fldPath.Child("subnetId"), &newObj.SubnetID, safe.Field(oldObj, toNodePoolPlatformProfileSubnetID))...)
 	errs = append(errs, RestrictedResourceID(ctx, op, fldPath.Child("subnetId"), &newObj.SubnetID, safe.Field(oldObj, toNodePoolPlatformProfileSubnetID), "Microsoft.Network/virtualNetworks/subnets")...)
 
 	//VMSize                 string        `json:"vmSize,omitempty"`
-	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("vmSize"), &newObj.VMSize, safe.Field(oldObj, toNodePoolPlatformProfileVMSize))...)
+	errs = append(errs, validate.Immutable(ctx, op, fldPath.Child("vmSize"), &newObj.VMSize, safe.Field(oldObj, toNodePoolPlatformProfileVMSize))...)
 	errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("vmSize"), &newObj.VMSize, safe.Field(oldObj, toNodePoolPlatformProfileVMSize))...)
 
 	//EnableEncryptionAtHost bool          `json:"enableEncryptionAtHost"`
-	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("enableEncryptionAtHost"), &newObj.EnableEncryptionAtHost, safe.Field(oldObj, toNodePoolPlatformProfileEnableEncryptionAtHost))...)
+	errs = append(errs, validate.Immutable(ctx, op, fldPath.Child("enableEncryptionAtHost"), &newObj.EnableEncryptionAtHost, safe.Field(oldObj, toNodePoolPlatformProfileEnableEncryptionAtHost))...)
 
 	//OSDisk                 OSDiskProfile `json:"osDisk"`
-	errs = append(errs, validate.ImmutableByReflect(ctx, op, fldPath.Child("osDisk"), &newObj.OSDisk, safe.Field(oldObj, toNodePoolPlatformProfileOSDisk))...)
+	errs = append(errs, validate.Immutable(ctx, op, fldPath.Child("osDisk"), &newObj.OSDisk, safe.Field(oldObj, toNodePoolPlatformProfileOSDisk))...)
 	errs = append(errs, validateOSDiskProfile(ctx, op, fldPath.Child("osDisk"), &newObj.OSDisk, safe.Field(oldObj, toNodePoolPlatformProfileOSDisk))...)
 
 	//AvailabilityZone       string        `json:"availabilityZone,omitempty"`
-	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("availabilityZone"), &newObj.AvailabilityZone, safe.Field(oldObj, toNodePoolPlatformProfileAvailabilityZone))...)
+	errs = append(errs, validate.Immutable(ctx, op, fldPath.Child("availabilityZone"), &newObj.AvailabilityZone, safe.Field(oldObj, toNodePoolPlatformProfileAvailabilityZone))...)
 
 	return errs
 }
@@ -228,7 +228,7 @@ func validateOSDiskProfile(ctx context.Context, op operation.Operation, fldPath 
 	errs = append(errs, validate.Minimum(ctx, op, fldPath.Child("sizeGiB"), &newObj.SizeGiB, safe.Field(oldObj, toOSDiskProfileSizeGiB), 1)...)
 
 	//DiskStorageAccountType DiskStorageAccountType `json:"diskStorageAccountType,omitempty"`
-	errs = append(errs, validate.Enum(ctx, op, fldPath.Child("diskStorageAccountType"), &newObj.DiskStorageAccountType, safe.Field(oldObj, toOSDiskProfileDiskStorageAccountType), api.ValidDiskStorageAccountTypes)...)
+	errs = append(errs, validate.Enum(ctx, op, fldPath.Child("diskStorageAccountType"), &newObj.DiskStorageAccountType, safe.Field(oldObj, toOSDiskProfileDiskStorageAccountType), api.ValidDiskStorageAccountTypes, nil)...)
 
 	//EncryptionSetID        string                 `json:"encryptionSetId,omitempty"`
 	errs = append(errs, RestrictedResourceID(ctx, op, fldPath.Child("encryptionSetId"), &newObj.EncryptionSetID, safe.Field(oldObj, toOSDiskProfileEncryptionSetID), "Microsoft.Compute/diskEncryptionSets")...)
@@ -267,7 +267,7 @@ func validateTaint(ctx context.Context, op operation.Operation, fldPath *field.P
 	errs := field.ErrorList{}
 
 	//Effect Effect `json:"effect,omitempty"`
-	errs = append(errs, validate.Enum(ctx, op, fldPath.Child("effect"), &newObj.Effect, nil, api.ValidEffects)...)
+	errs = append(errs, validate.Enum(ctx, op, fldPath.Child("effect"), &newObj.Effect, nil, api.ValidEffects, nil)...)
 
 	//Key    string `json:"key,omitempty"`
 	errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("key"), &newObj.Key, nil)...)
