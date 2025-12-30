@@ -1,13 +1,13 @@
 acm:
   mce:
     bundle:
-      digest: sha256:bd3cf8f532917c0b7492af3276f36140edd32709c91295992f4c26e8cd4fd0a0
+      digest: sha256:0bb3961d19bfaa2e28845500804a619c3a3b4a52a7c40555681f60b5ecac7787
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-211
     version: 2.11.0
   operator:
     bundle:
-      digest: sha256:a4e84e310476fb50044ed56b9560cca774f6c745671e3d446a4e299436b8576e
+      digest: sha256:7209368c863e3c673d6243a5f196ba233cbe826c04f66bf50d4de05c23c075d3
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-216
     version: 2.16.0
@@ -35,7 +35,7 @@ adminApi:
     issuer: Self
     name: admin-api-cert-dev-usw3
   image:
-    digest: sha256:96fe50f947903e11cc9b23227702d9a260216ac9c05dc871bd3b0e81fdacbca2
+    digest: sha256:97485148231ccbf481d52f1e2ed412aab03c9220f58ec7a262fa19f89cc4c8fe
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpadminapi
   k8s:
@@ -69,7 +69,7 @@ azureGeoShortId: us
 azureRegionAvailabilityZoneCount: 4
 backend:
   image:
-    digest: sha256:afd68b46b0a2032fda48fae8dd2807cacbf5bad4850bfb0c7188472a6ee00d64
+    digest: sha256:5696f6929b4c5d2c4a06b22919ff0951deb851e1cd32bd37802eb3a1d3bd3000
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpbackend
   k8s:
@@ -214,7 +214,7 @@ frontend:
     private: false
     zoneRedundantMode: Disabled
   image:
-    digest: sha256:4e5f4b6a309c52ba7e6920238eb04347710123990a0758e7f90db97a6b1af954
+    digest: sha256:4d5a9b74dab2d987fba88a4f64c0aa5b82e4af9e39c8f13abcf610b44bf4f107
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpfrontend
   k8s:
@@ -329,7 +329,7 @@ imageSync:
   ocMirror:
     enabled: true
     image:
-      digest: sha256:b4f8cc1c4769f64e02344aae3a83e9b3353a78c3fcaa8cbde6417030eb6af06e
+      digest: sha256:5140cbf7c9dd6e16bbb6a2f58fac6b6b7cddaef6c09ee43dabaa79d35443bf4b
       registry: arohcpsvcdev.azurecr.io
       repository: image-sync/oc-mirror
     jobNamePrefix: ""
@@ -342,7 +342,7 @@ keyVaultDNSSuffix: vault.azure.net
 kubeEvents:
   enabled: false
   image:
-    digest: sha256:a4075e23ec5356fb4dd5cdd18caa1d982ac8833f48243a4f100890fb179ab0df
+    digest: sha256:8db77ae4b738a72c4c36d4796f0110ffa72be5fac427e251f33ff94fbd50c45a
     registry: kubernetesshared.azurecr.io
     repository: shared/kube-events
 kusto:
@@ -389,7 +389,7 @@ maestro:
     name: arohcp-dev-maestro-usw3
     private: false
   image:
-    digest: sha256:3abc8156d2b4c265f0f6ab57679da34e76dc927e17fca98a6750c7aa5690481b
+    digest: sha256:36c4cfa2802885afeed7e5a6e554b1038adc7e587bc7ccc820ae568bc6a11141
     registry: quay.io
     repository: redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro
   postgres:
@@ -483,12 +483,12 @@ mgmt:
       image:
         registry: mcr.microsoft.com/oss/v2
         repository: prometheus/prometheus-config-reloader
-        sha: 807993bae8544ca5dba1a088507c39adce29fef1afd2fb7492247b09e0cfa2a9
+        sha: 7aaf789a403f1c75f86a34f470174d62a7f2c070852e2eedb5736fc63dc17e86
     prometheusOperator:
       image:
         registry: mcr.microsoft.com/oss/v2
         repository: prometheus/prometheus-operator
-        sha: 5c3fd99a70fb43aa5ea4672ccaf04c68ac60d7adb7e205d2bf75d1b46395455c
+        sha: 6a3fe01e2d08228b241a4c0a2dcb7c7424b004fb5ad36430e206fa549d500038
       version: ""
     prometheusSpec:
       image:
@@ -745,12 +745,12 @@ svc:
       image:
         registry: mcr.microsoft.com/oss/v2
         repository: prometheus/prometheus-config-reloader
-        sha: 807993bae8544ca5dba1a088507c39adce29fef1afd2fb7492247b09e0cfa2a9
+        sha: 7aaf789a403f1c75f86a34f470174d62a7f2c070852e2eedb5736fc63dc17e86
     prometheusOperator:
       image:
         registry: mcr.microsoft.com/oss/v2
         repository: prometheus/prometheus-operator
-        sha: 5c3fd99a70fb43aa5ea4672ccaf04c68ac60d7adb7e205d2bf75d1b46395455c
+        sha: 6a3fe01e2d08228b241a4c0a2dcb7c7424b004fb5ad36430e206fa549d500038
       version: ""
     prometheusSpec:
       image:
