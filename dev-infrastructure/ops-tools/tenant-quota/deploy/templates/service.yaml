@@ -1,0 +1,15 @@
+# Purpose: Metrics endpoint - exposes the Prometheus metrics endpoint on port 8080 for scraping
+apiVersion: v1
+kind: Service
+metadata:
+  name: tenant-quota-collector
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: tenant-quota-collector
+spec:
+  selector:
+    app: tenant-quota-collector
+  ports:
+  - name: metrics
+    port: 8080
+    targetPort: 8080
