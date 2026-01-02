@@ -26,6 +26,7 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v6"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armsubscriptions"
 )
@@ -122,6 +123,7 @@ func ListAllExpiredResourceGroups(
 func DeleteResourceGroup(
 	ctx context.Context,
 	resourceGroupsClient *armresources.ResourceGroupsClient,
+	networkClientFactory *armnetwork.ClientFactory,
 	resourceGroupName string,
 	force bool,
 	timeout time.Duration,
@@ -129,6 +131,12 @@ func DeleteResourceGroup(
 
 	ctx, cancel := context.WithTimeoutCause(ctx, timeout, fmt.Errorf("timeout '%f' minutes exceeded during DeleteResourceGroup for resource group %s", timeout.Minutes(), resourceGroupName))
 	defer cancel()
+
+	// detach any NSGs from subnets to avoid blocking deletion of the RG
+	err := detachSubnetNSGs(ctx, networkClientFactory, resourceGroupName)
+	if err != nil {
+		return fmt.Errorf("failed to detach NSGs from subnets in resource group %s: %w", resourceGroupName, err)
+	}
 
 	var opts *armresources.ResourceGroupsClientBeginDeleteOptions
 	if force {
@@ -160,6 +168,55 @@ func DeleteResourceGroup(
 	default:
 		fmt.Printf("#### unknown type %T: content=%v", m, spew.Sdump(m))
 		return fmt.Errorf("unknown type %T", m)
+	}
+
+	return nil
+}
+
+// detach any NSGs from subnets to avoid blocking deletion of the RG
+func detachSubnetNSGs(ctx context.Context, networkClientFactory *armnetwork.ClientFactory, resourceGroupName string) error {
+	vnetClient := networkClientFactory.NewVirtualNetworksClient()
+	subnetClient := networkClientFactory.NewSubnetsClient()
+
+	vnetPager := vnetClient.NewListPager(resourceGroupName, nil)
+	for vnetPager.More() {
+		vnetPage, err := vnetPager.NextPage(ctx)
+		if err != nil {
+			return fmt.Errorf("failed listing vnets in resource group %s: %w", resourceGroupName, err)
+		}
+
+		for _, vnet := range vnetPage.Value {
+			if vnet == nil || vnet.Properties == nil || vnet.Properties.Subnets == nil || vnet.Name == nil {
+				continue
+			}
+
+			subnetsPager := subnetClient.NewListPager(resourceGroupName, *vnet.Name, nil)
+			for subnetsPager.More() {
+				subnetPage, err := subnetsPager.NextPage(ctx)
+				if err != nil {
+					return fmt.Errorf("failed listing subnets in resource group %s: %w", resourceGroupName, err)
+				}
+
+				for _, subnet := range subnetPage.Value {
+					if subnet == nil || subnet.Name == nil || subnet.Properties == nil || subnet.Properties.NetworkSecurityGroup == nil || subnet.Properties.NetworkSecurityGroup.ID == nil {
+						continue
+					}
+
+					subnet.Properties.NetworkSecurityGroup = nil
+					poller, err := subnetClient.BeginCreateOrUpdate(ctx, resourceGroupName, *vnet.Name, *subnet.Name, *subnet, &armnetwork.SubnetsClientBeginCreateOrUpdateOptions{})
+					if err != nil {
+						return fmt.Errorf("failed detaching NSG from subnet %s in resource group %s: %w", *subnet.Name, resourceGroupName, err)
+					}
+
+					_, err = poller.PollUntilDone(ctx, &runtime.PollUntilDoneOptions{
+						Frequency: StandardPollInterval,
+					})
+					if err != nil {
+						return fmt.Errorf("failed waiting for subnet %s in resource group %s to finish updating: %w", *subnet.Name, resourceGroupName, err)
+					}
+				}
+			}
+		}
 	}
 
 	return nil
