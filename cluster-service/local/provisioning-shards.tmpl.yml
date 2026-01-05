@@ -1,15 +1,11 @@
 provision_shards:
 - id: '{{ .extraVars.shardId }}'
-  maestro_config: |
-    {
-      "rest_api_config": {
-        "url": "{{ .extraVars.maestroRestUrl }}"
-      },
-      "grpc_api_config": {
-        "url": "{{ .extraVars.maestroGrpUrl }}"
-      },
-      "consumer_name": "{{ .maestro.agent.consumerName }}"
-    }
+  maestro_config:
+    rest_api_config:
+      url: "{{ .extraVars.maestroRestUrl }}"
+    grpc_api_config:
+      url: "{{ .extraVars.maestroGrpUrl }}"
+    consumer_name: "{{ .maestro.agent.consumerName }}"
   status: active
   management_cluster_id: local-cluster
   region: '{{ .region }}'
