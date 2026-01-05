@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/Azure/ARO-HCP/backend/listers"
+	"github.com/Azure/ARO-HCP/backend/oldoperationscanner"
 	"github.com/go-logr/logr"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
@@ -300,7 +301,7 @@ func Run(cmd *cobra.Command, args []string) error {
 	group.Go(func() error {
 		var (
 			startedLeading                 atomic.Bool
-			operationsScanner              = NewOperationsScanner(dbClient, ocmConnection, argLocation, subscriptionLister)
+			operationsScanner              = oldoperationscanner.NewOperationsScanner(dbClient, ocmConnection, argLocation, subscriptionLister)
 			subscriptionInformerController = controllers.NewSubscriptionInformerController(dbClient, subscriptionLister)
 			doNothingController            = controllers.NewDoNothingExampleController(dbClient, subscriptionLister)
 		)
@@ -312,14 +313,14 @@ func Run(cmd *cobra.Command, args []string) error {
 			RetryPeriod:   leaderElectionRetryPeriod,
 			Callbacks: leaderelection.LeaderCallbacks{
 				OnStartedLeading: func(ctx context.Context) {
-					operationsScanner.leaderGauge.Set(1)
+					operationsScanner.LeaderGauge.Set(1)
 					startedLeading.Store(true)
 					go subscriptionInformerController.Run(ctx, 1)
 					go operationsScanner.Run(ctx)
 					go doNothingController.Run(ctx, 20)
 				},
 				OnStoppedLeading: func() {
-					operationsScanner.leaderGauge.Set(0)
+					operationsScanner.LeaderGauge.Set(0)
 					if startedLeading.Load() {
 						operationsScanner.Join()
 					}
