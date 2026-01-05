@@ -49,6 +49,11 @@ var _ = Describe("Customer", func() {
 			)
 			tc := framework.NewTestContext()
 
+			if tc.UsePooledIdentities() {
+				err := tc.AssignIdentityContainers(ctx, 1, 60*time.Second)
+				Expect(err).NotTo(HaveOccurred())
+			}
+
 			By("creating a resource group")
 			resourceGroup, err := tc.NewResourceGroup(ctx, "np-autoscaling", tc.Location())
 			Expect(err).NotTo(HaveOccurred())
@@ -127,6 +132,11 @@ var _ = Describe("Customer", func() {
 			)
 			tc := framework.NewTestContext()
 
+			if tc.UsePooledIdentities() {
+				err := tc.AssignIdentityContainers(ctx, 1, 60*time.Second)
+				Expect(err).NotTo(HaveOccurred())
+			}
+
 			By("creating a resource group")
 			resourceGroup, err := tc.NewResourceGroup(ctx, "mutual-exclusion-test", tc.Location())
 			Expect(err).NotTo(HaveOccurred())
@@ -185,6 +195,11 @@ var _ = Describe("Customer", func() {
 				customerNodePoolName = "exceeding-nodepool"
 			)
 			tc := framework.NewTestContext()
+
+			if tc.UsePooledIdentities() {
+				err := tc.AssignIdentityContainers(ctx, 1, 60*time.Second)
+				Expect(err).NotTo(HaveOccurred())
+			}
 
 			By("creating a resource group")
 			resourceGroup, err := tc.NewResourceGroup(ctx, "node-limit-test", tc.Location())
