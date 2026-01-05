@@ -55,6 +55,11 @@ var _ = Describe("Customer", func() {
 			)
 			tc := framework.NewTestContext()
 
+			if tc.UsePooledIdentities() {
+				err := tc.AssignIdentityContainers(ctx, 1, 60*time.Second)
+				Expect(err).NotTo(HaveOccurred())
+			}
+
 			By("creating a resource group")
 			resourceGroup, err := tc.NewResourceGroup(ctx, "autoscaling-cluster", tc.Location())
 			Expect(err).NotTo(HaveOccurred())
@@ -144,6 +149,11 @@ var _ = Describe("Customer", func() {
 		func(ctx context.Context) {
 			tc := framework.NewTestContext()
 
+			if tc.UsePooledIdentities() {
+				err := tc.AssignIdentityContainers(ctx, 1, 60*time.Second)
+				Expect(err).NotTo(HaveOccurred())
+			}
+
 			By("creating cluster with negative MaxNodeProvisionTimeSeconds")
 			resourceGroup, err := tc.NewResourceGroup(ctx, "invalid-negative-provision-time", tc.Location())
 			Expect(err).NotTo(HaveOccurred())
@@ -181,6 +191,11 @@ var _ = Describe("Customer", func() {
 		labels.AroRpApiCompatible,
 		func(ctx context.Context) {
 			tc := framework.NewTestContext()
+
+			if tc.UsePooledIdentities() {
+				err := tc.AssignIdentityContainers(ctx, 1, 60*time.Second)
+				Expect(err).NotTo(HaveOccurred())
+			}
 
 			By("creating cluster with negative MaxPodGracePeriodSeconds")
 			resourceGroup, err := tc.NewResourceGroup(ctx, "invalid-negative-grace-period", tc.Location())
