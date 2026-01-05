@@ -30,6 +30,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Azure/ARO-HCP/backend/listers"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"go.opentelemetry.io/otel"
@@ -132,11 +133,13 @@ func (o *operation) setSpanAttributes(span trace.Span) {
 }
 
 type OperationsScanner struct {
-	dbClient            database.DBClient
-	lockClient          database.LockClientInterface
-	clusterService      ocm.ClusterServiceClientSpec
-	azureLocation       string
-	notificationClient  *http.Client
+	dbClient           database.DBClient
+	lockClient         database.LockClientInterface
+	clusterService     ocm.ClusterServiceClientSpec
+	azureLocation      string
+	notificationClient *http.Client
+
+	subscriptionsLister listers.SubscriptionLister
 	subscriptionsLock   sync.Mutex
 	subscriptions       []string
 	subscriptionChannel chan string
@@ -160,7 +163,7 @@ type OperationsScanner struct {
 	subscriptionsByState   *prometheus.GaugeVec
 }
 
-func NewOperationsScanner(dbClient database.DBClient, ocmConnection *ocmsdk.Connection, azureLocation string) *OperationsScanner {
+func NewOperationsScanner(dbClient database.DBClient, ocmConnection *ocmsdk.Connection, azureLocation stringConnection, subscriptionLister listers.SubscriptionLister) *OperationsScanner {
 	s := &OperationsScanner{
 		dbClient:   dbClient,
 		lockClient: dbClient.GetLockClient(),
@@ -173,9 +176,10 @@ func NewOperationsScanner(dbClient database.DBClient, ocmConnection *ocmsdk.Conn
 			),
 			tracerName,
 		),
-		azureLocation:      azureLocation,
-		notificationClient: http.DefaultClient,
-		subscriptions:      make([]string, 0),
+		azureLocation:       azureLocation,
+		notificationClient:  http.DefaultClient,
+		subscriptionsLister: subscriptionLister,
+		subscriptions:       make([]string, 0),
 
 		nextDataDumpTime: lru.New(16000),
 
@@ -423,23 +427,25 @@ func (s *OperationsScanner) processSubscriptions(ctx context.Context, logger *sl
 	defer span.End()
 	defer s.updateOperationMetrics(processSubscriptionsLabel)()
 
-	// This method may block while feeding subscription IDs to the
-	// worker pool, so take a clone of the subscriptions slice to
-	// iterate over.
-	s.subscriptionsLock.Lock()
-	subscriptions := slices.Clone(s.subscriptions)
-	s.subscriptionsLock.Unlock()
+	// This method may block while feeding subscription IDs to the worker pool
+	subscriptions, err := s.subscriptionsLister.List(ctx)
+	if err != nil {
+		logger.Error("Failed to get subscriptions", "error", err)
+		// primitive avoidance of hot loop during refactor.
+		time.Sleep(100 * time.Millisecond)
+		return
+	}
 
-	for _, subscriptionID := range subscriptions {
+	for _, subscription := range subscriptions {
 		select {
-		case s.subscriptionChannel <- subscriptionID:
+		case s.subscriptionChannel <- subscription.ResourceID.SubscriptionID:
 		default:
 			// The channel is full. Push the subscription anyway
 			// but log how long we block for. This will indicate
 			// when the worker pool size needs increased.
 			start := time.Now()
-			s.subscriptionChannel <- subscriptionID
-			logger.Warn(fmt.Sprintf("Subscription processing blocked for %s", time.Since(start)))
+			s.subscriptionChannel <- subscription.ResourceID.SubscriptionID
+			logger.Warn(fmt.Sprintf("Subscription processing blocked for %s", time.Since(start)), "subscription", subscription.ResourceID.SubscriptionID)
 		}
 	}
 }
