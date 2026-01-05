@@ -12,6 +12,9 @@ node_modules
 .DS_Store
 .idea
 env
+# Ignore .envrc files managed
+# by direnv https://github.com/direnv/direnv
+.envrc
 */archive.tar.gz
 tooling/bin
 **/venv
