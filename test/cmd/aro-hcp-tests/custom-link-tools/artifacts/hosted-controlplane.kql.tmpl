@@ -1,14 +1,16 @@
+// Make sure to select ServiceLogs DB for this query
+// It fetches you the cluster id for later usage
 let _startTime = datetime("{{.StartTime}}");
 let _endTime = datetime("{{.EndTime}}");
 let _resource_group = '{{.ResourceGroupName}}';
-database('ServiceLogs').table('containerLogs')
+database('ServiceLogs').table('clustersServiceLogs')
 | where timestamp between (_startTime .. _endTime)
-| where log has _resource_group
-| extend cid=extract(@"cid='([a-v0-9]{32})'", 1, tostring(log)) 
+| where resource_id has _resource_group
 | where strlen( cid) > 0
 | distinct cid
 
 // Copy the cid from the above query to the below query to get the hosted control plane logs
+// Make sure to select HostedControlPlaneLogs db for this query
 let cid = 'paste value here';
 let _startTime = datetime("{{.StartTime}}");
 let _endTime = datetime("{{.EndTime}}");

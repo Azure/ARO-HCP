@@ -1,3 +1,4 @@
+// Backend/frontend logs
 let _startTime = datetime("{{.StartTime}}");
 let _endTime = datetime("{{.EndTime}}");
 let _resource_group = '{{.ResourceGroupName}}';
@@ -20,10 +21,17 @@ union
         | where timestamp between (_startTime .. _endTime)
         | where resource_group == _resource_group
         | project timestamp, container_name, msg
-    ),
+    )
+    | order by timestamp asc
+
+// CS Specific logs
+let _startTime = datetime("{{.StartTime}}");
+let _endTime = datetime("{{.EndTime}}");
+let _resource_group = '{{.ResourceGroupName}}';
     (
         database('ServiceLogs').table('clustersServiceLogs')
         | where timestamp between (_startTime .. _endTime)
-        | where resource_id in (cluster_resource_id)
+        | where resource_id has _resource_group  
         | project timestamp, container_name, msg
+        | order by timestamp asc 
     )
