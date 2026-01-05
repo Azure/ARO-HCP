@@ -27,6 +27,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/Azure/ARO-HCP/backend/listers"
 	"github.com/go-logr/logr"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
@@ -274,11 +275,14 @@ func Run(cmd *cobra.Command, args []string) error {
 		}
 	}()
 
+	subscriptionLister := listers.NewThreadSafeAtomicLister[arm.Subscription]()
+
 	group.Go(func() error {
 		var (
-			startedLeading      atomic.Bool
-			operationsScanner   = NewOperationsScanner(dbClient, ocmConnection, argLocation)
-			doNothingController = controllers.NewDoNothingExampleController(dbClient)
+			startedLeading                 atomic.Bool
+			operationsScanner              = NewOperationsScanner(dbClient, ocmConnection, argLocation, subscriptionLister)
+			subscriptionInformerController = controllers.NewSubscriptionInformerController(dbClient, subscriptionLister)
+			doNothingController            = controllers.NewDoNothingExampleController(dbClient, subscriptionLister)
 		)
 
 		le, err := leaderelection.NewLeaderElector(leaderelection.LeaderElectionConfig{
@@ -290,6 +294,7 @@ func Run(cmd *cobra.Command, args []string) error {
 				OnStartedLeading: func(ctx context.Context) {
 					operationsScanner.leaderGauge.Set(1)
 					startedLeading.Store(true)
+					go subscriptionInformerController.Run(ctx, 1)
 					go operationsScanner.Run(ctx)
 					go doNothingController.Run(ctx, 20)
 				},
