@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package main
+package oldoperationscanner
 
 import (
 	"bytes"
@@ -154,7 +154,7 @@ type OperationsScanner struct {
 	// Allow overriding timestamps for testing.
 	newTimestamp func() time.Time
 
-	leaderGauge            prometheus.Gauge
+	LeaderGauge            prometheus.Gauge
 	workerGauge            prometheus.Gauge
 	operationsCount        *prometheus.CounterVec
 	operationsFailedCount  *prometheus.CounterVec
@@ -185,7 +185,7 @@ func NewOperationsScanner(dbClient database.DBClient, ocmConnection *ocmsdk.Conn
 
 		newTimestamp: func() time.Time { return time.Now().UTC() },
 
-		leaderGauge: promauto.With(prometheus.DefaultRegisterer).NewGauge(
+		LeaderGauge: promauto.With(prometheus.DefaultRegisterer).NewGauge(
 			prometheus.GaugeOpts{
 				Name: "backend_leader_election_state",
 				Help: "Leader election state (1 when leader).",
@@ -356,7 +356,7 @@ loop:
 // Join waits for the OperationsScanner to gracefully shut down.
 func (s *OperationsScanner) Join() {
 	s.subscriptionWorkers.Wait()
-	s.leaderGauge.Set(0)
+	s.LeaderGauge.Set(0)
 }
 
 // updateOperationMetrics records counter and latency metrics for operations.
