@@ -12,6 +12,7 @@ param location string = deployment().location
 @description('Tags to apply to all resources')
 param commonTags object = {
   purpose: 'aro-hcp-e2e-msi-pool'
+  persist: 'true'
 }
 
 // Create N resource groups
