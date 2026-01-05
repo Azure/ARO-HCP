@@ -69,18 +69,20 @@
       </tr>
     </thead>
     <tbody>
-      {{range $index, $element := .Elements}}
-      <tr class="status-{{$element.Status}}">
-        <td>{{$element.TestName}}</td>
-        <td>{{$element.Status}}</td>
-        <td>{{$element.ResourceGroupName}}</td>
+      
+      <tr class="status-tbd">
+        <td>Customer should not be able to deploy cluster with invalid name</td>
+        <td>tbd</td>
+        <td>rg-cluster-name-validation-kplk68</td>
         <td>
-          {{range $element.Links}}
-          <a target="_blank" href="{{.URL}}" title="{{.DisplayName}}">{{.DisplayName}}</a>
-          {{end}}
+          
+          <a target="_blank" href="https://dataexplorer.azure.com/clusters/hcp-dev-us.westus3/databases/HostedControlPlaneLogs?query=H4sIAAAAAAAA%2F7SSQW%2FUMBCF7%2FkVo704kZptNqW0bLUIqRcOHJDoCYRWE%2BeRNXXsYE%2ByrVj%2BO3KKGsSFU2%2BeJ73xN%2FPGQmgfhYPcmR60o5YFYnrkq7qqL8tNXW6u7qqLbf1qW11%2FXhU32WyBa%2F9nuNxWV4shIPoxaOy74MeBdqRCV2o7RkEoHfcoJ7amZTHelfeDvX99rW6yloUbjsjVJ4TJaHzwXVTFWrixyJX2Ttg4hCc5O9HxgABKPFG4H6iBHAFH%2BV9DrtfP%2FIvF%2Bo4OHP8FzU6EB4FrSZt2hwcJrCV%2Ft0qVyr9wOVXlm68%2FL%2BpfhVqd0eaMxEcJxnW59V1R0PMHUYKFy1Ofgt5SlZ2oNVGM05K0LDs%2Fp1s%2FPJIckAT6Fnw%2FF9z4CfRjRHgk8bPUwPrjInWQWT74KGgprSV4S4NlN08W5wxS0x2pgaOAJrYjKJGpPwm98BUsUb6fKW%2BfID8mxhdLNR1WHFhjn15zwGnXJxqC%2Fw4tS8%2BztKfsdwAAAP%2F%2FJYicvA8DAAA%3D" title="Hosted Control Plane Logs">Hosted Control Plane Logs</a>
+          
+          <a target="_blank" href="https://dataexplorer.azure.com/clusters/hcp-dev-us.westus3/databases/ServiceLogs?query=H4sIAAAAAAAA%2F9SSUW%2BUQBDH3%2FkUE15YIouA1tZrSPTdN%2FtUz1yGZaTrwS7ZHdrG3Ic3XO8ORM1FE03KAw%2Fs%2Fpj5zX9aYth4Rsc3uiMooUYm1h2JsMiKC5kXMr%2B8yV6titer7Oo2jK%2BDPUKmPgdcrLLLCXDk7eAUbRpnhx5KiFwjVTt4JicNdiTvsdU1srZGbvt2%2B%2BYqekIPl6Y%2F6BpKEDUyVuhJRB%2FJ3WtFH2zjozhlrFoS0RdnDZOpn74GO3i4I0cwduoZux4q4gciA2Kmn6YnswlZdl4uZU43O9%2FAHXqIlCNkbZoTGwU7oMexH5hplPTIDhWLd%2BFPBIhP7%2BUtym%2BZfLuW63T98vOLOEwgT4CtZ6dNI1rbxDEEO6i1Z20UT0ezKqNJqzvNkMfXwWC0NQEAgNi%2Fx%2BfMKCtU22mSR%2BgvJrpE54lqA%2BIXSc%2Bh3tmvNEoeKyagrGHUhtxmXKFkTGAPxMmfKS625V84%2FnZ7%2FovgYbT%2Bh8NnkuX3AAAA%2F%2F8HYU1rpAQAAA%3D%3D" title="Service Logs">Service Logs</a>
+          
         </td>
       </tr>
-      {{end}}
+      
     </tbody>
   </table>
 

@@ -1,0 +1,29 @@
+let _startTime = datetime("{{.StartTime}}");
+let _endTime = datetime("{{.EndTime}}");
+let _resource_group = '{{.ResourceGroupName}}';
+let cluster_resource_id = (database('ServiceLogs').table('frontendLogs')
+| where timestamp between (_startTime .. _endTime)
+| where resource_group == _resource_group
+| where msg has 'creating resource'
+| extend resource_id=extract(@"creating resource ([A-Za-z0-9\-\.\/]+)", 1, tostring(log)) 
+| distinct tostring(resource_id)
+| limit 1);
+union
+    (
+        database('ServiceLogs').table('backendLogs')
+        | where timestamp between (_startTime .. _endTime)
+        | where resource_id in (cluster_resource_id)
+        | project timestamp, container_name, msg
+    ),
+    (
+        database('ServiceLogs').table('frontendLogs')
+        | where timestamp between (_startTime .. _endTime)
+        | where resource_group == _resource_group
+        | project timestamp, container_name, msg
+    ),
+    (
+        database('ServiceLogs').table('clustersServiceLogs')
+        | where timestamp between (_startTime .. _endTime)
+        | where resource_id in (cluster_resource_id)
+        | project timestamp, container_name, msg
+    )
