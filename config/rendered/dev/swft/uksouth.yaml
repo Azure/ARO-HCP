@@ -35,7 +35,7 @@ adminApi:
     issuer: Self
     name: admin-api-cert-swft-lnstest
   image:
-    digest: sha256:97485148231ccbf481d52f1e2ed412aab03c9220f58ec7a262fa19f89cc4c8fe
+    digest: sha256:73899e3c022e8dcedb7593fe92e049f25489eb377d081dd675cfb54e5ffd31aa
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpadminapi
   k8s:
@@ -69,7 +69,7 @@ azureGeoShortId: uk
 azureRegionAvailabilityZoneCount: 3
 backend:
   image:
-    digest: sha256:5696f6929b4c5d2c4a06b22919ff0951deb851e1cd32bd37802eb3a1d3bd3000
+    digest: sha256:07dc8bcc7d90bb3100480e6d9f5d887762e173d677641c5782bfdd17be06a92c
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpbackend
   k8s:
@@ -214,7 +214,7 @@ frontend:
     private: false
     zoneRedundantMode: Disabled
   image:
-    digest: sha256:4d5a9b74dab2d987fba88a4f64c0aa5b82e4af9e39c8f13abcf610b44bf4f107
+    digest: sha256:dd021977d929153cffefd17938cf345d5d9b9336364256c07942d303725a8c9d
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpfrontend
   k8s:
@@ -329,7 +329,7 @@ imageSync:
   ocMirror:
     enabled: true
     image:
-      digest: sha256:5140cbf7c9dd6e16bbb6a2f58fac6b6b7cddaef6c09ee43dabaa79d35443bf4b
+      digest: sha256:c13da92c018aef3a184af2532ca08e9443428a80551d7da92c24baff6a5335e0
       registry: arohcpsvcdev.azurecr.io
       repository: image-sync/oc-mirror
     jobNamePrefix: ""
@@ -342,7 +342,7 @@ keyVaultDNSSuffix: vault.azure.net
 kubeEvents:
   enabled: false
   image:
-    digest: sha256:8db77ae4b738a72c4c36d4796f0110ffa72be5fac427e251f33ff94fbd50c45a
+    digest: sha256:f5fc45651df6c572dec6c7187c69df730fe52705e3aa50d924d05a5e3c98757a
     registry: kubernetesshared.azurecr.io
     repository: shared/kube-events
 kusto:
