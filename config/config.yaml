@@ -138,6 +138,10 @@ defaults:
         name: ""
       applicationId: ""
       dstsHost: "{{ .ev2.geneva.actions.homeDsts.primary }}"
+    shellConfig:
+      imageName: ""
+      imageVersion: ""
+      type: ""
   geneva:
     principalId: ""
     resourceContributor: ""

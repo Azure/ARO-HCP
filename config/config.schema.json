@@ -1525,11 +1525,32 @@
             "certificate",
             "applicationId"
           ]
+        },
+        "shellConfig": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "imageName": {
+              "type": "string"
+            },
+            "imageVersion": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string"  
+            }
+          },
+          "required": [
+            "imageName",
+            "imageVersion",
+            "type"
+          ]
         }
       },
       "additionalProperties": false,
       "required": [
-        "assistedId"
+        "assistedId",
+        "shellConfig"
       ]
     },
     "geneva": {
