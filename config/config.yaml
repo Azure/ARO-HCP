@@ -723,7 +723,7 @@ defaults:
       channelGroups:
         stable:
           minVersion: 4.19.0
-          maxVersion: 4.19.8
+          maxVersion: 4.20.9
         candidate:
           minVersion: ""
           maxVersion: ""
@@ -907,9 +907,6 @@ clouds:
           defaultVersion:
             version: 4.19.7
           channelGroups:
-            stable:
-              minVersion: 4.19.0
-              maxVersion: 4.20.6
             candidate:
               minVersion: 4.19.7
             nightly:
