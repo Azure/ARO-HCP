@@ -21,6 +21,7 @@ import (
 	"net/http"
 	"path"
 	"slices"
+	"strings"
 
 	"k8s.io/apimachinery/pkg/api/equality"
 	utilsclock "k8s.io/utils/clock"
@@ -35,6 +36,55 @@ import (
 type Controller interface {
 	SyncOnce(ctx context.Context, keyObj any) error
 	Run(ctx context.Context, threadiness int)
+}
+
+// OperationKey is for driving workqueues keyed for operations
+type OperationKey struct {
+	SubscriptionID   string `json:"subscriptionID"`
+	OperationName    string `json:"operationName"`
+	ParentResourceID string `json:"parentResourceID"`
+}
+
+func (k *OperationKey) GetParentResourceID() *azcorearm.ResourceID {
+	return api.Must(azcorearm.ParseResourceID(k.ParentResourceID))
+}
+
+func (k *OperationKey) AddLoggerValues(logger *slog.Logger) *slog.Logger {
+	parentResourceID := k.GetParentResourceID()
+	hcpClusterName := ""
+	switch {
+	case strings.EqualFold(parentResourceID.ResourceType.String(), api.ClusterResourceType.String()):
+		hcpClusterName = parentResourceID.Name
+	case strings.EqualFold(parentResourceID.ResourceType.String(), api.NodePoolResourceType.String()):
+		hcpClusterName = parentResourceID.Parent.Name
+	case strings.EqualFold(parentResourceID.ResourceType.String(), api.ExternalAuthResourceType.String()):
+		hcpClusterName = parentResourceID.Name
+	}
+
+	return logger.With(
+		"subscription_id", k.SubscriptionID,
+		"resource_group", parentResourceID.ResourceGroupName,
+		"resource_name", parentResourceID.Name,
+		"resource_id", k.ParentResourceID,
+		"operation_id", k.OperationName,
+		"hcp_cluster_name", hcpClusterName,
+	)
+}
+
+func (k *OperationKey) initialController(controllerName string) *api.Controller {
+	// TODO, this structure only allows one status per operation controller even if there are multiple instances of the operation
+	// TODO, this may or may not age well. Nesting is possible or we could actually separate controllers that way (probably useful).
+	// TODO, leaving this as a thing open to change in the future.
+	resourceID := api.Must(azcorearm.ParseResourceID(k.GetParentResourceID().String() + "/" + api.ControllerResourceTypeName + "/" + controllerName))
+	return &api.Controller{
+		CosmosMetadata: api.CosmosMetadata{
+			ResourceID: *resourceID,
+		},
+		ResourceID: resourceID, ExternalID: k.GetParentResourceID(),
+		Status: api.ControllerStatus{
+			Conditions: []api.Condition{},
+		},
+	}
 }
 
 // HCPClusterKey is for driving workqueues keyed for clusters
