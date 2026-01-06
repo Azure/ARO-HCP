@@ -15,8 +15,6 @@
 package database
 
 import (
-	"fmt"
-
 	"github.com/Azure/ARO-HCP/internal/api"
 )
 
@@ -25,8 +23,6 @@ type ExternalAuth struct {
 
 	ExternalAuthProperties `json:"properties"`
 }
-
-var _ ResourceProperties = &ExternalAuth{}
 
 type ExternalAuthProperties struct {
 	ResourceDocument `json:",inline"`
@@ -37,13 +33,6 @@ type ExternalAuthProperties struct {
 
 type ExternalAuthInternalState struct {
 	InternalAPI api.HCPOpenShiftClusterExternalAuth `json:"internalAPI"`
-}
-
-func (o *ExternalAuth) ValidateResourceType() error {
-	if o.ResourceType != api.ExternalAuthResourceType.String() {
-		return fmt.Errorf("invalid resource type: %s", o.ResourceType)
-	}
-	return nil
 }
 
 func (o *ExternalAuth) GetTypedDocument() *TypedDocument {

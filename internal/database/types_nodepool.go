@@ -15,8 +15,6 @@
 package database
 
 import (
-	"fmt"
-
 	"github.com/Azure/ARO-HCP/internal/api"
 )
 
@@ -25,8 +23,6 @@ type NodePool struct {
 
 	NodePoolProperties `json:"properties"`
 }
-
-var _ ResourceProperties = &NodePool{}
 
 type NodePoolProperties struct {
 	ResourceDocument `json:",inline"`
@@ -37,13 +33,6 @@ type NodePoolProperties struct {
 
 type NodePoolInternalState struct {
 	InternalAPI api.HCPOpenShiftClusterNodePool `json:"internalAPI"`
-}
-
-func (o *NodePool) ValidateResourceType() error {
-	if o.ResourceType != api.NodePoolResourceType.String() {
-		return fmt.Errorf("invalid resource type: %s", o.ResourceType)
-	}
-	return nil
 }
 
 func (o *NodePool) GetTypedDocument() *TypedDocument {

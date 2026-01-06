@@ -15,8 +15,6 @@
 package database
 
 import (
-	"fmt"
-
 	"github.com/Azure/ARO-HCP/internal/api"
 )
 
@@ -25,8 +23,6 @@ type HCPCluster struct {
 
 	HCPClusterProperties `json:"properties"`
 }
-
-var _ ResourceProperties = &HCPCluster{}
 
 type HCPClusterProperties struct {
 	ResourceDocument `json:",inline"`
@@ -37,13 +33,6 @@ type HCPClusterProperties struct {
 
 type ClusterInternalState struct {
 	InternalAPI api.HCPOpenShiftCluster `json:"internalAPI"`
-}
-
-func (o *HCPCluster) ValidateResourceType() error {
-	if o.ResourceType != api.ClusterResourceType.String() {
-		return fmt.Errorf("invalid resource type: %s", o.ResourceType)
-	}
-	return nil
 }
 
 func (o *HCPCluster) GetTypedDocument() *TypedDocument {
