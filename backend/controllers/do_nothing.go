@@ -21,11 +21,11 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/Azure/ARO-HCP/backend/listers"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/util/workqueue"
 
+	"github.com/Azure/ARO-HCP/backend/listers"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )

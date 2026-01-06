@@ -38,6 +38,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/mocks"
 	"github.com/Azure/ARO-HCP/internal/ocm"
+	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 func TestSetDeleteOperationAsCompleted(t *testing.T) {
@@ -559,7 +560,6 @@ func TestConvertClusterStatus(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		var operationsScanner *OperationsScanner
 		t.Run(tt.name, func(t *testing.T) {
 			clusterStatus, err := arohcpv1alpha1.NewClusterStatus().
 				State(tt.clusterState).
@@ -578,7 +578,8 @@ func TestConvertClusterStatus(t *testing.T) {
 				logger: slog.Default(),
 			}
 
-			opState, opError, err := operationsScanner.convertClusterStatus(ctx, op, clusterStatus)
+			ctx = utils.ContextWithLogger(ctx, op.logger)
+			opState, opError, err := ConvertClusterStatus(ctx, nil, op.doc, clusterStatus)
 
 			assert.Equal(t, tt.updatedProvisioningState, opState)
 
