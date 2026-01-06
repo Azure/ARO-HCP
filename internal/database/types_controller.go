@@ -15,8 +15,6 @@
 package database
 
 import (
-	"fmt"
-
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api"
@@ -28,24 +26,11 @@ type Controller struct {
 	ControllerProperties ControllerProperties `json:"properties"`
 }
 
-var _ ResourceProperties = &Controller{}
-
 type ControllerProperties struct {
 	// ResourceID must be serialized exactly here for the generic CRUD to work.
 	ResourceID *azcorearm.ResourceID `json:"resourceId"`
 
 	InternalState api.Controller `json:"internalState"`
-}
-
-func (o *Controller) ValidateResourceType() error {
-	switch o.ResourceType {
-	case api.ClusterControllerResourceType.String():
-	case api.NodePoolControllerResourceType.String():
-	case api.ExternalAuthControllerResourceType.String():
-	default:
-		return fmt.Errorf("invalid resource type: %s", o.ResourceType)
-	}
-	return nil
 }
 
 func (o *Controller) GetTypedDocument() *TypedDocument {

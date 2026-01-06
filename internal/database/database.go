@@ -28,7 +28,6 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
-	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -118,32 +117,7 @@ type DBClient interface {
 	// to end users via ARM.  They must also survive the thing they are deleting, so they live under a subscription directly.
 	Operations(subscriptionID string) OperationCRUD
 
-	// GetSubscriptionDoc retrieves a subscription document from the "Resources" container.
-	GetSubscriptionDoc(ctx context.Context, subscriptionID string) (*arm.Subscription, error)
-
-	// CreateSubscriptionDoc creates a new subscription document in the "Resources" container.
-	CreateSubscriptionDoc(ctx context.Context, subscriptionID string, subscription *arm.Subscription) error
-
-	// UpdateSubscriptionDoc updates a subscription document in the "Resources" container by first
-	// fetching the document and passing it to the provided callback for modifications to be applied.
-	// It then attempts to replace the existing document with the modified document an an "etag"
-	// precondition. Upon a precondition failure the function repeats for a limited number of times
-	// before giving up.
-	//
-	// The callback function should return true if modifications were applied, signaling to proceed
-	// with the document replacement. The boolean return value reflects this: returning true if the
-	// document was successfully replaced, or false with or without an error to indicate no change.
-	UpdateSubscriptionDoc(ctx context.Context, subscriptionID string, callback func(*arm.Subscription) bool) (bool, error)
-
-	// ListAllSubscriptionDocs() returns an iterator that searches for all subscription documents in
-	// the "Resources" container. Since the "Resources" container is partitioned by subscription ID,
-	// there will only be one subscription document per logical partition. Thus, this method enables
-	// iterating over all the logical partitions in the "Resources" container.
-	//
-	// Note that ListAllSubscriptionDocs does not perform the search, but merely prepares an iterator
-	// to do so. Hence the lack of a Context argument. The search is performed by calling Items() on
-	// the iterator in a ranged for loop.
-	ListAllSubscriptionDocs() DBClientIterator[arm.Subscription]
+	Subscriptions() SubscriptionCRUD
 }
 
 var _ DBClient = &cosmosDBClient{}
@@ -284,113 +258,16 @@ func (d *cosmosDBClient) PatchBillingDoc(ctx context.Context, resourceID *azcore
 	return nil
 }
 
-func (d *cosmosDBClient) getSubscriptionDoc(ctx context.Context, subscriptionID string) (*TypedDocument, *arm.Subscription, error) {
-	// Make sure lookup keys are lowercase.
-	subscriptionID = strings.ToLower(subscriptionID)
-
-	pk := NewPartitionKey(subscriptionID)
-
-	response, err := d.resources.ReadItem(ctx, pk, subscriptionID, nil)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to read Subscriptions container item for '%s': %w", subscriptionID, err)
-	}
-
-	typedDoc, innerDoc, err := typedDocumentUnmarshal[arm.Subscription](response.Value)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to unmarshal Subscriptions container item for '%s': %w", subscriptionID, err)
-	}
-
-	// Expose the "_ts" field for metics reporting.
-	innerDoc.LastUpdated = typedDoc.CosmosTimestamp
-
-	return typedDoc, innerDoc, nil
-}
-
-func (d *cosmosDBClient) GetSubscriptionDoc(ctx context.Context, subscriptionID string) (*arm.Subscription, error) {
-	_, innerDoc, err := d.getSubscriptionDoc(ctx, subscriptionID)
-	return innerDoc, err
-}
-
-func (d *cosmosDBClient) CreateSubscriptionDoc(ctx context.Context, subscriptionID string, subscription *arm.Subscription) error {
-	typedDoc := newTypedDocument(subscriptionID, azcorearm.SubscriptionResourceType)
-	typedDoc.ID = strings.ToLower(subscriptionID)
-
-	data, err := typedDocumentMarshal(typedDoc, subscription)
-	if err != nil {
-		return fmt.Errorf("failed to marshal Subscriptions container item for '%s': %w", subscriptionID, err)
-	}
-
-	_, err = d.resources.CreateItem(ctx, typedDoc.getPartitionKey(), data, nil)
-	if err != nil {
-		return fmt.Errorf("failed to create Subscriptions container item for '%s': %w", subscriptionID, err)
-	}
-
-	return nil
-}
-
-func (d *cosmosDBClient) UpdateSubscriptionDoc(ctx context.Context, subscriptionID string, callback func(*arm.Subscription) bool) (bool, error) {
-	var err error
-
-	options := &azcosmos.ItemOptions{}
-
-	for try := 0; try < 5; try++ {
-		var typedDoc *TypedDocument
-		var innerDoc *arm.Subscription
-		var data []byte
-
-		typedDoc, innerDoc, err = d.getSubscriptionDoc(ctx, subscriptionID)
-		if err != nil {
-			return false, err
-		}
-
-		if !callback(innerDoc) {
-			return false, nil
-		}
-
-		data, err = typedDocumentMarshal(typedDoc, innerDoc)
-		if err != nil {
-			return false, fmt.Errorf("failed to marshal Subscriptions container item for '%s': %w", subscriptionID, err)
-		}
-
-		options.IfMatchEtag = &typedDoc.CosmosETag
-		_, err = d.resources.ReplaceItem(ctx, typedDoc.getPartitionKey(), typedDoc.ID, data, options)
-		if err == nil {
-			return true, nil
-		}
-
-		var responseError *azcore.ResponseError
-		err = fmt.Errorf("failed to replace Subscriptions container item for '%s': %w", subscriptionID, err)
-		if !errors.As(err, &responseError) || responseError.StatusCode != http.StatusPreconditionFailed {
-			return false, err
-		}
-	}
-
-	return false, err
-}
-
-func (d *cosmosDBClient) ListAllSubscriptionDocs() DBClientIterator[arm.Subscription] {
-	const query = "SELECT * FROM c WHERE STRINGEQUALS(c.resourceType, @resourceType, true)"
-	opt := azcosmos.QueryOptions{
-		QueryParameters: []azcosmos.QueryParameter{
-			{
-				Name:  "@resourceType",
-				Value: azcorearm.SubscriptionResourceType.String(),
-			},
-		},
-	}
-
-	// Empty partition key triggers a cross-partition query.
-	pager := d.resources.NewQueryItemsPager(query, azcosmos.NewPartitionKey(), &opt)
-
-	return newQueryItemsIterator[arm.Subscription](pager)
-}
-
 func (d *cosmosDBClient) HCPClusters(subscriptionID, resourceGroupName string) HCPClusterCRUD {
 	return NewHCPClusterCRUD(d.resources, subscriptionID, resourceGroupName)
 }
 
 func (d *cosmosDBClient) Operations(subscriptionID string) OperationCRUD {
 	return NewOperationCRUD(d.resources, subscriptionID)
+}
+
+func (d *cosmosDBClient) Subscriptions() SubscriptionCRUD {
+	return NewSubscriptionCRUD(d.resources)
 }
 
 func (d *cosmosDBClient) UntypedCRUD(parentResourceID azcorearm.ResourceID) (UntypedResourceCRUD, error) {

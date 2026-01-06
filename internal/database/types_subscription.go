@@ -12,31 +12,22 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package simulate
+package database
 
 import (
-	"context"
-	"testing"
-	"time"
-
-	"github.com/stretchr/testify/require"
-
-	"github.com/Azure/ARO-HCP/test-integration/utils/integrationutils"
+	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
 
-func TestLaunch(t *testing.T) {
-	integrationutils.SkipIfNotSimulationTesting(t)
+type Subscription struct {
+	TypedDocument `json:",inline"`
 
-	ctx := context.Background()
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
+	InternalState SubscriptionProperties `json:"properties"`
+}
 
-	frontend, testInfo, err := integrationutils.NewFrontendFromTestingEnv(ctx, t)
-	require.NoError(t, err)
-	defer testInfo.Cleanup(context.Background())
+type SubscriptionProperties struct {
+	arm.Subscription `json:",inline"`
+}
 
-	go frontend.Run(ctx, ctx.Done())
-
-	// run for a little bit and don't crash
-	time.Sleep(5 * time.Second)
+func (o *Subscription) GetTypedDocument() *TypedDocument {
+	return &o.TypedDocument
 }

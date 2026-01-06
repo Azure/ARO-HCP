@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package simulate
+package frontend
 
 import (
 	"context"
@@ -20,8 +20,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-
-	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/test-integration/utils/databasemutationhelpers"
@@ -34,10 +32,6 @@ func TestDatabaseCRUD(t *testing.T) {
 	ctx := context.Background()
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
-
-	_, testInfo, err := integrationutils.NewFrontendFromTestingEnv(ctx, t)
-	require.NoError(t, err)
-	defer testInfo.Cleanup(context.Background())
 
 	allCRUDDirFS, err := fs.Sub(artifacts, "artifacts/DatabaseCRUD")
 	require.NoError(t, err)
@@ -52,7 +46,6 @@ func TestDatabaseCRUD(t *testing.T) {
 					ctx,
 					t,
 					databasemutationhelpers.ControllerCRUDSpecializer{},
-					testInfo.CosmosResourcesContainer(),
 					crudSuiteDir)
 			})
 
@@ -62,7 +55,15 @@ func TestDatabaseCRUD(t *testing.T) {
 					ctx,
 					t,
 					databasemutationhelpers.OperationCRUDSpecializer{},
-					testInfo.CosmosResourcesContainer(),
+					crudSuiteDir)
+			})
+
+		case "SubscriptionCRUD":
+			t.Run(crudSuiteDirEntry.Name(), func(t *testing.T) {
+				testCRUDSuite(
+					ctx,
+					t,
+					databasemutationhelpers.SubscriptionCRUDSpecializer{},
 					crudSuiteDir)
 			})
 
@@ -72,7 +73,6 @@ func TestDatabaseCRUD(t *testing.T) {
 					ctx,
 					t,
 					databasemutationhelpers.OperationCRUDSpecializer{},
-					testInfo.CosmosResourcesContainer(),
 					crudSuiteDir)
 			})
 
@@ -82,7 +82,7 @@ func TestDatabaseCRUD(t *testing.T) {
 	}
 }
 
-func testCRUDSuite[InternalAPIType any](ctx context.Context, t *testing.T, specializer databasemutationhelpers.ResourceCRUDTestSpecializer[InternalAPIType], cosmosContainer *azcosmos.ContainerClient, crudSuiteDir fs.FS) {
+func testCRUDSuite[InternalAPIType any](ctx context.Context, t *testing.T, specializer databasemutationhelpers.ResourceCRUDTestSpecializer[InternalAPIType], crudSuiteDir fs.FS) {
 	testDirs := api.Must(fs.ReadDir(crudSuiteDir, "."))
 	for _, testDirEntry := range testDirs {
 		testDir := api.Must(fs.Sub(crudSuiteDir, testDirEntry.Name()))
@@ -90,7 +90,6 @@ func testCRUDSuite[InternalAPIType any](ctx context.Context, t *testing.T, speci
 		currTest, err := databasemutationhelpers.NewResourceMutationTest(
 			ctx,
 			specializer,
-			cosmosContainer,
 			testDirEntry.Name(),
 			testDir,
 		)

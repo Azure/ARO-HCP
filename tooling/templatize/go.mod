@@ -3,7 +3,7 @@ module github.com/Azure/ARO-HCP/tooling/templatize
 go 1.24.4
 
 require (
-	github.com/Azure/ARO-Tools v0.0.0-20251217212052-baa2e4c6d49a
+	github.com/Azure/ARO-Tools v0.0.0-20251219030559-37f654161c5a
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.20.0
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.13.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v3 v3.0.0-beta.2
@@ -20,7 +20,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/microsoft/kiota-authentication-azure-go v1.3.0
 	github.com/microsoftgraph/msgraph-sdk-go v1.69.0
-	github.com/spf13/cobra v1.10.1
+	github.com/spf13/cobra v1.10.2
 	github.com/stretchr/testify v1.11.1
 	go.lsp.dev/jsonrpc2 v0.10.0
 	go.lsp.dev/protocol v0.12.0

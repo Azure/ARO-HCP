@@ -39,6 +39,7 @@ var _ = Describe("Customer", func() {
 		labels.AroRpApiCompatible,
 		func(ctx context.Context) {
 			tc := framework.NewTestContext()
+			openshiftControlPlaneVersionId := framework.DefaultOpenshiftControlPlaneVersionId()
 
 			var resourceGroups []*armresources.ResourceGroup
 			var clusterNames []string
@@ -61,6 +62,7 @@ var _ = Describe("Customer", func() {
 				By("creating cluster without node pool: " + clusterName)
 				clusterParams := framework.NewDefaultClusterParams()
 				clusterParams.ClusterName = clusterName
+				clusterParams.OpenshiftVersionId = openshiftControlPlaneVersionId
 				managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "managed", 64)
 				clusterParams.ManagedResourceGroupName = managedResourceGroupName
 
@@ -68,9 +70,7 @@ var _ = Describe("Customer", func() {
 				clusterParams, err = tc.CreateClusterCustomerResources(ctx,
 					resourceGroup,
 					clusterParams,
-					map[string]interface{}{
-						"persistTagValue": false,
-					},
+					map[string]interface{}{},
 					TestArtifactsFS,
 				)
 				Expect(err).NotTo(HaveOccurred())

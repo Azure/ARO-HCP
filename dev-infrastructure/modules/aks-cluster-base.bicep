@@ -17,7 +17,6 @@ param systemAgentMinCount int
 param systemAgentMaxCount int
 param systemAgentVMSize string
 param systemAgentPoolZones array
-param systemAgentPoolCount int
 param systemZoneRedundantMode string
 
 // User agentpool spec (Worker)
@@ -79,6 +78,9 @@ param aksKeyVaultName string
 // KV tagging
 param aksKeyVaultTagName string
 param aksKeyVaultTagValue string
+
+// Owning team tag
+param owningTeamTagValue string
 
 // Local Params
 @description('Optional DNS prefix to use with hosted Kubernetes API server FQDN.')
@@ -294,6 +296,7 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-10-01' = {
   tags: {
     persist: 'true'
     clusterType: clusterType
+    owningTeam: owningTeamTagValue
   }
   identity: {
     type: 'UserAssigned'
@@ -331,7 +334,6 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-10-01' = {
         kubeletDiskType: 'OS'
         osDiskType: 'Ephemeral'
         osDiskSizeGB: systemOsDiskSizeGB
-        count: systemAgentMinCount
         minCount: systemAgentMinCount
         maxCount: systemAgentMaxCount
         vmSize: systemAgentVMSize

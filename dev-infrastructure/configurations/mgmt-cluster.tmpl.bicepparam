@@ -13,7 +13,6 @@ param aksEtcdKVEnableSoftDelete = {{ .mgmt.aks.etcd.softDelete }}
 param systemAgentMinCount = {{ .mgmt.aks.systemAgentPool.minCount}}
 param systemAgentMaxCount = {{ .mgmt.aks.systemAgentPool.maxCount }}
 param systemAgentVMSize = '{{ .mgmt.aks.systemAgentPool.vmSize }}'
-param systemAgentPoolCount = {{ .mgmt.aks.systemAgentPool.poolCount }}
 param systemAgentPoolZones = '{{ .mgmt.aks.systemAgentPool.zones }}'
 param systemOsDiskSizeGB = {{ .mgmt.aks.systemAgentPool.osDiskSizeGB }}
 param systemZoneRedundantMode = '{{ .mgmt.aks.systemAgentPool.zoneRedundantMode }}'
@@ -83,6 +82,9 @@ param genevaCertificateIssuer = '{{ .geneva.logs.certificateIssuer }}'
 param genevaRpLogsName = '{{ .geneva.logs.rp.secretName }}'
 param genevaClusterLogsName = '{{ .geneva.logs.cluster.secretName }}'
 param genevaManageCertificates = {{ .geneva.logs.manageCertificates }}
+
+// Alert rules tag value
+param owningTeamTagValue = '{{ .monitoring.alertRuleOwningTeamTag }}'
 
 // HCP Backups Storage Account
 param hcpBackupsStorageAccountName = '{{ .mgmt.hcpBackups.storageAccount.name }}'

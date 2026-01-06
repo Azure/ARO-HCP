@@ -12,13 +12,31 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package database
+package frontend
 
-type removeAllState struct{}
+import (
+	"context"
+	"testing"
+	"time"
 
-func (r removeAllState) RemoveUnknownFields(toMutate *ResourceDocument) error {
-	toMutate.InternalState = nil
-	return nil
+	"github.com/stretchr/testify/require"
+
+	"github.com/Azure/ARO-HCP/test-integration/utils/integrationutils"
+)
+
+func TestLaunch(t *testing.T) {
+	integrationutils.SkipIfNotSimulationTesting(t)
+
+	ctx := context.Background()
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	frontend, testInfo, err := integrationutils.NewFrontendFromTestingEnv(ctx, t)
+	require.NoError(t, err)
+	defer testInfo.Cleanup(context.Background())
+
+	go frontend.Run(ctx, ctx.Done())
+
+	// run for a little bit and don't crash
+	time.Sleep(5 * time.Second)
 }
-
-var RemoveAllState ResourceDocumentStateFilter = &removeAllState{}

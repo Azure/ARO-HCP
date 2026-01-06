@@ -19,6 +19,7 @@ import (
 	"embed"
 	"encoding/json"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
@@ -47,6 +48,7 @@ type ClusterParams struct {
 	ImageRegistryState            string
 	ChannelGroup                  string
 	AuthorizedCIDRs               []*string
+	Autoscaling                   *hcpsdk20240610preview.ClusterAutoscalingProfile
 }
 
 type NetworkConfig struct {
@@ -57,9 +59,25 @@ type NetworkConfig struct {
 	HostPrefix  int32
 }
 
+func DefaultOpenshiftControlPlaneVersionId() string {
+	version := os.Getenv("ARO_HCP_OPENSHIFT_CONTROLPLANE_VERSION")
+	if version == "" {
+		return "4.20"
+	}
+	return version
+}
+
+func DefaultOpenshiftNodePoolVersionId() string {
+	version := os.Getenv("ARO_HCP_OPENSHIFT_NODEPOOL_VERSION")
+	if version == "" {
+		return "4.20.5"
+	}
+	return version
+}
+
 func NewDefaultClusterParams() ClusterParams {
 	return ClusterParams{
-		OpenshiftVersionId: "4.19",
+		OpenshiftVersionId: DefaultOpenshiftControlPlaneVersionId(),
 		Network: NetworkConfig{
 			NetworkType: "OVNKubernetes",
 			PodCIDR:     "10.128.0.0/14",
@@ -84,11 +102,19 @@ type NodePoolParams struct {
 	OSDiskSizeGiB          int32
 	DiskStorageAccountType string
 	ChannelGroup           string
+	// AutoScaling enables nodepool autoscaling. When set, Replicas is ignored.
+	AutoScaling *NodePoolAutoScalingParams
+}
+
+// NodePoolAutoScalingParams contains min/max node counts for nodepool autoscaling
+type NodePoolAutoScalingParams struct {
+	Min int32
+	Max int32
 }
 
 func NewDefaultNodePoolParams() NodePoolParams {
 	return NodePoolParams{
-		OpenshiftVersionId:     "4.19.7",
+		OpenshiftVersionId:     DefaultOpenshiftNodePoolVersionId(),
 		Replicas:               int32(2),
 		VMSize:                 "Standard_D8s_v3",
 		OSDiskSizeGiB:          int32(64),

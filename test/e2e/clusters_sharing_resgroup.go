@@ -40,7 +40,6 @@ var _ = Describe("Customer", func() {
 				customerVnetName                 = "customer-vnet-name"
 				customerVnetSubnetName           = "customer-vnet-subnet1"
 				customerClusterName              = "basic-hcp-cluster"
-				openshiftControlPlaneVersionId   = "4.19"
 
 				customerNetworkSecurityGroupName2 = "customer-nsg2-name"
 				customerVnetName2                 = "customer-vnet2-name"
@@ -53,6 +52,7 @@ var _ = Describe("Customer", func() {
 				customerClusterName3              = "basic-hcp-cluster3"
 			)
 			tc := framework.NewTestContext()
+			openshiftControlPlaneVersionId := framework.DefaultOpenshiftControlPlaneVersionId()
 
 			if tc.UsePooledIdentities() {
 				err := tc.AssignIdentityContainers(ctx, 3, 60*time.Second)

@@ -9,6 +9,9 @@ param clusterName string
 @description('Managed identities to use')
 param identities object
 
+@description('ControlPlane OpenShift Version ID')
+param openshiftControlPlaneVersionId string = '4.20'
+
 module customerInfra 'modules/customer-infra.bicep' = {
   name: 'customerInfra'
   params: {
@@ -33,6 +36,7 @@ module managedIdentities 'modules/managed-identities.bicep' = {
 module AroHcpCluster 'modules/cluster.bicep' = {
   name: 'cluster'
   params: {
+    openshiftVersionId: openshiftControlPlaneVersionId
     clusterName: clusterName
     vnetName: customerInfra.outputs.vnetName
     subnetName: customerInfra.outputs.vnetSubnetName

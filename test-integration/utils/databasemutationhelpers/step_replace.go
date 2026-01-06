@@ -31,11 +31,10 @@ type replaceStep[InternalAPIType any] struct {
 	key         CosmosCRUDKey
 	specializer ResourceCRUDTestSpecializer[InternalAPIType]
 
-	cosmosContainer *azcosmos.ContainerClient
-	resources       []*InternalAPIType
+	resources []*InternalAPIType
 }
 
-func newReplaceStep[InternalAPIType any](stepID StepID, specializer ResourceCRUDTestSpecializer[InternalAPIType], cosmosContainer *azcosmos.ContainerClient, stepDir fs.FS) (*replaceStep[InternalAPIType], error) {
+func newReplaceStep[InternalAPIType any](stepID StepID, specializer ResourceCRUDTestSpecializer[InternalAPIType], stepDir fs.FS) (*replaceStep[InternalAPIType], error) {
 	keyBytes, err := fs.ReadFile(stepDir, "00-key.json")
 	if err != nil {
 		return nil, fmt.Errorf("failed to read key.json: %w", err)
@@ -51,11 +50,10 @@ func newReplaceStep[InternalAPIType any](stepID StepID, specializer ResourceCRUD
 	}
 
 	return &replaceStep[InternalAPIType]{
-		stepID:          stepID,
-		key:             key,
-		specializer:     specializer,
-		cosmosContainer: cosmosContainer,
-		resources:       resources,
+		stepID:      stepID,
+		key:         key,
+		specializer: specializer,
+		resources:   resources,
 	}, nil
 }
 
@@ -65,8 +63,8 @@ func (l *replaceStep[InternalAPIType]) StepID() StepID {
 	return l.stepID
 }
 
-func (l *replaceStep[InternalAPIType]) RunTest(ctx context.Context, t *testing.T) {
-	resourceCRUDClient := l.specializer.ResourceCRUDFromKey(t, l.cosmosContainer, l.key)
+func (l *replaceStep[InternalAPIType]) RunTest(ctx context.Context, t *testing.T, cosmosContainer *azcosmos.ContainerClient) {
+	resourceCRUDClient := l.specializer.ResourceCRUDFromKey(t, cosmosContainer, l.key)
 
 	for _, resource := range l.resources {
 		// find the existing to set the UID for an replace to replace instead of creating a new record.

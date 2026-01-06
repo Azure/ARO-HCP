@@ -6,7 +6,7 @@ require (
 	github.com/Azure/ARO-HCP/internal v0.0.0-00010101000000-000000000000
 	github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp v0.0.0-00010101000000-000000000000
 	github.com/Azure/ARO-HCP/tooling/templatize v0.0.0-20251212175206-b7a20d67a1b7
-	github.com/Azure/ARO-Tools v0.0.0-20251217212052-baa2e4c6d49a
+	github.com/Azure/ARO-Tools v0.0.0-20251219030559-37f654161c5a
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v3 v3.0.0-beta.2
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v5 v5.6.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources v1.2.0
@@ -20,7 +20,7 @@ require (
 	github.com/onsi/gomega v1.37.0
 	github.com/openshift-eng/openshift-tests-extension v0.0.0-20251217181008-4f0b29a50e82
 	github.com/sirupsen/logrus v1.9.3
-	github.com/spf13/cobra v1.10.1
+	github.com/spf13/cobra v1.10.2
 	golang.org/x/crypto v0.46.0
 	golang.org/x/sync v0.19.0
 	k8s.io/api v0.34.1

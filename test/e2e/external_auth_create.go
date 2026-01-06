@@ -54,12 +54,12 @@ var _ = Describe("Customer", func() {
 				customerVnetSubnetName           = "ea-vnet-subnet1"
 				customerClusterName              = "ea-cluster"
 				customerNodePoolName             = "ea-np-1"
-				openshiftControlPlaneVersionId   = "4.19"
-				openshiftNodeVersionId           = "4.19.7"
 				customerExternalAuthName         = "external-auth"
 				externalAuthSubjectPrefix        = "prefix-" // TODO: ARO-21008 preventing us setting NoPrefix
 			)
 			tc := framework.NewTestContext()
+			openshiftControlPlaneVersionId := framework.DefaultOpenshiftControlPlaneVersionId()
+			openshiftNodeVersionId := framework.DefaultOpenshiftNodePoolVersionId()
 
 			if tc.UsePooledIdentities() {
 				err := tc.AssignIdentityContainers(ctx, 1, 60*time.Second)

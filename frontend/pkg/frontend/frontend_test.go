@@ -94,6 +94,7 @@ func TestSubscriptionsGET(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			mockDBClient := mocks.NewMockDBClient(ctrl)
+			mockSubscriptionCRUD := mocks.NewMockSubscriptionCRUD(ctrl)
 			reg := prometheus.NewRegistry()
 
 			f := NewFrontend(
@@ -108,7 +109,10 @@ func TestSubscriptionsGET(t *testing.T) {
 
 			// ArmSubscriptionGet.
 			mockDBClient.EXPECT().
-				GetSubscriptionDoc(gomock.Any(), gomock.Any()).
+				Subscriptions().
+				Return(mockSubscriptionCRUD)
+			mockSubscriptionCRUD.EXPECT().
+				Get(gomock.Any(), gomock.Any()).
 				Return(getMockDBDoc(test.subDoc)).
 				Times(1)
 
@@ -117,7 +121,7 @@ func TestSubscriptionsGET(t *testing.T) {
 			if test.subDoc != nil {
 				subs[api.TestSubscriptionID] = test.subDoc
 			}
-			ts := newHTTPServer(f, ctrl, mockDBClient, subs)
+			ts := newHTTPServer(f, ctrl, mockDBClient, mockSubscriptionCRUD, subs)
 
 			rs, err := ts.Client().Get(ts.URL + api.TestSubscriptionResourceID + "?api-version=" + arm.SubscriptionAPIVersion)
 			require.NoError(t, err)
@@ -173,6 +177,7 @@ func TestSubscriptionsPUT(t *testing.T) {
 				Properties:       nil,
 			},
 			subDoc: &arm.Subscription{
+				ResourceID:       api.Must(arm.ToSubscriptionResourceID(api.TestSubscriptionID)),
 				State:            arm.SubscriptionStateRegistered,
 				RegistrationDate: api.Ptr(time.Now().String()),
 				Properties:       nil,
@@ -196,6 +201,7 @@ func TestSubscriptionsPUT(t *testing.T) {
 				},
 			},
 			subDoc: &arm.Subscription{
+				ResourceID:       api.Must(arm.ToSubscriptionResourceID(api.TestSubscriptionID)),
 				State:            arm.SubscriptionStateRegistered,
 				RegistrationDate: api.Ptr(time.Now().String()),
 				Properties:       nil,
@@ -251,6 +257,7 @@ func TestSubscriptionsPUT(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			mockDBClient := mocks.NewMockDBClient(ctrl)
+			mockSubscriptionCRUD := mocks.NewMockSubscriptionCRUD(ctrl)
 			reg := prometheus.NewRegistry()
 
 			f := NewFrontend(
@@ -271,21 +278,33 @@ func TestSubscriptionsPUT(t *testing.T) {
 			mockDBClient.EXPECT().
 				GetLockClient().
 				MaxTimes(1)
+
 			if test.expectedStatusCode != http.StatusBadRequest {
 				// ArmSubscriptionPut
 				mockDBClient.EXPECT().
-					GetSubscriptionDoc(gomock.Any(), gomock.Any()).
+					Subscriptions().
+					Return(mockSubscriptionCRUD)
+				mockSubscriptionCRUD.EXPECT().
+					Get(gomock.Any(), gomock.Any()).
 					Return(getMockDBDoc(test.subDoc))
 				// ArmSubscriptionPut
 				if test.subDoc == nil {
 					mockDBClient.EXPECT().
-						CreateSubscriptionDoc(gomock.Any(), gomock.Any(), gomock.Any())
-				} else {
+						Subscriptions().
+						Return(mockSubscriptionCRUD)
+					mockSubscriptionCRUD.EXPECT().
+						Create(gomock.Any(), gomock.Any(), gomock.Any()).
+						DoAndReturn(func(ctx context.Context, subscription *arm.Subscription, options *azcosmos.ItemOptions) (*arm.Subscription, error) {
+							return subscription, nil
+						})
+				} else if test.expectUpdated {
 					mockDBClient.EXPECT().
-						UpdateSubscriptionDoc(gomock.Any(), gomock.Any(), gomock.Any()).
-						DoAndReturn(func(ctx context.Context, subscriptionID string, callback func(updateSubscription *arm.Subscription) bool) (bool, error) {
-							updated := callback(test.subDoc)
-							assert.Equal(t, test.expectUpdated, updated)
+						Subscriptions().
+						Return(mockSubscriptionCRUD)
+					mockSubscriptionCRUD.EXPECT().
+						Replace(gomock.Any(), gomock.Any(), gomock.Any()).
+						DoAndReturn(func(ctx context.Context, updated *arm.Subscription, options *azcosmos.ItemOptions) (*arm.Subscription, error) {
+							assert.True(t, test.expectUpdated)
 							return updated, nil
 						})
 				}
@@ -295,7 +314,7 @@ func TestSubscriptionsPUT(t *testing.T) {
 			if test.subDoc != nil {
 				subs[api.TestSubscriptionID] = test.subDoc
 			}
-			ts := newHTTPServer(f, ctrl, mockDBClient, subs)
+			ts := newHTTPServer(f, ctrl, mockDBClient, mockSubscriptionCRUD, subs)
 
 			urlPath := test.urlPath + "?api-version=" + arm.SubscriptionAPIVersion
 			req, err := http.NewRequest(http.MethodPut, ts.URL+urlPath, bytes.NewReader(body))
@@ -465,6 +484,7 @@ func TestDeploymentPreflight(t *testing.T) {
 
 			ctrl := gomock.NewController(t)
 			mockDBClient := mocks.NewMockDBClient(ctrl)
+			mockSubscriptionCRUD := mocks.NewMockSubscriptionCRUD(ctrl)
 			reg := prometheus.NewRegistry()
 
 			f := NewFrontend(
@@ -479,7 +499,11 @@ func TestDeploymentPreflight(t *testing.T) {
 
 			// MiddlewareValidateSubscriptionState and MetricsMiddleware
 			mockDBClient.EXPECT().
-				GetSubscriptionDoc(gomock.Any(), api.TestSubscriptionID).
+				Subscriptions().
+				Return(mockSubscriptionCRUD).
+				MaxTimes(2)
+			mockSubscriptionCRUD.EXPECT().
+				Get(gomock.Any(), api.TestSubscriptionID).
 				Return(&arm.Subscription{
 					State: arm.SubscriptionStateRegistered,
 				}, nil).
@@ -490,7 +514,7 @@ func TestDeploymentPreflight(t *testing.T) {
 					State: arm.SubscriptionStateRegistered,
 				},
 			}
-			ts := newHTTPServer(f, ctrl, mockDBClient, subs)
+			ts := newHTTPServer(f, ctrl, mockDBClient, mockSubscriptionCRUD, subs)
 
 			resource, err := json.Marshal(&test.resource)
 			require.NoError(t, err)
@@ -603,6 +627,7 @@ func TestRequestAdminCredential(t *testing.T) {
 			mockCSClient := mocks.NewMockClusterServiceClientSpec(ctrl)
 			mockOperationCRUD := mocks.NewMockOperationCRUD(ctrl)
 			mockClusterCRUD := mocks.NewMockHCPClusterCRUD(ctrl)
+			mockSubscriptionCRUD := mocks.NewMockSubscriptionCRUD(ctrl)
 
 			f := NewFrontend(
 				api.NewTestLogger(),
@@ -616,7 +641,10 @@ func TestRequestAdminCredential(t *testing.T) {
 
 			// MiddlewareValidateSubscriptionState and MetricsMiddleware
 			mockDBClient.EXPECT().
-				GetSubscriptionDoc(gomock.Any(), api.TestSubscriptionID).
+				Subscriptions().
+				Return(mockSubscriptionCRUD)
+			mockSubscriptionCRUD.EXPECT().
+				Get(gomock.Any(), api.TestSubscriptionID).
 				Return(&arm.Subscription{
 					State: arm.SubscriptionStateRegistered,
 				}, nil).
@@ -708,7 +736,7 @@ func TestRequestAdminCredential(t *testing.T) {
 					State: arm.SubscriptionStateRegistered,
 				},
 			}
-			ts := newHTTPServer(f, ctrl, mockDBClient, subs)
+			ts := newHTTPServer(f, ctrl, mockDBClient, mockSubscriptionCRUD, subs)
 
 			url := ts.URL + requestPath + "?api-version=" + api.TestAPIVersion
 			resp, err := ts.Client().Post(url, "", nil)
@@ -770,6 +798,7 @@ func TestRevokeCredentials(t *testing.T) {
 			mockCSClient := mocks.NewMockClusterServiceClientSpec(ctrl)
 			mockOperationCRUD := mocks.NewMockOperationCRUD(ctrl)
 			mockClusterCRUD := mocks.NewMockHCPClusterCRUD(ctrl)
+			mockSubscriptionCRUD := mocks.NewMockSubscriptionCRUD(ctrl)
 
 			f := NewFrontend(
 				api.NewTestLogger(),
@@ -783,7 +812,10 @@ func TestRevokeCredentials(t *testing.T) {
 
 			// MiddlewareValidateSubscriptionState and MetricsMiddleware
 			mockDBClient.EXPECT().
-				GetSubscriptionDoc(gomock.Any(), api.TestSubscriptionID).
+				Subscriptions().
+				Return(mockSubscriptionCRUD)
+			mockSubscriptionCRUD.EXPECT().
+				Get(gomock.Any(), api.TestSubscriptionID).
 				Return(&arm.Subscription{
 					State: arm.SubscriptionStateRegistered,
 				}, nil).
@@ -915,7 +947,7 @@ func TestRevokeCredentials(t *testing.T) {
 					State: arm.SubscriptionStateRegistered,
 				},
 			}
-			ts := newHTTPServer(f, ctrl, mockDBClient, subs)
+			ts := newHTTPServer(f, ctrl, mockDBClient, mockSubscriptionCRUD, subs)
 
 			url := ts.URL + requestPath + "?api-version=" + api.TestAPIVersion
 			resp, err := ts.Client().Post(url, "", nil)
@@ -998,7 +1030,7 @@ func assertHTTPMetrics(t *testing.T, r prometheus.Gatherer, subscription *arm.Su
 // newHTTPServer returns a test HTTP server. When a mock DB client is provided,
 // the subscription collector will be bootstrapped with the provided
 // subscription documents.
-func newHTTPServer(f *Frontend, ctrl *gomock.Controller, mockDBClient *mocks.MockDBClient, subs map[string]*arm.Subscription) *httptest.Server {
+func newHTTPServer(f *Frontend, ctrl *gomock.Controller, mockDBClient *mocks.MockDBClient, mockSubscriptionCRUD *mocks.MockSubscriptionCRUD, subs map[string]*arm.Subscription) *httptest.Server {
 	ts := httptest.NewUnstartedServer(f.server.Handler)
 	ts.Config.BaseContext = f.server.BaseContext
 	ts.Start()
@@ -1013,8 +1045,11 @@ func newHTTPServer(f *Frontend, ctrl *gomock.Controller, mockDBClient *mocks.Moc
 		Return(nil)
 
 	mockDBClient.EXPECT().
-		ListAllSubscriptionDocs().
-		Return(mockIter).
+		Subscriptions().
+		Return(mockSubscriptionCRUD)
+	mockSubscriptionCRUD.EXPECT().
+		List(gomock.Any(), gomock.Any()).
+		Return(mockIter, nil).
 		Times(1)
 
 	// The initialization of the subscriptions collector is normally part of

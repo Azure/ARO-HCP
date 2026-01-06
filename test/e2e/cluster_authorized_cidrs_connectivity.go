@@ -47,7 +47,6 @@ var _ = Describe("Authorized CIDRs", func() {
 					customerNetworkSecurityGroupName = "customer-nsg-name"
 					customerVnetName                 = "customer-vnet-name"
 					customerVnetSubnetName           = "customer-vnet-subnet1"
-					openshiftControlPlaneVersionId   = "4.19"
 				)
 
 				tc := framework.NewTestContext()
@@ -61,7 +60,6 @@ var _ = Describe("Authorized CIDRs", func() {
 				clusterParams.ClusterName = clusterName
 				managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
 				clusterParams.ManagedResourceGroupName = managedResourceGroupName
-				clusterParams.OpenshiftVersionId = openshiftControlPlaneVersionId
 
 				By("creating customer resources")
 				clusterParams, err = tc.CreateClusterCustomerResources(ctx,

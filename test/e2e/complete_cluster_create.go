@@ -47,8 +47,6 @@ var _ = Describe("Customer", func() {
 				customerVnetSubnetName           = "customer-vnet-subnet1"
 				customerClusterName              = "basic-hcp-cluster"
 				customerNodePoolName             = "np-1"
-				openshiftControlPlaneVersionId   = "4.19"
-				openshiftNodeVersionId           = "4.19.7"
 			)
 			tc := framework.NewTestContext()
 
@@ -66,7 +64,6 @@ var _ = Describe("Customer", func() {
 			clusterParams.ClusterName = customerClusterName
 			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
 			clusterParams.ManagedResourceGroupName = managedResourceGroupName
-			clusterParams.OpenshiftVersionId = openshiftControlPlaneVersionId
 
 			By("creating customer resources")
 			clusterParams, err = tc.CreateClusterCustomerResources(ctx,
@@ -110,7 +107,6 @@ var _ = Describe("Customer", func() {
 			nodePoolParams := framework.NewDefaultNodePoolParams()
 			nodePoolParams.ClusterName = customerClusterName
 			nodePoolParams.NodePoolName = customerNodePoolName
-			nodePoolParams.OpenshiftVersionId = openshiftNodeVersionId
 			nodePoolParams.Replicas = int32(2)
 
 			err = tc.CreateNodePoolFromParam(ctx,

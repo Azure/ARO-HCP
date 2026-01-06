@@ -19,9 +19,12 @@ import (
 	"log/slog"
 	"path"
 	"testing"
+	"time"
 
 	"dario.cat/mergo"
 	"github.com/stretchr/testify/require"
+
+	"k8s.io/utils/ptr"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
@@ -139,4 +142,24 @@ func Must[T any](v T, err error) T {
 		panic(err)
 	}
 	return v
+}
+
+// CreateTestSubscription creates a test subscription with optional registered feature flags.
+// Call with no arguments for a standard subscription, or pass feature names to register them.
+func CreateTestSubscription(registeredFeatures ...string) *arm.Subscription {
+	features := make([]arm.Feature, len(registeredFeatures))
+	for i, feature := range registeredFeatures {
+		features[i] = arm.Feature{
+			Name:  ptr.To(feature),
+			State: ptr.To("Registered"),
+		}
+	}
+
+	return &arm.Subscription{
+		State:            arm.SubscriptionStateRegistered,
+		RegistrationDate: ptr.To(time.Now().Format(time.RFC1123)),
+		Properties: &arm.SubscriptionProperties{
+			RegisteredFeatures: &features,
+		},
+	}
 }

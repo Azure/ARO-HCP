@@ -72,11 +72,6 @@ type Operation struct {
 	Error *arm.CloudErrorBody `json:"error,omitempty"`
 }
 
-// GetValidTypes returns the valid resource types for an OperationDocument.
-func (doc Operation) GetValidTypes() []string {
-	return []string{OperationStatusResourceType.String()}
-}
-
 var _ CosmosPersistable = &Operation{}
 
 func (o *Operation) ComputeLogicalResourceID() *azcorearm.ResourceID {

@@ -29,6 +29,7 @@ import (
 type ACRClient struct {
 	client      *azcontainerregistry.Client
 	registryURL string
+	useAuth     bool
 }
 
 // NewACRClient creates a new Azure Container Registry client
@@ -37,6 +38,7 @@ type ACRClient struct {
 func NewACRClient(registryURL string, useAuth bool) (*ACRClient, error) {
 	acr := &ACRClient{
 		registryURL: registryURL,
+		useAuth:     useAuth,
 	}
 
 	var client *azcontainerregistry.Client
@@ -132,7 +134,7 @@ func (c *ACRClient) getClient() *azcontainerregistry.Client {
 	return c.client
 }
 
-func (c *ACRClient) GetArchSpecificDigest(ctx context.Context, repository string, tagPattern string, arch string, multiArch bool) (*Tag, error) {
+func (c *ACRClient) GetArchSpecificDigest(ctx context.Context, repository string, tagPattern string, arch string, multiArch bool, versionLabel string) (*Tag, error) {
 	logger, err := logr.FromContext(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("logger not found in context: %w", err)
@@ -183,6 +185,7 @@ func (c *ACRClient) GetArchSpecificDigest(ctx context.Context, repository string
 		// If multiArch is requested and this is a multi-arch manifest, return it
 		if multiArch && len(manifest.RelatedArtifacts) > 0 {
 			logger.V(2).Info("found multi-arch manifest", "tag", tag.Name, "relatedArtifacts", len(manifest.RelatedArtifacts), "digest", tag.Digest)
+			tag.Version = extractVersionLabel(ctx, c.registryURL, repository, tag.Name, versionLabel, c.useAuth)
 			return &tag, nil
 		}
 
@@ -199,6 +202,7 @@ func (c *ACRClient) GetArchSpecificDigest(ctx context.Context, repository string
 		normalizedArch := NormalizeArchitecture(string(*manifest.Architecture))
 
 		if normalizedArch == arch && string(*manifest.OperatingSystem) == "linux" {
+			tag.Version = extractVersionLabel(ctx, c.registryURL, repository, tag.Name, versionLabel, c.useAuth)
 			return &tag, nil
 		}
 
@@ -209,4 +213,83 @@ func (c *ACRClient) GetArchSpecificDigest(ctx context.Context, repository string
 		return nil, fmt.Errorf("no multi-arch manifest found for repository %s", repository)
 	}
 	return nil, fmt.Errorf("no single-arch %s/linux image found for repository %s (all tags are either multi-arch or different architecture)", arch, repository)
+}
+
+// GetDigestForTag fetches the digest for a specific tag without pagination
+func (c *ACRClient) GetDigestForTag(ctx context.Context, repository string, tagName string, arch string, multiArch bool, versionLabel string) (*Tag, error) {
+	logger, err := logr.FromContext(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("logger not found in context: %w", err)
+	}
+
+	logger.V(2).Info("fetching digest for specific tag", "registry", c.registryURL, "repository", repository, "tag", tagName)
+
+	// Check if context is cancelled before processing
+	select {
+	case <-ctx.Done():
+		return nil, fmt.Errorf("operation cancelled: %w", ctx.Err())
+	default:
+	}
+
+	client := c.getClient()
+
+	// Get tag properties to get the digest
+	tagProps, err := client.GetTagProperties(ctx, repository, tagName, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get tag properties for tag %s: %w", tagName, err)
+	}
+
+	if tagProps.Tag == nil || tagProps.Tag.Digest == nil {
+		return nil, fmt.Errorf("tag %s has no digest information", tagName)
+	}
+
+	tag := Tag{
+		Name:   tagName,
+		Digest: *tagProps.Tag.Digest,
+	}
+
+	if tagProps.Tag.CreatedOn != nil {
+		tag.LastModified = *tagProps.Tag.CreatedOn
+	}
+
+	// Get manifest properties to check architecture
+	manifestProps, err := client.GetManifestProperties(ctx, repository, tag.Digest, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch manifest properties for tag %s (digest: %s): %w", tagName, tag.Digest, err)
+	}
+
+	if manifestProps.Manifest == nil {
+		return nil, fmt.Errorf("tag %s has no manifest information", tagName)
+	}
+
+	manifest := manifestProps.Manifest
+
+	// If multiArch is requested, verify this is a multi-arch manifest
+	if multiArch {
+		if len(manifest.RelatedArtifacts) == 0 {
+			return nil, fmt.Errorf("tag %s is not a multi-arch manifest", tagName)
+		}
+		logger.V(2).Info("found multi-arch manifest", "tag", tagName, "relatedArtifacts", len(manifest.RelatedArtifacts), "digest", tag.Digest)
+		return &tag, nil
+	}
+
+	// For single-arch, verify it's not a multi-arch manifest
+	if len(manifest.RelatedArtifacts) > 0 {
+		return nil, fmt.Errorf("tag %s is a multi-arch manifest, but single-arch was requested (use multiArch: true)", tagName)
+	}
+
+	if manifest.Architecture == nil || manifest.OperatingSystem == nil {
+		return nil, fmt.Errorf("tag %s is missing architecture or OS information", tagName)
+	}
+
+	normalizedArch := NormalizeArchitecture(string(*manifest.Architecture))
+
+	if normalizedArch != arch || string(*manifest.OperatingSystem) != "linux" {
+		return nil, fmt.Errorf("tag %s has architecture %s/%s, but %s/linux was requested", tagName, string(*manifest.Architecture), string(*manifest.OperatingSystem), arch)
+	}
+
+	tag.Version = extractVersionLabel(ctx, c.registryURL, repository, tagName, versionLabel, c.useAuth)
+	logger.V(2).Info("found matching image", "tag", tagName, "arch", normalizedArch, "digest", tag.Digest)
+
+	return &tag, nil
 }

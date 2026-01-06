@@ -35,6 +35,7 @@ var allServiceLogsTablesKQL = {
   backendLogs: loadTextContent('tables/backendLogs.kql')
   containerlogs: loadTextContent('tables/containerLogs.kql')
   frontendLogs: loadTextContent('tables/frontendLogs.kql')
+  clustersServiceLogs: loadTextContent('tables/clustersServiceLogs.kql')
   kubernetesEvents: loadTextContent('tables/kubernetesEvents.kql')
 }
 
