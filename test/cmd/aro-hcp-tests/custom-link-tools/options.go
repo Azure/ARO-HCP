@@ -27,6 +27,7 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
@@ -39,6 +40,8 @@ import (
 
 //go:embed artifacts/*.tmpl
 var templatesFS embed.FS
+
+var endGracePeriodDuration = 45 * time.Minute
 
 func mustReadArtifact(name string) []byte {
 	ret, err := templatesFS.ReadFile("artifacts/" + name)
@@ -303,9 +306,13 @@ func gatherTimingInfo(sharedDir string) (map[string]TimingInfo, error) {
 			}
 			rgNameList = append(rgNameList, rgName)
 		}
+		finishedAt, err := time.Parse(time.RFC3339, timing.FinishedAt)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse finished at: %w", err)
+		}
 		allTimingInfo[deployment] = TimingInfo{
 			StartTime:          timing.StartedAt,
-			EndTime:            timing.FinishedAt,
+			EndTime:            finishedAt.Add(endGracePeriodDuration).Format(time.RFC3339),
 			ResourceGroupNames: rgNameList,
 		}
 	}
