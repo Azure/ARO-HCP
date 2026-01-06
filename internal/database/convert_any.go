@@ -53,6 +53,9 @@ func CosmosToInternal[InternalAPIType, CosmosAPIType any](obj *CosmosAPIType) (*
 			return nil, fmt.Errorf("unexpected return type: %T", castObj)
 		}
 
+	case *GenericDocument[InternalAPIType]:
+		internalObj, err = CosmosGenericToInternal[InternalAPIType](cosmosObj)
+
 	default:
 		return nil, fmt.Errorf("unknown type %T", cosmosObj)
 	}
@@ -100,7 +103,7 @@ func InternalToCosmos[InternalAPIType, CosmosAPIType any](obj *InternalAPIType) 
 		}
 
 	default:
-		return nil, fmt.Errorf("unknown type %T", internalObj)
+		cosmosObj, err = InternalToCosmosGeneric[InternalAPIType](obj)
 	}
 
 	if err != nil {
