@@ -171,11 +171,11 @@ func (s *FrontendIntegrationTestInfo) saveClusterServiceMockData(ctx context.Con
 	return nil
 }
 
-// adds mock data for later inclusion in artifacts
-func (s *FrontendIntegrationTestInfo) AddMockData(dataName string, data map[string][]any) error {
-	if _, ok := s.mockData[dataName]; ok {
-		return fmt.Errorf("mock data for %q already exists", dataName)
+func (s *FrontendIntegrationTestInfo) GetOrCreateMockData(dataName string) map[string][]any {
+	if existing, ok := s.mockData[dataName]; ok {
+		return existing
 	}
-	s.mockData[dataName] = data
-	return nil
+	newData := map[string][]any{}
+	s.mockData[dataName] = newData
+	return newData
 }

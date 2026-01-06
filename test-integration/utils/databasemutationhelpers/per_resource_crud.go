@@ -98,6 +98,27 @@ func (OperationCRUDSpecializer) WriteCosmosID(newObj, oldObj *api.Operation) {
 	// the cosmosID is derived from the operationID
 }
 
+type NothingCRUDSpecializer struct {
+}
+
+var _ ResourceCRUDTestSpecializer[any] = &NothingCRUDSpecializer{}
+
+func (NothingCRUDSpecializer) ResourceCRUDFromKey(t *testing.T, cosmosContainer *azcosmos.ContainerClient, key CosmosCRUDKey) database.ResourceCRUD[any] {
+	panic("unsupported")
+}
+
+func (NothingCRUDSpecializer) InstanceEquals(expected, actual *any) bool {
+	panic("unsupported")
+}
+
+func (NothingCRUDSpecializer) NameFromInstance(obj *any) string {
+	panic("unsupported")
+}
+
+func (NothingCRUDSpecializer) WriteCosmosID(newObj, oldObj *any) {
+	panic("unsupported")
+}
+
 type UntypedCRUDSpecializer struct {
 }
 

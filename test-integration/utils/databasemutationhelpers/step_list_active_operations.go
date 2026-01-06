@@ -24,7 +24,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
-	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/database"
@@ -65,11 +64,11 @@ func (l *listActiveOperationsStep) StepID() StepID {
 	return l.stepID
 }
 
-func (l *listActiveOperationsStep) RunTest(ctx context.Context, t *testing.T, cosmosContainer *azcosmos.ContainerClient) {
+func (l *listActiveOperationsStep) RunTest(ctx context.Context, t *testing.T, stepInput StepInput) {
 	parentResourceID, err := azcorearm.ParseResourceID(l.key.ParentResourceID)
 	require.NoError(t, err)
 
-	operationsCRUD := database.NewOperationCRUD(cosmosContainer, parentResourceID.SubscriptionID)
+	operationsCRUD := database.NewOperationCRUD(stepInput.CosmosContainer, parentResourceID.SubscriptionID)
 	actualControllersIterator := operationsCRUD.ListActiveOperations(nil)
 	require.NoError(t, err)
 
@@ -89,11 +88,12 @@ func (l *listActiveOperationsStep) RunTest(ctx context.Context, t *testing.T, co
 	for _, expected := range l.expectedOperations {
 		found := false
 		for _, actual := range actualControllers {
-			if specializer.InstanceEquals(expected, actual) {
+			diff, equals := ResourceInstanceEquals(t, expected, actual)
+			if equals {
 				found = true
 				break
 			}
-			//t.Log(cmp.Diff(stringifyResource(expected), stringifyResource(actual)))
+			t.Log(diff)
 		}
 		if !found {
 			t.Logf("actual:\n%v", stringifyResource(actualControllers))
@@ -105,10 +105,12 @@ func (l *listActiveOperationsStep) RunTest(ctx context.Context, t *testing.T, co
 	for _, actual := range actualControllers {
 		found := false
 		for _, expected := range l.expectedOperations {
-			if specializer.InstanceEquals(expected, actual) {
+			diff, equals := ResourceInstanceEquals(t, expected, actual)
+			if equals {
 				found = true
 				break
 			}
+			t.Log(diff)
 		}
 		if !found {
 			t.Logf("expected:\n%v", stringifyResource(l.expectedOperations))

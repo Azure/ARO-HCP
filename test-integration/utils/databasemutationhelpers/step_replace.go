@@ -22,8 +22,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-
-	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 )
 
 type replaceStep[InternalAPIType any] struct {
@@ -63,8 +61,8 @@ func (l *replaceStep[InternalAPIType]) StepID() StepID {
 	return l.stepID
 }
 
-func (l *replaceStep[InternalAPIType]) RunTest(ctx context.Context, t *testing.T, cosmosContainer *azcosmos.ContainerClient) {
-	resourceCRUDClient := l.specializer.ResourceCRUDFromKey(t, cosmosContainer, l.key)
+func (l *replaceStep[InternalAPIType]) RunTest(ctx context.Context, t *testing.T, stepInput StepInput) {
+	resourceCRUDClient := l.specializer.ResourceCRUDFromKey(t, stepInput.CosmosContainer, l.key)
 
 	for _, resource := range l.resources {
 		// find the existing to set the UID for an replace to replace instead of creating a new record.
