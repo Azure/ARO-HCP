@@ -78,7 +78,6 @@ type ValidatedOptions struct {
 // completedOptions is a private wrapper that enforces a call of Complete() before config generation can be invoked.
 type completedOptions struct {
 	TimingInputDir string
-	SharedDir      string
 	OutputDir      string
 }
 
@@ -109,14 +108,9 @@ func (o *RawOptions) Validate() (*ValidatedOptions, error) {
 }
 
 func (o *ValidatedOptions) Complete(logger logr.Logger) (*Options, error) {
-	sharedDir := os.Getenv("SHARED_DIR")
-	if sharedDir == "" {
-		return nil, fmt.Errorf("SHARED_DIR environment variable is not set")
-	}
 	return &Options{
 		completedOptions: &completedOptions{
 			OutputDir:      o.OutputDir,
-			SharedDir:      sharedDir,
 			TimingInputDir: o.TimingInputDir,
 		},
 	}, nil
@@ -201,7 +195,7 @@ func encodeKustoQuery(query string) string {
 func (o Options) Run(ctx context.Context) error {
 	allTestRows := []TestRow{}
 
-	timingInfo, err := gatherTimingInfo(o.SharedDir)
+	timingInfo, err := gatherTimingInfo(o.TimingInputDir)
 	if err != nil {
 		return utils.TrackError(err)
 	}
