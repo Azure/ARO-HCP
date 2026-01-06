@@ -560,7 +560,6 @@ func TestConvertClusterStatus(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		var operationsScanner *OperationsScanner
 		t.Run(tt.name, func(t *testing.T) {
 			clusterStatus, err := arohcpv1alpha1.NewClusterStatus().
 				State(tt.clusterState).
@@ -579,7 +578,7 @@ func TestConvertClusterStatus(t *testing.T) {
 				},
 			}
 
-			opState, opError, err := operationsScanner.convertClusterStatus(ctx, op, clusterStatus)
+			opState, opError, err := ConvertClusterStatus(ctx, nil, op.doc, clusterStatus)
 
 			assert.Equal(t, tt.updatedProvisioningState, opState)
 
