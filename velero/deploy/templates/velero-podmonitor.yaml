@@ -1,0 +1,17 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: velero
+  namespace: '{{ .Release.Namespace }}'
+spec:
+  selector:
+    matchLabels:
+      deploy: velero
+  namespaceSelector:
+    matchNames:
+    - '{{ .Release.Namespace }}'
+  podMetricsEndpoints:
+  - path: /metrics
+    port: metrics
+    scheme: http
+    interval: 30s
