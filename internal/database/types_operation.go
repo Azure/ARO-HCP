@@ -15,7 +15,6 @@
 package database
 
 import (
-	"fmt"
 	"path"
 	"time"
 
@@ -44,17 +43,6 @@ type Operation struct {
 	TypedDocument `json:",inline"`
 
 	OperationProperties OperationDocument `json:"properties"`
-}
-
-var _ ResourceProperties = &Operation{}
-
-func (o *Operation) ValidateResourceType() error {
-	switch o.ResourceType {
-	case api.OperationStatusResourceType.String():
-	default:
-		return fmt.Errorf("invalid resource type: %s", o.ResourceType)
-	}
-	return nil
 }
 
 func (o *Operation) GetTypedDocument() *TypedDocument {

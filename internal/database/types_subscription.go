@@ -15,10 +15,6 @@
 package database
 
 import (
-	"fmt"
-
-	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
-
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
 
@@ -28,17 +24,8 @@ type Subscription struct {
 	InternalState SubscriptionProperties `json:"properties"`
 }
 
-var _ ResourceProperties = &Subscription{}
-
 type SubscriptionProperties struct {
 	arm.Subscription `json:",inline"`
-}
-
-func (o *Subscription) ValidateResourceType() error {
-	if o.ResourceType != azcorearm.SubscriptionResourceType.String() {
-		return fmt.Errorf("invalid resource type: %s", o.ResourceType)
-	}
-	return nil
 }
 
 func (o *Subscription) GetTypedDocument() *TypedDocument {

@@ -67,11 +67,6 @@ func (o *Subscription) SetCosmosDocumentData(cosmosUID string) {
 	panic("unsupported")
 }
 
-// GetValidTypes returns the valid resource types for a Subscription.
-func (s Subscription) GetValidTypes() []string {
-	return []string{azcorearm.SubscriptionResourceType.String()}
-}
-
 type SubscriptionProperties struct {
 	TenantId             *string              `json:"tenantId,omitempty"`
 	LocationPlacementId  *string              `json:"locationPlacementId,omitempty"`
