@@ -1,13 +1,13 @@
 acm:
   mce:
     bundle:
-      digest: sha256:bd3cf8f532917c0b7492af3276f36140edd32709c91295992f4c26e8cd4fd0a0
+      digest: sha256:0a4143f5c0ea610a64e6912cf05475449823ac4cc28a4150d5cf5f85d1f115c9
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-211
     version: 2.11.0
   operator:
     bundle:
-      digest: sha256:a4e84e310476fb50044ed56b9560cca774f6c745671e3d446a4e299436b8576e
+      digest: sha256:25f29adbc56e0f65e85a86d376e69ce27a21c60b7e7f3623b79ace8444b7fb1b
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-216
     version: 2.16.0
@@ -319,7 +319,7 @@ global:
 hypershift:
   additionalInstallArg: --enable-cpo-overrides
   image:
-    digest: sha256:35789a5a7582bc9d4a796f247beafa6db1e06b59e8afd6c9f78fa3375ddf97d1
+    digest: sha256:1e735c123c9319eec7e7f19c93f4aaf809f8ed6226823d5d3024b7141cc544da
     registry: quay.io
     repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
   namespace: hypershift
