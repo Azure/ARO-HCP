@@ -198,7 +198,7 @@ func encodeKustoQuery(query string) string {
 func (o Options) Run(ctx context.Context) error {
 	allTestRows := []TestRow{}
 
-	timingInfo, err := gatherTimingInfo(o.TimingInputDir)
+	timingInfo, err := loadAllTestTimingInfo(o.TimingInputDir)
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -261,9 +261,11 @@ func (o Options) Run(ctx context.Context) error {
 	return nil
 }
 
-func gatherTimingInfo(sharedDir string) (map[string]TimingInfo, error) {
+// loadTestTimingMetadata loads test timing metadata from the timing input directory.
+// It returns a map of test identifier to timing information.
+func loadAllTestTimingInfo(timingInputDir string) (map[string]TimingInfo, error) {
 	var allTimingFiles []string
-	err := filepath.Walk(sharedDir, func(path string, info os.FileInfo, err error) error {
+	err := filepath.Walk(timingInputDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
@@ -271,7 +273,6 @@ func gatherTimingInfo(sharedDir string) (map[string]TimingInfo, error) {
 			fileName := filepath.Base(path)
 			if strings.HasSuffix(fileName, ".yaml") && strings.HasPrefix(fileName, "timing-metadata-") {
 				allTimingFiles = append(allTimingFiles, path)
-
 			}
 		}
 		return nil
