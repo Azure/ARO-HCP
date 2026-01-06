@@ -34,11 +34,10 @@ type listActiveOperationsStep struct {
 	stepID StepID
 	key    CosmosCRUDKey
 
-	cosmosContainer    *azcosmos.ContainerClient
 	expectedOperations []*api.Operation
 }
 
-func newListActiveOperationsStep(stepID StepID, cosmosContainer *azcosmos.ContainerClient, stepDir fs.FS) (*listActiveOperationsStep, error) {
+func newListActiveOperationsStep(stepID StepID, stepDir fs.FS) (*listActiveOperationsStep, error) {
 	keyBytes, err := fs.ReadFile(stepDir, "00-key.json")
 	if err != nil {
 		return nil, fmt.Errorf("failed to read key.json: %w", err)
@@ -56,7 +55,6 @@ func newListActiveOperationsStep(stepID StepID, cosmosContainer *azcosmos.Contai
 	return &listActiveOperationsStep{
 		stepID:             stepID,
 		key:                key,
-		cosmosContainer:    cosmosContainer,
 		expectedOperations: expectedResources,
 	}, nil
 }
@@ -67,11 +65,11 @@ func (l *listActiveOperationsStep) StepID() StepID {
 	return l.stepID
 }
 
-func (l *listActiveOperationsStep) RunTest(ctx context.Context, t *testing.T) {
+func (l *listActiveOperationsStep) RunTest(ctx context.Context, t *testing.T, cosmosContainer *azcosmos.ContainerClient) {
 	parentResourceID, err := azcorearm.ParseResourceID(l.key.ParentResourceID)
 	require.NoError(t, err)
 
-	operationsCRUD := database.NewOperationCRUD(l.cosmosContainer, parentResourceID.SubscriptionID)
+	operationsCRUD := database.NewOperationCRUD(cosmosContainer, parentResourceID.SubscriptionID)
 	actualControllersIterator := operationsCRUD.ListActiveOperations(nil)
 	require.NoError(t, err)
 

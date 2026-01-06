@@ -151,7 +151,10 @@ func (sc *SubscriptionCollector) refresh(ctx context.Context, logger *slog.Logge
 func (sc *SubscriptionCollector) updateCache(ctx context.Context) error {
 	subscriptions := make(map[string]subscription)
 
-	iter := sc.dbClient.ListAllSubscriptionDocs()
+	iter, err := sc.dbClient.Subscriptions().List(ctx, nil)
+	if err != nil {
+		return utils.TrackError(err)
+	}
 	for id, sub := range iter.Items(ctx) {
 		subscriptions[id] = subscription{
 			id:         id,
@@ -160,7 +163,7 @@ func (sc *SubscriptionCollector) updateCache(ctx context.Context) error {
 		}
 	}
 	if err := iter.GetError(); err != nil {
-		return err
+		return utils.TrackError(err)
 	}
 
 	sc.mtx.Lock()

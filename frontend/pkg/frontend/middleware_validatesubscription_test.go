@@ -181,6 +181,7 @@ func TestMiddlewareValidateSubscription(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			mockDBClient := mocks.NewMockDBClient(ctrl)
+			mockSubscriptionCRUD := mocks.NewMockSubscriptionCRUD(ctrl)
 
 			var subscription *arm.Subscription
 
@@ -211,7 +212,10 @@ func TestMiddlewareValidateSubscription(t *testing.T) {
 			if tt.requestPath == defaultRequestPath {
 				request.SetPathValue(PathSegmentSubscriptionID, subscriptionId)
 				mockDBClient.EXPECT().
-					GetSubscriptionDoc(gomock.Any(), subscriptionId).
+					Subscriptions().
+					Return(mockSubscriptionCRUD)
+				mockSubscriptionCRUD.EXPECT().
+					Get(gomock.Any(), subscriptionId).
 					Return(getMockDBDoc(subscription)) // defined in frontend_test.go
 			}
 

@@ -31,11 +31,10 @@ type listStep[InternalAPIType any] struct {
 	key         CosmosCRUDKey
 	specializer ResourceCRUDTestSpecializer[InternalAPIType]
 
-	cosmosContainer   *azcosmos.ContainerClient
 	expectedResources []*InternalAPIType
 }
 
-func newListStep[InternalAPIType any](stepID StepID, specializer ResourceCRUDTestSpecializer[InternalAPIType], cosmosContainer *azcosmos.ContainerClient, stepDir fs.FS) (*listStep[InternalAPIType], error) {
+func newListStep[InternalAPIType any](stepID StepID, specializer ResourceCRUDTestSpecializer[InternalAPIType], stepDir fs.FS) (*listStep[InternalAPIType], error) {
 	keyBytes, err := fs.ReadFile(stepDir, "00-key.json")
 	if err != nil {
 		return nil, fmt.Errorf("failed to read key.json: %w", err)
@@ -54,7 +53,6 @@ func newListStep[InternalAPIType any](stepID StepID, specializer ResourceCRUDTes
 		stepID:            stepID,
 		key:               key,
 		specializer:       specializer,
-		cosmosContainer:   cosmosContainer,
 		expectedResources: expectedResources,
 	}, nil
 }
@@ -65,8 +63,8 @@ func (l *listStep[InternalAPIType]) StepID() StepID {
 	return l.stepID
 }
 
-func (l *listStep[InternalAPIType]) RunTest(ctx context.Context, t *testing.T) {
-	controllerCRUDClient := l.specializer.ResourceCRUDFromKey(t, l.cosmosContainer, l.key)
+func (l *listStep[InternalAPIType]) RunTest(ctx context.Context, t *testing.T, cosmosContainer *azcosmos.ContainerClient) {
+	controllerCRUDClient := l.specializer.ResourceCRUDFromKey(t, cosmosContainer, l.key)
 	actualControllersIterator, err := controllerCRUDClient.List(ctx, nil)
 	require.NoError(t, err)
 

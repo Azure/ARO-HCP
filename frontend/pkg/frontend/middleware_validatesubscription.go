@@ -60,7 +60,7 @@ func (h *middlewareValidateSubscriptionState) handleRequest(w http.ResponseWrite
 
 	// TODO: Ideally, we don't want to have to hit the database in this middleware
 	// Currently, we are using the database to retrieve the subscription's tenantID and state
-	subscription, err := h.dbClient.GetSubscriptionDoc(ctx, subscriptionId)
+	subscription, err := h.dbClient.Subscriptions().Get(ctx, subscriptionId)
 	if err != nil {
 		arm.WriteError(
 			w, http.StatusBadRequest,

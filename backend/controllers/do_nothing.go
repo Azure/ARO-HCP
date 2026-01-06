@@ -125,7 +125,10 @@ func (c *doNothingExample) SyncOnce(ctx context.Context, keyObj any) error {
 func (c *doNothingExample) queueAllHCPClusters(ctx context.Context) {
 	logger := utils.LoggerFromContext(ctx)
 
-	allSubscriptions := c.cosmosClient.ListAllSubscriptionDocs()
+	allSubscriptions, err := c.cosmosClient.Subscriptions().List(ctx, nil)
+	if err != nil {
+		logger.Error("unable to list subscriptions", "error", err)
+	}
 	for subscriptionID := range allSubscriptions.Items(ctx) {
 		allHCPClusters, err := c.cosmosClient.HCPClusters(subscriptionID, "").List(ctx, nil)
 		if err != nil {

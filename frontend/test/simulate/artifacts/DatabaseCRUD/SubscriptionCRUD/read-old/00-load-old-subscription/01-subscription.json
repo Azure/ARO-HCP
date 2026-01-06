@@ -1,0 +1,15 @@
+{
+	"_attachments": "attachments/",
+	"_etag": "\"00000000-0000-0000-6f81-5c29040501dc\"",
+	"_rid": "LKgdAIiT-BgDAAAAAAAAAA==",
+	"_self": "dbs/LKgdAA==/colls/LKgdAIiT-Bg=/docs/LKgdAIiT-BgDAAAAAAAAAA==/",
+	"_ts": 1765995430,
+	"id": "b3fa2ee1-d1b3-4eaa-beae-7dd4003b4987",
+	"partitionKey": "b3fa2ee1-d1b3-4eaa-beae-7dd4003b4987",
+	"properties": {
+		"properties": null,
+		"registrationDate": "2025-12-17T18:16:37+00:00",
+		"state": "Registered"
+	},
+	"resourceType": "microsoft.resources/subscriptions"
+}
