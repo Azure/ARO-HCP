@@ -512,7 +512,7 @@ mgmt:
     - '*.hcp.osadev.cloud'
     - '*.hcpsvc.osadev.cloud'
     displayName: Azure Red Hat OpenShift HCP - West US 3 - MGMT - 1
-    key: ARO Hosted Control Planes (EA Subscription 1)
+    key: ARO HCP E2E Management Clusters (EA Subscription)
     providers:
       Microsoft.Compute:
         features:
@@ -776,7 +776,7 @@ svc:
     certificateDomains:
     - '*.hcpsvc.osadev.cloud'
     displayName: Azure Red Hat OpenShift HCP - West US 3 - SVC
-    key: ARO Hosted Control Planes (EA Subscription 1)
+    key: ARO HCP E2E Service Clusters (EA Subscription)
     providers:
       Microsoft.Compute:
         features:
