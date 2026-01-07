@@ -279,7 +279,7 @@ func (f *Frontend) createNodePool(writer http.ResponseWriter, request *http.Requ
 	}
 
 	logger.Info(fmt.Sprintf("creating resource %s", resourceID))
-	if err := checkForProvisioningStateConflict(ctx, f.dbClient, database.OperationRequestUpdate, cluster.ID, cluster.ServiceProviderProperties.ProvisioningState); err != nil {
+	if err := checkForProvisioningStateConflict(ctx, f.dbClient, database.OperationRequestCreate, newInternalNodePool.ID, newInternalNodePool.Properties.ProvisioningState); err != nil {
 		return utils.TrackError(err)
 	}
 	csNodePoolBuilder, err := ocm.BuildCSNodePool(ctx, newInternalNodePool, false)

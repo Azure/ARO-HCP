@@ -272,7 +272,7 @@ func (f *Frontend) createExternalAuth(writer http.ResponseWriter, request *http.
 	if err != nil {
 		return utils.TrackError(err)
 	}
-	if err := checkForProvisioningStateConflict(ctx, f.dbClient, database.OperationRequestUpdate, cluster.ID, cluster.ServiceProviderProperties.ProvisioningState); err != nil {
+	if err := checkForProvisioningStateConflict(ctx, f.dbClient, database.OperationRequestCreate, newInternalExternalAuth.ID, newInternalExternalAuth.Properties.ProvisioningState); err != nil {
 		return utils.TrackError(err)
 	}
 	csExternalAuthBuilder, err := ocm.BuildCSExternalAuth(ctx, newInternalExternalAuth, false)
