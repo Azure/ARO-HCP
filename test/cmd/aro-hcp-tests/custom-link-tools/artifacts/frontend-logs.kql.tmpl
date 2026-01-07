@@ -1,0 +1,4 @@
+database('ServiceLogs').table('frontendLogs') 
+| where cluster == '%s'
+| where container_name == 'aro-hcp-frontend'
+| project timestamp, msg, log

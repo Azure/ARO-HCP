@@ -1,90 +1,38 @@
 <html>
 <head>
-  <title>Debug tools</title>
-  <meta name="description" content="Contains links to job run tools like kusto, etc.">
-  <link rel="stylesheet" type="text/css" href="/static/style.css">
-  <link rel="stylesheet" type="text/css" href="/static/extensions/style.css">
-  <link href="https://fonts.googleapis.com/css?family=Roboto:400,700" rel="stylesheet">
-  <link rel="stylesheet" href="https://code.getmdl.io/1.3.0/material.indigo-pink.min.css">
-  <link rel="stylesheet" type="text/css" href="/static/spyglass/spyglass.css">
-  <style>
-    body {
-        background-color: #000;
-        color: #fff;
-    }
-    table {
-        width: 100%;
-        border-collapse: collapse;
-        margin: 20px 0;
-    }
-    th, td {
-        padding: 12px 15px;
-        text-align: left;
-        border: 1px solid #333;
-    }
-    th {
-        background-color: #222;
-        font-weight: bold;
-    }
-    .status-success {
-        background-color: #1b5e20;
-    }
-    .status-failure {
-        background-color: #b71c1c;
-    }
-    .status-skipped {
-        background-color: #f57f17;
-        color: #000;
-    }
-    .status-pending {
-        background-color: #424242;
-    }
-    a {
-        display: inline-block;
-        padding: 4px 12px;
-        margin: 2px;
-        border: 1px solid #4E9AF1;
-        border-radius: 0.5em;
-        text-decoration: none;
-        color: #FFFFFF !important;
-        text-align: center;
-        transition: all 0.2s;
-        background-color: #4E9AF1;
-    }
-    a:hover {
-        border-color: #FFFFFF;
-    }
-  </style>
+    <title>ARO HCP Debug Readme</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/4.6.1/css/bootstrap.min.css" integrity="sha512-T584yQ/tdRR5QwOpfvDfVQUidzfgc2339Lc8uBDtcp/wYu80d7jwBgAxbyMh0a9YM9F8N3tdErpFI8iaGx6x5g==" crossorigin="anonymous">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-icons/1.5.0/font/bootstrap-icons.min.css">
+    <style>
+        @media (max-width: 992px) {
+            .container {
+                width: 100%;
+                max-width: none;
+            }
+        }
+    </style>
 </head>
 
 <body>
+<p>
+The post-step that produces this file is in openshift/release at this location: .
+</p>
 
-  <table>
-    <thead>
-      <tr>
-        <th>Testname</th>
-        <th>Status</th>
-        <th>ResourceGroupName</th>
-        <th>Links</th>
-      </tr>
-    </thead>
-    <tbody>
-      
-      <tr class="status-tbd">
-        <td>Customer should not be able to deploy cluster with invalid name</td>
-        <td>tbd</td>
-        <td>rg-cluster-name-validation-kplk68</td>
-        <td>
-          
-          <a target="_blank" href="https://dataexplorer.azure.com/clusters/hcp-dev-us.westus3/databases/HostedControlPlaneLogs?query=H4sIAAAAAAAA%2F7ySwY7TTBCE736K1l7sSL8TJ%2F%2FCrhKFA8sBJJCQ2BOXqG3X2kPGM2a6nShSHh6Ns0rCCrggcct0uqzq%2Bmo2o0%2B8BckQQOpJYFEpfUHYmQoffSP07i09%2BUDaGqHvA8Ihmc3og9ITtGohdPADaQuq7CCKQKYe9y3HxyDcILFQ2ohy0EfTgdZUs0JNh%2BxmUSxe5fNFPr97LP5fLm6Xxf3Xm8nqJIGr%2Fyi4Xc6LZXF3EQSIH0KFTRP80NOa0tDkz8Zyxx3yHVtTsxrv8m1vt6%2Fv01VSs3LJgiy9ujudTJVLiyx91stPfyZH2reIoZkOotz1VEL3gKPs6tTp9HzFRXJ2aWpqWV7aPu%2BJBguXUWXqCb2hIjlSbUSNqzTOkgjiwfeHU%2Fwx9%2BC78cGl3%2BFEK1KNoxLW7y%2BjBjqOWy%2BKmirvNHhLvWUHsr6R5DfVeD8KHk77n%2BP62JK6fNmSCCSaWlPasyhox3YAxcvS1T%2BpxIXrr01fIfZO2TiEv4cbWyY9V9jEXyPfyOpIffDfYoDnb%2F4Xc05%2BBAAA%2F%2F%2B46U9JggMAAA%3D%3D" title="Hosted Control Plane Logs">Hosted Control Plane Logs</a>
-          
-          <a target="_blank" href="https://dataexplorer.azure.com/clusters/hcp-dev-us.westus3/databases/ServiceLogs?query=H4sIAAAAAAAA%2F9STPW%2FbMBCGd%2F6KgxdRqGhJbtqkDgT0Y%2B2WTKkLgyIvCmuJFMhzkhb%2B8YUsf6hqmyIGMtSDB5EPec%2B9xzSFj1Kt0Or01jtLaDXUrgqsRoJlIOnp2jQIBWhJSKZBPpllszcin4n8%2FDp7PZ%2BdzbOLm0l82SNo9ZPA2TzP5tn5EfAY3NorXFberVsoIPKVUPU6EHphZYPiXtZGSzLOilVbr95eRD2623Q8wWgogGtJspQBeXSF%2Ft4o%2FOyqEMVTkmWNPNpr9l%2FZBh7u0CN0lQaSTQsl0gOiBT7Qn04PZkdkXHkxljnsbEIFdzJApDxKMrY6sBHbAD5u2z7QKPCRvFTE309%2BI4B%2F%2BSBupPiRiXcLsZgu0q%2Bv4kkCeQLkAnljK167Ko6BbUCbQMYqOi4NbulMatMYgjy%2BZGtrnGUAAHz73%2F3%2B0cqyn5xdJ%2FfQCR0do8NEjQX%2Bh6SHUOvdN%2Bwk9zcmoJwlaSz6ZTdCSZfAFoiT5ymOpuUlHP86PacJsh5xXqOH8vugRBkUY2kKn67gqkVlbo36L976swLbnRZ%2BWXyp2eze9FgKTsvtqdRgl%2BzPAAAA%2F%2F8JoF3orQUAAA%3D%3D" title="Service Logs">Service Logs</a>
-          
-        </td>
-      </tr>
-      
-    </tbody>
-  </table>
+<p>
+The code for the command that produces this file is in <a href="https://github.com/Azure/ARO-HCP/tree/main/test/cmd/aro-hcp-tests">https://github.com/Azure/ARO-HCP/tree/main/test/cmd/aro-hcp-tests</a>.
+</p>
+
+<p>
+PRs welcome.
+</p>
+
+<p>
+When you get to the data explorer, you should be looking at logs for a particular job (maybe a particular component or a resourcegroup).
+If you look to the left, you can see some schema hints.
+In theory, the "log" column has the raw message.
+As of the time of writing, I cannot figure out why the contest appears to be missing from the backend logs.
+</p>
 
 </body>
 </html>
+

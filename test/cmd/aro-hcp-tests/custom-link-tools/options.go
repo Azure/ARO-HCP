@@ -36,12 +36,21 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/test/util/timing"
+	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/pipeline"
 )
 
 //go:embed artifacts/*.tmpl
 var templatesFS embed.FS
 
 var endGracePeriodDuration = 45 * time.Minute
+
+var (
+	serviceClusterStepID = pipeline.Identifier{
+		ServiceGroup:  "Microsoft.Azure.ARO.HCP.Service.Infra",
+		ResourceGroup: "service",
+		Step:          "cluster",
+	}
+)
 
 func mustReadArtifact(name string) []byte {
 	ret, err := templatesFS.ReadFile("artifacts/" + name)
@@ -82,6 +91,7 @@ type ValidatedOptions struct {
 type completedOptions struct {
 	TimingInputDir string
 	OutputDir      string
+	Steps          []pipeline.NodeInfo
 }
 
 type Options struct {
@@ -111,8 +121,19 @@ func (o *RawOptions) Validate() (*ValidatedOptions, error) {
 }
 
 func (o *ValidatedOptions) Complete(logger logr.Logger) (*Options, error) {
+	// we consume steps.yaml (output of templatize and stored for us by the visualization) to determine the cluster name
+	stepsYamlBytes, err := os.ReadFile(path.Join(o.TimingInputDir, "steps.yaml"))
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
+
+	var steps []pipeline.NodeInfo
+	if err := yaml.Unmarshal(stepsYamlBytes, &steps); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal timing input file: %w", err)
+	}
 	return &Options{
 		completedOptions: &completedOptions{
+			Steps:          steps,
 			OutputDir:      o.OutputDir,
 			TimingInputDir: o.TimingInputDir,
 		},
@@ -136,6 +157,7 @@ type QueryInfo struct {
 	ResourceGroupName string
 	StartTime         string
 	EndTime           string
+	ClusterName       string
 	Database          string
 }
 
@@ -143,6 +165,12 @@ type TimingInfo struct {
 	StartTime          string
 	EndTime            string
 	ResourceGroupNames []string
+}
+
+type QueryTemplate struct {
+	TemplateName   string
+	TemplatePath   string
+	OutputFileName string
 }
 
 func createQueryURL(templatePath string, info QueryInfo) string {
@@ -228,37 +256,63 @@ func (o Options) Run(ctx context.Context) error {
 		}
 	}
 
-	customLinkToolsTemplate, err := template.New("custom-link-tools").Parse(string(mustReadArtifact("custom-link-tools.tmpl")))
-	if err != nil {
-		return utils.TrackError(err)
-	}
-	// Create template data with allLinks as Links
-	templateData := struct {
+	renderTemplate(QueryTemplate{
+		TemplateName:   "test-table",
+		TemplatePath:   "test-table.html.tmpl",
+		OutputFileName: path.Join(o.OutputDir, "test-table.html"),
+	}, struct {
 		Elements []TestRow
 	}{
 		Elements: allTestRows,
-	}
-	outBytes := &bytes.Buffer{}
-	if err := customLinkToolsTemplate.Execute(outBytes, templateData); err != nil {
-		return utils.TrackError(err)
-	}
-	if err := os.WriteFile(path.Join(o.OutputDir, "custom-link-tools.html"), outBytes.Bytes(), 0644); err != nil {
-		return utils.TrackError(err)
-	}
+	})
 
-	readmeTemplate, err := template.New("readme").Parse(string(mustReadArtifact("readme.tmpl")))
+	renderTemplate(QueryTemplate{
+		TemplateName:   "readme",
+		TemplatePath:   "readme.html.tmpl",
+		OutputFileName: path.Join(o.OutputDir, "readme.html"),
+	}, nil)
+
+	serviceLogLinks, err := getServiceLogLinks(o.Steps)
 	if err != nil {
 		return utils.TrackError(err)
 	}
-	outBytes = &bytes.Buffer{}
-	if err := readmeTemplate.Execute(outBytes, nil); err != nil {
-		return utils.TrackError(err)
-	}
-	if err := os.WriteFile(path.Join(o.OutputDir, "readme.html"), outBytes.Bytes(), 0644); err != nil {
-		return utils.TrackError(err)
+
+	pageLinks := []LinkDetails{
+		{
+			DisplayName: "Test Table",
+			URL:         "test-table.html",
+		},
+		{
+			DisplayName: "Readme",
+			URL:         "readme.html",
+		},
 	}
 
+	allLinks := append(pageLinks, serviceLogLinks...)
+
+	renderTemplate(QueryTemplate{
+		TemplateName:   "custom-link-tools",
+		TemplatePath:   "custom-link-tools.html.tmpl",
+		OutputFileName: path.Join(o.OutputDir, "custom-link-tools.html"),
+	}, struct {
+		Links []LinkDetails
+	}{
+		Links: allLinks,
+	})
+
 	return nil
+}
+
+func renderTemplate(queryTemplate QueryTemplate, templateData interface{}) error {
+	template, err := template.New(queryTemplate.TemplateName).Parse(string(mustReadArtifact(queryTemplate.TemplatePath)))
+	if err != nil {
+		return utils.TrackError(err)
+	}
+	outBytes := &bytes.Buffer{}
+	if err := template.Execute(outBytes, templateData); err != nil {
+		return utils.TrackError(err)
+	}
+	return os.WriteFile(path.Join(queryTemplate.OutputFileName), outBytes.Bytes(), 0644)
 }
 
 // loadTestTimingMetadata loads test timing metadata from the timing input directory.
@@ -319,4 +373,64 @@ func loadAllTestTimingInfo(timingInputDir string) (map[string]TimingInfo, error)
 	}
 
 	return allTimingInfo, nil
+}
+
+func getServiceLogLinks(steps []pipeline.NodeInfo) ([]LinkDetails, error) {
+	allLinks := []LinkDetails{}
+	allClusterNames := []string{}
+	for _, step := range steps {
+		// we're looking for the service cluster's step to make a query for backend and frontend
+		// forming like this so that we can easily add more steps (like the management cluster) that we want queries for
+		if step.Identifier == serviceClusterStepID {
+			if step.Details != nil && step.Details.ARM != nil {
+				for _, operation := range step.Details.ARM.Operations {
+					allClusterNames = append(allClusterNames, locateAllServiceClusters(operation)...)
+				}
+			}
+		}
+	}
+	if len(allClusterNames) != 1 {
+		return nil, fmt.Errorf("Expecting only one service cluster, found %d: %s", len(allClusterNames), strings.Join(allClusterNames, ", "))
+	}
+
+	for _, clusterName := range allClusterNames {
+		allLinks = append(allLinks, createLinkForTest("Backend Logs", "backend-logs.kql.tmpl", QueryInfo{
+			ResourceGroupName: clusterName,
+			Database:          "ServiceLogs",
+			ClusterName:       clusterName,
+		}))
+	}
+	for _, clusterName := range allClusterNames {
+		allLinks = append(allLinks, createLinkForTest("Frontend Logs", "frontend-logs.kql.tmpl", QueryInfo{
+			ResourceGroupName: clusterName,
+			Database:          "ServiceLogs",
+			ClusterName:       clusterName,
+		}))
+	}
+	for _, clusterName := range allClusterNames {
+		allLinks = append(allLinks, createLinkForTest("Clusters Service Logs", "clusters-service-logs.kql.tmpl", QueryInfo{
+			ResourceGroupName: clusterName,
+			Database:          "ServiceLogs",
+			ClusterName:       clusterName,
+		}))
+	}
+
+	return allLinks, nil
+}
+
+func locateAllServiceClusters(operation pipeline.Operation) []string {
+	allClusterNames := []string{}
+	for _, currChild := range operation.Children {
+		currClusterNames := locateAllServiceClusters(currChild)
+		if len(currClusterNames) > 0 {
+			allClusterNames = append(allClusterNames, currClusterNames...)
+		}
+	}
+	if operation.Resource == nil {
+		return allClusterNames
+	}
+	if operation.OperationType == "Create" && operation.Resource.ResourceType == "Microsoft.ContainerService/managedClusters" {
+		allClusterNames = append(allClusterNames, operation.Resource.Name)
+	}
+	return allClusterNames
 }

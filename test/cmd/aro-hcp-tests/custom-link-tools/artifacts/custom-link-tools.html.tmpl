@@ -1,0 +1,43 @@
+<html>
+<head>
+  <title>Debug tools</title>
+  <meta name="description" content="Contains links to job run tools like kusto, etc.">
+  <link rel="stylesheet" type="text/css" href="/static/style.css">
+  <link rel="stylesheet" type="text/css" href="/static/extensions/style.css">
+  <link href="https://fonts.googleapis.com/css?family=Roboto:400,700" rel="stylesheet">
+  <link rel="stylesheet" href="https://code.getmdl.io/1.3.0/material.indigo-pink.min.css">
+  <link rel="stylesheet" type="text/css" href="/static/spyglass/spyglass.css">
+  <style>
+    a {
+        display: inline-block;
+        padding: 5px 20px 5px 20px;
+        margin: 10px;
+        border: 2px solid #4E9AF1;
+        border-radius: 1em;
+        text-decoration: none;
+        color: #FFFFFF !important;
+        text-align: center;
+        transition: all 0.2s;
+        background-color: #4E9AF1
+    }
+
+    a:hover {
+        border-color: #FFFFFF;
+    }
+  </style>
+</head>
+
+<body>
+
+  <ul>
+    {{range $index, $element := .Links}}
+        <li>
+          <a target="_blank" href="{{ $element.URL}}" title="{{ $element.DisplayName}}">
+              {{ $element.DisplayName}}
+          </a>
+        </li>
+    {{end}}
+  </ul>
+
+</body>
+</html>

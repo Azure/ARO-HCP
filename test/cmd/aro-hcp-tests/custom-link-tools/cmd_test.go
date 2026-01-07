@@ -22,6 +22,7 @@ import (
 	"github.com/go-logr/logr/testr"
 
 	"github.com/Azure/ARO-HCP/test/util/testutil"
+	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/pipeline"
 )
 
 func TestGeneratedHTML(t *testing.T) {
@@ -30,7 +31,30 @@ func TestGeneratedHTML(t *testing.T) {
 	opts := Options{
 		completedOptions: &completedOptions{
 			TimingInputDir: "../testdata/output",
-			OutputDir:      tmpdir,
+			Steps: []pipeline.NodeInfo{
+				{
+					Identifier: pipeline.Identifier{
+						ServiceGroup:  "Microsoft.Azure.ARO.HCP.Service.Infra",
+						ResourceGroup: "service",
+						Step:          "cluster",
+					},
+					Details: &pipeline.ExecutionDetails{
+						ARM: &pipeline.ARMExecutionDetails{
+							Operations: []pipeline.Operation{
+								{
+									OperationType: "Create",
+									Resource: &pipeline.Resource{
+										ResourceType:  "Microsoft.ContainerService/managedClusters",
+										Name:          "hcp-underlay-prow-usw3j688-svc-1",
+										ResourceGroup: "hcp-underlay-prow-usw3j688-svc-1",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			OutputDir: tmpdir,
 		},
 	}
 	err := opts.Run(ctx)
@@ -38,4 +62,6 @@ func TestGeneratedHTML(t *testing.T) {
 		t.Fatalf("failed to run custom link tools: %v", err)
 	}
 	testutil.CompareFileWithFixture(t, filepath.Join(tmpdir, "custom-link-tools.html"))
+	testutil.CompareFileWithFixture(t, filepath.Join(tmpdir, "test-table.html"))
+	testutil.CompareFileWithFixture(t, filepath.Join(tmpdir, "readme.html"))
 }

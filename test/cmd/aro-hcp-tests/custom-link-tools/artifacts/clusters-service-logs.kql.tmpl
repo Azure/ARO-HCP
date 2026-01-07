@@ -1,0 +1,4 @@
+database('ServiceLogs').table('containerLogs')
+| where cluster == '%s'
+| where container_name == 'clusters-service-server'
+| project timestamp, log
