@@ -83,6 +83,11 @@ func NewOperationDocument(
 		"locations", arm.GetAzureLocation(),
 		api.OperationStatusResourceTypeName,
 		uuid.New().String())))
+	doc.ResourceID = api.Must(azcorearm.ParseResourceID(path.Join("/",
+		"subscriptions", doc.ExternalID.SubscriptionID,
+		"providers", api.ProviderNamespace,
+		api.OperationStatusResourceTypeName, doc.OperationID.Name,
+	)))
 
 	if correlationData != nil {
 		doc.ClientRequestID = correlationData.ClientRequestID

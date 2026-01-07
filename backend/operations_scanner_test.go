@@ -84,6 +84,7 @@ func TestSetDeleteOperationAsCompleted(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var request *http.Request
+			arm.SetAzureLocation("globals-are-evil")
 
 			ctx := context.Background()
 			ctrl := gomock.NewController(t)

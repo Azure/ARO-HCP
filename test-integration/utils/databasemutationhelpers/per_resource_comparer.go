@@ -16,8 +16,11 @@ package databasemutationhelpers
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 
+	"github.com/Azure/ARO-HCP/internal/api"
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
 
@@ -44,6 +47,22 @@ func ResourceInstanceEquals(t *testing.T, expected, actual any) (string, bool) {
 		unstructured.RemoveNestedField(currMap, "_etag")
 		unstructured.RemoveNestedField(currMap, "_attachments")
 		unstructured.RemoveNestedField(currMap, "_ts")
+
+		resourceType, ok := currMap["resourceType"].(string)
+		if !ok || len(resourceType) == 0 {
+			// this happens when not working directly against cosmos data
+			if resourceIDString, ok := currMap["resourceId"].(string); ok { // usually where we hold it
+				resourceID, err := azcorearm.ParseResourceID(resourceIDString)
+				if err == nil {
+					resourceType = resourceID.ResourceType.String()
+				}
+			} else {
+				// otherwise start checking. operations are common
+				if _, ok := currMap["operationId"].(string); ok {
+					resourceType = api.OperationStatusResourceType.String()
+				}
+			}
+		}
 
 		// this loops handles the cosmosObj possibility and the internalObj possibility
 		for _, possiblePrepend := range []string{"", "properties"} {
@@ -74,6 +93,12 @@ func ResourceInstanceEquals(t *testing.T, expected, actual any) (string, bool) {
 				if err := unstructured.SetNestedSlice(currMap, actualConditions, prepend(possiblePrepend, "internalState", "status", "conditions")...); err != nil {
 					panic(err)
 				}
+			}
+
+			switch {
+			case strings.EqualFold(resourceType, api.OperationStatusResourceType.String()):
+				// this field is UUID generated, so usually cannot be compared for operations, but CAN be compared for everything else.
+				unstructured.RemoveNestedField(currMap, prepend(possiblePrepend, "resourceId")...)
 			}
 		}
 	}

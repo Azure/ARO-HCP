@@ -1,6 +1,6 @@
 {
 	"cosmosUID": "37332594-70b3-4796-9af6-301a5d47d1e6",
-	"resourceId": null,
+	"resourceId": "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/providers/Microsoft.RedHatOpenShift/hcpOperationStatuses/37332594-70b3-4796-9af6-301a5d47d1e6",
 	"tenantId": "00000000-0000-0000-0000-000000000000",
 	"request": "Create",
 	"externalId": "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/immutability/nodePools/immutability-np",

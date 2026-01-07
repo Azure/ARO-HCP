@@ -79,5 +79,14 @@ func CosmosToInternalOperation(cosmosObj *Operation) (*api.Operation, error) {
 		}
 	}
 
+	// old records don't serialize this, but we want all readers to be able to depend on it. We can derive it from the operationID
+	if internalObj.ResourceID == nil {
+		internalObj.ResourceID = api.Must(azcorearm.ParseResourceID(path.Join("/",
+			"subscriptions", internalObj.ExternalID.SubscriptionID,
+			"providers", api.ProviderNamespace,
+			api.OperationStatusResourceTypeName, internalObj.OperationID.Name,
+		)))
+	}
+
 	return internalObj, nil
 }
