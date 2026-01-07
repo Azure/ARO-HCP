@@ -49,6 +49,7 @@ func ResourceInstanceEquals(t *testing.T, expected, actual any) (string, bool) {
 		unstructured.RemoveNestedField(currMap, "_etag")
 		unstructured.RemoveNestedField(currMap, "_attachments")
 		unstructured.RemoveNestedField(currMap, "_ts")
+		unstructured.RemoveNestedField(currMap, "endTime") // for arm.Operation
 
 		resourceType, ok := currMap["resourceType"].(string)
 		if !ok || len(resourceType) == 0 {
