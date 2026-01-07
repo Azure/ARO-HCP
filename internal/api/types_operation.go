@@ -84,13 +84,14 @@ func (o *Operation) ComputeLogicalResourceID() *azcorearm.ResourceID {
 			path.Join(
 				"/subscriptions",
 				o.OperationID.SubscriptionID,
+				"providers",
 				OperationStatusResourceType.String(),
 				o.OperationID.Name,
 			))))
 }
 
 func (o *Operation) GetCosmosData() CosmosData {
-	cosmosUID := Must(ResourceIDToCosmosID(o.ComputeLogicalResourceID()))
+	cosmosUID := Must(ResourceIDToCosmosID(o.ResourceID))
 	if len(o.CosmosUID) != 0 {
 		// if this is an item that is being serialized for the first time, then we can force it to use the new scheme.
 		// if it already thinks it knows its CosmosID, then we must accept what it thinks because this could be a case
