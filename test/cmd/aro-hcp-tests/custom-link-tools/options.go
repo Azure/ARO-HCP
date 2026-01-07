@@ -256,7 +256,7 @@ func (o Options) Run(ctx context.Context) error {
 		}
 	}
 
-	renderTemplate(QueryTemplate{
+	err = renderTemplate(QueryTemplate{
 		TemplateName:   "test-table",
 		TemplatePath:   "test-table.html.tmpl",
 		OutputFileName: path.Join(o.OutputDir, "test-table.html"),
@@ -266,11 +266,19 @@ func (o Options) Run(ctx context.Context) error {
 		Elements: allTestRows,
 	})
 
-	renderTemplate(QueryTemplate{
+	if err != nil {
+		return utils.TrackError(err)
+	}
+
+	err = renderTemplate(QueryTemplate{
 		TemplateName:   "readme",
 		TemplatePath:   "readme.html.tmpl",
 		OutputFileName: path.Join(o.OutputDir, "readme.html"),
 	}, nil)
+
+	if err != nil {
+		return utils.TrackError(err)
+	}
 
 	serviceLogLinks, err := getServiceLogLinks(o.Steps)
 	if err != nil {
@@ -290,7 +298,7 @@ func (o Options) Run(ctx context.Context) error {
 
 	allLinks := append(pageLinks, serviceLogLinks...)
 
-	renderTemplate(QueryTemplate{
+	err = renderTemplate(QueryTemplate{
 		TemplateName:   "custom-link-tools",
 		TemplatePath:   "custom-link-tools.html.tmpl",
 		OutputFileName: path.Join(o.OutputDir, "custom-link-tools.html"),
@@ -299,7 +307,9 @@ func (o Options) Run(ctx context.Context) error {
 	}{
 		Links: allLinks,
 	})
-
+	if err != nil {
+		return utils.TrackError(err)
+	}
 	return nil
 }
 
@@ -390,7 +400,7 @@ func getServiceLogLinks(steps []pipeline.NodeInfo) ([]LinkDetails, error) {
 		}
 	}
 	if len(allClusterNames) != 1 {
-		return nil, fmt.Errorf("Expecting only one service cluster, found %d: %s", len(allClusterNames), strings.Join(allClusterNames, ", "))
+		return nil, fmt.Errorf("expecting only one service cluster, found %d: %s", len(allClusterNames), strings.Join(allClusterNames, ", "))
 	}
 
 	for _, clusterName := range allClusterNames {
