@@ -38,9 +38,9 @@ var _ = Describe("Customer", func() {
 		labels.Positive,
 		func(ctx context.Context) {
 			const (
-				customerClusterName             = "hcp-cluster-np-32gib"
-				customerNodePoolName            = "nodepool-32GiB"
-				customerNodeOsDiskSizeGiB int32 = 32 // Min is 1 for 2024-06-10-preview, 64 for newer API versions
+				customerClusterName             = "hcp-cluster-np-128"
+				customerNodePoolName            = "nodepool-128GiB"
+				customerNodeOsDiskSizeGiB int32 = 128
 				customerNodeReplicas      int32 = 2
 			)
 			tc := framework.NewTestContext()
@@ -53,7 +53,7 @@ var _ = Describe("Customer", func() {
 			}
 
 			By("creating a resource group")
-			resourceGroup, err := tc.NewResourceGroup(ctx, "clusternp32gib", tc.Location())
+			resourceGroup, err := tc.NewResourceGroup(ctx, "clusternp128", tc.Location())
 			Expect(err).NotTo(HaveOccurred())
 
 			By("creating the infrastructure, cluster and node pool from a single bicep template")
@@ -95,7 +95,7 @@ var _ = Describe("Customer", func() {
 			err = verifiers.VerifyHCPCluster(ctx, adminRESTConfig)
 			Expect(err).NotTo(HaveOccurred())
 
-			By("verifying the node pool is created with 32 GiB osDisk (64 GiB minimum for newer API versions)")
+			By("verifying the node pool is created and has the correct osDisk size")
 			created, err := framework.GetNodePool(ctx,
 				tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient(),
 				*resourceGroup.Name,

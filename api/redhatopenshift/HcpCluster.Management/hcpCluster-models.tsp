@@ -6,7 +6,6 @@ import "@azure-tools/typespec-azure-resource-manager";
 import "@azure-tools/typespec-client-generator-core";
 
 using TypeSpec.Rest;
-using TypeSpec.Versioning;
 using Azure.Core;
 using Azure.ResourceManager;
 using Azure.ClientGenerator.Core;
@@ -669,15 +668,7 @@ model NodePoolPlatformProfile {
 
 /** The settings and configuration options for OSDisk */
 model OsDiskProfile {
-  /** The OS disk size in GiB (minValue updated to 64 in 2025-12-23-preview) */
-  @removed(Versions.v2025_12_23_preview)
-  @visibility(Lifecycle.Read, Lifecycle.Create)
-  @minValue(1)
-  @renamedFrom(Versions.v2025_12_23_preview, "sizeGiB")
-  oldSizeGiB?: int32 = 64;
-
   /** The OS disk size in GiB */
-  @added(Versions.v2025_12_23_preview)
   @visibility(Lifecycle.Read, Lifecycle.Create)
   @minValue(64)
   sizeGiB?: int32 = 64;

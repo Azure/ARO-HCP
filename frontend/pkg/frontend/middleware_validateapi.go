@@ -57,7 +57,6 @@ func (h *middlewareValidatedAPIVersion) handleRequest(w http.ResponseWriter, r *
 		logger = logger.With("api_version", apiVersion)
 		ctx = utils.ContextWithLogger(ctx, logger)
 		ctx = ContextWithVersion(ctx, version)
-		ctx = utils.ContextWithAPIVersionString(ctx, apiVersion)
 		r = r.WithContext(ctx)
 
 		span := trace.SpanFromContext(ctx)
