@@ -52,7 +52,11 @@ func UpdateOperationStatus(ctx context.Context, cosmosClient DBClient, operation
 		if err != nil {
 			return utils.TrackError(err)
 		}
-		if operation.OperationID == nil || curr.ServiceProviderProperties.ActiveOperationID != operation.OperationID.Name {
+		if operation.OperationID == nil {
+			return utils.TrackError(fmt.Errorf("missing operation ID"))
+		}
+		oldCosmosOperationMatches := curr.ServiceProviderProperties.ActiveOperationID == operation.OperationID.Name
+		if !oldCosmosOperationMatches {
 			return utils.TrackError(fmt.Errorf("precondition failed"))
 		}
 		curr.ServiceProviderProperties.ProvisioningState = opStatus
@@ -70,7 +74,11 @@ func UpdateOperationStatus(ctx context.Context, cosmosClient DBClient, operation
 		if err != nil {
 			return utils.TrackError(err)
 		}
-		if operation.OperationID == nil || curr.ServiceProviderProperties.ActiveOperationID != operation.OperationID.Name {
+		if operation.OperationID == nil {
+			return utils.TrackError(fmt.Errorf("missing operation ID"))
+		}
+		oldCosmosOperationMatches := curr.ServiceProviderProperties.ActiveOperationID == operation.OperationID.Name
+		if !oldCosmosOperationMatches {
 			return utils.TrackError(fmt.Errorf("precondition failed"))
 		}
 		curr.Properties.ProvisioningState = opStatus
@@ -88,7 +96,11 @@ func UpdateOperationStatus(ctx context.Context, cosmosClient DBClient, operation
 		if err != nil {
 			return utils.TrackError(err)
 		}
-		if operation.OperationID == nil || curr.ServiceProviderProperties.ActiveOperationID != operation.OperationID.Name {
+		if operation.OperationID == nil {
+			return utils.TrackError(fmt.Errorf("missing operation ID"))
+		}
+		oldCosmosOperationMatches := curr.ServiceProviderProperties.ActiveOperationID == operation.OperationID.Name
+		if !oldCosmosOperationMatches {
 			return utils.TrackError(fmt.Errorf("precondition failed"))
 		}
 		curr.Properties.ProvisioningState = opStatus
