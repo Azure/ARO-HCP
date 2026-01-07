@@ -604,7 +604,12 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 		case strings.ToLower(api.ClusterResourceType.String()):
 			// API version is already validated by this point.
 			versionedInterface, _ := f.apiRegistry.Lookup(preflightResource.APIVersion)
-			versionedCluster := versionedInterface.NewHCPOpenShiftCluster(nil)
+			versionedCluster := versionedInterface.NewHCPOpenShiftCluster(&api.HCPOpenShiftCluster{})
+			if err := versionedCluster.SetDefaultValues(versionedCluster); err != nil {
+				// Preflight is best effort: failure to parse a resource is not a validation failure.
+				logger.Warn("failed to set defaults", "error", err, "type", preflightResource.Type, "name", preflightResource.Name)
+				continue
+			}
 
 			err = preflightResource.Convert(versionedCluster)
 			if err != nil {
@@ -621,7 +626,12 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 		case strings.ToLower(api.NodePoolResourceType.String()):
 			// API version is already validated by this point.
 			versionedInterface, _ := f.apiRegistry.Lookup(preflightResource.APIVersion)
-			versionedNodePool := versionedInterface.NewHCPOpenShiftClusterNodePool(nil)
+			versionedNodePool := versionedInterface.NewHCPOpenShiftClusterNodePool(&api.HCPOpenShiftClusterNodePool{})
+			if err := versionedNodePool.SetDefaultValues(versionedNodePool); err != nil {
+				// Preflight is best effort: failure to parse a resource is not a validation failure.
+				logger.Warn("failed to set defaults", "error", err, "type", preflightResource.Type, "name", preflightResource.Name)
+				continue
+			}
 
 			err = preflightResource.Convert(versionedNodePool)
 			if err != nil {
@@ -638,7 +648,12 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 		case strings.ToLower(api.ExternalAuthResourceType.String()):
 			// API version is already validated by this point.
 			versionedInterface, _ := f.apiRegistry.Lookup(preflightResource.APIVersion)
-			versionedExternalAuth := versionedInterface.NewHCPOpenShiftClusterExternalAuth(nil)
+			versionedExternalAuth := versionedInterface.NewHCPOpenShiftClusterExternalAuth(&api.HCPOpenShiftClusterExternalAuth{})
+			if err := versionedExternalAuth.SetDefaultValues(versionedExternalAuth); err != nil {
+				// Preflight is best effort: failure to parse a resource is not a validation failure.
+				logger.Warn("failed to set defaults", "error", err, "type", preflightResource.Type, "name", preflightResource.Name)
+				continue
+			}
 
 			err = preflightResource.Convert(versionedExternalAuth)
 			if err != nil {
