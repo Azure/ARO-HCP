@@ -19,13 +19,15 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
 
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+
+	"github.com/Azure/ARO-HCP/internal/api"
 )
 
 func ResourceInstanceEquals(t *testing.T, expected, actual any) (string, bool) {

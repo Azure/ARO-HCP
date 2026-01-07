@@ -706,6 +706,7 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 
 func (f *Frontend) OperationStatus(writer http.ResponseWriter, request *http.Request) error {
 	ctx := request.Context()
+	logger := utils.LoggerFromContext(ctx)
 
 	resourceID, err := utils.ResourceIDFromContext(ctx)
 	if err != nil {
@@ -713,6 +714,10 @@ func (f *Frontend) OperationStatus(writer http.ResponseWriter, request *http.Req
 	}
 
 	operation, err := f.dbClient.Operations(resourceID.SubscriptionID).GetByID(ctx, resourceID.Name)
+	if database.IsResponseError(err, http.StatusNotFound) {
+		// try using the new storage ID
+		operation, err = f.dbClient.Operations(resourceID.SubscriptionID).GetByID(ctx, api.Must(api.ResourceIDToCosmosID(resourceID)))
+	}
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -720,6 +725,7 @@ func (f *Frontend) OperationStatus(writer http.ResponseWriter, request *http.Req
 	// Validate the identity retrieving the operation result is the
 	// same identity that triggered the operation. Return 404 if not.
 	if !f.OperationIsVisible(request, operation) {
+		logger.Warn("operation result not visible to requester")
 		writer.WriteHeader(http.StatusNotFound)
 		return nil
 	}
