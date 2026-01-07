@@ -11,7 +11,7 @@
         "internalId": "/api/clusters_mgmt/v1/clusters/w9xhwccbjp/node_pools/k9xp9ghzh2",
         "internalState": {
             "internalAPI": {
-                "location": "globals-are-evil",
+                "location": "fake-location",
                 "properties": {
                     "autoRepair": true,
                     "autoScaling": {

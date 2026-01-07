@@ -9,7 +9,7 @@
       }
     }
   },
-  "location": "globals-are-evil",
+  "location": "fake-location",
   "name": "noop-update",
   "properties": {
     "api": {

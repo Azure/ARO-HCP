@@ -62,7 +62,7 @@
 						"channelGroup": "stable"
 					}
 				},
-				"location": "globals-are-evil",
+				"location": "fake-location",
 				"serviceProviderProperties": {
 					"api": {},
 					"clusterServiceID": "",
