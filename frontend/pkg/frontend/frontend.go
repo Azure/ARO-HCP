@@ -326,7 +326,7 @@ func (f *Frontend) ArmResourceActionRequestAdminCredential(writer http.ResponseW
 
 	transaction := f.dbClient.NewTransaction(clusterResourceID.SubscriptionID)
 
-	operationDoc := database.NewOperationDocument(
+	operationDoc := database.NewOperation(
 		operationRequest,
 		clusterResourceID,
 		csCredentialClusterServiceID,
@@ -412,7 +412,7 @@ func (f *Frontend) ArmResourceActionRevokeCredentials(writer http.ResponseWriter
 		return utils.TrackError(err)
 	}
 
-	operationDoc := database.NewOperationDocument(
+	operationDoc := database.NewOperation(
 		operationRequest,
 		clusterResourceID,
 		cluster.ServiceProviderProperties.ClusterServiceID,

@@ -72,7 +72,7 @@ func (l *listActiveOperationsStep) RunTest(ctx context.Context, t *testing.T, st
 	actualControllersIterator := operationsCRUD.ListActiveOperations(nil)
 	require.NoError(t, err)
 
-	actualControllers := []*database.OperationDocument{}
+	actualControllers := []*api.Operation{}
 	for _, actual := range actualControllersIterator.Items(ctx) {
 		actualControllers = append(actualControllers, actual)
 	}

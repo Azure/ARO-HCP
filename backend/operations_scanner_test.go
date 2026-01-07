@@ -71,7 +71,7 @@ func TestSetDeleteOperationAsCompleted(t *testing.T) {
 		},
 	}
 
-	// Placeholder InternalID for NewOperationDocument
+	// Placeholder InternalID for NewOperation
 	internalID, err := api.NewInternalID("/api/aro_hcp/v1alpha1/clusters/placeholder")
 	require.NoError(t, err)
 
@@ -113,7 +113,7 @@ func TestSetDeleteOperationAsCompleted(t *testing.T) {
 				newTimestamp:       func() time.Time { return time.Now().UTC() },
 			}
 
-			operationDoc := database.NewOperationDocument(
+			operationDoc := database.NewOperation(
 				database.OperationRequestDelete,
 				resourceID,
 				internalID,
@@ -268,7 +268,7 @@ func TestUpdateOperationStatus(t *testing.T) {
 		},
 	}
 
-	// Placeholder InternalID for NewOperationDocument
+	// Placeholder InternalID for NewOperation
 	internalID, err := api.NewInternalID("/api/aro_hcp/v1alpha1/clusters/placeholder")
 	require.NoError(t, err)
 
@@ -300,7 +300,7 @@ func TestUpdateOperationStatus(t *testing.T) {
 				newTimestamp:       func() time.Time { return time.Now().UTC() },
 			}
 
-			operationDoc := database.NewOperationDocument(
+			operationDoc := database.NewOperation(
 				database.OperationRequestCreate,
 				resourceID,
 				internalID,
@@ -569,7 +569,7 @@ func TestConvertClusterStatus(t *testing.T) {
 			ctx := context.Background()
 
 			op := operation{
-				doc: &database.OperationDocument{
+				doc: &api.Operation{
 					InternalID: tt.internalId,
 					Status:     tt.currentProvisioningState,
 				},

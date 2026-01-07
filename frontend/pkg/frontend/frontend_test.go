@@ -673,19 +673,19 @@ func TestRequestAdminCredential(t *testing.T) {
 					},
 					nil)
 			if test.clusterProvisioningState.IsTerminal() {
-				revokeOperations := make(map[string]*database.OperationDocument)
+				revokeOperations := make(map[string]*api.Operation)
 				if !test.revokeCredentialsStatus.IsTerminal() {
-					revokeOperations[uuid.New().String()] = &database.OperationDocument{
+					revokeOperations[uuid.New().String()] = &api.Operation{
 						Request:    database.OperationRequestRevokeCredentials,
 						ExternalID: clusterResourceID,
 						InternalID: clusterInternalID,
 						Status:     test.revokeCredentialsStatus,
 					}
 				}
-				mockOperationIter := mocks.NewMockDBClientIterator[database.OperationDocument](ctrl)
+				mockOperationIter := mocks.NewMockDBClientIterator[api.Operation](ctrl)
 				mockOperationIter.EXPECT().
 					Items(gomock.Any()).
-					Return(database.DBClientIteratorItem[database.OperationDocument](maps.All(revokeOperations)))
+					Return(database.DBClientIteratorItem[api.Operation](maps.All(revokeOperations)))
 
 				// ArmResourceActionRequestAdminCredential
 				mockDBClient.EXPECT().
@@ -844,19 +844,19 @@ func TestRevokeCredentials(t *testing.T) {
 					},
 					nil)
 			if test.clusterProvisioningState.IsTerminal() {
-				revokeOperations := make(map[string]*database.OperationDocument)
+				revokeOperations := make(map[string]*api.Operation)
 				if !test.revokeCredentialsStatus.IsTerminal() {
-					revokeOperations[uuid.New().String()] = &database.OperationDocument{
+					revokeOperations[uuid.New().String()] = &api.Operation{
 						Request:    database.OperationRequestRevokeCredentials,
 						ExternalID: clusterResourceID,
 						InternalID: clusterInternalID,
 						Status:     test.revokeCredentialsStatus,
 					}
 				}
-				mockOperationIter := mocks.NewMockDBClientIterator[database.OperationDocument](ctrl)
+				mockOperationIter := mocks.NewMockDBClientIterator[api.Operation](ctrl)
 				mockOperationIter.EXPECT().
 					Items(gomock.Any()).
-					Return(database.DBClientIteratorItem[database.OperationDocument](maps.All(revokeOperations)))
+					Return(database.DBClientIteratorItem[api.Operation](maps.All(revokeOperations)))
 
 				// ArmResourceActionRequestAdminCredential
 				mockDBClient.EXPECT().
@@ -878,7 +878,7 @@ func TestRevokeCredentials(t *testing.T) {
 						Return(nil)
 
 					requestOperationID := string(arm.ProvisioningStateProvisioning)
-					requestOperations := map[string]*database.OperationDocument{
+					requestOperations := map[string]*api.Operation{
 						requestOperationID: {
 							Request:    database.OperationRequestRequestCredential,
 							ExternalID: clusterResourceID,
@@ -886,10 +886,10 @@ func TestRevokeCredentials(t *testing.T) {
 							Status:     arm.ProvisioningStateProvisioning,
 						},
 					}
-					mockOperationIter = mocks.NewMockDBClientIterator[database.OperationDocument](ctrl)
+					mockOperationIter = mocks.NewMockDBClientIterator[api.Operation](ctrl)
 					mockOperationIter.EXPECT().
 						Items(gomock.Any()).
-						Return(database.DBClientIteratorItem[database.OperationDocument](maps.All(requestOperations)))
+						Return(database.DBClientIteratorItem[api.Operation](maps.All(requestOperations)))
 					mockOperationIter.EXPECT().
 						GetError().
 						Return(nil)
