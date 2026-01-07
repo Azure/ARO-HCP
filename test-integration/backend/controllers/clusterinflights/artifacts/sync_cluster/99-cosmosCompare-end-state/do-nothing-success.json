@@ -1,0 +1,22 @@
+{
+	"partitionKey": "4fa75980-6637-4157-9726-84d878a62e83",
+	"resourceType": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/hcpOpenShiftControllers",
+	"properties": {
+		"resourceId": "/subscriptions/4fa75980-6637-4157-9726-84d878a62e83/resourceGroups/shrillEffectiveness/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/lavishUnhappiness/hcpOpenShiftControllers/ClusterInflights",
+		"internalState": {
+			"externalId": "/subscriptions/4fa75980-6637-4157-9726-84d878a62e83/resourceGroups/shrillEffectiveness/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/lavishUnhappiness",
+			"controllerName": "ClusterInflights",
+			"status": {
+				"conditions": [
+					{
+						"type": "Degraded",
+						"status": "False",
+						"lastTransitionTime": "2025-12-16T14:22:55.397414122-05:00",
+						"reason": "NoErrors",
+						"message": "As expected."
+					}
+				]
+			}
+		}
+	}
+}
