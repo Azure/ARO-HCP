@@ -275,9 +275,10 @@ func Run(cmd *cobra.Command, args []string) error {
 
 	group.Go(func() error {
 		var (
-			startedLeading      atomic.Bool
-			operationsScanner   = NewOperationsScanner(dbClient, ocmConnection)
-			doNothingController = controllers.NewDoNothingExampleController(dbClient)
+			startedLeading             atomic.Bool
+			operationsScanner          = NewOperationsScanner(dbClient, ocmConnection)
+			doNothingController        = controllers.NewDoNothingExampleController(dbClient)
+			clusterInflightsController = controllers.NewClusterInflightsController(dbClient)
 		)
 
 		le, err := leaderelection.NewLeaderElector(leaderelection.LeaderElectionConfig{
@@ -291,6 +292,7 @@ func Run(cmd *cobra.Command, args []string) error {
 					startedLeading.Store(true)
 					go operationsScanner.Run(ctx, logger)
 					go doNothingController.Run(ctx, 20)
+					go clusterInflightsController.Run(ctx, 20)
 				},
 				OnStoppedLeading: func() {
 					operationsScanner.leaderGauge.Set(0)
