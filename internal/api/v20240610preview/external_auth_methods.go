@@ -69,7 +69,9 @@ func (h *ExternalAuth) GetVersion() api.Version {
 	return versionedInterface
 }
 
-func (h *ExternalAuth) Normalize(out *api.HCPOpenShiftClusterExternalAuth) {
+func (h *ExternalAuth) ConvertToInternal() *api.HCPOpenShiftClusterExternalAuth {
+	out := &api.HCPOpenShiftClusterExternalAuth{}
+
 	if h.ID != nil {
 		out.ID = api.Must(azcorearm.ParseResourceID(*h.ID))
 	}
@@ -125,6 +127,8 @@ func (h *ExternalAuth) Normalize(out *api.HCPOpenShiftClusterExternalAuth) {
 			normalizeExternalAuthClientProfile(h.Properties.Clients[i], &out.Properties.Clients[i])
 		}
 	}
+
+	return out
 }
 
 func normalizeExternalAuthClientProfile(p *generated.ExternalAuthClientProfile, out *api.ExternalAuthClientProfile) {

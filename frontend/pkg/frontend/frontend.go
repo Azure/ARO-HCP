@@ -603,8 +603,7 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 				continue
 			}
 
-			newInternalCluster := &api.HCPOpenShiftCluster{}
-			versionedCluster.Normalize(newInternalCluster)
+			newInternalCluster := versionedCluster.ConvertToInternal()
 			validationErrs := validation.ValidateClusterCreate(ctx, newInternalCluster, api.Must(versionedInterface.ValidationPathRewriter(&api.HCPOpenShiftCluster{})))
 			validationErrs = append(validationErrs, admission.AdmitClusterOnCreate(ctx, newInternalCluster, subscription)...)
 			cloudError = arm.CloudErrorFromFieldErrors(validationErrs)
@@ -622,8 +621,7 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 			}
 
 			// Perform static validation as if for a node pool creation request.
-			newInternalNodePool := &api.HCPOpenShiftClusterNodePool{}
-			versionedNodePool.Normalize(newInternalNodePool)
+			newInternalNodePool := versionedNodePool.ConvertToInternal()
 			validationErrs := validation.ValidateNodePoolCreate(ctx, newInternalNodePool)
 			cloudError = arm.CloudErrorFromFieldErrors(validationErrs)
 
@@ -640,8 +638,7 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 			}
 
 			// Perform static validation as if for an external auth creation request.
-			newInternalAuth := &api.HCPOpenShiftClusterExternalAuth{}
-			versionedExternalAuth.Normalize(newInternalAuth)
+			newInternalAuth := versionedExternalAuth.ConvertToInternal()
 			validationErrs := validation.ValidateExternalAuthCreate(ctx, newInternalAuth)
 			cloudError = arm.CloudErrorFromFieldErrors(validationErrs)
 

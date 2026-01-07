@@ -88,14 +88,13 @@ var (
 )
 
 type VersionedResource interface {
-	GetVersion() Version
 }
 
-type VersionedCreatableResource[T any] interface {
+type VersionedCreatableResource[InternalAPIType any] interface {
 	VersionedResource
 	NewExternal() any
 	SetDefaultValues(any) error
-	Normalize(*T)
+	ConvertToInternal() *InternalAPIType
 }
 
 type VersionedHCPOpenShiftCluster VersionedCreatableResource[HCPOpenShiftCluster]

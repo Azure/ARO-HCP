@@ -236,8 +236,7 @@ func decodeDesiredClusterCreate(ctx context.Context) (*api.HCPOpenShiftCluster, 
 		return nil, utils.TrackError(err)
 	}
 
-	newInternalCluster := &api.HCPOpenShiftCluster{}
-	externalClusterFromRequest.Normalize(newInternalCluster)
+	newInternalCluster := externalClusterFromRequest.ConvertToInternal()
 	// TrackedResource info doesn't appear to come from the external resource information
 	conversion.CopyReadOnlyTrackedResourceValues(&newInternalCluster.TrackedResource, ptr.To(arm.NewTrackedResource(resourceID)))
 
@@ -413,8 +412,7 @@ func decodeDesiredClusterReplace(ctx context.Context, oldInternalCluster *api.HC
 		return nil, utils.TrackError(err)
 	}
 
-	newInternalCluster := &api.HCPOpenShiftCluster{}
-	externalClusterFromRequest.Normalize(newInternalCluster)
+	newInternalCluster := externalClusterFromRequest.ConvertToInternal()
 
 	// values a user doesn't have to provide, but are not static defaults (set dynamically during create).  Set these from old value
 	if len(newInternalCluster.CustomerProperties.Version.ID) == 0 {
@@ -490,8 +488,7 @@ func decodeDesiredClusterPatch(ctx context.Context, oldInternalCluster *api.HCPO
 	if err := api.ApplyRequestBody(http.MethodPatch, body, newExternalCluster); err != nil {
 		return nil, utils.TrackError(err)
 	}
-	newInternalCluster := &api.HCPOpenShiftCluster{}
-	newExternalCluster.Normalize(newInternalCluster)
+	newInternalCluster := newExternalCluster.ConvertToInternal()
 
 	// ServiceProviderProperties contains two types of information
 	// 1. values that a user cannot change because the external type does not expose the information.

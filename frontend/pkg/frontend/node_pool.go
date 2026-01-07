@@ -230,8 +230,7 @@ func decodeDesiredNodePoolCreate(ctx context.Context) (*api.HCPOpenShiftClusterN
 		return nil, utils.TrackError(err)
 	}
 
-	newInternalNodePool := &api.HCPOpenShiftClusterNodePool{}
-	externalNodePoolFromRequest.Normalize(newInternalNodePool)
+	newInternalNodePool := externalNodePoolFromRequest.ConvertToInternal()
 	// TrackedResource info doesn't appear to come from the external resource information
 	conversion.CopyReadOnlyTrackedResourceValues(&newInternalNodePool.TrackedResource, ptr.To(arm.NewTrackedResource(resourceID)))
 
@@ -391,8 +390,7 @@ func decodeDesiredNodePoolReplace(ctx context.Context, oldInternalNodePool *api.
 		return nil, utils.TrackError(err)
 	}
 
-	newInternalNodePool := &api.HCPOpenShiftClusterNodePool{}
-	externalNodePoolFromRequest.Normalize(newInternalNodePool)
+	newInternalNodePool := externalNodePoolFromRequest.ConvertToInternal()
 
 	// values a user doesn't have to provide, but are not static defaults (set dynamically during create).  Set these from old value
 	if len(newInternalNodePool.Properties.Version.ID) == 0 {
@@ -460,8 +458,7 @@ func decodeDesiredNodePoolPatch(ctx context.Context, oldInternalNodePool *api.HC
 	if err := api.ApplyRequestBody(http.MethodPatch, body, newExternalNodePool); err != nil {
 		return nil, utils.TrackError(err)
 	}
-	newInternalNodePool := &api.HCPOpenShiftClusterNodePool{}
-	newExternalNodePool.Normalize(newInternalNodePool)
+	newInternalNodePool := newExternalNodePool.ConvertToInternal()
 
 	conversion.CopyReadOnlyNodePoolValues(newInternalNodePool, oldInternalNodePool)
 	newInternalNodePool.SystemData = systemData
