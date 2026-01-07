@@ -50,7 +50,6 @@ import (
 	ocmsdk "github.com/openshift-online/ocm-sdk-go"
 
 	"github.com/Azure/ARO-HCP/backend/controllers"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/tracing"
 	"github.com/Azure/ARO-HCP/internal/version"
@@ -131,13 +130,12 @@ func Run(cmd *cobra.Command, args []string) error {
 	if len(argLocation) == 0 {
 		return errors.New("location is required")
 	}
-	arm.SetAzureLocation(argLocation)
 
 	logger.Info(fmt.Sprintf(
 		"%s (%s) started in %s",
 		cmd.Short,
 		version.CommitSHA,
-		arm.GetAzureLocation()))
+		argLocation))
 
 	// Use pod name as the lock identity.
 	hostname, err := os.Hostname()
@@ -168,7 +166,7 @@ func Run(cmd *cobra.Command, args []string) error {
 	otelShutdown, err := tracing.ConfigureOpenTelemetryTracer(
 		ctx,
 		logger,
-		semconv.CloudRegion(arm.GetAzureLocation()),
+		semconv.CloudRegion(argLocation),
 		semconv.ServiceNameKey.String("ARO HCP Backend"),
 		semconv.ServiceVersionKey.String(version.CommitSHA),
 	)
@@ -276,7 +274,7 @@ func Run(cmd *cobra.Command, args []string) error {
 	group.Go(func() error {
 		var (
 			startedLeading      atomic.Bool
-			operationsScanner   = NewOperationsScanner(dbClient, ocmConnection)
+			operationsScanner   = NewOperationsScanner(dbClient, ocmConnection, argLocation)
 			doNothingController = controllers.NewDoNothingExampleController(dbClient)
 		)
 

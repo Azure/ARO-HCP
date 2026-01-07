@@ -67,7 +67,6 @@ func NewFrontendFromTestingEnv(ctx context.Context, t *testing.T) (*frontend.Fro
 	if err != nil {
 		return nil, nil, err
 	}
-	arm.SetAzureLocation("globals-are-evil")
 
 	logger := utils.DefaultLogger()
 
@@ -91,7 +90,7 @@ func NewFrontendFromTestingEnv(ctx context.Context, t *testing.T) (*frontend.Fro
 
 	metricsRegistry := prometheus.NewRegistry()
 
-	aroHCPFrontend := frontend.NewFrontend(logger, listener, metricsListener, metricsRegistry, cosmosTestEnv.DBClient, clusterServiceClient, noOpAuditClient)
+	aroHCPFrontend := frontend.NewFrontend(logger, listener, metricsListener, metricsRegistry, cosmosTestEnv.DBClient, clusterServiceClient, noOpAuditClient, "fake-location")
 	testInfo := &FrontendIntegrationTestInfo{
 		CosmosIntegrationTestInfo: cosmosTestEnv,
 		ArtifactsDir:              cosmosTestEnv.ArtifactsDir,

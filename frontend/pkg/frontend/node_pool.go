@@ -121,7 +121,7 @@ func (f *Frontend) ArmResourceListNodePools(writer http.ResponseWriter, request 
 	csIterator := f.clusterServiceClient.ListNodePools(internalCluster.ServiceProviderProperties.ClusterServiceID, query)
 	for csNodePool := range csIterator.Items(ctx) {
 		if internalNodePool, ok := nodePoolsByClusterServiceID[csNodePool.ID()]; ok {
-			internalNodePool, err = mergeToInternalNodePool(csNodePool, internalNodePool)
+			internalNodePool, err = mergeToInternalNodePool(csNodePool, internalNodePool, f.azureLocation)
 			if err != nil {
 				return utils.TrackError(err)
 			}
@@ -204,7 +204,7 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 	}
 }
 
-func decodeDesiredNodePoolCreate(ctx context.Context) (*api.HCPOpenShiftClusterNodePool, error) {
+func decodeDesiredNodePoolCreate(ctx context.Context, azureLocation string) (*api.HCPOpenShiftClusterNodePool, error) {
 	versionedInterface, err := VersionFromContext(ctx)
 	if err != nil {
 		return nil, utils.TrackError(err)
@@ -233,7 +233,7 @@ func decodeDesiredNodePoolCreate(ctx context.Context) (*api.HCPOpenShiftClusterN
 	newInternalNodePool := &api.HCPOpenShiftClusterNodePool{}
 	externalNodePoolFromRequest.Normalize(newInternalNodePool)
 	// TrackedResource info doesn't appear to come from the external resource information
-	conversion.CopyReadOnlyTrackedResourceValues(&newInternalNodePool.TrackedResource, ptr.To(arm.NewTrackedResource(resourceID)))
+	conversion.CopyReadOnlyTrackedResourceValues(&newInternalNodePool.TrackedResource, ptr.To(arm.NewTrackedResource(resourceID, azureLocation)))
 
 	// set fields that were not included during the conversion, because the user does not provide them or because the
 	// data is determined live on read.
@@ -259,7 +259,7 @@ func (f *Frontend) createNodePool(writer http.ResponseWriter, request *http.Requ
 		return utils.TrackError(err)
 	}
 
-	newInternalNodePool, err := decodeDesiredNodePoolCreate(ctx)
+	newInternalNodePool, err := decodeDesiredNodePoolCreate(ctx, f.azureLocation)
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -301,6 +301,7 @@ func (f *Frontend) createNodePool(writer http.ResponseWriter, request *http.Requ
 		database.OperationRequestCreate,
 		newInternalNodePool.ID,
 		newInternalNodePool.ServiceProviderProperties.ClusterServiceID,
+		f.azureLocation,
 		request.Header.Get(arm.HeaderNameHomeTenantID),
 		request.Header.Get(arm.HeaderNameClientObjectID),
 		request.Header.Get(arm.HeaderNameAsyncNotificationURI),
@@ -340,7 +341,7 @@ func (f *Frontend) createNodePool(writer http.ResponseWriter, request *http.Requ
 	}
 
 	// TODO this overwrite will transformed into a "set" function as we transition fields to ownership in cosmos
-	resultingInternalNodePool, err = mergeToInternalNodePool(csNodePool, resultingInternalNodePool)
+	resultingInternalNodePool, err = mergeToInternalNodePool(csNodePool, resultingInternalNodePool, f.azureLocation)
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -539,6 +540,7 @@ func (f *Frontend) updateNodePoolInCosmos(ctx context.Context, writer http.Respo
 		database.OperationRequestUpdate,
 		newInternalNodePool.ID,
 		newInternalNodePool.ServiceProviderProperties.ClusterServiceID,
+		f.azureLocation,
 		request.Header.Get(arm.HeaderNameHomeTenantID),
 		request.Header.Get(arm.HeaderNameClientObjectID),
 		request.Header.Get(arm.HeaderNameAsyncNotificationURI),
@@ -578,7 +580,7 @@ func (f *Frontend) updateNodePoolInCosmos(ctx context.Context, writer http.Respo
 		return fmt.Errorf("unexpected type %T", resultingUncastInternalNodePool)
 	}
 	// TODO this overwrite will transformed into a "set" function as we transition fields to ownership in cosmos
-	resultingInternalNodePool, err = mergeToInternalNodePool(csNodePool, resultingInternalNodePool)
+	resultingInternalNodePool, err = mergeToInternalNodePool(csNodePool, resultingInternalNodePool, f.azureLocation)
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -675,6 +677,7 @@ func (f *Frontend) addDeleteNodePoolToTransaction(ctx context.Context, writer ht
 		database.OperationRequestDelete,
 		nodePool.ID,
 		nodePool.ServiceProviderProperties.ClusterServiceID,
+		f.azureLocation,
 		"",
 		"",
 		"",
@@ -704,8 +707,9 @@ func (f *Frontend) addDeleteNodePoolToTransaction(ctx context.Context, writer ht
 }
 
 // the necessary conversions for the API version of the request.
-func mergeToInternalNodePool(clusterServiceNode *arohcpv1alpha1.NodePool, internalNodePool *api.HCPOpenShiftClusterNodePool) (*api.HCPOpenShiftClusterNodePool, error) {
-	mergedOldClusterServiceNodePool := ocm.ConvertCStoNodePool(internalNodePool.ID, clusterServiceNode)
+// TODO remove azureLocation once we have migrated all records to store the azureLocation
+func mergeToInternalNodePool(clusterServiceNode *arohcpv1alpha1.NodePool, internalNodePool *api.HCPOpenShiftClusterNodePool, azureLocation string) (*api.HCPOpenShiftClusterNodePool, error) {
+	mergedOldClusterServiceNodePool := ocm.ConvertCStoNodePool(internalNodePool.ID, azureLocation, clusterServiceNode)
 
 	// this does not use conversion.CopyReadOnly* because some ServiceProvider properties come from cluster-service-only or live reads
 	mergedOldClusterServiceNodePool.SystemData = internalNodePool.SystemData
@@ -759,7 +763,7 @@ func (f *Frontend) readInternalNodePoolFromClusterService(ctx context.Context, o
 	}
 
 	// TODO this overwrite will transformed into a "set" function as we transition fields to ownership in cosmos
-	oldInternalNodePool, err = mergeToInternalNodePool(oldClusterServiceNodePool, oldInternalNodePool)
+	oldInternalNodePool, err = mergeToInternalNodePool(oldClusterServiceNodePool, oldInternalNodePool, f.azureLocation)
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}

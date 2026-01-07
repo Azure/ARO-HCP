@@ -60,7 +60,7 @@ func NewOperationDocument(
 	request OperationRequest,
 	externalID *azcorearm.ResourceID,
 	internalID ocm.InternalID,
-	tenantID, clientID, notificationURI string,
+	location, tenantID, clientID, notificationURI string,
 	correlationData *arm.CorrelationData,
 ) *OperationDocument {
 
@@ -80,7 +80,7 @@ func NewOperationDocument(
 	doc.OperationID = api.Must(azcorearm.ParseResourceID(path.Join("/",
 		"subscriptions", doc.ExternalID.SubscriptionID,
 		"providers", api.ProviderNamespace,
-		"locations", arm.GetAzureLocation(),
+		"locations", location,
 		api.OperationStatusResourceTypeName,
 		uuid.New().String())))
 	doc.ResourceID = api.Must(azcorearm.ParseResourceID(path.Join("/",
