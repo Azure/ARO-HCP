@@ -236,6 +236,7 @@ defaults:
     svcWorkspaceName: 'services-{{ .ctx.region }}'
     hcpWorkspaceName: 'hcps-{{ .ctx.region }}'
     alertRuleOwningTeamTag: ""
+    alertsEnabled: false
     icm:
       manageConnection: true
       connectionName: ""
@@ -1101,6 +1102,10 @@ clouds:
             cosmosDB:
               private: false
               zoneRedundantMode: 'Disabled'
+        regions:
+          westus3:
+            monitoring:
+              alertsEnabled: true
       cspr:
         # this is the cluster service PR check and full cycle test environment
         defaults:
@@ -1145,6 +1150,10 @@ clouds:
             cosmosDB:
               private: false
               zoneRedundantMode: 'Disabled'
+        regions:
+          westus3:
+            monitoring:
+              alertsEnabled: true
       pers:
         # Regional overrides
         regions:
@@ -1175,6 +1184,9 @@ clouds:
                   vmSize: 'Standard_D2s_v3'
                 systemAgentPool:
                   zones: '1'
+          westus3:
+            monitoring:
+              alertsEnabled: true
         # this is the personal DEV environment
         defaults:
           # Service Key Vault
@@ -1271,6 +1283,10 @@ clouds:
                 maxCount: 3
                 vmSize: 'Standard_D16s_v3'
                 osDiskSizeGB: 128
+        regions:
+          westus3:
+            monitoring:
+              alertsEnabled: true
       swft:
         # this is the personal SWIFT DEV environment
         defaults:
@@ -1402,3 +1418,7 @@ clouds:
                 vmSize: Standard_D4ds_v5
             jaeger:
               deploy: true
+        regions:
+          westus3:
+            monitoring:
+              alertsEnabled: true

@@ -2422,6 +2422,10 @@
         "alertRuleOwningTeamTag": {
           "type": "string"
         },
+        "alertsEnabled": {
+          "type": "boolean",
+          "description": "Whether ICM alerting is enabled for this region. When false, action groups will be disabled."
+        },
         "icm": {
           "type": "object",
           "properties": {
