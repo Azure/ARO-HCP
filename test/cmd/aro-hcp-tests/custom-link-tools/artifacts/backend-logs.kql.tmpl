@@ -1,4 +1,4 @@
 database('ServiceLogs').table('backendLogs') 
-| where cluster == '%s'
+| where cluster == '{{.ClusterName}}'
 | where container_name == 'aro-hcp-backend'
 | project timestamp, msg, log
