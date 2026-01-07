@@ -2387,6 +2387,10 @@
         "alertRuleOwningTeamTag": {
           "type": "string"
         },
+        "alertingEnabledRegions": {
+          "type": "string",
+          "description": "Comma-separated list of Azure regions where ICM alerting is enabled. Regions not in this list will have action groups disabled. Example: 'westus3,eastus,westeurope'"
+        },
         "icm": {
           "type": "object",
           "properties": {
