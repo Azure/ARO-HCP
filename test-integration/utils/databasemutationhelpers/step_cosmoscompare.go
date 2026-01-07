@@ -91,7 +91,7 @@ func (l *cosmosCompare) RunTest(ctx context.Context, t *testing.T, stepInput Ste
 			for _, diff := range currDiffs {
 				t.Log(diff)
 			}
-			t.Errorf("did not find: %v", currExpected)
+			t.Errorf("did not find:\n%v", stringifyResource(currExpected))
 		}
 	}
 }
