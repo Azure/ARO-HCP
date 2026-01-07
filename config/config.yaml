@@ -1409,6 +1409,8 @@ clouds:
               exporter: "otlp"
           # MC
           mgmt:
+            subscription:
+              key: ARO HCP E2E Management Clusters (EA Subscription)
             rg: "hcp-underlay-{{ .ctx.environment }}-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}"
             aks:
               name: "{{ .ctx.environment }}-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}"
@@ -1427,6 +1429,8 @@ clouds:
             applyKubeletFixes: false
           # SVC
           svc:
+            subscription:
+              key: ARO HCP E2E Service Clusters (EA Subscription)
             rg: "hcp-underlay-{{ .ctx.environment }}-{{ .ctx.regionShort }}-svc"
             aks:
               name: "{{ .ctx.environment }}-{{ .ctx.regionShort }}-svc"
