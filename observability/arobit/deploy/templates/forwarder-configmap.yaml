@@ -290,7 +290,7 @@ data:
     [OUTPUT]
         Name  forward
         Alias forward.mdsd.other
-        Match other.logs
+        Match mdsd-other.logs
         Host  127.0.0.1
         Port  5001
         Tag   akskubesystem
@@ -306,7 +306,7 @@ data:
     [OUTPUT]
         Name  forward
         Alias forward.mdsd.ocm
-        Match ocm.logs
+        Match mdsd-ocm.logs
         Host  127.0.0.1
         Port  5002
         Tag   akskubesystem
