@@ -25,6 +25,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 // Comprehensive tests for ValidateNodePoolCreate
@@ -38,6 +39,7 @@ func TestValidateNodePoolCreate(t *testing.T) {
 
 	tests := []struct {
 		name         string
+		apiVersion   string
 		nodePool     *api.HCPOpenShiftClusterNodePool
 		expectErrors []expectedError
 	}{
@@ -237,6 +239,50 @@ func TestValidateNodePoolCreate(t *testing.T) {
 			expectErrors: []expectedError{
 				{message: "must be greater than or equal to 64", fieldPath: "properties.platform.osDisk.sizeGiB"},
 			},
+		},
+		{
+			name:       "API version 2024-06-10-preview: osDisk.sizeGiB=1 should be valid - create",
+			apiVersion: APIVersion20240610Preview,
+			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.Platform.OSDisk.SizeGiB = ptr.To[int32](1)
+				return np
+			}(),
+			expectErrors: []expectedError{},
+		},
+		{
+			name:       "API version 2024-06-10-preview: osDisk.sizeGiB=0 should be invalid - create",
+			apiVersion: APIVersion20240610Preview,
+			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.Platform.OSDisk.SizeGiB = ptr.To[int32](0)
+				return np
+			}(),
+			expectErrors: []expectedError{
+				{message: "must be greater than or equal to 1", fieldPath: "properties.platform.osDisk.sizeGiB"},
+			},
+		},
+		{
+			name:       "API version 2025-12-23-preview: osDisk.sizeGiB=63 should be invalid - create",
+			apiVersion: "2025-12-23-preview",
+			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.Platform.OSDisk.SizeGiB = ptr.To[int32](63)
+				return np
+			}(),
+			expectErrors: []expectedError{
+				{message: "must be greater than or equal to 64", fieldPath: "properties.platform.osDisk.sizeGiB"},
+			},
+		},
+		{
+			name:       "API version 2025-12-23-preview: osDisk.sizeGiB=64 should be valid - create",
+			apiVersion: "2025-12-23-preview",
+			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.Platform.OSDisk.SizeGiB = ptr.To[int32](64)
+				return np
+			}(),
+			expectErrors: []expectedError{},
 		},
 		{
 			name: "invalid disk storage account type - create",
@@ -627,7 +673,12 @@ func TestValidateNodePoolCreate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			errs := ValidateNodePoolCreate(ctx, tt.nodePool)
+			testCtx := ctx
+			if tt.apiVersion != "" {
+				testCtx = utils.ContextWithAPIVersionString(testCtx, tt.apiVersion)
+			}
+
+			errs := ValidateNodePoolCreate(testCtx, tt.nodePool)
 
 			if len(tt.expectErrors) == 0 {
 				if len(errs) != 0 {
