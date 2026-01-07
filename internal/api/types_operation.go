@@ -73,7 +73,7 @@ type Operation struct {
 	Error *arm.CloudErrorBody `json:"error,omitempty"`
 
 	// CosmosUID is used to keep track of whether we have transitioned to a new cosmosUID scheme for this item
-	CosmosUID string `json:"-"`
+	CosmosUID string `json:"cosmosUID"`
 }
 
 var _ CosmosPersistable = &Operation{}
