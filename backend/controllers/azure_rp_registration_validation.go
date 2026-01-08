@@ -93,12 +93,12 @@ func (v *AzureRpRegistrationValidation) Validate(ctx context.Context, cluster *a
 	return nil
 }
 
-func (v *AzureRpRegistrationValidation) getResourceProvidersClient(subscriptionId string,
-	tenantId string, clientOptions *arm.ClientOptions,
+func (v *AzureRpRegistrationValidation) getResourceProvidersClient(subscriptionID string,
+	tenantID string, clientOptions *arm.ClientOptions,
 ) (azureclient.ResourceProvidersClient, error) {
-	credentials, err := v.fpaTokenCredRetriever.RetrieveCredential(tenantId)
+	credential, err := v.fpaTokenCredRetriever.RetrieveCredential(tenantID)
 	if err != nil {
 		return nil, err
 	}
-	return azureclient.NewResourceProvidersClient(v.logger, subscriptionId, credentials, clientOptions)
+	return v.resourceProvidersClientRetriever.Retrieve(subscriptionID, credential, clientOptions)
 }
