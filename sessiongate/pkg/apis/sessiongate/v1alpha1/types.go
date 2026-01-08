@@ -152,6 +152,10 @@ type SessionStatus struct {
 	// +optional
 	Endpoint string `json:"endpoint,omitempty"`
 
+	// authorizationPolicyRef references the AuthorizationPolicy resource
+	// +optional
+	AuthorizationPolicyRef string `json:"authorizationPolicyRef,omitempty"`
+
 	// credentialsSecretRef references the Secret containing the session credentials
 	// +optional
 	CredentialsSecretRef string `json:"credentialsSecretRef,omitempty"`

@@ -37,6 +37,7 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 
+	certificatesv1alpha1 "github.com/openshift/hypershift/api/certificates/v1alpha1"
 	hypershiftv1beta1 "github.com/openshift/hypershift/api/hypershift/v1beta1"
 	certificatesv1alpha1apply "github.com/openshift/hypershift/client/applyconfiguration/certificates/v1alpha1"
 	hypershiftclientset "github.com/openshift/hypershift/client/clientset/clientset"
@@ -239,6 +240,10 @@ func (d *hostedClusterProvider) deleteCSR(ctx context.Context, namespace string,
 	return errors.Join(errs...)
 }
 
+func (d *hostedClusterProvider) GetCSRApproval(ctx context.Context, namespace, name string) (*certificatesv1alpha1.CertificateSigningRequestApproval, error) {
+	return d.certificatesClient.CertificateSigningRequestApprovals(namespace).Get(ctx, name, metav1.GetOptions{})
+}
+
 func calculateCSRDigest(privateKey *rsa.PrivateKey, subject pkix.Name) string {
 	h := sha256.New()
 	h.Write(x509.MarshalPKCS1PrivateKey(privateKey))
@@ -288,4 +293,97 @@ func NewAKSHCPProviderBuilder(azureCredentials azcore.TokenCredential) HCPProvid
 		}
 		return NewHCPProvider(hypershiftClientset, certificatesClientset, kubeClient), nil
 	}
+}
+
+// ManagementClusterProvider provides access to management cluster resources
+type ManagementClusterQuerier interface {
+	GetHostedCluster(ctx context.Context, namespace string) (*hypershiftv1beta1.HostedCluster, error)
+	GetCSR(ctx context.Context, name string) (*certificatesv1.CertificateSigningRequest, error)
+	GetCSRApproval(ctx context.Context, namespace, name string) (*certificatesv1alpha1.CertificateSigningRequestApproval, error)
+}
+
+type ManagementClusterProviderBuilder func(ctx context.Context, resourceId string) (*ManagementClusterProvider, error)
+
+func NewAKSManagermentClusterBuilder(azureCredentials azcore.TokenCredential) ManagementClusterProviderBuilder {
+	// todo: informers and instance caching
+	return func(ctx context.Context, resourceId string) (*ManagementClusterProvider, error) {
+		kubeConfig, err := GetAKSRESTConfig(ctx, resourceId, azureCredentials)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get AKS REST config: %w", err)
+		}
+		kubeClient, err := kubernetes.NewForConfig(kubeConfig)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create kubernetes client: %w", err)
+		}
+		hypershiftClientset, err := hypershiftclientset.NewForConfig(kubeConfig)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create hypershift clientset: %w", err)
+		}
+		certificatesClientset, err := certificatesclientv1alpha1.NewForConfig(kubeConfig)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create certificates clientset: %w", err)
+		}
+		return &ManagementClusterProvider{
+			HypershiftClient:   hypershiftClientset,
+			CertificatesClient: certificatesClientset,
+			KubeClient:         kubeClient,
+		}, nil
+	}
+}
+
+// managementClusterProvider implements ManagementClusterProvider
+type ManagementClusterProvider struct {
+	HypershiftClient   hypershiftclientset.Interface
+	CertificatesClient certificatesclientv1alpha1.CertificatesV1alpha1Interface
+	KubeClient         kubernetes.Interface
+}
+
+func (d *ManagementClusterProvider) getHostedControlPlane(ctx context.Context, namespace string) (*hypershiftv1beta1.HostedControlPlane, error) {
+	hcpList, err := d.HypershiftClient.HypershiftV1beta1().HostedControlPlanes(namespace).List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list HostedControlPlanes: %w", err)
+	}
+	if len(hcpList.Items) == 0 {
+		return nil, apierrors.NewNotFound(
+			schema.GroupResource{Group: "hypershift.openshift.io", Resource: "hostedcontrolplanes"},
+			namespace,
+		)
+	}
+	if len(hcpList.Items) > 1 {
+		return nil, fmt.Errorf("multiple HostedControlPlane found for namespace %s", namespace)
+	}
+	hcp := hcpList.Items[0]
+	return &hcp, nil
+}
+
+// GetHostedCluster finds the HostedCluster CR for a given HostedControlPlane namespace.
+func (d *ManagementClusterProvider) GetHostedCluster(ctx context.Context, namespace string) (*hypershiftv1beta1.HostedCluster, error) {
+	hcp, err := d.getHostedControlPlane(ctx, namespace)
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return nil, err
+		}
+		return nil, fmt.Errorf("failed to get HostedControlPlane: %w", err)
+	}
+	hcRef := hcp.Annotations[AnnotationClusterReference]
+	hcNamespace, hcName, err := parseClusterRef(hcRef)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse cluster reference: %w", err)
+	}
+	hc, err := d.HypershiftClient.HypershiftV1beta1().HostedClusters(hcNamespace).Get(ctx, hcName, metav1.GetOptions{})
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return nil, err
+		}
+		return nil, fmt.Errorf("failed to get HostedCluster: %w", err)
+	}
+	return hc, nil
+}
+
+func (d *ManagementClusterProvider) GetCSR(ctx context.Context, name string) (*certificatesv1.CertificateSigningRequest, error) {
+	return d.KubeClient.CertificatesV1().CertificateSigningRequests().Get(ctx, name, metav1.GetOptions{})
+}
+
+func (d *ManagementClusterProvider) GetCSRApproval(ctx context.Context, hostedControlPlaneNamespace, name string) (*certificatesv1alpha1.CertificateSigningRequestApproval, error) {
+	return d.CertificatesClient.CertificateSigningRequestApprovals(hostedControlPlaneNamespace).Get(ctx, name, metav1.GetOptions{})
 }

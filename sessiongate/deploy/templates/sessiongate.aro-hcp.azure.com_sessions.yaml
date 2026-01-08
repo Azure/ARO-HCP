@@ -208,6 +208,9 @@ spec:
                 description: expiresAt is the timestamp when the session will expire
                 format: date-time
                 type: string
+              authorizationPolicyRef:
+                description: authorizationPolicyRef references the AuthorizationPolicy resource
+                type: string
               credentialsSecretRef:
                 description: credentialsSecretRef references the Secret containing the session credentials (private key and certificate)
                 type: string

@@ -21,6 +21,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/openshift/library-go/pkg/controller/factory"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/cobra"
 	"golang.org/x/sync/errgroup"
@@ -101,12 +102,13 @@ type ValidatedControllerOptions struct {
 
 type completedControllerOptions struct {
 	server                     *server.Server
-	controlPlaneController     *controlplane.Controller
-	dataPlaneController        *dataplane.Controller
+	controlPlaneController     factory.Controller
+	dataPlaneController        factory.Controller
 	sessiongateInformerFactory informers.SharedInformerFactory
 	istioInformerFactory       istioinformers.SharedInformerFactory
 	kubeInformerFactory        kubeinformers.SharedInformerFactory
 	workers                    int
+	leaderElectionCfg          *controller.LeaderElectionConfig
 }
 
 type ControllerOptions struct {
@@ -170,7 +172,6 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 			opts.LabelSelector = controller.ManagedByLabelSelector()
 		}),
 	)
-	authzPolicyInformer := istioInformers.Security().V1beta1().AuthorizationPolicies()
 
 	// create Secret informer for watching session credentials
 	kubeInformers := kubeinformers.NewSharedInformerFactoryWithOptions(
@@ -181,25 +182,11 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 			opts.LabelSelector = controller.ManagedByLabelSelector()
 		}),
 	)
-	secretsInformer := kubeInformers.Core().V1().Secrets().Informer()
 
 	klog.V(4).Info("Successfully built kubeconfig and clientsets")
 
 	// create server
 	srv := server.NewServer(o.BindAddress, o.IngressBaseURL, prometheus.DefaultRegisterer)
-
-	// create secret store
-	secretStore := controller.NewDefaultSecretStore(
-		kubeClientset,
-		o.Namespace,
-		kubeInformers.Core().V1().Secrets().Lister(),
-	)
-
-	// create credential provider
-	credentialProvider := controller.NewDefaultCredentialProvider(
-		secretStore,
-		mc.NewAKSHCPProviderBuilder(azureCredential),
-	)
 
 	// setup leader election config
 	leaderElectionCfg := &controller.LeaderElectionConfig{
@@ -212,37 +199,30 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 	}
 
 	// create control plane controller (leader-elected)
-	controlPlaneCtrl, err := controlplane.NewController(
-		ctx,
-		klog.LoggerWithValues(logger, "controller", "control-plane"),
+	controlPlaneCtrl := controlplane.NewSessionController(
 		kubeClientset,
 		sessiongateClientset,
 		istioClientset.SecurityV1beta1(),
-		sessiongateInformers.Sessiongate().V1alpha1().Sessions(),
-		authzPolicyInformer,
-		secretsInformer,
+		sessiongateInformers,
+		istioInformers,
+		kubeInformers,
+		nil, // event recorder
+		mc.NewAKSManagermentClusterBuilder(azureCredential),
 		srv,
-		mc.NewAKSHCPProviderBuilder(azureCredential),
-		credentialProvider,
-		o.Namespace,
-		leaderElectionCfg,
-		o.CredentialCheckInterval,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create control plane controller: %w", err)
 	}
 
 	// create data plane controller (no leader election, runs on all replicas)
-	dataPlaneCtrl, err := dataplane.NewController(
+	dataPlaneCtrl := dataplane.NewController(
 		ctx,
 		klog.LoggerWithValues(logger, "controller", "data-plane"),
-		sessiongateInformers.Sessiongate().V1alpha1().Sessions(),
+		sessiongateInformers,
+		kubeInformers,
 		srv,
-		credentialProvider,
+		nil, // event recorder
 	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create data plane controller: %w", err)
-	}
 
 	return &ControllerOptions{
 		completedControllerOptions: &completedControllerOptions{
@@ -253,6 +233,7 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 			controlPlaneController:     controlPlaneCtrl,
 			dataPlaneController:        dataPlaneCtrl,
 			workers:                    o.Workers,
+			leaderElectionCfg:          leaderElectionCfg,
 		},
 	}, nil
 }
@@ -311,7 +292,9 @@ func (o *ControllerOptions) Run(ctx context.Context) error {
 	// run control plane controller
 	g.Go(func() error {
 		logger.Info("Starting control plane controller")
-		if err := o.controlPlaneController.Run(ctx, o.workers); err != nil {
+		if err := controller.RunWithLeaderElection(ctx, o.leaderElectionCfg, func() {
+			o.controlPlaneController.Run(ctx, o.workers)
+		}); err != nil {
 			logger.Error(err, "Control plane controller stopped with error")
 			return err
 		}
@@ -322,10 +305,7 @@ func (o *ControllerOptions) Run(ctx context.Context) error {
 	// run data plane controller
 	g.Go(func() error {
 		logger.Info("Starting data plane controller")
-		if err := o.dataPlaneController.Run(ctx); err != nil {
-			logger.Error(err, "Data plane controller stopped with error")
-			return err
-		}
+		o.dataPlaneController.Run(ctx, 1)
 		logger.Info("Data plane controller stopped")
 		return nil
 	})
