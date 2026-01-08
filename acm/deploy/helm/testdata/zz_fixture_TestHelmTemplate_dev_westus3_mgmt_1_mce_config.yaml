@@ -1,6 +1,7 @@
 ---
 # Source: multicluster-engine-local-cluster/charts/policy/crds/agent.open-cluster-management.io_klusterletaddonconfigs_crd.yaml
 # Copyright (c) 2020 Red Hat, Inc.
+
 # Copyright Contributors to the Open Cluster Management project
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
@@ -379,7 +380,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.19.0
+    controller-gen.kubebuilder.io/version: v0.16.3
   name: placementbindings.policy.open-cluster-management.io
 spec:
   group: policy.open-cluster-management.io
@@ -502,7 +503,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.19.0
+    controller-gen.kubebuilder.io/version: v0.16.3
   name: policies.policy.open-cluster-management.io
 spec:
   group: policy.open-cluster-management.io
@@ -802,7 +803,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.19.0
+    controller-gen.kubebuilder.io/version: v0.16.3
   name: policyautomations.policy.open-cluster-management.io
 spec:
   group: policy.open-cluster-management.io
@@ -930,7 +931,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.19.0
+    controller-gen.kubebuilder.io/version: v0.16.3
   name: policysets.policy.open-cluster-management.io
 spec:
   group: policy.open-cluster-management.io
