@@ -47,12 +47,13 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
 	"github.com/Azure/azure-sdk-for-go/sdk/tracing/azotel"
 
-	ocmsdk "github.com/openshift-online/ocm-sdk-go"
-
 	"github.com/Azure/ARO-HCP/backend/controllers"
+	azureconfig "github.com/Azure/ARO-HCP/backend/pkg/azure/config"
 	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/fpa"
 	"github.com/Azure/ARO-HCP/internal/tracing"
 	"github.com/Azure/ARO-HCP/internal/version"
+	ocmsdk "github.com/openshift-online/ocm-sdk-go"
 )
 
 const (
@@ -273,10 +274,68 @@ func Run(cmd *cobra.Command, args []string) error {
 
 	group.Go(func() error {
 		var (
-			startedLeading             atomic.Bool
-			operationsScanner          = NewOperationsScanner(dbClient, ocmConnection, argLocation)
-			doNothingController        = controllers.NewDoNothingExampleController(dbClient)
-			clusterInflightsController = controllers.NewClusterInflightsController(dbClient)
+			startedLeading      atomic.Bool
+			operationsScanner   = NewOperationsScanner(dbClient, ocmConnection, argLocation)
+			doNothingController = controllers.NewDoNothingExampleController(dbClient)
+		)
+
+		azureCloudEnvironmentBuilder := azureconfig.NewAzureCloudEnvironmentBuilder()
+		// TODO: set the Azure cloud environment ID appropriately. An example of this is AzurePublicCloud. But that
+		// will change depending on to what Azure cloud the service is running on.
+		// The azure cloud environment id in CS is received at deployment time via CLI flag (specifically as part of
+		// the --azure-runtime-config flag that points to a file containing a JSON with attributes representing
+		// azure runtime configuration.)
+		azureCloudEnvironmentBuilder.CloudEnvironment("TODO")
+		// Here we could set a tracer provider that could later be retrieved at that level
+		// azureCloudEnvironmentBuilder.TracerProvider(otel.GetTracerProvider())
+		azureCloudEnvironment, err := azureCloudEnvironmentBuilder.Build()
+		if err != nil {
+			return fmt.Errorf("failed to build Azure cloud environment: %w", err)
+		}
+
+		// The azure runtime config is a struct that contains the azure cloud environment and other attributes that are
+		// specific to the runtime of the service. In CS we define a CLI flag named --azure-runtime-config whose value
+		// is the filesystem path to a file containing a JSON with attributes representing configuration related to azure.
+		// To represent this file we define a Go type that represents the DTO of the JSON structure of the file, that
+		// Go type is only used to serialize/deserialize the JSON file into a Go type. That type is different than the
+		// azureconfig.AzureRuntimeConfig one, which is the one that is used at the domain layer to pass around through
+		// the code. Their definition is decoupled so azureconfig.AzureRuntimeConfig can have much more complex data
+		// types and richness if desired.
+		azureRuntimeConfig := azureconfig.AzureRuntimeConfig{
+			CloudEnvironment: azureCloudEnvironment,
+			// In the future more attributes will be added to the AzureConfig struct.
+		}
+		_ = azureRuntimeConfig
+
+		// Create FPA TokenCredentials with watching and caching
+		certReader, err := fpa.NewWatchingFileCertificateReader(
+			ctx,
+			// TODO: receive via CLI flag the filesystem path to where the fpa certificate bundle path is located. This
+			// bundle contains the certificate and private key for the FPA.
+			"TODO",
+			30*time.Minute,
+			logger,
+		)
+		if err != nil {
+			return fmt.Errorf("failed to create certificate reader: %w", err)
+		}
+
+		// We create the FPA token credential retriever here. Then we pass it to the cluster inflights controller,
+		// which then is used to instantiate a validation that uses the FPA token credential retriever. And then the
+		// validations uses the retriever to retrieve a token credential based on the information associated to the
+		// cluster(the tenant of the cluster, the subscription id, ...)
+		fpaTokenCredRetriever, err := fpa.NewFirstPartyApplicationTokenCredentialRetriever(
+			logger,
+			"TODO", // TODO: receive the client ID associated to the FPA via CLI flag
+			certReader,
+			// Notice how we are passing the policy client options from the Azure cloud environment type.
+			azureRuntimeConfig.CloudEnvironment.PolicyClientOptions(),
+		)
+
+		clusterInflightsController := controllers.NewClusterInflightsController(
+			dbClient,
+			fpaTokenCredRetriever,
+			azureCloudEnvironment,
 		)
 
 		le, err := leaderelection.NewLeaderElector(leaderelection.LeaderElectionConfig{

@@ -18,14 +18,18 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
+	"os"
 	"time"
 
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/util/workqueue"
 
+	azureconfig "github.com/Azure/ARO-HCP/backend/pkg/azure/config"
 	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/fpa"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -38,6 +42,8 @@ type clusterInflights struct {
 
 	cosmosClient database.DBClient
 
+	clusterValidations []ClusterValidation
+
 	// queue is where incoming work is placed to de-dup and to allow "easy"
 	// rate limited requeues on errors
 	queue workqueue.TypedRateLimitingInterface[HCPClusterKey]
@@ -46,7 +52,28 @@ type clusterInflights struct {
 }
 
 // NewClusterInflightsController
-func NewClusterInflightsController(cosmosClient database.DBClient) Controller {
+func NewClusterInflightsController(
+	cosmosClient database.DBClient,
+	fpaTokenCredRetriever fpa.FirstPartyApplicationTokenCredentialRetriever,
+	azureCloudEnvironment azureconfig.AzureCloudEnvironment,
+) Controller {
+
+	// TODO this might not be how we instantiate the validations nor introduce them,
+	// for example we might decide that the clusterInflights type just receive an array of them directly,
+	// but it showcases what kind of dependencies are used and when are they needed.
+	var clusterValidations []ClusterValidation
+	clusterValidations = append(clusterValidations,
+		NewAzureRpRegistrationValidation(
+			// TODO what do we do when we need a logger and we are outside of the context
+			// where a Go context is available? For now a new one is created but this is not
+			// how it is going to be performed
+			slog.New(slog.NewTextHandler(os.Stdout, nil)),
+			"azure-rp-registration-validation",
+			fpaTokenCredRetriever,
+			azureCloudEnvironment,
+		),
+	)
+
 	c := &clusterInflights{
 		name:         "ClusterInflights",
 		cosmosClient: cosmosClient,
@@ -56,6 +83,7 @@ func NewClusterInflightsController(cosmosClient database.DBClient) Controller {
 				Name: "cluster-inflights-workqueue",
 			},
 		),
+		clusterValidations: clusterValidations,
 	}
 
 	return c
