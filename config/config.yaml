@@ -1133,50 +1133,6 @@ clouds:
             cosmosDB:
               private: false
               zoneRedundantMode: 'Disabled'
-      ntly:
-        # this is an environment to test the deployability of infra nightly
-        defaults:
-          regionRG: "{{ .ctx.region }}-shared-resources"
-          serviceKeyVault:
-            name: "arohcp{{ .ctx.environment }}-svc-{{ .ctx.regionShort }}" # [globally-unique]
-            rg: "{{ .ctx.region }}-shared-resources"
-            region: "{{ .ctx.region }}"
-            softDelete: false
-          monitoring:
-            svcWorkspaceName: 'aro-hcp-ntly-svc-{{ .ctx.regionShort }}'
-            hcpWorkspaceName: 'aro-hcp-ntly-hcp-{{ .ctx.regionShort }}'
-          # Cluster Service
-          clustersService:
-            postgres:
-              deploy: false
-              password: 'TheBlurstOfTimes'
-              containerizedDb:
-                image: "docker.io/library/postgres:14.2"
-                pvcCapacity: 512Mi
-          # DNS
-          dns:
-            regionalSubdomain: '{{ .ctx.regionShort }}-ntly'
-          # Maestro
-          maestro:
-            postgres:
-              deploy: false
-              password: 'TheBlurstOfTimes'
-              containerizedDb:
-                image: "docker.io/library/postgres:14.2"
-                pvcCapacity: 512Mi
-          # Frontend
-          frontend:
-            cosmosDB:
-              private: false
-              zoneRedundantMode: 'Disabled'
-          # MC
-          mgmt:
-            subscription:
-              key: ARO HCP nightly management (EA Subscription)
-            applyKubeletFixes: false
-          svc:
-            subscription:
-              key: ARO HCP nightly service (EA Subscription)
       pers:
         # Regional overrides
         regions:
