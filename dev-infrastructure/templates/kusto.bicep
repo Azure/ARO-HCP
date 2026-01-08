@@ -31,6 +31,9 @@ param autoScaleMin int
 @description('Maximum number of nodes for autoscale')
 param autoScaleMax int
 
+@description('Toggle if autoscale should be enabled')
+param enableAutoScale bool
+
 module kusto '../modules/logs/kusto/main.bicep' = if (manageInstance) {
   name: 'kusto-${location}'
   params: {
@@ -44,5 +47,6 @@ module kusto '../modules/logs/kusto/main.bicep' = if (manageInstance) {
     viewerGroups: viewerGroups
     autoScaleMin: autoScaleMin
     autoScaleMax: autoScaleMax
+    enableAutoScale: enableAutoScale
   }
 }

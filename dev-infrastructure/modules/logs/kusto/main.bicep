@@ -28,6 +28,9 @@ param autoScaleMin int
 @description('Maximum number of nodes for autoscale')
 param autoScaleMax int
 
+@description('Toggle if autoscale should be enabled')
+param enableAutoScale bool
+
 var db = {
   serviceLogs: serviceLogsDatabase
   hostedControlPlaneLogs: hostedControlPlaneLogsDatabase
@@ -61,6 +64,7 @@ module cluster 'cluster.bicep' = {
     viewerGroups: viewerGroups
     autoScaleMin: autoScaleMin
     autoScaleMax: autoScaleMax
+    enableAutoScale: enableAutoScale
   }
 }
 

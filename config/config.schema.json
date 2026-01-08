@@ -1737,6 +1737,9 @@
         "viewerGroups": {
           "type": "string"
         },
+        "enableAutoScale": {
+          "type": "boolean"
+        },
         "autoScaleMin": {
           "type": "integer"
         },
@@ -1781,8 +1784,7 @@
         "adminGroups",
         "viewerGroups",
         "kustoName",
-        "autoScaleMin",
-        "autoScaleMax"
+        "enableAutoScale"
       ]
     },
     "mise": {
