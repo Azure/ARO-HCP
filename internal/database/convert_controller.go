@@ -17,6 +17,8 @@ package database
 import (
 	"strings"
 
+	"k8s.io/utils/ptr"
+
 	"github.com/Azure/ARO-HCP/internal/api"
 )
 
@@ -39,8 +41,18 @@ func InternalToCosmosController(internalObj *api.Controller) (*Controller, error
 		},
 	}
 
+	// during a replace, this field will already have have data and we have to use it, but during a create, this field
+	// will not have a value and we'll need to fill it in the same way tha the generic wrapper will
+	if len(internalObj.CosmosUID) == 0 {
+		cosmosID, err := api.ResourceIDToCosmosID(ptr.To(internalObj.GetResourceID()))
+		if err != nil {
+			return nil, err
+		}
+		cosmosObj.ID = cosmosID
+	}
+
 	// some pieces of data conflict with standard fields.  We may evolve over time, but for now avoid persisting those.
-	cosmosObj.ControllerProperties.Controller.CosmosUID = ""
+	cosmosObj.ControllerProperties.CosmosUID = ""
 	cosmosObj.ControllerProperties.OldControllerSerialization.CosmosUID = ""
 
 	return cosmosObj, nil
@@ -66,13 +78,15 @@ func CosmosToInternalController(cosmosObj *Controller) (*api.Controller, error) 
 	// the Content in new is never updated independent of updating old
 
 	tempInternalAPI := *cosmosObj.ControllerProperties.OldControllerSerialization
-	internalObj := &tempInternalAPI
 	// this is ok and necessary because the resourceID was always stored, it was simply stored during conversion before and now it is
 	// stored in the json compatible api.Controller
-	internalObj.ResourceID = cosmosObj.ControllerProperties.ResourceID
+	tempInternalAPI.ResourceID = cosmosObj.ControllerProperties.ResourceID
+	tempInternalAPI.CosmosMetadata = api.CosmosMetadata{
+		ResourceID: *cosmosObj.ControllerProperties.ResourceID,
+	}
 
 	// some pieces of data are stored on the BaseDocument, so we need to restore that data
-	internalObj.CosmosUID = cosmosObj.ID
+	tempInternalAPI.CosmosUID = cosmosObj.ID
 
-	return internalObj, nil
+	return &tempInternalAPI, nil
 }

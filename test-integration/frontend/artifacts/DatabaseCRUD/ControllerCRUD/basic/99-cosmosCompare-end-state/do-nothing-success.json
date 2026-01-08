@@ -8,6 +8,9 @@
 	"partitionKey": "subscriptionid",
 	"resourceType": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/hcpOpenShiftControllers",
 	"properties": {
+		"cosmosMetadata": {
+			"resourceID": "/subscriptions/subscriptionID/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/parentCluster/hcpOpenShiftControllers/second-controller"
+		},
 		"resourceId": "/subscriptions/subscriptionID/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/parentCluster/hcpOpenShiftControllers/second-controller",
 		"externalId": "/subscriptions/subscriptionID/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/parentCluster",
 		"status": {
@@ -22,6 +25,9 @@
 			]
 		},
 		"internalState": {
+			"cosmosMetadata": {
+				"resourceID": "/subscriptions/subscriptionID/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/parentCluster/hcpOpenShiftControllers/second-controller"
+			},
 			"resourceId": "/subscriptions/subscriptionID/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/parentCluster/hcpOpenShiftControllers/second-controller",
 			"externalId": "/subscriptions/subscriptionID/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/parentCluster",
 			"status": {

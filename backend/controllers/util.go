@@ -70,8 +70,12 @@ func (k *HCPClusterKey) AddLoggerValues(logger *slog.Logger) *slog.Logger {
 }
 
 func (k *HCPClusterKey) initialController(controllerName string) *api.Controller {
+	resourceID := api.Must(azcorearm.ParseResourceID(k.GetResourceID().String() + "/" + api.ControllerResourceTypeName + "/" + controllerName))
 	return &api.Controller{
-		ResourceID: api.Must(azcorearm.ParseResourceID(k.GetResourceID().String() + "/" + api.ControllerResourceTypeName + "/" + controllerName)),
+		CosmosMetadata: api.CosmosMetadata{
+			ResourceID: *resourceID,
+		},
+		ResourceID: resourceID,
 		ExternalID: k.GetResourceID(),
 		Status: api.ControllerStatus{
 			Conditions: []api.Condition{},

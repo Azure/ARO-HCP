@@ -15,13 +15,16 @@
 package api
 
 import (
-	"strings"
 	"time"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 )
 
 type Controller struct {
+	// CosmosMetadata ResourceID is nested under the cluster so that association and cleanup work as expected
+	// it will be the ServiceProviderCluster type and the name default
+	CosmosMetadata `json:"cosmosMetadata"`
+
 	// this matches the resourcedocument and standard storage schema.
 	// we already store this field, but its currently done in conversion trickery.  Update to directly serialize it.
 	// all items previously stored will read out and have this filled in.
@@ -34,20 +37,6 @@ type Controller struct {
 	ExternalID *azcorearm.ResourceID `json:"externalId,omitempty"`
 
 	Status ControllerStatus `json:"status"`
-}
-
-var _ CosmosPersistable = &Controller{}
-
-func (o *Controller) GetCosmosData() CosmosData {
-	return CosmosData{
-		CosmosUID:    o.CosmosUID,
-		PartitionKey: strings.ToLower(o.ExternalID.SubscriptionID),
-		ItemID:       o.ResourceID,
-	}
-}
-
-func (o *Controller) SetCosmosDocumentData(cosmosUID string) {
-	o.CosmosUID = cosmosUID
 }
 
 type ControllerStatus struct {
