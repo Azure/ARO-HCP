@@ -63,6 +63,10 @@ func CosmosToInternalOperation(cosmosObj *Operation) (*api.Operation, error) {
 	internalObj := &tempInternalAPI
 
 	// old records don't serialize this, but we want all readers to be able to depend on it. We can derive it from the operationID
+	// this ID does not include the location because doing so changes the resulting azcorearm.ParseResourceID().ResourceType to be
+	// Microsoft.RedHatOpenShift/locations/hcpOperationStatuses.  This type is not compatible with the current cosmos storage and
+	// nests in a way that doesn't match other types. Since our operationID.Name is a UID, this is still a globally unique
+	// resourceID.
 	if internalObj.ResourceID == nil {
 		internalObj.ResourceID = api.Must(azcorearm.ParseResourceID(path.Join("/",
 			"subscriptions", internalObj.ExternalID.SubscriptionID,
