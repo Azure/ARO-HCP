@@ -224,7 +224,11 @@ func (h *nodePoolsCRUD) Controllers(nodePoolName string) ResourceCRUD[api.Contro
 }
 
 func NewControllerCRUD(
-	containerClient *azcosmos.ContainerClient, parentResourceID *azcorearm.ResourceID, resourceType azcorearm.ResourceType) ResourceCRUD[api.Controller] {
+	containerClient *azcosmos.ContainerClient,
+	parentResourceID *azcorearm.ResourceID,
+	resourceType azcorearm.ResourceType,
+) ResourceCRUD[api.Controller] {
 
-	return NewCosmosResourceCRUD[api.Controller, Controller](containerClient, parentResourceID, resourceType)
+	return NewCosmosResourceCRUD[api.Controller, GenericDocument[api.Controller]](
+		containerClient, parentResourceID, resourceType)
 }
