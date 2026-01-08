@@ -288,11 +288,11 @@ func (o Options) Run(ctx context.Context) error {
 	pageLinks := []LinkDetails{
 		{
 			DisplayName: "Test Table",
-			URL:         "test-table.html",
+			URL:         "./test-table.html",
 		},
 		{
 			DisplayName: "Readme",
-			URL:         "readme.html",
+			URL:         "./readme.html",
 		},
 	}
 
