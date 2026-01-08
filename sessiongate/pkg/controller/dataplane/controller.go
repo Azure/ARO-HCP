@@ -73,7 +73,7 @@ func NewController(
 		).
 		WithSync(c.syncSession).
 		ResyncEvery(time.Minute*5).
-		ToController("SessionController", eventRecorder.WithComponentSuffix(c.fieldManager))
+		ToController("SessionDataPlaneController", eventRecorder.WithComponentSuffix(c.fieldManager))
 }
 
 func enqueueSession(obj runtime.Object) []string {

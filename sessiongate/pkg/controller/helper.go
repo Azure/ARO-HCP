@@ -28,22 +28,24 @@ func deletionHandlingControllerMetaNamespaceKeyFunc(obj interface{}) (string, er
 
 	if ownerRef := metav1.GetControllerOf(object); ownerRef != nil {
 		if ownerRef.Kind != "Session" {
-			return "", fmt.Errorf("object is not a Session")
+			return "", fmt.Errorf("object is not owned by a Session")
 		}
 
-		return cache.MetaNamespaceKeyFunc(&metav1.ObjectMeta{
-			Name:      ownerRef.Name,
-			Namespace: object.GetNamespace(),
-		})
+		namespace := object.GetNamespace()
+		if namespace == "" {
+			return ownerRef.Name, nil
+		}
+		return fmt.Sprintf("%s/%s", namespace, ownerRef.Name), nil
 	}
-	return "", fmt.Errorf("object has no owner reference")
+	return "", fmt.Errorf("object has no controller owner reference")
 }
 
 func EnqueueOwningSession(obj runtime.Object) []string {
 	key, err := deletionHandlingControllerMetaNamespaceKeyFunc(obj)
 	if err != nil {
-		klog.ErrorS(err, "could not determine queue key")
+		klog.V(4).ErrorS(err, "could not determine owning session queue key")
 		return nil
 	}
+	klog.V(4).InfoS("enqueueing owning session", "key", key)
 	return []string{key}
 }

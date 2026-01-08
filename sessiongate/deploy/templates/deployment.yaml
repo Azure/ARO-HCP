@@ -23,7 +23,7 @@ spec:
         - "/sessiongate"
         args:
         - controller
-        - "--server-address=:{{ .Values.service.port }}"
+        - "--bind-address=:{{ .Values.service.port }}"
         - "--ingress-base-url=https://{{ .Values.virtualService.host }}"
         - "-v={{ .Values.logLevel }}"
         - "--leader-election-lease-duration={{ .Values.leaderElection.leaseDuration }}"

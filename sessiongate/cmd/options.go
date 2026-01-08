@@ -36,6 +36,9 @@ import (
 	"k8s.io/klog/v2"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	"github.com/openshift/library-go/pkg/operator/events"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/utils/clock"
 
 	"github.com/Azure/ARO-HCP/sessiongate/pkg/controller"
 	"github.com/Azure/ARO-HCP/sessiongate/pkg/controller/controlplane"
@@ -102,7 +105,7 @@ type ValidatedControllerOptions struct {
 
 type completedControllerOptions struct {
 	server                     *server.Server
-	controlPlaneController     factory.Controller
+	controlPlaneController     *controlplane.SessionController
 	dataPlaneController        factory.Controller
 	sessiongateInformerFactory informers.SharedInformerFactory
 	istioInformerFactory       istioinformers.SharedInformerFactory
@@ -198,15 +201,40 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 		KubeConfig:    kubeConfig,
 	}
 
+	// create event recorders
+	controlPlaneEventRecorder := events.NewRecorder(
+		kubeClientset.CoreV1().Events(o.Namespace),
+		"sessiongate-control-plane",
+		&corev1.ObjectReference{
+			APIVersion: "v1",
+			Kind:       "Namespace",
+			Name:       o.Namespace,
+			Namespace:  o.Namespace,
+		},
+		clock.RealClock{},
+	)
+
+	dataPlaneEventRecorder := events.NewRecorder(
+		kubeClientset.CoreV1().Events(o.Namespace),
+		"sessiongate-data-plane",
+		&corev1.ObjectReference{
+			APIVersion: "v1",
+			Kind:       "Namespace",
+			Name:       o.Namespace,
+			Namespace:  o.Namespace,
+		},
+		clock.RealClock{},
+	)
+
 	// create control plane controller (leader-elected)
-	controlPlaneCtrl := controlplane.NewSessionController(
+	controlPlaneCtrl, err := controlplane.NewSessionController(
 		kubeClientset,
 		sessiongateClientset,
 		istioClientset.SecurityV1beta1(),
 		sessiongateInformers,
 		istioInformers,
 		kubeInformers,
-		nil, // event recorder
+		controlPlaneEventRecorder,
 		mc.NewAKSManagermentClusterBuilder(azureCredential),
 		srv,
 	)
@@ -221,7 +249,7 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 		sessiongateInformers,
 		kubeInformers,
 		srv,
-		nil, // event recorder
+		dataPlaneEventRecorder,
 	)
 
 	return &ControllerOptions{
@@ -303,12 +331,12 @@ func (o *ControllerOptions) Run(ctx context.Context) error {
 	})
 
 	// run data plane controller
-	g.Go(func() error {
-		logger.Info("Starting data plane controller")
-		o.dataPlaneController.Run(ctx, 1)
-		logger.Info("Data plane controller stopped")
-		return nil
-	})
+	// g.Go(func() error {
+	// 	logger.Info("Starting data plane controller")
+	// 	o.dataPlaneController.Run(ctx, 1)
+	// 	logger.Info("Data plane controller stopped")
+	// 	return nil
+	// })
 
 	if err := g.Wait(); err != nil {
 		logger.Error(err, "Component failed")
