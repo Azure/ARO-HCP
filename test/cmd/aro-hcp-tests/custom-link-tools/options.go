@@ -258,8 +258,8 @@ func (o Options) Run(ctx context.Context) error {
 
 	err = renderTemplate(QueryTemplate{
 		TemplateName:   "test-table",
-		TemplatePath:   "test-table.html.tmpl",
-		OutputFileName: path.Join(o.OutputDir, "test-table.html"),
+		TemplatePath:   "custom-link-tools-test-table.html.tmpl",
+		OutputFileName: path.Join(o.OutputDir, "custom-link-tools-test-table.html"),
 	}, struct {
 		Elements []TestRow
 	}{
@@ -270,33 +270,10 @@ func (o Options) Run(ctx context.Context) error {
 		return utils.TrackError(err)
 	}
 
-	err = renderTemplate(QueryTemplate{
-		TemplateName:   "readme",
-		TemplatePath:   "readme.html.tmpl",
-		OutputFileName: path.Join(o.OutputDir, "readme.html"),
-	}, nil)
-
-	if err != nil {
-		return utils.TrackError(err)
-	}
-
 	serviceLogLinks, err := getServiceLogLinks(o.Steps)
 	if err != nil {
 		return utils.TrackError(err)
 	}
-
-	pageLinks := []LinkDetails{
-		{
-			DisplayName: "Test Table",
-			URL:         "./test-table.html",
-		},
-		{
-			DisplayName: "Readme",
-			URL:         "./readme.html",
-		},
-	}
-
-	allLinks := append(pageLinks, serviceLogLinks...)
 
 	err = renderTemplate(QueryTemplate{
 		TemplateName:   "custom-link-tools",
@@ -305,7 +282,7 @@ func (o Options) Run(ctx context.Context) error {
 	}, struct {
 		Links []LinkDetails
 	}{
-		Links: allLinks,
+		Links: serviceLogLinks,
 	})
 	if err != nil {
 		return utils.TrackError(err)

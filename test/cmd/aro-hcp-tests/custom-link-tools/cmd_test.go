@@ -62,6 +62,5 @@ func TestGeneratedHTML(t *testing.T) {
 		t.Fatalf("failed to run custom link tools: %v", err)
 	}
 	testutil.CompareFileWithFixture(t, filepath.Join(tmpdir, "custom-link-tools.html"), testutil.WithSuffix("custom-link-tools"))
-	testutil.CompareFileWithFixture(t, filepath.Join(tmpdir, "test-table.html"), testutil.WithSuffix("test-table"))
-	testutil.CompareFileWithFixture(t, filepath.Join(tmpdir, "readme.html"), testutil.WithSuffix("readme"))
+	testutil.CompareFileWithFixture(t, filepath.Join(tmpdir, "custom-link-tools-test-table.html"), testutil.WithSuffix("custom-link-tools-test-table"))
 }
