@@ -21,13 +21,13 @@ import (
 	"net/http"
 	"time"
 
+	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/util/workqueue"
 
 	azureconfig "github.com/Azure/ARO-HCP/backend/pkg/azure/config"
 	"github.com/Azure/ARO-HCP/internal/database"
-	"github.com/Azure/ARO-HCP/internal/fpa"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -52,7 +52,7 @@ type clusterInflights struct {
 // NewClusterInflightsController
 func NewClusterInflightsController(
 	cosmosClient database.DBClient,
-	fpaTokenCredRetriever fpa.FirstPartyApplicationTokenCredentialRetriever,
+	clientBuilder azureclient.ClientBuilder,
 	azureCloudEnvironment azureconfig.AzureCloudEnvironment,
 ) Controller {
 
@@ -63,7 +63,7 @@ func NewClusterInflightsController(
 	clusterValidations = append(clusterValidations,
 		NewAzureRpRegistrationValidation(
 			"azure-rp-registration-validation",
-			fpaTokenCredRetriever,
+			clientBuilder,
 			azureCloudEnvironment,
 		),
 	)

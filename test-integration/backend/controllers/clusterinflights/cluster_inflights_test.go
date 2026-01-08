@@ -21,6 +21,7 @@ import (
 	"path"
 	"testing"
 
+	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
 	"github.com/Azure/ARO-HCP/backend/controllers"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/database"
@@ -34,6 +35,7 @@ var artifacts embed.FS
 func TestClusterInflightsController(t *testing.T) {
 	integrationutils.SkipIfNotSimulationTesting(t)
 
+	mockClientBuilder := azureclient.MockClientBuilder{}
 	testCases := []controllertesthelpers.BasicControllerTest{
 		{
 			Name: "sync_cluster",
@@ -44,7 +46,7 @@ func TestClusterInflightsController(t *testing.T) {
 			},
 			ArtifactDir: api.Must(fs.Sub(artifacts, path.Join("artifacts"))),
 			ControllerInitializerFn: func(ctx context.Context, t *testing.T, cosmosClient database.DBClient) (controller controllers.Controller, testMemory map[string]any) {
-				return controllers.NewClusterInflightsController(cosmosClient), map[string]any{}
+				return controllers.NewClusterInflightsController(cosmosClient, mockClientBuilder), map[string]any{}
 			},
 			ControllerVerifierFn: func(ctx context.Context, t *testing.T, controller controllers.Controller, testMemory map[string]any) {
 			},

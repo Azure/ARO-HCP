@@ -27,6 +27,7 @@ import (
 	"syscall"
 	"time"
 
+	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
 	"github.com/go-logr/logr"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
@@ -333,10 +334,11 @@ func Run(cmd *cobra.Command, args []string) error {
 			// Notice how we are passing the policy client options from the Azure cloud environment type.
 			azureRuntimeConfig.CloudEnvironment.PolicyClientOptions(),
 		)
+		clientBuilder := azureclient.NewFPAClientBuilder(fpaTokenCredRetriever)
 
 		clusterInflightsController := controllers.NewClusterInflightsController(
 			dbClient,
-			fpaTokenCredRetriever,
+			clientBuilder,
 			azureCloudEnvironment,
 		)
 
