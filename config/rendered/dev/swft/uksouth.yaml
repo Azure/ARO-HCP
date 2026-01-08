@@ -442,6 +442,14 @@ mgmt:
     name: swft-lnstest-mgmt-1
     networkDataplane: azure
     networkPolicy: azure
+    newInfraAgentPool:
+      maxCount: 3
+      minCount: 1
+      osDiskSizeGB: 32
+      poolCount: 0
+      vmSize: Standard_D4ds_v5
+      zoneRedundantMode: Auto
+      zones: ""
     podSubnetPrefix: 10.128.64.0/18
     subnetPrefix: 10.128.8.0/21
     systemAgentPool:
