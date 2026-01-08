@@ -379,10 +379,10 @@ func (c *MockOperationCRUDListCall) DoAndReturn(f func(context.Context, *databas
 }
 
 // ListActiveOperations mocks base method.
-func (m *MockOperationCRUD) ListActiveOperations(options *database.DBClientListActiveOperationDocsOptions) database.DBClientIterator[database.OperationDocument] {
+func (m *MockOperationCRUD) ListActiveOperations(options *database.DBClientListActiveOperationDocsOptions) database.DBClientIterator[api.Operation] {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ListActiveOperations", options)
-	ret0, _ := ret[0].(database.DBClientIterator[database.OperationDocument])
+	ret0, _ := ret[0].(database.DBClientIterator[api.Operation])
 	return ret0
 }
 
@@ -399,19 +399,19 @@ type MockOperationCRUDListActiveOperationsCall struct {
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *MockOperationCRUDListActiveOperationsCall) Return(arg0 database.DBClientIterator[database.OperationDocument]) *MockOperationCRUDListActiveOperationsCall {
+func (c *MockOperationCRUDListActiveOperationsCall) Return(arg0 database.DBClientIterator[api.Operation]) *MockOperationCRUDListActiveOperationsCall {
 	c.Call = c.Call.Return(arg0)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockOperationCRUDListActiveOperationsCall) Do(f func(*database.DBClientListActiveOperationDocsOptions) database.DBClientIterator[database.OperationDocument]) *MockOperationCRUDListActiveOperationsCall {
+func (c *MockOperationCRUDListActiveOperationsCall) Do(f func(*database.DBClientListActiveOperationDocsOptions) database.DBClientIterator[api.Operation]) *MockOperationCRUDListActiveOperationsCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockOperationCRUDListActiveOperationsCall) DoAndReturn(f func(*database.DBClientListActiveOperationDocsOptions) database.DBClientIterator[database.OperationDocument]) *MockOperationCRUDListActiveOperationsCall {
+func (c *MockOperationCRUDListActiveOperationsCall) DoAndReturn(f func(*database.DBClientListActiveOperationDocsOptions) database.DBClientIterator[api.Operation]) *MockOperationCRUDListActiveOperationsCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }

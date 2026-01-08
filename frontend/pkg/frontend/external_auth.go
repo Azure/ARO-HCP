@@ -292,7 +292,7 @@ func (f *Frontend) createExternalAuth(writer http.ResponseWriter, request *http.
 
 	transaction := f.dbClient.NewTransaction(newInternalExternalAuth.ID.SubscriptionID)
 
-	createExternalAuthOperation := database.NewOperationDocument(
+	createExternalAuthOperation := database.NewOperation(
 		operationRequest,
 		newInternalExternalAuth.ID,
 		newInternalExternalAuth.ServiceProviderProperties.ClusterServiceID,
@@ -484,7 +484,7 @@ func (f *Frontend) updateExternalAuthInCosmos(ctx context.Context, writer http.R
 
 	transaction := f.dbClient.NewTransaction(oldInternalExternalAuth.ID.SubscriptionID)
 
-	externalAuthUpdateOperation := database.NewOperationDocument(
+	externalAuthUpdateOperation := database.NewOperation(
 		database.OperationRequestUpdate,
 		newInternalExternalAuth.ID,
 		newInternalExternalAuth.ServiceProviderProperties.ClusterServiceID,
@@ -620,7 +620,7 @@ func (f *Frontend) addDeleteExternalAuthToTransaction(ctx context.Context, write
 		return utils.TrackError(err)
 	}
 
-	operationDoc := database.NewOperationDocument(
+	operationDoc := database.NewOperation(
 		database.OperationRequestDelete,
 		externalAuth.ID,
 		externalAuth.ServiceProviderProperties.ClusterServiceID,

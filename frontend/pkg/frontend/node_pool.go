@@ -297,7 +297,7 @@ func (f *Frontend) createNodePool(writer http.ResponseWriter, request *http.Requ
 
 	transaction := f.dbClient.NewTransaction(newInternalNodePool.ID.SubscriptionID)
 
-	createNodePoolOperation := database.NewOperationDocument(
+	createNodePoolOperation := database.NewOperation(
 		database.OperationRequestCreate,
 		newInternalNodePool.ID,
 		newInternalNodePool.ServiceProviderProperties.ClusterServiceID,
@@ -535,7 +535,7 @@ func (f *Frontend) updateNodePoolInCosmos(ctx context.Context, writer http.Respo
 
 	transaction := f.dbClient.NewTransaction(oldInternalNodePool.ID.SubscriptionID)
 
-	nodePoolUpdateOperation := database.NewOperationDocument(
+	nodePoolUpdateOperation := database.NewOperation(
 		database.OperationRequestUpdate,
 		newInternalNodePool.ID,
 		newInternalNodePool.ServiceProviderProperties.ClusterServiceID,
@@ -671,7 +671,7 @@ func (f *Frontend) addDeleteNodePoolToTransaction(ctx context.Context, writer ht
 		return utils.TrackError(err)
 	}
 
-	operationDoc := database.NewOperationDocument(
+	operationDoc := database.NewOperation(
 		database.OperationRequestDelete,
 		nodePool.ID,
 		nodePool.ServiceProviderProperties.ClusterServiceID,

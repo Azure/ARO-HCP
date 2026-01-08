@@ -323,7 +323,7 @@ func (f *Frontend) createHCPCluster(writer http.ResponseWriter, request *http.Re
 	transaction := f.dbClient.NewTransaction(newInternalCluster.ID.SubscriptionID)
 
 	// TODO extract to straight instance creation and then validation.
-	clusterCreateOperation := database.NewOperationDocument(
+	clusterCreateOperation := database.NewOperation(
 		database.OperationRequestCreate,
 		newInternalCluster.ID,
 		newInternalCluster.ServiceProviderProperties.ClusterServiceID,
@@ -578,7 +578,7 @@ func (f *Frontend) updateHCPClusterInCosmos(ctx context.Context, writer http.Res
 	}
 
 	transaction := f.dbClient.NewTransaction(oldInternalCluster.ID.SubscriptionID)
-	clusterUpdateOperation := database.NewOperationDocument(
+	clusterUpdateOperation := database.NewOperation(
 		database.OperationRequestUpdate,
 		oldInternalCluster.ID,
 		oldInternalCluster.ServiceProviderProperties.ClusterServiceID,
@@ -712,7 +712,7 @@ func (f *Frontend) addDeleteClusterToTransaction(ctx context.Context, writer htt
 		return utils.TrackError(err)
 	}
 
-	operationDoc := database.NewOperationDocument(
+	operationDoc := database.NewOperation(
 		database.OperationRequestDelete,
 		cluster.ID,
 		cluster.ServiceProviderProperties.ClusterServiceID,
