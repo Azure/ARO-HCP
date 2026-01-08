@@ -35,6 +35,14 @@ param infraAgentPoolZones array
 param infraAgentPoolCount int
 param infraZoneRedundantMode string
 
+// New Infra agentpool spec
+param newInfraAgentMinCount int
+param newInfraAgentMaxCount int
+param newInfraAgentVMSize string
+param newInfraAgentPoolZones array
+param newInfraAgentPoolCount int
+param newInfraZoneRedundantMode string
+
 param serviceCidr string = '10.130.0.0/16'
 param dnsServiceIP string = '10.130.0.10'
 
@@ -92,6 +100,7 @@ param dnsPrefix string = aksClusterName
 param systemOsDiskSizeGB int
 param userOsDiskSizeGB int
 param infraOsDiskSizeGB int
+param newInfraOsDiskSizeGB int
 
 @description('The resource IDs of ACR instances that the AKS cluster will pull images from')
 param pullAcrResourceIds array = []
@@ -544,6 +553,29 @@ module infraAgentPools '../modules/aks/pool.bicep' = {
     vnetSubnetId: nodeSubnetId
     podSubnetId: aksPodSubnet.id
     zoneRedundantMode: infraZoneRedundantMode
+    maxPods: 225
+    taints: [
+      'infra=true:NoSchedule'
+    ]
+  }
+}
+
+module newInfraAgentPools '../modules/aks/pool.bicep' = if (newInfraAgentPoolCount > 0) {
+  name: 'new-infra-agent-pools'
+  params: {
+    aksClusterName: aksCluster.name
+    poolBaseName: 'newinfra'
+    poolZones: newInfraAgentPoolZones
+    poolCount: newInfraAgentPoolCount
+    poolRole: 'infra'
+    enableSwiftV2: false
+    minCount: newInfraAgentMinCount
+    maxCount: newInfraAgentMaxCount
+    vmSize: newInfraAgentVMSize
+    osDiskSizeGB: newInfraOsDiskSizeGB
+    vnetSubnetId: nodeSubnetId
+    podSubnetId: aksPodSubnet.id
+    zoneRedundantMode: newInfraZoneRedundantMode
     maxPods: 225
     taints: [
       'infra=true:NoSchedule'

@@ -443,6 +443,14 @@ defaults:
         poolCount: 2
         zones: ""
         zoneRedundantMode: "Auto"
+      newInfraAgentPool:
+        minCount: 1
+        maxCount: 3
+        vmSize: 'Standard_D4ds_v5'
+        osDiskSizeGB: 32
+        poolCount: 0
+        zones: ""
+        zoneRedundantMode: "Auto"
       clusterOutboundIPAddressIPTags: ""
       enableSwiftV2Vnet: true
       enableSwiftV2Nodepools: true
