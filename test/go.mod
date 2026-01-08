@@ -5,7 +5,7 @@ go 1.24.4
 require (
 	github.com/Azure/ARO-HCP/internal v0.0.0-00010101000000-000000000000
 	github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp v0.0.0-00010101000000-000000000000
-	github.com/Azure/ARO-HCP/tooling/templatize v0.0.0-20251212175206-b7a20d67a1b7
+	github.com/Azure/ARO-HCP/tooling/templatize v0.0.0-20260107114435-98c5eb6d5d91
 	github.com/Azure/ARO-Tools v0.0.0-20251219030559-37f654161c5a
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v3 v3.0.0-beta.2
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v5 v5.6.0
