@@ -119,6 +119,17 @@ func (c *clusterInflights) synchronizeHCPCluster(ctx context.Context, key HCPClu
 		)
 	}
 
+	// TODO simple showcase running the validations sequentially. This can be changed to run them in parallel, persisting
+	// their results to coordinate, retry, etc. This does not address details on all of those other concerns yet, which
+	// will need to be addressed too.
+	for _, validation := range c.clusterValidations {
+		err := validation.Validate(ctx, cosmosHCPCluster)
+		if err != nil {
+			logger.Error("failed to validate cluster", "error", err)
+			return err
+		}
+	}
+
 	return nil
 }
 
