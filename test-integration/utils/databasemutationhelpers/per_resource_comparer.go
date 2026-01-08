@@ -77,23 +77,15 @@ func ResourceInstanceEquals(t *testing.T, expected, actual any) (string, bool) {
 			unstructured.RemoveNestedField(currMap, prepend(possiblePrepend, "serviceProviderProperties", "cosmosUID")...) // cluster, nodepool, externalauth
 
 			// for controllers
-			expectedConditions, found, err := unstructured.NestedSlice(currMap, prepend(possiblePrepend, "internalState", "status", "conditions")...)
-			if found && err == nil {
-				for i := range expectedConditions {
-					delete(expectedConditions[i].(map[string]any), "lastTransitionTime")
-				}
-				if err := unstructured.SetNestedSlice(currMap, expectedConditions, prepend(possiblePrepend, "internalState", "status", "conditions")...); err != nil {
-					panic(err)
-				}
-			}
-
-			actualConditions, found, err := unstructured.NestedSlice(currMap, prepend(possiblePrepend, "internalState", "status", "conditions")...)
-			if found && err == nil {
-				for i := range actualConditions {
-					delete(actualConditions[i].(map[string]any), "lastTransitionTime")
-				}
-				if err := unstructured.SetNestedSlice(currMap, actualConditions, prepend(possiblePrepend, "internalState", "status", "conditions")...); err != nil {
-					panic(err)
+			for _, nestedPossiblePrepend := range []string{"", "internalState"} {
+				expectedConditions, found, err := unstructured.NestedSlice(currMap, prepend(possiblePrepend, prepend(nestedPossiblePrepend, "status", "conditions")...)...)
+				if found && err == nil {
+					for i := range expectedConditions {
+						delete(expectedConditions[i].(map[string]any), "lastTransitionTime")
+					}
+					if err := unstructured.SetNestedSlice(currMap, expectedConditions, prepend(possiblePrepend, prepend(nestedPossiblePrepend, "status", "conditions")...)...); err != nil {
+						panic(err)
+					}
 				}
 			}
 

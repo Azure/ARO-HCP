@@ -1,17 +1,35 @@
 {
+	"id": "974adb6e-3e8e-4883-a0f9-1cf1a2fe7f37",
+	"_rid": "pwUKAJqsvKcCAAAAAAAAAA==",
+	"_self": "dbs/pwUKAA==/colls/pwUKAJqsvKc=/docs/pwUKAJqsvKcCAAAAAAAAAA==/",
+	"_etag": "\"00000000-0000-0000-80ec-5486a80501dc\"",
+	"_attachments": "attachments/",
+	"_ts": 1767910543,
 	"partitionKey": "4fa75980-6637-4157-9726-84d878a62e83",
 	"resourceType": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/hcpOpenShiftControllers",
 	"properties": {
 		"resourceId": "/subscriptions/4fa75980-6637-4157-9726-84d878a62e83/resourceGroups/shrillEffectiveness/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/lavishUnhappiness/hcpOpenShiftControllers/DoNothingExample",
+		"externalId": "/subscriptions/4fa75980-6637-4157-9726-84d878a62e83/resourceGroups/shrillEffectiveness/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/lavishUnhappiness",
+		"status": {
+			"conditions": [
+				{
+					"type": "Degraded",
+					"status": "False",
+					"lastTransitionTime": "2026-01-08T17:15:43.301625445-05:00",
+					"reason": "NoErrors",
+					"message": "As expected."
+				}
+			]
+		},
 		"internalState": {
+			"resourceId": "/subscriptions/4fa75980-6637-4157-9726-84d878a62e83/resourceGroups/shrillEffectiveness/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/lavishUnhappiness/hcpOpenShiftControllers/DoNothingExample",
 			"externalId": "/subscriptions/4fa75980-6637-4157-9726-84d878a62e83/resourceGroups/shrillEffectiveness/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/lavishUnhappiness",
-			"controllerName": "DoNothingExample",
 			"status": {
 				"conditions": [
 					{
 						"type": "Degraded",
 						"status": "False",
-						"lastTransitionTime": "2025-12-16T14:22:55.397414122-05:00",
+						"lastTransitionTime": "2026-01-08T17:15:43.301625445-05:00",
 						"reason": "NoErrors",
 						"message": "As expected."
 					}

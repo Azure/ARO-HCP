@@ -1,0 +1,40 @@
+{
+	"id": "de52b796-cff1-4c4b-9140-684087b5eb60",
+	"_rid": "sIMIAKLq4TwCAAAAAAAAAA==",
+	"_self": "dbs/sIMIAA==/colls/sIMIAKLq4Tw=/docs/sIMIAKLq4TwCAAAAAAAAAA==/",
+	"_etag": "\"00000000-0000-0000-80ed-5174940501dc\"",
+	"_attachments": "attachments/",
+	"_ts": 1767910967,
+	"partitionKey": "subscriptionid",
+	"resourceType": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/hcpOpenShiftControllers",
+	"properties": {
+		"resourceId": "/subscriptions/subscriptionID/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/parentCluster/hcpOpenShiftControllers/second-controller",
+		"externalId": "/subscriptions/subscriptionID/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/parentCluster",
+		"status": {
+			"conditions": [
+				{
+					"type": "Degraded",
+					"status": "False",
+					"lastTransitionTime": "2025-12-04T08:01:57.129283149-05:00",
+					"reason": "SomeAction",
+					"message": "Updated"
+				}
+			]
+		},
+		"internalState": {
+			"resourceId": "/subscriptions/subscriptionID/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/parentCluster/hcpOpenShiftControllers/second-controller",
+			"externalId": "/subscriptions/subscriptionID/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/parentCluster",
+			"status": {
+				"conditions": [
+					{
+						"type": "Degraded",
+						"status": "False",
+						"lastTransitionTime": "2025-12-04T08:01:57.129283149-05:00",
+						"reason": "SomeAction",
+						"message": "Updated"
+					}
+				]
+			}
+		}
+	}
+}
