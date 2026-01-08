@@ -328,7 +328,7 @@ func Run(cmd *cobra.Command, args []string) error {
 	})
 
 	if err := group.Wait(); err != nil {
-		logger.Error(err.Error())
+		logger.Error("errgroup wait returned an error", "error", err.Error())
 		os.Exit(1)
 	}
 
