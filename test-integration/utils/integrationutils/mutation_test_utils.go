@@ -78,7 +78,7 @@ func TrivialPassThroughClusterServiceMock(t *testing.T, testInfo *FrontendIntegr
 				}
 				internalIDToCluster[obj.HREF()] = []any{obj}
 
-			case strings.HasSuffix(dirEntry.Name(), "-external-auth.json"):
+			case strings.HasSuffix(dirEntry.Name(), "-externalauth.json"):
 				obj, err := arohcpv1alpha1.UnmarshalExternalAuth(fileContent)
 				if err != nil {
 					return fmt.Errorf("failed to unmarshal nodepool: %w", err)
@@ -88,7 +88,7 @@ func TrivialPassThroughClusterServiceMock(t *testing.T, testInfo *FrontendIntegr
 				}
 				internalIDToExternalAuth[obj.HREF()] = []any{obj}
 
-			case strings.HasSuffix(dirEntry.Name(), "-node-pool.json"):
+			case strings.HasSuffix(dirEntry.Name(), "-nodepool.json"):
 				obj, err := arohcpv1alpha1.UnmarshalNodePool(fileContent)
 				if err != nil {
 					return fmt.Errorf("failed to unmarshal nodepool: %w", err)

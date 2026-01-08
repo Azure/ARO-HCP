@@ -73,15 +73,15 @@ func (c frontendHTTPTestAccessor) Get(ctx context.Context, resourceIDString stri
 	}
 }
 
-func (c frontendHTTPTestAccessor) List(ctx context.Context, parentResourceIDString string) ([]any, error) {
-	parentResourceID, err := azcorearm.ParseResourceID(parentResourceIDString)
+func (c frontendHTTPTestAccessor) List(ctx context.Context, exemplarResourceIDString string) ([]any, error) {
+	exemplarResourceID, err := azcorearm.ParseResourceID(exemplarResourceIDString)
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}
 
-	switch strings.ToLower(parentResourceID.ResourceType.String()) {
+	switch strings.ToLower(exemplarResourceID.ResourceType.String()) {
 	case strings.ToLower(api.ClusterResourceType.String()):
-		pager := c.frontendClient.NewHcpOpenShiftClustersClient().NewListByResourceGroupPager(parentResourceID.ResourceGroupName, nil)
+		pager := c.frontendClient.NewHcpOpenShiftClustersClient().NewListByResourceGroupPager(exemplarResourceID.ResourceGroupName, nil)
 		ret := []any{}
 		for pager.More() {
 			page, err := pager.NextPage(ctx)
@@ -95,7 +95,7 @@ func (c frontendHTTPTestAccessor) List(ctx context.Context, parentResourceIDStri
 		return ret, nil
 
 	case strings.ToLower(api.NodePoolResourceType.String()):
-		pager := c.frontendClient.NewNodePoolsClient().NewListByParentPager(parentResourceID.ResourceGroupName, parentResourceID.Name, nil)
+		pager := c.frontendClient.NewNodePoolsClient().NewListByParentPager(exemplarResourceID.ResourceGroupName, exemplarResourceID.Parent.Name, nil)
 		ret := []any{}
 		for pager.More() {
 			page, err := pager.NextPage(ctx)
@@ -109,7 +109,7 @@ func (c frontendHTTPTestAccessor) List(ctx context.Context, parentResourceIDStri
 		return ret, nil
 
 	case strings.ToLower(api.ExternalAuthResourceType.String()):
-		pager := c.frontendClient.NewExternalAuthsClient().NewListByParentPager(parentResourceID.ResourceGroupName, parentResourceID.Name, nil)
+		pager := c.frontendClient.NewExternalAuthsClient().NewListByParentPager(exemplarResourceID.ResourceGroupName, exemplarResourceID.Parent.Name, nil)
 		ret := []any{}
 		for pager.More() {
 			page, err := pager.NextPage(ctx)
@@ -123,7 +123,7 @@ func (c frontendHTTPTestAccessor) List(ctx context.Context, parentResourceIDStri
 		return ret, nil
 
 	default:
-		return nil, utils.TrackError(fmt.Errorf("unknown resource type: %s", parentResourceID.ResourceType.String()))
+		return nil, utils.TrackError(fmt.Errorf("unknown resource type: %s", exemplarResourceID.ResourceType.String()))
 	}
 }
 
