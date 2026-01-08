@@ -31,14 +31,14 @@ var localClock clock.Clock = clock.RealClock{}
 type PostAsyncNotificationFunc func(ctx context.Context, operation *api.Operation) error
 
 // UpdateOperationStatus updates Cosmos DB to reflect an updated resource status.
-func UpdateOperationStatus(ctx context.Context, cosmosClient DBClient, operation *api.Operation, opStatus arm.ProvisioningState, opError *arm.CloudErrorBody, postAsyncNotificationFn PostAsyncNotificationFunc) error {
+func UpdateOperationStatus(ctx context.Context, cosmosClient DBClient, operation *api.Operation, newOperationStatus arm.ProvisioningState, opError *arm.CloudErrorBody, postAsyncNotificationFn PostAsyncNotificationFunc) error {
 	if operation == nil {
 		return nil
 	}
 
-	err := PatchOperationDocument(ctx, cosmosClient, operation, opStatus, opError, postAsyncNotificationFn)
+	err := PatchOperationDocument(ctx, cosmosClient, operation, newOperationStatus, opError, postAsyncNotificationFn)
 	if err != nil {
-		return err
+		return utils.TrackError(err)
 	}
 
 	// TODO make this an etag based replace to avoid conflict
@@ -55,8 +55,12 @@ func UpdateOperationStatus(ctx context.Context, cosmosClient DBClient, operation
 		if operation.OperationID == nil || curr.ServiceProviderProperties.ActiveOperationID != operation.OperationID.Name {
 			return utils.TrackError(fmt.Errorf("precondition failed"))
 		}
-		curr.ServiceProviderProperties.ProvisioningState = opStatus
-		if opStatus.IsTerminal() {
+		if curr.ServiceProviderProperties.ProvisioningState == newOperationStatus && !newOperationStatus.IsTerminal() {
+			// we won't make an update, so no work to do.
+			return nil
+		}
+		curr.ServiceProviderProperties.ProvisioningState = newOperationStatus
+		if newOperationStatus.IsTerminal() {
 			curr.ServiceProviderProperties.ActiveOperationID = ""
 		}
 		if _, err := dbClient.Replace(ctx, curr, nil); err != nil {
@@ -73,8 +77,12 @@ func UpdateOperationStatus(ctx context.Context, cosmosClient DBClient, operation
 		if operation.OperationID == nil || curr.ServiceProviderProperties.ActiveOperationID != operation.OperationID.Name {
 			return utils.TrackError(fmt.Errorf("precondition failed"))
 		}
-		curr.Properties.ProvisioningState = opStatus
-		if opStatus.IsTerminal() {
+		if curr.Properties.ProvisioningState == newOperationStatus && !newOperationStatus.IsTerminal() {
+			// we won't make an update, so no work to do.
+			return nil
+		}
+		curr.Properties.ProvisioningState = newOperationStatus
+		if newOperationStatus.IsTerminal() {
 			curr.ServiceProviderProperties.ActiveOperationID = ""
 		}
 		if _, err := dbClient.Replace(ctx, curr, nil); err != nil {
@@ -91,8 +99,12 @@ func UpdateOperationStatus(ctx context.Context, cosmosClient DBClient, operation
 		if operation.OperationID == nil || curr.ServiceProviderProperties.ActiveOperationID != operation.OperationID.Name {
 			return utils.TrackError(fmt.Errorf("precondition failed"))
 		}
-		curr.Properties.ProvisioningState = opStatus
-		if opStatus.IsTerminal() {
+		if curr.Properties.ProvisioningState == newOperationStatus && !newOperationStatus.IsTerminal() {
+			// we won't make an update, so no work to do.
+			return nil
+		}
+		curr.Properties.ProvisioningState = newOperationStatus
+		if newOperationStatus.IsTerminal() {
 			curr.ServiceProviderProperties.ActiveOperationID = ""
 		}
 		if _, err := dbClient.Replace(ctx, curr, nil); err != nil {
@@ -107,20 +119,21 @@ func UpdateOperationStatus(ctx context.Context, cosmosClient DBClient, operation
 }
 
 // PatchOperationDocument patches the status and error fields of an OperationDocument.
-func PatchOperationDocument(ctx context.Context, dbClient DBClient, operation *api.Operation, opStatus arm.ProvisioningState, opError *arm.CloudErrorBody, postAsyncNotificationFn PostAsyncNotificationFunc) error {
+func PatchOperationDocument(ctx context.Context, dbClient DBClient, oldOperation *api.Operation, newOperationStatus arm.ProvisioningState, newOperationError *arm.CloudErrorBody, postAsyncNotificationFn PostAsyncNotificationFunc) error {
 	logger := utils.LoggerFromContext(ctx)
 
-	if len(operation.NotificationURI) == 0 && operation.Status == opStatus {
+	if len(oldOperation.NotificationURI) == 0 && oldOperation.Status == newOperationStatus && oldOperation.Error == newOperationError {
 		// we rewrite the status when we missed a notification
-		return fmt.Errorf("status must be different in order to write new status")
+		// if we have nothing to write, we simply return without error
+		return nil
 	}
 
 	// shallow copy works since all the fields we're touching are shallow
-	operationToWrite := *operation
+	operationToWrite := *oldOperation
 	operationToWrite.LastTransitionTime = localClock.Now()
-	operationToWrite.Status = opStatus
-	if opError != nil {
-		operationToWrite.Error = opError
+	operationToWrite.Status = newOperationStatus
+	if newOperationError != nil {
+		operationToWrite.Error = newOperationError
 	}
 
 	// TODO see if we want to plumb etags through to prevent stomping.  Right now this will stomp a concurrent write.
@@ -130,8 +143,8 @@ func PatchOperationDocument(ctx context.Context, dbClient DBClient, operation *a
 		return utils.TrackError(err)
 	}
 
-	message := fmt.Sprintf("Updated status to '%s'", opStatus)
-	switch opStatus {
+	message := fmt.Sprintf("Updated status to '%s'", newOperationStatus)
+	switch newOperationStatus {
 	case arm.ProvisioningStateSucceeded:
 		switch latestOperation.Request {
 		case OperationRequestCreate:
@@ -160,13 +173,13 @@ func PatchOperationDocument(ctx context.Context, dbClient DBClient, operation *a
 		}
 	}
 
-	if opError != nil {
-		logger.With("cloud_error_code", opError.Code, "cloud_error_message", opError.Message).Error(message)
+	if newOperationError != nil {
+		logger.With("cloud_error_code", newOperationError.Code, "cloud_error_message", newOperationError.Message).Error(message)
 	} else {
 		logger.Info(message)
 	}
 
-	if postAsyncNotificationFn != nil && opStatus.IsTerminal() && len(latestOperation.NotificationURI) > 0 {
+	if postAsyncNotificationFn != nil && newOperationStatus.IsTerminal() && len(latestOperation.NotificationURI) > 0 {
 		err = postAsyncNotificationFn(ctx, latestOperation)
 		if err == nil {
 			logger.Info("Posted async notification")
