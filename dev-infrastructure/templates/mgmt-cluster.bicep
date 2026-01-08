@@ -72,6 +72,27 @@ param infraOsDiskSizeGB int
 @description('Zone redundant mode for the infra nodes')
 param infraZoneRedundantMode string
 
+@description('Min replicas for the new infra worker nodes')
+param newInfraAgentMinCount int
+
+@description('Max replicas for the new infra worker nodes')
+param newInfraAgentMaxCount int
+
+@description('VM instance type for the new infra worker nodes')
+param newInfraAgentVMSize string
+
+@description('Number of pools to create for new infra nodes')
+param newInfraAgentPoolCount int
+
+@description('Zones to use for the new infra nodes')
+param newInfraAgentPoolZones string
+
+@description('Disk size for the AKS new infra nodes')
+param newInfraOsDiskSizeGB int
+
+@description('Zone redundant mode for the new infra nodes')
+param newInfraZoneRedundantMode string
+
 @description('Min replicas for the system nodes')
 param systemAgentMinCount int = 2
 
@@ -365,6 +386,15 @@ module mgmtCluster '../modules/aks-cluster-base.bicep' = {
       : locationAvailabilityZoneList
     infraZoneRedundantMode: infraZoneRedundantMode
     infraOsDiskSizeGB: infraOsDiskSizeGB
+    newInfraAgentMinCount: newInfraAgentMinCount
+    newInfraAgentMaxCount: newInfraAgentMaxCount
+    newInfraAgentVMSize: newInfraAgentVMSize
+    newInfraAgentPoolCount: newInfraAgentPoolCount
+    newInfraAgentPoolZones: length(csvToArray(newInfraAgentPoolZones)) > 0
+      ? csvToArray(newInfraAgentPoolZones)
+      : locationAvailabilityZoneList
+    newInfraZoneRedundantMode: newInfraZoneRedundantMode
+    newInfraOsDiskSizeGB: newInfraOsDiskSizeGB
     networkDataplane: aksNetworkDataplane
     networkPolicy: aksNetworkPolicy
     deploymentMsiId: globalMSIId
