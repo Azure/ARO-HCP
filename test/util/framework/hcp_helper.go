@@ -843,3 +843,47 @@ func GenerateKubeconfig(restConfig *rest.Config) (string, error) {
 
 	return string(kubeconfigBytes), nil
 }
+
+// Verifies that a nodepool created using framework has DiskStorageAccountType set to the framework default "StandardSSD_LRS"
+func ValidateNodePoolDiskStorageAccountType(
+	ctx context.Context,
+	nodePoolsClient *hcpsdk20240610preview.NodePoolsClient,
+	resourceGroupName string,
+	hcpClusterName string,
+	nodePoolName string,
+) error {
+	nodePoolResp, err := GetNodePool(ctx, nodePoolsClient, resourceGroupName, hcpClusterName, nodePoolName)
+	if err != nil {
+		return fmt.Errorf("failed to get nodepool %s: %w", nodePoolName, err)
+	}
+
+	nodePool := nodePoolResp.NodePool
+
+	// Verify the nodepool exists and has the expected structure
+	if nodePool.Properties == nil {
+		return fmt.Errorf("nodepool %s has no properties", nodePoolName)
+	}
+
+	if nodePool.Properties.Platform == nil {
+		return fmt.Errorf("nodepool %s has no platform configuration", nodePoolName)
+	}
+
+	if nodePool.Properties.Platform.OSDisk == nil {
+		return fmt.Errorf("nodepool %s has no OS disk configuration", nodePoolName)
+	}
+
+	if nodePool.Properties.Platform.OSDisk.DiskStorageAccountType == nil {
+		return fmt.Errorf("nodepool %s has no DiskStorageAccountType set", nodePoolName)
+	}
+
+	// Verify the framework default (StandardSSD_LRS) overrode the API default (Premium_LRS)
+	expectedDiskType := "StandardSSD_LRS"
+	actualDiskType := string(*nodePool.Properties.Platform.OSDisk.DiskStorageAccountType)
+
+	if actualDiskType != expectedDiskType {
+		return fmt.Errorf("nodepool %s has incorrect DiskStorageAccountType: expected %s (framework default), got %s",
+			nodePoolName, expectedDiskType, actualDiskType)
+	}
+
+	return nil
+}

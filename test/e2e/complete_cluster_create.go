@@ -35,7 +35,7 @@ var _ = Describe("Customer", func() {
 		// do nothing.  per test initialization usually ages better than shared.
 	})
 
-	It("should be able to create an HCP cluster using bicep templates",
+	It("should be able to create an HCP cluster",
 		labels.RequireNothing,
 		labels.Critical,
 		labels.Positive,
@@ -115,6 +115,16 @@ var _ = Describe("Customer", func() {
 				45*time.Minute,
 			)
 			Expect(err).NotTo(HaveOccurred())
+
+			By("verifying nodepool DiskStorageAccountType matches framework default")
+			err = framework.ValidateNodePoolDiskStorageAccountType(ctx,
+				tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient(),
+				*resourceGroup.Name,
+				customerClusterName,
+				customerNodePoolName,
+			)
+			Expect(err).NotTo(HaveOccurred())
+
 			By("verifying a simple web app can run")
 			err = verifiers.VerifySimpleWebApp().Verify(ctx, adminRESTConfig)
 			Expect(err).NotTo(HaveOccurred())
