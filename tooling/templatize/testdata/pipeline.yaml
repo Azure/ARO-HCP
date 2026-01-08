@@ -97,8 +97,9 @@ resourceGroups:
       value: HCP Service Cluster
     configVersion:
       value: version
-    events:
-      akskubesystem: kubesystem
+    eventSources:
+      akskubesystem:
+        name: kubesystem
   - name: clusterAccount
     action: ClusterLogsAccount
     subscriptionId:
@@ -111,5 +112,6 @@ resourceGroups:
       value: HCP Management Cluster
     configVersion:
       value: version
-    events:
-      akskubesystem: kubesystem
+    eventSources:
+      akskubesystem:
+        name: kubesystem

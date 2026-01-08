@@ -3,7 +3,7 @@ module github.com/Azure/ARO-HCP/tooling/yamlwrap
 go 1.24.4
 
 require (
-	github.com/Azure/ARO-Tools v0.0.0-20251219030559-37f654161c5a
+	github.com/Azure/ARO-Tools v0.0.0-20251222195511-54d3b3c6f27e
 	github.com/dusted-go/logging v1.3.0
 	github.com/go-logr/logr v1.4.3
 	github.com/spf13/cobra v1.10.2
