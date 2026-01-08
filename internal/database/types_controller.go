@@ -27,10 +27,20 @@ type Controller struct {
 }
 
 type ControllerProperties struct {
-	// ResourceID must be serialized exactly here for the generic CRUD to work.
-	ResourceID *azcorearm.ResourceID `json:"resourceId"`
+	// in order to migrate from old storage to new storage, we need to be able to read both the case when this is serialized
+	// inline. the inline serialization is byte the new GenericDocument[api.Controller].
+	// The order of the migration looks like:
+	// 1. read both old and new. During this time, we must inject the resourceID into the items read from the database.
+	//    a. write both old and new schemas.  This seems a little strange, but new backends can actually write old and new at the same time
+	//       if we rollback, then we're able to read the old.  If we roll-forward again, we have the old data supercede the
+	//       new data if it is present.
+	// 2. deploy through to prod
+	// 3. do a read/write cycle on all existing controllers.  Since we only have one, this actually happens every minute
+	// 4. stop reading and writing old.
+	//    a. we can do this in one step because the backend from #1 can read the new and use it, so rollback works fine.
+	api.Controller `json:",inline"`
 
-	InternalState api.Controller `json:"internalState"`
+	OldControllerSerialization *api.Controller `json:"internalState,omitempty"`
 }
 
 func (o *Controller) GetTypedDocument() *TypedDocument {

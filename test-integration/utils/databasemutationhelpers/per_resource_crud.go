@@ -65,7 +65,7 @@ func (ControllerCRUDSpecializer) InstanceEquals(expected, actual *api.Controller
 }
 
 func (ControllerCRUDSpecializer) NameFromInstance(obj *api.Controller) string {
-	return obj.ControllerName
+	return obj.ResourceID.Name
 }
 
 func (ControllerCRUDSpecializer) WriteCosmosID(newObj, oldObj *api.Controller) {

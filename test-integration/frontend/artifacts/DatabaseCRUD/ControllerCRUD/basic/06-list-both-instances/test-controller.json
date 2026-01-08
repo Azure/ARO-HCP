@@ -1,6 +1,6 @@
 {
 	"externalId": "/subscriptions/subscriptionID/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/parentCluster",
-	"controllerName": "test-controller",
+	"resourceId": "/subscriptions/subscriptionID/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/parentCluster/hcpOpenShiftControllers/test-controller",
 	"status": {
 		"conditions": [
 			{
