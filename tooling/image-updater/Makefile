@@ -30,4 +30,20 @@ clean:
 	rm -f $(BINARY_NAME)
 
 help:
-	@echo "build update test test-verbose test-coverage clean"
+	@echo "Available targets:"
+	@echo "  build              - Build the image-updater binary"
+	@echo "  update             - Build and run the updater"
+	@echo "  test               - Run tests"
+	@echo "  test-verbose       - Run tests with verbose output"
+	@echo "  test-coverage      - Run tests with coverage"
+	@echo "  clean              - Remove built binary"
+	@echo ""
+	@echo "Variables:"
+	@echo "  COMPONENTS         - Comma-separated list of components to update"
+	@echo "  EXCLUDE_COMPONENTS - Comma-separated list of components to exclude"
+	@echo "  VERBOSITY          - Set verbosity level (default: 0, 0-1: summary, 2+: debug)"
+	@echo ""
+	@echo "Examples:"
+	@echo "  make update VERBOSITY=2"
+	@echo "  make update COMPONENTS=frontend,backend"
+	@echo "  make update EXCLUDE_COMPONENTS=maestro VERBOSITY=1"
