@@ -62,6 +62,8 @@ func getByItemID[InternalAPIType, CosmosAPIType any](ctx context.Context, contai
 }
 
 func get[InternalAPIType, CosmosAPIType any](ctx context.Context, containerClient *azcosmos.ContainerClient, partitionKeyString string, completeResourceID *azcorearm.ResourceID) (*InternalAPIType, error) {
+	logger := utils.LoggerFromContext(ctx)
+
 	// try to see if the cosmosID we've passed is also the exact resource ID.  If so, then return the value we got.
 	if exactCosmosID, err := api.ResourceIDToCosmosID(completeResourceID); err == nil {
 		ret, err := getByItemID[InternalAPIType, CosmosAPIType](ctx, containerClient, partitionKeyString, exactCosmosID)
@@ -72,6 +74,7 @@ func get[InternalAPIType, CosmosAPIType any](ctx context.Context, containerClien
 			return nil, err
 		}
 	}
+	logger.Info("failed to get exact cosmosID, trying to rekey")
 
 	if strings.ToLower(partitionKeyString) != partitionKeyString {
 		return nil, fmt.Errorf("partitionKeyString must be lowercase, not: %q", partitionKeyString)
