@@ -1,4 +1,4 @@
-.PHONY: build update clean test test-verbose test-coverage help
+.PHONY: build update promote-stage promote-prod clean test test-verbose test-coverage help
 
 BINARY_NAME := image-updater
 CONFIG_FILE := config.yaml
@@ -17,6 +17,12 @@ build:
 update: build
 	@./$(BINARY_NAME) update --config $(CONFIG_FILE) $(COMPONENT_FLAGS) $(EXCLUDE_FLAGS) $(VERBOSITY_FLAGS) && make -C ../../ yamlfmt > /dev/null 2>&1
 
+promote-stage: build
+	@./$(BINARY_NAME) update --config $(CONFIG_FILE) --env stg $(COMPONENT_FLAGS) $(EXCLUDE_FLAGS) $(VERBOSITY_FLAGS) && make -C ../../ yamlfmt > /dev/null 2>&1
+
+promote-prod: build
+	@./$(BINARY_NAME) update --config $(CONFIG_FILE) --env prod $(COMPONENT_FLAGS) $(EXCLUDE_FLAGS) $(VERBOSITY_FLAGS) && make -C ../../ yamlfmt > /dev/null 2>&1
+
 test:
 	@go test ./...
 
@@ -32,7 +38,9 @@ clean:
 help:
 	@echo "Available targets:"
 	@echo "  build              - Build the image-updater binary"
-	@echo "  update             - Build and run the updater"
+	@echo "  update             - Build and run the updater (updates dev,int)"
+	@echo "  promote-stage      - Promote images from int to stage"
+	@echo "  promote-prod       - Promote images from stage to prod"
 	@echo "  test               - Run tests"
 	@echo "  test-verbose       - Run tests with verbose output"
 	@echo "  test-coverage      - Run tests with coverage"
@@ -47,3 +55,5 @@ help:
 	@echo "  make update VERBOSITY=2"
 	@echo "  make update COMPONENTS=frontend,backend"
 	@echo "  make update EXCLUDE_COMPONENTS=maestro VERBOSITY=1"
+	@echo "  make promote-stage COMPONENTS=maestro"
+	@echo "  make promote-prod VERBOSITY=2"
