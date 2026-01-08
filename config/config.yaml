@@ -233,6 +233,7 @@ defaults:
     svcWorkspaceName: 'services-{{ .ctx.region }}'
     hcpWorkspaceName: 'hcps-{{ .ctx.region }}'
     alertRuleOwningTeamTag: ""
+    alertingEnabledRegions: ""
     icm:
       manageConnection: true
       connectionName: ""

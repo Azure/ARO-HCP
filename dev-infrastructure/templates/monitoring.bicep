@@ -55,6 +55,17 @@ param manageConnection bool
 @description('Indicates if the region is in buildout mode. When true, action groups will be disabled.')
 param regionBuildout bool
 
+@description('Comma-separated list of regions where alerting is enabled')
+param alertingEnabledRegions string
+
+// Import common functions for CSV parsing
+import { csvToArray } from '../modules/common.bicep'
+
+// Determine if alerting should be enabled for this region
+var regionList = csvToArray(alertingEnabledRegions)
+var isRegionInWhitelist = contains(regionList, resourceGroup().location)
+var alertingDisabled = !isRegionInWhitelist || regionBuildout
+
 module actionGroups '../modules/metrics/actiongroups.bicep' = if (manageConnection) {
   name: 'actionGroups'
   params: {
@@ -73,7 +84,7 @@ module actionGroups '../modules/metrics/actiongroups.bicep' = if (manageConnecti
     icmActionGroupShortNameMSFT: icmActionGroupShortNameMSFT
     icmRoutingIdMSFT: icmRoutingIdMSFT
     icmAutomitigationEnabledMSFT: icmAutomitigationEnabledMSFT
-    regionBuildout: regionBuildout
+    alertingDisabled: alertingDisabled
   }
 }
 
