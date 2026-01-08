@@ -4,6 +4,8 @@ BINARY_NAME := image-updater
 CONFIG_FILE := config.yaml
 COMPONENTS ?=
 EXCLUDE_COMPONENTS ?=
+VERBOSITY ?= 0
+VERBOSITY_FLAGS := $(if $(VERBOSITY),--verbosity $(VERBOSITY))
 COMPONENT_FLAGS := $(if $(COMPONENTS),--components $(COMPONENTS))
 EXCLUDE_FLAGS := $(if $(EXCLUDE_COMPONENTS),--exclude-components $(EXCLUDE_COMPONENTS))
 
@@ -13,7 +15,7 @@ build:
 	@go build -o $(BINARY_NAME) .
 
 update: build
-	@./$(BINARY_NAME) update --config $(CONFIG_FILE) $(COMPONENT_FLAGS) $(EXCLUDE_FLAGS) && make -C ../../ yamlfmt > /dev/null 2>&1
+	@./$(BINARY_NAME) update --config $(CONFIG_FILE) $(COMPONENT_FLAGS) $(EXCLUDE_FLAGS) $(VERBOSITY_FLAGS) && make -C ../../ yamlfmt > /dev/null 2>&1
 
 test:
 	@go test ./...
