@@ -228,8 +228,7 @@ func decodeDesiredExternalAuthCreate(ctx context.Context) (*api.HCPOpenShiftClus
 		return nil, utils.TrackError(err)
 	}
 
-	newInternalExternalAuth := &api.HCPOpenShiftClusterExternalAuth{}
-	externalExternalAuthFromRequest.Normalize(newInternalExternalAuth)
+	newInternalExternalAuth := externalExternalAuthFromRequest.ConvertToInternal()
 	// ProxyResource info doesn't to come from the external resource information
 	conversion.CopyReadOnlyProxyResourceValues(&newInternalExternalAuth.ProxyResource, ptr.To(arm.NewProxyResource(resourceID)))
 
@@ -385,8 +384,7 @@ func decodeDesiredExternalAuthReplace(ctx context.Context, oldInternalExternalAu
 		return nil, utils.TrackError(err)
 	}
 
-	newInternalExternalAuth := &api.HCPOpenShiftClusterExternalAuth{}
-	externalExternalAuthFromRequest.Normalize(newInternalExternalAuth)
+	newInternalExternalAuth := externalExternalAuthFromRequest.ConvertToInternal()
 
 	// ServiceProviderProperties contains two types of information
 	// 1. values that a user cannot change because the external type does not expose the information.
@@ -432,8 +430,7 @@ func decodeDesiredExternalAuthPatch(ctx context.Context, oldInternalExternalAuth
 	if err := api.ApplyRequestBody(http.MethodPatch, body, newExternalExternalAuth); err != nil {
 		return nil, utils.TrackError(err)
 	}
-	newInternalExternalAuth := &api.HCPOpenShiftClusterExternalAuth{}
-	newExternalExternalAuth.Normalize(newInternalExternalAuth)
+	newInternalExternalAuth := newExternalExternalAuth.ConvertToInternal()
 
 	conversion.CopyReadOnlyExternalAuthValues(newInternalExternalAuth, oldInternalExternalAuth)
 	newInternalExternalAuth.SystemData = systemData

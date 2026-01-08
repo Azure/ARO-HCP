@@ -77,7 +77,9 @@ func (h *NodePool) GetVersion() api.Version {
 	return versionedInterface
 }
 
-func (h *NodePool) Normalize(out *api.HCPOpenShiftClusterNodePool) {
+func (h *NodePool) ConvertToInternal() *api.HCPOpenShiftClusterNodePool {
+	out := &api.HCPOpenShiftClusterNodePool{}
+
 	if h.ID != nil {
 		out.ID = api.Must(azcorearm.ParseResourceID(*h.ID))
 	}
@@ -181,6 +183,7 @@ func (h *NodePool) Normalize(out *api.HCPOpenShiftClusterNodePool) {
 
 	out.Identity = normalizeManagedIdentity(h.Identity)
 
+	return out
 }
 
 func normalizeNodePoolVersion(p *generated.NodePoolVersionProfile, out *api.NodePoolVersionProfile) {
