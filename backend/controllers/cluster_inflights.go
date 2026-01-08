@@ -18,9 +18,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log/slog"
 	"net/http"
-	"os"
 	"time"
 
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -64,10 +62,6 @@ func NewClusterInflightsController(
 	var clusterValidations []ClusterValidation
 	clusterValidations = append(clusterValidations,
 		NewAzureRpRegistrationValidation(
-			// TODO what do we do when we need a logger and we are outside of the context
-			// where a Go context is available? For now a new one is created but this is not
-			// how it is going to be performed
-			slog.New(slog.NewTextHandler(os.Stdout, nil)),
 			"azure-rp-registration-validation",
 			fpaTokenCredRetriever,
 			azureCloudEnvironment,
