@@ -17,6 +17,12 @@ param adminGroups string
 @description('CSV seperated list of groups to assign viewer in the Kusto cluster')
 param viewerGroups string
 
+@description('Minimum number of nodes for autoscale')
+param autoScaleMin int
+
+@description('Maximum number of nodes for autoscale')
+param autoScaleMax int
+
 // Core Kusto cluster (no databases here; those are in separate modules)
 resource kusto 'Microsoft.Kusto/clusters@2024-04-13' = {
   name: kustoName
@@ -27,6 +33,16 @@ resource kusto 'Microsoft.Kusto/clusters@2024-04-13' = {
   }
   identity: {
     type: 'SystemAssigned'
+  }
+
+  properties: {
+    optimizedAutoscale: {
+      version: 1
+      isEnabled: true
+      minimum: autoScaleMin
+      maximum: autoScaleMax
+    }
+    enableAutoStop: false
   }
 
   // Cluster level permissions

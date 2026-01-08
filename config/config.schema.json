@@ -1737,6 +1737,12 @@
         "viewerGroups": {
           "type": "string"
         },
+        "autoScaleMin": {
+          "type": "integer"
+        },
+        "autoScaleMax": {
+          "type": "integer"
+        },
         "kustoName": {
           "type": "string",
           "description": "Name of the kusto cluster. Must begin with a letter and contain between 4 and 22 lowercase alphanumeric characters.",
@@ -1774,7 +1780,9 @@
         "hostedControlPlaneLogsDatabase",
         "adminGroups",
         "viewerGroups",
-        "kustoName"
+        "kustoName",
+        "autoScaleMin",
+        "autoScaleMax"
       ]
     },
     "mise": {

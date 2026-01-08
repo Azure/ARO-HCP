@@ -22,6 +22,12 @@ param viewerGroups string
 @description('Name of the Kusto cluster to create')
 param kustoName string
 
+@description('Minimum number of nodes for autoscale')
+param autoScaleMin int
+
+@description('Maximum number of nodes for autoscale')
+param autoScaleMax int
+
 var db = {
   serviceLogs: serviceLogsDatabase
   hostedControlPlaneLogs: hostedControlPlaneLogsDatabase
@@ -53,6 +59,8 @@ module cluster 'cluster.bicep' = {
     tier: tier
     adminGroups: adminGroups
     viewerGroups: viewerGroups
+    autoScaleMin: autoScaleMin
+    autoScaleMax: autoScaleMax
   }
 }
 

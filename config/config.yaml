@@ -190,6 +190,8 @@ defaults:
         useSNI: true
         manage: true
   kusto:
+    autoScaleMin: 2
+    autoScaleMax: 4
     manageInstance: false
     rg: "hcp-kusto-{{ .ctx.environment }}-{{ .ev2.geoShortId }}"
     kustoName: "hcp-{{ .ctx.environment }}-{{ .ev2.geoShortId }}"

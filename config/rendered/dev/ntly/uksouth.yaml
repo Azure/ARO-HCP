@@ -33,9 +33,9 @@ acrPull:
 adminApi:
   cert:
     issuer: Self
-    name: admin-api-cert-cspr-usw3
+    name: admin-api-cert-ntly-ln
   image:
-    digest: sha256:e9e3517cd2a04832d38e0730306eef776932c7330975f263e0c3b0fa36fa0cc3
+    digest: sha256:6e8e4cad8e058e33ce859c1b33a2e26458792578b01f7e3ac3f88cc19c16d935
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpadminapi
   k8s:
@@ -65,11 +65,11 @@ arobit:
       registry: mcr.microsoft.com
       repository: geneva/distroless/mdsd
 automationDryRun: false
-azureGeoShortId: us
-azureRegionAvailabilityZoneCount: 4
+azureGeoShortId: uk
+azureRegionAvailabilityZoneCount: 3
 backend:
   image:
-    digest: sha256:523e7671d2e507bdc501b654c261336cd8902b8d184f9f9d32b9994270d41151
+    digest: sha256:9ae1fa1eb4442f4d429eac7bff86321d6c043106204ab977b82548689d56fd35
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpbackend
   k8s:
@@ -125,7 +125,7 @@ clustersService:
   deployDebugJobs: false
   environment: arohcpdev
   image:
-    digest: sha256:3cd2b0fc95dbda5032d8a5dc2984e6434171ebdfc0eaa96804f1493b2ba2f6f7
+    digest: sha256:5aab3f8636ba482fb7e75b627b53b8c93fbaf2957a5f1af2432ebaa666e2dd1e
     registry: quay.io
     repository: app-sre/aro-hcp-clusters-service
   k8s:
@@ -153,14 +153,14 @@ clustersService:
   postgres:
     backupRetentionDays: 7
     containerizedDb:
-      image: ""
-      pvcCapacity: ""
+      image: docker.io/library/postgres:14.2
+      pvcCapacity: 512Mi
     databaseName: clusters-service
-    deploy: true
+    deploy: false
     geoRedundantBackup: false
     minTLSVersion: TLSV1.2
-    name: arohcp-cspr-dbcs-usw3
-    password: ""
+    name: arohcp-ntly-dbcs-ln
+    password: TheBlurstOfTimes
     private: false
     serverStorageSizeGB: 128
     serverVersion: "17"
@@ -170,7 +170,7 @@ clustersService:
     address: ""
     exporter: ""
 cxKeyVault:
-  name: ah-cspr-cx-usw3-1
+  name: ah-ntly-cx-ln-1
   private: false
   softDelete: false
   tagKey: aroHCPPurpose
@@ -180,7 +180,7 @@ dns:
   cxParentZoneName: hcp.osadev.cloud
   globalCertificatesDomain: hcp-global.osadev.cloud
   parentZoneName: osadev.cloud
-  regionalSubdomain: westus3-cs
+  regionalSubdomain: ln-ntly
   svcParentZoneName: hcpsvc.osadev.cloud
 e2e:
   prow:
@@ -188,7 +188,7 @@ e2e:
   regionTest:
     gatePromotion: true
     prowJobName: ""
-environmentName: cspr
+environmentName: ntly
 ev2:
   assistedId:
     applicationId: ""
@@ -206,15 +206,15 @@ frontend:
     connectSocket: false
   cert:
     issuer: Self
-    name: frontend-cert-cspr-usw3
+    name: frontend-cert-ntly-ln
   cosmosDB:
     deploy: true
     disableLocalAuth: true
-    name: arohcpcspr-rp-usw3
+    name: arohcpntly-rp-ln
     private: false
     zoneRedundantMode: Disabled
   image:
-    digest: sha256:b9234c5f31251a752d5202da85fcb68f3faa9e914b4aec41c83079b7e19f3392
+    digest: sha256:5aeb23bf13c7e5ba2d9b3cb95587f1b190cbc48e25efe3807111bc6f5940287a
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpfrontend
   k8s:
@@ -261,7 +261,7 @@ geneva:
       san: ""
       secretName: clusterlogs
     environment: Test
-    manageCertificates: false
+    manageCertificates: true
     rp:
       accountName: placeholder
       configVersion: "1"
@@ -294,7 +294,7 @@ global:
   rg: global
   safeDnsIntAppObjectId: ""
   subscription:
-    displayName: Azure Red Hat OpenShift HCP - cspr - Global
+    displayName: Azure Red Hat OpenShift HCP - ntly - Global
     key: ARO Hosted Control Planes (EA Subscription 1)
     providers:
       Microsoft.Compute:
@@ -319,7 +319,7 @@ global:
 hypershift:
   additionalInstallArg: --enable-cpo-overrides
   image:
-    digest: sha256:c75aedb9b5e202877ba6d6d0b2cb755c05c54c9f6ec8bccdf912fc028a56dc0f
+    digest: sha256:d0573db78b8a382b45db4674004e6e41dad33f9a072bc557108747a95ae89440
     registry: quay.io
     repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
   namespace: hypershift
@@ -329,7 +329,7 @@ imageSync:
   ocMirror:
     enabled: true
     image:
-      digest: sha256:0dff8a66b43c99fda8129444f54b113f21067348584a17cf42ea9517b70331e6
+      digest: sha256:4d20cfab10f1524779ca86a55894630ff13eb6da8e5bb58783fa4b058364b272
       registry: arohcpsvcdev.azurecr.io
       repository: image-sync/oc-mirror
     jobNamePrefix: ""
@@ -372,7 +372,7 @@ logs:
     subscriptions: []
 maestro:
   agent:
-    consumerName: hcp-underlay-usw3-mgmt-1
+    consumerName: hcp-underlay-ln-mgmt-1
     k8s:
       namespace: maestro
       replicas: 3
@@ -388,28 +388,28 @@ maestro:
   certIssuer: Self
   eventGrid:
     maxClientSessionsPerAuthName: 6
-    name: arohcp-cspr-maestro-usw3
+    name: arohcp-ntly-maestro-ln
     private: false
   image:
-    digest: sha256:70ffb55eb8e67845da4f98dd9dd056199b56d8d4990ccbd214d8db4290d3aaff
+    digest: sha256:1bd32d0e4174e9ac84f73db7b94e5d5861d4802ca4f82d09a2edba2270da0ce1
     registry: quay.io
     repository: redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro
   postgres:
     backupRetentionDays: 7
     containerizedDb:
-      image: ""
-      pvcCapacity: ""
+      image: docker.io/library/postgres:14.2
+      pvcCapacity: 512Mi
     databaseName: maestro
-    deploy: true
+    deploy: false
     geoRedundantBackup: false
     minTLSVersion: TLSV1.2
-    name: arohcp-cspr-dbmaestro-usw3
-    password: ""
+    name: arohcp-ntly-dbmaestro-ln
+    password: TheBlurstOfTimes
     private: false
     serverStorageSizeGB: 32
     serverVersion: "15"
     zoneRedundantMode: Auto
-  restrictIstioIngress: false
+  restrictIstioIngress: true
   server:
     k8s:
       namespace: maestro
@@ -417,7 +417,7 @@ maestro:
       serviceAccountName: maestro
     loglevel: 2
     managedIdentityName: maestro-server
-    mqttClientName: maestro-server-usw3
+    mqttClientName: maestro-server-ln
     tracing:
       address: ""
       exporter: ""
@@ -427,7 +427,7 @@ mgmt:
     enableSwiftV2Nodepools: false
     enableSwiftV2Vnet: false
     etcd:
-      name: ah-cspr-me-usw3-1
+      name: ah-ntly-me-ln-1
       private: true
       softDelete: false
       tagKey: aroHCPPurpose
@@ -441,7 +441,7 @@ mgmt:
       zoneRedundantMode: Auto
       zones: ""
     kubernetesVersion: 1.32.5
-    name: cspr-westus3-mgmt-1
+    name: ntly-uksouth-mgmt-1
     networkDataplane: azure
     networkPolicy: azure
     podSubnetPrefix: 10.128.64.0/18
@@ -455,24 +455,24 @@ mgmt:
       zoneRedundantMode: Auto
       zones: ""
     userAgentPool:
-      maxCount: 3
+      maxCount: 14
       minCount: 1
-      osDiskSizeGB: 128
+      osDiskSizeGB: 100
       poolCount: 3
-      vmSize: Standard_D16s_v3
+      vmSize: Standard_D4s_v3
       zoneRedundantMode: Auto
       zones: ""
     vnetAddressPrefix: 10.128.0.0/14
-  applyKubeletFixes: true
+  applyKubeletFixes: false
   hcpBackups:
     storageAccount:
-      name: oadpcsprusw31
+      name: oadpntlyln1
       public: false
       zoneRedundantMode: Auto
     storageAccountContainerName: backups
   nsp:
     accessMode: Learning
-    name: nsp-usw3-mgmt-1
+    name: nsp-ln-mgmt-1
   prometheus:
     kubeStateMetrics:
       image:
@@ -506,13 +506,13 @@ mgmt:
           cpu: NONE
           memory: NONE
       shards: 1
-  rg: hcp-underlay-cspr-westus3-mgmt-1
+  rg: hcp-underlay-ntly-uksouth-mgmt-1
   subscription:
     certificateDomains:
     - '*.hcp.osadev.cloud'
     - '*.hcpsvc.osadev.cloud'
-    displayName: Azure Red Hat OpenShift HCP - West US 3 - MGMT - 1
-    key: ARO Hosted Control Planes (EA Subscription 1)
+    displayName: Azure Red Hat OpenShift HCP - UK South - MGMT - 1
+    key: ARO HCP nightly management (EA Subscription)
     providers:
       Microsoft.Compute:
         features:
@@ -535,7 +535,7 @@ mgmt:
         poll: true
     usePlannedQuota: true
 mgmtKeyVault:
-  name: ah-cspr-mg-usw3-1
+  name: ah-ntly-mg-ln-1
   private: false
   softDelete: false
   tagKey: aroHCPPurpose
@@ -568,7 +568,7 @@ monitoring:
   grafanaName: arohcp-dev
   grafanaRoles: 6b6d3adf-8476-4727-9812-20ffdef2b85c/Group/Admin
   grafanaZoneRedundantMode: Disabled
-  hcpWorkspaceName: hcps-cspr-usw3
+  hcpWorkspaceName: aro-hcp-ntly-hcp-ln
   icm:
     connectionId: ""
     connectionName: ""
@@ -589,7 +589,7 @@ monitoring:
       actionGroupShortName: ""
       automitigationEnabled: ""
       routingId: ""
-  svcWorkspaceName: services-cspr-usw3
+  svcWorkspaceName: aro-hcp-ntly-svc-ln
 msiCredentialsRefresher:
   certificate:
     commonName: ""
@@ -612,7 +612,7 @@ msiCredentialsRefresher:
     serviceAccountName: msi-credential-refresher
   managedIdentityName: msi-credential-refresher
 msiKeyVault:
-  name: ah-cspr-mi-usw3-1
+  name: ah-ntly-mi-ln-1
   private: false
   softDelete: false
   tagKey: aroHCPPurpose
@@ -622,7 +622,7 @@ msiRp:
 oidc:
   frontdoor:
     keyVault:
-      name: ah-cspr-afd
+      name: ah-ntly-afd
       private: false
       softDelete: true
       tagKey: aroHCPPurpose
@@ -634,8 +634,8 @@ oidc:
     subdomain: oic
     useManagedCertificates: true
   storageAccount:
-    name: arohcpcsproidcusw3
-    privateLinkLocation: westus3
+    name: arohcpntlyoidcln
+    privateLinkLocation: uksouth
     public: true
     zoneRedundantMode: Auto
 pko:
@@ -655,9 +655,9 @@ pko:
     digest: sha256:0298985d8a02c983be382d351e9243c45edd035b11aa23a6ed077b3d6df7aa45
     registry: quay.io
     repository: package-operator/remote-phase-manager
-region: westus3
+region: uksouth
 regionBuildout: false
-regionRG: hcp-underlay-cspr-westus3
+regionRG: uksouth-shared-resources
 routeMonitorOperator:
   blackboxExporterImage:
     digest: sha256:b04a9fef4fa086a02fc7fcd8dcdbc4b7b35cc30cdee860fdc6a19dd8b208d63e
@@ -677,19 +677,19 @@ secretSyncController:
     registry: mcr.microsoft.com
     repository: oss/v2/azure/secrets-store/provider-azure
 serviceKeyVault:
-  assignNSP: false
-  name: aro-hcp-dev-svc-kv
+  assignNSP: true
+  name: arohcpntly-svc-ln
   private: false
-  region: westus3
-  rg: global
-  softDelete: true
+  region: uksouth
+  rg: uksouth-shared-resources
+  softDelete: false
   tagKey: aroHCPPurpose
   tagValue: service
 svc:
   aks:
     clusterOutboundIPAddressIPTags: ""
     etcd:
-      name: ah-cspr-se-usw3-1
+      name: ah-ntly-se-ln-1
       private: true
       softDelete: false
       tagKey: aroHCPPurpose
@@ -703,7 +703,7 @@ svc:
       zoneRedundantMode: Auto
       zones: ""
     kubernetesVersion: 1.32.5
-    name: cspr-westus3-svc-1
+    name: ntly-uksouth-svc-1
     networkDataplane: cilium
     networkPolicy: cilium
     podSubnetPrefix: 10.128.64.0/18
@@ -717,8 +717,8 @@ svc:
       zoneRedundantMode: Auto
       zones: ""
     userAgentPool:
-      maxCount: 12
-      minCount: 2
+      maxCount: 3
+      minCount: 1
       osDiskSizeGB: 32
       poolCount: 3
       vmSize: Standard_D2s_v3
@@ -734,7 +734,7 @@ svc:
     versions: asm-1-25
   nsp:
     accessMode: Learning
-    name: nsp-usw3-svc
+    name: nsp-ln-svc
   prometheus:
     kubeStateMetrics:
       image:
@@ -769,12 +769,12 @@ svc:
           memory: NONE
       shards: 1
       version: ""
-  rg: hcp-underlay-cspr-westus3-svc
+  rg: hcp-underlay-ntly-uksouth-svc
   subscription:
     certificateDomains:
     - '*.hcpsvc.osadev.cloud'
-    displayName: Azure Red Hat OpenShift HCP - West US 3 - SVC
-    key: ARO Hosted Control Planes (EA Subscription 1)
+    displayName: Azure Red Hat OpenShift HCP - UK South - SVC
+    key: ARO HCP nightly service (EA Subscription)
     providers:
       Microsoft.Compute:
         features:

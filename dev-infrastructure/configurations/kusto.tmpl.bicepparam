@@ -15,3 +15,7 @@ param hostedControlPlaneLogsDatabase = '{{ .kusto.hostedControlPlaneLogsDatabase
 param adminGroups = '{{ .kusto.adminGroups }}'
 
 param viewerGroups = '{{ .kusto.viewerGroups }}'
+
+param autoScaleMin = {{ .kusto.autoScaleMin }}
+
+param autoScaleMax = {{ .kusto.autoScaleMax }}

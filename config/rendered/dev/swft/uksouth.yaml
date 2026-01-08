@@ -347,6 +347,8 @@ kubeEvents:
     repository: shared/kube-events
 kusto:
   adminGroups: 6b6d3adf-8476-4727-9812-20ffdef2b85c
+  autoScaleMax: 4
+  autoScaleMin: 2
   hostedControlPlaneLogsDatabase: HostedControlPlaneLogs
   kustoName: hcp-dev-us
   manageInstance: true
