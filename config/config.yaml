@@ -720,7 +720,7 @@ defaults:
     # OCP Versions configuration
     ocpVersions:
       defaultVersion:
-        version: 4.19.7
+        version: 4.20.8
       channelGroups:
         stable:
           minVersion: 4.19.0
@@ -906,8 +906,6 @@ clouds:
           tlsCertificatesIssuer: Self
         # OCP Versions configuration
         ocpVersions:
-          defaultVersion:
-            version: 4.19.7
           channelGroups:
             candidate:
               minVersion: 4.19.7
