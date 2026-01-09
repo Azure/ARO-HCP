@@ -157,8 +157,9 @@ func (o *Options) CleanUpResources(ctx context.Context) error {
 			continue
 		}
 
-		if o.DryRun {
-			rgLogger.Info("Would delete resource group.")
+		// In dry-run mode without wait, just log what would be deleted and continue
+		if o.DryRun && !o.Wait {
+			rgLogger.Info("Would delete resource group.", "resourceGroup", resourceGroup.ResourceGroup)
 			continue
 		}
 
@@ -176,6 +177,7 @@ func (o *Options) CleanUpResources(ctx context.Context) error {
 			credential:        o.AzureCredential,
 			logger:            rgLogger,
 			wait:              o.Wait,
+			dryRun:            o.DryRun,
 		}
 
 		// Always execute in parallel via errgroup
