@@ -49,13 +49,12 @@ var _ = Describe("Customer", func() {
 			resourceGroup, err := tc.NewResourceGroup(ctx, "rg-cluster-nsg-subnet-reuse", tc.Location())
 			Expect(err).NotTo(HaveOccurred())
 
-			By("creating first cluster parameters")
+			By("creating customer resources")
 			clusterParams1 := framework.NewDefaultClusterParams()
 			clusterParams1.ClusterName = "basic-cluster"
 			managedResourceGroupName1 := framework.SuffixName(*resourceGroup.Name, "-managed-1", 64)
 			clusterParams1.ManagedResourceGroupName = managedResourceGroupName1
 
-			By("creating customer resources")
 			clusterParams1, err = tc.CreateClusterCustomerResources(ctx,
 				resourceGroup,
 				clusterParams1,
@@ -79,7 +78,7 @@ var _ = Describe("Customer", func() {
 			)
 			Expect(err).NotTo(HaveOccurred())
 
-			By("creating customer resource with the same subnet")
+			By("creating customer resources with the same subnet resource ID")
 			clusterParams2 := framework.NewDefaultClusterParams()
 			clusterParams2.ClusterName = "cluster-subnet-reuse"
 			managedResourceGroupName2 := framework.SuffixName(*resourceGroup.Name, "-managed-2", 64)
@@ -100,6 +99,7 @@ var _ = Describe("Customer", func() {
 
 			clusterParams2.SubnetResourceID = clusterParams1.SubnetResourceID
 
+			By("attempting to create HCP cluster with already used subnet resource")
 			err = tc.CreateHCPClusterFromParam(
 				ctx,
 				GinkgoLogr,
@@ -111,7 +111,7 @@ var _ = Describe("Customer", func() {
 			GinkgoLogr.Error(err, "cluster deployment error")
 			Expect(err.Error()).To(MatchRegexp("Subnet .* is already in use by another cluster"))
 
-			By("creating customer infrastructure with the same NSG")
+			By("creating customer resources with the same NSG resource ID")
 			clusterParams3 := framework.NewDefaultClusterParams()
 			clusterParams3.ClusterName = "cluster-nsg-reuse"
 			managedResourceGroupName3 := framework.SuffixName(*resourceGroup.Name, "-managed-3", 64)
@@ -132,6 +132,7 @@ var _ = Describe("Customer", func() {
 
 			clusterParams3.NsgResourceID = clusterParams1.NsgResourceID
 
+			By("attempting to create HCP cluster with already used NSG resource")
 			err = tc.CreateHCPClusterFromParam(
 				ctx,
 				GinkgoLogr,
