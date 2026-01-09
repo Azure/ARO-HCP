@@ -40,6 +40,14 @@ func TestRoundTripExternalAuthInternalCosmosInternal(t *testing.T) {
 			j.Name = "change-channel"
 			j.Type = "Microsoft.RedHatOpenShift/hcpOpenShiftClusters"
 		},
+		func(j *api.HCPOpenShiftClusterExternalAuth, c randfill.Continue) {
+			c.FillNoCustom(j)
+			if j == nil {
+				return
+			}
+			// this must match exactly
+			j.ServiceProviderProperties.CosmosUID = j.GetCosmosData().CosmosUID
+		},
 		func(j *arm.ManagedServiceIdentity, c randfill.Continue) {
 			c.FillNoCustom(j)
 
