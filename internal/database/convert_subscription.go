@@ -37,7 +37,7 @@ func InternalToCosmosSubscription(internalObj *arm.Subscription) (*Subscription,
 	cosmosObj := &Subscription{
 		TypedDocument: TypedDocument{
 			BaseDocument: BaseDocument{
-				ID: strings.ToLower(internalObj.ResourceID.Name),
+				ID: internalObj.GetCosmosData().CosmosUID,
 			},
 			PartitionKey: strings.ToLower(internalObj.ResourceID.Name),
 			ResourceType: internalObj.ResourceID.ResourceType.String(),
@@ -46,6 +46,9 @@ func InternalToCosmosSubscription(internalObj *arm.Subscription) (*Subscription,
 			Subscription: *internalObj,
 		},
 	}
+
+	// some pieces of data conflict with standard fields.  We may evolve over time, but for now avoid persisting those.
+	cosmosObj.InternalState.CosmosUID = ""
 
 	return cosmosObj, nil
 }
@@ -66,6 +69,7 @@ func CosmosToInternalSubscription(cosmosObj *Subscription) (*arm.Subscription, e
 	}
 	internalObj.ResourceID = resourceID
 	internalObj.LastUpdated = cosmosObj.CosmosTimestamp
+	internalObj.CosmosUID = cosmosObj.ID
 
 	return internalObj, nil
 }

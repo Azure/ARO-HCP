@@ -67,6 +67,14 @@ func TestRoundTripClusterInternalCosmosInternal(t *testing.T) {
 			foo := api.Must(api.NewInternalID("/api/clusters_mgmt/v1/clusters/r" + strings.ReplaceAll(c.String(10), "/", "-")))
 			j.ClusterServiceID = foo
 		},
+		func(j *api.HCPOpenShiftCluster, c randfill.Continue) {
+			c.FillNoCustom(j)
+			if j == nil {
+				return
+			}
+			// this must match exactly
+			j.ServiceProviderProperties.CosmosUID = j.GetCosmosData().CosmosUID
+		},
 		func(j *arm.ManagedServiceIdentity, c randfill.Continue) {
 			c.FillNoCustom(j)
 

@@ -16,6 +16,7 @@ package v20240610preview
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"k8s.io/utils/ptr"
@@ -73,7 +74,7 @@ func (h *ExternalAuth) ConvertToInternal() *api.HCPOpenShiftClusterExternalAuth 
 	out := &api.HCPOpenShiftClusterExternalAuth{}
 
 	if h.ID != nil {
-		out.ID = api.Must(azcorearm.ParseResourceID(*h.ID))
+		out.ID = api.Must(azcorearm.ParseResourceID(strings.ToLower(*h.ID)))
 	}
 	if h.Name != nil {
 		out.Name = *h.Name
