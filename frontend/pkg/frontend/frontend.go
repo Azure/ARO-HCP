@@ -23,6 +23,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"path"
 	"strconv"
 	"strings"
 
@@ -723,7 +724,13 @@ func (f *Frontend) OperationStatus(writer http.ResponseWriter, request *http.Req
 	operation, err := f.dbClient.Operations(resourceID.SubscriptionID).GetByID(ctx, resourceID.Name)
 	if database.IsResponseError(err, http.StatusNotFound) {
 		// try using the new storage ID
-		operation, err = f.dbClient.Operations(resourceID.SubscriptionID).GetByID(ctx, api.Must(api.ResourceIDToCosmosID(resourceID)))
+		// we store operations without the location so the type stays as we expect/predict
+		operationStorageResourceID := path.Join(
+			"/subscriptions", resourceID.SubscriptionID,
+			"providers", api.OperationStatusResourceType.String(),
+			resourceID.Name,
+		)
+		operation, err = f.dbClient.Operations(resourceID.SubscriptionID).GetByID(ctx, api.Must(api.ResourceIDStringToCosmosID(operationStorageResourceID)))
 	}
 	if err != nil {
 		return utils.TrackError(err)
@@ -805,6 +812,16 @@ func (f *Frontend) OperationResult(writer http.ResponseWriter, request *http.Req
 	}
 
 	operation, err := f.dbClient.Operations(resourceID.SubscriptionID).GetByID(ctx, resourceID.Name)
+	if database.IsResponseError(err, http.StatusNotFound) {
+		// try using the new storage ID
+		// we store operations without the location so the type stays as we expect/predict
+		operationStorageResourceID := path.Join(
+			"/subscriptions", resourceID.SubscriptionID,
+			"providers", api.OperationStatusResourceType.String(),
+			resourceID.Name,
+		)
+		operation, err = f.dbClient.Operations(resourceID.SubscriptionID).GetByID(ctx, api.Must(api.ResourceIDStringToCosmosID(operationStorageResourceID)))
+	}
 	if err != nil {
 		return utils.TrackError(err)
 	}

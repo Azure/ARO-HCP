@@ -19,6 +19,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"path"
 	"strings"
@@ -26,6 +27,7 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/v20240610preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 )
@@ -67,6 +69,45 @@ func (c frontendHTTPTestAccessor) Get(ctx context.Context, resourceIDString stri
 
 	case strings.ToLower(api.ExternalAuthResourceType.String()):
 		return c.frontendClient.NewExternalAuthsClient().Get(ctx, resourceID.ResourceGroupName, resourceID.Parent.Name, resourceID.Name, nil)
+
+	case strings.ToLower(api.OperationStatusResourceType.String()):
+		parts := []string{
+			"/subscriptions",
+			resourceID.SubscriptionID,
+			"providers",
+			api.ProviderNamespace,
+			"locations",
+			"fake-location",
+			api.OperationStatusResourceType.Type,
+			resourceID.Name,
+		}
+		fullURL := c.frontEndURL + strings.Join(parts, "/") + "?api-version=2024-06-10-preview"
+		req, err := http.NewRequest(http.MethodGet, fullURL, nil)
+		if err != nil {
+			return nil, utils.TrackError(err)
+		}
+		req = req.WithContext(ctx)
+		req.Header.Set(arm.HeaderNameHomeTenantID, api.TestTenantID)
+
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			return nil, utils.TrackError(err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != 200 {
+			return nil, utils.TrackError(fmt.Errorf("expected 200 status code, got %d", resp.StatusCode))
+		}
+		contentBytes, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, utils.TrackError(err)
+		}
+		ret := &arm.Operation{}
+		if err := json.Unmarshal(contentBytes, ret); err != nil {
+			return nil, utils.TrackError(err)
+		}
+
+		return ret, nil
 
 	default:
 		return "", utils.TrackError(fmt.Errorf("unknown resource type: %s", resourceID.ResourceType.String()))
