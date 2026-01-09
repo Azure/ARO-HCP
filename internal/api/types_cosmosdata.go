@@ -23,6 +23,47 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
 
+// CosmosMetadata is metadata required for all data we store in cosmos
+type CosmosMetadata struct {
+	// resourceID is used as the cosmosUID after replacing all '/' with '|'
+	ResourceID azcorearm.ResourceID `json:"resourceID"`
+
+	// TODO add an etag that is not serialized to cosmos, but is set on read.
+	// When non-empty it will cause a conditional replace to be used
+	// When empty it will cause an unconditional replace
+}
+
+func (c *CosmosMetadata) GetResourceID() azcorearm.ResourceID {
+	return c.ResourceID
+}
+
+func (c *CosmosMetadata) SetResourceID(resourceID azcorearm.ResourceID) {
+	c.ResourceID = resourceID
+}
+
+type CosmosMetadataAccessor interface {
+	GetResourceID() azcorearm.ResourceID
+	SetResourceID(azcorearm.ResourceID)
+}
+
+var _ CosmosPersistable = &CosmosMetadata{}
+
+func (o *CosmosMetadata) GetCosmosData() CosmosData {
+	return CosmosData{
+		CosmosUID: Must(ResourceIDToCosmosID(&o.ResourceID)),
+		// partitionkeys are case-sensitive in cosmos, so we need all of our cases to be the same
+		// and we have no guarantee that prior to this the case is consistent.
+		PartitionKey: strings.ToLower(o.ResourceID.SubscriptionID),
+		ItemID:       &o.ResourceID,
+	}
+}
+
+func (o *CosmosMetadata) SetCosmosDocumentData(cosmosUID string) {
+	panic("not supported")
+}
+
+var _ CosmosMetadataAccessor = &CosmosMetadata{}
+
 type CosmosPersistable interface {
 	GetCosmosData() CosmosData
 	SetCosmosDocumentData(cosmosUID string)

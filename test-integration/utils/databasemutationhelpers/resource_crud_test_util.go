@@ -102,7 +102,9 @@ func (tt *ResourceMutationTest) RunTest(t *testing.T) {
 
 	frontend, testInfo, err := integrationutils.NewFrontendFromTestingEnv(ctx, t)
 	require.NoError(t, err)
-	defer testInfo.Cleanup(context.Background())
+	cleanupCtx := context.Background()
+	cleanupCtx = utils.ContextWithLogger(cleanupCtx, slogt.New(t, slogt.JSON()))
+	defer testInfo.Cleanup(cleanupCtx)
 	go frontend.Run(ctx, ctx.Done())
 
 	// create anything and round trip anything for cluster-service
@@ -118,7 +120,10 @@ func (tt *ResourceMutationTest) RunTest(t *testing.T) {
 	}
 	for _, step := range tt.steps {
 		t.Logf("Running step %s", step.StepID())
-		step.RunTest(t.Context(), t, stepInput)
+		ctx := t.Context()
+		ctx = utils.ContextWithLogger(ctx, slogt.New(t, slogt.JSON()))
+
+		step.RunTest(ctx, t, stepInput)
 	}
 }
 

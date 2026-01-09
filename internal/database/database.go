@@ -28,6 +28,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
+	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -118,6 +119,8 @@ type DBClient interface {
 	Operations(subscriptionID string) OperationCRUD
 
 	Subscriptions() SubscriptionCRUD
+
+	ServiceProviderClusters(subscriptionID, resourceGroupName, clusterName string) ServiceProviderClusterCRUD
 }
 
 var _ DBClient = &cosmosDBClient{}
@@ -268,6 +271,12 @@ func (d *cosmosDBClient) Operations(subscriptionID string) OperationCRUD {
 
 func (d *cosmosDBClient) Subscriptions() SubscriptionCRUD {
 	return NewSubscriptionCRUD(d.resources)
+}
+
+func (d *cosmosDBClient) ServiceProviderClusters(subscriptionID, resourceGroupName, clusterName string) ServiceProviderClusterCRUD {
+	clusterResourceID := NewClusterResourceID(subscriptionID, resourceGroupName, clusterName)
+	return NewCosmosResourceCRUD[api.ServiceProviderCluster, GenericDocument[api.ServiceProviderCluster]](
+		d.resources, clusterResourceID, api.ServiceProviderClusterResourceType)
 }
 
 func (d *cosmosDBClient) UntypedCRUD(parentResourceID azcorearm.ResourceID) (UntypedResourceCRUD, error) {
