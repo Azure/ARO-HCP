@@ -13,5 +13,9 @@
   "should allow API access only from authorized VM IP",
   "should be able to create an HCP cluster and custom node pool osDisk size using bicep template",
   "should confirm the HCP cluster is deleted (not found)",
+<<<<<<< HEAD
   "should create an HCP cluster and validate TLS certificates"
+=======
+  "should not be able to create a 4.18 HCP cluster"
+>>>>>>> 60f21b989 (Refactored test 'cluster_tls_endpoints.go' to use direct RP API calls)
 ]

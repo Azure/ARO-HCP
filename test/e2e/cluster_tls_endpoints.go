@@ -36,47 +36,54 @@ var _ = Describe("Customer", func() {
 		// do nothing.  per test initialization usually ages better than shared.
 	})
 
-	It("should create an HCP cluster and validate TLS certificates", labels.RequireNothing, labels.Critical, labels.Positive, func(ctx context.Context) {
+	It("should create an HCP cluster and validate TLS certificates",
+		labels.RequireNothing,
+		labels.Critical,
+		labels.Positive,
+		func(ctx context.Context) {
 
-		const (
-			customerNetworkSecurityGroupName = "customer-nsg-name"
-			customerVnetName                 = "customer-vnet-name"
-			customerVnetSubnetName           = "customer-vnet-subnet1"
-			customerClusterName              = "tls-endpoint-hcp-cluster"
-			customerNodePoolName             = "np-1"
-		)
-		tc := framework.NewTestContext()
-		openshiftControlPlaneVersionId := framework.DefaultOpenshiftControlPlaneVersionId()
-		openshiftNodeVersionId := framework.DefaultOpenshiftNodePoolVersionId()
+			const (
+				customerClusterName  = "tls-endpoint-hcp-cluster"
+				customerNodePoolName = "np-1"
+			)
+			tc := framework.NewTestContext()
 
-		if tc.UsePooledIdentities() {
-			err := tc.AssignIdentityContainers(ctx, 1, 60*time.Second)
+			if tc.UsePooledIdentities() {
+				err := tc.AssignIdentityContainers(ctx, 1, 60*time.Second)
+				Expect(err).NotTo(HaveOccurred())
+			}
+
+			By("creating a resource group")
+			resourceGroup, err := tc.NewResourceGroup(ctx, "tls-endpoint-cluster", tc.Location())
 			Expect(err).NotTo(HaveOccurred())
-		}
 
-		By("creating a resource group")
-		resourceGroup, err := tc.NewResourceGroup(ctx, "tls-endpoint-cluster", tc.Location())
-		Expect(err).NotTo(HaveOccurred())
+			// creating cluster parameters
+			clusterParams := framework.NewDefaultClusterParams()
+			clusterParams.ClusterName = customerClusterName
+			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
+			clusterParams.ManagedResourceGroupName = managedResourceGroupName
 
-		By("creating a customer-infra")
-		customerInfraDeploymentResult, err := tc.CreateBicepTemplateAndWait(ctx,
-			framework.WithTemplateFromFS(TestArtifactsFS, "test-artifacts/generated-test-artifacts/modules/customer-infra.json"),
-			framework.WithDeploymentName("customer-infra"),
-			framework.WithScope(framework.BicepDeploymentScopeResourceGroup),
-			framework.WithClusterResourceGroup(*resourceGroup.Name),
-			framework.WithParameters(map[string]interface{}{
-				"customerNsgName":        customerNetworkSecurityGroupName,
-				"customerVnetName":       customerVnetName,
-				"customerVnetSubnetName": customerVnetSubnetName,
-			}),
-			framework.WithTimeout(45*time.Minute),
-		)
-		Expect(err).NotTo(HaveOccurred())
+			By("creating customer resources (infrastructure and managed identities) for cluster")
+			clusterParams, err = tc.CreateClusterCustomerResources(ctx,
+				resourceGroup,
+				clusterParams,
+				map[string]interface{}{
+					"persistTagValue": false,
+				},
+				TestArtifactsFS,
+			)
+			Expect(err).NotTo(HaveOccurred())
 
-		By("creating/reusing managed identities")
-		keyVaultName, err := framework.GetOutputValue(customerInfraDeploymentResult, "keyVaultName")
-		Expect(err).NotTo(HaveOccurred())
+			By("creating a standard hcp cluster")
+			err = tc.CreateHCPClusterFromParam(ctx,
+				GinkgoLogr,
+				*resourceGroup.Name,
+				clusterParams,
+				45*time.Minute,
+			)
+			Expect(err).NotTo(HaveOccurred())
 
+<<<<<<< HEAD
 		managedIdentityDeploymentResult, err := tc.DeployManagedIdentities(ctx,
 			customerClusterName,
 			framework.WithTemplateFromFS(TestArtifactsFS, "test-artifacts/generated-test-artifacts/modules/managed-identities.json"),
@@ -89,103 +96,72 @@ var _ = Describe("Customer", func() {
 			}),
 		)
 		Expect(err).NotTo(HaveOccurred())
+=======
+			By("ensuring the API TLS certificate issued is not an OpenShift root CA")
+			clusterResp, err := tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient().Get(ctx, *resourceGroup.Name, customerClusterName, nil)
+			Expect(err).NotTo(HaveOccurred())
+>>>>>>> 60f21b989 (Refactored test 'cluster_tls_endpoints.go' to use direct RP API calls)
 
-		By("creating a standard hcp cluster")
-		userAssignedIdentities, err := framework.GetOutputValue(managedIdentityDeploymentResult, "userAssignedIdentitiesValue")
-		Expect(err).NotTo(HaveOccurred())
-		identity, err := framework.GetOutputValue(managedIdentityDeploymentResult, "identityValue")
-		Expect(err).NotTo(HaveOccurred())
-		etcdEncryptionKeyName, err := framework.GetOutputValue(customerInfraDeploymentResult, "etcdEncryptionKeyName")
-		Expect(err).NotTo(HaveOccurred())
-		managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "managed", 64)
-		_, err = tc.CreateBicepTemplateAndWait(ctx,
-			framework.WithTemplateFromFS(TestArtifactsFS, "test-artifacts/generated-test-artifacts/modules/cluster.json"),
-			framework.WithDeploymentName("hcp-cluster"),
-			framework.WithScope(framework.BicepDeploymentScopeResourceGroup),
-			framework.WithClusterResourceGroup(*resourceGroup.Name),
-			framework.WithParameters(map[string]interface{}{
-				"openshiftVersionId":          openshiftControlPlaneVersionId,
-				"clusterName":                 customerClusterName,
-				"managedResourceGroupName":    managedResourceGroupName,
-				"nsgName":                     customerNetworkSecurityGroupName,
-				"subnetName":                  customerVnetSubnetName,
-				"vnetName":                    customerVnetName,
-				"userAssignedIdentitiesValue": userAssignedIdentities,
-				"identityValue":               identity,
-				"keyVaultName":                keyVaultName,
-				"etcdEncryptionKeyName":       etcdEncryptionKeyName,
-			}),
-			framework.WithTimeout(45*time.Minute),
-		)
-		Expect(err).NotTo(HaveOccurred())
+			Expect(clusterResp.Properties).NotTo(BeNil())
+			Expect(clusterResp.Properties.API).NotTo(BeNil())
+			Expect(clusterResp.Properties.API.URL).NotTo(BeNil())
 
-		By("ensuring the API TLS certificate issued is not an OpenShift root CA")
-		clusterResp, err := tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient().Get(ctx, *resourceGroup.Name, customerClusterName, nil)
-		Expect(err).NotTo(HaveOccurred())
+			apiServerURL := clusterResp.Properties.API.URL
+			actualAPICert, err := tlsCertFromURL(ctx, *apiServerURL)
+			Expect(err).NotTo(HaveOccurred())
 
-		Expect(clusterResp.Properties).NotTo(BeNil())
-		Expect(clusterResp.Properties.API).NotTo(BeNil())
-		Expect(clusterResp.Properties.API.URL).NotTo(BeNil())
+			fmt.Fprintf(GinkgoWriter, "Issuer: %v\n", actualAPICert.Issuer)
+			Expect(actualAPICert.Issuer).To(SatisfyAll(
+				HaveField("CommonName", MatchRegexp(`Microsoft\sAzure\sRSA\sTLS\sIssuing\sCA\s[0-9]+`)),
+				HaveField("Organization", ContainElement("Microsoft Corporation")),
+			), "expect certificate to be issued by Microsoft")
 
-		apiServerURL := clusterResp.Properties.API.URL
-		actualAPICert, err := tlsCertFromURL(ctx, *apiServerURL)
-		Expect(err).NotTo(HaveOccurred())
+			By("creating the node pool")
+			nodePoolParams := framework.NewDefaultNodePoolParams()
+			nodePoolParams.ClusterName = customerClusterName
+			nodePoolParams.NodePoolName = customerNodePoolName
 
-		fmt.Fprintf(GinkgoWriter, "Issuer: %v\n", actualAPICert.Issuer)
-		Expect(actualAPICert.Issuer).To(SatisfyAll(
-			HaveField("CommonName", MatchRegexp(`Microsoft\sAzure\sRSA\sTLS\sIssuing\sCA\s[0-9]+`)),
-			HaveField("Organization", ContainElement("Microsoft Corporation")),
-		), "expect certificate to be issued by Microsoft")
+			err = tc.CreateNodePoolFromParam(ctx,
+				*resourceGroup.Name,
+				customerClusterName,
+				nodePoolParams,
+				45*time.Minute,
+			)
+			Expect(err).NotTo(HaveOccurred())
 
-		By("creating the node pool")
-		_, err = tc.CreateBicepTemplateAndWait(ctx,
-			framework.WithTemplateFromFS(TestArtifactsFS, "test-artifacts/generated-test-artifacts/modules/nodepool.json"),
-			framework.WithDeploymentName("node-pool"),
-			framework.WithScope(framework.BicepDeploymentScopeResourceGroup),
-			framework.WithClusterResourceGroup(*resourceGroup.Name),
-			framework.WithParameters(map[string]interface{}{
-				"openshiftVersionId": openshiftNodeVersionId,
-				"clusterName":        customerClusterName,
-				"nodePoolName":       customerNodePoolName,
-				"replicas":           2,
-			}),
-			framework.WithTimeout(45*time.Minute),
-		)
-		Expect(err).NotTo(HaveOccurred())
+			By("ensuring the ingress TLS certificate issued by an OpenShift root CA")
+			hcpOpenShiftClustersClient := tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient()
 
-		By("ensuring the ingress TLS certificate issued by an OpenShift root CA")
-		hcpOpenShiftClustersClient := tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient()
+			By("waiting for the console URL to become available")
+			var consoleURL string
+			Eventually(func() bool {
+				resp, err := hcpOpenShiftClustersClient.Get(ctx, *resourceGroup.Name, customerClusterName, nil)
+				if err != nil || resp.Properties == nil || resp.Properties.Console == nil || resp.Properties.Console.URL == nil {
+					return false
+				}
+				consoleURL = *resp.Properties.Console.URL
+				fmt.Fprintln(GinkgoWriter, "Ingress URL found:", consoleURL)
+				return true
+			}).WithTimeout(15 * time.Minute).WithPolling(10 * time.Second).Should(BeTrue())
 
-		By("waiting for the console URL to become available")
-		var consoleURL string
-		Eventually(func() bool {
-			resp, err := hcpOpenShiftClustersClient.Get(ctx, *resourceGroup.Name, customerClusterName, nil)
-			if err != nil || resp.Properties == nil || resp.Properties.Console == nil || resp.Properties.Console.URL == nil {
-				return false
-			}
-			consoleURL = *resp.Properties.Console.URL
-			fmt.Fprintln(GinkgoWriter, "Ingress URL found:", consoleURL)
-			return true
-		}).WithTimeout(15 * time.Minute).WithPolling(10 * time.Second).Should(BeTrue())
+			By("examining the server certificate returned by the default ingress when routing the console URL")
+			// Wait for the certificate to be loaded after console starts
+			sslPort := 443
+			consoleUrlWithPort := fmt.Sprintf("%s:%s", consoleURL, strconv.Itoa(sslPort))
 
-		By("examining the server certificate returned by the default ingress when routing the console URL")
-		// Wait for the certificate to be loaded after console starts
-		sslPort := 443
-		consoleUrlWithPort := fmt.Sprintf("%s:%s", consoleURL, strconv.Itoa(sslPort))
-
-		Eventually(func() (*x509.Certificate, error) {
-			actualCert, err := tlsCertFromURL(ctx, consoleUrlWithPort)
-			if err != nil {
-				fmt.Fprintf(GinkgoWriter, "error fetching cert: %v\n", err)
-				return nil, err
-			}
-			fmt.Fprintf(GinkgoWriter, "Issuer OU: %v", actualCert.Issuer.OrganizationalUnit)
-			return actualCert, nil
-		}).WithTimeout(4*time.Minute).WithPolling(10*time.Second).To(SatisfyAll(
-			HaveField("Issuer.CommonName", MatchRegexp(`Microsoft\sAzure\sRSA\sTLS\sIssuing\sCA\s[0-9]+`)),
-			HaveField("Issuer.Organization", ContainElement("Microsoft Corporation")),
-		), "expect certificate to be issued by Microsoft")
-	})
+			Eventually(func() (*x509.Certificate, error) {
+				actualCert, err := tlsCertFromURL(ctx, consoleUrlWithPort)
+				if err != nil {
+					fmt.Fprintf(GinkgoWriter, "error fetching cert: %v\n", err)
+					return nil, err
+				}
+				fmt.Fprintf(GinkgoWriter, "Issuer OU: %v", actualCert.Issuer.OrganizationalUnit)
+				return actualCert, nil
+			}).WithTimeout(4*time.Minute).WithPolling(10*time.Second).To(SatisfyAll(
+				HaveField("Issuer.CommonName", MatchRegexp(`Microsoft\sAzure\sRSA\sTLS\sIssuing\sCA\s[0-9]+`)),
+				HaveField("Issuer.Organization", ContainElement("Microsoft Corporation")),
+			), "expect certificate to be issued by Microsoft")
+		})
 })
 
 func tlsCertFromURL(ctx context.Context, u string) (*x509.Certificate, error) {
