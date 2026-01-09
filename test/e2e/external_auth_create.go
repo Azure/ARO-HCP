@@ -50,10 +50,10 @@ var _ = Describe("Customer", func() {
 		labels.AroRpApiCompatible,
 		func(ctx context.Context) {
 			const (
-				customerClusterName              = "ea-cluster"
-				customerNodePoolName             = "ea-np-1"
-				customerExternalAuthName         = "external-auth"
-				externalAuthSubjectPrefix        = "prefix-" // TODO: ARO-21008 preventing us setting NoPrefix
+				customerClusterName       = "ea-cluster"
+				customerNodePoolName      = "ea-np-1"
+				customerExternalAuthName  = "external-auth"
+				externalAuthSubjectPrefix = "prefix-" // TODO: ARO-21008 preventing us setting NoPrefix
 			)
 			tc := framework.NewTestContext()
 
