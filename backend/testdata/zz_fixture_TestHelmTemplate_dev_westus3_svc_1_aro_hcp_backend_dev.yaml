@@ -99,6 +99,8 @@ spec:
       labels:
         app: aro-hcp-backend
         azure.workload.identity/use: "true"
+      annotations:
+        checksum/backendservicekeyvault: 'c105f862130b3abb7d571a9d836a8b873fc6494315ac159abfd2b311c2cba1c8'
     spec:
       topologySpreadConstraints:
       - maxSkew: 1
@@ -114,6 +116,13 @@ spec:
           matchLabels:
             app: aro-hcp-backend
       serviceAccountName: 'backend'
+      volumes:
+      - name: backend-service-key-vault
+        csi:
+          driver: secrets-store.csi.k8s.io
+          readOnly: true
+          volumeAttributes:
+            secretProviderClass: backend-service-key-vault
       containers:
       - name: aro-hcp-backend
         image: 'arohcpsvcdev.azurecr.io/arohcpbackend@sha256:1234567890'
@@ -168,6 +177,10 @@ spec:
             port: 8083
           initialDelaySeconds: 5
           periodSeconds: 10
+        volumeMounts:
+        - name: backend-service-key-vault
+          mountPath: "/secrets/backend-service-key-vault"
+          readOnly: true
       restartPolicy: Always
       terminationGracePeriodSeconds: 30
 ---
