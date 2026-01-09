@@ -32,20 +32,18 @@ var _ = Describe("Customer", func() {
 		// do nothing.  per test initialization usually ages better than shared.
 	})
 
-	It("should be able to create an HCP cluster and custom node pool osDisk size using bicep template",
+	It("should be able to create an HCP cluster and custom node pool osDisk size",
 		labels.RequireNothing,
 		labels.Critical,
 		labels.Positive,
+		labels.AroRpApiCompatible,
 		func(ctx context.Context) {
 			const (
 				customerClusterName             = "hcp-cluster-np-128"
 				customerNodePoolName            = "nodepool-128GiB"
 				customerNodeOsDiskSizeGiB int32 = 128
-				customerNodeReplicas      int32 = 2
 			)
 			tc := framework.NewTestContext()
-			openshiftControlPlaneVersionId := framework.DefaultOpenshiftControlPlaneVersionId()
-			openshiftNodeVersionId := framework.DefaultOpenshiftNodePoolVersionId()
 
 			if tc.UsePooledIdentities() {
 				err := tc.AssignIdentityContainers(ctx, 1, 60*time.Second)
@@ -56,27 +54,43 @@ var _ = Describe("Customer", func() {
 			resourceGroup, err := tc.NewResourceGroup(ctx, "clusternp128", tc.Location())
 			Expect(err).NotTo(HaveOccurred())
 
-			By("creating the infrastructure, cluster and node pool from a single bicep template")
+			// creating cluster parameters
+			clusterParams := framework.NewDefaultClusterParams()
+			clusterParams.ClusterName = customerClusterName
+			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
+			clusterParams.ManagedResourceGroupName = managedResourceGroupName
 
-			identities, usePooled, err := tc.ResolveIdentitiesForTemplate(*resourceGroup.Name)
+			By("creating customer resources (infrastructure and managed identities) for cluster")
+			clusterParams, err = tc.CreateClusterCustomerResources(ctx,
+				resourceGroup,
+				clusterParams,
+				map[string]interface{}{
+					"persistTagValue": false,
+				},
+				TestArtifactsFS,
+			)
 			Expect(err).NotTo(HaveOccurred())
 
-			_, err = tc.CreateBicepTemplateAndWait(ctx,
-				framework.WithTemplateFromFS(TestArtifactsFS, "test-artifacts/generated-test-artifacts/cluster-nodepool-osdisk.json"),
-				framework.WithDeploymentName("cluster-deployment"),
-				framework.WithScope(framework.BicepDeploymentScopeResourceGroup),
-				framework.WithClusterResourceGroup(*resourceGroup.Name),
-				framework.WithParameters(map[string]interface{}{
-					"openshiftControlPlaneVersionId": openshiftControlPlaneVersionId,
-					"openshiftNodePoolVersionId":     openshiftNodeVersionId,
-					"clusterName":                    customerClusterName,
-					"nodePoolName":                   customerNodePoolName,
-					"nodePoolOsDiskSizeGiB":          customerNodeOsDiskSizeGiB,
-					"nodeReplicas":                   customerNodeReplicas,
-					"identities":                     identities,
-					"usePooledIdentities":            usePooled,
-				}),
-				framework.WithTimeout(45*time.Minute),
+			By("creating the HCP cluster")
+			err = tc.CreateHCPClusterFromParam(ctx,
+				GinkgoLogr,
+				*resourceGroup.Name,
+				clusterParams,
+				45*time.Minute,
+			)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("creating the node pool with custom osDisk size")
+			nodePoolParams := framework.NewDefaultNodePoolParams()
+			nodePoolParams.ClusterName = customerClusterName
+			nodePoolParams.NodePoolName = customerNodePoolName
+			nodePoolParams.OSDiskSizeGiB = customerNodeOsDiskSizeGiB
+
+			err = tc.CreateNodePoolFromParam(ctx,
+				*resourceGroup.Name,
+				customerClusterName,
+				nodePoolParams,
+				45*time.Minute,
 			)
 			Expect(err).NotTo(HaveOccurred())
 

@@ -83,24 +83,9 @@ var _ = Describe("Customer", func() {
 			)
 			Expect(err).NotTo(HaveOccurred())
 
-<<<<<<< HEAD
-		managedIdentityDeploymentResult, err := tc.DeployManagedIdentities(ctx,
-			customerClusterName,
-			framework.WithTemplateFromFS(TestArtifactsFS, "test-artifacts/generated-test-artifacts/modules/managed-identities.json"),
-			framework.WithClusterResourceGroup(*resourceGroup.Name),
-			framework.WithParameters(map[string]interface{}{
-				"nsgName":      customerNetworkSecurityGroupName,
-				"vnetName":     customerVnetName,
-				"subnetName":   customerVnetSubnetName,
-				"keyVaultName": keyVaultName,
-			}),
-		)
-		Expect(err).NotTo(HaveOccurred())
-=======
 			By("ensuring the API TLS certificate issued is not an OpenShift root CA")
 			clusterResp, err := tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient().Get(ctx, *resourceGroup.Name, customerClusterName, nil)
 			Expect(err).NotTo(HaveOccurred())
->>>>>>> 60f21b989 (Refactored test 'cluster_tls_endpoints.go' to use direct RP API calls)
 
 			Expect(clusterResp.Properties).NotTo(BeNil())
 			Expect(clusterResp.Properties.API).NotTo(BeNil())
