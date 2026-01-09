@@ -1,0 +1,16 @@
+{
+    "_attachments": "attachments/",
+    "_etag": "\"00000000-0000-0000-7121-fcdc980501dc\"",
+    "_rid": "WZlNALYurecBAAAAAAAAAA==",
+    "_self": "dbs/WZlNAA==/colls/WZlNALYurec=/docs/WZlNALYurecBAAAAAAAAAA==/",
+    "_ts": 1766174370,
+    "id": "6b690bec-0c16-4ecb-8f67-781caf40bba7",
+    "partitionKey": "6b690bec-0c16-4ecb-8f67-781caf40bba7",
+    "properties": {
+        "properties": null,
+        "registrationDate": "2025-12-19T19:53:15+00:00",
+        "resourceId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7",
+        "state": "Registered"
+    },
+    "resourceType": "Microsoft.Resources/subscriptions"
+}
