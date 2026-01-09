@@ -17,8 +17,10 @@ package databasemutationhelpers
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/fs"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -32,7 +34,8 @@ type httpCreateStep struct {
 	stepID StepID
 	key    FrontendResourceKey
 
-	resources [][]byte
+	resources     [][]byte
+	expectedError string
 }
 
 func newHTTPCreateStep(stepID StepID, stepDir fs.FS) (*httpCreateStep, error) {
@@ -50,10 +53,17 @@ func newHTTPCreateStep(stepID StepID, stepDir fs.FS) (*httpCreateStep, error) {
 		return nil, fmt.Errorf("failed to read resource in dir: %w", err)
 	}
 
+	expectedErrorBytes, err := fs.ReadFile(stepDir, "expected-error.txt")
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return nil, fmt.Errorf("failed to read expected-error.txt: %w", err)
+	}
+	expectedError := strings.TrimSpace(string(expectedErrorBytes))
+
 	return &httpCreateStep{
-		stepID:    stepID,
-		key:       key,
-		resources: resources,
+		stepID:        stepID,
+		key:           key,
+		resources:     resources,
+		expectedError: expectedError,
 	}, nil
 }
 
@@ -69,6 +79,13 @@ func (l *httpCreateStep) RunTest(ctx context.Context, t *testing.T, stepInput St
 
 	for _, resource := range l.resources {
 		err := accessor.CreateOrUpdate(ctx, l.key.ResourceID, resource)
-		require.NoError(t, err)
+
+		switch {
+		case len(l.expectedError) > 0:
+			require.ErrorContains(t, err, l.expectedError)
+			return
+		default:
+			require.NoError(t, err)
+		}
 	}
 }
