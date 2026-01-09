@@ -68,13 +68,6 @@ var excludedFromBulkDeletion = []string{
 	"Microsoft.ContainerInstance/containerGroups",
 }
 
-// deletionStep defines a resource type to be deleted with its retry configuration
-type deletionStep struct {
-	resourceType string
-	description  string
-	retries      int
-}
-
 // resourceGroupDeleter handles ordered deletion of resources in a resource group
 type resourceGroupDeleter struct {
 	resourceGroupName string
@@ -788,44 +781,6 @@ func (d *resourceGroupDeleter) logError(err error, message string) {
 	d.logger.Error(err, fmt.Sprintf("❌ %s", message))
 }
 
-// listAllResources lists all resources in the resource group for debugging
-func (d *resourceGroupDeleter) listAllResources(ctx context.Context) error {
-	resourcesClient, err := armresources.NewClient(d.subscriptionID, d.credential, nil)
-	if err != nil {
-		return fmt.Errorf("failed to create resources client: %w", err)
-	}
-
-	pager := resourcesClient.NewListByResourceGroupPager(d.resourceGroupName, nil)
-	var resources []*armresources.GenericResourceExpanded
-
-	for pager.More() {
-		page, err := pager.NextPage(ctx)
-		if err != nil {
-			return fmt.Errorf("failed to list resources: %w", err)
-		}
-		resources = append(resources, page.Value...)
-	}
-
-	if len(resources) == 0 {
-		return nil
-	}
-
-	// Group resources by type for summary
-	resourcesByType := make(map[string]int)
-	for _, res := range resources {
-		if res.Type != nil {
-			resourcesByType[*res.Type]++
-		}
-	}
-
-	// Only show summary in dry-run or if there are remaining resources at the end
-	if d.dryRun {
-		d.logInfo(fmt.Sprintf("Resource inventory: %d resources", len(resources)))
-	}
-
-	return nil
-}
-
 // deletePublicDNSZonesWithDelegation deletes public DNS zones and cleans up NS records in parent zones
 func (d *resourceGroupDeleter) deletePublicDNSZonesWithDelegation(ctx context.Context, resourcesClient *armresources.Client) error {
 	// List all public DNS zones in this resource group
@@ -998,15 +953,6 @@ func (d *resourceGroupDeleter) listResourcesByType(ctx context.Context, client *
 	}
 
 	return resources, nil
-}
-
-// countResourcesByType counts resources of a given type (helper for logging)
-func (d *resourceGroupDeleter) countResourcesByType(ctx context.Context, client *armresources.Client, resourceType string) (int, error) {
-	resources, err := d.listResourcesByType(ctx, client, resourceType)
-	if err != nil {
-		return 0, err
-	}
-	return len(resources), nil
 }
 
 // executeWithRetries executes an operation with exponential backoff retries
