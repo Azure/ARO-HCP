@@ -87,7 +87,7 @@
     "kind": "Product"
   },
   "region": {
-    "id": "globals-are-evil",
+    "id": "fake-location",
     "kind": "CloudRegion"
   },
   "version": {

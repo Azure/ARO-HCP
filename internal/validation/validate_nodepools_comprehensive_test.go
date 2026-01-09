@@ -1173,7 +1173,10 @@ func TestValidateNodePoolUpdate(t *testing.T) {
 
 // Helper function to create a valid nodepool for testing
 func createValidNodePool() *api.HCPOpenShiftClusterNodePool {
-	nodePool := api.NewDefaultHCPOpenShiftClusterNodePool(api.Must(azcorearm.ParseResourceID("/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster/nodePools/test-nodepool")))
+	nodePool := api.NewDefaultHCPOpenShiftClusterNodePool(
+		api.Must(azcorearm.ParseResourceID("/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster/nodePools/test-nodepool")),
+		api.TestLocation,
+	)
 
 	// Set required fields that are not in the default
 	nodePool.Location = "eastus" // Required for TrackedResource validation

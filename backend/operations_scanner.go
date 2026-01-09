@@ -136,6 +136,7 @@ type OperationsScanner struct {
 	dbClient            database.DBClient
 	lockClient          database.LockClientInterface
 	clusterService      ocm.ClusterServiceClientSpec
+	azureLocation       string
 	notificationClient  *http.Client
 	subscriptionsLock   sync.Mutex
 	subscriptions       []string
@@ -160,7 +161,7 @@ type OperationsScanner struct {
 	subscriptionsByState   *prometheus.GaugeVec
 }
 
-func NewOperationsScanner(dbClient database.DBClient, ocmConnection *ocmsdk.Connection) *OperationsScanner {
+func NewOperationsScanner(dbClient database.DBClient, ocmConnection *ocmsdk.Connection, azureLocation string) *OperationsScanner {
 	s := &OperationsScanner{
 		dbClient:   dbClient,
 		lockClient: dbClient.GetLockClient(),
@@ -173,6 +174,7 @@ func NewOperationsScanner(dbClient database.DBClient, ocmConnection *ocmsdk.Conn
 			),
 			tracerName,
 		),
+		azureLocation:      azureLocation,
 		notificationClient: http.DefaultClient,
 		subscriptions:      make([]string, 0),
 
@@ -285,6 +287,10 @@ func getPositiveInt(envName string, defaultVal int, logger *slog.Logger) int {
 
 // Run executes the main loop of the OperationsScanner.
 func (s *OperationsScanner) Run(ctx context.Context, logger *slog.Logger) {
+	if len(s.azureLocation) == 0 {
+		panic("azureLocation must be set")
+	}
+
 	var interval time.Duration
 
 	interval = getInterval("BACKEND_POLL_INTERVAL_SUBSCRIPTIONS", defaultPollIntervalSubscriptions, logger)
@@ -890,7 +896,7 @@ func (s *OperationsScanner) createBillingDocument(ctx context.Context, op operat
 
 	doc := database.NewBillingDocument(op.doc.ExternalID)
 	doc.CreationTime = csCluster.CreationTimestamp()
-	doc.Location = arm.GetAzureLocation()
+	doc.Location = s.azureLocation
 	doc.TenantID = op.doc.TenantID
 	doc.ManagedResourceGroup = fmt.Sprintf(
 		"/%s/%s/%s/%s",

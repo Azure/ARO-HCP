@@ -2,7 +2,7 @@
 	"identity": {
 		"type": "UserAssigned"
 	},
-	"location": "globals-are-evil",
+	"location": "fake-location",
 	"name": "create-with-tags",
 	"properties": {
 		"api": {

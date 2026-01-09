@@ -59,6 +59,8 @@ type Frontend struct {
 	done                 chan struct{}
 	collector            *metrics.SubscriptionCollector
 	healthGauge          prometheus.Gauge
+	// this is the azure location for this instance of the frontend
+	azureLocation string
 
 	apiRegistry api.APIRegistry
 }
@@ -71,6 +73,7 @@ func NewFrontend(
 	dbClient database.DBClient,
 	csClient ocm.ClusterServiceClientSpec,
 	auditClient audit.Client,
+	azureLocation string,
 ) *Frontend {
 	// zero side-effect registration path
 	apiRegistry := api.NewAPIRegistry()
@@ -98,14 +101,15 @@ func NewFrontend(
 		auditClient: auditClient,
 		dbClient:    dbClient,
 		done:        make(chan struct{}),
-		collector:   metrics.NewSubscriptionCollector(reg, dbClient, arm.GetAzureLocation()),
+		collector:   metrics.NewSubscriptionCollector(reg, dbClient, azureLocation),
 		healthGauge: promauto.With(reg).NewGauge(
 			prometheus.GaugeOpts{
 				Name: healthGaugeName,
 				Help: "Reports the health status of the service (0: not healthy, 1: healthy).",
 			},
 		),
-		apiRegistry: apiRegistry,
+		azureLocation: azureLocation,
+		apiRegistry:   apiRegistry,
 	}
 
 	f.server.Handler = f.routes(reg)
@@ -115,6 +119,10 @@ func NewFrontend(
 }
 
 func (f *Frontend) Run(ctx context.Context, stop <-chan struct{}) {
+	if len(f.azureLocation) == 0 {
+		panic("azureLocation must be set")
+	}
+
 	// This just digs up the logger passed to NewFrontend.
 	logger := utils.LoggerFromContext(f.server.BaseContext(f.listener))
 
@@ -168,7 +176,7 @@ func (f *Frontend) Location(writer http.ResponseWriter, request *http.Request) {
 	// This is strictly for development environments to help discover
 	// the frontend's Azure region when port forwarding with kubectl.
 	// e.g. LOCATION=$(curl http://localhost:8443/location)
-	_, _ = writer.Write([]byte(arm.GetAzureLocation()))
+	_, _ = writer.Write([]byte(f.azureLocation))
 }
 
 func dbListOptionsFromRequest(request *http.Request) *database.DBClientListResourceDocsOptions {
@@ -330,6 +338,7 @@ func (f *Frontend) ArmResourceActionRequestAdminCredential(writer http.ResponseW
 		operationRequest,
 		clusterResourceID,
 		csCredentialClusterServiceID,
+		f.azureLocation,
 		request.Header.Get(arm.HeaderNameHomeTenantID),
 		request.Header.Get(arm.HeaderNameClientObjectID),
 		request.Header.Get(arm.HeaderNameAsyncNotificationURI),
@@ -416,6 +425,7 @@ func (f *Frontend) ArmResourceActionRevokeCredentials(writer http.ResponseWriter
 		operationRequest,
 		clusterResourceID,
 		cluster.ServiceProviderProperties.ClusterServiceID,
+		f.azureLocation,
 		request.Header.Get(arm.HeaderNameHomeTenantID),
 		request.Header.Get(arm.HeaderNameClientObjectID),
 		request.Header.Get(arm.HeaderNameAsyncNotificationURI),
@@ -703,6 +713,7 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 
 func (f *Frontend) OperationStatus(writer http.ResponseWriter, request *http.Request) error {
 	ctx := request.Context()
+	logger := utils.LoggerFromContext(ctx)
 
 	resourceID, err := utils.ResourceIDFromContext(ctx)
 	if err != nil {
@@ -710,6 +721,10 @@ func (f *Frontend) OperationStatus(writer http.ResponseWriter, request *http.Req
 	}
 
 	operation, err := f.dbClient.Operations(resourceID.SubscriptionID).GetByID(ctx, resourceID.Name)
+	if database.IsResponseError(err, http.StatusNotFound) {
+		// try using the new storage ID
+		operation, err = f.dbClient.Operations(resourceID.SubscriptionID).GetByID(ctx, api.Must(api.ResourceIDToCosmosID(resourceID)))
+	}
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -717,6 +732,7 @@ func (f *Frontend) OperationStatus(writer http.ResponseWriter, request *http.Req
 	// Validate the identity retrieving the operation result is the
 	// same identity that triggered the operation. Return 404 if not.
 	if !f.OperationIsVisible(request, operation) {
+		logger.Warn("operation result not visible to requester")
 		writer.WriteHeader(http.StatusNotFound)
 		return nil
 	}

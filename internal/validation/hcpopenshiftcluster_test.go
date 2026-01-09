@@ -33,8 +33,6 @@ var (
 )
 
 func TestClusterRequired(t *testing.T) {
-	arm.SetAzureLocation(api.TestLocation)
-
 	tests := []struct {
 		name         string
 		resource     *api.HCPOpenShiftCluster
@@ -92,8 +90,11 @@ func TestClusterRequired(t *testing.T) {
 			},
 		},
 		{
-			name:     "Default cluster",
-			resource: api.NewDefaultHCPOpenShiftCluster(api.Must(azcorearm.ParseResourceID("/subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster"))),
+			name: "Default cluster",
+			resource: api.NewDefaultHCPOpenShiftCluster(
+				api.Must(azcorearm.ParseResourceID("/subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster")),
+				api.TestLocation,
+			),
 			expectErrors: []expectedError{
 				{
 					message:   "Required value",

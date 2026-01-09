@@ -13,7 +13,7 @@
       }
     }
   },
-  "location": "globals-are-evil",
+  "location": "fake-location",
   "name": "patch-identity",
   "properties": {
     "api": {

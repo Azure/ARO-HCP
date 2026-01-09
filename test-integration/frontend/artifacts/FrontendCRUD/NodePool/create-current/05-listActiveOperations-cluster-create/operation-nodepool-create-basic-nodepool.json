@@ -4,7 +4,7 @@
 	"request": "Create",
 	"externalId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/create-with-tags/nodePools/basic-node-pool",
 	"internalId": "/api/clusters_mgmt/v1/clusters/lm9l7hfwqc/node_pools/kd4vt5d8gb",
-	"operationId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/providers/Microsoft.RedHatOpenShift/locations/globals-are-evil/hcpOperationStatuses/7c3de93c-ff5d-4865-a177-291549ba8020",
+	"operationId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/providers/Microsoft.RedHatOpenShift/locations/fake-location/hcpOperationStatuses/7c3de93c-ff5d-4865-a177-291549ba8020",
 	"startTime": "2025-12-19T21:03:42.649357713Z",
 	"lastTransitionTime": "2025-12-19T21:03:42.649357713Z",
 	"status": "Accepted"

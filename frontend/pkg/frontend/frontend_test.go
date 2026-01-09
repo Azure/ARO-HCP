@@ -105,6 +105,7 @@ func TestSubscriptionsGET(t *testing.T) {
 				mockDBClient,
 				nil,
 				newNoopAuditClient(t),
+				api.TestLocation,
 			)
 
 			// ArmSubscriptionGet.
@@ -268,6 +269,7 @@ func TestSubscriptionsPUT(t *testing.T) {
 				mockDBClient,
 				nil,
 				newNoopAuditClient(t),
+				api.TestLocation,
 			)
 
 			body, err := json.Marshal(&test.subscription)
@@ -495,6 +497,7 @@ func TestDeploymentPreflight(t *testing.T) {
 				mockDBClient,
 				nil,
 				newNoopAuditClient(t),
+				api.TestLocation,
 			)
 
 			// MiddlewareValidateSubscriptionState and MetricsMiddleware
@@ -637,6 +640,7 @@ func TestRequestAdminCredential(t *testing.T) {
 				mockDBClient,
 				mockCSClient,
 				newNoopAuditClient(t),
+				api.TestLocation,
 			)
 
 			// MiddlewareValidateSubscriptionState and MetricsMiddleware
@@ -808,6 +812,7 @@ func TestRevokeCredentials(t *testing.T) {
 				mockDBClient,
 				mockCSClient,
 				newNoopAuditClient(t),
+				api.TestLocation,
 			)
 
 			// MiddlewareValidateSubscriptionState and MetricsMiddleware

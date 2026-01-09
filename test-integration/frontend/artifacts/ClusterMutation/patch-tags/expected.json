@@ -9,7 +9,7 @@
       }
     }
   },
-  "location": "globals-are-evil",
+  "location": "fake-location",
   "name": "patch-tags",
   "properties": {
     "api": {
