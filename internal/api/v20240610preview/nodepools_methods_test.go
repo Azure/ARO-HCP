@@ -338,10 +338,7 @@ func TestNewOSDiskProfile(t *testing.T) {
 
 func roundTripInternalNodePool(t *testing.T, original *api.HCPOpenShiftClusterNodePool) {
 	v := version{}
-	externalObj := v.NewHCPOpenShiftClusterNodePool(original)
-
-	roundTrippedObj := &api.HCPOpenShiftClusterNodePool{}
-	externalObj.Normalize(roundTrippedObj)
+	roundTrippedObj := v.NewHCPOpenShiftClusterNodePool(original).ConvertToInternal()
 
 	// we compare using DeepEqual here because many of these types have private fields that cannot be introspected
 	if !reflect.DeepEqual(original, roundTrippedObj) {
