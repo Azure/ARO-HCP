@@ -77,6 +77,7 @@ type resourceGroupDeleter struct {
 	wait              bool
 	dryRun            bool
 	stats             deletionStats
+	apiVersionCache   map[string]string // Cache for provider API versions
 }
 
 type deletionStats struct {
@@ -507,7 +508,10 @@ func (d *resourceGroupDeleter) deleteResourceWithRetries(ctx context.Context, cl
 
 	// Extract API version from resource type
 	// Azure SDK requires the API version to delete resources
-	apiVersion := d.getAPIVersionForResourceType(resourceType)
+	apiVersion, err := d.getAPIVersionForResourceType(resourceType)
+	if err != nil {
+		return fmt.Errorf("failed to get API version for %s: %w", resourceType, err)
+	}
 
 	return d.executeWithRetries(ctx, maxRetries, func(attempt int) error {
 		// Begin delete with API version
@@ -524,51 +528,66 @@ func (d *resourceGroupDeleter) deleteResourceWithRetries(ctx context.Context, cl
 }
 
 // getAPIVersionForResourceType returns the API version for a given resource type
-// This uses commonly stable API versions for different resource providers
-func (d *resourceGroupDeleter) getAPIVersionForResourceType(resourceType string) string {
-	// Map of specific resource types and provider namespace defaults
-	// Format: "Microsoft.Provider/ResourceType" for specific resources
-	//         "Microsoft.Provider" for provider-wide defaults
-	// Updated with latest stable versions as of 2025-11-18
-	apiVersions := map[string]string{
-		// Specific resource types that need non-default versions
-		"Microsoft.Network/privateDnsZones":                     "2024-06-01",
-		"Microsoft.Network/dnszones":                            "2018-05-01", // Older but stable
-		"Microsoft.Network/privateDnsZones/virtualNetworkLinks": "2020-06-01",
-
-		// Provider namespace defaults (catch-all for each provider)
-		"Microsoft.Network":             "2025-05-01",
-		"Microsoft.Compute":             "2025-04-01",
-		"Microsoft.Storage":             "2025-06-01",
-		"Microsoft.Insights":            "2024-03-11",
-		"Microsoft.Monitor":             "2023-04-03",
-		"Microsoft.AlertsManagement":    "2023-03-01",
-		"Microsoft.OperationalInsights": "2023-09-01",
-		"Microsoft.ManagedIdentity":     "2023-01-31",
-		"Microsoft.DocumentDB":          "2024-05-15",
-		"Microsoft.Kusto":               "2023-08-15",
-		"Microsoft.EventGrid":           "2024-06-01-preview",
-		"Microsoft.ContainerService":    "2025-10-01",
-		"Microsoft.KeyVault":            "2025-05-01",
-		"Microsoft.Authorization":       "2022-04-01",
-		"Microsoft.Resources":           "2023-08-01",
-	}
-
-	// Try exact resource type match first
-	if version, ok := apiVersions[resourceType]; ok {
-		return version
-	}
-
-	// Try provider namespace match (e.g., "Microsoft.Network" from "Microsoft.Network/loadBalancers")
+// Uses dynamic discovery via Azure Resource Manager Providers API for production reliability
+func (d *resourceGroupDeleter) getAPIVersionForResourceType(resourceType string) (string, error) {
+	// Extract provider namespace and resource type components
+	var providerNamespace, resourceTypeName string
 	if idx := strings.Index(resourceType, "/"); idx > 0 {
-		providerNamespace := resourceType[:idx]
-		if version, ok := apiVersions[providerNamespace]; ok {
-			return version
+		providerNamespace = resourceType[:idx]
+		resourceTypeName = resourceType[idx+1:]
+	} else {
+		return "", fmt.Errorf("invalid resource type format: %s", resourceType)
+	}
+
+	// Check cache first to avoid repeated API calls
+	if d.apiVersionCache == nil {
+		d.apiVersionCache = make(map[string]string)
+	}
+
+	cacheKey := resourceType
+	if cached, ok := d.apiVersionCache[cacheKey]; ok {
+		return cached, nil
+	}
+
+	// Try dynamic discovery from Azure RM
+	ctx := context.Background()
+	providersClient, err := armresources.NewProvidersClient(d.subscriptionID, d.credential, nil)
+	if err != nil {
+		return "", fmt.Errorf("failed to create providers client: %w", err)
+	}
+
+	provider, err := providersClient.Get(ctx, providerNamespace, nil)
+	if err != nil {
+		return "", fmt.Errorf("failed to get provider metadata for %s: %w", providerNamespace, err)
+	}
+
+	// Find the specific resource type and get its latest stable API version
+	if provider.ResourceTypes != nil {
+		for _, rt := range provider.ResourceTypes {
+			if rt.ResourceType != nil && *rt.ResourceType == resourceTypeName {
+				if rt.APIVersions != nil && len(rt.APIVersions) > 0 {
+					// Azure returns versions in descending order (latest first)
+					// Prefer stable versions over preview versions
+					for _, version := range rt.APIVersions {
+						if version != nil && !strings.Contains(*version, "preview") {
+							apiVersion := *version
+							d.apiVersionCache[cacheKey] = apiVersion
+							return apiVersion, nil
+						}
+					}
+					// If only preview versions available, use the latest one
+					if rt.APIVersions[0] != nil {
+						apiVersion := *rt.APIVersions[0]
+						d.apiVersionCache[cacheKey] = apiVersion
+						return apiVersion, nil
+					}
+				}
+			}
 		}
 	}
 
-	// Global fallback for unknown providers
-	return "2023-04-01"
+	// Resource type not found in provider metadata
+	return "", fmt.Errorf("resource type %s not found in provider %s metadata", resourceTypeName, providerNamespace)
 }
 
 // hasLocks checks if a resource has management locks

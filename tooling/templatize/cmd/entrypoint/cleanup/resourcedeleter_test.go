@@ -296,92 +296,49 @@ func TestConstants(t *testing.T) {
 }
 
 func TestGetAPIVersionForResourceType(t *testing.T) {
-	d := &resourceGroupDeleter{}
-
 	tests := []struct {
-		name         string
-		resourceType string
-		expected     string
-		reason       string
+		name          string
+		resourceType  string
+		expectError   bool
+		errorContains string
+		reason        string
 	}{
 		{
-			name:         "Private DNS Zone - specific override",
-			resourceType: "Microsoft.Network/privateDnsZones",
-			expected:     "2024-06-01",
-			reason:       "Has specific version override",
+			name:          "Invalid format - returns error",
+			resourceType:  "InvalidResourceType",
+			expectError:   true,
+			errorContains: "invalid resource type format",
+			reason:        "Returns error for invalid format",
 		},
 		{
-			name:         "Public DNS Zone - specific override",
-			resourceType: "Microsoft.Network/dnszones",
-			expected:     "2018-05-01",
-			reason:       "Uses older stable version",
+			name:          "Empty resource type - returns error",
+			resourceType:  "",
+			expectError:   true,
+			errorContains: "invalid resource type format",
+			reason:        "Returns error for empty resource type",
 		},
 		{
-			name:         "Private DNS Zone VNet Link - specific override",
-			resourceType: "Microsoft.Network/privateDnsZones/virtualNetworkLinks",
-			expected:     "2020-06-01",
-			reason:       "Has specific version override",
-		},
-		{
-			name:         "Network resource - provider default",
-			resourceType: "Microsoft.Network/loadBalancers",
-			expected:     "2025-05-01",
-			reason:       "Falls back to Microsoft.Network provider default",
-		},
-		{
-			name:         "Network Security Group - provider default",
-			resourceType: "Microsoft.Network/networkSecurityGroups",
-			expected:     "2025-05-01",
-			reason:       "Falls back to Microsoft.Network provider default",
-		},
-		{
-			name:         "Storage Account - provider default",
-			resourceType: "Microsoft.Storage/storageAccounts",
-			expected:     "2025-06-01",
-			reason:       "Falls back to Microsoft.Storage provider default",
-		},
-		{
-			name:         "Compute VM - provider default",
-			resourceType: "Microsoft.Compute/virtualMachines",
-			expected:     "2025-04-01",
-			reason:       "Falls back to Microsoft.Compute provider default",
-		},
-		{
-			name:         "AKS Cluster - specific provider",
-			resourceType: "Microsoft.ContainerService/managedClusters",
-			expected:     "2025-10-01",
-			reason:       "Falls back to Microsoft.ContainerService provider default",
-		},
-		{
-			name:         "Cosmos DB - provider default",
-			resourceType: "Microsoft.DocumentDB/databaseAccounts",
-			expected:     "2024-05-15",
-			reason:       "Falls back to Microsoft.DocumentDB provider default",
-		},
-		{
-			name:         "Key Vault - provider default",
-			resourceType: "Microsoft.KeyVault/vaults",
-			expected:     "2025-05-01",
-			reason:       "Falls back to Microsoft.KeyVault provider default",
-		},
-		{
-			name:         "Unknown provider - global fallback",
-			resourceType: "Microsoft.UnknownProvider/unknownResource",
-			expected:     "2023-04-01",
-			reason:       "Falls back to global default for unknown providers",
-		},
-		{
-			name:         "Invalid format - global fallback",
-			resourceType: "InvalidResourceType",
-			expected:     "2023-04-01",
-			reason:       "Falls back to global default for invalid format",
+			name:          "Resource type without slash - returns error",
+			resourceType:  "NoSlashHere",
+			expectError:   true,
+			errorContains: "invalid resource type format",
+			reason:        "Returns error for resource type without slash",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			actual := d.getAPIVersionForResourceType(tt.resourceType)
-			assert.Equal(t, tt.expected, actual, tt.reason)
+			d := &resourceGroupDeleter{}
+			_, err := d.getAPIVersionForResourceType(tt.resourceType)
+
+			if tt.expectError {
+				assert.Error(t, err, tt.reason)
+				if tt.errorContains != "" {
+					assert.Contains(t, err.Error(), tt.errorContains, "Error message should contain expected text")
+				}
+			} else {
+				assert.NoError(t, err, tt.reason)
+			}
 		})
 	}
 }
