@@ -1,0 +1,47 @@
+{
+	"id": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/create-with-tags/externalAuths/default",
+	"name": "default",
+	"properties": {
+		"claim": {
+			"mappings": {
+				"groups": {
+					"claim": "groups"
+				},
+				"username": {
+					"claim": "sub",
+					"prefix": "prefix-",
+					"prefixPolicy": "Prefix"
+				}
+			},
+			"validationRules": []
+		},
+		"clients": [
+			{
+				"clientId": "87654321-4321-4321-4321-abcdefghijkl",
+				"component": {
+					"authClientNamespace": "openshift-console",
+					"name": "console"
+				},
+				"extraScopes": [],
+				"type": "Confidential"
+			},
+			{
+				"clientId": "87654321-4321-4321-4321-abcdefghijkl",
+				"component": {
+					"authClientNamespace": "openshift-console",
+					"name": "cli"
+				},
+				"extraScopes": [],
+				"type": "Public"
+			}
+		],
+		"issuer": {
+			"audiences": [
+				"87654321-4321-4321-4321-abcdefghijkl"
+			],
+			"url": "https://login.microsoftonline.com/12345678-1234-1234-1234-123456789abc/v2.0"
+		},
+		"provisioningState": "Accepted"
+	},
+	"type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/externalAuths"
+}
