@@ -1,0 +1,9 @@
+{
+  "name": "np1",
+  "properties": {
+    "platform": {
+      "vmSize": "large"
+    }
+  },
+  "type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/nodePools"
+}
