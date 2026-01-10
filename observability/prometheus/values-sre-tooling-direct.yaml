@@ -1,0 +1,95 @@
+kube-prometheus-stack:
+  fullnameOverride: "prometheus"
+  crds:
+    enabled: true
+  global:
+    rbac:
+      create: true
+  alertmanager:
+    enabled: false
+  grafana:
+    enabled: false
+  # Azure Managed Prometheus handles these
+  coreDns:
+    enabled: false
+  kubeDns:
+    enabled: false
+  nodeExporter:
+    enabled: false
+  kubeEtcd:
+    enabled: false
+  kubeScheduler:
+    enabled: false
+  kubeControllerManager:
+    enabled: false
+  kubeProxy:
+    enabled: false
+  kubelet:
+    enabled: false
+  kubeApiServer:
+    enabled: false
+  kubeStateMetrics:
+    enabled: true
+  prometheus:
+    enabled: false # Prometheus is deployed using templates/prometheus.yaml
+  prometheusOperator:
+    enabled: true
+    fullnameOverride: ""
+    image:
+      registry: mcr.microsoft.com/oss/v2
+      repository: prometheus/prometheus-operator
+      sha: 5c3fd99a70fb43aa5ea4672ccaf04c68ac60d7adb7e205d2bf75d1b46395455c # v0.87.0-1
+    prometheusConfigReloader:
+      image:
+        registry: mcr.microsoft.com/oss/v2
+        repository: prometheus/prometheus-config-reloader
+        sha: 807993bae8544ca5dba1a088507c39adce29fef1afd2fb7492247b09e0cfa2a9 # v0.87.0
+    affinity:
+      nodeAffinity:
+        requiredDuringSchedulingIgnoredDuringExecution:
+          nodeSelectorTerms:
+          - matchExpressions:
+            - key: aro-hcp.azure.com/role
+              operator: In
+              values:
+              - "infra"
+    tolerations:
+    - key: "infra"
+      operator: "Equal"
+      value: "true"
+      effect: "NoSchedule"
+  cleanPrometheusOperatorObjectNames: true
+  kube-state-metrics:
+    image:
+      registry: mcr.microsoft.com/oss/v2
+      repository: kubernetes/kube-state-metrics
+      digest: sha256:377bd55d97824dfee27b3c577869bc793fc3970623433627c7f0ee1b1b74e725 # v2.17.0
+# Prometheus spec configuration
+prometheusSpec:
+  image:
+    registry: mcr.microsoft.com/oss/v2
+    repository: prometheus/prometheus
+    sha: 70296b2f2cc69c88d070fe8b627d347bd070e084c14babbc93e91583e03eca06 # v3.8.0-1
+  version: ""
+  externalLabels:
+    cluster: "" # Will be set from cluster name
+  remoteWriteUrl: "" # Will be set from cluster outputs
+  hcpRemoteWriteUrl: "NONE"
+  zoneCount: 3
+  maximumStartupDurationSeconds: 360
+  retention: 6h
+  retentionSize: 45GiB
+  resources:
+    requests:
+      cpu: 1
+      memory: 2Gi
+    limits:
+      cpu: 2
+      memory: "6Gi"
+prometheus:
+  prometheusSpec:
+    shards: 1
+    replicas: 1
+  serviceAccount:
+    managedIdentity: "" # Will be set from cluster outputs
+environment: "" # Not used for sre-tooling
