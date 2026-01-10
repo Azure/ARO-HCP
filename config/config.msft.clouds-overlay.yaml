@@ -109,7 +109,7 @@ clouds:
               prowJobName: periodic-ci-Azure-ARO-HCP-main-periodic-stage-e2e-parallel
           # Cluster Service
           clustersService:
-            deployDebugJobs: true
+            deployDebugJobs: false
             image:
               digest: sha256:5aab3f8636ba482fb7e75b627b53b8c93fbaf2957a5f1af2432ebaa666e2dd1e
           # ACR Pull
@@ -208,7 +208,7 @@ clouds:
               prowJobName: periodic-ci-Azure-ARO-HCP-main-periodic-prod-e2e-parallel
           # Cluster Service
           clustersService:
-            deployDebugJobs: true
+            deployDebugJobs: false
             image:
               digest: sha256:5aab3f8636ba482fb7e75b627b53b8c93fbaf2957a5f1af2432ebaa666e2dd1e
           # ACR Pull
