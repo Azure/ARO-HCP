@@ -17,7 +17,6 @@ package e2e
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"time"
 
@@ -27,7 +26,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/rand"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 
 	hcpsdk "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
@@ -43,7 +41,10 @@ var _ = Describe("Customer", func() {
 	dummyUID := "00000000-0000-0000-0000-000000000000"
 
 	It("should be able to lifecycle and confirm external auth on a cluster",
-		labels.RequireNothing, labels.High, labels.Positive,
+		labels.RequireNothing,
+		labels.High,
+		labels.Positive,
+		labels.AroRpApiCompatible,
 		func(ctx context.Context) {
 			clusterName := testingPrefix + rand.String(6)
 			tc := framework.NewTestContext()
@@ -57,51 +58,28 @@ var _ = Describe("Customer", func() {
 			resourceGroup, err := tc.NewResourceGroup(ctx, testingPrefix, tc.Location())
 			Expect(err).NotTo(HaveOccurred())
 
-			By("starting cluster-only template deployment")
-			deploymentsClient := tc.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient()
+			By("creating cluster parameters")
+			clusterParams := framework.NewDefaultClusterParams()
+			clusterParams.ClusterName = clusterName
+			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "managed", 64)
+			clusterParams.ManagedResourceGroupName = managedResourceGroupName
 
-			// Prepare the template and parameters
-			templateBytes := framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/cluster-only.json"))
-			bicepTemplateMap := map[string]interface{}{}
-			err = json.Unmarshal(templateBytes, &bicepTemplateMap)
-			Expect(err).NotTo(HaveOccurred())
-
-			identities, usePooled, err := tc.ResolveIdentitiesForTemplate(*resourceGroup.Name)
-			Expect(err).NotTo(HaveOccurred())
-
-			bicepParameters := map[string]interface{}{
-				"clusterName": map[string]interface{}{
-					"value": clusterName,
-				},
-				"identities": map[string]interface{}{
-					"value": identities,
-				},
-				"usePooledIdentities": map[string]interface{}{
-					"value": usePooled,
-				},
-			}
-
-			// Create ARO HCP cluster
-			timeout := 45 * time.Minute
-			deploymentCtx, deploymentCancel := context.WithTimeoutCause(ctx, timeout, fmt.Errorf("timeout '%f' minutes exceeded during external auth list and verify test", timeout.Minutes()))
-			defer deploymentCancel()
-
-			deploymentResp, err := deploymentsClient.BeginCreateOrUpdate(
-				deploymentCtx,
-				*resourceGroup.Name,
-				clusterName,
-				armresources.Deployment{
-					Properties: &armresources.DeploymentProperties{
-						Template:   bicepTemplateMap,
-						Parameters: bicepParameters,
-						Mode:       to.Ptr(armresources.DeploymentModeIncremental),
-					},
-				},
-				nil,
+			By("creating customer resources")
+			clusterParams, err = tc.CreateClusterCustomerResources(ctx,
+				resourceGroup,
+				clusterParams,
+				map[string]interface{}{},
+				TestArtifactsFS,
 			)
 			Expect(err).NotTo(HaveOccurred())
 
-			_, err = deploymentResp.PollUntilDone(deploymentCtx, nil)
+			By("creating HCP cluster")
+			err = tc.CreateHCPClusterFromParam(ctx,
+				GinkgoLogr,
+				*resourceGroup.Name,
+				clusterParams,
+				45*time.Minute,
+			)
 			Expect(err).NotTo(HaveOccurred())
 
 			expectedExternalAuth := hcpsdk.ExternalAuth{

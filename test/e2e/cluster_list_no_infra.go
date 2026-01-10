@@ -36,19 +36,19 @@ var _ = Describe("Customer", func() {
 		labels.RequireNothing,
 		labels.Positive,
 		labels.Medium,
+		labels.AroRpApiCompatible,
 		func(ctx context.Context) {
-			const createClustersCount = 2
-
 			tc := framework.NewTestContext()
 			openshiftControlPlaneVersionId := framework.DefaultOpenshiftControlPlaneVersionId()
+
+			var resourceGroups []*armresources.ResourceGroup
+			var clusterNames []string
+			const createClustersCount = 2
 
 			if tc.UsePooledIdentities() {
 				err := tc.AssignIdentityContainers(ctx, createClustersCount, 60*time.Second)
 				Expect(err).NotTo(HaveOccurred())
 			}
-
-			var resourceGroups []*armresources.ResourceGroup
-			var clusterNames []string
 
 			for range createClustersCount {
 				By("creating resource group for cluster listing test")
@@ -59,24 +59,28 @@ var _ = Describe("Customer", func() {
 				clusterName := "list-test-cluster-" + rand.String(6)
 				clusterNames = append(clusterNames, clusterName)
 
-				By("creating cluster without node pool using cluster-only template: " + clusterName)
+				By("creating cluster without node pool: " + clusterName)
+				clusterParams := framework.NewDefaultClusterParams()
+				clusterParams.ClusterName = clusterName
+				clusterParams.OpenshiftVersionId = openshiftControlPlaneVersionId
+				managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "managed", 64)
+				clusterParams.ManagedResourceGroupName = managedResourceGroupName
 
-				identities, usePooledForCluster, err := tc.ResolveIdentitiesForTemplate(*resourceGroup.Name)
+				By("creating customer resources for cluster: " + clusterName)
+				clusterParams, err = tc.CreateClusterCustomerResources(ctx,
+					resourceGroup,
+					clusterParams,
+					map[string]interface{}{},
+					TestArtifactsFS,
+				)
 				Expect(err).NotTo(HaveOccurred())
 
-				_, err = tc.CreateBicepTemplateAndWait(ctx,
-					framework.WithTemplateFromFS(TestArtifactsFS, "test-artifacts/generated-test-artifacts/cluster-only.json"),
-					framework.WithDeploymentName("cluster-only"),
-					framework.WithScope(framework.BicepDeploymentScopeResourceGroup),
-					framework.WithClusterResourceGroup(*resourceGroup.Name),
-					framework.WithParameters(map[string]any{
-						"openshiftControlPlaneVersionId": openshiftControlPlaneVersionId,
-						"clusterName":                    clusterName,
-						"persistTagValue":                false,
-						"identities":                     identities,
-						"usePooledIdentities":            usePooledForCluster,
-					}),
-					framework.WithTimeout(45*time.Minute),
+				By("creating HCP cluster: " + clusterName)
+				err = tc.CreateHCPClusterFromParam(ctx,
+					GinkgoLogr,
+					*resourceGroup.Name,
+					clusterParams,
+					45*time.Minute,
 				)
 				Expect(err).NotTo(HaveOccurred())
 			}
