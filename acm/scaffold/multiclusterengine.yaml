@@ -46,5 +46,8 @@ spec:
   targetNamespace: '{{ .Release.Namespace }}'
   tolerations:
   - effect: NoSchedule
-    key: node-role.kubernetes.io/infra
-    operator: Exists
+    key: infra
+    operator: "Equal"
+    value: "true"
+  nodeSelector:
+    aro-hcp.azure.com/role: infra
