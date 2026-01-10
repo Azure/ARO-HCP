@@ -764,6 +764,10 @@ func (tc *perItOrDescribeTestContext) Location() string {
 	return tc.perBinaryInvocationTestContext.Location()
 }
 
+func (tc *perItOrDescribeTestContext) PullSecretPath() string {
+	return tc.perBinaryInvocationTestContext.pullSecretPath
+}
+
 func (tc *perItOrDescribeTestContext) FindVirtualMachineSizeMatching(ctx context.Context, pattern *regexp.Regexp) (string, error) {
 	if pattern == nil {
 		return "", fmt.Errorf("pattern cannot be nil")
