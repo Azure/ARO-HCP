@@ -1,0 +1,14 @@
+{
+  "name": "illegal-np",
+  "properties": {
+    "autoRepair": true,
+    "platform": {
+      "osDisk": {
+        "diskStorageAccountType": "Premium_LRS",
+        "sizeGiB": 64
+      },
+      "vmSize": "large"
+    }
+  },
+  "type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/nodePools"
+}
