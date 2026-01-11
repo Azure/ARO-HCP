@@ -40,7 +40,7 @@ var _ = Describe("Authorized CIDRs", func() {
 			labels.RequireNothing,
 			labels.Critical,
 			labels.Positive,
-			labels.IntegrationOnly,
+			labels.AroRpApiCompatible,
 			func(ctx context.Context) {
 				const (
 					clusterName                      = "cidr-connectivity-test"
@@ -65,7 +65,7 @@ var _ = Describe("Authorized CIDRs", func() {
 				clusterParams, err = tc.CreateClusterCustomerResources(ctx,
 					resourceGroup,
 					clusterParams,
-					map[string]interface{}{
+					map[string]any{
 						"persistTagValue":        false,
 						"customerNsgName":        customerNetworkSecurityGroupName,
 						"customerVnetName":       customerVnetName,
