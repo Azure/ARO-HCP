@@ -70,7 +70,7 @@ func DefaultOpenshiftControlPlaneVersionId() string {
 func DefaultOpenshiftNodePoolVersionId() string {
 	version := os.Getenv("ARO_HCP_OPENSHIFT_NODEPOOL_VERSION")
 	if version == "" {
-		return "4.20.5"
+		return "4.20.8"
 	}
 	return version
 }
