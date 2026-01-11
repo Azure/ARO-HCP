@@ -284,9 +284,7 @@ func newNodePoolAutoScaling(from *api.NodePoolAutoScaling) generated.NodePoolAut
 
 func (v version) NewHCPOpenShiftClusterNodePool(from *api.HCPOpenShiftClusterNodePool) api.VersionedHCPOpenShiftClusterNodePool {
 	if from == nil {
-		ret := &NodePool{}
-		SetDefaultValuesNodePool(ret)
-		return ret
+		return nil
 	}
 
 	idString := ""
