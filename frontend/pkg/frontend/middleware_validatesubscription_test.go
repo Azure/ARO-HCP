@@ -26,6 +26,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/mocks"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -42,6 +44,7 @@ func TestMiddlewareValidateSubscription(t *testing.T) {
 		expectedState arm.SubscriptionState
 		httpMethod    string
 		requestPath   string
+		cosmosdbError error
 		expectedError *arm.CloudError
 	}{
 		{
@@ -175,6 +178,22 @@ func TestMiddlewareValidateSubscription(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:        "cosmosdb error returns internal server error",
+			httpMethod:  http.MethodGet,
+			requestPath: defaultRequestPath,
+			cosmosdbError: &azcore.ResponseError{
+				StatusCode: http.StatusInternalServerError,
+				ErrorCode:  "CosmosDB is down",
+			},
+			expectedError: &arm.CloudError{
+				StatusCode: http.StatusInternalServerError,
+				CloudErrorBody: &arm.CloudErrorBody{
+					Code:    arm.CloudErrorCodeInternalServerError,
+					Message: "Internal server error.",
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -214,9 +233,16 @@ func TestMiddlewareValidateSubscription(t *testing.T) {
 				mockDBClient.EXPECT().
 					Subscriptions().
 					Return(mockSubscriptionCRUD)
-				mockSubscriptionCRUD.EXPECT().
-					Get(gomock.Any(), subscriptionId).
-					Return(getMockDBDoc(subscription)) // defined in frontend_test.go
+
+				if tt.cosmosdbError != nil {
+					mockSubscriptionCRUD.EXPECT().
+						Get(gomock.Any(), subscriptionId).
+						Return(nil, tt.cosmosdbError)
+				} else {
+					mockSubscriptionCRUD.EXPECT().
+						Get(gomock.Any(), subscriptionId).
+						Return(getMockDBDoc(subscription)) // defined in frontend_test.go
+				}
 			}
 
 			newMiddlewareValidateSubscriptionState(mockDBClient).handleRequest(writer, request, next)

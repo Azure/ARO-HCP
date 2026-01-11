@@ -15,7 +15,6 @@
 package frontend
 
 import (
-	"fmt"
 	"net/http"
 
 	"go.opentelemetry.io/otel/trace"
@@ -61,13 +60,15 @@ func (h *middlewareValidateSubscriptionState) handleRequest(w http.ResponseWrite
 	// TODO: Ideally, we don't want to have to hit the database in this middleware
 	// Currently, we are using the database to retrieve the subscription's tenantID and state
 	subscription, err := h.dbClient.Subscriptions().Get(ctx, subscriptionId)
-	if err != nil {
-		arm.WriteError(
-			w, http.StatusBadRequest,
-			arm.CloudErrorCodeInvalidSubscriptionState, "",
-			UnregisteredSubscriptionStateMessage,
-			subscriptionId)
+	if err != nil && !database.IsResponseError(err, http.StatusNotFound) {
+		logger.Error("failed to get subscription document", "subscriptionId", subscriptionId, "error", err)
+		arm.WriteInternalServerError(w)
 		return
+	}
+
+	state := arm.SubscriptionStateUnregistered
+	if subscription != nil {
+		state = subscription.State
 	}
 
 	// For subscription-scoped requests, ARM will provide the tenant ID
@@ -75,7 +76,8 @@ func (h *middlewareValidateSubscriptionState) handleRequest(w http.ResponseWrite
 	// header may not be present, in which case we can try to fudge it
 	// from the SubscriptionDocument.
 	if r.Header.Get(arm.HeaderNameHomeTenantID) == "" {
-		if subscription.Properties != nil &&
+		if subscription != nil &&
+			subscription.Properties != nil &&
 			subscription.Properties.TenantId != nil {
 			r.Header.Set(
 				arm.HeaderNameHomeTenantID,
@@ -85,10 +87,10 @@ func (h *middlewareValidateSubscriptionState) handleRequest(w http.ResponseWrite
 
 	span := trace.SpanFromContext(ctx)
 	span.SetAttributes(
-		tracing.SubscriptionStateKey.String(string(subscription.State)),
+		tracing.SubscriptionStateKey.String(string(state)),
 	)
 
-	switch subscription.State {
+	switch state {
 	case arm.SubscriptionStateRegistered:
 		next(w, r)
 	case arm.SubscriptionStateUnregistered:
@@ -102,7 +104,7 @@ func (h *middlewareValidateSubscriptionState) handleRequest(w http.ResponseWrite
 			arm.WriteError(w, http.StatusConflict,
 				arm.CloudErrorCodeInvalidSubscriptionState, "",
 				InvalidSubscriptionStateMessage,
-				subscription.State)
+				state)
 			return
 		}
 		next(w, r)
@@ -111,9 +113,9 @@ func (h *middlewareValidateSubscriptionState) handleRequest(w http.ResponseWrite
 			w, http.StatusBadRequest,
 			arm.CloudErrorCodeInvalidSubscriptionState, "",
 			InvalidSubscriptionStateMessage,
-			subscription.State)
+			state)
 	default:
-		logger.Error(fmt.Sprintf("unsupported subscription state %q", subscription.State))
+		logger.Error("unsupported subscription state", "subscriptionState", state)
 		arm.WriteInternalServerError(w)
 	}
 }
