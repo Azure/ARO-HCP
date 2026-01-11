@@ -1,14 +1,34 @@
 {
+	"id": "de52b796-cff1-4c4b-9140-684087b5eb60",
+	"_rid": "sIMIAKLq4TwCAAAAAAAAAA==",
+	"_self": "dbs/sIMIAA==/colls/sIMIAKLq4Tw=/docs/sIMIAKLq4TwCAAAAAAAAAA==/",
+	"_etag": "\"00000000-0000-0000-80ed-5174940501dc\"",
 	"_attachments": "attachments/",
-	"_etag": "\"00000000-0000-0000-65e7-5625080501dc\"",
-	"_rid": "vWhbAJ1AYhMBAAAAAAAAAA==",
-	"_self": "dbs/vWhbAA==/colls/vWhbAJ1AYhM=/docs/vWhbAJ1AYhMBAAAAAAAAAA==/",
-	"_ts": 1764939717,
-	"id": "89260758-2990-46dd-8e97-99b31c7cee89",
+	"_ts": 1767910967,
 	"partitionKey": "subscriptionid",
+	"resourceType": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/hcpOpenShiftControllers",
 	"properties": {
+		"cosmosMetadata": {
+			"resourceId": "/subscriptions/subscriptionID/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/parentCluster/hcpOpenShiftControllers/test-controller"
+		},
+		"resourceId": "/subscriptions/subscriptionID/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/parentCluster/hcpOpenShiftControllers/test-controller",
+		"externalId": "/subscriptions/subscriptionID/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/parentCluster",
+		"status": {
+			"conditions": [
+				{
+					"lastTransitionTime": "2025-12-05T08:01:57.129283149-05:00",
+					"message": "Updating cosmos failed for some reason.",
+					"reason": "UpdateFailed",
+					"status": "True",
+					"type": "Degraded"
+				}
+			]
+		},
 		"internalState": {
-			"controllerName": "test-controller",
+			"cosmosMetadata": {
+				"resourceId": "/subscriptions/subscriptionID/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/parentCluster/hcpOpenShiftControllers/test-controller"
+			},
+			"resourceId": "/subscriptions/subscriptionID/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/parentCluster/hcpOpenShiftControllers/test-controller",
 			"externalId": "/subscriptions/subscriptionID/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/parentCluster",
 			"status": {
 				"conditions": [
@@ -21,8 +41,6 @@
 					}
 				]
 			}
-		},
-		"resourceId": "/subscriptions/subscriptionID/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/parentCluster/hcpOpenShiftControllers/test-controller"
-	},
-	"resourceType": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/hcpOpenShiftControllers"
+		}
+	}
 }

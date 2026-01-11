@@ -39,8 +39,6 @@ type ControllerProperties struct {
 	// 4. stop reading and writing old.
 	//    a. we can do this in one step because the backend from #1 can read the new and use it, so rollback works fine.
 	api.Controller `json:",inline"`
-
-	OldControllerSerialization *api.Controller `json:"internalState,omitempty"`
 }
 
 func (o *Controller) GetTypedDocument() *TypedDocument {
