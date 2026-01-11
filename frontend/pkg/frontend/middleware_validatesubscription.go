@@ -60,15 +60,19 @@ func (h *middlewareValidateSubscriptionState) handleRequest(w http.ResponseWrite
 	// TODO: Ideally, we don't want to have to hit the database in this middleware
 	// Currently, we are using the database to retrieve the subscription's tenantID and state
 	subscription, err := h.dbClient.Subscriptions().Get(ctx, subscriptionId)
-	if err != nil && !database.IsResponseError(err, http.StatusNotFound) {
+	if err != nil {
+		// subscription not found, treat as unregistered
+		if database.IsResponseError(err, http.StatusNotFound) {
+			arm.WriteError(
+				w, http.StatusBadRequest,
+				arm.CloudErrorCodeInvalidSubscriptionState, "",
+				UnregisteredSubscriptionStateMessage,
+				subscriptionId)
+			return
+		}
 		logger.Error("failed to get subscription document", "subscriptionId", subscriptionId, "error", err)
 		arm.WriteInternalServerError(w)
 		return
-	}
-
-	state := arm.SubscriptionStateUnregistered
-	if subscription != nil {
-		state = subscription.State
 	}
 
 	// For subscription-scoped requests, ARM will provide the tenant ID
@@ -87,10 +91,10 @@ func (h *middlewareValidateSubscriptionState) handleRequest(w http.ResponseWrite
 
 	span := trace.SpanFromContext(ctx)
 	span.SetAttributes(
-		tracing.SubscriptionStateKey.String(string(state)),
+		tracing.SubscriptionStateKey.String(string(subscription.State)),
 	)
 
-	switch state {
+	switch subscription.State {
 	case arm.SubscriptionStateRegistered:
 		next(w, r)
 	case arm.SubscriptionStateUnregistered:
@@ -104,7 +108,7 @@ func (h *middlewareValidateSubscriptionState) handleRequest(w http.ResponseWrite
 			arm.WriteError(w, http.StatusConflict,
 				arm.CloudErrorCodeInvalidSubscriptionState, "",
 				InvalidSubscriptionStateMessage,
-				state)
+				subscription.State)
 			return
 		}
 		next(w, r)
@@ -113,9 +117,9 @@ func (h *middlewareValidateSubscriptionState) handleRequest(w http.ResponseWrite
 			w, http.StatusBadRequest,
 			arm.CloudErrorCodeInvalidSubscriptionState, "",
 			InvalidSubscriptionStateMessage,
-			state)
+			subscription.State)
 	default:
-		logger.Error("unsupported subscription state", "subscriptionState", state)
+		logger.Error("unsupported subscription state", "subscriptionState", subscription.State)
 		arm.WriteInternalServerError(w)
 	}
 }
