@@ -87,6 +87,14 @@ func TestClusterRequired(t *testing.T) {
 					message:   "Unsupported value",
 					fieldPath: "customerProperties.clusterImageRegistry.state",
 				},
+				{
+					message:   "Invalid value: 0: must be greater than or equal to 1",
+					fieldPath: "customerProperties.autoscaling.maxPodGracePeriodSeconds",
+				},
+				{
+					message:   "Invalid value: 0: must be greater than or equal to 1",
+					fieldPath: "customerProperties.autoscaling.maxNodeProvisionTimeSeconds",
+				},
 			},
 		},
 		{
