@@ -1895,8 +1895,6 @@ spec:
               fieldPath: metadata.namespace
         - name: OPERAND_IMAGE_ADDON_MANAGER
           value: 'arohcpsvcdev.azurecr.io/acm-d-cache/addon-manager-rhel9@sha256:1234567890'
-        - name: OPERAND_IMAGE_AZURE_SERVICE_OPERATOR
-          value: 'arohcpsvcdev.azurecr.io/acm-d-cache/azure-service-operator-rhel9@sha256:1234567890'
         - name: OPERAND_IMAGE_BACKPLANE_MUST_GATHER
           value: 'arohcpsvcdev.azurecr.io/acm-d-cache/must-gather-rhel9@sha256:1234567890'
         - name: OPERAND_IMAGE_BACKPLANE_OPERATOR
@@ -1905,8 +1903,6 @@ spec:
           value: 'arohcpsvcdev.azurecr.io/acm-d-cache/cluster-api-provider-agent-rhel9@sha256:1234567890'
         - name: OPERAND_IMAGE_CLUSTER_API_PROVIDER_AWS_RHEL9
           value: 'arohcpsvcdev.azurecr.io/acm-d-cache/cluster-api-provider-aws-rhel9@sha256:1234567890'
-        - name: OPERAND_IMAGE_CLUSTER_API_PROVIDER_AZURE
-          value: 'arohcpsvcdev.azurecr.io/acm-d-cache/cluster-api-provider-azure-rhel9@sha256:1234567890'
         - name: OPERAND_IMAGE_CLUSTER_API_PROVIDER_KUBEVIRT
           value: 'arohcpsvcdev.azurecr.io/acm-d-cache/cluster-api-provider-kubevirt-rhel9@sha256:1234567890'
         - name: OPERAND_IMAGE_CLUSTER_API_PROVIDER_OPENSHIFT_ASSISTED_BOOTSTRAP
@@ -1923,6 +1919,8 @@ spec:
           value: 'arohcpsvcdev.azurecr.io/acm-d-cache/cluster-image-set-controller-rhel9@sha256:1234567890'
         - name: OPERAND_IMAGE_CLUSTERLIFECYCLE_STATE_METRICS
           value: 'arohcpsvcdev.azurecr.io/acm-d-cache/clusterlifecycle-state-metrics-rhel9@sha256:1234567890'
+        - name: OPERAND_IMAGE_CLUSTER_PROXY_ADDON
+          value: 'arohcpsvcdev.azurecr.io/acm-d-cache/cluster-proxy-addon-rhel9@sha256:1234567890'
         - name: OPERAND_IMAGE_CLUSTER_PROXY
           value: 'arohcpsvcdev.azurecr.io/acm-d-cache/cluster-proxy-rhel9@sha256:1234567890'
         - name: OPERAND_IMAGE_CONSOLE_MCE
@@ -1974,7 +1972,7 @@ spec:
         - name: OPERAND_IMAGE_POSTGRESQL_12
           value: 'arohcpsvcdev.azurecr.io/acm-d-cache/postgresql-12@sha256:1234567890'
         - name: OPERATOR_VERSION
-          value: 2.11.0-141
+          value: 2.10.1
         - name: OPERATOR_PACKAGE
           value: multicluster-engine
         image: 'arohcpsvcdev.azurecr.io/acm-d-cache/backplane-rhel9-operator@sha256:1234567890'
