@@ -37,23 +37,8 @@ type AzureCloudEnvironmentBuilder struct {
 	tracerProvider   trace.TracerProvider
 }
 
-func NewAzureCloudEnvironmentBuilder() *AzureCloudEnvironmentBuilder {
-	return &AzureCloudEnvironmentBuilder{}
-}
-
-func (a *AzureCloudEnvironmentBuilder) CloudEnvironment(cloudEnvironment string) *AzureCloudEnvironmentBuilder {
-	a.cloudEnvironment = cloudEnvironment
-	return a
-}
-
-func (a *AzureCloudEnvironmentBuilder) TracerProvider(
-	tracerProvider trace.TracerProvider) *AzureCloudEnvironmentBuilder {
-	a.tracerProvider = tracerProvider
-	return a
-}
-
-func (a *AzureCloudEnvironmentBuilder) Build() (AzureCloudEnvironment, error) {
-	if a.cloudEnvironment == "" {
+func NewAzureCloudEnvironment(cloudEnvironment string, tracerProvider trace.TracerProvider) (AzureCloudEnvironment, error) {
+	if cloudEnvironment == "" {
 		return AzureCloudEnvironment{}, errors.Errorf("cloud environment cannot be empty")
 	}
 
@@ -88,21 +73,21 @@ func (a *AzureCloudEnvironmentBuilder) Build() (AzureCloudEnvironment, error) {
 		},
 	}
 
-	configuration, ok := azureCloudEnvironmentConfigurationMapping[a.cloudEnvironment]
+	configuration, ok := azureCloudEnvironmentConfigurationMapping[cloudEnvironment]
 	if !ok {
 		return AzureCloudEnvironment{},
-			errors.Errorf("cloud environment %q is not supported", a.cloudEnvironment)
+			errors.Errorf("cloud environment %q is not supported", cloudEnvironment)
 	}
 
 	clientOptions := policy.ClientOptions{
 		Cloud: configuration.cloud,
 	}
-	if a.tracerProvider != nil {
-		clientOptions.TracingProvider = azotel.NewTracingProvider(a.tracerProvider, nil)
+	if tracerProvider != nil {
+		clientOptions.TracingProvider = azotel.NewTracingProvider(tracerProvider, nil)
 	}
 
 	return AzureCloudEnvironment{
-		id:                       a.cloudEnvironment,
+		id:                       cloudEnvironment,
 		configuration:            configuration.cloud,
 		rdbmsScope:               configuration.rdbmsScope,
 		checkAccessV2Environment: configuration.checkAccessV2Environment,
@@ -116,7 +101,7 @@ func (a AzureCloudEnvironment) PolicyClientOptions() policy.ClientOptions {
 	return a.clientOptions
 }
 
-// ARMClientOptions returns an arm.ClientOptions instance from the current
+// ArmClientOptions returns an arm.ClientOptions instance from the current
 // Azure Cloud environment.
 func (a AzureCloudEnvironment) ARMClientOptions() *arm.ClientOptions {
 	return &arm.ClientOptions{
