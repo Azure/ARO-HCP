@@ -129,7 +129,8 @@ func (c *doNothingExample) queueAllHCPClusters(ctx context.Context) {
 	if err != nil {
 		logger.Error("unable to list subscriptions", "error", err)
 	}
-	for subscriptionID := range allSubscriptions.Items(ctx) {
+	for _, subscription := range allSubscriptions.Items(ctx) {
+		subscriptionID := subscription.ResourceID.SubscriptionID
 		allHCPClusters, err := c.cosmosClient.HCPClusters(subscriptionID, "").List(ctx, nil)
 		if err != nil {
 			logger.Error("unable to list HCP clusters", "error", err, "subscription_id", subscriptionID)

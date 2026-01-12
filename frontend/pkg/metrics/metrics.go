@@ -155,7 +155,8 @@ func (sc *SubscriptionCollector) updateCache(ctx context.Context) error {
 	if err != nil {
 		return utils.TrackError(err)
 	}
-	for id, sub := range iter.Items(ctx) {
+	for _, sub := range iter.Items(ctx) {
+		id := sub.ResourceID.SubscriptionID
 		subscriptions[id] = subscription{
 			id:         id,
 			state:      string(sub.State),
