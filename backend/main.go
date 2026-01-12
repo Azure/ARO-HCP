@@ -42,10 +42,6 @@ import (
 	"k8s.io/klog/v2"
 	utilsclock "k8s.io/utils/clock"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
-	"github.com/Azure/azure-sdk-for-go/sdk/tracing/azotel"
-
 	ocmsdk "github.com/openshift-online/ocm-sdk-go"
 
 	"github.com/Azure/ARO-HCP/backend/oldoperationscanner"
@@ -203,15 +199,23 @@ func Run(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("could not initialize opentelemetry sdk: %w", err)
 	}
 
+	otelTracerProvider := otel.GetTracerProvider()
+
+	azureConfig, err := getAzureConfig(ctx, argAzureRuntimeConfigPath, otelTracerProvider)
+	if err != nil {
+		return fmt.Errorf("error getting azure configuration: %w", err)
+	}
+
+	fpaClientBuilder, err := getFirstPartyApplicationClientBuilder(ctx, argAzureFPACertBundlePath, argAzureFPAClientID, azureConfig)
+	if err != nil {
+		return fmt.Errorf("error configuring FPA client builder: %w", err)
+	}
+
 	// Create the database client.
 	cosmosDatabaseClient, err := database.NewCosmosDatabaseClient(
 		argCosmosURL,
 		argCosmosName,
-		azcore.ClientOptions{
-			// FIXME Cloud should be determined by other means.
-			Cloud:           cloud.AzurePublic,
-			TracingProvider: azotel.NewTracingProvider(otel.GetTracerProvider(), nil),
-		},
+		*azureConfig.CloudEnvironment.PolicyClientOptions(),
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create the CosmosDB client: %w", err)
@@ -390,6 +394,11 @@ func Run(cmd *cobra.Command, args []string) error {
 				dbClient,
 				subscriptionLister,
 			)
+			azureRPRegistrationValidationController = validationcontrollers.NewClusterValidationController(
+				validations.NewAzureResourceProvidersRegistrationValidation(fpaClientBuilder),
+				dbClient,
+				subscriptionLister,
+			)
 		)
 
 		le, err := leaderelection.NewLeaderElector(leaderelection.LeaderElectionConfig{
@@ -415,6 +424,7 @@ func Run(cmd *cobra.Command, args []string) error {
 					go cosmosMatchingExternalAuthController.Run(ctx, 20)
 					go cosmosMatchingClusterController.Run(ctx, 20)
 					go alwaysSuccessClusterValidationController.Run(ctx, 20)
+					go azureRPRegistrationValidationController.Run(ctx, 20)
 				},
 				OnStoppedLeading: func() {
 					operationsScanner.LeaderGauge.Set(0)
