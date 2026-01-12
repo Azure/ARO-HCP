@@ -70,7 +70,9 @@ var _ = Describe("Customer", func() {
 				clusterParams, err = tc.CreateClusterCustomerResources(ctx,
 					resourceGroup,
 					clusterParams,
-					map[string]interface{}{},
+					map[string]interface{}{
+						"persistTagValue": false,
+					},
 					TestArtifactsFS,
 				)
 				Expect(err).NotTo(HaveOccurred())
