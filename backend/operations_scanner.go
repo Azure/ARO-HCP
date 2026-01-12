@@ -498,8 +498,12 @@ func (s *OperationsScanner) processOperations(ctx context.Context, subscriptionI
 
 // processOperation processes a single operation on a resource.
 func (s *OperationsScanner) processOperation(ctx context.Context, op operation) {
+	logger := utils.LoggerFromContext(ctx)
 	ctx, span := startChildSpan(ctx, "processOperation")
 	defer span.End()
+
+	logger.Info("Processing")
+	defer logger.Info("Processed")
 
 	switch op.doc.InternalID.Kind() {
 	case arohcpv1alpha1.ClusterKind:
