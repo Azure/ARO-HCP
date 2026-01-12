@@ -55,6 +55,10 @@
       "type": "string",
       "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
     },
+    "semVerWithPrerelease": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(-[0-9A-Za-z-]+(\\.[0-9A-Za-z-]+)*)?$"
+    },
     "k8sRollingUpdateDeploymentStrategy": {
       "type": "object",
       "description": "Spec to control the desired behavior of rolling update.",
@@ -1118,6 +1122,70 @@
                     "maxVersion"
                   ],
                   "additionalProperties": false
+                },
+                "candidate": {
+                  "type": "object",
+                  "properties": {
+                    "minVersion": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/definitions/semVerWithPrerelease"
+                        },
+                        {
+                          "type": "string",
+                          "pattern": "^$"
+                        }
+                      ]
+                    },
+                    "maxVersion": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/definitions/semVerWithPrerelease"
+                        },
+                        {
+                          "type": "string",
+                          "pattern": "^$"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "minVersion",
+                    "maxVersion"
+                  ],
+                  "additionalProperties": false
+                },
+                "nightly": {
+                  "type": "object",
+                  "properties": {
+                    "minVersion": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/definitions/semVerWithPrerelease"
+                        },
+                        {
+                          "type": "string",
+                          "pattern": "^$"
+                        }
+                      ]
+                    },
+                    "maxVersion": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/definitions/semVerWithPrerelease"
+                        },
+                        {
+                          "type": "string",
+                          "pattern": "^$"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "minVersion",
+                    "maxVersion"
+                  ],
+                  "additionalProperties": false
                 }
               },
               "required": [
@@ -1669,6 +1737,15 @@
         "viewerGroups": {
           "type": "string"
         },
+        "enableAutoScale": {
+          "type": "boolean"
+        },
+        "autoScaleMin": {
+          "type": "integer"
+        },
+        "autoScaleMax": {
+          "type": "integer"
+        },
         "kustoName": {
           "type": "string",
           "description": "Name of the kusto cluster. Must begin with a letter and contain between 4 and 22 lowercase alphanumeric characters.",
@@ -1706,7 +1783,8 @@
         "hostedControlPlaneLogsDatabase",
         "adminGroups",
         "viewerGroups",
-        "kustoName"
+        "kustoName",
+        "enableAutoScale"
       ]
     },
     "mise": {
@@ -2297,6 +2375,11 @@
           "description": "A space-separated list of Service Principals IDs, Types and their desired grafana roles The format is: <principalId>/<principalType>/<role>, e.g. 12345678-1234-1234-1234-123456789012/Group/Admin",
           "pattern": "^$|^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\\/(Group|ServicePrincipal|User)\\/(Contributor|Admin|Viewer)\\s*)+$"
         },
+        "crossTenantSecurityGroup": {
+          "type": "string",
+          "description": "Cross-tenant security group for Grafana access. Format: GroupObjectId;TenantId",
+          "pattern": "^$|^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12};[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+        },
         "svcWorkspaceName": {
           "type": "string",
           "minLength": 4,
@@ -2310,6 +2393,9 @@
           "maxLength": 44,
           "pattern": "^[a-z0-9][a-z0-9-]*[a-z0-9]$",
           "description": "The workspace name should include 4-63 letters, digits or '-'. The '-' shouldn't be the first or the last symbol. We limit the name to 44 characters so we have a future option to use NSP: https://learn.microsoft.com/en-us/azure/private-link/network-security-perimeter-concepts"
+        },
+        "alertRuleOwningTeamTag": {
+          "type": "string"
         },
         "icm": {
           "type": "object",
@@ -2353,9 +2439,11 @@
       "required": [
         "grafanaName",
         "grafanaRoles",
+        "crossTenantSecurityGroup",
         "grafanaZoneRedundantMode",
         "svcWorkspaceName",
-        "hcpWorkspaceName"
+        "hcpWorkspaceName",
+        "alertRuleOwningTeamTag"
       ]
     },
     "routeMonitorOperator": {
@@ -2381,16 +2469,13 @@
       "properties": {
         "loganalytics": {
           "type": "object",
-          "description": "Log Analytics configuration",
+          "description": "DEPRECATED, remove after updating sdp-pipelines",
           "properties": {
             "enable": {
               "type": "boolean"
             }
           },
-          "additionalProperties": false,
-          "required": [
-            "enable"
-          ]
+          "additionalProperties": false
         },
         "mdsd": {
           "type": "object",
@@ -2443,8 +2528,7 @@
         }
       },
       "required": [
-        "mdsd",
-        "loganalytics"
+        "mdsd"
       ]
     },
     "msiKeyVault": {

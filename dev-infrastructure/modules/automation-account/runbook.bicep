@@ -18,6 +18,9 @@ param runbookDescription string
 @description('Type of this runbook')
 param runbookType string
 
+@description('Runtime environment for this runbook (e.g., Python-3.10, PowerShell-7.2)')
+param runtimeEnvironment string = ''
+
 @description('Verbose flag for this runbook')
 param verbose bool = false
 
@@ -53,6 +56,7 @@ resource accountRunbook 'Microsoft.Automation/automationAccounts/runbooks@2024-1
   properties: {
     description: runbookDescription
     runbookType: runbookType
+    runtimeEnvironment: !empty(runtimeEnvironment) ? runtimeEnvironment : null
     logProgress: false
     logVerbose: verbose
     publishContentLink: {

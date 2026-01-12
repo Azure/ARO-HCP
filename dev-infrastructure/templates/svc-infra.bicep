@@ -23,9 +23,6 @@ param kvCertOfficerPrincipalId string
 @description('MSI that will be used during pipeline runs')
 param globalMSIId string
 
-// Log Analytics Workspace ID will be passed from region pipeline if enabled in config
-param logAnalyticsWorkspaceId string = ''
-
 // Reader role
 // https://www.azadvertizer.net/azrolesadvertizer/acdd72a7-3385-48ef-bd42-f606fba81ae7.html
 var readerRoleId = subscriptionResourceId(
@@ -64,7 +61,6 @@ module serviceKeyVault '../modules/keyvault/keyvault.bicep' = {
     enableSoftDelete: serviceKeyVaultSoftDelete
     tagKey: serviceKeyVaultTagName
     tagValue: serviceKeyVaultTagValue
-    logAnalyticsWorkspaceId: logAnalyticsWorkspaceId
   }
 }
 

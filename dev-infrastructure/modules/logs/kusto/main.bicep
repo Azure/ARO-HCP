@@ -22,6 +22,15 @@ param viewerGroups string
 @description('Name of the Kusto cluster to create')
 param kustoName string
 
+@description('Minimum number of nodes for autoscale')
+param autoScaleMin int
+
+@description('Maximum number of nodes for autoscale')
+param autoScaleMax int
+
+@description('Toggle if autoscale should be enabled')
+param enableAutoScale bool
+
 var db = {
   serviceLogs: serviceLogsDatabase
   hostedControlPlaneLogs: hostedControlPlaneLogsDatabase
@@ -35,6 +44,7 @@ var allServiceLogsTablesKQL = {
   backendLogs: loadTextContent('tables/backendLogs.kql')
   containerlogs: loadTextContent('tables/containerLogs.kql')
   frontendLogs: loadTextContent('tables/frontendLogs.kql')
+  clustersServiceLogs: loadTextContent('tables/clustersServiceLogs.kql')
   kubernetesEvents: loadTextContent('tables/kubernetesEvents.kql')
 }
 
@@ -52,6 +62,9 @@ module cluster 'cluster.bicep' = {
     tier: tier
     adminGroups: adminGroups
     viewerGroups: viewerGroups
+    autoScaleMin: autoScaleMin
+    autoScaleMax: autoScaleMax
+    enableAutoScale: enableAutoScale
   }
 }
 

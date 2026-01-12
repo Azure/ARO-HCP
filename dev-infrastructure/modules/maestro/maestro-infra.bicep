@@ -24,9 +24,6 @@ param maxClientSessionsPerAuthName int
 ])
 param publicNetworkAccess string
 
-@description('Log Analytics Workspace ID if logging to Log Analytics')
-param logAnalyticsWorkspaceId string = ''
-
 param certificateIssuer string
 
 //
@@ -53,44 +50,6 @@ resource eventGridNamespace 'Microsoft.EventGrid/namespaces@2024-12-15-preview' 
         ]
       }
     }
-  }
-}
-
-resource eventGridNamespaceDiagnostics 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' = if (logAnalyticsWorkspaceId != '') {
-  scope: eventGridNamespace
-  name: eventGridNamespaceName
-  properties: {
-    logs: [
-      {
-        category: 'SuccessfulMqttConnections'
-        enabled: true
-      }
-      {
-        category: 'FailedMqttConnections'
-        enabled: true
-      }
-      {
-        category: 'MqttDisconnections'
-        enabled: true
-      }
-      {
-        category: 'FailedMqttPublishedMessages'
-        enabled: true
-      }
-      {
-        category: 'FailedMqttSubscriptionOperations'
-        enabled: true
-      }
-      {
-        category: 'SuccessfulHttpDataPlaneOperations'
-        enabled: true
-      }
-      {
-        category: 'FailedHttpDataPlaneOperations'
-        enabled: true
-      }
-    ]
-    workspaceId: logAnalyticsWorkspaceId
   }
 }
 

@@ -340,7 +340,9 @@ func (c *HcpOpenShiftCluster) GetVersion() api.Version {
 	return versionedInterface
 }
 
-func (c *HcpOpenShiftCluster) Normalize(out *api.HCPOpenShiftCluster) {
+func (c *HcpOpenShiftCluster) ConvertToInternal() *api.HCPOpenShiftCluster {
+	out := &api.HCPOpenShiftCluster{}
+
 	if c.ID != nil {
 		out.ID = api.Must(azcorearm.ParseResourceID(*c.ID))
 	}
@@ -416,6 +418,8 @@ func (c *HcpOpenShiftCluster) Normalize(out *api.HCPOpenShiftCluster) {
 			}
 		}
 	}
+
+	return out
 }
 
 func normalizeManagedIdentity(identity *generated.ManagedServiceIdentity) *arm.ManagedServiceIdentity {

@@ -78,6 +78,7 @@ const (
 var (
 	OperationStatusResourceType        = azcorearm.NewResourceType(ProviderNamespace, OperationStatusResourceTypeName)
 	ClusterResourceType                = azcorearm.NewResourceType(ProviderNamespace, ClusterResourceTypeName)
+	ServiceProviderClusterResourceType = azcorearm.NewResourceType(ProviderNamespace, ClusterResourceTypeName+"/serviceProviderCluster")
 	NodePoolResourceType               = azcorearm.NewResourceType(ProviderNamespace, ClusterResourceTypeName+"/"+NodePoolResourceTypeName)
 	ExternalAuthResourceType           = azcorearm.NewResourceType(ProviderNamespace, ClusterResourceTypeName+"/"+ExternalAuthResourceTypeName)
 	PreflightResourceType              = azcorearm.NewResourceType(ProviderNamespace, "deployments/preflight")
@@ -88,14 +89,13 @@ var (
 )
 
 type VersionedResource interface {
-	GetVersion() Version
 }
 
-type VersionedCreatableResource[T any] interface {
+type VersionedCreatableResource[InternalAPIType any] interface {
 	VersionedResource
 	NewExternal() any
 	SetDefaultValues(any) error
-	Normalize(*T)
+	ConvertToInternal() *InternalAPIType
 }
 
 type VersionedHCPOpenShiftCluster VersionedCreatableResource[HCPOpenShiftCluster]

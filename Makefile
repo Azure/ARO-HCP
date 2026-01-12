@@ -1,6 +1,7 @@
 include ./.bingo/Variables.mk
 include ./.bingo/Symlinks.mk
 include ./tooling/templatize/Makefile
+include ./tooling/yamlwrap/Makefile
 include ./test/Makefile
 SHELL = /bin/bash
 PATH := $(GOBIN):$(PATH)
@@ -21,9 +22,23 @@ test:
 	go list -f '{{.Dir}}/...' -m |RUN_TEMPLATIZE_E2E=true xargs go test -timeout 1200s -cover
 .PHONY: test
 
+test-unit:
+	go list -f '{{.Dir}}/...' -m | xargs go test -timeout 1200s -cover
+.PHONY: test-unit
+
 test-compile:
 	go list -f '{{.Dir}}/...' -m |xargs go test -c -o /dev/null
 .PHONY: test-compile
+
+generate: mocks fmt record-nonlocal-e2e all-tidy
+
+verify-generate: generate
+	./hack/verify.sh generate
+.PHONY: verify-generate
+
+verify-yamlfmt: yamlfmt
+	./hack/verify.sh yamlfmt
+.PHONY: verify-generate
 
 mocks: $(MOCKGEN) $(GOIMPORTS)
 	MOCKGEN=${MOCKGEN} go generate ./internal/mocks
@@ -52,13 +67,13 @@ fmt: $(GOIMPORTS)
 	$(GOIMPORTS) -w -local github.com/Azure/ARO-HCP $(shell go list -f '{{.Dir}}' -m | xargs)
 .PHONY: fmt
 
-yamlfmt: $(YAMLFMT)
+yamlfmt: $(YAMLFMT) $(YAMLWRAP)
 	# first, wrap all templated values in quotes, so they are correct YAML
-	./yamlfmt.wrap.sh
+	$(YAMLWRAP) wrap --dir . --no-validate-result
 	# run the formatter
 	$(YAMLFMT) -dstar -exclude './api/**' '**/*.{yaml,yml}'
 	# "fix" any non-string fields we cast to strings for the formatting
-	./yamlfmt.unwrap.sh
+	$(YAMLWRAP) unwrap --dir .
 .PHONY: yamlfmt
 
 tidy: $(MODULES:/...=.tidy)
@@ -69,10 +84,10 @@ tidy: $(MODULES:/...=.tidy)
 all-tidy: tidy fmt licenses
 	go work sync
 
-record-nonlocal-e2e:
+record-nonlocal-e2e: $(GOJQ)
 	go run github.com/onsi/ginkgo/v2/ginkgo run \
 		--no-color --tags E2Etests --label-filter='!ARO-HCP-RP-API-Compatible' --dry-run --output-dir=test/e2e --json-report=report.json test/e2e && \
-		jq '[.[] | .SpecReports[]? | select(.State == "passed") | .LeafNodeText] | sort' test/e2e/report.json > ./nonlocal-e2e-specs.txt
+		$(GOJQ) '[.[] | .SpecReports[]? | select(.State == "passed") | .LeafNodeText] | sort' test/e2e/report.json > ./nonlocal-e2e-specs.txt
 .PHONY: record-nonlocal-e2e
 
 e2e/local: e2e-local/setup
@@ -95,16 +110,19 @@ e2e-local/run: $(ARO_HCP_TESTS)
 	export CUSTOMER_SUBSCRIPTION="$$(az account show --output tsv --query 'name')"; \
 	export ARTIFACT_DIR=$${ARTIFACT_DIR:-_artifacts}; \
 	export JUNIT_PATH=$${JUNIT_PATH:-$$ARTIFACT_DIR/junit.xml}; \
+	export HTML_PATH=$${HTML_PATH:-$$ARTIFACT_DIR/extension-test-result-summary.html}; \
 	mkdir -p "$$ARTIFACT_DIR"; \
-	$(ARO_HCP_TESTS) run-suite "rp-api-compat-all/parallel" --junit-path="$$JUNIT_PATH"
+	$(ARO_HCP_TESTS) run-suite "rp-api-compat-all/parallel" --junit-path="$$JUNIT_PATH" --html-path="$$HTML_PATH"
 .PHONY: e2e-local/run
 
+CONTAINER_RUNTIME ?= docker
+
 mega-lint:
-	docker run --rm \
-		-e FILTER_REGEX_EXCLUDE='hypershiftoperator/deploy/crds/|maestro/server/deploy/templates/allow-cluster-service.authorizationpolicy.yaml|acm/deploy/helm/multicluster-engine-config/charts/policy/charts' \
+	$(CONTAINER_RUNTIME) run --rm \
+		-e FILTER_REGEX_EXCLUDE='hypershiftoperator/deploy/crds/|maestro/server/deploy/templates/allow-cluster-service.authorizationpolicy.yaml|acm/deploy/helm/multicluster-engine-config/charts/policy/charts|dev-infrastructure/global-pipeline.yaml|tooling/templatize/testdata/pipeline.yaml' \
 		-e REPORT_OUTPUT_FOLDER=/tmp/report \
 		-v $${PWD}:/tmp/lint:Z \
-		oxsecurity/megalinter:v8
+		docker.io/oxsecurity/megalinter-ci_light:v9
 .PHONY: mega-lint
 
 #

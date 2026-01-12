@@ -44,24 +44,40 @@ var _ = Describe("Customer", func() {
 				customerNodeReplicas      int32 = 2
 			)
 			tc := framework.NewTestContext()
+			openshiftControlPlaneVersionId := framework.DefaultOpenshiftControlPlaneVersionId()
+			openshiftNodeVersionId := framework.DefaultOpenshiftNodePoolVersionId()
+
+			if tc.UsePooledIdentities() {
+				err := tc.AssignIdentityContainers(ctx, 1, 60*time.Second)
+				Expect(err).NotTo(HaveOccurred())
+			}
 
 			By("creating a resource group")
 			resourceGroup, err := tc.NewResourceGroup(ctx, "clusternp128", tc.Location())
 			Expect(err).NotTo(HaveOccurred())
 
 			By("creating the infrastructure, cluster and node pool from a single bicep template")
+
+			identities, usePooled, err := tc.ResolveIdentitiesForTemplate(*resourceGroup.Name)
+			Expect(err).NotTo(HaveOccurred())
+
 			_, err = tc.CreateBicepTemplateAndWait(ctx,
-				*resourceGroup.Name,
-				"cluster-deployment",
-				framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/cluster-nodepool-osdisk.json")),
-				map[string]interface{}{
-					"persistTagValue":       false,
-					"clusterName":           customerClusterName,
-					"nodePoolName":          customerNodePoolName,
-					"nodePoolOsDiskSizeGiB": customerNodeOsDiskSizeGiB,
-					"nodeReplicas":          customerNodeReplicas,
-				},
-				45*time.Minute,
+				framework.WithTemplateFromFS(TestArtifactsFS, "test-artifacts/generated-test-artifacts/cluster-nodepool-osdisk.json"),
+				framework.WithDeploymentName("cluster-deployment"),
+				framework.WithScope(framework.BicepDeploymentScopeResourceGroup),
+				framework.WithClusterResourceGroup(*resourceGroup.Name),
+				framework.WithParameters(map[string]interface{}{
+					"openshiftControlPlaneVersionId": openshiftControlPlaneVersionId,
+					"openshiftNodePoolVersionId":     openshiftNodeVersionId,
+					"persistTagValue":                false,
+					"clusterName":                    customerClusterName,
+					"nodePoolName":                   customerNodePoolName,
+					"nodePoolOsDiskSizeGiB":          customerNodeOsDiskSizeGiB,
+					"nodeReplicas":                   customerNodeReplicas,
+					"identities":                     identities,
+					"usePooledIdentities":            usePooled,
+				}),
+				framework.WithTimeout(45*time.Minute),
 			)
 			Expect(err).NotTo(HaveOccurred())
 

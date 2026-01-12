@@ -1,0 +1,19 @@
+# See the OWNERS_ALIASES docs: https://git.k8s.io/community/contributors/guide/owners.md#owners_aliases
+
+aliases:
+  service-lifecycle-global-approvers:
+  - janboll 
+  - mmazur
+  - raelga 
+  - roivaz 
+  service-lifecycle:
+  - ashishmax31
+  - avollmer-redhat
+  - hbhushan3
+  - janboll 
+  - mmazur
+  - raelga 
+  - roivaz 
+  - sclarkso 
+  - venkateshsredhat 
+  - weherdh

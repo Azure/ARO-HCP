@@ -44,7 +44,7 @@ type mockRegistryClient struct {
 	err    error
 }
 
-func (m *mockRegistryClient) GetArchSpecificDigest(ctx context.Context, repository string, tagPattern string, arch string, multiArch bool) (*clients.Tag, error) {
+func (m *mockRegistryClient) GetArchSpecificDigest(ctx context.Context, repository string, tagPattern string, arch string, multiArch bool, versionLabel string) (*clients.Tag, error) {
 	if m.err != nil {
 		return nil, m.err
 	}
@@ -53,6 +53,17 @@ func (m *mockRegistryClient) GetArchSpecificDigest(ctx context.Context, reposito
 		return nil, fmt.Errorf("unexpected architecture: %s, expected %s", arch, DefaultArchitecture)
 	}
 	return &clients.Tag{Digest: m.digest, Name: m.tag}, nil
+}
+
+func (m *mockRegistryClient) GetDigestForTag(ctx context.Context, repository string, tag string, arch string, multiArch bool, versionLabel string) (*clients.Tag, error) {
+	if m.err != nil {
+		return nil, m.err
+	}
+	// Verify the architecture passed is the expected constant (or empty, which defaults to amd64)
+	if arch != DefaultArchitecture && arch != "" {
+		return nil, fmt.Errorf("unexpected architecture: %s, expected %s", arch, DefaultArchitecture)
+	}
+	return &clients.Tag{Digest: m.digest, Name: tag}, nil
 }
 
 func TestUpdater_UpdateImages(t *testing.T) {
@@ -425,79 +436,6 @@ image:
 			if tt.wantErr && tt.wantErrMsg != "" {
 				if !strings.Contains(err.Error(), tt.wantErrMsg) {
 					t.Errorf("ProcessImageUpdates() error = %v, should contain %v", err.Error(), tt.wantErrMsg)
-				}
-			}
-		})
-	}
-}
-
-func TestUpdater_GenerateCommitMessage(t *testing.T) {
-	tests := []struct {
-		name    string
-		updates map[string][]yaml.Update
-		want    string
-	}{
-		{
-			name:    "no updates",
-			updates: map[string][]yaml.Update{},
-			want:    "",
-		},
-		{
-			name: "single update",
-			updates: map[string][]yaml.Update{
-				"config.yaml": {
-					{Name: "frontend", OldDigest: "sha256:old123", NewDigest: "sha256:abc123"},
-				},
-			},
-			want: "Updated images for dev/int:\nfrontend: sha256:old123 -> sha256:abc123",
-		},
-		{
-			name: "multiple updates",
-			updates: map[string][]yaml.Update{
-				"config.yaml": {
-					{Name: "frontend", OldDigest: "sha256:old123", NewDigest: "sha256:abc123"},
-					{Name: "backend", OldDigest: "sha256:old456", NewDigest: "sha256:def456"},
-				},
-			},
-			want: "Updated images for dev/int:\nfrontend: sha256:old123 -> sha256:abc123\nbackend: sha256:old456 -> sha256:def456",
-		},
-		{
-			name: "duplicate updates - both shown",
-			updates: map[string][]yaml.Update{
-				"config.yaml": {
-					{Name: "frontend", OldDigest: "sha256:old123", NewDigest: "sha256:abc123"},
-					{Name: "frontend", OldDigest: "sha256:old123", NewDigest: "sha256:abc123"},
-				},
-			},
-			want: "Updated images for dev/int:\nfrontend: sha256:old123 -> sha256:abc123\nfrontend: sha256:old123 -> sha256:abc123",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			u := &Updater{
-				Updates: tt.updates,
-			}
-
-			got := u.GenerateCommitMessage()
-
-			// For multiple updates, the order might vary due to map iteration
-			// So we check that the message contains all expected parts
-			if tt.name == "multiple updates" || tt.name == "duplicate updates - both shown" {
-				if !strings.Contains(got, "Updated images for dev/int:") {
-					t.Errorf("GenerateCommitMessage() missing header")
-				}
-				for _, updates := range tt.updates {
-					for _, update := range updates {
-						expected := fmt.Sprintf("%s: %s -> %s", update.Name, update.OldDigest, update.NewDigest)
-						if !strings.Contains(got, expected) {
-							t.Errorf("GenerateCommitMessage() missing update: %s", expected)
-						}
-					}
-				}
-			} else {
-				if got != tt.want {
-					t.Errorf("GenerateCommitMessage() = %q, want %q", got, tt.want)
 				}
 			}
 		})

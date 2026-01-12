@@ -45,9 +45,13 @@ var _ = Describe("Customer", func() {
 				customerVnetName                 = "customer-vnet-name"
 				customerVnetSubnetName           = "customer-vnet-subnet1"
 				customerClusterName              = "disabled-image-registry-hcp-cluster"
-				openshiftVersionId               = "4.19"
 			)
 			tc := framework.NewTestContext()
+
+			if tc.UsePooledIdentities() {
+				err := tc.AssignIdentityContainers(ctx, 1, 60*time.Second)
+				Expect(err).NotTo(HaveOccurred())
+			}
 
 			By("creating a resource group")
 			resourceGroup, err := tc.NewResourceGroup(ctx, "disabled-image-registry", tc.Location())
@@ -58,7 +62,6 @@ var _ = Describe("Customer", func() {
 			clusterParams.ClusterName = customerClusterName
 			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
 			clusterParams.ManagedResourceGroupName = managedResourceGroupName
-			clusterParams.OpenshiftVersionId = openshiftVersionId
 			clusterParams.ImageRegistryState = string(hcpsdk20240610preview.ClusterImageRegistryProfileStateDisabled)
 
 			By("creating customer resources")
@@ -76,7 +79,9 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			By("creating the hcp cluster with the image registry disabled")
-			err = tc.CreateHCPClusterFromParam(ctx,
+			err = tc.CreateHCPClusterFromParam(
+				ctx,
+				GinkgoLogr,
 				*resourceGroup.Name,
 				clusterParams,
 				45*time.Minute,

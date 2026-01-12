@@ -37,11 +37,18 @@ var _ = Describe("Customer", func() {
 		labels.Positive,
 		labels.Medium,
 		func(ctx context.Context) {
+			const createClustersCount = 2
+
 			tc := framework.NewTestContext()
+			openshiftControlPlaneVersionId := framework.DefaultOpenshiftControlPlaneVersionId()
+
+			if tc.UsePooledIdentities() {
+				err := tc.AssignIdentityContainers(ctx, createClustersCount, 60*time.Second)
+				Expect(err).NotTo(HaveOccurred())
+			}
 
 			var resourceGroups []*armresources.ResourceGroup
 			var clusterNames []string
-			const createClustersCount = 2
 
 			for range createClustersCount {
 				By("creating resource group for cluster listing test")
@@ -53,15 +60,23 @@ var _ = Describe("Customer", func() {
 				clusterNames = append(clusterNames, clusterName)
 
 				By("creating cluster without node pool using cluster-only template: " + clusterName)
+
+				identities, usePooledForCluster, err := tc.ResolveIdentitiesForTemplate(*resourceGroup.Name)
+				Expect(err).NotTo(HaveOccurred())
+
 				_, err = tc.CreateBicepTemplateAndWait(ctx,
-					*resourceGroup.Name,
-					"cluster-only",
-					framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/cluster-only.json")),
-					map[string]any{
-						"clusterName":     clusterName,
-						"persistTagValue": false,
-					},
-					45*time.Minute,
+					framework.WithTemplateFromFS(TestArtifactsFS, "test-artifacts/generated-test-artifacts/cluster-only.json"),
+					framework.WithDeploymentName("cluster-only"),
+					framework.WithScope(framework.BicepDeploymentScopeResourceGroup),
+					framework.WithClusterResourceGroup(*resourceGroup.Name),
+					framework.WithParameters(map[string]any{
+						"openshiftControlPlaneVersionId": openshiftControlPlaneVersionId,
+						"clusterName":                    clusterName,
+						"persistTagValue":                false,
+						"identities":                     identities,
+						"usePooledIdentities":            usePooledForCluster,
+					}),
+					framework.WithTimeout(45*time.Minute),
 				)
 				Expect(err).NotTo(HaveOccurred())
 			}

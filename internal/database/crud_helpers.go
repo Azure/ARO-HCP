@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/google/uuid"
 
@@ -29,12 +30,57 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
 	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
-func get[InternalAPIType, CosmosAPIType any](ctx context.Context, containerClient *azcosmos.ContainerClient, completeResourceID *azcorearm.ResourceID) (*InternalAPIType, error) {
-	var responseItem []byte
+// TODO this will eventually be the standard GET, but until we rewrite all records with new `id` values, it must remain separate and specifically called.
+func getByItemID[InternalAPIType, CosmosAPIType any](ctx context.Context, containerClient *azcosmos.ContainerClient, partitionKeyString string, cosmosID string) (*InternalAPIType, error) {
+	if strings.ToLower(partitionKeyString) != partitionKeyString {
+		return nil, fmt.Errorf("partitionKeyString must be lowercase, not: %q", partitionKeyString)
+	}
+	if strings.ToLower(cosmosID) != cosmosID {
+		return nil, fmt.Errorf("cosmosID must be lowercase, not: %q", cosmosID)
+	}
 
-	pk := NewPartitionKey(completeResourceID.SubscriptionID)
+	responseItem, err := containerClient.ReadItem(ctx, azcosmos.NewPartitionKeyString(partitionKeyString), cosmosID, nil)
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
+
+	var obj CosmosAPIType
+	if err := json.Unmarshal(responseItem.Value, &obj); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal Resources container item for '%s': %w", cosmosID, err)
+	}
+	cosmosObj := &obj
+
+	internalObj, err := CosmosToInternal[InternalAPIType, CosmosAPIType](cosmosObj)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert Cosmos object to internal type: %w", err)
+	}
+
+	return internalObj, nil
+}
+
+func get[InternalAPIType, CosmosAPIType any](ctx context.Context, containerClient *azcosmos.ContainerClient, partitionKeyString string, completeResourceID *azcorearm.ResourceID) (*InternalAPIType, error) {
+	logger := utils.LoggerFromContext(ctx)
+
+	// try to see if the cosmosID we've passed is also the exact resource ID.  If so, then return the value we got.
+	if exactCosmosID, err := api.ResourceIDToCosmosID(completeResourceID); err == nil {
+		ret, err := getByItemID[InternalAPIType, CosmosAPIType](ctx, containerClient, partitionKeyString, exactCosmosID)
+		if err == nil {
+			return ret, nil
+		}
+		if !IsResponseError(err, http.StatusNotFound) {
+			return nil, err
+		}
+	}
+	logger.Info("failed to get exact cosmosID, trying to rekey")
+
+	if strings.ToLower(partitionKeyString) != partitionKeyString {
+		return nil, fmt.Errorf("partitionKeyString must be lowercase, not: %q", partitionKeyString)
+	}
+
+	var responseItem []byte
 
 	const query = "SELECT * FROM c WHERE STRINGEQUALS(c.resourceType, @resourceType, true) AND STRINGEQUALS(c.properties.resourceId, @resourceId, true)"
 	opt := azcosmos.QueryOptions{
@@ -50,7 +96,7 @@ func get[InternalAPIType, CosmosAPIType any](ctx context.Context, containerClien
 		},
 	}
 
-	queryPager := containerClient.NewQueryItemsPager(query, pk, &opt)
+	queryPager := containerClient.NewQueryItemsPager(query, azcosmos.NewPartitionKeyString(partitionKeyString), &opt)
 	for queryPager.More() {
 		queryResponse, err := queryPager.NextPage(ctx)
 		if err != nil {
@@ -90,28 +136,57 @@ func get[InternalAPIType, CosmosAPIType any](ctx context.Context, containerClien
 	return internalObj, nil
 }
 
-func list[InternalAPIType, CosmosAPIType any](ctx context.Context, containerClient *azcosmos.ContainerClient, resourceType *azcorearm.ResourceType, prefix *azcorearm.ResourceID, options *DBClientListResourceDocsOptions) (DBClientIterator[InternalAPIType], error) {
-	pk := NewPartitionKey(prefix.SubscriptionID)
+func list[InternalAPIType, CosmosAPIType any](ctx context.Context, containerClient *azcosmos.ContainerClient, partitionKeyString string, resourceType *azcorearm.ResourceType, prefix *azcorearm.ResourceID, options *DBClientListResourceDocsOptions, untypedNonRecursive bool) (DBClientIterator[InternalAPIType], error) {
+	if strings.ToLower(partitionKeyString) != partitionKeyString {
+		return nil, fmt.Errorf("partitionKeyString must be lowercase, not: %q", partitionKeyString)
+	}
+	if prefix == nil && resourceType == nil {
+		return nil, fmt.Errorf("prefix or resource type is required")
+	}
 
-	query := "SELECT * FROM c WHERE STARTSWITH(c.properties.resourceId, @prefix, true)"
-
+	query := ""
 	queryOptions := azcosmos.QueryOptions{
 		PageSizeHint: -1,
-		QueryParameters: []azcosmos.QueryParameter{
-			{
-				Name:  "@prefix",
-				Value: prefix.String() + "/",
+	}
+	if prefix == nil {
+		query = "SELECT * FROM c"
+	} else {
+		query = "SELECT * FROM c WHERE STARTSWITH(c.properties.resourceId, @prefix, true)"
+		queryOptions = azcosmos.QueryOptions{
+			PageSizeHint: -1,
+			QueryParameters: []azcosmos.QueryParameter{
+				{
+					Name:  "@prefix",
+					Value: prefix.String() + "/",
+				},
 			},
-		},
+		}
 	}
 
 	if resourceType != nil {
-		query += " AND STRINGEQUALS(c.resourceType, @resourceType, true)"
+		if prefix == nil {
+			query += " WHERE STRINGEQUALS(c.resourceType, @resourceType, true)"
+		} else {
+			query += " AND STRINGEQUALS(c.resourceType, @resourceType, true)"
+		}
 		queryParameter := azcosmos.QueryParameter{
 			Name:  "@resourceType",
 			Value: resourceType.String(),
 		}
 		queryOptions.QueryParameters = append(queryOptions.QueryParameters, queryParameter)
+	}
+
+	if untypedNonRecursive {
+		// resourceIDs are /subscriptions/<name>/resourceGroups/<name>/providers/RH/type[0]/<name>/type[1]/<name.../type[n]/<name>
+		// if we count the slashes, then a non-recursive list should only include resource ID that have numSlashesInPrefix+2 for most
+		requiredNumSlashes := strings.Count(prefix.String(), "/") + 2
+		if strings.EqualFold(prefix.ResourceType.Type, "resourceGroups") {
+			// if it's a resourceGroup, then we need to add four to select clusters
+			requiredNumSlashes = strings.Count(prefix.String(), "/") + 4
+		}
+
+		// no sql injection risk because it's an int we control
+		query += fmt.Sprintf(" AND (LENGTH(c.properties.resourceId) - LENGTH(REPLACE(c.properties.resourceId, '/', ''))) = %d", requiredNumSlashes)
 	}
 
 	if options != nil {
@@ -124,8 +199,14 @@ func list[InternalAPIType, CosmosAPIType any](ctx context.Context, containerClie
 		}
 		queryOptions.ContinuationToken = options.ContinuationToken
 	}
+	var partitionKey azcosmos.PartitionKey
+	if len(partitionKeyString) > 0 {
+		partitionKey = azcosmos.NewPartitionKeyString(partitionKeyString)
+	} else {
+		partitionKey = azcosmos.NewPartitionKey()
+	}
 
-	pager := containerClient.NewQueryItemsPager(query, pk, &queryOptions)
+	pager := containerClient.NewQueryItemsPager(query, partitionKey, &queryOptions)
 
 	if options != nil && ptr.Deref(options.PageSizeHint, -1) > 0 {
 		return newQueryResourcesSinglePageIterator[InternalAPIType, CosmosAPIType](pager), nil
@@ -136,10 +217,10 @@ func list[InternalAPIType, CosmosAPIType any](ctx context.Context, containerClie
 
 // serializeItem will create a CosmosUID if it doesn't exist, otherwise uses what exists.  This makes it compatible with
 // create, replace, and create
-func serializeItem[InternalAPIType, CosmosAPIType any](newObj *InternalAPIType) (string, *azcosmos.PartitionKey, []byte, error) {
+func serializeItem[InternalAPIType, CosmosAPIType any](newObj *InternalAPIType) (string, string, []byte, error) {
 	cosmosPersistable, ok := any(newObj).(api.CosmosPersistable)
 	if !ok {
-		return "", nil, nil, fmt.Errorf("type %T does not implement ResourceProperties interface", newObj)
+		return "", "", nil, fmt.Errorf("type %T does not implement CosmosPersistable interface", newObj)
 	}
 	cosmosData := cosmosPersistable.GetCosmosData()
 
@@ -153,20 +234,27 @@ func serializeItem[InternalAPIType, CosmosAPIType any](newObj *InternalAPIType) 
 
 	cosmosObj, err := InternalToCosmos[InternalAPIType, CosmosAPIType](newObj)
 	if err != nil {
-		return "", nil, nil, fmt.Errorf("failed to convert internal object to Cosmos object: %w", err)
+		return "", "", nil, fmt.Errorf("failed to convert internal object to Cosmos object: %w", err)
 	}
 	data, err := json.Marshal(cosmosObj)
 	if err != nil {
-		return "", nil, nil, fmt.Errorf("failed to marshal Cosmos DB item for '%s': %w", cosmosData.ItemID, err)
+		return "", "", nil, fmt.Errorf("failed to marshal Cosmos DB item for '%s': %w", cosmosData.ItemID, err)
 	}
 
-	return cosmosUID, &cosmosData.PartitionKey, data, nil
+	return cosmosUID, cosmosData.PartitionKey, data, nil
 }
 
 func addCreateToTransaction[InternalAPIType, CosmosAPIType any](ctx context.Context, transaction DBTransaction, newObj *InternalAPIType, opts *azcosmos.TransactionalBatchItemOptions) (string, error) {
-	newCosmosUID, _, data, err := serializeItem[InternalAPIType, CosmosAPIType](newObj)
+	partitionKeyString := transaction.GetPartitionKey()
+	if strings.ToLower(partitionKeyString) != partitionKeyString {
+		return "", fmt.Errorf("partitionKeyString must be lowercase, not: %q", partitionKeyString)
+	}
+	newCosmosUID, itemPartitionKey, data, err := serializeItem[InternalAPIType, CosmosAPIType](newObj)
 	if err != nil {
 		return "", err
+	}
+	if partitionKeyString != itemPartitionKey {
+		return "", fmt.Errorf("item partition key does not match partition key: %q vs %q", partitionKeyString, itemPartitionKey)
 	}
 
 	transaction.AddStep(
@@ -179,17 +267,47 @@ func addCreateToTransaction[InternalAPIType, CosmosAPIType any](ctx context.Cont
 	return newCosmosUID, nil
 }
 
-func create[InternalAPIType, CosmosAPIType any](ctx context.Context, containerClient *azcosmos.ContainerClient, newObj *InternalAPIType, opts *azcosmos.ItemOptions) (*InternalAPIType, error) {
-	newCosmosUID, partitionKey, data, err := serializeItem[InternalAPIType, CosmosAPIType](newObj)
+func addReplaceToTransaction[InternalAPIType, CosmosAPIType any](ctx context.Context, transaction DBTransaction, newObj *InternalAPIType, opts *azcosmos.TransactionalBatchItemOptions) (string, error) {
+	partitionKeyString := transaction.GetPartitionKey()
+	if strings.ToLower(partitionKeyString) != partitionKeyString {
+		return "", fmt.Errorf("partitionKeyString must be lowercase, not: %q", partitionKeyString)
+	}
+	cosmosUID, itemPartitionKey, data, err := serializeItem[InternalAPIType, CosmosAPIType](newObj)
+	if err != nil {
+		return "", err
+	}
+	if partitionKeyString != itemPartitionKey {
+		return "", fmt.Errorf("item partition key does not match partition key: %q vs %q", partitionKeyString, itemPartitionKey)
+	}
+
+	transaction.AddStep(
+		func(b *azcosmos.TransactionalBatch) (string, error) {
+			// TODO decide if, when, and how we ever add etags.  Currently we do unconditional replaces.
+			b.ReplaceItem(cosmosUID, data, opts)
+			return cosmosUID, nil
+		},
+	)
+
+	return cosmosUID, nil
+}
+
+func create[InternalAPIType, CosmosAPIType any](ctx context.Context, containerClient *azcosmos.ContainerClient, partitionKeyString string, newObj *InternalAPIType, opts *azcosmos.ItemOptions) (*InternalAPIType, error) {
+	if strings.ToLower(partitionKeyString) != partitionKeyString {
+		return nil, fmt.Errorf("partitionKeyString must be lowercase, not: %q", partitionKeyString)
+	}
+	newCosmosUID, itemPartitionKey, data, err := serializeItem[InternalAPIType, CosmosAPIType](newObj)
 	if err != nil {
 		return nil, err
+	}
+	if partitionKeyString != itemPartitionKey {
+		return nil, fmt.Errorf("item partition key does not match partition key: %q vs %q", partitionKeyString, itemPartitionKey)
 	}
 
 	if opts == nil {
 		opts = &azcosmos.ItemOptions{}
 	}
 	opts.EnableContentResponseOnWrite = true
-	responseItem, err := containerClient.CreateItem(ctx, *partitionKey, data, opts)
+	responseItem, err := containerClient.CreateItem(ctx, azcosmos.NewPartitionKeyString(partitionKeyString), data, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -206,17 +324,23 @@ func create[InternalAPIType, CosmosAPIType any](ctx context.Context, containerCl
 	return internalObj, nil
 }
 
-func replace[InternalAPIType, CosmosAPIType any](ctx context.Context, containerClient *azcosmos.ContainerClient, newObj *InternalAPIType, opts *azcosmos.ItemOptions) (*InternalAPIType, error) {
-	newCosmosUID, partitionKey, data, err := serializeItem[InternalAPIType, CosmosAPIType](newObj)
+func replace[InternalAPIType, CosmosAPIType any](ctx context.Context, containerClient *azcosmos.ContainerClient, partitionKeyString string, newObj *InternalAPIType, opts *azcosmos.ItemOptions) (*InternalAPIType, error) {
+	if strings.ToLower(partitionKeyString) != partitionKeyString {
+		return nil, fmt.Errorf("partitionKeyString must be lowercase, not: %q", partitionKeyString)
+	}
+	newCosmosUID, itemPartitionKey, data, err := serializeItem[InternalAPIType, CosmosAPIType](newObj)
 	if err != nil {
 		return nil, err
+	}
+	if partitionKeyString != itemPartitionKey {
+		return nil, fmt.Errorf("item partition key does not match partition key: %q vs %q", partitionKeyString, itemPartitionKey)
 	}
 
 	if opts == nil {
 		opts = &azcosmos.ItemOptions{}
 	}
 	opts.EnableContentResponseOnWrite = true
-	responseItem, err := containerClient.ReplaceItem(ctx, *partitionKey, newCosmosUID, data, opts)
+	responseItem, err := containerClient.ReplaceItem(ctx, azcosmos.NewPartitionKeyString(partitionKeyString), newCosmosUID, data, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -231,4 +355,20 @@ func replace[InternalAPIType, CosmosAPIType any](ctx context.Context, containerC
 	}
 
 	return internalObj, nil
+}
+
+func deleteResource(ctx context.Context, containerClient *azcosmos.ContainerClient, partitionKeyString string, resourceID *azcorearm.ResourceID) error {
+	typedObj, err := get[TypedDocument, TypedDocument](ctx, containerClient, partitionKeyString, resourceID)
+	if IsResponseError(err, http.StatusNotFound) {
+		return nil
+	}
+	if err != nil {
+		return utils.TrackError(err)
+	}
+
+	_, err = containerClient.DeleteItem(ctx, azcosmos.NewPartitionKeyString(partitionKeyString), typedObj.ID, nil)
+	if err != nil {
+		return utils.TrackError(err)
+	}
+	return nil
 }

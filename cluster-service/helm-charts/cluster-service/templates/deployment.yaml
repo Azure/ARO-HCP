@@ -97,7 +97,7 @@ spec:
           volumeAttributes:
             secretProviderClass: cs-keyvault
       initContainers:
-      - name: init
+      - name: clusters-service-init
         image: '{{ .Values.imageRegistry }}/{{ .Values.imageRepository }}@{{ .Values.imageDigest }}'
         imagePullPolicy: IfNotPresent
         volumeMounts:
@@ -127,7 +127,7 @@ spec:
         - --azure-first-party-application-client-id={{ .Values.azureFirstPartyApplicationClientId }}
         - --azure-first-party-application-certificate-bundle-path=/secrets/keyvault/firstPartyApplicationCertificateBundle
       containers:
-      - name: service
+      - name: clusters-service-server
         image: '{{ .Values.imageRegistry }}/{{ .Values.imageRepository }}@{{ .Values.imageDigest }}'
         imagePullPolicy: IfNotPresent
         env:

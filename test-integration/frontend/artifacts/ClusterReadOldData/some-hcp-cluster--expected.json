@@ -1,0 +1,42 @@
+{
+  "id": "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/some-hcp-cluster",
+  "identity": {
+    "principalId": "the-principal",
+    "tenantId": "the-tenant"
+  },
+  "location": "fake-location",
+  "name": "some-hcp-cluster",
+  "properties": {
+    "api": {
+      "url": "https://api.sample-hcp-cluster.eastus.aroapp.io:6443",
+      "visibility": "Public"
+    },
+    "clusterImageRegistry": {
+      "state": "Enabled"
+    },
+    "console": {
+      "url": "https://console-openshift-console.apps.sample-hcp-cluster.eastus.aroapp.io"
+    },
+    "dns": {
+      "baseDomain": "sample-hcp-cluster.eastus.aroapp.io"
+    },
+    "network": {
+      "hostPrefix": 23,
+      "machineCidr": "10.0.0.0/16",
+      "networkType": "OVNKubernetes",
+      "podCidr": "10.128.0.0/14",
+      "serviceCidr": "172.30.0.0/16"
+    },
+    "platform": {
+      "managedResourceGroup": "aro-hcp-cluster-managed-rg",
+      "outboundType": "LoadBalancer"
+    },
+    "version": {
+      "id": "4.14"
+    }
+  },
+  "tags": {
+    "foo": "bar"
+  },
+  "type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters"
+}

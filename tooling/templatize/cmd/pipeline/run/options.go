@@ -106,7 +106,7 @@ func (o *ValidatedRunOptions) Complete(ctx context.Context) (*RunOptions, error)
 }
 
 func (o *RunOptions) RunPipeline(ctx context.Context) error {
-	subscriptionIdToAzureConfigDirectory, err := pipeline.GetAllRequiredAzureClients(ctx, map[string]*types.Pipeline{"default": o.PipelineOptions.Pipeline})
+	subscriptionIdToAzureConfigDirectory, err := pipeline.GetAllRequiredAzureClients(ctx, map[string]*types.Pipeline{"default": o.PipelineOptions.Pipeline}, o.PipelineOptions.RolloutOptions.Subscriptions)
 	if err != nil {
 		return fmt.Errorf("failed to get all required Azure clients: %w", err)
 	}

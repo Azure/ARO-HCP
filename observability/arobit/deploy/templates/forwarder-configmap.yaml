@@ -188,13 +188,14 @@ data:
         Match           other.logs
         Rule            $kubernetes['container_name'] ^aro-hcp-frontend* aro-hcp-frontend.logs true
         Rule            $kubernetes['container_name'] ^aro-hcp-backend* aro-hcp-backend.logs true
+        Rule            $kubernetes['container_name'] ^clusters-service* clusters-service.logs true
         Rule            $kubernetes['container_name'] ^kube-events* kube-events.logs true
         Emitter_Name    re_emitted_container_name_router
 
     [FILTER]
         # Parse the log key and make it a json object again under $
         Name Parser
-        Match_regex (aro-hcp-(frontend|backend)|kube-events)\.logs
+        Match_regex (aro-hcp-(frontend|backend)|kube-events|clusters-service)\.logs
         Key_Name log
         Parser containerlogs
         Preserve_Key On
@@ -245,6 +246,19 @@ data:
         Table_Name backendLogs
         ingestion_mapping_reference ingestionMapping
         buffer_dir /var/kusto
+
+    [OUTPUT]
+        Match clusters-service.logs
+        Name azure_kusto
+        auth_type workload_identity
+        tenant_id {{ .Values.forwarder.tenantId }}
+        client_id {{ .Values.forwarder.msiClientId }}
+        workload_identity_token_file ${AZURE_FEDERATED_TOKEN_FILE}
+        Ingestion_Endpoint {{ .Values.forwarder.kusto.ingestionEndpoint }}
+        Database_Name {{ .Values.forwarder.kusto.serviceLogsDatabase }}
+        Table_Name clustersServiceLogs
+        ingestion_mapping_reference ingestionMapping
+        buffer_dir /var/kusto
 {{- end }}
     [OUTPUT]
         Match other.logs
@@ -276,7 +290,7 @@ data:
     [OUTPUT]
         Name  forward
         Alias forward.mdsd.other
-        Match other.logs
+        Match mdsd-other.logs
         Host  127.0.0.1
         Port  5001
         Tag   akskubesystem
@@ -292,7 +306,7 @@ data:
     [OUTPUT]
         Name  forward
         Alias forward.mdsd.ocm
-        Match ocm.logs
+        Match mdsd-ocm.logs
         Host  127.0.0.1
         Port  5002
         Tag   akskubesystem

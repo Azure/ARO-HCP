@@ -1,2 +1,0 @@
-InvalidRequestContent: properties.version.id: Required value
-InvalidRequestContent: properties.version.channelGroup: Unsupported value: "updated-channel": supported values: "stable"

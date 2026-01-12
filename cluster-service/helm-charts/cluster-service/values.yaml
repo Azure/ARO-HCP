@@ -76,7 +76,7 @@ ocpAcrResourceId: ""
 #       cluster="app-sre",
 #       namespace="uhc-production",
 #       pod_name=~"^clusters-service-.*$",
-#       container_name="service"
+#       container_name="clusters-service-server"
 #     }
 #     [1w]
 #   )
@@ -93,7 +93,7 @@ ocpAcrResourceId: ""
 #       cluster="app-sre",
 #       namespace="uhc-production",
 #       pod_name=~"^clusters-service-.*$",
-#       container_name="service"
+#       container_name="clusters-service-server"
 #     }
 #     [1w]
 #   )
@@ -191,6 +191,7 @@ shard:
   cxSecretsKeyVaultMiClientId: ""
   maestroRestUrl: ""
   maestroGrpUrl: ""
+  aksManagementClusterResourceId: ""
 # ocm client id
 clientId: "foo"
 # ocm secret
@@ -306,6 +307,14 @@ ocpVersions:
     version: ""
   channelGroups:
     stable:
+      url: ""
+      minVersion: ""
+      maxVersion: ""
+    candidate:
+      url: ""
+      minVersion: ""
+      maxVersion: ""
+    nightly:
       url: ""
       minVersion: ""
       maxVersion: ""

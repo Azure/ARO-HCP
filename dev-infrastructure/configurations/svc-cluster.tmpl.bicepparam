@@ -16,7 +16,6 @@ param aksKeyVaultTagValue = '{{ .svc.aks.etcd.tagValue }}'
 param aksEtcdKVEnableSoftDelete = {{ .svc.aks.etcd.softDelete }}
 param systemAgentMinCount = {{ .svc.aks.systemAgentPool.minCount}}
 param systemAgentMaxCount = {{ .svc.aks.systemAgentPool.maxCount }}
-param systemAgentPoolCount = {{ .svc.aks.systemAgentPool.poolCount }}
 param systemAgentPoolZones = '{{ .svc.aks.systemAgentPool.zones }}'
 param systemAgentVMSize = '{{ .svc.aks.systemAgentPool.vmSize }}'
 param systemZoneRedundantMode = '{{ .svc.aks.systemAgentPool.zoneRedundantMode }}'
@@ -142,9 +141,6 @@ param logsNamespace = '{{ .logs.mdsd.namespace }}'
 param logsMSI = '{{ .logs.mdsd.msiName }}'
 param logsServiceAccount = '{{ .logs.mdsd.serviceAccountName }}'
 
-// Log Analytics Workspace ID will be passed from region pipeline if enabled in config
-param logAnalyticsWorkspaceId = '__logAnalyticsWorkspaceId__'
-
 param svcNSPName = '{{ .svc.nsp.name }}'
 param svcNSPAccessMode = '{{ .svc.nsp.accessMode }}'
 param serviceKeyVaultAsignNSP = {{ .serviceKeyVault.assignNSP }}
@@ -154,3 +150,6 @@ param genevaCertificateDomain = '{{ .geneva.logs.certificateDomain }}'
 param genevaCertificateIssuer = '{{ .geneva.logs.certificateIssuer }}'
 param genevaRpLogsName = '{{ .geneva.logs.rp.secretName }}'
 param genevaManageCertificates = {{ .geneva.logs.manageCertificates }}
+
+// Alert rules tag value
+param owningTeamTagValue = '{{ .monitoring.alertRuleOwningTeamTag }}'

@@ -45,6 +45,7 @@ func TestSubscriptionCollector(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
 	mockDBClient := mocks.NewMockDBClient(ctrl)
+	mockSubscriptionCRUD := mocks.NewMockSubscriptionCRUD(ctrl)
 
 	r := prometheus.NewPedanticRegistry()
 	collector := NewSubscriptionCollector(r, mockDBClient, "test")
@@ -59,9 +60,11 @@ func TestSubscriptionCollector(t *testing.T) {
 			Return(nil)
 
 		mockDBClient.EXPECT().
-			ListAllSubscriptionDocs().
-			Return(mockIter).
-			Times(1)
+			Subscriptions().
+			Return(mockSubscriptionCRUD)
+		mockSubscriptionCRUD.EXPECT().
+			List(gomock.Any(), gomock.Any()).
+			Return(mockIter, nil).Times(1)
 		collector.refresh(context.Background(), logger)
 
 		assertMetrics(t, r, 5, `# HELP frontend_subscription_collector_failed_syncs_total Total number of failed syncs for the Subscription collector.
@@ -85,9 +88,11 @@ frontend_subscription_collector_last_sync 1
 			GetError().
 			Return(errors.New("db error"))
 		mockDBClient.EXPECT().
-			ListAllSubscriptionDocs().
-			Return(mockIter).
-			Times(1)
+			Subscriptions().
+			Return(mockSubscriptionCRUD)
+		mockSubscriptionCRUD.EXPECT().
+			List(gomock.Any(), gomock.Any()).
+			Return(mockIter, nil).Times(1)
 
 		collector.refresh(context.Background(), logger)
 
@@ -112,9 +117,11 @@ frontend_subscription_collector_last_sync 0
 			GetError().
 			Return(nil)
 		mockDBClient.EXPECT().
-			ListAllSubscriptionDocs().
-			Return(mockIter).
-			Times(1)
+			Subscriptions().
+			Return(mockSubscriptionCRUD)
+		mockSubscriptionCRUD.EXPECT().
+			List(gomock.Any(), gomock.Any()).
+			Return(mockIter, nil).Times(1)
 
 		collector.refresh(context.Background(), logger)
 

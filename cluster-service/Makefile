@@ -74,6 +74,7 @@ deploy:
 	  --set shard.maestroRestUrl="http://maestro.maestro.svc.cluster.local:8000" \
 	  --set shard.maestroGrpUrl="maestro-grpc.maestro.svc.cluster.local:8090" \
 	  --set shard.Id=$(PROVISION_SHARD_ID) \
+	  --set shard.aksManagementClusterResourceId=$(AKS_MGMT_CLUSTER_RESOURCE_ID) \
 	  --set databaseHost=$${DB_HOST} \
 	  --set azureMiMockServicePrincipalPrincipalId=${AZURE_MI_MOCK_SERVICE_PRINCIPAL_PRINCIPAL_ID} \
 	  --set azureMiMockServicePrincipalClientId=${AZURE_MI_MOCK_SERVICE_PRINCIPAL_CLIENT_ID} \
@@ -93,6 +94,10 @@ deploy:
 	  --set ocpVersions.defaultVersion.version=${OCP_VERSIONS_DEFAULT_VERSION_VERSION} \
 	  --set ocpVersions.channelGroups.stable.minVersion=${OCP_VERSIONS_CHANNEL_GROUPS_STABLE_MIN_VERSION} \
 	  --set ocpVersions.channelGroups.stable.maxVersion=${OCP_VERSIONS_CHANNEL_GROUPS_STABLE_MAX_VERSION} \
+	  --set ocpVersions.channelGroups.candidate.minVersion=${OCP_VERSIONS_CHANNEL_GROUPS_CANDIDATE_MIN_VERSION} \
+	  --set ocpVersions.channelGroups.candidate.maxVersion=${OCP_VERSIONS_CHANNEL_GROUPS_CANDIDATE_MAX_VERSION} \
+	  --set ocpVersions.channelGroups.nightly.minVersion=${OCP_VERSIONS_CHANNEL_GROUPS_NIGHTLY_MIN_VERSION} \
+	  --set ocpVersions.channelGroups.nightly.maxVersion=${OCP_VERSIONS_CHANNEL_GROUPS_NIGHTLY_MAX_VERSION} \
 	  --set azureOperatorsMI.roleSetName=${OPERATOR_ROLE_SET_NAME} \
 	  --set deployment.zoneCount=${AVAILABILITY_ZONE_COUNT}
 
@@ -146,7 +151,7 @@ local-deploy-provision-shard:
 	CX_MI_KV_URL=$(shell az keyvault show -n ${CX_MI_KV_NAME} -g ${MGMT_RESOURCEGROUP} --query properties.vaultUri -o tsv) && \
 	CX_SECRETS_KV_MI_CLIENT_ID=$(shell az aks show -n ${MGMT_AKS_NAME} -g ${MGMT_RESOURCEGROUP} --query 'addonProfiles.azureKeyvaultSecretsProvider.identity.clientId' -o tsv) && \
 	if [ -z "$${CX_SECRETS_KV_MI_CLIENT_ID}" ]; then echo "Failed to get CX_SECRETS_KV_MI_CLIENT_ID - make sure to provision a MGMT cluster first" >&2; exit 1; fi && \
-	../templatize.sh $(DEPLOY_ENV) local/provisioning-shards.tmpl.yml local/local-provisioning-shards.yml -e zoneResourceId=$${ZONE_RESOURCE_ID},cxSecretsKeyVaultUrl=$${CX_SECRETS_KV_URL},cxMiKeyVaultUrl=$${CX_MI_KV_URL},cxSecretsKeyVaultMiClientId=$${CX_SECRETS_KV_MI_CLIENT_ID},maestroRestUrl=http://localhost:8001,maestroGrpUrl=localhost:8090,shardId=$(PROVISION_SHARD_ID)
+	../templatize.sh $(DEPLOY_ENV) local/provisioning-shards.tmpl.yml local/local-provisioning-shards.yml -e zoneResourceId=$${ZONE_RESOURCE_ID},cxSecretsKeyVaultUrl=$${CX_SECRETS_KV_URL},cxMiKeyVaultUrl=$${CX_MI_KV_URL},cxSecretsKeyVaultMiClientId=$${CX_SECRETS_KV_MI_CLIENT_ID},maestroRestUrl=http://localhost:8001,maestroGrpUrl=localhost:8090,shardId=$(PROVISION_SHARD_ID),aksManagementClusterResourceId=$(AKS_MGMT_CLUSTER_RESOURCE_ID)
 	@cat local/local-provisioning-shards.yml
 
 personal-runtime-config:
@@ -171,6 +176,10 @@ local-aro-hcp-ocp-versions-config:
 	--set ocpVersions.defaultVersion.version=${OCP_VERSIONS_DEFAULT_VERSION_VERSION} \
 	--set ocpVersions.channelGroups.stable.minVersion=${OCP_VERSIONS_CHANNEL_GROUPS_STABLE_MIN_VERSION} \
 	--set ocpVersions.channelGroups.stable.maxVersion=${OCP_VERSIONS_CHANNEL_GROUPS_STABLE_MAX_VERSION} \
+	--set ocpVersions.channelGroups.candidate.minVersion=${OCP_VERSIONS_CHANNEL_GROUPS_CANDIDATE_MIN_VERSION} \
+	--set ocpVersions.channelGroups.candidate.maxVersion=${OCP_VERSIONS_CHANNEL_GROUPS_CANDIDATE_MAX_VERSION} \
+	--set ocpVersions.channelGroups.nightly.minVersion=${OCP_VERSIONS_CHANNEL_GROUPS_NIGHTLY_MIN_VERSION} \
+	--set ocpVersions.channelGroups.nightly.maxVersion=${OCP_VERSIONS_CHANNEL_GROUPS_NIGHTLY_MAX_VERSION} \
 	--set azureOperatorsMI.roleSetName=${OPERATOR_ROLE_SET_NAME} \
 	-s templates/aro-hcp-ocp-versions-config.configmap.yaml | yq '.data["aro-hcp-ocp-versions-config.yaml"]' > local/aro-hcp-ocp-versions-config.yaml
 .PHONY: local-aro-hcp-ocp-versions-config

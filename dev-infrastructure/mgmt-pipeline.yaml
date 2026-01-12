@@ -72,11 +72,6 @@ resourceGroups:
     parameters: configurations/mgmt-infra.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     variables:
-    - name: logAnalyticsWorkspaceId
-      input:
-        resourceGroup: regional
-        step: output
-        name: logAnalyticsWorkspaceId
     - name: globalMSIId
       input:
         resourceGroup: global
@@ -207,11 +202,6 @@ resourceGroups:
         resourceGroup: regional
         step: output
         name: maestroEventGridNamespaceId
-    - name: logAnalyticsWorkspaceId
-      input:
-        resourceGroup: regional
-        step: output
-        name: logAnalyticsWorkspaceId
     dependsOn:
     - resourceGroup: management
       step: cx-oncert-public-kv-issuer
@@ -219,6 +209,12 @@ resourceGroups:
       step: oncert-private-kv-issuer
     - resourceGroup: management
       step: oncert-public-kv-issuer
+    automatedRetry:
+      errorContainsAny:
+      - "Internal server error"
+      - "Resource is in Updating state"
+      maximumRetryCount: 3
+      durationBetweenRetries: 2m
   - name: nsp
     action: ARM
     omitFromServiceGroupCompletion: true
@@ -302,6 +298,13 @@ resourceGroups:
       resourceGroup: global
       step: output
       name: globalMSIId
+    automatedRetry:
+      errorContainsAny:
+      - "500 Internal Server Error"
+      - "Internal error occurred"
+      - "context deadline exceeded"
+      maximumRetryCount: 3
+      durationBetweenRetries: 1m
   - name: acrpull
     aksCluster: '{{ .mgmt.aks.name }}'
     action: Helm
@@ -316,6 +319,13 @@ resourceGroups:
       resourceGroup: global
       step: output
       name: globalMSIId
+    automatedRetry:
+      errorContainsAny:
+      - "500 Internal Server Error"
+      - "Internal error occurred"
+      - "context deadline exceeded"
+      maximumRetryCount: 3
+      durationBetweenRetries: 1m
   - name: storageclass
     aksCluster: '{{ .mgmt.aks.name }}'
     action: Helm
@@ -330,6 +340,13 @@ resourceGroups:
       resourceGroup: global
       step: output
       name: globalMSIId
+    automatedRetry:
+      errorContainsAny:
+      - "500 Internal Server Error"
+      - "Internal error occurred"
+      - "context deadline exceeded"
+      maximumRetryCount: 3
+      durationBetweenRetries: 1m
   - name: mitigations
     aksCluster: '{{ .mgmt.aks.name }}'
     action: Helm
@@ -346,6 +363,13 @@ resourceGroups:
       resourceGroup: global
       step: output
       name: globalMSIId
+    automatedRetry:
+      errorContainsAny:
+      - "500 Internal Server Error"
+      - "Internal error occurred"
+      - "context deadline exceeded"
+      maximumRetryCount: 3
+      durationBetweenRetries: 1m
   - name: kubelet-ds
     aksCluster: '{{ .mgmt.aks.name }}'
     action: Helm
@@ -360,6 +384,13 @@ resourceGroups:
       resourceGroup: global
       step: output
       name: globalMSIId
+    automatedRetry:
+      errorContainsAny:
+      - "500 Internal Server Error"
+      - "Internal error occurred"
+      - "context deadline exceeded"
+      maximumRetryCount: 3
+      durationBetweenRetries: 1m
   - name: arobit-output
     action: ARM
     template: templates/arobit-lookup.bicep
@@ -396,6 +427,13 @@ resourceGroups:
       resourceGroup: global
       step: output
       name: globalMSIId
+    automatedRetry:
+      errorContainsAny:
+      - "500 Internal Server Error"
+      - "Internal error occurred"
+      - "context deadline exceeded"
+      maximumRetryCount: 3
+      durationBetweenRetries: 1m
   - name: kube-events
     aksCluster: '{{ .mgmt.aks.name }}'
     action: Helm
@@ -410,3 +448,10 @@ resourceGroups:
       resourceGroup: global
       step: output
       name: globalMSIId
+    automatedRetry:
+      errorContainsAny:
+      - "500 Internal Server Error"
+      - "Internal error occurred"
+      - "context deadline exceeded"
+      maximumRetryCount: 3
+      durationBetweenRetries: 1m

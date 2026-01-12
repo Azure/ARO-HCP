@@ -23,7 +23,6 @@ import (
 	"k8s.io/apimachinery/pkg/api/operation"
 	"k8s.io/apimachinery/pkg/api/safe"
 	"k8s.io/apimachinery/pkg/api/validate"
-	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -345,26 +344,28 @@ func validateClusterServiceProviderProperties(ctx context.Context, op operation.
 }
 
 var (
-	toVersionID = func(oldObj *api.VersionProfile) *string { return &oldObj.ID }
+	toVersionID    = func(oldObj *api.VersionProfile) *string { return &oldObj.ID }
+	toChannelGroup = func(oldObj *api.VersionProfile) *string { return &oldObj.ChannelGroup }
 )
 
 // Version                 VersionProfile              `json:"version,omitempty"`
 func validateVersionProfile(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *api.VersionProfile) field.ErrorList {
 	errs := field.ErrorList{}
 
-	// ID           string `json:"id,omitempty"`
+	// Version should be immutable once is created
+	// additional validations may depend on the subscription, hence they will be done in the admission package
+	// ID           string `json:"id,omitempty"
 	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("id"), &newObj.ID, safe.Field(oldObj, toVersionID))...)
+
+	// ChannelGroup string `json:"channelGroup,omitempty"`
+	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("channelGroup"), &newObj.ChannelGroup, safe.Field(oldObj, toChannelGroup))...)
+
+	errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("channelGroup"), &newObj.ChannelGroup, nil)...)
+
+	// Version ID is required for non-stable channel groups
 	if newObj.ChannelGroup != "stable" {
 		errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("id"), &newObj.ID, nil)...)
 	}
-	errs = append(errs, OpenshiftVersionWithoutMicro(ctx, op, fldPath.Child("id"), &newObj.ID, nil)...)
-
-	// ChannelGroup string `json:"channelGroup,omitempty"`
-	errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("channelGroup"), &newObj.ChannelGroup, nil)...)
-	// XXX For now, "stable" is the only accepted value. In the future, we may
-	//     allow unlocking other channel groups through Azure Feature Exposure
-	//     Control (AFEC) flags or some other mechanism.
-	errs = append(errs, validate.Enum(ctx, op, fldPath.Child("channelGroup"), &newObj.ChannelGroup, nil, sets.New("stable"))...)
 
 	return errs
 }
@@ -485,6 +486,7 @@ func validateCustomerAPIProfile(ctx context.Context, op operation.Operation, fld
 
 	// AuthorizedCIDRs []string   `json:"authorizedCidrs,omitempty"`
 	errs = append(errs, MaxItems(ctx, op, fldPath.Child("authorizedCidrs"), newObj.AuthorizedCIDRs, nil, 500)...)
+	errs = append(errs, MinItems(ctx, op, fldPath.Child("authorizedCidrs"), newObj.AuthorizedCIDRs, nil, 1)...)
 	errs = append(errs,
 		validate.EachSliceVal(
 			ctx, op, fldPath.Child("authorizedCidrs"),
@@ -643,12 +645,21 @@ func validateUserAssignedIdentitiesProfile(ctx context.Context, op operation.Ope
 	return errs
 }
 
+var (
+	toClusterAutoscalingProfileMaxPodGracePeriodSeconds    = func(oldObj *api.ClusterAutoscalingProfile) *int32 { return &oldObj.MaxPodGracePeriodSeconds }
+	toClusterAutoscalingProfileMaxNodeProvisionTimeSeconds = func(oldObj *api.ClusterAutoscalingProfile) *int32 { return &oldObj.MaxNodeProvisionTimeSeconds }
+)
+
 func validateClusterAutoscalingProfile(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *api.ClusterAutoscalingProfile) field.ErrorList {
 	errs := field.ErrorList{}
 
 	//MaxNodesTotal               int32 `json:"maxNodesTotal,omitempty"`
 	//MaxPodGracePeriodSeconds    int32 `json:"maxPodGracePeriodSeconds,omitempty"`
+	errs = append(errs, validate.Minimum(ctx, op, fldPath.Child("maxPodGracePeriodSeconds"), &newObj.MaxPodGracePeriodSeconds, safe.Field(oldObj, toClusterAutoscalingProfileMaxPodGracePeriodSeconds), 1)...)
+
 	//MaxNodeProvisionTimeSeconds int32 `json:"maxNodeProvisionTimeSeconds,omitempty"`
+	errs = append(errs, validate.Minimum(ctx, op, fldPath.Child("maxNodeProvisionTimeSeconds"), &newObj.MaxNodeProvisionTimeSeconds, safe.Field(oldObj, toClusterAutoscalingProfileMaxNodeProvisionTimeSeconds), 1)...)
+
 	//PodPriorityThreshold        int32 `json:"podPriorityThreshold,omitempty"`
 
 	return errs

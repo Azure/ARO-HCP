@@ -70,11 +70,6 @@ resourceGroups:
         resourceGroup: global
         step: output
         name: globalMSIId
-    - name: logAnalyticsWorkspaceId
-      input:
-        resourceGroup: regional
-        step: output
-        name: logAnalyticsWorkspaceId
   - name: infra-output
     action: ARM
     template: templates/svc-infra-lookup.bicep
@@ -142,11 +137,6 @@ resourceGroups:
         resourceGroup: regional
         step: output
         name: azureMonitoringWorkspaceId
-    - name: logAnalyticsWorkspaceId
-      input:
-        resourceGroup: regional
-        step: output
-        name: logAnalyticsWorkspaceId
     - name: azureFrontDoorResourceId
       input:
         resourceGroup: global
@@ -167,6 +157,12 @@ resourceGroups:
       step: oncert-private-kv-issuer
     - resourceGroup: service
       step: oncert-public-kv-issuer
+    automatedRetry:
+      errorContainsAny:
+      - "Internal server error"
+      - "Resource is in Updating state"
+      maximumRetryCount: 3
+      durationBetweenRetries: 2m
   - name: cluster-output
     action: ARM
     template: templates/output-svc-cluster.bicep
@@ -239,6 +235,13 @@ resourceGroups:
       resourceGroup: global
       step: output
       name: globalMSIId
+    automatedRetry:
+      errorContainsAny:
+      - "500 Internal Server Error"
+      - "Internal error occurred"
+      - "context deadline exceeded"
+      maximumRetryCount: 3
+      durationBetweenRetries: 1m
   - name: istio-config
     aksCluster: '{{ .svc.aks.name }}'
     action: Helm
@@ -264,6 +267,13 @@ resourceGroups:
         resourceGroup: global
         step: geneva-output
         name: tenantId
+    automatedRetry:
+      errorContainsAny:
+      - "500 Internal Server Error"
+      - "Internal error occurred"
+      - "context deadline exceeded"
+      maximumRetryCount: 3
+      durationBetweenRetries: 1m
   - name: istio-upgrade
     # - updates workload to use istio on version svc.istio.targetVersion
     # - configures istio IP tag usage
@@ -304,6 +314,13 @@ resourceGroups:
       resourceGroup: global
       step: output
       name: globalMSIId
+    automatedRetry:
+      errorContainsAny:
+      - "500 Internal Server Error"
+      - "Internal error occurred"
+      - "context deadline exceeded"
+      maximumRetryCount: 3
+      durationBetweenRetries: 1m
   - name: arobit-output
     action: ARM
     template: templates/arobit-lookup.bicep
@@ -340,6 +357,13 @@ resourceGroups:
       resourceGroup: global
       step: output
       name: globalMSIId
+    automatedRetry:
+      errorContainsAny:
+      - "500 Internal Server Error"
+      - "Internal error occurred"
+      - "context deadline exceeded"
+      maximumRetryCount: 3
+      durationBetweenRetries: 1m
   - name: kube-events
     aksCluster: '{{ .svc.aks.name }}'
     action: Helm
@@ -354,3 +378,10 @@ resourceGroups:
       resourceGroup: global
       step: output
       name: globalMSIId
+    automatedRetry:
+      errorContainsAny:
+      - "500 Internal Server Error"
+      - "Internal error occurred"
+      - "context deadline exceeded"
+      maximumRetryCount: 3
+      durationBetweenRetries: 1m

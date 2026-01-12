@@ -33,9 +33,24 @@ resource automationAccount 'Microsoft.Automation/automationAccounts@2022-08-08' 
   }
 }
 
-resource python3Package 'Microsoft.Automation/automationAccounts/python3Packages@2023-11-01' = [
+// Custom Python-3.10 runtime environment (editable, unlike system-generated)
+resource python310CustomRuntime 'Microsoft.Automation/automationAccounts/runtimeEnvironments@2024-10-23' = {
+  parent: automationAccount
+  name: 'Python-3_10-Custom'
+  location: location
+  properties: {
+    runtime: {
+      language: 'Python'
+      version: '3.10'
+    }
+    description: 'Custom Python 3.10 runtime environment with Azure packages'
+  }
+}
+
+// Add packages to custom Python-3.10 runtime environment
+resource python310CustomPackages 'Microsoft.Automation/automationAccounts/runtimeEnvironments/packages@2024-10-23' = [
   for pkg in python3Packages: {
-    parent: automationAccount
+    parent: python310CustomRuntime
     name: pkg.name
     properties: {
       contentLink: {
@@ -48,6 +63,8 @@ resource python3Package 'Microsoft.Automation/automationAccounts/python3Packages
     }
   }
 ]
+
+output customRuntimeName string = python310CustomRuntime.name
 
 resource emailActionGroup 'Microsoft.Insights/actionGroups@2024-10-01-preview' = {
   name: 'singleEmailAction'

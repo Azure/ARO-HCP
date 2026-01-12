@@ -18,7 +18,6 @@ import (
 	"strings"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
-	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
@@ -37,7 +36,7 @@ var _ CosmosPersistable = &HCPOpenShiftCluster{}
 func (o *HCPOpenShiftCluster) GetCosmosData() CosmosData {
 	return CosmosData{
 		CosmosUID:    o.ServiceProviderProperties.CosmosUID,
-		PartitionKey: azcosmos.NewPartitionKeyString(strings.ToLower(o.ID.SubscriptionID)),
+		PartitionKey: strings.ToLower(o.ID.SubscriptionID),
 		ItemID:       o.ID,
 	}
 }
@@ -199,9 +198,9 @@ type ClusterImageRegistryProfile struct {
 }
 
 // Creates an HCPOpenShiftCluster with any non-zero default values.
-func NewDefaultHCPOpenShiftCluster(resourceID *azcorearm.ResourceID) *HCPOpenShiftCluster {
+func NewDefaultHCPOpenShiftCluster(resourceID *azcorearm.ResourceID, azureLocation string) *HCPOpenShiftCluster {
 	return &HCPOpenShiftCluster{
-		TrackedResource: arm.NewTrackedResource(resourceID),
+		TrackedResource: arm.NewTrackedResource(resourceID, azureLocation),
 		CustomerProperties: HCPOpenShiftClusterCustomerProperties{
 			Version: VersionProfile{
 				ChannelGroup: "stable",

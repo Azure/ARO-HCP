@@ -19,7 +19,6 @@ import (
 	"strings"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
-	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
@@ -38,7 +37,7 @@ var _ CosmosPersistable = &HCPOpenShiftClusterNodePool{}
 func (o *HCPOpenShiftClusterNodePool) GetCosmosData() CosmosData {
 	return CosmosData{
 		CosmosUID:    o.ServiceProviderProperties.CosmosUID,
-		PartitionKey: azcosmos.NewPartitionKeyString(strings.ToLower(o.ID.SubscriptionID)),
+		PartitionKey: strings.ToLower(o.ID.SubscriptionID),
 		ItemID:       o.ID,
 	}
 }
@@ -108,9 +107,9 @@ type Taint struct {
 	Value  string `json:"value,omitempty"`
 }
 
-func NewDefaultHCPOpenShiftClusterNodePool(resourceID *azcorearm.ResourceID) *HCPOpenShiftClusterNodePool {
+func NewDefaultHCPOpenShiftClusterNodePool(resourceID *azcorearm.ResourceID, azureLocation string) *HCPOpenShiftClusterNodePool {
 	return &HCPOpenShiftClusterNodePool{
-		TrackedResource: arm.NewTrackedResource(resourceID),
+		TrackedResource: arm.NewTrackedResource(resourceID, azureLocation),
 		Properties: HCPOpenShiftClusterNodePoolProperties{
 			Version: NodePoolVersionProfile{
 				ChannelGroup: "stable",

@@ -379,7 +379,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.16.3
+    controller-gen.kubebuilder.io/version: v0.19.0
   name: placementbindings.policy.open-cluster-management.io
 spec:
   group: policy.open-cluster-management.io
@@ -502,7 +502,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.16.3
+    controller-gen.kubebuilder.io/version: v0.19.0
   name: policies.policy.open-cluster-management.io
 spec:
   group: policy.open-cluster-management.io
@@ -802,7 +802,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.16.3
+    controller-gen.kubebuilder.io/version: v0.19.0
   name: policyautomations.policy.open-cluster-management.io
 spec:
   group: policy.open-cluster-management.io
@@ -930,7 +930,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.16.3
+    controller-gen.kubebuilder.io/version: v0.19.0
   name: policysets.policy.open-cluster-management.io
 spec:
   group: policy.open-cluster-management.io
@@ -1298,7 +1298,6 @@ rules:
 ---
 # Source: multicluster-engine-local-cluster/charts/policy/charts/grc/templates/grc-policy-addon-clusterrole.yaml
 # Copyright (c) 2022 Red Hat, Inc.
-
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -1638,7 +1637,6 @@ roleRef:
 ---
 # Source: multicluster-engine-local-cluster/charts/policy/charts/grc/templates/grc-clusterrolebinding.yaml
 # Copyright (c) 2020 Red Hat, Inc.
-
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
@@ -1651,9 +1649,9 @@ roleRef:
   name: open-cluster-management:grc:clusterrole
   apiGroup: rbac.authorization.k8s.io
 subjects:
-  - kind: ServiceAccount
-    name: grc-sa
-    namespace: 'multicluster-engine'
+- kind: ServiceAccount
+  name: grc-sa
+  namespace: 'multicluster-engine'
 ---
 # Source: multicluster-engine-local-cluster/charts/policy/charts/grc/templates/grc-policy-addon-clusterrolebinding.yaml
 apiVersion: rbac.authorization.k8s.io/v1

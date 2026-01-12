@@ -17,6 +17,7 @@ package frontend
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -27,12 +28,14 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
+	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/conversion"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
+	"github.com/Azure/ARO-HCP/internal/serverutils"
 	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/internal/validation"
 )
@@ -225,8 +228,7 @@ func decodeDesiredExternalAuthCreate(ctx context.Context) (*api.HCPOpenShiftClus
 		return nil, utils.TrackError(err)
 	}
 
-	newInternalExternalAuth := &api.HCPOpenShiftClusterExternalAuth{}
-	externalExternalAuthFromRequest.Normalize(newInternalExternalAuth)
+	newInternalExternalAuth := externalExternalAuthFromRequest.ConvertToInternal()
 	// ProxyResource info doesn't to come from the external resource information
 	conversion.CopyReadOnlyProxyResourceValues(&newInternalExternalAuth.ProxyResource, ptr.To(arm.NewProxyResource(resourceID)))
 
@@ -269,7 +271,7 @@ func (f *Frontend) createExternalAuth(writer http.ResponseWriter, request *http.
 	if err != nil {
 		return utils.TrackError(err)
 	}
-	if err := checkForProvisioningStateConflict(ctx, f.dbClient, database.OperationRequestUpdate, cluster.ID, cluster.ServiceProviderProperties.ProvisioningState); err != nil {
+	if err := checkForProvisioningStateConflict(ctx, f.dbClient, database.OperationRequestCreate, newInternalExternalAuth.ID, newInternalExternalAuth.Properties.ProvisioningState); err != nil {
 		return utils.TrackError(err)
 	}
 	csExternalAuthBuilder, err := ocm.BuildCSExternalAuth(ctx, newInternalExternalAuth, false)
@@ -287,15 +289,22 @@ func (f *Frontend) createExternalAuth(writer http.ResponseWriter, request *http.
 
 	operationRequest := database.OperationRequestCreate
 
-	pk := database.NewPartitionKey(newInternalExternalAuth.ID.SubscriptionID)
-	transaction := f.dbClient.NewTransaction(pk)
+	transaction := f.dbClient.NewTransaction(newInternalExternalAuth.ID.SubscriptionID)
 
-	createExternalAuthOperation := database.NewOperationDocument(operationRequest, newInternalExternalAuth.ID, newInternalExternalAuth.ServiceProviderProperties.ClusterServiceID, correlationData)
-	createExternalAuthOperation.TenantID = request.Header.Get(arm.HeaderNameHomeTenantID)
-	createExternalAuthOperation.ClientID = request.Header.Get(arm.HeaderNameClientObjectID)
-	createExternalAuthOperation.NotificationURI = request.Header.Get(arm.HeaderNameAsyncNotificationURI)
-	operationCosmosUID := transaction.CreateOperationDoc(createExternalAuthOperation, nil)
+	createExternalAuthOperation := database.NewOperation(
+		operationRequest,
+		newInternalExternalAuth.ID,
+		newInternalExternalAuth.ServiceProviderProperties.ClusterServiceID,
+		f.azureLocation,
+		request.Header.Get(arm.HeaderNameHomeTenantID),
+		request.Header.Get(arm.HeaderNameClientObjectID),
+		request.Header.Get(arm.HeaderNameAsyncNotificationURI),
+		correlationData)
 	transaction.OnSuccess(addOperationResponseHeaders(writer, request, createExternalAuthOperation.NotificationURI, createExternalAuthOperation.OperationID))
+	operationCosmosUID, err := f.dbClient.Operations(newInternalExternalAuth.ID.SubscriptionID).AddCreateToTransaction(ctx, transaction, createExternalAuthOperation, nil)
+	if err != nil {
+		return utils.TrackError(err)
+	}
 
 	// set fields that were not known until the operation doc instance was created.
 	// TODO once we we have separate creation/validation of operation documents, this can be done ahead of time.
@@ -376,8 +385,7 @@ func decodeDesiredExternalAuthReplace(ctx context.Context, oldInternalExternalAu
 		return nil, utils.TrackError(err)
 	}
 
-	newInternalExternalAuth := &api.HCPOpenShiftClusterExternalAuth{}
-	externalExternalAuthFromRequest.Normalize(newInternalExternalAuth)
+	newInternalExternalAuth := externalExternalAuthFromRequest.ConvertToInternal()
 
 	// ServiceProviderProperties contains two types of information
 	// 1. values that a user cannot change because the external type does not expose the information.
@@ -423,8 +431,7 @@ func decodeDesiredExternalAuthPatch(ctx context.Context, oldInternalExternalAuth
 	if err := api.ApplyRequestBody(http.MethodPatch, body, newExternalExternalAuth); err != nil {
 		return nil, utils.TrackError(err)
 	}
-	newInternalExternalAuth := &api.HCPOpenShiftClusterExternalAuth{}
-	newExternalExternalAuth.Normalize(newInternalExternalAuth)
+	newInternalExternalAuth := newExternalExternalAuth.ConvertToInternal()
 
 	conversion.CopyReadOnlyExternalAuthValues(newInternalExternalAuth, oldInternalExternalAuth)
 	newInternalExternalAuth.SystemData = systemData
@@ -473,24 +480,34 @@ func (f *Frontend) updateExternalAuthInCosmos(ctx context.Context, writer http.R
 		return utils.TrackError(err)
 	}
 
-	pk := database.NewPartitionKey(oldInternalExternalAuth.ID.SubscriptionID)
-	transaction := f.dbClient.NewTransaction(pk)
+	transaction := f.dbClient.NewTransaction(oldInternalExternalAuth.ID.SubscriptionID)
 
-	externalAuthUpdateOperation := database.NewOperationDocument(database.OperationRequestUpdate, newInternalExternalAuth.ID, newInternalExternalAuth.ServiceProviderProperties.ClusterServiceID, correlationData)
-	externalAuthUpdateOperation.TenantID = request.Header.Get(arm.HeaderNameHomeTenantID)
-	externalAuthUpdateOperation.ClientID = request.Header.Get(arm.HeaderNameClientObjectID)
-	externalAuthUpdateOperation.NotificationURI = request.Header.Get(arm.HeaderNameAsyncNotificationURI)
-	operationCosmosUID := transaction.CreateOperationDoc(externalAuthUpdateOperation, nil)
+	externalAuthUpdateOperation := database.NewOperation(
+		database.OperationRequestUpdate,
+		newInternalExternalAuth.ID,
+		newInternalExternalAuth.ServiceProviderProperties.ClusterServiceID,
+		f.azureLocation,
+		request.Header.Get(arm.HeaderNameHomeTenantID),
+		request.Header.Get(arm.HeaderNameClientObjectID),
+		request.Header.Get(arm.HeaderNameAsyncNotificationURI),
+		correlationData)
+	transaction.OnSuccess(addOperationResponseHeaders(writer, request, externalAuthUpdateOperation.NotificationURI, externalAuthUpdateOperation.OperationID))
+	operationCosmosUID, err := f.dbClient.Operations(newInternalExternalAuth.ID.SubscriptionID).AddCreateToTransaction(ctx, transaction, externalAuthUpdateOperation, nil)
+	if err != nil {
+		return utils.TrackError(err)
+	}
 
-	f.ExposeOperation(writer, request, operationCosmosUID, transaction)
+	// set fields that were not known until the operation doc instance was created.
+	// TODO once we we have separate creation/validation of operation documents, this can be done ahead of time.
+	newInternalExternalAuth.ServiceProviderProperties.ActiveOperationID = operationCosmosUID
+	newInternalExternalAuth.Properties.ProvisioningState = externalAuthUpdateOperation.Status
 
-	var patchOperations database.ResourceDocumentPatchOperations
-
-	patchOperations.SetActiveOperationID(&operationCosmosUID)
-	patchOperations.SetProvisioningState(externalAuthUpdateOperation.Status)
-	patchOperations.SetSystemData(newInternalExternalAuth.SystemData)
-
-	transaction.PatchResourceDoc(oldInternalExternalAuth.ServiceProviderProperties.CosmosUID, patchOperations, nil)
+	_, err = f.dbClient.HCPClusters(newInternalExternalAuth.ID.SubscriptionID, newInternalExternalAuth.ID.ResourceGroupName).
+		ExternalAuth(newInternalExternalAuth.ID.Parent.Name).
+		AddReplaceToTransaction(ctx, transaction, newInternalExternalAuth, nil)
+	if err != nil {
+		return utils.TrackError(err)
+	}
 
 	transactionResult, err := transaction.Execute(ctx, &azcosmos.TransactionalBatchOptions{
 		EnableContentResponseOnWrite: true,
@@ -522,6 +539,116 @@ func (f *Frontend) updateExternalAuthInCosmos(ctx context.Context, writer http.R
 	if err != nil {
 		return utils.TrackError(err)
 	}
+	return nil
+}
+
+// DeleteExternalAuth implements the deletion API contract for ARM
+// * 200 if a deletion is successful
+// * 202 if an asynchronous delete is initiated
+// * 204 if a well-formed request attempts to delete a nonexistent resource
+func (f *Frontend) DeleteExternalAuth(writer http.ResponseWriter, request *http.Request) error {
+	ctx := request.Context()
+	logger := utils.LoggerFromContext(ctx)
+
+	resourceID, err := utils.ResourceIDFromContext(ctx)
+	if err != nil {
+		return utils.TrackError(err)
+	}
+
+	// when we get a delete call (this happens from CI quite a bit), dump the state of the cluster resources.
+	if err := serverutils.DumpDataToLogger(ctx, f.dbClient, resourceID); err != nil {
+		// never fail, this is best effort
+		logger.Error(err.Error())
+	}
+
+	externalAuth, err := f.dbClient.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).ExternalAuth(resourceID.Parent.Name).Get(ctx, resourceID.Name)
+	if database.IsResponseError(err, http.StatusNotFound) {
+		// For resource not found errors on deletion, ARM requires
+		writer.WriteHeader(http.StatusNoContent)
+		return nil
+	}
+	if err != nil {
+		return utils.TrackError(err)
+	}
+
+	if err := checkForProvisioningStateConflict(ctx, f.dbClient, database.OperationRequestDelete, externalAuth.ID, externalAuth.Properties.ProvisioningState); err != nil {
+		return utils.TrackError(err)
+	}
+
+	err = f.clusterServiceClient.DeleteExternalAuth(ctx, externalAuth.ServiceProviderProperties.ClusterServiceID)
+	var ocmError *ocmerrors.Error
+	if errors.As(err, &ocmError) && ocmError.Status() == http.StatusNotFound {
+		// StatusNotFound means we have stale data in Cosmos DB.
+		// This can happen in test environments if a user bypasses
+		// the RP to delete a resource (e.g. "ocm delete"). It can
+		// also happen if an asynchronous deletion operation fails.
+		// we will fall through and cancel all operations and go through as normal a deletion flow as we can to avoid
+		// leaking data related to the resource, like controller status.
+		logger.Info("clusterService externalauth missing, trying to clean up", "err", err)
+	} else if err != nil {
+		return utils.TrackError(err)
+	}
+
+	transaction := f.dbClient.NewTransaction(externalAuth.ID.SubscriptionID)
+	if err := f.addDeleteExternalAuthToTransaction(ctx, writer, request, transaction, externalAuth); err != nil {
+		return utils.TrackError(err)
+	}
+	_, err = transaction.Execute(ctx, nil)
+	if err != nil {
+		return utils.TrackError(err)
+	}
+
+	writer.WriteHeader(http.StatusAccepted)
+	return nil
+}
+
+func (f *Frontend) addDeleteExternalAuthToTransaction(ctx context.Context, writer http.ResponseWriter, request *http.Request, transaction database.DBTransaction, externalAuth *api.HCPOpenShiftClusterExternalAuth) error {
+	correlationData, err := CorrelationDataFromContext(ctx)
+	if err != nil {
+		return utils.TrackError(err)
+	}
+
+	// Cluster Service will take care of canceling any ongoing operations
+	// on the resource or child resources, but we need to do some database
+	// bookkeeping to reflect that.
+	err = f.CancelActiveOperations(ctx, transaction, &database.DBClientListActiveOperationDocsOptions{
+		ExternalID:             externalAuth.ID,
+		IncludeNestedResources: true,
+	})
+	if err != nil {
+		return utils.TrackError(err)
+	}
+
+	operationDoc := database.NewOperation(
+		database.OperationRequestDelete,
+		externalAuth.ID,
+		externalAuth.ServiceProviderProperties.ClusterServiceID,
+		f.azureLocation,
+		"",
+		"",
+		"",
+		correlationData)
+	if request != nil {
+		// these are optional because when this is triggered via the subscription deletion flow, there is no
+		// deletion request containing these headers so these operations cannot be directly tracked.
+		operationDoc.TenantID = request.Header.Get(arm.HeaderNameHomeTenantID)
+		operationDoc.ClientID = request.Header.Get(arm.HeaderNameClientObjectID)
+		operationDoc.NotificationURI = request.Header.Get(arm.HeaderNameAsyncNotificationURI)
+		transaction.OnSuccess(addOperationResponseHeaders(writer, request, operationDoc.NotificationURI, operationDoc.OperationID))
+	}
+	_, err = f.dbClient.Operations(operationDoc.OperationID.SubscriptionID).AddCreateToTransaction(ctx, transaction, operationDoc, nil)
+	if err != nil {
+		return utils.TrackError(err)
+	}
+
+	externalAuth.ServiceProviderProperties.ActiveOperationID = operationDoc.OperationID.Name
+	externalAuth.Properties.ProvisioningState = operationDoc.Status
+	_, err = f.dbClient.HCPClusters(externalAuth.ID.SubscriptionID, externalAuth.ID.ResourceGroupName).ExternalAuth(externalAuth.ID.Parent.Name).
+		AddReplaceToTransaction(ctx, transaction, externalAuth, nil)
+	if err != nil {
+		return utils.TrackError(err)
+	}
+
 	return nil
 }
 

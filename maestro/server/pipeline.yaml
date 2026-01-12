@@ -88,3 +88,9 @@ resourceGroups:
       resourceGroup: global
       step: output
       name: globalMSIId
+    automatedRetry:
+      errorContainsAny:
+      - "Internal error occurred"
+      - "context deadline exceeded"
+      maximumRetryCount: 3
+      durationBetweenRetries: 2m

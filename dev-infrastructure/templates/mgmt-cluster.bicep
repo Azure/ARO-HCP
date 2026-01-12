@@ -81,9 +81,6 @@ param systemAgentMaxCount int = 3
 @description('VM instance type for the system nodes')
 param systemAgentVMSize string = 'Standard_D2s_v3'
 
-@description('Number of pools to create for system nodes')
-param systemAgentPoolCount int
-
 @description('Zones to use for the system nodes')
 param systemAgentPoolZones string
 
@@ -194,9 +191,6 @@ param genevaCertificateDomain string
 @description('Should geneva certificates be managed')
 param genevaManageCertificates bool
 
-// Log Analytics Workspace ID will be passed from region pipeline if enabled in config
-param logAnalyticsWorkspaceId string = ''
-
 @description('Name of the MSI for the PKO')
 param pkoMIName string
 
@@ -208,6 +202,9 @@ param pkoServiceAccountName string
 
 @description('The name of the Azure Storage account to create for HCP Backups')
 param hcpBackupsStorageAccountName string
+
+@description('The cluster tag value for the owning team')
+param owningTeamTagValue string
 
 //
 //   M A N A G E D   I D E N T I T I E S
@@ -341,12 +338,10 @@ module mgmtCluster '../modules/aks-cluster-base.bicep' = {
     aksKeyVaultName: aksKeyVaultName
     aksKeyVaultTagName: aksKeyVaultTagName
     aksKeyVaultTagValue: aksKeyVaultTagValue
-    logAnalyticsWorkspaceId: logAnalyticsWorkspaceId
     pullAcrResourceIds: [ocpAcrResourceId, svcAcrResourceId]
     systemAgentMinCount: systemAgentMinCount
     systemAgentMaxCount: systemAgentMaxCount
     systemAgentVMSize: systemAgentVMSize
-    systemAgentPoolCount: systemAgentPoolCount
     systemAgentPoolZones: length(csvToArray(systemAgentPoolZones)) > 0
       ? csvToArray(systemAgentPoolZones)
       : locationAvailabilityZoneList
@@ -374,6 +369,7 @@ module mgmtCluster '../modules/aks-cluster-base.bicep' = {
     networkPolicy: aksNetworkPolicy
     deploymentMsiId: globalMSIId
     enableSwiftV2Nodepools: aksEnableSwiftNodepools
+    owningTeamTagValue: owningTeamTagValue
   }
   dependsOn: [
     managedIdentities
@@ -381,19 +377,6 @@ module mgmtCluster '../modules/aks-cluster-base.bicep' = {
 }
 
 output aksClusterName string = mgmtCluster.outputs.aksClusterName
-
-//
-// L O G S
-//
-
-// NOTE: This is only enabled for non-prod environments
-module logsCollection '../modules/logs/collection.bicep' = if (logAnalyticsWorkspaceId != '') {
-  name: 'logs-collection'
-  params: {
-    aksClusterName: mgmtCluster.outputs.aksClusterName
-    logAnalyticsWorkspaceId: logAnalyticsWorkspaceId
-  }
-}
 
 //
 // M E T R I C S

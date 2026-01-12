@@ -17,9 +17,17 @@ package config
 import (
 	"fmt"
 	"os"
+	"regexp"
 	"strings"
 
 	"gopkg.in/yaml.v3"
+
+	"k8s.io/apimachinery/pkg/util/sets"
+)
+
+const (
+	// DefaultVersionLabel is the default container label used for version extraction when using 'tag' field
+	DefaultVersionLabel = "org.opencontainers.image.revision"
 )
 
 // Config represents the image updater configuration
@@ -36,7 +44,9 @@ type ImageConfig struct {
 // Source defines where to fetch the latest image digest from
 type Source struct {
 	Image        string          `yaml:"image"`
-	TagPattern   string          `yaml:"tagPattern,omitempty"`
+	Tag          string          `yaml:"tag,omitempty"`          // Exact tag to use (mutually exclusive with TagPattern)
+	TagPattern   string          `yaml:"tagPattern,omitempty"`   // Regex pattern to filter tags (mutually exclusive with Tag)
+	VersionLabel string          `yaml:"versionLabel,omitempty"` // Container label to fetch for human-friendly version (defaults to "org.opencontainers.image.revision" when tag is used, empty when tagPattern is used)
 	Architecture string          `yaml:"architecture,omitempty"` // Specific architecture to use (e.g., "amd64", "arm64"). Mutually exclusive with MultiArch.
 	MultiArch    bool            `yaml:"multiArch,omitempty"`    // If true, fetch the multi-arch manifest list digest instead of a specific architecture
 	UseAuth      *bool           `yaml:"useAuth,omitempty"`      // true = use auth, nil/false = anonymous (default)
@@ -53,6 +63,49 @@ type KeyVaultConfig struct {
 type Target struct {
 	JsonPath string `yaml:"jsonPath"`
 	FilePath string `yaml:"filePath"`
+	Env      string `yaml:"env,omitempty"` // Environment (dev, int, stg, prod)
+}
+
+// Validate checks if the Source configuration is valid
+func (s *Source) Validate() error {
+	// Tag and TagPattern are mutually exclusive
+	if s.Tag != "" && s.TagPattern != "" {
+		return fmt.Errorf("tag and tagPattern are mutually exclusive, only one can be specified")
+	}
+
+	// Architecture and MultiArch are mutually exclusive
+	if s.Architecture != "" && s.MultiArch {
+		return fmt.Errorf("architecture and multiArch are mutually exclusive")
+	}
+
+	return nil
+}
+
+// GetEffectiveTagPattern returns the effective tag pattern to use
+// If Tag is specified, it returns an exact match pattern
+// If TagPattern is specified, it returns TagPattern
+// Otherwise, it returns an empty string (match all tags)
+func (s *Source) GetEffectiveTagPattern() string {
+	if s.Tag != "" {
+		// Create an exact match pattern for the specific tag
+		return "^" + regexp.QuoteMeta(s.Tag) + "$"
+	}
+	return s.TagPattern
+}
+
+// GetEffectiveVersionLabel returns the effective version label to use
+// If VersionLabel is explicitly set, it returns that value
+// If Tag is set (not TagPattern), it defaults to DefaultVersionLabel
+// Otherwise, it returns an empty string
+func (s *Source) GetEffectiveVersionLabel() string {
+	if s.VersionLabel != "" {
+		return s.VersionLabel
+	}
+	// Default to DefaultVersionLabel when using a specific tag
+	if s.Tag != "" {
+		return DefaultVersionLabel
+	}
+	return ""
 }
 
 // ParseImageReference splits an image reference into registry and repository parts
@@ -90,6 +143,13 @@ func Load(configPath string) (*Config, error) {
 	var cfg Config
 	if err := yaml.Unmarshal(data, &cfg); err != nil {
 		return nil, fmt.Errorf("failed to parse config file %s: %w", configPath, err)
+	}
+
+	// Validate each image source configuration
+	for name, imageConfig := range cfg.Images {
+		if err := imageConfig.Source.Validate(); err != nil {
+			return nil, fmt.Errorf("invalid configuration for image %q: %w", name, err)
+		}
 	}
 
 	return &cfg, nil
@@ -146,18 +206,55 @@ func (c *Config) FilterExcludingComponents(componentNames []string) (*Config, er
 		}
 	}
 
-	// Build map of excluded components for O(1) lookup
-	excluded := make(map[string]bool)
-	for _, componentName := range componentNames {
-		excluded[componentName] = true
-	}
+	// Build set of excluded components for O(1) lookup
+	excluded := sets.NewString(componentNames...)
 
 	// Filter images, excluding those in the exclusion list
 	filteredImages := make(map[string]ImageConfig)
 	for name, imageConfig := range c.Images {
-		if !excluded[name] {
+		if !excluded.Has(name) {
 			filteredImages[name] = imageConfig
 		}
+	}
+
+	return &Config{
+		Images: filteredImages,
+	}, nil
+}
+
+// FilterByEnvironments returns a new Config with targets filtered by environment
+func (c *Config) FilterByEnvironments(environments []string) (*Config, error) {
+	if len(environments) == 0 {
+		return c, nil
+	}
+
+	// Build map for O(1) lookup
+	envMap := make(map[string]bool, len(environments))
+	for _, env := range environments {
+		envMap[env] = true
+	}
+
+	filteredImages := make(map[string]ImageConfig)
+	for name, imageConfig := range c.Images {
+		filteredTargets := make([]Target, 0)
+		for _, target := range imageConfig.Targets {
+			// Only include targets that match one of the requested environments
+			if envMap[target.Env] {
+				filteredTargets = append(filteredTargets, target)
+			}
+		}
+
+		// Only include the image if it has at least one matching target
+		if len(filteredTargets) > 0 {
+			filteredImageConfig := imageConfig
+			filteredImageConfig.Targets = filteredTargets
+			filteredImages[name] = filteredImageConfig
+		}
+	}
+
+	// Return error if no targets match the specified environments
+	if len(filteredImages) == 0 {
+		return nil, fmt.Errorf("no targets found for environments: %v", environments)
 	}
 
 	return &Config{

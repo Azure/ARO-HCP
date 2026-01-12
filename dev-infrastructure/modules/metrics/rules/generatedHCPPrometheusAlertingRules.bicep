@@ -1689,6 +1689,103 @@ resource kasMonitorRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-0
         for: 'PT3H'
         severity: 4
       }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'kas-monitor-ServiceMonitorCreationErrorBudgetBurn'
+        enabled: true
+        labels: {
+          component: 'route-monitor-operator'
+          severity: 'warning'
+          slo: 'hcp-monitoring-coverage'
+        }
+        annotations: {
+          correlationId: 'kas-monitor-ServiceMonitorCreationErrorBudgetBurn/{{ $labels.cluster }}'
+          description: '{{ $value | humanizePercentage }} of HCPs are missing probe_success metrics. SLO threshold: 14.4%. This indicates RMO failed to create ServiceMonitor, Blackbox Exporter is not probing, or Prometheus is not scraping.'
+          runbook_url: 'TBD'
+          summary: 'HCP KAS monitoring coverage below SLO'
+          title: '{{ $value | humanizePercentage }} of HCPs are missing probe_success metrics. SLO threshold: 14.4%. This indicates RMO failed to create ServiceMonitor, Blackbox Exporter is not probing, or Prometheus is not scraping.'
+        }
+        expression: '( ( count(kube_namespace_status_phase{phase="Active", namespace=~"ocm-aro.*-.*-.*"}) - count(probe_success{namespace=~"ocm-aro.*"}) ) / count(kube_namespace_status_phase{phase="Active", namespace=~"ocm-aro.*-.*-.*"}) ) > 0.144'
+        for: 'PT15M'
+        severity: 3
+      }
+    ]
+    scopes: [
+      azureMonitoring
+    ]
+  }
+}
+
+resource mgmtCapacityRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'mgmt-capacity-rules'
+  location: resourceGroup().location
+  properties: {
+    interval: 'PT1M'
+    rules: [
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'MgmtClusterHCPCapacityWarning'
+        enabled: true
+        labels: {
+          severity: 'info'
+          team: 'hcp-sl'
+        }
+        annotations: {
+          correlationId: 'MgmtClusterHCPCapacityWarning/{{ $labels.cluster }}'
+          description: 'Management cluster {{ $labels.cluster }} is at {{ $value | humanizePercentage }} of its HCP capacity (60 HCP limit). Current count exceeds warning threshold of 60%.'
+          owning_team: 'hcp-sl'
+          runbook_url: 'https://aka.ms/arohcp-runbook/mgmt-cluster-capacity'
+          summary: 'Management cluster HCP capacity is approaching limit (60% threshold).'
+          title: 'Management cluster {{ $labels.cluster }} is at {{ $value | humanizePercentage }} of its HCP capacity (60 HCP limit). Current count exceeds warning threshold of 60%.'
+        }
+        expression: '( count(kube_namespace_labels{namespace=~"^ocm-[^-]+-[^-]+$"}) by (cluster) / 60 ) > 0.60'
+        for: 'PT15M'
+        severity: 4
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'MgmtClusterHCPCapacityCritical'
+        enabled: true
+        labels: {
+          severity: 'info'
+          team: 'hcp-sl'
+        }
+        annotations: {
+          correlationId: 'MgmtClusterHCPCapacityCritical/{{ $labels.cluster }}'
+          description: 'Management cluster {{ $labels.cluster }} is at {{ $value | humanizePercentage }} of its HCP capacity (60 HCP limit). Current count exceeds critical threshold of 85%. Immediate action required to provision additional management cluster capacity.'
+          owning_team: 'hcp-sl'
+          runbook_url: 'https://aka.ms/arohcp-runbook/mgmt-cluster-capacity'
+          summary: 'Management cluster HCP capacity is critically high (85% threshold).'
+          title: 'Management cluster {{ $labels.cluster }} is at {{ $value | humanizePercentage }} of its HCP capacity (60 HCP limit). Current count exceeds critical threshold of 85%. Immediate action required to provision additional management cluster capacity.'
+        }
+        expression: '( count(kube_namespace_labels{namespace=~"^ocm-[^-]+-[^-]+$"}) by (cluster) / 60 ) > 0.85'
+        for: 'PT5M'
+        severity: 4
+      }
     ]
     scopes: [
       azureMonitoring

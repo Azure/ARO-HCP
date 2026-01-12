@@ -1,16 +1,16 @@
 acm:
   mce:
     bundle:
-      digest: sha256:36cfca56a51f46e0b1eb7a990fc484407598547d36f8cbeb5e6a076e4008d2bb
+      digest: sha256:bd3cf8f532917c0b7492af3276f36140edd32709c91295992f4c26e8cd4fd0a0
       registry: quay.io
-      repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-29
-    version: 2.9.2
+      repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-211
+    version: 2.11.0
   operator:
     bundle:
-      digest: sha256:fc3ed94a97769537c5641eae9ac08da5ab668f672260c00fb06735d921ed8cee
+      digest: sha256:a4e84e310476fb50044ed56b9560cca774f6c745671e3d446a4e299436b8576e
       registry: quay.io
-      repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-214
-    version: 2.14.2
+      repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-216
+    version: 2.16.0
 acr:
   ocp:
     name: arohcpocpdev
@@ -35,7 +35,7 @@ adminApi:
     issuer: Self
     name: admin-api-cert-swft-lnstest
   image:
-    digest: sha256:ca81fd62029113611e9e6ed5d325f8f609778c057f6a61cb7c476715ce542418
+    digest: sha256:e9e3517cd2a04832d38e0730306eef776932c7330975f263e0c3b0fa36fa0cc3
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpadminapi
   k8s:
@@ -52,7 +52,7 @@ armHelperFPAPrincipalId: 47f69502-0065-4d9a-b19b-d403e183d2f4
 arobit:
   forwarder:
     image:
-      digest: sha256:52f8ae477198b02739555ffdb745132ac670536193e8763269d38a6c4dd81d7a
+      digest: sha256:a0fcf0bc1d75294427b152b68b35959a0860b874cfbbe2b29392dfbd51289171
       registry: mcr.microsoft.com
       repository: oss/v2/fluent/fluent-bit
   kusto:
@@ -69,7 +69,7 @@ azureGeoShortId: uk
 azureRegionAvailabilityZoneCount: 3
 backend:
   image:
-    digest: sha256:8da889b84d8079406fd474289d97eb3b1e7a959482983065cc412ae6a0b9999f
+    digest: sha256:523e7671d2e507bdc501b654c261336cd8902b8d184f9f9d32b9994270d41151
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpbackend
   k8s:
@@ -82,7 +82,7 @@ backend:
     exporter: ""
 backplaneAPI:
   image:
-    digest: sha256:6c6c20dfaf63d02243bc08a0aab913bc659ed1d7a9cddcb85bd3e675dcbee924
+    digest: sha256:d57484b215f2a4e920d18e9690140efc5073ed89f7db51383764fdfff792731c
     registry: quay.io
     repository: app-sre/backplane-api
 billing:
@@ -125,7 +125,7 @@ clustersService:
   deployDebugJobs: false
   environment: arohcpdev
   image:
-    digest: sha256:16eeccb0f7fb1536328d0e2a66299b7d8613143c56320d251104648204a6aca3
+    digest: sha256:3cd2b0fc95dbda5032d8a5dc2984e6434171ebdfc0eaa96804f1493b2ba2f6f7
     registry: quay.io
     repository: app-sre/aro-hcp-clusters-service
   k8s:
@@ -139,8 +139,14 @@ clustersService:
   managedIdentityName: clusters-service
   ocpVersions:
     channelGroups:
+      candidate:
+        maxVersion: ""
+        minVersion: 4.19.7
+      nightly:
+        maxVersion: ""
+        minVersion: 4.19.0-0.nightly-20200101
       stable:
-        maxVersion: 4.20.6
+        maxVersion: 4.20.9
         minVersion: 4.19.0
     defaultVersion:
       version: 4.19.7
@@ -208,7 +214,7 @@ frontend:
     private: false
     zoneRedundantMode: Disabled
   image:
-    digest: sha256:8dda919da906c3919ff9b55a7306abcc84143fd546c7a176cee8d573250beda0
+    digest: sha256:b9234c5f31251a752d5202da85fcb68f3faa9e914b4aec41c83079b7e19f3392
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpfrontend
   k8s:
@@ -313,7 +319,7 @@ global:
 hypershift:
   additionalInstallArg: --enable-cpo-overrides
   image:
-    digest: sha256:2671f155c8ac246026e28b5dab8032750c90d2a2fb91ec5f7297de5fb4ca9351
+    digest: sha256:c75aedb9b5e202877ba6d6d0b2cb755c05c54c9f6ec8bccdf912fc028a56dc0f
     registry: quay.io
     repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
   namespace: hypershift
@@ -323,7 +329,7 @@ imageSync:
   ocMirror:
     enabled: true
     image:
-      digest: sha256:36bd7ecf6ebbee2998e419bc74f18fa852be5da599e5f0d29f887df48e2b276f
+      digest: sha256:0dff8a66b43c99fda8129444f54b113f21067348584a17cf42ea9517b70331e6
       registry: arohcpsvcdev.azurecr.io
       repository: image-sync/oc-mirror
     jobNamePrefix: ""
@@ -336,11 +342,14 @@ keyVaultDNSSuffix: vault.azure.net
 kubeEvents:
   enabled: false
   image:
-    digest: sha256:ad5e5abc24e1ed8ee87a9d1a9f21164d2e30a9d545d85190eb7f70a1c2c2f6c0
+    digest: sha256:f5fc45651df6c572dec6c7187c69df730fe52705e3aa50d924d05a5e3c98757a
     registry: kubernetesshared.azurecr.io
     repository: shared/kube-events
 kusto:
   adminGroups: 6b6d3adf-8476-4727-9812-20ffdef2b85c
+  autoScaleMax: 10
+  autoScaleMin: 2
+  enableAutoScale: false
   hostedControlPlaneLogsDatabase: HostedControlPlaneLogs
   kustoName: hcp-dev-us
   manageInstance: true
@@ -353,8 +362,6 @@ kvCertAccessPrincipalId: c9b1819d-bb29-4ac2-9abe-39e4fe9b59eb
 kvCertAccessRoleId: ""
 kvCertOfficerPrincipalId: c9b1819d-bb29-4ac2-9abe-39e4fe9b59eb
 logs:
-  loganalytics:
-    enable: false
   mdsd:
     cert:
       issuer: ""
@@ -375,7 +382,7 @@ maestro:
     managedIdentityName: maestro-consumer
     sidecar:
       image:
-        digest: sha256:c9932f5875ba5e0be70d174dc96f45d5474e77df8fe57ed6327b8d8208ee1635
+        digest: sha256:c925c4dfce3a0140d36073cc66e70567ffa0d82b71033d752d2d7e668637804b
         registry: mcr.microsoft.com
         repository: azurelinux/base/nginx
   certDomain: selfsigned.maestro.keyvault.azure.com
@@ -385,7 +392,7 @@ maestro:
     name: arohcp-swft-maestro-lnstest
     private: false
   image:
-    digest: sha256:93ef343969f515279beb13787fbe49f80cd67803ec8ec307838b2d6662e0b86e
+    digest: sha256:70ffb55eb8e67845da4f98dd9dd056199b56d8d4990ccbd214d8db4290d3aaff
     registry: quay.io
     repository: redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro
   postgres:
@@ -481,18 +488,18 @@ mgmt:
       image:
         registry: mcr.microsoft.com/oss/v2
         repository: prometheus/prometheus-config-reloader
-        sha: 807993bae8544ca5dba1a088507c39adce29fef1afd2fb7492247b09e0cfa2a9
+        sha: 7aaf789a403f1c75f86a34f470174d62a7f2c070852e2eedb5736fc63dc17e86
     prometheusOperator:
       image:
         registry: mcr.microsoft.com/oss/v2
         repository: prometheus/prometheus-operator
-        sha: 5c3fd99a70fb43aa5ea4672ccaf04c68ac60d7adb7e205d2bf75d1b46395455c
+        sha: 6a3fe01e2d08228b241a4c0a2dcb7c7424b004fb5ad36430e206fa549d500038
       version: ""
     prometheusSpec:
       image:
         registry: mcr.microsoft.com/oss/v2
         repository: prometheus/prometheus
-        sha: 70296b2f2cc69c88d070fe8b627d347bd070e084c14babbc93e91583e03eca06
+        sha: 385d647d7c2027aa867da0afe30995726686237e473a3284962e4bad1ae3ef1e
       replicas: 2
       resources:
         limits:
@@ -558,6 +565,8 @@ mise:
     address: ""
     exporter: ""
 monitoring:
+  alertRuleOwningTeamTag: ""
+  crossTenantSecurityGroup: ""
   grafanaMajorVersion: "11"
   grafanaName: arohcp-dev
   grafanaRoles: 6b6d3adf-8476-4727-9812-20ffdef2b85c/Group/Admin
@@ -741,18 +750,18 @@ svc:
       image:
         registry: mcr.microsoft.com/oss/v2
         repository: prometheus/prometheus-config-reloader
-        sha: 807993bae8544ca5dba1a088507c39adce29fef1afd2fb7492247b09e0cfa2a9
+        sha: 7aaf789a403f1c75f86a34f470174d62a7f2c070852e2eedb5736fc63dc17e86
     prometheusOperator:
       image:
         registry: mcr.microsoft.com/oss/v2
         repository: prometheus/prometheus-operator
-        sha: 5c3fd99a70fb43aa5ea4672ccaf04c68ac60d7adb7e205d2bf75d1b46395455c
+        sha: 6a3fe01e2d08228b241a4c0a2dcb7c7424b004fb5ad36430e206fa549d500038
       version: ""
     prometheusSpec:
       image:
         registry: mcr.microsoft.com/oss/v2
         repository: prometheus/prometheus
-        sha: 70296b2f2cc69c88d070fe8b627d347bd070e084c14babbc93e91583e03eca06
+        sha: 385d647d7c2027aa867da0afe30995726686237e473a3284962e4bad1ae3ef1e
       replicas: 2
       resources:
         limits:

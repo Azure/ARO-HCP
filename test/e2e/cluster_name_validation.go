@@ -37,6 +37,11 @@ var _ = Describe("Customer", func() {
 		func(ctx context.Context) {
 			tc := framework.NewTestContext()
 
+			if tc.UsePooledIdentities() {
+				err := tc.AssignIdentityContainers(ctx, 2, 60*time.Second)
+				Expect(err).NotTo(HaveOccurred())
+			}
+
 			By("creating resource group")
 			resourceGroup, err := tc.NewResourceGroup(ctx, "rg-cluster-name-duplicate", tc.Location())
 			Expect(err).NotTo(HaveOccurred())
@@ -79,7 +84,9 @@ var _ = Describe("Customer", func() {
 
 				Expect(err).NotTo(HaveOccurred())
 
-				err = tc.CreateHCPClusterFromParam(ctx,
+				err = tc.CreateHCPClusterFromParam(
+					ctx,
+					GinkgoLogr,
 					*resourceGroup.Name,
 					clusterParams,
 					45*time.Minute,
@@ -103,6 +110,11 @@ var _ = Describe("Customer", func() {
 		labels.AroRpApiCompatible,
 		func(ctx context.Context) {
 			tc := framework.NewTestContext()
+
+			if tc.UsePooledIdentities() {
+				err := tc.AssignIdentityContainers(ctx, 1, 60*time.Second)
+				Expect(err).NotTo(HaveOccurred())
+			}
 
 			By("creating resource group")
 			resourceGroup, err := tc.NewResourceGroup(ctx, "rg-cluster-name-validation", tc.Location())
@@ -148,7 +160,9 @@ var _ = Describe("Customer", func() {
 				testClusterParams := baseClusterParams
 				testClusterParams.ClusterName = nameCase.clusterName
 
-				err = tc.CreateHCPClusterFromParam(ctx,
+				err = tc.CreateHCPClusterFromParam(
+					ctx,
+					GinkgoLogr,
 					*resourceGroup.Name,
 					testClusterParams,
 					45*time.Minute,

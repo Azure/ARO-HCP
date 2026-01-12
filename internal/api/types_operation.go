@@ -19,7 +19,6 @@ import (
 	"time"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
-	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
@@ -37,8 +36,6 @@ const (
 )
 
 type Operation struct {
-	CosmosUID string `json:"cosmosUID,omitempty"`
-
 	// ResourceID must be serialized exactly here for the generic CRUD to work.
 	// ResourceID here is NOT an ARM resourceID, it just parses like and one and is guarantee unique
 	ResourceID *azcorearm.ResourceID `json:"resourceId"`
@@ -75,11 +72,6 @@ type Operation struct {
 	Error *arm.CloudErrorBody `json:"error,omitempty"`
 }
 
-// GetValidTypes returns the valid resource types for an OperationDocument.
-func (doc Operation) GetValidTypes() []string {
-	return []string{OperationStatusResourceType.String()}
-}
-
 var _ CosmosPersistable = &Operation{}
 
 func (o *Operation) ComputeLogicalResourceID() *azcorearm.ResourceID {
@@ -88,12 +80,12 @@ func (o *Operation) ComputeLogicalResourceID() *azcorearm.ResourceID {
 
 func (o *Operation) GetCosmosData() CosmosData {
 	return CosmosData{
-		CosmosUID:    o.CosmosUID,
-		PartitionKey: azcosmos.NewPartitionKeyString(strings.ToLower(o.ExternalID.SubscriptionID)),
+		CosmosUID:    o.OperationID.Name,
+		PartitionKey: strings.ToLower(o.ExternalID.SubscriptionID),
 		ItemID:       o.ComputeLogicalResourceID(),
 	}
 }
 
 func (o *Operation) SetCosmosDocumentData(cosmosUID string) {
-	o.CosmosUID = cosmosUID
+	panic("coding error: all operations must initialize with a cosmosID")
 }

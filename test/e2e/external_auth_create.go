@@ -54,12 +54,17 @@ var _ = Describe("Customer", func() {
 				customerVnetSubnetName           = "ea-vnet-subnet1"
 				customerClusterName              = "ea-cluster"
 				customerNodePoolName             = "ea-np-1"
-				openshiftControlPlaneVersionId   = "4.19"
-				openshiftNodeVersionId           = "4.19.7"
 				customerExternalAuthName         = "external-auth"
 				externalAuthSubjectPrefix        = "prefix-" // TODO: ARO-21008 preventing us setting NoPrefix
 			)
 			tc := framework.NewTestContext()
+			openshiftControlPlaneVersionId := framework.DefaultOpenshiftControlPlaneVersionId()
+			openshiftNodeVersionId := framework.DefaultOpenshiftNodePoolVersionId()
+
+			if tc.UsePooledIdentities() {
+				err := tc.AssignIdentityContainers(ctx, 1, 60*time.Second)
+				Expect(err).NotTo(HaveOccurred())
+			}
 
 			By("creating a resource group")
 			resourceGroup, err := tc.NewResourceGroup(ctx, "external-auth-cluster", tc.Location())
@@ -67,34 +72,32 @@ var _ = Describe("Customer", func() {
 
 			By("creating a customer-infra")
 			customerInfraDeploymentResult, err := tc.CreateBicepTemplateAndWait(ctx,
-				*resourceGroup.Name,
-				"customer-infra",
-				framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/modules/customer-infra.json")),
-				map[string]interface{}{
+				framework.WithTemplateFromFS(TestArtifactsFS, "test-artifacts/generated-test-artifacts/modules/customer-infra.json"),
+				framework.WithDeploymentName("customer-infra"),
+				framework.WithScope(framework.BicepDeploymentScopeResourceGroup),
+				framework.WithClusterResourceGroup(*resourceGroup.Name),
+				framework.WithParameters(map[string]interface{}{
 					"persistTagValue":        false,
 					"customerNsgName":        customerNetworkSecurityGroupName,
 					"customerVnetName":       customerVnetName,
 					"customerVnetSubnetName": customerVnetSubnetName,
-				},
-				45*time.Minute,
+				}),
+				framework.WithTimeout(45*time.Minute),
 			)
 			Expect(err).NotTo(HaveOccurred())
 
-			By("creating a managed identities")
+			By("creating/reusing managed identities")
 			keyVaultName, err := framework.GetOutputValue(customerInfraDeploymentResult, "keyVaultName")
 			Expect(err).NotTo(HaveOccurred())
-			managedIdentityDeploymentResult, err := tc.CreateBicepTemplateAndWait(ctx,
-				*resourceGroup.Name,
-				"managed-identities",
-				framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/modules/managed-identities.json")),
-				map[string]interface{}{
-					"clusterName":  customerClusterName,
+			managedIdentityDeploymentResult, err := tc.DeployManagedIdentities(ctx,
+				framework.WithTemplateFromFS(TestArtifactsFS, "test-artifacts/generated-test-artifacts/modules/managed-identities.json"),
+				framework.WithClusterResourceGroup(*resourceGroup.Name),
+				framework.WithParameters(map[string]interface{}{
 					"nsgName":      customerNetworkSecurityGroupName,
 					"vnetName":     customerVnetName,
 					"subnetName":   customerVnetSubnetName,
 					"keyVaultName": keyVaultName,
-				},
-				45*time.Minute,
+				}),
 			)
 			Expect(err).NotTo(HaveOccurred())
 
@@ -107,10 +110,11 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred())
 			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
 			_, err = tc.CreateBicepTemplateAndWait(ctx,
-				*resourceGroup.Name,
-				"cluster",
-				framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/modules/cluster.json")),
-				map[string]interface{}{
+				framework.WithTemplateFromFS(TestArtifactsFS, "test-artifacts/generated-test-artifacts/modules/cluster.json"),
+				framework.WithDeploymentName("cluster"),
+				framework.WithScope(framework.BicepDeploymentScopeResourceGroup),
+				framework.WithClusterResourceGroup(*resourceGroup.Name),
+				framework.WithParameters(map[string]interface{}{
 					"openshiftVersionId":          openshiftControlPlaneVersionId,
 					"clusterName":                 customerClusterName,
 					"managedResourceGroupName":    managedResourceGroupName,
@@ -121,8 +125,8 @@ var _ = Describe("Customer", func() {
 					"identityValue":               identity,
 					"keyVaultName":                keyVaultName,
 					"etcdEncryptionKeyName":       etcdEncryptionKeyName,
-				},
-				45*time.Minute,
+				}),
+				framework.WithTimeout(45*time.Minute),
 			)
 			Expect(err).NotTo(HaveOccurred())
 
@@ -142,16 +146,17 @@ var _ = Describe("Customer", func() {
 
 			By("creating the node pool")
 			_, err = tc.CreateBicepTemplateAndWait(ctx,
-				*resourceGroup.Name,
-				"node-pool",
-				framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/modules/nodepool.json")),
-				map[string]interface{}{
+				framework.WithTemplateFromFS(TestArtifactsFS, "test-artifacts/generated-test-artifacts/modules/nodepool.json"),
+				framework.WithDeploymentName("node-pool"),
+				framework.WithScope(framework.BicepDeploymentScopeResourceGroup),
+				framework.WithClusterResourceGroup(*resourceGroup.Name),
+				framework.WithParameters(map[string]interface{}{
 					"openshiftVersionId": openshiftNodeVersionId,
 					"clusterName":        customerClusterName,
 					"nodePoolName":       customerNodePoolName,
 					"replicas":           2,
-				},
-				45*time.Minute,
+				}),
+				framework.WithTimeout(45*time.Minute),
 			)
 			Expect(err).NotTo(HaveOccurred())
 

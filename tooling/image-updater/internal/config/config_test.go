@@ -17,6 +17,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -434,6 +435,30 @@ images:
 			wantErr:        false,
 			wantImageNames: []string{},
 		},
+		{
+			name: "invalid config: both tag and tagPattern",
+			setupFile: func(t *testing.T) string {
+				tmpDir := t.TempDir()
+				configPath := filepath.Join(tmpDir, "invalid.yaml")
+				content := `
+images:
+  test:
+    source:
+      image: quay.io/test/app
+      tag: v1.0.0
+      tagPattern: "^v\\d+\\.\\d+\\.\\d+$"
+    targets:
+      - filePath: test.yaml
+        jsonPath: image.digest
+`
+				if err := os.WriteFile(configPath, []byte(content), 0644); err != nil {
+					t.Fatalf("failed to create config file: %v", err)
+				}
+				return configPath
+			},
+			wantErr:    true,
+			wantErrMsg: "tag and tagPattern are mutually exclusive",
+		},
 	}
 
 	for _, tt := range tests {
@@ -669,6 +694,149 @@ images:
 	}
 }
 
+func TestSource_Validate(t *testing.T) {
+	tests := []struct {
+		name       string
+		source     Source
+		wantErr    bool
+		wantErrMsg string
+	}{
+		{
+			name: "valid: only tag specified",
+			source: Source{
+				Image: "quay.io/test/app",
+				Tag:   "v1.0.0",
+			},
+			wantErr: false,
+		},
+		{
+			name: "valid: only tagPattern specified",
+			source: Source{
+				Image:      "quay.io/test/app",
+				TagPattern: "^v\\d+\\.\\d+\\.\\d+$",
+			},
+			wantErr: false,
+		},
+		{
+			name: "valid: neither tag nor tagPattern specified",
+			source: Source{
+				Image: "quay.io/test/app",
+			},
+			wantErr: false,
+		},
+		{
+			name: "invalid: both tag and tagPattern specified",
+			source: Source{
+				Image:      "quay.io/test/app",
+				Tag:        "v1.0.0",
+				TagPattern: "^v\\d+\\.\\d+\\.\\d+$",
+			},
+			wantErr:    true,
+			wantErrMsg: "tag and tagPattern are mutually exclusive",
+		},
+		{
+			name: "invalid: architecture and multiArch both specified",
+			source: Source{
+				Image:        "quay.io/test/app",
+				Architecture: "amd64",
+				MultiArch:    true,
+			},
+			wantErr:    true,
+			wantErrMsg: "architecture and multiArch are mutually exclusive",
+		},
+		{
+			name: "valid: tag with multiArch",
+			source: Source{
+				Image:     "quay.io/test/app",
+				Tag:       "v1.0.0",
+				MultiArch: true,
+			},
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.source.Validate()
+
+			if (err != nil) != tt.wantErr {
+				t.Errorf("Validate() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+
+			if tt.wantErr && tt.wantErrMsg != "" && !strings.Contains(err.Error(), tt.wantErrMsg) {
+				t.Errorf("Validate() error = %v, should contain %v", err.Error(), tt.wantErrMsg)
+			}
+		})
+	}
+}
+
+func TestSource_GetEffectiveTagPattern(t *testing.T) {
+	tests := []struct {
+		name    string
+		source  Source
+		wantRE  string
+		wantTag string
+	}{
+		{
+			name: "tag specified - exact match pattern",
+			source: Source{
+				Tag: "v1.0.0",
+			},
+			wantRE:  "^v1\\.0\\.0$",
+			wantTag: "v1.0.0",
+		},
+		{
+			name: "tag with special regex characters",
+			source: Source{
+				Tag: "v1.0.0-rc.1",
+			},
+			wantRE:  "^v1\\.0\\.0-rc\\.1$",
+			wantTag: "v1.0.0-rc.1",
+		},
+		{
+			name: "tagPattern specified - returns as is",
+			source: Source{
+				TagPattern: "^v\\d+\\.\\d+\\.\\d+$",
+			},
+			wantRE: "^v\\d+\\.\\d+\\.\\d+$",
+		},
+		{
+			name:   "neither specified - returns empty string",
+			source: Source{},
+			wantRE: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.source.GetEffectiveTagPattern()
+
+			if got != tt.wantRE {
+				t.Errorf("GetEffectiveTagPattern() = %v, want %v", got, tt.wantRE)
+			}
+
+			// If we expect a specific tag match, verify it matches only that tag
+			if tt.wantTag != "" {
+				re, err := regexp.Compile(got)
+				if err != nil {
+					t.Fatalf("Failed to compile pattern: %v", err)
+				}
+
+				// Should match the exact tag
+				if !re.MatchString(tt.wantTag) {
+					t.Errorf("Pattern %v should match tag %v", got, tt.wantTag)
+				}
+
+				// Should not match variations
+				if re.MatchString(tt.wantTag + ".1") {
+					t.Errorf("Pattern %v should not match %v", got, tt.wantTag+".1")
+				}
+			}
+		})
+	}
+}
+
 func TestSource_ParseImageReference(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -742,6 +910,170 @@ func TestSource_ParseImageReference(t *testing.T) {
 			}
 			if gotRepository != tt.wantRepository {
 				t.Errorf("ParseImageReference() repository = %v, want %v", gotRepository, tt.wantRepository)
+			}
+		})
+	}
+}
+
+func TestFilterByEnvironments(t *testing.T) {
+	cfg := &Config{
+		Images: map[string]ImageConfig{
+			"frontend": {
+				Source: Source{Image: "quay.io/test/frontend"},
+				Targets: []Target{
+					{FilePath: "frontend-dev.yaml", JsonPath: "image.digest", Env: "dev"},
+					{FilePath: "frontend-int.yaml", JsonPath: "image.digest", Env: "int"},
+					{FilePath: "frontend-stg.yaml", JsonPath: "image.digest", Env: "stg"},
+					{FilePath: "frontend-prod.yaml", JsonPath: "image.digest", Env: "prod"},
+				},
+			},
+			"backend": {
+				Source: Source{Image: "quay.io/test/backend"},
+				Targets: []Target{
+					{FilePath: "backend-dev.yaml", JsonPath: "image.digest", Env: "dev"},
+					{FilePath: "backend-int.yaml", JsonPath: "image.digest", Env: "int"},
+				},
+			},
+			"database": {
+				Source: Source{Image: "quay.io/test/database"},
+				Targets: []Target{
+					{FilePath: "db-stg.yaml", JsonPath: "image.digest", Env: "stg"},
+					{FilePath: "db-prod.yaml", JsonPath: "image.digest", Env: "prod"},
+				},
+			},
+		},
+	}
+
+	tests := []struct {
+		name         string
+		environments []string
+		wantTargets  map[string][]string // component -> list of target file paths
+	}{
+		{
+			name:         "filter dev environment",
+			environments: []string{"dev"},
+			wantTargets: map[string][]string{
+				"frontend": {"frontend-dev.yaml"},
+				"backend":  {"backend-dev.yaml"},
+			},
+		},
+		{
+			name:         "filter int environment",
+			environments: []string{"int"},
+			wantTargets: map[string][]string{
+				"frontend": {"frontend-int.yaml"},
+				"backend":  {"backend-int.yaml"},
+			},
+		},
+		{
+			name:         "filter stg environment",
+			environments: []string{"stg"},
+			wantTargets: map[string][]string{
+				"frontend": {"frontend-stg.yaml"},
+				"database": {"db-stg.yaml"},
+			},
+		},
+		{
+			name:         "filter prod environment",
+			environments: []string{"prod"},
+			wantTargets: map[string][]string{
+				"frontend": {"frontend-prod.yaml"},
+				"database": {"db-prod.yaml"},
+			},
+		},
+		{
+			name:         "filter multiple environments - dev and int",
+			environments: []string{"dev", "int"},
+			wantTargets: map[string][]string{
+				"frontend": {"frontend-dev.yaml", "frontend-int.yaml"},
+				"backend":  {"backend-dev.yaml", "backend-int.yaml"},
+			},
+		},
+		{
+			name:         "filter multiple environments - int and stg (promotion mode)",
+			environments: []string{"int", "stg"},
+			wantTargets: map[string][]string{
+				"frontend": {"frontend-int.yaml", "frontend-stg.yaml"},
+				"backend":  {"backend-int.yaml"},
+				"database": {"db-stg.yaml"},
+			},
+		},
+		{
+			name:         "filter multiple environments - stg and prod (promotion mode)",
+			environments: []string{"stg", "prod"},
+			wantTargets: map[string][]string{
+				"frontend": {"frontend-stg.yaml", "frontend-prod.yaml"},
+				"database": {"db-stg.yaml", "db-prod.yaml"},
+			},
+		},
+		{
+			name:         "empty environments list returns original config",
+			environments: []string{},
+			wantTargets: map[string][]string{
+				"frontend": {"frontend-dev.yaml", "frontend-int.yaml", "frontend-stg.yaml", "frontend-prod.yaml"},
+				"backend":  {"backend-dev.yaml", "backend-int.yaml"},
+				"database": {"db-stg.yaml", "db-prod.yaml"},
+			},
+		},
+		{
+			name:         "non-matching environment returns error",
+			environments: []string{"qa"},
+			wantTargets:  nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := cfg.FilterByEnvironments(tt.environments)
+
+			// Handle error cases
+			if tt.wantTargets == nil {
+				if err == nil {
+					t.Errorf("FilterByEnvironments() expected error but got none")
+				}
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("FilterByEnvironments() unexpected error: %v", err)
+			}
+
+			// Check that we got the expected number of components
+			if len(got.Images) != len(tt.wantTargets) {
+				t.Errorf("FilterByEnvironments() returned %d components, want %d", len(got.Images), len(tt.wantTargets))
+			}
+
+			// Check each component
+			for componentName, wantFilePaths := range tt.wantTargets {
+				imageConfig, exists := got.Images[componentName]
+				if !exists {
+					t.Errorf("FilterByEnvironments() missing component %s", componentName)
+					continue
+				}
+
+				// Get actual file paths
+				var gotFilePaths []string
+				for _, target := range imageConfig.Targets {
+					gotFilePaths = append(gotFilePaths, target.FilePath)
+				}
+				slices.Sort(gotFilePaths)
+
+				// Sort expected for comparison
+				wantFilePathsSorted := make([]string, len(wantFilePaths))
+				copy(wantFilePathsSorted, wantFilePaths)
+				slices.Sort(wantFilePathsSorted)
+
+				// Compare
+				if !slices.Equal(gotFilePaths, wantFilePathsSorted) {
+					t.Errorf("FilterByEnvironments() component %s targets = %v, want %v", componentName, gotFilePaths, wantFilePathsSorted)
+				}
+			}
+
+			// Check for unexpected components
+			for componentName := range got.Images {
+				if _, expected := tt.wantTargets[componentName]; !expected {
+					t.Errorf("FilterByEnvironments() returned unexpected component %s", componentName)
+				}
 			}
 		})
 	}

@@ -42,6 +42,9 @@ param grafanaRoles string
 @description('The zone redundant mode of Grafana')
 param grafanaZoneRedundantMode string
 
+@description('Cross-tenant security group for Grafana access (format: GroupObjectId;TenantId)')
+param crossTenantSecurityGroup string
+
 @description('Availability Zones to use for the infrastructure, as a CSV string. Defaults to all the zones of the location')
 param locationAvailabilityZones string = getLocationAvailabilityZonesCSV(location)
 var locationAvailabilityZoneList = csvToArray(locationAvailabilityZones)
@@ -335,6 +338,7 @@ module grafana '../modules/grafana/instance.bicep' = {
     grafanaRoles: grafanaRoles
     zoneRedundancy: determineZoneRedundancy(locationAvailabilityZoneList, grafanaZoneRedundantMode)
     azureMonitorWorkspaceIds: grafanaWorkspaceIdLookup.outputs.azureMonitorWorkspaceIds
+    crossTenantSecurityGroup: crossTenantSecurityGroup
   }
 }
 

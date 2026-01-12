@@ -38,9 +38,6 @@ on:
     - 'tooling/templatize/**'
     - 'config/*'
     types:
-    - opened
-    - synchronize
-    - reopened
     - closed
 concurrency:
   group: ${{ github.workflow }}
@@ -94,7 +91,8 @@ jobs:
         make global acr
 
         # Setup operator roles for platform workload identity
-        make operator-roles
+        # jboll disabled for now until permissions are resolved
+        # make operator-roles
 
         # Manage Kusto in Dev
         make kusto
