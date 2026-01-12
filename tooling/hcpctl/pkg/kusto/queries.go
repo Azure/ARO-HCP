@@ -89,7 +89,7 @@ func (q *ConfigurableQuery) WithClusterIdOrSubscriptionAndResourceGroup(clusterI
 
 func NewClusterIdQuery(database, clusterServiceLogsTable, subscriptionId, resourceGroup string) *ConfigurableQuery {
 	builder := kql.New("").AddTable(clusterServiceLogsTable)
-	builder.AddLiteral("\n| where resource_id has subscriptionId  and resource_id has resourceGroupName")
+	builder.AddLiteral("\n| where resource_id has subscriptionId and resource_id has resourceGroupName")
 	builder.AddLiteral("\n| distinct cid")
 
 	parameters := kql.NewParameters()
