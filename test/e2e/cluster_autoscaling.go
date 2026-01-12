@@ -149,6 +149,11 @@ var _ = Describe("Customer", func() {
 		func(ctx context.Context) {
 			tc := framework.NewTestContext()
 
+			if tc.UsePooledIdentities() {
+				err := tc.AssignIdentityContainers(ctx, 1, 60*time.Second)
+				Expect(err).NotTo(HaveOccurred())
+			}
+
 			By("creating cluster with unreasonably high MaxNodesTotal")
 			resourceGroup, err := tc.NewResourceGroup(ctx, "invalid-high-max-nodes", tc.Location())
 			Expect(err).NotTo(HaveOccurred())
