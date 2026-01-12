@@ -71,8 +71,8 @@ github.com/AdaLogics/go-fuzz-headers v0.0.0-20230811130428-ced1acdcaa24 h1:bvDV9
 github.com/AdaLogics/go-fuzz-headers v0.0.0-20230811130428-ced1acdcaa24/go.mod h1:8o94RPi1/7XTJvwPpRSzSUedZrtlirdB3r9Z20bi2f8=
 github.com/Azure/ARO-HCP/tooling/templatize v0.0.0-20260107114435-98c5eb6d5d91 h1:0X36yXkzceM65M9qUD2Kcz5Dx8glBB2qt74Xx+7kJJQ=
 github.com/Azure/ARO-HCP/tooling/templatize v0.0.0-20260107114435-98c5eb6d5d91/go.mod h1:R5j2MWwCxNmf0ekPeK1k3JgzuGZ1+qWVJyQoqHJaLGs=
-github.com/Azure/ARO-Tools v0.0.0-20251219030559-37f654161c5a h1:vJ4Ta1R+nfUEIwY21Wa5bcfZPXNQqvWiNX2xL/dWJFU=
-github.com/Azure/ARO-Tools v0.0.0-20251219030559-37f654161c5a/go.mod h1:x/VSwQ7cQalvlF0YPUJc0JwE86Ii163PhjMfojWcw2k=
+github.com/Azure/ARO-Tools v0.0.0-20260112224556-4fc17a690209 h1:K/bN3e+jDLOZNWds7x6KwMeYjNAi1HD0iCpd3+SBLGA=
+github.com/Azure/ARO-Tools v0.0.0-20260112224556-4fc17a690209/go.mod h1:x/VSwQ7cQalvlF0YPUJc0JwE86Ii163PhjMfojWcw2k=
 github.com/Azure/azure-sdk-for-go v68.0.0+incompatible h1:fcYLmCpyNYRnvJbPerq7U0hS+6+I79yEDJBqVNcqUzU=
 github.com/Azure/azure-sdk-for-go/sdk/azcore v1.20.0 h1:JXg2dwJUmPB9JmtVmdEB16APJ7jurfbY5jnfXpJoRMc=
 github.com/Azure/azure-sdk-for-go/sdk/azcore v1.20.0/go.mod h1:YD5h/ldMsG0XiIw7PdyNhLxaM317eFh5yNLccNfGdyw=
