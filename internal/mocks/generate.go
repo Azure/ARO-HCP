@@ -21,3 +21,4 @@ package mocks
 //go:generate $MOCKGEN -typed -source=../database/lock.go -destination=lock.go -package mocks github.com/Azure/ARO-HCP/internal/database LockClientInterface
 //go:generate $MOCKGEN -typed -source=../database/transaction.go -destination=dbtransaction.go -package mocks github.com/Azure/ARO-HCP/internal/database DBTransaction DBTransactionResult
 //go:generate $MOCKGEN -typed -source=../ocm/client.go -destination=ocm.go -package mocks github.com/Azure/ARO-HCP/internal/ocm ClusterServiceClientSpec
+//go:generate $MOCKGEN -typed -source=../../backend/pkg/azure/client/client_builder.go -destination=azure_client_builder.go -package mocks github.com/Azure/ARO-HCP/backend/pkg/azure/client ClientBuilder

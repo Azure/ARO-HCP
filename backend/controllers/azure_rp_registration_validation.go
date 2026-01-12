@@ -6,13 +6,9 @@ import (
 	"strings"
 
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
-	azureconfig "github.com/Azure/ARO-HCP/backend/pkg/azure/config"
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/utils"
-
-	"github.com/Azure/ARO-HCP/internal/fpa"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 )
 
 const (
@@ -24,21 +20,17 @@ const (
 // The RpRegistrationValidation struct validates the states of several
 // Azure Resource Providers associated with a clusters region, subscription, etc.
 type AzureRpRegistrationValidation struct {
-	name                             string
-	resourceProvidersClientRetriever azureclient.ResourceProvidersClientRetriever
-	fpaTokenCredRetriever            fpa.FirstPartyApplicationTokenCredentialRetriever
-	azureCloudEnvironment            azureconfig.AzureCloudEnvironment
+	name               string
+	azureClientBuilder azureclient.ClientBuilder
 }
 
 func NewAzureRpRegistrationValidation(
 	name string,
-	fpaTokenCredRetriever fpa.FirstPartyApplicationTokenCredentialRetriever,
-	azureCloudEnvironment azureconfig.AzureCloudEnvironment,
+	azureClientBuilder azureclient.ClientBuilder,
 ) *AzureRpRegistrationValidation {
 	return &AzureRpRegistrationValidation{
-		name:                  name,
-		fpaTokenCredRetriever: fpaTokenCredRetriever,
-		azureCloudEnvironment: azureCloudEnvironment,
+		name:               name,
+		azureClientBuilder: azureClientBuilder,
 	}
 }
 
@@ -73,7 +65,6 @@ func (v *AzureRpRegistrationValidation) Validate(ctx context.Context, cluster *a
 		cluster.ID.SubscriptionID,
 		// TODO is this the aro-hcp cluster tenant, is it always set, or do we need to get it somehow else? Figure out
 		cluster.Identity.TenantID,
-		v.azureCloudEnvironment.ArmClientOptions(),
 	)
 	if err != nil {
 		logger.Error("failed to get resource providers client", "error", err)
@@ -102,12 +93,8 @@ func (v *AzureRpRegistrationValidation) Validate(ctx context.Context, cluster *a
 	return nil
 }
 
-func (v *AzureRpRegistrationValidation) getResourceProvidersClient(subscriptionID string,
-	tenantID string, clientOptions *arm.ClientOptions,
+func (v *AzureRpRegistrationValidation) getResourceProvidersClient(
+	tenantID string, subscriptionID string,
 ) (azureclient.ResourceProvidersClient, error) {
-	credential, err := v.fpaTokenCredRetriever.RetrieveCredential(tenantID)
-	if err != nil {
-		return nil, err
-	}
-	return v.resourceProvidersClientRetriever.Retrieve(subscriptionID, credential, clientOptions)
+	return v.azureClientBuilder.ResourceProvidersClient(tenantID, subscriptionID)
 }

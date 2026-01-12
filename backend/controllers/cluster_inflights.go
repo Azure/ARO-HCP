@@ -25,9 +25,9 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/util/workqueue"
 
-	azureconfig "github.com/Azure/ARO-HCP/backend/pkg/azure/config"
+	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
+
 	"github.com/Azure/ARO-HCP/internal/database"
-	"github.com/Azure/ARO-HCP/internal/fpa"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -52,8 +52,7 @@ type clusterInflights struct {
 // NewClusterInflightsController
 func NewClusterInflightsController(
 	cosmosClient database.DBClient,
-	fpaTokenCredRetriever fpa.FirstPartyApplicationTokenCredentialRetriever,
-	azureCloudEnvironment azureconfig.AzureCloudEnvironment,
+	azureFPAClientBuilder azureclient.ClientBuilder,
 ) Controller {
 
 	// TODO this might not be how we instantiate the validations nor introduce them,
@@ -63,8 +62,7 @@ func NewClusterInflightsController(
 	clusterValidations = append(clusterValidations,
 		NewAzureRpRegistrationValidation(
 			"azure-rp-registration-validation",
-			fpaTokenCredRetriever,
-			azureCloudEnvironment,
+			azureFPAClientBuilder,
 		),
 	)
 

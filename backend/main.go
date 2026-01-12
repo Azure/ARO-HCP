@@ -48,7 +48,9 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/tracing/azotel"
 
 	"github.com/Azure/ARO-HCP/backend/controllers"
+	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
 	azureconfig "github.com/Azure/ARO-HCP/backend/pkg/azure/config"
+
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/fpa"
 	"github.com/Azure/ARO-HCP/internal/tracing"
@@ -332,10 +334,13 @@ func Run(cmd *cobra.Command, args []string) error {
 			azureRuntimeConfig.CloudEnvironment.PolicyClientOptions(),
 		)
 
+		fpaClientBuilder := azureclient.NewFpaClientBuilder(
+			fpaTokenCredRetriever, azureRuntimeConfig.CloudEnvironment.ArmClientOptions(),
+		)
+
 		clusterInflightsController := controllers.NewClusterInflightsController(
 			dbClient,
-			fpaTokenCredRetriever,
-			azureCloudEnvironment,
+			fpaClientBuilder,
 		)
 
 		le, err := leaderelection.NewLeaderElector(leaderelection.LeaderElectionConfig{

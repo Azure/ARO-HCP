@@ -13,9 +13,6 @@ import (
 // (https://github.com/Azure/azure-sdk-for-go/tree/main/sdk/resourcemanager/resources/armresources).
 // The aim is to only contain methods that are defined in the Azure Go SDK
 // ProvidersClient client.
-// For the cases where logic is desired to be implemented combining
-// ProvidersClient calls and other logic use another client than
-// this one.
 // If you need to use a method provided by the Azure Go SDK ProvidersClient
 // client but it is not defined in this interface then it has to be added here and all
 // the types implementing this interface have to implement the new method.
