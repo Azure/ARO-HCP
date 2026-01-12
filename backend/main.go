@@ -34,8 +34,13 @@ import (
 	"github.com/spf13/cobra"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel"
+
 	semconv "go.opentelemetry.io/otel/semconv/v1.17.0"
+	"go.opentelemetry.io/otel/trace"
+
 	"golang.org/x/sync/errgroup"
+
+	"sigs.k8s.io/yaml"
 
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
@@ -43,16 +48,21 @@ import (
 	"k8s.io/client-go/tools/leaderelection/resourcelock"
 	"k8s.io/klog/v2"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
-	"github.com/Azure/azure-sdk-for-go/sdk/tracing/azotel"
-
-	ocmsdk "github.com/openshift-online/ocm-sdk-go"
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/backend/controllers"
+	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
+	"github.com/Azure/ARO-HCP/backend/pkg/azure/config"
+	azureconfig "github.com/Azure/ARO-HCP/backend/pkg/azure/config"
+
+	apiazurev1 "github.com/Azure/ARO-HCP/backend/api/azure/v1"
+
+	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/fpa"
 	"github.com/Azure/ARO-HCP/internal/tracing"
 	"github.com/Azure/ARO-HCP/internal/version"
+	ocmsdk "github.com/openshift-online/ocm-sdk-go"
 )
 
 const (
@@ -63,15 +73,18 @@ const (
 )
 
 var (
-	argKubeconfig           string
-	argNamespace            string
-	argLocation             string
-	argCosmosName           string
-	argCosmosURL            string
-	argClustersServiceURL   string
-	argInsecure             bool
-	argMetricsListenAddress string
-	argPortListenAddress    string
+	argKubeconfig              string
+	argNamespace               string
+	argLocation                string
+	argCosmosName              string
+	argCosmosURL               string
+	argClustersServiceURL      string
+	argInsecure                bool
+	argMetricsListenAddress    string
+	argPortListenAddress       string
+	argsAzureRuntimeConfigPath string
+	argsAzureFPACertBundlePath string
+	argsAzureFPAClientID       string
 
 	processName = filepath.Base(os.Args[0])
 
@@ -103,6 +116,23 @@ func init() {
 	rootCmd.Flags().StringVar(&argCosmosName, "cosmos-name", os.Getenv("DB_NAME"), "Cosmos database name")
 	rootCmd.Flags().StringVar(&argCosmosURL, "cosmos-url", os.Getenv("DB_URL"), "Cosmos database URL")
 	rootCmd.Flags().StringVar(&argClustersServiceURL, "clusters-service-url", "https://api.openshift.com", "URL of the OCM API gateway")
+	rootCmd.Flags().StringVar(
+		&argsAzureRuntimeConfigPath, "azure-runtime-config-path", "",
+		"Path to a file containing the Azure runtime configuration in JSON or YAML format following the schema defined "+
+			"in backend/api/azure/v1/AzureRuntimeConfig",
+	)
+	rootCmd.Flags().StringVar(
+		&argsAzureFPACertBundlePath,
+		"azure-first-party-application-certificate-bundle-path", "",
+		"Path to a file containing an X.509 Certificate based client certificate, consisting of a private key and "+
+			"certificate chain, in a PEM or PKCS#12 format for authenticating clients with a first party application identity",
+	)
+	rootCmd.Flags().StringVar(
+		&argsAzureFPAClientID,
+		"azure-first-party-application-client-id",
+		"",
+		"The client id of the first party application identity",
+	)
 	rootCmd.Flags().BoolVar(&argInsecure, "insecure", false, "Skip validating TLS for clusters-service")
 	rootCmd.Flags().StringVar(&argMetricsListenAddress, "metrics-listen-address", ":8081", "Address on which to expose metrics")
 	rootCmd.Flags().StringVar(&argPortListenAddress, "healthz-listen-address", ":8083", "Address on which Healthz endpoint will be supported")
@@ -110,6 +140,98 @@ func init() {
 	rootCmd.MarkFlagsRequiredTogether("cosmos-name", "cosmos-url")
 
 	rootCmd.Version = version.CommitSHA
+}
+
+func loadAzureRuntimeConfig(path string) (apiazurev1.AzureRuntimeConfig, error) {
+	if len(path) == 0 {
+		return apiazurev1.AzureRuntimeConfig{}, fmt.Errorf("configuration path is required")
+	}
+
+	rawBytes, err := os.ReadFile(path)
+	if err != nil {
+		return apiazurev1.AzureRuntimeConfig{}, fmt.Errorf("error reading file %s: %w", path, err)
+	}
+
+	var config apiazurev1.AzureRuntimeConfig
+
+	err = yaml.Unmarshal(rawBytes, &config)
+	if err != nil {
+		return apiazurev1.AzureRuntimeConfig{}, fmt.Errorf("error unmarshaling file %s: %w", path, err)
+	}
+
+	err = config.Validate()
+	if err != nil {
+		return apiazurev1.AzureRuntimeConfig{}, fmt.Errorf("error validating file %s: %w", path, err)
+	}
+
+	return config, nil
+}
+
+func buildAzureConfig(azureRuntimeConfigDTO apiazurev1.AzureRuntimeConfig, tracerProvider trace.TracerProvider) (azureconfig.AzureConfig, error) {
+
+	cloudEnvironment, err := azureconfig.NewAzureCloudEnvironment(azureRuntimeConfigDTO.CloudEnvironment.String(), tracerProvider)
+	if err != nil {
+		return azureconfig.AzureConfig{}, fmt.Errorf("error building azure cloud environment configuration: %w", err)
+	}
+
+	ocpImagesACR := azureconfig.NewAzureContainerRegistry(
+		azureRuntimeConfigDTO.OCPImagesACR.ResourceID, azureRuntimeConfigDTO.OCPImagesACR.URL,
+		azureRuntimeConfigDTO.OCPImagesACR.ScopeMapName,
+	)
+
+	dataPlaneIdentitiesOIDCConfiguration := azureconfig.NewAzureDataPlaneIdentitiesOIDCConfiguration(
+		azureRuntimeConfigDTO.DataPlaneIdentitiesOIDCConfiguration.StorageAccountBlobContainerName,
+		azureRuntimeConfigDTO.DataPlaneIdentitiesOIDCConfiguration.StorageAccountBlobServiceURL,
+		azureRuntimeConfigDTO.DataPlaneIdentitiesOIDCConfiguration.OIDCIssuerBaseURL,
+	)
+
+	var tlsCertificatesIssuer azureconfig.TLSCertificateIssuerType
+	switch azureRuntimeConfigDTO.TLSCertificatesConfig.Issuer {
+	case apiazurev1.TLSCertificateIssuerSelf:
+		tlsCertificatesIssuer = azureconfig.TLSCertificateIssuerSelf
+	case apiazurev1.TLSCertificateIssuerOneCert:
+		tlsCertificatesIssuer = azureconfig.TLSCertificateIssuerOneCert
+	}
+
+	var tlsCertificatesGenerationSource azureconfig.CertificatesGenerationSource
+	switch azureRuntimeConfigDTO.TLSCertificatesConfig.CertificatesGenerationSource {
+	case apiazurev1.CertificatesGenerationSourceAzureKeyVault:
+		tlsCertificatesGenerationSource = azureconfig.CertificatesGenerationSourceAzureKeyVault
+	case apiazurev1.CertificatesGenerationSourceHypershift:
+		tlsCertificatesGenerationSource = azureconfig.CertificatesGenerationSourceHypershift
+	}
+
+	tlsCertificatesConfig := azureconfig.NewTLSCertificatesConfig(
+		tlsCertificatesIssuer,
+		tlsCertificatesGenerationSource,
+	)
+
+	// TODO should the domain layer types also have validation or do we trust that
+	// they are valid because the user-provided parts were validated
+	out := config.AzureConfig{
+		CloudEnvironment:                           cloudEnvironment,
+		ServiceTenantID:                            azureRuntimeConfigDTO.ServiceTenantID,
+		OCPImagesACR:                               ocpImagesACR,
+		DataPlaneIdentitiesOIDCConfiguration:       dataPlaneIdentitiesOIDCConfiguration,
+		ManagedIdentitiesDataPlaneAudienceResource: azureRuntimeConfigDTO.ManagedIdentitiesDataPlaneAudienceResource,
+		TLSCertificatesConfig:                      tlsCertificatesConfig,
+	}
+
+	return out, err
+}
+
+func callAzureExampleInflight(clientBuilder azureclient.ClientBuilder) error {
+	validation := controllers.NewAzureRpRegistrationValidation("rp-registration-validation", clientBuilder)
+	// The tenant and subscription values would come when a cluster is processed. Here in main we do not process
+	// particular clusters so we do not have that information so for this example we just set the red hat dev account info.
+
+	resourceID := api.Must(azcorearm.ParseResourceID("/subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/testcluster"))
+	exampleHCPCluster := api.NewDefaultHCPOpenShiftCluster(resourceID, "westus3")
+	err := validation.Validate(context.TODO(), exampleHCPCluster)
+	if err != nil {
+		return fmt.Errorf("resource providers registration validation error")
+	}
+	return nil
 }
 
 func newKubeconfig(kubeconfig string) (*rest.Config, error) {
@@ -129,6 +251,16 @@ func Run(cmd *cobra.Command, args []string) error {
 
 	if len(argLocation) == 0 {
 		return errors.New("location is required")
+	}
+
+	if len(argsAzureRuntimeConfigPath) == 0 {
+		return fmt.Errorf("--%s is required", argsAzureRuntimeConfigPath)
+	}
+	if len(argsAzureFPAClientID) == 0 {
+		return fmt.Errorf("--%s is required", argsAzureFPAClientID)
+	}
+	if len(argsAzureFPACertBundlePath) == 0 {
+		return fmt.Errorf("--%s is required", argsAzureFPACertBundlePath)
 	}
 
 	logger.Info(fmt.Sprintf(
@@ -174,15 +306,56 @@ func Run(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("could not initialize opentelemetry sdk: %w", err)
 	}
 
+	otelTracerProvider := otel.GetTracerProvider()
+
+	// TODO azure related code cannot be executed until the cli flags and configs
+	// have been rolled out to prod.
+	azureRuntimeConfigDTO, err := loadAzureRuntimeConfig(argsAzureRuntimeConfigPath)
+	if err != nil {
+		return fmt.Errorf("error loading azure runtime config: %w", err)
+	}
+
+	azureConfig, err := buildAzureConfig(azureRuntimeConfigDTO, otelTracerProvider)
+	if err != nil {
+		return fmt.Errorf("error building azure configuration: %w", err)
+	}
+
+	// Create FPA TokenCredentials with watching
+	certReader, err := fpa.NewWatchingFileCertificateReader(
+		ctx,
+		argsAzureFPACertBundlePath,
+		30*time.Minute,
+		logger,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to create certificate reader: %w", err)
+	}
+
+	// We create the FPA token credential retriever here. Then we pass it to the cluster inflights controller,
+	// which then is used to instantiate a validation that uses the FPA token credential retriever. And then the
+	// validations uses the retriever to retrieve a token credential based on the information associated to the
+	// cluster(the tenant of the cluster, the subscription id, ...)
+	fpaTokenCredRetriever, err := fpa.NewFirstPartyApplicationTokenCredentialRetriever(
+		logger,
+		argsAzureFPAClientID,
+		certReader,
+		azureConfig.CloudEnvironment.AZCoreClientOptions(),
+	)
+
+	fpaClientBuilder := azureclient.NewFpaClientBuilder(
+		fpaTokenCredRetriever, azureConfig.CloudEnvironment.ARMClientOptions(),
+	)
+
+	err = callAzureExampleInflight(fpaClientBuilder)
+	if err != nil {
+		return err
+	}
+
 	// Create the database client.
 	cosmosDatabaseClient, err := database.NewCosmosDatabaseClient(
 		argCosmosURL,
 		argCosmosName,
-		azcore.ClientOptions{
-			// FIXME Cloud should be determined by other means.
-			Cloud:           cloud.AzurePublic,
-			TracingProvider: azotel.NewTracingProvider(otel.GetTracerProvider(), nil),
-		},
+		azureConfig.CloudEnvironment.PolicyClientOptions(),
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create the CosmosDB client: %w", err)
