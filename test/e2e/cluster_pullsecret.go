@@ -84,7 +84,9 @@ var _ = Describe("Cluster Pull Secret Management", func() {
 			clusterParams, err = tc.CreateClusterCustomerResources(ctx,
 				resourceGroup,
 				clusterParams,
-				map[string]interface{}{},
+				map[string]interface{}{
+					"persistTagValue": false,
+				},
 				TestArtifactsFS,
 			)
 			Expect(err).NotTo(HaveOccurred())
