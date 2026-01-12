@@ -1,4 +1,7 @@
-database('ServiceLogs').table('backendLogs') 
+let _startTime = datetime("{{.StartTime}}");
+let _endTime = datetime("{{.EndTime}}");
+database('ServiceLogs').table('backendLogs')
+| where timestamp between (_startTime .. _endTime)
 | where cluster == '{{.ClusterName}}'
 | where container_name == 'aro-hcp-backend'
 | project timestamp, msg, log

@@ -32,6 +32,8 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
 
+	"k8s.io/utils/clock"
+
 	"sigs.k8s.io/yaml"
 
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -162,8 +164,8 @@ type QueryInfo struct {
 }
 
 type TimingInfo struct {
-	StartTime          string
-	EndTime            string
+	StartTime          time.Time
+	EndTime            time.Time
 	ResourceGroupNames []string
 }
 
@@ -240,20 +242,21 @@ func (o Options) Run(ctx context.Context) error {
 					createLinkForTest("Hosted Control Plane Logs", "hosted-controlplane.kql.tmpl", QueryInfo{
 						ResourceGroupName: rg,
 						Database:          "HostedControlPlaneLogs",
-						StartTime:         timing.StartTime,
-						EndTime:           timing.EndTime,
+						StartTime:         timing.StartTime.Format(time.RFC3339),
+						EndTime:           timing.EndTime.Format(time.RFC3339),
 					}),
 					createLinkForTest("Service Logs", "service-logs.kql.tmpl", QueryInfo{
 						ResourceGroupName: rg,
 						Database:          "ServiceLogs",
-						StartTime:         timing.StartTime,
-						EndTime:           timing.EndTime,
+						StartTime:         timing.StartTime.Format(time.RFC3339),
+						EndTime:           timing.EndTime.Format(time.RFC3339),
 					}),
 				},
 				Database: "HostedControlPlaneLogs",
 				Status:   "tbd",
 			})
 		}
+
 	}
 
 	err = renderTemplate(QueryTemplate{
@@ -352,9 +355,14 @@ func loadAllTestTimingInfo(timingInputDir string) (map[string]TimingInfo, error)
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse finished at: %w", err)
 		}
+		startedAt, err := time.Parse(time.RFC3339, timing.StartedAt)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse started at: %w", err)
+		}
+
 		allTimingInfo[deployment] = TimingInfo{
-			StartTime:          timing.StartedAt,
-			EndTime:            finishedAt.Add(endGracePeriodDuration).Format(time.RFC3339),
+			StartTime:          startedAt,
+			EndTime:            finishedAt.Add(endGracePeriodDuration),
 			ResourceGroupNames: rgNameList,
 		}
 	}
@@ -362,10 +370,24 @@ func loadAllTestTimingInfo(timingInputDir string) (map[string]TimingInfo, error)
 	return allTimingInfo, nil
 }
 
+var localClock clock.PassiveClock = clock.RealClock{}
+
 func getServiceLogLinks(steps []pipeline.NodeInfo) ([]LinkDetails, error) {
 	allLinks := []LinkDetails{}
+
+	earliestStartTime := time.Time{}
 	allClusterNames := []string{}
 	for _, step := range steps {
+		if len(step.Info.StartedAt) > 0 {
+			startTime, err := time.Parse(time.RFC3339, step.Info.StartedAt)
+			if err != nil {
+				return nil, fmt.Errorf("failed to parse started at: %w", err)
+			}
+			if earliestStartTime.IsZero() || startTime.Before(earliestStartTime) {
+				earliestStartTime = startTime
+			}
+		}
+
 		// we're looking for the service cluster's step to make a query for backend and frontend
 		// forming like this so that we can easily add more steps (like the management cluster) that we want queries for
 		if step.Identifier == serviceClusterStepID {
@@ -376,15 +398,22 @@ func getServiceLogLinks(steps []pipeline.NodeInfo) ([]LinkDetails, error) {
 			}
 		}
 	}
+	if earliestStartTime.IsZero() {
+		earliestStartTime = localClock.Now().Add(-6 * time.Hour) // lots longer than default timeouts, but still shorter than forever
+	}
+
 	if len(allClusterNames) != 1 {
 		return nil, fmt.Errorf("expecting only one service cluster, found %d: %s", len(allClusterNames), strings.Join(allClusterNames, ", "))
 	}
 
+	endTime := localClock.Now().Add(1 * time.Hour) // we need to include all cleanup, this is a good bet.
 	for _, clusterName := range allClusterNames {
 		allLinks = append(allLinks, createLinkForTest("Backend Logs", "backend-logs.kql.tmpl", QueryInfo{
 			ResourceGroupName: clusterName,
 			Database:          "ServiceLogs",
 			ClusterName:       clusterName,
+			StartTime:         earliestStartTime.Format(time.RFC3339),
+			EndTime:           endTime.Format(time.RFC3339),
 		}))
 	}
 	for _, clusterName := range allClusterNames {
@@ -392,6 +421,8 @@ func getServiceLogLinks(steps []pipeline.NodeInfo) ([]LinkDetails, error) {
 			ResourceGroupName: clusterName,
 			Database:          "ServiceLogs",
 			ClusterName:       clusterName,
+			StartTime:         earliestStartTime.Format(time.RFC3339),
+			EndTime:           endTime.Format(time.RFC3339),
 		}))
 	}
 	for _, clusterName := range allClusterNames {
@@ -399,6 +430,8 @@ func getServiceLogLinks(steps []pipeline.NodeInfo) ([]LinkDetails, error) {
 			ResourceGroupName: clusterName,
 			Database:          "ServiceLogs",
 			ClusterName:       clusterName,
+			StartTime:         earliestStartTime.Format(time.RFC3339),
+			EndTime:           endTime.Format(time.RFC3339),
 		}))
 	}
 
