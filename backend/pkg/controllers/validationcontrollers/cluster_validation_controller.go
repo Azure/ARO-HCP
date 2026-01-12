@@ -108,7 +108,7 @@ func (c *clusterValidationSyncer) SyncOnce(ctx context.Context, key controllerut
 		validationCondition.Reason = "Succeeded"
 		validationCondition.Message = "Validation succeeded"
 	}
-	controllerutils.SetCondition(&existingServiceProviderCluster.Validations, validationCondition)
+	controllerutils.SetCondition(&existingServiceProviderCluster.Status.Validations, validationCondition)
 
 	serviceProviderClustersCosmosClient := c.cosmosClient.ServiceProviderClusters(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	_, err = serviceProviderClustersCosmosClient.Replace(ctx, existingServiceProviderCluster, nil)
@@ -122,7 +122,7 @@ func (c *clusterValidationSyncer) SyncOnce(ctx context.Context, key controllerut
 // shouldProcess returns true when the condition associated to the validation does not exist or when it exists but
 // it failed to run successfully in a previous attempt.
 func (c *clusterValidationSyncer) shouldProcess(serviceProviderCluster *api.ServiceProviderCluster) bool {
-	return !controllerutils.IsConditionTrue(serviceProviderCluster.Validations, c.validation.Name())
+	return !controllerutils.IsConditionTrue(serviceProviderCluster.Status.Validations, c.validation.Name())
 }
 
 func (c *clusterValidationSyncer) CooldownChecker() controllerutils.CooldownChecker {
