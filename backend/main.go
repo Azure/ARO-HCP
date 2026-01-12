@@ -163,10 +163,7 @@ func loadAzureRuntimeConfig(path string) (configdto.AzureRuntimeConfig, error) {
 }
 
 func buildAzureConfig(azurRuntimeConfigDTO configdto.AzureRuntimeConfig, tracerProvider trace.TracerProvider) (azureconfig.AzureConfig, error) {
-	builder := config.NewAzureCloudEnvironmentBuilder()
-	builder.CloudEnvironment(azurRuntimeConfigDTO.CloudEnvironment.String())
-	builder.TracerProvider(tracerProvider)
-	cloudEnvironment, err := builder.Build()
+	cloudEnvironment, err := config.NewAzureCloudEnvironment(azurRuntimeConfigDTO.CloudEnvironment.String(), tracerProvider)
 	if err != nil {
 		return azureconfig.AzureConfig{}, fmt.Errorf("error building azure cloud environment configuration: %w", err)
 	}
