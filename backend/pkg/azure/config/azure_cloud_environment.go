@@ -116,9 +116,9 @@ func (a AzureCloudEnvironment) PolicyClientOptions() policy.ClientOptions {
 	return a.clientOptions
 }
 
-// ArmClientOptions returns an arm.ClientOptions instance from the current
+// ARMClientOptions returns an arm.ClientOptions instance from the current
 // Azure Cloud environment.
-func (a AzureCloudEnvironment) ArmClientOptions() *arm.ClientOptions {
+func (a AzureCloudEnvironment) ARMClientOptions() *arm.ClientOptions {
 	return &arm.ClientOptions{
 		ClientOptions: a.clientOptions,
 	}

@@ -22,6 +22,7 @@ import (
 	"testing"
 
 	"github.com/Azure/ARO-HCP/backend/controllers"
+	"github.com/Azure/ARO-HCP/backend/pkg/azure/client"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/test-integration/utils/controllertesthelpers"
@@ -44,7 +45,8 @@ func TestClusterInflightsController(t *testing.T) {
 			},
 			ArtifactDir: api.Must(fs.Sub(artifacts, path.Join("artifacts"))),
 			ControllerInitializerFn: func(ctx context.Context, t *testing.T, cosmosClient database.DBClient) (controller controllers.Controller, testMemory map[string]any) {
-				return controllers.NewClusterInflightsController(cosmosClient), map[string]any{}
+				// TODO set the FPA client builder appropriately
+				return controllers.NewClusterInflightsController(cosmosClient, &client.FPAClientBuilder{}), map[string]any{}
 			},
 			ControllerVerifierFn: func(ctx context.Context, t *testing.T, controller controllers.Controller, testMemory map[string]any) {
 			},
