@@ -269,12 +269,7 @@ func (f *Frontend) createHCPCluster(writer http.ResponseWriter, request *http.Re
 	ctx := request.Context()
 	logger := utils.LoggerFromContext(ctx)
 
-	resourceID, err := utils.ResourceIDFromContext(ctx)
-	if err != nil {
-		return err
-	}
-
-	subscription, err := f.dbClient.Subscriptions().Get(ctx, resourceID.SubscriptionID)
+	subscription, err := SubscriptionFromContext(ctx)
 	if err != nil {
 		return err
 	}
