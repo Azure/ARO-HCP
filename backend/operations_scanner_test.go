@@ -16,13 +16,13 @@ package main
 
 import (
 	"context"
-	"log/slog"
 	"maps"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
+	"github.com/neilotoole/slogt"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
@@ -38,6 +38,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/mocks"
 	"github.com/Azure/ARO-HCP/internal/ocm"
+	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 func TestSetDeleteOperationAsCompleted(t *testing.T) {
@@ -86,6 +87,7 @@ func TestSetDeleteOperationAsCompleted(t *testing.T) {
 			var request *http.Request
 
 			ctx := context.Background()
+			ctx = utils.ContextWithLogger(ctx, slogt.New(t, slogt.JSON()))
 			ctrl := gomock.NewController(t)
 			mockDBClient := mocks.NewMockDBClient(ctrl)
 			mockOperationCRUD := mocks.NewMockOperationCRUD(ctrl)
@@ -127,9 +129,8 @@ func TestSetDeleteOperationAsCompleted(t *testing.T) {
 			operationDoc.Status = tt.operationStatus
 
 			op := operation{
-				id:     operationID.Name,
-				doc:    operationDoc,
-				logger: slog.Default(),
+				id:  operationID.Name,
+				doc: operationDoc,
 			}
 
 			var resourceDocDeleted bool
@@ -569,13 +570,13 @@ func TestConvertClusterStatus(t *testing.T) {
 			}
 
 			ctx := context.Background()
+			ctx = utils.ContextWithLogger(ctx, slogt.New(t, slogt.JSON()))
 
 			op := operation{
 				doc: &api.Operation{
 					InternalID: tt.internalId,
 					Status:     tt.currentProvisioningState,
 				},
-				logger: slog.Default(),
 			}
 
 			opState, opError, err := operationsScanner.convertClusterStatus(ctx, op, clusterStatus)
