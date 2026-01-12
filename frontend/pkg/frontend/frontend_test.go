@@ -515,14 +515,14 @@ func TestDeploymentPreflight(t *testing.T) {
 			mockDBClient.EXPECT().
 				Subscriptions().
 				Return(mockSubscriptionCRUD).
-				MaxTimes(2)
+				MaxTimes(1)
 			mockSubscriptionCRUD.EXPECT().
 				Get(gomock.Any(), api.TestSubscriptionID).
 				Return(&arm.Subscription{
 					ResourceID: api.Must(arm.ToSubscriptionResourceID(api.TestSubscriptionID)),
 					State:      arm.SubscriptionStateRegistered,
 				}, nil).
-				MaxTimes(2)
+				MaxTimes(1)
 
 			subs := map[string]*arm.Subscription{
 				api.TestSubscriptionID: {
