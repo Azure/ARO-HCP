@@ -77,6 +77,7 @@ func TestSubscriptionsGET(t *testing.T) {
 		{
 			name: "GET Subscription - Doc Exists",
 			subDoc: &arm.Subscription{
+				ResourceID:       api.Must(arm.ToSubscriptionResourceID(api.TestSubscriptionID)),
 				State:            arm.SubscriptionStateRegistered,
 				RegistrationDate: api.Ptr(time.Now().String()),
 				Properties:       nil,
