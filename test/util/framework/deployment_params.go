@@ -273,6 +273,7 @@ func (tc *perItOrDescribeTestContext) CreateClusterCustomerResources(ctx context
 			"subnetName":   clusterParams.SubnetName,
 			"keyVaultName": clusterParams.KeyVaultName,
 		}),
+		WithDeploymentName(fmt.Sprintf("mi-%s", hash(*resourceGroup.Name+clusterParams.ClusterName))),
 	)
 
 	if err != nil {
