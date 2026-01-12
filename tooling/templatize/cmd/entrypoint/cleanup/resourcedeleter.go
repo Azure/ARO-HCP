@@ -565,7 +565,7 @@ func (d *resourceGroupDeleter) getAPIVersionForResourceType(resourceType string)
 	if provider.ResourceTypes != nil {
 		for _, rt := range provider.ResourceTypes {
 			if rt.ResourceType != nil && *rt.ResourceType == resourceTypeName {
-				if rt.APIVersions != nil && len(rt.APIVersions) > 0 {
+				if len(rt.APIVersions) > 0 {
 					// Azure returns versions in descending order (latest first)
 					// Prefer stable versions over preview versions
 					for _, version := range rt.APIVersions {
