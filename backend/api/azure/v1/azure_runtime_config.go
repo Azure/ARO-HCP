@@ -95,15 +95,23 @@ func (c CloudEnvironment) String() string {
 	return string(c)
 }
 
+const (
+	AzureChinaCloud        CloudEnvironment = "AzureChinaCloud"
+	AzurePublicCloud       CloudEnvironment = "AzurePublicCloud"
+	AzureUSGovernmentCloud CloudEnvironment = "AzureUSGovernmentCloud"
+)
+
 func (c CloudEnvironment) Validate(fldPath *field.Path) field.ErrorList {
 	var supportedAzureCloudEnvironmentsStrings = []string{
-		"AzureChinaCloud", "AzurePublicCloud", "AzureUSGovernmentCloud",
+		string(AzureChinaCloud),
+		string(AzurePublicCloud),
+		string(AzureUSGovernmentCloud),
 	}
 
 	var supportedAzureCloudEnvironments []CloudEnvironment = []CloudEnvironment{
-		CloudEnvironment(supportedAzureCloudEnvironmentsStrings[0]),
-		CloudEnvironment(supportedAzureCloudEnvironmentsStrings[1]),
-		CloudEnvironment(supportedAzureCloudEnvironmentsStrings[2]),
+		AzureChinaCloud,
+		AzurePublicCloud,
+		AzureUSGovernmentCloud,
 	}
 
 	if c.String() == "" {

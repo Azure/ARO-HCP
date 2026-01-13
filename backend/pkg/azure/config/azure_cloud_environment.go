@@ -38,6 +38,12 @@ type AzureCloudEnvironmentBuilder struct {
 	tracerProvider   trace.TracerProvider
 }
 
+const (
+	AzureChinaCloud        = "AzureChinaCloud"
+	AzurePublicCloud       = "AzurePublicCloud"
+	AzureUSGovernmentCloud = "AzureUSGovernmentCloud"
+)
+
 func NewAzureCloudEnvironment(cloudEnvironment string, tracerProvider trace.TracerProvider) (AzureCloudEnvironment, error) {
 	if cloudEnvironment == "" {
 		return AzureCloudEnvironment{}, errors.Errorf("cloud environment cannot be empty")
@@ -48,7 +54,7 @@ func NewAzureCloudEnvironment(cloudEnvironment string, tracerProvider trace.Trac
 		rdbmsScope               string
 		checkAccessV2Environment checkAccessV2Environment
 	}{
-		"AzureChinaCloud": {
+		AzureChinaCloud: {
 			cloud:      cloud.AzureChina,
 			rdbmsScope: "https://ossrdbms-aad.database.chinacloudapi.cn",
 			checkAccessV2Environment: checkAccessV2Environment{
@@ -56,7 +62,7 @@ func NewAzureCloudEnvironment(cloudEnvironment string, tracerProvider trace.Trac
 				scope:        "https://authorization.azure.cn/.default",
 			},
 		},
-		"AzurePublicCloud": {
+		AzurePublicCloud: {
 			cloud:      cloud.AzurePublic,
 			rdbmsScope: "https://ossrdbms-aad.database.windows.net/.default",
 			checkAccessV2Environment: checkAccessV2Environment{
@@ -64,7 +70,7 @@ func NewAzureCloudEnvironment(cloudEnvironment string, tracerProvider trace.Trac
 				scope:        "https://authorization.azure.net/.default",
 			},
 		},
-		"AzureUSGovernmentCloud": {
+		AzureUSGovernmentCloud: {
 			cloud:      cloud.AzureGovernment,
 			rdbmsScope: "https://ossrdbms-aad.database.usgovcloudapi.net",
 			checkAccessV2Environment: checkAccessV2Environment{
