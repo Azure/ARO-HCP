@@ -67,10 +67,10 @@ var _ = Describe("Engineering", func() {
 				resourceGroup,
 				clusterParams,
 				map[string]interface{}{
-					"persistTagValue":           false,
-					"engineeringNsgName":        engineeringNetworkSecurityGroupName,
-					"engineeringVnetName":       engineeringVnetName,
-					"engineeringVnetSubnetName": engineeringVnetSubnetName,
+					"persistTagValue":        false,
+					"customerNsgName":        engineeringNetworkSecurityGroupName,
+					"customerVnetName":       engineeringVnetName,
+					"customerVnetSubnetName": engineeringVnetSubnetName,
 				},
 				TestArtifactsFS,
 			)
@@ -85,19 +85,10 @@ var _ = Describe("Engineering", func() {
 				45*time.Minute,
 			)
 			Expect(err).NotTo(HaveOccurred())
-
-			By("getting credentials")
-			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster(
-				ctx,
-				tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
-				*resourceGroup.Name,
-				engineeringClusterName,
-				10*time.Minute,
-			)
+			subscriptionID, err := tc.SubscriptionID(ctx)
 			Expect(err).NotTo(HaveOccurred())
-
-			By("ensuring the cluster is viable")
-			err = verifiers.VerifyHCPCluster(ctx, adminRESTConfig)
+			By("verifying kusto logs are present")
+			err = verifiers.VerifyMustGatherLogs(subscriptionID, *resourceGroup.Name).Verify(ctx)
 			Expect(err).NotTo(HaveOccurred())
 
 		})
