@@ -120,7 +120,7 @@ func (f *Frontend) ArmResourceListClusters(writer http.ResponseWriter, request *
 		queryIDs = append(queryIDs, "'"+key+"'")
 	}
 	query := fmt.Sprintf("id in (%s)", strings.Join(queryIDs, ", "))
-	logger.Info(fmt.Sprintf("Searching Cluster Service for %q", query))
+	logger.Info("Searching Cluster Service", "query", query)
 
 	csIterator := f.clusterServiceClient.ListClusters(query)
 
@@ -331,7 +331,7 @@ func (f *Frontend) createHCPCluster(writer http.ResponseWriter, request *http.Re
 	if err != nil {
 		return utils.TrackError(err)
 	}
-	logger.Info(fmt.Sprintf("creating resource %s", newInternalCluster.ID))
+	logger.Info("Creating resource", "resourceID", newInternalCluster.ID)
 	resultingClusterServiceCluster, err := f.clusterServiceClient.PostCluster(ctx, newClusterServiceClusterBuilder, newClusterServiceAutoscalerBuilder)
 	if err != nil {
 		return utils.TrackError(err)
@@ -612,7 +612,7 @@ func (f *Frontend) updateHCPClusterInCosmos(ctx context.Context, writer http.Res
 		return utils.TrackError(err)
 	}
 
-	logger.Info(fmt.Sprintf("updating resource %s", oldInternalCluster.ID))
+	logger.Info("Updating resource", "resourceID", oldInternalCluster.ID)
 	resultingClusterServiceAutoscaler, err := f.clusterServiceClient.UpdateClusterAutoscaler(ctx, oldInternalCluster.ServiceProviderProperties.ClusterServiceID, newClusterServiceAutoscalerBuilder)
 	if err != nil {
 		return utils.TrackError(err)

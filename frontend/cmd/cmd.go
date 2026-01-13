@@ -137,12 +137,7 @@ func (opts *FrontendOpts) Run() error {
 		return errors.New("location is required")
 	}
 
-	logger.Info(fmt.Sprintf(
-		"%s (%s) started in %s",
-		frontend.ProgramName,
-		version.CommitSHA,
-		opts.location))
-
+	logger.Info("frontend starting", "name", frontend.ProgramName, "version", version.CommitSHA, "location", opts.location)
 	auditClient, err := audit.NewOtelAuditClient(
 		audit.CreateConn(opts.auditConnectSocket),
 		base.WithLogger(logger),
@@ -233,12 +228,12 @@ func (opts *FrontendOpts) Run() error {
 	go f.Run(ctx, stop)
 
 	sig := <-signalChannel
-	logger.Info(fmt.Sprintf("caught %s signal", sig))
+	logger.Info("Caught signal", "signal", sig)
 	close(stop)
 
 	f.Join()
 	_ = otelShutdown(ctx)
-	logger.Info(fmt.Sprintf("%s (%s) stopped", frontend.ProgramName, version.CommitSHA))
+	logger.Info("Frontend stopped", "name", frontend.ProgramName, "version", version.CommitSHA)
 
 	return nil
 }

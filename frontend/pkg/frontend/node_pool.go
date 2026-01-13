@@ -116,7 +116,7 @@ func (f *Frontend) ArmResourceListNodePools(writer http.ResponseWriter, request 
 		queryIDs = append(queryIDs, "'"+key+"'")
 	}
 	query := fmt.Sprintf("id in (%s)", strings.Join(queryIDs, ", "))
-	logger.Info(fmt.Sprintf("Searching Cluster Service for %q", query))
+	logger.Info("Searching Cluster Service", "query", query)
 
 	csIterator := f.clusterServiceClient.ListNodePools(internalCluster.ServiceProviderProperties.ClusterServiceID, query)
 	for csNodePool := range csIterator.Items(ctx) {
@@ -283,7 +283,7 @@ func (f *Frontend) createNodePool(writer http.ResponseWriter, request *http.Requ
 		return utils.TrackError(err)
 	}
 
-	logger.Info(fmt.Sprintf("creating resource %s", resourceID))
+	logger.Info("Creating resource", "resourceID", resourceID)
 	if err := checkForProvisioningStateConflict(ctx, f.dbClient, database.OperationRequestCreate, newInternalNodePool.ID, newInternalNodePool.Properties.ProvisioningState); err != nil {
 		return utils.TrackError(err)
 	}
@@ -551,7 +551,7 @@ func (f *Frontend) updateNodePoolInCosmos(ctx context.Context, writer http.Respo
 		return utils.TrackError(err)
 	}
 
-	logger.Info(fmt.Sprintf("updating resource %s", oldInternalNodePool.ID))
+	logger.Info("Updating nodepool resource", "resourceID", oldInternalNodePool.ID)
 	csNodePool, err := f.clusterServiceClient.UpdateNodePool(ctx, oldInternalNodePool.ServiceProviderProperties.ClusterServiceID, csNodePoolBuilder)
 	if err != nil {
 		return utils.TrackError(err)

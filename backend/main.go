@@ -164,11 +164,7 @@ func Run(cmd *cobra.Command, args []string) error {
 		return errors.New("location is required")
 	}
 
-	logger.Info(fmt.Sprintf(
-		"%s (%s) started in %s",
-		cmd.Short,
-		version.CommitSHA,
-		argLocation))
+	logger.Info("Backend started...", "name", cmd.Short, "version", version.CommitSHA, "location", argLocation)
 
 	// Use pod name as the lock identity.
 	hostname, err := os.Hostname()
@@ -260,7 +256,7 @@ func Run(cmd *cobra.Command, args []string) error {
 		healthzServer := &http.Server{Addr: argPortListenAddress}
 
 		group.Go(func() error {
-			logger.Info(fmt.Sprintf("Healthz server listening on %s", argPortListenAddress))
+			logger.Info("Healthz server listening...", "address", argPortListenAddress)
 			err := healthzServer.ListenAndServe()
 			if errors.Is(err, http.ErrServerClosed) {
 				return nil
@@ -282,7 +278,7 @@ func Run(cmd *cobra.Command, args []string) error {
 		srv = &http.Server{Addr: argMetricsListenAddress}
 
 		group.Go(func() error {
-			logger.Info(fmt.Sprintf("metrics server listening on %s", argMetricsListenAddress))
+			logger.Info("Metrics server listening...", "address", argMetricsListenAddress)
 			err := srv.ListenAndServe()
 			if errors.Is(err, http.ErrServerClosed) {
 				return nil
@@ -438,7 +434,7 @@ func Run(cmd *cobra.Command, args []string) error {
 	}
 
 	_ = otelShutdown(ctx)
-	logger.Info(fmt.Sprintf("%s (%s) stopped", cmd.Short, cmd.Version))
+	logger.Info("Backend stopped", "name", cmd.Short, "version", cmd.Version)
 
 	return nil
 }
