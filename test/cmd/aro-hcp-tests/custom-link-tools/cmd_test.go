@@ -17,15 +17,24 @@ package customlinktools
 import (
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/go-logr/logr"
 	"github.com/go-logr/logr/testr"
+
+	clocktesting "k8s.io/utils/clock/testing"
 
 	"github.com/Azure/ARO-HCP/test/util/testutil"
 	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/pipeline"
 )
 
 func TestGeneratedHTML(t *testing.T) {
+	fakeTime, err := time.Parse(time.RFC3339, "2022-03-17T19:00:00Z")
+	if err != nil {
+		t.Fatalf("failed to parse fake time: %v", err)
+	}
+	localClock = clocktesting.NewFakePassiveClock(fakeTime)
+
 	ctx := logr.NewContext(t.Context(), testr.New(t))
 	tmpdir := t.TempDir()
 	opts := Options{
@@ -57,10 +66,11 @@ func TestGeneratedHTML(t *testing.T) {
 			OutputDir: tmpdir,
 		},
 	}
-	err := opts.Run(ctx)
+	err = opts.Run(ctx)
 	if err != nil {
 		t.Fatalf("failed to run custom link tools: %v", err)
 	}
+
 	testutil.CompareFileWithFixture(t, filepath.Join(tmpdir, "custom-link-tools.html"), testutil.WithSuffix("custom-link-tools"))
 	testutil.CompareFileWithFixture(t, filepath.Join(tmpdir, "custom-link-tools-test-table.html"), testutil.WithSuffix("custom-link-tools-test-table"))
 }
