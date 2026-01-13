@@ -6,7 +6,7 @@ require (
 	dario.cat/mergo v1.0.1
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.20.0
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.13.1
-	github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos v1.4.1
+	github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos v1.4.2
 	github.com/evanphx/json-patch v5.9.11+incompatible
 	github.com/google/go-cmp v0.7.0
 	github.com/google/uuid v1.6.0
