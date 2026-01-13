@@ -100,7 +100,7 @@ func (c *operationClusterCreate) synchronizeOperation(ctx context.Context, key O
 	if err != nil {
 		return utils.TrackError(err)
 	}
-	logger.Info("new status", "status", newOperationStatus)
+	logger.Info("new status", "newStatus", newOperationStatus)
 
 	// Create a Cosmos DB billing document if a Create operation is successful.
 	// Do this before calling updateOperationStatus so that in case of error the

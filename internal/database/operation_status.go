@@ -36,7 +36,7 @@ func UpdateOperationStatus(ctx context.Context, cosmosClient DBClient, existingO
 	if existingOperation == nil {
 		return nil
 	}
-	logger.Info("Updating operation status", "oldStatus", existingOperation.Status, "status", newOperationStatus, "operationError", newOperationError)
+	logger.Info("Updating operation status", "oldStatus", existingOperation.Status, "newStatus", newOperationStatus, "operationError", newOperationError)
 
 	err := PatchOperationDocument(ctx, cosmosClient, existingOperation, newOperationStatus, newOperationError, postAsyncNotificationFn)
 	if err != nil {
@@ -63,7 +63,7 @@ func UpdateOperationStatus(ctx context.Context, cosmosClient DBClient, existingO
 			return utils.TrackError(fmt.Errorf("precondition failed"))
 		}
 		if curr.ServiceProviderProperties.ProvisioningState == newOperationStatus && !newOperationStatus.IsTerminal() {
-			logger.Info("No update needed")
+			logger.Info("No update needed", "activeOperationID", curr.ServiceProviderProperties.ActiveOperationID, "oldStatus", curr.ServiceProviderProperties.ProvisioningState, "newStatus", newOperationStatus)
 			return nil
 		}
 		curr.ServiceProviderProperties.ProvisioningState = newOperationStatus
@@ -71,7 +71,7 @@ func UpdateOperationStatus(ctx context.Context, cosmosClient DBClient, existingO
 			curr.ServiceProviderProperties.ActiveOperationID = ""
 		}
 
-		logger.Info("Updating resource")
+		logger.Info("Updating resource", "activeOperationID", curr.ServiceProviderProperties.ActiveOperationID, "newStatus", newOperationStatus)
 		if _, err := dbClient.Replace(ctx, curr, nil); err != nil {
 			return utils.TrackError(err)
 		}
@@ -91,7 +91,7 @@ func UpdateOperationStatus(ctx context.Context, cosmosClient DBClient, existingO
 			return utils.TrackError(fmt.Errorf("precondition failed"))
 		}
 		if curr.Properties.ProvisioningState == newOperationStatus && !newOperationStatus.IsTerminal() {
-			logger.Info("No update needed")
+			logger.Info("No update needed", "activeOperationID", curr.ServiceProviderProperties.ActiveOperationID, "oldStatus", curr.Properties.ProvisioningState, "newStatus", newOperationStatus)
 			return nil
 		}
 		curr.Properties.ProvisioningState = newOperationStatus
@@ -99,7 +99,7 @@ func UpdateOperationStatus(ctx context.Context, cosmosClient DBClient, existingO
 			curr.ServiceProviderProperties.ActiveOperationID = ""
 		}
 
-		logger.Info("Updating resource")
+		logger.Info("Updating resource", "activeOperationID", curr.ServiceProviderProperties.ActiveOperationID, "newStatus", newOperationStatus)
 		if _, err := dbClient.Replace(ctx, curr, nil); err != nil {
 			return utils.TrackError(err)
 		}
@@ -119,7 +119,7 @@ func UpdateOperationStatus(ctx context.Context, cosmosClient DBClient, existingO
 			return utils.TrackError(fmt.Errorf("precondition failed"))
 		}
 		if curr.Properties.ProvisioningState == newOperationStatus && !newOperationStatus.IsTerminal() {
-			logger.Info("No update needed")
+			logger.Info("No update needed", "activeOperationID", curr.ServiceProviderProperties.ActiveOperationID, "oldStatus", curr.Properties.ProvisioningState, "newStatus", newOperationStatus)
 			return nil
 		}
 		curr.Properties.ProvisioningState = newOperationStatus
@@ -127,7 +127,7 @@ func UpdateOperationStatus(ctx context.Context, cosmosClient DBClient, existingO
 			curr.ServiceProviderProperties.ActiveOperationID = ""
 		}
 
-		logger.Info("Updating resource")
+		logger.Info("Updating resource", "activeOperationID", curr.ServiceProviderProperties.ActiveOperationID, "newStatus", newOperationStatus)
 		if _, err := dbClient.Replace(ctx, curr, nil); err != nil {
 			return utils.TrackError(err)
 		}
