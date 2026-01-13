@@ -542,7 +542,7 @@ func (s *OperationsScanner) recordOperationError(ctx context.Context, operationN
 func (s *OperationsScanner) pollClusterOperation(ctx context.Context, op operation) {
 	logger := utils.LoggerFromContext(ctx)
 	if op.doc.Request == database.OperationRequestCreate {
-		logger.Info("skipping operation: handled by another controller")
+		logger.Info("skipping operation: handled by another controller", "operationRequest", op.doc.Request)
 		return // handled by another controller
 	}
 
