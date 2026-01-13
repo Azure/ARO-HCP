@@ -14,13 +14,13 @@ union
         database('ServiceLogs').table('backendLogs')
         | where timestamp between (_startTime .. _endTime)
         | where resource_id in (cluster_resource_id)
-        | project timestamp, container_name, msg
+        | project timestamp, container_name, msg, log
     ),
     (
         database('ServiceLogs').table('frontendLogs')
         | where timestamp between (_startTime .. _endTime)
         | where resource_group == _resource_group
-        | project timestamp, container_name, msg
+        | project timestamp, container_name, msg, log
     )
     | order by timestamp asc
 
@@ -32,6 +32,6 @@ let _resource_group = '{{.ResourceGroupName}}';
         database('ServiceLogs').table('clustersServiceLogs')
         | where timestamp between (_startTime .. _endTime)
         | where resource_id has _resource_group  
-        | project timestamp, container_name, msg
+        | project timestamp, container_name, msg, log
         | order by timestamp asc 
     )
