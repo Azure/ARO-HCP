@@ -31,7 +31,6 @@ const (
 	// Secret data keys
 	secretKeyPrivateKey  = "privateKey"
 	secretKeyCertificate = "certificate"
-	secretKeyKASURL      = "kasURL"
 	labelManagedBy       = "app.kubernetes.io/managed-by"
 )
 
@@ -89,20 +88,61 @@ func (c *CredentialSecret) GetCertificate() ([]byte, bool) {
 	return certificateBytes, true
 }
 
+// ValidateCertificateMatchesPrivateKey checks if the stored certificate's public key
+// matches the stored private key. Returns true if they match, false otherwise.
+func (c *CredentialSecret) ValidateCertificateMatchesPrivateKey() bool {
+	// Get the private key
+	privateKey, privateKeyExists := c.GetPrivateKey()
+	if !privateKeyExists {
+		return false
+	}
+
+	// Get the certificate
+	certificateBytes, certificateExists := c.GetCertificate()
+	if !certificateExists {
+		return false
+	}
+
+	// Parse the PEM-encoded certificate
+	block, _ := pem.Decode(certificateBytes)
+	if block == nil || block.Type != "CERTIFICATE" {
+		return false
+	}
+
+	// Parse the certificate
+	cert, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		return false
+	}
+
+	// Verify the public key in the certificate matches our private key
+	certPublicKey, ok := cert.PublicKey.(*rsa.PublicKey)
+	if !ok {
+		return false
+	}
+
+	// Compare the public keys
+	if !PrivateKeyAndPublicKeyMatch(privateKey, certPublicKey) {
+		return false
+	}
+	return true
+}
+
 func (c *CredentialSecret) ApplyConfigurationForPrivateKey(privateKey *rsa.PrivateKey) *corev1apply.SecretApplyConfiguration {
-	return c.applyConfigurationForField(secretKeyPrivateKey, map[string][]byte{
-		secretKeyPrivateKey:  EncodePrivateKey(privateKey),
-		secretKeyCertificate: nil, // if we store a new private key, we don't have a certificate becomes invalid
-	})
+	return c.applyConfigurationForField(secretKeyPrivateKey, EncodePrivateKey(privateKey))
 }
 
 func (c *CredentialSecret) ApplyConfigurationForCertificate(certificate []byte) *corev1apply.SecretApplyConfiguration {
-	return c.applyConfigurationForField(secretKeyCertificate, map[string][]byte{
-		secretKeyCertificate: certificate,
-	})
+	return c.applyConfigurationForField(secretKeyCertificate, certificate)
 }
 
-func (c *CredentialSecret) applyConfigurationForField(fieldKey string, data map[string][]byte) *corev1apply.SecretApplyConfiguration {
+func (c *CredentialSecret) applyConfigurationForField(field string, data []byte) *corev1apply.SecretApplyConfiguration {
+	// make a copy of the data
+	dataCopy := make(map[string][]byte)
+	for k, v := range c.data {
+		dataCopy[k] = v
+	}
+	dataCopy[field] = data
 	return corev1apply.Secret(c.sessionName, c.sessionNamespace).
 		WithLabels(map[string]string{
 			labelManagedBy: c.fieldManager,
@@ -117,7 +157,7 @@ func (c *CredentialSecret) applyConfigurationForField(fieldKey string, data map[
 				WithBlockOwnerDeletion(true),
 		).
 		WithType(corev1.SecretTypeOpaque).
-		WithData(data)
+		WithData(dataCopy)
 }
 
 func EncodePrivateKey(privateKey *rsa.PrivateKey) []byte {
@@ -125,4 +165,8 @@ func EncodePrivateKey(privateKey *rsa.PrivateKey) []byte {
 		Type:  "RSA PRIVATE KEY",
 		Bytes: x509.MarshalPKCS1PrivateKey(privateKey),
 	})
+}
+
+func PrivateKeyAndPublicKeyMatch(privateKey *rsa.PrivateKey, publicKey *rsa.PublicKey) bool {
+	return privateKey.PublicKey.N.Cmp(publicKey.N) == 0 && privateKey.PublicKey.E == publicKey.E
 }

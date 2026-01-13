@@ -160,58 +160,12 @@ type SessionStatus struct {
 	// +optional
 	CredentialsSecretRef string `json:"credentialsSecretRef,omitempty"`
 
+	// csrRef references the CertificateSigningRequest resource
+	CSRRef string `json:"csrRef,omitempty"`
+
 	// backendKASURL is the Kubernetes API server URL for the backend cluster
 	// +optional
 	BackendKASURL string `json:"backendKASURL,omitempty"`
-}
-
-func (s *Session) IsReady() bool {
-	c := sessionConditionSet.Manage(s).GetReadyCondition()
-	return c != nil && c.Status == metav1.ConditionTrue
-}
-
-func (s *Session) InitializeConditions() {
-	sessionConditionSet.Manage(s).InitializeConditions()
-}
-
-func (s *Session) MarkSessionActive() {
-	sessionConditionSet.Manage(s).MarkTrue(ConditionTypeSessionActive, ReasonAsExpected, "Session is active")
-}
-
-func (s *Session) MarkSessionInactive(reason, message string) {
-	sessionConditionSet.Manage(s).MarkFalse(ConditionTypeSessionActive, reason, message)
-}
-
-func (s *Session) MarkCredentialsNotReady(reason, message string) {
-	sessionConditionSet.Manage(s).MarkFalse(ConditionTypeCredentialsAvailable, reason, message)
-}
-
-func (s *Session) MarkCredentialsReady() {
-	sessionConditionSet.Manage(s).MarkTrue(ConditionTypeCredentialsAvailable, ReasonAsExpected, "Credentials Secret exists")
-}
-
-func (s *Session) MarkAuthorizationPolicyNotReady(reason, message string) {
-	sessionConditionSet.Manage(s).MarkFalse(ConditionTypeAuthorizationPolicyAvailable, reason, message)
-}
-
-func (s *Session) MarkAuthorizationPolicyReady() {
-	sessionConditionSet.Manage(s).MarkTrue(ConditionTypeAuthorizationPolicyAvailable, ReasonAsExpected, "Authorization policy exists")
-}
-
-func (s *Session) MarkNetworkPathNotReady(reason, message string) {
-	sessionConditionSet.Manage(s).MarkFalse(ConditionTypeNetworkPathAvailable, reason, message)
-}
-
-func (s *Session) MarkNetworkPathReady() {
-	sessionConditionSet.Manage(s).MarkTrue(ConditionTypeNetworkPathAvailable, ReasonAsExpected, "Network path exists")
-}
-
-func (s *Session) Progressing(reason, message string) {
-	sessionConditionSet.Manage(s).MarkTrue(ConditionTypeProgressing, reason, message)
-}
-
-func (s *Session) StopProgressing(reason, message string) {
-	sessionConditionSet.Manage(s).MarkFalse(ConditionTypeProgressing, reason, message)
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

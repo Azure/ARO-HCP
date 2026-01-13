@@ -19,7 +19,6 @@ import (
 	"fmt"
 	"time"
 
-	sessiongateinformers "github.com/Azure/ARO-HCP/sessiongate/pkg/generated/informers/externalversions"
 	"github.com/openshift/library-go/pkg/controller/factory"
 	"github.com/openshift/library-go/pkg/operator/events"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -29,9 +28,12 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/klog/v2"
 
+	sessiongateinformers "github.com/Azure/ARO-HCP/sessiongate/pkg/generated/informers/externalversions"
+
+	corev1 "k8s.io/api/core/v1"
+
 	sessiongatev1alpha1 "github.com/Azure/ARO-HCP/sessiongate/pkg/apis/sessiongate/v1alpha1"
 	"github.com/Azure/ARO-HCP/sessiongate/pkg/controller"
-	corev1 "k8s.io/api/core/v1"
 )
 
 // data plane controller implementation.
@@ -115,9 +117,10 @@ func (c *Controller) isReadyForRegistration(session *sessiongatev1alpha1.Session
 	if !session.DeletionTimestamp.IsZero() {
 		return false, "being deleted"
 	}
-	if !session.IsReady() {
+	// TODO
+	/*if !session.IsReady() {
 		return false, "not ready"
-	}
+	}*/
 	if session.Status.CredentialsSecretRef == "" {
 		return false, "no credentials secret reference"
 	}

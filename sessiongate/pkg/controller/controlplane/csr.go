@@ -14,16 +14,15 @@
 
 package controlplane
 
-// Condition types for Session resources
-const (
-	// ConditionTypeReady indicates the overall operational state of the session
-	ConditionTypeReady = "Ready"
-	// ConditionTypeProgressing indicates active reconciliation
-	ConditionTypeProgressing = "Progressing"
-	// ConditionTypeDegraded indicates permanent configuration errors
-	ConditionTypeDegraded = "Degraded"
-	// ConditionTypeAvailable indicates endpoint accessibility
-	ConditionTypeAvailable = "Available"
-	// ConditionTypeCredentials indicates the status of credential provisioning
-	ConditionTypeCredentials = "Credentials"
+import (
+	certificatesv1 "k8s.io/api/certificates/v1"
 )
+
+func isCSRApproved(csr *certificatesv1.CertificateSigningRequest) bool {
+	for _, condition := range csr.Status.Conditions {
+		if condition.Type == "Approved" && condition.Status == "True" {
+			return true
+		}
+	}
+	return false
+}

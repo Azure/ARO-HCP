@@ -214,6 +214,9 @@ spec:
               credentialsSecretRef:
                 description: credentialsSecretRef references the Secret containing the session credentials (private key and certificate)
                 type: string
+              csrRef:
+                description: csrRef references the CertificateSigningRequest resource
+                type: string
               backendKASURL:
                 description: backendKASURL is the Kubernetes API server URL for the backend cluster
                 type: string
