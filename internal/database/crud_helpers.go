@@ -63,7 +63,8 @@ func get[InternalAPIType, CosmosAPIType any](ctx context.Context, containerClien
 	logger := utils.LoggerFromContext(ctx)
 
 	// try to see if the cosmosID we've passed is also the exact resource ID.  If so, then return the value we got.
-	if exactCosmosID, err := api.ResourceIDToCosmosID(completeResourceID); err == nil {
+	exactCosmosID, err := api.ResourceIDToCosmosID(completeResourceID)
+	if err == nil {
 		ret, err := getByItemID[InternalAPIType, CosmosAPIType](ctx, containerClient, partitionKeyString, exactCosmosID)
 		if err == nil {
 			return ret, nil
@@ -72,7 +73,7 @@ func get[InternalAPIType, CosmosAPIType any](ctx context.Context, containerClien
 			return nil, err
 		}
 	}
-	logger.Info("failed to get exact cosmosID, trying to rekey")
+	logger.Info("failed to get exact cosmosID, trying to rekey", "newCosmosID", exactCosmosID)
 
 	if strings.ToLower(partitionKeyString) != partitionKeyString {
 		return nil, fmt.Errorf("partitionKeyString must be lowercase, not: %q", partitionKeyString)
@@ -138,6 +139,7 @@ func get[InternalAPIType, CosmosAPIType any](ctx context.Context, containerClien
 		return nil, fmt.Errorf("failed to marshal Cosmos DB item for '%s': %w", completeResourceID, err)
 	}
 
+	logger.Info("creating new item", "newCosmosID", newCosmosID, "oldCosmosID", originalCosmosID)
 	if _, err := containerClient.CreateItem(ctx, azcosmos.NewPartitionKeyString(partitionKeyString), newBytes, nil); err != nil {
 		return nil, utils.TrackError(err)
 	}

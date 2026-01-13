@@ -193,6 +193,9 @@ func NewStep[InternalAPIType any](indexString, stepType, stepName string, testDi
 	case "completeOperation":
 		return newCompleteOperationStep(stepID, stepDir)
 
+	case "migrateCosmos":
+		return newMigrateCosmosStep(stepID, stepDir)
+
 	default:
 		return nil, fmt.Errorf("unknown step type: %s", stepType)
 	}
