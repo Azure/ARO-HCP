@@ -55,7 +55,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/azure/config"
 	azureconfig "github.com/Azure/ARO-HCP/backend/pkg/azure/config"
 
-	apiazurev1 "github.com/Azure/ARO-HCP/backend/api/azure/v1"
+	apisconfigv1 "github.com/Azure/ARO-HCP/backend/pkg/apis/config/v1"
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/database"
@@ -142,33 +142,32 @@ func init() {
 	rootCmd.Version = version.CommitSHA
 }
 
-func loadAzureRuntimeConfig(path string) (apiazurev1.AzureRuntimeConfig, error) {
+func loadAzureRuntimeConfig(path string) (apisconfigv1.AzureRuntimeConfig, error) {
 	if len(path) == 0 {
-		return apiazurev1.AzureRuntimeConfig{}, fmt.Errorf("configuration path is required")
+		return apisconfigv1.AzureRuntimeConfig{}, fmt.Errorf("configuration path is required")
 	}
 
 	rawBytes, err := os.ReadFile(path)
 	if err != nil {
-		return apiazurev1.AzureRuntimeConfig{}, fmt.Errorf("error reading file %s: %w", path, err)
+		return apisconfigv1.AzureRuntimeConfig{}, fmt.Errorf("error reading file %s: %w", path, err)
 	}
 
-	var config apiazurev1.AzureRuntimeConfig
-
+	var config apisconfigv1.AzureRuntimeConfig
 	err = yaml.Unmarshal(rawBytes, &config)
 	if err != nil {
-		return apiazurev1.AzureRuntimeConfig{}, fmt.Errorf("error unmarshaling file %s: %w", path, err)
+		return apisconfigv1.AzureRuntimeConfig{}, fmt.Errorf("error unmarshaling file %s: %w", path, err)
 	}
 
 	validationErrors := config.Validate()
 	if len(validationErrors) > 0 {
-		return apiazurev1.AzureRuntimeConfig{},
+		return apisconfigv1.AzureRuntimeConfig{},
 			fmt.Errorf("error validating file: %s: %w", path, validationErrors.ToAggregate())
 	}
 
 	return config, nil
 }
 
-func buildAzureConfig(azureRuntimeConfig apiazurev1.AzureRuntimeConfig, tracerProvider trace.TracerProvider) (azureconfig.AzureConfig, error) {
+func buildAzureConfig(azureRuntimeConfig apisconfigv1.AzureRuntimeConfig, tracerProvider trace.TracerProvider) (azureconfig.AzureConfig, error) {
 	cloudEnvironment, err := azureconfig.NewAzureCloudEnvironment(string(azureRuntimeConfig.CloudEnvironmentName), tracerProvider)
 	if err != nil {
 		return azureconfig.AzureConfig{}, fmt.Errorf("error building azure cloud environment configuration: %w", err)
@@ -187,17 +186,17 @@ func buildAzureConfig(azureRuntimeConfig apiazurev1.AzureRuntimeConfig, tracerPr
 
 	var tlsCertificatesIssuer azureconfig.TLSCertificateIssuerType
 	switch azureRuntimeConfig.TLSCertificatesConfig.Issuer {
-	case apiazurev1.TLSCertificateIssuerSelf:
+	case apisconfigv1.TLSCertificateIssuerSelf:
 		tlsCertificatesIssuer = azureconfig.TLSCertificateIssuerSelf
-	case apiazurev1.TLSCertificateIssuerOneCert:
+	case apisconfigv1.TLSCertificateIssuerOneCert:
 		tlsCertificatesIssuer = azureconfig.TLSCertificateIssuerOneCert
 	}
 
 	var tlsCertificatesGenerationSource azureconfig.CertificatesGenerationSource
 	switch azureRuntimeConfig.TLSCertificatesConfig.CertificatesGenerationSource {
-	case apiazurev1.CertificatesGenerationSourceAzureKeyVault:
+	case apisconfigv1.CertificatesGenerationSourceAzureKeyVault:
 		tlsCertificatesGenerationSource = azureconfig.CertificatesGenerationSourceAzureKeyVault
-	case apiazurev1.CertificatesGenerationSourceHypershift:
+	case apisconfigv1.CertificatesGenerationSourceHypershift:
 		tlsCertificatesGenerationSource = azureconfig.CertificatesGenerationSourceHypershift
 	}
 

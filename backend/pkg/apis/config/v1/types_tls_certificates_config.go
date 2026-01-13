@@ -110,7 +110,14 @@ func (tlsConfig TLSCertificatesConfig) validateIssuer(
 	fldPath *field.Path, certSourceFldPath *field.Path,
 ) field.ErrorList {
 	if len(tlsConfig.Issuer) == 0 {
-		return field.ErrorList{field.Required(fldPath, "attribute is required")}
+		return field.ErrorList{
+			field.Required(
+				fldPath,
+				fmt.Sprintf("attribute is required. Accepted values are: %s",
+					strings.Join(validIssuerTypesStrings, ","),
+				),
+			),
+		}
 	}
 
 	validationErrrors := validate.Enum(context.Background(), operation.Operation{}, fldPath,
