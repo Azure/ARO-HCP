@@ -671,6 +671,7 @@ func (f *Frontend) DeleteCluster(writer http.ResponseWriter, request *http.Reque
 	}
 	_, err = transaction.Execute(ctx, nil)
 	if err != nil {
+		logger.Error("failed executing transaction", "transaction", transaction)
 		return utils.TrackError(err)
 	}
 

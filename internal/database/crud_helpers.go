@@ -269,8 +269,17 @@ func addCreateToTransaction[InternalAPIType, CosmosAPIType any](ctx context.Cont
 	if partitionKeyString != itemPartitionKey {
 		return "", fmt.Errorf("item partition key does not match partition key: %q vs %q", partitionKeyString, itemPartitionKey)
 	}
+	transactionDetails := CosmosDBTransactionStepDetails{
+		ActionType: "Create",
+		GoType:     fmt.Sprintf("%T", newObj),
+		CosmosID:   newCosmosUID,
+	}
+	if resourceID, err := api.CosmosIDToResourceID(newCosmosUID); err == nil {
+		transactionDetails.ResourceID = resourceID.String()
+	}
 
 	transaction.AddStep(
+		transactionDetails,
 		func(b *azcosmos.TransactionalBatch) (string, error) {
 			b.CreateItem(data, opts)
 			return newCosmosUID, nil
@@ -292,8 +301,17 @@ func addReplaceToTransaction[InternalAPIType, CosmosAPIType any](ctx context.Con
 	if partitionKeyString != itemPartitionKey {
 		return "", fmt.Errorf("item partition key does not match partition key: %q vs %q", partitionKeyString, itemPartitionKey)
 	}
+	transactionDetails := CosmosDBTransactionStepDetails{
+		ActionType: "Replace",
+		GoType:     fmt.Sprintf("%T", newObj),
+		CosmosID:   cosmosUID,
+	}
+	if resourceID, err := api.CosmosIDToResourceID(cosmosUID); err == nil {
+		transactionDetails.ResourceID = resourceID.String()
+	}
 
 	transaction.AddStep(
+		transactionDetails,
 		func(b *azcosmos.TransactionalBatch) (string, error) {
 			// TODO decide if, when, and how we ever add etags.  Currently we do unconditional replaces.
 			b.ReplaceItem(cosmosUID, data, opts)
