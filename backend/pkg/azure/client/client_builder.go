@@ -1,8 +1,9 @@
 package client
 
 import (
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+
 	"github.com/Azure/ARO-HCP/internal/fpa"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 )
 
 // FPAClientBuilderType is a type that represents the type of the FPAClientBuilder
@@ -29,14 +30,14 @@ type FPAClientBuilder interface {
 
 type fpaClientBuilder struct {
 	fpaTokenCredRetriever fpa.FirstPartyApplicationTokenCredentialRetriever
-	options               *arm.ClientOptions
+	options               *azcorearm.ClientOptions
 }
 
 var _ FPAClientBuilder = (*fpaClientBuilder)(nil)
 
 // NewFPAClientBuilder instantiates a FPAClientBuilder. When clients are instantiated with it the FPA token credential
 // retriever is leveraged to get a FPA Token Credential, and the provided ARM client options.
-func NewFPAClientBuilder(tokenCredRetriever fpa.FirstPartyApplicationTokenCredentialRetriever, options *arm.ClientOptions) FPAClientBuilder {
+func NewFPAClientBuilder(tokenCredRetriever fpa.FirstPartyApplicationTokenCredentialRetriever, options *azcorearm.ClientOptions) FPAClientBuilder {
 	return &fpaClientBuilder{
 		fpaTokenCredRetriever: tokenCredRetriever,
 		options:               options,

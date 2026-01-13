@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 )
 
@@ -34,12 +34,12 @@ var _ ResourceProvidersClient = (*armresources.ProvidersClient)(nil)
 
 // NewResourceProvidersClient instantiates a ResourceProvidersClient instance from the Azure Go SDK ProvidersClient
 // client.
-func NewResourceProvidersClient(subscriptionID string, credential azcore.TokenCredential, options *arm.ClientOptions) (ResourceProvidersClient, error) {
+func NewResourceProvidersClient(subscriptionID string, credential azcore.TokenCredential, options *azcorearm.ClientOptions) (ResourceProvidersClient, error) {
 	return armresources.NewProvidersClient(subscriptionID, credential, options)
 }
 
 // ResourceProvidersClientRetriever allows you to retrieve a ResourceProvidersClient instance
 type ResourceProvidersClientRetriever interface {
-	Retrieve(subscriptionID string, credentials azcore.TokenCredential, options *arm.ClientOptions,
+	Retrieve(subscriptionID string, credentials azcore.TokenCredential, options *azcorearm.ClientOptions,
 	) (ResourceProvidersClient, error)
 }

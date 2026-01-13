@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
-
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )

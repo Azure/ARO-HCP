@@ -6,7 +6,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/tracing/azotel"
@@ -127,8 +127,8 @@ func (a AzureCloudEnvironment) PolicyClientOptions() policy.ClientOptions {
 
 // ArmClientOptions returns an arm.ClientOptions instance from the current
 // Azure Cloud environment.
-func (a AzureCloudEnvironment) ARMClientOptions() *arm.ClientOptions {
-	return &arm.ClientOptions{
+func (a AzureCloudEnvironment) ARMClientOptions() *azcorearm.ClientOptions {
+	return &azcorearm.ClientOptions{
 		ClientOptions: a.clientOptions,
 	}
 }

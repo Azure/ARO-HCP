@@ -34,13 +34,9 @@ import (
 	"github.com/spf13/cobra"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel"
-
 	semconv "go.opentelemetry.io/otel/semconv/v1.17.0"
 	"go.opentelemetry.io/otel/trace"
-
 	"golang.org/x/sync/errgroup"
-
-	"sigs.k8s.io/yaml"
 
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
@@ -48,21 +44,22 @@ import (
 	"k8s.io/client-go/tools/leaderelection/resourcelock"
 	"k8s.io/klog/v2"
 
+	"sigs.k8s.io/yaml"
+
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
+	ocmsdk "github.com/openshift-online/ocm-sdk-go"
+
 	"github.com/Azure/ARO-HCP/backend/controllers"
-	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
-	"github.com/Azure/ARO-HCP/backend/pkg/azure/config"
-	azureconfig "github.com/Azure/ARO-HCP/backend/pkg/azure/config"
-
 	apisconfigv1 "github.com/Azure/ARO-HCP/backend/pkg/apis/config/v1"
-
+	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
+	azureconfig "github.com/Azure/ARO-HCP/backend/pkg/azure/config"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/fpa"
 	"github.com/Azure/ARO-HCP/internal/tracing"
+	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/internal/version"
-	ocmsdk "github.com/openshift-online/ocm-sdk-go"
 )
 
 const (
@@ -173,47 +170,11 @@ func buildAzureConfig(azureRuntimeConfig apisconfigv1.AzureRuntimeConfig, tracer
 		return azureconfig.AzureConfig{}, fmt.Errorf("error building azure cloud environment configuration: %w", err)
 	}
 
-	ocpImagesACR := azureconfig.NewAzureContainerRegistry(
-		*azureRuntimeConfig.OCPImagesACR.ResourceID, azureRuntimeConfig.OCPImagesACR.URL,
-		azureRuntimeConfig.OCPImagesACR.ScopeMapName,
-	)
-
-	dataPlaneIdentitiesOIDCConfiguration := azureconfig.NewAzureDataPlaneIdentitiesOIDCConfiguration(
-		azureRuntimeConfig.DataPlaneIdentitiesOIDCConfiguration.StorageAccountBlobContainerName,
-		azureRuntimeConfig.DataPlaneIdentitiesOIDCConfiguration.StorageAccountBlobServiceURL,
-		azureRuntimeConfig.DataPlaneIdentitiesOIDCConfiguration.OIDCIssuerBaseURL,
-	)
-
-	var tlsCertificatesIssuer azureconfig.TLSCertificateIssuerType
-	switch azureRuntimeConfig.TLSCertificatesConfig.Issuer {
-	case apisconfigv1.TLSCertificateIssuerSelf:
-		tlsCertificatesIssuer = azureconfig.TLSCertificateIssuerSelf
-	case apisconfigv1.TLSCertificateIssuerOneCert:
-		tlsCertificatesIssuer = azureconfig.TLSCertificateIssuerOneCert
-	}
-
-	var tlsCertificatesGenerationSource azureconfig.CertificatesGenerationSource
-	switch azureRuntimeConfig.TLSCertificatesConfig.CertificatesGenerationSource {
-	case apisconfigv1.CertificatesGenerationSourceAzureKeyVault:
-		tlsCertificatesGenerationSource = azureconfig.CertificatesGenerationSourceAzureKeyVault
-	case apisconfigv1.CertificatesGenerationSourceHypershift:
-		tlsCertificatesGenerationSource = azureconfig.CertificatesGenerationSourceHypershift
-	}
-
-	tlsCertificatesConfig := azureconfig.NewTLSCertificatesConfig(
-		tlsCertificatesIssuer,
-		tlsCertificatesGenerationSource,
-	)
-
 	// TODO should the domain layer types also have validation or do we trust that
 	// they are valid because the user-provided parts were validated
-	out := config.AzureConfig{
-		CloudEnvironment:                           cloudEnvironment,
-		ServiceTenantID:                            azureRuntimeConfig.ServiceTenantID,
-		OCPImagesACR:                               ocpImagesACR,
-		DataPlaneIdentitiesOIDCConfiguration:       dataPlaneIdentitiesOIDCConfiguration,
-		ManagedIdentitiesDataPlaneAudienceResource: azureRuntimeConfig.ManagedIdentitiesDataPlaneAudienceResource,
-		TLSCertificatesConfig:                      tlsCertificatesConfig,
+	out := azureconfig.AzureConfig{
+		CloudEnvironment: cloudEnvironment,
+		Config:           azureRuntimeConfig,
 	}
 
 	return out, err
@@ -340,6 +301,9 @@ func Run(cmd *cobra.Command, args []string) error {
 		certReader,
 		azureConfig.CloudEnvironment.AZCoreClientOptions(),
 	)
+	if err != nil {
+		return utils.TrackError(err)
+	}
 
 	fpaClientBuilder := azureclient.NewFPAClientBuilder(
 		fpaTokenCredRetriever, azureConfig.CloudEnvironment.ARMClientOptions(),
