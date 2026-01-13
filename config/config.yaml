@@ -665,13 +665,13 @@ defaults:
   # ACM
   acm:
     operator:
-      version: "2.15.0"
+      version: "2.15.1"
       bundle:
         registry: quay.io
         repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-215
         digest: sha256:9b3003e0a2a18fbf93dcd02cccf3fa914bfaec9c722bb338600e0bf54f5d6f77 # v2.15.1-323 (2026-01-13 05:12)
     mce:
-      version: "2.10.0"
+      version: "2.10.1"
       bundle:
         registry: quay.io
         repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-210
