@@ -258,7 +258,7 @@ func getInterval(envName string, defaultVal time.Duration, logger *slog.Logger) 
 		if err == nil {
 			return interval
 		} else {
-			logger.Warn(fmt.Sprintf("Cannot use %s: %v", envName, err.Error()))
+			logger.Warn("cannot parse environment variable as duration", "envName", envName, "error", err.Error())
 		}
 	}
 	return defaultVal
@@ -278,7 +278,7 @@ func getPositiveInt(envName string, defaultVal int, logger *slog.Logger) int {
 			return positiveInt
 		}
 
-		logger.Warn(fmt.Sprintf("Cannot use %s: %v", envName, err.Error()))
+		logger.Warn("cannot parse environment variable as positive integer", "envName", envName, "error", err.Error())
 	}
 
 	return defaultVal
@@ -295,15 +295,15 @@ func (s *OperationsScanner) Run(ctx context.Context) {
 	var interval time.Duration
 
 	interval = getInterval("BACKEND_POLL_INTERVAL_SUBSCRIPTIONS", defaultPollIntervalSubscriptions, logger)
-	logger.Info("Polling subscriptions in Cosmos DB every " + interval.String())
+	logger.Info("Setting polling interval for Cosmos DB subscriptions", "interval", interval.String())
 	collectSubscriptionsTicker := time.NewTicker(interval)
 
 	interval = getInterval("BACKEND_POLL_INTERVAL_OPERATIONS", defaultPollIntervalOperations, logger)
-	logger.Info("Polling operations in Cosmos DB every " + interval.String())
+	logger.Info("Setting polling interval for Cosmos DB operations", "interval", interval.String())
 	processSubscriptionsTicker := time.NewTicker(interval)
 
 	numWorkers := getPositiveInt("BACKEND_SUBSCRIPTION_CONCURRENCY", defaultSubscriptionConcurrency, logger)
-	logger.Info(fmt.Sprintf("Processing %d subscriptions at a time", numWorkers))
+	logger.Info("Creating subscription workers", "numWorkers", numWorkers)
 	s.workerGauge.Set(float64(numWorkers))
 
 	// Create a buffered channel using worker pool size as a heuristic.
@@ -377,7 +377,7 @@ func (s *OperationsScanner) collectSubscriptions(ctx context.Context, logger *sl
 	iterator, err := s.dbClient.Subscriptions().List(ctx, nil)
 	if err != nil {
 		s.recordOperationError(ctx, collectSubscriptionsLabel, err)
-		logger.Error(fmt.Sprintf("Error creating iterator: %v", err.Error()))
+		logger.Error("Error creating iterator", "error", err)
 		return
 	}
 
@@ -397,7 +397,7 @@ func (s *OperationsScanner) collectSubscriptions(ctx context.Context, logger *sl
 	span.SetAttributes(tracing.ProcessedItemsKey.Int(len(subscriptions)))
 	if err := iterator.GetError(); err != nil {
 		s.recordOperationError(ctx, collectSubscriptionsLabel, err)
-		logger.Error(fmt.Sprintf("Error while paging through Cosmos query results: %v", err.Error()))
+		logger.Error("Error while paging through Cosmos query results", "error", err)
 		return
 	}
 
@@ -405,7 +405,7 @@ func (s *OperationsScanner) collectSubscriptions(ctx context.Context, logger *sl
 	defer s.subscriptionsLock.Unlock()
 
 	if len(subscriptions) != len(s.subscriptions) {
-		logger.Info(fmt.Sprintf("Tracking %d active subscriptions", len(subscriptions)))
+		logger.Info("Tracking active subscriptions", "count", len(subscriptions))
 	}
 
 	for k, v := range subscriptionStates {
@@ -439,7 +439,7 @@ func (s *OperationsScanner) processSubscriptions(ctx context.Context, logger *sl
 			// when the worker pool size needs increased.
 			start := time.Now()
 			s.subscriptionChannel <- subscriptionID
-			logger.Warn(fmt.Sprintf("Subscription processing blocked for %s", time.Since(start)))
+			logger.Warn("Subscription processing is blocked", "blocked_duration", time.Since(start))
 		}
 	}
 }
@@ -492,7 +492,7 @@ func (s *OperationsScanner) processOperations(ctx context.Context, subscriptionI
 	err := iterator.GetError()
 	if err != nil {
 		s.recordOperationError(ctx, processOperationsLabel, err)
-		logger.Error(fmt.Sprintf("Error while paging through Cosmos query results: %v", err.Error()))
+		logger.Error("Error while paging through Cosmos query results", "error", err)
 	}
 }
 
@@ -564,18 +564,18 @@ func (s *OperationsScanner) pollClusterOperation(ctx context.Context, op operati
 			err = s.markBillingDocumentDeleted(ctx, op)
 			if err != nil {
 				s.recordOperationError(ctx, pollClusterOperationLabel, err)
-				logger.Error(fmt.Sprintf("Failed to handle a completed deletion: %v", err))
+				logger.Error("Failed to handle a completed deletion", "error", err)
 				return
 			}
 
 			err = s.setDeleteOperationAsCompleted(ctx, op)
 			if err != nil {
 				s.recordOperationError(ctx, pollClusterOperationLabel, err)
-				logger.Error(fmt.Sprintf("Failed to handle a completed deletion: %v", err))
+				logger.Error("Failed to handle a completed deletion", "error", err)
 			}
 		} else {
 			s.recordOperationError(ctx, pollClusterOperationLabel, err)
-			logger.Error(fmt.Sprintf("Failed to get cluster status: %v", err))
+			logger.Error("Failed to get cluster status", "error", err)
 		}
 
 		return
@@ -596,7 +596,7 @@ func (s *OperationsScanner) pollClusterOperation(ctx context.Context, op operati
 		err = s.createBillingDocument(ctx, op)
 		if err != nil {
 			s.recordOperationError(ctx, pollClusterOperationLabel, err)
-			logger.Error(fmt.Sprintf("Failed to handle a completed creation: %v", err))
+			logger.Error("Failed to handle a completed creation", "error", err)
 			return
 		}
 	}
@@ -604,7 +604,7 @@ func (s *OperationsScanner) pollClusterOperation(ctx context.Context, op operati
 	err = database.UpdateOperationStatus(ctx, s.dbClient, op.doc, opStatus, opError, s.postAsyncNotification)
 	if err != nil {
 		s.recordOperationError(ctx, pollClusterOperationLabel, err)
-		logger.Error(fmt.Sprintf("Failed to update operation status: %v", err))
+		logger.Error("Failed to update operation status", "error", err)
 	}
 }
 
@@ -636,11 +636,11 @@ func (s *OperationsScanner) pollNodePoolOperation(ctx context.Context, op operat
 			err = s.setDeleteOperationAsCompleted(ctx, op)
 			if err != nil {
 				s.recordOperationError(ctx, pollNodePoolOperationLabel, err)
-				logger.Error(fmt.Sprintf("Failed to handle a completed deletion: %v", err))
+				logger.Error("Failed to handle a completed deletion", "error", err)
 			}
 		} else {
 			s.recordOperationError(ctx, pollNodePoolOperationLabel, err)
-			logger.Error(fmt.Sprintf("Failed to get node pool status: %v", err))
+			logger.Error("Failed to get node pool status", "error", err)
 		}
 
 		return
@@ -656,7 +656,7 @@ func (s *OperationsScanner) pollNodePoolOperation(ctx context.Context, op operat
 	err = database.UpdateOperationStatus(ctx, s.dbClient, op.doc, opStatus, opError, s.postAsyncNotification)
 	if err != nil {
 		s.recordOperationError(ctx, pollNodePoolOperationLabel, err)
-		logger.Error(fmt.Sprintf("Failed to update operation status: %v", err))
+		logger.Error("Failed to update operation status", "error", err)
 	}
 }
 
@@ -675,11 +675,11 @@ func (s *OperationsScanner) pollExternalAuthOperation(ctx context.Context, op op
 			err = s.setDeleteOperationAsCompleted(ctx, op)
 			if err != nil {
 				s.recordOperationError(ctx, pollExternalAuthOperationLabel, err)
-				logger.Error(fmt.Sprintf("Failed to handle a completed deletion: %v", err))
+				logger.Error("Failed to handle a completed deletion", "error", err)
 			}
 		} else {
 			s.recordOperationError(ctx, pollExternalAuthOperationLabel, err)
-			logger.Error(fmt.Sprintf("Failed to get external auth status: %v", err))
+			logger.Error("Failed to get external auth status", "error", err)
 		}
 
 		return
@@ -687,7 +687,7 @@ func (s *OperationsScanner) pollExternalAuthOperation(ctx context.Context, op op
 	err = database.UpdateOperationStatus(ctx, s.dbClient, op.doc, arm.ProvisioningStateSucceeded, nil, s.postAsyncNotification)
 	if err != nil {
 		s.recordOperationError(ctx, pollExternalAuthOperationLabel, err)
-		logger.Error(fmt.Sprintf("Failed to update operation status: %v", err))
+		logger.Error("Failed to update operation status", "error", err)
 	}
 }
 
@@ -702,7 +702,7 @@ func (s *OperationsScanner) pollBreakGlassCredential(ctx context.Context, op ope
 	breakGlassCredential, err := s.clusterService.GetBreakGlassCredential(ctx, op.doc.InternalID)
 	if err != nil {
 		s.recordOperationError(ctx, pollBreakGlassCredential, err)
-		logger.Error(fmt.Sprintf("Failed to get break-glass credential: %v", err))
+		logger.Error("Failed to get break-glass credential", "error", err)
 		return
 	}
 
@@ -724,14 +724,14 @@ func (s *OperationsScanner) pollBreakGlassCredential(ctx context.Context, op ope
 		opStatus = arm.ProvisioningStateSucceeded
 	default:
 		s.recordOperationError(ctx, pollBreakGlassCredential, err)
-		logger.Error(fmt.Sprintf("Unhandled BreakGlassCredentialStatus '%s'", status))
+		logger.Error("Unhandled BreakGlassCredentialStatus", "status", status)
 		return
 	}
 
 	err = database.PatchOperationDocument(ctx, s.dbClient, op.doc, opStatus, opError, s.postAsyncNotification)
 	if err != nil {
 		s.recordOperationError(ctx, pollBreakGlassCredential, err)
-		logger.Error(fmt.Sprintf("Failed to update operation status: %v", err))
+		logger.Error("Failed to update operation status", "error", err)
 	}
 }
 
@@ -790,14 +790,14 @@ loop:
 	err := iterator.GetError()
 	if err != nil {
 		s.recordOperationError(ctx, pollBreakGlassCredentialRevoke, err)
-		logger.Error(fmt.Sprintf("Error while paging through Cluster Service query results: %v", err.Error()))
+		logger.Error("Error while paging through Cluster Service query results", "error", err)
 		return
 	}
 
 	err = database.PatchOperationDocument(ctx, s.dbClient, op.doc, opStatus, opError, s.postAsyncNotification)
 	if err != nil {
 		s.recordOperationError(ctx, pollBreakGlassCredentialRevoke, err)
-		logger.Error(fmt.Sprintf("Failed to update operation status: %v", err))
+		logger.Error("Failed to update operation status", "error", err)
 	}
 }
 
@@ -811,7 +811,7 @@ func (s *OperationsScanner) withSubscriptionLock(ctx context.Context, subscripti
 	span := trace.SpanFromContext(ctx)
 	lock, err := s.lockClient.AcquireLock(ctx, subscriptionID, &timeout)
 	if err != nil {
-		logger.Error(fmt.Sprintf("Failed to acquire lock: %v", err))
+		logger.Error("Failed to acquire lock", "error", err)
 		span.RecordError(err)
 		return
 	}
@@ -828,7 +828,7 @@ func (s *OperationsScanner) withSubscriptionLock(ctx context.Context, subscripti
 		} else {
 			// Failure here is non-fatal but still log the error.
 			// The lock's TTL ensures it will be released eventually.
-			logger.Warn(fmt.Sprintf("Failed to release lock: %v", nonFatalErr))
+			logger.Warn("Failed to release lock", "error", nonFatalErr)
 			span.RecordError(nonFatalErr)
 		}
 	}
@@ -1085,8 +1085,7 @@ func (s *OperationsScanner) convertInflightChecks(ctx context.Context, internalI
 	// This is a fallback case and should not normally occur. If the provision error code is OCM4001,
 	// there should be at least one inflight failure.
 	if len(cloudErrors) == 0 {
-		logger.Error(fmt.Sprintf(
-			"Cluster '%s' returned error code OCM4001, but no inflight failures were found", internalId))
+		logger.Error("Cluster returned error code OCM4001, but no inflight failures were found", "cluster", internalId)
 		return &arm.CloudErrorBody{
 			Code: arm.CloudErrorCodeInternalServerError,
 		}, nil
@@ -1098,7 +1097,7 @@ func (s *OperationsScanner) convertInflightChecks(ctx context.Context, internalI
 func convertInflightCheck(inflightCheck *arohcpv1alpha1.InflightCheck, logger *slog.Logger) arm.CloudErrorBody {
 	message, succeeded := convertInflightCheckDetails(inflightCheck)
 	if !succeeded {
-		logger.Error(fmt.Sprintf("error converting inflight check '%s' details", inflightCheck.Name()))
+		logger.Error("Error converting inflight check details", "inflightCheck", inflightCheck.Name())
 	}
 
 	return arm.CloudErrorBody{

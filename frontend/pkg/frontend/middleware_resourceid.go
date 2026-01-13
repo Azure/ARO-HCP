@@ -15,7 +15,6 @@
 package frontend
 
 import (
-	"fmt"
 	"net/http"
 
 	"go.opentelemetry.io/otel/trace"
@@ -47,7 +46,7 @@ func MiddlewareResourceID(w http.ResponseWriter, r *http.Request, next http.Hand
 		ctx = utils.ContextWithResourceID(ctx, resourceID)
 		r = r.WithContext(ctx)
 	} else {
-		logger.Warn(fmt.Sprintf("Failed to parse '%s' as resource ID: %v", originalPath, err))
+		logger.Warn("Failed to parse resource ID", "originalPath", originalPath, "error", err)
 	}
 
 	next(w, r)
