@@ -272,6 +272,7 @@ func (tc *perItOrDescribeTestContext) CreateClusterCustomerResources(ctx context
 	}
 
 	managedIdentityDeploymentResult, err := tc.DeployManagedIdentities(ctx,
+		clusterParams.ClusterName,
 		WithTemplateFromFS(artifactsFS, "test-artifacts/generated-test-artifacts/modules/managed-identities.json"),
 		WithDeploymentName(managedIdentitiesDeploymentName),
 		WithClusterResourceGroup(*resourceGroup.Name),
@@ -281,7 +282,6 @@ func (tc *perItOrDescribeTestContext) CreateClusterCustomerResources(ctx context
 			"subnetName":   clusterParams.SubnetName,
 			"keyVaultName": clusterParams.KeyVaultName,
 		}),
-		WithDeploymentName(fmt.Sprintf("mi-%s", hash(*resourceGroup.Name+clusterParams.ClusterName))),
 	)
 
 	if err != nil {

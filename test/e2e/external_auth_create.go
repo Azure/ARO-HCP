@@ -90,6 +90,7 @@ var _ = Describe("Customer", func() {
 			keyVaultName, err := framework.GetOutputValue(customerInfraDeploymentResult, "keyVaultName")
 			Expect(err).NotTo(HaveOccurred())
 			managedIdentityDeploymentResult, err := tc.DeployManagedIdentities(ctx,
+				customerClusterName,
 				framework.WithTemplateFromFS(TestArtifactsFS, "test-artifacts/generated-test-artifacts/modules/managed-identities.json"),
 				framework.WithClusterResourceGroup(*resourceGroup.Name),
 				framework.WithParameters(map[string]interface{}{

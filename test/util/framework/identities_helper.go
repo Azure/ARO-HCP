@@ -100,6 +100,24 @@ func NewDefaultIdentities() Identities {
 	}
 }
 
+func NewDefaultIdentitiesWithSuffix(suffix string) Identities {
+	return Identities{
+		ClusterApiAzureMiName:        fmt.Sprintf("%s-%s", ClusterApiAzureMiName, suffix),
+		ControlPlaneMiName:           fmt.Sprintf("%s-%s", ControlPlaneMiName, suffix),
+		CloudControllerManagerMiName: fmt.Sprintf("%s-%s", CloudControllerManagerMiName, suffix),
+		IngressMiName:                fmt.Sprintf("%s-%s", IngressMiName, suffix),
+		DiskCsiDriverMiName:          fmt.Sprintf("%s-%s", DiskCsiDriverMiName, suffix),
+		FileCsiDriverMiName:          fmt.Sprintf("%s-%s", FileCsiDriverMiName, suffix),
+		ImageRegistryMiName:          fmt.Sprintf("%s-%s", ImageRegistryMiName, suffix),
+		CloudNetworkConfigMiName:     fmt.Sprintf("%s-%s", CloudNetworkConfigMiName, suffix),
+		KmsMiName:                    fmt.Sprintf("%s-%s", KmsMiName, suffix),
+		DpDiskCsiDriverMiName:        fmt.Sprintf("%s-%s", DpDiskCsiDriverMiName, suffix),
+		DpFileCsiDriverMiName:        fmt.Sprintf("%s-%s", DpFileCsiDriverMiName, suffix),
+		DpImageRegistryMiName:        fmt.Sprintf("%s-%s", DpImageRegistryMiName, suffix),
+		ServiceManagedIdentityName:   fmt.Sprintf("%s-%s", ServiceManagedIdentityName, suffix),
+	}
+}
+
 func (tc *perItOrDescribeTestContext) UsePooledIdentities() bool {
 	return tc.perBinaryInvocationTestContext.UsePooledIdentities()
 }
@@ -141,6 +159,7 @@ func (tc *perItOrDescribeTestContext) ResolveIdentitiesForTemplate(resourceGroup
 // identities object and usePooledIdentities flag for their parameters.
 func (tc *perItOrDescribeTestContext) DeployManagedIdentities(
 	ctx context.Context,
+	clusterName string,
 	opts ...BicepDeploymentOption,
 ) (*armresources.DeploymentExtended, error) {
 
@@ -163,7 +182,7 @@ func (tc *perItOrDescribeTestContext) DeployManagedIdentities(
 
 	usePooled := tc.UsePooledIdentities()
 	msiRGName := cfg.resourceGroup
-	identities := NewDefaultIdentities()
+	var identities Identities
 
 	if usePooled {
 		msiPool, err := tc.getLeasedIdentities()
@@ -172,6 +191,8 @@ func (tc *perItOrDescribeTestContext) DeployManagedIdentities(
 		}
 		msiRGName = msiPool.ResourceGroupName
 		identities = msiPool.Identities
+	} else {
+		identities = NewDefaultIdentitiesWithSuffix(clusterName)
 	}
 
 	parameters := map[string]interface{}{
