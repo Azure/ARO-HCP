@@ -159,9 +159,10 @@ func loadAzureRuntimeConfig(path string) (apiazurev1.AzureRuntimeConfig, error) 
 		return apiazurev1.AzureRuntimeConfig{}, fmt.Errorf("error unmarshaling file %s: %w", path, err)
 	}
 
-	err = config.Validate()
-	if err != nil {
-		return apiazurev1.AzureRuntimeConfig{}, fmt.Errorf("error validating file %s: %w", path, err)
+	validationErrors := config.Validate()
+	if len(validationErrors) > 0 {
+		return apiazurev1.AzureRuntimeConfig{},
+			fmt.Errorf("error validating file: %s: %w", path, validationErrors.ToAggregate())
 	}
 
 	return config, nil

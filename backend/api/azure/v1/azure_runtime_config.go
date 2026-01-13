@@ -10,6 +10,8 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/azure/resourceid"
 	"github.com/Azure/ARO-HCP/backend/pkg/azure/urlvalidation"
+
+	"k8s.io/apimachinery/pkg/util/validation/field"
 )
 
 // AzureRuntimeConfig represents user provided Azure related configuration for running the service
@@ -36,45 +38,49 @@ type AzureRuntimeConfig struct {
 }
 
 // Validate performs validation on the AzureRuntimeConfig properties
-func (c AzureRuntimeConfig) Validate() error {
-	if err := c.CloudEnvironment.Validate(); err != nil {
-		return err
-	}
+func (c AzureRuntimeConfig) Validate() field.ErrorList {
+	errs := field.ErrorList{}
 
-	if err := c.OCPImagesACR.Validate(); err != nil {
-		return err
-	}
+	errs = append(errs, c.CloudEnvironment.Validate(field.NewPath("cloudEnvironment"))...)
 
 	if c.ServiceTenantID == "" {
-		return fmt.Errorf("tenant_id is mandatory")
+		errs = append(errs, field.Required(field.NewPath("tenantID"), "attribute is required"))
 	}
 
-	if err := c.validateManagedIdentitiesDataPlaneAudienceResource(); err != nil {
-		return err
-	}
+	errs = append(errs, c.OCPImagesACR.Validate(field.NewPath("ocpImagesACR"))...)
 
-	if err := c.DataPlaneIdentitiesOIDCConfiguration.Validate(); err != nil {
-		return fmt.Errorf("failed to load 'data_plane_identities_oidc_configuration': %w", err)
-	}
+	errs = append(errs, c.DataPlaneIdentitiesOIDCConfiguration.Validate(field.NewPath("dataPlaneIdentitiesOIDCConfiguration"))...)
 
-	if err := c.TLSCertificatesConfig.Validate(); err != nil {
-		return err
-	}
+	errs = append(errs, c.validateManagedIdentitiesDataPlaneAudienceResource(
+		field.NewPath("managedIdentitiesDataPlaneAudienceResource"))...,
+	)
 
-	return nil
+	errs = append(errs, c.TLSCertificatesConfig.Validate(field.NewPath("tlsCertificatesConfig"))...)
+
+	return errs
 }
 
-func (c AzureRuntimeConfig) validateManagedIdentitiesDataPlaneAudienceResource() error {
+func (c AzureRuntimeConfig) validateManagedIdentitiesDataPlaneAudienceResource(fldPath *field.Path) field.ErrorList {
 	if c.ManagedIdentitiesDataPlaneAudienceResource == "" {
-		return fmt.Errorf("managed_identities_data_plane_audience_resource is mandatory")
+		return field.ErrorList{field.Required(fldPath, "attribute is required")}
 	}
+
 	u, err := url.ParseRequestURI(c.ManagedIdentitiesDataPlaneAudienceResource)
 	if err != nil {
-		return fmt.Errorf("managed_identities_data_plane_audience_resource is invalid https url: %w", err)
+		return field.ErrorList{
+			field.Invalid(fldPath, c.ManagedIdentitiesDataPlaneAudienceResource,
+				fmt.Sprintf("attribute is not a valid url: %v", err)),
+		}
 	}
+
 	if u.Scheme != "https" {
-		return fmt.Errorf("managed_identities_data_plane_audience_resource must have a 'HTTPS' scheme")
+		return field.ErrorList{
+			field.Invalid(fldPath, c.ManagedIdentitiesDataPlaneAudienceResource,
+				"attribute must have a 'https' scheme",
+			),
+		}
 	}
+
 	return nil
 }
 
@@ -89,8 +95,7 @@ func (c CloudEnvironment) String() string {
 	return string(c)
 }
 
-// Validate - returns an error if the given cloud environment was not specified or is not supported
-func (c CloudEnvironment) Validate() error {
+func (c CloudEnvironment) Validate(fldPath *field.Path) field.ErrorList {
 	var supportedAzureCloudEnvironmentsStrings = []string{
 		"AzureChinaCloud", "AzurePublicCloud", "AzureUSGovernmentCloud",
 	}
@@ -102,95 +107,140 @@ func (c CloudEnvironment) Validate() error {
 	}
 
 	if c.String() == "" {
-		return fmt.Errorf("cloud_environment is mandatory, please select one from the following list: %s",
-			strings.Join(supportedAzureCloudEnvironmentsStrings, ","),
-		)
+		return field.ErrorList{
+			field.Required(
+				fldPath,
+				fmt.Sprintf("attribute is required. Accepted values are: %s",
+					strings.Join(supportedAzureCloudEnvironmentsStrings, ","),
+				),
+			),
+		}
+
 	}
 
 	isSupported := slices.Contains(supportedAzureCloudEnvironments, c)
 	if !isSupported {
-		return fmt.Errorf("cloud_environment '%s' is not supported, please select one from the following list: %s",
-			c.String(), strings.Join(supportedAzureCloudEnvironmentsStrings, ","))
+		return field.ErrorList{
+			field.Invalid(
+				fldPath,
+				c.String(),
+				fmt.Sprintf("attribute is not supported. Accepted values are: %s",
+					strings.Join(supportedAzureCloudEnvironmentsStrings, ","),
+				),
+			),
+		}
 	}
+
 	return nil
 }
 
 type DataPlaneIdentitiesOIDCConfiguration struct {
 	// Name of the storage account blob container
-	StorageAccountBlobContainerName string `json:"storage_account_blob_container_name"`
+	StorageAccountBlobContainerName string `json:"storageAccountBlobContainerName"`
 	// URL of the storage account blob service, e.g. https://<storage-account>.blob.core.windows.net/
-	StorageAccountBlobServiceURL string `json:"storage_account_blob_service_url"`
+	StorageAccountBlobServiceURL string `json:"storageAccountBlobServiceURL"`
 	// OIDC base issuer URL, e.g. https://<storage-account>.z1.web.core.windows.net/
 	// The system's certificate store is used to verify the OIDC issuer's certificate.
-	OIDCIssuerBaseURL string `json:"oidc_issuer_base_url"`
+	OIDCIssuerBaseURL string `json:"oidcIssuerBaseURL"`
 }
 
 type AzureContainerRegistry struct {
 	// Resource Id of the Azure Container Registry
-	ResourceID azcorearm.ResourceID `json:"resource_id"`
+	ResourceID azcorearm.ResourceID `json:"resourceID"`
 	// URL of the Azure Container Registry.
 	// It should only contain the hostname, without any protocol, port or paths.
 	URL string `json:"url"`
 	// Scope map name for the Azure Container Registry repository
-	ScopeMapName string `json:"scope_map_name"`
+	ScopeMapName string `json:"scopeMapName"`
 }
 
-func (r AzureContainerRegistry) Validate() error {
-	err := resourceid.ValidateACRResourceID(r.ResourceID)
-	if err != nil {
-		return err
-	}
-
+func (r *AzureContainerRegistry) validateACRURL(fldPath *field.Path) field.ErrorList {
 	if r.URL == "" {
-		return fmt.Errorf("url for OCP images ACR required")
+		return field.ErrorList{field.Required(fldPath, "attribute is required")}
 	}
 
-	if strings.HasPrefix(r.URL, "https://") || strings.HasPrefix(r.URL, "http://") {
-		return fmt.Errorf("url for OCP images ACR should not contain protocol")
+	if strings.Contains(r.URL, "://") {
+		return field.ErrorList{field.Invalid(fldPath, r.URL, "url scheme is not allowed")}
 	}
+
 	// adds protocol for parsing to ensure that the host is set correctly when parsed, otherwise it is set as a
 	// path in the parsed url
 	parsedUrl, err := url.Parse("http://" + r.URL)
 	if err != nil {
-		return fmt.Errorf("url for OCP images ACR is not valid")
-	}
-	// the given acr url should be the same as the parsed url's hostname, which does not include any ports and paths
-	if parsedUrl.Hostname() != r.URL {
-		return fmt.Errorf("url for OCP images ACR should not contain port or paths")
+		return field.ErrorList{field.Invalid(fldPath, r.URL, fmt.Sprintf("url is not valid: %v", err))}
 	}
 
+	// the given acr url should be the same as the parsed url's hostname, which does not include any ports and paths
+	if parsedUrl.Hostname() != r.URL {
+		return field.ErrorList{field.Invalid(fldPath, r.URL, "url cannot contain port or paths")}
+	}
 	splitUrl := strings.Split(r.URL, ".")
 	nameFromUrl := splitUrl[0]
 	if r.ResourceID.Name != nameFromUrl {
-		return fmt.Errorf("url for OCP images ACR contains incorrect resource name")
-	}
-
-	if r.ScopeMapName == "" {
-		return fmt.Errorf("scope_map_name for OCP images ACR required")
+		return field.ErrorList{field.Invalid(fldPath, r.URL, "url contains incorrect resource name")}
 	}
 
 	return nil
 }
 
+func (r AzureContainerRegistry) Validate(fldPath *field.Path) field.ErrorList {
+	errs := field.ErrorList{}
+
+	err := resourceid.ValidateACRResourceID(r.ResourceID)
+	if err != nil {
+		errs = append(errs, field.Invalid(
+			fldPath.Child("resourceID"), r.ResourceID, fmt.Sprintf("attribute is not a valid resource ID: %v", err)),
+		)
+	}
+
+	errs = append(errs, r.validateACRURL(fldPath.Child("url"))...)
+
+	if r.ScopeMapName == "" {
+		errs = append(errs, field.Required(fldPath.Child("scopeMapName"), "attribute is required"))
+	}
+
+	return errs
+}
+
 // Validate - returns an error if the given data plane OIDC configuration was not specified or is not supported
-func (c DataPlaneIdentitiesOIDCConfiguration) Validate() error {
+func (c DataPlaneIdentitiesOIDCConfiguration) Validate(fldPath *field.Path) field.ErrorList {
+	errs := field.ErrorList{}
+
 	if c.StorageAccountBlobContainerName == "" {
-		return fmt.Errorf("'storage_account_blob_container_name' is mandatory")
+		errs = append(errs, field.Required(fldPath.Child("storageAccountBlobContainerName"), "attribute is required"))
 	}
 	if c.StorageAccountBlobServiceURL == "" {
-		return fmt.Errorf("'storage_account_blob_service_url' is mandatory")
+		errs = append(errs, field.Required(fldPath.Child("storageAccountBlobServiceURL"), "attribute is required"))
 	}
-	if c.OIDCIssuerBaseURL == "" {
-		return fmt.Errorf("'oidc_issuer_base_url' is mandatory")
+
+	errs = append(errs, c.validateStorageAccountBlobServiceURL(fldPath.Child("storageAccountBlobServiceURL"))...)
+
+	errs = append(errs, c.validateOIDCIssuerBaseURL(fldPath.Child("oidcIssuerBaseURL"))...)
+
+	return errs
+}
+
+func (c DataPlaneIdentitiesOIDCConfiguration) validateStorageAccountBlobServiceURL(fldPath *field.Path) field.ErrorList {
+	if c.StorageAccountBlobServiceURL == "" {
+		return field.ErrorList{field.Required(fldPath, "attribute is required")}
 	}
 
 	err := urlvalidation.ValidateAzureServiceURL(c.StorageAccountBlobServiceURL)
 	if err != nil {
-		return fmt.Errorf("attribute 'storage_account_blob_service_url' is invalid: %w", err)
+		return field.ErrorList{field.Invalid(fldPath, c.StorageAccountBlobServiceURL, fmt.Sprintf("attribute is not a valid url: %v", err))}
 	}
-	err = urlvalidation.ValidateAzureServiceURL(c.OIDCIssuerBaseURL)
+
+	return nil
+}
+
+func (c DataPlaneIdentitiesOIDCConfiguration) validateOIDCIssuerBaseURL(fldPath *field.Path) field.ErrorList {
+	if c.OIDCIssuerBaseURL == "" {
+		return field.ErrorList{field.Required(fldPath, "attribute is required")}
+	}
+
+	err := urlvalidation.ValidateAzureServiceURL(c.OIDCIssuerBaseURL)
 	if err != nil {
-		return fmt.Errorf("attribute 'oidc_issuer_base_url' is invalid: %w", err)
+		return field.ErrorList{field.Invalid(fldPath, c.OIDCIssuerBaseURL, fmt.Sprintf("attribute is not a valid url: %v", err))}
 	}
 
 	return nil
