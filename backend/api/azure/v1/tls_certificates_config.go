@@ -28,7 +28,8 @@ type TLSCertificateIssuerType string
 const (
 	// TLSCertificateIssuerSelf generates tls certificates with a self signed issuer
 	TLSCertificateIssuerSelf TLSCertificateIssuerType = "Self"
-	// TLSCertificateIssuerOneCert generates tls certificates with a self signed issuer
+	// TLSCertificateIssuerOneCert generates tls certificates with Microsoft's
+	// OneCertV2-PublicCA issuer
 	TLSCertificateIssuerOneCert TLSCertificateIssuerType = "OneCertV2-PublicCA"
 )
 
@@ -111,12 +112,25 @@ func (tlsConfig TLSCertificatesConfig) validateIssuer(
 	}
 
 	if tlsConfig.CertificatesGenerationSource == CertificatesGenerationSourceHypershift && tlsConfig.Issuer != "" {
-		return field.ErrorList{field.Invalid(fldPath, tlsConfig.Issuer,
-			fmt.Sprintf("attribute is not allowed when %s is %s",
-				certSourceFldPath,
-				CertificatesGenerationSourceHypershift,
+		return field.ErrorList{
+			field.Forbidden(fldPath,
+				fmt.Sprintf("attribute is not allowed when %s is %s",
+					certSourceFldPath,
+					CertificatesGenerationSourceHypershift,
+				),
 			),
-		)}
+		}
+	}
+
+	if tlsConfig.CertificatesGenerationSource == CertificatesGenerationSourceAzureKeyVault && tlsConfig.Issuer == "" {
+		return field.ErrorList{
+			field.Required(fldPath,
+				fmt.Sprintf("attribute is required when %s is %s",
+					certSourceFldPath,
+					CertificatesGenerationSourceAzureKeyVault,
+				),
+			),
+		}
 	}
 
 	return nil

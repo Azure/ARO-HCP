@@ -195,12 +195,12 @@ func ValidateRoleDefinitionResourceID(resourceID azcorearm.ResourceID) error {
 
 	res, err := azcorearm.ParseResourceID(resourceID.String())
 	if err != nil {
-		return fmt.Errorf("'%s' is not a valid Azure Resource ID: %w", resourceID, err)
+		return fmt.Errorf("'%v' is not a valid Azure Resource ID: %w", resourceID, err)
 	}
 
 	resourceType := res.ResourceType
 	if !strings.EqualFold(resourceType.String(), roleDefinitionResourceType.String()) {
-		return fmt.Errorf("'%s' is not a valid '%s' Resource ID", resourceID, roleDefinitionResourceType)
+		return fmt.Errorf("'%v' is not a valid '%s' Resource ID", resourceID, roleDefinitionResourceType)
 	}
 
 	return nil
@@ -222,12 +222,12 @@ func ValidateResourceGroupResourceID(resourceID azcorearm.ResourceID) error {
 
 	res, err := azcorearm.ParseResourceID(resourceID.String())
 	if err != nil {
-		return fmt.Errorf("'%s' is not a valid Azure Resource ID: %w", resourceID, err)
+		return fmt.Errorf("'%v' is not a valid Azure Resource ID: %w", resourceID, err)
 	}
 
 	resourceType := res.ResourceType
 	if !strings.EqualFold(resourceType.String(), resourceGroupResourceType.String()) {
-		return fmt.Errorf("'%s' is not a valid '%s' Resource ID", resourceID, resourceGroupResourceType)
+		return fmt.Errorf("'%v' is not a valid '%s' Resource ID", resourceID, resourceGroupResourceType)
 	}
 
 	return nil
