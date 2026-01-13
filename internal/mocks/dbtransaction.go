@@ -44,15 +44,15 @@ func (m *MockDBTransaction) EXPECT() *MockDBTransactionMockRecorder {
 }
 
 // AddStep mocks base method.
-func (m *MockDBTransaction) AddStep(arg0 database.CosmosDBTransactionStep) {
+func (m *MockDBTransaction) AddStep(arg0 database.CosmosDBTransactionStepDetails, arg1 database.CosmosDBTransactionStep) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "AddStep", arg0)
+	m.ctrl.Call(m, "AddStep", arg0, arg1)
 }
 
 // AddStep indicates an expected call of AddStep.
-func (mr *MockDBTransactionMockRecorder) AddStep(arg0 any) *MockDBTransactionAddStepCall {
+func (mr *MockDBTransactionMockRecorder) AddStep(arg0, arg1 any) *MockDBTransactionAddStepCall {
 	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddStep", reflect.TypeOf((*MockDBTransaction)(nil).AddStep), arg0)
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddStep", reflect.TypeOf((*MockDBTransaction)(nil).AddStep), arg0, arg1)
 	return &MockDBTransactionAddStepCall{Call: call}
 }
 
@@ -68,13 +68,13 @@ func (c *MockDBTransactionAddStepCall) Return() *MockDBTransactionAddStepCall {
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockDBTransactionAddStepCall) Do(f func(database.CosmosDBTransactionStep)) *MockDBTransactionAddStepCall {
+func (c *MockDBTransactionAddStepCall) Do(f func(database.CosmosDBTransactionStepDetails, database.CosmosDBTransactionStep)) *MockDBTransactionAddStepCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockDBTransactionAddStepCall) DoAndReturn(f func(database.CosmosDBTransactionStep)) *MockDBTransactionAddStepCall {
+func (c *MockDBTransactionAddStepCall) DoAndReturn(f func(database.CosmosDBTransactionStepDetails, database.CosmosDBTransactionStep)) *MockDBTransactionAddStepCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
