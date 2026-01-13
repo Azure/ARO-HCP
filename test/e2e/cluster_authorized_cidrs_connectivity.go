@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -199,6 +200,23 @@ var _ = Describe("Authorized CIDRs", func() {
 					// Note: Items may be empty if nodes aren't ready yet, but structure should be valid
 					By(fmt.Sprintf("Successfully retrieved node list with %d items", len(nodeList.Items)))
 				}, 2*time.Minute, 10*time.Second).Should(Succeed())
+
+				By("verifying aggregated API services from authorized VM")
+				// Count APIServices where Available != True (should be 0)
+				// This avoids Azure Run Command's ~4KB output limit by returning just a number
+				apiServicesCmd := fmt.Sprintf(
+					`echo '%s' | base64 -d > /tmp/kubeconfig && kubectl --kubeconfig=/tmp/kubeconfig get apiservices -o jsonpath='{range .items[*]}{.status.conditions[?(@.type=="Available")].status}{"\n"}{end}' | grep -cv "^True$"`,
+					kubeconfigB64,
+				)
+
+				Eventually(func(g Gomega) {
+					output, err := framework.RunVMCommand(ctx, tc, *resourceGroup.Name, vmName, apiServicesCmd, 2*time.Minute)
+					g.Expect(err).NotTo(HaveOccurred(), "kubectl get apiservices should succeed from authorized VM")
+
+					count, err := strconv.Atoi(strings.TrimSpace(output))
+					g.Expect(err).NotTo(HaveOccurred(), "Should receive a valid count")
+					g.Expect(count).To(Equal(0), "All APIServices should report Available=True, but %d are not available", count)
+				}, 5*time.Minute, 10*time.Second).Should(Succeed())
 
 				By("updating cluster to remove VM from authorized CIDRs")
 				// Get the current cluster state
