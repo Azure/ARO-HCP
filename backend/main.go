@@ -52,6 +52,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/controllers"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/tracing"
+	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/internal/version"
 )
 
@@ -121,11 +122,14 @@ func newKubeconfig(kubeconfig string) (*rest.Config, error) {
 }
 
 func Run(cmd *cobra.Command, args []string) error {
+	ctx := context.Background()
+
 	handler := slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
 		AddSource: true,
 	})
 	logger := slog.New(handler)
 	klog.SetLogger(logr.FromSlogHandler(handler))
+	ctx = utils.ContextWithLogger(ctx, logger)
 
 	if len(argLocation) == 0 {
 		return errors.New("location is required")
@@ -162,7 +166,6 @@ func Run(cmd *cobra.Command, args []string) error {
 	}
 
 	// Initialize the global OpenTelemetry tracer.
-	ctx := context.Background()
 	otelShutdown, err := tracing.ConfigureOpenTelemetryTracer(
 		ctx,
 		logger,
@@ -287,7 +290,7 @@ func Run(cmd *cobra.Command, args []string) error {
 				OnStartedLeading: func(ctx context.Context) {
 					operationsScanner.leaderGauge.Set(1)
 					startedLeading.Store(true)
-					go operationsScanner.Run(ctx, logger)
+					go operationsScanner.Run(ctx)
 					go doNothingController.Run(ctx, 20)
 				},
 				OnStoppedLeading: func() {
