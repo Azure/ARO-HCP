@@ -18,8 +18,6 @@ import (
 	"fmt"
 	"strings"
 
-	"k8s.io/utils/ptr"
-
 	"github.com/Azure/ARO-HCP/internal/api"
 )
 
@@ -33,7 +31,7 @@ func InternalToCosmosGeneric[InternalAPIType any](internalObj *InternalAPIType) 
 		return nil, fmt.Errorf("internalObj must be an api.CosmosMetadataAccessor: %T", internalObj)
 	}
 
-	cosmosID, err := api.ResourceIDToCosmosID(ptr.To(metadata.GetResourceID()))
+	cosmosID, err := api.ResourceIDToCosmosID(metadata.GetResourceID())
 	if err != nil {
 		return nil, err
 	}

@@ -146,7 +146,7 @@ func (s *CosmosIntegrationTestInfo) CreateNewSubscription(ctx context.Context) (
 func (s *CosmosIntegrationTestInfo) CreateSpecificSubscription(ctx context.Context, subscriptionID string) (string, *arm.Subscription, error) {
 	subscription := &arm.Subscription{
 		CosmosMetadata: arm.CosmosMetadata{
-			ResourceID: *api.Must(arm.ToSubscriptionResourceID(subscriptionID)),
+			ResourceID: api.Must(arm.ToSubscriptionResourceID(subscriptionID)),
 		},
 		ResourceID: api.Must(arm.ToSubscriptionResourceID(subscriptionID)),
 		State:      arm.SubscriptionStateRegistered,

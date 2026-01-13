@@ -25,7 +25,7 @@ import (
 type CosmosMetadata = arm.CosmosMetadata
 
 type CosmosMetadataAccessor interface {
-	GetResourceID() azcorearm.ResourceID
+	GetResourceID() *azcorearm.ResourceID
 	SetResourceID(azcorearm.ResourceID)
 }
 

@@ -78,7 +78,7 @@ func TestSubscriptionsGET(t *testing.T) {
 			name: "GET Subscription - Doc Exists",
 			subDoc: &arm.Subscription{
 				CosmosMetadata: arm.CosmosMetadata{
-					ResourceID: *api.Must(arm.ToSubscriptionResourceID(api.TestSubscriptionID)),
+					ResourceID: api.Must(arm.ToSubscriptionResourceID(api.TestSubscriptionID)),
 				},
 				ResourceID:       api.Must(arm.ToSubscriptionResourceID(api.TestSubscriptionID)),
 				State:            arm.SubscriptionStateRegistered,
@@ -183,7 +183,7 @@ func TestSubscriptionsPUT(t *testing.T) {
 			},
 			subDoc: &arm.Subscription{
 				CosmosMetadata: arm.CosmosMetadata{
-					ResourceID: *api.Must(arm.ToSubscriptionResourceID(api.TestSubscriptionID)),
+					ResourceID: api.Must(arm.ToSubscriptionResourceID(api.TestSubscriptionID)),
 				},
 				ResourceID:       api.Must(arm.ToSubscriptionResourceID(api.TestSubscriptionID)),
 				State:            arm.SubscriptionStateRegistered,
@@ -210,7 +210,7 @@ func TestSubscriptionsPUT(t *testing.T) {
 			},
 			subDoc: &arm.Subscription{
 				CosmosMetadata: arm.CosmosMetadata{
-					ResourceID: *api.Must(arm.ToSubscriptionResourceID(api.TestSubscriptionID)),
+					ResourceID: api.Must(arm.ToSubscriptionResourceID(api.TestSubscriptionID)),
 				},
 				ResourceID:       api.Must(arm.ToSubscriptionResourceID(api.TestSubscriptionID)),
 				State:            arm.SubscriptionStateRegistered,
@@ -519,7 +519,7 @@ func TestDeploymentPreflight(t *testing.T) {
 				Get(gomock.Any(), api.TestSubscriptionID).
 				Return(&arm.Subscription{
 					CosmosMetadata: arm.CosmosMetadata{
-						ResourceID: *api.Must(arm.ToSubscriptionResourceID(api.TestSubscriptionID)),
+						ResourceID: api.Must(arm.ToSubscriptionResourceID(api.TestSubscriptionID)),
 					},
 					ResourceID: api.Must(arm.ToSubscriptionResourceID(api.TestSubscriptionID)),
 					State:      arm.SubscriptionStateRegistered,
@@ -529,7 +529,7 @@ func TestDeploymentPreflight(t *testing.T) {
 			subs := map[string]*arm.Subscription{
 				api.TestSubscriptionID: {
 					CosmosMetadata: arm.CosmosMetadata{
-						ResourceID: *api.Must(arm.ToSubscriptionResourceID(api.TestSubscriptionID)),
+						ResourceID: api.Must(arm.ToSubscriptionResourceID(api.TestSubscriptionID)),
 					},
 					ResourceID: api.Must(arm.ToSubscriptionResourceID(api.TestSubscriptionID)),
 					State:      arm.SubscriptionStateRegistered,

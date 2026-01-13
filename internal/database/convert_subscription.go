@@ -68,8 +68,8 @@ func CosmosToInternalSubscription(cosmosObj *Subscription) (*arm.Subscription, e
 		}
 		internalObj.ResourceID = resourceID
 	}
-	if internalObj.CosmosMetadata.ResourceID.Parent == nil {
-		internalObj.CosmosMetadata.ResourceID = *internalObj.ResourceID
+	if internalObj.CosmosMetadata.ResourceID == nil {
+		internalObj.CosmosMetadata.ResourceID = internalObj.ResourceID
 	}
 	internalObj.LastUpdated = cosmosObj.CosmosTimestamp
 	internalObj.CosmosUID = cosmosObj.ID

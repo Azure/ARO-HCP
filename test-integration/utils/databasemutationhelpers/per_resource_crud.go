@@ -223,7 +223,7 @@ func (SubscriptionCRUDSpecializer) NameFromInstance(obj *arm.Subscription) strin
 
 func (SubscriptionCRUDSpecializer) WriteCosmosID(newObj, oldObj *arm.Subscription) {
 	newObj.ResourceID = oldObj.ResourceID
-	newObj.CosmosMetadata.ResourceID = *oldObj.ResourceID
+	newObj.CosmosMetadata.ResourceID = oldObj.ResourceID
 }
 
 type GenericCRUDSpecializer[InternalAPIType any] struct {
