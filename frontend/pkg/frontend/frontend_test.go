@@ -77,6 +77,9 @@ func TestSubscriptionsGET(t *testing.T) {
 		{
 			name: "GET Subscription - Doc Exists",
 			subDoc: &arm.Subscription{
+				CosmosMetadata: arm.CosmosMetadata{
+					ResourceID: *api.Must(arm.ToSubscriptionResourceID(api.TestSubscriptionID)),
+				},
 				ResourceID:       api.Must(arm.ToSubscriptionResourceID(api.TestSubscriptionID)),
 				State:            arm.SubscriptionStateRegistered,
 				RegistrationDate: api.Ptr(time.Now().String()),
@@ -179,6 +182,9 @@ func TestSubscriptionsPUT(t *testing.T) {
 				Properties:       nil,
 			},
 			subDoc: &arm.Subscription{
+				CosmosMetadata: arm.CosmosMetadata{
+					ResourceID: *api.Must(arm.ToSubscriptionResourceID(api.TestSubscriptionID)),
+				},
 				ResourceID:       api.Must(arm.ToSubscriptionResourceID(api.TestSubscriptionID)),
 				State:            arm.SubscriptionStateRegistered,
 				RegistrationDate: api.Ptr(time.Now().String()),
@@ -203,6 +209,9 @@ func TestSubscriptionsPUT(t *testing.T) {
 				},
 			},
 			subDoc: &arm.Subscription{
+				CosmosMetadata: arm.CosmosMetadata{
+					ResourceID: *api.Must(arm.ToSubscriptionResourceID(api.TestSubscriptionID)),
+				},
 				ResourceID:       api.Must(arm.ToSubscriptionResourceID(api.TestSubscriptionID)),
 				State:            arm.SubscriptionStateRegistered,
 				RegistrationDate: api.Ptr(time.Now().String()),
@@ -509,6 +518,9 @@ func TestDeploymentPreflight(t *testing.T) {
 			mockSubscriptionCRUD.EXPECT().
 				Get(gomock.Any(), api.TestSubscriptionID).
 				Return(&arm.Subscription{
+					CosmosMetadata: arm.CosmosMetadata{
+						ResourceID: *api.Must(arm.ToSubscriptionResourceID(api.TestSubscriptionID)),
+					},
 					ResourceID: api.Must(arm.ToSubscriptionResourceID(api.TestSubscriptionID)),
 					State:      arm.SubscriptionStateRegistered,
 				}, nil).
@@ -516,6 +528,9 @@ func TestDeploymentPreflight(t *testing.T) {
 
 			subs := map[string]*arm.Subscription{
 				api.TestSubscriptionID: {
+					CosmosMetadata: arm.CosmosMetadata{
+						ResourceID: *api.Must(arm.ToSubscriptionResourceID(api.TestSubscriptionID)),
+					},
 					ResourceID: api.Must(arm.ToSubscriptionResourceID(api.TestSubscriptionID)),
 					State:      arm.SubscriptionStateRegistered,
 				},
