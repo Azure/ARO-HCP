@@ -1,23 +1,26 @@
 package v1
 
 import (
+	"context"
 	"fmt"
 	"net/url"
-	"slices"
 	"strings"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	"k8s.io/apimachinery/pkg/util/sets"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/azure/resourceid"
 	"github.com/Azure/ARO-HCP/backend/pkg/azure/urlvalidation"
 
+	"k8s.io/apimachinery/pkg/api/operation"
+	"k8s.io/apimachinery/pkg/api/validate"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 )
 
 // AzureRuntimeConfig represents user provided Azure related configuration for running the service
 type AzureRuntimeConfig struct {
 	// Cloud environment where the service is running on
-	CloudEnvironment CloudEnvironment `json:"cloudEnvironment"`
+	CloudEnvironmentName CloudEnvironmentName `json:"cloudEnvironmentName"`
 	// The ID of the tenant where the service is running on
 	ServiceTenantID string `json:"tenantID"`
 	// Azure Container Registry containing OCP Images
@@ -25,7 +28,8 @@ type AzureRuntimeConfig struct {
 	// Data plane identities OIDC configuration
 	DataPlaneIdentitiesOIDCConfiguration DataPlaneIdentitiesOIDCConfiguration `json:"dataPlaneIdentitiesOIDCConfiguration"`
 	// ManagedIdentitiesDataPlaneAudienceResource is the endpoint used to connect with the
-	// Managed Identities Resource Provider (MI RP)
+	// Managed Identities Resource Provider (MI RP). The scheme must be https.
+	// The system's certificate store is used to verify the OIDC issuer's certificate.
 	ManagedIdentitiesDataPlaneAudienceResource string `json:"managedIdentitiesDataPlaneAudienceResource"`
 	// TLSCertificatesConfig holds the configuration used to generate TLS
 	// certificates for user-facing apis, such as kube-apiserver and ingress.
@@ -41,9 +45,9 @@ type AzureRuntimeConfig struct {
 func (c AzureRuntimeConfig) Validate() field.ErrorList {
 	errs := field.ErrorList{}
 
-	errs = append(errs, c.CloudEnvironment.Validate(field.NewPath("cloudEnvironment"))...)
+	errs = append(errs, c.CloudEnvironmentName.Validate(field.NewPath("cloudEnvironment"))...)
 
-	if c.ServiceTenantID == "" {
+	if len(c.ServiceTenantID) == 0 {
 		errs = append(errs, field.Required(field.NewPath("tenantID"), "attribute is required"))
 	}
 
@@ -61,11 +65,11 @@ func (c AzureRuntimeConfig) Validate() field.ErrorList {
 }
 
 func (c AzureRuntimeConfig) validateManagedIdentitiesDataPlaneAudienceResource(fldPath *field.Path) field.ErrorList {
-	if c.ManagedIdentitiesDataPlaneAudienceResource == "" {
+	if len(c.ManagedIdentitiesDataPlaneAudienceResource) == 0 {
 		return field.ErrorList{field.Required(fldPath, "attribute is required")}
 	}
 
-	u, err := url.ParseRequestURI(c.ManagedIdentitiesDataPlaneAudienceResource)
+	u, err := url.Parse(c.ManagedIdentitiesDataPlaneAudienceResource)
 	if err != nil {
 		return field.ErrorList{
 			field.Invalid(fldPath, c.ManagedIdentitiesDataPlaneAudienceResource,
@@ -84,86 +88,78 @@ func (c AzureRuntimeConfig) validateManagedIdentitiesDataPlaneAudienceResource(f
 	return nil
 }
 
-// CloudEnvironment represents the cloud environment where the service is running on
+// CloudEnvironmentName represents the cloud environment where the service is running on
 // Accepted values are:
 // - AzureChinaCloud
 // - AzurePublicCloud
 // - AzureUSGovernmentCloud
-type CloudEnvironment string
-
-func (c CloudEnvironment) String() string {
-	return string(c)
-}
+type CloudEnvironmentName string
 
 const (
-	AzureChinaCloud        CloudEnvironment = "AzureChinaCloud"
-	AzurePublicCloud       CloudEnvironment = "AzurePublicCloud"
-	AzureUSGovernmentCloud CloudEnvironment = "AzureUSGovernmentCloud"
+	AzureChinaCloud        CloudEnvironmentName = "AzureChinaCloud"
+	AzurePublicCloud       CloudEnvironmentName = "AzurePublicCloud"
+	AzureUSGovernmentCloud CloudEnvironmentName = "AzureUSGovernmentCloud"
 )
 
-func (c CloudEnvironment) Validate(fldPath *field.Path) field.ErrorList {
-	var supportedAzureCloudEnvironmentsStrings = []string{
-		string(AzureChinaCloud),
-		string(AzurePublicCloud),
-		string(AzureUSGovernmentCloud),
-	}
-
-	var supportedAzureCloudEnvironments []CloudEnvironment = []CloudEnvironment{
-		AzureChinaCloud,
+var (
+	// validCloudEnvironmentNames is a set of valid cloud environment names. As of now,
+	// we have only verified AzurePublicCloud.
+	validCloudEnvironmentNames = sets.New[CloudEnvironmentName](
 		AzurePublicCloud,
 		AzureUSGovernmentCloud,
-	}
+		AzureChinaCloud,
+	)
 
-	if c.String() == "" {
+	// validCloudEnvironmentNamesStrings is a slice of strings representing the valid cloud environment names.
+	// This is used to list the valid values in a a sorted way to be used in messages
+	validCloudEnvironmentNamesStrings = []string{
+		string(AzurePublicCloud),
+		string(AzureUSGovernmentCloud),
+		string(AzureChinaCloud),
+	}
+)
+
+func (c CloudEnvironmentName) Validate(fldPath *field.Path) field.ErrorList {
+
+	if len(c) == 0 {
 		return field.ErrorList{
 			field.Required(
 				fldPath,
 				fmt.Sprintf("attribute is required. Accepted values are: %s",
-					strings.Join(supportedAzureCloudEnvironmentsStrings, ","),
+					strings.Join(validCloudEnvironmentNamesStrings, ","),
 				),
 			),
 		}
 
 	}
 
-	isSupported := slices.Contains(supportedAzureCloudEnvironments, c)
-	if !isSupported {
-		return field.ErrorList{
-			field.Invalid(
-				fldPath,
-				c.String(),
-				fmt.Sprintf("attribute is not supported. Accepted values are: %s",
-					strings.Join(supportedAzureCloudEnvironmentsStrings, ","),
-				),
-			),
-		}
-	}
-
-	return nil
+	return validate.Enum(context.Background(), operation.Operation{}, fldPath, &c, nil, validCloudEnvironmentNames)
 }
 
 type DataPlaneIdentitiesOIDCConfiguration struct {
 	// Name of the storage account blob container
 	StorageAccountBlobContainerName string `json:"storageAccountBlobContainerName"`
 	// URL of the storage account blob service, e.g. https://<storage-account>.blob.core.windows.net/
+	// The system's certificate store is used to verify the certificate.
 	StorageAccountBlobServiceURL string `json:"storageAccountBlobServiceURL"`
 	// OIDC base issuer URL, e.g. https://<storage-account>.z1.web.core.windows.net/
-	// The system's certificate store is used to verify the OIDC issuer's certificate.
+	// The system's certificate store is used to verify the certificate.
 	OIDCIssuerBaseURL string `json:"oidcIssuerBaseURL"`
 }
 
 type AzureContainerRegistry struct {
 	// Resource Id of the Azure Container Registry
-	ResourceID azcorearm.ResourceID `json:"resourceID"`
+	ResourceID *azcorearm.ResourceID `json:"resourceID"`
 	// URL of the Azure Container Registry.
 	// It should only contain the hostname, without any protocol, port or paths.
+	// The system's certificate store is used to verify the certificate.
 	URL string `json:"url"`
 	// Scope map name for the Azure Container Registry repository
 	ScopeMapName string `json:"scopeMapName"`
 }
 
 func (r *AzureContainerRegistry) validateACRURL(fldPath *field.Path) field.ErrorList {
-	if r.URL == "" {
+	if len(r.URL) == 0 {
 		return field.ErrorList{field.Required(fldPath, "attribute is required")}
 	}
 
@@ -194,7 +190,9 @@ func (r *AzureContainerRegistry) validateACRURL(fldPath *field.Path) field.Error
 func (r AzureContainerRegistry) Validate(fldPath *field.Path) field.ErrorList {
 	errs := field.ErrorList{}
 
-	err := resourceid.ValidateACRResourceID(r.ResourceID)
+	validate.RequiredPointer(context.Background(), operation.Operation{}, fldPath.Child("resourceID"), r.ResourceID, nil)
+
+	err := resourceid.ValidateACRResourceID(*r.ResourceID)
 	if err != nil {
 		errs = append(errs, field.Invalid(
 			fldPath.Child("resourceID"), r.ResourceID, fmt.Sprintf("attribute is not a valid resource ID: %v", err)),
@@ -203,7 +201,7 @@ func (r AzureContainerRegistry) Validate(fldPath *field.Path) field.ErrorList {
 
 	errs = append(errs, r.validateACRURL(fldPath.Child("url"))...)
 
-	if r.ScopeMapName == "" {
+	if len(r.ScopeMapName) == 0 {
 		errs = append(errs, field.Required(fldPath.Child("scopeMapName"), "attribute is required"))
 	}
 
@@ -214,10 +212,10 @@ func (r AzureContainerRegistry) Validate(fldPath *field.Path) field.ErrorList {
 func (c DataPlaneIdentitiesOIDCConfiguration) Validate(fldPath *field.Path) field.ErrorList {
 	errs := field.ErrorList{}
 
-	if c.StorageAccountBlobContainerName == "" {
+	if len(c.StorageAccountBlobContainerName) == 0 {
 		errs = append(errs, field.Required(fldPath.Child("storageAccountBlobContainerName"), "attribute is required"))
 	}
-	if c.StorageAccountBlobServiceURL == "" {
+	if len(c.StorageAccountBlobServiceURL) == 0 {
 		errs = append(errs, field.Required(fldPath.Child("storageAccountBlobServiceURL"), "attribute is required"))
 	}
 
@@ -229,7 +227,7 @@ func (c DataPlaneIdentitiesOIDCConfiguration) Validate(fldPath *field.Path) fiel
 }
 
 func (c DataPlaneIdentitiesOIDCConfiguration) validateStorageAccountBlobServiceURL(fldPath *field.Path) field.ErrorList {
-	if c.StorageAccountBlobServiceURL == "" {
+	if len(c.StorageAccountBlobServiceURL) == 0 {
 		return field.ErrorList{field.Required(fldPath, "attribute is required")}
 	}
 
@@ -242,7 +240,7 @@ func (c DataPlaneIdentitiesOIDCConfiguration) validateStorageAccountBlobServiceU
 }
 
 func (c DataPlaneIdentitiesOIDCConfiguration) validateOIDCIssuerBaseURL(fldPath *field.Path) field.ErrorList {
-	if c.OIDCIssuerBaseURL == "" {
+	if len(c.OIDCIssuerBaseURL) == 0 {
 		return field.ErrorList{field.Required(fldPath, "attribute is required")}
 	}
 

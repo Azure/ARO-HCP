@@ -11,7 +11,7 @@ type AzureConfig struct {
 	// Data plane identities OIDC configuration
 	DataPlaneIdentitiesOIDCConfiguration AzureDataPlaneIdentitiesOIDCConfiguration
 	// ManagedIdentitiesDataPlaneAudienceResource is the endpoint used to connect with the
-	// Managed Identities Resource Provider (MI RP)
+	// Managed Identities Resource Provider (MI RP).
 	ManagedIdentitiesDataPlaneAudienceResource string
 	// TLSCertificatesConfig holds the configuration used to generate tls
 	// certificates for user-facing apis, such as kube-apiserver and ingress.

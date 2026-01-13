@@ -168,26 +168,25 @@ func loadAzureRuntimeConfig(path string) (apiazurev1.AzureRuntimeConfig, error) 
 	return config, nil
 }
 
-func buildAzureConfig(azureRuntimeConfigDTO apiazurev1.AzureRuntimeConfig, tracerProvider trace.TracerProvider) (azureconfig.AzureConfig, error) {
-
-	cloudEnvironment, err := azureconfig.NewAzureCloudEnvironment(azureRuntimeConfigDTO.CloudEnvironment.String(), tracerProvider)
+func buildAzureConfig(azureRuntimeConfig apiazurev1.AzureRuntimeConfig, tracerProvider trace.TracerProvider) (azureconfig.AzureConfig, error) {
+	cloudEnvironment, err := azureconfig.NewAzureCloudEnvironment(string(azureRuntimeConfig.CloudEnvironmentName), tracerProvider)
 	if err != nil {
 		return azureconfig.AzureConfig{}, fmt.Errorf("error building azure cloud environment configuration: %w", err)
 	}
 
 	ocpImagesACR := azureconfig.NewAzureContainerRegistry(
-		azureRuntimeConfigDTO.OCPImagesACR.ResourceID, azureRuntimeConfigDTO.OCPImagesACR.URL,
-		azureRuntimeConfigDTO.OCPImagesACR.ScopeMapName,
+		*azureRuntimeConfig.OCPImagesACR.ResourceID, azureRuntimeConfig.OCPImagesACR.URL,
+		azureRuntimeConfig.OCPImagesACR.ScopeMapName,
 	)
 
 	dataPlaneIdentitiesOIDCConfiguration := azureconfig.NewAzureDataPlaneIdentitiesOIDCConfiguration(
-		azureRuntimeConfigDTO.DataPlaneIdentitiesOIDCConfiguration.StorageAccountBlobContainerName,
-		azureRuntimeConfigDTO.DataPlaneIdentitiesOIDCConfiguration.StorageAccountBlobServiceURL,
-		azureRuntimeConfigDTO.DataPlaneIdentitiesOIDCConfiguration.OIDCIssuerBaseURL,
+		azureRuntimeConfig.DataPlaneIdentitiesOIDCConfiguration.StorageAccountBlobContainerName,
+		azureRuntimeConfig.DataPlaneIdentitiesOIDCConfiguration.StorageAccountBlobServiceURL,
+		azureRuntimeConfig.DataPlaneIdentitiesOIDCConfiguration.OIDCIssuerBaseURL,
 	)
 
 	var tlsCertificatesIssuer azureconfig.TLSCertificateIssuerType
-	switch azureRuntimeConfigDTO.TLSCertificatesConfig.Issuer {
+	switch azureRuntimeConfig.TLSCertificatesConfig.Issuer {
 	case apiazurev1.TLSCertificateIssuerSelf:
 		tlsCertificatesIssuer = azureconfig.TLSCertificateIssuerSelf
 	case apiazurev1.TLSCertificateIssuerOneCert:
@@ -195,7 +194,7 @@ func buildAzureConfig(azureRuntimeConfigDTO apiazurev1.AzureRuntimeConfig, trace
 	}
 
 	var tlsCertificatesGenerationSource azureconfig.CertificatesGenerationSource
-	switch azureRuntimeConfigDTO.TLSCertificatesConfig.CertificatesGenerationSource {
+	switch azureRuntimeConfig.TLSCertificatesConfig.CertificatesGenerationSource {
 	case apiazurev1.CertificatesGenerationSourceAzureKeyVault:
 		tlsCertificatesGenerationSource = azureconfig.CertificatesGenerationSourceAzureKeyVault
 	case apiazurev1.CertificatesGenerationSourceHypershift:
@@ -211,17 +210,17 @@ func buildAzureConfig(azureRuntimeConfigDTO apiazurev1.AzureRuntimeConfig, trace
 	// they are valid because the user-provided parts were validated
 	out := config.AzureConfig{
 		CloudEnvironment:                           cloudEnvironment,
-		ServiceTenantID:                            azureRuntimeConfigDTO.ServiceTenantID,
+		ServiceTenantID:                            azureRuntimeConfig.ServiceTenantID,
 		OCPImagesACR:                               ocpImagesACR,
 		DataPlaneIdentitiesOIDCConfiguration:       dataPlaneIdentitiesOIDCConfiguration,
-		ManagedIdentitiesDataPlaneAudienceResource: azureRuntimeConfigDTO.ManagedIdentitiesDataPlaneAudienceResource,
+		ManagedIdentitiesDataPlaneAudienceResource: azureRuntimeConfig.ManagedIdentitiesDataPlaneAudienceResource,
 		TLSCertificatesConfig:                      tlsCertificatesConfig,
 	}
 
 	return out, err
 }
 
-func callAzureExampleInflight(clientBuilder azureclient.ClientBuilder) error {
+func callAzureExampleInflight(clientBuilder azureclient.FPAClientBuilder) error {
 	validation := controllers.NewAzureRpRegistrationValidation("rp-registration-validation", clientBuilder)
 	// The tenant and subscription values would come when a cluster is processed. Here in main we do not process
 	// particular clusters so we do not have that information so for this example we just set the red hat dev account info.
@@ -311,12 +310,12 @@ func Run(cmd *cobra.Command, args []string) error {
 
 	// TODO azure related code cannot be executed until the cli flags and configs
 	// have been rolled out to prod.
-	azureRuntimeConfigDTO, err := loadAzureRuntimeConfig(argsAzureRuntimeConfigPath)
+	azureRuntimeConfig, err := loadAzureRuntimeConfig(argsAzureRuntimeConfigPath)
 	if err != nil {
 		return fmt.Errorf("error loading azure runtime config: %w", err)
 	}
 
-	azureConfig, err := buildAzureConfig(azureRuntimeConfigDTO, otelTracerProvider)
+	azureConfig, err := buildAzureConfig(azureRuntimeConfig, otelTracerProvider)
 	if err != nil {
 		return fmt.Errorf("error building azure configuration: %w", err)
 	}
@@ -343,7 +342,7 @@ func Run(cmd *cobra.Command, args []string) error {
 		azureConfig.CloudEnvironment.AZCoreClientOptions(),
 	)
 
-	fpaClientBuilder := azureclient.NewFpaClientBuilder(
+	fpaClientBuilder := azureclient.NewFPAClientBuilder(
 		fpaTokenCredRetriever, azureConfig.CloudEnvironment.ARMClientOptions(),
 	)
 

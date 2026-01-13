@@ -15,8 +15,8 @@ import (
 
 // AzureCloudEnvironment represents an Azure cloud environment.
 type AzureCloudEnvironment struct {
-	// ID of the cloud environment (AzurePublicCloud, AzureUSGovernmentCloud, AzureChinaCloud, ...)
-	id string
+	// cloudEnvironmentName of the cloud environment (AzurePublicCloud, AzureUSGovernmentCloud, AzureChinaCloud, ...)
+	cloudEnvironmentName AzureCloudEnvironmentName
 	// Configuration of the cloud environment
 	configuration cloud.Configuration
 	// RDBMS scope of the cloud environment
@@ -27,29 +27,36 @@ type AzureCloudEnvironment struct {
 	clientOptions policy.ClientOptions
 }
 
+// checkAccessV2Environment represents the information associated to Microsoft's
+// Check Access V2 API.
 type checkAccessV2Environment struct {
+	// domainSuffix is the domain suffix used as part of the domain name
+	// of the endpoint of the Check Access V2 API.
 	domainSuffix string
-	scope        string
+	// scope is the permission scope to be requested for the access token to
+	// communicate with the Check Access V2 API.
+	scope string
 }
 
-// AzureCloudEnvironmentBuilder can build an Azure cloud environment.
-type AzureCloudEnvironmentBuilder struct {
-	cloudEnvironment string
-	tracerProvider   trace.TracerProvider
-}
+// AzureCloudEnvironmentName represents the name of an Azure cloud environment.
+// Accepted values are:
+// - AzureChinaCloud
+// - AzurePublicCloud
+// - AzureUSGovernmentCloud
+type AzureCloudEnvironmentName string
 
 const (
-	AzureChinaCloud        = "AzureChinaCloud"
-	AzurePublicCloud       = "AzurePublicCloud"
-	AzureUSGovernmentCloud = "AzureUSGovernmentCloud"
+	AzureChinaCloud        AzureCloudEnvironmentName = "AzureChinaCloud"
+	AzurePublicCloud       AzureCloudEnvironmentName = "AzurePublicCloud"
+	AzureUSGovernmentCloud AzureCloudEnvironmentName = "AzureUSGovernmentCloud"
 )
 
-func NewAzureCloudEnvironment(cloudEnvironment string, tracerProvider trace.TracerProvider) (AzureCloudEnvironment, error) {
-	if cloudEnvironment == "" {
+func NewAzureCloudEnvironment(cloudEnvironmentName string, tracerProvider trace.TracerProvider) (AzureCloudEnvironment, error) {
+	if cloudEnvironmentName == "" {
 		return AzureCloudEnvironment{}, errors.Errorf("cloud environment cannot be empty")
 	}
 
-	var azureCloudEnvironmentConfigurationMapping = map[string]struct {
+	var azureCloudEnvironmentConfigurationMapping = map[AzureCloudEnvironmentName]struct {
 		cloud                    cloud.Configuration
 		rdbmsScope               string
 		checkAccessV2Environment checkAccessV2Environment
@@ -80,10 +87,11 @@ func NewAzureCloudEnvironment(cloudEnvironment string, tracerProvider trace.Trac
 		},
 	}
 
-	configuration, ok := azureCloudEnvironmentConfigurationMapping[cloudEnvironment]
+	typedAzureCloudEnvironmentName := AzureCloudEnvironmentName(cloudEnvironmentName)
+	configuration, ok := azureCloudEnvironmentConfigurationMapping[typedAzureCloudEnvironmentName]
 	if !ok {
 		return AzureCloudEnvironment{},
-			errors.Errorf("cloud environment %q is not supported", cloudEnvironment)
+			errors.Errorf("cloud environment %q is not supported", cloudEnvironmentName)
 	}
 
 	clientOptions := policy.ClientOptions{
@@ -94,7 +102,7 @@ func NewAzureCloudEnvironment(cloudEnvironment string, tracerProvider trace.Trac
 	}
 
 	return AzureCloudEnvironment{
-		id:                       cloudEnvironment,
+		cloudEnvironmentName:     typedAzureCloudEnvironmentName,
 		configuration:            configuration.cloud,
 		rdbmsScope:               configuration.rdbmsScope,
 		checkAccessV2Environment: configuration.checkAccessV2Environment,
@@ -107,7 +115,7 @@ func NewAzureCloudEnvironment(cloudEnvironment string, tracerProvider trace.Trac
 // PolicyClientOptions() because azcore.ClientOptions is a type alias of
 // policy.ClientOptions.
 func (a AzureCloudEnvironment) AZCoreClientOptions() azcore.ClientOptions {
-	return a.PolicyClientOptions()
+	return a.clientOptions
 }
 
 // PolicyClientOptions returns a policy.ClientOptions instance from the current
@@ -126,8 +134,8 @@ func (a AzureCloudEnvironment) ARMClientOptions() *arm.ClientOptions {
 	}
 }
 
-func (a AzureCloudEnvironment) ID() string {
-	return a.id
+func (a AzureCloudEnvironment) CloudEnvironmentName() AzureCloudEnvironmentName {
+	return a.cloudEnvironmentName
 }
 
 func (a AzureCloudEnvironment) Configuration() cloud.Configuration {

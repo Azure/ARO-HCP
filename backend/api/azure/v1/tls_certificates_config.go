@@ -1,10 +1,13 @@
 package v1
 
 import (
+	"context"
 	"fmt"
-	"slices"
 	"strings"
 
+	"k8s.io/apimachinery/pkg/api/operation"
+	"k8s.io/apimachinery/pkg/api/validate"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 )
 
@@ -33,6 +36,21 @@ const (
 	TLSCertificateIssuerOneCert TLSCertificateIssuerType = "OneCertV2-PublicCA"
 )
 
+var (
+	// validIssuerTypes is a set of valid issuer types.
+	validIssuerTypes = sets.New[TLSCertificateIssuerType](
+		TLSCertificateIssuerSelf,
+		TLSCertificateIssuerOneCert,
+	)
+
+	// validIssuerTypesStrings is a slice of strings representing the valid issuer types.
+	// This is used to list the valid values in a a sorted way to be used in messages
+	validIssuerTypesStrings = []string{
+		string(TLSCertificateIssuerSelf),
+		string(TLSCertificateIssuerOneCert),
+	}
+)
+
 // CertificatesGenerationSource indicates what is the source to be used to
 // generate the TLS certificates.
 type CertificatesGenerationSource string
@@ -43,7 +61,22 @@ const (
 	CertificatesGenerationSourceAzureKeyVault CertificatesGenerationSource = "AzureKeyVault"
 	// CertificatesGenerationSourceHypershift signals TLS certificates to be
 	// generated using the default Hypershift generated TLS Certificates.
-	CertificatesGenerationSourceHypershift CertificatesGenerationSource = "Hypershift"
+	CertificatesGenerationSourceHypershift CertificatesGenerationSource = "NotSupportedMayRemove_Hypershift"
+)
+
+var (
+	// validCertificatesGenerationSources is a set of valid certificates generation sources.
+	validCertificatesGenerationSources = sets.New[CertificatesGenerationSource](
+		CertificatesGenerationSourceAzureKeyVault,
+		CertificatesGenerationSourceHypershift,
+	)
+
+	// validCertificatesGenerationSourcesStrings is a slice of strings representing the valid certificates generation sources.
+	// This is used to list the valid values in a a sorted way to be used in messages
+	validCertificatesGenerationSourcesStrings = []string{
+		string(CertificatesGenerationSourceAzureKeyVault),
+		string(CertificatesGenerationSourceHypershift),
+	}
 )
 
 func (tlsConfig TLSCertificatesConfig) Validate(fldPath *field.Path) field.ErrorList {
@@ -57,61 +90,37 @@ func (tlsConfig TLSCertificatesConfig) Validate(fldPath *field.Path) field.Error
 }
 
 func (tlsConfig TLSCertificatesConfig) validateCertificatesGenerationSource(fldPath *field.Path) field.ErrorList {
-	acceptedCertificatesGenerationSourceValues := []CertificatesGenerationSource{
-		CertificatesGenerationSourceAzureKeyVault,
-		CertificatesGenerationSourceHypershift,
-	}
-
-	acceptedCertificatesGenerationSourceValuesStrings := []string{
-		string(CertificatesGenerationSourceAzureKeyVault),
-		string(CertificatesGenerationSourceHypershift),
-	}
-
-	if tlsConfig.CertificatesGenerationSource == "" {
-		return field.ErrorList{field.Required(fldPath, "attribute is required")}
-	}
-
-	if !slices.Contains(acceptedCertificatesGenerationSourceValues, tlsConfig.CertificatesGenerationSource) {
+	if len(tlsConfig.CertificatesGenerationSource) == 0 {
 		return field.ErrorList{
-			field.Invalid(fldPath, tlsConfig.CertificatesGenerationSource,
-				fmt.Sprintf("attribute is not supported. Accepted values are: %s",
-					strings.Join(acceptedCertificatesGenerationSourceValuesStrings, ","),
+			field.Required(
+				fldPath,
+				fmt.Sprintf("attribute is required. Accepted values are: %s",
+					strings.Join(validCertificatesGenerationSourcesStrings, ","),
 				),
 			),
 		}
 	}
 
-	return nil
+	return validate.Enum(context.Background(), operation.Operation{}, fldPath,
+		&tlsConfig.CertificatesGenerationSource, nil, validCertificatesGenerationSources,
+	)
 }
 
 func (tlsConfig TLSCertificatesConfig) validateIssuer(
 	fldPath *field.Path, certSourceFldPath *field.Path,
 ) field.ErrorList {
-	acceptedIssuerValues := []TLSCertificateIssuerType{
-		TLSCertificateIssuerSelf,
-		TLSCertificateIssuerOneCert,
-	}
-
-	acceptedIssuerValuesStrings := []string{
-		string(TLSCertificateIssuerSelf),
-		string(TLSCertificateIssuerOneCert),
-	}
-
-	if tlsConfig.Issuer == "" {
+	if len(tlsConfig.Issuer) == 0 {
 		return field.ErrorList{field.Required(fldPath, "attribute is required")}
 	}
 
-	if !slices.Contains(acceptedIssuerValues, tlsConfig.Issuer) {
-		return field.ErrorList{
-			field.Invalid(fldPath, tlsConfig.Issuer,
-				fmt.Sprintf("attribute is not supported. Accepted values are: %s",
-					strings.Join(acceptedIssuerValuesStrings, ","),
-				),
-			),
-		}
+	validationErrrors := validate.Enum(context.Background(), operation.Operation{}, fldPath,
+		&tlsConfig.Issuer, nil, validIssuerTypes,
+	)
+	if len(validationErrrors) != 0 {
+		return validationErrrors
 	}
 
-	if tlsConfig.CertificatesGenerationSource == CertificatesGenerationSourceHypershift && tlsConfig.Issuer != "" {
+	if tlsConfig.CertificatesGenerationSource == CertificatesGenerationSourceHypershift && len(tlsConfig.Issuer) != 0 {
 		return field.ErrorList{
 			field.Forbidden(fldPath,
 				fmt.Sprintf("attribute is not allowed when %s is %s",
@@ -122,7 +131,7 @@ func (tlsConfig TLSCertificatesConfig) validateIssuer(
 		}
 	}
 
-	if tlsConfig.CertificatesGenerationSource == CertificatesGenerationSourceAzureKeyVault && tlsConfig.Issuer == "" {
+	if tlsConfig.CertificatesGenerationSource == CertificatesGenerationSourceAzureKeyVault && len(tlsConfig.Issuer) == 0 {
 		return field.ErrorList{
 			field.Required(fldPath,
 				fmt.Sprintf("attribute is required when %s is %s",

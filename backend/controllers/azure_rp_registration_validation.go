@@ -21,12 +21,12 @@ const (
 // Azure Resource Providers associated with a clusters region, subscription, etc.
 type AzureRpRegistrationValidation struct {
 	name               string
-	azureClientBuilder azureclient.ClientBuilder
+	azureClientBuilder azureclient.FPAClientBuilder
 }
 
 func NewAzureRpRegistrationValidation(
 	name string,
-	azureClientBuilder azureclient.ClientBuilder,
+	azureClientBuilder azureclient.FPAClientBuilder,
 ) *AzureRpRegistrationValidation {
 	return &AzureRpRegistrationValidation{
 		name:               name,
