@@ -220,7 +220,7 @@ func buildAzureConfig(azureRuntimeConfig apisconfigv1.AzureRuntimeConfig, tracer
 }
 
 func callAzureExampleInflight(clientBuilder azureclient.FPAClientBuilder) error {
-	validation := controllers.NewAzureRpRegistrationValidation("rp-registration-validation", clientBuilder)
+	validation := controllers.NewAzureRPRegistrationValidation("rp-registration-validation", clientBuilder)
 	// The tenant and subscription values would come when a cluster is processed. Here in main we do not process
 	// particular clusters so we do not have that information so for this example we just set the red hat dev account info.
 

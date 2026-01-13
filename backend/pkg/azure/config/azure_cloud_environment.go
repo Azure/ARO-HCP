@@ -10,7 +10,6 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/tracing/azotel"
-	"github.com/pkg/errors"
 )
 
 // AzureCloudEnvironment represents an Azure cloud environment.
@@ -53,7 +52,7 @@ const (
 
 func NewAzureCloudEnvironment(cloudEnvironmentName string, tracerProvider trace.TracerProvider) (AzureCloudEnvironment, error) {
 	if cloudEnvironmentName == "" {
-		return AzureCloudEnvironment{}, errors.Errorf("cloud environment cannot be empty")
+		return AzureCloudEnvironment{}, fmt.Errorf("cloud environment cannot be empty")
 	}
 
 	var azureCloudEnvironmentConfigurationMapping = map[AzureCloudEnvironmentName]struct {
@@ -91,7 +90,7 @@ func NewAzureCloudEnvironment(cloudEnvironmentName string, tracerProvider trace.
 	configuration, ok := azureCloudEnvironmentConfigurationMapping[typedAzureCloudEnvironmentName]
 	if !ok {
 		return AzureCloudEnvironment{},
-			errors.Errorf("cloud environment %q is not supported", cloudEnvironmentName)
+			fmt.Errorf("cloud environment %q is not supported", cloudEnvironmentName)
 	}
 
 	clientOptions := policy.ClientOptions{

@@ -43,30 +43,3 @@ type ResourceProvidersClientRetriever interface {
 	Retrieve(subscriptionID string, credentials azcore.TokenCredential, options *arm.ClientOptions,
 	) (ResourceProvidersClient, error)
 }
-
-var _ ResourceProvidersClient = (*armresources.ProvidersClient)(nil)
-
-type resourceProvidersClientRetriever struct {
-}
-
-// NewResourceProvidersClientRetriever instantiates a ResourceProvidersClientRetriever instance that will
-// instantiate a ResourceProvidersClient instance from the Azure Go SDK ProvidersClient client.
-func NewResourceProvidersClientRetriever() ResourceProvidersClientRetriever {
-	return &resourceProvidersClientRetriever{}
-}
-
-// TODO by now directly instantiating the SDK client and having the direct ResourceProvidersClient we
-// simplify the code. However, what if for example we would like to add behavior on top of the SDK client? For
-// example, adding some decoration on each call to its methods (logging, tracing, other stuff). With the previous
-// approach I had with the extra type that wrapped it it was possible but if we always instantiate the SDK client
-// directly it is not possible.
-// TODO in the ARO Classic RP for example they also define an interface that matches the methods of the SDK client
-// but they still have an extra type that implements the interface, that embeds the SDK client and where sometimes
-// they add more information to the type or override some of the methods. For example, in
-// https://github.com/Azure/ARO-RP/blob/master/pkg/util/azureclient/azuresdk/armauthorization/roledefinitions.go. Is
-// that not desirable? This is semi-related to the first point too.
-func (a *resourceProvidersClientRetriever) Retrieve(subscriptionID string,
-	credential azcore.TokenCredential, options *arm.ClientOptions) (ResourceProvidersClient, error) {
-
-	return NewResourceProvidersClient(subscriptionID, credential, options)
-}

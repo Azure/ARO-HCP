@@ -13,32 +13,32 @@ import (
 
 const (
 	// RpRegistrationStateRegistered - Resource provider is registered
-	azureRpRegistrationStateRegistered string = "Registered"
-	azureRpRegistrationValidationName  string = "azure-rp-registration-validation"
+	azureRPRegistrationStateRegistered string = "Registered"
+	azureRPRegistrationValidationName  string = "azure-rp-registration-validation"
 )
 
 // The RpRegistrationValidation struct validates the states of several
 // Azure Resource Providers associated with a clusters region, subscription, etc.
-type AzureRpRegistrationValidation struct {
-	name               string
-	azureClientBuilder azureclient.FPAClientBuilder
+type AzureRPRegistrationValidation struct {
+	name                  string
+	azureFPAClientBuilder azureclient.FPAClientBuilder
 }
 
-func NewAzureRpRegistrationValidation(
+func NewAzureRPRegistrationValidation(
 	name string,
 	azureClientBuilder azureclient.FPAClientBuilder,
-) *AzureRpRegistrationValidation {
-	return &AzureRpRegistrationValidation{
-		name:               name,
-		azureClientBuilder: azureClientBuilder,
+) *AzureRPRegistrationValidation {
+	return &AzureRPRegistrationValidation{
+		name:                  name,
+		azureFPAClientBuilder: azureClientBuilder,
 	}
 }
 
-func (v *AzureRpRegistrationValidation) Name() string {
+func (v *AzureRPRegistrationValidation) Name() string {
 	return v.name
 }
 
-func (v *AzureRpRegistrationValidation) Validate(ctx context.Context, cluster *api.HCPOpenShiftCluster) error {
+func (v *AzureRPRegistrationValidation) Validate(ctx context.Context, cluster *api.HCPOpenShiftCluster) error {
 	// TODO if we always get the logger from the context, a question that comes to my mind is: if we define a type
 	// and we want that all of its methods always add the same decoration how would we do that? the context is per
 	// method so we would need to call the With in every single method which seems a bit cumbersome and prone to errors.
@@ -47,7 +47,7 @@ func (v *AzureRpRegistrationValidation) Validate(ctx context.Context, cluster *a
 	// information from the context received in the method than the one stored in the type. We would need to somehow
 	// create a nwe logger in every method again which goes back to the same problem.
 	logger := utils.LoggerFromContext(ctx)
-	logger = logger.With("validation_name", azureRpRegistrationValidationName)
+	logger = logger.With("validation_name", azureRPRegistrationValidationName)
 	// TODO should we always add the logger back to the context when we decorate it with With so it is
 	// available just in case even if there are no functions that leverage the logger at the current point in time?
 	ctx = utils.ContextWithLogger(ctx, logger)
@@ -77,7 +77,7 @@ func (v *AzureRpRegistrationValidation) Validate(ctx context.Context, cluster *a
 			return err
 		}
 		if providerResp.RegistrationState == nil ||
-			*providerResp.RegistrationState != azureRpRegistrationStateRegistered {
+			*providerResp.RegistrationState != azureRPRegistrationStateRegistered {
 			missingResourcesProviders = append(missingResourcesProviders, rp)
 		} else {
 			logger.Debug(fmt.Sprintf("RP '%s' is registered", rp))
@@ -93,8 +93,8 @@ func (v *AzureRpRegistrationValidation) Validate(ctx context.Context, cluster *a
 	return nil
 }
 
-func (v *AzureRpRegistrationValidation) getResourceProvidersClient(
+func (v *AzureRPRegistrationValidation) getResourceProvidersClient(
 	tenantID string, subscriptionID string,
 ) (azureclient.ResourceProvidersClient, error) {
-	return v.azureClientBuilder.ResourceProvidersClient(tenantID, subscriptionID)
+	return v.azureFPAClientBuilder.ResourceProvidersClient(tenantID, subscriptionID)
 }
