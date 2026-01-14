@@ -37,7 +37,7 @@ func InternalToCosmosSubscription(internalObj *arm.Subscription) (*Subscription,
 	cosmosObj := &Subscription{
 		TypedDocument: TypedDocument{
 			BaseDocument: BaseDocument{
-				ID: strings.ToLower(internalObj.ResourceID.Name),
+				ID: internalObj.GetCosmosData().CosmosUID,
 			},
 			PartitionKey: strings.ToLower(internalObj.ResourceID.Name),
 			ResourceType: internalObj.ResourceID.ResourceType.String(),
@@ -46,6 +46,9 @@ func InternalToCosmosSubscription(internalObj *arm.Subscription) (*Subscription,
 			Subscription: *internalObj,
 		},
 	}
+
+	// some pieces of data conflict with standard fields.  We may evolve over time, but for now avoid persisting those.
+	cosmosObj.InternalState.CosmosUID = ""
 
 	return cosmosObj, nil
 }
@@ -60,12 +63,15 @@ func CosmosToInternalSubscription(cosmosObj *Subscription) (*arm.Subscription, e
 
 	// some pieces of data are stored on the ResourceDocument, so we need to restore that data
 	// this allows us to read old data until we migrate all existing data
-	resourceID, err := azcorearm.ParseResourceID(path.Join("/subscriptions", cosmosObj.ID))
-	if err != nil {
-		return nil, utils.TrackError(err)
+	if internalObj.ResourceID == nil {
+		resourceID, err := azcorearm.ParseResourceID(path.Join("/subscriptions", cosmosObj.ID))
+		if err != nil {
+			return nil, utils.TrackError(err)
+		}
+		internalObj.ResourceID = resourceID
 	}
-	internalObj.ResourceID = resourceID
 	internalObj.LastUpdated = cosmosObj.CosmosTimestamp
+	internalObj.CosmosUID = cosmosObj.ID
 
 	return internalObj, nil
 }

@@ -38,6 +38,7 @@ func TestSubscriptionCollector(t *testing.T) {
 	nosubs := maps.All(map[string]*arm.Subscription{})
 	subs := maps.All(map[string]*arm.Subscription{
 		"00000000-0000-0000-0000-000000000000": {
+			ResourceID:       api.Must(arm.ToSubscriptionResourceID("00000000-0000-0000-0000-000000000000")),
 			State:            arm.SubscriptionStateRegistered,
 			RegistrationDate: api.Ptr(time.Now().String()),
 		},

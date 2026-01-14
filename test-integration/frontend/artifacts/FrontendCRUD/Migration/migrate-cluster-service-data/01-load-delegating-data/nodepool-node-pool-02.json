@@ -1,0 +1,17 @@
+{
+	"_attachments": "attachments/",
+	"_etag": "\"00000000-0000-0000-712b-4e012c0501dc\"",
+	"_rid": "SdEpAPzZNVkHAAAAAAAAAA==",
+	"_self": "dbs/SdEpAA==/colls/SdEpAPzZNVk=/docs/SdEpAPzZNVkHAAAAAAAAAA==/",
+	"_ts": 1766178372,
+	"id": "405f85e0-9528-458d-abbf-b16e2319c833",
+	"partitionKey": "6b690bec-0c16-4ecb-8f67-781caf40bba7",
+	"properties": {
+		"activeOperationId": "4067756a-fcc1-4732-a211-d785d888203c",
+		"internalId": "/api/clusters_mgmt/v1/clusters/9p2sk955gj/node_pools/v4lx7rv2r4",
+		"provisioningState": "Accepted",
+		"resourceId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/create-with-tags/nodePools/node-pool-02",
+		"systemData": {}
+	},
+	"resourceType": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/nodePools"
+}

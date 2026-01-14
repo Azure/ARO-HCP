@@ -14,13 +14,14 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
 	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 type DBTransactionCallback func(DBTransactionResult)
 
 type DBTransaction interface {
 	// AddStep adds a transaction function to the list to perform
-	AddStep(CosmosDBTransactionStep)
+	AddStep(CosmosDBTransactionStepDetails, CosmosDBTransactionStep)
 
 	// GetPartitionKey returns the transaction's partition key.
 	GetPartitionKey() string
@@ -55,10 +56,11 @@ var _ DBTransaction = &cosmosDBTransaction{}
 type CosmosDBTransactionStep func(b *azcosmos.TransactionalBatch) (string, error)
 
 type cosmosDBTransaction struct {
-	pk        string
-	client    *azcosmos.ContainerClient
-	steps     []CosmosDBTransactionStep
-	onSuccess []DBTransactionCallback
+	pk           string
+	client       *azcosmos.ContainerClient
+	steps        []CosmosDBTransactionStep
+	stepsDetails []CosmosDBTransactionStepDetails
+	onSuccess    []DBTransactionCallback
 }
 
 func newCosmosDBTransaction(pk string, client *azcosmos.ContainerClient) *cosmosDBTransaction {
@@ -73,8 +75,9 @@ func (t *cosmosDBTransaction) GetPartitionKey() string {
 	return t.pk
 }
 
-func (t *cosmosDBTransaction) AddStep(stepFn CosmosDBTransactionStep) {
+func (t *cosmosDBTransaction) AddStep(details CosmosDBTransactionStepDetails, stepFn CosmosDBTransactionStep) {
 	t.steps = append(t.steps, stepFn)
+	t.stepsDetails = append(t.stepsDetails, details)
 }
 
 func (t *cosmosDBTransaction) OnSuccess(callback DBTransactionCallback) {
@@ -84,6 +87,9 @@ func (t *cosmosDBTransaction) OnSuccess(callback DBTransactionCallback) {
 }
 
 func (t *cosmosDBTransaction) Execute(ctx context.Context, o *azcosmos.TransactionalBatchOptions) (DBTransactionResult, error) {
+	logger := utils.LoggerFromContext(ctx)
+	logger.Info("Executing transaction", "transaction", t)
+
 	result := newCosmosDBTransactionResult()
 
 	if len(t.steps) > 0 {
@@ -102,7 +108,7 @@ func (t *cosmosDBTransaction) Execute(ctx context.Context, o *azcosmos.Transacti
 
 		response, err := t.client.ExecuteTransactionalBatch(ctx, batch, o)
 		if err != nil {
-			return nil, err
+			return nil, utils.TrackError(err)
 		}
 
 		if !response.Success {
@@ -130,6 +136,30 @@ func (t *cosmosDBTransaction) Execute(ctx context.Context, o *azcosmos.Transacti
 	}
 
 	return result, nil
+}
+
+type CosmosDBTransactionDetails struct {
+	PartitionKey string                           `json:"partitionKey"`
+	Steps        []CosmosDBTransactionStepDetails `json:"steps"`
+}
+
+type CosmosDBTransactionStepDetails struct {
+	ActionType string `json:"actionType"`
+	CosmosID   string `json:"cosmosID"`
+	ResourceID string `json:"resourceID"`
+	GoType     string `json:"goType"`
+}
+
+func (t *cosmosDBTransaction) String() string {
+	details := CosmosDBTransactionDetails{
+		PartitionKey: t.pk,
+		Steps:        t.stepsDetails,
+	}
+	ret, err := json.Marshal(details)
+	if err != nil {
+		return "failed to marshal transaction details: " + err.Error()
+	}
+	return string(ret)
 }
 
 var _ DBTransactionResult = &cosmosDBTransactionResult{}

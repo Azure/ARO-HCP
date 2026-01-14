@@ -306,14 +306,14 @@ func (f *Frontend) createNodePool(writer http.ResponseWriter, request *http.Requ
 		request.Header.Get(arm.HeaderNameAsyncNotificationURI),
 		correlationData)
 	transaction.OnSuccess(addOperationResponseHeaders(writer, request, createNodePoolOperation.NotificationURI, createNodePoolOperation.OperationID))
-	operationCosmosUID, err := f.dbClient.Operations(newInternalNodePool.ID.SubscriptionID).AddCreateToTransaction(ctx, transaction, createNodePoolOperation, nil)
+	_, err = f.dbClient.Operations(newInternalNodePool.ID.SubscriptionID).AddCreateToTransaction(ctx, transaction, createNodePoolOperation, nil)
 	if err != nil {
 		return utils.TrackError(err)
 	}
 
 	// set fields that were not known until the operation doc instance was created.
 	// TODO once we we have separate creation/validation of operation documents, this can be done ahead of time.
-	newInternalNodePool.ServiceProviderProperties.ActiveOperationID = operationCosmosUID
+	newInternalNodePool.ServiceProviderProperties.ActiveOperationID = createNodePoolOperation.ResourceID.Name
 	newInternalNodePool.Properties.ProvisioningState = createNodePoolOperation.Status
 
 	nodePoolCosmosClient := f.dbClient.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).NodePools(resourceID.Parent.Name)
@@ -543,14 +543,14 @@ func (f *Frontend) updateNodePoolInCosmos(ctx context.Context, writer http.Respo
 		request.Header.Get(arm.HeaderNameAsyncNotificationURI),
 		correlationData)
 	transaction.OnSuccess(addOperationResponseHeaders(writer, request, nodePoolUpdateOperation.NotificationURI, nodePoolUpdateOperation.OperationID))
-	operationCosmosUID, err := f.dbClient.Operations(newInternalNodePool.ID.SubscriptionID).AddCreateToTransaction(ctx, transaction, nodePoolUpdateOperation, nil)
+	_, err = f.dbClient.Operations(newInternalNodePool.ID.SubscriptionID).AddCreateToTransaction(ctx, transaction, nodePoolUpdateOperation, nil)
 	if err != nil {
 		return utils.TrackError(err)
 	}
 
 	// set fields that were not known until the operation doc instance was created.
 	// TODO once we we have separate creation/validation of operation documents, this can be done ahead of time.
-	newInternalNodePool.ServiceProviderProperties.ActiveOperationID = operationCosmosUID
+	newInternalNodePool.ServiceProviderProperties.ActiveOperationID = nodePoolUpdateOperation.ResourceID.Name
 	newInternalNodePool.Properties.ProvisioningState = nodePoolUpdateOperation.Status
 
 	_, err = f.dbClient.HCPClusters(newInternalNodePool.ID.SubscriptionID, newInternalNodePool.ID.ResourceGroupName).
@@ -692,7 +692,7 @@ func (f *Frontend) addDeleteNodePoolToTransaction(ctx context.Context, writer ht
 		return utils.TrackError(err)
 	}
 
-	nodePool.ServiceProviderProperties.ActiveOperationID = operationDoc.OperationID.Name
+	nodePool.ServiceProviderProperties.ActiveOperationID = operationDoc.ResourceID.Name
 	nodePool.Properties.ProvisioningState = operationDoc.Status
 	_, err = f.dbClient.HCPClusters(nodePool.ID.SubscriptionID, nodePool.ID.ResourceGroupName).NodePools(nodePool.ID.Parent.Name).
 		AddReplaceToTransaction(ctx, transaction, nodePool, nil)
@@ -754,13 +754,17 @@ func (f *Frontend) getInternalNodePoolFromStorage(ctx context.Context, resourceI
 // readInternalNodePoolFromClusterService takes an internal NodePool read from cosmos, retrieves the corresponding cluster-service data,
 // merges the states together, and returns the internal representation.
 func (f *Frontend) readInternalNodePoolFromClusterService(ctx context.Context, oldInternalNodePool *api.HCPOpenShiftClusterNodePool) (*api.HCPOpenShiftClusterNodePool, error) {
-	oldClusterServiceNodePool, err := f.clusterServiceClient.GetNodePool(ctx, oldInternalNodePool.ServiceProviderProperties.ClusterServiceID)
+	return readInternalNodePoolFromClusterService(ctx, f.clusterServiceClient, oldInternalNodePool, f.azureLocation)
+}
+
+func readInternalNodePoolFromClusterService(ctx context.Context, clusterServiceClient ocm.ClusterServiceClientSpec, oldInternalNodePool *api.HCPOpenShiftClusterNodePool, azureLocation string) (*api.HCPOpenShiftClusterNodePool, error) {
+	oldClusterServiceNodePool, err := clusterServiceClient.GetNodePool(ctx, oldInternalNodePool.ServiceProviderProperties.ClusterServiceID)
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}
 
 	// TODO this overwrite will transformed into a "set" function as we transition fields to ownership in cosmos
-	oldInternalNodePool, err = mergeToInternalNodePool(oldClusterServiceNodePool, oldInternalNodePool, f.azureLocation)
+	oldInternalNodePool, err = mergeToInternalNodePool(oldClusterServiceNodePool, oldInternalNodePool, azureLocation)
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}

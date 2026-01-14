@@ -1,0 +1,57 @@
+{
+	"id": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/create-with-tags",
+	"identity": {
+		"type": "UserAssigned"
+	},
+	"location": "fake-location",
+	"name": "create-with-tags",
+	"properties": {
+		"api": {
+			"visibility": "Public"
+		},
+		"autoscaling": {
+			"maxNodeProvisionTimeSeconds": 900,
+			"maxPodGracePeriodSeconds": 600,
+			"podPriorityThreshold": -10
+		},
+		"clusterImageRegistry": {
+			"state": "Disabled"
+		},
+		"etcd": {
+			"dataEncryption": {
+				"customerManaged": {
+					"encryptionType": "KMS",
+					"kms": {
+						"activeKey": {
+							"name": "encryptionKeyName",
+							"vaultName": "keyVaultName",
+							"version": "2024-12-01-preview"
+						}
+					}
+				},
+				"keyManagementMode": "CustomerManaged"
+			}
+		},
+		"network": {
+			"hostPrefix": 23,
+			"machineCidr": "10.0.0.0/16",
+			"networkType": "OVNKubernetes",
+			"podCidr": "10.128.0.0/14",
+			"serviceCidr": "172.30.0.0/16"
+		},
+		"platform": {
+			"managedResourceGroup": "managed-resource-group-name",
+			"networkSecurityGroupId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/bar/providers/Microsoft.Network/networkSecurityGroups/nsg",
+			"outboundType": "LoadBalancer",
+			"subnetId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/bar/providers/Microsoft.Network/virtualNetworks/vnet/subnets/subnet"
+		},
+		"provisioningState": "Succeeded",
+		"version": {
+			"channelGroup": "stable"
+		}
+	},
+	"tags": {
+		"one": "apple"
+	},
+	"type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters"
+}

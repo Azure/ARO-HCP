@@ -16,6 +16,7 @@ package v20240610preview
 
 import (
 	"fmt"
+	"strings"
 
 	"k8s.io/utils/ptr"
 
@@ -344,7 +345,7 @@ func (c *HcpOpenShiftCluster) ConvertToInternal() *api.HCPOpenShiftCluster {
 	out := &api.HCPOpenShiftCluster{}
 
 	if c.ID != nil {
-		out.ID = api.Must(azcorearm.ParseResourceID(*c.ID))
+		out.ID = api.Must(azcorearm.ParseResourceID(strings.ToLower(*c.ID)))
 	}
 	if c.Name != nil {
 		out.Name = *c.Name

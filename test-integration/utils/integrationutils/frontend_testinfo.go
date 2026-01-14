@@ -29,6 +29,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
+	"github.com/Azure/ARO-HCP/frontend/pkg/frontend"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
@@ -53,6 +54,7 @@ type FrontendIntegrationTestInfo struct {
 
 	MockClusterServiceClient *mocks.MockClusterServiceClientSpec
 	FrontendURL              string
+	Frontend                 *frontend.Frontend
 }
 
 func (s *FrontendIntegrationTestInfo) Get20240610ClientFactory(subscriptionID string) *hcpsdk20240610preview.ClientFactory {

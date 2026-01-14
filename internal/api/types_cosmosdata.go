@@ -66,7 +66,6 @@ var _ CosmosMetadataAccessor = &CosmosMetadata{}
 
 type CosmosPersistable interface {
 	GetCosmosData() CosmosData
-	SetCosmosDocumentData(cosmosUID string)
 }
 
 // CosmosData contains the information that persisted resources must have for us to support CRUD against them.

@@ -25,7 +25,11 @@ type ExternalAuth struct {
 }
 
 type ExternalAuthProperties struct {
-	ResourceDocument `json:",inline"`
+	*ResourceDocument `json:",inline"`
+
+	// IntermediateResourceDoc exists so that we can stop inlining the resource document so that we can directly
+	// embed the InternalAPIType which has colliding serialization fields.
+	IntermediateResourceDoc *ResourceDocument `json:"intermediateResourceDoc"`
 
 	// TODO we may need look-aside data that we want to store in the same place.  Build the nesting to allow it
 	InternalState ExternalAuthInternalState `json:"internalState"`
