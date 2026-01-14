@@ -1,6 +1,7 @@
 clouds:
   public:
     defaults:
+      cloudEnvironmentName: "AzurePublicCloud"
     environments:
       int:
         # this is the MSFT INT environment

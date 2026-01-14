@@ -9,6 +9,29 @@ metadata:
   name: 'backend'
   namespace: 'aro-hcp'
 ---
+# Source: backend/templates/backend.azure-runtime-config.configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backend-azure-runtime-config
+  namespace: 'aro-hcp'
+data:
+  config.yaml: |
+    cloudEnvironment: "AzurePublicCloud"
+    managedIdentitiesDataPlaneAudienceResource: "https://dummy.org"
+    tenantID: "__tenantId__"
+    ocpImagesACR:
+      resourceID: "__ocpAcrResourceId__"
+      hostname: "__ocpAcrHostname__"
+      scopeMapName: "_repositories_pull"
+    dataPlaneIdentitiesOIDCConfiguration:
+      storageAccountBlobContainerName: "$web"
+      storageAccountBlobServiceURL: "__regionalOidcStorageAccountBlobEndpoint__"
+      oidcIssuerBaseURL: "__regionalOidcStorageAccountWebEndpoint__"
+    tlsCertificatesConfig:
+      issuer: "Self"
+      certificatesGenerationSource: AzureKeyVault
+---
 # Source: backend/templates/backend.configmap.yaml
 apiVersion: v1
 kind: ConfigMap
@@ -100,7 +123,8 @@ spec:
         app: aro-hcp-backend
         azure.workload.identity/use: "true"
       annotations:
-        checksum/backendservicekeyvault: 'c105f862130b3abb7d571a9d836a8b873fc6494315ac159abfd2b311c2cba1c8'
+        checksum/backendservicekeyvault: '67b31416c594e3f1f3e7754fc18a9da8bf47bfa45d09f9ed568db2d0d14a2544'
+        checksum/azureruntimeconfig: '40e0cf247edb3f1d1eb59cd97663f8ab2cf029da7a96716ee8916d38ac9fb0e5'
     spec:
       topologySpreadConstraints:
       - maxSkew: 1
@@ -123,11 +147,22 @@ spec:
           readOnly: true
           volumeAttributes:
             secretProviderClass: backend-service-key-vault
+      - name: azure-runtime-config
+        configMap:
+          name: backend-azure-runtime-config
       containers:
       - name: aro-hcp-backend
         image: 'arohcpsvcdev.azurecr.io/arohcpbackend@sha256:1234567890'
         imagePullPolicy: Always
-        args: ["--clusters-service-url", "http://clusters-service.clusters-service.svc.cluster.local:8000"]
+        args:
+        - "--clusters-service-url"
+        - "http://clusters-service.clusters-service.svc.cluster.local:8000"
+        - "--azure-runtime-config-path"
+        - "/configs/azure-runtime-config/config.yaml"
+        - "--azure-first-party-application-certificate-bundle-path"
+        - "/secrets/backend-service-key-vault/fpa-cert-bundle"
+        - "--azure-first-party-application-client-id"
+        - "b3cb2fab-15cb-4583-ad06-f91da9bfe2d1"
         env:
         - name: DB_NAME
           valueFrom:
@@ -180,6 +215,8 @@ spec:
         volumeMounts:
         - name: backend-service-key-vault
           mountPath: "/secrets/backend-service-key-vault"
+        - name: azure-runtime-config
+          mountPath: /configs/azure-runtime-config
           readOnly: true
       restartPolicy: Always
       terminationGracePeriodSeconds: 30
@@ -243,7 +280,7 @@ metadata:
 spec:
   parameters:
     clientID: '__backendMsiClientId__'
-    cloudName: AzurePublicCloud
+    cloudName: 'AzurePublicCloud'
     keyvaultName: 'aro-hcp-dev-svc-kv'
     objects: |-
       array:
