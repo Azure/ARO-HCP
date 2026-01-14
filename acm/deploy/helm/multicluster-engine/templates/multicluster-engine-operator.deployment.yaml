@@ -100,7 +100,7 @@ spec:
         - name: OPERAND_IMAGE_IMAGE_BASED_INSTALL_OPERATOR
           value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/image-based-install-rhel9@sha256:fb62974c8d2f0682e4cb7cc8c8229859e9d35d93df833acb8a3a67b16d315be3'
         - name: OPERAND_IMAGE_KUBE_RBAC_PROXY_MCE
-          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/kube-rbac-proxy-mce-rhel9@sha256:290e53457abaece651c79545ba243fd0ffe2c8675d13ef7e479506e944a0f30d'
+          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/kube-rbac-proxy-mce-rhel9@sha256:81ab4eca05bbe6642b3fe82440e24606ea763d0dfb9775e78ce62dc320f23940'
         - name: OPERAND_IMAGE_MANAGEDCLUSTER_IMPORT_CONTROLLER
           value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/managedcluster-import-controller-rhel9@sha256:d0a82834253e70fd099e40a10a91064d34d10aa567743923f9c0d0069146ed83'
         - name: OPERAND_IMAGE_MANAGED_SERVICEACCOUNT
@@ -128,11 +128,11 @@ spec:
         - name: OPERAND_IMAGE_ASSISTED_SERVICE_9
           value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/assisted-service-9-rhel9@sha256:5412412f3ed397370ee8350c627b59330b1f736d9d13a32c15df0fb93e95d9e4'
         - name: OPERAND_IMAGE_OSE_CLUSTER_API_RHEL9
-          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/ose-cluster-api-rhel9@sha256:d38a886f70d079eed24b9fb57030f535e37524d6f7baf6b1022be1c07cc32ab7'
+          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/ose-cluster-api-rhel9@sha256:b573d5ddf848eca57fae686f6ca2297b2424b8431bbcb08d3e2cdb19fe1a146a'
         - name: OPERAND_IMAGE_OSE_BAREMETAL_CLUSTER_API_CONTROLLERS_RHEL9
-          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/ose-baremetal-cluster-api-controllers-rhel9@sha256:17a2e3c30f2a59f402723dc553564ec1289b6e2bbcedb9cc353285de9f5e42f4'
+          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/ose-baremetal-cluster-api-controllers-rhel9@sha256:5efadf9635250c589b4311512a3a61d5300bd2a33da4b4365aeeebe67b5d08d4'
         - name: OPERAND_IMAGE_POSTGRESQL_12
-          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/postgresql-12@sha256:3a187fc5e6c73bdfc63661b98c05b39ee4d0b3a0e1a210c49d188f1004bcb274'
+          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/postgresql-12@sha256:1ac3f953c17e69468bee276267d3b5b7f40c849cdbac50d839790ea0c2bfc9f0'
         - name: OPERATOR_VERSION
           value: 2.10.1
         - name: OPERATOR_PACKAGE
