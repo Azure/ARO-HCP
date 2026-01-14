@@ -66,6 +66,8 @@ automationDryRun: false
 azureGeoShortId: us
 azureRegionAvailabilityZoneCount: 4
 backend:
+  azureRuntimeConfig:
+    tlsCertificatesIssuer: Self
   image:
     digest: sha256:c0d83b06852ae3f396eb4424d6650fec3dcda604c2fa92a4bdd03baedb2353f0
     registry: arohcpsvcdev.azurecr.io

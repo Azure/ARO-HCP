@@ -35,3 +35,11 @@ azure:
   # simply set a hardcoded placeholder. Once the template is instantiated we
   # pass the value via argument.
   tenantId: "__tenantId__"
+  msiRpDataPlaneAudienceResource: "{{ .msiRp.dataPlaneAudienceResource }}"
+  ocpAcrResourceId: "__ocpAcrResourceId__"
+  ocpAcrHostname: "__ocpAcrHostname__"
+  oidcIssuerBlobServiceUrl: "__regionalOidcStorageAccountBlobEndpoint__"
+  oidcIssuerBaseUrl: "__regionalOidcStorageAccountWebEndpoint__"
+  tlsCertificatesConfig:
+    issuer: "{{ .backend.azureRuntimeConfig.tlsCertificatesIssuer }}"
+    certificatesGenerationSource: "AzureKeyVault"
