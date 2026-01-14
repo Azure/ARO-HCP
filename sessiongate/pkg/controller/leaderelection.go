@@ -36,7 +36,7 @@ type LeaderElectionConfig struct {
 	KubeConfig    *rest.Config
 }
 
-func RunWithLeaderElection(ctx context.Context, config *LeaderElectionConfig, run func()) error {
+func RunWithLeaderElection(ctx context.Context, controllerName string, config *LeaderElectionConfig, run func() error) error {
 	hostname, err := os.Hostname()
 	if err != nil {
 		return fmt.Errorf("failed to get hostname for leader election: %w", err)
@@ -58,6 +58,7 @@ func RunWithLeaderElection(ctx context.Context, config *LeaderElectionConfig, ru
 	}
 
 	klog.V(2).Info("Leader election configured",
+		"controllerName", controllerName,
 		"lockName", config.LockName,
 		"identity", hostname,
 		"leaseDuration", config.LeaseDuration,
@@ -74,11 +75,13 @@ func RunWithLeaderElection(ctx context.Context, config *LeaderElectionConfig, ru
 		Name:            config.LockName,
 		Callbacks: leaderelection.LeaderCallbacks{
 			OnStartedLeading: func(leaderCtx context.Context) {
-				klog.Info("Acquired leadership - starting control plane controller workers")
-				run()
+				klog.InfoS("Acquired leadership - starting controller", "controllerName", controllerName)
+				if err := run(); err != nil {
+					klog.Error(err, "Error running controller")
+				}
 			},
 			OnStoppedLeading: func() {
-				klog.Info("Lost leadership - control plane controller workers stopped")
+				klog.InfoS("Lost leadership - controller workers stopped", "controllerName", controllerName)
 			},
 		},
 	})
@@ -86,7 +89,7 @@ func RunWithLeaderElection(ctx context.Context, config *LeaderElectionConfig, ru
 		return fmt.Errorf("failed to create leader elector: %w", err)
 	}
 
-	klog.Info("Starting leader election for control plane controller")
+	klog.InfoS("Starting leader election for controller", "controllerName", controllerName)
 	le.Run(ctx)
 	return nil
 }

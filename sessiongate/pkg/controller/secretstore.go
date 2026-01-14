@@ -175,5 +175,5 @@ func EncodePrivateKey(privateKey *rsa.PrivateKey) []byte {
 }
 
 func PrivateKeyAndPublicKeyMatch(privateKey *rsa.PrivateKey, publicKey *rsa.PublicKey) bool {
-	return privateKey.PublicKey.N.Cmp(publicKey.N) == 0 && privateKey.PublicKey.E == publicKey.E
+	return privateKey.N.Cmp(publicKey.N) == 0 && privateKey.E == publicKey.E
 }

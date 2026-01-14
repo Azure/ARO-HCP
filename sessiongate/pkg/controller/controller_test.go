@@ -19,13 +19,18 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
-	_ "embed"
 	"encoding/pem"
 	"errors"
 	"testing"
 	"time"
 
+	_ "embed"
+
 	"github.com/google/go-cmp/cmp"
+	securityv1beta1api "istio.io/api/security/v1beta1"
+	typev1beta1 "istio.io/api/type/v1beta1"
+	securityv1beta1 "istio.io/client-go/pkg/apis/security/v1beta1"
+
 	certificatesv1 "k8s.io/api/certificates/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -34,10 +39,6 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 
 	certificatesv1alpha1 "github.com/openshift/hypershift/api/certificates/v1alpha1"
-	securityv1beta1api "istio.io/api/security/v1beta1"
-	typev1beta1 "istio.io/api/type/v1beta1"
-	securityv1beta1 "istio.io/client-go/pkg/apis/security/v1beta1"
-
 	hypershiftv1beta1 "github.com/openshift/hypershift/api/hypershift/v1beta1"
 
 	sessiongatev1alpha1 "github.com/Azure/ARO-HCP/sessiongate/pkg/apis/sessiongate/v1alpha1"

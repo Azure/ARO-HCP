@@ -23,17 +23,17 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	kubeinformers "k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
-
-	"github.com/Azure/ARO-HCP/sessiongate/pkg/mc"
 
 	certificatesv1alpha1 "github.com/openshift/hypershift/api/certificates/v1alpha1"
 	hypershiftv1beta1 "github.com/openshift/hypershift/api/hypershift/v1beta1"
 	hypershiftclientset "github.com/openshift/hypershift/client/clientset/clientset"
 	certificatesclientv1alpha1 "github.com/openshift/hypershift/client/clientset/clientset/typed/certificates/v1alpha1"
-	kubeinformers "k8s.io/client-go/informers"
+
+	"github.com/Azure/ARO-HCP/sessiongate/pkg/mc"
 )
 
 const (

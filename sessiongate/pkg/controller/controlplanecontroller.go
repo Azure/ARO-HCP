@@ -16,14 +16,11 @@ package controller
 
 import (
 	"context"
-	"sync"
-
-	applyv1 "k8s.io/client-go/applyconfigurations/meta/v1"
-
 	"crypto/rand"
 	"crypto/rsa"
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 
 	"google.golang.org/protobuf/proto"
@@ -31,28 +28,28 @@ import (
 	securityapplyv1beta1 "istio.io/client-go/pkg/applyconfiguration/security/v1beta1"
 	istioclient "istio.io/client-go/pkg/clientset/versioned/typed/security/v1beta1"
 	istioinformers "istio.io/client-go/pkg/informers/externalversions"
+
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
-	"k8s.io/client-go/tools/record"
-
 	"k8s.io/apimachinery/pkg/util/wait"
+	certapplyv1 "k8s.io/client-go/applyconfigurations/certificates/v1"
 	corev1applyconfigurations "k8s.io/client-go/applyconfigurations/core/v1"
+	applyv1 "k8s.io/client-go/applyconfigurations/meta/v1"
+	kubeinformers "k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/tools/cache"
+	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/workqueue"
+	"k8s.io/klog/v2"
+
+	certificatesv1alpha1apply "github.com/openshift/hypershift/client/applyconfiguration/certificates/v1alpha1"
 
 	sessiongatev1alpha1 "github.com/Azure/ARO-HCP/sessiongate/pkg/apis/sessiongate/v1alpha1"
 	sessiongatv1alpha1applyconfigurations "github.com/Azure/ARO-HCP/sessiongate/pkg/generated/applyconfiguration/sessiongate/v1alpha1"
 	sessiongateclient "github.com/Azure/ARO-HCP/sessiongate/pkg/generated/clientset/versioned"
 	sessiongateinformers "github.com/Azure/ARO-HCP/sessiongate/pkg/generated/informers/externalversions"
-
-	corev1 "k8s.io/api/core/v1"
-	certapplyv1 "k8s.io/client-go/applyconfigurations/certificates/v1"
-	kubeinformers "k8s.io/client-go/informers"
-	"k8s.io/client-go/tools/cache"
-	"k8s.io/klog/v2"
-
-	certificatesv1alpha1apply "github.com/openshift/hypershift/client/applyconfiguration/certificates/v1alpha1"
 )
 
 // SessionEndpointProvider provides session endpoint URLs

@@ -18,10 +18,10 @@ import (
 	"fmt"
 	"time"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	applyv1 "k8s.io/client-go/applyconfigurations/meta/v1"
 
 	"github.com/openshift-eng/openshift-tests-extension/pkg/util/sets"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	sessiongatev1alpha1 "github.com/Azure/ARO-HCP/sessiongate/pkg/apis/sessiongate/v1alpha1"
 	sessiongatv1alpha1applyconfigurations "github.com/Azure/ARO-HCP/sessiongate/pkg/generated/applyconfiguration/sessiongate/v1alpha1"
@@ -102,12 +102,9 @@ func (s *Status) WithBackendKASURL(url string) *Status {
 // AsApplyConfiguration returns the apply configuration for the status and a boolean indicating if the status needs to be updated
 // to determine if an update is needed, it compares the SessionStatusApplyConfiguration with the provided session status
 func (s *Status) AsApplyConfiguration(session *sessiongatev1alpha1.Session) (*sessiongatv1alpha1applyconfigurations.SessionApplyConfiguration, bool) {
-	needsUpdate := false
+	needsUpdate := s.applyConfig.ExpiresAt != nil && session.Status.ExpiresAt == nil
 
 	// Compare ExpiresAt (only needs to be set once, immutable after that)
-	if s.applyConfig.ExpiresAt != nil && session.Status.ExpiresAt == nil {
-		needsUpdate = true
-	}
 
 	// Compare Endpoint
 	if (s.applyConfig.Endpoint != nil && *s.applyConfig.Endpoint != session.Status.Endpoint) || (s.applyConfig.Endpoint == nil && session.Status.Endpoint != "") {

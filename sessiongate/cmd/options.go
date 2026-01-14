@@ -27,19 +27,19 @@ import (
 	istioclientset "istio.io/client-go/pkg/clientset/versioned"
 	istioinformers "istio.io/client-go/pkg/informers/externalversions"
 
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	kubeinformers "k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/kubernetes/scheme"
+	typedcorev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
+	"k8s.io/client-go/tools/record"
 	"k8s.io/klog/v2"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
-	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/client-go/kubernetes/scheme"
-	"k8s.io/client-go/tools/record"
-	typedcorev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 
 	sessiongatev1alpha1 "github.com/Azure/ARO-HCP/sessiongate/pkg/apis/sessiongate/v1alpha1"
 	"github.com/Azure/ARO-HCP/sessiongate/pkg/controller"
@@ -202,8 +202,14 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 
 	// create event recorders
 	eventScheme := runtime.NewScheme()
-	scheme.AddToScheme(eventScheme)
-	sessiongatev1alpha1.AddToScheme(eventScheme)
+	err = scheme.AddToScheme(eventScheme)
+	if err != nil {
+		return nil, fmt.Errorf("failed to add scheme to event scheme: %w", err)
+	}
+	err = sessiongatev1alpha1.AddToScheme(eventScheme)
+	if err != nil {
+		return nil, fmt.Errorf("failed to add scheme to event scheme: %w", err)
+	}
 
 	eventBroadcaster := record.NewBroadcaster()
 	eventBroadcaster.StartRecordingToSink(&typedcorev1.EventSinkImpl{
@@ -313,8 +319,8 @@ func (o *ControllerOptions) Run(ctx context.Context) error {
 	// run control plane controller
 	g.Go(func() error {
 		logger.Info("Starting control plane controller")
-		if err := controller.RunWithLeaderElection(ctx, o.leaderElectionCfg, func() {
-			o.controlPlaneController.Run(ctx, o.workers)
+		if err := controller.RunWithLeaderElection(ctx, "controlplane", o.leaderElectionCfg, func() error {
+			return o.controlPlaneController.Run(ctx, o.workers)
 		}); err != nil {
 			logger.Error(err, "Control plane controller stopped with error")
 			return err
@@ -326,7 +332,10 @@ func (o *ControllerOptions) Run(ctx context.Context) error {
 	// run data plane controller
 	g.Go(func() error {
 		logger.Info("Starting data plane controller")
-		o.dataPlaneController.Run(ctx, 1)
+		if err := o.dataPlaneController.Run(ctx, o.workers); err != nil {
+			logger.Error(err, "Data plane controller stopped with error")
+			return err
+		}
 		logger.Info("Data plane controller stopped")
 		return nil
 	})
