@@ -70,6 +70,9 @@ var (
 	toNodePoolPropertiesProvisioningState = func(oldObj *api.HCPOpenShiftClusterNodePoolProperties) *arm.ProvisioningState {
 		return &oldObj.ProvisioningState
 	}
+	toNodePoolPropertiesConditions = func(oldObj *api.HCPOpenShiftClusterNodePoolProperties) []api.NodePoolCondition {
+		return oldObj.Conditions
+	}
 	toNodePoolPropertiesVersion = func(oldObj *api.HCPOpenShiftClusterNodePoolProperties) *api.NodePoolVersionProfile {
 		return &oldObj.Version
 	}
@@ -90,6 +93,16 @@ func validateNodePoolProperties(ctx context.Context, op operation.Operation, fld
 
 	//ProvisioningState arm.ProvisioningState       `json:"provisioningState"`
 	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("provisioningState"), &newObj.ProvisioningState, safe.Field(oldObj, toNodePoolPropertiesProvisioningState))...)
+
+	//Conditions              []NodePoolCondition     `json:"conditions,omitempty"              visibility:"read"                     validate:"omitempty,max=10,dive"`
+	errs = append(errs, validate.ImmutableByReflect(ctx, op, fldPath.Child("conditions"), newObj.Conditions, safe.Field(oldObj, toNodePoolPropertiesConditions))...)
+	errs = append(errs, MaxItems(ctx, op, fldPath.Child("conditions"), newObj.Conditions, safe.Field(oldObj, toNodePoolPropertiesConditions), 10)...)
+	errs = append(errs, validate.EachSliceVal(
+		ctx, op, fldPath.Child("conditions"),
+		newObj.Conditions, safe.Field(oldObj, toNodePoolPropertiesConditions),
+		nil, nil,
+		validateNodePoolCondition,
+	)...)
 
 	//Version                 NodePoolVersionProfile  `json:"version,omitempty"`
 	errs = append(errs, validateNodePoolVersionProfile(ctx, op, fldPath.Child("version"), &newObj.Version, safe.Field(oldObj, toNodePoolPropertiesVersion))...)
@@ -275,6 +288,27 @@ func validateTaint(ctx context.Context, op operation.Operation, fldPath *field.P
 
 	//Value  string `json:"value,omitempty"`
 	errs = append(errs, KubeLabelValue(ctx, op, fldPath.Child("value"), &newObj.Value, nil)...)
+
+	return errs
+}
+
+var (
+	toNodePoolConditionType   = func(oldObj *api.NodePoolCondition) *api.NodePoolConditionType { return &oldObj.Type }
+	toNodePoolConditionStatus = func(oldObj *api.NodePoolCondition) *api.ConditionStatusType { return &oldObj.Status }
+)
+
+func validateNodePoolCondition(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *api.NodePoolCondition) field.ErrorList {
+	errs := field.ErrorList{}
+
+	//Type               NodePoolConditionType `json:"type"               validate:"enum_nodepoolconditiontype"`
+	errs = append(errs, validate.Enum(ctx, op, fldPath.Child("type"), &newObj.Type, safe.Field(oldObj, toNodePoolConditionType), api.ValidNodePoolConditionTypes)...)
+
+	//Status             ConditionStatusType   `json:"status"             validate:"enum_conditionstatustype"`
+	errs = append(errs, validate.Enum(ctx, op, fldPath.Child("status"), &newObj.Status, safe.Field(oldObj, toNodePoolConditionStatus), api.ValidConditionStatusTypes)...)
+
+	//LastTransitionTime time.Time             `json:"lastTransitionTime"`
+	//Reason             string                `json:"reason"`
+	//Message            string                `json:"message"`
 
 	return errs
 }
