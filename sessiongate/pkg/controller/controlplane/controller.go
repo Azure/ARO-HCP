@@ -17,27 +17,19 @@ package controlplane
 import (
 	"context"
 	"reflect"
-	"runtime"
 	"sync"
 
-	certificatesv1 "k8s.io/api/certificates/v1"
 	applyv1 "k8s.io/client-go/applyconfigurations/meta/v1"
 
 	"crypto/rand"
 	"crypto/rsa"
-	"crypto/x509"
-	"crypto/x509/pkix"
-	"encoding/pem"
 	"errors"
 	"fmt"
 	"time"
 
 	"github.com/openshift/library-go/pkg/operator/events"
 	"google.golang.org/protobuf/proto"
-	securityv1beta1api "istio.io/api/security/v1beta1"
-	typev1beta1 "istio.io/api/type/v1beta1"
 	securityv1beta1 "istio.io/client-go/pkg/apis/security/v1beta1"
-	metaapplyv1 "istio.io/client-go/pkg/applyconfiguration/meta/v1"
 	securityapplyv1beta1 "istio.io/client-go/pkg/applyconfiguration/security/v1beta1"
 	istioclient "istio.io/client-go/pkg/clientset/versioned/typed/security/v1beta1"
 	istioinformers "istio.io/client-go/pkg/informers/externalversions"
@@ -290,43 +282,40 @@ func (c *SessionController) processNextWorkItem(ctx context.Context) bool {
 
 	defer c.workqueue.Done(objRef)
 
-	requeueAfter, err := c.syncSession(ctx, objRef.Namespace, objRef.Name)
-	if err == nil {
-		c.workqueue.Forget(objRef)
-
-		if requeueAfter > 0 {
-			c.workqueue.AddAfter(objRef, requeueAfter)
-		}
+	err := c.syncSession(ctx, objRef.Namespace, objRef.Name)
+	if err != nil {
+		utilruntime.HandleErrorWithContext(ctx, err, "Error syncing; requeuing for later retry", "objectReference", objRef)
+		c.workqueue.AddRateLimited(objRef)
 		return true
 	}
-	utilruntime.HandleErrorWithContext(ctx, err, "Error syncing; requeuing for later retry", "objectReference", objRef)
-	c.workqueue.AddRateLimited(objRef)
+	c.workqueue.Forget(objRef)
 	return true
 }
 
-func (c *SessionController) syncSession(ctx context.Context, namespace, name string) (time.Duration, error) {
+func (c *SessionController) syncSession(ctx context.Context, namespace, name string) error {
 	session, err := c.getSession(namespace, name)
 	if err != nil && apierrors.IsNotFound(err) {
-		return 0, nil // nothing to be done, Session is gone
+		return nil // nothing to be done, Session is gone
 	} else if err != nil {
-		return 0, err
+		return err
 	}
 
 	mc, err := c.getManagementClusterProvider(ctx, session.Spec.ManagementCluster.ResourceID)
 	if err != nil {
-		return 0, err
+		return err
 	}
 
-	action, requeueAfter, err := c.processSession(ctx, session, mc, nil)
+	action, err := c.processSession(ctx, session, mc, nil)
 	if err != nil {
 		klog.ErrorS(err, "Error processing session", "session", session.Name, "namespace", namespace)
-		return 0, err
+		return err
 	}
 
 	if action != nil {
 		if err = action.validate(); err != nil {
 			panic(err) // if validation fails, we have a programming error
 		}
+		// todo: add event recording
 		/*if action.event != nil {
 			syncContext.Recorder().Eventf(action.event.reason, action.event.messageFmt, action.event.args...)
 		}*/
@@ -349,7 +338,7 @@ func (c *SessionController) syncSession(ctx context.Context, namespace, name str
 		}
 	}
 
-	return requeueAfter, err
+	return err
 }
 
 type actions struct {
@@ -410,7 +399,7 @@ func event(reason, messageFmt string, args ...interface{}) *eventInfo {
 	}
 }
 
-func (c *SessionController) processSession(ctx context.Context, session *sessiongatev1alpha1.Session, mc mc.ManagementClusterQuerier, now func() time.Time) (*actions, time.Duration, error) {
+func (c *SessionController) processSession(ctx context.Context, session *sessiongatev1alpha1.Session, mc mc.ManagementClusterQuerier, now func() time.Time) (*actions, error) {
 	if now == nil {
 		now = time.Now
 	}
@@ -418,65 +407,62 @@ func (c *SessionController) processSession(ctx context.Context, session *session
 	for _, step := range []sessionStep{
 		// this is a new session, so we need to manifest the expiration timestamp
 		c.handleExpiration,
-		// generate an authorization policy for the future session
-		c.generateAuthorizationPolicy,
+		// ensure authorization policy is present before we do anything that
+		// might expose the session
+		c.ensureAuthorizationPolicy,
 		// generate credentials
 		c.generateCredentials,
+		// ensure network path is available
+		c.ensureNetworkPath,
 		// finalize session with endpoint and backend URL
 		c.finalizeSession,
 	} {
 		// each step either handles the current step or hands off to the next one
-		done, action, requeue, err := step(ctx, now, session, mc)
+		done, action, err := step(ctx, now, session, mc)
 		if err != nil {
 			klog.ErrorS(err, "Step error", "step", reflect.TypeOf(step).Name(), "err", err)
 		}
 		if done {
-			if action != nil {
-				klog.InfoS("Step done", "stepFunctionName", runtime.FuncForPC(reflect.ValueOf(step).Pointer()).Name(), "action", *action, "requeue", requeue, "err", err)
-			} else {
-				klog.InfoS("Step done", "stepFunctionName", runtime.FuncForPC(reflect.ValueOf(step).Pointer()).Name(), "requeue", requeue, "err", err)
-			}
-			return action, requeue, err
+			return action, err
 		}
 	}
 	// nothing to do
-	return nil, 0, nil
+	return nil, nil
 }
 
 // sessionStep is a step in the session reconciliation process
 // returns:
 // - done: whether the current reconciliation loop should stop with the current step result
 // - action: the action to take
-// - requeue: when to requeue the session
 // - error: an error that occurred
-type sessionStep func(ctx context.Context, now func() time.Time, session *sessiongatev1alpha1.Session, mc mc.ManagementClusterQuerier) (bool, *actions, time.Duration, error)
+type sessionStep func(ctx context.Context, now func() time.Time, session *sessiongatev1alpha1.Session, mc mc.ManagementClusterQuerier) (bool, *actions, error)
 
-func (c *SessionController) handleExpiration(ctx context.Context, now func() time.Time, session *sessiongatev1alpha1.Session, mc mc.ManagementClusterQuerier) (bool, *actions, time.Duration, error) {
+func (c *SessionController) handleExpiration(ctx context.Context, now func() time.Time, session *sessiongatev1alpha1.Session, mc mc.ManagementClusterQuerier) (bool, *actions, error) {
 	expiresAt := metav1.NewTime(session.CreationTimestamp.Add(session.Spec.TTL.Duration))
 	if now().After(expiresAt.Time) {
 		e := event("SessionExpiration", "Session has expired, deleting %s/%s.", session.Namespace, session.Name)
-		return true, &actions{event: e, deleteSession: true}, 0, nil
+		return true, &actions{event: e, deleteSession: true}, nil
 	}
 	sessionUpdate, needsUpdate := NewStatus(session.Status).
 		WithExpiresAt(expiresAt).
 		AsApplyConfiguration(session)
 	if needsUpdate {
-		return true, &actions{session: sessionUpdate}, 0, nil
+		return true, &actions{session: sessionUpdate}, nil
 	}
-	return false, nil, 0, nil
+	return false, nil, nil
 }
 
-func (c *SessionController) generateAuthorizationPolicy(ctx context.Context, now func() time.Time, session *sessiongatev1alpha1.Session, mc mc.ManagementClusterQuerier) (bool, *actions, time.Duration, error) {
+func (c *SessionController) ensureAuthorizationPolicy(ctx context.Context, now func() time.Time, session *sessiongatev1alpha1.Session, mc mc.ManagementClusterQuerier) (bool, *actions, error) {
 	current, err := c.getAuthorizationPolicy(session.Namespace, authorizationPolicyNameForSession(session))
 	if err != nil && !apierrors.IsNotFound(err) {
-		return true, nil, 0, err
+		return true, nil, err
 	}
 
 	// original policy creation
 	desired := buildAuthorizationPolicy(session)
 	if current == nil {
 		e := event("AuthorizationPolicyGeneration", "Creating authorization policy for %s/%s.", session.Namespace, session.Name)
-		return true, &actions{event: e, authPolicy: desired}, 0, nil
+		return true, &actions{event: e, authPolicy: desired}, nil
 	}
 
 	// policy drift detection
@@ -484,67 +470,26 @@ func (c *SessionController) generateAuthorizationPolicy(ctx context.Context, now
 	ownerRefsDrifted := len(current.OwnerReferences) == 0 || current.OwnerReferences[0].UID != session.UID
 	if specDrifted || ownerRefsDrifted {
 		e := event("AuthorizationPolicyUpdate", "Updating authorization policy for %s/%s.", session.Namespace, session.Name)
-		return true, &actions{event: e, authPolicy: desired}, 0, nil
+		return true, &actions{event: e, authPolicy: desired}, nil
 	}
 
 	// record in status
 	sessionUpdate, needsUpdate := NewStatus(session.Status).
 		WithAuthorizationPolicyRef(current.Name).
+		WithConditions(
+			applyv1.Condition().
+				WithType(string(ConditionTypeAuthorizationPolicyAvailable)).
+				WithStatus(metav1.ConditionTrue).
+				WithReason("AuthorizationPolicyAvailable").
+				WithMessage("Authorization policy available").
+				WithObservedGeneration(session.Generation).
+				WithLastTransitionTime(metav1.Now()),
+		).
 		AsApplyConfiguration(session)
 	if needsUpdate {
-		return true, &actions{session: sessionUpdate}, 0, nil
+		return true, &actions{session: sessionUpdate}, nil
 	}
-	return false, nil, 0, nil
-}
-
-func authorizationPolicyNameForSession(session *sessiongatev1alpha1.Session) string {
-	return session.Name
-}
-
-func buildAuthorizationPolicy(session *sessiongatev1alpha1.Session) *securityapplyv1beta1.AuthorizationPolicyApplyConfiguration {
-	claim := session.Spec.Owner.UserPrincipal.Claim
-	principal := session.Spec.Owner.UserPrincipal.Name
-	policyCfg := securityapplyv1beta1.AuthorizationPolicy(session.Name, session.Namespace).
-		WithOwnerReferences(metaapplyv1.OwnerReference().
-			WithBlockOwnerDeletion(true).
-			WithAPIVersion(sessiongatev1alpha1.SchemeGroupVersion.String()).
-			WithKind("Session").
-			WithName(authorizationPolicyNameForSession(session)).
-			WithUID(session.UID).
-			WithController(true)).
-		WithLabels(map[string]string{
-			controller.LabelManagedBy: controller.ControllerAgentName,
-		}).
-		WithSpec(
-			securityv1beta1api.AuthorizationPolicy{
-				Selector: &typev1beta1.WorkloadSelector{
-					MatchLabels: map[string]string{
-						"app.kubernetes.io/name": "sessiongate",
-					},
-				},
-				Action: securityv1beta1api.AuthorizationPolicy_ALLOW,
-				Rules: []*securityv1beta1api.Rule{
-					{
-						To: []*securityv1beta1api.Rule_To{
-							{
-								Operation: &securityv1beta1api.Operation{
-									Paths: []string{
-										fmt.Sprintf("/sessiongate/%s/kas/*", session.Name), // todo: use endpoint provider
-									},
-								},
-							},
-						},
-						When: []*securityv1beta1api.Condition{
-							{
-								Key:    fmt.Sprintf("request.auth.claims[%s]", claim),
-								Values: []string{principal},
-							},
-						},
-					},
-				},
-			},
-		)
-	return policyCfg
+	return false, nil, nil
 }
 
 func (c *SessionController) getCredentialSecret(session *sessiongatev1alpha1.Session) (*controller.CredentialSecret, error) {
@@ -560,10 +505,10 @@ func (c *SessionController) getCredentialSecret(session *sessiongatev1alpha1.Ses
 	return controller.NewCredentialSecret(session.Name, session.Namespace, session.UID, c.fieldManager, secretData), nil
 }
 
-func (c *SessionController) generateCredentials(ctx context.Context, now func() time.Time, session *sessiongatev1alpha1.Session, mc mc.ManagementClusterQuerier) (bool, *actions, time.Duration, error) {
+func (c *SessionController) generateCredentials(ctx context.Context, now func() time.Time, session *sessiongatev1alpha1.Session, mc mc.ManagementClusterQuerier) (bool, *actions, error) {
 	credentialSecret, err := c.getCredentialSecret(session)
 	if err != nil {
-		return true, nil, 0, err
+		return true, nil, err
 	}
 
 	// if there is already a certificate in the secret, nothing to do
@@ -580,15 +525,15 @@ func (c *SessionController) generateCredentials(ctx context.Context, now func() 
 					WithLastTransitionTime(metav1.Now()),
 			).AsApplyConfiguration(session)
 		if needsUpdate {
-			return true, &actions{session: sessionUpdate}, 0, nil
+			return true, &actions{session: sessionUpdate}, nil
 		}
-		return false, nil, 0, nil
+		return false, nil, nil
 	}
 
 	// the certificate is not yet in the secret, so lets check the CSR and update the secret
 	csr, err := mc.GetCSR(ctx, CSRName(session.Name))
 	if err != nil && !apierrors.IsNotFound(err) {
-		return true, nil, 0, fmt.Errorf("failed to get CSR: %w", err)
+		return true, nil, fmt.Errorf("failed to get CSR: %w", err)
 	}
 
 	// a CSR exists
@@ -598,11 +543,11 @@ func (c *SessionController) generateCredentials(ctx context.Context, now func() 
 		if !privateKeyExists || !validateCSR(csr, privateKey, session.Spec.Owner.UserPrincipal.Name, session.Spec.AccessLevel.Group) {
 			klog.ErrorS(err, "CSR is invalid", "session", session.Name, "namespace", session.Namespace)
 			e := event("CSRInvalid", "CSR for %s/%s is invalid, deleting to regenerate.", session.Namespace, session.Name)
-			return true, &actions{event: e, deleteCSR: true}, 0, nil
+			return true, &actions{event: e, deleteCSR: true}, nil
 		}
 		// ... if it has a certificate, we can bring it to the secret
 		if len(csr.Status.Certificate) > 0 {
-			return true, &actions{secret: credentialSecret.ApplyConfigurationForCertificate(csr.Status.Certificate)}, 0, nil
+			return true, &actions{secret: credentialSecret.ApplyConfigurationForCertificate(csr.Status.Certificate)}, nil
 		}
 		// ... if not, let's handle approval
 		if !isCSRApproved(csr) {
@@ -612,12 +557,12 @@ func (c *SessionController) generateCredentials(ctx context.Context, now func() 
 					NotReadyCondition(session.Generation),
 				).AsApplyConfiguration(session)
 			if needsUpdate {
-				return true, &actions{session: sessionUpdate}, 0, nil
+				return true, &actions{session: sessionUpdate}, nil
 			}
 
 			csrApproval, err := mc.GetCSRApproval(ctx, session.Spec.HostedControlPlane.Namespace, CSRName(session.Name))
-			if err != nil {
-				return true, nil, 0, fmt.Errorf("failed to get CSR approval: %w", err)
+			if err != nil && !apierrors.IsNotFound(err) {
+				return true, nil, fmt.Errorf("failed to get CSR approval: %w", err)
 			}
 			if csrApproval == nil {
 				return true, &actions{csrApproval: &csrApprovalAction{
@@ -626,10 +571,10 @@ func (c *SessionController) generateCredentials(ctx context.Context, now func() 
 						CSRName(session.Name),
 						session.Spec.HostedControlPlane.Namespace,
 					),
-				}}, 0, nil
+				}}, nil
 			}
 			// approval is in place, so we just need to wait some more - the CSR informer will let us know when the CSR changed
-			return true, nil, 0, nil
+			return true, nil, nil
 		}
 	}
 
@@ -642,48 +587,62 @@ func (c *SessionController) generateCredentials(ctx context.Context, now func() 
 				NotReadyCondition(session.Generation),
 			).AsApplyConfiguration(session)
 		if needsUpdate {
-			return true, &actions{session: sessionUpdate}, 0, nil
+			return true, &actions{session: sessionUpdate}, nil
 		}
 
-		csrApplyConfig, err := createCSRApplyConfiguration(session.Namespace+"/"+session.Name, CSRName(session.Name), session.Spec.HostedControlPlane.Namespace, privateKey, session.Spec.Owner.UserPrincipal.Name, session.Spec.AccessLevel.Group)
+		csrApplyConfig, err := createCSRApplyConfiguration(session, privateKey)
 		if err != nil {
-			return true, nil, 0, fmt.Errorf("failed to create CSR apply configuration: %w", err)
+			return true, nil, fmt.Errorf("failed to create CSR apply configuration: %w", err)
 		}
 		e := event("CSRGeneration", "Creating CSR for %s/%s on management cluster.", session.Namespace, session.Name)
-		return true, &actions{event: e, csr: csrApplyConfig}, 0, nil
+		return true, &actions{event: e, csr: csrApplyConfig}, nil
 	}
 
 	// ... but to create a CSR, we need a private key first
 	privateKey, err = c.newPrivateKey(2048)
 	if err != nil {
-		return true, nil, 0, fmt.Errorf("failed to generate private key: %w", err)
+		return true, nil, fmt.Errorf("failed to generate private key: %w", err)
 	}
 	e := event("PrivateKeyGeneration", "Generating private key for %s/%s.", session.Namespace, session.Name)
-	return true, &actions{event: e, secret: credentialSecret.ApplyConfigurationForPrivateKey(privateKey)}, 0, nil
+	return true, &actions{event: e, secret: credentialSecret.ApplyConfigurationForPrivateKey(privateKey)}, nil
 }
 
-func (c *SessionController) finalizeSession(ctx context.Context, now func() time.Time, session *sessiongatev1alpha1.Session, mc mc.ManagementClusterQuerier) (bool, *actions, time.Duration, error) {
-	needsBackendURL := session.Status.BackendKASURL == ""
-	needsEndpoint := session.Status.Endpoint == ""
-
-	if !needsBackendURL && !needsEndpoint {
-		return false, nil, 0, nil
+func (c *SessionController) ensureNetworkPath(ctx context.Context, now func() time.Time, session *sessiongatev1alpha1.Session, mc mc.ManagementClusterQuerier) (bool, *actions, error) {
+	// right now we only have public HCPs, so we just the public HCP API endpoint as
+	// network path and set it in the status
+	// once we have private HCPs, this step will establish network connectivity
+	// (e.g. portforwarding to the HCP's API server pods) and publish the in-cluster
+	// endpoint in the status
+	if session.Status.BackendKASURL != "" {
+		return false, nil, nil
 	}
 
-	var backendKASURL string
-
-	if needsBackendURL {
-		// Get HostedCluster from management cluster
-		hcp, err := mc.GetHostedControlPlane(ctx, session.Spec.HostedControlPlane.Namespace)
-		if err != nil {
-			return true, nil, 5 * time.Second, fmt.Errorf("failed to get HostedCluster: %w", err)
-		}
-		backendKASURL = fmt.Sprintf("https://%s", hcp.Spec.KubeAPIServerDNSName)
+	hcp, err := mc.GetHostedControlPlane(ctx, session.Spec.HostedControlPlane.Namespace)
+	if err != nil {
+		return true, nil, fmt.Errorf("failed to get HostedCluster: %w", err)
 	}
+	statusUpdate, needsUpdate := NewStatus(session.Status).
+		WithBackendKASURL(fmt.Sprintf("https://%s", hcp.Spec.KubeAPIServerDNSName)).
+		WithConditions(
+			applyv1.Condition().
+				WithType(string(ConditionTypeNetworkPathAvailable)).
+				WithStatus(metav1.ConditionTrue).
+				WithReason("NetworkPathAvailable").
+				WithMessage("Network path available via public endpoint").
+				WithObservedGeneration(session.Generation).
+				WithLastTransitionTime(metav1.Now()),
+		).
+		AsApplyConfiguration(session)
+	if needsUpdate {
+		e := event("NetworkPathAvailable", "Network path available via public endpoint for session %s/%s.", session.Namespace, session.Name)
+		return true, &actions{event: e, session: statusUpdate}, nil
+	}
+	return false, nil, nil
+}
 
+func (c *SessionController) finalizeSession(ctx context.Context, now func() time.Time, session *sessiongatev1alpha1.Session, mc mc.ManagementClusterQuerier) (bool, *actions, error) {
 	// build status update
 	statusUpdate, needsUpdate := NewStatus(session.Status).
-		WithBackendKASURL(backendKASURL).
 		WithEndpoint(c.endpointProvider.GetSessionEndpoint(session.Name)).
 		WithConditions(
 			applyv1.Condition().
@@ -697,99 +656,7 @@ func (c *SessionController) finalizeSession(ctx context.Context, now func() time
 		AsApplyConfiguration(session)
 	if needsUpdate {
 		e := event("SessionFinalization", "Finalizing session %s/%s with endpoint and backend URL.", session.Namespace, session.Name)
-		return true, &actions{event: e, session: statusUpdate}, 0, nil
+		return true, &actions{event: e, session: statusUpdate}, nil
 	}
-	return false, nil, 0, nil
-}
-
-func createCSRApplyConfiguration(sessionKey, name, namespace string, privateKey *rsa.PrivateKey, user string, organization string) (*certapplyv1.CertificateSigningRequestApplyConfiguration, error) {
-	subject := pkix.Name{
-		CommonName:   CSRCommonName(user),
-		Organization: []string{organization},
-	}
-	template := x509.CertificateRequest{
-		Subject:            subject,
-		SignatureAlgorithm: x509.SHA256WithRSA,
-	}
-
-	csrDER, err := x509.CreateCertificateRequest(rand.Reader, &template, privateKey)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create certificate request: %w", err)
-	}
-
-	// Encode to PEM
-	csrPEM := pem.EncodeToMemory(&pem.Block{
-		Type:  "CERTIFICATE REQUEST",
-		Bytes: csrDER,
-	})
-	return certapplyv1.CertificateSigningRequest(name).
-		WithLabels(map[string]string{
-			controller.LabelManagedBy: controller.ControllerAgentName,
-		}).
-		WithAnnotations(map[string]string{
-			controller.AnnotationSessiongate: sessionKey,
-		}).
-		WithSpec(certapplyv1.CertificateSigningRequestSpec().
-			WithRequest(csrPEM...).
-			WithSignerName(fmt.Sprintf("hypershift.openshift.io/%s.sre-break-glass", namespace)).
-			WithExpirationSeconds(int32(86353)). // ~24 hours
-			WithUsages(
-				certificatesv1.UsageClientAuth,
-				certificatesv1.UsageDigitalSignature,
-			)), nil
-}
-
-func CSRCommonName(user string) string {
-	return fmt.Sprintf("system:sre-break-glass:%s", user)
-}
-
-func CSRName(sessionName string) string {
-	return fmt.Sprintf("sessiongate-%s", sessionName)
-}
-
-// validateCSR checks if an existing CSR matches the expected private key and session details
-func validateCSR(csr *certificatesv1.CertificateSigningRequest, privateKey *rsa.PrivateKey, user, organization string) bool {
-	if csr == nil || len(csr.Spec.Request) == 0 {
-		klog.ErrorS(nil, "CSR is nil or has no request", "csr", csr.Name)
-		return false
-	}
-
-	// Parse the PEM-encoded CSR
-	block, _ := pem.Decode(csr.Spec.Request)
-	if block == nil || block.Type != "CERTIFICATE REQUEST" {
-		klog.ErrorS(nil, "CSR is not a valid PEM-encoded certificate request", "csr", csr.Name)
-		return false
-	}
-
-	// Parse the certificate request
-	parsedCSR, err := x509.ParseCertificateRequest(block.Bytes)
-	if err != nil {
-		klog.ErrorS(err, "Failed to parse certificate request", "csr", csr.Name)
-		return false
-	}
-
-	// Verify the public key matches our private key
-	csrPublicKey, ok := parsedCSR.PublicKey.(*rsa.PublicKey)
-	if !ok {
-		klog.ErrorS(nil, "CSR public key is not an RSA public key", "csr", csr.Name)
-		return false
-	}
-	if !controller.PrivateKeyAndPublicKeyMatch(privateKey, csrPublicKey) {
-		klog.ErrorS(nil, "CSR public key does not match private key", "csr", csr.Name)
-		return false
-	}
-
-	// Verify the subject fields using common function
-	expectedCN := CSRCommonName(user)
-	if parsedCSR.Subject.CommonName != expectedCN {
-		klog.ErrorS(nil, "CSR common name does not match expected", "csr", csr.Name, "expected", expectedCN, "actual", parsedCSR.Subject.CommonName)
-		return false
-	}
-
-	if len(parsedCSR.Subject.Organization) != 1 || parsedCSR.Subject.Organization[0] != organization {
-		klog.ErrorS(nil, "CSR organization does not match expected", "csr", csr.Name, "expected", organization, "actual", parsedCSR.Subject.Organization)
-		return false
-	}
-
-	return true
+	return false, nil, nil
 }

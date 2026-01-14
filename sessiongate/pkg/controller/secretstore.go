@@ -129,20 +129,27 @@ func (c *CredentialSecret) ValidateCertificateMatchesPrivateKey() bool {
 }
 
 func (c *CredentialSecret) ApplyConfigurationForPrivateKey(privateKey *rsa.PrivateKey) *corev1apply.SecretApplyConfiguration {
-	return c.applyConfigurationForField(secretKeyPrivateKey, EncodePrivateKey(privateKey))
+	return c.applyConfigurationForFields(map[string][]byte{
+		secretKeyPrivateKey:  EncodePrivateKey(privateKey),
+		secretKeyCertificate: nil,
+	})
 }
 
 func (c *CredentialSecret) ApplyConfigurationForCertificate(certificate []byte) *corev1apply.SecretApplyConfiguration {
-	return c.applyConfigurationForField(secretKeyCertificate, certificate)
+	return c.applyConfigurationForFields(map[string][]byte{
+		secretKeyCertificate: certificate,
+	})
 }
 
-func (c *CredentialSecret) applyConfigurationForField(field string, data []byte) *corev1apply.SecretApplyConfiguration {
+func (c *CredentialSecret) applyConfigurationForFields(fields map[string][]byte) *corev1apply.SecretApplyConfiguration {
 	// make a copy of the data
 	dataCopy := make(map[string][]byte)
 	for k, v := range c.data {
 		dataCopy[k] = v
 	}
-	dataCopy[field] = data
+	for k, v := range fields {
+		dataCopy[k] = v
+	}
 	return corev1apply.Secret(c.sessionName, c.sessionNamespace).
 		WithLabels(map[string]string{
 			labelManagedBy: c.fieldManager,

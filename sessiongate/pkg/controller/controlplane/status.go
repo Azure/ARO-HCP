@@ -36,13 +36,6 @@ const (
 	ConditionTypeNetworkPathAvailable         ConditionType = "NetworkPathAvailable"
 )
 
-var dependantConditions = []ConditionType{
-	ConditionTypeSessionActive,
-	ConditionTypeCredentialsAvailable,
-	ConditionTypeAuthorizationPolicyAvailable,
-	ConditionTypeNetworkPathAvailable,
-}
-
 type Status struct {
 	applyConfig *sessiongatv1alpha1applyconfigurations.SessionStatusApplyConfiguration
 }
