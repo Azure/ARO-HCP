@@ -1,0 +1,60 @@
+# Makefile for deploying Prometheus to SRE Tooling cluster
+# This is a separate Makefile to avoid triggering main CI/CD tests
+# Usage: make -f Makefile.sre-tooling deploy
+
+SRE_TOOLING_RG ?= hcp-underlay-pers-westus3-sre-tooling
+SRE_TOOLING_SUBSCRIPTION_ID ?= 1d3378d3-5a3f-4712-85a1-2485495dfc4b
+AKS_CLUSTER_NAME ?= pers-westus3-sre-tooling
+KUBECONFIG ?= /tmp/sre-tooling-kubeconfig
+
+.PHONY: deploy get-values check
+
+check:
+	@[ -n "${SRE_TOOLING_RG}" ] || ( echo "ERROR: SRE_TOOLING_RG is not set"; exit 1 )
+	@[ -n "${SRE_TOOLING_SUBSCRIPTION_ID}" ] || ( echo "ERROR: SRE_TOOLING_SUBSCRIPTION_ID is not set"; exit 1 )
+	@[ -n "${AKS_CLUSTER_NAME}" ] || ( echo "ERROR: AKS_CLUSTER_NAME is not set"; exit 1 )
+
+get-values: check
+	@echo "=== Getting cluster values ==="
+	@DCE_NAME=$$(az monitor data-collection endpoint list --resource-group ${SRE_TOOLING_RG} --subscription ${SRE_TOOLING_SUBSCRIPTION_ID} --query "[0].name" -o tsv); \
+	if [ -z "$$DCE_NAME" ]; then \
+		echo "ERROR: Could not find DCE. Make sure cluster is deployed."; \
+		exit 1; \
+	fi; \
+	DCE_ENDPOINT=$$(az monitor data-collection endpoint show --name "$$DCE_NAME" --resource-group ${SRE_TOOLING_RG} --subscription ${SRE_TOOLING_SUBSCRIPTION_ID} --query "properties.metricsIngestion.endpoint" -o tsv); \
+	DCR_NAME=$$(az monitor data-collection rule list --resource-group ${SRE_TOOLING_RG} --subscription ${SRE_TOOLING_SUBSCRIPTION_ID} --query "[0].name" -o tsv); \
+	if [ -z "$$DCR_NAME" ]; then \
+		echo "ERROR: Could not find DCR. Make sure cluster is deployed."; \
+		exit 1; \
+	fi; \
+	DCR_IMMUTABLE_ID=$$(az monitor data-collection rule show --name "$$DCR_NAME" --resource-group ${SRE_TOOLING_RG} --subscription ${SRE_TOOLING_SUBSCRIPTION_ID} --query "properties.immutableId" -o tsv); \
+	PROMETHEUS_MSI=$$(az identity show --name prometheus --resource-group ${SRE_TOOLING_RG} --subscription ${SRE_TOOLING_SUBSCRIPTION_ID} --query "clientId" -o tsv); \
+	echo "DCE_ENDPOINT=$$DCE_ENDPOINT" > /tmp/sre-tooling-prometheus-values.env; \
+	echo "DCR_IMMUTABLE_ID=$$DCR_IMMUTABLE_ID" >> /tmp/sre-tooling-prometheus-values.env; \
+	echo "PROMETHEUS_MSI=$$PROMETHEUS_MSI" >> /tmp/sre-tooling-prometheus-values.env; \
+	echo "Values saved to /tmp/sre-tooling-prometheus-values.env"
+
+get-kubeconfig: check
+	@echo "=== Getting kubeconfig ==="
+	@az aks get-credentials --name ${AKS_CLUSTER_NAME} --resource-group ${SRE_TOOLING_RG} --subscription ${SRE_TOOLING_SUBSCRIPTION_ID} --overwrite-existing --file ${KUBECONFIG} >/dev/null 2>&1
+	@kubelogin convert-kubeconfig -l azurecli --kubeconfig ${KUBECONFIG} >/dev/null 2>&1 || true
+	@echo "Kubeconfig saved to ${KUBECONFIG}"
+
+create-namespace: get-kubeconfig
+	@echo "=== Creating namespace ==="
+	@kubectl --kubeconfig ${KUBECONFIG} apply -f namespace.sre-tooling.yaml
+
+deploy: get-values create-namespace
+	@echo "=== Deploying Prometheus ==="
+	@. /tmp/sre-tooling-prometheus-values.env; \
+	DCR_URL="$$DCE_ENDPOINT/dataCollectionRules/$$DCR_IMMUTABLE_ID/streams/Microsoft-PrometheusMetrics/api/v1/write?api-version=2023-04-24"; \
+	helm upgrade --install arohcp-monitor deploy/ \
+		--kubeconfig ${KUBECONFIG} \
+		--namespace prometheus \
+		--values values-sre-tooling-direct.yaml \
+		--set prometheusSpec.externalLabels.cluster=${AKS_CLUSTER_NAME} \
+		--set prometheusSpec.remoteWriteUrl="$$DCR_URL" \
+		--set prometheus.serviceAccount.managedIdentity=$$PROMETHEUS_MSI \
+		--wait --timeout 10m
+	@echo "=== Prometheus deployment complete ==="
+
