@@ -323,6 +323,14 @@ func Run(cmd *cobra.Command, args []string) error {
 				clusterServiceClient,
 				http.DefaultClient,
 			)
+			operationClusterDeleteController = controllers.NewOperationClusterDeleteController(
+				argLocation,
+				10*time.Second,
+				subscriptionLister,
+				dbClient,
+				clusterServiceClient,
+				http.DefaultClient,
+			)
 		)
 
 		le, err := leaderelection.NewLeaderElector(leaderelection.LeaderElectionConfig{
@@ -338,6 +346,7 @@ func Run(cmd *cobra.Command, args []string) error {
 					go operationsScanner.Run(ctx)
 					go doNothingController.Run(ctx, 20)
 					go operationClusterCreateController.Run(ctx, 20)
+					go operationClusterDeleteController.Run(ctx, 20)
 				},
 				OnStoppedLeading: func() {
 					operationsScanner.LeaderGauge.Set(0)

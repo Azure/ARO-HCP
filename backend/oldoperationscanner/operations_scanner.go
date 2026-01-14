@@ -37,8 +37,6 @@ import (
 
 	"k8s.io/utils/lru"
 
-	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
-
 	ocmsdk "github.com/openshift-online/ocm-sdk-go"
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
@@ -545,6 +543,10 @@ func (s *OperationsScanner) pollClusterOperation(ctx context.Context, op operati
 		logger.Info("skipping operation: handled by another controller", "operationRequest", op.doc.Request)
 		return // handled by another controller
 	}
+	if op.doc.Request == database.OperationRequestDelete {
+		logger.Info("skipping operation: handled by another controller", "operationRequest", op.doc.Request)
+		return // handled by another controller
+	}
 
 	ctx, span := startChildSpan(ctx, "pollClusterOperation")
 	defer span.End()
@@ -566,29 +568,8 @@ func (s *OperationsScanner) pollClusterOperation(ctx context.Context, op operati
 
 	clusterStatus, err := s.clusterService.GetClusterStatus(ctx, op.doc.InternalID)
 	if err != nil {
-		var ocmError *ocmerrors.Error
-		if errors.As(err, &ocmError) && ocmError.Status() == http.StatusNotFound && op.doc.Request == database.OperationRequestDelete {
-			// Update the Cosmos DB billing document with a deletion timestamp.
-			// Do this before calling setDeleteOperationAsCompleted so that in
-			// case of error the backend will retry by virtue of the operation
-			// document still having a non-terminal status.
-			err = s.markBillingDocumentDeleted(ctx, op)
-			if err != nil {
-				s.recordOperationError(ctx, pollClusterOperationLabel, err)
-				logger.Error(fmt.Sprintf("Failed to handle a completed deletion: %v", err))
-				return
-			}
-
-			err = s.setDeleteOperationAsCompleted(ctx, op)
-			if err != nil {
-				s.recordOperationError(ctx, pollClusterOperationLabel, err)
-				logger.Error(fmt.Sprintf("Failed to handle a completed deletion: %v", err))
-			}
-		} else {
-			s.recordOperationError(ctx, pollClusterOperationLabel, err)
-			logger.Error(fmt.Sprintf("Failed to get cluster status: %v", err))
-		}
-
+		s.recordOperationError(ctx, pollClusterOperationLabel, err)
+		logger.Error(fmt.Sprintf("Failed to get cluster status: %v", err))
 		return
 	}
 
@@ -631,7 +612,7 @@ func (s *OperationsScanner) pollNodePoolOperation(ctx context.Context, op operat
 	if err != nil {
 		var ocmError *ocmerrors.Error
 		if errors.As(err, &ocmError) && ocmError.Status() == http.StatusNotFound && op.doc.Request == database.OperationRequestDelete {
-			err = s.setDeleteOperationAsCompleted(ctx, op)
+			err = SetDeleteOperationAsCompleted(ctx, s.dbClient, op.doc, s.postAsyncNotification)
 			if err != nil {
 				s.recordOperationError(ctx, pollNodePoolOperationLabel, err)
 				logger.Error(fmt.Sprintf("Failed to handle a completed deletion: %v", err))
@@ -670,7 +651,7 @@ func (s *OperationsScanner) pollExternalAuthOperation(ctx context.Context, op op
 	if err != nil {
 		var ocmError *ocmerrors.Error
 		if errors.As(err, &ocmError) && ocmError.Status() == http.StatusNotFound && op.doc.Request == database.OperationRequestDelete {
-			err = s.setDeleteOperationAsCompleted(ctx, op)
+			err = SetDeleteOperationAsCompleted(ctx, s.dbClient, op.doc, s.postAsyncNotification)
 			if err != nil {
 				s.recordOperationError(ctx, pollExternalAuthOperationLabel, err)
 				logger.Error(fmt.Sprintf("Failed to handle a completed deletion: %v", err))
@@ -837,14 +818,14 @@ func WithSubscriptionLock(ctx context.Context, lockClient database.LockClientInt
 }
 
 // setDeleteOperationAsCompleted updates Cosmos DB to reflect a completed resource deletion.
-func (s *OperationsScanner) setDeleteOperationAsCompleted(ctx context.Context, op operation) error {
+func SetDeleteOperationAsCompleted(ctx context.Context, cosmosClient database.DBClient, operation *api.Operation, postAsyncNotificationFn database.PostAsyncNotificationFunc) error {
 	// Delete the resource document first. If it fails the backend will retry
 	// by virtue of the operation document still having a non-terminal status.
-	untypedCRUD, err := s.dbClient.UntypedCRUD(*op.doc.ExternalID)
+	untypedCRUD, err := cosmosClient.UntypedCRUD(*operation.ExternalID)
 	if err != nil {
 		return utils.TrackError(err)
 	}
-	if err := untypedCRUD.Delete(ctx, op.doc.ExternalID); err != nil {
+	if err := untypedCRUD.Delete(ctx, operation.ExternalID); err != nil {
 		return utils.TrackError(err)
 	}
 
@@ -879,7 +860,7 @@ func (s *OperationsScanner) setDeleteOperationAsCompleted(ctx context.Context, o
 	}
 
 	// Save a final "succeeded" operation status until TTL expires.
-	err = database.PatchOperationDocument(ctx, s.dbClient, op.doc, arm.ProvisioningStateSucceeded, nil, s.postAsyncNotification)
+	err = database.PatchOperationDocument(ctx, cosmosClient, operation, arm.ProvisioningStateSucceeded, nil, postAsyncNotificationFn)
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -916,55 +897,6 @@ func PostAsyncNotification(ctx context.Context, notificationClient *http.Client,
 	}
 
 	return nil
-}
-
-// createBillingDocument creates a Cosmos DB document in the Billing
-// container for a newly-created cluster.
-func CreateBillingDocument(ctx context.Context, cosmosClient database.DBClient, azureLocation, resourceGroupName string, clusterCreationTime time.Time, op *api.Operation) error {
-	logger := utils.LoggerFromContext(ctx)
-
-	if clusterCreationTime.IsZero() {
-		return fmt.Errorf("cluster creation time is zero")
-	}
-
-	doc := database.NewBillingDocument(op.ExternalID)
-	doc.CreationTime = clusterCreationTime
-	doc.Location = azureLocation
-	doc.TenantID = op.TenantID
-	doc.ManagedResourceGroup = fmt.Sprintf(
-		"/%s/%s/%s/%s",
-		azcorearm.SubscriptionResourceType.Type,
-		doc.SubscriptionID,
-		azcorearm.ResourceGroupResourceType.Type,
-		resourceGroupName)
-
-	if err := cosmosClient.CreateBillingDoc(ctx, doc); err != nil {
-		return utils.TrackError(err)
-	}
-
-	logger.Info("Updated billing for cluster creation")
-	return nil
-}
-
-// markBillingDocumentDeleted patches a Cosmos DB document in the Billing
-// container to add a deletion timestamp.
-func (s *OperationsScanner) markBillingDocumentDeleted(ctx context.Context, op operation) error {
-	logger := utils.LoggerFromContext(ctx)
-
-	var patchOperations database.BillingDocumentPatchOperations
-
-	patchOperations.SetDeletionTime(s.newTimestamp())
-
-	err := s.dbClient.PatchBillingDoc(ctx, op.doc.ExternalID, patchOperations)
-	if err == nil {
-		logger.Info("Updated billing for cluster deletion")
-	} else if database.IsResponseError(err, http.StatusNotFound) {
-		// Log the error but proceed with normal processing.
-		logger.Info("No billing document found")
-		err = nil
-	}
-
-	return err
 }
 
 // ConvertClusterStatus attempts to translate a ClusterStatus object from

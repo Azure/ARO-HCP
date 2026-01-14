@@ -177,7 +177,7 @@ func TestSetDeleteOperationAsCompleted(t *testing.T) {
 					})
 			}
 
-			err = scanner.setDeleteOperationAsCompleted(ctx, op)
+			err = SetDeleteOperationAsCompleted(ctx, scanner.dbClient, op.doc, scanner.postAsyncNotification)
 
 			if tt.expectError {
 				assert.Error(t, err)
