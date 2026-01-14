@@ -17,7 +17,6 @@ package frontend
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net/http"
 	"net/url"
 	"path"
@@ -129,21 +128,21 @@ func (f *Frontend) OperationIsVisible(request *http.Request, operation *api.Oper
 
 	if operation.OperationID != nil {
 		if operation.TenantID != "" && !strings.EqualFold(tenantID, operation.TenantID) {
-			logger.Info(fmt.Sprintf("Unauthorized tenant '%s' in status request for operation '%s'", tenantID, operation.OperationID))
+			logger.Info("Unauthorized tenant in status request", "tenantID", tenantID, "operationID", operation.OperationID)
 			visible = false
 		}
 
 		if operation.ClientID != "" && !strings.EqualFold(clientID, operation.ClientID) {
-			logger.Info(fmt.Sprintf("Unauthorized client '%s' in status request for operation '%s'", clientID, operation.OperationID))
+			logger.Info("Unauthorized client in status request", "clientID", clientID, "operationID", operation.OperationID)
 			visible = false
 		}
 
 		if !strings.EqualFold(subscriptionID, operation.OperationID.SubscriptionID) {
-			logger.Info(fmt.Sprintf("Unauthorized subscription '%s' in status request for operation '%s'", subscriptionID, operation.OperationID))
+			logger.Info("Unauthorized subscription in status request", "subscriptionID", subscriptionID, "operationID", operation.OperationID)
 			visible = false
 		}
 	} else {
-		logger.Info(fmt.Sprintf("Status request for implicit operation '%s'", operation.OperationID))
+		logger.Info("Status request for implicit operation", "operationID", operation.OperationID)
 		visible = false
 	}
 

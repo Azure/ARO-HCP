@@ -15,7 +15,6 @@
 package main
 
 import (
-	"fmt"
 	"os"
 	"runtime/debug"
 
@@ -28,7 +27,7 @@ import (
 func main() {
 	// Create the application logger
 	logger := logging.New(0)
-	logger.Info(fmt.Sprintf("aro-hcp-admin (%s) starting...", version()))
+	logger.Info("aro-hcp-admin starting...", "version", version())
 
 	cmd := &cobra.Command{
 		Use:           "aro-hcp-admin",
