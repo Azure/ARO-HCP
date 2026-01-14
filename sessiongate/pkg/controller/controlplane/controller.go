@@ -71,6 +71,7 @@ type SessionController struct {
 	istioClient       istioclient.SecurityV1beta1Interface
 
 	fieldManager                 string
+	eventRecorder                events.Recorder
 	endpointProvider             SessionEndpointProvider
 	getSession                   func(namespace, name string) (*sessiongatev1alpha1.Session, error)
 	getAuthorizationPolicy       func(namespace, name string) (*securityv1beta1.AuthorizationPolicy, error)
@@ -102,6 +103,7 @@ func NewSessionController(
 		workqueue:         workQueue,
 		cachesToSync:      []cache.InformerSynced{},
 		fieldManager:      controller.ControllerAgentName,
+		eventRecorder:     eventRecorder,
 		endpointProvider:  endpointProvider,
 		kubeClient:        kubeClient,
 		sessiongateClient: sessiongateClient,
@@ -315,25 +317,24 @@ func (c *SessionController) syncSession(ctx context.Context, namespace, name str
 		if err = action.validate(); err != nil {
 			panic(err) // if validation fails, we have a programming error
 		}
-		// todo: add event recording
-		/*if action.event != nil {
-			syncContext.Recorder().Eventf(action.event.reason, action.event.messageFmt, action.event.args...)
-		}*/
+		if action.Event != nil {
+			c.eventRecorder.Eventf(action.Event.Reason, action.Event.MessageFmt, action.Event.Args...)
+		}
 
 		switch {
-		case action.session != nil:
-			_, err = c.sessiongateClient.SessiongateV1alpha1().Sessions(namespace).ApplyStatus(ctx, action.session, metav1.ApplyOptions{FieldManager: c.fieldManager})
-		case action.secret != nil:
-			_, err = c.kubeClient.CoreV1().Secrets(*action.secret.Namespace).Apply(ctx, action.secret, metav1.ApplyOptions{FieldManager: c.fieldManager, Force: true})
-		case action.authPolicy != nil:
-			_, err = c.istioClient.AuthorizationPolicies(*action.authPolicy.Namespace).Apply(ctx, action.authPolicy, metav1.ApplyOptions{FieldManager: c.fieldManager, Force: true})
-		case action.csr != nil:
-			_, err = mc.KubeClient.CertificatesV1().CertificateSigningRequests().Apply(ctx, action.csr, metav1.ApplyOptions{FieldManager: c.fieldManager, Force: true})
-		case action.csrApproval != nil:
-			_, err = mc.CertificatesClient.CertificateSigningRequestApprovals(action.csrApproval.namespace).Apply(ctx, action.csrApproval.approval, metav1.ApplyOptions{FieldManager: c.fieldManager, Force: true})
-		case action.deleteSession:
+		case action.Session != nil:
+			_, err = c.sessiongateClient.SessiongateV1alpha1().Sessions(namespace).ApplyStatus(ctx, action.Session, metav1.ApplyOptions{FieldManager: c.fieldManager})
+		case action.Secret != nil:
+			_, err = c.kubeClient.CoreV1().Secrets(*action.Secret.Namespace).Apply(ctx, action.Secret, metav1.ApplyOptions{FieldManager: c.fieldManager, Force: true})
+		case action.AuthPolicy != nil:
+			_, err = c.istioClient.AuthorizationPolicies(*action.AuthPolicy.Namespace).Apply(ctx, action.AuthPolicy, metav1.ApplyOptions{FieldManager: c.fieldManager, Force: true})
+		case action.CSR != nil:
+			_, err = mc.KubeClient.CertificatesV1().CertificateSigningRequests().Apply(ctx, action.CSR, metav1.ApplyOptions{FieldManager: c.fieldManager, Force: true})
+		case action.CSRApproval != nil:
+			_, err = mc.CertificatesClient.CertificateSigningRequestApprovals(action.CSRApproval.Namespace).Apply(ctx, action.CSRApproval.Approval, metav1.ApplyOptions{FieldManager: c.fieldManager, Force: true})
+		case action.DeleteSession:
 			err = c.sessiongateClient.SessiongateV1alpha1().Sessions(namespace).Delete(ctx, name, metav1.DeleteOptions{})
-		case action.deleteCSR:
+		case action.DeleteCSR:
 			err = mc.KubeClient.CertificatesV1().CertificateSigningRequests().Delete(ctx, CSRName(session.Name), metav1.DeleteOptions{})
 		}
 	}
@@ -342,42 +343,42 @@ func (c *SessionController) syncSession(ctx context.Context, namespace, name str
 }
 
 type actions struct {
-	event         *eventInfo
-	session       *sessiongatv1alpha1applyconfigurations.SessionApplyConfiguration
-	deleteSession bool
-	secret        *corev1applyconfigurations.SecretApplyConfiguration
-	authPolicy    *securityapplyv1beta1.AuthorizationPolicyApplyConfiguration
-	csr           *certapplyv1.CertificateSigningRequestApplyConfiguration
-	csrApproval   *csrApprovalAction
-	deleteCSR     bool
+	Event         *eventInfo
+	Session       *sessiongatv1alpha1applyconfigurations.SessionApplyConfiguration
+	DeleteSession bool
+	Secret        *corev1applyconfigurations.SecretApplyConfiguration
+	AuthPolicy    *securityapplyv1beta1.AuthorizationPolicyApplyConfiguration
+	CSR           *certapplyv1.CertificateSigningRequestApplyConfiguration
+	CSRApproval   *csrApprovalAction
+	DeleteCSR     bool
 }
 
 type csrApprovalAction struct {
-	namespace string
-	approval  *certificatesv1alpha1apply.CertificateSigningRequestApprovalApplyConfiguration
+	Namespace string
+	Approval  *certificatesv1alpha1apply.CertificateSigningRequestApprovalApplyConfiguration
 }
 
 func (a *actions) validate() error {
 	var set int
-	if a.session != nil {
+	if a.Session != nil {
 		set += 1
 	}
-	if a.authPolicy != nil {
+	if a.AuthPolicy != nil {
 		set += 1
 	}
-	if a.secret != nil {
+	if a.Secret != nil {
 		set += 1
 	}
-	if a.deleteSession {
+	if a.DeleteSession {
 		set += 1
 	}
-	if a.csr != nil {
+	if a.CSR != nil {
 		set += 1
 	}
-	if a.deleteCSR {
+	if a.DeleteCSR {
 		set += 1
 	}
-	if a.csrApproval != nil {
+	if a.CSRApproval != nil {
 		set += 1
 	}
 	if set > 1 {
@@ -387,15 +388,15 @@ func (a *actions) validate() error {
 }
 
 type eventInfo struct {
-	reason, messageFmt string
-	args               []interface{}
+	Reason, MessageFmt string
+	Args               []interface{}
 }
 
 func event(reason, messageFmt string, args ...interface{}) *eventInfo {
 	return &eventInfo{
-		reason:     reason,
-		messageFmt: messageFmt,
-		args:       args,
+		Reason:     reason,
+		MessageFmt: messageFmt,
+		Args:       args,
 	}
 }
 
@@ -441,13 +442,13 @@ func (c *SessionController) handleExpiration(ctx context.Context, now func() tim
 	expiresAt := metav1.NewTime(session.CreationTimestamp.Add(session.Spec.TTL.Duration))
 	if now().After(expiresAt.Time) {
 		e := event("SessionExpiration", "Session has expired, deleting %s/%s.", session.Namespace, session.Name)
-		return true, &actions{event: e, deleteSession: true}, nil
+		return true, &actions{Event: e, DeleteSession: true}, nil
 	}
 	sessionUpdate, needsUpdate := NewStatus(session.Status).
 		WithExpiresAt(expiresAt).
 		AsApplyConfiguration(session)
 	if needsUpdate {
-		return true, &actions{session: sessionUpdate}, nil
+		return true, &actions{Session: sessionUpdate}, nil
 	}
 	return false, nil, nil
 }
@@ -462,7 +463,7 @@ func (c *SessionController) ensureAuthorizationPolicy(ctx context.Context, now f
 	desired := buildAuthorizationPolicy(session)
 	if current == nil {
 		e := event("AuthorizationPolicyGeneration", "Creating authorization policy for %s/%s.", session.Namespace, session.Name)
-		return true, &actions{event: e, authPolicy: desired}, nil
+		return true, &actions{Event: e, AuthPolicy: desired}, nil
 	}
 
 	// policy drift detection
@@ -470,7 +471,7 @@ func (c *SessionController) ensureAuthorizationPolicy(ctx context.Context, now f
 	ownerRefsDrifted := len(current.OwnerReferences) == 0 || current.OwnerReferences[0].UID != session.UID
 	if specDrifted || ownerRefsDrifted {
 		e := event("AuthorizationPolicyUpdate", "Updating authorization policy for %s/%s.", session.Namespace, session.Name)
-		return true, &actions{event: e, authPolicy: desired}, nil
+		return true, &actions{Event: e, AuthPolicy: desired}, nil
 	}
 
 	// record in status
@@ -483,11 +484,11 @@ func (c *SessionController) ensureAuthorizationPolicy(ctx context.Context, now f
 				WithReason("AuthorizationPolicyAvailable").
 				WithMessage("Authorization policy available").
 				WithObservedGeneration(session.Generation).
-				WithLastTransitionTime(metav1.Now()),
+				WithLastTransitionTime(metav1.NewTime(now())),
 		).
 		AsApplyConfiguration(session)
 	if needsUpdate {
-		return true, &actions{session: sessionUpdate}, nil
+		return true, &actions{Session: sessionUpdate}, nil
 	}
 	return false, nil, nil
 }
@@ -522,10 +523,10 @@ func (c *SessionController) generateCredentials(ctx context.Context, now func() 
 					WithReason("CredentialsAvailable").
 					WithMessage("Credentials available").
 					WithObservedGeneration(session.Generation).
-					WithLastTransitionTime(metav1.Now()),
+					WithLastTransitionTime(metav1.NewTime(now())),
 			).AsApplyConfiguration(session)
 		if needsUpdate {
-			return true, &actions{session: sessionUpdate}, nil
+			return true, &actions{Session: sessionUpdate}, nil
 		}
 		return false, nil, nil
 	}
@@ -543,31 +544,36 @@ func (c *SessionController) generateCredentials(ctx context.Context, now func() 
 		if !privateKeyExists || !validateCSR(csr, privateKey, session.Spec.Owner.UserPrincipal.Name, session.Spec.AccessLevel.Group) {
 			klog.ErrorS(err, "CSR is invalid", "session", session.Name, "namespace", session.Namespace)
 			e := event("CSRInvalid", "CSR for %s/%s is invalid, deleting to regenerate.", session.Namespace, session.Name)
-			return true, &actions{event: e, deleteCSR: true}, nil
+			return true, &actions{Event: e, DeleteCSR: true}, nil
 		}
 		// ... if it has a certificate, we can bring it to the secret
 		if len(csr.Status.Certificate) > 0 {
-			return true, &actions{secret: credentialSecret.ApplyConfigurationForCertificate(csr.Status.Certificate)}, nil
+			return true, &actions{Secret: credentialSecret.ApplyConfigurationForCertificate(csr.Status.Certificate)}, nil
+		}
+		// ... if it is approved but has no certificate yet, we just need to wait
+		// the informer will let us know when the CSR changes
+		if len(csr.Status.Certificate) == 0 && isCSRApproved(csr) {
+			return true, nil, nil
 		}
 		// ... if not, let's handle approval
 		if !isCSRApproved(csr) {
 			sessionUpdate, needsUpdate := NewStatus(session.Status).
 				WithConditions(
-					CredentialsNotAvailableCondition("CertificateSigningRequestPending", "Certificate signing request pending, waiting for approval", session.Generation),
-					NotReadyCondition(session.Generation),
+					CredentialsNotAvailableCondition("CertificateSigningRequestPending", "Certificate signing request pending, waiting for approval", session.Generation, now()),
+					NotReadyCondition(session.Generation, now()),
 				).AsApplyConfiguration(session)
 			if needsUpdate {
-				return true, &actions{session: sessionUpdate}, nil
+				return true, &actions{Session: sessionUpdate}, nil
 			}
 
 			csrApproval, err := mc.GetCSRApproval(ctx, session.Spec.HostedControlPlane.Namespace, CSRName(session.Name))
 			if err != nil && !apierrors.IsNotFound(err) {
-				return true, nil, fmt.Errorf("failed to get CSR approval: %w", err)
+				return true, nil, fmt.Errorf("failed to get CSR Approval: %w", err)
 			}
 			if csrApproval == nil {
-				return true, &actions{csrApproval: &csrApprovalAction{
-					namespace: session.Spec.HostedControlPlane.Namespace,
-					approval: certificatesv1alpha1apply.CertificateSigningRequestApproval(
+				return true, &actions{CSRApproval: &csrApprovalAction{
+					Namespace: session.Spec.HostedControlPlane.Namespace,
+					Approval: certificatesv1alpha1apply.CertificateSigningRequestApproval(
 						CSRName(session.Name),
 						session.Spec.HostedControlPlane.Namespace,
 					),
@@ -583,11 +589,11 @@ func (c *SessionController) generateCredentials(ctx context.Context, now func() 
 	if privateKeyExists {
 		sessionUpdate, needsUpdate := NewStatus(session.Status).
 			WithConditions(
-				CredentialsNotAvailableCondition("PrivateKeyCreate", "Private key created, waiting for CSR to be created", session.Generation),
-				NotReadyCondition(session.Generation),
+				CredentialsNotAvailableCondition("PrivateKeyCreated", "Private key created, waiting for CSR to be created", session.Generation, now()),
+				NotReadyCondition(session.Generation, now()),
 			).AsApplyConfiguration(session)
 		if needsUpdate {
-			return true, &actions{session: sessionUpdate}, nil
+			return true, &actions{Session: sessionUpdate}, nil
 		}
 
 		csrApplyConfig, err := createCSRApplyConfiguration(session, privateKey)
@@ -595,7 +601,7 @@ func (c *SessionController) generateCredentials(ctx context.Context, now func() 
 			return true, nil, fmt.Errorf("failed to create CSR apply configuration: %w", err)
 		}
 		e := event("CSRGeneration", "Creating CSR for %s/%s on management cluster.", session.Namespace, session.Name)
-		return true, &actions{event: e, csr: csrApplyConfig}, nil
+		return true, &actions{Event: e, CSR: csrApplyConfig}, nil
 	}
 
 	// ... but to create a CSR, we need a private key first
@@ -604,7 +610,7 @@ func (c *SessionController) generateCredentials(ctx context.Context, now func() 
 		return true, nil, fmt.Errorf("failed to generate private key: %w", err)
 	}
 	e := event("PrivateKeyGeneration", "Generating private key for %s/%s.", session.Namespace, session.Name)
-	return true, &actions{event: e, secret: credentialSecret.ApplyConfigurationForPrivateKey(privateKey)}, nil
+	return true, &actions{Event: e, Secret: credentialSecret.ApplyConfigurationForPrivateKey(privateKey)}, nil
 }
 
 func (c *SessionController) ensureNetworkPath(ctx context.Context, now func() time.Time, session *sessiongatev1alpha1.Session, mc mc.ManagementClusterQuerier) (bool, *actions, error) {
@@ -630,12 +636,12 @@ func (c *SessionController) ensureNetworkPath(ctx context.Context, now func() ti
 				WithReason("NetworkPathAvailable").
 				WithMessage("Network path available via public endpoint").
 				WithObservedGeneration(session.Generation).
-				WithLastTransitionTime(metav1.Now()),
+				WithLastTransitionTime(metav1.NewTime(now())),
 		).
 		AsApplyConfiguration(session)
 	if needsUpdate {
 		e := event("NetworkPathAvailable", "Network path available via public endpoint for session %s/%s.", session.Namespace, session.Name)
-		return true, &actions{event: e, session: statusUpdate}, nil
+		return true, &actions{Event: e, Session: statusUpdate}, nil
 	}
 	return false, nil, nil
 }
@@ -651,12 +657,12 @@ func (c *SessionController) finalizeSession(ctx context.Context, now func() time
 				WithReason("Ready").
 				WithMessage("Session is ready").
 				WithObservedGeneration(session.Generation).
-				WithLastTransitionTime(metav1.Now()),
+				WithLastTransitionTime(metav1.NewTime(now())),
 		).
 		AsApplyConfiguration(session)
 	if needsUpdate {
 		e := event("SessionFinalization", "Finalizing session %s/%s with endpoint and backend URL.", session.Namespace, session.Name)
-		return true, &actions{event: e, session: statusUpdate}, nil
+		return true, &actions{Event: e, Session: statusUpdate}, nil
 	}
 	return false, nil, nil
 }

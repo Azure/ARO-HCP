@@ -16,6 +16,7 @@ package controlplane
 
 import (
 	"fmt"
+	"time"
 
 	applyv1 "k8s.io/client-go/applyconfigurations/meta/v1"
 
@@ -233,22 +234,22 @@ func ApplyConfigForStatus(status sessiongatev1alpha1.SessionStatus) *sessiongatv
 	return cfg
 }
 
-func NotReadyCondition(generation int64) *applyv1.ConditionApplyConfiguration {
+func NotReadyCondition(generation int64, now time.Time) *applyv1.ConditionApplyConfiguration {
 	return applyv1.Condition().
 		WithType(string(ConditionTypeReady)).
 		WithStatus(metav1.ConditionFalse).
 		WithReason("NotReady").
 		WithMessage("Session is not ready").
 		WithObservedGeneration(generation).
-		WithLastTransitionTime(metav1.Now())
+		WithLastTransitionTime(metav1.NewTime(now))
 }
 
-func CredentialsNotAvailableCondition(reason, message string, generation int64) *applyv1.ConditionApplyConfiguration {
+func CredentialsNotAvailableCondition(reason, message string, generation int64, now time.Time) *applyv1.ConditionApplyConfiguration {
 	return applyv1.Condition().
 		WithType(string(ConditionTypeCredentialsAvailable)).
 		WithStatus(metav1.ConditionFalse).
 		WithReason(reason).
 		WithMessage(message).
 		WithObservedGeneration(generation).
-		WithLastTransitionTime(metav1.Now())
+		WithLastTransitionTime(metav1.NewTime(now))
 }

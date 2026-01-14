@@ -39,7 +39,7 @@ func isCSRApproved(csr *certificatesv1.CertificateSigningRequest) bool {
 	return false
 }
 
-func createCSRApplyConfiguration(session *sessiongatev1alpha1.Session, privateKey *rsa.PrivateKey) (*certapplyv1.CertificateSigningRequestApplyConfiguration, error) {
+func createCSRRequestBody(session *sessiongatev1alpha1.Session, privateKey *rsa.PrivateKey) ([]byte, error) {
 	subject := pkix.Name{
 		CommonName:   CSRCommonName(session.Spec.Owner.UserPrincipal.Name),
 		Organization: []string{session.Spec.AccessLevel.Group},
@@ -59,6 +59,14 @@ func createCSRApplyConfiguration(session *sessiongatev1alpha1.Session, privateKe
 		Type:  "CERTIFICATE REQUEST",
 		Bytes: csrDER,
 	})
+	return csrPEM, nil
+}
+
+func createCSRApplyConfiguration(session *sessiongatev1alpha1.Session, privateKey *rsa.PrivateKey) (*certapplyv1.CertificateSigningRequestApplyConfiguration, error) {
+	csrPEM, err := createCSRRequestBody(session, privateKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create CSR request body: %w", err)
+	}
 	return certapplyv1.CertificateSigningRequest(CSRName(session.Name)).
 		WithLabels(map[string]string{
 			controller.LabelManagedBy: controller.ControllerAgentName,
