@@ -2007,12 +2007,19 @@ spec:
         - mountPath: /tmp/k8s-webhook-server/serving-certs
           name: cert
           readOnly: true
+      nodeSelector:
+        aro-hcp.azure.com/role: infra
       securityContext:
         runAsNonRoot: true
         seccompProfile:
           type: RuntimeDefault
       serviceAccountName: multicluster-engine-operator
       terminationGracePeriodSeconds: 10
+      tolerations:
+      - effect: NoSchedule
+        key: infra
+        operator: Equal
+        value: "true"
       volumes:
       - name: cert
         secret:
@@ -2028,6 +2035,8 @@ metadata:
 spec:
   availabilityConfig: High
   imagePullSecret: open-cluster-management-image-pull-credentials
+  nodeSelector:
+    aro-hcp.azure.com/role: infra
   overrides:
     components:
     - enabled: true
@@ -2069,8 +2078,9 @@ spec:
   targetNamespace: 'multicluster-engine'
   tolerations:
   - effect: NoSchedule
-    key: node-role.kubernetes.io/infra
-    operator: Exists
+    key: infra
+    operator: Equal
+    value: "true"
 ---
 # Source: multicluster-engine/templates/clusterlifecycle-state-metrics-v2.servicemonitor.yaml
 apiVersion: monitoring.coreos.com/v1

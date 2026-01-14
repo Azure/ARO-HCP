@@ -169,12 +169,19 @@ spec:
         - mountPath: /tmp/k8s-webhook-server/serving-certs
           name: cert
           readOnly: true
+      nodeSelector:
+        aro-hcp.azure.com/role: infra
       securityContext:
         runAsNonRoot: true
         seccompProfile:
           type: RuntimeDefault
       serviceAccountName: multicluster-engine-operator
       terminationGracePeriodSeconds: 10
+      tolerations:
+      - effect: NoSchedule
+        key: infra
+        operator: Equal
+        value: "true"
       volumes:
       - name: cert
         secret:

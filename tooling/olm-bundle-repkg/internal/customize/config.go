@@ -19,6 +19,8 @@ import (
 	"fmt"
 	"os"
 
+	corev1 "k8s.io/api/core/v1"
+
 	"sigs.k8s.io/yaml"
 )
 
@@ -31,6 +33,10 @@ type BundleConfig struct {
 	// Operator detection
 	OperatorDeploymentNames    []string          `yaml:"operatorDeploymentNames"`    // deployment names that contain these strings
 	OperatorDeploymentSelector map[string]string `yaml:"operatorDeploymentSelector"` // label selectors for operator deployments
+
+	// Operator tolerations and node selectors
+	OperatorTolerations  []corev1.Toleration `yaml:"operatorTolerations"`  // tolerations to add to operator deployment
+	OperatorNodeSelector map[string]string   `yaml:"operatorNodeSelector"` // node selector to add to operator deployment
 
 	// Image parameterization
 	OperandImageEnvPrefixes  []string `yaml:"operandImageEnvPrefixes"`  // prefixes for operand image environment variables
