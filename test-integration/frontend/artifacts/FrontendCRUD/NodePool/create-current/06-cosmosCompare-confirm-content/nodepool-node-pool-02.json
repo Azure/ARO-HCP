@@ -1,54 +1,61 @@
 {
-    "_attachments": "attachments/",
-    "_etag": "\"00000000-0000-0000-712b-4e012c0501dc\"",
-    "_rid": "SdEpAPzZNVkHAAAAAAAAAA==",
-    "_self": "dbs/SdEpAA==/colls/SdEpAPzZNVk=/docs/SdEpAPzZNVkHAAAAAAAAAA==/",
-    "_ts": 1766178372,
-    "id": "405f85e0-9528-458d-abbf-b16e2319c833",
-    "partitionKey": "6b690bec-0c16-4ecb-8f67-781caf40bba7",
-    "properties": {
-        "activeOperationId": "0129e72d-1f34-4630-9c58-725bd97283c6",
-        "internalId": "/api/clusters_mgmt/v1/clusters/w9xhwccbjp/node_pools/7r9c4pvw4p",
-        "internalState": {
-            "internalAPI": {
-                "location": "fake-location",
-                "properties": {
-                    "autoRepair": true,
-                    "autoScaling": {
-                        "max": 5,
-                        "min": 1
-                    },
-                    "labels": {
-                        "label-ky": "label-value"
-                    },
-                    "nodeDrainTimeoutMinutes": 2,
-                    "platform": {
-                        "enableEncryptionAtHost": false,
-                        "osDisk": {
-                            "diskStorageAccountType": "Premium_LRS",
-                            "sizeGiB": 64
-                        },
-                        "vmSize": "large"
-                    },
-                    "taints": [
-                        {
-                            "effect": "NoExecute",
-                            "key": "foo.com/key",
-                            "value": "valid"
-                        }
-                    ],
-                    "version": {
-                        "channelGroup": "stable"
-                    }
-                },
-                "serviceProviderProperties": {
-                    "clusterServiceID": ""
-                }
-            }
-        },
-        "provisioningState": "Accepted",
-        "resourceId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/create-with-tags/nodePools/node-pool-02",
-        "systemData": {}
-    },
-    "resourceType": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/nodePools"
+	"_attachments": "attachments/",
+	"_etag": "\"00000000-0000-0000-84e3-ea86580501dc\"",
+	"_rid": "xP0UAJicPgMHAAAAAAAAAA==",
+	"_self": "dbs/xP0UAA==/colls/xP0UAJicPgM=/docs/xP0UAJicPgMHAAAAAAAAAA==/",
+	"_ts": 1768346734,
+	"id": "|subscriptions|6b690bec-0c16-4ecb-8f67-781caf40bba7|resourcegroups|resourcegroupname|providers|microsoft.redhatopenshift|hcpopenshiftclusters|create-with-tags|nodepools|node-pool-02",
+	"partitionKey": "6b690bec-0c16-4ecb-8f67-781caf40bba7",
+	"properties": {
+		"activeOperationId": "25e4713b-44b5-4799-9e60-894a132c6674",
+		"intermediateResourceDoc": {
+			"activeOperationId": "25e4713b-44b5-4799-9e60-894a132c6674",
+			"internalId": "/api/clusters_mgmt/v1/clusters/dl7f9px2f2/node_pools/5zdc9grtvf",
+			"provisioningState": "Accepted",
+			"resourceId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/create-with-tags/nodePools/node-pool-02",
+			"systemData": {}
+		},
+		"internalId": "/api/clusters_mgmt/v1/clusters/dl7f9px2f2/node_pools/5zdc9grtvf",
+		"internalState": {
+			"internalAPI": {
+				"location": "fake-location",
+				"properties": {
+					"autoRepair": true,
+					"autoScaling": {
+						"max": 5,
+						"min": 1
+					},
+					"labels": {
+						"label-ky": "label-value"
+					},
+					"nodeDrainTimeoutMinutes": 2,
+					"platform": {
+						"enableEncryptionAtHost": false,
+						"osDisk": {
+							"diskStorageAccountType": "Premium_LRS",
+							"sizeGiB": 64
+						},
+						"vmSize": "large"
+					},
+					"taints": [
+						{
+							"effect": "NoExecute",
+							"key": "foo.com/key",
+							"value": "valid"
+						}
+					],
+					"version": {
+						"channelGroup": "stable"
+					}
+				},
+				"serviceProviderProperties": {
+					"clusterServiceID": ""
+				}
+			}
+		},
+		"provisioningState": "Accepted",
+		"resourceId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/create-with-tags/nodePools/node-pool-02",
+		"systemData": {}
+	},
+	"resourceType": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/nodePools"
 }
