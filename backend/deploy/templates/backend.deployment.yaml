@@ -22,6 +22,8 @@ spec:
       labels:
         app: aro-hcp-backend
         azure.workload.identity/use: "true"
+      annotations:
+        checksum/backendservicekeyvault: '{{ include (print $.Template.BasePath "/backend.service-key-vault.secretproviderclass.yaml") . | sha256sum }}'
     spec:
       topologySpreadConstraints:
       - maxSkew: 1
@@ -37,6 +39,13 @@ spec:
           matchLabels:
             app: aro-hcp-backend
       serviceAccountName: '{{ .Values.serviceAccount.name }}'
+      volumes:
+      - name: backend-service-key-vault
+        csi:
+          driver: secrets-store.csi.k8s.io
+          readOnly: true
+          volumeAttributes:
+            secretProviderClass: backend-service-key-vault
       containers:
       - name: aro-hcp-backend
         image: '{{ .Values.deployment.imageName }}'
@@ -91,5 +100,9 @@ spec:
             port: 8083
           initialDelaySeconds: 5
           periodSeconds: 10
+        volumeMounts:
+        - name: backend-service-key-vault
+          mountPath: "/secrets/backend-service-key-vault"
+          readOnly: true
       restartPolicy: Always
       terminationGracePeriodSeconds: 30
