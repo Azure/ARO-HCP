@@ -1,0 +1,96 @@
+{
+	"_attachments": "attachments/",
+	"_etag": "\"00000000-0000-0000-856f-f168dc0501dc\"",
+	"_rid": "RhErALI9IdsHAAAAAAAAAA==",
+	"_self": "dbs/RhErAA==/colls/RhErALI9Ids=/docs/RhErALI9IdsHAAAAAAAAAA==/",
+	"_ts": 1768406875,
+	"id": "|subscriptions|6b690bec-0c16-4ecb-8f67-781caf40bba7|resourcegroups|resourcegroupname|providers|microsoft.redhatopenshift|hcpopenshiftclusters|create-with-tags",
+	"partitionKey": "6b690bec-0c16-4ecb-8f67-781caf40bba7",
+	"properties": {
+		"activeOperationId": "7a4ed07a-47a1-4efb-966a-93a6316522a0",
+		"identity": {
+			"type": "UserAssigned"
+		},
+		"intermediateResourceDoc": {
+			"activeOperationId": "7a4ed07a-47a1-4efb-966a-93a6316522a0",
+			"identity": {
+				"type": "UserAssigned"
+			},
+			"internalId": "/api/clusters_mgmt/v1/clusters/9p2sk955gj",
+			"provisioningState": "Succeeded",
+			"resourceId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/create-with-tags",
+			"systemData": {},
+			"tags": {
+				"one": "apple"
+			}
+		},
+		"internalId": "/api/clusters_mgmt/v1/clusters/9p2sk955gj",
+		"internalState": {
+			"internalAPI": {
+				"customerProperties": {
+					"api": {
+						"visibility": "Public"
+					},
+					"autoscaling": {
+						"maxNodeProvisionTimeSeconds": 900,
+						"maxPodGracePeriodSeconds": 600,
+						"podPriorityThreshold": -10
+					},
+					"clusterImageRegistry": {
+						"state": "Disabled"
+					},
+					"dns": {},
+					"etcd": {
+						"dataEncryption": {
+							"customerManaged": {
+								"encryptionType": "KMS",
+								"kms": {
+									"activeKey": {
+										"name": "encryptionKeyName",
+										"vaultName": "keyVaultName",
+										"version": "2024-12-01-preview"
+									}
+								}
+							},
+							"keyManagementMode": "CustomerManaged"
+						}
+					},
+					"network": {
+						"hostPrefix": 23,
+						"machineCidr": "10.0.0.0/16",
+						"networkType": "OVNKubernetes",
+						"podCidr": "10.128.0.0/14",
+						"serviceCidr": "172.30.0.0/16"
+					},
+					"platform": {
+						"managedResourceGroup": "managed-resource-group-name",
+						"networkSecurityGroupId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/bar/providers/Microsoft.Network/networkSecurityGroups/nsg",
+						"operatorsAuthentication": {
+							"userAssignedIdentities": {}
+						},
+						"outboundType": "LoadBalancer",
+						"subnetId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/bar/providers/Microsoft.Network/virtualNetworks/vnet/subnets/subnet"
+					},
+					"version": {
+						"channelGroup": "stable"
+					}
+				},
+				"location": "fake-location",
+				"serviceProviderProperties": {
+					"api": {},
+					"clusterServiceID": "",
+					"console": {},
+					"dns": {},
+					"platform": {}
+				}
+			}
+		},
+		"provisioningState": "Succeeded",
+		"resourceId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/create-with-tags",
+		"systemData": {},
+		"tags": {
+			"one": "apple"
+		}
+	},
+	"resourceType": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters"
+}

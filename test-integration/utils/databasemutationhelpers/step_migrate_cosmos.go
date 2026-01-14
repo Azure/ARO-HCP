@@ -39,5 +39,5 @@ func (l *migrateCosmosStep) StepID() StepID {
 }
 
 func (l *migrateCosmosStep) RunTest(ctx context.Context, t *testing.T, stepInput StepInput) {
-	frontend.MigrateCosmosOrDie(ctx, stepInput.DBClient)
+	frontend.MigrateCosmosOrDie(ctx, stepInput.DBClient, stepInput.FrontendTestInfo.MockClusterServiceClient, "fake-location")
 }

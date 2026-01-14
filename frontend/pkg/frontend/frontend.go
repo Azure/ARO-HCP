@@ -139,7 +139,7 @@ func (f *Frontend) Run(ctx context.Context, stop <-chan struct{}) {
 	// before we start the http handler (this should ensure we readiness checks until this is complete), we will do a cosmos
 	// data migration to our new storage keys.
 	logger.Info("starting cosmos data migration")
-	MigrateCosmosOrDie(ctx, f.dbClient)
+	MigrateCosmosOrDie(ctx, f.dbClient, f.clusterServiceClient, f.azureLocation)
 	logger.Info("completed cosmos data migration")
 
 	logger.Info(fmt.Sprintf("listening on %s", f.listener.Addr().String()))

@@ -19,13 +19,16 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/fs"
+	"net/http"
 	"sort"
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/neilotoole/slogt"
 	"github.com/stretchr/testify/require"
+	"k8s.io/apimachinery/pkg/util/wait"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
@@ -106,6 +109,17 @@ func (tt *ResourceMutationTest) RunTest(t *testing.T) {
 	cleanupCtx = utils.ContextWithLogger(cleanupCtx, slogt.New(t, slogt.JSON()))
 	defer testInfo.Cleanup(cleanupCtx)
 	go frontend.Run(ctx, ctx.Done())
+
+	// wait for migration to complete to eliminate races with our test's second call migrateCosmos and to ensure the server is ready for testing
+	err = wait.PollUntilContextCancel(ctx, 1*time.Second, true, func(ctx context.Context) (bool, error) {
+		_, err := http.Get(testInfo.FrontendURL)
+		if err != nil {
+			t.Log(err)
+			return false, nil
+		}
+		return true, nil
+	})
+	require.NoError(t, err)
 
 	// create anything and round trip anything for cluster-service
 	err = integrationutils.TrivialPassThroughClusterServiceMock(t, testInfo, nil)
