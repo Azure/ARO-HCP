@@ -597,3 +597,78 @@ func TestConvertClusterStatus(t *testing.T) {
 		})
 	}
 }
+
+func TestRecordOperationResult(t *testing.T) {
+	// Test that recordOperationResult doesn't panic with nil metrics
+	t.Run("nil metrics doesn't panic", func(t *testing.T) {
+		scanner := &OperationsScanner{
+			operationResultsTotal:    nil,
+			operationDurationSeconds: nil,
+		}
+
+		internalID, err := api.NewInternalID("/api/aro_hcp/v1alpha1/clusters/test-cluster")
+		require.NoError(t, err)
+
+		op := operation{
+			doc: &database.OperationDocument{
+				Request:    database.OperationRequestCreate,
+				InternalID: internalID,
+				StartTime:  time.Now().Add(-5 * time.Minute),
+			},
+			logger: slog.Default(),
+		}
+
+		// Should not panic
+		assert.NotPanics(t, func() {
+			scanner.recordOperationResult(op, arm.ProvisioningStateSucceeded)
+		})
+	})
+}
+
+func TestListResourceOperationTypes(t *testing.T) {
+	expected := []string{
+		"create",
+		"update",
+		"delete",
+		"requestcredential",
+		"revokecredentials",
+	}
+
+	var actual []string
+	for v := range listResourceOperationTypes() {
+		actual = append(actual, v)
+	}
+
+	assert.Equal(t, expected, actual)
+}
+
+func TestListResourceOperationKinds(t *testing.T) {
+	expected := []string{
+		"cluster",
+		"nodepool",
+		"externalauth",
+		"breakglasscredential",
+	}
+
+	var actual []string
+	for v := range listResourceOperationKinds() {
+		actual = append(actual, v)
+	}
+
+	assert.Equal(t, expected, actual)
+}
+
+func TestListResourceOperationStatuses(t *testing.T) {
+	expected := []string{
+		"succeeded",
+		"failed",
+		"canceled",
+	}
+
+	var actual []string
+	for v := range listResourceOperationStatuses() {
+		actual = append(actual, v)
+	}
+
+	assert.Equal(t, expected, actual)
+}
