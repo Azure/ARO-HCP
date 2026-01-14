@@ -51,6 +51,10 @@ resourceGroups:
     namespaceFiles:
     - namespace.yaml
     inputVariables:
+      tenantId:
+        resourceGroup: service
+        step: output
+        name: tenantId
       imagePullerMsiClientId:
         resourceGroup: service
         step: output
