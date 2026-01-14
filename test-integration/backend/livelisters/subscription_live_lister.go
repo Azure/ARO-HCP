@@ -17,7 +17,7 @@ package livelisters
 import (
 	"context"
 
-	"github.com/Azure/ARO-HCP/backend/listers"
+	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/utils"

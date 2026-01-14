@@ -44,7 +44,7 @@ import (
 	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
 	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
 
-	"github.com/Azure/ARO-HCP/backend/listers"
+	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"

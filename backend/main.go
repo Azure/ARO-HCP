@@ -50,8 +50,8 @@ import (
 	ocmsdk "github.com/openshift-online/ocm-sdk-go"
 
 	"github.com/Azure/ARO-HCP/backend/controllers"
-	"github.com/Azure/ARO-HCP/backend/listers"
 	"github.com/Azure/ARO-HCP/backend/oldoperationscanner"
+	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
