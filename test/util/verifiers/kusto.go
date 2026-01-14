@@ -118,11 +118,7 @@ func (v verifyMustGatherLogsImpl) Verify(ctx context.Context) error {
 	for _, expected := range v.config.ExpectedLogSources {
 		if expected.Namespace != "" {
 			key := fmt.Sprintf("%s/%s", expected.Namespace, expected.ContainerName)
-			foundMutex.Lock()
-			found := foundLogSources[key]
-			foundMutex.Unlock()
-
-			if !found {
+			if !foundLogSources[key] {
 				missingSources = append(missingSources, key)
 			}
 		} else if expected.NamespacePrefix != "" {
