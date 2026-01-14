@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package mc
+package controller
 
 import (
 	"context"
@@ -25,7 +25,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/kubernetes"
 
-	"github.com/Azure/ARO-HCP/sessiongate/pkg/controller"
+	"github.com/Azure/ARO-HCP/sessiongate/pkg/mc"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 
 	certificatesv1alpha1 "github.com/openshift/hypershift/api/certificates/v1alpha1"
@@ -55,7 +55,7 @@ type ManagementClusterProviderBuilder func(ctx context.Context, resourceId strin
 func NewAKSManagermentClusterBuilder(azureCredentials azcore.TokenCredential) ManagementClusterProviderBuilder {
 	// todo: informers and instance caching
 	return func(ctx context.Context, resourceId string) (*ManagementClusterProvider, error) {
-		kubeConfig, err := GetAKSRESTConfig(ctx, resourceId, azureCredentials)
+		kubeConfig, err := mc.GetAKSRESTConfig(ctx, resourceId, azureCredentials)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get AKS REST config: %w", err)
 		}
@@ -79,7 +79,7 @@ func NewAKSManagermentClusterBuilder(azureCredentials azcore.TokenCredential) Ma
 				kubeClient,
 				time.Second*300,
 				kubeinformers.WithTweakListOptions(func(opts *metav1.ListOptions) {
-					opts.LabelSelector = controller.ManagedByLabelSelector()
+					opts.LabelSelector = ManagedByLabelSelector()
 				}),
 			),
 		}, nil

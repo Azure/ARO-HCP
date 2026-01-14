@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package controlplane
+package controller
 
 import (
 	"context"
@@ -43,11 +43,9 @@ import (
 	"k8s.io/client-go/util/workqueue"
 
 	sessiongatev1alpha1 "github.com/Azure/ARO-HCP/sessiongate/pkg/apis/sessiongate/v1alpha1"
-	"github.com/Azure/ARO-HCP/sessiongate/pkg/controller"
 	sessiongatv1alpha1applyconfigurations "github.com/Azure/ARO-HCP/sessiongate/pkg/generated/applyconfiguration/sessiongate/v1alpha1"
 	sessiongateclient "github.com/Azure/ARO-HCP/sessiongate/pkg/generated/clientset/versioned"
 	sessiongateinformers "github.com/Azure/ARO-HCP/sessiongate/pkg/generated/informers/externalversions"
-	"github.com/Azure/ARO-HCP/sessiongate/pkg/mc"
 
 	corev1 "k8s.io/api/core/v1"
 	certapplyv1 "k8s.io/client-go/applyconfigurations/certificates/v1"
@@ -76,7 +74,7 @@ type SessionController struct {
 	getSession                   func(namespace, name string) (*sessiongatev1alpha1.Session, error)
 	getAuthorizationPolicy       func(namespace, name string) (*securityv1beta1.AuthorizationPolicy, error)
 	getSecret                    func(namespace, name string) (*corev1.Secret, error)
-	getManagementClusterProvider func(ctx context.Context, resourceID string) (*mc.ManagementClusterProvider, error)
+	getManagementClusterProvider func(ctx context.Context, resourceID string) (*ManagementClusterProvider, error)
 	newPrivateKey                func(size int) (*rsa.PrivateKey, error)
 }
 
@@ -88,10 +86,10 @@ func NewSessionController(
 	istioInformers istioinformers.SharedInformerFactory,
 	kubeinformers kubeinformers.SharedInformerFactory,
 	eventRecorder events.Recorder,
-	managementClusterProviderBuilder mc.ManagementClusterProviderBuilder,
+	managementClusterProviderBuilder ManagementClusterProviderBuilder,
 	endpointProvider SessionEndpointProvider,
 ) (*SessionController, error) {
-	managementClusterProviders := make(map[string]*mc.ManagementClusterProvider)
+	managementClusterProviders := make(map[string]*ManagementClusterProvider)
 	managementClusterProviderMutex := sync.Mutex{}
 	workQueue := workqueue.NewTypedRateLimitingQueueWithConfig(
 		workqueue.DefaultTypedControllerRateLimiter[cache.ObjectName](),
@@ -102,7 +100,7 @@ func NewSessionController(
 	c := &SessionController{
 		workqueue:         workQueue,
 		cachesToSync:      []cache.InformerSynced{},
-		fieldManager:      controller.ControllerAgentName,
+		fieldManager:      ControllerAgentName,
 		eventRecorder:     eventRecorder,
 		endpointProvider:  endpointProvider,
 		kubeClient:        kubeClient,
@@ -117,7 +115,7 @@ func NewSessionController(
 		getSecret: func(namespace, name string) (*corev1.Secret, error) {
 			return kubeinformers.Core().V1().Secrets().Lister().Secrets(namespace).Get(name)
 		},
-		getManagementClusterProvider: func(ctx context.Context, resourceID string) (*mc.ManagementClusterProvider, error) {
+		getManagementClusterProvider: func(ctx context.Context, resourceID string) (*ManagementClusterProvider, error) {
 			managementClusterProviderMutex.Lock()
 			defer managementClusterProviderMutex.Unlock()
 			if _, ok := managementClusterProviders[resourceID]; !ok {
@@ -236,7 +234,7 @@ func keyForOwningSession(obj interface{}) (cache.ObjectName, error) {
 		}
 		return cache.NewObjectName(object.GetNamespace(), ownerRef.Name), nil
 	}
-	if sessiongateAnnotation, ok := object.GetAnnotations()[controller.AnnotationSessiongate]; ok {
+	if sessiongateAnnotation, ok := object.GetAnnotations()[AnnotationSessiongate]; ok {
 		namespace, name, err := cache.SplitMetaNamespaceKey(sessiongateAnnotation)
 		if err != nil {
 			return cache.ObjectName{}, fmt.Errorf("failed to split meta namespace key: %w", err)
@@ -411,7 +409,7 @@ func event(reason, messageFmt string, args ...interface{}) *eventInfo {
 	}
 }
 
-func (c *SessionController) processSession(ctx context.Context, session *sessiongatev1alpha1.Session, mc mc.ManagementClusterQuerier, now func() time.Time) (*actions, error) {
+func (c *SessionController) processSession(ctx context.Context, session *sessiongatev1alpha1.Session, mc ManagementClusterQuerier, now func() time.Time) (*actions, error) {
 	if now == nil {
 		now = time.Now
 	}
@@ -447,15 +445,15 @@ func (c *SessionController) processSession(ctx context.Context, session *session
 // - done: whether the current reconciliation loop should stop with the current step result
 // - action: the action to take
 // - error: an error that occurred
-type sessionStep func(ctx context.Context, now func() time.Time, session *sessiongatev1alpha1.Session, mc mc.ManagementClusterQuerier) (bool, *actions, error)
+type sessionStep func(ctx context.Context, now func() time.Time, session *sessiongatev1alpha1.Session, mc ManagementClusterQuerier) (bool, *actions, error)
 
-func (c *SessionController) handleExpiration(ctx context.Context, now func() time.Time, session *sessiongatev1alpha1.Session, mc mc.ManagementClusterQuerier) (bool, *actions, error) {
+func (c *SessionController) handleExpiration(ctx context.Context, now func() time.Time, session *sessiongatev1alpha1.Session, mc ManagementClusterQuerier) (bool, *actions, error) {
 	expiresAt := metav1.NewTime(session.CreationTimestamp.Add(session.Spec.TTL.Duration))
 	if now().After(expiresAt.Time) {
 		e := event("SessionExpiration", "Session has expired, deleting %s/%s.", session.Namespace, session.Name)
 		return true, &actions{Event: e, DeleteSession: true}, nil
 	}
-	sessionUpdate, needsUpdate := controller.NewStatus(session.Status).
+	sessionUpdate, needsUpdate := NewStatus(session.Status).
 		WithExpiresAt(expiresAt).
 		AsApplyConfiguration(session)
 	if needsUpdate {
@@ -464,7 +462,7 @@ func (c *SessionController) handleExpiration(ctx context.Context, now func() tim
 	return false, nil, nil
 }
 
-func (c *SessionController) ensureAuthorizationPolicy(ctx context.Context, now func() time.Time, session *sessiongatev1alpha1.Session, mc mc.ManagementClusterQuerier) (bool, *actions, error) {
+func (c *SessionController) ensureAuthorizationPolicy(ctx context.Context, now func() time.Time, session *sessiongatev1alpha1.Session, mc ManagementClusterQuerier) (bool, *actions, error) {
 	current, err := c.getAuthorizationPolicy(session.Namespace, authorizationPolicyNameForSession(session))
 	if err != nil && !apierrors.IsNotFound(err) {
 		return true, nil, err
@@ -486,11 +484,11 @@ func (c *SessionController) ensureAuthorizationPolicy(ctx context.Context, now f
 	}
 
 	// record in status
-	sessionUpdate, needsUpdate := controller.NewStatus(session.Status).
+	sessionUpdate, needsUpdate := NewStatus(session.Status).
 		WithAuthorizationPolicyRef(current.Name).
 		WithConditions(
 			applyv1.Condition().
-				WithType(string(controller.ConditionTypeAuthorizationPolicyAvailable)).
+				WithType(string(ConditionTypeAuthorizationPolicyAvailable)).
 				WithStatus(metav1.ConditionTrue).
 				WithReason("AuthorizationPolicyAvailable").
 				WithMessage("Authorization policy available").
@@ -504,7 +502,7 @@ func (c *SessionController) ensureAuthorizationPolicy(ctx context.Context, now f
 	return false, nil, nil
 }
 
-func (c *SessionController) getCredentialSecret(session *sessiongatev1alpha1.Session) (*controller.CredentialSecret, error) {
+func (c *SessionController) getCredentialSecret(session *sessiongatev1alpha1.Session) (*CredentialSecret, error) {
 	current, err := c.getSecret(session.Namespace, session.Name)
 	var secretData map[string][]byte
 	if err != nil && !apierrors.IsNotFound(err) {
@@ -514,10 +512,10 @@ func (c *SessionController) getCredentialSecret(session *sessiongatev1alpha1.Ses
 	} else {
 		secretData = current.Data
 	}
-	return controller.NewCredentialSecret(session.Name, session.Namespace, session.UID, c.fieldManager, secretData), nil
+	return NewCredentialSecret(session.Name, session.Namespace, session.UID, c.fieldManager, secretData), nil
 }
 
-func (c *SessionController) generateCredentials(ctx context.Context, now func() time.Time, session *sessiongatev1alpha1.Session, mc mc.ManagementClusterQuerier) (bool, *actions, error) {
+func (c *SessionController) generateCredentials(ctx context.Context, now func() time.Time, session *sessiongatev1alpha1.Session, mc ManagementClusterQuerier) (bool, *actions, error) {
 	credentialSecret, err := c.getCredentialSecret(session)
 	if err != nil {
 		return true, nil, err
@@ -525,11 +523,11 @@ func (c *SessionController) generateCredentials(ctx context.Context, now func() 
 
 	// if there is already a certificate in the secret, nothing to do
 	if _, certExists := credentialSecret.GetCertificate(); certExists {
-		sessionUpdate, needsUpdate := controller.NewStatus(session.Status).
+		sessionUpdate, needsUpdate := NewStatus(session.Status).
 			WithCredentialsSecretRef(session.Name).
 			WithConditions(
 				applyv1.Condition().
-					WithType(string(controller.ConditionTypeCredentialsAvailable)).
+					WithType(string(ConditionTypeCredentialsAvailable)).
 					WithStatus(metav1.ConditionTrue).
 					WithReason("CredentialsAvailable").
 					WithMessage("Credentials available").
@@ -568,10 +566,10 @@ func (c *SessionController) generateCredentials(ctx context.Context, now func() 
 		}
 		// ... if not, let's handle approval
 		if !isCSRApproved(csr) {
-			sessionUpdate, needsUpdate := controller.NewStatus(session.Status).
+			sessionUpdate, needsUpdate := NewStatus(session.Status).
 				WithConditions(
-					controller.CredentialsNotAvailableCondition("CertificateSigningRequestPending", "Certificate signing request pending, waiting for approval", session.Generation, now()),
-					controller.NotReadyCondition(session.Generation, now()),
+					CredentialsNotAvailableCondition("CertificateSigningRequestPending", "Certificate signing request pending, waiting for approval", session.Generation, now()),
+					NotReadyCondition(session.Generation, now()),
 				).AsApplyConfiguration(session)
 			if needsUpdate {
 				return true, &actions{Session: sessionUpdate}, nil
@@ -598,10 +596,10 @@ func (c *SessionController) generateCredentials(ctx context.Context, now func() 
 	// there is no CSR yet, so we need to create one
 	privateKey, privateKeyExists := credentialSecret.GetPrivateKey()
 	if privateKeyExists {
-		sessionUpdate, needsUpdate := controller.NewStatus(session.Status).
+		sessionUpdate, needsUpdate := NewStatus(session.Status).
 			WithConditions(
-				controller.CredentialsNotAvailableCondition("PrivateKeyCreated", "Private key created, waiting for CSR to be created", session.Generation, now()),
-				controller.NotReadyCondition(session.Generation, now()),
+				CredentialsNotAvailableCondition("PrivateKeyCreated", "Private key created, waiting for CSR to be created", session.Generation, now()),
+				NotReadyCondition(session.Generation, now()),
 			).AsApplyConfiguration(session)
 		if needsUpdate {
 			return true, &actions{Session: sessionUpdate}, nil
@@ -624,7 +622,7 @@ func (c *SessionController) generateCredentials(ctx context.Context, now func() 
 	return true, &actions{Event: e, Secret: credentialSecret.ApplyConfigurationForPrivateKey(privateKey)}, nil
 }
 
-func (c *SessionController) ensureNetworkPath(ctx context.Context, now func() time.Time, session *sessiongatev1alpha1.Session, mc mc.ManagementClusterQuerier) (bool, *actions, error) {
+func (c *SessionController) ensureNetworkPath(ctx context.Context, now func() time.Time, session *sessiongatev1alpha1.Session, mc ManagementClusterQuerier) (bool, *actions, error) {
 	// right now we only have public HCPs, so we just the public HCP API endpoint as
 	// network path and set it in the status
 	// once we have private HCPs, this step will establish network connectivity
@@ -638,11 +636,11 @@ func (c *SessionController) ensureNetworkPath(ctx context.Context, now func() ti
 	if err != nil {
 		return true, nil, fmt.Errorf("failed to get HostedCluster: %w", err)
 	}
-	statusUpdate, needsUpdate := controller.NewStatus(session.Status).
+	statusUpdate, needsUpdate := NewStatus(session.Status).
 		WithBackendKASURL(fmt.Sprintf("https://%s", hcp.Spec.KubeAPIServerDNSName)).
 		WithConditions(
 			applyv1.Condition().
-				WithType(string(controller.ConditionTypeNetworkPathAvailable)).
+				WithType(string(ConditionTypeNetworkPathAvailable)).
 				WithStatus(metav1.ConditionTrue).
 				WithReason("NetworkPathAvailable").
 				WithMessage("Network path available via public endpoint").
@@ -657,13 +655,13 @@ func (c *SessionController) ensureNetworkPath(ctx context.Context, now func() ti
 	return false, nil, nil
 }
 
-func (c *SessionController) finalizeSession(ctx context.Context, now func() time.Time, session *sessiongatev1alpha1.Session, mc mc.ManagementClusterQuerier) (bool, *actions, error) {
+func (c *SessionController) finalizeSession(ctx context.Context, now func() time.Time, session *sessiongatev1alpha1.Session, mc ManagementClusterQuerier) (bool, *actions, error) {
 	// build status update
-	statusUpdate, needsUpdate := controller.NewStatus(session.Status).
+	statusUpdate, needsUpdate := NewStatus(session.Status).
 		WithEndpoint(c.endpointProvider.GetSessionEndpoint(session.Name)).
 		WithConditions(
 			applyv1.Condition().
-				WithType(string(controller.ConditionTypeReady)).
+				WithType(string(ConditionTypeReady)).
 				WithStatus(metav1.ConditionTrue).
 				WithReason("Ready").
 				WithMessage("Session is ready").

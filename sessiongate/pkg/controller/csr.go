@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package controlplane
+package controller
 
 import (
 	"crypto/rand"
@@ -27,7 +27,6 @@ import (
 	"k8s.io/klog/v2"
 
 	sessiongatev1alpha1 "github.com/Azure/ARO-HCP/sessiongate/pkg/apis/sessiongate/v1alpha1"
-	"github.com/Azure/ARO-HCP/sessiongate/pkg/controller"
 )
 
 func isCSRApproved(csr *certificatesv1.CertificateSigningRequest) bool {
@@ -69,10 +68,10 @@ func createCSRApplyConfiguration(session *sessiongatev1alpha1.Session, privateKe
 	}
 	return certapplyv1.CertificateSigningRequest(CSRName(session.Name)).
 		WithLabels(map[string]string{
-			controller.LabelManagedBy: controller.ControllerAgentName,
+			LabelManagedBy: ControllerAgentName,
 		}).
 		WithAnnotations(map[string]string{
-			controller.AnnotationSessiongate: fmt.Sprintf("%s/%s", session.Namespace, session.Name),
+			AnnotationSessiongate: fmt.Sprintf("%s/%s", session.Namespace, session.Name),
 		}).
 		WithSpec(certapplyv1.CertificateSigningRequestSpec().
 			WithRequest(csrPEM...).
@@ -119,7 +118,7 @@ func validateCSR(csr *certificatesv1.CertificateSigningRequest, privateKey *rsa.
 		klog.ErrorS(nil, "CSR public key is not an RSA public key", "csr", csr.Name)
 		return false
 	}
-	if !controller.PrivateKeyAndPublicKeyMatch(privateKey, csrPublicKey) {
+	if !PrivateKeyAndPublicKeyMatch(privateKey, csrPublicKey) {
 		klog.ErrorS(nil, "CSR public key does not match private key", "csr", csr.Name)
 		return false
 	}

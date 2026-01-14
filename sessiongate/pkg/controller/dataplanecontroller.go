@@ -12,20 +12,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package dataplane
+package controller
 
 import (
 	"context"
 	"fmt"
 	"time"
 
-	"github.com/openshift/library-go/pkg/controller/factory"
 	"github.com/openshift/library-go/pkg/operator/events"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/runtime"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/apimachinery/pkg/util/wait"
 	kubeinformers "k8s.io/client-go/informers"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
+	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog/v2"
 
 	sessiongateinformers "github.com/Azure/ARO-HCP/sessiongate/pkg/generated/informers/externalversions"
@@ -33,30 +34,39 @@ import (
 	corev1 "k8s.io/api/core/v1"
 
 	sessiongatev1alpha1 "github.com/Azure/ARO-HCP/sessiongate/pkg/apis/sessiongate/v1alpha1"
-	"github.com/Azure/ARO-HCP/sessiongate/pkg/controller"
 )
 
 // data plane controller implementation.
 // it runs on all replicas and registers sessions with the proxy registry, so that any replica can
 // proxy traffic for a session.
-type Controller struct {
+type DataPlaneController struct {
+	workqueue    workqueue.TypedRateLimitingInterface[cache.ObjectName]
+	cachesToSync []cache.InformerSynced
 	fieldManager string
 	logger       klog.Logger
-	registry     controller.SessionRegistry
+	registry     SessionRegistry
 	getSession   func(namespace, name string) (*sessiongatev1alpha1.Session, error)
 	getSecret    func(namespace, name string) (*corev1.Secret, error)
 }
 
-func NewController(
+func NewDataPlaneController(
 	ctx context.Context,
 	logger klog.Logger,
 	sessiongateInformers sessiongateinformers.SharedInformerFactory,
 	kubeInformers kubeinformers.SharedInformerFactory,
-	registry controller.SessionRegistry,
+	registry SessionRegistry,
 	eventRecorder events.Recorder,
-) factory.Controller {
-	c := &Controller{
-		fieldManager: controller.ControllerAgentName,
+) (*DataPlaneController, error) {
+	workQueue := workqueue.NewTypedRateLimitingQueueWithConfig(
+		workqueue.DefaultTypedControllerRateLimiter[cache.ObjectName](),
+		workqueue.TypedRateLimitingQueueConfig[cache.ObjectName]{
+			Name: "DataPlaneControlPlaneController",
+		},
+	)
+	c := &DataPlaneController{
+		workqueue:    workQueue,
+		cachesToSync: []cache.InformerSynced{},
+		fieldManager: ControllerAgentName,
 		logger:       logger,
 		registry:     registry,
 		getSession: func(namespace, name string) (*sessiongatev1alpha1.Session, error) {
@@ -67,32 +77,61 @@ func NewController(
 		},
 	}
 
-	return factory.New().
-		WithInformersQueueKeysFunc(enqueueSession, sessiongateInformers.Sessiongate().V1alpha1().Sessions().Informer()).
-		WithInformersQueueKeysFunc(
-			controller.EnqueueOwningSession,
-			kubeInformers.Core().V1().Secrets().Informer(),
-		).
-		WithSync(c.syncSession).
-		ResyncEvery(time.Minute*5).
-		ToController("SessionDataPlaneController", eventRecorder.WithComponentSuffix(c.fieldManager))
-}
-
-func enqueueSession(obj runtime.Object) []string {
-	key, err := cache.DeletionHandlingMetaNamespaceKeyFunc(obj)
-	if err != nil {
-		klog.ErrorS(err, "could not determine queue key")
-		return nil
-	}
-	return []string{key}
-}
-
-func (c *Controller) syncSession(ctx context.Context, syncContext factory.SyncContext) error {
-	namespace, name, err := cache.SplitMetaNamespaceKey(syncContext.QueueKey())
-	if err != nil {
-		return err
+	if err := registerInformer(sessiongateInformers.Sessiongate().V1alpha1().Sessions().Informer(), keyForSession, c.workqueue); err != nil {
+		return nil, fmt.Errorf("failed to register session informer: %w", err)
 	}
 
+	return c, nil
+}
+
+func (c *DataPlaneController) Run(ctx context.Context, workers int) error {
+	defer utilruntime.HandleCrash()
+	defer c.workqueue.ShutDown()
+
+	klog.InfoS("Starting control plane controller... waiting for informer caches to sync")
+
+	if ok := cache.WaitForCacheSync(ctx.Done(), c.cachesToSync...); !ok {
+		return fmt.Errorf("failed to wait for caches to sync")
+	}
+
+	klog.InfoS("Starting workers", "count", workers)
+	for range workers {
+		go wait.UntilWithContext(ctx, c.runWorker, time.Second)
+	}
+
+	klog.InfoS("Started workers")
+	<-ctx.Done()
+	klog.InfoS("Shutting down workers")
+
+	return nil
+}
+
+func (c *DataPlaneController) runWorker(ctx context.Context) {
+	for c.processNextWorkItem(ctx) {
+	}
+}
+
+func (c *DataPlaneController) processNextWorkItem(ctx context.Context) bool {
+	objRef, shutdown := c.workqueue.Get()
+
+	if shutdown {
+		return false
+	}
+
+	defer c.workqueue.Done(objRef)
+
+	// reconcile the session
+	err := c.syncSession(ctx, objRef.Namespace, objRef.Name)
+	if err != nil {
+		utilruntime.HandleErrorWithContext(ctx, err, "Error syncing; requeuing for later retry", "objectReference", objRef)
+		c.workqueue.AddRateLimited(objRef)
+		return true
+	}
+	c.workqueue.Forget(objRef)
+	return true
+}
+
+func (c *DataPlaneController) syncSession(ctx context.Context, namespace, name string) error {
 	session, err := c.getSession(namespace, name)
 	if err != nil && apierrors.IsNotFound(err) {
 		c.registry.UnregisterSession(name)
@@ -113,17 +152,17 @@ func (c *Controller) syncSession(ctx context.Context, syncContext factory.SyncCo
 }
 
 // isReadyForRegistration validates whether a session should be registered
-func (c *Controller) isReadyForRegistration(session *sessiongatev1alpha1.Session) (bool, string) {
+func (c *DataPlaneController) isReadyForRegistration(session *sessiongatev1alpha1.Session) (bool, string) {
 	if !session.DeletionTimestamp.IsZero() {
 		return false, "being deleted"
 	}
-	if !controller.IsReady(session.Status) {
+	if !IsReady(session.Status) {
 		return false, "not ready"
 	}
 	return true, ""
 }
 
-func (c *Controller) getCredentialSecret(ctx context.Context, session *sessiongatev1alpha1.Session) (*controller.CredentialSecret, error) {
+func (c *DataPlaneController) getCredentialSecret(ctx context.Context, session *sessiongatev1alpha1.Session) (*CredentialSecret, error) {
 	current, err := c.getSecret(session.Namespace, session.Name)
 	var secretData map[string][]byte
 	if err != nil && !apierrors.IsNotFound(err) {
@@ -133,11 +172,11 @@ func (c *Controller) getCredentialSecret(ctx context.Context, session *sessionga
 	} else {
 		secretData = current.Data
 	}
-	return controller.NewCredentialSecret(session.Name, session.Namespace, session.UID, c.fieldManager, secretData), nil
+	return NewCredentialSecret(session.Name, session.Namespace, session.UID, c.fieldManager, secretData), nil
 }
 
 // registerSession fetches credentials and registers the session in the local registry for proxying traffic
-func (c *Controller) registerSession(ctx context.Context, session *sessiongatev1alpha1.Session) error {
+func (c *DataPlaneController) registerSession(ctx context.Context, session *sessiongatev1alpha1.Session) error {
 	credentialSecret, err := c.getCredentialSecret(ctx, session)
 	if err != nil {
 		return fmt.Errorf("failed to get credential secret: %w", err)
@@ -161,7 +200,7 @@ func (c *Controller) registerSession(ctx context.Context, session *sessiongatev1
 		},
 	}
 
-	endpoint, err := c.registry.RegisterSession(controller.NewSessionOptions(
+	endpoint, err := c.registry.RegisterSession(NewSessionOptions(
 		session.Name,
 		session.Status.BackendKASURL,
 		restConfig,

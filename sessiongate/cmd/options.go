@@ -21,7 +21,6 @@ import (
 	"os"
 	"time"
 
-	"github.com/openshift/library-go/pkg/controller/factory"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/cobra"
 	"golang.org/x/sync/errgroup"
@@ -41,11 +40,8 @@ import (
 	"k8s.io/utils/clock"
 
 	"github.com/Azure/ARO-HCP/sessiongate/pkg/controller"
-	"github.com/Azure/ARO-HCP/sessiongate/pkg/controller/controlplane"
-	"github.com/Azure/ARO-HCP/sessiongate/pkg/controller/dataplane"
 	clientset "github.com/Azure/ARO-HCP/sessiongate/pkg/generated/clientset/versioned"
 	informers "github.com/Azure/ARO-HCP/sessiongate/pkg/generated/informers/externalversions"
-	"github.com/Azure/ARO-HCP/sessiongate/pkg/mc"
 	"github.com/Azure/ARO-HCP/sessiongate/pkg/server"
 	"github.com/Azure/ARO-HCP/sessiongate/pkg/signals"
 )
@@ -105,8 +101,8 @@ type ValidatedControllerOptions struct {
 
 type completedControllerOptions struct {
 	server                     *server.Server
-	controlPlaneController     *controlplane.SessionController
-	dataPlaneController        factory.Controller
+	controlPlaneController     *controller.SessionController
+	dataPlaneController        *controller.DataPlaneController
 	sessiongateInformerFactory informers.SharedInformerFactory
 	istioInformerFactory       istioinformers.SharedInformerFactory
 	kubeInformerFactory        kubeinformers.SharedInformerFactory
@@ -227,7 +223,7 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 	)
 
 	// create control plane controller (leader-elected)
-	controlPlaneCtrl, err := controlplane.NewSessionController(
+	controlPlaneCtrl, err := controller.NewSessionController(
 		kubeClientset,
 		sessiongateClientset,
 		istioClientset.SecurityV1beta1(),
@@ -235,7 +231,7 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 		istioInformers,
 		kubeInformers,
 		controlPlaneEventRecorder,
-		mc.NewAKSManagermentClusterBuilder(azureCredential),
+		controller.NewAKSManagermentClusterBuilder(azureCredential),
 		srv,
 	)
 	if err != nil {
@@ -243,7 +239,7 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 	}
 
 	// create data plane controller (no leader election, runs on all replicas)
-	dataPlaneCtrl := dataplane.NewController(
+	dataPlaneCtrl, err := controller.NewDataPlaneController(
 		ctx,
 		klog.LoggerWithValues(logger, "controller", "data-plane"),
 		sessiongateInformers,
@@ -251,6 +247,9 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 		srv,
 		dataPlaneEventRecorder,
 	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create data plane controller: %w", err)
+	}
 
 	return &ControllerOptions{
 		completedControllerOptions: &completedControllerOptions{

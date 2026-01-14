@@ -12,13 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package controlplane
+package controller
 
 import (
 	"fmt"
 
 	sessiongatev1alpha1 "github.com/Azure/ARO-HCP/sessiongate/pkg/apis/sessiongate/v1alpha1"
-	"github.com/Azure/ARO-HCP/sessiongate/pkg/controller"
 	securityv1beta1api "istio.io/api/security/v1beta1"
 	typev1beta1 "istio.io/api/type/v1beta1"
 	metaapplyv1 "istio.io/client-go/pkg/applyconfiguration/meta/v1"
@@ -41,7 +40,7 @@ func buildAuthorizationPolicy(session *sessiongatev1alpha1.Session) *securityapp
 			WithUID(session.UID).
 			WithController(true)).
 		WithLabels(map[string]string{
-			controller.LabelManagedBy: controller.ControllerAgentName,
+			LabelManagedBy: ControllerAgentName,
 		}).
 		WithSpec(
 			securityv1beta1api.AuthorizationPolicy{
