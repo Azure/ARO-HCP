@@ -949,7 +949,6 @@
             }
           },
           "required": [
-            "version",
             "bundle"
           ]
         },
@@ -965,7 +964,6 @@
           },
           "additionalProperties": false,
           "required": [
-            "version",
             "bundle"
           ]
         }

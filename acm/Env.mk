@@ -1,4 +1,3 @@
-ACM_VERSION ?= {{ .acm.operator.version }}
 MCE_BUNDLE_REGISTRY ?= {{ .acm.mce.bundle.registry }}
 MCE_BUNDLE_REPOSITORY ?= {{ .acm.mce.bundle.repository }}
 MCE_BUNDLE_DIGEST ?= {{ .acm.mce.bundle.digest }}
