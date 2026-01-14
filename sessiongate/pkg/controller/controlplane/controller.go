@@ -284,7 +284,25 @@ func (c *SessionController) processNextWorkItem(ctx context.Context) bool {
 
 	defer c.workqueue.Done(objRef)
 
-	err := c.syncSession(ctx, objRef.Namespace, objRef.Name)
+	session, err := c.getSession(objRef.Namespace, objRef.Name)
+	if err != nil && apierrors.IsNotFound(err) {
+		// session is gone, nothing to do
+		return true
+	} else if err != nil {
+		c.workqueue.AddRateLimited(objRef)
+		return true
+	}
+
+	// requeue for the expiration time
+	if session.Status.ExpiresAt != nil {
+		requeueAfter := time.Until(session.Status.ExpiresAt.Time)
+		if requeueAfter > 0 {
+			c.workqueue.AddAfter(objRef, requeueAfter+1*time.Second)
+		}
+	}
+
+	// reconcile the session
+	err = c.syncSession(ctx, session)
 	if err != nil {
 		utilruntime.HandleErrorWithContext(ctx, err, "Error syncing; requeuing for later retry", "objectReference", objRef)
 		c.workqueue.AddRateLimited(objRef)
@@ -294,14 +312,7 @@ func (c *SessionController) processNextWorkItem(ctx context.Context) bool {
 	return true
 }
 
-func (c *SessionController) syncSession(ctx context.Context, namespace, name string) error {
-	session, err := c.getSession(namespace, name)
-	if err != nil && apierrors.IsNotFound(err) {
-		return nil // nothing to be done, Session is gone
-	} else if err != nil {
-		return err
-	}
-
+func (c *SessionController) syncSession(ctx context.Context, session *sessiongatev1alpha1.Session) error {
 	mc, err := c.getManagementClusterProvider(ctx, session.Spec.ManagementCluster.ResourceID)
 	if err != nil {
 		return err
@@ -309,7 +320,7 @@ func (c *SessionController) syncSession(ctx context.Context, namespace, name str
 
 	action, err := c.processSession(ctx, session, mc, nil)
 	if err != nil {
-		klog.ErrorS(err, "Error processing session", "session", session.Name, "namespace", namespace)
+		klog.ErrorS(err, "Error processing session", "session", session.Name, "namespace", session.Namespace)
 		return err
 	}
 
@@ -323,7 +334,7 @@ func (c *SessionController) syncSession(ctx context.Context, namespace, name str
 
 		switch {
 		case action.Session != nil:
-			_, err = c.sessiongateClient.SessiongateV1alpha1().Sessions(namespace).ApplyStatus(ctx, action.Session, metav1.ApplyOptions{FieldManager: c.fieldManager})
+			_, err = c.sessiongateClient.SessiongateV1alpha1().Sessions(session.Namespace).ApplyStatus(ctx, action.Session, metav1.ApplyOptions{FieldManager: c.fieldManager})
 		case action.Secret != nil:
 			_, err = c.kubeClient.CoreV1().Secrets(*action.Secret.Namespace).Apply(ctx, action.Secret, metav1.ApplyOptions{FieldManager: c.fieldManager, Force: true})
 		case action.AuthPolicy != nil:
@@ -333,7 +344,7 @@ func (c *SessionController) syncSession(ctx context.Context, namespace, name str
 		case action.CSRApproval != nil:
 			_, err = mc.CertificatesClient.CertificateSigningRequestApprovals(action.CSRApproval.Namespace).Apply(ctx, action.CSRApproval.Approval, metav1.ApplyOptions{FieldManager: c.fieldManager, Force: true})
 		case action.DeleteSession:
-			err = c.sessiongateClient.SessiongateV1alpha1().Sessions(namespace).Delete(ctx, name, metav1.DeleteOptions{})
+			err = c.sessiongateClient.SessiongateV1alpha1().Sessions(session.Namespace).Delete(ctx, session.Name, metav1.DeleteOptions{})
 		case action.DeleteCSR:
 			err = mc.KubeClient.CertificatesV1().CertificateSigningRequests().Delete(ctx, CSRName(session.Name), metav1.DeleteOptions{})
 		}
@@ -444,7 +455,7 @@ func (c *SessionController) handleExpiration(ctx context.Context, now func() tim
 		e := event("SessionExpiration", "Session has expired, deleting %s/%s.", session.Namespace, session.Name)
 		return true, &actions{Event: e, DeleteSession: true}, nil
 	}
-	sessionUpdate, needsUpdate := NewStatus(session.Status).
+	sessionUpdate, needsUpdate := controller.NewStatus(session.Status).
 		WithExpiresAt(expiresAt).
 		AsApplyConfiguration(session)
 	if needsUpdate {
@@ -475,11 +486,11 @@ func (c *SessionController) ensureAuthorizationPolicy(ctx context.Context, now f
 	}
 
 	// record in status
-	sessionUpdate, needsUpdate := NewStatus(session.Status).
+	sessionUpdate, needsUpdate := controller.NewStatus(session.Status).
 		WithAuthorizationPolicyRef(current.Name).
 		WithConditions(
 			applyv1.Condition().
-				WithType(string(ConditionTypeAuthorizationPolicyAvailable)).
+				WithType(string(controller.ConditionTypeAuthorizationPolicyAvailable)).
 				WithStatus(metav1.ConditionTrue).
 				WithReason("AuthorizationPolicyAvailable").
 				WithMessage("Authorization policy available").
@@ -514,11 +525,11 @@ func (c *SessionController) generateCredentials(ctx context.Context, now func() 
 
 	// if there is already a certificate in the secret, nothing to do
 	if _, certExists := credentialSecret.GetCertificate(); certExists {
-		sessionUpdate, needsUpdate := NewStatus(session.Status).
+		sessionUpdate, needsUpdate := controller.NewStatus(session.Status).
 			WithCredentialsSecretRef(session.Name).
 			WithConditions(
 				applyv1.Condition().
-					WithType(string(ConditionTypeCredentialsAvailable)).
+					WithType(string(controller.ConditionTypeCredentialsAvailable)).
 					WithStatus(metav1.ConditionTrue).
 					WithReason("CredentialsAvailable").
 					WithMessage("Credentials available").
@@ -557,10 +568,10 @@ func (c *SessionController) generateCredentials(ctx context.Context, now func() 
 		}
 		// ... if not, let's handle approval
 		if !isCSRApproved(csr) {
-			sessionUpdate, needsUpdate := NewStatus(session.Status).
+			sessionUpdate, needsUpdate := controller.NewStatus(session.Status).
 				WithConditions(
-					CredentialsNotAvailableCondition("CertificateSigningRequestPending", "Certificate signing request pending, waiting for approval", session.Generation, now()),
-					NotReadyCondition(session.Generation, now()),
+					controller.CredentialsNotAvailableCondition("CertificateSigningRequestPending", "Certificate signing request pending, waiting for approval", session.Generation, now()),
+					controller.NotReadyCondition(session.Generation, now()),
 				).AsApplyConfiguration(session)
 			if needsUpdate {
 				return true, &actions{Session: sessionUpdate}, nil
@@ -587,10 +598,10 @@ func (c *SessionController) generateCredentials(ctx context.Context, now func() 
 	// there is no CSR yet, so we need to create one
 	privateKey, privateKeyExists := credentialSecret.GetPrivateKey()
 	if privateKeyExists {
-		sessionUpdate, needsUpdate := NewStatus(session.Status).
+		sessionUpdate, needsUpdate := controller.NewStatus(session.Status).
 			WithConditions(
-				CredentialsNotAvailableCondition("PrivateKeyCreated", "Private key created, waiting for CSR to be created", session.Generation, now()),
-				NotReadyCondition(session.Generation, now()),
+				controller.CredentialsNotAvailableCondition("PrivateKeyCreated", "Private key created, waiting for CSR to be created", session.Generation, now()),
+				controller.NotReadyCondition(session.Generation, now()),
 			).AsApplyConfiguration(session)
 		if needsUpdate {
 			return true, &actions{Session: sessionUpdate}, nil
@@ -627,11 +638,11 @@ func (c *SessionController) ensureNetworkPath(ctx context.Context, now func() ti
 	if err != nil {
 		return true, nil, fmt.Errorf("failed to get HostedCluster: %w", err)
 	}
-	statusUpdate, needsUpdate := NewStatus(session.Status).
+	statusUpdate, needsUpdate := controller.NewStatus(session.Status).
 		WithBackendKASURL(fmt.Sprintf("https://%s", hcp.Spec.KubeAPIServerDNSName)).
 		WithConditions(
 			applyv1.Condition().
-				WithType(string(ConditionTypeNetworkPathAvailable)).
+				WithType(string(controller.ConditionTypeNetworkPathAvailable)).
 				WithStatus(metav1.ConditionTrue).
 				WithReason("NetworkPathAvailable").
 				WithMessage("Network path available via public endpoint").
@@ -648,11 +659,11 @@ func (c *SessionController) ensureNetworkPath(ctx context.Context, now func() ti
 
 func (c *SessionController) finalizeSession(ctx context.Context, now func() time.Time, session *sessiongatev1alpha1.Session, mc mc.ManagementClusterQuerier) (bool, *actions, error) {
 	// build status update
-	statusUpdate, needsUpdate := NewStatus(session.Status).
+	statusUpdate, needsUpdate := controller.NewStatus(session.Status).
 		WithEndpoint(c.endpointProvider.GetSessionEndpoint(session.Name)).
 		WithConditions(
 			applyv1.Condition().
-				WithType(string(ConditionTypeReady)).
+				WithType(string(controller.ConditionTypeReady)).
 				WithStatus(metav1.ConditionTrue).
 				WithReason("Ready").
 				WithMessage("Session is ready").

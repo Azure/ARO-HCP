@@ -117,15 +117,8 @@ func (c *Controller) isReadyForRegistration(session *sessiongatev1alpha1.Session
 	if !session.DeletionTimestamp.IsZero() {
 		return false, "being deleted"
 	}
-	// TODO
-	/*if !session.IsReady() {
+	if !controller.IsReady(session.Status) {
 		return false, "not ready"
-	}*/
-	if session.Status.CredentialsSecretRef == "" {
-		return false, "no credentials secret reference"
-	}
-	if session.Status.BackendKASURL == "" {
-		return false, "no backend KAS URL"
 	}
 	return true, ""
 }

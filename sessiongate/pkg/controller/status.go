@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package controlplane
+package controller
 
 import (
 	"fmt"
@@ -45,27 +45,6 @@ func NewStatus(status sessiongatev1alpha1.SessionStatus) *Status {
 	return &Status{
 		applyConfig: ApplyConfigForStatus(status),
 	}
-}
-
-func (s *Status) GetCondition(t ConditionType) *applyv1.ConditionApplyConfiguration {
-	for _, condition := range s.applyConfig.Conditions {
-		if *condition.Type == string(t) {
-			return &condition
-		}
-	}
-	return nil
-}
-
-// check if the status, generation, reason or message would need to be updated of any of the provided conditions
-func (s *Status) OutdatedConditions(updated ...*applyv1.ConditionApplyConfiguration) []*applyv1.ConditionApplyConfiguration {
-	needsUpdate := make([]*applyv1.ConditionApplyConfiguration, 0, len(updated))
-	for _, condition := range updated {
-		current := s.GetCondition(ConditionType(*condition.Type))
-		if current == nil || *condition.Status != *current.Status || *condition.Reason != *current.Reason || *condition.Message != *current.Message || *condition.ObservedGeneration != *current.ObservedGeneration {
-			needsUpdate = append(needsUpdate, condition)
-		}
-	}
-	return needsUpdate
 }
 
 func (s *Status) WithConditions(updated ...*applyv1.ConditionApplyConfiguration) *Status {
@@ -252,4 +231,13 @@ func CredentialsNotAvailableCondition(reason, message string, generation int64, 
 		WithMessage(message).
 		WithObservedGeneration(generation).
 		WithLastTransitionTime(metav1.NewTime(now))
+}
+
+func IsReady(status sessiongatev1alpha1.SessionStatus) bool {
+	for _, condition := range status.Conditions {
+		if condition.Type == string(ConditionTypeReady) && condition.Status == metav1.ConditionTrue {
+			return true
+		}
+	}
+	return false
 }

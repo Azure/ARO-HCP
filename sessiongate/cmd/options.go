@@ -331,12 +331,12 @@ func (o *ControllerOptions) Run(ctx context.Context) error {
 	})
 
 	// run data plane controller
-	// g.Go(func() error {
-	// 	logger.Info("Starting data plane controller")
-	// 	o.dataPlaneController.Run(ctx, 1)
-	// 	logger.Info("Data plane controller stopped")
-	// 	return nil
-	// })
+	g.Go(func() error {
+		logger.Info("Starting data plane controller")
+		o.dataPlaneController.Run(ctx, 1)
+		logger.Info("Data plane controller stopped")
+		return nil
+	})
 
 	if err := g.Wait(); err != nil {
 		logger.Error(err, "Component failed")
