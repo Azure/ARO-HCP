@@ -1,10 +1,10 @@
 {
 	"_attachments": "attachments/",
-	"_etag": "\"00000000-0000-0000-80da-b38be40501dc\"",
-	"_rid": "NNYoALQEciYBAAAAAAAAAA==",
-	"_self": "dbs/NNYoAA==/colls/NNYoALQEciY=/docs/NNYoALQEciYBAAAAAAAAAA==/",
-	"_ts": 1767902971,
-	"id": "c893be2c-80b0-497f-8490-e3e5fd2b2cc4",
+	"_etag": "\"00000000-0000-0000-84e3-ec0c700501dc\"",
+	"_rid": "dF1hAJM2NhwKAAAAAAAAAA==",
+	"_self": "dbs/dF1hAA==/colls/dF1hAJM2Nhw=/docs/dF1hAJM2NhwKAAAAAAAAAA==/",
+	"_ts": 1768346736,
+	"id": "|subscriptions|6b690bec-0c16-4ecb-8f67-781caf40bba7|resourcegroups|resourcegroupname|providers|microsoft.redhatopenshift|hcpopenshiftclusters|create-with-tags",
 	"partitionKey": "6b690bec-0c16-4ecb-8f67-781caf40bba7",
 	"properties": {
 		"activeOperationId": "7a4ed07a-47a1-4efb-966a-93a6316522a0",

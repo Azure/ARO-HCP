@@ -191,7 +191,11 @@ func MigrateCosmosOrDie(ctx context.Context, cosmosClient database.DBClient) {
 			panic(err)
 		}
 		for _, cluster := range clusterIterator.Items(ctx) {
-			_, err := cosmosClient.HCPClusters(cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName).Get(ctx, cluster.ID.Name)
+			currCluster, err := cosmosClient.HCPClusters(cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName).Get(ctx, cluster.ID.Name)
+			if err != nil {
+				panic(err)
+			}
+			_, err = cosmosClient.HCPClusters(cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName).Replace(ctx, currCluster, nil)
 			if err != nil {
 				panic(err)
 			}
@@ -201,7 +205,11 @@ func MigrateCosmosOrDie(ctx context.Context, cosmosClient database.DBClient) {
 				panic(err)
 			}
 			for _, nodePool := range nodePoolIterator.Items(ctx) {
-				_, err := cosmosClient.HCPClusters(nodePool.ID.SubscriptionID, nodePool.ID.ResourceGroupName).NodePools(nodePool.ID.Parent.Name).Get(ctx, nodePool.ID.Name)
+				currNodePool, err := cosmosClient.HCPClusters(nodePool.ID.SubscriptionID, nodePool.ID.ResourceGroupName).NodePools(nodePool.ID.Parent.Name).Get(ctx, nodePool.ID.Name)
+				if err != nil {
+					panic(err)
+				}
+				_, err = cosmosClient.HCPClusters(nodePool.ID.SubscriptionID, nodePool.ID.ResourceGroupName).NodePools(nodePool.ID.Parent.Name).Replace(ctx, currNodePool, nil)
 				if err != nil {
 					panic(err)
 				}
@@ -215,7 +223,11 @@ func MigrateCosmosOrDie(ctx context.Context, cosmosClient database.DBClient) {
 				panic(err)
 			}
 			for _, externalAuth := range externalAuthIterator.Items(ctx) {
-				_, err := cosmosClient.HCPClusters(externalAuth.ID.SubscriptionID, externalAuth.ID.ResourceGroupName).ExternalAuth(externalAuth.ID.Parent.Name).Get(ctx, externalAuth.ID.Name)
+				currExternalAuth, err := cosmosClient.HCPClusters(externalAuth.ID.SubscriptionID, externalAuth.ID.ResourceGroupName).ExternalAuth(externalAuth.ID.Parent.Name).Get(ctx, externalAuth.ID.Name)
+				if err != nil {
+					panic(err)
+				}
+				_, err = cosmosClient.HCPClusters(externalAuth.ID.SubscriptionID, externalAuth.ID.ResourceGroupName).ExternalAuth(externalAuth.ID.Parent.Name).Replace(ctx, currExternalAuth, nil)
 				if err != nil {
 					panic(err)
 				}

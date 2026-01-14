@@ -1,17 +1,31 @@
 {
 	"_attachments": "attachments/",
-	"_etag": "\"00000000-0000-0000-7121-fd067c0501dc\"",
-	"_rid": "WZlNALYurecDAAAAAAAAAA==",
-	"_self": "dbs/WZlNAA==/colls/WZlNALYurec=/docs/WZlNALYurecDAAAAAAAAAA==/",
-	"_ts": 1766174370,
-	"id": "c893be2c-80b0-497f-8490-e3e5fd2b2cc4",
+	"_etag": "\"00000000-0000-0000-84e3-ddb4140501dc\"",
+	"_rid": "3487AOTczXwDAAAAAAAAAA==",
+	"_self": "dbs/3487AA==/colls/3487AOTczXw=/docs/3487AOTczXwDAAAAAAAAAA==/",
+	"_ts": 1768346712,
+	"id": "|subscriptions|6b690bec-0c16-4ecb-8f67-781caf40bba7|resourcegroups|resourcegroupname|providers|microsoft.redhatopenshift|hcpopenshiftclusters|create-with-tags",
 	"partitionKey": "6b690bec-0c16-4ecb-8f67-781caf40bba7",
 	"properties": {
-		"activeOperationId": "7a4ed07a-47a1-4efb-966a-93a6316522a0",
+		"activeOperationId": "bb83a448-9eb0-431c-9fd3-9cec8699ea5f",
 		"identity": {
 			"type": "UserAssigned"
 		},
-		"internalId": "/api/clusters_mgmt/v1/clusters/f2jwkrlg2p",
+		"intermediateResourceDoc": {
+			"activeOperationId": "bb83a448-9eb0-431c-9fd3-9cec8699ea5f",
+			"identity": {
+				"type": "UserAssigned"
+			},
+			"internalId": "/api/clusters_mgmt/v1/clusters/fhlllh5lkl",
+			"provisioningState": "Accepted",
+			"resourceId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/create-with-tags",
+			"systemData": {},
+			"tags": {
+				"one": "apple",
+				"two": "banana"
+			}
+		},
+		"internalId": "/api/clusters_mgmt/v1/clusters/fhlllh5lkl",
 		"internalState": {
 			"internalAPI": {
 				"customerProperties": {

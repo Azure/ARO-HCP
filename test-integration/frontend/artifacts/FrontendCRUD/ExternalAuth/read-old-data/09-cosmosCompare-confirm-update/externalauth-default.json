@@ -1,13 +1,20 @@
 {
 	"_attachments": "attachments/",
-	"_etag": "\"00000000-0000-0000-8197-f6f4f40501dc\"",
-	"_rid": "tKR1ALL7Gp0CAAAAAAAAAA==",
-	"_self": "dbs/tKR1AA==/colls/tKR1ALL7Gp0=/docs/tKR1ALL7Gp0CAAAAAAAAAA==/",
-	"_ts": 1767984259,
-	"id": "227c4c23-2bb6-4fae-9f16-5090b02298b0",
+	"_etag": "\"00000000-0000-0000-84e3-e691280501dc\"",
+	"_rid": "fCtUANHeX3UHAAAAAAAAAA==",
+	"_self": "dbs/fCtUAA==/colls/fCtUANHeX3U=/docs/fCtUANHeX3UHAAAAAAAAAA==/",
+	"_ts": 1768346727,
+	"id": "|subscriptions|6b690bec-0c16-4ecb-8f67-781caf40bba7|resourcegroups|resourcegroupname|providers|microsoft.redhatopenshift|hcpopenshiftclusters|create-with-tags|externalauths|default",
 	"partitionKey": "6b690bec-0c16-4ecb-8f67-781caf40bba7",
 	"properties": {
-		"activeOperationId": "4d8d4875-5233-4987-8b14-a26e177b8e20",
+		"activeOperationId": "d99a71e0-9237-4ae2-8617-e76035e2bcd4",
+		"intermediateResourceDoc": {
+			"activeOperationId": "d99a71e0-9237-4ae2-8617-e76035e2bcd4",
+			"internalId": "/api/clusters_mgmt/v1/clusters/m6bpjxtlqf/external_auth_config/external_auths/zt59xrx22b",
+			"provisioningState": "Accepted",
+			"resourceId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/create-with-tags/externalAuths/default",
+			"systemData": {}
+		},
 		"internalId": "/api/clusters_mgmt/v1/clusters/m6bpjxtlqf/external_auth_config/external_auths/zt59xrx22b",
 		"internalState": {
 			"internalAPI": {
