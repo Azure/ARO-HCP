@@ -28,6 +28,7 @@ import (
 
 	"github.com/neilotoole/slogt"
 	"github.com/stretchr/testify/require"
+
 	"k8s.io/apimachinery/pkg/util/wait"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"

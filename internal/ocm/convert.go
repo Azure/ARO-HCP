@@ -65,23 +65,6 @@ func conversionError[T any](v any) error {
 	return fmt.Errorf("cannot convert %T(%q) to %T: %w", v, v, *new(T), ErrUnknownValue)
 }
 
-func convertListeningToVisibility(listening arohcpv1alpha1.ListeningMethod) (api.Visibility, error) {
-	switch listening {
-	case "":
-		// We convert illegal values because zero-value is the state for an object and while the value may not be valid
-		// We need to convert it and let validation worry about whether it is legal or illegal in the context of its usage.
-		// Zero values are preserved through round tripping these, the difference we're seeing here is the expression of unset
-		// in ocm-api-model is different than the expression of unset in canonical golang.
-		return "", nil
-	case arohcpv1alpha1.ListeningMethodExternal:
-		return api.VisibilityPublic, nil
-	case arohcpv1alpha1.ListeningMethodInternal:
-		return api.VisibilityPrivate, nil
-	default:
-		return "", conversionError[api.Visibility](listening)
-	}
-}
-
 func convertVisibilityToListening(visibility api.Visibility) (arohcpv1alpha1.ListeningMethod, error) {
 	switch visibility {
 	case api.VisibilityPublic:
@@ -93,36 +76,12 @@ func convertVisibilityToListening(visibility api.Visibility) (arohcpv1alpha1.Lis
 	}
 }
 
-func convertOutboundTypeCSToRP(outboundTypeCS string) (api.OutboundType, error) {
-	switch outboundTypeCS {
-	case "":
-		// We convert illegal values because zero-value is the state for an object and while the value may not be valid
-		// We need to convert it and let validation worry about whether it is legal or illegal in the context of its usage.
-		// Zero values are preserved through round tripping these, the difference we're seeing here is the expression of unset
-		// in ocm-api-model is different than the expression of unset in canonical golang.
-		return "", nil
-	case csOutboundType:
-		return api.OutboundTypeLoadBalancer, nil
-	default:
-		return "", conversionError[api.OutboundType](outboundTypeCS)
-	}
-}
-
 func convertOutboundTypeRPToCS(outboundTypeRP api.OutboundType) (string, error) {
 	switch outboundTypeRP {
 	case api.OutboundTypeLoadBalancer:
 		return csOutboundType, nil
 	default:
 		return "", conversionError[string](outboundTypeRP)
-	}
-}
-
-func convertCustomerManagedEncryptionTypeCSToRP(encryptionTypeCS string) (api.CustomerManagedEncryptionType, error) {
-	switch encryptionTypeCS {
-	case csCustomerManagedEncryptionTypeKms:
-		return api.CustomerManagedEncryptionTypeKMS, nil
-	default:
-		return "", conversionError[api.CustomerManagedEncryptionType](encryptionTypeCS)
 	}
 }
 
@@ -161,17 +120,6 @@ func convertUsernameClaimPrefixPolicyRPToCS(prefixPolicyRP api.UsernameClaimPref
 	}
 }
 
-func convertAuthorizedCidrs(clusterAPI *arohcpv1alpha1.ClusterAPI) []string {
-	cidrAccess := clusterAPI.CIDRBlockAccess()
-	if cidrAccess.Empty() {
-		return nil
-	}
-	if cidr := cidrAccess.Allow(); cidr != nil {
-		return cidr.Values()
-	}
-	return nil
-}
-
 func convertEnableEncryptionAtHostToCSBuilder(in api.NodePoolPlatformProfile) *arohcpv1alpha1.AzureNodePoolEncryptionAtHostBuilder {
 	var state string
 
@@ -192,43 +140,6 @@ func convertClusterImageRegistryStateRPToCS(in api.ClusterImageRegistryProfile) 
 		return csImageRegistryStateEnabled, nil
 	default:
 		return "", conversionError[string](in)
-	}
-}
-
-func convertClusterImageRegistryStateCSToRP(state string) (api.ClusterImageRegistryProfileState, error) {
-	switch state {
-	case "":
-		// We convert illegal values because zero-value is the state for an object and while the value may not be valid
-		// We need to convert it and let validation worry about whether it is legal or illegal in the context of its usage.
-		// Zero values are preserved through round tripping these, the difference we're seeing here is the expression of unset
-		// in ocm-api-model is different than the expression of unset in canonical golang.
-		return "", nil
-	case csImageRegistryStateDisabled:
-		return api.ClusterImageRegistryProfileStateDisabled, nil
-	case csImageRegistryStateEnabled:
-		return api.ClusterImageRegistryProfileStateEnabled, nil
-	default:
-		return "", conversionError[api.ClusterImageRegistryProfileState](state)
-	}
-}
-
-func convertNodeDrainTimeoutCSToRP(in *arohcpv1alpha1.Cluster) int32 {
-	if nodeDrainGracePeriod, ok := in.GetNodeDrainGracePeriod(); ok {
-		if unit, ok := nodeDrainGracePeriod.GetUnit(); ok && unit == csNodeDrainGracePeriodUnit {
-			return int32(nodeDrainGracePeriod.Value())
-		}
-	}
-	return 0
-}
-
-func convertKeyManagementModeTypeCSToRP(keyManagementModeCS string) (api.EtcdDataEncryptionKeyManagementModeType, error) {
-	switch keyManagementModeCS {
-	case csKeyManagementModePlatformManaged:
-		return api.EtcdDataEncryptionKeyManagementModeTypePlatformManaged, nil
-	case csKeyManagementModeCustomerManaged:
-		return api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged, nil
-	default:
-		return "", conversionError[api.EtcdDataEncryptionKeyManagementModeType](keyManagementModeCS)
 	}
 }
 
@@ -263,63 +174,6 @@ func convertExternalAuthClientTypeRPToCS(externalAuthClientTypeRP api.ExternalAu
 	default:
 		return "", conversionError[arohcpv1alpha1.ExternalAuthClientType](externalAuthClientTypeRP)
 	}
-}
-
-func convertCustomerManagedEncryptionCSToRP(in *arohcpv1alpha1.AzureEtcdDataEncryption) (*api.CustomerManagedEncryptionProfile, error) {
-	if customerManaged, ok := in.GetCustomerManaged(); ok {
-		encryptionType, err := convertCustomerManagedEncryptionTypeCSToRP(customerManaged.EncryptionType())
-		if err != nil {
-			return nil, err
-		}
-
-		return &api.CustomerManagedEncryptionProfile{
-			EncryptionType: encryptionType,
-			Kms:            convertKmsEncryptionCSToRP(in.CustomerManaged()),
-		}, nil
-	}
-
-	return nil, nil
-}
-
-func convertKmsEncryptionCSToRP(in *arohcpv1alpha1.AzureEtcdDataEncryptionCustomerManaged) *api.KmsEncryptionProfile {
-	if kms, ok := in.GetKms(); ok {
-		if activeKey, ok := kms.GetActiveKey(); ok {
-			return &api.KmsEncryptionProfile{
-				ActiveKey: api.KmsKey{
-					Name:      activeKey.KeyName(),
-					VaultName: activeKey.KeyVaultName(),
-					Version:   activeKey.KeyVersion(),
-				},
-			}
-		}
-	}
-	return nil
-}
-
-func convertAutoscalarCSToRP(in *arohcpv1alpha1.ClusterAutoscaler) (api.ClusterAutoscalingProfile, error) {
-	if in == nil {
-		return api.ClusterAutoscalingProfile{}, nil
-	}
-
-	var maxNodeProvisionTime int32
-	if len(in.MaxNodeProvisionTime()) > 0 {
-		// maxNodeProvisionTime (string) - minutes e.g - “15m”
-		// https://gitlab.cee.redhat.com/service/uhc-clusters-service/-/blob/master/pkg/api/autoscaler.go?ref_type=heads#L30-42
-		maxNodeProvisionTimeDuration, err := time.ParseDuration(in.MaxNodeProvisionTime())
-		if err != nil {
-			return api.ClusterAutoscalingProfile{}, err
-		}
-		maxNodeProvisionTime = int32(maxNodeProvisionTimeDuration.Seconds())
-	}
-
-	return api.ClusterAutoscalingProfile{
-		MaxNodesTotal: int32(in.ResourceLimits().MaxNodesTotal()),
-		// MaxPodGracePeriod (int) - seconds e.g - 300
-		// https://gitlab.cee.redhat.com/service/uhc-clusters-service/-/blob/master/pkg/api/autoscaler.go?ref_type=heads#L30-42
-		MaxPodGracePeriodSeconds:    int32(in.MaxPodGracePeriod()),
-		MaxNodeProvisionTimeSeconds: maxNodeProvisionTime,
-		PodPriorityThreshold:        int32(in.PodPriorityThreshold()),
-	}, nil
 }
 
 func convertEtcdRPToCS(in api.EtcdProfile) (*arohcpv1alpha1.AzureEtcdEncryptionBuilder, error) {
@@ -364,112 +218,12 @@ func convertCIDRBlockAllowAccessRPToCS(in api.CustomerAPIProfile) (*arohcpv1alph
 	return arohcpv1alpha1.NewCIDRBlockAccess().Allow(cidrBlockAllowAccess), nil
 }
 
-// ConvertCStoHCPOpenShiftCluster converts a CS Cluster object into an HCPOpenShiftCluster object.
-func ConvertCStoHCPOpenShiftCluster(resourceID *azcorearm.ResourceID, azureLocation string, cluster *arohcpv1alpha1.Cluster) (*api.HCPOpenShiftCluster, error) {
-	// A word about ProvisioningState:
-	// ProvisioningState is stored in Cosmos and is applied to the
-	// HCPOpenShiftCluster struct along with the ARM metadata that
-	// is also stored in Cosmos. We could convert the ClusterState
-	// from Cluster Service to a ProvisioningState, but instead we
-	// defer that to the backend pod so that the ProvisioningState
-	// stays consistent with the Status of any active non-terminal
-	// operation on the cluster.
-
-	apiVisibility, err := convertListeningToVisibility(cluster.API().Listening())
-	if err != nil {
-		return nil, err
-	}
-	outboundType, err := convertOutboundTypeCSToRP(cluster.Azure().NodesOutboundConnectivity().OutboundType())
-	if err != nil {
-		return nil, err
-	}
-	clusterImageRegistryState, err := convertClusterImageRegistryStateCSToRP(cluster.ImageRegistry().State())
-	if err != nil {
-		return nil, err
-	}
-	clusterAutoscaler, err := convertAutoscalarCSToRP(cluster.Autoscaler())
-	if err != nil {
-		return nil, err
-	}
-
-	hcpcluster := &api.HCPOpenShiftCluster{
-		TrackedResource: arm.TrackedResource{
-			Resource: arm.Resource{
-				ID:   resourceID,
-				Name: resourceID.Name,
-				Type: resourceID.ResourceType.String(),
-			},
-			Location: azureLocation,
-		},
-		CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
-			Version: api.VersionProfile{
-				ID:           NewOpenShiftVersionXY(cluster.Version().ID()),
-				ChannelGroup: cluster.Version().ChannelGroup(),
-			},
-			DNS: api.CustomerDNSProfile{
-				BaseDomainPrefix: cluster.DomainPrefix(),
-			},
-			Network: api.NetworkProfile{
-				NetworkType: api.NetworkType(cluster.Network().Type()),
-				PodCIDR:     cluster.Network().PodCIDR(),
-				ServiceCIDR: cluster.Network().ServiceCIDR(),
-				MachineCIDR: cluster.Network().MachineCIDR(),
-				HostPrefix:  int32(cluster.Network().HostPrefix()),
-			},
-
-			API: api.CustomerAPIProfile{
-				Visibility:      apiVisibility,
-				AuthorizedCIDRs: convertAuthorizedCidrs(cluster.API()),
-			},
-			Platform: api.CustomerPlatformProfile{
-				ManagedResourceGroup:   cluster.Azure().ManagedResourceGroupName(),
-				SubnetID:               cluster.Azure().SubnetResourceID(),
-				OutboundType:           outboundType,
-				NetworkSecurityGroupID: cluster.Azure().NetworkSecurityGroupResourceID(),
-			},
-			Autoscaling:             clusterAutoscaler,
-			NodeDrainTimeoutMinutes: convertNodeDrainTimeoutCSToRP(cluster),
-			ClusterImageRegistry: api.ClusterImageRegistryProfile{
-				State: clusterImageRegistryState,
-			},
-		},
-		ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
-			DNS: api.ServiceProviderDNSProfile{
-				BaseDomain: cluster.DNS().BaseDomain(),
-			},
-			Console: api.ServiceProviderConsoleProfile{
-				URL: cluster.Console().URL(),
-			},
-			API: api.ServiceProviderAPIProfile{
-				URL: cluster.API().URL(),
-			},
-			Platform: api.ServiceProviderPlatformProfile{
-				IssuerURL: "",
-			},
-		},
-	}
-
-	// Only set etcd encryption settings if they exist in the cluster service response
-	if cluster.Azure().EtcdEncryption() != nil {
-		dataEncryption := cluster.Azure().EtcdEncryption().DataEncryption()
-		if dataEncryption != nil {
-			customerManaged, err := convertCustomerManagedEncryptionCSToRP(dataEncryption)
-			if err != nil {
-				return nil, err
-			}
-			keyManagementMode, err := convertKeyManagementModeTypeCSToRP(dataEncryption.KeyManagementMode())
-			if err != nil {
-				return nil, err
-			}
-
-			hcpcluster.CustomerProperties.Etcd = api.EtcdProfile{
-				DataEncryption: api.EtcdDataEncryptionProfile{
-					CustomerManaged:   customerManaged,
-					KeyManagementMode: keyManagementMode,
-				},
-			}
-		}
-	}
+// MutateClusterServiceOwnedFieldsInCluster converts a CS Cluster object into an HCPOpenShiftCluster object.
+func MutateClusterServiceOwnedFieldsInCluster(hcpcluster *api.HCPOpenShiftCluster, clusterServiceCluster *arohcpv1alpha1.Cluster) {
+	hcpcluster.ServiceProviderProperties.DNS.BaseDomain = clusterServiceCluster.DNS().BaseDomain()
+	hcpcluster.ServiceProviderProperties.Console.URL = clusterServiceCluster.Console().URL()
+	hcpcluster.ServiceProviderProperties.API.URL = clusterServiceCluster.API().URL()
+	hcpcluster.ServiceProviderProperties.Platform.IssuerURL = "" // ?!
 
 	// Each managed identity retrieved from Cluster Service needs to be added
 	// to the HCPOpenShiftCluster in two places:
@@ -477,8 +231,8 @@ func ConvertCStoHCPOpenShiftCluster(resourceID *azcorearm.ResourceID, azureLocat
 	//   resourceID (as keys) and principal+client IDs (as values).
 	// - The operator-specific maps under OperatorsAuthentication mimics the
 	//   Cluster Service maps but just has operator-to-resourceID pairings.
-	if cluster.Azure().OperatorsAuthentication() != nil {
-		if mi, ok := cluster.Azure().OperatorsAuthentication().GetManagedIdentities(); ok {
+	if clusterServiceCluster.Azure().OperatorsAuthentication() != nil {
+		if mi, ok := clusterServiceCluster.Azure().OperatorsAuthentication().GetManagedIdentities(); ok {
 			for operatorName, operatorIdentity := range mi.ControlPlaneOperatorsManagedIdentities() {
 				if hcpcluster.Identity == nil {
 					hcpcluster.Identity = &arm.ManagedServiceIdentity{}
@@ -520,8 +274,6 @@ func ConvertCStoHCPOpenShiftCluster(resourceID *azcorearm.ResourceID, azureLocat
 			}
 		}
 	}
-
-	return hcpcluster, nil
 }
 
 // ensureManagedResourceGroupName makes sure the ManagedResourceGroupName field is set.
