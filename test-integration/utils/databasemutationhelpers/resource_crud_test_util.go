@@ -24,13 +24,16 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/neilotoole/slogt"
 	"github.com/stretchr/testify/require"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
 	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/test-integration/utils/integrationutils"
+	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/v20240610preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 )
 
 type ResourceMutationTest struct {
@@ -41,7 +44,7 @@ type ResourceMutationTest struct {
 
 type IntegrationTestStep interface {
 	StepID() StepID
-	RunTest(ctx context.Context, t *testing.T, cosmosContainer *azcosmos.ContainerClient)
+	RunTest(ctx context.Context, t *testing.T, stepInput StepInput)
 }
 
 func NewResourceMutationTest[InternalAPIType any](ctx context.Context, specializer ResourceCRUDTestSpecializer[InternalAPIType], testName string, testDir fs.FS) (*ResourceMutationTest, error) {
@@ -58,6 +61,7 @@ func NewResourceMutationTest[InternalAPIType any](ctx context.Context, specializ
 func readSteps[InternalAPIType any](ctx context.Context, testDir fs.FS, specializer ResourceCRUDTestSpecializer[InternalAPIType]) ([]IntegrationTestStep, error) {
 	steps := []IntegrationTestStep{}
 
+	numLoadClusterServiceSteps := 0
 	testContent := api.Must(fs.ReadDir(testDir, "."))
 	for _, dirEntry := range testContent {
 		filenameParts := strings.SplitN(dirEntry.Name(), "-", 3)
@@ -72,12 +76,18 @@ func readSteps[InternalAPIType any](ctx context.Context, testDir fs.FS, speciali
 		index := filenameParts[0]
 		stepType := filenameParts[1]
 		stepName, _ := strings.CutSuffix(filenameParts[2], ".json")
+		if stepType == "loadClusterService" { // eventually this goes away, so we'll be able to remove the ugly. for now prevent mistakes.
+			numLoadClusterServiceSteps++
+		}
 
-		testStep, err := newStep(index, stepType, stepName, testDir, dirEntry.Name(), specializer)
+		testStep, err := NewStep(index, stepType, stepName, testDir, dirEntry.Name(), specializer)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create new step %q: %w", dirEntry.Name(), err)
 		}
 		steps = append(steps, testStep)
+	}
+	if numLoadClusterServiceSteps > 1 {
+		return nil, fmt.Errorf("more than one step found for loadClusterService.  Refactor to do it once or make it possible to load more than once")
 	}
 
 	sort.Sort(byIndex(steps))
@@ -85,17 +95,39 @@ func readSteps[InternalAPIType any](ctx context.Context, testDir fs.FS, speciali
 }
 
 func (tt *ResourceMutationTest) RunTest(t *testing.T) {
-	testInfo, err := integrationutils.NewCosmosFromTestingEnv(t.Context())
-	require.NoError(t, err)
-	defer testInfo.Cleanup(context.Background())
+	ctx := t.Context()
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	ctx = utils.ContextWithLogger(ctx, slogt.New(t, slogt.JSON()))
 
+	frontend, testInfo, err := integrationutils.NewFrontendFromTestingEnv(ctx, t)
+	require.NoError(t, err)
+	cleanupCtx := context.Background()
+	cleanupCtx = utils.ContextWithLogger(cleanupCtx, slogt.New(t, slogt.JSON()))
+	defer testInfo.Cleanup(cleanupCtx)
+	go frontend.Run(ctx, ctx.Done())
+
+	// create anything and round trip anything for cluster-service
+	err = integrationutils.TrivialPassThroughClusterServiceMock(t, testInfo, nil)
+	require.NoError(t, err)
+
+	stepInput := StepInput{
+		CosmosContainer:  testInfo.CosmosResourcesContainer(),
+		DBClient:         testInfo.DBClient,
+		FrontendClient:   testInfo.Get20240610ClientFactory,
+		FrontendURL:      testInfo.FrontendURL,
+		FrontendTestInfo: testInfo,
+	}
 	for _, step := range tt.steps {
 		t.Logf("Running step %s", step.StepID())
-		step.RunTest(t.Context(), t, testInfo.CosmosResourcesContainer())
+		ctx := t.Context()
+		ctx = utils.ContextWithLogger(ctx, slogt.New(t, slogt.JSON()))
+
+		step.RunTest(ctx, t, stepInput)
 	}
 }
 
-func newStep[InternalAPIType any](indexString, stepType, stepName string, testDir fs.FS, path string, specializer ResourceCRUDTestSpecializer[InternalAPIType]) (IntegrationTestStep, error) {
+func NewStep[InternalAPIType any](indexString, stepType, stepName string, testDir fs.FS, path string, specializer ResourceCRUDTestSpecializer[InternalAPIType]) (IntegrationTestStep, error) {
 	itoInt, err := strconv.Atoi(indexString)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert %s to int: %w", indexString, err)
@@ -107,8 +139,11 @@ func newStep[InternalAPIType any](indexString, stepType, stepName string, testDi
 	}
 
 	switch stepType {
-	case "load":
-		return NewLoadStep(stepID, stepDir)
+	case "load", "loadCosmos":
+		return NewLoadCosmosStep(stepID, stepDir)
+
+	case "loadClusterService":
+		return NewLoadClusterServiceStep(stepID, stepDir)
 
 	case "cosmosCompare":
 		return NewCosmosCompareStep(stepID, stepDir)
@@ -145,6 +180,18 @@ func newStep[InternalAPIType any](indexString, stepType, stepName string, testDi
 
 	case "untypedDelete":
 		return newUntypedDeleteStep(stepID, stepDir)
+
+	case "httpGet":
+		return newHTTPGetStep(stepID, stepDir)
+
+	case "httpList":
+		return newHTTPListStep(stepID, stepDir)
+
+	case "httpCreate", "httpReplace":
+		return newHTTPCreateStep(stepID, stepDir)
+
+	case "completeOperation":
+		return newCompleteOperationStep(stepID, stepDir)
 
 	default:
 		return nil, fmt.Errorf("unknown step type: %s", stepType)
@@ -209,4 +256,37 @@ func readResourcesInDir[InternalAPIType any](dir fs.FS) ([]*InternalAPIType, err
 	}
 
 	return resources, nil
+}
+
+func readRawBytesInDir(dir fs.FS) ([][]byte, error) {
+	contents := [][]byte{}
+	testContent := api.Must(fs.ReadDir(dir, "."))
+	for _, dirEntry := range testContent {
+		if dirEntry.Name() == "00-key.json" { // standard filenames to skip
+			continue
+		}
+		if dirEntry.Name() == "expected-error.txt" { // standard filenames to skip
+			continue
+		}
+		if !strings.HasSuffix(dirEntry.Name(), ".json") { // we can only understand JSON
+			continue
+		}
+
+		currContent, err := fs.ReadFile(dir, dirEntry.Name())
+		if err != nil {
+			return nil, fmt.Errorf("failed to read expected.json: %w", err)
+		}
+		contents = append(contents, currContent)
+	}
+
+	return contents, nil
+}
+
+type StepInput struct {
+	CosmosContainer *azcosmos.ContainerClient
+	DBClient        database.DBClient
+	FrontendClient  func(subscriptionID string) *hcpsdk20240610preview.ClientFactory
+	FrontendURL     string
+
+	FrontendTestInfo *integrationutils.FrontendIntegrationTestInfo
 }

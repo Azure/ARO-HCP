@@ -67,6 +67,9 @@ module pooledMsiScopedAssignments 'msi-scoped-assignments.bicep' = if (useMsiPoo
 module clusterIdentities 'cluster-identities.bicep' = if (!useMsiPool) {
   name: 'clusterIdentities'
   scope: resourceGroup(clusterResourceGroupName)
+  params: {
+    identities: identities
+  }
 }
 
 module clusterNonMsiScopedAssignments 'non-msi-scoped-assignments.bicep' = if (!useMsiPool) {

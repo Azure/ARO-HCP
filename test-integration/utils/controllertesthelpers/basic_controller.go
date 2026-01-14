@@ -61,19 +61,22 @@ func (tc *BasicControllerTest) RunTest(t *testing.T) {
 	logger = tc.ControllerKey.AddLoggerValues(logger)
 	ctx = utils.ContextWithLogger(ctx, logger)
 
-	cosmosTestInfo, err := integrationutils.NewCosmosFromTestingEnv(ctx)
+	cosmosTestInfo, err := integrationutils.NewCosmosFromTestingEnv(ctx, t)
 	require.NoError(t, err)
 	defer cosmosTestInfo.Cleanup(utils.ContextWithLogger(context.Background(), slogt.New(t, slogt.JSON())))
 
 	initialState, err := fs.Sub(testDir, path.Join("00-load-initial-state"))
 	require.NoError(t, err)
 	if fsMightContainFiles(initialState) {
-		loadInitialStateStep, err := databasemutationhelpers.NewLoadStep(
+		loadInitialStateStep, err := databasemutationhelpers.NewLoadCosmosStep(
 			databasemutationhelpers.NewStepID(00, "load", "initial-state"),
 			initialState,
 		)
 		require.NoError(t, err)
-		loadInitialStateStep.RunTest(ctx, t, cosmosTestInfo.CosmosResourcesContainer())
+		input := databasemutationhelpers.StepInput{
+			CosmosContainer: cosmosTestInfo.CosmosResourcesContainer(),
+		}
+		loadInitialStateStep.RunTest(ctx, t, input)
 	}
 
 	controllerInstance, testMemory := tc.ControllerInitializerFn(ctx, t, cosmosTestInfo.DBClient)
@@ -88,7 +91,10 @@ func (tc *BasicControllerTest) RunTest(t *testing.T) {
 			endState,
 		)
 		require.NoError(t, err)
-		verifyEndStateStep.RunTest(ctx, t, cosmosTestInfo.CosmosResourcesContainer())
+		input := databasemutationhelpers.StepInput{
+			CosmosContainer: cosmosTestInfo.CosmosResourcesContainer(),
+		}
+		verifyEndStateStep.RunTest(ctx, t, input)
 	}
 
 	tc.ControllerVerifierFn(ctx, t, controllerInstance, testMemory)

@@ -22,6 +22,8 @@ import (
 	"os"
 	"time"
 
+	"k8s.io/apimachinery/pkg/util/rand"
+
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 
 	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
@@ -70,7 +72,7 @@ func DefaultOpenshiftControlPlaneVersionId() string {
 func DefaultOpenshiftNodePoolVersionId() string {
 	version := os.Getenv("ARO_HCP_OPENSHIFT_NODEPOOL_VERSION")
 	if version == "" {
-		return "4.20.5"
+		return "4.20.8"
 	}
 	return version
 }
@@ -248,9 +250,14 @@ func (tc *perItOrDescribeTestContext) CreateClusterCustomerResources(ctx context
 		tc.RecordTestStep(fmt.Sprintf("Deploy customer resources in resource group %s", *resourceGroup.Name), startTime, finishTime)
 	}()
 
+	// Generate unique deployment names by combining cluster name with random suffix
+	randomSuffix := rand.String(6)
+	customerInfraDeploymentName := fmt.Sprintf("customer-infra-%s-%s", clusterParams.ClusterName, randomSuffix)
+	managedIdentitiesDeploymentName := fmt.Sprintf("mi-%s-%s", clusterParams.ClusterName, randomSuffix)
+
 	customerInfraDeploymentResult, err := tc.CreateBicepTemplateAndWait(ctx,
 		WithTemplateFromFS(artifactsFS, "test-artifacts/generated-test-artifacts/modules/customer-infra.json"),
-		WithDeploymentName("customer-infra"),
+		WithDeploymentName(customerInfraDeploymentName),
 		WithScope(BicepDeploymentScopeResourceGroup),
 		WithClusterResourceGroup(*resourceGroup.Name),
 		WithParameters(infraParameters),
@@ -265,7 +272,9 @@ func (tc *perItOrDescribeTestContext) CreateClusterCustomerResources(ctx context
 	}
 
 	managedIdentityDeploymentResult, err := tc.DeployManagedIdentities(ctx,
+		clusterParams.ClusterName,
 		WithTemplateFromFS(artifactsFS, "test-artifacts/generated-test-artifacts/modules/managed-identities.json"),
+		WithDeploymentName(managedIdentitiesDeploymentName),
 		WithClusterResourceGroup(*resourceGroup.Name),
 		WithParameters(map[string]interface{}{
 			"nsgName":      clusterParams.NsgName,

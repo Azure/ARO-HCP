@@ -107,9 +107,9 @@ type Taint struct {
 	Value  string `json:"value,omitempty"`
 }
 
-func NewDefaultHCPOpenShiftClusterNodePool(resourceID *azcorearm.ResourceID) *HCPOpenShiftClusterNodePool {
+func NewDefaultHCPOpenShiftClusterNodePool(resourceID *azcorearm.ResourceID, azureLocation string) *HCPOpenShiftClusterNodePool {
 	return &HCPOpenShiftClusterNodePool{
-		TrackedResource: arm.NewTrackedResource(resourceID),
+		TrackedResource: arm.NewTrackedResource(resourceID, azureLocation),
 		Properties: HCPOpenShiftClusterNodePoolProperties{
 			Version: NodePoolVersionProfile{
 				ChannelGroup: "stable",

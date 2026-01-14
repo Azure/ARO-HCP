@@ -72,7 +72,7 @@ func NewTestUserAssignedIdentity(name string) string {
 }
 
 func MinimumValidClusterTestCase() *HCPOpenShiftCluster {
-	resource := NewDefaultHCPOpenShiftCluster(Must(azcorearm.ParseResourceID(TestClusterResourceID)))
+	resource := NewDefaultHCPOpenShiftCluster(Must(azcorearm.ParseResourceID(TestClusterResourceID)), TestLocation)
 	resource.CustomerProperties.Platform.ManagedResourceGroup = TestManagedResourceGroupName
 	resource.CustomerProperties.Platform.SubnetID = TestSubnetResourceID
 	resource.CustomerProperties.Platform.NetworkSecurityGroupID = TestNetworkSecurityGroupResourceID
@@ -131,8 +131,9 @@ func (m *ExternalTestResource) GetVersion() Version {
 	return nil
 }
 
-func (m *ExternalTestResource) Normalize(v *InternalTestResource) {
+func (m *ExternalTestResource) ConvertToInternal() *InternalTestResource {
 	// FIXME Implement if there's a need for it in tests.
+	return nil
 }
 
 // Must is a helper function that takes a value and error, returns the value if no error occurred,

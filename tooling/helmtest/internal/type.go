@@ -24,11 +24,7 @@ import (
 	"github.com/Azure/ARO-Tools/pkg/types"
 )
 
-var RepoRoot = "../.."
-
 var TestDataFromChartDir = "../testdata"
-
-var SettingsPath = "settings.yaml"
 
 type TestCase struct {
 	Name         string         `yaml:"name"`
@@ -44,17 +40,18 @@ type HelmStepWithPath struct {
 	AKSCluster   string
 }
 
-func (h *HelmStepWithPath) ValuesFileFromRoot() string {
-	return filepath.Join(RepoRoot, filepath.Dir(h.PipelinePath), h.HelmStep.ValuesFile)
+func (h *HelmStepWithPath) ValuesFileFromRoot(topologyDir string) string {
+	return filepath.Join(topologyDir, filepath.Dir(h.PipelinePath), h.HelmStep.ValuesFile)
 }
 
-func (h *HelmStepWithPath) ChartDirFromRoot() string {
-	return filepath.Join(RepoRoot, filepath.Dir(h.PipelinePath), h.HelmStep.ChartDir)
+func (h *HelmStepWithPath) ChartDirFromRoot(topologyDir string) string {
+	return filepath.Join(topologyDir, filepath.Dir(h.PipelinePath), h.HelmStep.ChartDir)
 }
 
 type Settings struct {
-	ConfigPath string
-	Replace    []Replace
+	ConfigPath  string
+	TopologyDir string
+	Replace     []Replace
 }
 
 type Replace struct {
@@ -62,8 +59,8 @@ type Replace struct {
 	Replacement string
 }
 
-func LoadSettings() (*Settings, error) {
-	rawCfg, err := os.ReadFile(SettingsPath)
+func LoadSettings(settingsPath string) (*Settings, error) {
+	rawCfg, err := os.ReadFile(settingsPath)
 	if err != nil {
 		return nil, fmt.Errorf("error reading settings, %v", err)
 	}

@@ -10,7 +10,7 @@
         "internalId": "/api/aro_hcp/v1alpha1/clusters/cs-immutability/node_pools/4nd28q7n8q",
         "internalState": {
             "internalAPI": {
-                "location": "globals-are-evil",
+                "location": "fake-location",
                 "properties": {
                     "autoRepair": true,
                     "platform": {

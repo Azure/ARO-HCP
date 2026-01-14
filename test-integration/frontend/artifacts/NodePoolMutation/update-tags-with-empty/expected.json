@@ -1,6 +1,6 @@
 {
 	"id": "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/update-tags-with-empty/nodePools/empty-tags-np",
-	"location": "globals-are-evil",
+	"location": "fake-location",
 	"name": "empty-tags-np",
 	"properties": {
 		"autoRepair": true,

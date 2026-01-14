@@ -409,6 +409,44 @@ func (c *MockDBClientPatchBillingDocCall) DoAndReturn(f func(context.Context, *a
 	return c
 }
 
+// ServiceProviderClusters mocks base method.
+func (m *MockDBClient) ServiceProviderClusters(subscriptionID, resourceGroupName, clusterName string) database.ServiceProviderClusterCRUD {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ServiceProviderClusters", subscriptionID, resourceGroupName, clusterName)
+	ret0, _ := ret[0].(database.ServiceProviderClusterCRUD)
+	return ret0
+}
+
+// ServiceProviderClusters indicates an expected call of ServiceProviderClusters.
+func (mr *MockDBClientMockRecorder) ServiceProviderClusters(subscriptionID, resourceGroupName, clusterName any) *MockDBClientServiceProviderClustersCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ServiceProviderClusters", reflect.TypeOf((*MockDBClient)(nil).ServiceProviderClusters), subscriptionID, resourceGroupName, clusterName)
+	return &MockDBClientServiceProviderClustersCall{Call: call}
+}
+
+// MockDBClientServiceProviderClustersCall wrap *gomock.Call
+type MockDBClientServiceProviderClustersCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockDBClientServiceProviderClustersCall) Return(arg0 database.ServiceProviderClusterCRUD) *MockDBClientServiceProviderClustersCall {
+	c.Call = c.Call.Return(arg0)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockDBClientServiceProviderClustersCall) Do(f func(string, string, string) database.ServiceProviderClusterCRUD) *MockDBClientServiceProviderClustersCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockDBClientServiceProviderClustersCall) DoAndReturn(f func(string, string, string) database.ServiceProviderClusterCRUD) *MockDBClientServiceProviderClustersCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
 // Subscriptions mocks base method.
 func (m *MockDBClient) Subscriptions() database.SubscriptionCRUD {
 	m.ctrl.T.Helper()

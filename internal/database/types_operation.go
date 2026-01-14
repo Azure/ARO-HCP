@@ -42,7 +42,7 @@ const (
 type Operation struct {
 	TypedDocument `json:",inline"`
 
-	OperationProperties OperationDocument `json:"properties"`
+	OperationProperties api.Operation `json:"properties"`
 }
 
 func (o *Operation) GetTypedDocument() *TypedDocument {
@@ -54,19 +54,17 @@ func (o *Operation) SetResourceID(_ *azcorearm.ResourceID) {
 	// TODO, consider whether this should be done in the frontend and not in storage (likely)
 }
 
-type OperationDocument = api.Operation
-
-func NewOperationDocument(
+func NewOperation(
 	request OperationRequest,
 	externalID *azcorearm.ResourceID,
 	internalID ocm.InternalID,
-	tenantID, clientID, notificationURI string,
+	location, tenantID, clientID, notificationURI string,
 	correlationData *arm.CorrelationData,
-) *OperationDocument {
+) *api.Operation {
 
 	now := time.Now().UTC()
 
-	doc := &OperationDocument{
+	doc := &api.Operation{
 		Request:            request,
 		ExternalID:         externalID,
 		InternalID:         internalID,
@@ -80,9 +78,19 @@ func NewOperationDocument(
 	doc.OperationID = api.Must(azcorearm.ParseResourceID(path.Join("/",
 		"subscriptions", doc.ExternalID.SubscriptionID,
 		"providers", api.ProviderNamespace,
-		"locations", arm.GetAzureLocation(),
+		"locations", location,
 		api.OperationStatusResourceTypeName,
 		uuid.New().String())))
+
+	// this ID does not include the location because doing so changes the resulting azcorearm.ParseResourceID().ResourceType to be
+	// Microsoft.RedHatOpenShift/locations/hcpOperationStatuses.  This type is not compatible with the current cosmos storage and
+	// nests in a way that doesn't match other types. Since our operationID.Name is a UID, this is still a globally unique
+	// resourceID.
+	doc.ResourceID = api.Must(azcorearm.ParseResourceID(path.Join("/",
+		"subscriptions", doc.ExternalID.SubscriptionID,
+		"providers", api.ProviderNamespace,
+		api.OperationStatusResourceTypeName, doc.OperationID.Name,
+	)))
 
 	if correlationData != nil {
 		doc.ClientRequestID = correlationData.ClientRequestID
@@ -99,7 +107,7 @@ func NewOperationDocument(
 }
 
 // ToStatus converts an OperationDocument to the ARM operation status format.
-func ToStatus(doc *OperationDocument) *arm.Operation {
+func ToStatus(doc *api.Operation) *arm.Operation {
 	operation := &arm.Operation{
 		ID:        doc.OperationID,
 		Name:      doc.OperationID.Name,

@@ -102,8 +102,7 @@ func roundTripHCPCluster(t *testing.T, original *api.HCPOpenShiftCluster) {
 	v := version{}
 	externalObj := v.NewHCPOpenShiftCluster(original)
 
-	roundTrippedObj := &api.HCPOpenShiftCluster{}
-	externalObj.Normalize(roundTrippedObj)
+	roundTrippedObj := externalObj.ConvertToInternal()
 
 	// we compare the JSON here because many of these types have private fields that cannot be introspected
 	if !equality.Semantic.DeepEqual(original, roundTrippedObj) {
@@ -120,8 +119,7 @@ func roundTripNodePool(t *testing.T, original *api.HCPOpenShiftClusterNodePool) 
 	v := version{}
 	externalObj := v.NewHCPOpenShiftClusterNodePool(original)
 
-	roundTrippedObj := &api.HCPOpenShiftClusterNodePool{}
-	externalObj.Normalize(roundTrippedObj)
+	roundTrippedObj := externalObj.ConvertToInternal()
 
 	// we compare the JSON here because many of these types have private fields that cannot be introspected
 	if !equality.Semantic.DeepEqual(original, roundTrippedObj) {
@@ -138,8 +136,7 @@ func roundTripExternalAuth(t *testing.T, original *api.HCPOpenShiftClusterExtern
 	v := version{}
 	externalObj := v.NewHCPOpenShiftClusterExternalAuth(original)
 
-	roundTrippedObj := &api.HCPOpenShiftClusterExternalAuth{}
-	externalObj.Normalize(roundTrippedObj)
+	roundTrippedObj := externalObj.ConvertToInternal()
 
 	// we compare the JSON here because many of these types have private fields that cannot be introspected
 	if !equality.Semantic.DeepEqual(original, roundTrippedObj) {

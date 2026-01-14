@@ -256,7 +256,7 @@ data:
     [OUTPUT]
         Name  forward
         Alias forward.mdsd.other
-        Match other.logs
+        Match mdsd-other.logs
         Host  127.0.0.1
         Port  5001
         Tag   akskubesystem
@@ -272,7 +272,7 @@ data:
     [OUTPUT]
         Name  forward
         Alias forward.mdsd.ocm
-        Match ocm.logs
+        Match mdsd-ocm.logs
         Host  127.0.0.1
         Port  5002
         Tag   akskubesystem
@@ -385,7 +385,7 @@ spec:
         app: arobit-forwarder
         azure.workload.identity/use: "true"
       annotations:
-        checksum/configmap: 2ce14d9df5bfde4bcd6d4cbbd4fb0f998b5f5482f71d758101c183159c165120
+        checksum/configmap: 6bf451ff1071f9f7e203762e2100010c783e31e4540a99e503b15877d971f06b
     spec:
       serviceAccountName: 'arobit-forwarder'
       shareProcessNamespace: true

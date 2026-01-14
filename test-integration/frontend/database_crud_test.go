@@ -67,6 +67,17 @@ func TestDatabaseCRUD(t *testing.T) {
 					crudSuiteDir)
 			})
 
+		case "ServiceProviderClusterCRUD":
+			t.Run(crudSuiteDirEntry.Name(), func(t *testing.T) {
+				testCRUDSuite(
+					ctx,
+					t,
+					databasemutationhelpers.GenericCRUDSpecializer[api.ServiceProviderCluster]{
+						ResourceType: api.ServiceProviderClusterResourceType,
+					},
+					crudSuiteDir)
+			})
+
 		case "UntypedCRUD":
 			t.Run(crudSuiteDirEntry.Name(), func(t *testing.T) {
 				testCRUDSuite(

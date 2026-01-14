@@ -17,71 +17,74 @@ type ManagedIdentities = {
   serviceManagedIdentityName: string
 }
 
+@description('MSI identities in the pool')
+param identities ManagedIdentities
+
 // Control-plane operator identities
 resource clusterApiAzureMi 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
-  name: 'cluster-api-azure'
+  name: identities.clusterApiAzureMiName
   location: resourceGroup().location
 }
 
 resource controlPlaneMi 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
-  name: 'control-plane'
+  name: identities.controlPlaneMiName
   location: resourceGroup().location
 }
 
 resource cloudControllerManagerMi 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
-  name: 'cloud-controller-manager'
+  name: identities.cloudControllerManagerMiName
   location: resourceGroup().location
 }
 
 resource ingressMi 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
-  name: 'ingress'
+  name: identities.ingressMiName
   location: resourceGroup().location
 }
 
 resource diskCsiDriverMi 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
-  name: 'disk-csi-driver'
+  name: identities.diskCsiDriverMiName
   location: resourceGroup().location
 }
 
 resource fileCsiDriverMi 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
-  name: 'file-csi-driver'
+  name: identities.fileCsiDriverMiName
   location: resourceGroup().location
 }
 
 resource imageRegistryMi 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
-  name: 'image-registry'
+  name: identities.imageRegistryMiName
   location: resourceGroup().location
 }
 
 resource cloudNetworkConfigMi 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
-  name: 'cloud-network-config'
+  name: identities.cloudNetworkConfigMiName
   location: resourceGroup().location
 }
 
 resource kmsMi 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
-  name: 'kms'
+  name: identities.kmsMiName
   location: resourceGroup().location
 }
 
 // Dataplane operator identities
 resource dpDiskCsiDriverMi 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
-  name: 'dp-disk-csi-driver'
+  name: identities.dpDiskCsiDriverMiName
   location: resourceGroup().location
 }
 
 resource dpFileCsiDriverMi 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
-  name: 'dp-file-csi-driver'
+  name: identities.dpFileCsiDriverMiName
   location: resourceGroup().location
 }
 
 resource dpImageRegistryMi 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
-  name: 'dp-image-registry'
+  name: identities.dpImageRegistryMiName
   location: resourceGroup().location
 }
 
 // Service managed identity
 resource serviceManagedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
-  name: 'service'
+  name: identities.serviceManagedIdentityName
   location: resourceGroup().location
 }
 

@@ -16,6 +16,7 @@ package databasemutationhelpers
 
 import (
 	"encoding/json"
+	"fmt"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -64,7 +65,7 @@ func (ControllerCRUDSpecializer) InstanceEquals(expected, actual *api.Controller
 }
 
 func (ControllerCRUDSpecializer) NameFromInstance(obj *api.Controller) string {
-	return obj.ControllerName
+	return obj.ResourceID.Name
 }
 
 func (ControllerCRUDSpecializer) WriteCosmosID(newObj, oldObj *api.Controller) {
@@ -96,6 +97,27 @@ func (OperationCRUDSpecializer) NameFromInstance(obj *api.Operation) string {
 
 func (OperationCRUDSpecializer) WriteCosmosID(newObj, oldObj *api.Operation) {
 	// the cosmosID is derived from the operationID
+}
+
+type NothingCRUDSpecializer struct {
+}
+
+var _ ResourceCRUDTestSpecializer[any] = &NothingCRUDSpecializer{}
+
+func (NothingCRUDSpecializer) ResourceCRUDFromKey(t *testing.T, cosmosContainer *azcosmos.ContainerClient, key CosmosCRUDKey) database.ResourceCRUD[any] {
+	panic("unsupported")
+}
+
+func (NothingCRUDSpecializer) InstanceEquals(expected, actual *any) bool {
+	panic("unsupported")
+}
+
+func (NothingCRUDSpecializer) NameFromInstance(obj *any) string {
+	panic("unsupported")
+}
+
+func (NothingCRUDSpecializer) WriteCosmosID(newObj, oldObj *any) {
+	panic("unsupported")
 }
 
 type UntypedCRUDSpecializer struct {
@@ -201,4 +223,39 @@ func (SubscriptionCRUDSpecializer) NameFromInstance(obj *arm.Subscription) strin
 
 func (SubscriptionCRUDSpecializer) WriteCosmosID(newObj, oldObj *arm.Subscription) {
 	newObj.ResourceID = oldObj.ResourceID
+}
+
+type GenericCRUDSpecializer[InternalAPIType any] struct {
+	ResourceType azcorearm.ResourceType
+}
+
+var _ ResourceCRUDTestSpecializer[any] = &GenericCRUDSpecializer[any]{}
+
+func (c GenericCRUDSpecializer[InternalAPIType]) ResourceCRUDFromKey(t *testing.T, cosmosContainer *azcosmos.ContainerClient, key CosmosCRUDKey) database.ResourceCRUD[InternalAPIType] {
+	var instance InternalAPIType
+	_, ok := any(&instance).(api.CosmosMetadataAccessor)
+	if !ok {
+		panic(fmt.Sprintf("must be CosmosMetadataAccessor: %T", &instance))
+	}
+	clusterResourceID := api.Must(azcorearm.ParseResourceID(key.ParentResourceID))
+	return database.NewCosmosResourceCRUD[InternalAPIType, database.GenericDocument[InternalAPIType]](
+		cosmosContainer, clusterResourceID, c.ResourceType)
+}
+
+func (GenericCRUDSpecializer[InternalAPIType]) InstanceEquals(expected, actual *InternalAPIType) bool {
+	// clear the fields that don't compare
+	shallowExpected := *expected
+	shallowActual := *actual
+	return equality.Semantic.DeepEqual(shallowExpected, shallowActual)
+}
+
+func (GenericCRUDSpecializer[InternalAPIType]) NameFromInstance(obj *InternalAPIType) string {
+	if obj == nil {
+		return ""
+	}
+	return any(obj).(api.CosmosMetadataAccessor).GetResourceID().Name
+}
+
+func (GenericCRUDSpecializer[InternalAPIType]) WriteCosmosID(newObj, oldObj *InternalAPIType) {
+	// do nothing
 }

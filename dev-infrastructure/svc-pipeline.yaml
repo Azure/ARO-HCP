@@ -159,6 +159,8 @@ resourceGroups:
       step: oncert-public-kv-issuer
     automatedRetry:
       errorContainsAny:
+      - "DeploymentScriptACIProvisioningTimeout"
+      - "InternalServerError"
       - "Internal server error"
       - "Resource is in Updating state"
       maximumRetryCount: 3

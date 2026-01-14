@@ -206,7 +206,7 @@ images:
   # ACM images
   acm-operator:
     source:
-      image: quay.io/redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-216
+      image: quay.io/redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-215
       tagPattern: "^v\\d+\\.\\d+\\.\\d+-\\d+$"
     targets:
     - jsonPath: defaults.acm.operator.bundle.digest
@@ -214,7 +214,7 @@ images:
       env: dev
   acm-mce:
     source:
-      image: quay.io/redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-211
+      image: quay.io/redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-210
       tagPattern: "^v\\d+\\.\\d+\\.\\d+-\\d+$"
     targets:
     - jsonPath: defaults.acm.mce.bundle.digest

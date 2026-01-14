@@ -43,14 +43,12 @@ import (
 )
 
 func TrivialPassThroughClusterServiceMock(t *testing.T, testInfo *FrontendIntegrationTestInfo, initialDataDir fs.FS) error {
-	internalIDToCluster := map[string][]any{}
-	internalIDToAutoscaler := map[string][]any{}
-	internalIDToExternalAuth := map[string][]any{}
-	internalIDToNodePool := map[string][]any{}
+	internalIDToCluster := testInfo.GetOrCreateMockData(t.Name() + "_clusters")
+	internalIDToExternalAuth := testInfo.GetOrCreateMockData(t.Name() + "_externalAuths")
+	internalIDToNodePool := testInfo.GetOrCreateMockData(t.Name() + "_nodePools")
+	internalIDToAutoscaler := testInfo.GetOrCreateMockData(t.Name() + "_autoscalers")
 
 	if initialDataDir != nil {
-		// TODO a full directory scan would probably make some kinds of testing easier
-
 		dirContent, err := fs.ReadDir(initialDataDir, ".")
 		if err != nil {
 			return fmt.Errorf("failed to read dir: %w", err)
@@ -79,23 +77,49 @@ func TrivialPassThroughClusterServiceMock(t *testing.T, testInfo *FrontendIntegr
 					return fmt.Errorf("duplicate cluster: %s", obj.HREF())
 				}
 				internalIDToCluster[obj.HREF()] = []any{obj}
+
+			case strings.HasSuffix(dirEntry.Name(), "-externalauth.json"):
+				obj, err := arohcpv1alpha1.UnmarshalExternalAuth(fileContent)
+				if err != nil {
+					return fmt.Errorf("failed to unmarshal nodepool: %w", err)
+				}
+				if _, exists := internalIDToExternalAuth[obj.HREF()]; exists {
+					return fmt.Errorf("duplicate nodepool: %s", obj.HREF())
+				}
+				internalIDToExternalAuth[obj.HREF()] = []any{obj}
+
+			case strings.HasSuffix(dirEntry.Name(), "-nodepool.json"):
+				obj, err := arohcpv1alpha1.UnmarshalNodePool(fileContent)
+				if err != nil {
+					return fmt.Errorf("failed to unmarshal nodepool: %w", err)
+				}
+				if _, exists := internalIDToNodePool[obj.HREF()]; exists {
+					return fmt.Errorf("duplicate nodepool: %s", obj.HREF())
+				}
+				internalIDToNodePool[obj.HREF()] = []any{obj}
+
+			case strings.HasSuffix(dirEntry.Name(), "-autoscaler.json"):
+				obj, err := arohcpv1alpha1.UnmarshalClusterAutoscaler(fileContent)
+				if err != nil {
+					return fmt.Errorf("failed to unmarshal cluster: %w", err)
+				}
+				if _, exists := internalIDToAutoscaler[obj.HREF()]; exists {
+					return fmt.Errorf("duplicate autoscaler: %s", obj.HREF())
+				}
 				internalIDToAutoscaler[obj.HREF()] = []any{obj}
 
-			case strings.HasSuffix(dirEntry.Name(), "-external-auth.json"):
-			case strings.HasSuffix(dirEntry.Name(), "-node-pool.json"):
 			default:
 				return fmt.Errorf("unknown file %s", dirEntry.Name())
 			}
 		}
 	}
 
-	require.NoError(t, testInfo.AddMockData(t.Name()+"_clusters", internalIDToCluster))
 	testInfo.MockClusterServiceClient.EXPECT().PostCluster(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, clusterBuilder *csarhcpv1alpha1.ClusterBuilder, autoscalerBuilder *csarhcpv1alpha1.ClusterAutoscalerBuilder) (*csarhcpv1alpha1.Cluster, error) {
 		justID := rand.String(10)
 		internalID := "/api/clusters_mgmt/v1/clusters/" + justID
 
 		if autoscalerBuilder != nil {
-			autoscaler, err := autoscalerBuilder.Build()
+			autoscaler, err := autoscalerBuilder.HREF(internalID).Build()
 			if err != nil {
 				return nil, err
 			}
@@ -126,13 +150,13 @@ func TrivialPassThroughClusterServiceMock(t *testing.T, testInfo *FrontendIntegr
 		internalIDToCluster[id.String()] = append(internalIDToCluster[id.String()], ret)
 		return ret, nil
 	}).AnyTimes()
-	testInfo.MockClusterServiceClient.EXPECT().UpdateClusterAutoscaler(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, id ocm.InternalID, builder *arohcpv1alpha1.ClusterAutoscalerBuilder) (*arohcpv1alpha1.ClusterAutoscaler, error) {
-		ret, err := builder.Build()
+	testInfo.MockClusterServiceClient.EXPECT().UpdateClusterAutoscaler(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, internalID ocm.InternalID, builder *arohcpv1alpha1.ClusterAutoscalerBuilder) (*arohcpv1alpha1.ClusterAutoscaler, error) {
+		ret, err := builder.HREF(internalID.String()).Build()
 		if err != nil {
 			return nil, err
 		}
 
-		internalIDToAutoscaler[id.String()] = append(internalIDToAutoscaler[id.String()], ret)
+		internalIDToAutoscaler[internalID.String()] = append(internalIDToAutoscaler[internalID.String()], ret)
 		return ret, nil
 	}).AnyTimes()
 	testInfo.MockClusterServiceClient.EXPECT().GetCluster(gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, id ocm.InternalID) (*csarhcpv1alpha1.Cluster, error) {
@@ -150,7 +174,6 @@ func TrivialPassThroughClusterServiceMock(t *testing.T, testInfo *FrontendIntegr
 		return ocm.NewSimpleClusterListIterator(allObjs, nil)
 	}).AnyTimes()
 
-	require.NoError(t, testInfo.AddMockData(t.Name()+"_externalAuths", internalIDToExternalAuth))
 	testInfo.MockClusterServiceClient.EXPECT().PostExternalAuth(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, clusterID ocm.InternalID, builder *arohcpv1alpha1.ExternalAuthBuilder) (*arohcpv1alpha1.ExternalAuth, error) {
 		justID := rand.String(10)
 		builder.ID(justID)
@@ -193,7 +216,6 @@ func TrivialPassThroughClusterServiceMock(t *testing.T, testInfo *FrontendIntegr
 		return ocm.NewSimpleExternalAuthListIterator(allObjs, nil)
 	}).AnyTimes()
 
-	require.NoError(t, testInfo.AddMockData(t.Name()+"_nodePools", internalIDToNodePool))
 	testInfo.MockClusterServiceClient.EXPECT().PostNodePool(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, clusterID ocm.InternalID, builder *arohcpv1alpha1.NodePoolBuilder) (*arohcpv1alpha1.NodePool, error) {
 		justID := rand.String(10)
 		nodePoolInternalID := clusterID.String() + "/node_pools/" + justID

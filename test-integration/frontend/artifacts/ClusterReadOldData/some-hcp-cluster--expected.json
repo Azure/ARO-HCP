@@ -4,7 +4,7 @@
     "principalId": "the-principal",
     "tenantId": "the-tenant"
   },
-  "location": "globals-are-evil",
+  "location": "fake-location",
   "name": "some-hcp-cluster",
   "properties": {
     "api": {

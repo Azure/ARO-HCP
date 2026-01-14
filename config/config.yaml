@@ -100,7 +100,7 @@ defaults:
       image:
         registry: mcr.microsoft.com
         repository: oss/v2/fluent/fluent-bit
-        digest: sha256:a0fcf0bc1d75294427b152b68b35959a0860b874cfbbe2b29392dfbd51289171 # v4.1.1 (2025-12-17 22:21)
+        digest: sha256:f501177ac50d0ce6927e8c3c56977d769c460725b8a0cb685c9bbc365422d876 # v4.2.2 (2026-01-08 15:54)
     kusto:
       enabled: false
       environmentName: "{{ .ctx.environment }}"
@@ -109,14 +109,14 @@ defaults:
       image:
         registry: mcr.microsoft.com
         repository: geneva/distroless/mdsd
-        digest: sha256:d088afef6e2614448c46e528de818b314fd52e42e9eb4eaa5cc1ceb70d86a204 # 1.37.3-20251121-1 (2025-11-21 23:32)
+        digest: sha256:df394f7829a999743517e93a95e1ce476e5fd6c1f3539ee396bfffb742a7fd25 # 1.38.2-20260111-1 (2026-01-11 03:50)
   # Kube Events
   kubeEvents:
     enabled: true
     image:
       registry: kubernetesshared.azurecr.io
       repository: shared/kube-events
-      digest: sha256:f5fc45651df6c572dec6c7187c69df730fe52705e3aa50d924d05a5e3c98757a # 20260104.1 (2026-01-04 03:23)
+      digest: sha256:754ab00b9a24fc3519a381017b176c265d05e83108b1049b80aaaf2e81eba5f5 # 20260113.1 (2026-01-13 06:42)
   # Secret Sync Controller
   secretSyncController:
     image:
@@ -190,7 +190,10 @@ defaults:
         useSNI: true
         manage: true
   kusto:
+    enableAutoScale: false
     manageInstance: false
+    autoScaleMin: 2
+    autoScaleMax: 10
     rg: "hcp-kusto-{{ .ctx.environment }}-{{ .ev2.geoShortId }}"
     kustoName: "hcp-{{ .ctx.environment }}-{{ .ev2.geoShortId }}"
     serviceLogsDatabase: "ServiceLogs"
@@ -662,17 +665,15 @@ defaults:
   # ACM
   acm:
     operator:
-      version: "2.16.0"
       bundle:
         registry: quay.io
-        repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-216
-        digest: sha256:a4e84e310476fb50044ed56b9560cca774f6c745671e3d446a4e299436b8576e # v2.16.0-111 (2025-12-23 04:25)
+        repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-215
+        digest: sha256:31821ed9e9b621b94fc0c4d11309cb0027b917647cc48fcdf14cbda9e2dc91b0 # v2.15.1-327 (2026-01-14 03:12)
     mce:
-      version: "2.11.0"
       bundle:
         registry: quay.io
-        repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-211
-        digest: sha256:bd3cf8f532917c0b7492af3276f36140edd32709c91295992f4c26e8cd4fd0a0 # v2.11.0-141 (2025-12-24 10:06)
+        repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-210
+        digest: sha256:acad7e2bee0640f10428acaa48a39badfcbbd75f6464897431b7be830741eec2 # v2.10.1-324 (2026-01-14 03:08)
   # Cluster Service
   clustersService:
     image:
@@ -719,7 +720,7 @@ defaults:
     # OCP Versions configuration
     ocpVersions:
       defaultVersion:
-        version: 4.19.7
+        version: 4.20.8
       channelGroups:
         stable:
           minVersion: 4.19.0
@@ -818,6 +819,7 @@ clouds:
         sku: "Dev(No SLA)_Standard_D11_v2"
         tier: "Basic"
         adminGroups: "6b6d3adf-8476-4727-9812-20ffdef2b85c"
+        viewerGroups: "64dc69e4-d083-49fc-9569-ebece1dd1408/6b6d3adf-8476-4727-9812-20ffdef2b85c"
         rg: "hcp-kusto-us"
       tenantId: "64dc69e4-d083-49fc-9569-ebece1dd1408"
       kubeEvents:
@@ -878,11 +880,11 @@ clouds:
         certDomain: selfsigned.maestro.keyvault.azure.com
         certIssuer: Self
         image:
-          digest: sha256:36c4cfa2802885afeed7e5a6e554b1038adc7e587bc7ccc820ae568bc6a11141 # 9f44c627c3febbcf3eede00f5c775566f13d17d5 (2025-12-29 01:35)
+          digest: sha256:d08cdbb264ecf540ca29171163e8a995effbee9d147c9c1d0f1a02b5d650dae5 # 5761e0d9d9048381c5171df65ab6504cc80b21d5 (2026-01-14 02:54)
         agent:
           sidecar:
             image:
-              digest: sha256:c925c4dfce3a0140d36073cc66e70567ffa0d82b71033d752d2d7e668637804b # 1.25.4-6-azl3.0.20251206 (2025-12-06 10:21)
+              digest: sha256:6b8ca92221f842cd3e1ea3f863a324221cc5cf9e54f47dc76092d9582e0a1807 # 1.25.4-6-azl3.0.20260107 (2026-01-07 23:15)
       # ACR Pull
       acrPull:
         image:
@@ -897,15 +899,13 @@ clouds:
       clustersService:
         environment: "arohcpdev"
         image:
-          digest: sha256:1388f28c1084841072a6d9712936b2c67062757a71278a67e20abcc9077f782b # ff92aa166d8b91faee731372092aa6ab6977bc9b (2025-12-24 11:33)
+          digest: sha256:fef01387d737edaeb99381df47565ea2a914854405c1d284a0b56bba5285169c # 165d355645eb8c3cf8bfc2f813430d130572eb46 (2026-01-13 17:25)
         azureOperatorsManagedIdentities:
           roleSetName: dev
         azureRuntimeConfig:
           tlsCertificatesIssuer: Self
         # OCP Versions configuration
         ocpVersions:
-          defaultVersion:
-            version: 4.19.7
           channelGroups:
             candidate:
               minVersion: 4.19.7
@@ -916,15 +916,15 @@ clouds:
         image:
           registry: quay.io
           repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
-          digest: sha256:35789a5a7582bc9d4a796f247beafa6db1e06b59e8afd6c9f78fa3375ddf97d1 # 780f88b8979b363b5e65665242a9297fbaf806a7 (2025-12-19 17:34)
+          digest: sha256:78746d6478688b54ec477e05768591a07b95baee031ca3faed7779f9d7d46861 # 2ff5e342f5fd18df4d3833e602d2d9b4f669983d (2026-01-13 10:41)
       # Backplane API
       backplaneAPI:
         image:
-          digest: sha256:d57484b215f2a4e920d18e9690140efc5073ed89f7db51383764fdfff792731c # 20db699 (2025-12-17 23:54)
+          digest: sha256:546595b1fe1c19bab05f589ddd032888b4a51c2b4637cfe630c0a5dc06c54983 # 217d656 (2026-01-13 07:00)
       # Admin API
       adminApi:
         image:
-          digest: sha256:73899e3c022e8dcedb7593fe92e049f25489eb377d081dd675cfb54e5ffd31aa # 294090e (2026-01-05 11:45)
+          digest: sha256:7497aa6c4f29a1b875aebf062d0670e18a77b621e1120d787bfb243176c07d95 # fb422d7 (2026-01-14 01:04)
         cert:
           issuer: Self
       # Frontend
@@ -932,17 +932,17 @@ clouds:
         cert:
           issuer: Self
         image:
-          digest: sha256:dd021977d929153cffefd17938cf345d5d9b9336364256c07942d303725a8c9d # 294090e (2026-01-05 11:45)
+          digest: sha256:e53d70732cf8b2fd2d71ffec4c889c2520bf843bd137bbf7bcac5521ac7d4ee1 # fb422d7 (2026-01-14 01:04)
       # Backend
       backend:
         image:
-          digest: sha256:07dc8bcc7d90bb3100480e6d9f5d887762e173d677641c5782bfdd17be06a92c # 294090e (2026-01-05 11:45)
+          digest: sha256:6a037a0719487c3c66cd31bea1e89c8b62eeb317090bacfb9837ee0748a3d1c2 # fb422d7 (2026-01-14 01:05)
       # Image Sync
       imageSync:
         ocMirror:
           jobNamePrefix: ''
           image:
-            digest: sha256:c13da92c018aef3a184af2532ca08e9443428a80551d7da92c24baff6a5335e0 # 294090e (2026-01-05 11:45)
+            digest: sha256:48b00b21bca4c04ee91731337c6b1accbd27485f7030da42b17b8db4204b3927 # fb422d7 (2026-01-14 01:04)
       # Shared SVC KV
       serviceKeyVault:
         name: 'aro-hcp-dev-svc-kv'
@@ -974,16 +974,16 @@ clouds:
         prometheus:
           prometheusConfigReloader:
             image:
-              sha: 7aaf789a403f1c75f86a34f470174d62a7f2c070852e2eedb5736fc63dc17e86 # v0.87.1 (2025-12-29 20:18)
+              sha: d3787bb11a5dcce60a843d50e1b2ed6a6d79a8078884f87d07cbbb93c21f6a63 # v0.88.0 (2026-01-12 19:57)
           kubeStateMetrics:
             image:
               digest: sha256:377bd55d97824dfee27b3c577869bc793fc3970623433627c7f0ee1b1b74e725 # v2.17.0 (2025-11-20 19:25)
           prometheusOperator:
             image:
-              sha: 6a3fe01e2d08228b241a4c0a2dcb7c7424b004fb5ad36430e206fa549d500038 # v0.87.1 (2025-12-29 20:24)
+              sha: 024d81f047c4b57adf38bc1ed2893ec06d468caa090ac248984e5808f37e117e # v0.88.0 (2026-01-12 19:57)
           prometheusSpec:
             image:
-              sha: 385d647d7c2027aa867da0afe30995726686237e473a3284962e4bad1ae3ef1e # v3.8.1 (2025-12-17 22:30)
+              sha: 8c051b2f9ff25f35e2d9e64137923c9d7d471d7bcaeb0c1713cfc52c83c50f6e # v3.9.1 (2026-01-09 15:05)
             shards: 1
       mgmt:
         subscription:
@@ -1013,16 +1013,16 @@ clouds:
         prometheus:
           prometheusConfigReloader:
             image:
-              sha: 7aaf789a403f1c75f86a34f470174d62a7f2c070852e2eedb5736fc63dc17e86 # v0.87.1 (2025-12-29 20:18)
+              sha: d3787bb11a5dcce60a843d50e1b2ed6a6d79a8078884f87d07cbbb93c21f6a63 # v0.88.0 (2026-01-12 19:57)
           kubeStateMetrics:
             image:
               digest: sha256:377bd55d97824dfee27b3c577869bc793fc3970623433627c7f0ee1b1b74e725 # v2.17.0 (2025-11-20 19:25)
           prometheusOperator:
             image:
-              sha: 6a3fe01e2d08228b241a4c0a2dcb7c7424b004fb5ad36430e206fa549d500038 # v0.87.1 (2025-12-29 20:24)
+              sha: 024d81f047c4b57adf38bc1ed2893ec06d468caa090ac248984e5808f37e117e # v0.88.0 (2026-01-12 19:57)
           prometheusSpec:
             image:
-              sha: 385d647d7c2027aa867da0afe30995726686237e473a3284962e4bad1ae3ef1e # v3.8.1 (2025-12-17 22:30)
+              sha: 8c051b2f9ff25f35e2d9e64137923c9d7d471d7bcaeb0c1713cfc52c83c50f6e # v3.9.1 (2026-01-09 15:05)
             shards: 1
       # ACRs
       acr:
@@ -1133,50 +1133,6 @@ clouds:
             cosmosDB:
               private: false
               zoneRedundantMode: 'Disabled'
-      ntly:
-        # this is an environment to test the deployability of infra nightly
-        defaults:
-          regionRG: "{{ .ctx.region }}-shared-resources"
-          serviceKeyVault:
-            name: "arohcp{{ .ctx.environment }}-svc-{{ .ctx.regionShort }}" # [globally-unique]
-            rg: "{{ .ctx.region }}-shared-resources"
-            region: "{{ .ctx.region }}"
-            softDelete: false
-          monitoring:
-            svcWorkspaceName: 'aro-hcp-ntly-svc-{{ .ctx.regionShort }}'
-            hcpWorkspaceName: 'aro-hcp-ntly-hcp-{{ .ctx.regionShort }}'
-          # Cluster Service
-          clustersService:
-            postgres:
-              deploy: false
-              password: 'TheBlurstOfTimes'
-              containerizedDb:
-                image: "docker.io/library/postgres:14.2"
-                pvcCapacity: 512Mi
-          # DNS
-          dns:
-            regionalSubdomain: '{{ .ctx.regionShort }}-ntly'
-          # Maestro
-          maestro:
-            postgres:
-              deploy: false
-              password: 'TheBlurstOfTimes'
-              containerizedDb:
-                image: "docker.io/library/postgres:14.2"
-                pvcCapacity: 512Mi
-          # Frontend
-          frontend:
-            cosmosDB:
-              private: false
-              zoneRedundantMode: 'Disabled'
-          # MC
-          mgmt:
-            subscription:
-              key: ARO HCP nightly management (EA Subscription)
-            applyKubeletFixes: false
-          svc:
-            subscription:
-              key: ARO HCP nightly service (EA Subscription)
       pers:
         # Regional overrides
         regions:

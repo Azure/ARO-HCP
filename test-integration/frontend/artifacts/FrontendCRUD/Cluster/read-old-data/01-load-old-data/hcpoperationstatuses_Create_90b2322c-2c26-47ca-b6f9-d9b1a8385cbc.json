@@ -1,0 +1,22 @@
+{
+    "_attachments": "attachments/",
+    "_etag": "\"00000000-0000-0000-7e71-4bc4d00501dc\"",
+    "_rid": "qr1CAKur9GQCAAAAAAAAAA==",
+    "_self": "dbs/qr1CAA==/colls/qr1CAKur9GQ=/docs/qr1CAKur9GQCAAAAAAAAAA==/",
+    "_ts": 1767637798,
+    "id": "90b2322c-2c26-47ca-b6f9-d9b1a8385cbc",
+    "partitionKey": "6b690bec-0c16-4ecb-8f67-781caf40bba7",
+    "properties": {
+        "externalId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/create-with-tags",
+        "internalId": "/api/clusters_mgmt/v1/clusters/9p2sk955gj",
+        "lastTransitionTime": "2026-01-05T18:29:58.181047849Z",
+        "operationId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/providers/Microsoft.RedHatOpenShift/locations/fake-location/hcpOperationStatuses/90b2322c-2c26-47ca-b6f9-d9b1a8385cbc",
+        "request": "Create",
+        "resourceId": null,
+        "startTime": "2026-01-05T18:29:58.181047849Z",
+        "status": "Accepted",
+        "tenantId": "00000000-0000-0000-0000-000000000000"
+    },
+    "resourceType": "Microsoft.RedHatOpenShift/hcpOperationStatuses",
+    "ttl": 604800
+}

@@ -1414,7 +1414,10 @@ func makeUniqueCIDRs(n int) []string {
 
 // Helper function to create a valid cluster for testing
 func createValidCluster() *api.HCPOpenShiftCluster {
-	cluster := api.NewDefaultHCPOpenShiftCluster(api.Must(azcorearm.ParseResourceID("/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/noop-updat")))
+	cluster := api.NewDefaultHCPOpenShiftCluster(
+		api.Must(azcorearm.ParseResourceID("/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/noop-updat")),
+		api.TestLocation,
+	)
 
 	// Set required fields that are not in the default
 	cluster.Location = "eastus"                    // Required for TrackedResource validation

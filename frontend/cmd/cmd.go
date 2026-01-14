@@ -136,13 +136,12 @@ func (opts *FrontendOpts) Run() error {
 	if len(opts.location) == 0 {
 		return errors.New("location is required")
 	}
-	arm.SetAzureLocation(opts.location)
 
 	logger.Info(fmt.Sprintf(
 		"%s (%s) started in %s",
 		frontend.ProgramName,
 		version.CommitSHA,
-		arm.GetAzureLocation()))
+		opts.location))
 
 	auditClient, err := audit.NewOtelAuditClient(
 		audit.CreateConn(opts.auditConnectSocket),
@@ -162,7 +161,7 @@ func (opts *FrontendOpts) Run() error {
 	otelShutdown, err := tracing.ConfigureOpenTelemetryTracer(
 		ctx,
 		logger,
-		semconv.CloudRegion(arm.GetAzureLocation()),
+		semconv.CloudRegion(opts.location),
 		semconv.ServiceNameKey.String(frontend.ProgramName),
 		semconv.ServiceVersionKey.String(version.CommitSHA),
 	)
@@ -226,7 +225,7 @@ func (opts *FrontendOpts) Run() error {
 		utils.TracerName,
 	)
 
-	f := frontend.NewFrontend(logger, listener, metricsListener, prometheus.DefaultRegisterer, dbClient, csClient, auditClient)
+	f := frontend.NewFrontend(logger, listener, metricsListener, prometheus.DefaultRegisterer, dbClient, csClient, auditClient, opts.location)
 
 	stop := make(chan struct{})
 	signalChannel := make(chan os.Signal, 1)

@@ -75,7 +75,7 @@ func TestQueryOptions_GetServicesQueries(t *testing.T) {
 	}
 
 	queries := opts.GetServicesQueries()
-	assert.Len(t, queries, 3) // Should match servicesTables length
+	assert.Len(t, queries, 4) // Should match servicesTables length
 	for _, query := range queries {
 		assert.NotNil(t, query)
 		assert.Equal(t, servicesDatabase, query.Database)
