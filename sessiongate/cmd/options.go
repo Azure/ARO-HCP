@@ -35,10 +35,13 @@ import (
 	"k8s.io/klog/v2"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
-	"github.com/openshift/library-go/pkg/operator/events"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/utils/clock"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/client-go/tools/record"
+	typedcorev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 
+	sessiongatev1alpha1 "github.com/Azure/ARO-HCP/sessiongate/pkg/apis/sessiongate/v1alpha1"
 	"github.com/Azure/ARO-HCP/sessiongate/pkg/controller"
 	clientset "github.com/Azure/ARO-HCP/sessiongate/pkg/generated/clientset/versioned"
 	informers "github.com/Azure/ARO-HCP/sessiongate/pkg/generated/informers/externalversions"
@@ -198,29 +201,20 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 	}
 
 	// create event recorders
-	controlPlaneEventRecorder := events.NewRecorder(
-		kubeClientset.CoreV1().Events(o.Namespace),
-		"sessiongate-control-plane",
-		&corev1.ObjectReference{
-			APIVersion: "v1",
-			Kind:       "Namespace",
-			Name:       o.Namespace,
-			Namespace:  o.Namespace,
-		},
-		clock.RealClock{},
-	)
+	eventScheme := runtime.NewScheme()
+	scheme.AddToScheme(eventScheme)
+	sessiongatev1alpha1.AddToScheme(eventScheme)
 
-	dataPlaneEventRecorder := events.NewRecorder(
-		kubeClientset.CoreV1().Events(o.Namespace),
-		"sessiongate-data-plane",
-		&corev1.ObjectReference{
-			APIVersion: "v1",
-			Kind:       "Namespace",
-			Name:       o.Namespace,
-			Namespace:  o.Namespace,
-		},
-		clock.RealClock{},
-	)
+	eventBroadcaster := record.NewBroadcaster()
+	eventBroadcaster.StartRecordingToSink(&typedcorev1.EventSinkImpl{
+		Interface: kubeClientset.CoreV1().Events(o.Namespace),
+	})
+	controlPlaneEventRecorder := eventBroadcaster.NewRecorder(eventScheme, corev1.EventSource{
+		Component: "sessiongate-control-plane",
+	})
+	dataPlaneEventRecorder := eventBroadcaster.NewRecorder(eventScheme, corev1.EventSource{
+		Component: "sessiongate-data-plane",
+	})
 
 	// create control plane controller (leader-elected)
 	controlPlaneCtrl, err := controller.NewSessionController(

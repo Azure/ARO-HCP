@@ -25,8 +25,9 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/kubernetes"
 
-	"github.com/Azure/ARO-HCP/sessiongate/pkg/mc"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+
+	"github.com/Azure/ARO-HCP/sessiongate/pkg/mc"
 
 	certificatesv1alpha1 "github.com/openshift/hypershift/api/certificates/v1alpha1"
 	hypershiftv1beta1 "github.com/openshift/hypershift/api/hypershift/v1beta1"

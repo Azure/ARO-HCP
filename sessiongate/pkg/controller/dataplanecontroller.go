@@ -19,8 +19,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/openshift/library-go/pkg/operator/events"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/client-go/tools/record"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 	kubeinformers "k8s.io/client-go/informers"
@@ -55,7 +55,7 @@ func NewDataPlaneController(
 	sessiongateInformers sessiongateinformers.SharedInformerFactory,
 	kubeInformers kubeinformers.SharedInformerFactory,
 	registry SessionRegistry,
-	eventRecorder events.Recorder,
+	eventRecorder record.EventRecorder,
 ) (*DataPlaneController, error) {
 	workQueue := workqueue.NewTypedRateLimitingQueueWithConfig(
 		workqueue.DefaultTypedControllerRateLimiter[cache.ObjectName](),

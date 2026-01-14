@@ -20,10 +20,11 @@ import (
 
 	applyv1 "k8s.io/client-go/applyconfigurations/meta/v1"
 
-	sessiongatev1alpha1 "github.com/Azure/ARO-HCP/sessiongate/pkg/apis/sessiongate/v1alpha1"
-	sessiongatv1alpha1applyconfigurations "github.com/Azure/ARO-HCP/sessiongate/pkg/generated/applyconfiguration/sessiongate/v1alpha1"
 	"github.com/openshift-eng/openshift-tests-extension/pkg/util/sets"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	sessiongatev1alpha1 "github.com/Azure/ARO-HCP/sessiongate/pkg/apis/sessiongate/v1alpha1"
+	sessiongatv1alpha1applyconfigurations "github.com/Azure/ARO-HCP/sessiongate/pkg/generated/applyconfiguration/sessiongate/v1alpha1"
 )
 
 type ConditionType string

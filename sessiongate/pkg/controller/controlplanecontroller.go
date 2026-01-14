@@ -16,7 +16,6 @@ package controller
 
 import (
 	"context"
-	"reflect"
 	"sync"
 
 	applyv1 "k8s.io/client-go/applyconfigurations/meta/v1"
@@ -27,7 +26,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/openshift/library-go/pkg/operator/events"
 	"google.golang.org/protobuf/proto"
 	securityv1beta1 "istio.io/client-go/pkg/apis/security/v1beta1"
 	securityapplyv1beta1 "istio.io/client-go/pkg/applyconfiguration/security/v1beta1"
@@ -36,6 +34,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/client-go/tools/record"
 
 	"k8s.io/apimachinery/pkg/util/wait"
 	corev1applyconfigurations "k8s.io/client-go/applyconfigurations/core/v1"
@@ -69,7 +68,7 @@ type SessionController struct {
 	istioClient       istioclient.SecurityV1beta1Interface
 
 	fieldManager                 string
-	eventRecorder                events.Recorder
+	eventRecorder                record.EventRecorder
 	endpointProvider             SessionEndpointProvider
 	getSession                   func(namespace, name string) (*sessiongatev1alpha1.Session, error)
 	getAuthorizationPolicy       func(namespace, name string) (*securityv1beta1.AuthorizationPolicy, error)
@@ -85,7 +84,7 @@ func NewSessionController(
 	sessiongateInformers sessiongateinformers.SharedInformerFactory,
 	istioInformers istioinformers.SharedInformerFactory,
 	kubeinformers kubeinformers.SharedInformerFactory,
-	eventRecorder events.Recorder,
+	eventRecorder record.EventRecorder,
 	managementClusterProviderBuilder ManagementClusterProviderBuilder,
 	endpointProvider SessionEndpointProvider,
 ) (*SessionController, error) {
@@ -327,7 +326,7 @@ func (c *SessionController) syncSession(ctx context.Context, session *sessiongat
 			panic(err) // if validation fails, we have a programming error
 		}
 		if action.Event != nil {
-			c.eventRecorder.Eventf(action.Event.Reason, action.Event.MessageFmt, action.Event.Args...)
+			c.eventRecorder.Eventf(session, corev1.EventTypeNormal, action.Event.Reason, action.Event.MessageFmt, action.Event.Args...)
 		}
 
 		switch {
@@ -417,8 +416,7 @@ func (c *SessionController) processSession(ctx context.Context, session *session
 	for _, step := range []sessionStep{
 		// this is a new session, so we need to manifest the expiration timestamp
 		c.handleExpiration,
-		// ensure authorization policy is present before we do anything that
-		// might expose the session
+		// ensure authorization policy is present before we do anything that might expose the session
 		c.ensureAuthorizationPolicy,
 		// generate credentials
 		c.generateCredentials,
@@ -429,9 +427,6 @@ func (c *SessionController) processSession(ctx context.Context, session *session
 	} {
 		// each step either handles the current step or hands off to the next one
 		done, action, err := step(ctx, now, session, mc)
-		if err != nil {
-			klog.ErrorS(err, "Step error", "step", reflect.TypeOf(step).Name(), "err", err)
-		}
 		if done {
 			return action, err
 		}

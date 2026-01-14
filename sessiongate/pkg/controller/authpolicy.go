@@ -17,11 +17,12 @@ package controller
 import (
 	"fmt"
 
-	sessiongatev1alpha1 "github.com/Azure/ARO-HCP/sessiongate/pkg/apis/sessiongate/v1alpha1"
 	securityv1beta1api "istio.io/api/security/v1beta1"
 	typev1beta1 "istio.io/api/type/v1beta1"
 	metaapplyv1 "istio.io/client-go/pkg/applyconfiguration/meta/v1"
 	securityapplyv1beta1 "istio.io/client-go/pkg/applyconfiguration/security/v1beta1"
+
+	sessiongatev1alpha1 "github.com/Azure/ARO-HCP/sessiongate/pkg/apis/sessiongate/v1alpha1"
 )
 
 func authorizationPolicyNameForSession(session *sessiongatev1alpha1.Session) string {
