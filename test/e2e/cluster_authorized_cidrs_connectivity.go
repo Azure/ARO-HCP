@@ -41,6 +41,7 @@ var _ = Describe("Authorized CIDRs", func() {
 			labels.Critical,
 			labels.Positive,
 			labels.IntegrationOnly,
+			labels.AroRpApiCompatible,
 			func(ctx context.Context) {
 				const (
 					clusterName                      = "cidr-connectivity-test"
