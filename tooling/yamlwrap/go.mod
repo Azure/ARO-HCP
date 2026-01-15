@@ -1,6 +1,6 @@
 module github.com/Azure/ARO-HCP/tooling/yamlwrap
 
-go 1.24.4
+go 1.24.11
 
 require (
 	github.com/Azure/ARO-Tools v0.0.0-20260112224556-4fc17a690209
