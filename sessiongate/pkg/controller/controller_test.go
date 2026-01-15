@@ -207,7 +207,7 @@ var samplePolicy = &securityv1beta1.AuthorizationPolicy{
 }
 
 var authPolicyAvailableCondition = metav1.Condition{
-	Type:               string(ConditionTypeAuthorizationPolicyAvailable),
+	Type:               string(sessiongatev1alpha1.SessionConditionTypeAuthorizationPolicyAvailable),
 	Status:             metav1.ConditionTrue,
 	Reason:             "AuthorizationPolicyAvailable",
 	Message:            "Authorization policy available",
@@ -215,7 +215,7 @@ var authPolicyAvailableCondition = metav1.Condition{
 }
 
 var sessionNotReadyCondition = metav1.Condition{
-	Type:               string(ConditionTypeReady),
+	Type:               string(sessiongatev1alpha1.SessionConditionTypeReady),
 	Status:             metav1.ConditionFalse,
 	Reason:             "NotReady",
 	Message:            "Session is not ready",
@@ -223,7 +223,7 @@ var sessionNotReadyCondition = metav1.Condition{
 }
 
 var credentialsAvailableCondition = metav1.Condition{
-	Type:               string(ConditionTypeCredentialsAvailable),
+	Type:               string(sessiongatev1alpha1.SessionConditionTypeCredentialsAvailable),
 	Status:             metav1.ConditionTrue,
 	Reason:             "CredentialsAvailable",
 	Message:            "Credentials available",
@@ -231,7 +231,7 @@ var credentialsAvailableCondition = metav1.Condition{
 }
 
 var networkPathAvailableCondition = metav1.Condition{
-	Type:               string(ConditionTypeNetworkPathAvailable),
+	Type:               string(sessiongatev1alpha1.SessionConditionTypeNetworkPathAvailable),
 	Status:             metav1.ConditionTrue,
 	Reason:             "NetworkPathAvailable",
 	Message:            "Network path available via public endpoint",
@@ -495,7 +495,7 @@ func TestSessionController_processSession_generateCredentials(t *testing.T) {
 					authPolicyAvailableCondition,
 					sessionNotReadyCondition,
 					{
-						Type:               string(ConditionTypeCredentialsAvailable),
+						Type:               string(sessiongatev1alpha1.SessionConditionTypeCredentialsAvailable),
 						Status:             metav1.ConditionFalse,
 						Reason:             "PrivateKeyCreated",
 						Message:            "Private key created, waiting for CSR to be created",
@@ -520,7 +520,7 @@ func TestSessionController_processSession_generateCredentials(t *testing.T) {
 					authPolicyAvailableCondition,
 					sessionNotReadyCondition,
 					{
-						Type:               string(ConditionTypeCredentialsAvailable),
+						Type:               string(sessiongatev1alpha1.SessionConditionTypeCredentialsAvailable),
 						Status:             metav1.ConditionFalse,
 						Reason:             "PrivateKeyCreated",
 						Message:            "Private key created, waiting for CSR to be created",
@@ -546,7 +546,7 @@ func TestSessionController_processSession_generateCredentials(t *testing.T) {
 					authPolicyAvailableCondition,
 					sessionNotReadyCondition,
 					{
-						Type:               string(ConditionTypeCredentialsAvailable),
+						Type:               string(sessiongatev1alpha1.SessionConditionTypeCredentialsAvailable),
 						Status:             metav1.ConditionFalse,
 						Reason:             "CertificateSigningRequestPending",
 						Message:            "Certificate signing request pending, waiting for approval",
@@ -571,7 +571,7 @@ func TestSessionController_processSession_generateCredentials(t *testing.T) {
 					authPolicyAvailableCondition,
 					sessionNotReadyCondition,
 					{
-						Type:               string(ConditionTypeCredentialsAvailable),
+						Type:               string(sessiongatev1alpha1.SessionConditionTypeCredentialsAvailable),
 						Status:             metav1.ConditionFalse,
 						Reason:             "CertificateSigningRequestPending",
 						Message:            "Certificate signing request pending, waiting for approval",
@@ -606,7 +606,7 @@ func TestSessionController_processSession_generateCredentials(t *testing.T) {
 					authPolicyAvailableCondition,
 					sessionNotReadyCondition,
 					{
-						Type:               string(ConditionTypeCredentialsAvailable),
+						Type:               string(sessiongatev1alpha1.SessionConditionTypeCredentialsAvailable),
 						Status:             metav1.ConditionFalse,
 						Reason:             "CertificateSigningRequestPending",
 						Message:            "Certificate signing request pending, waiting for approval",
@@ -631,7 +631,7 @@ func TestSessionController_processSession_generateCredentials(t *testing.T) {
 					authPolicyAvailableCondition,
 					sessionNotReadyCondition,
 					{
-						Type:               string(ConditionTypeCredentialsAvailable),
+						Type:               string(sessiongatev1alpha1.SessionConditionTypeCredentialsAvailable),
 						Status:             metav1.ConditionFalse,
 						Reason:             "CertificateSigningRequestPending",
 						Message:            "Certificate signing request pending, waiting for approval",
@@ -656,7 +656,7 @@ func TestSessionController_processSession_generateCredentials(t *testing.T) {
 					authPolicyAvailableCondition,
 					sessionNotReadyCondition,
 					{
-						Type:               string(ConditionTypeCredentialsAvailable),
+						Type:               string(sessiongatev1alpha1.SessionConditionTypeCredentialsAvailable),
 						Status:             metav1.ConditionFalse,
 						Reason:             "CertificateSigningRequestPending",
 						Message:            "Certificate signing request pending, waiting for approval",

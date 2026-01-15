@@ -154,13 +154,13 @@ func (c *DataPlaneController) isReadyForRegistration(session *sessiongatev1alpha
 	if !session.DeletionTimestamp.IsZero() {
 		return false, "being deleted"
 	}
-	if !IsReady(session.Status) {
+	if !session.IsReady() {
 		return false, "not ready"
 	}
 	return true, ""
 }
 
-func (c *DataPlaneController) getCredentialSecret(ctx context.Context, session *sessiongatev1alpha1.Session) (*CredentialSecret, error) {
+func (c *DataPlaneController) getCredentialSecret(session *sessiongatev1alpha1.Session) (*CredentialSecret, error) {
 	current, err := c.getSecret(session.Namespace, session.Name)
 	var secretData map[string][]byte
 	if err != nil && !apierrors.IsNotFound(err) {
@@ -175,7 +175,7 @@ func (c *DataPlaneController) getCredentialSecret(ctx context.Context, session *
 
 // registerSession fetches credentials and registers the session in the local registry for proxying traffic
 func (c *DataPlaneController) registerSession(ctx context.Context, session *sessiongatev1alpha1.Session) error {
-	credentialSecret, err := c.getCredentialSecret(ctx, session)
+	credentialSecret, err := c.getCredentialSecret(session)
 	if err != nil {
 		return fmt.Errorf("failed to get credential secret: %w", err)
 	}

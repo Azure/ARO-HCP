@@ -480,7 +480,7 @@ func (c *SessionController) ensureAuthorizationPolicy(ctx context.Context, now f
 		WithAuthorizationPolicyRef(current.Name).
 		WithConditions(
 			applyv1.Condition().
-				WithType(string(ConditionTypeAuthorizationPolicyAvailable)).
+				WithType(string(sessiongatev1alpha1.SessionConditionTypeAuthorizationPolicyAvailable)).
 				WithStatus(metav1.ConditionTrue).
 				WithReason("AuthorizationPolicyAvailable").
 				WithMessage("Authorization policy available").
@@ -519,7 +519,7 @@ func (c *SessionController) generateCredentials(ctx context.Context, now func() 
 			WithCredentialsSecretRef(session.Name).
 			WithConditions(
 				applyv1.Condition().
-					WithType(string(ConditionTypeCredentialsAvailable)).
+					WithType(string(sessiongatev1alpha1.SessionConditionTypeCredentialsAvailable)).
 					WithStatus(metav1.ConditionTrue).
 					WithReason("CredentialsAvailable").
 					WithMessage("Credentials available").
@@ -632,7 +632,7 @@ func (c *SessionController) ensureNetworkPath(ctx context.Context, now func() ti
 		WithBackendKASURL(fmt.Sprintf("https://%s", hcp.Spec.KubeAPIServerDNSName)).
 		WithConditions(
 			applyv1.Condition().
-				WithType(string(ConditionTypeNetworkPathAvailable)).
+				WithType(string(sessiongatev1alpha1.SessionConditionTypeNetworkPathAvailable)).
 				WithStatus(metav1.ConditionTrue).
 				WithReason("NetworkPathAvailable").
 				WithMessage("Network path available via public endpoint").
@@ -653,7 +653,7 @@ func (c *SessionController) finalizeSession(ctx context.Context, now func() time
 		WithEndpoint(c.endpointProvider.GetSessionEndpoint(session.Name)).
 		WithConditions(
 			applyv1.Condition().
-				WithType(string(ConditionTypeReady)).
+				WithType(string(sessiongatev1alpha1.SessionConditionTypeReady)).
 				WithStatus(metav1.ConditionTrue).
 				WithReason("Ready").
 				WithMessage("Session is ready").

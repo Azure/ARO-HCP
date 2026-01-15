@@ -92,10 +92,11 @@ type HostedControlPlane struct {
 	Namespace string `json:"namespace,omitempty"`
 }
 
+// describes what level of access the session has on the hosted cluster
 type AccessLevel struct {
 	// +kubebuilder:validation:Required
 
-	// group is the name of the access group
+	// the session will have the permissions of this Group.rbac.authorization.k8s.io
 	Group string `json:"group"`
 }
 
@@ -150,12 +151,14 @@ type SessionStatus struct {
 
 	// +optional
 
-	// expiresAt is the timestamp when the session will expire
+	// timestamp when the session will expire
+	// sematics: creation timestamp of the session CR + TTL
 	ExpiresAt *metav1.Time `json:"expiresAt,omitempty"`
 
 	// +optional
 
-	// endpoint is the URL endpoint for accessing the session
+	// the public endpoint that can be used to access the session endpoint
+	// this endpoint acts as a KAS proxy to reach the HCPs KAS
 	Endpoint string `json:"endpoint,omitempty"`
 
 	// +optional
@@ -173,7 +176,9 @@ type SessionStatus struct {
 
 	// +optional
 
-	// backendKASURL is the Kubernetes API server URL for the backend cluster
+	// the URL used by the session for communication with the hosted control planes KAS
+	// this might be the public endpoint of the HCP KAS or some sort of local port forwarding
+	// endpoint for private HCPs
 	BackendKASURL string `json:"backendKASURL,omitempty"`
 }
 

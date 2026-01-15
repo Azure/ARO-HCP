@@ -27,17 +27,6 @@ import (
 	sessiongatv1alpha1applyconfigurations "github.com/Azure/ARO-HCP/sessiongate/pkg/generated/applyconfiguration/sessiongate/v1alpha1"
 )
 
-type ConditionType string
-
-const (
-	ConditionTypeReady                        ConditionType = "Ready"
-	ConditionTypeSessionActive                ConditionType = "SessionActive"
-	ConditionTypeProgressing                  ConditionType = "Progressing"
-	ConditionTypeCredentialsAvailable         ConditionType = "CredentialsAvailable"
-	ConditionTypeAuthorizationPolicyAvailable ConditionType = "AuthorizationPolicyAvailable"
-	ConditionTypeNetworkPathAvailable         ConditionType = "NetworkPathAvailable"
-)
-
 type Status struct {
 	applyConfig *sessiongatv1alpha1applyconfigurations.SessionStatusApplyConfiguration
 }
@@ -213,7 +202,7 @@ func ApplyConfigForStatus(status sessiongatev1alpha1.SessionStatus) *sessiongatv
 
 func NotReadyCondition(generation int64, now time.Time) *applyv1.ConditionApplyConfiguration {
 	return applyv1.Condition().
-		WithType(string(ConditionTypeReady)).
+		WithType(string(sessiongatev1alpha1.SessionConditionTypeReady)).
 		WithStatus(metav1.ConditionFalse).
 		WithReason("NotReady").
 		WithMessage("Session is not ready").
@@ -223,19 +212,10 @@ func NotReadyCondition(generation int64, now time.Time) *applyv1.ConditionApplyC
 
 func CredentialsNotAvailableCondition(reason, message string, generation int64, now time.Time) *applyv1.ConditionApplyConfiguration {
 	return applyv1.Condition().
-		WithType(string(ConditionTypeCredentialsAvailable)).
+		WithType(string(sessiongatev1alpha1.SessionConditionTypeCredentialsAvailable)).
 		WithStatus(metav1.ConditionFalse).
 		WithReason(reason).
 		WithMessage(message).
 		WithObservedGeneration(generation).
 		WithLastTransitionTime(metav1.NewTime(now))
-}
-
-func IsReady(status sessiongatev1alpha1.SessionStatus) bool {
-	for _, condition := range status.Conditions {
-		if condition.Type == string(ConditionTypeReady) && condition.Status == metav1.ConditionTrue {
-			return true
-		}
-	}
-	return false
 }
