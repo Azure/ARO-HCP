@@ -385,11 +385,11 @@ func (s *OperationsScanner) collectSubscriptions(ctx context.Context, logger *sl
 	for subscriptionState := range arm.ListSubscriptionStates() {
 		subscriptionStates[subscriptionState] = 0
 	}
-	for subscriptionID, subscription := range iterator.Items(ctx) {
+	for _, subscription := range iterator.Items(ctx) {
 		// Unregistered subscriptions should have no active operations,
 		// not even deletes.
 		if subscription.State != arm.SubscriptionStateUnregistered {
-			subscriptions = append(subscriptions, subscriptionID)
+			subscriptions = append(subscriptions, subscription.ResourceID.SubscriptionID)
 		}
 		subscriptionStates[subscription.State]++
 	}

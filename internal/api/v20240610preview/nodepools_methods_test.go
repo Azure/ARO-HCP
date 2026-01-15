@@ -16,6 +16,7 @@ package v20240610preview
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -39,7 +40,7 @@ func TestSizeGiBRoundTrip(t *testing.T) {
 			original: &api.HCPOpenShiftClusterNodePool{
 				TrackedResource: arm.TrackedResource{
 					Resource: arm.Resource{
-						ID:   api.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/myRg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/myCluster/nodePools/myNodePool")),
+						ID:   api.Must(azcorearm.ParseResourceID(strings.ToLower("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/myRg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/myCluster/nodePools/myNodePool"))),
 						Name: "myNodePool",
 						Type: "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/nodePools",
 					},

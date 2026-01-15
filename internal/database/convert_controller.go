@@ -30,7 +30,7 @@ func InternalToCosmosController(internalObj *api.Controller) (*Controller, error
 	cosmosObj := &Controller{
 		TypedDocument: TypedDocument{
 			BaseDocument: BaseDocument{
-				ID: internalObj.CosmosUID,
+				ID: internalObj.GetCosmosData().CosmosUID,
 			},
 			PartitionKey: strings.ToLower(internalObj.ExternalID.SubscriptionID),
 			ResourceType: internalObj.ResourceID.ResourceType.String(),

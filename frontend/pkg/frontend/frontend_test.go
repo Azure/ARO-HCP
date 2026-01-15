@@ -77,6 +77,7 @@ func TestSubscriptionsGET(t *testing.T) {
 		{
 			name: "GET Subscription - Doc Exists",
 			subDoc: &arm.Subscription{
+				ResourceID:       api.Must(arm.ToSubscriptionResourceID(api.TestSubscriptionID)),
 				State:            arm.SubscriptionStateRegistered,
 				RegistrationDate: api.Ptr(time.Now().String()),
 				Properties:       nil,
@@ -508,13 +509,15 @@ func TestDeploymentPreflight(t *testing.T) {
 			mockSubscriptionCRUD.EXPECT().
 				Get(gomock.Any(), api.TestSubscriptionID).
 				Return(&arm.Subscription{
-					State: arm.SubscriptionStateRegistered,
+					ResourceID: api.Must(arm.ToSubscriptionResourceID(api.TestSubscriptionID)),
+					State:      arm.SubscriptionStateRegistered,
 				}, nil).
 				MaxTimes(2)
 
 			subs := map[string]*arm.Subscription{
 				api.TestSubscriptionID: {
-					State: arm.SubscriptionStateRegistered,
+					ResourceID: api.Must(arm.ToSubscriptionResourceID(api.TestSubscriptionID)),
+					State:      arm.SubscriptionStateRegistered,
 				},
 			}
 			ts := newHTTPServer(f, ctrl, mockDBClient, mockSubscriptionCRUD, subs)
@@ -650,7 +653,8 @@ func TestRequestAdminCredential(t *testing.T) {
 			mockSubscriptionCRUD.EXPECT().
 				Get(gomock.Any(), api.TestSubscriptionID).
 				Return(&arm.Subscription{
-					State: arm.SubscriptionStateRegistered,
+					ResourceID: api.Must(arm.ToSubscriptionResourceID(api.TestSubscriptionID)),
+					State:      arm.SubscriptionStateRegistered,
 				}, nil).
 				MaxTimes(2)
 			// MiddlewareLockSubscription
@@ -737,7 +741,8 @@ func TestRequestAdminCredential(t *testing.T) {
 
 			subs := map[string]*arm.Subscription{
 				api.TestSubscriptionID: {
-					State: arm.SubscriptionStateRegistered,
+					ResourceID: api.Must(arm.ToSubscriptionResourceID(api.TestSubscriptionID)),
+					State:      arm.SubscriptionStateRegistered,
 				},
 			}
 			ts := newHTTPServer(f, ctrl, mockDBClient, mockSubscriptionCRUD, subs)
@@ -822,7 +827,8 @@ func TestRevokeCredentials(t *testing.T) {
 			mockSubscriptionCRUD.EXPECT().
 				Get(gomock.Any(), api.TestSubscriptionID).
 				Return(&arm.Subscription{
-					State: arm.SubscriptionStateRegistered,
+					ResourceID: api.Must(arm.ToSubscriptionResourceID(api.TestSubscriptionID)),
+					State:      arm.SubscriptionStateRegistered,
 				}, nil).
 				MaxTimes(2)
 			// MiddlewareLockSubscription
@@ -949,7 +955,8 @@ func TestRevokeCredentials(t *testing.T) {
 
 			subs := map[string]*arm.Subscription{
 				api.TestSubscriptionID: {
-					State: arm.SubscriptionStateRegistered,
+					ResourceID: api.Must(arm.ToSubscriptionResourceID(api.TestSubscriptionID)),
+					State:      arm.SubscriptionStateRegistered,
 				},
 			}
 			ts := newHTTPServer(f, ctrl, mockDBClient, mockSubscriptionCRUD, subs)

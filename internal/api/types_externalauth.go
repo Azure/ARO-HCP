@@ -34,15 +34,20 @@ type HCPOpenShiftClusterExternalAuth struct {
 var _ CosmosPersistable = &HCPOpenShiftClusterExternalAuth{}
 
 func (o *HCPOpenShiftClusterExternalAuth) GetCosmosData() CosmosData {
+	cosmosUID := Must(ResourceIDToCosmosID(o.ID))
+	if len(o.ServiceProviderProperties.CosmosUID) != 0 {
+		// if this is an item that is being serialized for the first time, then we can force it to use the new scheme.
+		// if it already thinks it knows its CosmosID, then we must accept what it thinks because this could be a case
+		// where we have a new backend and an old frontend.  In that case, the content still has random UIDs, but the backend
+		// must be able to read AND write the records. This means we cannot assume that all UIDs have already changed.
+		cosmosUID = o.ServiceProviderProperties.CosmosUID
+	}
+
 	return CosmosData{
-		CosmosUID:    o.ServiceProviderProperties.CosmosUID,
+		CosmosUID:    cosmosUID,
 		PartitionKey: strings.ToLower(o.ID.SubscriptionID),
 		ItemID:       o.ID,
 	}
-}
-
-func (o *HCPOpenShiftClusterExternalAuth) SetCosmosDocumentData(cosmosUID string) {
-	o.ServiceProviderProperties.CosmosUID = cosmosUID
 }
 
 // HCPOpenShiftClusterNodePoolProperties represents the property bag of a
