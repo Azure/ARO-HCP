@@ -687,6 +687,10 @@ github.com/openshift-online/ocm-api-model/clientapi v0.0.435 h1:5t/65lUYiXoD87LT
 github.com/openshift-online/ocm-api-model/clientapi v0.0.435/go.mod h1:fZwy5HY2URG9nrExvQeXrDU/08TGqZ16f8oymVEN5lo=
 github.com/openshift-online/ocm-sdk-go v0.1.480 h1:49tZXL9uD9eHfc83dbqVefZblf9tO3L6CTtcxWQBMFg=
 github.com/openshift-online/ocm-sdk-go v0.1.480/go.mod h1:3rOvkr2ErtyF68tHEsb7PSXsWKg/OUF6KWtWztl3ihQ=
+github.com/openshift/api v0.0.0-20260114133223-6ab113cb7368 h1:kSr3DOlq0NCrHd65HB2o/pBsks7AfRm+fkpf9RLUPoc=
+github.com/openshift/api v0.0.0-20260114133223-6ab113cb7368/go.mod h1:d5uzF0YN2nQQFA0jIEWzzOZ+edmo6wzlGLvx5Fhz4uY=
+github.com/openshift/client-go v0.0.0-20260108185524-48f4ccfc4e13 h1:6rd4zSo2UaWQcAPZfHK9yzKVqH0BnMv1hqMzqXZyTds=
+github.com/openshift/client-go v0.0.0-20260108185524-48f4ccfc4e13/go.mod h1:YvOmPmV7wcJxpfhTDuFqqs2Xpb3M3ovsM6Qs/i2ptq4=
 github.com/openshift/onsi-ginkgo/v2 v2.6.1-0.20250416174521-4eb003743b54 h1:ehXndVZfIk/fo18YJCMJ+6b8HL8tzqjP7yWgchMnfCc=
 github.com/openshift/onsi-ginkgo/v2 v2.6.1-0.20250416174521-4eb003743b54/go.mod h1:7Du3c42kxCUegi0IImZ1wUQzMBVecgIHjR1C+NkhLQo=
 github.com/orisano/pixelmatch v0.0.0-20220722002657-fb0b55479cde/go.mod h1:nZgzbfBr3hhjoZnS66nKrHmduYNpc34ny7RK4z5/HM0=
