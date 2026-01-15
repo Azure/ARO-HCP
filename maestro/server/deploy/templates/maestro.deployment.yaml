@@ -111,8 +111,6 @@ spec:
         - --db-max-open-connections={{ .Values.database.maxOpenConnections }}
         - --message-broker-config-file=/secrets/maestro/config.yaml
         - --message-broker-type=mqtt
-        - --enable-ocm-mock=true
-        - --enable-jwt=false
         - --enable-https=false
         - --enable-grpc-server=true
         - --disable-grpc-tls=true
@@ -121,10 +119,8 @@ spec:
         - --grpc-server-bindport={{ .Values.maestro.grpcBindPort }}
         - --health-check-server-bindport={{ .Values.maestro.healthCheckBindPort }}
         - --enable-health-check-https=false
-        - --enable-authz=true
         - --enable-db-debug={{ .Values.database.debug }}
         - --enable-metrics-https=false
-        - --enable-sentry=false
         - --http-read-timeout={{ .Values.maestro.httpReadTimeout }}
         - --http-write-timeout={{ .Values.maestro.httpWriteTimeout }}
         - --label-metrics-inclusion-duration={{ .Values.maestro.labelMetricsInclusionDuration }}
