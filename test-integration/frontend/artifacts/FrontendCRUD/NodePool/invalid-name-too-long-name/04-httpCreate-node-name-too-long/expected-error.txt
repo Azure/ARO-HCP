@@ -1,0 +1,18 @@
+{
+  "error": {
+    "code": "MultipleErrorsOccurred",
+    "message": "2 errors occurred",
+    "details": [
+      {
+        "code": "InvalidRequestContent",
+        "message": "Too long: may not be more than 15 bytes",
+        "target": "id"
+      },
+      {
+        "code": "InvalidRequestContent",
+        "message": "Invalid value: \"2long-and-not-valid-node-name\": (must be a valid DNS RFC 1035 label)",
+        "target": "id"
+      }
+    ]
+  }
+}

@@ -17,11 +17,12 @@ package validation
 import (
 	"context"
 
-	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"k8s.io/apimachinery/pkg/api/operation"
 	"k8s.io/apimachinery/pkg/api/safe"
 	"k8s.io/apimachinery/pkg/api/validate"
 	"k8s.io/apimachinery/pkg/util/validation/field"
+
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
@@ -59,14 +60,20 @@ func validateResource(ctx context.Context, op operation.Operation, fldPath *fiel
 
 	//ID         string      `json:"id,omitempty"`
 	errs = append(errs, validate.ImmutableByReflect(ctx, op, fldPath.Child("id"), newObj.ID, safe.Field(oldObj, toResourceID))...)
-	// TODO need to determine whether can require this on pre-flight checks
-	//errs = append(errs, validate.RequiredPointer(ctx, op, fldPath.Child("id"), newObj.ID, safe.Field(oldObj, toResourceID))...)
+	errs = append(errs, validate.RequiredPointer(ctx, op, fldPath.Child("id"), newObj.ID, safe.Field(oldObj, toResourceID))...)
+	errs = append(errs, GenericResourceID(ctx, op, fldPath.Child("id"), newObj.ID, safe.Field(oldObj, toResourceID))...)
 
 	//Name       string      `json:"name,omitempty"`
 	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("name"), &newObj.Name, safe.Field(oldObj, toResourceName))...)
+	if newObj.ID != nil {
+		errs = append(errs, EqualFold(ctx, op, fldPath.Child("name"), &newObj.Name, safe.Field(oldObj, toResourceName), newObj.ID.Name)...)
+	}
 
 	//Type       string      `json:"type,omitempty"`
 	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("type"), &newObj.Type, safe.Field(oldObj, toResourceType))...)
+	if newObj.ID != nil {
+		errs = append(errs, EqualFold(ctx, op, fldPath.Child("type"), &newObj.Type, safe.Field(oldObj, toResourceType), newObj.ID.ResourceType.String())...)
+	}
 
 	//SystemData *SystemData `json:"systemData,omitempty"`
 	errs = append(errs, validateSystemData(ctx, op, fldPath.Child("systemData"), newObj.SystemData, safe.Field(oldObj, toResourceSystemData))...)

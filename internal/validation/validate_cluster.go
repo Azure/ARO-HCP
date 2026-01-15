@@ -55,6 +55,11 @@ func validateCluster(ctx context.Context, op operation.Operation, newCluster, ol
 
 	//arm.TrackedResource
 	errs = append(errs, validateTrackedResource(ctx, op, field.NewPath("trackedResource"), &newCluster.TrackedResource, safe.Field(oldCluster, toTrackedResource))...)
+	errs = append(errs, RestrictedResourceIDWithResourceGroup(ctx, op, field.NewPath("id"), newCluster.ID, nil, api.ClusterResourceType.String())...)
+	if newCluster.ID != nil {
+		errs = append(errs, MaxLen(ctx, op, field.NewPath("id"), &newCluster.ID.Name, nil, 54)...)
+		errs = append(errs, MatchesRegex(ctx, op, field.NewPath("id"), &newCluster.ID.Name, nil, clusterResourceNameRegex, clusterResourceNameErrorString)...)
+	}
 
 	// Properties HCPOpenShiftClusterCustomerProperties `json:"properties,omitempty"`
 	errs = append(errs, validateClusterCustomerProperties(ctx, op, field.NewPath("customerProperties"), &newCluster.CustomerProperties, safe.Field(oldCluster, toClusterCustomerProperties))...)
@@ -490,7 +495,7 @@ func validateCustomerPlatformProfile(ctx context.Context, op operation.Operation
 	//NetworkSecurityGroupID  string                         `json:"networkSecurityGroupId,omitempty"`
 	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("networkSecurityGroupId"), &newObj.NetworkSecurityGroupID, safe.Field(oldObj, toPlatformNetworkSecurityGroupID))...)
 	errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("networkSecurityGroupId"), &newObj.NetworkSecurityGroupID, safe.Field(oldObj, toPlatformNetworkSecurityGroupID))...)
-	errs = append(errs, RestrictedResourceID(ctx, op, fldPath.Child("networkSecurityGroupId"), &newObj.NetworkSecurityGroupID, safe.Field(oldObj, toPlatformNetworkSecurityGroupID), "Microsoft.Network/networkSecurityGroups")...)
+	errs = append(errs, RestrictedResourceIDString(ctx, op, fldPath.Child("networkSecurityGroupId"), &newObj.NetworkSecurityGroupID, safe.Field(oldObj, toPlatformNetworkSecurityGroupID), "Microsoft.Network/networkSecurityGroups")...)
 
 	//OperatorsAuthentication OperatorsAuthenticationProfile `json:"operatorsAuthentication,omitempty"`
 	errs = append(errs, validate.ImmutableByReflect(ctx, op, fldPath.Child("operatorsAuthentication"), &newObj.OperatorsAuthentication, safe.Field(oldObj, toPlatformOperatorsAuthentication))...)
@@ -576,7 +581,7 @@ func validateUserAssignedIdentitiesProfile(ctx context.Context, op operation.Ope
 
 	//ServiceManagedIdentity string            `json:"serviceManagedIdentity,omitempty"`
 	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("serviceManagedIdentity"), &newObj.ServiceManagedIdentity, safe.Field(oldObj, toUserAssignedIdentitiesServiceManagedIdentity))...)
-	errs = append(errs, RestrictedResourceID(ctx, op, fldPath.Child("serviceManagedIdentity"), &newObj.ServiceManagedIdentity, safe.Field(oldObj, toUserAssignedIdentitiesServiceManagedIdentity), "Microsoft.ManagedIdentity/userAssignedIdentities")...)
+	errs = append(errs, RestrictedResourceIDString(ctx, op, fldPath.Child("serviceManagedIdentity"), &newObj.ServiceManagedIdentity, safe.Field(oldObj, toUserAssignedIdentitiesServiceManagedIdentity), "Microsoft.ManagedIdentity/userAssignedIdentities")...)
 
 	return errs
 }

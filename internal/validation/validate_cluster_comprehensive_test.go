@@ -758,6 +758,99 @@ func TestValidateClusterCreate(t *testing.T) {
 				{message: "invalid CIDR address", fieldPath: "customerProperties.network.machineCidr"},
 			},
 		},
+		// Resource naming validation tests (covering middleware_validatestatic_test.go patterns)
+		{
+			name: "invalid cluster resource name - special character",
+			cluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.ID.Name = "$"
+				c.Name = "$"
+				return c
+			}(),
+			expectErrors: []expectedError{
+				{message: "must be a valid DNS RFC 1035 label", fieldPath: "id"},
+			},
+		},
+		{
+			name: "invalid cluster resource name - starts with hyphen",
+			cluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.ID.Name = "-garbage"
+				c.Name = "-garbage"
+				return c
+			}(),
+			expectErrors: []expectedError{
+				{message: "must be a valid DNS RFC 1035 label", fieldPath: "id"},
+			},
+		},
+		{
+			name: "invalid cluster resource name - starts with number",
+			cluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.ID.Name = "1cluster"
+				c.Name = "1cluster"
+				return c
+			}(),
+			expectErrors: []expectedError{
+				{message: "must be a valid DNS RFC 1035 label", fieldPath: "id"},
+			},
+		},
+		{
+			name: "invalid cluster resource name - too long",
+			cluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				longName := "3a725v234c0Qd5bPfSYgk5okd2ps7UApyv8wtv810Y02ZvfAse0pgZemQ6dqE791QVKq6n6DAzU8bQTUOVCHwUOeq9fx92dpFebTgKEsx1Xl8Xrvs8NLehe3bj3h813B3j"
+				c.ID.Name = longName
+				c.Name = longName
+				return c
+			}(),
+			expectErrors: []expectedError{
+				{message: "Too long", fieldPath: "id"},
+				{message: "must be a valid DNS RFC 1035 label", fieldPath: "id"},
+			},
+		},
+		{
+			name: "invalid cluster resource name - too short",
+			cluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.ID.Name = "a"
+				c.Name = "a"
+				return c
+			}(),
+			expectErrors: []expectedError{
+				{message: "must be a valid DNS RFC 1035 label", fieldPath: "id"},
+			},
+		},
+		{
+			name: "valid cluster resource name - minimum length",
+			cluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.ID.Name = "abc"
+				c.Name = "abc"
+				return c
+			}(),
+			expectErrors: []expectedError{},
+		},
+		{
+			name: "valid cluster resource name - with hyphens",
+			cluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.ID.Name = "my-cluster-1"
+				c.Name = "my-cluster-1"
+				return c
+			}(),
+			expectErrors: []expectedError{},
+		},
+		{
+			name: "valid cluster resource name - mixed case",
+			cluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.ID.Name = "MyCluster"
+				c.Name = "MyCluster"
+				return c
+			}(),
+			expectErrors: []expectedError{},
+		},
 	}
 
 	for _, tt := range tests {
