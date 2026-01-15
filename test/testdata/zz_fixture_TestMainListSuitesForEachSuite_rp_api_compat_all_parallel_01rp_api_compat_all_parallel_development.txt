@@ -1,0 +1,16 @@
+Customer should be able to list available HCP OpenShift versions and validate response content
+Customer should be able to test admin credentials before cluster ready, then full admin credential lifecycle
+Customer should be able to create node pools with ARM64-based VMs
+Customer should be able to create an HCP cluster with custom autoscaling
+Customer should reject cluster creation with unreasonably high MaxNodesTotal
+Customer should be able to create a HCP cluster without CNI
+Customer should not be able to deploy 2 identically named clusters within the same resource group
+Customer should not be able to deploy cluster with invalid name
+Update HCPOpenShiftCluster Positive creates a cluster and updates tags with a PATCH request
+Customer should be able to create several HCP clusters in their customer resource group, but not in the same managed resource group
+Customer should be able to create an HCP cluster using bicep templates
+Customer should be able to create an HCP cluster with Image Registry not present
+Engineering should be able to retrieve kusto logs for a cluster and services
+Customer should be able to create a cluster with default autoscaling and a nodepool with autoscaling enabled
+Customer should reject nodepool creation with both replicas and autoscaling configured
+Customer should respect cluster-wide node limits with nodepool autoscaling

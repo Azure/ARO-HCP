@@ -17,7 +17,6 @@ package mustgather
 import (
 	"context"
 	"fmt"
-	"net/url"
 	"os"
 	"path"
 	"time"
@@ -172,12 +171,12 @@ func (o *ValidatedMustGatherOptions) Complete(ctx context.Context) (*MustGatherO
 		o.OutputPath = fmt.Sprintf("must-gather-%s", time.Now().Format("20060102-150405"))
 	}
 
-	url, err := url.Parse(fmt.Sprintf("https://%s.%s.kusto.windows.net", o.Kusto, o.Region))
+	endpoint, err := kusto.KustoEndpoint(o.Kusto, o.Region)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse Kusto endpoint URL: %w", err)
+		return nil, fmt.Errorf("failed to create Kusto endpoint: %w", err)
 	}
 
-	client, err := kusto.NewClient(url.String(), o.QueryTimeout)
+	client, err := kusto.NewClient(endpoint, o.QueryTimeout)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Kusto client: %w", err)
 	}
