@@ -1689,6 +1689,34 @@ resource kasMonitorRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-0
         for: 'PT3H'
         severity: 4
       }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'kas-monitor-ServiceMonitorCreationErrorBudgetBurn'
+        enabled: true
+        labels: {
+          component: 'route-monitor-operator'
+          severity: 'warning'
+          slo: 'hcp-monitoring-coverage'
+        }
+        annotations: {
+          correlationId: 'kas-monitor-ServiceMonitorCreationErrorBudgetBurn/{{ $labels.cluster }}'
+          description: '{{ $value | humanizePercentage }} of HCPs are missing probe_success metrics. SLO threshold: 14.4%. This indicates RMO failed to create ServiceMonitor, Blackbox Exporter is not probing, or Prometheus is not scraping.'
+          runbook_url: 'TBD'
+          summary: 'HCP KAS monitoring coverage below SLO'
+          title: '{{ $value | humanizePercentage }} of HCPs are missing probe_success metrics. SLO threshold: 14.4%. This indicates RMO failed to create ServiceMonitor, Blackbox Exporter is not probing, or Prometheus is not scraping.'
+        }
+        expression: '( ( count(kube_namespace_status_phase{phase="Active", namespace=~"ocm-aro.*-.*-.*"}) - count(probe_success{namespace=~"ocm-aro.*"}) ) / count(kube_namespace_status_phase{phase="Active", namespace=~"ocm-aro.*-.*-.*"}) ) > 0.144'
+        for: 'PT15M'
+        severity: 3
+      }
     ]
     scopes: [
       azureMonitoring

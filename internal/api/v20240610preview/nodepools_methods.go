@@ -77,7 +77,9 @@ func (h *NodePool) GetVersion() api.Version {
 	return versionedInterface
 }
 
-func (h *NodePool) Normalize(out *api.HCPOpenShiftClusterNodePool) {
+func (h *NodePool) ConvertToInternal() *api.HCPOpenShiftClusterNodePool {
+	out := &api.HCPOpenShiftClusterNodePool{}
+
 	if h.ID != nil {
 		out.ID = api.Must(azcorearm.ParseResourceID(*h.ID))
 	}
@@ -181,6 +183,7 @@ func (h *NodePool) Normalize(out *api.HCPOpenShiftClusterNodePool) {
 
 	out.Identity = normalizeManagedIdentity(h.Identity)
 
+	return out
 }
 
 func normalizeNodePoolVersion(p *generated.NodePoolVersionProfile, out *api.NodePoolVersionProfile) {
@@ -212,7 +215,7 @@ func normalizeNodePoolPlatform(p *generated.NodePoolPlatformProfile, out *api.No
 
 func normalizeOSDiskProfile(p *generated.OsDiskProfile, out *api.OSDiskProfile) {
 	if p.SizeGiB != nil {
-		out.SizeGiB = *p.SizeGiB
+		out.SizeGiB = p.SizeGiB
 	}
 	if p.DiskStorageAccountType != nil {
 		out.DiskStorageAccountType = api.DiskStorageAccountType(*p.DiskStorageAccountType)
@@ -263,7 +266,7 @@ func newOSDiskProfile(from *api.OSDiskProfile) generated.OsDiskProfile {
 		return generated.OsDiskProfile{}
 	}
 	return generated.OsDiskProfile{
-		SizeGiB:                api.PtrOrNil(from.SizeGiB),
+		SizeGiB:                from.SizeGiB,
 		DiskStorageAccountType: api.PtrOrNil(generated.DiskStorageAccountType(from.DiskStorageAccountType)),
 		EncryptionSetID:        api.PtrOrNil(from.EncryptionSetID),
 	}

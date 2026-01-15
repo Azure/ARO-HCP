@@ -19,7 +19,10 @@ import (
 	"embed"
 	"encoding/json"
 	"fmt"
+	"os"
 	"time"
+
+	"k8s.io/apimachinery/pkg/util/rand"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 
@@ -47,6 +50,7 @@ type ClusterParams struct {
 	ImageRegistryState            string
 	ChannelGroup                  string
 	AuthorizedCIDRs               []*string
+	Autoscaling                   *hcpsdk20240610preview.ClusterAutoscalingProfile
 }
 
 type NetworkConfig struct {
@@ -57,9 +61,25 @@ type NetworkConfig struct {
 	HostPrefix  int32
 }
 
+func DefaultOpenshiftControlPlaneVersionId() string {
+	version := os.Getenv("ARO_HCP_OPENSHIFT_CONTROLPLANE_VERSION")
+	if version == "" {
+		return "4.20"
+	}
+	return version
+}
+
+func DefaultOpenshiftNodePoolVersionId() string {
+	version := os.Getenv("ARO_HCP_OPENSHIFT_NODEPOOL_VERSION")
+	if version == "" {
+		return "4.20.8"
+	}
+	return version
+}
+
 func NewDefaultClusterParams() ClusterParams {
 	return ClusterParams{
-		OpenshiftVersionId: "4.19",
+		OpenshiftVersionId: DefaultOpenshiftControlPlaneVersionId(),
 		Network: NetworkConfig{
 			NetworkType: "OVNKubernetes",
 			PodCIDR:     "10.128.0.0/14",
@@ -84,11 +104,19 @@ type NodePoolParams struct {
 	OSDiskSizeGiB          int32
 	DiskStorageAccountType string
 	ChannelGroup           string
+	// AutoScaling enables nodepool autoscaling. When set, Replicas is ignored.
+	AutoScaling *NodePoolAutoScalingParams
+}
+
+// NodePoolAutoScalingParams contains min/max node counts for nodepool autoscaling
+type NodePoolAutoScalingParams struct {
+	Min int32
+	Max int32
 }
 
 func NewDefaultNodePoolParams() NodePoolParams {
 	return NodePoolParams{
-		OpenshiftVersionId:     "4.19.7",
+		OpenshiftVersionId:     DefaultOpenshiftNodePoolVersionId(),
 		Replicas:               int32(2),
 		VMSize:                 "Standard_D8s_v3",
 		OSDiskSizeGiB:          int32(64),
@@ -222,9 +250,14 @@ func (tc *perItOrDescribeTestContext) CreateClusterCustomerResources(ctx context
 		tc.RecordTestStep(fmt.Sprintf("Deploy customer resources in resource group %s", *resourceGroup.Name), startTime, finishTime)
 	}()
 
+	// Generate unique deployment names by combining cluster name with random suffix
+	randomSuffix := rand.String(6)
+	customerInfraDeploymentName := fmt.Sprintf("customer-infra-%s-%s", clusterParams.ClusterName, randomSuffix)
+	managedIdentitiesDeploymentName := fmt.Sprintf("mi-%s-%s", clusterParams.ClusterName, randomSuffix)
+
 	customerInfraDeploymentResult, err := tc.CreateBicepTemplateAndWait(ctx,
 		WithTemplateFromFS(artifactsFS, "test-artifacts/generated-test-artifacts/modules/customer-infra.json"),
-		WithDeploymentName("customer-infra"),
+		WithDeploymentName(customerInfraDeploymentName),
 		WithScope(BicepDeploymentScopeResourceGroup),
 		WithClusterResourceGroup(*resourceGroup.Name),
 		WithParameters(infraParameters),
@@ -239,7 +272,9 @@ func (tc *perItOrDescribeTestContext) CreateClusterCustomerResources(ctx context
 	}
 
 	managedIdentityDeploymentResult, err := tc.DeployManagedIdentities(ctx,
+		clusterParams.ClusterName,
 		WithTemplateFromFS(artifactsFS, "test-artifacts/generated-test-artifacts/modules/managed-identities.json"),
+		WithDeploymentName(managedIdentitiesDeploymentName),
 		WithClusterResourceGroup(*resourceGroup.Name),
 		WithParameters(map[string]interface{}{
 			"nsgName":      clusterParams.NsgName,

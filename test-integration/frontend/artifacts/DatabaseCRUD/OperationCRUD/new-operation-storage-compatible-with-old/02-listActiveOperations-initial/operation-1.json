@@ -1,0 +1,11 @@
+{
+	"cosmosUID": "7c6b7caa-572f-41b6-9f18-1bb11adfba31",
+	"externalId": "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/create-with-tags",
+	"internalId": "/api/clusters_mgmt/v1/clusters/dv8blqb5g9",
+	"lastTransitionTime": "2025-12-05T20:29:59.734335781Z",
+	"operationId": "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/providers/Microsoft.RedHatOpenShift/locations/fake-location/hcpOperationStatuses/7c6b7caa-572f-41b6-9f18-1bb11adfba31",
+	"request": "Create",
+	"startTime": "2025-12-05T20:29:59.734335781Z",
+	"status": "Accepted",
+	"tenantId": "00000000-0000-0000-0000-000000000000"
+}

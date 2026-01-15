@@ -754,10 +754,10 @@ func getAllSubscriptions(pipelines map[string]*types.Pipeline) []string {
 	return allSubs
 }
 
-func GetAllRequiredAzureClients(ctx context.Context, pipelines map[string]*types.Pipeline) (map[string]string, error) {
+func GetAllRequiredAzureClients(ctx context.Context, pipelines map[string]*types.Pipeline, subscriptions map[string]string) (map[string]string, error) {
 	subscriptionIdToAzureConfigDirectory := make(map[string]string)
 	for _, subscription := range getAllSubscriptions(pipelines) {
-		subscriptionID, err := LookupSubscriptionID(map[string]string{})(ctx, subscription)
+		subscriptionID, err := LookupSubscriptionID(subscriptions)(ctx, subscription)
 		if err != nil {
 			return nil, fmt.Errorf("failed to lookup subscription ID for %q: %w", subscription, err)
 		}

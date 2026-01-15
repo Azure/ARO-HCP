@@ -16,17 +16,33 @@ package arm
 
 import (
 	"iter"
+	"path"
 	"slices"
+	"strings"
 
 	"k8s.io/apimachinery/pkg/util/sets"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 )
 
+// CosmosData contains the information that persisted resources must have for us to support CRUD against them.
+// These are not (currently) all stored in the same place in our various types.
+type CosmosData struct {
+	CosmosUID    string
+	PartitionKey string
+	ItemID       *azcorearm.ResourceID
+}
+
 // SubscriptionAPIVersion is the system API version for the subscription endpoint.
 const SubscriptionAPIVersion = "2.0"
 
+func ToSubscriptionResourceID(subscriptionName string) (*azcorearm.ResourceID, error) {
+	return azcorearm.ParseResourceID(strings.ToLower(path.Join("/subscriptions", subscriptionName)))
+}
+
 type Subscription struct {
+	ResourceID *azcorearm.ResourceID `json:"resourceId,omitempty"`
+
 	// The resource provider contract gives an example RegistrationDate
 	// in RFC1123 format but does not explicitly state a required format
 	// so we leave it a plain string.
@@ -39,9 +55,16 @@ type Subscription struct {
 	LastUpdated int `json:"-"`
 }
 
-// GetValidTypes returns the valid resource types for a Subscription.
-func (s Subscription) GetValidTypes() []string {
-	return []string{azcorearm.SubscriptionResourceType.String()}
+func (o *Subscription) GetCosmosData() CosmosData {
+	return CosmosData{
+		CosmosUID:    o.ResourceID.Name, // this is compatible with preexisting code
+		PartitionKey: strings.ToLower(o.ResourceID.Name),
+		ItemID:       o.ResourceID,
+	}
+}
+
+func (o *Subscription) SetCosmosDocumentData(cosmosUID string) {
+	panic("unsupported")
 }
 
 type SubscriptionProperties struct {

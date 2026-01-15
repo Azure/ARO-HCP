@@ -35,11 +35,13 @@ var hostedControlPlaneLogsDatabase = "HostedControlPlaneLogs"
 
 var servicesTables = []string{
 	"containerLogs",
+	"clustersServiceLogs",
 	"frontendLogs",
 	"backendLogs",
 }
 
 var containerLogsTable = servicesTables[0]
+var clustersServiceLogsTable = servicesTables[1]
 
 // RowWithClusterId represents a row in the query result with a cluster id
 type ClusterIdRow struct {
@@ -107,6 +109,7 @@ func (opts *QueryOptions) GetServicesQueries() []*kusto.ConfigurableQuery {
 		if opts.Limit > 0 {
 			query.WithLimit(opts.Limit)
 		}
+		query.WithOrderByTimestampAsc()
 		queries = append(queries, query)
 	}
 	return queries
@@ -126,13 +129,14 @@ func (opts *QueryOptions) GetHostedControlPlaneLogsQuery() []*kusto.Configurable
 		if opts.Limit > 0 {
 			query.WithLimit(opts.Limit)
 		}
+		query.WithOrderByTimestampAsc()
 		queries = append(queries, query)
 	}
 	return queries
 }
 
 func (opts *QueryOptions) GetClusterIdQuery() *kusto.ConfigurableQuery {
-	return kusto.NewClusterIdQuery(servicesDatabase, containerLogsTable, opts.SubscriptionId, opts.ResourceGroupName)
+	return kusto.NewClusterIdQuery(servicesDatabase, clustersServiceLogsTable, opts.SubscriptionId, opts.ResourceGroupName)
 }
 
 func getTimeMinMax(timestampMin, timestampMax time.Time) (time.Time, time.Time) {

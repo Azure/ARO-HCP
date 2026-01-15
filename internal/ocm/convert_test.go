@@ -26,6 +26,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"k8s.io/utils/ptr"
+
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	csarhcpv1alpha1 "github.com/openshift-online/ocm-api-model/clientapi/arohcp/v1alpha1"
@@ -57,8 +59,6 @@ pAqEAuV4DNoxQKKWmhVv+J0ptMWD25Pnpxeq5sXzghfJnslJlQND
 var dummyAudiences = []string{"audience1", "audience2"}
 
 func TestConvertCStoHCPOpenShiftCluster(t *testing.T) {
-	arm.SetAzureLocation(api.TestLocation)
-
 	resourceID, err := azcorearm.ParseResourceID(api.TestClusterResourceID)
 	require.NoError(t, err)
 
@@ -208,10 +208,10 @@ func TestConvertCStoHCPOpenShiftCluster(t *testing.T) {
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			csCluster := ocmCluster(t, ocmClusterDefaults(), tc.ocmClusterTweaks)
+			csCluster := ocmCluster(t, ocmClusterDefaults(api.TestLocation), tc.ocmClusterTweaks)
 			expectHcpCluster := api.ClusterTestCase(t, tc.hcpClusterTweaks)
 
-			actualHcpCluster, err := ConvertCStoHCPOpenShiftCluster(resourceID, csCluster)
+			actualHcpCluster, err := ConvertCStoHCPOpenShiftCluster(resourceID, api.TestLocation, csCluster)
 			require.NoError(t, err)
 
 			assert.Equal(t, expectHcpCluster, actualHcpCluster)
@@ -228,7 +228,7 @@ func TestWithImmutableAttributes(t *testing.T) {
 		{
 			name:       "simple default",
 			hcpCluster: &api.HCPOpenShiftCluster{},
-			want:       ocmCluster(t, ocmClusterDefaults()),
+			want:       ocmCluster(t, ocmClusterDefaults(api.TestLocation)),
 		},
 		{
 			name: "converts stable version from RP to CS (adds patch and prefix)",
@@ -240,7 +240,7 @@ func TestWithImmutableAttributes(t *testing.T) {
 					},
 				},
 			},
-			want: ocmCluster(t, ocmClusterDefaults().
+			want: ocmCluster(t, ocmClusterDefaults(api.TestLocation).
 				Version(arohcpv1alpha1.NewVersion().
 					ID("openshift-v4.19.7").
 					ChannelGroup("stable"))),
@@ -255,7 +255,7 @@ func TestWithImmutableAttributes(t *testing.T) {
 					},
 				},
 			},
-			want: ocmCluster(t, ocmClusterDefaults().
+			want: ocmCluster(t, ocmClusterDefaults(api.TestLocation).
 				Version(arohcpv1alpha1.NewVersion().
 					ID("openshift-v4.19.19-candidate").
 					ChannelGroup("candidate"))),
@@ -270,7 +270,7 @@ func TestWithImmutableAttributes(t *testing.T) {
 					},
 				},
 			},
-			want: ocmCluster(t, ocmClusterDefaults().
+			want: ocmCluster(t, ocmClusterDefaults(api.TestLocation).
 				Version(arohcpv1alpha1.NewVersion().
 					ID("openshift-v4.19.0-0.nightly-2025-01-01-nightly").
 					ChannelGroup("nightly"))),
@@ -282,7 +282,7 @@ func TestWithImmutableAttributes(t *testing.T) {
 					Version: api.VersionProfile{ID: "4.19", ChannelGroup: "stable"},
 				},
 			},
-			want: ocmCluster(t, ocmClusterDefaults().Version(
+			want: ocmCluster(t, ocmClusterDefaults(api.TestLocation).Version(
 				arohcpv1alpha1.NewVersion().ID("openshift-v4.19.7").ChannelGroup("stable"))),
 		},
 		{
@@ -292,8 +292,8 @@ func TestWithImmutableAttributes(t *testing.T) {
 					Version: api.VersionProfile{ID: "4.20", ChannelGroup: "stable"},
 				},
 			},
-			want: ocmCluster(t, ocmClusterDefaults().Version(
-				arohcpv1alpha1.NewVersion().ID("openshift-v4.20.5").ChannelGroup("stable"))),
+			want: ocmCluster(t, ocmClusterDefaults(api.TestLocation).Version(
+				arohcpv1alpha1.NewVersion().ID("openshift-v4.20.8").ChannelGroup("stable"))),
 		},
 	}
 
@@ -303,7 +303,7 @@ func TestWithImmutableAttributes(t *testing.T) {
 			require.NoError(t, arohcpv1alpha1.MarshalCluster(tc.want, &buf))
 			want := buf.String()
 			builder, err := withImmutableAttributes(
-				ocmClusterDefaults(),
+				ocmClusterDefaults(api.TestLocation),
 				api.ClusterTestCase(t, tc.hcpCluster),
 				api.TestSubscriptionID,
 				api.TestResourceGroupName,
@@ -348,7 +348,7 @@ func ocmCluster(t *testing.T, builders ...*arohcpv1alpha1.ClusterBuilder) *arohc
 	return cluster
 }
 
-func ocmClusterDefaults() *arohcpv1alpha1.ClusterBuilder {
+func ocmClusterDefaults(azureLocation string) *arohcpv1alpha1.ClusterBuilder {
 	// This reflects how the immutable attributes get set when passed a minimally
 	// valid RP cluster, using constants from internal/api/testhelpers.go.
 	return arohcpv1alpha1.NewCluster().
@@ -394,7 +394,7 @@ func ocmClusterDefaults() *arohcpv1alpha1.ClusterBuilder {
 		Product(arohcpv1alpha1.NewProduct().
 			ID("aro")).
 		Region(arohcpv1alpha1.NewCloudRegion().
-			ID(arm.GetAzureLocation())).
+			ID(azureLocation)).
 		Version(arohcpv1alpha1.NewVersion().
 			ID("").
 			ChannelGroup("stable")).
@@ -404,7 +404,15 @@ func ocmClusterDefaults() *arohcpv1alpha1.ClusterBuilder {
 
 func getHCPNodePoolResource(opts ...func(*api.HCPOpenShiftClusterNodePool)) *api.HCPOpenShiftClusterNodePool {
 	nodePool := &api.HCPOpenShiftClusterNodePool{
-		Properties: api.HCPOpenShiftClusterNodePoolProperties{},
+		Properties: api.HCPOpenShiftClusterNodePoolProperties{
+			Platform: api.NodePoolPlatformProfile{
+				OSDisk: api.OSDiskProfile{
+					// SizeGiB is initialized to 64 to reflect the default value set by SetDefaultValuesNodePool
+					// in the real API flow. This ensures tests match production behavior where SizeGiB is never nil.
+					SizeGiB: ptr.To(int32(64)),
+				},
+			},
+		},
 	}
 
 	for _, opt := range opts {
@@ -413,8 +421,7 @@ func getHCPNodePoolResource(opts ...func(*api.HCPOpenShiftClusterNodePool)) *api
 	return nodePool
 }
 
-// Because we don't distinguish between unset and empty values in our JSON parsing
-// we will get the resulting CS object from an empty HCPOpenShiftClusterNodePool object.
+// Base CS nodepool builder that reflects the defaults set in getHCPNodePoolResource.
 func getBaseCSNodePoolBuilder() *arohcpv1alpha1.NodePoolBuilder {
 	return arohcpv1alpha1.NewNodePool().
 		ID("").
@@ -427,7 +434,7 @@ func getBaseCSNodePoolBuilder() *arohcpv1alpha1.NodePoolBuilder {
 					State(csEncryptionAtHostStateDisabled),
 			).
 			OsDisk(arohcpv1alpha1.NewAzureNodePoolOsDisk().
-				SizeGibibytes(0).
+				SizeGibibytes(64).
 				StorageAccountType(""),
 			),
 		).
@@ -728,7 +735,7 @@ func getBaseCSClusterBuilder(updating bool) *arohcpv1alpha1.ClusterBuilder {
 	if updating {
 		builder = arohcpv1alpha1.NewCluster()
 	} else {
-		builder = ocmClusterDefaults()
+		builder = ocmClusterDefaults(api.TestLocation)
 		clusterAPIBuilder = clusterAPIBuilder.Listening(arohcpv1alpha1.ListeningMethodExternal)
 	}
 
@@ -858,7 +865,7 @@ func TestBuildCSCluster(t *testing.T) {
 			require.NoError(t, err)
 
 			// Build actual CS cluster
-			actualBuilder, err := BuildCSCluster(resourceID, requestHeader, hcpCluster, tc.updating)
+			actualClusterBuilder, actualAutoscalerBuilder, err := BuildCSCluster(resourceID, requestHeader, hcpCluster, tc.updating)
 
 			if tc.expectedError != "" {
 				require.Error(t, err)
@@ -872,7 +879,7 @@ func TestBuildCSCluster(t *testing.T) {
 			expected, err := tc.expectedCSCluster.Build()
 			require.NoError(t, err)
 
-			actual, err := actualBuilder.Build()
+			actual, err := actualClusterBuilder.Autoscaler(actualAutoscalerBuilder).Build()
 			require.NoError(t, err)
 
 			// Compare

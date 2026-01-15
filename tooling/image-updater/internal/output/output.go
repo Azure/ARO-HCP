@@ -86,7 +86,11 @@ func GenerateCommitMessage(updates map[string][]yaml.Update) string {
 				newSHA = newSHA[:truncatedSHALength] + "…"
 			}
 
-			version := update.Tag
+			// Use Version if available, otherwise fall back to Tag
+			version := update.Version
+			if version == "" {
+				version = update.Tag
+			}
 			if version == "" {
 				version = "-"
 			}

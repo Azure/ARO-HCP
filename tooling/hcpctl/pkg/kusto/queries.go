@@ -63,10 +63,21 @@ func (q *ConfigurableQuery) WithLimit(limit int) *ConfigurableQuery {
 	return q
 }
 
+func (q *ConfigurableQuery) WithOrderByTimestampAsc() *ConfigurableQuery {
+	q.Query.AddLiteral("\n| order by timestamp asc")
+	return q
+}
+
 func (q *ConfigurableQuery) WithTimestampMinAndMax(timestampMin time.Time, timestampMax time.Time) *ConfigurableQuery {
 	q.Query.AddLiteral("\n| where timestamp >= timestampMin and timestamp <= timestampMax")
 	q.Parameters.AddDateTime("timestampMin", timestampMin)
 	q.Parameters.AddDateTime("timestampMax", timestampMax)
+	return q
+}
+
+func (q *ConfigurableQuery) WithResourceIdHasResourceGroup(resourceGroup string) *ConfigurableQuery {
+	q.Query.AddLiteral("\n| where resource_id has resourceGroupName")
+	q.Parameters.AddString("resourceGroupName", resourceGroup)
 	return q
 }
 
@@ -84,8 +95,7 @@ func (q *ConfigurableQuery) WithClusterIdOrSubscriptionAndResourceGroup(clusterI
 
 func NewClusterIdQuery(database, clusterServiceLogsTable, subscriptionId, resourceGroup string) *ConfigurableQuery {
 	builder := kql.New("").AddTable(clusterServiceLogsTable)
-	builder.AddLiteral("\n| where log has subscriptionId  and log has resourceGroupName")
-	builder.AddLiteral("\n| extend cid=extract(@\"cid='([a-v0-9]{32})'\", 1, tostring(log))")
+	builder.AddLiteral("\n| where resource_id has subscriptionId and resource_id has resourceGroupName")
 	builder.AddLiteral("\n| distinct cid")
 
 	parameters := kql.NewParameters()

@@ -3,7 +3,7 @@ module github.com/Azure/ARO-HCP/tooling/hcpctl
 go 1.24.4
 
 require (
-	github.com/Azure/ARO-Tools v0.0.0-20251210160534-1cb8cc444c30
+	github.com/Azure/ARO-Tools v0.0.0-20260112224556-4fc17a690209
 	github.com/Azure/azure-kusto-go v0.16.1
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.20.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice v1.0.0
@@ -14,7 +14,7 @@ require (
 	github.com/google/go-cmp v0.7.0
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510
 	github.com/openshift/hypershift/api v0.0.0-20240604072534-cd2d5291e2b7
-	github.com/spf13/cobra v1.10.1
+	github.com/spf13/cobra v1.10.2
 	github.com/stretchr/testify v1.11.1
 	golang.org/x/sync v0.19.0
 	gopkg.in/yaml.v3 v3.0.1
@@ -28,7 +28,7 @@ require (
 )
 
 require (
-	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.13.0 // indirect
+	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.13.1 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity/cache v0.3.2 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/internal v1.11.2 // indirect
 	github.com/Azure/go-ansiterm v0.0.0-20250102033503-faa5f7b0171c // indirect
@@ -39,7 +39,7 @@ require (
 	github.com/Azure/go-autorest/logger v0.2.1 // indirect
 	github.com/Azure/go-autorest/tracing v0.6.0 // indirect
 	github.com/AzureAD/microsoft-authentication-extensions-for-go/cache v0.1.1 // indirect
-	github.com/AzureAD/microsoft-authentication-library-for-go v1.5.0 // indirect
+	github.com/AzureAD/microsoft-authentication-library-for-go v1.6.0 // indirect
 	github.com/MakeNowJust/heredoc v1.0.0 // indirect
 	github.com/blang/semver/v4 v4.0.0 // indirect
 	github.com/chai2010/gettext-go v1.0.2 // indirect

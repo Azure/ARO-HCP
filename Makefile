@@ -1,6 +1,7 @@
 include ./.bingo/Variables.mk
 include ./.bingo/Symlinks.mk
 include ./tooling/templatize/Makefile
+include ./tooling/yamlwrap/Makefile
 include ./test/Makefile
 SHELL = /bin/bash
 PATH := $(GOBIN):$(PATH)
@@ -66,13 +67,13 @@ fmt: $(GOIMPORTS)
 	$(GOIMPORTS) -w -local github.com/Azure/ARO-HCP $(shell go list -f '{{.Dir}}' -m | xargs)
 .PHONY: fmt
 
-yamlfmt: $(YAMLFMT)
+yamlfmt: $(YAMLFMT) $(YAMLWRAP)
 	# first, wrap all templated values in quotes, so they are correct YAML
-	./yamlfmt.wrap.sh
+	$(YAMLWRAP) wrap --dir . --no-validate-result
 	# run the formatter
 	$(YAMLFMT) -dstar -exclude './api/**' '**/*.{yaml,yml}'
 	# "fix" any non-string fields we cast to strings for the formatting
-	./yamlfmt.unwrap.sh
+	$(YAMLWRAP) unwrap --dir .
 .PHONY: yamlfmt
 
 tidy: $(MODULES:/...=.tidy)
@@ -109,16 +110,19 @@ e2e-local/run: $(ARO_HCP_TESTS)
 	export CUSTOMER_SUBSCRIPTION="$$(az account show --output tsv --query 'name')"; \
 	export ARTIFACT_DIR=$${ARTIFACT_DIR:-_artifacts}; \
 	export JUNIT_PATH=$${JUNIT_PATH:-$$ARTIFACT_DIR/junit.xml}; \
+	export HTML_PATH=$${HTML_PATH:-$$ARTIFACT_DIR/extension-test-result-summary.html}; \
 	mkdir -p "$$ARTIFACT_DIR"; \
-	$(ARO_HCP_TESTS) run-suite "rp-api-compat-all/parallel" --junit-path="$$JUNIT_PATH"
+	$(ARO_HCP_TESTS) run-suite "rp-api-compat-all/parallel" --junit-path="$$JUNIT_PATH" --html-path="$$HTML_PATH"
 .PHONY: e2e-local/run
 
+CONTAINER_RUNTIME ?= docker
+
 mega-lint:
-	docker run --rm \
-		-e FILTER_REGEX_EXCLUDE='hypershiftoperator/deploy/crds/|maestro/server/deploy/templates/allow-cluster-service.authorizationpolicy.yaml|acm/deploy/helm/multicluster-engine-config/charts/policy/charts' \
+	$(CONTAINER_RUNTIME) run --rm \
+		-e FILTER_REGEX_EXCLUDE='hypershiftoperator/deploy/crds/|maestro/server/deploy/templates/allow-cluster-service.authorizationpolicy.yaml|acm/deploy/helm/multicluster-engine-config/charts/policy/charts|dev-infrastructure/global-pipeline.yaml|tooling/templatize/testdata/pipeline.yaml' \
 		-e REPORT_OUTPUT_FOLDER=/tmp/report \
 		-v $${PWD}:/tmp/lint:Z \
-		oxsecurity/megalinter:v8
+		docker.io/oxsecurity/megalinter-ci_light:v9
 .PHONY: mega-lint
 
 #
@@ -414,6 +418,19 @@ cleanup: $(TEMPLATIZE)
 								     --dev-environment $(DEPLOY_ENV) \
 								     $(WHAT) \
 								     --dry-run=$(CLEANUP_DRY_RUN) \
-									 --ignore=global --ignore=hcp-kusto-us \
+									 --ignore=global --ignore=kusto \
 								     --wait=$(CLEANUP_WAIT) \
 								     --verbosity=$(LOG_LEVEL)
+
+# Image Updater
+image-updater:
+	@$(MAKE) -C tooling/image-updater update
+.PHONY: image-updater
+
+promote-stage:
+	@$(MAKE) -C tooling/image-updater promote-stage
+.PHONY: promote-stage
+
+promote-prod:
+	@$(MAKE) -C tooling/image-updater promote-prod
+.PHONY: promote-prod

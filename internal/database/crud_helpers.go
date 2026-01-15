@@ -62,6 +62,20 @@ func getByItemID[InternalAPIType, CosmosAPIType any](ctx context.Context, contai
 }
 
 func get[InternalAPIType, CosmosAPIType any](ctx context.Context, containerClient *azcosmos.ContainerClient, partitionKeyString string, completeResourceID *azcorearm.ResourceID) (*InternalAPIType, error) {
+	logger := utils.LoggerFromContext(ctx)
+
+	// try to see if the cosmosID we've passed is also the exact resource ID.  If so, then return the value we got.
+	if exactCosmosID, err := api.ResourceIDToCosmosID(completeResourceID); err == nil {
+		ret, err := getByItemID[InternalAPIType, CosmosAPIType](ctx, containerClient, partitionKeyString, exactCosmosID)
+		if err == nil {
+			return ret, nil
+		}
+		if !IsResponseError(err, http.StatusNotFound) {
+			return nil, err
+		}
+	}
+	logger.Info("failed to get exact cosmosID, trying to rekey")
+
 	if strings.ToLower(partitionKeyString) != partitionKeyString {
 		return nil, fmt.Errorf("partitionKeyString must be lowercase, not: %q", partitionKeyString)
 	}
@@ -126,21 +140,35 @@ func list[InternalAPIType, CosmosAPIType any](ctx context.Context, containerClie
 	if strings.ToLower(partitionKeyString) != partitionKeyString {
 		return nil, fmt.Errorf("partitionKeyString must be lowercase, not: %q", partitionKeyString)
 	}
+	if prefix == nil && resourceType == nil {
+		return nil, fmt.Errorf("prefix or resource type is required")
+	}
 
-	query := "SELECT * FROM c WHERE STARTSWITH(c.properties.resourceId, @prefix, true)"
-
+	query := ""
 	queryOptions := azcosmos.QueryOptions{
 		PageSizeHint: -1,
-		QueryParameters: []azcosmos.QueryParameter{
-			{
-				Name:  "@prefix",
-				Value: prefix.String() + "/",
+	}
+	if prefix == nil {
+		query = "SELECT * FROM c"
+	} else {
+		query = "SELECT * FROM c WHERE STARTSWITH(c.properties.resourceId, @prefix, true)"
+		queryOptions = azcosmos.QueryOptions{
+			PageSizeHint: -1,
+			QueryParameters: []azcosmos.QueryParameter{
+				{
+					Name:  "@prefix",
+					Value: prefix.String() + "/",
+				},
 			},
-		},
+		}
 	}
 
 	if resourceType != nil {
-		query += " AND STRINGEQUALS(c.resourceType, @resourceType, true)"
+		if prefix == nil {
+			query += " WHERE STRINGEQUALS(c.resourceType, @resourceType, true)"
+		} else {
+			query += " AND STRINGEQUALS(c.resourceType, @resourceType, true)"
+		}
 		queryParameter := azcosmos.QueryParameter{
 			Name:  "@resourceType",
 			Value: resourceType.String(),
@@ -171,8 +199,14 @@ func list[InternalAPIType, CosmosAPIType any](ctx context.Context, containerClie
 		}
 		queryOptions.ContinuationToken = options.ContinuationToken
 	}
+	var partitionKey azcosmos.PartitionKey
+	if len(partitionKeyString) > 0 {
+		partitionKey = azcosmos.NewPartitionKeyString(partitionKeyString)
+	} else {
+		partitionKey = azcosmos.NewPartitionKey()
+	}
 
-	pager := containerClient.NewQueryItemsPager(query, azcosmos.NewPartitionKeyString(partitionKeyString), &queryOptions)
+	pager := containerClient.NewQueryItemsPager(query, partitionKey, &queryOptions)
 
 	if options != nil && ptr.Deref(options.PageSizeHint, -1) > 0 {
 		return newQueryResourcesSinglePageIterator[InternalAPIType, CosmosAPIType](pager), nil
@@ -186,7 +220,7 @@ func list[InternalAPIType, CosmosAPIType any](ctx context.Context, containerClie
 func serializeItem[InternalAPIType, CosmosAPIType any](newObj *InternalAPIType) (string, string, []byte, error) {
 	cosmosPersistable, ok := any(newObj).(api.CosmosPersistable)
 	if !ok {
-		return "", "", nil, fmt.Errorf("type %T does not implement ResourceProperties interface", newObj)
+		return "", "", nil, fmt.Errorf("type %T does not implement CosmosPersistable interface", newObj)
 	}
 	cosmosData := cosmosPersistable.GetCosmosData()
 

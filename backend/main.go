@@ -49,9 +49,10 @@ import (
 
 	ocmsdk "github.com/openshift-online/ocm-sdk-go"
 
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/backend/controllers"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/tracing"
+	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/internal/version"
 )
 
@@ -63,15 +64,18 @@ const (
 )
 
 var (
-	argKubeconfig           string
-	argNamespace            string
-	argLocation             string
-	argCosmosName           string
-	argCosmosURL            string
-	argClustersServiceURL   string
-	argInsecure             bool
-	argMetricsListenAddress string
-	argPortListenAddress    string
+	argKubeconfig             string
+	argNamespace              string
+	argLocation               string
+	argCosmosName             string
+	argCosmosURL              string
+	argClustersServiceURL     string
+	argInsecure               bool
+	argMetricsListenAddress   string
+	argPortListenAddress      string
+	argAzureRuntimeConfigPath string
+	argAzureFPACertBundlePath string
+	argAzureFPAClientID       string
 
 	processName = filepath.Base(os.Args[0])
 
@@ -106,6 +110,23 @@ func init() {
 	rootCmd.Flags().BoolVar(&argInsecure, "insecure", false, "Skip validating TLS for clusters-service")
 	rootCmd.Flags().StringVar(&argMetricsListenAddress, "metrics-listen-address", ":8081", "Address on which to expose metrics")
 	rootCmd.Flags().StringVar(&argPortListenAddress, "healthz-listen-address", ":8083", "Address on which Healthz endpoint will be supported")
+	rootCmd.Flags().StringVar(
+		&argAzureRuntimeConfigPath, "azure-runtime-config-path", "",
+		"Path to a file containing the Azure runtime configuration in JSON or YAML format following the schema defined "+
+			"in backend/pkg/apis/config/v1.AzureRuntimeConfig",
+	)
+	rootCmd.Flags().StringVar(
+		&argAzureFPACertBundlePath,
+		"azure-first-party-application-certificate-bundle-path", "",
+		"Path to a file containing an X.509 Certificate based client certificate, consisting of a private key and "+
+			"certificate chain, in a PEM or PKCS#12 format for authenticating clients with a first party application identity",
+	)
+	rootCmd.Flags().StringVar(
+		&argAzureFPAClientID,
+		"azure-first-party-application-client-id",
+		"",
+		"The client id of the first party application identity",
+	)
 
 	rootCmd.MarkFlagsRequiredTogether("cosmos-name", "cosmos-url")
 
@@ -121,22 +142,24 @@ func newKubeconfig(kubeconfig string) (*rest.Config, error) {
 }
 
 func Run(cmd *cobra.Command, args []string) error {
+	ctx := context.Background()
+
 	handler := slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
 		AddSource: true,
 	})
 	logger := slog.New(handler)
 	klog.SetLogger(logr.FromSlogHandler(handler))
+	ctx = utils.ContextWithLogger(ctx, logger)
 
 	if len(argLocation) == 0 {
 		return errors.New("location is required")
 	}
-	arm.SetAzureLocation(argLocation)
 
 	logger.Info(fmt.Sprintf(
 		"%s (%s) started in %s",
 		cmd.Short,
 		version.CommitSHA,
-		arm.GetAzureLocation()))
+		argLocation))
 
 	// Use pod name as the lock identity.
 	hostname, err := os.Hostname()
@@ -163,11 +186,10 @@ func Run(cmd *cobra.Command, args []string) error {
 	}
 
 	// Initialize the global OpenTelemetry tracer.
-	ctx := context.Background()
 	otelShutdown, err := tracing.ConfigureOpenTelemetryTracer(
 		ctx,
 		logger,
-		semconv.CloudRegion(arm.GetAzureLocation()),
+		semconv.CloudRegion(argLocation),
 		semconv.ServiceNameKey.String("ARO HCP Backend"),
 		semconv.ServiceVersionKey.String(version.CommitSHA),
 	)
@@ -274,8 +296,9 @@ func Run(cmd *cobra.Command, args []string) error {
 
 	group.Go(func() error {
 		var (
-			startedLeading    atomic.Bool
-			operationsScanner = NewOperationsScanner(dbClient, ocmConnection)
+			startedLeading      atomic.Bool
+			operationsScanner   = NewOperationsScanner(dbClient, ocmConnection, argLocation)
+			doNothingController = controllers.NewDoNothingExampleController(dbClient)
 		)
 
 		le, err := leaderelection.NewLeaderElector(leaderelection.LeaderElectionConfig{
@@ -287,7 +310,8 @@ func Run(cmd *cobra.Command, args []string) error {
 				OnStartedLeading: func(ctx context.Context) {
 					operationsScanner.leaderGauge.Set(1)
 					startedLeading.Store(true)
-					go operationsScanner.Run(ctx, logger)
+					go operationsScanner.Run(ctx)
+					go doNothingController.Run(ctx, 20)
 				},
 				OnStoppedLeading: func() {
 					operationsScanner.leaderGauge.Set(0)

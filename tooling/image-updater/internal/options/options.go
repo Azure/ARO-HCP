@@ -34,6 +34,7 @@ type RawUpdateOptions struct {
 	ForceUpdate       bool
 	Components        string
 	ExcludeComponents string
+	Environments      string // Comma-separated list of environments (dev, int, stg, prod)
 }
 
 // ValidatedUpdateOptions contains validated configuration and inputs
@@ -43,7 +44,8 @@ type ValidatedUpdateOptions struct {
 
 type validatedUpdateOptions struct {
 	*RawUpdateOptions
-	Config *config.Config
+	Config       *config.Config
+	Environments []string // Parsed and validated environment list
 }
 
 // DefaultUpdateOptions returns a new RawUpdateOptions with defaults
@@ -58,6 +60,7 @@ func BindUpdateOptions(opts *RawUpdateOptions, cmd *cobra.Command) error {
 	cmd.Flags().BoolVar(&opts.ForceUpdate, "force", false, "Force update even if digests match (useful for regenerating version tag comments)")
 	cmd.Flags().StringVar(&opts.Components, "components", "", "Update only specified components (comma-separated, e.g., 'maestro,arohcpfrontend'). If not specified, all components will be updated")
 	cmd.Flags().StringVar(&opts.ExcludeComponents, "exclude-components", "", "Exclude specified components from update (comma-separated, e.g., 'arohcpfrontend,arohcpbackend'). Ignored if --components is specified")
+	cmd.Flags().StringVar(&opts.Environments, "env", "", "Target environment: 'stg' (promote int→stage) or 'prod' (promote stage→prod). Default (omit flag): dev,int")
 
 	if err := cmd.MarkFlagRequired("config"); err != nil {
 		return err
@@ -75,6 +78,12 @@ func (o *RawUpdateOptions) Validate(ctx context.Context) (*ValidatedUpdateOption
 
 	if err := validateConfig(cfg); err != nil {
 		return nil, fmt.Errorf("invalid configuration: %w", err)
+	}
+
+	// Parse and validate environments
+	environments, err := parseAndValidateEnvironments(o.Environments)
+	if err != nil {
+		return nil, err
 	}
 
 	// --components takes precedence over --exclude-components
@@ -98,16 +107,98 @@ func (o *RawUpdateOptions) Validate(ctx context.Context) (*ValidatedUpdateOption
 		}
 	}
 
+	// Determine if we're in promotion mode
+	// For promotion (single env of stg or prod), we need both source and target envs
+	var envsToFilter []string
+	if len(environments) == 1 {
+		switch environments[0] {
+		case "stg":
+			// Need both int (source) and stg (target)
+			envsToFilter = []string{"int", "stg"}
+		case "prod":
+			// Need both stg (source) and prod (target)
+			envsToFilter = []string{"stg", "prod"}
+		default:
+			envsToFilter = environments
+		}
+	} else {
+		envsToFilter = environments
+	}
+
+	// Filter targets by environment
+	cfg, err = cfg.FilterByEnvironments(envsToFilter)
+	if err != nil {
+		return nil, fmt.Errorf("failed to filter config by environments: %w", err)
+	}
+
 	return &ValidatedUpdateOptions{
 		validatedUpdateOptions: &validatedUpdateOptions{
 			RawUpdateOptions: o,
 			Config:           cfg,
+			Environments:     environments,
 		},
 	}, nil
 }
 
+// parseAndValidateEnvironments parses the environment string and validates each environment
+func parseAndValidateEnvironments(envStr string) ([]string, error) {
+	// Default to dev,int if not specified
+	if envStr == "" {
+		return []string{"dev", "int"}, nil
+	}
+
+	// Only allow 'stg' or 'prod' as explicit values
+	// Users cannot explicitly specify 'dev' or 'int'
+	env := strings.TrimSpace(envStr)
+	switch env {
+	case "stg":
+		return []string{"stg"}, nil
+	case "prod":
+		return []string{"prod"}, nil
+	default:
+		return nil, fmt.Errorf("invalid environment %q: must be 'stg' or 'prod' (omit flag for default dev,int)", env)
+	}
+}
+
 // Complete creates all necessary clients and resources for execution and returns a ready-to-execute Updater
 func (v *ValidatedUpdateOptions) Complete(ctx context.Context) (*updater.Updater, error) {
+	// Determine the promotion mode based on environments
+	// stg copies from int, prod copies from stg
+	var promotionMode updater.PromotionMode
+	if len(v.Environments) == 1 {
+		switch v.Environments[0] {
+		case "stg":
+			promotionMode = updater.PromoteToStage
+		case "prod":
+			promotionMode = updater.PromoteToProduction
+		default:
+			promotionMode = updater.FetchLatest
+		}
+	} else {
+		// Multiple environments or dev/int - use fetch mode
+		promotionMode = updater.FetchLatest
+	}
+
+	// If we're in promotion mode, we don't need registry clients
+	// We'll just copy digests from the source environment
+	if promotionMode != updater.FetchLatest {
+		// Initialize YAML editors for target files
+		yamlEditors := make(map[string]*yaml.Editor)
+		for _, imageConfig := range v.Config.Images {
+			for _, target := range imageConfig.Targets {
+				if _, exists := yamlEditors[target.FilePath]; !exists {
+					editor, err := yaml.NewEditor(target.FilePath)
+					if err != nil {
+						return nil, fmt.Errorf("failed to create YAML editor for %s: %w", target.FilePath, err)
+					}
+					yamlEditors[target.FilePath] = editor
+				}
+			}
+		}
+
+		return updater.New(v.Config, v.DryRun, v.ForceUpdate, nil, yamlEditors, promotionMode, v.Environments), nil
+	}
+
 	// Collect unique Key Vault configurations from all images
 	// Use a map to deduplicate (same vault+secret combination)
 	kvConfigs := make(map[string]clients.KeyVaultConfig)
@@ -171,7 +262,7 @@ func (v *ValidatedUpdateOptions) Complete(ctx context.Context) (*updater.Updater
 		}
 	}
 
-	return updater.New(v.Config, v.DryRun, v.ForceUpdate, registryClients, yamlEditors), nil
+	return updater.New(v.Config, v.DryRun, v.ForceUpdate, registryClients, yamlEditors, promotionMode, v.Environments), nil
 }
 
 // validateConfig ensures the configuration is complete and valid

@@ -32,9 +32,11 @@ type PostAsyncNotificationFunc func(ctx context.Context, operation *api.Operatio
 
 // UpdateOperationStatus updates Cosmos DB to reflect an updated resource status.
 func UpdateOperationStatus(ctx context.Context, cosmosClient DBClient, operation *api.Operation, opStatus arm.ProvisioningState, opError *arm.CloudErrorBody, postAsyncNotificationFn PostAsyncNotificationFunc) error {
+	logger := utils.LoggerFromContext(ctx)
 	if operation == nil {
 		return nil
 	}
+	logger.Info("Updating operation status", "oldStatus", operation.Status, "status", opStatus, "operationError", opError)
 
 	err := PatchOperationDocument(ctx, cosmosClient, operation, opStatus, opError, postAsyncNotificationFn)
 	if err != nil {
@@ -44,6 +46,7 @@ func UpdateOperationStatus(ctx context.Context, cosmosClient DBClient, operation
 	// TODO make this an etag based replace to avoid conflict
 	switch {
 	case operation.ExternalID == nil:
+		logger.Info("No external ID, skipping update")
 		return nil
 
 	case strings.EqualFold(operation.ExternalID.ResourceType.String(), api.ClusterResourceType.String()):

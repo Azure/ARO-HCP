@@ -2,6 +2,17 @@
 
 This directory contains scripts to manage Azure AD credentials for ARO HCP E2E tests in the Test Test Azure Red Hat OpenShift tenant.
 
+## Base Image
+
+The `Dockerfile` in this directory defines the base image used in our release configurations. This image includes:
+
+- Red Hat UBI 9 base image
+- Azure CLI with Bicep extension
+- Go 1.24.4
+- kubectl and kubelogin
+- OpenShift CLI (oc)
+- Required system tools (make, git, procps-ng)
+
 ## Scripts Overview
 
 | Script | Purpose |

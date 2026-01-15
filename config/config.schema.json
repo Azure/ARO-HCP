@@ -55,6 +55,10 @@
       "type": "string",
       "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
     },
+    "semVerWithPrerelease": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(-[0-9A-Za-z-]+(\\.[0-9A-Za-z-]+)*)?$"
+    },
     "k8sRollingUpdateDeploymentStrategy": {
       "type": "object",
       "description": "Spec to control the desired behavior of rolling update.",
@@ -945,7 +949,6 @@
             }
           },
           "required": [
-            "version",
             "bundle"
           ]
         },
@@ -961,7 +964,6 @@
           },
           "additionalProperties": false,
           "required": [
-            "version",
             "bundle"
           ]
         }
@@ -1105,6 +1107,70 @@
                       "oneOf": [
                         {
                           "$ref": "#/definitions/semVer"
+                        },
+                        {
+                          "type": "string",
+                          "pattern": "^$"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "minVersion",
+                    "maxVersion"
+                  ],
+                  "additionalProperties": false
+                },
+                "candidate": {
+                  "type": "object",
+                  "properties": {
+                    "minVersion": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/definitions/semVerWithPrerelease"
+                        },
+                        {
+                          "type": "string",
+                          "pattern": "^$"
+                        }
+                      ]
+                    },
+                    "maxVersion": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/definitions/semVerWithPrerelease"
+                        },
+                        {
+                          "type": "string",
+                          "pattern": "^$"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "minVersion",
+                    "maxVersion"
+                  ],
+                  "additionalProperties": false
+                },
+                "nightly": {
+                  "type": "object",
+                  "properties": {
+                    "minVersion": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/definitions/semVerWithPrerelease"
+                        },
+                        {
+                          "type": "string",
+                          "pattern": "^$"
+                        }
+                      ]
+                    },
+                    "maxVersion": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/definitions/semVerWithPrerelease"
                         },
                         {
                           "type": "string",
@@ -1669,6 +1735,15 @@
         "viewerGroups": {
           "type": "string"
         },
+        "enableAutoScale": {
+          "type": "boolean"
+        },
+        "autoScaleMin": {
+          "type": "integer"
+        },
+        "autoScaleMax": {
+          "type": "integer"
+        },
         "kustoName": {
           "type": "string",
           "description": "Name of the kusto cluster. Must begin with a letter and contain between 4 and 22 lowercase alphanumeric characters.",
@@ -1706,7 +1781,8 @@
         "hostedControlPlaneLogsDatabase",
         "adminGroups",
         "viewerGroups",
-        "kustoName"
+        "kustoName",
+        "enableAutoScale"
       ]
     },
     "mise": {
@@ -2316,6 +2392,9 @@
           "pattern": "^[a-z0-9][a-z0-9-]*[a-z0-9]$",
           "description": "The workspace name should include 4-63 letters, digits or '-'. The '-' shouldn't be the first or the last symbol. We limit the name to 44 characters so we have a future option to use NSP: https://learn.microsoft.com/en-us/azure/private-link/network-security-perimeter-concepts"
         },
+        "alertRuleOwningTeamTag": {
+          "type": "string"
+        },
         "icm": {
           "type": "object",
           "properties": {
@@ -2361,7 +2440,8 @@
         "crossTenantSecurityGroup",
         "grafanaZoneRedundantMode",
         "svcWorkspaceName",
-        "hcpWorkspaceName"
+        "hcpWorkspaceName",
+        "alertRuleOwningTeamTag"
       ]
     },
     "routeMonitorOperator": {

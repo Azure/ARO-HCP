@@ -33,8 +33,6 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	armauthorization "github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v3"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
-
-	"github.com/Azure/ARO-HCP/test/util/log"
 )
 
 const (
@@ -102,6 +100,24 @@ func NewDefaultIdentities() Identities {
 	}
 }
 
+func NewDefaultIdentitiesWithSuffix(suffix string) Identities {
+	return Identities{
+		ClusterApiAzureMiName:        fmt.Sprintf("%s-%s", ClusterApiAzureMiName, suffix),
+		ControlPlaneMiName:           fmt.Sprintf("%s-%s", ControlPlaneMiName, suffix),
+		CloudControllerManagerMiName: fmt.Sprintf("%s-%s", CloudControllerManagerMiName, suffix),
+		IngressMiName:                fmt.Sprintf("%s-%s", IngressMiName, suffix),
+		DiskCsiDriverMiName:          fmt.Sprintf("%s-%s", DiskCsiDriverMiName, suffix),
+		FileCsiDriverMiName:          fmt.Sprintf("%s-%s", FileCsiDriverMiName, suffix),
+		ImageRegistryMiName:          fmt.Sprintf("%s-%s", ImageRegistryMiName, suffix),
+		CloudNetworkConfigMiName:     fmt.Sprintf("%s-%s", CloudNetworkConfigMiName, suffix),
+		KmsMiName:                    fmt.Sprintf("%s-%s", KmsMiName, suffix),
+		DpDiskCsiDriverMiName:        fmt.Sprintf("%s-%s", DpDiskCsiDriverMiName, suffix),
+		DpFileCsiDriverMiName:        fmt.Sprintf("%s-%s", DpFileCsiDriverMiName, suffix),
+		DpImageRegistryMiName:        fmt.Sprintf("%s-%s", DpImageRegistryMiName, suffix),
+		ServiceManagedIdentityName:   fmt.Sprintf("%s-%s", ServiceManagedIdentityName, suffix),
+	}
+}
+
 func (tc *perItOrDescribeTestContext) UsePooledIdentities() bool {
 	return tc.perBinaryInvocationTestContext.UsePooledIdentities()
 }
@@ -143,6 +159,7 @@ func (tc *perItOrDescribeTestContext) ResolveIdentitiesForTemplate(resourceGroup
 // identities object and usePooledIdentities flag for their parameters.
 func (tc *perItOrDescribeTestContext) DeployManagedIdentities(
 	ctx context.Context,
+	clusterName string,
 	opts ...BicepDeploymentOption,
 ) (*armresources.DeploymentExtended, error) {
 
@@ -165,7 +182,7 @@ func (tc *perItOrDescribeTestContext) DeployManagedIdentities(
 
 	usePooled := tc.UsePooledIdentities()
 	msiRGName := cfg.resourceGroup
-	identities := NewDefaultIdentities()
+	var identities Identities
 
 	if usePooled {
 		msiPool, err := tc.getLeasedIdentities()
@@ -174,6 +191,8 @@ func (tc *perItOrDescribeTestContext) DeployManagedIdentities(
 		}
 		msiRGName = msiPool.ResourceGroupName
 		identities = msiPool.Identities
+	} else {
+		identities = NewDefaultIdentitiesWithSuffix(clusterName)
 	}
 
 	parameters := map[string]interface{}{
@@ -446,7 +465,7 @@ func newLeasedIdentityPoolState(path string) (*leasedIdentityPoolState, error) {
 	}
 	defer func() {
 		if err := state.unlock(); err != nil {
-			log.Logger.WithError(err).Warn("failed to release managed identities pool state file lock")
+			ginkgo.GinkgoLogr.Info("WARN: failed to release managed identities pool state file lock", "error", err)
 		}
 	}()
 
@@ -466,7 +485,7 @@ func newLeasedIdentityPoolState(path string) (*leasedIdentityPoolState, error) {
 	if err := state.initializeUnlocked(leasedRGs); err != nil {
 		return &leasedIdentityPoolState{}, fmt.Errorf("failed to initialize managed identities pool state: %w", err)
 	}
-	log.Logger.Infof("initialized managed identities pool state with %d entries", len(state.entries))
+	ginkgo.GinkgoLogr.Info("initialized managed identities pool state", "entries", len(state.entries))
 
 	return &state, nil
 }
@@ -478,7 +497,7 @@ func (state *leasedIdentityPoolState) useNextAssigned(me string) (string, error)
 	}
 	defer func() {
 		if err := state.unlock(); err != nil {
-			log.Logger.WithError(err).Warn("failed to release managed identities pool state file lock")
+			ginkgo.GinkgoLogr.Info("WARN: failed to release managed identities pool state file lock", "error", err)
 		}
 	}()
 
@@ -519,7 +538,7 @@ func (state *leasedIdentityPoolState) assignNTo(me string, n uint8) error {
 	}
 	defer func() {
 		if err := state.unlock(); err != nil {
-			log.Logger.WithError(err).Warn("failed to release managed identities pool state file lock")
+			ginkgo.GinkgoLogr.Info("WARN: failed to release managed identities pool state file lock", "error", err)
 		}
 	}()
 
@@ -557,7 +576,7 @@ func (state *leasedIdentityPoolState) releaseByContainerName(resourceGroup strin
 	}
 	defer func() {
 		if err := state.unlock(); err != nil {
-			log.Logger.WithError(err).Warn("failed to release managed identities pool state file lock")
+			ginkgo.GinkgoLogr.Info("WARN: failed to release managed identities pool state file lock", "error", err)
 		}
 	}()
 
@@ -569,7 +588,7 @@ func (state *leasedIdentityPoolState) releaseByContainerName(resourceGroup strin
 		if state.entries[i].ResourceGroup == resourceGroup {
 			if err := state.entries[i].release(cleanupFn); err != nil {
 				// cleanup is best effort, just log errors and continue
-				log.Logger.WithError(err).Warnf("failed to release managed identities resource group %s", resourceGroup)
+				ginkgo.GinkgoLogr.Info("WARN: failed to release managed identities resource group", "resourceGroup", resourceGroup, "error", err)
 			}
 			if err := state.writeUnlocked(); err != nil {
 				return fmt.Errorf("failed to write managed identities pool state file: %w", err)
@@ -589,7 +608,7 @@ func (state *leasedIdentityPoolState) getLeasedIdentityContainers(me string) ([]
 	}
 	defer func() {
 		if err := state.unlock(); err != nil {
-			log.Logger.WithError(err).Warn("failed to release managed identities pool state file lock")
+			ginkgo.GinkgoLogr.Info("WARN: failed to release managed identities pool state file lock", "error", err)
 		}
 	}()
 
@@ -628,7 +647,7 @@ func (state *leasedIdentityPoolState) readUnlocked() error {
 	}
 	defer func() {
 		if err := f.Close(); err != nil {
-			log.Logger.WithError(err).Warn("failed to close managed identities pool state file after read")
+			ginkgo.GinkgoLogr.Info("WARN: failed to close managed identities pool state file after read", "error", err)
 		}
 	}()
 
@@ -663,7 +682,7 @@ func (state *leasedIdentityPoolState) writeUnlocked() error {
 
 	cleanupTemp := func() {
 		if err := os.Remove(tmp.Name()); err != nil && !os.IsNotExist(err) {
-			log.Logger.WithError(err).Warn("failed to remove temporary managed identities pool state file")
+			ginkgo.GinkgoLogr.Info("WARN: failed to remove temporary managed identities pool state file", "error", err)
 		}
 	}
 

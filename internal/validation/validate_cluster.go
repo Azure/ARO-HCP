@@ -645,12 +645,21 @@ func validateUserAssignedIdentitiesProfile(ctx context.Context, op operation.Ope
 	return errs
 }
 
+var (
+	toClusterAutoscalingProfileMaxPodGracePeriodSeconds    = func(oldObj *api.ClusterAutoscalingProfile) *int32 { return &oldObj.MaxPodGracePeriodSeconds }
+	toClusterAutoscalingProfileMaxNodeProvisionTimeSeconds = func(oldObj *api.ClusterAutoscalingProfile) *int32 { return &oldObj.MaxNodeProvisionTimeSeconds }
+)
+
 func validateClusterAutoscalingProfile(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *api.ClusterAutoscalingProfile) field.ErrorList {
 	errs := field.ErrorList{}
 
 	//MaxNodesTotal               int32 `json:"maxNodesTotal,omitempty"`
 	//MaxPodGracePeriodSeconds    int32 `json:"maxPodGracePeriodSeconds,omitempty"`
+	errs = append(errs, validate.Minimum(ctx, op, fldPath.Child("maxPodGracePeriodSeconds"), &newObj.MaxPodGracePeriodSeconds, safe.Field(oldObj, toClusterAutoscalingProfileMaxPodGracePeriodSeconds), 1)...)
+
 	//MaxNodeProvisionTimeSeconds int32 `json:"maxNodeProvisionTimeSeconds,omitempty"`
+	errs = append(errs, validate.Minimum(ctx, op, fldPath.Child("maxNodeProvisionTimeSeconds"), &newObj.MaxNodeProvisionTimeSeconds, safe.Field(oldObj, toClusterAutoscalingProfileMaxNodeProvisionTimeSeconds), 1)...)
+
 	//PodPriorityThreshold        int32 `json:"podPriorityThreshold,omitempty"`
 
 	return errs

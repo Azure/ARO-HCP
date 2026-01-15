@@ -24,6 +24,8 @@ import (
 
 	"github.com/google/uuid"
 
+	"k8s.io/utils/ptr"
+
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
@@ -365,7 +367,7 @@ func convertCIDRBlockAllowAccessRPToCS(in api.CustomerAPIProfile) (*arohcpv1alph
 }
 
 // ConvertCStoHCPOpenShiftCluster converts a CS Cluster object into an HCPOpenShiftCluster object.
-func ConvertCStoHCPOpenShiftCluster(resourceID *azcorearm.ResourceID, cluster *arohcpv1alpha1.Cluster) (*api.HCPOpenShiftCluster, error) {
+func ConvertCStoHCPOpenShiftCluster(resourceID *azcorearm.ResourceID, azureLocation string, cluster *arohcpv1alpha1.Cluster) (*api.HCPOpenShiftCluster, error) {
 	// A word about ProvisioningState:
 	// ProvisioningState is stored in Cosmos and is applied to the
 	// HCPOpenShiftCluster struct along with the ARM metadata that
@@ -399,7 +401,7 @@ func ConvertCStoHCPOpenShiftCluster(resourceID *azcorearm.ResourceID, cluster *a
 				Name: resourceID.Name,
 				Type: resourceID.ResourceType.String(),
 			},
-			Location: arm.GetAzureLocation(),
+			Location: azureLocation,
 		},
 		CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
 			Version: api.VersionProfile{
@@ -560,13 +562,13 @@ func convertRpAutoscalarToCSBuilder(in *api.ClusterAutoscalingProfile) (*arohcpv
 }
 
 // BuildCSCluster creates a CS ClusterBuilder object from an HCPOpenShiftCluster object.
-func BuildCSCluster(resourceID *azcorearm.ResourceID, requestHeader http.Header, hcpCluster *api.HCPOpenShiftCluster, updating bool) (*arohcpv1alpha1.ClusterBuilder, error) {
+func BuildCSCluster(resourceID *azcorearm.ResourceID, requestHeader http.Header, hcpCluster *api.HCPOpenShiftCluster, updating bool) (*arohcpv1alpha1.ClusterBuilder, *arohcpv1alpha1.ClusterAutoscalerBuilder, error) {
 	var err error
 
 	// Ensure required headers are present.
 	tenantID := requestHeader.Get(arm.HeaderNameHomeTenantID)
 	if tenantID == "" {
-		return nil, fmt.Errorf("missing " + arm.HeaderNameHomeTenantID + " header")
+		return nil, nil, fmt.Errorf("missing " + arm.HeaderNameHomeTenantID + " header")
 	}
 
 	clusterBuilder := arohcpv1alpha1.NewCluster()
@@ -582,11 +584,11 @@ func BuildCSCluster(resourceID *azcorearm.ResourceID, requestHeader http.Header,
 			requestHeader.Get(arm.HeaderNameIdentityURL),
 		)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		apiListening, err := convertVisibilityToListening(hcpCluster.CustomerProperties.API.Visibility)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		clusterAPIBuilder.Listening(apiListening)
 	}
@@ -597,18 +599,16 @@ func BuildCSCluster(resourceID *azcorearm.ResourceID, requestHeader http.Header,
 
 	cidrBlockAccess, err := convertCIDRBlockAllowAccessRPToCS(hcpCluster.CustomerProperties.API)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	clusterBuilder.API(clusterAPIBuilder.CIDRBlockAccess(cidrBlockAccess))
 
 	clusterAutoscalerBuilder, err := convertRpAutoscalarToCSBuilder(&hcpCluster.CustomerProperties.Autoscaling)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	clusterBuilder.Autoscaler(clusterAutoscalerBuilder)
-
-	return clusterBuilder, nil
+	return clusterBuilder, clusterAutoscalerBuilder, nil
 }
 
 func withImmutableAttributes(clusterBuilder *arohcpv1alpha1.ClusterBuilder, hcpCluster *api.HCPOpenShiftCluster, subscriptionID, resourceGroupName, tenantID, identityURL string) (*arohcpv1alpha1.ClusterBuilder, error) {
@@ -626,7 +626,7 @@ func withImmutableAttributes(clusterBuilder *arohcpv1alpha1.ClusterBuilder, hcpC
 		Flavour(arohcpv1alpha1.NewFlavour().
 			ID(csFlavourId)).
 		Region(arohcpv1alpha1.NewCloudRegion().
-			ID(arm.GetAzureLocation())).
+			ID(hcpCluster.Location)).
 		CloudProvider(arohcpv1alpha1.NewCloudProvider().
 			ID(csCloudProvider)).
 		Product(arohcpv1alpha1.NewProduct().
@@ -702,7 +702,7 @@ func withImmutableAttributes(clusterBuilder *arohcpv1alpha1.ClusterBuilder, hcpC
 }
 
 // ConvertCStoNodePool converts a CS NodePool object into an HCPOpenShiftClusterNodePool object.
-func ConvertCStoNodePool(resourceID *azcorearm.ResourceID, np *arohcpv1alpha1.NodePool) *api.HCPOpenShiftClusterNodePool {
+func ConvertCStoNodePool(resourceID *azcorearm.ResourceID, azureLocation string, np *arohcpv1alpha1.NodePool) *api.HCPOpenShiftClusterNodePool {
 	nodePool := &api.HCPOpenShiftClusterNodePool{
 		TrackedResource: arm.TrackedResource{
 			Resource: arm.Resource{
@@ -710,7 +710,7 @@ func ConvertCStoNodePool(resourceID *azcorearm.ResourceID, np *arohcpv1alpha1.No
 				Name: resourceID.Name,
 				Type: resourceID.ResourceType.String(),
 			},
-			Location: arm.GetAzureLocation(),
+			Location: azureLocation,
 		},
 		Properties: api.HCPOpenShiftClusterNodePoolProperties{
 			Version: api.NodePoolVersionProfile{
@@ -722,7 +722,7 @@ func ConvertCStoNodePool(resourceID *azcorearm.ResourceID, np *arohcpv1alpha1.No
 				VMSize:                 np.AzureNodePool().VMSize(),
 				EnableEncryptionAtHost: np.AzureNodePool().EncryptionAtHost().State() == csEncryptionAtHostStateEnabled,
 				OSDisk: api.OSDiskProfile{
-					SizeGiB:                int32(np.AzureNodePool().OsDisk().SizeGibibytes()),
+					SizeGiB:                ptr.To(int32(np.AzureNodePool().OsDisk().SizeGibibytes())),
 					DiskStorageAccountType: api.DiskStorageAccountType(np.AzureNodePool().OsDisk().StorageAccountType()),
 				},
 				AvailabilityZone: np.AvailabilityZone(),
@@ -781,7 +781,7 @@ func BuildCSNodePool(ctx context.Context, nodePool *api.HCPOpenShiftClusterNodeP
 				VMSize(nodePool.Properties.Platform.VMSize).
 				EncryptionAtHost(convertEnableEncryptionAtHostToCSBuilder(nodePool.Properties.Platform)).
 				OsDisk(arohcpv1alpha1.NewAzureNodePoolOsDisk().
-					SizeGibibytes(int(nodePool.Properties.Platform.OSDisk.SizeGiB)).
+					SizeGibibytes(int(*nodePool.Properties.Platform.OSDisk.SizeGiB)).
 					StorageAccountType(string(nodePool.Properties.Platform.OSDisk.DiskStorageAccountType)))).
 			AvailabilityZone(nodePool.Properties.Platform.AvailabilityZone).
 			AutoRepair(nodePool.Properties.AutoRepair)

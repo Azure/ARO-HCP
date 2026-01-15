@@ -44,10 +44,10 @@ var _ = Describe("Customer", func() {
 			customerVnetSubnetName           = "customer-vnet-subnet1"
 			customerClusterName              = "tls-endpoint-hcp-cluster"
 			customerNodePoolName             = "np-1"
-			openshiftControlPlaneVersionId   = "4.19"
-			openshiftNodeVersionId           = "4.19.7"
 		)
 		tc := framework.NewTestContext()
+		openshiftControlPlaneVersionId := framework.DefaultOpenshiftControlPlaneVersionId()
+		openshiftNodeVersionId := framework.DefaultOpenshiftNodePoolVersionId()
 
 		if tc.UsePooledIdentities() {
 			err := tc.AssignIdentityContainers(ctx, 1, 60*time.Second)
@@ -79,6 +79,7 @@ var _ = Describe("Customer", func() {
 		Expect(err).NotTo(HaveOccurred())
 
 		managedIdentityDeploymentResult, err := tc.DeployManagedIdentities(ctx,
+			customerClusterName,
 			framework.WithTemplateFromFS(TestArtifactsFS, "test-artifacts/generated-test-artifacts/modules/managed-identities.json"),
 			framework.WithClusterResourceGroup(*resourceGroup.Name),
 			framework.WithParameters(map[string]interface{}{

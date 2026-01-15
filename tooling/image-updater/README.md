@@ -36,24 +36,93 @@ The image-updater supports multiple container registry types with optimized clie
 ## Usage
 
 ```bash
-# Update all images
+# Update all images (default: dev and int environments)
 make update
 
 # Preview changes without modifying files
 ./image-updater update --config config.yaml --dry-run
 
-# Update with custom config
+# Update dev and int environments (default behavior - omit --env flag)
 ./image-updater update --config config.yaml
+
+# Promote images from int to stage (copies digests, no registry fetch)
+./image-updater update --config config.yaml --env stg --dry-run
+
+# Promote images from stage to production (copies digests, no registry fetch)
+./image-updater update --config config.yaml --env prod --dry-run
 
 # Update specific components only
 ./image-updater update --config config.yaml --components maestro,hypershift
 
 # Update all components except specific ones
-./image-updater update --config config.yaml --exclude arohcpfrontend,arohcpbackend
+./image-updater update --config config.yaml --exclude-components arohcpfrontend,arohcpbackend
+
+# Combine environment and component filters
+./image-updater update --config config.yaml --env stg --components maestro,hypershift --dry-run
 
 # Enable verbose logging for debugging (shows all details including retry attempts, API calls)
 ./image-updater update --config config.yaml -v=2
 ```
+
+## Environment Promotion Flow
+
+The image updater supports a structured promotion flow across environments:
+
+1. **dev & int** (default when `--env` omitted): Fetches latest images from registries
+2. **stage** (`--env stg`): Promotes (copies) digests from int environment
+3. **prod** (`--env prod`): Promotes (copies) digests from stage environment
+
+When using `--env stg` or `--env prod`, the tool operates in **promotion mode**:
+- No registry lookups are performed
+- Digests are copied from the source environment to the target environment
+- Ensures consistent promotion path: dev/int → stage → prod
+
+**Example promotion workflow:**
+```bash
+# Step 1: Update dev and int with latest images
+./image-updater update --config config.yaml
+
+# Step 2: After validation, promote to stage
+./image-updater update --config config.yaml --env stg
+
+# Step 3: After stage validation, promote to production
+./image-updater update --config config.yaml --env prod
+```
+
+## Output Format
+
+When the tool updates image digests in YAML files, it automatically adds inline comments with version information and timestamp:
+
+```yaml
+defaults:
+  pko:
+    imagePackage:
+      digest: sha256:abc123... # v1.18.4 (2025-11-24 14:30)
+```
+
+This helps track:
+
+- **Version**: The version information from either:
+  - Container label (if `versionLabel` is configured) - e.g., a commit hash from `org.opencontainers.image.revision`
+  - Tag name (if no version label is configured) - e.g., `v1.18.4`
+- **Timestamp**: When the image was created/published (format: `YYYY-MM-DD HH:MM`)
+
+The comments are automatically generated and updated each time the tool runs.
+
+### Version Labels
+
+By default, when using the `tag` field (e.g., `tag: "latest"`), the tool automatically extracts version information from the `org.opencontainers.image.revision` container label if present. This provides meaningful version information even when using generic tags like "latest" or "stable".
+
+You can customize the label to extract using the `versionLabel` field:
+
+```yaml
+source:
+  image: quay.io/example/image
+  tag: "latest"
+  versionLabel: "org.opencontainers.image.revision"  # Default when using 'tag'
+```
+
+When using `tagPattern`, no version label is extracted by default (uses the tag name), but you can explicitly configure one if needed.
 
 ## Configuration
 
@@ -63,7 +132,7 @@ Define images to monitor and target files to update. Each image can optionally s
 
 ```yaml
 images:
-  # Quay.io image with commit hash tag pattern
+  # Image with multi-environment targets
   maestro:
     source:
       image: quay.io/redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro
@@ -71,6 +140,16 @@ images:
     targets:
     - jsonPath: clouds.dev.defaults.maestro.image.digest
       filePath: ../../config/config.yaml
+      env: dev
+    - jsonPath: clouds.public.environments.int.defaults.maestro.image.digest
+      filePath: ../../config/config.msft.clouds-overlay.yaml
+      env: int
+    - jsonPath: clouds.public.environments.stg.defaults.maestro.image.digest
+      filePath: ../../config/config.msft.clouds-overlay.yaml
+      env: stg
+    - jsonPath: clouds.public.environments.prod.defaults.maestro.image.digest
+      filePath: ../../config/config.msft.clouds-overlay.yaml
+      env: prod
 
   # Single-arch image (explicitly targets amd64 only)
   hypershift:
@@ -81,6 +160,10 @@ images:
     targets:
     - jsonPath: clouds.dev.defaults.hypershift.image.digest
       filePath: ../../config/config.yaml
+      env: dev
+    - jsonPath: clouds.public.environments.int.defaults.hypershift.image.digest
+      filePath: ../../config/config.msft.clouds-overlay.yaml
+      env: int
 
   # Quay.io image with semantic version tags
   pko-package:
@@ -90,6 +173,28 @@ images:
     targets:
     - jsonPath: defaults.pko.imagePackage.digest
       filePath: ../../config/config.yaml
+      env: dev
+
+  # Quay.io image pinned to specific version (e.g., during rollback)
+  pko-manager:
+    source:
+      image: quay.io/package-operator/package-operator-manager
+      tag: "v1.18.3"  # Pin to specific version instead of using pattern
+    targets:
+    - jsonPath: defaults.pko.imageManager.digest
+      filePath: ../../config/config.yaml
+      env: dev
+
+  # Image using generic tag with version label extraction
+  my-app:
+    source:
+      image: quay.io/example/my-app
+      tag: "latest"  # Generic tag
+      versionLabel: "org.opencontainers.image.revision"  # Extracts commit hash from label (default)
+    targets:
+    - jsonPath: defaults.myApp.image.digest
+      filePath: ../../config/config.yaml
+      env: dev
 
   # Private ACR image requiring authentication
   arohcpfrontend:
@@ -99,6 +204,7 @@ images:
     targets:
     - jsonPath: clouds.dev.defaults.frontend.image.digest
       filePath: ../../config/config.yaml
+      env: dev
 
   # Public ACR image (anonymous access)
   kubeEvents:
@@ -109,6 +215,7 @@ images:
     targets:
     - jsonPath: defaults.kubeEvents.image.digest
       filePath: ../../config/config.yaml
+      env: dev
 
   # MCR (Microsoft Container Registry) image
   acrPull:
@@ -119,6 +226,7 @@ images:
     targets:
     - jsonPath: defaults.acrPull.image.digest
       filePath: ../../config/config.yaml
+      env: dev
 
   # Multi-arch manifest list (returns digest of manifest list, not single-arch image)
   secretSyncController:
@@ -274,10 +382,40 @@ images:
 - Read access to the specified Key Vault
 - Pull secret must be stored in Key Vault in Docker config.json format (supports both base64-encoded and raw JSON)
 
-## Tag Patterns
+## Tag Selection
 
-Common regex patterns for filtering tags:
+You can specify which image tag to use in two ways:
 
+### Option 1: Specific Tag (Recommended for pinning versions)
+
+Use the `tag` field to specify an exact tag name:
+
+```yaml
+source:
+  image: quay.io/package-operator/package-operator-package
+  tag: "v1.18.3"  # Pin to specific version
+```
+
+**Use cases:**
+- Pinning to a specific version temporarily (e.g., during a rollback)
+- Testing a specific release
+- Production stability requirements
+
+**Performance benefits:**
+- **No pagination required** - fetches only the specified tag directly from the registry
+- Faster execution compared to pattern matching which requires listing all tags
+
+### Option 2: Tag Pattern (Recommended for automatic updates)
+
+Use the `tagPattern` field with a regex pattern to automatically select the latest matching tag:
+
+```yaml
+source:
+  image: quay.io/package-operator/package-operator-package
+  tagPattern: "^v\\d+\\.\\d+\\.\\d+$"  # Match any semantic version
+```
+
+**Common regex patterns:**
 - `^[a-f0-9]{7}$` - 7-character commit hashes (short)
 - `^[a-f0-9]{40}$` - 40-character commit hashes (full)
 - `^sha256-[a-f0-9]{64}$` - SHA256-prefixed single-arch images
@@ -285,7 +423,16 @@ Common regex patterns for filtering tags:
 - `^v\\d+\\.\\d+\\.\\d+$` - Semantic versions (v1.2.3)
 - `^main-.*` - Tags starting with 'main-'
 
-If no pattern is specified, uses the most recently pushed tag.
+**Use cases:**
+- Continuous updates to the latest version matching a pattern
+- Development and staging environments
+- Following a release branch
+
+### Important Notes
+
+- `tag` and `tagPattern` are **mutually exclusive** - you can only specify one
+- If neither is specified, the tool uses the most recently pushed tag
+- When using `tag`, the tool will find and use that exact tag (case-sensitive)
 
 ## Architecture Filtering
 
@@ -386,7 +533,9 @@ Use `--verbosity 2` or higher when debugging authentication issues, tag filterin
 | Field | Type | Required | Default | Description |
 |-------|------|----------|---------|-------------|
 | `image` | string | Yes | - | Full image reference (registry/repository) |
-| `tagPattern` | string | No | - | Regex pattern to filter tags (uses most recent if omitted) |
+| `tag` | string | No | - | Exact tag to use (mutually exclusive with `tagPattern`) |
+| `tagPattern` | string | No | - | Regex pattern to filter tags (mutually exclusive with `tag`) |
+| `versionLabel` | string | No | `org.opencontainers.image.revision` (when using `tag`), empty (when using `tagPattern`) | Container label to extract for human-friendly version in comments and output table. Defaults to `org.opencontainers.image.revision` when using `tag` field. |
 | `architecture` | string | No | `amd64` | Target architecture for single-arch images (`amd64`, `arm64`, etc.) |
 | `multiArch` | bool | No | `false` | If `true`, fetches multi-arch manifest list digest |
 | `useAuth` | bool | No | `false` | If `true`, uses authentication (required for private registries) |
@@ -396,6 +545,8 @@ Use `--verbosity 2` or higher when debugging authentication issues, tag filterin
 
 **Notes**:
 
+- `tag` and `tagPattern` are mutually exclusive - only one can be specified
+- If neither `tag` nor `tagPattern` is specified, uses the most recently pushed tag
 - `multiArch` and `architecture` are mutually exclusive
 - `useAuth` defaults to `false` for all registries
 - For private registries, explicitly set `useAuth: true`

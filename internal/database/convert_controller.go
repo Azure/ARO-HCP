@@ -17,6 +17,8 @@ package database
 import (
 	"strings"
 
+	"k8s.io/utils/ptr"
+
 	"github.com/Azure/ARO-HCP/internal/api"
 )
 
@@ -31,16 +33,27 @@ func InternalToCosmosController(internalObj *api.Controller) (*Controller, error
 				ID: internalObj.CosmosUID,
 			},
 			PartitionKey: strings.ToLower(internalObj.ExternalID.SubscriptionID),
-			ResourceType: internalObj.ComputeLogicalResourceID().ResourceType.String(),
+			ResourceType: internalObj.ResourceID.ResourceType.String(),
 		},
 		ControllerProperties: ControllerProperties{
-			ResourceID:    internalObj.ComputeLogicalResourceID(),
-			InternalState: *internalObj,
+			Controller:                 *internalObj,
+			OldControllerSerialization: internalObj,
 		},
 	}
 
+	// during a replace, this field will already have have data and we have to use it, but during a create, this field
+	// will not have a value and we'll need to fill it in the same way tha the generic wrapper will
+	if len(internalObj.CosmosUID) == 0 {
+		cosmosID, err := api.ResourceIDToCosmosID(ptr.To(internalObj.GetResourceID()))
+		if err != nil {
+			return nil, err
+		}
+		cosmosObj.ID = cosmosID
+	}
+
 	// some pieces of data conflict with standard fields.  We may evolve over time, but for now avoid persisting those.
-	cosmosObj.ControllerProperties.InternalState.CosmosUID = ""
+	cosmosObj.ControllerProperties.CosmosUID = ""
+	cosmosObj.ControllerProperties.OldControllerSerialization.CosmosUID = ""
 
 	return cosmosObj, nil
 }
@@ -50,11 +63,30 @@ func CosmosToInternalController(cosmosObj *Controller) (*api.Controller, error) 
 		return nil, nil
 	}
 
-	tempInternalAPI := cosmosObj.ControllerProperties.InternalState
-	internalObj := &tempInternalAPI
+	// if the old controller serialization is nil, then we return the new only
+	if cosmosObj.ControllerProperties.OldControllerSerialization == nil {
+		tempInternalAPI := cosmosObj.ControllerProperties.Controller
+
+		// some pieces of data are stored on the BaseDocument, so we need to restore that data
+		tempInternalAPI.CosmosUID = cosmosObj.ID
+
+		return &tempInternalAPI, nil
+	}
+
+	// if we have an old controller serialization, then we need to honor that because if we have upgraded to new,
+	// then rolledback, updated some controllers, then upgraded to new again, the content in old will be newer.
+	// the Content in new is never updated independent of updating old
+
+	tempInternalAPI := *cosmosObj.ControllerProperties.OldControllerSerialization
+	// this is ok and necessary because the resourceID was always stored, it was simply stored during conversion before and now it is
+	// stored in the json compatible api.Controller
+	tempInternalAPI.ResourceID = cosmosObj.ControllerProperties.ResourceID
+	tempInternalAPI.CosmosMetadata = api.CosmosMetadata{
+		ResourceID: *cosmosObj.ControllerProperties.ResourceID,
+	}
 
 	// some pieces of data are stored on the BaseDocument, so we need to restore that data
-	internalObj.CosmosUID = cosmosObj.ID
+	tempInternalAPI.CosmosUID = cosmosObj.ID
 
-	return internalObj, nil
+	return &tempInternalAPI, nil
 }

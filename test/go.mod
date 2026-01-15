@@ -5,10 +5,12 @@ go 1.24.4
 require (
 	github.com/Azure/ARO-HCP/internal v0.0.0-00010101000000-000000000000
 	github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp v0.0.0-00010101000000-000000000000
-	github.com/Azure/ARO-HCP/tooling/templatize v0.0.0-20251212175206-b7a20d67a1b7
-	github.com/Azure/ARO-Tools v0.0.0-20251210160534-1cb8cc444c30
+	github.com/Azure/ARO-HCP/tooling/hcpctl v0.0.0-20260113131010-8f869ff652e6
+	github.com/Azure/ARO-HCP/tooling/templatize v0.0.0-20260107114435-98c5eb6d5d91
+	github.com/Azure/ARO-Tools v0.0.0-20260112224556-4fc17a690209
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v3 v3.0.0-beta.2
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v5 v5.6.0
+	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v6 v6.2.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources v1.2.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armsubscriptions v1.3.0
 	github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azsecrets v1.4.0
@@ -18,9 +20,9 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/onsi/ginkgo/v2 v2.23.4
 	github.com/onsi/gomega v1.37.0
-	github.com/openshift-eng/openshift-tests-extension v0.0.0-20251205182537-ff5553e56f33
+	github.com/openshift-eng/openshift-tests-extension v0.0.0-20251217181008-4f0b29a50e82
 	github.com/sirupsen/logrus v1.9.3
-	github.com/spf13/cobra v1.10.1
+	github.com/spf13/cobra v1.10.2
 	golang.org/x/crypto v0.46.0
 	golang.org/x/sync v0.19.0
 	k8s.io/api v0.34.1
@@ -45,6 +47,7 @@ require (
 	contrib.go.opencensus.io/exporter/ocagent v0.7.1-0.20200907061046-05415f1de66d // indirect
 	contrib.go.opencensus.io/exporter/prometheus v0.4.2 // indirect
 	dario.cat/mergo v1.0.1 // indirect
+	github.com/Azure/azure-kusto-go v0.16.1 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice v1.0.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armdeploymentstacks v1.0.1 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armfeatures v1.2.0 // indirect
@@ -52,7 +55,7 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azkeys v1.4.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/internal v1.2.0 // indirect
 	github.com/Azure/go-ansiterm v0.0.0-20250102033503-faa5f7b0171c // indirect
-	github.com/AzureAD/microsoft-authentication-library-for-go v1.5.0 // indirect
+	github.com/AzureAD/microsoft-authentication-library-for-go v1.6.0 // indirect
 	github.com/BurntSushi/toml v1.5.0 // indirect
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/detectors/gcp v1.29.0 // indirect
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/metric v0.48.1 // indirect
@@ -204,6 +207,7 @@ require (
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/rubenv/sql-migrate v1.8.0 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
+	github.com/samber/lo v1.51.0 // indirect
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.2 // indirect
 	github.com/segmentio/asm v1.1.3 // indirect
 	github.com/segmentio/encoding v0.3.4 // indirect
@@ -286,7 +290,7 @@ require (
 )
 
 require (
-	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.13.0
+	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.13.1
 	github.com/go-logr/logr v1.4.3
 	github.com/go-task/slim-sprig/v3 v3.0.0 // indirect
 	github.com/google/go-cmp v0.7.0

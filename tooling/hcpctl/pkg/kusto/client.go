@@ -17,6 +17,7 @@ package kusto
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -58,6 +59,14 @@ type QueryStats struct {
 	ExecutionTime time.Duration
 	TotalRows     int
 	DataSize      int64
+}
+
+func KustoEndpoint(clusterName, region string) (string, error) {
+	url, err := url.Parse(fmt.Sprintf("https://%s.%s.kusto.windows.net", clusterName, region))
+	if err != nil {
+		return "", fmt.Errorf("failed to parse Kusto endpoint URL: %w", err)
+	}
+	return url.String(), nil
 }
 
 // NewClient creates a new Azure Data Explorer client

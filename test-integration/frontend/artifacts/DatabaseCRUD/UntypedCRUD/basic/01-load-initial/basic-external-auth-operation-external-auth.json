@@ -1,0 +1,21 @@
+{
+    "_attachments": "attachments/",
+    "_etag": "\"00000000-0000-0000-6625-f592740501dc\"",
+    "_rid": "QS9oAIjBpYUDAAAAAAAAAA==",
+    "_self": "dbs/QS9oAA==/colls/QS9oAIjBpYU=/docs/QS9oAIjBpYUDAAAAAAAAAA==/",
+    "_ts": 1764966613,
+    "id": "01738f95-410e-414a-98ce-fe6097133ce6",
+    "partitionKey": "f52dfea2-47ee-4396-8006-4a27d47d59c5",
+    "properties": {
+        "externalId": "/subscriptions/f52dfea2-47ee-4396-8006-4a27d47d59c5/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/basic-external-auth/externalAuths/basic-external-auth",
+        "internalId": "/api/aro_hcp/v1alpha1/clusters/cs-basic-external-auth/external_auth_config/external_auths/2wbhxn4qwk",
+        "lastTransitionTime": "2025-12-05T15:30:13.410687117-05:00",
+        "operationId": "/subscriptions/f52dfea2-47ee-4396-8006-4a27d47d59c5/providers/Microsoft.RedHatOpenShift/locations/fake-location/hcpOperationStatuses/01738f95-410e-414a-98ce-fe6097133ce6",
+        "request": "Create",
+        "startTime": "2025-12-05T20:30:10.966609337Z",
+        "status": "Succeeded",
+        "tenantId": "00000000-0000-0000-0000-000000000000"
+    },
+    "resourceType": "microsoft.redhatopenshift/hcpoperationstatuses",
+    "ttl": 604800
+}

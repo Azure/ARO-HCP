@@ -1,0 +1,82 @@
+{
+	"_attachments": "attachments/",
+	"_etag": "\"00000000-0000-0000-8196-443c080501dc\"",
+	"_rid": "MFstAI+1dLsDAAAAAAAAAA==",
+	"_self": "dbs/MFstAA==/colls/MFstAI+1dLs=/docs/MFstAI+1dLsDAAAAAAAAAA==/",
+	"_ts": 1767983530,
+	"id": "c88935c2-816e-4ba6-8a0e-40490b6c01c8",
+	"partitionKey": "6b690bec-0c16-4ecb-8f67-781caf40bba7",
+	"properties": {
+		"identity": {
+			"type": "UserAssigned"
+		},
+		"internalId": "/api/clusters_mgmt/v1/clusters/m6bpjxtlqf",
+		"internalState": {
+			"internalAPI": {
+				"customerProperties": {
+					"api": {
+						"visibility": "Public"
+					},
+					"autoscaling": {
+						"maxNodeProvisionTimeSeconds": 900,
+						"maxPodGracePeriodSeconds": 600,
+						"podPriorityThreshold": -10
+					},
+					"clusterImageRegistry": {
+						"state": "Disabled"
+					},
+					"dns": {},
+					"etcd": {
+						"dataEncryption": {
+							"customerManaged": {
+								"encryptionType": "KMS",
+								"kms": {
+									"activeKey": {
+										"name": "encryptionKeyName",
+										"vaultName": "keyVaultName",
+										"version": "2024-12-01-preview"
+									}
+								}
+							},
+							"keyManagementMode": "CustomerManaged"
+						}
+					},
+					"network": {
+						"hostPrefix": 23,
+						"machineCidr": "10.0.0.0/16",
+						"networkType": "OVNKubernetes",
+						"podCidr": "10.128.0.0/14",
+						"serviceCidr": "172.30.0.0/16"
+					},
+					"platform": {
+						"managedResourceGroup": "managed-resource-group-name",
+						"networkSecurityGroupId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/bar/providers/Microsoft.Network/networkSecurityGroups/nsg",
+						"operatorsAuthentication": {
+							"userAssignedIdentities": {}
+						},
+						"outboundType": "LoadBalancer",
+						"subnetId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/bar/providers/Microsoft.Network/virtualNetworks/vnet/subnets/subnet"
+					},
+					"version": {
+						"channelGroup": "stable"
+					}
+				},
+				"location": "fake-location",
+				"serviceProviderProperties": {
+					"api": {},
+					"clusterServiceID": "",
+					"console": {},
+					"dns": {},
+					"platform": {}
+				}
+			}
+		},
+		"provisioningState": "Succeeded",
+		"resourceId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/create-with-tags",
+		"systemData": {},
+		"tags": {
+			"one": "apple"
+		}
+	},
+	"resourceType": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters"
+}

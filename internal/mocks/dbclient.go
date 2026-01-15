@@ -13,10 +13,9 @@ import (
 	context "context"
 	reflect "reflect"
 
-	arm0 "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	arm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	gomock "go.uber.org/mock/gomock"
 
-	arm "github.com/Azure/ARO-HCP/internal/api/arm"
 	database "github.com/Azure/ARO-HCP/internal/database"
 )
 
@@ -220,44 +219,6 @@ func (c *MockDBClientCreateBillingDocCall) DoAndReturn(f func(context.Context, *
 	return c
 }
 
-// CreateSubscriptionDoc mocks base method.
-func (m *MockDBClient) CreateSubscriptionDoc(ctx context.Context, subscriptionID string, subscription *arm.Subscription) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CreateSubscriptionDoc", ctx, subscriptionID, subscription)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// CreateSubscriptionDoc indicates an expected call of CreateSubscriptionDoc.
-func (mr *MockDBClientMockRecorder) CreateSubscriptionDoc(ctx, subscriptionID, subscription any) *MockDBClientCreateSubscriptionDocCall {
-	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateSubscriptionDoc", reflect.TypeOf((*MockDBClient)(nil).CreateSubscriptionDoc), ctx, subscriptionID, subscription)
-	return &MockDBClientCreateSubscriptionDocCall{Call: call}
-}
-
-// MockDBClientCreateSubscriptionDocCall wrap *gomock.Call
-type MockDBClientCreateSubscriptionDocCall struct {
-	*gomock.Call
-}
-
-// Return rewrite *gomock.Call.Return
-func (c *MockDBClientCreateSubscriptionDocCall) Return(arg0 error) *MockDBClientCreateSubscriptionDocCall {
-	c.Call = c.Call.Return(arg0)
-	return c
-}
-
-// Do rewrite *gomock.Call.Do
-func (c *MockDBClientCreateSubscriptionDocCall) Do(f func(context.Context, string, *arm.Subscription) error) *MockDBClientCreateSubscriptionDocCall {
-	c.Call = c.Call.Do(f)
-	return c
-}
-
-// DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockDBClientCreateSubscriptionDocCall) DoAndReturn(f func(context.Context, string, *arm.Subscription) error) *MockDBClientCreateSubscriptionDocCall {
-	c.Call = c.Call.DoAndReturn(f)
-	return c
-}
-
 // GetLockClient mocks base method.
 func (m *MockDBClient) GetLockClient() database.LockClientInterface {
 	m.ctrl.T.Helper()
@@ -296,45 +257,6 @@ func (c *MockDBClientGetLockClientCall) DoAndReturn(f func() database.LockClient
 	return c
 }
 
-// GetSubscriptionDoc mocks base method.
-func (m *MockDBClient) GetSubscriptionDoc(ctx context.Context, subscriptionID string) (*arm.Subscription, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetSubscriptionDoc", ctx, subscriptionID)
-	ret0, _ := ret[0].(*arm.Subscription)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetSubscriptionDoc indicates an expected call of GetSubscriptionDoc.
-func (mr *MockDBClientMockRecorder) GetSubscriptionDoc(ctx, subscriptionID any) *MockDBClientGetSubscriptionDocCall {
-	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSubscriptionDoc", reflect.TypeOf((*MockDBClient)(nil).GetSubscriptionDoc), ctx, subscriptionID)
-	return &MockDBClientGetSubscriptionDocCall{Call: call}
-}
-
-// MockDBClientGetSubscriptionDocCall wrap *gomock.Call
-type MockDBClientGetSubscriptionDocCall struct {
-	*gomock.Call
-}
-
-// Return rewrite *gomock.Call.Return
-func (c *MockDBClientGetSubscriptionDocCall) Return(arg0 *arm.Subscription, arg1 error) *MockDBClientGetSubscriptionDocCall {
-	c.Call = c.Call.Return(arg0, arg1)
-	return c
-}
-
-// Do rewrite *gomock.Call.Do
-func (c *MockDBClientGetSubscriptionDocCall) Do(f func(context.Context, string) (*arm.Subscription, error)) *MockDBClientGetSubscriptionDocCall {
-	c.Call = c.Call.Do(f)
-	return c
-}
-
-// DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockDBClientGetSubscriptionDocCall) DoAndReturn(f func(context.Context, string) (*arm.Subscription, error)) *MockDBClientGetSubscriptionDocCall {
-	c.Call = c.Call.DoAndReturn(f)
-	return c
-}
-
 // HCPClusters mocks base method.
 func (m *MockDBClient) HCPClusters(subscriptionID, resourceGroupName string) database.HCPClusterCRUD {
 	m.ctrl.T.Helper()
@@ -369,44 +291,6 @@ func (c *MockDBClientHCPClustersCall) Do(f func(string, string) database.HCPClus
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
 func (c *MockDBClientHCPClustersCall) DoAndReturn(f func(string, string) database.HCPClusterCRUD) *MockDBClientHCPClustersCall {
-	c.Call = c.Call.DoAndReturn(f)
-	return c
-}
-
-// ListAllSubscriptionDocs mocks base method.
-func (m *MockDBClient) ListAllSubscriptionDocs() database.DBClientIterator[arm.Subscription] {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ListAllSubscriptionDocs")
-	ret0, _ := ret[0].(database.DBClientIterator[arm.Subscription])
-	return ret0
-}
-
-// ListAllSubscriptionDocs indicates an expected call of ListAllSubscriptionDocs.
-func (mr *MockDBClientMockRecorder) ListAllSubscriptionDocs() *MockDBClientListAllSubscriptionDocsCall {
-	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAllSubscriptionDocs", reflect.TypeOf((*MockDBClient)(nil).ListAllSubscriptionDocs))
-	return &MockDBClientListAllSubscriptionDocsCall{Call: call}
-}
-
-// MockDBClientListAllSubscriptionDocsCall wrap *gomock.Call
-type MockDBClientListAllSubscriptionDocsCall struct {
-	*gomock.Call
-}
-
-// Return rewrite *gomock.Call.Return
-func (c *MockDBClientListAllSubscriptionDocsCall) Return(arg0 database.DBClientIterator[arm.Subscription]) *MockDBClientListAllSubscriptionDocsCall {
-	c.Call = c.Call.Return(arg0)
-	return c
-}
-
-// Do rewrite *gomock.Call.Do
-func (c *MockDBClientListAllSubscriptionDocsCall) Do(f func() database.DBClientIterator[arm.Subscription]) *MockDBClientListAllSubscriptionDocsCall {
-	c.Call = c.Call.Do(f)
-	return c
-}
-
-// DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockDBClientListAllSubscriptionDocsCall) DoAndReturn(f func() database.DBClientIterator[arm.Subscription]) *MockDBClientListAllSubscriptionDocsCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -488,7 +372,7 @@ func (c *MockDBClientOperationsCall) DoAndReturn(f func(string) database.Operati
 }
 
 // PatchBillingDoc mocks base method.
-func (m *MockDBClient) PatchBillingDoc(ctx context.Context, resourceID *arm0.ResourceID, ops database.BillingDocumentPatchOperations) error {
+func (m *MockDBClient) PatchBillingDoc(ctx context.Context, resourceID *arm.ResourceID, ops database.BillingDocumentPatchOperations) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "PatchBillingDoc", ctx, resourceID, ops)
 	ret0, _ := ret[0].(error)
@@ -514,19 +398,95 @@ func (c *MockDBClientPatchBillingDocCall) Return(arg0 error) *MockDBClientPatchB
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockDBClientPatchBillingDocCall) Do(f func(context.Context, *arm0.ResourceID, database.BillingDocumentPatchOperations) error) *MockDBClientPatchBillingDocCall {
+func (c *MockDBClientPatchBillingDocCall) Do(f func(context.Context, *arm.ResourceID, database.BillingDocumentPatchOperations) error) *MockDBClientPatchBillingDocCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockDBClientPatchBillingDocCall) DoAndReturn(f func(context.Context, *arm0.ResourceID, database.BillingDocumentPatchOperations) error) *MockDBClientPatchBillingDocCall {
+func (c *MockDBClientPatchBillingDocCall) DoAndReturn(f func(context.Context, *arm.ResourceID, database.BillingDocumentPatchOperations) error) *MockDBClientPatchBillingDocCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
+// ServiceProviderClusters mocks base method.
+func (m *MockDBClient) ServiceProviderClusters(subscriptionID, resourceGroupName, clusterName string) database.ServiceProviderClusterCRUD {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ServiceProviderClusters", subscriptionID, resourceGroupName, clusterName)
+	ret0, _ := ret[0].(database.ServiceProviderClusterCRUD)
+	return ret0
+}
+
+// ServiceProviderClusters indicates an expected call of ServiceProviderClusters.
+func (mr *MockDBClientMockRecorder) ServiceProviderClusters(subscriptionID, resourceGroupName, clusterName any) *MockDBClientServiceProviderClustersCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ServiceProviderClusters", reflect.TypeOf((*MockDBClient)(nil).ServiceProviderClusters), subscriptionID, resourceGroupName, clusterName)
+	return &MockDBClientServiceProviderClustersCall{Call: call}
+}
+
+// MockDBClientServiceProviderClustersCall wrap *gomock.Call
+type MockDBClientServiceProviderClustersCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockDBClientServiceProviderClustersCall) Return(arg0 database.ServiceProviderClusterCRUD) *MockDBClientServiceProviderClustersCall {
+	c.Call = c.Call.Return(arg0)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockDBClientServiceProviderClustersCall) Do(f func(string, string, string) database.ServiceProviderClusterCRUD) *MockDBClientServiceProviderClustersCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockDBClientServiceProviderClustersCall) DoAndReturn(f func(string, string, string) database.ServiceProviderClusterCRUD) *MockDBClientServiceProviderClustersCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
+// Subscriptions mocks base method.
+func (m *MockDBClient) Subscriptions() database.SubscriptionCRUD {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Subscriptions")
+	ret0, _ := ret[0].(database.SubscriptionCRUD)
+	return ret0
+}
+
+// Subscriptions indicates an expected call of Subscriptions.
+func (mr *MockDBClientMockRecorder) Subscriptions() *MockDBClientSubscriptionsCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Subscriptions", reflect.TypeOf((*MockDBClient)(nil).Subscriptions))
+	return &MockDBClientSubscriptionsCall{Call: call}
+}
+
+// MockDBClientSubscriptionsCall wrap *gomock.Call
+type MockDBClientSubscriptionsCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockDBClientSubscriptionsCall) Return(arg0 database.SubscriptionCRUD) *MockDBClientSubscriptionsCall {
+	c.Call = c.Call.Return(arg0)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockDBClientSubscriptionsCall) Do(f func() database.SubscriptionCRUD) *MockDBClientSubscriptionsCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockDBClientSubscriptionsCall) DoAndReturn(f func() database.SubscriptionCRUD) *MockDBClientSubscriptionsCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
 
 // UntypedCRUD mocks base method.
-func (m *MockDBClient) UntypedCRUD(parentResourceID arm0.ResourceID) (database.UntypedResourceCRUD, error) {
+func (m *MockDBClient) UntypedCRUD(parentResourceID arm.ResourceID) (database.UntypedResourceCRUD, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UntypedCRUD", parentResourceID)
 	ret0, _ := ret[0].(database.UntypedResourceCRUD)
@@ -553,52 +513,13 @@ func (c *MockDBClientUntypedCRUDCall) Return(arg0 database.UntypedResourceCRUD, 
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockDBClientUntypedCRUDCall) Do(f func(arm0.ResourceID) (database.UntypedResourceCRUD, error)) *MockDBClientUntypedCRUDCall {
+func (c *MockDBClientUntypedCRUDCall) Do(f func(arm.ResourceID) (database.UntypedResourceCRUD, error)) *MockDBClientUntypedCRUDCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockDBClientUntypedCRUDCall) DoAndReturn(f func(arm0.ResourceID) (database.UntypedResourceCRUD, error)) *MockDBClientUntypedCRUDCall {
-	c.Call = c.Call.DoAndReturn(f)
-	return c
-}
-
-// UpdateSubscriptionDoc mocks base method.
-func (m *MockDBClient) UpdateSubscriptionDoc(ctx context.Context, subscriptionID string, callback func(*arm.Subscription) bool) (bool, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateSubscriptionDoc", ctx, subscriptionID, callback)
-	ret0, _ := ret[0].(bool)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// UpdateSubscriptionDoc indicates an expected call of UpdateSubscriptionDoc.
-func (mr *MockDBClientMockRecorder) UpdateSubscriptionDoc(ctx, subscriptionID, callback any) *MockDBClientUpdateSubscriptionDocCall {
-	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateSubscriptionDoc", reflect.TypeOf((*MockDBClient)(nil).UpdateSubscriptionDoc), ctx, subscriptionID, callback)
-	return &MockDBClientUpdateSubscriptionDocCall{Call: call}
-}
-
-// MockDBClientUpdateSubscriptionDocCall wrap *gomock.Call
-type MockDBClientUpdateSubscriptionDocCall struct {
-	*gomock.Call
-}
-
-// Return rewrite *gomock.Call.Return
-func (c *MockDBClientUpdateSubscriptionDocCall) Return(arg0 bool, arg1 error) *MockDBClientUpdateSubscriptionDocCall {
-	c.Call = c.Call.Return(arg0, arg1)
-	return c
-}
-
-// Do rewrite *gomock.Call.Do
-func (c *MockDBClientUpdateSubscriptionDocCall) Do(f func(context.Context, string, func(*arm.Subscription) bool) (bool, error)) *MockDBClientUpdateSubscriptionDocCall {
-	c.Call = c.Call.Do(f)
-	return c
-}
-
-// DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockDBClientUpdateSubscriptionDocCall) DoAndReturn(f func(context.Context, string, func(*arm.Subscription) bool) (bool, error)) *MockDBClientUpdateSubscriptionDocCall {
+func (c *MockDBClientUntypedCRUDCall) DoAndReturn(f func(arm.ResourceID) (database.UntypedResourceCRUD, error)) *MockDBClientUntypedCRUDCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }

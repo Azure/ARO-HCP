@@ -209,12 +209,17 @@ var _ = Describe("Customer", func() {
 				err = wait.PollUntilContextTimeout(ctx, 15*time.Second, 20*time.Minute, false, func(ctx context.Context) (done bool, err error) {
 					resp, err := kubeClient.AuthenticationV1().SelfSubjectReviews().Create(ctx, &authenticationv1.SelfSubjectReview{}, metav1.CreateOptions{})
 					if !apierrors.IsUnauthorized(err) {
-						if lastError != err.Error() || !reflect.DeepEqual(lastResp, resp) {
-							GinkgoLogr.Info("expected an unauthorized error when using revoked admin credential", "error", err.Error(), "response", resp)
-							lastError = err.Error()
+						errMessage := "<nil>"
+						if err != nil {
+							errMessage = err.Error()
+						}
+
+						if lastError != errMessage || !reflect.DeepEqual(lastResp, resp) {
+							GinkgoLogr.Info("admin credential still working or returned unexpected error after revocation", "credentialNumber", i+1, "error", errMessage, "response", resp)
+							lastError = errMessage
 							lastResp = resp
 						}
-						return false, err
+						return false, nil
 					}
 					GinkgoLogr.Info("successfully verified admin credential fails after revocation", "credentialNumber", i+1)
 					return true, nil

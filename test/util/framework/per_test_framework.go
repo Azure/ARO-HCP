@@ -39,6 +39,7 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	armcompute "github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v5"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v6"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armsubscriptions"
 
@@ -58,6 +59,7 @@ type perItOrDescribeTestContext struct {
 	armComputeClientFactory       *armcompute.ClientFactory
 	armResourcesClientFactory     *armresources.ClientFactory
 	armSubscriptionsClientFactory *armsubscriptions.ClientFactory
+	armNetworkClientFactory       *armnetwork.ClientFactory
 	graphClient                   *graphutil.Client
 
 	timingMetadata   timing.SpecTimingMetadata
@@ -135,16 +137,6 @@ func (tc *perItOrDescribeTestContext) deleteCreatedResources(ctx context.Context
 		return
 	}
 
-	hcpClientFactory, err := tc.Get20240610ClientFactory(ctx)
-	if err != nil {
-		ginkgo.GinkgoLogr.Error(err, "failed to get HCP client")
-		return
-	}
-	resourceGroupsClientFactory, err := tc.GetARMResourcesClientFactory(ctx)
-	if err != nil {
-		ginkgo.GinkgoLogr.Error(err, "failed to get ARM client")
-		return
-	}
 	graphClient, err := tc.GetGraphClient(ctx)
 	if err != nil {
 		ginkgo.GinkgoLogr.Error(err, "failed to get Graph client")
@@ -154,7 +146,7 @@ func (tc *perItOrDescribeTestContext) deleteCreatedResources(ctx context.Context
 	tc.contextLock.RLock()
 	resourceGroupNames := tc.knownResourceGroups
 	appRegistrations := tc.knownAppRegistrationIDs
-	defer tc.contextLock.RUnlock()
+	tc.contextLock.RUnlock()
 	ginkgo.GinkgoLogr.Info("deleting created resources")
 
 	opts := CleanupResourceGroupsOptions{
@@ -162,7 +154,7 @@ func (tc *perItOrDescribeTestContext) deleteCreatedResources(ctx context.Context
 		Timeout:            60 * time.Minute,
 		CleanupWorkflow:    CleanupWorkflowStandard,
 	}
-	errCleanupResourceGroups := tc.CleanupResourceGroups(ctx, hcpClientFactory.NewHcpOpenShiftClustersClient(), resourceGroupsClientFactory.NewResourceGroupsClient(), opts)
+	errCleanupResourceGroups := tc.CleanupResourceGroups(ctx, opts)
 	if errCleanupResourceGroups != nil {
 		ginkgo.GinkgoLogr.Error(errCleanupResourceGroups, "at least one resource group failed to delete")
 	}
@@ -219,7 +211,7 @@ type CleanupResourceGroupsOptions struct {
 	CleanupWorkflow    CleanupWorkflow
 }
 
-func (tc *perItOrDescribeTestContext) CleanupResourceGroups(ctx context.Context, hcpClient *hcpsdk20240610preview.HcpOpenShiftClustersClient, resourceGroupsClient *armresources.ResourceGroupsClient, opts CleanupResourceGroupsOptions) error {
+func (tc *perItOrDescribeTestContext) CleanupResourceGroups(ctx context.Context, opts CleanupResourceGroupsOptions) error {
 	// deletion takes a while, it's worth it to do this in parallel
 	wg := sync.WaitGroup{}
 	errCh := make(chan error, len(opts.ResourceGroupNames))
@@ -232,11 +224,11 @@ func (tc *perItOrDescribeTestContext) CleanupResourceGroups(ctx context.Context,
 
 			switch opts.CleanupWorkflow {
 			case CleanupWorkflowStandard:
-				if err := tc.cleanupResourceGroup(ctx, hcpClient, resourceGroupsClient, currResourceGroupName, opts.Timeout); err != nil {
+				if err := tc.cleanupResourceGroup(ctx, currResourceGroupName, opts.Timeout); err != nil {
 					errCh <- err
 				}
 			case CleanupWorkflowNoRP:
-				if err := tc.cleanupResourceGroupNoRP(ctx, resourceGroupsClient, currResourceGroupName, opts.Timeout); err != nil {
+				if err := tc.cleanupResourceGroupNoRP(ctx, currResourceGroupName, opts.Timeout); err != nil {
 					errCh <- err
 				}
 			}
@@ -255,8 +247,6 @@ func (tc *perItOrDescribeTestContext) CleanupResourceGroups(ctx context.Context,
 
 // collectDebugInfo collects information and saves it in artifact dir
 func (tc *perItOrDescribeTestContext) collectDebugInfo(ctx context.Context) {
-	tc.contextLock.RLock()
-	defer tc.contextLock.RUnlock()
 	ginkgo.GinkgoLogr.Info("collecting debug info")
 
 	leasedContainers, err := tc.leasedIdentityContainers()
@@ -267,10 +257,12 @@ func (tc *perItOrDescribeTestContext) collectDebugInfo(ctx context.Context) {
 
 	// deletion takes a while, it's worth it to do this in parallel
 	waitGroup, ctx := errgroup.WithContext(ctx)
+	tc.contextLock.RLock()
 	resourceGroups := append(
 		append([]string(nil), tc.knownResourceGroups...),
 		leasedContainers...,
 	)
+	tc.contextLock.RUnlock()
 	for _, resourceGroupName := range resourceGroups {
 		currResourceGroupName := resourceGroupName
 		waitGroup.Go(func() error {
@@ -313,9 +305,14 @@ func (tc *perItOrDescribeTestContext) NewResourceGroup(ctx context.Context, reso
 	return resourceGroup, nil
 }
 
-func (tc *perItOrDescribeTestContext) findManagedResourceGroups(ctx context.Context, resourceGroupsClient *armresources.ResourceGroupsClient, ResourceGroupName string) ([]string, error) {
+func (tc *perItOrDescribeTestContext) findManagedResourceGroups(ctx context.Context, ResourceGroupName string) ([]string, error) {
 	managedResourceGroups := []string{}
-	pager := resourceGroupsClient.NewListPager(nil)
+	clientFactory, err := tc.GetARMResourcesClientFactory(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	pager := clientFactory.NewResourceGroupsClient().NewListPager(nil)
 	for pager.More() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
@@ -342,21 +339,34 @@ func (tc *perItOrDescribeTestContext) findManagedResourceGroups(ctx context.Cont
 // 1. delete all HCP clusters and wait for success
 // 2. check if any managed resource groups are left behind
 // 3. delete the resource group and wait for success
-func (tc *perItOrDescribeTestContext) cleanupResourceGroup(ctx context.Context, hcpClient *hcpsdk20240610preview.HcpOpenShiftClustersClient, resourceGroupsClient *armresources.ResourceGroupsClient, resourceGroupName string, timeout time.Duration) error {
+func (tc *perItOrDescribeTestContext) cleanupResourceGroup(ctx context.Context, resourceGroupName string, timeout time.Duration) error {
 	startTime := time.Now()
 	defer func() {
 		finishTime := time.Now()
-		tc.recordTestStepUnlocked(fmt.Sprintf("Clean up resource group %s", resourceGroupName), startTime, finishTime)
+		tc.RecordTestStep(fmt.Sprintf("Clean up resource group %s", resourceGroupName), startTime, finishTime)
 	}()
 
-	errs := []error{}
+	resourceClientFactory, err := tc.GetARMResourcesClientFactory(ctx)
+	if err != nil {
+		return err
+	}
+
+	networkClientFactory, err := tc.GetARMNetworkClientFactory(ctx)
+	if err != nil {
+		return err
+	}
+
+	hcpClientFactory, err := tc.Get20240610ClientFactory(ctx)
+	if err != nil {
+		return err
+	}
 
 	ginkgo.GinkgoLogr.Info("deleting all hcp clusters in resource group", "resourceGroup", resourceGroupName)
-	if err := DeleteAllHCPClusters(ctx, hcpClient, resourceGroupName, timeout); err != nil {
+	if err := DeleteAllHCPClusters(ctx, hcpClientFactory.NewHcpOpenShiftClustersClient(), resourceGroupName, timeout); err != nil {
 		return fmt.Errorf("failed to cleanup resource group: %w", err)
 	}
 
-	managedResourceGroups, err := tc.findManagedResourceGroups(ctx, resourceGroupsClient, resourceGroupName)
+	managedResourceGroups, err := tc.findManagedResourceGroups(ctx, resourceGroupName)
 	if err != nil {
 		return fmt.Errorf("failed to search for managed resource groups: %w", err)
 	}
@@ -368,11 +378,11 @@ func (tc *perItOrDescribeTestContext) cleanupResourceGroup(ctx context.Context, 
 	}
 
 	ginkgo.GinkgoLogr.Info("deleting resource group", "resourceGroup", resourceGroupName)
-	if err := DeleteResourceGroup(ctx, resourceGroupsClient, resourceGroupName, false, timeout); err != nil {
+	if err := DeleteResourceGroup(ctx, resourceClientFactory.NewResourceGroupsClient(), networkClientFactory, resourceGroupName, false, timeout); err != nil {
 		return fmt.Errorf("failed to cleanup resource group: %w", err)
 	}
 
-	return errors.Join(errs...)
+	return nil
 }
 
 // cleanupResourceGroupNoRP performs cleanup when the resource provider is not available.
@@ -381,7 +391,7 @@ func (tc *perItOrDescribeTestContext) cleanupResourceGroup(ctx context.Context, 
 //  1. discovers any "managed" resource groups whose ManagedBy references a resource in the parent
 //     resource group and deletes them (using 'force' to speed up VM/VMSS deletion).
 //  2. deletes the parent resource group itself.
-func (tc *perItOrDescribeTestContext) cleanupResourceGroupNoRP(ctx context.Context, resourceGroupsClient *armresources.ResourceGroupsClient, resourceGroupName string, timeout time.Duration) error {
+func (tc *perItOrDescribeTestContext) cleanupResourceGroupNoRP(ctx context.Context, resourceGroupName string, timeout time.Duration) error {
 	startTime := time.Now()
 	defer func() {
 		finishTime := time.Now()
@@ -390,14 +400,24 @@ func (tc *perItOrDescribeTestContext) cleanupResourceGroupNoRP(ctx context.Conte
 
 	errs := []error{}
 
-	managedResourceGroups, err := tc.findManagedResourceGroups(ctx, resourceGroupsClient, resourceGroupName)
+	managedResourceGroups, err := tc.findManagedResourceGroups(ctx, resourceGroupName)
 	if err != nil {
 		return fmt.Errorf("failed to search for managed resource groups: %w", err)
 	}
 
+	resourceClientFactory, err := tc.GetARMResourcesClientFactory(ctx)
+	if err != nil {
+		return err
+	}
+
+	networkClientFactory, err := tc.GetARMNetworkClientFactory(ctx)
+	if err != nil {
+		return err
+	}
+
 	for _, managedRG := range managedResourceGroups {
 		ginkgo.GinkgoLogr.Info("deleting managed resource group", "resourceGroup", managedRG, "parentResourceGroup", resourceGroupName)
-		if err := DeleteResourceGroup(ctx, resourceGroupsClient, managedRG, true, timeout); err != nil {
+		if err := DeleteResourceGroup(ctx, resourceClientFactory.NewResourceGroupsClient(), networkClientFactory, managedRG, true, timeout); err != nil {
 			if isIgnorableResourceGroupCleanupError(err) {
 				ginkgo.GinkgoLogr.Info("ignoring not found resource group", "resourceGroup", managedRG)
 			} else {
@@ -407,7 +427,7 @@ func (tc *perItOrDescribeTestContext) cleanupResourceGroupNoRP(ctx context.Conte
 	}
 
 	ginkgo.GinkgoLogr.Info("deleting resource group", "resourceGroup", resourceGroupName)
-	if err := DeleteResourceGroup(ctx, resourceGroupsClient, resourceGroupName, false, timeout); err != nil {
+	if err := DeleteResourceGroup(ctx, resourceClientFactory.NewResourceGroupsClient(), networkClientFactory, resourceGroupName, false, timeout); err != nil {
 		return fmt.Errorf("failed to cleanup resource group: %w", err)
 	}
 
@@ -424,12 +444,12 @@ func (tc *perItOrDescribeTestContext) collectDebugInfoForResourceGroup(ctx conte
 	startTime := time.Now()
 	defer func() {
 		finishTime := time.Now()
-		tc.recordTestStepUnlocked(fmt.Sprintf("Collect debug info for resource group %s", resourceGroupName), startTime, finishTime)
+		tc.RecordTestStep(fmt.Sprintf("Collect debug info for resource group %s", resourceGroupName), startTime, finishTime)
 	}()
 
 	errs := []error{}
 
-	armResourceClient, err := tc.getARMResourcesClientFactoryUnlocked(ctx)
+	armResourceClient, err := tc.GetARMResourcesClientFactory(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get ARM resource client: %w", err)
 	}
@@ -554,6 +574,44 @@ func (tc *perItOrDescribeTestContext) getARMSubscriptionsClientFactoryUnlocked()
 	tc.armSubscriptionsClientFactory = clientFactory
 
 	return tc.armSubscriptionsClientFactory, nil
+}
+
+func (tc *perItOrDescribeTestContext) GetARMNetworkClientFactory(ctx context.Context) (*armnetwork.ClientFactory, error) {
+	tc.contextLock.RLock()
+	if tc.armNetworkClientFactory != nil {
+		defer tc.contextLock.RUnlock()
+		return tc.armNetworkClientFactory, nil
+	}
+	tc.contextLock.RUnlock()
+
+	tc.contextLock.Lock()
+	defer tc.contextLock.Unlock()
+
+	return tc.getARMNetworkClientFactoryUnlocked(ctx)
+}
+
+func (tc *perItOrDescribeTestContext) getARMNetworkClientFactoryUnlocked(ctx context.Context) (*armnetwork.ClientFactory, error) {
+	if tc.armNetworkClientFactory != nil {
+		return tc.armNetworkClientFactory, nil
+	}
+
+	creds, err := tc.perBinaryInvocationTestContext.getAzureCredentials()
+	if err != nil {
+		return nil, err
+	}
+
+	// We already hold the lock, so we call the unlocked version
+	subscriptionID, err := tc.getSubscriptionIDUnlocked(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	clientFactory, err := armnetwork.NewClientFactory(subscriptionID, creds, tc.perBinaryInvocationTestContext.getClientFactoryOptions())
+	if err != nil {
+		return nil, err
+	}
+	tc.armNetworkClientFactory = clientFactory
+	return tc.armNetworkClientFactory, nil
 }
 
 func (tc *perItOrDescribeTestContext) GetARMResourcesClientFactory(ctx context.Context) (*armresources.ClientFactory, error) {

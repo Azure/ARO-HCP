@@ -40,16 +40,21 @@ var _ = Describe("Authorized CIDRs", func() {
 			labels.RequireNothing,
 			labels.Critical,
 			labels.Positive,
+			labels.IntegrationOnly,
 			func(ctx context.Context) {
 				const (
 					clusterName                      = "cidr-connectivity-test"
 					customerNetworkSecurityGroupName = "customer-nsg-name"
 					customerVnetName                 = "customer-vnet-name"
 					customerVnetSubnetName           = "customer-vnet-subnet1"
-					openshiftControlPlaneVersionId   = "4.19"
 				)
 
 				tc := framework.NewTestContext()
+
+				if tc.UsePooledIdentities() {
+					err := tc.AssignIdentityContainers(ctx, 1, 60*time.Second)
+					Expect(err).NotTo(HaveOccurred())
+				}
 
 				By("creating a resource group")
 				resourceGroup, err := tc.NewResourceGroup(ctx, "e2e-cidr-connectivity", tc.Location())
@@ -60,7 +65,6 @@ var _ = Describe("Authorized CIDRs", func() {
 				clusterParams.ClusterName = clusterName
 				managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
 				clusterParams.ManagedResourceGroupName = managedResourceGroupName
-				clusterParams.OpenshiftVersionId = openshiftControlPlaneVersionId
 
 				By("creating customer resources")
 				clusterParams, err = tc.CreateClusterCustomerResources(ctx,

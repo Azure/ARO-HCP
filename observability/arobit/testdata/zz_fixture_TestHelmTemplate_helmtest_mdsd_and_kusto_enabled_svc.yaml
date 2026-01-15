@@ -189,13 +189,14 @@ data:
         Match           other.logs
         Rule            $kubernetes['container_name'] ^aro-hcp-frontend* aro-hcp-frontend.logs true
         Rule            $kubernetes['container_name'] ^aro-hcp-backend* aro-hcp-backend.logs true
+        Rule            $kubernetes['container_name'] ^clusters-service* clusters-service.logs true
         Rule            $kubernetes['container_name'] ^kube-events* kube-events.logs true
         Emitter_Name    re_emitted_container_name_router
 
     [FILTER]
         # Parse the log key and make it a json object again under $
         Name Parser
-        Match_regex (aro-hcp-(frontend|backend)|kube-events)\.logs
+        Match_regex (aro-hcp-(frontend|backend)|kube-events|clusters-service)\.logs
         Key_Name log
         Parser containerlogs
         Preserve_Key On
@@ -232,6 +233,19 @@ data:
         Table_Name backendLogs
         ingestion_mapping_reference ingestionMapping
         buffer_dir /var/kusto
+
+    [OUTPUT]
+        Match clusters-service.logs
+        Name azure_kusto
+        auth_type workload_identity
+        tenant_id __tenantId__
+        client_id __msiClientId__
+        workload_identity_token_file ${AZURE_FEDERATED_TOKEN_FILE}
+        Ingestion_Endpoint __kustoDataIngestionUri__
+        Database_Name ServiceLogs
+        Table_Name clustersServiceLogs
+        ingestion_mapping_reference ingestionMapping
+        buffer_dir /var/kusto
     [OUTPUT]
         Match other.logs
         Name azure_kusto
@@ -262,7 +276,7 @@ data:
     [OUTPUT]
         Name  forward
         Alias forward.mdsd.other
-        Match other.logs
+        Match mdsd-other.logs
         Host  127.0.0.1
         Port  5001
         Tag   akskubesystem
@@ -278,7 +292,7 @@ data:
     [OUTPUT]
         Name  forward
         Alias forward.mdsd.ocm
-        Match ocm.logs
+        Match mdsd-ocm.logs
         Host  127.0.0.1
         Port  5002
         Tag   akskubesystem
@@ -391,7 +405,7 @@ spec:
         app: arobit-forwarder
         azure.workload.identity/use: "true"
       annotations:
-        checksum/configmap: 5f7b0c60a29498d152743ce840c3aa2d50a4b197dc72d6e8b51b1363b174c79b
+        checksum/configmap: 0fc23a5c972956eee2988b43c51663fad489248db6b84a6d4023e966388620cd
     spec:
       serviceAccountName: 'arobit-forwarder'
       shareProcessNamespace: true

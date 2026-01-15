@@ -190,13 +190,14 @@ data:
         Match           other.logs
         Rule            $kubernetes['container_name'] ^aro-hcp-frontend* aro-hcp-frontend.logs true
         Rule            $kubernetes['container_name'] ^aro-hcp-backend* aro-hcp-backend.logs true
+        Rule            $kubernetes['container_name'] ^clusters-service* clusters-service.logs true
         Rule            $kubernetes['container_name'] ^kube-events* kube-events.logs true
         Emitter_Name    re_emitted_container_name_router
 
     [FILTER]
         # Parse the log key and make it a json object again under $
         Name Parser
-        Match_regex (aro-hcp-(frontend|backend)|kube-events)\.logs
+        Match_regex (aro-hcp-(frontend|backend)|kube-events|clusters-service)\.logs
         Key_Name log
         Parser containerlogs
         Preserve_Key On
@@ -250,7 +251,7 @@ data:
     [OUTPUT]
         Name  forward
         Alias forward.mdsd.other
-        Match other.logs
+        Match mdsd-other.logs
         Host  127.0.0.1
         Port  5001
         Tag   akskubesystem
@@ -266,7 +267,7 @@ data:
     [OUTPUT]
         Name  forward
         Alias forward.mdsd.ocm
-        Match ocm.logs
+        Match mdsd-ocm.logs
         Host  127.0.0.1
         Port  5002
         Tag   akskubesystem
@@ -379,7 +380,7 @@ spec:
         app: arobit-forwarder
         azure.workload.identity/use: "true"
       annotations:
-        checksum/configmap: 93d08df640a0170c14dfb6110facdeb7d96f3e42bd160c354356908cc55980bf
+        checksum/configmap: 90d9000e54316252ad4b4bd95046fcd30a7c74304ab28dc20e0cdad382a29850
     spec:
       serviceAccountName: 'arobit-forwarder'
       shareProcessNamespace: true

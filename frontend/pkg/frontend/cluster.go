@@ -125,7 +125,7 @@ func (f *Frontend) ArmResourceListClusters(writer http.ResponseWriter, request *
 	for csCluster := range csIterator.Items(ctx) {
 		if internalCluster, ok := clustersByClusterServiceID[csCluster.ID()]; ok {
 			// TODO this overwrite will transformed into a "set" function as we transition fields to ownership in cosmos
-			internalCluster, err = mergeToInternalCluster(csCluster, internalCluster)
+			internalCluster, err = mergeToInternalCluster(csCluster, internalCluster, f.azureLocation)
 			if err != nil {
 				return utils.TrackError(err)
 			}
@@ -210,7 +210,7 @@ func (f *Frontend) CreateOrUpdateHCPCluster(writer http.ResponseWriter, request 
 	}
 }
 
-func decodeDesiredClusterCreate(ctx context.Context) (*api.HCPOpenShiftCluster, error) {
+func decodeDesiredClusterCreate(ctx context.Context, azureLocation string) (*api.HCPOpenShiftCluster, error) {
 	versionedInterface, err := VersionFromContext(ctx)
 	if err != nil {
 		return nil, utils.TrackError(err)
@@ -236,10 +236,9 @@ func decodeDesiredClusterCreate(ctx context.Context) (*api.HCPOpenShiftCluster, 
 		return nil, utils.TrackError(err)
 	}
 
-	newInternalCluster := &api.HCPOpenShiftCluster{}
-	externalClusterFromRequest.Normalize(newInternalCluster)
+	newInternalCluster := externalClusterFromRequest.ConvertToInternal()
 	// TrackedResource info doesn't appear to come from the external resource information
-	conversion.CopyReadOnlyTrackedResourceValues(&newInternalCluster.TrackedResource, ptr.To(arm.NewTrackedResource(resourceID)))
+	conversion.CopyReadOnlyTrackedResourceValues(&newInternalCluster.TrackedResource, ptr.To(arm.NewTrackedResource(resourceID, azureLocation)))
 
 	// set fields that were not included during the conversion, because the user does not provide them or because the
 	// data is determined live on read.
@@ -275,7 +274,7 @@ func (f *Frontend) createHCPCluster(writer http.ResponseWriter, request *http.Re
 		return err
 	}
 
-	subscription, err := f.dbClient.GetSubscriptionDoc(ctx, resourceID.SubscriptionID)
+	subscription, err := f.dbClient.Subscriptions().Get(ctx, resourceID.SubscriptionID)
 	if err != nil {
 		return err
 	}
@@ -290,7 +289,7 @@ func (f *Frontend) createHCPCluster(writer http.ResponseWriter, request *http.Re
 		return utils.TrackError(err)
 	}
 
-	newInternalCluster, err := decodeDesiredClusterCreate(ctx)
+	newInternalCluster, err := decodeDesiredClusterCreate(ctx, f.azureLocation)
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -305,12 +304,12 @@ func (f *Frontend) createHCPCluster(writer http.ResponseWriter, request *http.Re
 	// TODO this is bad, see above TODOs. We want to validate what we store.
 	newInternalCluster.Identity.UserAssignedIdentities = nil
 
-	newClusterServiceClusterBuilder, err := ocm.BuildCSCluster(newInternalCluster.ID, request.Header, newInternalCluster, false)
+	newClusterServiceClusterBuilder, newClusterServiceAutoscalerBuilder, err := ocm.BuildCSCluster(newInternalCluster.ID, request.Header, newInternalCluster, false)
 	if err != nil {
 		return utils.TrackError(err)
 	}
 	logger.Info(fmt.Sprintf("creating resource %s", newInternalCluster.ID))
-	resultingClusterServiceCluster, err := f.clusterServiceClient.PostCluster(ctx, newClusterServiceClusterBuilder, nil)
+	resultingClusterServiceCluster, err := f.clusterServiceClient.PostCluster(ctx, newClusterServiceClusterBuilder, newClusterServiceAutoscalerBuilder)
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -323,10 +322,11 @@ func (f *Frontend) createHCPCluster(writer http.ResponseWriter, request *http.Re
 	transaction := f.dbClient.NewTransaction(newInternalCluster.ID.SubscriptionID)
 
 	// TODO extract to straight instance creation and then validation.
-	clusterCreateOperation := database.NewOperationDocument(
+	clusterCreateOperation := database.NewOperation(
 		database.OperationRequestCreate,
 		newInternalCluster.ID,
 		newInternalCluster.ServiceProviderProperties.ClusterServiceID,
+		f.azureLocation,
 		request.Header.Get(arm.HeaderNameHomeTenantID),
 		request.Header.Get(arm.HeaderNameClientObjectID),
 		request.Header.Get(arm.HeaderNameAsyncNotificationURI),
@@ -365,7 +365,7 @@ func (f *Frontend) createHCPCluster(writer http.ResponseWriter, request *http.Re
 	}
 
 	// TODO this overwrite will transformed into a "set" function as we transition fields to ownership in cosmos
-	resultingInternalCluster, err = mergeToInternalCluster(resultingClusterServiceCluster, resultingInternalCluster)
+	resultingInternalCluster, err = mergeToInternalCluster(resultingClusterServiceCluster, resultingInternalCluster, f.azureLocation)
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -413,8 +413,7 @@ func decodeDesiredClusterReplace(ctx context.Context, oldInternalCluster *api.HC
 		return nil, utils.TrackError(err)
 	}
 
-	newInternalCluster := &api.HCPOpenShiftCluster{}
-	externalClusterFromRequest.Normalize(newInternalCluster)
+	newInternalCluster := externalClusterFromRequest.ConvertToInternal()
 
 	// values a user doesn't have to provide, but are not static defaults (set dynamically during create).  Set these from old value
 	if len(newInternalCluster.CustomerProperties.Version.ID) == 0 {
@@ -490,8 +489,7 @@ func decodeDesiredClusterPatch(ctx context.Context, oldInternalCluster *api.HCPO
 	if err := api.ApplyRequestBody(http.MethodPatch, body, newExternalCluster); err != nil {
 		return nil, utils.TrackError(err)
 	}
-	newInternalCluster := &api.HCPOpenShiftCluster{}
-	newExternalCluster.Normalize(newInternalCluster)
+	newInternalCluster := newExternalCluster.ConvertToInternal()
 
 	// ServiceProviderProperties contains two types of information
 	// 1. values that a user cannot change because the external type does not expose the information.
@@ -553,22 +551,36 @@ func (f *Frontend) updateHCPClusterInCosmos(ctx context.Context, writer http.Res
 	// TODO this is bad, see above TODOs. We want to validate what we store.
 	newInternalCluster.Identity.UserAssignedIdentities = nil
 
-	newClusterServiceClusterBuilder, err := ocm.BuildCSCluster(oldInternalCluster.ID, request.Header, newInternalCluster, true)
+	newClusterServiceClusterBuilder, newClusterServiceAutoscalerBuilder, err := ocm.BuildCSCluster(oldInternalCluster.ID, request.Header, newInternalCluster, true)
 	if err != nil {
 		return utils.TrackError(err)
 	}
 
 	logger.Info(fmt.Sprintf("updating resource %s", oldInternalCluster.ID))
+	resultingClusterServiceAutoscaler, err := f.clusterServiceClient.UpdateClusterAutoscaler(ctx, oldInternalCluster.ServiceProviderProperties.ClusterServiceID, newClusterServiceAutoscalerBuilder)
+	if err != nil {
+		return utils.TrackError(err)
+	}
 	resultingClusterServiceCluster, err := f.clusterServiceClient.UpdateCluster(ctx, oldInternalCluster.ServiceProviderProperties.ClusterServiceID, newClusterServiceClusterBuilder)
 	if err != nil {
 		return utils.TrackError(err)
 	}
 
+	// Merge the autoscaler model into the cluster model.
+	resultingClusterServiceCluster, err = arohcpv1alpha1.NewCluster().
+		Copy(resultingClusterServiceCluster).
+		Autoscaler(arohcpv1alpha1.NewClusterAutoscaler().Copy(resultingClusterServiceAutoscaler)).
+		Build()
+	if err != nil {
+		return utils.TrackError(err)
+	}
+
 	transaction := f.dbClient.NewTransaction(oldInternalCluster.ID.SubscriptionID)
-	clusterUpdateOperation := database.NewOperationDocument(
+	clusterUpdateOperation := database.NewOperation(
 		database.OperationRequestUpdate,
 		oldInternalCluster.ID,
 		oldInternalCluster.ServiceProviderProperties.ClusterServiceID,
+		f.azureLocation,
 		request.Header.Get(arm.HeaderNameHomeTenantID),
 		request.Header.Get(arm.HeaderNameClientObjectID),
 		request.Header.Get(arm.HeaderNameAsyncNotificationURI),
@@ -604,7 +616,7 @@ func (f *Frontend) updateHCPClusterInCosmos(ctx context.Context, writer http.Res
 	resultingInternalCluster := resultingUncastObj.(*api.HCPOpenShiftCluster)
 
 	// TODO this overwrite will transformed into a "set" function as we transition fields to ownership in cosmos
-	resultingInternalCluster, err = mergeToInternalCluster(resultingClusterServiceCluster, resultingInternalCluster)
+	resultingInternalCluster, err = mergeToInternalCluster(resultingClusterServiceCluster, resultingInternalCluster, f.azureLocation)
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -699,10 +711,11 @@ func (f *Frontend) addDeleteClusterToTransaction(ctx context.Context, writer htt
 		return utils.TrackError(err)
 	}
 
-	operationDoc := database.NewOperationDocument(
+	operationDoc := database.NewOperation(
 		database.OperationRequestDelete,
 		cluster.ID,
 		cluster.ServiceProviderProperties.ClusterServiceID,
+		f.azureLocation,
 		"",
 		"",
 		"",
@@ -756,8 +769,9 @@ func (f *Frontend) addDeleteClusterToTransaction(ctx context.Context, writer htt
 // mergeToInternalCluster renders a CS Cluster object in JSON format, applying
 // the necessary conversions for the API version of the request.
 // TODO this overwrite will transformed into a "set" function as we transition fields to ownership in cosmos
-func mergeToInternalCluster(csCluster *arohcpv1alpha1.Cluster, internalCluster *api.HCPOpenShiftCluster) (*api.HCPOpenShiftCluster, error) {
-	clusterServiceBasedInternalCluster, err := ocm.ConvertCStoHCPOpenShiftCluster(internalCluster.ID, csCluster)
+// TODO remove the azure location once we have migrated every record to store the location
+func mergeToInternalCluster(csCluster *arohcpv1alpha1.Cluster, internalCluster *api.HCPOpenShiftCluster, azureLocation string) (*api.HCPOpenShiftCluster, error) {
+	clusterServiceBasedInternalCluster, err := ocm.ConvertCStoHCPOpenShiftCluster(internalCluster.ID, azureLocation, csCluster)
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}
@@ -792,7 +806,7 @@ func (f *Frontend) readInternalClusterFromClusterService(ctx context.Context, ol
 	}
 
 	// TODO this overwrite will transformed into a "set" function as we transition fields to ownership in cosmos
-	oldInternalCluster, err = mergeToInternalCluster(oldClusterServiceCluster, oldInternalCluster)
+	oldInternalCluster, err = mergeToInternalCluster(oldClusterServiceCluster, oldInternalCluster, f.azureLocation)
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}
