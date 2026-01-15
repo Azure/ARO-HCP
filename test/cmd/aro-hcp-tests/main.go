@@ -31,10 +31,11 @@ import (
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/cleanup"
 	customlinktools "github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/custom-link-tools"
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/visualize"
+	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 )
 
-func main() {
+func setupCli() *cobra.Command {
 	// Extension registry
 	registry := e.NewRegistry()
 
@@ -48,7 +49,7 @@ func main() {
 		Qualifiers: []string{
 			// Remember that the label constants are (currently) slices, not items.
 			// TODO we will need per-env markers eventually, but it's ok to start here
-			fmt.Sprintf(`labels.exists(l, l=="%s")`, labels.RequireNothing[0]),
+			fmt.Sprintf(`labels.exists(l, l=="%s") && !labels.exists(l, l=="%s")`, labels.RequireNothing[0], labels.DevelopmentOnly[0]),
 		},
 		Parallelism: 20,
 	})
@@ -58,7 +59,7 @@ func main() {
 		Qualifiers: []string{
 			// Remember that the label constants are (currently) slices, not items.
 			// TODO we will need per-env markers eventually, but it's ok to start here
-			fmt.Sprintf(`labels.exists(l, l=="%s") && !labels.exists(l, l=="%s")`, labels.RequireNothing[0], labels.IntegrationOnly[0]),
+			fmt.Sprintf(`labels.exists(l, l=="%s") && !labels.exists(l, l=="%s") && !labels.exists(l, l=="%s")`, labels.RequireNothing[0], labels.IntegrationOnly[0], labels.DevelopmentOnly[0]),
 		},
 		Parallelism: 10,
 	})
@@ -68,7 +69,7 @@ func main() {
 		Qualifiers: []string{
 			// Remember that the label constants are (currently) slices, not items.
 			// TODO we will need per-env markers eventually, but it's ok to start here
-			fmt.Sprintf(`labels.exists(l, l=="%s") && !labels.exists(l, l=="%s")`, labels.RequireNothing[0], labels.IntegrationOnly[0]),
+			fmt.Sprintf(`labels.exists(l, l=="%s") && !labels.exists(l, l=="%s") && !labels.exists(l, l=="%s")`, labels.RequireNothing[0], labels.IntegrationOnly[0], labels.DevelopmentOnly[0]),
 		},
 		Parallelism: 10,
 	})
@@ -84,14 +85,17 @@ func main() {
 		Parallelism: 20,
 	})
 
+	rpApiCompatBaseQualifier := fmt.Sprintf(`labels.exists(l, l=="%s")`, labels.AroRpApiCompatible[0])
+
+	if framework.IsDevelopmentEnvironment() {
+		rpApiCompatBaseQualifier = fmt.Sprintf(`%s || labels.exists(l, l=="%s")`, rpApiCompatBaseQualifier, labels.DevelopmentOnly[0])
+	} else {
+		rpApiCompatBaseQualifier = fmt.Sprintf(`%s && !labels.exists(l, l=="%s")`, rpApiCompatBaseQualifier, labels.DevelopmentOnly[0])
+	}
+
 	ext.AddSuite(e.Suite{
-		Name: "rp-api-compat-all/parallel",
-		Qualifiers: []string{
-			// This suite contains all E2E tests which don't use ARM APIs to
-			// communicate with ARO HCP RP (so that it's possible to run
-			// them against ARO HCP dev instance via RP API endpoint).
-			fmt.Sprintf(`labels.exists(l, l=="%s")`, labels.AroRpApiCompatible[0]),
-		},
+		Name:        "rp-api-compat-all/parallel",
+		Qualifiers:  []string{rpApiCompatBaseQualifier},
 		Parallelism: 20,
 	})
 
@@ -172,7 +176,11 @@ func main() {
 	root.AddCommand(cleanup.NewCommand())
 	root.AddCommand(api.Must(visualize.NewCommand()))
 	root.AddCommand(api.Must(customlinktools.NewCommand()))
+	return root
+}
 
+func main() {
+	root := setupCli()
 	if err := func() error {
 		return root.Execute()
 	}(); err != nil {

@@ -1,0 +1,98 @@
+{
+  "api": {
+    "listening": "external"
+  },
+  "autoscaler": {
+    "kind": "ClusterAutoscaler",
+    "max_node_provision_time": "15m",
+    "max_pod_grace_period": 600,
+    "pod_priority_threshold": -10,
+    "resource_limits": {
+      "max_nodes_total": 0
+    }
+  },
+  "azure": {
+    "etcd_encryption": {
+      "data_encryption": {
+        "customer_managed": {
+          "encryption_type": "kms",
+          "kms": {
+            "active_key": {
+              "key_name": "encryptionKeyName",
+              "key_vault_name": "keyVaultName",
+              "key_version": "2024-12-01-preview"
+            }
+          }
+        },
+        "key_management_mode": "customer_managed"
+      }
+    },
+    "managed_resource_group_name": "managed-resource-group-name",
+    "network_security_group_resource_id": "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.Network/networkSecurityGroups/nsg",
+    "nodes_outbound_connectivity": {
+      "outbound_type": "load_balancer"
+    },
+    "operators_authentication": {
+      "managed_identities": {
+        "control_plane_operators_managed_identities": {},
+        "data_plane_operators_managed_identities": {},
+        "managed_identities_data_plane_identity_url": "",
+        "service_managed_identity": {
+          "client_id": "service-managed-identity_fake-client-id",
+          "principal_id": "service-managed-identity_fake-principal-id",
+          "resource_id": "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/different-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/service-managed-identity"
+        }
+      }
+    },
+    "resource_group_name": "some-resource-group",
+    "resource_name": "update-np-to-illegal-value",
+    "subnet_resource_id": "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/different-resource-group/providers/Microsoft.Network/virtualNetworks/vnet/subnets/subnet",
+    "subscription_id": "0465bc32-c654-41b8-8d87-9815d7abe8f6",
+    "tenant_id": "00000000-0000-0000-0000-000000000000"
+  },
+  "ccs": {
+    "enabled": true,
+    "kind": "CCS"
+  },
+  "cloud_provider": {
+    "id": "azure",
+    "kind": "CloudProvider"
+  },
+  "flavour": {
+    "id": "osd-4",
+    "kind": "Flavour"
+  },
+  "href": "/api/aro_hcp/v1alpha1/clusters/cs-update-np-to-illegal-value",
+  "hypershift": {
+    "enabled": true
+  },
+  "image_registry": {
+    "state": "disabled"
+  },
+  "kind": "Cluster",
+  "name": "update-np-to-illegal-value",
+  "network": {
+    "host_prefix": 23,
+    "machine_cidr": "10.0.0.0/16",
+    "pod_cidr": "10.128.0.0/14",
+    "service_cidr": "172.30.0.0/16",
+    "type": "OVNKubernetes"
+  },
+  "node_drain_grace_period": {
+    "unit": "minutes",
+    "value": 0
+  },
+  "product": {
+    "id": "aro",
+    "kind": "Product"
+  },
+  "region": {
+    "id": "globals-are-evil",
+    "kind": "CloudRegion"
+  },
+  "version": {
+    "channel_group": "stable",
+    "id": "",
+    "kind": "Version"
+  }
+}

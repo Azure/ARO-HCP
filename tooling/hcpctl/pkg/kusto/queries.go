@@ -75,6 +75,12 @@ func (q *ConfigurableQuery) WithTimestampMinAndMax(timestampMin time.Time, times
 	return q
 }
 
+func (q *ConfigurableQuery) WithResourceIdHasResourceGroup(resourceGroup string) *ConfigurableQuery {
+	q.Query.AddLiteral("\n| where resource_id has resourceGroupName")
+	q.Parameters.AddString("resourceGroupName", resourceGroup)
+	return q
+}
+
 func (q *ConfigurableQuery) WithClusterIdOrSubscriptionAndResourceGroup(clusterIds []string, subscriptionId string, resourceGroup string) *ConfigurableQuery {
 	if len(clusterIds) != 0 {
 		q.Query.AddLiteral("\n| where log has subscriptionId  and log has resourceGroupName or log has_any (clusterId)")

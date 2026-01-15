@@ -1,5 +1,6 @@
 import "@typespec/rest";
 import "@typespec/http";
+import "@typespec/versioning";
 import "@azure-tools/typespec-azure-core";
 import "@azure-tools/typespec-azure-resource-manager";
 import "@azure-tools/typespec-client-generator-core";
@@ -669,6 +670,7 @@ model NodePoolPlatformProfile {
 model OsDiskProfile {
   /** The OS disk size in GiB */
   @visibility(Lifecycle.Read, Lifecycle.Create)
+  @minValue(64)
   sizeGiB?: int32 = 64;
 
   /** The type of the disk storage account

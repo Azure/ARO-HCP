@@ -23,8 +23,10 @@ output imagePullerMsiClientId string = imagePullerIdentity.properties.clientId
 output imagePullerMsiTenantId string = imagePullerIdentity.properties.tenantId
 
 //
-//   F R O N T E N D   L O O K U P
+//   B A C K E N D   L O O K U P
 //
+
+output tenantId string = tenant().tenantId
 
 resource backendIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
   scope: resourceGroup()
