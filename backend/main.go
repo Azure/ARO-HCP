@@ -64,15 +64,18 @@ const (
 )
 
 var (
-	argKubeconfig           string
-	argNamespace            string
-	argLocation             string
-	argCosmosName           string
-	argCosmosURL            string
-	argClustersServiceURL   string
-	argInsecure             bool
-	argMetricsListenAddress string
-	argPortListenAddress    string
+	argKubeconfig             string
+	argNamespace              string
+	argLocation               string
+	argCosmosName             string
+	argCosmosURL              string
+	argClustersServiceURL     string
+	argInsecure               bool
+	argMetricsListenAddress   string
+	argPortListenAddress      string
+	argAzureRuntimeConfigPath string
+	argAzureFPACertBundlePath string
+	argAzureFPAClientID       string
 
 	processName = filepath.Base(os.Args[0])
 
@@ -107,6 +110,23 @@ func init() {
 	rootCmd.Flags().BoolVar(&argInsecure, "insecure", false, "Skip validating TLS for clusters-service")
 	rootCmd.Flags().StringVar(&argMetricsListenAddress, "metrics-listen-address", ":8081", "Address on which to expose metrics")
 	rootCmd.Flags().StringVar(&argPortListenAddress, "healthz-listen-address", ":8083", "Address on which Healthz endpoint will be supported")
+	rootCmd.Flags().StringVar(
+		&argAzureRuntimeConfigPath, "azure-runtime-config-path", "",
+		"Path to a file containing the Azure runtime configuration in JSON or YAML format following the schema defined "+
+			"in backend/pkg/apis/config/v1.AzureRuntimeConfig",
+	)
+	rootCmd.Flags().StringVar(
+		&argAzureFPACertBundlePath,
+		"azure-first-party-application-certificate-bundle-path", "",
+		"Path to a file containing an X.509 Certificate based client certificate, consisting of a private key and "+
+			"certificate chain, in a PEM or PKCS#12 format for authenticating clients with a first party application identity",
+	)
+	rootCmd.Flags().StringVar(
+		&argAzureFPAClientID,
+		"azure-first-party-application-client-id",
+		"",
+		"The client id of the first party application identity",
+	)
 
 	rootCmd.MarkFlagsRequiredTogether("cosmos-name", "cosmos-url")
 
