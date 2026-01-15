@@ -12,6 +12,16 @@ resourceGroups:
     parameters: configurations/output-global.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     outputOnly: true
+- name: kusto
+  resourceGroup: rg
+  subscription: foo-bar
+  steps:
+  - name: kusto-lookup
+    action: ARM
+    template: templates/kusto-lookup.bicep
+    parameters: configurations/kusto-lookup.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
 - name: test
   resourceGroup: rg
   subscription: foo-bar
@@ -29,3 +39,9 @@ resourceGroups:
       resourceGroup: global
       step: output
       name: globalMSIId
+    kustoEndpoint:
+      resourceGroup: kusto
+      step: kusto-lookup
+      name: kustoUri
+    kustoDatabase: testDatabase
+    kustoTable: testTable

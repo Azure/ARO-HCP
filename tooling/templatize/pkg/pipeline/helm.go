@@ -72,6 +72,19 @@ func runHelmStep(id graph.Identifier, step *types.HelmStep, ctx context.Context,
 		replacements[key] = str
 	}
 
+	var kustoEndpointString string
+	if step.KustoEndpoint != nil {
+		kustoEndpointResolved, err := resolveInput(id.ServiceGroup, *(step.KustoEndpoint), outputs)
+		if err != nil {
+			return err
+		}
+		var ok bool
+		kustoEndpointString, ok = kustoEndpointResolved.(string)
+		if !ok {
+			return fmt.Errorf("kusto endpoint variable is not a string, value: %T", kustoEndpointResolved)
+		}
+	}
+
 	process := func(filepath string) ([]byte, error) {
 		processed, err := config.PreprocessFile(filepath, options.Configuration)
 		if err != nil {
@@ -121,6 +134,9 @@ func runHelmStep(id graph.Identifier, step *types.HelmStep, ctx context.Context,
 		ReleaseNamespace:  step.ReleaseNamespace,
 		ChartDir:          chartDir,
 		ValuesFile:        values,
+		KustoDatabase:     step.KustoDatabase,
+		KustoTable:        step.KustoTable,
+		KustoEndpoint:     kustoEndpointString,
 		Timeout:           5 * time.Minute,
 		KubeconfigFile:    kubeconfig,
 		DryRun:            options.DryRun,
