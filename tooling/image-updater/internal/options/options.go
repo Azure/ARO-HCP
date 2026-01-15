@@ -220,7 +220,7 @@ func (v *ValidatedUpdateOptions) Complete(ctx context.Context) (*updater.Updater
 			}
 		}
 
-		return updater.New(v.Config, v.DryRun, v.ForceUpdate, nil, yamlEditors, promotionMode, v.Environments), nil
+		return updater.New(v.Config, v.DryRun, v.ForceUpdate, nil, yamlEditors, promotionMode, v.Environments, v.OutputFile, v.OutputFormat), nil
 	}
 
 	// Collect unique Key Vault configurations from all images

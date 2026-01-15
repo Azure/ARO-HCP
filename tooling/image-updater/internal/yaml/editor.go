@@ -82,6 +82,70 @@ func (e *Editor) GetUpdate(path string) (int, string, error) {
 	return line, node.Value, nil
 }
 
+// GetLineWithComment retrieves the line number, value, and the full line content (including comment)
+func (e *Editor) GetLineWithComment(path string) (int, string, string, error) {
+	line, value, err := e.GetUpdate(path)
+	if err != nil {
+		return 0, "", "", err
+	}
+
+	// Read the line from the file
+	file, err := os.Open(e.filePath)
+	if err != nil {
+		return 0, "", "", fmt.Errorf("failed to open file: %w", err)
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	currentLine := 1
+	for scanner.Scan() {
+		if currentLine == line {
+			return line, value, scanner.Text(), nil
+		}
+		currentLine++
+	}
+
+	if err := scanner.Err(); err != nil {
+		return 0, "", "", fmt.Errorf("error reading file: %w", err)
+	}
+
+	return line, value, "", nil
+}
+
+// ParseVersionComment extracts tag and date from a YAML line comment
+// Expected format: "digest: sha256:abc... # v1.2.3 (2025-01-15 10:30)"
+// Returns (tag, date) where either or both may be empty if not found
+func ParseVersionComment(lineContent string) (string, string) {
+	// Find the comment marker
+	commentIdx := strings.Index(lineContent, "#")
+	if commentIdx == -1 {
+		return "", ""
+	}
+
+	// Extract the comment part
+	comment := strings.TrimSpace(lineContent[commentIdx+1:])
+	if comment == "" {
+		return "", ""
+	}
+
+	// Look for date in parentheses at the end
+	var tag, date string
+	if lastParen := strings.LastIndex(comment, "("); lastParen != -1 {
+		if closeParen := strings.Index(comment[lastParen:], ")"); closeParen != -1 {
+			date = strings.TrimSpace(comment[lastParen+1 : lastParen+closeParen])
+			tag = strings.TrimSpace(comment[:lastParen])
+		} else {
+			// No closing paren, treat entire comment as tag
+			tag = comment
+		}
+	} else {
+		// No parentheses, treat entire comment as tag
+		tag = comment
+	}
+
+	return tag, date
+}
+
 // findChild finds a child node with the specified key
 func (e *Editor) findChild(parent *yaml.Node, key string) *yaml.Node {
 	if parent.Kind == yaml.DocumentNode && len(parent.Content) > 0 {

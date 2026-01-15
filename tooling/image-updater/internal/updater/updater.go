@@ -194,7 +194,7 @@ func (u *Updater) promoteImages(ctx context.Context) error {
 
 	// Determine source and target environments
 	sourceEnv, targetEnv := u.getPromotionSourceAndTarget()
-	logger.Info("promoting images", "from", sourceEnv, "to", targetEnv)
+	logger.V(1).Info("promoting images", "from", sourceEnv, "to", targetEnv)
 
 	updatedCount := 0
 	for name, imageConfig := range u.Config.Images {
@@ -228,7 +228,7 @@ func (u *Updater) promoteImages(ctx context.Context) error {
 			return fmt.Errorf("no YAML editor available for source file %s", sourceTarget.FilePath)
 		}
 
-		_, sourceDigest, err := sourceEditor.GetUpdate(sourceTarget.JsonPath)
+		_, sourceDigest, sourceLineContent, err := sourceEditor.GetLineWithComment(sourceTarget.JsonPath)
 		if err != nil {
 			return fmt.Errorf("failed to get source digest from %s at path %s: %w",
 				sourceTarget.FilePath, sourceTarget.JsonPath, err)
@@ -238,6 +238,9 @@ func (u *Updater) promoteImages(ctx context.Context) error {
 			logger.V(1).Info("skipping image - source digest is empty", "name", name)
 			continue
 		}
+
+		// Extract tag and date from source comment
+		sourceTag, sourceDate := yaml.ParseVersionComment(sourceLineContent)
 
 		// Get destination digest
 		destEditor, exists := u.YAMLEditors[destTarget.FilePath]
@@ -258,33 +261,31 @@ func (u *Updater) promoteImages(ctx context.Context) error {
 		}
 
 		if sourceDigest == destDigest && u.ForceUpdate {
-			logger.Info("Force update - regenerating comments", "name", name)
+			logger.V(1).Info("Force update - regenerating comments", "name", name)
 		} else {
-			logger.Info("Promotion needed", "name", name, "from", destDigest, "to", sourceDigest)
+			logger.V(1).Info("Promotion needed", "name", name, "from", destDigest, "to", sourceDigest)
 		}
 
+		// Record the update (both dry-run and real runs)
+		u.Updates[destTarget.FilePath] = append(u.Updates[destTarget.FilePath], yaml.Update{
+			Name:      name,
+			NewDigest: sourceDigest,
+			OldDigest: destDigest,
+			Tag:       sourceTag,
+			Date:      sourceDate,
+			JsonPath:  destTarget.JsonPath,
+			FilePath:  destTarget.FilePath,
+			Line:      line,
+		})
+
 		if u.DryRun {
-			logger.Info("DRY RUN: Would promote image",
+			logger.V(2).Info("DRY RUN: Would promote image",
 				"name", name,
 				"sourceEnv", sourceEnv,
 				"targetEnv", targetEnv,
 				"from", destDigest,
 				"to", sourceDigest)
-			updatedCount++
-			continue
 		}
-
-		// Copy the digest (preserve any existing comment for now)
-		u.Updates[destTarget.FilePath] = append(u.Updates[destTarget.FilePath], yaml.Update{
-			Name:      name,
-			NewDigest: sourceDigest,
-			OldDigest: destDigest,
-			Tag:       "", // We don't have tag info in promotion mode
-			Date:      "", // We don't have date info in promotion mode
-			JsonPath:  destTarget.JsonPath,
-			FilePath:  destTarget.FilePath,
-			Line:      line,
-		})
 
 		updatedCount++
 	}
@@ -312,6 +313,11 @@ func (u *Updater) promoteImages(ctx context.Context) error {
 
 		commitMsg := fmt.Sprintf("Promoted images from %s to %s", sourceEnv, targetEnv)
 		fmt.Println(commitMsg)
+	}
+
+	// Generate and output results
+	if err := u.outputResults(ctx); err != nil {
+		return fmt.Errorf("failed to output results: %w", err)
 	}
 
 	return nil
