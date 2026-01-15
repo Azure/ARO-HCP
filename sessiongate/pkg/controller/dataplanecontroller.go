@@ -32,6 +32,7 @@ import (
 
 	sessiongatev1alpha1 "github.com/Azure/ARO-HCP/sessiongate/pkg/apis/sessiongate/v1alpha1"
 	sessiongateinformers "github.com/Azure/ARO-HCP/sessiongate/pkg/generated/informers/externalversions"
+	"github.com/Azure/ARO-HCP/sessiongate/pkg/registry"
 )
 
 // data plane controller implementation.
@@ -42,7 +43,7 @@ type DataPlaneController struct {
 	cachesToSync []cache.InformerSynced
 	fieldManager string
 	logger       klog.Logger
-	registry     SessionRegistry
+	registry     registry.SessionRegistry
 	getSession   func(namespace, name string) (*sessiongatev1alpha1.Session, error)
 	getSecret    func(namespace, name string) (*corev1.Secret, error)
 }
@@ -52,7 +53,7 @@ func NewDataPlaneController(
 	logger klog.Logger,
 	sessiongateInformers sessiongateinformers.SharedInformerFactory,
 	kubeInformers kubeinformers.SharedInformerFactory,
-	registry SessionRegistry,
+	registry registry.SessionRegistry,
 	eventRecorder record.EventRecorder,
 ) (*DataPlaneController, error) {
 	workQueue := workqueue.NewTypedRateLimitingQueueWithConfig(
@@ -149,7 +150,6 @@ func (c *DataPlaneController) syncSession(ctx context.Context, namespace, name s
 	return c.registerSession(ctx, session)
 }
 
-// isReadyForRegistration validates whether a session should be registered
 func (c *DataPlaneController) isReadyForRegistration(session *sessiongatev1alpha1.Session) (bool, string) {
 	if !session.DeletionTimestamp.IsZero() {
 		return false, "being deleted"
@@ -198,7 +198,7 @@ func (c *DataPlaneController) registerSession(ctx context.Context, session *sess
 		},
 	}
 
-	endpoint, err := c.registry.RegisterSession(NewSessionOptions(
+	endpoint, err := c.registry.RegisterSession(registry.NewSessionOptions(
 		session.Name,
 		session.Status.BackendKASURL,
 		restConfig,

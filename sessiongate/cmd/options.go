@@ -265,8 +265,8 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 	}, nil
 }
 
-// buildKubeConfig builds a Kubernetes REST config, trying in-cluster config first
-// and falling back to out-of-cluster config using default loading rules.
+// build a Kubernetes REST config, trying in-cluster config first
+// and falling back to out-of-cluster config using default loading rules
 func (o *ValidatedControllerOptions) buildKubeConfig() (*rest.Config, error) {
 	// try in-cluster config first
 	config, err := rest.InClusterConfig()

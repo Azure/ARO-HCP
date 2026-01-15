@@ -89,7 +89,8 @@ func (c *CredentialSecret) GetCertificate() ([]byte, bool) {
 }
 
 // ValidateCertificateMatchesPrivateKey checks if the stored certificate's public key
-// matches the stored private key. Returns true if they match, false otherwise.
+// matches the stored private key. Prevents using mismatched credentials which would
+// cause authentication failures when connecting to the management cluster.
 func (c *CredentialSecret) ValidateCertificateMatchesPrivateKey() bool {
 	// Get the private key
 	privateKey, privateKeyExists := c.GetPrivateKey()

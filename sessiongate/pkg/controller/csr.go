@@ -91,7 +91,9 @@ func CSRName(sessionName string) string {
 	return fmt.Sprintf("sessiongate-%s", sessionName)
 }
 
-// validateCSR checks if an existing CSR matches the expected private key and session details
+// validateCSR checks if an existing CSR matches the expected private key and session details.
+// Prevents accepting a CSR created by a different controller or with mismatched credentials,
+// which could lead to security issues or credential misuse.
 func validateCSR(csr *certificatesv1.CertificateSigningRequest, privateKey *rsa.PrivateKey, user, organization string) bool {
 	if csr == nil || len(csr.Spec.Request) == 0 {
 		klog.ErrorS(nil, "CSR is nil or has no request", "csr", csr.Name)

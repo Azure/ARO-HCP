@@ -1,0 +1,40 @@
+AuthPolicy:
+  apiVersion: security.istio.io/v1beta1
+  kind: AuthorizationPolicy
+  metadata:
+    labels:
+      app.kubernetes.io/managed-by: sessiongate-controller
+    name: test-session
+    namespace: test-namespace
+    ownerReferences:
+    - apiVersion: sessiongate.aro-hcp.azure.com/v1alpha1
+      blockOwnerDeletion: true
+      controller: true
+      kind: Session
+      name: test-session
+      uid: test-uid
+  spec:
+    rules:
+    - to:
+      - operation:
+          paths:
+          - /sessiongate/test-session/kas/*
+      when:
+      - key: request.auth.claims[upn]
+        values:
+        - user@example.com
+    selector:
+      matchLabels:
+        app.kubernetes.io/name: sessiongate
+CSR: null
+CSRApproval: null
+DeleteCSR: false
+DeleteSession: false
+Event:
+  Args:
+  - test-namespace
+  - test-session
+  MessageFmt: Updating authorization policy for %s/%s.
+  Reason: AuthorizationPolicyUpdate
+Secret: null
+Session: null

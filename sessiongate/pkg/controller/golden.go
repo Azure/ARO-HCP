@@ -71,7 +71,6 @@ func CompareWithFixture(t *testing.T, output interface{}, opts ...cmp.Option) {
 	}
 }
 
-// goldenPath determines the golden file to use
 func goldenPath(t *testing.T) (string, error) {
 	path := filepath.Join("testdata", sanitizeFilename(t.Name())) + ".yaml"
 	return filepath.Abs(path)

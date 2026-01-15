@@ -53,8 +53,8 @@ type ManagementClusterQuerier interface {
 
 type ManagementClusterProviderBuilder func(ctx context.Context, resourceId string) (*ManagementClusterProvider, error)
 
+// NewAKSManagermentClusterBuilder creates a builder that constructs ManagementClusterProvider instances for AKS clusters.
 func NewAKSManagermentClusterBuilder(azureCredentials azcore.TokenCredential) ManagementClusterProviderBuilder {
-	// todo: informers and instance caching
 	return func(ctx context.Context, resourceId string) (*ManagementClusterProvider, error) {
 		kubeConfig, err := mc.GetAKSRESTConfig(ctx, resourceId, azureCredentials)
 		if err != nil {

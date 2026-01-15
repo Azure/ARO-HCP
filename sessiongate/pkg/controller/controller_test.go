@@ -170,6 +170,9 @@ var samplePolicy = &securityv1beta1.AuthorizationPolicy{
 	ObjectMeta: metav1.ObjectMeta{
 		Name:      "test-session",
 		Namespace: "test-namespace",
+		Labels: map[string]string{
+			"app.kubernetes.io/managed-by": "sessiongate-controller",
+		},
 		OwnerReferences: []metav1.OwnerReference{
 			{
 				APIVersion: sessiongatev1alpha1.SchemeGroupVersion.String(),
@@ -317,7 +320,6 @@ func TestSessionController_processSession_ensureAuthorizationPolicy(t *testing.T
 		sessionStatus   sessiongatev1alpha1.SessionStatus
 		existingSecret  *corev1.Secret
 		existingPolicy  *securityv1beta1.AuthorizationPolicy
-		mq              ManagementClusterQuerier
 		expectAction    bool
 		expectedRequeue bool
 		expectedErr     bool
@@ -339,7 +341,42 @@ func TestSessionController_processSession_ensureAuthorizationPolicy(t *testing.T
 			existingPolicy: samplePolicy,
 			expectAction:   true,
 		},
-		// todo - policy drift
+		{
+			name: "session with policy drift",
+			sessionStatus: sessiongatev1alpha1.SessionStatus{
+				ExpiresAt:              &metav1.Time{Time: fixedTime.Add(24 * time.Hour)},
+				AuthorizationPolicyRef: "test-session",
+				Conditions: []metav1.Condition{
+					authPolicyAvailableCondition,
+				},
+			},
+			existingPolicy: &securityv1beta1.AuthorizationPolicy{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-session",
+					Namespace: "test-namespace",
+				},
+				Spec: securityv1beta1api.AuthorizationPolicy{
+					Selector: &typev1beta1.WorkloadSelector{
+						MatchLabels: map[string]string{
+							"app.kubernetes.io/name": "sessiongate",
+						},
+					},
+					Action: securityv1beta1api.AuthorizationPolicy_ALLOW,
+					Rules: []*securityv1beta1api.Rule{
+						{
+							To: []*securityv1beta1api.Rule_To{
+								{
+									Operation: &securityv1beta1api.Operation{
+										Paths: []string{"/here-is-the-drift"},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectAction: true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -363,7 +400,7 @@ func TestSessionController_processSession_ensureAuthorizationPolicy(t *testing.T
 			}
 
 			// Execute
-			action, err := controller.processSession(t.Context(), testSession, tt.mq, nowFunc)
+			action, err := controller.processSession(t.Context(), testSession, &mockManagementClusterQuerier{}, nowFunc)
 
 			// Verify error expectation
 			if tt.expectedErr && err == nil {

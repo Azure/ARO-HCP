@@ -26,19 +26,17 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
 
-type logResponseWriter struct {
+type statusResponseWriter struct {
 	http.ResponseWriter
 	statusCode int
 }
 
-// WriteHeader captures the status code sent to the client.
-func (lrw *logResponseWriter) WriteHeader(code int) {
+func (lrw *statusResponseWriter) WriteHeader(code int) {
 	lrw.statusCode = code
 	lrw.ResponseWriter.WriteHeader(code)
 }
 
-// Hijack implements http.Hijacker to support WebSocket upgrades.
-func (lrw *logResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+func (lrw *statusResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 	hijacker, ok := lrw.ResponseWriter.(http.Hijacker)
 	if !ok {
 		return nil, nil, fmt.Errorf("response writer does not support hijacking")
@@ -67,7 +65,7 @@ func WithMetrics(requestCounterName, requestDurationName string, registry promet
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		startTime := time.Now()
 
-		lrw := &logResponseWriter{ResponseWriter: w, statusCode: 200}
+		lrw := &statusResponseWriter{ResponseWriter: w, statusCode: 200}
 
 		next(lrw, r)
 

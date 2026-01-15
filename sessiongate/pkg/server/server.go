@@ -28,7 +28,7 @@ import (
 
 	"k8s.io/klog/v2"
 
-	"github.com/Azure/ARO-HCP/sessiongate/pkg/controller"
+	"github.com/Azure/ARO-HCP/sessiongate/pkg/registry"
 	"github.com/Azure/ARO-HCP/sessiongate/pkg/server/middleware"
 )
 
@@ -102,7 +102,7 @@ func (s *Server) Run(ctx context.Context) error {
 
 	// Register handlers using Go 1.22+ path patterns with logging middleware
 	s.mux.Handle(
-		fmt.Sprintf("%s/{path...}", buildSessionKASPath("{sessionID}")),
+		fmt.Sprintf("%s/{path...}", BuildSessionKASUrlPath("{sessionID}")),
 		middleware.WithMetrics(
 			"sessiongate_kas_proxy_requests_total",
 			"sessiongate_kas_proxy_requests_duration_seconds",
@@ -142,14 +142,14 @@ func (s *Server) Run(ctx context.Context) error {
 // If the session already exists, this is a no-op (returns existing endpoint).
 // Note: Sessions are immutable - we don't support updating REST config for existing sessions.
 // To update credentials, the session must be unregistered and re-registered.
-func (s *Server) RegisterSession(opts controller.SessionOptions) (string, error) {
+func (s *Server) RegisterSession(opts registry.SessionOptions) (string, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	_, exists := s.sessions[opts.SessionID]
 	if !exists {
 		klog.V(2).Info("Registering new session", "sessionID", opts.SessionID, "resourceID", opts.ResourceID)
-		session, err := newKASProxyHandler(context.Background(), opts.RESTConfig, opts.SessionID, buildSessionKASPath(opts.SessionID))
+		session, err := newKASProxyHandler(context.Background(), opts.RESTConfig, opts.SessionID, BuildSessionKASUrlPath(opts.SessionID))
 		if err != nil {
 			klog.Error(err, "Failed to create KAS proxy handler", "sessionID", opts.SessionID)
 			return "", fmt.Errorf("failed to create KAS proxy handler: %w", err)
@@ -167,7 +167,7 @@ func (s *Server) RegisterSession(opts controller.SessionOptions) (string, error)
 
 // GetSessionEndpoint computes the public endpoint URL for a given session ID.
 func (s *Server) GetSessionEndpoint(sessionID string) string {
-	return fmt.Sprintf("%s%s", s.ingressBaseURL, buildSessionKASPath(sessionID))
+	return fmt.Sprintf("%s%s", s.ingressBaseURL, BuildSessionKASUrlPath(sessionID))
 }
 
 // UnregisterSession removes session data and forcibly stops all backend interactions.
@@ -210,6 +210,6 @@ func (s *Server) readyzHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
-func buildSessionKASPath(sessionID string) string {
-	return fmt.Sprintf("%s/%s/kas", sessionGatePathPrefix, sessionID)
+func BuildSessionKASUrlPath(sessionName string) string {
+	return fmt.Sprintf("%s/%s/kas", sessionGatePathPrefix, sessionName)
 }

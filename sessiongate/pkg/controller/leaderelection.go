@@ -36,6 +36,9 @@ type LeaderElectionConfig struct {
 	KubeConfig    *rest.Config
 }
 
+// RunWithLeaderElection wraps a controller with leader election using a Kubernetes Lease.
+// Only the pod that acquires the lease will execute the provided run function, preventing
+// duplicate work across replicas. When leadership is lost, the controller stops gracefully.
 func RunWithLeaderElection(ctx context.Context, controllerName string, config *LeaderElectionConfig, run func() error) error {
 	hostname, err := os.Hostname()
 	if err != nil {

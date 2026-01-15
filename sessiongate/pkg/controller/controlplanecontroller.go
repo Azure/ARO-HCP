@@ -23,7 +23,6 @@ import (
 	"sync"
 	"time"
 
-	"google.golang.org/protobuf/proto"
 	securityv1beta1 "istio.io/client-go/pkg/apis/security/v1beta1"
 	securityapplyv1beta1 "istio.io/client-go/pkg/applyconfiguration/security/v1beta1"
 	istioclient "istio.io/client-go/pkg/clientset/versioned/typed/security/v1beta1"
@@ -211,6 +210,9 @@ func keyForSession(obj interface{}) (cache.ObjectName, error) {
 	return key, nil
 }
 
+// keyForOwningSession extracts the Session namespace/name workqueue key from owned resources.
+// Checks controller owner references first, then falls back to an annotation approach for
+// cross-cluster resources (like CSRs) where owner references aren't possible.
 func keyForOwningSession(obj interface{}) (cache.ObjectName, error) {
 	var object metav1.Object
 	var ok bool
@@ -262,13 +264,11 @@ func (c *SessionController) Run(ctx context.Context, workers int) error {
 	return nil
 }
 
-// runWorker continually calls processNextWorkItem to read and process messages on the workqueue
 func (c *SessionController) runWorker(ctx context.Context) {
 	for c.processNextWorkItem(ctx) {
 	}
 }
 
-// processNextWorkItem reads a single work item off the workqueue and attempts to process it
 func (c *SessionController) processNextWorkItem(ctx context.Context) bool {
 	objRef, shutdown := c.workqueue.Get()
 
@@ -439,6 +439,8 @@ func (c *SessionController) processSession(ctx context.Context, session *session
 // - error: an error that occurred
 type sessionStep func(ctx context.Context, now func() time.Time, session *sessiongatev1alpha1.Session, mc ManagementClusterQuerier) (bool, *actions, error)
 
+// handleExpiration calculates session expiration time and deletes expired sessions.
+// Sets ExpiresAt on first reconcile, then checks on subsequent reconciles and deletes when TTL is exceeded.
 func (c *SessionController) handleExpiration(ctx context.Context, now func() time.Time, session *sessiongatev1alpha1.Session, mc ManagementClusterQuerier) (bool, *actions, error) {
 	expiresAt := metav1.NewTime(session.CreationTimestamp.Add(session.Spec.TTL.Duration))
 	if now().After(expiresAt.Time) {
@@ -461,16 +463,14 @@ func (c *SessionController) ensureAuthorizationPolicy(ctx context.Context, now f
 	}
 
 	// original policy creation
-	desired := buildAuthorizationPolicy(session)
+	desired := buildAuthorizationPolicyApplyConfiguration(session)
 	if current == nil {
 		e := event("AuthorizationPolicyGeneration", "Creating authorization policy for %s/%s.", session.Namespace, session.Name)
 		return true, &actions{Event: e, AuthPolicy: desired}, nil
 	}
 
 	// policy drift detection
-	specDrifted := !proto.Equal(desired.Spec, &current.Spec)
-	ownerRefsDrifted := len(current.OwnerReferences) == 0 || current.OwnerReferences[0].UID != session.UID
-	if specDrifted || ownerRefsDrifted {
+	if authorizationPolicyUpdateNeeded(current, desired) {
 		e := event("AuthorizationPolicyUpdate", "Updating authorization policy for %s/%s.", session.Namespace, session.Name)
 		return true, &actions{Event: e, AuthPolicy: desired}, nil
 	}
