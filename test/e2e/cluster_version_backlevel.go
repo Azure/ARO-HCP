@@ -16,6 +16,7 @@ package e2e
 
 import (
 	"context"
+	"strings"
 	"sync"
 	"time"
 
@@ -58,7 +59,7 @@ var _ = Describe("Customer", func() {
 			clusterParams.ClusterName = customerClusterName
 			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
 			clusterParams.ManagedResourceGroupName = managedResourceGroupName
-			clusterParams.OpenshiftVersionId = "4.19"
+			clusterParams.OpenshiftVersionId = framework.BacklevelOpenshiftControlPlaneVersionId()
 
 			By("creating customer resources")
 			clusterParams, err = tc.CreateClusterCustomerResources(ctx,
@@ -99,46 +100,24 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			By("creating different version nodepools in parallel")
-			nodePoolVersions := map[string]struct {
-				nodePoolVersion string
-				nodePoolSuffix  string
-				description     string
-			}{
-				"node pool version 4.y.0": {
-					nodePoolVersion: "4.19.0",
-					nodePoolSuffix:  "4-19-0",
-					description:     "4.y.0",
-				},
-				"node pool version 4.y.z-1": {
-					nodePoolVersion: "4.19.6",
-					nodePoolSuffix:  "4-19-6",
-					description:     "4.y.z-1",
-				},
-				"node pool version 4.y.z": {
-					nodePoolVersion: "4.19.7",
-					nodePoolSuffix:  "4-19-7",
-					description:     "4.y.z",
-				},
-			}
+			backlevelVersions := framework.BacklevelOpenshiftNodePoolVersionId()
 
 			var wg sync.WaitGroup
 			var errors []error
 			var errorsMutex sync.Mutex
 
-			for _, npVer := range nodePoolVersions {
+			for _, version := range backlevelVersions {
 				wg.Add(1)
-				go func(npVer struct {
-					nodePoolVersion string
-					nodePoolSuffix  string
-					description     string
-				}) {
+				go func(version string) {
 					defer wg.Done()
+
+					nodePoolSuffix := strings.ReplaceAll(version, ".", "-")
 
 					nodePoolParams := framework.NewDefaultNodePoolParams()
 					nodePoolParams.ClusterName = customerClusterName
-					nodePoolParams.NodePoolName = customerNodePoolName + npVer.nodePoolSuffix
+					nodePoolParams.NodePoolName = customerNodePoolName + nodePoolSuffix
 					nodePoolParams.Replicas = int32(1)
-					nodePoolParams.OpenshiftVersionId = npVer.nodePoolVersion
+					nodePoolParams.OpenshiftVersionId = version
 
 					err := tc.CreateNodePoolFromParam(ctx,
 						*resourceGroup.Name,
@@ -148,15 +127,16 @@ var _ = Describe("Customer", func() {
 					)
 					if err != nil {
 						GinkgoLogr.Error(err, "nodepool creation failed",
-							"version", npVer.nodePoolVersion,
-							"description", npVer.description,
+							"version", version,
 							"name", nodePoolParams.NodePoolName)
 
 						errorsMutex.Lock()
 						errors = append(errors, err)
 						errorsMutex.Unlock()
+
+						// TO-DO: node pool workload verification
 					}
-				}(npVer)
+				}(version)
 			}
 
 			wg.Wait()
