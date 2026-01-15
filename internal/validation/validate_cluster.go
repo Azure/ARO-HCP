@@ -25,8 +25,6 @@ import (
 	"k8s.io/apimachinery/pkg/api/validate"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 
-	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
-
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
@@ -165,68 +163,6 @@ func validateResourceIDsAgainstClusterID(ctx context.Context, op operation.Opera
 		field.NewPath("customerProperties", "platform", "operatorsAuthentication", "userAssignedIdentities", "serviceManagedIdentity"),
 		&newCluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity, nil,
 		newCluster.ID.SubscriptionID, newCluster.CustomerProperties.Platform.ManagedResourceGroup)...)
-
-	return errs
-}
-
-var (
-	toTrackedResourceResource = func(oldObj *arm.TrackedResource) *arm.Resource { return &oldObj.Resource }
-	toTrackedResourceLocation = func(oldObj *arm.TrackedResource) *string { return &oldObj.Location }
-)
-
-func validateTrackedResource(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *arm.TrackedResource) field.ErrorList {
-	errs := field.ErrorList{}
-
-	//Resource
-	errs = append(errs, validateResource(ctx, op, fldPath.Child("resource"), &newObj.Resource, safe.Field(oldObj, toTrackedResourceResource))...)
-
-	//Location string            `json:"location,omitempty"`
-	errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("location"), &newObj.Location, safe.Field(oldObj, toTrackedResourceLocation))...)
-	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("location"), &newObj.Location, safe.Field(oldObj, toTrackedResourceLocation))...)
-
-	//Tags     map[string]string `json:"tags,omitempty"`
-
-	return errs
-}
-
-var (
-	toResourceID         = func(oldObj *arm.Resource) *azcorearm.ResourceID { return oldObj.ID }
-	toResourceName       = func(oldObj *arm.Resource) *string { return &oldObj.Name }
-	toResourceType       = func(oldObj *arm.Resource) *string { return &oldObj.Type }
-	toResourceSystemData = func(oldObj *arm.Resource) *arm.SystemData { return oldObj.SystemData }
-)
-
-// Version                 VersionProfile              `json:"version,omitempty"`
-func validateResource(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *arm.Resource) field.ErrorList {
-	errs := field.ErrorList{}
-
-	//ID         string      `json:"id,omitempty"`
-	errs = append(errs, validate.ImmutableByReflect(ctx, op, fldPath.Child("id"), newObj.ID, safe.Field(oldObj, toResourceID))...)
-	// TODO need to determine whether can require this on pre-flight checks
-	//errs = append(errs, validate.RequiredPointer(ctx, op, fldPath.Child("id"), newObj.ID, safe.Field(oldObj, toResourceID))...)
-
-	//Name       string      `json:"name,omitempty"`
-	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("name"), &newObj.Name, safe.Field(oldObj, toResourceName))...)
-
-	//Type       string      `json:"type,omitempty"`
-	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("type"), &newObj.Type, safe.Field(oldObj, toResourceType))...)
-
-	//SystemData *SystemData `json:"systemData,omitempty"`
-	errs = append(errs, validateSystemData(ctx, op, fldPath.Child("systemData"), newObj.SystemData, safe.Field(oldObj, toResourceSystemData))...)
-
-	return errs
-}
-
-// Version                 VersionProfile              `json:"version,omitempty"`
-func validateSystemData(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *arm.SystemData) field.ErrorList {
-	errs := field.ErrorList{}
-
-	//CreatedBy string `json:"createdBy,omitempty"`
-	//CreatedByType CreatedByType `json:"createdByType,omitempty"`
-	//CreatedAt *time.Time `json:"createdAt,omitempty"`
-	//LastModifiedBy string `json:"lastModifiedBy,omitempty"`
-	//LastModifiedByType CreatedByType `json:"lastModifiedByType,omitempty"`
-	//LastModifiedAt *time.Time `json:"lastModifiedAt,omitempty"`
 
 	return errs
 }
