@@ -48,6 +48,11 @@ resourceGroups:
       configRef: keyVaultDNSSuffix
     - name: PROW_JOB_EXECUTOR
       value: './prow-job-executor'
+    automatedRetry:
+      errorContainsAny:
+      - "encountered an error"
+      maximumRetryCount: 1
+      durationBetweenRetries: 2m
     shellIdentity:
       input:
         resourceGroup: global
