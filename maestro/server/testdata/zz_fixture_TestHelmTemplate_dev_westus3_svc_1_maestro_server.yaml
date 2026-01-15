@@ -222,8 +222,6 @@ spec:
         - --db-max-open-connections=50
         - --message-broker-config-file=/secrets/maestro/config.yaml
         - --message-broker-type=mqtt
-        - --enable-ocm-mock=true
-        - --enable-jwt=false
         - --enable-https=false
         - --enable-grpc-server=true
         - --disable-grpc-tls=true
@@ -232,10 +230,8 @@ spec:
         - --grpc-server-bindport=8090
         - --health-check-server-bindport=8083
         - --enable-health-check-https=false
-        - --enable-authz=true
         - --enable-db-debug=false
         - --enable-metrics-https=false
-        - --enable-sentry=false
         - --http-read-timeout=60s
         - --http-write-timeout=60s
         - --label-metrics-inclusion-duration=168h
