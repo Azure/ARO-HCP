@@ -3051,6 +3051,7 @@
           "format": "int32",
           "description": "The OS disk size in GiB",
           "default": 64,
+          "minimum": 64,
           "x-ms-mutability": [
             "read",
             "create"

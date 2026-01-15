@@ -7,7 +7,7 @@
       "enableEncryptionAtHost": true,
       "osDisk": {
         "diskStorageAccountType": "Changed",
-        "sizeGiB": 63
+        "sizeGiB": 65
       },
       "vmSize": "different"
     }
