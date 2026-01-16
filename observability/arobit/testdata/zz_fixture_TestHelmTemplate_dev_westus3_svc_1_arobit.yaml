@@ -93,7 +93,7 @@ data:
         # Set the limit of the buffer size per monitored file. When a buffer needs to be increased (e.g: very long lines),
         # this value is used to restrict how much the memory buffer can grow.
         # (default: Buffer_Chunk_Size)
-        Buffer_Max_Size   4M
+        Buffer_Max_Size   10M
         # When a monitored file reach it buffer capacity due to a very long line (Buffer_Max_Size), the default behavior is to stop monitoring that file.
         # Skip_Long_Lines alter that behavior and instruct Fluent Bit to skip long lines and continue processing other lines that fits into the buffer size.
         # (default: Off)
@@ -385,7 +385,7 @@ spec:
         app: arobit-forwarder
         azure.workload.identity/use: "true"
       annotations:
-        checksum/configmap: 6bf451ff1071f9f7e203762e2100010c783e31e4540a99e503b15877d971f06b
+        checksum/configmap: 9a07ea945520542e4df8994c1c036df649fe4d92de0ee11a7c8d89a1f23babc7
     spec:
       serviceAccountName: 'arobit-forwarder'
       shareProcessNamespace: true
