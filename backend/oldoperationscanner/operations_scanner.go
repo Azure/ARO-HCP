@@ -35,8 +35,6 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
 
-	"k8s.io/utils/lru"
-
 	ocmsdk "github.com/openshift-online/ocm-sdk-go"
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
@@ -47,7 +45,6 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
-	"github.com/Azure/ARO-HCP/internal/serverutils"
 	"github.com/Azure/ARO-HCP/internal/tracing"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -143,12 +140,6 @@ type OperationsScanner struct {
 	subscriptionChannel chan string
 	subscriptionWorkers sync.WaitGroup
 
-	// nextDataDumpTime is a map of resourceID strings to a time at which all information related to them should be dumped.
-	// This should work for any resource, though we're starting with Clusters because of coverage.  Every time we dump
-	// we set the value forward by 10 minutes.  We only actually dump if an entry already exists in the LRU.  This prevents
-	// us from spamming the log if we get super busy, but could be reconsidered if it doesn't work well.
-	nextDataDumpTime *lru.Cache
-
 	// Allow overriding timestamps for testing.
 	newTimestamp func() time.Time
 
@@ -178,8 +169,6 @@ func NewOperationsScanner(dbClient database.DBClient, ocmConnection *ocmsdk.Conn
 		notificationClient:  http.DefaultClient,
 		subscriptionsLister: subscriptionLister,
 		subscriptions:       make([]string, 0),
-
-		nextDataDumpTime: lru.New(16000),
 
 		newTimestamp: func() time.Time { return time.Now().UTC() },
 
@@ -541,19 +530,6 @@ func (s *OperationsScanner) pollNodePoolOperation(ctx context.Context, op operat
 	defer span.End()
 	defer s.updateOperationMetrics(pollNodePoolOperationLabel)()
 	op.setSpanAttributes(span)
-
-	// if it has been at least five minutes since the last dump, dump the current state from cosmos
-	// when we get a delete call (this happens from CI quite a bit), dump the state of the cluster resources.
-	if op.doc != nil && op.doc.ExternalID != nil {
-		resourceIDString := op.doc.ExternalID.String()
-		if nextDataDumpTime, exists := s.nextDataDumpTime.Get(resourceIDString); exists && time.Now().After(nextDataDumpTime.(time.Time)) {
-			if err := serverutils.DumpDataToLogger(ctx, s.dbClient, op.doc.ExternalID); err != nil {
-				// never fail, this is best effort
-				logger.Error(err.Error())
-			}
-		}
-		s.nextDataDumpTime.Add(resourceIDString, time.Now().Add(5*time.Minute))
-	}
 
 	nodePoolStatus, err := s.clusterService.GetNodePoolStatus(ctx, op.doc.InternalID)
 	if err != nil {
