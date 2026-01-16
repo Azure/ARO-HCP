@@ -48,6 +48,13 @@ import (
 	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 )
 
+const ClusterCreationMaxRetries = 5
+const ClusterCreationRetryInterval = 2 * time.Minute
+
+var ClusterCreationRetryableErrors = []string{
+	"Cluster installation has failed due to unavailable capacity",
+}
+
 // checkOperationResult ensures the result model returned by a runtime.Poller
 // matches the resource model returned from a GET request.
 func checkOperationResult(expectModel, resultModel any) error {
@@ -476,6 +483,15 @@ func CreateClusterRoleBinding(ctx context.Context, subject string, adminRESTConf
 	return nil
 }
 
+func IsRetryableError(err error) bool {
+	for _, retryableError := range ClusterCreationRetryableErrors {
+		if strings.Contains(err.Error(), retryableError) {
+			return true
+		}
+	}
+	return false
+}
+
 func BeginCreateHCPCluster(
 	ctx context.Context,
 	logger logr.Logger,
@@ -511,12 +527,20 @@ func CreateHCPClusterAndWait(
 		defer cancel()
 	}
 
-	logger.Info("Starting HCP cluster creation", "clusterName", hcpClusterName, "resourceGroup", resourceGroupName)
-	poller, err := hcpClient.BeginCreateOrUpdate(ctx, resourceGroupName, hcpClusterName, cluster, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed starting cluster creation %q in resourcegroup=%q: %w", hcpClusterName, resourceGroupName, err)
+	var poller *runtime.Poller[hcpsdk20240610preview.HcpOpenShiftClustersClientCreateOrUpdateResponse]
+	for i := 0; i < ClusterCreationMaxRetries; i++ {
+		var err error
+		logger.Info("Starting HCP cluster creation", "clusterName", hcpClusterName, "resourceGroup", resourceGroupName)
+		poller, err = hcpClient.BeginCreateOrUpdate(ctx, resourceGroupName, hcpClusterName, cluster, nil)
+		if err != nil {
+			if IsRetryableError(err) {
+				logger.Info("Cluster installation has failed due to retryable error, will retry soon...", "clusterName", hcpClusterName, "resourceGroup", resourceGroupName, ClusterCreationRetryInterval)
+				time.Sleep(ClusterCreationRetryInterval)
+				continue
+			}
+			return nil, fmt.Errorf("failed starting cluster creation %q in resourcegroup=%q: %w", hcpClusterName, resourceGroupName, err)
+		}
 	}
-
 	if timeout > 0*time.Second {
 		operationResult, err := poller.PollUntilDone(ctx, &runtime.PollUntilDoneOptions{
 			Frequency: StandardPollInterval,
