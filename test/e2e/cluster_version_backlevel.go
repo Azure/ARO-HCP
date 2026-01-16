@@ -99,7 +99,7 @@ var _ = Describe("Customer", func() {
 			err = verifiers.VerifyHCPCluster(ctx, adminRESTConfig)
 			Expect(err).NotTo(HaveOccurred())
 
-			By("creating different version nodepools in parallel")
+			By("creating different version node pools in parallel and verifying workloads")
 			backlevelVersions := framework.BacklevelOpenshiftNodePoolVersionId()
 
 			var wg sync.WaitGroup
@@ -112,11 +112,11 @@ var _ = Describe("Customer", func() {
 					defer wg.Done()
 
 					nodePoolSuffix := strings.ReplaceAll(version, ".", "-")
+					nodePoolName := customerNodePoolName + nodePoolSuffix
 
 					nodePoolParams := framework.NewDefaultNodePoolParams()
 					nodePoolParams.ClusterName = customerClusterName
-					nodePoolParams.NodePoolName = customerNodePoolName + nodePoolSuffix
-					nodePoolParams.Replicas = int32(1)
+					nodePoolParams.NodePoolName = nodePoolName
 					nodePoolParams.OpenshiftVersionId = version
 
 					err := tc.CreateNodePoolFromParam(ctx,
@@ -126,15 +126,24 @@ var _ = Describe("Customer", func() {
 						45*time.Minute,
 					)
 					if err != nil {
-						GinkgoLogr.Error(err, "nodepool creation failed",
+						GinkgoLogr.Error(err, "node pool creation failed",
 							"version", version,
 							"name", nodePoolParams.NodePoolName)
 
 						errorsMutex.Lock()
 						errors = append(errors, err)
 						errorsMutex.Unlock()
+					} else {
+						err = verifiers.VerifyNodePoolWorkload(nodePoolName).Verify(ctx, adminRESTConfig)
+						if err != nil {
+							GinkgoLogr.Error(err, "node pool workload verification failed",
+								"version", version,
+								"name", nodePoolName)
 
-						// TO-DO: node pool workload verification
+							errorsMutex.Lock()
+							errors = append(errors, err)
+							errorsMutex.Unlock()
+						}
 					}
 				}(version)
 			}
