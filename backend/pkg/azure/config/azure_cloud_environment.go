@@ -23,7 +23,7 @@ type AzureCloudEnvironment struct {
 	// Check Access V2 environment of the cloud environment
 	checkAccessV2Environment *checkAccessV2Environment
 	// Options for the Azure clients.
-	clientOptions policy.ClientOptions
+	clientOptions *policy.ClientOptions
 }
 
 // checkAccessV2Environment represents the information associated to Microsoft's
@@ -81,7 +81,7 @@ func NewAzureCloudEnvironment(
 			fmt.Errorf("cloud environment %q is not supported", cloudEnvironmentName)
 	}
 
-	clientOptions := policy.ClientOptions{
+	clientOptions := &policy.ClientOptions{
 		Cloud: configuration.cloud,
 	}
 	if tracerProvider != nil {
@@ -100,7 +100,7 @@ func NewAzureCloudEnvironment(
 // Azure Cloud environment. The method returns the same result as calling
 // PolicyClientOptions() because azcore.ClientOptions is a type alias of
 // policy.ClientOptions.
-func (a AzureCloudEnvironment) AZCoreClientOptions() azcore.ClientOptions {
+func (a AzureCloudEnvironment) AZCoreClientOptions() *azcore.ClientOptions {
 	return a.clientOptions
 }
 
@@ -108,7 +108,7 @@ func (a AzureCloudEnvironment) AZCoreClientOptions() azcore.ClientOptions {
 // Azure Cloud environment. The method returns the same result as calling
 // AZCoreClientOptions() because azcore.ClientOptions is a type alias of
 // policy.ClientOptions.
-func (a AzureCloudEnvironment) PolicyClientOptions() policy.ClientOptions {
+func (a AzureCloudEnvironment) PolicyClientOptions() *policy.ClientOptions {
 	return a.clientOptions
 }
 
@@ -116,6 +116,10 @@ func (a AzureCloudEnvironment) PolicyClientOptions() policy.ClientOptions {
 // Azure Cloud environment.
 func (a AzureCloudEnvironment) ARMClientOptions() *azcorearm.ClientOptions {
 	return &azcorearm.ClientOptions{
-		ClientOptions: a.clientOptions,
+		ClientOptions: *a.clientOptions,
 	}
+}
+
+func (a AzureCloudEnvironment) CloudConfiguration() *cloud.Configuration {
+	return a.configuration
 }

@@ -2,6 +2,7 @@ package client
 
 import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/msi/armmsi"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 
 	"github.com/Azure/ARO-HCP/internal/fpa"
@@ -28,6 +29,7 @@ type FPAClientBuilder interface {
 	BuilderType() FPAClientBuilderType
 	ResourceGroupsClient(tenantID string, subscriptionID string) (ResourceGroupsClient, error)
 	ResourceProvidersClient(tenantID string, subscriptionID string) (ResourceProvidersClient, error)
+	UserAssignedIdentitiesClient(tenantID string, subscriptionID string) (UserAssignedIdentitiesClient, error)
 }
 
 type fpaClientBuilder struct {
@@ -62,6 +64,15 @@ func (b *fpaClientBuilder) ResourceProvidersClient(tenantID string, subscription
 	}
 
 	return armresources.NewProvidersClient(subscriptionID, creds, b.options)
+}
+
+func (b *fpaClientBuilder) UserAssignedIdentitiesClient(tenantID string, subscriptionID string) (UserAssignedIdentitiesClient, error) {
+	creds, err := b.fpaTokenCredRetriever.RetrieveCredential(tenantID)
+	if err != nil {
+		return nil, err
+	}
+
+	return armmsi.NewUserAssignedIdentitiesClient(subscriptionID, creds, b.options)
 }
 
 func (b *fpaClientBuilder) BuilderType() FPAClientBuilderType {
