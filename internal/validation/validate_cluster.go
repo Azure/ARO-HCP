@@ -587,14 +587,32 @@ func validateUserAssignedIdentitiesProfile(ctx context.Context, op operation.Ope
 }
 
 var (
+	toClusterAutoscalingProfileMaxNodesTotal               = func(oldObj *api.ClusterAutoscalingProfile) *int32 { return &oldObj.MaxNodesTotal }
 	toClusterAutoscalingProfileMaxPodGracePeriodSeconds    = func(oldObj *api.ClusterAutoscalingProfile) *int32 { return &oldObj.MaxPodGracePeriodSeconds }
 	toClusterAutoscalingProfileMaxNodeProvisionTimeSeconds = func(oldObj *api.ClusterAutoscalingProfile) *int32 { return &oldObj.MaxNodeProvisionTimeSeconds }
 )
 
 func validateClusterAutoscalingProfile(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *api.ClusterAutoscalingProfile) field.ErrorList {
+	// clusterAutoscalingMaxNodesTotalLowerLimit is the minimum value for maxNodesTotal in the cluster autoscaler.
+	// A value of 0 allows the autoscaler to manage node limits dynamically using its own defaults.
+	// This aligns with the Cluster Service behavior where DefaultMaxNodesTotal = 0 indicates default behavior.
+	// Note: This doesn't mean truly unlimited nodes - the cluster size limit of 500 nodes is still enforced
+	// through nodepool validation during nodepool creation/update operations.
+	// Negative values are rejected.
+	const clusterAutoscalingMaxNodesTotalLowerLimit = 0
+
+	// clusterAutoscalingMaxNodesTotalUpperLimit is the maximum number of nodes allowed across all node pools in a cluster.
+	// This limit is currently hardcoded to 500 but could be influenced by the topology of the management cluster
+	// (provision shard) where the HCP is deployed. The meaning of shard topology and its related configuration
+	// and logic for aro-hcp is to be clarified in https://issues.redhat.com/browse/ARO-22019
+	const clusterAutoscalingMaxNodesTotalUpperLimit = 500
+
 	errs := field.ErrorList{}
 
 	//MaxNodesTotal               int32 `json:"maxNodesTotal,omitempty"`
+	errs = append(errs, validate.Minimum(ctx, op, fldPath.Child("maxNodesTotal"), &newObj.MaxNodesTotal, safe.Field(oldObj, toClusterAutoscalingProfileMaxNodesTotal), clusterAutoscalingMaxNodesTotalLowerLimit)...)
+	errs = append(errs, Maximum(ctx, op, fldPath.Child("maxNodesTotal"), &newObj.MaxNodesTotal, safe.Field(oldObj, toClusterAutoscalingProfileMaxNodesTotal), clusterAutoscalingMaxNodesTotalUpperLimit)...)
+
 	//MaxPodGracePeriodSeconds    int32 `json:"maxPodGracePeriodSeconds,omitempty"`
 	errs = append(errs, validate.Minimum(ctx, op, fldPath.Child("maxPodGracePeriodSeconds"), &newObj.MaxPodGracePeriodSeconds, safe.Field(oldObj, toClusterAutoscalingProfileMaxPodGracePeriodSeconds), 1)...)
 
