@@ -2,7 +2,6 @@ Customer should be able to list available HCP OpenShift versions and validate re
 Customer should be able to test admin credentials before cluster ready, then full admin credential lifecycle
 Customer should be able to create node pools with ARM64-based VMs
 Customer should be able to create an HCP cluster with custom autoscaling
-Customer should reject cluster creation with unreasonably high MaxNodesTotal
 Customer should not be able to create a 4.18 HCP cluster
 Customer should be able to create a HCP cluster without CNI
 Customer should be able to create an HCP cluster and custom node pool osDisk size using bicep template
