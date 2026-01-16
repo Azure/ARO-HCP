@@ -78,7 +78,6 @@ var _ = Describe("Customer", func() {
 				resourceGroup,
 				clusterParams,
 				map[string]interface{}{
-					"persistTagValue":        false,
 					"customerNsgName":        customerNetworkSecurityGroupName,
 					"customerVnetName":       customerVnetName,
 					"customerVnetSubnetName": customerVnetSubnetName,
@@ -168,9 +167,7 @@ var _ = Describe("Customer", func() {
 			clusterParams, err = tc.CreateClusterCustomerResources(ctx,
 				resourceGroup,
 				clusterParams,
-				map[string]interface{}{
-					"persistTagValue": false,
-				},
+				map[string]interface{}{},
 				TestArtifactsFS)
 			Expect(err).NotTo(HaveOccurred())
 
