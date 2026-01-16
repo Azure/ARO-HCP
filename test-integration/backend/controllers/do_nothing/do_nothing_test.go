@@ -21,7 +21,8 @@ import (
 	"path"
 	"testing"
 
-	"github.com/Azure/ARO-HCP/backend/controllers"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/test-integration/backend/livelisters"
@@ -38,30 +39,30 @@ func TestDoNothingController(t *testing.T) {
 	testCases := []controllertesthelpers.BasicControllerTest{
 		{
 			Name: "sync_deleted_cluster",
-			ControllerKey: controllers.HCPClusterKey{
+			ControllerKey: controllerutils.HCPClusterKey{
 				SubscriptionID:    "3d2a485a-d467-4375-b0dc-92350913c57e",
 				ResourceGroupName: "partialIllustrator",
 				HCPClusterName:    "damagingKingdom",
 			},
 			ArtifactDir: api.Must(fs.Sub(artifacts, path.Join("artifacts"))),
-			ControllerInitializerFn: func(ctx context.Context, t *testing.T, cosmosClient database.DBClient) (controller controllers.Controller, testMemory map[string]any) {
+			ControllerInitializerFn: func(ctx context.Context, t *testing.T, cosmosClient database.DBClient) (controller controllerutils.Controller, testMemory map[string]any) {
 				return controllers.NewDoNothingExampleController(cosmosClient, livelisters.NewSubscriptionLiveLister(cosmosClient)), map[string]any{}
 			},
-			ControllerVerifierFn: func(ctx context.Context, t *testing.T, controller controllers.Controller, testMemory map[string]any) {
+			ControllerVerifierFn: func(ctx context.Context, t *testing.T, controller controllerutils.Controller, testMemory map[string]any) {
 			},
 		},
 		{
 			Name: "sync_cluster",
-			ControllerKey: controllers.HCPClusterKey{
+			ControllerKey: controllerutils.HCPClusterKey{
 				SubscriptionID:    "4fa75980-6637-4157-9726-84d878a62e83",
 				ResourceGroupName: "shrillEffectiveness",
 				HCPClusterName:    "lavishUnhappiness",
 			},
 			ArtifactDir: api.Must(fs.Sub(artifacts, path.Join("artifacts"))),
-			ControllerInitializerFn: func(ctx context.Context, t *testing.T, cosmosClient database.DBClient) (controller controllers.Controller, testMemory map[string]any) {
+			ControllerInitializerFn: func(ctx context.Context, t *testing.T, cosmosClient database.DBClient) (controller controllerutils.Controller, testMemory map[string]any) {
 				return controllers.NewDoNothingExampleController(cosmosClient, livelisters.NewSubscriptionLiveLister(cosmosClient)), map[string]any{}
 			},
-			ControllerVerifierFn: func(ctx context.Context, t *testing.T, controller controllers.Controller, testMemory map[string]any) {
+			ControllerVerifierFn: func(ctx context.Context, t *testing.T, controller controllerutils.Controller, testMemory map[string]any) {
 			},
 		},
 	}

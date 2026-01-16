@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package controllers
+package operationcontrollers
 
 import (
 	"context"
@@ -25,24 +25,23 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/util/workqueue"
-	utilsclock "k8s.io/utils/clock"
+	"k8s.io/utils/ptr"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
-
 	"github.com/Azure/ARO-HCP/backend/oldoperationscanner"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
-type operationClusterDelete struct {
+type operationClusterCreate struct {
 	name string
 
-	clock                       utilsclock.PassiveClock
 	azureLocation               string
 	activeOperationScanInterval time.Duration
 	subscriptionLister          listers.SubscriptionLister
@@ -52,21 +51,20 @@ type operationClusterDelete struct {
 
 	// queue is where incoming work is placed to de-dup and to allow "easy"
 	// rate limited requeues on errors
-	queue workqueue.TypedRateLimitingInterface[OperationKey]
+	queue workqueue.TypedRateLimitingInterface[controllerutils.OperationKey]
 }
 
-// NewOperationClusterDeleteController periodically lists all clusters and for each out when the cluster was deleted and its state.
-func NewOperationClusterDeleteController(
+// NewOperationClusterCreateController periodically lists all clusters and for each out when the cluster was created and its state.
+func NewOperationClusterCreateController(
 	azureLocation string,
 	activeOperationScanInterval time.Duration,
 	subscriptionLister listers.SubscriptionLister,
 	cosmosClient database.DBClient,
 	clusterServiceClient ocm.ClusterServiceClientSpec,
 	notificationClient *http.Client,
-) Controller {
-	c := &operationClusterDelete{
-		name:                        "OperationClusterDelete",
-		clock:                       utilsclock.RealClock{},
+) controllerutils.Controller {
+	c := &operationClusterCreate{
+		name:                        "OperationClusterCreate",
 		azureLocation:               azureLocation,
 		activeOperationScanInterval: activeOperationScanInterval,
 		subscriptionLister:          subscriptionLister,
@@ -74,9 +72,9 @@ func NewOperationClusterDeleteController(
 		clusterServiceClient:        clusterServiceClient,
 		notificationClient:          notificationClient,
 		queue: workqueue.NewTypedRateLimitingQueueWithConfig(
-			workqueue.DefaultTypedControllerRateLimiter[OperationKey](),
-			workqueue.TypedRateLimitingQueueConfig[OperationKey]{
-				Name: "operation-cluster-delete",
+			workqueue.DefaultTypedControllerRateLimiter[controllerutils.OperationKey](),
+			workqueue.TypedRateLimitingQueueConfig[controllerutils.OperationKey]{
+				Name: "operation-cluster-create",
 			},
 		),
 	}
@@ -84,7 +82,7 @@ func NewOperationClusterDeleteController(
 	return c
 }
 
-func (c *operationClusterDelete) synchronizeOperation(ctx context.Context, key OperationKey) error {
+func (c *operationClusterCreate) synchronizeOperation(ctx context.Context, key controllerutils.OperationKey) error {
 	logger := utils.LoggerFromContext(ctx)
 	logger.Info("checking operation")
 
@@ -97,34 +95,40 @@ func (c *operationClusterDelete) synchronizeOperation(ctx context.Context, key O
 	}
 
 	clusterStatus, err := c.clusterServiceClient.GetClusterStatus(ctx, operation.InternalID)
-	var ocmGetClusterError *ocmerrors.Error
-	if err != nil && errors.As(err, &ocmGetClusterError) && ocmGetClusterError.Status() == http.StatusNotFound {
-		logger.Info("cluster was deleted")
+	if err != nil {
+		return utils.TrackError(err)
+	}
 
-		// Update the Cosmos DB billing document with a deletion timestamp.
-		// Do this before calling setDeleteOperationAsCompleted so that in
-		// case of error the backend will retry by virtue of the operation
-		// document still having a non-terminal status.
-		err = c.markBillingDocumentDeleted(ctx, operation.ExternalID)
+	newOperationStatus, opError, err := oldoperationscanner.ConvertClusterStatus(ctx, c.clusterServiceClient, operation, clusterStatus)
+	if err != nil {
+		return utils.TrackError(err)
+	}
+	logger.Info("new status", "newStatus", newOperationStatus)
+
+	// Create a Cosmos DB billing document if a Create operation is successful.
+	// Do this before calling updateOperationStatus so that in case of error the
+	// backend will retry by virtue of the operation document still having a non-
+	// terminal status.
+	if newOperationStatus == arm.ProvisioningStateSucceeded {
+		cluster, err := c.cosmosClient.HCPClusters(operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName).Get(ctx, operation.ExternalID.Name)
 		if err != nil {
 			return utils.TrackError(err)
 		}
 
-		err = oldoperationscanner.SetDeleteOperationAsCompleted(ctx, c.cosmosClient, operation, PostAsyncNotification(c.notificationClient))
+		logger.Info("creating billing, interestingly not based on now")
+		err = c.createBillingDocument(
+			ctx,
+			operation.ExternalID.ResourceGroupName,
+			ptr.Deref(cluster.SystemData.CreatedAt, time.Time{}),
+			operation)
 		if err != nil {
-			logger.Error("Failed to handle a completed deletion", "error", err)
+			return utils.TrackError(err)
 		}
-	}
-	if err != nil {
-		return utils.TrackError(err)
+
 	}
 
-	newOperationStatus, newOperationError, err := oldoperationscanner.ConvertClusterStatus(ctx, c.clusterServiceClient, operation, clusterStatus)
-	if err != nil {
-		return utils.TrackError(err)
-	}
-
-	err = database.UpdateOperationStatus(ctx, c.cosmosClient, operation, newOperationStatus, newOperationError, PostAsyncNotification(c.notificationClient))
+	logger.Info("updating status")
+	err = database.UpdateOperationStatus(ctx, c.cosmosClient, operation, newOperationStatus, opError, PostAsyncNotification(c.notificationClient))
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -132,43 +136,59 @@ func (c *operationClusterDelete) synchronizeOperation(ctx context.Context, key O
 	return nil
 }
 
-// markBillingDocumentDeleted patches a Cosmos DB document in the Billing
-// container to add a deletion timestamp.
-func (c *operationClusterDelete) markBillingDocumentDeleted(ctx context.Context, clusterResourceID *azcorearm.ResourceID) error {
+// createBillingDocument creates a Cosmos DB document in the Billing
+// container for a newly-created cluster.
+func (c *operationClusterCreate) createBillingDocument(ctx context.Context, resourceGroupName string, clusterCreationTime time.Time, op *api.Operation) error {
 	logger := utils.LoggerFromContext(ctx)
 
-	var patchOperations database.BillingDocumentPatchOperations
-	patchOperations.SetDeletionTime(c.clock.Now())
-	err := c.cosmosClient.PatchBillingDoc(ctx, clusterResourceID, patchOperations)
-	if err == nil {
-		logger.Info("Updated billing for cluster deletion")
-	} else if database.IsResponseError(err, http.StatusNotFound) {
-		// Log the error but proceed with normal processing.
-		logger.Info("No billing document found")
-		err = nil
+	if clusterCreationTime.IsZero() {
+		return fmt.Errorf("cluster creation time is zero")
 	}
 
-	return err
+	doc := database.NewBillingDocument(op.ExternalID)
+	doc.CreationTime = clusterCreationTime
+	doc.Location = c.azureLocation
+	doc.TenantID = op.TenantID
+	doc.ManagedResourceGroup = fmt.Sprintf(
+		"/%s/%s/%s/%s",
+		azcorearm.SubscriptionResourceType.Type,
+		doc.SubscriptionID,
+		azcorearm.ResourceGroupResourceType.Type,
+		resourceGroupName)
+
+	if err := c.cosmosClient.CreateBillingDoc(ctx, doc); err != nil {
+		return utils.TrackError(err)
+	}
+
+	logger.Info("Updated billing for cluster creation")
+	return nil
 }
 
-func (c *operationClusterDelete) SyncOnce(ctx context.Context, keyObj any) error {
-	key := keyObj.(OperationKey)
+// PostAsyncNotification submits an POST request with status payload to the given URL.
+func PostAsyncNotification(notificationClient *http.Client) database.PostAsyncNotificationFunc {
+	return func(ctx context.Context, operation *api.Operation) error {
+		return oldoperationscanner.PostAsyncNotification(ctx, notificationClient, operation)
+	}
+}
+
+func (c *operationClusterCreate) SyncOnce(ctx context.Context, keyObj any) error {
+	key := keyObj.(controllerutils.OperationKey)
 
 	syncErr := c.synchronizeOperation(ctx, key) // we'll handle this is a moment.
 
 	parentResourceID := key.GetParentResourceID()
-	controllerWriteErr := writeController(
+	controllerWriteErr := controllerutils.WriteController(
 		ctx,
 		c.cosmosClient.HCPClusters(key.SubscriptionID, parentResourceID.ResourceGroupName).Controllers(parentResourceID.Name),
 		c.name,
-		key.initialController,
-		reportSyncError(syncErr),
+		key.InitialController,
+		controllerutils.ReportSyncError(syncErr),
 	)
 
 	return errors.Join(syncErr, controllerWriteErr)
 }
 
-func (c *operationClusterDelete) queueAllActiveOperations(ctx context.Context) {
+func (c *operationClusterCreate) queueAllActiveOperations(ctx context.Context) {
 	logger := utils.LoggerFromContext(ctx)
 
 	allSubscriptions, err := c.subscriptionLister.List(ctx)
@@ -179,13 +199,13 @@ func (c *operationClusterDelete) queueAllActiveOperations(ctx context.Context) {
 		allActiveOperations := c.cosmosClient.Operations(subscription.ResourceID.SubscriptionID).ListActiveOperations(nil)
 
 		for _, activeOperation := range allActiveOperations.Items(ctx) {
-			if activeOperation.Request != database.OperationRequestDelete {
+			if activeOperation.Request != database.OperationRequestCreate {
 				continue
 			}
 			if activeOperation.ExternalID == nil || !strings.EqualFold(activeOperation.ExternalID.ResourceType.String(), api.ClusterResourceType.String()) {
 				continue
 			}
-			c.queue.Add(OperationKey{
+			c.queue.Add(controllerutils.OperationKey{
 				SubscriptionID:   activeOperation.ExternalID.SubscriptionID,
 				OperationName:    activeOperation.ResourceID.Name,
 				ParentResourceID: activeOperation.ExternalID.String(),
@@ -198,7 +218,7 @@ func (c *operationClusterDelete) queueAllActiveOperations(ctx context.Context) {
 }
 
 // Run check do_nothing.go for basic doc details.
-func (c *operationClusterDelete) Run(ctx context.Context, threadiness int) {
+func (c *operationClusterCreate) Run(ctx context.Context, threadiness int) {
 	defer utilruntime.HandleCrash()
 	defer c.queue.ShutDown()
 
@@ -220,13 +240,13 @@ func (c *operationClusterDelete) Run(ctx context.Context, threadiness int) {
 }
 
 // runWorker check do_nothing.go for doc details.
-func (c *operationClusterDelete) runWorker(ctx context.Context) {
+func (c *operationClusterCreate) runWorker(ctx context.Context) {
 	for c.processNextWorkItem(ctx) {
 	}
 }
 
 // processNextWorkItem check do_nothing.go for doc details.
-func (c *operationClusterDelete) processNextWorkItem(ctx context.Context) bool {
+func (c *operationClusterCreate) processNextWorkItem(ctx context.Context) bool {
 	ref, shutdown := c.queue.Get()
 	if shutdown {
 		return false
