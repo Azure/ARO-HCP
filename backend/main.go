@@ -236,6 +236,7 @@ func Run(cmd *cobra.Command, args []string) error {
 	electionChecker := leaderelection.NewLeaderHealthzAdaptor(time.Second * 20)
 
 	group, ctx := errgroup.WithContext(ctx)
+	var healthzServer *http.Server
 
 	// Handle requests directly for /healthz endpoint
 	if argPortListenAddress != "" {
@@ -252,7 +253,7 @@ func Run(cmd *cobra.Command, args []string) error {
 			backendHealthGauge.Set(1.0)
 		})
 
-		healthzServer := &http.Server{Addr: argPortListenAddress}
+		healthzServer = &http.Server{Addr: argPortListenAddress}
 
 		group.Go(func() error {
 			logger.Info(fmt.Sprintf("Healthz server listening on %s", argPortListenAddress))
@@ -294,7 +295,22 @@ func Run(cmd *cobra.Command, args []string) error {
 		<-ctx.Done()
 		logger.Info("Caught interrupt signal")
 		if srv != nil {
-			_ = srv.Close()
+			logger.Info("closing metrics server")
+			err := srv.Close()
+			if err != nil {
+				logger.Error("failed closing metrics server", "error", err)
+			} else {
+				logger.Info("metrics server closed")
+			}
+		}
+		if healthzServer != nil {
+			logger.Info("closing healthz server")
+			err := healthzServer.Close()
+			if err != nil {
+				logger.Error("failed closing healthz server", "error", err)
+			} else {
+				logger.Info("healthz server closed")
+			}
 		}
 	}()
 
@@ -368,7 +384,7 @@ func Run(cmd *cobra.Command, args []string) error {
 	})
 
 	if err := group.Wait(); err != nil {
-		logger.Error(err.Error())
+		logger.Error("errgroup wait returned an error", "error", err.Error())
 		os.Exit(1)
 	}
 
