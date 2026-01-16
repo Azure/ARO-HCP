@@ -986,7 +986,6 @@ func TestValidateClusterUpdate(t *testing.T) {
 			}(),
 			oldCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.CustomerProperties.Autoscaling.MaxNodesTotal = 100
 				return c
 			}(),
 			expectErrors: []expectedError{
@@ -1524,7 +1523,6 @@ func TestValidateClusterUpdate(t *testing.T) {
 				c.CustomerProperties.Version.ChannelGroup = "fast"
 				c.CustomerProperties.DNS.BaseDomainPrefix = "new-prefix"
 				c.CustomerProperties.API.Visibility = api.VisibilityPrivate
-				c.CustomerProperties.Autoscaling.MaxNodesTotal = 100
 				return c
 			}(),
 			oldCluster: func() *api.HCPOpenShiftCluster {
@@ -1533,7 +1531,6 @@ func TestValidateClusterUpdate(t *testing.T) {
 				c.CustomerProperties.Version.ChannelGroup = "stable"
 				c.CustomerProperties.DNS.BaseDomainPrefix = "old-prefix"
 				c.CustomerProperties.API.Visibility = api.VisibilityPublic
-				c.CustomerProperties.Autoscaling.MaxNodesTotal = 100
 				return c
 			}(),
 			expectErrors: []expectedError{
@@ -1592,9 +1589,6 @@ func createValidCluster() *api.HCPOpenShiftCluster {
 			identityID: {},
 		},
 	}
-
-	// Set a valid default for autoscaling MaxNodesTotal (minimum is 0)
-	cluster.CustomerProperties.Autoscaling.MaxNodesTotal = 100
 
 	return cluster
 }
