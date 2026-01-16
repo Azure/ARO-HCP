@@ -1,7 +1,7 @@
 acm:
   mce:
     bundle:
-      digest: sha256:98ccac7aacee076c140de23a8e8e7144c5909317863b9f885a72cd4e72b82b5b
+      digest: sha256:3c36ee1ed07dfbc557783ecaeeb292c95d39e1879f638627c1c7708c6c12b222
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-210
   operator:
@@ -33,7 +33,7 @@ adminApi:
     issuer: Self
     name: admin-api-cert-cspr-usw3
   image:
-    digest: sha256:d50377adaca138dfdc5ebcf0464941d4ba241eb42c7653294ed6ffb1b97f57d6
+    digest: sha256:87f1ee30987b9bc04ea217b2ffbc1fb2d77f55c2e6cbad6442f0a5bd3b8f31a4
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpadminapi
   k8s:
@@ -67,7 +67,7 @@ azureGeoShortId: us
 azureRegionAvailabilityZoneCount: 4
 backend:
   image:
-    digest: sha256:c0d83b06852ae3f396eb4424d6650fec3dcda604c2fa92a4bdd03baedb2353f0
+    digest: sha256:0f75dcb1291282371a6fc654846c94c6f1fddbdae9326d0e46de4eb29a327f96
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpbackend
   k8s:
@@ -123,7 +123,7 @@ clustersService:
   deployDebugJobs: false
   environment: arohcpdev
   image:
-    digest: sha256:31185993e8fcc0e5ef85ecc1711917b26c8bee67e815afccaf8ee8ab211e6db9
+    digest: sha256:4e7da86c27ca830f4b46eefa0aed54bd234749fc77137dda1cd3223665752d99
     registry: quay.io
     repository: app-sre/aro-hcp-clusters-service
   k8s:
@@ -212,7 +212,7 @@ frontend:
     private: false
     zoneRedundantMode: Disabled
   image:
-    digest: sha256:013ae7f72821c95873141388054ed7fdaa75dbf71d78e8701240fb39e5a39c51
+    digest: sha256:adf8cdcc646d5750fadc049d569cd7d527ed1ab464c3511dd842d222ce1c15af
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpfrontend
   k8s:
@@ -327,7 +327,7 @@ imageSync:
   ocMirror:
     enabled: true
     image:
-      digest: sha256:8a653f1704135fa6896a02453a69d6b712b09b39ebe1fea58975d24f26d754ad
+      digest: sha256:d706d89993827fe2735882336b915fd08e6bde10129725c480ddf5a9455b072d
       registry: arohcpsvcdev.azurecr.io
       repository: image-sync/oc-mirror
     jobNamePrefix: ""
