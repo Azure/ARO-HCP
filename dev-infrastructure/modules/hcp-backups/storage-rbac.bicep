@@ -4,9 +4,6 @@ param storageAccountName string
 @description('Principal ID of the Velero managed identity')
 param veleroManagedIdentityPrincipalId string
 
-@description('Principal ID of the OADP controller managed identity')
-param oadpControllerManagedIdentityPrincipalId string
-
 // Storage Blob Data Contributor: Grants read, write, and delete access to blob containers and data
 // https://learn.microsoft.com/en-us/azure/role-based-access-control/built-in-roles#storage-blob-data-contributor
 var storageBlobDataContributorRole = 'ba92f5b4-2d11-453d-a403-e96b0029c9fe'
@@ -53,31 +50,6 @@ resource veleroReaderAssignment 'Microsoft.Authorization/roleAssignments@2022-04
   scope: hcpBackupsStorageAccount
   properties: {
     principalId: veleroManagedIdentityPrincipalId
-    principalType: 'ServicePrincipal'
-    roleDefinitionId: resourceId('Microsoft.Authorization/roleDefinitions', readerRole)
-  }
-}
-
-// ============================================================================
-// OADP Controller Managed Identity - Role Assignments
-// Roles: Storage Blob Data Contributor, Reader
-// ============================================================================
-
-resource oadpControllerStorageBlobDataContributorAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(storageAccountName, 'oadp-controller-blob-contributor', storageBlobDataContributorRole)
-  scope: hcpBackupsStorageAccount
-  properties: {
-    principalId: oadpControllerManagedIdentityPrincipalId
-    principalType: 'ServicePrincipal'
-    roleDefinitionId: resourceId('Microsoft.Authorization/roleDefinitions', storageBlobDataContributorRole)
-  }
-}
-
-resource oadpControllerReaderAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(storageAccountName, 'oadp-controller-reader', readerRole)
-  scope: hcpBackupsStorageAccount
-  properties: {
-    principalId: oadpControllerManagedIdentityPrincipalId
     principalType: 'ServicePrincipal'
     roleDefinitionId: resourceId('Microsoft.Authorization/roleDefinitions', readerRole)
   }
