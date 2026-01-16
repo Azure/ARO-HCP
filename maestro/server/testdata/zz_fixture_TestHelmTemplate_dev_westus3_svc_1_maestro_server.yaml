@@ -197,7 +197,7 @@ spec:
           readOnly: true
         env:
         - name: OTEL_EXPORTER_OTLP_ENDPOINT
-          value: 'http://ingest.observability:4318'
+          value: 'http://ingest.observability.svc.cluster.local:4318'
         - name: OTEL_TRACES_EXPORTER
           value: 'otlp'
         - name: "AMS_ENV"

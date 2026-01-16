@@ -418,7 +418,7 @@ maestro:
     managedIdentityName: maestro-server
     mqttClientName: maestro-server-usw3-dev
     tracing:
-      address: http://ingest.observability:4318
+      address: http://ingest.observability.svc.cluster.local:4318
       exporter: otlp
 mgmt:
   aks:
