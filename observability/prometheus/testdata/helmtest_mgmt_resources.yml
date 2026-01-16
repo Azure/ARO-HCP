@@ -4,7 +4,32 @@ namespace: prometheus
 testData:
   mgmt:
     prometheus:
+      prometheusOperator:
+        image:
+          registry: mcr.microsoft.com/oss/v2
+          repository: prometheus/prometheus-operator
+          sha: sha256:test123
+      prometheusConfigReloader:
+        image:
+          registry: mcr.microsoft.com/oss/v2
+          repository: prometheus/prometheus-config-reloader
+          sha: sha256:test456
+      kubeStateMetrics:
+        image:
+          registry: mcr.microsoft.com/oss/v2
+          repository: kubernetes/kube-state-metrics
+          digest: sha256:test789
+      admissionWebhook:
+        patch:
+          image:
+            registry: arohcpsvcdev.azurecr.io
+            repository: k8s-cache/ingress-nginx/kube-webhook-certgen
+            tag: v1.5.2
       prometheusSpec:
+        image:
+          registry: mcr.microsoft.com/oss/v2
+          repository: prometheus/prometheus
+          sha: sha256:testabc
         resources:
           requests:
             cpu: "1"
