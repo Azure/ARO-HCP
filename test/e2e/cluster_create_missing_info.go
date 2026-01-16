@@ -38,12 +38,10 @@ var _ = Describe("Customer", func() {
 			labels.RequireNothing,
 			labels.Critical,
 			labels.Negative,
+			labels.AroRpApiCompatible,
 			func(ctx context.Context) {
 				const (
-					customerNetworkSecurityGroupName = "customer-nsg-name"
-					customerVnetName                 = "customer-vnet-name"
-					customerVnetSubnetName           = "customer-vnet-subnet1"
-					customerClusterName              = "illegal-hcp-cluster"
+					customerClusterName = "illegal-hcp-cluster"
 				)
 				tc := framework.NewTestContext()
 
@@ -56,64 +54,28 @@ var _ = Describe("Customer", func() {
 				resourceGroup, err := tc.NewResourceGroup(ctx, "illegal-ocp-version", tc.Location())
 				Expect(err).NotTo(HaveOccurred())
 
-				By("creating a customer-infra")
-				customerInfraDeploymentResult, err := tc.CreateBicepTemplateAndWait(ctx,
-					framework.WithTemplateFromFS(TestArtifactsFS, "test-artifacts/generated-test-artifacts/modules/customer-infra.json"),
-					framework.WithDeploymentName("customer-infra"),
-					framework.WithScope(framework.BicepDeploymentScopeResourceGroup),
-					framework.WithClusterResourceGroup(*resourceGroup.Name),
-					framework.WithParameters(map[string]interface{}{
-						"persistTagValue":        false,
-						"customerNsgName":        customerNetworkSecurityGroupName,
-						"customerVnetName":       customerVnetName,
-						"customerVnetSubnetName": customerVnetSubnetName,
-					}),
-					framework.WithTimeout(45*time.Minute),
-				)
-				Expect(err).NotTo(HaveOccurred())
-
-				By("creating/reusing managed identities")
-				keyVaultName, err := framework.GetOutputValue(customerInfraDeploymentResult, "keyVaultName")
-				Expect(err).NotTo(HaveOccurred())
-				managedIdentityDeploymentResult, err := tc.DeployManagedIdentities(ctx,
-					customerClusterName,
-					framework.WithTemplateFromFS(TestArtifactsFS, "test-artifacts/generated-test-artifacts/modules/managed-identities.json"),
-					framework.WithClusterResourceGroup(*resourceGroup.Name),
-					framework.WithParameters(map[string]interface{}{
-						"nsgName":      customerNetworkSecurityGroupName,
-						"vnetName":     customerVnetName,
-						"subnetName":   customerVnetSubnetName,
-						"keyVaultName": keyVaultName,
-					}),
-				)
-				Expect(err).NotTo(HaveOccurred())
-
-				By("creating the hcp cluster")
-				userAssignedIdentities, err := framework.GetOutputValue(managedIdentityDeploymentResult, "userAssignedIdentitiesValue")
-				Expect(err).NotTo(HaveOccurred())
-				identity, err := framework.GetOutputValue(managedIdentityDeploymentResult, "identityValue")
-				Expect(err).NotTo(HaveOccurred())
-				etcdEncryptionKeyName, err := framework.GetOutputValue(customerInfraDeploymentResult, "etcdEncryptionKeyName")
-				Expect(err).NotTo(HaveOccurred())
+				By("creating cluster parameters with invalid version")
+				clusterParams := framework.NewDefaultClusterParams()
+				clusterParams.ClusterName = customerClusterName
+				clusterParams.OpenshiftVersionId = version
 				managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "managed", 64)
-				_, err = tc.CreateBicepTemplateAndWait(ctx,
-					framework.WithTemplateFromFS(TestArtifactsFS, "test-artifacts/generated-test-artifacts/modules/cluster.json"),
-					framework.WithDeploymentName("cluster"),
-					framework.WithScope(framework.BicepDeploymentScopeResourceGroup),
-					framework.WithClusterResourceGroup(*resourceGroup.Name),
-					framework.WithParameters(map[string]interface{}{
-						"openshiftVersionId":          version,
-						"clusterName":                 customerClusterName,
-						"managedResourceGroupName":    managedResourceGroupName,
-						"nsgName":                     customerNetworkSecurityGroupName,
-						"subnetName":                  customerVnetSubnetName,
-						"vnetName":                    customerVnetName,
-						"userAssignedIdentitiesValue": userAssignedIdentities,
-						"identityValue":               identity,
-						"keyVaultName":                keyVaultName,
-						"etcdEncryptionKeyName":       etcdEncryptionKeyName,
-					}),
-					framework.WithTimeout(45*time.Minute),
+				clusterParams.ManagedResourceGroupName = managedResourceGroupName
+
+				By("creating customer resources")
+				clusterParams, err = tc.CreateClusterCustomerResources(ctx,
+					resourceGroup,
+					clusterParams,
+					map[string]interface{}{},
+					TestArtifactsFS,
+				)
+				Expect(err).NotTo(HaveOccurred())
+
+				By("attempting to create the hcp cluster with invalid version")
+				err = tc.CreateHCPClusterFromParam(ctx,
+					GinkgoLogr,
+					*resourceGroup.Name,
+					clusterParams,
+					45*time.Minute,
 				)
 				Expect(err).To(HaveOccurred())
 				Expect(err).To(MatchError(MatchRegexp("Version .* (doesn't exist|is disabled)")))
