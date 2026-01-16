@@ -25,6 +25,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/util/workqueue"
 
+	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -32,7 +33,8 @@ import (
 type doNothingExample struct {
 	name string
 
-	cosmosClient database.DBClient
+	subscriptionLister listers.SubscriptionLister
+	cosmosClient       database.DBClient
 
 	// queue is where incoming work is placed to de-dup and to allow "easy"
 	// rate limited requeues on errors
@@ -42,10 +44,11 @@ type doNothingExample struct {
 }
 
 // NewDoNothingExampleController periodically lists all clusters and for each out when the cluster was created and its state.
-func NewDoNothingExampleController(cosmosClient database.DBClient) Controller {
+func NewDoNothingExampleController(cosmosClient database.DBClient, subscriptionLister listers.SubscriptionLister) Controller {
 	c := &doNothingExample{
-		name:         "DoNothingExample",
-		cosmosClient: cosmosClient,
+		name:               "DoNothingExample",
+		subscriptionLister: subscriptionLister,
+		cosmosClient:       cosmosClient,
 		queue: workqueue.NewTypedRateLimitingQueueWithConfig(
 			workqueue.DefaultTypedControllerRateLimiter[HCPClusterKey](),
 			workqueue.TypedRateLimitingQueueConfig[HCPClusterKey]{
@@ -125,15 +128,15 @@ func (c *doNothingExample) SyncOnce(ctx context.Context, keyObj any) error {
 func (c *doNothingExample) queueAllHCPClusters(ctx context.Context) {
 	logger := utils.LoggerFromContext(ctx)
 
-	allSubscriptions, err := c.cosmosClient.Subscriptions().List(ctx, nil)
+	allSubscriptions, err := c.subscriptionLister.List(ctx)
 	if err != nil {
 		logger.Error("unable to list subscriptions", "error", err)
 	}
-	for _, subscription := range allSubscriptions.Items(ctx) {
+	for _, subscription := range allSubscriptions {
 		subscriptionID := subscription.ResourceID.SubscriptionID
 		allHCPClusters, err := c.cosmosClient.HCPClusters(subscriptionID, "").List(ctx, nil)
 		if err != nil {
-			logger.Error("unable to list HCP clusters", "error", err, "subscription_id", subscriptionID)
+			logger.Error("unable to list HCP clusters", "error", err, "subscription_id", subscription.ResourceID.SubscriptionID)
 			continue
 		}
 
@@ -145,11 +148,8 @@ func (c *doNothingExample) queueAllHCPClusters(ctx context.Context) {
 			})
 		}
 		if err := allHCPClusters.GetError(); err != nil {
-			logger.Error("unable to iterate over HCP clusters", "error", err, "subscription_id", subscriptionID)
+			logger.Error("unable to iterate over HCP clusters", "error", err, "subscription_id", subscription.ResourceID.SubscriptionID)
 		}
-	}
-	if err := allSubscriptions.GetError(); err != nil {
-		logger.Error("unable to iterate over all subscriptions", "error", err)
 	}
 }
 

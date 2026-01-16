@@ -50,7 +50,11 @@ import (
 	ocmsdk "github.com/openshift-online/ocm-sdk-go"
 
 	"github.com/Azure/ARO-HCP/backend/controllers"
+	"github.com/Azure/ARO-HCP/backend/oldoperationscanner"
+	"github.com/Azure/ARO-HCP/backend/pkg/listers"
+	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/tracing"
 	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/internal/version"
@@ -294,11 +298,39 @@ func Run(cmd *cobra.Command, args []string) error {
 		}
 	}()
 
+	clusterServiceClient := ocm.NewClusterServiceClientWithTracing(
+		ocm.NewClusterServiceClient(
+			ocmConnection,
+			"",
+			false,
+			false,
+		),
+		oldoperationscanner.TracerName,
+	)
+	subscriptionLister := listers.NewThreadSafeAtomicLister[arm.Subscription]()
+
 	group.Go(func() error {
 		var (
-			startedLeading      atomic.Bool
-			operationsScanner   = NewOperationsScanner(dbClient, ocmConnection, argLocation)
-			doNothingController = controllers.NewDoNothingExampleController(dbClient)
+			startedLeading                   atomic.Bool
+			operationsScanner                = oldoperationscanner.NewOperationsScanner(dbClient, ocmConnection, argLocation, subscriptionLister)
+			subscriptionInformerController   = controllers.NewSubscriptionInformerController(dbClient, subscriptionLister)
+			doNothingController              = controllers.NewDoNothingExampleController(dbClient, subscriptionLister)
+			operationClusterCreateController = controllers.NewOperationClusterCreateController(
+				argLocation,
+				10*time.Second,
+				subscriptionLister,
+				dbClient,
+				clusterServiceClient,
+				http.DefaultClient,
+			)
+			operationClusterDeleteController = controllers.NewOperationClusterDeleteController(
+				argLocation,
+				10*time.Second,
+				subscriptionLister,
+				dbClient,
+				clusterServiceClient,
+				http.DefaultClient,
+			)
 		)
 
 		le, err := leaderelection.NewLeaderElector(leaderelection.LeaderElectionConfig{
@@ -308,13 +340,16 @@ func Run(cmd *cobra.Command, args []string) error {
 			RetryPeriod:   leaderElectionRetryPeriod,
 			Callbacks: leaderelection.LeaderCallbacks{
 				OnStartedLeading: func(ctx context.Context) {
-					operationsScanner.leaderGauge.Set(1)
+					operationsScanner.LeaderGauge.Set(1)
 					startedLeading.Store(true)
+					go subscriptionInformerController.Run(ctx, 1)
 					go operationsScanner.Run(ctx)
 					go doNothingController.Run(ctx, 20)
+					go operationClusterCreateController.Run(ctx, 20)
+					go operationClusterDeleteController.Run(ctx, 20)
 				},
 				OnStoppedLeading: func() {
-					operationsScanner.leaderGauge.Set(0)
+					operationsScanner.LeaderGauge.Set(0)
 					if startedLeading.Load() {
 						operationsScanner.Join()
 					}

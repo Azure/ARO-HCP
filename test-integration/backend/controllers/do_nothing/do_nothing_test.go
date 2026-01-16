@@ -24,6 +24,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/controllers"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/test-integration/backend/livelisters"
 	"github.com/Azure/ARO-HCP/test-integration/utils/controllertesthelpers"
 	"github.com/Azure/ARO-HCP/test-integration/utils/integrationutils"
 )
@@ -44,7 +45,7 @@ func TestDoNothingController(t *testing.T) {
 			},
 			ArtifactDir: api.Must(fs.Sub(artifacts, path.Join("artifacts"))),
 			ControllerInitializerFn: func(ctx context.Context, t *testing.T, cosmosClient database.DBClient) (controller controllers.Controller, testMemory map[string]any) {
-				return controllers.NewDoNothingExampleController(cosmosClient), map[string]any{}
+				return controllers.NewDoNothingExampleController(cosmosClient, livelisters.NewSubscriptionLiveLister(cosmosClient)), map[string]any{}
 			},
 			ControllerVerifierFn: func(ctx context.Context, t *testing.T, controller controllers.Controller, testMemory map[string]any) {
 			},
@@ -58,7 +59,7 @@ func TestDoNothingController(t *testing.T) {
 			},
 			ArtifactDir: api.Must(fs.Sub(artifacts, path.Join("artifacts"))),
 			ControllerInitializerFn: func(ctx context.Context, t *testing.T, cosmosClient database.DBClient) (controller controllers.Controller, testMemory map[string]any) {
-				return controllers.NewDoNothingExampleController(cosmosClient), map[string]any{}
+				return controllers.NewDoNothingExampleController(cosmosClient, livelisters.NewSubscriptionLiveLister(cosmosClient)), map[string]any{}
 			},
 			ControllerVerifierFn: func(ctx context.Context, t *testing.T, controller controllers.Controller, testMemory map[string]any) {
 			},
