@@ -6,6 +6,17 @@ ARO-HCP uses Azure Data Explorer (Kusto) for centralized log aggregation. Logs f
 
 ## Architecture
 
+### Geographies
+
+Kusto clusters are group by Geography, according to the Geos defined in the Ev2 configuration: https://github.com/Azure/ARO-Tools/blob/main/pkg/config/ev2config/config.yaml
+
+Names follow this convention:
+
+rg: "hcp-kusto-{{ .ctx.environment }}-{{ .ev2.geoShortId
+kustoName: "hcp-{{ .ctx.environment }}-{{ .ev2.geoShortId }}"
+
+*instance list*: https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/components-and-architecture/kusto
+
 ### Dual Database Design
 
 ARO-HCP uses two databases to separate service logs from Hosted Control Plane logs:
@@ -89,21 +100,6 @@ hcpctl must-gather query \
   --output-path ./must-gather-output
 ```
 
-**Legacy Query Command** (uses legacy `akskubesystem` table, planned for deprecation):
-
-```bash
-hcpctl must-gather legacy-query \
-  --kusto <cluster-name> \
-  --region <region> \
-  --subscription-id <subscription-id> \
-  --resource-group <resource-group> \
-  --output-path ./must-gather-output \
-  --timestamp-min "2024-01-01T00:00:00Z" \
-  --timestamp-max "2024-01-02T00:00:00Z" \
-  --query-timeout 10m \
-  --limit 1000
-```
-
 **Common Options**: `--kusto`, `--region`, `--subscription-id`, `--resource-group` (all required), `--output-path` (default: auto-generated), `--query-timeout` (default: 5m, range: 30s-30m), `--skip-hcp-logs`, `--timestamp-min`/`--timestamp-max`, `--limit`
 
 **Output Structure**:
@@ -135,14 +131,7 @@ clustersServiceLogs
 
 **Best Practices**: Always specify time ranges, filter on `resource_id`/`subscription_id`/`cluster_id`, use `limit`, filter on indexed fields (`timestamp`, `cluster`, `namespace_name`), and use `project` to select needed columns.
 
-## Access and Permissions
-
-Access is managed through:
-- **dSTS Groups**: Viewer or admin roles per database
-- **Principal Assignments**: Service principals (Geneva, ICM) with viewer access
-- **Workload Identity**: Fluent Bit forwarders use workload identity for ingestion
-
-Users authenticate via Azure CLI (`az login`), workload identity, or default Azure credential chain. Kusto endpoints follow: `https://<cluster-name>.<region>.kusto.windows.net`
+Follow up read: https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/kustoqueries
 
 ## Infrastructure
 
