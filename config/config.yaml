@@ -1080,7 +1080,7 @@ clouds:
             server:
               mqttClientName: 'maestro-server-{{ .ctx.regionShort }}-dev'
               tracing:
-                address: "http://ingest.observability:4318"
+                address: "http://ingest.observability.svc.cluster.local:4318"
                 exporter: "otlp"
           # Frontend
           frontend:
@@ -1177,7 +1177,7 @@ clouds:
                 image: "docker.io/library/postgres:14.2"
                 pvcCapacity: 512Mi
             tracing:
-              address: "http://ingest.observability:4318"
+              address: "http://ingest.observability.svc.cluster.local:4318"
               exporter: "otlp"
           # Geneva
           geneva:
@@ -1197,12 +1197,12 @@ clouds:
             server:
               mqttClientName: 'maestro-server-{{ .ctx.regionShort }}'
               tracing:
-                address: "http://ingest.observability:4318"
+                address: "http://ingest.observability.svc.cluster.local:4318"
                 exporter: "otlp"
           # Backend
           backend:
             tracing:
-              address: "http://ingest.observability:4318"
+              address: "http://ingest.observability.svc.cluster.local:4318"
               exporter: "otlp"
           # Frontend
           frontend:
@@ -1212,7 +1212,7 @@ clouds:
               private: false
               zoneRedundantMode: 'Disabled'
             tracing:
-              address: "http://ingest.observability:4318"
+              address: "http://ingest.observability.svc.cluster.local:4318"
               exporter: "otlp"
           # MC
           mgmt:
@@ -1326,7 +1326,7 @@ clouds:
                 image: "docker.io/library/postgres:14.2"
                 pvcCapacity: 512Mi
             tracing:
-              address: "http://ingest.observability:4318"
+              address: "http://ingest.observability.svc.cluster.local:4318"
               exporter: "otlp"
           # Geneva
           geneva:
@@ -1346,12 +1346,12 @@ clouds:
             server:
               mqttClientName: 'maestro-server-{{ .ctx.regionShort }}'
               tracing:
-                address: "http://ingest.observability:4318"
+                address: "http://ingest.observability.svc.cluster.local:4318"
                 exporter: "otlp"
           # Backend
           backend:
             tracing:
-              address: "http://ingest.observability:4318"
+              address: "http://ingest.observability.svc.cluster.local:4318"
               exporter: "otlp"
           # Frontend
           frontend:
@@ -1361,7 +1361,7 @@ clouds:
               private: false
               zoneRedundantMode: 'Disabled'
             tracing:
-              address: "http://ingest.observability:4318"
+              address: "http://ingest.observability.svc.cluster.local:4318"
               exporter: "otlp"
           # MC
           mgmt:

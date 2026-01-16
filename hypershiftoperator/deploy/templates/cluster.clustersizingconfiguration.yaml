@@ -4,7 +4,8 @@ metadata:
   name: cluster
   annotations:
     "helm.sh/hook": post-install,post-upgrade
-    "helm.sh/hook-weight": "2"
+    "helm.sh/hook-weight": "10"
+    "argocd.argoproj.io/sync-options": "ServerSideApply=true"
 spec:
   concurrency:
     limit: 5

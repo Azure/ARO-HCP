@@ -76,7 +76,7 @@ backend:
     serviceAccountName: backend
   managedIdentityName: backend
   tracing:
-    address: http://ingest.observability:4318
+    address: http://ingest.observability.svc.cluster.local:4318
     exporter: otlp
 backplaneAPI:
   image:
@@ -165,7 +165,7 @@ clustersService:
     zoneRedundantMode: Auto
   provisionShardClusterLimit: 100
   tracing:
-    address: http://ingest.observability:4318
+    address: http://ingest.observability.svc.cluster.local:4318
     exporter: otlp
 cxKeyVault:
   name: ah-prow-cx-usw3j234-1
@@ -221,7 +221,7 @@ frontend:
     serviceAccountName: frontend
   managedIdentityName: frontend
   tracing:
-    address: http://ingest.observability:4318
+    address: http://ingest.observability.svc.cluster.local:4318
     exporter: otlp
 geneva:
   actions:
@@ -418,7 +418,7 @@ maestro:
     managedIdentityName: maestro-server
     mqttClientName: maestro-server-usw3j234
     tracing:
-      address: http://ingest.observability:4318
+      address: http://ingest.observability.svc.cluster.local:4318
       exporter: otlp
 mgmt:
   aks:
