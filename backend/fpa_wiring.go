@@ -16,8 +16,10 @@ package main
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"log/slog"
+	"os"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -28,10 +30,10 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
-func getFirstPartyApplicationClientBuilder(
-	ctx context.Context, fpaCertBundlePath string, fpaClientID string,
-	azureConfig *azureconfig.AzureConfig,
-) (azureclient.FirstPartyApplicationClientBuilder, error) {
+func getFirstPartyApplicationTokenCredentialRetriever(
+	ctx context.Context, fpaCertBundlePath string,
+	fpaClientID string, azureConfig *azureconfig.AzureConfig,
+) (fpa.FirstPartyApplicationTokenCredentialRetriever, error) {
 	if len(fpaCertBundlePath) == 0 || len(fpaClientID) == 0 {
 		return nil, nil
 	}
@@ -66,9 +68,64 @@ func getFirstPartyApplicationClientBuilder(
 		return nil, fmt.Errorf("failed to create FPA token credential retriever: %w", err)
 	}
 
+	return fpaTokenCredRetriever, nil
+}
+
+func getFirstPartyApplicationClientBuilder(
+	fpaTokenCredRetriever fpa.FirstPartyApplicationTokenCredentialRetriever, azureConfig *azureconfig.AzureConfig,
+) (azureclient.FirstPartyApplicationClientBuilder, error) {
 	fpaClientBuilder := azureclient.NewFirstPartyApplicationClientBuilder(
 		fpaTokenCredRetriever, azureConfig.CloudEnvironment.ARMClientOptions(),
 	)
 
 	return fpaClientBuilder, nil
+}
+
+func getFirstPartyApplicationManagedIdentitiesDataplaneClientBuilder(
+	fpaTokenCredRetriever fpa.FirstPartyApplicationTokenCredentialRetriever,
+	azureMIMockSPCertBundlePath string, azureMIMockSPClientID string, azureMIMockSPPrincipalID string, azureMIMockSPTenantID string,
+	azureConfig *azureconfig.AzureConfig,
+) (azureclient.FPAMIDataplaneClientBuilder, error) {
+
+	if len(azureMIMockSPCertBundlePath) == 0 || len(azureMIMockSPClientID) == 0 || len(azureMIMockSPPrincipalID) == 0 {
+		// TODO if we want to support detecting when the cert bundle path content
+		// changes, we could use a file watcher similar to the one used in the
+		// fpa token credential retriever, and pass that retriever to the client
+		// builder.
+		bundle, err := os.ReadFile(azureMIMockSPCertBundlePath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read bundle file: %w", err)
+		}
+		bundleBase64Encoded := base64.StdEncoding.EncodeToString(bundle)
+		hardcodedIdentity := &azureclient.HardcodedIdentity{
+			ClientID:     azureMIMockSPClientID,
+			ClientSecret: bundleBase64Encoded,
+			PrincipalID:  azureMIMockSPPrincipalID,
+			TenantID:     azureMIMockSPTenantID,
+		}
+		hardcodedIdentityFPAMIDataplaneClientBuilder := azureclient.NewHardcodedIdentityFPAMIDataplaneClientBuilder(
+			azureConfig.CloudEnvironment.CloudConfiguration(),
+			hardcodedIdentity,
+		)
+		return hardcodedIdentityFPAMIDataplaneClientBuilder, nil
+	}
+
+	fpaMIdataplaneClientBuilder := azureclient.NewFPAMIDataplaneClientBuilder(
+		azureConfig.AzureRuntimeConfig.ServiceTenantID,
+		fpaTokenCredRetriever,
+		azureConfig.AzureRuntimeConfig.ManagedIdentitiesDataPlaneAudienceResource,
+		azureConfig.CloudEnvironment.AZCoreClientOptions(),
+	)
+
+	return fpaMIdataplaneClientBuilder, nil
+}
+
+func getServiceManagedIdentityClientBuilderFactory(
+	fpaMIdataplaneClientBuilder azureclient.FPAMIDataplaneClientBuilder,
+	azureConfig *azureconfig.AzureConfig,
+) azureclient.ServiceManagedIdentityClientBuilderFactory {
+	return azureclient.NewServiceManagedIdentityClientBuilderFactory(
+		fpaMIdataplaneClientBuilder,
+		azureConfig.CloudEnvironment.ARMClientOptions(),
+	)
 }
