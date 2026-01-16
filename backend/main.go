@@ -399,6 +399,11 @@ func Run(cmd *cobra.Command, args []string) error {
 				dbClient,
 				subscriptionLister,
 			)
+			azureClusterResourceGroupExistenceValidationController = validationcontrollers.NewClusterValidationController(
+				validations.NewAzureClusterResourceGroupExistenceValidation(fpaClientBuilder),
+				dbClient,
+				subscriptionLister,
+			)
 		)
 
 		le, err := leaderelection.NewLeaderElector(leaderelection.LeaderElectionConfig{
@@ -425,6 +430,7 @@ func Run(cmd *cobra.Command, args []string) error {
 					go cosmosMatchingClusterController.Run(ctx, 20)
 					go alwaysSuccessClusterValidationController.Run(ctx, 20)
 					go azureRPRegistrationValidationController.Run(ctx, 20)
+					go azureClusterResourceGroupExistenceValidationController.Run(ctx, 20)
 				},
 				OnStoppedLeading: func() {
 					operationsScanner.LeaderGauge.Set(0)
