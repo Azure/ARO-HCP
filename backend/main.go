@@ -68,18 +68,21 @@ const (
 )
 
 var (
-	argKubeconfig             string
-	argNamespace              string
-	argLocation               string
-	argCosmosName             string
-	argCosmosURL              string
-	argClustersServiceURL     string
-	argInsecure               bool
-	argMetricsListenAddress   string
-	argPortListenAddress      string
-	argAzureRuntimeConfigPath string
-	argAzureFPACertBundlePath string
-	argAzureFPAClientID       string
+	argKubeconfig                  string
+	argNamespace                   string
+	argLocation                    string
+	argCosmosName                  string
+	argCosmosURL                   string
+	argClustersServiceURL          string
+	argInsecure                    bool
+	argMetricsListenAddress        string
+	argPortListenAddress           string
+	argAzureRuntimeConfigPath      string
+	argAzureFPACertBundlePath      string
+	argAzureFPAClientID            string
+	argAzureMIMockSPCertBundlePath string
+	argAzureMIMockSPClientID       string
+	argAzureMIMockSPPrincipalID    string
 
 	processName = filepath.Base(os.Args[0])
 
@@ -149,7 +152,46 @@ func init() {
 		"The client id of the first party application identity",
 	)
 
+	rootCmd.Flags().StringVar(
+		&argAzureMIMockSPCertBundlePath,
+		"azure-mi-mock-service-principal-certificate-bundle-path",
+		"",
+		"Path to a file containing an X.509 Certificate based client certificate, consisting of a private key and "+
+			"certificate chain, in a PEM or PKCS#12 format for authenticating clients with the msi mock identity, which is "+
+			"a common Azure Service Principal identity. This flag should only be set in environments where "+
+			"Microsoft's MI Dataplane service is not available. "+
+			"When set, it must be set in combination with the '--azure-mi-mock-service-principal-client-id' and "+
+			"'--azure-mi-mock-service-principal-principal-id' flags.",
+	)
+
+	rootCmd.Flags().StringVar(
+		&argAzureMIMockSPClientID,
+		"azure-mi-mock-service-principal-client-id",
+		"",
+		"The client id of the msi mock identity, which is a common Azure Service Principal identity. "+
+			"This flag should only be set in environments where Microsoft's MI Dataplane service is not available. "+
+			"When set, it must be set in combination with the '--azure-mi-mock-service-principal-certificate-bundle-path' and "+
+			"'--azure-mi-mock-service-principal-principal-id' flags.",
+	)
+
+	rootCmd.Flags().StringVar(
+		&argAzureMIMockSPPrincipalID,
+		"azure-mi-mock-service-principal-principal-id",
+		"",
+		"The principal id of the msi mock identity, which is a common Azure Service Principal identity. "+
+			"This flag should only be set in environments where Microsoft's MI Dataplane service is not available. "+
+			"When set, it must be set in combination with the '--azure-mi-mock-service-principal-certificate-bundle-path' and "+
+			"'--azure-mi-mock-service-principal-client-id' flags.",
+	)
+
 	rootCmd.MarkFlagsRequiredTogether("cosmos-name", "cosmos-url")
+
+	// We require that if one of the msi mock service principal flags is set, all of them must be set together.
+	rootCmd.MarkFlagsRequiredTogether(
+		"azure-mi-mock-service-principal-certificate-bundle-path",
+		"azure-mi-mock-service-principal-client-id",
+		"azure-mi-mock-service-principal-principal-id",
+	)
 
 	rootCmd.Version = version.CommitSHA
 }
@@ -195,6 +237,21 @@ func callAzureHCPClusterResourceGroupExistenceValidation(ctx context.Context, cl
 	if err != nil {
 		return fmt.Errorf("resource group existence validation error")
 	}
+	return nil
+}
+
+func callAzureHCPClusterMIsExistenceValidation(ctx context.Context, clientBuilder azureclient.SMIClientBuilder,
+	exampleHCPClusterSubscription *arm.Subscription, exampleHCPCluster *api.HCPOpenShiftCluster,
+) error {
+	logger := utils.LoggerFromContext(ctx)
+	logger.Info("calling Azure HCP cluster MIs existence validation")
+
+	validation := controllers.NewAzureHCPClusterMIsExistenceValidation(clientBuilder)
+	err := validation.Validate(ctx, exampleHCPClusterSubscription, exampleHCPCluster)
+	if err != nil {
+		return fmt.Errorf("MIs existence validation error")
+	}
+
 	return nil
 }
 
@@ -269,13 +326,32 @@ func Run(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("error getting azure configuration: %w", err)
 	}
 
-	fpaClientBuilder, err := getFPAClientBuilder(ctx, logger, argAzureFPACertBundlePath, argAzureFPAClientID, azureConfig)
+	fpaTokenCredRetriever, err := getFPATokenCredentialRetriever(ctx, logger, argAzureFPACertBundlePath, argAzureFPAClientID, azureConfig)
 	if err != nil {
-		return fmt.Errorf("error configuring FPA client builder: %w", err)
+		return fmt.Errorf("error getting FPA token credential retriever: %w", err)
 	}
+
+	fpaClientBuilder := getFPAClientBuilder(fpaTokenCredRetriever, azureConfig)
 
 	// TODO remove once start being used
 	_ = fpaClientBuilder
+
+	fpaMIdataplaneClientBuilder, err := getFPAMIDataplaneClientBuilder(
+		fpaTokenCredRetriever,
+		argAzureMIMockSPCertBundlePath, argAzureMIMockSPClientID, argAzureMIMockSPPrincipalID,
+		azureConfig,
+	)
+	if err != nil {
+		return fmt.Errorf("error configuring FPA MI dataplane client builder: %w", err)
+	}
+
+	// TODO remove once start being used
+	_ = fpaMIdataplaneClientBuilder
+
+	smiClientBuilder := getSMIClientBuilder(fpaMIdataplaneClientBuilder, azureConfig)
+	if smiClientBuilder == nil {
+		return fmt.Errorf("error configuring SMI client builder")
+	}
 
 	exampleHCPClusterSubscription, exampleHCPCluster := getAzureHCPExampleSubscriptionAndCluster()
 	err = callAzureExampleInflight(ctx, fpaClientBuilder, exampleHCPClusterSubscription, exampleHCPCluster)
@@ -288,11 +364,16 @@ func Run(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	err = callAzureHCPClusterMIsExistenceValidation(ctx, smiClientBuilder, exampleHCPClusterSubscription, exampleHCPCluster)
+	if err != nil {
+		return err
+	}
+
 	// Create the database client.
 	cosmosDatabaseClient, err := database.NewCosmosDatabaseClient(
 		argCosmosURL,
 		argCosmosName,
-		azureConfig.CloudEnvironment.PolicyClientOptions(),
+		*azureConfig.CloudEnvironment.AZCoreClientOptions(),
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create the CosmosDB client: %w", err)
