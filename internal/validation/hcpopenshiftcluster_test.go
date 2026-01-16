@@ -45,6 +45,10 @@ func TestClusterRequired(t *testing.T) {
 			expectErrors: []expectedError{
 				{
 					message:   "Required value",
+					fieldPath: "trackedResource.resource.id",
+				},
+				{
+					message:   "Required value",
 					fieldPath: "trackedResource.location",
 				},
 				{
@@ -148,7 +152,7 @@ func TestClusterRequired(t *testing.T) {
 						OperatorsAuthentication: api.OperatorsAuthenticationProfile{
 							UserAssignedIdentities: api.UserAssignedIdentitiesProfile{
 								ControlPlaneOperators: map[string]string{
-									"operatorX": "wrong/Pattern/Of/ResourceID",
+									"operatorX": "wrong/Pattern/Of/ResourceIDString",
 								},
 							},
 						},
@@ -157,25 +161,25 @@ func TestClusterRequired(t *testing.T) {
 				Identity: &arm.ManagedServiceIdentity{
 					Type: arm.ManagedServiceIdentityTypeUserAssigned,
 					UserAssignedIdentities: map[string]*arm.UserAssignedIdentity{
-						"wrong/Pattern/Of/ResourceID": {},
+						"wrong/Pattern/Of/ResourceIDString": {},
 					},
 				},
 			},
 			expectErrors: []expectedError{
 				{
-					message:   "resource id 'wrong/Pattern/Of/ResourceID' must start with '/'",
+					message:   "resource id 'wrong/Pattern/Of/ResourceIDString' must start with '/'",
 					fieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[operatorX]",
 				},
 				{
-					message:   "resource id 'wrong/Pattern/Of/ResourceID' must start with '/'",
+					message:   "resource id 'wrong/Pattern/Of/ResourceIDString' must start with '/'",
 					fieldPath: "identity.userAssignedIdentities",
 				},
 				{
-					message:   "resource id 'wrong/Pattern/Of/ResourceID' must start with '/'",
+					message:   "resource id 'wrong/Pattern/Of/ResourceIDString' must start with '/'",
 					fieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[operatorX]",
 				},
 				{
-					message:   "resource id 'wrong/Pattern/Of/ResourceID' must start with '/'",
+					message:   "resource id 'wrong/Pattern/Of/ResourceIDString' must start with '/'",
 					fieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[operatorX]",
 				},
 			},

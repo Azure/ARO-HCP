@@ -36,6 +36,10 @@ func TestExternalAuthRequired(t *testing.T) {
 			expectErrors: []expectedError{
 				{
 					message:   "Required value",
+					fieldPath: "trackedResource.resource.id",
+				},
+				{
+					message:   "Required value",
 					fieldPath: "properties.issuer.url",
 				},
 				{
@@ -62,7 +66,7 @@ func TestExternalAuthRequired(t *testing.T) {
 		},
 		{
 			name:     "Default external auth",
-			resource: api.NewDefaultHCPOpenShiftClusterExternalAuth(api.Must(azcorearm.ParseResourceID("/subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster/externalAuth/test-auth"))),
+			resource: api.NewDefaultHCPOpenShiftClusterExternalAuth(api.Must(azcorearm.ParseResourceID("/subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster/externalAuths/test-auth"))),
 			expectErrors: []expectedError{
 				{
 					message:   "Required value",

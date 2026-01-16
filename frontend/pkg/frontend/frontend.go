@@ -703,6 +703,17 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 			}
 
 			newInternalCluster := versionedCluster.ConvertToInternal()
+			// the external type lacks sufficient data to full produce a valid resourceID.  We do that separately here.
+			parts := []string{
+				"/subscriptions", subscriptionID,
+				"resourceGroups", resourceGroup,
+				"providers", api.ClusterResourceType.String(), newInternalCluster.Name,
+			}
+			newInternalCluster.ID, err = azcorearm.ParseResourceID(strings.Join(parts, "/"))
+			if err != nil {
+				// this indicates something really strange happened, return an error for it.
+				return utils.TrackError(err)
+			}
 			validationErrs := validation.ValidateClusterCreate(ctx, newInternalCluster, api.Must(versionedInterface.ValidationPathRewriter(&api.HCPOpenShiftCluster{})))
 			validationErrs = append(validationErrs, admission.AdmitClusterOnCreate(ctx, newInternalCluster, subscription)...)
 			cloudError = arm.CloudErrorFromFieldErrors(validationErrs)
@@ -721,6 +732,18 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 
 			// Perform static validation as if for a node pool creation request.
 			newInternalNodePool := versionedNodePool.ConvertToInternal()
+			// the external type lacks sufficient data to full produce a valid resourceID.  We do that separately here.
+			parts := []string{
+				"/subscriptions", subscriptionID,
+				"resourceGroups", resourceGroup,
+				"providers", api.ClusterResourceType.String(), "preflight",
+				api.NodePoolResourceType.Types[len(api.NodePoolResourceType.Types)-1], newInternalNodePool.Name,
+			}
+			newInternalNodePool.ID, err = azcorearm.ParseResourceID(strings.Join(parts, "/"))
+			if err != nil {
+				// this indicates something really strange happened, return an error for it.
+				return utils.TrackError(err)
+			}
 			validationErrs := validation.ValidateNodePoolCreate(ctx, newInternalNodePool)
 			cloudError = arm.CloudErrorFromFieldErrors(validationErrs)
 
@@ -738,6 +761,18 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 
 			// Perform static validation as if for an external auth creation request.
 			newInternalAuth := versionedExternalAuth.ConvertToInternal()
+			// the external type lacks sufficient data to full produce a valid resourceID.  We do that separately here.
+			parts := []string{
+				"/subscriptions", subscriptionID,
+				"resourceGroups", resourceGroup,
+				"providers", api.ClusterResourceType.String(), "preflight",
+				api.ExternalAuthResourceType.Types[len(api.NodePoolResourceType.Types)-1], newInternalAuth.Name,
+			}
+			newInternalAuth.ID, err = azcorearm.ParseResourceID(strings.Join(parts, "/"))
+			if err != nil {
+				// this indicates something really strange happened, return an error for it.
+				return utils.TrackError(err)
+			}
 			validationErrs := validation.ValidateExternalAuthCreate(ctx, newInternalAuth)
 			cloudError = arm.CloudErrorFromFieldErrors(validationErrs)
 

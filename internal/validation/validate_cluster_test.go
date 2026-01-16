@@ -606,7 +606,7 @@ func TestResourceID(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			errs := ResourceID(ctx, op, fldPath, tt.value, nil)
+			errs := ResourceIDString(ctx, op, fldPath, tt.value, nil)
 
 			if tt.expectErr && len(errs) == 0 {
 				t.Error("expected error but got none")
@@ -663,7 +663,7 @@ func TestRestrictedResourceID(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			errs := RestrictedResourceID(ctx, op, fldPath, tt.value, nil, restrictedType)
+			errs := RestrictedResourceIDString(ctx, op, fldPath, tt.value, nil, restrictedType)
 
 			if tt.expectErr && len(errs) == 0 {
 				t.Error("expected error but got none")

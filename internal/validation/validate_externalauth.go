@@ -53,6 +53,7 @@ func validateExternalAuth(ctx context.Context, op operation.Operation, newObj, o
 
 	//arm.ProxyResource
 	errs = append(errs, validateProxyResource(ctx, op, field.NewPath("trackedResource"), &newObj.ProxyResource, safe.Field(oldObj, toExternalAuthProxyResource))...)
+	errs = append(errs, RestrictedResourceIDWithResourceGroup(ctx, op, field.NewPath("id"), newObj.ID, nil, api.ExternalAuthResourceType.String())...)
 
 	//Properties HCPOpenShiftClusterExternalAuthProperties `json:"properties"`
 	errs = append(errs, validateExternalAuthProperties(ctx, op, field.NewPath("properties"), &newObj.Properties, safe.Field(oldObj, toExternalAuthProperties))...)
