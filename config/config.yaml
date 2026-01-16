@@ -500,6 +500,8 @@ defaults:
       replicas: 2
       namespace: aro-hcp
       serviceAccountName: backend
+    azureRuntimeConfig:
+      tlsCertificatesIssuer: OneCertV2-PublicCA
   # Admin API
   adminApi:
     image:
@@ -949,6 +951,8 @@ clouds:
       backend:
         image:
           digest: sha256:c0d83b06852ae3f396eb4424d6650fec3dcda604c2fa92a4bdd03baedb2353f0 # 948acbd (2026-01-15 00:51)
+        azureRuntimeConfig:
+          tlsCertificatesIssuer: Self
       # Image Sync
       imageSync:
         ocMirror:

@@ -1305,6 +1305,18 @@
         "managedIdentityName": {
           "type": "string",
           "description": "The name of the MSI that will be used by the backend to interact with Azure"
+        },
+        "azureRuntimeConfig": {
+          "type": "object",
+          "properties": {
+            "tlsCertificatesIssuer": {
+              "$ref": "#/definitions/certificateIssuer"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "tlsCertificatesIssuer"
+          ]
         }
       },
       "additionalProperties": false,
@@ -1312,7 +1324,8 @@
         "image",
         "tracing",
         "k8s",
-        "managedIdentityName"
+        "managedIdentityName",
+        "azureRuntimeConfig"
       ]
     },
     "adminApi": {
