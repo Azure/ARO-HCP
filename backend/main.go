@@ -317,21 +317,28 @@ func Run(cmd *cobra.Command, args []string) error {
 			operationsScanner                = oldoperationscanner.NewOperationsScanner(dbClient, ocmConnection, argLocation, subscriptionLister)
 			subscriptionInformerController   = informers.NewSubscriptionInformerController(dbClient, subscriptionLister)
 			doNothingController              = controllers2.NewDoNothingExampleController(dbClient, subscriptionLister)
-			operationClusterCreateController = operationcontrollers.NewOperationClusterCreateController(
-				argLocation,
+			operationClusterCreateController = operationcontrollers.NewGenericOperationClusterCreateController(
+				"OperationClusterCreate",
+				operationcontrollers.NewOperationClusterCreateSynchronizer(
+					argLocation,
+					dbClient,
+					clusterServiceClient,
+					http.DefaultClient,
+				),
 				10*time.Second,
 				subscriptionLister,
 				dbClient,
-				clusterServiceClient,
-				http.DefaultClient,
 			)
-			operationClusterDeleteController = operationcontrollers.NewOperationClusterDeleteController(
-				argLocation,
+			operationClusterDeleteController = operationcontrollers.NewGenericOperationClusterCreateController(
+				"OperationClusterDelete",
+				operationcontrollers.NewOperationClusterDeleteSynchronizer(
+					dbClient,
+					clusterServiceClient,
+					http.DefaultClient,
+				),
 				10*time.Second,
 				subscriptionLister,
 				dbClient,
-				clusterServiceClient,
-				http.DefaultClient,
 			)
 		)
 
