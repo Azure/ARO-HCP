@@ -4,9 +4,11 @@ Customer should be able to create node pools with ARM64-based VMs
 Customer should be able to create an HCP cluster with custom autoscaling
 Customer should be able to create a HCP cluster without CNI
 Cluster Pull Secret Management should be able to create an HCP cluster and manage pull secrets
+Customer should be able to list HCP clusters without node pools at both subscription and resource group levels
 Update HCPOpenShiftCluster Positive creates a cluster and updates tags with a PATCH request
 Customer should be able to create several HCP clusters in their customer resource group, but not in the same managed resource group
 Customer should be able to create an HCP cluster using bicep templates
+Customer should be able to lifecycle and confirm external auth on a cluster
 Customer should be able to create an HCP cluster with Image Registry not present
 Engineering should be able to retrieve kusto logs for a cluster and services
 Customer should be able to create a cluster with default autoscaling and a nodepool with autoscaling enabled

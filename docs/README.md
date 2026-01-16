@@ -78,6 +78,7 @@ Welcome to the **ARO HCP** documentation. This guide provides an overview of the
 ### Observability
 
 - [Grafana Dashboards](grafana-dashboards.md)
+- [Logging](logging.md)
 - [Prometheus Rules](prometheus-rules.md)
 
 ### Guides and Operations

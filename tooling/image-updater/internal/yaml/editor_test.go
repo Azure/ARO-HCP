@@ -450,3 +450,145 @@ func createTempYAML(t *testing.T, content string) string {
 
 	return filePath
 }
+
+func TestGetLineWithComment(t *testing.T) {
+	tests := []struct {
+		name            string
+		yaml            string
+		path            string
+		wantValue       string
+		wantLineContent string
+		wantErr         bool
+	}{
+		{
+			name: "line with comment",
+			yaml: `image:
+  digest: sha256:abc123 # v1.2.3 (2025-01-15 10:30)
+`,
+			path:            "image.digest",
+			wantValue:       "sha256:abc123",
+			wantLineContent: "  digest: sha256:abc123 # v1.2.3 (2025-01-15 10:30)",
+			wantErr:         false,
+		},
+		{
+			name: "line without comment",
+			yaml: `image:
+  digest: sha256:abc123
+`,
+			path:            "image.digest",
+			wantValue:       "sha256:abc123",
+			wantLineContent: "  digest: sha256:abc123",
+			wantErr:         false,
+		},
+		{
+			name: "nonexistent path",
+			yaml: `image:
+  tag: latest
+`,
+			path:    "image.digest",
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			filePath := createTempYAML(t, tt.yaml)
+			editor, err := NewEditor(filePath)
+			if err != nil {
+				t.Fatalf("NewEditor() failed: %v", err)
+			}
+
+			line, value, lineContent, err := editor.GetLineWithComment(tt.path)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("GetLineWithComment() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+
+			if tt.wantErr {
+				return
+			}
+
+			if value != tt.wantValue {
+				t.Errorf("GetLineWithComment() value = %v, want %v", value, tt.wantValue)
+			}
+
+			if lineContent != tt.wantLineContent {
+				t.Errorf("GetLineWithComment() lineContent = %q, want %q", lineContent, tt.wantLineContent)
+			}
+
+			if line <= 0 {
+				t.Errorf("GetLineWithComment() line = %v, want > 0", line)
+			}
+		})
+	}
+}
+
+func TestParseVersionComment(t *testing.T) {
+	tests := []struct {
+		name        string
+		lineContent string
+		wantTag     string
+		wantDate    string
+	}{
+		{
+			name:        "tag and date",
+			lineContent: "  digest: sha256:abc123 # v1.2.3 (2025-01-15 10:30)",
+			wantTag:     "v1.2.3",
+			wantDate:    "2025-01-15 10:30",
+		},
+		{
+			name:        "commit hash and date",
+			lineContent: "  digest: sha256:abc123 # fb422d7 (2026-01-14 01:04)",
+			wantTag:     "fb422d7",
+			wantDate:    "2026-01-14 01:04",
+		},
+		{
+			name:        "tag only",
+			lineContent: "  digest: sha256:abc123 # v2.0.0",
+			wantTag:     "v2.0.0",
+			wantDate:    "",
+		},
+		{
+			name:        "no comment",
+			lineContent: "  digest: sha256:abc123",
+			wantTag:     "",
+			wantDate:    "",
+		},
+		{
+			name:        "empty comment",
+			lineContent: "  digest: sha256:abc123 # ",
+			wantTag:     "",
+			wantDate:    "",
+		},
+		{
+			name:        "comment with extra spaces",
+			lineContent: "  digest: sha256:abc123 #  v1.2.3  ( 2025-01-15 10:30 ) ",
+			wantTag:     "v1.2.3",
+			wantDate:    "2025-01-15 10:30",
+		},
+		{
+			name:        "unclosed parenthesis",
+			lineContent: "  digest: sha256:abc123 # v1.2.3 (2025-01-15",
+			wantTag:     "v1.2.3 (2025-01-15",
+			wantDate:    "",
+		},
+		{
+			name:        "long commit hash with date",
+			lineContent: "  digest: sha256:abc123 # 165d355645eb8c3cf8bfc2f813430d130572eb46 (2026-01-13 17:25)",
+			wantTag:     "165d355645eb8c3cf8bfc2f813430d130572eb46",
+			wantDate:    "2026-01-13 17:25",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gotTag, gotDate := ParseVersionComment(tt.lineContent)
+			if gotTag != tt.wantTag {
+				t.Errorf("ParseVersionComment() tag = %q, want %q", gotTag, tt.wantTag)
+			}
+			if gotDate != tt.wantDate {
+				t.Errorf("ParseVersionComment() date = %q, want %q", gotDate, tt.wantDate)
+			}
+		})
+	}
+}

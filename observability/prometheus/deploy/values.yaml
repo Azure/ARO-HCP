@@ -102,6 +102,13 @@ kube-prometheus-stack:
       operator: "Equal"
       value: "true"
       effect: "NoSchedule"
+    ## Admission webhooks configuration
+    ## Image configuration is provided by environment-specific values files
+    ## (values-mgmt.yaml and values-svc.yaml) to ensure ACR cached images are used
+    ##
+    admissionWebhooks:
+      patch:
+        enabled: true
   ## Deploy a Prometheus instance
   ##
   prometheus:

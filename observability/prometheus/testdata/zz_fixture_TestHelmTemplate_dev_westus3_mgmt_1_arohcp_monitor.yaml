@@ -71153,7 +71153,7 @@ spec:
     spec:
       containers:
         - name: create
-          image: registry.k8s.io/ingress-nginx/kube-webhook-certgen:v1.5.2
+          image: arohcpsvcdev.azurecr.io/k8s-cache/ingress-nginx/kube-webhook-certgen:v1.5.2
           imagePullPolicy: IfNotPresent
           args:
             - create
@@ -71219,7 +71219,7 @@ spec:
     spec:
       containers:
         - name: patch
-          image: registry.k8s.io/ingress-nginx/kube-webhook-certgen:v1.5.2
+          image: arohcpsvcdev.azurecr.io/k8s-cache/ingress-nginx/kube-webhook-certgen:v1.5.2
           imagePullPolicy: IfNotPresent
           args:
             - patch

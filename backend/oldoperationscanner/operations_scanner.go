@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package main
+package oldoperationscanner
 
 import (
 	"bytes"
@@ -37,13 +37,12 @@ import (
 
 	"k8s.io/utils/lru"
 
-	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
-
 	ocmsdk "github.com/openshift-online/ocm-sdk-go"
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
 	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
 
+	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
@@ -68,7 +67,7 @@ const (
 	pollBreakGlassCredential       = "poll_break_glass_credential"
 	pollBreakGlassCredentialRevoke = "poll_break_glass_credential_revoke"
 
-	tracerName = "github.com/Azure/ARO-HCP/backend"
+	TracerName = "github.com/Azure/ARO-HCP/backend"
 )
 
 // Copied from uhc-clusters-service, because the
@@ -132,11 +131,13 @@ func (o *operation) setSpanAttributes(span trace.Span) {
 }
 
 type OperationsScanner struct {
-	dbClient            database.DBClient
-	lockClient          database.LockClientInterface
-	clusterService      ocm.ClusterServiceClientSpec
-	azureLocation       string
-	notificationClient  *http.Client
+	dbClient           database.DBClient
+	lockClient         database.LockClientInterface
+	clusterService     ocm.ClusterServiceClientSpec
+	azureLocation      string
+	notificationClient *http.Client
+
+	subscriptionsLister listers.SubscriptionLister
 	subscriptionsLock   sync.Mutex
 	subscriptions       []string
 	subscriptionChannel chan string
@@ -151,7 +152,7 @@ type OperationsScanner struct {
 	// Allow overriding timestamps for testing.
 	newTimestamp func() time.Time
 
-	leaderGauge            prometheus.Gauge
+	LeaderGauge            prometheus.Gauge
 	workerGauge            prometheus.Gauge
 	operationsCount        *prometheus.CounterVec
 	operationsFailedCount  *prometheus.CounterVec
@@ -160,7 +161,7 @@ type OperationsScanner struct {
 	subscriptionsByState   *prometheus.GaugeVec
 }
 
-func NewOperationsScanner(dbClient database.DBClient, ocmConnection *ocmsdk.Connection, azureLocation string) *OperationsScanner {
+func NewOperationsScanner(dbClient database.DBClient, ocmConnection *ocmsdk.Connection, azureLocation string, subscriptionLister listers.SubscriptionLister) *OperationsScanner {
 	s := &OperationsScanner{
 		dbClient:   dbClient,
 		lockClient: dbClient.GetLockClient(),
@@ -171,17 +172,18 @@ func NewOperationsScanner(dbClient database.DBClient, ocmConnection *ocmsdk.Conn
 				false,
 				false,
 			),
-			tracerName,
+			TracerName,
 		),
-		azureLocation:      azureLocation,
-		notificationClient: http.DefaultClient,
-		subscriptions:      make([]string, 0),
+		azureLocation:       azureLocation,
+		notificationClient:  http.DefaultClient,
+		subscriptionsLister: subscriptionLister,
+		subscriptions:       make([]string, 0),
 
 		nextDataDumpTime: lru.New(16000),
 
 		newTimestamp: func() time.Time { return time.Now().UTC() },
 
-		leaderGauge: promauto.With(prometheus.DefaultRegisterer).NewGauge(
+		LeaderGauge: promauto.With(prometheus.DefaultRegisterer).NewGauge(
 			prometheus.GaugeOpts{
 				Name: "backend_leader_election_state",
 				Help: "Leader election state (1 when leader).",
@@ -316,7 +318,7 @@ func (s *OperationsScanner) Run(ctx context.Context) {
 		go func() {
 			defer s.subscriptionWorkers.Done()
 			for subscriptionID := range s.subscriptionChannel {
-				localCtx, span := startRootSpan(ctx, "processOperations")
+				localCtx, span := StartRootSpan(ctx, "processOperations")
 				span.SetAttributes(tracing.SubscriptionIDKey.String(subscriptionID))
 
 				localLogger := logger.With("subscription_id", subscriptionID)
@@ -352,7 +354,7 @@ loop:
 // Join waits for the OperationsScanner to gracefully shut down.
 func (s *OperationsScanner) Join() {
 	s.subscriptionWorkers.Wait()
-	s.leaderGauge.Set(0)
+	s.LeaderGauge.Set(0)
 }
 
 // updateOperationMetrics records counter and latency metrics for operations.
@@ -368,7 +370,7 @@ func (s *OperationsScanner) updateOperationMetrics(label string) func() {
 // collectSubscriptions builds an internal list of Azure subscription IDs by
 // querying Cosmos DB.
 func (s *OperationsScanner) collectSubscriptions(ctx context.Context, logger *slog.Logger) {
-	ctx, span := startRootSpan(ctx, "collectSubscriptions")
+	ctx, span := StartRootSpan(ctx, "collectSubscriptions")
 	defer span.End()
 	defer s.updateOperationMetrics(collectSubscriptionsLabel)()
 
@@ -385,11 +387,11 @@ func (s *OperationsScanner) collectSubscriptions(ctx context.Context, logger *sl
 	for subscriptionState := range arm.ListSubscriptionStates() {
 		subscriptionStates[subscriptionState] = 0
 	}
-	for subscriptionID, subscription := range iterator.Items(ctx) {
+	for _, subscription := range iterator.Items(ctx) {
 		// Unregistered subscriptions should have no active operations,
 		// not even deletes.
 		if subscription.State != arm.SubscriptionStateUnregistered {
-			subscriptions = append(subscriptions, subscriptionID)
+			subscriptions = append(subscriptions, subscription.ResourceID.SubscriptionID)
 		}
 		subscriptionStates[subscription.State]++
 	}
@@ -419,27 +421,29 @@ func (s *OperationsScanner) collectSubscriptions(ctx context.Context, logger *sl
 // to the worker pool for processing. processSubscriptions may block if the
 // worker pool gets overloaded. The log will indicate if this occurs.
 func (s *OperationsScanner) processSubscriptions(ctx context.Context, logger *slog.Logger) {
-	_, span := startRootSpan(ctx, "processSubscriptions")
+	_, span := StartRootSpan(ctx, "processSubscriptions")
 	defer span.End()
 	defer s.updateOperationMetrics(processSubscriptionsLabel)()
 
-	// This method may block while feeding subscription IDs to the
-	// worker pool, so take a clone of the subscriptions slice to
-	// iterate over.
-	s.subscriptionsLock.Lock()
-	subscriptions := slices.Clone(s.subscriptions)
-	s.subscriptionsLock.Unlock()
+	// This method may block while feeding subscription IDs to the worker pool
+	subscriptions, err := s.subscriptionsLister.List(ctx)
+	if err != nil {
+		logger.Error("Failed to get subscriptions", "error", err)
+		// primitive avoidance of hot loop during refactor.
+		time.Sleep(100 * time.Millisecond)
+		return
+	}
 
-	for _, subscriptionID := range subscriptions {
+	for _, subscription := range subscriptions {
 		select {
-		case s.subscriptionChannel <- subscriptionID:
+		case s.subscriptionChannel <- subscription.ResourceID.SubscriptionID:
 		default:
 			// The channel is full. Push the subscription anyway
 			// but log how long we block for. This will indicate
 			// when the worker pool size needs increased.
 			start := time.Now()
-			s.subscriptionChannel <- subscriptionID
-			logger.Warn(fmt.Sprintf("Subscription processing blocked for %s", time.Since(start)))
+			s.subscriptionChannel <- subscription.ResourceID.SubscriptionID
+			logger.Warn(fmt.Sprintf("Subscription processing blocked for %s", time.Since(start)), "subscription", subscription.ResourceID.SubscriptionID)
 		}
 	}
 }
@@ -535,6 +539,15 @@ func (s *OperationsScanner) recordOperationError(ctx context.Context, operationN
 // pollClusterOperation updates the status of a cluster operation.
 func (s *OperationsScanner) pollClusterOperation(ctx context.Context, op operation) {
 	logger := utils.LoggerFromContext(ctx)
+	if op.doc.Request == database.OperationRequestCreate {
+		logger.Info("skipping operation: handled by another controller", "operationRequest", op.doc.Request)
+		return // handled by another controller
+	}
+	if op.doc.Request == database.OperationRequestDelete {
+		logger.Info("skipping operation: handled by another controller", "operationRequest", op.doc.Request)
+		return // handled by another controller
+	}
+
 	ctx, span := startChildSpan(ctx, "pollClusterOperation")
 	defer span.End()
 	defer s.updateOperationMetrics(pollClusterOperationLabel)()
@@ -555,50 +568,16 @@ func (s *OperationsScanner) pollClusterOperation(ctx context.Context, op operati
 
 	clusterStatus, err := s.clusterService.GetClusterStatus(ctx, op.doc.InternalID)
 	if err != nil {
-		var ocmError *ocmerrors.Error
-		if errors.As(err, &ocmError) && ocmError.Status() == http.StatusNotFound && op.doc.Request == database.OperationRequestDelete {
-			// Update the Cosmos DB billing document with a deletion timestamp.
-			// Do this before calling setDeleteOperationAsCompleted so that in
-			// case of error the backend will retry by virtue of the operation
-			// document still having a non-terminal status.
-			err = s.markBillingDocumentDeleted(ctx, op)
-			if err != nil {
-				s.recordOperationError(ctx, pollClusterOperationLabel, err)
-				logger.Error(fmt.Sprintf("Failed to handle a completed deletion: %v", err))
-				return
-			}
-
-			err = s.setDeleteOperationAsCompleted(ctx, op)
-			if err != nil {
-				s.recordOperationError(ctx, pollClusterOperationLabel, err)
-				logger.Error(fmt.Sprintf("Failed to handle a completed deletion: %v", err))
-			}
-		} else {
-			s.recordOperationError(ctx, pollClusterOperationLabel, err)
-			logger.Error(fmt.Sprintf("Failed to get cluster status: %v", err))
-		}
-
+		s.recordOperationError(ctx, pollClusterOperationLabel, err)
+		logger.Error(fmt.Sprintf("Failed to get cluster status: %v", err))
 		return
 	}
 
-	opStatus, opError, err := s.convertClusterStatus(ctx, op, clusterStatus)
+	opStatus, opError, err := ConvertClusterStatus(ctx, s.clusterService, op.doc, clusterStatus)
 	if err != nil {
 		s.recordOperationError(ctx, pollClusterOperationLabel, err)
 		logger.Warn(err.Error())
 		return
-	}
-
-	// Create a Cosmos DB billing document if a Create operation is successful.
-	// Do this before calling updateOperationStatus so that in case of error the
-	// backend will retry by virtue of the operation document still having a non-
-	// terminal status.
-	if op.doc.Request == database.OperationRequestCreate && opStatus == arm.ProvisioningStateSucceeded {
-		err = s.createBillingDocument(ctx, op)
-		if err != nil {
-			s.recordOperationError(ctx, pollClusterOperationLabel, err)
-			logger.Error(fmt.Sprintf("Failed to handle a completed creation: %v", err))
-			return
-		}
 	}
 
 	err = database.UpdateOperationStatus(ctx, s.dbClient, op.doc, opStatus, opError, s.postAsyncNotification)
@@ -633,7 +612,7 @@ func (s *OperationsScanner) pollNodePoolOperation(ctx context.Context, op operat
 	if err != nil {
 		var ocmError *ocmerrors.Error
 		if errors.As(err, &ocmError) && ocmError.Status() == http.StatusNotFound && op.doc.Request == database.OperationRequestDelete {
-			err = s.setDeleteOperationAsCompleted(ctx, op)
+			err = SetDeleteOperationAsCompleted(ctx, s.dbClient, op.doc, s.postAsyncNotification)
 			if err != nil {
 				s.recordOperationError(ctx, pollNodePoolOperationLabel, err)
 				logger.Error(fmt.Sprintf("Failed to handle a completed deletion: %v", err))
@@ -672,7 +651,7 @@ func (s *OperationsScanner) pollExternalAuthOperation(ctx context.Context, op op
 	if err != nil {
 		var ocmError *ocmerrors.Error
 		if errors.As(err, &ocmError) && ocmError.Status() == http.StatusNotFound && op.doc.Request == database.OperationRequestDelete {
-			err = s.setDeleteOperationAsCompleted(ctx, op)
+			err = SetDeleteOperationAsCompleted(ctx, s.dbClient, op.doc, s.postAsyncNotification)
 			if err != nil {
 				s.recordOperationError(ctx, pollExternalAuthOperationLabel, err)
 				logger.Error(fmt.Sprintf("Failed to handle a completed deletion: %v", err))
@@ -805,11 +784,15 @@ loop:
 // In the event the subscription lock is lost, the context passed to the function will
 // be canceled.
 func (s *OperationsScanner) withSubscriptionLock(ctx context.Context, subscriptionID string, fn func(ctx context.Context)) {
+	WithSubscriptionLock(ctx, s.lockClient, subscriptionID, fn)
+}
+
+func WithSubscriptionLock(ctx context.Context, lockClient database.LockClientInterface, subscriptionID string, fn func(ctx context.Context)) {
 	logger := utils.LoggerFromContext(ctx)
 
-	timeout := s.lockClient.GetDefaultTimeToLive()
+	timeout := lockClient.GetDefaultTimeToLive()
 	span := trace.SpanFromContext(ctx)
-	lock, err := s.lockClient.AcquireLock(ctx, subscriptionID, &timeout)
+	lock, err := lockClient.AcquireLock(ctx, subscriptionID, &timeout)
 	if err != nil {
 		logger.Error(fmt.Sprintf("Failed to acquire lock: %v", err))
 		span.RecordError(err)
@@ -817,12 +800,12 @@ func (s *OperationsScanner) withSubscriptionLock(ctx context.Context, subscripti
 	}
 	logger.Info("Acquired lock")
 
-	lockedCtx, stop := s.lockClient.HoldLock(ctx, lock)
+	lockedCtx, stop := lockClient.HoldLock(ctx, lock)
 	fn(lockedCtx)
 	lock = stop()
 
 	if lock != nil {
-		nonFatalErr := s.lockClient.ReleaseLock(ctx, lock)
+		nonFatalErr := lockClient.ReleaseLock(ctx, lock)
 		if nonFatalErr == nil {
 			logger.Info("Released lock")
 		} else {
@@ -835,14 +818,14 @@ func (s *OperationsScanner) withSubscriptionLock(ctx context.Context, subscripti
 }
 
 // setDeleteOperationAsCompleted updates Cosmos DB to reflect a completed resource deletion.
-func (s *OperationsScanner) setDeleteOperationAsCompleted(ctx context.Context, op operation) error {
+func SetDeleteOperationAsCompleted(ctx context.Context, cosmosClient database.DBClient, operation *api.Operation, postAsyncNotificationFn database.PostAsyncNotificationFunc) error {
 	// Delete the resource document first. If it fails the backend will retry
 	// by virtue of the operation document still having a non-terminal status.
-	untypedCRUD, err := s.dbClient.UntypedCRUD(*op.doc.ExternalID)
+	untypedCRUD, err := cosmosClient.UntypedCRUD(*operation.ExternalID)
 	if err != nil {
 		return utils.TrackError(err)
 	}
-	if err := untypedCRUD.Delete(ctx, op.doc.ExternalID); err != nil {
+	if err := untypedCRUD.Delete(ctx, operation.ExternalID); err != nil {
 		return utils.TrackError(err)
 	}
 
@@ -877,7 +860,7 @@ func (s *OperationsScanner) setDeleteOperationAsCompleted(ctx context.Context, o
 	}
 
 	// Save a final "succeeded" operation status until TTL expires.
-	err = database.PatchOperationDocument(ctx, s.dbClient, op.doc, arm.ProvisioningStateSucceeded, nil, s.postAsyncNotification)
+	err = database.PatchOperationDocument(ctx, cosmosClient, operation, arm.ProvisioningStateSucceeded, nil, postAsyncNotificationFn)
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -885,8 +868,12 @@ func (s *OperationsScanner) setDeleteOperationAsCompleted(ctx context.Context, o
 	return nil
 }
 
-// postAsyncNotification submits an POST request with status payload to the given URL.
+// PostAsyncNotification submits an POST request with status payload to the given URL.
 func (s *OperationsScanner) postAsyncNotification(ctx context.Context, operation *api.Operation) error {
+	return PostAsyncNotification(ctx, s.notificationClient, operation)
+}
+
+func PostAsyncNotification(ctx context.Context, notificationClient *http.Client, operation *api.Operation) error {
 	data, err := arm.MarshalJSON(database.ToStatus(operation))
 	if err != nil {
 		return err
@@ -899,7 +886,7 @@ func (s *OperationsScanner) postAsyncNotification(ctx context.Context, operation
 
 	request.Header.Set("Content-Type", "application/json")
 
-	response, err := s.notificationClient.Do(request)
+	response, err := notificationClient.Do(request)
 	if err != nil {
 		return err
 	}
@@ -912,67 +899,17 @@ func (s *OperationsScanner) postAsyncNotification(ctx context.Context, operation
 	return nil
 }
 
-// createBillingDocument creates a Cosmos DB document in the Billing
-// container for a newly-created cluster.
-func (s *OperationsScanner) createBillingDocument(ctx context.Context, op operation) error {
-	logger := utils.LoggerFromContext(ctx)
-
-	csCluster, err := s.clusterService.GetCluster(ctx, op.doc.InternalID)
-	if err != nil {
-		return err
-	}
-
-	doc := database.NewBillingDocument(op.doc.ExternalID)
-	doc.CreationTime = csCluster.CreationTimestamp()
-	doc.Location = s.azureLocation
-	doc.TenantID = op.doc.TenantID
-	doc.ManagedResourceGroup = fmt.Sprintf(
-		"/%s/%s/%s/%s",
-		azcorearm.SubscriptionResourceType.Type,
-		doc.SubscriptionID,
-		azcorearm.ResourceGroupResourceType.Type,
-		csCluster.Azure().ManagedResourceGroupName())
-
-	err = s.dbClient.CreateBillingDoc(ctx, doc)
-	if err == nil {
-		logger.Info("Updated billing for cluster creation")
-	}
-
-	return err
-}
-
-// markBillingDocumentDeleted patches a Cosmos DB document in the Billing
-// container to add a deletion timestamp.
-func (s *OperationsScanner) markBillingDocumentDeleted(ctx context.Context, op operation) error {
-	logger := utils.LoggerFromContext(ctx)
-
-	var patchOperations database.BillingDocumentPatchOperations
-
-	patchOperations.SetDeletionTime(s.newTimestamp())
-
-	err := s.dbClient.PatchBillingDoc(ctx, op.doc.ExternalID, patchOperations)
-	if err == nil {
-		logger.Info("Updated billing for cluster deletion")
-	} else if database.IsResponseError(err, http.StatusNotFound) {
-		// Log the error but proceed with normal processing.
-		logger.Info("No billing document found")
-		err = nil
-	}
-
-	return err
-}
-
-// convertClusterStatus attempts to translate a ClusterStatus object from
+// ConvertClusterStatus attempts to translate a ClusterStatus object from
 // Cluster Service into an ARM provisioning state and, if necessary, a
 // structured OData error.
-func (s *OperationsScanner) convertClusterStatus(ctx context.Context, op operation, clusterStatus *arohcpv1alpha1.ClusterStatus) (arm.ProvisioningState, *arm.CloudErrorBody, error) {
-	var opStatus = op.doc.Status
+func ConvertClusterStatus(ctx context.Context, clusterServiceClient ocm.ClusterServiceClientSpec, operation *api.Operation, clusterStatus *arohcpv1alpha1.ClusterStatus) (arm.ProvisioningState, *arm.CloudErrorBody, error) {
+	var newOperationStatus = operation.Status
 	var opError *arm.CloudErrorBody
 	var err error
 
 	switch state := clusterStatus.State(); state {
 	case arohcpv1alpha1.ClusterStateError:
-		opStatus = arm.ProvisioningStateFailed
+		newOperationStatus = arm.ProvisioningStateFailed
 		// Provision error codes are defined in the CS repo:
 		// https://gitlab.cee.redhat.com/service/uhc-clusters-service/-/blob/master/pkg/api/cluster_errors.go
 		code := clusterStatus.ProvisionErrorCode()
@@ -986,39 +923,39 @@ func (s *OperationsScanner) convertClusterStatus(ctx context.Context, op operati
 		// Construct the cloud error code depending on the provision error code.
 		switch code {
 		case InflightChecksFailedProvisionErrorCode:
-			opError, err = s.convertInflightChecks(ctx, op.doc.InternalID)
+			opError, err = ConvertInflightChecks(ctx, clusterServiceClient, operation.InternalID)
 			if err != nil {
-				return opStatus, opError, err
+				return newOperationStatus, opError, err
 			}
 		default:
 			opError = &arm.CloudErrorBody{Code: code, Message: message}
 		}
 	case arohcpv1alpha1.ClusterStateInstalling:
-		opStatus = arm.ProvisioningStateProvisioning
+		newOperationStatus = arm.ProvisioningStateProvisioning
 	case arohcpv1alpha1.ClusterStateUpdating:
-		opStatus = arm.ProvisioningStateUpdating
+		newOperationStatus = arm.ProvisioningStateUpdating
 	case arohcpv1alpha1.ClusterStateReady:
 		// Resource deletion is successful when fetching its state
 		// from Cluster Service returns a "404 Not Found" error. If
 		// we see the resource in a "Ready" state during a deletion
 		// operation, leave the current provisioning state as is.
-		if op.doc.Request != database.OperationRequestDelete {
-			opStatus = arm.ProvisioningStateSucceeded
+		if operation.Request != database.OperationRequestDelete {
+			newOperationStatus = arm.ProvisioningStateSucceeded
 		}
 	case arohcpv1alpha1.ClusterStateUninstalling:
-		opStatus = arm.ProvisioningStateDeleting
+		newOperationStatus = arm.ProvisioningStateDeleting
 	case arohcpv1alpha1.ClusterStatePending, arohcpv1alpha1.ClusterStateValidating:
 		// These are valid cluster states for ARO-HCP but there are
 		// no unique ProvisioningState values for them. They should
 		// only occur when ProvisioningState is Accepted.
-		if opStatus != arm.ProvisioningStateAccepted {
-			err = fmt.Errorf("got ClusterState '%s' while ProvisioningState was '%s' instead of '%s'", state, opStatus, arm.ProvisioningStateAccepted)
+		if newOperationStatus != arm.ProvisioningStateAccepted {
+			err = fmt.Errorf("got ClusterState '%s' while ProvisioningState was '%s' instead of '%s'", state, newOperationStatus, arm.ProvisioningStateAccepted)
 		}
 	default:
 		err = fmt.Errorf("unhandled ClusterState '%s'", state)
 	}
 
-	return opStatus, opError, err
+	return newOperationStatus, opError, err
 }
 
 // convertNodePoolStatus attempts to translate a NodePoolStatus object
@@ -1067,10 +1004,10 @@ func convertNodePoolStatus(op operation, nodePoolStatus *arohcpv1alpha1.NodePool
 // convertInflightChecks gets a cluster internal ID, fetches inflight check errors from CS endpoint, and converts them
 // to arm.CloudErrorBody type.
 // The function should be triggered only if inflight errors occurred with provision error code OCM4001.
-func (s *OperationsScanner) convertInflightChecks(ctx context.Context, internalId ocm.InternalID) (*arm.CloudErrorBody, error) {
+func ConvertInflightChecks(ctx context.Context, clusterServiceClient ocm.ClusterServiceClientSpec, internalId ocm.InternalID) (*arm.CloudErrorBody, error) {
 	logger := utils.LoggerFromContext(ctx)
 
-	inflightChecks, err := s.clusterService.GetClusterInflightChecks(ctx, internalId)
+	inflightChecks, err := clusterServiceClient.GetClusterInflightChecks(ctx, internalId)
 	if err != nil {
 		return &arm.CloudErrorBody{}, err
 	}
@@ -1129,10 +1066,10 @@ func convertInflightCheckDetails(inflightCheck *arohcpv1alpha1.InflightCheck) (s
 	return "", false
 }
 
-// startRootSpan initiates a new parent trace.
-func startRootSpan(ctx context.Context, name string) (context.Context, trace.Span) {
+// StartRootSpan initiates a new parent trace.
+func StartRootSpan(ctx context.Context, name string) (context.Context, trace.Span) {
 	return otel.GetTracerProvider().
-		Tracer(tracerName).
+		Tracer(TracerName).
 		Start(
 			ctx,
 			name,
@@ -1145,6 +1082,6 @@ func startRootSpan(ctx context.Context, name string) (context.Context, trace.Spa
 func startChildSpan(ctx context.Context, name string) (context.Context, trace.Span) {
 	return trace.SpanFromContext(ctx).
 		TracerProvider().
-		Tracer(tracerName).
+		Tracer(TracerName).
 		Start(ctx, name)
 }

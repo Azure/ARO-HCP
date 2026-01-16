@@ -31,99 +31,130 @@ var localClock clock.Clock = clock.RealClock{}
 type PostAsyncNotificationFunc func(ctx context.Context, operation *api.Operation) error
 
 // UpdateOperationStatus updates Cosmos DB to reflect an updated resource status.
-func UpdateOperationStatus(ctx context.Context, cosmosClient DBClient, operation *api.Operation, opStatus arm.ProvisioningState, opError *arm.CloudErrorBody, postAsyncNotificationFn PostAsyncNotificationFunc) error {
+func UpdateOperationStatus(ctx context.Context, cosmosClient DBClient, existingOperation *api.Operation, newOperationStatus arm.ProvisioningState, newOperationError *arm.CloudErrorBody, postAsyncNotificationFn PostAsyncNotificationFunc) error {
 	logger := utils.LoggerFromContext(ctx)
-	if operation == nil {
+	if existingOperation == nil {
 		return nil
 	}
-	logger.Info("Updating operation status", "oldStatus", operation.Status, "status", opStatus, "operationError", opError)
+	logger.Info("Updating operation status", "oldStatus", existingOperation.Status, "newStatus", newOperationStatus, "operationError", newOperationError)
 
-	err := PatchOperationDocument(ctx, cosmosClient, operation, opStatus, opError, postAsyncNotificationFn)
+	err := PatchOperationDocument(ctx, cosmosClient, existingOperation, newOperationStatus, newOperationError, postAsyncNotificationFn)
 	if err != nil {
-		return err
+		return utils.TrackError(err)
 	}
 
 	// TODO make this an etag based replace to avoid conflict
 	switch {
-	case operation.ExternalID == nil:
+	case existingOperation.ExternalID == nil:
 		logger.Info("No external ID, skipping update")
 		return nil
 
-	case strings.EqualFold(operation.ExternalID.ResourceType.String(), api.ClusterResourceType.String()):
-		dbClient := cosmosClient.HCPClusters(operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName)
-		curr, err := dbClient.Get(ctx, operation.ExternalID.Name)
+	case strings.EqualFold(existingOperation.ExternalID.ResourceType.String(), api.ClusterResourceType.String()):
+		dbClient := cosmosClient.HCPClusters(existingOperation.ExternalID.SubscriptionID, existingOperation.ExternalID.ResourceGroupName)
+		curr, err := dbClient.Get(ctx, existingOperation.ExternalID.Name)
 		if err != nil {
 			return utils.TrackError(err)
 		}
-		if operation.OperationID == nil || curr.ServiceProviderProperties.ActiveOperationID != operation.OperationID.Name {
+		if existingOperation.OperationID == nil {
+			return utils.TrackError(fmt.Errorf("missing operation ID"))
+		}
+		oldCosmosOperationMatches := curr.ServiceProviderProperties.ActiveOperationID == existingOperation.OperationID.Name
+		if !oldCosmosOperationMatches {
 			return utils.TrackError(fmt.Errorf("precondition failed"))
 		}
-		curr.ServiceProviderProperties.ProvisioningState = opStatus
-		if opStatus.IsTerminal() {
+		if curr.ServiceProviderProperties.ProvisioningState == newOperationStatus && !newOperationStatus.IsTerminal() {
+			logger.Info("No update needed", "activeOperationID", curr.ServiceProviderProperties.ActiveOperationID, "oldStatus", curr.ServiceProviderProperties.ProvisioningState, "newStatus", newOperationStatus)
+			return nil
+		}
+		curr.ServiceProviderProperties.ProvisioningState = newOperationStatus
+		if newOperationStatus.IsTerminal() {
 			curr.ServiceProviderProperties.ActiveOperationID = ""
 		}
+
+		logger.Info("Updating resource", "activeOperationID", curr.ServiceProviderProperties.ActiveOperationID, "newStatus", newOperationStatus)
 		if _, err := dbClient.Replace(ctx, curr, nil); err != nil {
 			return utils.TrackError(err)
 		}
 		return nil
 
-	case strings.EqualFold(operation.ExternalID.ResourceType.String(), api.NodePoolResourceType.String()):
-		dbClient := cosmosClient.HCPClusters(operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName).NodePools(operation.ExternalID.Parent.Name)
-		curr, err := dbClient.Get(ctx, operation.ExternalID.Name)
+	case strings.EqualFold(existingOperation.ExternalID.ResourceType.String(), api.NodePoolResourceType.String()):
+		dbClient := cosmosClient.HCPClusters(existingOperation.ExternalID.SubscriptionID, existingOperation.ExternalID.ResourceGroupName).NodePools(existingOperation.ExternalID.Parent.Name)
+		curr, err := dbClient.Get(ctx, existingOperation.ExternalID.Name)
 		if err != nil {
 			return utils.TrackError(err)
 		}
-		if operation.OperationID == nil || curr.ServiceProviderProperties.ActiveOperationID != operation.OperationID.Name {
+		if existingOperation.OperationID == nil {
+			return utils.TrackError(fmt.Errorf("missing operation ID"))
+		}
+		oldCosmosOperationMatches := curr.ServiceProviderProperties.ActiveOperationID == existingOperation.OperationID.Name
+		if !oldCosmosOperationMatches {
 			return utils.TrackError(fmt.Errorf("precondition failed"))
 		}
-		curr.Properties.ProvisioningState = opStatus
-		if opStatus.IsTerminal() {
+		if curr.Properties.ProvisioningState == newOperationStatus && !newOperationStatus.IsTerminal() {
+			logger.Info("No update needed", "activeOperationID", curr.ServiceProviderProperties.ActiveOperationID, "oldStatus", curr.Properties.ProvisioningState, "newStatus", newOperationStatus)
+			return nil
+		}
+		curr.Properties.ProvisioningState = newOperationStatus
+		if newOperationStatus.IsTerminal() {
 			curr.ServiceProviderProperties.ActiveOperationID = ""
 		}
+
+		logger.Info("Updating resource", "activeOperationID", curr.ServiceProviderProperties.ActiveOperationID, "newStatus", newOperationStatus)
 		if _, err := dbClient.Replace(ctx, curr, nil); err != nil {
 			return utils.TrackError(err)
 		}
 		return nil
 
-	case strings.EqualFold(operation.ExternalID.ResourceType.String(), api.ExternalAuthResourceType.String()):
-		dbClient := cosmosClient.HCPClusters(operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName).ExternalAuth(operation.ExternalID.Parent.Name)
-		curr, err := dbClient.Get(ctx, operation.ExternalID.Name)
+	case strings.EqualFold(existingOperation.ExternalID.ResourceType.String(), api.ExternalAuthResourceType.String()):
+		dbClient := cosmosClient.HCPClusters(existingOperation.ExternalID.SubscriptionID, existingOperation.ExternalID.ResourceGroupName).ExternalAuth(existingOperation.ExternalID.Parent.Name)
+		curr, err := dbClient.Get(ctx, existingOperation.ExternalID.Name)
 		if err != nil {
 			return utils.TrackError(err)
 		}
-		if operation.OperationID == nil || curr.ServiceProviderProperties.ActiveOperationID != operation.OperationID.Name {
+		if existingOperation.OperationID == nil {
+			return utils.TrackError(fmt.Errorf("missing operation ID"))
+		}
+		oldCosmosOperationMatches := curr.ServiceProviderProperties.ActiveOperationID == existingOperation.OperationID.Name
+		if !oldCosmosOperationMatches {
 			return utils.TrackError(fmt.Errorf("precondition failed"))
 		}
-		curr.Properties.ProvisioningState = opStatus
-		if opStatus.IsTerminal() {
+		if curr.Properties.ProvisioningState == newOperationStatus && !newOperationStatus.IsTerminal() {
+			logger.Info("No update needed", "activeOperationID", curr.ServiceProviderProperties.ActiveOperationID, "oldStatus", curr.Properties.ProvisioningState, "newStatus", newOperationStatus)
+			return nil
+		}
+		curr.Properties.ProvisioningState = newOperationStatus
+		if newOperationStatus.IsTerminal() {
 			curr.ServiceProviderProperties.ActiveOperationID = ""
 		}
+
+		logger.Info("Updating resource", "activeOperationID", curr.ServiceProviderProperties.ActiveOperationID, "newStatus", newOperationStatus)
 		if _, err := dbClient.Replace(ctx, curr, nil); err != nil {
 			return utils.TrackError(err)
 		}
 		return nil
 
 	default:
-		return utils.TrackError(fmt.Errorf("unknown resource type: %s", operation.ExternalID.ResourceType.String()))
+		return utils.TrackError(fmt.Errorf("unknown resource type: %s", existingOperation.ExternalID.ResourceType.String()))
 	}
 
 }
 
 // PatchOperationDocument patches the status and error fields of an OperationDocument.
-func PatchOperationDocument(ctx context.Context, dbClient DBClient, operation *api.Operation, opStatus arm.ProvisioningState, opError *arm.CloudErrorBody, postAsyncNotificationFn PostAsyncNotificationFunc) error {
+func PatchOperationDocument(ctx context.Context, dbClient DBClient, oldOperation *api.Operation, newOperationStatus arm.ProvisioningState, newOperationError *arm.CloudErrorBody, postAsyncNotificationFn PostAsyncNotificationFunc) error {
 	logger := utils.LoggerFromContext(ctx)
 
-	if len(operation.NotificationURI) == 0 && operation.Status == opStatus {
+	if len(oldOperation.NotificationURI) == 0 && oldOperation.Status == newOperationStatus && oldOperation.Error == newOperationError {
 		// we rewrite the status when we missed a notification
-		return fmt.Errorf("status must be different in order to write new status")
+		// if we have nothing to write, we simply return without error
+		return nil
 	}
 
 	// shallow copy works since all the fields we're touching are shallow
-	operationToWrite := *operation
+	operationToWrite := *oldOperation
 	operationToWrite.LastTransitionTime = localClock.Now()
-	operationToWrite.Status = opStatus
-	if opError != nil {
-		operationToWrite.Error = opError
+	operationToWrite.Status = newOperationStatus
+	if newOperationError != nil {
+		operationToWrite.Error = newOperationError
 	}
 
 	// TODO see if we want to plumb etags through to prevent stomping.  Right now this will stomp a concurrent write.
@@ -133,8 +164,8 @@ func PatchOperationDocument(ctx context.Context, dbClient DBClient, operation *a
 		return utils.TrackError(err)
 	}
 
-	message := fmt.Sprintf("Updated status to '%s'", opStatus)
-	switch opStatus {
+	message := fmt.Sprintf("Updated status to '%s'", newOperationStatus)
+	switch newOperationStatus {
 	case arm.ProvisioningStateSucceeded:
 		switch latestOperation.Request {
 		case OperationRequestCreate:
@@ -163,13 +194,13 @@ func PatchOperationDocument(ctx context.Context, dbClient DBClient, operation *a
 		}
 	}
 
-	if opError != nil {
-		logger.With("cloud_error_code", opError.Code, "cloud_error_message", opError.Message).Error(message)
+	if newOperationError != nil {
+		logger.With("cloud_error_code", newOperationError.Code, "cloud_error_message", newOperationError.Message).Error(message)
 	} else {
 		logger.Info(message)
 	}
 
-	if postAsyncNotificationFn != nil && opStatus.IsTerminal() && len(latestOperation.NotificationURI) > 0 {
+	if postAsyncNotificationFn != nil && newOperationStatus.IsTerminal() && len(latestOperation.NotificationURI) > 0 {
 		err = postAsyncNotificationFn(ctx, latestOperation)
 		if err == nil {
 			logger.Info("Posted async notification")

@@ -24,6 +24,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/Azure/ARO-HCP/test/util/cleanup"
+	kustoroleassignments "github.com/Azure/ARO-HCP/test/util/cleanup/kusto-role-assignments"
 	"github.com/Azure/ARO-HCP/test/util/cleanup/resourcegroups"
 )
 
@@ -40,11 +41,40 @@ func NewCommand() *cobra.Command {
 	cmd.PersistentFlags().IntVarP(&opt.Verbosity, "verbosity", "v", opt.Verbosity, "Log verbosity level")
 
 	cmd.AddCommand(newCleanupResourceGroupsCommand())
+	cmd.AddCommand(newDeleteKustoRoleAssignmentsCommand())
 
 	cmd.PersistentPreRun = func(cmd *cobra.Command, args []string) {
 		ctx := logr.NewContext(cmd.Context(), createLogger(opt.Verbosity))
 		cmd.SetContext(ctx)
 	}
+	return cmd
+}
+
+func newDeleteKustoRoleAssignmentsCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:          "kusto-role-assignments",
+		Short:        "Delete Kusto role assignments",
+		SilenceUsage: true,
+	}
+	rawOpt := kustoroleassignments.DefaultOptions()
+
+	cmd.RunE = func(cmd *cobra.Command, args []string) error {
+		ctx, cancel := signal.NotifyContext(cmd.Context(), os.Interrupt)
+		defer cancel()
+
+		validatedOpt, err := rawOpt.Validate()
+		if err != nil {
+			return err
+		}
+
+		completedOpt, err := validatedOpt.Complete(ctx)
+		if err != nil {
+			return err
+		}
+
+		return completedOpt.Run(ctx)
+	}
+
 	return cmd
 }
 

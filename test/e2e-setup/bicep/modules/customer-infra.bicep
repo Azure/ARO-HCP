@@ -1,5 +1,5 @@
 @description('If set to true, the cluster will not be deleted automatically after few days.')
-param persistTagValue bool
+param persistTagValue bool = false
 
 @description('Network Security Group Name')
 param customerNsgName string = 'customer-nsg'
