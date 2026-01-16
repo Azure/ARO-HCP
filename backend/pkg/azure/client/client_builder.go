@@ -26,6 +26,7 @@ type FPAClientBuilder interface {
 	// set of methods. In that way we ensure that they cannot be used
 	// interchangeably.
 	BuilderType() FPAClientBuilderType
+	ResourceGroupsClient(tenantID string, subscriptionID string) (ResourceGroupsClient, error)
 	ResourceProvidersClient(tenantID string, subscriptionID string) (ResourceProvidersClient, error)
 }
 
@@ -43,6 +44,15 @@ func NewFPAClientBuilder(tokenCredRetriever fpa.FirstPartyApplicationTokenCreden
 		fpaTokenCredRetriever: tokenCredRetriever,
 		options:               options,
 	}
+}
+
+func (b *fpaClientBuilder) ResourceGroupsClient(tenantID string, subscriptionID string) (ResourceGroupsClient, error) {
+	creds, err := b.fpaTokenCredRetriever.RetrieveCredential(tenantID)
+	if err != nil {
+		return nil, err
+	}
+
+	return armresources.NewResourceGroupsClient(subscriptionID, creds, b.options)
 }
 
 func (b *fpaClientBuilder) ResourceProvidersClient(tenantID string, subscriptionID string) (ResourceProvidersClient, error) {
