@@ -18,6 +18,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
@@ -57,7 +58,28 @@ func DumpDataToLogger(ctx context.Context, cosmosClient database.DBClient, resou
 		logger.Info(string(content))
 	}
 	if err := allCosmosRecords.GetError(); err != nil {
-		return utils.TrackError(err)
+		errs = append(errs, err)
+	}
+
+	// dump all related operations, including the completed ones.
+	allOperationsForSubscription, err := cosmosClient.Operations(resourceID.SubscriptionID).List(ctx, nil)
+	if err != nil {
+		errs = append(errs, err)
+	}
+	resourceIDString := strings.ToLower(resourceID.String())
+	for _, operation := range allOperationsForSubscription.Items(ctx) {
+		currOperationTarget := strings.ToLower(operation.ExternalID.String())
+		if strings.HasPrefix(currOperationTarget, resourceIDString) {
+			currBytes, err := json.Marshal(operation)
+			if err != nil {
+				errs = append(errs, err)
+				continue
+			}
+			logger.Info(string(currBytes))
+		}
+	}
+	if err := allOperationsForSubscription.GetError(); err != nil {
+		errs = append(errs, err)
 	}
 
 	return utils.TrackError(errors.Join(errs...))

@@ -318,6 +318,7 @@ func Run(cmd *cobra.Command, args []string) error {
 			startedLeading                   atomic.Bool
 			operationsScanner                = oldoperationscanner.NewOperationsScanner(dbClient, ocmConnection, argLocation, subscriptionLister)
 			subscriptionInformerController   = informers.NewSubscriptionInformerController(dbClient, subscriptionLister)
+			dataDumpController               = controllers.NewDataDumpController(dbClient, subscriptionLister)
 			doNothingController              = controllers.NewDoNothingExampleController(dbClient, subscriptionLister)
 			operationClusterCreateController = operationcontrollers.NewGenericOperationClusterCreateController(
 				"OperationClusterCreate",
@@ -373,6 +374,7 @@ func Run(cmd *cobra.Command, args []string) error {
 					startedLeading.Store(true)
 					go subscriptionInformerController.Run(ctx, 1)
 					go operationsScanner.Run(ctx)
+					go dataDumpController.Run(ctx, 20)
 					go doNothingController.Run(ctx, 20)
 					go operationClusterCreateController.Run(ctx, 20)
 					go operationClusterUpdateController.Run(ctx, 20)
