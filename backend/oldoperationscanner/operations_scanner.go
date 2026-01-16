@@ -514,8 +514,6 @@ func (s *OperationsScanner) processOperation(ctx context.Context, op operation) 
 		switch op.doc.Request {
 		case database.OperationRequestRevokeCredentials:
 			s.pollBreakGlassCredentialRevoke(ctx, op)
-		default:
-			s.pollClusterOperation(ctx, op)
 		}
 	case arohcpv1alpha1.NodePoolKind:
 		s.pollNodePoolOperation(ctx, op)
@@ -534,57 +532,6 @@ func (s *OperationsScanner) recordOperationError(ctx context.Context, operationN
 	s.operationsFailedCount.WithLabelValues(operationName).Inc()
 	span := trace.SpanFromContext(ctx)
 	span.RecordError(err)
-}
-
-// pollClusterOperation updates the status of a cluster operation.
-func (s *OperationsScanner) pollClusterOperation(ctx context.Context, op operation) {
-	logger := utils.LoggerFromContext(ctx)
-	if op.doc.Request == database.OperationRequestCreate {
-		logger.Info("skipping operation: handled by another controller", "operationRequest", op.doc.Request)
-		return // handled by another controller
-	}
-	if op.doc.Request == database.OperationRequestDelete {
-		logger.Info("skipping operation: handled by another controller", "operationRequest", op.doc.Request)
-		return // handled by another controller
-	}
-
-	ctx, span := startChildSpan(ctx, "pollClusterOperation")
-	defer span.End()
-	defer s.updateOperationMetrics(pollClusterOperationLabel)()
-	op.setSpanAttributes(span)
-
-	// if it has been at least five minutes since the last dump, dump the current state from cosmos
-	// when we get a delete call (this happens from CI quite a bit), dump the state of the cluster resources.
-	if op.doc != nil && op.doc.ExternalID != nil {
-		resourceIDString := op.doc.ExternalID.String()
-		if nextDataDumpTime, exists := s.nextDataDumpTime.Get(resourceIDString); exists && time.Now().After(nextDataDumpTime.(time.Time)) {
-			if err := serverutils.DumpDataToLogger(ctx, s.dbClient, op.doc.ExternalID); err != nil {
-				// never fail, this is best effort
-				logger.Error(err.Error())
-			}
-		}
-		s.nextDataDumpTime.Add(resourceIDString, time.Now().Add(5*time.Minute))
-	}
-
-	clusterStatus, err := s.clusterService.GetClusterStatus(ctx, op.doc.InternalID)
-	if err != nil {
-		s.recordOperationError(ctx, pollClusterOperationLabel, err)
-		logger.Error(fmt.Sprintf("Failed to get cluster status: %v", err))
-		return
-	}
-
-	opStatus, opError, err := ConvertClusterStatus(ctx, s.clusterService, op.doc, clusterStatus)
-	if err != nil {
-		s.recordOperationError(ctx, pollClusterOperationLabel, err)
-		logger.Warn(err.Error())
-		return
-	}
-
-	err = database.UpdateOperationStatus(ctx, s.dbClient, op.doc, opStatus, opError, s.postAsyncNotification)
-	if err != nil {
-		s.recordOperationError(ctx, pollClusterOperationLabel, err)
-		logger.Error(fmt.Sprintf("Failed to update operation status: %v", err))
-	}
 }
 
 // pollNodePoolOperation updates the status of a node pool operation.

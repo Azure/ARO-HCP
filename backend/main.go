@@ -331,6 +331,17 @@ func Run(cmd *cobra.Command, args []string) error {
 				subscriptionLister,
 				dbClient,
 			)
+			operationClusterUpdateController = operationcontrollers.NewGenericOperationClusterCreateController(
+				"OperationClusterUpdate",
+				operationcontrollers.NewOperationClusterUpdateSynchronizer(
+					dbClient,
+					clusterServiceClient,
+					http.DefaultClient,
+				),
+				10*time.Second,
+				subscriptionLister,
+				dbClient,
+			)
 			operationClusterDeleteController = operationcontrollers.NewGenericOperationClusterCreateController(
 				"OperationClusterDelete",
 				operationcontrollers.NewOperationClusterDeleteSynchronizer(
@@ -364,6 +375,7 @@ func Run(cmd *cobra.Command, args []string) error {
 					go operationsScanner.Run(ctx)
 					go doNothingController.Run(ctx, 20)
 					go operationClusterCreateController.Run(ctx, 20)
+					go operationClusterUpdateController.Run(ctx, 20)
 					go operationClusterDeleteController.Run(ctx, 20)
 					go clusterServiceMatchingClusterController.Run(ctx, 20)
 					go clusterServiceMatchingNodePoolController.Run(ctx, 20)
