@@ -66,6 +66,8 @@ type BackendOptions struct {
 	TracerProviderShutdownFunc         func(context.Context) error
 	MaestroSourceEnvironmentIdentifier string
 	FPAClientBuilder                   azureclient.FirstPartyApplicationClientBuilder
+	FPAMIDataplaneClientBuilder        azureclient.FPAMIDataplaneClientBuilder
+	SMIClientBuilderFactory            azureclient.ServiceManagedIdentityClientBuilderFactory
 }
 
 func (o *BackendOptions) RunBackend(ctx context.Context) error {
@@ -350,6 +352,13 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		backendInformers,
 	)
 
+	azureClusterManagedIdentitiesExistenceValidationController := validationcontrollers.NewClusterValidationController(
+		validations.NewAzureClusterManagedIdetitiesExistenceValidation(b.options.SMIClientBuilderFactory),
+		activeOperationLister,
+		b.options.CosmosDBClient,
+		backendInformers,
+	)
+
 	le, err := leaderelection.NewLeaderElector(leaderelection.LeaderElectionConfig{
 		Lock:          b.options.LeaderElectionLock,
 		LeaseDuration: leaderElectionLeaseDuration,
@@ -381,6 +390,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go triggerControlPlaneUpgradeController.Run(ctx, 20)
 				go clusterPropertiesSyncController.Run(ctx, 20)
 				go azureRPRegistrationValidationController.Run(ctx, 20)
+				go azureClusterManagedIdentitiesExistenceValidationController.Run(ctx, 20)
 			},
 			OnStoppedLeading: func() {
 				operationsScanner.LeaderGauge.Set(0)

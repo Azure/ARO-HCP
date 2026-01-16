@@ -133,3 +133,7 @@ func (a AzureCloudEnvironment) ARMClientOptions() *azcorearm.ClientOptions {
 		ClientOptions: *a.clientOptions,
 	}
 }
+
+func (a AzureCloudEnvironment) CloudConfiguration() *cloud.Configuration {
+	return a.configuration
+}

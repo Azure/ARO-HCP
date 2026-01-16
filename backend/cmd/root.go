@@ -238,9 +238,27 @@ func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.C
 		return nil, utils.TrackError(fmt.Errorf("failed to create Azure configuration: %w", err))
 	}
 
-	fpaClientBuilder, err := app.NewFirstPartyApplicationClientBuilder(ctx, f.AzureFirstPartyApplicationCertificateBundlePath, f.AzureFirstPartyApplicationClientID, azureConfig)
+	fpaTokenCredRetriever, err := app.NewFirstPartyApplicationTokenCredentialRetriever(ctx, f.AzureFirstPartyApplicationCertificateBundlePath, f.AzureFirstPartyApplicationClientID, azureConfig)
+	if err != nil {
+		return nil, utils.TrackError(fmt.Errorf("failed to create FPA token credential retriever: %w", err))
+	}
+
+	fpaClientBuilder, err := app.NewFirstPartyApplicationClientBuilder(fpaTokenCredRetriever, azureConfig)
 	if err != nil {
 		return nil, utils.TrackError(fmt.Errorf("failed to create FPA client builder: %w", err))
+	}
+
+	fpaMIDataplaneClientBuilder, err := app.NewFirstPartyApplicationManagedIdentitiesDataplaneClientBuilder(
+		fpaTokenCredRetriever,
+		f.AzureMIMockCertificateBundlePath, f.AzureMIMockClientID, f.AzureMIMockPrincipalID, f.AzureMIMockTenantID,
+		azureConfig,
+	)
+	if err != nil {
+		return nil, utils.TrackError(fmt.Errorf("error getting FPA MI dataplane client builder: %w", err))
+	}
+	smiClientBuilderFactory := app.NewServiceManagedIdentityClientBuilderFactory(fpaMIDataplaneClientBuilder, azureConfig)
+	if err != nil {
+		return nil, utils.TrackError(fmt.Errorf("failed to create service managed identity client builder factory: %w", err))
 	}
 
 	cosmosDBClient, err := app.NewCosmosDBClient(
@@ -268,6 +286,8 @@ func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.C
 		TracerProviderShutdownFunc:         otelShutdown,
 		MaestroSourceEnvironmentIdentifier: f.MaestroSourceEnvironmentIdentifier,
 		FPAClientBuilder:                   fpaClientBuilder,
+		FPAMIDataplaneClientBuilder:        fpaMIDataplaneClientBuilder,
+		SMIClientBuilderFactory:            smiClientBuilderFactory,
 	}
 
 	return backendOptions, nil
