@@ -159,28 +159,49 @@ func init() {
 	rootCmd.Version = version.CommitSHA
 }
 
-func callAzureRPRegistrationValidation(ctx context.Context, clientBuilder azureclient.FirstPartyApplicationClientBuilder) error {
-	logger := utils.LoggerFromContext(ctx)
-	logger.Info("calling Azure RP registration validation")
+func getAzureHCPExampleSubscriptionAndCluster() (*arm.Subscription, *api.HCPOpenShiftCluster) {
+	// The tenant and subscription values would come when a cluster is processed. Here in main we do not process
+	// particular clusters so we do not have that information so for this example we just set the red hat dev account info.
 
 	resourceID := api.Must(azcorearm.ParseResourceID("/subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/testcluster"))
+
 	exampleHCPClusterSubscription := &arm.Subscription{
 		ResourceID:       api.Must(arm.ToSubscriptionResourceID(resourceID.SubscriptionID)),
 		State:            arm.SubscriptionStateRegistered,
 		RegistrationDate: api.Ptr(time.Now().String()),
 		Properties:       nil,
 	}
+	exampleHCPCluster := api.NewDefaultHCPOpenShiftCluster(resourceID, "westus3")
+	return exampleHCPClusterSubscription, exampleHCPCluster
+}
+
+func callAzureRPRegistrationValidation(ctx context.Context, clientBuilder azureclient.FirstPartyApplicationClientBuilder,
+	exampleHCPClusterSubscription *arm.Subscription, exampleHCPCluster *api.HCPOpenShiftCluster,
+) error {
+	logger := utils.LoggerFromContext(ctx)
+	logger.Info("calling Azure example inflight method")
 
 	validation := controllers.NewAzureResourceProvidersRegistrationValidation(clientBuilder)
-	// The tenant and subscription values would come when a cluster is processed. Here in main we do not process
-	// particular clusters so we do not have that information so for this example we just set the red hat dev account info.
-	exampleHCPCluster := api.NewDefaultHCPOpenShiftCluster(resourceID, "westus3")
 	err := validation.Validate(ctx, exampleHCPClusterSubscription, exampleHCPCluster)
 	if err != nil {
 		return fmt.Errorf("azure RP registration validation error: %w", err)
 	}
 	logger.Info("Azure RP registration validation completed without errors")
 
+	return nil
+}
+
+func callAzureClusterResourceGroupExistenceValidation(ctx context.Context, clientBuilder azureclient.FirstPartyApplicationClientBuilder,
+	exampleHCPClusterSubscription *arm.Subscription, exampleHCPCluster *api.HCPOpenShiftCluster,
+) error {
+	logger := utils.LoggerFromContext(ctx)
+	logger.Info("calling Azure HCP cluster resource group existence validation")
+
+	validation := controllers.NewAzureClusterResourceGroupExistenceValidation(clientBuilder)
+	err := validation.Validate(ctx, exampleHCPClusterSubscription, exampleHCPCluster)
+	if err != nil {
+		return fmt.Errorf("resource group existence validation error")
+	}
 	return nil
 }
 
@@ -263,7 +284,13 @@ func Run(cmd *cobra.Command, args []string) error {
 	// TODO remove once start being used
 	_ = fpaClientBuilder
 
-	err = callAzureRPRegistrationValidation(ctx, fpaClientBuilder)
+	exampleHCPClusterSubscription, exampleHCPCluster := getAzureHCPExampleSubscriptionAndCluster()
+	err = callAzureRPRegistrationValidation(ctx, fpaClientBuilder, exampleHCPClusterSubscription, exampleHCPCluster)
+	if err != nil {
+		return err
+	}
+
+	err = callAzureClusterResourceGroupExistenceValidation(ctx, fpaClientBuilder, exampleHCPClusterSubscription, exampleHCPCluster)
 	if err != nil {
 		return err
 	}

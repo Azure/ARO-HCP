@@ -33,6 +33,8 @@ linters:
         alias: $1$2
       - pkg: github.com/Azure/ARO-HCP/test/sdk/v20240610preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
         alias: hcpsdk20240610preview
+      - pkg: github.com/Azure/ARO-HCP/backend/pkg/azure/client
+        alias: azureclient
     staticcheck:
       dot-import-whitelist:
       - "github.com/onsi/ginkgo"
