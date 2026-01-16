@@ -71,7 +71,6 @@ var _ = Describe("Authorized CIDRs", func() {
 					resourceGroup,
 					clusterParams,
 					map[string]interface{}{
-						"persistTagValue":        false,
 						"customerNsgName":        customerNetworkSecurityGroupName,
 						"customerVnetName":       customerVnetName,
 						"customerVnetSubnetName": customerVnetSubnetName,

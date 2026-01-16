@@ -69,7 +69,6 @@ var _ = Describe("Customer", func() {
 				framework.WithParameters(map[string]interface{}{
 					"openshiftControlPlaneVersionId": openshiftControlPlaneVersionId,
 					"openshiftNodePoolVersionId":     openshiftNodeVersionId,
-					"persistTagValue":                false,
 					"clusterName":                    customerClusterName,
 					"nodePoolName":                   customerNodePoolName,
 					"nodePoolOsDiskSizeGiB":          customerNodeOsDiskSizeGiB,

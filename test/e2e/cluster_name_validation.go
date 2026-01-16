@@ -76,9 +76,7 @@ var _ = Describe("Customer", func() {
 				clusterParams, err = tc.CreateClusterCustomerResources(ctx,
 					resourceGroup,
 					clusterParams,
-					map[string]any{
-						"persistTagValue": false,
-					},
+					map[string]any{},
 					TestArtifactsFS,
 				)
 
@@ -129,9 +127,7 @@ var _ = Describe("Customer", func() {
 			baseClusterParams, err = tc.CreateClusterCustomerResources(ctx,
 				resourceGroup,
 				baseClusterParams,
-				map[string]any{
-					"persistTagValue": false,
-				},
+				map[string]any{},
 				TestArtifactsFS,
 			)
 			Expect(err).NotTo(HaveOccurred())

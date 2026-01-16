@@ -65,7 +65,6 @@ var _ = Describe("Customer", func() {
 			framework.WithScope(framework.BicepDeploymentScopeResourceGroup),
 			framework.WithClusterResourceGroup(*resourceGroup.Name),
 			framework.WithParameters(map[string]interface{}{
-				"persistTagValue":        false,
 				"customerNsgName":        customerNetworkSecurityGroupName,
 				"customerVnetName":       customerVnetName,
 				"customerVnetSubnetName": customerVnetSubnetName,

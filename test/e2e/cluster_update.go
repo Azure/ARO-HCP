@@ -67,9 +67,7 @@ var _ = Describe("Update HCPOpenShiftCluster", func() {
 				clusterParams, err = tc.CreateClusterCustomerResources(ctx,
 					resourceGroup,
 					clusterParams,
-					map[string]interface{}{
-						"persistTagValue": false,
-					},
+					map[string]interface{}{},
 					TestArtifactsFS,
 				)
 				Expect(err).NotTo(HaveOccurred())
@@ -144,9 +142,7 @@ var _ = Describe("Update HCPOpenShiftCluster", func() {
 				clusterParams, err = tc.CreateClusterCustomerResources(ctx,
 					resourceGroup,
 					clusterParams,
-					map[string]interface{}{
-						"persistTagValue": false,
-					},
+					map[string]interface{}{},
 					TestArtifactsFS,
 				)
 				Expect(err).NotTo(HaveOccurred())
