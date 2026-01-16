@@ -54,10 +54,12 @@ type Updater struct {
 	Updates         map[string][]yaml.Update
 	PromotionMode   PromotionMode
 	Environments    []string
+	OutputFile      string
+	OutputFormat    string
 }
 
 // New creates a new Updater with all necessary resources pre-initialized
-func New(cfg *config.Config, dryRun bool, forceUpdate bool, registryClients map[string]clients.RegistryClient, yamlEditors map[string]*yaml.Editor, promotionMode PromotionMode, environments []string) *Updater {
+func New(cfg *config.Config, dryRun bool, forceUpdate bool, registryClients map[string]clients.RegistryClient, yamlEditors map[string]*yaml.Editor, promotionMode PromotionMode, environments []string, outputFile, outputFormat string) *Updater {
 	return &Updater{
 		Config:          cfg,
 		DryRun:          dryRun,
@@ -67,6 +69,8 @@ func New(cfg *config.Config, dryRun bool, forceUpdate bool, registryClients map[
 		Updates:         make(map[string][]yaml.Update),
 		PromotionMode:   promotionMode,
 		Environments:    environments,
+		OutputFile:      outputFile,
+		OutputFormat:    outputFormat,
 	}
 }
 
@@ -127,11 +131,55 @@ func (u *Updater) UpdateImages(ctx context.Context) error {
 				return fmt.Errorf("failed to apply updates to %s: %w", filePath, err)
 			}
 		}
+	}
 
-		commitMsg := output.GenerateCommitMessage(u.Updates)
-		if commitMsg != "" {
-			fmt.Println(commitMsg)
+	// Generate and output results
+	if err := u.outputResults(ctx); err != nil {
+		return fmt.Errorf("failed to output results: %w", err)
+	}
+
+	return nil
+}
+
+// outputResults formats and writes the update results
+func (u *Updater) outputResults(ctx context.Context) error {
+	logger, err := logr.FromContext(ctx)
+	if err != nil {
+		return fmt.Errorf("logger not found in context: %w", err)
+	}
+
+	// Check if there were any updates to report
+	if len(u.Updates) == 0 {
+		logger.V(1).Info("No updates to report")
+		if u.OutputFile != "" {
+			logger.V(1).Info("Skipping output file creation - no updates", "file", u.OutputFile)
 		}
+		return nil
+	}
+
+	// Format the results
+	logger.V(2).Info("Formatting results", "format", u.OutputFormat, "updateCount", len(u.Updates))
+	formattedOutput, err := output.FormatResults(u.Updates, u.OutputFormat, u.DryRun)
+	if err != nil {
+		return fmt.Errorf("failed to format results as %s: %w", u.OutputFormat, err)
+	}
+
+	if formattedOutput == "" {
+		logger.V(1).Info("Formatted output is empty, skipping write")
+		return nil
+	}
+
+	// Write to file or stdout
+	if u.OutputFile != "" {
+		logger.V(1).Info("Writing results to file", "file", u.OutputFile, "format", u.OutputFormat, "size", len(formattedOutput))
+		if err := os.WriteFile(u.OutputFile, []byte(formattedOutput), 0644); err != nil {
+			return fmt.Errorf("failed to write output file %s: %w", u.OutputFile, err)
+		}
+		logger.Info("Results written successfully", "file", u.OutputFile, "format", u.OutputFormat)
+		fmt.Printf("Results written to %s\n", u.OutputFile)
+	} else {
+		logger.V(2).Info("Writing results to stdout", "format", u.OutputFormat)
+		fmt.Print(formattedOutput)
 	}
 
 	return nil
@@ -146,7 +194,7 @@ func (u *Updater) promoteImages(ctx context.Context) error {
 
 	// Determine source and target environments
 	sourceEnv, targetEnv := u.getPromotionSourceAndTarget()
-	logger.Info("promoting images", "from", sourceEnv, "to", targetEnv)
+	logger.V(1).Info("promoting images", "from", sourceEnv, "to", targetEnv)
 
 	updatedCount := 0
 	for name, imageConfig := range u.Config.Images {
@@ -180,7 +228,7 @@ func (u *Updater) promoteImages(ctx context.Context) error {
 			return fmt.Errorf("no YAML editor available for source file %s", sourceTarget.FilePath)
 		}
 
-		_, sourceDigest, err := sourceEditor.GetUpdate(sourceTarget.JsonPath)
+		_, sourceDigest, sourceLineContent, err := sourceEditor.GetLineWithComment(sourceTarget.JsonPath)
 		if err != nil {
 			return fmt.Errorf("failed to get source digest from %s at path %s: %w",
 				sourceTarget.FilePath, sourceTarget.JsonPath, err)
@@ -190,6 +238,9 @@ func (u *Updater) promoteImages(ctx context.Context) error {
 			logger.V(1).Info("skipping image - source digest is empty", "name", name)
 			continue
 		}
+
+		// Extract tag and date from source comment
+		sourceTag, sourceDate := yaml.ParseVersionComment(sourceLineContent)
 
 		// Get destination digest
 		destEditor, exists := u.YAMLEditors[destTarget.FilePath]
@@ -210,33 +261,31 @@ func (u *Updater) promoteImages(ctx context.Context) error {
 		}
 
 		if sourceDigest == destDigest && u.ForceUpdate {
-			logger.Info("Force update - regenerating comments", "name", name)
+			logger.V(1).Info("Force update - regenerating comments", "name", name)
 		} else {
-			logger.Info("Promotion needed", "name", name, "from", destDigest, "to", sourceDigest)
+			logger.V(1).Info("Promotion needed", "name", name, "from", destDigest, "to", sourceDigest)
 		}
 
+		// Record the update (both dry-run and real runs)
+		u.Updates[destTarget.FilePath] = append(u.Updates[destTarget.FilePath], yaml.Update{
+			Name:      name,
+			NewDigest: sourceDigest,
+			OldDigest: destDigest,
+			Tag:       sourceTag,
+			Date:      sourceDate,
+			JsonPath:  destTarget.JsonPath,
+			FilePath:  destTarget.FilePath,
+			Line:      line,
+		})
+
 		if u.DryRun {
-			logger.Info("DRY RUN: Would promote image",
+			logger.V(2).Info("DRY RUN: Would promote image",
 				"name", name,
 				"sourceEnv", sourceEnv,
 				"targetEnv", targetEnv,
 				"from", destDigest,
 				"to", sourceDigest)
-			updatedCount++
-			continue
 		}
-
-		// Copy the digest (preserve any existing comment for now)
-		u.Updates[destTarget.FilePath] = append(u.Updates[destTarget.FilePath], yaml.Update{
-			Name:      name,
-			NewDigest: sourceDigest,
-			OldDigest: destDigest,
-			Tag:       "", // We don't have tag info in promotion mode
-			Date:      "", // We don't have date info in promotion mode
-			JsonPath:  destTarget.JsonPath,
-			FilePath:  destTarget.FilePath,
-			Line:      line,
-		})
 
 		updatedCount++
 	}
@@ -264,6 +313,11 @@ func (u *Updater) promoteImages(ctx context.Context) error {
 
 		commitMsg := fmt.Sprintf("Promoted images from %s to %s", sourceEnv, targetEnv)
 		fmt.Println(commitMsg)
+	}
+
+	// Generate and output results
+	if err := u.outputResults(ctx); err != nil {
+		return fmt.Errorf("failed to output results: %w", err)
 	}
 
 	return nil
@@ -379,24 +433,13 @@ func (u *Updater) ProcessImageUpdates(ctx context.Context, name string, tag *cli
 		logger.V(2).Info("Update needed", "name", name, "from", currentDigest, "to", newDigest)
 	}
 
-	if u.DryRun {
-		logger.V(2).Info("DRY RUN: Would update image",
-			"name", name,
-			"jsonPath", target.JsonPath,
-			"filePath", target.FilePath,
-			"line", line,
-			"from", currentDigest,
-			"to", newDigest,
-			"tag", tag.Name)
-		return true, nil
-	}
-
 	// Format the date as YYYY-MM-DD HH:MM if available
 	dateStr := ""
 	if !tag.LastModified.IsZero() {
 		dateStr = tag.LastModified.Format("2006-01-02 15:04")
 	}
 
+	// Record the update for reporting purposes (both dry-run and real runs)
 	u.Updates[target.FilePath] = append(u.Updates[target.FilePath], yaml.Update{
 		Name:      name,
 		NewDigest: newDigest,
@@ -408,6 +451,17 @@ func (u *Updater) ProcessImageUpdates(ctx context.Context, name string, tag *cli
 		FilePath:  target.FilePath,
 		Line:      line,
 	})
+
+	if u.DryRun {
+		logger.V(2).Info("DRY RUN: Would update image",
+			"name", name,
+			"jsonPath", target.JsonPath,
+			"filePath", target.FilePath,
+			"line", line,
+			"from", currentDigest,
+			"to", newDigest,
+			"tag", tag.Name)
+	}
 
 	return true, nil
 }

@@ -101,7 +101,7 @@ func TestUpdater_UpdateImages(t *testing.T) {
 			wantUpdateNames: []string{"test-image"},
 		},
 		{
-			name: "dry run mode does not update",
+			name: "dry run mode does not update files but tracks changes",
 			config: &config.Config{
 				Images: map[string]config.ImageConfig{
 					"test-image": {
@@ -120,7 +120,7 @@ func TestUpdater_UpdateImages(t *testing.T) {
 			registryDigest:  "sha256:newdigest",
 			dryRun:          true,
 			wantErr:         false,
-			wantUpdateNames: []string{},
+			wantUpdateNames: []string{"test-image"}, // Changed: dry-run now tracks updates for reporting
 		},
 		{
 			name: "registry fetch error",
@@ -238,6 +238,7 @@ image:
 				RegistryClients: registryClients,
 				YAMLEditors:     yamlEditors,
 				Updates:         make(map[string][]yaml.Update),
+				OutputFormat:    "table",
 			}
 
 			err = u.UpdateImages(ctx)
@@ -424,6 +425,7 @@ image:
 				RegistryClients: registryClients,
 				YAMLEditors:     yamlEditors,
 				Updates:         make(map[string][]yaml.Update),
+				OutputFormat:    "table",
 			}
 
 			_, err := u.ProcessImageUpdates(ctx, "test-image", &clients.Tag{Digest: "sha256:newdigest", Name: "v1.0.0"}, tt.target)
@@ -562,10 +564,11 @@ image:
 
 			// Create updater
 			u := &Updater{
-				Config:      &config.Config{},
-				DryRun:      false,
-				YAMLEditors: yamlEditors,
-				Updates:     make(map[string][]yaml.Update),
+				Config:       &config.Config{},
+				DryRun:       false,
+				YAMLEditors:  yamlEditors,
+				Updates:      make(map[string][]yaml.Update),
+				OutputFormat: "table",
 			}
 
 			// Process update
@@ -684,15 +687,17 @@ config:
 			YAMLEditors: map[string]*yaml.Editor{
 				yamlPath: editor,
 			},
-			Updates: make(map[string][]yaml.Update),
+			Updates:      make(map[string][]yaml.Update),
+			OutputFormat: "table",
 		}
 
 		// Run update
-		if err := u.UpdateImages(ctx); err != nil {
+		err = u.UpdateImages(ctx)
+		if err != nil {
 			t.Fatalf("UpdateImages() failed: %v", err)
 		}
 
-		// Verify the file was updated correctly
+		// Read updated file to verify changes
 		newEditor, err := yaml.NewEditor(yamlPath)
 		if err != nil {
 			t.Fatalf("failed to read updated file: %v", err)
