@@ -11,6 +11,7 @@ Customer should not be able to deploy 2 identically named clusters within the sa
 Customer should create an HCP cluster and validate TLS certificates
 Update HCPOpenShiftCluster Negative creates a cluster and fails to update its name with a PATCH request
 Update HCPOpenShiftCluster Positive creates a cluster and updates tags with a PATCH request
+Customer should be able to create an HCP cluster with back-level version
 Customer should be able to create several HCP clusters in their customer resource group, but not in the same managed resource group
 Customer should be able to create an HCP cluster using bicep templates
 Customer should be able to create a cluster with an external auth config and get the external auth config
