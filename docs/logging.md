@@ -11,9 +11,8 @@ ARO-HCP uses Azure Data Explorer (Kusto) for centralized log aggregation. Logs f
 Kusto clusters are group by Geography, according to the Geos defined in the Ev2 configuration: https://github.com/Azure/ARO-Tools/blob/main/pkg/config/ev2config/config.yaml
 
 Names follow this convention:
-
-rg: "hcp-kusto-{{ .ctx.environment }}-{{ .ev2.geoShortId
-kustoName: "hcp-{{ .ctx.environment }}-{{ .ev2.geoShortId }}"
+ - rg: "hcp-kusto-{{ .ctx.environment }}-{{ .ev2.geoShortId
+ - kustoName: "hcp-{{ .ctx.environment }}-{{ .ev2.geoShortId }}"
 
 *instance list*: https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/components-and-architecture/kusto
 
