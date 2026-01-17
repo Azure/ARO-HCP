@@ -52,7 +52,7 @@ func TestFrontendClusterRead(t *testing.T) {
 
 	clusterServiceCluster, err := csarhcpv1alpha1.UnmarshalCluster(api.Must(artifacts.ReadFile("artifacts/ClusterReadOldData/initial-cluster-service-state/02-some-cluster.json")))
 	require.NoError(t, err)
-	testInfo.MockClusterServiceClient.EXPECT().GetCluster(gomock.Any(), api.Must(api.NewInternalID("/api/aro_hcp/v1alpha1/clusters/fixed-value"))).Return(clusterServiceCluster, nil)
+	testInfo.MockClusterServiceClient.EXPECT().GetCluster(gomock.Any(), api.Must(api.NewInternalID("/api/aro_hcp/v1alpha1/clusters/fixed-value"))).Return(clusterServiceCluster, nil).AnyTimes()
 	testInfo.MockClusterServiceClient.EXPECT().DeleteCluster(gomock.Any(), api.Must(api.NewInternalID("/api/aro_hcp/v1alpha1/clusters/fixed-value"))).Return(nil)
 
 	resourceGroup := "some-resource-group"

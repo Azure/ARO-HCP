@@ -1,21 +1,21 @@
 {
 	"_attachments": "attachments/",
-	"_etag": "\"00000000-0000-0000-84e3-e474580501dc\"",
-	"_rid": "1J4NAIJyEkkFAAAAAAAAAA==",
-	"_self": "dbs/1J4NAA==/colls/1J4NAIJyEkk=/docs/1J4NAIJyEkkFAAAAAAAAAA==/",
-	"_ts": 1768346723,
+	"_etag": "\"00000000-0000-0000-856f-f1f6c00501dc\"",
+	"_rid": "RhErALI9IdsKAAAAAAAAAA==",
+	"_self": "dbs/RhErAA==/colls/RhErALI9Ids=/docs/RhErALI9IdsKAAAAAAAAAA==/",
+	"_ts": 1768406876,
 	"id": "|subscriptions|6b690bec-0c16-4ecb-8f67-781caf40bba7|resourcegroups|resourcegroupname|providers|microsoft.redhatopenshift|hcpopenshiftclusters|create-with-tags|externalauths|default",
 	"partitionKey": "6b690bec-0c16-4ecb-8f67-781caf40bba7",
 	"properties": {
-		"activeOperationId": "60df392c-42ba-4384-95b4-5e4601df2f3e",
+		"activeOperationId": "5dce3cac-e09b-4ef5-803c-cb8f17b3a552",
 		"intermediateResourceDoc": {
-			"activeOperationId": "60df392c-42ba-4384-95b4-5e4601df2f3e",
-			"internalId": "/api/clusters_mgmt/v1/clusters/tqqtpctbpj/external_auth_config/external_auths/88m6lb2bbv",
+			"activeOperationId": "5dce3cac-e09b-4ef5-803c-cb8f17b3a552",
+			"internalId": "/api/clusters_mgmt/v1/clusters/9p2sk955gj/external_auth_config/external_auths/zt59xrx22b",
 			"provisioningState": "Accepted",
 			"resourceId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/create-with-tags/externalAuths/default",
 			"systemData": {}
 		},
-		"internalId": "/api/clusters_mgmt/v1/clusters/tqqtpctbpj/external_auth_config/external_auths/88m6lb2bbv",
+		"internalId": "/api/clusters_mgmt/v1/clusters/9p2sk955gj/external_auth_config/external_auths/zt59xrx22b",
 		"internalState": {
 			"internalAPI": {
 				"properties": {

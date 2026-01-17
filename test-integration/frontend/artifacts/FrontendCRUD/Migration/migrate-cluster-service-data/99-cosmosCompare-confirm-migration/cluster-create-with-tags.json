@@ -1,28 +1,27 @@
 {
 	"_attachments": "attachments/",
-	"_etag": "\"00000000-0000-0000-84e3-e286e40501dc\"",
-	"_rid": "7AV5AJra3BYFAAAAAAAAAA==",
-	"_self": "dbs/7AV5AA==/colls/7AV5AJra3BY=/docs/7AV5AJra3BYFAAAAAAAAAA==/",
-	"_ts": 1768346720,
+	"_etag": "\"00000000-0000-0000-856f-f168dc0501dc\"",
+	"_rid": "RhErALI9IdsHAAAAAAAAAA==",
+	"_self": "dbs/RhErAA==/colls/RhErALI9Ids=/docs/RhErALI9IdsHAAAAAAAAAA==/",
+	"_ts": 1768406875,
 	"id": "|subscriptions|6b690bec-0c16-4ecb-8f67-781caf40bba7|resourcegroups|resourcegroupname|providers|microsoft.redhatopenshift|hcpopenshiftclusters|create-with-tags",
 	"partitionKey": "6b690bec-0c16-4ecb-8f67-781caf40bba7",
 	"properties": {
-		"activeOperationId": "c01d4815-566a-4f10-ad8c-de1667682c5b",
+		"activeOperationId": "7a4ed07a-47a1-4efb-966a-93a6316522a0",
 		"identity": {
 			"type": "UserAssigned"
 		},
 		"intermediateResourceDoc": {
-			"activeOperationId": "c01d4815-566a-4f10-ad8c-de1667682c5b",
+			"activeOperationId": "7a4ed07a-47a1-4efb-966a-93a6316522a0",
 			"identity": {
 				"type": "UserAssigned"
 			},
 			"internalId": "/api/clusters_mgmt/v1/clusters/9p2sk955gj",
-			"provisioningState": "Accepted",
+			"provisioningState": "Succeeded",
 			"resourceId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/create-with-tags",
 			"systemData": {},
 			"tags": {
-				"one": "apple",
-				"two": "banana"
+				"one": "apple"
 			}
 		},
 		"internalId": "/api/clusters_mgmt/v1/clusters/9p2sk955gj",
@@ -33,9 +32,9 @@
 						"visibility": "Public"
 					},
 					"autoscaling": {
-						"maxNodeProvisionTimeSeconds": 47,
-						"maxPodGracePeriodSeconds": 73,
-						"podPriorityThreshold": -6
+						"maxNodeProvisionTimeSeconds": 900,
+						"maxPodGracePeriodSeconds": 600,
+						"podPriorityThreshold": -10
 					},
 					"clusterImageRegistry": {
 						"state": "Disabled"
@@ -86,12 +85,11 @@
 				}
 			}
 		},
-		"provisioningState": "Accepted",
+		"provisioningState": "Succeeded",
 		"resourceId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/create-with-tags",
 		"systemData": {},
 		"tags": {
-			"one": "apple",
-			"two": "banana"
+			"one": "apple"
 		}
 	},
 	"resourceType": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters"

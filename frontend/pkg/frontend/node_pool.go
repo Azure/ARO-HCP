@@ -771,13 +771,17 @@ func (f *Frontend) getInternalNodePoolFromStorage(ctx context.Context, resourceI
 // readInternalNodePoolFromClusterService takes an internal NodePool read from cosmos, retrieves the corresponding cluster-service data,
 // merges the states together, and returns the internal representation.
 func (f *Frontend) readInternalNodePoolFromClusterService(ctx context.Context, oldInternalNodePool *api.HCPOpenShiftClusterNodePool) (*api.HCPOpenShiftClusterNodePool, error) {
-	oldClusterServiceNodePool, err := f.clusterServiceClient.GetNodePool(ctx, oldInternalNodePool.ServiceProviderProperties.ClusterServiceID)
+	return readInternalNodePoolFromClusterService(ctx, f.clusterServiceClient, oldInternalNodePool, f.azureLocation)
+}
+
+func readInternalNodePoolFromClusterService(ctx context.Context, clusterServiceClient ocm.ClusterServiceClientSpec, oldInternalNodePool *api.HCPOpenShiftClusterNodePool, azureLocation string) (*api.HCPOpenShiftClusterNodePool, error) {
+	oldClusterServiceNodePool, err := clusterServiceClient.GetNodePool(ctx, oldInternalNodePool.ServiceProviderProperties.ClusterServiceID)
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}
 
 	// TODO this overwrite will transformed into a "set" function as we transition fields to ownership in cosmos
-	oldInternalNodePool, err = mergeToInternalNodePool(oldClusterServiceNodePool, oldInternalNodePool, f.azureLocation)
+	oldInternalNodePool, err = mergeToInternalNodePool(oldClusterServiceNodePool, oldInternalNodePool, azureLocation)
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}

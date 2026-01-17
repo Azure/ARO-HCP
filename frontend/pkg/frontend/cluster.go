@@ -818,13 +818,17 @@ func mergeToInternalCluster(csCluster *arohcpv1alpha1.Cluster, internalCluster *
 // merges the states together, and returns the internal representation.
 // TODO remove the header it takes and collapse that to some general error handling.
 func (f *Frontend) readInternalClusterFromClusterService(ctx context.Context, oldInternalCluster *api.HCPOpenShiftCluster) (*api.HCPOpenShiftCluster, error) {
-	oldClusterServiceCluster, err := f.clusterServiceClient.GetCluster(ctx, oldInternalCluster.ServiceProviderProperties.ClusterServiceID)
+	return readInternalClusterFromClusterService(ctx, f.clusterServiceClient, oldInternalCluster, f.azureLocation)
+}
+
+func readInternalClusterFromClusterService(ctx context.Context, clusterServiceClient ocm.ClusterServiceClientSpec, oldInternalCluster *api.HCPOpenShiftCluster, azureLocation string) (*api.HCPOpenShiftCluster, error) {
+	oldClusterServiceCluster, err := clusterServiceClient.GetCluster(ctx, oldInternalCluster.ServiceProviderProperties.ClusterServiceID)
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}
 
 	// TODO this overwrite will transformed into a "set" function as we transition fields to ownership in cosmos
-	oldInternalCluster, err = mergeToInternalCluster(oldClusterServiceCluster, oldInternalCluster, f.azureLocation)
+	oldInternalCluster, err = mergeToInternalCluster(oldClusterServiceCluster, oldInternalCluster, azureLocation)
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}
