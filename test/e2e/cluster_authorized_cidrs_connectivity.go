@@ -41,6 +41,7 @@ var _ = Describe("Authorized CIDRs", func() {
 			labels.Critical,
 			labels.Positive,
 			labels.IntegrationOnly,
+			labels.AroRpApiCompatible,
 			func(ctx context.Context) {
 				const (
 					clusterName                      = "cidr-connectivity-test"
@@ -200,6 +201,50 @@ var _ = Describe("Authorized CIDRs", func() {
 					By(fmt.Sprintf("Successfully retrieved node list with %d items", len(nodeList.Items)))
 				}, 2*time.Minute, 10*time.Second).Should(Succeed())
 
+				By("verifying aggregated API services from authorized VM")
+				// Only output unavailable services (filter out :True lines) to stay within 4KB VM output limit
+				apiServicesCmd := fmt.Sprintf(
+					`echo '%s' | base64 -d > /tmp/kubeconfig && kubectl --kubeconfig=/tmp/kubeconfig get apiservices -o jsonpath='{range .items[*]}{.metadata.name}:{.status.conditions[?(@.type=="Available")].status}{"\n"}{end}' | grep -v ':True$'`,
+					kubeconfigB64,
+				)
+
+				Eventually(func(g Gomega) {
+					output, err := framework.RunVMCommand(ctx, tc, *resourceGroup.Name, vmName, apiServicesCmd, 2*time.Minute)
+					g.Expect(err).NotTo(HaveOccurred(), "kubectl get apiservices should succeed from authorized VM")
+
+					unavailableServices := parseUnavailableResources(output)
+					g.Expect(unavailableServices).To(BeEmpty(), "All APIServices should report Available=True, but these are not available: %v", unavailableServices)
+				}, 5*time.Minute, 10*time.Second).Should(Succeed())
+
+				By("creating the node pool")
+				nodePoolParams := framework.NewDefaultNodePoolParams()
+				nodePoolParams.ClusterName = clusterName
+				nodePoolParams.NodePoolName = "np-1"
+				nodePoolParams.Replicas = int32(2)
+
+				err = tc.CreateNodePoolFromParam(ctx,
+					*resourceGroup.Name,
+					clusterName,
+					nodePoolParams,
+					45*time.Minute,
+				)
+				Expect(err).NotTo(HaveOccurred())
+
+				By("verifying all cluster operators are healthy from authorized VM")
+				// Only output unavailable operators (filter out :True lines) to stay within 4KB VM output limit
+				clusterOperatorsCmd := fmt.Sprintf(
+					`echo '%s' | base64 -d > /tmp/kubeconfig && kubectl --kubeconfig=/tmp/kubeconfig get clusteroperators -o jsonpath='{range .items[*]}{.metadata.name}:{.status.conditions[?(@.type=="Available")].status}{"\n"}{end}' | grep -v ':True$'`,
+					kubeconfigB64,
+				)
+
+				Eventually(func(g Gomega) {
+					output, err := framework.RunVMCommand(ctx, tc, *resourceGroup.Name, vmName, clusterOperatorsCmd, 2*time.Minute)
+					g.Expect(err).NotTo(HaveOccurred(), "kubectl get clusteroperators should succeed from authorized VM")
+
+					unavailableOperators := parseUnavailableResources(output)
+					g.Expect(unavailableOperators).To(BeEmpty(), "All ClusterOperators should report Available=True, but these are not available: %v", unavailableOperators)
+				}, 5*time.Minute, 20*time.Second).Should(Succeed())
+
 				By("updating cluster to remove VM from authorized CIDRs")
 				// Get the current cluster state
 				currentCluster, err := framework.GetHCPCluster(
@@ -266,4 +311,25 @@ func testAPIConnectivity(apiURL string, timeout time.Duration) error {
 	defer resp.Body.Close()
 
 	return nil
+}
+
+func parseUnavailableResources(output string) []string {
+	var unavailable []string
+	lines := strings.Split(strings.TrimSpace(output), "\n")
+
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+
+		parts := strings.SplitN(line, ":", 2)
+		if len(parts) == 2 {
+			unavailable = append(unavailable, fmt.Sprintf("%s (Available=%s)", parts[0], parts[1]))
+		} else {
+			unavailable = append(unavailable, line)
+		}
+	}
+
+	return unavailable
 }
