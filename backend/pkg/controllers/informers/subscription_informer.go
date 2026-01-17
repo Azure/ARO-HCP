@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package controllers
+package informers
 
 import (
 	"context"
@@ -22,6 +22,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/util/workqueue"
 
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
@@ -41,7 +42,7 @@ type subscriptionInformer struct {
 }
 
 // NewSubscriptionInformerController periodically lists all subscriptions and updates the cache
-func NewSubscriptionInformerController(cosmosClient database.DBClient, subscriptionLister listers.BasicReaderMaintainer[arm.Subscription]) Controller {
+func NewSubscriptionInformerController(cosmosClient database.DBClient, subscriptionLister listers.BasicReaderMaintainer[arm.Subscription]) controllerutils.Controller {
 	c := &subscriptionInformer{
 		name:         "SubscriptionInformer",
 		cosmosClient: cosmosClient,

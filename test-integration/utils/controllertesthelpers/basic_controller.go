@@ -25,20 +25,20 @@ import (
 	"github.com/neilotoole/slogt"
 	"github.com/stretchr/testify/require"
 
-	"github.com/Azure/ARO-HCP/backend/controllers"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/test-integration/utils/databasemutationhelpers"
 	"github.com/Azure/ARO-HCP/test-integration/utils/integrationutils"
 )
 
-type ControllerInitializerFunc func(ctx context.Context, t *testing.T, cosmosClient database.DBClient) (controller controllers.Controller, testMemory map[string]any)
+type ControllerInitializerFunc func(ctx context.Context, t *testing.T, cosmosClient database.DBClient) (controller controllerutils.Controller, testMemory map[string]any)
 
-type ControllerVerifierFunc func(ctx context.Context, t *testing.T, controller controllers.Controller, testMemory map[string]any)
+type ControllerVerifierFunc func(ctx context.Context, t *testing.T, controller controllerutils.Controller, testMemory map[string]any)
 
 type BasicControllerTest struct {
 	Name          string
-	ControllerKey controllers.HCPClusterKey
+	ControllerKey controllerutils.HCPClusterKey
 	ArtifactDir   fs.FS
 
 	ControllerInitializerFn ControllerInitializerFunc

@@ -17,42 +17,47 @@ package controllers
 import (
 	"context"
 	"errors"
-	"fmt"
-	"net/http"
 	"time"
 
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/util/workqueue"
+	"k8s.io/utils/lru"
 
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/serverutils"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
-type doNothingExample struct {
+type dataDump struct {
 	name string
 
 	subscriptionLister listers.SubscriptionLister
 	cosmosClient       database.DBClient
 
+	// nextDataDumpTime is a map of resourceID strings to a time at which all information related to them should be dumped.
+	// This should work for any resource, though we're starting with Clusters because of coverage.  Every time we dump
+	// we set the value forward by 10 minutes.  We only actually dump if an entry already exists in the LRU.  This prevents
+	// us from spamming the log if we get super busy, but could be reconsidered if it doesn't work well.
+	nextDataDumpTime *lru.Cache
+
 	// queue is where incoming work is placed to de-dup and to allow "easy"
 	// rate limited requeues on errors
-	queue workqueue.TypedRateLimitingInterface[HCPClusterKey]
-
-	CreateAzureWidget func() (string, error)
+	queue workqueue.TypedRateLimitingInterface[controllerutils.HCPClusterKey]
 }
 
-// NewDoNothingExampleController periodically lists all clusters and for each out when the cluster was created and its state.
-func NewDoNothingExampleController(cosmosClient database.DBClient, subscriptionLister listers.SubscriptionLister) Controller {
-	c := &doNothingExample{
-		name:               "DoNothingExample",
+// NewDataDumpController periodically lists all clusters and for each out when the cluster was created and its state.
+func NewDataDumpController(cosmosClient database.DBClient, subscriptionLister listers.SubscriptionLister) controllerutils.Controller {
+	c := &dataDump{
+		name:               "DataDump",
 		subscriptionLister: subscriptionLister,
 		cosmosClient:       cosmosClient,
 		queue: workqueue.NewTypedRateLimitingQueueWithConfig(
-			workqueue.DefaultTypedControllerRateLimiter[HCPClusterKey](),
-			workqueue.TypedRateLimitingQueueConfig[HCPClusterKey]{
-				Name: "do-nothing-example",
+			workqueue.DefaultTypedControllerRateLimiter[controllerutils.HCPClusterKey](),
+			workqueue.TypedRateLimitingQueueConfig[controllerutils.HCPClusterKey]{
+				Name: "DataDump",
 			},
 		),
 	}
@@ -60,72 +65,40 @@ func NewDoNothingExampleController(cosmosClient database.DBClient, subscriptionL
 	return c
 }
 
-func (c *doNothingExample) synchronizeHCPCluster(ctx context.Context, key HCPClusterKey) error {
+func (c *dataDump) synchronizeHCPCluster(ctx context.Context, key controllerutils.HCPClusterKey) error {
 	logger := utils.LoggerFromContext(ctx)
 
-	cosmosHCPCluster, err := c.cosmosClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Get(ctx, key.HCPClusterName)
-	if database.IsResponseError(err, http.StatusNotFound) {
-		return nil // no work to do
+	resourceID := key.GetResourceID()
+	if nextDataDumpTime, exists := c.nextDataDumpTime.Get(resourceID); !exists || time.Now().Before(nextDataDumpTime.(time.Time)) {
+		return nil
 	}
-	if err != nil {
-		return fmt.Errorf("failed to get HCP cluster: %w", err)
-	}
+	defer c.nextDataDumpTime.Add(resourceID, time.Now().Add(5*time.Minute))
 
-	// Check to see if you have work to do here.  You may also choose to look at state you saved for yourself for later,
-	// but this is slightly less desireable and you should always force a recheck of the actual state of the world after
-	// a certain staleness.
-	existingController, err := c.cosmosClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Controllers(key.HCPClusterName).Get(ctx, c.name)
-	if err != nil && !database.IsResponseError(err, http.StatusNotFound) {
-		return fmt.Errorf("failed to get existing controller state: %w", err)
+	if err := serverutils.DumpDataToLogger(ctx, c.cosmosClient, resourceID); err != nil {
+		// never fail, this is best effort
+		logger.Error(err.Error())
 	}
-
-	if existingController == nil {
-		logger.Info("starting work for item the first time",
-			"provisioning_state", cosmosHCPCluster.ServiceProviderProperties.ProvisioningState,
-		)
-	} else {
-		logger.Info("starting work for item",
-			"provisioning_state", cosmosHCPCluster.ServiceProviderProperties.ProvisioningState,
-			"controller_degraded", getCondition(existingController.Status.Conditions, "Degraded"),
-		)
-	}
-
-	// Do your work here.  If anything fails, return an error to have it recorded.
-	// A typical controller that enforced the invariant that every Cluster has an AzureThing will take action like this
-	//  1. If no name of AzureThing, decide you need a name and continue.
-	//  2. Decide on a name for the new AzureThing.  It should have a random suffix.  This ensures no names are special,
-	//     predictable, or likely to conflict.
-	//  3. Store the name of the AzureThing into cosmos. Do this BEFORE creation so that if you create the Azure thing,
-	//     but somehow fail to store that information, you don't end up losing the AzureThing and recreate it.
-	//  4. At this point you need an AzureThing/thingName that is "done".  Check to see if the AzureThing/thingName exists.
-	//  5. If it exists and if it is "done", you can store its doneness in a way that you recheck after duration/Y+jitter.
-	//  6. If it exists and is not "done", you can store its lack of doneness in a way that you recheck after duration/Z+jitter and requeue.
-	//  7. If it doesn't exist, then create it.
-	//  8. After creating it, treat it like you just got it and store its doneness, when to recheck, and requeue.
-	// This ordering is crash-safe for keeping track of things we create without transactions.
-	// When building controllers, imagine that process exits after every line: does it recover on the next restart with zero human intervention.
-	// Notice that you NEVER use a poll/wait inside of the processing loop.  We don't hold a thread busy doing that.
 
 	return nil
 }
 
-func (c *doNothingExample) SyncOnce(ctx context.Context, keyObj any) error {
-	key := keyObj.(HCPClusterKey)
+func (c *dataDump) SyncOnce(ctx context.Context, keyObj any) error {
+	key := keyObj.(controllerutils.HCPClusterKey)
 
 	syncErr := c.synchronizeHCPCluster(ctx, key) // we'll handle this is a moment.
 
-	controllerWriteErr := writeController(
+	controllerWriteErr := controllerutils.WriteController(
 		ctx,
 		c.cosmosClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Controllers(key.HCPClusterName),
 		c.name,
-		key.initialController,
-		reportSyncError(syncErr),
+		key.InitialController,
+		controllerutils.ReportSyncError(syncErr),
 	)
 
 	return errors.Join(syncErr, controllerWriteErr)
 }
 
-func (c *doNothingExample) queueAllHCPClusters(ctx context.Context) {
+func (c *dataDump) queueAllHCPClusters(ctx context.Context) {
 	logger := utils.LoggerFromContext(ctx)
 
 	allSubscriptions, err := c.subscriptionLister.List(ctx)
@@ -141,7 +114,7 @@ func (c *doNothingExample) queueAllHCPClusters(ctx context.Context) {
 		}
 
 		for _, hcpCluster := range allHCPClusters.Items(ctx) {
-			c.queue.Add(HCPClusterKey{
+			c.queue.Add(controllerutils.HCPClusterKey{
 				SubscriptionID:    hcpCluster.ID.SubscriptionID,
 				ResourceGroupName: hcpCluster.ID.ResourceGroupName,
 				HCPClusterName:    hcpCluster.ID.Name,
@@ -153,7 +126,7 @@ func (c *doNothingExample) queueAllHCPClusters(ctx context.Context) {
 	}
 }
 
-func (c *doNothingExample) Run(ctx context.Context, threadiness int) {
+func (c *dataDump) Run(ctx context.Context, threadiness int) {
 	// don't let panics crash the process
 	defer utilruntime.HandleCrash()
 	// make sure the work queue is shutdown which will trigger workers to end
@@ -181,7 +154,7 @@ func (c *doNothingExample) Run(ctx context.Context, threadiness int) {
 	logger.Info("Shutting down")
 }
 
-func (c *doNothingExample) runWorker(ctx context.Context) {
+func (c *dataDump) runWorker(ctx context.Context) {
 	// hot loop until we're told to stop.  processNextWorkItem will
 	// automatically wait until there's work available, so we don't worry
 	// about secondary waits
@@ -191,7 +164,7 @@ func (c *doNothingExample) runWorker(ctx context.Context) {
 
 // processNextWorkItem deals with one item off the queue.  It returns false
 // when it's time to quit.
-func (c *doNothingExample) processNextWorkItem(ctx context.Context) bool {
+func (c *dataDump) processNextWorkItem(ctx context.Context) bool {
 	// Pull the next work item from queue.  It will be an object reference that we use to lookup
 	// something in a cache
 	ref, shutdown := c.queue.Get()

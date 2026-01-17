@@ -35,8 +35,6 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
 
-	"k8s.io/utils/lru"
-
 	ocmsdk "github.com/openshift-online/ocm-sdk-go"
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
@@ -47,7 +45,6 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
-	"github.com/Azure/ARO-HCP/internal/serverutils"
 	"github.com/Azure/ARO-HCP/internal/tracing"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -143,12 +140,6 @@ type OperationsScanner struct {
 	subscriptionChannel chan string
 	subscriptionWorkers sync.WaitGroup
 
-	// nextDataDumpTime is a map of resourceID strings to a time at which all information related to them should be dumped.
-	// This should work for any resource, though we're starting with Clusters because of coverage.  Every time we dump
-	// we set the value forward by 10 minutes.  We only actually dump if an entry already exists in the LRU.  This prevents
-	// us from spamming the log if we get super busy, but could be reconsidered if it doesn't work well.
-	nextDataDumpTime *lru.Cache
-
 	// Allow overriding timestamps for testing.
 	newTimestamp func() time.Time
 
@@ -178,8 +169,6 @@ func NewOperationsScanner(dbClient database.DBClient, ocmConnection *ocmsdk.Conn
 		notificationClient:  http.DefaultClient,
 		subscriptionsLister: subscriptionLister,
 		subscriptions:       make([]string, 0),
-
-		nextDataDumpTime: lru.New(16000),
 
 		newTimestamp: func() time.Time { return time.Now().UTC() },
 
@@ -514,8 +503,6 @@ func (s *OperationsScanner) processOperation(ctx context.Context, op operation) 
 		switch op.doc.Request {
 		case database.OperationRequestRevokeCredentials:
 			s.pollBreakGlassCredentialRevoke(ctx, op)
-		default:
-			s.pollClusterOperation(ctx, op)
 		}
 	case arohcpv1alpha1.NodePoolKind:
 		s.pollNodePoolOperation(ctx, op)
@@ -536,57 +523,6 @@ func (s *OperationsScanner) recordOperationError(ctx context.Context, operationN
 	span.RecordError(err)
 }
 
-// pollClusterOperation updates the status of a cluster operation.
-func (s *OperationsScanner) pollClusterOperation(ctx context.Context, op operation) {
-	logger := utils.LoggerFromContext(ctx)
-	if op.doc.Request == database.OperationRequestCreate {
-		logger.Info("skipping operation: handled by another controller", "operationRequest", op.doc.Request)
-		return // handled by another controller
-	}
-	if op.doc.Request == database.OperationRequestDelete {
-		logger.Info("skipping operation: handled by another controller", "operationRequest", op.doc.Request)
-		return // handled by another controller
-	}
-
-	ctx, span := startChildSpan(ctx, "pollClusterOperation")
-	defer span.End()
-	defer s.updateOperationMetrics(pollClusterOperationLabel)()
-	op.setSpanAttributes(span)
-
-	// if it has been at least five minutes since the last dump, dump the current state from cosmos
-	// when we get a delete call (this happens from CI quite a bit), dump the state of the cluster resources.
-	if op.doc != nil && op.doc.ExternalID != nil {
-		resourceIDString := op.doc.ExternalID.String()
-		if nextDataDumpTime, exists := s.nextDataDumpTime.Get(resourceIDString); exists && time.Now().After(nextDataDumpTime.(time.Time)) {
-			if err := serverutils.DumpDataToLogger(ctx, s.dbClient, op.doc.ExternalID); err != nil {
-				// never fail, this is best effort
-				logger.Error(err.Error())
-			}
-		}
-		s.nextDataDumpTime.Add(resourceIDString, time.Now().Add(5*time.Minute))
-	}
-
-	clusterStatus, err := s.clusterService.GetClusterStatus(ctx, op.doc.InternalID)
-	if err != nil {
-		s.recordOperationError(ctx, pollClusterOperationLabel, err)
-		logger.Error(fmt.Sprintf("Failed to get cluster status: %v", err))
-		return
-	}
-
-	opStatus, opError, err := ConvertClusterStatus(ctx, s.clusterService, op.doc, clusterStatus)
-	if err != nil {
-		s.recordOperationError(ctx, pollClusterOperationLabel, err)
-		logger.Warn(err.Error())
-		return
-	}
-
-	err = database.UpdateOperationStatus(ctx, s.dbClient, op.doc, opStatus, opError, s.postAsyncNotification)
-	if err != nil {
-		s.recordOperationError(ctx, pollClusterOperationLabel, err)
-		logger.Error(fmt.Sprintf("Failed to update operation status: %v", err))
-	}
-}
-
 // pollNodePoolOperation updates the status of a node pool operation.
 func (s *OperationsScanner) pollNodePoolOperation(ctx context.Context, op operation) {
 	logger := utils.LoggerFromContext(ctx)
@@ -594,19 +530,6 @@ func (s *OperationsScanner) pollNodePoolOperation(ctx context.Context, op operat
 	defer span.End()
 	defer s.updateOperationMetrics(pollNodePoolOperationLabel)()
 	op.setSpanAttributes(span)
-
-	// if it has been at least five minutes since the last dump, dump the current state from cosmos
-	// when we get a delete call (this happens from CI quite a bit), dump the state of the cluster resources.
-	if op.doc != nil && op.doc.ExternalID != nil {
-		resourceIDString := op.doc.ExternalID.String()
-		if nextDataDumpTime, exists := s.nextDataDumpTime.Get(resourceIDString); exists && time.Now().After(nextDataDumpTime.(time.Time)) {
-			if err := serverutils.DumpDataToLogger(ctx, s.dbClient, op.doc.ExternalID); err != nil {
-				// never fail, this is best effort
-				logger.Error(err.Error())
-			}
-		}
-		s.nextDataDumpTime.Add(resourceIDString, time.Now().Add(5*time.Minute))
-	}
 
 	nodePoolStatus, err := s.clusterService.GetNodePoolStatus(ctx, op.doc.InternalID)
 	if err != nil {
