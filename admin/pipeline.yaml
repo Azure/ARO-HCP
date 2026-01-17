@@ -60,6 +60,12 @@ resourceGroups:
     valuesFile: ./values.yaml
     namespaceFiles:
     - namespace.yaml
+    kustoDatabase: '{{ .kusto.serviceLogsDatabase }}'
+    kustoTable: 'containerLogs'
+    kustoEndpoint:
+      resourceGroup: kusto
+      step: output
+      name: kustoUri
     inputVariables:
       tenantId:
         resourceGroup: service

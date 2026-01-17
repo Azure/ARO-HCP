@@ -280,6 +280,12 @@ resourceGroups:
     - ../observability/prometheus/namespace.mgmt.yaml
     chartDir: ../observability/prometheus/deploy
     valuesFile: ../observability/prometheus/values-mgmt.yaml
+    kustoEndpoint:
+      resourceGroup: kusto
+      step: output
+      name: kustoUri
+    kustoDatabase: '{{ .kusto.serviceLogsDatabase }}'
+    kustoTable: 'containerLogs'
     inputVariables:
       dcrRemoteWriteUrl:
         resourceGroup: management
@@ -314,6 +320,12 @@ resourceGroups:
     releaseNamespace: acrpull
     chartDir: ./../acrpull/deploy
     valuesFile: ./../acrpull/deploy/values.yaml
+    kustoEndpoint:
+      resourceGroup: kusto
+      step: output
+      name: kustoUri
+    kustoDatabase: '{{ .kusto.serviceLogsDatabase }}'
+    kustoTable: 'containerLogs'
     dependsOn:
     - resourceGroup: management
       step: prometheus
@@ -335,6 +347,12 @@ resourceGroups:
     releaseNamespace: 'default-sc'
     chartDir: ../mgmt-fixes/deploy/default-sc
     valuesFile: ../mgmt-fixes/default-sc.values.yaml
+    kustoEndpoint:
+      resourceGroup: kusto
+      step: output
+      name: kustoUri
+    kustoDatabase: '{{ .kusto.serviceLogsDatabase }}'
+    kustoTable: 'containerLogs'
     dependsOn:
     - resourceGroup: management
       step: cluster
@@ -358,6 +376,12 @@ resourceGroups:
     valuesFile: ../mgmt-fixes/mitigations.values.yaml
     # Bump timeout to help with scaling event related issues
     timeout: 15m
+    kustoEndpoint:
+      resourceGroup: kusto
+      step: output
+      name: kustoUri
+    kustoDatabase: '{{ .kusto.serviceLogsDatabase }}'
+    kustoTable: 'containerLogs'
     dependsOn:
     - resourceGroup: management
       step: cluster
@@ -379,6 +403,12 @@ resourceGroups:
     releaseNamespace: 'kubelet-ds'
     chartDir: ../mgmt-fixes/deploy/kubelet-ds
     valuesFile: ../mgmt-fixes/kubelet-ds.values.yaml
+    kustoEndpoint:
+      resourceGroup: kusto
+      step: output
+      name: kustoUri
+    kustoDatabase: '{{ .kusto.serviceLogsDatabase }}'
+    kustoTable: 'containerLogs'
     dependsOn:
     - resourceGroup: management
       step: cluster
@@ -409,6 +439,12 @@ resourceGroups:
     releaseNamespace: 'arobit'
     chartDir: ../observability/arobit/deploy
     valuesFile: ../observability/arobit/values-mgmt.yaml
+    kustoEndpoint:
+      resourceGroup: kusto
+      step: output
+      name: kustoUri
+    kustoDatabase: '{{ .kusto.serviceLogsDatabase }}'
+    kustoTable: 'containerLogs'
     dependsOn:
     - resourceGroup: management
       step: prometheus
@@ -443,6 +479,12 @@ resourceGroups:
     releaseNamespace: monitoring
     chartDir: ./../observability/kube-events/deploy
     valuesFile: ./../observability/kube-events/values.yaml
+    kustoEndpoint:
+      resourceGroup: kusto
+      step: output
+      name: kustoUri
+    kustoDatabase: '{{ .kusto.serviceLogsDatabase }}'
+    kustoTable: 'containerLogs'
     dependsOn:
     - resourceGroup: management
       step: cluster

@@ -623,6 +623,92 @@ func TestValidateNodePoolCreate(t *testing.T) {
 			}(),
 			expectErrors: []expectedError{},
 		},
+		// Node pool resource naming validation tests (covering middleware_validatestatic_test.go patterns)
+		{
+			name: "invalid nodepool resource name - special character",
+			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.ID.Name = "$"
+				return np
+			}(),
+			expectErrors: []expectedError{
+				{message: "must be a valid DNS RFC 1035 label", fieldPath: "id"},
+			},
+		},
+		{
+			name: "invalid nodepool resource name - starts with hyphen",
+			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.ID.Name = "-abcde"
+				return np
+			}(),
+			expectErrors: []expectedError{
+				{message: "must be a valid DNS RFC 1035 label", fieldPath: "id"},
+			},
+		},
+		{
+			name: "invalid nodepool resource name - starts with number",
+			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.ID.Name = "1nodepool"
+				return np
+			}(),
+			expectErrors: []expectedError{
+				{message: "must be a valid DNS RFC 1035 label", fieldPath: "id"},
+			},
+		},
+		{
+			name: "invalid nodepool resource name - too long",
+			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.ID.Name = "07B4gc00vjA2C8KL3Ns4No9fi" // Too long for node pool name
+				return np
+			}(),
+			expectErrors: []expectedError{
+				{message: "must be a valid DNS RFC 1035 label", fieldPath: "id"},
+			},
+		},
+		{
+			name: "invalid nodepool resource name - too short",
+			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.ID.Name = "a"
+				return np
+			}(),
+			expectErrors: []expectedError{
+				{message: "must be a valid DNS RFC 1035 label", fieldPath: "id"},
+			},
+		},
+		{
+			name: "valid nodepool resource name - minimum length",
+			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.ID.Name = "abc"
+				np.Name = "abc"
+				return np
+			}(),
+			expectErrors: []expectedError{},
+		},
+		{
+			name: "valid nodepool resource name - with hyphens",
+			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.ID.Name = "my-pool-1"
+				np.Name = "my-pool-1"
+				return np
+			}(),
+			expectErrors: []expectedError{},
+		},
+		{
+			name: "valid nodepool resource name - maximum length",
+			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.ID.Name = "myNodePool12345" // 15 chars total - at max length
+				np.Name = "myNodePool12345"
+				return np
+			}(),
+			expectErrors: []expectedError{},
+		},
 	}
 
 	for _, tt := range tests {

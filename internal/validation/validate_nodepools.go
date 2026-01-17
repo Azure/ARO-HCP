@@ -56,6 +56,11 @@ func validateNodePool(ctx context.Context, op operation.Operation, newObj, oldOb
 
 	//arm.ProxyResource
 	errs = append(errs, validateTrackedResource(ctx, op, field.NewPath("trackedResource"), &newObj.TrackedResource, safe.Field(oldObj, toNodePoolTrackedResource))...)
+	errs = append(errs, RestrictedResourceIDWithResourceGroup(ctx, op, field.NewPath("id"), newObj.ID, nil, api.NodePoolResourceType.String())...)
+	if newObj.ID != nil {
+		errs = append(errs, MaxLen(ctx, op, field.NewPath("id"), &newObj.ID.Name, nil, 15)...)
+		errs = append(errs, MatchesRegex(ctx, op, field.NewPath("id"), &newObj.ID.Name, nil, nodePoolResourceNameRegex, nodePoolResourceNameErrorString)...)
+	}
 
 	//Properties HCPOpenShiftClusterNodePoolProperties `json:"properties"`
 	errs = append(errs, validateNodePoolProperties(ctx, op, field.NewPath("properties"), &newObj.Properties, safe.Field(oldObj, toNodePoolProperties))...)
@@ -196,7 +201,7 @@ func validateNodePoolPlatformProfile(ctx context.Context, op operation.Operation
 
 	//SubnetID               string        `json:"subnetId,omitempty"`
 	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("subnetId"), &newObj.SubnetID, safe.Field(oldObj, toNodePoolPlatformProfileSubnetID))...)
-	errs = append(errs, RestrictedResourceID(ctx, op, fldPath.Child("subnetId"), &newObj.SubnetID, safe.Field(oldObj, toNodePoolPlatformProfileSubnetID), "Microsoft.Network/virtualNetworks/subnets")...)
+	errs = append(errs, RestrictedResourceIDString(ctx, op, fldPath.Child("subnetId"), &newObj.SubnetID, safe.Field(oldObj, toNodePoolPlatformProfileSubnetID), "Microsoft.Network/virtualNetworks/subnets")...)
 
 	//VMSize                 string        `json:"vmSize,omitempty"`
 	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("vmSize"), &newObj.VMSize, safe.Field(oldObj, toNodePoolPlatformProfileVMSize))...)
@@ -231,7 +236,7 @@ func validateOSDiskProfile(ctx context.Context, op operation.Operation, fldPath 
 	errs = append(errs, validate.Enum(ctx, op, fldPath.Child("diskStorageAccountType"), &newObj.DiskStorageAccountType, safe.Field(oldObj, toOSDiskProfileDiskStorageAccountType), api.ValidDiskStorageAccountTypes)...)
 
 	//EncryptionSetID        string                 `json:"encryptionSetId,omitempty"`
-	errs = append(errs, RestrictedResourceID(ctx, op, fldPath.Child("encryptionSetId"), &newObj.EncryptionSetID, safe.Field(oldObj, toOSDiskProfileEncryptionSetID), "Microsoft.Compute/diskEncryptionSets")...)
+	errs = append(errs, RestrictedResourceIDString(ctx, op, fldPath.Child("encryptionSetId"), &newObj.EncryptionSetID, safe.Field(oldObj, toOSDiskProfileEncryptionSetID), "Microsoft.Compute/diskEncryptionSets")...)
 
 	return errs
 }

@@ -108,7 +108,7 @@ spec:
         - name: OPERAND_IMAGE_MULTICLOUD_MANAGER
           value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/multicloud-manager-rhel9@sha256:1e19cf0760159f59571fe0641b18e5af65f687818692ae905449be36512473d3'
         - name: OPERAND_IMAGE_PROVIDER_CREDENTIAL_CONTROLLER
-          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/provider-credential-controller-rhel9@sha256:e1c59ca3be8d06e1363aba0c06179bd32eec63eb4cb9fbb36d98299831bd2cdf'
+          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/provider-credential-controller-rhel9@sha256:1498983e150655edf18af192764c4369ea51ce0ccbb53dc53b193f53b9de8f98'
         - name: OPERAND_IMAGE_PLACEMENT
           value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/placement-rhel9@sha256:bac34a01bd259da817bb909121ad05b360f7d8f9e12a954e75c7cbeed4766842'
         - name: OPERAND_IMAGE_REGISTRATION

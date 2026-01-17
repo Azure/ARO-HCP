@@ -14,6 +14,7 @@ For more information about ARO HCP environments, see the [ARO HCP Environments d
 - If the test creates more than one cluster at a time, the names of the clusters must be unique.
 - Bicep deployment names must be unique within the same resource group.
 - When using your own customized bicep templates or creating resources via other means such as direct API calls be sure to follow the above rules, appending a 6 character random string to the cluster and managed resource group names is likely sufficient.
+- For new tests, remember updating test fixtures that help checking tests are executed in the right environment. To do so run `make update-go-fixtures` or `make update` in the `test` folder to trigger fixture update.
 
 ### Test cases with per-test cluster (**main focus**)
 

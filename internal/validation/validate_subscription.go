@@ -21,6 +21,8 @@ import (
 	"k8s.io/apimachinery/pkg/api/validate"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
 
@@ -35,6 +37,11 @@ func validateSubscription(ctx context.Context, op operation.Operation, newObj, o
 	// these are the only two validated fields
 	//State            SubscriptionState       `json:"state"`
 	errs = append(errs, validate.Enum(ctx, op, field.NewPath("required"), &newObj.State, nil, arm.ValidSubscriptionStates)...)
+	errs = append(errs, validate.RequiredPointer(ctx, op, field.NewPath("id"), newObj.ResourceID, nil)...)
+	errs = append(errs, RestrictedResourceIDWithoutResourceGroup(ctx, op, field.NewPath("id"), newObj.ResourceID, nil, azcorearm.SubscriptionResourceType.String())...)
+	if newObj.ResourceID != nil {
+		errs = append(errs, ValidateUUID(ctx, op, field.NewPath("id"), &newObj.ResourceID.SubscriptionID, nil)...)
+	}
 
 	//RegistrationDate *string                 `json:"registrationDate"`
 	errs = append(errs, validate.RequiredPointer(ctx, op, field.NewPath("registrationDate"), newObj.RegistrationDate, nil)...)

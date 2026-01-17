@@ -149,6 +149,7 @@ func TestSubscriptionsPUT(t *testing.T) {
 			name:    "PUT Subscription - Doc does not exist",
 			urlPath: api.TestSubscriptionResourceID,
 			subscription: &arm.Subscription{
+				ResourceID:       api.Must(arm.ToSubscriptionResourceID(api.TestSubscriptionID)),
 				State:            arm.SubscriptionStateRegistered,
 				RegistrationDate: api.Ptr(time.Now().String()),
 				Properties: &arm.SubscriptionProperties{
@@ -174,6 +175,7 @@ func TestSubscriptionsPUT(t *testing.T) {
 			name:    "PUT Subscription - Update with no changes",
 			urlPath: api.TestSubscriptionResourceID,
 			subscription: &arm.Subscription{
+				ResourceID:       api.Must(arm.ToSubscriptionResourceID(api.TestSubscriptionID)),
 				State:            arm.SubscriptionStateRegistered,
 				RegistrationDate: api.Ptr(time.Now().String()),
 				Properties:       nil,
@@ -191,6 +193,7 @@ func TestSubscriptionsPUT(t *testing.T) {
 			name:    "PUT Subscription - Update registered features",
 			urlPath: api.TestSubscriptionResourceID,
 			subscription: &arm.Subscription{
+				ResourceID:       api.Must(arm.ToSubscriptionResourceID(api.TestSubscriptionID)),
 				State:            arm.SubscriptionStateRegistered,
 				RegistrationDate: api.Ptr(time.Now().String()),
 				Properties: &arm.SubscriptionProperties{
