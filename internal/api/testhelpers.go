@@ -136,8 +136,6 @@ func (m *ExternalTestResource) ConvertToInternal() *InternalTestResource {
 	return nil
 }
 
-// Must is a helper function that takes a value and error, returns the value if no error occurred,
-// or panics if an error occurred. This is useful for test setup where we don't expect errors.
 func Must[T any](v T, err error) T {
 	if err != nil {
 		panic(err)

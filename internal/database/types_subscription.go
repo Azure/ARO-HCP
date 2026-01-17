@@ -21,13 +21,5 @@ import (
 type Subscription struct {
 	TypedDocument `json:",inline"`
 
-	InternalState SubscriptionProperties `json:"properties"`
-}
-
-type SubscriptionProperties struct {
-	arm.Subscription `json:",inline"`
-}
-
-func (o *Subscription) GetTypedDocument() *TypedDocument {
-	return &o.TypedDocument
+	Content arm.Subscription `json:"properties"`
 }
