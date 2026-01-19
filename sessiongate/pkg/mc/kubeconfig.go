@@ -105,7 +105,8 @@ type azureTokenRoundTripper struct {
 
 // RoundTrip implements http.RoundTripper by fetching an Azure token and adding it to the request
 func (rt *azureTokenRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
-	// Get Azure token for AKS
+	// GetToken will use cached tokens internally and refreshes the internal cache when necessary
+	// so we don't have to do any manualy caching/refreshing whatsoever
 	token, err := rt.credential.GetToken(req.Context(), policy.TokenRequestOptions{
 		Scopes: []string{aksOAuthServerID + "/.default"},
 	})
@@ -113,12 +114,7 @@ func (rt *azureTokenRoundTripper) RoundTrip(req *http.Request) (*http.Response, 
 		return nil, fmt.Errorf("failed to get Azure token: %w", err)
 	}
 
-	// Clone the request to avoid modifying the original
 	reqClone := req.Clone(req.Context())
-
-	// Add the bearer token
 	reqClone.Header.Set("Authorization", "Bearer "+token.Token)
-
-	// Execute the request with the base transport
 	return rt.base.RoundTrip(reqClone)
 }

@@ -20,7 +20,6 @@ import (
 	"crypto/rsa"
 	"errors"
 	"fmt"
-	"sync"
 	"time"
 
 	securityv1beta1 "istio.io/client-go/pkg/apis/security/v1beta1"
@@ -51,26 +50,33 @@ import (
 	sessiongateinformers "github.com/Azure/ARO-HCP/sessiongate/pkg/generated/informers/externalversions"
 )
 
+const (
+	managementClusterIndexName = "sessions-by-management-cluster"
+)
+
 // SessionEndpointProvider provides session endpoint URLs
 type SessionEndpointProvider interface {
 	GetSessionEndpoint(sessionID string) string
 }
 
 type SessionController struct {
-	workqueue         workqueue.TypedRateLimitingInterface[cache.ObjectName]
-	cachesToSync      []cache.InformerSynced
-	kubeClient        kubernetes.Interface
-	sessiongateClient sessiongateclient.Interface
-	istioClient       istioclient.SecurityV1beta1Interface
+	workqueue            workqueue.TypedRateLimitingInterface[cache.ObjectName]
+	mgmtClusterWorkQueue workqueue.TypedRateLimitingInterface[string]
+	cachesToSync         []cache.InformerSynced
+	kubeClient           kubernetes.Interface
+	sessiongateClient    sessiongateclient.Interface
+	istioClient          istioclient.SecurityV1beta1Interface
 
-	fieldManager                 string
-	eventRecorder                record.EventRecorder
-	endpointProvider             SessionEndpointProvider
-	getSession                   func(namespace, name string) (*sessiongatev1alpha1.Session, error)
-	getAuthorizationPolicy       func(namespace, name string) (*securityv1beta1.AuthorizationPolicy, error)
-	getSecret                    func(namespace, name string) (*corev1.Secret, error)
-	getManagementClusterProvider func(ctx context.Context, resourceID string) (*ManagementClusterProvider, error)
-	newPrivateKey                func(size int) (*rsa.PrivateKey, error)
+	fieldManager                   string
+	eventRecorder                  record.EventRecorder
+	endpointProvider               SessionEndpointProvider
+	managementClusterInventory     *ManagementClusterInventory
+	getSession                     func(namespace, name string) (*sessiongatev1alpha1.Session, error)
+	getSessionsByManagementCluster func(mgmtClusterResourceID string) ([]*sessiongatev1alpha1.Session, error)
+	getAuthorizationPolicy         func(namespace, name string) (*securityv1beta1.AuthorizationPolicy, error)
+	getSecret                      func(namespace, name string) (*corev1.Secret, error)
+	getManagementClusterProvider   func(ctx context.Context, resourceID string) (*ManagementClusterProvider, error)
+	newPrivateKey                  func(size int) (*rsa.PrivateKey, error)
 }
 
 func NewSessionController(
@@ -84,25 +90,60 @@ func NewSessionController(
 	managementClusterProviderBuilder ManagementClusterProviderBuilder,
 	endpointProvider SessionEndpointProvider,
 ) (*SessionController, error) {
-	managementClusterProviders := make(map[string]*ManagementClusterProvider)
-	managementClusterProviderMutex := sync.Mutex{}
 	workQueue := workqueue.NewTypedRateLimitingQueueWithConfig(
 		workqueue.DefaultTypedControllerRateLimiter[cache.ObjectName](),
 		workqueue.TypedRateLimitingQueueConfig[cache.ObjectName]{
 			Name: "SessionControlPlaneController",
 		},
 	)
+	mgmtClusterWorkQueue := workqueue.NewTypedRateLimitingQueueWithConfig(
+		workqueue.DefaultTypedControllerRateLimiter[string](),
+		workqueue.TypedRateLimitingQueueConfig[string]{
+			Name: "ManagementClusterInventory",
+		},
+	)
+	err := sessiongateInformers.Sessiongate().V1alpha1().Sessions().Informer().AddIndexers(cache.Indexers{
+		managementClusterIndexName: func(obj interface{}) ([]string, error) {
+			session, ok := obj.(*sessiongatev1alpha1.Session)
+			if !ok {
+				return nil, fmt.Errorf("object is not a Session")
+			}
+			return []string{session.Spec.ManagementCluster.ResourceID}, nil
+		},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to add indexers to session informer: %w", err)
+	}
+
+	managementClusterInventory := NewManagementClusterInventory(managementClusterProviderBuilder, workQueue)
+
 	c := &SessionController{
-		workqueue:         workQueue,
-		cachesToSync:      []cache.InformerSynced{},
-		fieldManager:      ControllerAgentName,
-		eventRecorder:     eventRecorder,
-		endpointProvider:  endpointProvider,
-		kubeClient:        kubeClient,
-		sessiongateClient: sessiongateClient,
-		istioClient:       istioClient,
+		workqueue:                  workQueue,
+		mgmtClusterWorkQueue:       mgmtClusterWorkQueue,
+		cachesToSync:               []cache.InformerSynced{},
+		fieldManager:               ControllerAgentName,
+		eventRecorder:              eventRecorder,
+		endpointProvider:           endpointProvider,
+		kubeClient:                 kubeClient,
+		sessiongateClient:          sessiongateClient,
+		istioClient:                istioClient,
+		managementClusterInventory: managementClusterInventory,
 		getSession: func(namespace, name string) (*sessiongatev1alpha1.Session, error) {
 			return sessiongateInformers.Sessiongate().V1alpha1().Sessions().Lister().Sessions(namespace).Get(name)
+		},
+		getSessionsByManagementCluster: func(mgmtClusterResourceID string) ([]*sessiongatev1alpha1.Session, error) {
+			objs, err := sessiongateInformers.Sessiongate().V1alpha1().Sessions().Informer().GetIndexer().ByIndex(
+				managementClusterIndexName,
+				mgmtClusterResourceID,
+			)
+			if err != nil {
+				return nil, err
+			}
+			sessions := make([]*sessiongatev1alpha1.Session, len(objs))
+			for i, obj := range objs {
+				sessions[i] = obj.(*sessiongatev1alpha1.Session)
+			}
+			return sessions, nil
 		},
 		getAuthorizationPolicy: func(namespace, name string) (*securityv1beta1.AuthorizationPolicy, error) {
 			return istioInformers.Security().V1beta1().AuthorizationPolicies().Lister().AuthorizationPolicies(namespace).Get(name)
@@ -111,57 +152,22 @@ func NewSessionController(
 			return kubeinformers.Core().V1().Secrets().Lister().Secrets(namespace).Get(name)
 		},
 		getManagementClusterProvider: func(ctx context.Context, resourceID string) (*ManagementClusterProvider, error) {
-			managementClusterProviderMutex.Lock()
-			defer managementClusterProviderMutex.Unlock()
-			if _, ok := managementClusterProviders[resourceID]; !ok {
-				klog.InfoS("building management cluster provider", "resourceID", resourceID)
-				managementClusterProvider, err := managementClusterProviderBuilder(ctx, resourceID)
-				if err != nil {
-					return nil, err
-				}
-				managementClusterProviders[resourceID] = managementClusterProvider
-				klog.InfoS("starting management cluster provider informers", "resourceID", resourceID)
-				klog.InfoS("registering management cluster provider informer with work queue", "resourceID", resourceID)
-				informer := managementClusterProvider.KubeInformers.Certificates().V1().CertificateSigningRequests().Informer()
-				err = registerInformer(informer, keyForOwningSession, workQueue)
-				if err != nil {
-					return nil, err
-				}
-				managementClusterProvider.KubeInformers.Start(ctx.Done())
-				klog.InfoS("waiting for management cluster provider cache to sync", "resourceID", resourceID)
-
-				// Wait in a separate goroutine with timeout
-				syncCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
-				defer cancel()
-
-				synced := make(chan bool, 1)
-				go func() {
-					synced <- cache.WaitForCacheSync(syncCtx.Done(), informer.HasSynced)
-				}()
-
-				select {
-				case ok := <-synced:
-					if !ok {
-						return nil, fmt.Errorf("failed to wait for caches to sync")
-					}
-				case <-syncCtx.Done():
-					return nil, fmt.Errorf("timeout waiting for cache to sync")
-				}
-
-				klog.InfoS("management cluster provider cache synced", "resourceID", resourceID)
-			}
-			return managementClusterProviders[resourceID], nil
+			return managementClusterInventory.GetProvider(ctx, resourceID, 5*time.Second)
 		},
 		newPrivateKey: func(size int) (*rsa.PrivateKey, error) {
 			return rsa.GenerateKey(rand.Reader, size)
 		},
 	}
 
-	// Register main informer
+	// Register session informer
 	if err := registerInformer(sessiongateInformers.Sessiongate().V1alpha1().Sessions().Informer(), keyForSession, c.workqueue); err != nil {
 		return nil, fmt.Errorf("failed to register session informer: %w", err)
 	}
-	// Register secondary informers
+	// Register management cluster informer
+	if err := registerInformer(sessiongateInformers.Sessiongate().V1alpha1().Sessions().Informer(), mgmtClusterResourceIdFromSession, c.mgmtClusterWorkQueue); err != nil {
+		return nil, fmt.Errorf("failed to register management cluster informer: %w", err)
+	}
+	// Register authorization policies and secret informers (resources owned by a session)
 	if err := registerInformer(istioInformers.Security().V1beta1().AuthorizationPolicies().Informer(), keyForOwningSession, c.workqueue); err != nil {
 		return nil, fmt.Errorf("failed to register authorization policy informer: %w", err)
 	}
@@ -172,7 +178,7 @@ func NewSessionController(
 	return c, nil
 }
 
-func registerInformer(informer cache.SharedIndexInformer, keyFunc func(obj interface{}) (cache.ObjectName, error), workQueue workqueue.TypedRateLimitingInterface[cache.ObjectName]) error {
+func registerInformer[T comparable](informer cache.SharedIndexInformer, keyFunc func(obj interface{}) (T, error), workQueue workqueue.TypedRateLimitingInterface[T]) error {
 	_, err := informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			key, err := keyFunc(obj)
@@ -210,6 +216,15 @@ func keyForSession(obj interface{}) (cache.ObjectName, error) {
 	return key, nil
 }
 
+func mgmtClusterResourceIdFromSession(obj interface{}) (string, error) {
+	// obj needs to be a session
+	session, ok := obj.(*sessiongatev1alpha1.Session)
+	if !ok {
+		return "", fmt.Errorf("error decoding object, invalid type")
+	}
+	return session.Spec.ManagementCluster.ResourceID, nil
+}
+
 // keyForOwningSession extracts the Session namespace/name workqueue key from owned resources.
 // Checks controller owner references first, then falls back to an annotation approach for
 // cross-cluster resources (like CSRs) where owner references aren't possible.
@@ -245,6 +260,7 @@ func keyForOwningSession(obj interface{}) (cache.ObjectName, error) {
 func (c *SessionController) Run(ctx context.Context, workers int) error {
 	defer utilruntime.HandleCrash()
 	defer c.workqueue.ShutDown()
+	defer c.mgmtClusterWorkQueue.ShutDown()
 
 	klog.InfoS("Starting control plane controller... waiting for informer caches to sync")
 
@@ -254,8 +270,10 @@ func (c *SessionController) Run(ctx context.Context, workers int) error {
 
 	klog.InfoS("Starting workers", "count", workers)
 	for range workers {
-		go wait.UntilWithContext(ctx, c.runWorker, time.Second)
+		go wait.UntilWithContext(ctx, c.runSessionWorker, time.Second)
 	}
+
+	go wait.UntilWithContext(ctx, c.runManagementClusterWorker, time.Second)
 
 	klog.InfoS("Started workers")
 	<-ctx.Done()
@@ -264,12 +282,12 @@ func (c *SessionController) Run(ctx context.Context, workers int) error {
 	return nil
 }
 
-func (c *SessionController) runWorker(ctx context.Context) {
-	for c.processNextWorkItem(ctx) {
+func (c *SessionController) runSessionWorker(ctx context.Context) {
+	for c.processNextSessionWorkItem(ctx) {
 	}
 }
 
-func (c *SessionController) processNextWorkItem(ctx context.Context) bool {
+func (c *SessionController) processNextSessionWorkItem(ctx context.Context) bool {
 	objRef, shutdown := c.workqueue.Get()
 
 	if shutdown {
@@ -495,7 +513,7 @@ func (c *SessionController) ensureAuthorizationPolicy(ctx context.Context, now f
 }
 
 func (c *SessionController) getCredentialSecret(session *sessiongatev1alpha1.Session) (*CredentialSecret, error) {
-	current, err := c.getSecret(session.Namespace, session.Name)
+	current, err := c.getSecret(session.Namespace, CredentialSecretName(session.Name))
 	var secretData map[string][]byte
 	if err != nil && !apierrors.IsNotFound(err) {
 		return nil, err
@@ -504,7 +522,7 @@ func (c *SessionController) getCredentialSecret(session *sessiongatev1alpha1.Ses
 	} else {
 		secretData = current.Data
 	}
-	return NewCredentialSecret(session.Name, session.Namespace, session.UID, c.fieldManager, secretData), nil
+	return NewCredentialSecret(session.Name, CredentialSecretName(session.Name), session.Namespace, session.UID, c.fieldManager, secretData), nil
 }
 
 func (c *SessionController) generateCredentials(ctx context.Context, now func() time.Time, session *sessiongatev1alpha1.Session, mc ManagementClusterQuerier) (bool, *actions, error) {
@@ -666,4 +684,37 @@ func (c *SessionController) finalizeSession(ctx context.Context, now func() time
 		return true, &actions{Event: e, Session: statusUpdate}, nil
 	}
 	return false, nil, nil
+}
+
+func (c *SessionController) runManagementClusterWorker(ctx context.Context) {
+	for c.processNextManagementClusterWorkItem(ctx) {
+	}
+}
+
+func (c *SessionController) processNextManagementClusterWorkItem(ctx context.Context) bool {
+	mgmtClusterResourceID, shutdown := c.mgmtClusterWorkQueue.Get()
+	if shutdown {
+		return false
+	}
+	defer c.mgmtClusterWorkQueue.Done(mgmtClusterResourceID)
+
+	if err := c.reconcileManagementClusterProvider(ctx, mgmtClusterResourceID); err != nil {
+		c.mgmtClusterWorkQueue.AddRateLimited(mgmtClusterResourceID)
+		return true
+	}
+
+	c.mgmtClusterWorkQueue.Forget(mgmtClusterResourceID)
+	return true
+}
+
+func (c *SessionController) reconcileManagementClusterProvider(ctx context.Context, mgmtClusterID string) error {
+	sessions, err := c.getSessionsByManagementCluster(mgmtClusterID)
+	if err != nil {
+		return err
+	}
+	if len(sessions) == 0 {
+		return c.managementClusterInventory.Unregister(mgmtClusterID)
+	} else {
+		return c.managementClusterInventory.Register(ctx, mgmtClusterID)
+	}
 }

@@ -37,14 +37,20 @@ const (
 type CredentialSecret struct {
 	fieldManager     string
 	sessionName      string
+	secretName       string
 	sessionNamespace string
 	sessionUID       types.UID
 	data             map[string][]byte
 }
 
-func NewCredentialSecret(sessionName string, sessionNamespace string, sessionUID types.UID, fieldManager string, data map[string][]byte) *CredentialSecret {
+func CredentialSecretName(sessionName string) string {
+	return "sessiongate-" + sessionName
+}
+
+func NewCredentialSecret(sessionName string, secretName string, sessionNamespace string, sessionUID types.UID, fieldManager string, data map[string][]byte) *CredentialSecret {
 	return &CredentialSecret{
 		fieldManager:     fieldManager,
+		secretName:       secretName,
 		sessionName:      sessionName,
 		sessionNamespace: sessionNamespace,
 		sessionUID:       sessionUID,
@@ -151,7 +157,7 @@ func (c *CredentialSecret) applyConfigurationForFields(fields map[string][]byte)
 	for k, v := range fields {
 		dataCopy[k] = v
 	}
-	return corev1apply.Secret(c.sessionName, c.sessionNamespace).
+	return corev1apply.Secret(c.secretName, c.sessionNamespace).
 		WithLabels(map[string]string{
 			labelManagedBy: c.fieldManager,
 		}).
