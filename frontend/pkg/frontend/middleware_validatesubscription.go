@@ -63,6 +63,7 @@ func (h *middlewareValidateSubscriptionState) handleRequest(w http.ResponseWrite
 	if err != nil {
 		// subscription not found, treat as unregistered
 		if database.IsResponseError(err, http.StatusNotFound) {
+			logger.Warn("subscription document not found", "subscriptionId", subscriptionId)
 			arm.WriteError(
 				w, http.StatusBadRequest,
 				arm.CloudErrorCodeInvalidSubscriptionState, "",
