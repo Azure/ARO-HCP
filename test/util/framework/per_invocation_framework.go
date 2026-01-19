@@ -151,14 +151,14 @@ func (tc *perBinaryInvocationTestContext) getHCPClientFactoryOptions() *azcorear
 			http.StatusBadGateway,          // 502
 			http.StatusServiceUnavailable,  // 503
 			http.StatusGatewayTimeout,      // 504
-			http.StatusBadRequest,          // 400 
+			http.StatusBadRequest,          // 400
 		},
 	}
 
 	if tc.isDevelopmentEnvironment {
 		return &azcorearm.ClientOptions{
 			ClientOptions: azcore.ClientOptions{
-				Retry: retryOptions, 
+				Retry: retryOptions,
 				Cloud: cloud.Configuration{
 					ActiveDirectoryAuthorityHost: "https://login.microsoftonline.com/",
 					Services: map[cloud.ServiceName]cloud.ServiceConfiguration{
