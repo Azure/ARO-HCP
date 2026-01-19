@@ -35,9 +35,8 @@ import (
 	"github.com/Azure/ARO-HCP/sessiongate/pkg/registry"
 )
 
-// data plane controller implementation.
-// it runs on all replicas and registers sessions with the proxy registry, so that any replica can
-// proxy traffic for a session.
+// This is the data plane controller, reacting to sessions becoming ready and offering it to the proxy registry.
+// Also reacts to sessions being deleted and unregisters them from the proxy registry.
 type DataPlaneController struct {
 	workqueue    workqueue.TypedRateLimitingInterface[cache.ObjectName]
 	cachesToSync []cache.InformerSynced
@@ -139,15 +138,13 @@ func (c *DataPlaneController) syncSession(ctx context.Context, namespace, name s
 		return err
 	}
 
-	// validate session is ready for registration
-	if ready, reason := c.isReadyForRegistration(session); !ready {
+	if ready, _ := c.isReadyForRegistration(session); !ready {
 		c.registry.UnregisterSession(session.Name)
-		klog.V(2).Info("Unregistered session from local registry", "reason", reason)
 		return nil
 	}
 
 	// register the session with the local registry for proxying traffic
-	return c.registerSession(ctx, session)
+	return c.registerSession(session)
 }
 
 func (c *DataPlaneController) isReadyForRegistration(session *sessiongatev1alpha1.Session) (bool, string) {
@@ -170,11 +167,10 @@ func (c *DataPlaneController) getCredentialSecret(session *sessiongatev1alpha1.S
 	} else {
 		secretData = current.Data
 	}
-	return NewCredentialSecret(session.Name, session.Namespace, session.UID, c.fieldManager, secretData), nil
+	return NewCredentialSecret(session.Name, CredentialSecretName(session.Name), session.Namespace, session.UID, c.fieldManager, secretData), nil
 }
 
-// registerSession fetches credentials and registers the session in the local registry for proxying traffic
-func (c *DataPlaneController) registerSession(ctx context.Context, session *sessiongatev1alpha1.Session) error {
+func (c *DataPlaneController) registerSession(session *sessiongatev1alpha1.Session) error {
 	credentialSecret, err := c.getCredentialSecret(session)
 	if err != nil {
 		return fmt.Errorf("failed to get credential secret: %w", err)
@@ -198,7 +194,7 @@ func (c *DataPlaneController) registerSession(ctx context.Context, session *sess
 		},
 	}
 
-	endpoint, err := c.registry.RegisterSession(registry.NewSessionOptions(
+	_, err = c.registry.RegisterSession(registry.NewSessionOptions(
 		session.Name,
 		session.Status.BackendKASURL,
 		restConfig,
@@ -206,10 +202,6 @@ func (c *DataPlaneController) registerSession(ctx context.Context, session *sess
 	if err != nil {
 		return fmt.Errorf("failed to register session: %w", err)
 	}
-
-	c.logger.V(2).Info("Registered session in local registry",
-		"endpoint", endpoint,
-		"backendKASURL", session.Status.BackendKASURL)
 
 	return nil
 }

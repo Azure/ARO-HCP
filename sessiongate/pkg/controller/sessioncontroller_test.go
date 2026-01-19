@@ -57,7 +57,7 @@ var testPrivateKey = func() *rsa.PrivateKey {
 
 var secretWithTestPrivateKey = &corev1.Secret{
 	ObjectMeta: metav1.ObjectMeta{
-		Name:      "test-session",
+		Name:      "sessiongate-test-session",
 		Namespace: "test-namespace",
 	},
 	Data: map[string][]byte{
@@ -70,7 +70,7 @@ var secretWithTestPrivateKey = &corev1.Secret{
 
 var secretWithFullTestCredentials = &corev1.Secret{
 	ObjectMeta: metav1.ObjectMeta{
-		Name:      "test-session",
+		Name:      "sessiongate-test-session",
 		Namespace: "test-namespace",
 	},
 	Data: map[string][]byte{

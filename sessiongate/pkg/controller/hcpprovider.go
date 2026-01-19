@@ -17,23 +17,28 @@ package controller
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	certificatesv1 "k8s.io/api/certificates/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	kubeinformers "k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/tools/cache"
+	"k8s.io/client-go/util/workqueue"
+	"k8s.io/klog/v2"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 
+	"github.com/Azure/ARO-HCP/sessiongate/pkg/mc"
 	certificatesv1alpha1 "github.com/openshift/hypershift/api/certificates/v1alpha1"
 	hypershiftv1beta1 "github.com/openshift/hypershift/api/hypershift/v1beta1"
 	hypershiftclientset "github.com/openshift/hypershift/client/clientset/clientset"
 	certificatesclientv1alpha1 "github.com/openshift/hypershift/client/clientset/clientset/typed/certificates/v1alpha1"
-
-	"github.com/Azure/ARO-HCP/sessiongate/pkg/mc"
+	hypershiftinformers "github.com/openshift/hypershift/client/informers/externalversions"
 )
 
 const (
@@ -73,7 +78,11 @@ func NewAKSManagermentClusterBuilder(azureCredentials azcore.TokenCredential) Ma
 			return nil, fmt.Errorf("failed to create certificates clientset: %w", err)
 		}
 		return &ManagementClusterProvider{
-			HypershiftClient:   hypershiftClientset,
+			HypershiftClient: hypershiftClientset,
+			HypershiftInformers: hypershiftinformers.NewSharedInformerFactoryWithOptions(
+				hypershiftClientset,
+				time.Second*300,
+			),
 			CertificatesClient: certificatesClientset,
 			KubeClient:         kubeClient,
 			KubeInformers: kubeinformers.NewSharedInformerFactoryWithOptions(
@@ -83,34 +92,36 @@ func NewAKSManagermentClusterBuilder(azureCredentials azcore.TokenCredential) Ma
 					opts.LabelSelector = ManagedByLabelSelector()
 				}),
 			),
+			stopCh: make(chan struct{}),
 		}, nil
 	}
 }
 
 // managementClusterProvider implements ManagementClusterProvider
 type ManagementClusterProvider struct {
-	HypershiftClient   hypershiftclientset.Interface
-	CertificatesClient certificatesclientv1alpha1.CertificatesV1alpha1Interface
-	KubeClient         kubernetes.Interface
-	KubeInformers      kubeinformers.SharedInformerFactory
+	HypershiftClient    hypershiftclientset.Interface
+	HypershiftInformers hypershiftinformers.SharedInformerFactory
+	CertificatesClient  certificatesclientv1alpha1.CertificatesV1alpha1Interface
+	KubeClient          kubernetes.Interface
+	KubeInformers       kubeinformers.SharedInformerFactory
+	stopCh              chan struct{}
 }
 
 func (d *ManagementClusterProvider) GetHostedControlPlane(ctx context.Context, namespace string) (*hypershiftv1beta1.HostedControlPlane, error) {
-	hcpList, err := d.HypershiftClient.HypershiftV1beta1().HostedControlPlanes(namespace).List(ctx, metav1.ListOptions{})
+	hcpList, err := d.HypershiftInformers.Hypershift().V1beta1().HostedControlPlanes().Lister().HostedControlPlanes(namespace).List(labels.Everything())
 	if err != nil {
 		return nil, fmt.Errorf("failed to list HostedControlPlanes: %w", err)
 	}
-	if len(hcpList.Items) == 0 {
+	if len(hcpList) == 0 {
 		return nil, apierrors.NewNotFound(
 			schema.GroupResource{Group: "hypershift.openshift.io", Resource: "hostedcontrolplanes"},
 			namespace,
 		)
 	}
-	if len(hcpList.Items) > 1 {
+	if len(hcpList) > 1 {
 		return nil, fmt.Errorf("multiple HostedControlPlane found for namespace %s", namespace)
 	}
-	hcp := hcpList.Items[0]
-	return &hcp, nil
+	return hcpList[0], nil
 }
 
 func (d *ManagementClusterProvider) GetCSR(ctx context.Context, name string) (*certificatesv1.CertificateSigningRequest, error) {
@@ -118,12 +129,108 @@ func (d *ManagementClusterProvider) GetCSR(ctx context.Context, name string) (*c
 }
 
 func (d *ManagementClusterProvider) GetCSRApproval(ctx context.Context, hostedControlPlaneNamespace, name string) (*certificatesv1alpha1.CertificateSigningRequestApproval, error) {
-	approval, err := d.CertificatesClient.CertificateSigningRequestApprovals(hostedControlPlaneNamespace).Get(ctx, name, metav1.GetOptions{})
-	if err != nil {
-		if apierrors.IsNotFound(err) {
-			return nil, err
-		}
-		return nil, fmt.Errorf("failed to get CertificateSigningRequestApproval: %w", err)
+	return d.HypershiftInformers.Certificates().V1alpha1().CertificateSigningRequestApprovals().Lister().CertificateSigningRequestApprovals(hostedControlPlaneNamespace).Get(name)
+}
+
+func NewManagementClusterInventory(providerBuilder ManagementClusterProviderBuilder, sessionWorkQueue workqueue.TypedRateLimitingInterface[cache.ObjectName]) *ManagementClusterInventory {
+	return &ManagementClusterInventory{
+		providers:        make(map[string]*ManagementClusterProvider),
+		providerBuilder:  providerBuilder,
+		sessionWorkQueue: sessionWorkQueue,
+		mutex:            sync.Mutex{},
 	}
-	return approval, nil
+}
+
+type ManagementClusterInventory struct {
+	providers        map[string]*ManagementClusterProvider
+	mutex            sync.Mutex
+	providerBuilder  ManagementClusterProviderBuilder
+	sessionWorkQueue workqueue.TypedRateLimitingInterface[cache.ObjectName]
+}
+
+func (i *ManagementClusterInventory) Register(ctx context.Context, resourceId string) error {
+	i.mutex.Lock()
+	defer i.mutex.Unlock()
+	if _, ok := i.providers[resourceId]; ok {
+		return nil
+	}
+
+	klog.InfoS("building management cluster provider", "resourceID", resourceId)
+	provider, err := i.providerBuilder(ctx, resourceId)
+	if err != nil {
+		return fmt.Errorf("failed to create management cluster provider: %w", err)
+	}
+
+	klog.InfoS("registering management cluster provider informers with work queue", "resourceID", resourceId)
+
+	// Register CSR informer
+	csrInformer := provider.KubeInformers.Certificates().V1().CertificateSigningRequests().Informer()
+	if err := registerInformer(csrInformer, keyForOwningSession, i.sessionWorkQueue); err != nil {
+		return fmt.Errorf("failed to register CSR informer: %w", err)
+	}
+
+	// Register CSR Approval informer
+	csrApprovalInformer := provider.HypershiftInformers.Certificates().V1alpha1().CertificateSigningRequestApprovals().Informer()
+	if err := registerInformer(csrApprovalInformer, keyForOwningSession, i.sessionWorkQueue); err != nil {
+		return fmt.Errorf("failed to register CSR approval informer: %w", err)
+	}
+
+	// Register HostedControlPlane informer
+	hcpInformer := provider.HypershiftInformers.Hypershift().V1beta1().HostedControlPlanes().Informer()
+	if err := registerInformer(hcpInformer, keyForOwningSession, i.sessionWorkQueue); err != nil {
+		return fmt.Errorf("failed to register HCP informer: %w", err)
+	}
+
+	klog.InfoS("starting management cluster provider informers", "resourceID", resourceId)
+	provider.KubeInformers.Start(provider.stopCh)
+	provider.HypershiftInformers.Start(provider.stopCh)
+
+	i.providers[resourceId] = provider
+	return nil
+}
+
+func (i *ManagementClusterInventory) Unregister(resourceId string) error {
+	i.mutex.Lock()
+	defer i.mutex.Unlock()
+
+	provider, ok := i.providers[resourceId]
+	if !ok {
+		return fmt.Errorf("management cluster provider not found: %s", resourceId)
+	}
+
+	klog.InfoS("unregistering management cluster provider", "resourceID", resourceId)
+
+	// Stop informers
+	close(provider.stopCh)
+	provider.HypershiftInformers.Shutdown()
+	provider.KubeInformers.Shutdown()
+
+	delete(i.providers, resourceId)
+	return nil
+}
+
+func (i *ManagementClusterInventory) GetProvider(ctx context.Context, resourceId string, timeout time.Duration) (*ManagementClusterProvider, error) {
+	i.mutex.Lock()
+	provider, ok := i.providers[resourceId]
+	i.mutex.Unlock()
+
+	if !ok {
+		return nil, fmt.Errorf("management cluster provider not found: %s", resourceId)
+	}
+
+	// Wait for caches to sync with timeout
+	timeoutCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	cachesToSync := []cache.InformerSynced{
+		provider.KubeInformers.Certificates().V1().CertificateSigningRequests().Informer().HasSynced,
+		provider.HypershiftInformers.Certificates().V1alpha1().CertificateSigningRequestApprovals().Informer().HasSynced,
+		provider.HypershiftInformers.Hypershift().V1beta1().HostedControlPlanes().Informer().HasSynced,
+	}
+
+	if !cache.WaitForCacheSync(timeoutCtx.Done(), cachesToSync...) {
+		return nil, fmt.Errorf("timeout waiting for caches to sync for management cluster: %s", resourceId)
+	}
+
+	return provider, nil
 }
