@@ -149,6 +149,10 @@ clouds:
               kubeStateMetrics:
                 image:
                   digest: sha256:377bd55d97824dfee27b3c577869bc793fc3970623433627c7f0ee1b1b74e725 # v2.15.0-7
+              admissionWebhook:
+                patch:
+                  image:
+                    digest: sha256:e8825994b7a2c7497375a9b945f386506ca6a3eda80b89b74ef2db743f66a5ea # v1.5.2
           # MC cluster settings
           mgmt:
             prometheus:
@@ -164,6 +168,10 @@ clouds:
               kubeStateMetrics:
                 image:
                   digest: sha256:377bd55d97824dfee27b3c577869bc793fc3970623433627c7f0ee1b1b74e725 # v2.15.0-7
+              admissionWebhook:
+                patch:
+                  image:
+                    digest: sha256:e8825994b7a2c7497375a9b945f386506ca6a3eda80b89b74ef2db743f66a5ea # v1.5.2
           # RP Frontend
           frontend:
             image:
@@ -248,6 +256,10 @@ clouds:
               kubeStateMetrics:
                 image:
                   digest: sha256:377bd55d97824dfee27b3c577869bc793fc3970623433627c7f0ee1b1b74e725 # v2.15.0-7
+              admissionWebhook:
+                patch:
+                  image:
+                    digest: sha256:e8825994b7a2c7497375a9b945f386506ca6a3eda80b89b74ef2db743f66a5ea # v1.5.2
           # MC cluster settings
           mgmt:
             prometheus:
@@ -263,6 +275,10 @@ clouds:
               kubeStateMetrics:
                 image:
                   digest: sha256:377bd55d97824dfee27b3c577869bc793fc3970623433627c7f0ee1b1b74e725 # v2.15.0-7
+              admissionWebhook:
+                patch:
+                  image:
+                    digest: sha256:e8825994b7a2c7497375a9b945f386506ca6a3eda80b89b74ef2db743f66a5ea # v1.5.2
           # RP Frontend
           frontend:
             image:

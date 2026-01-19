@@ -736,14 +736,12 @@
                   "type": "object",
                   "additionalProperties": false,
                   "properties": {
-                    "registry": {
-                      "type": "string"
-                    },
                     "repository": {
                       "type": "string"
                     },
-                    "tag": {
-                      "type": "string"
+                    "digest": {
+                      "type": "string",
+                      "pattern": "^$|^sha256:[a-fA-F0-9]{64}$"
                     }
                   }
                 }
