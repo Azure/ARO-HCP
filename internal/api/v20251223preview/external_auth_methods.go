@@ -70,7 +70,7 @@ func (h *ExternalAuth) GetVersion() api.Version {
 	return versionedInterface
 }
 
-func (h *ExternalAuth) ConvertToInternal() *api.HCPOpenShiftClusterExternalAuth {
+func (h *ExternalAuth) ConvertToInternal() (*api.HCPOpenShiftClusterExternalAuth, error) {
 	out := &api.HCPOpenShiftClusterExternalAuth{}
 
 	if h.ID != nil {
@@ -129,7 +129,7 @@ func (h *ExternalAuth) ConvertToInternal() *api.HCPOpenShiftClusterExternalAuth 
 		}
 	}
 
-	return out
+	return out, nil
 }
 
 func normalizeExternalAuthClientProfile(p *generated.ExternalAuthClientProfile, out *api.ExternalAuthClientProfile) {

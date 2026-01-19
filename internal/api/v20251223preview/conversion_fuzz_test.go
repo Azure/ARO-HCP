@@ -20,6 +20,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/stretchr/testify/require"
 
 	"k8s.io/apimachinery/pkg/api/equality"
 
@@ -102,7 +103,8 @@ func roundTripHCPCluster(t *testing.T, original *api.HCPOpenShiftCluster) {
 	v := version{}
 	externalObj := v.NewHCPOpenShiftCluster(original)
 
-	roundTrippedObj := externalObj.ConvertToInternal()
+	roundTrippedObj, err := externalObj.ConvertToInternal()
+	require.NoError(t, err)
 
 	// we compare the JSON here because many of these types have private fields that cannot be introspected
 	if !equality.Semantic.DeepEqual(original, roundTrippedObj) {
@@ -119,7 +121,8 @@ func roundTripNodePool(t *testing.T, original *api.HCPOpenShiftClusterNodePool) 
 	v := version{}
 	externalObj := v.NewHCPOpenShiftClusterNodePool(original)
 
-	roundTrippedObj := externalObj.ConvertToInternal()
+	roundTrippedObj, err := externalObj.ConvertToInternal()
+	require.NoError(t, err)
 
 	// we compare the JSON here because many of these types have private fields that cannot be introspected
 	if !equality.Semantic.DeepEqual(original, roundTrippedObj) {
@@ -136,7 +139,8 @@ func roundTripExternalAuth(t *testing.T, original *api.HCPOpenShiftClusterExtern
 	v := version{}
 	externalObj := v.NewHCPOpenShiftClusterExternalAuth(original)
 
-	roundTrippedObj := externalObj.ConvertToInternal()
+	roundTrippedObj, err := externalObj.ConvertToInternal()
+	require.NoError(t, err)
 
 	// we compare the JSON here because many of these types have private fields that cannot be introspected
 	if !equality.Semantic.DeepEqual(original, roundTrippedObj) {

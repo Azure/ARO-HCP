@@ -95,7 +95,7 @@ type VersionedCreatableResource[InternalAPIType any] interface {
 	VersionedResource
 	NewExternal() any
 	SetDefaultValues(any) error
-	ConvertToInternal() *InternalAPIType
+	ConvertToInternal() (*InternalAPIType, error)
 }
 
 type VersionedHCPOpenShiftCluster VersionedCreatableResource[HCPOpenShiftCluster]

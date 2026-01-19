@@ -25,6 +25,8 @@ import (
 	"k8s.io/apimachinery/pkg/api/validate"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
@@ -96,8 +98,11 @@ func validateOperatorAuthenticationAgainstIdentities(ctx context.Context, op ope
 		}
 	}
 
-	tallyIdentity := func(identity string, fldPath *field.Path) {
-		key := strings.ToLower(identity)
+	tallyIdentity := func(identity *azcorearm.ResourceID, fldPath *field.Path) {
+		if identity == nil {
+			return
+		}
+		key := strings.ToLower(identity.String())
 		if _, ok := userAssignedIdentities[key]; ok {
 			userAssignedIdentities[key]++
 		} else {
@@ -110,7 +115,7 @@ func validateOperatorAuthenticationAgainstIdentities(ctx context.Context, op ope
 		tallyIdentity(operatorIdentity, fldPath)
 	}
 
-	if serviceManagedIdentity := newCluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity; len(serviceManagedIdentity) != 0 {
+	if serviceManagedIdentity := newCluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity; serviceManagedIdentity != nil {
 		fldPath := field.NewPath("customerProperties", "platform", "operatorsAuthentication", "userAssignedIdentities", "serviceManagedIdentity")
 		tallyIdentity(serviceManagedIdentity, fldPath)
 	}
@@ -134,8 +139,12 @@ func validateOperatorAuthenticationAgainstIdentities(ctx context.Context, op ope
 
 	// Data-plane operator identities must not be assigned to this resource.
 	for operatorName, operatorIdentity := range newCluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators {
+		if operatorIdentity == nil {
+			// other validation fails on this being nil
+			continue
+		}
 		fldPath := field.NewPath("customerProperties", "platform", "operatorsAuthentication", "userAssignedIdentities", "dataPlaneOperators").Key(operatorName)
-		key := strings.ToLower(operatorIdentity)
+		key := strings.ToLower(operatorIdentity.String())
 		if _, ok := userAssignedIdentities[key]; ok {
 			errs = append(errs, field.Invalid(fldPath, operatorIdentity, "cannot use identity assigned to this resource by .identities.userAssignedIdentities"))
 		}
@@ -153,20 +162,20 @@ func validateResourceIDsAgainstClusterID(ctx context.Context, op operation.Opera
 
 	// Validate that managed resource group is different from cluster resource group
 	errs = append(errs, DifferentResourceGroupName(ctx, op, field.NewPath("customerProperties", "platform", "managedResourceGroup"), &newCluster.CustomerProperties.Platform.ManagedResourceGroup, nil, newCluster.ID.ResourceGroupName)...)
-	errs = append(errs, SameSubscription(ctx, op, field.NewPath("customerProperties", "platform", "subnetId"), &newCluster.CustomerProperties.Platform.SubnetID, nil, newCluster.ID.SubscriptionID)...)
-	errs = append(errs, DifferentResourceGroupNameFromResourceID(ctx, op, field.NewPath("customerProperties", "platform", "subnetId"), &newCluster.CustomerProperties.Platform.SubnetID, nil, newCluster.CustomerProperties.Platform.ManagedResourceGroup)...)
+	errs = append(errs, SameSubscription(ctx, op, field.NewPath("customerProperties", "platform", "subnetId"), newCluster.CustomerProperties.Platform.SubnetID, nil, newCluster.ID.SubscriptionID)...)
+	errs = append(errs, DifferentResourceGroupNameFromResourceID(ctx, op, field.NewPath("customerProperties", "platform", "subnetId"), newCluster.CustomerProperties.Platform.SubnetID, nil, newCluster.CustomerProperties.Platform.ManagedResourceGroup)...)
 
 	for operatorName, operatorIdentity := range newCluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators {
 		fldPath := field.NewPath("customerProperties", "platform", "operatorsAuthentication", "userAssignedIdentities", "controlPlaneOperators").Key(operatorName)
-		errs = append(errs, ValidateUserAssignedIdentityLocation(ctx, op, fldPath, &operatorIdentity, nil, newCluster.ID.SubscriptionID, newCluster.CustomerProperties.Platform.ManagedResourceGroup)...)
+		errs = append(errs, ValidateUserAssignedIdentityLocation(ctx, op, fldPath, operatorIdentity, nil, newCluster.ID.SubscriptionID, newCluster.CustomerProperties.Platform.ManagedResourceGroup)...)
 	}
 	for operatorName, operatorIdentity := range newCluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators {
 		fldPath := field.NewPath("customerProperties", "platform", "operatorsAuthentication", "userAssignedIdentities", "dataPlaneOperators").Key(operatorName)
-		errs = append(errs, ValidateUserAssignedIdentityLocation(ctx, op, fldPath, &operatorIdentity, nil, newCluster.ID.SubscriptionID, newCluster.CustomerProperties.Platform.ManagedResourceGroup)...)
+		errs = append(errs, ValidateUserAssignedIdentityLocation(ctx, op, fldPath, operatorIdentity, nil, newCluster.ID.SubscriptionID, newCluster.CustomerProperties.Platform.ManagedResourceGroup)...)
 	}
 	errs = append(errs, ValidateUserAssignedIdentityLocation(ctx, op,
 		field.NewPath("customerProperties", "platform", "operatorsAuthentication", "userAssignedIdentities", "serviceManagedIdentity"),
-		&newCluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity, nil,
+		newCluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity, nil,
 		newCluster.ID.SubscriptionID, newCluster.CustomerProperties.Platform.ManagedResourceGroup)...)
 
 	return errs
@@ -468,9 +477,9 @@ func validateServiceProviderAPIProfile(ctx context.Context, op operation.Operati
 
 var (
 	toPlatformManagedResourceGroup    = func(oldObj *api.CustomerPlatformProfile) *string { return &oldObj.ManagedResourceGroup }
-	toPlatformSubnetID                = func(oldObj *api.CustomerPlatformProfile) *string { return &oldObj.SubnetID }
+	toPlatformSubnetID                = func(oldObj *api.CustomerPlatformProfile) *azcorearm.ResourceID { return oldObj.SubnetID }
 	toPlatformOutboundType            = func(oldObj *api.CustomerPlatformProfile) *api.OutboundType { return &oldObj.OutboundType }
-	toPlatformNetworkSecurityGroupID  = func(oldObj *api.CustomerPlatformProfile) *string { return &oldObj.NetworkSecurityGroupID }
+	toPlatformNetworkSecurityGroupID  = func(oldObj *api.CustomerPlatformProfile) *azcorearm.ResourceID { return oldObj.NetworkSecurityGroupID }
 	toPlatformOperatorsAuthentication = func(oldObj *api.CustomerPlatformProfile) *api.OperatorsAuthenticationProfile {
 		return &oldObj.OperatorsAuthentication
 	}
@@ -484,18 +493,18 @@ func validateCustomerPlatformProfile(ctx context.Context, op operation.Operation
 	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("managedResourceGroup"), &newObj.ManagedResourceGroup, safe.Field(oldObj, toPlatformManagedResourceGroup))...)
 
 	//SubnetID                string                         `json:"subnetId,omitempty"`
-	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("subnetId"), &newObj.SubnetID, safe.Field(oldObj, toPlatformSubnetID))...)
-	errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("subnetId"), &newObj.SubnetID, safe.Field(oldObj, toPlatformSubnetID))...)
-	errs = append(errs, DifferentResourceGroupNameFromResourceID(ctx, op, fldPath.Child("subnetId"), &newObj.SubnetID, nil, newObj.ManagedResourceGroup)...)
+	errs = append(errs, validate.ImmutableByReflect(ctx, op, fldPath.Child("subnetId"), newObj.SubnetID, safe.Field(oldObj, toPlatformSubnetID))...)
+	errs = append(errs, validate.RequiredPointer(ctx, op, fldPath.Child("subnetId"), newObj.SubnetID, safe.Field(oldObj, toPlatformSubnetID))...)
+	errs = append(errs, DifferentResourceGroupNameFromResourceID(ctx, op, fldPath.Child("subnetId"), newObj.SubnetID, nil, newObj.ManagedResourceGroup)...)
 
 	//OutboundType            OutboundType                   `json:"outboundType,omitempty"`
 	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("outboundType"), &newObj.OutboundType, safe.Field(oldObj, toPlatformOutboundType))...)
 	errs = append(errs, validate.Enum(ctx, op, fldPath.Child("outboundType"), &newObj.OutboundType, nil, api.ValidOutboundTypes)...)
 
 	//NetworkSecurityGroupID  string                         `json:"networkSecurityGroupId,omitempty"`
-	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("networkSecurityGroupId"), &newObj.NetworkSecurityGroupID, safe.Field(oldObj, toPlatformNetworkSecurityGroupID))...)
-	errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("networkSecurityGroupId"), &newObj.NetworkSecurityGroupID, safe.Field(oldObj, toPlatformNetworkSecurityGroupID))...)
-	errs = append(errs, RestrictedResourceIDString(ctx, op, fldPath.Child("networkSecurityGroupId"), &newObj.NetworkSecurityGroupID, safe.Field(oldObj, toPlatformNetworkSecurityGroupID), "Microsoft.Network/networkSecurityGroups")...)
+	errs = append(errs, validate.ImmutableByReflect(ctx, op, fldPath.Child("networkSecurityGroupId"), newObj.NetworkSecurityGroupID, safe.Field(oldObj, toPlatformNetworkSecurityGroupID))...)
+	errs = append(errs, validate.RequiredPointer(ctx, op, fldPath.Child("networkSecurityGroupId"), newObj.NetworkSecurityGroupID, safe.Field(oldObj, toPlatformNetworkSecurityGroupID))...)
+	errs = append(errs, RestrictedResourceIDWithResourceGroup(ctx, op, fldPath.Child("networkSecurityGroupId"), newObj.NetworkSecurityGroupID, safe.Field(oldObj, toPlatformNetworkSecurityGroupID), "Microsoft.Network/networkSecurityGroups")...)
 
 	//OperatorsAuthentication OperatorsAuthenticationProfile `json:"operatorsAuthentication,omitempty"`
 	errs = append(errs, validate.ImmutableByReflect(ctx, op, fldPath.Child("operatorsAuthentication"), &newObj.OperatorsAuthentication, safe.Field(oldObj, toPlatformOperatorsAuthentication))...)
@@ -535,9 +544,15 @@ func validateOperatorsAuthenticationProfile(ctx context.Context, op operation.Op
 }
 
 var (
-	toUserAssignedIdentitiesControlPlaneOperators  = func(oldObj *api.UserAssignedIdentitiesProfile) map[string]string { return oldObj.ControlPlaneOperators }
-	toUserAssignedIdentitiesDataPlaneOperators     = func(oldObj *api.UserAssignedIdentitiesProfile) map[string]string { return oldObj.DataPlaneOperators }
-	toUserAssignedIdentitiesServiceManagedIdentity = func(oldObj *api.UserAssignedIdentitiesProfile) *string { return &oldObj.ServiceManagedIdentity }
+	toUserAssignedIdentitiesControlPlaneOperators = func(oldObj *api.UserAssignedIdentitiesProfile) map[string]*azcorearm.ResourceID {
+		return oldObj.ControlPlaneOperators
+	}
+	toUserAssignedIdentitiesDataPlaneOperators = func(oldObj *api.UserAssignedIdentitiesProfile) map[string]*azcorearm.ResourceID {
+		return oldObj.DataPlaneOperators
+	}
+	toUserAssignedIdentitiesServiceManagedIdentity = func(oldObj *api.UserAssignedIdentitiesProfile) *azcorearm.ResourceID {
+		return oldObj.ServiceManagedIdentity
+	}
 )
 
 func validateUserAssignedIdentitiesProfile(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *api.UserAssignedIdentitiesProfile) field.ErrorList {
@@ -553,7 +568,7 @@ func validateUserAssignedIdentitiesProfile(ctx context.Context, op operation.Ope
 	errs = append(errs, validate.EachMapVal(ctx, op, fldPath.Child("controlPlaneOperators"),
 		newObj.ControlPlaneOperators, safe.Field(oldObj, toUserAssignedIdentitiesControlPlaneOperators),
 		nil,
-		validate.RequiredValue,
+		validate.RequiredPointer,
 	)...)
 	errs = append(errs, validate.EachMapVal(ctx, op, fldPath.Child("controlPlaneOperators"),
 		newObj.ControlPlaneOperators, safe.Field(oldObj, toUserAssignedIdentitiesControlPlaneOperators),
@@ -571,7 +586,7 @@ func validateUserAssignedIdentitiesProfile(ctx context.Context, op operation.Ope
 	errs = append(errs, validate.EachMapVal(ctx, op, fldPath.Child("dataPlaneOperators"),
 		newObj.DataPlaneOperators, safe.Field(oldObj, toUserAssignedIdentitiesDataPlaneOperators),
 		nil,
-		validate.RequiredValue,
+		validate.RequiredPointer,
 	)...)
 	errs = append(errs, validate.EachMapVal(ctx, op, fldPath.Child("dataPlaneOperators"),
 		newObj.DataPlaneOperators, safe.Field(oldObj, toUserAssignedIdentitiesDataPlaneOperators),
@@ -580,8 +595,8 @@ func validateUserAssignedIdentitiesProfile(ctx context.Context, op operation.Ope
 	)...)
 
 	//ServiceManagedIdentity string            `json:"serviceManagedIdentity,omitempty"`
-	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("serviceManagedIdentity"), &newObj.ServiceManagedIdentity, safe.Field(oldObj, toUserAssignedIdentitiesServiceManagedIdentity))...)
-	errs = append(errs, RestrictedResourceIDString(ctx, op, fldPath.Child("serviceManagedIdentity"), &newObj.ServiceManagedIdentity, safe.Field(oldObj, toUserAssignedIdentitiesServiceManagedIdentity), "Microsoft.ManagedIdentity/userAssignedIdentities")...)
+	errs = append(errs, validate.ImmutableByReflect(ctx, op, fldPath.Child("serviceManagedIdentity"), newObj.ServiceManagedIdentity, safe.Field(oldObj, toUserAssignedIdentitiesServiceManagedIdentity))...)
+	errs = append(errs, RestrictedResourceIDWithResourceGroup(ctx, op, fldPath.Child("serviceManagedIdentity"), newObj.ServiceManagedIdentity, safe.Field(oldObj, toUserAssignedIdentitiesServiceManagedIdentity), "Microsoft.ManagedIdentity/userAssignedIdentities")...)
 
 	return errs
 }
@@ -792,7 +807,7 @@ func validateManagedServiceIdentity(ctx context.Context, op operation.Operation,
 	)...)
 	errs = append(errs, EachMapKey(ctx, op, fldPath.Child("userAssignedIdentities"),
 		newObj.UserAssignedIdentities, safe.Field(oldObj, toManagedServiceIdentityUserAssignedIdentities),
-		newRestrictedResourceID("Microsoft.ManagedIdentity/userAssignedIdentities"),
+		newRestrictedResourceIDString("Microsoft.ManagedIdentity/userAssignedIdentities"),
 	)...)
 	errs = append(errs, validate.EachMapVal(ctx, op, fldPath.Child("userAssignedIdentities"),
 		newObj.UserAssignedIdentities, safe.Field(oldObj, toManagedServiceIdentityUserAssignedIdentities),

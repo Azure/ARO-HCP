@@ -46,6 +46,7 @@
 		},
 		"provisioningState": "Accepted",
 		"version": {
+			"id": "4.20",
 			"channelGroup": "stable"
 		}
 	},

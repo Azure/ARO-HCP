@@ -20,7 +20,9 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/stretchr/testify/require"
 
+	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/utils/ptr"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -52,7 +54,7 @@ func TestSizeGiBRoundTrip(t *testing.T) {
 						ChannelGroup: "stable",
 					},
 					Platform: api.NodePoolPlatformProfile{
-						SubnetID: "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/myRg/providers/Microsoft.Network/virtualNetworks/vnet/subnets/subnet",
+						SubnetID: api.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/myRg/providers/Microsoft.Network/virtualNetworks/vnet/subnets/subnet")),
 						VMSize:   "Standard_D2s_v3",
 						OSDisk: api.OSDiskProfile{
 							SizeGiB:                ptr.To(int32(128)),
@@ -263,12 +265,12 @@ func TestNormalizeOSDiskProfile(t *testing.T) {
 			existing: &api.OSDiskProfile{
 				SizeGiB:                ptr.To(int32(100)),
 				DiskStorageAccountType: api.DiskStorageAccountTypePremium_LRS,
-				EncryptionSetID:        "/subscriptions/test/encryption",
+				EncryptionSetID:        api.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.Compute/diskEncryptionSets/test-encryption")),
 			},
 			expected: &api.OSDiskProfile{
 				SizeGiB:                ptr.To(int32(100)),
 				DiskStorageAccountType: api.DiskStorageAccountTypePremium_LRS,
-				EncryptionSetID:        "/subscriptions/test/encryption",
+				EncryptionSetID:        api.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.Compute/diskEncryptionSets/test-encryption")),
 			},
 		},
 	}
@@ -276,7 +278,7 @@ func TestNormalizeOSDiskProfile(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := *tt.existing
-			normalizeOSDiskProfile(tt.input, &result)
+			require.Len(t, normalizeOSDiskProfile(field.NewPath("t"), tt.input, &result), 0)
 			if !reflect.DeepEqual(&result, tt.expected) {
 				t.Errorf("normalizeOSDiskProfile() mismatch:\n%s", cmp.Diff(tt.expected, &result))
 			}
@@ -295,12 +297,12 @@ func TestNewOSDiskProfile(t *testing.T) {
 			input: &api.OSDiskProfile{
 				SizeGiB:                nil,
 				DiskStorageAccountType: api.DiskStorageAccountTypePremium_LRS,
-				EncryptionSetID:        "/subscriptions/test/encryption",
+				EncryptionSetID:        api.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.Compute/diskEncryptionSets/test-encryption")),
 			},
 			expected: generated.OsDiskProfile{
 				SizeGiB:                nil,
 				DiskStorageAccountType: ptr.To(generated.DiskStorageAccountTypePremiumLRS),
-				EncryptionSetID:        ptr.To("/subscriptions/test/encryption"),
+				EncryptionSetID:        ptr.To("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.Compute/diskEncryptionSets/test-encryption"),
 			},
 		},
 		{
@@ -308,7 +310,7 @@ func TestNewOSDiskProfile(t *testing.T) {
 			input: &api.OSDiskProfile{
 				SizeGiB:                ptr.To(int32(128)),
 				DiskStorageAccountType: api.DiskStorageAccountTypeStandardSSD_LRS,
-				EncryptionSetID:        "",
+				EncryptionSetID:        nil,
 			},
 			expected: generated.OsDiskProfile{
 				SizeGiB:                ptr.To(int32(128)),
@@ -339,7 +341,8 @@ func TestNewOSDiskProfile(t *testing.T) {
 
 func roundTripInternalNodePool(t *testing.T, original *api.HCPOpenShiftClusterNodePool) {
 	v := version{}
-	roundTrippedObj := v.NewHCPOpenShiftClusterNodePool(original).ConvertToInternal()
+	roundTrippedObj, err := v.NewHCPOpenShiftClusterNodePool(original).ConvertToInternal()
+	require.NoError(t, err)
 
 	// we compare using DeepEqual here because many of these types have private fields that cannot be introspected
 	if !reflect.DeepEqual(original, roundTrippedObj) {

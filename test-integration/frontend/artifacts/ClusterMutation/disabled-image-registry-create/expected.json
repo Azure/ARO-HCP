@@ -1,65 +1,66 @@
 {
-  "id": "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/valid-disable-image-registry",
-  "identity": {
-    "type": "UserAssigned",
-    "userAssignedIdentities": {
-      "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/different-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/service-managed-identity": {
-        "clientId": "service-managed-identity_fake-client-id",
-        "principalId": "service-managed-identity_fake-principal-id"
-      }
-    }
-  },
-  "location": "fake-location",
-  "name": "valid-disable-image-registry",
-  "properties": {
-    "api": {
-      "visibility": "Public"
-    },
-    "autoscaling": {
-      "maxNodeProvisionTimeSeconds": 900,
-      "maxPodGracePeriodSeconds": 600,
-      "podPriorityThreshold": -10
-    },
-    "clusterImageRegistry": {
-      "state": "Disabled"
-    },
-    "etcd": {
-      "dataEncryption": {
-        "customerManaged": {
-          "encryptionType": "KMS",
-          "kms": {
-            "activeKey": {
-              "name": "encryptionKeyName",
-              "vaultName": "keyVaultName",
-              "version": "2024-12-01-preview"
-            }
-          }
-        },
-        "keyManagementMode": "CustomerManaged"
-      }
-    },
-    "network": {
-      "hostPrefix": 23,
-      "machineCidr": "10.0.0.0/16",
-      "networkType": "OVNKubernetes",
-      "podCidr": "10.128.0.0/14",
-      "serviceCidr": "172.30.0.0/16"
-    },
-    "platform": {
-      "managedResourceGroup": "managed-resource-group-name",
-      "networkSecurityGroupId": "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.Network/networkSecurityGroups/nsg",
-      "operatorsAuthentication": {
-        "userAssignedIdentities": {
-          "serviceManagedIdentity": "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/different-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/service-managed-identity"
-        }
-      },
-      "outboundType": "LoadBalancer",
-      "subnetId": "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/different-resource-group/providers/Microsoft.Network/virtualNetworks/vnet/subnets/subnet"
-    },
-    "provisioningState": "Accepted",
-    "version": {
-      "channelGroup": "stable"
-    }
-  },
-  "type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters"
+	"id": "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/valid-disable-image-registry",
+	"identity": {
+		"type": "UserAssigned",
+		"userAssignedIdentities": {
+			"/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/different-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/service-managed-identity": {
+				"clientId": "service-managed-identity_fake-client-id",
+				"principalId": "service-managed-identity_fake-principal-id"
+			}
+		}
+	},
+	"location": "fake-location",
+	"name": "valid-disable-image-registry",
+	"properties": {
+		"api": {
+			"visibility": "Public"
+		},
+		"autoscaling": {
+			"maxNodeProvisionTimeSeconds": 900,
+			"maxPodGracePeriodSeconds": 600,
+			"podPriorityThreshold": -10
+		},
+		"clusterImageRegistry": {
+			"state": "Disabled"
+		},
+		"etcd": {
+			"dataEncryption": {
+				"customerManaged": {
+					"encryptionType": "KMS",
+					"kms": {
+						"activeKey": {
+							"name": "encryptionKeyName",
+							"vaultName": "keyVaultName",
+							"version": "2024-12-01-preview"
+						}
+					}
+				},
+				"keyManagementMode": "CustomerManaged"
+			}
+		},
+		"network": {
+			"hostPrefix": 23,
+			"machineCidr": "10.0.0.0/16",
+			"networkType": "OVNKubernetes",
+			"podCidr": "10.128.0.0/14",
+			"serviceCidr": "172.30.0.0/16"
+		},
+		"platform": {
+			"managedResourceGroup": "managed-resource-group-name",
+			"networkSecurityGroupId": "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.Network/networkSecurityGroups/nsg",
+			"operatorsAuthentication": {
+				"userAssignedIdentities": {
+					"serviceManagedIdentity": "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/different-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/service-managed-identity"
+				}
+			},
+			"outboundType": "LoadBalancer",
+			"subnetId": "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/different-resource-group/providers/Microsoft.Network/virtualNetworks/vnet/subnets/subnet"
+		},
+		"provisioningState": "Accepted",
+		"version": {
+			"id": "4.20",
+			"channelGroup": "stable"
+		}
+	},
+	"type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters"
 }

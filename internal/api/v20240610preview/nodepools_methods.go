@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"strings"
 
+	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/utils/ptr"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -78,8 +79,9 @@ func (h *NodePool) GetVersion() api.Version {
 	return versionedInterface
 }
 
-func (h *NodePool) ConvertToInternal() *api.HCPOpenShiftClusterNodePool {
+func (h *NodePool) ConvertToInternal() (*api.HCPOpenShiftClusterNodePool, error) {
 	out := &api.HCPOpenShiftClusterNodePool{}
+	errs := field.ErrorList{}
 
 	if h.ID != nil {
 		out.ID = api.Must(azcorearm.ParseResourceID(strings.ToLower(*h.ID)))
@@ -134,7 +136,7 @@ func (h *NodePool) ConvertToInternal() *api.HCPOpenShiftClusterNodePool {
 			}
 		}
 		if h.Properties.Platform != nil {
-			normalizeNodePoolPlatform(h.Properties.Platform, &out.Properties.Platform)
+			errs = append(errs, normalizeNodePoolPlatform(field.NewPath("properties", "platform"), h.Properties.Platform, &out.Properties.Platform)...)
 		}
 		if h.Properties.AutoScaling != nil {
 			out.Properties.AutoScaling = &api.NodePoolAutoScaling{}
@@ -184,7 +186,7 @@ func (h *NodePool) ConvertToInternal() *api.HCPOpenShiftClusterNodePool {
 
 	out.Identity = normalizeManagedIdentity(h.Identity)
 
-	return out
+	return out, arm.CloudErrorFromFieldErrors(errs)
 }
 
 func normalizeNodePoolVersion(p *generated.NodePoolVersionProfile, out *api.NodePoolVersionProfile) {
@@ -196,7 +198,9 @@ func normalizeNodePoolVersion(p *generated.NodePoolVersionProfile, out *api.Node
 	}
 }
 
-func normalizeNodePoolPlatform(p *generated.NodePoolPlatformProfile, out *api.NodePoolPlatformProfile) {
+func normalizeNodePoolPlatform(fldPath *field.Path, p *generated.NodePoolPlatformProfile, out *api.NodePoolPlatformProfile) field.ErrorList {
+	errs := field.ErrorList{}
+
 	if p.VMSize != nil {
 		out.VMSize = *p.VMSize
 	}
@@ -207,23 +211,36 @@ func normalizeNodePoolPlatform(p *generated.NodePoolPlatformProfile, out *api.No
 		out.EnableEncryptionAtHost = *p.EnableEncryptionAtHost
 	}
 	if p.OSDisk != nil {
-		normalizeOSDiskProfile(p.OSDisk, &out.OSDisk)
+		errs = append(errs, normalizeOSDiskProfile(fldPath.Child("osDisk"), p.OSDisk, &out.OSDisk)...)
 	}
-	if p.SubnetID != nil {
-		out.SubnetID = *p.SubnetID
+	if p.SubnetID != nil && len(*p.SubnetID) > 0 {
+		if resourceID, err := azcorearm.ParseResourceID(*p.SubnetID); err != nil {
+			errs = append(errs, field.Invalid(fldPath.Child("subnetID"), *p.SubnetID, err.Error()))
+		} else {
+			out.SubnetID = resourceID
+		}
 	}
+	return errs
 }
 
-func normalizeOSDiskProfile(p *generated.OsDiskProfile, out *api.OSDiskProfile) {
+func normalizeOSDiskProfile(fldPath *field.Path, p *generated.OsDiskProfile, out *api.OSDiskProfile) field.ErrorList {
+	errs := field.ErrorList{}
+
 	if p.SizeGiB != nil {
 		out.SizeGiB = p.SizeGiB
 	}
 	if p.DiskStorageAccountType != nil {
 		out.DiskStorageAccountType = api.DiskStorageAccountType(*p.DiskStorageAccountType)
 	}
-	if p.EncryptionSetID != nil {
-		out.EncryptionSetID = *p.EncryptionSetID
+	if p.EncryptionSetID != nil && len(*p.EncryptionSetID) > 0 {
+		if resourceID, err := azcorearm.ParseResourceID(*p.EncryptionSetID); err != nil {
+			errs = append(errs, field.Invalid(fldPath.Child("encryptionSetID"), *p.EncryptionSetID, err.Error()))
+		} else {
+			out.EncryptionSetID = resourceID
+		}
 	}
+
+	return errs
 }
 
 type NodePoolVersionProfile struct {
@@ -258,7 +275,7 @@ func newNodePoolPlatformProfile(from *api.NodePoolPlatformProfile) generated.Nod
 		// Use Ptr (not PtrOrNil) to ensure boolean is always present in JSON response, even when false
 		EnableEncryptionAtHost: api.Ptr(from.EnableEncryptionAtHost),
 		OSDisk:                 api.PtrOrNil(newOSDiskProfile(&from.OSDisk)),
-		SubnetID:               api.PtrOrNil(from.SubnetID),
+		SubnetID:               api.ResourceIDToStringPtr(from.SubnetID),
 	}
 }
 
@@ -269,7 +286,7 @@ func newOSDiskProfile(from *api.OSDiskProfile) generated.OsDiskProfile {
 	return generated.OsDiskProfile{
 		SizeGiB:                from.SizeGiB,
 		DiskStorageAccountType: api.PtrOrNil(generated.DiskStorageAccountType(from.DiskStorageAccountType)),
-		EncryptionSetID:        api.PtrOrNil(from.EncryptionSetID),
+		EncryptionSetID:        api.ResourceIDToStringPtr(from.EncryptionSetID),
 	}
 }
 

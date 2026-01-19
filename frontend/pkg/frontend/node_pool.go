@@ -230,7 +230,10 @@ func decodeDesiredNodePoolCreate(ctx context.Context, azureLocation string) (*ap
 		return nil, utils.TrackError(err)
 	}
 
-	newInternalNodePool := externalNodePoolFromRequest.ConvertToInternal()
+	newInternalNodePool, err := externalNodePoolFromRequest.ConvertToInternal()
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
 	// TrackedResource info doesn't appear to come from the external resource information
 	if len(newInternalNodePool.Name) > 0 && newInternalNodePool.Name != resourceID.Name {
 		return nil, nameResourceIDMismatch(resourceID, newInternalNodePool.Name)
@@ -398,7 +401,10 @@ func decodeDesiredNodePoolReplace(ctx context.Context, oldInternalNodePool *api.
 		return nil, utils.TrackError(err)
 	}
 
-	newInternalNodePool := externalNodePoolFromRequest.ConvertToInternal()
+	newInternalNodePool, err := externalNodePoolFromRequest.ConvertToInternal()
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
 	if len(newInternalNodePool.Name) > 0 && newInternalNodePool.Name != resourceID.Name {
 		return nil, nameResourceIDMismatch(resourceID, newInternalNodePool.Name)
 	}
@@ -407,7 +413,7 @@ func decodeDesiredNodePoolReplace(ctx context.Context, oldInternalNodePool *api.
 	if len(newInternalNodePool.Properties.Version.ID) == 0 {
 		newInternalNodePool.Properties.Version.ID = oldInternalNodePool.Properties.Version.ID
 	}
-	if len(newInternalNodePool.Properties.Platform.SubnetID) == 0 {
+	if newInternalNodePool.Properties.Platform.SubnetID == nil {
 		newInternalNodePool.Properties.Platform.SubnetID = oldInternalNodePool.Properties.Platform.SubnetID
 	}
 
@@ -473,7 +479,10 @@ func decodeDesiredNodePoolPatch(ctx context.Context, oldInternalNodePool *api.HC
 	if err := api.ApplyRequestBody(http.MethodPatch, body, newExternalNodePool); err != nil {
 		return nil, utils.TrackError(err)
 	}
-	newInternalNodePool := newExternalNodePool.ConvertToInternal()
+	newInternalNodePool, err := newExternalNodePool.ConvertToInternal()
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
 	if len(newInternalNodePool.Name) > 0 && newInternalNodePool.Name != resourceID.Name {
 		return nil, nameResourceIDMismatch(resourceID, newInternalNodePool.Name)
 	}
@@ -723,7 +732,10 @@ func (f *Frontend) addDeleteNodePoolToTransaction(ctx context.Context, writer ht
 // the necessary conversions for the API version of the request.
 // TODO remove azureLocation once we have migrated all records to store the azureLocation
 func mergeToInternalNodePool(clusterServiceNode *arohcpv1alpha1.NodePool, internalNodePool *api.HCPOpenShiftClusterNodePool, azureLocation string) (*api.HCPOpenShiftClusterNodePool, error) {
-	mergedOldClusterServiceNodePool := ocm.ConvertCStoNodePool(internalNodePool.ID, azureLocation, clusterServiceNode)
+	mergedOldClusterServiceNodePool, err := ocm.ConvertCStoNodePool(internalNodePool.ID, azureLocation, clusterServiceNode)
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
 
 	// this does not use conversion.CopyReadOnly* because some ServiceProvider properties come from cluster-service-only or live reads
 	mergedOldClusterServiceNodePool.SystemData = internalNodePool.SystemData

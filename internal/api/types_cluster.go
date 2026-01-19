@@ -121,9 +121,9 @@ type ServiceProviderAPIProfile struct {
 // Visibility for (almost) the entire struct is "read create".
 type CustomerPlatformProfile struct {
 	ManagedResourceGroup    string                         `json:"managedResourceGroup,omitempty"`
-	SubnetID                string                         `json:"subnetId,omitempty"`
+	SubnetID                *azcorearm.ResourceID          `json:"subnetId,omitempty"`
 	OutboundType            OutboundType                   `json:"outboundType,omitempty"`
-	NetworkSecurityGroupID  string                         `json:"networkSecurityGroupId,omitempty"`
+	NetworkSecurityGroupID  *azcorearm.ResourceID          `json:"networkSecurityGroupId,omitempty"`
 	OperatorsAuthentication OperatorsAuthenticationProfile `json:"operatorsAuthentication,omitempty"`
 }
 
@@ -188,9 +188,9 @@ type OperatorsAuthenticationProfile struct {
 // OpenShift operators using user-assigned managed identities.
 // Visibility for the entire struct is "read create".
 type UserAssignedIdentitiesProfile struct {
-	ControlPlaneOperators  map[string]string `json:"controlPlaneOperators,omitempty"`
-	DataPlaneOperators     map[string]string `json:"dataPlaneOperators,omitempty"`
-	ServiceManagedIdentity string            `json:"serviceManagedIdentity,omitempty"`
+	ControlPlaneOperators  map[string]*azcorearm.ResourceID `json:"controlPlaneOperators,omitempty"`
+	DataPlaneOperators     map[string]*azcorearm.ResourceID `json:"dataPlaneOperators,omitempty"`
+	ServiceManagedIdentity *azcorearm.ResourceID            `json:"serviceManagedIdentity,omitempty"`
 }
 
 // ClusterImageRegistryProfile - OpenShift cluster image registry
