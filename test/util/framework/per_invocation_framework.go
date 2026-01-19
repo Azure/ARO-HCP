@@ -142,9 +142,23 @@ func (tc *perBinaryInvocationTestContext) getClientFactoryOptions() *azcorearm.C
 }
 
 func (tc *perBinaryInvocationTestContext) getHCPClientFactoryOptions() *azcorearm.ClientOptions {
+	retryOptions := policy.RetryOptions{
+		MaxRetries: 10,
+		RetryDelay: 5 * time.Second,
+		StatusCodes: []int{
+			http.StatusRequestTimeout,      // 408
+			http.StatusInternalServerError, // 500
+			http.StatusBadGateway,          // 502
+			http.StatusServiceUnavailable,  // 503
+			http.StatusGatewayTimeout,      // 504
+			http.StatusBadRequest,          // 400 
+		},
+	}
+
 	if tc.isDevelopmentEnvironment {
 		return &azcorearm.ClientOptions{
 			ClientOptions: azcore.ClientOptions{
+				Retry: retryOptions, 
 				Cloud: cloud.Configuration{
 					ActiveDirectoryAuthorityHost: "https://login.microsoftonline.com/",
 					Services: map[cloud.ServiceName]cloud.ServiceConfiguration{
@@ -161,7 +175,12 @@ func (tc *perBinaryInvocationTestContext) getHCPClientFactoryOptions() *azcorear
 			},
 		}
 	}
-	return nil
+
+	return &azcorearm.ClientOptions{
+		ClientOptions: azcore.ClientOptions{
+			Retry: retryOptions,
+		},
+	}
 }
 
 func (tc *perBinaryInvocationTestContext) getSubscriptionID(ctx context.Context, subscriptionClient *armsubscriptions.Client) (string, error) {
