@@ -12,6 +12,16 @@ resourceGroups:
     parameters: ./../dev-infrastructure/configurations/output-global.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     outputOnly: true
+- name: kusto
+  resourceGroup: '{{ .kusto.rg }}'
+  subscription: '{{ .global.subscription.key }}'
+  steps:
+  - name: kusto-lookup
+    action: ARM
+    template: ../dev-infrastructure/templates/kusto-lookup.bicep
+    parameters: ../dev-infrastructure/configurations/kusto-lookup.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
 - name: management
   resourceGroup: '{{ .mgmt.rg }}'
   subscription: '{{ .mgmt.subscription.key }}'
@@ -23,6 +33,12 @@ resourceGroups:
     releaseNamespace: 'multicluster-engine'
     chartDir: ./deploy/helm/multicluster-engine-crds
     valuesFile: multicluster-engine-crds.values.yaml
+    kustoEndpoint:
+      resourceGroup: kusto
+      step: kusto-lookup
+      name: kustoUri
+    kustoDatabase: '{{ .kusto.serviceLogsDatabase }}'
+    kustoTable: 'containerLogs'
     identityFrom:
       resourceGroup: global
       step: output
@@ -41,6 +57,12 @@ resourceGroups:
     releaseNamespace: 'multicluster-engine'
     chartDir: ./deploy/helm/multicluster-engine
     valuesFile: multicluster-engine.values.yaml
+    kustoEndpoint:
+      resourceGroup: kusto
+      step: kusto-lookup
+      name: kustoUri
+    kustoDatabase: '{{ .kusto.serviceLogsDatabase }}'
+    kustoTable: 'containerLogs'
     dependsOn:
     - resourceGroup: management
       step: deploy-mce-crds
@@ -62,6 +84,12 @@ resourceGroups:
     releaseNamespace: 'multicluster-engine'
     chartDir: ./deploy/helm/multicluster-engine-config
     valuesFile: multicluster-engine-config.values.yaml
+    kustoEndpoint:
+      resourceGroup: kusto
+      step: kusto-lookup
+      name: kustoUri
+    kustoDatabase: '{{ .kusto.serviceLogsDatabase }}'
+    kustoTable: 'containerLogs'
     dependsOn:
     - resourceGroup: management
       step: deploy-mce
@@ -83,6 +111,12 @@ resourceGroups:
     releaseNamespace: 'open-cluster-management-policies'
     chartDir: ./deploy/helm/policies
     valuesFile: policies.values.yaml
+    kustoEndpoint:
+      resourceGroup: kusto
+      step: kusto-lookup
+      name: kustoUri
+    kustoDatabase: '{{ .kusto.serviceLogsDatabase }}'
+    kustoTable: 'containerLogs'
     dependsOn:
     - resourceGroup: management
       step: deploy-mce-config

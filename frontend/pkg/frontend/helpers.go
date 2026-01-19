@@ -16,8 +16,11 @@ package frontend
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"strings"
+
+	"k8s.io/apimachinery/pkg/util/validation/field"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
@@ -157,4 +160,10 @@ func (f *Frontend) DeleteAllResourcesInSubscription(ctx context.Context, subscri
 	}
 
 	return nil
+}
+
+func nameResourceIDMismatch(resourceID *azcorearm.ResourceID, name string) error {
+	return arm.CloudErrorFromFieldErrors(field.ErrorList{
+		field.Invalid(field.NewPath("name"), name, fmt.Sprintf("name must match resourceID path: %v", resourceID)),
+	})
 }

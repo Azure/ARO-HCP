@@ -139,7 +139,7 @@ func (f *Frontend) Run(ctx context.Context, stop <-chan struct{}) {
 	// before we start the http handler (this should ensure we readiness checks until this is complete), we will do a cosmos
 	// data migration to our new storage keys.
 	logger.Info("starting cosmos data migration")
-	MigrateCosmosOrDie(ctx, f.dbClient)
+	MigrateCosmosOrDie(ctx, f.dbClient, f.clusterServiceClient, f.azureLocation)
 	logger.Info("completed cosmos data migration")
 
 	logger.Info(fmt.Sprintf("listening on %s", f.listener.Addr().String()))
@@ -161,88 +161,6 @@ func (f *Frontend) Run(ctx context.Context, stop <-chan struct{}) {
 		logger.Error(err.Error())
 		os.Exit(1)
 	}
-}
-
-// MigrateCosmosOrDie if migration fails, we panic and exit the process.  This makes it very detectable.
-func MigrateCosmosOrDie(ctx context.Context, cosmosClient database.DBClient) {
-	// This is a temporary change. Once deployed to production, we will remove this content and leave it empty
-	// for the next small migration we need to do.  Once datasets are large, we will start doing this inside of the backend.
-
-	subscriptionIterator, err := cosmosClient.Subscriptions().List(ctx, nil)
-	if err != nil {
-		panic(err)
-	}
-	for _, subscription := range subscriptionIterator.Items(ctx) {
-		if _, err := cosmosClient.Subscriptions().Get(ctx, subscription.ResourceID.Name); err != nil {
-			panic(err)
-		}
-	}
-	if err := subscriptionIterator.GetError(); err != nil {
-		panic(err)
-	}
-
-	subscriptionIterator, err = cosmosClient.Subscriptions().List(ctx, nil)
-	if err != nil {
-		panic(err)
-	}
-	for _, subscription := range subscriptionIterator.Items(ctx) {
-		clusterIterator, err := cosmosClient.HCPClusters(subscription.ResourceID.Name, "").List(ctx, nil)
-		if err != nil {
-			panic(err)
-		}
-		for _, cluster := range clusterIterator.Items(ctx) {
-			_, err := cosmosClient.HCPClusters(cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName).Get(ctx, cluster.ID.Name)
-			if err != nil {
-				panic(err)
-			}
-
-			nodePoolIterator, err := cosmosClient.HCPClusters(cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName).NodePools(cluster.ID.Name).List(ctx, nil)
-			if err != nil {
-				panic(err)
-			}
-			for _, nodePool := range nodePoolIterator.Items(ctx) {
-				_, err := cosmosClient.HCPClusters(nodePool.ID.SubscriptionID, nodePool.ID.ResourceGroupName).NodePools(nodePool.ID.Parent.Name).Get(ctx, nodePool.ID.Name)
-				if err != nil {
-					panic(err)
-				}
-			}
-			if err := nodePoolIterator.GetError(); err != nil {
-				panic(err)
-			}
-
-			externalAuthIterator, err := cosmosClient.HCPClusters(cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName).ExternalAuth(cluster.ID.Name).List(ctx, nil)
-			if err != nil {
-				panic(err)
-			}
-			for _, externalAuth := range externalAuthIterator.Items(ctx) {
-				_, err := cosmosClient.HCPClusters(externalAuth.ID.SubscriptionID, externalAuth.ID.ResourceGroupName).ExternalAuth(externalAuth.ID.Parent.Name).Get(ctx, externalAuth.ID.Name)
-				if err != nil {
-					panic(err)
-				}
-			}
-			if err := externalAuthIterator.GetError(); err != nil {
-				panic(err)
-			}
-		}
-		if err := clusterIterator.GetError(); err != nil {
-			panic(err)
-		}
-
-		operationIterator, err := cosmosClient.Operations(subscription.ResourceID.Name).List(ctx, nil)
-		if err != nil {
-			panic(err)
-		}
-		for _, operation := range operationIterator.Items(ctx) {
-			_, err := cosmosClient.Operations(operation.ResourceID.SubscriptionID).Get(ctx, operation.ResourceID.Name)
-			if err != nil {
-				panic(err)
-			}
-		}
-		if err := operationIterator.GetError(); err != nil {
-			panic(err)
-		}
-	}
-
 }
 
 func (f *Frontend) Join() {
@@ -703,6 +621,17 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 			}
 
 			newInternalCluster := versionedCluster.ConvertToInternal()
+			// the external type lacks sufficient data to full produce a valid resourceID.  We do that separately here.
+			parts := []string{
+				"/subscriptions", subscriptionID,
+				"resourceGroups", resourceGroup,
+				"providers", api.ClusterResourceType.String(), newInternalCluster.Name,
+			}
+			newInternalCluster.ID, err = azcorearm.ParseResourceID(strings.Join(parts, "/"))
+			if err != nil {
+				// this indicates something really strange happened, return an error for it.
+				return utils.TrackError(err)
+			}
 			validationErrs := validation.ValidateClusterCreate(ctx, newInternalCluster, api.Must(versionedInterface.ValidationPathRewriter(&api.HCPOpenShiftCluster{})))
 			validationErrs = append(validationErrs, admission.AdmitClusterOnCreate(ctx, newInternalCluster, subscription)...)
 			cloudError = arm.CloudErrorFromFieldErrors(validationErrs)
@@ -721,6 +650,18 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 
 			// Perform static validation as if for a node pool creation request.
 			newInternalNodePool := versionedNodePool.ConvertToInternal()
+			// the external type lacks sufficient data to full produce a valid resourceID.  We do that separately here.
+			parts := []string{
+				"/subscriptions", subscriptionID,
+				"resourceGroups", resourceGroup,
+				"providers", api.ClusterResourceType.String(), "preflight",
+				api.NodePoolResourceType.Types[len(api.NodePoolResourceType.Types)-1], newInternalNodePool.Name,
+			}
+			newInternalNodePool.ID, err = azcorearm.ParseResourceID(strings.Join(parts, "/"))
+			if err != nil {
+				// this indicates something really strange happened, return an error for it.
+				return utils.TrackError(err)
+			}
 			validationErrs := validation.ValidateNodePoolCreate(ctx, newInternalNodePool)
 			cloudError = arm.CloudErrorFromFieldErrors(validationErrs)
 
@@ -738,6 +679,18 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 
 			// Perform static validation as if for an external auth creation request.
 			newInternalAuth := versionedExternalAuth.ConvertToInternal()
+			// the external type lacks sufficient data to full produce a valid resourceID.  We do that separately here.
+			parts := []string{
+				"/subscriptions", subscriptionID,
+				"resourceGroups", resourceGroup,
+				"providers", api.ClusterResourceType.String(), "preflight",
+				api.ExternalAuthResourceType.Types[len(api.NodePoolResourceType.Types)-1], newInternalAuth.Name,
+			}
+			newInternalAuth.ID, err = azcorearm.ParseResourceID(strings.Join(parts, "/"))
+			if err != nil {
+				// this indicates something really strange happened, return an error for it.
+				return utils.TrackError(err)
+			}
 			validationErrs := validation.ValidateExternalAuthCreate(ctx, newInternalAuth)
 			cloudError = arm.CloudErrorFromFieldErrors(validationErrs)
 

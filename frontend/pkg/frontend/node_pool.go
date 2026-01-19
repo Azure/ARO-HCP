@@ -232,6 +232,9 @@ func decodeDesiredNodePoolCreate(ctx context.Context, azureLocation string) (*ap
 
 	newInternalNodePool := externalNodePoolFromRequest.ConvertToInternal()
 	// TrackedResource info doesn't appear to come from the external resource information
+	if len(newInternalNodePool.Name) > 0 && newInternalNodePool.Name != resourceID.Name {
+		return nil, nameResourceIDMismatch(resourceID, newInternalNodePool.Name)
+	}
 	conversion.CopyReadOnlyTrackedResourceValues(&newInternalNodePool.TrackedResource, ptr.To(arm.NewTrackedResource(resourceID, azureLocation)))
 
 	// set fields that were not included during the conversion, because the user does not provide them or because the
@@ -369,6 +372,10 @@ func decodeDesiredNodePoolReplace(ctx context.Context, oldInternalNodePool *api.
 	// 4. values that are missing because the external type doesn't represent them
 	// 5. values that might change because our machinery changes them.
 
+	resourceID, err := utils.ResourceIDFromContext(ctx)
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
 	body, err := BodyFromContext(ctx)
 	if err != nil {
 		return nil, utils.TrackError(err)
@@ -392,6 +399,9 @@ func decodeDesiredNodePoolReplace(ctx context.Context, oldInternalNodePool *api.
 	}
 
 	newInternalNodePool := externalNodePoolFromRequest.ConvertToInternal()
+	if len(newInternalNodePool.Name) > 0 && newInternalNodePool.Name != resourceID.Name {
+		return nil, nameResourceIDMismatch(resourceID, newInternalNodePool.Name)
+	}
 
 	// values a user doesn't have to provide, but are not static defaults (set dynamically during create).  Set these from old value
 	if len(newInternalNodePool.Properties.Version.ID) == 0 {
@@ -444,6 +454,10 @@ func decodeDesiredNodePoolPatch(ctx context.Context, oldInternalNodePool *api.HC
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}
+	resourceID, err := utils.ResourceIDFromContext(ctx)
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
 	body, err := BodyFromContext(ctx)
 	if err != nil {
 		return nil, utils.TrackError(err)
@@ -460,6 +474,9 @@ func decodeDesiredNodePoolPatch(ctx context.Context, oldInternalNodePool *api.HC
 		return nil, utils.TrackError(err)
 	}
 	newInternalNodePool := newExternalNodePool.ConvertToInternal()
+	if len(newInternalNodePool.Name) > 0 && newInternalNodePool.Name != resourceID.Name {
+		return nil, nameResourceIDMismatch(resourceID, newInternalNodePool.Name)
+	}
 
 	conversion.CopyReadOnlyNodePoolValues(newInternalNodePool, oldInternalNodePool)
 	newInternalNodePool.SystemData = systemData
@@ -754,13 +771,17 @@ func (f *Frontend) getInternalNodePoolFromStorage(ctx context.Context, resourceI
 // readInternalNodePoolFromClusterService takes an internal NodePool read from cosmos, retrieves the corresponding cluster-service data,
 // merges the states together, and returns the internal representation.
 func (f *Frontend) readInternalNodePoolFromClusterService(ctx context.Context, oldInternalNodePool *api.HCPOpenShiftClusterNodePool) (*api.HCPOpenShiftClusterNodePool, error) {
-	oldClusterServiceNodePool, err := f.clusterServiceClient.GetNodePool(ctx, oldInternalNodePool.ServiceProviderProperties.ClusterServiceID)
+	return readInternalNodePoolFromClusterService(ctx, f.clusterServiceClient, oldInternalNodePool, f.azureLocation)
+}
+
+func readInternalNodePoolFromClusterService(ctx context.Context, clusterServiceClient ocm.ClusterServiceClientSpec, oldInternalNodePool *api.HCPOpenShiftClusterNodePool, azureLocation string) (*api.HCPOpenShiftClusterNodePool, error) {
+	oldClusterServiceNodePool, err := clusterServiceClient.GetNodePool(ctx, oldInternalNodePool.ServiceProviderProperties.ClusterServiceID)
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}
 
 	// TODO this overwrite will transformed into a "set" function as we transition fields to ownership in cosmos
-	oldInternalNodePool, err = mergeToInternalNodePool(oldClusterServiceNodePool, oldInternalNodePool, f.azureLocation)
+	oldInternalNodePool, err = mergeToInternalNodePool(oldClusterServiceNodePool, oldInternalNodePool, azureLocation)
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}

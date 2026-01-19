@@ -1,0 +1,23 @@
+{
+	"_attachments": "attachments/",
+	"_etag": "\"00000000-0000-0000-7121-fd067c0501dc\"",
+	"_rid": "WZlNALYurecDAAAAAAAAAA==",
+	"_self": "dbs/WZlNAA==/colls/WZlNALYurec=/docs/WZlNALYurecDAAAAAAAAAA==/",
+	"_ts": 1766174370,
+	"id": "c893be2c-80b0-497f-8490-e3e5fd2b2cc4",
+	"partitionKey": "6b690bec-0c16-4ecb-8f67-781caf40bba7",
+	"properties": {
+		"activeOperationId": "7a4ed07a-47a1-4efb-966a-93a6316522a0",
+		"identity": {
+			"type": "UserAssigned"
+		},
+		"internalId": "/api/clusters_mgmt/v1/clusters/9p2sk955gj",
+		"provisioningState": "Succeeded",
+		"resourceId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/create-with-tags",
+		"systemData": {},
+		"tags": {
+			"one": "apple"
+		}
+	},
+	"resourceType": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters"
+}

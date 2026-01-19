@@ -237,6 +237,9 @@ func decodeDesiredClusterCreate(ctx context.Context, azureLocation string) (*api
 	}
 
 	newInternalCluster := externalClusterFromRequest.ConvertToInternal()
+	if len(newInternalCluster.Name) > 0 && newInternalCluster.Name != resourceID.Name {
+		return nil, nameResourceIDMismatch(resourceID, newInternalCluster.Name)
+	}
 	// TrackedResource info doesn't appear to come from the external resource information
 	conversion.CopyReadOnlyTrackedResourceValues(&newInternalCluster.TrackedResource, ptr.To(arm.NewTrackedResource(resourceID, azureLocation)))
 
@@ -394,6 +397,10 @@ func decodeDesiredClusterReplace(ctx context.Context, oldInternalCluster *api.HC
 	// 4. values that are missing because the external type doesn't represent them
 	// 5. values that might change because our machinery changes them.
 
+	resourceID, err := utils.ResourceIDFromContext(ctx)
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
 	body, err := BodyFromContext(ctx)
 	if err != nil {
 		return nil, utils.TrackError(err)
@@ -414,6 +421,9 @@ func decodeDesiredClusterReplace(ctx context.Context, oldInternalCluster *api.HC
 	}
 
 	newInternalCluster := externalClusterFromRequest.ConvertToInternal()
+	if len(newInternalCluster.Name) > 0 && newInternalCluster.Name != resourceID.Name {
+		return nil, nameResourceIDMismatch(resourceID, newInternalCluster.Name)
+	}
 
 	// values a user doesn't have to provide, but are not static defaults (set dynamically during create).  Set these from old value
 	if len(newInternalCluster.CustomerProperties.Version.ID) == 0 {
@@ -474,6 +484,10 @@ func decodeDesiredClusterPatch(ctx context.Context, oldInternalCluster *api.HCPO
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}
+	resourceID, err := utils.ResourceIDFromContext(ctx)
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
 	body, err := BodyFromContext(ctx)
 	if err != nil {
 		return nil, utils.TrackError(err)
@@ -490,6 +504,9 @@ func decodeDesiredClusterPatch(ctx context.Context, oldInternalCluster *api.HCPO
 		return nil, utils.TrackError(err)
 	}
 	newInternalCluster := newExternalCluster.ConvertToInternal()
+	if len(newInternalCluster.Name) > 0 && newInternalCluster.Name != resourceID.Name {
+		return nil, nameResourceIDMismatch(resourceID, newInternalCluster.Name)
+	}
 
 	// ServiceProviderProperties contains two types of information
 	// 1. values that a user cannot change because the external type does not expose the information.
@@ -801,13 +818,17 @@ func mergeToInternalCluster(csCluster *arohcpv1alpha1.Cluster, internalCluster *
 // merges the states together, and returns the internal representation.
 // TODO remove the header it takes and collapse that to some general error handling.
 func (f *Frontend) readInternalClusterFromClusterService(ctx context.Context, oldInternalCluster *api.HCPOpenShiftCluster) (*api.HCPOpenShiftCluster, error) {
-	oldClusterServiceCluster, err := f.clusterServiceClient.GetCluster(ctx, oldInternalCluster.ServiceProviderProperties.ClusterServiceID)
+	return readInternalClusterFromClusterService(ctx, f.clusterServiceClient, oldInternalCluster, f.azureLocation)
+}
+
+func readInternalClusterFromClusterService(ctx context.Context, clusterServiceClient ocm.ClusterServiceClientSpec, oldInternalCluster *api.HCPOpenShiftCluster, azureLocation string) (*api.HCPOpenShiftCluster, error) {
+	oldClusterServiceCluster, err := clusterServiceClient.GetCluster(ctx, oldInternalCluster.ServiceProviderProperties.ClusterServiceID)
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}
 
 	// TODO this overwrite will transformed into a "set" function as we transition fields to ownership in cosmos
-	oldInternalCluster, err = mergeToInternalCluster(oldClusterServiceCluster, oldInternalCluster, f.azureLocation)
+	oldInternalCluster, err = mergeToInternalCluster(oldClusterServiceCluster, oldInternalCluster, azureLocation)
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}

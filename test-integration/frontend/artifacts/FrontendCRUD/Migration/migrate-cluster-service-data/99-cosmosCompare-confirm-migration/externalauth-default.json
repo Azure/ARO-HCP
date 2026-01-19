@@ -1,0 +1,75 @@
+{
+	"_attachments": "attachments/",
+	"_etag": "\"00000000-0000-0000-856f-f1f6c00501dc\"",
+	"_rid": "RhErALI9IdsKAAAAAAAAAA==",
+	"_self": "dbs/RhErAA==/colls/RhErALI9Ids=/docs/RhErALI9IdsKAAAAAAAAAA==/",
+	"_ts": 1768406876,
+	"id": "|subscriptions|6b690bec-0c16-4ecb-8f67-781caf40bba7|resourcegroups|resourcegroupname|providers|microsoft.redhatopenshift|hcpopenshiftclusters|create-with-tags|externalauths|default",
+	"partitionKey": "6b690bec-0c16-4ecb-8f67-781caf40bba7",
+	"properties": {
+		"activeOperationId": "5dce3cac-e09b-4ef5-803c-cb8f17b3a552",
+		"intermediateResourceDoc": {
+			"activeOperationId": "5dce3cac-e09b-4ef5-803c-cb8f17b3a552",
+			"internalId": "/api/clusters_mgmt/v1/clusters/9p2sk955gj/external_auth_config/external_auths/zt59xrx22b",
+			"provisioningState": "Accepted",
+			"resourceId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/create-with-tags/externalAuths/default",
+			"systemData": {}
+		},
+		"internalId": "/api/clusters_mgmt/v1/clusters/9p2sk955gj/external_auth_config/external_auths/zt59xrx22b",
+		"internalState": {
+			"internalAPI": {
+				"properties": {
+					"claim": {
+						"mappings": {
+							"groups": {
+								"claim": "groups",
+								"prefix": ""
+							},
+							"username": {
+								"claim": "sub",
+								"prefix": "prefix-",
+								"prefixPolicy": "Prefix"
+							}
+						},
+						"validationRules": []
+					},
+					"clients": [
+						{
+							"clientId": "87654321-4321-4321-4321-abcdefghijkl",
+							"component": {
+								"authClientNamespace": "openshift-console",
+								"name": "console"
+							},
+							"extraScopes": [],
+							"type": "Confidential"
+						},
+						{
+							"clientId": "87654321-4321-4321-4321-abcdefghijkl",
+							"component": {
+								"authClientNamespace": "openshift-console",
+								"name": "cli"
+							},
+							"extraScopes": [],
+							"type": "Public"
+						}
+					],
+					"issuer": {
+						"audiences": [
+							"87654321-4321-4321-4321-abcdefghijkl"
+						],
+						"ca": "",
+						"url": "https://login.microsoftonline.com/12345678-1234-1234-1234-123456789abc/v2.0"
+					},
+					"provisioningState": ""
+				},
+				"serviceProviderProperties": {
+					"clusterServiceID": ""
+				}
+			}
+		},
+		"provisioningState": "Accepted",
+		"resourceId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/create-with-tags/externalAuths/default",
+		"systemData": {}
+	},
+	"resourceType": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/externalAuths"
+}

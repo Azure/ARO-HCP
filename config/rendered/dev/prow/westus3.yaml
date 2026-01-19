@@ -1,7 +1,7 @@
 acm:
   mce:
     bundle:
-      digest: sha256:98ccac7aacee076c140de23a8e8e7144c5909317863b9f885a72cd4e72b82b5b
+      digest: sha256:098bb086a702debed3bd6355f868209931c1fc202e93e2ed2413304f7d618257
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-210
   operator:
@@ -33,7 +33,7 @@ adminApi:
     issuer: Self
     name: admin-api-cert-prow-usw3j234
   image:
-    digest: sha256:d50377adaca138dfdc5ebcf0464941d4ba241eb42c7653294ed6ffb1b97f57d6
+    digest: sha256:459477a1c9b1cadd370d3865f456c58f660d30c6e2cb7650dc189a9003ad4d9e
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpadminapi
   k8s:
@@ -50,7 +50,7 @@ armHelperFPAPrincipalId: 47f69502-0065-4d9a-b19b-d403e183d2f4
 arobit:
   forwarder:
     image:
-      digest: sha256:f501177ac50d0ce6927e8c3c56977d769c460725b8a0cb685c9bbc365422d876
+      digest: sha256:9d79b69687eb2d30d3c6581a411fd1485403cb3eafd7c2c3f53117519f8c41cd
       registry: mcr.microsoft.com
       repository: oss/v2/fluent/fluent-bit
   kusto:
@@ -67,7 +67,7 @@ azureGeoShortId: us
 azureRegionAvailabilityZoneCount: 4
 backend:
   image:
-    digest: sha256:c0d83b06852ae3f396eb4424d6650fec3dcda604c2fa92a4bdd03baedb2353f0
+    digest: sha256:5e7a675a7b6195936a601facc1b28882e13e77a6fc28977c1f51caecfb76b9aa
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpbackend
   k8s:
@@ -123,7 +123,7 @@ clustersService:
   deployDebugJobs: false
   environment: arohcpdev
   image:
-    digest: sha256:31185993e8fcc0e5ef85ecc1711917b26c8bee67e815afccaf8ee8ab211e6db9
+    digest: sha256:4e7da86c27ca830f4b46eefa0aed54bd234749fc77137dda1cd3223665752d99
     registry: quay.io
     repository: app-sre/aro-hcp-clusters-service
   k8s:
@@ -212,7 +212,7 @@ frontend:
     private: false
     zoneRedundantMode: Disabled
   image:
-    digest: sha256:013ae7f72821c95873141388054ed7fdaa75dbf71d78e8701240fb39e5a39c51
+    digest: sha256:dc5242bd52ca436d7cde95818869d4b873dd5ffab951aa2f2d306ba1b0812ec4
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpfrontend
   k8s:
@@ -317,7 +317,7 @@ global:
 hypershift:
   additionalInstallArg: --enable-cpo-overrides
   image:
-    digest: sha256:78746d6478688b54ec477e05768591a07b95baee031ca3faed7779f9d7d46861
+    digest: sha256:d3389cb7e5e7213bb67a2cd3ebe8975d7bde73e689ca12f4f76d18a3bc6c0e83
     registry: quay.io
     repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
   namespace: hypershift
@@ -327,7 +327,7 @@ imageSync:
   ocMirror:
     enabled: true
     image:
-      digest: sha256:8a653f1704135fa6896a02453a69d6b712b09b39ebe1fea58975d24f26d754ad
+      digest: sha256:db38be9f114c61bc4996a5b50e1824f7bcad5a7de2bdf08ee9e0bc7b3ab4d54c
       registry: arohcpsvcdev.azurecr.io
       repository: image-sync/oc-mirror
     jobNamePrefix: ""
@@ -340,7 +340,7 @@ keyVaultDNSSuffix: vault.azure.net
 kubeEvents:
   enabled: false
   image:
-    digest: sha256:754ab00b9a24fc3519a381017b176c265d05e83108b1049b80aaaf2e81eba5f5
+    digest: sha256:0ffdd97eb5545986f7884b55ee16f3d6b1a1ca5b7505d625e105889d6655ff01
     registry: kubernetesshared.azurecr.io
     repository: shared/kube-events
 kusto:

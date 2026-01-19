@@ -229,6 +229,10 @@ func decodeDesiredExternalAuthCreate(ctx context.Context) (*api.HCPOpenShiftClus
 	}
 
 	newInternalExternalAuth := externalExternalAuthFromRequest.ConvertToInternal()
+	if len(newInternalExternalAuth.Name) > 0 && newInternalExternalAuth.Name != resourceID.Name {
+		return nil, nameResourceIDMismatch(resourceID, newInternalExternalAuth.Name)
+	}
+
 	// ProxyResource info doesn't to come from the external resource information
 	conversion.CopyReadOnlyProxyResourceValues(&newInternalExternalAuth.ProxyResource, ptr.To(arm.NewProxyResource(resourceID)))
 
@@ -363,6 +367,10 @@ func decodeDesiredExternalAuthReplace(ctx context.Context, oldInternalExternalAu
 	// 4. values that are missing because the external type doesn't represent them
 	// 5. values that might change because our machinery changes them.
 
+	resourceID, err := utils.ResourceIDFromContext(ctx)
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
 	body, err := BodyFromContext(ctx)
 	if err != nil {
 		return nil, utils.TrackError(err)
@@ -386,6 +394,9 @@ func decodeDesiredExternalAuthReplace(ctx context.Context, oldInternalExternalAu
 	}
 
 	newInternalExternalAuth := externalExternalAuthFromRequest.ConvertToInternal()
+	if len(newInternalExternalAuth.Name) > 0 && newInternalExternalAuth.Name != resourceID.Name {
+		return nil, nameResourceIDMismatch(resourceID, newInternalExternalAuth.Name)
+	}
 
 	// ServiceProviderProperties contains two types of information
 	// 1. values that a user cannot change because the external type does not expose the information.
@@ -416,6 +427,10 @@ func decodeDesiredExternalAuthPatch(ctx context.Context, oldInternalExternalAuth
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}
+	resourceID, err := utils.ResourceIDFromContext(ctx)
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
 	body, err := BodyFromContext(ctx)
 	if err != nil {
 		return nil, utils.TrackError(err)
@@ -432,6 +447,9 @@ func decodeDesiredExternalAuthPatch(ctx context.Context, oldInternalExternalAuth
 		return nil, utils.TrackError(err)
 	}
 	newInternalExternalAuth := newExternalExternalAuth.ConvertToInternal()
+	if len(newInternalExternalAuth.Name) > 0 && newInternalExternalAuth.Name != resourceID.Name {
+		return nil, nameResourceIDMismatch(resourceID, newInternalExternalAuth.Name)
+	}
 
 	conversion.CopyReadOnlyExternalAuthValues(newInternalExternalAuth, oldInternalExternalAuth)
 	newInternalExternalAuth.SystemData = systemData
@@ -705,7 +723,11 @@ func (f *Frontend) getInternalExternalAuthFromStorage(ctx context.Context, resou
 // readInternalExternalAuthFromClusterService takes an internal ExternalAuth read from cosmos, retrieves the corresponding cluster-service data,
 // merges the states together, and returns the internal representation.
 func (f *Frontend) readInternalExternalAuthFromClusterService(ctx context.Context, oldInternalExternalAuth *api.HCPOpenShiftClusterExternalAuth) (*api.HCPOpenShiftClusterExternalAuth, error) {
-	oldClusterServiceExternalAuth, err := f.clusterServiceClient.GetExternalAuth(ctx, oldInternalExternalAuth.ServiceProviderProperties.ClusterServiceID)
+	return readInternalExternalAuthFromClusterService(ctx, f.clusterServiceClient, oldInternalExternalAuth, f.azureLocation)
+}
+
+func readInternalExternalAuthFromClusterService(ctx context.Context, clusterServiceClient ocm.ClusterServiceClientSpec, oldInternalExternalAuth *api.HCPOpenShiftClusterExternalAuth, azureLocation string) (*api.HCPOpenShiftClusterExternalAuth, error) {
+	oldClusterServiceExternalAuth, err := clusterServiceClient.GetExternalAuth(ctx, oldInternalExternalAuth.ServiceProviderProperties.ClusterServiceID)
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}

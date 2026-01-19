@@ -12,7 +12,7 @@ clouds:
           # Cluster Service
           clustersService:
             image:
-              digest: sha256:31185993e8fcc0e5ef85ecc1711917b26c8bee67e815afccaf8ee8ab211e6db9 # 394681b5f2cc4cd883eaaad86fb6302c25d7e111 (2026-01-15 15:33)
+              digest: sha256:4e7da86c27ca830f4b46eefa0aed54bd234749fc77137dda1cd3223665752d99 # edfadaaefccbf13a98b2873c9c72d0fc811e9f0d (2026-01-16 16:22)
           # ACR Pull
           acrPull:
             image:
@@ -68,21 +68,21 @@ clouds:
           # RP Frontend
           frontend:
             image:
-              digest: sha256:013ae7f72821c95873141388054ed7fdaa75dbf71d78e8701240fb39e5a39c51 # 948acbd (2026-01-15 00:51)
+              digest: sha256:dc5242bd52ca436d7cde95818869d4b873dd5ffab951aa2f2d306ba1b0812ec4 # 9c4fa02 (2026-01-17 02:37)
             audit:
               connectSocket: true
           # RP Backend
           backend:
             image:
-              digest: sha256:c0d83b06852ae3f396eb4424d6650fec3dcda604c2fa92a4bdd03baedb2353f0 # 948acbd (2026-01-15 00:51)
+              digest: sha256:5e7a675a7b6195936a601facc1b28882e13e77a6fc28977c1f51caecfb76b9aa # 9c4fa02 (2026-01-17 02:38)
           # Admin API
           adminApi:
             image:
-              digest: sha256:d50377adaca138dfdc5ebcf0464941d4ba241eb42c7653294ed6ffb1b97f57d6 # 948acbd (2026-01-15 00:51)
+              digest: sha256:459477a1c9b1cadd370d3865f456c58f660d30c6e2cb7650dc189a9003ad4d9e # 9c4fa02 (2026-01-17 02:38)
           # Hypershift
           hypershift:
             image:
-              digest: sha256:78746d6478688b54ec477e05768591a07b95baee031ca3faed7779f9d7d46861 # 2ff5e342f5fd18df4d3833e602d2d9b4f669983d (2026-01-13 10:41)
+              digest: sha256:d3389cb7e5e7213bb67a2cd3ebe8975d7bde73e689ca12f4f76d18a3bc6c0e83 # 63988a74678d839629a8fb34f2415bece92657a9 (2026-01-16 18:17)
           # Maestro
           maestro:
             image:
@@ -95,7 +95,7 @@ clouds:
           imageSync:
             ocMirror:
               image:
-                digest: sha256:8a653f1704135fa6896a02453a69d6b712b09b39ebe1fea58975d24f26d754ad # 948acbd (2026-01-15 00:51)
+                digest: sha256:db38be9f114c61bc4996a5b50e1824f7bcad5a7de2bdf08ee9e0bc7b3ab4d54c # 9c4fa02 (2026-01-17 02:37)
           # Mise
           mise:
             image:
