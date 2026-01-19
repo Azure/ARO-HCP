@@ -38,7 +38,7 @@ import (
 	"github.com/Azure/ARO-HCP/test/util/verifiers"
 )
 
-var _ = Describe("Cluster Pull Secret Management", func() {
+var _ = Describe("Customer", func() {
 	BeforeEach(func() {
 		// per test initialization
 	})
