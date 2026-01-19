@@ -100,7 +100,7 @@ defaults:
       image:
         registry: mcr.microsoft.com
         repository: oss/v2/fluent/fluent-bit
-        digest: sha256:f501177ac50d0ce6927e8c3c56977d769c460725b8a0cb685c9bbc365422d876 # v4.2.2 (2026-01-08 15:54)
+        digest: sha256:9d79b69687eb2d30d3c6581a411fd1485403cb3eafd7c2c3f53117519f8c41cd # v4.2.2 (2026-01-17 01:18)
     kusto:
       enabled: false
       environmentName: "{{ .ctx.environment }}"
@@ -116,7 +116,7 @@ defaults:
     image:
       registry: kubernetesshared.azurecr.io
       repository: shared/kube-events
-      digest: sha256:754ab00b9a24fc3519a381017b176c265d05e83108b1049b80aaaf2e81eba5f5 # 20260113.1 (2026-01-13 06:42)
+      digest: sha256:0ffdd97eb5545986f7884b55ee16f3d6b1a1ca5b7505d625e105889d6655ff01 # 20260118.1 (2026-01-18 03:24)
   # Secret Sync Controller
   secretSyncController:
     image:
@@ -685,7 +685,7 @@ defaults:
       bundle:
         registry: quay.io
         repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-210
-        digest: sha256:3c36ee1ed07dfbc557783ecaeeb292c95d39e1879f638627c1c7708c6c12b222 # v2.10.1-327 (2026-01-16 05:13)
+        digest: sha256:098bb086a702debed3bd6355f868209931c1fc202e93e2ed2413304f7d618257 # v2.10.1-328 (2026-01-17 17:04)
   # Cluster Service
   clustersService:
     image:
@@ -928,7 +928,7 @@ clouds:
         image:
           registry: quay.io
           repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
-          digest: sha256:78746d6478688b54ec477e05768591a07b95baee031ca3faed7779f9d7d46861 # 2ff5e342f5fd18df4d3833e602d2d9b4f669983d (2026-01-13 10:41)
+          digest: sha256:d3389cb7e5e7213bb67a2cd3ebe8975d7bde73e689ca12f4f76d18a3bc6c0e83 # 63988a74678d839629a8fb34f2415bece92657a9 (2026-01-16 18:17)
       # Backplane API
       backplaneAPI:
         image:
@@ -936,7 +936,7 @@ clouds:
       # Admin API
       adminApi:
         image:
-          digest: sha256:87f1ee30987b9bc04ea217b2ffbc1fb2d77f55c2e6cbad6442f0a5bd3b8f31a4 # c428c1f (2026-01-16 15:49)
+          digest: sha256:459477a1c9b1cadd370d3865f456c58f660d30c6e2cb7650dc189a9003ad4d9e # 9c4fa02 (2026-01-17 02:38)
         cert:
           issuer: Self
       # Frontend
@@ -944,17 +944,17 @@ clouds:
         cert:
           issuer: Self
         image:
-          digest: sha256:adf8cdcc646d5750fadc049d569cd7d527ed1ab464c3511dd842d222ce1c15af # c428c1f (2026-01-16 15:49)
+          digest: sha256:dc5242bd52ca436d7cde95818869d4b873dd5ffab951aa2f2d306ba1b0812ec4 # 9c4fa02 (2026-01-17 02:37)
       # Backend
       backend:
         image:
-          digest: sha256:0f75dcb1291282371a6fc654846c94c6f1fddbdae9326d0e46de4eb29a327f96 # c428c1f (2026-01-16 15:50)
+          digest: sha256:5e7a675a7b6195936a601facc1b28882e13e77a6fc28977c1f51caecfb76b9aa # 9c4fa02 (2026-01-17 02:38)
       # Image Sync
       imageSync:
         ocMirror:
           jobNamePrefix: ''
           image:
-            digest: sha256:d706d89993827fe2735882336b915fd08e6bde10129725c480ddf5a9455b072d # c428c1f (2026-01-16 15:49)
+            digest: sha256:db38be9f114c61bc4996a5b50e1824f7bcad5a7de2bdf08ee9e0bc7b3ab4d54c # 9c4fa02 (2026-01-17 02:37)
       # Shared SVC KV
       serviceKeyVault:
         name: 'aro-hcp-dev-svc-kv'
