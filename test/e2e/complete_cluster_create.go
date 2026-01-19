@@ -119,9 +119,5 @@ var _ = Describe("Customer", func() {
 			By("verifying a simple web app can run")
 			err = verifiers.VerifySimpleWebApp().Verify(ctx, adminRESTConfig)
 			Expect(err).NotTo(HaveOccurred())
-
-			By("ensuring the cluster is viable")
-			err = verifiers.VerifyHCPCluster(ctx, adminRESTConfig, verifiers.VerifyAllClusterOperatorsAvailable())
-			Expect(err).NotTo(HaveOccurred())
 		})
 })

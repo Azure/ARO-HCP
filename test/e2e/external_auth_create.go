@@ -256,5 +256,9 @@ var _ = Describe("Customer", func() {
 				_, err := client.CoreV1().Namespaces().List(ctx, metav1.ListOptions{})
 				return err
 			}, 5*time.Minute, 10*time.Second).Should(Succeed())
+
+			By("verifying cluster operators are available after external auth config creation")
+			err = verifiers.VerifyAllClusterOperatorsAvailable().Verify(ctx, adminRESTConfig)
+			Expect(err).NotTo(HaveOccurred())
 		})
 })

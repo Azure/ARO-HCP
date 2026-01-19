@@ -241,7 +241,9 @@ var _ = Describe("Authorized CIDRs", func() {
 					output, err := framework.RunVMCommand(ctx, tc, *resourceGroup.Name, vmName, clusterOperatorsCmd, 2*time.Minute)
 					g.Expect(err).NotTo(HaveOccurred(), "kubectl get clusteroperators should succeed from authorized VM")
 
-					unavailableOperators := parseUnavailableResources(output)
+					// Skip console operator as it's not expected to be available in cluster without external auth
+					// To Do: Remove skip once external auth is configured
+					unavailableOperators := parseUnavailableResources(output, "console")
 					g.Expect(unavailableOperators).To(BeEmpty(), "All ClusterOperators should report Available=True, but these are not available: %v", unavailableOperators)
 				}, 5*time.Minute, 20*time.Second).Should(Succeed())
 
@@ -313,7 +315,12 @@ func testAPIConnectivity(apiURL string, timeout time.Duration) error {
 	return nil
 }
 
-func parseUnavailableResources(output string) []string {
+func parseUnavailableResources(output string, skip ...string) []string {
+	skipSet := make(map[string]bool)
+	for _, s := range skip {
+		skipSet[s] = true
+	}
+
 	var unavailable []string
 	lines := strings.Split(strings.TrimSpace(output), "\n")
 
@@ -325,7 +332,11 @@ func parseUnavailableResources(output string) []string {
 
 		parts := strings.SplitN(line, ":", 2)
 		if len(parts) == 2 {
-			unavailable = append(unavailable, fmt.Sprintf("%s (Available=%s)", parts[0], parts[1]))
+			name := parts[0]
+			if skipSet[name] {
+				continue
+			}
+			unavailable = append(unavailable, fmt.Sprintf("%s (Available=%s)", name, parts[1]))
 		} else {
 			unavailable = append(unavailable, line)
 		}
