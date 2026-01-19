@@ -194,6 +194,53 @@ make promote-stage OUTPUT_FILE=stage-promotion.md OUTPUT_FORMAT=markdown
 ./image-updater update --config config.yaml --dry-run -v=2
 ```
 
+### Pinning Images and Rolling Back
+
+To pin an image to a specific digest and prevent automatic updates:
+
+**Use Case**: You need to rollback to a known-good version or prevent an image from being automatically updated.
+
+**Steps**:
+
+1. **Identify the digest** you want to pin (e.g., from a previous working deployment or registry)
+
+2. **Update `config.yaml`** to use a specific `tag` instead of `tagPattern`:
+
+```yaml
+arohcpfrontend:
+  source:
+    image: arohcpsvcint.azurecr.io/arohcpfrontend
+    tag: "013ae7f72821c95873141388054ed7fdaa75dbf71d78e8701240fb39e5a39c51"  # Pin to specific digest
+    useAuth: true
+  targets:
+  - jsonPath: clouds.dev.defaults.frontend.image.digest
+    filePath: ../../config/config.yaml
+    env: dev
+```
+
+3. **Authenticate to Azure** (required for ACR access):
+
+```bash
+az login
+```
+
+4. **Run the image-updater** to apply the pinned digest:
+
+```bash
+# Update specific component
+make update COMPONENTS=arohcpfrontend
+```
+
+5. **Run materialize** to update rendered configs:
+
+```bash
+make -C config materialize
+```
+
+6. **Commit the changes** - the image will now stay pinned at this digest until you manually change it
+
+**Note**: The tool will fetch the specified digest and update all target environments. Unlike `tagPattern`, this will not automatically update to newer images.
+
 ## Configuration
 
 ### Basic Image Configuration
@@ -351,6 +398,20 @@ prometheus-operator:
 ```
 
 ## Authentication
+
+### Prerequisites
+
+**Azure Authentication** (required only when accessing Azure Container Registry or Azure Key Vault):
+
+```bash
+az login
+```
+
+The tool uses the Azure SDK for ACR access and Key Vault integration. Authentication is only required when:
+- Accessing private Azure Container Registries (`*.azurecr.io`)
+- Using Azure Key Vault for credential storage (`keyVault` configuration)
+
+Without proper authentication, you will encounter `401 Unauthorized` errors when accessing these Azure resources. Public registries (MCR, Quay.io, Docker Hub, etc.) do not require Azure authentication.
 
 ### Authentication Methods by Registry
 
