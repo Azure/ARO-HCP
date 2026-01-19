@@ -6,7 +6,7 @@ acm:
       repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-210
   operator:
     bundle:
-      digest: sha256:c4b42034575178a2df9cb15f7ff8e3b5e71e1ee2d1b45a9d9a7ae21d998ec511
+      digest: sha256:7cb068fec0dff3608a20571f8f9df199dad8e07d0c1a1fc16fec0b002c0d5bc1
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-215
 acr:
@@ -390,7 +390,7 @@ maestro:
     name: arohcp-perf-maestro-usw3ptest
     private: false
   image:
-    digest: sha256:49b94994c17a989c2c9eed57c1da82f1d6d72ef8d731ece19ee4cce8c095c5c9
+    digest: sha256:382d444a18f122ae994ecbbdf6ef9b5c0bb16161d0a45862f01e4be574da321e
     registry: quay.io
     repository: redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro
   postgres:

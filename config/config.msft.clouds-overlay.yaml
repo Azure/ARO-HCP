@@ -86,7 +86,7 @@ clouds:
           # Maestro
           maestro:
             image:
-              digest: sha256:49b94994c17a989c2c9eed57c1da82f1d6d72ef8d731ece19ee4cce8c095c5c9 # 0f527cd4d82aa01b0e751f886e0099e9e553ec59 (2026-01-14 06:06)
+              digest: sha256:382d444a18f122ae994ecbbdf6ef9b5c0bb16161d0a45862f01e4be574da321e # 706a465546a088733d52c9adad8a6bd27e75dac2 (2026-01-19 08:09)
             agent:
               sidecar:
                 image:
