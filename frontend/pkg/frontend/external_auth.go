@@ -723,11 +723,7 @@ func (f *Frontend) getInternalExternalAuthFromStorage(ctx context.Context, resou
 // readInternalExternalAuthFromClusterService takes an internal ExternalAuth read from cosmos, retrieves the corresponding cluster-service data,
 // merges the states together, and returns the internal representation.
 func (f *Frontend) readInternalExternalAuthFromClusterService(ctx context.Context, oldInternalExternalAuth *api.HCPOpenShiftClusterExternalAuth) (*api.HCPOpenShiftClusterExternalAuth, error) {
-	return readInternalExternalAuthFromClusterService(ctx, f.clusterServiceClient, oldInternalExternalAuth, f.azureLocation)
-}
-
-func readInternalExternalAuthFromClusterService(ctx context.Context, clusterServiceClient ocm.ClusterServiceClientSpec, oldInternalExternalAuth *api.HCPOpenShiftClusterExternalAuth, azureLocation string) (*api.HCPOpenShiftClusterExternalAuth, error) {
-	oldClusterServiceExternalAuth, err := clusterServiceClient.GetExternalAuth(ctx, oldInternalExternalAuth.ServiceProviderProperties.ClusterServiceID)
+	oldClusterServiceExternalAuth, err := f.clusterServiceClient.GetExternalAuth(ctx, oldInternalExternalAuth.ServiceProviderProperties.ClusterServiceID)
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}
