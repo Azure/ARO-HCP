@@ -64,7 +64,8 @@ kube-prometheus-stack:
         image:
           registry: "{{ .acr.svc.name }}.{{ .acrDNSSuffix }}"
           repository: "{{ .svc.prometheus.admissionWebhook.patch.image.repository }}"
-          sha: "{{ .svc.prometheus.admissionWebhook.patch.image.digest }}"
+          tag: ""
+          sha: "{{ .svc.prometheus.admissionWebhook.patch.image.sha }}"
   ## Setting to true produces cleaner resource names, but requires a data migration because the name of the persistent volume changes. Therefore this should only be set once on initial installation.
   cleanPrometheusOperatorObjectNames: true
   # config for kube-state-metrics subchart that is imported by the kube-prometheus-stack chart conditionally

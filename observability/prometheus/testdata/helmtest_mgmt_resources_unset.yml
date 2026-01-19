@@ -24,7 +24,7 @@ testData:
           image:
             registry: arohcpsvcdev.azurecr.io
             repository: k8s-cache/ingress-nginx/kube-webhook-certgen
-            digest: sha256:test-webhook
+            sha: test-webhooktest-webhooktest-webhooktest-webhooktest-webhooktest-we
       prometheusSpec:
         image:
           registry: mcr.microsoft.com/oss/v2

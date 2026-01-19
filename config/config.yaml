@@ -375,7 +375,7 @@ defaults:
         patch:
           image:
             repository: k8s-cache/ingress-nginx/kube-webhook-certgen
-            digest: sha256:e8825994b7a2c7497375a9b945f386506ca6a3eda80b89b74ef2db743f66a5ea # v1.5.2
+            sha: e8825994b7a2c7497375a9b945f386506ca6a3eda80b89b74ef2db743f66a5ea # v1.5.2
   # MGMT cluster specifics
   mgmt:
     hcpBackups:
@@ -484,7 +484,7 @@ defaults:
         patch:
           image:
             repository: k8s-cache/ingress-nginx/kube-webhook-certgen
-            digest: sha256:e8825994b7a2c7497375a9b945f386506ca6a3eda80b89b74ef2db743f66a5ea # v1.5.2
+            sha: e8825994b7a2c7497375a9b945f386506ca6a3eda80b89b74ef2db743f66a5ea # v1.5.2
   # Backend
   backend:
     image:

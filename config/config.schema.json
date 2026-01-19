@@ -733,17 +733,7 @@
               "additionalProperties": false,
               "properties": {
                 "image": {
-                  "type": "object",
-                  "additionalProperties": false,
-                  "properties": {
-                    "repository": {
-                      "type": "string"
-                    },
-                    "digest": {
-                      "type": "string",
-                      "pattern": "^$|^sha256:[a-fA-F0-9]{64}$"
-                    }
-                  }
+                  "$ref": "#/definitions/containerImageSha"
                 }
               }
             }
