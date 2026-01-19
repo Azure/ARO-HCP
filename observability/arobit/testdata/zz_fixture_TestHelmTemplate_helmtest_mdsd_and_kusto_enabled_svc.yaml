@@ -219,7 +219,18 @@ data:
         Database_Name ServiceLogs
         Table_Name frontendLogs
         ingestion_mapping_reference ingestionMapping
-        buffer_dir /var/kusto
+        azure_kusto_buffer_key frontendLogs
+        buffer_dir                  /var/kusto
+        buffering_enabled           true 
+        upload_timeout              1m
+        upload_file_size            48M
+        buffer_file_delete_early    false
+        unify_tag                   true
+        store_dir_limit_size        2GB
+        blob_uri_length             128
+        scheduler_max_retries       3
+        delete_on_max_upload_error  false
+        io_timeout                  60s
 
     [OUTPUT]
         Match aro-hcp-backend.logs
@@ -232,7 +243,18 @@ data:
         Database_Name ServiceLogs
         Table_Name backendLogs
         ingestion_mapping_reference ingestionMapping
-        buffer_dir /var/kusto
+        azure_kusto_buffer_key backendLogs
+        buffer_dir                  /var/kusto
+        buffering_enabled           true 
+        upload_timeout              1m
+        upload_file_size            48M
+        buffer_file_delete_early    false
+        unify_tag                   true
+        store_dir_limit_size        2GB
+        blob_uri_length             128
+        scheduler_max_retries       3
+        delete_on_max_upload_error  false
+        io_timeout                  60s
 
     [OUTPUT]
         Match clusters-service.logs
@@ -245,7 +267,18 @@ data:
         Database_Name ServiceLogs
         Table_Name clustersServiceLogs
         ingestion_mapping_reference ingestionMapping
-        buffer_dir /var/kusto
+        azure_kusto_buffer_key clustersServiceLogs
+        buffer_dir                  /var/kusto
+        buffering_enabled           true 
+        upload_timeout              1m
+        upload_file_size            48M
+        buffer_file_delete_early    false
+        unify_tag                   true
+        store_dir_limit_size        2GB
+        blob_uri_length             128
+        scheduler_max_retries       3
+        delete_on_max_upload_error  false
+        io_timeout                  60s
     [OUTPUT]
         Match other.logs
         Name azure_kusto
@@ -257,7 +290,18 @@ data:
         Database_Name ServiceLogs
         Table_Name containerLogs
         ingestion_mapping_reference ingestionMapping
-        buffer_dir /var/kusto
+        azure_kusto_buffer_key containerLogs
+        buffer_dir                  /var/kusto
+        buffering_enabled           true 
+        upload_timeout              1m
+        upload_file_size            48M
+        buffer_file_delete_early    false
+        unify_tag                   true
+        store_dir_limit_size        2GB
+        blob_uri_length             128
+        scheduler_max_retries       3
+        delete_on_max_upload_error  false
+        io_timeout                  60s
 
     [OUTPUT]
         Match kube-events.logs
@@ -270,7 +314,18 @@ data:
         Database_Name ServiceLogs
         Table_Name kubernetesEvents
         ingestion_mapping_reference ingestionMapping
-        buffer_dir /var/kusto
+        azure_kusto_buffer_key kubernetesEvents
+        buffer_dir                  /var/kusto
+        buffering_enabled           true 
+        upload_timeout              1m
+        upload_file_size            48M
+        buffer_file_delete_early    false
+        unify_tag                   true
+        store_dir_limit_size        2GB
+        blob_uri_length             128
+        scheduler_max_retries       3
+        delete_on_max_upload_error  false
+        io_timeout                  60s
   output-mdsd.conf: |
     # Forward logs to mdsd instance (default port)
     [OUTPUT]
@@ -405,7 +460,7 @@ spec:
         app: arobit-forwarder
         azure.workload.identity/use: "true"
       annotations:
-        checksum/configmap: 0fc23a5c972956eee2988b43c51663fad489248db6b84a6d4023e966388620cd
+        checksum/configmap: 44e52f2fc0f006bdde213d29a0a603a0ca2e9c9a135f3f4866b97ee5d9a2287f
     spec:
       serviceAccountName: 'arobit-forwarder'
       shareProcessNamespace: true
@@ -457,6 +512,8 @@ spec:
             capabilities:
               drop: ['ALL']
           volumeMounts:
+            - name: var-kusto
+              mountPath: /var/kusto
             - name: varlog
               mountPath: /var/log
             - name: varlibdockercontainers
@@ -555,6 +612,8 @@ spec:
               name: geneva-certs
               readOnly: true
       volumes:
+        - name: var-kusto
+          emptyDir: {}
         - name: sp-host
           hostPath:
             type: Directory

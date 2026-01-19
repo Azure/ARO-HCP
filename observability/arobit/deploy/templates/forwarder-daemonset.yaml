@@ -78,6 +78,8 @@ spec:
             capabilities:
               drop: ['ALL']
           volumeMounts:
+            - name: var-kusto
+              mountPath: /var/kusto
             - name: varlog
               mountPath: /var/log
             - name: varlibdockercontainers
@@ -269,6 +271,8 @@ spec:
         {{- end }}
         {{- end }}
       volumes:
+        - name: var-kusto
+          emptyDir: {}
         - name: sp-host
           hostPath:
             type: Directory

@@ -59,6 +59,17 @@ forwarder:
     hostedControlPlaneLogsDatabase: {{ .kusto.hostedControlPlaneLogsDatabase }}
     enabled: {{ .arobit.kusto.enabled }}
     ingestionEndpoint: "__kustoDataIngestionUri__"
+    buffer_dir: /var/kusto
+    buffering_enabled: On
+    upload_timeout: 1m
+    upload_file_size: 48M
+    buffer_file_delete_early: Off
+    unify_tag: On
+    store_dir_limit_size: 2GB
+    blob_uri_length: 128
+    scheduler_max_retries: 3
+    delete_on_max_upload_error: Off
+    io_timeout: 60s
   msiClientId: "__msiClientId__"
   tenantId: "__tenantId__"
   secretProvider:
