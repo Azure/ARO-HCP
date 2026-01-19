@@ -436,7 +436,7 @@ func (c *SessionController) ensureAuthorizationPolicy(ctx context.Context, now f
 func (c *SessionController) getCredentialSecret(session *sessiongatev1alpha1.Session) (*CredentialSecret, error) {
 	secretName := session.Status.CredentialsSecretRef
 	if secretName == "" {
-		secretName = CredentialSecretName(session.Name)
+		secretName = credentialSecretName(session.Name)
 	}
 	current, err := c.getSecret(session.Namespace, secretName)
 	var secretData map[string][]byte

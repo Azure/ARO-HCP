@@ -29,7 +29,10 @@ import (
 )
 
 func authorizationPolicyNameForSession(session *sessiongatev1alpha1.Session) string {
-	return session.Name
+	if session.Status.AuthorizationPolicyRef != "" {
+		return session.Status.AuthorizationPolicyRef
+	}
+	return "sessiongate-" + session.Name
 }
 
 func buildAuthorizationPolicySpec(session *sessiongatev1alpha1.Session) securityv1beta1api.AuthorizationPolicy {
@@ -63,12 +66,12 @@ func buildAuthorizationPolicySpec(session *sessiongatev1alpha1.Session) security
 }
 
 func buildAuthorizationPolicyApplyConfiguration(session *sessiongatev1alpha1.Session) *securityapplyv1beta1.AuthorizationPolicyApplyConfiguration {
-	return securityapplyv1beta1.AuthorizationPolicy(session.Name, session.Namespace).
+	return securityapplyv1beta1.AuthorizationPolicy(authorizationPolicyNameForSession(session), session.Namespace).
 		WithOwnerReferences(metaapplyv1.OwnerReference().
 			WithBlockOwnerDeletion(true).
 			WithAPIVersion(sessiongatev1alpha1.SchemeGroupVersion.String()).
 			WithKind("Session").
-			WithName(authorizationPolicyNameForSession(session)).
+			WithName(session.Name).
 			WithUID(session.UID).
 			WithController(true)).
 		WithLabels(map[string]string{
