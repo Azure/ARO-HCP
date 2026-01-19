@@ -1,0 +1,27 @@
+sourceimagedeclaration:
+    - jsonpath: sources.a
+      filepath: test.yaml
+      digest: sha256:same
+      line: 1
+      versiontag: vX
+      versiondate: 2026-01-01 00:00
+    - jsonpath: sources.b
+      filepath: test.yaml
+      digest: sha256:same
+      line: 2
+      versiontag: vX
+      versiondate: 2026-01-01 00:00
+targetimagedeclaration:
+    - jsonpath: targets.t1
+      filepath: test.yaml
+      digest: sha256:old
+      line: 3
+      versiontag: ""
+      versiondate: ""
+    - jsonpath: targets.t2
+      filepath: test.yaml
+      digest: sha256:same
+      line: 4
+      versiontag: ""
+      versiondate: ""
+imagename: img

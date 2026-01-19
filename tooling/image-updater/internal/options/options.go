@@ -207,7 +207,7 @@ func (v *ValidatedUpdateOptions) Complete(ctx context.Context) (*updater.Updater
 	// We'll just copy digests from the source environment
 	if promotionMode != updater.FetchLatest {
 		// Initialize YAML editors for target files
-		yamlEditors := make(map[string]*yaml.Editor)
+		yamlEditors := make(map[string]yaml.EditorInterface)
 		for _, imageConfig := range v.Config.Images {
 			for _, target := range imageConfig.Targets {
 				if _, exists := yamlEditors[target.FilePath]; !exists {
@@ -273,7 +273,7 @@ func (v *ValidatedUpdateOptions) Complete(ctx context.Context) (*updater.Updater
 	}
 
 	// Initialize YAML editors for target files
-	yamlEditors := make(map[string]*yaml.Editor)
+	yamlEditors := make(map[string]yaml.EditorInterface)
 	for _, imageConfig := range v.Config.Images {
 		for _, target := range imageConfig.Targets {
 			if _, exists := yamlEditors[target.FilePath]; !exists {

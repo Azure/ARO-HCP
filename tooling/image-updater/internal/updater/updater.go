@@ -50,7 +50,7 @@ type Updater struct {
 	DryRun          bool
 	ForceUpdate     bool
 	RegistryClients map[string]clients.RegistryClient
-	YAMLEditors     map[string]*yaml.Editor
+	YAMLEditors     map[string]yaml.EditorInterface
 	Updates         map[string][]yaml.Update
 	PromotionMode   PromotionMode
 	Environments    []string
@@ -59,7 +59,7 @@ type Updater struct {
 }
 
 // New creates a new Updater with all necessary resources pre-initialized
-func New(cfg *config.Config, dryRun bool, forceUpdate bool, registryClients map[string]clients.RegistryClient, yamlEditors map[string]*yaml.Editor, promotionMode PromotionMode, environments []string, outputFile, outputFormat string) *Updater {
+func New(cfg *config.Config, dryRun bool, forceUpdate bool, registryClients map[string]clients.RegistryClient, yamlEditors map[string]yaml.EditorInterface, promotionMode PromotionMode, environments []string, outputFile, outputFormat string) *Updater {
 	return &Updater{
 		Config:          cfg,
 		DryRun:          dryRun,
@@ -192,102 +192,64 @@ func (u *Updater) promoteImages(ctx context.Context) error {
 		return fmt.Errorf("logger not found in context: %w", err)
 	}
 
-	// Determine source and target environments
 	sourceEnv, targetEnv := u.getPromotionSourceAndTarget()
-	logger.V(1).Info("promoting images", "from", sourceEnv, "to", targetEnv)
+	logger = logger.WithValues("from", sourceEnv, "to", targetEnv)
+	ctx = logr.NewContext(ctx, logger)
 
-	updatedCount := 0
+	logger.V(1).Info("promoting images")
+
+	var promotions []Promotion
 	for name, imageConfig := range u.Config.Images {
 		logger.V(1).Info("processing image for promotion", "name", name, "source", imageConfig.Source.Image)
 
-		// Find source and target paths for this image
-		var sourceTarget, destTarget *config.Target
-		for i := range imageConfig.Targets {
-			target := &imageConfig.Targets[i]
-			switch target.Env {
-			case sourceEnv:
-				sourceTarget = target
-			case targetEnv:
-				destTarget = target
+		promotion := Promotion{ImageName: name}
+		for _, target := range imageConfig.Targets {
+			// Find all the targets thar target the source env
+			if target.Env == sourceEnv {
+				promotion.SourceImageDeclaration = append(promotion.SourceImageDeclaration, &ImageDeclaration{
+					JSONPath: target.JsonPath,
+					FilePath: target.FilePath,
+				})
+			}
+
+			// Find all the targets thar target the target env
+			if target.Env == targetEnv {
+				promotion.TargetImageDeclaration = append(promotion.TargetImageDeclaration, &ImageDeclaration{
+					JSONPath: target.JsonPath,
+					FilePath: target.FilePath,
+				})
 			}
 		}
 
-		if sourceTarget == nil {
-			logger.V(1).Info("skipping image - no source target found", "name", name, "sourceEnv", sourceEnv)
-			continue
+		getEditor := func(filePath string) (yaml.EditorInterface, error) {
+			editor, exists := u.YAMLEditors[filePath]
+			if !exists {
+				return nil, fmt.Errorf("no YAML editor available for %s", filePath)
+			}
+			return editor, nil
 		}
 
-		if destTarget == nil {
-			logger.V(1).Info("skipping image - no destination target found", "name", name, "targetEnv", targetEnv)
-			continue
+		if err := promotion.Build(getEditor); err != nil {
+			if IsSkippablePromotionBuildError(err) {
+				logger.Error(err, "skipping image promotion due to invalid/unclear source", "name", name)
+				continue
+			}
+			return fmt.Errorf("failed to build promotion for image %s: %w", name, err)
 		}
 
-		// Get source digest
-		sourceEditor, exists := u.YAMLEditors[sourceTarget.FilePath]
-		if !exists {
-			return fmt.Errorf("no YAML editor available for source file %s", sourceTarget.FilePath)
-		}
+		promotions = append(promotions, promotion)
+	}
 
-		_, sourceDigest, sourceLineContent, err := sourceEditor.GetLineWithComment(sourceTarget.JsonPath)
+	updatedCount := 0
+	for _, promotion := range promotions {
+		updates, err := promotion.Execute(ctx, u.ForceUpdate)
 		if err != nil {
-			return fmt.Errorf("failed to get source digest from %s at path %s: %w",
-				sourceTarget.FilePath, sourceTarget.JsonPath, err)
+			return fmt.Errorf("failed to execute promotion for image %s: %w", promotion.ImageName, err)
 		}
-
-		if sourceDigest == "" {
-			logger.V(1).Info("skipping image - source digest is empty", "name", name)
-			continue
+		updatedCount += len(updates)
+		for _, update := range updates {
+			u.Updates[update.FilePath] = append(u.Updates[update.FilePath], update)
 		}
-
-		// Extract tag and date from source comment
-		sourceTag, sourceDate := yaml.ParseVersionComment(sourceLineContent)
-
-		// Get destination digest
-		destEditor, exists := u.YAMLEditors[destTarget.FilePath]
-		if !exists {
-			return fmt.Errorf("no YAML editor available for destination file %s", destTarget.FilePath)
-		}
-
-		line, destDigest, err := destEditor.GetUpdate(destTarget.JsonPath)
-		if err != nil {
-			return fmt.Errorf("failed to get destination digest from %s at path %s: %w",
-				destTarget.FilePath, destTarget.JsonPath, err)
-		}
-
-		// Check if update is needed
-		if sourceDigest == destDigest && !u.ForceUpdate {
-			logger.V(1).Info("No update needed - digests match", "name", name)
-			continue
-		}
-
-		if sourceDigest == destDigest && u.ForceUpdate {
-			logger.V(1).Info("Force update - regenerating comments", "name", name)
-		} else {
-			logger.V(1).Info("Promotion needed", "name", name, "from", destDigest, "to", sourceDigest)
-		}
-
-		// Record the update (both dry-run and real runs)
-		u.Updates[destTarget.FilePath] = append(u.Updates[destTarget.FilePath], yaml.Update{
-			Name:      name,
-			NewDigest: sourceDigest,
-			OldDigest: destDigest,
-			Tag:       sourceTag,
-			Date:      sourceDate,
-			JsonPath:  destTarget.JsonPath,
-			FilePath:  destTarget.FilePath,
-			Line:      line,
-		})
-
-		if u.DryRun {
-			logger.V(2).Info("DRY RUN: Would promote image",
-				"name", name,
-				"sourceEnv", sourceEnv,
-				"targetEnv", targetEnv,
-				"from", destDigest,
-				"to", sourceDigest)
-		}
-
-		updatedCount++
 	}
 
 	// Always show summary
