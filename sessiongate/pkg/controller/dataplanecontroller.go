@@ -75,7 +75,7 @@ func NewDataPlaneController(
 		},
 	}
 
-	if err := registerInformer(sessiongateInformers.Sessiongate().V1alpha1().Sessions().Informer(), keyForSession, c.workqueue); err != nil {
+	if err := registerInformer(sessiongateInformers.Sessiongate().V1alpha1().Sessions().Informer(), keyForObject, c.workqueue); err != nil {
 		return nil, fmt.Errorf("failed to register session informer: %w", err)
 	}
 
@@ -158,7 +158,11 @@ func (c *DataPlaneController) isReadyForRegistration(session *sessiongatev1alpha
 }
 
 func (c *DataPlaneController) getCredentialSecret(session *sessiongatev1alpha1.Session) (*CredentialSecret, error) {
-	current, err := c.getSecret(session.Namespace, session.Name)
+	secretName := session.Status.CredentialsSecretRef
+	if secretName == "" {
+		secretName = CredentialSecretName(session.Name)
+	}
+	current, err := c.getSecret(session.Namespace, secretName)
 	var secretData map[string][]byte
 	if err != nil && !apierrors.IsNotFound(err) {
 		return nil, err
@@ -167,7 +171,7 @@ func (c *DataPlaneController) getCredentialSecret(session *sessiongatev1alpha1.S
 	} else {
 		secretData = current.Data
 	}
-	return NewCredentialSecret(session.Name, CredentialSecretName(session.Name), session.Namespace, session.UID, c.fieldManager, secretData), nil
+	return NewCredentialSecret(session.Name, secretName, session.Namespace, session.UID, c.fieldManager, secretData), nil
 }
 
 func (c *DataPlaneController) registerSession(session *sessiongatev1alpha1.Session) error {

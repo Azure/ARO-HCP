@@ -165,21 +165,22 @@ func (i *ManagementClusterInventory) Register(ctx context.Context, resourceId st
 
 	// Register CSR informer
 	csrInformer := provider.KubeInformers.Certificates().V1().CertificateSigningRequests().Informer()
-	if err := registerInformer(csrInformer, keyForOwningSession, i.sessionWorkQueue); err != nil {
+	if err := registerInformer(csrInformer, sessionKeyFromOwnershipAnnotation, i.sessionWorkQueue); err != nil {
 		return fmt.Errorf("failed to register CSR informer: %w", err)
 	}
 
 	// Register CSR Approval informer
 	csrApprovalInformer := provider.HypershiftInformers.Certificates().V1alpha1().CertificateSigningRequestApprovals().Informer()
-	if err := registerInformer(csrApprovalInformer, keyForOwningSession, i.sessionWorkQueue); err != nil {
+	if err := registerInformer(csrApprovalInformer, sessionKeyFromOwnershipAnnotation, i.sessionWorkQueue); err != nil {
 		return fmt.Errorf("failed to register CSR approval informer: %w", err)
 	}
 
 	// Register HostedControlPlane informer
-	hcpInformer := provider.HypershiftInformers.Hypershift().V1beta1().HostedControlPlanes().Informer()
-	if err := registerInformer(hcpInformer, keyForOwningSession, i.sessionWorkQueue); err != nil {
-		return fmt.Errorf("failed to register HCP informer: %w", err)
-	}
+	provider.HypershiftInformers.Hypershift().V1beta1().HostedControlPlanes().Informer()
+	// TODO: provide a key func that resolves the sessions using an HCP
+	// if err := registerInformer(hcpInformer, keyForOwningSession, i.sessionWorkQueue); err != nil {
+	// 	return fmt.Errorf("failed to register HCP informer: %w", err)
+	// }
 
 	klog.InfoS("starting management cluster provider informers", "resourceID", resourceId)
 	provider.KubeInformers.Start(provider.stopCh)

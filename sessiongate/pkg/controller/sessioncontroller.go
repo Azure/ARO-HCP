@@ -160,7 +160,7 @@ func NewSessionController(
 	}
 
 	// Register session informer
-	if err := registerInformer(sessiongateInformers.Sessiongate().V1alpha1().Sessions().Informer(), keyForSession, c.workqueue); err != nil {
+	if err := registerInformer(sessiongateInformers.Sessiongate().V1alpha1().Sessions().Informer(), keyForObject, c.workqueue); err != nil {
 		return nil, fmt.Errorf("failed to register session informer: %w", err)
 	}
 	// Register management cluster informer
@@ -168,93 +168,14 @@ func NewSessionController(
 		return nil, fmt.Errorf("failed to register management cluster informer: %w", err)
 	}
 	// Register authorization policies and secret informers (resources owned by a session)
-	if err := registerInformer(istioInformers.Security().V1beta1().AuthorizationPolicies().Informer(), keyForOwningSession, c.workqueue); err != nil {
+	if err := registerInformer(istioInformers.Security().V1beta1().AuthorizationPolicies().Informer(), sessionKeyFromOwnershipReference, c.workqueue); err != nil {
 		return nil, fmt.Errorf("failed to register authorization policy informer: %w", err)
 	}
-	if err := registerInformer(kubeinformers.Core().V1().Secrets().Informer(), keyForOwningSession, c.workqueue); err != nil {
+	if err := registerInformer(kubeinformers.Core().V1().Secrets().Informer(), sessionKeyFromOwnershipReference, c.workqueue); err != nil {
 		return nil, fmt.Errorf("failed to register secret informer: %w", err)
 	}
 
 	return c, nil
-}
-
-func registerInformer[T comparable](informer cache.SharedIndexInformer, keyFunc func(obj interface{}) (T, error), workQueue workqueue.TypedRateLimitingInterface[T]) error {
-	_, err := informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc: func(obj interface{}) {
-			key, err := keyFunc(obj)
-			if err != nil {
-				return
-			}
-			workQueue.Add(key)
-		},
-		UpdateFunc: func(old, new interface{}) {
-			key, err := keyFunc(new)
-			if err != nil {
-				return
-			}
-			workQueue.Add(key)
-		},
-		DeleteFunc: func(obj interface{}) {
-			key, err := keyFunc(obj)
-			if err != nil {
-				return
-			}
-			workQueue.Add(key)
-		},
-	})
-	if err != nil {
-		return fmt.Errorf("failed to add event handler for informer: %w", err)
-	}
-	return nil
-}
-
-func keyForSession(obj interface{}) (cache.ObjectName, error) {
-	key, err := cache.DeletionHandlingObjectToName(obj)
-	if err != nil {
-		return cache.ObjectName{}, fmt.Errorf("could not determine queue key: %w", err)
-	}
-	return key, nil
-}
-
-func mgmtClusterResourceIdFromSession(obj interface{}) (string, error) {
-	// obj needs to be a session
-	session, ok := obj.(*sessiongatev1alpha1.Session)
-	if !ok {
-		return "", fmt.Errorf("error decoding object, invalid type")
-	}
-	return session.Spec.ManagementCluster.ResourceID, nil
-}
-
-// keyForOwningSession extracts the Session namespace/name workqueue key from owned resources.
-// Checks controller owner references first, then falls back to an annotation approach for
-// cross-cluster resources (like CSRs) where owner references aren't possible.
-func keyForOwningSession(obj interface{}) (cache.ObjectName, error) {
-	var object metav1.Object
-	var ok bool
-	if object, ok = obj.(metav1.Object); !ok {
-		tombstone, ok := obj.(cache.DeletedFinalStateUnknown)
-		if !ok {
-			return cache.ObjectName{}, fmt.Errorf("error decoding object, invalid type")
-		}
-		object, ok = tombstone.Obj.(metav1.Object)
-		if !ok {
-			return cache.ObjectName{}, fmt.Errorf("error decoding object tombstone, invalid type")
-		}
-	}
-	if ownerRef := metav1.GetControllerOf(object); ownerRef != nil {
-		if ownerRef.Kind != "Session" {
-			return cache.ObjectName{}, fmt.Errorf("object is not owned by a Session")
-		}
-		return cache.NewObjectName(object.GetNamespace(), ownerRef.Name), nil
-	}
-	if sessiongateAnnotation, ok := object.GetAnnotations()[AnnotationSessiongate]; ok {
-		namespace, name, err := cache.SplitMetaNamespaceKey(sessiongateAnnotation)
-		if err != nil {
-			return cache.ObjectName{}, fmt.Errorf("failed to split meta namespace key: %w", err)
-		}
-		return cache.NewObjectName(namespace, name), nil
-	}
-	return cache.ObjectName{}, fmt.Errorf("object has no controller owner reference")
 }
 
 func (c *SessionController) Run(ctx context.Context, workers int) error {
@@ -513,7 +434,11 @@ func (c *SessionController) ensureAuthorizationPolicy(ctx context.Context, now f
 }
 
 func (c *SessionController) getCredentialSecret(session *sessiongatev1alpha1.Session) (*CredentialSecret, error) {
-	current, err := c.getSecret(session.Namespace, CredentialSecretName(session.Name))
+	secretName := session.Status.CredentialsSecretRef
+	if secretName == "" {
+		secretName = CredentialSecretName(session.Name)
+	}
+	current, err := c.getSecret(session.Namespace, secretName)
 	var secretData map[string][]byte
 	if err != nil && !apierrors.IsNotFound(err) {
 		return nil, err
@@ -522,7 +447,7 @@ func (c *SessionController) getCredentialSecret(session *sessiongatev1alpha1.Ses
 	} else {
 		secretData = current.Data
 	}
-	return NewCredentialSecret(session.Name, CredentialSecretName(session.Name), session.Namespace, session.UID, c.fieldManager, secretData), nil
+	return NewCredentialSecret(session.Name, secretName, session.Namespace, session.UID, c.fieldManager, secretData), nil
 }
 
 func (c *SessionController) generateCredentials(ctx context.Context, now func() time.Time, session *sessiongatev1alpha1.Session, mc ManagementClusterQuerier) (bool, *actions, error) {
@@ -534,7 +459,7 @@ func (c *SessionController) generateCredentials(ctx context.Context, now func() 
 	// if there is already a certificate in the secret, nothing to do
 	if _, certExists := credentialSecret.GetCertificate(); certExists {
 		sessionUpdate, needsUpdate := NewStatus(session.Status).
-			WithCredentialsSecretRef(session.Name).
+			WithCredentialsSecretRef(credentialSecret.SecretName()).
 			WithConditions(
 				applyv1.Condition().
 					WithType(string(sessiongatev1alpha1.SessionConditionTypeCredentialsAvailable)).

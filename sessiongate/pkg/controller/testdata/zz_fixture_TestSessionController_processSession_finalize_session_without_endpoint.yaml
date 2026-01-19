@@ -44,6 +44,6 @@ Session:
       reason: NetworkPathAvailable
       status: "True"
       type: NetworkPathAvailable
-    credentialsSecretRef: test-session
+    credentialsSecretRef: sessiongate-test-session
     endpoint: https://localhost:8080/sessiongate/test-session/kas
     expiresAt: "2025-01-08T12:00:00Z"
