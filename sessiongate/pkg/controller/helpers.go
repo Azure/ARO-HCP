@@ -17,10 +17,11 @@ package controller
 import (
 	"fmt"
 
-	sessiongatev1alpha1 "github.com/Azure/ARO-HCP/sessiongate/pkg/apis/sessiongate/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
+
+	sessiongatev1alpha1 "github.com/Azure/ARO-HCP/sessiongate/pkg/apis/sessiongate/v1alpha1"
 )
 
 func registerInformer[T comparable](informer cache.SharedIndexInformer, keyFunc func(obj interface{}) (T, error), workQueue workqueue.TypedRateLimitingInterface[T]) error {

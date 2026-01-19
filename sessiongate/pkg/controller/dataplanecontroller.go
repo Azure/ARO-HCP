@@ -160,7 +160,7 @@ func (c *DataPlaneController) isReadyForRegistration(session *sessiongatev1alpha
 func (c *DataPlaneController) getCredentialSecret(session *sessiongatev1alpha1.Session) (*CredentialSecret, error) {
 	secretName := session.Status.CredentialsSecretRef
 	if secretName == "" {
-		secretName = CredentialSecretName(session.Name)
+		secretName = credentialSecretName(session.Name)
 	}
 	current, err := c.getSecret(session.Namespace, secretName)
 	var secretData map[string][]byte

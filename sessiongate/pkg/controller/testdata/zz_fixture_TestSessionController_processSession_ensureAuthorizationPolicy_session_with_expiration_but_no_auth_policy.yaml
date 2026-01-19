@@ -4,7 +4,7 @@ AuthPolicy:
   metadata:
     labels:
       app.kubernetes.io/managed-by: sessiongate-controller
-    name: test-session
+    name: sessiongate-test-session
     namespace: test-namespace
     ownerReferences:
     - apiVersion: sessiongate.aro-hcp.azure.com/v1alpha1

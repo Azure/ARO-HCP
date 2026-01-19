@@ -43,7 +43,7 @@ type CredentialSecret struct {
 	data             map[string][]byte
 }
 
-func CredentialSecretName(sessionName string) string {
+func credentialSecretName(sessionName string) string {
 	return "sessiongate-" + sessionName
 }
 

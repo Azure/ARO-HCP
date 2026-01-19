@@ -33,12 +33,13 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 
-	"github.com/Azure/ARO-HCP/sessiongate/pkg/mc"
 	certificatesv1alpha1 "github.com/openshift/hypershift/api/certificates/v1alpha1"
 	hypershiftv1beta1 "github.com/openshift/hypershift/api/hypershift/v1beta1"
 	hypershiftclientset "github.com/openshift/hypershift/client/clientset/clientset"
 	certificatesclientv1alpha1 "github.com/openshift/hypershift/client/clientset/clientset/typed/certificates/v1alpha1"
 	hypershiftinformers "github.com/openshift/hypershift/client/informers/externalversions"
+
+	"github.com/Azure/ARO-HCP/sessiongate/pkg/mc"
 )
 
 const (
