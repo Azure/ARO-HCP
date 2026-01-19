@@ -141,7 +141,7 @@ images:
   arohcpfrontend:
     source:
       image: arohcpsvcint.azurecr.io/arohcpfrontend
-      tag: "sha256:013ae7f72821c95873141388054ed7fdaa75dbf71d78e8701240fb39e5a39c51" # Pinned to prevent auto-updates
+      tag: "013ae7f72821c95873141388054ed7fdaa75dbf71d78e8701240fb39e5a39c51" # Pinned to prevent auto-updates
       useAuth: true
     targets:
     - jsonPath: clouds.dev.defaults.frontend.image.digest
