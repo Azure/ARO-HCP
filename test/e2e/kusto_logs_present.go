@@ -67,7 +67,6 @@ var _ = Describe("Engineering", func() {
 				resourceGroup,
 				clusterParams,
 				map[string]interface{}{
-					"persistTagValue":        false,
 					"customerNsgName":        engineeringNetworkSecurityGroupName,
 					"customerVnetName":       engineeringVnetName,
 					"customerVnetSubnetName": engineeringVnetSubnetName,
