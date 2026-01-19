@@ -531,7 +531,7 @@ func TestSessionController_processSession_generateCredentials(t *testing.T) {
 			sessionStatus: sessiongatev1alpha1.SessionStatus{
 				ExpiresAt:              &metav1.Time{Time: fixedTime.Add(24 * time.Hour)},
 				AuthorizationPolicyRef: "test-session",
-				CredentialsSecretRef:   "test-session",
+				CredentialsSecretRef:   "sessiongate-test-session",
 				Conditions: []metav1.Condition{
 					authPolicyAvailableCondition,
 					sessionNotReadyCondition,
@@ -556,7 +556,7 @@ func TestSessionController_processSession_generateCredentials(t *testing.T) {
 			sessionStatus: sessiongatev1alpha1.SessionStatus{
 				ExpiresAt:              &metav1.Time{Time: fixedTime.Add(24 * time.Hour)},
 				AuthorizationPolicyRef: "test-session",
-				CredentialsSecretRef:   "test-session",
+				CredentialsSecretRef:   "sessiongate-test-session",
 				Conditions: []metav1.Condition{
 					authPolicyAvailableCondition,
 					sessionNotReadyCondition,
@@ -582,7 +582,7 @@ func TestSessionController_processSession_generateCredentials(t *testing.T) {
 			sessionStatus: sessiongatev1alpha1.SessionStatus{
 				ExpiresAt:              &metav1.Time{Time: fixedTime.Add(24 * time.Hour)},
 				AuthorizationPolicyRef: "test-session",
-				CredentialsSecretRef:   "test-session",
+				CredentialsSecretRef:   "sessiongate-test-session",
 				Conditions: []metav1.Condition{
 					authPolicyAvailableCondition,
 					sessionNotReadyCondition,
@@ -607,7 +607,7 @@ func TestSessionController_processSession_generateCredentials(t *testing.T) {
 			sessionStatus: sessiongatev1alpha1.SessionStatus{
 				ExpiresAt:              &metav1.Time{Time: fixedTime.Add(24 * time.Hour)},
 				AuthorizationPolicyRef: "test-session",
-				CredentialsSecretRef:   "test-session",
+				CredentialsSecretRef:   "sessiongate-test-session",
 				Conditions: []metav1.Condition{
 					authPolicyAvailableCondition,
 					sessionNotReadyCondition,
@@ -622,7 +622,7 @@ func TestSessionController_processSession_generateCredentials(t *testing.T) {
 			},
 			existingSecret: &corev1.Secret{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-session",
+					Name:      "sessiongate-test-session",
 					Namespace: "test-namespace",
 				},
 				Data: map[string][]byte{
@@ -642,7 +642,7 @@ func TestSessionController_processSession_generateCredentials(t *testing.T) {
 			sessionStatus: sessiongatev1alpha1.SessionStatus{
 				ExpiresAt:              &metav1.Time{Time: fixedTime.Add(24 * time.Hour)},
 				AuthorizationPolicyRef: "test-session",
-				CredentialsSecretRef:   "test-session",
+				CredentialsSecretRef:   "sessiongate-test-session",
 				Conditions: []metav1.Condition{
 					authPolicyAvailableCondition,
 					sessionNotReadyCondition,
@@ -667,7 +667,7 @@ func TestSessionController_processSession_generateCredentials(t *testing.T) {
 			sessionStatus: sessiongatev1alpha1.SessionStatus{
 				ExpiresAt:              &metav1.Time{Time: fixedTime.Add(24 * time.Hour)},
 				AuthorizationPolicyRef: "test-session",
-				CredentialsSecretRef:   "test-session",
+				CredentialsSecretRef:   "sessiongate-test-session",
 				Conditions: []metav1.Condition{
 					authPolicyAvailableCondition,
 					sessionNotReadyCondition,
@@ -692,7 +692,7 @@ func TestSessionController_processSession_generateCredentials(t *testing.T) {
 			sessionStatus: sessiongatev1alpha1.SessionStatus{
 				ExpiresAt:              &metav1.Time{Time: fixedTime.Add(24 * time.Hour)},
 				AuthorizationPolicyRef: "test-session",
-				CredentialsSecretRef:   "test-session",
+				CredentialsSecretRef:   "sessiongate-test-session",
 				Conditions: []metav1.Condition{
 					authPolicyAvailableCondition,
 					sessionNotReadyCondition,
@@ -776,7 +776,7 @@ func TestSessionController_processSession_ensureNetworkPath(t *testing.T) {
 			sessionStatus: sessiongatev1alpha1.SessionStatus{
 				ExpiresAt:              &metav1.Time{Time: fixedTime.Add(24 * time.Hour)},
 				AuthorizationPolicyRef: "test-session",
-				CredentialsSecretRef:   "test-session",
+				CredentialsSecretRef:   "sessiongate-test-session",
 				Conditions: []metav1.Condition{
 					authPolicyAvailableCondition,
 					sessionNotReadyCondition,
@@ -855,7 +855,7 @@ func TestSessionController_processSession_finalize(t *testing.T) {
 			sessionStatus: sessiongatev1alpha1.SessionStatus{
 				ExpiresAt:              &metav1.Time{Time: fixedTime.Add(24 * time.Hour)},
 				AuthorizationPolicyRef: "test-session",
-				CredentialsSecretRef:   "test-session",
+				CredentialsSecretRef:   "sessiongate-test-session",
 				BackendKASURL:          "https://api.test-hcp.example.com",
 				Conditions: []metav1.Condition{
 					authPolicyAvailableCondition,
@@ -872,7 +872,7 @@ func TestSessionController_processSession_finalize(t *testing.T) {
 			sessionStatus: sessiongatev1alpha1.SessionStatus{
 				ExpiresAt:              &metav1.Time{Time: fixedTime.Add(24 * time.Hour)},
 				AuthorizationPolicyRef: "test-session",
-				CredentialsSecretRef:   "test-session",
+				CredentialsSecretRef:   "sessiongate-test-session",
 				BackendKASURL:          "https://api.test-hcp.example.com",
 				Conditions: []metav1.Condition{
 					authPolicyAvailableCondition,

@@ -58,6 +58,10 @@ func NewCredentialSecret(sessionName string, secretName string, sessionNamespace
 	}
 }
 
+func (c *CredentialSecret) SecretName() string {
+	return c.secretName
+}
+
 func (c *CredentialSecret) GetPrivateKeyBytes() ([]byte, bool) {
 	privateKeyBytes, exists := c.data[secretKeyPrivateKey]
 	if !exists || len(privateKeyBytes) == 0 {
