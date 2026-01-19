@@ -403,11 +403,21 @@ prometheus-operator:
 
 **Azure Authentication** (required only when accessing Azure Container Registry or Azure Key Vault):
 
+The tool uses the Azure SDK for ACR access and Key Vault integration. You must authenticate with the appropriate Azure account based on the registry environment:
+
+**For dev environment** (`arohcpsvcdev.azurecr.io`):
 ```bash
+# Login with Red Hat account (@redhat.com)
 az login
 ```
 
-The tool uses the Azure SDK for ACR access and Key Vault integration. Authentication is only required when:
+**For int/stg/prod environments** (`arohcpsvcint.azurecr.io`, etc.):
+```bash
+# Login with Microsoft account (b-* account or @microsoft.com)
+az login
+```
+
+Authentication is only required when:
 - Accessing private Azure Container Registries (`*.azurecr.io`)
 - Using Azure Key Vault for credential storage (`keyVault` configuration)
 
