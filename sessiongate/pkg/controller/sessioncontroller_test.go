@@ -215,6 +215,7 @@ var authPolicyAvailableCondition = metav1.Condition{
 	Reason:             "AuthorizationPolicyAvailable",
 	Message:            "Authorization policy available",
 	ObservedGeneration: sampleSession.Generation,
+	LastTransitionTime: metav1.Time{Time: fixedTime},
 }
 
 var sessionNotReadyCondition = metav1.Condition{
@@ -223,6 +224,7 @@ var sessionNotReadyCondition = metav1.Condition{
 	Reason:             "NotReady",
 	Message:            "Session is not ready",
 	ObservedGeneration: sampleSession.Generation,
+	LastTransitionTime: metav1.Time{Time: fixedTime},
 }
 
 var credentialsAvailableCondition = metav1.Condition{
@@ -231,6 +233,7 @@ var credentialsAvailableCondition = metav1.Condition{
 	Reason:             "CredentialsAvailable",
 	Message:            "Credentials available",
 	ObservedGeneration: sampleSession.Generation,
+	LastTransitionTime: metav1.Time{Time: fixedTime},
 }
 
 var networkPathAvailableCondition = metav1.Condition{
@@ -239,6 +242,7 @@ var networkPathAvailableCondition = metav1.Condition{
 	Reason:             "NetworkPathAvailable",
 	Message:            "Network path available via public endpoint",
 	ObservedGeneration: sampleSession.Generation,
+	LastTransitionTime: metav1.Time{Time: fixedTime},
 }
 
 func TestSessionController_processSession_handleExpiration(t *testing.T) {
@@ -862,6 +866,30 @@ func TestSessionController_processSession_finalize(t *testing.T) {
 				// Endpoint missing
 			},
 			expectAction: true,
+		},
+		{
+			name: "session already ready",
+			sessionStatus: sessiongatev1alpha1.SessionStatus{
+				ExpiresAt:              &metav1.Time{Time: fixedTime.Add(24 * time.Hour)},
+				AuthorizationPolicyRef: "test-session",
+				CredentialsSecretRef:   "test-session",
+				BackendKASURL:          "https://api.test-hcp.example.com",
+				Conditions: []metav1.Condition{
+					authPolicyAvailableCondition,
+					credentialsAvailableCondition,
+					networkPathAvailableCondition,
+					{
+						Type:               string(sessiongatev1alpha1.SessionConditionTypeReady),
+						Status:             metav1.ConditionTrue,
+						Reason:             "Ready",
+						Message:            "Session is ready",
+						ObservedGeneration: sampleSession.Generation,
+						LastTransitionTime: metav1.Time{Time: fixedTime},
+					},
+				},
+				Endpoint: "https://localhost:8080/sessiongate/test-session/kas",
+			},
+			expectAction: false,
 		},
 	}
 
