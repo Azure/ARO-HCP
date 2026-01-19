@@ -25,6 +25,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/util/workqueue"
 
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -38,20 +39,20 @@ type doNothingExample struct {
 
 	// queue is where incoming work is placed to de-dup and to allow "easy"
 	// rate limited requeues on errors
-	queue workqueue.TypedRateLimitingInterface[HCPClusterKey]
+	queue workqueue.TypedRateLimitingInterface[controllerutils.HCPClusterKey]
 
 	CreateAzureWidget func() (string, error)
 }
 
 // NewDoNothingExampleController periodically lists all clusters and for each out when the cluster was created and its state.
-func NewDoNothingExampleController(cosmosClient database.DBClient, subscriptionLister listers.SubscriptionLister) Controller {
+func NewDoNothingExampleController(cosmosClient database.DBClient, subscriptionLister listers.SubscriptionLister) controllerutils.Controller {
 	c := &doNothingExample{
 		name:               "DoNothingExample",
 		subscriptionLister: subscriptionLister,
 		cosmosClient:       cosmosClient,
 		queue: workqueue.NewTypedRateLimitingQueueWithConfig(
-			workqueue.DefaultTypedControllerRateLimiter[HCPClusterKey](),
-			workqueue.TypedRateLimitingQueueConfig[HCPClusterKey]{
+			workqueue.DefaultTypedControllerRateLimiter[controllerutils.HCPClusterKey](),
+			workqueue.TypedRateLimitingQueueConfig[controllerutils.HCPClusterKey]{
 				Name: "do-nothing-example",
 			},
 		),
@@ -60,7 +61,7 @@ func NewDoNothingExampleController(cosmosClient database.DBClient, subscriptionL
 	return c
 }
 
-func (c *doNothingExample) synchronizeHCPCluster(ctx context.Context, key HCPClusterKey) error {
+func (c *doNothingExample) synchronizeHCPCluster(ctx context.Context, key controllerutils.HCPClusterKey) error {
 	logger := utils.LoggerFromContext(ctx)
 
 	cosmosHCPCluster, err := c.cosmosClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Get(ctx, key.HCPClusterName)
@@ -86,7 +87,7 @@ func (c *doNothingExample) synchronizeHCPCluster(ctx context.Context, key HCPClu
 	} else {
 		logger.Info("starting work for item",
 			"provisioning_state", cosmosHCPCluster.ServiceProviderProperties.ProvisioningState,
-			"controller_degraded", getCondition(existingController.Status.Conditions, "Degraded"),
+			"controller_degraded", controllerutils.GetCondition(existingController.Status.Conditions, "Degraded"),
 		)
 	}
 
@@ -110,16 +111,16 @@ func (c *doNothingExample) synchronizeHCPCluster(ctx context.Context, key HCPClu
 }
 
 func (c *doNothingExample) SyncOnce(ctx context.Context, keyObj any) error {
-	key := keyObj.(HCPClusterKey)
+	key := keyObj.(controllerutils.HCPClusterKey)
 
 	syncErr := c.synchronizeHCPCluster(ctx, key) // we'll handle this is a moment.
 
-	controllerWriteErr := writeController(
+	controllerWriteErr := controllerutils.WriteController(
 		ctx,
 		c.cosmosClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Controllers(key.HCPClusterName),
 		c.name,
-		key.initialController,
-		reportSyncError(syncErr),
+		key.InitialController,
+		controllerutils.ReportSyncError(syncErr),
 	)
 
 	return errors.Join(syncErr, controllerWriteErr)
@@ -141,7 +142,7 @@ func (c *doNothingExample) queueAllHCPClusters(ctx context.Context) {
 		}
 
 		for _, hcpCluster := range allHCPClusters.Items(ctx) {
-			c.queue.Add(HCPClusterKey{
+			c.queue.Add(controllerutils.HCPClusterKey{
 				SubscriptionID:    hcpCluster.ID.SubscriptionID,
 				ResourceGroupName: hcpCluster.ID.ResourceGroupName,
 				HCPClusterName:    hcpCluster.ID.Name,
