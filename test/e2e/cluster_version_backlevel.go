@@ -16,6 +16,8 @@ package e2e
 
 import (
 	"context"
+	"fmt"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -37,10 +39,10 @@ var _ = Describe("Customer", func() {
 		labels.AroRpApiCompatible,
 		func(ctx context.Context) {
 			const (
-				customerNetworkSecurityGroupName = "customer-nsg-name"
-				customerVnetName                 = "customer-vnet-name"
-				customerVnetSubnetName           = "customer-vnet-subnet1"
-				customerClusterName              = "cluster-back-version"
+				customerNetworkSecurityGroupName = "customer-nsg-name-"
+				customerVnetName                 = "customer-vnet-name-"
+				customerVnetSubnetName           = "customer-vnet-subnet-"
+				customerClusterName              = "cluster-ver-"
 				customerNodePoolName             = "np-ver-"
 			)
 			tc := framework.NewTestContext()
@@ -54,98 +56,155 @@ var _ = Describe("Customer", func() {
 			resourceGroup, err := tc.NewResourceGroup(ctx, "rg-cluster-back-version", tc.Location())
 			Expect(err).NotTo(HaveOccurred())
 
-			By("creating cluster parameters")
-			clusterParams := framework.NewDefaultClusterParams()
-			clusterParams.ClusterName = customerClusterName
-			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
-			clusterParams.ManagedResourceGroupName = managedResourceGroupName
-			clusterParams.OpenshiftVersionId = framework.BacklevelOpenshiftControlPlaneVersionId()
-
-			By("creating customer resources")
-			clusterParams, err = tc.CreateClusterCustomerResources(ctx,
-				resourceGroup,
-				clusterParams,
-				map[string]any{
-					"persistTagValue":        false,
-					"customerNsgName":        customerNetworkSecurityGroupName,
-					"customerVnetName":       customerVnetName,
-					"customerVnetSubnetName": customerVnetSubnetName,
-				},
-				TestArtifactsFS,
-			)
-			Expect(err).NotTo(HaveOccurred())
-
-			By("creating the HCP cluster")
-			err = tc.CreateHCPClusterFromParam(
-				ctx,
-				GinkgoLogr,
-				*resourceGroup.Name,
-				clusterParams,
-				45*time.Minute,
-			)
-			Expect(err).NotTo(HaveOccurred())
-
-			By("getting credentials")
-			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster(
-				ctx,
-				tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
-				*resourceGroup.Name,
-				customerClusterName,
-				10*time.Minute,
-			)
-			Expect(err).NotTo(HaveOccurred())
-
-			By("ensuring the cluster is viable")
-			err = verifiers.VerifyHCPCluster(ctx, adminRESTConfig)
-			Expect(err).NotTo(HaveOccurred())
-
-			By("creating different version node pools in parallel and verifying workloads")
-			backlevelVersions := framework.BacklevelOpenshiftNodePoolVersionId()
+			By("creating clusters with back-level control plane versions in parallel")
+			backlevelControlPlaneVersions := framework.BacklevelOpenshiftControlPlaneVersionId()
 
 			var wg sync.WaitGroup
 			var errors []error
 			var errorsMutex sync.Mutex
 
-			for _, version := range backlevelVersions {
+			for _, controlPlaneVersion := range backlevelControlPlaneVersions {
 				wg.Add(1)
-				go func(version string) {
+				go func(controlPlaneVersion string) {
 					defer wg.Done()
 
-					nodePoolSuffix := strings.ReplaceAll(version, ".", "-")
-					nodePoolName := customerNodePoolName + nodePoolSuffix
+					clusterSuffix := strings.ReplaceAll(controlPlaneVersion, ".", "-")
+					clusterName := customerClusterName + clusterSuffix
 
-					nodePoolParams := framework.NewDefaultNodePoolParams()
-					nodePoolParams.ClusterName = customerClusterName
-					nodePoolParams.NodePoolName = nodePoolName
-					nodePoolParams.OpenshiftVersionId = version
+					clusterParams := framework.NewDefaultClusterParams()
+					clusterParams.ClusterName = clusterName
+					managedResourceGroupName := framework.SuffixName(*resourceGroup.Name+"-"+clusterSuffix, "-managed", 64)
+					clusterParams.ManagedResourceGroupName = managedResourceGroupName
+					clusterParams.OpenshiftVersionId = controlPlaneVersion
 
-					err := tc.CreateNodePoolFromParam(ctx,
-						*resourceGroup.Name,
-						customerClusterName,
-						nodePoolParams,
-						45*time.Minute,
+					clusterParams, err := tc.CreateClusterCustomerResources(ctx,
+						resourceGroup,
+						clusterParams,
+						map[string]any{
+							"customerNsgName":        customerNetworkSecurityGroupName + clusterSuffix,
+							"customerVnetName":       customerVnetName + clusterSuffix,
+							"customerVnetSubnetName": customerVnetSubnetName + clusterSuffix,
+						},
+						TestArtifactsFS,
 					)
 					if err != nil {
-						GinkgoLogr.Error(err, "node pool creation failed",
-							"version", version,
-							"name", nodePoolParams.NodePoolName)
-
+						GinkgoLogr.Error(err, "customer resources creation failed",
+							"controlPlaneVersion", controlPlaneVersion,
+							"cluster", clusterName)
 						errorsMutex.Lock()
 						errors = append(errors, err)
 						errorsMutex.Unlock()
-					} else {
-						err = verifiers.VerifyNodePoolWorkload(nodePoolName).Verify(ctx, adminRESTConfig)
-						if err != nil {
-							GinkgoLogr.Error(err, "node pool workload verification failed",
-								"version", version,
-								"name", nodePoolName)
+						return
+					}
 
-							errorsMutex.Lock()
-							errors = append(errors, err)
-							errorsMutex.Unlock()
+					By("creating HCP cluster version " + controlPlaneVersion)
+					err = tc.CreateHCPClusterFromParam(
+						ctx,
+						GinkgoLogr,
+						*resourceGroup.Name,
+						clusterParams,
+						45*time.Minute,
+					)
+					if err != nil {
+						GinkgoLogr.Error(err, "cluster creation failed",
+							"controlPlaneVersion", controlPlaneVersion,
+							"cluster", clusterName)
+						errorsMutex.Lock()
+						errors = append(errors, err)
+						errorsMutex.Unlock()
+						return
+					}
+
+					adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster(
+						ctx,
+						tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
+						*resourceGroup.Name,
+						clusterName,
+						10*time.Minute,
+					)
+					if err != nil {
+						GinkgoLogr.Error(err, "failed to get admin credentials",
+							"controlPlaneVersion", controlPlaneVersion,
+							"cluster", clusterName)
+						errorsMutex.Lock()
+						errors = append(errors, err)
+						errorsMutex.Unlock()
+						return
+					}
+
+					err = verifiers.VerifyHCPCluster(ctx, adminRESTConfig)
+					if err != nil {
+						GinkgoLogr.Error(err, "cluster verification failed",
+							"controlPlaneVersion", controlPlaneVersion,
+							"cluster", clusterName)
+						errorsMutex.Lock()
+						errors = append(errors, err)
+						errorsMutex.Unlock()
+						return
+					}
+
+					By("creating node pools with back-level versions")
+					backlevelNodePoolVersions := framework.BacklevelOpenshiftNodePoolVersionId()
+
+					var matchingNodePoolVersion string
+					for _, nodePoolVersion := range backlevelNodePoolVersions {
+						if strings.HasPrefix(nodePoolVersion, controlPlaneVersion+".") {
+							matchingNodePoolVersion = nodePoolVersion
+							break
 						}
 					}
-				}(version)
+
+					patchVersions := computeBackLevelVersions(matchingNodePoolVersion)
+
+					var nodePoolWg sync.WaitGroup
+					for _, nodePoolVersion := range patchVersions {
+						nodePoolWg.Add(1)
+						go func(nodePoolVersion string) {
+							defer nodePoolWg.Done()
+
+							nodePoolSuffix := strings.ReplaceAll(nodePoolVersion, ".", "-")
+							nodePoolName := customerNodePoolName + nodePoolSuffix
+
+							nodePoolParams := framework.NewDefaultNodePoolParams()
+							nodePoolParams.ClusterName = clusterName
+							nodePoolParams.NodePoolName = nodePoolName
+							nodePoolParams.OpenshiftVersionId = nodePoolVersion
+							By("creating node pool version " + nodePoolVersion + " and verifying a simple web app can run")
+							err := tc.CreateNodePoolFromParam(ctx,
+								*resourceGroup.Name,
+								clusterName,
+								nodePoolParams,
+								45*time.Minute,
+							)
+							if err != nil {
+								GinkgoLogr.Error(err, "node pool creation failed",
+									"controlPlaneVersion", controlPlaneVersion,
+									"nodePoolVersion", nodePoolVersion,
+									"cluster", clusterName,
+									"nodePool", nodePoolName)
+								errorsMutex.Lock()
+								errors = append(errors, err)
+								errorsMutex.Unlock()
+								return
+							}
+
+							nodePoolLabel := fmt.Sprintf("%s-%s", clusterName, nodePoolName)
+							nodeSelector := map[string]string{"hypershift.openshift.io/nodePool": nodePoolLabel}
+							err = verifiers.VerifySimpleWebApp(nodeSelector).Verify(ctx, adminRESTConfig)
+							if err != nil {
+								GinkgoLogr.Error(err, "node pool workload verification failed",
+									"controlPlaneVersion", controlPlaneVersion,
+									"nodePoolVersion", nodePoolVersion,
+									"cluster", clusterName,
+									"nodePool", nodePoolName)
+								errorsMutex.Lock()
+								errors = append(errors, err)
+								errorsMutex.Unlock()
+							}
+						}(nodePoolVersion)
+					}
+					nodePoolWg.Wait()
+				}(controlPlaneVersion)
 			}
 
 			wg.Wait()
@@ -156,3 +215,24 @@ var _ = Describe("Customer", func() {
 
 		})
 })
+
+func computeBackLevelVersions(version string) []string {
+	parts := strings.Split(version, ".")
+	if len(parts) != 3 {
+		return []string{version}
+	}
+
+	majorMinor := parts[0] + "." + parts[1]
+	patchAtoi, _ := strconv.Atoi(parts[2])
+
+	var versions []string
+	versions = append(versions, majorMinor+".0")
+
+	if patchAtoi > 0 {
+		versions = append(versions, majorMinor+"."+strconv.Itoa(patchAtoi-1))
+	}
+
+	versions = append(versions, version)
+
+	return versions
+}

@@ -20,7 +20,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"strconv"
 	"strings"
 	"time"
 
@@ -28,7 +27,6 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 
-	"github.com/Azure/ARO-HCP/internal/ocm"
 	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 )
 
@@ -80,28 +78,20 @@ func DefaultOpenshiftNodePoolVersionId() string {
 	return version
 }
 
-func BacklevelOpenshiftControlPlaneVersionId() string {
-	defaultVersion := DefaultOpenshiftControlPlaneVersionId()
-	parts := strings.Split(defaultVersion, ".")
-	if len(parts) >= 2 {
-		major := parts[0]
-		minor, _ := strconv.Atoi(parts[1])
-		return fmt.Sprintf("%s.%d", major, minor-1)
+func BacklevelOpenshiftControlPlaneVersionId() []string {
+	versions := os.Getenv("ARO_HCP_OPENSHIFT_CONTROLPLANE_BACKLEVEL_VERSIONS")
+	if versions == "" {
+		return []string{"4.19"}
 	}
-	return "4.19"
+	return strings.Split(versions, ",")
 }
 
 func BacklevelOpenshiftNodePoolVersionId() []string {
-
-	backlevelMinorRelease := BacklevelOpenshiftControlPlaneVersionId()
-	latestBackLevelPatch := ocm.OpenShift419Patch // TO-DO: find latest backlevel patch dynamically
-	latestPatchAtoi, _ := strconv.Atoi(latestBackLevelPatch)
-
-	return []string{
-		backlevelMinorRelease + ".0",                                  // 4.y.0
-		backlevelMinorRelease + "." + strconv.Itoa(latestPatchAtoi-1), // 4.y.z-1
-		backlevelMinorRelease + "." + latestBackLevelPatch,            // 4.y.z (latest from OCM constants)
+	versions := os.Getenv("ARO_HCP_OPENSHIFT_NODEPOOL_BACKLEVEL_VERSIONS")
+	if versions == "" {
+		return []string{"4.19.7"}
 	}
+	return strings.Split(versions, ",")
 }
 
 func NewDefaultClusterParams() ClusterParams {

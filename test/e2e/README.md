@@ -67,13 +67,17 @@ export CUSTOMER_SUBSCRIPTION=<subscriptionName>
 export LOCATION=uksouth
 ```
 
-You can also redefine default OpenShift versions the E2E test cases will use
+You can also redefine default and back-level OpenShift versions the E2E test cases will use
 when deploying ARO HCP hosted cluster, eg.:
 
 ```bash
 $ export ARO_HCP_OPENSHIFT_CONTROLPLANE_VERSION=4.20
 $ export ARO_HCP_OPENSHIFT_NODEPOOL_VERSION=4.20.8
+$ export ARO_HCP_OPENSHIFT_CONTROLPLANE_BACKLEVEL_VERSIONS=4.19
+$ export ARO_HCP_OPENSHIFT_NODEPOOL_BACKLEVEL_VERSIONS=4.19.7
 ```
+> **Note:** 
+> Back-level versions are a `[]string` array with comma-separated values. Expected only version 4.y.z as 4.y.0 and 4.y.z-1 are computed by [`back-level version test`](https://github.com/Azure/ARO-HCP/tree/main/test/e2e/cluster_version_backlevel.go#L219).
 
 So finally, you can run a particular test case:
 
