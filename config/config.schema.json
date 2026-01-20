@@ -910,6 +910,17 @@
     "cloud": {
       "type": "string"
     },
+    "cloudEnvironmentName": {
+      "description": "The name of the Azure cloud environment. This conceptually represents the same cloud as the `cloud` attribute but it uses a different naming scheme. Different software in Azure expects different naming schemes representing the same cloud. For example, Secret Store CSI Provider Azure follows this naming scheme and the accepted values for that component can be found in https://github.com/Azure/secrets-store-csi-driver-provider-azure/blob/master/website/content/en/getting-started/usage/_index.md#create-your-own-secretproviderclass-object under the `cloudName` attribute",
+      "type": "string",
+      "enum": [
+        "AzurePublicCloud",
+        "AzureUSGovernmentCloud",
+        "AzureChinaCloud",
+        "AzureGermanCloud",
+        "AzureStackCloud"
+      ]
+    },
     "azureRegionAvailabilityZoneCount": {
       "type": "integer"
     },
@@ -1305,6 +1316,18 @@
         "managedIdentityName": {
           "type": "string",
           "description": "The name of the MSI that will be used by the backend to interact with Azure"
+        },
+        "azureRuntimeConfig": {
+          "type": "object",
+          "properties": {
+            "tlsCertificatesIssuer": {
+              "$ref": "#/definitions/certificateIssuer"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "tlsCertificatesIssuer"
+          ]
         }
       },
       "additionalProperties": false,
@@ -1312,7 +1335,8 @@
         "image",
         "tracing",
         "k8s",
-        "managedIdentityName"
+        "managedIdentityName",
+        "azureRuntimeConfig"
       ]
     },
     "adminApi": {
@@ -2823,6 +2847,7 @@
   "required": [
     "administration",
     "azureGeoShortId",
+    "cloudEnvironmentName",
     "kvCertOfficerPrincipalId",
     "backplaneAPI",
     "clustersService",
