@@ -1,6 +1,6 @@
 module github.com/Azure/ARO-HCP/tooling/olm-bundle-repkg
 
-go 1.24.4
+go 1.24.11
 
 require (
 	github.com/MakeNowJust/heredoc v1.0.0
