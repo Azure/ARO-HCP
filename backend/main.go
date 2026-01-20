@@ -344,11 +344,11 @@ func Run(cmd *cobra.Command, args []string) error {
 			)
 			clusterServiceMatchingClusterController  = mismatchcontrollers.NewClusterServiceClusterMatchingController(dbClient, subscriptionLister, clusterServiceClient)
 			clusterServiceMatchingNodePoolController = controllerutils.NewClusterWatchingController(
-				"ClusterServiceMatchingNodePools", dbClient, subscriptionLister, 60*time.Minute,
-				mismatchcontrollers.NewClusterServiceNodePoolMatchingController(dbClient, clusterServiceClient))
+				"CosmosMatchingNodePools", dbClient, subscriptionLister, 60*time.Minute,
+				mismatchcontrollers.NewCosmosNodePoolMatchingController(dbClient, clusterServiceClient))
 			clusterServiceMatchingExternalAuthController = controllerutils.NewClusterWatchingController(
-				"ClusterServiceMatchingExternalAuths", dbClient, subscriptionLister, 60*time.Minute,
-				mismatchcontrollers.NewClusterServiceExternalAuthMatchingController(dbClient, clusterServiceClient))
+				"CosmosMatchingExternalAuths", dbClient, subscriptionLister, 60*time.Minute,
+				mismatchcontrollers.NewCosmosExternalAuthMatchingController(dbClient, clusterServiceClient))
 		)
 
 		le, err := leaderelection.NewLeaderElector(leaderelection.LeaderElectionConfig{
