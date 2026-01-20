@@ -1339,6 +1339,27 @@
         "azureRuntimeConfig"
       ]
     },
+    "sessiongate": {
+      "type": "object",
+      "properties": {
+        "image": {
+          "$ref": "#/definitions/containerImage"
+        },
+        "k8s": {
+          "$ref": "#/definitions/k8sDeployment"
+        },
+        "managedIdentityName": {
+          "type": "string",
+          "description": "The name of the MSI that will be used by the sessiongate to interact with Azure"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "image",
+        "k8s",
+        "managedIdentityName"
+      ]
+    },
     "adminApi": {
       "type": "object",
       "properties": {
@@ -2869,6 +2890,7 @@
     "region",
     "regionRG",
     "serviceKeyVault",
+    "sessiongate",
     "svc",
     "msiRp",
     "msiCredentialsRefresher",

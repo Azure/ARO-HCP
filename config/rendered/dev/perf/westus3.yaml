@@ -693,6 +693,16 @@ serviceKeyVault:
   softDelete: true
   tagKey: aroHCPPurpose
   tagValue: service
+sessiongate:
+  image:
+    digest: ""
+    registry: arohcpsvcdev.azurecr.io
+    repository: arohcpsessiongate
+  k8s:
+    namespace: sessiongate
+    replicas: 2
+    serviceAccountName: sessiongate
+  managedIdentityName: sessiongate
 svc:
   aks:
     clusterOutboundIPAddressIPTags: ""
