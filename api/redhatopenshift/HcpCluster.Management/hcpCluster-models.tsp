@@ -111,6 +111,10 @@ model HcpOpenShiftClusterProperties {
   /** OpenShift internal image registry */
   @visibility(Lifecycle.Read, Lifecycle.Create)
   clusterImageRegistry?: ClusterImageRegistryProfile;
+
+  /** Cluster uses FIPS validated cryptographic libraries */
+  @visibility(Lifecycle.Read, Lifecycle.Create)
+  fipsEnabled?: boolean = false;
 }
 
 /** The resource provisioning state. */

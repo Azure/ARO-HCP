@@ -341,6 +341,9 @@ type HcpOpenShiftClusterProperties struct {
 	// Configure ETCD.
 	Etcd *EtcdProfile
 
+	// Cluster uses FIPS validated cryptographic libraries
+	FipsEnabled *bool
+
 	// Cluster network configuration
 	Network *NetworkProfile
 
