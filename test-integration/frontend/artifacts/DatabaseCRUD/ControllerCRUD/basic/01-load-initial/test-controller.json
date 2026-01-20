@@ -4,7 +4,7 @@
 	"_rid": "vWhbAJ1AYhMBAAAAAAAAAA==",
 	"_self": "dbs/vWhbAA==/colls/vWhbAJ1AYhM=/docs/vWhbAJ1AYhMBAAAAAAAAAA==/",
 	"_ts": 1764939717,
-	"id": "89260758-2990-46dd-8e97-99b31c7cee89",
+	"id": "|subscriptions|subscriptionid|resourcegroups|resourcegroupname|providers|microsoft.redhatopenshift|hcpopenshiftclusters|parentcluster|hcpopenshiftcontrollers|test-controller",
 	"partitionKey": "subscriptionid",
 	"properties": {
 		"internalState": {
