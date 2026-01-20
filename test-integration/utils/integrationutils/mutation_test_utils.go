@@ -317,6 +317,9 @@ func setFakeAzureIdentityFields(key string, uncastManagedIdentity any) any {
 }
 
 func mergeClusterServiceReturn(history []any) ([]byte, error) {
+	if len(history) == 0 {
+		return nil, fmt.Errorf("no history provided")
+	}
 	// this looks insane, but cluster-service has some of the toughest API and client constructs to manage.
 	// we need to merge the history together, but the CS types resist that, so taking it all back to maps is easier.
 	dest := map[string]any{}

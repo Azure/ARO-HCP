@@ -19,13 +19,18 @@ import (
 	"embed"
 	"io/fs"
 	"path"
+	"strings"
 	"testing"
+	"time"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/mismatchcontrollers"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/test-integration/utils/controllertesthelpers"
 	"github.com/Azure/ARO-HCP/test-integration/utils/integrationutils"
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	"github.com/stretchr/testify/require"
+	utilsclock "k8s.io/utils/clock"
 )
 
 //go:embed artifacts/*
@@ -36,31 +41,31 @@ func TestDoNothingController(t *testing.T) {
 
 	testCases := []controllertesthelpers.BasicControllerTest{
 		{
-			Name: "sync_deleted_cluster",
+			Name: "remove_orphaned_cluster_descendents",
 			ControllerKey: controllerutils.HCPClusterKey{
-				SubscriptionID:    "3d2a485a-d467-4375-b0dc-92350913c57e",
-				ResourceGroupName: "partialIllustrator",
-				HCPClusterName:    "damagingKingdom",
+				SubscriptionID:    "a433a095-1277-44f1-8453-8d61a4d848c2",
+				ResourceGroupName: "unimportantPostponement",
+				HCPClusterName:    "monstrousPrecinct",
 			},
-			ArtifactDir: api.Must(fs.Sub(artifacts, path.Join("artifacts"))),
+			ArtifactDir: api.Must(fs.Sub(artifacts, path.Join("artifacts/cluster"))),
 			ControllerInitializerFn: func(ctx context.Context, t *testing.T, input *controllertesthelpers.ControllerInitializationInput) (controller controllerutils.Controller, testMemory map[string]any) {
-				return controllers.NewDoNothingExampleController(input.CosmosClient, input.SubscriptionLister), map[string]any{}
+				return controllerutils.NewClusterWatchingController(
+						"CosmosMatchingClusters", input.CosmosClient, input.SubscriptionLister, 60*time.Minute,
+						mismatchcontrollers.NewCosmosClusterMatchingController(utilsclock.RealClock{}, input.CosmosClient, input.ClusterServiceClient)),
+					map[string]any{}
 			},
 			ControllerVerifierFn: func(ctx context.Context, t *testing.T, controller controllerutils.Controller, testMemory map[string]any, input *controllertesthelpers.ControllerInitializationInput) {
-			},
-		},
-		{
-			Name: "sync_cluster",
-			ControllerKey: controllerutils.HCPClusterKey{
-				SubscriptionID:    "4fa75980-6637-4157-9726-84d878a62e83",
-				ResourceGroupName: "shrillEffectiveness",
-				HCPClusterName:    "lavishUnhappiness",
-			},
-			ArtifactDir: api.Must(fs.Sub(artifacts, path.Join("artifacts"))),
-			ControllerInitializerFn: func(ctx context.Context, t *testing.T, input *controllertesthelpers.ControllerInitializationInput) (controller controllerutils.Controller, testMemory map[string]any) {
-				return controllers.NewDoNothingExampleController(input.CosmosClient, input.SubscriptionLister), map[string]any{}
-			},
-			ControllerVerifierFn: func(ctx context.Context, t *testing.T, controller controllerutils.Controller, testMemory map[string]any, input *controllertesthelpers.ControllerInitializationInput) {
+				clusterResourceID := api.Must(azcorearm.ParseResourceID(strings.ToLower("/subscriptions/a433a095-1277-44f1-8453-8d61a4d848c2/resourceGroups/unimportantPostponement/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/monstrousPrecinct")))
+				crud, err := input.CosmosClient.UntypedCRUD(*clusterResourceID)
+				require.NoError(t, err)
+				_, err = crud.Get(ctx, clusterResourceID)
+				require.Error(t, err)
+				allItems, err := crud.ListRecursive(ctx, nil)
+				require.NoError(t, err)
+				for _, curr := range allItems.Items(ctx) {
+					t.Errorf("got an item: %v", curr)
+				}
+				require.Empty(t, allItems.GetError())
 			},
 		},
 	}
