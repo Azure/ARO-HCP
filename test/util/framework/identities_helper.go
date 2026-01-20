@@ -24,7 +24,6 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
 
 	"github.com/onsi/ginkgo/v2"
@@ -35,6 +34,8 @@ import (
 	armauthorization "github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v3"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/msi/armmsi"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
+
+	"github.com/Azure/ARO-HCP/test/pkg/filelock"
 )
 
 const (
@@ -764,20 +765,6 @@ func (state *leasedIdentityPoolState) getLeasedIdentityContainers(me string) ([]
 	return resourceGroups, nil
 }
 
-func (state *leasedIdentityPoolState) lock() error {
-	if err := syscall.Flock(int(state.lockFile.Fd()), syscall.LOCK_EX); err != nil {
-		return fmt.Errorf("failed to acquire state file lock: %w", err)
-	}
-	return nil
-}
-
-func (state *leasedIdentityPoolState) unlock() error {
-	if err := syscall.Flock(int(state.lockFile.Fd()), syscall.LOCK_UN); err != nil {
-		return fmt.Errorf("failed to release managed identities pool state file lock: %w", err)
-	}
-	return nil
-}
-
 func (state *leasedIdentityPoolState) readUnlocked() error {
 
 	f, err := os.OpenFile(state.statePath, os.O_RDWR|os.O_CREATE, 0666)
@@ -873,4 +860,12 @@ func (state *leasedIdentityPoolState) initializeUnlocked(leasedRGs []string) err
 
 func specID() string {
 	return fmt.Sprintf("%s|pid:%d", strings.Join(strings.Fields(ginkgo.CurrentSpecReport().FullText()), "-"), os.Getpid())
+}
+
+func (state *leasedIdentityPoolState) lock() error {
+	return filelock.Lock(state.lockFile.Fd())
+}
+
+func (state *leasedIdentityPoolState) unlock() error {
+	return filelock.Unlock(state.lockFile.Fd())
 }
