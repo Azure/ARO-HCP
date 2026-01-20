@@ -77,7 +77,7 @@ func (f *Frontend) GetHCPCluster(writer http.ResponseWriter, request *http.Reque
 func (f *Frontend) ArmResourceListClusters(writer http.ResponseWriter, request *http.Request) error {
 	ctx := request.Context()
 	logger := utils.LoggerFromContext(ctx)
-
+// test
 	versionedInterface, err := VersionFromContext(ctx)
 	if err != nil {
 		return utils.TrackError(err)
