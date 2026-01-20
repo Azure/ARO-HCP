@@ -70,7 +70,7 @@ spec:
         - name: OPERAND_IMAGE_CLUSTER_API_PROVIDER_OPENSHIFT_ASSISTED_BOOTSTRAP
           value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/capoa-bootstrap-rhel9@sha256:c4335011afb16d96306bf494bc1bf69a5373c1bf01346d5cd67f5008a50df46f'
         - name: OPERAND_IMAGE_CLUSTER_API_PROVIDER_OPENSHIFT_ASSISTED_CONTROL_PLANE
-          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/capoa-control-plane-rhel9@sha256:e718fbd1996e4a09d293aa6274641639985c5bce316fb7a12e5292610dc14571'
+          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/capoa-control-plane-rhel9@sha256:f3645b28366828ea21500c589cec4ea2872584e0c5cb0f6002f4b5c4d5a5970c'
         - name: OPERAND_IMAGE_MCE_CAPI_WEBHOOK_CONFIG_RHEL9
           value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/mce-capi-webhook-config-rhel9@sha256:dc8853c6249f37e5ff8504bf1e5609db007728c7cecdd272da05069e12447f83'
         - name: OPERAND_IMAGE_CLUSTERCLAIMS_CONTROLLER
