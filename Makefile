@@ -276,6 +276,7 @@ ARO-Tools:
 .PHONY: ARO-Tools
 
 update-helm-fixtures:
+	find * -name 'zz_fixture_TestHelmTemplate*' | xargs rm -rf
 	$(MAKE) -C tooling/helmtest update
 .PHONY: update-helm-fixtures
 
