@@ -51,6 +51,11 @@
         "ownerIds"
       ]
     },
+    "semVerMajorMinor": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+$",
+      "description": "Semantic version major.minor format (e.g., '4.19', '4.20')"
+    },
     "semVer": {
       "type": "string",
       "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
@@ -1158,9 +1163,7 @@
                         "type": "object",
                         "properties": {
                           "name": {
-                            "type": "string",
-                            "pattern": "^\\d+\\.\\d+$",
-                            "description": "Minor version in 'x.y' format (e.g., '4.19')"
+                            "$ref": "#/definitions/semVerMajorMinor"
                           },
                           "zStreamUpgradeConfig": {
                             "type": "object",
@@ -1224,9 +1227,7 @@
                         "type": "object",
                         "properties": {
                           "name": {
-                            "type": "string",
-                            "pattern": "^\\d+\\.\\d+$",
-                            "description": "Minor version in 'x.y' format (e.g., '4.19')"
+                            "$ref": "#/definitions/semVerMajorMinor"
                           },
                           "zStreamUpgradeConfig": {
                             "type": "object",

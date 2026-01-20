@@ -15,10 +15,13 @@
 package utils
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 )
 
 // AnyToString maps some types to strings, as they are used in OS Env.
+// For complex types (slices, maps, structs), it marshals them to minified JSON.
 func AnyToString(value any) string {
 	switch v := value.(type) {
 	case string:
@@ -28,6 +31,19 @@ func AnyToString(value any) string {
 	case bool:
 		return fmt.Sprintf("%t", v)
 	default:
-		return fmt.Sprintf("%v", v)
+		// For complex types (maps, slices, structs), marshal to JSON
+		// This provides better readability than Go's default %v format
+		jsonBytes, err := json.Marshal(v)
+		if err != nil {
+			// Fallback to %v if JSON marshaling fails
+			return fmt.Sprintf("%v", v)
+		}
+		// Compact the JSON to ensure no extra whitespace
+		var compactBuf bytes.Buffer
+		if err := json.Compact(&compactBuf, jsonBytes); err != nil {
+			// If compacting fails, use the marshaled output as-is
+			return string(jsonBytes)
+		}
+		return compactBuf.String()
 	}
 }

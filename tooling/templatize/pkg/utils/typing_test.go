@@ -21,8 +21,31 @@ import (
 )
 
 func TestAnyToString(t *testing.T) {
-	assert.Equal(t, "foo", AnyToString("foo"))
-	assert.Equal(t, "42", AnyToString(42))
-	assert.Equal(t, "true", AnyToString(true))
-	assert.Equal(t, "3.14", AnyToString(3.14))
+	tests := []struct {
+		name     string
+		value    any
+		expected string
+	}{
+		{"string", "foo", "foo"},
+		{"int", 42, "42"},
+		{"bool_true", true, "true"},
+		{"bool_false", false, "false"},
+		{"float64", 3.14, "3.14"},
+		{"float32", float32(2.71), "2.71"},
+		{"map_string_string", map[string]string{"a": "b"}, `{"a":"b"}`},
+		{"map_string_any", map[string]any{"x": 1, "y": true}, `{"x":1,"y":true}`},
+		{"slice_int", []int{1, 2, 3}, `[1,2,3]`},
+		{"slice_string", []string{"a", "b"}, `["a","b"]`},
+		{"struct", struct {
+			X int
+			Y string
+		}{X: 1, Y: "z"}, `{"X":1,"Y":"z"}`},
+		{"nil", nil, "null"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, AnyToString(tt.value))
+		})
+	}
 }
