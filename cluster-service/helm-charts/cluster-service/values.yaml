@@ -316,10 +316,24 @@ ocpVersions:
       url: ""
       minVersion: ""
       maxVersion: ""
+      # minorVersionsConfiguration:  # Optional: configuration for automatic z-stream upgrades per minor version
+      #   - name: "4.19"  # Required: minor version in 'x.y' format
+      #     zStreamUpgradeConfig:  # Optional: configures automatic z-stream control plane upgrades
+      #       enabled: true  # Optional: defaults to false. When true, automatic upgrades will be initiated to targetVersion
+      #       targetVersion: "4.19.8"  # Required when zStreamUpgradeConfig is provided. Must match minor version (e.g., "4.19.x")
+      #   - name: "4.20"
+      #     zStreamUpgradeConfig:
+      #       enabled: false
+      #       targetVersion: "4.20.5"
     candidate:
       url: ""
       minVersion: ""
       maxVersion: ""
+      # minorVersionsConfiguration:  # Optional: configuration for automatic z-stream upgrades per minor version
+      #   - name: "4.19"
+      #     zStreamUpgradeConfig:
+      #       enabled: true
+      #       targetVersion: "4.19.8"
     nightly:
       url: ""
       minVersion: ""

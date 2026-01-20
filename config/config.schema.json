@@ -1151,6 +1151,40 @@
                           "pattern": "^$"
                         }
                       ]
+                    },
+                    "minorVersionsConfiguration": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string",
+                            "pattern": "^\\d+\\.\\d+$",
+                            "description": "Minor version in 'x.y' format (e.g., '4.19')"
+                          },
+                          "zStreamUpgradeConfig": {
+                            "type": "object",
+                            "properties": {
+                              "enabled": {
+                                "type": "boolean",
+                                "description": "When true, automatic z-stream control plane upgrades will be initiated to targetVersion"
+                              },
+                              "targetVersion": {
+                                "$ref": "#/definitions/semVer",
+                                "description": "Target OCP version for automatic z-stream upgrades (must match minor version)"
+                              }
+                            },
+                            "required": [
+                              "targetVersion"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "required": [
+                          "name"
+                        ],
+                        "additionalProperties": false
+                      }
                     }
                   },
                   "required": [
@@ -1183,6 +1217,40 @@
                           "pattern": "^$"
                         }
                       ]
+                    },
+                    "minorVersionsConfiguration": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string",
+                            "pattern": "^\\d+\\.\\d+$",
+                            "description": "Minor version in 'x.y' format (e.g., '4.19')"
+                          },
+                          "zStreamUpgradeConfig": {
+                            "type": "object",
+                            "properties": {
+                              "enabled": {
+                                "type": "boolean",
+                                "description": "When true, automatic z-stream control plane upgrades will be initiated to targetVersion"
+                              },
+                              "targetVersion": {
+                                "$ref": "#/definitions/semVerWithPrerelease",
+                                "description": "Target OCP version for automatic z-stream upgrades (must match minor version)"
+                              }
+                            },
+                            "required": [
+                              "targetVersion"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "required": [
+                          "name"
+                        ],
+                        "additionalProperties": false
+                      }
                     }
                   },
                   "required": [

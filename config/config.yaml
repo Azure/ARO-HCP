@@ -922,8 +922,27 @@ clouds:
         # OCP Versions configuration
         ocpVersions:
           channelGroups:
+            stable:
+              minorVersionsConfiguration:
+              - name: "4.19"
+                zStreamUpgradeConfig:
+                  enabled: true
+                  targetVersion: "4.19.21"
+              - name: "4.20"
+                zStreamUpgradeConfig:
+                  enabled: true
+                  targetVersion: "4.20.8"
             candidate:
               minVersion: 4.19.7
+              minorVersionsConfiguration:
+              - name: "4.19"
+                zStreamUpgradeConfig:
+                  enabled: true
+                  targetVersion: "4.19.22"
+              - name: "4.20"
+                zStreamUpgradeConfig:
+                  enabled: true
+                  targetVersion: "4.20.10"
             nightly:
               minVersion: 4.19.0-0.nightly-20200101
       # Hypershift Operator

@@ -143,12 +143,30 @@ clustersService:
       candidate:
         maxVersion: ""
         minVersion: 4.19.7
+        minorVersionsConfiguration:
+        - name: "4.19"
+          zStreamUpgradeConfig:
+            enabled: true
+            targetVersion: 4.19.22
+        - name: "4.20"
+          zStreamUpgradeConfig:
+            enabled: true
+            targetVersion: 4.20.10
       nightly:
         maxVersion: ""
         minVersion: 4.19.0-0.nightly-20200101
       stable:
         maxVersion: 4.20.9
         minVersion: 4.19.0
+        minorVersionsConfiguration:
+        - name: "4.19"
+          zStreamUpgradeConfig:
+            enabled: true
+            targetVersion: 4.19.21
+        - name: "4.20"
+          zStreamUpgradeConfig:
+            enabled: true
+            targetVersion: 4.20.8
     defaultVersion:
       version: 4.20.8
   postgres:

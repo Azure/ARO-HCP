@@ -15,12 +15,38 @@ data:
         {{- if .Values.ocpVersions.channelGroups.stable.maxVersion }}
         maxVersion: {{ .Values.ocpVersions.channelGroups.stable.maxVersion }}
         {{- end }}
+        {{- if .Values.ocpVersions.channelGroups.stable.minorVersionsConfiguration }}
+        minorVersionsConfiguration:
+        {{- range .Values.ocpVersions.channelGroups.stable.minorVersionsConfiguration }}
+          - name: {{ .name | quote }}
+            {{- if .zStreamUpgradeConfig }}
+            zStreamUpgradeConfig:
+              {{- if hasKey .zStreamUpgradeConfig "enabled" }}
+              enabled: {{ .zStreamUpgradeConfig.enabled }}
+              {{- end }}
+              targetVersion: {{ .zStreamUpgradeConfig.targetVersion | quote }}
+            {{- end }}
+        {{- end }}
+        {{- end }}
       {{- if .Values.ocpVersions.channelGroups.candidate.minVersion }}
       - url: https://api.openshift.com/api/upgrades_info/graph
         channelGroupName: candidate
         minVersion: {{ .Values.ocpVersions.channelGroups.candidate.minVersion }}
         {{- if .Values.ocpVersions.channelGroups.candidate.maxVersion }}
         maxVersion: {{ .Values.ocpVersions.channelGroups.candidate.maxVersion }}
+        {{- end }}
+        {{- if .Values.ocpVersions.channelGroups.candidate.minorVersionsConfiguration }}
+        minorVersionsConfiguration:
+        {{- range .Values.ocpVersions.channelGroups.candidate.minorVersionsConfiguration }}
+          - name: {{ .name | quote }}
+            {{- if .zStreamUpgradeConfig }}
+            zStreamUpgradeConfig:
+              {{- if hasKey .zStreamUpgradeConfig "enabled" }}
+              enabled: {{ .zStreamUpgradeConfig.enabled }}
+              {{- end }}
+              targetVersion: {{ .zStreamUpgradeConfig.targetVersion | quote }}
+            {{- end }}
+        {{- end }}
         {{- end }}
       {{- end }}
       {{- if .Values.ocpVersions.channelGroups.nightly.minVersion }}
