@@ -31,8 +31,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
 
-func ValidateClusterCreate(ctx context.Context, newCluster *api.HCPOpenShiftCluster, validationPathMapper api.ValidationPathMapperFunc) field.ErrorList {
-	op := operation.Operation{Type: operation.Create}
+func ValidateClusterCreate(ctx context.Context, op operation.Operation, newCluster *api.HCPOpenShiftCluster, validationPathMapper api.ValidationPathMapperFunc) field.ErrorList {
 	return validateCluster(ctx, op, newCluster, nil, validationPathMapper)
 }
 
@@ -40,6 +39,13 @@ func ValidateClusterUpdate(ctx context.Context, newCluster, oldCluster *api.HCPO
 	op := operation.Operation{Type: operation.Update}
 	return validateCluster(ctx, op, newCluster, oldCluster, validationPathMapper)
 }
+
+const (
+	// ManagedIdentitiesDataPlaneIdentityURLOptionalOperationOption is an operation option that indicates that the managed identities
+	// data plane identity URL is optional during validation. This is used on ARM Preflight requests on the
+	// Cluster resource.
+	ManagedIdentitiesDataPlaneIdentityURLOptionalOperationOption = "ManagedIdentitiesDataPlaneIdentityURLOptional"
+)
 
 var (
 	toTrackedResource           = func(oldObj *api.HCPOpenShiftCluster) *arm.TrackedResource { return &oldObj.TrackedResource }
@@ -256,6 +262,9 @@ var (
 	toServiceProviderPlatform = func(oldObj *api.HCPOpenShiftClusterServiceProviderProperties) *api.ServiceProviderPlatformProfile {
 		return &oldObj.Platform
 	}
+	toServiceProviderManagedIdentitiesDataPlaneIdentityURL = func(oldObj *api.HCPOpenShiftClusterServiceProviderProperties) *string {
+		return &oldObj.ManagedIdentitiesDataPlaneIdentityURL
+	}
 )
 
 func validateClusterServiceProviderProperties(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *api.HCPOpenShiftClusterServiceProviderProperties) field.ErrorList {
@@ -280,6 +289,21 @@ func validateClusterServiceProviderProperties(ctx context.Context, op operation.
 	// Platform                CustomerPlatformProfile             `json:"platform,omitempty"`
 	errs = append(errs, validate.ImmutableByReflect(ctx, op, fldPath.Child("platform"), &newObj.Platform, safe.Field(oldObj, toServiceProviderPlatform))...)
 	errs = append(errs, validateServiceProviderPlatformProfile(ctx, op, fldPath.Child("platform"), &newObj.Platform, safe.Field(oldObj, toServiceProviderPlatform))...)
+
+	// ManagedIdentitiesDataPlaneIdentityURL  string  `json:"managedIdentitiesDataPlaneIdentityURL,omitempty"`
+	// At the moment of introducing this field not all existing Clusters have been migrated
+	// to contain the value so we need to guard the immutable check by only
+	// checking it when it's already been set beforehand.
+	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("managedIdentitiesDataPlaneIdentityURL"), &newObj.ManagedIdentitiesDataPlaneIdentityURL, safe.Field(oldObj, toServiceProviderManagedIdentitiesDataPlaneIdentityURL))...)
+	// not all existing clusters have this field migrated yet, so we guard
+	// the requirement of setting it only when it's already been set beforehand.
+	if oldObj == nil || oldObj.ManagedIdentitiesDataPlaneIdentityURL != "" {
+		if !op.HasOption(ManagedIdentitiesDataPlaneIdentityURLOptionalOperationOption) {
+			errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("managedIdentitiesDataPlaneIdentityURL"), &newObj.ManagedIdentitiesDataPlaneIdentityURL, nil)...)
+		}
+	}
+	// We can validate URL unconditionally because the URL validator accepts an empty string as the URL
+	errs = append(errs, URL(ctx, op, fldPath.Child("managedIdentitiesDataPlaneIdentityURL"), &newObj.ManagedIdentitiesDataPlaneIdentityURL, nil)...)
 
 	return errs
 }

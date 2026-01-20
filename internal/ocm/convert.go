@@ -496,6 +496,9 @@ func ConvertCStoHCPOpenShiftCluster(resourceID *azcorearm.ResourceID, azureLocat
 	//   Cluster Service maps but just has operator-to-resourceID pairings.
 	if cluster.Azure().OperatorsAuthentication() != nil {
 		if mi, ok := cluster.Azure().OperatorsAuthentication().GetManagedIdentities(); ok {
+			miDPURL := mi.ManagedIdentitiesDataPlaneIdentityUrl()
+			hcpcluster.ServiceProviderProperties.ManagedIdentitiesDataPlaneIdentityURL = miDPURL
+
 			for operatorName, operatorIdentity := range mi.ControlPlaneOperatorsManagedIdentities() {
 				if hcpcluster.Identity == nil {
 					hcpcluster.Identity = &arm.ManagedServiceIdentity{}

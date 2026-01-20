@@ -31,6 +31,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 
+	k8soperation "k8s.io/apimachinery/pkg/api/operation"
+
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
@@ -657,7 +659,10 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 				// this indicates something really strange happened, return an error for it.
 				return utils.TrackError(err)
 			}
-			validationErrs := validation.ValidateClusterCreate(ctx, newInternalCluster, api.Must(versionedInterface.ValidationPathRewriter(&api.HCPOpenShiftCluster{})))
+			k8sOp := k8soperation.Operation{Type: k8soperation.Create, Options: []string{validation.ManagedIdentitiesDataPlaneIdentityURLOptionalOperationOption}}
+			validationErrs := validation.ValidateClusterCreate(
+				ctx, k8sOp, newInternalCluster, api.Must(versionedInterface.ValidationPathRewriter(&api.HCPOpenShiftCluster{})),
+			)
 			validationErrs = append(validationErrs, admission.AdmitClusterOnCreate(ctx, newInternalCluster, subscription)...)
 			preflightErr = arm.CloudErrorFromFieldErrors(validationErrs)
 
