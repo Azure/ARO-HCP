@@ -23,8 +23,6 @@ import (
 
 	utilsclock "k8s.io/utils/clock"
 
-	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
-
 	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
 
 	"github.com/Azure/ARO-HCP/backend/oldoperationscanner"
@@ -95,7 +93,7 @@ func (c *operationClusterDelete) SynchronizeOperation(ctx context.Context, key c
 		// Do this before calling setDeleteOperationAsCompleted so that in
 		// case of error the backend will retry by virtue of the operation
 		// document still having a non-terminal status.
-		err = c.markBillingDocumentDeleted(ctx, operation.ExternalID)
+		err = controllerutils.MarkBillingDocumentDeleted(ctx, c.cosmosClient, operation.ExternalID, c.clock.Now())
 		if err != nil {
 			return utils.TrackError(err)
 		}
@@ -120,23 +118,4 @@ func (c *operationClusterDelete) SynchronizeOperation(ctx context.Context, key c
 	}
 
 	return nil
-}
-
-// markBillingDocumentDeleted patches a Cosmos DB document in the Billing
-// container to add a deletion timestamp.
-func (c *operationClusterDelete) markBillingDocumentDeleted(ctx context.Context, clusterResourceID *azcorearm.ResourceID) error {
-	logger := utils.LoggerFromContext(ctx)
-
-	var patchOperations database.BillingDocumentPatchOperations
-	patchOperations.SetDeletionTime(c.clock.Now())
-	err := c.cosmosClient.PatchBillingDoc(ctx, clusterResourceID, patchOperations)
-	if err == nil {
-		logger.Info("Updated billing for cluster deletion")
-	} else if database.IsResponseError(err, http.StatusNotFound) {
-		// Log the error but proceed with normal processing.
-		logger.Info("No billing document found")
-		err = nil
-	}
-
-	return err
 }

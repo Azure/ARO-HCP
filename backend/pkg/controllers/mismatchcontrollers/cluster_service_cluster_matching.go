@@ -117,25 +117,14 @@ func (c *clusterServiceClusterMatching) getAllClusterServiceObjs(ctx context.Con
 func (c *clusterServiceClusterMatching) synchronizeAllClusters(ctx context.Context) error {
 	logger := utils.LoggerFromContext(ctx)
 
-	clusterServiceIDToCosmosCluster, allCosmosClusters, err := c.getAllCosmosObjs(ctx)
+	clusterServiceIDToCosmosCluster, _, err := c.getAllCosmosObjs(ctx)
 	if err != nil {
 		return utils.TrackError(err)
 	}
 
-	clusterServiceIDToClusterServiceCluster, allClusterServiceClusters, err := c.getAllClusterServiceObjs(ctx)
+	_, allClusterServiceClusters, err := c.getAllClusterServiceObjs(ctx)
 	if err != nil {
 		return utils.TrackError(err)
-	}
-
-	// now make sure that we can find a matching clusterservice cluster for all cosmos clusters
-	for _, cosmosCluster := range allCosmosClusters {
-		_, exists := clusterServiceIDToClusterServiceCluster[cosmosCluster.ServiceProviderProperties.ClusterServiceID.String()]
-		if !exists {
-			logger.Error("cosmos cluster doesn't have matching cluster-service cluster",
-				"cosmosResourceID", cosmosCluster.ID,
-				"clusterServiceID", cosmosCluster.ServiceProviderProperties.ClusterServiceID,
-			)
-		}
 	}
 
 	for _, clusterServiceCluster := range allClusterServiceClusters {

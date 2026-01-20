@@ -36,6 +36,7 @@ import (
 	"go.opentelemetry.io/otel"
 	semconv "go.opentelemetry.io/otel/semconv/v1.17.0"
 	"golang.org/x/sync/errgroup"
+	utilsclock "k8s.io/utils/clock"
 
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
@@ -342,13 +343,16 @@ func Run(cmd *cobra.Command, args []string) error {
 				subscriptionLister,
 				dbClient,
 			)
-			clusterServiceMatchingClusterController  = mismatchcontrollers.NewClusterServiceClusterMatchingController(dbClient, subscriptionLister, clusterServiceClient)
-			clusterServiceMatchingNodePoolController = controllerutils.NewClusterWatchingController(
+			clusterServiceMatchingClusterController = mismatchcontrollers.NewClusterServiceClusterMatchingController(dbClient, subscriptionLister, clusterServiceClient)
+			cosmosMatchingNodePoolController        = controllerutils.NewClusterWatchingController(
 				"CosmosMatchingNodePools", dbClient, subscriptionLister, 60*time.Minute,
 				mismatchcontrollers.NewCosmosNodePoolMatchingController(dbClient, clusterServiceClient))
-			clusterServiceMatchingExternalAuthController = controllerutils.NewClusterWatchingController(
+			cosmosMatchingExternalAuthController = controllerutils.NewClusterWatchingController(
 				"CosmosMatchingExternalAuths", dbClient, subscriptionLister, 60*time.Minute,
 				mismatchcontrollers.NewCosmosExternalAuthMatchingController(dbClient, clusterServiceClient))
+			cosmosMatchingClusterController = controllerutils.NewClusterWatchingController(
+				"CosmosMatchingClusters", dbClient, subscriptionLister, 60*time.Minute,
+				mismatchcontrollers.NewCosmosClusterMatchingController(utilsclock.RealClock{}, dbClient, clusterServiceClient))
 		)
 
 		le, err := leaderelection.NewLeaderElector(leaderelection.LeaderElectionConfig{
@@ -366,8 +370,9 @@ func Run(cmd *cobra.Command, args []string) error {
 					go operationClusterCreateController.Run(ctx, 20)
 					go operationClusterDeleteController.Run(ctx, 20)
 					go clusterServiceMatchingClusterController.Run(ctx, 20)
-					go clusterServiceMatchingNodePoolController.Run(ctx, 20)
-					go clusterServiceMatchingExternalAuthController.Run(ctx, 20)
+					go cosmosMatchingNodePoolController.Run(ctx, 20)
+					go cosmosMatchingExternalAuthController.Run(ctx, 20)
+					go cosmosMatchingClusterController.Run(ctx, 20)
 				},
 				OnStoppedLeading: func() {
 					operationsScanner.LeaderGauge.Set(0)
