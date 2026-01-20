@@ -47,10 +47,6 @@ func TestFrontendClusterMutation(t *testing.T) {
 	err = testInfo.CreateInitialCosmosContent(ctx, api.Must(fs.Sub(artifacts, "artifacts/ClusterMutation/initial-cosmos-state")))
 	require.NoError(t, err)
 
-	// create anything and round trip anything for cluster-service
-	err = integrationutils.TrivialPassThroughClusterServiceMock(t, testInfo, nil)
-	require.NoError(t, err)
-
 	dirContent := api.Must(artifacts.ReadDir("artifacts/ClusterMutation"))
 	for _, dirEntry := range dirContent {
 		if dirEntry.Name() == "initial-cosmos-state" {

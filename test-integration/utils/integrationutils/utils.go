@@ -26,13 +26,11 @@ import (
 	_ "github.com/Azure/ARO-HCP/internal/api/v20240610preview"
 
 	"github.com/prometheus/client_golang/prometheus"
-	"go.uber.org/mock/gomock"
 
 	"github.com/Azure/ARO-HCP/frontend/pkg/frontend"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/audit"
 	"github.com/Azure/ARO-HCP/internal/database"
-	"github.com/Azure/ARO-HCP/internal/mocks"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -80,9 +78,6 @@ func NewFrontendFromTestingEnv(ctx context.Context, t *testing.T) (*frontend.Fro
 		return nil, nil, err
 	}
 
-	ctrl := gomock.NewController(t)
-	clusterServiceClient := mocks.NewMockClusterServiceClientSpec(ctrl)
-
 	noOpAuditClient, err := audit.NewOtelAuditClient(audit.CreateConn(false))
 	if err != nil {
 		return nil, nil, err
@@ -90,12 +85,13 @@ func NewFrontendFromTestingEnv(ctx context.Context, t *testing.T) (*frontend.Fro
 
 	metricsRegistry := prometheus.NewRegistry()
 
-	aroHCPFrontend := frontend.NewFrontend(logger, listener, metricsListener, metricsRegistry, cosmosTestEnv.DBClient, clusterServiceClient, noOpAuditClient, "fake-location")
+	clusterServiceMockInfo := NewClusterServiceMock(t, cosmosTestEnv.ArtifactsDir)
+
+	aroHCPFrontend := frontend.NewFrontend(logger, listener, metricsListener, metricsRegistry, cosmosTestEnv.DBClient, clusterServiceMockInfo.MockClusterServiceClient, noOpAuditClient, "fake-location")
 	testInfo := &FrontendIntegrationTestInfo{
 		CosmosIntegrationTestInfo: cosmosTestEnv,
+		ClusterServiceMock:        clusterServiceMockInfo,
 		ArtifactsDir:              cosmosTestEnv.ArtifactsDir,
-		mockData:                  make(map[string]map[string][]any),
-		MockClusterServiceClient:  clusterServiceClient,
 		FrontendURL:               fmt.Sprintf("http://%s", listener.Addr().String()),
 	}
 	return aroHCPFrontend, testInfo, nil

@@ -21,13 +21,9 @@ import (
 	"io/fs"
 	"testing"
 
-	"github.com/stretchr/testify/require"
-	"go.uber.org/mock/gomock"
-
-	csarhcpv1alpha1 "github.com/openshift-online/ocm-api-model/clientapi/arohcp/v1alpha1"
-
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/test-integration/utils/integrationutils"
+	"github.com/stretchr/testify/require"
 )
 
 //go:embed artifacts/*
@@ -50,10 +46,10 @@ func TestFrontendClusterRead(t *testing.T) {
 	err = testInfo.CreateInitialCosmosContent(ctx, api.Must(fs.Sub(artifacts, "artifacts/ClusterReadOldData/initial-cosmos-state")))
 	require.NoError(t, err)
 
-	clusterServiceCluster, err := csarhcpv1alpha1.UnmarshalCluster(api.Must(artifacts.ReadFile("artifacts/ClusterReadOldData/initial-cluster-service-state/02-some-cluster.json")))
+	err = testInfo.AddContent(t, api.Must(fs.Sub(artifacts, "artifacts/ClusterReadOldData/initial-cluster-service-state")))
 	require.NoError(t, err)
-	testInfo.MockClusterServiceClient.EXPECT().GetCluster(gomock.Any(), api.Must(api.NewInternalID("/api/aro_hcp/v1alpha1/clusters/fixed-value"))).Return(clusterServiceCluster, nil)
-	testInfo.MockClusterServiceClient.EXPECT().DeleteCluster(gomock.Any(), api.Must(api.NewInternalID("/api/aro_hcp/v1alpha1/clusters/fixed-value"))).Return(nil)
+	//testInfo.MockClusterServiceClient.EXPECT().GetCluster(gomock.Any(), api.Must(api.NewInternalID("/api/aro_hcp/v1alpha1/clusters/fixed-value"))).Return(clusterServiceCluster, nil)
+	//testInfo.MockClusterServiceClient.EXPECT().DeleteCluster(gomock.Any(), api.Must(api.NewInternalID("/api/aro_hcp/v1alpha1/clusters/fixed-value"))).Return(nil)
 
 	resourceGroup := "some-resource-group"
 	hcpClusterName := "some-hcp-cluster"

@@ -23,14 +23,17 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
+	utilsclock "k8s.io/utils/clock"
+
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/mismatchcontrollers"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/test-integration/utils/controllertesthelpers"
 	"github.com/Azure/ARO-HCP/test-integration/utils/integrationutils"
-	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
-	"github.com/stretchr/testify/require"
-	utilsclock "k8s.io/utils/clock"
 )
 
 //go:embed artifacts/*
