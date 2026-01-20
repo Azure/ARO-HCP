@@ -313,6 +313,45 @@ func (c *MockClusterServiceClientSpecGetClusterInflightChecksCall) DoAndReturn(f
 	return c
 }
 
+// GetClusterHypershiftDetails mocks base method.
+func (m *MockClusterServiceClientSpec) GetClusterHypershiftDetails(ctx context.Context, internalID ocm.InternalID) (*v1.HypershiftConfig, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetClusterHypershiftDetails", ctx, internalID)
+	ret0, _ := ret[0].(*v1.HypershiftConfig)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetClusterHypershiftDetails indicates an expected call of GetClusterHypershiftDetails.
+func (mr *MockClusterServiceClientSpecMockRecorder) GetClusterHypershiftDetails(ctx, internalID any) *MockClusterServiceClientSpecGetClusterHypershiftDetailsCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetClusterHypershiftDetails", reflect.TypeOf((*MockClusterServiceClientSpec)(nil).GetClusterHypershiftDetails), ctx, internalID)
+	return &MockClusterServiceClientSpecGetClusterHypershiftDetailsCall{Call: call}
+}
+
+// MockClusterServiceClientSpecGetClusterHypershiftDetailsCall wrap *gomock.Call
+type MockClusterServiceClientSpecGetClusterHypershiftDetailsCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockClusterServiceClientSpecGetClusterHypershiftDetailsCall) Return(arg0 *v1.HypershiftConfig, arg1 error) *MockClusterServiceClientSpecGetClusterHypershiftDetailsCall {
+	c.Call = c.Call.Return(arg0, arg1)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockClusterServiceClientSpecGetClusterHypershiftDetailsCall) Do(f func(context.Context, ocm.InternalID) (*v1.HypershiftConfig, error)) *MockClusterServiceClientSpecGetClusterHypershiftDetailsCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockClusterServiceClientSpecGetClusterHypershiftDetailsCall) DoAndReturn(f func(context.Context, ocm.InternalID) (*v1.HypershiftConfig, error)) *MockClusterServiceClientSpecGetClusterHypershiftDetailsCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
 // GetClusterStatus mocks base method.
 func (m *MockClusterServiceClientSpec) GetClusterStatus(ctx context.Context, internalID ocm.InternalID) (*v1alpha1.ClusterStatus, error) {
 	m.ctrl.T.Helper()

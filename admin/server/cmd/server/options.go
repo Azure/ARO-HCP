@@ -33,15 +33,22 @@ import (
 
 	sdk "github.com/openshift-online/ocm-sdk-go"
 
+	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
+
+	"github.com/Azure/ARO-HCP/admin/server/breakglass"
 	"github.com/Azure/ARO-HCP/admin/server/handlers"
 	"github.com/Azure/ARO-HCP/admin/server/handlers/cosmosdump"
 	"github.com/Azure/ARO-HCP/admin/server/handlers/hcp"
 	"github.com/Azure/ARO-HCP/admin/server/interrupts"
+	"github.com/Azure/ARO-HCP/admin/server/mgmtinventory"
 	"github.com/Azure/ARO-HCP/admin/server/middleware"
 	"github.com/Azure/ARO-HCP/admin/server/pkg/logging"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/fpa"
 	"github.com/Azure/ARO-HCP/internal/ocm"
+	clientset "github.com/Azure/ARO-HCP/sessiongate/pkg/generated/clientset/versioned"
+	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 )
 
 func DefaultOptions() *RawOptions {
@@ -53,16 +60,18 @@ func DefaultOptions() *RawOptions {
 
 // RawOptions holds input values.
 type RawOptions struct {
-	LogVerbosity       int
-	Port               int
-	HealthPort         int
-	Location           string
-	ClustersServiceURL string
-	CosmosURL          string
-	CosmosName         string
-	KustoEndpoint      string
-	FpaCertBundlePath  string
-	FpaClientID        string
+	LogVerbosity         int
+	Port                 int
+	HealthPort           int
+	Location             string
+	ClustersServiceURL   string
+	CosmosURL            string
+	CosmosName           string
+	KustoEndpoint        string
+	FpaCertBundlePath    string
+	FpaClientID          string
+	Kubeconfig           string
+	SessiongateNamespace string
 }
 
 func (opts *RawOptions) BindOptions(cmd *cobra.Command) error {
@@ -75,6 +84,8 @@ func (opts *RawOptions) BindOptions(cmd *cobra.Command) error {
 	cmd.Flags().StringVar(&opts.KustoEndpoint, "kusto-endpoint", getEnv("KUSTO_ENDPOINT", opts.KustoEndpoint), "Endpoint of the Kusto cluster.")
 	cmd.Flags().StringVar(&opts.FpaClientID, "fpa-client-id", getEnv("FPA_CLIENT_ID", opts.FpaClientID), "Client ID of the FPA application.")
 	cmd.Flags().StringVar(&opts.FpaCertBundlePath, "fpa-cert-bundle-path", getEnv("FPA_CERT_BUNDLE_PATH", opts.FpaCertBundlePath), "Path to the FPA certificate bundle.")
+	cmd.Flags().StringVar(&opts.Kubeconfig, "kubeconfig", getEnv("KUBECONFIG", opts.Kubeconfig), "Path to kubeconfig file.")
+	cmd.Flags().StringVar(&opts.SessiongateNamespace, "sessiongate-namespace", getEnv("SESSIONGATE_NAMESPACE", opts.SessiongateNamespace), "Namespace to watch for sessions.")
 	return nil
 }
 
@@ -104,7 +115,10 @@ type completedOptions struct {
 	DbClient               database.DBClient
 	KustoClient            *kusto.Client
 	FpaCredentialRetriever fpa.FirstPartyApplicationTokenCredentialRetriever
+	KubeConfig             *rest.Config
+	SessionInterface       *breakglass.SessionInterface
 	Logger                 *slog.Logger
+	Inventory              mgmtinventory.Inventory
 }
 
 type Options struct {
@@ -125,6 +139,9 @@ func (o *RawOptions) Validate() (*ValidatedOptions, error) {
 	if o.CosmosName == "" {
 		return nil, fmt.Errorf("cosmos-name is required")
 	}
+	if o.SessiongateNamespace == "" {
+		return nil, fmt.Errorf("sessiongate-namespace is required")
+	}
 	return &ValidatedOptions{
 		validatedOptions: &validatedOptions{
 			RawOptions: o,
@@ -134,6 +151,12 @@ func (o *RawOptions) Validate() (*ValidatedOptions, error) {
 
 func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 	logger := logging.New(o.LogVerbosity)
+
+	// Create Azure credentials
+	azureCredential, err := azidentity.NewDefaultAzureCredential(nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create Azure credential: %w", err)
+	}
 
 	// Create CS client
 	csConnection, err := sdk.NewUnauthenticatedConnectionBuilder().
@@ -183,11 +206,28 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to create certificate reader: %w", err)
 	}
-
 	fpaCredentialRetriever, err := fpa.NewFirstPartyApplicationTokenCredentialRetriever(logger, o.FpaClientID, certReader, azcore.ClientOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create the FPA token credentials: %w", err)
 	}
+
+	// Sessiongate client
+	kubeConfig, err := o.buildKubeConfig()
+	if err != nil {
+		return nil, fmt.Errorf("failed to build kubeconfig: %w", err)
+	}
+	sessiongateClientset, err := clientset.NewForConfig(kubeConfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create sessiongate clientset: %w", err)
+	}
+	sessionInterface := breakglass.NewSessionInterface(
+		ctx,
+		sessiongateClientset,
+		o.SessiongateNamespace,
+	)
+
+	// mgmt cluster inventory - use graph based inventory for now until we have a proper one
+	inventory := mgmtinventory.NewGraphInventory(azureCredential, o.Location)
 
 	return &Options{
 		completedOptions: &completedOptions{
@@ -198,9 +238,31 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 			DbClient:               dbClient,
 			KustoClient:            kustoClient,
 			FpaCredentialRetriever: fpaCredentialRetriever,
+			KubeConfig:             kubeConfig,
+			SessionInterface:       sessionInterface,
+			Inventory:              inventory,
 			Logger:                 logger,
 		},
 	}, nil
+}
+
+func (o *ValidatedOptions) buildKubeConfig() (*rest.Config, error) {
+	loadingRules := clientcmd.NewDefaultClientConfigLoadingRules()
+	if o.Kubeconfig != "" {
+		loadingRules.ExplicitPath = o.Kubeconfig
+	}
+	kubeConfig := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(loadingRules, &clientcmd.ConfigOverrides{})
+	config, err := kubeConfig.ClientConfig()
+	if err == nil {
+		return config, nil
+	}
+
+	config, err = rest.InClusterConfig()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create in-cluster kubeconfig: %w", err)
+	}
+
+	return config, nil
 }
 
 func (opts *Options) Run(ctx context.Context) error {
@@ -217,6 +279,8 @@ func (opts *Options) Run(ctx context.Context) error {
 	// Submux for V1 HCP endpoints
 	v1HCPMux := middleware.NewHCPResourceServerMux()
 	v1HCPMux.Handle("GET", "/helloworld", hcp.HCPHelloWorld(opts.DbClient, opts.ClustersServiceClient, opts.FpaCredentialRetriever))
+	v1HCPMux.Handle("GET", "/breakglass", hcp.HCPStartBreakGlassSession(opts.DbClient, opts.ClustersServiceClient, opts.Inventory, opts.SessionInterface))
+	v1HCPMux.Handle("GET", "/breakglass/{sessionName}", hcp.HCPBreakGlassSessionKubeconfig(opts.SessionInterface))
 	v1HCPMux.Handle("GET", "/cosmosdump", cosmosdump.NewCosmosDumpHandler(opts.DbClient))
 
 	rootMux := http.NewServeMux()
