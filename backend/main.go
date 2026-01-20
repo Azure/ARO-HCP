@@ -50,8 +50,10 @@ import (
 	ocmsdk "github.com/openshift-online/ocm-sdk-go"
 
 	"github.com/Azure/ARO-HCP/backend/oldoperationscanner"
-	controllers2 "github.com/Azure/ARO-HCP/backend/pkg/controllers"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/informers"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/mismatchcontrollers"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/operationcontrollers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
@@ -316,7 +318,7 @@ func Run(cmd *cobra.Command, args []string) error {
 			startedLeading                   atomic.Bool
 			operationsScanner                = oldoperationscanner.NewOperationsScanner(dbClient, ocmConnection, argLocation, subscriptionLister)
 			subscriptionInformerController   = informers.NewSubscriptionInformerController(dbClient, subscriptionLister)
-			doNothingController              = controllers2.NewDoNothingExampleController(dbClient, subscriptionLister)
+			doNothingController              = controllers.NewDoNothingExampleController(dbClient, subscriptionLister)
 			operationClusterCreateController = operationcontrollers.NewGenericOperationClusterCreateController(
 				"OperationClusterCreate",
 				operationcontrollers.NewOperationClusterCreateSynchronizer(
@@ -340,6 +342,13 @@ func Run(cmd *cobra.Command, args []string) error {
 				subscriptionLister,
 				dbClient,
 			)
+			clusterServiceMatchingClusterController  = mismatchcontrollers.NewClusterServiceClusterMatchingController(dbClient, subscriptionLister, clusterServiceClient)
+			clusterServiceMatchingNodePoolController = controllerutils.NewClusterWatchingController(
+				"ClusterServiceMatchingNodePools", dbClient, subscriptionLister, 60*time.Minute,
+				mismatchcontrollers.NewClusterServiceNodePoolMatchingController(dbClient, clusterServiceClient))
+			clusterServiceMatchingExternalAuthController = controllerutils.NewClusterWatchingController(
+				"ClusterServiceMatchingExternalAuths", dbClient, subscriptionLister, 60*time.Minute,
+				mismatchcontrollers.NewClusterServiceExternalAuthMatchingController(dbClient, clusterServiceClient))
 		)
 
 		le, err := leaderelection.NewLeaderElector(leaderelection.LeaderElectionConfig{
@@ -356,6 +365,9 @@ func Run(cmd *cobra.Command, args []string) error {
 					go doNothingController.Run(ctx, 20)
 					go operationClusterCreateController.Run(ctx, 20)
 					go operationClusterDeleteController.Run(ctx, 20)
+					go clusterServiceMatchingClusterController.Run(ctx, 20)
+					go clusterServiceMatchingNodePoolController.Run(ctx, 20)
+					go clusterServiceMatchingExternalAuthController.Run(ctx, 20)
 				},
 				OnStoppedLeading: func() {
 					operationsScanner.LeaderGauge.Set(0)
