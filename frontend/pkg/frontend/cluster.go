@@ -23,6 +23,7 @@ import (
 	"net/http"
 	"strings"
 
+	k8soperation "k8s.io/apimachinery/pkg/api/operation"
 	"k8s.io/utils/ptr"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -227,7 +228,7 @@ func (f *Frontend) CreateOrUpdateHCPCluster(writer http.ResponseWriter, request 
 	}
 }
 
-func decodeDesiredClusterCreate(ctx context.Context, azureLocation string) (*api.HCPOpenShiftCluster, error) {
+func decodeDesiredClusterCreate(ctx context.Context, azureLocation string, requestHeader http.Header) (*api.HCPOpenShiftCluster, error) {
 	versionedInterface, err := VersionFromContext(ctx)
 	if err != nil {
 		return nil, utils.TrackError(err)
@@ -266,6 +267,11 @@ func decodeDesiredClusterCreate(ctx context.Context, azureLocation string) (*api
 	// set fields that were not included during the conversion, because the user does not provide them or because the
 	// data is determined live on read.
 	newInternalCluster.SystemData = systemData
+
+	// We set the managed identities data plane identity URL associated to the cluster from the
+	// http header 'X-Ms-Identity-Url'.
+	newInternalCluster.ServiceProviderProperties.ManagedIdentitiesDataPlaneIdentityURL = requestHeader.Get(arm.HeaderNameIdentityURL)
+
 	// Clear the user-assigned identities map since that is reconstructed from Cluster Service data.
 	// TODO we'd like to have the instance complete when we go to validate it.  Right now validation fails if we clear this.
 	// TODO we probably update validation to require this field is cleared.
@@ -312,12 +318,15 @@ func (f *Frontend) createHCPCluster(writer http.ResponseWriter, request *http.Re
 		return utils.TrackError(err)
 	}
 
-	newInternalCluster, err := decodeDesiredClusterCreate(ctx, f.azureLocation)
+	newInternalCluster, err := decodeDesiredClusterCreate(ctx, f.azureLocation, request.Header)
 	if err != nil {
 		return utils.TrackError(err)
 	}
 
-	validationErrs := validation.ValidateClusterCreate(ctx, newInternalCluster, api.Must(versionedInterface.ValidationPathRewriter(&api.HCPOpenShiftCluster{})))
+	k8sOp := k8soperation.Operation{Type: k8soperation.Create}
+	validationErrs := validation.ValidateClusterCreate(
+		ctx, k8sOp, newInternalCluster, api.Must(versionedInterface.ValidationPathRewriter(&api.HCPOpenShiftCluster{})),
+	)
 	validationErrs = append(validationErrs, admission.AdmitClusterOnCreate(ctx, newInternalCluster, subscription)...)
 	if err := arm.CloudErrorFromFieldErrors(validationErrs); err != nil {
 		return utils.TrackError(err)

@@ -308,7 +308,8 @@ func TestWithImmutableAttributes(t *testing.T) {
 				api.TestSubscriptionID,
 				api.TestResourceGroupName,
 				api.TestTenantID,
-				"")
+				api.TestManagedIdentitiesDataPlaneIdentityURL,
+			)
 			require.NoError(t, err)
 			result, err := builder.Build()
 			require.NoError(t, err)
@@ -366,7 +367,7 @@ func ocmClusterDefaults(azureLocation string) *arohcpv1alpha1.ClusterBuilder {
 				ManagedIdentities(arohcpv1alpha1.NewAzureOperatorsAuthenticationManagedIdentities().
 					ControlPlaneOperatorsManagedIdentities(make(map[string]*csarhcpv1alpha1.AzureControlPlaneManagedIdentityBuilder)).
 					DataPlaneOperatorsManagedIdentities(make(map[string]*csarhcpv1alpha1.AzureDataPlaneManagedIdentityBuilder)).
-					ManagedIdentitiesDataPlaneIdentityUrl(""))).
+					ManagedIdentitiesDataPlaneIdentityUrl(api.TestManagedIdentitiesDataPlaneIdentityURL))).
 			ResourceGroupName(strings.ToLower(api.TestResourceGroupName)).
 			ResourceName(strings.ToLower(api.TestClusterName)).
 			SubnetResourceID(api.TestSubnetResourceID).
@@ -860,7 +861,7 @@ func TestBuildCSCluster(t *testing.T) {
 			// Create request headers
 			requestHeader := http.Header{}
 			requestHeader.Set(arm.HeaderNameHomeTenantID, api.TestTenantID)
-			requestHeader.Set(arm.HeaderNameIdentityURL, "")
+			requestHeader.Set(arm.HeaderNameIdentityURL, api.TestManagedIdentitiesDataPlaneIdentityURL)
 
 			resourceID, err := azcorearm.ParseResourceID(api.TestClusterResourceID)
 			require.NoError(t, err)
