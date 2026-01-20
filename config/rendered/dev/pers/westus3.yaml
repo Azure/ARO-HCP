@@ -664,7 +664,6 @@ pko:
     registry: quay.io
     repository: package-operator/remote-phase-manager
 region: westus3
-regionBuildout: false
 regionRG: hcp-underlay-pers-usw3test
 routeMonitorOperator:
   blackboxExporterImage:
