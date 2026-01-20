@@ -31,8 +31,6 @@ type Controller struct {
 	// we need to be sure that all new records have it too.
 	ResourceID *azcorearm.ResourceID `json:"resourceId,omitempty"`
 
-	CosmosUID string `json:"cosmosUID,omitempty"`
-
 	// ExternalID is the Azure resource ID of the type this is associated with.
 	ExternalID *azcorearm.ResourceID `json:"externalId,omitempty"`
 

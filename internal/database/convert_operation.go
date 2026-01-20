@@ -50,7 +50,6 @@ func InternalToCosmosOperation(internalObj *api.Operation) (*Operation, error) {
 	}
 
 	// some pieces of data conflict with standard fields.  We may evolve over time, but for now avoid persisting those.
-	cosmosObj.OperationProperties.CosmosUID = ""
 
 	return cosmosObj, nil
 }
@@ -63,7 +62,6 @@ func CosmosToInternalOperation(cosmosObj *Operation) (*api.Operation, error) {
 	tempInternalAPI := cosmosObj.OperationProperties
 	internalObj := &tempInternalAPI
 
-	internalObj.CosmosUID = cosmosObj.ID
 	// old records don't serialize this, but we want all readers to be able to depend on it. We can derive it from the operationID
 	// this ID does not include the location because doing so changes the resulting azcorearm.ParseResourceID().ResourceType to be
 	// Microsoft.RedHatOpenShift/locations/hcpOperationStatuses.  This type is not compatible with the current cosmos storage and

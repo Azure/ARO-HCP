@@ -60,7 +60,6 @@ func InternalToCosmosCluster(internalObj *api.HCPOpenShiftCluster) (*HCPCluster,
 	cosmosObj.InternalState.InternalAPI.SystemData = nil
 	cosmosObj.InternalState.InternalAPI.Tags = nil
 	cosmosObj.InternalState.InternalAPI.ServiceProviderProperties.ProvisioningState = ""
-	cosmosObj.InternalState.InternalAPI.ServiceProviderProperties.CosmosUID = ""
 	cosmosObj.InternalState.InternalAPI.ServiceProviderProperties.ClusterServiceID = ocm.InternalID{}
 	cosmosObj.InternalState.InternalAPI.ServiceProviderProperties.ActiveOperationID = ""
 
@@ -135,7 +134,6 @@ func CosmosToInternalCluster(cosmosObj *HCPCluster) (*api.HCPOpenShiftCluster, e
 	internalObj.SystemData = cosmosObj.SystemData
 	internalObj.Tags = copyTags(cosmosObj.Tags)
 	internalObj.ServiceProviderProperties.ProvisioningState = cosmosObj.ProvisioningState
-	internalObj.ServiceProviderProperties.CosmosUID = cosmosObj.ID
 	internalObj.ServiceProviderProperties.ClusterServiceID = cosmosObj.InternalID
 	internalObj.ServiceProviderProperties.ActiveOperationID = cosmosObj.ActiveOperationID
 

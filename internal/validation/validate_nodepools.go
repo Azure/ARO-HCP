@@ -145,9 +145,6 @@ func validateNodePoolProperties(ctx context.Context, op operation.Operation, fld
 }
 
 var (
-	toNodePoolServiceProviderCosmosUID = func(oldObj *api.HCPOpenShiftClusterNodePoolServiceProviderProperties) *string {
-		return &oldObj.CosmosUID
-	}
 	toNodePoolServiceProviderClusterServiceID = func(oldObj *api.HCPOpenShiftClusterNodePoolServiceProviderProperties) *api.InternalID {
 		return &oldObj.ClusterServiceID
 	}
@@ -155,12 +152,6 @@ var (
 
 func validateNodePoolServiceProviderProperties(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *api.HCPOpenShiftClusterNodePoolServiceProviderProperties) field.ErrorList {
 	errs := field.ErrorList{}
-
-	//CosmosUID         string                         `json:"cosmosUID,omitempty"`
-	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("cosmosUID"), &newObj.CosmosUID, safe.Field(oldObj, toNodePoolServiceProviderCosmosUID))...)
-	if oldObj == nil { // must be unset on creation because we don't know it yet.
-		errs = append(errs, validate.ForbiddenValue(ctx, op, fldPath.Child("cosmosUID"), &newObj.CosmosUID, nil)...)
-	}
 
 	//ClusterServiceID  InternalID                     `json:"clusterServiceID,omitempty"`
 	errs = append(errs, validate.ImmutableByReflect(ctx, op, fldPath.Child("clusterServiceID"), &newObj.ClusterServiceID, safe.Field(oldObj, toNodePoolServiceProviderClusterServiceID))...)

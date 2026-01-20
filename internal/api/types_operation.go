@@ -71,9 +71,6 @@ type Operation struct {
 	Status arm.ProvisioningState `json:"status,omitempty"`
 	// Error is an OData error, present when Status is "Failed" or "Canceled"
 	Error *arm.CloudErrorBody `json:"error,omitempty"`
-
-	// CosmosUID is used to keep track of whether we have transitioned to a new cosmosUID scheme for this item
-	CosmosUID string `json:"cosmosUID"`
 }
 
 var _ CosmosPersistable = &Operation{}
@@ -91,17 +88,8 @@ func (o *Operation) ComputeLogicalResourceID() *azcorearm.ResourceID {
 }
 
 func (o *Operation) GetCosmosData() CosmosData {
-	cosmosUID := Must(ResourceIDToCosmosID(o.ResourceID))
-	if len(o.CosmosUID) != 0 {
-		// if this is an item that is being serialized for the first time, then we can force it to use the new scheme.
-		// if it already thinks it knows its CosmosID, then we must accept what it thinks because this could be a case
-		// where we have a new backend and an old frontend.  In that case, the content still has random UIDs, but the backend
-		// must be able to read AND write the records. This means we cannot assume that all UIDs have already changed.
-		cosmosUID = o.CosmosUID
-	}
-
 	return CosmosData{
-		CosmosUID:    cosmosUID,
+		CosmosUID:    Must(ResourceIDToCosmosID(o.ResourceID)),
 		PartitionKey: strings.ToLower(o.ComputeLogicalResourceID().SubscriptionID),
 		ItemID:       o.ComputeLogicalResourceID(),
 	}

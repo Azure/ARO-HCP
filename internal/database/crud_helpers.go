@@ -23,7 +23,6 @@ import (
 
 	"k8s.io/utils/ptr"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
@@ -60,94 +59,13 @@ func getByItemID[InternalAPIType, CosmosAPIType any](ctx context.Context, contai
 }
 
 func get[InternalAPIType, CosmosAPIType any](ctx context.Context, containerClient *azcosmos.ContainerClient, partitionKeyString string, completeResourceID *azcorearm.ResourceID) (*InternalAPIType, error) {
-	logger := utils.LoggerFromContext(ctx)
 
 	// try to see if the cosmosID we've passed is also the exact resource ID.  If so, then return the value we got.
 	exactCosmosID, err := api.ResourceIDToCosmosID(completeResourceID)
-	if err == nil {
-		ret, err := getByItemID[InternalAPIType, CosmosAPIType](ctx, containerClient, partitionKeyString, exactCosmosID)
-		if err == nil {
-			return ret, nil
-		}
-		if !IsResponseError(err, http.StatusNotFound) {
-			return nil, err
-		}
-	}
-	logger.Info("failed to get exact cosmosID, trying to rekey", "newCosmosID", exactCosmosID)
-
-	if strings.ToLower(partitionKeyString) != partitionKeyString {
-		return nil, fmt.Errorf("partitionKeyString must be lowercase, not: %q", partitionKeyString)
-	}
-
-	var responseItem []byte
-
-	const query = "SELECT * FROM c WHERE STRINGEQUALS(c.resourceType, @resourceType, true) AND STRINGEQUALS(c.properties.resourceId, @resourceId, true)"
-	opt := azcosmos.QueryOptions{
-		QueryParameters: []azcosmos.QueryParameter{
-			{
-				Name:  "@resourceType",
-				Value: completeResourceID.ResourceType.String(),
-			},
-			{
-				Name:  "@resourceId",
-				Value: completeResourceID.String(),
-			},
-		},
-	}
-
-	queryPager := containerClient.NewQueryItemsPager(query, azcosmos.NewPartitionKeyString(partitionKeyString), &opt)
-	for queryPager.More() {
-		queryResponse, err := queryPager.NextPage(ctx)
-		if err != nil {
-			return nil, fmt.Errorf("failed to advance page while querying Resources container for '%s': %w", completeResourceID, err)
-		}
-
-		for _, item := range queryResponse.Items {
-			// Let the pager finish to ensure we get a single result.
-			if responseItem == nil {
-				responseItem = item
-			} else {
-				return nil, ErrAmbiguousResult
-			}
-		}
-	}
-
-	if responseItem == nil {
-		// Fabricate a "404 Not Found" ResponseError to wrap.
-		err := &azcore.ResponseError{
-			ErrorCode:  http.StatusText(http.StatusNotFound),
-			StatusCode: http.StatusNotFound,
-		}
-		return nil, fmt.Errorf("failed to read Resources container item for '%s': %w", completeResourceID, err)
-	}
-
-	// To get here, we didn't find the item by direct cosmos ID, but after re-keying we will.
-	// We also know for sure it exists.  Let's go ahead and create the replacement item and delete the original
-	// Old frontends will continue to work because the query used will still match since all the non-cosmos ID data remains the same.
-	// After a successful create, we will delete the original.
-	// If we crash after the create and before the delete or the delete fails, we will get a detectable failure of `ErrAmbiguousResult`
-	// which will force a manual cleanup. Given how few of these we have, it should be uncommon.
-	objAsMap := map[string]any{}
-	if err := json.Unmarshal(responseItem, &objAsMap); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal Resources container item for '%s': %w", completeResourceID, err)
-	}
-	originalCosmosID := objAsMap["id"].(string)
-	newCosmosID := api.Must(api.ResourceIDToCosmosID(completeResourceID))
-	objAsMap["id"] = newCosmosID
-	newBytes, err := json.Marshal(objAsMap)
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal Cosmos DB item for '%s': %w", completeResourceID, err)
-	}
-
-	logger.Info("creating new item", "newCosmosID", newCosmosID, "oldCosmosID", originalCosmosID)
-	if _, err := containerClient.CreateItem(ctx, azcosmos.NewPartitionKeyString(partitionKeyString), newBytes, nil); err != nil {
 		return nil, utils.TrackError(err)
 	}
-	if _, err = containerClient.DeleteItem(ctx, azcosmos.NewPartitionKeyString(partitionKeyString), originalCosmosID, nil); err != nil {
-		return nil, utils.TrackError(err)
-	}
-
-	return getByItemID[InternalAPIType, CosmosAPIType](ctx, containerClient, partitionKeyString, newCosmosID)
+	return getByItemID[InternalAPIType, CosmosAPIType](ctx, containerClient, partitionKeyString, exactCosmosID)
 }
 
 func list[InternalAPIType, CosmosAPIType any](ctx context.Context, containerClient *azcosmos.ContainerClient, partitionKeyString string, resourceType *azcorearm.ResourceType, prefix *azcorearm.ResourceID, options *DBClientListResourceDocsOptions, untypedNonRecursive bool) (DBClientIterator[InternalAPIType], error) {

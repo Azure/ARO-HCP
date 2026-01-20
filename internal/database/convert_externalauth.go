@@ -56,7 +56,6 @@ func InternalToCosmosExternalAuth(internalObj *api.HCPOpenShiftClusterExternalAu
 	cosmosObj.InternalState.InternalAPI.ProxyResource = arm.ProxyResource{}
 	cosmosObj.InternalState.InternalAPI.Properties.ProvisioningState = ""
 	cosmosObj.InternalState.InternalAPI.SystemData = nil
-	cosmosObj.InternalState.InternalAPI.ServiceProviderProperties.CosmosUID = ""
 	cosmosObj.InternalState.InternalAPI.ServiceProviderProperties.ClusterServiceID = ocm.InternalID{}
 	cosmosObj.InternalState.InternalAPI.ServiceProviderProperties.ActiveOperationID = ""
 
@@ -82,7 +81,6 @@ func CosmosToInternalExternalAuth(cosmosObj *ExternalAuth) (*api.HCPOpenShiftClu
 	}
 	internalObj.Properties.ProvisioningState = cosmosObj.ProvisioningState
 	internalObj.SystemData = cosmosObj.SystemData
-	internalObj.ServiceProviderProperties.CosmosUID = cosmosObj.ID
 	internalObj.ServiceProviderProperties.ClusterServiceID = cosmosObj.InternalID
 	internalObj.ServiceProviderProperties.ActiveOperationID = cosmosObj.ActiveOperationID
 
