@@ -4,7 +4,7 @@
     "_rid": "qr1CAKur9GQDAAAAAAAAAA==",
     "_self": "dbs/qr1CAA==/colls/qr1CAKur9GQ=/docs/qr1CAKur9GQDAAAAAAAAAA==/",
     "_ts": 1767637798,
-    "id": "9462c9da-42ac-4606-ad99-84e4f3ec0977",
+    "id": "|subscriptions|6b690bec-0c16-4ecb-8f67-781caf40bba7|resourcegroups|resourcegroupname|providers|microsoft.redhatopenshift|hcpopenshiftclusters|create-with-tags",
     "partitionKey": "6b690bec-0c16-4ecb-8f67-781caf40bba7",
     "properties": {
         "activeOperationId": "90b2322c-2c26-47ca-b6f9-d9b1a8385cbc",

@@ -4,7 +4,7 @@
 	"_rid": "WZlNALYurecDAAAAAAAAAA==",
 	"_self": "dbs/WZlNAA==/colls/WZlNALYurec=/docs/WZlNALYurecDAAAAAAAAAA==/",
 	"_ts": 1766174370,
-	"id": "c893be2c-80b0-497f-8490-e3e5fd2b2cc4",
+	"id": "|subscriptions|6b690bec-0c16-4ecb-8f67-781caf40bba7|resourcegroups|resourcegroupname|providers|microsoft.redhatopenshift|hcpopenshiftclusters|create-with-tags",
 	"partitionKey": "6b690bec-0c16-4ecb-8f67-781caf40bba7",
 	"properties": {
 		"activeOperationId": "7a4ed07a-47a1-4efb-966a-93a6316522a0",

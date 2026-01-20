@@ -4,7 +4,7 @@
 	"_rid": "M4dGAP57SmwFAAAAAAAAAA==",
 	"_self": "dbs/M4dGAA==/colls/M4dGAP57Smw=/docs/M4dGAP57SmwFAAAAAAAAAA==/",
 	"_ts": 1767983403,
-	"id": "980ba655-ecf5-4d88-a766-af2a96a2b25b",
+	"id": "|subscriptions|6b690bec-0c16-4ecb-8f67-781caf40bba7|resourcegroups|resourcegroupname|providers|microsoft.redhatopenshift|hcpopenshiftclusters|create-with-tags|externalauths|default",
 	"partitionKey": "6b690bec-0c16-4ecb-8f67-781caf40bba7",
 	"properties": {
 		"activeOperationId": "ea807c13-7e15-43d4-b760-69ef7e31d273",
