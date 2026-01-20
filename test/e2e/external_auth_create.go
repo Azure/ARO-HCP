@@ -23,6 +23,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -256,6 +257,22 @@ var _ = Describe("Customer", func() {
 				_, err := client.CoreV1().Namespaces().List(ctx, metav1.ListOptions{})
 				return err
 			}, 5*time.Minute, 10*time.Second).Should(Succeed())
+
+			By("creating the console OAuth client secret for external auth")
+			adminClient, err := kubernetes.NewForConfig(adminRESTConfig)
+			Expect(err).NotTo(HaveOccurred())
+			consoleOAuthSecretName := fmt.Sprintf("%s-console-openshift-console", customerExternalAuthName)
+			consoleOAuthSecret := &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      consoleOAuthSecretName,
+					Namespace: "openshift-config",
+				},
+				StringData: map[string]string{
+					"clientSecret": pass.SecretText,
+				},
+			}
+			_, err = adminClient.CoreV1().Secrets("openshift-config").Create(ctx, consoleOAuthSecret, metav1.CreateOptions{})
+			Expect(err).NotTo(HaveOccurred())
 
 			By("verifying cluster operators are available after external auth config creation")
 			err = verifiers.VerifyAllClusterOperatorsAvailable().Verify(ctx, adminRESTConfig)
