@@ -347,6 +347,9 @@ type HcpOpenShiftClusterProperties struct {
 	// imageDigestMirrors is a set of rules to allow pulling images from a mirrored registry by using digest specifications.
 	ImageDigestMirrors []*ImageDigestMirror
 
+	// Cluster uses FIPS validated cryptographic libraries
+	FipsEnabled *bool
+
 	// Cluster network configuration
 	Network *NetworkProfile
 
