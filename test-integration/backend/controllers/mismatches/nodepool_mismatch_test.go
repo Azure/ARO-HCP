@@ -16,7 +16,6 @@ package do_nothing
 
 import (
 	"context"
-	"embed"
 	"io/fs"
 	"path"
 	"strings"
@@ -24,8 +23,6 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
-
-	utilsclock "k8s.io/utils/clock"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
@@ -36,29 +33,26 @@ import (
 	"github.com/Azure/ARO-HCP/test-integration/utils/integrationutils"
 )
 
-//go:embed artifacts/*
-var artifacts embed.FS
-
-func TestClusterMismatchController(t *testing.T) {
+func TestNodePoolMismatchController(t *testing.T) {
 	integrationutils.SkipIfNotSimulationTesting(t)
 
 	testCases := []controllertesthelpers.BasicControllerTest{
 		{
-			Name: "remove_orphaned_cluster_descendents",
+			Name: "remove_orphaned_nodepool_descendents",
 			ControllerKey: controllerutils.HCPClusterKey{
 				SubscriptionID:    "a433a095-1277-44f1-8453-8d61a4d848c2",
 				ResourceGroupName: "unimportantPostponement",
 				HCPClusterName:    "monstrousPrecinct",
 			},
-			ArtifactDir: api.Must(fs.Sub(artifacts, path.Join("artifacts/cluster"))),
+			ArtifactDir: api.Must(fs.Sub(artifacts, path.Join("artifacts/nodepool"))),
 			ControllerInitializerFn: func(ctx context.Context, t *testing.T, input *controllertesthelpers.ControllerInitializationInput) (controller controllerutils.Controller, testMemory map[string]any) {
 				return controllerutils.NewClusterWatchingController(
-						"CosmosMatchingClusters", input.CosmosClient, input.SubscriptionLister, 60*time.Minute,
-						mismatchcontrollers.NewCosmosClusterMatchingController(utilsclock.RealClock{}, input.CosmosClient, input.ClusterServiceClient)),
+						"CosmosMatchingNodePools", input.CosmosClient, input.SubscriptionLister, 60*time.Minute,
+						mismatchcontrollers.NewCosmosNodePoolMatchingController(input.CosmosClient, input.ClusterServiceClient)),
 					map[string]any{}
 			},
 			ControllerVerifierFn: func(ctx context.Context, t *testing.T, controller controllerutils.Controller, testMemory map[string]any, input *controllertesthelpers.ControllerInitializationInput) {
-				clusterResourceID := api.Must(azcorearm.ParseResourceID(strings.ToLower("/subscriptions/a433a095-1277-44f1-8453-8d61a4d848c2/resourceGroups/unimportantPostponement/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/monstrousPrecinct")))
+				clusterResourceID := api.Must(azcorearm.ParseResourceID(strings.ToLower("/subscriptions/a433a095-1277-44f1-8453-8d61a4d848c2/resourceGroups/unimportantPostponement/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/monstrousPrecinct/nodepools/basic")))
 				crud, err := input.CosmosClient.UntypedCRUD(*clusterResourceID)
 				require.NoError(t, err)
 				_, err = crud.Get(ctx, clusterResourceID)
@@ -66,7 +60,7 @@ func TestClusterMismatchController(t *testing.T) {
 				allItems, err := crud.ListRecursive(ctx, nil)
 				require.NoError(t, err)
 				for _, curr := range allItems.Items(ctx) {
-					if curr.ID == "|subscriptions|a433a095-1277-44f1-8453-8d61a4d848c2|resourcegroups|unimportantpostponement|providers|microsoft.redhatopenshift|hcpopenshiftclusters|monstrousprecinct|hcpopenshiftcontrollers|cosmosmatchingclusters" {
+					if curr.ID == "|subscriptions|a433a095-1277-44f1-8453-8d61a4d848c2|resourcegroups|unimportantpostponement|providers|microsoft.redhatopenshift|hcpopenshiftclusters|monstrousprecinct|hcpopenshiftcontrollers|cosmosmatchingnodepools" {
 						// we create an instance to indicate we deleted a thing.  We'll clean it up in a separate controller later that does NOT report.
 						// we want this one to report in case it cannot cleanup, so we'll leave the standard logic.
 						continue
@@ -77,18 +71,19 @@ func TestClusterMismatchController(t *testing.T) {
 			},
 		},
 		{
-			Name: "present_cluster",
+			Name: "present_nodepool",
 			ControllerKey: controllerutils.HCPClusterKey{
 				SubscriptionID:    "a433a095-1277-44f1-8453-8d61a4d848c2",
 				ResourceGroupName: "unimportantPostponement",
 				HCPClusterName:    "monstrousPrecinct",
 			},
-			ArtifactDir: api.Must(fs.Sub(artifacts, path.Join("artifacts/cluster"))),
+			ArtifactDir: api.Must(fs.Sub(artifacts, path.Join("artifacts/nodepool"))),
 			ControllerInitializerFn: func(ctx context.Context, t *testing.T, input *controllertesthelpers.ControllerInitializationInput) (controller controllerutils.Controller, testMemory map[string]any) {
 				return controllerutils.NewClusterWatchingController(
-						"CosmosMatchingClusters", input.CosmosClient, input.SubscriptionLister, 60*time.Minute,
-						mismatchcontrollers.NewCosmosClusterMatchingController(utilsclock.RealClock{}, input.CosmosClient, input.ClusterServiceClient)),
+						"CosmosMatchingNodePools", input.CosmosClient, input.SubscriptionLister, 60*time.Minute,
+						mismatchcontrollers.NewCosmosNodePoolMatchingController(input.CosmosClient, input.ClusterServiceClient)),
 					map[string]any{}
+
 			},
 			ControllerVerifierFn: func(ctx context.Context, t *testing.T, controller controllerutils.Controller, testMemory map[string]any, input *controllertesthelpers.ControllerInitializationInput) {
 			},

@@ -21,9 +21,10 @@ import (
 	"io/fs"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/test-integration/utils/integrationutils"
-	"github.com/stretchr/testify/require"
 )
 
 //go:embed artifacts/*

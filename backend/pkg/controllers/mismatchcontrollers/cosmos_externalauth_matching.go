@@ -17,6 +17,7 @@ package mismatchcontrollers
 import (
 	"context"
 	"fmt"
+	"net/http"
 
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 
@@ -90,6 +91,9 @@ func (c *cosmosExternalAuthMatching) synchronizeAllExternalAuths(ctx context.Con
 	logger := utils.LoggerFromContext(ctx)
 
 	cluster, err := c.cosmosClient.HCPClusters(keyObj.SubscriptionID, keyObj.ResourceGroupName).Get(ctx, keyObj.HCPClusterName)
+	if database.IsResponseError(err, http.StatusNotFound) {
+		return nil // no work to do
+	}
 	if err != nil {
 		return utils.TrackError(err)
 	}

@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -35,6 +36,7 @@ import (
 
 	csarhcpv1alpha1 "github.com/openshift-online/ocm-api-model/clientapi/arohcp/v1alpha1"
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
+	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
 
 	"github.com/Azure/ARO-HCP/internal/mocks"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -413,7 +415,11 @@ func (s *ClusterServiceMock) GetOrCreateMockData(dataName string) map[string][]a
 
 func mergeClusterServiceReturn(history []any) ([]byte, error) {
 	if len(history) == 0 {
-		return nil, fmt.Errorf("no history provided")
+		retErr, err := ocmerrors.NewError().Status(http.StatusNotFound).Build()
+		if err != nil {
+			panic(err)
+		}
+		return nil, retErr
 	}
 	// this looks insane, but cluster-service has some of the toughest API and client constructs to manage.
 	// we need to merge the history together, but the CS types resist that, so taking it all back to maps is easier.

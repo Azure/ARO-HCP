@@ -1,6 +1,6 @@
 {
-	"id": "|subscriptions|a433a095-1277-44f1-8453-8d61a4d848c2|resourcegroups|unimportantpostponement|providers|microsoft.redhatopenshift|hcpopenshiftclusters|monstrousprecinct",
-	"partitionKey": "a433a095-1277-44f1-8453-8d61a4d848c2",
+	"id": "48381685-4d43-43a7-b9ab-9a5a2f208a20",
+	"partitionKey": "4fa75980-6637-4157-9726-84d878a62e83",
 	"properties": {
 		"activeOperationId": "6aeeebf8-f771-4d4e-9097-45b972cb96e4",
 		"identity": {
@@ -46,14 +46,14 @@
 					},
 					"platform": {
 						"managedResourceGroup": "uprightPairing",
-						"networkSecurityGroupId": "/subscriptions/a433a095-1277-44f1-8453-8d61a4d848c2/resourceGroups/unimportantPostponement/providers/Microsoft.Network/networkSecurityGroups/nsg",
+						"networkSecurityGroupId": "/subscriptions/4fa75980-6637-4157-9726-84d878a62e83/resourceGroups/shrillEffectiveness/providers/Microsoft.Network/networkSecurityGroups/nsg",
 						"operatorsAuthentication": {
 							"userAssignedIdentities": {
-								"serviceManagedIdentity": "/subscriptions/a433a095-1277-44f1-8453-8d61a4d848c2/resourceGroups/different-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/service-managed-identity"
+								"serviceManagedIdentity": "/subscriptions/4fa75980-6637-4157-9726-84d878a62e83/resourceGroups/different-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/service-managed-identity"
 							}
 						},
 						"outboundType": "LoadBalancer",
-						"subnetId": "/subscriptions/a433a095-1277-44f1-8453-8d61a4d848c2/resourceGroups/different-resource-group/providers/Microsoft.Network/virtualNetworks/vnet/subnets/subnet"
+						"subnetId": "/subscriptions/4fa75980-6637-4157-9726-84d878a62e83/resourceGroups/different-resource-group/providers/Microsoft.Network/virtualNetworks/vnet/subnets/subnet"
 					},
 					"version": {
 						"channelGroup": "stable"
@@ -70,7 +70,7 @@
 			}
 		},
 		"provisioningState": "Accepted",
-		"resourceId": "/subscriptions/a433a095-1277-44f1-8453-8d61a4d848c2/resourceGroups/unimportantPostponement/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/monstrousPrecinct",
+		"resourceId": "/subscriptions/4fa75980-6637-4157-9726-84d878a62e83/resourceGroups/shrillEffectiveness/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/lavishUnhappiness",
 		"systemData": {}
 	},
 	"resourceType": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters"
