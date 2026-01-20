@@ -15,7 +15,6 @@
 package database
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/Azure/ARO-HCP/internal/api"
@@ -37,7 +36,7 @@ func InternalToCosmosNodePool(internalObj *api.HCPOpenShiftClusterNodePool) (*No
 			ResourceType: internalObj.ID.ResourceType.String(),
 		},
 		NodePoolProperties: NodePoolProperties{
-			ResourceDocument: &ResourceDocument{
+			ResourceDocument: ResourceDocument{
 				ResourceID:        internalObj.ID,
 				InternalID:        internalObj.ServiceProviderProperties.ClusterServiceID,
 				ActiveOperationID: internalObj.ServiceProviderProperties.ActiveOperationID,
@@ -51,7 +50,6 @@ func InternalToCosmosNodePool(internalObj *api.HCPOpenShiftClusterNodePool) (*No
 			},
 		},
 	}
-	cosmosObj.IntermediateResourceDoc = cosmosObj.ResourceDocument
 
 	// some pieces of data in the internalNodePool conflict with ResourceDocument fields.  We may evolve over time, but for
 	// now avoid persisting those.
@@ -73,13 +71,6 @@ func CosmosToInternalNodePool(cosmosObj *NodePool) (*api.HCPOpenShiftClusterNode
 	if cosmosObj == nil {
 		return nil, nil
 	}
-	resourceDoc := cosmosObj.ResourceDocument
-	if resourceDoc == nil {
-		resourceDoc = cosmosObj.IntermediateResourceDoc
-	}
-	if resourceDoc == nil {
-		return nil, fmt.Errorf("resource document cannot be nil")
-	}
 
 	tempInternalAPI := cosmosObj.InternalState.InternalAPI
 	internalObj := &tempInternalAPI
@@ -87,21 +78,21 @@ func CosmosToInternalNodePool(cosmosObj *NodePool) (*api.HCPOpenShiftClusterNode
 	// some pieces of data are stored on the ResourceDocument, so we need to restore that data
 	internalObj.TrackedResource = arm.TrackedResource{
 		Resource: arm.Resource{
-			ID:         resourceDoc.ResourceID,
-			Name:       resourceDoc.ResourceID.Name,
-			Type:       resourceDoc.ResourceID.ResourceType.String(),
-			SystemData: resourceDoc.SystemData,
+			ID:         cosmosObj.ResourceID,
+			Name:       cosmosObj.ResourceID.Name,
+			Type:       cosmosObj.ResourceID.ResourceType.String(),
+			SystemData: cosmosObj.SystemData,
 		},
 		Location: cosmosObj.InternalState.InternalAPI.Location,
-		Tags:     resourceDoc.Tags,
+		Tags:     cosmosObj.Tags,
 	}
-	internalObj.Identity = toInternalIdentity(resourceDoc.Identity)
-	internalObj.Properties.ProvisioningState = resourceDoc.ProvisioningState
-	internalObj.SystemData = resourceDoc.SystemData
-	internalObj.Tags = copyTags(resourceDoc.Tags)
+	internalObj.Identity = toInternalIdentity(cosmosObj.Identity)
+	internalObj.Properties.ProvisioningState = cosmosObj.ProvisioningState
+	internalObj.SystemData = cosmosObj.SystemData
+	internalObj.Tags = copyTags(cosmosObj.Tags)
 	internalObj.ServiceProviderProperties.CosmosUID = cosmosObj.ID
-	internalObj.ServiceProviderProperties.ClusterServiceID = resourceDoc.InternalID
-	internalObj.ServiceProviderProperties.ActiveOperationID = resourceDoc.ActiveOperationID
+	internalObj.ServiceProviderProperties.ClusterServiceID = cosmosObj.InternalID
+	internalObj.ServiceProviderProperties.ActiveOperationID = cosmosObj.ActiveOperationID
 
 	return internalObj, nil
 }

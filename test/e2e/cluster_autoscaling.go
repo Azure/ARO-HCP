@@ -78,7 +78,6 @@ var _ = Describe("Customer", func() {
 				resourceGroup,
 				clusterParams,
 				map[string]interface{}{
-					"persistTagValue":        false,
 					"customerNsgName":        customerNetworkSecurityGroupName,
 					"customerVnetName":       customerVnetName,
 					"customerVnetSubnetName": customerVnetSubnetName,
@@ -139,49 +138,6 @@ var _ = Describe("Customer", func() {
 			)
 			Expect(err).NotTo(HaveOccurred())
 
-		})
-
-	It("should reject cluster creation with unreasonably high MaxNodesTotal",
-		labels.RequireNothing,
-		labels.High,
-		labels.Negative,
-		labels.AroRpApiCompatible,
-		func(ctx context.Context) {
-			tc := framework.NewTestContext()
-
-			if tc.UsePooledIdentities() {
-				err := tc.AssignIdentityContainers(ctx, 1, 60*time.Second)
-				Expect(err).NotTo(HaveOccurred())
-			}
-
-			By("creating cluster with unreasonably high MaxNodesTotal")
-			resourceGroup, err := tc.NewResourceGroup(ctx, "invalid-high-max-nodes", tc.Location())
-			Expect(err).NotTo(HaveOccurred())
-
-			clusterParams := framework.NewDefaultClusterParams()
-			clusterParams.ClusterName = "invalid-high-max-nodes"
-			clusterParams.ManagedResourceGroupName = framework.SuffixName(*resourceGroup.Name, "-managed", 64)
-			clusterParams.Autoscaling = &hcpsdk20240610preview.ClusterAutoscalingProfile{
-				MaxNodesTotal: to.Ptr(int32(100000)),
-			}
-
-			clusterParams, err = tc.CreateClusterCustomerResources(ctx,
-				resourceGroup,
-				clusterParams,
-				map[string]interface{}{
-					"persistTagValue": false,
-				},
-				TestArtifactsFS)
-			Expect(err).NotTo(HaveOccurred())
-
-			// Should fail quickly during API validation, not infrastructure provisioning
-			err = tc.CreateHCPClusterFromParam(ctx,
-				GinkgoLogr,
-				*resourceGroup.Name,
-				clusterParams,
-				10*time.Minute,
-			)
-			Expect(err).To(HaveOccurred(), "Expected cluster creation to fail with unreasonably high MaxNodesTotal")
 		})
 
 })

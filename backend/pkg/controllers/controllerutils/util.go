@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package controllers
+package controllerutils
 
 import (
 	"context"
@@ -71,7 +71,7 @@ func (k *OperationKey) AddLoggerValues(logger *slog.Logger) *slog.Logger {
 	)
 }
 
-func (k *OperationKey) initialController(controllerName string) *api.Controller {
+func (k *OperationKey) InitialController(controllerName string) *api.Controller {
 	// TODO, this structure only allows one status per operation controller even if there are multiple instances of the operation
 	// TODO, this may or may not age well. Nesting is possible or we could actually separate controllers that way (probably useful).
 	// TODO, leaving this as a thing open to change in the future.
@@ -119,7 +119,7 @@ func (k *HCPClusterKey) AddLoggerValues(logger *slog.Logger) *slog.Logger {
 	)
 }
 
-func (k *HCPClusterKey) initialController(controllerName string) *api.Controller {
+func (k *HCPClusterKey) InitialController(controllerName string) *api.Controller {
 	resourceID := api.Must(azcorearm.ParseResourceID(k.GetResourceID().String() + "/" + api.ControllerResourceTypeName + "/" + controllerName))
 	return &api.Controller{
 		CosmosMetadata: api.CosmosMetadata{
@@ -141,7 +141,7 @@ var clock utilsclock.Clock = utilsclock.RealClock{}
 // that you have already precomputed.
 type controllerMutationFunc func(controller *api.Controller)
 
-func reportSyncError(syncErr error) controllerMutationFunc {
+func ReportSyncError(syncErr error) controllerMutationFunc {
 	return func(controller *api.Controller) {
 		if syncErr == nil {
 			setCondition(&controller.Status.Conditions, api.Condition{
@@ -164,11 +164,11 @@ func reportSyncError(syncErr error) controllerMutationFunc {
 
 type initialControllerFunc func(controllerName string) *api.Controller
 
-// writeController will read the existing value, call the mutations in order, then write the result.  It only tries *once*.
+// WriteController will read the existing value, call the mutations in order, then write the result.  It only tries *once*.
 // If it fails, then the an error is returned.  This detail is important, it doesn't even retry conflicts.  This is so that
 // if a failure happens the control-loop will re-run and restablish the information it was trying to write as valid.
 // This prevents accidental recreation of controller instances in cosmos during a delete.
-func writeController(ctx context.Context, controllerCRUD database.ResourceCRUD[api.Controller], controllerName string, initialControllerFn initialControllerFunc, mutationFns ...controllerMutationFunc) error {
+func WriteController(ctx context.Context, controllerCRUD database.ResourceCRUD[api.Controller], controllerName string, initialControllerFn initialControllerFunc, mutationFns ...controllerMutationFunc) error {
 	logger := utils.LoggerFromContext(ctx)
 
 	existingController, err := controllerCRUD.Get(ctx, controllerName)
@@ -212,7 +212,7 @@ func writeController(ctx context.Context, controllerCRUD database.ResourceCRUD[a
 }
 
 func setCondition(conditions *[]api.Condition, toSet api.Condition) {
-	existingCondition := getCondition(*conditions, toSet.Type)
+	existingCondition := GetCondition(*conditions, toSet.Type)
 	if existingCondition == nil {
 		toSet.LastTransitionTime = clock.Now()
 		*conditions = append(*conditions, toSet)
@@ -227,7 +227,7 @@ func setCondition(conditions *[]api.Condition, toSet api.Condition) {
 	existingCondition.Message = toSet.Message
 }
 
-func getCondition(conditions []api.Condition, conditionType string) *api.Condition {
+func GetCondition(conditions []api.Condition, conditionType string) *api.Condition {
 	if conditions == nil {
 		return nil
 	}

@@ -1,12 +1,12 @@
 acm:
   mce:
     bundle:
-      digest: sha256:098bb086a702debed3bd6355f868209931c1fc202e93e2ed2413304f7d618257
+      digest: sha256:e3f0d10c86b4553120cb827db5f5cf335e7af74420a06029b6bd25ce92322e0e
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-210
   operator:
     bundle:
-      digest: sha256:c4b42034575178a2df9cb15f7ff8e3b5e71e1ee2d1b45a9d9a7ae21d998ec511
+      digest: sha256:54f4325c4b2d95c72e89737b6b7f800301685677f571c7b01dc5ffba302533e7
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-215
 acr:
@@ -33,7 +33,7 @@ adminApi:
     issuer: Self
     name: admin-api-cert-cspr-usw3
   image:
-    digest: sha256:459477a1c9b1cadd370d3865f456c58f660d30c6e2cb7650dc189a9003ad4d9e
+    digest: sha256:1287e675c476630b53cfb54724497d364b2f6fc4247f06f96255f138729343a0
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpadminapi
   k8s:
@@ -67,7 +67,7 @@ azureGeoShortId: us
 azureRegionAvailabilityZoneCount: 4
 backend:
   image:
-    digest: sha256:5e7a675a7b6195936a601facc1b28882e13e77a6fc28977c1f51caecfb76b9aa
+    digest: sha256:b846ccc289bffa0f21002c667e64fcbc70081bcc2e5c09d0971f5418b0e960cc
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpbackend
   k8s:
@@ -123,7 +123,7 @@ clustersService:
   deployDebugJobs: false
   environment: arohcpdev
   image:
-    digest: sha256:4e7da86c27ca830f4b46eefa0aed54bd234749fc77137dda1cd3223665752d99
+    digest: sha256:634f76fff0eb6e8398870469bdfb4e9571c3bd78c9cbdd9bd1f156e84ebf3687
     registry: quay.io
     repository: app-sre/aro-hcp-clusters-service
   k8s:
@@ -212,7 +212,7 @@ frontend:
     private: false
     zoneRedundantMode: Disabled
   image:
-    digest: sha256:dc5242bd52ca436d7cde95818869d4b873dd5ffab951aa2f2d306ba1b0812ec4
+    digest: sha256:4eb7b4b54f8a08f80e22c579c2f5ab679824d5603801bed6be3ca36b41c9a933
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpfrontend
   k8s:
@@ -327,7 +327,7 @@ imageSync:
   ocMirror:
     enabled: true
     image:
-      digest: sha256:db38be9f114c61bc4996a5b50e1824f7bcad5a7de2bdf08ee9e0bc7b3ab4d54c
+      digest: sha256:66ebde27c71e73b4f601f6b0d06a278ea7cac615f2c1c31dfd34235994b5cf3d
       registry: arohcpsvcdev.azurecr.io
       repository: image-sync/oc-mirror
     jobNamePrefix: ""
@@ -390,7 +390,7 @@ maestro:
     name: arohcp-cspr-maestro-usw3
     private: false
   image:
-    digest: sha256:49b94994c17a989c2c9eed57c1da82f1d6d72ef8d731ece19ee4cce8c095c5c9
+    digest: sha256:382d444a18f122ae994ecbbdf6ef9b5c0bb16161d0a45862f01e4be574da321e
     registry: quay.io
     repository: redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro
   postgres:
@@ -567,6 +567,7 @@ mise:
     exporter: ""
 monitoring:
   alertRuleOwningTeamTag: ""
+  alertsEnabled: true
   crossTenantSecurityGroup: ""
   grafanaMajorVersion: "11"
   grafanaName: arohcp-dev
@@ -660,7 +661,6 @@ pko:
     registry: quay.io
     repository: package-operator/remote-phase-manager
 region: westus3
-regionBuildout: false
 regionRG: hcp-underlay-cspr-westus3
 routeMonitorOperator:
   blackboxExporterImage:

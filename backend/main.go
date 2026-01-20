@@ -49,8 +49,12 @@ import (
 
 	ocmsdk "github.com/openshift-online/ocm-sdk-go"
 
-	"github.com/Azure/ARO-HCP/backend/controllers"
 	"github.com/Azure/ARO-HCP/backend/oldoperationscanner"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/informers"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/mismatchcontrollers"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/operationcontrollers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
@@ -313,24 +317,38 @@ func Run(cmd *cobra.Command, args []string) error {
 		var (
 			startedLeading                   atomic.Bool
 			operationsScanner                = oldoperationscanner.NewOperationsScanner(dbClient, ocmConnection, argLocation, subscriptionLister)
-			subscriptionInformerController   = controllers.NewSubscriptionInformerController(dbClient, subscriptionLister)
+			subscriptionInformerController   = informers.NewSubscriptionInformerController(dbClient, subscriptionLister)
 			doNothingController              = controllers.NewDoNothingExampleController(dbClient, subscriptionLister)
-			operationClusterCreateController = controllers.NewOperationClusterCreateController(
-				argLocation,
+			operationClusterCreateController = operationcontrollers.NewGenericOperationClusterCreateController(
+				"OperationClusterCreate",
+				operationcontrollers.NewOperationClusterCreateSynchronizer(
+					argLocation,
+					dbClient,
+					clusterServiceClient,
+					http.DefaultClient,
+				),
 				10*time.Second,
 				subscriptionLister,
 				dbClient,
-				clusterServiceClient,
-				http.DefaultClient,
 			)
-			operationClusterDeleteController = controllers.NewOperationClusterDeleteController(
-				argLocation,
+			operationClusterDeleteController = operationcontrollers.NewGenericOperationClusterCreateController(
+				"OperationClusterDelete",
+				operationcontrollers.NewOperationClusterDeleteSynchronizer(
+					dbClient,
+					clusterServiceClient,
+					http.DefaultClient,
+				),
 				10*time.Second,
 				subscriptionLister,
 				dbClient,
-				clusterServiceClient,
-				http.DefaultClient,
 			)
+			clusterServiceMatchingClusterController  = mismatchcontrollers.NewClusterServiceClusterMatchingController(dbClient, subscriptionLister, clusterServiceClient)
+			clusterServiceMatchingNodePoolController = controllerutils.NewClusterWatchingController(
+				"ClusterServiceMatchingNodePools", dbClient, subscriptionLister, 60*time.Minute,
+				mismatchcontrollers.NewClusterServiceNodePoolMatchingController(dbClient, clusterServiceClient))
+			clusterServiceMatchingExternalAuthController = controllerutils.NewClusterWatchingController(
+				"ClusterServiceMatchingExternalAuths", dbClient, subscriptionLister, 60*time.Minute,
+				mismatchcontrollers.NewClusterServiceExternalAuthMatchingController(dbClient, clusterServiceClient))
 		)
 
 		le, err := leaderelection.NewLeaderElector(leaderelection.LeaderElectionConfig{
@@ -347,6 +365,9 @@ func Run(cmd *cobra.Command, args []string) error {
 					go doNothingController.Run(ctx, 20)
 					go operationClusterCreateController.Run(ctx, 20)
 					go operationClusterDeleteController.Run(ctx, 20)
+					go clusterServiceMatchingClusterController.Run(ctx, 20)
+					go clusterServiceMatchingNodePoolController.Run(ctx, 20)
+					go clusterServiceMatchingExternalAuthController.Run(ctx, 20)
 				},
 				OnStoppedLeading: func() {
 					operationsScanner.LeaderGauge.Set(0)

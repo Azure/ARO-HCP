@@ -587,14 +587,25 @@ func validateUserAssignedIdentitiesProfile(ctx context.Context, op operation.Ope
 }
 
 var (
+	toClusterAutoscalingProfileMaxNodesTotal               = func(oldObj *api.ClusterAutoscalingProfile) *int32 { return &oldObj.MaxNodesTotal }
 	toClusterAutoscalingProfileMaxPodGracePeriodSeconds    = func(oldObj *api.ClusterAutoscalingProfile) *int32 { return &oldObj.MaxPodGracePeriodSeconds }
 	toClusterAutoscalingProfileMaxNodeProvisionTimeSeconds = func(oldObj *api.ClusterAutoscalingProfile) *int32 { return &oldObj.MaxNodeProvisionTimeSeconds }
 )
 
 func validateClusterAutoscalingProfile(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *api.ClusterAutoscalingProfile) field.ErrorList {
 	errs := field.ErrorList{}
-
 	//MaxNodesTotal               int32 `json:"maxNodesTotal,omitempty"`
+	// 0 is the minimum value for maxNodesTotal in the cluster autoscaler.
+	// This aligns with the Cluster Service behavior where DefaultMaxNodesTotal = 0 indicates default behavior.
+	// Note: This doesn't mean truly unlimited nodes - the cluster size limit of 500 nodes is still enforced
+	// through nodepool validation during nodepool creation/update operations.
+	// Negative values are rejected.
+	errs = append(errs, validate.Minimum(ctx, op, fldPath.Child("maxNodesTotal"), &newObj.MaxNodesTotal, safe.Field(oldObj, toClusterAutoscalingProfileMaxNodesTotal), 0)...)
+	// 500 is currently the hardcoded limit of the maximum number of nodes allowed across all node pools in a cluster.
+	// In the future this limit could be influenced by the topology of the management cluster
+	// (provision shard) where the HCP is deployed: https://issues.redhat.com/browse/ARO-22019
+	errs = append(errs, Maximum(ctx, op, fldPath.Child("maxNodesTotal"), &newObj.MaxNodesTotal, safe.Field(oldObj, toClusterAutoscalingProfileMaxNodesTotal), 500)...)
+
 	//MaxPodGracePeriodSeconds    int32 `json:"maxPodGracePeriodSeconds,omitempty"`
 	errs = append(errs, validate.Minimum(ctx, op, fldPath.Child("maxPodGracePeriodSeconds"), &newObj.MaxPodGracePeriodSeconds, safe.Field(oldObj, toClusterAutoscalingProfileMaxPodGracePeriodSeconds), 1)...)
 

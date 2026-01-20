@@ -12,7 +12,7 @@ clouds:
           # Cluster Service
           clustersService:
             image:
-              digest: sha256:4e7da86c27ca830f4b46eefa0aed54bd234749fc77137dda1cd3223665752d99 # edfadaaefccbf13a98b2873c9c72d0fc811e9f0d (2026-01-16 16:22)
+              digest: sha256:634f76fff0eb6e8398870469bdfb4e9571c3bd78c9cbdd9bd1f156e84ebf3687 # cb91a09a92fc680ba52f685126f4ebc9e73d5bc0 (2026-01-19 17:41)
           # ACR Pull
           acrPull:
             image:
@@ -68,17 +68,17 @@ clouds:
           # RP Frontend
           frontend:
             image:
-              digest: sha256:dc5242bd52ca436d7cde95818869d4b873dd5ffab951aa2f2d306ba1b0812ec4 # 9c4fa02 (2026-01-17 02:37)
+              digest: sha256:4eb7b4b54f8a08f80e22c579c2f5ab679824d5603801bed6be3ca36b41c9a933 # 0b84d85 (2026-01-20 01:32)
             audit:
               connectSocket: true
           # RP Backend
           backend:
             image:
-              digest: sha256:5e7a675a7b6195936a601facc1b28882e13e77a6fc28977c1f51caecfb76b9aa # 9c4fa02 (2026-01-17 02:38)
+              digest: sha256:b846ccc289bffa0f21002c667e64fcbc70081bcc2e5c09d0971f5418b0e960cc # 0b84d85 (2026-01-20 01:32)
           # Admin API
           adminApi:
             image:
-              digest: sha256:459477a1c9b1cadd370d3865f456c58f660d30c6e2cb7650dc189a9003ad4d9e # 9c4fa02 (2026-01-17 02:38)
+              digest: sha256:1287e675c476630b53cfb54724497d364b2f6fc4247f06f96255f138729343a0 # 0b84d85 (2026-01-20 01:32)
           # Hypershift
           hypershift:
             image:
@@ -86,7 +86,7 @@ clouds:
           # Maestro
           maestro:
             image:
-              digest: sha256:49b94994c17a989c2c9eed57c1da82f1d6d72ef8d731ece19ee4cce8c095c5c9 # 0f527cd4d82aa01b0e751f886e0099e9e553ec59 (2026-01-14 06:06)
+              digest: sha256:382d444a18f122ae994ecbbdf6ef9b5c0bb16161d0a45862f01e4be574da321e # 706a465546a088733d52c9adad8a6bd27e75dac2 (2026-01-19 08:09)
             agent:
               sidecar:
                 image:
@@ -95,7 +95,7 @@ clouds:
           imageSync:
             ocMirror:
               image:
-                digest: sha256:db38be9f114c61bc4996a5b50e1824f7bcad5a7de2bdf08ee9e0bc7b3ab4d54c # 9c4fa02 (2026-01-17 02:37)
+                digest: sha256:66ebde27c71e73b4f601f6b0d06a278ea7cac615f2c1c31dfd34235994b5cf3d # 0b84d85 (2026-01-20 01:32)
           # Mise
           mise:
             image:

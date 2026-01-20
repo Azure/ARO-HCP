@@ -2410,6 +2410,10 @@
         "alertRuleOwningTeamTag": {
           "type": "string"
         },
+        "alertsEnabled": {
+          "type": "boolean",
+          "description": "Whether ICM alerting is enabled for this region. When false, action groups will be disabled."
+        },
         "icm": {
           "type": "object",
           "properties": {
@@ -2605,10 +2609,6 @@
     },
     "regionRG": {
       "$ref": "#/definitions/resourceGroupName"
-    },
-    "regionBuildout": {
-      "type": "boolean",
-      "description": "Indicates if the region is still in the process of being deployed. When true, various operational features are disabled to prevent issues during deployment, including: ICM alerting. This should be set to false once the region is fully operational"
     },
     "serviceKeyVault": {
       "type": "object",
@@ -2831,7 +2831,6 @@
     "oidc",
     "region",
     "regionRG",
-    "regionBuildout",
     "serviceKeyVault",
     "svc",
     "msiRp",
