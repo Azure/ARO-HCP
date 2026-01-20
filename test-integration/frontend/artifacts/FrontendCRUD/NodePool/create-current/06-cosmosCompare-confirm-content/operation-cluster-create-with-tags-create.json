@@ -4,7 +4,7 @@
 	"_rid": "WZlNALYurecCAAAAAAAAAA==",
 	"_self": "dbs/WZlNAA==/colls/WZlNALYurec=/docs/WZlNALYurecCAAAAAAAAAA==/",
 	"_ts": 1766174370,
-	"id": "7a4ed07a-47a1-4efb-966a-93a6316522a0",
+	"id": "|subscriptions|6b690bec-0c16-4ecb-8f67-781caf40bba7|providers|microsoft.redhatopenshift|locations|fake-location|hcpoperationstatuses|7a4ed07a-47a1-4efb-966a-93a6316522a0",
 	"partitionKey": "6b690bec-0c16-4ecb-8f67-781caf40bba7",
 	"properties": {
 		"externalId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/create-with-tags",
@@ -12,7 +12,7 @@
 		"lastTransitionTime": "2025-12-19T19:59:30.714826736Z",
 		"operationId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/providers/Microsoft.RedHatOpenShift/locations/fake-location/hcpOperationStatuses/7a4ed07a-47a1-4efb-966a-93a6316522a0",
 		"request": "Create",
-		"resourceId": null,
+		"resourceId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/providers/Microsoft.RedHatOpenShift/locations/fake-location/hcpOperationStatuses/7a4ed07a-47a1-4efb-966a-93a6316522a0",
 		"startTime": "2025-12-19T19:59:30.714826736Z",
 		"status": "Succeeded",
 		"tenantId": "00000000-0000-0000-0000-000000000000"

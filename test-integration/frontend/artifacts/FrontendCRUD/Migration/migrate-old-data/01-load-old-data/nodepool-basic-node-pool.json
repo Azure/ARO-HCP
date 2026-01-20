@@ -4,7 +4,7 @@
 	"_rid": "SdEpAPzZNVkFAAAAAAAAAA==",
 	"_self": "dbs/SdEpAA==/colls/SdEpAPzZNVk=/docs/SdEpAPzZNVkFAAAAAAAAAA==/",
 	"_ts": 1766178371,
-	"id": "23bd08bc-2ed3-40be-8c9e-7e005f8a421f",
+	"id": "|subscriptions|6b690bec-0c16-4ecb-8f67-781caf40bba7|resourcegroups|resourcegroupname|providers|microsoft.redhatopenshift|hcpopenshiftclusters|create-with-tags|nodepools|basic-node-pool",
 	"partitionKey": "6b690bec-0c16-4ecb-8f67-781caf40bba7",
 	"properties": {
 		"activeOperationId": "cdfb496e-6e70-4022-9f8d-b0dacf6d2ff5",

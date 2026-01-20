@@ -1,5 +1,5 @@
 {
-	"id": "de52b796-cff1-4c4b-9140-684087b5eb60",
+	"id": "|subscriptions|subscriptionid|resourcegroups|resourcegroupname|providers|microsoft.redhatopenshift|hcpopenshiftclusters|parentcluster|hcpopenshiftcontrollers|second-controller",
 	"_rid": "sIMIAKLq4TwCAAAAAAAAAA==",
 	"_self": "dbs/sIMIAA==/colls/sIMIAKLq4Tw=/docs/sIMIAKLq4TwCAAAAAAAAAA==/",
 	"_etag": "\"00000000-0000-0000-80ed-5174940501dc\"",

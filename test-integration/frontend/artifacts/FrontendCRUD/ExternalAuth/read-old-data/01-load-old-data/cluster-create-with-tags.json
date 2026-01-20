@@ -4,7 +4,7 @@
 	"_rid": "MFstAI+1dLsDAAAAAAAAAA==",
 	"_self": "dbs/MFstAA==/colls/MFstAI+1dLs=/docs/MFstAI+1dLsDAAAAAAAAAA==/",
 	"_ts": 1767983530,
-	"id": "c88935c2-816e-4ba6-8a0e-40490b6c01c8",
+	"id": "|subscriptions|6b690bec-0c16-4ecb-8f67-781caf40bba7|resourcegroups|resourcegroupname|providers|microsoft.redhatopenshift|hcpopenshiftclusters|create-with-tags",
 	"partitionKey": "6b690bec-0c16-4ecb-8f67-781caf40bba7",
 	"properties": {
 		"identity": {
