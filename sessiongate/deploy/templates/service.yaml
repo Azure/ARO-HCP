@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: sessiongate
+  namespace: '{{ .Release.Namespace }}'
+  labels:
+    app.kubernetes.io/name: sessiongate
+spec:
+  selector:
+    app.kubernetes.io/name: sessiongate
+  ports:
+  - port: {{ .Values.service.port }}
+    targetPort: {{ .Values.service.port }}
+    protocol: TCP

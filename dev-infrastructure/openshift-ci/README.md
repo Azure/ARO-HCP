@@ -8,7 +8,7 @@ The `Dockerfile` in this directory defines the base image used in our release co
 
 - Red Hat UBI 9 base image
 - Azure CLI with Bicep extension
-- Go 1.24.4
+- Go 1.24.11
 - kubectl and kubelogin
 - OpenShift CLI (oc)
 - Required system tools (make, git, procps-ng)

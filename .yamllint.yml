@@ -28,6 +28,7 @@ ignore:
 - 'observability/arobit/deploy/templates/forwarder-secretprovider.yaml'
 - 'observability/kube-events/deploy/templates/deployment.yaml'
 - 'mgmt-fixes/deploy/kubelet-ds/templates/ds-kubelet-parameters.yaml'
+- 'sessiongate/deploy/templates/deployment.yaml'
 - '**/zz_fixture_TestHelmTemplate*.yaml'
 rules:
   brackets: enable

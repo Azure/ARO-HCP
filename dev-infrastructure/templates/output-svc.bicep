@@ -10,6 +10,9 @@ param adminApiMIName string
 @description('The name of the Backend managed identity')
 param backendMIName string
 
+@description('The name of the Session Gate managed identity')
+param sessiongateMIName string
+
 // CS MI resource ID
 resource csMSI 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
   name: csMIName
@@ -37,5 +40,12 @@ resource rpBackendMSI 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-
 }
 
 output backend string = rpBackendMSI.id
+
+// Session Gate MI resource ID
+resource sessiongateMSI 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
+  name: sessiongateMIName
+}
+
+output sessiongate string = sessiongateMSI.id
 
 output subscriptionId string = subscription().id
