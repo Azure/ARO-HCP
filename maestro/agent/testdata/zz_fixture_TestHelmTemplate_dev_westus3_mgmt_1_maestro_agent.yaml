@@ -294,7 +294,7 @@ spec:
       labels:
         app: maestro-agent
       annotations:
-        checksum/credsstore: 'f53a0a5f5377d60bb6cce048dbcd52db960ebaf2c361166f3c35d5ee07da4ddb'
+        checksum/credsstore: 'fce571090494f556451e1c1151e4f011c8a654bdf3c74d0e18f96a45d42c3609'
         checksum/config: '95d5834e582ee0af647b83396df40b977535fd9050ba7d580fc505d709c96086'
     spec:
       topologySpreadConstraints:
@@ -420,7 +420,7 @@ metadata:
 spec:
   parameters:
     clientID: '__msiClientId__'
-    cloudName: AzurePublicCloud
+    cloudName: 'AzurePublicCloud'
     keyvaultName: 'ah-dev-mg-usw3-1'
     objects: |-
       array:

@@ -498,6 +498,8 @@ defaults:
       replicas: 2
       namespace: aro-hcp
       serviceAccountName: backend
+    azureRuntimeConfig:
+      tlsCertificatesIssuer: OneCertV2-PublicCA
   # Admin API
   adminApi:
     image:
@@ -823,6 +825,7 @@ clouds:
   dev:
     # this configuration serves as a template for for all RH DEV subscription deployments
     defaults:
+      cloudEnvironmentName: "AzurePublicCloud"
       kusto:
         kustoName: "hcp-dev-us"
         manageInstance: true
@@ -947,6 +950,8 @@ clouds:
       backend:
         image:
           digest: sha256:b846ccc289bffa0f21002c667e64fcbc70081bcc2e5c09d0971f5418b0e960cc # 0b84d85 (2026-01-20 01:32)
+        azureRuntimeConfig:
+          tlsCertificatesIssuer: Self
       # Image Sync
       imageSync:
         ocMirror:

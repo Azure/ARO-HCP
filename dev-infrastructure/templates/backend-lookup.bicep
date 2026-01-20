@@ -10,6 +10,9 @@ param regionalResourceGroup string
 @description('The name of the CosmosDB into which the Frontend will write data')
 param rpCosmosDbName string
 
+@description('The name of the Storage Account used by Backend to configure OIDC in ARO-HCP clusters')
+param regionalOidcStorageAccountName string
+
 //
 //   I M A G E   P U L L E R   L O O K U P
 //
@@ -46,3 +49,15 @@ resource cosmosDbAccount 'Microsoft.DocumentDB/databaseAccounts@2023-11-15' exis
 }
 
 output cosmosDBDocumentEndpoint string = cosmosDbAccount.properties.documentEndpoint
+
+//
+//   S T O R A G E   A C C O U N T   L O O K U P
+//
+
+resource regionalOidcStorageAccount 'Microsoft.Storage/storageAccounts@2025-06-01' existing = {
+  scope: resourceGroup(regionalResourceGroup)
+  name: regionalOidcStorageAccountName
+}
+
+output regionalOidcStorageAccountBlobEndpoint string = regionalOidcStorageAccount.properties.primaryEndpoints.blob
+output regionalOidcStorageAccountWebEndpoint string = regionalOidcStorageAccount.properties.primaryEndpoints.web

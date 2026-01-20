@@ -24,6 +24,7 @@ spec:
         azure.workload.identity/use: "true"
       annotations:
         checksum/backendservicekeyvault: '{{ include (print $.Template.BasePath "/backend.service-key-vault.secretproviderclass.yaml") . | sha256sum }}'
+        checksum/azureruntimeconfig: '{{ include (print $.Template.BasePath "/backend.azure-runtime-config.configmap.yaml") . | sha256sum }}'
     spec:
       topologySpreadConstraints:
       - maxSkew: 1
@@ -46,11 +47,22 @@ spec:
           readOnly: true
           volumeAttributes:
             secretProviderClass: backend-service-key-vault
+      - name: azure-runtime-config
+        configMap:
+          name: backend-azure-runtime-config
       containers:
       - name: aro-hcp-backend
         image: '{{ .Values.deployment.imageName }}'
         imagePullPolicy: Always
-        args: ["--clusters-service-url", "http://clusters-service.{{ .Values.clustersService.namespace }}.svc.cluster.local:8000"]
+        args:
+        - "--clusters-service-url"
+        - "http://clusters-service.{{ .Values.clustersService.namespace }}.svc.cluster.local:8000"
+        - "--azure-runtime-config-path"
+        - "/configs/azure-runtime-config/config.yaml"
+        - "--azure-first-party-application-certificate-bundle-path"
+        - "/secrets/backend-service-key-vault/fpa-cert-bundle"
+        - "--azure-first-party-application-client-id"
+        - "{{ .Values.fpa.clientId }}"
         env:
         - name: DB_NAME
           valueFrom:
@@ -103,6 +115,8 @@ spec:
         volumeMounts:
         - name: backend-service-key-vault
           mountPath: "/secrets/backend-service-key-vault"
+        - name: azure-runtime-config
+          mountPath: /configs/azure-runtime-config
           readOnly: true
       restartPolicy: Always
       terminationGracePeriodSeconds: 30

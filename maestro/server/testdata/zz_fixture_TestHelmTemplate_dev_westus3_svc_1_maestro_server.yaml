@@ -132,7 +132,7 @@ spec:
         app: maestro
         azure.workload.identity/use: "true"
       annotations:
-        checksum/credsstore: '2c848137e8ee0b7bab6089bfae734e746175cd80adc82dde80a4ec7bd2560914'
+        checksum/credsstore: '28e1b3e109dfc763964313710316150b662d9db8e0315589c489cfaab14c8492'
         checksum/config: '2caa0dc45400ef83051372cb10d7521f9b9bd3b144ab9230a184b8fad2c6d985'
         checksum/db: '19eed6c919eed7698f915ae25586f280f44d8eb7eeb3208ba31812b2b1dfcd00'
     spec:
@@ -514,7 +514,7 @@ metadata:
 spec:
   parameters:
     clientID: '__maestroMsiClientId__'
-    cloudName: AzurePublicCloud
+    cloudName: 'AzurePublicCloud'
     keyvaultName: 'aro-hcp-dev-svc-kv'
     objects: |-
       array:

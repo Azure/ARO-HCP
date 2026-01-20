@@ -66,6 +66,8 @@ automationDryRun: false
 azureGeoShortId: uk
 azureRegionAvailabilityZoneCount: 3
 backend:
+  azureRuntimeConfig:
+    tlsCertificatesIssuer: Self
   image:
     digest: sha256:b846ccc289bffa0f21002c667e64fcbc70081bcc2e5c09d0971f5418b0e960cc
     registry: arohcpsvcdev.azurecr.io
@@ -112,6 +114,7 @@ billing:
     cloudName: ""
   rg: placeholder
 cloud: Public
+cloudEnvironmentName: AzurePublicCloud
 clustersService:
   azureOperatorsManagedIdentities:
     roleSetName: dev

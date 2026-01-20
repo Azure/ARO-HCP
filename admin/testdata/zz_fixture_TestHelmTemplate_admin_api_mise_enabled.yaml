@@ -50,7 +50,7 @@ spec:
         app: admin-api
         azure.workload.identity/use: "true"
       annotations:
-        checksum/fpa-spc: '2e2611d7c7e903179473feb1da88b71bdee7fbdcc4de93c3eda89486d72e6088'
+        checksum/fpa-spc: '3a8a42649d4184782a080188d109778f9fc6d3991745b5ce9858c9c0eb78e68a'
     spec:
       topologySpreadConstraints:
       - maxSkew: 1
@@ -218,7 +218,7 @@ metadata:
 spec:
   parameters:
     clientID: '__adminApiMsiClientId__'
-    cloudName: AzurePublicCloud
+    cloudName: 'AzurePublicCloud'
     keyvaultName: 'aro-hcp-dev-svc-kv'
     objects: |-
       array:
