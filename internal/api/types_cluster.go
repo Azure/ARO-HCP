@@ -66,7 +66,6 @@ type HCPOpenShiftClusterServiceProviderProperties struct {
 	// ExperimentalFeatures captures experimental feature state evaluated from
 	// AFEC and per-resource tags. Stored in Cosmos but NOT exposed via ARM API.
 	ExperimentalFeatures ExperimentalFeatures `json:"experimentalFeatures,omitzero"`
-
 	// ManagedIdentitiesDataPlaneIdentityURL is the Managed Identities Data Plane
 	// Identity URL associated with the cluster. It is the URL that will be used
 	// to communicate with the Managed Identities Resource Provider (MI RP).

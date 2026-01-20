@@ -32,6 +32,13 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
 
+const (
+	// ManagedIdentitiesDataPlaneIdentityURLOptionalOperationOption is an operation option that indicates that the managed identities
+	// data plane identity URL is optional during validation. This is used on ARM Preflight requests on the
+	// Cluster resource.
+	ManagedIdentitiesDataPlaneIdentityURLOptionalOperationOption = "ManagedIdentitiesDataPlaneIdentityURLOptional"
+)
+
 var (
 	toTrackedResource           = func(oldObj *api.HCPOpenShiftCluster) *arm.TrackedResource { return &oldObj.TrackedResource }
 	toClusterCustomerProperties = func(oldObj *api.HCPOpenShiftCluster) *api.HCPOpenShiftClusterCustomerProperties {
@@ -247,6 +254,9 @@ var (
 	toServiceProviderPlatform = func(oldObj *api.HCPOpenShiftClusterServiceProviderProperties) *api.ServiceProviderPlatformProfile {
 		return &oldObj.Platform
 	}
+	toServiceProviderManagedIdentitiesDataPlaneIdentityURL = func(oldObj *api.HCPOpenShiftClusterServiceProviderProperties) *string {
+		return &oldObj.ManagedIdentitiesDataPlaneIdentityURL
+	}
 )
 
 func validateClusterServiceProviderProperties(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *api.HCPOpenShiftClusterServiceProviderProperties) field.ErrorList {
@@ -271,6 +281,18 @@ func validateClusterServiceProviderProperties(ctx context.Context, op operation.
 	// Platform                CustomerPlatformProfile             `json:"platform,omitempty"`
 	errs = append(errs, validate.ImmutableByReflect(ctx, op, fldPath.Child("platform"), &newObj.Platform, safe.Field(oldObj, toServiceProviderPlatform))...)
 	errs = append(errs, validateServiceProviderPlatformProfile(ctx, op, fldPath.Child("platform"), &newObj.Platform, safe.Field(oldObj, toServiceProviderPlatform))...)
+
+	// ManagedIdentitiesDataPlaneIdentityURL  string  `json:"managedIdentitiesDataPlaneIdentityURL,omitempty"`
+	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("managedIdentitiesDataPlaneIdentityURL"), &newObj.ManagedIdentitiesDataPlaneIdentityURL, safe.Field(oldObj, toServiceProviderManagedIdentitiesDataPlaneIdentityURL))...)
+	// At the moment of introducing this field not all existing clusters have this field migrated yet, so we guard
+	// the requirement of setting it only when it's already been set beforehand.
+	if oldObj == nil || oldObj.ManagedIdentitiesDataPlaneIdentityURL != "" {
+		if !op.HasOption(ManagedIdentitiesDataPlaneIdentityURLOptionalOperationOption) {
+			errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("managedIdentitiesDataPlaneIdentityURL"), &newObj.ManagedIdentitiesDataPlaneIdentityURL, nil)...)
+		}
+	}
+	// We can validate URL unconditionally because the URL validator accepts an empty string as the URL
+	errs = append(errs, URL(ctx, op, fldPath.Child("managedIdentitiesDataPlaneIdentityURL"), &newObj.ManagedIdentitiesDataPlaneIdentityURL, nil)...)
 
 	return errs
 }

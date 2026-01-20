@@ -1003,6 +1003,39 @@ func TestValidateClusterCreate(t *testing.T) {
 	}
 }
 
+// TestValidateClusterCreate_ManagedIdentitiesDataPlaneIdentityURLOptionalOperationOption tests that
+// when ManagedIdentitiesDataPlaneIdentityURLOptionalOperationOption is set, the field becomes optional
+func TestValidateClusterCreate_ManagedIdentitiesDataPlaneIdentityURLOptionalOperationOption(t *testing.T) {
+	ctx := context.Background()
+
+	tests := []struct {
+		name         string
+		cluster      *api.HCPOpenShiftCluster
+		expectErrors []expectedError
+	}{
+		{
+			name: "empty ManagedIdentitiesDataPlaneIdentityURL with option set - valid",
+			cluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.ServiceProviderProperties.ManagedIdentitiesDataPlaneIdentityURL = ""
+				return c
+			}(),
+			expectErrors: []expectedError{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			op := operation.Operation{
+				Type:    operation.Create,
+				Options: []string{ManagedIdentitiesDataPlaneIdentityURLOptionalOperationOption},
+			}
+			errs := ValidateCluster(ctx, op, tt.cluster, nil, nil)
+			verifyErrorsMatch(t, tt.expectErrors, errs)
+		})
+	}
+}
+
 // Comprehensive tests for ValidateClusterUpdate
 func TestValidateClusterUpdate(t *testing.T) {
 	ctx := context.Background()
@@ -1633,6 +1666,7 @@ func TestValidateClusterUpdate(t *testing.T) {
 				c.CustomerProperties.Version.ChannelGroup = "fast"
 				c.CustomerProperties.DNS.BaseDomainPrefix = "newprefix"
 				c.CustomerProperties.API.Visibility = api.VisibilityPrivate
+				c.ServiceProviderProperties.ManagedIdentitiesDataPlaneIdentityURL = "https://newhost.identity.azure.net"
 				return c
 			}(),
 			oldCluster: func() *api.HCPOpenShiftCluster {
@@ -1641,6 +1675,7 @@ func TestValidateClusterUpdate(t *testing.T) {
 				c.CustomerProperties.Version.ChannelGroup = "stable"
 				c.CustomerProperties.DNS.BaseDomainPrefix = "oldprefix"
 				c.CustomerProperties.API.Visibility = api.VisibilityPublic
+				c.ServiceProviderProperties.ManagedIdentitiesDataPlaneIdentityURL = "https://oldhost.identity.azure.net"
 				return c
 			}(),
 			// channelGroup is mutable, but version.id, dns.baseDomainPrefix and api.visibility are immutable without experimental flag
@@ -1648,6 +1683,7 @@ func TestValidateClusterUpdate(t *testing.T) {
 				{message: "field is immutable", fieldPath: "customerProperties.version.id"},
 				{message: "field is immutable", fieldPath: "customerProperties.dns.baseDomainPrefix"},
 				{message: "field is immutable", fieldPath: "customerProperties.api.visiblity"},
+				{message: "field is immutable", fieldPath: "serviceProviderProperties.managedIdentitiesDataPlaneIdentityURL"},
 			},
 		},
 		// Test cases for version.id requirement validation on update
@@ -1764,6 +1800,23 @@ func TestValidateClusterUpdate(t *testing.T) {
 				{message: "must be at least 4.19", fieldPath: "customerProperties.version.id"},
 			},
 		},
+		{
+			// This test is to ensure that the ManagedIdentitiesDataPlaneIdentityURL is not required when the old value is
+			// empty, which could happen if a previously existing cluster is being updated and the old value has not
+			// been migrated yet.
+			name: "not required ManagedIdentitiesDataPlaneIdentityURL when old value is empty",
+			newCluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.ServiceProviderProperties.ManagedIdentitiesDataPlaneIdentityURL = ""
+				return c
+			}(),
+			oldCluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.ServiceProviderProperties.ManagedIdentitiesDataPlaneIdentityURL = ""
+				return c
+			}(),
+			expectErrors: []expectedError{},
+		},
 	}
 
 	for _, tt := range tests {
@@ -1822,6 +1875,8 @@ func createValidCluster() *api.HCPOpenShiftCluster {
 		CreatedByType: arm.CreatedByTypeUser,
 		CreatedAt:     &createdAt,
 	}
+
+	cluster.ServiceProviderProperties.ManagedIdentitiesDataPlaneIdentityURL = api.TestManagedIdentitiesDataPlaneIdentityURL
 
 	return cluster
 }
