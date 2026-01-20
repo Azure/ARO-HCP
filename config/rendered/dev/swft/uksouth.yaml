@@ -570,6 +570,7 @@ mise:
     exporter: ""
 monitoring:
   alertRuleOwningTeamTag: ""
+  alertsEnabled: false
   crossTenantSecurityGroup: ""
   grafanaMajorVersion: "11"
   grafanaName: arohcp-dev
@@ -663,7 +664,6 @@ pko:
     registry: quay.io
     repository: package-operator/remote-phase-manager
 region: uksouth
-regionBuildout: false
 regionRG: hcp-underlay-swft-lnstest
 routeMonitorOperator:
   blackboxExporterImage:
