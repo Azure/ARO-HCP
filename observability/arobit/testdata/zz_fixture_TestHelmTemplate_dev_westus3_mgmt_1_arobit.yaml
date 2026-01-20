@@ -453,6 +453,7 @@ spec:
   provider: azure
   parameters:
     clientID: '__msiClientId__'
+    cloudName: 'AzurePublicCloud'
     keyvaultName: "ah-dev-mg-usw3-1"
     objects: |
       array:
@@ -473,6 +474,7 @@ spec:
   provider: azure
   parameters:
     clientID: '__msiClientId__'
+    cloudName: 'AzurePublicCloud'
     keyvaultName: "ah-dev-mg-usw3-1"
     objects: |
       array:

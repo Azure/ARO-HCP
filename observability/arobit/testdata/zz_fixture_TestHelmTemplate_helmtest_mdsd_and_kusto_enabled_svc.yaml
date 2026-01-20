@@ -592,6 +592,7 @@ spec:
   provider: azure
   parameters:
     clientID: '__msiClientId__'
+    cloudName: 'AzurePublicCloud'
     keyvaultName: "aro-hcp-dev-svc-kv"
     objects: |
       array:

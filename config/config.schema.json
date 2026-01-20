@@ -2847,6 +2847,7 @@
   "required": [
     "administration",
     "azureGeoShortId",
+    "cloudEnvironmentName",
     "kvCertOfficerPrincipalId",
     "backplaneAPI",
     "clustersService",
