@@ -59,7 +59,6 @@ var _ = Describe("Customer", func() {
 				resourceGroup,
 				clusterParams1,
 				map[string]any{
-					"persistTagValue":        false,
 					"customerNsgName":        customerNetworkSecurityGroupName + "1",
 					"customerVnetName":       customerVnetName + "1",
 					"customerVnetSubnetName": customerVnetSubnetName + "1",
