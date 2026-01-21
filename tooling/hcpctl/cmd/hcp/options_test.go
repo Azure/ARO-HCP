@@ -27,12 +27,127 @@ import (
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/common"
 )
 
+// TestDefaultHCPOptions tests the default HCP options creation.
+func TestDefaultHCPOptions(t *testing.T) {
+	t.Run("with KUBECONFIG env var", func(t *testing.T) {
+		testPath := "/custom/kubeconfig/path"
+		t.Setenv("KUBECONFIG", testPath)
+
+		opts := DefaultHCPOptions()
+		if opts.KubeconfigPath != testPath {
+			t.Errorf("Expected kubeconfig path %s, got %s", testPath, opts.KubeconfigPath)
+		}
+	})
+
+	t.Run("without KUBECONFIG env var", func(t *testing.T) {
+		t.Setenv("KUBECONFIG", "")
+
+		opts := DefaultHCPOptions()
+		expectedPath := filepath.Join(os.Getenv("HOME"), ".kube", "config")
+		if opts.KubeconfigPath != expectedPath {
+			t.Errorf("Expected kubeconfig path %s, got %s", expectedPath, opts.KubeconfigPath)
+		}
+	})
+}
+
+// TestBindHCPOptions tests HCP command flag binding.
+func TestBindHCPOptions(t *testing.T) {
+	opts := DefaultHCPOptions()
+	cmd := &cobra.Command{
+		Use: "test",
+	}
+
+	err := BindHCPOptions(opts, cmd)
+	if err != nil {
+		t.Fatalf("BindHCPOptions failed: %v", err)
+	}
+
+	// Check that base flags were registered
+	flags := []string{"kubeconfig"}
+	for _, flagName := range flags {
+		flag := cmd.Flags().Lookup(flagName)
+		if flag == nil {
+			t.Errorf("Flag %s was not registered", flagName)
+		}
+	}
+}
+
+// TestValidateHCPOptions tests HCP options validation.
+func TestValidateHCPOptions(t *testing.T) {
+	// Create a temporary kubeconfig file for testing
+	tempDir := t.TempDir()
+	kubeconfigPath := filepath.Join(tempDir, "kubeconfig")
+	if err := os.WriteFile(kubeconfigPath, []byte("fake kubeconfig"), 0644); err != nil {
+		t.Fatalf("Failed to create test kubeconfig: %v", err)
+	}
+
+	testCases := []struct {
+		name        string
+		setupFunc   func() *HCPOptions
+		expectError bool
+		errorString string
+	}{
+		{
+			name: "valid base options",
+			setupFunc: func() *HCPOptions {
+				return &HCPOptions{
+					KubeconfigPath: kubeconfigPath,
+				}
+			},
+			expectError: false,
+		},
+		{
+			name: "kubeconfig file not found",
+			setupFunc: func() *HCPOptions {
+				return &HCPOptions{
+					KubeconfigPath: "/nonexistent/kubeconfig",
+				}
+			},
+			expectError: true,
+			errorString: "kubeconfig not found",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			opts := tc.setupFunc()
+			err := opts.Validate()
+
+			if tc.expectError {
+				if err == nil {
+					t.Error("Expected validation error, got nil")
+				} else if tc.errorString != "" && !containsString(err.Error(), tc.errorString) {
+					t.Errorf("Expected error containing '%s', got: %v", tc.errorString, err)
+				}
+			} else {
+				if err != nil {
+					t.Errorf("Unexpected validation error: %v", err)
+				}
+			}
+		})
+	}
+}
+
+// Helper function to check if a string contains a substring
+func containsString(s, substr string) bool {
+	return len(s) >= len(substr) && (len(substr) == 0 || findSubstring(s, substr))
+}
+
+func findSubstring(s, substr string) bool {
+	for i := 0; i <= len(s)-len(substr); i++ {
+		if s[i:i+len(substr)] == substr {
+			return true
+		}
+	}
+	return false
+}
+
 // TestDefaultBreakglassHCPOptions tests the default HCP options creation.
 func TestDefaultBreakglassHCPOptions(t *testing.T) {
 	opts := DefaultBreakglassHCPOptions()
 
-	if opts.BaseOptions == nil {
-		t.Fatal("Expected BaseOptions to be initialized")
+	if opts.HCPOptions == nil {
+		t.Fatal("Expected HCPOptions to be initialized")
 	}
 
 	if opts.SessionTimeout != 24*time.Hour {
@@ -96,7 +211,7 @@ func TestRawBreakglassHCPOptionsValidation(t *testing.T) {
 			setupFunc: func() *RawBreakglassHCPOptions {
 				opts := DefaultBreakglassHCPOptions()
 				opts.ClusterIdentifier = "2jesjug41iavg27inj078ssjidn20clk"
-				opts.BaseOptions.KubeconfigPath = kubeconfigPath
+				opts.HCPOptions.KubeconfigPath = kubeconfigPath
 				opts.SessionTimeout = 1 * time.Hour
 				return opts
 			},
@@ -108,7 +223,7 @@ func TestRawBreakglassHCPOptionsValidation(t *testing.T) {
 			setupFunc: func() *RawBreakglassHCPOptions {
 				opts := DefaultBreakglassHCPOptions()
 				opts.ClusterIdentifier = ""
-				opts.BaseOptions.KubeconfigPath = kubeconfigPath
+				opts.HCPOptions.KubeconfigPath = kubeconfigPath
 				opts.SessionTimeout = 1 * time.Hour
 				return opts
 			},
@@ -120,7 +235,7 @@ func TestRawBreakglassHCPOptionsValidation(t *testing.T) {
 			setupFunc: func() *RawBreakglassHCPOptions {
 				opts := DefaultBreakglassHCPOptions()
 				opts.ClusterIdentifier = "-invalid-cluster-id-"
-				opts.BaseOptions.KubeconfigPath = kubeconfigPath
+				opts.HCPOptions.KubeconfigPath = kubeconfigPath
 				opts.SessionTimeout = 1 * time.Hour
 				return opts
 			},
@@ -132,7 +247,7 @@ func TestRawBreakglassHCPOptionsValidation(t *testing.T) {
 			setupFunc: func() *RawBreakglassHCPOptions {
 				opts := DefaultBreakglassHCPOptions()
 				opts.ClusterIdentifier = strings.Repeat("a", 64) // maxClusterIDLength + 1
-				opts.BaseOptions.KubeconfigPath = kubeconfigPath
+				opts.HCPOptions.KubeconfigPath = kubeconfigPath
 				opts.SessionTimeout = 1 * time.Hour
 				return opts
 			},
@@ -144,7 +259,7 @@ func TestRawBreakglassHCPOptionsValidation(t *testing.T) {
 			setupFunc: func() *RawBreakglassHCPOptions {
 				opts := DefaultBreakglassHCPOptions()
 				opts.ClusterIdentifier = "2jesjug41iavg27inj078ssjidn20clk"
-				opts.BaseOptions.KubeconfigPath = kubeconfigPath
+				opts.HCPOptions.KubeconfigPath = kubeconfigPath
 				opts.SessionTimeout = 30 * time.Second
 				return opts
 			},
@@ -156,7 +271,7 @@ func TestRawBreakglassHCPOptionsValidation(t *testing.T) {
 			setupFunc: func() *RawBreakglassHCPOptions {
 				opts := DefaultBreakglassHCPOptions()
 				opts.ClusterIdentifier = "2jesjug41iavg27inj078ssjidn20clk"
-				opts.BaseOptions.KubeconfigPath = kubeconfigPath
+				opts.HCPOptions.KubeconfigPath = kubeconfigPath
 				opts.SessionTimeout = 31 * 24 * time.Hour
 				return opts
 			},
@@ -168,7 +283,7 @@ func TestRawBreakglassHCPOptionsValidation(t *testing.T) {
 			setupFunc: func() *RawBreakglassHCPOptions {
 				opts := DefaultBreakglassHCPOptions()
 				opts.ClusterIdentifier = "2jesjug41iavg27inj078ssjidn20clk"
-				opts.BaseOptions.KubeconfigPath = kubeconfigPath
+				opts.HCPOptions.KubeconfigPath = kubeconfigPath
 				opts.SessionTimeout = 1 * time.Hour
 				opts.ExecCommand = "kubectl get pods"
 				opts.NoPortForward = true
