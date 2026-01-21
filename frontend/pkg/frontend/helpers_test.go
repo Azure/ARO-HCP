@@ -28,7 +28,6 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
-	"github.com/Azure/ARO-HCP/internal/mocks"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -109,8 +108,8 @@ func TestCheckForProvisioningStateConflict(t *testing.T) {
 			t.Run(name, func(t *testing.T) {
 				ctx := utils.ContextWithLogger(context.Background(), api.NewTestLogger())
 				ctrl := gomock.NewController(t)
-				mockDBClient := mocks.NewMockDBClient(ctrl)
-				mockClusterCRUD := mocks.NewMockHCPClusterCRUD(ctrl)
+				mockDBClient := database.NewMockDBClient(ctrl)
+				mockClusterCRUD := database.NewMockHCPClusterCRUD(ctrl)
 
 				frontend := &Frontend{
 					dbClient: mockDBClient,
@@ -160,8 +159,8 @@ func TestCheckForProvisioningStateConflict(t *testing.T) {
 				t.Run(name, func(t *testing.T) {
 					ctx := utils.ContextWithLogger(context.Background(), api.NewTestLogger())
 					ctrl := gomock.NewController(t)
-					mockDBClient := mocks.NewMockDBClient(ctrl)
-					mockClusterCRUD := mocks.NewMockHCPClusterCRUD(ctrl)
+					mockDBClient := database.NewMockDBClient(ctrl)
+					mockClusterCRUD := database.NewMockHCPClusterCRUD(ctrl)
 
 					frontend := &Frontend{
 						dbClient: mockDBClient,

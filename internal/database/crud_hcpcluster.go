@@ -14,6 +14,8 @@
 
 package database
 
+//go:generate $MOCKGEN -typed -source=crud_hcpcluster.go -destination=mock_crud_hcpcluster.go -package database OperationCRUD
+
 import (
 	"fmt"
 	"path"

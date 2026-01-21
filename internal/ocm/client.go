@@ -14,6 +14,8 @@
 
 package ocm
 
+//go:generate $MOCKGEN -typed -source=client.go -destination=mock_client.go -package ocm ClusterServiceClientSpec
+
 import (
 	"context"
 	"fmt"

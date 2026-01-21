@@ -14,6 +14,8 @@
 
 package database
 
+//go:generate $MOCKGEN -typed -source=crud_subscription.go -destination=mock_crud_subscription.go -package database SubscriptionCRUD
+
 import (
 	"context"
 	"encoding/json"
