@@ -58,10 +58,6 @@
     "id": "azure",
     "kind": "CloudProvider"
   },
-  "flavour": {
-    "id": "osd-4",
-    "kind": "Flavour"
-  },
   "href": "/api/aro_hcp/v1alpha1/clusters/cs-basic",
   "hypershift": {
     "enabled": true
