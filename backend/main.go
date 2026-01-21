@@ -390,6 +390,7 @@ func Run(cmd *cobra.Command, args []string) error {
 				dbClient,
 				subscriptionLister,
 			)
+			deleteOrphanedCosmosResourcesController = mismatchcontrollers.NewDeleteOrphanedCosmosResourcesController(dbClient, subscriptionLister)
 		)
 
 		le, err := leaderelection.NewLeaderElector(leaderelection.LeaderElectionConfig{
@@ -415,6 +416,7 @@ func Run(cmd *cobra.Command, args []string) error {
 					go cosmosMatchingExternalAuthController.Run(ctx, 20)
 					go cosmosMatchingClusterController.Run(ctx, 20)
 					go alwaysSuccessClusterValidationController.Run(ctx, 20)
+					go deleteOrphanedCosmosResourcesController.Run(ctx, 20)
 				},
 				OnStoppedLeading: func() {
 					operationsScanner.LeaderGauge.Set(0)

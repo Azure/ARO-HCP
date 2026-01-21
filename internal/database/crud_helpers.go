@@ -321,3 +321,11 @@ func deleteResource(ctx context.Context, containerClient *azcosmos.ContainerClie
 	}
 	return nil
 }
+
+func deleteByCosmosID(ctx context.Context, containerClient *azcosmos.ContainerClient, partitionKeyString, cosmosID string) error {
+	_, err := containerClient.DeleteItem(ctx, azcosmos.NewPartitionKeyString(partitionKeyString), cosmosID, nil)
+	if err != nil {
+		return utils.TrackError(err)
+	}
+	return nil
+}

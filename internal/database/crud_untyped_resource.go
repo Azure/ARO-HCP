@@ -38,6 +38,7 @@ type UntypedResourceCRUD interface {
 	// the controllers for the external auths, etc.
 	ListRecursive(ctx context.Context, opts *DBClientListResourceDocsOptions) (DBClientIterator[TypedDocument], error)
 	Delete(ctx context.Context, resourceID *azcorearm.ResourceID) error
+	DeleteByCosmosID(ctx context.Context, partitionKey, cosmosID string) error
 
 	Child(resourceType azcorearm.ResourceType, resourceName string) (UntypedResourceCRUD, error)
 }
@@ -91,6 +92,10 @@ func (d *untypedCRUD) Delete(ctx context.Context, resourceID *azcorearm.Resource
 	partitionKey := strings.ToLower(d.parentResourceID.SubscriptionID)
 
 	return deleteResource(ctx, d.containerClient, partitionKey, resourceID)
+}
+
+func (d *untypedCRUD) DeleteByCosmosID(ctx context.Context, partitionKey, cosmosID string) error {
+	return deleteByCosmosID(ctx, d.containerClient, partitionKey, cosmosID)
 }
 
 func (d *untypedCRUD) Child(resourceType azcorearm.ResourceType, resourceName string) (UntypedResourceCRUD, error) {
