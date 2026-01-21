@@ -157,6 +157,7 @@ func (c *clusterWatchingController) processNextWorkItem(ctx context.Context) boo
 	defer c.queue.Done(ref)
 
 	logger := utils.LoggerFromContext(ctx)
+	logger = ref.AddLoggerValues(logger)
 	ctx = utils.ContextWithLogger(ctx, logger)
 
 	err := c.SyncOnce(ctx, ref)
