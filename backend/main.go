@@ -315,10 +315,11 @@ func Run(cmd *cobra.Command, args []string) error {
 
 	group.Go(func() error {
 		var (
-			startedLeading                   atomic.Bool
-			operationsScanner                = oldoperationscanner.NewOperationsScanner(dbClient, ocmConnection, argLocation, subscriptionLister)
-			subscriptionInformerController   = informers.NewSubscriptionInformerController(dbClient, subscriptionLister)
-			dataDumpController               = controllers.NewDataDumpController(dbClient, subscriptionLister)
+			startedLeading                 atomic.Bool
+			operationsScanner              = oldoperationscanner.NewOperationsScanner(dbClient, ocmConnection, argLocation, subscriptionLister)
+			subscriptionInformerController = informers.NewSubscriptionInformerController(dbClient, subscriptionLister)
+			dataDumpController             = controllerutils.NewClusterWatchingController(
+				"DataDump", dbClient, subscriptionLister, 1*time.Minute, controllers.NewDataDumpController(dbClient))
 			doNothingController              = controllers.NewDoNothingExampleController(dbClient, subscriptionLister)
 			operationClusterCreateController = operationcontrollers.NewGenericOperationClusterCreateController(
 				"OperationClusterCreate",
