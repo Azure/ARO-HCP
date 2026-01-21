@@ -5,7 +5,7 @@ Authorized CIDRs Connectivity should allow API access only from authorized VM IP
 Customer should be able to create an HCP cluster with custom autoscaling
 Customer should not be able to create a 4.18 HCP cluster
 Customer should be able to create a HCP cluster without CNI
-Customer should be able to create an HCP cluster and custom node pool osDisk size using bicep template
+Customer should be able to create an HCP cluster and custom node pool osDisk size
 Customer should be able to list HCP clusters without node pools at both subscription and resource group levels
 Customer should not be able to deploy 2 identically named clusters within the same resource group
 Customer should not be able to reuse subnets and NSGs between clusters
