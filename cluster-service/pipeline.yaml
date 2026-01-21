@@ -161,24 +161,8 @@ resourceGroups:
         name: ocpAcrLoginServer
     - name: PROVISION_SHARD_CLUSTER_LIMIT
       configRef: clustersService.provisionShardClusterLimit
-    - name: OCP_VERSIONS_DEFAULT_VERSION_VERSION
-      configRef: clustersService.ocpVersions.defaultVersion.version
-    - name: OCP_VERSIONS_CHANNEL_GROUPS_STABLE_MIN_VERSION
-      configRef: clustersService.ocpVersions.channelGroups.stable.minVersion
-    - name: OCP_VERSIONS_CHANNEL_GROUPS_STABLE_MAX_VERSION
-      configRef: clustersService.ocpVersions.channelGroups.stable.maxVersion
-    - name: OCP_VERSIONS_CHANNEL_GROUPS_STABLE_MINOR_VERSIONS_CONFIG
-      configRef: clustersService.ocpVersions.channelGroups.stable.minorVersionsConfiguration
-    - name: OCP_VERSIONS_CHANNEL_GROUPS_CANDIDATE_MIN_VERSION
-      configRef: clustersService.ocpVersions.channelGroups.candidate.minVersion
-    - name: OCP_VERSIONS_CHANNEL_GROUPS_CANDIDATE_MAX_VERSION
-      configRef: clustersService.ocpVersions.channelGroups.candidate.maxVersion
-    - name: OCP_VERSIONS_CHANNEL_GROUPS_CANDIDATE_MINOR_VERSIONS_CONFIG
-      configRef: clustersService.ocpVersions.channelGroups.candidate.minorVersionsConfiguration
-    - name: OCP_VERSIONS_CHANNEL_GROUPS_NIGHTLY_MIN_VERSION
-      configRef: clustersService.ocpVersions.channelGroups.nightly.minVersion
-    - name: OCP_VERSIONS_CHANNEL_GROUPS_NIGHTLY_MAX_VERSION
-      configRef: clustersService.ocpVersions.channelGroups.nightly.maxVersion
+    - name: OCP_VERSIONS
+      configRef: clustersService.ocpVersions
     # this is maestro consumer registration stuff
     # this goes away when we have a real registration process
     - name: CONSUMER_NAME
