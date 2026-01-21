@@ -142,15 +142,16 @@ clustersService:
     channelGroups:
       candidate:
         maxVersion: ""
-        minVersion: 4.19.7
+        minVersion: ""
       nightly:
         maxVersion: ""
-        minVersion: 4.19.0-0.nightly-20200101
+        minVersion: ""
       stable:
         maxVersion: 4.20.9
         minVersion: 4.19.0
     defaultVersion:
       version: 4.20.8
+  ocpVersionsConfigFile: ocp-versions-next.yaml
   postgres:
     backupRetentionDays: 7
     containerizedDb:

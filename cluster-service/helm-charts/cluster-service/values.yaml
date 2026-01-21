@@ -308,22 +308,10 @@ csDeploymentStrategy:
   rollingUpdate:
     maxSurge: 1
     maxUnavailable: 0
-ocpVersions:
-  defaultVersion:
-    version: ""
-  channelGroups:
-    stable:
-      url: ""
-      minVersion: ""
-      maxVersion: ""
-    candidate:
-      url: ""
-      minVersion: ""
-      maxVersion: ""
-    nightly:
-      url: ""
-      minVersion: ""
-      maxVersion: ""
+# OCP versions configuration is loaded from static config files in:
+# cluster-service/helm-charts/cluster-service/static-configs/
+# The ocpVersionsConfigFile value (from config.yaml) specifies which file to load
+ocpVersionsConfigFile: "ocp-versions-current.yaml"
 deployment:
   zoneCount: ""
 # controls if a debug job is deployed to the cluster.

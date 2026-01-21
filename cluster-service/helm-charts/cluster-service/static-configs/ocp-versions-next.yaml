@@ -1,0 +1,34 @@
+defaultVersion:
+  channelGroupName: stable
+  version: "4.20.8"
+channelGroups:
+  - url: "https://api.openshift.com/api/upgrades_info/graph"
+    channelGroupName: stable
+    minVersion: "4.19.0"
+    maxVersion: "4.20.9"
+    minorVersionsConfiguration:
+      - name: "4.19"
+        zStreamUpgradeConfig:
+          enabled: true
+          targetVersion: "4.19.21"
+      - name: "4.20"
+        zStreamUpgradeConfig:
+          enabled: true
+          targetVersion: "4.20.8"
+  - url: "https://api.openshift.com/api/upgrades_info/graph"
+    channelGroupName: candidate
+    minVersion: "4.19.7"
+    maxVersion: ""
+    minorVersionsConfiguration:
+      - name: "4.19"
+        zStreamUpgradeConfig:
+          enabled: true
+          targetVersion: "4.19.22"
+      - name: "4.20"
+        zStreamUpgradeConfig:
+          enabled: true
+          targetVersion: "4.20.10"
+  - url: "https://multi.ocp.releases.ci.openshift.org/graph"
+    channelGroupName: nightly
+    minVersion: "4.19.0-0.nightly-20200101"
+    maxVersion: ""

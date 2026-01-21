@@ -1,0 +1,8 @@
+defaultVersion:
+  channelGroupName: stable
+  version: "4.20.8"
+channelGroups:
+  - url: "https://api.openshift.com/api/upgrades_info/graph"
+    channelGroupName: stable
+    minVersion: "4.19.0"
+    maxVersion: "4.20.9"
