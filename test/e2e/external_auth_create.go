@@ -202,6 +202,12 @@ var _ = Describe("Customer", func() {
 			config := &rest.Config{
 				Host:        adminRESTConfig.Host,
 				BearerToken: accessToken.Token,
+				// Copy TLS settings from admin config (handles self-signed certs in dev)
+				TLSClientConfig: rest.TLSClientConfig{
+					Insecure: adminRESTConfig.Insecure,
+					CAData:   adminRESTConfig.CAData,
+					CAFile:   adminRESTConfig.CAFile,
+				},
 			}
 			client, err := kubernetes.NewForConfig(config)
 			Expect(err).NotTo(HaveOccurred())
