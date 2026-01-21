@@ -26,15 +26,24 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
+	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
+	"github.com/Azure/ARO-HCP/test-integration/backend/livelisters"
 	"github.com/Azure/ARO-HCP/test-integration/utils/databasemutationhelpers"
 	"github.com/Azure/ARO-HCP/test-integration/utils/integrationutils"
 )
 
-type ControllerInitializerFunc func(ctx context.Context, t *testing.T, cosmosClient database.DBClient) (controller controllerutils.Controller, testMemory map[string]any)
+type ControllerInitializationInput struct {
+	CosmosClient         database.DBClient
+	SubscriptionLister   listers.SubscriptionLister
+	ClusterServiceClient ocm.ClusterServiceClientSpec
+}
 
-type ControllerVerifierFunc func(ctx context.Context, t *testing.T, controller controllerutils.Controller, testMemory map[string]any)
+type ControllerInitializerFunc func(ctx context.Context, t *testing.T, input *ControllerInitializationInput) (controller controllerutils.Controller, testMemory map[string]any)
+
+type ControllerVerifierFunc func(ctx context.Context, t *testing.T, controller controllerutils.Controller, testMemory map[string]any, input *ControllerInitializationInput)
 
 type BasicControllerTest struct {
 	Name          string
@@ -64,13 +73,15 @@ func (tc *BasicControllerTest) RunTest(t *testing.T) {
 	cosmosTestInfo, err := integrationutils.NewCosmosFromTestingEnv(ctx, t)
 	require.NoError(t, err)
 	defer cosmosTestInfo.Cleanup(utils.ContextWithLogger(context.Background(), slogt.New(t, slogt.JSON())))
+	clusterServiceMockInfo := integrationutils.NewClusterServiceMock(t, cosmosTestInfo.ArtifactsDir)
+	defer clusterServiceMockInfo.Cleanup(utils.ContextWithLogger(context.Background(), slogt.New(t, slogt.JSON())))
 
-	initialState, err := fs.Sub(testDir, path.Join("00-load-initial-state"))
+	initialCosmosState, err := fs.Sub(testDir, path.Join("00-load-initial-state"))
 	require.NoError(t, err)
-	if fsMightContainFiles(initialState) {
+	if fsMightContainFiles(initialCosmosState) {
 		loadInitialStateStep, err := databasemutationhelpers.NewLoadCosmosStep(
 			databasemutationhelpers.NewStepID(00, "load", "initial-state"),
-			initialState,
+			initialCosmosState,
 		)
 		require.NoError(t, err)
 		input := databasemutationhelpers.StepInput{
@@ -79,7 +90,28 @@ func (tc *BasicControllerTest) RunTest(t *testing.T) {
 		loadInitialStateStep.RunTest(ctx, t, input)
 	}
 
-	controllerInstance, testMemory := tc.ControllerInitializerFn(ctx, t, cosmosTestInfo.DBClient)
+	initialClusterServiceState, err := fs.Sub(testDir, path.Join("00-loadClusterService-initial_state"))
+	require.NoError(t, err)
+	if fsMightContainFiles(initialClusterServiceState) {
+		loadInitialStateStep, err := databasemutationhelpers.NewLoadClusterServiceStep(
+			databasemutationhelpers.NewStepID(00, "loadClusterService", "initial-state"),
+			initialClusterServiceState,
+		)
+		require.NoError(t, err)
+		input := databasemutationhelpers.StepInput{
+			CosmosContainer:        cosmosTestInfo.CosmosResourcesContainer(),
+			ClusterServiceMockInfo: clusterServiceMockInfo,
+		}
+		loadInitialStateStep.RunTest(ctx, t, input)
+	}
+
+	controllerInput := &ControllerInitializationInput{
+		CosmosClient:         cosmosTestInfo.DBClient,
+		SubscriptionLister:   livelisters.NewSubscriptionLiveLister(cosmosTestInfo.DBClient),
+		ClusterServiceClient: clusterServiceMockInfo.MockClusterServiceClient,
+	}
+
+	controllerInstance, testMemory := tc.ControllerInitializerFn(ctx, t, controllerInput)
 	err = controllerInstance.SyncOnce(ctx, tc.ControllerKey)
 	require.NoError(t, err)
 
@@ -97,7 +129,7 @@ func (tc *BasicControllerTest) RunTest(t *testing.T) {
 		verifyEndStateStep.RunTest(ctx, t, input)
 	}
 
-	tc.ControllerVerifierFn(ctx, t, controllerInstance, testMemory)
+	tc.ControllerVerifierFn(ctx, t, controllerInstance, testMemory, controllerInput)
 
 }
 

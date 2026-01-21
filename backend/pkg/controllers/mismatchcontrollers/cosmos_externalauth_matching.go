@@ -17,6 +17,7 @@ package mismatchcontrollers
 import (
 	"context"
 	"fmt"
+	"net/http"
 
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 
@@ -27,14 +28,14 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
-type clusterServiceExternalAuthMatching struct {
+type cosmosExternalAuthMatching struct {
 	cosmosClient         database.DBClient
 	clusterServiceClient ocm.ClusterServiceClientSpec
 }
 
-// NewClusterServiceExternalAuthMatchingController periodically looks for mismatched cluster-service and cosmos clusters
-func NewClusterServiceExternalAuthMatchingController(cosmosClient database.DBClient, clusterServiceClient ocm.ClusterServiceClientSpec) controllerutils.ClusterSyncer {
-	c := &clusterServiceExternalAuthMatching{
+// NewCosmosExternalAuthMatchingController periodically looks for mismatched cluster-service and cosmos externalauths
+func NewCosmosExternalAuthMatchingController(cosmosClient database.DBClient, clusterServiceClient ocm.ClusterServiceClientSpec) controllerutils.ClusterSyncer {
+	c := &cosmosExternalAuthMatching{
 		cosmosClient:         cosmosClient,
 		clusterServiceClient: clusterServiceClient,
 	}
@@ -42,7 +43,7 @@ func NewClusterServiceExternalAuthMatchingController(cosmosClient database.DBCli
 	return c
 }
 
-func (c *clusterServiceExternalAuthMatching) getAllCosmosObjs(ctx context.Context, keyObj controllerutils.HCPClusterKey) (map[string]*api.HCPOpenShiftClusterExternalAuth, []*api.HCPOpenShiftClusterExternalAuth, error) {
+func (c *cosmosExternalAuthMatching) getAllCosmosObjs(ctx context.Context, keyObj controllerutils.HCPClusterKey) (map[string]*api.HCPOpenShiftClusterExternalAuth, []*api.HCPOpenShiftClusterExternalAuth, error) {
 	clusterServiceIDToExternalAuth := map[string]*api.HCPOpenShiftClusterExternalAuth{}
 	ret := []*api.HCPOpenShiftClusterExternalAuth{}
 
@@ -66,7 +67,7 @@ func (c *clusterServiceExternalAuthMatching) getAllCosmosObjs(ctx context.Contex
 	return clusterServiceIDToExternalAuth, ret, nil
 }
 
-func (c *clusterServiceExternalAuthMatching) getAllClusterServiceObjs(ctx context.Context, clusterServiceClusterID api.InternalID) (map[string]*arohcpv1alpha1.ExternalAuth, []*arohcpv1alpha1.ExternalAuth, error) {
+func (c *cosmosExternalAuthMatching) getAllClusterServiceObjs(ctx context.Context, clusterServiceClusterID api.InternalID) (map[string]*arohcpv1alpha1.ExternalAuth, []*arohcpv1alpha1.ExternalAuth, error) {
 	clusterServiceIDToExternalAuth := map[string]*arohcpv1alpha1.ExternalAuth{}
 	ret := []*arohcpv1alpha1.ExternalAuth{}
 
@@ -86,10 +87,13 @@ func (c *clusterServiceExternalAuthMatching) getAllClusterServiceObjs(ctx contex
 	return clusterServiceIDToExternalAuth, ret, nil
 }
 
-func (c *clusterServiceExternalAuthMatching) synchronizeAllExternalAuths(ctx context.Context, keyObj controllerutils.HCPClusterKey) error {
+func (c *cosmosExternalAuthMatching) synchronizeAllExternalAuths(ctx context.Context, keyObj controllerutils.HCPClusterKey) error {
 	logger := utils.LoggerFromContext(ctx)
 
 	cluster, err := c.cosmosClient.HCPClusters(keyObj.SubscriptionID, keyObj.ResourceGroupName).Get(ctx, keyObj.HCPClusterName)
+	if database.IsResponseError(err, http.StatusNotFound) {
+		return nil // no work to do
+	}
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -124,10 +128,21 @@ func (c *clusterServiceExternalAuthMatching) synchronizeAllExternalAuths(ctx con
 		}
 	}
 
+	// after reporting, do the cleanup
+	for _, cosmosExternalAuth := range allCosmosExternalAuths {
+		_, exists := clusterServiceIDToClusterServiceExternalAuths[cosmosExternalAuth.ServiceProviderProperties.ClusterServiceID.String()]
+		if !exists {
+			logger.Info("deleting cosmos externalAuth", "cosmosResourceID", cosmosExternalAuth.ID)
+			if err := controllerutils.DeleteRecursively(ctx, c.cosmosClient, cosmosExternalAuth.ID); err != nil {
+				return utils.TrackError(err)
+			}
+		}
+	}
+
 	return nil
 }
 
-func (c *clusterServiceExternalAuthMatching) SyncOnce(ctx context.Context, keyObj controllerutils.HCPClusterKey) error {
+func (c *cosmosExternalAuthMatching) SyncOnce(ctx context.Context, keyObj controllerutils.HCPClusterKey) error {
 	syncErr := c.synchronizeAllExternalAuths(ctx, keyObj)
 	return utils.TrackError(syncErr)
 }

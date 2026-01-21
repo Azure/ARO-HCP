@@ -50,7 +50,7 @@ func TestFrontendNodePoolMutation(t *testing.T) {
 
 	// create anything and round trip anything for nodePool-service
 	// this happens here because the mock is associated with frontend. it's a little awkward to add instances, but we'll deal
-	err = integrationutils.TrivialPassThroughClusterServiceMock(t, testInfo, api.Must(fs.Sub(artifacts, "artifacts/NodePoolMutation/initial-cluster-service-state")))
+	err = testInfo.AddContent(t, api.Must(fs.Sub(artifacts, "artifacts/NodePoolMutation/initial-cluster-service-state")))
 	require.NoError(t, err)
 
 	dirContent := api.Must(artifacts.ReadDir("artifacts/NodePoolMutation"))

@@ -42,6 +42,7 @@ import (
 	"k8s.io/client-go/tools/leaderelection"
 	"k8s.io/client-go/tools/leaderelection/resourcelock"
 	"k8s.io/klog/v2"
+	utilsclock "k8s.io/utils/clock"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
@@ -342,13 +343,16 @@ func Run(cmd *cobra.Command, args []string) error {
 				subscriptionLister,
 				dbClient,
 			)
-			clusterServiceMatchingClusterController  = mismatchcontrollers.NewClusterServiceClusterMatchingController(dbClient, subscriptionLister, clusterServiceClient)
-			clusterServiceMatchingNodePoolController = controllerutils.NewClusterWatchingController(
-				"ClusterServiceMatchingNodePools", dbClient, subscriptionLister, 60*time.Minute,
-				mismatchcontrollers.NewClusterServiceNodePoolMatchingController(dbClient, clusterServiceClient))
-			clusterServiceMatchingExternalAuthController = controllerutils.NewClusterWatchingController(
-				"ClusterServiceMatchingExternalAuths", dbClient, subscriptionLister, 60*time.Minute,
-				mismatchcontrollers.NewClusterServiceExternalAuthMatchingController(dbClient, clusterServiceClient))
+			clusterServiceMatchingClusterController = mismatchcontrollers.NewClusterServiceClusterMatchingController(dbClient, subscriptionLister, clusterServiceClient)
+			cosmosMatchingNodePoolController        = controllerutils.NewClusterWatchingController(
+				"CosmosMatchingNodePools", dbClient, subscriptionLister, 60*time.Minute,
+				mismatchcontrollers.NewCosmosNodePoolMatchingController(dbClient, clusterServiceClient))
+			cosmosMatchingExternalAuthController = controllerutils.NewClusterWatchingController(
+				"CosmosMatchingExternalAuths", dbClient, subscriptionLister, 60*time.Minute,
+				mismatchcontrollers.NewCosmosExternalAuthMatchingController(dbClient, clusterServiceClient))
+			cosmosMatchingClusterController = controllerutils.NewClusterWatchingController(
+				"CosmosMatchingClusters", dbClient, subscriptionLister, 60*time.Minute,
+				mismatchcontrollers.NewCosmosClusterMatchingController(utilsclock.RealClock{}, dbClient, clusterServiceClient))
 		)
 
 		le, err := leaderelection.NewLeaderElector(leaderelection.LeaderElectionConfig{
@@ -366,8 +370,9 @@ func Run(cmd *cobra.Command, args []string) error {
 					go operationClusterCreateController.Run(ctx, 20)
 					go operationClusterDeleteController.Run(ctx, 20)
 					go clusterServiceMatchingClusterController.Run(ctx, 20)
-					go clusterServiceMatchingNodePoolController.Run(ctx, 20)
-					go clusterServiceMatchingExternalAuthController.Run(ctx, 20)
+					go cosmosMatchingNodePoolController.Run(ctx, 20)
+					go cosmosMatchingExternalAuthController.Run(ctx, 20)
+					go cosmosMatchingClusterController.Run(ctx, 20)
 				},
 				OnStoppedLeading: func() {
 					operationsScanner.LeaderGauge.Set(0)

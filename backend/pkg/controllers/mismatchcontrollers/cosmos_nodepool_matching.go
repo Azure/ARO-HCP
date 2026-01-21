@@ -17,6 +17,7 @@ package mismatchcontrollers
 import (
 	"context"
 	"fmt"
+	"net/http"
 
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 
@@ -27,14 +28,14 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
-type clusterServiceNodePoolMatching struct {
+type cosmosNodePoolMatching struct {
 	cosmosClient         database.DBClient
 	clusterServiceClient ocm.ClusterServiceClientSpec
 }
 
-// NewClusterServiceNodeMatchingController periodically looks for mismatched cluster-service and cosmos clusters
-func NewClusterServiceNodePoolMatchingController(cosmosClient database.DBClient, clusterServiceClient ocm.ClusterServiceClientSpec) controllerutils.ClusterSyncer {
-	c := &clusterServiceNodePoolMatching{
+// NewCosmosNodePoolMatchingController periodically looks for mismatched cluster-service and cosmos nodepool
+func NewCosmosNodePoolMatchingController(cosmosClient database.DBClient, clusterServiceClient ocm.ClusterServiceClientSpec) controllerutils.ClusterSyncer {
+	c := &cosmosNodePoolMatching{
 		cosmosClient:         cosmosClient,
 		clusterServiceClient: clusterServiceClient,
 	}
@@ -42,7 +43,7 @@ func NewClusterServiceNodePoolMatchingController(cosmosClient database.DBClient,
 	return c
 }
 
-func (c *clusterServiceNodePoolMatching) getAllCosmosObjs(ctx context.Context, keyObj controllerutils.HCPClusterKey) (map[string]*api.HCPOpenShiftClusterNodePool, []*api.HCPOpenShiftClusterNodePool, error) {
+func (c *cosmosNodePoolMatching) getAllCosmosObjs(ctx context.Context, keyObj controllerutils.HCPClusterKey) (map[string]*api.HCPOpenShiftClusterNodePool, []*api.HCPOpenShiftClusterNodePool, error) {
 	clusterServiceIDToNodePool := map[string]*api.HCPOpenShiftClusterNodePool{}
 	ret := []*api.HCPOpenShiftClusterNodePool{}
 
@@ -66,7 +67,7 @@ func (c *clusterServiceNodePoolMatching) getAllCosmosObjs(ctx context.Context, k
 	return clusterServiceIDToNodePool, ret, nil
 }
 
-func (c *clusterServiceNodePoolMatching) getAllClusterServiceObjs(ctx context.Context, clusterServiceClusterID api.InternalID) (map[string]*arohcpv1alpha1.NodePool, []*arohcpv1alpha1.NodePool, error) {
+func (c *cosmosNodePoolMatching) getAllClusterServiceObjs(ctx context.Context, clusterServiceClusterID api.InternalID) (map[string]*arohcpv1alpha1.NodePool, []*arohcpv1alpha1.NodePool, error) {
 	clusterServiceIDToNodePool := map[string]*arohcpv1alpha1.NodePool{}
 	ret := []*arohcpv1alpha1.NodePool{}
 
@@ -86,10 +87,13 @@ func (c *clusterServiceNodePoolMatching) getAllClusterServiceObjs(ctx context.Co
 	return clusterServiceIDToNodePool, ret, nil
 }
 
-func (c *clusterServiceNodePoolMatching) synchronizeAllNodes(ctx context.Context, keyObj controllerutils.HCPClusterKey) error {
+func (c *cosmosNodePoolMatching) synchronizeAllNodes(ctx context.Context, keyObj controllerutils.HCPClusterKey) error {
 	logger := utils.LoggerFromContext(ctx)
 
 	cluster, err := c.cosmosClient.HCPClusters(keyObj.SubscriptionID, keyObj.ResourceGroupName).Get(ctx, keyObj.HCPClusterName)
+	if database.IsResponseError(err, http.StatusNotFound) {
+		return nil // no work to do
+	}
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -124,10 +128,21 @@ func (c *clusterServiceNodePoolMatching) synchronizeAllNodes(ctx context.Context
 		}
 	}
 
+	// after reporting, do the cleanup
+	for _, cosmosNodePool := range allCosmosNodePools {
+		_, exists := clusterServiceIDToClusterServiceNodePools[cosmosNodePool.ServiceProviderProperties.ClusterServiceID.String()]
+		if !exists {
+			logger.Info("deleting cosmos nodepool", "cosmosResourceID", cosmosNodePool.ID)
+			if err := controllerutils.DeleteRecursively(ctx, c.cosmosClient, cosmosNodePool.ID); err != nil {
+				return utils.TrackError(err)
+			}
+		}
+	}
+
 	return nil
 }
 
-func (c *clusterServiceNodePoolMatching) SyncOnce(ctx context.Context, keyObj controllerutils.HCPClusterKey) error {
+func (c *cosmosNodePoolMatching) SyncOnce(ctx context.Context, keyObj controllerutils.HCPClusterKey) error {
 	syncErr := c.synchronizeAllNodes(ctx, keyObj)
 	return utils.TrackError(syncErr)
 }

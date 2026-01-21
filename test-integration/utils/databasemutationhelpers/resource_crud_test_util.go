@@ -122,16 +122,12 @@ func (tt *ResourceMutationTest) RunTest(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// create anything and round trip anything for cluster-service
-	err = integrationutils.TrivialPassThroughClusterServiceMock(t, testInfo, nil)
-	require.NoError(t, err)
-
 	stepInput := StepInput{
-		CosmosContainer:  testInfo.CosmosResourcesContainer(),
-		DBClient:         testInfo.DBClient,
-		FrontendClient:   testInfo.Get20240610ClientFactory,
-		FrontendURL:      testInfo.FrontendURL,
-		FrontendTestInfo: testInfo,
+		CosmosContainer:        testInfo.CosmosResourcesContainer(),
+		DBClient:               testInfo.DBClient,
+		FrontendClient:         testInfo.Get20240610ClientFactory,
+		FrontendURL:            testInfo.FrontendURL,
+		ClusterServiceMockInfo: testInfo.ClusterServiceMock,
 	}
 	for _, step := range tt.steps {
 		t.Logf("Running step %s", step.StepID())
@@ -306,5 +302,5 @@ type StepInput struct {
 	FrontendClient  func(subscriptionID string) *hcpsdk20240610preview.ClientFactory
 	FrontendURL     string
 
-	FrontendTestInfo *integrationutils.FrontendIntegrationTestInfo
+	ClusterServiceMockInfo *integrationutils.ClusterServiceMock
 }
