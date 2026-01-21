@@ -118,6 +118,44 @@ func (c *MockUntypedResourceCRUDDeleteCall) DoAndReturn(f func(context.Context, 
 	return c
 }
 
+// DeleteByCosmosID mocks base method.
+func (m *MockUntypedResourceCRUD) DeleteByCosmosID(ctx context.Context, partitionKey, cosmosID string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteByCosmosID", ctx, partitionKey, cosmosID)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteByCosmosID indicates an expected call of DeleteByCosmosID.
+func (mr *MockUntypedResourceCRUDMockRecorder) DeleteByCosmosID(ctx, partitionKey, cosmosID any) *MockUntypedResourceCRUDDeleteByCosmosIDCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteByCosmosID", reflect.TypeOf((*MockUntypedResourceCRUD)(nil).DeleteByCosmosID), ctx, partitionKey, cosmosID)
+	return &MockUntypedResourceCRUDDeleteByCosmosIDCall{Call: call}
+}
+
+// MockUntypedResourceCRUDDeleteByCosmosIDCall wrap *gomock.Call
+type MockUntypedResourceCRUDDeleteByCosmosIDCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockUntypedResourceCRUDDeleteByCosmosIDCall) Return(arg0 error) *MockUntypedResourceCRUDDeleteByCosmosIDCall {
+	c.Call = c.Call.Return(arg0)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockUntypedResourceCRUDDeleteByCosmosIDCall) Do(f func(context.Context, string, string) error) *MockUntypedResourceCRUDDeleteByCosmosIDCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockUntypedResourceCRUDDeleteByCosmosIDCall) DoAndReturn(f func(context.Context, string, string) error) *MockUntypedResourceCRUDDeleteByCosmosIDCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
 // Get mocks base method.
 func (m *MockUntypedResourceCRUD) Get(ctx context.Context, resourceID *arm.ResourceID) (*TypedDocument, error) {
 	m.ctrl.T.Helper()
