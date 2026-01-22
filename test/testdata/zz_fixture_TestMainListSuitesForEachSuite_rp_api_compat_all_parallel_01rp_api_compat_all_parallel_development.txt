@@ -9,7 +9,7 @@ Customer should not be able to deploy 2 identically named clusters within the sa
 Customer should not be able to reuse subnets and NSGs between clusters
 Update HCPOpenShiftCluster Positive creates a cluster and updates tags with a PATCH request
 Customer should be able to create several HCP clusters in their customer resource group, but not in the same managed resource group
-Customer should be able to create an HCP cluster using bicep templates
+Customer should be able to create an HCP cluster
 Customer should be able to lifecycle and confirm external auth on a cluster
 Customer should be able to create an HCP cluster with Image Registry not present
 Engineering should be able to retrieve kusto logs for a cluster and services
