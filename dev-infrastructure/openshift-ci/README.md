@@ -13,6 +13,10 @@ The `Dockerfile` in this directory defines the base image used in our release co
 - OpenShift CLI (oc)
 - Required system tools (make, git, procps-ng)
 
+We have created a Post Submit job in Release repo https://github.com/openshift/release/blob/master/ci-operator/config/Azure/ARO-HCP/Azure-ARO-HCP-main__baseimage-generator.yaml , which would build this Docker image after any PR merges.
+
+And in our Release Job(presubmit/periodic) we consume this prebuild images as build root https://github.com/openshift/release/blob/master/ci-operator/config/Azure/ARO-HCP/Azure-ARO-HCP-main.yaml#L7 .
+
 ## Scripts Overview
 
 | Script | Purpose |
