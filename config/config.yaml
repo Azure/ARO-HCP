@@ -546,6 +546,9 @@ defaults:
       name: "arohcp{{ .ctx.environment }}-rp-{{ .ctx.regionShort }}" # [globally-unique]
       private: true
       zoneRedundantMode: 'Auto'
+      resourceContainerMaxScale: 1200
+      billingContainerMaxScale: 1200
+      locksContainerMaxScale: 1200
     cert:
       name: frontend-cert-{{ .ctx.environment }}-{{ .ctx.regionShort }}
   # Billing
