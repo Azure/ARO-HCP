@@ -20,12 +20,9 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
-
-	"github.com/Azure/ARO-HCP/tooling/hcpctl/cmd/base"
 )
 
 type RawCleanOptions struct {
-	BaseOptions           *base.RawBaseOptions
 	PathToClean           string
 	ServiceConfigPath     string
 	MustGatherCleanBinary string
@@ -35,7 +32,6 @@ type RawCleanOptions struct {
 
 func DefaultCleanOptions() *RawCleanOptions {
 	return &RawCleanOptions{
-		BaseOptions: base.DefaultBaseOptions(),
 		PathToClean: "must-gather-clean",
 	}
 }
@@ -54,13 +50,6 @@ func (opts *RawCleanOptions) Run(ctx context.Context) error {
 	return completed.Run(ctx)
 }
 func BindCleanOptions(opts *RawCleanOptions, cmd *cobra.Command) error {
-	// Bind base options first
-	if opts.BaseOptions == nil {
-		return fmt.Errorf("base options cannot be nil")
-	}
-	if err := base.BindBaseOptions(opts.BaseOptions, cmd); err != nil {
-		return fmt.Errorf("failed to bind base options: %w", err)
-	}
 	cmd.Flags().StringVar(&opts.PathToClean, "path-to-clean", opts.PathToClean, "Path to clean")
 	cmd.Flags().StringVar(&opts.ServiceConfigPath, "service-config-path", opts.ServiceConfigPath, "Path to ARO-HCP Service Configuration file (not must-gather-clean config)")
 	cmd.Flags().StringVar(&opts.MustGatherCleanBinary, "must-gather-clean-binary", opts.MustGatherCleanBinary, "Path to must-gather-clean binary")
