@@ -17,13 +17,13 @@ OUTPUT_FLAGS := $(if $(OUTPUT_FILE),--output-file $(OUTPUT_FILE)) $(if $(OUTPUT_
 build:
 	@go build -o $(BINARY_NAME) .
 
-update: build
+update:
 	@./$(BINARY_NAME) update --config $(CONFIG_FILE) $(COMPONENT_FLAGS) $(EXCLUDE_FLAGS) $(VERBOSITY_FLAGS) $(OUTPUT_FLAGS) && make -C ../../ yamlfmt > /dev/null 2>&1
 
-promote-stage: build
+promote-stage:
 	@./$(BINARY_NAME) update --config $(CONFIG_FILE) --env stg $(COMPONENT_FLAGS) $(EXCLUDE_FLAGS) $(VERBOSITY_FLAGS) $(OUTPUT_FLAGS) && make -C ../../ yamlfmt > /dev/null 2>&1
 
-promote-prod: build
+promote-prod:
 	@./$(BINARY_NAME) update --config $(CONFIG_FILE) --env prod $(COMPONENT_FLAGS) $(EXCLUDE_FLAGS) $(VERBOSITY_FLAGS) $(OUTPUT_FLAGS) && make -C ../../ yamlfmt > /dev/null 2>&1
 
 test:
