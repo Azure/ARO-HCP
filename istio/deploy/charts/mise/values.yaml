@@ -2,6 +2,7 @@ image:
   registry: ""
   repository: ""
   digest: ""
+  digestv2: ""
 tracing:
   address: ""
   exporter: ""

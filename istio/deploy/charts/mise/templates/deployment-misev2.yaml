@@ -1,0 +1,92 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: misev2
+  namespace: '{{ .Values.namespace }}'
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: misev2
+      version: v2
+  template:
+    metadata:
+      labels:
+        app: misev2
+        version: v2
+    spec:
+      topologySpreadConstraints:
+      - maxSkew: 1
+        topologyKey: '{{ if eq (int .Values.deployment.zoneCount) 0 }}kubernetes.azure.com/agentpool{{ else }}topology.kubernetes.io/zone{{ end }}'
+        whenUnsatisfiable: ScheduleAnyway
+        labelSelector:
+          matchLabels:
+            app: misev2
+            version: v2
+      - maxSkew: 1
+        topologyKey: kubernetes.io/hostname
+        whenUnsatisfiable: ScheduleAnyway
+        labelSelector:
+          matchLabels:
+            app: misev2
+            version: v2
+      containers:
+      - name: misev2
+        image: "{{ .Values.image.registry }}/{{ .Values.image.repository }}@{{ .Values.image.digestv2 }}"
+        ports:
+        - containerPort: 8080
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8080
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: 8080
+        env:
+        - name: Mise__Authentication__Authority
+          value: "{{ .Values.audit.adInstance }}{{ .Values.audit.tenantId }}/v2.0"
+        - name: Mise__Authentication__ClientId
+          value: "{{ .Values.audit.clientId }}"
+        - name: Mise__Authentication__Audience
+          value: "{{ .Values.audit.audience }}"
+        - name: Mise__InboundPolicies__Enabled
+          value: "true"
+        - name: Mise__InboundPolicies__0__Label
+          value: "{{ .Values.armPolicy.label }}"
+        - name: Mise__InboundPolicies__0__Authority
+          value: "{{ .Values.armPolicy.authority }}"
+        - name: Mise__InboundPolicies__0__Protocols__0
+          value: "PoP"
+        - name: Mise__InboundPolicies__0__Authentication__ValidAudiences__0
+          value: "{{ .Values.armPolicy.audience }}"
+        - name: Mise__InboundPolicies__0__Authentication__ValidApplicationIds__0
+          value: "{{ .Values.armPolicy.applicationId }}"
+        - name: Mise__InboundPolicies__0__Validation__SignedHttpRequest__ValidateTs
+          value: "true"
+        - name: Mise__InboundPolicies__0__Validation__SignedHttpRequest__ValidateM
+          value: "true"
+        - name: Mise__InboundPolicies__0__Validation__SignedHttpRequest__ValidateU
+          value: "true"
+        - name: Mise__InboundPolicies__0__Validation__SignedHttpRequest__ValidateP
+          value: "true"
+        - name: Mise__InboundPolicies__1__Label
+          value: "{{ .Values.genevaActionsPolicy.label }}"
+        - name: Mise__InboundPolicies__1__Authority
+          value: "{{ .Values.genevaActionsPolicy.authority }}"
+        - name: Mise__InboundPolicies__1__Protocols__0
+          value: "Bearer"
+        - name: Mise__InboundPolicies__1__Authentication__ValidAudiences__0
+          value: "{{ .Values.genevaActionsPolicy.audience }}"
+        - name: Mise__InboundPolicies__1__Authentication__ValidApplicationIds__0
+          value: "{{ .Values.genevaActionsPolicy.applicationId }}"
+        - name: Mise__Logging__LogLevel__Default
+          value: "Information"
+        - name: AllowedHosts
+          value: "*"
+        - name: Kestrel__Endpoints__Http__Url
+          value: "http://0.0.0.0:8080"
+        - name: OTEL_EXPORTER_OTLP_ENDPOINT
+          value: "{{ .Values.tracing.address }}"
+        - name: OTEL_TRACES_EXPORTER
+          value: "{{ .Values.tracing.exporter }}"
