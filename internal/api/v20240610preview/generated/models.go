@@ -1044,6 +1044,9 @@ type VersionProfile struct {
 	// ChannelGroup is the name of the set to which this version belongs. Each version belongs to only a single set.
 	ChannelGroup *string
 
-	// ID is the unique identifier of the version.
+	// ID is the unique identifier of the version.  This contains values like 4.21, or 4.20.  It cannot contain 4.y.z.
 	ID *string
+
+	// DesiredVersion is what Alba says it is
+	DesiredVersion *string
 }
