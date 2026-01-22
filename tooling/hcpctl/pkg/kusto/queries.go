@@ -70,7 +70,7 @@ func (q *ConfigurableQuery) WithOrderByTimestampAsc() *ConfigurableQuery {
 }
 
 func (q *ConfigurableQuery) WithTimestampMinAndMax(timestampMin time.Time, timestampMax time.Time) *ConfigurableQuery {
-	q.Query.AddLiteral("\n| where timestamp between(datetime(timestampMin) .. datetime(timestampMax))")
+	q.Query.AddLiteral("\n| where timestamp between(timestampMin .. timestampMax)")
 	q.Parameters.AddDateTime("timestampMin", timestampMin)
 	q.Parameters.AddDateTime("timestampMax", timestampMax)
 	return q
