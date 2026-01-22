@@ -514,6 +514,17 @@ defaults:
       serviceAccountName: admin-api
     cert:
       name: admin-api-cert-{{ .ctx.environment }}-{{ .ctx.regionShort }}
+  # Session Gate
+  sessiongate:
+    image:
+      registry: arohcpsvcdev.azurecr.io
+      repository: arohcpsessiongate
+      digest: ""
+    managedIdentityName: sessiongate
+    k8s:
+      replicas: 2
+      namespace: sessiongate
+      serviceAccountName: sessiongate
   # Frontend
   frontend:
     audit:
