@@ -17,7 +17,6 @@ package e2e
 import (
 	"context"
 	"fmt"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -155,10 +154,8 @@ var _ = Describe("Customer", func() {
 						}
 					}
 
-					patchVersions := computeBackLevelVersions(matchingNodePoolVersion)
-
 					var nodePoolWg sync.WaitGroup
-					for _, nodePoolVersion := range patchVersions {
+					if matchingNodePoolVersion != "" {
 						nodePoolWg.Add(1)
 						go func(nodePoolVersion string) {
 							defer nodePoolWg.Done()
@@ -202,7 +199,7 @@ var _ = Describe("Customer", func() {
 								errors = append(errors, err)
 								errorsMutex.Unlock()
 							}
-						}(nodePoolVersion)
+						}(matchingNodePoolVersion)
 					}
 					nodePoolWg.Wait()
 				}(controlPlaneVersion)
@@ -216,24 +213,3 @@ var _ = Describe("Customer", func() {
 
 		})
 })
-
-func computeBackLevelVersions(version string) []string {
-	parts := strings.Split(version, ".")
-	if len(parts) != 3 {
-		return []string{version}
-	}
-
-	majorMinor := parts[0] + "." + parts[1]
-	patchAtoi, _ := strconv.Atoi(parts[2])
-
-	var versions []string
-	versions = append(versions, majorMinor+".0")
-
-	if patchAtoi > 0 {
-		versions = append(versions, majorMinor+"."+strconv.Itoa(patchAtoi-1))
-	}
-
-	versions = append(versions, version)
-
-	return versions
-}

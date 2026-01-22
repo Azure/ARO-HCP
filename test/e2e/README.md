@@ -77,7 +77,7 @@ $ export ARO_HCP_OPENSHIFT_CONTROLPLANE_BACKLEVEL_VERSIONS=4.19
 $ export ARO_HCP_OPENSHIFT_NODEPOOL_BACKLEVEL_VERSIONS=4.19.7
 ```
 > **Note:** 
-> Back-level versions are a `[]string` array with comma-separated values. Expected only version 4.y.z as 4.y.0 and 4.y.z-1 are computed by [`back-level version test`](https://github.com/Azure/ARO-HCP/tree/main/test/e2e/cluster_version_backlevel.go#L219).
+> Back-level versions are a `[]string` array with comma-separated values. Expected node pool version is 4.y.z format.
 
 So finally, you can run a particular test case:
 
