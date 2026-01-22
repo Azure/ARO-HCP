@@ -14,6 +14,7 @@ use (
 	./tooling/olm-bundle-repkg
 	./tooling/pipeline-documentation
 	./tooling/prometheus-rules
+	./tooling/aro-hcp-exporter
 	./tooling/secret-sync
 	./tooling/templatize
 	./tooling/yamlwrap
