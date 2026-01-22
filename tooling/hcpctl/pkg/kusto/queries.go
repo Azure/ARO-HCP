@@ -15,6 +15,7 @@
 package kusto
 
 import (
+	"fmt"
 	"strings"
 	"time"
 
@@ -69,7 +70,7 @@ func (q *ConfigurableQuery) WithOrderByTimestampAsc() *ConfigurableQuery {
 }
 
 func (q *ConfigurableQuery) WithTimestampMinAndMax(timestampMin time.Time, timestampMax time.Time) *ConfigurableQuery {
-	q.Query.AddLiteral("\n| where timestamp >= timestampMin and timestamp <= timestampMax")
+	q.Query.AddLiteral("\n| where timestamp between(timestampMin .. timestampMax)")
 	q.Parameters.AddDateTime("timestampMin", timestampMin)
 	q.Parameters.AddDateTime("timestampMax", timestampMax)
 	return q
@@ -83,24 +84,41 @@ func (q *ConfigurableQuery) WithResourceIdHasResourceGroup(resourceGroup string)
 
 func (q *ConfigurableQuery) WithClusterIdOrSubscriptionAndResourceGroup(clusterIds []string, subscriptionId string, resourceGroup string) *ConfigurableQuery {
 	if len(clusterIds) != 0 {
-		q.Query.AddLiteral("\n| where log has subscriptionId  and log has resourceGroupName or log has_any (clusterId)")
+		q.Query.AddLiteral("\n| where log has subResourceGroupId or log has_any (clusterId)")
 		q.Parameters.AddString("clusterId", strings.Join(clusterIds, ","))
 	} else {
-		q.Query.AddLiteral("\n| where log has subscriptionId  and log has resourceGroupName")
+		q.Query.AddLiteral("\n| where log has subResourceGroupId")
 	}
-	q.Parameters.AddString("subscriptionId", subscriptionId)
-	q.Parameters.AddString("resourceGroupName", resourceGroup)
+	q.Parameters.AddString("subResourceGroupId", fmt.Sprintf("/subscriptions/%s/resourceGroups/%s", subscriptionId, resourceGroup))
 	return q
 }
 
 func NewClusterIdQuery(database, clusterServiceLogsTable, subscriptionId, resourceGroup string) *ConfigurableQuery {
 	builder := kql.New("").AddTable(clusterServiceLogsTable)
-	builder.AddLiteral("\n| where resource_id has subscriptionId and resource_id has resourceGroupName")
+	builder.AddLiteral("\n| where resource_id has subResourceGroupId")
 	builder.AddLiteral("\n| distinct cid")
 
 	parameters := kql.NewParameters()
-	parameters.AddString("subscriptionId", subscriptionId)
-	parameters.AddString("resourceGroupName", resourceGroup)
+	parameters.AddString("subResourceGroupId", fmt.Sprintf("/subscriptions/%s/resourceGroups/%s", subscriptionId, resourceGroup))
+
+	return &ConfigurableQuery{
+		Name:       "Cluster ID",
+		Database:   database,
+		Query:      builder,
+		Parameters: parameters,
+	}
+}
+
+// NewLegacyClusterIDQuery creates a new KQL query for obtaining cluster IDs
+// this works for the old kusto infrastucture setup that uses the HCPServiceLogs database
+func NewLegacyClusterIdQuery(database, clusterServiceLogsTable, subscriptionId, resourceGroup string) *ConfigurableQuery {
+	builder := kql.New("").AddTable(clusterServiceLogsTable)
+	builder.AddLiteral("\n| where log has subResourceGroupId")
+	builder.AddLiteral("\n| extend cid=extract(@\"cid='([a-v0-9]{32})'\", 1, tostring(log))")
+	builder.AddLiteral("\n| distinct cid")
+
+	parameters := kql.NewParameters()
+	parameters.AddString("subResourceGroupId", fmt.Sprintf("/subscriptions/%s/resourceGroups/%s", subscriptionId, resourceGroup))
 
 	return &ConfigurableQuery{
 		Name:       "Cluster ID",
@@ -117,15 +135,14 @@ func NewKubeSystemQuery(subscriptionId, resourceGroupName string, clusterIds []s
 	parameters := kql.NewParameters()
 
 	if len(clusterIds) != 0 {
-		builder.AddLiteral("\n| where log has subscriptionId  and log has resourceGroupName or log has_any (clusterId)")
+		builder.AddLiteral("\n| where log has subResourceGroupId or log has_any (clusterId)")
 		parameters.AddString("clusterId", strings.Join(clusterIds, ","))
 	} else {
-		builder.AddLiteral("\n| where log has subscriptionId  and log has resourceGroupName")
+		builder.AddLiteral("\n| where log has subResourceGroupId")
 	}
 	builder.AddLiteral("\n| project log, Role, namespace_name, container_name, timestamp, kubernetes ")
 
-	parameters.AddString("subscriptionId", subscriptionId)
-	parameters.AddString("resourceGroupName", resourceGroupName)
+	parameters.AddString("subResourceGroupId", fmt.Sprintf("/subscriptions/%s/resourceGroups/%s", subscriptionId, resourceGroupName))
 
 	return &ConfigurableQuery{
 		Name:       "KubeSystem Service Logs",

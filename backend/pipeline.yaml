@@ -91,6 +91,22 @@ resourceGroups:
         resourceGroup: service
         step: output
         name: cosmosDBDocumentEndpoint
+      regionalOidcStorageAccountBlobEndpoint:
+        resourceGroup: service
+        step: output
+        name: regionalOidcStorageAccountBlobEndpoint
+      regionalOidcStorageAccountWebEndpoint:
+        resourceGroup: service
+        step: output
+        name: regionalOidcStorageAccountWebEndpoint
+      ocpAcrResourceId:
+        resourceGroup: global
+        step: output
+        name: ocpAcrResourceId
+      ocpAcrHostname:
+        resourceGroup: global
+        step: output
+        name: ocpAcrLoginServer
     dependsOn:
     - resourceGroup: global
       step: mirror-image

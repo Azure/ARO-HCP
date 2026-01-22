@@ -71,7 +71,6 @@ var _ = Describe("Customer", func() {
 			clusterParams1.ManagedResourceGroupName = framework.SuffixName(*customerResourceGroup.Name, "-managed", 64)
 			clusterParams1, err = tc.CreateClusterCustomerResources(ctx, customerResourceGroup, clusterParams1,
 				map[string]interface{}{
-					"persistTagValue":        false,
 					"customerNsgName":        customerNetworkSecurityGroupName,
 					"customerVnetName":       customerVnetName,
 					"customerVnetSubnetName": customerVnetSubnetName,
@@ -86,7 +85,6 @@ var _ = Describe("Customer", func() {
 			clusterParams2.ManagedResourceGroupName = framework.SuffixName(*customerResourceGroup.Name, "-managed-2", 64)
 			clusterParams2, err = tc.CreateClusterCustomerResources(ctx, customerResourceGroup, clusterParams2,
 				map[string]interface{}{
-					"persistTagValue":        false,
 					"customerNsgName":        customerNetworkSecurityGroupName2,
 					"customerVnetName":       customerVnetName2,
 					"customerVnetSubnetName": customerVnetSubnetName2,
@@ -141,7 +139,6 @@ var _ = Describe("Customer", func() {
 			clusterParams3.ManagedResourceGroupName = clusterParams2.ManagedResourceGroupName // Reuse cluster2's managed RG
 			clusterParams3, err = tc.CreateClusterCustomerResources(ctx, customerResourceGroup, clusterParams3,
 				map[string]interface{}{
-					"persistTagValue":        false,
 					"customerNsgName":        customerNetworkSecurityGroupName3,
 					"customerVnetName":       customerVnetName3,
 					"customerVnetSubnetName": customerVnetSubnetName3,

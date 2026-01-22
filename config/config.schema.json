@@ -910,6 +910,17 @@
     "cloud": {
       "type": "string"
     },
+    "cloudEnvironmentName": {
+      "description": "The name of the Azure cloud environment. This conceptually represents the same cloud as the `cloud` attribute but it uses a different naming scheme. Different software in Azure expects different naming schemes representing the same cloud. For example, Secret Store CSI Provider Azure follows this naming scheme and the accepted values for that component can be found in https://github.com/Azure/secrets-store-csi-driver-provider-azure/blob/master/website/content/en/getting-started/usage/_index.md#create-your-own-secretproviderclass-object under the `cloudName` attribute",
+      "type": "string",
+      "enum": [
+        "AzurePublicCloud",
+        "AzureUSGovernmentCloud",
+        "AzureChinaCloud",
+        "AzureGermanCloud",
+        "AzureStackCloud"
+      ]
+    },
     "azureRegionAvailabilityZoneCount": {
       "type": "integer"
     },
@@ -1305,12 +1316,46 @@
         "managedIdentityName": {
           "type": "string",
           "description": "The name of the MSI that will be used by the backend to interact with Azure"
+        },
+        "azureRuntimeConfig": {
+          "type": "object",
+          "properties": {
+            "tlsCertificatesIssuer": {
+              "$ref": "#/definitions/certificateIssuer"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "tlsCertificatesIssuer"
+          ]
         }
       },
       "additionalProperties": false,
       "required": [
         "image",
         "tracing",
+        "k8s",
+        "managedIdentityName",
+        "azureRuntimeConfig"
+      ]
+    },
+    "sessiongate": {
+      "type": "object",
+      "properties": {
+        "image": {
+          "$ref": "#/definitions/containerImage"
+        },
+        "k8s": {
+          "$ref": "#/definitions/k8sDeployment"
+        },
+        "managedIdentityName": {
+          "type": "string",
+          "description": "The name of the MSI that will be used by the sessiongate to interact with Azure"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "image",
         "k8s",
         "managedIdentityName"
       ]
@@ -2422,6 +2467,10 @@
         "alertRuleOwningTeamTag": {
           "type": "string"
         },
+        "alertsEnabled": {
+          "type": "boolean",
+          "description": "Whether ICM alerting is enabled for this region. When false, action groups will be disabled."
+        },
         "icm": {
           "type": "object",
           "properties": {
@@ -2617,10 +2666,6 @@
     },
     "regionRG": {
       "$ref": "#/definitions/resourceGroupName"
-    },
-    "regionBuildout": {
-      "type": "boolean",
-      "description": "Indicates if the region is still in the process of being deployed. When true, various operational features are disabled to prevent issues during deployment, including: ICM alerting. This should be set to false once the region is fully operational"
     },
     "serviceKeyVault": {
       "type": "object",
@@ -2823,6 +2868,7 @@
   "required": [
     "administration",
     "azureGeoShortId",
+    "cloudEnvironmentName",
     "kvCertOfficerPrincipalId",
     "backplaneAPI",
     "clustersService",
@@ -2843,8 +2889,8 @@
     "oidc",
     "region",
     "regionRG",
-    "regionBuildout",
     "serviceKeyVault",
+    "sessiongate",
     "svc",
     "msiRp",
     "msiCredentialsRefresher",

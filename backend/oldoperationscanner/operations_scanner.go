@@ -994,6 +994,9 @@ func convertNodePoolStatus(op operation, nodePoolStatus *arohcpv1alpha1.NodePool
 		//     https://issues.redhat.com/browse/ARO-14969
 		opStatus = arm.ProvisioningStateFailed
 		opError = arm.NewInternalServerError().CloudErrorBody
+		if msg, ok := nodePoolStatus.GetMessage(); ok {
+			opError.Message = msg
+		}
 	default:
 		err = fmt.Errorf("unhandled NodePoolState '%s'", state)
 	}

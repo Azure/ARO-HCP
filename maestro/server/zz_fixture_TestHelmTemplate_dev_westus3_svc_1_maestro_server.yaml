@@ -1,0 +1,548 @@
+---
+# Source: maestro-server/templates/maestro.serviceaccount.yaml
+kind: ServiceAccount
+apiVersion: v1
+metadata:
+  name: 'maestro'
+  namespace: 'maestro'
+  annotations:
+    azure.workload.identity/client-id: '__maestroMsiClientId__'
+    azure.workload.identity/tenant-id: '__tenantId__'
+---
+# Source: maestro-server/templates/maestro.secret.yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: maestro
+  namespace: 'maestro'
+  labels:
+    app: maestro
+stringData:
+  config.yaml: |
+    brokerHost: "__brokerHost__:8883"
+    username: ""
+    password: ""
+    clientCertFile: /secrets/mqtt-creds/maestro.crt
+    clientKeyFile: /secrets/mqtt-creds/maestro.key
+    topics:
+      sourceEvents: sources/maestro/consumers/+/sourceevents
+      agentEvents: sources/maestro/consumers/+/agentevents
+---
+# Source: maestro-server/templates/pg.secret.yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: maestro-db
+  namespace: 'maestro'
+stringData:
+  db.host: '__databaseHost__'
+  db.port: "5432"
+  db.name: 'maestro'
+  db.user: 'maestro-server'
+  db.password: ''
+---
+# Source: maestro-server/templates/grpc.service.yaml
+kind: Service
+apiVersion: v1
+metadata:
+  name: maestro-grpc
+  namespace: 'maestro'
+  labels:
+    app: maestro-grpc
+    port: grpc
+spec:
+  selector:
+    app: maestro
+  ports:
+  - port: 8090
+    targetPort: 8090
+    protocol: TCP
+---
+# Source: maestro-server/templates/health.service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: maestro-healthcheck
+  namespace: 'maestro'
+  labels:
+    app: maestro
+    port: healthcheck
+spec:
+  selector:
+    app: maestro
+  ports:
+  - port: 8083
+    targetPort: 8083
+---
+# Source: maestro-server/templates/http.service.yaml
+kind: Service
+apiVersion: v1
+metadata:
+  name: maestro
+  namespace: 'maestro'
+  labels:
+    app: maestro
+    port: api
+spec:
+  selector:
+    app: maestro
+  ports:
+  - port: 8000
+    targetPort: 8000
+    protocol: TCP
+---
+# Source: maestro-server/templates/metrics.service.yaml
+kind: Service
+apiVersion: v1
+metadata:
+  name: maestro-metrics
+  namespace: 'maestro'
+  labels:
+    app: maestro
+    port: metrics
+spec:
+  selector:
+    app: maestro
+  ports:
+  - port: 8080
+    targetPort: 8080
+    name: metrics
+---
+# Source: maestro-server/templates/maestro.deployment.yaml
+kind: Deployment
+apiVersion: apps/v1
+metadata:
+  name: maestro
+  namespace: 'maestro'
+  labels:
+    app: maestro
+spec:
+  selector:
+    matchLabels:
+      app: maestro
+  replicas: 3
+  strategy:
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: maestro
+        azure.workload.identity/use: "true"
+      annotations:
+        checksum/credsstore: '28e1b3e109dfc763964313710316150b662d9db8e0315589c489cfaab14c8492'
+        checksum/config: '2caa0dc45400ef83051372cb10d7521f9b9bd3b144ab9230a184b8fad2c6d985'
+        checksum/db: '19eed6c919eed7698f915ae25586f280f44d8eb7eeb3208ba31812b2b1dfcd00'
+    spec:
+      topologySpreadConstraints:
+      - maxSkew: 1
+        topologyKey: 'topology.kubernetes.io/zone'
+        whenUnsatisfiable: ScheduleAnyway
+        labelSelector:
+          matchLabels:
+            app: maestro
+      - maxSkew: 1
+        topologyKey: kubernetes.io/hostname
+        whenUnsatisfiable: ScheduleAnyway
+        labelSelector:
+          matchLabels:
+            app: maestro
+      serviceAccountName: 'maestro'
+      volumes:
+      - name: db
+        secret:
+          secretName: maestro-db
+      - name: maestro
+        secret:
+          secretName: maestro
+      - name: mqtt-creds
+        csi:
+          driver: secrets-store.csi.k8s.io
+          readOnly: true
+          volumeAttributes:
+            secretProviderClass: "maestro"
+      initContainers:
+      - name: migration
+        image: "arohcpsvcdev.azurecr.io/redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro@sha256:1234567890"
+        imagePullPolicy: IfNotPresent
+        volumeMounts:
+        - name: db
+          mountPath: /secrets/db
+        command:
+        - /usr/local/bin/maestro
+        - migration
+        - --db-host-file=/secrets/db/db.host
+        - --db-port-file=/secrets/db/db.port
+        - --db-user-file=/secrets/db/db.user
+        - --db-password-file=/secrets/db/db.password
+        - --db-name-file=/secrets/db/db.name
+        - --db-rootcert=
+        - --db-sslmode=require
+        - --alsologtostderr
+        - -v=2
+        - --db-auth-method=az-entra
+      containers:
+      - name: service
+        image: "arohcpsvcdev.azurecr.io/redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro@sha256:1234567890"
+        imagePullPolicy: IfNotPresent
+        volumeMounts:
+        - name: db
+          mountPath: /secrets/db
+        - name: maestro
+          mountPath: /secrets/maestro
+        - name: mqtt-creds
+          mountPath: /secrets/mqtt-creds
+          readOnly: true
+        env:
+        - name: OTEL_EXPORTER_OTLP_ENDPOINT
+          value: 'http://ingest.observability:4318'
+        - name: OTEL_TRACES_EXPORTER
+          value: 'otlp'
+        - name: "AMS_ENV"
+          value: "production"
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: metadata.name
+        command:
+        - /usr/local/bin/maestro
+        - server
+        - --client-id=maestro-$(POD_NAME)
+        - --subscription-type=broadcast
+        - --db-host-file=/secrets/db/db.host
+        - --db-port-file=/secrets/db/db.port
+        - --db-user-file=/secrets/db/db.user
+        - --db-password-file=/secrets/db/db.password
+        - --db-name-file=/secrets/db/db.name
+        - --db-rootcert=
+        - --db-sslmode=require
+        - --db-max-open-connections=50
+        - --message-broker-config-file=/secrets/maestro/config.yaml
+        - --message-broker-type=mqtt
+        - --enable-https=false
+        - --enable-grpc-server=true
+        - --disable-grpc-tls=true
+        - --server-hostname=
+        - --http-server-bindport=8000
+        - --grpc-server-bindport=8090
+        - --health-check-server-bindport=8083
+        - --enable-health-check-https=false
+        - --enable-db-debug=false
+        - --enable-metrics-https=false
+        - --http-read-timeout=60s
+        - --http-write-timeout=60s
+        - --label-metrics-inclusion-duration=168h
+        - --alsologtostderr
+        - -v=2
+        - --db-auth-method=az-entra
+        resources:
+          requests:
+            cpu: '200m'
+            memory: '512Mi'
+          limits:
+            cpu: '1'
+            memory: '1Gi'
+        livenessProbe:
+          httpGet:
+            path: /healthcheck
+            port: 8083
+            scheme: HTTP
+          initialDelaySeconds: 25
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /healthcheck
+            port: 8083
+            scheme: HTTP
+            httpHeaders:
+            - name: User-Agent
+              value: Probe
+          initialDelaySeconds: 20
+          periodSeconds: 5
+---
+# Source: maestro-server/templates/postgres-breakglass.deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres-breakglass
+  namespace: 'maestro'
+  labels:
+    app: postgres-breakglass
+spec:
+  replicas: 0
+  selector:
+    matchLabels:
+      app: postgres-breakglass
+  template:
+    metadata:
+      labels:
+        app: postgres-breakglass
+        azure.workload.identity/use: "true"
+    spec:
+      serviceAccount: 'maestro'
+      serviceAccountName: 'maestro'
+      initContainers:
+      - name: init
+        image: 'mcr.microsoft.com/azure-cli:cbl-mariner2.0'
+        imagePullPolicy: IfNotPresent
+        command:
+        - /bin/sh
+        - -c
+        - |
+          set -euo pipefail
+          echo "PostgreSQL breakglass init container started at $(date)"
+
+          # Check required environment variables
+          if [ -z "${AZURE_FEDERATED_TOKEN_FILE:-}" ]; then
+            echo "Error: AZURE_FEDERATED_TOKEN_FILE environment variable is not set, check workload identity settings"
+            exit 1
+          fi
+          if [ -z "${AZURE_CLIENT_ID:-}" ]; then
+            echo "Error: AZURE_CLIENT_ID environment variable is not set, check workload identity settings"
+            exit 1
+          fi
+          if [ -z "${AZURE_TENANT_ID:-}" ]; then
+            echo "Error: AZURE_TENANT_ID environment variable is not set, check workload identity settings"
+            exit 1
+          fi
+
+          echo "Logging into Azure using workload identity..."
+          FEDERATED_TOKEN="$(cat $AZURE_FEDERATED_TOKEN_FILE)"
+          az login --federated-token "$FEDERATED_TOKEN" --service-principal -u $AZURE_CLIENT_ID -t $AZURE_TENANT_ID
+
+          echo "Getting PostgreSQL access token..."
+          ACCESS_TOKEN=$(az account get-access-token --resource-type oss-rdbms -o json | jq .accessToken -r)
+
+          if [ -z "$ACCESS_TOKEN" ] || [ "$ACCESS_TOKEN" = "null" ]; then
+            echo "Failed to get access token"
+            exit 1
+          fi
+
+          echo "Writing access token and connect script to shared volume..."
+          {
+            echo "#!/bin/sh"
+            echo "export PGPASSWORD=$ACCESS_TOKEN"
+            echo "exec psql"
+          } > /breakglass/connect.sh
+          chmod +x /breakglass/connect.sh
+
+          echo "Access token and script written successfully"
+          echo "Init container completed at $(date)"
+        volumeMounts:
+        - name: breakglass
+          mountPath: /breakglass
+      containers:
+      - name: postgres
+        image: mcr.microsoft.com/cbl-mariner/base/postgres:14
+        command:
+        - /bin/bash
+        - -c
+        - |
+          # Create welcome message for both bash and sh users
+          {
+            echo '# PostgreSQL Breakglass Access'
+            echo 'echo ""'
+            echo 'echo "PostgreSQL Breakglass Access Ready"'
+            echo 'echo "To connect to PostgreSQL, run: connect"'
+            echo 'echo ""'
+            echo ''
+            echo '# Connection alias'
+            echo 'alias connect="/breakglass/connect.sh"'
+          } > ~/.bashrc
+
+          # Copy to .profile for /bin/sh users
+          cp ~/.bashrc ~/.profile
+
+          echo "PostgreSQL breakglass container ready at $(date)"
+          sleep infinity
+        env:
+        - name: PGUSER
+          value: "maestro-server"
+        - name: PGDATABASE
+          value: "maestro"
+        - name: PGHOST
+          value: "__databaseHost__"
+        - name: PGPORT
+          value: "5432"
+        volumeMounts:
+        - name: breakglass
+          mountPath: /breakglass
+      volumes:
+      - name: breakglass
+        emptyDir: {}
+---
+# Source: maestro-server/templates/pg.deployment.yaml
+#
+---
+# Source: maestro-server/templates/pg.pvc.yaml
+#
+---
+# Source: maestro-server/templates/pg.service.yaml
+#
+---
+# Source: maestro-server/templates/acrpullbinding.yaml
+apiVersion: acrpull.microsoft.com/v1beta2
+kind: AcrPullBinding
+metadata:
+  name: pull-binding
+  namespace: 'maestro'
+spec:
+  acr:
+    environment: PublicCloud
+    server: 'arohcpsvcdev.azurecr.io'
+    scope: 'repository:redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro:pull'
+  auth:
+    workloadIdentity:
+      serviceAccountRef: 'maestro'
+      clientID: '__imagePullerMsiClientId__'
+      tenantID: '__tenantId__'
+  serviceAccountName: 'maestro'
+---
+# Source: maestro-server/templates/allow-cluster-service.authorizationpolicy.yaml
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-cluster-service
+  namespace: 'maestro'
+spec:
+  action: "ALLOW"
+  rules:
+    - to:
+      - operation:
+          ports:
+            - "8000"
+            - "8090"
+      from:
+      - source:
+          principals:
+            - "cluster.local/ns/clusters-service/sa/clusters-service"
+  selector:
+    matchLabels:
+      app: "maestro"
+---
+# Source: maestro-server/templates/allow-maestro-to-db.authorizationpolicy.yaml
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-maestro-to-db
+  namespace: 'maestro'
+spec:
+  action: "ALLOW"
+  rules:
+  - from:
+    - source:
+        principals: ["cluster.local/ns/maestro/sa/maestro"]
+    to:
+    - operation:
+        ports:
+        - "5432"
+  selector:
+    matchLabels:
+      name: "maestro-db"
+---
+# Source: maestro-server/templates/allow-metrics.authorizationpolicy.yaml
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-metrics
+  namespace: 'maestro'
+spec:
+  action: "ALLOW"
+  rules:
+  - to:
+    - operation:
+        paths: ["/metrics"]
+        methods: ["GET"]
+        ports: ["8080"]
+  selector:
+    matchLabels:
+      app: "maestro"
+---
+# Source: maestro-server/templates/allow-nothing.authorizationpolicy.yaml
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-nothing
+  namespace: 'maestro'
+spec: {}
+---
+# Source: maestro-server/templates/allow-registration-job-to-maestro.authorizationpolicy.yaml
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-registration-job-to-maestro
+  namespace: 'maestro'
+spec:
+  action: "ALLOW"
+  rules:
+  - from:
+    - source:
+        principals: ["cluster.local/ns/maestro/sa/default"]
+    to:
+    - operation:
+        ports:
+        - "8000"
+  selector:
+    matchLabels:
+      app: "maestro"
+---
+# Source: maestro-server/templates/maestro.peerauthentication.yaml
+apiVersion: security.istio.io/v1beta1
+kind: PeerAuthentication
+metadata:
+  name: default
+  namespace: 'maestro'
+spec:
+  selector:
+    matchLabels:
+      app: maestro
+  portLevelMtls:
+    8080:
+      mode: PERMISSIVE
+    8000:
+      mode: PERMISSIVE
+---
+# Source: maestro-server/templates/maestro.secretproviderclass.yaml
+apiVersion: secrets-store.csi.x-k8s.io/v1
+kind: SecretProviderClass
+metadata:
+  name: maestro
+  namespace: 'maestro'
+spec:
+  parameters:
+    clientID: '__maestroMsiClientId__'
+    cloudName: 'AzurePublicCloud'
+    keyvaultName: 'aro-hcp-dev-svc-kv'
+    objects: |-
+      array:
+        - |
+          objectName: 'maestro-server-usw3-dev'
+          objectType: secret
+          objectAlias: maestro
+    tenantId: '__tenantId__'
+    usePodIdentity: "false"
+  provider: azure
+---
+# Source: maestro-server/templates/maestro.servicemonitor.yaml
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: maestro-server
+  namespace: 'maestro'
+spec:
+  endpoints:
+  - interval: 30s
+    path: /metrics
+    port: metrics
+    scheme: http
+  namespaceSelector:
+    matchNames:
+    - 'maestro'
+  selector:
+    matchLabels:
+      app: maestro
+      port: metrics
+

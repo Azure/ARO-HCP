@@ -42,6 +42,7 @@ import (
 	"k8s.io/client-go/tools/leaderelection"
 	"k8s.io/client-go/tools/leaderelection/resourcelock"
 	"k8s.io/klog/v2"
+	utilsclock "k8s.io/utils/clock"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
@@ -49,8 +50,12 @@ import (
 
 	ocmsdk "github.com/openshift-online/ocm-sdk-go"
 
-	"github.com/Azure/ARO-HCP/backend/controllers"
 	"github.com/Azure/ARO-HCP/backend/oldoperationscanner"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/informers"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/mismatchcontrollers"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/operationcontrollers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
@@ -313,24 +318,41 @@ func Run(cmd *cobra.Command, args []string) error {
 		var (
 			startedLeading                   atomic.Bool
 			operationsScanner                = oldoperationscanner.NewOperationsScanner(dbClient, ocmConnection, argLocation, subscriptionLister)
-			subscriptionInformerController   = controllers.NewSubscriptionInformerController(dbClient, subscriptionLister)
+			subscriptionInformerController   = informers.NewSubscriptionInformerController(dbClient, subscriptionLister)
 			doNothingController              = controllers.NewDoNothingExampleController(dbClient, subscriptionLister)
-			operationClusterCreateController = controllers.NewOperationClusterCreateController(
-				argLocation,
+			operationClusterCreateController = operationcontrollers.NewGenericOperationClusterCreateController(
+				"OperationClusterCreate",
+				operationcontrollers.NewOperationClusterCreateSynchronizer(
+					argLocation,
+					dbClient,
+					clusterServiceClient,
+					http.DefaultClient,
+				),
 				10*time.Second,
 				subscriptionLister,
 				dbClient,
-				clusterServiceClient,
-				http.DefaultClient,
 			)
-			operationClusterDeleteController = controllers.NewOperationClusterDeleteController(
-				argLocation,
+			operationClusterDeleteController = operationcontrollers.NewGenericOperationClusterCreateController(
+				"OperationClusterDelete",
+				operationcontrollers.NewOperationClusterDeleteSynchronizer(
+					dbClient,
+					clusterServiceClient,
+					http.DefaultClient,
+				),
 				10*time.Second,
 				subscriptionLister,
 				dbClient,
-				clusterServiceClient,
-				http.DefaultClient,
 			)
+			clusterServiceMatchingClusterController = mismatchcontrollers.NewClusterServiceClusterMatchingController(dbClient, subscriptionLister, clusterServiceClient)
+			cosmosMatchingNodePoolController        = controllerutils.NewClusterWatchingController(
+				"CosmosMatchingNodePools", dbClient, subscriptionLister, 60*time.Minute,
+				mismatchcontrollers.NewCosmosNodePoolMatchingController(dbClient, clusterServiceClient))
+			cosmosMatchingExternalAuthController = controllerutils.NewClusterWatchingController(
+				"CosmosMatchingExternalAuths", dbClient, subscriptionLister, 60*time.Minute,
+				mismatchcontrollers.NewCosmosExternalAuthMatchingController(dbClient, clusterServiceClient))
+			cosmosMatchingClusterController = controllerutils.NewClusterWatchingController(
+				"CosmosMatchingClusters", dbClient, subscriptionLister, 60*time.Minute,
+				mismatchcontrollers.NewCosmosClusterMatchingController(utilsclock.RealClock{}, dbClient, clusterServiceClient))
 		)
 
 		le, err := leaderelection.NewLeaderElector(leaderelection.LeaderElectionConfig{
@@ -347,6 +369,10 @@ func Run(cmd *cobra.Command, args []string) error {
 					go doNothingController.Run(ctx, 20)
 					go operationClusterCreateController.Run(ctx, 20)
 					go operationClusterDeleteController.Run(ctx, 20)
+					go clusterServiceMatchingClusterController.Run(ctx, 20)
+					go cosmosMatchingNodePoolController.Run(ctx, 20)
+					go cosmosMatchingExternalAuthController.Run(ctx, 20)
+					go cosmosMatchingClusterController.Run(ctx, 20)
 				},
 				OnStoppedLeading: func() {
 					operationsScanner.LeaderGauge.Set(0)

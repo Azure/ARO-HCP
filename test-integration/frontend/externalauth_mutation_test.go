@@ -48,13 +48,14 @@ func TestFrontendExternalAuthMutation(t *testing.T) {
 	err = testInfo.CreateInitialCosmosContent(ctx, api.Must(fs.Sub(artifacts, "artifacts/ExternalAuthMutation/initial-cosmos-state")))
 	require.NoError(t, err)
 
-	// create anything and round trip anything for externalAuth-service
-	err = integrationutils.TrivialPassThroughClusterServiceMock(t, testInfo, nil)
+	// create anything and round trip anything for nodePool-service
+	// this happens here because the mock is associated with frontend. it's a little awkward to add instances, but we'll deal
+	err = testInfo.AddContent(t, api.Must(fs.Sub(artifacts, "artifacts/ExternalAuthMutation/initial-cluster-service-state")))
 	require.NoError(t, err)
 
 	dirContent := api.Must(artifacts.ReadDir("artifacts/ExternalAuthMutation"))
 	for _, dirEntry := range dirContent {
-		if dirEntry.Name() == "initial-cosmos-state" {
+		if dirEntry.Name() == "initial-cosmos-state" || dirEntry.Name() == "initial-cluster-service-state" {
 			continue
 		}
 		createTestDir, err := fs.Sub(artifacts, "artifacts/ExternalAuthMutation/"+dirEntry.Name())

@@ -24,14 +24,12 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
 
-	"github.com/Azure/ARO-HCP/tooling/hcpctl/cmd/base"
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/kusto"
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/mustgather"
 )
 
 // RawMustGatherOptions represents the initial, unvalidated configuration for must-gather operations.
 type RawMustGatherOptions struct {
-	BaseOptions                *base.RawBaseOptions
 	Kusto                      string        // Name of the Azure Data Explorer cluster
 	Region                     string        // Region of the Azure Data Explorer cluster
 	OutputPath                 string        // Path to write the output file
@@ -48,7 +46,6 @@ type RawMustGatherOptions struct {
 // DefaultMustGatherOptions returns a new RawMustGatherOptions struct initialized with sensible defaults.
 func DefaultMustGatherOptions() *RawMustGatherOptions {
 	return &RawMustGatherOptions{
-		BaseOptions:  base.DefaultBaseOptions(),
 		QueryTimeout: 5 * time.Minute,
 	}
 }
@@ -73,14 +70,6 @@ func (opts *RawMustGatherOptions) Run(ctx context.Context, runLegacy bool) error
 
 // BindMustGatherOptions configures cobra command flags for must-gather specific options.
 func BindMustGatherOptions(opts *RawMustGatherOptions, cmd *cobra.Command) error {
-	// Bind base options first
-	if opts.BaseOptions == nil {
-		return fmt.Errorf("base options cannot be nil")
-	}
-	if err := base.BindBaseOptions(opts.BaseOptions, cmd); err != nil {
-		return fmt.Errorf("failed to bind base options: %w", err)
-	}
-
 	// Add must-gather specific flags
 	cmd.Flags().StringVar(&opts.Kusto, "kusto", opts.Kusto, "Azure Data Explorer cluster name (required)")
 	cmd.Flags().StringVar(&opts.Region, "region", opts.Region, "Azure Data Explorer cluster region (required)")
@@ -114,11 +103,6 @@ type ValidatedMustGatherOptions struct {
 // Validate performs comprehensive validation of all must-gather input parameters.
 func (o *RawMustGatherOptions) Validate(ctx context.Context) (*ValidatedMustGatherOptions, error) {
 	logger := logr.FromContextOrDiscard(ctx)
-
-	// Validate base options first
-	if err := base.ValidateBaseOptions(o.BaseOptions); err != nil {
-		return nil, err
-	}
 
 	// Validate kusto name
 	if o.Kusto == "" {

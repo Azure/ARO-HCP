@@ -851,6 +851,46 @@ func TestValidateClusterCreate(t *testing.T) {
 			}(),
 			expectErrors: []expectedError{},
 		},
+		{
+			name: "invalid cluster create - MaxNodesTotal exceeds maximum",
+			cluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.Autoscaling.MaxNodesTotal = 501 // exceeds limit of 500
+				return c
+			}(),
+			expectErrors: []expectedError{
+				{message: "must be less than or equal to 500", fieldPath: "customerProperties.autoscaling.maxNodesTotal"},
+			},
+		},
+		{
+			name: "valid cluster create - MaxNodesTotal is zero",
+			cluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.Autoscaling.MaxNodesTotal = 0 // cluster limit of 500 still enforced at nodepool level
+				return c
+			}(),
+			expectErrors: []expectedError{},
+		},
+		{
+			name: "invalid cluster create - MaxNodesTotal is negative",
+			cluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.Autoscaling.MaxNodesTotal = -1
+				return c
+			}(),
+			expectErrors: []expectedError{
+				{message: "must be greater than or equal to 0", fieldPath: "customerProperties.autoscaling.maxNodesTotal"},
+			},
+		},
+		{
+			name: "valid cluster create - MaxNodesTotal at maximum",
+			cluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.Autoscaling.MaxNodesTotal = 500 // at the limit
+				return c
+			}(),
+			expectErrors: []expectedError{},
+		},
 	}
 
 	for _, tt := range tests {
@@ -936,6 +976,21 @@ func TestValidateClusterUpdate(t *testing.T) {
 				return c
 			}(),
 			expectErrors: []expectedError{},
+		},
+		{
+			name: "invalid cluster update - MaxNodesTotal exceeds maximum",
+			newCluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.Autoscaling.MaxNodesTotal = 501 // exceeds limit of 500
+				return c
+			}(),
+			oldCluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				return c
+			}(),
+			expectErrors: []expectedError{
+				{message: "must be less than or equal to 500", fieldPath: "customerProperties.autoscaling.maxNodesTotal"},
+			},
 		},
 		{
 			name: "valid cluster update - allow node drain timeout change",
