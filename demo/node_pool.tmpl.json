@@ -2,7 +2,7 @@
   "location": "$location",
   "properties": {
     "version": {
-      "id": "4.19.7",
+      "id": "4.20.8",
       "channelGroup": "stable"
     },
     "platform": {
