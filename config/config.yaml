@@ -732,6 +732,8 @@ defaults:
     azureRuntimeConfig:
       tlsCertificatesIssuer: OneCertV2-PublicCA
     # OCP Versions configuration
+    # Static config file path: cluster-service/helm-charts/cluster-service/static-configs/
+    ocpVersionsConfigFile: "ocp-versions-current.yaml"
     ocpVersions:
       defaultVersion:
         version: 4.20.8
@@ -920,12 +922,8 @@ clouds:
         azureRuntimeConfig:
           tlsCertificatesIssuer: Self
         # OCP Versions configuration
-        ocpVersions:
-          channelGroups:
-            candidate:
-              minVersion: 4.19.7
-            nightly:
-              minVersion: 4.19.0-0.nightly-20200101
+        # Static config file path: cluster-service/helm-charts/cluster-service/static-configs/
+        ocpVersionsConfigFile: "ocp-versions-next.yaml"
       # Hypershift Operator
       hypershift:
         image:

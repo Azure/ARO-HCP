@@ -1235,6 +1235,11 @@
             "channelGroups"
           ],
           "additionalProperties": false
+        },
+        "ocpVersionsConfigFile": {
+          "type": "string",
+          "pattern": "^ocp-versions-[a-z0-9]+(-[a-z0-9]+)*\\.yaml$",
+          "description": "The filename of the static OCP versions configuration file to use for this environment. File must exist in cluster-service/helm-charts/cluster-service/static-configs/"
         }
       },
       "additionalProperties": false,
@@ -1248,7 +1253,7 @@
         "postgres",
         "tracing",
         "azureRuntimeConfig",
-        "ocpVersions"
+        "ocpVersionsConfigFile"
       ]
     },
     "cxKeyVault": {
