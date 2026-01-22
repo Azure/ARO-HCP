@@ -79,8 +79,8 @@ func BindMustGatherOptions(opts *RawMustGatherOptions, cmd *cobra.Command) error
 	cmd.Flags().StringVar(&opts.ResourceGroup, "resource-group", opts.ResourceGroup, "resource group")
 	cmd.Flags().StringVar(&opts.ResourceId, "resource-id", opts.ResourceId, "resource ID")
 	cmd.Flags().BoolVar(&opts.SkipHostedControlPlaneLogs, "skip-hcp-logs", opts.SkipHostedControlPlaneLogs, "Do not gather customer (ocm namespaces) logs")
-	cmd.Flags().TimeVar(&opts.TimestampMin, "timestamp-min", opts.TimestampMin, []string{time.DateTime}, "timestamp minimum")
-	cmd.Flags().TimeVar(&opts.TimestampMax, "timestamp-max", opts.TimestampMax, []string{time.DateTime}, "timestamp maximum")
+	cmd.Flags().TimeVar(&opts.TimestampMin, "timestamp-min", opts.TimestampMin, []string{time.DateTime}, "timestamp minimum (default is 1 day back)")
+	cmd.Flags().TimeVar(&opts.TimestampMax, "timestamp-max", opts.TimestampMax, []string{time.DateTime}, "timestamp maximum (default is now)")
 	cmd.Flags().IntVar(&opts.Limit, "limit", opts.Limit, "limit the number of results")
 
 	// Mark required flags
@@ -175,6 +175,15 @@ func (o *ValidatedMustGatherOptions) Complete(ctx context.Context) (*MustGatherO
 		if err != nil {
 			return nil, fmt.Errorf("failed to create customer logs directory: %w", err)
 		}
+	}
+
+	// Set default timestamps in options
+	if o.TimestampMin.IsZero() {
+		o.TimestampMin = time.Now().Add(time.Hour * -24)
+	}
+
+	if o.TimestampMax.IsZero() {
+		o.TimestampMax = time.Now()
 	}
 
 	return &MustGatherOptions{

@@ -104,7 +104,7 @@ func (opts *QueryOptions) GetServicesQueries() []*kusto.ConfigurableQuery {
 		}
 		query.WithTable(table).WithDefaultFields()
 
-		query.WithTimestampMinAndMax(getTimeMinMax(opts.TimestampMin, opts.TimestampMax))
+		query.WithTimestampMinAndMax(opts.TimestampMin, opts.TimestampMax)
 		query.WithClusterIdOrSubscriptionAndResourceGroup(opts.ClusterIds, opts.SubscriptionId, opts.ResourceGroupName)
 		if opts.Limit > 0 {
 			query.WithLimit(opts.Limit)
@@ -124,7 +124,7 @@ func (opts *QueryOptions) GetHostedControlPlaneLogsQuery() []*kusto.Configurable
 		}
 		query.WithTable(containerLogsTable).WithDefaultFields()
 
-		query.WithTimestampMinAndMax(getTimeMinMax(opts.TimestampMin, opts.TimestampMax))
+		query.WithTimestampMinAndMax(opts.TimestampMin, opts.TimestampMax)
 		query.WithClusterId(clusterId)
 		if opts.Limit > 0 {
 			query.WithLimit(opts.Limit)
@@ -137,14 +137,4 @@ func (opts *QueryOptions) GetHostedControlPlaneLogsQuery() []*kusto.Configurable
 
 func (opts *QueryOptions) GetClusterIdQuery() *kusto.ConfigurableQuery {
 	return kusto.NewClusterIdQuery(servicesDatabase, clustersServiceLogsTable, opts.SubscriptionId, opts.ResourceGroupName)
-}
-
-func getTimeMinMax(timestampMin, timestampMax time.Time) (time.Time, time.Time) {
-	if timestampMin.IsZero() {
-		timestampMin = time.Now().Add(-24 * time.Hour)
-	}
-	if timestampMax.IsZero() {
-		timestampMax = time.Now()
-	}
-	return timestampMin, timestampMax
 }

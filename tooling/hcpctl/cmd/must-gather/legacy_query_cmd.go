@@ -99,7 +99,7 @@ type kubernetesCol struct {
 
 func processKubesystemLogsRow(row *KubesystemLogsRow) error {
 	// read containername/namespace from the row
-	// handle inconsitent columns
+	// handle inconsistent columns
 
 	if row.ContainerName == "" {
 		kubernetesCol := kubernetesCol{}
@@ -116,11 +116,15 @@ func processKubesystemLogsRow(row *KubesystemLogsRow) error {
 
 func executeKubeSystemQueries(ctx context.Context, opts *MustGatherOptions, queryOpts mustgather.QueryOptions) error {
 	query := GetKubeSystemQuery(opts.SubscriptionID, opts.ResourceGroup, queryOpts.ClusterIds)
+	query.WithOrderByTimestampAsc()
 	return castQueryAndWriteToFile(ctx, opts, ServicesLogDirectory, []*kusto.ConfigurableQuery{query})
 }
 
 func executeKubeSystemHostedControlPlaneLogsQuery(ctx context.Context, opts *MustGatherOptions, queryOpts mustgather.QueryOptions) error {
 	query := GetKubeSystemHostedControlPlaneLogsQuery(queryOpts)
+	for _, q := range query {
+		q.WithOrderByTimestampAsc()
+	}
 	return castQueryAndWriteToFile(ctx, opts, HostedControlPlaneLogDirectory, query)
 }
 
@@ -243,6 +247,7 @@ func executeClusterIdQuery(ctx context.Context, opts *MustGatherOptions, query *
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute query: %w", err)
 	}
+
 	close(outputChannel)
 
 	if err := g.Wait(); err != nil {

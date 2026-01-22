@@ -54,20 +54,6 @@ func TestNewQueryOptions(t *testing.T) {
 	assert.Error(t, err)
 }
 
-func TestGetTimeMinMax(t *testing.T) {
-	now := time.Now()
-
-	// Both provided - should pass through
-	min, max := getTimeMinMax(now.Add(-1*time.Hour), now)
-	assert.Equal(t, now.Add(-1*time.Hour), min)
-	assert.Equal(t, now, max)
-
-	// Zero timestamps - should get defaults
-	min, max = getTimeMinMax(time.Time{}, time.Time{})
-	assert.WithinDuration(t, now.Add(-24*time.Hour), min, time.Minute)
-	assert.WithinDuration(t, now, max, time.Minute)
-}
-
 func TestQueryOptions_GetServicesQueries(t *testing.T) {
 	opts := &QueryOptions{
 		SubscriptionId:    "test-sub",

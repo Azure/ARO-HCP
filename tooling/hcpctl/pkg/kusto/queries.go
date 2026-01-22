@@ -110,15 +110,25 @@ func NewClusterIdQuery(database, clusterServiceLogsTable, subscriptionId, resour
 }
 
 // NewLegacyClusterIDQuery creates a new KQL query for obtaining cluster IDs
-// this works for the old kusto infrastucture setup that uses the HCPServiceLogs database
+// this works for the old kusto infrastructure setup that uses the HCPServiceLogs database
 func NewLegacyClusterIdQuery(database, clusterServiceLogsTable, subscriptionId, resourceGroup string) *ConfigurableQuery {
 	builder := kql.New("").AddTable(clusterServiceLogsTable)
-	builder.AddLiteral("\n| where log has subResourceGroupId")
-	builder.AddLiteral("\n| extend cid=extract(@\"cid='([a-v0-9]{32})'\", 1, tostring(log))")
-	builder.AddLiteral("\n| distinct cid")
+	// TODO: the 2 day timestamp is not being honored for timestamps, but the query will timeout without scoping it.
+	builder.AddLiteral(`
+| where TIMESTAMP > ago(2d)
+| where namespace_name == "aro-hcp"
+| where container_name startswith "aro-hcp-"
+| extend d = parse_json(log)
+| project d
+| evaluate bag_unpack(d)
+| where resource_id has subResourceGroupId
+| where isnotempty(internal_id)
+| extend cid=extract(cidRegex, 1, internal_id)
+| distinct cid`)
 
 	parameters := kql.NewParameters()
 	parameters.AddString("subResourceGroupId", fmt.Sprintf("/subscriptions/%s/resourceGroups/%s", subscriptionId, resourceGroup))
+	parameters.AddString("cidRegex", "/api/aro_hcp/v1alpha1/clusters/([^/]+)")
 
 	return &ConfigurableQuery{
 		Name:       "Cluster ID",
