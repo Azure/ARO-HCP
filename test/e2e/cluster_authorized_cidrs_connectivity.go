@@ -27,9 +27,14 @@ import (
 	. "github.com/onsi/gomega"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/client-go/rest"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
+	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 
+	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 )
@@ -48,6 +53,8 @@ var _ = Describe("Authorized CIDRs", func() {
 					customerNetworkSecurityGroupName = "customer-nsg-name"
 					customerVnetName                 = "customer-vnet-name"
 					customerVnetSubnetName           = "customer-vnet-subnet1"
+					customerExternalAuthName         = "ext-auth-cidr"
+					externalAuthSubjectPrefix        = "prefix-"
 				)
 
 				tc := framework.NewTestContext()
@@ -230,6 +237,139 @@ var _ = Describe("Authorized CIDRs", func() {
 				)
 				Expect(err).NotTo(HaveOccurred())
 
+				By("creating an app registration with a client secret")
+				app, sp, err := tc.NewAppRegistrationWithServicePrincipal(ctx)
+				Expect(err).NotTo(HaveOccurred())
+
+				graphClient, err := tc.GetGraphClient(ctx)
+				Expect(err).NotTo(HaveOccurred())
+
+				pass, err := graphClient.AddPassword(ctx, app.ID, "cidr-external-auth-pass", time.Now(), time.Now().Add(24*time.Hour))
+				Expect(err).NotTo(HaveOccurred())
+
+				By("creating an external auth config with a prefix")
+				extAuth := hcpsdk20240610preview.ExternalAuth{
+					Properties: &hcpsdk20240610preview.ExternalAuthProperties{
+						Issuer: &hcpsdk20240610preview.TokenIssuerProfile{
+							URL:       to.Ptr(fmt.Sprintf("https://login.microsoftonline.com/%s/v2.0", tc.TenantID())),
+							Audiences: []*string{to.Ptr(app.AppID)},
+						},
+						Claim: &hcpsdk20240610preview.ExternalAuthClaimProfile{
+							Mappings: &hcpsdk20240610preview.TokenClaimMappingsProfile{
+								Username: &hcpsdk20240610preview.UsernameClaimProfile{
+									Claim:        to.Ptr("sub"), // objectID of SP
+									PrefixPolicy: to.Ptr(hcpsdk20240610preview.UsernameClaimPrefixPolicyPrefix),
+									Prefix:       to.Ptr(externalAuthSubjectPrefix),
+								},
+								Groups: &hcpsdk20240610preview.GroupClaimProfile{
+									Claim: to.Ptr("groups"),
+								},
+							},
+						},
+						Clients: []*hcpsdk20240610preview.ExternalAuthClientProfile{
+							{
+								ClientID: to.Ptr(app.AppID),
+								Component: &hcpsdk20240610preview.ExternalAuthClientComponentProfile{
+									Name:                to.Ptr("console"),
+									AuthClientNamespace: to.Ptr("openshift-console"),
+								},
+								Type: to.Ptr(hcpsdk20240610preview.ExternalAuthClientTypeConfidential),
+							},
+							{
+								ClientID: to.Ptr(app.AppID),
+								Component: &hcpsdk20240610preview.ExternalAuthClientComponentProfile{
+									Name:                to.Ptr("cli"),
+									AuthClientNamespace: to.Ptr("openshift-console"),
+								},
+								Type: to.Ptr(hcpsdk20240610preview.ExternalAuthClientTypePublic),
+							},
+						},
+					},
+				}
+				_, err = framework.CreateOrUpdateExternalAuthAndWait(ctx, tc.Get20240610ClientFactoryOrDie(ctx).NewExternalAuthsClient(), *resourceGroup.Name, clusterName, customerExternalAuthName, extAuth, 15*time.Minute)
+				Expect(err).NotTo(HaveOccurred())
+
+				By("verifying ExternalAuth is in a Succeeded state")
+				eaResult, err := framework.GetExternalAuth(ctx, tc.Get20240610ClientFactoryOrDie(ctx).NewExternalAuthsClient(), *resourceGroup.Name, clusterName, customerExternalAuthName)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(*eaResult.Properties.ProvisioningState).To(Equal(hcpsdk20240610preview.ExternalAuthProvisioningStateSucceeded))
+
+				By("creating a cluster role binding for the entra application via VM")
+				clusterRoleBindingName := "external-auth-cluster-admin"
+				clusterRoleBindingSubject := externalAuthSubjectPrefix + sp.ID
+				createClusterRoleBindingCmd := fmt.Sprintf(
+					`echo '%s' | base64 -d > /tmp/kubeconfig && kubectl --kubeconfig=/tmp/kubeconfig create clusterrolebinding %s --clusterrole=cluster-admin --user=%s`,
+					kubeconfigB64,
+					clusterRoleBindingName,
+					clusterRoleBindingSubject,
+				)
+				_, err = framework.RunVMCommand(ctx, tc, *resourceGroup.Name, vmName, createClusterRoleBindingCmd, 2*time.Minute)
+				Expect(err).NotTo(HaveOccurred())
+
+				By("creating a rest config using OIDC authentication")
+				Expect(tc.TenantID()).NotTo(BeEmpty())
+				cred, err := azidentity.NewClientSecretCredential(tc.TenantID(), app.AppID, pass.SecretText, nil)
+				Expect(err).NotTo(HaveOccurred())
+
+				// MSGraph is eventually consistent, wait up to 2 minutes for the token to be valid
+				var accessToken azcore.AccessToken
+				Eventually(func() error {
+					var err error
+					accessToken, err = cred.GetToken(ctx, policy.TokenRequestOptions{
+						Scopes: []string{fmt.Sprintf("%s/.default", app.AppID)},
+					})
+
+					if err != nil {
+						GinkgoWriter.Printf("GetToken failed: %v\n", err)
+					}
+					return err
+				}, 2*time.Minute, 10*time.Second).Should(Succeed())
+
+				config := &rest.Config{
+					Host:        adminRESTConfig.Host,
+					BearerToken: accessToken.Token,
+					TLSClientConfig: rest.TLSClientConfig{
+						Insecure: framework.IsDevelopmentEnvironment(),
+					},
+				}
+				kubeconfigExternalAuth, err := framework.GenerateKubeconfig(config)
+				Expect(err).NotTo(HaveOccurred())
+
+				kubeconfigB64ExternalAuth := base64.StdEncoding.EncodeToString([]byte(kubeconfigExternalAuth))
+				// Use -o name to keep output minimal and avoid 4KB VM output limit
+				kubectlTestExternalAuth := fmt.Sprintf("echo '%s' | base64 -d > /tmp/kubeconfig && kubectl --kubeconfig=/tmp/kubeconfig get nodes -o name", kubeconfigB64ExternalAuth)
+
+				Eventually(func(g Gomega) {
+					output, err := framework.RunVMCommand(ctx, tc, *resourceGroup.Name, vmName, kubectlTestExternalAuth, 2*time.Minute)
+					g.Expect(err).NotTo(HaveOccurred(), "kubectl should execute successfully from authorized VM with OIDC token")
+
+					output = strings.TrimSpace(output)
+					g.Expect(output).NotTo(BeEmpty(), "Should receive node list from Kubernetes API")
+
+					// Count nodes - each line is a node
+					lines := strings.Split(output, "\n")
+					nodeCount := 0
+					for _, line := range lines {
+						if strings.TrimSpace(line) != "" {
+							nodeCount++
+						}
+					}
+					g.Expect(nodeCount).To(Equal(2), "Should have 2 nodes, got: %s", output)
+					By(fmt.Sprintf("Successfully retrieved %d nodes using external auth", nodeCount))
+				}, 5*time.Minute, 20*time.Second).Should(Succeed())
+
+				By("creating the console OAuth client secret for external auth via VM")
+				consoleOAuthSecretName := fmt.Sprintf("%s-console-openshift-console", customerExternalAuthName)
+				clientSecretB64 := base64.StdEncoding.EncodeToString([]byte(pass.SecretText))
+				createSecretCmd := fmt.Sprintf(
+					`echo '%s' | base64 -d > /tmp/kubeconfig && kubectl --kubeconfig=/tmp/kubeconfig create secret generic %s --namespace=openshift-config --from-literal=clientSecret="$(echo '%s' | base64 -d)"`,
+					kubeconfigB64,
+					consoleOAuthSecretName,
+					clientSecretB64,
+				)
+				_, err = framework.RunVMCommand(ctx, tc, *resourceGroup.Name, vmName, createSecretCmd, 2*time.Minute)
+				Expect(err).NotTo(HaveOccurred())
+
 				By("verifying all cluster operators are healthy from authorized VM")
 				// Only output unavailable operators (filter out :True lines) to stay within 4KB VM output limit
 				clusterOperatorsCmd := fmt.Sprintf(
@@ -241,9 +381,7 @@ var _ = Describe("Authorized CIDRs", func() {
 					output, err := framework.RunVMCommand(ctx, tc, *resourceGroup.Name, vmName, clusterOperatorsCmd, 2*time.Minute)
 					g.Expect(err).NotTo(HaveOccurred(), "kubectl get clusteroperators should succeed from authorized VM")
 
-					// Skip console operator as it's not expected to be available in cluster without external auth
-					// To Do: Remove skip once external auth is configured
-					unavailableOperators := parseUnavailableResources(output, "console")
+					unavailableOperators := parseUnavailableResources(output)
 					g.Expect(unavailableOperators).To(BeEmpty(), "All ClusterOperators should report Available=True, but these are not available: %v", unavailableOperators)
 				}, 5*time.Minute, 20*time.Second).Should(Succeed())
 
