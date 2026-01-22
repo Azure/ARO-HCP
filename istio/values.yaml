@@ -7,6 +7,7 @@ mise:
     registry: "{{ .acr.svc.name }}.azurecr.io"
     repository: "{{ .mise.image.repository }}"
     digest: "{{ .mise.image.digest }}"
+    digestv2: "{{ .mise.image.digestv2 }}"
   audit:
     adInstance: "https://{{ .mise.arm.authorityFQDN }}/"
     clientId: "{{ .firstPartyAppClientId }}"
