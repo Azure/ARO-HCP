@@ -1,0 +1,18 @@
+# Binaries
+aro-hcp-exporter
+aro-hcp-exporter.exe
+
+# Test coverage
+coverage.out
+coverage.html
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
