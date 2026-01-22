@@ -356,6 +356,28 @@ func Run(cmd *cobra.Command, args []string) error {
 				subscriptionLister,
 				dbClient,
 			)
+			operationRequestCredentialController = operationcontrollers.NewGenericOperationController(
+				"OperationRequestCredential",
+				operationcontrollers.NewOperationRequestCredentialSynchronizer(
+					dbClient,
+					clusterServiceClient,
+					http.DefaultClient,
+				),
+				10*time.Second,
+				subscriptionLister,
+				dbClient,
+			)
+			operationRevokeCredentialsController = operationcontrollers.NewGenericOperationController(
+				"OperationRevokeCredentials",
+				operationcontrollers.NewOperationRevokeCredentialsSynchronizer(
+					dbClient,
+					clusterServiceClient,
+					http.DefaultClient,
+				),
+				10*time.Second,
+				subscriptionLister,
+				dbClient,
+			)
 			clusterServiceMatchingClusterController = mismatchcontrollers.NewClusterServiceClusterMatchingController(dbClient, subscriptionLister, clusterServiceClient)
 			cosmosMatchingNodePoolController        = controllerutils.NewClusterWatchingController(
 				"CosmosMatchingNodePools", dbClient, subscriptionLister, 60*time.Minute,
@@ -384,6 +406,8 @@ func Run(cmd *cobra.Command, args []string) error {
 					go operationClusterCreateController.Run(ctx, 20)
 					go operationClusterUpdateController.Run(ctx, 20)
 					go operationClusterDeleteController.Run(ctx, 20)
+					go operationRequestCredentialController.Run(ctx, 20)
+					go operationRevokeCredentialsController.Run(ctx, 20)
 					go clusterServiceMatchingClusterController.Run(ctx, 20)
 					go cosmosMatchingNodePoolController.Run(ctx, 20)
 					go cosmosMatchingExternalAuthController.Run(ctx, 20)

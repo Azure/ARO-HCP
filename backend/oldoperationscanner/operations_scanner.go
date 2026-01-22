@@ -61,8 +61,6 @@ const (
 	pollClusterOperationLabel      = "poll_cluster"
 	pollNodePoolOperationLabel     = "poll_node_pool"
 	pollExternalAuthOperationLabel = "poll_external_auth"
-	pollBreakGlassCredential       = "poll_break_glass_credential"
-	pollBreakGlassCredentialRevoke = "poll_break_glass_credential_revoke"
 
 	TracerName = "github.com/Azure/ARO-HCP/backend"
 )
@@ -103,8 +101,6 @@ func listOperationLabelValues() iter.Seq[string] {
 		pollClusterOperationLabel,
 		pollNodePoolOperationLabel,
 		pollExternalAuthOperationLabel,
-		pollBreakGlassCredential,
-		pollBreakGlassCredentialRevoke,
 	})
 }
 
@@ -499,17 +495,10 @@ func (s *OperationsScanner) processOperation(ctx context.Context, op operation) 
 	defer logger.Info("Processed")
 
 	switch op.doc.InternalID.Kind() {
-	case arohcpv1alpha1.ClusterKind:
-		switch op.doc.Request {
-		case database.OperationRequestRevokeCredentials:
-			s.pollBreakGlassCredentialRevoke(ctx, op)
-		}
 	case arohcpv1alpha1.NodePoolKind:
 		s.pollNodePoolOperation(ctx, op)
 	case cmv1.ExternalAuthKind:
 		s.pollExternalAuthOperation(ctx, op)
-	case cmv1.BreakGlassCredentialKind:
-		s.pollBreakGlassCredential(ctx, op)
 	}
 }
 
@@ -589,116 +578,6 @@ func (s *OperationsScanner) pollExternalAuthOperation(ctx context.Context, op op
 	err = database.UpdateOperationStatus(ctx, s.dbClient, op.doc, arm.ProvisioningStateSucceeded, nil, s.postAsyncNotification)
 	if err != nil {
 		s.recordOperationError(ctx, pollExternalAuthOperationLabel, err)
-		logger.Error(fmt.Sprintf("Failed to update operation status: %v", err))
-	}
-}
-
-// pollBreakGlassCredential updates the status of a credential creation operation.
-func (s *OperationsScanner) pollBreakGlassCredential(ctx context.Context, op operation) {
-	logger := utils.LoggerFromContext(ctx)
-	ctx, span := startChildSpan(ctx, "pollBreakGlassCredential")
-	defer span.End()
-	defer s.updateOperationMetrics(pollBreakGlassCredential)()
-	op.setSpanAttributes(span)
-
-	breakGlassCredential, err := s.clusterService.GetBreakGlassCredential(ctx, op.doc.InternalID)
-	if err != nil {
-		s.recordOperationError(ctx, pollBreakGlassCredential, err)
-		logger.Error(fmt.Sprintf("Failed to get break-glass credential: %v", err))
-		return
-	}
-
-	var opStatus arm.ProvisioningState
-	var opError *arm.CloudErrorBody
-
-	switch status := breakGlassCredential.Status(); status {
-	case cmv1.BreakGlassCredentialStatusCreated:
-		opStatus = arm.ProvisioningStateProvisioning
-	case cmv1.BreakGlassCredentialStatusFailed:
-		// XXX Cluster Service does not provide a reason for the failure,
-		//     so we have no choice but to use a generic error message.
-		opStatus = arm.ProvisioningStateFailed
-		opError = &arm.CloudErrorBody{
-			Code:    arm.CloudErrorCodeInternalServerError,
-			Message: "Failed to provision cluster credential",
-		}
-	case cmv1.BreakGlassCredentialStatusIssued:
-		opStatus = arm.ProvisioningStateSucceeded
-	default:
-		s.recordOperationError(ctx, pollBreakGlassCredential, err)
-		logger.Error(fmt.Sprintf("Unhandled BreakGlassCredentialStatus '%s'", status))
-		return
-	}
-
-	err = database.PatchOperationDocument(ctx, s.dbClient, op.doc, opStatus, opError, s.postAsyncNotification)
-	if err != nil {
-		s.recordOperationError(ctx, pollBreakGlassCredential, err)
-		logger.Error(fmt.Sprintf("Failed to update operation status: %v", err))
-	}
-}
-
-// pollBreakGlassCredentialRevoke updates the status of a credential revocation operation.
-func (s *OperationsScanner) pollBreakGlassCredentialRevoke(ctx context.Context, op operation) {
-	logger := utils.LoggerFromContext(ctx)
-	ctx, span := startChildSpan(ctx, "pollBreakGlassCredentialRevoke")
-	defer span.End()
-	defer s.updateOperationMetrics(pollBreakGlassCredentialRevoke)()
-	op.setSpanAttributes(span)
-
-	var opStatus = arm.ProvisioningStateSucceeded
-	var opError *arm.CloudErrorBody
-
-	// XXX Error handling here is tricky. Since the operation applies to multiple
-	//     Cluster Service objects, we can find a mix of successes and failures.
-	//     And with only a Failed status for each object, it's difficult to make
-	//     intelligent decisions like whether to retry. This is just to say the
-	//     error handling policy here may need revising once Cluster Service
-	//     offers more detail to accompany BreakGlassCredentialStatusFailed.
-
-	iterator := s.clusterService.ListBreakGlassCredentials(op.doc.InternalID, "")
-
-loop:
-	for breakGlassCredential := range iterator.Items(ctx) {
-		// An expired credential is as good as a revoked credential
-		// for this operation, regardless of the credential status.
-		if breakGlassCredential.ExpirationTimestamp().After(time.Now()) {
-			switch status := breakGlassCredential.Status(); status {
-			case cmv1.BreakGlassCredentialStatusAwaitingRevocation:
-				opStatus = arm.ProvisioningStateDeleting
-				// break alone just breaks out of select.
-				// Use a label to break out of the loop.
-				break loop
-			case cmv1.BreakGlassCredentialStatusRevoked:
-				// maintain ProvisioningStateSucceeded
-			case cmv1.BreakGlassCredentialStatusFailed:
-				// XXX Cluster Service does not provide a reason for the failure,
-				//     so we have no choice but to use a generic error message.
-				opStatus = arm.ProvisioningStateFailed
-				opError = &arm.CloudErrorBody{
-					Code:    arm.CloudErrorCodeInternalServerError,
-					Message: "Failed to revoke cluster credential",
-				}
-				// break alone just breaks out of select.
-				// Use a label to break out of the loop.
-				break loop
-			default:
-				err := fmt.Errorf("unhandled BreakGlassCredentialStatus '%s'", status)
-				s.recordOperationError(ctx, pollBreakGlassCredentialRevoke, err)
-				logger.Error(err.Error())
-			}
-		}
-	}
-
-	err := iterator.GetError()
-	if err != nil {
-		s.recordOperationError(ctx, pollBreakGlassCredentialRevoke, err)
-		logger.Error(fmt.Sprintf("Error while paging through Cluster Service query results: %v", err.Error()))
-		return
-	}
-
-	err = database.PatchOperationDocument(ctx, s.dbClient, op.doc, opStatus, opError, s.postAsyncNotification)
-	if err != nil {
-		s.recordOperationError(ctx, pollBreakGlassCredentialRevoke, err)
 		logger.Error(fmt.Sprintf("Failed to update operation status: %v", err))
 	}
 }
