@@ -47,8 +47,9 @@ var _ = Describe("Customer", func() {
 			)
 			tc := framework.NewTestContext()
 
+			clustersCount := uint8(len(framework.BacklevelOpenshiftControlPlaneVersionId()))
 			if tc.UsePooledIdentities() {
-				err := tc.AssignIdentityContainers(ctx, 1, 60*time.Second)
+				err := tc.AssignIdentityContainers(ctx, clustersCount, 60*time.Second)
 				Expect(err).NotTo(HaveOccurred())
 			}
 
