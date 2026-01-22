@@ -11,7 +11,7 @@ Customer should create an HCP cluster and validate TLS certificates
 Update HCPOpenShiftCluster Negative creates a cluster and fails to update its name with a PATCH request
 Update HCPOpenShiftCluster Positive creates a cluster and updates tags with a PATCH request
 Customer should be able to create several HCP clusters in their customer resource group, but not in the same managed resource group
-Customer should be able to create an HCP cluster using bicep templates
+Customer should be able to create an HCP cluster
 Customer should be able to create a cluster with an external auth config and get the external auth config
 Customer should be able to lifecycle and confirm external auth on a cluster
 Customer should be able to create an HCP cluster with Image Registry not present
