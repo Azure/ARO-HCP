@@ -16,10 +16,10 @@ package mustgather
 
 import (
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/kusto"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 )
 
 type QueryType string
@@ -58,41 +58,22 @@ type QueryOptions struct {
 }
 
 func NewQueryOptions(subscriptionID, resourceGroupName, resourceId string, timestampMin, timestampMax time.Time, limit int) (*QueryOptions, error) {
-	var subId, rgName string
-	var err error
 	if resourceId != "" {
-		subId, rgName, err = parseResourceId(resourceId)
+		res, err := arm.ParseResourceID(resourceId)
 		if err != nil {
-			return nil, fmt.Errorf("failed to parse resourceId: %w", err)
+			return nil, fmt.Errorf("failed to parse resourceID: %w", err)
 		}
-	} else {
-		subId = subscriptionID
-		rgName = resourceGroupName
+		subscriptionID = res.SubscriptionID
+		resourceGroupName = res.ResourceGroupName
 	}
 
 	return &QueryOptions{
-		SubscriptionId:    subId,
-		ResourceGroupName: rgName,
+		SubscriptionId:    subscriptionID,
+		ResourceGroupName: resourceGroupName,
 		TimestampMin:      timestampMin,
 		TimestampMax:      timestampMax,
 		Limit:             limit,
 	}, nil
-}
-
-func parseResourceId(resourceId string) (string, string, error) {
-	// /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/hcp-kusto-us
-	parts := strings.Split(resourceId, "/")
-	if len(parts) < 4 {
-		return "", "", fmt.Errorf("invalid resourceId: %s", resourceId)
-	}
-	subscriptionId := parts[2]
-	resourceGroupName := parts[4]
-
-	if subscriptionId == "" || resourceGroupName == "" {
-		return "", "", fmt.Errorf("invalid resourceId: %s", resourceId)
-	}
-
-	return subscriptionId, resourceGroupName, nil
 }
 
 func (opts *QueryOptions) GetServicesQueries() []*kusto.ConfigurableQuery {

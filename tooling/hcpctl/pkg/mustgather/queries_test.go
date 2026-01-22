@@ -22,18 +22,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestParseResourceId(t *testing.T) {
-	// Valid case
-	subscriptionId, resourceGroupName, err := parseResourceId("/subscriptions/test-sub/resourceGroups/test-rg")
-	assert.NoError(t, err)
-	assert.Equal(t, "test-sub", subscriptionId)
-	assert.Equal(t, "test-rg", resourceGroupName)
-
-	// Invalid case
-	_, _, err = parseResourceId("/invalid")
-	assert.Error(t, err)
-}
-
 func TestNewQueryOptions(t *testing.T) {
 	now := time.Now()
 
