@@ -1,0 +1,18 @@
+apiVersion: networking.istio.io/v1
+kind: VirtualService
+metadata:
+  name: mise
+  namespace: '{{ .Values.namespace }}'
+spec:
+  hosts:
+  - mise.{{ .Values.namespace }}.svc.cluster.local
+  http:
+  - route:
+    - destination:
+        host: mise.{{ .Values.namespace }}.svc.cluster.local
+        subset: v1
+      weight: {{ .Values.serviceAWeight }}
+    - destination:
+        host: mise.{{ .Values.namespace }}.svc.cluster.local
+        subset: v2
+      weight: {{ .Values.serviceBWeight }}
