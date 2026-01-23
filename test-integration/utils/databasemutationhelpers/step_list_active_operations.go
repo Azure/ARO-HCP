@@ -68,7 +68,16 @@ func (l *listActiveOperationsStep) RunTest(ctx context.Context, t *testing.T, st
 	parentResourceID, err := azcorearm.ParseResourceID(l.key.ParentResourceID)
 	require.NoError(t, err)
 
-	operationsCRUD := database.NewOperationCRUD(stepInput.CosmosContainer, parentResourceID.SubscriptionID)
+	var operationsCRUD database.OperationCRUD
+	if stepInput.DBClient != nil {
+		// Use DBClient interface (works with both Cosmos and mock)
+		operationsCRUD = stepInput.DBClient.Operations(parentResourceID.SubscriptionID)
+	} else if stepInput.CosmosContainer != nil {
+		// Fallback to direct Cosmos container
+		operationsCRUD = database.NewOperationCRUD(stepInput.CosmosContainer, parentResourceID.SubscriptionID)
+	} else {
+		t.Fatal("neither DBClient nor CosmosContainer is set")
+	}
 	actualControllersIterator := operationsCRUD.ListActiveOperations(nil)
 	require.NoError(t, err)
 

@@ -122,8 +122,56 @@ func (tt *ResourceMutationTest) RunTest(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	cosmosContainer := testInfo.CosmosResourcesContainer()
+	cosmosContentLoader := integrationutils.NewCosmosContentLoader(cosmosContainer)
 	stepInput := StepInput{
-		CosmosContainer:        testInfo.CosmosResourcesContainer(),
+		CosmosContainer:        cosmosContainer,
+		ContentLoader:          cosmosContentLoader,
+		DocumentLister:         cosmosContentLoader,
+		DBClient:               testInfo.DBClient,
+		FrontendClient:         testInfo.Get20240610ClientFactory,
+		FrontendURL:            testInfo.FrontendURL,
+		ClusterServiceMockInfo: testInfo.ClusterServiceMock,
+	}
+	for _, step := range tt.steps {
+		t.Logf("Running step %s", step.StepID())
+		ctx := t.Context()
+		ctx = utils.ContextWithLogger(ctx, slogt.New(t, slogt.JSON()))
+
+		step.RunTest(ctx, t, stepInput)
+	}
+}
+
+// RunTestWithMock runs the test using a mock database instead of Cosmos DB.
+// This allows tests to run without requiring a Cosmos DB emulator.
+func (tt *ResourceMutationTest) RunTestWithMock(t *testing.T) {
+	ctx := t.Context()
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	ctx = utils.ContextWithLogger(ctx, slogt.New(t, slogt.JSON()))
+
+	frontend, testInfo, err := integrationutils.NewFrontendFromMockDB(ctx, t)
+	require.NoError(t, err)
+	cleanupCtx := context.Background()
+	cleanupCtx = utils.ContextWithLogger(cleanupCtx, slogt.New(t, slogt.JSON()))
+	defer testInfo.Cleanup(cleanupCtx)
+	go frontend.Run(ctx, ctx.Done())
+
+	// wait for the server to be ready for testing
+	err = wait.PollUntilContextCancel(ctx, 1*time.Second, true, func(ctx context.Context) (bool, error) {
+		_, err := http.Get(testInfo.FrontendURL)
+		if err != nil {
+			t.Log(err)
+			return false, nil
+		}
+		return true, nil
+	})
+	require.NoError(t, err)
+
+	stepInput := StepInput{
+		CosmosContainer:        nil, // No Cosmos container when using mock
+		ContentLoader:          testInfo.ContentLoader,
+		DocumentLister:         testInfo.DocumentLister,
 		DBClient:               testInfo.DBClient,
 		FrontendClient:         testInfo.Get20240610ClientFactory,
 		FrontendURL:            testInfo.FrontendURL,
@@ -298,6 +346,8 @@ func readRawBytesInDir(dir fs.FS) ([][]byte, error) {
 
 type StepInput struct {
 	CosmosContainer *azcosmos.ContainerClient
+	ContentLoader   integrationutils.ContentLoader
+	DocumentLister  integrationutils.DocumentLister
 	DBClient        database.DBClient
 	FrontendClient  func(subscriptionID string) *hcpsdk20240610preview.ClientFactory
 	FrontendURL     string

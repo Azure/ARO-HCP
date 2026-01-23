@@ -51,7 +51,16 @@ func (l *loadCosmosStep) StepID() StepID {
 
 func (l *loadCosmosStep) RunTest(ctx context.Context, t *testing.T, stepInput StepInput) {
 	for _, content := range l.contents {
-		err := integrationutils.LoadCosmosContent(ctx, stepInput.CosmosContainer, content)
+		var err error
+		if stepInput.ContentLoader != nil {
+			// Use the ContentLoader interface (works with both Cosmos and mock)
+			err = stepInput.ContentLoader.LoadContent(ctx, content)
+		} else if stepInput.CosmosContainer != nil {
+			// Fallback to direct Cosmos loading
+			err = integrationutils.LoadCosmosContent(ctx, stepInput.CosmosContainer, content)
+		} else {
+			t.Fatal("neither ContentLoader nor CosmosContainer is set")
+		}
 		require.NoError(t, err, "failed to load cosmos content: %v", string(content))
 	}
 }

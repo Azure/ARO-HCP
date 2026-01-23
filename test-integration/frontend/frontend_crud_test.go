@@ -48,3 +48,44 @@ func TestFrontendCRUD(t *testing.T) {
 		})
 	}
 }
+
+// TestFrontendCRUDWithMock runs the frontend CRUD tests using a mock database.
+// This test does not require a Cosmos DB emulator.
+func TestFrontendCRUDWithMock(t *testing.T) {
+	ctx := context.Background()
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	allCRUDDirFS, err := fs.Sub(artifacts, "artifacts/FrontendCRUD")
+	require.NoError(t, err)
+
+	crudSuiteDirs := api.Must(fs.ReadDir(allCRUDDirFS, "."))
+	for _, crudSuiteDirEntry := range crudSuiteDirs {
+		crudSuiteDir := api.Must(fs.Sub(allCRUDDirFS, crudSuiteDirEntry.Name()))
+		t.Run(crudSuiteDirEntry.Name(), func(t *testing.T) {
+			testCRUDSuiteWithMock(
+				ctx,
+				t,
+				databasemutationhelpers.NothingCRUDSpecializer{},
+				crudSuiteDir)
+		})
+	}
+}
+
+// testCRUDSuiteWithMock runs a CRUD test suite using a mock database.
+func testCRUDSuiteWithMock[InternalAPIType any](ctx context.Context, t *testing.T, specializer databasemutationhelpers.ResourceCRUDTestSpecializer[InternalAPIType], crudSuiteDir fs.FS) {
+	testDirs := api.Must(fs.ReadDir(crudSuiteDir, "."))
+	for _, testDirEntry := range testDirs {
+		testDir := api.Must(fs.Sub(crudSuiteDir, testDirEntry.Name()))
+
+		currTest, err := databasemutationhelpers.NewResourceMutationTest(
+			ctx,
+			specializer,
+			testDirEntry.Name(),
+			testDir,
+		)
+		require.NoError(t, err)
+
+		t.Run(testDirEntry.Name(), currTest.RunTestWithMock)
+	}
+}

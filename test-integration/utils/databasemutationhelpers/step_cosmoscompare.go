@@ -53,26 +53,35 @@ func (l *cosmosCompare) StepID() StepID {
 }
 
 func (l *cosmosCompare) RunTest(ctx context.Context, t *testing.T, stepInput StepInput) {
-	// Query all documents in the container
-	querySQL := "SELECT * FROM c"
-	queryOptions := &azcosmos.QueryOptions{
-		QueryParameters: []azcosmos.QueryParameter{},
-	}
+	var allActual []*database.TypedDocument
+	var err error
 
-	queryPager := stepInput.CosmosContainer.NewQueryItemsPager(querySQL, azcosmos.PartitionKey{}, queryOptions)
-
-	allActual := []*database.TypedDocument{}
-	for queryPager.More() {
-		queryResponse, err := queryPager.NextPage(ctx)
+	if stepInput.DocumentLister != nil {
+		// Use the DocumentLister interface (works with both Cosmos and mock)
+		allActual, err = stepInput.DocumentLister.ListAllDocuments(ctx)
 		require.NoError(t, err)
-
-		for _, item := range queryResponse.Items {
-			// Parse the document to get its ID for filename
-			curr := &database.TypedDocument{}
-			err = json.Unmarshal(item, curr)
-			require.NoError(t, err)
-			allActual = append(allActual, curr)
+	} else if stepInput.CosmosContainer != nil {
+		// Fallback to direct Cosmos querying
+		querySQL := "SELECT * FROM c"
+		queryOptions := &azcosmos.QueryOptions{
+			QueryParameters: []azcosmos.QueryParameter{},
 		}
+
+		queryPager := stepInput.CosmosContainer.NewQueryItemsPager(querySQL, azcosmos.PartitionKey{}, queryOptions)
+
+		for queryPager.More() {
+			queryResponse, queryErr := queryPager.NextPage(ctx)
+			require.NoError(t, queryErr)
+
+			for _, item := range queryResponse.Items {
+				curr := &database.TypedDocument{}
+				err = json.Unmarshal(item, curr)
+				require.NoError(t, err)
+				allActual = append(allActual, curr)
+			}
+		}
+	} else {
+		t.Fatal("neither DocumentLister nor CosmosContainer is set")
 	}
 
 	for _, currExpected := range l.expectedContent {
