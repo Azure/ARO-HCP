@@ -44,7 +44,6 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
-	"github.com/Azure/ARO-HCP/internal/mocks"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 )
 
@@ -94,8 +93,8 @@ func TestSubscriptionsGET(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
-			mockDBClient := mocks.NewMockDBClient(ctrl)
-			mockSubscriptionCRUD := mocks.NewMockSubscriptionCRUD(ctrl)
+			mockDBClient := database.NewMockDBClient(ctrl)
+			mockSubscriptionCRUD := database.NewMockSubscriptionCRUD(ctrl)
 			reg := prometheus.NewRegistry()
 
 			f := NewFrontend(
@@ -261,8 +260,8 @@ func TestSubscriptionsPUT(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
-			mockDBClient := mocks.NewMockDBClient(ctrl)
-			mockSubscriptionCRUD := mocks.NewMockSubscriptionCRUD(ctrl)
+			mockDBClient := database.NewMockDBClient(ctrl)
+			mockSubscriptionCRUD := database.NewMockSubscriptionCRUD(ctrl)
 			reg := prometheus.NewRegistry()
 
 			f := NewFrontend(
@@ -490,8 +489,8 @@ func TestDeploymentPreflight(t *testing.T) {
 			preflightPath := path.Join(api.TestDeploymentResourceID, "preflight")
 
 			ctrl := gomock.NewController(t)
-			mockDBClient := mocks.NewMockDBClient(ctrl)
-			mockSubscriptionCRUD := mocks.NewMockSubscriptionCRUD(ctrl)
+			mockDBClient := database.NewMockDBClient(ctrl)
+			mockSubscriptionCRUD := database.NewMockSubscriptionCRUD(ctrl)
 			reg := prometheus.NewRegistry()
 
 			f := NewFrontend(
@@ -633,11 +632,11 @@ func TestRequestAdminCredential(t *testing.T) {
 
 			ctrl := gomock.NewController(t)
 			reg := prometheus.NewRegistry()
-			mockDBClient := mocks.NewMockDBClient(ctrl)
-			mockCSClient := mocks.NewMockClusterServiceClientSpec(ctrl)
-			mockOperationCRUD := mocks.NewMockOperationCRUD(ctrl)
-			mockClusterCRUD := mocks.NewMockHCPClusterCRUD(ctrl)
-			mockSubscriptionCRUD := mocks.NewMockSubscriptionCRUD(ctrl)
+			mockDBClient := database.NewMockDBClient(ctrl)
+			mockCSClient := ocm.NewMockClusterServiceClientSpec(ctrl)
+			mockOperationCRUD := database.NewMockOperationCRUD(ctrl)
+			mockClusterCRUD := database.NewMockHCPClusterCRUD(ctrl)
+			mockSubscriptionCRUD := database.NewMockSubscriptionCRUD(ctrl)
 
 			f := NewFrontend(
 				api.NewTestLogger(),
@@ -694,7 +693,7 @@ func TestRequestAdminCredential(t *testing.T) {
 						Status:     test.revokeCredentialsStatus,
 					}
 				}
-				mockOperationIter := mocks.NewMockDBClientIterator[api.Operation](ctrl)
+				mockOperationIter := database.NewMockDBClientIterator[api.Operation](ctrl)
 				mockOperationIter.EXPECT().
 					Items(gomock.Any()).
 					Return(database.DBClientIteratorItem[api.Operation](maps.All(revokeOperations)))
@@ -708,8 +707,8 @@ func TestRequestAdminCredential(t *testing.T) {
 					Return(mockOperationIter)
 
 				if test.revokeCredentialsStatus.IsTerminal() {
-					mockDBTransaction := mocks.NewMockDBTransaction(ctrl)
-					mockDBTransactionResult := mocks.NewMockDBTransactionResult(ctrl)
+					mockDBTransaction := database.NewMockDBTransaction(ctrl)
+					mockDBTransactionResult := database.NewMockDBTransactionResult(ctrl)
 
 					mockOperationIter.EXPECT().
 						GetError().
@@ -807,11 +806,11 @@ func TestRevokeCredentials(t *testing.T) {
 
 			ctrl := gomock.NewController(t)
 			reg := prometheus.NewRegistry()
-			mockDBClient := mocks.NewMockDBClient(ctrl)
-			mockCSClient := mocks.NewMockClusterServiceClientSpec(ctrl)
-			mockOperationCRUD := mocks.NewMockOperationCRUD(ctrl)
-			mockClusterCRUD := mocks.NewMockHCPClusterCRUD(ctrl)
-			mockSubscriptionCRUD := mocks.NewMockSubscriptionCRUD(ctrl)
+			mockDBClient := database.NewMockDBClient(ctrl)
+			mockCSClient := ocm.NewMockClusterServiceClientSpec(ctrl)
+			mockOperationCRUD := database.NewMockOperationCRUD(ctrl)
+			mockClusterCRUD := database.NewMockHCPClusterCRUD(ctrl)
+			mockSubscriptionCRUD := database.NewMockSubscriptionCRUD(ctrl)
 
 			f := NewFrontend(
 				api.NewTestLogger(),
@@ -868,7 +867,7 @@ func TestRevokeCredentials(t *testing.T) {
 						Status:     test.revokeCredentialsStatus,
 					}
 				}
-				mockOperationIter := mocks.NewMockDBClientIterator[api.Operation](ctrl)
+				mockOperationIter := database.NewMockDBClientIterator[api.Operation](ctrl)
 				mockOperationIter.EXPECT().
 					Items(gomock.Any()).
 					Return(database.DBClientIteratorItem[api.Operation](maps.All(revokeOperations)))
@@ -881,8 +880,8 @@ func TestRevokeCredentials(t *testing.T) {
 					ListActiveOperations(gomock.Any()).
 					Return(mockOperationIter)
 				if test.revokeCredentialsStatus.IsTerminal() {
-					mockDBTransaction := mocks.NewMockDBTransaction(ctrl)
-					mockDBTransactionResult := mocks.NewMockDBTransactionResult(ctrl)
+					mockDBTransaction := database.NewMockDBTransaction(ctrl)
+					mockDBTransactionResult := database.NewMockDBTransactionResult(ctrl)
 
 					mockOperationIter.EXPECT().
 						GetError().
@@ -901,7 +900,7 @@ func TestRevokeCredentials(t *testing.T) {
 							Status:     arm.ProvisioningStateProvisioning,
 						},
 					}
-					mockOperationIter = mocks.NewMockDBClientIterator[api.Operation](ctrl)
+					mockOperationIter = database.NewMockDBClientIterator[api.Operation](ctrl)
 					mockOperationIter.EXPECT().
 						Items(gomock.Any()).
 						Return(database.DBClientIteratorItem[api.Operation](maps.All(requestOperations)))
@@ -1046,12 +1045,12 @@ func assertHTTPMetrics(t *testing.T, r prometheus.Gatherer, subscription *arm.Su
 // newHTTPServer returns a test HTTP server. When a mock DB client is provided,
 // the subscription collector will be bootstrapped with the provided
 // subscription documents.
-func newHTTPServer(f *Frontend, ctrl *gomock.Controller, mockDBClient *mocks.MockDBClient, mockSubscriptionCRUD *mocks.MockSubscriptionCRUD, subs map[string]*arm.Subscription) *httptest.Server {
+func newHTTPServer(f *Frontend, ctrl *gomock.Controller, mockDBClient *database.MockDBClient, mockSubscriptionCRUD *database.MockSubscriptionCRUD, subs map[string]*arm.Subscription) *httptest.Server {
 	ts := httptest.NewUnstartedServer(f.server.Handler)
 	ts.Config.BaseContext = f.server.BaseContext
 	ts.Start()
 
-	mockIter := mocks.NewMockDBClientIterator[arm.Subscription](ctrl)
+	mockIter := database.NewMockDBClientIterator[arm.Subscription](ctrl)
 	mockIter.EXPECT().
 		Items(gomock.Any()).
 		Return(database.DBClientIteratorItem[arm.Subscription](maps.All(subs)))

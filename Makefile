@@ -13,6 +13,10 @@ CONFIG_FILE ?= config/config.yaml
 
 .DEFAULT_GOAL := all
 
+# There is currently no convenient way to run commands against a whole Go workspace
+# https://github.com/golang/go/issues/50745
+MODULES := $(shell go list -f '{{.Dir}}/...' -m | xargs)
+
 all: test lint
 .PHONY: all
 
@@ -41,8 +45,8 @@ verify-yamlfmt: yamlfmt
 .PHONY: verify-generate
 
 mocks: $(MOCKGEN) $(GOIMPORTS)
-	MOCKGEN=${MOCKGEN} go generate ./internal/mocks
-	$(GOIMPORTS) -w -local github.com/Azure/ARO-HCP ./internal/mocks
+	MOCKGEN=${MOCKGEN} go generate -run '\$$MOCKGEN\b' $(MODULES)
+	$(GOIMPORTS) -w -local github.com/Azure/ARO-HCP $$(find . -name "mock_*.go" -not -path "./.git/*" -not -path "./.bingo/*")
 .PHONY: mocks
 
 install-tools: $(BINGO) $(HELM_LINK) $(YQ_LINK) $(JQ_LINK) $(ORAS_LINK)
@@ -52,9 +56,6 @@ install-tools: $(BINGO) $(HELM_LINK) $(YQ_LINK) $(JQ_LINK) $(ORAS_LINK)
 licenses: $(ADDLICENSE)
 	$(shell find . -type f -name '*.go' | xargs -I {} $(ADDLICENSE) -c 'Microsoft Corporation' -l apache {})
 
-# There is currently no convenient way to run golangci-lint against a whole Go workspace
-# https://github.com/golang/go/issues/50745
-MODULES := $(shell go list -f '{{.Dir}}/...' -m | xargs)
 lint: $(GOLANGCI_LINT)
 	$(GOLANGCI_LINT) run -v --build-tags=$(LINT_GOTAGS) $(MODULES)
 .PHONY: lint

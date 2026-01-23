@@ -14,6 +14,8 @@
 
 package database
 
+//go:generate $MOCKGEN -typed -source=database.go -destination=mock_database.go -package database DBClient
+
 import (
 	"context"
 	"encoding/json"

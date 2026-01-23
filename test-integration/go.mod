@@ -5,7 +5,7 @@ go 1.24.11
 require (
 	dario.cat/mergo v1.0.1
 	github.com/Azure/ARO-HCP/backend v0.0.0-00010101000000-000000000000
-	github.com/Azure/ARO-HCP/frontend v0.0.0-20251215171147-ff127faefe61
+	github.com/Azure/ARO-HCP/frontend v0.0.0-00010101000000-000000000000
 	github.com/Azure/ARO-HCP/internal v0.0.0-00010101000000-000000000000
 	github.com/Azure/ARO-HCP/test/sdk/v20240610preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp v0.0.0-00010101000000-000000000000
 	github.com/google/go-cmp v0.7.0
@@ -122,8 +122,10 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
-replace github.com/Azure/ARO-HCP/internal => ../internal
-
 replace github.com/Azure/ARO-HCP/backend => ../backend
+
+replace github.com/Azure/ARO-HCP/frontend => ../frontend
+
+replace github.com/Azure/ARO-HCP/internal => ../internal
 
 replace github.com/Azure/ARO-HCP/test/sdk/v20240610preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp => ../test/sdk/v20240610preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp

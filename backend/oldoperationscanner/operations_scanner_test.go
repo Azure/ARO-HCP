@@ -36,7 +36,6 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
-	"github.com/Azure/ARO-HCP/internal/mocks"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -89,12 +88,12 @@ func TestSetDeleteOperationAsCompleted(t *testing.T) {
 			ctx := context.Background()
 			ctx = utils.ContextWithLogger(ctx, slogt.New(t, slogt.JSON()))
 			ctrl := gomock.NewController(t)
-			mockDBClient := mocks.NewMockDBClient(ctrl)
-			mockOperationCRUD := mocks.NewMockOperationCRUD(ctrl)
-			mockUntypedResourceCRUD := mocks.NewMockUntypedResourceCRUD(ctrl)
+			mockDBClient := database.NewMockDBClient(ctrl)
+			mockOperationCRUD := database.NewMockOperationCRUD(ctrl)
+			mockUntypedResourceCRUD := database.NewMockUntypedResourceCRUD(ctrl)
 
 			noTypedDocs := maps.All(map[string]*database.TypedDocument{})
-			mockIter := mocks.NewMockDBClientIterator[database.TypedDocument](ctrl)
+			mockIter := database.NewMockDBClientIterator[database.TypedDocument](ctrl)
 			mockIter.EXPECT().
 				Items(gomock.Any()).
 				Return(database.DBClientIteratorItem[database.TypedDocument](noTypedDocs))
@@ -286,9 +285,9 @@ func TestUpdateOperationStatus(t *testing.T) {
 
 			ctx := context.Background()
 			ctrl := gomock.NewController(t)
-			mockDBClient := mocks.NewMockDBClient(ctrl)
-			mockOperationCRUD := mocks.NewMockOperationCRUD(ctrl)
-			mockHCPCluster := mocks.NewMockHCPClusterCRUD(ctrl)
+			mockDBClient := database.NewMockDBClient(ctrl)
+			mockOperationCRUD := database.NewMockOperationCRUD(ctrl)
+			mockHCPCluster := database.NewMockHCPClusterCRUD(ctrl)
 
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				if r.Method == http.MethodPost {

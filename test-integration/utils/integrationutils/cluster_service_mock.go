@@ -38,7 +38,6 @@ import (
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
 
-	"github.com/Azure/ARO-HCP/internal/mocks"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 )
 
@@ -46,12 +45,12 @@ type ClusterServiceMock struct {
 	ArtifactsDir string
 	mockData     map[string]map[string][]any
 
-	MockClusterServiceClient *mocks.MockClusterServiceClientSpec
+	MockClusterServiceClient *ocm.MockClusterServiceClientSpec
 }
 
 func NewClusterServiceMock(t *testing.T, artifactsDir string) *ClusterServiceMock {
 	ctrl := gomock.NewController(t)
-	clusterServiceClient := mocks.NewMockClusterServiceClientSpec(ctrl)
+	clusterServiceClient := ocm.NewMockClusterServiceClientSpec(ctrl)
 
 	ret := &ClusterServiceMock{
 		ArtifactsDir:             artifactsDir,

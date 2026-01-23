@@ -30,7 +30,6 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
-	"github.com/Azure/ARO-HCP/internal/mocks"
 )
 
 func TestSubscriptionCollector(t *testing.T) {
@@ -45,14 +44,14 @@ func TestSubscriptionCollector(t *testing.T) {
 	})
 	ctrl := gomock.NewController(t)
 
-	mockDBClient := mocks.NewMockDBClient(ctrl)
-	mockSubscriptionCRUD := mocks.NewMockSubscriptionCRUD(ctrl)
+	mockDBClient := database.NewMockDBClient(ctrl)
+	mockSubscriptionCRUD := database.NewMockSubscriptionCRUD(ctrl)
 
 	r := prometheus.NewPedanticRegistry()
 	collector := NewSubscriptionCollector(r, mockDBClient, "test")
 
 	t.Run("no subscription", func(t *testing.T) {
-		mockIter := mocks.NewMockDBClientIterator[arm.Subscription](ctrl)
+		mockIter := database.NewMockDBClientIterator[arm.Subscription](ctrl)
 		mockIter.EXPECT().
 			Items(gomock.Any()).
 			Return(database.DBClientIteratorItem[arm.Subscription](nosubs))
@@ -81,7 +80,7 @@ frontend_subscription_collector_last_sync 1
 	})
 
 	t.Run("db error", func(t *testing.T) {
-		mockIter := mocks.NewMockDBClientIterator[arm.Subscription](ctrl)
+		mockIter := database.NewMockDBClientIterator[arm.Subscription](ctrl)
 		mockIter.EXPECT().
 			Items(gomock.Any()).
 			Return(database.DBClientIteratorItem[arm.Subscription](nosubs))
@@ -110,7 +109,7 @@ frontend_subscription_collector_last_sync 0
 	})
 
 	t.Run("refresh with 1 subscription", func(t *testing.T) {
-		mockIter := mocks.NewMockDBClientIterator[arm.Subscription](ctrl)
+		mockIter := database.NewMockDBClientIterator[arm.Subscription](ctrl)
 		mockIter.EXPECT().
 			Items(gomock.Any()).
 			Return(database.DBClientIteratorItem[arm.Subscription](subs))
