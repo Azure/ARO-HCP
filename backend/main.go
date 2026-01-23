@@ -316,14 +316,27 @@ func Run(cmd *cobra.Command, args []string) error {
 
 	group.Go(func() error {
 		var (
-			startedLeading                   atomic.Bool
-			operationsScanner                = oldoperationscanner.NewOperationsScanner(dbClient, ocmConnection, argLocation, subscriptionLister)
-			subscriptionInformerController   = informers.NewSubscriptionInformerController(dbClient, subscriptionLister)
+			startedLeading                 atomic.Bool
+			operationsScanner              = oldoperationscanner.NewOperationsScanner(dbClient, ocmConnection, argLocation, subscriptionLister)
+			subscriptionInformerController = informers.NewSubscriptionInformerController(dbClient, subscriptionLister)
+			dataDumpController             = controllerutils.NewClusterWatchingController(
+				"DataDump", dbClient, subscriptionLister, 1*time.Minute, controllers.NewDataDumpController(dbClient))
 			doNothingController              = controllers.NewDoNothingExampleController(dbClient, subscriptionLister)
 			operationClusterCreateController = operationcontrollers.NewGenericOperationClusterCreateController(
 				"OperationClusterCreate",
 				operationcontrollers.NewOperationClusterCreateSynchronizer(
 					argLocation,
+					dbClient,
+					clusterServiceClient,
+					http.DefaultClient,
+				),
+				10*time.Second,
+				subscriptionLister,
+				dbClient,
+			)
+			operationClusterUpdateController = operationcontrollers.NewGenericOperationClusterCreateController(
+				"OperationClusterUpdate",
+				operationcontrollers.NewOperationClusterUpdateSynchronizer(
 					dbClient,
 					clusterServiceClient,
 					http.DefaultClient,
@@ -366,8 +379,10 @@ func Run(cmd *cobra.Command, args []string) error {
 					startedLeading.Store(true)
 					go subscriptionInformerController.Run(ctx, 1)
 					go operationsScanner.Run(ctx)
+					go dataDumpController.Run(ctx, 20)
 					go doNothingController.Run(ctx, 20)
 					go operationClusterCreateController.Run(ctx, 20)
+					go operationClusterUpdateController.Run(ctx, 20)
 					go operationClusterDeleteController.Run(ctx, 20)
 					go clusterServiceMatchingClusterController.Run(ctx, 20)
 					go cosmosMatchingNodePoolController.Run(ctx, 20)
