@@ -651,16 +651,16 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 
 	availableAROHCPVersions := f.apiRegistry.ListVersions()
 	for index, raw := range deploymentPreflight.Resources {
-		var cloudError *arm.CloudError
+		var preflightErr error
 
 		// Check the raw JSON for any Template Language Expressions (TLEs).
 		// If any are detected, skip the resource because Cluster Service
 		// does not handle TLEs in its input validation.
 		detectedTLE, err := arm.DetectTLE(raw)
 		if err != nil {
-			cloudError = arm.NewInvalidRequestContentError(err)
+			preflightErr = arm.NewInvalidRequestContentError(err)
 			// Preflight is best-effort: a malformed resource is not a validation failure.
-			logger.Warn(cloudError.Message)
+			logger.Warn(preflightErr.Error())
 			continue
 		}
 		if detectedTLE {
@@ -670,9 +670,9 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 		preflightResource := &arm.DeploymentPreflightResource{}
 		err = json.Unmarshal(raw, preflightResource)
 		if err != nil {
-			cloudError = arm.NewInvalidRequestContentError(err)
+			preflightErr = arm.NewInvalidRequestContentError(err)
 			// Preflight is best-effort: a malformed resource is not a validation failure.
-			logger.Warn(cloudError.Message)
+			logger.Warn(preflightErr.Error())
 			continue
 		}
 
@@ -702,7 +702,11 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 				continue
 			}
 
-			newInternalCluster := versionedCluster.ConvertToInternal()
+			newInternalCluster, err := versionedCluster.ConvertToInternal()
+			if err != nil {
+				logger.Warn(fmt.Sprintf("Failed to convert %s resource named '%s': %s", preflightResource.Type, preflightResource.Name, err))
+				continue
+			}
 			// the external type lacks sufficient data to full produce a valid resourceID.  We do that separately here.
 			parts := []string{
 				"/subscriptions", subscriptionID,
@@ -716,7 +720,7 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 			}
 			validationErrs := validation.ValidateClusterCreate(ctx, newInternalCluster, api.Must(versionedInterface.ValidationPathRewriter(&api.HCPOpenShiftCluster{})))
 			validationErrs = append(validationErrs, admission.AdmitClusterOnCreate(ctx, newInternalCluster, subscription)...)
-			cloudError = arm.CloudErrorFromFieldErrors(validationErrs)
+			preflightErr = arm.CloudErrorFromFieldErrors(validationErrs)
 
 		case strings.ToLower(api.NodePoolResourceType.String()):
 			// API version is already validated by this point.
@@ -731,7 +735,11 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 			}
 
 			// Perform static validation as if for a node pool creation request.
-			newInternalNodePool := versionedNodePool.ConvertToInternal()
+			newInternalNodePool, err := versionedNodePool.ConvertToInternal()
+			if err != nil {
+				logger.Warn(fmt.Sprintf("Failed to convert %s resource named '%s': %s", preflightResource.Type, preflightResource.Name, err))
+				continue
+			}
 			// the external type lacks sufficient data to full produce a valid resourceID.  We do that separately here.
 			parts := []string{
 				"/subscriptions", subscriptionID,
@@ -745,7 +753,7 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 				return utils.TrackError(err)
 			}
 			validationErrs := validation.ValidateNodePoolCreate(ctx, newInternalNodePool)
-			cloudError = arm.CloudErrorFromFieldErrors(validationErrs)
+			preflightErr = arm.CloudErrorFromFieldErrors(validationErrs)
 
 		case strings.ToLower(api.ExternalAuthResourceType.String()):
 			// API version is already validated by this point.
@@ -760,7 +768,11 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 			}
 
 			// Perform static validation as if for an external auth creation request.
-			newInternalAuth := versionedExternalAuth.ConvertToInternal()
+			newInternalAuth, err := versionedExternalAuth.ConvertToInternal()
+			if err != nil {
+				logger.Warn(fmt.Sprintf("Failed to convert %s resource named '%s': %s", preflightResource.Type, preflightResource.Name, err))
+				continue
+			}
 			// the external type lacks sufficient data to full produce a valid resourceID.  We do that separately here.
 			parts := []string{
 				"/subscriptions", subscriptionID,
@@ -774,14 +786,15 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 				return utils.TrackError(err)
 			}
 			validationErrs := validation.ValidateExternalAuthCreate(ctx, newInternalAuth)
-			cloudError = arm.CloudErrorFromFieldErrors(validationErrs)
+			preflightErr = arm.CloudErrorFromFieldErrors(validationErrs)
 
 		default:
 			// Disregard foreign resource types.
 			continue
 		}
 
-		if cloudError != nil {
+		var cloudError *arm.CloudError
+		if errors.As(preflightErr, &cloudError) {
 			var details []arm.CloudErrorBody
 
 			// This avoids double-nesting details when there's multiple errors.

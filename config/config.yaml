@@ -748,6 +748,7 @@ defaults:
     # OCP Versions configuration
     ocpVersions:
       defaultVersion:
+        # control plane 4.y version (different than node and contorl plane 4.y.z inside that 4.y) is set in defaulting in ARO-HCP frontend.
         version: 4.20.8
       channelGroups:
         stable:

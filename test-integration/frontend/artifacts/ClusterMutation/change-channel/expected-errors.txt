@@ -1,2 +1,1 @@
 InvalidRequestContent: properties.version.channelGroup: Forbidden: field is immutable
-InvalidRequestContent: properties.version.id: Required value

@@ -109,7 +109,7 @@ func TestValidateNodePoolCreate(t *testing.T) {
 			name: "valid nodepool with encryption set ID - create",
 			nodePool: func() *api.HCPOpenShiftClusterNodePool {
 				np := createValidNodePool()
-				np.Properties.Platform.OSDisk.EncryptionSetID = "/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.Compute/diskEncryptionSets/test-des"
+				np.Properties.Platform.OSDisk.EncryptionSetID = api.Must(azcorearm.ParseResourceID("/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.Compute/diskEncryptionSets/test-des"))
 				return np
 			}(),
 			expectErrors: []expectedError{},
@@ -195,21 +195,20 @@ func TestValidateNodePoolCreate(t *testing.T) {
 			},
 		},
 		{
-			name: "invalid subnet ID - create",
+			name: "nil subnet ID - valid - create",
 			nodePool: func() *api.HCPOpenShiftClusterNodePool {
 				np := createValidNodePool()
-				np.Properties.Platform.SubnetID = "invalid-resource-id"
+				// SubnetID is optional for nodepools
+				np.Properties.Platform.SubnetID = nil
 				return np
 			}(),
-			expectErrors: []expectedError{
-				{message: "invalid resource ID", fieldPath: "properties.platform.subnetId"},
-			},
+			expectErrors: []expectedError{},
 		},
 		{
 			name: "wrong subnet resource type - create",
 			nodePool: func() *api.HCPOpenShiftClusterNodePool {
 				np := createValidNodePool()
-				np.Properties.Platform.SubnetID = "/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.Network/virtualNetworks/test-vnet"
+				np.Properties.Platform.SubnetID = api.Must(azcorearm.ParseResourceID("/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.Network/virtualNetworks/test-vnet"))
 				return np
 			}(),
 			expectErrors: []expectedError{
@@ -250,21 +249,10 @@ func TestValidateNodePoolCreate(t *testing.T) {
 			},
 		},
 		{
-			name: "invalid encryption set ID - create",
-			nodePool: func() *api.HCPOpenShiftClusterNodePool {
-				np := createValidNodePool()
-				np.Properties.Platform.OSDisk.EncryptionSetID = "invalid-resource-id"
-				return np
-			}(),
-			expectErrors: []expectedError{
-				{message: "invalid resource ID", fieldPath: "properties.platform.osDisk.encryptionSetId"},
-			},
-		},
-		{
 			name: "wrong encryption set resource type - create",
 			nodePool: func() *api.HCPOpenShiftClusterNodePool {
 				np := createValidNodePool()
-				np.Properties.Platform.OSDisk.EncryptionSetID = "/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.Network/virtualNetworks/test-vnet"
+				np.Properties.Platform.OSDisk.EncryptionSetID = api.Must(azcorearm.ParseResourceID("/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.Network/virtualNetworks/test-vnet"))
 				return np
 			}(),
 			expectErrors: []expectedError{
@@ -578,9 +566,9 @@ func TestValidateNodePoolCreate(t *testing.T) {
 			name: "valid empty optional fields - create",
 			nodePool: func() *api.HCPOpenShiftClusterNodePool {
 				np := createValidNodePool()
-				np.Properties.Platform.SubnetID = ""
+				np.Properties.Platform.SubnetID = nil
 				np.Properties.Platform.AvailabilityZone = ""
-				np.Properties.Platform.OSDisk.EncryptionSetID = ""
+				np.Properties.Platform.OSDisk.EncryptionSetID = nil
 				np.Properties.Labels = nil
 				np.Properties.Taints = nil
 				np.Properties.NodeDrainTimeoutMinutes = nil
@@ -1284,7 +1272,7 @@ func createValidNodePool() *api.HCPOpenShiftClusterNodePool {
 	nodePool.Location = "eastus" // Required for TrackedResource validation
 	nodePool.Properties.Version.ID = "4.15"
 	nodePool.Properties.Version.ChannelGroup = "stable"
-	nodePool.Properties.Platform.SubnetID = "/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.Network/virtualNetworks/test-vnet/subnets/test-subnet"
+	nodePool.Properties.Platform.SubnetID = api.Must(azcorearm.ParseResourceID("/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.Network/virtualNetworks/test-vnet/subnets/test-subnet"))
 	nodePool.Properties.Platform.VMSize = "Standard_D2s_v3"
 	nodePool.Properties.Replicas = 3
 

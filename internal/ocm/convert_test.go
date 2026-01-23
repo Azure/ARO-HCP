@@ -376,6 +376,7 @@ func ocmClusterDefaults(azureLocation string) *arohcpv1alpha1.ClusterBuilder {
 		CCS(arohcpv1alpha1.NewCCS().Enabled(true)).
 		CloudProvider(arohcpv1alpha1.NewCloudProvider().
 			ID("azure")).
+		DomainPrefix("testcluster").
 		Flavour(arohcpv1alpha1.NewFlavour().
 			ID("osd-4")).
 		Hypershift(arohcpv1alpha1.NewHypershift().
@@ -396,7 +397,7 @@ func ocmClusterDefaults(azureLocation string) *arohcpv1alpha1.ClusterBuilder {
 		Region(arohcpv1alpha1.NewCloudRegion().
 			ID(azureLocation)).
 		Version(arohcpv1alpha1.NewVersion().
-			ID("").
+			ID("openshift-v4.15.0").
 			ChannelGroup("stable")).
 		ImageRegistry(arohcpv1alpha1.NewClusterImageRegistry().
 			State(csImageRegistryStateEnabled))

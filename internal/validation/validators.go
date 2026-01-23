@@ -228,8 +228,8 @@ func IPv4(_ context.Context, _ operation.Operation, fldPath *field.Path, value, 
 	return nil
 }
 
-func ValidateUserAssignedIdentityLocation(ctx context.Context, op operation.Operation, fldPath *field.Path, value, _ *string, clusterSubscriptionID, managedResourceGroupName string) field.ErrorList {
-	if value == nil || len(*value) == 0 {
+func ValidateUserAssignedIdentityLocation(ctx context.Context, op operation.Operation, fldPath *field.Path, value, _ *azcorearm.ResourceID, clusterSubscriptionID, managedResourceGroupName string) field.ErrorList {
+	if value == nil {
 		return nil
 	}
 
@@ -240,18 +240,13 @@ func ValidateUserAssignedIdentityLocation(ctx context.Context, op operation.Oper
 	return errs
 }
 
-func DifferentResourceGroupNameFromResourceID(ctx context.Context, op operation.Operation, fldPath *field.Path, value, _ *string, resourceGroupName string) field.ErrorList {
-	if value == nil || len(*value) == 0 {
+func DifferentResourceGroupNameFromResourceID(ctx context.Context, op operation.Operation, fldPath *field.Path, value, _ *azcorearm.ResourceID, resourceGroupName string) field.ErrorList {
+	if value == nil {
 		return nil
 	}
 
-	resourceID, err := azcorearm.ParseResourceID(*value)
-	if err != nil {
-		return field.ErrorList{field.Invalid(fldPath, *value, err.Error())}
-	}
-
-	if strings.EqualFold(resourceID.ResourceGroupName, resourceGroupName) {
-		return field.ErrorList{field.Invalid(fldPath, *value, fmt.Sprintf("must not be the same resource group name: %q", resourceGroupName))}
+	if strings.EqualFold(value.ResourceGroupName, resourceGroupName) {
+		return field.ErrorList{field.Invalid(fldPath, value.String(), fmt.Sprintf("must not be the same resource group name: %q", resourceGroupName))}
 	}
 
 	return nil
@@ -269,57 +264,50 @@ func DifferentResourceGroupName(ctx context.Context, op operation.Operation, fld
 	return nil
 }
 
-func SameSubscription(ctx context.Context, op operation.Operation, fldPath *field.Path, value, _ *string, subscriptionID string) field.ErrorList {
-	if value == nil || len(*value) == 0 {
+func SameSubscription(ctx context.Context, op operation.Operation, fldPath *field.Path, value, _ *azcorearm.ResourceID, subscriptionID string) field.ErrorList {
+	if value == nil {
 		return nil
 	}
 
-	resourceID, err := azcorearm.ParseResourceID(*value)
-	if err != nil {
-		return field.ErrorList{field.Invalid(fldPath, *value, err.Error())}
-	}
-
-	if !strings.EqualFold(resourceID.SubscriptionID, subscriptionID) {
-		return field.ErrorList{field.Invalid(fldPath, *value, fmt.Sprintf("must be in the same Azure subscription: %q", subscriptionID))}
+	if !strings.EqualFold(value.SubscriptionID, subscriptionID) {
+		return field.ErrorList{field.Invalid(fldPath, value.String(), fmt.Sprintf("must be in the same Azure subscription: %q", subscriptionID))}
 	}
 
 	return nil
 }
 
-// TODO this should be removed.  All resourceIDs should be resourceIDs
-func ResourceIDString(ctx context.Context, op operation.Operation, fldPath *field.Path, value, oldValue *string) field.ErrorList {
-	return restrictedResourceIDCheckString(ctx, op, fldPath, value, oldValue, "")
-}
-
-// TODO this should be removed.  All resourceIDs should be resourceIDs
-func RestrictedResourceIDString(ctx context.Context, op operation.Operation, fldPath *field.Path, value, oldValue *string, resourceTypeRestriction string) field.ErrorList {
-	return restrictedResourceIDCheckString(ctx, op, fldPath, value, oldValue, resourceTypeRestriction)
-}
-
-// if resourceTypeRestriction is not set, then any kind of resourceType is allowed
-func restrictedResourceIDCheckString(ctx context.Context, op operation.Operation, fldPath *field.Path, value, _ *string, resourceTypeRestriction string) field.ErrorList {
-	if value == nil || len(*value) == 0 {
-		return nil
-	}
-	resourceID, err := azcorearm.ParseResourceID(*value)
-	if err != nil {
-		return field.ErrorList{field.Invalid(fldPath, *value, err.Error())}
-	}
-	return restrictedResourceIDInResourceGroupCheck(ctx, op, fldPath, resourceID, nil, resourceTypeRestriction)
-}
-
+// ResourceID
+// 1. has subscription
+// 2. has name
+// 3. has any resource type
+// 4. has a resource group name
 func ResourceID(ctx context.Context, op operation.Operation, fldPath *field.Path, value, oldValue *azcorearm.ResourceID) field.ErrorList {
 	return restrictedResourceIDInResourceGroupCheck(ctx, op, fldPath, value, oldValue, "")
 }
 
+// GenericResourceID
+// 1. has subscription
+// 2. has name
+// 3. has any resource type
+// 4. may or may not have a resource group name
 func GenericResourceID(ctx context.Context, op operation.Operation, fldPath *field.Path, value, oldValue *azcorearm.ResourceID) field.ErrorList {
 	return restrictedGenericResourceIDCheck(ctx, op, fldPath, value, oldValue, "")
 }
 
+// RestrictedResourceIDWithResourceGroup
+// 1. has subscription
+// 2. has name
+// 3. has a particular resource type
+// 4. has a resource group name
 func RestrictedResourceIDWithResourceGroup(ctx context.Context, op operation.Operation, fldPath *field.Path, value, oldValue *azcorearm.ResourceID, resourceTypeRestriction string) field.ErrorList {
 	return restrictedResourceIDInResourceGroupCheck(ctx, op, fldPath, value, oldValue, resourceTypeRestriction)
 }
 
+// RestrictedResourceIDWithoutResourceGroup
+// 1. has subscription
+// 2. has name
+// 3. has particular type
+// 4. has no resource group name
 func RestrictedResourceIDWithoutResourceGroup(ctx context.Context, op operation.Operation, fldPath *field.Path, value, oldValue *azcorearm.ResourceID, resourceTypeRestriction string) field.ErrorList {
 	return restrictedResourceIDWithoutResourceGroupCheck(ctx, op, fldPath, value, oldValue, resourceTypeRestriction)
 }
@@ -333,7 +321,7 @@ func restrictedResourceIDInResourceGroupCheck(ctx context.Context, op operation.
 	errs = append(errs, restrictedGenericResourceIDCheck(ctx, op, fldPath, resourceID, nil, resourceTypeRestriction)...)
 
 	if len(resourceID.ResourceGroupName) == 0 {
-		errs = append(errs, field.Invalid(fldPath, *resourceID, "resource group is required"))
+		errs = append(errs, field.Invalid(fldPath, resourceID.String(), "resource group is required"))
 	}
 
 	return errs
@@ -348,13 +336,13 @@ func restrictedGenericResourceIDCheck(ctx context.Context, op operation.Operatio
 
 	// Check for required fields.
 	if len(resourceID.SubscriptionID) == 0 {
-		errs = append(errs, field.Invalid(fldPath, *resourceID, "subscription ID is required"))
+		errs = append(errs, field.Invalid(fldPath, resourceID.String(), "subscription ID is required"))
 	}
 	if len(resourceID.Name) == 0 {
-		errs = append(errs, field.Invalid(fldPath, *resourceID, "resource name is required"))
+		errs = append(errs, field.Invalid(fldPath, resourceID.String(), "resource name is required"))
 	}
 	if len(resourceTypeRestriction) > 0 && !strings.EqualFold(resourceTypeRestriction, resourceID.ResourceType.String()) {
-		errs = append(errs, field.Invalid(fldPath, *resourceID, fmt.Sprintf("resource ID must reference an instance of type %q", resourceTypeRestriction)))
+		errs = append(errs, field.Invalid(fldPath, resourceID.String(), fmt.Sprintf("resource ID must reference an instance of type %q", resourceTypeRestriction)))
 	}
 
 	return errs
@@ -369,15 +357,54 @@ func restrictedResourceIDWithoutResourceGroupCheck(ctx context.Context, op opera
 	errs = append(errs, restrictedGenericResourceIDCheck(ctx, op, fldPath, resourceID, nil, resourceTypeRestriction)...)
 
 	if len(resourceID.ResourceGroupName) != 0 {
-		errs = append(errs, field.Invalid(fldPath, *resourceID, "resource group must be empty"))
+		errs = append(errs, field.Invalid(fldPath, resourceID.String(), "resource group must be empty"))
 	}
 
 	return errs
 }
 
-func newRestrictedResourceID(resourceTypeRestriction string) validate.ValidateFunc[*string] {
+func newRestrictedResourceID(resourceTypeRestriction string) validate.ValidateFunc[**azcorearm.ResourceID] {
+	return func(ctx context.Context, op operation.Operation, fldPath *field.Path, newValue, oldValue **azcorearm.ResourceID) field.ErrorList {
+		switch {
+		case newValue == nil && oldValue == nil:
+			return nil
+		case newValue == nil && oldValue != nil:
+			return nil
+		case newValue != nil && oldValue == nil:
+			return RestrictedResourceIDWithResourceGroup(ctx, op, fldPath, *newValue, nil, resourceTypeRestriction)
+		case newValue != nil && oldValue != nil:
+			return RestrictedResourceIDWithResourceGroup(ctx, op, fldPath, *newValue, *oldValue, resourceTypeRestriction)
+		}
+		panic("unreachable")
+	}
+}
+
+// newRestrictedResourceIDString exists because actual resourceIDs cannot be map keys
+func newRestrictedResourceIDString(resourceTypeRestriction string) validate.ValidateFunc[*string] {
 	return func(ctx context.Context, op operation.Operation, fldPath *field.Path, newValue, oldValue *string) field.ErrorList {
-		return RestrictedResourceIDString(ctx, op, fldPath, newValue, oldValue, resourceTypeRestriction)
+		switch {
+		case newValue == nil && oldValue == nil:
+			return nil
+		case newValue == nil && oldValue != nil:
+			return nil
+		case newValue != nil && oldValue == nil:
+			newValueResourceID, err := azcorearm.ParseResourceID(*newValue)
+			if err != nil {
+				return field.ErrorList{field.Invalid(fldPath, *newValue, err.Error())}
+			}
+			return RestrictedResourceIDWithResourceGroup(ctx, op, fldPath, newValueResourceID, nil, resourceTypeRestriction)
+		case newValue != nil && oldValue != nil:
+			newValueResourceID, err := azcorearm.ParseResourceID(*newValue)
+			if err != nil {
+				return field.ErrorList{field.Invalid(fldPath, *newValue, err.Error())}
+			}
+			oldValueResourceID, err := azcorearm.ParseResourceID(*oldValue)
+			if err != nil {
+				return field.ErrorList{field.Invalid(fldPath, *oldValue, err.Error())}
+			}
+			return RestrictedResourceIDWithResourceGroup(ctx, op, fldPath, newValueResourceID, oldValueResourceID, resourceTypeRestriction)
+		}
+		panic("unreachable")
 	}
 }
 

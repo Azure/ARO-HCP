@@ -18,8 +18,12 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"k8s.io/apimachinery/pkg/util/validation/field"
+
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 )
 
 func TestTrimStringSlice(t *testing.T) {
@@ -57,12 +61,20 @@ func TestTrimStringSlice(t *testing.T) {
 	}
 }
 
-func TestMergeStringPtrMap(t *testing.T) {
+func TestMergeStringPtrMapIntoResourceIDMap(t *testing.T) {
+	// Helper to create valid resource IDs for testing
+	makeResourceID := func(name string) string {
+		return "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/" + name
+	}
+	parseResourceID := func(name string) *azcorearm.ResourceID {
+		return Must(azcorearm.ParseResourceID(makeResourceID(name)))
+	}
+
 	tests := []struct {
 		name   string
 		src    map[string]*string
-		dst    map[string]string
-		expect map[string]string
+		dst    map[string]*azcorearm.ResourceID
+		expect map[string]*azcorearm.ResourceID
 	}{
 		{
 			name:   "No source map and no destination map",
@@ -73,38 +85,38 @@ func TestMergeStringPtrMap(t *testing.T) {
 		{
 			name: "No source map but existing destination map",
 			src:  nil,
-			dst: map[string]string{
-				"Blinky": "Shadow",
+			dst: map[string]*azcorearm.ResourceID{
+				"Blinky": parseResourceID("Shadow"),
 			},
-			expect: map[string]string{
-				"Blinky": "Shadow",
+			expect: map[string]*azcorearm.ResourceID{
+				"Blinky": parseResourceID("Shadow"),
 			},
 		},
 		{
 			name: "Add entry to a new map",
 			src: map[string]*string{
-				"Blinky": Ptr("Shadow"),
+				"Blinky": Ptr(makeResourceID("Shadow")),
 			},
 			dst: nil,
-			expect: map[string]string{
-				"Blinky": "Shadow",
+			expect: map[string]*azcorearm.ResourceID{
+				"Blinky": parseResourceID("Shadow"),
 			},
 		},
 		{
 			name: "Add entry to an existing map",
 			src: map[string]*string{
-				"Blinky": Ptr("Shadow"),
+				"Blinky": Ptr(makeResourceID("Shadow")),
 			},
-			dst: map[string]string{
-				"Pinky": "Speedy",
-				"Inky":  "Bashful",
-				"Clyde": "Pokey",
+			dst: map[string]*azcorearm.ResourceID{
+				"Pinky": parseResourceID("Speedy"),
+				"Inky":  parseResourceID("Bashful"),
+				"Clyde": parseResourceID("Pokey"),
 			},
-			expect: map[string]string{
-				"Blinky": "Shadow",
-				"Pinky":  "Speedy",
-				"Inky":   "Bashful",
-				"Clyde":  "Pokey",
+			expect: map[string]*azcorearm.ResourceID{
+				"Blinky": parseResourceID("Shadow"),
+				"Pinky":  parseResourceID("Speedy"),
+				"Inky":   parseResourceID("Bashful"),
+				"Clyde":  parseResourceID("Pokey"),
 			},
 		},
 		{
@@ -120,16 +132,16 @@ func TestMergeStringPtrMap(t *testing.T) {
 			src: map[string]*string{
 				"Blinky": nil,
 			},
-			dst: map[string]string{
-				"Blinky": "Shadow",
-				"Pinky":  "Speedy",
-				"Inky":   "Bashful",
-				"Clyde":  "Pokey",
+			dst: map[string]*azcorearm.ResourceID{
+				"Blinky": parseResourceID("Shadow"),
+				"Pinky":  parseResourceID("Speedy"),
+				"Inky":   parseResourceID("Bashful"),
+				"Clyde":  parseResourceID("Pokey"),
 			},
-			expect: map[string]string{
-				"Pinky": "Speedy",
-				"Inky":  "Bashful",
-				"Clyde": "Pokey",
+			expect: map[string]*azcorearm.ResourceID{
+				"Pinky": parseResourceID("Speedy"),
+				"Inky":  parseResourceID("Bashful"),
+				"Clyde": parseResourceID("Pokey"),
 			},
 		},
 		{
@@ -137,39 +149,52 @@ func TestMergeStringPtrMap(t *testing.T) {
 			src: map[string]*string{
 				"Blinky": nil,
 				"Pinky":  nil,
-				"Inky":   Ptr("Bashful"),
-				"Clyde":  Ptr("Pokey"),
+				"Inky":   Ptr(makeResourceID("Bashful")),
+				"Clyde":  Ptr(makeResourceID("Pokey")),
 			},
-			dst: map[string]string{
-				"Blinky": "Shadow",
-				"Inky":   "Bashful",
+			dst: map[string]*azcorearm.ResourceID{
+				"Blinky": parseResourceID("Shadow"),
+				"Inky":   parseResourceID("Bashful"),
 			},
-			expect: map[string]string{
-				"Inky":  "Bashful",
-				"Clyde": "Pokey",
+			expect: map[string]*azcorearm.ResourceID{
+				"Inky":  parseResourceID("Bashful"),
+				"Clyde": parseResourceID("Pokey"),
 			},
 		},
 		{
 			name: "Modify an entry in an existing map",
 			src: map[string]*string{
-				"Blinky": Ptr("Oikake"),
+				"Blinky": Ptr(makeResourceID("Oikake")),
 			},
-			dst: map[string]string{
-				"Blinky": "Shadow",
-				"Inky":   "Bashful",
+			dst: map[string]*azcorearm.ResourceID{
+				"Blinky": parseResourceID("Shadow"),
+				"Inky":   parseResourceID("Bashful"),
 			},
-			expect: map[string]string{
-				"Blinky": "Oikake",
-				"Inky":   "Bashful",
+			expect: map[string]*azcorearm.ResourceID{
+				"Blinky": parseResourceID("Oikake"),
+				"Inky":   parseResourceID("Bashful"),
 			},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			MergeStringPtrMap(tt.src, &tt.dst)
-			if !reflect.DeepEqual(tt.expect, tt.dst) {
-				t.Error(cmp.Diff(tt.expect, tt.dst))
+			errList := MergeStringPtrMapIntoResourceIDMap(field.NewPath("new"), tt.src, &tt.dst)
+			require.Len(t, errList, 0, "unexpected errors: %v", errList)
+
+			// Compare the maps by converting to string representation
+			if tt.expect == nil {
+				assert.Nil(t, tt.dst)
+			} else {
+				require.NotNil(t, tt.dst)
+				assert.Equal(t, len(tt.expect), len(tt.dst))
+				for key, expectedVal := range tt.expect {
+					actualVal, exists := tt.dst[key]
+					assert.True(t, exists, "key %s should exist in dst", key)
+					if exists {
+						assert.Equal(t, expectedVal.String(), actualVal.String(), "value mismatch for key %s", key)
+					}
+				}
 			}
 		})
 	}

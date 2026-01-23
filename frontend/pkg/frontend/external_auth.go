@@ -228,7 +228,10 @@ func decodeDesiredExternalAuthCreate(ctx context.Context) (*api.HCPOpenShiftClus
 		return nil, utils.TrackError(err)
 	}
 
-	newInternalExternalAuth := externalExternalAuthFromRequest.ConvertToInternal()
+	newInternalExternalAuth, err := externalExternalAuthFromRequest.ConvertToInternal()
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
 	if len(newInternalExternalAuth.Name) > 0 && newInternalExternalAuth.Name != resourceID.Name {
 		return nil, nameResourceIDMismatch(resourceID, newInternalExternalAuth.Name)
 	}
@@ -393,7 +396,10 @@ func decodeDesiredExternalAuthReplace(ctx context.Context, oldInternalExternalAu
 		return nil, utils.TrackError(err)
 	}
 
-	newInternalExternalAuth := externalExternalAuthFromRequest.ConvertToInternal()
+	newInternalExternalAuth, err := externalExternalAuthFromRequest.ConvertToInternal()
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
 	if len(newInternalExternalAuth.Name) > 0 && newInternalExternalAuth.Name != resourceID.Name {
 		return nil, nameResourceIDMismatch(resourceID, newInternalExternalAuth.Name)
 	}
@@ -446,7 +452,10 @@ func decodeDesiredExternalAuthPatch(ctx context.Context, oldInternalExternalAuth
 	if err := api.ApplyRequestBody(http.MethodPatch, body, newExternalExternalAuth); err != nil {
 		return nil, utils.TrackError(err)
 	}
-	newInternalExternalAuth := newExternalExternalAuth.ConvertToInternal()
+	newInternalExternalAuth, err := newExternalExternalAuth.ConvertToInternal()
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
 	if len(newInternalExternalAuth.Name) > 0 && newInternalExternalAuth.Name != resourceID.Name {
 		return nil, nameResourceIDMismatch(resourceID, newInternalExternalAuth.Name)
 	}

@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"strings"
 
+	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/utils/ptr"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -56,6 +57,9 @@ func SetDefaultValuesCluster(obj *HcpOpenShiftCluster) {
 	}
 	if obj.Properties.Version.ChannelGroup == nil {
 		obj.Properties.Version.ChannelGroup = ptr.To("stable")
+	}
+	if obj.Properties.Version.ID == nil {
+		obj.Properties.Version.ID = ptr.To("4.20")
 	}
 	if obj.Properties.Network == nil {
 		obj.Properties.Network = &generated.NetworkProfile{}
@@ -177,9 +181,9 @@ func newPlatformProfile(from *api.CustomerPlatformProfile, from2 *api.ServicePro
 	}
 	return generated.PlatformProfile{
 		ManagedResourceGroup:    api.PtrOrNil(from.ManagedResourceGroup),
-		SubnetID:                api.PtrOrNil(from.SubnetID),
+		SubnetID:                api.ResourceIDToStringPtr(from.SubnetID),
 		OutboundType:            api.PtrOrNil(generated.OutboundType(from.OutboundType)),
-		NetworkSecurityGroupID:  api.PtrOrNil(from.NetworkSecurityGroupID),
+		NetworkSecurityGroupID:  api.ResourceIDToStringPtr(from.NetworkSecurityGroupID),
 		OperatorsAuthentication: api.PtrOrNil(newOperatorsAuthenticationProfile(&from.OperatorsAuthentication)),
 		IssuerURL:               api.PtrOrNil(from2.IssuerURL),
 	}
@@ -265,9 +269,9 @@ func newUserAssignedIdentitiesProfile(from *api.UserAssignedIdentitiesProfile) g
 		return generated.UserAssignedIdentitiesProfile{}
 	}
 	return generated.UserAssignedIdentitiesProfile{
-		ControlPlaneOperators:  api.StringMapToStringPtrMap(from.ControlPlaneOperators),
-		DataPlaneOperators:     api.StringMapToStringPtrMap(from.DataPlaneOperators),
-		ServiceManagedIdentity: api.PtrOrNil(from.ServiceManagedIdentity),
+		ControlPlaneOperators:  api.ResourceIDMapToStringPtrMap(from.ControlPlaneOperators),
+		DataPlaneOperators:     api.ResourceIDMapToStringPtrMap(from.DataPlaneOperators),
+		ServiceManagedIdentity: api.ResourceIDToStringPtr(from.ServiceManagedIdentity),
 	}
 }
 
@@ -341,8 +345,9 @@ func (c *HcpOpenShiftCluster) GetVersion() api.Version {
 	return versionedInterface
 }
 
-func (c *HcpOpenShiftCluster) ConvertToInternal() *api.HCPOpenShiftCluster {
+func (c *HcpOpenShiftCluster) ConvertToInternal() (*api.HCPOpenShiftCluster, error) {
 	out := &api.HCPOpenShiftCluster{}
+	errs := field.ErrorList{}
 
 	if c.ID != nil {
 		out.ID = api.Must(azcorearm.ParseResourceID(strings.ToLower(*c.ID)))
@@ -403,7 +408,7 @@ func (c *HcpOpenShiftCluster) ConvertToInternal() *api.HCPOpenShiftCluster {
 				normalizeAPI(c.Properties.API, &out.CustomerProperties.API, &out.ServiceProviderProperties.API)
 			}
 			if c.Properties.Platform != nil {
-				normalizePlatform(c.Properties.Platform, &out.CustomerProperties.Platform, &out.ServiceProviderProperties.Platform)
+				errs = append(errs, normalizePlatform(field.NewPath("properties", "platform"), c.Properties.Platform, &out.CustomerProperties.Platform, &out.ServiceProviderProperties.Platform)...)
 			}
 			if c.Properties.Autoscaling != nil {
 				normalizeAutoscaling(c.Properties.Autoscaling, &out.CustomerProperties.Autoscaling)
@@ -420,7 +425,7 @@ func (c *HcpOpenShiftCluster) ConvertToInternal() *api.HCPOpenShiftCluster {
 		}
 	}
 
-	return out
+	return out, arm.CloudErrorFromFieldErrors(errs)
 }
 
 func normalizeManagedIdentity(identity *generated.ManagedServiceIdentity) *arm.ManagedServiceIdentity {
@@ -497,25 +502,37 @@ func normalizeAPI(p *generated.APIProfile, out *api.CustomerAPIProfile, out2 *ap
 	out.AuthorizedCIDRs = api.StringPtrSliceToStringSlice(p.AuthorizedCIDRs)
 }
 
-func normalizePlatform(p *generated.PlatformProfile, out *api.CustomerPlatformProfile, out2 *api.ServiceProviderPlatformProfile) {
+func normalizePlatform(fldPath *field.Path, p *generated.PlatformProfile, out *api.CustomerPlatformProfile, out2 *api.ServiceProviderPlatformProfile) field.ErrorList {
+	errs := field.ErrorList{}
+
 	if p.ManagedResourceGroup != nil {
 		out.ManagedResourceGroup = *p.ManagedResourceGroup
 	}
-	if p.SubnetID != nil {
-		out.SubnetID = *p.SubnetID
+	if p.SubnetID != nil && len(*p.SubnetID) > 0 {
+		if resourceID, err := azcorearm.ParseResourceID(*p.SubnetID); err != nil {
+			errs = append(errs, field.Invalid(fldPath.Child("subnetID"), *p.SubnetID, err.Error()))
+		} else {
+			out.SubnetID = resourceID
+		}
 	}
 	if p.OutboundType != nil {
 		out.OutboundType = api.OutboundType(*p.OutboundType)
 	}
-	if p.NetworkSecurityGroupID != nil {
-		out.NetworkSecurityGroupID = *p.NetworkSecurityGroupID
+	if p.NetworkSecurityGroupID != nil && len(*p.NetworkSecurityGroupID) > 0 {
+		if resourceID, err := azcorearm.ParseResourceID(*p.NetworkSecurityGroupID); err != nil {
+			errs = append(errs, field.Invalid(fldPath.Child("networkSecurityGroupID"), *p.NetworkSecurityGroupID, err.Error()))
+		} else {
+			out.NetworkSecurityGroupID = resourceID
+		}
 	}
 	if p.OperatorsAuthentication != nil {
-		normalizeOperatorsAuthentication(p.OperatorsAuthentication, &out.OperatorsAuthentication)
+		errs = append(errs, normalizeOperatorsAuthentication(fldPath.Child("operatorsAuthentication"), p.OperatorsAuthentication, &out.OperatorsAuthentication)...)
 	}
 	if p.IssuerURL != nil {
 		out2.IssuerURL = *p.IssuerURL
 	}
+
+	return errs
 }
 
 func normalizeAutoscaling(p *generated.ClusterAutoscalingProfile, out *api.ClusterAutoscalingProfile) {
@@ -581,31 +598,40 @@ func normalizeClusterImageRegistry(p *generated.ClusterImageRegistryProfile, out
 	}
 }
 
-func normalizeOperatorsAuthentication(p *generated.OperatorsAuthenticationProfile, out *api.OperatorsAuthenticationProfile) {
+func normalizeOperatorsAuthentication(fldPath *field.Path, p *generated.OperatorsAuthenticationProfile, out *api.OperatorsAuthenticationProfile) field.ErrorList {
 	if p.UserAssignedIdentities != nil {
-		normalizeUserAssignedIdentities(p.UserAssignedIdentities, &out.UserAssignedIdentities)
+		return normalizeUserAssignedIdentities(fldPath.Child("userAssignedIdentities"), p.UserAssignedIdentities, &out.UserAssignedIdentities)
 	}
+	return nil
 }
 
-func normalizeUserAssignedIdentities(p *generated.UserAssignedIdentitiesProfile, out *api.UserAssignedIdentitiesProfile) {
+func normalizeUserAssignedIdentities(fldPath *field.Path, p *generated.UserAssignedIdentitiesProfile, out *api.UserAssignedIdentitiesProfile) field.ErrorList {
+	errs := field.ErrorList{}
+
 	switch {
 	case p.ControlPlaneOperators != nil && out.ControlPlaneOperators == nil:
-		out.ControlPlaneOperators = make(map[string]string)
+		out.ControlPlaneOperators = make(map[string]*azcorearm.ResourceID)
 	case p.ControlPlaneOperators == nil && out.ControlPlaneOperators != nil:
 		out.ControlPlaneOperators = nil
 	}
 	switch {
 	case p.DataPlaneOperators != nil && out.DataPlaneOperators == nil:
-		out.DataPlaneOperators = make(map[string]string)
+		out.DataPlaneOperators = make(map[string]*azcorearm.ResourceID)
 	case p.DataPlaneOperators == nil && out.DataPlaneOperators != nil:
 		out.DataPlaneOperators = nil
 	}
 
-	api.MergeStringPtrMap(p.ControlPlaneOperators, &out.ControlPlaneOperators)
-	api.MergeStringPtrMap(p.DataPlaneOperators, &out.DataPlaneOperators)
-	if p.ServiceManagedIdentity != nil {
-		out.ServiceManagedIdentity = *p.ServiceManagedIdentity
+	errs = append(errs, api.MergeStringPtrMapIntoResourceIDMap(fldPath.Child("controlPlaneOperators"), p.ControlPlaneOperators, &out.ControlPlaneOperators)...)
+	errs = append(errs, api.MergeStringPtrMapIntoResourceIDMap(fldPath.Child("dataPlaneOperators"), p.DataPlaneOperators, &out.DataPlaneOperators)...)
+	if p.ServiceManagedIdentity != nil && len(*p.ServiceManagedIdentity) > 0 {
+		if resourceID, err := azcorearm.ParseResourceID(*p.ServiceManagedIdentity); err != nil {
+			errs = append(errs, field.Invalid(fldPath.Child("serviceManagedIdentity"), *p.ServiceManagedIdentity, err.Error()))
+		} else {
+			out.ServiceManagedIdentity = resourceID
+		}
 	}
+
+	return errs
 }
 
 func normalizeIdentityUserAssignedIdentities(p map[string]*generated.UserAssignedIdentity, out *map[string]*arm.UserAssignedIdentity) {

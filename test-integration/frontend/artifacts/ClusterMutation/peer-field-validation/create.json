@@ -1,54 +1,55 @@
 {
-  "identity": {
-    "type": "UserAssigned",
-    "userAssignedIdentities": {
-      "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/unused-identity": {},
-      "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/shared-identity": {}
-    }
-  },
-  "name": "peer-field-validation",
-  "properties": {
-    "api": {
-      "visibility": "Public"
-    },
-    "clusterImageRegistry": {
-      "state": "Disabled"
-    },
-    "console": {},
-    "dns": {},
-    "etcd": {
-      "dataEncryption": {
-        "keyManagementMode": "PlatformManaged"
-      }
-    },
-    "network": {
-      "hostPrefix": 23,
-      "machineCidr": "10.0.0.0/16",
-      "networkType": "OVNKubernetes",
-      "podCidr": "10.0.1.0/24",
-      "serviceCidr": "10.0.2.0/24"
-    },
-    "platform": {
-      "managedResourceGroup": "some-resource-group",
-      "networkSecurityGroupId": "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.Network/networkSecurityGroups/test-nsg",
-      "operatorsAuthentication": {
-        "userAssignedIdentities": {
-          "controlPlaneOperators": {
-            "operator1": "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/shared-identity",
-            "operator2": "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/shared-identity"
-          },
-          "dataPlaneOperators": {
-            "dataplane-operator": "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/unused-identity"
-          },
-          "serviceManagedIdentity": "/subscriptions/different-sub/resourceGroups/some-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/service-identity"
-        }
-      },
-      "outboundType": "LoadBalancer",
-      "subnetId": "/subscriptions/different-sub/resourceGroups/some-resource-group/providers/Microsoft.Network/virtualNetworks/test-vnet/subnets/test-subnet"
-    },
-    "version": {
-      "channelGroup": "stable"
-    }
-  },
-  "type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters"
+	"identity": {
+		"type": "UserAssigned",
+		"userAssignedIdentities": {
+			"/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/unused-identity": {},
+			"/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/shared-identity": {}
+		}
+	},
+	"name": "peer-field-validation",
+	"properties": {
+		"api": {
+			"visibility": "Public"
+		},
+		"clusterImageRegistry": {
+			"id": "4.20",
+			"state": "Disabled"
+		},
+		"console": {},
+		"dns": {},
+		"etcd": {
+			"dataEncryption": {
+				"keyManagementMode": "PlatformManaged"
+			}
+		},
+		"network": {
+			"hostPrefix": 23,
+			"machineCidr": "10.0.0.0/16",
+			"networkType": "OVNKubernetes",
+			"podCidr": "10.0.1.0/24",
+			"serviceCidr": "10.0.2.0/24"
+		},
+		"platform": {
+			"managedResourceGroup": "some-resource-group",
+			"networkSecurityGroupId": "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.Network/networkSecurityGroups/test-nsg",
+			"operatorsAuthentication": {
+				"userAssignedIdentities": {
+					"controlPlaneOperators": {
+						"operator1": "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/shared-identity",
+						"operator2": "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/shared-identity"
+					},
+					"dataPlaneOperators": {
+						"dataplane-operator": "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/unused-identity"
+					},
+					"serviceManagedIdentity": "/subscriptions/different-sub/resourceGroups/some-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/service-identity"
+				}
+			},
+			"outboundType": "LoadBalancer",
+			"subnetId": "/subscriptions/different-sub/resourceGroups/some-resource-group/providers/Microsoft.Network/virtualNetworks/test-vnet/subnets/test-subnet"
+		},
+		"version": {
+			"channelGroup": "stable"
+		}
+	},
+	"type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters"
 }

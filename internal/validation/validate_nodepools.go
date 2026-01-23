@@ -22,6 +22,8 @@ import (
 	"k8s.io/apimachinery/pkg/api/validate"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
@@ -189,7 +191,7 @@ func validateNodePoolVersionProfile(ctx context.Context, op operation.Operation,
 }
 
 var (
-	toNodePoolPlatformProfileSubnetID               = func(oldObj *api.NodePoolPlatformProfile) *string { return &oldObj.SubnetID }
+	toNodePoolPlatformProfileSubnetID               = func(oldObj *api.NodePoolPlatformProfile) *azcorearm.ResourceID { return oldObj.SubnetID }
 	toNodePoolPlatformProfileVMSize                 = func(oldObj *api.NodePoolPlatformProfile) *string { return &oldObj.VMSize }
 	toNodePoolPlatformProfileEnableEncryptionAtHost = func(oldObj *api.NodePoolPlatformProfile) *bool { return &oldObj.EnableEncryptionAtHost }
 	toNodePoolPlatformProfileOSDisk                 = func(oldObj *api.NodePoolPlatformProfile) *api.OSDiskProfile { return &oldObj.OSDisk }
@@ -200,8 +202,8 @@ func validateNodePoolPlatformProfile(ctx context.Context, op operation.Operation
 	errs := field.ErrorList{}
 
 	//SubnetID               string        `json:"subnetId,omitempty"`
-	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("subnetId"), &newObj.SubnetID, safe.Field(oldObj, toNodePoolPlatformProfileSubnetID))...)
-	errs = append(errs, RestrictedResourceIDString(ctx, op, fldPath.Child("subnetId"), &newObj.SubnetID, safe.Field(oldObj, toNodePoolPlatformProfileSubnetID), "Microsoft.Network/virtualNetworks/subnets")...)
+	errs = append(errs, validate.ImmutableByReflect(ctx, op, fldPath.Child("subnetId"), newObj.SubnetID, safe.Field(oldObj, toNodePoolPlatformProfileSubnetID))...)
+	errs = append(errs, RestrictedResourceIDWithResourceGroup(ctx, op, fldPath.Child("subnetId"), newObj.SubnetID, safe.Field(oldObj, toNodePoolPlatformProfileSubnetID), "Microsoft.Network/virtualNetworks/subnets")...)
 
 	//VMSize                 string        `json:"vmSize,omitempty"`
 	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("vmSize"), &newObj.VMSize, safe.Field(oldObj, toNodePoolPlatformProfileVMSize))...)
@@ -223,7 +225,7 @@ func validateNodePoolPlatformProfile(ctx context.Context, op operation.Operation
 var (
 	toOSDiskProfileSizeGiB                = func(oldObj *api.OSDiskProfile) *int32 { return oldObj.SizeGiB }
 	toOSDiskProfileDiskStorageAccountType = func(oldObj *api.OSDiskProfile) *api.DiskStorageAccountType { return &oldObj.DiskStorageAccountType }
-	toOSDiskProfileEncryptionSetID        = func(oldObj *api.OSDiskProfile) *string { return &oldObj.EncryptionSetID }
+	toOSDiskProfileEncryptionSetID        = func(oldObj *api.OSDiskProfile) *azcorearm.ResourceID { return oldObj.EncryptionSetID }
 )
 
 func validateOSDiskProfile(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *api.OSDiskProfile) field.ErrorList {
@@ -236,7 +238,7 @@ func validateOSDiskProfile(ctx context.Context, op operation.Operation, fldPath 
 	errs = append(errs, validate.Enum(ctx, op, fldPath.Child("diskStorageAccountType"), &newObj.DiskStorageAccountType, safe.Field(oldObj, toOSDiskProfileDiskStorageAccountType), api.ValidDiskStorageAccountTypes)...)
 
 	//EncryptionSetID        string                 `json:"encryptionSetId,omitempty"`
-	errs = append(errs, RestrictedResourceIDString(ctx, op, fldPath.Child("encryptionSetId"), &newObj.EncryptionSetID, safe.Field(oldObj, toOSDiskProfileEncryptionSetID), "Microsoft.Compute/diskEncryptionSets")...)
+	errs = append(errs, RestrictedResourceIDWithResourceGroup(ctx, op, fldPath.Child("encryptionSetId"), newObj.EncryptionSetID, safe.Field(oldObj, toOSDiskProfileEncryptionSetID), "Microsoft.Compute/diskEncryptionSets")...)
 
 	return errs
 }
