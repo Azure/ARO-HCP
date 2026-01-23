@@ -28,7 +28,7 @@ func InternalToCosmosController(internalObj *api.Controller) (*Controller, error
 	cosmosObj := &Controller{
 		TypedDocument: TypedDocument{
 			BaseDocument: BaseDocument{
-				ID: internalObj.GetCosmosData().CosmosUID,
+				ID: internalObj.GetCosmosData().GetCosmosUID(),
 			},
 			PartitionKey: strings.ToLower(internalObj.ExternalID.SubscriptionID),
 			ResourceType: internalObj.ResourceID.ResourceType.String(),
@@ -65,7 +65,7 @@ func CosmosToInternalController(cosmosObj *Controller) (*api.Controller, error) 
 	// stored in the json compatible api.Controller
 	tempInternalAPI.ResourceID = cosmosObj.ControllerProperties.ResourceID
 	tempInternalAPI.CosmosMetadata = api.CosmosMetadata{
-		ResourceID: *cosmosObj.ControllerProperties.ResourceID,
+		ResourceID: cosmosObj.ControllerProperties.ResourceID,
 	}
 
 	// some pieces of data are stored on the BaseDocument, so we need to restore that data

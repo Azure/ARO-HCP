@@ -665,7 +665,7 @@ func (f *Frontend) updateHCPClusterInCosmos(ctx context.Context, writer http.Res
 	}
 
 	// Read back the resource document so the response body is accurate.
-	resultingUncastObj, err := transactionResult.GetItem(oldInternalCluster.GetCosmosData().CosmosUID)
+	resultingUncastObj, err := transactionResult.GetItem(oldInternalCluster.GetCosmosData().GetCosmosUID())
 	if err != nil {
 		return utils.TrackError(err)
 	}

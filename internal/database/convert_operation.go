@@ -40,7 +40,7 @@ func InternalToCosmosOperation(internalObj *api.Operation) (*Operation, error) {
 	cosmosObj := &Operation{
 		TypedDocument: TypedDocument{
 			BaseDocument: BaseDocument{
-				ID:         internalObj.GetCosmosData().CosmosUID,
+				ID:         internalObj.GetCosmosData().GetCosmosUID(),
 				TimeToLive: operationTimeToLive,
 			},
 			PartitionKey: strings.ToLower(internalObj.ExternalID.SubscriptionID),

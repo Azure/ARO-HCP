@@ -544,7 +544,7 @@ func (f *Frontend) updateExternalAuthInCosmos(ctx context.Context, writer http.R
 	}
 
 	// Read back the resource document so the response body is accurate.
-	resultingUncastInternalExternalAuth, err := transactionResult.GetItem(oldInternalExternalAuth.GetCosmosData().CosmosUID)
+	resultingUncastInternalExternalAuth, err := transactionResult.GetItem(oldInternalExternalAuth.GetCosmosData().GetCosmosUID())
 	if err != nil {
 		return utils.TrackError(err)
 	}
