@@ -47,6 +47,10 @@ type RawMustGatherOptions struct {
 func DefaultMustGatherOptions() *RawMustGatherOptions {
 	return &RawMustGatherOptions{
 		QueryTimeout: 5 * time.Minute,
+		TimestampMin: time.Now().Add(-24 * time.Hour),
+		TimestampMax: time.Now(),
+		Limit:        -1, // defaults to no limit
+		OutputPath:   fmt.Sprintf("must-gather-%s", time.Now().Format("20060102-150405")),
 	}
 }
 
@@ -150,11 +154,6 @@ func (o *RawMustGatherOptions) Validate(ctx context.Context) (*ValidatedMustGath
 
 // Complete performs final initialization to create fully usable MustGatherOptions.
 func (o *ValidatedMustGatherOptions) Complete(ctx context.Context) (*MustGatherOptions, error) {
-	// Set default output path if not specified
-	if o.OutputPath == "" {
-		o.OutputPath = fmt.Sprintf("must-gather-%s", time.Now().Format("20060102-150405"))
-	}
-
 	endpoint, err := kusto.KustoEndpoint(o.Kusto, o.Region)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Kusto endpoint: %w", err)
@@ -175,15 +174,6 @@ func (o *ValidatedMustGatherOptions) Complete(ctx context.Context) (*MustGatherO
 		if err != nil {
 			return nil, fmt.Errorf("failed to create customer logs directory: %w", err)
 		}
-	}
-
-	// Set default timestamps in options
-	if o.TimestampMin.IsZero() {
-		o.TimestampMin = time.Now().Add(time.Hour * -24)
-	}
-
-	if o.TimestampMax.IsZero() {
-		o.TimestampMax = time.Now()
 	}
 
 	return &MustGatherOptions{
