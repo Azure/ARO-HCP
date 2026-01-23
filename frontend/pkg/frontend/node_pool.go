@@ -594,7 +594,7 @@ func (f *Frontend) updateNodePoolInCosmos(ctx context.Context, writer http.Respo
 	}
 
 	// Read back the resource document so the response body is accurate.
-	resultingUncastInternalNodePool, err := transactionResult.GetItem(oldInternalNodePool.GetCosmosData().CosmosUID)
+	resultingUncastInternalNodePool, err := transactionResult.GetItem(oldInternalNodePool.GetCosmosData().GetCosmosUID())
 	if err != nil {
 		return utils.TrackError(err)
 	}

@@ -15,8 +15,6 @@
 package api
 
 import (
-	"strings"
-
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api/arm"
@@ -33,11 +31,9 @@ type HCPOpenShiftCluster struct {
 
 var _ CosmosPersistable = &HCPOpenShiftCluster{}
 
-func (o *HCPOpenShiftCluster) GetCosmosData() CosmosData {
-	return CosmosData{
-		CosmosUID:    Must(ResourceIDToCosmosID(o.ID)),
-		PartitionKey: strings.ToLower(o.ID.SubscriptionID),
-		ItemID:       o.ID,
+func (o *HCPOpenShiftCluster) GetCosmosData() *CosmosData {
+	return &CosmosData{
+		ResourceID: o.ID,
 	}
 }
 

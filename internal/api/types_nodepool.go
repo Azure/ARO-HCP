@@ -36,11 +36,9 @@ type HCPOpenShiftClusterNodePool struct {
 
 var _ CosmosPersistable = &HCPOpenShiftClusterNodePool{}
 
-func (o *HCPOpenShiftClusterNodePool) GetCosmosData() CosmosData {
-	return CosmosData{
-		CosmosUID:    Must(ResourceIDToCosmosID(o.ID)),
-		PartitionKey: strings.ToLower(o.ID.SubscriptionID),
-		ItemID:       o.ID,
+func (o *HCPOpenShiftClusterNodePool) GetCosmosData() *CosmosData {
+	return &CosmosData{
+		ResourceID: o.ID,
 	}
 }
 

@@ -15,7 +15,6 @@
 package api
 
 import (
-	"strings"
 	"time"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -33,11 +32,9 @@ type HCPOpenShiftClusterExternalAuth struct {
 
 var _ CosmosPersistable = &HCPOpenShiftClusterExternalAuth{}
 
-func (o *HCPOpenShiftClusterExternalAuth) GetCosmosData() CosmosData {
-	return CosmosData{
-		CosmosUID:    Must(ResourceIDToCosmosID(o.ID)),
-		PartitionKey: strings.ToLower(o.ID.SubscriptionID),
-		ItemID:       o.ID,
+func (o *HCPOpenShiftClusterExternalAuth) GetCosmosData() *CosmosData {
+	return &CosmosData{
+		ResourceID: o.ID,
 	}
 }
 

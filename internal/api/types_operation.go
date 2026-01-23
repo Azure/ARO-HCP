@@ -87,10 +87,8 @@ func (o *Operation) ComputeLogicalResourceID() *azcorearm.ResourceID {
 			))))
 }
 
-func (o *Operation) GetCosmosData() CosmosData {
-	return CosmosData{
-		CosmosUID:    Must(ResourceIDToCosmosID(o.ResourceID)),
-		PartitionKey: strings.ToLower(o.ComputeLogicalResourceID().SubscriptionID),
-		ItemID:       o.ComputeLogicalResourceID(),
+func (o *Operation) GetCosmosData() *CosmosData {
+	return &CosmosData{
+		ResourceID: o.ResourceID,
 	}
 }
