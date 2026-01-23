@@ -30,7 +30,7 @@ import (
 
 var _ = Describe("Customer", func() {
 
-	backlevelVersions := framework.BacklevelOpenshiftControlPlaneVersionId()
+	backlevelVersions := []string{"4.19"}
 
 	for _, version := range backlevelVersions {
 		version := version // capture loop variable
@@ -116,7 +116,7 @@ var _ = Describe("Customer", func() {
 				Expect(err).NotTo(HaveOccurred())
 
 				By("creating node pool with back-level version")
-				backlevelNodePoolVersions := framework.BacklevelOpenshiftNodePoolVersionId()
+				backlevelNodePoolVersions := []string{"4.19.7"}
 
 				var matchingNodePoolVersion string
 				for _, nodePoolVersion := range backlevelNodePoolVersions {

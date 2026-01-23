@@ -20,7 +20,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"strings"
 	"time"
 
 	"k8s.io/apimachinery/pkg/util/rand"
@@ -76,22 +75,6 @@ func DefaultOpenshiftNodePoolVersionId() string {
 		return "4.20.8"
 	}
 	return version
-}
-
-func BacklevelOpenshiftControlPlaneVersionId() []string {
-	versions := os.Getenv("ARO_HCP_OPENSHIFT_CONTROLPLANE_BACKLEVEL_VERSIONS")
-	if versions == "" {
-		return []string{"4.19"}
-	}
-	return strings.Split(versions, ",")
-}
-
-func BacklevelOpenshiftNodePoolVersionId() []string {
-	versions := os.Getenv("ARO_HCP_OPENSHIFT_NODEPOOL_BACKLEVEL_VERSIONS")
-	if versions == "" {
-		return []string{"4.19.7"}
-	}
-	return strings.Split(versions, ",")
 }
 
 func NewDefaultClusterParams() ClusterParams {
