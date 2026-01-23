@@ -1,0 +1,45 @@
+$schema: pipeline.schema.v1
+rolloutName: Delete Kusto Instance
+serviceGroup: Microsoft.Azure.ARO.HCP.Kusto.Delete
+resourceGroups:
+- name: kusto
+  resourceGroup: '{{ .kusto.rg }}'
+  subscription: '{{ .global.subscription.key }}'
+  executionConstraints:
+  - clouds:
+    - public
+    environments:
+    - int
+    regions:
+    - uksouth
+  - clouds:
+    - public
+    environments:
+    - prod
+    regions:
+    - australiaeast
+    - brazilsouth
+    - canadacentral
+    - centralindia
+    - eastus2
+    - westeurope
+    - switzerlandnorth
+    - uksouth
+  steps:
+  - name: delete-kusto-instance
+    action: Shell
+    command: ./delete.kusto.instance.sh
+    dryRun:
+      variables:
+      - name: DRY_RUN
+        value: "true"
+    variables:
+    - name: RESOURCE_GROUP
+      configRef: kusto.rg
+    - name: KUSTO_INSTANCE
+      configRef: kusto.kustoName
+    shellIdentity:
+      input:
+        resourceGroup: global
+        step: output
+        name: globalMSIId
