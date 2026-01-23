@@ -2,6 +2,16 @@ $schema: pipeline.schema.v1
 rolloutName: Delete Kusto Instance
 serviceGroup: Microsoft.Azure.ARO.HCP.Kusto.Delete
 resourceGroups:
+- name: global
+  resourceGroup: '{{ .global.rg }}'
+  subscription: '{{ .global.subscription.key }}'
+  steps:
+  - name: output
+    action: ARM
+    template: templates/output-global.bicep
+    parameters: ./../configurations/output-global.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
 - name: kusto
   resourceGroup: '{{ .kusto.rg }}'
   subscription: '{{ .global.subscription.key }}'

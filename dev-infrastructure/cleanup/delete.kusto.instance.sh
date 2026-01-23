@@ -4,7 +4,7 @@ set -o errexit
 set -o nounset
 set -o pipefail
 
-# Usage: RESOURCE_GROUP=<resource-group-name> [DRY_RUN=true] ./cleanup-rg.sh
+# Usage: RESOURCE_GROUP=<resource-group-name> KUSTO_INSTANCE=<kusto-instance-name> [DRY_RUN=true] ./delete.kusto.instance.sh
 # 
 # Deletes all specific Kusto instance
 #
@@ -74,16 +74,16 @@ has_locks() {
 }
 
 # Function to get resource IDs by type
-get_resources_by_type() {
-    local resource_type="$1"
+get_kusto_instance_id() {
     az resource list --resource-group "$RESOURCE_GROUP" \
-        --resource-type "$resource_type" \
+        --resource-type "microsoft.kusto/clusters" \
+        --name "$KUSTO_INSTANCE" \
         --query "[].id" \
         --output tsv 2>/dev/null || true
 }
 
 log STEP "Removing Kusto instance"
-kusto_instance_id=$(get_resources_by_type "microsoft.kusto/clusters")
+kusto_instance_id=$(get_kusto_instance_id)
 if [[ -n "$kusto_instance_id" ]]; then
     if has_locks "$kusto_instance_id"; then
         log WARN "Skipping locked Kusto instance: $kusto_instance_id"
@@ -94,10 +94,13 @@ if [[ -n "$kusto_instance_id" ]]; then
         log INFO "[DRY RUN] Would delete Kusto instance: $(basename "$kusto_instance_id")"
     else
         log INFO "Deleting Kusto instance: $(basename "$kusto_instance_id")"
-        if az resource delete --yes --force --ids "$kusto_instance_id" --output none 2>/dev/null; then
+        if az resource delete --ids "$kusto_instance_id" --output none 2>/dev/null; then
             log SUCCESS "Deleted Kusto instance: $(basename "$kusto_instance_id")"
         else
             log ERROR "Failed to delete Kusto instance: $(basename "$kusto_instance_id")"
         fi
     fi
+else
+    log ERROR "Kusto instance '$KUSTO_INSTANCE' not found in resource group '$RESOURCE_GROUP'"
+    exit 1
 fi
