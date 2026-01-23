@@ -5,7 +5,7 @@ Customer should be able to create an HCP cluster with custom autoscaling
 Customer should be able to create a HCP cluster without CNI
 Customer should be able to list HCP clusters without node pools at both subscription and resource group levels
 Update HCPOpenShiftCluster Positive creates a cluster and updates tags with a PATCH request
-Customer should be able to create an HCP cluster with back-level version
+Customer should be able to create an HCP cluster with back-level version 4.19
 Customer should be able to create several HCP clusters in their customer resource group, but not in the same managed resource group
 Customer should be able to create an HCP cluster using bicep templates
 Customer should be able to lifecycle and confirm external auth on a cluster
