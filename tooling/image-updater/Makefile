@@ -18,13 +18,13 @@ build:
 	@go build -o $(BINARY_NAME) .
 
 update:
-	@./$(BINARY_NAME) update --config $(CONFIG_FILE) $(COMPONENT_FLAGS) $(EXCLUDE_FLAGS) $(VERBOSITY_FLAGS) $(OUTPUT_FLAGS) && make -C ../../ yamlfmt > /dev/null 2>&1
+	@./$(BINARY_NAME) update --config $(CONFIG_FILE) $(COMPONENT_FLAGS) $(EXCLUDE_FLAGS) $(VERBOSITY_FLAGS) $(OUTPUT_FLAGS)
 
 promote-stage:
-	@./$(BINARY_NAME) update --config $(CONFIG_FILE) --env stg $(COMPONENT_FLAGS) $(EXCLUDE_FLAGS) $(VERBOSITY_FLAGS) $(OUTPUT_FLAGS) && make -C ../../ yamlfmt > /dev/null 2>&1
+	@./$(BINARY_NAME) update --config $(CONFIG_FILE) --env stg $(COMPONENT_FLAGS) $(EXCLUDE_FLAGS) $(VERBOSITY_FLAGS) $(OUTPUT_FLAGS)
 
 promote-prod:
-	@./$(BINARY_NAME) update --config $(CONFIG_FILE) --env prod $(COMPONENT_FLAGS) $(EXCLUDE_FLAGS) $(VERBOSITY_FLAGS) $(OUTPUT_FLAGS) && make -C ../../ yamlfmt > /dev/null 2>&1
+	@./$(BINARY_NAME) update --config $(CONFIG_FILE) --env prod $(COMPONENT_FLAGS) $(EXCLUDE_FLAGS) $(VERBOSITY_FLAGS) $(OUTPUT_FLAGS)
 
 test:
 	@go test ./...
