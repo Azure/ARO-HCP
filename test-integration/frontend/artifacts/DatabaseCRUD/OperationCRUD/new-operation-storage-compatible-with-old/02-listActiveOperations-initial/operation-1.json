@@ -7,5 +7,6 @@
 	"request": "Create",
 	"startTime": "2025-12-05T20:29:59.734335781Z",
 	"status": "Accepted",
-	"tenantId": "00000000-0000-0000-0000-000000000000"
+	"tenantId": "00000000-0000-0000-0000-000000000000",
+	"resourceId": "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/providers/Microsoft.RedHatOpenShift/hcpOperationStatuses/7c6b7caa-572f-41b6-9f18-1bb11adfba31"
 }

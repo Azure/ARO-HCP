@@ -16,13 +16,10 @@ package databasemutationhelpers
 
 import (
 	"context"
-	"encoding/json"
 	"io/fs"
 	"testing"
 
 	"github.com/stretchr/testify/require"
-
-	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -56,33 +53,9 @@ func (l *cosmosCompare) RunTest(ctx context.Context, t *testing.T, stepInput Ste
 	var allActual []*database.TypedDocument
 	var err error
 
-	if stepInput.DocumentLister != nil {
-		// Use the DocumentLister interface (works with both Cosmos and mock)
-		allActual, err = stepInput.DocumentLister.ListAllDocuments(ctx)
-		require.NoError(t, err)
-	} else if stepInput.CosmosContainer != nil {
-		// Fallback to direct Cosmos querying
-		querySQL := "SELECT * FROM c"
-		queryOptions := &azcosmos.QueryOptions{
-			QueryParameters: []azcosmos.QueryParameter{},
-		}
-
-		queryPager := stepInput.CosmosContainer.NewQueryItemsPager(querySQL, azcosmos.PartitionKey{}, queryOptions)
-
-		for queryPager.More() {
-			queryResponse, queryErr := queryPager.NextPage(ctx)
-			require.NoError(t, queryErr)
-
-			for _, item := range queryResponse.Items {
-				curr := &database.TypedDocument{}
-				err = json.Unmarshal(item, curr)
-				require.NoError(t, err)
-				allActual = append(allActual, curr)
-			}
-		}
-	} else {
-		t.Fatal("neither DocumentLister nor CosmosContainer is set")
-	}
+	// Use the DocumentLister interface (works with both Cosmos and mock)
+	allActual, err = stepInput.DocumentLister.ListAllDocuments(ctx)
+	require.NoError(t, err)
 
 	for _, currExpected := range l.expectedContent {
 		found := false

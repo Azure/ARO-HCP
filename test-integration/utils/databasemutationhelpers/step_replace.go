@@ -25,19 +25,18 @@ import (
 )
 
 type replaceStep[InternalAPIType any] struct {
-	stepID      StepID
-	key         CosmosCRUDKey
-	specializer ResourceCRUDTestSpecializer[InternalAPIType]
+	stepID StepID
+	key    CosmosItemKey
 
 	resources []*InternalAPIType
 }
 
-func newReplaceStep[InternalAPIType any](stepID StepID, specializer ResourceCRUDTestSpecializer[InternalAPIType], stepDir fs.FS) (*replaceStep[InternalAPIType], error) {
+func newReplaceStep[InternalAPIType any](stepID StepID, stepDir fs.FS) (*replaceStep[InternalAPIType], error) {
 	keyBytes, err := fs.ReadFile(stepDir, "00-key.json")
 	if err != nil {
 		return nil, fmt.Errorf("failed to read key.json: %w", err)
 	}
-	var key CosmosCRUDKey
+	var key CosmosItemKey
 	if err := json.Unmarshal(keyBytes, &key); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal key.json: %w", err)
 	}
@@ -48,10 +47,9 @@ func newReplaceStep[InternalAPIType any](stepID StepID, specializer ResourceCRUD
 	}
 
 	return &replaceStep[InternalAPIType]{
-		stepID:      stepID,
-		key:         key,
-		specializer: specializer,
-		resources:   resources,
+		stepID:    stepID,
+		key:       key,
+		resources: resources,
 	}, nil
 }
 
@@ -62,15 +60,10 @@ func (l *replaceStep[InternalAPIType]) StepID() StepID {
 }
 
 func (l *replaceStep[InternalAPIType]) RunTest(ctx context.Context, t *testing.T, stepInput StepInput) {
-	resourceCRUDClient := l.specializer.ResourceCRUDFromKey(t, stepInput.CosmosContainer, l.key)
+	resourceCRUDClient := NewCosmosCRUD[InternalAPIType](t, stepInput.DBClient, l.key.ResourceID.Parent, l.key.ResourceID.ResourceType)
 
 	for _, resource := range l.resources {
-		// find the existing to set the UID for an replace to replace instead of creating a new record.
-		existing, err := resourceCRUDClient.Get(ctx, l.specializer.NameFromInstance(resource))
-		require.NoError(t, err)
-		l.specializer.WriteCosmosID(resource, existing)
-
-		_, err = resourceCRUDClient.Replace(ctx, resource, nil)
-		require.NoError(t, err, "failed to replace controller")
+		_, err := resourceCRUDClient.Replace(ctx, resource, nil)
+		require.NoError(t, err, "failed to replace resource")
 	}
 }

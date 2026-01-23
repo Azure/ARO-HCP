@@ -16,6 +16,7 @@ package databasemutationhelpers
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -24,10 +25,12 @@ import (
 
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/utils/ptr"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/database"
 )
 
 func ResourceInstanceEquals(t *testing.T, expected, actual any) (string, bool) {
@@ -106,4 +109,35 @@ func prepend(first string, rest ...string) []string {
 		return rest
 	}
 	return append([]string{first}, rest...)
+}
+
+func ResourceName(resource any) string {
+	switch cast := resource.(type) {
+	case api.CosmosMetadataAccessor:
+		return ptr.To(cast.GetResourceID()).String()
+	case api.CosmosPersistable:
+		cosmosUID := cast.GetCosmosData().CosmosUID
+		resourceID, err := api.CosmosIDToResourceID(cosmosUID)
+		if err != nil {
+			return cosmosUID
+		}
+		return resourceID.String()
+	case database.TypedDocument:
+		cosmosUID := cast.ID
+		resourceID, err := api.CosmosIDToResourceID(cosmosUID)
+		if err != nil {
+			return cosmosUID
+		}
+		return resourceID.String()
+	case *database.TypedDocument:
+		cosmosUID := cast.ID
+		resourceID, err := api.CosmosIDToResourceID(cosmosUID)
+		if err != nil {
+			return cosmosUID
+		}
+		return resourceID.String()
+
+	default:
+		return fmt.Sprintf("%v", resource)
+	}
 }

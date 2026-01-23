@@ -30,10 +30,13 @@ import (
 	"github.com/Azure/ARO-HCP/internal/database"
 )
 
+type UntypedItemKey struct {
+	ResourceID string `json:"resourceId"`
+}
+
 type untypedGetStep struct {
-	stepID      StepID
-	key         UntypedCRUDKey
-	specializer ResourceCRUDTestSpecializer[database.TypedDocument]
+	stepID StepID
+	key    UntypedItemKey
 
 	expectedResource *database.TypedDocument
 	expectedError    string
@@ -44,7 +47,7 @@ func newUntypedGetStep(stepID StepID, stepDir fs.FS) (*untypedGetStep, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to read key.json: %w", err)
 	}
-	var key UntypedCRUDKey
+	var key UntypedItemKey
 	if err := json.Unmarshal(keyBytes, &key); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal key.json: %w", err)
 	}
@@ -75,7 +78,6 @@ func newUntypedGetStep(stepID StepID, stepDir fs.FS) (*untypedGetStep, error) {
 	return &untypedGetStep{
 		stepID:           stepID,
 		key:              key,
-		specializer:      UntypedCRUDSpecializer{},
 		expectedResource: expectedResource,
 		expectedError:    expectedError,
 	}, nil
@@ -88,17 +90,14 @@ func (l *untypedGetStep) StepID() StepID {
 }
 
 func (l *untypedGetStep) RunTest(ctx context.Context, t *testing.T, stepInput StepInput) {
-	parentResourceID, err := azcorearm.ParseResourceID(l.key.ParentResourceID)
+	resourceID, err := azcorearm.ParseResourceID(l.key.ResourceID)
 	require.NoError(t, err)
 
-	untypedCRUD := database.NewUntypedCRUD(stepInput.CosmosContainer, *parentResourceID)
-	for _, childKey := range l.key.Descendents {
-		childResourceType, err := azcorearm.ParseResourceType(childKey.ResourceType)
-		require.NoError(t, err)
-		untypedCRUD, err = untypedCRUD.Child(childResourceType, childKey.ResourceName)
-		require.NoError(t, err)
-	}
-	actualResource, err := untypedCRUD.Get(ctx, parentResourceID)
+	untypedCRUD, err := stepInput.DBClient.UntypedCRUD(*resourceID.Parent)
+	require.NoError(t, err)
+	untypedCRUD, err = untypedCRUD.Child(resourceID.ResourceType, resourceID.Name)
+	require.NoError(t, err)
+	actualResource, err := untypedCRUD.Get(ctx, resourceID)
 	switch {
 	case len(l.expectedError) > 0:
 		require.ErrorContains(t, err, l.expectedError)
@@ -107,10 +106,10 @@ func (l *untypedGetStep) RunTest(ctx context.Context, t *testing.T, stepInput St
 		require.NoError(t, err)
 	}
 
-	if !l.specializer.InstanceEquals(l.expectedResource, actualResource) {
+	if reason, equals := ResourceInstanceEquals(t, l.expectedResource, actualResource); !equals {
 		t.Logf("actual:\n%v", stringifyResource(actualResource))
+		t.Log(reason)
 		// cmpdiff doesn't handle private fields gracefully
 		require.Equal(t, l.expectedResource, actualResource)
-		t.Fatal("unexpected")
 	}
 }

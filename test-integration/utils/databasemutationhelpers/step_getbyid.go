@@ -33,15 +33,14 @@ type GetByIDCRUDKey struct {
 }
 
 type getByIDStep[InternalAPIType any] struct {
-	stepID      StepID
-	key         GetByIDCRUDKey
-	specializer ResourceCRUDTestSpecializer[InternalAPIType]
+	stepID StepID
+	key    GetByIDCRUDKey
 
 	expectedResource *InternalAPIType
 	expectedError    string
 }
 
-func newGetByIDStep[InternalAPIType any](stepID StepID, specializer ResourceCRUDTestSpecializer[InternalAPIType], stepDir fs.FS) (*getByIDStep[InternalAPIType], error) {
+func newGetByIDStep[InternalAPIType any](stepID StepID, stepDir fs.FS) (*getByIDStep[InternalAPIType], error) {
 	keyBytes, err := fs.ReadFile(stepDir, "00-key.json")
 	if err != nil {
 		return nil, fmt.Errorf("failed to read key.json: %w", err)
@@ -77,7 +76,6 @@ func newGetByIDStep[InternalAPIType any](stepID StepID, specializer ResourceCRUD
 	return &getByIDStep[InternalAPIType]{
 		stepID:           stepID,
 		key:              key,
-		specializer:      specializer,
 		expectedResource: expectedResource,
 		expectedError:    expectedError,
 	}, nil
@@ -90,8 +88,8 @@ func (l *getByIDStep[InternalAPIType]) StepID() StepID {
 }
 
 func (l *getByIDStep[InternalAPIType]) RunTest(ctx context.Context, t *testing.T, stepInput StepInput) {
-	controllerCRUDClient := l.specializer.ResourceCRUDFromKey(t, stepInput.CosmosContainer, l.key.CosmosCRUDKey)
-	actualController, err := controllerCRUDClient.GetByID(ctx, l.key.CosmosID)
+	resourceCRUDClient := NewCosmosCRUD[InternalAPIType](t, stepInput.DBClient, l.key.ParentResourceID, l.key.ResourceType.ResourceType)
+	actualResource, err := resourceCRUDClient.GetByID(ctx, l.key.CosmosID)
 	switch {
 	case len(l.expectedError) > 0:
 		require.ErrorContains(t, err, l.expectedError)
@@ -100,10 +98,10 @@ func (l *getByIDStep[InternalAPIType]) RunTest(ctx context.Context, t *testing.T
 		require.NoError(t, err)
 	}
 
-	if !l.specializer.InstanceEquals(l.expectedResource, actualController) {
-		t.Logf("actual:\n%v", stringifyResource(actualController))
+	if reason, equals := ResourceInstanceEquals(t, l.expectedResource, actualResource); !equals {
+		t.Logf("actual:\n%v", stringifyResource(actualResource))
+		t.Log(reason)
 		// cmpdiff doesn't handle private fields gracefully
-		require.Equal(t, l.expectedResource, actualController)
-		t.Fatal("unexpected")
+		require.Equal(t, l.expectedResource, actualResource)
 	}
 }

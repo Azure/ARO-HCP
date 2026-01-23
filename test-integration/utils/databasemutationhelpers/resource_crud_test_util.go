@@ -26,11 +26,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Azure/ARO-HCP/internal/databasetesting"
 	"github.com/neilotoole/slogt"
 	"github.com/stretchr/testify/require"
 
 	"k8s.io/apimachinery/pkg/util/wait"
 
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
 	"github.com/Azure/ARO-HCP/internal/api"
@@ -51,8 +53,8 @@ type IntegrationTestStep interface {
 	RunTest(ctx context.Context, t *testing.T, stepInput StepInput)
 }
 
-func NewResourceMutationTest[InternalAPIType any](ctx context.Context, specializer ResourceCRUDTestSpecializer[InternalAPIType], testName string, testDir fs.FS) (*ResourceMutationTest, error) {
-	steps, err := readSteps(ctx, testDir, specializer)
+func NewResourceMutationTest[InternalAPIType any](ctx context.Context, testName string, testDir fs.FS) (*ResourceMutationTest, error) {
+	steps, err := readSteps[InternalAPIType](ctx, testDir)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read steps for test %q: %w", testName, err)
 	}
@@ -62,7 +64,7 @@ func NewResourceMutationTest[InternalAPIType any](ctx context.Context, specializ
 	}, nil
 }
 
-func readSteps[InternalAPIType any](ctx context.Context, testDir fs.FS, specializer ResourceCRUDTestSpecializer[InternalAPIType]) ([]IntegrationTestStep, error) {
+func readSteps[InternalAPIType any](ctx context.Context, testDir fs.FS) ([]IntegrationTestStep, error) {
 	steps := []IntegrationTestStep{}
 
 	numLoadClusterServiceSteps := 0
@@ -84,7 +86,7 @@ func readSteps[InternalAPIType any](ctx context.Context, testDir fs.FS, speciali
 			numLoadClusterServiceSteps++
 		}
 
-		testStep, err := NewStep(index, stepType, stepName, testDir, dirEntry.Name(), specializer)
+		testStep, err := NewStep[InternalAPIType](index, stepType, stepName, testDir, dirEntry.Name())
 		if err != nil {
 			return nil, fmt.Errorf("failed to create new step %q: %w", dirEntry.Name(), err)
 		}
@@ -125,7 +127,6 @@ func (tt *ResourceMutationTest) RunTest(t *testing.T) {
 	cosmosContainer := testInfo.CosmosResourcesContainer()
 	cosmosContentLoader := integrationutils.NewCosmosContentLoader(cosmosContainer)
 	stepInput := StepInput{
-		CosmosContainer:        cosmosContainer,
 		ContentLoader:          cosmosContentLoader,
 		DocumentLister:         cosmosContentLoader,
 		DBClient:               testInfo.DBClient,
@@ -169,7 +170,6 @@ func (tt *ResourceMutationTest) RunTestWithMock(t *testing.T) {
 	require.NoError(t, err)
 
 	stepInput := StepInput{
-		CosmosContainer:        nil, // No Cosmos container when using mock
 		ContentLoader:          testInfo.ContentLoader,
 		DocumentLister:         testInfo.DocumentLister,
 		DBClient:               testInfo.DBClient,
@@ -186,7 +186,7 @@ func (tt *ResourceMutationTest) RunTestWithMock(t *testing.T) {
 	}
 }
 
-func NewStep[InternalAPIType any](indexString, stepType, stepName string, testDir fs.FS, path string, specializer ResourceCRUDTestSpecializer[InternalAPIType]) (IntegrationTestStep, error) {
+func NewStep[InternalAPIType any](indexString, stepType, stepName string, testDir fs.FS, path string) (IntegrationTestStep, error) {
 	itoInt, err := strconv.Atoi(indexString)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert %s to int: %w", indexString, err)
@@ -208,22 +208,22 @@ func NewStep[InternalAPIType any](indexString, stepType, stepName string, testDi
 		return NewCosmosCompareStep(stepID, stepDir)
 
 	case "create":
-		return newCreateStep(stepID, specializer, stepDir)
+		return newCreateStep[InternalAPIType](stepID, stepDir)
 
 	case "replace":
-		return newReplaceStep(stepID, specializer, stepDir)
+		return newReplaceStep[InternalAPIType](stepID, stepDir)
 
 	case "get":
-		return newGetStep(stepID, specializer, stepDir)
+		return newGetStep[InternalAPIType](stepID, stepDir)
 
 	case "getByID":
-		return newGetByIDStep(stepID, specializer, stepDir)
+		return newGetByIDStep[InternalAPIType](stepID, stepDir)
 
 	case "untypedGet":
 		return newUntypedGetStep(stepID, stepDir)
 
 	case "list":
-		return newListStep(stepID, specializer, stepDir)
+		return newListStep[InternalAPIType](stepID, stepDir)
 
 	case "listActiveOperations":
 		return newListActiveOperationsStep(stepID, stepDir)
@@ -235,7 +235,7 @@ func NewStep[InternalAPIType any](indexString, stepType, stepName string, testDi
 		return newUntypedListStep(stepID, stepDir)
 
 	case "delete":
-		return newDeleteStep(stepID, specializer, stepDir)
+		return newDeleteStep[InternalAPIType](stepID, stepDir)
 
 	case "untypedDelete":
 		return newUntypedDeleteStep(stepID, stepDir)
@@ -289,7 +289,27 @@ func stringifyResource(controller any) string {
 }
 
 type CosmosCRUDKey struct {
-	ParentResourceID string `json:"parentResourceId"`
+	ParentResourceID *azcorearm.ResourceID `json:"parentResourceId"`
+	ResourceType     ResourceType          `json:"resourceType"`
+}
+
+type ResourceType struct {
+	azcorearm.ResourceType
+}
+
+// MarshalText returns a textual representation of the ResourceID
+func (o *ResourceType) MarshalText() ([]byte, error) {
+	return []byte(o.String()), nil
+}
+
+// UnmarshalText decodes the textual representation of a ResourceID
+func (o *ResourceType) UnmarshalText(text []byte) error {
+	newType, err := azcorearm.ParseResourceType(string(text))
+	if err != nil {
+		return err
+	}
+	o.ResourceType = newType
+	return nil
 }
 
 func readResourcesInDir[InternalAPIType any](dir fs.FS) ([]*InternalAPIType, error) {
@@ -353,4 +373,20 @@ type StepInput struct {
 	FrontendURL     string
 
 	ClusterServiceMockInfo *integrationutils.ClusterServiceMock
+}
+
+func NewCosmosStepInput(cosmosContainer *azcosmos.ContainerClient, dClient database.DBClient) *StepInput {
+	return &StepInput{
+		ContentLoader:  integrationutils.NewCosmosContentLoader(cosmosContainer),
+		DocumentLister: integrationutils.NewCosmosContentLoader(cosmosContainer),
+		DBClient:       dClient,
+	}
+}
+
+func NewMockCosmosStepInput(mockDBClient *databasetesting.MockDBClient) *StepInput {
+	return &StepInput{
+		ContentLoader:  mockDBClient,
+		DocumentLister: mockDBClient,
+		DBClient:       mockDBClient,
+	}
 }

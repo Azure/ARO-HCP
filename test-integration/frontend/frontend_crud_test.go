@@ -40,10 +40,9 @@ func TestFrontendCRUD(t *testing.T) {
 	for _, crudSuiteDirEntry := range crudSuiteDirs {
 		crudSuiteDir := api.Must(fs.Sub(allCRUDDirFS, crudSuiteDirEntry.Name()))
 		t.Run(crudSuiteDirEntry.Name(), func(t *testing.T) {
-			testCRUDSuite(
+			testCRUDSuite[any](
 				ctx,
 				t,
-				databasemutationhelpers.NothingCRUDSpecializer{},
 				crudSuiteDir)
 		})
 	}
@@ -63,24 +62,22 @@ func TestFrontendCRUDWithMock(t *testing.T) {
 	for _, crudSuiteDirEntry := range crudSuiteDirs {
 		crudSuiteDir := api.Must(fs.Sub(allCRUDDirFS, crudSuiteDirEntry.Name()))
 		t.Run(crudSuiteDirEntry.Name(), func(t *testing.T) {
-			testCRUDSuiteWithMock(
+			testCRUDSuiteWithMock[any](
 				ctx,
 				t,
-				databasemutationhelpers.NothingCRUDSpecializer{},
 				crudSuiteDir)
 		})
 	}
 }
 
 // testCRUDSuiteWithMock runs a CRUD test suite using a mock database.
-func testCRUDSuiteWithMock[InternalAPIType any](ctx context.Context, t *testing.T, specializer databasemutationhelpers.ResourceCRUDTestSpecializer[InternalAPIType], crudSuiteDir fs.FS) {
+func testCRUDSuiteWithMock[InternalAPIType any](ctx context.Context, t *testing.T, crudSuiteDir fs.FS) {
 	testDirs := api.Must(fs.ReadDir(crudSuiteDir, "."))
 	for _, testDirEntry := range testDirs {
 		testDir := api.Must(fs.Sub(crudSuiteDir, testDirEntry.Name()))
 
-		currTest, err := databasemutationhelpers.NewResourceMutationTest(
+		currTest, err := databasemutationhelpers.NewResourceMutationTest[InternalAPIType](
 			ctx,
-			specializer,
 			testDirEntry.Name(),
 			testDir,
 		)

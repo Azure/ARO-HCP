@@ -23,8 +23,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
-
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/database"
 )
@@ -65,21 +63,10 @@ func (l *listActiveOperationsStep) StepID() StepID {
 }
 
 func (l *listActiveOperationsStep) RunTest(ctx context.Context, t *testing.T, stepInput StepInput) {
-	parentResourceID, err := azcorearm.ParseResourceID(l.key.ParentResourceID)
-	require.NoError(t, err)
+	resourceCRUDClient := NewCosmosCRUD[api.Operation](t, stepInput.DBClient, l.key.ParentResourceID, l.key.ResourceType.ResourceType)
 
-	var operationsCRUD database.OperationCRUD
-	if stepInput.DBClient != nil {
-		// Use DBClient interface (works with both Cosmos and mock)
-		operationsCRUD = stepInput.DBClient.Operations(parentResourceID.SubscriptionID)
-	} else if stepInput.CosmosContainer != nil {
-		// Fallback to direct Cosmos container
-		operationsCRUD = database.NewOperationCRUD(stepInput.CosmosContainer, parentResourceID.SubscriptionID)
-	} else {
-		t.Fatal("neither DBClient nor CosmosContainer is set")
-	}
+	var operationsCRUD = any(resourceCRUDClient).(database.OperationCRUD)
 	actualControllersIterator := operationsCRUD.ListActiveOperations(nil)
-	require.NoError(t, err)
 
 	actualControllers := []*api.Operation{}
 	for _, actual := range actualControllersIterator.Items(ctx) {
@@ -91,7 +78,6 @@ func (l *listActiveOperationsStep) RunTest(ctx context.Context, t *testing.T, st
 		t.Logf("actual:\n%v", stringifyResource(actualControllers))
 	}
 
-	specializer := OperationCRUDSpecializer{}
 	require.Equal(t, len(l.expectedOperations), len(actualControllers), "unexpected number of resources")
 	// all the expected must be present
 	for _, expected := range l.expectedOperations {
@@ -107,7 +93,7 @@ func (l *listActiveOperationsStep) RunTest(ctx context.Context, t *testing.T, st
 		if !found {
 			t.Logf("actual:\n%v", stringifyResource(actualControllers))
 		}
-		require.True(t, found, "expected resource not found: %v", specializer.NameFromInstance(expected))
+		require.True(t, found, "expected resource not found: %v", ResourceName(expected))
 	}
 
 	// all the actual must be expected
@@ -124,6 +110,6 @@ func (l *listActiveOperationsStep) RunTest(ctx context.Context, t *testing.T, st
 		if !found {
 			t.Logf("expected:\n%v", stringifyResource(l.expectedOperations))
 		}
-		require.True(t, found, "actual resource not found: %v", specializer.NameFromInstance(actual))
+		require.True(t, found, "actual resource not found: %v", ResourceName(actual))
 	}
 }

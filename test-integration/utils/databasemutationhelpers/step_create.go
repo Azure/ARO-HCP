@@ -25,14 +25,13 @@ import (
 )
 
 type createStep[InternalAPIType any] struct {
-	stepID      StepID
-	key         CosmosCRUDKey
-	specializer ResourceCRUDTestSpecializer[InternalAPIType]
+	stepID StepID
+	key    CosmosCRUDKey
 
 	resources []*InternalAPIType
 }
 
-func newCreateStep[InternalAPIType any](stepID StepID, specializer ResourceCRUDTestSpecializer[InternalAPIType], stepDir fs.FS) (*createStep[InternalAPIType], error) {
+func newCreateStep[InternalAPIType any](stepID StepID, stepDir fs.FS) (*createStep[InternalAPIType], error) {
 	keyBytes, err := fs.ReadFile(stepDir, "00-key.json")
 	if err != nil {
 		return nil, fmt.Errorf("failed to read key.json: %w", err)
@@ -48,10 +47,9 @@ func newCreateStep[InternalAPIType any](stepID StepID, specializer ResourceCRUDT
 	}
 
 	return &createStep[InternalAPIType]{
-		stepID:      stepID,
-		key:         key,
-		specializer: specializer,
-		resources:   resources,
+		stepID:    stepID,
+		key:       key,
+		resources: resources,
 	}, nil
 }
 
@@ -62,10 +60,10 @@ func (l *createStep[InternalAPIType]) StepID() StepID {
 }
 
 func (l *createStep[InternalAPIType]) RunTest(ctx context.Context, t *testing.T, stepInput StepInput) {
-	controllerCRUDClient := l.specializer.ResourceCRUDFromKey(t, stepInput.CosmosContainer, l.key)
+	resourceCRUDClient := NewCosmosCRUD[InternalAPIType](t, stepInput.DBClient, l.key.ParentResourceID, l.key.ResourceType.ResourceType)
 
 	for _, resource := range l.resources {
-		_, err := controllerCRUDClient.Create(ctx, resource, nil)
+		_, err := resourceCRUDClient.Create(ctx, resource, nil)
 		require.NoError(t, err, "failed to create controller")
 	}
 }

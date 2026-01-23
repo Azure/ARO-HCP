@@ -84,10 +84,8 @@ func (tc *BasicControllerTest) RunTest(t *testing.T) {
 			initialCosmosState,
 		)
 		require.NoError(t, err)
-		input := databasemutationhelpers.StepInput{
-			CosmosContainer: cosmosTestInfo.CosmosResourcesContainer(),
-		}
-		loadInitialStateStep.RunTest(ctx, t, input)
+		input := databasemutationhelpers.NewCosmosStepInput(cosmosTestInfo.CosmosResourcesContainer(), cosmosTestInfo.DBClient)
+		loadInitialStateStep.RunTest(ctx, t, *input)
 	}
 
 	initialClusterServiceState, err := fs.Sub(testDir, path.Join("00-loadClusterService-initial_state"))
@@ -98,11 +96,8 @@ func (tc *BasicControllerTest) RunTest(t *testing.T) {
 			initialClusterServiceState,
 		)
 		require.NoError(t, err)
-		input := databasemutationhelpers.StepInput{
-			CosmosContainer:        cosmosTestInfo.CosmosResourcesContainer(),
-			ClusterServiceMockInfo: clusterServiceMockInfo,
-		}
-		loadInitialStateStep.RunTest(ctx, t, input)
+		input := databasemutationhelpers.NewCosmosStepInput(cosmosTestInfo.CosmosResourcesContainer(), cosmosTestInfo.DBClient)
+		loadInitialStateStep.RunTest(ctx, t, *input)
 	}
 
 	controllerInput := &ControllerInitializationInput{
@@ -123,10 +118,8 @@ func (tc *BasicControllerTest) RunTest(t *testing.T) {
 			endState,
 		)
 		require.NoError(t, err)
-		input := databasemutationhelpers.StepInput{
-			CosmosContainer: cosmosTestInfo.CosmosResourcesContainer(),
-		}
-		verifyEndStateStep.RunTest(ctx, t, input)
+		input := databasemutationhelpers.NewCosmosStepInput(cosmosTestInfo.CosmosResourcesContainer(), cosmosTestInfo.DBClient)
+		verifyEndStateStep.RunTest(ctx, t, *input)
 	}
 
 	tc.ControllerVerifierFn(ctx, t, controllerInstance, testMemory, controllerInput)

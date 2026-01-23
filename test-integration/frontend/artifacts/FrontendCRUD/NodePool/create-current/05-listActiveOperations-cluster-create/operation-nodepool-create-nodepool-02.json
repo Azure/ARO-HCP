@@ -1,5 +1,4 @@
 {
-	"resourceId": null,
 	"tenantId": "00000000-0000-0000-0000-000000000000",
 	"request": "Create",
 	"externalId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/create-with-tags/nodePools/node-pool-02",
@@ -7,5 +6,6 @@
 	"operationId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/providers/Microsoft.RedHatOpenShift/locations/fake-location/hcpOperationStatuses/c1216e33-a694-4a65-a504-d821c30dc67c",
 	"startTime": "2025-12-19T21:03:42.924755264Z",
 	"lastTransitionTime": "2025-12-19T21:03:42.924755264Z",
-	"status": "Accepted"
+	"status": "Accepted",
+	"resourceId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/providers/Microsoft.RedHatOpenShift/hcpOperationStatuses/c1216e33-a694-4a65-a504-d821c30dc67c"
 }
