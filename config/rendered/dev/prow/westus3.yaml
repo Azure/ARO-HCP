@@ -209,10 +209,13 @@ frontend:
     issuer: Self
     name: frontend-cert-prow-usw3j234
   cosmosDB:
+    billingContainerMaxScale: 4000
     deploy: true
     disableLocalAuth: true
+    locksContainerMaxScale: 4000
     name: arohcpprow-rp-usw3j234
     private: false
+    resourceContainerMaxScale: 4000
     zoneRedundantMode: Disabled
   image:
     digest: sha256:38eef7993b30f9ed06630c41a4597e47f491b2f2d5ecaa621a719e2165f4473d
@@ -750,8 +753,8 @@ svc:
     ingressGatewayIPAddressName: aro-hcp-istio-ingress
     istioctlVersion: 1.24.1
     tag: prod-stable
-    targetVersion: asm-1-25
-    versions: asm-1-25
+    targetVersion: asm-1-26
+    versions: asm-1-26
   jaeger:
     deploy: true
   nsp:

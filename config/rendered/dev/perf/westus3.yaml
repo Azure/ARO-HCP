@@ -209,10 +209,13 @@ frontend:
     issuer: Self
     name: frontend-cert-perf-usw3ptest
   cosmosDB:
+    billingContainerMaxScale: 4000
     deploy: true
     disableLocalAuth: true
+    locksContainerMaxScale: 4000
     name: arohcpperf-rp-usw3ptest
     private: true
+    resourceContainerMaxScale: 4000
     zoneRedundantMode: Auto
   image:
     digest: sha256:38eef7993b30f9ed06630c41a4597e47f491b2f2d5ecaa621a719e2165f4473d
@@ -748,8 +751,8 @@ svc:
     ingressGatewayIPAddressName: aro-hcp-istio-ingress
     istioctlVersion: 1.24.1
     tag: prod-stable
-    targetVersion: asm-1-25
-    versions: asm-1-25
+    targetVersion: asm-1-26
+    versions: asm-1-26
   nsp:
     accessMode: Learning
     name: nsp-usw3ptest-svc

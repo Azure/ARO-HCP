@@ -1434,6 +1434,15 @@
             "private": {
               "type": "boolean"
             },
+            "resourceContainerMaxScale": {
+              "type": "integer"
+            },
+            "billingContainerMaxScale": {
+              "type": "integer"
+            },
+            "locksContainerMaxScale": {
+              "type": "integer"
+            },
             "zoneRedundantMode": {
               "$ref": "#/definitions/zoneRedundantMode"
             }

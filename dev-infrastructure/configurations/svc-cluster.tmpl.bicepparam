@@ -153,3 +153,8 @@ param genevaManageCertificates = {{ .geneva.logs.manageCertificates }}
 
 // Alert rules tag value
 param owningTeamTagValue = '{{ .monitoring.alertRuleOwningTeamTag }}'
+
+
+param resourceContainerMaxScale = {{ .frontend.cosmosDB.resourceContainerMaxScale }}
+param billingContainerMaxScale = {{ .frontend.cosmosDB.billingContainerMaxScale }}
+param locksContainerMaxScale = {{ .frontend.cosmosDB.locksContainerMaxScale }}
