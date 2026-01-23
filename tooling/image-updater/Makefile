@@ -14,7 +14,7 @@ OUTPUT_FLAGS := $(if $(OUTPUT_FILE),--output-file $(OUTPUT_FILE)) $(if $(OUTPUT_
 
 .DEFAULT_GOAL := help
 
-build:
+build: test
 	@go build -o $(BINARY_NAME) .
 
 update:
