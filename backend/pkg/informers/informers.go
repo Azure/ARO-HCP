@@ -43,6 +43,7 @@ const (
 	ExternalAuthRelistDuration           = 30 * time.Second
 	ServiceProviderClusterRelistDuration = 30 * time.Second
 	ActiveOperationsRelistDuration       = 10 * time.Second
+	DNSReservationRelistDuration         = 30 * time.Second
 )
 
 // NewSubscriptionInformer creates an unstarted SharedIndexInformer for subscriptions
@@ -84,6 +85,47 @@ func NewSubscriptionInformerWithRelistDuration(lister database.GlobalLister[arm.
 	return cache.NewSharedIndexInformerWithOptions(
 		lw,
 		&arm.Subscription{},
+		cache.SharedIndexInformerOptions{
+			ResyncPeriod: 1 * time.Hour, // this is only a default.  Shorter resyncs can be added when registering handlers.
+		},
+	)
+}
+
+// NewDNSReservationInformer creates an unstarted SharedIndexInformer for DNS reservations
+// using the default relist duration.
+func NewDNSReservationInformer(lister database.GlobalLister[api.DNSReservation]) cache.SharedIndexInformer {
+	return NewDNSReservationInformerWithRelistDuration(lister, DNSReservationRelistDuration)
+}
+
+// NewDNSReservationInformerWithRelistDuration creates an unstarted SharedIndexInformer for DNS reservations
+// with a configurable relist duration.
+func NewDNSReservationInformerWithRelistDuration(lister database.GlobalLister[api.DNSReservation], relistDuration time.Duration) cache.SharedIndexInformer {
+	lw := &cache.ListWatch{
+		ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
+			iter, err := lister.List(ctx, nil)
+			if err != nil {
+				return nil, err
+			}
+
+			list := &api.DNSReservationList{}
+			list.ResourceVersion = "0"
+			for _, dr := range iter.Items(ctx) {
+				list.Items = append(list.Items, *dr)
+			}
+			if err := iter.GetError(); err != nil {
+				return nil, err
+			}
+
+			return list, nil
+		},
+		WatchFuncWithContext: func(ctx context.Context, options metav1.ListOptions) (watch.Interface, error) {
+			return NewExpiringWatcher(ctx, relistDuration), nil
+		},
+	}
+
+	return cache.NewSharedIndexInformerWithOptions(
+		lw,
+		&api.DNSReservation{},
 		cache.SharedIndexInformerOptions{
 			ResyncPeriod: 1 * time.Hour, // this is only a default.  Shorter resyncs can be added when registering handlers.
 		},

@@ -38,6 +38,7 @@ import (
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/clusterpropertiescontroller"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/clusterprovisioningcontrollers"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/mismatchcontrollers"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/operationcontrollers"
@@ -342,6 +343,15 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		activeOperationLister,
 		backendInformers,
 	)
+	dnsReservationController := clusterprovisioningcontrollers.NewDNSReservationController(
+		activeOperationLister,
+		b.options.CosmosDBClient,
+		backendInformers,
+	)
+	dnsReservationCleanupController := clusterprovisioningcontrollers.NewDNSReservationCleanupController(
+		b.options.CosmosDBClient,
+		backendInformers,
+	)
 
 	azureRPRegistrationValidationController := validationcontrollers.NewClusterValidationController(
 		validations.NewAzureResourceProvidersRegistrationValidation(b.options.FPAClientBuilder),
@@ -381,6 +391,8 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go triggerControlPlaneUpgradeController.Run(ctx, 20)
 				go clusterPropertiesSyncController.Run(ctx, 20)
 				go azureRPRegistrationValidationController.Run(ctx, 20)
+				go dnsReservationController.Run(ctx, 20)
+				go dnsReservationCleanupController.Run(ctx, 20)
 			},
 			OnStoppedLeading: func() {
 				operationsScanner.LeaderGauge.Set(0)

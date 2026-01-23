@@ -15,6 +15,8 @@ import (
 
 	arm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	gomock "go.uber.org/mock/gomock"
+
+	api "github.com/Azure/ARO-HCP/internal/api"
 )
 
 // MockDBClientIterator is a mock of DBClientIterator interface.
@@ -213,6 +215,44 @@ func (c *MockDBClientCreateBillingDocCall) Do(f func(context.Context, *BillingDo
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
 func (c *MockDBClientCreateBillingDocCall) DoAndReturn(f func(context.Context, *BillingDocument) error) *MockDBClientCreateBillingDocCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
+// DNSReservations mocks base method.
+func (m *MockDBClient) DNSReservations(subscriptionID string) ResourceCRUD[api.DNSReservation] {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DNSReservations", subscriptionID)
+	ret0, _ := ret[0].(ResourceCRUD[api.DNSReservation])
+	return ret0
+}
+
+// DNSReservations indicates an expected call of DNSReservations.
+func (mr *MockDBClientMockRecorder) DNSReservations(subscriptionID any) *MockDBClientDNSReservationsCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DNSReservations", reflect.TypeOf((*MockDBClient)(nil).DNSReservations), subscriptionID)
+	return &MockDBClientDNSReservationsCall{Call: call}
+}
+
+// MockDBClientDNSReservationsCall wrap *gomock.Call
+type MockDBClientDNSReservationsCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockDBClientDNSReservationsCall) Return(arg0 ResourceCRUD[api.DNSReservation]) *MockDBClientDNSReservationsCall {
+	c.Call = c.Call.Return(arg0)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockDBClientDNSReservationsCall) Do(f func(string) ResourceCRUD[api.DNSReservation]) *MockDBClientDNSReservationsCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockDBClientDNSReservationsCall) DoAndReturn(f func(string) ResourceCRUD[api.DNSReservation]) *MockDBClientDNSReservationsCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }

@@ -121,6 +121,8 @@ type DBClient interface {
 	// to end users via ARM.  They must also survive the thing they are deleting, so they live under a subscription directly.
 	Operations(subscriptionID string) OperationCRUD
 
+	DNSReservations(subscriptionID string) ResourceCRUD[api.DNSReservation]
+
 	Subscriptions() SubscriptionCRUD
 
 	ServiceProviderClusters(subscriptionID, resourceGroupName, clusterName string) ServiceProviderClusterCRUD
@@ -284,15 +286,21 @@ func (d *cosmosDBClient) Subscriptions() SubscriptionCRUD {
 }
 
 func (d *cosmosDBClient) ServiceProviderClusters(subscriptionID, resourceGroupName, clusterName string) ServiceProviderClusterCRUD {
-	clusterResourceID := NewClusterResourceID(subscriptionID, resourceGroupName, clusterName)
+	parentResourceID := api.Must(api.ToClusterResourceID(subscriptionID, resourceGroupName, clusterName))
 	return NewCosmosResourceCRUD[api.ServiceProviderCluster, GenericDocument[api.ServiceProviderCluster]](
-		d.resources, clusterResourceID, api.ServiceProviderClusterResourceType)
+		d.resources, parentResourceID, api.ServiceProviderClusterResourceType)
 }
 
 func (d *cosmosDBClient) ServiceProviderNodePools(subscriptionID, resourceGroupName, clusterName, nodePoolName string) ServiceProviderNodePoolCRUD {
 	nodePoolResourceID := NewNodePoolResourceID(subscriptionID, resourceGroupName, clusterName, nodePoolName)
 	return NewCosmosResourceCRUD[api.ServiceProviderNodePool, GenericDocument[api.ServiceProviderNodePool]](
 		d.resources, nodePoolResourceID, api.ServiceProviderNodePoolResourceType)
+}
+
+func (d *cosmosDBClient) DNSReservations(subscriptionID string) ResourceCRUD[api.DNSReservation] {
+	parentResourceID := api.Must(arm.ToSubscriptionResourceID(subscriptionID))
+	return NewCosmosResourceCRUD[api.DNSReservation, GenericDocument[api.DNSReservation]](
+		d.resources, parentResourceID, api.DNSReservationResourceType)
 }
 
 func (d *cosmosDBClient) UntypedCRUD(parentResourceID azcorearm.ResourceID) (UntypedResourceCRUD, error) {
