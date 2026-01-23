@@ -6,7 +6,7 @@ require (
 	dario.cat/mergo v1.0.1
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.20.0
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.13.1
-	github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos v1.4.1
+	github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos v1.5.0-beta.4
 	github.com/evanphx/json-patch v5.9.11+incompatible
 	github.com/google/go-cmp v0.7.0
 	github.com/google/uuid v1.6.0
@@ -33,7 +33,6 @@ require (
 )
 
 require (
-	github.com/Azure/azure-sdk-for-go v68.0.0+incompatible // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/internal v1.11.2 // indirect
 	github.com/Azure/retry v0.0.0-20250221010952-92c9290cea0f // indirect
 	github.com/AzureAD/microsoft-authentication-library-for-go v1.6.0 // indirect
