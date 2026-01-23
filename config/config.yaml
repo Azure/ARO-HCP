@@ -546,6 +546,9 @@ defaults:
       name: "arohcp{{ .ctx.environment }}-rp-{{ .ctx.regionShort }}" # [globally-unique]
       private: true
       zoneRedundantMode: 'Auto'
+      resourceContainerMaxScale: 4000
+      billingContainerMaxScale: 4000
+      locksContainerMaxScale: 4000
     cert:
       name: frontend-cert-{{ .ctx.environment }}-{{ .ctx.regionShort }}
   # Billing
@@ -989,8 +992,8 @@ clouds:
         nsp:
           accessMode: 'Learning'
         istio:
-          targetVersion: "asm-1-25"
-          versions: "asm-1-25"
+          targetVersion: "asm-1-26"
+          versions: "asm-1-26,asm-1-25"
         aks:
           etcd:
             softDelete: false
