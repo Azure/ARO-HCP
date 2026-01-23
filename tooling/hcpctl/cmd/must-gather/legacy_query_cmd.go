@@ -43,8 +43,6 @@ type LegacyNormalizedLogLine struct {
 	Timestamp     time.Time `kusto:"timestamp"`
 }
 
-var servicesDatabaseLegacy = "HCPServiceLogs"
-
 func newQueryCommandLegacy() (*cobra.Command, error) {
 	opts := DefaultMustGatherOptions()
 
@@ -160,7 +158,7 @@ type KubesystemLogsRow struct {
 }
 
 func GetKubeSystemClusterIdQuery(subscriptionId, resourceGroupName string) *kusto.ConfigurableQuery {
-	return kusto.NewLegacyClusterIdQuery(servicesDatabaseLegacy, "kubesystem", subscriptionId, resourceGroupName)
+	return kusto.NewLegacyClusterIdQuery("kubesystem", subscriptionId, resourceGroupName)
 }
 
 func GetKubeSystemQuery(subscriptionId, resourceGroupName string, clusterIds []string) *kusto.ConfigurableQuery {
