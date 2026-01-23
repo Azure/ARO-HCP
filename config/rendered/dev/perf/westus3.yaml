@@ -209,13 +209,13 @@ frontend:
     issuer: Self
     name: frontend-cert-perf-usw3ptest
   cosmosDB:
-    billingContainerMaxScale: 1200
+    billingContainerMaxScale: 4000
     deploy: true
     disableLocalAuth: true
-    locksContainerMaxScale: 1200
+    locksContainerMaxScale: 4000
     name: arohcpperf-rp-usw3ptest
     private: true
-    resourceContainerMaxScale: 1200
+    resourceContainerMaxScale: 4000
     zoneRedundantMode: Auto
   image:
     digest: sha256:38eef7993b30f9ed06630c41a4597e47f491b2f2d5ecaa621a719e2165f4473d
