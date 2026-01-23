@@ -73,11 +73,6 @@ when deploying ARO HCP hosted cluster, eg.:
 ```bash
 $ export ARO_HCP_OPENSHIFT_CONTROLPLANE_VERSION=4.20
 $ export ARO_HCP_OPENSHIFT_NODEPOOL_VERSION=4.20.8
-$ export ARO_HCP_OPENSHIFT_CONTROLPLANE_BACKLEVEL_VERSIONS=4.19
-$ export ARO_HCP_OPENSHIFT_NODEPOOL_BACKLEVEL_VERSIONS=4.19.7
-```
-> **Note:** 
-> Back-level versions are a `[]string` array with comma-separated values. Expected node pool version is 4.y.z format.
 
 So finally, you can run a particular test case:
 
