@@ -49,7 +49,7 @@ func newQueryCommandLegacy() (*cobra.Command, error) {
 	cmd := &cobra.Command{
 		Use:              "legacy-query",
 		Short:            "Execute default queries against Azure Data Explorer",
-		Long:             `Execute preconfigured queries against Azure Data Explorer clusters. This command relies on the akskubesystem table.`,
+		Long:             "Execute preconfigured queries against Azure Data Explorer clusters. This command relies on the akskubesystem table.",
 		Args:             cobra.NoArgs,
 		SilenceUsage:     true,
 		SilenceErrors:    true,

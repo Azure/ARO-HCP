@@ -17,6 +17,7 @@ package mustgather
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"os"
 	"path"
 	"time"
@@ -95,13 +96,20 @@ func BindMustGatherOptions(opts *RawMustGatherOptions, cmd *cobra.Command) error
 		}
 	}
 
+	cmd.MarkFlagsMutuallyExclusive("subscription-id", "resource-id")
+	cmd.MarkFlagsMutuallyExclusive("resource-group", "resource-id")
+
+	cmd.MarkFlagsRequiredTogether("subscription-id", "resource-group")
+
 	return nil
 }
 
 // ValidatedMustGatherOptions represents must-gather configuration that has passed validation.
 type ValidatedMustGatherOptions struct {
 	*RawMustGatherOptions
-	QueryOptions mustgather.QueryOptions
+
+	KustoEndpoint *url.URL
+	QueryOptions  mustgather.QueryOptions
 }
 
 // Validate performs comprehensive validation of all must-gather input parameters.
@@ -115,6 +123,12 @@ func (o *RawMustGatherOptions) Validate(ctx context.Context) (*ValidatedMustGath
 	// Validate region
 	if o.Region == "" {
 		return nil, fmt.Errorf("region is required")
+	}
+
+	// form kusto URL
+	kustoEndpoint, err := kusto.KustoEndpoint(o.Kusto, o.Region)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create Kusto endpoint: %w", err)
 	}
 
 	// Validate query timeout
@@ -142,6 +156,7 @@ func (o *RawMustGatherOptions) Validate(ctx context.Context) (*ValidatedMustGath
 
 	return &ValidatedMustGatherOptions{
 		RawMustGatherOptions: o,
+		KustoEndpoint:        kustoEndpoint,
 		QueryOptions: mustgather.QueryOptions{
 			SubscriptionId:    o.SubscriptionID,
 			ResourceGroupName: o.ResourceGroup,
@@ -154,12 +169,7 @@ func (o *RawMustGatherOptions) Validate(ctx context.Context) (*ValidatedMustGath
 
 // Complete performs final initialization to create fully usable MustGatherOptions.
 func (o *ValidatedMustGatherOptions) Complete(ctx context.Context) (*MustGatherOptions, error) {
-	endpoint, err := kusto.KustoEndpoint(o.Kusto, o.Region)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create Kusto endpoint: %w", err)
-	}
-
-	client, err := kusto.NewClient(endpoint, o.QueryTimeout)
+	client, err := kusto.NewClient(o.KustoEndpoint, o.QueryTimeout)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Kusto client: %w", err)
 	}

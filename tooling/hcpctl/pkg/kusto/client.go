@@ -35,7 +35,6 @@ type KustoClient interface {
 // Client represents an Azure Data Explorer client for executing queries
 type Client struct {
 	ClusterName  string
-	Endpoint     string
 	QueryTimeout time.Duration
 	kustoClient  *kusto.Client
 }
@@ -61,22 +60,22 @@ type QueryStats struct {
 	DataSize      int64
 }
 
-func KustoEndpoint(clusterName, region string) (string, error) {
+func KustoEndpoint(clusterName, region string) (*url.URL, error) {
 	url, err := url.Parse(fmt.Sprintf("https://%s.%s.kusto.windows.net", clusterName, region))
 	if err != nil {
-		return "", fmt.Errorf("failed to parse Kusto endpoint URL: %w", err)
+		return nil, fmt.Errorf("failed to parse Kusto endpoint URL: %w", err)
 	}
-	return url.String(), nil
+	return url, nil
 }
 
 // NewClient creates a new Azure Data Explorer client
-func NewClient(endpoint string, queryTimeout time.Duration) (*Client, error) {
-	if endpoint == "" {
+func NewClient(endpoint *url.URL, queryTimeout time.Duration) (*Client, error) {
+	if endpoint == nil {
 		return nil, fmt.Errorf("cluster endpoint is required")
 	}
 
 	// Create connection string builder
-	kcsb := kusto.NewConnectionStringBuilder(endpoint)
+	kcsb := kusto.NewConnectionStringBuilder(endpoint.String())
 
 	// Use Azure default credential chain for authentication
 	kcsb = kcsb.WithDefaultAzureCredential()
@@ -88,7 +87,6 @@ func NewClient(endpoint string, queryTimeout time.Duration) (*Client, error) {
 	}
 
 	return &Client{
-		Endpoint:     endpoint,
 		kustoClient:  kustoClient,
 		QueryTimeout: queryTimeout,
 	}, nil
