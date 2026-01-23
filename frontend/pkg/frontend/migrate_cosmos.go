@@ -57,40 +57,103 @@ func MigrateCosmosOrDie(ctx context.Context, cosmosClient database.DBClient) {
 				panic(err)
 			}
 
-			nodePoolIterator, err := cosmosClient.HCPClusters(cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName).NodePools(cluster.ID.Name).List(ctx, nil)
-			if err != nil {
-				panic(err)
-			}
-			for _, nodePool := range nodePoolIterator.Items(ctx) {
-				currNodePool, err := cosmosClient.HCPClusters(nodePool.ID.SubscriptionID, nodePool.ID.ResourceGroupName).NodePools(nodePool.ID.Parent.Name).Get(ctx, nodePool.ID.Name)
+			{ // prevent variable escape
+				controllerCRUD := cosmosClient.HCPClusters(cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName).Controllers(cluster.ID.Name)
+				controllersIterator, err := controllerCRUD.List(ctx, nil)
 				if err != nil {
 					panic(err)
 				}
-				_, err = cosmosClient.HCPClusters(nodePool.ID.SubscriptionID, nodePool.ID.ResourceGroupName).NodePools(nodePool.ID.Parent.Name).Replace(ctx, currNodePool, nil)
-				if err != nil {
+				for _, controller := range controllersIterator.Items(ctx) {
+					currController, err := controllerCRUD.Get(ctx, controller.ResourceID.Name)
+					if err != nil {
+						panic(err)
+					}
+					_, err = controllerCRUD.Replace(ctx, currController, nil)
+					if err != nil {
+						panic(err)
+					}
+				}
+				if err := controllersIterator.GetError(); err != nil {
 					panic(err)
 				}
-			}
-			if err := nodePoolIterator.GetError(); err != nil {
-				panic(err)
 			}
 
-			externalAuthIterator, err := cosmosClient.HCPClusters(cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName).ExternalAuth(cluster.ID.Name).List(ctx, nil)
-			if err != nil {
-				panic(err)
-			}
-			for _, externalAuth := range externalAuthIterator.Items(ctx) {
-				currExternalAuth, err := cosmosClient.HCPClusters(externalAuth.ID.SubscriptionID, externalAuth.ID.ResourceGroupName).ExternalAuth(externalAuth.ID.Parent.Name).Get(ctx, externalAuth.ID.Name)
+			{ // prevent variable escape
+				nodePoolIterator, err := cosmosClient.HCPClusters(cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName).NodePools(cluster.ID.Name).List(ctx, nil)
 				if err != nil {
 					panic(err)
 				}
-				_, err = cosmosClient.HCPClusters(externalAuth.ID.SubscriptionID, externalAuth.ID.ResourceGroupName).ExternalAuth(externalAuth.ID.Parent.Name).Replace(ctx, currExternalAuth, nil)
-				if err != nil {
+				for _, nodePool := range nodePoolIterator.Items(ctx) {
+					currNodePool, err := cosmosClient.HCPClusters(nodePool.ID.SubscriptionID, nodePool.ID.ResourceGroupName).NodePools(nodePool.ID.Parent.Name).Get(ctx, nodePool.ID.Name)
+					if err != nil {
+						panic(err)
+					}
+					_, err = cosmosClient.HCPClusters(nodePool.ID.SubscriptionID, nodePool.ID.ResourceGroupName).NodePools(nodePool.ID.Parent.Name).Replace(ctx, currNodePool, nil)
+					if err != nil {
+						panic(err)
+					}
+
+					controllerCRUD := cosmosClient.HCPClusters(cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName).NodePools(nodePool.ID.Parent.Name).Controllers(nodePool.ID.Name)
+					controllersIterator, err := controllerCRUD.List(ctx, nil)
+					if err != nil {
+						panic(err)
+					}
+					for _, controller := range controllersIterator.Items(ctx) {
+						currController, err := controllerCRUD.Get(ctx, controller.ResourceID.Name)
+						if err != nil {
+							panic(err)
+						}
+						_, err = controllerCRUD.Replace(ctx, currController, nil)
+						if err != nil {
+							panic(err)
+						}
+					}
+					if err := controllersIterator.GetError(); err != nil {
+						panic(err)
+					}
+				}
+				if err := nodePoolIterator.GetError(); err != nil {
 					panic(err)
 				}
 			}
-			if err := externalAuthIterator.GetError(); err != nil {
-				panic(err)
+
+			{ // prevent variable escape
+				externalAuthIterator, err := cosmosClient.HCPClusters(cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName).ExternalAuth(cluster.ID.Name).List(ctx, nil)
+				if err != nil {
+					panic(err)
+				}
+				for _, externalAuth := range externalAuthIterator.Items(ctx) {
+					currExternalAuth, err := cosmosClient.HCPClusters(externalAuth.ID.SubscriptionID, externalAuth.ID.ResourceGroupName).ExternalAuth(externalAuth.ID.Parent.Name).Get(ctx, externalAuth.ID.Name)
+					if err != nil {
+						panic(err)
+					}
+					_, err = cosmosClient.HCPClusters(externalAuth.ID.SubscriptionID, externalAuth.ID.ResourceGroupName).ExternalAuth(externalAuth.ID.Parent.Name).Replace(ctx, currExternalAuth, nil)
+					if err != nil {
+						panic(err)
+					}
+
+					controllerCRUD := cosmosClient.HCPClusters(cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName).ExternalAuth(externalAuth.ID.Parent.Name).Controllers(externalAuth.ID.Name)
+					controllersIterator, err := controllerCRUD.List(ctx, nil)
+					if err != nil {
+						panic(err)
+					}
+					for _, controller := range controllersIterator.Items(ctx) {
+						currController, err := controllerCRUD.Get(ctx, controller.ResourceID.Name)
+						if err != nil {
+							panic(err)
+						}
+						_, err = controllerCRUD.Replace(ctx, currController, nil)
+						if err != nil {
+							panic(err)
+						}
+					}
+					if err := controllersIterator.GetError(); err != nil {
+						panic(err)
+					}
+				}
+				if err := externalAuthIterator.GetError(); err != nil {
+					panic(err)
+				}
 			}
 		}
 		if err := clusterIterator.GetError(); err != nil {
