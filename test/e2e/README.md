@@ -67,12 +67,13 @@ export CUSTOMER_SUBSCRIPTION=<subscriptionName>
 export LOCATION=uksouth
 ```
 
-You can also redefine default and back-level OpenShift versions the E2E test cases will use
+You can also redefine default OpenShift versions the E2E test cases will use
 when deploying ARO HCP hosted cluster, eg.:
 
 ```bash
 $ export ARO_HCP_OPENSHIFT_CONTROLPLANE_VERSION=4.20
 $ export ARO_HCP_OPENSHIFT_NODEPOOL_VERSION=4.20.8
+```
 
 So finally, you can run a particular test case:
 
