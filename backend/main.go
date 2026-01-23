@@ -322,7 +322,7 @@ func Run(cmd *cobra.Command, args []string) error {
 			dataDumpController             = controllerutils.NewClusterWatchingController(
 				"DataDump", dbClient, subscriptionLister, 1*time.Minute, controllers.NewDataDumpController(dbClient))
 			doNothingController              = controllers.NewDoNothingExampleController(dbClient, subscriptionLister)
-			operationClusterCreateController = operationcontrollers.NewGenericOperationClusterCreateController(
+			operationClusterCreateController = operationcontrollers.NewGenericOperationController(
 				"OperationClusterCreate",
 				operationcontrollers.NewOperationClusterCreateSynchronizer(
 					argLocation,
@@ -334,7 +334,7 @@ func Run(cmd *cobra.Command, args []string) error {
 				subscriptionLister,
 				dbClient,
 			)
-			operationClusterUpdateController = operationcontrollers.NewGenericOperationClusterCreateController(
+			operationClusterUpdateController = operationcontrollers.NewGenericOperationController(
 				"OperationClusterUpdate",
 				operationcontrollers.NewOperationClusterUpdateSynchronizer(
 					dbClient,
@@ -345,7 +345,7 @@ func Run(cmd *cobra.Command, args []string) error {
 				subscriptionLister,
 				dbClient,
 			)
-			operationClusterDeleteController = operationcontrollers.NewGenericOperationClusterCreateController(
+			operationClusterDeleteController = operationcontrollers.NewGenericOperationController(
 				"OperationClusterDelete",
 				operationcontrollers.NewOperationClusterDeleteSynchronizer(
 					dbClient,
