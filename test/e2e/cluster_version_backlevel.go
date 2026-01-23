@@ -77,6 +77,20 @@ var _ = Describe("Customer", func() {
 					clusterParams.ManagedResourceGroupName = managedResourceGroupName
 					clusterParams.OpenshiftVersionId = controlPlaneVersion
 
+					// copied 4.19 defaults from 01/22/2026 snapshot of NewDefaultClusterParams
+					clusterParams.Network = framework.NetworkConfig{
+						NetworkType: "OVNKubernetes",
+						PodCIDR:     "10.128.0.0/14",
+						ServiceCIDR: "172.30.0.0/16",
+						MachineCIDR: "10.0.0.0/16",
+						HostPrefix:  23,
+					}
+					clusterParams.EncryptionKeyManagementMode = "CustomerManaged"
+					clusterParams.EncryptionType = "KMS"
+					clusterParams.APIVisibility = "Public"
+					clusterParams.ImageRegistryState = "Enabled"
+					clusterParams.ChannelGroup = "stable"
+
 					clusterParams, err := tc.CreateClusterCustomerResources(ctx,
 						resourceGroup,
 						clusterParams,
@@ -143,7 +157,7 @@ var _ = Describe("Customer", func() {
 						return
 					}
 
-					By("creating node pools with back-level versions")
+					By("creating node pool with back-level version")
 					backlevelNodePoolVersions := framework.BacklevelOpenshiftNodePoolVersionId()
 
 					var matchingNodePoolVersion string
@@ -154,54 +168,54 @@ var _ = Describe("Customer", func() {
 						}
 					}
 
-					var nodePoolWg sync.WaitGroup
 					if matchingNodePoolVersion != "" {
-						nodePoolWg.Add(1)
-						go func(nodePoolVersion string) {
-							defer nodePoolWg.Done()
+						nodePoolSuffix := strings.ReplaceAll(matchingNodePoolVersion, ".", "-")
+						nodePoolName := customerNodePoolName + nodePoolSuffix
+						nodePoolParams := framework.NewDefaultNodePoolParams()
+						nodePoolParams.ClusterName = clusterName
+						nodePoolParams.NodePoolName = nodePoolName
+						nodePoolParams.OpenshiftVersionId = matchingNodePoolVersion
 
-							nodePoolSuffix := strings.ReplaceAll(nodePoolVersion, ".", "-")
-							nodePoolName := customerNodePoolName + nodePoolSuffix
+						// copied 4.19 defaults from 01/22/2026 snapshot of NewDefaultNodePoolParams
+						nodePoolParams.Replicas = int32(2)
+						nodePoolParams.VMSize = "Standard_D8s_v3"
+						nodePoolParams.OSDiskSizeGiB = int32(64)
+						nodePoolParams.DiskStorageAccountType = "StandardSSD_LRS"
+						nodePoolParams.ChannelGroup = "stable"
 
-							nodePoolParams := framework.NewDefaultNodePoolParams()
-							nodePoolParams.ClusterName = clusterName
-							nodePoolParams.NodePoolName = nodePoolName
-							nodePoolParams.OpenshiftVersionId = nodePoolVersion
-							By("creating node pool version " + nodePoolVersion + " and verifying a simple web app can run")
-							err := tc.CreateNodePoolFromParam(ctx,
-								*resourceGroup.Name,
-								clusterName,
-								nodePoolParams,
-								45*time.Minute,
-							)
-							if err != nil {
-								GinkgoLogr.Error(err, "node pool creation failed",
-									"controlPlaneVersion", controlPlaneVersion,
-									"nodePoolVersion", nodePoolVersion,
-									"cluster", clusterName,
-									"nodePool", nodePoolName)
-								errorsMutex.Lock()
-								errors = append(errors, err)
-								errorsMutex.Unlock()
-								return
-							}
+						By("creating node pool version " + matchingNodePoolVersion + " and verifying a simple web app can run")
+						err := tc.CreateNodePoolFromParam(ctx,
+							*resourceGroup.Name,
+							clusterName,
+							nodePoolParams,
+							45*time.Minute,
+						)
+						if err != nil {
+							GinkgoLogr.Error(err, "node pool creation failed",
+								"controlPlaneVersion", controlPlaneVersion,
+								"nodePoolVersion", matchingNodePoolVersion,
+								"cluster", clusterName,
+								"nodePool", nodePoolName)
+							errorsMutex.Lock()
+							errors = append(errors, err)
+							errorsMutex.Unlock()
+							return
+						}
 
-							nodePoolLabel := fmt.Sprintf("%s-%s", clusterName, nodePoolName)
-							nodeSelector := map[string]string{"hypershift.openshift.io/nodePool": nodePoolLabel}
-							err = verifiers.VerifySimpleWebApp(nodeSelector).Verify(ctx, adminRESTConfig)
-							if err != nil {
-								GinkgoLogr.Error(err, "node pool workload verification failed",
-									"controlPlaneVersion", controlPlaneVersion,
-									"nodePoolVersion", nodePoolVersion,
-									"cluster", clusterName,
-									"nodePool", nodePoolName)
-								errorsMutex.Lock()
-								errors = append(errors, err)
-								errorsMutex.Unlock()
-							}
-						}(matchingNodePoolVersion)
+						nodePoolLabel := fmt.Sprintf("%s-%s", clusterName, nodePoolName)
+						nodeSelector := map[string]string{"hypershift.openshift.io/nodePool": nodePoolLabel}
+						err = verifiers.VerifySimpleWebApp(nodeSelector).Verify(ctx, adminRESTConfig)
+						if err != nil {
+							GinkgoLogr.Error(err, "node pool workload verification failed",
+								"controlPlaneVersion", controlPlaneVersion,
+								"nodePoolVersion", matchingNodePoolVersion,
+								"cluster", clusterName,
+								"nodePool", nodePoolName)
+							errorsMutex.Lock()
+							errors = append(errors, err)
+							errorsMutex.Unlock()
+						}
 					}
-					nodePoolWg.Wait()
 				}(controlPlaneVersion)
 			}
 
