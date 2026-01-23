@@ -397,6 +397,11 @@ param adminApiIngressCertIssuer string
 @description('The cluster tag value for the owning team')
 param owningTeamTagValue string
 
+@description('CoscmosDB autoscaling parameters')
+param resourceContainerMaxScale int
+param billingContainerMaxScale int
+param locksContainerMaxScale int
+
 resource serviceKeyVault 'Microsoft.KeyVault/vaults@2024-04-01-preview' existing = {
   name: serviceKeyVaultName
   scope: resourceGroup(serviceKeyVaultResourceGroup)
@@ -624,6 +629,9 @@ module rpCosmosDb '../modules/rp-cosmos.bicep' = if (deployFrontendCosmos) {
     userAssignedMIs: [frontendMI, backendMI]
     readOnlyUserAssignedMIs: [adminApiMI]
     private: rpCosmosDbPrivate
+    resourceContainerMaxScale: resourceContainerMaxScale
+    billingContainerMaxScale: billingContainerMaxScale
+    locksContainerMaxScale: locksContainerMaxScale
   }
 }
 

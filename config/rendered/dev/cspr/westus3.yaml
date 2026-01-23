@@ -209,10 +209,13 @@ frontend:
     issuer: Self
     name: frontend-cert-cspr-usw3
   cosmosDB:
+    billingContainerMaxScale: 4000
     deploy: true
     disableLocalAuth: true
+    locksContainerMaxScale: 4000
     name: arohcpcspr-rp-usw3
     private: false
+    resourceContainerMaxScale: 4000
     zoneRedundantMode: Disabled
   image:
     digest: sha256:38eef7993b30f9ed06630c41a4597e47f491b2f2d5ecaa621a719e2165f4473d
