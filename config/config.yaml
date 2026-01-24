@@ -696,12 +696,12 @@ defaults:
       bundle:
         registry: quay.io
         repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-215
-        digest: sha256:b6506d0e18ee16259c56ae0afcb0db85b854dab69ed420722c928a28e3d0e2dd # v2.15.1-339 (2026-01-22 23:10)
+        digest: sha256:c47fcdc70657b3ae943d5a0207e71fbdd4eb65211a9471f616ab935f70511f2f # v2.15.1-342 (2026-01-23 23:04)
     mce:
       bundle:
         registry: quay.io
         repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-210
-        digest: sha256:a824354897a85e6991836aefe62b51eee344c69396b912412a2e2f773df93f2f # v2.10.1-341 (2026-01-22 23:04)
+        digest: sha256:5cdb0b6f45c397b83632f1702d6ee3802dc3e432b0585455faa02b3b22effb11 # v2.10.1-343 (2026-01-23 18:14)
   # Cluster Service
   clustersService:
     image:
@@ -910,7 +910,7 @@ clouds:
         certDomain: selfsigned.maestro.keyvault.azure.com
         certIssuer: Self
         image:
-          digest: sha256:a6a1ec6f802fcec88ccb193b715af9c2d9e68e6b113db3cc1f27dc0020a5e921 # 24ca482d4c821a717010197bcc776c5e009393f8 (2026-01-22 02:43)
+          digest: sha256:507eb468b5eb7cc9fd2a499a085a0fa4b4d3041589eac21fcfba9e7ec33c33c4 # 96fdba2f0b3a97fc4ff802ba80392e0b90366154 (2026-01-23 09:05)
         agent:
           sidecar:
             image:
@@ -929,7 +929,7 @@ clouds:
       clustersService:
         environment: "arohcpdev"
         image:
-          digest: sha256:13903b2bf37dc11741aaf635135aa240b88a21132de062b71774ce1c133eeaa5 # c1deb58613b904eef64f286f9dbfcbfa7a09f82d (2026-01-22 15:10)
+          digest: sha256:e1a2c8541c63a0b814052c4160230647edf2cd7f6323ecaf2629e1bef9d98f44 # 84ecdc514ca515a9e54eff068b0f5c11131c7b0b (2026-01-23 17:13)
         azureOperatorsManagedIdentities:
           roleSetName: dev
         azureRuntimeConfig:
@@ -946,15 +946,15 @@ clouds:
         image:
           registry: quay.io
           repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
-          digest: sha256:35f451ffdb9ef4fc0ad24b0d11521dc4f6e053a63ba0d884dd6de0d03d2d547d # 71fe48ac4e1f37f7215adc7954ef88de0ea82ff4 (2026-01-22 10:33)
+          digest: sha256:98916487a3fde0a9a79e5168ed6a6e513d0ed3b42e094097032544bd7ff5663b # 62ff71f392e78bec2d3f1584e047b0e77b026983 (2026-01-23 22:36)
       # Backplane API
       backplaneAPI:
         image:
-          digest: sha256:82ffc6763ac1664a6819abbeecaeab21485ee7661d811048fe3d8b3434283851 # 28105e1 (2026-01-15 11:48)
+          digest: sha256:b8e059b0b2a8074f5f09799565b197217b53c7eee6f4f3cdb3eda80aca2361af # 0f5982a (2026-01-23 04:40)
       # Admin API
       adminApi:
         image:
-          digest: sha256:33b56b9d2e0727d3a6738fbb4fbba0c2be9f5f94604682ac12b623f38babbee4 # 5702594 (2026-01-22 08:59)
+          digest: sha256:9b8193fb8c9f2430504c2ec6c07c740d7e821ebbc1bb086032a5efbc2884931c # b1b2af8 (2026-01-23 21:41)
         cert:
           issuer: Self
       # Frontend
@@ -962,11 +962,11 @@ clouds:
         cert:
           issuer: Self
         image:
-          digest: sha256:38eef7993b30f9ed06630c41a4597e47f491b2f2d5ecaa621a719e2165f4473d # 5702594 (2026-01-22 08:58)
+          digest: sha256:54978d8c46045be8404888b094ab0fe24c0408e988fcdc93bd8052f560ee6703 # b1b2af8 (2026-01-23 21:41)
       # Backend
       backend:
         image:
-          digest: sha256:588dc07158030fcfe5328e62c94f5e3596f728c86088a194f9b01512a4378ad4 # 86c3add (2026-01-23 01:10)
+          digest: sha256:1655f1dfd6d72068b0f2988cc2adf04fea04087ecc257af4e075ed12f0ab50a1 # b1b2af8 (2026-01-23 21:41)
         azureRuntimeConfig:
           tlsCertificatesIssuer: Self
       # Image Sync
@@ -974,7 +974,7 @@ clouds:
         ocMirror:
           jobNamePrefix: ''
           image:
-            digest: sha256:7d2f80cda20d586b8f039f938701eff855b1d0da825a97a45b245e19783cdcc0 # 5702594 (2026-01-22 08:59)
+            digest: sha256:b2bfa790bd10e8388bff1e5f6d337e6b07ae4c184675d9af62598584715792f8 # b1b2af8 (2026-01-23 21:41)
       # Shared SVC KV
       serviceKeyVault:
         name: 'aro-hcp-dev-svc-kv'
