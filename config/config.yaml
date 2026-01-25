@@ -993,8 +993,8 @@ clouds:
         nsp:
           accessMode: 'Learning'
         istio:
-          targetVersion: "asm-1-25"
-          versions: "asm-1-25"
+          targetVersion: "asm-1-26"
+          versions: "asm-1-26"
         aks:
           etcd:
             softDelete: false

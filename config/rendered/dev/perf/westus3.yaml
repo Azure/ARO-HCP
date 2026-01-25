@@ -751,8 +751,8 @@ svc:
     ingressGatewayIPAddressName: aro-hcp-istio-ingress
     istioctlVersion: 1.24.1
     tag: prod-stable
-    targetVersion: asm-1-25
-    versions: asm-1-25
+    targetVersion: asm-1-26
+    versions: asm-1-26
   nsp:
     accessMode: Learning
     name: nsp-usw3ptest-svc
