@@ -35,3 +35,22 @@ let _resource_group = '{{.ResourceGroupName}}';
         | project timestamp, container_name, msg, log
         | order by timestamp asc 
     )
+
+// HostedCluster conditions (as seen by CS)
+let _startTime = datetime("{{.StartTime}}");
+let _endTime = datetime("{{.EndTime}}");
+let _resource_group = '{{.ResourceGroupName}}';
+    (
+        database('ServiceLogs').table('clustersServiceLogs')
+        | where timestamp between (_startTime .. _endTime)
+        | where resource_id has _resource_group
+        | extend extracted=extract_all(@'{"name":"([A-Za-z0-9]+)-Message","fieldValue":{"type":"String","string":"([^"]+)"}}', dynamic([1,2]), tostring(msg))
+        | mv-expand matches = extracted to typeof(dynamic)
+        | extend status_name = tostring(matches[0])
+        | extend status_message = tostring(matches[1])
+        | where status_name != "" and status_message != ""
+        | project timestamp, status_name, status_message
+        | summarize arg_min(timestamp, *) by status_name, status_message
+        | order by timestamp asc
+        | project-reorder timestamp, status_name, status_message
+    )
