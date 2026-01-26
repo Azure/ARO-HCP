@@ -54,7 +54,7 @@ func (m *mockResourceCRUD[InternalAPIType, CosmosAPIType]) makeResourceIDPath(re
 	}
 	parts := []string{m.parentResourceID.String()}
 
-	if m.parentResourceID.ResourceType.Namespace != api.ProviderNamespace {
+	if !strings.EqualFold(m.parentResourceID.ResourceType.Namespace, api.ProviderNamespace) {
 		if len(resourceID) == 0 {
 			resourcePathString := path.Join(parts...)
 			return azcorearm.ParseResourceID(resourcePathString)
@@ -79,6 +79,13 @@ func (m *mockResourceCRUD[InternalAPIType, CosmosAPIType]) makeResourceIDPath(re
 	return azcorearm.ParseResourceID(resourcePathString)
 }
 
+func NewNotFoundError() *azcore.ResponseError {
+	return &azcore.ResponseError{
+		ErrorCode:  "Not Found",
+		StatusCode: http.StatusNotFound,
+	}
+}
+
 func (m *mockResourceCRUD[InternalAPIType, CosmosAPIType]) GetByID(ctx context.Context, cosmosID string) (*InternalAPIType, error) {
 	if strings.ToLower(cosmosID) != cosmosID {
 		return nil, fmt.Errorf("cosmosID must be lowercase, not: %q", cosmosID)
@@ -86,7 +93,7 @@ func (m *mockResourceCRUD[InternalAPIType, CosmosAPIType]) GetByID(ctx context.C
 
 	data, ok := m.client.GetDocument(cosmosID)
 	if !ok {
-		return nil, &azcore.ResponseError{StatusCode: http.StatusNotFound}
+		return nil, NewNotFoundError()
 	}
 
 	var cosmosObj CosmosAPIType
@@ -153,7 +160,7 @@ func (m *mockResourceCRUD[InternalAPIType, CosmosAPIType]) Get(ctx context.Conte
 		}
 	}
 
-	return nil, &azcore.ResponseError{StatusCode: http.StatusNotFound}
+	return nil, NewNotFoundError()
 }
 
 func (m *mockResourceCRUD[InternalAPIType, CosmosAPIType]) List(ctx context.Context, opts *database.DBClientListResourceDocsOptions) (database.DBClientIterator[InternalAPIType], error) {
@@ -244,7 +251,7 @@ func (m *mockResourceCRUD[InternalAPIType, CosmosAPIType]) Replace(ctx context.C
 
 	// Check that document exists
 	if _, exists := m.client.GetDocument(cosmosID); !exists {
-		return nil, &azcore.ResponseError{StatusCode: http.StatusNotFound}
+		return nil, NewNotFoundError()
 	}
 
 	m.client.StoreDocument(cosmosID, data)
@@ -254,17 +261,13 @@ func (m *mockResourceCRUD[InternalAPIType, CosmosAPIType]) Replace(ctx context.C
 }
 
 func (m *mockResourceCRUD[InternalAPIType, CosmosAPIType]) Delete(ctx context.Context, resourceID string) error {
-	completeResourceID, err := m.makeResourceIDPath(resourceID)
-	if err != nil {
-		return fmt.Errorf("failed to make ResourceID path for '%s': %w", resourceID, err)
-	}
-
-	cosmosID, err := api.ResourceIDToCosmosID(completeResourceID)
+	curr, err := m.Get(ctx, resourceID)
 	if err != nil {
 		return err
 	}
 
-	m.client.DeleteDocument(cosmosID)
+	cosmosUID := any(curr).(api.CosmosPersistable).GetCosmosData().CosmosUID
+	m.client.DeleteDocument(cosmosUID)
 	return nil
 }
 
@@ -541,7 +544,7 @@ func (m *mockSubscriptionCRUD) GetByID(ctx context.Context, cosmosID string) (*a
 
 	data, ok := m.client.GetDocument(cosmosID)
 	if !ok {
-		return nil, &azcore.ResponseError{StatusCode: http.StatusNotFound}
+		return nil, NewNotFoundError()
 	}
 
 	var cosmosObj database.Subscription
@@ -638,7 +641,7 @@ func (m *mockSubscriptionCRUD) Replace(ctx context.Context, newObj *arm.Subscrip
 	cosmosID := cosmosData.CosmosUID
 
 	if _, exists := m.client.GetDocument(cosmosID); !exists {
-		return nil, &azcore.ResponseError{StatusCode: http.StatusNotFound}
+		return nil, NewNotFoundError()
 	}
 
 	m.client.StoreDocument(cosmosID, data)
@@ -800,7 +803,7 @@ func (m *mockUntypedCRUD) Get(ctx context.Context, resourceID *azcorearm.Resourc
 			}
 		}
 
-		return nil, &azcore.ResponseError{StatusCode: http.StatusNotFound}
+		return nil, NewNotFoundError()
 	}
 
 	var typedDoc database.TypedDocument
@@ -868,16 +871,13 @@ func (m *mockUntypedCRUD) listInternal(ctx context.Context, opts *database.DBCli
 }
 
 func (m *mockUntypedCRUD) Delete(ctx context.Context, resourceID *azcorearm.ResourceID) error {
-	if !strings.HasPrefix(strings.ToLower(resourceID.String()), strings.ToLower(m.parentResourceID.String())) {
-		return fmt.Errorf("resourceID %q must be a descendent of parentResourceID %q", resourceID.String(), m.parentResourceID.String())
-	}
-
-	cosmosID, err := api.ResourceIDToCosmosID(resourceID)
+	curr, err := m.Get(ctx, resourceID)
 	if err != nil {
 		return err
 	}
 
-	m.client.DeleteDocument(cosmosID)
+	cosmosUID := curr.ID
+	m.client.DeleteDocument(cosmosUID)
 	return nil
 }
 
