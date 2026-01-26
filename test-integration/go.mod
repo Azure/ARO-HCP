@@ -10,8 +10,8 @@ require (
 	github.com/Azure/ARO-HCP/internal v0.0.0-00010101000000-000000000000
 	github.com/Azure/ARO-HCP/test/sdk/v20240610preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp v0.0.0-00010101000000-000000000000
 	github.com/google/go-cmp v0.7.0
-	github.com/openshift-online/ocm-api-model/clientapi v0.0.435
-	github.com/openshift-online/ocm-sdk-go v0.1.480
+	github.com/openshift-online/ocm-api-model/clientapi v0.0.448
+	github.com/openshift-online/ocm-sdk-go v0.1.493
 	github.com/prometheus/client_golang v1.23.2
 	github.com/stretchr/testify v1.11.1
 	go.uber.org/mock v0.6.0
@@ -40,7 +40,7 @@ require (
 	github.com/jedib0t/go-pretty/v6 v6.6.7 // indirect
 	github.com/mattn/go-runewidth v0.0.16 // indirect
 	github.com/microsoft/go-otel-audit v0.2.2 // indirect
-	github.com/openshift-online/ocm-api-model/model v0.0.435 // indirect
+	github.com/openshift-online/ocm-api-model/model v0.0.448 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/samber/lo v1.51.0 // indirect
