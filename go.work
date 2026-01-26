@@ -8,6 +8,7 @@ use (
 	./internal
 	./test
 	./test-integration
+	./tooling/grafanactl
 	./tooling/hcpctl
 	./tooling/helmtest
 	./tooling/image-updater
