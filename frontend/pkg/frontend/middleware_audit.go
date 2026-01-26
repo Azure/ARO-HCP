@@ -51,7 +51,7 @@ func (h *middlewareAudit) handleRequest(w http.ResponseWriter, r *http.Request, 
 	ctx := r.Context()
 	logger := utils.LoggerFromContext(ctx)
 
-	msg := audit.CreateOtelAuditMsg(logger, r)
+	msg := audit.CreateOtelAuditMsg(ctx, r)
 	correlationData := arm.NewCorrelationData(r)
 	msg.Record.CallerIdentities = getCallerIdentitesMap(correlationData)
 

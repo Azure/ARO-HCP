@@ -21,11 +21,12 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/go-logr/logr"
 	"github.com/microsoft/go-otel-audit/audit"
 	"github.com/microsoft/go-otel-audit/audit/base"
 	"github.com/microsoft/go-otel-audit/audit/conn"
 	"github.com/microsoft/go-otel-audit/audit/msgs"
+
+	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 const (
@@ -82,15 +83,17 @@ func GetOperationType(method string) msgs.OperationType {
 	}
 }
 
-func CreateOtelAuditMsg(log logr.Logger, r *http.Request) msgs.Msg {
+func CreateOtelAuditMsg(ctx context.Context, r *http.Request) msgs.Msg {
+	logger := utils.LoggerFromContext(ctx)
+
 	host, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {
-		log.Error(err, "failed to split host and port for remote request addr", "addr", r.RemoteAddr)
+		logger.Error(err, "failed to split host and port for remote request addr", "addr", r.RemoteAddr)
 	}
 
 	addr, err := msgs.ParseAddr(host)
 	if err != nil {
-		log.Error(err, "failed to parse address for host", "host", host)
+		logger.Error(err, "failed to parse address for host", "host", host)
 	}
 
 	record := msgs.Record{

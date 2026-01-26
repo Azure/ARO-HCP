@@ -46,6 +46,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
+	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 func getMockDBDoc[T any](t *T) (*T, error) {
@@ -123,7 +124,8 @@ func TestSubscriptionsGET(t *testing.T) {
 			if test.subDoc != nil {
 				subs[api.TestSubscriptionID] = test.subDoc
 			}
-			ts := newHTTPServer(t, f, ctrl, mockDBClient, mockSubscriptionCRUD, subs)
+			ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+			ts := newHTTPServer(ctx, f, ctrl, mockDBClient, mockSubscriptionCRUD, subs)
 
 			rs, err := ts.Client().Get(ts.URL + api.TestSubscriptionResourceID + "?api-version=" + arm.SubscriptionAPIVersion)
 			require.NoError(t, err)
@@ -320,7 +322,8 @@ func TestSubscriptionsPUT(t *testing.T) {
 			if test.subDoc != nil {
 				subs[api.TestSubscriptionID] = test.subDoc
 			}
-			ts := newHTTPServer(t, f, ctrl, mockDBClient, mockSubscriptionCRUD, subs)
+			ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+			ts := newHTTPServer(ctx, f, ctrl, mockDBClient, mockSubscriptionCRUD, subs)
 
 			urlPath := test.urlPath + "?api-version=" + arm.SubscriptionAPIVersion
 			req, err := http.NewRequest(http.MethodPut, ts.URL+urlPath, bytes.NewReader(body))
@@ -524,7 +527,8 @@ func TestDeploymentPreflight(t *testing.T) {
 					State:      arm.SubscriptionStateRegistered,
 				},
 			}
-			ts := newHTTPServer(t, f, ctrl, mockDBClient, mockSubscriptionCRUD, subs)
+			ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+			ts := newHTTPServer(ctx, f, ctrl, mockDBClient, mockSubscriptionCRUD, subs)
 
 			resource, err := json.Marshal(&test.resource)
 			require.NoError(t, err)
@@ -749,7 +753,8 @@ func TestRequestAdminCredential(t *testing.T) {
 					State:      arm.SubscriptionStateRegistered,
 				},
 			}
-			ts := newHTTPServer(t, f, ctrl, mockDBClient, mockSubscriptionCRUD, subs)
+			ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+			ts := newHTTPServer(ctx, f, ctrl, mockDBClient, mockSubscriptionCRUD, subs)
 
 			url := ts.URL + requestPath + "?api-version=" + api.TestAPIVersion
 			resp, err := ts.Client().Post(url, "", nil)
@@ -963,7 +968,8 @@ func TestRevokeCredentials(t *testing.T) {
 					State:      arm.SubscriptionStateRegistered,
 				},
 			}
-			ts := newHTTPServer(t, f, ctrl, mockDBClient, mockSubscriptionCRUD, subs)
+			ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+			ts := newHTTPServer(ctx, f, ctrl, mockDBClient, mockSubscriptionCRUD, subs)
 
 			url := ts.URL + requestPath + "?api-version=" + api.TestAPIVersion
 			resp, err := ts.Client().Post(url, "", nil)
@@ -1046,7 +1052,7 @@ func assertHTTPMetrics(t *testing.T, r prometheus.Gatherer, subscription *arm.Su
 // newHTTPServer returns a test HTTP server. When a mock DB client is provided,
 // the subscription collector will be bootstrapped with the provided
 // subscription documents.
-func newHTTPServer(f *Frontend, ctrl *gomock.Controller, mockDBClient *database.MockDBClient, mockSubscriptionCRUD *database.MockSubscriptionCRUD, subs map[string]*arm.Subscription) *httptest.Server {
+func newHTTPServer(ctx context.Context, f *Frontend, ctrl *gomock.Controller, mockDBClient *database.MockDBClient, mockSubscriptionCRUD *database.MockSubscriptionCRUD, subs map[string]*arm.Subscription) *httptest.Server {
 	ts := httptest.NewUnstartedServer(f.server.Handler)
 	ts.Config.BaseContext = f.server.BaseContext
 	ts.Start()
@@ -1073,7 +1079,7 @@ func newHTTPServer(f *Frontend, ctrl *gomock.Controller, mockDBClient *database.
 	// executed here.
 	stop := make(chan struct{})
 	close(stop)
-	f.collector.Run(testr.New(t), stop)
+	f.collector.Run(ctx, stop)
 
 	return ts
 }

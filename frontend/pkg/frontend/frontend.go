@@ -151,7 +151,7 @@ func (f *Frontend) Run(ctx context.Context, stop <-chan struct{}) {
 		return f.metricsServer.Serve(f.metricsListener)
 	})
 	errs.Go(func() error {
-		f.collector.Run(logger, stop)
+		f.collector.Run(ctx, stop)
 		return nil
 	})
 

@@ -19,7 +19,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/go-logr/logr"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"go.opentelemetry.io/otel"
@@ -103,10 +102,9 @@ func NewSubscriptionCollector(r prometheus.Registerer, dbClient database.DBClien
 
 // Run starts the loop which reads the subscriptions from the database at
 // periodic intervals (30s) to populate the subscription metrics.
-func (sc *SubscriptionCollector) Run(logger logr.Logger, stop <-chan struct{}) {
-	ctx := context.Background()
+func (sc *SubscriptionCollector) Run(ctx context.Context, stop <-chan struct{}) {
 	// Populate the internal cache.
-	sc.refresh(ctx, logger)
+	sc.refresh(ctx)
 
 	t := time.NewTicker(30 * time.Second)
 	for {
@@ -114,12 +112,14 @@ func (sc *SubscriptionCollector) Run(logger logr.Logger, stop <-chan struct{}) {
 		case <-stop:
 			return
 		case <-t.C:
-			sc.refresh(ctx, logger)
+			sc.refresh(ctx)
 		}
 	}
 }
 
-func (sc *SubscriptionCollector) refresh(ctx context.Context, logger logr.Logger) {
+func (sc *SubscriptionCollector) refresh(ctx context.Context) {
+	logger := utils.LoggerFromContext(ctx)
+
 	ctx, span := otel.GetTracerProvider().
 		Tracer(utils.TracerName).
 		Start(

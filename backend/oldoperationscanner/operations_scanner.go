@@ -239,13 +239,15 @@ func NewOperationsScanner(dbClient database.DBClient, ocmConnection *ocmsdk.Conn
 // getInterval parses an environment variable into a time.Duration value.
 // If the environment variable is not defined or its value is invalid,
 // getInternal returns defaultVal.
-func getInterval(envName string, defaultVal time.Duration, logger logr.Logger) time.Duration {
+func getInterval(ctx context.Context, envName string, defaultVal time.Duration) time.Duration {
+	logger := utils.LoggerFromContext(ctx)
+
 	if intervalString, ok := os.LookupEnv(envName); ok {
 		interval, err := time.ParseDuration(intervalString)
 		if err == nil {
 			return interval
 		} else {
-			logger.Info("Cannot use environment variable", "envName", envName, "error", err.Error())
+			logger.Error(err, "Cannot use environment variable", "envName", envName)
 		}
 	}
 	return defaultVal
@@ -254,7 +256,9 @@ func getInterval(envName string, defaultVal time.Duration, logger logr.Logger) t
 // getPositiveInt parses an environment variable into a positive integer.
 // If the environment variable is not defined or its value is invalid,
 // getPositiveInt returns defaultVal.
-func getPositiveInt(envName string, defaultVal int, logger logr.Logger) int {
+func getPositiveInt(ctx context.Context, envName string, defaultVal int) int {
+	logger := utils.LoggerFromContext(ctx)
+
 	if intString, ok := os.LookupEnv(envName); ok {
 		positiveInt, err := strconv.Atoi(intString)
 		if err == nil && positiveInt <= 0 {
@@ -265,7 +269,7 @@ func getPositiveInt(envName string, defaultVal int, logger logr.Logger) int {
 			return positiveInt
 		}
 
-		logger.Info("Cannot use environment variable", "envName", envName, "error", err.Error())
+		logger.Error(err, "Cannot use environment variable", "envName", envName)
 	}
 
 	return defaultVal
@@ -281,15 +285,15 @@ func (s *OperationsScanner) Run(ctx context.Context) {
 
 	var interval time.Duration
 
-	interval = getInterval("BACKEND_POLL_INTERVAL_SUBSCRIPTIONS", defaultPollIntervalSubscriptions, logger)
+	interval = getInterval(ctx, "BACKEND_POLL_INTERVAL_SUBSCRIPTIONS", defaultPollIntervalSubscriptions)
 	logger.Info("Polling subscriptions in Cosmos DB every " + interval.String())
 	collectSubscriptionsTicker := time.NewTicker(interval)
 
-	interval = getInterval("BACKEND_POLL_INTERVAL_OPERATIONS", defaultPollIntervalOperations, logger)
+	interval = getInterval(ctx, "BACKEND_POLL_INTERVAL_OPERATIONS", defaultPollIntervalOperations)
 	logger.Info("Polling operations in Cosmos DB every " + interval.String())
 	processSubscriptionsTicker := time.NewTicker(interval)
 
-	numWorkers := getPositiveInt("BACKEND_SUBSCRIPTION_CONCURRENCY", defaultSubscriptionConcurrency, logger)
+	numWorkers := getPositiveInt(ctx, "BACKEND_SUBSCRIPTION_CONCURRENCY", defaultSubscriptionConcurrency)
 	logger.Info(fmt.Sprintf("Processing %d subscriptions at a time", numWorkers))
 	s.workerGauge.Set(float64(numWorkers))
 
@@ -319,15 +323,15 @@ func (s *OperationsScanner) Run(ctx context.Context) {
 	s.subscriptionWorkers.Add(numWorkers)
 
 	// Collect subscriptions immediately on startup.
-	s.collectSubscriptions(ctx, logger)
+	s.collectSubscriptions(ctx)
 
 loop:
 	for {
 		select {
 		case <-collectSubscriptionsTicker.C:
-			s.collectSubscriptions(ctx, logger)
+			s.collectSubscriptions(ctx)
 		case <-processSubscriptionsTicker.C:
-			s.processSubscriptions(ctx, logger)
+			s.processSubscriptions(ctx)
 		case <-ctx.Done():
 			// break alone just breaks out of select.
 			// Use a label to break out of the loop.
@@ -354,7 +358,9 @@ func (s *OperationsScanner) updateOperationMetrics(label string) func() {
 
 // collectSubscriptions builds an internal list of Azure subscription IDs by
 // querying Cosmos DB.
-func (s *OperationsScanner) collectSubscriptions(ctx context.Context, logger logr.Logger) {
+func (s *OperationsScanner) collectSubscriptions(ctx context.Context) {
+	logger := utils.LoggerFromContext(ctx)
+
 	ctx, span := StartRootSpan(ctx, "collectSubscriptions")
 	defer span.End()
 	defer s.updateOperationMetrics(collectSubscriptionsLabel)()
@@ -405,7 +411,9 @@ func (s *OperationsScanner) collectSubscriptions(ctx context.Context, logger log
 // processSubscriptions feeds the internal list of Azure subscription IDs
 // to the worker pool for processing. processSubscriptions may block if the
 // worker pool gets overloaded. The log will indicate if this occurs.
-func (s *OperationsScanner) processSubscriptions(ctx context.Context, logger logr.Logger) {
+func (s *OperationsScanner) processSubscriptions(ctx context.Context) {
+	logger := utils.LoggerFromContext(ctx)
+
 	_, span := StartRootSpan(ctx, "processSubscriptions")
 	defer span.End()
 	defer s.updateOperationMetrics(processSubscriptionsLabel)()

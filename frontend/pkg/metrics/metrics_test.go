@@ -31,6 +31,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 func TestSubscriptionCollector(t *testing.T) {
@@ -66,7 +67,7 @@ func TestSubscriptionCollector(t *testing.T) {
 		mockSubscriptionCRUD.EXPECT().
 			List(gomock.Any(), gomock.Any()).
 			Return(mockIter, nil).Times(1)
-		collector.refresh(context.Background(), logger)
+		collector.refresh(utils.ContextWithLogger(context.Background(), logger))
 
 		assertMetrics(t, r, 5, `# HELP frontend_subscription_collector_failed_syncs_total Total number of failed syncs for the Subscription collector.
 # TYPE frontend_subscription_collector_failed_syncs_total counter
@@ -95,7 +96,7 @@ frontend_subscription_collector_last_sync 1
 			List(gomock.Any(), gomock.Any()).
 			Return(mockIter, nil).Times(1)
 
-		collector.refresh(context.Background(), logger)
+		collector.refresh(utils.ContextWithLogger(context.Background(), logger))
 
 		assertMetrics(t, r, 5, `# HELP frontend_subscription_collector_failed_syncs_total Total number of failed syncs for the Subscription collector.
 # TYPE frontend_subscription_collector_failed_syncs_total counter
@@ -124,7 +125,7 @@ frontend_subscription_collector_last_sync 0
 			List(gomock.Any(), gomock.Any()).
 			Return(mockIter, nil).Times(1)
 
-		collector.refresh(context.Background(), logger)
+		collector.refresh(utils.ContextWithLogger(context.Background(), logger))
 
 		assertMetrics(t, r, 7, `
 # HELP frontend_lifecycle_last_update_timestamp_seconds Reports the timestamp when the subscription has been updated for the last time.
