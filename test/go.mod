@@ -24,6 +24,7 @@ require (
 	github.com/openshift-eng/openshift-tests-extension v0.0.0-20251217181008-4f0b29a50e82
 	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/cobra v1.10.2
+	go.yaml.in/yaml/v2 v2.4.2
 	golang.org/x/crypto v0.46.0
 	golang.org/x/sync v0.19.0
 	k8s.io/api v0.34.1
@@ -245,7 +246,6 @@ require (
 	go.opentelemetry.io/proto/otlp v1.7.1 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.0 // indirect
-	go.yaml.in/yaml/v2 v2.4.2 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	go4.org v0.0.0-20201209231011-d4a079459e60 // indirect
 	gocloud.dev v0.40.0 // indirect
