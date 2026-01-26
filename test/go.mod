@@ -21,7 +21,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/onsi/ginkgo/v2 v2.23.4
 	github.com/onsi/gomega v1.37.0
-	github.com/openshift-eng/openshift-tests-extension v0.0.0-20251217181008-4f0b29a50e82
+	github.com/openshift-eng/openshift-tests-extension v0.0.0-20260127124016-0fed2b824818
 	github.com/openshift/api v0.0.0-20260114133223-6ab113cb7368
 	github.com/openshift/client-go v0.0.0-20260108185524-48f4ccfc4e13
 	github.com/sirupsen/logrus v1.9.3
