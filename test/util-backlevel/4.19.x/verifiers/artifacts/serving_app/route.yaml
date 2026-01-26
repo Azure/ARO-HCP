@@ -1,0 +1,13 @@
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: agnhost
+spec:
+  port:
+    targetPort: http
+  tls:
+    termination: edge
+  to:
+    kind: Service
+    name: agnhost
+    weight: 100
