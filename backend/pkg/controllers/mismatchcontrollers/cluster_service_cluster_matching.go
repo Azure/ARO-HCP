@@ -130,7 +130,7 @@ func (c *clusterServiceClusterMatching) synchronizeAllClusters(ctx context.Conte
 	for _, clusterServiceCluster := range allClusterServiceClusters {
 		_, exists := clusterServiceIDToCosmosCluster[clusterServiceCluster.HREF()]
 		if !exists {
-			logger.Error("cluster service cluster doesn't have matching cosmos cluster",
+			logger.Info("cluster service cluster doesn't have matching cosmos cluster",
 				"clusterServiceID", clusterServiceCluster.HREF(),
 			)
 		}
@@ -144,7 +144,7 @@ func (c *clusterServiceClusterMatching) SyncOnce(ctx context.Context, _ any) err
 
 	syncErr := c.synchronizeAllClusters(ctx) // we'll handle this is a moment.
 	if syncErr != nil {
-		logger.Error("unable to synchronize all clusters", "error", syncErr)
+		logger.Error(syncErr, "unable to synchronize all clusters")
 	}
 
 	return utils.TrackError(syncErr)
@@ -157,7 +157,7 @@ func (c *clusterServiceClusterMatching) Run(ctx context.Context, threadiness int
 	defer c.queue.ShutDown()
 
 	logger := utils.LoggerFromContext(ctx)
-	logger.With("controller_name", c.name)
+	logger = logger.WithValues("controller_name", c.name)
 	ctx = utils.ContextWithLogger(ctx, logger)
 	logger.Info("Starting")
 

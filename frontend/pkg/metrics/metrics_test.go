@@ -22,6 +22,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-logr/logr/testr"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
@@ -33,7 +34,7 @@ import (
 )
 
 func TestSubscriptionCollector(t *testing.T) {
-	logger := api.NewTestLogger()
+	logger := testr.New(t)
 	nosubs := maps.All(map[string]*arm.Subscription{})
 	subs := maps.All(map[string]*arm.Subscription{
 		"00000000-0000-0000-0000-000000000000": {

@@ -17,11 +17,12 @@ package controllerutils
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"net/http"
 	"path"
 	"slices"
 	"strings"
+
+	"github.com/go-logr/logr"
 
 	"k8s.io/apimachinery/pkg/api/equality"
 	utilsclock "k8s.io/utils/clock"
@@ -49,7 +50,7 @@ func (k *OperationKey) GetParentResourceID() *azcorearm.ResourceID {
 	return api.Must(azcorearm.ParseResourceID(k.ParentResourceID))
 }
 
-func (k *OperationKey) AddLoggerValues(logger *slog.Logger) *slog.Logger {
+func (k *OperationKey) AddLoggerValues(logger logr.Logger) logr.Logger {
 	parentResourceID := k.GetParentResourceID()
 	hcpClusterName := ""
 	switch {
@@ -61,7 +62,7 @@ func (k *OperationKey) AddLoggerValues(logger *slog.Logger) *slog.Logger {
 		hcpClusterName = parentResourceID.Name
 	}
 
-	return logger.With(
+	return logger.WithValues(
 		"subscription_id", k.SubscriptionID,
 		"resource_group", parentResourceID.ResourceGroupName,
 		"resource_name", parentResourceID.Name,
@@ -109,8 +110,8 @@ func (k *HCPClusterKey) GetResourceID() *azcorearm.ResourceID {
 	return api.Must(azcorearm.ParseResourceID(path.Join(parts...)))
 }
 
-func (k *HCPClusterKey) AddLoggerValues(logger *slog.Logger) *slog.Logger {
-	return logger.With(
+func (k *HCPClusterKey) AddLoggerValues(logger logr.Logger) logr.Logger {
+	return logger.WithValues(
 		"subscription_id", k.SubscriptionID,
 		"resource_group", k.ResourceGroupName,
 		"resource_name", k.HCPClusterName,
@@ -197,7 +198,7 @@ func WriteController(ctx context.Context, controllerCRUD database.ResourceCRUD[a
 	if existingController == nil {
 		_, createErr := controllerCRUD.Create(ctx, desiredController, nil)
 		if createErr != nil {
-			logger.Error("failed to create", "error", createErr)
+			logger.Error(createErr, "failed to create")
 			return fmt.Errorf("failed to create existing controller state: %w", createErr)
 		}
 		return nil
@@ -205,7 +206,7 @@ func WriteController(ctx context.Context, controllerCRUD database.ResourceCRUD[a
 
 	_, replaceErr := controllerCRUD.Replace(ctx, desiredController, nil)
 	if replaceErr != nil {
-		logger.Error("failed to replace", "error", replaceErr)
+		logger.Error(replaceErr, "failed to replace")
 		return fmt.Errorf("failed to replace existing controller state: %w", replaceErr)
 	}
 	return nil

@@ -100,7 +100,7 @@ func (c *operationClusterDelete) SynchronizeOperation(ctx context.Context, key c
 
 		err = oldoperationscanner.SetDeleteOperationAsCompleted(ctx, c.cosmosClient, operation, PostAsyncNotification(c.notificationClient))
 		if err != nil {
-			logger.Error("Failed to handle a completed deletion", "error", err)
+			logger.Error(err, "Failed to handle a completed deletion")
 		}
 	}
 	if err != nil {

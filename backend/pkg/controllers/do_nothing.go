@@ -131,13 +131,13 @@ func (c *doNothingExample) queueAllHCPClusters(ctx context.Context) {
 
 	allSubscriptions, err := c.subscriptionLister.List(ctx)
 	if err != nil {
-		logger.Error("unable to list subscriptions", "error", err)
+		logger.Error(err, "unable to list subscriptions")
 	}
 	for _, subscription := range allSubscriptions {
 		subscriptionID := subscription.ResourceID.SubscriptionID
 		allHCPClusters, err := c.cosmosClient.HCPClusters(subscriptionID, "").List(ctx, nil)
 		if err != nil {
-			logger.Error("unable to list HCP clusters", "error", err, "subscription_id", subscription.ResourceID.SubscriptionID)
+			logger.Error(err, "unable to list HCP clusters", "subscription_id", subscription.ResourceID.SubscriptionID)
 			continue
 		}
 
@@ -149,7 +149,7 @@ func (c *doNothingExample) queueAllHCPClusters(ctx context.Context) {
 			})
 		}
 		if err := allHCPClusters.GetError(); err != nil {
-			logger.Error("unable to iterate over HCP clusters", "error", err, "subscription_id", subscription.ResourceID.SubscriptionID)
+			logger.Error(err, "unable to iterate over HCP clusters", "subscription_id", subscription.ResourceID.SubscriptionID)
 		}
 	}
 }
@@ -161,7 +161,7 @@ func (c *doNothingExample) Run(ctx context.Context, threadiness int) {
 	defer c.queue.ShutDown()
 
 	logger := utils.LoggerFromContext(ctx)
-	logger.With("controller_name", c.name)
+	logger = logger.WithValues("controller_name", c.name)
 	ctx = utils.ContextWithLogger(ctx, logger)
 	logger.Info("Starting")
 

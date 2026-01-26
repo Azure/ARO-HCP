@@ -19,7 +19,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log/slog"
 	"net"
 	"net/http"
 	"os"
@@ -27,6 +26,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/go-logr/logr"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"golang.org/x/sync/errgroup"
@@ -67,7 +67,7 @@ type Frontend struct {
 }
 
 func NewFrontend(
-	logger *slog.Logger,
+	logger logr.Logger,
 	listener net.Listener,
 	metricsListener net.Listener,
 	reg prometheus.Registerer,
@@ -86,7 +86,6 @@ func NewFrontend(
 		listener:             listener,
 		metricsListener:      metricsListener,
 		server: http.Server{
-			ErrorLog: slog.NewLogLogger(logger.Handler(), slog.LevelError),
 			BaseContext: func(net.Listener) context.Context {
 				ctx := context.Background()
 				ctx = utils.ContextWithLogger(ctx, logger)
@@ -94,7 +93,6 @@ func NewFrontend(
 			},
 		},
 		metricsServer: http.Server{
-			ErrorLog: slog.NewLogLogger(logger.Handler(), slog.LevelError),
 			BaseContext: func(net.Listener) context.Context {
 				return utils.ContextWithLogger(context.Background(), logger)
 			},
@@ -158,7 +156,7 @@ func (f *Frontend) Run(ctx context.Context, stop <-chan struct{}) {
 	})
 
 	if err := errs.Wait(); !errors.Is(err, http.ErrServerClosed) {
-		logger.Error(err.Error())
+		logger.Error(err, "server error")
 		os.Exit(1)
 	}
 }
@@ -660,7 +658,7 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 		if err != nil {
 			preflightErr = arm.NewInvalidRequestContentError(err)
 			// Preflight is best-effort: a malformed resource is not a validation failure.
-			logger.Warn(preflightErr.Error())
+			logger.Info("preflight: malformed resource detected", "error", preflightErr.Error())
 			continue
 		}
 		if detectedTLE {
@@ -672,7 +670,7 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 		if err != nil {
 			preflightErr = arm.NewInvalidRequestContentError(err)
 			// Preflight is best-effort: a malformed resource is not a validation failure.
-			logger.Warn(preflightErr.Error())
+			logger.Info("preflight: failed to unmarshal resource", "error", preflightErr.Error())
 			continue
 		}
 
@@ -683,8 +681,8 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 				Message: fmt.Sprintf("Unrecognized API version '%s'", preflightResource.APIVersion),
 				Target:  "apiVersion",
 			}
-			logger.Warn(
-				fmt.Sprintf("Resource #%d failed preliminary validation (see details)", index+1),
+			logger.Info(
+				fmt.Sprintf("preflight: Resource #%d failed preliminary validation (see details)", index+1),
 				"details", validationErr)
 			continue
 		}
@@ -698,13 +696,13 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 			err = preflightResource.Convert(versionedCluster)
 			if err != nil {
 				// Preflight is best effort: failure to parse a resource is not a validation failure.
-				logger.Warn(fmt.Sprintf("Failed to unmarshal %s resource named '%s': %s", preflightResource.Type, preflightResource.Name, err))
+				logger.Info("preflight: failed to unmarshal resource", "resourceType", preflightResource.Type, "resourceName", preflightResource.Name, "error", err.Error())
 				continue
 			}
 
 			newInternalCluster, err := versionedCluster.ConvertToInternal()
 			if err != nil {
-				logger.Warn(fmt.Sprintf("Failed to convert %s resource named '%s': %s", preflightResource.Type, preflightResource.Name, err))
+				logger.Info("preflight: failed to convert resource", "resourceType", preflightResource.Type, "resourceName", preflightResource.Name, "error", err.Error())
 				continue
 			}
 			// the external type lacks sufficient data to full produce a valid resourceID.  We do that separately here.
@@ -730,14 +728,14 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 			err = preflightResource.Convert(versionedNodePool)
 			if err != nil {
 				// Preflight is best effort: failure to parse a resource is not a validation failure.
-				logger.Warn(fmt.Sprintf("Failed to unmarshal %s resource named '%s': %s", preflightResource.Type, preflightResource.Name, err))
+				logger.Info("preflight: failed to unmarshal resource", "resourceType", preflightResource.Type, "resourceName", preflightResource.Name, "error", err.Error())
 				continue
 			}
 
 			// Perform static validation as if for a node pool creation request.
 			newInternalNodePool, err := versionedNodePool.ConvertToInternal()
 			if err != nil {
-				logger.Warn(fmt.Sprintf("Failed to convert %s resource named '%s': %s", preflightResource.Type, preflightResource.Name, err))
+				logger.Info("preflight: failed to convert resource", "resourceType", preflightResource.Type, "resourceName", preflightResource.Name, "error", err.Error())
 				continue
 			}
 			// the external type lacks sufficient data to full produce a valid resourceID.  We do that separately here.
@@ -763,14 +761,14 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 			err = preflightResource.Convert(versionedExternalAuth)
 			if err != nil {
 				// Preflight is best effort: failure to parse a resource is not a validation failure.
-				logger.Warn(fmt.Sprintf("Failed to unmarshal %s resource named '%s': %s", preflightResource.Type, preflightResource.Name, err))
+				logger.Info("preflight: failed to unmarshal resource", "resourceType", preflightResource.Type, "resourceName", preflightResource.Name, "error", err.Error())
 				continue
 			}
 
 			// Perform static validation as if for an external auth creation request.
 			newInternalAuth, err := versionedExternalAuth.ConvertToInternal()
 			if err != nil {
-				logger.Warn(fmt.Sprintf("Failed to convert %s resource named '%s': %s", preflightResource.Type, preflightResource.Name, err))
+				logger.Info("preflight: failed to convert resource", "resourceType", preflightResource.Type, "resourceName", preflightResource.Name, "error", err.Error())
 				continue
 			}
 			// the external type lacks sufficient data to full produce a valid resourceID.  We do that separately here.
@@ -875,7 +873,7 @@ func (f *Frontend) OperationStatus(writer http.ResponseWriter, request *http.Req
 	// Validate the identity retrieving the operation result is the
 	// same identity that triggered the operation. Return 404 if not.
 	if !f.OperationIsVisible(request, operation) {
-		logger.Warn("operation result not visible to requester")
+		logger.Info("operation result not visible to requester")
 		writer.WriteHeader(http.StatusNotFound)
 		return nil
 	}

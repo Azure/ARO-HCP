@@ -57,7 +57,7 @@ func (c *dataDump) SyncOnce(ctx context.Context, key controllerutils.HCPClusterK
 
 	if err := serverutils.DumpDataToLogger(ctx, c.cosmosClient, resourceID); err != nil {
 		// never fail, this is best effort
-		logger.Error(err.Error())
+		logger.Error(err, "failed to dump data to logger")
 	}
 
 	return nil

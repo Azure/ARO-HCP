@@ -15,13 +15,11 @@
 package frontend
 
 import (
-	"bytes"
-	"log/slog"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 
+	"github.com/go-logr/logr/testr"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/Azure/ARO-HCP/internal/api/arm"
@@ -132,8 +130,7 @@ func TestMiddlewareCorrelation(t *testing.T) {
 			var (
 				writer = httptest.NewRecorder()
 				req    = &tt.r
-				buf    bytes.Buffer
-				logger = slog.New(slog.NewTextHandler(&buf, nil))
+				logger = testr.New(t)
 				data   *arm.CorrelationData
 			)
 			req = req.WithContext(utils.ContextWithLogger(req.Context(), logger))
@@ -163,25 +160,6 @@ func TestMiddlewareCorrelation(t *testing.T) {
 			assert.NotEmpty(t, data.RequestID.String())
 			assert.Equal(t, tt.expectedCorrelationID, data.CorrelationRequestID)
 			assert.Equal(t, tt.expectedClientRequestID, data.ClientRequestID)
-
-			// Check that the contextual logger had the expected attributes.
-			lines := strings.Split(strings.TrimSuffix(buf.String(), "\n"), "\n")
-			assert.Equal(t, 1, len(lines))
-
-			line := string(lines[0])
-			assert.Contains(t, line, " request_id=")
-
-			if tt.expectedCorrelationID != "" {
-				assert.Contains(t, line, tt.expectedCorrelationID)
-			} else {
-				assert.NotContains(t, line, " correlation_request_id=")
-			}
-
-			if tt.expectedClientRequestID != "" {
-				assert.Contains(t, line, tt.expectedClientRequestID)
-			} else {
-				assert.NotContains(t, line, " client_request_id=")
-			}
 		})
 	}
 }

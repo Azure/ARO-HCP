@@ -17,11 +17,11 @@ package audit
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"net"
 	"net/http"
 	"strings"
 
+	"github.com/go-logr/logr"
 	"github.com/microsoft/go-otel-audit/audit"
 	"github.com/microsoft/go-otel-audit/audit/base"
 	"github.com/microsoft/go-otel-audit/audit/conn"
@@ -82,15 +82,15 @@ func GetOperationType(method string) msgs.OperationType {
 	}
 }
 
-func CreateOtelAuditMsg(log *slog.Logger, r *http.Request) msgs.Msg {
+func CreateOtelAuditMsg(log logr.Logger, r *http.Request) msgs.Msg {
 	host, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {
-		log.Error("failed to split host and port for remote request addr", r.RemoteAddr, err.Error())
+		log.Error(err, "failed to split host and port for remote request addr", "addr", r.RemoteAddr)
 	}
 
 	addr, err := msgs.ParseAddr(host)
 	if err != nil {
-		log.Error("failed to parse address for host", host, err.Error())
+		log.Error(err, "failed to parse address for host", "host", host)
 	}
 
 	record := msgs.Record{

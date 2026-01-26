@@ -112,7 +112,7 @@ func (c *cosmosExternalAuthMatching) synchronizeAllExternalAuths(ctx context.Con
 	for _, cosmosExternalAuth := range allCosmosExternalAuths {
 		_, exists := clusterServiceIDToClusterServiceExternalAuths[cosmosExternalAuth.ServiceProviderProperties.ClusterServiceID.String()]
 		if !exists {
-			logger.Error("cosmos externalAuth doesn't have matching cluster-service externalAuth",
+			logger.Info("cosmos externalAuth doesn't have matching cluster-service externalAuth",
 				"cosmosResourceID", cosmosExternalAuth.ID,
 				"clusterServiceID", cosmosExternalAuth.ServiceProviderProperties.ClusterServiceID,
 			)
@@ -122,7 +122,7 @@ func (c *cosmosExternalAuthMatching) synchronizeAllExternalAuths(ctx context.Con
 	for _, clusterServiceExternalAuth := range allClusterServiceExternalAuths {
 		_, exists := clusterServiceIDToCosmosExternalAuths[clusterServiceExternalAuth.HREF()]
 		if !exists {
-			logger.Error("cluster service externalAuth doesn't have matching cosmos externalAuth",
+			logger.Info("cluster service externalAuth doesn't have matching cosmos externalAuth",
 				"clusterServiceID", clusterServiceExternalAuth.HREF(),
 			)
 		}

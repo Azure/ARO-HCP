@@ -21,7 +21,6 @@ import (
 	"errors"
 	"fmt"
 	"iter"
-	"log/slog"
 	"net/http"
 	"os"
 	"slices"
@@ -30,6 +29,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/go-logr/logr"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"go.opentelemetry.io/otel"
@@ -239,13 +239,13 @@ func NewOperationsScanner(dbClient database.DBClient, ocmConnection *ocmsdk.Conn
 // getInterval parses an environment variable into a time.Duration value.
 // If the environment variable is not defined or its value is invalid,
 // getInternal returns defaultVal.
-func getInterval(envName string, defaultVal time.Duration, logger *slog.Logger) time.Duration {
+func getInterval(envName string, defaultVal time.Duration, logger logr.Logger) time.Duration {
 	if intervalString, ok := os.LookupEnv(envName); ok {
 		interval, err := time.ParseDuration(intervalString)
 		if err == nil {
 			return interval
 		} else {
-			logger.Warn(fmt.Sprintf("Cannot use %s: %v", envName, err.Error()))
+			logger.Info("Cannot use environment variable", "envName", envName, "error", err.Error())
 		}
 	}
 	return defaultVal
@@ -254,7 +254,7 @@ func getInterval(envName string, defaultVal time.Duration, logger *slog.Logger) 
 // getPositiveInt parses an environment variable into a positive integer.
 // If the environment variable is not defined or its value is invalid,
 // getPositiveInt returns defaultVal.
-func getPositiveInt(envName string, defaultVal int, logger *slog.Logger) int {
+func getPositiveInt(envName string, defaultVal int, logger logr.Logger) int {
 	if intString, ok := os.LookupEnv(envName); ok {
 		positiveInt, err := strconv.Atoi(intString)
 		if err == nil && positiveInt <= 0 {
@@ -265,7 +265,7 @@ func getPositiveInt(envName string, defaultVal int, logger *slog.Logger) int {
 			return positiveInt
 		}
 
-		logger.Warn(fmt.Sprintf("Cannot use %s: %v", envName, err.Error()))
+		logger.Info("Cannot use environment variable", "envName", envName, "error", err.Error())
 	}
 
 	return defaultVal
@@ -306,7 +306,7 @@ func (s *OperationsScanner) Run(ctx context.Context) {
 				localCtx, span := StartRootSpan(ctx, "processOperations")
 				span.SetAttributes(tracing.SubscriptionIDKey.String(subscriptionID))
 
-				localLogger := logger.With("subscription_id", subscriptionID)
+				localLogger := logger.WithValues("subscription_id", subscriptionID)
 				localCtx = utils.ContextWithLogger(localCtx, localLogger)
 				s.withSubscriptionLock(localCtx, subscriptionID, func(ctx context.Context) {
 					s.processOperations(localCtx, subscriptionID)
@@ -354,7 +354,7 @@ func (s *OperationsScanner) updateOperationMetrics(label string) func() {
 
 // collectSubscriptions builds an internal list of Azure subscription IDs by
 // querying Cosmos DB.
-func (s *OperationsScanner) collectSubscriptions(ctx context.Context, logger *slog.Logger) {
+func (s *OperationsScanner) collectSubscriptions(ctx context.Context, logger logr.Logger) {
 	ctx, span := StartRootSpan(ctx, "collectSubscriptions")
 	defer span.End()
 	defer s.updateOperationMetrics(collectSubscriptionsLabel)()
@@ -364,7 +364,7 @@ func (s *OperationsScanner) collectSubscriptions(ctx context.Context, logger *sl
 	iterator, err := s.dbClient.Subscriptions().List(ctx, nil)
 	if err != nil {
 		s.recordOperationError(ctx, collectSubscriptionsLabel, err)
-		logger.Error(fmt.Sprintf("Error creating iterator: %v", err.Error()))
+		logger.Error(err, "Error creating iterator")
 		return
 	}
 
@@ -384,7 +384,7 @@ func (s *OperationsScanner) collectSubscriptions(ctx context.Context, logger *sl
 	span.SetAttributes(tracing.ProcessedItemsKey.Int(len(subscriptions)))
 	if err := iterator.GetError(); err != nil {
 		s.recordOperationError(ctx, collectSubscriptionsLabel, err)
-		logger.Error(fmt.Sprintf("Error while paging through Cosmos query results: %v", err.Error()))
+		logger.Error(err, "Error while paging through Cosmos query results")
 		return
 	}
 
@@ -405,7 +405,7 @@ func (s *OperationsScanner) collectSubscriptions(ctx context.Context, logger *sl
 // processSubscriptions feeds the internal list of Azure subscription IDs
 // to the worker pool for processing. processSubscriptions may block if the
 // worker pool gets overloaded. The log will indicate if this occurs.
-func (s *OperationsScanner) processSubscriptions(ctx context.Context, logger *slog.Logger) {
+func (s *OperationsScanner) processSubscriptions(ctx context.Context, logger logr.Logger) {
 	_, span := StartRootSpan(ctx, "processSubscriptions")
 	defer span.End()
 	defer s.updateOperationMetrics(processSubscriptionsLabel)()
@@ -413,7 +413,7 @@ func (s *OperationsScanner) processSubscriptions(ctx context.Context, logger *sl
 	// This method may block while feeding subscription IDs to the worker pool
 	subscriptions, err := s.subscriptionsLister.List(ctx)
 	if err != nil {
-		logger.Error("Failed to get subscriptions", "error", err)
+		logger.Error(err, "Failed to get subscriptions")
 		// primitive avoidance of hot loop during refactor.
 		time.Sleep(100 * time.Millisecond)
 		return
@@ -428,7 +428,7 @@ func (s *OperationsScanner) processSubscriptions(ctx context.Context, logger *sl
 			// when the worker pool size needs increased.
 			start := time.Now()
 			s.subscriptionChannel <- subscription.ResourceID.SubscriptionID
-			logger.Warn(fmt.Sprintf("Subscription processing blocked for %s", time.Since(start)), "subscription", subscription.ResourceID.SubscriptionID)
+			logger.Info("Subscription processing blocked", "duration", time.Since(start).String(), "subscription", subscription.ResourceID.SubscriptionID)
 		}
 	}
 }
@@ -455,7 +455,7 @@ func (s *OperationsScanner) processOperations(ctx context.Context, subscriptionI
 		}
 
 		// add info for our logger
-		localLogger := logger.With(
+		localLogger := logger.WithValues(
 			"operation", operationDoc.Request,
 			"operation_id", operationID,
 			"resource_group", operationDoc.ExternalID.ResourceGroupName,
@@ -481,7 +481,7 @@ func (s *OperationsScanner) processOperations(ctx context.Context, subscriptionI
 	err := iterator.GetError()
 	if err != nil {
 		s.recordOperationError(ctx, processOperationsLabel, err)
-		logger.Error(fmt.Sprintf("Error while paging through Cosmos query results: %v", err.Error()))
+		logger.Error(err, "Error while paging through Cosmos query results")
 	}
 }
 
@@ -527,11 +527,11 @@ func (s *OperationsScanner) pollNodePoolOperation(ctx context.Context, op operat
 			err = SetDeleteOperationAsCompleted(ctx, s.dbClient, op.doc, s.postAsyncNotification)
 			if err != nil {
 				s.recordOperationError(ctx, pollNodePoolOperationLabel, err)
-				logger.Error(fmt.Sprintf("Failed to handle a completed deletion: %v", err))
+				logger.Error(err, "Failed to handle a completed deletion")
 			}
 		} else {
 			s.recordOperationError(ctx, pollNodePoolOperationLabel, err)
-			logger.Error(fmt.Sprintf("Failed to get node pool status: %v", err))
+			logger.Error(err, "Failed to get node pool status")
 		}
 
 		return
@@ -540,14 +540,14 @@ func (s *OperationsScanner) pollNodePoolOperation(ctx context.Context, op operat
 	opStatus, opError, err := convertNodePoolStatus(op, nodePoolStatus)
 	if err != nil {
 		s.recordOperationError(ctx, pollNodePoolOperationLabel, err)
-		logger.Warn(err.Error())
+		logger.Info("Node pool status conversion warning", "error", err.Error())
 		return
 	}
 
 	err = database.UpdateOperationStatus(ctx, s.dbClient, op.doc, opStatus, opError, s.postAsyncNotification)
 	if err != nil {
 		s.recordOperationError(ctx, pollNodePoolOperationLabel, err)
-		logger.Error(fmt.Sprintf("Failed to update operation status: %v", err))
+		logger.Error(err, "Failed to update operation status")
 	}
 }
 
@@ -566,11 +566,11 @@ func (s *OperationsScanner) pollExternalAuthOperation(ctx context.Context, op op
 			err = SetDeleteOperationAsCompleted(ctx, s.dbClient, op.doc, s.postAsyncNotification)
 			if err != nil {
 				s.recordOperationError(ctx, pollExternalAuthOperationLabel, err)
-				logger.Error(fmt.Sprintf("Failed to handle a completed deletion: %v", err))
+				logger.Error(err, "Failed to handle a completed deletion")
 			}
 		} else {
 			s.recordOperationError(ctx, pollExternalAuthOperationLabel, err)
-			logger.Error(fmt.Sprintf("Failed to get external auth status: %v", err))
+			logger.Error(err, "Failed to get external auth status")
 		}
 
 		return
@@ -578,7 +578,7 @@ func (s *OperationsScanner) pollExternalAuthOperation(ctx context.Context, op op
 	err = database.UpdateOperationStatus(ctx, s.dbClient, op.doc, arm.ProvisioningStateSucceeded, nil, s.postAsyncNotification)
 	if err != nil {
 		s.recordOperationError(ctx, pollExternalAuthOperationLabel, err)
-		logger.Error(fmt.Sprintf("Failed to update operation status: %v", err))
+		logger.Error(err, "Failed to update operation status")
 	}
 }
 
@@ -596,7 +596,7 @@ func WithSubscriptionLock(ctx context.Context, lockClient database.LockClientInt
 	span := trace.SpanFromContext(ctx)
 	lock, err := lockClient.AcquireLock(ctx, subscriptionID, &timeout)
 	if err != nil {
-		logger.Error(fmt.Sprintf("Failed to acquire lock: %v", err))
+		logger.Error(err, "Failed to acquire lock")
 		span.RecordError(err)
 		return
 	}
@@ -613,7 +613,7 @@ func WithSubscriptionLock(ctx context.Context, lockClient database.LockClientInt
 		} else {
 			// Failure here is non-fatal but still log the error.
 			// The lock's TTL ensures it will be released eventually.
-			logger.Warn(fmt.Sprintf("Failed to release lock: %v", nonFatalErr))
+			logger.Error(nonFatalErr, "Failed to release lock")
 			span.RecordError(nonFatalErr)
 		}
 	}
@@ -827,8 +827,7 @@ func ConvertInflightChecks(ctx context.Context, clusterServiceClient ocm.Cluster
 	// This is a fallback case and should not normally occur. If the provision error code is OCM4001,
 	// there should be at least one inflight failure.
 	if len(cloudErrors) == 0 {
-		logger.Error(fmt.Sprintf(
-			"Cluster '%s' returned error code OCM4001, but no inflight failures were found", internalId))
+		logger.Info("Cluster returned error code OCM4001, but no inflight failures were found", "internalId", internalId)
 		return &arm.CloudErrorBody{
 			Code: arm.CloudErrorCodeInternalServerError,
 		}, nil
@@ -837,10 +836,10 @@ func ConvertInflightChecks(ctx context.Context, clusterServiceClient ocm.Cluster
 	return arm.NewCloudErrorBodyFromSlice(cloudErrors, "Cluster provisioning failed due to multiple errors"), nil
 }
 
-func convertInflightCheck(inflightCheck *arohcpv1alpha1.InflightCheck, logger *slog.Logger) arm.CloudErrorBody {
+func convertInflightCheck(inflightCheck *arohcpv1alpha1.InflightCheck, logger logr.Logger) arm.CloudErrorBody {
 	message, succeeded := convertInflightCheckDetails(inflightCheck)
 	if !succeeded {
-		logger.Error(fmt.Sprintf("error converting inflight check '%s' details", inflightCheck.Name()))
+		logger.Info("error converting inflight check details", "name", inflightCheck.Name())
 	}
 
 	return arm.CloudErrorBody{

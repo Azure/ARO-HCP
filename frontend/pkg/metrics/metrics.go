@@ -16,10 +16,10 @@ package metrics
 
 import (
 	"context"
-	"log/slog"
 	"sync"
 	"time"
 
+	"github.com/go-logr/logr"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"go.opentelemetry.io/otel"
@@ -103,7 +103,7 @@ func NewSubscriptionCollector(r prometheus.Registerer, dbClient database.DBClien
 
 // Run starts the loop which reads the subscriptions from the database at
 // periodic intervals (30s) to populate the subscription metrics.
-func (sc *SubscriptionCollector) Run(logger *slog.Logger, stop <-chan struct{}) {
+func (sc *SubscriptionCollector) Run(logger logr.Logger, stop <-chan struct{}) {
 	ctx := context.Background()
 	// Populate the internal cache.
 	sc.refresh(ctx, logger)
@@ -119,7 +119,7 @@ func (sc *SubscriptionCollector) Run(logger *slog.Logger, stop <-chan struct{}) 
 	}
 }
 
-func (sc *SubscriptionCollector) refresh(ctx context.Context, logger *slog.Logger) {
+func (sc *SubscriptionCollector) refresh(ctx context.Context, logger logr.Logger) {
 	ctx, span := otel.GetTracerProvider().
 		Tracer(utils.TracerName).
 		Start(
@@ -138,7 +138,7 @@ func (sc *SubscriptionCollector) refresh(ctx context.Context, logger *slog.Logge
 	sc.refreshCounter.Inc()
 	if err := sc.updateCache(ctx); err != nil {
 		span.RecordError(err)
-		logger.Warn("failed to update subscription collector cache", "err", err)
+		logger.Error(err, "failed to update subscription collector cache")
 		sc.lastSyncResult.Set(0)
 		sc.errCounter.Inc()
 		return

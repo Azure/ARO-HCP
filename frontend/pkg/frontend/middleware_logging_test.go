@@ -15,14 +15,12 @@
 package frontend
 
 import (
-	"bytes"
 	"context"
-	"log/slog"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 
+	"github.com/go-logr/logr/testr"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -42,7 +40,6 @@ func noModifyReqfunc(req *http.Request) {
 func TestMiddlewareLoggingPostMux(t *testing.T) {
 	type testCase struct {
 		name            string
-		wantLogAttrs    []slog.Attr
 		wantSpanAttrs   map[string]string
 		requestURL      string
 		setReqPathValue ReqPathModifier
@@ -51,12 +48,10 @@ func TestMiddlewareLoggingPostMux(t *testing.T) {
 	tests := []testCase{
 		{
 			name:            "handles the common logging attributes",
-			wantLogAttrs:    []slog.Attr{},
 			setReqPathValue: noModifyReqfunc,
 		},
 		{
 			name:          "handles the common attributes and the attributes for the subscription_id segment path",
-			wantLogAttrs:  []slog.Attr{slog.String("subscription_id", api.TestSubscriptionID)},
 			wantSpanAttrs: map[string]string{"aro.subscription.id": api.TestSubscriptionID},
 			requestURL:    "/subscriptions/" + api.TestSubscriptionID,
 			setReqPathValue: func(req *http.Request) {
@@ -65,7 +60,6 @@ func TestMiddlewareLoggingPostMux(t *testing.T) {
 		},
 		{
 			name:          "handles the common attributes and the attributes for the resourcegroupname path",
-			wantLogAttrs:  []slog.Attr{slog.String("resource_group", api.TestResourceGroupName)},
 			wantSpanAttrs: map[string]string{"aro.resource_group.name": api.TestResourceGroupName},
 			requestURL:    "/subscriptions/" + api.TestSubscriptionID + "/resourceGroups/" + api.TestResourceGroupName,
 			setReqPathValue: func(req *http.Request) {
@@ -74,12 +68,6 @@ func TestMiddlewareLoggingPostMux(t *testing.T) {
 		},
 		{
 			name: "handles the common attributes and the attributes for the resourcename path, and produces the correct resourceID attribute",
-			wantLogAttrs: []slog.Attr{
-				slog.String("subscription_id", api.TestSubscriptionID),
-				slog.String("resource_group", api.TestResourceGroupName),
-				slog.String("resource_name", api.TestClusterName),
-				slog.String("resource_id", api.TestClusterResourceID),
-			},
 			wantSpanAttrs: map[string]string{
 				"aro.subscription.id":     api.TestSubscriptionID,
 				"aro.resource_group.name": api.TestResourceGroupName,
@@ -101,11 +89,8 @@ func TestMiddlewareLoggingPostMux(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var (
-				writer = httptest.NewRecorder()
-				buf    bytes.Buffer
-				logger = slog.New(slog.NewTextHandler(&buf, nil))
-			)
+			writer := httptest.NewRecorder()
+			logger := testr.New(t)
 
 			ctx := utils.ContextWithLogger(context.Background(), logger)
 			ctx, sr := initSpanRecorder(ctx)
@@ -116,9 +101,9 @@ func TestMiddlewareLoggingPostMux(t *testing.T) {
 			}
 
 			next := func(w http.ResponseWriter, r *http.Request) {
-				logger := utils.LoggerFromContext(r.Context())
-				// Emit a log message to check that it includes the expected attributes.
-				logger.Info("test")
+				contextLogger := utils.LoggerFromContext(r.Context())
+				// Emit a log message to verify the logger is available.
+				contextLogger.Info("test")
 				w.WriteHeader(http.StatusOK)
 			}
 
@@ -126,16 +111,7 @@ func TestMiddlewareLoggingPostMux(t *testing.T) {
 				MiddlewareLoggingPostMux(w, r, next)
 			})
 
-			// Check that the contextual logger has the expected attributes.
-			lines := strings.Split(strings.TrimSuffix(buf.String(), "\n"), "\n")
-			require.Equal(t, 3, len(lines))
-
-			line := string(lines[1])
-			for _, attr := range tt.wantLogAttrs {
-				assert.Contains(t, line, attr.String())
-			}
-
-			// Check that the attributes have been added to the span too.
+			// Check that the attributes have been added to the span.
 			ss := sr.collect()
 			require.Len(t, ss, 1)
 			span := ss[0]

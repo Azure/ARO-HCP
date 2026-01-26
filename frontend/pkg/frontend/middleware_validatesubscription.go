@@ -61,7 +61,7 @@ func (h *middlewareValidateSubscriptionState) handleRequest(w http.ResponseWrite
 	// Currently, we are using the database to retrieve the subscription's tenantID and state
 	subscription, err := h.dbClient.Subscriptions().Get(ctx, subscriptionId)
 	if err != nil {
-		logger.Error("failed to get subscription document", "subscriptionId", subscriptionId, "error", err)
+		logger.Error(err, "failed to get subscription document", "subscriptionId", subscriptionId)
 
 		// subscription not found, treat as unregistered
 		if database.IsResponseError(err, http.StatusNotFound) {
@@ -99,7 +99,7 @@ func (h *middlewareValidateSubscriptionState) handleRequest(w http.ResponseWrite
 	case arm.SubscriptionStateRegistered:
 		next(w, r)
 	case arm.SubscriptionStateUnregistered:
-		logger.Error("subscription document indicates unregistered", "subscriptionId", subscriptionId)
+		logger.Info("subscription document indicates unregistered", "subscriptionId", subscriptionId)
 		arm.WriteError(
 			w, http.StatusBadRequest,
 			arm.CloudErrorCodeInvalidSubscriptionState, "",
@@ -107,7 +107,7 @@ func (h *middlewareValidateSubscriptionState) handleRequest(w http.ResponseWrite
 			subscriptionId)
 	case arm.SubscriptionStateWarned, arm.SubscriptionStateSuspended:
 		if r.Method != http.MethodGet && r.Method != http.MethodDelete {
-			logger.Error("subscription document indicates", "subscriptionId", subscriptionId, "state", subscription.State)
+			logger.Info("subscription document indicates restricted state", "subscriptionId", subscriptionId, "state", subscription.State)
 			arm.WriteError(w, http.StatusConflict,
 				arm.CloudErrorCodeInvalidSubscriptionState, "",
 				InvalidSubscriptionStateMessage,
@@ -116,14 +116,14 @@ func (h *middlewareValidateSubscriptionState) handleRequest(w http.ResponseWrite
 		}
 		next(w, r)
 	case arm.SubscriptionStateDeleted:
-		logger.Error("subscription document indicates deleted", "subscriptionId", subscriptionId)
+		logger.Info("subscription document indicates deleted", "subscriptionId", subscriptionId)
 		arm.WriteError(
 			w, http.StatusBadRequest,
 			arm.CloudErrorCodeInvalidSubscriptionState, "",
 			InvalidSubscriptionStateMessage,
 			subscription.State)
 	default:
-		logger.Error("unsupported subscription state", "subscriptionState", subscription.State)
+		logger.Info("unsupported subscription state", "subscriptionState", subscription.State)
 		arm.WriteInternalServerError(w)
 	}
 }

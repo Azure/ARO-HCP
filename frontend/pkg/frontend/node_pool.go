@@ -635,7 +635,7 @@ func (f *Frontend) DeleteNodePool(writer http.ResponseWriter, request *http.Requ
 	// when we get a delete call (this happens from CI quite a bit), dump the state of the cluster resources.
 	if err := serverutils.DumpDataToLogger(ctx, f.dbClient, resourceID); err != nil {
 		// never fail, this is best effort
-		logger.Error(err.Error())
+		logger.Error(err, "failed to dump data to logger")
 	}
 
 	nodePool, err := f.dbClient.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).NodePools(resourceID.Parent.Name).Get(ctx, resourceID.Name)

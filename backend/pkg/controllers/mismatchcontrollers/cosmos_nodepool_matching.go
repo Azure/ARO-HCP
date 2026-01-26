@@ -112,7 +112,7 @@ func (c *cosmosNodePoolMatching) synchronizeAllNodes(ctx context.Context, keyObj
 	for _, cosmosNodePool := range allCosmosNodePools {
 		_, exists := clusterServiceIDToClusterServiceNodePools[cosmosNodePool.ServiceProviderProperties.ClusterServiceID.String()]
 		if !exists {
-			logger.Error("cosmos nodePool doesn't have matching cluster-service nodePool",
+			logger.Info("cosmos nodePool doesn't have matching cluster-service nodePool",
 				"cosmosResourceID", cosmosNodePool.ID,
 				"clusterServiceID", cosmosNodePool.ServiceProviderProperties.ClusterServiceID,
 			)
@@ -122,7 +122,7 @@ func (c *cosmosNodePoolMatching) synchronizeAllNodes(ctx context.Context, keyObj
 	for _, clusterServiceNodePool := range allClusterServiceNodePools {
 		_, exists := clusterServiceIDToCosmosNodePools[clusterServiceNodePool.HREF()]
 		if !exists {
-			logger.Error("cluster service nodePool doesn't have matching cosmos nodePool",
+			logger.Info("cluster service nodePool doesn't have matching cosmos nodePool",
 				"clusterServiceID", clusterServiceNodePool.HREF(),
 			)
 		}

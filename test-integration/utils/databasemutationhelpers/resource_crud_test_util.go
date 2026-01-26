@@ -26,7 +26,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/neilotoole/slogt"
+	"github.com/go-logr/logr/testr"
 	"github.com/stretchr/testify/require"
 
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -105,12 +105,12 @@ func (tt *ResourceMutationTest) RunTest(t *testing.T) {
 	ctx := t.Context()
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	ctx = utils.ContextWithLogger(ctx, slogt.New(t, slogt.JSON()))
+	ctx = utils.ContextWithLogger(ctx, testr.New(t))
 
 	frontend, testInfo, err := integrationutils.NewFrontendFromTestingEnv(ctx, t, tt.withMock)
 	require.NoError(t, err)
 	cleanupCtx := context.Background()
-	cleanupCtx = utils.ContextWithLogger(cleanupCtx, slogt.New(t, slogt.JSON()))
+	cleanupCtx = utils.ContextWithLogger(cleanupCtx, testr.New(t))
 	defer testInfo.Cleanup(cleanupCtx)
 	go frontend.Run(ctx, ctx.Done())
 
@@ -133,7 +133,7 @@ func (tt *ResourceMutationTest) RunTest(t *testing.T) {
 	for _, step := range tt.steps {
 		t.Logf("Running step %s", step.StepID())
 		ctx := t.Context()
-		ctx = utils.ContextWithLogger(ctx, slogt.New(t, slogt.JSON()))
+		ctx = utils.ContextWithLogger(ctx, testr.New(t))
 
 		step.RunTest(ctx, t, *stepInput)
 	}

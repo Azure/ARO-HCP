@@ -27,6 +27,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-logr/logr/testr"
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
@@ -98,7 +99,7 @@ func TestSubscriptionsGET(t *testing.T) {
 			reg := prometheus.NewRegistry()
 
 			f := NewFrontend(
-				api.NewTestLogger(),
+				testr.New(t),
 				nil,
 				nil,
 				reg,
@@ -122,7 +123,7 @@ func TestSubscriptionsGET(t *testing.T) {
 			if test.subDoc != nil {
 				subs[api.TestSubscriptionID] = test.subDoc
 			}
-			ts := newHTTPServer(f, ctrl, mockDBClient, mockSubscriptionCRUD, subs)
+			ts := newHTTPServer(t, f, ctrl, mockDBClient, mockSubscriptionCRUD, subs)
 
 			rs, err := ts.Client().Get(ts.URL + api.TestSubscriptionResourceID + "?api-version=" + arm.SubscriptionAPIVersion)
 			require.NoError(t, err)
@@ -265,7 +266,7 @@ func TestSubscriptionsPUT(t *testing.T) {
 			reg := prometheus.NewRegistry()
 
 			f := NewFrontend(
-				api.NewTestLogger(),
+				testr.New(t),
 				nil,
 				nil,
 				reg,
@@ -319,7 +320,7 @@ func TestSubscriptionsPUT(t *testing.T) {
 			if test.subDoc != nil {
 				subs[api.TestSubscriptionID] = test.subDoc
 			}
-			ts := newHTTPServer(f, ctrl, mockDBClient, mockSubscriptionCRUD, subs)
+			ts := newHTTPServer(t, f, ctrl, mockDBClient, mockSubscriptionCRUD, subs)
 
 			urlPath := test.urlPath + "?api-version=" + arm.SubscriptionAPIVersion
 			req, err := http.NewRequest(http.MethodPut, ts.URL+urlPath, bytes.NewReader(body))
@@ -494,7 +495,7 @@ func TestDeploymentPreflight(t *testing.T) {
 			reg := prometheus.NewRegistry()
 
 			f := NewFrontend(
-				api.NewTestLogger(),
+				testr.New(t),
 				nil,
 				nil,
 				reg,
@@ -523,7 +524,7 @@ func TestDeploymentPreflight(t *testing.T) {
 					State:      arm.SubscriptionStateRegistered,
 				},
 			}
-			ts := newHTTPServer(f, ctrl, mockDBClient, mockSubscriptionCRUD, subs)
+			ts := newHTTPServer(t, f, ctrl, mockDBClient, mockSubscriptionCRUD, subs)
 
 			resource, err := json.Marshal(&test.resource)
 			require.NoError(t, err)
@@ -639,7 +640,7 @@ func TestRequestAdminCredential(t *testing.T) {
 			mockSubscriptionCRUD := database.NewMockSubscriptionCRUD(ctrl)
 
 			f := NewFrontend(
-				api.NewTestLogger(),
+				testr.New(t),
 				nil,
 				nil,
 				reg,
@@ -748,7 +749,7 @@ func TestRequestAdminCredential(t *testing.T) {
 					State:      arm.SubscriptionStateRegistered,
 				},
 			}
-			ts := newHTTPServer(f, ctrl, mockDBClient, mockSubscriptionCRUD, subs)
+			ts := newHTTPServer(t, f, ctrl, mockDBClient, mockSubscriptionCRUD, subs)
 
 			url := ts.URL + requestPath + "?api-version=" + api.TestAPIVersion
 			resp, err := ts.Client().Post(url, "", nil)
@@ -813,7 +814,7 @@ func TestRevokeCredentials(t *testing.T) {
 			mockSubscriptionCRUD := database.NewMockSubscriptionCRUD(ctrl)
 
 			f := NewFrontend(
-				api.NewTestLogger(),
+				testr.New(t),
 				nil,
 				nil,
 				reg,
@@ -962,7 +963,7 @@ func TestRevokeCredentials(t *testing.T) {
 					State:      arm.SubscriptionStateRegistered,
 				},
 			}
-			ts := newHTTPServer(f, ctrl, mockDBClient, mockSubscriptionCRUD, subs)
+			ts := newHTTPServer(t, f, ctrl, mockDBClient, mockSubscriptionCRUD, subs)
 
 			url := ts.URL + requestPath + "?api-version=" + api.TestAPIVersion
 			resp, err := ts.Client().Post(url, "", nil)
@@ -1072,7 +1073,7 @@ func newHTTPServer(f *Frontend, ctrl *gomock.Controller, mockDBClient *database.
 	// executed here.
 	stop := make(chan struct{})
 	close(stop)
-	f.collector.Run(api.NewTestLogger(), stop)
+	f.collector.Run(testr.New(t), stop)
 
 	return ts
 }

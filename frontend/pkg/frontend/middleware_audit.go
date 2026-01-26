@@ -69,7 +69,7 @@ func (h *middlewareAudit) handleRequest(w http.ResponseWriter, r *http.Request, 
 	}
 
 	if err := h.auditClient.Send(ctx, msg); err != nil {
-		logger.Error("error sending audit log", "error", err.Error())
+		logger.Error(err, "error sending audit log")
 	}
 }
 
