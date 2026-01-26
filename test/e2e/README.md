@@ -260,3 +260,16 @@ The GOMEGA module is used for asserting values. The following example shows the 
 
 Example:
 **Expect(variable).To/ToNot(BeNil(), BeEmpty(), BeTrue(), BeNumerically, ContainString ...)**
+
+### Adding backlevel OCP version tests
+When a new version of OpenShift is supported, we need to ensure that previous versions are still working. For that we
+have a procedure that will add backlevel testing for ARO-HCP. The steps to follow are:
+
+- Let's say we want to introduce OpenShift 4.21. That means we still need to test 4.20.
+- Create a new directory `test/e2e-setup/bicep/modules-4.20`. In this directory we'll copy the following files from
+`test/e2e-setup/bicep/modules` directory: `cluster-identities.bicep`, `customer-infra.bicep`, `managed-identities.bicep`,
+`msi-scoped-assignments.bicep` and `non-msi-scoped-assignments.bicep`.
+- Create a new directory `test/util-backlevel/4.20.x` and copy all the files from `test/util/framework`. Update in
+`deployment_params.go` method `CreateClusterCustomerResources` to point to the new bicep files created in the previous step.
+- Make a copy of the test `backlevel_create_cluster_4_19.go` and call it `backlevel_create_cluster_4_20.go`. Update the
+references to point to the new tested version.

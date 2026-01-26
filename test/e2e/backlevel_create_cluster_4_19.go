@@ -16,14 +16,13 @@ package e2e
 
 import (
 	"context"
-	"fmt"
 	"strings"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/Azure/ARO-HCP/test/util/framework"
+	"github.com/Azure/ARO-HCP/test/util-backlevel/4.19.x/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 	"github.com/Azure/ARO-HCP/test/util/verifiers"
 )
@@ -34,7 +33,7 @@ var _ = Describe("Customer", func() {
 
 	for _, version := range backlevelVersions {
 		version := version // capture loop variable
-		It("should be able to create an HCP cluster with back-level version "+version,
+		It("should be able to create an HCP cluster with version "+version,
 			labels.RequireNothing,
 			labels.Critical,
 			labels.Positive,
@@ -66,20 +65,6 @@ var _ = Describe("Customer", func() {
 				managedResourceGroupName := framework.SuffixName(*resourceGroup.Name+"-"+clusterSuffix, "-managed", 64)
 				clusterParams.ManagedResourceGroupName = managedResourceGroupName
 				clusterParams.OpenshiftVersionId = version
-
-				// copied 4.19 defaults from 01/22/2026 snapshot of NewDefaultClusterParams
-				clusterParams.Network = framework.NetworkConfig{
-					NetworkType: "OVNKubernetes",
-					PodCIDR:     "10.128.0.0/14",
-					ServiceCIDR: "172.30.0.0/16",
-					MachineCIDR: "10.0.0.0/16",
-					HostPrefix:  23,
-				}
-				clusterParams.EncryptionKeyManagementMode = "CustomerManaged"
-				clusterParams.EncryptionType = "KMS"
-				clusterParams.APIVisibility = "Public"
-				clusterParams.ImageRegistryState = "Enabled"
-				clusterParams.ChannelGroup = "stable"
 
 				clusterParams, err = tc.CreateClusterCustomerResources(ctx,
 					resourceGroup,
@@ -150,9 +135,7 @@ var _ = Describe("Customer", func() {
 					)
 					Expect(err).NotTo(HaveOccurred())
 
-					nodePoolLabel := fmt.Sprintf("%s-%s", clusterName, nodePoolName)
-					nodeSelector := map[string]string{"hypershift.openshift.io/nodePool": nodePoolLabel}
-					err = verifiers.VerifySimpleWebApp(nodeSelector).Verify(ctx, adminRESTConfig)
+					err = verifiers.VerifySimpleWebApp().Verify(ctx, adminRESTConfig)
 					Expect(err).NotTo(HaveOccurred())
 				}
 
