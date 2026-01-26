@@ -592,6 +592,9 @@ defaults:
       policyLabel: "Geneva Actions"
       authorityFQDN: "{{ .ev2.entra.fqdn.sts }}"
       audienceFQDN: "{{ .ev2.arm.endpoint }}"
+    imageV2:
+      repository: "mise-1p-container-image"
+      digest: ""
     image:
       repository: "mise-1p-container-image"
       digest: ""

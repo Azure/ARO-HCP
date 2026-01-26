@@ -1931,6 +1931,9 @@
         "image": {
           "$ref": "#/definitions/containerImage"
         },
+        "imageV2": {
+          "$ref": "#/definitions/containerImage"
+        },
         "tracing": {
           "$ref": "#/definitions/tracing",
           "description": "Tracing configuration for OTLP traces."
@@ -1939,6 +1942,7 @@
       "required": [
         "deploy",
         "image",
+        "imageV2",
         "arm",
         "genevaActions",
         "tracing"

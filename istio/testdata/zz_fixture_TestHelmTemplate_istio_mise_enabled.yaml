@@ -31,6 +31,100 @@ spec:
     port: 8080
     targetPort: 8080
 ---
+# Source: istio/charts/mise/templates/deployment-misev2.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: misev2
+  namespace: 'mise'
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: misev2
+      version: v2
+  template:
+    metadata:
+      labels:
+        app: misev2
+        version: v2
+    spec:
+      topologySpreadConstraints:
+      - maxSkew: 1
+        topologyKey: 'topology.kubernetes.io/zone'
+        whenUnsatisfiable: ScheduleAnyway
+        labelSelector:
+          matchLabels:
+            app: misev2
+            version: v2
+      - maxSkew: 1
+        topologyKey: kubernetes.io/hostname
+        whenUnsatisfiable: ScheduleAnyway
+        labelSelector:
+          matchLabels:
+            app: misev2
+            version: v2
+      containers:
+      - name: misev2
+        image: "arohcpsvcdev.azurecr.io/mise-1p-container-image@sha256:1234567890"
+        ports:
+        - containerPort: 8080
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8080
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: 8080
+        env:
+        - name: Mise__Authentication__Authority
+          value: "https://login.microsoftonline.com/33e01921-4d64-4f8c-a055-5bdaffd5e33d/v2.0"
+        - name: Mise__Authentication__ClientId
+          value: "b3cb2fab-15cb-4583-ad06-f91da9bfe2d1"
+        - name: Mise__Authentication__Audience
+          value: "api://b3cb2fab-15cb-4583-ad06-f91da9bfe2d1"
+        - name: Mise__InboundPolicies__Enabled
+          value: "true"
+        - name: Mise__InboundPolicies__0__Label
+          value: "ARM Policy"
+        - name: Mise__InboundPolicies__0__Authority
+          value: "https://login.microsoftonline.com/33e01921-4d64-4f8c-a055-5bdaffd5e33d"
+        - name: Mise__InboundPolicies__0__Protocols__0
+          value: "PoP"
+        - name: Mise__InboundPolicies__0__Authentication__ValidAudiences__0
+          value: "https://management.azure.com"
+        - name: Mise__InboundPolicies__0__Authentication__ValidApplicationIds__0
+          value: "e2c2ff5c-e5b4-4e79-8c3e-1da8c48461e7"
+        - name: Mise__InboundPolicies__0__Validation__SignedHttpRequest__ValidateTs
+          value: "true"
+        - name: Mise__InboundPolicies__0__Validation__SignedHttpRequest__ValidateM
+          value: "true"
+        - name: Mise__InboundPolicies__0__Validation__SignedHttpRequest__ValidateU
+          value: "true"
+        - name: Mise__InboundPolicies__0__Validation__SignedHttpRequest__ValidateP
+          value: "true"
+        - name: Mise__InboundPolicies__1__Label
+          value: "Geneva Actions"
+        - name: Mise__InboundPolicies__1__Authority
+          value: "https://sts.windows.net/__tenantId__/"
+        - name: Mise__InboundPolicies__1__Protocols__0
+          value: "Bearer"
+        - name: Mise__InboundPolicies__1__Authentication__ValidAudiences__0
+          value: "https://management.azure.com"
+        - name: Mise__InboundPolicies__1__Authentication__ValidApplicationIds__0
+          value: "__genevaActionsAppId__"
+        - name: Mise__Logging__LogLevel__Default
+          value: "Information"
+        - name: AllowedHosts
+          value: "*"
+        - name: Kestrel__Endpoints__Http__Url
+          value: "http://0.0.0.0:8080"
+        - name: OTEL_EXPORTER_OTLP_ENDPOINT
+          value: ""
+        - name: OTEL_TRACES_EXPORTER
+          value: ""
+---
 # Source: istio/charts/mise/templates/deployment.yaml
 apiVersion: apps/v1
 kind: Deployment
@@ -153,100 +247,6 @@ spec:
   - interval: 15s
     path: /stats/prometheus
     port: http-envoy-prom
----
-# Source: istio/charts/mise/templates/deployment-misev2.yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: misev2
-  namespace: 'mise'
-spec:
-  replicas: 2
-  selector:
-    matchLabels:
-      app: misev2
-      version: v2
-  template:
-    metadata:
-      labels:
-        app: misev2
-        version: v2
-    spec:
-      topologySpreadConstraints:
-      - maxSkew: 1
-        topologyKey: 'topology.kubernetes.io/zone'
-        whenUnsatisfiable: ScheduleAnyway
-        labelSelector:
-          matchLabels:
-            app: misev2
-            version: v2
-      - maxSkew: 1
-        topologyKey: kubernetes.io/hostname
-        whenUnsatisfiable: ScheduleAnyway
-        labelSelector:
-          matchLabels:
-            app: misev2
-            version: v2
-      containers:
-      - name: misev2
-        image: "{{ .Values.image.registry }}/{{ .Values.image.repository }}@{{ .Values.image.digestv2 }}"
-        ports:
-        - containerPort: 8080
-        livenessProbe:
-          httpGet:
-            path: /healthz
-            port: 8080
-        readinessProbe:
-          httpGet:
-            path: /readyz
-            port: 8080
-        env:
-        - name: Mise__Authentication__Authority
-          value: "https://login.microsoftonline.com/33e01921-4d64-4f8c-a055-5bdaffd5e33d/v2.0"
-        - name: Mise__Authentication__ClientId
-          value: "b3cb2fab-15cb-4583-ad06-f91da9bfe2d1"
-        - name: Mise__Authentication__Audience
-          value: "api://b3cb2fab-15cb-4583-ad06-f91da9bfe2d1"
-        - name: Mise__InboundPolicies__Enabled
-          value: "true"
-        - name: Mise__InboundPolicies__0__Label
-          value: "ARM Policy"
-        - name: Mise__InboundPolicies__0__Authority
-          value: "https://login.microsoftonline.com/33e01921-4d64-4f8c-a055-5bdaffd5e33d"
-        - name: Mise__InboundPolicies__0__Protocols__0
-          value: "PoP"
-        - name: Mise__InboundPolicies__0__Authentication__ValidAudiences__0
-          value: 'https://management.azure.com'
-        - name: Mise__InboundPolicies__0__Authentication__ValidApplicationIds__0
-          value: 'e2c2ff5c-e5b4-4e79-8c3e-1da8c48461e7'
-        - name: Mise__InboundPolicies__0__Validation__SignedHttpRequest__ValidateTs
-          value: "true"
-        - name: Mise__InboundPolicies__0__Validation__SignedHttpRequest__ValidateM
-          value: "true"
-        - name: Mise__InboundPolicies__0__Validation__SignedHttpRequest__ValidateU
-          value: "true"
-        - name: Mise__InboundPolicies__0__Validation__SignedHttpRequest__ValidateP
-          value: "true"
-        - name: Mise__InboundPolicies__1__Label
-          value: "Geneva Actions"
-        - name: Mise__InboundPolicies__1__Authority
-          value: "https://sts.windows.net/__tenantId__/"
-        - name: Mise__InboundPolicies__1__Protocols__0
-          value: "Bearer"
-        - name: Mise__InboundPolicies__1__Authentication__ValidAudiences__0
-          value: 'https://management.azure.com'
-        - name: Mise__InboundPolicies__1__Authentication__ValidApplicationIds__0
-          value: "__genevaActionsAppId__"
-        - name: Mise__Logging__LogLevel__Default
-          value: "Information"
-        - name: AllowedHosts
-          value: "*"
-        - name: Kestrel__Endpoints__Http__Url
-          value: "http://0.0.0.0:8080"
-        - name: OTEL_EXPORTER_OTLP_ENDPOINT
-          value: "{{ .Values.tracing.address }}"
-        - name: OTEL_TRACES_EXPORTER
-          value: "{{ .Values.tracing.exporter }}"
 ---
 # Source: istio/templates/mise.serviceentry.yml
 apiVersion: networking.istio.io/v1
