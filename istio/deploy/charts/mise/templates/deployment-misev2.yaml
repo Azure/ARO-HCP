@@ -7,12 +7,12 @@ spec:
   replicas: 2
   selector:
     matchLabels:
-      app: misev2
+      app: mise
       version: v2
   template:
     metadata:
       labels:
-        app: misev2
+        app: mise
         version: v2
     spec:
       topologySpreadConstraints:
@@ -21,14 +21,14 @@ spec:
         whenUnsatisfiable: ScheduleAnyway
         labelSelector:
           matchLabels:
-            app: misev2
+            app: mise
             version: v2
       - maxSkew: 1
         topologyKey: kubernetes.io/hostname
         whenUnsatisfiable: ScheduleAnyway
         labelSelector:
           matchLabels:
-            app: misev2
+            app: mise
             version: v2
       containers:
       - name: misev2
