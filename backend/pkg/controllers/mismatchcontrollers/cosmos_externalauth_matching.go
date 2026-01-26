@@ -132,7 +132,7 @@ func (c *cosmosExternalAuthMatching) synchronizeAllExternalAuths(ctx context.Con
 	for _, cosmosExternalAuth := range allCosmosExternalAuths {
 		_, exists := clusterServiceIDToClusterServiceExternalAuths[cosmosExternalAuth.ServiceProviderProperties.ClusterServiceID.String()]
 		if !exists {
-			logger.Error(nil, "deleting cosmos externalAuth", "cosmosResourceID", cosmosExternalAuth.ID)
+			logger.Info("deleting cosmos externalAuth", "cosmosResourceID", cosmosExternalAuth.ID)
 			if err := controllerutils.DeleteRecursively(ctx, c.cosmosClient, cosmosExternalAuth.ID); err != nil {
 				return utils.TrackError(err)
 			}

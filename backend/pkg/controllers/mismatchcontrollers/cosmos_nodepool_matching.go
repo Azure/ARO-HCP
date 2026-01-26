@@ -132,7 +132,7 @@ func (c *cosmosNodePoolMatching) synchronizeAllNodes(ctx context.Context, keyObj
 	for _, cosmosNodePool := range allCosmosNodePools {
 		_, exists := clusterServiceIDToClusterServiceNodePools[cosmosNodePool.ServiceProviderProperties.ClusterServiceID.String()]
 		if !exists {
-			logger.Error(nil, "deleting cosmos nodepool", "cosmosResourceID", cosmosNodePool.ID)
+			logger.Info("deleting cosmos nodepool", "cosmosResourceID", cosmosNodePool.ID)
 			if err := controllerutils.DeleteRecursively(ctx, c.cosmosClient, cosmosNodePool.ID); err != nil {
 				return utils.TrackError(err)
 			}

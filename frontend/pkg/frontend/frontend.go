@@ -687,6 +687,8 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 			continue
 		}
 
+		resourceLogger := logger.WithValues("resourceType", preflightResource.Type, "resourceName", preflightResource.Name)
+
 		switch strings.ToLower(preflightResource.Type) {
 		case strings.ToLower(api.ClusterResourceType.String()):
 			// API version is already validated by this point.
@@ -696,13 +698,13 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 			err = preflightResource.Convert(versionedCluster)
 			if err != nil {
 				// Preflight is best effort: failure to parse a resource is not a validation failure.
-				logger.Info("preflight: failed to unmarshal resource", "resourceType", preflightResource.Type, "resourceName", preflightResource.Name, "error", err.Error())
+				resourceLogger.Info("preflight: failed to unmarshal resource", "error", err.Error())
 				continue
 			}
 
 			newInternalCluster, err := versionedCluster.ConvertToInternal()
 			if err != nil {
-				logger.Info("preflight: failed to convert resource", "resourceType", preflightResource.Type, "resourceName", preflightResource.Name, "error", err.Error())
+				resourceLogger.Info("preflight: failed to convert resource", "error", err.Error())
 				continue
 			}
 			// the external type lacks sufficient data to full produce a valid resourceID.  We do that separately here.
@@ -728,14 +730,14 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 			err = preflightResource.Convert(versionedNodePool)
 			if err != nil {
 				// Preflight is best effort: failure to parse a resource is not a validation failure.
-				logger.Info("preflight: failed to unmarshal resource", "resourceType", preflightResource.Type, "resourceName", preflightResource.Name, "error", err.Error())
+				resourceLogger.Info("preflight: failed to unmarshal resource", "error", err.Error())
 				continue
 			}
 
 			// Perform static validation as if for a node pool creation request.
 			newInternalNodePool, err := versionedNodePool.ConvertToInternal()
 			if err != nil {
-				logger.Info("preflight: failed to convert resource", "resourceType", preflightResource.Type, "resourceName", preflightResource.Name, "error", err.Error())
+				resourceLogger.Info("preflight: failed to convert resource", "error", err.Error())
 				continue
 			}
 			// the external type lacks sufficient data to full produce a valid resourceID.  We do that separately here.
@@ -761,14 +763,14 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 			err = preflightResource.Convert(versionedExternalAuth)
 			if err != nil {
 				// Preflight is best effort: failure to parse a resource is not a validation failure.
-				logger.Info("preflight: failed to unmarshal resource", "resourceType", preflightResource.Type, "resourceName", preflightResource.Name, "error", err.Error())
+				resourceLogger.Info("preflight: failed to unmarshal resource", "error", err.Error())
 				continue
 			}
 
 			// Perform static validation as if for an external auth creation request.
 			newInternalAuth, err := versionedExternalAuth.ConvertToInternal()
 			if err != nil {
-				logger.Info("preflight: failed to convert resource", "resourceType", preflightResource.Type, "resourceName", preflightResource.Name, "error", err.Error())
+				resourceLogger.Info("preflight: failed to convert resource", "error", err.Error())
 				continue
 			}
 			// the external type lacks sufficient data to full produce a valid resourceID.  We do that separately here.

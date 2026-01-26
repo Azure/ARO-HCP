@@ -124,7 +124,7 @@ func TestSubscriptionsGET(t *testing.T) {
 			if test.subDoc != nil {
 				subs[api.TestSubscriptionID] = test.subDoc
 			}
-			ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+			ctx := utils.ContextWithLogger(t.Context(), testr.New(t))
 			ts := newHTTPServer(ctx, f, ctrl, mockDBClient, mockSubscriptionCRUD, subs)
 
 			rs, err := ts.Client().Get(ts.URL + api.TestSubscriptionResourceID + "?api-version=" + arm.SubscriptionAPIVersion)
@@ -322,7 +322,7 @@ func TestSubscriptionsPUT(t *testing.T) {
 			if test.subDoc != nil {
 				subs[api.TestSubscriptionID] = test.subDoc
 			}
-			ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+			ctx := utils.ContextWithLogger(t.Context(), testr.New(t))
 			ts := newHTTPServer(ctx, f, ctrl, mockDBClient, mockSubscriptionCRUD, subs)
 
 			urlPath := test.urlPath + "?api-version=" + arm.SubscriptionAPIVersion
@@ -527,7 +527,7 @@ func TestDeploymentPreflight(t *testing.T) {
 					State:      arm.SubscriptionStateRegistered,
 				},
 			}
-			ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+			ctx := utils.ContextWithLogger(t.Context(), testr.New(t))
 			ts := newHTTPServer(ctx, f, ctrl, mockDBClient, mockSubscriptionCRUD, subs)
 
 			resource, err := json.Marshal(&test.resource)
@@ -753,7 +753,7 @@ func TestRequestAdminCredential(t *testing.T) {
 					State:      arm.SubscriptionStateRegistered,
 				},
 			}
-			ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+			ctx := utils.ContextWithLogger(t.Context(), testr.New(t))
 			ts := newHTTPServer(ctx, f, ctrl, mockDBClient, mockSubscriptionCRUD, subs)
 
 			url := ts.URL + requestPath + "?api-version=" + api.TestAPIVersion
@@ -968,7 +968,7 @@ func TestRevokeCredentials(t *testing.T) {
 					State:      arm.SubscriptionStateRegistered,
 				},
 			}
-			ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+			ctx := utils.ContextWithLogger(t.Context(), testr.New(t))
 			ts := newHTTPServer(ctx, f, ctrl, mockDBClient, mockSubscriptionCRUD, subs)
 
 			url := ts.URL + requestPath + "?api-version=" + api.TestAPIVersion

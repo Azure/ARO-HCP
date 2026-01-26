@@ -57,7 +57,7 @@ func (m *MockCosmosIntegrationTestInfo) Cleanup(ctx context.Context) {
 
 	// Save all database content before deleting
 	if err := saveAllDatabaseContent(ctx, m.MockDBClient, m.ArtifactsDir); err != nil {
-		logger.Error("Failed to save database content", "error", err)
+		logger.Error(err, "Failed to save database content")
 		// Continue with deletion even if saving fails
 	}
 }
