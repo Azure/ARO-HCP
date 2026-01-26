@@ -152,20 +152,35 @@ func (f *Frontend) ArmResourceListClusters(writer http.ResponseWriter, request *
 	return nil
 }
 
+// CreateOrUpdateHCPCluster handles both PUT and PATCH requests from clients to ARM. The semantics of these verbs are:
+// When no resource by this identifier exists:
+//   - PUT: create the resource, overlaying client-specified fields on a default resource struct,
+//     which only has API-specified non-zero default values
+//   - PATCH: error
+//
+// When a resource by this identifier already exists:
+//   - PUT: replace the resource, overlaying client-specified fields on a default resource struct,
+//     which only has API-specified non-zero default values (and NOT taking into account the
+//     existing content of the resource in storage)
+//   - PATCH: update the resource, overlaying client-specified fields onto the existing resource
+//
+// This means all required properties must be specified in the request body for PUT, whether creating or updating a resource.
+//
+// See these documents for a description of required semantics from ARM Resource Providers:
+//
+// PUT:
+// The Put operation creates or replaces a resource. Resource types can be nested and, if so, must follow the Resource API guidelines.
+// ARM does not distinguish between creation and replacement requests. The resource provider should consult its datastore if a distinction
+// is necessary. A Put should always be allowed to overwrite an existing resource. An exception to this rule is when
+// `x-ms-mutability ['create', 'read']` is applied to a property. For such properties, the value submitted during the create operation
+// must be retained. Eg: The location property defined for tracked resources.
+// ref: https://github.com/cloud-and-ai-microsoft/resource-provider-contract/blob/master/v1.0/put-resource.md#put-resource
+//
+// PATCH
+// A Patch operation updates a resource and it is strongly recommended that service teams implement it. ARM requires RPs to support Patch for updating tags for a tracked resource.
+// ref: https://github.com/cloud-and-ai-microsoft/resource-provider-contract/blob/master/v1.0/patch-resource.md#patch-resource
 func (f *Frontend) CreateOrUpdateHCPCluster(writer http.ResponseWriter, request *http.Request) error {
 	var err error
-
-	// This handles both PUT and PATCH requests. PATCH requests will
-	// never create a new resource. The only other notable difference
-	// is the target struct that request bodies are overlayed onto:
-	//
-	// PUT requests overlay the request body onto a default resource
-	// struct, which only has API-specified non-zero default values.
-	// This means all required properties must be specified in the
-	// request body, whether creating or updating a resource.
-	//
-	// PATCH requests overlay the request body onto a resource struct
-	// that represents an existing resource to be updated.
 
 	ctx := request.Context()
 

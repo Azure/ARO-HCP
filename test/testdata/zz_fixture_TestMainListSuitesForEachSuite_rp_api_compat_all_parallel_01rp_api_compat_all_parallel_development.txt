@@ -5,7 +5,6 @@ Customer should be able to create an HCP cluster with custom autoscaling
 Customer should not be able to create a 4.18 HCP cluster
 Customer should be able to create a HCP cluster without CNI
 Customer should be able to list HCP clusters without node pools at both subscription and resource group levels
-Customer should not be able to deploy 2 identically named clusters within the same resource group
 Customer should not be able to reuse subnets and NSGs between clusters
 Update HCPOpenShiftCluster Positive creates a cluster and updates tags with a PATCH request
 Customer should be able to create an HCP cluster with back-level version 4.19
