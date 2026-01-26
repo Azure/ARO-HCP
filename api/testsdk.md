@@ -34,6 +34,17 @@ go:
   module-name: sdk/v20240610preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp
 ```
 
+### Tag: v20251223preview
+
+These settings apply only when `--tag=v20251223preview` is specified on the command line.
+
+``` yaml $(tag) == 'v20251223preview'
+input-file:
+  - redhatopenshift/resource-manager/Microsoft.RedHatOpenShift/hcpclusters/preview/2025-12-23-preview/openapi.json
+go:
+  module-name: sdk/v20251223preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp
+```
+
 ### Code Generation
 
 Other Go SDK generation settings.
