@@ -839,7 +839,7 @@ func ConvertInflightChecks(ctx context.Context, clusterServiceClient ocm.Cluster
 func convertInflightCheck(inflightCheck *arohcpv1alpha1.InflightCheck, logger logr.Logger) arm.CloudErrorBody {
 	message, succeeded := convertInflightCheckDetails(inflightCheck)
 	if !succeeded {
-		logger.Info("error converting inflight check details", "name", inflightCheck.Name())
+		logger.Error(nil, "error converting inflight check details", "name", inflightCheck.Name())
 	}
 
 	return arm.CloudErrorBody{

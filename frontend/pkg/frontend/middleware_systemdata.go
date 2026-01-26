@@ -35,7 +35,7 @@ func MiddlewareSystemData(w http.ResponseWriter, r *http.Request, next http.Hand
 			ctx = ContextWithSystemData(ctx, &systemData)
 			r = r.WithContext(ctx)
 		} else {
-			logger.Info("Failed to parse system data header", "header", arm.HeaderNameARMResourceSystemData, "error", err.Error())
+			logger.Error(err, "Failed to parse system data header", "header", arm.HeaderNameARMResourceSystemData)
 		}
 	}
 

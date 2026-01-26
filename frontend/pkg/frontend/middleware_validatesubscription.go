@@ -99,7 +99,7 @@ func (h *middlewareValidateSubscriptionState) handleRequest(w http.ResponseWrite
 	case arm.SubscriptionStateRegistered:
 		next(w, r)
 	case arm.SubscriptionStateUnregistered:
-		logger.Info("subscription document indicates unregistered", "subscriptionId", subscriptionId)
+		logger.Error(nil, "subscription document indicates unregistered", "subscriptionId", subscriptionId)
 		arm.WriteError(
 			w, http.StatusBadRequest,
 			arm.CloudErrorCodeInvalidSubscriptionState, "",
@@ -107,7 +107,7 @@ func (h *middlewareValidateSubscriptionState) handleRequest(w http.ResponseWrite
 			subscriptionId)
 	case arm.SubscriptionStateWarned, arm.SubscriptionStateSuspended:
 		if r.Method != http.MethodGet && r.Method != http.MethodDelete {
-			logger.Info("subscription document indicates restricted state", "subscriptionId", subscriptionId, "state", subscription.State)
+			logger.Error(nil, "subscription document indicates restricted state", "subscriptionId", subscriptionId, "state", subscription.State)
 			arm.WriteError(w, http.StatusConflict,
 				arm.CloudErrorCodeInvalidSubscriptionState, "",
 				InvalidSubscriptionStateMessage,
@@ -116,14 +116,14 @@ func (h *middlewareValidateSubscriptionState) handleRequest(w http.ResponseWrite
 		}
 		next(w, r)
 	case arm.SubscriptionStateDeleted:
-		logger.Info("subscription document indicates deleted", "subscriptionId", subscriptionId)
+		logger.Error(nil, "subscription document indicates deleted", "subscriptionId", subscriptionId)
 		arm.WriteError(
 			w, http.StatusBadRequest,
 			arm.CloudErrorCodeInvalidSubscriptionState, "",
 			InvalidSubscriptionStateMessage,
 			subscription.State)
 	default:
-		logger.Info("unsupported subscription state", "subscriptionState", subscription.State)
+		logger.Error(nil, "unsupported subscription state", "subscriptionState", subscription.State)
 		arm.WriteInternalServerError(w)
 	}
 }

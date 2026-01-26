@@ -112,7 +112,7 @@ func (c *cosmosExternalAuthMatching) synchronizeAllExternalAuths(ctx context.Con
 	for _, cosmosExternalAuth := range allCosmosExternalAuths {
 		_, exists := clusterServiceIDToClusterServiceExternalAuths[cosmosExternalAuth.ServiceProviderProperties.ClusterServiceID.String()]
 		if !exists {
-			logger.Info("cosmos externalAuth doesn't have matching cluster-service externalAuth",
+			logger.Error(nil, "cosmos externalAuth doesn't have matching cluster-service externalAuth",
 				"cosmosResourceID", cosmosExternalAuth.ID,
 				"clusterServiceID", cosmosExternalAuth.ServiceProviderProperties.ClusterServiceID,
 			)
@@ -122,7 +122,7 @@ func (c *cosmosExternalAuthMatching) synchronizeAllExternalAuths(ctx context.Con
 	for _, clusterServiceExternalAuth := range allClusterServiceExternalAuths {
 		_, exists := clusterServiceIDToCosmosExternalAuths[clusterServiceExternalAuth.HREF()]
 		if !exists {
-			logger.Info("cluster service externalAuth doesn't have matching cosmos externalAuth",
+			logger.Error(nil, "cluster service externalAuth doesn't have matching cosmos externalAuth",
 				"clusterServiceID", clusterServiceExternalAuth.HREF(),
 			)
 		}
@@ -132,7 +132,7 @@ func (c *cosmosExternalAuthMatching) synchronizeAllExternalAuths(ctx context.Con
 	for _, cosmosExternalAuth := range allCosmosExternalAuths {
 		_, exists := clusterServiceIDToClusterServiceExternalAuths[cosmosExternalAuth.ServiceProviderProperties.ClusterServiceID.String()]
 		if !exists {
-			logger.Info("deleting cosmos externalAuth", "cosmosResourceID", cosmosExternalAuth.ID)
+			logger.Error(nil, "deleting cosmos externalAuth", "cosmosResourceID", cosmosExternalAuth.ID)
 			if err := controllerutils.DeleteRecursively(ctx, c.cosmosClient, cosmosExternalAuth.ID); err != nil {
 				return utils.TrackError(err)
 			}
