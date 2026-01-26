@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"iter"
 	"net/http"
+	"slices"
 	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
@@ -123,22 +124,38 @@ type DBClient interface {
 	Subscriptions() SubscriptionCRUD
 
 	ServiceProviderClusters(subscriptionID, resourceGroupName, clusterName string) ServiceProviderClusterCRUD
+
+	// GetResourcesChangeFeed retrieves a single page of the change feed for the
+	// "Resources" container using the provided options.
+	GetResourcesChangeFeed(ctx context.Context, options *azcosmos.ChangeFeedOptions) (azcosmos.ChangeFeedResponse, error)
+
+	// GetResourcesFeedRanges returns all the feed ranges for the "Resources" container.
+	GetResourcesFeedRanges() []azcosmos.FeedRange
 }
 
 var _ DBClient = &cosmosDBClient{}
 
 // cosmosDBClient defines the needed values to perform CRUD operations against Cosmos DB.
 type cosmosDBClient struct {
-	database   *azcosmos.DatabaseClient
-	billing    *azcosmos.ContainerClient
-	resources  *azcosmos.ContainerClient
-	lockClient *LockClient
+	database            *azcosmos.DatabaseClient
+	billing             *azcosmos.ContainerClient
+	resources           *azcosmos.ContainerClient
+	resourcesFeedRanges []azcosmos.FeedRange
+	lockClient          *LockClient
 }
 
 // NewDBClient instantiates a DBClient from a Cosmos DatabaseClient instance
 // targeting the Frontends async database.
 func NewDBClient(ctx context.Context, database *azcosmos.DatabaseClient) (DBClient, error) {
 	resources, err := database.NewContainer(resourcesContainer)
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
+
+	// Cache feed ranges for the duration of the DBClient instance.
+	// Even if Cosmos DB splits a physical partition due to throughput
+	// or data size limits being exceeded, the feed ranges remain valid.
+	resourcesFeedRanges, err := resources.GetFeedRanges(ctx)
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}
@@ -159,10 +176,11 @@ func NewDBClient(ctx context.Context, database *azcosmos.DatabaseClient) (DBClie
 	}
 
 	return &cosmosDBClient{
-		database:   database,
-		billing:    billing,
-		resources:  resources,
-		lockClient: lockClient,
+		database:            database,
+		billing:             billing,
+		resources:           resources,
+		resourcesFeedRanges: resourcesFeedRanges,
+		lockClient:          lockClient,
 	}, nil
 }
 
@@ -283,6 +301,14 @@ func (d *cosmosDBClient) ServiceProviderClusters(subscriptionID, resourceGroupNa
 
 func (d *cosmosDBClient) UntypedCRUD(parentResourceID azcorearm.ResourceID) (UntypedResourceCRUD, error) {
 	return NewUntypedCRUD(d.resources, parentResourceID), nil
+}
+
+func (d *cosmosDBClient) GetResourcesChangeFeed(ctx context.Context, options *azcosmos.ChangeFeedOptions) (azcosmos.ChangeFeedResponse, error) {
+	return d.resources.GetChangeFeed(ctx, options)
+}
+
+func (d *cosmosDBClient) GetResourcesFeedRanges() []azcosmos.FeedRange {
+	return slices.Clone(d.resourcesFeedRanges)
 }
 
 // NewCosmosDatabaseClient instantiates a generic Cosmos database client.
