@@ -52,6 +52,8 @@ func ResourceInstanceEquals(t *testing.T, expected, actual any) (string, bool) {
 		unstructured.RemoveNestedField(currMap, "_attachments")
 		unstructured.RemoveNestedField(currMap, "_ts")
 		unstructured.RemoveNestedField(currMap, "endTime") // for arm.Operation
+		// etag is dynamically generated, so remove it from cosmosMetadata as well
+		unstructured.RemoveNestedField(currMap, "cosmosMetadata", "etag")
 
 		resourceType, ok := currMap["resourceType"].(string)
 		if !ok || len(resourceType) == 0 {

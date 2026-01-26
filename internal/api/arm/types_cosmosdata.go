@@ -18,6 +18,7 @@ import (
 	"errors"
 	"strings"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 )
 
@@ -25,6 +26,8 @@ import (
 // These are not (currently) all stored in the same place in our various types.
 type CosmosMetadata struct {
 	ResourceID *azcorearm.ResourceID `json:"resourceID"`
+
+	CosmosETag azcore.ETag `json:"etag,omitempty"`
 }
 
 var (
@@ -52,15 +55,23 @@ func (o *CosmosMetadata) SetResourceID(resourceID *azcorearm.ResourceID) {
 	o.ResourceID = resourceID
 }
 
+func (o *CosmosMetadata) GetEtag() azcore.ETag {
+	return o.CosmosETag
+}
+
+func (o *CosmosMetadata) SetEtag(cosmosETag azcore.ETag) {
+	o.CosmosETag = cosmosETag
+}
+
 func (o *CosmosMetadata) GetCosmosData() *CosmosMetadata {
-	return &CosmosMetadata{
-		ResourceID: o.ResourceID,
-	}
+	return o
 }
 
 type CosmosMetadataAccessor interface {
 	GetResourceID() *azcorearm.ResourceID
 	SetResourceID(*azcorearm.ResourceID)
+	GetEtag() azcore.ETag
+	SetEtag(cosmosETag azcore.ETag)
 }
 
 func ResourceIDToCosmosID(resourceID *azcorearm.ResourceID) (string, error) {
