@@ -1,4 +1,78 @@
 ---
+# Source: istio/charts/mise/templates/configmap-misev2.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: misev2-config
+  namespace: 'mise'
+data:
+  appsettings.json: |-
+    {
+      "$schema": "https://identitydivision.visualstudio.com/DevEx/_git/MISE?path=/schemas/mise-options-schema.json",
+      "MiseVersion": "2.0",
+      "AllowedHosts": "*",
+      "EnableInboundPolicyFilter": true,
+      "AzureAd": {
+        "Instance": "https://login.microsoftonline.com/",
+        "ClientId": "b3cb2fab-15cb-4583-ad06-f91da9bfe2d1",
+        "TenantId": "33e01921-4d64-4f8c-a055-5bdaffd5e33d",
+        "Audience": "api://b3cb2fab-15cb-4583-ad06-f91da9bfe2d1",
+        "Logging": {
+          "LogLevel": "Information"
+        },
+        "InboundPolicies": [
+          {
+            "Label": "ARM Policy",
+            "Authority": "https://login.microsoftonline.com/33e01921-4d64-4f8c-a055-5bdaffd5e33d",
+            "Audience": "https://management.azure.com",
+            "ValidApplicationIds": [
+              "e2c2ff5c-e5b4-4e79-8c3e-1da8c48461e7"
+            ],
+            "Protocols": {
+              "Pop": {
+                "SignedHttpRequestValidationParametersOptions": {
+                  "ValidateTs": true,
+                  "ValidateM": true,
+                  "ValidateU": true,
+                  "ValidateP": true
+                }
+              }
+            }
+          },
+          {
+            "Label": "Geneva Actions",
+            "Authority": "https://sts.windows.net/__tenantId__/",
+            "Audience": "https://management.azure.com",
+            "ValidApplicationIds": [
+              "__genevaActionsAppId__"
+            ],
+            "Protocols": {
+              "Bearer": {
+                "TokenTypes": {
+                  "AccessToken": {
+                    "AppToken": true
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "Kestrel": {
+        "Endpoints": {
+          "Http": {
+            "Url": "http://0.0.0.0:8080"
+          }
+        }
+      },
+      "Logging": {
+        "LogLevel": {
+          "Default": "Information",
+          "Microsoft": "Information"
+        }
+      }
+    }
+---
 # Source: istio/templates/istio-shared-configmap.yml
 kind: ConfigMap
 apiVersion: v1
@@ -77,53 +151,20 @@ spec:
           httpGet:
             path: /readyz
             port: 8080
+        volumeMounts:
+        - name: config
+          mountPath: /app/appsettings.json
+          subPath: appsettings.json
+          readOnly: true
         env:
-        - name: Mise__Authentication__Authority
-          value: "https://login.microsoftonline.com/33e01921-4d64-4f8c-a055-5bdaffd5e33d/v2.0"
-        - name: Mise__Authentication__ClientId
-          value: "b3cb2fab-15cb-4583-ad06-f91da9bfe2d1"
-        - name: Mise__Authentication__Audience
-          value: "api://b3cb2fab-15cb-4583-ad06-f91da9bfe2d1"
-        - name: Mise__InboundPolicies__Enabled
-          value: "true"
-        - name: Mise__InboundPolicies__0__Label
-          value: "ARM Policy"
-        - name: Mise__InboundPolicies__0__Authority
-          value: "https://login.microsoftonline.com/33e01921-4d64-4f8c-a055-5bdaffd5e33d"
-        - name: Mise__InboundPolicies__0__Protocols__0
-          value: "PoP"
-        - name: Mise__InboundPolicies__0__Authentication__ValidAudiences__0
-          value: "https://management.azure.com"
-        - name: Mise__InboundPolicies__0__Authentication__ValidApplicationIds__0
-          value: "e2c2ff5c-e5b4-4e79-8c3e-1da8c48461e7"
-        - name: Mise__InboundPolicies__0__Validation__SignedHttpRequest__ValidateTs
-          value: "true"
-        - name: Mise__InboundPolicies__0__Validation__SignedHttpRequest__ValidateM
-          value: "true"
-        - name: Mise__InboundPolicies__0__Validation__SignedHttpRequest__ValidateU
-          value: "true"
-        - name: Mise__InboundPolicies__0__Validation__SignedHttpRequest__ValidateP
-          value: "true"
-        - name: Mise__InboundPolicies__1__Label
-          value: "Geneva Actions"
-        - name: Mise__InboundPolicies__1__Authority
-          value: "https://sts.windows.net/__tenantId__/"
-        - name: Mise__InboundPolicies__1__Protocols__0
-          value: "Bearer"
-        - name: Mise__InboundPolicies__1__Authentication__ValidAudiences__0
-          value: "https://management.azure.com"
-        - name: Mise__InboundPolicies__1__Authentication__ValidApplicationIds__0
-          value: "__genevaActionsAppId__"
-        - name: Mise__Logging__LogLevel__Default
-          value: "Information"
-        - name: AllowedHosts
-          value: "*"
-        - name: Kestrel__Endpoints__Http__Url
-          value: "http://0.0.0.0:8080"
         - name: OTEL_EXPORTER_OTLP_ENDPOINT
           value: ""
         - name: OTEL_TRACES_EXPORTER
           value: ""
+      volumes:
+      - name: config
+        configMap:
+          name: misev2-config
 ---
 # Source: istio/charts/mise/templates/deployment.yaml
 apiVersion: apps/v1
