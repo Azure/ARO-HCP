@@ -26,7 +26,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Azure/ARO-HCP/internal/databasetesting"
 	"github.com/neilotoole/slogt"
 	"github.com/stretchr/testify/require"
 
@@ -43,7 +42,8 @@ import (
 )
 
 type ResourceMutationTest struct {
-	testDir fs.FS
+	testDir  fs.FS
+	withMock bool
 
 	steps []IntegrationTestStep
 }
@@ -53,14 +53,15 @@ type IntegrationTestStep interface {
 	RunTest(ctx context.Context, t *testing.T, stepInput StepInput)
 }
 
-func NewResourceMutationTest[InternalAPIType any](ctx context.Context, testName string, testDir fs.FS) (*ResourceMutationTest, error) {
+func NewResourceMutationTest[InternalAPIType any](ctx context.Context, testName string, testDir fs.FS, withMock bool) (*ResourceMutationTest, error) {
 	steps, err := readSteps[InternalAPIType](ctx, testDir)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read steps for test %q: %w", testName, err)
 	}
 	return &ResourceMutationTest{
-		testDir: testDir,
-		steps:   steps,
+		testDir:  testDir,
+		withMock: withMock,
+		steps:    steps,
 	}, nil
 }
 
@@ -106,7 +107,7 @@ func (tt *ResourceMutationTest) RunTest(t *testing.T) {
 	defer cancel()
 	ctx = utils.ContextWithLogger(ctx, slogt.New(t, slogt.JSON()))
 
-	frontend, testInfo, err := integrationutils.NewFrontendFromTestingEnv(ctx, t)
+	frontend, testInfo, err := integrationutils.NewFrontendFromTestingEnv(ctx, t, tt.withMock)
 	require.NoError(t, err)
 	cleanupCtx := context.Background()
 	cleanupCtx = utils.ContextWithLogger(cleanupCtx, slogt.New(t, slogt.JSON()))
@@ -124,65 +125,17 @@ func (tt *ResourceMutationTest) RunTest(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	cosmosContainer := testInfo.CosmosResourcesContainer()
-	cosmosContentLoader := integrationutils.NewCosmosContentLoader(cosmosContainer)
-	stepInput := StepInput{
-		ContentLoader:          cosmosContentLoader,
-		DocumentLister:         cosmosContentLoader,
-		DBClient:               testInfo.DBClient,
-		FrontendClient:         testInfo.Get20240610ClientFactory,
-		FrontendURL:            testInfo.FrontendURL,
-		ClusterServiceMockInfo: testInfo.ClusterServiceMock,
-	}
+	stepInput := NewCosmosStepInput(testInfo)
+	stepInput.FrontendClient = testInfo.Get20240610ClientFactory
+	stepInput.FrontendURL = testInfo.FrontendURL
+	stepInput.ClusterServiceMockInfo = testInfo.ClusterServiceMock
+
 	for _, step := range tt.steps {
 		t.Logf("Running step %s", step.StepID())
 		ctx := t.Context()
 		ctx = utils.ContextWithLogger(ctx, slogt.New(t, slogt.JSON()))
 
-		step.RunTest(ctx, t, stepInput)
-	}
-}
-
-// RunTestWithMock runs the test using a mock database instead of Cosmos DB.
-// This allows tests to run without requiring a Cosmos DB emulator.
-func (tt *ResourceMutationTest) RunTestWithMock(t *testing.T) {
-	ctx := t.Context()
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-	ctx = utils.ContextWithLogger(ctx, slogt.New(t, slogt.JSON()))
-
-	frontend, testInfo, err := integrationutils.NewFrontendFromMockDB(ctx, t)
-	require.NoError(t, err)
-	cleanupCtx := context.Background()
-	cleanupCtx = utils.ContextWithLogger(cleanupCtx, slogt.New(t, slogt.JSON()))
-	defer testInfo.Cleanup(cleanupCtx)
-	go frontend.Run(ctx, ctx.Done())
-
-	// wait for the server to be ready for testing
-	err = wait.PollUntilContextCancel(ctx, 1*time.Second, true, func(ctx context.Context) (bool, error) {
-		_, err := http.Get(testInfo.FrontendURL)
-		if err != nil {
-			t.Log(err)
-			return false, nil
-		}
-		return true, nil
-	})
-	require.NoError(t, err)
-
-	stepInput := StepInput{
-		ContentLoader:          testInfo.ContentLoader,
-		DocumentLister:         testInfo.DocumentLister,
-		DBClient:               testInfo.DBClient,
-		FrontendClient:         testInfo.Get20240610ClientFactory,
-		FrontendURL:            testInfo.FrontendURL,
-		ClusterServiceMockInfo: testInfo.ClusterServiceMock,
-	}
-	for _, step := range tt.steps {
-		t.Logf("Running step %s", step.StepID())
-		ctx := t.Context()
-		ctx = utils.ContextWithLogger(ctx, slogt.New(t, slogt.JSON()))
-
-		step.RunTest(ctx, t, stepInput)
+		step.RunTest(ctx, t, *stepInput)
 	}
 }
 
@@ -375,18 +328,10 @@ type StepInput struct {
 	ClusterServiceMockInfo *integrationutils.ClusterServiceMock
 }
 
-func NewCosmosStepInput(cosmosContainer *azcosmos.ContainerClient, dClient database.DBClient) *StepInput {
+func NewCosmosStepInput(storageInfo integrationutils.StorageIntegrationTestInfo) *StepInput {
 	return &StepInput{
-		ContentLoader:  integrationutils.NewCosmosContentLoader(cosmosContainer),
-		DocumentLister: integrationutils.NewCosmosContentLoader(cosmosContainer),
-		DBClient:       dClient,
-	}
-}
-
-func NewMockCosmosStepInput(mockDBClient *databasetesting.MockDBClient) *StepInput {
-	return &StepInput{
-		ContentLoader:  mockDBClient,
-		DocumentLister: mockDBClient,
-		DBClient:       mockDBClient,
+		ContentLoader:  storageInfo,
+		DocumentLister: storageInfo,
+		DBClient:       storageInfo.CosmosClient(),
 	}
 }

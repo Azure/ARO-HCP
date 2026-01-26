@@ -23,6 +23,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Azure/ARO-HCP/test-integration/utils/integrationutils"
 	"github.com/stretchr/testify/require"
 
 	utilsclock "k8s.io/utils/clock"
@@ -33,15 +34,16 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/mismatchcontrollers"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/test-integration/utils/controllertesthelpers"
-	"github.com/Azure/ARO-HCP/test-integration/utils/integrationutils"
 )
 
 //go:embed artifacts/*
 var artifacts embed.FS
 
 func TestClusterMismatchController(t *testing.T) {
-	integrationutils.SkipIfNotSimulationTesting(t)
+	integrationutils.WithAndWithoutCosmos(t, testClusterMismatchController)
+}
 
+func testClusterMismatchController(t *testing.T, withMock bool) {
 	testCases := []controllertesthelpers.BasicControllerTest{
 		{
 			Name: "remove_orphaned_cluster_descendents",
@@ -96,6 +98,7 @@ func TestClusterMismatchController(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
+		tc.WithMock = withMock
 		t.Run(tc.Name, tc.RunTest)
 	}
 

@@ -31,20 +31,22 @@ import (
 var artifacts embed.FS
 
 func TestFrontendClusterRead(t *testing.T) {
-	integrationutils.SkipIfNotSimulationTesting(t)
+	integrationutils.WithAndWithoutCosmos(t, testFrontendClusterRead)
+}
 
+func testFrontendClusterRead(t *testing.T, withMock bool) {
 	ctx := context.Background()
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	frontend, testInfo, err := integrationutils.NewFrontendFromTestingEnv(ctx, t)
+	frontend, testInfo, err := integrationutils.NewFrontendFromTestingEnv(ctx, t, withMock)
 	require.NoError(t, err)
 	defer testInfo.Cleanup(context.Background())
 
 	go frontend.Run(ctx, ctx.Done())
 
 	subscriptionID := "0465bc32-c654-41b8-8d87-9815d7abe8f6" // TODO could read from JSON
-	err = testInfo.CreateInitialCosmosContent(ctx, api.Must(fs.Sub(artifacts, "artifacts/ClusterReadOldData/initial-cosmos-state")))
+	err = integrationutils.LoadAllContent(ctx, testInfo, api.Must(fs.Sub(artifacts, "artifacts/ClusterReadOldData/initial-cosmos-state")))
 	require.NoError(t, err)
 
 	err = testInfo.AddContent(t, api.Must(fs.Sub(artifacts, "artifacts/ClusterReadOldData/initial-cluster-service-state")))

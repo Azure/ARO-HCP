@@ -32,8 +32,10 @@ import (
 var artifacts embed.FS
 
 func TestDoNothingController(t *testing.T) {
-	integrationutils.SkipIfNotSimulationTesting(t)
+	integrationutils.WithAndWithoutCosmos(t, testDoNothingController)
+}
 
+func testDoNothingController(t *testing.T, withMock bool) {
 	testCases := []controllertesthelpers.BasicControllerTest{
 		{
 			Name: "sync_deleted_cluster",
@@ -66,7 +68,7 @@ func TestDoNothingController(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
+		tc.WithMock = withMock
 		t.Run(tc.Name, tc.RunTest)
 	}
-
 }

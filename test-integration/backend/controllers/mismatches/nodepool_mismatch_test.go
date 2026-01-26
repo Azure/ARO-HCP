@@ -22,6 +22,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Azure/ARO-HCP/test-integration/utils/integrationutils"
 	"github.com/stretchr/testify/require"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -30,12 +31,13 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/mismatchcontrollers"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/test-integration/utils/controllertesthelpers"
-	"github.com/Azure/ARO-HCP/test-integration/utils/integrationutils"
 )
 
 func TestNodePoolMismatchController(t *testing.T) {
-	integrationutils.SkipIfNotSimulationTesting(t)
+	integrationutils.WithAndWithoutCosmos(t, testNodePoolMismatchController)
+}
 
+func testNodePoolMismatchController(t *testing.T, withMock bool) {
 	testCases := []controllertesthelpers.BasicControllerTest{
 		{
 			Name: "remove_orphaned_nodepool_descendents",
@@ -91,6 +93,7 @@ func TestNodePoolMismatchController(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
+		tc.WithMock = withMock
 		t.Run(tc.Name, tc.RunTest)
 	}
 

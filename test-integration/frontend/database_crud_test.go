@@ -29,8 +29,10 @@ import (
 )
 
 func TestDatabaseCRUD(t *testing.T) {
-	integrationutils.SkipIfNotSimulationTesting(t)
+	integrationutils.WithAndWithoutCosmos(t, testDatabaseCRUD)
+}
 
+func testDatabaseCRUD(t *testing.T, withMock bool) {
 	ctx := context.Background()
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -47,7 +49,9 @@ func TestDatabaseCRUD(t *testing.T) {
 				testCRUDSuite[api.Controller](
 					ctx,
 					t,
-					crudSuiteDir)
+					crudSuiteDir,
+					withMock)
+
 			})
 
 		case "OperationCRUD":
@@ -55,7 +59,9 @@ func TestDatabaseCRUD(t *testing.T) {
 				testCRUDSuite[api.Operation](
 					ctx,
 					t,
-					crudSuiteDir)
+					crudSuiteDir,
+					withMock)
+
 			})
 
 		case "SubscriptionCRUD":
@@ -63,7 +69,9 @@ func TestDatabaseCRUD(t *testing.T) {
 				testCRUDSuite[arm.Subscription](
 					ctx,
 					t,
-					crudSuiteDir)
+					crudSuiteDir,
+					withMock)
+
 			})
 
 		case "ServiceProviderClusterCRUD":
@@ -71,7 +79,8 @@ func TestDatabaseCRUD(t *testing.T) {
 				testCRUDSuite[api.ServiceProviderCluster](
 					ctx,
 					t,
-					crudSuiteDir)
+					crudSuiteDir,
+					withMock)
 			})
 
 		case "UntypedCRUD":
@@ -79,7 +88,8 @@ func TestDatabaseCRUD(t *testing.T) {
 				testCRUDSuite[database.TypedDocument](
 					ctx,
 					t,
-					crudSuiteDir)
+					crudSuiteDir,
+					withMock)
 			})
 
 		default:
@@ -88,7 +98,7 @@ func TestDatabaseCRUD(t *testing.T) {
 	}
 }
 
-func testCRUDSuite[InternalAPIType any](ctx context.Context, t *testing.T, crudSuiteDir fs.FS) {
+func testCRUDSuite[InternalAPIType any](ctx context.Context, t *testing.T, crudSuiteDir fs.FS, withMock bool) {
 	testDirs := api.Must(fs.ReadDir(crudSuiteDir, "."))
 	for _, testDirEntry := range testDirs {
 		testDir := api.Must(fs.Sub(crudSuiteDir, testDirEntry.Name()))
@@ -97,6 +107,7 @@ func testCRUDSuite[InternalAPIType any](ctx context.Context, t *testing.T, crudS
 			ctx,
 			testDirEntry.Name(),
 			testDir,
+			withMock,
 		)
 		require.NoError(t, err)
 

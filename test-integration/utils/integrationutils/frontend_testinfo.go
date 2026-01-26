@@ -19,30 +19,29 @@ import (
 	"net/http"
 	"path/filepath"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
-	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
-	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
-
 	"github.com/Azure/ARO-HCP/frontend/pkg/frontend"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
 	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/v20240610preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 )
 
-type CosmosIntegrationTestInfo struct {
-	ArtifactsDir string
+type StorageIntegrationTestInfo interface {
+	ContentLoader
+	DocumentLister
 
-	CosmosDatabaseClient *azcosmos.DatabaseClient
-	DBClient             database.DBClient
-	CosmosClient         *azcosmos.Client
-	DatabaseName         string
+	GetArtifactDir() string
+	CosmosClient() database.DBClient
+
+	Cleanup(ctx context.Context)
 }
 
 type FrontendIntegrationTestInfo struct {
-	*CosmosIntegrationTestInfo
+	StorageIntegrationTestInfo
 	*ClusterServiceMock
 
 	ArtifactsDir string
@@ -88,7 +87,7 @@ func (emptySystemData) Do(req *policy.Request) (*http.Response, error) {
 }
 
 func (s *FrontendIntegrationTestInfo) Cleanup(ctx context.Context) {
-	s.CosmosIntegrationTestInfo.Cleanup(ctx)
+	s.StorageIntegrationTestInfo.Cleanup(ctx)
 	s.ClusterServiceMock.Cleanup(ctx)
 }
 

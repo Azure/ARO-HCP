@@ -51,9 +51,12 @@ type MockDBClient struct {
 
 // NewMockDBClient creates a new mock DBClient with empty storage.
 func NewMockDBClient() *MockDBClient {
+	lockClient := NewMockLockClient(10)
+
 	return &MockDBClient{
-		documents: make(map[string]json.RawMessage),
-		billing:   make(map[string]*database.BillingDocument),
+		documents:  make(map[string]json.RawMessage),
+		billing:    make(map[string]*database.BillingDocument),
+		lockClient: lockClient,
 	}
 }
 
