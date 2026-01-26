@@ -14,4 +14,4 @@
 package version
 
 // CommitSHA is the SHA of the current HEAD. Populated at build-time.
-var CommitSHA string
+var CommitSHA string = "development"

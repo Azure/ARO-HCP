@@ -28,7 +28,6 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/Azure/azure-kusto-go/kusto"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
 
 	sdk "github.com/openshift-online/ocm-sdk-go"
@@ -39,6 +38,7 @@ import (
 	"github.com/Azure/ARO-HCP/admin/server/interrupts"
 	"github.com/Azure/ARO-HCP/admin/server/middleware"
 	"github.com/Azure/ARO-HCP/admin/server/pkg/logging"
+	"github.com/Azure/ARO-HCP/internal/azsdk"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/fpa"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -151,13 +151,13 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 	}
 
 	// Create the database client.
+	clientOpts := azsdk.NewClientOptions(azsdk.ComponentAdmin)
+	// FIXME Cloud should be determined by other means.
+	clientOpts.Cloud = cloud.AzurePublic
 	cosmosDatabaseClient, err := database.NewCosmosDatabaseClient(
 		o.CosmosURL,
 		o.CosmosName,
-		azcore.ClientOptions{
-			// FIXME Cloud should be determined by other means.
-			Cloud: cloud.AzurePublic,
-		},
+		clientOpts,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create the CosmosDB client: %w", err)
@@ -184,7 +184,7 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 		return nil, fmt.Errorf("failed to create certificate reader: %w", err)
 	}
 
-	fpaCredentialRetriever, err := fpa.NewFirstPartyApplicationTokenCredentialRetriever(logger, o.FpaClientID, certReader, azcore.ClientOptions{})
+	fpaCredentialRetriever, err := fpa.NewFirstPartyApplicationTokenCredentialRetriever(logger, o.FpaClientID, certReader, azsdk.NewClientOptions(azsdk.ComponentAdmin))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create the FPA token credentials: %w", err)
 	}

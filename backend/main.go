@@ -44,7 +44,6 @@ import (
 	"k8s.io/klog/v2"
 	utilsclock "k8s.io/utils/clock"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
 	"github.com/Azure/azure-sdk-for-go/sdk/tracing/azotel"
 
@@ -58,6 +57,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/operationcontrollers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/azsdk"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/tracing"
@@ -207,14 +207,14 @@ func Run(cmd *cobra.Command, args []string) error {
 	}
 
 	// Create the database client.
+	clientOpts := azsdk.NewClientOptions(azsdk.ComponentBackend)
+	// FIXME Cloud should be determined by other means.
+	clientOpts.Cloud = cloud.AzurePublic
+	clientOpts.TracingProvider = azotel.NewTracingProvider(otel.GetTracerProvider(), nil)
 	cosmosDatabaseClient, err := database.NewCosmosDatabaseClient(
 		argCosmosURL,
 		argCosmosName,
-		azcore.ClientOptions{
-			// FIXME Cloud should be determined by other means.
-			Cloud:           cloud.AzurePublic,
-			TracingProvider: azotel.NewTracingProvider(otel.GetTracerProvider(), nil),
-		},
+		clientOpts,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create the CosmosDB client: %w", err)
