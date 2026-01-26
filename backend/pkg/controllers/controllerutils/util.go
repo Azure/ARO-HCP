@@ -144,7 +144,7 @@ type controllerMutationFunc func(controller *api.Controller)
 func ReportSyncError(syncErr error) controllerMutationFunc {
 	return func(controller *api.Controller) {
 		if syncErr == nil {
-			setCondition(&controller.Status.Conditions, api.Condition{
+			SetCondition(&controller.Status.Conditions, api.Condition{
 				Type:    "Degraded",
 				Status:  api.ConditionFalse,
 				Reason:  "NoErrors",
@@ -153,7 +153,7 @@ func ReportSyncError(syncErr error) controllerMutationFunc {
 			return
 		}
 
-		setCondition(&controller.Status.Conditions, api.Condition{
+		SetCondition(&controller.Status.Conditions, api.Condition{
 			Type:    "Degraded",
 			Status:  api.ConditionTrue,
 			Reason:  "Failed",
@@ -211,7 +211,12 @@ func WriteController(ctx context.Context, controllerCRUD database.ResourceCRUD[a
 	return nil
 }
 
-func setCondition(conditions *[]api.Condition, toSet api.Condition) {
+// SetCondition sets the condition with the given type in the list of conditions.
+// If the condition with condition type conditionType is not found, it is added.
+// If the condition with condition type conditionType is found, it is updated.
+// When there's a transition in the condition's status, the last transition time
+// is updated to the current time. lastTranitionTime in toSet is always ignored.
+func SetCondition(conditions *[]api.Condition, toSet api.Condition) {
 	existingCondition := GetCondition(*conditions, toSet.Type)
 	if existingCondition == nil {
 		toSet.LastTransitionTime = clock.Now()
@@ -227,6 +232,11 @@ func setCondition(conditions *[]api.Condition, toSet api.Condition) {
 	existingCondition.Message = toSet.Message
 }
 
+// GetCondition returns the condition with the given type from the list of conditions.
+// If the list of conditions is nil, returns nil.
+// If the condition with condition type conditionType is not found, returns nil.
+// If there are multiple conditions with condition type conditionType the first
+// one is returned.
 func GetCondition(conditions []api.Condition, conditionType string) *api.Condition {
 	if conditions == nil {
 		return nil
@@ -238,4 +248,12 @@ func GetCondition(conditions []api.Condition, conditionType string) *api.Conditi
 	}
 
 	return nil
+}
+
+// IsConditionTrue returns true if the condition with condition type
+// conditionType is found and its status is True.
+// If the condition is not found or its status is not True, returns false.
+func IsConditionTrue(conditions []api.Condition, conditionType string) bool {
+	condition := GetCondition(conditions, conditionType)
+	return condition != nil && condition.Status == api.ConditionTrue
 }

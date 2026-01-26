@@ -18,6 +18,13 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 )
 
+const (
+	// ServiceProviderClusterResourceName is the name of the ServiceProviderCluster resource.
+	// ServiceProviderCluster is a singleton resource and ARM convention is to
+	// use the name "default" for singleton resources.
+	ServiceProviderClusterResourceName = "default"
+)
+
 // ServiceProviderCluster is used internally by controllers to track and pass information between them.
 type ServiceProviderCluster struct {
 	// CosmosMetadata ResourceID is nested under the cluster so that association and cleanup work as expected
@@ -29,4 +36,11 @@ type ServiceProviderCluster struct {
 	ResourceID azcorearm.ResourceID `json:"resourceId"`
 
 	LoadBalancerResourceID *azcorearm.ResourceID `json:"loadBalancerResourceID,omitempty"`
+
+	// Validations is a list of conditions that tracks the status of each cluster validation.
+	// Each Condition Type represents a validation and it should be unique among all validations.
+	// A Condition Status of True means that the validation passed successfully, and a Condition Status of False means that the validation failed.
+	// The Condition Reason and Message are used to provide more details about the validation status.
+	// The Condition LastTransitionTime is used to track the last time the validation transitioned from one status to another.
+	Validations []Condition `json:"validations,omitempty"`
 }
