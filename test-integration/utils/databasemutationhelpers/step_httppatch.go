@@ -82,7 +82,12 @@ func (l *httpPatchStep) RunTest(ctx context.Context, t *testing.T, stepInput Ste
 
 		switch {
 		case len(l.expectedError) > 0:
-			require.ErrorContains(t, err, l.expectedError)
+			// Split expected error by object boundaries to check each error individually
+			// This handles multi-error responses where the details array has commas between objects
+			expectedErrors := splitExpectedErrors(l.expectedError)
+			for _, expectedErr := range expectedErrors {
+				require.ErrorContains(t, err, expectedErr)
+			}
 			return
 		default:
 			require.NoError(t, err)

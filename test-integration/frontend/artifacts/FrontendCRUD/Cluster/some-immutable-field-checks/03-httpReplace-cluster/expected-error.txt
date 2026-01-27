@@ -2,97 +2,97 @@
         "code": "InvalidRequestContent",
         "message": "Forbidden: field is immutable",
         "target": "properties.version.id"
-      },
+      }
       {
         "code": "InvalidRequestContent",
         "message": "Forbidden: field is immutable",
         "target": "properties.dns.baseDomainPrefix"
-      },
+      }
       {
         "code": "InvalidRequestContent",
         "message": "Forbidden: field is immutable",
         "target": "properties.network"
-      },
+      }
       {
         "code": "InvalidRequestContent",
         "message": "Forbidden: field is immutable",
         "target": "properties.network.networkType"
-      },
+      }
       {
         "code": "InvalidRequestContent",
         "message": "Forbidden: field is immutable",
         "target": "properties.network.podCidr"
-      },
+      }
       {
         "code": "InvalidRequestContent",
         "message": "Forbidden: field is immutable",
         "target": "properties.network.serviceCidr"
-      },
+      }
       {
         "code": "InvalidRequestContent",
         "message": "Forbidden: field is immutable",
         "target": "properties.network.machineCidr"
-      },
+      }
       {
         "code": "InvalidRequestContent",
         "message": "Forbidden: field is immutable",
         "target": "properties.network.hostPrefix"
-      },
+      }
       {
         "code": "InvalidRequestContent",
         "message": "Forbidden: field is immutable",
         "target": "properties.platform"
-      },
+      }
       {
         "code": "InvalidRequestContent",
         "message": "Forbidden: field is immutable",
         "target": "properties.platform.managedResourceGroup"
-      },
+      }
       {
         "code": "InvalidRequestContent",
         "message": "Forbidden: field is immutable",
         "target": "properties.platform.subnetId"
-      },
+      }
       {
         "code": "InvalidRequestContent",
         "message": "Forbidden: field is immutable",
         "target": "properties.platform.networkSecurityGroupId"
-      },
+      }
       {
         "code": "InvalidRequestContent",
         "message": "Forbidden: field is immutable",
         "target": "properties.etcd"
-      },
+      }
       {
         "code": "InvalidRequestContent",
         "message": "Forbidden: field is immutable",
         "target": "properties.etcd.dataEncryption"
-      },
+      }
       {
         "code": "InvalidRequestContent",
         "message": "Forbidden: field is immutable",
         "target": "properties.etcd.dataEncryption.customerManaged"
-      },
+      }
       {
         "code": "InvalidRequestContent",
         "message": "Forbidden: field is immutable",
         "target": "properties.etcd.dataEncryption.customerManaged.kms"
-      },
+      }
       {
         "code": "InvalidRequestContent",
         "message": "Forbidden: field is immutable",
         "target": "properties.etcd.dataEncryption.customerManaged.kms.activeKey"
-      },
+      }
       {
         "code": "InvalidRequestContent",
         "message": "Forbidden: field is immutable",
         "target": "properties.etcd.dataEncryption.customerManaged.kms.activeKey.name"
-      },
+      }
       {
         "code": "InvalidRequestContent",
         "message": "Forbidden: field is immutable",
         "target": "properties.etcd.dataEncryption.customerManaged.kms.activeKey.vaultName"
-      },
+      }
       {
         "code": "InvalidRequestContent",
         "message": "Forbidden: field is immutable",

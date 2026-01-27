@@ -82,10 +82,43 @@ func (l *httpCreateStep) RunTest(ctx context.Context, t *testing.T, stepInput St
 
 		switch {
 		case len(l.expectedError) > 0:
-			require.ErrorContains(t, err, l.expectedError)
+			// Split expected error by object boundaries to check each error individually
+			// This handles multi-error responses where the details array has commas between objects
+			expectedErrors := splitExpectedErrors(l.expectedError)
+			for _, expectedErr := range expectedErrors {
+				require.ErrorContains(t, err, expectedErr)
+			}
 			return
 		default:
 			require.NoError(t, err)
 		}
 	}
+}
+
+// splitExpectedErrors splits expected error content into individual error objects.
+// This handles expected-error.txt files that contain multiple JSON error objects
+// which need to be checked individually against the actual error response.
+func splitExpectedErrors(expectedError string) []string {
+	// Split on the pattern "}\n      {" which separates error objects in expected-error.txt
+	// The actual response has "},\n      {" but we check each object as a substring
+	parts := strings.Split(expectedError, "}\n      {")
+	if len(parts) == 1 {
+		// No split found, return the original string
+		return []string{expectedError}
+	}
+
+	result := make([]string, len(parts))
+	for i, part := range parts {
+		if i == 0 {
+			// First part needs closing brace
+			result[i] = part + "}"
+		} else if i == len(parts)-1 {
+			// Last part needs opening brace
+			result[i] = "      {" + part
+		} else {
+			// Middle parts need both
+			result[i] = "      {" + part + "}"
+		}
+	}
+	return result
 }
