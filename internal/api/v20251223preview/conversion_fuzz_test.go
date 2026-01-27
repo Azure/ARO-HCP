@@ -67,6 +67,14 @@ func TestRoundTripInternalExternalInternal(t *testing.T) {
 			// ClusterServiceID does not roundtrip through the external type because it is purely an internal detail
 			j.ClusterServiceID = ocm.InternalID{}
 		},
+		func(j *api.CustomerManagedEncryptionProfile, c randfill.Continue) {
+			c.FillNoCustom(j)
+			// we cannot properly roundtrip a zero value here, so nil when that happens
+			zeroValueKMS := api.KmsEncryptionProfile{}
+			if j.Kms != nil && *j.Kms == zeroValueKMS {
+				j.Kms = nil
+			}
+		},
 	}, rand.NewSource(seed))
 
 	// Try a few times, since runTest uses random values.
