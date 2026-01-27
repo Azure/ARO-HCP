@@ -73,18 +73,21 @@ const (
 )
 
 var (
-	argKubeconfig             string
-	argNamespace              string
-	argLocation               string
-	argCosmosName             string
-	argCosmosURL              string
-	argClustersServiceURL     string
-	argInsecure               bool
-	argMetricsListenAddress   string
-	argPortListenAddress      string
-	argAzureRuntimeConfigPath string
-	argAzureFPACertBundlePath string
-	argAzureFPAClientID       string
+	argKubeconfig                           string
+	argNamespace                            string
+	argLocation                             string
+	argCosmosName                           string
+	argCosmosURL                            string
+	argClustersServiceURL                   string
+	argInsecure                             bool
+	argMetricsListenAddress                 string
+	argPortListenAddress                    string
+	argAzureRuntimeConfigPath               string
+	argAzureFPACertBundlePath               string
+	argAzureFPAClientID                     string
+	argAzureARMHelperIdentityClientID       string
+	argAzureARMHelperIdentityCertBundlePath string
+	argAzureARMHelperMockFpaPrincipalID     string
 
 	processName = filepath.Base(os.Args[0])
 
@@ -154,7 +157,31 @@ func init() {
 		"The client id of the first party application identity",
 	)
 
+	rootCmd.Flags().StringVar(
+		&argAzureARMHelperIdentityClientID,
+		"azure-arm-helper-identity-client-id",
+		"",
+		"The client id of the ARM helper identity",
+	)
+
+	rootCmd.Flags().StringVar(
+		&argAzureARMHelperIdentityCertBundlePath,
+		"azure-arm-helper-certificate-bundle-path",
+		"",
+		"Path to a file containing an X.509 Certificate based client certificate, consisting of a private key and "+
+			"certificate chain, in a PEM or PKCS#12 format for authenticating clients with the ARM helper identity",
+	)
+	rootCmd.Flags().StringVar(
+		&argAzureFPAClientID,
+		"azure-arm-helper-mock-fpa-principal-id",
+		"",
+		"The principal id of the mock first party application identity. Only used when the ARM helper identity is used. "+
+			"Required when the ARM helper identity is used.",
+	)
+
 	rootCmd.MarkFlagsRequiredTogether("cosmos-name", "cosmos-url")
+
+	rootCmd.MarkFlagsRequiredTogether("azure-arm-helper-identity-client-id", "azure-arm-helper-certificate-bundle-path", "azure-arm-helper-mock-fpa-principal-id")
 
 	rootCmd.Version = version.CommitSHA
 }
