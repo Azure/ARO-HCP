@@ -29,6 +29,7 @@ import (
 	"k8s.io/klog/v2"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/app"
+	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
 	"github.com/Azure/ARO-HCP/internal/signal"
 	"github.com/Azure/ARO-HCP/internal/tracing"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -171,6 +172,21 @@ func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.C
 		return nil, utils.TrackError(fmt.Errorf("failed to create FPA client builder: %w", err))
 	}
 
+	backendIdentityAzureClients, err := app.NewBackendIdentityAzureClients(ctx, azureConfig)
+	if err != nil {
+		return nil, utils.TrackError(fmt.Errorf("failed to create backend identity azure clients: %w", err))
+	}
+
+	err = callAzureAPIWithBackendIdentity(
+		ctx,
+		azureConfig.AzureRuntimeConfig.DataPlaneIdentitiesOIDCConfiguration.StorageAccountBlobContainerName,
+		backendIdentityAzureClients.DataplaneIdentitiesOIDCConfigurationBlobStorageClient,
+	)
+	if err != nil {
+		return nil, utils.TrackError(fmt.Errorf("failed to call Azure API with backend identity: %w", err))
+	}
+	/////////////////
+
 	cosmosDBClient, err := app.NewCosmosDBClient(
 		ctx, f.AzureCosmosDBURL, f.AzureCosmosDBName,
 		*azureConfig.CloudEnvironment.AZCoreClientOptions(),
@@ -196,6 +212,7 @@ func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.C
 		TracerProviderShutdownFunc:         otelShutdown,
 		MaestroSourceEnvironmentIdentifier: f.MaestroSourceEnvironmentIdentifier,
 		FPAClientBuilder:                   fpaClientBuilder,
+		BackendIdentityAzureClients:        backendIdentityAzureClients,
 	}
 
 	return backendOptions, nil
@@ -292,6 +309,39 @@ func RunRootCmd(cmd *cobra.Command, flags *BackendRootCmdFlags) error {
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to run backend: %w", err))
 	}
+
+	return nil
+}
+
+func callAzureAPIWithBackendIdentity(ctx context.Context, blobContainerName string, blobStorageClient azureclient.BlobStorageClient) error {
+	logger := utils.LoggerFromContext(ctx)
+	logger.Info("calling Azure API with backend identity")
+
+	pager := blobStorageClient.NewListBlobsFlatPager(
+		blobContainerName,
+		nil,
+		// &azblob.ListBlobsFlatOptions{ // Also an example on how to filter by prefix
+		// 	Prefix: to.Ptr("64dc69e4-d083-49fc-9569-ebece1dd1408"), // Just an example of a prefix to search
+		// },
+	)
+
+	pagerMoreCount := 0
+	blobCount := 0
+	for pager.More() {
+		resp, err := pager.NextPage(ctx)
+		if err != nil {
+			return err
+		}
+
+		for _, blob := range resp.Segment.BlobItems {
+			logger.Info(fmt.Sprintf("blob name: %s", *blob.Name))
+			blobCount++
+		}
+
+		pagerMoreCount++
+	}
+
+	logger.Info("Azure API call completed successfully. Performed %d calls to pager.More() containing a total of %d blobs", pagerMoreCount, blobCount)
 
 	return nil
 }

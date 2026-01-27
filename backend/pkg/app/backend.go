@@ -66,6 +66,7 @@ type BackendOptions struct {
 	TracerProviderShutdownFunc         func(context.Context) error
 	MaestroSourceEnvironmentIdentifier string
 	FPAClientBuilder                   azureclient.FirstPartyApplicationClientBuilder
+	BackendIdentityAzureClients        *azureclient.BackendIdentityAzureClients
 }
 
 func (o *BackendOptions) RunBackend(ctx context.Context) error {
