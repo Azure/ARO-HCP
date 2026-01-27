@@ -26,21 +26,11 @@ import (
 	"github.com/stretchr/testify/require"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
-
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/database"
 )
 
-type UntypedDeleteKey struct {
-	UntypedCRUDKey `json:",inline"`
-
-	DeleteResourceID string `json:"deleteResourceId"`
-}
-
 type untypedDeleteStep struct {
-	stepID      StepID
-	key         UntypedDeleteKey
-	specializer ResourceCRUDTestSpecializer[database.TypedDocument]
+	stepID StepID
+	key    UntypedItemKey
 
 	expectedError string
 }
@@ -50,7 +40,7 @@ func newUntypedDeleteStep(stepID StepID, stepDir fs.FS) (*untypedDeleteStep, err
 	if err != nil {
 		return nil, fmt.Errorf("failed to read key.json: %w", err)
 	}
-	var key UntypedDeleteKey
+	var key UntypedItemKey
 	if err := json.Unmarshal(keyBytes, &key); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal key.json: %w", err)
 	}
@@ -64,7 +54,6 @@ func newUntypedDeleteStep(stepID StepID, stepDir fs.FS) (*untypedDeleteStep, err
 	return &untypedDeleteStep{
 		stepID:        stepID,
 		key:           key,
-		specializer:   UntypedCRUDSpecializer{},
 		expectedError: expectedError,
 	}, nil
 }
@@ -76,17 +65,12 @@ func (l *untypedDeleteStep) StepID() StepID {
 }
 
 func (l *untypedDeleteStep) RunTest(ctx context.Context, t *testing.T, stepInput StepInput) {
-	parentResourceID, err := azcorearm.ParseResourceID(l.key.ParentResourceID)
+	resourceID, err := azcorearm.ParseResourceID(l.key.ResourceID)
 	require.NoError(t, err)
 
-	untypedCRUD := database.NewUntypedCRUD(stepInput.CosmosContainer, *parentResourceID)
-	for _, childKey := range l.key.Descendents {
-		childResourceType, err := azcorearm.ParseResourceType(childKey.ResourceType)
-		require.NoError(t, err)
-		untypedCRUD, err = untypedCRUD.Child(childResourceType, childKey.ResourceName)
-		require.NoError(t, err)
-	}
-	err = untypedCRUD.Delete(ctx, api.Must(azcorearm.ParseResourceID(l.key.DeleteResourceID)))
+	untypedCRUD, err := stepInput.DBClient.UntypedCRUD(*resourceID.Parent)
+	require.NoError(t, err)
+	err = untypedCRUD.Delete(ctx, resourceID)
 	switch {
 	case len(l.expectedError) > 0:
 		require.ErrorContains(t, err, l.expectedError)

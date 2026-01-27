@@ -34,8 +34,10 @@ import (
 )
 
 func TestNodePoolMismatchController(t *testing.T) {
-	integrationutils.SkipIfNotSimulationTesting(t)
+	integrationutils.WithAndWithoutCosmos(t, testNodePoolMismatchController)
+}
 
+func testNodePoolMismatchController(t *testing.T, withMock bool) {
 	testCases := []controllertesthelpers.BasicControllerTest{
 		{
 			Name: "remove_orphaned_nodepool_descendents",
@@ -91,6 +93,7 @@ func TestNodePoolMismatchController(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
+		tc.WithMock = withMock
 		t.Run(tc.Name, tc.RunTest)
 	}
 

@@ -22,13 +22,14 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/test-integration/utils/databasemutationhelpers"
 	"github.com/Azure/ARO-HCP/test-integration/utils/integrationutils"
 )
 
 func TestFrontendCRUD(t *testing.T) {
-	integrationutils.SkipIfNotSimulationTesting(t)
+	integrationutils.WithAndWithoutCosmos(t, testFrontendCRUD)
+}
 
+func testFrontendCRUD(t *testing.T, withMock bool) {
 	ctx := context.Background()
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -40,11 +41,11 @@ func TestFrontendCRUD(t *testing.T) {
 	for _, crudSuiteDirEntry := range crudSuiteDirs {
 		crudSuiteDir := api.Must(fs.Sub(allCRUDDirFS, crudSuiteDirEntry.Name()))
 		t.Run(crudSuiteDirEntry.Name(), func(t *testing.T) {
-			testCRUDSuite(
+			testCRUDSuite[any](
 				ctx,
 				t,
-				databasemutationhelpers.NothingCRUDSpecializer{},
-				crudSuiteDir)
+				crudSuiteDir,
+				withMock)
 		})
 	}
 }

@@ -88,7 +88,7 @@ type GenericMutationTest struct {
 
 func (h *GenericMutationTest) Initialize(ctx context.Context, testInfo *FrontendIntegrationTestInfo) error {
 	if h.initialCosmosState != nil {
-		err := testInfo.CreateInitialCosmosContent(ctx, h.initialCosmosState)
+		err := LoadAllContent(ctx, testInfo, h.initialCosmosState)
 		if err != nil {
 			return err
 		}

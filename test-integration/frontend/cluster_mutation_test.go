@@ -30,13 +30,15 @@ import (
 )
 
 func TestFrontendClusterMutation(t *testing.T) {
-	integrationutils.SkipIfNotSimulationTesting(t)
+	integrationutils.WithAndWithoutCosmos(t, testFrontendClusterMutation)
+}
 
+func testFrontendClusterMutation(t *testing.T, withMock bool) {
 	ctx := context.Background()
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	frontend, testInfo, err := integrationutils.NewFrontendFromTestingEnv(ctx, t)
+	frontend, testInfo, err := integrationutils.NewFrontendFromTestingEnv(ctx, t, withMock)
 	require.NoError(t, err)
 	defer testInfo.Cleanup(context.Background())
 
@@ -44,7 +46,7 @@ func TestFrontendClusterMutation(t *testing.T) {
 
 	subscriptionID := "0465bc32-c654-41b8-8d87-9815d7abe8f6" // TODO could read from JSON
 	resourceGroupName := "some-resource-group"
-	err = testInfo.CreateInitialCosmosContent(ctx, api.Must(fs.Sub(artifacts, "artifacts/ClusterMutation/initial-cosmos-state")))
+	err = integrationutils.LoadAllContent(ctx, testInfo, api.Must(fs.Sub(artifacts, "artifacts/ClusterMutation/initial-cosmos-state")))
 	require.NoError(t, err)
 
 	dirContent := api.Must(artifacts.ReadDir("artifacts/ClusterMutation"))
@@ -98,7 +100,7 @@ func (tt *clusterMutationTest) runTest(t *testing.T) {
 
 	if tt.genericMutationTestInfo.IsUpdateTest() || tt.genericMutationTestInfo.IsPatchTest() {
 		require.NoError(t, mutationErr)
-		require.NoError(t, integrationutils.MarkOperationsCompleteForName(ctx, tt.testInfo.DBClient, tt.subscriptionID, ptr.Deref(toCreate.Name, "")))
+		require.NoError(t, integrationutils.MarkOperationsCompleteForName(ctx, tt.testInfo.CosmosClient(), tt.subscriptionID, ptr.Deref(toCreate.Name, "")))
 	}
 
 	switch {

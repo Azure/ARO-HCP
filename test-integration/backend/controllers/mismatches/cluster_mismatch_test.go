@@ -40,8 +40,10 @@ import (
 var artifacts embed.FS
 
 func TestClusterMismatchController(t *testing.T) {
-	integrationutils.SkipIfNotSimulationTesting(t)
+	integrationutils.WithAndWithoutCosmos(t, testClusterMismatchController)
+}
 
+func testClusterMismatchController(t *testing.T, withMock bool) {
 	testCases := []controllertesthelpers.BasicControllerTest{
 		{
 			Name: "remove_orphaned_cluster_descendents",
@@ -96,6 +98,7 @@ func TestClusterMismatchController(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
+		tc.WithMock = withMock
 		t.Run(tc.Name, tc.RunTest)
 	}
 

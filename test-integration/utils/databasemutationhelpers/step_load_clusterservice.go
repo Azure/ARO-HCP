@@ -43,7 +43,7 @@ func (l *loadClusterServiceStep) StepID() StepID {
 
 func (l *loadClusterServiceStep) RunTest(ctx context.Context, t *testing.T, stepInput StepInput) {
 	if stepInput.ClusterServiceMockInfo == nil {
-		t.Fatal("FrontendTestInfo must not be nil in loadClusterServiceStep, probably using from the wrong kind of test")
+		t.Fatal("ClusterServiceMockInfo must not be nil in loadClusterServiceStep, probably using from the wrong kind of test")
 	}
 	require.NoError(t, stepInput.ClusterServiceMockInfo.AddContent(t, l.clusterServiceContent))
 }

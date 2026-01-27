@@ -16,13 +16,10 @@ package databasemutationhelpers
 
 import (
 	"context"
-	"encoding/json"
 	"io/fs"
 	"testing"
 
 	"github.com/stretchr/testify/require"
-
-	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -53,27 +50,12 @@ func (l *cosmosCompare) StepID() StepID {
 }
 
 func (l *cosmosCompare) RunTest(ctx context.Context, t *testing.T, stepInput StepInput) {
-	// Query all documents in the container
-	querySQL := "SELECT * FROM c"
-	queryOptions := &azcosmos.QueryOptions{
-		QueryParameters: []azcosmos.QueryParameter{},
-	}
+	var allActual []*database.TypedDocument
+	var err error
 
-	queryPager := stepInput.CosmosContainer.NewQueryItemsPager(querySQL, azcosmos.PartitionKey{}, queryOptions)
-
-	allActual := []*database.TypedDocument{}
-	for queryPager.More() {
-		queryResponse, err := queryPager.NextPage(ctx)
-		require.NoError(t, err)
-
-		for _, item := range queryResponse.Items {
-			// Parse the document to get its ID for filename
-			curr := &database.TypedDocument{}
-			err = json.Unmarshal(item, curr)
-			require.NoError(t, err)
-			allActual = append(allActual, curr)
-		}
-	}
+	// Use the DocumentLister interface (works with both Cosmos and mock)
+	allActual, err = stepInput.DocumentLister.ListAllDocuments(ctx)
+	require.NoError(t, err)
 
 	for _, currExpected := range l.expectedContent {
 		found := false

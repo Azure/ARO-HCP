@@ -22,13 +22,17 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/test-integration/utils/databasemutationhelpers"
 	"github.com/Azure/ARO-HCP/test-integration/utils/integrationutils"
 )
 
 func TestDatabaseCRUD(t *testing.T) {
-	integrationutils.SkipIfNotSimulationTesting(t)
+	integrationutils.WithAndWithoutCosmos(t, testDatabaseCRUD)
+}
 
+func testDatabaseCRUD(t *testing.T, withMock bool) {
 	ctx := context.Background()
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -42,49 +46,50 @@ func TestDatabaseCRUD(t *testing.T) {
 		switch crudSuiteDirEntry.Name() {
 		case "ControllerCRUD":
 			t.Run(crudSuiteDirEntry.Name(), func(t *testing.T) {
-				testCRUDSuite(
+				testCRUDSuite[api.Controller](
 					ctx,
 					t,
-					databasemutationhelpers.ControllerCRUDSpecializer{},
-					crudSuiteDir)
+					crudSuiteDir,
+					withMock)
+
 			})
 
 		case "OperationCRUD":
 			t.Run(crudSuiteDirEntry.Name(), func(t *testing.T) {
-				testCRUDSuite(
+				testCRUDSuite[api.Operation](
 					ctx,
 					t,
-					databasemutationhelpers.OperationCRUDSpecializer{},
-					crudSuiteDir)
+					crudSuiteDir,
+					withMock)
+
 			})
 
 		case "SubscriptionCRUD":
 			t.Run(crudSuiteDirEntry.Name(), func(t *testing.T) {
-				testCRUDSuite(
+				testCRUDSuite[arm.Subscription](
 					ctx,
 					t,
-					databasemutationhelpers.SubscriptionCRUDSpecializer{},
-					crudSuiteDir)
+					crudSuiteDir,
+					withMock)
+
 			})
 
 		case "ServiceProviderClusterCRUD":
 			t.Run(crudSuiteDirEntry.Name(), func(t *testing.T) {
-				testCRUDSuite(
+				testCRUDSuite[api.ServiceProviderCluster](
 					ctx,
 					t,
-					databasemutationhelpers.GenericCRUDSpecializer[api.ServiceProviderCluster]{
-						ResourceType: api.ServiceProviderClusterResourceType,
-					},
-					crudSuiteDir)
+					crudSuiteDir,
+					withMock)
 			})
 
 		case "UntypedCRUD":
 			t.Run(crudSuiteDirEntry.Name(), func(t *testing.T) {
-				testCRUDSuite(
+				testCRUDSuite[database.TypedDocument](
 					ctx,
 					t,
-					databasemutationhelpers.OperationCRUDSpecializer{},
-					crudSuiteDir)
+					crudSuiteDir,
+					withMock)
 			})
 
 		default:
@@ -93,16 +98,16 @@ func TestDatabaseCRUD(t *testing.T) {
 	}
 }
 
-func testCRUDSuite[InternalAPIType any](ctx context.Context, t *testing.T, specializer databasemutationhelpers.ResourceCRUDTestSpecializer[InternalAPIType], crudSuiteDir fs.FS) {
+func testCRUDSuite[InternalAPIType any](ctx context.Context, t *testing.T, crudSuiteDir fs.FS, withMock bool) {
 	testDirs := api.Must(fs.ReadDir(crudSuiteDir, "."))
 	for _, testDirEntry := range testDirs {
 		testDir := api.Must(fs.Sub(crudSuiteDir, testDirEntry.Name()))
 
-		currTest, err := databasemutationhelpers.NewResourceMutationTest(
+		currTest, err := databasemutationhelpers.NewResourceMutationTest[InternalAPIType](
 			ctx,
-			specializer,
 			testDirEntry.Name(),
 			testDir,
+			withMock,
 		)
 		require.NoError(t, err)
 

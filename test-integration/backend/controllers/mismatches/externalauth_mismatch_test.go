@@ -34,8 +34,10 @@ import (
 )
 
 func TestExternalAuthMismatchController(t *testing.T) {
-	integrationutils.SkipIfNotSimulationTesting(t)
+	integrationutils.WithAndWithoutCosmos(t, testExternalAuthMismatchController)
+}
 
+func testExternalAuthMismatchController(t *testing.T, withMock bool) {
 	testCases := []controllertesthelpers.BasicControllerTest{
 		{
 			Name: "remove_orphaned_externalauth_descendents",
@@ -91,6 +93,7 @@ func TestExternalAuthMismatchController(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
+		tc.WithMock = withMock
 		t.Run(tc.Name, tc.RunTest)
 	}
 

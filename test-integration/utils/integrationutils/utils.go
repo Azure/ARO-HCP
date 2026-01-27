@@ -34,10 +34,26 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
+func WithAndWithoutCosmos(t *testing.T, testFn func(t *testing.T, withMock bool)) {
+	t.Run("WithMock", func(t *testing.T) {
+		testFn(t, true)
+	})
+
+	if HasCosmos() {
+		t.Run("WithCosmos", func(t *testing.T) {
+			testFn(t, false)
+		})
+	}
+}
+
 func SkipIfNotSimulationTesting(t *testing.T) {
 	if os.Getenv("FRONTEND_SIMULATION_TESTING") != "true" {
 		t.Skip("Skipping test")
 	}
+}
+
+func HasCosmos() bool {
+	return os.Getenv("FRONTEND_SIMULATION_TESTING") == "true"
 }
 
 var (
@@ -60,8 +76,20 @@ func getArtifactDir() string {
 	return artifactDir
 }
 
-func NewFrontendFromTestingEnv(ctx context.Context, t *testing.T) (*frontend.Frontend, *FrontendIntegrationTestInfo, error) {
-	cosmosTestEnv, err := NewCosmosFromTestingEnv(ctx, t)
+// NewFrontendFromMockDB creates a new Frontend using a mock database client.
+// This allows tests to run without requiring a Cosmos DB emulator.
+func NewFrontendFromMockDB(ctx context.Context, t *testing.T) (*frontend.Frontend, *FrontendIntegrationTestInfo, error) {
+	return NewFrontendFromTestingEnv(ctx, t, true)
+}
+
+func NewFrontendFromTestingEnv(ctx context.Context, t *testing.T, withMock bool) (*frontend.Frontend, *FrontendIntegrationTestInfo, error) {
+	var storageIntegrationTestInfo StorageIntegrationTestInfo
+	var err error
+	if withMock {
+		storageIntegrationTestInfo, err = NewMockCosmosFromTestingEnv(ctx, t)
+	} else {
+		storageIntegrationTestInfo, err = NewCosmosFromTestingEnv(ctx, t)
+	}
 	if err != nil {
 		return nil, nil, err
 	}
@@ -85,14 +113,14 @@ func NewFrontendFromTestingEnv(ctx context.Context, t *testing.T) (*frontend.Fro
 
 	metricsRegistry := prometheus.NewRegistry()
 
-	clusterServiceMockInfo := NewClusterServiceMock(t, cosmosTestEnv.ArtifactsDir)
+	clusterServiceMockInfo := NewClusterServiceMock(t, storageIntegrationTestInfo.GetArtifactDir())
 
-	aroHCPFrontend := frontend.NewFrontend(logger, listener, metricsListener, metricsRegistry, cosmosTestEnv.DBClient, clusterServiceMockInfo.MockClusterServiceClient, noOpAuditClient, "fake-location")
+	aroHCPFrontend := frontend.NewFrontend(logger, listener, metricsListener, metricsRegistry, storageIntegrationTestInfo.CosmosClient(), clusterServiceMockInfo.MockClusterServiceClient, noOpAuditClient, "fake-location")
 	testInfo := &FrontendIntegrationTestInfo{
-		CosmosIntegrationTestInfo: cosmosTestEnv,
-		ClusterServiceMock:        clusterServiceMockInfo,
-		ArtifactsDir:              cosmosTestEnv.ArtifactsDir,
-		FrontendURL:               fmt.Sprintf("http://%s", listener.Addr().String()),
+		StorageIntegrationTestInfo: storageIntegrationTestInfo,
+		ClusterServiceMock:         clusterServiceMockInfo,
+		ArtifactsDir:               storageIntegrationTestInfo.GetArtifactDir(),
+		FrontendURL:                fmt.Sprintf("http://%s", listener.Addr().String()),
 	}
 	return aroHCPFrontend, testInfo, nil
 }
