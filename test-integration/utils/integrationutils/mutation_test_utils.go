@@ -86,7 +86,7 @@ type GenericMutationTest struct {
 	expectedErrors     []expectedFieldError
 }
 
-func (h *GenericMutationTest) Initialize(ctx context.Context, testInfo *FrontendIntegrationTestInfo) error {
+func (h *GenericMutationTest) Initialize(ctx context.Context, testInfo *IntegrationTestInfo) error {
 	if h.initialCosmosState != nil {
 		err := LoadAllContent(ctx, testInfo, h.initialCosmosState)
 		if err != nil {

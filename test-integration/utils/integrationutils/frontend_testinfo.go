@@ -24,7 +24,6 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 
-	"github.com/Azure/ARO-HCP/frontend/pkg/frontend"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
@@ -41,17 +40,19 @@ type StorageIntegrationTestInfo interface {
 	Cleanup(ctx context.Context)
 }
 
-type FrontendIntegrationTestInfo struct {
+type IntegrationTestInfo struct {
 	StorageIntegrationTestInfo
 	*ClusterServiceMock
 
 	ArtifactsDir string
 
 	FrontendURL string
-	Frontend    *frontend.Frontend
+	AdminURL    string
+
+	Start func(ctx context.Context) error
 }
 
-func (s *FrontendIntegrationTestInfo) Get20240610ClientFactory(subscriptionID string) *hcpsdk20240610preview.ClientFactory {
+func Get20240610ClientFactory(frontendURL string, subscriptionID string) *hcpsdk20240610preview.ClientFactory {
 	return api.Must(
 		hcpsdk20240610preview.NewClientFactory(subscriptionID, nil,
 			&azcorearm.ClientOptions{
@@ -64,7 +65,7 @@ func (s *FrontendIntegrationTestInfo) Get20240610ClientFactory(subscriptionID st
 						Services: map[cloud.ServiceName]cloud.ServiceConfiguration{
 							cloud.ResourceManager: {
 								Audience: "https://management.core.windows.net/",
-								Endpoint: s.FrontendURL,
+								Endpoint: frontendURL,
 							},
 						},
 					},
@@ -87,7 +88,7 @@ func (emptySystemData) Do(req *policy.Request) (*http.Response, error) {
 	return req.Next()
 }
 
-func (s *FrontendIntegrationTestInfo) Cleanup(ctx context.Context) {
+func (s *IntegrationTestInfo) Cleanup(ctx context.Context) {
 	s.StorageIntegrationTestInfo.Cleanup(ctx)
 	s.ClusterServiceMock.Cleanup(ctx)
 }
