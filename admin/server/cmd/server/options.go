@@ -33,12 +33,9 @@ import (
 
 	sdk "github.com/openshift-online/ocm-sdk-go"
 
-	"github.com/Azure/ARO-HCP/admin/server/handlers"
-	"github.com/Azure/ARO-HCP/admin/server/handlers/cosmosdump"
-	"github.com/Azure/ARO-HCP/admin/server/handlers/hcp"
 	"github.com/Azure/ARO-HCP/admin/server/interrupts"
-	"github.com/Azure/ARO-HCP/admin/server/middleware"
 	"github.com/Azure/ARO-HCP/admin/server/pkg/logging"
+	"github.com/Azure/ARO-HCP/admin/server/server"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/fpa"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -97,14 +94,10 @@ type ValidatedOptions struct {
 
 // completedOptions is a private wrapper that enforces a call of Complete() before config generation can be invoked.
 type completedOptions struct {
-	Port                   int
-	HealthPort             int
-	Location               string
-	ClustersServiceClient  ocm.ClusterServiceClientSpec
-	DbClient               database.DBClient
-	KustoClient            *kusto.Client
-	FpaCredentialRetriever fpa.FirstPartyApplicationTokenCredentialRetriever
-	Logger                 *slog.Logger
+	Port       int
+	HealthPort int
+	Logger     *slog.Logger
+	AdminAPI   *server.AdminAPI
 }
 
 type Options struct {
@@ -191,37 +184,12 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 
 	return &Options{
 		completedOptions: &completedOptions{
-			Port:                   o.Port,
-			HealthPort:             o.HealthPort,
-			Location:               o.Location,
-			ClustersServiceClient:  csClient,
-			DbClient:               dbClient,
-			KustoClient:            kustoClient,
-			FpaCredentialRetriever: fpaCredentialRetriever,
-			Logger:                 logger,
+			Port:       o.Port,
+			HealthPort: o.HealthPort,
+			Logger:     logger,
+			AdminAPI:   server.NewAdminAPI(o.Location, dbClient, csClient, kustoClient, fpaCredentialRetriever, logger),
 		},
 	}, nil
-}
-
-// NewAdminHandler creates an http.Handler for the admin API with all middleware configured.
-func NewAdminHandler(
-	logger *slog.Logger,
-	dbClient database.DBClient,
-	csClient ocm.ClusterServiceClientSpec,
-	fpaCredRetriever fpa.FirstPartyApplicationTokenCredentialRetriever,
-) http.Handler {
-	// Submux for V1 HCP endpoints
-	v1HCPMux := middleware.NewHCPResourceServerMux()
-	v1HCPMux.Handle("GET", "/helloworld", hcp.HCPHelloWorld(dbClient, csClient))
-	v1HCPMux.Handle("GET", "/hellworld/lbs", hcp.HCPDemoListLoadbalancers(dbClient, csClient, fpaCredRetriever))
-
-	v1HCPMux.Handle("GET", "/cosmosdump", cosmosdump.NewCosmosDumpHandler(dbClient))
-
-	rootMux := http.NewServeMux()
-	rootMux.Handle("/admin/helloworld", handlers.HelloWorldHandler())
-	rootMux.Handle("/admin/v1/hcp/", http.StripPrefix("/admin/v1/hcp", v1HCPMux.Handler()))
-
-	return middleware.WithClientPrincipal(middleware.WithLowercaseURLPathValue(middleware.WithLogger(logger, rootMux)))
 }
 
 func (opts *Options) Run(ctx context.Context) error {
@@ -234,14 +202,11 @@ func (opts *Options) Run(ctx context.Context) error {
 	})
 
 	logger.Info("Running server", "port", opts.Port)
-
-	handler := NewAdminHandler(opts.Logger, opts.DbClient, opts.ClustersServiceClient, opts.FpaCredentialRetriever)
-
-	s := http.Server{
+	server := &http.Server{
+		Handler: opts.AdminAPI.Handlers(),
 		Addr:    net.JoinHostPort("", strconv.Itoa(opts.Port)),
-		Handler: handler,
 	}
-	interrupts.ListenAndServe(&s, 5*time.Second)
+	interrupts.ListenAndServe(server, 5*time.Second)
 	interrupts.WaitForGracefulShutdown()
 	return nil
 }

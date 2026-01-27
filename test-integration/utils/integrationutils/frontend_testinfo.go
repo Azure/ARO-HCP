@@ -16,14 +16,22 @@ package integrationutils
 
 import (
 	"context"
+	"net"
 	"net/http"
+	"net/http/httptest"
 	"path/filepath"
+	"testing"
+	"time"
+
+	"k8s.io/apimachinery/pkg/util/wait"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 
+	"github.com/Azure/ARO-HCP/admin/server/server"
+	"github.com/Azure/ARO-HCP/frontend/pkg/frontend"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
@@ -46,10 +54,38 @@ type IntegrationTestInfo struct {
 
 	ArtifactsDir string
 
-	FrontendURL string
-	AdminURL    string
+	FrontendURL      string
+	Frontend         *frontend.Frontend
+	AdminURL         string
+	AdminAPI         *server.AdminAPI
+	adminAPIListener net.Listener
+}
 
-	Start func(ctx context.Context) error
+func (i *IntegrationTestInfo) Start(ctx context.Context, t *testing.T) error {
+	go i.Frontend.Run(ctx, ctx.Done())
+	go i.runAdminAPIServer(ctx)
+	serverUrls := []string{i.FrontendURL, i.AdminURL}
+	// frontend: wait for migration to complete to eliminate races with our test's second call migrateCosmos and to ensure the server is ready for testing
+	err := wait.PollUntilContextCancel(ctx, 1*time.Second, true, func(ctx context.Context) (bool, error) {
+		for _, url := range serverUrls {
+			_, err := http.Get(url)
+			if err != nil {
+				t.Log(err)
+				return false, nil
+			}
+		}
+		return true, nil
+	})
+	return err
+}
+
+func (i *IntegrationTestInfo) runAdminAPIServer(ctx context.Context) {
+	adminApiServer := httptest.NewUnstartedServer(i.AdminAPI.Handlers())
+	adminApiServer.Listener = i.adminAPIListener
+	adminApiServer.Start()
+
+	<-ctx.Done()
+	adminApiServer.Close()
 }
 
 func Get20240610ClientFactory(frontendURL string, subscriptionID string) *hcpsdk20240610preview.ClientFactory {

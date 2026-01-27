@@ -18,21 +18,15 @@ import (
 	"context"
 	"fmt"
 	"net"
-	"net/http"
-	"net/http/httptest"
 	"os"
 	"sync"
 	"testing"
-	"time"
 
 	_ "github.com/Azure/ARO-HCP/internal/api/v20240610preview"
 
 	"github.com/prometheus/client_golang/prometheus"
 
-	// register the APIs.
-	"k8s.io/apimachinery/pkg/util/wait"
-
-	server "github.com/Azure/ARO-HCP/admin/server/cmd/server"
+	adminApiServer "github.com/Azure/ARO-HCP/admin/server/server"
 	"github.com/Azure/ARO-HCP/frontend/pkg/frontend"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/audit"
@@ -124,13 +118,8 @@ func NewIntegrationTestInfoFromEnv(ctx context.Context, t *testing.T, withMock b
 	metricsRegistry := prometheus.NewRegistry()
 	aroHCPFrontend := frontend.NewFrontend(logger, frontendListener, frontendMetricsListener, metricsRegistry, storageIntegrationTestInfo.CosmosClient(), clusterServiceMockInfo.MockClusterServiceClient, noOpAuditClient, "fake-location")
 
-	// admin setup
-	adminHandler := server.NewAdminHandler(
-		logger,
-		storageIntegrationTestInfo.CosmosClient(),
-		clusterServiceMockInfo.MockClusterServiceClient,
-		nil,
-	)
+	// admin api setup
+	adminAPI := adminApiServer.NewAdminAPI("fake-location", storageIntegrationTestInfo.CosmosClient(), clusterServiceMockInfo.MockClusterServiceClient, nil, nil, logger)
 	adminListener, err := net.Listen("tcp4", "127.0.0.1:0")
 	if err != nil {
 		return nil, err
@@ -143,35 +132,12 @@ func NewIntegrationTestInfoFromEnv(ctx context.Context, t *testing.T, withMock b
 		ClusterServiceMock:         clusterServiceMockInfo,
 		ArtifactsDir:               storageIntegrationTestInfo.GetArtifactDir(),
 		FrontendURL:                frontendURL,
+		Frontend:                   aroHCPFrontend,
 		AdminURL:                   adminURL,
-		Start: func(ctx context.Context) error {
-			go aroHCPFrontend.Run(ctx, ctx.Done())
-			go runServer(ctx, adminListener, adminHandler)
-			serverUrls := []string{frontendURL, adminURL}
-			// frontend: wait for migration to complete to eliminate races with our test's second call migrateCosmos and to ensure the server is ready for testing
-			err = wait.PollUntilContextCancel(ctx, 1*time.Second, true, func(ctx context.Context) (bool, error) {
-				for _, url := range serverUrls {
-					_, err := http.Get(url)
-					if err != nil {
-						t.Log(err)
-						return false, nil
-					}
-				}
-				return true, nil
-			})
-			return err
-		},
+		AdminAPI:                   adminAPI,
+		adminAPIListener:           adminListener,
 	}
 	return testInfo, nil
-}
-
-func runServer(ctx context.Context, listener net.Listener, handler http.Handler) {
-	adminApiServer := httptest.NewUnstartedServer(handler)
-	adminApiServer.Listener = listener
-	adminApiServer.Start()
-
-	<-ctx.Done()
-	adminApiServer.Close()
 }
 
 func MarkOperationsCompleteForName(ctx context.Context, dbClient database.DBClient, subscriptionID, resourceName string) error {

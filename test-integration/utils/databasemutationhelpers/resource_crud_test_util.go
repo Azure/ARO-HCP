@@ -107,7 +107,7 @@ func (tt *ResourceMutationTest) RunTest(t *testing.T) {
 	cleanupCtx := context.Background()
 	cleanupCtx = utils.ContextWithLogger(cleanupCtx, testr.New(t))
 	defer testInfo.Cleanup(cleanupCtx)
-	err = testInfo.Start(ctx)
+	err = testInfo.Start(ctx, t)
 	require.NoError(t, err)
 
 	stepInput := NewCosmosStepInput(testInfo)
