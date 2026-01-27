@@ -203,6 +203,27 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 	}, nil
 }
 
+// NewAdminHandler creates an http.Handler for the admin API with all middleware configured.
+func NewAdminHandler(
+	logger *slog.Logger,
+	dbClient database.DBClient,
+	csClient ocm.ClusterServiceClientSpec,
+	fpaCredRetriever fpa.FirstPartyApplicationTokenCredentialRetriever,
+) http.Handler {
+	// Submux for V1 HCP endpoints
+	v1HCPMux := middleware.NewHCPResourceServerMux()
+	v1HCPMux.Handle("GET", "/helloworld", hcp.HCPHelloWorld(dbClient, csClient))
+	v1HCPMux.Handle("GET", "/hellworld/lbs", hcp.HCPDemoListLoadbalancers(dbClient, csClient, fpaCredRetriever))
+
+	v1HCPMux.Handle("GET", "/cosmosdump", cosmosdump.NewCosmosDumpHandler(dbClient))
+
+	rootMux := http.NewServeMux()
+	rootMux.Handle("/admin/helloworld", handlers.HelloWorldHandler())
+	rootMux.Handle("/admin/v1/hcp/", http.StripPrefix("/admin/v1/hcp", v1HCPMux.Handler()))
+
+	return middleware.WithClientPrincipal(middleware.WithLowercaseURLPathValue(middleware.WithLogger(logger, rootMux)))
+}
+
 func (opts *Options) Run(ctx context.Context) error {
 	logger := opts.Logger
 	logger.Info("Reporting health.", "port", opts.HealthPort)
@@ -214,18 +235,11 @@ func (opts *Options) Run(ctx context.Context) error {
 
 	logger.Info("Running server", "port", opts.Port)
 
-	// Submux for V1 HCP endpoints
-	v1HCPMux := middleware.NewHCPResourceServerMux()
-	v1HCPMux.Handle("GET", "/helloworld", hcp.HCPHelloWorld(opts.DbClient, opts.ClustersServiceClient, opts.FpaCredentialRetriever))
-	v1HCPMux.Handle("GET", "/cosmosdump", cosmosdump.NewCosmosDumpHandler(opts.DbClient))
-
-	rootMux := http.NewServeMux()
-	rootMux.Handle("/admin/helloworld", handlers.HelloWorldHandler())
-	rootMux.Handle("/admin/v1/hcp/", http.StripPrefix("/admin/v1/hcp", v1HCPMux.Handler()))
+	handler := NewAdminHandler(opts.Logger, opts.DbClient, opts.ClustersServiceClient, opts.FpaCredentialRetriever)
 
 	s := http.Server{
 		Addr:    net.JoinHostPort("", strconv.Itoa(opts.Port)),
-		Handler: middleware.WithClientPrincipal(middleware.WithLowercaseURLPathValue(middleware.WithLogger(logger, rootMux))),
+		Handler: handler,
 	}
 	interrupts.ListenAndServe(&s, 5*time.Second)
 	interrupts.WaitForGracefulShutdown()
