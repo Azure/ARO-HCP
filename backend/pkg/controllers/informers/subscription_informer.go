@@ -71,8 +71,12 @@ func (c *subscriptionInformer) synchronizeSubscriptions(ctx context.Context, key
 	if err := newSubscriptionsIterator.GetError(); err != nil {
 		return utils.TrackError(err)
 	}
+	newSubscriptionsByName := make(map[string]*arm.Subscription, len(newSubscriptions))
+	for _, subscription := range newSubscriptions {
+		newSubscriptionsByName[subscription.ResourceID.Name] = subscription
+	}
 
-	newLister := listers.NewReadOnlyContentLister(newSubscriptions)
+	newLister := listers.NewReadOnlyContentLister(newSubscriptions, newSubscriptionsByName)
 	c.subscriptionLister.ReplaceCache(ctx, newLister)
 
 	return nil

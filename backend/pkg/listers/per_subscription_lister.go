@@ -69,7 +69,10 @@ func (t *perSubscriptionLister[InternalAPIType]) SetSubscriptionValue(subscripti
 func (t *perSubscriptionLister[InternalAPIType]) Subscription(subscriptionName string) BasicReader[InternalAPIType] {
 	ret, ok := t.delegate.Load(subscriptionName)
 	if !ok {
-		return &readOnlyContentLister[InternalAPIType]{}
+		return &readOnlyContentLister[InternalAPIType]{
+			items:       []*InternalAPIType{},
+			itemsByName: make(map[string]*InternalAPIType),
+		}
 	}
 	return ret.(BasicReader[InternalAPIType])
 }
@@ -96,7 +99,10 @@ func (t *perResourceGroupLister[InternalAPIType]) SetResourceGroupValue(subscrip
 func (t *perResourceGroupLister[InternalAPIType]) ResourceGroup(subscriptionName, resourceGroupName string) BasicReader[InternalAPIType] {
 	ret, ok := t.delegate.Load(subscriptionName + "/" + resourceGroupName)
 	if !ok {
-		return &readOnlyContentLister[InternalAPIType]{}
+		return &readOnlyContentLister[InternalAPIType]{
+			items:       []*InternalAPIType{},
+			itemsByName: make(map[string]*InternalAPIType),
+		}
 	}
 	return ret.(BasicReader[InternalAPIType])
 }

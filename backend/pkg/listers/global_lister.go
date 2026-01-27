@@ -17,7 +17,10 @@ package listers
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"sync/atomic"
+
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
@@ -26,6 +29,8 @@ type SubscriptionLister BasicReader[arm.Subscription]
 
 type BasicReader[InternalAPIType any] interface {
 	HasSynced() bool
+	// Get returns the item associated with the given name. If the item is not
+	// found, nil is returned along with an azcore.ResponseError with StatusCode 404.
 	Get(ctx context.Context, name string) (*InternalAPIType, error)
 	List(ctx context.Context) ([]*InternalAPIType, error)
 }
@@ -36,12 +41,23 @@ type BasicReaderMaintainer[InternalAPIType any] interface {
 	BasicReader[InternalAPIType]
 }
 
+// readOnlyContentLister is a lister that stores a list of items and a map of items by name.
+// The list is used for ordered iteration, while the map provides fast lookup by name.
+//
+// This type assumes that for each item in items, if the item has name N (as determined by the caller
+// when constructing itemsByName), then itemsByName[N] must point to that same item.
+// In other words, itemsByName is an index into items, not a separate collection.
 type readOnlyContentLister[InternalAPIType any] struct {
-	items []*InternalAPIType
+	items       []*InternalAPIType
+	itemsByName map[string]*InternalAPIType
 }
 
-func NewReadOnlyContentLister[InternalAPIType any](items []*InternalAPIType) BasicReader[InternalAPIType] {
-	return &readOnlyContentLister[InternalAPIType]{items: items}
+// NewReadOnlyContentLister creates a new readOnlyContentLister with the given items and itemsByName.
+// The items and itemsByName must be consistent, i.e. for each item in items, if the item has name N (as determined by the caller
+// when constructing itemsByName), then itemsByName[N] must point to that same item.
+// In other words, itemsByName is an index into items, not a separate collection.
+func NewReadOnlyContentLister[InternalAPIType any](items []*InternalAPIType, itemsByName map[string]*InternalAPIType) BasicReader[InternalAPIType] {
+	return &readOnlyContentLister[InternalAPIType]{items: items, itemsByName: itemsByName}
 }
 
 func (r *readOnlyContentLister[InternalAPIType]) HasSynced() bool {
@@ -49,8 +65,14 @@ func (r *readOnlyContentLister[InternalAPIType]) HasSynced() bool {
 }
 
 func (r *readOnlyContentLister[InternalAPIType]) Get(ctx context.Context, name string) (*InternalAPIType, error) {
-	//TODO implement me
-	panic("implement me")
+	item, ok := r.itemsByName[name]
+	if !ok {
+		return nil, &azcore.ResponseError{
+			ErrorCode:  http.StatusText(http.StatusNotFound),
+			StatusCode: http.StatusNotFound,
+		}
+	}
+	return item, nil
 }
 
 func (r *readOnlyContentLister[InternalAPIType]) List(ctx context.Context) ([]*InternalAPIType, error) {
