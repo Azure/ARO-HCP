@@ -22,15 +22,11 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-
-	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
-
-	"github.com/Azure/ARO-HCP/internal/api"
 )
 
 type httpListStep struct {
 	stepID StepID
-	key    FrontendResourceKey
+	key    ResourceKey
 
 	expectedResources []*map[string]any
 }
@@ -40,7 +36,7 @@ func newHTTPListStep(stepID StepID, stepDir fs.FS) (*httpListStep, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to read key.json: %w", err)
 	}
-	var key FrontendResourceKey
+	var key ResourceKey
 	if err := json.Unmarshal(keyBytes, &key); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal key.json: %w", err)
 	}
@@ -64,9 +60,7 @@ func (l *httpListStep) StepID() StepID {
 }
 
 func (l *httpListStep) RunTest(ctx context.Context, t *testing.T, stepInput StepInput) {
-	resourceID := api.Must(azcorearm.ParseResourceID(l.key.ResourceID))
-	subscriptionID := resourceID.SubscriptionID
-	accessor := newFrontendHTTPTestAccessor(stepInput.FrontendURL, stepInput.FrontendClient(subscriptionID))
+	accessor := stepInput.HTTPTestAccessor(l.key)
 	actualResources, err := accessor.List(ctx, l.key.ResourceID)
 	require.NoError(t, err)
 
