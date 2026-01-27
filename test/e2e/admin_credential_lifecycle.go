@@ -188,11 +188,7 @@ var _ = Describe("Customer", func() {
 			}
 
 			By("revoking all cluster admin credentials via ARO HCP RP API")
-			poller, err := clusterClient.BeginRevokeCredentials(ctx, *resourceGroup.Name, clusterName, nil)
-			Expect(err).NotTo(HaveOccurred())
-
-			By("waiting for revocation operation to complete")
-			_, err = poller.PollUntilDone(ctx, nil)
+			err = framework.RevokeCredentialsAndWait(ctx, clusterClient, *resourceGroup.Name, clusterName, 10*time.Minute)
 			Expect(err).NotTo(HaveOccurred())
 
 			By("validating all admin credentials now fail after revocation")
