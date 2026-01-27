@@ -326,6 +326,7 @@ hypershift:
     digest: sha256:646e8e95b4ae0831d1207ef945e5342d58674927f2c214f1468dab018cfdcb03
     registry: quay.io
     repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
+  limitClusterSizes: true
   namespace: hypershift
   sharedIngressIPTag: ""
 imageSync:
@@ -461,7 +462,7 @@ mgmt:
       zones: ""
     userAgentPool:
       maxCount: 14
-      minCount: 1
+      minCount: 4
       osDiskSizeGB: 100
       poolCount: 3
       vmSize: Standard_D4s_v3
