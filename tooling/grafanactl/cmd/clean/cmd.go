@@ -53,7 +53,7 @@ func NewCleanCommand(group string) (*cobra.Command, error) {
 	fixupCmd := &cobra.Command{
 		Use:     "fixup-datasources",
 		Short:   "Delete orphaned datasources in the Grafana instance",
-		Long:    "Delete orphaned datasources in the Grafana instance. This will remove any Managed Prometheus datasources that are not exsisting anymore.",
+		Long:    "Delete orphaned datasources in the Grafana instance. This will remove any Managed Prometheus datasources that don't exist anymore.",
 		GroupID: datasourcesGroupID,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return opts.RunFixup(cmd.Context())
