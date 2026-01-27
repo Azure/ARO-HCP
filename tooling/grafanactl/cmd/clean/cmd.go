@@ -16,6 +16,7 @@ package clean
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -178,6 +179,7 @@ func (o *CompletedCleanDatasourcesOptions) RunFixup(ctx context.Context) error {
 		activePrometheusResourceNames[strings.ToLower(*monitorWorkspace.Name)] = true
 	}
 
+	var deleteErrors error
 	for _, datasource := range datasources {
 		if datasource.Type == "prometheus" {
 			nameSuffix := strings.TrimPrefix(datasource.Name, "Managed_Prometheus_")
@@ -191,10 +193,13 @@ func (o *CompletedCleanDatasourcesOptions) RunFixup(ctx context.Context) error {
 				}
 				err := o.GrafanaClient.DeleteDataSource(ctx, datasource.Name)
 				if err != nil {
-					return fmt.Errorf("failed to delete datasource: %w", err)
+					deleteErrors = errors.Join(deleteErrors, fmt.Errorf("failed to delete datasource: %w", err))
 				}
 			}
 		}
+	}
+	if deleteErrors != nil {
+		return fmt.Errorf("failed to delete datasources: %w", deleteErrors)
 	}
 
 	return nil

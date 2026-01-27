@@ -18,6 +18,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/grafana-tools/sdk"
 
@@ -25,6 +26,10 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 
 	"github.com/Azure/ARO-HCP/tooling/grafanactl/internal/azure"
+)
+
+const (
+	grafanaAPITimeout = 60 * time.Second
 )
 
 // Client provides methods to interact with Azure Managed Grafana instances.
@@ -41,12 +46,14 @@ func NewClient(ctx context.Context, credential azcore.TokenCredential, managedGr
 		return nil, fmt.Errorf("failed to get Grafana endpoint: %w", err)
 	}
 
-	token, err := getGrafanaAPIToken(ctx, credential, endpoint)
+	token, err := getGrafanaAPIToken(ctx, credential)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get API token: %w", err)
 	}
 
-	grafanaClient, err := sdk.NewClient(endpoint, token, http.DefaultClient)
+	grafanaClient, err := sdk.NewClient(endpoint, token, &http.Client{
+		Timeout: grafanaAPITimeout,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Grafana SDK client: %w", err)
 	}
@@ -57,7 +64,7 @@ func NewClient(ctx context.Context, credential azcore.TokenCredential, managedGr
 	}, nil
 }
 
-func getGrafanaAPIToken(ctx context.Context, credential azcore.TokenCredential, grafanaEndpoint string) (string, error) {
+func getGrafanaAPIToken(ctx context.Context, credential azcore.TokenCredential) (string, error) {
 	// ce34e7e5-485f-4d76-964f-b3d2b16d1e4f is the well-known Azure Managed Grafana service application ID
 	scope := "ce34e7e5-485f-4d76-964f-b3d2b16d1e4f/.default"
 

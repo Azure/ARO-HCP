@@ -28,7 +28,7 @@ import (
 // RawCleanOptions represents the initial, unvalidated configuration for clean operations.
 type RawCleanDatasourcesOptions struct {
 	*base.BaseOptions
-	DryRun bool // Perform a dry run without making changes
+	DryRun bool
 }
 
 // validatedCleanOptions is a private struct that enforces the options validation pattern.
@@ -40,9 +40,6 @@ type validatedCleanDatasourcesOptions struct {
 type ValidatedCleanDatasourcesOptions struct {
 	// Embed a private pointer that cannot be instantiated outside of this package
 	*validatedCleanDatasourcesOptions
-	GrafanaClient          *grafana.Client
-	MonitorWorkspaceClient *azure.MonitorWorkspaceClient
-	ManagedGrafanaClient   *azure.ManagedGrafanaClient
 }
 
 // CompletedCleanOptions represents the final, fully validated and initialized configuration
@@ -75,12 +72,19 @@ func BindCleanDatasourcesOptions(opts *RawCleanDatasourcesOptions, cmd *cobra.Co
 
 // Validate performs validation on the raw options
 func (o *RawCleanDatasourcesOptions) Validate(ctx context.Context) (*ValidatedCleanDatasourcesOptions, error) {
-	// Validate base options
 	if err := base.ValidateBaseOptions(o.BaseOptions); err != nil {
 		return nil, err
 	}
 
-	// Get Azure credentials
+	return &ValidatedCleanDatasourcesOptions{
+		validatedCleanDatasourcesOptions: &validatedCleanDatasourcesOptions{
+			RawCleanDatasourcesOptions: o,
+		},
+	}, nil
+}
+
+// Complete performs final initialization to create fully usable clean options.
+func (o *ValidatedCleanDatasourcesOptions) Complete(ctx context.Context) (*CompletedCleanDatasourcesOptions, error) {
 	cred, err := azure.GetAzureTokenCredentials()
 	if err != nil {
 		return nil, fmt.Errorf("failed to obtain Azure credentials: %w", err)
@@ -101,22 +105,10 @@ func (o *RawCleanDatasourcesOptions) Validate(ctx context.Context) (*ValidatedCl
 		return nil, fmt.Errorf("failed to create managed Prometheus client: %w", err)
 	}
 
-	return &ValidatedCleanDatasourcesOptions{
-		validatedCleanDatasourcesOptions: &validatedCleanDatasourcesOptions{
-			RawCleanDatasourcesOptions: o,
-		},
-		GrafanaClient:          grafanaClient,
-		MonitorWorkspaceClient: monitorWorkspaceClient,
-		ManagedGrafanaClient:   managedGrafanaClient,
-	}, nil
-}
-
-// Complete performs final initialization to create fully usable clean options.
-func (o *ValidatedCleanDatasourcesOptions) Complete(ctx context.Context) (*CompletedCleanDatasourcesOptions, error) {
 	return &CompletedCleanDatasourcesOptions{
 		validatedCleanDatasourcesOptions: o.validatedCleanDatasourcesOptions,
-		GrafanaClient:                    o.GrafanaClient,
-		MonitorWorkspaceClient:           o.MonitorWorkspaceClient,
-		ManagedGrafanaClient:             o.ManagedGrafanaClient,
+		GrafanaClient:                    grafanaClient,
+		MonitorWorkspaceClient:           monitorWorkspaceClient,
+		ManagedGrafanaClient:             managedGrafanaClient,
 	}, nil
 }

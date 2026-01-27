@@ -27,10 +27,8 @@ import (
 
 	"github.com/Azure/ARO-HCP/tooling/grafanactl/cmd/clean"
 	"github.com/Azure/ARO-HCP/tooling/grafanactl/cmd/list"
-	"github.com/Azure/ARO-HCP/tooling/grafanactl/cmd/version"
 )
 
-// Command group IDs
 const (
 	mainGroupID   = "main"
 	helperGroupID = "helper"
@@ -39,7 +37,6 @@ const (
 func main() {
 	logger := createLogger(0)
 
-	// Create a root context with the logger and signal handling
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
@@ -76,26 +73,12 @@ and other operational tasks.`,
 		Title: "Helper Commands:",
 	})
 
-	// Add main subcommands
 	mainCommands := []func(string) (*cobra.Command, error){
 		clean.NewCleanCommand,
 		list.NewListCommand,
 	}
 	for _, newCmd := range mainCommands {
 		c, err := newCmd(mainGroupID)
-		if err != nil {
-			logger.Error(err, "failed to create command")
-			os.Exit(1)
-		}
-		cmd.AddCommand(c)
-	}
-
-	// Add helper subcommands
-	helperCommands := []func(string) (*cobra.Command, error){
-		version.NewCommand,
-	}
-	for _, newCmd := range helperCommands {
-		c, err := newCmd(helperGroupID)
 		if err != nil {
 			logger.Error(err, "failed to create command")
 			os.Exit(1)
