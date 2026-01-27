@@ -171,7 +171,7 @@ func (m *mockResourceCRUD[InternalAPIType, CosmosAPIType]) Create(ctx context.Co
 	}
 
 	cosmosData := cosmosPersistable.GetCosmosData()
-	cosmosID := cosmosData.CosmosUID
+	cosmosID := cosmosData.GetCosmosUID()
 
 	// Check for existing
 	if _, exists := m.client.GetDocument(cosmosID); exists {
@@ -202,7 +202,7 @@ func (m *mockResourceCRUD[InternalAPIType, CosmosAPIType]) Replace(ctx context.C
 	}
 
 	cosmosData := cosmosPersistable.GetCosmosData()
-	cosmosID := cosmosData.CosmosUID
+	cosmosID := cosmosData.GetCosmosUID()
 
 	// Check that document exists
 	if _, exists := m.client.GetDocument(cosmosID); !exists {
@@ -221,7 +221,7 @@ func (m *mockResourceCRUD[InternalAPIType, CosmosAPIType]) Delete(ctx context.Co
 		return err
 	}
 
-	cosmosUID := any(curr).(api.CosmosPersistable).GetCosmosData().CosmosUID
+	cosmosUID := any(curr).(api.CosmosPersistable).GetCosmosData().GetCosmosUID()
 	m.client.DeleteDocument(cosmosUID)
 	return nil
 }
@@ -243,7 +243,7 @@ func (m *mockResourceCRUD[InternalAPIType, CosmosAPIType]) AddCreateToTransactio
 	}
 
 	cosmosData := cosmosPersistable.GetCosmosData()
-	cosmosID := cosmosData.CosmosUID
+	cosmosID := cosmosData.GetCosmosUID()
 
 	mockTx, ok := transaction.(*mockTransaction)
 	if !ok {
@@ -284,7 +284,7 @@ func (m *mockResourceCRUD[InternalAPIType, CosmosAPIType]) AddReplaceToTransacti
 	}
 
 	cosmosData := cosmosPersistable.GetCosmosData()
-	cosmosID := cosmosData.CosmosUID
+	cosmosID := cosmosData.GetCosmosUID()
 
 	mockTx, ok := transaction.(*mockTransaction)
 	if !ok {
@@ -571,7 +571,7 @@ func (m *mockSubscriptionCRUD) Create(ctx context.Context, newObj *arm.Subscript
 	}
 
 	cosmosData := newObj.GetCosmosData()
-	cosmosID := cosmosData.CosmosUID
+	cosmosID := cosmosData.GetCosmosUID()
 
 	if _, exists := m.client.GetDocument(cosmosID); exists {
 		return nil, &azcore.ResponseError{StatusCode: http.StatusConflict}
@@ -593,7 +593,7 @@ func (m *mockSubscriptionCRUD) Replace(ctx context.Context, newObj *arm.Subscrip
 	}
 
 	cosmosData := newObj.GetCosmosData()
-	cosmosID := cosmosData.CosmosUID
+	cosmosID := cosmosData.GetCosmosUID()
 
 	if _, exists := m.client.GetDocument(cosmosID); !exists {
 		return nil, NewNotFoundError()
@@ -630,7 +630,7 @@ func (m *mockSubscriptionCRUD) AddCreateToTransaction(ctx context.Context, trans
 	}
 
 	cosmosData := newObj.GetCosmosData()
-	cosmosID := cosmosData.CosmosUID
+	cosmosID := cosmosData.GetCosmosUID()
 
 	mockTx, ok := transaction.(*mockTransaction)
 	if !ok {
@@ -666,7 +666,7 @@ func (m *mockSubscriptionCRUD) AddReplaceToTransaction(ctx context.Context, tran
 	}
 
 	cosmosData := newObj.GetCosmosData()
-	cosmosID := cosmosData.CosmosUID
+	cosmosID := cosmosData.GetCosmosUID()
 
 	mockTx, ok := transaction.(*mockTransaction)
 	if !ok {

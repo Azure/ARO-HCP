@@ -25,7 +25,6 @@ import (
 
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/utils/ptr"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
@@ -114,14 +113,10 @@ func prepend(first string, rest ...string) []string {
 func ResourceName(resource any) string {
 	switch cast := resource.(type) {
 	case api.CosmosMetadataAccessor:
-		return ptr.To(cast.GetResourceID()).String()
+		return cast.GetResourceID().String()
 	case api.CosmosPersistable:
-		cosmosUID := cast.GetCosmosData().CosmosUID
-		resourceID, err := api.CosmosIDToResourceID(cosmosUID)
-		if err != nil {
-			return cosmosUID
-		}
-		return resourceID.String()
+		return cast.GetCosmosData().ResourceID.String()
+
 	case database.TypedDocument:
 		cosmosUID := cast.ID
 		resourceID, err := api.CosmosIDToResourceID(cosmosUID)
