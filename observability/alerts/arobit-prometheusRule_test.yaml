@@ -2,7 +2,7 @@ rule_files:
 - arobit-prometheusRule.yaml
 evaluation_interval: 1m
 tests:
-- interval: 1m
+    - interval: 1m
   input_series:
   - series: 'up{job="arobit-forwarder",namespace="arobit"}'
     values: "0+0x15"
