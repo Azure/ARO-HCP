@@ -96,7 +96,7 @@ func setupCli() *cobra.Command {
 	ext.AddSuite(e.Suite{
 		Name:        "rp-api-compat-all/parallel",
 		Qualifiers:  []string{rpApiCompatBaseQualifier},
-		Parallelism: 20,
+		Parallelism: 10,
 	})
 
 	// If using Ginkgo, build test specs automatically
