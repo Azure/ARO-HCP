@@ -1,3 +1,0 @@
-InvalidRequestContent: properties.platform.osDisk.sizeGiB: Invalid value: 63: must be greater than or equal to 64
-InvalidRequestContent: properties.platform.osDisk: Forbidden: field is immutable
-InvalidRequestContent: properties.platform: Forbidden: field is immutable

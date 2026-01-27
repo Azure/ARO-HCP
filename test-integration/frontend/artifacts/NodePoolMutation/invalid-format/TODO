@@ -1,4 +1,0 @@
-1. name validation needs to be moved from filter to actual validation and needs to provide a good error
-2. labels silently overwrite duplicate keys without errors
-3. empty keys for labels should be disallowed
-4. nodeDrainTimeoutminutes is allowed to be negative

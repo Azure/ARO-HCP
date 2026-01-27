@@ -1,0 +1,95 @@
+      {
+        "code": "InvalidRequestContent",
+        "message": "Required value",
+        "target": "properties.issuer.url"
+      }
+      {
+        "code": "InvalidRequestContent",
+        "message": "Required value",
+        "target": "properties.issuer.audiences"
+      }
+      {
+        "code": "InvalidRequestContent",
+        "message": "Required value",
+        "target": "properties.clients[0].component"
+      }
+      {
+        "code": "InvalidRequestContent",
+        "message": "Required value",
+        "target": "properties.clients[0].component.name"
+      }
+      {
+        "code": "InvalidRequestContent",
+        "message": "Required value",
+        "target": "properties.clients[0].component.authClientNamespace"
+      }
+      {
+        "code": "InvalidRequestContent",
+        "message": "Required value",
+        "target": "properties.clients[0].clientId"
+      }
+      {
+        "code": "InvalidRequestContent",
+        "message": "Required value",
+        "target": "properties.clients[0].type"
+      }
+      {
+        "code": "InvalidRequestContent",
+        "message": "Unsupported value: \"\": supported values: \"Confidential\", \"Public\"",
+        "target": "properties.clients[0].type"
+      }
+      {
+        "code": "InvalidRequestContent",
+        "message": "Required value",
+        "target": "properties.clients[1].component"
+      }
+      {
+        "code": "InvalidRequestContent",
+        "message": "Required value",
+        "target": "properties.clients[1].component.name"
+      }
+      {
+        "code": "InvalidRequestContent",
+        "message": "Required value",
+        "target": "properties.clients[1].component.authClientNamespace"
+      }
+      {
+        "code": "InvalidRequestContent",
+        "message": "Required value",
+        "target": "properties.clients[1].clientId"
+      }
+      {
+        "code": "InvalidRequestContent",
+        "message": "Required value",
+        "target": "properties.clients[1].type"
+      }
+      {
+        "code": "InvalidRequestContent",
+        "message": "Unsupported value: \"\": supported values: \"Confidential\", \"Public\"",
+        "target": "properties.clients[1].type"
+      }
+      {
+        "code": "InvalidRequestContent",
+        "message": "Duplicate value: {\"component\":{\"name\":\"\",\"authClientNamespace\":\"\"},\"clientId\":\"\",\"extraScopes\":[],\"type\":\"\"}",
+        "target": "properties.clients[1]"
+      }
+      {
+        "code": "InvalidRequestContent",
+        "message": "Required value",
+        "target": "properties.claim.mappings.username.claim"
+      }
+      {
+        "code": "InvalidRequestContent",
+        "message": "Required value",
+        "target": "properties.claim.mappings.groups.claim"
+      }
+      {
+        "code": "InvalidRequestContent",
+        "message": "Invalid value: \"\": must match an audience in issuer audiences",
+        "target": "properties.clients[0].clientId"
+      }
+      {
+        "code": "InvalidRequestContent",
+        "message": "Invalid value: \"\": must match an audience in issuer audiences",
+        "target": "properties.clients[1].clientId"
+      }

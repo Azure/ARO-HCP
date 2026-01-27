@@ -1,1 +1,0 @@
-Conflict: /subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-creating/externalAuths/test-auth: Cannot create resource while parent resource is provisioning
