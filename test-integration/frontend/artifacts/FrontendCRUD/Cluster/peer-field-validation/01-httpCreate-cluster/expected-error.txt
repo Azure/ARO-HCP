@@ -1,0 +1,1 @@
+"message": "Invalid value: \"10.0.0.0/16\": machine CIDR '10.0.0.0/16' and service CIDR '10.0.2.0/24' overlap"

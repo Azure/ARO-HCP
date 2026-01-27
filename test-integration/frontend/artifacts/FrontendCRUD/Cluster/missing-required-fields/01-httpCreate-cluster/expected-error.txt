@@ -1,0 +1,50 @@
+      {
+        "code": "InvalidRequestContent",
+        "message": "Required value",
+        "target": "properties.platform.subnetId"
+      },
+      {
+        "code": "InvalidRequestContent",
+        "message": "Required value",
+        "target": "properties.platform.networkSecurityGroupId"
+      },
+      {
+        "code": "InvalidRequestContent",
+        "message": "Required value",
+        "target": "properties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[]"
+      },
+      {
+        "code": "InvalidRequestContent",
+        "message": "Required value",
+        "target": "properties.platform.operatorsAuthentication.userAssignedIdentities.dataPlaneOperators[]"
+      },
+      {
+        "code": "InvalidRequestContent",
+        "message": "Required value",
+        "target": "properties.etcd.dataEncryption.customerManaged.kms.activeKey.name"
+      },
+      {
+        "code": "InvalidRequestContent",
+        "message": "Required value",
+        "target": "properties.etcd.dataEncryption.customerManaged.kms.activeKey.vaultName"
+      },
+      {
+        "code": "InvalidRequestContent",
+        "message": "Required value",
+        "target": "properties.etcd.dataEncryption.customerManaged.kms.activeKey.version"
+      },
+      {
+        "code": "InvalidRequestContent",
+        "message": "Required value",
+        "target": "identity.type"
+      },
+      {
+        "code": "InvalidRequestContent",
+        "message": "Unsupported value: \"\": supported values: \"None\", \"SystemAssigned\", \"SystemAssigned,UserAssigned\", \"UserAssigned\"",
+        "target": "identity.state"
+      },
+      {
+        "code": "InvalidRequestContent",
+        "message": "Invalid value: \"/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/some-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/shared-identity\": identity is not assigned to this resource",
+        "target": "properties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[]"
+      }
