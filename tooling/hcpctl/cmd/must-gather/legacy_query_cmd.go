@@ -66,7 +66,7 @@ func newQueryCommandLegacy() (*cobra.Command, error) {
 
 func (opts *MustGatherOptions) RunLegacy(ctx context.Context) error {
 	logger := logr.FromContextOrDiscard(ctx)
-	clusterIds, err := executeClusterIdQuery(ctx, opts, GetKubeSystemClusterIdQuery(opts.SubscriptionID, opts.ResourceGroup))
+	clusterIds, err := executeClusterIdQuery(ctx, opts, GetKubeSystemClusterIdQuery(opts))
 	if err != nil {
 		return fmt.Errorf("failed to execute cluster id query: %w", err)
 	}
@@ -81,7 +81,7 @@ func (opts *MustGatherOptions) RunLegacy(ctx context.Context) error {
 	if opts.SkipHostedControlPlaneLogs {
 		logger.V(2).Info("Skipping hosted control plane logs")
 	} else {
-		err = executeKubeSystemHostedControlPlaneLogsQuery(ctx, opts, opts.QueryOptions)
+		err = executeKubeSystemHostedControlPlaneLogsQuery(ctx, opts)
 		if err != nil {
 			return fmt.Errorf("failed to execute hosted control plane logs query: %w", err)
 		}
@@ -113,16 +113,12 @@ func processKubesystemLogsRow(row *KubesystemLogsRow) error {
 }
 
 func executeKubeSystemQueries(ctx context.Context, opts *MustGatherOptions, queryOpts mustgather.QueryOptions) error {
-	query := GetKubeSystemQuery(opts.SubscriptionID, opts.ResourceGroup, queryOpts.ClusterIds)
-	query.WithOrderByTimestampAsc()
+	query := GetKubeSystemQuery(opts, queryOpts.ClusterIds)
 	return castQueryAndWriteToFile(ctx, opts, ServicesLogDirectory, []*kusto.ConfigurableQuery{query})
 }
 
-func executeKubeSystemHostedControlPlaneLogsQuery(ctx context.Context, opts *MustGatherOptions, queryOpts mustgather.QueryOptions) error {
-	query := GetKubeSystemHostedControlPlaneLogsQuery(queryOpts)
-	for _, q := range query {
-		q.WithOrderByTimestampAsc()
-	}
+func executeKubeSystemHostedControlPlaneLogsQuery(ctx context.Context, opts *MustGatherOptions) error {
+	query := GetKubeSystemHostedControlPlaneLogsQuery(opts)
 	return castQueryAndWriteToFile(ctx, opts, HostedControlPlaneLogDirectory, query)
 }
 
@@ -157,18 +153,18 @@ type KubesystemLogsRow struct {
 	Kubernetes    string `kusto:"kubernetes"`
 }
 
-func GetKubeSystemClusterIdQuery(subscriptionId, resourceGroupName string) *kusto.ConfigurableQuery {
-	return kusto.NewLegacyClusterIdQuery("kubesystem", subscriptionId, resourceGroupName)
+func GetKubeSystemClusterIdQuery(opts *MustGatherOptions) *kusto.ConfigurableQuery {
+	return kusto.NewLegacyClusterIdQuery(opts.SubscriptionID, opts.ResourceGroup, opts.TimestampMin, opts.TimestampMax, opts.Limit)
 }
 
-func GetKubeSystemQuery(subscriptionId, resourceGroupName string, clusterIds []string) *kusto.ConfigurableQuery {
-	return kusto.NewKubeSystemQuery(subscriptionId, resourceGroupName, clusterIds)
+func GetKubeSystemQuery(opts *MustGatherOptions, clusterIds []string) *kusto.ConfigurableQuery {
+	return kusto.NewKubeSystemQuery(opts.SubscriptionID, opts.ResourceGroup, clusterIds, opts.TimestampMin, opts.TimestampMax, opts.Limit)
 }
 
-func GetKubeSystemHostedControlPlaneLogsQuery(opts mustgather.QueryOptions) []*kusto.ConfigurableQuery {
+func GetKubeSystemHostedControlPlaneLogsQuery(opts *MustGatherOptions) []*kusto.ConfigurableQuery {
 	queries := []*kusto.ConfigurableQuery{}
-	for _, clusterId := range opts.ClusterIds {
-		query := kusto.NewCustomerKubeSystemQuery(clusterId, opts.Limit)
+	for _, clusterId := range opts.QueryOptions.ClusterIds {
+		query := kusto.NewCustomerKubeSystemQuery(clusterId, opts.TimestampMin, opts.TimestampMax, opts.Limit)
 		queries = append(queries, query)
 	}
 	return queries

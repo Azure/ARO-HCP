@@ -84,8 +84,8 @@ func BindMustGatherOptions(opts *RawMustGatherOptions, cmd *cobra.Command) error
 	cmd.Flags().StringVar(&opts.ResourceGroup, "resource-group", opts.ResourceGroup, "resource group")
 	cmd.Flags().StringVar(&opts.ResourceId, "resource-id", opts.ResourceId, "resource ID")
 	cmd.Flags().BoolVar(&opts.SkipHostedControlPlaneLogs, "skip-hcp-logs", opts.SkipHostedControlPlaneLogs, "Do not gather customer (ocm namespaces) logs")
-	cmd.Flags().TimeVar(&opts.TimestampMin, "timestamp-min", opts.TimestampMin, []string{time.DateTime}, "timestamp minimum (default is 1 day back)")
-	cmd.Flags().TimeVar(&opts.TimestampMax, "timestamp-max", opts.TimestampMax, []string{time.DateTime}, "timestamp maximum (default is now)")
+	cmd.Flags().TimeVar(&opts.TimestampMin, "timestamp-min", opts.TimestampMin, []string{time.DateTime}, "timestamp minimum")
+	cmd.Flags().TimeVar(&opts.TimestampMax, "timestamp-max", opts.TimestampMax, []string{time.DateTime}, "timestamp maximum")
 	cmd.Flags().IntVar(&opts.Limit, "limit", opts.Limit, "limit the number of results")
 
 	// Mark required flags
@@ -152,6 +152,10 @@ func (o *RawMustGatherOptions) Validate(ctx context.Context) (*ValidatedMustGath
 
 	if o.ResourceId != "" && (o.ResourceGroup != "" || o.SubscriptionID != "") {
 		logger.Info("warning: both resource-id and resource-group/subscription-id are provided, will use resource-id to gather cluster ID")
+	}
+
+	if o.TimestampMin.After(o.TimestampMax) {
+		return nil, fmt.Errorf("timestamp-min cannot be after timestamp-max")
 	}
 
 	return &ValidatedMustGatherOptions{

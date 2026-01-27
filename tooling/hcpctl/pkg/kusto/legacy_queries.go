@@ -17,19 +17,21 @@ package kusto
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/Azure/azure-kusto-go/kusto/kql"
 )
 
 var servicesDatabaseLegacy = "HCPServiceLogs"
+var kubeSystemTable = "kubesystem"
 
 // NewLegacyClusterIDQuery creates a new KQL query for obtaining cluster IDs
 // this works for the old kusto infrastructure setup that uses the HCPServiceLogs database
-func NewLegacyClusterIdQuery(clusterServiceLogsTable, subscriptionId, resourceGroup string) *ConfigurableQuery {
-	builder := kql.New("").AddTable(clusterServiceLogsTable)
-	// TODO: the 2 day timestamp is not being honored for timestamps, but the query will timeout without scoping it.
+func NewLegacyClusterIdQuery(subscriptionId, resourceGroup string, timestampMin, timestampMax time.Time, limit int) *ConfigurableQuery {
+	builder := kql.New("").AddTable(kubeSystemTable)
 	builder.AddLiteral(`
-| where TIMESTAMP > ago(2d)
+| where TIMESTAMP between(timestampMin .. timestampMax)
+| order by TIMESTAMP asc
 | where namespace_name == "aro-hcp"
 | where container_name startswith "aro-hcp-"
 | extend d = parse_json(log)
@@ -41,9 +43,12 @@ func NewLegacyClusterIdQuery(clusterServiceLogsTable, subscriptionId, resourceGr
 | distinct cid`)
 
 	parameters := kql.NewParameters()
+	parameters.AddDateTime("timestampMin", timestampMin)
+	parameters.AddDateTime("timestampMax", timestampMax)
 	parameters.AddString("subResourceGroupId", fmt.Sprintf("/subscriptions/%s/resourceGroups/%s", subscriptionId, resourceGroup))
 	parameters.AddString("cidRegex", "/api/aro_hcp/v1alpha1/clusters/([^/]+)")
 
+	// do not take limit when looking for clusterIDs
 	return &ConfigurableQuery{
 		Name:       "Cluster ID",
 		Database:   servicesDatabaseLegacy,
@@ -54,23 +59,58 @@ func NewLegacyClusterIdQuery(clusterServiceLogsTable, subscriptionId, resourceGr
 
 // NewKubeSystemQuery creates a new KQL query for the kubesystem table
 // This is part of legacy support for the kubesystem table
-func NewKubeSystemQuery(subscriptionId, resourceGroupName string, clusterIds []string) *ConfigurableQuery {
-	builder := kql.New("").AddTable("kubesystem")
-	parameters := kql.NewParameters()
+func NewKubeSystemQuery(subscriptionId, resourceGroupName string, clusterIds []string, timestampMin, timestampMax time.Time, limit int) *ConfigurableQuery {
+	builder := kql.New("").AddTable(kubeSystemTable)
+	builder.AddLiteral(`
+	| where TIMESTAMP between(timestampMin .. timestampMax)
+	| order by TIMESTAMP asc
+	| project log, Role, namespace_name, container_name, timestamp, kubernetes`)
 
+	parameters := kql.NewParameters()
 	if len(clusterIds) != 0 {
 		builder.AddLiteral("\n| where log has subResourceGroupId or log has_any (clusterId)")
 		parameters.AddString("clusterId", strings.Join(clusterIds, ","))
 	} else {
 		builder.AddLiteral("\n| where log has subResourceGroupId")
 	}
-	builder.AddLiteral("\n| project log, Role, namespace_name, container_name, timestamp, kubernetes ")
 
+	if limit > 0 {
+		builder.AddLiteral("\n| limit ").AddInt(int32(limit))
+	}
+
+	parameters.AddDateTime("timestampMin", timestampMin)
+	parameters.AddDateTime("timestampMax", timestampMax)
 	parameters.AddString("subResourceGroupId", fmt.Sprintf("/subscriptions/%s/resourceGroups/%s", subscriptionId, resourceGroupName))
 
 	return &ConfigurableQuery{
 		Name:       "KubeSystem Service Logs",
 		Database:   servicesDatabaseLegacy,
+		Query:      builder,
+		Parameters: parameters,
+	}
+}
+
+// NewCustomerKubeSystemQuery creates a new KQL query for the customerLogs table
+func NewCustomerKubeSystemQuery(clusterId string, timestampMin, timestampMax time.Time, limit int) *ConfigurableQuery {
+	builder := kql.New("").AddTable(kubeSystemTable)
+	builder.AddLiteral(`
+	| where TIMESTAMP between(minTimestamp .. maxTimestamp)
+	| order by TIMESTAMP asc
+	| where log has clusterId or kubernetes has clusterId
+	| project log, Role, namespace_name, container_name, timestamp, kubernetes`)
+
+	if limit > 0 {
+		builder.AddLiteral("\n| limit ").AddInt(int32(limit))
+	}
+
+	parameters := kql.NewParameters()
+	parameters.AddString("clusterId", clusterId)
+	parameters.AddDateTime("minTimestamp", timestampMin)
+	parameters.AddDateTime("maxTimestamp", timestampMax)
+
+	return &ConfigurableQuery{
+		Name:       "KubeSystem Hosted Control Plane Logs",
+		Database:   "HCPCustomerLogs",
 		Query:      builder,
 		Parameters: parameters,
 	}

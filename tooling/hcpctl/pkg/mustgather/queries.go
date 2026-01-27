@@ -18,8 +18,9 @@ import (
 	"fmt"
 	"time"
 
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/kusto"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 )
 
 type QueryType string
@@ -59,7 +60,7 @@ type QueryOptions struct {
 
 func NewQueryOptions(subscriptionID, resourceGroupName, resourceId string, timestampMin, timestampMax time.Time, limit int) (*QueryOptions, error) {
 	if resourceId != "" {
-		res, err := arm.ParseResourceID(resourceId)
+		res, err := azcorearm.ParseResourceID(resourceId)
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse resourceID: %w", err)
 		}
