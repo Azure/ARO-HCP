@@ -1,12 +1,12 @@
 acm:
   mce:
     bundle:
-      digest: sha256:5cdb0b6f45c397b83632f1702d6ee3802dc3e432b0585455faa02b3b22effb11
+      digest: sha256:93f1043e2971386f668408f787bfa8f6fc96dd8d899edf1ff41bc7df4156db76
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-210
   operator:
     bundle:
-      digest: sha256:d878b575f92c0f368dbbf84ec69289ffcd833c58a3347b7a52eb05da939adf9d
+      digest: sha256:482e4a9645681657db3f3a25e873d167a6cbc887b0c5e5edc634c00510ce1fc5
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-215
 acr:
@@ -33,7 +33,7 @@ adminApi:
     issuer: Self
     name: admin-api-cert-dev-usw3
   image:
-    digest: sha256:7eaf3c38e23b749573c9914b56fae02d60e265344272e40142b6349ab7e87537
+    digest: sha256:e4d40568ee732ff9e3047c63307b4fd03e5e74d5c1b47f9183ceb4a09a0f8ebc
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpadminapi
   k8s:
@@ -69,7 +69,7 @@ backend:
   azureRuntimeConfig:
     tlsCertificatesIssuer: Self
   image:
-    digest: sha256:0fe7fc50f0076424bad1921a82dad9bcb1faff9a5c3a698af559ef8495824f58
+    digest: sha256:2111f1f38b33865d8cfef3a556048f62491515f8fcfbb6a8518fe971763cdbec
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpbackend
   k8s:
@@ -218,7 +218,7 @@ frontend:
     resourceContainerMaxScale: 4000
     zoneRedundantMode: Disabled
   image:
-    digest: sha256:507b295118fd63305d3a8e5930a7ad895b162a424a1e4d8c3089f41c880725ea
+    digest: sha256:962058f93a6325e8b239c52a170cfdf30ae625fb6f745968b92a3c0380e2b15b
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpfrontend
   k8s:
@@ -323,7 +323,7 @@ global:
 hypershift:
   additionalInstallArg: --enable-cpo-overrides
   image:
-    digest: sha256:5ab065d88cdbac91079c5f60447e00a2aa2c2cabda7da317c17328cc37836767
+    digest: sha256:646e8e95b4ae0831d1207ef945e5342d58674927f2c214f1468dab018cfdcb03
     registry: quay.io
     repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
   namespace: hypershift
@@ -333,7 +333,7 @@ imageSync:
   ocMirror:
     enabled: true
     image:
-      digest: sha256:ee746185fecbe426edc32ccb8b426dda8f24d08432043343814c679e12468699
+      digest: sha256:ccde744208a3fda8605c16cd360bb13a888a982f19af68d00d07e287409c4769
       registry: arohcpsvcdev.azurecr.io
       repository: image-sync/oc-mirror
     jobNamePrefix: ""
