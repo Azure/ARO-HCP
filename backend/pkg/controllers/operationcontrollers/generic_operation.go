@@ -50,8 +50,11 @@ type genericOperation struct {
 	queue workqueue.TypedRateLimitingInterface[controllerutils.OperationKey]
 }
 
-// NewOperationClusterCreateSynchronizer periodically lists all clusters and for each out when the cluster was created and its state.
-func NewGenericOperationClusterCreateController(
+// NewGenericOperationController returns a Controller that updates Cosmos DB documents
+// tracking ongoing asynchronous operations. Each Controller instance has a unique
+// OperationSynchronizer that reconciles a particular type of asynchronous operation,
+// like cluster creation or node pool deletion.
+func NewGenericOperationController(
 	name string,
 	synchronizer OperationSynchronizer,
 	activeOperationScanInterval time.Duration,

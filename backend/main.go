@@ -322,7 +322,7 @@ func Run(cmd *cobra.Command, args []string) error {
 			dataDumpController             = controllerutils.NewClusterWatchingController(
 				"DataDump", dbClient, subscriptionLister, 1*time.Minute, controllers.NewDataDumpController(dbClient))
 			doNothingController              = controllers.NewDoNothingExampleController(dbClient, subscriptionLister)
-			operationClusterCreateController = operationcontrollers.NewGenericOperationClusterCreateController(
+			operationClusterCreateController = operationcontrollers.NewGenericOperationController(
 				"OperationClusterCreate",
 				operationcontrollers.NewOperationClusterCreateSynchronizer(
 					argLocation,
@@ -334,7 +334,7 @@ func Run(cmd *cobra.Command, args []string) error {
 				subscriptionLister,
 				dbClient,
 			)
-			operationClusterUpdateController = operationcontrollers.NewGenericOperationClusterCreateController(
+			operationClusterUpdateController = operationcontrollers.NewGenericOperationController(
 				"OperationClusterUpdate",
 				operationcontrollers.NewOperationClusterUpdateSynchronizer(
 					dbClient,
@@ -345,9 +345,31 @@ func Run(cmd *cobra.Command, args []string) error {
 				subscriptionLister,
 				dbClient,
 			)
-			operationClusterDeleteController = operationcontrollers.NewGenericOperationClusterCreateController(
+			operationClusterDeleteController = operationcontrollers.NewGenericOperationController(
 				"OperationClusterDelete",
 				operationcontrollers.NewOperationClusterDeleteSynchronizer(
+					dbClient,
+					clusterServiceClient,
+					http.DefaultClient,
+				),
+				10*time.Second,
+				subscriptionLister,
+				dbClient,
+			)
+			operationRequestCredentialController = operationcontrollers.NewGenericOperationController(
+				"OperationRequestCredential",
+				operationcontrollers.NewOperationRequestCredentialSynchronizer(
+					dbClient,
+					clusterServiceClient,
+					http.DefaultClient,
+				),
+				10*time.Second,
+				subscriptionLister,
+				dbClient,
+			)
+			operationRevokeCredentialsController = operationcontrollers.NewGenericOperationController(
+				"OperationRevokeCredentials",
+				operationcontrollers.NewOperationRevokeCredentialsSynchronizer(
 					dbClient,
 					clusterServiceClient,
 					http.DefaultClient,
@@ -384,6 +406,8 @@ func Run(cmd *cobra.Command, args []string) error {
 					go operationClusterCreateController.Run(ctx, 20)
 					go operationClusterUpdateController.Run(ctx, 20)
 					go operationClusterDeleteController.Run(ctx, 20)
+					go operationRequestCredentialController.Run(ctx, 20)
+					go operationRevokeCredentialsController.Run(ctx, 20)
 					go clusterServiceMatchingClusterController.Run(ctx, 20)
 					go cosmosMatchingNodePoolController.Run(ctx, 20)
 					go cosmosMatchingExternalAuthController.Run(ctx, 20)
