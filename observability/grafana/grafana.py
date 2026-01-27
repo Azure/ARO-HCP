@@ -6,7 +6,7 @@ from typing import Optional
 
 
 def run_command(command):
-    if os.getenv("PRINT_COMMANDS"):
+            if os.getenv("PRINT_COMMANDS"):
         print(f"calling '{command}'")
     result = subprocess.run(
         command, shell=True, capture_output=True, text=True, check=False
