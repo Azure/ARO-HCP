@@ -43,7 +43,7 @@ func NewCleanCommand(group string) (*cobra.Command, error) {
 	cleanDatasourcesCmd := &cobra.Command{
 		Use:     "datasources",
 		Short:   "Remove orphaned Azure Monitor Workspace integrations from the Grafana resource",
-		Long:    "Clean Azure Monitor Workspace integrations references from the Grafana resource (usually you want to run this first). This will remove any references to Azure Monitor Workspace integrations that are not exsisting anymore.",
+		Long:    "Clean Azure Monitor Workspace integrations references from the Grafana resource (usually you want to run this first). This will remove any references to Azure Monitor Workspace integrations that don't exist anymore.",
 		GroupID: datasourcesGroupID,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return opts.Run(cmd.Context())
