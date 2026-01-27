@@ -1,46 +1,62 @@
-// Backend/frontend logs
 let _startTime = datetime("{{.StartTime}}");
 let _endTime = datetime("{{.EndTime}}");
 let _resource_group = '{{.ResourceGroupName}}';
-let cluster_resource_id = (database('ServiceLogs').table('frontendLogs')
-| where timestamp between (_startTime .. _endTime)
-| where resource_group == _resource_group
-| where msg has 'creating resource'
-| extend resource_id=extract(@"creating resource ([A-Za-z0-9\-\.\/]+)", 1, tostring(log)) 
-| distinct tostring(resource_id)
-| limit 1);
+// Extract cluster resource ID from frontend logs
+let cluster_resource_id = (
+    database('ServiceLogs').table('frontendLogs')
+    | where timestamp between (_startTime .. _endTime)
+    | where resource_group == _resource_group
+    | where msg has 'creating resource'
+    | extend resource_id = extract(@"creating resource ([A-Za-z0-9\-\.\/]+)", 1, tostring(log)) 
+    | distinct tostring(resource_id)
+    | limit 1
+);
+// Extract cluster ID from CS logs using cid field
+let cluster_id = toscalar(
+    database('ServiceLogs').table('clustersServiceLogs')
+    | where timestamp between (_startTime .. _endTime)
+    | where resource_id has _resource_group
+    | where isnotempty(log.cid)
+    | distinct tostring(log.cid)
+    | limit 1
+);
+// Find all Maestro resource IDs for this cluster
+let maestro_resource_ids = (
+    database('ServiceLogs').table('containerLogs')
+    | where timestamp between (_startTime .. _endTime)
+    | where namespace_name has "maestro"
+    | extend logStr = tostring(log)
+    | where logStr has cluster_id
+    | extend resourceId = extract(@'resourceid[=:"]+([a-f0-9\-]+)', 1, logStr)
+    | where isnotempty(resourceId)
+    | distinct resourceId
+);
+// Combine all logs
 union
     (
+        // Backend logs: ARO HCP backend service operations for this cluster
         database('ServiceLogs').table('backendLogs')
         | where timestamp between (_startTime .. _endTime)
         | where resource_id in (cluster_resource_id)
         | project timestamp, container_name, msg, log
     ),
     (
+        // Frontend logs: ARO HCP frontend API operations for this resource group
         database('ServiceLogs').table('frontendLogs')
         | where timestamp between (_startTime .. _endTime)
         | where resource_group == _resource_group
         | project timestamp, container_name, msg, log
-    )
-    | order by timestamp asc
-
-// CS Specific logs
-let _startTime = datetime("{{.StartTime}}");
-let _endTime = datetime("{{.EndTime}}");
-let _resource_group = '{{.ResourceGroupName}}';
+    ),
     (
+        // Clusters Service logs: OCM cluster management operations for this resource group
         database('ServiceLogs').table('clustersServiceLogs')
         | where timestamp between (_startTime .. _endTime)
-        | where resource_id has _resource_group  
+        | where resource_id has _resource_group
         | project timestamp, container_name, msg, log
-        | order by timestamp asc 
-    )
-
-// HostedCluster conditions (as seen by CS)
-let _startTime = datetime("{{.StartTime}}");
-let _endTime = datetime("{{.EndTime}}");
-let _resource_group = '{{.ResourceGroupName}}';
+    ),
     (
+        // HostedCluster conditions: Cluster status conditions as seen by Clusters Service
+        // Shows conditions like Available, Degraded, Progressing, ReconciliationSucceeded, etc.
         database('ServiceLogs').table('clustersServiceLogs')
         | where timestamp between (_startTime .. _endTime)
         | where resource_id has _resource_group
@@ -49,8 +65,37 @@ let _resource_group = '{{.ResourceGroupName}}';
         | extend status_name = tostring(matches[0])
         | extend status_message = tostring(matches[1])
         | where status_name != "" and status_message != ""
-        | project timestamp, status_name, status_message
         | summarize arg_min(timestamp, *) by status_name, status_message
-        | order by timestamp asc
-        | project-reorder timestamp, status_name, status_message
+        | project timestamp, container_name = "clusters-service (status)", msg = strcat(status_name, ": ", status_message), log = bag_pack("status_name", status_name, "status_message", status_message)
+    ),
+    (
+        // Maestro logs: Resource bundle operations for this cluster and its associated resources
+        // Includes: resource creation, updates, deletions, status events, gRPC communications
+        database('ServiceLogs').table('containerLogs')
+        | where timestamp between (_startTime .. _endTime)
+        | where namespace_name has "maestro"
+        | extend logStr = tostring(log)
+        | where logStr has cluster_id or logStr has_any (maestro_resource_ids)
+        | project timestamp, container_name, msg = logStr, log
+    ),
+    (
+        // Hypershift logs: Hypershift operator reconciliation of HostedCluster and NodePool CRs
+        // Includes: control plane provisioning, infrastructure management, hosted cluster events
+        database('ServiceLogs').table('containerLogs')
+        | where timestamp between (_startTime .. _endTime)
+        | where namespace_name has "hypershift"
+        | extend logStr = tostring(log)
+        | where logStr has cluster_id
+        | project timestamp, container_name, msg = logStr, log
+    ),
+    (
+        // ACM Agent logs: ManifestWork reconciliation on the managed cluster
+        // Includes: work agent operations, manifest application, status feedback
+        database('ServiceLogs').table('containerLogs')
+        | where timestamp between (_startTime .. _endTime)
+        | where namespace_name has "open-cluster-management-agent"
+        | extend logStr = tostring(log)
+        | where logStr has cluster_id
+        | project timestamp, container_name, msg = logStr, log
     )
+| order by timestamp asc
