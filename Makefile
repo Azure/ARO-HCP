@@ -425,9 +425,13 @@ cleanup: $(TEMPLATIZE)
 								     --verbosity=$(LOG_LEVEL)
 
 # Image Updater
-image-updater:
+image-updater-build:
+	@$(MAKE) -C tooling/image-updater build
+.PHONY: image-updater-build
+
+image-updater-update:
 	@$(MAKE) -C tooling/image-updater update
-.PHONY: image-updater
+.PHONY: image-updater-update
 
 promote-stage:
 	@$(MAKE) -C tooling/image-updater promote-stage
