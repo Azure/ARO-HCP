@@ -300,14 +300,6 @@ func SuffixName(base, suffix string, maxLen int) string {
 	return name
 }
 
-// min returns the lesser of its 2 inputs
-func min(a, b int) int {
-	if b < a {
-		return b
-	}
-	return a
-}
-
 // hash calculates the hexadecimal representation (8-chars)
 // of the hash of the passed in string using the FNV-a algorithm
 func hash(s string) string {
