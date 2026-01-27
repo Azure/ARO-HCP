@@ -22,11 +22,11 @@ import (
 	"sync"
 	"testing"
 
-	// register the APIs.
 	_ "github.com/Azure/ARO-HCP/internal/api/v20240610preview"
 
 	"github.com/prometheus/client_golang/prometheus"
 
+	adminApiServer "github.com/Azure/ARO-HCP/admin/server/server"
 	"github.com/Azure/ARO-HCP/frontend/pkg/frontend"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/audit"
@@ -70,7 +70,10 @@ func getArtifactDir() string {
 	return artifactDir
 }
 
-func NewFrontendFromTestingEnv(ctx context.Context, t *testing.T, withMock bool) (*frontend.Frontend, *FrontendIntegrationTestInfo, error) {
+func NewIntegrationTestInfoFromEnv(ctx context.Context, t *testing.T, withMock bool) (*IntegrationTestInfo, error) {
+	logger := utils.DefaultLogger()
+
+	// cosmos setup
 	var storageIntegrationTestInfo StorageIntegrationTestInfo
 	var err error
 	if withMock {
@@ -79,38 +82,48 @@ func NewFrontendFromTestingEnv(ctx context.Context, t *testing.T, withMock bool)
 		storageIntegrationTestInfo, err = NewCosmosFromTestingEnv(ctx, t)
 	}
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
-	logger := utils.DefaultLogger()
-
-	listener, err := net.Listen("tcp4", "127.0.0.1:0")
-	if err != nil {
-		return nil, nil, err
-	}
-
-	metricsListener, err := net.Listen("tcp4", "127.0.0.1:0")
-	if err != nil {
-		return nil, nil, err
-	}
-
-	noOpAuditClient, err := audit.NewOtelAuditClient(audit.CreateConn(false))
-	if err != nil {
-		return nil, nil, err
-	}
-
-	metricsRegistry := prometheus.NewRegistry()
-
+	// cluster service setup
 	clusterServiceMockInfo := NewClusterServiceMock(t, storageIntegrationTestInfo.GetArtifactDir())
 
-	aroHCPFrontend := frontend.NewFrontend(logger, listener, metricsListener, metricsRegistry, storageIntegrationTestInfo.CosmosClient(), clusterServiceMockInfo.MockClusterServiceClient, noOpAuditClient, "fake-location")
-	testInfo := &FrontendIntegrationTestInfo{
+	// frontend setup
+	frontendListener, err := net.Listen("tcp4", "127.0.0.1:0")
+	if err != nil {
+		return nil, err
+	}
+	frontendMetricsListener, err := net.Listen("tcp4", "127.0.0.1:0")
+	if err != nil {
+		return nil, err
+	}
+	noOpAuditClient, err := audit.NewOtelAuditClient(audit.CreateConn(false))
+	if err != nil {
+		return nil, err
+	}
+	metricsRegistry := prometheus.NewRegistry()
+	aroHCPFrontend := frontend.NewFrontend(logger, frontendListener, frontendMetricsListener, metricsRegistry, storageIntegrationTestInfo.CosmosClient(), clusterServiceMockInfo.MockClusterServiceClient, noOpAuditClient, "fake-location")
+
+	// admin api setup
+	adminAPI := adminApiServer.NewAdminAPI("fake-location", storageIntegrationTestInfo.CosmosClient(), clusterServiceMockInfo.MockClusterServiceClient, nil, nil)
+	adminListener, err := net.Listen("tcp4", "127.0.0.1:0")
+	if err != nil {
+		return nil, err
+	}
+
+	frontendURL := fmt.Sprintf("http://%s", frontendListener.Addr().String())
+	adminURL := fmt.Sprintf("http://%s", adminListener.Addr().String())
+	testInfo := &IntegrationTestInfo{
 		StorageIntegrationTestInfo: storageIntegrationTestInfo,
 		ClusterServiceMock:         clusterServiceMockInfo,
 		ArtifactsDir:               storageIntegrationTestInfo.GetArtifactDir(),
-		FrontendURL:                fmt.Sprintf("http://%s", listener.Addr().String()),
+		FrontendURL:                frontendURL,
+		Frontend:                   aroHCPFrontend,
+		AdminURL:                   adminURL,
+		AdminAPI:                   adminAPI,
+		adminAPIListener:           adminListener,
 	}
-	return aroHCPFrontend, testInfo, nil
+	return testInfo, nil
 }
 
 func MarkOperationsCompleteForName(ctx context.Context, dbClient database.DBClient, subscriptionID, resourceName string) error {

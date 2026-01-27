@@ -32,14 +32,6 @@ import (
 	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/v20240610preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 )
 
-type HTTPTestAccessor interface {
-	Get(ctx context.Context, resourceIDString string) (any, error)
-	List(ctx context.Context, parentResourceIDString string) ([]any, error)
-	CreateOrUpdate(ctx context.Context, resourceIDString string, content []byte) error
-	Patch(ctx context.Context, resourceIDString string, content []byte) error
-	Delete(ctx context.Context, resourceIDString string) error
-}
-
 type frontendHTTPTestAccessor struct {
 	frontEndURL    string
 	frontendClient *hcpsdk20240610preview.ClientFactory
