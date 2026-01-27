@@ -1,24 +1,33 @@
+TEST_INTEGRATION_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 
 -include ../setup-templatize-env.mk
 -include ../.bingo/Variables.mk
 
-ARO_HCP_REVISION ?= $(shell git rev-parse HEAD)
-
-# Build flags
-BUILD_DATE ?= $(shell date -u +'%Y-%m-%dT%H:%M:%SZ')
-LDFLAGS = -ldflags "\
-	-X github.com/Azure/ARO-HCP/internal/version.CommitSHA=${ARO_HCP_REVISION}"
-
-
-# Default target
 .DEFAULT_GOAL := test
 
-# Build the binary
+##@ Testing
+
+.PHONY: test
 test:
-	go test github.com/Azure/ARO-HCP/test-int
-.PHONY: build
+	FRONTEND_SIMULATION_TESTING=true \
+	go test -race github.com/Azure/ARO-HCP/test-integration/...
 
+.PHONY: test-verbose
+test-verbose:
+	FRONTEND_SIMULATION_TESTING=true \
+	go test -v -race github.com/Azure/ARO-HCP/test-integration/...
 
-clean:
-.PHONY: clean
+##@ Cosmos DB Emulator
 
+.PHONY: cosmos-start
+cosmos-start:
+	$(TEST_INTEGRATION_DIR)/hack/start-cosmos-emulator.sh
+
+.PHONY: cosmos-stop
+cosmos-stop:
+	$(TEST_INTEGRATION_DIR)/hack/stop-cosmos-emulator.sh
+
+##@ Combined Targets
+
+.PHONY: test-with-cosmos
+test-with-cosmos: cosmos-start test cosmos-stop
