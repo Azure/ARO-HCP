@@ -583,6 +583,9 @@ defaults:
   # Mise
   mise:
     deploy: true
+    canaryRollout:
+      serviceAWeight: 100
+      serviceBWeight: 0
     arm:
       policyLabel: "ARM Policy"
       tenantId: "{{ .ev2.entra.tenants.azure.tenantid }}"

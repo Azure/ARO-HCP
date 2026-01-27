@@ -28,3 +28,5 @@ mise:
     authority: "https://{{ .mise.genevaActions.authorityFQDN }}/__tenantId__/" # iss
     audience: "https://{{ .mise.genevaActions.audienceFQDN }}" # aud
     applicationId: "__genevaActionsAppId__"
+  serviceAWeight: "{{ .mise.canaryRollout.serviceAWeight }}"
+  serviceBWeight: "{{ .mise.canaryRollout.serviceBWeight }}"

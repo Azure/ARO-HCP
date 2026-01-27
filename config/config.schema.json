@@ -1937,6 +1937,20 @@
         "tracing": {
           "$ref": "#/definitions/tracing",
           "description": "Tracing configuration for OTLP traces."
+        },
+        "canaryRollout": {
+          "type": "object",
+          "description": "Traffic routing configuration for mise canary rollout.",
+          "properties": {
+            "serviceAWeight": {
+              "type": "integer",
+              "description": "The weight of service A in the traffic routing."
+            },
+            "serviceBWeight": {
+              "type": "integer",
+              "description": "The weight of service A in the traffic routing."
+            }
+          }
         }
       },
       "required": [

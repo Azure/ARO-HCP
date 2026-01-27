@@ -11,8 +11,8 @@ spec:
     - destination:
         host: mise.{{ .Values.namespace }}.svc.cluster.local
         subset: v1
-      weight: 90
+      weight: {{ .Values.serviceAWeight }}
     - destination:
         host: mise.{{ .Values.namespace }}.svc.cluster.local
         subset: v2
-      weight: 10
+      weight: {{ .Values.serviceBWeight }}

@@ -23,3 +23,5 @@ genevaActionsPolicy:
   authority: ""
   audience: ""
   applicationId: ""
+serviceAWeight: ""
+serviceBWeight: ""

@@ -374,9 +374,9 @@ spec:
     - destination:
         host: mise.mise.svc.cluster.local
         subset: v1
-      weight: 90
+      weight: 100
     - destination:
         host: mise.mise.svc.cluster.local
         subset: v2
-      weight: 10
+      weight: 0
 
