@@ -27,6 +27,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/clusterprovisioningcontrollers"
 	"github.com/go-logr/logr"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
@@ -388,6 +389,9 @@ func Run(cmd *cobra.Command, args []string) error {
 			cosmosMatchingClusterController = controllerutils.NewClusterWatchingController(
 				"CosmosMatchingClusters", dbClient, subscriptionLister, 60*time.Minute,
 				mismatchcontrollers.NewCosmosClusterMatchingController(utilsclock.RealClock{}, dbClient, clusterServiceClient))
+			dnsReservationController = controllerutils.NewClusterWatchingController(
+				"DNSReservation", dbClient, subscriptionLister, 1*time.Minute,
+				clusterprovisioningcontrollers.NewDNSReservationController(dbClient))
 		)
 
 		le, err := leaderelection.NewLeaderElector(leaderelection.LeaderElectionConfig{
@@ -412,6 +416,7 @@ func Run(cmd *cobra.Command, args []string) error {
 					go cosmosMatchingNodePoolController.Run(ctx, 20)
 					go cosmosMatchingExternalAuthController.Run(ctx, 20)
 					go cosmosMatchingClusterController.Run(ctx, 20)
+					go dnsReservationController.Run(ctx, 20)
 				},
 				OnStoppedLeading: func() {
 					operationsScanner.LeaderGauge.Set(0)

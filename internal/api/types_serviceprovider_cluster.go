@@ -29,4 +29,6 @@ type ServiceProviderCluster struct {
 	ResourceID azcorearm.ResourceID `json:"resourceId"`
 
 	LoadBalancerResourceID *azcorearm.ResourceID `json:"loadBalancerResourceID,omitempty"`
+
+	KubeAPIServerDNSReservation *azcorearm.ResourceID `json:"kubeAPIServerDNSReservation,omitempty"`
 }
