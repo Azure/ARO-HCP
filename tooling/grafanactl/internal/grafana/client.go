@@ -17,10 +17,11 @@ package grafana
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"time"
 
+	"github.com/go-logr/logr"
 	"github.com/grafana-tools/sdk"
+	"github.com/hashicorp/go-retryablehttp"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
@@ -29,13 +30,22 @@ import (
 )
 
 const (
-	grafanaAPITimeout = 60 * time.Second
+	grafanaAPITimeout  = 60 * time.Second
+	grafanaAPIRetryMax = 5
 )
 
 // Client provides methods to interact with Azure Managed Grafana instances.
 type Client struct {
 	credential    azcore.TokenCredential
 	grafanaClient *sdk.Client
+}
+
+type retryableLogger struct {
+	logger logr.Logger
+}
+
+func (l *retryableLogger) Printf(format string, v ...interface{}) {
+	l.logger.V(2).Info(fmt.Sprintf(format, v...))
 }
 
 // NewClient creates a new authenticated Grafana client for the specified Azure Managed Grafana instance.
@@ -51,9 +61,12 @@ func NewClient(ctx context.Context, credential azcore.TokenCredential, managedGr
 		return nil, fmt.Errorf("failed to get API token: %w", err)
 	}
 
-	grafanaClient, err := sdk.NewClient(endpoint, token, &http.Client{
-		Timeout: grafanaAPITimeout,
-	})
+	httpClient := retryablehttp.NewClient()
+	httpClient.RetryMax = grafanaAPIRetryMax
+	httpClient.Logger = &retryableLogger{logger: logr.FromContextOrDiscard(ctx).WithName("grafana").WithValues("endpoint", endpoint)}
+	httpClient.HTTPClient.Timeout = grafanaAPITimeout
+
+	grafanaClient, err := sdk.NewClient(endpoint, token, httpClient.StandardClient())
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Grafana SDK client: %w", err)
 	}
