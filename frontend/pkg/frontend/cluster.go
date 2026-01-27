@@ -704,7 +704,7 @@ func (f *Frontend) DeleteCluster(writer http.ResponseWriter, request *http.Reque
 	// when we get a delete call (this happens from CI quite a bit), dump the state of the cluster resources.
 	if err := serverutils.DumpDataToLogger(ctx, f.dbClient, resourceID); err != nil {
 		// never fail, this is best effort
-		logger.Error(err.Error())
+		logger.Error(err, "failed to dump data to logger")
 	}
 
 	cluster, err := f.dbClient.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).Get(ctx, resourceID.Name)
@@ -727,7 +727,7 @@ func (f *Frontend) DeleteCluster(writer http.ResponseWriter, request *http.Reque
 	}
 	_, err = transaction.Execute(ctx, nil)
 	if err != nil {
-		logger.Error("failed executing transaction", "transaction", transaction)
+		logger.Error(err, "failed executing transaction", "transaction", transaction)
 		return utils.TrackError(err)
 	}
 

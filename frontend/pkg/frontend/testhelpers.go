@@ -17,6 +17,7 @@ package frontend
 import (
 	"testing"
 
+	"github.com/go-logr/logr/testr"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
@@ -40,7 +41,7 @@ func NewTestFrontend(t *testing.T) *Frontend {
 	reg := prometheus.NewRegistry()
 
 	f := NewFrontend(
-		api.NewTestLogger(),
+		testr.New(t),
 		nil,
 		nil,
 		reg,

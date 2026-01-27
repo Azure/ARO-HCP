@@ -22,7 +22,7 @@ import (
 	"path"
 	"testing"
 
-	"github.com/neilotoole/slogt"
+	"github.com/go-logr/logr/testr"
 	"github.com/stretchr/testify/require"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
@@ -64,7 +64,7 @@ func (tc *BasicControllerTest) RunTest(t *testing.T) {
 	testDir, err := fs.Sub(tc.ArtifactDir, tc.Name)
 	require.NoError(t, err)
 
-	ctx = utils.ContextWithLogger(ctx, slogt.New(t, slogt.JSON()))
+	ctx = utils.ContextWithLogger(ctx, testr.New(t))
 	logger := utils.LoggerFromContext(ctx)
 	logger = tc.ControllerKey.AddLoggerValues(logger)
 	ctx = utils.ContextWithLogger(ctx, logger)
@@ -77,9 +77,9 @@ func (tc *BasicControllerTest) RunTest(t *testing.T) {
 	}
 	require.NoError(t, err)
 	require.NoError(t, err)
-	defer storageIntegrationTestInfo.Cleanup(utils.ContextWithLogger(context.Background(), slogt.New(t, slogt.JSON())))
+	defer storageIntegrationTestInfo.Cleanup(utils.ContextWithLogger(context.Background(), testr.New(t)))
 	clusterServiceMockInfo := integrationutils.NewClusterServiceMock(t, storageIntegrationTestInfo.GetArtifactDir())
-	defer clusterServiceMockInfo.Cleanup(utils.ContextWithLogger(context.Background(), slogt.New(t, slogt.JSON())))
+	defer clusterServiceMockInfo.Cleanup(utils.ContextWithLogger(context.Background(), testr.New(t)))
 	stepInput := databasemutationhelpers.NewCosmosStepInput(storageIntegrationTestInfo)
 	stepInput.ClusterServiceMockInfo = clusterServiceMockInfo
 

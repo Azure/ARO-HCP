@@ -9,7 +9,6 @@ require (
 	github.com/Azure/ARO-HCP/internal v0.0.0-00010101000000-000000000000
 	github.com/Azure/ARO-HCP/test/sdk/v20240610preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp v0.0.0-00010101000000-000000000000
 	github.com/google/go-cmp v0.7.0
-	github.com/neilotoole/slogt v1.1.0
 	github.com/openshift-online/ocm-api-model/clientapi v0.0.435
 	github.com/openshift-online/ocm-sdk-go v0.1.480
 	github.com/prometheus/client_golang v1.23.2
@@ -97,7 +96,7 @@ require (
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
-	github.com/go-logr/logr v1.4.3 // indirect
+	github.com/go-logr/logr v1.4.3
 	github.com/golang-jwt/jwt/v4 v4.5.2 // indirect
 	github.com/golang-jwt/jwt/v5 v5.3.0 // indirect
 	github.com/golang/glog v1.2.5 // indirect

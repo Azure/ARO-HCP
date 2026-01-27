@@ -155,7 +155,7 @@ func (s *CosmosIntegrationTestInfo) CosmosResourcesContainer() *azcosmos.Contain
 func (s *CosmosIntegrationTestInfo) Cleanup(ctx context.Context) {
 	logger := utils.LoggerFromContext(ctx)
 	if err := s.cleanupDatabase(ctx); err != nil {
-		logger.Error("Failed to cleanup database", "error", err)
+		logger.Error(err, "Failed to cleanup database")
 	}
 }
 
@@ -168,7 +168,7 @@ func (s *CosmosIntegrationTestInfo) cleanupDatabase(ctx context.Context) error {
 
 	// Save all database content before deleting
 	if err := saveAllDatabaseContent(ctx, s, s.ArtifactsDir); err != nil {
-		logger.Error("Failed to save database content", "error", err)
+		logger.Error(err, "Failed to save database content")
 		// Continue with deletion even if saving fails
 	}
 
@@ -198,8 +198,7 @@ func saveAllDatabaseContent(ctx context.Context, documentLister DocumentLister, 
 
 	// List all containers in the database
 	if err := saveContainerContent(ctx, documentLister, cosmosDir); err != nil {
-		logger.Error("Failed to save container content", "error", err)
-		// Continue with other containers
+		logger.Error(err, "Failed to save container content")
 	}
 
 	return nil
@@ -224,14 +223,14 @@ func saveContainerContent(ctx context.Context, documentLister DocumentLister, ou
 	for _, currTypedDocument := range documents {
 		item, err := json.MarshalIndent(currTypedDocument, "", "    ")
 		if err != nil {
-			logger.Error("Failed to serialize", "error", err)
+			logger.Error(err, "Failed to serialize")
 			continue
 		}
 
 		// Parse the document to get its ID for filename
 		var docMap map[string]interface{}
 		if err := json.Unmarshal(item, &docMap); err != nil {
-			logger.Error("Failed to parse document in", "error", err)
+			logger.Error(err, "Failed to parse document")
 			continue
 		}
 
@@ -293,7 +292,7 @@ func saveContainerContent(ctx context.Context, documentLister DocumentLister, ou
 		}
 		// Write document to file
 		if err := os.WriteFile(filename, prettyPrint, 0644); err != nil {
-			logger.Error("Failed to write document", "error", err, "filename", filename)
+			logger.Error(err, "Failed to write document", "filename", filename)
 			continue
 		}
 

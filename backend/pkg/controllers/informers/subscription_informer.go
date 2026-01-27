@@ -95,7 +95,7 @@ func (c *subscriptionInformer) Run(ctx context.Context, threadiness int) {
 	defer c.queue.ShutDown()
 
 	logger := utils.LoggerFromContext(ctx)
-	logger.With("controller_name", c.name)
+	logger = logger.WithValues("controller_name", c.name)
 	ctx = utils.ContextWithLogger(ctx, logger)
 	logger.Info("Starting")
 

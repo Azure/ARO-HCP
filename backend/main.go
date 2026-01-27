@@ -18,7 +18,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -27,7 +26,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/go-logr/logr"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -153,11 +151,8 @@ func newKubeconfig(kubeconfig string) (*rest.Config, error) {
 func Run(cmd *cobra.Command, args []string) error {
 	ctx := context.Background()
 
-	handler := slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
-		AddSource: true,
-	})
-	logger := slog.New(handler)
-	klog.SetLogger(logr.FromSlogHandler(handler))
+	logger := utils.DefaultLogger()
+	klog.SetLogger(logger)
 	ctx = utils.ContextWithLogger(ctx, logger)
 
 	if len(argLocation) == 0 {
@@ -433,7 +428,7 @@ func Run(cmd *cobra.Command, args []string) error {
 	})
 
 	if err := group.Wait(); err != nil {
-		logger.Error(err.Error())
+		logger.Error(err, "backend exiting with error")
 		os.Exit(1)
 	}
 

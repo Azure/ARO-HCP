@@ -107,7 +107,7 @@ func (c *genericOperation) queueAllActiveOperations(ctx context.Context) {
 
 	allSubscriptions, err := c.subscriptionLister.List(ctx)
 	if err != nil {
-		logger.Error("unable to list subscriptions", "error", err)
+		logger.Error(err, "unable to list subscriptions")
 	}
 	for _, subscription := range allSubscriptions {
 		allActiveOperations := c.cosmosClient.Operations(subscription.ResourceID.SubscriptionID).ListActiveOperations(nil)
@@ -123,7 +123,7 @@ func (c *genericOperation) queueAllActiveOperations(ctx context.Context) {
 			})
 		}
 		if err := allActiveOperations.GetError(); err != nil {
-			logger.Error("unable to iterate over active operations", "error", err, "subscription_id", subscription.ResourceID.SubscriptionID)
+			logger.Error(err, "unable to iterate over active operations", "subscription_id", subscription.ResourceID.SubscriptionID)
 		}
 	}
 }
@@ -134,7 +134,7 @@ func (c *genericOperation) Run(ctx context.Context, threadiness int) {
 	defer c.queue.ShutDown()
 
 	logger := utils.LoggerFromContext(ctx)
-	logger.With("controller_name", c.name)
+	logger = logger.WithValues("controller_name", c.name)
 	ctx = utils.ContextWithLogger(ctx, logger)
 	logger.Info("Starting")
 

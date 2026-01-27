@@ -22,7 +22,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/neilotoole/slogt"
+	"github.com/go-logr/logr/testr"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
@@ -86,7 +86,7 @@ func TestSetDeleteOperationAsCompleted(t *testing.T) {
 			var request *http.Request
 
 			ctx := context.Background()
-			ctx = utils.ContextWithLogger(ctx, slogt.New(t, slogt.JSON()))
+			ctx = utils.ContextWithLogger(ctx, testr.New(t))
 			ctrl := gomock.NewController(t)
 			mockDBClient := database.NewMockDBClient(ctrl)
 			mockOperationCRUD := database.NewMockOperationCRUD(ctrl)
@@ -568,7 +568,7 @@ func TestConvertClusterStatus(t *testing.T) {
 			}
 
 			ctx := context.Background()
-			ctx = utils.ContextWithLogger(ctx, slogt.New(t, slogt.JSON()))
+			ctx = utils.ContextWithLogger(ctx, testr.New(t))
 
 			op := operation{
 				doc: &api.Operation{

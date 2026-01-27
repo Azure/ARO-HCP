@@ -67,7 +67,7 @@ func (c *cosmosClusterMatching) synchronizeClusters(ctx context.Context, keyObj 
 		return nil
 	}
 
-	logger.Error("cosmos cluster doesn't have matching cluster-service cluster",
+	logger.Error(nil, "cosmos cluster doesn't have matching cluster-service cluster",
 		"cosmosResourceID", cosmosCluster.ID,
 		"clusterServiceID", cosmosCluster.ServiceProviderProperties.ClusterServiceID,
 	)

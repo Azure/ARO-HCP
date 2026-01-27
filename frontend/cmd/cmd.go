@@ -18,12 +18,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 
+	"github.com/go-logr/logr"
 	"github.com/microsoft/go-otel-audit/audit/base"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/cobra"
@@ -143,9 +145,11 @@ func (opts *FrontendOpts) Run() error {
 		version.CommitSHA,
 		opts.location))
 
+	// Create an slog logger for external dependencies that require it
+	slogLogger := slog.New(logr.ToSlogHandler(logger))
 	auditClient, err := audit.NewOtelAuditClient(
 		audit.CreateConn(opts.auditConnectSocket),
-		base.WithLogger(logger),
+		base.WithLogger(slogLogger),
 		base.WithSettings(base.Settings{
 			QueueSize: opts.auditLogQueueSize,
 		}))

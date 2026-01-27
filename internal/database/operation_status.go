@@ -195,7 +195,7 @@ func PatchOperationDocument(ctx context.Context, dbClient DBClient, oldOperation
 	}
 
 	if newOperationError != nil {
-		logger.With("cloud_error_code", newOperationError.Code, "cloud_error_message", newOperationError.Message).Error(message)
+		logger.WithValues("cloud_error_code", newOperationError.Code, "cloud_error_message", newOperationError.Message).Error(nil, message)
 	} else {
 		logger.Info(message)
 	}
@@ -211,10 +211,10 @@ func PatchOperationDocument(ctx context.Context, dbClient DBClient, oldOperation
 			operationWithoutNotificationURI.NotificationURI = ""
 			_, err = dbClient.Operations(operationToWrite.OperationID.SubscriptionID).Replace(ctx, &operationWithoutNotificationURI, nil)
 			if err != nil {
-				logger.Error(fmt.Sprintf("Failed to clear notification URI: %v", err))
+				logger.Error(err, "Failed to clear notification URI")
 			}
 		} else {
-			logger.Error(fmt.Sprintf("Failed to post async notification: %v", err.Error()))
+			logger.Error(err, "Failed to post async notification")
 		}
 	}
 
