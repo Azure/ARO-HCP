@@ -40,18 +40,18 @@ type validatedCleanDatasourcesOptions struct {
 type ValidatedCleanDatasourcesOptions struct {
 	// Embed a private pointer that cannot be instantiated outside of this package
 	*validatedCleanDatasourcesOptions
-	GrafanaClient           *grafana.Client
-	ManagedPrometheusClient *azure.ManagedPrometheusClient
-	ManagedGrafanaClient    *azure.ManagedGrafanaClient
+	GrafanaClient          *grafana.Client
+	MonitorWorkspaceClient *azure.MonitorWorkspaceClient
+	ManagedGrafanaClient   *azure.ManagedGrafanaClient
 }
 
 // CompletedCleanOptions represents the final, fully validated and initialized configuration
 // for clean operations.
 type CompletedCleanDatasourcesOptions struct {
 	*validatedCleanDatasourcesOptions
-	GrafanaClient           *grafana.Client
-	ManagedPrometheusClient *azure.ManagedPrometheusClient
-	ManagedGrafanaClient    *azure.ManagedGrafanaClient
+	GrafanaClient          *grafana.Client
+	MonitorWorkspaceClient *azure.MonitorWorkspaceClient
+	ManagedGrafanaClient   *azure.ManagedGrafanaClient
 }
 
 // DefaultCleanOptions returns a new RawCleanOptions with default values
@@ -96,7 +96,7 @@ func (o *RawCleanDatasourcesOptions) Validate(ctx context.Context) (*ValidatedCl
 		return nil, fmt.Errorf("failed to create Grafana client: %w", err)
 	}
 
-	managedPrometheusClient, err := azure.NewManagedPrometheusClient(o.SubscriptionID, cred)
+	monitorWorkspaceClient, err := azure.NewMonitorWorkspaceClient(o.SubscriptionID, cred)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create managed Prometheus client: %w", err)
 	}
@@ -105,9 +105,9 @@ func (o *RawCleanDatasourcesOptions) Validate(ctx context.Context) (*ValidatedCl
 		validatedCleanDatasourcesOptions: &validatedCleanDatasourcesOptions{
 			RawCleanDatasourcesOptions: o,
 		},
-		GrafanaClient:           grafanaClient,
-		ManagedPrometheusClient: managedPrometheusClient,
-		ManagedGrafanaClient:    managedGrafanaClient,
+		GrafanaClient:          grafanaClient,
+		MonitorWorkspaceClient: monitorWorkspaceClient,
+		ManagedGrafanaClient:   managedGrafanaClient,
 	}, nil
 }
 
@@ -116,7 +116,7 @@ func (o *ValidatedCleanDatasourcesOptions) Complete(ctx context.Context) (*Compl
 	return &CompletedCleanDatasourcesOptions{
 		validatedCleanDatasourcesOptions: o.validatedCleanDatasourcesOptions,
 		GrafanaClient:                    o.GrafanaClient,
-		ManagedPrometheusClient:          o.ManagedPrometheusClient,
+		MonitorWorkspaceClient:           o.MonitorWorkspaceClient,
 		ManagedGrafanaClient:             o.ManagedGrafanaClient,
 	}, nil
 }

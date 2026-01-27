@@ -29,28 +29,28 @@ type PrometheusInstance struct {
 	Tags map[string]*string
 }
 
-// ManagedPrometheusClient provides operations for Azure Monitor Workspace (Prometheus) management
-type ManagedPrometheusClient struct {
+// MonitorWorkspaceClient provides operations for Azure Monitor Workspace (Prometheus) management
+type MonitorWorkspaceClient struct {
 	client         *armmonitor.AzureMonitorWorkspacesClient
 	subscriptionID string
 }
 
 // NewPrometheusClient creates a new PrometheusClient with the provided credentials
-func NewManagedPrometheusClient(subscriptionID string, cred azcore.TokenCredential) (*ManagedPrometheusClient, error) {
+func NewMonitorWorkspaceClient(subscriptionID string, cred azcore.TokenCredential) (*MonitorWorkspaceClient, error) {
 	client, err := armmonitor.NewAzureMonitorWorkspacesClient(subscriptionID, cred, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Azure Monitor Workspaces client: %w", err)
 	}
 
-	return &ManagedPrometheusClient{
+	return &MonitorWorkspaceClient{
 		client:         client,
 		subscriptionID: subscriptionID,
 	}, nil
 }
 
 // ListPrometheusInstances returns all managed Prometheus instances in the subscription
-func (p *ManagedPrometheusClient) ListPrometheusInstances(ctx context.Context) ([]PrometheusInstance, error) {
-	var instances []PrometheusInstance
+func (p *MonitorWorkspaceClient) GetAllMonitorWorkspaces(ctx context.Context) ([]armmonitor.AzureMonitorWorkspaceResource, error) {
+	var workspaces []armmonitor.AzureMonitorWorkspaceResource
 
 	pager := p.client.NewListBySubscriptionPager(nil)
 	for pager.More() {
@@ -60,25 +60,9 @@ func (p *ManagedPrometheusClient) ListPrometheusInstances(ctx context.Context) (
 		}
 
 		for _, workspace := range page.Value {
-			if workspace == nil || workspace.Name == nil {
-				continue
-			}
-
-			instance := PrometheusInstance{
-				Name: *workspace.Name,
-			}
-
-			if workspace.ID != nil {
-				instance.ID = *workspace.ID
-			}
-
-			if workspace.Tags != nil {
-				instance.Tags = workspace.Tags
-			}
-
-			instances = append(instances, instance)
+			workspaces = append(workspaces, *workspace)
 		}
 	}
 
-	return instances, nil
+	return workspaces, nil
 }

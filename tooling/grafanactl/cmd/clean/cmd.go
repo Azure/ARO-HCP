@@ -102,14 +102,14 @@ func (o *CompletedCleanDatasourcesOptions) Run(ctx context.Context) error {
 
 	logger.Info("Found Azure Monitor Workspace integrations", "count", len(integrations))
 
-	prometheusInstances, err := o.ManagedPrometheusClient.ListPrometheusInstances(ctx)
+	monitorWorkspaces, err := o.MonitorWorkspaceClient.GetAllMonitorWorkspaces(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to list Prometheus instances: %w", err)
 	}
 
 	activePrometheusResourceIds := make(map[string]bool)
-	for _, prometheusInstance := range prometheusInstances {
-		activePrometheusResourceIds[strings.ToLower(prometheusInstance.ID)] = true
+	for _, monitorWorkspace := range monitorWorkspaces {
+		activePrometheusResourceIds[strings.ToLower(*monitorWorkspace.ID)] = true
 	}
 
 	keptIntegrations := make([]string, 0)
@@ -168,14 +168,14 @@ func (o *CompletedCleanDatasourcesOptions) RunFixup(ctx context.Context) error {
 		return fmt.Errorf("failed to list datasources: %w", err)
 	}
 
-	prometheusInstances, err := o.ManagedPrometheusClient.ListPrometheusInstances(ctx)
+	monitorWorkspaces, err := o.MonitorWorkspaceClient.GetAllMonitorWorkspaces(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to list Prometheus instances: %w", err)
 	}
 
 	activePrometheusResourceNames := make(map[string]bool)
-	for _, prometheusInstance := range prometheusInstances {
-		activePrometheusResourceNames[strings.ToLower(prometheusInstance.Name)] = true
+	for _, monitorWorkspace := range monitorWorkspaces {
+		activePrometheusResourceNames[strings.ToLower(*monitorWorkspace.Name)] = true
 	}
 
 	for _, datasource := range datasources {

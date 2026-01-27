@@ -45,7 +45,7 @@ func NewListCommand(group string) (*cobra.Command, error) {
 	listDatasourcesCmd := &cobra.Command{
 		Use:     "datasources",
 		Short:   "List all datasources in an Azure Managed Grafana instance",
-		Long:    "List all datasources configured in an Azure Managed Grafana instance.",
+		Long:    "Uses Grafana API to list all datasources in an Azure Managed Grafana instance.",
 		GroupID: datasourcesGroupID,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return opts.Run(cmd.Context())
