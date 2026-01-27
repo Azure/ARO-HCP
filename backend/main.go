@@ -45,11 +45,14 @@ import (
 	utilsclock "k8s.io/utils/clock"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
+	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
 
 	ocmsdk "github.com/openshift-online/ocm-sdk-go"
 
 	"github.com/Azure/ARO-HCP/backend/oldoperationscanner"
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
+	azureconfig "github.com/Azure/ARO-HCP/backend/pkg/azure/config"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/informers"
@@ -184,6 +187,43 @@ func callAzureRPRegistrationValidation(ctx context.Context, clientBuilder azurec
 	return nil
 }
 
+func buildBackendIdentityTokenCredentialRetriever(azureConfig *azureconfig.AzureConfig) azureclient.BackendIdentityTokenCredentialRetriever {
+	options := azureConfig.CloudEnvironment.AZCoreClientOptions()
+	return azureclient.NewBackendIdentityTokenCredentialRetriever(&options)
+}
+
+func buildBackendIdentityClientBuilder(
+	backendIdentityTokenCredentialRetriever azureclient.BackendIdentityTokenCredentialRetriever,
+	azureConfig *azureconfig.AzureConfig,
+) azureclient.BackendIdentityClientBuilder {
+	options := azureConfig.CloudEnvironment.AZCoreClientOptions()
+	return azureclient.NewBackendIdentityClientBuilder(backendIdentityTokenCredentialRetriever, &options)
+}
+
+func callAzureAPIWithBackendIdentity(ctx context.Context, blobContainerName string, blobStorageClient azureclient.BlobStorageClient) error {
+	logger := utils.LoggerFromContext(ctx)
+
+	pager := blobStorageClient.NewListBlobsFlatPager(
+		blobContainerName,
+		&azblob.ListBlobsFlatOptions{
+			Prefix: to.Ptr("prefixToSearchForBlobs"),
+		},
+	)
+
+	for pager.More() {
+		resp, err := pager.NextPage(ctx)
+		if err != nil {
+			return err
+		}
+
+		for _, blob := range resp.Segment.BlobItems {
+			logger.Info(fmt.Sprintf("blob name: %s", *blob.Name))
+		}
+	}
+
+	return nil
+}
+
 func newKubeconfig(kubeconfig string) (*rest.Config, error) {
 	loader := clientcmd.NewDefaultClientConfigLoadingRules()
 	if kubeconfig != "" {
@@ -264,6 +304,29 @@ func Run(cmd *cobra.Command, args []string) error {
 	_ = fpaClientBuilder
 
 	err = callAzureRPRegistrationValidation(ctx, fpaClientBuilder)
+	if err != nil {
+		return err
+	}
+
+	backendIdentityTokenCredentialRetriever := buildBackendIdentityTokenCredentialRetriever(azureConfig)
+	backendIdentityClientBuilder := buildBackendIdentityClientBuilder(backendIdentityTokenCredentialRetriever, azureConfig)
+
+	blobStorageClient, err := backendIdentityClientBuilder.BlobStorageClient(
+		azureConfig.AzureRuntimeConfig.DataPlaneIdentitiesOIDCConfiguration.StorageAccountBlobServiceURL,
+	)
+	if err != nil {
+		return fmt.Errorf("error building backend OIDC storage blob client: %w", err)
+	}
+
+	// In a controller we would need to pass the blob container client plus the container name to use with it.
+	// The blob storage client can be instantiated at startup time but the container name we would need to pass it to the
+	// controller because the Azure Go SDK client requires it. We could also create our own interface on top of it that
+	// does not need it but then that does not use the same signature as the Azure Go SDK client.
+	err = callAzureAPIWithBackendIdentity(
+		ctx,
+		azureConfig.AzureRuntimeConfig.DataPlaneIdentitiesOIDCConfiguration.StorageAccountBlobContainerName,
+		blobStorageClient,
+	)
 	if err != nil {
 		return err
 	}
