@@ -31,15 +31,8 @@ let maestro_resource_ids = (
     | where isnotempty(resourceId)
     | distinct resourceId
 );
-// Combine all logs
+// Query 1: API Layer Logs - Frontend and Backend services
 union
-    (
-        // Backend logs: ARO HCP backend service operations for this cluster
-        database('ServiceLogs').table('backendLogs')
-        | where timestamp between (_startTime .. _endTime)
-        | where resource_id in (cluster_resource_id)
-        | project timestamp, container_name, msg, log
-    ),
     (
         // Frontend logs: ARO HCP frontend API operations for this resource group
         database('ServiceLogs').table('frontendLogs')
@@ -47,6 +40,16 @@ union
         | where resource_group == _resource_group
         | project timestamp, container_name, msg, log
     ),
+    (
+        // Backend logs: ARO HCP backend service operations for this cluster
+        database('ServiceLogs').table('backendLogs')
+        | where timestamp between (_startTime .. _endTime)
+        | where resource_id in (cluster_resource_id)
+        | project timestamp, container_name, msg, log
+    )
+| order by timestamp asc;
+// Query 2: Cluster Management Logs - Clusters Service and HostedCluster status
+union
     (
         // Clusters Service logs: OCM cluster management operations for this resource group
         database('ServiceLogs').table('clustersServiceLogs')
@@ -67,7 +70,10 @@ union
         | where status_name != "" and status_message != ""
         | summarize arg_min(timestamp, *) by status_name, status_message
         | project timestamp, container_name = "clusters-service (status)", msg = strcat(status_name, ": ", status_message), log = bag_pack("status_name", status_name, "status_message", status_message)
-    ),
+    )
+| order by timestamp asc;
+// Query 3: Infrastructure & Orchestration Logs - Maestro, Hypershift, and ACM Agent
+union
     (
         // Maestro logs: Resource bundle operations for this cluster and its associated resources
         // Includes: resource creation, updates, deletions, status events, gRPC communications
@@ -80,7 +86,7 @@ union
     ),
     (
         // Hypershift logs: Hypershift operator reconciliation of HostedCluster and NodePool CRs
-        // Includes: control plane provisioning, infrastructure management, hosted cluster events
+        // Includes the CR reconciliation logs
         database('ServiceLogs').table('containerLogs')
         | where timestamp between (_startTime .. _endTime)
         | where namespace_name has "hypershift"
