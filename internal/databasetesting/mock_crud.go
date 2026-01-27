@@ -81,7 +81,7 @@ func (m *mockResourceCRUD[InternalAPIType, CosmosAPIType]) makeResourceIDPath(re
 
 func NewNotFoundError() *azcore.ResponseError {
 	return &azcore.ResponseError{
-		ErrorCode:  "Not Found",
+		ErrorCode:  "404 Not Found",
 		StatusCode: http.StatusNotFound,
 	}
 }
@@ -115,52 +115,7 @@ func (m *mockResourceCRUD[InternalAPIType, CosmosAPIType]) Get(ctx context.Conte
 		return nil, err
 	}
 
-	// Try exact match first
-	result, err := m.GetByID(ctx, cosmosID)
-	if err == nil {
-		return result, nil
-	}
-
-	// If not found, search by resourceID
-	if !database.IsResponseError(err, http.StatusNotFound) {
-		return nil, err
-	}
-
-	// Search all documents for matching resourceID
-	allDocs := m.client.GetAllDocuments()
-
-	for _, data := range allDocs {
-		var typedDoc database.TypedDocument
-		if err := json.Unmarshal(data, &typedDoc); err != nil {
-			continue
-		}
-
-		// Check resource type
-		if !strings.EqualFold(typedDoc.ResourceType, completeResourceID.ResourceType.String()) {
-			continue
-		}
-
-		// Check resourceID in properties
-		var props map[string]any
-		if err := json.Unmarshal(typedDoc.Properties, &props); err != nil {
-			continue
-		}
-
-		resourceIDStr, ok := props["resourceId"].(string)
-		if !ok {
-			continue
-		}
-
-		if strings.EqualFold(resourceIDStr, completeResourceID.String()) {
-			var cosmosObj CosmosAPIType
-			if err := json.Unmarshal(data, &cosmosObj); err != nil {
-				continue
-			}
-			return database.CosmosToInternal[InternalAPIType, CosmosAPIType](&cosmosObj)
-		}
-	}
-
-	return nil, NewNotFoundError()
+	return m.GetByID(ctx, cosmosID)
 }
 
 func (m *mockResourceCRUD[InternalAPIType, CosmosAPIType]) List(ctx context.Context, opts *database.DBClientListResourceDocsOptions) (database.DBClientIterator[InternalAPIType], error) {
