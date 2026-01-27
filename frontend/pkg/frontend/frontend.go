@@ -142,8 +142,8 @@ func (f *Frontend) Run(ctx context.Context, stop <-chan struct{}) {
 	MigrateCosmosOrDie(ctx, f.dbClient)
 	logger.Info("completed cosmos data migration")
 
-	logger.Info(fmt.Sprintf("listening on %s", f.listener.Addr().String()))
-	logger.Info(fmt.Sprintf("metrics listening on %s", f.metricsListener.Addr().String()))
+	logger.Info("frontend listening", "address", f.listener.Addr().String())
+	logger.Info("metrics listening", "address", f.metricsListener.Addr().String())
 
 	errs, ctx := errgroup.WithContext(ctx)
 	errs.Go(func() error {
@@ -591,7 +591,7 @@ func (f *Frontend) ArmSubscriptionPut(writer http.ResponseWriter, request *http.
 		if err != nil {
 			return utils.TrackError(err)
 		}
-		logger.Info(fmt.Sprintf("created document for subscription %s", subscriptionID))
+		logger.Info("Created subscription document", "subscriptionID", subscriptionID)
 	} else if err != nil {
 		return utils.TrackError(err)
 	} else {
@@ -604,7 +604,7 @@ func (f *Frontend) ArmSubscriptionPut(writer http.ResponseWriter, request *http.
 			if err != nil {
 				return utils.TrackError(err)
 			}
-			logger.Info(fmt.Sprintf("updated document for subscription %s", subscriptionID))
+			logger.Info("Updated subscription document", "subscriptionID", subscriptionID)
 		} else {
 			resultingSubscription = existingSubscription
 		}
@@ -698,7 +698,7 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 			err = preflightResource.Convert(versionedCluster)
 			if err != nil {
 				// Preflight is best effort: failure to parse a resource is not a validation failure.
-				logger.Warn(fmt.Sprintf("Failed to unmarshal %s resource named '%s': %s", preflightResource.Type, preflightResource.Name, err))
+				logger.Warn("Failed to unmarshal resource", "resourceType", preflightResource.Type, "resourceName", preflightResource.Name, "error", err)
 				continue
 			}
 
@@ -730,7 +730,7 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 			err = preflightResource.Convert(versionedNodePool)
 			if err != nil {
 				// Preflight is best effort: failure to parse a resource is not a validation failure.
-				logger.Warn(fmt.Sprintf("Failed to unmarshal %s resource named '%s': %s", preflightResource.Type, preflightResource.Name, err))
+				logger.Warn("Failed to unmarshal resource", "resourceType", preflightResource.Type, "resourceName", preflightResource.Name, "error", err)
 				continue
 			}
 
@@ -763,7 +763,7 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 			err = preflightResource.Convert(versionedExternalAuth)
 			if err != nil {
 				// Preflight is best effort: failure to parse a resource is not a validation failure.
-				logger.Warn(fmt.Sprintf("Failed to unmarshal %s resource named '%s': %s", preflightResource.Type, preflightResource.Name, err))
+				logger.Warn("Failed to unmarshal resource", "resourceType", preflightResource.Type, "resourceName", preflightResource.Name, "error", err)
 				continue
 			}
 

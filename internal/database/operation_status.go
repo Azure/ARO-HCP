@@ -211,10 +211,10 @@ func PatchOperationDocument(ctx context.Context, dbClient DBClient, oldOperation
 			operationWithoutNotificationURI.NotificationURI = ""
 			_, err = dbClient.Operations(operationToWrite.OperationID.SubscriptionID).Replace(ctx, &operationWithoutNotificationURI, nil)
 			if err != nil {
-				logger.Error(fmt.Sprintf("Failed to clear notification URI: %v", err))
+				logger.Error("Failed to clear notification URI", "error", err)
 			}
 		} else {
-			logger.Error(fmt.Sprintf("Failed to post async notification: %v", err.Error()))
+			logger.Error("Failed to post async notification", "error", err)
 		}
 	}
 

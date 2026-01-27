@@ -17,7 +17,6 @@ package frontend
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net/http"
 
 	"github.com/Azure/ARO-HCP/internal/api/arm"
@@ -82,7 +81,7 @@ func (h *middlewareLockSubscription) handleRequest(w http.ResponseWriter, r *htt
 				} else {
 					// Failure here is non-fatal but still log the error.
 					// The lock's TTL ensures it will be released eventually.
-					logger.Error(fmt.Sprintf("Failed to release lock: %v", err))
+					logger.Error("Failed to release lock", "error", err)
 				}
 			}
 		}()

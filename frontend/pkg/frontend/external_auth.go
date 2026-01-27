@@ -114,7 +114,7 @@ func (f *Frontend) ArmResourceListExternalAuths(writer http.ResponseWriter, requ
 		queryIDs = append(queryIDs, "'"+key+"'")
 	}
 	query := fmt.Sprintf("id in (%s)", strings.Join(queryIDs, ", "))
-	logger.Info(fmt.Sprintf("Searching Cluster Service for %q", query))
+	logger.Info("Searching Cluster Service", "query", query)
 
 	csIterator := f.clusterServiceClient.ListExternalAuths(internalCluster.ServiceProviderProperties.ClusterServiceID, query)
 	for csExternalAuth := range csIterator.Items(ctx) {
@@ -273,7 +273,7 @@ func (f *Frontend) createExternalAuth(writer http.ResponseWriter, request *http.
 		return utils.TrackError(err)
 	}
 
-	logger.Info(fmt.Sprintf("creating resource %s", resourceID))
+	logger.Info("Creating resource", "resourceID", resourceID)
 	cluster, err := f.getInternalClusterFromStorage(ctx, resourceID.Parent)
 	if err != nil {
 		return utils.TrackError(err)
@@ -501,7 +501,7 @@ func (f *Frontend) updateExternalAuthInCosmos(ctx context.Context, writer http.R
 		return utils.TrackError(err)
 	}
 
-	logger.Info(fmt.Sprintf("updating resource %s", oldInternalExternalAuth.ID))
+	logger.Info("Updating resource", "resourceID", oldInternalExternalAuth.ID)
 	csExternalAuth, err := f.clusterServiceClient.UpdateExternalAuth(ctx, oldInternalExternalAuth.ServiceProviderProperties.ClusterServiceID, csExternalAuthBuilder)
 	if err != nil {
 		return utils.TrackError(err)
