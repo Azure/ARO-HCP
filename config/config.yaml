@@ -888,6 +888,8 @@ clouds:
         deploy: false
         arm:
           applicationId: "e2c2ff5c-e5b4-4e79-8c3e-1da8c48461e7"
+        imageV2:
+          digest: sha256:14a32d793b79c47b0b8a79342ef428d29078987686dfca66e41e3810e8e75e2b # 2.0.1-azurelinux3.0-distroless
         image:
           digest: sha256:4822b1998fafa4c7ed1e0723dfed8fd0562e1525545327b821e6d9ef29573c74 # 1.39.0-azurelinux3.0-distroless
       # 1P app
