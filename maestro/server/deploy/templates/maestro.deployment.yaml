@@ -53,7 +53,7 @@ spec:
           volumeAttributes:
             secretProviderClass: "maestro"
       initContainers:
-      - name: migration
+      - name: maestro-server-migration
         image: "{{ .Values.image.registry }}/{{ .Values.image.repository }}@{{ .Values.image.digest }}"
         imagePullPolicy: IfNotPresent
         volumeMounts:
@@ -73,7 +73,7 @@ spec:
         - -v={{ .Values.maestro.glog_v }}
         - --db-auth-method={{ if .Values.database.azureDb }}az-entra{{ else }}password{{ end }}
       containers:
-      - name: service
+      - name: maestro-server
         image: "{{ .Values.image.registry }}/{{ .Values.image.repository }}@{{ .Values.image.digest }}"
         imagePullPolicy: IfNotPresent
         volumeMounts:

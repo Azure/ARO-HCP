@@ -164,7 +164,7 @@ spec:
           volumeAttributes:
             secretProviderClass: "maestro"
       initContainers:
-      - name: migration
+      - name: maestro-server-migration
         image: "arohcpsvcdev.azurecr.io/redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro@sha256:1234567890"
         imagePullPolicy: IfNotPresent
         volumeMounts:
@@ -184,7 +184,7 @@ spec:
         - -v=2
         - --db-auth-method=az-entra
       containers:
-      - name: service
+      - name: maestro-server
         image: "arohcpsvcdev.azurecr.io/redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro@sha256:1234567890"
         imagePullPolicy: IfNotPresent
         volumeMounts:
