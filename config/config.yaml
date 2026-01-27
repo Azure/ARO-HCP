@@ -696,12 +696,12 @@ defaults:
       bundle:
         registry: quay.io
         repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-215
-        digest: sha256:d878b575f92c0f368dbbf84ec69289ffcd833c58a3347b7a52eb05da939adf9d # v2.15.1-346 (2026-01-26 11:11)
+        digest: sha256:482e4a9645681657db3f3a25e873d167a6cbc887b0c5e5edc634c00510ce1fc5 # v2.15.1-348 (2026-01-27 05:12)
     mce:
       bundle:
         registry: quay.io
         repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-210
-        digest: sha256:5cdb0b6f45c397b83632f1702d6ee3802dc3e432b0585455faa02b3b22effb11 # v2.10.1-343 (2026-01-23 18:14)
+        digest: sha256:93f1043e2971386f668408f787bfa8f6fc96dd8d899edf1ff41bc7df4156db76 # v2.10.1-350 (2026-01-27 13:31)
   # Cluster Service
   clustersService:
     image:
@@ -946,7 +946,7 @@ clouds:
         image:
           registry: quay.io
           repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
-          digest: sha256:5ab065d88cdbac91079c5f60447e00a2aa2c2cabda7da317c17328cc37836767 # ff39e40a56f1a899283d7b06c3a0528e24eacac5 (2026-01-26 12:18)
+          digest: sha256:646e8e95b4ae0831d1207ef945e5342d58674927f2c214f1468dab018cfdcb03 # 2633a970282dcb78d1b6b7f6396ae152dac352b7 (2026-01-27 01:47)
       # Backplane API
       backplaneAPI:
         image:
@@ -954,7 +954,7 @@ clouds:
       # Admin API
       adminApi:
         image:
-          digest: sha256:7eaf3c38e23b749573c9914b56fae02d60e265344272e40142b6349ab7e87537 # 8477d88 (2026-01-25 19:55)
+          digest: sha256:e4d40568ee732ff9e3047c63307b4fd03e5e74d5c1b47f9183ceb4a09a0f8ebc # d85f837 (2026-01-27 12:09)
         cert:
           issuer: Self
       # Frontend
@@ -962,11 +962,11 @@ clouds:
         cert:
           issuer: Self
         image:
-          digest: sha256:507b295118fd63305d3a8e5930a7ad895b162a424a1e4d8c3089f41c880725ea # 8477d88 (2026-01-25 19:54)
+          digest: sha256:962058f93a6325e8b239c52a170cfdf30ae625fb6f745968b92a3c0380e2b15b # d85f837 (2026-01-27 12:09)
       # Backend
       backend:
         image:
-          digest: sha256:0fe7fc50f0076424bad1921a82dad9bcb1faff9a5c3a698af559ef8495824f58 # 8477d88 (2026-01-25 19:55)
+          digest: sha256:2111f1f38b33865d8cfef3a556048f62491515f8fcfbb6a8518fe971763cdbec # d85f837 (2026-01-27 12:10)
         azureRuntimeConfig:
           tlsCertificatesIssuer: Self
       # Image Sync
@@ -974,7 +974,7 @@ clouds:
         ocMirror:
           jobNamePrefix: ''
           image:
-            digest: sha256:ee746185fecbe426edc32ccb8b426dda8f24d08432043343814c679e12468699 # 8477d88 (2026-01-25 19:56)
+            digest: sha256:ccde744208a3fda8605c16cd360bb13a888a982f19af68d00d07e287409c4769 # d85f837 (2026-01-27 12:09)
       # Shared SVC KV
       serviceKeyVault:
         name: 'aro-hcp-dev-svc-kv'
