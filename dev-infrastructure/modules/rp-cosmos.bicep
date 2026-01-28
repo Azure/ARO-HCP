@@ -103,12 +103,11 @@ resource cosmosDbContainers 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/
     parent: cosmosDb
     name: c.name
     properties: {
-      // Disable till we have way to fix the issue: Updating offer to autoscale throughput is not allowed. Please invoke migration API to migrate this offer.
-      //  options: {
-      //   autoscaleSettings: {
-      //     maxThroughput: c.maxThroughput
-      //   }
-      // }
+      options: {
+        autoscaleSettings: {
+          maxThroughput: c.maxThroughput
+        }
+      }
       resource: {
         id: c.name
         defaultTtl: c.defaultTtl
