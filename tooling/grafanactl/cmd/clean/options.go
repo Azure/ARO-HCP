@@ -20,10 +20,11 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/Azure/ARO-Tools/pkg/cmdutils"
+
 	"github.com/Azure/ARO-HCP/tooling/grafanactl/cmd/base"
 	"github.com/Azure/ARO-HCP/tooling/grafanactl/internal/azure"
 	"github.com/Azure/ARO-HCP/tooling/grafanactl/internal/grafana"
-	"github.com/Azure/ARO-Tools/pkg/cmdutils"
 )
 
 // RawCleanOptions represents the initial, unvalidated configuration for clean operations.
