@@ -39,6 +39,17 @@ echo "  Account: ${COSMOSDB_ACCOUNT_NAME}"
 echo "  Database: ${DATABASE_NAME}"
 echo "  Resource Group: ${RESOURCE_GROUP}"
 
+# First check if rg and cosmosdb account exists
+if ! az group exists --name "${RESOURCE_GROUP}" --output json; then
+    echo "Resource group '${RESOURCE_GROUP}' does not exist (yet?). Exiting."
+    exit 0
+fi
+
+if ! az cosmosdb show --name "${COSMOSDB_ACCOUNT_NAME}" --resource-group "${RESOURCE_GROUP}" --output json; then
+    echo "CosmosDB account '${COSMOSDB_ACCOUNT_NAME}' does not exist (yet?). Exiting."
+    exit 0
+fi
+
 # Get current throughput configuration
 THROUGHPUT_CONFIG=$(az cosmosdb sql container throughput show \
     --account-name "${COSMOSDB_ACCOUNT_NAME}" \
