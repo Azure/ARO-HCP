@@ -6,6 +6,7 @@ import "@azure-tools/typespec-azure-resource-manager";
 import "@azure-tools/typespec-client-generator-core";
 
 using TypeSpec.Rest;
+using TypeSpec.Versioning;
 using Azure.Core;
 using Azure.ResourceManager;
 using Azure.ClientGenerator.Core;
@@ -273,6 +274,15 @@ model PlatformProfile {
    */
   @visibility(Lifecycle.Read, Lifecycle.Create)
   subnetId: SubnetResourceId;
+
+  /** The Azure resource ID of the subnet used to inject hosted
+   * control plane components into the cluster's vnet.
+   * Note that this subnet cannot be shared with the default worker subnet
+   * or any nodepools' subnets.
+   */
+  @visibility(Lifecycle.Read, Lifecycle.Create)
+  @added(Versions.v2025_12_23_preview)
+  vnetIntegrationSubnetId: SubnetResourceId;
 
   /** The core outgoing configuration */
   @visibility(Lifecycle.Read, Lifecycle.Create)
