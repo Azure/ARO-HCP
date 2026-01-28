@@ -72,6 +72,7 @@ var _ = Describe("Engineering", func() {
 					"customerVnetSubnetName": engineeringVnetSubnetName,
 				},
 				TestArtifactsFS,
+				framework.RBACScopeResourceGroup,
 			)
 			Expect(err).NotTo(HaveOccurred())
 

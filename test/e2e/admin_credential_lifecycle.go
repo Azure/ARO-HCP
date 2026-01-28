@@ -77,6 +77,7 @@ var _ = Describe("Customer", func() {
 				clusterParams,
 				map[string]any{},
 				TestArtifactsFS,
+				framework.RBACScopeResourceGroup,
 			)
 			Expect(err).NotTo(HaveOccurred())
 

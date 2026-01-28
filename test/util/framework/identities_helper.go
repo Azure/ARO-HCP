@@ -160,6 +160,7 @@ func (tc *perItOrDescribeTestContext) ResolveIdentitiesForTemplate(resourceGroup
 func (tc *perItOrDescribeTestContext) DeployManagedIdentities(
 	ctx context.Context,
 	clusterName string,
+	rbacScope RBACScope,
 	opts ...BicepDeploymentOption,
 ) (*armresources.DeploymentExtended, error) {
 
@@ -204,6 +205,7 @@ func (tc *perItOrDescribeTestContext) DeployManagedIdentities(
 		"clusterResourceGroupName": cfg.resourceGroup,
 		"msiResourceGroupName":     msiRGName,
 		"identities":               identities,
+		"rbacScope":                rbacScope,
 	}
 
 	deploymentResult, err := tc.CreateBicepTemplateAndWait(ctx,

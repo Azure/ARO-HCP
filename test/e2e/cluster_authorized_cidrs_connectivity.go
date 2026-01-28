@@ -76,6 +76,7 @@ var _ = Describe("Authorized CIDRs", func() {
 						"customerVnetSubnetName": customerVnetSubnetName,
 					},
 					TestArtifactsFS,
+					framework.RBACScopeResourceGroup,
 				)
 				Expect(err).NotTo(HaveOccurred())
 

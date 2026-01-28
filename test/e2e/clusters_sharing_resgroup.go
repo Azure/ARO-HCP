@@ -76,6 +76,7 @@ var _ = Describe("Customer", func() {
 					"customerVnetSubnetName": customerVnetSubnetName,
 				},
 				TestArtifactsFS,
+				framework.RBACScopeResourceGroup,
 			)
 			Expect(err).NotTo(HaveOccurred())
 
@@ -90,6 +91,7 @@ var _ = Describe("Customer", func() {
 					"customerVnetSubnetName": customerVnetSubnetName2,
 				},
 				TestArtifactsFS,
+				framework.RBACScopeResourceGroup,
 			)
 			Expect(err).NotTo(HaveOccurred())
 
@@ -144,6 +146,7 @@ var _ = Describe("Customer", func() {
 					"customerVnetSubnetName": customerVnetSubnetName3,
 				},
 				TestArtifactsFS,
+				framework.RBACScopeResourceGroup,
 			)
 			Expect(err).NotTo(HaveOccurred())
 

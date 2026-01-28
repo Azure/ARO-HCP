@@ -69,6 +69,7 @@ var _ = Describe("Update HCPOpenShiftCluster", func() {
 					clusterParams,
 					map[string]interface{}{},
 					TestArtifactsFS,
+					framework.RBACScopeResourceGroup,
 				)
 				Expect(err).NotTo(HaveOccurred())
 
@@ -144,6 +145,7 @@ var _ = Describe("Update HCPOpenShiftCluster", func() {
 					clusterParams,
 					map[string]interface{}{},
 					TestArtifactsFS,
+					framework.RBACScopeResourceGroup,
 				)
 				Expect(err).NotTo(HaveOccurred())
 

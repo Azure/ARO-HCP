@@ -9,6 +9,13 @@ param clusterResourceGroupName string
 @description('If true, use the pre-created MSI pool in msiResourceGroupName; if false, create MSIs in the cluster resource group')
 param useMsiPool bool = true
 
+@description('RBAC scope to use for role assignments: resourceGroup or resource')
+@allowed([
+  'resource'
+  'resourceGroup'
+])
+param rbacScope string = 'resourceGroup'
+
 type ManagedIdentities = {
   clusterApiAzureMiName: string
   controlPlaneMiName: string
@@ -51,6 +58,7 @@ module pooledNonMsiScopedAssignments 'non-msi-scoped-assignments.bicep' = if (us
     subnetName: subnetName
     nsgName: nsgName
     keyVaultName: keyVaultName
+    rbacScope: rbacScope
   }
 }
 
@@ -59,6 +67,7 @@ module pooledMsiScopedAssignments 'msi-scoped-assignments.bicep' = if (useMsiPoo
   scope: resourceGroup(msiResourceGroupName)
   params: {
     identities: identities
+    rbacScope: rbacScope
   }
 }
 
@@ -83,6 +92,7 @@ module clusterNonMsiScopedAssignments 'non-msi-scoped-assignments.bicep' = if (!
     subnetName: subnetName
     nsgName: nsgName
     keyVaultName: keyVaultName
+    rbacScope: rbacScope
   }
 }
 
@@ -91,6 +101,7 @@ module clusterMsiScopedAssignments 'msi-scoped-assignments.bicep' = if (!useMsiP
   scope: resourceGroup(clusterResourceGroupName)
   params: {
     identities: clusterIdentities.outputs.msiIdentities
+    rbacScope: rbacScope
   }
 }
 
