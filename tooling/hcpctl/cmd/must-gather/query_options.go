@@ -17,6 +17,7 @@ package mustgather
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"os"
 	"path"
 	"time"
@@ -47,6 +48,10 @@ type RawMustGatherOptions struct {
 func DefaultMustGatherOptions() *RawMustGatherOptions {
 	return &RawMustGatherOptions{
 		QueryTimeout: 5 * time.Minute,
+		TimestampMin: time.Now().Add(-24 * time.Hour),
+		TimestampMax: time.Now(),
+		Limit:        -1, // defaults to no limit
+		OutputPath:   fmt.Sprintf("must-gather-%s", time.Now().Format("20060102-150405")),
 	}
 }
 
@@ -91,13 +96,20 @@ func BindMustGatherOptions(opts *RawMustGatherOptions, cmd *cobra.Command) error
 		}
 	}
 
+	cmd.MarkFlagsMutuallyExclusive("subscription-id", "resource-id")
+	cmd.MarkFlagsMutuallyExclusive("resource-group", "resource-id")
+
+	cmd.MarkFlagsRequiredTogether("subscription-id", "resource-group")
+
 	return nil
 }
 
 // ValidatedMustGatherOptions represents must-gather configuration that has passed validation.
 type ValidatedMustGatherOptions struct {
 	*RawMustGatherOptions
-	QueryOptions mustgather.QueryOptions
+
+	KustoEndpoint *url.URL
+	QueryOptions  mustgather.QueryOptions
 }
 
 // Validate performs comprehensive validation of all must-gather input parameters.
@@ -111,6 +123,12 @@ func (o *RawMustGatherOptions) Validate(ctx context.Context) (*ValidatedMustGath
 	// Validate region
 	if o.Region == "" {
 		return nil, fmt.Errorf("region is required")
+	}
+
+	// form kusto URL
+	kustoEndpoint, err := kusto.KustoEndpoint(o.Kusto, o.Region)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create Kusto endpoint: %w", err)
 	}
 
 	// Validate query timeout
@@ -136,8 +154,13 @@ func (o *RawMustGatherOptions) Validate(ctx context.Context) (*ValidatedMustGath
 		logger.Info("warning: both resource-id and resource-group/subscription-id are provided, will use resource-id to gather cluster ID")
 	}
 
+	if o.TimestampMin.After(o.TimestampMax) {
+		return nil, fmt.Errorf("timestamp-min cannot be after timestamp-max")
+	}
+
 	return &ValidatedMustGatherOptions{
 		RawMustGatherOptions: o,
+		KustoEndpoint:        kustoEndpoint,
 		QueryOptions: mustgather.QueryOptions{
 			SubscriptionId:    o.SubscriptionID,
 			ResourceGroupName: o.ResourceGroup,
@@ -150,17 +173,7 @@ func (o *RawMustGatherOptions) Validate(ctx context.Context) (*ValidatedMustGath
 
 // Complete performs final initialization to create fully usable MustGatherOptions.
 func (o *ValidatedMustGatherOptions) Complete(ctx context.Context) (*MustGatherOptions, error) {
-	// Set default output path if not specified
-	if o.OutputPath == "" {
-		o.OutputPath = fmt.Sprintf("must-gather-%s", time.Now().Format("20060102-150405"))
-	}
-
-	endpoint, err := kusto.KustoEndpoint(o.Kusto, o.Region)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create Kusto endpoint: %w", err)
-	}
-
-	client, err := kusto.NewClient(endpoint, o.QueryTimeout)
+	client, err := kusto.NewClient(o.KustoEndpoint, o.QueryTimeout)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Kusto client: %w", err)
 	}
