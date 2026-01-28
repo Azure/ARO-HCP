@@ -1,0 +1,15 @@
+      {
+        "code": "InvalidRequestContent",
+        "message": "Required value",
+        "target": "properties.issuer.url"
+      }
+      {
+        "code": "InvalidRequestContent",
+        "message": "Required value",
+        "target": "properties.issuer.audiences"
+      }
+      {
+        "code": "InvalidRequestContent",
+        "message": "Required value",
+        "target": "properties.claim.mappings.username.claim"
+      }

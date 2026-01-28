@@ -1,0 +1,70 @@
+      {
+        "code": "InvalidRequestContent",
+        "message": "Invalid value: \"http://login.microsoftonline.com/12345678-1234-1234-1234-123456789abc/v2.0\": must be https URL",
+        "target": "properties.issuer.url"
+      }
+      {
+        "code": "InvalidRequestContent",
+        "message": "Invalid value: \"invalid\": not a valid PEM",
+        "target": "properties.issuer.ca"
+      }
+      {
+        "code": "InvalidRequestContent",
+        "message": "Too long: may not be more than 256 bytes",
+        "target": "properties.clients[0].component.name"
+      }
+      {
+        "code": "InvalidRequestContent",
+        "message": "Too long: may not be more than 63 bytes",
+        "target": "properties.clients[0].component.authClientNamespace"
+      }
+      {
+        "code": "InvalidRequestContent",
+        "message": "Unsupported value: \"NotEnum\": supported values: \"Confidential\", \"Public\"",
+        "target": "properties.clients[1].type"
+      }
+      {
+        "code": "InvalidRequestContent",
+        "message": "Unsupported value: \"Wrong\": supported values: \"NoPrefix\", \"None\", \"Prefix\"",
+        "target": "properties.claim.mappings.username.prefixPolicy"
+      }
+      {
+        "code": "InvalidRequestContent",
+        "message": "Invalid value: \"\": may only be specified when `prefixPolicy` is \"Prefix\"",
+        "target": "properties.claim.mappings.username.prefix"
+      }
+      {
+        "code": "InvalidRequestContent",
+        "message": "Too long: may not be more than 256 bytes",
+        "target": "properties.claim.mappings.groups.claim"
+      }
+      {
+        "code": "InvalidRequestContent",
+        "message": "Unsupported value: \"\": supported values: \"RequiredClaim\"",
+        "target": "properties.claim.validationRules[0].type"
+      }
+      {
+        "code": "InvalidRequestContent",
+        "message": "Required value",
+        "target": "properties.claim.validationRules[0].requiredClaim.claim"
+      }
+      {
+        "code": "InvalidRequestContent",
+        "message": "Required value",
+        "target": "properties.claim.validationRules[0].requiredClaim.requiredValue"
+      }
+      {
+        "code": "InvalidRequestContent",
+        "message": "Unsupported value: \"InvalidEnum\": supported values: \"RequiredClaim\"",
+        "target": "properties.claim.validationRules[1].type"
+      }
+      {
+        "code": "InvalidRequestContent",
+        "message": "Required value",
+        "target": "properties.claim.validationRules[1].requiredClaim.claim"
+      }
+      {
+        "code": "InvalidRequestContent",
+        "message": "Required value",
+        "target": "properties.claim.validationRules[1].requiredClaim.requiredValue"
+      }
