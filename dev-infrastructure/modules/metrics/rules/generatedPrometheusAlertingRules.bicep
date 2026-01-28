@@ -38,7 +38,7 @@ This may indicate that the Prometheus server is down, unreachable due to network
 Check the status of the Prometheus pods, service endpoints, and network connectivity.
 '''
         }
-        expression: 'min by (job, namespace) (up{job="prometheus/prometheus",namespace="prometheus"}) == 0'
+        expression: 'group by (cluster) (up{job="kube-state-metrics"}) unless on(cluster) group by (cluster) (up{job="prometheus/prometheus",namespace="prometheus"} == 1)'
         for: 'PT5M'
         severity: 3
       }
@@ -70,7 +70,7 @@ This may indicate that the Prometheus server is down, experiencing network issue
 Please check the status of the Prometheus pods, service endpoints, and network connectivity.
 '''
         }
-        expression: 'avg by (job, namespace) (avg_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d])) < 0.95'
+        expression: 'avg by (job, namespace, cluster) (avg_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d])) < 0.95'
         for: 'PT10M'
         severity: 3
       }
@@ -389,7 +389,7 @@ resource mise 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
           summary: 'Envoy scrape target down for namespace=mise'
           title: 'Prometheus scrape for envoy-stats job in namespace mise is failing or missing.'
         }
-        expression: 'absent(up{endpoint="http-envoy-prom", container="istio-proxy", namespace="mise"}) or (up{endpoint="http-envoy-prom", container="istio-proxy", namespace="mise"} == 0)'
+        expression: 'group by (cluster) (up{job="kube-state-metrics", cluster=~".*-svc-\\d+"}) unless on(cluster) group by (cluster) (up{endpoint="http-envoy-prom", container="istio-proxy", namespace="mise"} == 1)'
         for: 'PT5M'
         severity: 4
       }
@@ -454,7 +454,7 @@ resource frontend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' =
           summary: 'High 4xx|5xx Error Rate on Frontend Cluster Service'
           title: 'The Frontend Cluster Service 5xx error rate is above 5% for the last hour. Current value: {{ $value | humanizePercentage }}.'
         }
-        expression: '(sum(max without(prometheus_replica) (rate(frontend_clusters_service_client_request_count{code=~"4..|5.."}[1h])))) / (sum(max without(prometheus_replica) (rate(frontend_clusters_service_client_request_count[1h])))) > 0.05'
+        expression: '(sum by (cluster) (max without(prometheus_replica) (rate(frontend_clusters_service_client_request_count{code=~"4..|5.."}[1h])))) / (sum by (cluster) (max without(prometheus_replica) (rate(frontend_clusters_service_client_request_count[1h])))) > 0.05'
         for: 'PT5M'
         severity: 4
       }
@@ -493,7 +493,7 @@ resource backend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = 
           summary: 'High Error Rate on Backend Operations'
           title: 'The Backend operation error rate is above 5% for the last hour. Current value: {{ $value | humanizePercentage }}.'
         }
-        expression: '(sum(rate(backend_failed_operations_total[1h]))) / (sum(rate(backend_operations_total[1h]))) > 0.05'
+        expression: '(sum by (cluster) (rate(backend_failed_operations_total[1h]))) / (sum by (cluster) (rate(backend_operations_total[1h]))) > 0.05'
         for: 'PT5M'
         severity: 4
       }
@@ -538,7 +538,7 @@ This may indicate that the Arobit forwarder is down, or experiencing a crash loo
 Check the status of the Arobit forwarder pods, service endpoints, and network connectivity.
 '''
         }
-        expression: 'min by (job, namespace) (up{job="arobit-forwarder",namespace="arobit"}) == 0'
+        expression: 'group by (cluster) (up{job="kube-state-metrics"}) unless on(cluster) group by (cluster) (up{job="arobit-forwarder",namespace="arobit"} == 1)'
         for: 'PT15M'
         severity: 3
       }
