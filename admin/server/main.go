@@ -15,7 +15,6 @@
 package main
 
 import (
-	"fmt"
 	"os"
 	"runtime/debug"
 
@@ -28,7 +27,7 @@ import (
 func main() {
 	// Create the application logger
 	logger := logging.New(0)
-	logger.Info(fmt.Sprintf("aro-hcp-admin (%s) starting...", version()))
+	logger.Info("aro-hcp-admin starting", "revision", buildRevision())
 
 	cmd := &cobra.Command{
 		Use:           "aro-hcp-admin",
@@ -43,19 +42,19 @@ func main() {
 	for _, newCmd := range commands {
 		c, err := newCmd()
 		if err != nil {
-			logger.Error("Failed to create subcommand.", "error", err)
+			logger.Error(err, "Failed to create subcommand")
 			os.Exit(1)
 		}
 		cmd.AddCommand(c)
 	}
 
 	if err := cmd.Execute(); err != nil {
-		logger.Error("Command failed.", "error", err)
+		logger.Error(err, "Command failed")
 		os.Exit(1)
 	}
 }
 
-func version() string {
+func buildRevision() string {
 	version := "unknown"
 	if info, ok := debug.ReadBuildInfo(); ok {
 		for _, setting := range info.Settings {

@@ -24,6 +24,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/go-logr/logr"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/cobra"
 
@@ -96,7 +97,7 @@ type ValidatedOptions struct {
 type completedOptions struct {
 	Port       int
 	HealthPort int
-	Logger     *slog.Logger
+	Logger     logr.Logger
 	AdminAPI   *server.AdminAPI
 }
 
@@ -172,12 +173,14 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 	}
 
 	// Create FPA TokenCredentials with watching and caching
-	certReader, err := fpa.NewWatchingFileCertificateReader(ctx, o.FpaCertBundlePath, 30*time.Minute, logger)
+	// FPA functions require *slog.Logger, so convert from logr.Logger
+	slogLogger := slog.New(logr.ToSlogHandler(logger))
+	certReader, err := fpa.NewWatchingFileCertificateReader(ctx, o.FpaCertBundlePath, 30*time.Minute, slogLogger)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create certificate reader: %w", err)
 	}
 
-	fpaCredentialRetriever, err := fpa.NewFirstPartyApplicationTokenCredentialRetriever(logger, o.FpaClientID, certReader, azcore.ClientOptions{})
+	fpaCredentialRetriever, err := fpa.NewFirstPartyApplicationTokenCredentialRetriever(slogLogger, o.FpaClientID, certReader, azcore.ClientOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create the FPA token credentials: %w", err)
 	}
@@ -194,7 +197,7 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 
 func (opts *Options) Run(ctx context.Context) error {
 	logger := opts.Logger
-	logger.Info("Reporting health.", "port", opts.HealthPort)
+	logger.Info("Reporting health", "port", opts.HealthPort)
 	health := NewHealthOnPort(logger, opts.HealthPort)
 	health.ServeReady(func() bool {
 		// todo: add real readiness checks

@@ -15,8 +15,9 @@
 package server
 
 import (
-	"log/slog"
 	"net/http"
+
+	"github.com/go-logr/logr"
 
 	"github.com/Azure/azure-kusto-go/kusto"
 
@@ -36,7 +37,7 @@ type AdminAPI struct {
 	fpaCredentialRetriever fpa.FirstPartyApplicationTokenCredentialRetriever
 
 	location string
-	logger   *slog.Logger
+	logger   logr.Logger
 }
 
 func NewAdminAPI(
@@ -45,7 +46,7 @@ func NewAdminAPI(
 	clustersServiceClient ocm.ClusterServiceClientSpec,
 	kustoClient *kusto.Client,
 	fpaCredentialRetriever fpa.FirstPartyApplicationTokenCredentialRetriever,
-	logger *slog.Logger,
+	logger logr.Logger,
 ) *AdminAPI {
 	return &AdminAPI{
 		location:               location,

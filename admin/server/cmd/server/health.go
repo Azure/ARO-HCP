@@ -16,10 +16,11 @@ package server
 
 import (
 	"fmt"
-	"log/slog"
 	"net/http"
 	"strconv"
 	"time"
+
+	"github.com/go-logr/logr"
 
 	"github.com/Azure/ARO-HCP/admin/server/interrupts"
 )
@@ -27,16 +28,16 @@ import (
 // Health keeps a request multiplexer for health liveness and readiness endpoints
 type Health struct {
 	healthMux *http.ServeMux
-	logger    *slog.Logger
+	logger    logr.Logger
 }
 
 // NewHealth creates a new health request multiplexer and starts serving the liveness endpoint
 // on the given port
-func NewHealthOnPort(logger *slog.Logger, port int) *Health {
+func NewHealthOnPort(logger logr.Logger, port int) *Health {
 	healthMux := http.NewServeMux()
 	healthMux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		if _, err := fmt.Fprint(w, "OK"); err != nil {
-			logger.Error("failed to write health response", "error", err)
+			logger.Error(err, "failed to write health response")
 		}
 	})
 	server := &http.Server{Addr: ":" + strconv.Itoa(port), Handler: healthMux}
@@ -56,13 +57,13 @@ func (h *Health) ServeReady(readinessChecks ...ReadinessCheck) {
 			if !readinessCheck() {
 				w.WriteHeader(http.StatusServiceUnavailable)
 				if _, err := fmt.Fprint(w, "ReadinessCheck failed"); err != nil {
-					h.logger.Error("failed to write health response", "error", err)
+					h.logger.Error(err, "failed to write health response")
 				}
 				return
 			}
 		}
 		if _, err := fmt.Fprint(w, "OK"); err != nil {
-			h.logger.Error("failed to write health response", "error", err)
+			h.logger.Error(err, "failed to write health response")
 		}
 	})
 }
