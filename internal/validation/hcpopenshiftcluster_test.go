@@ -20,6 +20,8 @@ import (
 	"strings"
 	"testing"
 
+	"k8s.io/apimachinery/pkg/api/operation"
+
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api"
@@ -99,6 +101,10 @@ func TestClusterRequired(t *testing.T) {
 					message:   "Invalid value: 0: must be greater than or equal to 1",
 					fieldPath: "customerProperties.autoscaling.maxNodeProvisionTimeSeconds",
 				},
+				{
+					message:   "Required value",
+					fieldPath: "serviceProviderProperties.managedIdentitiesDataPlaneIdentityURL",
+				},
 			},
 		},
 		{
@@ -115,6 +121,10 @@ func TestClusterRequired(t *testing.T) {
 				{
 					message:   "Required value",
 					fieldPath: "customerProperties.platform.networkSecurityGroupId",
+				},
+				{
+					message:   "Required value",
+					fieldPath: "serviceProviderProperties.managedIdentitiesDataPlaneIdentityURL",
 				},
 			},
 		},
@@ -155,7 +165,7 @@ func TestClusterRequired(t *testing.T) {
 				resource = api.ClusterTestCase(t, tt.tweaks)
 			}
 
-			actualErrors := ValidateClusterCreate(context.TODO(), resource, nil)
+			actualErrors := ValidateClusterCreate(context.TODO(), operation.Operation{Type: operation.Create}, resource, nil)
 			verifyErrorsMatch(t, tt.expectErrors, actualErrors)
 		})
 	}
@@ -713,7 +723,7 @@ func TestClusterValidate(t *testing.T) {
 				resource = api.ClusterTestCase(t, tt.tweaks)
 			}
 
-			actualErrors := ValidateClusterCreate(context.TODO(), resource, nil)
+			actualErrors := ValidateClusterCreate(context.TODO(), operation.Operation{Type: operation.Create}, resource, nil)
 			verifyErrorsMatch(t, tt.expectErrors, actualErrors)
 		})
 	}

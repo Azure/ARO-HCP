@@ -19,6 +19,7 @@ import (
 	"crypto/x509"
 	"fmt"
 	"net"
+	"net/url"
 	"regexp"
 	"strings"
 
@@ -223,6 +224,19 @@ func IPv4(_ context.Context, _ operation.Operation, fldPath *field.Path, value, 
 	}
 	if ip.To4() == nil {
 		return field.ErrorList{field.Invalid(fldPath, *value, "not IPv4")}
+	}
+
+	return nil
+}
+
+func URL(_ context.Context, _ operation.Operation, fldPath *field.Path, value, _ *string) field.ErrorList {
+	if value == nil {
+		return nil
+	}
+
+	_, err := url.Parse(*value)
+	if err != nil {
+		return field.ErrorList{field.Invalid(fldPath, *value, err.Error())}
 	}
 
 	return nil

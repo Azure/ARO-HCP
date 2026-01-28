@@ -92,7 +92,7 @@
 			"managed_identities": {
 				"control_plane_operators_managed_identities": null,
 				"data_plane_operators_managed_identities": null,
-				"managed_identities_data_plane_identity_url": "https://example.com",
+				"managed_identities_data_plane_identity_url": "https://dummyhost.identity.azure.net/otherinformation?aqueryarg=somevalue",
 				"service_managed_identity": {
 					"client_id": "",
 					"principal_id": "",
