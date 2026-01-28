@@ -564,6 +564,9 @@ mise:
     authorityFQDN: login.microsoftonline.com
     policyLabel: ARM Policy
     tenantId: 33e01921-4d64-4f8c-a055-5bdaffd5e33d
+  canaryRollout:
+    serviceAWeight: 100
+    serviceBWeight: 0
   deploy: false
   genevaActions:
     audienceFQDN: management.azure.com
@@ -571,6 +574,9 @@ mise:
     policyLabel: Geneva Actions
   image:
     digest: sha256:4822b1998fafa4c7ed1e0723dfed8fd0562e1525545327b821e6d9ef29573c74
+    repository: mise-1p-container-image
+  imageV2:
+    digest: sha256:14a32d793b79c47b0b8a79342ef428d29078987686dfca66e41e3810e8e75e2b
     repository: mise-1p-container-image
   tracing:
     address: ""

@@ -12,6 +12,7 @@ spec:
     metadata:
       labels:
         app: mise
+        version: v1
     spec:
       topologySpreadConstraints:
       - maxSkew: 1

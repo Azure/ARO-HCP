@@ -1931,14 +1931,32 @@
         "image": {
           "$ref": "#/definitions/containerImage"
         },
+        "imageV2": {
+          "$ref": "#/definitions/containerImage"
+        },
         "tracing": {
           "$ref": "#/definitions/tracing",
           "description": "Tracing configuration for OTLP traces."
+        },
+        "canaryRollout": {
+          "type": "object",
+          "description": "Traffic routing configuration for mise canary rollout.",
+          "properties": {
+            "serviceAWeight": {
+              "type": "integer",
+              "description": "The weight of service A in the traffic routing."
+            },
+            "serviceBWeight": {
+              "type": "integer",
+              "description": "The weight of service B in the traffic routing."
+            }
+          }
         }
       },
       "required": [
         "deploy",
         "image",
+        "imageV2",
         "arm",
         "genevaActions",
         "tracing"
