@@ -17,12 +17,12 @@ package utils
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
 
+	"github.com/go-logr/logr/testr"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -66,7 +66,7 @@ type fileUpdateReceiver struct {
 	filePath    string
 }
 
-func (r *fileUpdateReceiver) onUpdate() error {
+func (r *fileUpdateReceiver) onUpdate(_ context.Context) error {
 	content, err := os.ReadFile(r.filePath)
 	if err != nil {
 		return err
@@ -89,10 +89,10 @@ func TestFSWatcherDetectsRotation(t *testing.T) {
 		secretPath,
 		50*time.Millisecond,
 		receiver.onUpdate,
-		slog.New(slog.NewTextHandler(os.Stdout, nil)),
 	)
 	require.NoError(t, err)
-	err = watcher.Start(t.Context())
+	ctx := ContextWithLogger(t.Context(), testr.New(t))
+	err = watcher.Start(ctx)
 	require.NoError(t, err)
 
 	rotatedSecretValue := "rotated-secret"
@@ -113,7 +113,8 @@ func TestFSWatcherContextCancellation(t *testing.T) {
 		filePath: secretPath,
 	}
 	ctx, cancel := context.WithCancel(t.Context())
-	watcher, err := NewFSWatcher(secretPath, 50*time.Millisecond, receiver.onUpdate, slog.New(slog.NewTextHandler(os.Stdout, nil)))
+	ctx = ContextWithLogger(ctx, testr.New(t))
+	watcher, err := NewFSWatcher(secretPath, 50*time.Millisecond, receiver.onUpdate)
 	require.NoError(t, err)
 
 	err = watcher.Start(ctx)
@@ -137,20 +138,20 @@ func TestFSWatcherContextCancellation(t *testing.T) {
 }
 
 func TestFSWatcherRequiresCallback(t *testing.T) {
-	_, err := NewFSWatcher("/some/path", 100*time.Millisecond, nil, slog.New(slog.NewTextHandler(os.Stdout, nil)))
+	_, err := NewFSWatcher("/some/path", 100*time.Millisecond, nil)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "onChange callback is required")
 }
 
 func TestFSWatcherInvalidPath(t *testing.T) {
-	onChange := func() error {
+	onChange := func(_ context.Context) error {
 		return nil
 	}
 
-	ctx := context.Background()
+	ctx := ContextWithLogger(context.Background(), testr.New(t))
 
 	// Try to watch a path that doesn't exist
-	watcher, err := NewFSWatcher("/nonexistent/path/secret", 100*time.Millisecond, onChange, slog.New(slog.NewTextHandler(os.Stdout, nil)))
+	watcher, err := NewFSWatcher("/nonexistent/path/secret", 100*time.Millisecond, onChange)
 	require.NoError(t, err)
 
 	// Start should fail because the file doesn't exist

@@ -19,7 +19,6 @@ import (
 	"crypto"
 	"crypto/x509"
 	"fmt"
-	"log/slog"
 	"sync"
 	"time"
 
@@ -31,7 +30,6 @@ import (
 type WatchingFileCertificateReader struct {
 	reader   *FileCertificateReader
 	filePath string
-	logger   *slog.Logger
 
 	mu    sync.RWMutex
 	certs []*x509.Certificate
@@ -40,17 +38,17 @@ type WatchingFileCertificateReader struct {
 
 // NewWatchingFileCertificateReader creates a new watching certificate reader.
 // It loads the initial certificate and starts watching for changes.
-func NewWatchingFileCertificateReader(ctx context.Context, filePath string, checkInterval time.Duration, logger *slog.Logger) (*WatchingFileCertificateReader, error) {
+// The logger is obtained from the context using utils.LoggerFromContext.
+func NewWatchingFileCertificateReader(ctx context.Context, filePath string, checkInterval time.Duration) (*WatchingFileCertificateReader, error) {
 	reader := NewFileCertificateReader(filePath)
 
 	w := &WatchingFileCertificateReader{
 		reader:   reader,
 		filePath: filePath,
-		logger:   logger,
 	}
 
 	// Load initial certificate
-	if err := w.reload(); err != nil {
+	if err := w.reload(ctx); err != nil {
 		return nil, fmt.Errorf("failed to load initial certificate: %w", err)
 	}
 
@@ -66,7 +64,7 @@ func NewWatchingFileCertificateReader(ctx context.Context, filePath string, chec
 // When changes are detected, the reload callback is invoked.
 // Watching continues until the context is canceled.
 func (w *WatchingFileCertificateReader) startWatching(ctx context.Context, checkInterval time.Duration) error {
-	watcher, err := utils.NewFSWatcher(w.filePath, checkInterval, w.reload, w.logger)
+	watcher, err := utils.NewFSWatcher(w.filePath, checkInterval, w.reload)
 	if err != nil {
 		return fmt.Errorf("failed to create file watcher: %w", err)
 	}
@@ -82,7 +80,9 @@ func (w *WatchingFileCertificateReader) ReadCertificate() ([]*x509.Certificate, 
 }
 
 // reload reads and caches the certificate from the underlying reader.
-func (w *WatchingFileCertificateReader) reload() error {
+func (w *WatchingFileCertificateReader) reload(ctx context.Context) error {
+	logger := utils.LoggerFromContext(ctx)
+
 	certs, key, err := w.reader.ReadCertificate()
 	if err != nil {
 		return fmt.Errorf("failed to read certificate: %w", err)
@@ -93,7 +93,7 @@ func (w *WatchingFileCertificateReader) reload() error {
 	w.certs = certs
 	w.key = key
 
-	w.logger.Info("certificate reloaded",
+	logger.Info("certificate reloaded",
 		"notBefore", certs[0].NotBefore.Format(time.RFC3339),
 		"notAfter", certs[0].NotAfter.Format(time.RFC3339))
 

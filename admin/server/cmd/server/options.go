@@ -24,6 +24,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/go-logr/logr"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/cobra"
 
@@ -42,6 +43,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/fpa"
 	"github.com/Azure/ARO-HCP/internal/ocm"
+	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 func DefaultOptions() *RawOptions {
@@ -135,6 +137,11 @@ func (o *RawOptions) Validate() (*ValidatedOptions, error) {
 func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 	logger := logging.New(o.LogVerbosity)
 
+	// Create a logr.Logger for context-based logging
+	handlerOptions := &slog.HandlerOptions{Level: slog.Level(o.LogVerbosity * -1)}
+	logrLogger := logr.FromSlogHandler(slog.NewJSONHandler(os.Stdout, handlerOptions))
+	ctx = utils.ContextWithLogger(ctx, logrLogger)
+
 	// Create CS client
 	csConnection, err := sdk.NewUnauthenticatedConnectionBuilder().
 		URL(o.ClustersServiceURL).
@@ -179,12 +186,12 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 	}
 
 	// Create FPA TokenCredentials with watching and caching
-	certReader, err := fpa.NewWatchingFileCertificateReader(ctx, o.FpaCertBundlePath, 30*time.Minute, logger)
+	certReader, err := fpa.NewWatchingFileCertificateReader(ctx, o.FpaCertBundlePath, 30*time.Minute)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create certificate reader: %w", err)
 	}
 
-	fpaCredentialRetriever, err := fpa.NewFirstPartyApplicationTokenCredentialRetriever(logger, o.FpaClientID, certReader, azcore.ClientOptions{})
+	fpaCredentialRetriever, err := fpa.NewFirstPartyApplicationTokenCredentialRetriever(o.FpaClientID, certReader, azcore.ClientOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create the FPA token credentials: %w", err)
 	}

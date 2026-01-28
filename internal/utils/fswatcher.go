@@ -19,7 +19,6 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"io"
-	"log/slog"
 	"os"
 	"path/filepath"
 	"sync"
@@ -30,9 +29,8 @@ import (
 // Changes are detected through periodic checks at the configured interval.
 type FSWatcher struct {
 	filePath      string
-	onChange      func() error
+	onChange      func(ctx context.Context) error
 	checkInterval time.Duration
-	logger        *slog.Logger
 	mu            sync.RWMutex
 	fileHash      string
 }
@@ -42,9 +40,8 @@ type FSWatcher struct {
 // Parameters:
 //   - filePath: the file to watch (e.g., /mnt/secrets/cert.pem)
 //   - checkInterval: how often to check for changes (must be > 0)
-//   - onChange: callback invoked when file content changes (required)
-//   - opts: optional configuration functions
-func NewFSWatcher(filePath string, checkInterval time.Duration, onChange func() error, logger *slog.Logger) (*FSWatcher, error) {
+//   - onChange: callback invoked when file content changes (required), receives context for logging
+func NewFSWatcher(filePath string, checkInterval time.Duration, onChange func(ctx context.Context) error) (*FSWatcher, error) {
 	if onChange == nil {
 		return nil, fmt.Errorf("onChange callback is required")
 	}
@@ -56,7 +53,6 @@ func NewFSWatcher(filePath string, checkInterval time.Duration, onChange func() 
 		filePath:      filePath,
 		onChange:      onChange,
 		checkInterval: checkInterval,
-		logger:        logger,
 	}
 
 	return watcher, nil
@@ -71,6 +67,8 @@ func NewFSWatcher(filePath string, checkInterval time.Duration, onChange func() 
 // Changes are detected through periodic hash checks at the configured checkInterval.
 // When a change is detected, the onChange callback is invoked.
 func (w *FSWatcher) Start(ctx context.Context) error {
+	logger := LoggerFromContext(ctx)
+
 	// Verify the file exists and compute initial hash
 	hash, err := w.hashFile(w.filePath)
 	if err != nil {
@@ -81,7 +79,7 @@ func (w *FSWatcher) Start(ctx context.Context) error {
 	w.fileHash = hash
 	w.mu.Unlock()
 
-	w.logger.Info("starting file watcher", "filePath", w.filePath, "checkInterval", w.checkInterval)
+	logger.Info("starting file watcher", "filePath", w.filePath, "checkInterval", w.checkInterval)
 
 	go w.watchLoop(ctx)
 
@@ -105,10 +103,12 @@ func (w *FSWatcher) hashFile(path string) (string, error) {
 }
 
 // checkAndSignal checks if the file has been modified and invokes the callback if so
-func (w *FSWatcher) checkAndSignal() {
+func (w *FSWatcher) checkAndSignal(ctx context.Context) {
+	logger := LoggerFromContext(ctx)
+
 	newHash, err := w.hashFile(w.filePath)
 	if err != nil {
-		w.logger.Error(fmt.Errorf("failed to hash file during modification check: %w", err).Error())
+		logger.Error(fmt.Errorf("failed to hash file during modification check: %w", err), "")
 		return
 	}
 
@@ -118,9 +118,9 @@ func (w *FSWatcher) checkAndSignal() {
 		w.fileHash = newHash
 		w.mu.Unlock()
 
-		w.logger.Info("detected file content change", "path", w.filePath)
-		if err := w.onChange(); err != nil {
-			w.logger.Error(fmt.Errorf("onChange callback failed: %w", err).Error())
+		logger.Info("detected file content change", "path", w.filePath)
+		if err := w.onChange(ctx); err != nil {
+			logger.Error(err, "onChange callback failed")
 		}
 		return
 	}
@@ -129,6 +129,7 @@ func (w *FSWatcher) checkAndSignal() {
 
 // watchLoop periodically checks for file changes and invokes the callback if so
 func (w *FSWatcher) watchLoop(ctx context.Context) {
+	logger := LoggerFromContext(ctx)
 	ticker := time.NewTicker(w.checkInterval)
 	defer ticker.Stop()
 
@@ -136,10 +137,10 @@ func (w *FSWatcher) watchLoop(ctx context.Context) {
 		select {
 
 		case <-ticker.C:
-			w.checkAndSignal()
+			w.checkAndSignal(ctx)
 
 		case <-ctx.Done():
-			w.logger.Info("stopping file watcher", "reason", ctx.Err())
+			logger.Info("stopping file watcher", "reason", ctx.Err())
 			return
 		}
 	}

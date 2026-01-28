@@ -16,14 +16,15 @@ package fpa
 
 import (
 	"context"
-	"log/slog"
-	"os"
 	"path/filepath"
 	"testing"
 	"time"
 
+	"github.com/go-logr/logr/testr"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 func TestWatchingFileCertificateReaderLoadsInitialCertificate(t *testing.T) {
@@ -35,7 +36,8 @@ func TestWatchingFileCertificateReaderLoadsInitialCertificate(t *testing.T) {
 	var serialNumber int64 = 20
 	atomicUpdateCert(t, dir, bundleFileName, serialNumber)
 
-	reader, err := NewWatchingFileCertificateReader(t.Context(), certFile, 50*time.Millisecond, slog.New(slog.NewTextHandler(os.Stdout, nil)))
+	ctx := utils.ContextWithLogger(t.Context(), testr.New(t))
+	reader, err := NewWatchingFileCertificateReader(ctx, certFile, 50*time.Millisecond)
 	require.NoError(t, err)
 
 	certs, key, err := reader.ReadCertificate()
@@ -54,7 +56,8 @@ func TestWatchingFileCertificateReaderReloadsOnFileChange(t *testing.T) {
 	var serialNumber int64 = 20
 	atomicUpdateCert(t, dir, bundleFileName, serialNumber)
 
-	reader, err := NewWatchingFileCertificateReader(t.Context(), bundlePath, 50*time.Millisecond, slog.New(slog.NewTextHandler(os.Stdout, nil)))
+	ctx := utils.ContextWithLogger(t.Context(), testr.New(t))
+	reader, err := NewWatchingFileCertificateReader(ctx, bundlePath, 50*time.Millisecond)
 	require.NoError(t, err)
 
 	certs1, _, err := reader.ReadCertificate()
@@ -80,7 +83,8 @@ func TestWatchingFileCertificateReaderCachesCertificate(t *testing.T) {
 
 	atomicUpdateCert(t, dir, bundleFileName, 20)
 
-	reader, err := NewWatchingFileCertificateReader(t.Context(), certFile, 50*time.Millisecond, slog.New(slog.NewTextHandler(os.Stdout, nil)))
+	ctx := utils.ContextWithLogger(t.Context(), testr.New(t))
+	reader, err := NewWatchingFileCertificateReader(ctx, certFile, 50*time.Millisecond)
 	require.NoError(t, err)
 
 	certs1, key1, err1 := reader.ReadCertificate()
@@ -103,8 +107,9 @@ func TestWatchingFileCertificateReaderStopsWatchingOnContextCancel(t *testing.T)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+	ctx = utils.ContextWithLogger(ctx, testr.New(t))
 
-	reader, err := NewWatchingFileCertificateReader(ctx, certFile, 50*time.Millisecond, slog.New(slog.NewTextHandler(os.Stdout, nil)))
+	reader, err := NewWatchingFileCertificateReader(ctx, certFile, 50*time.Millisecond)
 	require.NoError(t, err)
 
 	certs1, _, err := reader.ReadCertificate()
