@@ -22,6 +22,10 @@ import (
 	"k8s.io/apimachinery/pkg/api/operation"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/utils/ptr"
+
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+
+	"github.com/Azure/ARO-HCP/internal/api"
 )
 
 type expectedError struct {
@@ -559,7 +563,7 @@ func TestResourceID(t *testing.T) {
 
 	tests := []struct {
 		name      string
-		value     *string
+		value     *azcorearm.ResourceID
 		expectErr bool
 	}{
 		{
@@ -568,40 +572,18 @@ func TestResourceID(t *testing.T) {
 			expectErr: false,
 		},
 		{
-			name:      "empty string - valid",
-			value:     ptr.To(""),
-			expectErr: false,
-		},
-		{
 			name:      "valid resource ID - valid",
-			value:     ptr.To("/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.Network/virtualNetworks/test-vnet"),
+			value:     api.Must(azcorearm.ParseResourceID("/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.Network/virtualNetworks/test-vnet")),
 			expectErr: false,
 		},
 		{
 			name:      "valid subnet resource ID - valid",
-			value:     ptr.To("/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.Network/virtualNetworks/test-vnet/subnets/test-subnet"),
+			value:     api.Must(azcorearm.ParseResourceID("/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.Network/virtualNetworks/test-vnet/subnets/test-subnet")),
 			expectErr: false,
 		},
-		{
-			name:      "missing subscription - invalid",
-			value:     ptr.To("/resourceGroups/test-rg/providers/Microsoft.Network/virtualNetworks/test-vnet"),
-			expectErr: true,
-		},
-		{
-			name:      "missing resource group - invalid",
-			value:     ptr.To("/subscriptions/12345678-1234-1234-1234-123456789012/providers/Microsoft.Network/virtualNetworks/test-vnet"),
-			expectErr: true,
-		},
-		{
-			name:      "missing resource name - invalid",
-			value:     ptr.To("/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.Network/virtualNetworks"),
-			expectErr: true,
-		},
-		{
-			name:      "invalid format - invalid",
-			value:     ptr.To("not-a-resource-id"),
-			expectErr: true,
-		},
+		// Note: Tests for invalid resource IDs (missing subscription, resource group, etc.)
+		// are no longer possible since the type system now ensures only valid parsed
+		// resource IDs can be passed to the validator.
 	}
 
 	for _, tt := range tests {
@@ -626,7 +608,7 @@ func TestRestrictedResourceID(t *testing.T) {
 
 	tests := []struct {
 		name      string
-		value     *string
+		value     *azcorearm.ResourceID
 		expectErr bool
 	}{
 		{
@@ -635,35 +617,23 @@ func TestRestrictedResourceID(t *testing.T) {
 			expectErr: false,
 		},
 		{
-			name:      "empty string - valid",
-			value:     ptr.To(""),
-			expectErr: false,
-		},
-		{
 			name:      "valid matching resource type - valid",
-			value:     ptr.To("/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.Network/virtualNetworks/test-vnet"),
+			value:     api.Must(azcorearm.ParseResourceID("/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.Network/virtualNetworks/test-vnet")),
 			expectErr: false,
 		},
 		{
 			name:      "wrong resource type - invalid",
-			value:     ptr.To("/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.Network/networkSecurityGroups/test-nsg"),
+			value:     api.Must(azcorearm.ParseResourceID("/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.Network/networkSecurityGroups/test-nsg")),
 			expectErr: true,
 		},
-		{
-			name:      "missing subscription - invalid",
-			value:     ptr.To("/resourceGroups/test-rg/providers/Microsoft.Network/virtualNetworks/test-vnet"),
-			expectErr: true,
-		},
-		{
-			name:      "invalid format - invalid",
-			value:     ptr.To("not-a-resource-id"),
-			expectErr: true,
-		},
+		// Note: Tests for invalid resource IDs (missing subscription, etc.)
+		// are no longer possible since the type system now ensures only valid parsed
+		// resource IDs can be passed to the validator.
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			errs := RestrictedResourceID(ctx, op, fldPath, tt.value, nil, restrictedType)
+			errs := RestrictedResourceIDWithResourceGroup(ctx, op, fldPath, tt.value, nil, restrictedType)
 
 			if tt.expectErr && len(errs) == 0 {
 				t.Error("expected error but got none")

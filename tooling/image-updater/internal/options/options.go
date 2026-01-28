@@ -35,6 +35,8 @@ type RawUpdateOptions struct {
 	Components        string
 	ExcludeComponents string
 	Environments      string // Comma-separated list of environments (dev, int, stg, prod)
+	OutputFile        string
+	OutputFormat      string
 }
 
 // ValidatedUpdateOptions contains validated configuration and inputs
@@ -50,7 +52,9 @@ type validatedUpdateOptions struct {
 
 // DefaultUpdateOptions returns a new RawUpdateOptions with defaults
 func DefaultUpdateOptions() *RawUpdateOptions {
-	return &RawUpdateOptions{}
+	return &RawUpdateOptions{
+		OutputFormat: "table",
+	}
 }
 
 // BindUpdateOptions binds command-line flags to the raw options
@@ -61,6 +65,8 @@ func BindUpdateOptions(opts *RawUpdateOptions, cmd *cobra.Command) error {
 	cmd.Flags().StringVar(&opts.Components, "components", "", "Update only specified components (comma-separated, e.g., 'maestro,arohcpfrontend'). If not specified, all components will be updated")
 	cmd.Flags().StringVar(&opts.ExcludeComponents, "exclude-components", "", "Exclude specified components from update (comma-separated, e.g., 'arohcpfrontend,arohcpbackend'). Ignored if --components is specified")
 	cmd.Flags().StringVar(&opts.Environments, "env", "", "Target environment: 'stg' (promote int→stage) or 'prod' (promote stage→prod). Default (omit flag): dev,int")
+	cmd.Flags().StringVar(&opts.OutputFile, "output-file", "", "Write update results to specified file instead of stdout")
+	cmd.Flags().StringVar(&opts.OutputFormat, "output-format", "table", "Output format: table, markdown, or json (default: table)")
 
 	if err := cmd.MarkFlagRequired("config"); err != nil {
 		return err
@@ -84,6 +90,24 @@ func (o *RawUpdateOptions) Validate(ctx context.Context) (*ValidatedUpdateOption
 	environments, err := parseAndValidateEnvironments(o.Environments)
 	if err != nil {
 		return nil, err
+	}
+
+	// Set default output format if not specified
+	if o.OutputFormat == "" {
+		o.OutputFormat = "table"
+	}
+
+	// Validate output format
+	validFormats := []string{"table", "markdown", "json"}
+	isValidFormat := false
+	for _, format := range validFormats {
+		if o.OutputFormat == format {
+			isValidFormat = true
+			break
+		}
+	}
+	if !isValidFormat {
+		return nil, fmt.Errorf("invalid output format '%s': must be one of: %s", o.OutputFormat, strings.Join(validFormats, ", "))
 	}
 
 	// --components takes precedence over --exclude-components
@@ -183,7 +207,7 @@ func (v *ValidatedUpdateOptions) Complete(ctx context.Context) (*updater.Updater
 	// We'll just copy digests from the source environment
 	if promotionMode != updater.FetchLatest {
 		// Initialize YAML editors for target files
-		yamlEditors := make(map[string]*yaml.Editor)
+		yamlEditors := make(map[string]yaml.EditorInterface)
 		for _, imageConfig := range v.Config.Images {
 			for _, target := range imageConfig.Targets {
 				if _, exists := yamlEditors[target.FilePath]; !exists {
@@ -196,7 +220,7 @@ func (v *ValidatedUpdateOptions) Complete(ctx context.Context) (*updater.Updater
 			}
 		}
 
-		return updater.New(v.Config, v.DryRun, v.ForceUpdate, nil, yamlEditors, promotionMode, v.Environments), nil
+		return updater.New(v.Config, v.DryRun, v.ForceUpdate, nil, yamlEditors, promotionMode, v.Environments, v.OutputFile, v.OutputFormat), nil
 	}
 
 	// Collect unique Key Vault configurations from all images
@@ -249,7 +273,7 @@ func (v *ValidatedUpdateOptions) Complete(ctx context.Context) (*updater.Updater
 	}
 
 	// Initialize YAML editors for target files
-	yamlEditors := make(map[string]*yaml.Editor)
+	yamlEditors := make(map[string]yaml.EditorInterface)
 	for _, imageConfig := range v.Config.Images {
 		for _, target := range imageConfig.Targets {
 			if _, exists := yamlEditors[target.FilePath]; !exists {
@@ -262,7 +286,7 @@ func (v *ValidatedUpdateOptions) Complete(ctx context.Context) (*updater.Updater
 		}
 	}
 
-	return updater.New(v.Config, v.DryRun, v.ForceUpdate, registryClients, yamlEditors, promotionMode, v.Environments), nil
+	return updater.New(v.Config, v.DryRun, v.ForceUpdate, registryClients, yamlEditors, promotionMode, v.Environments, v.OutputFile, v.OutputFormat), nil
 }
 
 // validateConfig ensures the configuration is complete and valid

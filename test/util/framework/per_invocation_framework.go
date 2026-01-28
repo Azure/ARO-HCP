@@ -44,6 +44,7 @@ type perBinaryInvocationTestContext struct {
 	tenantID                 string
 	testUserClientID         string
 	location                 string
+	pullSecretPath           string
 	isDevelopmentEnvironment bool
 	skipCleanup              bool
 	pooledIdentities         bool
@@ -80,6 +81,7 @@ func invocationContext() *perBinaryInvocationTestContext {
 			tenantID:                 tenantID(),
 			testUserClientID:         testUserClientID(),
 			location:                 location(),
+			pullSecretPath:           pullSecretPath(),
 			isDevelopmentEnvironment: IsDevelopmentEnvironment(),
 			skipCleanup:              skipCleanup(),
 			pooledIdentities:         pooledIdentities(),
@@ -268,6 +270,16 @@ func testUserClientID() string {
 func tenantID() string {
 	// can't use gomega in this method since it is used outside of It()
 	return os.Getenv("AZURE_TENANT_ID")
+}
+
+// pullSecretPath returns the value of ARO_HCP_QE_PULL_SECRET_PATH environment variable
+// If not set, defaults to /var/run/aro-hcp-qe-pull-secret
+func pullSecretPath() string {
+	path := os.Getenv("ARO_HCP_QE_PULL_SECRET_PATH")
+	if path == "" {
+		return "/var/run/aro-hcp-qe-pull-secret"
+	}
+	return path
 }
 
 // IsDevelopmentEnvironment indicates when this environment is development.  This controls client endpoints and disables security

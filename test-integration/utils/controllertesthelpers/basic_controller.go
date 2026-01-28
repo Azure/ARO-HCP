@@ -22,32 +22,40 @@ import (
 	"path"
 	"testing"
 
-	"github.com/neilotoole/slogt"
+	"github.com/go-logr/logr/testr"
 	"github.com/stretchr/testify/require"
 
-	"github.com/Azure/ARO-HCP/backend/controllers"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
+	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
+	"github.com/Azure/ARO-HCP/test-integration/backend/livelisters"
 	"github.com/Azure/ARO-HCP/test-integration/utils/databasemutationhelpers"
 	"github.com/Azure/ARO-HCP/test-integration/utils/integrationutils"
 )
 
-type ControllerInitializerFunc func(ctx context.Context, t *testing.T, cosmosClient database.DBClient) (controller controllers.Controller, testMemory map[string]any)
+type ControllerInitializationInput struct {
+	CosmosClient         database.DBClient
+	SubscriptionLister   listers.SubscriptionLister
+	ClusterServiceClient ocm.ClusterServiceClientSpec
+}
 
-type ControllerVerifierFunc func(ctx context.Context, t *testing.T, controller controllers.Controller, testMemory map[string]any)
+type ControllerInitializerFunc func(ctx context.Context, t *testing.T, input *ControllerInitializationInput) (controller controllerutils.Controller, testMemory map[string]any)
+
+type ControllerVerifierFunc func(ctx context.Context, t *testing.T, controller controllerutils.Controller, testMemory map[string]any, input *ControllerInitializationInput)
 
 type BasicControllerTest struct {
 	Name          string
-	ControllerKey controllers.HCPClusterKey
+	ControllerKey controllerutils.HCPClusterKey
 	ArtifactDir   fs.FS
 
 	ControllerInitializerFn ControllerInitializerFunc
 	ControllerVerifierFn    ControllerVerifierFunc
+	WithMock                bool
 }
 
 func (tc *BasicControllerTest) RunTest(t *testing.T) {
-	integrationutils.SkipIfNotSimulationTesting(t)
-
 	ctx := context.Background()
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -56,30 +64,54 @@ func (tc *BasicControllerTest) RunTest(t *testing.T) {
 	testDir, err := fs.Sub(tc.ArtifactDir, tc.Name)
 	require.NoError(t, err)
 
-	ctx = utils.ContextWithLogger(ctx, slogt.New(t, slogt.JSON()))
+	ctx = utils.ContextWithLogger(ctx, testr.New(t))
 	logger := utils.LoggerFromContext(ctx)
 	logger = tc.ControllerKey.AddLoggerValues(logger)
 	ctx = utils.ContextWithLogger(ctx, logger)
 
-	cosmosTestInfo, err := integrationutils.NewCosmosFromTestingEnv(ctx, t)
+	var storageIntegrationTestInfo integrationutils.StorageIntegrationTestInfo
+	if tc.WithMock {
+		storageIntegrationTestInfo, err = integrationutils.NewMockCosmosFromTestingEnv(ctx, t)
+	} else {
+		storageIntegrationTestInfo, err = integrationutils.NewCosmosFromTestingEnv(ctx, t)
+	}
 	require.NoError(t, err)
-	defer cosmosTestInfo.Cleanup(utils.ContextWithLogger(context.Background(), slogt.New(t, slogt.JSON())))
+	require.NoError(t, err)
+	defer storageIntegrationTestInfo.Cleanup(utils.ContextWithLogger(context.Background(), testr.New(t)))
+	clusterServiceMockInfo := integrationutils.NewClusterServiceMock(t, storageIntegrationTestInfo.GetArtifactDir())
+	defer clusterServiceMockInfo.Cleanup(utils.ContextWithLogger(context.Background(), testr.New(t)))
+	stepInput := databasemutationhelpers.NewCosmosStepInput(storageIntegrationTestInfo)
+	stepInput.ClusterServiceMockInfo = clusterServiceMockInfo
 
-	initialState, err := fs.Sub(testDir, path.Join("00-load-initial-state"))
+	initialCosmosState, err := fs.Sub(testDir, path.Join("00-load-initial-state"))
 	require.NoError(t, err)
-	if fsMightContainFiles(initialState) {
+	if fsMightContainFiles(initialCosmosState) {
 		loadInitialStateStep, err := databasemutationhelpers.NewLoadCosmosStep(
 			databasemutationhelpers.NewStepID(00, "load", "initial-state"),
-			initialState,
+			initialCosmosState,
 		)
 		require.NoError(t, err)
-		input := databasemutationhelpers.StepInput{
-			CosmosContainer: cosmosTestInfo.CosmosResourcesContainer(),
-		}
-		loadInitialStateStep.RunTest(ctx, t, input)
+		loadInitialStateStep.RunTest(ctx, t, *stepInput)
 	}
 
-	controllerInstance, testMemory := tc.ControllerInitializerFn(ctx, t, cosmosTestInfo.DBClient)
+	initialClusterServiceState, err := fs.Sub(testDir, path.Join("00-loadClusterService-initial_state"))
+	require.NoError(t, err)
+	if fsMightContainFiles(initialClusterServiceState) {
+		loadInitialStateStep, err := databasemutationhelpers.NewLoadClusterServiceStep(
+			databasemutationhelpers.NewStepID(00, "loadClusterService", "initial-state"),
+			initialClusterServiceState,
+		)
+		require.NoError(t, err)
+		loadInitialStateStep.RunTest(ctx, t, *stepInput)
+	}
+
+	controllerInput := &ControllerInitializationInput{
+		CosmosClient:         storageIntegrationTestInfo.CosmosClient(),
+		SubscriptionLister:   livelisters.NewSubscriptionLiveLister(storageIntegrationTestInfo.CosmosClient()),
+		ClusterServiceClient: clusterServiceMockInfo.MockClusterServiceClient,
+	}
+
+	controllerInstance, testMemory := tc.ControllerInitializerFn(ctx, t, controllerInput)
 	err = controllerInstance.SyncOnce(ctx, tc.ControllerKey)
 	require.NoError(t, err)
 
@@ -91,13 +123,10 @@ func (tc *BasicControllerTest) RunTest(t *testing.T) {
 			endState,
 		)
 		require.NoError(t, err)
-		input := databasemutationhelpers.StepInput{
-			CosmosContainer: cosmosTestInfo.CosmosResourcesContainer(),
-		}
-		verifyEndStateStep.RunTest(ctx, t, input)
+		verifyEndStateStep.RunTest(ctx, t, *stepInput)
 	}
 
-	tc.ControllerVerifierFn(ctx, t, controllerInstance, testMemory)
+	tc.ControllerVerifierFn(ctx, t, controllerInstance, testMemory, controllerInput)
 
 }
 

@@ -29,8 +29,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/google/uuid"
-
 	"k8s.io/apimachinery/pkg/util/rand"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
@@ -40,12 +38,20 @@ import (
 
 	"github.com/Azure/ARO-HCP/frontend/cmd"
 	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
-func NewCosmosFromTestingEnv(ctx context.Context, t *testing.T) (*CosmosIntegrationTestInfo, error) {
+type CosmosIntegrationTestInfo struct {
+	ArtifactsDir string
+
+	CosmosDatabaseClient *azcosmos.DatabaseClient
+	DBClient             database.DBClient
+	cosmosClient         *azcosmos.Client
+	DatabaseName         string
+}
+
+func NewCosmosFromTestingEnv(ctx context.Context, t *testing.T) (StorageIntegrationTestInfo, error) {
 	cosmosClient, err := createCosmosClientFromEnv()
 	if err != nil {
 		return nil, err
@@ -64,7 +70,7 @@ func NewCosmosFromTestingEnv(ctx context.Context, t *testing.T) (*CosmosIntegrat
 		ArtifactsDir:         path.Join(getArtifactDir(), t.Name()),
 		CosmosDatabaseClient: cosmosDatabaseClient,
 		DBClient:             dbClient,
-		CosmosClient:         cosmosClient,
+		cosmosClient:         cosmosClient,
 		DatabaseName:         cosmosDatabaseName,
 	}
 	return testInfo, nil
@@ -94,6 +100,14 @@ func LoadCosmosContentFromFS(ctx context.Context, cosmosContainer *azcosmos.Cont
 	}
 
 	return nil
+}
+
+func (s *CosmosIntegrationTestInfo) ListAllDocuments(ctx context.Context) ([]*database.TypedDocument, error) {
+	return NewCosmosContentLoader(s.CosmosResourcesContainer()).ListAllDocuments(ctx)
+}
+
+func (s *CosmosIntegrationTestInfo) CosmosClient() database.DBClient {
+	return s.DBClient
 }
 
 func LoadCosmosContent(ctx context.Context, cosmosContainer *azcosmos.ContainerClient, content []byte) error {
@@ -130,7 +144,7 @@ func LoadCosmosContent(ctx context.Context, cosmosContainer *azcosmos.ContainerC
 }
 
 func (s *CosmosIntegrationTestInfo) CosmosResourcesContainer() *azcosmos.ContainerClient {
-	resources, err := s.CosmosClient.NewContainer(s.DatabaseName, "Resources")
+	resources, err := s.cosmosClient.NewContainer(s.DatabaseName, "Resources")
 	if err != nil {
 		panic(err)
 	}
@@ -138,28 +152,10 @@ func (s *CosmosIntegrationTestInfo) CosmosResourcesContainer() *azcosmos.Contain
 	return resources
 }
 
-func (s *CosmosIntegrationTestInfo) CreateNewSubscription(ctx context.Context) (string, *arm.Subscription, error) {
-	subscriptionID := uuid.NewString()
-	return s.CreateSpecificSubscription(ctx, subscriptionID)
-}
-
-func (s *CosmosIntegrationTestInfo) CreateSpecificSubscription(ctx context.Context, subscriptionID string) (string, *arm.Subscription, error) {
-	subscription := &arm.Subscription{
-		ResourceID: api.Must(arm.ToSubscriptionResourceID(subscriptionID)),
-		State:      arm.SubscriptionStateRegistered,
-	}
-	ret, err := s.DBClient.Subscriptions().Create(ctx, subscription, nil)
-	if err != nil {
-		return "", nil, err
-	}
-
-	return subscriptionID, ret, err
-}
-
 func (s *CosmosIntegrationTestInfo) Cleanup(ctx context.Context) {
 	logger := utils.LoggerFromContext(ctx)
 	if err := s.cleanupDatabase(ctx); err != nil {
-		logger.Error("Failed to cleanup database", "error", err)
+		logger.Error(err, "Failed to cleanup database")
 	}
 }
 
@@ -171,8 +167,8 @@ func (s *CosmosIntegrationTestInfo) cleanupDatabase(ctx context.Context) error {
 	}
 
 	// Save all database content before deleting
-	if err := s.saveAllDatabaseContent(ctx); err != nil {
-		logger.Error("Failed to save database content", "error", err)
+	if err := saveAllDatabaseContent(ctx, s, s.ArtifactsDir); err != nil {
+		logger.Error(err, "Failed to save database content")
 		// Continue with deletion even if saving fails
 	}
 
@@ -190,137 +186,124 @@ func (s *CosmosIntegrationTestInfo) cleanupDatabase(ctx context.Context) error {
 }
 
 // saveAllDatabaseContent reads all records from all containers and saves them to files
-func (s *CosmosIntegrationTestInfo) saveAllDatabaseContent(ctx context.Context) error {
+func saveAllDatabaseContent(ctx context.Context, documentLister DocumentLister, artifactDir string) error {
 	logger := utils.LoggerFromContext(ctx)
 
 	// Create timestamped subdirectory for this database
-	cosmosDir := filepath.Join(s.ArtifactsDir, "cosmos-content")
+	cosmosDir := filepath.Join(artifactDir, "cosmos-content")
 	if err := os.MkdirAll(cosmosDir, 0755); err != nil {
 		return fmt.Errorf("failed to create artifact directory %s: %w", cosmosDir, err)
 	}
 	logger.Info("Saving Cosmos DB content", "cosmosDir", cosmosDir)
 
 	// List all containers in the database
-	containers := []string{"Resources", "Billing", "Locks"}
-	for _, containerName := range containers {
-		if err := s.saveContainerContent(ctx, containerName, cosmosDir); err != nil {
-			logger.Error("Failed to save container content", "error", err, "containerName", containerName)
-			// Continue with other containers
-		}
+	if err := saveContainerContent(ctx, documentLister, cosmosDir); err != nil {
+		logger.Error(err, "Failed to save container content")
 	}
 
 	return nil
 }
 
 // saveContainerContent saves all documents from a specific container
-func (s *CosmosIntegrationTestInfo) saveContainerContent(ctx context.Context, containerName, outputDir string) error {
+func saveContainerContent(ctx context.Context, documentLister DocumentLister, outputDir string) error {
 	logger := utils.LoggerFromContext(ctx)
 
-	containerClient, err := s.CosmosDatabaseClient.NewContainer(containerName)
-	if err != nil {
-		return fmt.Errorf("failed to get container client for %s: %w", containerName, err)
-	}
-
 	// Create subdirectory for this container
-	containerDir := filepath.Join(outputDir, containerName)
+	containerDir := filepath.Join(outputDir, "Resources")
 	if err := os.MkdirAll(containerDir, 0755); err != nil {
 		return fmt.Errorf("failed to create container directory %s: %w", containerDir, err)
 	}
 
-	// Query all documents in the container
-	querySQL := "SELECT * FROM c"
-	queryOptions := &azcosmos.QueryOptions{
-		QueryParameters: []azcosmos.QueryParameter{},
+	documents, err := documentLister.ListAllDocuments(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to list documents: %w", err)
 	}
-
-	queryPager := containerClient.NewQueryItemsPager(querySQL, azcosmos.PartitionKey{}, queryOptions)
 
 	docCount := 0
-	for queryPager.More() {
-		queryResponse, err := queryPager.NextPage(ctx)
+	for _, currTypedDocument := range documents {
+		item, err := json.MarshalIndent(currTypedDocument, "", "    ")
 		if err != nil {
-			return fmt.Errorf("failed to query container %s: %w", containerName, err)
+			logger.Error(err, "Failed to serialize")
+			continue
 		}
 
-		for _, item := range queryResponse.Items {
-			// Parse the document to get its ID for filename
-			var docMap map[string]interface{}
-			if err := json.Unmarshal(item, &docMap); err != nil {
-				logger.Error("Failed to parse document in", "error", err, "containerName", containerName)
-				continue
-			}
+		// Parse the document to get its ID for filename
+		var docMap map[string]interface{}
+		if err := json.Unmarshal(item, &docMap); err != nil {
+			logger.Error(err, "Failed to parse document")
+			continue
+		}
 
-			filename := ""
-			resourceType := docMap["resourceType"]
-			var armResourceID *azcorearm.ResourceID
-			var properties map[string]any
-			obj, hasProperties := docMap["properties"]
-			if hasProperties {
-				properties = obj.(map[string]any)
-				if resourceID, hasResourceID := properties["resourceId"]; hasResourceID && resourceID != nil {
-					armResourceID, _ = azcorearm.ParseResourceID(resourceID.(string))
-				}
+		filename := ""
+		resourceType := docMap["resourceType"]
+		var armResourceID *azcorearm.ResourceID
+		var properties map[string]any
+		obj, hasProperties := docMap["properties"]
+		if hasProperties {
+			properties = obj.(map[string]any)
+			if resourceID, hasResourceID := properties["resourceId"]; hasResourceID && resourceID != nil {
+				armResourceID, _ = azcorearm.ParseResourceID(resourceID.(string))
 			}
-			switch {
-			case armResourceID != nil:
+		}
+		switch {
+		case armResourceID != nil:
+			filename = filepath.Join(
+				resourceIDToDir(armResourceID),
+				armResourceID.Name+".json",
+			)
+
+		case strings.EqualFold(resourceType.(string), azcorearm.SubscriptionResourceType.String()):
+			filename = filepath.Join(
+				"subscriptions",
+				fmt.Sprintf("subscription_%s.json", docMap["id"].(string)))
+
+		case strings.EqualFold(resourceType.(string), api.OperationStatusResourceType.String()):
+			externalID := properties["externalId"].(string)
+			if clusterResourceID, _ := azcorearm.ParseResourceID(externalID); clusterResourceID != nil {
+				clusterDir := resourceIDToDir(clusterResourceID)
 				filename = filepath.Join(
-					resourceIDToDir(armResourceID),
-					armResourceID.Name+".json",
+					clusterDir,
+					fmt.Sprintf("hcpoperationstatuses_%v_%v_%v.json", properties["startTime"], properties["request"], docMap["id"]),
 				)
-
-			case strings.EqualFold(resourceType.(string), azcorearm.SubscriptionResourceType.String()):
-				filename = filepath.Join(
-					"subscriptions",
-					fmt.Sprintf("subscription_%s.json", docMap["id"].(string)))
-
-			case strings.EqualFold(resourceType.(string), api.OperationStatusResourceType.String()):
-				externalID := properties["externalId"].(string)
-				if clusterResourceID, _ := azcorearm.ParseResourceID(externalID); clusterResourceID != nil {
-					clusterDir := resourceIDToDir(clusterResourceID)
-					filename = filepath.Join(
-						clusterDir,
-						fmt.Sprintf("hcpoperationstatuses_%v_%v_%v.json", properties["startTime"], properties["request"], docMap["id"]),
-					)
-				}
 			}
-
-			if len(filename) == 0 {
-				if id, ok := docMap["id"].(string); ok {
-					// Sanitize filename
-					basename := strings.ReplaceAll("unknown-type-"+id+".json", "/", "_")
-					basename = strings.ReplaceAll(basename, "\\", "_")
-					basename = strings.ReplaceAll(basename, ":", "_")
-					filename = filepath.Join("unknown", basename)
-				} else {
-					filename = filepath.Join("unknown", fmt.Sprintf("unknown_%d.json", docCount))
-				}
-			}
-			filename = filepath.Join(containerDir, filename)
-			logger.Info("Saving document", "filename", filename)
-
-			dirName := filepath.Dir(filename)
-			if err := os.MkdirAll(dirName, 0755); err != nil {
-				return fmt.Errorf("failed to create directory %s: %w", dirName, err)
-			}
-			prettyPrint, err := json.MarshalIndent(docMap, "", "    ")
-			if err != nil {
-				return fmt.Errorf("failed to marshal document: %w", err)
-			}
-			// Write document to file
-			if err := os.WriteFile(filename, prettyPrint, 0644); err != nil {
-				logger.Error("Failed to write document", "error", err, "filename", filename)
-				continue
-			}
-
-			docCount++
 		}
+
+		if len(filename) == 0 {
+			if id, ok := docMap["id"].(string); ok {
+				// Sanitize filename
+				basename := strings.ReplaceAll("unknown-type-"+id+".json", "/", "_")
+				basename = strings.ReplaceAll(basename, "\\", "_")
+				basename = strings.ReplaceAll(basename, ":", "_")
+				filename = filepath.Join("unknown", basename)
+			} else {
+				filename = filepath.Join("unknown", fmt.Sprintf("unknown_%d.json", docCount))
+			}
+		}
+		filename = filepath.Join(containerDir, filename)
+		logger.Info("Saving document", "filename", filename)
+
+		dirName := filepath.Dir(filename)
+		if err := os.MkdirAll(dirName, 0755); err != nil {
+			return fmt.Errorf("failed to create directory %s: %w", dirName, err)
+		}
+		prettyPrint, err := json.MarshalIndent(docMap, "", "    ")
+		if err != nil {
+			return fmt.Errorf("failed to marshal document: %w", err)
+		}
+		// Write document to file
+		if err := os.WriteFile(filename, prettyPrint, 0644); err != nil {
+			logger.Error(err, "Failed to write document", "filename", filename)
+			continue
+		}
+
+		docCount++
 	}
 
-	logger.Info("Saved documents from container", "numDocs", docCount, "containerName", containerName)
+	logger.Info("Saved documents from container", "numDocs", docCount)
 	return nil
 }
 
-func (s *CosmosIntegrationTestInfo) CreateInitialCosmosContent(ctx context.Context, createDir fs.FS) error {
+func LoadAllContent(ctx context.Context, contentLoader ContentLoader, createDir fs.FS) error {
 	dirContent, err := fs.ReadDir(createDir, ".")
 	if err != nil {
 		return fmt.Errorf("failed to read dir: %w", err)
@@ -338,14 +321,14 @@ func (s *CosmosIntegrationTestInfo) CreateInitialCosmosContent(ctx context.Conte
 		if err != nil {
 			return fmt.Errorf("failed to read file %s: %w", dirEntry.Name(), err)
 		}
-		if err := s.createInitialCosmosContent(ctx, fileContent); err != nil {
+		if err := contentLoader.LoadContent(ctx, fileContent); err != nil {
 			return fmt.Errorf("failed to create initial Cosmos content: %w", err)
 		}
 	}
 	return nil
 }
 
-func (s *CosmosIntegrationTestInfo) createInitialCosmosContent(ctx context.Context, content []byte) error {
+func (s *CosmosIntegrationTestInfo) LoadContent(ctx context.Context, content []byte) error {
 	return LoadCosmosContent(ctx, s.CosmosResourcesContainer(), content)
 }
 
@@ -433,4 +416,8 @@ func initializeCosmosDBForFrontend(ctx context.Context, cosmosClient *azcosmos.C
 
 	return cosmosDatabaseClient, nil
 
+}
+
+func (s *CosmosIntegrationTestInfo) GetArtifactDir() string {
+	return s.ArtifactsDir
 }

@@ -6,7 +6,7 @@ metadata:
 data:
   config.json: |
     {
-      "cloud_environment": "AzurePublicCloud",
+      "cloud_environment": "{{ .Values.azureCloudEnvironmentName }}",
       "managed_identities_data_plane_audience_resource": "{{ .Values.managedIdentitiesDataPlaneAudienceResource }}",
       "tenant_id": "{{ .Values.tenantId }}",
       "ocp_images_acr": {

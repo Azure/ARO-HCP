@@ -37,15 +37,20 @@ type HCPOpenShiftClusterNodePool struct {
 var _ CosmosPersistable = &HCPOpenShiftClusterNodePool{}
 
 func (o *HCPOpenShiftClusterNodePool) GetCosmosData() CosmosData {
+	cosmosUID := Must(ResourceIDToCosmosID(o.ID))
+	if len(o.ServiceProviderProperties.CosmosUID) != 0 {
+		// if this is an item that is being serialized for the first time, then we can force it to use the new scheme.
+		// if it already thinks it knows its CosmosID, then we must accept what it thinks because this could be a case
+		// where we have a new backend and an old frontend.  In that case, the content still has random UIDs, but the backend
+		// must be able to read AND write the records. This means we cannot assume that all UIDs have already changed.
+		cosmosUID = o.ServiceProviderProperties.CosmosUID
+	}
+
 	return CosmosData{
-		CosmosUID:    o.ServiceProviderProperties.CosmosUID,
+		CosmosUID:    cosmosUID,
 		PartitionKey: strings.ToLower(o.ID.SubscriptionID),
 		ItemID:       o.ID,
 	}
-}
-
-func (o *HCPOpenShiftClusterNodePool) SetCosmosDocumentData(cosmosUID string) {
-	o.ServiceProviderProperties.CosmosUID = cosmosUID
 }
 
 // HCPOpenShiftClusterNodePoolProperties represents the property bag of a
@@ -78,11 +83,11 @@ type NodePoolVersionProfile struct {
 // NodePoolPlatformProfile represents a worker node pool configuration.
 // Visibility for the entire struct is "read create".
 type NodePoolPlatformProfile struct {
-	SubnetID               string        `json:"subnetId,omitempty"`
-	VMSize                 string        `json:"vmSize,omitempty"`
-	EnableEncryptionAtHost bool          `json:"enableEncryptionAtHost"`
-	OSDisk                 OSDiskProfile `json:"osDisk"`
-	AvailabilityZone       string        `json:"availabilityZone,omitempty"`
+	SubnetID               *azcorearm.ResourceID `json:"subnetId,omitempty"`
+	VMSize                 string                `json:"vmSize,omitempty"`
+	EnableEncryptionAtHost bool                  `json:"enableEncryptionAtHost"`
+	OSDisk                 OSDiskProfile         `json:"osDisk"`
+	AvailabilityZone       string                `json:"availabilityZone,omitempty"`
 }
 
 // OSDiskProfile represents a OS Disk configuration.
@@ -90,7 +95,7 @@ type NodePoolPlatformProfile struct {
 type OSDiskProfile struct {
 	SizeGiB                *int32                 `json:"sizeGiB,omitempty"`
 	DiskStorageAccountType DiskStorageAccountType `json:"diskStorageAccountType,omitempty"`
-	EncryptionSetID        string                 `json:"encryptionSetId,omitempty"`
+	EncryptionSetID        *azcorearm.ResourceID  `json:"encryptionSetId,omitempty"`
 }
 
 // NodePoolAutoScaling represents a node pool autoscaling configuration.
@@ -147,30 +152,20 @@ func (nodePool *HCPOpenShiftClusterNodePool) validateVersion(cluster *HCPOpenShi
 func (nodePool *HCPOpenShiftClusterNodePool) validateSubnetID(cluster *HCPOpenShiftCluster) []arm.CloudErrorBody {
 	var errorDetails []arm.CloudErrorBody
 
-	if nodePool.Properties.Platform.SubnetID == "" {
+	if nodePool.Properties.Platform.SubnetID == nil {
 		return nil
 	}
 
 	// Cluster and node pool subnet IDs have already passed syntax validation so
 	// parsing should not fail. If parsing does somehow fail then skip the validation.
 
-	clusterSubnetResourceID, err := azcorearm.ParseResourceID(cluster.CustomerProperties.Platform.SubnetID)
-	if err != nil {
-		return nil
-	}
-
-	nodePoolSubnetResourceID, err := azcorearm.ParseResourceID(nodePool.Properties.Platform.SubnetID)
-	if err != nil {
-		return nil
-	}
-
-	clusterVNet := clusterSubnetResourceID.Parent.String()
-	nodePoolVNet := nodePoolSubnetResourceID.Parent.String()
+	clusterVNet := cluster.CustomerProperties.Platform.SubnetID.Parent.String()
+	nodePoolVNet := nodePool.Properties.Platform.SubnetID.Parent.String()
 
 	if !strings.EqualFold(nodePoolVNet, clusterVNet) {
 		errorDetails = append(errorDetails, arm.CloudErrorBody{
 			Code:    arm.CloudErrorCodeInvalidRequestContent,
-			Message: fmt.Sprintf("Subnet '%s' must belong to the same VNet as the parent cluster VNet '%s'", nodePoolSubnetResourceID, clusterVNet),
+			Message: fmt.Sprintf("Subnet '%s' must belong to the same VNet as the parent cluster VNet '%s'", nodePool.Properties.Platform.SubnetID, clusterVNet),
 			Target:  "properties.platform.subnetId",
 		})
 	}

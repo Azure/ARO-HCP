@@ -16,8 +16,9 @@ package mustgather
 
 import (
 	"fmt"
-	"strings"
 	"time"
+
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/kusto"
 )
@@ -58,41 +59,22 @@ type QueryOptions struct {
 }
 
 func NewQueryOptions(subscriptionID, resourceGroupName, resourceId string, timestampMin, timestampMax time.Time, limit int) (*QueryOptions, error) {
-	var subId, rgName string
-	var err error
 	if resourceId != "" {
-		subId, rgName, err = parseResourceId(resourceId)
+		res, err := azcorearm.ParseResourceID(resourceId)
 		if err != nil {
-			return nil, fmt.Errorf("failed to parse resourceId: %w", err)
+			return nil, fmt.Errorf("failed to parse resourceID: %w", err)
 		}
-	} else {
-		subId = subscriptionID
-		rgName = resourceGroupName
+		subscriptionID = res.SubscriptionID
+		resourceGroupName = res.ResourceGroupName
 	}
 
 	return &QueryOptions{
-		SubscriptionId:    subId,
-		ResourceGroupName: rgName,
+		SubscriptionId:    subscriptionID,
+		ResourceGroupName: resourceGroupName,
 		TimestampMin:      timestampMin,
 		TimestampMax:      timestampMax,
 		Limit:             limit,
 	}, nil
-}
-
-func parseResourceId(resourceId string) (string, string, error) {
-	// /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/hcp-kusto-us
-	parts := strings.Split(resourceId, "/")
-	if len(parts) < 4 {
-		return "", "", fmt.Errorf("invalid resourceId: %s", resourceId)
-	}
-	subscriptionId := parts[2]
-	resourceGroupName := parts[4]
-
-	if subscriptionId == "" || resourceGroupName == "" {
-		return "", "", fmt.Errorf("invalid resourceId: %s", resourceId)
-	}
-
-	return subscriptionId, resourceGroupName, nil
 }
 
 func (opts *QueryOptions) GetServicesQueries() []*kusto.ConfigurableQuery {
@@ -104,7 +86,7 @@ func (opts *QueryOptions) GetServicesQueries() []*kusto.ConfigurableQuery {
 		}
 		query.WithTable(table).WithDefaultFields()
 
-		query.WithTimestampMinAndMax(getTimeMinMax(opts.TimestampMin, opts.TimestampMax))
+		query.WithTimestampMinAndMax(opts.TimestampMin, opts.TimestampMax)
 		query.WithClusterIdOrSubscriptionAndResourceGroup(opts.ClusterIds, opts.SubscriptionId, opts.ResourceGroupName)
 		if opts.Limit > 0 {
 			query.WithLimit(opts.Limit)
@@ -124,7 +106,7 @@ func (opts *QueryOptions) GetHostedControlPlaneLogsQuery() []*kusto.Configurable
 		}
 		query.WithTable(containerLogsTable).WithDefaultFields()
 
-		query.WithTimestampMinAndMax(getTimeMinMax(opts.TimestampMin, opts.TimestampMax))
+		query.WithTimestampMinAndMax(opts.TimestampMin, opts.TimestampMax)
 		query.WithClusterId(clusterId)
 		if opts.Limit > 0 {
 			query.WithLimit(opts.Limit)
@@ -137,14 +119,4 @@ func (opts *QueryOptions) GetHostedControlPlaneLogsQuery() []*kusto.Configurable
 
 func (opts *QueryOptions) GetClusterIdQuery() *kusto.ConfigurableQuery {
 	return kusto.NewClusterIdQuery(servicesDatabase, clustersServiceLogsTable, opts.SubscriptionId, opts.ResourceGroupName)
-}
-
-func getTimeMinMax(timestampMin, timestampMax time.Time) (time.Time, time.Time) {
-	if timestampMin.IsZero() {
-		timestampMin = time.Now().Add(-24 * time.Hour)
-	}
-	if timestampMax.IsZero() {
-		timestampMax = time.Now()
-	}
-	return timestampMin, timestampMax
 }

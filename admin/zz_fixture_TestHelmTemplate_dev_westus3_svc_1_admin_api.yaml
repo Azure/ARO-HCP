@@ -1,0 +1,276 @@
+---
+# Source: ARO HCP Admin API/templates/admin.serviceaccount.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  annotations:
+    azure.workload.identity/client-id: '__adminApiMsiClientId__'
+    azure.workload.identity/tenant-id: '__tenantId__'
+  name: admin-api
+  namespace: 'aro-hcp-admin-api'
+---
+# Source: ARO HCP Admin API/templates/admin.service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: admin-api
+  namespace: 'aro-hcp-admin-api'
+  labels:
+    app: admin-api
+spec:
+  selector:
+    app: admin-api
+  ports:
+  - port: 8443
+    targetPort: 8443
+    protocol: TCP
+---
+# Source: ARO HCP Admin API/templates/admin.deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: admin-api
+  namespace: 'aro-hcp-admin-api'
+  labels:
+    app: admin-api
+spec:
+  replicas: 2
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app: admin-api
+  strategy:
+    rollingUpdate:
+      maxSurge: 50%
+      maxUnavailable: 50%
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: admin-api
+        azure.workload.identity/use: "true"
+      annotations:
+        checksum/fpa-spc: '3a8a42649d4184782a080188d109778f9fc6d3991745b5ce9858c9c0eb78e68a'
+    spec:
+      topologySpreadConstraints:
+      - maxSkew: 1
+        topologyKey: 'topology.kubernetes.io/zone'
+        whenUnsatisfiable: ScheduleAnyway
+        labelSelector:
+          matchLabels:
+            app: admin-api
+      - maxSkew: 1
+        topologyKey: kubernetes.io/hostname
+        whenUnsatisfiable: ScheduleAnyway
+        labelSelector:
+          matchLabels:
+            app: admin-api
+      serviceAccountName: admin-api
+      containers:
+      - name: service
+        image: "arohcpsvcdev.azurecr.io/arohcpadminapi@sha256:1234567890"
+        imagePullPolicy: IfNotPresent
+        args:
+        - "--location"
+        - "westus3"
+        env:
+        - name: CLUSTERS_SERVICE_URL
+          value: "http://clusters-service.clusters-service.svc.cluster.local:8000"
+        - name: COSMOS_URL
+          value: "__cosmosDBDocumentEndpoint__"
+        - name: COSMOS_NAME
+          value: "arohcpdev-rp-usw3"
+        - name: KUSTO_ENDPOINT
+          value: "__kustoEndpoint__"
+        - name: FPA_CERT_BUNDLE_PATH
+          value: "/secrets/fpa-cert/bundle"
+        - name: FPA_CLIENT_ID
+          value: "b3cb2fab-15cb-4583-ad06-f91da9bfe2d1"
+        ports:
+        - containerPort: 8443
+          name: http
+          protocol: TCP
+        - containerPort: 8444
+          name: health
+          protocol: TCP
+        resources:
+          requests:
+            cpu: 200m
+            memory: 512Mi
+          limits:
+            cpu: 1
+            memory: 1Gi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          runAsNonRoot: true
+          seccompProfile:
+            type: RuntimeDefault
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8444
+          initialDelaySeconds: 15
+          periodSeconds: 20
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /healthz/ready
+            port: 8444
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        volumeMounts:
+        - name: fpa-cert
+          mountPath: /secrets/fpa-cert
+          readOnly: true
+      volumes:
+      - name: fpa-cert
+        csi:
+          driver: secrets-store.csi.k8s.io
+          readOnly: true
+          volumeAttributes:
+            secretProviderClass: fpa-cert
+---
+# Source: ARO HCP Admin API/templates/admin.secret-refresher.yaml
+################################
+#
+# This keeps the certificate secret fresh because the secret is mounted from the keyVault (via the SecretProviderClass) and
+# if the certificate changes in the keyvault this will trigger a refresh of the kubernetes secret.
+#
+# Note: the istio plugin doesn't support using the SecretProviderClass directly. When it does this can be removed.
+#
+################################
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: admin-api-certificate-refresher
+  namespace: aks-istio-ingress
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: admin-api-certificate-refresher
+  template:
+    metadata:
+      labels:
+        app: admin-api-certificate-refresher
+    spec:
+      containers:
+      - command:
+        - "/bin/sleep"
+        - "infinity"
+        image: mcr.microsoft.com/cbl-mariner/busybox:1.35
+        name: init-container-msg-container-init
+        volumeMounts:
+        - name: secrets-store01-inline
+          mountPath: "/mnt/secrets-store"
+          readOnly: true
+      volumes:
+      - name: secrets-store01-inline
+        csi:
+          driver: secrets-store.csi.k8s.io
+          readOnly: true
+          volumeAttributes:
+            secretProviderClass: "admin-api-scp"
+---
+# Source: ARO HCP Admin API/templates/acrpullbinding.yaml
+apiVersion: acrpull.microsoft.com/v1beta2
+kind: AcrPullBinding
+metadata:
+  name: pull-binding
+  namespace: 'aro-hcp-admin-api'
+spec:
+  acr:
+    environment: PublicCloud
+    server: 'arohcpsvcdev.azurecr.io'
+    scope: 'repository:arohcpadminapi:pull'
+  auth:
+    workloadIdentity:
+      serviceAccountRef: 'admin-api'
+      clientID: '__imagePullerMsiClientId__'
+      tenantID: '__tenantId__'
+  serviceAccountName: 'admin-api'
+---
+# Source: ARO HCP Admin API/templates/admin.fpa.secretproviderclass.yaml
+apiVersion: secrets-store.csi.x-k8s.io/v1
+kind: SecretProviderClass
+metadata:
+  name: fpa-cert
+  namespace: 'aro-hcp-admin-api'
+spec:
+  parameters:
+    clientID: '__adminApiMsiClientId__'
+    cloudName: 'AzurePublicCloud'
+    keyvaultName: 'aro-hcp-dev-svc-kv'
+    objects: |-
+      array:
+        - |
+          objectName: 'firstPartyCert2'
+          objectType: secret
+          objectAlias: bundle
+    tenantId: '__tenantId__'
+    usePodIdentity: "false"
+  provider: azure
+---
+# Source: ARO HCP Admin API/templates/admin.secretproviderclass.yaml
+################################
+#
+# The addition of the secretObjects is to facilitate the istio plugin as it can't yet consume  the SecretProviderClass directly.
+# When it does this can be simplified and the secret.refresher removed.
+#
+################################
+apiVersion: secrets-store.csi.x-k8s.io/v1
+kind: SecretProviderClass
+metadata:
+  name: admin-api-scp
+  namespace: aks-istio-ingress
+spec:
+  parameters:
+    usePodIdentity: "false"
+    useVMManagedIdentity: "true"
+    userAssignedIdentityID: '__csiSecretStoreClientId__'
+    keyvaultName: 'aro-hcp-dev-svc-kv'
+    objects: |-
+      array:
+        - |
+          objectName: 'admin-api-cert-dev-usw3'
+          objectType: secret
+          objectAlias: admin-api-cert
+    tenantId: '__tenantId__'
+  provider: azure
+  secretObjects:
+  - secretName: admin-api-credential
+    type: kubernetes.io/tls
+    data:
+    - objectName: admin-api-cert
+      key: tls.crt
+    - objectName: admin-api-cert
+      key: tls.key
+---
+# Source: ARO HCP Admin API/templates/admin.virtualservice.yaml
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: admin-api-vs
+  namespace: 'aro-hcp-admin-api'
+spec:
+  hosts:
+  - "admin.westus3.hcpsvc.osadev.cloud"
+  gateways:
+  - aks-istio-ingress/aro-hcp-gateway-external
+  http:
+  - match:
+    - uri:
+        regex: '.+'
+    headers:
+      request:
+        add:
+          mise-inbound-policies-to-filter: "Geneva Actions"
+    route:
+    - destination:
+        host: admin-api
+        port:
+          number: 8443
+

@@ -4,6 +4,7 @@
 #   - linuxgeneva-microsoft
 forwarder:
   geoShortId: "{{ .azureGeoShortId }}"
+  azureCloudEnvironmentName: "{{ .cloudEnvironmentName }}"
   clusterType: "svc"
   environment: "{{ .arobit.kusto.environmentName }}"
   clusterName: "{{ .svc.aks.name }}"

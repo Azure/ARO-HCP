@@ -1,0 +1,10 @@
+      {
+        "code": "InvalidRequestContent",
+        "message": "Invalid value: \"/invalid2\": invalid resource ID: /invalid2",
+        "target": "properties.platform.osDisk.encryptionSetID"
+      },
+      {
+        "code": "InvalidRequestContent",
+        "message": "Invalid value: \"/invalid1\": invalid resource ID: /invalid1",
+        "target": "properties.platform.subnetID"
+      }

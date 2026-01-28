@@ -45,6 +45,10 @@ func TestClusterRequired(t *testing.T) {
 			expectErrors: []expectedError{
 				{
 					message:   "Required value",
+					fieldPath: "trackedResource.resource.id",
+				},
+				{
+					message:   "Required value",
 					fieldPath: "trackedResource.location",
 				},
 				{
@@ -115,8 +119,9 @@ func TestClusterRequired(t *testing.T) {
 			},
 		},
 		{
-			name:     "Minimum valid cluster",
-			resource: api.MinimumValidClusterTestCase(),
+			name:         "Minimum valid cluster",
+			resource:     api.MinimumValidClusterTestCase(),
+			expectErrors: []expectedError{},
 		},
 		{
 			name: "Cluster with identity",
@@ -125,7 +130,7 @@ func TestClusterRequired(t *testing.T) {
 					Platform: api.CustomerPlatformProfile{
 						OperatorsAuthentication: api.OperatorsAuthenticationProfile{
 							UserAssignedIdentities: api.UserAssignedIdentitiesProfile{
-								ControlPlaneOperators: map[string]string{
+								ControlPlaneOperators: map[string]*azcorearm.ResourceID{
 									"operatorX": api.NewTestUserAssignedIdentity("MyManagedIdentity"),
 								},
 							},
@@ -135,50 +140,11 @@ func TestClusterRequired(t *testing.T) {
 				Identity: &arm.ManagedServiceIdentity{
 					Type: arm.ManagedServiceIdentityTypeUserAssigned,
 					UserAssignedIdentities: map[string]*arm.UserAssignedIdentity{
-						api.NewTestUserAssignedIdentity("MyManagedIdentity"): {},
+						api.NewTestUserAssignedIdentity("MyManagedIdentity").String(): {},
 					},
 				},
 			},
-		},
-		{
-			name: "Cluster with broken identity",
-			tweaks: &api.HCPOpenShiftCluster{
-				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
-					Platform: api.CustomerPlatformProfile{
-						OperatorsAuthentication: api.OperatorsAuthenticationProfile{
-							UserAssignedIdentities: api.UserAssignedIdentitiesProfile{
-								ControlPlaneOperators: map[string]string{
-									"operatorX": "wrong/Pattern/Of/ResourceID",
-								},
-							},
-						},
-					},
-				},
-				Identity: &arm.ManagedServiceIdentity{
-					Type: arm.ManagedServiceIdentityTypeUserAssigned,
-					UserAssignedIdentities: map[string]*arm.UserAssignedIdentity{
-						"wrong/Pattern/Of/ResourceID": {},
-					},
-				},
-			},
-			expectErrors: []expectedError{
-				{
-					message:   "resource id 'wrong/Pattern/Of/ResourceID' must start with '/'",
-					fieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[operatorX]",
-				},
-				{
-					message:   "resource id 'wrong/Pattern/Of/ResourceID' must start with '/'",
-					fieldPath: "identity.userAssignedIdentities",
-				},
-				{
-					message:   "resource id 'wrong/Pattern/Of/ResourceID' must start with '/'",
-					fieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[operatorX]",
-				},
-				{
-					message:   "resource id 'wrong/Pattern/Of/ResourceID' must start with '/'",
-					fieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[operatorX]",
-				},
-			},
+			expectErrors: []expectedError{},
 		},
 	}
 
@@ -200,12 +166,14 @@ func TestClusterValidate(t *testing.T) {
 	// This function tests all the other validators in use.
 	tests := []struct {
 		name         string
+		resource     *api.HCPOpenShiftCluster
 		tweaks       *api.HCPOpenShiftCluster
 		expectErrors []expectedError
 	}{
 		{
-			name:   "Minimum valid cluster",
-			tweaks: &api.HCPOpenShiftCluster{},
+			name:         "Minimum valid cluster",
+			tweaks:       &api.HCPOpenShiftCluster{},
+			expectErrors: []expectedError{},
 		},
 		{
 			name: "Bad cidrv4",
@@ -257,13 +225,12 @@ func TestClusterValidate(t *testing.T) {
 		},
 		{
 			name: "Bad required_unless",
-			tweaks: &api.HCPOpenShiftCluster{
-				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
-					Version: api.VersionProfile{
-						ChannelGroup: "fast",
-					},
-				},
-			},
+			resource: func() *api.HCPOpenShiftCluster {
+				r := api.MinimumValidClusterTestCase()
+				r.CustomerProperties.Version.ID = ""
+				r.CustomerProperties.Version.ChannelGroup = "fast"
+				return r
+			}(),
 			expectErrors: []expectedError{
 				{
 					message:   "Required value",
@@ -372,7 +339,7 @@ func TestClusterValidate(t *testing.T) {
 					Platform: api.CustomerPlatformProfile{
 						OperatorsAuthentication: api.OperatorsAuthenticationProfile{
 							UserAssignedIdentities: api.UserAssignedIdentitiesProfile{
-								ControlPlaneOperators: map[string]string{
+								ControlPlaneOperators: map[string]*azcorearm.ResourceID{
 									"": managedIdentity1,
 								},
 							},
@@ -399,7 +366,7 @@ func TestClusterValidate(t *testing.T) {
 					Platform: api.CustomerPlatformProfile{
 						OperatorsAuthentication: api.OperatorsAuthenticationProfile{
 							UserAssignedIdentities: api.UserAssignedIdentitiesProfile{
-								DataPlaneOperators: map[string]string{
+								DataPlaneOperators: map[string]*azcorearm.ResourceID{
 									"": managedIdentity1,
 								},
 							},
@@ -578,7 +545,7 @@ func TestClusterValidate(t *testing.T) {
 					Platform: api.CustomerPlatformProfile{
 						ManagedResourceGroup: api.TestResourceGroupName,
 						// Use a different resource group name to avoid a subnet ID error.
-						SubnetID: path.Join("/subscriptions", api.TestSubscriptionID, "resourceGroups", "anotherResourceGroup", "providers", "Microsoft.Network", "virtualNetworks", api.TestVirtualNetworkName, "subnets", api.TestSubnetName),
+						SubnetID: api.Must(azcorearm.ParseResourceID(path.Join("/subscriptions", api.TestSubscriptionID, "resourceGroups", "anotherResourceGroup", "providers", "Microsoft.Network", "virtualNetworks", api.TestVirtualNetworkName, "subnets", api.TestSubnetName))),
 					},
 				},
 			},
@@ -595,7 +562,7 @@ func TestClusterValidate(t *testing.T) {
 				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
 					Platform: api.CustomerPlatformProfile{
 						ManagedResourceGroup: "MRG",
-						SubnetID:             "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/MRG/providers/Microsoft.Network/virtualNetworks/testVirtualNetwork/subnets/testSubnet",
+						SubnetID:             api.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/MRG/providers/Microsoft.Network/virtualNetworks/testVirtualNetwork/subnets/testSubnet")),
 					},
 				},
 			},
@@ -621,10 +588,10 @@ func TestClusterValidate(t *testing.T) {
 					Platform: api.CustomerPlatformProfile{
 						OperatorsAuthentication: api.OperatorsAuthenticationProfile{
 							UserAssignedIdentities: api.UserAssignedIdentitiesProfile{
-								ControlPlaneOperators: map[string]string{
-									"operatorX": strings.ToLower(managedIdentity1),
+								ControlPlaneOperators: map[string]*azcorearm.ResourceID{
+									"operatorX": api.Must(azcorearm.ParseResourceID(strings.ToLower(managedIdentity1.String()))),
 								},
-								ServiceManagedIdentity: strings.ToLower(managedIdentity2),
+								ServiceManagedIdentity: api.Must(azcorearm.ParseResourceID(strings.ToLower(managedIdentity2.String()))),
 							},
 						},
 					},
@@ -632,8 +599,8 @@ func TestClusterValidate(t *testing.T) {
 				Identity: &arm.ManagedServiceIdentity{
 					Type: arm.ManagedServiceIdentityTypeUserAssigned,
 					UserAssignedIdentities: map[string]*arm.UserAssignedIdentity{
-						strings.ToUpper(managedIdentity1): {},
-						strings.ToUpper(managedIdentity2): {},
+						strings.ToUpper(managedIdentity1.String()): {},
+						strings.ToUpper(managedIdentity2.String()): {},
 					},
 				},
 			},
@@ -645,7 +612,7 @@ func TestClusterValidate(t *testing.T) {
 					Platform: api.CustomerPlatformProfile{
 						OperatorsAuthentication: api.OperatorsAuthenticationProfile{
 							UserAssignedIdentities: api.UserAssignedIdentitiesProfile{
-								ControlPlaneOperators: map[string]string{
+								ControlPlaneOperators: map[string]*azcorearm.ResourceID{
 									"operatorX": managedIdentity1,
 								},
 								ServiceManagedIdentity: managedIdentity2,
@@ -656,7 +623,7 @@ func TestClusterValidate(t *testing.T) {
 				Identity: &arm.ManagedServiceIdentity{
 					Type: arm.ManagedServiceIdentityTypeUserAssigned,
 					UserAssignedIdentities: map[string]*arm.UserAssignedIdentity{
-						managedIdentity3: {},
+						managedIdentity3.String(): {},
 					},
 				},
 			},
@@ -682,7 +649,7 @@ func TestClusterValidate(t *testing.T) {
 					Platform: api.CustomerPlatformProfile{
 						OperatorsAuthentication: api.OperatorsAuthenticationProfile{
 							UserAssignedIdentities: api.UserAssignedIdentitiesProfile{
-								ControlPlaneOperators: map[string]string{
+								ControlPlaneOperators: map[string]*azcorearm.ResourceID{
 									"operatorX": managedIdentity1,
 									"operatorY": managedIdentity1,
 								},
@@ -694,7 +661,7 @@ func TestClusterValidate(t *testing.T) {
 				Identity: &arm.ManagedServiceIdentity{
 					Type: arm.ManagedServiceIdentityTypeUserAssigned,
 					UserAssignedIdentities: map[string]*arm.UserAssignedIdentity{
-						managedIdentity1: {},
+						managedIdentity1.String(): {},
 					},
 				},
 			},
@@ -712,7 +679,7 @@ func TestClusterValidate(t *testing.T) {
 					Platform: api.CustomerPlatformProfile{
 						OperatorsAuthentication: api.OperatorsAuthenticationProfile{
 							UserAssignedIdentities: api.UserAssignedIdentitiesProfile{
-								DataPlaneOperators: map[string]string{
+								DataPlaneOperators: map[string]*azcorearm.ResourceID{
 									"operatorX": managedIdentity1,
 								},
 							},
@@ -722,7 +689,7 @@ func TestClusterValidate(t *testing.T) {
 				Identity: &arm.ManagedServiceIdentity{
 					Type: arm.ManagedServiceIdentityTypeUserAssigned,
 					UserAssignedIdentities: map[string]*arm.UserAssignedIdentity{
-						managedIdentity1: {},
+						managedIdentity1.String(): {},
 					},
 				},
 			},
@@ -741,7 +708,10 @@ func TestClusterValidate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			resource := api.ClusterTestCase(t, tt.tweaks)
+			resource := tt.resource
+			if resource == nil {
+				resource = api.ClusterTestCase(t, tt.tweaks)
+			}
 
 			actualErrors := ValidateClusterCreate(context.TODO(), resource, nil)
 			verifyErrorsMatch(t, tt.expectErrors, actualErrors)

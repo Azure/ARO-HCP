@@ -17,7 +17,8 @@ package utils
 import (
 	"context"
 	"fmt"
-	"log/slog"
+
+	"github.com/go-logr/logr"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 )
@@ -53,12 +54,12 @@ const (
 	contextKeyResourceID
 )
 
-func ContextWithLogger(ctx context.Context, logger *slog.Logger) context.Context {
+func ContextWithLogger(ctx context.Context, logger logr.Logger) context.Context {
 	return context.WithValue(ctx, contextKeyLogger, logger)
 }
 
-func LoggerFromContext(ctx context.Context) *slog.Logger {
-	logger, ok := ctx.Value(contextKeyLogger).(*slog.Logger)
+func LoggerFromContext(ctx context.Context) logr.Logger {
+	logger, ok := ctx.Value(contextKeyLogger).(logr.Logger)
 	if !ok {
 		err := &ContextError{
 			got: logger,
@@ -67,7 +68,7 @@ func LoggerFromContext(ctx context.Context) *slog.Logger {
 		// Return the default logger as a fail-safe, but log
 		// the failure to obtain the logger from the context.
 		logger = DefaultLogger()
-		logger.Error(err.Error())
+		logger.Error(err, "failed to get logger from context")
 	}
 	return logger
 }

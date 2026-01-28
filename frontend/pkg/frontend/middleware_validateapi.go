@@ -54,7 +54,7 @@ func (h *middlewareValidatedAPIVersion) handleRequest(w http.ResponseWriter, r *
 			api.ClusterResourceType,
 			apiVersion)
 	} else {
-		logger = logger.With("api_version", apiVersion)
+		logger = logger.WithValues("api_version", apiVersion)
 		ctx = utils.ContextWithLogger(ctx, logger)
 		ctx = ContextWithVersion(ctx, version)
 		r = r.WithContext(ctx)

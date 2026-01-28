@@ -166,12 +166,20 @@ func RunTestHelmTemplate(t *testing.T, settingsPath string) {
 			Values:       helmStep.ValuesFileFromRoot(settings.TopologyDir),
 			HelmChartDir: helmStep.ChartDirFromRoot(settings.TopologyDir),
 			TestData:     map[string]any{},
+			Implicit:     true,
 		})
 		for _, testCase := range allCases {
 			t.Run(testCase.Name, func(t *testing.T) {
 				manifest, err := runTest(t.Context(), settings, testCase)
 				assert.NoError(t, err)
-				CompareWithFixture(t, manifest, WithGoldenDir(filepath.Join(helmStep.ChartDirFromRoot(settings.TopologyDir), internal.TestDataFromChartDir)))
+				// we want to place implicit test cases by the pipelines that created them, not the chart they happened to render.
+				// n.b. a more correct implementation would keep track of *where* the custom test case came from and use that dir
+				// exactly as the output directory - an exercise left for the future
+				outputDir := filepath.Join(helmStep.ChartDirFromRoot(settings.TopologyDir), internal.TestDataFromChartDir)
+				if testCase.Implicit {
+					outputDir = filepath.Join(settings.TopologyDir, filepath.Dir(helmStep.PipelinePath))
+				}
+				CompareWithFixture(t, manifest, WithGoldenDir(outputDir))
 			})
 		}
 	}

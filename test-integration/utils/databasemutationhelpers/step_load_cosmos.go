@@ -22,7 +22,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/Azure/ARO-HCP/internal/utils"
-	"github.com/Azure/ARO-HCP/test-integration/utils/integrationutils"
 )
 
 type loadCosmosStep struct {
@@ -51,7 +50,8 @@ func (l *loadCosmosStep) StepID() StepID {
 
 func (l *loadCosmosStep) RunTest(ctx context.Context, t *testing.T, stepInput StepInput) {
 	for _, content := range l.contents {
-		err := integrationutils.LoadCosmosContent(ctx, stepInput.CosmosContainer, content)
+		// Use the ContentLoader interface (works with both Cosmos and mock)
+		err := stepInput.ContentLoader.LoadContent(ctx, content)
 		require.NoError(t, err, "failed to load cosmos content: %v", string(content))
 	}
 }

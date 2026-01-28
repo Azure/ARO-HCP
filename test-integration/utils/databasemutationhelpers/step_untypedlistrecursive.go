@@ -40,9 +40,8 @@ type UntypedChild struct {
 }
 
 type untypedListRecursiveStep struct {
-	stepID      StepID
-	key         UntypedCRUDKey
-	specializer ResourceCRUDTestSpecializer[database.TypedDocument]
+	stepID StepID
+	key    UntypedCRUDKey
 
 	expectedResources []*database.TypedDocument
 }
@@ -65,7 +64,6 @@ func newUntypedListRecursiveStep(stepID StepID, stepDir fs.FS) (*untypedListRecu
 	return &untypedListRecursiveStep{
 		stepID:            stepID,
 		key:               key,
-		specializer:       UntypedCRUDSpecializer{},
 		expectedResources: expectedResources,
 	}, nil
 }
@@ -77,10 +75,8 @@ func (l *untypedListRecursiveStep) StepID() StepID {
 }
 
 func (l *untypedListRecursiveStep) RunTest(ctx context.Context, t *testing.T, stepInput StepInput) {
-	parentResourceID, err := azcorearm.ParseResourceID(l.key.ParentResourceID)
+	untypedCRUD, err := stepInput.DBClient.UntypedCRUD(*l.key.ParentResourceID)
 	require.NoError(t, err)
-
-	untypedCRUD := database.NewUntypedCRUD(stepInput.CosmosContainer, *parentResourceID)
 	for _, childKey := range l.key.Descendents {
 		childResourceType, err := azcorearm.ParseResourceType(childKey.ResourceType)
 		require.NoError(t, err)
@@ -105,7 +101,7 @@ func (l *untypedListRecursiveStep) RunTest(ctx context.Context, t *testing.T, st
 	for _, expected := range l.expectedResources {
 		found := false
 		for _, actual := range actualResources {
-			if l.specializer.InstanceEquals(expected, actual) {
+			if _, equals := ResourceInstanceEquals(t, expected, actual); equals {
 				found = true
 				break
 			}
@@ -113,14 +109,14 @@ func (l *untypedListRecursiveStep) RunTest(ctx context.Context, t *testing.T, st
 		if !found {
 			t.Logf("actual:\n%v", stringifyResource(actualResources))
 		}
-		require.True(t, found, "expected resource not found: %v", l.specializer.NameFromInstance(expected))
+		require.True(t, found, "expected resource not found: %v", ResourceName(expected))
 	}
 
 	// all the actual must be expected
 	for _, actual := range actualResources {
 		found := false
 		for _, expected := range l.expectedResources {
-			if l.specializer.InstanceEquals(expected, actual) {
+			if _, equals := ResourceInstanceEquals(t, expected, actual); equals {
 				found = true
 				break
 			}
@@ -128,6 +124,6 @@ func (l *untypedListRecursiveStep) RunTest(ctx context.Context, t *testing.T, st
 		if !found {
 			t.Logf("expected:\n%v", stringifyResource(l.expectedResources))
 		}
-		require.True(t, found, "actual resource not found: %v", l.specializer.NameFromInstance(actual))
+		require.True(t, found, "actual resource not found: %v", ResourceName(actual))
 	}
 }

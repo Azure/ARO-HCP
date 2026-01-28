@@ -20,6 +20,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/stretchr/testify/require"
 
 	"k8s.io/apimachinery/pkg/api/equality"
 
@@ -66,6 +67,14 @@ func TestRoundTripInternalExternalInternal(t *testing.T) {
 			// ClusterServiceID does not roundtrip through the external type because it is purely an internal detail
 			j.ClusterServiceID = ocm.InternalID{}
 		},
+		func(j *api.CustomerManagedEncryptionProfile, c randfill.Continue) {
+			c.FillNoCustom(j)
+			// we cannot properly roundtrip a zero value here, so nil when that happens
+			zeroValueKMS := api.KmsEncryptionProfile{}
+			if j.Kms != nil && *j.Kms == zeroValueKMS {
+				j.Kms = nil
+			}
+		},
 	}, rand.NewSource(seed))
 
 	// Try a few times, since runTest uses random values.
@@ -102,7 +111,8 @@ func roundTripHCPCluster(t *testing.T, original *api.HCPOpenShiftCluster) {
 	v := version{}
 	externalObj := v.NewHCPOpenShiftCluster(original)
 
-	roundTrippedObj := externalObj.ConvertToInternal()
+	roundTrippedObj, err := externalObj.ConvertToInternal()
+	require.NoError(t, err)
 
 	// we compare the JSON here because many of these types have private fields that cannot be introspected
 	if !equality.Semantic.DeepEqual(original, roundTrippedObj) {
@@ -119,7 +129,8 @@ func roundTripNodePool(t *testing.T, original *api.HCPOpenShiftClusterNodePool) 
 	v := version{}
 	externalObj := v.NewHCPOpenShiftClusterNodePool(original)
 
-	roundTrippedObj := externalObj.ConvertToInternal()
+	roundTrippedObj, err := externalObj.ConvertToInternal()
+	require.NoError(t, err)
 
 	// we compare the JSON here because many of these types have private fields that cannot be introspected
 	if !equality.Semantic.DeepEqual(original, roundTrippedObj) {
@@ -136,7 +147,8 @@ func roundTripExternalAuth(t *testing.T, original *api.HCPOpenShiftClusterExtern
 	v := version{}
 	externalObj := v.NewHCPOpenShiftClusterExternalAuth(original)
 
-	roundTrippedObj := externalObj.ConvertToInternal()
+	roundTrippedObj, err := externalObj.ConvertToInternal()
+	require.NoError(t, err)
 
 	// we compare the JSON here because many of these types have private fields that cannot be introspected
 	if !equality.Semantic.DeepEqual(original, roundTrippedObj) {

@@ -13,6 +13,10 @@ CONFIG_FILE ?= config/config.yaml
 
 .DEFAULT_GOAL := all
 
+# There is currently no convenient way to run commands against a whole Go workspace
+# https://github.com/golang/go/issues/50745
+MODULES := $(shell go list -f '{{.Dir}}/...' -m | xargs)
+
 all: test lint
 .PHONY: all
 
@@ -41,8 +45,8 @@ verify-yamlfmt: yamlfmt
 .PHONY: verify-generate
 
 mocks: $(MOCKGEN) $(GOIMPORTS)
-	MOCKGEN=${MOCKGEN} go generate ./internal/mocks
-	$(GOIMPORTS) -w -local github.com/Azure/ARO-HCP ./internal/mocks
+	MOCKGEN=${MOCKGEN} go generate -run '\$$MOCKGEN\b' $(MODULES)
+	$(GOIMPORTS) -w -local github.com/Azure/ARO-HCP $$(find . -name "mock_*.go" -not -path "./.git/*" -not -path "./.bingo/*")
 .PHONY: mocks
 
 install-tools: $(BINGO) $(HELM_LINK) $(YQ_LINK) $(JQ_LINK) $(ORAS_LINK)
@@ -52,9 +56,6 @@ install-tools: $(BINGO) $(HELM_LINK) $(YQ_LINK) $(JQ_LINK) $(ORAS_LINK)
 licenses: $(ADDLICENSE)
 	$(shell find . -type f -name '*.go' | xargs -I {} $(ADDLICENSE) -c 'Microsoft Corporation' -l apache {})
 
-# There is currently no convenient way to run golangci-lint against a whole Go workspace
-# https://github.com/golang/go/issues/50745
-MODULES := $(shell go list -f '{{.Dir}}/...' -m | xargs)
 lint: $(GOLANGCI_LINT)
 	$(GOLANGCI_LINT) run -v --build-tags=$(LINT_GOTAGS) $(MODULES)
 .PHONY: lint
@@ -112,14 +113,14 @@ e2e-local/run: $(ARO_HCP_TESTS)
 	export JUNIT_PATH=$${JUNIT_PATH:-$$ARTIFACT_DIR/junit.xml}; \
 	export HTML_PATH=$${HTML_PATH:-$$ARTIFACT_DIR/extension-test-result-summary.html}; \
 	mkdir -p "$$ARTIFACT_DIR"; \
-	$(ARO_HCP_TESTS) run-suite "rp-api-compat-all/parallel" --junit-path="$$JUNIT_PATH" --html-path="$$HTML_PATH"
+	$(ARO_HCP_TESTS) run-suite "rp-api-compat-all/parallel" --junit-path="$$JUNIT_PATH" --html-path="$$HTML_PATH" --max-concurrency 100
 .PHONY: e2e-local/run
 
 CONTAINER_RUNTIME ?= docker
 
 mega-lint:
 	$(CONTAINER_RUNTIME) run --rm \
-		-e FILTER_REGEX_EXCLUDE='hypershiftoperator/deploy/crds/|maestro/server/deploy/templates/allow-cluster-service.authorizationpolicy.yaml|acm/deploy/helm/multicluster-engine-config/charts/policy/charts|dev-infrastructure/global-pipeline.yaml|tooling/templatize/testdata/pipeline.yaml' \
+		-e FILTER_REGEX_EXCLUDE='hypershiftoperator/deploy/crds/|maestro/server/deploy/templates/allow-cluster-service.authorizationpolicy.yaml|acm/deploy/helm/multicluster-engine-config/charts/policy/charts|dev-infrastructure/global-pipeline.yaml|tooling/templatize/testdata/pipeline.yaml|hypershiftoperator/deploy/templates/cluster.clustersizingconfiguration.yaml' \
 		-e REPORT_OUTPUT_FOLDER=/tmp/report \
 		-v $${PWD}:/tmp/lint:Z \
 		docker.io/oxsecurity/megalinter-ci_light:v9
@@ -276,6 +277,7 @@ ARO-Tools:
 .PHONY: ARO-Tools
 
 update-helm-fixtures:
+	find * -name 'zz_fixture_TestHelmTemplate*' | xargs rm -rf
 	$(MAKE) -C tooling/helmtest update
 .PHONY: update-helm-fixtures
 

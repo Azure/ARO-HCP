@@ -73,8 +73,8 @@ github.com/Azure/ARO-HCP/tooling/hcpctl v0.0.0-20260113131010-8f869ff652e6 h1:p8
 github.com/Azure/ARO-HCP/tooling/hcpctl v0.0.0-20260113131010-8f869ff652e6/go.mod h1:oPokR2W+VXuygKP0gn5yU71KBsmZA8mD5GlNheHBoHs=
 github.com/Azure/ARO-HCP/tooling/templatize v0.0.0-20260107114435-98c5eb6d5d91 h1:0X36yXkzceM65M9qUD2Kcz5Dx8glBB2qt74Xx+7kJJQ=
 github.com/Azure/ARO-HCP/tooling/templatize v0.0.0-20260107114435-98c5eb6d5d91/go.mod h1:R5j2MWwCxNmf0ekPeK1k3JgzuGZ1+qWVJyQoqHJaLGs=
-github.com/Azure/ARO-Tools v0.0.0-20260112224556-4fc17a690209 h1:K/bN3e+jDLOZNWds7x6KwMeYjNAi1HD0iCpd3+SBLGA=
-github.com/Azure/ARO-Tools v0.0.0-20260112224556-4fc17a690209/go.mod h1:x/VSwQ7cQalvlF0YPUJc0JwE86Ii163PhjMfojWcw2k=
+github.com/Azure/ARO-Tools v0.0.0-20260126192926-5c105c81e1f1 h1:IY7FQk6aqufe/1RCBPoz7UO0FLj3pNrfXMOMNZh2dTg=
+github.com/Azure/ARO-Tools v0.0.0-20260126192926-5c105c81e1f1/go.mod h1:57ivOjxXfWnAC7ATstbZH2M1aXqkH/prolqMhv+Akcs=
 github.com/Azure/azure-kusto-go v0.16.1 h1:vCBWcQghmC1qIErUUgVNWHxGhZVStu1U/hki6iBA14k=
 github.com/Azure/azure-kusto-go v0.16.1/go.mod h1:9F2zvXH8B6eWzgI1S4k1ZXAIufnBZ1bv1cW1kB1n3D0=
 github.com/Azure/azure-sdk-for-go v68.0.0+incompatible h1:fcYLmCpyNYRnvJbPerq7U0hS+6+I79yEDJBqVNcqUzU=
@@ -96,6 +96,8 @@ github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/internal/v2 v2.0.0 h1:PTFG
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/internal/v2 v2.0.0/go.mod h1:LRr2FzBTQlONPPa5HREE5+RjSCTXl7BwOvYOaWTqCaI=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/internal/v3 v3.1.0 h1:2qsIIvxVT+uE6yrNldntJKlLRgxGbZ85kgtz5SNBhMw=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/internal/v3 v3.1.0/go.mod h1:AW8VEadnhw9xox+VaVd9sP7NjzOAnaZBLRH6Tq3cJ38=
+github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/kusto/armkusto/v2 v2.3.0 h1:5kp5bmJwJuF0HTsPUxRWRy44FxEatQAhv03nYdjXJ3s=
+github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/kusto/armkusto/v2 v2.3.0/go.mod h1:ULnv9Hl5nSpzNHHqJ3xX0kIZp5ZyLcLGHdXNQ8RwIk4=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/managementgroups/armmanagementgroups v1.2.0 h1:akP6VpxJGgQRpDR1P462piz/8OhYLRCreDj48AyNabc=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/managementgroups/armmanagementgroups v1.2.0/go.mod h1:8wzvopPfyZYPaQUoKW87Zfdul7jmJMDfp/k7YY3oJyA=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v6 v6.2.0 h1:HYGD75g0bQ3VO/Omedm54v4LrD3B1cGImuRF3AJ5wLo=

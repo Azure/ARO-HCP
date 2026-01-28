@@ -15,7 +15,6 @@
 package frontend
 
 import (
-	"fmt"
 	"net/http"
 
 	"go.opentelemetry.io/otel/trace"
@@ -35,7 +34,7 @@ func MiddlewareResourceID(w http.ResponseWriter, r *http.Request, next http.Hand
 	originalPath, _ := OriginalPathFromContext(ctx)
 	if originalPath == "" {
 		// MiddlewareLowercase has not run; fall back to the request path.
-		logger.Warn("Middleware dependency error: MiddlewareResourceID ran before MiddlewareLowercase")
+		logger.Info("Middleware dependency error: MiddlewareResourceID ran before MiddlewareLowercase")
 		originalPath = r.URL.Path
 	}
 
@@ -47,7 +46,7 @@ func MiddlewareResourceID(w http.ResponseWriter, r *http.Request, next http.Hand
 		ctx = utils.ContextWithResourceID(ctx, resourceID)
 		r = r.WithContext(ctx)
 	} else {
-		logger.Warn(fmt.Sprintf("Failed to parse '%s' as resource ID: %v", originalPath, err))
+		logger.Info("Failed to parse path as resource ID", "path", originalPath, "error", err.Error())
 	}
 
 	next(w, r)

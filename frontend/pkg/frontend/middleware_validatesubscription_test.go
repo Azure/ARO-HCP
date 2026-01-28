@@ -17,11 +17,11 @@ package frontend
 import (
 	"encoding/json"
 	"fmt"
-	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
+	"github.com/go-logr/logr/testr"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
@@ -29,7 +29,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 
 	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/mocks"
+	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -199,8 +199,8 @@ func TestMiddlewareValidateSubscription(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
-			mockDBClient := mocks.NewMockDBClient(ctrl)
-			mockSubscriptionCRUD := mocks.NewMockSubscriptionCRUD(ctrl)
+			mockDBClient := database.NewMockDBClient(ctrl)
+			mockSubscriptionCRUD := database.NewMockSubscriptionCRUD(ctrl)
 
 			var subscription *arm.Subscription
 
@@ -220,7 +220,7 @@ func TestMiddlewareValidateSubscription(t *testing.T) {
 
 			// Add a logger to the context so parsing errors will be logged.
 			ctx := request.Context()
-			ctx = utils.ContextWithLogger(ctx, slog.Default())
+			ctx = utils.ContextWithLogger(ctx, testr.New(t))
 			ctx, sr := initSpanRecorder(ctx)
 			request = request.WithContext(ctx)
 
@@ -278,7 +278,7 @@ func TestMiddlewareValidateSubscription(t *testing.T) {
 		request.SetPathValue(PathSegmentSubscriptionID, subscriptionId)
 
 		ctx := request.Context()
-		ctx = utils.ContextWithLogger(ctx, slog.Default())
+		ctx = utils.ContextWithLogger(ctx, testr.New(t))
 		request = request.WithContext(ctx)
 
 		next := func(w http.ResponseWriter, r *http.Request) {

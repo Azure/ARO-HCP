@@ -32,6 +32,10 @@ type TestCase struct {
 	Values       string         `yaml:"values"`
 	HelmChartDir string         `yaml:"helmChartDir,omitempty"`
 	TestData     map[string]any `yaml:"testData"`
+
+	// An implicit test case is one generated for a use of a Helm step, not one that
+	// is written by hand for some specific use-case.
+	Implicit bool `yaml:"-"`
 }
 
 type HelmStepWithPath struct {

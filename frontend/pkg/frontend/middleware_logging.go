@@ -18,11 +18,11 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"log/slog"
 	"net/http"
 	"strings"
 	"time"
 
+	"github.com/go-logr/logr"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
@@ -72,7 +72,7 @@ func MiddlewareLogging(w http.ResponseWriter, r *http.Request, next http.Handler
 
 	startTime := time.Now()
 
-	logger = logger.With(
+	logger = logger.WithValues(
 		"request_method", r.Method,
 		"request_path", r.URL.Path,
 	)
@@ -83,7 +83,7 @@ func MiddlewareLogging(w http.ResponseWriter, r *http.Request, next http.Handler
 	// It's important to do before the second panic handler so that panics can be correlated easily.
 	// TODO are the value we find case sensitive or case insensitive.  They used to be case sensitive, so I have left that
 	if resourceID, err := azcorearm.ParseResourceID(r.URL.Path); err == nil {
-		logger = logger.With(
+		logger = logger.WithValues(
 			"subscription_id", resourceID.SubscriptionID,
 			"resource_group", resourceID.ResourceGroupName,
 		)
@@ -92,7 +92,7 @@ func MiddlewareLogging(w http.ResponseWriter, r *http.Request, next http.Handler
 		for currID != nil {
 			// TODO we have the option on recording each type.  I have no real preference
 			if currID.ResourceType.String() == strings.ToLower(api.ClusterResourceType.String()) {
-				logger.With(
+				logger = logger.WithValues(
 					"hcp_cluster_name", currID.Name,
 				)
 				break
@@ -136,7 +136,7 @@ func MiddlewareLoggingPostMux(w http.ResponseWriter, r *http.Request, next http.
 		resourceName:   r.PathValue(PathSegmentResourceName),
 	}
 	attrs.addToCurrentSpan(ctx)
-	ctx = utils.ContextWithLogger(ctx, attrs.extendLogger(logger))
+	ctx = utils.ContextWithLogger(ctx, attrs.extendLogr(logger))
 	r = r.WithContext(ctx)
 
 	next(w, r)
@@ -162,20 +162,18 @@ func (a *attributes) resourceID() string {
 	)
 }
 
-// extendLogger returns a new logger with additional Logging attributes based
+// extendLogr returns a new logger with additional Logging attributes based
 // on the wildcards from the matched pattern.
-func (a *attributes) extendLogger(logger *slog.Logger) *slog.Logger {
-	var attrs []slog.Attr
-
+func (a *attributes) extendLogr(logger logr.Logger) logr.Logger {
 	if a.resourceName != "" {
-		attrs = append(attrs, slog.String("resource_name", a.resourceName))
+		logger = logger.WithValues("resource_name", a.resourceName)
 	}
 
 	if resourceID := a.resourceID(); resourceID != "" {
-		attrs = append(attrs, slog.String("resource_id", resourceID))
+		logger = logger.WithValues("resource_id", resourceID)
 	}
 
-	return slog.New(logger.Handler().WithAttrs(attrs))
+	return logger
 }
 
 func (a *attributes) addToCurrentSpan(ctx context.Context) {

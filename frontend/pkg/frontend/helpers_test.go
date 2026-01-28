@@ -20,6 +20,7 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/go-logr/logr/testr"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
@@ -28,7 +29,6 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
-	"github.com/Azure/ARO-HCP/internal/mocks"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -107,10 +107,10 @@ func TestCheckForProvisioningStateConflict(t *testing.T) {
 		for provisioningState := range arm.ListProvisioningStates() {
 			name = fmt.Sprintf("%s (provisioningState=%s)", tt.name, provisioningState)
 			t.Run(name, func(t *testing.T) {
-				ctx := utils.ContextWithLogger(context.Background(), api.NewTestLogger())
+				ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
 				ctrl := gomock.NewController(t)
-				mockDBClient := mocks.NewMockDBClient(ctrl)
-				mockClusterCRUD := mocks.NewMockHCPClusterCRUD(ctrl)
+				mockDBClient := database.NewMockDBClient(ctrl)
+				mockClusterCRUD := database.NewMockHCPClusterCRUD(ctrl)
 
 				frontend := &Frontend{
 					dbClient: mockDBClient,
@@ -158,10 +158,10 @@ func TestCheckForProvisioningStateConflict(t *testing.T) {
 			for provisioningState := range arm.ListProvisioningStates() {
 				name = fmt.Sprintf("%s (parent provisioningState=%s)", tt.name, provisioningState)
 				t.Run(name, func(t *testing.T) {
-					ctx := utils.ContextWithLogger(context.Background(), api.NewTestLogger())
+					ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
 					ctrl := gomock.NewController(t)
-					mockDBClient := mocks.NewMockDBClient(ctrl)
-					mockClusterCRUD := mocks.NewMockHCPClusterCRUD(ctrl)
+					mockDBClient := database.NewMockDBClient(ctrl)
+					mockClusterCRUD := database.NewMockHCPClusterCRUD(ctrl)
 
 					frontend := &Frontend{
 						dbClient: mockDBClient,

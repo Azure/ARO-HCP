@@ -17,7 +17,6 @@ package errorutils
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net/http"
 
 	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
@@ -56,7 +55,7 @@ func ReportError(delegate ErroringHTTPHandlerFunc) http.HandlerFunc {
 func writeError(ctx context.Context, w http.ResponseWriter, err error, args ...interface{}) error {
 	logger := utils.LoggerFromContext(ctx)
 
-	logger.Error(fmt.Sprintf("%v", err), args...) // fmt used to handle nil
+	logger.Error(err, "request error", args...)
 
 	var ocmError *ocmerrors.Error
 	if errors.As(err, &ocmError) {

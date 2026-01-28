@@ -34,6 +34,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/admission"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/v20240610preview"
+	"github.com/Azure/ARO-HCP/internal/api/v20251223preview"
 	"github.com/Azure/ARO-HCP/internal/conversion"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -150,20 +152,35 @@ func (f *Frontend) ArmResourceListClusters(writer http.ResponseWriter, request *
 	return nil
 }
 
+// CreateOrUpdateHCPCluster handles both PUT and PATCH requests from clients to ARM. The semantics of these verbs are:
+// When no resource by this identifier exists:
+//   - PUT: create the resource, overlaying client-specified fields on a default resource struct,
+//     which only has API-specified non-zero default values
+//   - PATCH: error
+//
+// When a resource by this identifier already exists:
+//   - PUT: replace the resource, overlaying client-specified fields on a default resource struct,
+//     which only has API-specified non-zero default values (and NOT taking into account the
+//     existing content of the resource in storage)
+//   - PATCH: update the resource, overlaying client-specified fields onto the existing resource
+//
+// This means all required properties must be specified in the request body for PUT, whether creating or updating a resource.
+//
+// See these documents for a description of required semantics from ARM Resource Providers:
+//
+// PUT:
+// The Put operation creates or replaces a resource. Resource types can be nested and, if so, must follow the Resource API guidelines.
+// ARM does not distinguish between creation and replacement requests. The resource provider should consult its datastore if a distinction
+// is necessary. A Put should always be allowed to overwrite an existing resource. An exception to this rule is when
+// `x-ms-mutability ['create', 'read']` is applied to a property. For such properties, the value submitted during the create operation
+// must be retained. Eg: The location property defined for tracked resources.
+// ref: https://github.com/cloud-and-ai-microsoft/resource-provider-contract/blob/master/v1.0/put-resource.md#put-resource
+//
+// PATCH
+// A Patch operation updates a resource and it is strongly recommended that service teams implement it. ARM requires RPs to support Patch for updating tags for a tracked resource.
+// ref: https://github.com/cloud-and-ai-microsoft/resource-provider-contract/blob/master/v1.0/patch-resource.md#patch-resource
 func (f *Frontend) CreateOrUpdateHCPCluster(writer http.ResponseWriter, request *http.Request) error {
 	var err error
-
-	// This handles both PUT and PATCH requests. PATCH requests will
-	// never create a new resource. The only other notable difference
-	// is the target struct that request bodies are overlayed onto:
-	//
-	// PUT requests overlay the request body onto a default resource
-	// struct, which only has API-specified non-zero default values.
-	// This means all required properties must be specified in the
-	// request body, whether creating or updating a resource.
-	//
-	// PATCH requests overlay the request body onto a resource struct
-	// that represents an existing resource to be updated.
 
 	ctx := request.Context()
 
@@ -236,7 +253,13 @@ func decodeDesiredClusterCreate(ctx context.Context, azureLocation string) (*api
 		return nil, utils.TrackError(err)
 	}
 
-	newInternalCluster := externalClusterFromRequest.ConvertToInternal()
+	newInternalCluster, err := externalClusterFromRequest.ConvertToInternal()
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
+	if len(newInternalCluster.Name) > 0 && newInternalCluster.Name != resourceID.Name {
+		return nil, nameResourceIDMismatch(resourceID, newInternalCluster.Name)
+	}
 	// TrackedResource info doesn't appear to come from the external resource information
 	conversion.CopyReadOnlyTrackedResourceValues(&newInternalCluster.TrackedResource, ptr.To(arm.NewTrackedResource(resourceID, azureLocation)))
 
@@ -332,14 +355,14 @@ func (f *Frontend) createHCPCluster(writer http.ResponseWriter, request *http.Re
 		request.Header.Get(arm.HeaderNameAsyncNotificationURI),
 		correlationData)
 	transaction.OnSuccess(addOperationResponseHeaders(writer, request, clusterCreateOperation.NotificationURI, clusterCreateOperation.OperationID))
-	operationCosmosUID, err := f.dbClient.Operations(newInternalCluster.ID.SubscriptionID).AddCreateToTransaction(ctx, transaction, clusterCreateOperation, nil)
+	_, err = f.dbClient.Operations(newInternalCluster.ID.SubscriptionID).AddCreateToTransaction(ctx, transaction, clusterCreateOperation, nil)
 	if err != nil {
 		return utils.TrackError(err)
 	}
 
 	// set fields that were not known until the operation doc instance was created.
 	// TODO once we we have separate creation/validation of operation documents, this can be done ahead of time.
-	newInternalCluster.ServiceProviderProperties.ActiveOperationID = operationCosmosUID
+	newInternalCluster.ServiceProviderProperties.ActiveOperationID = clusterCreateOperation.ResourceID.Name
 	newInternalCluster.ServiceProviderProperties.ProvisioningState = clusterCreateOperation.Status
 
 	cosmosUID, err := f.dbClient.HCPClusters(newInternalCluster.ID.SubscriptionID, newInternalCluster.ID.ResourceGroupName).AddCreateToTransaction(ctx, transaction, newInternalCluster, nil)
@@ -394,6 +417,10 @@ func decodeDesiredClusterReplace(ctx context.Context, oldInternalCluster *api.HC
 	// 4. values that are missing because the external type doesn't represent them
 	// 5. values that might change because our machinery changes them.
 
+	resourceID, err := utils.ResourceIDFromContext(ctx)
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
 	body, err := BodyFromContext(ctx)
 	if err != nil {
 		return nil, utils.TrackError(err)
@@ -408,15 +435,34 @@ func decodeDesiredClusterReplace(ctx context.Context, oldInternalCluster *api.HC
 		return nil, utils.TrackError(err)
 	}
 
+	// until we ensure that all records have the version.id set, we need to store it from the external version BEFORE defaulting
+	requestVersionID := ""
+	switch cast := externalClusterFromRequest.(type) {
+	case *v20240610preview.HcpOpenShiftCluster:
+		if cast != nil && cast.Properties != nil && cast.Properties.Version != nil && cast.Properties.Version.ID != nil {
+			requestVersionID = *cast.Properties.Version.ID
+		}
+	case *v20251223preview.HcpOpenShiftCluster:
+		if cast != nil && cast.Properties != nil && cast.Properties.Version != nil && cast.Properties.Version.ID != nil {
+			requestVersionID = *cast.Properties.Version.ID
+		}
+	}
+
 	// Default values
 	if err := externalClusterFromRequest.SetDefaultValues(externalClusterFromRequest); err != nil {
 		return nil, utils.TrackError(err)
 	}
 
-	newInternalCluster := externalClusterFromRequest.ConvertToInternal()
+	newInternalCluster, err := externalClusterFromRequest.ConvertToInternal()
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
+	if len(newInternalCluster.Name) > 0 && newInternalCluster.Name != resourceID.Name {
+		return nil, nameResourceIDMismatch(resourceID, newInternalCluster.Name)
+	}
 
 	// values a user doesn't have to provide, but are not static defaults (set dynamically during create).  Set these from old value
-	if len(newInternalCluster.CustomerProperties.Version.ID) == 0 {
+	if len(requestVersionID) == 0 {
 		newInternalCluster.CustomerProperties.Version.ID = oldInternalCluster.CustomerProperties.Version.ID
 	}
 	if len(newInternalCluster.CustomerProperties.DNS.BaseDomainPrefix) == 0 {
@@ -474,6 +520,10 @@ func decodeDesiredClusterPatch(ctx context.Context, oldInternalCluster *api.HCPO
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}
+	resourceID, err := utils.ResourceIDFromContext(ctx)
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
 	body, err := BodyFromContext(ctx)
 	if err != nil {
 		return nil, utils.TrackError(err)
@@ -489,7 +539,13 @@ func decodeDesiredClusterPatch(ctx context.Context, oldInternalCluster *api.HCPO
 	if err := api.ApplyRequestBody(http.MethodPatch, body, newExternalCluster); err != nil {
 		return nil, utils.TrackError(err)
 	}
-	newInternalCluster := newExternalCluster.ConvertToInternal()
+	newInternalCluster, err := newExternalCluster.ConvertToInternal()
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
+	if len(newInternalCluster.Name) > 0 && newInternalCluster.Name != resourceID.Name {
+		return nil, nameResourceIDMismatch(resourceID, newInternalCluster.Name)
+	}
 
 	// ServiceProviderProperties contains two types of information
 	// 1. values that a user cannot change because the external type does not expose the information.
@@ -586,14 +642,14 @@ func (f *Frontend) updateHCPClusterInCosmos(ctx context.Context, writer http.Res
 		request.Header.Get(arm.HeaderNameAsyncNotificationURI),
 		correlationData)
 	transaction.OnSuccess(addOperationResponseHeaders(writer, request, clusterUpdateOperation.NotificationURI, clusterUpdateOperation.OperationID))
-	operationCosmosUID, err := f.dbClient.Operations(newInternalCluster.ID.SubscriptionID).AddCreateToTransaction(ctx, transaction, clusterUpdateOperation, nil)
+	_, err = f.dbClient.Operations(newInternalCluster.ID.SubscriptionID).AddCreateToTransaction(ctx, transaction, clusterUpdateOperation, nil)
 	if err != nil {
 		return utils.TrackError(err)
 	}
 
 	// set fields that were not known until the operation doc instance was created.
 	// TODO once we we have separate creation/validation of operation documents, this can be done ahead of time.
-	newInternalCluster.ServiceProviderProperties.ActiveOperationID = operationCosmosUID
+	newInternalCluster.ServiceProviderProperties.ActiveOperationID = clusterUpdateOperation.ResourceID.Name
 	newInternalCluster.ServiceProviderProperties.ProvisioningState = clusterUpdateOperation.Status
 
 	_, err = f.dbClient.HCPClusters(newInternalCluster.ID.SubscriptionID, newInternalCluster.ID.ResourceGroupName).AddReplaceToTransaction(ctx, transaction, newInternalCluster, nil)
@@ -648,7 +704,7 @@ func (f *Frontend) DeleteCluster(writer http.ResponseWriter, request *http.Reque
 	// when we get a delete call (this happens from CI quite a bit), dump the state of the cluster resources.
 	if err := serverutils.DumpDataToLogger(ctx, f.dbClient, resourceID); err != nil {
 		// never fail, this is best effort
-		logger.Error(err.Error())
+		logger.Error(err, "failed to dump data to logger")
 	}
 
 	cluster, err := f.dbClient.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).Get(ctx, resourceID.Name)
@@ -671,6 +727,7 @@ func (f *Frontend) DeleteCluster(writer http.ResponseWriter, request *http.Reque
 	}
 	_, err = transaction.Execute(ctx, nil)
 	if err != nil {
+		logger.Error(err, "failed executing transaction", "transaction", transaction)
 		return utils.TrackError(err)
 	}
 
@@ -733,7 +790,7 @@ func (f *Frontend) addDeleteClusterToTransaction(ctx context.Context, writer htt
 		return utils.TrackError(err)
 	}
 
-	cluster.ServiceProviderProperties.ActiveOperationID = operationDoc.OperationID.Name
+	cluster.ServiceProviderProperties.ActiveOperationID = operationDoc.ResourceID.Name
 	cluster.ServiceProviderProperties.ProvisioningState = operationDoc.Status
 	_, err = f.dbClient.HCPClusters(cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName).
 		AddReplaceToTransaction(ctx, transaction, cluster, nil)

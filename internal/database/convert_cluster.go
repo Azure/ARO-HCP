@@ -30,7 +30,7 @@ func InternalToCosmosCluster(internalObj *api.HCPOpenShiftCluster) (*HCPCluster,
 	cosmosObj := &HCPCluster{
 		TypedDocument: TypedDocument{
 			BaseDocument: BaseDocument{
-				ID: internalObj.ServiceProviderProperties.CosmosUID,
+				ID: internalObj.GetCosmosData().CosmosUID,
 			},
 			PartitionKey: strings.ToLower(internalObj.ID.SubscriptionID),
 			ResourceType: internalObj.ID.ResourceType.String(),

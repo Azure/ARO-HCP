@@ -1,6 +1,6 @@
 module github.com/Azure/ARO-HCP/backend
 
-go 1.24.4
+go 1.24.11
 
 require (
 	github.com/Azure/ARO-HCP/internal v0.0.0-00010101000000-000000000000
@@ -8,7 +8,6 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos v1.4.1
 	github.com/Azure/azure-sdk-for-go/sdk/tracing/azotel v0.4.0
 	github.com/go-logr/logr v1.4.3
-	github.com/neilotoole/slogt v1.1.0
 	github.com/openshift-online/ocm-sdk-go v0.1.480
 	github.com/prometheus/client_golang v1.23.2
 	github.com/spf13/cobra v1.10.2

@@ -31,13 +31,15 @@ import (
 )
 
 func TestFrontendExternalAuthMutation(t *testing.T) {
-	integrationutils.SkipIfNotSimulationTesting(t)
+	integrationutils.WithAndWithoutCosmos(t, testFrontendExternalAuthMutation)
+}
 
+func testFrontendExternalAuthMutation(t *testing.T, withMock bool) {
 	ctx := context.Background()
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	frontend, testInfo, err := integrationutils.NewFrontendFromTestingEnv(ctx, t)
+	frontend, testInfo, err := integrationutils.NewFrontendFromTestingEnv(ctx, t, withMock)
 	require.NoError(t, err)
 	defer testInfo.Cleanup(context.Background())
 
@@ -45,16 +47,17 @@ func TestFrontendExternalAuthMutation(t *testing.T) {
 
 	subscriptionID := "0465bc32-c654-41b8-8d87-9815d7abe8f6" // TODO could read from JSON
 	resourceGroupName := "some-resource-group"
-	err = testInfo.CreateInitialCosmosContent(ctx, api.Must(fs.Sub(artifacts, "artifacts/ExternalAuthMutation/initial-cosmos-state")))
+	err = integrationutils.LoadAllContent(ctx, testInfo, api.Must(fs.Sub(artifacts, "artifacts/ExternalAuthMutation/initial-cosmos-state")))
 	require.NoError(t, err)
 
-	// create anything and round trip anything for externalAuth-service
-	err = integrationutils.TrivialPassThroughClusterServiceMock(t, testInfo, nil)
+	// create anything and round trip anything for nodePool-service
+	// this happens here because the mock is associated with frontend. it's a little awkward to add instances, but we'll deal
+	err = testInfo.AddContent(t, api.Must(fs.Sub(artifacts, "artifacts/ExternalAuthMutation/initial-cluster-service-state")))
 	require.NoError(t, err)
 
 	dirContent := api.Must(artifacts.ReadDir("artifacts/ExternalAuthMutation"))
 	for _, dirEntry := range dirContent {
-		if dirEntry.Name() == "initial-cosmos-state" {
+		if dirEntry.Name() == "initial-cosmos-state" || dirEntry.Name() == "initial-cluster-service-state" {
 			continue
 		}
 		createTestDir, err := fs.Sub(artifacts, "artifacts/ExternalAuthMutation/"+dirEntry.Name())
@@ -97,7 +100,7 @@ func (tt *externalAuthMutationTest) runTest(t *testing.T) {
 	require.NoError(t, tt.genericMutationTestInfo.Initialize(ctx, tt.testInfo))
 
 	// better solutions welcome to be coded. This is simple and works for the moment.
-	hcpClusterName := strings.Split(t.Name(), "/")[1]
+	hcpClusterName := strings.Split(t.Name(), "/")[2]
 	toCreate := &hcpsdk20240610preview.ExternalAuth{}
 	require.NoError(t, json.Unmarshal(tt.genericMutationTestInfo.CreateJSON, toCreate))
 	externalAuthClient := tt.testInfo.Get20240610ClientFactory(tt.subscriptionID).NewExternalAuthsClient()
@@ -105,7 +108,7 @@ func (tt *externalAuthMutationTest) runTest(t *testing.T) {
 
 	if tt.genericMutationTestInfo.IsUpdateTest() || tt.genericMutationTestInfo.IsPatchTest() {
 		require.NoError(t, mutationErr)
-		require.NoError(t, integrationutils.MarkOperationsCompleteForName(ctx, tt.testInfo.DBClient, tt.subscriptionID, ptr.Deref(toCreate.Name, "")))
+		require.NoError(t, integrationutils.MarkOperationsCompleteForName(ctx, tt.testInfo.CosmosClient(), tt.subscriptionID, ptr.Deref(toCreate.Name, "")))
 	}
 
 	switch {

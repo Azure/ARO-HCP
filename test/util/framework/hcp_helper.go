@@ -19,6 +19,8 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
+	"encoding/base64"
+	"encoding/json"
 	"encoding/pem"
 	"errors"
 	"fmt"
@@ -32,6 +34,7 @@ import (
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/sync/errgroup"
 
+	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -476,6 +479,36 @@ func CreateClusterRoleBinding(ctx context.Context, subject string, adminRESTConf
 	return nil
 }
 
+// CreateTestDockerConfigSecret creates a Docker config secret for testing pull secret functionality
+func CreateTestDockerConfigSecret(host, username, password, email, secretName, namespace string) (*corev1.Secret, error) {
+	auth := base64.StdEncoding.EncodeToString([]byte(username + ":" + password))
+
+	dockerConfig := DockerConfigJSON{
+		Auths: map[string]RegistryAuth{
+			host: {
+				Email: email,
+				Auth:  auth,
+			},
+		},
+	}
+
+	dockerConfigJSON, err := json.Marshal(dockerConfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal docker config: %w", err)
+	}
+
+	return &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      secretName,
+			Namespace: namespace,
+		},
+		Type: corev1.SecretTypeDockerConfigJson,
+		Data: map[string][]byte{
+			corev1.DockerConfigJsonKey: dockerConfigJSON,
+		},
+	}, nil
+}
+
 func BeginCreateHCPCluster(
 	ctx context.Context,
 	logger logr.Logger,
@@ -847,4 +880,48 @@ func GenerateKubeconfig(restConfig *rest.Config) (string, error) {
 	}
 
 	return string(kubeconfigBytes), nil
+}
+
+// Verifies that a nodepool created using framework has DiskStorageAccountType set to the framework default "StandardSSD_LRS"
+func ValidateNodePoolDiskStorageAccountType(
+	ctx context.Context,
+	nodePoolsClient *hcpsdk20240610preview.NodePoolsClient,
+	resourceGroupName string,
+	hcpClusterName string,
+	nodePoolName string,
+) error {
+	nodePoolResp, err := GetNodePool(ctx, nodePoolsClient, resourceGroupName, hcpClusterName, nodePoolName)
+	if err != nil {
+		return fmt.Errorf("failed to get nodepool %s: %w", nodePoolName, err)
+	}
+
+	nodePool := nodePoolResp.NodePool
+
+	// Verify the nodepool exists and has the expected structure
+	if nodePool.Properties == nil {
+		return fmt.Errorf("nodepool %s has no properties", nodePoolName)
+	}
+
+	if nodePool.Properties.Platform == nil {
+		return fmt.Errorf("nodepool %s has no platform configuration", nodePoolName)
+	}
+
+	if nodePool.Properties.Platform.OSDisk == nil {
+		return fmt.Errorf("nodepool %s has no OS disk configuration", nodePoolName)
+	}
+
+	if nodePool.Properties.Platform.OSDisk.DiskStorageAccountType == nil {
+		return fmt.Errorf("nodepool %s has no DiskStorageAccountType set", nodePoolName)
+	}
+
+	// Verify the framework default (StandardSSD_LRS) overrode the API default (Premium_LRS)
+	expectedDiskType := "StandardSSD_LRS"
+	actualDiskType := string(*nodePool.Properties.Platform.OSDisk.DiskStorageAccountType)
+
+	if actualDiskType != expectedDiskType {
+		return fmt.Errorf("nodepool %s has incorrect DiskStorageAccountType: expected %s (framework default), got %s",
+			nodePoolName, expectedDiskType, actualDiskType)
+	}
+
+	return nil
 }

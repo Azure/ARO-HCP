@@ -31,13 +31,15 @@ import (
 )
 
 func TestFrontendNodePoolMutation(t *testing.T) {
-	integrationutils.SkipIfNotSimulationTesting(t)
+	integrationutils.WithAndWithoutCosmos(t, testFrontendNodePoolMutation)
+}
 
+func testFrontendNodePoolMutation(t *testing.T, withMock bool) {
 	ctx := context.Background()
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	frontend, testInfo, err := integrationutils.NewFrontendFromTestingEnv(ctx, t)
+	frontend, testInfo, err := integrationutils.NewFrontendFromTestingEnv(ctx, t, withMock)
 	require.NoError(t, err)
 	defer testInfo.Cleanup(context.Background())
 
@@ -45,12 +47,12 @@ func TestFrontendNodePoolMutation(t *testing.T) {
 
 	subscriptionID := "0465bc32-c654-41b8-8d87-9815d7abe8f6" // TODO could read from JSON
 	resourceGroupName := "some-resource-group"
-	err = testInfo.CreateInitialCosmosContent(ctx, api.Must(fs.Sub(artifacts, "artifacts/NodePoolMutation/initial-cosmos-state")))
+	err = integrationutils.LoadAllContent(ctx, testInfo, api.Must(fs.Sub(artifacts, "artifacts/NodePoolMutation/initial-cosmos-state")))
 	require.NoError(t, err)
 
 	// create anything and round trip anything for nodePool-service
 	// this happens here because the mock is associated with frontend. it's a little awkward to add instances, but we'll deal
-	err = integrationutils.TrivialPassThroughClusterServiceMock(t, testInfo, api.Must(fs.Sub(artifacts, "artifacts/NodePoolMutation/initial-cluster-service-state")))
+	err = testInfo.AddContent(t, api.Must(fs.Sub(artifacts, "artifacts/NodePoolMutation/initial-cluster-service-state")))
 	require.NoError(t, err)
 
 	dirContent := api.Must(artifacts.ReadDir("artifacts/NodePoolMutation"))
@@ -98,7 +100,7 @@ func (tt *nodePoolMutationTest) runTest(t *testing.T) {
 	require.NoError(t, tt.genericMutationTestInfo.Initialize(ctx, tt.testInfo))
 
 	// better solutions welcome to be coded. This is simple and works for the moment.
-	hcpClusterName := strings.Split(t.Name(), "/")[1]
+	hcpClusterName := strings.Split(t.Name(), "/")[2]
 	toCreate := &hcpsdk20240610preview.NodePool{}
 	require.NoError(t, json.Unmarshal(tt.genericMutationTestInfo.CreateJSON, toCreate))
 	nodePoolClient := tt.testInfo.Get20240610ClientFactory(tt.subscriptionID).NewNodePoolsClient()
@@ -106,7 +108,7 @@ func (tt *nodePoolMutationTest) runTest(t *testing.T) {
 
 	if tt.genericMutationTestInfo.IsUpdateTest() || tt.genericMutationTestInfo.IsPatchTest() {
 		require.NoError(t, mutationErr)
-		require.NoError(t, integrationutils.MarkOperationsCompleteForName(ctx, tt.testInfo.DBClient, tt.subscriptionID, ptr.Deref(toCreate.Name, "")))
+		require.NoError(t, integrationutils.MarkOperationsCompleteForName(ctx, tt.testInfo.CosmosClient(), tt.subscriptionID, ptr.Deref(toCreate.Name, "")))
 	}
 
 	switch {

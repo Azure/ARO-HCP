@@ -230,8 +230,14 @@ func decodeDesiredNodePoolCreate(ctx context.Context, azureLocation string) (*ap
 		return nil, utils.TrackError(err)
 	}
 
-	newInternalNodePool := externalNodePoolFromRequest.ConvertToInternal()
+	newInternalNodePool, err := externalNodePoolFromRequest.ConvertToInternal()
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
 	// TrackedResource info doesn't appear to come from the external resource information
+	if len(newInternalNodePool.Name) > 0 && newInternalNodePool.Name != resourceID.Name {
+		return nil, nameResourceIDMismatch(resourceID, newInternalNodePool.Name)
+	}
 	conversion.CopyReadOnlyTrackedResourceValues(&newInternalNodePool.TrackedResource, ptr.To(arm.NewTrackedResource(resourceID, azureLocation)))
 
 	// set fields that were not included during the conversion, because the user does not provide them or because the
@@ -306,14 +312,14 @@ func (f *Frontend) createNodePool(writer http.ResponseWriter, request *http.Requ
 		request.Header.Get(arm.HeaderNameAsyncNotificationURI),
 		correlationData)
 	transaction.OnSuccess(addOperationResponseHeaders(writer, request, createNodePoolOperation.NotificationURI, createNodePoolOperation.OperationID))
-	operationCosmosUID, err := f.dbClient.Operations(newInternalNodePool.ID.SubscriptionID).AddCreateToTransaction(ctx, transaction, createNodePoolOperation, nil)
+	_, err = f.dbClient.Operations(newInternalNodePool.ID.SubscriptionID).AddCreateToTransaction(ctx, transaction, createNodePoolOperation, nil)
 	if err != nil {
 		return utils.TrackError(err)
 	}
 
 	// set fields that were not known until the operation doc instance was created.
 	// TODO once we we have separate creation/validation of operation documents, this can be done ahead of time.
-	newInternalNodePool.ServiceProviderProperties.ActiveOperationID = operationCosmosUID
+	newInternalNodePool.ServiceProviderProperties.ActiveOperationID = createNodePoolOperation.ResourceID.Name
 	newInternalNodePool.Properties.ProvisioningState = createNodePoolOperation.Status
 
 	nodePoolCosmosClient := f.dbClient.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).NodePools(resourceID.Parent.Name)
@@ -369,6 +375,10 @@ func decodeDesiredNodePoolReplace(ctx context.Context, oldInternalNodePool *api.
 	// 4. values that are missing because the external type doesn't represent them
 	// 5. values that might change because our machinery changes them.
 
+	resourceID, err := utils.ResourceIDFromContext(ctx)
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
 	body, err := BodyFromContext(ctx)
 	if err != nil {
 		return nil, utils.TrackError(err)
@@ -391,13 +401,19 @@ func decodeDesiredNodePoolReplace(ctx context.Context, oldInternalNodePool *api.
 		return nil, utils.TrackError(err)
 	}
 
-	newInternalNodePool := externalNodePoolFromRequest.ConvertToInternal()
+	newInternalNodePool, err := externalNodePoolFromRequest.ConvertToInternal()
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
+	if len(newInternalNodePool.Name) > 0 && newInternalNodePool.Name != resourceID.Name {
+		return nil, nameResourceIDMismatch(resourceID, newInternalNodePool.Name)
+	}
 
 	// values a user doesn't have to provide, but are not static defaults (set dynamically during create).  Set these from old value
 	if len(newInternalNodePool.Properties.Version.ID) == 0 {
 		newInternalNodePool.Properties.Version.ID = oldInternalNodePool.Properties.Version.ID
 	}
-	if len(newInternalNodePool.Properties.Platform.SubnetID) == 0 {
+	if newInternalNodePool.Properties.Platform.SubnetID == nil {
 		newInternalNodePool.Properties.Platform.SubnetID = oldInternalNodePool.Properties.Platform.SubnetID
 	}
 
@@ -444,6 +460,10 @@ func decodeDesiredNodePoolPatch(ctx context.Context, oldInternalNodePool *api.HC
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}
+	resourceID, err := utils.ResourceIDFromContext(ctx)
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
 	body, err := BodyFromContext(ctx)
 	if err != nil {
 		return nil, utils.TrackError(err)
@@ -459,7 +479,13 @@ func decodeDesiredNodePoolPatch(ctx context.Context, oldInternalNodePool *api.HC
 	if err := api.ApplyRequestBody(http.MethodPatch, body, newExternalNodePool); err != nil {
 		return nil, utils.TrackError(err)
 	}
-	newInternalNodePool := newExternalNodePool.ConvertToInternal()
+	newInternalNodePool, err := newExternalNodePool.ConvertToInternal()
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
+	if len(newInternalNodePool.Name) > 0 && newInternalNodePool.Name != resourceID.Name {
+		return nil, nameResourceIDMismatch(resourceID, newInternalNodePool.Name)
+	}
 
 	conversion.CopyReadOnlyNodePoolValues(newInternalNodePool, oldInternalNodePool)
 	newInternalNodePool.SystemData = systemData
@@ -543,14 +569,14 @@ func (f *Frontend) updateNodePoolInCosmos(ctx context.Context, writer http.Respo
 		request.Header.Get(arm.HeaderNameAsyncNotificationURI),
 		correlationData)
 	transaction.OnSuccess(addOperationResponseHeaders(writer, request, nodePoolUpdateOperation.NotificationURI, nodePoolUpdateOperation.OperationID))
-	operationCosmosUID, err := f.dbClient.Operations(newInternalNodePool.ID.SubscriptionID).AddCreateToTransaction(ctx, transaction, nodePoolUpdateOperation, nil)
+	_, err = f.dbClient.Operations(newInternalNodePool.ID.SubscriptionID).AddCreateToTransaction(ctx, transaction, nodePoolUpdateOperation, nil)
 	if err != nil {
 		return utils.TrackError(err)
 	}
 
 	// set fields that were not known until the operation doc instance was created.
 	// TODO once we we have separate creation/validation of operation documents, this can be done ahead of time.
-	newInternalNodePool.ServiceProviderProperties.ActiveOperationID = operationCosmosUID
+	newInternalNodePool.ServiceProviderProperties.ActiveOperationID = nodePoolUpdateOperation.ResourceID.Name
 	newInternalNodePool.Properties.ProvisioningState = nodePoolUpdateOperation.Status
 
 	_, err = f.dbClient.HCPClusters(newInternalNodePool.ID.SubscriptionID, newInternalNodePool.ID.ResourceGroupName).
@@ -609,7 +635,7 @@ func (f *Frontend) DeleteNodePool(writer http.ResponseWriter, request *http.Requ
 	// when we get a delete call (this happens from CI quite a bit), dump the state of the cluster resources.
 	if err := serverutils.DumpDataToLogger(ctx, f.dbClient, resourceID); err != nil {
 		// never fail, this is best effort
-		logger.Error(err.Error())
+		logger.Error(err, "failed to dump data to logger")
 	}
 
 	nodePool, err := f.dbClient.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).NodePools(resourceID.Parent.Name).Get(ctx, resourceID.Name)
@@ -692,7 +718,7 @@ func (f *Frontend) addDeleteNodePoolToTransaction(ctx context.Context, writer ht
 		return utils.TrackError(err)
 	}
 
-	nodePool.ServiceProviderProperties.ActiveOperationID = operationDoc.OperationID.Name
+	nodePool.ServiceProviderProperties.ActiveOperationID = operationDoc.ResourceID.Name
 	nodePool.Properties.ProvisioningState = operationDoc.Status
 	_, err = f.dbClient.HCPClusters(nodePool.ID.SubscriptionID, nodePool.ID.ResourceGroupName).NodePools(nodePool.ID.Parent.Name).
 		AddReplaceToTransaction(ctx, transaction, nodePool, nil)
@@ -706,7 +732,10 @@ func (f *Frontend) addDeleteNodePoolToTransaction(ctx context.Context, writer ht
 // the necessary conversions for the API version of the request.
 // TODO remove azureLocation once we have migrated all records to store the azureLocation
 func mergeToInternalNodePool(clusterServiceNode *arohcpv1alpha1.NodePool, internalNodePool *api.HCPOpenShiftClusterNodePool, azureLocation string) (*api.HCPOpenShiftClusterNodePool, error) {
-	mergedOldClusterServiceNodePool := ocm.ConvertCStoNodePool(internalNodePool.ID, azureLocation, clusterServiceNode)
+	mergedOldClusterServiceNodePool, err := ocm.ConvertCStoNodePool(internalNodePool.ID, azureLocation, clusterServiceNode)
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
 
 	// this does not use conversion.CopyReadOnly* because some ServiceProvider properties come from cluster-service-only or live reads
 	mergedOldClusterServiceNodePool.SystemData = internalNodePool.SystemData

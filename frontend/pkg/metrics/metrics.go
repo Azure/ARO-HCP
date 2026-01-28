@@ -16,7 +16,6 @@ package metrics
 
 import (
 	"context"
-	"log/slog"
 	"sync"
 	"time"
 
@@ -103,10 +102,9 @@ func NewSubscriptionCollector(r prometheus.Registerer, dbClient database.DBClien
 
 // Run starts the loop which reads the subscriptions from the database at
 // periodic intervals (30s) to populate the subscription metrics.
-func (sc *SubscriptionCollector) Run(logger *slog.Logger, stop <-chan struct{}) {
-	ctx := context.Background()
+func (sc *SubscriptionCollector) Run(ctx context.Context, stop <-chan struct{}) {
 	// Populate the internal cache.
-	sc.refresh(ctx, logger)
+	sc.refresh(ctx)
 
 	t := time.NewTicker(30 * time.Second)
 	for {
@@ -114,12 +112,14 @@ func (sc *SubscriptionCollector) Run(logger *slog.Logger, stop <-chan struct{}) 
 		case <-stop:
 			return
 		case <-t.C:
-			sc.refresh(ctx, logger)
+			sc.refresh(ctx)
 		}
 	}
 }
 
-func (sc *SubscriptionCollector) refresh(ctx context.Context, logger *slog.Logger) {
+func (sc *SubscriptionCollector) refresh(ctx context.Context) {
+	logger := utils.LoggerFromContext(ctx)
+
 	ctx, span := otel.GetTracerProvider().
 		Tracer(utils.TracerName).
 		Start(
@@ -138,7 +138,7 @@ func (sc *SubscriptionCollector) refresh(ctx context.Context, logger *slog.Logge
 	sc.refreshCounter.Inc()
 	if err := sc.updateCache(ctx); err != nil {
 		span.RecordError(err)
-		logger.Warn("failed to update subscription collector cache", "err", err)
+		logger.Error(err, "failed to update subscription collector cache")
 		sc.lastSyncResult.Set(0)
 		sc.errCounter.Inc()
 		return
@@ -155,7 +155,8 @@ func (sc *SubscriptionCollector) updateCache(ctx context.Context) error {
 	if err != nil {
 		return utils.TrackError(err)
 	}
-	for id, sub := range iter.Items(ctx) {
+	for _, sub := range iter.Items(ctx) {
+		id := sub.ResourceID.SubscriptionID
 		subscriptions[id] = subscription{
 			id:         id,
 			state:      string(sub.State),

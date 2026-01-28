@@ -67,15 +67,17 @@ func NewTestLogger() *slog.Logger {
 	return slog.New(slog.NewTextHandler(io.Discard, nil))
 }
 
-func NewTestUserAssignedIdentity(name string) string {
-	return path.Join(TestResourceGroupResourceID, "providers", "Microsoft.ManagedIdentity", "userAssignedIdentities", name)
+func NewTestUserAssignedIdentity(name string) *azcorearm.ResourceID {
+	return Must(azcorearm.ParseResourceID(path.Join(TestResourceGroupResourceID, "providers", "Microsoft.ManagedIdentity", "userAssignedIdentities", name)))
 }
 
 func MinimumValidClusterTestCase() *HCPOpenShiftCluster {
 	resource := NewDefaultHCPOpenShiftCluster(Must(azcorearm.ParseResourceID(TestClusterResourceID)), TestLocation)
+	resource.CustomerProperties.Version.ID = "4.15"
+	resource.CustomerProperties.DNS.BaseDomainPrefix = "testcluster"
 	resource.CustomerProperties.Platform.ManagedResourceGroup = TestManagedResourceGroupName
-	resource.CustomerProperties.Platform.SubnetID = TestSubnetResourceID
-	resource.CustomerProperties.Platform.NetworkSecurityGroupID = TestNetworkSecurityGroupResourceID
+	resource.CustomerProperties.Platform.SubnetID = Must(azcorearm.ParseResourceID(TestSubnetResourceID))
+	resource.CustomerProperties.Platform.NetworkSecurityGroupID = Must(azcorearm.ParseResourceID(TestNetworkSecurityGroupResourceID))
 	return resource
 }
 
@@ -131,9 +133,9 @@ func (m *ExternalTestResource) GetVersion() Version {
 	return nil
 }
 
-func (m *ExternalTestResource) ConvertToInternal() *InternalTestResource {
+func (m *ExternalTestResource) ConvertToInternal() (*InternalTestResource, error) {
 	// FIXME Implement if there's a need for it in tests.
-	return nil
+	return nil, nil
 }
 
 // Must is a helper function that takes a value and error, returns the value if no error occurred,
