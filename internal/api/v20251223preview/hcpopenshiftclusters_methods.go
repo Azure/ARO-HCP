@@ -182,6 +182,7 @@ func newPlatformProfile(from *api.CustomerPlatformProfile, from2 *api.ServicePro
 	return generated.PlatformProfile{
 		ManagedResourceGroup:    api.PtrOrNil(from.ManagedResourceGroup),
 		SubnetID:                api.ResourceIDToStringPtr(from.SubnetID),
+		VnetIntegrationSubnetID: api.ResourceIDToStringPtr(from.VnetIntegrationSubnetID),
 		OutboundType:            api.PtrOrNil(generated.OutboundType(from.OutboundType)),
 		NetworkSecurityGroupID:  api.ResourceIDToStringPtr(from.NetworkSecurityGroupID),
 		OperatorsAuthentication: api.PtrOrNil(newOperatorsAuthenticationProfile(&from.OperatorsAuthentication)),
@@ -513,6 +514,13 @@ func normalizePlatform(fldPath *field.Path, p *generated.PlatformProfile, out *a
 			errs = append(errs, field.Invalid(fldPath.Child("subnetID"), *p.SubnetID, err.Error()))
 		} else {
 			out.SubnetID = resourceID
+		}
+	}
+	if p.VnetIntegrationSubnetID != nil && len(*p.VnetIntegrationSubnetID) > 0 {
+		if resourceID, err := azcorearm.ParseResourceID(*p.VnetIntegrationSubnetID); err != nil {
+			errs = append(errs, field.Invalid(fldPath.Child("vnetIntegrationSubnetId"), *p.VnetIntegrationSubnetID, err.Error()))
+		} else {
+			out.VnetIntegrationSubnetID = resourceID
 		}
 	}
 	if p.OutboundType != nil {
