@@ -217,7 +217,7 @@ image:
 			if err != nil {
 				t.Fatalf("failed to create yaml editor: %v", err)
 			}
-			yamlEditors := map[string]*yaml.Editor{
+			yamlEditors := map[string]yaml.EditorInterface{
 				yamlPath: editor,
 			}
 
@@ -403,7 +403,7 @@ image:
 			editor, yamlPath := tt.setupEditor(t)
 			tt.target.FilePath = yamlPath
 
-			yamlEditors := make(map[string]*yaml.Editor)
+			yamlEditors := make(map[string]yaml.EditorInterface)
 			if editor != nil {
 				yamlEditors[yamlPath] = editor
 			}
@@ -552,7 +552,7 @@ image:
 				t.Fatalf("failed to create yaml editor: %v", err)
 			}
 
-			yamlEditors := map[string]*yaml.Editor{
+			yamlEditors := map[string]yaml.EditorInterface{
 				yamlPath: editor,
 			}
 
@@ -684,7 +684,7 @@ config:
 			Config:          cfg,
 			DryRun:          false,
 			RegistryClients: registryClients,
-			YAMLEditors: map[string]*yaml.Editor{
+			YAMLEditors: map[string]yaml.EditorInterface{
 				yamlPath: editor,
 			},
 			Updates:      make(map[string][]yaml.Update),

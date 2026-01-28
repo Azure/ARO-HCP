@@ -38,6 +38,12 @@ type Update struct {
 	Line      int    // Line number in the file
 }
 
+type EditorInterface interface {
+	GetUpdate(path string) (int, string, error)
+	GetLineWithComment(path string) (int, string, string, error)
+	ApplyUpdates(updates []Update) error
+}
+
 // Editor provides functionality to edit YAML files while preserving structure
 type Editor struct {
 	filePath string
