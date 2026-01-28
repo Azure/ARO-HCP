@@ -60,7 +60,7 @@ NEW_THROUGHPUT_CONFIG=$(az cosmosdb sql container throughput show \
     --name "${CONTAINER_NAME}" \
     --output json)
 
-NEW_AUTOSCALE_MAX_THROUGHPUT=$(echo "${NEW_THROUGHPUT_CONFIG}" | jq -r '.autoscaleSettings.maxThroughput // empty')
+NEW_AUTOSCALE_MAX_THROUGHPUT=$(echo "${NEW_THROUGHPUT_CONFIG}" | jq -r '.resource.autoscaleSettings.maxThroughput // empty')
 
 if [ -n "${NEW_AUTOSCALE_MAX_THROUGHPUT}" ] && [ "${NEW_AUTOSCALE_MAX_THROUGHPUT}" != "null" ]; then
     echo "✓ Migration verified: autoscaling enabled with max throughput: ${NEW_AUTOSCALE_MAX_THROUGHPUT}"
