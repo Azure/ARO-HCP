@@ -28,6 +28,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/log"
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
 	"golang.org/x/sync/errgroup"
@@ -38,7 +39,7 @@ import (
 	"sigs.k8s.io/yaml"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
-	armcompute "github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v5"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v5"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v6"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armsubscriptions"
@@ -72,6 +73,13 @@ type deploymentInfo struct {
 }
 
 func NewTestContext() *perItOrDescribeTestContext {
+	log.SetListener(func(event log.Event, msg string) {
+		ginkgo.GinkgoLogr.Info("Azure Log", "event", event, "message", msg)
+	})
+
+	// log everything to start.  This call should restrict.
+	//log.SetEvents(log.EventRequest, log.EventResponse, log.EventRetryPolicy)
+
 	tc := &perItOrDescribeTestContext{
 		perBinaryInvocationTestContext: invocationContext(),
 		timingMetadata: timing.SpecTimingMetadata{
