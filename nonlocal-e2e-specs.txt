@@ -11,8 +11,6 @@
   "creates a cluster and fails to update its name with a PATCH request",
   "creates and deletes vm type NC6sv3 in a single cluster",
   "should allow API access only from authorized VM IP",
-  "should be able to create a cluster with an external auth config and get the external auth config",
-  "should be able to create an HCP cluster and custom node pool osDisk size using bicep template",
   "should confirm the HCP cluster is deleted (not found)",
   "should create an HCP cluster and validate TLS certificates"
 ]

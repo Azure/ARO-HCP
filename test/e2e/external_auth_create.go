@@ -47,19 +47,15 @@ var _ = Describe("Customer", func() {
 		labels.RequireNothing,
 		labels.Critical,
 		labels.Positive,
+		labels.AroRpApiCompatible,
 		func(ctx context.Context) {
 			const (
-				customerNetworkSecurityGroupName = "ea-nsg-name"
-				customerVnetName                 = "ea-vnet-name"
-				customerVnetSubnetName           = "ea-vnet-subnet1"
-				customerClusterName              = "ea-cluster"
-				customerNodePoolName             = "ea-np-1"
-				customerExternalAuthName         = "external-auth"
-				externalAuthSubjectPrefix        = "prefix-" // TODO: ARO-21008 preventing us setting NoPrefix
+				customerClusterName       = "ea-cluster"
+				customerNodePoolName      = "ea-np-1"
+				customerExternalAuthName  = "external-auth"
+				externalAuthSubjectPrefix = "prefix-" // TODO: ARO-21008 preventing us setting NoPrefix
 			)
 			tc := framework.NewTestContext()
-			openshiftControlPlaneVersionId := framework.DefaultOpenshiftControlPlaneVersionId()
-			openshiftNodeVersionId := framework.DefaultOpenshiftNodePoolVersionId()
 
 			if tc.UsePooledIdentities() {
 				err := tc.AssignIdentityContainers(ctx, 1, 60*time.Second)
@@ -70,63 +66,27 @@ var _ = Describe("Customer", func() {
 			resourceGroup, err := tc.NewResourceGroup(ctx, "external-auth-cluster", tc.Location())
 			Expect(err).NotTo(HaveOccurred())
 
-			By("creating a customer-infra")
-			customerInfraDeploymentResult, err := tc.CreateBicepTemplateAndWait(ctx,
-				framework.WithTemplateFromFS(TestArtifactsFS, "test-artifacts/generated-test-artifacts/modules/customer-infra.json"),
-				framework.WithDeploymentName("customer-infra"),
-				framework.WithScope(framework.BicepDeploymentScopeResourceGroup),
-				framework.WithClusterResourceGroup(*resourceGroup.Name),
-				framework.WithParameters(map[string]interface{}{
-					"customerNsgName":        customerNetworkSecurityGroupName,
-					"customerVnetName":       customerVnetName,
-					"customerVnetSubnetName": customerVnetSubnetName,
-				}),
-				framework.WithTimeout(45*time.Minute),
-			)
-			Expect(err).NotTo(HaveOccurred())
-
-			By("creating/reusing managed identities")
-			keyVaultName, err := framework.GetOutputValue(customerInfraDeploymentResult, "keyVaultName")
-			Expect(err).NotTo(HaveOccurred())
-			managedIdentityDeploymentResult, err := tc.DeployManagedIdentities(ctx,
-				customerClusterName,
-				framework.WithTemplateFromFS(TestArtifactsFS, "test-artifacts/generated-test-artifacts/modules/managed-identities.json"),
-				framework.WithClusterResourceGroup(*resourceGroup.Name),
-				framework.WithParameters(map[string]interface{}{
-					"nsgName":      customerNetworkSecurityGroupName,
-					"vnetName":     customerVnetName,
-					"subnetName":   customerVnetSubnetName,
-					"keyVaultName": keyVaultName,
-				}),
-			)
-			Expect(err).NotTo(HaveOccurred())
-
-			By("creating the cluster")
-			userAssignedIdentities, err := framework.GetOutputValue(managedIdentityDeploymentResult, "userAssignedIdentitiesValue")
-			Expect(err).NotTo(HaveOccurred())
-			identity, err := framework.GetOutputValue(managedIdentityDeploymentResult, "identityValue")
-			Expect(err).NotTo(HaveOccurred())
-			etcdEncryptionKeyName, err := framework.GetOutputValue(customerInfraDeploymentResult, "etcdEncryptionKeyName")
-			Expect(err).NotTo(HaveOccurred())
+			// creating cluster parameters
+			clusterParams := framework.NewDefaultClusterParams()
+			clusterParams.ClusterName = customerClusterName
 			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
-			_, err = tc.CreateBicepTemplateAndWait(ctx,
-				framework.WithTemplateFromFS(TestArtifactsFS, "test-artifacts/generated-test-artifacts/modules/cluster.json"),
-				framework.WithDeploymentName("cluster"),
-				framework.WithScope(framework.BicepDeploymentScopeResourceGroup),
-				framework.WithClusterResourceGroup(*resourceGroup.Name),
-				framework.WithParameters(map[string]interface{}{
-					"openshiftVersionId":          openshiftControlPlaneVersionId,
-					"clusterName":                 customerClusterName,
-					"managedResourceGroupName":    managedResourceGroupName,
-					"nsgName":                     customerNetworkSecurityGroupName,
-					"subnetName":                  customerVnetSubnetName,
-					"vnetName":                    customerVnetName,
-					"userAssignedIdentitiesValue": userAssignedIdentities,
-					"identityValue":               identity,
-					"keyVaultName":                keyVaultName,
-					"etcdEncryptionKeyName":       etcdEncryptionKeyName,
-				}),
-				framework.WithTimeout(45*time.Minute),
+			clusterParams.ManagedResourceGroupName = managedResourceGroupName
+
+			By("creating customer resources (infrastructure and managed identities) for cluster")
+			clusterParams, err = tc.CreateClusterCustomerResources(ctx,
+				resourceGroup,
+				clusterParams,
+				map[string]interface{}{},
+				TestArtifactsFS,
+			)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("creating the HCP cluster")
+			err = tc.CreateHCPClusterFromParam(ctx,
+				GinkgoLogr,
+				*resourceGroup.Name,
+				clusterParams,
+				45*time.Minute,
 			)
 			Expect(err).NotTo(HaveOccurred())
 
@@ -145,18 +105,15 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			By("creating the node pool")
-			_, err = tc.CreateBicepTemplateAndWait(ctx,
-				framework.WithTemplateFromFS(TestArtifactsFS, "test-artifacts/generated-test-artifacts/modules/nodepool.json"),
-				framework.WithDeploymentName("node-pool"),
-				framework.WithScope(framework.BicepDeploymentScopeResourceGroup),
-				framework.WithClusterResourceGroup(*resourceGroup.Name),
-				framework.WithParameters(map[string]interface{}{
-					"openshiftVersionId": openshiftNodeVersionId,
-					"clusterName":        customerClusterName,
-					"nodePoolName":       customerNodePoolName,
-					"replicas":           2,
-				}),
-				framework.WithTimeout(45*time.Minute),
+			nodePoolParams := framework.NewDefaultNodePoolParams()
+			nodePoolParams.ClusterName = customerClusterName
+			nodePoolParams.NodePoolName = customerNodePoolName
+
+			err = tc.CreateNodePoolFromParam(ctx,
+				*resourceGroup.Name,
+				customerClusterName,
+				nodePoolParams,
+				45*time.Minute,
 			)
 			Expect(err).NotTo(HaveOccurred())
 
@@ -243,6 +200,12 @@ var _ = Describe("Customer", func() {
 			config := &rest.Config{
 				Host:        adminRESTConfig.Host,
 				BearerToken: accessToken.Token,
+				// Copy TLS settings from admin config (handles self-signed certs in dev)
+				TLSClientConfig: rest.TLSClientConfig{
+					Insecure: adminRESTConfig.Insecure,
+					CAData:   adminRESTConfig.CAData,
+					CAFile:   adminRESTConfig.CAFile,
+				},
 			}
 			client, err := kubernetes.NewForConfig(config)
 			Expect(err).NotTo(HaveOccurred())
