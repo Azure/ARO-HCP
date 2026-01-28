@@ -49,7 +49,7 @@ func NewSubscriptionInformerController(cosmosClient database.DBClient, subscript
 		queue: workqueue.NewTypedRateLimitingQueueWithConfig(
 			workqueue.DefaultTypedControllerRateLimiter[string](),
 			workqueue.TypedRateLimitingQueueConfig[string]{
-				Name: "subscription-informer",
+				Name: "SubscriptionInformer",
 			},
 		),
 

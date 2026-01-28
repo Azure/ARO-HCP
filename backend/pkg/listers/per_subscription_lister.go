@@ -54,8 +54,12 @@ type perSubscriptionLister[InternalAPIType any] struct {
 	hasSynced atomic.Bool
 }
 
-func (r *perSubscriptionLister[InternalAPIType]) ConfirmSynced() bool {
-	return r.hasSynced.Swap(true)
+func NewPerSubscriptionLister[InternalAPIType any]() PerSubscriptionMaintainer[InternalAPIType] {
+	return &perSubscriptionLister[InternalAPIType]{}
+}
+
+func (r *perSubscriptionLister[InternalAPIType]) ConfirmSynced() {
+	r.hasSynced.Store(true)
 }
 
 func (r *perSubscriptionLister[InternalAPIType]) HasSynced() bool {
@@ -84,8 +88,8 @@ type perResourceGroupLister[InternalAPIType any] struct {
 	hasSynced atomic.Bool
 }
 
-func (r *perResourceGroupLister[InternalAPIType]) ConfirmSynced() bool {
-	return r.hasSynced.Swap(true)
+func (r *perResourceGroupLister[InternalAPIType]) ConfirmSynced() {
+	r.hasSynced.Store(true)
 }
 
 func (r *perResourceGroupLister[InternalAPIType]) HasSynced() bool {
