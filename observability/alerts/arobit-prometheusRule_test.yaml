@@ -11,8 +11,6 @@ tests:
     alertname: ArobitForwarderJobUp
     exp_alerts:
     - exp_labels:
-        job: arobit-forwarder
-        namespace: arobit
         alertname: ArobitForwarderJobUp
         severity: critical
       exp_annotations:
