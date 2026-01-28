@@ -43,6 +43,7 @@ type genericOperation struct {
 	synchronizer                OperationSynchronizer
 	activeOperationScanInterval time.Duration
 	subscriptionLister          listers.SubscriptionLister
+	activeOperationLister       listers.PerSubscriptionMaintainer[api.Operation]
 	cosmosClient                database.DBClient
 
 	// queue is where incoming work is placed to de-dup and to allow "easy"
@@ -59,13 +60,16 @@ func NewGenericOperationController(
 	synchronizer OperationSynchronizer,
 	activeOperationScanInterval time.Duration,
 	subscriptionLister listers.SubscriptionLister,
+	activeOperationLister listers.PerSubscriptionMaintainer[api.Operation],
 	cosmosClient database.DBClient,
+
 ) controllerutils.Controller {
 	c := &genericOperation{
 		name:                        name,
 		synchronizer:                synchronizer,
 		activeOperationScanInterval: activeOperationScanInterval,
 		subscriptionLister:          subscriptionLister,
+		activeOperationLister:       activeOperationLister,
 		cosmosClient:                cosmosClient,
 		queue: workqueue.NewTypedRateLimitingQueueWithConfig(
 			workqueue.DefaultTypedControllerRateLimiter[controllerutils.OperationKey](),
@@ -110,9 +114,13 @@ func (c *genericOperation) queueAllActiveOperations(ctx context.Context) {
 		logger.Error(err, "unable to list subscriptions")
 	}
 	for _, subscription := range allSubscriptions {
-		allActiveOperations := c.cosmosClient.Operations(subscription.ResourceID.SubscriptionID).ListActiveOperations(nil)
+		allActiveOperations, err := c.activeOperationLister.Subscription(subscription.ResourceID.SubscriptionID).List(ctx)
+		if err != nil {
+			logger.Error(err, "unable to list active operations", "subscription_id", subscription.ResourceID.SubscriptionID)
+			continue
+		}
 
-		for _, activeOperation := range allActiveOperations.Items(ctx) {
+		for _, activeOperation := range allActiveOperations {
 			if !c.synchronizer.ShouldProcess(ctx, activeOperation) {
 				continue
 			}
@@ -121,9 +129,6 @@ func (c *genericOperation) queueAllActiveOperations(ctx context.Context) {
 				OperationName:    activeOperation.ResourceID.Name,
 				ParentResourceID: activeOperation.ExternalID.String(),
 			})
-		}
-		if err := allActiveOperations.GetError(); err != nil {
-			logger.Error(err, "unable to iterate over active operations", "subscription_id", subscription.ResourceID.SubscriptionID)
 		}
 	}
 }

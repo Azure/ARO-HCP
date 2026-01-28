@@ -57,6 +57,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/validationcontrollers"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/validationcontrollers/validations"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
+	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -310,13 +311,17 @@ func Run(cmd *cobra.Command, args []string) error {
 		oldoperationscanner.TracerName,
 	)
 	subscriptionLister := listers.NewThreadSafeAtomicLister[arm.Subscription]()
+	activeOperationLister := listers.NewPerSubscriptionLister[api.Operation]()
 
 	group.Go(func() error {
 		var (
-			startedLeading                 atomic.Bool
-			operationsScanner              = oldoperationscanner.NewOperationsScanner(dbClient, ocmConnection, argLocation, subscriptionLister)
-			subscriptionInformerController = informers.NewSubscriptionInformerController(dbClient, subscriptionLister)
-			dataDumpController             = controllerutils.NewClusterWatchingController(
+			startedLeading                    atomic.Bool
+			operationsScanner                 = oldoperationscanner.NewOperationsScanner(dbClient, ocmConnection, argLocation, subscriptionLister)
+			subscriptionInformerController    = informers.NewSubscriptionInformerController(dbClient, subscriptionLister)
+			activeOperationInformerController = controllerutils.NewSubscriptionWatchingController(
+				"ActiveOperationInformer", subscriptionLister, 7*time.Second, // just a little bit faster than the operation controllers so we don't normally miss a cycle
+				informers.NewActiveOperationInformerController(dbClient, subscriptionLister, activeOperationLister))
+			dataDumpController = controllerutils.NewClusterWatchingController(
 				"DataDump", dbClient, subscriptionLister, 1*time.Minute, controllers.NewDataDumpController(dbClient))
 			doNothingController              = controllers.NewDoNothingExampleController(dbClient, subscriptionLister)
 			operationClusterCreateController = operationcontrollers.NewGenericOperationController(
@@ -329,6 +334,7 @@ func Run(cmd *cobra.Command, args []string) error {
 				),
 				10*time.Second,
 				subscriptionLister,
+				activeOperationLister,
 				dbClient,
 			)
 			operationClusterUpdateController = operationcontrollers.NewGenericOperationController(
@@ -340,6 +346,7 @@ func Run(cmd *cobra.Command, args []string) error {
 				),
 				10*time.Second,
 				subscriptionLister,
+				activeOperationLister,
 				dbClient,
 			)
 			operationClusterDeleteController = operationcontrollers.NewGenericOperationController(
@@ -351,6 +358,7 @@ func Run(cmd *cobra.Command, args []string) error {
 				),
 				10*time.Second,
 				subscriptionLister,
+				activeOperationLister,
 				dbClient,
 			)
 			operationRequestCredentialController = operationcontrollers.NewGenericOperationController(
@@ -362,6 +370,7 @@ func Run(cmd *cobra.Command, args []string) error {
 				),
 				10*time.Second,
 				subscriptionLister,
+				activeOperationLister,
 				dbClient,
 			)
 			operationRevokeCredentialsController = operationcontrollers.NewGenericOperationController(
@@ -373,6 +382,7 @@ func Run(cmd *cobra.Command, args []string) error {
 				),
 				10*time.Second,
 				subscriptionLister,
+				activeOperationLister,
 				dbClient,
 			)
 			clusterServiceMatchingClusterController = mismatchcontrollers.NewClusterServiceClusterMatchingController(dbClient, subscriptionLister, clusterServiceClient)
@@ -402,6 +412,7 @@ func Run(cmd *cobra.Command, args []string) error {
 					operationsScanner.LeaderGauge.Set(1)
 					startedLeading.Store(true)
 					go subscriptionInformerController.Run(ctx, 1)
+					go activeOperationInformerController.Run(ctx, 20)
 					go operationsScanner.Run(ctx)
 					go dataDumpController.Run(ctx, 20)
 					go doNothingController.Run(ctx, 20)

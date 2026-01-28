@@ -30,6 +30,7 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -37,6 +38,21 @@ import (
 type Controller interface {
 	SyncOnce(ctx context.Context, keyObj any) error
 	Run(ctx context.Context, threadiness int)
+}
+
+// SubscriptionKey is for driving workqueues keyed for operations
+type SubscriptionKey struct {
+	SubscriptionID string `json:"subscriptionID"`
+}
+
+func (k *SubscriptionKey) GetResourceID() *azcorearm.ResourceID {
+	return api.Must(arm.ToSubscriptionResourceID(k.SubscriptionID))
+}
+
+func (k *SubscriptionKey) AddLoggerValues(logger logr.Logger) logr.Logger {
+	return logger.WithValues(
+		"subscription_id", k.SubscriptionID,
+	)
 }
 
 // OperationKey is for driving workqueues keyed for operations
