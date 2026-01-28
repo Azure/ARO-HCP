@@ -29,6 +29,13 @@ import (
 	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 )
 
+type RBACScope string
+
+const (
+	RBACScopeResourceGroup RBACScope = "resourceGroup"
+	RBACScopeResource      RBACScope = "resource"
+)
+
 type ClusterParams struct {
 	OpenshiftVersionId            string
 	ClusterName                   string
@@ -243,6 +250,7 @@ func (tc *perItOrDescribeTestContext) CreateClusterCustomerResources(ctx context
 	clusterParams ClusterParams,
 	infraParameters map[string]interface{},
 	artifactsFS embed.FS,
+	rbacScope RBACScope,
 ) (ClusterParams, error) {
 	startTime := time.Now()
 	defer func() {
@@ -273,6 +281,7 @@ func (tc *perItOrDescribeTestContext) CreateClusterCustomerResources(ctx context
 
 	managedIdentityDeploymentResult, err := tc.DeployManagedIdentities(ctx,
 		clusterParams.ClusterName,
+		rbacScope,
 		WithTemplateFromFS(artifactsFS, "test-artifacts/generated-test-artifacts/modules/managed-identities.json"),
 		WithDeploymentName(managedIdentitiesDeploymentName),
 		WithClusterResourceGroup(*resourceGroup.Name),

@@ -69,6 +69,7 @@ var _ = Describe("Customer", func() {
 				clusterParams,
 				map[string]interface{}{},
 				TestArtifactsFS,
+				framework.RBACScopeResourceGroup,
 			)
 			Expect(err).NotTo(HaveOccurred())
 
@@ -149,6 +150,7 @@ var _ = Describe("Customer", func() {
 				clusterParams,
 				map[string]interface{}{},
 				TestArtifactsFS,
+				framework.RBACScopeResourceGroup,
 			)
 			Expect(err).NotTo(HaveOccurred())
 
@@ -213,7 +215,9 @@ var _ = Describe("Customer", func() {
 				resourceGroup,
 				clusterParams,
 				map[string]interface{}{},
-				TestArtifactsFS)
+				TestArtifactsFS,
+				framework.RBACScopeResourceGroup,
+			)
 			Expect(err).NotTo(HaveOccurred())
 
 			err = tc.CreateHCPClusterFromParam(ctx,

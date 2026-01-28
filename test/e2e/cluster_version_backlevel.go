@@ -90,6 +90,7 @@ var _ = Describe("Customer", func() {
 						"customerVnetSubnetName": customerVnetSubnetName + clusterSuffix,
 					},
 					TestArtifactsFS,
+					framework.RBACScopeResourceGroup,
 				)
 				Expect(err).NotTo(HaveOccurred())
 
