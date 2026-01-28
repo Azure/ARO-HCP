@@ -3122,6 +3122,14 @@
             "create"
           ]
         },
+        "vnetIntegrationSubnetId": {
+          "$ref": "#/definitions/SubnetResourceId",
+          "description": "The Azure resource ID of the subnet used to inject hosted\ncontrol plane components into the cluster's vnet.\nNote that this subnet cannot be shared with the default worker subnet\nor any nodepools' subnets.",
+          "x-ms-mutability": [
+            "read",
+            "create"
+          ]
+        },
         "outboundType": {
           "type": "string",
           "description": "The core outgoing configuration",
@@ -3171,6 +3179,7 @@
       },
       "required": [
         "subnetId",
+        "vnetIntegrationSubnetId",
         "networkSecurityGroupId",
         "operatorsAuthentication",
         "issuerUrl"
