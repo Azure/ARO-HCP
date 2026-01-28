@@ -75,7 +75,17 @@ func (h *middlewareLockSubscription) handleRequest(w http.ResponseWriter, r *htt
 		defer func() {
 			lock = stop()
 			if lock != nil {
-				err = lockClient.ReleaseLock(ctx, lock)
+				// Release should work even if the work of the request is cancelled.  Prefer the standard context if it isn't
+				// cancelled. If it is cancelled, create a new context and attach a logger to it.
+				releaseContext := ctx
+				if ctx.Err() != nil {
+					var releaseCancel context.CancelFunc
+					releaseContext, releaseCancel = context.WithTimeout(context.Background(), lockClient.GetDefaultTimeToLive())
+					defer releaseCancel()
+					releaseContext = utils.ContextWithLogger(releaseContext, logger)
+				}
+
+				err = lockClient.ReleaseLock(releaseContext, lock)
 				if err == nil {
 					logger.Info("Released lock")
 				} else {
