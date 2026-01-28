@@ -111,6 +111,9 @@ type ServiceProviderClusterStatus struct {
 	// The reference contains a mapping between the logical name we give to the Maestro bundle internally
 	// and the Maestro Bundle Name and ID at the Maestro API level.
 	MaestroReadonlyBundles MaestroBundleReferenceList `json:"maestroReadonlyBundles,omitempty"`
+
+	// ManagedResourceGroupExists tracks if the managed resource group exists.
+	ManagedResourceGroupExists bool `json:"managedResourceGroupExists,omitempty"`
 }
 
 // ServiceProviderClusterStatusVersion contains the actual version information.
