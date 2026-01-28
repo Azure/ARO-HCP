@@ -705,188 +705,41 @@ metadata:
     "helm.sh/hook-weight": "2"
 spec:
   concurrency:
-    limit: 5
+    limit: 9999
     slidingWindow: 0s
   sizes:
-  - criteria:
-      from: 0
-      to: 60
-    effects:
-      maximumMutatingRequestsInflight: 50
-      maximumRequestsInflight: 150
-      resourceRequests:
-      - containerName: kube-apiserver
-        deploymentName: kube-apiserver
-        memory: 8Gi
-      - containerName: openshift-controller-manager
-        deploymentName: openshift-controller-manager
-        memory: 1Gi
-      - containerName: cluster-policy-controller
-        deploymentName: cluster-policy-controller
-        memory: 1Gi
-      - containerName: kube-controller-manager
-        deploymentName: kube-controller-manager
-        memory: 1Gi
-      - containerName: openshift-apiserver
-        deploymentName: openshift-apiserver
-        memory: 1Gi
-      - containerName: etcd
-        deploymentName: etcd
-        memory: 1Gi
-      - containerName: ovnkube-control-plane
-        deploymentName: ovnkube-control-plane
-        memory: 500Mi
-    name: small
-  - criteria:
-      from: 61
-      to: 120
-    effects:
-      kasGoMemLimit: 12GiB
-      maximumMutatingRequestsInflight: 300
-      maximumRequestsInflight: 900
-      resourceRequests:
-      - containerName: kube-apiserver
-        deploymentName: kube-apiserver
-        memory: 16Gi
-      - containerName: openshift-controller-manager
-        deploymentName: openshift-controller-manager
-        memory: 2Gi
-      - containerName: cluster-policy-controller
-        deploymentName: cluster-policy-controller
-        memory: 2Gi
-      - containerName: kube-controller-manager
-        deploymentName: kube-controller-manager
-        memory: 2Gi
-      - containerName: cluster-autoscaler
-        deploymentName: cluster-autoscaler
-        memory: 2Gi
-      - containerName: openshift-apiserver
-        deploymentName: openshift-apiserver
-        memory: 1Gi
-      - containerName: etcd
-        deploymentName: etcd
-        memory: 1Gi
-      - containerName: kube-scheduler
-        deploymentName: kube-scheduler
-        memory: 1Gi
-      - containerName: ovnkube-control-plane
-        deploymentName: ovnkube-control-plane
-        memory: 500Mi
-    name: medium
-  - criteria:
-      from: 121
-      to: 252
-    effects:
-      kasGoMemLimit: 24GiB
-      maximumMutatingRequestsInflight: 400
-      maximumRequestsInflight: 1200
-      resourceRequests:
-      - containerName: kube-apiserver
-        deploymentName: kube-apiserver
-        memory: 32Gi
-      - containerName: openshift-controller-manager
-        deploymentName: openshift-controller-manager
-        memory: 3Gi
-      - containerName: cluster-policy-controller
-        deploymentName: cluster-policy-controller
-        memory: 2Gi
-      - containerName: kube-controller-manager
-        deploymentName: kube-controller-manager
-        memory: 2Gi
-      - containerName: cluster-autoscaler
-        deploymentName: cluster-autoscaler
-        memory: 4Gi
-      - containerName: openshift-apiserver
-        deploymentName: openshift-apiserver
-        memory: 2Gi
-      - containerName: etcd
-        deploymentName: etcd
-        memory: 2Gi
-      - containerName: kube-scheduler
-        deploymentName: kube-scheduler
-        memory: 2Gi
-      - containerName: multus-admission-controller
-        deploymentName: multus-admission-controller
-        memory: 1Gi
-      - containerName: ovnkube-control-plane
-        deploymentName: ovnkube-control-plane
-        memory: 1Gi
-    name: large
-  - criteria:
-      from: 253
-      to: 360
-    effects:
-      kasGoMemLimit: 48GiB
-      maximumMutatingRequestsInflight: 600
-      maximumRequestsInflight: 2400
-      resourceRequests:
-      - containerName: kube-apiserver
-        deploymentName: kube-apiserver
-        memory: 64Gi
-      - containerName: openshift-controller-manager
-        deploymentName: openshift-controller-manager
-        memory: 6Gi
-      - containerName: cluster-policy-controller
-        deploymentName: cluster-policy-controller
-        memory: 6Gi
-      - containerName: kube-controller-manager
-        deploymentName: kube-controller-manager
-        memory: 6Gi
-      - containerName: openshift-apiserver
-        deploymentName: openshift-apiserver
-        memory: 8Gi
-      - containerName: cluster-autoscaler
-        deploymentName: cluster-autoscaler
-        memory: 6Gi
-      - containerName: etcd
-        deploymentName: etcd
-        memory: 2Gi
-      - containerName: kube-scheduler
-        deploymentName: kube-scheduler
-        memory: 3Gi
-      - containerName: multus-admission-controller
-        deploymentName: multus-admission-controller
-        memory: 2Gi
-      - containerName: ovnkube-control-plane
-        deploymentName: ovnkube-control-plane
-        memory: 2Gi
-    name: xlarge
-  - criteria:
-      from: 361
-    effects:
-      kasGoMemLimit: 72GiB
-      resourceRequests:
-      - containerName: kube-apiserver
-        deploymentName: kube-apiserver
-        memory: 96Gi
-      - containerName: openshift-controller-manager
-        deploymentName: openshift-controller-manager
-        memory: 8Gi
-      - containerName: cluster-policy-controller
-        deploymentName: cluster-policy-controller
-        memory: 8Gi
-      - containerName: kube-controller-manager
-        deploymentName: kube-controller-manager
-        memory: 8Gi
-      - containerName: openshift-apiserver
-        deploymentName: openshift-apiserver
-        memory: 8Gi
-      - containerName: cluster-autoscaler
-        deploymentName: cluster-autoscaler
-        memory: 12Gi
-      - containerName: etcd
-        deploymentName: etcd
-        memory: 3Gi
-      - containerName: kube-scheduler
-        deploymentName: kube-scheduler
-        memory: 6Gi
-      - containerName: multus-admission-controller
-        deploymentName: multus-admission-controller
-        memory: 3Gi
-      - containerName: ovnkube-control-plane
-        deploymentName: ovnkube-control-plane
-        memory: 2Gi
-    name: xxlarge
-  transitionDelay:
-    decrease: 20m
-    increase: 0s
+    - criteria:
+        from: 0
+      effects:
+        maximumMutatingRequestsInflight: 99999
+        maximumRequestsInflight: 99999
+        resourceRequests:
+          - containerName: kube-apiserver
+            deploymentName: kube-apiserver
+            memory: 100Mi
+            cpu: 100m
+          - containerName: openshift-controller-manager
+            deploymentName: openshift-controller-manager
+            memory: 100Mi
+            cpu: 100m
+          - containerName: cluster-policy-controller
+            deploymentName: cluster-policy-controller
+            memory: 100Mi
+            cpu: 100m
+          - containerName: kube-controller-manager
+            deploymentName: kube-controller-manager
+            memory: 100Mi
+            cpu: 100m
+          - containerName: openshift-apiserver
+            deploymentName: openshift-apiserver
+            memory: 100Mi
+            cpu: 100m
+          - containerName: etcd
+            deploymentName: etcd
+            memory: 100Mi
+            cpu: 100m
+          - containerName: ovnkube-control-plane
+            deploymentName: ovnkube-control-plane
+            memory: 100Mi
+            cpu: 100m
+      name: e2e_minimal

@@ -2109,6 +2109,9 @@
             "FirstPartyUsage=/NonProd",
             ""
           ]
+        },
+        "limitClusterSizes": {
+          "type": "boolean"
         }
       },
       "additionalProperties": false,

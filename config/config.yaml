@@ -943,6 +943,7 @@ clouds:
               minVersion: 4.19.0-0.nightly-20200101
       # Hypershift Operator
       hypershift:
+        limitClusterSizes: true
         image:
           registry: quay.io
           repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
@@ -1421,6 +1422,7 @@ clouds:
                 vmSize: Standard_D2s_v3
               userAgentPool:
                 maxCount: 14
+                minCount: 4
                 osDiskSizeGB: 100
                 vmSize: Standard_D4s_v3
               infraAgentPool:
