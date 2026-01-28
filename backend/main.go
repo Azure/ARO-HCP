@@ -54,6 +54,8 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/mismatchcontrollers"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/operationcontrollers"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/validationcontrollers"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/validationcontrollers/validations"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
@@ -383,6 +385,11 @@ func Run(cmd *cobra.Command, args []string) error {
 			cosmosMatchingClusterController = controllerutils.NewClusterWatchingController(
 				"CosmosMatchingClusters", dbClient, subscriptionLister, 60*time.Minute,
 				mismatchcontrollers.NewCosmosClusterMatchingController(utilsclock.RealClock{}, dbClient, clusterServiceClient))
+			alwaysSuccessClusterValidationController = validationcontrollers.NewClusterValidationController(
+				validations.NewAlwaysSuccessValidation(),
+				dbClient,
+				subscriptionLister,
+			)
 		)
 
 		le, err := leaderelection.NewLeaderElector(leaderelection.LeaderElectionConfig{
@@ -407,6 +414,7 @@ func Run(cmd *cobra.Command, args []string) error {
 					go cosmosMatchingNodePoolController.Run(ctx, 20)
 					go cosmosMatchingExternalAuthController.Run(ctx, 20)
 					go cosmosMatchingClusterController.Run(ctx, 20)
+					go alwaysSuccessClusterValidationController.Run(ctx, 20)
 				},
 				OnStoppedLeading: func() {
 					operationsScanner.LeaderGauge.Set(0)
