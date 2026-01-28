@@ -113,6 +113,10 @@ func (tt *ResourceMutationTest) RunTest(t *testing.T) {
 	cleanupCtx = utils.ContextWithLogger(cleanupCtx, testr.New(t))
 	defer testInfo.Cleanup(cleanupCtx)
 	go frontend.Run(ctx, ctx.Done())
+	defer func() {
+		cancel()
+		frontend.Join()
+	}()
 
 	// wait for migration to complete to eliminate races with our test's second call migrateCosmos and to ensure the server is ready for testing
 	err = wait.PollUntilContextCancel(ctx, 1*time.Second, true, func(ctx context.Context) (bool, error) {

@@ -25,6 +25,7 @@ import (
 	"path"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/go-logr/logr"
 	"github.com/prometheus/client_golang/prometheus"
@@ -117,22 +118,18 @@ func NewFrontend(
 	return f
 }
 
+// Run starts the Frontend servers and blocks until they stop or error.
+// stop must not be nil - it is used to signal graceful shutdown and is required for Join() to work correctly.
 func (f *Frontend) Run(ctx context.Context, stop <-chan struct{}) {
 	if len(f.azureLocation) == 0 {
 		panic("azureLocation must be set")
 	}
+	if stop == nil {
+		panic("stop channel must not be nil")
+	}
 
 	// This just digs up the logger passed to NewFrontend.
 	logger := utils.LoggerFromContext(f.server.BaseContext(f.listener))
-
-	if stop != nil {
-		go func() {
-			<-stop
-			_ = f.server.Shutdown(ctx)
-			_ = f.metricsServer.Shutdown(ctx)
-			close(f.done)
-		}()
-	}
 
 	// before we start the http handler (this should ensure we readiness checks until this is complete), we will do a cosmos
 	// data migration to our new storage keys.
@@ -154,11 +151,24 @@ func (f *Frontend) Run(ctx context.Context, stop <-chan struct{}) {
 		f.collector.Run(ctx, stop)
 		return nil
 	})
+	errs.Go(func() error {
+		<-stop
+		// Use WithoutCancel to preserve tracing/logger context from errgroup's ctx but ignore its cancellation.
+		// Then add explicit timeout so shutdown always gets a chance to complete gracefully.
+		shutdownCtx, shutdownCancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
+		defer shutdownCancel()
+		_ = f.server.Shutdown(shutdownCtx)
+		_ = f.metricsServer.Shutdown(shutdownCtx)
+		return nil
+	})
 
 	if err := errs.Wait(); !errors.Is(err, http.ErrServerClosed) {
 		logger.Error(err, "server error")
+		close(f.done)
 		os.Exit(1)
 	}
+	// Close f.done after all goroutines have finished to ensure Join() waits for all work to complete
+	close(f.done)
 }
 
 // MigrateCosmosOrDie if migration fails, we panic and exit the process.  This makes it very detectable.
