@@ -23,6 +23,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -104,9 +105,12 @@ func readSteps[InternalAPIType any](ctx context.Context, testDir fs.FS) ([]Integ
 func (tt *ResourceMutationTest) RunTest(t *testing.T) {
 	ctx := t.Context()
 	ctx, cancel := context.WithCancel(ctx)
+	started := atomic.Bool{}
 	frontendErrCh := make(chan error, 1)
 	defer func() {
-		require.NoError(t, <-frontendErrCh)
+		if started.Load() {
+			require.NoError(t, <-frontendErrCh)
+		}
 	}()
 	defer cancel()
 	ctx = utils.ContextWithLogger(ctx, testr.New(t))
@@ -117,6 +121,7 @@ func (tt *ResourceMutationTest) RunTest(t *testing.T) {
 	cleanupCtx = utils.ContextWithLogger(cleanupCtx, testr.New(t))
 	defer testInfo.Cleanup(cleanupCtx)
 	go func() {
+		started.Store(true)
 		frontendErrCh <- frontend.Run(ctx)
 	}()
 

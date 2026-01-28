@@ -24,12 +24,12 @@ import (
 	"path"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/go-logr/logr"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
-	"golang.org/x/sync/errgroup"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
@@ -143,37 +143,36 @@ func (f *Frontend) Run(ctx context.Context) error {
 	logger.Info(fmt.Sprintf("listening on %s", f.listener.Addr().String()))
 	logger.Info(fmt.Sprintf("metrics listening on %s", f.metricsListener.Addr().String()))
 
-	errs, ctx := errgroup.WithContext(ctx)
-	errs.Go(func() error {
-		return f.server.Serve(f.listener)
-	})
-	errs.Go(func() error {
-		return f.metricsServer.Serve(f.metricsListener)
-	})
-	errs.Go(func() error {
-		f.collector.Run(ctx)
-		//if ctx.Done() == nil {
-		return fmt.Errorf("metrics collector exited") // this causes the errs.Wait to trigger so we'll exit.
-		//}
-		//return nil // if the context was finished, then no need to error because we're exiting and this is expected
-	})
-
-	someServerExited := make(chan error, 1)
+	errCh := make(chan error, 2)
+	wg := sync.WaitGroup{}
+	wg.Add(3)
 	go func() {
-		defer close(someServerExited)
-		if err := errs.Wait(); !errors.Is(err, http.ErrServerClosed) {
-			logger.Error(err, "server error")
-			someServerExited <- err
-		}
+		defer wg.Done()
+		errCh <- f.server.Serve(f.listener)
+	}()
+	go func() {
+		defer wg.Done()
+		errCh <- f.metricsServer.Serve(f.metricsListener)
+	}()
+	go func() {
+		defer wg.Done()
+		f.collector.Run(ctx)
 	}()
 
-	select {
-	case err := <-someServerExited:
-		return err
-	case <-ctx.Done():
-		// normal exit flow
-		return nil
+	<-ctx.Done()
+
+	wg.Wait()
+	close(errCh)
+	errs := []error{}
+	for err := range errCh {
+		if err != nil {
+			logger.Info("go func completed", "message", err.Error())
+		}
+		if !errors.Is(err, http.ErrServerClosed) {
+			errs = append(errs, err)
+		}
 	}
+	return errors.Join(errs...)
 }
 
 // MigrateCosmosOrDie if migration fails, we panic and exit the process.  This makes it very detectable.
