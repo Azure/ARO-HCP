@@ -36,7 +36,6 @@ const (
 
 // Client provides methods to interact with Azure Managed Grafana instances.
 type Client struct {
-	credential    azcore.TokenCredential
 	grafanaClient *sdk.Client
 }
 
@@ -72,7 +71,6 @@ func NewClient(ctx context.Context, credential azcore.TokenCredential, managedGr
 	}
 
 	return &Client{
-		credential:    credential,
 		grafanaClient: grafanaClient,
 	}, nil
 }

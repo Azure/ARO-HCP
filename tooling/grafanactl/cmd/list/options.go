@@ -20,7 +20,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/ARO-Tools/pkg/cmdutils"
 
 	"github.com/Azure/ARO-HCP/tooling/grafanactl/cmd/base"
 	"github.com/Azure/ARO-HCP/tooling/grafanactl/internal/azure"
@@ -35,7 +35,6 @@ type RawListDataSourcesOptions struct {
 // validatedListDataSourcesOptions is a private struct that enforces the options validation pattern.
 type validatedListDataSourcesOptions struct {
 	*RawListDataSourcesOptions
-	AzureCredential azcore.TokenCredential
 }
 
 // ValidatedListDataSourcesOptions represents list-datasources configuration that has passed validation.
@@ -69,27 +68,25 @@ func (o *RawListDataSourcesOptions) Validate(ctx context.Context) (*ValidatedLis
 		return nil, err
 	}
 
-	cred, err := azure.GetAzureTokenCredentials()
-	if err != nil {
-		return nil, fmt.Errorf("failed to obtain Azure credentials: %w", err)
-	}
-
 	return &ValidatedListDataSourcesOptions{
 		validatedListDataSourcesOptions: &validatedListDataSourcesOptions{
 			RawListDataSourcesOptions: o,
-			AzureCredential:           cred,
 		},
 	}, nil
 }
 
 // Complete performs final initialization to create fully usable list-datasources options.
 func (o *ValidatedListDataSourcesOptions) Complete(ctx context.Context) (*CompletedListDataSourcesOptions, error) {
-	managedGrafanaClient, err := azure.NewManagedGrafanaClient(o.SubscriptionID, o.AzureCredential)
+	cred, err := cmdutils.GetAzureTokenCredentials()
+	if err != nil {
+		return nil, fmt.Errorf("failed to obtain Azure credentials: %w", err)
+	}
+	managedGrafanaClient, err := azure.NewManagedGrafanaClient(o.SubscriptionID, cred)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Managed Grafana client: %w", err)
 	}
 
-	grafanaClient, err := grafana.NewClient(ctx, o.AzureCredential, managedGrafanaClient, o.SubscriptionID, o.ResourceGroup, o.GrafanaName)
+	grafanaClient, err := grafana.NewClient(ctx, cred, managedGrafanaClient, o.SubscriptionID, o.ResourceGroup, o.GrafanaName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Grafana client: %w", err)
 	}

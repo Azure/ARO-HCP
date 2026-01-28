@@ -26,8 +26,7 @@ import (
 // ManagedGrafanaClient provides operations for Managed Grafana Resources
 // In order to communicate with the Grafana API, you can use ../grafana/client.go
 type ManagedGrafanaClient struct {
-	client         *armdashboard.GrafanaClient
-	subscriptionID string
+	client *armdashboard.GrafanaClient
 }
 
 // NewManagedGrafanaClient creates a new ManagedGrafanaClient with the provided credentials
@@ -40,8 +39,7 @@ func NewManagedGrafanaClient(subscriptionID string, cred azcore.TokenCredential)
 	grafanaClient := client.NewGrafanaClient()
 
 	return &ManagedGrafanaClient{
-		client:         grafanaClient,
-		subscriptionID: subscriptionID,
+		client: grafanaClient,
 	}, nil
 }
 

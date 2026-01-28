@@ -23,6 +23,7 @@ import (
 	"github.com/Azure/ARO-HCP/tooling/grafanactl/cmd/base"
 	"github.com/Azure/ARO-HCP/tooling/grafanactl/internal/azure"
 	"github.com/Azure/ARO-HCP/tooling/grafanactl/internal/grafana"
+	"github.com/Azure/ARO-Tools/pkg/cmdutils"
 )
 
 // RawCleanOptions represents the initial, unvalidated configuration for clean operations.
@@ -85,7 +86,7 @@ func (o *RawCleanDatasourcesOptions) Validate(ctx context.Context) (*ValidatedCl
 
 // Complete performs final initialization to create fully usable clean options.
 func (o *ValidatedCleanDatasourcesOptions) Complete(ctx context.Context) (*CompletedCleanDatasourcesOptions, error) {
-	cred, err := azure.GetAzureTokenCredentials()
+	cred, err := cmdutils.GetAzureTokenCredentials()
 	if err != nil {
 		return nil, fmt.Errorf("failed to obtain Azure credentials: %w", err)
 	}
