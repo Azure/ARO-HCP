@@ -389,7 +389,7 @@ resource mise 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
           summary: 'Envoy scrape target down for namespace=mise'
           title: 'Prometheus scrape for envoy-stats job in namespace mise is failing or missing.'
         }
-        expression: 'group by (cluster) (up{job="kube-state-metrics", cluster=~".*-svc-\\d+"}) unless on(cluster) group by (cluster) (up{endpoint="http-envoy-prom", container="istio-proxy", namespace="mise"} == 1)'
+        expression: 'group by (cluster) (up{job="kube-state-metrics", cluster=~".*-svc(-[0-9]+)?$"}) unless on(cluster) group by (cluster) (up{endpoint="http-envoy-prom", container="istio-proxy", namespace="mise"} == 1)'
         for: 'PT5M'
         severity: 4
       }
