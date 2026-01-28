@@ -17,14 +17,12 @@ package server
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"net"
 	"net/http"
 	"os"
 	"strconv"
 	"time"
 
-	"github.com/go-logr/logr"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/cobra"
 
@@ -39,7 +37,6 @@ import (
 	"github.com/Azure/ARO-HCP/admin/server/handlers/hcp"
 	"github.com/Azure/ARO-HCP/admin/server/interrupts"
 	"github.com/Azure/ARO-HCP/admin/server/middleware"
-	"github.com/Azure/ARO-HCP/admin/server/pkg/logging"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/fpa"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -106,7 +103,6 @@ type completedOptions struct {
 	DbClient               database.DBClient
 	KustoClient            *kusto.Client
 	FpaCredentialRetriever fpa.FirstPartyApplicationTokenCredentialRetriever
-	Logger                 *slog.Logger
 }
 
 type Options struct {
@@ -135,13 +131,6 @@ func (o *RawOptions) Validate() (*ValidatedOptions, error) {
 }
 
 func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
-	logger := logging.New(o.LogVerbosity)
-
-	// Create a logr.Logger for context-based logging
-	handlerOptions := &slog.HandlerOptions{Level: slog.Level(o.LogVerbosity * -1)}
-	logrLogger := logr.FromSlogHandler(slog.NewJSONHandler(os.Stdout, handlerOptions))
-	ctx = utils.ContextWithLogger(ctx, logrLogger)
-
 	// Create CS client
 	csConnection, err := sdk.NewUnauthenticatedConnectionBuilder().
 		URL(o.ClustersServiceURL).
@@ -205,16 +194,15 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 			DbClient:               dbClient,
 			KustoClient:            kustoClient,
 			FpaCredentialRetriever: fpaCredentialRetriever,
-			Logger:                 logger,
 		},
 	}, nil
 }
 
 func (opts *Options) Run(ctx context.Context) error {
-	logger := opts.Logger
+	logger := utils.LoggerFromContext(ctx)
 	logger.Info("Reporting health.", "port", opts.HealthPort)
-	health := NewHealthOnPort(logger, opts.HealthPort)
-	health.ServeReady(func() bool {
+	health := NewHealthOnPort(ctx, opts.HealthPort)
+	health.ServeReady(ctx, func() bool {
 		// todo: add real readiness checks
 		return true
 	})
@@ -232,7 +220,7 @@ func (opts *Options) Run(ctx context.Context) error {
 
 	s := http.Server{
 		Addr:    net.JoinHostPort("", strconv.Itoa(opts.Port)),
-		Handler: middleware.WithClientPrincipal(middleware.WithLowercaseURLPathValue(middleware.WithLogger(logger, rootMux))),
+		Handler: middleware.WithClientPrincipal(middleware.WithLowercaseURLPathValue(middleware.WithLogger(ctx, rootMux))),
 	}
 	interrupts.ListenAndServe(&s, 5*time.Second)
 	interrupts.WaitForGracefulShutdown()
