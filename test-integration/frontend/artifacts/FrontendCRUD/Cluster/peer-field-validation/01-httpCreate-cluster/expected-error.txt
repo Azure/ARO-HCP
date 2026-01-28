@@ -1,0 +1,65 @@
+      {
+        "code": "InvalidRequestContent",
+        "message": "Invalid value: \"10.0.0.0/16\": machine CIDR '10.0.0.0/16' and service CIDR '10.0.2.0/24' overlap",
+        "target": "properties.network"
+      }
+      {
+        "code": "InvalidRequestContent",
+        "message": "Invalid value: \"10.0.0.0/16\": machine CIDR '10.0.0.0/16' and pod CIDR '10.0.1.0/24' overlap",
+        "target": "properties.network"
+      }
+      {
+        "code": "InvalidRequestContent",
+        "message": "Invalid value: \"/subscriptions/different-sub/resourceGroups/some-resource-group/providers/Microsoft.Network/virtualNetworks/test-vnet/subnets/test-subnet\": must not be the same resource group name: \"some-resource-group\"",
+        "target": "properties.platform.subnetId"
+      }
+      {
+        "code": "InvalidRequestContent",
+        "message": "Invalid value: \"/subscriptions/different-sub/resourceGroups/some-resource-group/providers/Microsoft.Network/virtualNetworks/test-vnet/subnets/test-subnet\": must be in the same Azure subscription: \"6b690bec-0c16-4ecb-8f67-781caf40bba7\"",
+        "target": "properties.platform.subnetId"
+      }
+      {
+        "code": "InvalidRequestContent",
+        "message": "Invalid value: \"/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/some-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/shared-identity\": must not be the same resource group name: \"some-resource-group\"",
+        "target": "properties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[operator1]"
+      }
+      {
+        "code": "InvalidRequestContent",
+        "message": "Invalid value: \"/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/some-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/shared-identity\": must not be the same resource group name: \"some-resource-group\"",
+        "target": "properties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[operator2]"
+      }
+      {
+        "code": "InvalidRequestContent",
+        "message": "Invalid value: \"/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/some-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/unused-identity\": must not be the same resource group name: \"some-resource-group\"",
+        "target": "properties.platform.operatorsAuthentication.userAssignedIdentities.dataPlaneOperators[dataplane-operator]"
+      }
+      {
+        "code": "InvalidRequestContent",
+        "message": "Invalid value: \"/subscriptions/different-sub/resourceGroups/some-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/service-identity\": must be in the same Azure subscription: \"6b690bec-0c16-4ecb-8f67-781caf40bba7\"",
+        "target": "properties.platform.operatorsAuthentication.userAssignedIdentities.serviceManagedIdentity"
+      }
+      {
+        "code": "InvalidRequestContent",
+        "message": "Invalid value: \"/subscriptions/different-sub/resourceGroups/some-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/service-identity\": must not be the same resource group name: \"some-resource-group\"",
+        "target": "properties.platform.operatorsAuthentication.userAssignedIdentities.serviceManagedIdentity"
+      }
+      {
+        "code": "InvalidRequestContent",
+        "message": "Invalid value: \"/subscriptions/different-sub/resourceGroups/some-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/service-identity\": identity is not assigned to this resource",
+        "target": "properties.platform.operatorsAuthentication.userAssignedIdentities.serviceManagedIdentity"
+      }
+      {
+        "code": "InvalidRequestContent",
+        "message": "Invalid value: \"/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/some-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/shared-identity\": identity is used multiple times",
+        "target": "identity.userAssignedIdentities[/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/some-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/shared-identity]"
+      }
+      {
+        "code": "InvalidRequestContent",
+        "message": "Invalid value: \"/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/some-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/unused-identity\": identity is assigned to this resource but not used",
+        "target": "identity.userAssignedIdentities[/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/some-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/unused-identity]"
+      }
+      {
+        "code": "InvalidRequestContent",
+        "message": "Invalid value: \"/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/some-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/unused-identity\": cannot use identity assigned to this resource by .identities.userAssignedIdentities",
+        "target": "properties.platform.operatorsAuthentication.userAssignedIdentities.dataPlaneOperators[dataplane-operator]"
+      }

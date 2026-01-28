@@ -2,32 +2,32 @@
         "code": "InvalidRequestContent",
         "message": "Invalid value: \"/invalid1\": invalid resource ID: /invalid1",
         "target": "properties.platform.subnetID"
-      },
+      }
       {
         "code": "InvalidRequestContent",
         "message": "Invalid value: \"/invalid2\": invalid resource ID: /invalid2",
         "target": "properties.platform.networkSecurityGroupID"
-      },
+      }
       {
         "code": "InvalidRequestContent",
         "message": "Invalid value: \"/invalid3\": invalid resource ID: /invalid3",
         "target": "properties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[serviceManagedIdentity11]"
-      },
+      }
       {
         "code": "InvalidRequestContent",
         "message": "Invalid value: \"/invalid4\": invalid resource ID: /invalid4",
         "target": "properties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[serviceManagedIdentity22]"
-      },
+      }
       {
         "code": "InvalidRequestContent",
         "message": "Invalid value: \"/invalid5\": invalid resource ID: /invalid5",
         "target": "properties.platform.operatorsAuthentication.userAssignedIdentities.dataPlaneOperators[serviceManagedIdentity33]"
-      },
+      }
       {
         "code": "InvalidRequestContent",
         "message": "Invalid value: \"/invalid6\": invalid resource ID: /invalid6",
         "target": "properties.platform.operatorsAuthentication.userAssignedIdentities.dataPlaneOperators[serviceManagedIdentity43]"
-      },
+      }
       {
         "code": "InvalidRequestContent",
         "message": "Invalid value: \"/invalid7\": invalid resource ID: /invalid7",
