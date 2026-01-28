@@ -1948,7 +1948,7 @@
             },
             "serviceBWeight": {
               "type": "integer",
-              "description": "The weight of service A in the traffic routing."
+              "description": "The weight of service B in the traffic routing."
             }
           }
         }
