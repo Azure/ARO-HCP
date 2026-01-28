@@ -129,6 +129,7 @@ type ExecutionInfo struct {
 	QueuedAt   string `json:"queuedAt"`
 	StartedAt  string `json:"startedAt"`
 	FinishedAt string `json:"finishedAt"`
+	Preempted  bool   `json:"preempted"`
 	RunCount   int    `json:"runCount"`
 	State      string `json:"state"`
 }
@@ -270,7 +271,12 @@ func runGraph(ctx context.Context, logger logr.Logger, executionGraph *graph.Gra
 
 				testCase := &junit.TestCase{Name: fmt.Sprintf("Run pipeline step %s", id.String()), Duration: finishedAt.Sub(startedAt).Seconds()}
 				if info.State == "failed" {
-					testCase.FailureOutput = &junit.FailureOutput{Output: string(logging[id])}
+					log := string(logging[id])
+					if info.Preempted {
+						testCase.SkipMessage = &junit.SkipMessage{Message: log}
+					} else {
+						testCase.FailureOutput = &junit.FailureOutput{Output: string(logging[id])}
+					}
 				}
 
 				for _, test := range []*junit.TestCase{testCase} {
@@ -410,6 +416,9 @@ func runGraph(ctx context.Context, logger logr.Logger, executionGraph *graph.Gra
 					state.Logging[step] = stepLogs.Bytes()
 					state.Timing[step].FinishedAt = time.Now().Format(time.RFC3339)
 					state.Timing[step].RunCount = runCount
+					if consumerCtx.Err() != nil {
+						state.Timing[step].Preempted = true
+					}
 					s := "succeeded"
 					if err != nil {
 						s = "failed"
