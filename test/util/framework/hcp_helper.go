@@ -334,6 +334,54 @@ func GetNodePool(
 	return nodePoolsClient.Get(ctx, resourceGroupName, hcpClusterName, nodePoolName, nil)
 }
 
+// UpdateNodePoolAndWait sends a PATCH (BeginUpdate) request for a nodepool and waits for completion
+// within the provided timeout. It returns the final update response or an error.
+func UpdateNodePoolAndWait(
+	ctx context.Context,
+	nodePoolsClient *hcpsdk20240610preview.NodePoolsClient,
+	resourceGroupName string,
+	hcpClusterName string,
+	nodePoolName string,
+	update hcpsdk20240610preview.NodePoolUpdate,
+	timeout time.Duration,
+) (*hcpsdk20240610preview.NodePool, error) {
+	ctx, cancel := context.WithTimeoutCause(ctx, timeout, fmt.Errorf("timeout '%f' minutes exceeded during UpdateNodePoolAndWait for nodepool %s in cluster %s in resource group %s", timeout.Minutes(), nodePoolName, hcpClusterName, resourceGroupName))
+	defer cancel()
+
+	poller, err := nodePoolsClient.BeginUpdate(ctx, resourceGroupName, hcpClusterName, nodePoolName, update, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	operationResult, err := poller.PollUntilDone(ctx, &runtime.PollUntilDoneOptions{
+		Frequency: StandardPollInterval,
+	})
+	if err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			return nil, fmt.Errorf("failed waiting for nodepool=%q in cluster=%q resourcegroup=%q to finish updating, caused by: %w, error: %w", nodePoolName, hcpClusterName, resourceGroupName, context.Cause(ctx), err)
+		}
+		return nil, fmt.Errorf("failed waiting for nodepool=%q in cluster=%q resourcegroup=%q to finish updating: %w", nodePoolName, hcpClusterName, resourceGroupName, err)
+	}
+
+	switch m := any(operationResult).(type) {
+	case hcpsdk20240610preview.NodePoolsClientUpdateResponse:
+		expect, err := GetNodePool(ctx, nodePoolsClient, resourceGroupName, hcpClusterName, nodePoolName)
+		if err != nil {
+			if errors.Is(err, context.DeadlineExceeded) {
+				return nil, fmt.Errorf("failed getting nodepool=%q in cluster=%q resourcegroup=%q, caused by: %w, error: %w", nodePoolName, hcpClusterName, resourceGroupName, context.Cause(ctx), err)
+			}
+			return nil, err
+		}
+		err = checkOperationResult(&expect.NodePool, &m.NodePool)
+		if err != nil {
+			return nil, err
+		}
+		return &m.NodePool, nil
+	default:
+		return nil, fmt.Errorf("unknown type %T", m)
+	}
+}
+
 // CreateOrUpdateExternalAuthAndWait creates or updates an external auth on an HCP cluster and waits
 func CreateOrUpdateExternalAuthAndWait(
 	ctx context.Context,
