@@ -1,5 +1,5 @@
 {
-  "id" : "39885b40-ec04-11f0-b70f-9c6b00c26e8e",
+  "id" : "|subscriptions|0465bc32-c654-41b8-8d87-9815d7abe8f6|resourcegroups|some-resource-group|providers|microsoft.redhatopenshift|hcpopenshiftclusters|cluster-deleting",
   "partitionKey" : "0465bc32-c654-41b8-8d87-9815d7abe8f6",
   "resourceType" : "microsoft.redhatopenshift/hcpopenshiftclusters",
   "properties" : {

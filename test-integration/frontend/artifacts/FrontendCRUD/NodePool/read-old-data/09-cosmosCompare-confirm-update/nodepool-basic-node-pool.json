@@ -4,7 +4,7 @@
 	"_rid": "NNYoALQEciYCAAAAAAAAAA==",
 	"_self": "dbs/NNYoAA==/colls/NNYoALQEciY=/docs/NNYoALQEciYCAAAAAAAAAA==/",
 	"_ts": 1767902972,
-	"id": "23bd08bc-2ed3-40be-8c9e-7e005f8a421f",
+	"id": "|subscriptions|6b690bec-0c16-4ecb-8f67-781caf40bba7|resourcegroups|resourcegroupname|providers|microsoft.redhatopenshift|hcpopenshiftclusters|create-with-tags|nodepools|basic-node-pool",
 	"partitionKey": "6b690bec-0c16-4ecb-8f67-781caf40bba7",
 	"properties": {
 		"activeOperationId": "50c1a0ba-3bc4-48fb-857e-eb0974df1e1c",

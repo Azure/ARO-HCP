@@ -44,8 +44,6 @@ func TestRoundTripInternalExternalInternal(t *testing.T) {
 			c.FillNoCustom(j)
 			// ActiveOperationID does not roundtrip through the external type because it is purely an internal detail
 			j.ActiveOperationID = ""
-			// CosmosUID does not roundtrip through the external type because it is purely an internal detail
-			j.CosmosUID = ""
 			// ClusterServiceID does not roundtrip through the external type because it is purely an internal detail
 			j.ClusterServiceID = ocm.InternalID{}
 		},
@@ -53,8 +51,6 @@ func TestRoundTripInternalExternalInternal(t *testing.T) {
 			c.FillNoCustom(j)
 			// ActiveOperationID does not roundtrip through the external type because it is purely an internal detail
 			j.ActiveOperationID = ""
-			// CosmosUID does not roundtrip through the external type because it is purely an internal detail
-			j.CosmosUID = ""
 			// ClusterServiceID does not roundtrip through the external type because it is purely an internal detail
 			j.ClusterServiceID = ocm.InternalID{}
 		},
@@ -62,8 +58,6 @@ func TestRoundTripInternalExternalInternal(t *testing.T) {
 			c.FillNoCustom(j)
 			// ActiveOperationID does not roundtrip through the external type because it is purely an internal detail
 			j.ActiveOperationID = ""
-			// CosmosUID does not roundtrip through the external type because it is purely an internal detail
-			j.CosmosUID = ""
 			// ClusterServiceID does not roundtrip through the external type because it is purely an internal detail
 			j.ClusterServiceID = ocm.InternalID{}
 		},
