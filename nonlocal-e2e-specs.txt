@@ -10,7 +10,6 @@
   "Successfully lists clusters filtered by subscription ID",
   "creates a cluster and fails to update its name with a PATCH request",
   "creates and deletes vm type NC6sv3 in a single cluster",
-  "should allow API access only from authorized VM IP",
   "should confirm the HCP cluster is deleted (not found)",
   "should create an HCP cluster and validate TLS certificates"
 ]

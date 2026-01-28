@@ -854,8 +854,13 @@ func GenerateKubeconfig(restConfig *rest.Config) (string, error) {
 	// Define user
 	userName := "admin"
 	authInfo := clientcmdapi.NewAuthInfo()
-	authInfo.ClientCertificateData = restConfig.CertData
-	authInfo.ClientKeyData = restConfig.KeyData
+	// Support both certificate and token authentication
+	if restConfig.BearerToken != "" {
+		authInfo.Token = restConfig.BearerToken
+	} else {
+		authInfo.ClientCertificateData = restConfig.CertData
+		authInfo.ClientKeyData = restConfig.KeyData
+	}
 	config.AuthInfos[userName] = authInfo
 
 	// Define context
