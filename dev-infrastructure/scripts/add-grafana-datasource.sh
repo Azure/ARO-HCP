@@ -12,6 +12,8 @@ GRAFANA_RG=${ADDR[4]}
 GRAFANA_NAME=${ADDR[8]}
 read -ra ADDR <<< "$MONITOR_ID"
 MONITOR_NAME=${ADDR[8]}
+read -ra MON_ADDR <<< "$MONITOR_ID"
+MONITOR_RG=${MON_ADDR[4]}
 IFS=' '
 
 # lookup existing azure monitoring workspace registration
@@ -26,12 +28,20 @@ az resource wait --custom "properties.provisioningState=='Succeeded'" --ids "${G
 
 # In dev resource groups are purged which causes data sources to become out of sync in the Azure Grafana Instance.
 # If prometheus urls don't match then delete the integration to cleanup the data source.
+echo "DEBUG: Extracted Resource Group: '${MONITOR_RG}'"
 if [[ -n "${EXISTING_DATA_SOURCE_URL}" && ${EXISTING_DATA_SOURCE_URL} != ${PROM_QUERY_URL} ]];
 then
-    echo "Removing ${MONITOR_NAME} integration from ${GRAFANA_NAME}"
-    MONITOR_UPDATES=$(echo "${MONITORS}" | jq --arg id "${MONITOR_ID}" 'map(select(.azureMonitorWorkspaceResourceId != $id))')
-    az resource update --ids ${GRAFANA_RESOURCE_ID} --set properties.grafanaIntegrations.azureMonitorWorkspaceIntegrations="${MONITOR_UPDATES}" --api-version 2024-10-01
-    az resource wait --custom "properties.provisioningState=='Succeeded'" --ids "${GRAFANA_RESOURCE_ID}" --api-version 2024-10-01
+    echo "Removing all integrations for resource group ${MONITOR_RG} from ${GRAFANA_NAME}"
+    MONITOR_UPDATES=$(echo "${MONITORS}" | jq --arg rg "/resourceGroups/${MONITOR_RG}/" 'map(select(.azureMonitorWorkspaceResourceId | contains($rg) | not))')
+    #dry run
+    echo "#### DRY RUN MODE ####"
+    echo "az resource update --ids ${GRAFANA_RESOURCE_ID} ..."
+    echo "Payload would be:"
+    echo "${MONITOR_UPDATES}" | jq .
+    echo "######################"
+    
+    #az resource update --ids ${GRAFANA_RESOURCE_ID} --set properties.grafanaIntegrations.azureMonitorWorkspaceIntegrations="${MONITOR_UPDATES}" --api-version 2024-10-01
+    #az resource wait --custom "properties.provisioningState=='Succeeded'" --ids "${GRAFANA_RESOURCE_ID}" --api-version 2024-10-01
 fi
 
 # add the azure monitor workspace to grafana if it is not already integrated
