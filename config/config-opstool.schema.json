@@ -1,0 +1,174 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Opstool Configuration Schema",
+  "description": "Schema for opstool AKS cluster configuration",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "clouds": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/$defs/Cloud"
+      }
+    }
+  },
+  "$defs": {
+    "Cloud": {
+      "type": "object",
+      "properties": {
+        "defaults": {
+          "$ref": "#/$defs/Configuration"
+        },
+        "environments": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/Environment"
+          }
+        }
+      }
+    },
+    "Environment": {
+      "type": "object",
+      "properties": {
+        "defaults": {
+          "$ref": "#/$defs/Configuration"
+        },
+        "regions": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/Configuration"
+          }
+        }
+      }
+    },
+    "Configuration": {
+      "type": "object",
+      "properties": {
+        "svc": {
+          "type": "object",
+          "properties": {
+            "rg": {
+              "type": "string",
+              "description": "Resource group name"
+            },
+            "subscription": {
+              "type": "object",
+              "properties": {
+                "key": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "monitoring": {
+          "type": "object",
+          "properties": {
+            "alertRuleOwningTeamTag": {
+              "type": "string"
+            },
+            "workspaceName": {
+              "type": "string",
+              "description": "Azure Monitor Workspace name"
+            }
+          }
+        },
+        "dns": {
+          "type": "object",
+          "properties": {
+            "regionalSubdomain": {
+              "type": "string"
+            }
+          }
+        },
+        "opstool": {
+          "type": "object",
+          "description": "Opstool AKS cluster configuration",
+          "properties": {
+            "aks": {
+              "type": "object",
+              "properties": {
+                "name": { "type": "string" },
+                "vnetAddressPrefix": { "type": "string" },
+                "subnetPrefix": { "type": "string" },
+                "podSubnetPrefix": { "type": "string" },
+                "kubernetesVersion": { "type": "string" },
+                "networkDataplane": { "type": "string" },
+                "networkPolicy": { "type": "string" },
+                "clusterOutboundIPAddressIPTags": { "type": "string" },
+                "etcd": {
+                  "type": "object",
+                  "properties": {
+                    "name": { "type": "string" },
+                    "tagKey": { "type": "string" },
+                    "tagValue": { "type": "string" },
+                    "softDelete": { "type": "boolean" }
+                  }
+                },
+                "systemAgentPool": {
+                  "type": "object",
+                  "properties": {
+                    "minCount": { "type": "integer" },
+                    "maxCount": { "type": "integer" },
+                    "vmSize": { "type": "string" },
+                    "osDiskSizeGB": { "type": "integer" },
+                    "zones": { "type": "string" },
+                    "zoneRedundantMode": { "type": "string" }
+                  }
+                }
+              }
+            },
+            "monitoring": {
+              "type": "object",
+              "properties": {
+                "workspaceName": { "type": "string" }
+              }
+            },
+            "prometheus": {
+              "type": "object",
+              "properties": {
+                "kubeStateMetrics": {
+                  "type": "object",
+                  "properties": {
+                    "image": { "$ref": "#/$defs/Image" }
+                  }
+                },
+                "prometheusOperator": {
+                  "type": "object",
+                  "properties": {
+                    "image": { "$ref": "#/$defs/Image" }
+                  }
+                },
+                "prometheusConfigReloader": {
+                  "type": "object",
+                  "properties": {
+                    "image": { "$ref": "#/$defs/Image" }
+                  }
+                },
+                "prometheusSpec": {
+                  "type": "object",
+                  "properties": {
+                    "image": { "$ref": "#/$defs/Image" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "additionalProperties": true
+    },
+    "Image": {
+      "type": "object",
+      "properties": {
+        "registry": { "type": "string" },
+        "repository": { "type": "string" },
+        "sha": { "type": "string" },
+        "digest": { "type": "string" },
+        "tag": { "type": "string" }
+      }
+    }
+  }
+}

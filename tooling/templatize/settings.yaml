@@ -56,3 +56,11 @@ environments:
     ev2Cloud: public
     cxStamp: 1
     regionShortSuffix: "s${USER:0:4}"
+- name: opstool
+  description: |
+    AKS cluster for SRE operational tooling.
+  defaults:
+    region: westus3
+    cloud: dev
+    ev2Cloud: public
+    cxStamp: 1
