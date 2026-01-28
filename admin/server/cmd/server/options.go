@@ -24,6 +24,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/go-logr/logr"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/cobra"
 
@@ -33,12 +34,9 @@ import (
 
 	sdk "github.com/openshift-online/ocm-sdk-go"
 
-	"github.com/Azure/ARO-HCP/admin/server/handlers"
-	"github.com/Azure/ARO-HCP/admin/server/handlers/cosmosdump"
-	"github.com/Azure/ARO-HCP/admin/server/handlers/hcp"
 	"github.com/Azure/ARO-HCP/admin/server/interrupts"
-	"github.com/Azure/ARO-HCP/admin/server/middleware"
 	"github.com/Azure/ARO-HCP/admin/server/pkg/logging"
+	"github.com/Azure/ARO-HCP/admin/server/server"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/fpa"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -97,14 +95,10 @@ type ValidatedOptions struct {
 
 // completedOptions is a private wrapper that enforces a call of Complete() before config generation can be invoked.
 type completedOptions struct {
-	Port                   int
-	HealthPort             int
-	Location               string
-	ClustersServiceClient  ocm.ClusterServiceClientSpec
-	DbClient               database.DBClient
-	KustoClient            *kusto.Client
-	FpaCredentialRetriever fpa.FirstPartyApplicationTokenCredentialRetriever
-	Logger                 *slog.Logger
+	Port       int
+	HealthPort int
+	Logger     logr.Logger
+	AdminAPI   *server.AdminAPI
 }
 
 type Options struct {
@@ -179,33 +173,31 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 	}
 
 	// Create FPA TokenCredentials with watching and caching
-	certReader, err := fpa.NewWatchingFileCertificateReader(ctx, o.FpaCertBundlePath, 30*time.Minute, logger)
+	// FPA functions require *slog.Logger, so convert from logr.Logger
+	slogLogger := slog.New(logr.ToSlogHandler(logger))
+	certReader, err := fpa.NewWatchingFileCertificateReader(ctx, o.FpaCertBundlePath, 30*time.Minute, slogLogger)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create certificate reader: %w", err)
 	}
 
-	fpaCredentialRetriever, err := fpa.NewFirstPartyApplicationTokenCredentialRetriever(logger, o.FpaClientID, certReader, azcore.ClientOptions{})
+	fpaCredentialRetriever, err := fpa.NewFirstPartyApplicationTokenCredentialRetriever(slogLogger, o.FpaClientID, certReader, azcore.ClientOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create the FPA token credentials: %w", err)
 	}
 
 	return &Options{
 		completedOptions: &completedOptions{
-			Port:                   o.Port,
-			HealthPort:             o.HealthPort,
-			Location:               o.Location,
-			ClustersServiceClient:  csClient,
-			DbClient:               dbClient,
-			KustoClient:            kustoClient,
-			FpaCredentialRetriever: fpaCredentialRetriever,
-			Logger:                 logger,
+			Port:       o.Port,
+			HealthPort: o.HealthPort,
+			Logger:     logger,
+			AdminAPI:   server.NewAdminAPI(o.Location, dbClient, csClient, kustoClient, fpaCredentialRetriever, logger),
 		},
 	}, nil
 }
 
 func (opts *Options) Run(ctx context.Context) error {
 	logger := opts.Logger
-	logger.Info("Reporting health.", "port", opts.HealthPort)
+	logger.Info("Reporting health", "port", opts.HealthPort)
 	health := NewHealthOnPort(logger, opts.HealthPort)
 	health.ServeReady(func() bool {
 		// todo: add real readiness checks
@@ -213,21 +205,11 @@ func (opts *Options) Run(ctx context.Context) error {
 	})
 
 	logger.Info("Running server", "port", opts.Port)
-
-	// Submux for V1 HCP endpoints
-	v1HCPMux := middleware.NewHCPResourceServerMux()
-	v1HCPMux.Handle("GET", "/helloworld", hcp.HCPHelloWorld(opts.DbClient, opts.ClustersServiceClient, opts.FpaCredentialRetriever))
-	v1HCPMux.Handle("GET", "/cosmosdump", cosmosdump.NewCosmosDumpHandler(opts.DbClient))
-
-	rootMux := http.NewServeMux()
-	rootMux.Handle("/admin/helloworld", handlers.HelloWorldHandler())
-	rootMux.Handle("/admin/v1/hcp/", http.StripPrefix("/admin/v1/hcp", v1HCPMux.Handler()))
-
-	s := http.Server{
+	server := &http.Server{
+		Handler: opts.AdminAPI.Handlers(),
 		Addr:    net.JoinHostPort("", strconv.Itoa(opts.Port)),
-		Handler: middleware.WithClientPrincipal(middleware.WithLowercaseURLPathValue(middleware.WithLogger(logger, rootMux))),
 	}
-	interrupts.ListenAndServe(&s, 5*time.Second)
+	interrupts.ListenAndServe(server, 5*time.Second)
 	interrupts.WaitForGracefulShutdown()
 	return nil
 }

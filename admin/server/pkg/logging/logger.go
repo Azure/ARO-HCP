@@ -17,15 +17,17 @@ package logging
 import (
 	"log/slog"
 	"os"
+
+	"github.com/go-logr/logr"
 )
 
 // New creates a new logger with the given verbosity level.
 // Verbosity follows the convention: 0 = Info, positive values increase verbosity.
-// The level is converted to slog.Level by negating (verbosity * 1) to match the original behavior.
-func New(verbosity int) *slog.Logger {
+func New(verbosity int) logr.Logger {
 	handlerOptions := &slog.HandlerOptions{
-		Level: slog.Level(verbosity * -1),
+		Level:     slog.Level(verbosity * -1),
+		AddSource: true,
 	}
-	handler := slog.NewJSONHandler(os.Stdout, handlerOptions)
-	return slog.New(handler)
+	handler := slog.NewJSONHandler(os.Stderr, handlerOptions)
+	return logr.FromSlogHandler(handler)
 }

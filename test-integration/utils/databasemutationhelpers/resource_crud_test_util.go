@@ -19,17 +19,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/fs"
-	"net/http"
 	"sort"
 	"strconv"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/go-logr/logr/testr"
 	"github.com/stretchr/testify/require"
-
-	"k8s.io/apimachinery/pkg/util/wait"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
@@ -38,7 +34,6 @@ import (
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/test-integration/utils/integrationutils"
-	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/v20240610preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 )
 
 type ResourceMutationTest struct {
@@ -107,27 +102,17 @@ func (tt *ResourceMutationTest) RunTest(t *testing.T) {
 	defer cancel()
 	ctx = utils.ContextWithLogger(ctx, testr.New(t))
 
-	frontend, testInfo, err := integrationutils.NewFrontendFromTestingEnv(ctx, t, tt.withMock)
+	testInfo, err := integrationutils.NewIntegrationTestInfoFromEnv(ctx, t, tt.withMock)
 	require.NoError(t, err)
 	cleanupCtx := context.Background()
 	cleanupCtx = utils.ContextWithLogger(cleanupCtx, testr.New(t))
 	defer testInfo.Cleanup(cleanupCtx)
-	go frontend.Run(ctx, ctx.Done())
-
-	// wait for migration to complete to eliminate races with our test's second call migrateCosmos and to ensure the server is ready for testing
-	err = wait.PollUntilContextCancel(ctx, 1*time.Second, true, func(ctx context.Context) (bool, error) {
-		_, err := http.Get(testInfo.FrontendURL)
-		if err != nil {
-			t.Log(err)
-			return false, nil
-		}
-		return true, nil
-	})
+	err = testInfo.Start(ctx, t)
 	require.NoError(t, err)
 
 	stepInput := NewCosmosStepInput(testInfo)
-	stepInput.FrontendClient = testInfo.Get20240610ClientFactory
 	stepInput.FrontendURL = testInfo.FrontendURL
+	stepInput.AdminURL = testInfo.AdminURL
 	stepInput.ClusterServiceMockInfo = testInfo.ClusterServiceMock
 
 	for _, step := range tt.steps {
@@ -324,14 +309,24 @@ func readRawBytesInDir(dir fs.FS) ([][]byte, error) {
 }
 
 type StepInput struct {
-	CosmosContainer *azcosmos.ContainerClient
-	ContentLoader   integrationutils.ContentLoader
-	DocumentLister  integrationutils.DocumentLister
-	DBClient        database.DBClient
-	FrontendClient  func(subscriptionID string) *hcpsdk20240610preview.ClientFactory
-	FrontendURL     string
-
+	CosmosContainer        *azcosmos.ContainerClient
+	ContentLoader          integrationutils.ContentLoader
+	DocumentLister         integrationutils.DocumentLister
+	DBClient               database.DBClient
+	FrontendURL            string
+	AdminURL               string
 	ClusterServiceMockInfo *integrationutils.ClusterServiceMock
+}
+
+func (s StepInput) HTTPTestAccessor(key ResourceKey) HTTPTestAccessor {
+	if strings.HasPrefix(key.ResourceID, "/admin/") {
+		return newHTTPTestAccessor(s.AdminURL, map[string]string{
+			"X-Ms-Client-Principal-Name": "test-user@example.com",
+			"Content-Type":               "application/json",
+		})
+	}
+	subscriptionID := api.Must(azcorearm.ParseResourceID(key.ResourceID)).SubscriptionID
+	return newFrontendHTTPTestAccessor(s.FrontendURL, integrationutils.Get20240610ClientFactory(s.FrontendURL, subscriptionID))
 }
 
 func NewCosmosStepInput(storageInfo integrationutils.StorageIntegrationTestInfo) *StepInput {

@@ -16,28 +16,29 @@ package middleware
 
 import (
 	"context"
-	"log/slog"
 	"net/http"
 	"time"
+
+	"github.com/go-logr/logr"
 )
 
 // WithLogger creates a middleware that attaches a logger to the request context.
-func WithLogger(logger *slog.Logger, next http.Handler) http.Handler {
+func WithLogger(logger logr.Logger, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		start := time.Now()
-		requestLogger := logger.With("path", request.URL.Path, "method", request.Method)
-		requestLogger.Info("Got request.")
+		requestLogger := logger.WithValues("path", request.URL.Path, "method", request.Method)
+		requestLogger.Info("Got request")
 
 		ctx := context.WithValue(request.Context(), contextKeyLogger, requestLogger)
 		next.ServeHTTP(writer, request.WithContext(ctx))
 
-		requestLogger.Info("Completed request.", "duration", time.Since(start).String())
+		requestLogger.Info("Completed request", "duration", time.Since(start).String())
 	})
 }
 
-func LoggerFromContext(ctx context.Context) *slog.Logger {
-	if logger, ok := ctx.Value(contextKeyLogger).(*slog.Logger); ok {
+func LoggerFromContext(ctx context.Context) logr.Logger {
+	if logger, ok := ctx.Value(contextKeyLogger).(logr.Logger); ok {
 		return logger
 	}
-	return slog.Default()
+	return logr.Discard()
 }
