@@ -837,6 +837,11 @@ type PlatformProfile struct {
 	// REQUIRED; The Azure resource ID of the worker subnet Note that a subnet cannot be reused between ARO-HCP Clusters.
 	SubnetID *string
 
+	// REQUIRED; The Azure resource ID of the subnet used to inject hosted control plane components into the cluster's vnet. Note
+	// that this subnet cannot be shared with the default worker subnet or any nodepools'
+	// subnets.
+	VnetIntegrationSubnetID *string
+
 	// Resource group name to put cluster resources
 	// If not specified then a unique name is generated from the following pattern
 	// "aro-hcp-" + clusterName + "-" + UUID
