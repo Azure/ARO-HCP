@@ -28,8 +28,10 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"k8s.io/apimachinery/pkg/util/rand"
+	"k8s.io/apimachinery/pkg/util/wait"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -408,9 +410,21 @@ func initializeCosmosDBForFrontend(ctx context.Context, cosmosClient *azcosmos.C
 			containerProperties.DefaultTimeToLive = container.defaultTTL
 		}
 
-		_, err = cosmosDatabaseClient.CreateContainer(ctx, containerProperties, nil)
+		var lastErr error
+		err := wait.PollUntilContextTimeout(ctx, 1*time.Second, 20*time.Second, true, func(ctx context.Context) (done bool, err error) {
+			_, err = cosmosDatabaseClient.CreateContainer(ctx, containerProperties, nil)
+			lastErr = err
+			if err != nil {
+				return false, nil
+			}
+
+			return true, nil
+		})
+		if lastErr != nil {
+			return nil, utils.TrackError(fmt.Errorf("failed to create container %s: %w", container.name, lastErr))
+		}
 		if err != nil {
-			return nil, fmt.Errorf("failed to create container: %w", err)
+			return nil, utils.TrackError(err)
 		}
 	}
 

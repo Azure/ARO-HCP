@@ -22,6 +22,8 @@ import (
 	"path"
 	"strings"
 
+	"github.com/google/uuid"
+
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
@@ -81,9 +83,48 @@ func (m *mockResourceCRUD[InternalAPIType, CosmosAPIType]) makeResourceIDPath(re
 
 func NewNotFoundError() *azcore.ResponseError {
 	return &azcore.ResponseError{
-		ErrorCode:  "Not Found",
+		ErrorCode:  "404 Not Found",
 		StatusCode: http.StatusNotFound,
 	}
+}
+
+func NewPreconditionFailedError() *azcore.ResponseError {
+	return &azcore.ResponseError{
+		ErrorCode:  "412 Precondition Failed",
+		StatusCode: http.StatusPreconditionFailed,
+	}
+}
+
+// generateETag creates a new unique etag value
+func generateETag() azcore.ETag {
+	return azcore.ETag(uuid.New().String())
+}
+
+// injectETag injects a new etag into the document JSON
+func injectETag(data json.RawMessage) (json.RawMessage, azcore.ETag, error) {
+	var doc map[string]any
+	if err := json.Unmarshal(data, &doc); err != nil {
+		return nil, "", err
+	}
+	newETag := generateETag()
+	doc["_etag"] = string(newETag)
+	newData, err := json.Marshal(doc)
+	if err != nil {
+		return nil, "", err
+	}
+	return newData, newETag, nil
+}
+
+// getStoredETag extracts the etag from a stored document
+func getStoredETag(data json.RawMessage) azcore.ETag {
+	var doc map[string]any
+	if err := json.Unmarshal(data, &doc); err != nil {
+		return ""
+	}
+	if etag, ok := doc["_etag"].(string); ok {
+		return azcore.ETag(etag)
+	}
+	return ""
 }
 
 func (m *mockResourceCRUD[InternalAPIType, CosmosAPIType]) GetByID(ctx context.Context, cosmosID string) (*InternalAPIType, error) {
@@ -115,52 +156,7 @@ func (m *mockResourceCRUD[InternalAPIType, CosmosAPIType]) Get(ctx context.Conte
 		return nil, err
 	}
 
-	// Try exact match first
-	result, err := m.GetByID(ctx, cosmosID)
-	if err == nil {
-		return result, nil
-	}
-
-	// If not found, search by resourceID
-	if !database.IsResponseError(err, http.StatusNotFound) {
-		return nil, err
-	}
-
-	// Search all documents for matching resourceID
-	allDocs := m.client.GetAllDocuments()
-
-	for _, data := range allDocs {
-		var typedDoc database.TypedDocument
-		if err := json.Unmarshal(data, &typedDoc); err != nil {
-			continue
-		}
-
-		// Check resource type
-		if !strings.EqualFold(typedDoc.ResourceType, completeResourceID.ResourceType.String()) {
-			continue
-		}
-
-		// Check resourceID in properties
-		var props map[string]any
-		if err := json.Unmarshal(typedDoc.Properties, &props); err != nil {
-			continue
-		}
-
-		resourceIDStr, ok := props["resourceId"].(string)
-		if !ok {
-			continue
-		}
-
-		if strings.EqualFold(resourceIDStr, completeResourceID.String()) {
-			var cosmosObj CosmosAPIType
-			if err := json.Unmarshal(data, &cosmosObj); err != nil {
-				continue
-			}
-			return database.CosmosToInternal[InternalAPIType, CosmosAPIType](&cosmosObj)
-		}
-	}
-
-	return nil, NewNotFoundError()
+	return m.GetByID(ctx, cosmosID)
 }
 
 func (m *mockResourceCRUD[InternalAPIType, CosmosAPIType]) List(ctx context.Context, opts *database.DBClientListResourceDocsOptions) (database.DBClientIterator[InternalAPIType], error) {
@@ -216,14 +212,19 @@ func (m *mockResourceCRUD[InternalAPIType, CosmosAPIType]) Create(ctx context.Co
 	}
 
 	cosmosData := cosmosPersistable.GetCosmosData()
-	cosmosID := cosmosData.CosmosUID
+	cosmosID := cosmosData.GetCosmosUID()
 
 	// Check for existing
 	if _, exists := m.client.GetDocument(cosmosID); exists {
 		return nil, &azcore.ResponseError{StatusCode: http.StatusConflict}
 	}
 
-	m.client.StoreDocument(cosmosID, data)
+	// Inject a new etag and store
+	dataWithETag, _, err := injectETag(data)
+	if err != nil {
+		return nil, fmt.Errorf("failed to inject etag: %w", err)
+	}
+	m.client.StoreDocument(cosmosID, dataWithETag)
 
 	// Read back the stored object
 	return m.GetByID(ctx, cosmosID)
@@ -240,21 +241,35 @@ func (m *mockResourceCRUD[InternalAPIType, CosmosAPIType]) Replace(ctx context.C
 		return nil, fmt.Errorf("failed to marshal cosmos object: %w", err)
 	}
 
-	// Get cosmos ID from the object
+	// Get cosmos ID and etag from the object
 	cosmosPersistable, ok := any(newObj).(api.CosmosPersistable)
 	if !ok {
 		return nil, fmt.Errorf("type %T does not implement CosmosPersistable", newObj)
 	}
 
 	cosmosData := cosmosPersistable.GetCosmosData()
-	cosmosID := cosmosData.CosmosUID
+	cosmosID := cosmosData.GetCosmosUID()
 
 	// Check that document exists
-	if _, exists := m.client.GetDocument(cosmosID); !exists {
+	existingData, exists := m.client.GetDocument(cosmosID)
+	if !exists {
 		return nil, NewNotFoundError()
 	}
 
-	m.client.StoreDocument(cosmosID, data)
+	// Check etag if one is provided
+	if len(cosmosData.CosmosETag) > 0 {
+		storedETag := getStoredETag(existingData)
+		if storedETag != cosmosData.CosmosETag {
+			return nil, NewPreconditionFailedError()
+		}
+	}
+
+	// Inject a new etag and store
+	dataWithETag, _, err := injectETag(data)
+	if err != nil {
+		return nil, fmt.Errorf("failed to inject etag: %w", err)
+	}
+	m.client.StoreDocument(cosmosID, dataWithETag)
 
 	// Read back the stored object
 	return m.GetByID(ctx, cosmosID)
@@ -266,7 +281,7 @@ func (m *mockResourceCRUD[InternalAPIType, CosmosAPIType]) Delete(ctx context.Co
 		return err
 	}
 
-	cosmosUID := any(curr).(api.CosmosPersistable).GetCosmosData().CosmosUID
+	cosmosUID := any(curr).(api.CosmosPersistable).GetCosmosData().GetCosmosUID()
 	m.client.DeleteDocument(cosmosUID)
 	return nil
 }
@@ -288,7 +303,7 @@ func (m *mockResourceCRUD[InternalAPIType, CosmosAPIType]) AddCreateToTransactio
 	}
 
 	cosmosData := cosmosPersistable.GetCosmosData()
-	cosmosID := cosmosData.CosmosUID
+	cosmosID := cosmosData.GetCosmosUID()
 
 	mockTx, ok := transaction.(*mockTransaction)
 	if !ok {
@@ -304,8 +319,13 @@ func (m *mockResourceCRUD[InternalAPIType, CosmosAPIType]) AddCreateToTransactio
 	mockTx.steps = append(mockTx.steps, mockTransactionStep{
 		details: transactionDetails,
 		execute: func() (string, json.RawMessage, error) {
-			m.client.StoreDocument(cosmosID, data)
-			return cosmosID, data, nil
+			// Inject a new etag and store
+			dataWithETag, _, err := injectETag(data)
+			if err != nil {
+				return "", nil, fmt.Errorf("failed to inject etag: %w", err)
+			}
+			m.client.StoreDocument(cosmosID, dataWithETag)
+			return cosmosID, dataWithETag, nil
 		},
 	})
 
@@ -329,7 +349,8 @@ func (m *mockResourceCRUD[InternalAPIType, CosmosAPIType]) AddReplaceToTransacti
 	}
 
 	cosmosData := cosmosPersistable.GetCosmosData()
-	cosmosID := cosmosData.CosmosUID
+	cosmosID := cosmosData.GetCosmosUID()
+	expectedETag := cosmosData.CosmosETag
 
 	mockTx, ok := transaction.(*mockTransaction)
 	if !ok {
@@ -345,8 +366,24 @@ func (m *mockResourceCRUD[InternalAPIType, CosmosAPIType]) AddReplaceToTransacti
 	mockTx.steps = append(mockTx.steps, mockTransactionStep{
 		details: transactionDetails,
 		execute: func() (string, json.RawMessage, error) {
-			m.client.StoreDocument(cosmosID, data)
-			return cosmosID, data, nil
+			// Check etag if one is provided
+			if len(expectedETag) > 0 {
+				existingData, exists := m.client.GetDocument(cosmosID)
+				if !exists {
+					return "", nil, NewNotFoundError()
+				}
+				storedETag := getStoredETag(existingData)
+				if storedETag != expectedETag {
+					return "", nil, NewPreconditionFailedError()
+				}
+			}
+			// Inject a new etag and store
+			dataWithETag, _, err := injectETag(data)
+			if err != nil {
+				return "", nil, fmt.Errorf("failed to inject etag: %w", err)
+			}
+			m.client.StoreDocument(cosmosID, dataWithETag)
+			return cosmosID, dataWithETag, nil
 		},
 	})
 
@@ -616,13 +653,18 @@ func (m *mockSubscriptionCRUD) Create(ctx context.Context, newObj *arm.Subscript
 	}
 
 	cosmosData := newObj.GetCosmosData()
-	cosmosID := cosmosData.CosmosUID
+	cosmosID := cosmosData.GetCosmosUID()
 
 	if _, exists := m.client.GetDocument(cosmosID); exists {
 		return nil, &azcore.ResponseError{StatusCode: http.StatusConflict}
 	}
 
-	m.client.StoreDocument(cosmosID, data)
+	// Inject a new etag and store
+	dataWithETag, _, err := injectETag(data)
+	if err != nil {
+		return nil, fmt.Errorf("failed to inject etag: %w", err)
+	}
+	m.client.StoreDocument(cosmosID, dataWithETag)
 	return m.GetByID(ctx, cosmosID)
 }
 
@@ -638,13 +680,27 @@ func (m *mockSubscriptionCRUD) Replace(ctx context.Context, newObj *arm.Subscrip
 	}
 
 	cosmosData := newObj.GetCosmosData()
-	cosmosID := cosmosData.CosmosUID
+	cosmosID := cosmosData.GetCosmosUID()
 
-	if _, exists := m.client.GetDocument(cosmosID); !exists {
+	existingData, exists := m.client.GetDocument(cosmosID)
+	if !exists {
 		return nil, NewNotFoundError()
 	}
 
-	m.client.StoreDocument(cosmosID, data)
+	// Check etag if one is provided
+	if len(cosmosData.CosmosETag) > 0 {
+		storedETag := getStoredETag(existingData)
+		if storedETag != cosmosData.CosmosETag {
+			return nil, NewPreconditionFailedError()
+		}
+	}
+
+	// Inject a new etag and store
+	dataWithETag, _, err := injectETag(data)
+	if err != nil {
+		return nil, fmt.Errorf("failed to inject etag: %w", err)
+	}
+	m.client.StoreDocument(cosmosID, dataWithETag)
 	return m.GetByID(ctx, cosmosID)
 }
 
@@ -675,7 +731,7 @@ func (m *mockSubscriptionCRUD) AddCreateToTransaction(ctx context.Context, trans
 	}
 
 	cosmosData := newObj.GetCosmosData()
-	cosmosID := cosmosData.CosmosUID
+	cosmosID := cosmosData.GetCosmosUID()
 
 	mockTx, ok := transaction.(*mockTransaction)
 	if !ok {
@@ -691,8 +747,13 @@ func (m *mockSubscriptionCRUD) AddCreateToTransaction(ctx context.Context, trans
 	mockTx.steps = append(mockTx.steps, mockTransactionStep{
 		details: transactionDetails,
 		execute: func() (string, json.RawMessage, error) {
-			m.client.StoreDocument(cosmosID, data)
-			return cosmosID, data, nil
+			// Inject a new etag and store
+			dataWithETag, _, err := injectETag(data)
+			if err != nil {
+				return "", nil, fmt.Errorf("failed to inject etag: %w", err)
+			}
+			m.client.StoreDocument(cosmosID, dataWithETag)
+			return cosmosID, dataWithETag, nil
 		},
 	})
 
@@ -711,7 +772,8 @@ func (m *mockSubscriptionCRUD) AddReplaceToTransaction(ctx context.Context, tran
 	}
 
 	cosmosData := newObj.GetCosmosData()
-	cosmosID := cosmosData.CosmosUID
+	cosmosID := cosmosData.GetCosmosUID()
+	expectedETag := cosmosData.CosmosETag
 
 	mockTx, ok := transaction.(*mockTransaction)
 	if !ok {
@@ -727,8 +789,24 @@ func (m *mockSubscriptionCRUD) AddReplaceToTransaction(ctx context.Context, tran
 	mockTx.steps = append(mockTx.steps, mockTransactionStep{
 		details: transactionDetails,
 		execute: func() (string, json.RawMessage, error) {
-			m.client.StoreDocument(cosmosID, data)
-			return cosmosID, data, nil
+			// Check etag if one is provided
+			if len(expectedETag) > 0 {
+				existingData, exists := m.client.GetDocument(cosmosID)
+				if !exists {
+					return "", nil, NewNotFoundError()
+				}
+				storedETag := getStoredETag(existingData)
+				if storedETag != expectedETag {
+					return "", nil, NewPreconditionFailedError()
+				}
+			}
+			// Inject a new etag and store
+			dataWithETag, _, err := injectETag(data)
+			if err != nil {
+				return "", nil, fmt.Errorf("failed to inject etag: %w", err)
+			}
+			m.client.StoreDocument(cosmosID, dataWithETag)
+			return cosmosID, dataWithETag, nil
 		},
 	})
 

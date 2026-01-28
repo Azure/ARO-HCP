@@ -79,7 +79,7 @@ func (k *OperationKey) InitialController(controllerName string) *api.Controller 
 	resourceID := api.Must(azcorearm.ParseResourceID(k.GetParentResourceID().String() + "/" + api.ControllerResourceTypeName + "/" + controllerName))
 	return &api.Controller{
 		CosmosMetadata: api.CosmosMetadata{
-			ResourceID: *resourceID,
+			ResourceID: resourceID,
 		},
 		ResourceID: resourceID, ExternalID: k.GetParentResourceID(),
 		Status: api.ControllerStatus{
@@ -124,7 +124,7 @@ func (k *HCPClusterKey) InitialController(controllerName string) *api.Controller
 	resourceID := api.Must(azcorearm.ParseResourceID(k.GetResourceID().String() + "/" + api.ControllerResourceTypeName + "/" + controllerName))
 	return &api.Controller{
 		CosmosMetadata: api.CosmosMetadata{
-			ResourceID: *resourceID,
+			ResourceID: resourceID,
 		},
 		ResourceID: resourceID,
 		ExternalID: k.GetResourceID(),

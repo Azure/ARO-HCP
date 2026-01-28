@@ -37,7 +37,7 @@ func InternalToCosmosSubscription(internalObj *arm.Subscription) (*Subscription,
 	cosmosObj := &Subscription{
 		TypedDocument: TypedDocument{
 			BaseDocument: BaseDocument{
-				ID: internalObj.GetCosmosData().CosmosUID,
+				ID: internalObj.GetCosmosData().GetCosmosUID(),
 			},
 			PartitionKey: strings.ToLower(internalObj.ResourceID.Name),
 			ResourceType: internalObj.ResourceID.ResourceType.String(),

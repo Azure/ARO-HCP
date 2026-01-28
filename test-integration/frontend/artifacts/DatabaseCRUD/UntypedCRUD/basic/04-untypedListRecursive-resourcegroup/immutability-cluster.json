@@ -4,7 +4,7 @@
     "_rid": "zT0eAODBiq0FAAAAAAAAAA==",
     "_self": "dbs/zT0eAA==/colls/zT0eAODBiq0=/docs/zT0eAODBiq0FAAAAAAAAAA==/",
     "_ts": 1764966624,
-    "id": "8feb19cd-3d3c-4575-863b-b26ad817ce33",
+    "id": "|subscriptions|f52dfea2-47ee-4396-8006-4a27d47d59c5|resourcegroups|some-resource-group|providers|microsoft.redhatopenshift|hcpopenshiftclusters|immutability",
     "partitionKey": "f52dfea2-47ee-4396-8006-4a27d47d59c5",
     "properties": {
         "customerDesiredState": null,

@@ -15,8 +15,6 @@
 package api
 
 import (
-	"strings"
-
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api/arm"
@@ -33,20 +31,9 @@ type HCPOpenShiftCluster struct {
 
 var _ CosmosPersistable = &HCPOpenShiftCluster{}
 
-func (o *HCPOpenShiftCluster) GetCosmosData() CosmosData {
-	cosmosUID := Must(ResourceIDToCosmosID(o.ID))
-	if len(o.ServiceProviderProperties.CosmosUID) != 0 {
-		// if this is an item that is being serialized for the first time, then we can force it to use the new scheme.
-		// if it already thinks it knows its CosmosID, then we must accept what it thinks because this could be a case
-		// where we have a new backend and an old frontend.  In that case, the content still has random UIDs, but the backend
-		// must be able to read AND write the records. This means we cannot assume that all UIDs have already changed.
-		cosmosUID = o.ServiceProviderProperties.CosmosUID
-	}
-
-	return CosmosData{
-		CosmosUID:    cosmosUID,
-		PartitionKey: strings.ToLower(o.ID.SubscriptionID),
-		ItemID:       o.ID,
+func (o *HCPOpenShiftCluster) GetCosmosData() *CosmosData {
+	return &CosmosData{
+		ResourceID: o.ID,
 	}
 }
 
@@ -66,7 +53,6 @@ type HCPOpenShiftClusterCustomerProperties struct {
 // HCPOpenShiftClusterCustomerProperties represents the property bag of a HCPOpenShiftCluster resource.
 type HCPOpenShiftClusterServiceProviderProperties struct {
 	ProvisioningState arm.ProvisioningState          `json:"provisioningState,omitempty"`
-	CosmosUID         string                         `json:"cosmosUID,omitempty"`
 	ClusterServiceID  InternalID                     `json:"clusterServiceID,omitempty"`
 	ActiveOperationID string                         `json:"activeOperationId,omitempty"`
 	DNS               ServiceProviderDNSProfile      `json:"dns,omitempty"`

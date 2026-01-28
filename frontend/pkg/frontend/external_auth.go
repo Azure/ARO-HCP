@@ -544,7 +544,7 @@ func (f *Frontend) updateExternalAuthInCosmos(ctx context.Context, writer http.R
 	}
 
 	// Read back the resource document so the response body is accurate.
-	resultingUncastInternalExternalAuth, err := transactionResult.GetItem(oldInternalExternalAuth.ServiceProviderProperties.CosmosUID)
+	resultingUncastInternalExternalAuth, err := transactionResult.GetItem(oldInternalExternalAuth.GetCosmosData().GetCosmosUID())
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -690,7 +690,6 @@ func mergeToInternalExternalAuth(csEternalAuth *arohcpv1alpha1.ExternalAuth, int
 	// this does not use conversion.CopyReadOnly* because some ServiceProvider properties come from cluster-service-only or live reads
 	mergedExternalAuth.SystemData = internalObj.SystemData
 	mergedExternalAuth.Properties.ProvisioningState = internalObj.Properties.ProvisioningState
-	mergedExternalAuth.ServiceProviderProperties.CosmosUID = internalObj.ServiceProviderProperties.CosmosUID
 	mergedExternalAuth.ServiceProviderProperties.ClusterServiceID = internalObj.ServiceProviderProperties.ClusterServiceID
 	mergedExternalAuth.ServiceProviderProperties.ActiveOperationID = internalObj.ServiceProviderProperties.ActiveOperationID
 

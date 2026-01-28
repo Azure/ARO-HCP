@@ -665,7 +665,7 @@ func (f *Frontend) updateHCPClusterInCosmos(ctx context.Context, writer http.Res
 	}
 
 	// Read back the resource document so the response body is accurate.
-	resultingUncastObj, err := transactionResult.GetItem(oldInternalCluster.ServiceProviderProperties.CosmosUID)
+	resultingUncastObj, err := transactionResult.GetItem(oldInternalCluster.GetCosmosData().GetCosmosUID())
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -839,7 +839,6 @@ func mergeToInternalCluster(csCluster *arohcpv1alpha1.Cluster, internalCluster *
 	clusterServiceBasedInternalCluster.ServiceProviderProperties.ProvisioningState = internalCluster.ServiceProviderProperties.ProvisioningState
 	clusterServiceBasedInternalCluster.ServiceProviderProperties.ActiveOperationID = internalCluster.ServiceProviderProperties.ActiveOperationID
 	clusterServiceBasedInternalCluster.ServiceProviderProperties.ClusterServiceID = internalCluster.ServiceProviderProperties.ClusterServiceID
-	clusterServiceBasedInternalCluster.ServiceProviderProperties.CosmosUID = internalCluster.ServiceProviderProperties.CosmosUID
 	if clusterServiceBasedInternalCluster.Identity == nil {
 		clusterServiceBasedInternalCluster.Identity = &arm.ManagedServiceIdentity{}
 	}
