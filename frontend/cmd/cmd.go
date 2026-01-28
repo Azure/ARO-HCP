@@ -22,8 +22,6 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"os/signal"
-	"syscall"
 
 	"github.com/go-logr/logr"
 	"github.com/microsoft/go-otel-audit/audit/base"
@@ -41,6 +39,7 @@ import (
 	sdk "github.com/openshift-online/ocm-sdk-go"
 
 	"github.com/Azure/ARO-HCP/frontend/pkg/frontend"
+	"github.com/Azure/ARO-HCP/frontend/pkg/signal"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/audit"
 	"github.com/Azure/ARO-HCP/internal/database"
@@ -131,7 +130,9 @@ func CorrelationIDPolicy(req *policy.Request) (*http.Response, error) {
 }
 
 func (opts *FrontendOpts) Run() error {
-	ctx := context.Background()
+	ctx := signal.SetupSignalContext()
+	ctx, cancel := context.WithCancelCause(ctx)
+	defer cancel(fmt.Errorf("function returned"))
 
 	logger := utils.DefaultLogger()
 
@@ -231,18 +232,19 @@ func (opts *FrontendOpts) Run() error {
 
 	f := frontend.NewFrontend(logger, listener, metricsListener, prometheus.DefaultRegisterer, dbClient, csClient, auditClient, opts.location)
 
-	stop := make(chan struct{})
-	signalChannel := make(chan os.Signal, 1)
-	signal.Notify(signalChannel, syscall.SIGINT, syscall.SIGTERM)
-	go f.Run(ctx, stop)
+	runErrCh := make(chan error)
+	go func() {
+		runErrCh <- f.Run(ctx)
+		cancel(fmt.Errorf("frontend exited"))
+	}()
 
-	sig := <-signalChannel
-	logger.Info(fmt.Sprintf("caught %s signal", sig))
-	close(stop)
+	<-ctx.Done()
+	logger.Info("context closed")
 
-	f.Join()
 	_ = otelShutdown(ctx)
 	logger.Info(fmt.Sprintf("%s (%s) stopped", frontend.ProgramName, version.CommitSHA))
 
-	return nil
+	logger.Info("waiting for run to finish")
+	runErr := <-runErrCh
+	return runErr
 }

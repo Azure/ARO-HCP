@@ -1077,9 +1077,9 @@ func newHTTPServer(ctx context.Context, f *Frontend, ctrl *gomock.Controller, mo
 	// The initialization of the subscriptions collector is normally part of
 	// the Run() method but the method doesn't get called in the tests so it's
 	// executed here.
-	stop := make(chan struct{})
-	close(stop)
-	f.collector.Run(ctx, stop)
+	localCtx, localCancel := context.WithCancel(ctx)
+	localCancel()
+	f.collector.Run(localCtx)
 
 	return ts
 }

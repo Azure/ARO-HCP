@@ -21,10 +21,10 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	"os"
 	"path"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/go-logr/logr"
 	"github.com/prometheus/client_golang/prometheus"
@@ -57,7 +57,6 @@ type Frontend struct {
 	metricsServer        http.Server
 	dbClient             database.DBClient
 	auditClient          audit.Client
-	done                 chan struct{}
 	collector            *metrics.SubscriptionCollector
 	healthGauge          prometheus.Gauge
 	// this is the azure location for this instance of the frontend
@@ -99,7 +98,6 @@ func NewFrontend(
 		},
 		auditClient: auditClient,
 		dbClient:    dbClient,
-		done:        make(chan struct{}),
 		collector:   metrics.NewSubscriptionCollector(reg, dbClient, azureLocation),
 		healthGauge: promauto.With(reg).NewGauge(
 			prometheus.GaugeOpts{
@@ -117,22 +115,24 @@ func NewFrontend(
 	return f
 }
 
-func (f *Frontend) Run(ctx context.Context, stop <-chan struct{}) {
+func (f *Frontend) Run(ctx context.Context) error {
+	ctx, cancel := context.WithCancelCause(ctx)
+	defer func() {
+		cancel(fmt.Errorf("run returned"))
+
+		// always attempt a graceful shutdown, a double ctrl+c exits the process
+		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 31*time.Second)
+		defer shutdownCancel()
+		_ = f.server.Shutdown(shutdownCtx)
+		_ = f.metricsServer.Shutdown(shutdownCtx)
+	}()
+
 	if len(f.azureLocation) == 0 {
 		panic("azureLocation must be set")
 	}
 
 	// This just digs up the logger passed to NewFrontend.
-	logger := utils.LoggerFromContext(f.server.BaseContext(f.listener))
-
-	if stop != nil {
-		go func() {
-			<-stop
-			_ = f.server.Shutdown(ctx)
-			_ = f.metricsServer.Shutdown(ctx)
-			close(f.done)
-		}()
-	}
+	logger := utils.LoggerFromContext(ctx)
 
 	// before we start the http handler (this should ensure we readiness checks until this is complete), we will do a cosmos
 	// data migration to our new storage keys.
@@ -151,13 +151,28 @@ func (f *Frontend) Run(ctx context.Context, stop <-chan struct{}) {
 		return f.metricsServer.Serve(f.metricsListener)
 	})
 	errs.Go(func() error {
-		f.collector.Run(ctx, stop)
-		return nil
+		f.collector.Run(ctx)
+		//if ctx.Done() == nil {
+		return fmt.Errorf("metrics collector exited") // this causes the errs.Wait to trigger so we'll exit.
+		//}
+		//return nil // if the context was finished, then no need to error because we're exiting and this is expected
 	})
 
-	if err := errs.Wait(); !errors.Is(err, http.ErrServerClosed) {
-		logger.Error(err, "server error")
-		os.Exit(1)
+	someServerExited := make(chan error, 1)
+	go func() {
+		defer close(someServerExited)
+		if err := errs.Wait(); !errors.Is(err, http.ErrServerClosed) {
+			logger.Error(err, "server error")
+			someServerExited <- err
+		}
+	}()
+
+	select {
+	case err := <-someServerExited:
+		return err
+	case <-ctx.Done():
+		// normal exit flow
+		return nil
 	}
 }
 
@@ -241,10 +256,6 @@ func MigrateCosmosOrDie(ctx context.Context, cosmosClient database.DBClient) {
 		}
 	}
 
-}
-
-func (f *Frontend) Join() {
-	<-f.done
 }
 
 func (f *Frontend) NotFound(writer http.ResponseWriter, request *http.Request) {
