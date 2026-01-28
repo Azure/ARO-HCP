@@ -4,35 +4,10 @@ set -o errexit
 set -o nounset
 set -o pipefail
 
-# Usage function
-usage() {
-    cat <<EOF
-Usage: $0 <resource-group> <cosmosdb-account-name> <database-name> <container-name>
-
-Migrates a CosmosDB SQL container to autoscaling throughput.
-
-Arguments:
-  resource-group          Azure resource group name
-  cosmosdb-account-name   CosmosDB account name
-  database-name           SQL database name
-  container-name          SQL container name
-
-Example:
-  $0 my-rg my-cosmosdb my-database my-container
-EOF
+if [ -z "${RESOURCE_GROUP}" ] || [ -z "${COSMOSDB_ACCOUNT_NAME}" ] || [ -z "${DATABASE_NAME}" ] || [ -z "${CONTAINER_NAME}" ]; then
+    echo "Error: RESOURCE_GROUP, COSMOSDB_ACCOUNT_NAME, DATABASE_NAME, and CONTAINER_NAME must be set"
     exit 1
-}
-
-# Check arguments
-if [ $# -ne 4 ]; then
-    echo "Error: Invalid number of arguments"
-    usage
 fi
-
-RESOURCE_GROUP="$1"
-COSMOSDB_ACCOUNT_NAME="$2"
-DATABASE_NAME="$3"
-CONTAINER_NAME="$4"
 
 echo "Checking throughput configuration for container: ${CONTAINER_NAME}"
 echo "  Account: ${COSMOSDB_ACCOUNT_NAME}"
