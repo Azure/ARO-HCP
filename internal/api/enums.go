@@ -212,6 +212,38 @@ var (
 	)
 )
 
+type ClusterConditionType string
+
+const (
+	// ClusterConditionTypeCompleted - the cluster resource is in an completed state.
+	ClusterConditionTypeCompleted ClusterConditionType = "Completed"
+	// ClusterConditionTypeDegraded - the cluster resource is in a degraded state.
+	ClusterConditionTypeDegraded ClusterConditionType = "Degraded"
+)
+
+var (
+	ValidClusterConditionTypes = sets.New[ClusterConditionType](
+		ClusterConditionTypeCompleted,
+		ClusterConditionTypeDegraded,
+	)
+)
+
+type NodePoolConditionType string
+
+const (
+	// NodePoolConditionTypeCompleted - the node pool resource is in an completed state.
+	NodePoolConditionTypeCompleted NodePoolConditionType = "Completed"
+	// NodePoolConditionTypeDegraded - the node pool resource is in a degraded state.
+	NodePoolConditionTypeDegraded NodePoolConditionType = "Degraded"
+)
+
+var (
+	ValidNodePoolConditionTypes = sets.New[NodePoolConditionType](
+		NodePoolConditionTypeCompleted,
+		NodePoolConditionTypeDegraded,
+	)
+)
+
 type UsernameClaimPrefixPolicy string
 
 const (

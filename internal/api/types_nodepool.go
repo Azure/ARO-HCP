@@ -17,6 +17,7 @@ package api
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"k8s.io/utils/ptr"
 
@@ -57,6 +58,7 @@ func (o *HCPOpenShiftClusterNodePool) GetCosmosData() CosmosData {
 // HCPOpenShiftClusterNodePool resource.
 type HCPOpenShiftClusterNodePoolProperties struct {
 	ProvisioningState       arm.ProvisioningState   `json:"provisioningState,omitempty"`
+	Conditions              []NodePoolCondition     `json:"conditions,omitempty"              visibility:"read"                     validate:"omitempty,max=10,dive"`
 	Version                 NodePoolVersionProfile  `json:"version,omitempty"`
 	Platform                NodePoolPlatformProfile `json:"platform,omitempty"`
 	Replicas                int32                   `json:"replicas,omitempty"`
@@ -65,6 +67,16 @@ type HCPOpenShiftClusterNodePoolProperties struct {
 	Labels                  map[string]string       `json:"labels,omitempty"`
 	Taints                  []Taint                 `json:"taints,omitempty"`
 	NodeDrainTimeoutMinutes *int32                  `json:"nodeDrainTimeoutMinutes,omitempty"`
+}
+
+// NodePoolCondition defines an observation of the node pool state.
+// Visibility for the entire struct is "read".
+type NodePoolCondition struct {
+	Type               NodePoolConditionType `json:"type"               validate:"enum_nodepoolconditiontype"`
+	Status             ConditionStatusType   `json:"status"             validate:"enum_conditionstatustype"`
+	LastTransitionTime time.Time             `json:"lastTransitionTime"`
+	Reason             string                `json:"reason"`
+	Message            string                `json:"message"`
 }
 
 type HCPOpenShiftClusterNodePoolServiceProviderProperties struct {

@@ -16,6 +16,7 @@ package api
 
 import (
 	"strings"
+	"time"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
@@ -66,6 +67,7 @@ type HCPOpenShiftClusterCustomerProperties struct {
 // HCPOpenShiftClusterCustomerProperties represents the property bag of a HCPOpenShiftCluster resource.
 type HCPOpenShiftClusterServiceProviderProperties struct {
 	ProvisioningState arm.ProvisioningState          `json:"provisioningState,omitempty"`
+	Conditions        []ClusterCondition             `json:"conditions,omitempty"              visibility:"read"                     validate:"omitempty,max=10,dive"`
 	CosmosUID         string                         `json:"cosmosUID,omitempty"`
 	ClusterServiceID  InternalID                     `json:"clusterServiceID,omitempty"`
 	ActiveOperationID string                         `json:"activeOperationId,omitempty"`
@@ -73,6 +75,16 @@ type HCPOpenShiftClusterServiceProviderProperties struct {
 	Console           ServiceProviderConsoleProfile  `json:"console,omitempty"`
 	API               ServiceProviderAPIProfile      `json:"api,omitempty"`
 	Platform          ServiceProviderPlatformProfile `json:"platform,omitempty"`
+}
+
+// ClusterCondition defines an observation of the cluster state.
+// Visibility for the entire struct is "read".
+type ClusterCondition struct {
+	Type               ClusterConditionType `json:"type"               validate:"enum_clusterconditiontype"`
+	Status             ConditionStatusType  `json:"status"             validate:"enum_conditionstatustype"`
+	LastTransitionTime time.Time            `json:"lastTransitionTime"`
+	Reason             string               `json:"reason"`
+	Message            string               `json:"message"`
 }
 
 // VersionProfile represents the cluster control plane version.
