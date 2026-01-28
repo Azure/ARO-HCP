@@ -140,7 +140,7 @@ resourceGroups:
     - name: DATABASE_NAME
       configRef: frontend.cosmosDB.name
     - name: CONTAINER_NAME
-      value: LOCKS
+      value: Locks
     shellIdentity:
       input:
         resourceGroup: global
