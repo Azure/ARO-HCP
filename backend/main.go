@@ -42,10 +42,6 @@ import (
 	"k8s.io/klog/v2"
 	utilsclock "k8s.io/utils/clock"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
-	"github.com/Azure/azure-sdk-for-go/sdk/tracing/azotel"
-
 	ocmsdk "github.com/openshift-online/ocm-sdk-go"
 
 	"github.com/Azure/ARO-HCP/backend/oldoperationscanner"
@@ -116,6 +112,23 @@ func init() {
 	rootCmd.Flags().StringVar(&argCosmosName, "cosmos-name", os.Getenv("DB_NAME"), "Cosmos database name")
 	rootCmd.Flags().StringVar(&argCosmosURL, "cosmos-url", os.Getenv("DB_URL"), "Cosmos database URL")
 	rootCmd.Flags().StringVar(&argClustersServiceURL, "clusters-service-url", "https://api.openshift.com", "URL of the OCM API gateway")
+	rootCmd.Flags().StringVar(
+		&argAzureRuntimeConfigPath, "azure-runtime-config-path", "",
+		"Path to a file containing the Azure runtime configuration in JSON or YAML format following the schema defined "+
+			"in backend/api/azure/v1/AzureRuntimeConfig",
+	)
+	rootCmd.Flags().StringVar(
+		&argAzureFPACertBundlePath,
+		"azure-first-party-application-certificate-bundle-path", "",
+		"Path to a file containing an X.509 Certificate based client certificate, consisting of a private key and "+
+			"certificate chain, in a PEM or PKCS#12 format for authenticating clients with a first party application identity",
+	)
+	rootCmd.Flags().StringVar(
+		&argAzureFPAClientID,
+		"azure-first-party-application-client-id",
+		"",
+		"The client id of the first party application identity",
+	)
 	rootCmd.Flags().BoolVar(&argInsecure, "insecure", false, "Skip validating TLS for clusters-service")
 	rootCmd.Flags().StringVar(&argMetricsListenAddress, "metrics-listen-address", ":8081", "Address on which to expose metrics")
 	rootCmd.Flags().StringVar(&argPortListenAddress, "healthz-listen-address", ":8083", "Address on which Healthz endpoint will be supported")
@@ -203,15 +216,23 @@ func Run(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("could not initialize opentelemetry sdk: %w", err)
 	}
 
+	otelTracerProvider := otel.GetTracerProvider()
+
+	azureConfig, err := getAzureConfig(ctx, argAzureRuntimeConfigPath, otelTracerProvider)
+	if err != nil {
+		return fmt.Errorf("error getting azure configuration: %w", err)
+	}
+
+	fpaClientBuilder, err := getFirstPartyApplicationClientBuilder(ctx, argAzureFPACertBundlePath, argAzureFPAClientID, azureConfig)
+	if err != nil {
+		return fmt.Errorf("error configuring FPA client builder: %w", err)
+	}
+
 	// Create the database client.
 	cosmosDatabaseClient, err := database.NewCosmosDatabaseClient(
 		argCosmosURL,
 		argCosmosName,
-		azcore.ClientOptions{
-			// FIXME Cloud should be determined by other means.
-			Cloud:           cloud.AzurePublic,
-			TracingProvider: azotel.NewTracingProvider(otel.GetTracerProvider(), nil),
-		},
+		*azureConfig.CloudEnvironment.PolicyClientOptions(),
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create the CosmosDB client: %w", err)
@@ -390,6 +411,11 @@ func Run(cmd *cobra.Command, args []string) error {
 				dbClient,
 				subscriptionLister,
 			)
+			azureRPRegistrationValidationController = validationcontrollers.NewClusterValidationController(
+				validations.NewAzureResourceProvidersRegistrationValidation(fpaClientBuilder),
+				dbClient,
+				subscriptionLister,
+			)
 		)
 
 		le, err := leaderelection.NewLeaderElector(leaderelection.LeaderElectionConfig{
@@ -415,6 +441,7 @@ func Run(cmd *cobra.Command, args []string) error {
 					go cosmosMatchingExternalAuthController.Run(ctx, 20)
 					go cosmosMatchingClusterController.Run(ctx, 20)
 					go alwaysSuccessClusterValidationController.Run(ctx, 20)
+					go azureRPRegistrationValidationController.Run(ctx, 20)
 				},
 				OnStoppedLeading: func() {
 					operationsScanner.LeaderGauge.Set(0)
