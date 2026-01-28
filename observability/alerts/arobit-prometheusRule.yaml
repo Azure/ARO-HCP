@@ -8,7 +8,7 @@ spec:
   - name: arobit-rules
     rules:
     - alert: ArobitForwarderJobUp
-      expr: min by (cluster) (up{job="arobit-forwarder",namespace="arobit"}) == 0
+      expr: group by (cluster) (up{job="kube-state-metrics"}) unless on(cluster) group by (cluster) (up{job="arobit-forwarder",namespace="arobit"} == 1)
       for: 15m
       labels:
         severity: critical

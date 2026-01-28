@@ -13,7 +13,7 @@ spec:
   - name: prometheus-wip-rules
     rules:
     - alert: PrometheusJobUp
-      expr: min by (job, namespace, cluster) (up{job="prometheus/prometheus",namespace="prometheus"}) == 0
+      expr: group by (cluster) (up{job="kube-state-metrics"}) unless on(cluster) group by (cluster) (up{job="prometheus/prometheus",namespace="prometheus"} == 1)
       for: 5m
       labels:
         severity: critical
