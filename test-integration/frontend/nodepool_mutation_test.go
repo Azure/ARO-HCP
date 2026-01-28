@@ -42,8 +42,11 @@ func testFrontendNodePoolMutation(t *testing.T, withMock bool) {
 	frontend, testInfo, err := integrationutils.NewFrontendFromTestingEnv(ctx, t, withMock)
 	require.NoError(t, err)
 	defer testInfo.Cleanup(context.Background())
-
 	go frontend.Run(ctx, ctx.Done())
+	defer func() {
+		cancel()
+		frontend.Join()
+	}()
 
 	subscriptionID := "0465bc32-c654-41b8-8d87-9815d7abe8f6" // TODO could read from JSON
 	resourceGroupName := "some-resource-group"
