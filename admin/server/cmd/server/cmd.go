@@ -16,8 +16,13 @@ package server
 
 import (
 	"fmt"
+	"log/slog"
+	"os"
 
+	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
+
+	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 func NewCommand() (*cobra.Command, error) {
@@ -37,11 +42,17 @@ func NewCommand() (*cobra.Command, error) {
 		if err != nil {
 			return err
 		}
-		completed, err := validated.Complete(cmd.Context())
+
+		// Create a logr.Logger and add it to context for use throughout the application
+		handlerOptions := &slog.HandlerOptions{Level: slog.Level(validated.LogVerbosity * -1)}
+		logrLogger := logr.FromSlogHandler(slog.NewJSONHandler(os.Stdout, handlerOptions))
+		ctx := utils.ContextWithLogger(cmd.Context(), logrLogger)
+
+		completed, err := validated.Complete(ctx)
 		if err != nil {
 			return err
 		}
-		return completed.Run(cmd.Context())
+		return completed.Run(ctx)
 	}
 
 	return cmd, nil

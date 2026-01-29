@@ -17,8 +17,6 @@ package fpa
 import (
 	"crypto"
 	"crypto/x509"
-	"log/slog"
-	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -53,7 +51,6 @@ func TestCredentialRetrieverLoadsInitialCertificate(t *testing.T) {
 	}
 
 	retriever, err := NewFirstPartyApplicationTokenCredentialRetriever(
-		slog.New(slog.NewTextHandler(os.Stdout, nil)),
 		"11111111-1111-1111-1111-111111111111",
 		mockReader,
 		azcore.ClientOptions{},

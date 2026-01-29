@@ -17,7 +17,6 @@ package interrupts
 
 import (
 	"context"
-	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -25,7 +24,9 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/Azure/ARO-HCP/admin/server/pkg/logging"
+	"github.com/go-logr/logr"
+
+	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 // only one instance of the manager ever exists
@@ -33,11 +34,11 @@ var single *manager
 
 // logger is a dedicated logger for the interrupts package, separate from the application logger
 // we want this logger to be in place even before main starts running
-var logger *slog.Logger
+var logger logr.Logger
 
 func init() {
 	// Initialize a basic logger for interrupts package only
-	logger = logging.New(0)
+	logger = utils.DefaultLogger()
 
 	m := sync.Mutex{}
 	single = &manager{
@@ -66,7 +67,7 @@ func handleInterrupt() {
 	sigChan := signals()
 	signalsLock.Unlock()
 	s := <-sigChan
-	logger.Info("Received signal.", "signal", s)
+	logger.Info("Received signal", "signal", s)
 	single.c.L.Lock()
 	single.seenSignal = true
 	single.c.Broadcast()
@@ -111,7 +112,7 @@ var gracePeriod = 1 * time.Minute
 // blocking.
 func WaitForGracefulShutdown() {
 	wait(func() {
-		logger.Info("Interrupt received.")
+		logger.Info("Interrupt received")
 	})
 	finished := make(chan struct{})
 	go func() {
@@ -120,9 +121,9 @@ func WaitForGracefulShutdown() {
 	}()
 	select {
 	case <-finished:
-		logger.Info("All workers gracefully terminated, exiting.")
+		logger.Info("All workers gracefully terminated, exiting")
 	case <-time.After(gracePeriod):
-		logger.Info("Timed out waiting for workers to gracefully terminate, exiting.")
+		logger.Info("Timed out waiting for workers to gracefully terminate, exiting")
 	}
 }
 
@@ -174,9 +175,9 @@ func ListenAndServe(server ListenAndServer, gracePeriod time.Duration) {
 		defer single.wg.Done()
 		err := server.ListenAndServe()
 		if err != nil {
-			logger.Error("Server exited.", "error", err)
+			logger.Error(err, "Server exited")
 		} else {
-			logger.Info("Server exited.")
+			logger.Info("Server exited")
 		}
 	}()
 
@@ -193,9 +194,9 @@ func ListenAndServeTLS(server *http.Server, certFile, keyFile string, gracePerio
 		defer single.wg.Done()
 		err := server.ListenAndServeTLS(certFile, keyFile)
 		if err != nil {
-			logger.Error("Server exited.", "error", err)
+			logger.Error(err, "Server exited")
 		} else {
-			logger.Info("Server exited.")
+			logger.Info("Server exited")
 		}
 	}()
 
@@ -213,7 +214,7 @@ func shutdown(server Shutdownable, gracePeriod time.Duration) func() {
 		logger.Info("Server shutting down...")
 		ctx, cancel := context.WithTimeout(context.Background(), gracePeriod)
 		if err := server.Shutdown(ctx); err != nil {
-			logger.Error("Error shutting down server...", "error", err)
+			logger.Error(err, "Error shutting down server")
 		}
 		cancel()
 	}
@@ -233,7 +234,7 @@ func Tick(work func(), interval func() time.Duration) {
 			nextInterval := interval()
 			nextTick := before.Add(nextInterval)
 			sleep := time.Until(nextTick)
-			logger.Debug("Resolved next tick interval.",
+			logger.V(1).Info("Resolved next tick interval",
 				"before", before,
 				"interval", nextInterval,
 				"sleep", sleep,

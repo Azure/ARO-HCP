@@ -17,7 +17,6 @@ package server
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"net"
 	"net/http"
 	"os"
@@ -38,10 +37,10 @@ import (
 	"github.com/Azure/ARO-HCP/admin/server/handlers/hcp"
 	"github.com/Azure/ARO-HCP/admin/server/interrupts"
 	"github.com/Azure/ARO-HCP/admin/server/middleware"
-	"github.com/Azure/ARO-HCP/admin/server/pkg/logging"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/fpa"
 	"github.com/Azure/ARO-HCP/internal/ocm"
+	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 func DefaultOptions() *RawOptions {
@@ -104,7 +103,6 @@ type completedOptions struct {
 	DbClient               database.DBClient
 	KustoClient            *kusto.Client
 	FpaCredentialRetriever fpa.FirstPartyApplicationTokenCredentialRetriever
-	Logger                 *slog.Logger
 }
 
 type Options struct {
@@ -133,8 +131,6 @@ func (o *RawOptions) Validate() (*ValidatedOptions, error) {
 }
 
 func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
-	logger := logging.New(o.LogVerbosity)
-
 	// Create CS client
 	csConnection, err := sdk.NewUnauthenticatedConnectionBuilder().
 		URL(o.ClustersServiceURL).
@@ -179,12 +175,12 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 	}
 
 	// Create FPA TokenCredentials with watching and caching
-	certReader, err := fpa.NewWatchingFileCertificateReader(ctx, o.FpaCertBundlePath, 30*time.Minute, logger)
+	certReader, err := fpa.NewWatchingFileCertificateReader(ctx, o.FpaCertBundlePath, 30*time.Minute)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create certificate reader: %w", err)
 	}
 
-	fpaCredentialRetriever, err := fpa.NewFirstPartyApplicationTokenCredentialRetriever(logger, o.FpaClientID, certReader, azcore.ClientOptions{})
+	fpaCredentialRetriever, err := fpa.NewFirstPartyApplicationTokenCredentialRetriever(o.FpaClientID, certReader, azcore.ClientOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create the FPA token credentials: %w", err)
 	}
@@ -198,16 +194,15 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 			DbClient:               dbClient,
 			KustoClient:            kustoClient,
 			FpaCredentialRetriever: fpaCredentialRetriever,
-			Logger:                 logger,
 		},
 	}, nil
 }
 
 func (opts *Options) Run(ctx context.Context) error {
-	logger := opts.Logger
+	logger := utils.LoggerFromContext(ctx)
 	logger.Info("Reporting health.", "port", opts.HealthPort)
-	health := NewHealthOnPort(logger, opts.HealthPort)
-	health.ServeReady(func() bool {
+	health := NewHealthOnPort(ctx, opts.HealthPort)
+	health.ServeReady(ctx, func() bool {
 		// todo: add real readiness checks
 		return true
 	})
@@ -225,7 +220,7 @@ func (opts *Options) Run(ctx context.Context) error {
 
 	s := http.Server{
 		Addr:    net.JoinHostPort("", strconv.Itoa(opts.Port)),
-		Handler: middleware.WithClientPrincipal(middleware.WithLowercaseURLPathValue(middleware.WithLogger(logger, rootMux))),
+		Handler: middleware.WithClientPrincipal(middleware.WithLowercaseURLPathValue(middleware.WithLogger(ctx, rootMux))),
 	}
 	interrupts.ListenAndServe(&s, 5*time.Second)
 	interrupts.WaitForGracefulShutdown()

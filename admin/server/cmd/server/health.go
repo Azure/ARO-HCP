@@ -15,54 +15,55 @@
 package server
 
 import (
+	"context"
 	"fmt"
-	"log/slog"
 	"net/http"
 	"strconv"
 	"time"
 
 	"github.com/Azure/ARO-HCP/admin/server/interrupts"
+	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 // Health keeps a request multiplexer for health liveness and readiness endpoints
 type Health struct {
 	healthMux *http.ServeMux
-	logger    *slog.Logger
 }
 
 // NewHealth creates a new health request multiplexer and starts serving the liveness endpoint
 // on the given port
-func NewHealthOnPort(logger *slog.Logger, port int) *Health {
+func NewHealthOnPort(ctx context.Context, port int) *Health {
+	logger := utils.LoggerFromContext(ctx)
 	healthMux := http.NewServeMux()
 	healthMux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		if _, err := fmt.Fprint(w, "OK"); err != nil {
-			logger.Error("failed to write health response", "error", err)
+			logger.Error(err, "failed to write health response")
 		}
 	})
 	server := &http.Server{Addr: ":" + strconv.Itoa(port), Handler: healthMux}
 	interrupts.ListenAndServe(server, 5*time.Second)
 	return &Health{
 		healthMux: healthMux,
-		logger:    logger,
 	}
 }
 
 type ReadinessCheck func() bool
 
 // ServeReady starts serving the readiness endpoint
-func (h *Health) ServeReady(readinessChecks ...ReadinessCheck) {
+func (h *Health) ServeReady(ctx context.Context, readinessChecks ...ReadinessCheck) {
+	logger := utils.LoggerFromContext(ctx)
 	h.healthMux.HandleFunc("/healthz/ready", func(w http.ResponseWriter, r *http.Request) {
 		for _, readinessCheck := range readinessChecks {
 			if !readinessCheck() {
 				w.WriteHeader(http.StatusServiceUnavailable)
 				if _, err := fmt.Fprint(w, "ReadinessCheck failed"); err != nil {
-					h.logger.Error("failed to write health response", "error", err)
+					logger.Error(err, "failed to write health response")
 				}
 				return
 			}
 		}
 		if _, err := fmt.Fprint(w, "OK"); err != nil {
-			h.logger.Error("failed to write health response", "error", err)
+			logger.Error(err, "failed to write health response")
 		}
 	})
 }
