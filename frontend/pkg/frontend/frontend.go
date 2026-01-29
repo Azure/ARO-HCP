@@ -21,15 +21,15 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	"os"
 	"path"
 	"strconv"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/go-logr/logr"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
-	"golang.org/x/sync/errgroup"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
@@ -57,7 +57,6 @@ type Frontend struct {
 	metricsServer        http.Server
 	dbClient             database.DBClient
 	auditClient          audit.Client
-	done                 chan struct{}
 	collector            *metrics.SubscriptionCollector
 	healthGauge          prometheus.Gauge
 	// this is the azure location for this instance of the frontend
@@ -99,7 +98,6 @@ func NewFrontend(
 		},
 		auditClient: auditClient,
 		dbClient:    dbClient,
-		done:        make(chan struct{}),
 		collector:   metrics.NewSubscriptionCollector(reg, dbClient, azureLocation),
 		healthGauge: promauto.With(reg).NewGauge(
 			prometheus.GaugeOpts{
@@ -117,22 +115,24 @@ func NewFrontend(
 	return f
 }
 
-func (f *Frontend) Run(ctx context.Context, stop <-chan struct{}) {
+func (f *Frontend) Run(ctx context.Context) error {
+	ctx, cancel := context.WithCancelCause(ctx)
+	defer func() {
+		cancel(fmt.Errorf("run returned"))
+
+		// always attempt a graceful shutdown, a double ctrl+c exits the process
+		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 31*time.Second)
+		defer shutdownCancel()
+		_ = f.server.Shutdown(shutdownCtx)
+		_ = f.metricsServer.Shutdown(shutdownCtx)
+	}()
+
 	if len(f.azureLocation) == 0 {
 		panic("azureLocation must be set")
 	}
 
 	// This just digs up the logger passed to NewFrontend.
-	logger := utils.LoggerFromContext(f.server.BaseContext(f.listener))
-
-	if stop != nil {
-		go func() {
-			<-stop
-			_ = f.server.Shutdown(ctx)
-			_ = f.metricsServer.Shutdown(ctx)
-			close(f.done)
-		}()
-	}
+	logger := utils.LoggerFromContext(ctx)
 
 	// before we start the http handler (this should ensure we readiness checks until this is complete), we will do a cosmos
 	// data migration to our new storage keys.
@@ -143,22 +143,46 @@ func (f *Frontend) Run(ctx context.Context, stop <-chan struct{}) {
 	logger.Info(fmt.Sprintf("listening on %s", f.listener.Addr().String()))
 	logger.Info(fmt.Sprintf("metrics listening on %s", f.metricsListener.Addr().String()))
 
-	errs, ctx := errgroup.WithContext(ctx)
-	errs.Go(func() error {
-		return f.server.Serve(f.listener)
-	})
-	errs.Go(func() error {
-		return f.metricsServer.Serve(f.metricsListener)
-	})
-	errs.Go(func() error {
-		f.collector.Run(ctx, stop)
-		return nil
-	})
+	errCh := make(chan error, 2)
+	wg := sync.WaitGroup{}
+	wg.Add(3)
+	go func() {
+		defer wg.Done()
+		errCh <- f.server.Serve(f.listener)
+	}()
+	go func() {
+		defer wg.Done()
+		errCh <- f.metricsServer.Serve(f.metricsListener)
+	}()
+	go func() {
+		defer wg.Done()
+		f.collector.Run(ctx)
+	}()
 
-	if err := errs.Wait(); !errors.Is(err, http.ErrServerClosed) {
-		logger.Error(err, "server error")
-		os.Exit(1)
+	<-ctx.Done()
+
+	// always attempt a graceful shutdown, a double ctrl+c exits the process
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 31*time.Second)
+	defer shutdownCancel()
+	if err := f.server.Shutdown(shutdownCtx); err != nil {
+		logger.Error(err, "failed to shutdown http server")
 	}
+	if err := f.metricsServer.Shutdown(shutdownCtx); err != nil {
+		logger.Error(err, "failed to shutdown http server")
+	}
+
+	wg.Wait()
+	close(errCh)
+	errs := []error{}
+	for err := range errCh {
+		if err != nil {
+			logger.Info("go func completed", "message", err.Error())
+		}
+		if !errors.Is(err, http.ErrServerClosed) {
+			errs = append(errs, err)
+		}
+	}
+	return errors.Join(errs...)
 }
 
 // MigrateCosmosOrDie if migration fails, we panic and exit the process.  This makes it very detectable.
@@ -241,10 +265,6 @@ func MigrateCosmosOrDie(ctx context.Context, cosmosClient database.DBClient) {
 		}
 	}
 
-}
-
-func (f *Frontend) Join() {
-	<-f.done
 }
 
 func (f *Frontend) NotFound(writer http.ResponseWriter, request *http.Request) {
