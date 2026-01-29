@@ -5,12 +5,14 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/spf13/cobra"
+
+	corev1 "k8s.io/api/core/v1"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/aks"
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/crdump"
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/utils/kubeclient"
-	"github.com/spf13/cobra"
-	corev1 "k8s.io/api/core/v1"
-	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 )
 
 type DumpCRsCmdOptions struct {
@@ -51,7 +53,9 @@ Note: Requires appropriate JIT permissions to access the target cluster.`,
 		},
 	}
 	cmd.Flags().StringVar(&dumpOpts.HostedClusterNamespace, "hosted-cluster-namespace", "", "Namespace of the hosted cluster to filter CRs")
-	cmd.MarkFlagRequired("hosted-cluster-namespace")
+	if err := cmd.MarkFlagRequired("hosted-cluster-namespace"); err != nil {
+		return nil, fmt.Errorf("failed to mark flag 'hosted-cluster-namespace' as required: %w", err)
+	}
 	cmd.Flags().StringVarP(&dumpOpts.OutputPath, "output-path", "o", ".", "Path to output the dumped CRs from the mgmt cluster")
 	return cmd, nil
 }

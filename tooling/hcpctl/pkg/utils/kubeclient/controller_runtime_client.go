@@ -4,12 +4,14 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/scale/scheme"
 	"k8s.io/client-go/tools/clientcmd"
+
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 )
 
 const (
