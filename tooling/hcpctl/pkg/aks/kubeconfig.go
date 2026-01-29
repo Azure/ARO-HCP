@@ -37,6 +37,9 @@ func GetAKSKubeconfig(
 	credential azcore.TokenCredential,
 	kubeconfigPath string) error {
 	kubeconfigContent, err := GetAKSKubeConfigContent(ctx, subscriptionID, resourceGroup, clusterName, credential)
+	if err != nil {
+		return fmt.Errorf("failed to get kubeconfig content: %w", err)
+	}
 	// Open the kubeconfig file for writing (create or truncate)
 	file, err := os.OpenFile(kubeconfigPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0600)
 	if err != nil {
