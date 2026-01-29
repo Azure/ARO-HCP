@@ -1,0 +1,59 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: misev2
+  namespace: '{{ .Values.namespace }}'
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: mise
+      version: v2
+  template:
+    metadata:
+      labels:
+        app: mise
+        version: v2
+    spec:
+      topologySpreadConstraints:
+      - maxSkew: 1
+        topologyKey: '{{ if eq (int .Values.deployment.zoneCount) 0 }}kubernetes.azure.com/agentpool{{ else }}topology.kubernetes.io/zone{{ end }}'
+        whenUnsatisfiable: ScheduleAnyway
+        labelSelector:
+          matchLabels:
+            app: mise
+            version: v2
+      - maxSkew: 1
+        topologyKey: kubernetes.io/hostname
+        whenUnsatisfiable: ScheduleAnyway
+        labelSelector:
+          matchLabels:
+            app: mise
+            version: v2
+      containers:
+      - name: misev2
+        image: "{{ .Values.image.registry }}/{{ .Values.image.repository }}@{{ .Values.image.digestv2 }}"
+        ports:
+        - containerPort: 8080
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8080
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: 8080
+        volumeMounts:
+        - name: config
+          mountPath: /app/appsettings.json
+          subPath: appsettings.json
+          readOnly: true
+        env:
+        - name: OTEL_EXPORTER_OTLP_ENDPOINT
+          value: "{{ .Values.tracing.address }}"
+        - name: OTEL_TRACES_EXPORTER
+          value: "{{ .Values.tracing.exporter }}"
+      volumes:
+      - name: config
+        configMap:
+          name: misev2-config

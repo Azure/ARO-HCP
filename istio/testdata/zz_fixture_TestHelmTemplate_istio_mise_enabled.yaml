@@ -1,4 +1,78 @@
 ---
+# Source: istio/charts/mise/templates/configmap-misev2.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: misev2-config
+  namespace: 'mise'
+data:
+  appsettings.json: |-
+    {
+      "$schema": "https://identitydivision.visualstudio.com/DevEx/_git/MISE?path=/schemas/mise-options-schema.json",
+      "MiseVersion": "2.0",
+      "AllowedHosts": "*",
+      "EnableInboundPolicyFilter": true,
+      "AzureAd": {
+        "Instance": "https://login.microsoftonline.com/",
+        "ClientId": "b3cb2fab-15cb-4583-ad06-f91da9bfe2d1",
+        "TenantId": "33e01921-4d64-4f8c-a055-5bdaffd5e33d",
+        "Audience": "api://b3cb2fab-15cb-4583-ad06-f91da9bfe2d1",
+        "Logging": {
+          "LogLevel": "Information"
+        },
+        "InboundPolicies": [
+          {
+            "Label": "ARM Policy",
+            "Authority": "https://login.microsoftonline.com/33e01921-4d64-4f8c-a055-5bdaffd5e33d",
+            "Audience": "https://management.azure.com",
+            "ValidApplicationIds": [
+              "e2c2ff5c-e5b4-4e79-8c3e-1da8c48461e7"
+            ],
+            "Protocols": {
+              "Pop": {
+                "SignedHttpRequestValidationParametersOptions": {
+                  "ValidateTs": true,
+                  "ValidateM": true,
+                  "ValidateU": true,
+                  "ValidateP": true
+                }
+              }
+            }
+          },
+          {
+            "Label": "Geneva Actions",
+            "Authority": "https://sts.windows.net/__tenantId__/",
+            "Audience": "https://management.azure.com",
+            "ValidApplicationIds": [
+              "__genevaActionsAppId__"
+            ],
+            "Protocols": {
+              "Bearer": {
+                "TokenTypes": {
+                  "AccessToken": {
+                    "AppToken": true
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "Kestrel": {
+        "Endpoints": {
+          "Http": {
+            "Url": "http://0.0.0.0:8080"
+          }
+        }
+      },
+      "Logging": {
+        "LogLevel": {
+          "Default": "Information",
+          "Microsoft": "Information"
+        }
+      }
+    }
+---
 # Source: istio/templates/istio-shared-configmap.yml
 kind: ConfigMap
 apiVersion: v1
@@ -31,6 +105,67 @@ spec:
     port: 8080
     targetPort: 8080
 ---
+# Source: istio/charts/mise/templates/deployment-misev2.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: misev2
+  namespace: 'mise'
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: mise
+      version: v2
+  template:
+    metadata:
+      labels:
+        app: mise
+        version: v2
+    spec:
+      topologySpreadConstraints:
+      - maxSkew: 1
+        topologyKey: 'topology.kubernetes.io/zone'
+        whenUnsatisfiable: ScheduleAnyway
+        labelSelector:
+          matchLabels:
+            app: mise
+            version: v2
+      - maxSkew: 1
+        topologyKey: kubernetes.io/hostname
+        whenUnsatisfiable: ScheduleAnyway
+        labelSelector:
+          matchLabels:
+            app: mise
+            version: v2
+      containers:
+      - name: misev2
+        image: "arohcpsvcdev.azurecr.io/mise-1p-container-image@sha256:1234567890"
+        ports:
+        - containerPort: 8080
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8080
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: 8080
+        volumeMounts:
+        - name: config
+          mountPath: /app/appsettings.json
+          subPath: appsettings.json
+          readOnly: true
+        env:
+        - name: OTEL_EXPORTER_OTLP_ENDPOINT
+          value: ""
+        - name: OTEL_TRACES_EXPORTER
+          value: ""
+      volumes:
+      - name: config
+        configMap:
+          name: misev2-config
+---
 # Source: istio/charts/mise/templates/deployment.yaml
 apiVersion: apps/v1
 kind: Deployment
@@ -46,6 +181,7 @@ spec:
     metadata:
       labels:
         app: mise
+        version: v1
     spec:
       topologySpreadConstraints:
       - maxSkew: 1
@@ -120,6 +256,22 @@ spec:
           value: ""
         - name: OTEL_TRACES_EXPORTER
           value: ""
+---
+# Source: istio/charts/mise/templates/destinationrule.yaml
+apiVersion: networking.istio.io/v1
+kind: DestinationRule
+metadata:
+  name: mise
+  namespace: 'mise'
+spec:
+  host: mise.mise.svc.cluster.local
+  subsets:
+  - name: v1
+    labels:
+      version: v1
+  - name: v2
+    labels:
+      version: v2
 ---
 # Source: istio/templates/strict_mtls.yml
 apiVersion: security.istio.io/v1beta1
@@ -207,4 +359,24 @@ spec:
   accessLogging:
   - providers:
     - name: envoy
+---
+# Source: istio/charts/mise/templates/virtualservice.yaml
+apiVersion: networking.istio.io/v1
+kind: VirtualService
+metadata:
+  name: mise
+  namespace: 'mise'
+spec:
+  hosts:
+  - mise.mise.svc.cluster.local
+  http:
+  - route:
+    - destination:
+        host: mise.mise.svc.cluster.local
+        subset: v1
+      weight: 100
+    - destination:
+        host: mise.mise.svc.cluster.local
+        subset: v2
+      weight: 0
 

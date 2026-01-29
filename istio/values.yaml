@@ -7,6 +7,7 @@ mise:
     registry: "{{ .acr.svc.name }}.azurecr.io"
     repository: "{{ .mise.image.repository }}"
     digest: "{{ .mise.image.digest }}"
+    digestv2: "{{ .mise.imageV2.digest }}"
   audit:
     adInstance: "https://{{ .mise.arm.authorityFQDN }}/"
     clientId: "{{ .firstPartyAppClientId }}"
@@ -27,3 +28,5 @@ mise:
     authority: "https://{{ .mise.genevaActions.authorityFQDN }}/__tenantId__/" # iss
     audience: "https://{{ .mise.genevaActions.audienceFQDN }}" # aud
     applicationId: "__genevaActionsAppId__"
+  serviceAWeight: "{{ .mise.canaryRollout.serviceAWeight }}"
+  serviceBWeight: "{{ .mise.canaryRollout.serviceBWeight }}"
