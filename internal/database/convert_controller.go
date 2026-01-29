@@ -17,8 +17,6 @@ package database
 import (
 	"strings"
 
-	"k8s.io/utils/ptr"
-
 	"github.com/Azure/ARO-HCP/internal/api"
 )
 
@@ -30,7 +28,7 @@ func InternalToCosmosController(internalObj *api.Controller) (*Controller, error
 	cosmosObj := &Controller{
 		TypedDocument: TypedDocument{
 			BaseDocument: BaseDocument{
-				ID: internalObj.GetCosmosData().CosmosUID,
+				ID: internalObj.GetCosmosData().GetCosmosUID(),
 			},
 			PartitionKey: strings.ToLower(internalObj.ExternalID.SubscriptionID),
 			ResourceType: internalObj.ResourceID.ResourceType.String(),
@@ -41,19 +39,7 @@ func InternalToCosmosController(internalObj *api.Controller) (*Controller, error
 		},
 	}
 
-	// during a replace, this field will already have have data and we have to use it, but during a create, this field
-	// will not have a value and we'll need to fill it in the same way tha the generic wrapper will
-	if len(internalObj.CosmosUID) == 0 {
-		cosmosID, err := api.ResourceIDToCosmosID(ptr.To(internalObj.GetResourceID()))
-		if err != nil {
-			return nil, err
-		}
-		cosmosObj.ID = cosmosID
-	}
-
 	// some pieces of data conflict with standard fields.  We may evolve over time, but for now avoid persisting those.
-	cosmosObj.ControllerProperties.CosmosUID = ""
-	cosmosObj.ControllerProperties.OldControllerSerialization.CosmosUID = ""
 
 	return cosmosObj, nil
 }
@@ -67,9 +53,6 @@ func CosmosToInternalController(cosmosObj *Controller) (*api.Controller, error) 
 	if cosmosObj.ControllerProperties.OldControllerSerialization == nil {
 		tempInternalAPI := cosmosObj.ControllerProperties.Controller
 
-		// some pieces of data are stored on the BaseDocument, so we need to restore that data
-		tempInternalAPI.CosmosUID = cosmosObj.ID
-
 		return &tempInternalAPI, nil
 	}
 
@@ -82,11 +65,10 @@ func CosmosToInternalController(cosmosObj *Controller) (*api.Controller, error) 
 	// stored in the json compatible api.Controller
 	tempInternalAPI.ResourceID = cosmosObj.ControllerProperties.ResourceID
 	tempInternalAPI.CosmosMetadata = api.CosmosMetadata{
-		ResourceID: *cosmosObj.ControllerProperties.ResourceID,
+		ResourceID: cosmosObj.ControllerProperties.ResourceID,
 	}
 
 	// some pieces of data are stored on the BaseDocument, so we need to restore that data
-	tempInternalAPI.CosmosUID = cosmosObj.ID
 
 	return &tempInternalAPI, nil
 }

@@ -25,14 +25,6 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 )
 
-// CosmosData contains the information that persisted resources must have for us to support CRUD against them.
-// These are not (currently) all stored in the same place in our various types.
-type CosmosData struct {
-	CosmosUID    string
-	PartitionKey string
-	ItemID       *azcorearm.ResourceID
-}
-
 // SubscriptionAPIVersion is the system API version for the subscription endpoint.
 const SubscriptionAPIVersion = "2.0"
 
@@ -58,20 +50,9 @@ type Subscription struct {
 	CosmosUID string `json:"-"`
 }
 
-func (o *Subscription) GetCosmosData() CosmosData {
-	cosmosUID := strings.ReplaceAll(strings.ToLower(o.ResourceID.String()), "/", "|")
-	if len(o.CosmosUID) != 0 {
-		// if this is an item that is being serialized for the first time, then we can force it to use the new scheme.
-		// if it already thinks it knows its CosmosID, then we must accept what it thinks because this could be a case
-		// where we have a new backend and an old frontend.  In that case, the content still has random UIDs, but the backend
-		// must be able to read AND write the records. This means we cannot assume that all UIDs have already changed.
-		cosmosUID = o.CosmosUID
-	}
-
-	return CosmosData{
-		CosmosUID:    cosmosUID,
-		PartitionKey: strings.ToLower(o.ResourceID.Name),
-		ItemID:       o.ResourceID,
+func (o *Subscription) GetCosmosData() *CosmosMetadata {
+	return &CosmosMetadata{
+		ResourceID: o.ResourceID,
 	}
 }
 

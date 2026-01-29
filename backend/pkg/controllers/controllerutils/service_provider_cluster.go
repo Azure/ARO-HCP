@@ -34,7 +34,7 @@ func newInitialServiceProviderCluster(clusterResourceID *azcorearm.ResourceID) *
 	resourceID := api.Must(azcorearm.ParseResourceID(fmt.Sprintf("%s/%s/%s", clusterResourceID.String(), api.ServiceProviderClusterResourceTypeName, api.ServiceProviderClusterResourceName)))
 	return &api.ServiceProviderCluster{
 		CosmosMetadata: api.CosmosMetadata{
-			ResourceID: *resourceID,
+			ResourceID: resourceID,
 		},
 		ResourceID: *resourceID,
 	}
