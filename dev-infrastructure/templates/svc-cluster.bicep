@@ -1009,6 +1009,7 @@ module svcClusterNSPProfile '../modules/network/nsp-profile.bicep' = {
   }
   dependsOn: [
     svcNSP
+    rpCosmosdbPrivateEndpoint
   ]
 }
 
