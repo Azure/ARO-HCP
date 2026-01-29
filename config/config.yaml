@@ -211,6 +211,7 @@ defaults:
     # By default we set it to empty as this tag is only required for msft environments. We override
     # this value in sdp pipelines for msft environments.
     sharedIngressIPTag: ''
+    limitClusterSizes: false
   # Log settings
   logs:
     mdsd:
