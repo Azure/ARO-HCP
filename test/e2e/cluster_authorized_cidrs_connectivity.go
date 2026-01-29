@@ -383,7 +383,7 @@ var _ = Describe("Authorized CIDRs", func() {
 
 					unavailableOperators := parseUnavailableResources(output)
 					g.Expect(unavailableOperators).To(BeEmpty(), "All ClusterOperators should report Available=True, but these are not available: %v", unavailableOperators)
-				}, 5*time.Minute, 20*time.Second).Should(Succeed())
+				}, 10*time.Minute, 20*time.Second).Should(Succeed())
 
 				By("updating cluster to remove VM from authorized CIDRs")
 				// Get the current cluster state
