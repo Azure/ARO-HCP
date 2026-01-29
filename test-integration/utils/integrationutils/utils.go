@@ -39,20 +39,14 @@ func WithAndWithoutCosmos(t *testing.T, testFn func(t *testing.T, withMock bool)
 		testFn(t, true)
 	})
 
-	if HasCosmos() {
+	if hasCosmos() {
 		t.Run("WithCosmos", func(t *testing.T) {
 			testFn(t, false)
 		})
 	}
 }
 
-func SkipIfNotSimulationTesting(t *testing.T) {
-	if os.Getenv("FRONTEND_SIMULATION_TESTING") != "true" {
-		t.Skip("Skipping test")
-	}
-}
-
-func HasCosmos() bool {
+func hasCosmos() bool {
 	return os.Getenv("FRONTEND_SIMULATION_TESTING") == "true"
 }
 
@@ -74,12 +68,6 @@ func getArtifactDir() string {
 		}
 	})
 	return artifactDir
-}
-
-// NewFrontendFromMockDB creates a new Frontend using a mock database client.
-// This allows tests to run without requiring a Cosmos DB emulator.
-func NewFrontendFromMockDB(ctx context.Context, t *testing.T) (*frontend.Frontend, *FrontendIntegrationTestInfo, error) {
-	return NewFrontendFromTestingEnv(ctx, t, true)
 }
 
 func NewFrontendFromTestingEnv(ctx context.Context, t *testing.T, withMock bool) (*frontend.Frontend, *FrontendIntegrationTestInfo, error) {

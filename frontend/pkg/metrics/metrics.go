@@ -102,14 +102,14 @@ func NewSubscriptionCollector(r prometheus.Registerer, dbClient database.DBClien
 
 // Run starts the loop which reads the subscriptions from the database at
 // periodic intervals (30s) to populate the subscription metrics.
-func (sc *SubscriptionCollector) Run(ctx context.Context, stop <-chan struct{}) {
+func (sc *SubscriptionCollector) Run(ctx context.Context) {
 	// Populate the internal cache.
 	sc.refresh(ctx)
 
 	t := time.NewTicker(30 * time.Second)
 	for {
 		select {
-		case <-stop:
+		case <-ctx.Done():
 			return
 		case <-t.C:
 			sc.refresh(ctx)
