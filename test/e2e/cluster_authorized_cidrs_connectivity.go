@@ -45,7 +45,6 @@ var _ = Describe("Authorized CIDRs", func() {
 			labels.RequireNothing,
 			labels.Critical,
 			labels.Positive,
-			labels.IntegrationOnly,
 			labels.AroRpApiCompatible,
 			func(ctx context.Context) {
 				const (
