@@ -161,6 +161,16 @@ func (f *Frontend) Run(ctx context.Context) error {
 
 	<-ctx.Done()
 
+	// always attempt a graceful shutdown, a double ctrl+c exits the process
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 31*time.Second)
+	defer shutdownCancel()
+	if err := f.server.Shutdown(shutdownCtx); err != nil {
+		logger.Error(err, "failed to shutdown http server")
+	}
+	if err := f.metricsServer.Shutdown(shutdownCtx); err != nil {
+		logger.Error(err, "failed to shutdown http server")
+	}
+
 	wg.Wait()
 	close(errCh)
 	errs := []error{}
