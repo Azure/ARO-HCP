@@ -58,14 +58,15 @@ func BindOptions(opts *RawOptions, cmd *cobra.Command) error {
 
 // RawOptions holds input values.
 type RawOptions struct {
-	ServiceConfigFile string
-	Cloud             string
-	Environment       string
-	Region            string
-	Ev2Cloud          string
-	RegionShortSuffix string
-	Stamp             int
-	Output            string
+	ServiceConfigFile   string
+	Cloud               string
+	Environment         string
+	Region              string
+	Ev2Cloud            string
+	RegionShortOverride string
+	RegionShortSuffix   string
+	Stamp               int
+	Output              string
 }
 
 // validatedOptions is a private wrapper that enforces a call of Validate() before Complete() can be invoked.
@@ -80,14 +81,15 @@ type ValidatedOptions struct {
 
 // completedOptions is a private wrapper that enforces a call of Complete() before config generation can be invoked.
 type completedOptions struct {
-	Config            config.ConfigProvider
-	Cloud             string
-	Environment       string
-	Region            string
-	Ev2Cloud          string
-	RegionShortSuffix string
-	Stamp             int
-	Output            io.WriteCloser
+	Config              config.ConfigProvider
+	Cloud               string
+	Environment         string
+	Region              string
+	Ev2Cloud            string
+	RegionShortOverride string
+	RegionShortSuffix   string
+	Stamp               int
+	Output              io.WriteCloser
 }
 
 type Options struct {
@@ -138,14 +140,15 @@ func (o *ValidatedOptions) Complete() (*Options, error) {
 
 	return &Options{
 		completedOptions: &completedOptions{
-			Config:            c,
-			Cloud:             o.Cloud,
-			Environment:       o.Environment,
-			Region:            o.Region,
-			Ev2Cloud:          o.Ev2Cloud,
-			RegionShortSuffix: o.RegionShortSuffix,
-			Stamp:             o.Stamp,
-			Output:            output,
+			Config:              c,
+			Cloud:               o.Cloud,
+			Environment:         o.Environment,
+			Region:              o.Region,
+			Ev2Cloud:            o.Ev2Cloud,
+			RegionShortOverride: o.RegionShortOverride,
+			RegionShortSuffix:   o.RegionShortSuffix,
+			Stamp:               o.Stamp,
+			Output:              output,
 		},
 	}, nil
 }
@@ -178,6 +181,9 @@ func (opts *Options) RenderServiceConfig(ctx context.Context) error {
 			return fmt.Errorf("%q is not a string", key)
 		}
 		*into = str
+	}
+	if opts.RegionShortOverride != "" {
+		replacements.RegionShortReplacement = opts.RegionShortOverride
 	}
 	if opts.RegionShortSuffix != "" {
 		replacements.RegionShortReplacement += opts.RegionShortSuffix

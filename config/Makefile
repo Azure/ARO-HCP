@@ -21,7 +21,7 @@ detect-change: materialize
 
 validate:
 	$(MAKE) -C ./../tooling/templatize templatize
-	USER='test' BUILD_ID='1234' ./../tooling/templatize/templatize configuration validate --service-config-file ./config.yaml \
+	USER='test' BUILD_ID='1234567890987654321' ./../tooling/templatize/templatize configuration validate --service-config-file ./config.yaml \
 	                                                                      --dev-settings-file ./../tooling/templatize/settings.yaml \
 	                                                                      --digest-file ./dev.digests.yaml \
 	                                                                      --output-dir ./rendered $(UPDATE)
