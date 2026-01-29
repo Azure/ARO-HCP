@@ -33,6 +33,7 @@ tests:
         _id: test-hcp-id
         cluster: test-cluster
       exp_annotations:
+        summary: "High error budget burn for https://api.example.com/health"
         description: "High error budget burn for https://api.example.com/health (current value: 1)"
 # Test 3: Medium burn rate - Alert 2 (30m/6h windows, for: 15m)
 - interval: 30s # Generate data every 30 seconds
@@ -54,6 +55,7 @@ tests:
         _id: test-hcp-id
         cluster: test-cluster
       exp_annotations:
+        summary: "High error budget burn for https://api.example.com/health"
         description: "High error budget burn for https://api.example.com/health (current value: 1)"
     - exp_labels:
         severity: warning
@@ -64,6 +66,7 @@ tests:
         _id: test-hcp-id
         cluster: test-cluster
       exp_annotations:
+        summary: "High error budget burn for https://api.example.com/health"
         description: "High error budget burn for https://api.example.com/health (current value: 1)"
 # Test 4: All four alerts should fire simultaneously after prolonged failure
 - interval: 30s
@@ -84,6 +87,7 @@ tests:
         _id: test-hcp-id
         cluster: test-cluster
       exp_annotations:
+        summary: "High error budget burn for https://api.example.com/health"
         description: "High error budget burn for https://api.example.com/health (current value: 1)"
     - exp_labels:
         severity: warning
@@ -94,6 +98,7 @@ tests:
         _id: test-hcp-id
         cluster: test-cluster
       exp_annotations:
+        summary: "High error budget burn for https://api.example.com/health"
         description: "High error budget burn for https://api.example.com/health (current value: 1)"
     - exp_labels:
         severity: info
@@ -104,6 +109,7 @@ tests:
         _id: test-hcp-id
         cluster: test-cluster
       exp_annotations:
+        summary: "High error budget burn for https://api.example.com/health"
         description: "High error budget burn for https://api.example.com/health (current value: 1)"
     - exp_labels:
         severity: info
@@ -114,6 +120,7 @@ tests:
         _id: test-hcp-id
         cluster: test-cluster
       exp_annotations:
+        summary: "High error budget burn for https://api.example.com/health"
         description: "High error budget burn for https://api.example.com/health (current value: 1)"
 # NEW TESTS FOR kas-monitor-ServiceMonitorCreationErrorBudgetBurn
 # Note: In production, each HCP has 2 namespaces:
