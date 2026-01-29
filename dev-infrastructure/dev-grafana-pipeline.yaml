@@ -1,0 +1,13 @@
+$schema: "pipeline.schema.v1"
+serviceGroup: Microsoft.Azure.ARO.HCP.Grafana
+rolloutName: Grafana DEV Instance
+resourceGroups:
+- name: global
+  resourceGroup: '{{ .monitoring.grafanaRg }}'
+  subscription: '{{ .global.subscription.key }}'
+  steps:
+  - name: infra
+    action: ARM
+    template: templates/dev-grafana.bicep
+    parameters: configurations/dev-grafana.tmpl.bicepparam
+    deploymentLevel: ResourceGroup

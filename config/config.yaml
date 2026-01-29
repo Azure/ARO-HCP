@@ -231,6 +231,7 @@ defaults:
     # Our yaml formatter does not allow >- when there is no value, so remember
     # to chage "" to >- when you add a value.
     grafanaRoles: ""
+    grafanaRg: "global" 
     crossTenantSecurityGroup: ""
     svcWorkspaceName: 'services-{{ .ctx.region }}'
     hcpWorkspaceName: 'hcps-{{ .ctx.region }}'
@@ -1383,6 +1384,9 @@ clouds:
           # DNS
           dns:
             regionalSubdomain: '{{ .ctx.regionShort }}'
+          monitoring:
+            grafanaRg: "global-{{ .ctx.regionShort }}"
+            grafanaName: "prow-grafana-{{ .ctx.regionShort }}"
           # Maestro
           maestro:
             postgres:

@@ -2452,6 +2452,9 @@
         "grafanaZoneRedundantMode": {
           "$ref": "#/definitions/zoneRedundantMode"
         },
+        "grafanaRg": {
+          "$ref": "#/definitions/resourceGroupName"
+        },
         "grafanaRoles": {
           "type": "string",
           "description": "A space-separated list of Service Principals IDs, Types and their desired grafana roles The format is: <principalId>/<principalType>/<role>, e.g. 12345678-1234-1234-1234-123456789012/Group/Admin",
@@ -2524,6 +2527,7 @@
       "additionalProperties": false,
       "required": [
         "grafanaName",
+        "grafanaRg",
         "grafanaRoles",
         "crossTenantSecurityGroup",
         "grafanaZoneRedundantMode",

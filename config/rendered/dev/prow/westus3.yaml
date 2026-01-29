@@ -580,7 +580,8 @@ monitoring:
   alertsEnabled: true
   crossTenantSecurityGroup: ""
   grafanaMajorVersion: "11"
-  grafanaName: arohcp-dev
+  grafanaName: prow-grafana-usw3j234
+  grafanaRg: global-usw3j234
   grafanaRoles: 6b6d3adf-8476-4727-9812-20ffdef2b85c/Group/Admin
   grafanaZoneRedundantMode: Disabled
   hcpWorkspaceName: hcps-usw3j234
