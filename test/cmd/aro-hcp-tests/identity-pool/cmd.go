@@ -41,6 +41,7 @@ func NewCommand() (*cobra.Command, error) {
 
 	cmd.PersistentFlags().IntVarP(&logVerbosity, "verbosity", "v", 0, "set the verbosity level")
 	cmd.AddCommand(newApplyCommand())
+	cmd.AddCommand(newCleanupCommand())
 
 	return cmd, nil
 }
@@ -89,6 +90,41 @@ The identity pool is applied to the Azure subscription for the given environment
 	}
 
 	BindApplyOptions(opts, cmd)
+	return cmd
+}
+
+func newCleanupCommand() *cobra.Command {
+	opts := DefaultCleanupOptions()
+
+	cmd := &cobra.Command{
+		Use:          "cleanup",
+		Short:        "Clean up stale federated identity credentials in the identity pool.",
+		SilenceUsage: true,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			ctx, cancel := signal.NotifyContext(cmd.Context(), os.Interrupt)
+			defer cancel()
+
+			logger, err := getLogger(ctx)
+			if err != nil {
+				return err
+			}
+			ctx = logr.NewContext(ctx, logger)
+
+			validated, err := opts.Validate()
+			if err != nil {
+				return err
+			}
+
+			completed, err := validated.Complete(ctx)
+			if err != nil {
+				return err
+			}
+
+			return completed.Run(ctx)
+		},
+	}
+
+	BindCleanupOptions(opts, cmd)
 	return cmd
 }
 
