@@ -131,7 +131,7 @@ func (l *customResourceLister) shouldFetchCR(crd *apiextensionsv1.CustomResource
 func (l *customResourceLister) getClusterID(ctx context.Context, namespace string) (string, error) {
 	ns := &corev1.Namespace{}
 	if err := l.k8sclient.Get(ctx, client.ObjectKey{Name: namespace}, ns); err != nil {
-		return "", fmt.Errorf("failed to get namespace %s: %w", namespace, err)
+		return "", fmt.Errorf("failed to get namespace '%s': %w", namespace, err)
 	}
 
 	clusterID, ok := ns.Labels[clusterIDLabelKey]
@@ -181,7 +181,6 @@ func WriteCRsToDisk(hostedClusterNamespace string, crLists []*unstructured.Unstr
 		return nil
 	}
 
-	// Create output directory
 	outputPath := filepath.Join(outputDir, "crs", hostedClusterNamespace)
 	if err := os.MkdirAll(outputPath, 0755); err != nil {
 		return fmt.Errorf("failed to create directory %s: %w", outputPath, err)
