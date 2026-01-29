@@ -13,7 +13,12 @@ spec:
   - name: mise
     rules:
     - alert: MiseEnvoyScrapeDown
-      expr: absent(up{endpoint="http-envoy-prom", container="istio-proxy", namespace="mise"}) or (up{endpoint="http-envoy-prom", container="istio-proxy", namespace="mise"} == 0)
+      # Get list of all `svc` clusters (returns 1 for each)
+      # Remove clusters that have the istio-proxy metric UP
+      expr: |
+        group by (cluster) (up{job="kube-state-metrics", cluster=~".*-svc(-[0-9]+)?$"})
+        unless on(cluster)
+        group by (cluster) (up{endpoint="http-envoy-prom", container="istio-proxy", namespace="mise"} == 1)
       for: 5m
       labels:
         severity: info

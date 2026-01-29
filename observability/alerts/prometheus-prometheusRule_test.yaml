@@ -5,7 +5,9 @@ tests:
 # prometheus-slo-rules group tests
 - interval: 1m
   input_series:
-  - series: 'up{job="prometheus/prometheus",namespace="prometheus"}'
+  - series: 'up{job="kube-state-metrics",cluster="test"}'
+    values: "1+0x10"
+  - series: 'up{job="prometheus/prometheus",namespace="prometheus",cluster="test"}'
     values: "0+0x10"
   alert_rule_test:
   - eval_time: 5m
@@ -13,8 +15,7 @@ tests:
     exp_alerts:
     - exp_labels:
         severity: critical
-        job: prometheus/prometheus
-        namespace: prometheus
+        cluster: test
       exp_annotations:
         summary: Prometheus is unreachable for 5 minutes.
         description: |
@@ -199,18 +200,19 @@ tests:
 # Additional test scenarios with multiple instances
 - interval: 1m
   input_series:
-  - series: 'up{job="prometheus/prometheus",namespace="prometheus",instance="prometheus-0"}'
-    values: "0+0x10"
-  - series: 'up{job="prometheus/prometheus",namespace="prometheus",instance="prometheus-1"}'
+  - series: 'up{job="kube-state-metrics",cluster="test"}'
     values: "1+0x10"
+  - series: 'up{job="prometheus/prometheus",namespace="prometheus",instance="prometheus-0",cluster="test"}'
+    values: "0+0x10"
+  - series: 'up{job="prometheus/prometheus",namespace="prometheus",instance="prometheus-1",cluster="test"}'
+    values: "0+0x10"
   alert_rule_test:
   - eval_time: 5m
     alertname: PrometheusJobUp
     exp_alerts:
     - exp_labels:
         severity: critical
-        job: prometheus/prometheus
-        namespace: prometheus
+        cluster: test
       exp_annotations:
         summary: Prometheus is unreachable for 5 minutes.
         description: |
@@ -221,7 +223,9 @@ tests:
 # Test no alert scenario for PrometheusJobUp
 - interval: 1m
   input_series:
-  - series: 'up{job="prometheus/prometheus",namespace="prometheus"}'
+  - series: 'up{job="kube-state-metrics",cluster="test"}'
+    values: "1+0x10"
+  - series: 'up{job="prometheus/prometheus",namespace="prometheus",cluster="test"}'
     values: "1+0x10"
   alert_rule_test:
   - eval_time: 5m
@@ -436,7 +440,9 @@ tests:
 # Test PrometheusJobUp with intermittent failures
 - interval: 1m
   input_series:
-  - series: 'up{job="prometheus/prometheus",namespace="prometheus"}'
+  - series: 'up{job="kube-state-metrics",cluster="test"}'
+    values: "1+0x10"
+  - series: 'up{job="prometheus/prometheus",namespace="prometheus",cluster="test"}'
     values: "0+0x10" # Continuously down for more than 5 minutes
   alert_rule_test:
   - eval_time: 6m
@@ -444,8 +450,7 @@ tests:
     exp_alerts:
     - exp_labels:
         severity: critical
-        job: prometheus/prometheus
-        namespace: prometheus
+        cluster: test
       exp_annotations:
         summary: Prometheus is unreachable for 5 minutes.
         description: |
@@ -649,7 +654,9 @@ tests:
 # Test boundary conditions for timing thresholds
 - interval: 1m
   input_series:
-  - series: 'up{job="prometheus/prometheus",namespace="prometheus"}'
+  - series: 'up{job="kube-state-metrics",cluster="test"}'
+    values: "1+0x5"
+  - series: 'up{job="prometheus/prometheus",namespace="prometheus",cluster="test"}'
     values: "0+0x5" # Exactly 4 minutes down - should not alert
   alert_rule_test:
   - eval_time: 4m
@@ -658,7 +665,9 @@ tests:
 # Test boundary conditions for exactly 5 minutes down
 - interval: 1m
   input_series:
-  - series: 'up{job="prometheus/prometheus",namespace="prometheus"}'
+  - series: 'up{job="kube-state-metrics",cluster="test"}'
+    values: "1+0x6"
+  - series: 'up{job="prometheus/prometheus",namespace="prometheus",cluster="test"}'
     values: "0+0x6" # Exactly 5 minutes down - should alert
   alert_rule_test:
   - eval_time: 5m
@@ -666,8 +675,7 @@ tests:
     exp_alerts:
     - exp_labels:
         severity: critical
-        job: prometheus/prometheus
-        namespace: prometheus
+        cluster: test
       exp_annotations:
         summary: Prometheus is unreachable for 5 minutes.
         description: |
@@ -761,7 +769,9 @@ tests:
 # Test recovery after alert condition
 - interval: 1m
   input_series:
-  - series: 'up{job="prometheus/prometheus",namespace="prometheus"}'
+  - series: 'up{job="kube-state-metrics",cluster="test"}'
+    values: "1+0x20"
+  - series: 'up{job="prometheus/prometheus",namespace="prometheus",cluster="test"}'
     values: "0+0x6 1+0x10" # Down for 6 minutes, then up
   alert_rule_test:
   - eval_time: 5m
@@ -769,8 +779,7 @@ tests:
     exp_alerts:
     - exp_labels:
         severity: critical
-        job: prometheus/prometheus
-        namespace: prometheus
+        cluster: test
       exp_annotations:
         summary: Prometheus is unreachable for 5 minutes.
         description: |
@@ -793,11 +802,15 @@ tests:
 # Test multiple namespaces and jobs
 - interval: 1m
   input_series:
-  - series: 'up{job="prometheus/prometheus",namespace="monitoring"}'
-    values: "0+0x10"
-  - series: 'up{job="prometheus/prometheus",namespace="observability"}'
+  - series: 'up{job="kube-state-metrics",cluster="test"}'
     values: "1+0x10"
-  - series: 'up{job="other/prometheus",namespace="prometheus"}'
+  - series: 'up{job="prometheus/prometheus",namespace="monitoring",cluster="test"}'
+    values: "0+0x10"
+  - series: 'up{job="prometheus/prometheus",namespace="observability",cluster="test"}'
+    values: "1+0x10"
+  - series: 'up{job="prometheus/prometheus",namespace="prometheus",cluster="test"}'
+    values: "1+0x10"
+  - series: 'up{job="other/prometheus",namespace="prometheus",cluster="test"}'
     values: "0+0x10"
   alert_rule_test:
   - eval_time: 5m

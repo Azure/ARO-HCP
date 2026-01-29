@@ -1029,7 +1029,7 @@ This may indicate that the Prometheus server is down, unreachable due to network
 Check the status of the Prometheus pods, service endpoints, and network connectivity.
 '''
         }
-        expression: 'min by (job, namespace) (up{job="prometheus/prometheus",namespace="prometheus"}) == 0'
+        expression: 'group by (cluster) (up{job="kube-state-metrics"}) unless on(cluster) group by (cluster) (up{job="prometheus/prometheus",namespace="prometheus"} == 1)'
         for: 'PT5M'
         severity: 3
       }
@@ -1061,7 +1061,7 @@ This may indicate that the Prometheus server is down, experiencing network issue
 Please check the status of the Prometheus pods, service endpoints, and network connectivity.
 '''
         }
-        expression: 'avg by (job, namespace) (avg_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d])) < 0.95'
+        expression: 'avg by (job, namespace, cluster) (avg_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d])) < 0.95'
         for: 'PT10M'
         severity: 3
       }
@@ -1380,7 +1380,7 @@ resource mise 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
           summary: 'Envoy scrape target down for namespace=mise'
           title: 'Prometheus scrape for envoy-stats job in namespace mise is failing or missing.'
         }
-        expression: 'absent(up{endpoint="http-envoy-prom", container="istio-proxy", namespace="mise"}) or (up{endpoint="http-envoy-prom", container="istio-proxy", namespace="mise"} == 0)'
+        expression: 'group by (cluster) (up{job="kube-state-metrics", cluster=~".*-svc(-[0-9]+)?$"}) unless on(cluster) group by (cluster) (up{endpoint="http-envoy-prom", container="istio-proxy", namespace="mise"} == 1)'
         for: 'PT5M'
         severity: 4
       }
