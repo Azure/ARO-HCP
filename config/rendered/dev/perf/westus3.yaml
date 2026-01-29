@@ -6,7 +6,7 @@ acm:
       repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-210
   operator:
     bundle:
-      digest: sha256:6ea888ca9ee874ba1a6eb37418a1a4d1f049edcc64a0de51ffe49fd3fa501e2d
+      digest: sha256:844157c3311e3c5d6349c39ca4ac2c5b48065ee014031595ef01ff49d85c5902
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-215
 acr:
@@ -33,7 +33,7 @@ adminApi:
     issuer: Self
     name: admin-api-cert-perf-usw3ptest
   image:
-    digest: sha256:05f8f32eb64d01c7aafdb3b1dda704d3a3f067c6dc7d10b53c97825b82315a24
+    digest: sha256:7281601b8d45c305cd0bc56dbbb670c38f208d92c7719bfd1e192c18d6f16027
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpadminapi
   k8s:
@@ -69,7 +69,7 @@ backend:
   azureRuntimeConfig:
     tlsCertificatesIssuer: Self
   image:
-    digest: sha256:8ea9d2616575ce16bb4d07bc3e1083b680646cb8101740bc043416671bb463e0
+    digest: sha256:441d10c51a9dec419376149799b8466d145aacbbf67eeec6dad5eacbf5e0948a
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpbackend
   k8s:
@@ -126,7 +126,7 @@ clustersService:
   deployDebugJobs: false
   environment: arohcpdev
   image:
-    digest: sha256:065e9d79400f6fc9f380d8f85c9f2789c72b82abb0bd65669170201778ba07e3
+    digest: sha256:5f66466d24325bd496a45273f8b068fcf5e6c9b4abb6f7e842893747afcc145b
     registry: quay.io
     repository: app-sre/aro-hcp-clusters-service
   k8s:
@@ -218,7 +218,7 @@ frontend:
     resourceContainerMaxScale: 4000
     zoneRedundantMode: Auto
   image:
-    digest: sha256:3a32f3318b1955868731ca94777d44fa1b0392d78636fe499aa48c666550ea68
+    digest: sha256:ef415d3c6155fc30567d6c97614c5548f80fa300c761f74f3fd3ae0630a6a144
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpfrontend
   k8s:
@@ -323,7 +323,7 @@ global:
 hypershift:
   additionalInstallArg: --enable-cpo-overrides
   image:
-    digest: sha256:a2f45320ef9cc9defc5344ec5461bba3f7db0944f285f4e86415098e9214aada
+    digest: sha256:63fb51399ffc7e7ecf93724343b3c2ac708e711c7143ec17f1ad3f97e8718a03
     registry: quay.io
     repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
   limitClusterSizes: true
@@ -334,7 +334,7 @@ imageSync:
   ocMirror:
     enabled: true
     image:
-      digest: sha256:ccc9b1bd4ea937ae0e3fc86c06e10ae34be5b430c5c9e2604168068cba941822
+      digest: sha256:f47bdb4f37f706b6c9ee9a6c2e2dd43c1c8ced579d1f071ac01ee7ecf3c21c16
       registry: arohcpsvcdev.azurecr.io
       repository: image-sync/oc-mirror
     jobNamePrefix: ""
