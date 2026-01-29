@@ -352,7 +352,14 @@ param azureMonitoring string
 				// context - simply duplicating it in the annotations and referring to our new copy is enough to side-
 				// step the post-processing.
 				if description, exists := annotations["description"]; exists {
-					annotations["title"] = description
+					annotations["info"] = description
+				}
+
+				// If the summary annotation is present, use it as the title. Otherwise, use the alert name as the title.
+				if summary, exists := annotations["summary"]; exists {
+					annotations["title"] = summary
+				} else {
+					annotations["title"] = ptr.To(rule.Alert)
 				}
 
 				// We want to provide a sufficiently specific set of distinct labels to use for the correlation ID in IcM,

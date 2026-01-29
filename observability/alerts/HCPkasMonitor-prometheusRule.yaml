@@ -16,6 +16,7 @@ spec:
         severity: warning
         short_window: 30m
       annotations:
+        summary: "High error budget burn for {{ $labels.probe_url }}"
         description: "High error budget burn for {{ $labels.probe_url }} (current value: {{ $value }})"
     - alert: kas-monitor-ErrorBudgetBurn
       expr: 1 - (sum by (probe_url, namespace, _id, cluster) (sum_over_time(probe_success{}[30m])) / sum by (probe_url, namespace, _id, cluster) (count_over_time(probe_success{}[30m]))) > (6 * (1 - 0.9995)) and sum by (probe_url, namespace, _id, cluster) (count_over_time(probe_success{}[30m])) > 30 and 1 - (sum by (probe_url, namespace, _id, cluster) (sum_over_time(probe_success{}[6h])) / sum by (probe_url, namespace, _id, cluster) (count_over_time(probe_success{}[6h]))) > (6 * (1 - 0.9995)) and sum by (probe_url, namespace, _id, cluster) (count_over_time(probe_success{}[6h])) > 360
@@ -25,6 +26,7 @@ spec:
         severity: warning
         short_window: 30m
       annotations:
+        summary: "High error budget burn for {{ $labels.probe_url }}"
         description: "High error budget burn for {{ $labels.probe_url }} (current value: {{ $value }})"
     - alert: kas-monitor-ErrorBudgetBurn
       expr: 1 - (sum by (probe_url, namespace, _id, cluster) (sum_over_time(probe_success{}[2h])) / sum by (probe_url, namespace, _id, cluster) (count_over_time(probe_success{}[2h]))) > (3 * (1 - 0.9995)) and sum by (probe_url, namespace, _id, cluster) (count_over_time(probe_success{}[2h])) > 120 and 1 - (sum by (probe_url, namespace, _id, cluster) (sum_over_time(probe_success{}[1d])) / sum by (probe_url, namespace, _id, cluster) (count_over_time(probe_success{}[1d]))) > (3 * (1 - 0.9995)) and sum by (probe_url, namespace, _id, cluster) (count_over_time(probe_success{}[1d])) > 1440
@@ -34,6 +36,7 @@ spec:
         severity: info
         short_window: 2h
       annotations:
+        summary: "High error budget burn for {{ $labels.probe_url }}"
         description: "High error budget burn for {{ $labels.probe_url }} (current value: {{ $value }})"
     - alert: kas-monitor-ErrorBudgetBurn
       expr: 1 - (sum by (probe_url, namespace, _id, cluster) (sum_over_time(probe_success{}[6h])) / sum by (probe_url, namespace, _id, cluster) (count_over_time(probe_success{}[6h]))) > (1 * (1 - 0.9995)) and sum by (probe_url, namespace, _id, cluster) (count_over_time(probe_success{}[6h])) > 360 and 1 - (sum by (probe_url, namespace, _id, cluster) (sum_over_time(probe_success{}[3d])) / sum by (probe_url, namespace, _id, cluster) (count_over_time(probe_success{}[3d]))) > (1 * (1 - 0.9995)) and sum by (probe_url, namespace, _id, cluster) (count_over_time(probe_success{}[3d])) > 4320
@@ -43,6 +46,7 @@ spec:
         severity: info
         short_window: 6h
       annotations:
+        summary: "High error budget burn for {{ $labels.probe_url }}"
         description: "High error budget burn for {{ $labels.probe_url }} (current value: {{ $value }})"
     # ServiceMonitor Creation Monitoring - Detects when HCP namespaces exist but probe_success metrics are missing
     # This indicates RMO, Blackbox Exporter, or Prometheus failures preventing monitoring coverage
