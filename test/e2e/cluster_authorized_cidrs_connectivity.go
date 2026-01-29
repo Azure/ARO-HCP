@@ -45,10 +45,6 @@ var _ = Describe("Authorized CIDRs", func() {
 			labels.RequireNothing,
 			labels.Critical,
 			labels.Positive,
-<<<<<<< HEAD
-			labels.IntegrationOnly,
-=======
->>>>>>> 106f14f9d (change label in IP access control test)
 			labels.AroRpApiCompatible,
 			func(ctx context.Context) {
 				const (
@@ -81,12 +77,7 @@ var _ = Describe("Authorized CIDRs", func() {
 				clusterParams, err = tc.CreateClusterCustomerResources(ctx,
 					resourceGroup,
 					clusterParams,
-<<<<<<< HEAD
 					map[string]interface{}{
-=======
-					map[string]any{
-						"persistTagValue":        false,
->>>>>>> 106f14f9d (change label in IP access control test)
 						"customerNsgName":        customerNetworkSecurityGroupName,
 						"customerVnetName":       customerVnetName,
 						"customerVnetSubnetName": customerVnetSubnetName,
