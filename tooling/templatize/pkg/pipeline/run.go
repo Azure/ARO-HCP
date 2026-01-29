@@ -72,6 +72,7 @@ type BaseRunOptions struct {
 type StepRunOptions struct {
 	BaseRunOptions
 	PipelineDirectory string
+	RetryAttempt      int // 0 for first attempt, >0 for retries
 }
 
 type Output interface {
@@ -508,11 +509,12 @@ func executeNode(logger logr.Logger, executor Executor, graphCtx *graph.Graph, n
 		stepRunErr = nil
 	} else {
 		for shouldExecuteStep(step, runCount) {
-			runCount++
 			output, details, stepRunErr = executor(node, step, logr.NewContext(ctx, logger), target, &StepRunOptions{
 				BaseRunOptions:    options.BaseRunOptions,
 				PipelineDirectory: filepath.Join(options.TopologyDir, filepath.Dir(graphCtx.Services[node.ServiceGroup].PipelinePath)),
+				RetryAttempt:      runCount,
 			}, state)
+			runCount++
 			if shouldRetryError(logger, step, stepRunErr) {
 				duration, err := time.ParseDuration(step.AutomatedRetries().DurationBetweenRetries)
 				if err != nil {
