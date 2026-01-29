@@ -19,44 +19,56 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/fs"
+	"net/http"
 	"sort"
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/go-logr/logr/testr"
+	"github.com/stretchr/testify/require"
+
+	"k8s.io/apimachinery/pkg/util/wait"
+
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
 	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/utils"
+	"github.com/Azure/ARO-HCP/test-integration/utils/integrationutils"
+	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/v20240610preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 )
 
 type ResourceMutationTest struct {
-	testDir         fs.FS
-	cosmosContainer *azcosmos.ContainerClient
+	testDir  fs.FS
+	withMock bool
 
 	steps []IntegrationTestStep
 }
 
 type IntegrationTestStep interface {
 	StepID() StepID
-	RunTest(ctx context.Context, t *testing.T)
+	RunTest(ctx context.Context, t *testing.T, stepInput StepInput)
 }
 
-func NewResourceMutationTest[InternalAPIType any](ctx context.Context, specializer ResourceCRUDTestSpecializer[InternalAPIType], cosmosContainer *azcosmos.ContainerClient, testName string, testDir fs.FS) (*ResourceMutationTest, error) {
-	steps, err := readSteps(ctx, testDir, specializer, cosmosContainer)
+func NewResourceMutationTest[InternalAPIType any](ctx context.Context, testName string, testDir fs.FS, withMock bool) (*ResourceMutationTest, error) {
+	steps, err := readSteps[InternalAPIType](ctx, testDir)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read steps for test %q: %w", testName, err)
 	}
 	return &ResourceMutationTest{
-		testDir:         testDir,
-		cosmosContainer: cosmosContainer,
-		steps:           steps,
+		testDir:  testDir,
+		withMock: withMock,
+		steps:    steps,
 	}, nil
 }
 
-func readSteps[InternalAPIType any](ctx context.Context, testDir fs.FS, specializer ResourceCRUDTestSpecializer[InternalAPIType], cosmosContainer *azcosmos.ContainerClient) ([]IntegrationTestStep, error) {
+func readSteps[InternalAPIType any](ctx context.Context, testDir fs.FS) ([]IntegrationTestStep, error) {
 	steps := []IntegrationTestStep{}
 
+	numLoadClusterServiceSteps := 0
 	testContent := api.Must(fs.ReadDir(testDir, "."))
 	for _, dirEntry := range testContent {
 		filenameParts := strings.SplitN(dirEntry.Name(), "-", 3)
@@ -71,12 +83,18 @@ func readSteps[InternalAPIType any](ctx context.Context, testDir fs.FS, speciali
 		index := filenameParts[0]
 		stepType := filenameParts[1]
 		stepName, _ := strings.CutSuffix(filenameParts[2], ".json")
+		if stepType == "loadClusterService" { // eventually this goes away, so we'll be able to remove the ugly. for now prevent mistakes.
+			numLoadClusterServiceSteps++
+		}
 
-		testStep, err := newStep(index, stepType, stepName, testDir, dirEntry.Name(), specializer, cosmosContainer)
+		testStep, err := NewStep[InternalAPIType](index, stepType, stepName, testDir, dirEntry.Name())
 		if err != nil {
 			return nil, fmt.Errorf("failed to create new step %q: %w", dirEntry.Name(), err)
 		}
 		steps = append(steps, testStep)
+	}
+	if numLoadClusterServiceSteps > 1 {
+		return nil, fmt.Errorf("more than one step found for loadClusterService.  Refactor to do it once or make it possible to load more than once")
 	}
 
 	sort.Sort(byIndex(steps))
@@ -84,13 +102,44 @@ func readSteps[InternalAPIType any](ctx context.Context, testDir fs.FS, speciali
 }
 
 func (tt *ResourceMutationTest) RunTest(t *testing.T) {
+	ctx := t.Context()
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	ctx = utils.ContextWithLogger(ctx, testr.New(t))
+
+	frontend, testInfo, err := integrationutils.NewFrontendFromTestingEnv(ctx, t, tt.withMock)
+	require.NoError(t, err)
+	cleanupCtx := context.Background()
+	cleanupCtx = utils.ContextWithLogger(cleanupCtx, testr.New(t))
+	defer testInfo.Cleanup(cleanupCtx)
+	go frontend.Run(ctx, ctx.Done())
+
+	// wait for migration to complete to eliminate races with our test's second call migrateCosmos and to ensure the server is ready for testing
+	err = wait.PollUntilContextCancel(ctx, 1*time.Second, true, func(ctx context.Context) (bool, error) {
+		_, err := http.Get(testInfo.FrontendURL)
+		if err != nil {
+			t.Log(err)
+			return false, nil
+		}
+		return true, nil
+	})
+	require.NoError(t, err)
+
+	stepInput := NewCosmosStepInput(testInfo)
+	stepInput.FrontendClient = testInfo.Get20240610ClientFactory
+	stepInput.FrontendURL = testInfo.FrontendURL
+	stepInput.ClusterServiceMockInfo = testInfo.ClusterServiceMock
+
 	for _, step := range tt.steps {
 		t.Logf("Running step %s", step.StepID())
-		step.RunTest(t.Context(), t)
+		ctx := t.Context()
+		ctx = utils.ContextWithLogger(ctx, testr.New(t))
+
+		step.RunTest(ctx, t, *stepInput)
 	}
 }
 
-func newStep[InternalAPIType any](indexString, stepType, stepName string, testDir fs.FS, path string, specializer ResourceCRUDTestSpecializer[InternalAPIType], cosmosContainer *azcosmos.ContainerClient) (IntegrationTestStep, error) {
+func NewStep[InternalAPIType any](indexString, stepType, stepName string, testDir fs.FS, path string) (IntegrationTestStep, error) {
 	itoInt, err := strconv.Atoi(indexString)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert %s to int: %w", indexString, err)
@@ -102,44 +151,68 @@ func newStep[InternalAPIType any](indexString, stepType, stepName string, testDi
 	}
 
 	switch stepType {
-	case "load":
-		return NewLoadStep(stepID, cosmosContainer, stepDir)
+	case "load", "loadCosmos":
+		return NewLoadCosmosStep(stepID, stepDir)
+
+	case "loadClusterService":
+		return NewLoadClusterServiceStep(stepID, stepDir)
 
 	case "cosmosCompare":
-		return NewCosmosCompareStep(stepID, cosmosContainer, stepDir)
+		return NewCosmosCompareStep(stepID, stepDir)
 
 	case "create":
-		return newCreateStep(stepID, specializer, cosmosContainer, stepDir)
+		return newCreateStep[InternalAPIType](stepID, stepDir)
 
 	case "replace":
-		return newReplaceStep(stepID, specializer, cosmosContainer, stepDir)
+		return newReplaceStep[InternalAPIType](stepID, stepDir)
 
 	case "get":
-		return newGetStep(stepID, specializer, cosmosContainer, stepDir)
+		return newGetStep[InternalAPIType](stepID, stepDir)
 
 	case "getByID":
-		return newGetByIDStep(stepID, specializer, cosmosContainer, stepDir)
+		return newGetByIDStep[InternalAPIType](stepID, stepDir)
 
 	case "untypedGet":
-		return newUntypedGetStep(stepID, cosmosContainer, stepDir)
+		return newUntypedGetStep(stepID, stepDir)
 
 	case "list":
-		return newListStep(stepID, specializer, cosmosContainer, stepDir)
+		return newListStep[InternalAPIType](stepID, stepDir)
 
 	case "listActiveOperations":
-		return newListActiveOperationsStep(stepID, cosmosContainer, stepDir)
+		return newListActiveOperationsStep(stepID, stepDir)
 
 	case "untypedListRecursive":
-		return newUntypedListRecursiveStep(stepID, cosmosContainer, stepDir)
+		return newUntypedListRecursiveStep(stepID, stepDir)
 
 	case "untypedList":
-		return newUntypedListStep(stepID, cosmosContainer, stepDir)
+		return newUntypedListStep(stepID, stepDir)
 
 	case "delete":
-		return newDeleteStep(stepID, specializer, cosmosContainer, stepDir)
+		return newDeleteStep[InternalAPIType](stepID, stepDir)
 
 	case "untypedDelete":
-		return newUntypedDeleteStep(stepID, cosmosContainer, stepDir)
+		return newUntypedDeleteStep(stepID, stepDir)
+
+	case "httpGet":
+		return newHTTPGetStep(stepID, stepDir)
+
+	case "httpList":
+		return newHTTPListStep(stepID, stepDir)
+
+	case "httpCreate", "httpReplace":
+		return newHTTPCreateStep(stepID, stepDir)
+
+	case "httpPatch":
+		return newHTTPPatchStep(stepID, stepDir)
+
+	case "httpDelete":
+		return newHTTPDeleteStep(stepID, stepDir)
+
+	case "completeOperation":
+		return newCompleteOperationStep(stepID, stepDir)
+
+	case "migrateCosmos":
+		return newMigrateCosmosStep(stepID, stepDir)
 
 	default:
 		return nil, fmt.Errorf("unknown step type: %s", stepType)
@@ -175,7 +248,27 @@ func stringifyResource(controller any) string {
 }
 
 type CosmosCRUDKey struct {
-	ParentResourceID string `json:"parentResourceId"`
+	ParentResourceID *azcorearm.ResourceID `json:"parentResourceId"`
+	ResourceType     ResourceType          `json:"resourceType"`
+}
+
+type ResourceType struct {
+	azcorearm.ResourceType
+}
+
+// MarshalText returns a textual representation of the ResourceID
+func (o *ResourceType) MarshalText() ([]byte, error) {
+	return []byte(o.String()), nil
+}
+
+// UnmarshalText decodes the textual representation of a ResourceID
+func (o *ResourceType) UnmarshalText(text []byte) error {
+	newType, err := azcorearm.ParseResourceType(string(text))
+	if err != nil {
+		return err
+	}
+	o.ResourceType = newType
+	return nil
 }
 
 func readResourcesInDir[InternalAPIType any](dir fs.FS) ([]*InternalAPIType, error) {
@@ -204,4 +297,47 @@ func readResourcesInDir[InternalAPIType any](dir fs.FS) ([]*InternalAPIType, err
 	}
 
 	return resources, nil
+}
+
+func readRawBytesInDir(dir fs.FS) ([][]byte, error) {
+	contents := [][]byte{}
+	testContent := api.Must(fs.ReadDir(dir, "."))
+	for _, dirEntry := range testContent {
+		if dirEntry.Name() == "00-key.json" { // standard filenames to skip
+			continue
+		}
+		if dirEntry.Name() == "expected-error.txt" { // standard filenames to skip
+			continue
+		}
+		if !strings.HasSuffix(dirEntry.Name(), ".json") { // we can only understand JSON
+			continue
+		}
+
+		currContent, err := fs.ReadFile(dir, dirEntry.Name())
+		if err != nil {
+			return nil, fmt.Errorf("failed to read expected.json: %w", err)
+		}
+		contents = append(contents, currContent)
+	}
+
+	return contents, nil
+}
+
+type StepInput struct {
+	CosmosContainer *azcosmos.ContainerClient
+	ContentLoader   integrationutils.ContentLoader
+	DocumentLister  integrationutils.DocumentLister
+	DBClient        database.DBClient
+	FrontendClient  func(subscriptionID string) *hcpsdk20240610preview.ClientFactory
+	FrontendURL     string
+
+	ClusterServiceMockInfo *integrationutils.ClusterServiceMock
+}
+
+func NewCosmosStepInput(storageInfo integrationutils.StorageIntegrationTestInfo) *StepInput {
+	return &StepInput{
+		ContentLoader:  storageInfo,
+		DocumentLister: storageInfo,
+		DBClient:       storageInfo.CosmosClient(),
+	}
 }

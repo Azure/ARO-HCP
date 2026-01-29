@@ -2,46 +2,50 @@ rule_files:
 - mise-prometheusRule.yaml
 evaluation_interval: 1s
 tests:
+# Test: Service cluster exists but mise metric is missing - alert should fire
 - interval: 1s
   input_series:
-  - series: 'up{endpoint="http-envoy-prom", container="istio-proxy", namespace="mise"}'
-    values: '1x100 0x500' # 100s healthy, 400s down
+  - series: 'up{job="kube-state-metrics", cluster="test-svc-1"}'
+    values: '1x600'
   alert_rule_test:
-  - eval_time: 401s # alert should fire after 5m of 0s
+  - eval_time: 301s # alert should fire after 5m
     alertname: MiseEnvoyScrapeDown
     exp_alerts:
     - exp_labels:
         alertname: MiseEnvoyScrapeDown
         severity: info
-        endpoint: http-envoy-prom
-        container: istio-proxy
-        namespace: mise
+        cluster: test-svc-1
       exp_annotations:
         summary: "Envoy scrape target down for namespace=mise"
         description: "Prometheus scrape for envoy-stats job in namespace mise is failing or missing."
         runbook_url: 'TBD'
-- interval: 1s
-  input_series: [] # No 'up' series at all (absent)
-  alert_rule_test:
-  - eval_time: 300s # Alert should fire because series is missing for 5m
-    alertname: MiseEnvoyScrapeDown
-    exp_alerts:
-    - exp_labels:
-        alertname: MiseEnvoyScrapeDown
-        severity: info
-        endpoint: http-envoy-prom
-        container: istio-proxy
-        namespace: mise
-      exp_annotations:
-        summary: "Envoy scrape target down for namespace=mise"
-        description: "Prometheus scrape for envoy-stats job in namespace mise is failing or missing."
-        runbook_url: 'TBD'
-# Test: Envoy up and healthy for 10 minutes (no alert should fire)
+# Test: Service cluster exists and mise metric is present - no alert
 - interval: 1s
   input_series:
-  - series: 'up{endpoint="http-envoy-prom", container="istio-proxy", namespace="mise"}'
+  - series: 'up{job="kube-state-metrics", cluster="test-svc-1"}'
+    values: '1x600'
+  - series: 'up{endpoint="http-envoy-prom", container="istio-proxy", namespace="mise", cluster="test-svc-1"}'
     values: '1x600'
   alert_rule_test:
   - eval_time: 600s
     alertname: MiseEnvoyScrapeDown
     exp_alerts: []
+# Test: Service cluster exists, mise metric was present but goes down - alert should fire
+- interval: 1s
+  input_series:
+  - series: 'up{job="kube-state-metrics", cluster="test-svc-2"}'
+    values: '1x600'
+  - series: 'up{endpoint="http-envoy-prom", container="istio-proxy", namespace="mise", cluster="test-svc-2"}'
+    values: '1x100 0x500' # 100s healthy, then down
+  alert_rule_test:
+  - eval_time: 401s # alert should fire after 5m of metric being down
+    alertname: MiseEnvoyScrapeDown
+    exp_alerts:
+    - exp_labels:
+        alertname: MiseEnvoyScrapeDown
+        severity: info
+        cluster: test-svc-2
+      exp_annotations:
+        summary: "Envoy scrape target down for namespace=mise"
+        description: "Prometheus scrape for envoy-stats job in namespace mise is failing or missing."
+        runbook_url: 'TBD'

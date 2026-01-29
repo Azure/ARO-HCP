@@ -1,0 +1,314 @@
+---
+# Source: backend/templates/serviceaccount.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  annotations:
+    azure.workload.identity/client-id: '__backendMsiClientId__'
+    azure.workload.identity/tenant-id: '__backendMsiTenantId__'
+  name: 'backend'
+  namespace: 'aro-hcp'
+---
+# Source: backend/templates/backend.azure-runtime-config.configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backend-azure-runtime-config
+  namespace: 'aro-hcp'
+data:
+  config.yaml: |
+    cloudEnvironment: "AzurePublicCloud"
+    managedIdentitiesDataPlaneAudienceResource: "https://dummy.org"
+    tenantID: "__tenantId__"
+    ocpImagesACR:
+      resourceID: "__ocpAcrResourceId__"
+      hostname: "__ocpAcrHostname__"
+      scopeMapName: "_repositories_pull"
+    dataPlaneIdentitiesOIDCConfiguration:
+      storageAccountBlobContainerName: "$web"
+      storageAccountBlobServiceURL: "__regionalOidcStorageAccountBlobEndpoint__"
+      oidcIssuerBaseURL: "__regionalOidcStorageAccountWebEndpoint__"
+    tlsCertificatesConfig:
+      issuer: "Self"
+      certificatesGenerationSource: AzureKeyVault
+---
+# Source: backend/templates/backend.configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backend-config
+  namespace: 'aro-hcp'
+data:
+  DB_NAME: 'arohcpdev-rp-usw3'
+  DB_URL: '__cosmosDBDocumentEndpoint__'
+  BACKEND_MI_CLIENT_ID: '__backendMsiClientId__'
+  CURRENT_VERSION: ''
+  LOCATION: 'westus3'
+---
+# Source: backend/templates/leader-election.role.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: leader-election
+  namespace: 'aro-hcp'
+rules:
+- apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  verbs:
+  - create
+  - get
+  - list
+  - update
+  - watch
+  - patch
+---
+# Source: backend/templates/leader-election.rolebinding.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: backend-leader-election
+  namespace: 'aro-hcp'
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: leader-election
+subjects:
+- kind: ServiceAccount
+  name: 'backend'
+  namespace: 'aro-hcp'
+---
+# Source: backend/templates/metrics.service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: aro-hcp-backend
+    port: metrics
+  name: aro-hcp-backend-metrics
+  namespace: 'aro-hcp'
+spec:
+  ports:
+  - port: 8081
+    protocol: TCP
+    targetPort: 8081
+    name: metrics
+  selector:
+    app: aro-hcp-backend
+---
+# Source: backend/templates/backend.deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: aro-hcp-backend
+  name: aro-hcp-backend
+  namespace: 'aro-hcp'
+spec:
+  progressDeadlineSeconds: 600
+  replicas: 2
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      app: aro-hcp-backend
+  strategy:
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: aro-hcp-backend
+        azure.workload.identity/use: "true"
+      annotations:
+        checksum/backendservicekeyvault: '67b31416c594e3f1f3e7754fc18a9da8bf47bfa45d09f9ed568db2d0d14a2544'
+        checksum/azureruntimeconfig: '40e0cf247edb3f1d1eb59cd97663f8ab2cf029da7a96716ee8916d38ac9fb0e5'
+    spec:
+      topologySpreadConstraints:
+      - maxSkew: 1
+        topologyKey: 'topology.kubernetes.io/zone'
+        whenUnsatisfiable: ScheduleAnyway
+        labelSelector:
+          matchLabels:
+            app: aro-hcp-backend
+      - maxSkew: 1
+        topologyKey: kubernetes.io/hostname
+        whenUnsatisfiable: ScheduleAnyway
+        labelSelector:
+          matchLabels:
+            app: aro-hcp-backend
+      serviceAccountName: 'backend'
+      volumes:
+      - name: backend-service-key-vault
+        csi:
+          driver: secrets-store.csi.k8s.io
+          readOnly: true
+          volumeAttributes:
+            secretProviderClass: backend-service-key-vault
+      - name: azure-runtime-config
+        configMap:
+          name: backend-azure-runtime-config
+      containers:
+      - name: aro-hcp-backend
+        image: 'arohcpsvcdev.azurecr.io/arohcpbackend@sha256:1234567890'
+        imagePullPolicy: Always
+        args:
+        - "--clusters-service-url"
+        - "http://clusters-service.clusters-service.svc.cluster.local:8000"
+        - "--azure-runtime-config-path"
+        - "/configs/azure-runtime-config/config.yaml"
+        - "--azure-first-party-application-certificate-bundle-path"
+        - "/secrets/backend-service-key-vault/fpa-cert-bundle"
+        - "--azure-first-party-application-client-id"
+        - "b3cb2fab-15cb-4583-ad06-f91da9bfe2d1"
+        env:
+        - name: DB_NAME
+          valueFrom:
+            configMapKeyRef:
+              name: backend-config
+              key: DB_NAME
+        - name: DB_URL
+          valueFrom:
+            configMapKeyRef:
+              name: backend-config
+              key: DB_URL
+        - name: LOCATION
+          valueFrom:
+            configMapKeyRef:
+              name: backend-config
+              key: LOCATION
+        - name: NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: OTEL_EXPORTER_OTLP_ENDPOINT
+          value: ""
+        - name: OTEL_TRACES_EXPORTER
+          value: ""
+        ports:
+        - containerPort: 8081
+          protocol: TCP
+        - containerPort: 8083
+          protocol: TCP
+        resources:
+          limits:
+            memory: 1Gi
+          requests:
+            cpu: 100m
+            memory: 500Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          runAsNonRoot: true
+          seccompProfile:
+            type: RuntimeDefault
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: 8083
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        volumeMounts:
+        - name: backend-service-key-vault
+          mountPath: "/secrets/backend-service-key-vault"
+        - name: azure-runtime-config
+          mountPath: /configs/azure-runtime-config
+          readOnly: true
+      restartPolicy: Always
+      terminationGracePeriodSeconds: 30
+---
+# Source: backend/templates/acrpullbinding.yaml
+apiVersion: acrpull.microsoft.com/v1beta2
+kind: AcrPullBinding
+metadata:
+  name: backend-pull-binding
+  namespace: 'aro-hcp'
+spec:
+  acr:
+    environment: PublicCloud
+    server: 'arohcpsvcdev.azurecr.io'
+    scope: 'repository:arohcpbackend:pull'
+  auth:
+    workloadIdentity:
+      serviceAccountRef: 'backend'
+      clientID: '__imagePullerMsiClientId__'
+      tenantID: '__imagePullerMsiTenantId__'
+  serviceAccountName: 'backend'
+---
+# Source: backend/templates/allow-metrics.authorizationpolicy.yaml
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-metrics-backend
+  namespace: 'aro-hcp'
+spec:
+  action: "ALLOW"
+  rules:
+  - to:
+    - operation:
+        paths: ["/metrics"]
+        methods: ["GET"]
+        ports: ["8081"]
+  selector:
+    matchLabels:
+      app: "aro-hcp-backend"
+---
+# Source: backend/templates/peerauthentication.yaml
+apiVersion: security.istio.io/v1beta1
+kind: PeerAuthentication
+metadata:
+  name: aro-hcp-backend-metrics
+  namespace: 'aro-hcp'
+spec:
+  selector:
+    matchLabels:
+      app: aro-hcp-backend
+  portLevelMtls:
+    8081:
+      mode: PERMISSIVE
+---
+# Source: backend/templates/backend.service-key-vault.secretproviderclass.yaml
+apiVersion: secrets-store.csi.x-k8s.io/v1
+kind: SecretProviderClass
+metadata:
+  name: backend-service-key-vault
+  namespace: 'aro-hcp'
+spec:
+  parameters:
+    clientID: '__backendMsiClientId__'
+    cloudName: 'AzurePublicCloud'
+    keyvaultName: 'aro-hcp-dev-svc-kv'
+    objects: |-
+      array:
+        - |
+          objectName: 'firstPartyCert2'
+          objectType: secret
+          objectAlias: fpa-cert-bundle
+    tenantId: '__tenantId__'
+    usePodIdentity: "false"
+  provider: azure
+---
+# Source: backend/templates/servicemonitor.yaml
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: aro-hcp-backend
+  namespace: 'aro-hcp'
+spec:
+  endpoints:
+  - interval: 30s
+    path: /metrics
+    port: metrics
+    scheme: http
+  namespaceSelector:
+    matchNames:
+    - 'aro-hcp'
+  selector:
+    matchLabels:
+      app: aro-hcp-backend
+      port: metrics
+

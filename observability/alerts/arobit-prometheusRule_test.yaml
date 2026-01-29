@@ -4,17 +4,18 @@ evaluation_interval: 1m
 tests:
 - interval: 1m
   input_series:
-  - series: 'up{job="arobit-forwarder",namespace="arobit"}'
+  - series: 'up{job="kube-state-metrics",cluster="test"}'
+    values: "1+0x15"
+  - series: 'up{job="arobit-forwarder",namespace="arobit",cluster="test"}'
     values: "0+0x15"
   alert_rule_test:
   - eval_time: 15m
     alertname: ArobitForwarderJobUp
     exp_alerts:
     - exp_labels:
-        job: arobit-forwarder
-        namespace: arobit
         alertname: ArobitForwarderJobUp
         severity: critical
+        cluster: test
       exp_annotations:
         description: |
           Arobit forwarder has not been reachable for the past 15 minutes.

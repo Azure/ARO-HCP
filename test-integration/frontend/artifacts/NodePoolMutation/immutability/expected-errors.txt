@@ -1,7 +1,0 @@
-InvalidRequestContent: properties.autoRepair: Forbidden: field is immutable
-InvalidRequestContent: properties.platform.vmSize: Forbidden: field is immutable
-InvalidRequestContent: properties.platform.availabilityZone: Forbidden: field is immutable
-InvalidRequestContent: properties.platform.enableEncryptionAtHost: Forbidden: field is immutable
-InvalidRequestContent: properties.platform.osDisk: Forbidden: field is immutable
-InvalidRequestContent: properties.platform.osDisk.diskStorageAccountType: Unsupported value: "Changed": supported values: "Premium_LRS", "StandardSSD_LRS", "Standard_LRS"
-InvalidRequestContent: properties.platform: Forbidden: field is immutable

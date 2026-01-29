@@ -15,10 +15,6 @@
 package database
 
 import (
-	"fmt"
-
-	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
-
 	"github.com/Azure/ARO-HCP/internal/api"
 )
 
@@ -27,8 +23,6 @@ type NodePool struct {
 
 	NodePoolProperties `json:"properties"`
 }
-
-var _ ResourceProperties = &NodePool{}
 
 type NodePoolProperties struct {
 	ResourceDocument `json:",inline"`
@@ -41,17 +35,6 @@ type NodePoolInternalState struct {
 	InternalAPI api.HCPOpenShiftClusterNodePool `json:"internalAPI"`
 }
 
-func (o *NodePool) ValidateResourceType() error {
-	if o.ResourceType != api.NodePoolResourceType.String() {
-		return fmt.Errorf("invalid resource type: %s", o.ResourceType)
-	}
-	return nil
-}
-
 func (o *NodePool) GetTypedDocument() *TypedDocument {
 	return &o.TypedDocument
-}
-
-func (o *NodePool) SetResourceID(newResourceID *azcorearm.ResourceID) {
-	o.ResourceDocument.SetResourceID(newResourceID)
 }

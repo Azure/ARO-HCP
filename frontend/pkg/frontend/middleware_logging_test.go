@@ -23,6 +23,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/go-logr/logr"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -104,7 +105,7 @@ func TestMiddlewareLoggingPostMux(t *testing.T) {
 			var (
 				writer = httptest.NewRecorder()
 				buf    bytes.Buffer
-				logger = slog.New(slog.NewTextHandler(&buf, nil))
+				logger = logr.FromSlogHandler(slog.NewTextHandler(&buf, nil))
 			)
 
 			ctx := utils.ContextWithLogger(context.Background(), logger)

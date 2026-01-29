@@ -1,0 +1,53 @@
+{
+	"identity": {
+		"type": "UserAssigned",
+		"userAssignedIdentities": {}
+	},
+	"name": "some-immutable-field-checks",
+	"properties": {
+		"api": {
+			"visibility": "Public"
+		},
+		"clusterImageRegistry": {
+			"state": "Disabled"
+		},
+		"console": {},
+		"dns": {
+			"baseDomain": "illegal-change",
+			"baseDomainPrefix": "illegal-change"
+		},
+		"etcd": {
+			"dataEncryption": {
+				"customerManaged": {
+					"encryptionType": "KMS",
+					"kms": {
+						"activeKey": {
+							"name": "illegal-change",
+							"vaultName": "illegal-change",
+							"version": "illegal-change"
+						}
+					}
+				},
+				"keyManagementMode": "CustomerManaged"
+			}
+		},
+		"network": {
+			"hostPrefix": 24,
+			"machineCidr": "11.0.0.0/16",
+			"networkType": "Other",
+			"podCidr": "11.128.0.0/14",
+			"serviceCidr": "173.30.0.0/16"
+		},
+		"platform": {
+			"managedResourceGroup": "illegal-change",
+			"networkSecurityGroupId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/some-resource-group/providers/Microsoft.Network/networkSecurityGroups/illegal-change",
+			"outboundType": "LoadBalancer",
+			"subnetId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/different-resource-group/providers/Microsoft.Network/virtualNetworks/vnet/subnets/illegal-change"
+		},
+		"version": {
+			"id": "illegal-change",
+			"channelGroup": "stable"
+		}
+	},
+	"type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters"
+}

@@ -67,7 +67,7 @@ func (d *nestedCosmosResourceCRUD[InternalAPIType, CosmosAPIType]) makeResourceI
 	}
 	parts := []string{d.parentResourceID.String()}
 
-	if d.parentResourceID.ResourceType.Namespace != api.ProviderNamespace {
+	if !strings.EqualFold(d.parentResourceID.ResourceType.Namespace, api.ProviderNamespace) {
 		if len(resourceID) == 0 {
 			// in this case, adding the actual provider type results in an illegal resourceID
 			// for instance /subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters does not parse

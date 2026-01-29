@@ -1,3 +1,53 @@
+---
+{{ if .Values.limitClusterSizes }}
+apiVersion: scheduling.hypershift.openshift.io/v1alpha1
+kind: ClusterSizingConfiguration
+metadata:
+  name: cluster
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "2"
+spec:
+  concurrency:
+    limit: 9999
+    slidingWindow: 0s
+  sizes:
+    - criteria:
+        from: 0
+      effects:
+        maximumMutatingRequestsInflight: 99999
+        maximumRequestsInflight: 99999
+        resourceRequests:
+          - containerName: kube-apiserver
+            deploymentName: kube-apiserver
+            memory: 100Mi
+            cpu: 100m
+          - containerName: openshift-controller-manager
+            deploymentName: openshift-controller-manager
+            memory: 100Mi
+            cpu: 100m
+          - containerName: cluster-policy-controller
+            deploymentName: cluster-policy-controller
+            memory: 100Mi
+            cpu: 100m
+          - containerName: kube-controller-manager
+            deploymentName: kube-controller-manager
+            memory: 100Mi
+            cpu: 100m
+          - containerName: openshift-apiserver
+            deploymentName: openshift-apiserver
+            memory: 100Mi
+            cpu: 100m
+          - containerName: etcd
+            deploymentName: etcd
+            memory: 100Mi
+            cpu: 100m
+          - containerName: ovnkube-control-plane
+            deploymentName: ovnkube-control-plane
+            memory: 100Mi
+            cpu: 100m
+      name: e2e_minimal
+{{ else }}
 apiVersion: scheduling.hypershift.openshift.io/v1alpha1
 kind: ClusterSizingConfiguration
 metadata:
@@ -192,3 +242,4 @@ spec:
   transitionDelay:
     decrease: 20m
     increase: 0s
+{{ end }}

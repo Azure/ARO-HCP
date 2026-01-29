@@ -16,9 +16,9 @@ package tracing
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"time"
 
+	"github.com/go-logr/logr"
 	"go.opentelemetry.io/contrib/exporters/autoexport"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -45,7 +45,7 @@ import (
 // An error is returned if an environment value is set to an unhandled value.
 //
 // If no environment variable are set, a no-op tracer is setup.
-func ConfigureOpenTelemetryTracer(ctx context.Context, logger *slog.Logger, resourceAttrs ...attribute.KeyValue) (
+func ConfigureOpenTelemetryTracer(ctx context.Context, logger logr.Logger, resourceAttrs ...attribute.KeyValue) (
 	func(context.Context) error,
 	error,
 ) {
@@ -56,7 +56,7 @@ func ConfigureOpenTelemetryTracer(ctx context.Context, logger *slog.Logger, reso
 
 	_, isNoop := exp.(*noopSpanExporter)
 	isNoop = isNoop || autoexport.IsNoneSpanExporter(exp)
-	logger.InfoContext(ctx, "initialising OpenTelemetry tracer", "isNoop", isNoop)
+	logger.Info("initialising OpenTelemetry tracer", "isNoop", isNoop)
 
 	opts := []resource.Option{resource.WithHost()}
 	if len(resourceAttrs) > 0 {
@@ -85,7 +85,7 @@ func ConfigureOpenTelemetryTracer(ctx context.Context, logger *slog.Logger, reso
 	otel.SetTextMapPropagator(propagator)
 
 	otel.SetErrorHandler(otelErrorHandlerFunc(func(err error) {
-		logger.ErrorContext(ctx, fmt.Sprintf("OpenTelemetry.ErrorHandler: %v", err))
+		logger.Error(err, "OpenTelemetry.ErrorHandler")
 	}))
 
 	return shutdown, nil

@@ -1,0 +1,10 @@
+{
+    "href": "/api/clusters_mgmt/v1/clusters/9p2sk955gj",
+    "kind": "ClusterAutoscaler",
+    "max_node_provision_time": "15m",
+    "max_pod_grace_period": 600,
+    "pod_priority_threshold": -10,
+    "resource_limits": {
+        "max_nodes_total": 0
+    }
+}

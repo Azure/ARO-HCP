@@ -1,0 +1,21 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backend-azure-runtime-config
+  namespace: '{{ .Release.Namespace }}'
+data:
+  config.yaml: |
+    cloudEnvironment: "{{ .Values.azure.cloudEnvironmentName }}"
+    managedIdentitiesDataPlaneAudienceResource: "{{ .Values.azure.msiRpDataPlaneAudienceResource }}"
+    tenantID: "{{ .Values.azure.tenantId }}"
+    ocpImagesACR:
+      resourceID: "{{ .Values.azure.ocpAcrResourceId }}"
+      hostname: "{{ .Values.azure.ocpAcrHostname }}"
+      scopeMapName: "_repositories_pull"
+    dataPlaneIdentitiesOIDCConfiguration:
+      storageAccountBlobContainerName: "$web"
+      storageAccountBlobServiceURL: "{{ .Values.azure.oidcIssuerBlobServiceUrl }}"
+      oidcIssuerBaseURL: "{{ .Values.azure.oidcIssuerBaseUrl }}"
+    tlsCertificatesConfig:
+      issuer: "{{ .Values.azure.tlsCertificatesConfig.issuer }}"
+      certificatesGenerationSource: {{ .Values.azure.tlsCertificatesConfig.certificatesGenerationSource }}

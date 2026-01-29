@@ -22,20 +22,16 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-
-	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 )
 
 type listStep[InternalAPIType any] struct {
-	stepID      StepID
-	key         CosmosCRUDKey
-	specializer ResourceCRUDTestSpecializer[InternalAPIType]
+	stepID StepID
+	key    CosmosCRUDKey
 
-	cosmosContainer   *azcosmos.ContainerClient
 	expectedResources []*InternalAPIType
 }
 
-func newListStep[InternalAPIType any](stepID StepID, specializer ResourceCRUDTestSpecializer[InternalAPIType], cosmosContainer *azcosmos.ContainerClient, stepDir fs.FS) (*listStep[InternalAPIType], error) {
+func newListStep[InternalAPIType any](stepID StepID, stepDir fs.FS) (*listStep[InternalAPIType], error) {
 	keyBytes, err := fs.ReadFile(stepDir, "00-key.json")
 	if err != nil {
 		return nil, fmt.Errorf("failed to read key.json: %w", err)
@@ -53,8 +49,6 @@ func newListStep[InternalAPIType any](stepID StepID, specializer ResourceCRUDTes
 	return &listStep[InternalAPIType]{
 		stepID:            stepID,
 		key:               key,
-		specializer:       specializer,
-		cosmosContainer:   cosmosContainer,
 		expectedResources: expectedResources,
 	}, nil
 }
@@ -65,9 +59,9 @@ func (l *listStep[InternalAPIType]) StepID() StepID {
 	return l.stepID
 }
 
-func (l *listStep[InternalAPIType]) RunTest(ctx context.Context, t *testing.T) {
-	controllerCRUDClient := l.specializer.ResourceCRUDFromKey(t, l.cosmosContainer, l.key)
-	actualControllersIterator, err := controllerCRUDClient.List(ctx, nil)
+func (l *listStep[InternalAPIType]) RunTest(ctx context.Context, t *testing.T, stepInput StepInput) {
+	resourceCRUDClient := NewCosmosCRUD[InternalAPIType](t, stepInput.DBClient, l.key.ParentResourceID, l.key.ResourceType.ResourceType)
+	actualControllersIterator, err := resourceCRUDClient.List(ctx, nil)
 	require.NoError(t, err)
 
 	actualResources := []*InternalAPIType{}
@@ -85,7 +79,7 @@ func (l *listStep[InternalAPIType]) RunTest(ctx context.Context, t *testing.T) {
 	for _, expected := range l.expectedResources {
 		found := false
 		for _, actual := range actualResources {
-			if l.specializer.InstanceEquals(expected, actual) {
+			if _, equals := ResourceInstanceEquals(t, expected, actual); equals {
 				found = true
 				break
 			}
@@ -93,14 +87,14 @@ func (l *listStep[InternalAPIType]) RunTest(ctx context.Context, t *testing.T) {
 		if !found {
 			t.Logf("actual:\n%v", stringifyResource(actualResources))
 		}
-		require.True(t, found, "expected resource not found: %v", l.specializer.NameFromInstance(expected))
+		require.True(t, found, "expected resource not found: %v", ResourceName(expected))
 	}
 
 	// all the actual must be expected
 	for _, actual := range actualResources {
 		found := false
 		for _, expected := range l.expectedResources {
-			if l.specializer.InstanceEquals(expected, actual) {
+			if _, equals := ResourceInstanceEquals(t, expected, actual); equals {
 				found = true
 				break
 			}
@@ -108,6 +102,6 @@ func (l *listStep[InternalAPIType]) RunTest(ctx context.Context, t *testing.T) {
 		if !found {
 			t.Logf("expected:\n%v", stringifyResource(l.expectedResources))
 		}
-		require.True(t, found, "actual resource not found: %v", l.specializer.NameFromInstance(actual))
+		require.True(t, found, "actual resource not found: %v", ResourceName(actual))
 	}
 }

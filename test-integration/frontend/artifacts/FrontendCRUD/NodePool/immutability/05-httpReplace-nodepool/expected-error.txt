@@ -1,0 +1,35 @@
+      {
+        "code": "InvalidRequestContent",
+        "message": "Forbidden: field is immutable",
+        "target": "properties.autoRepair"
+      }
+      {
+        "code": "InvalidRequestContent",
+        "message": "Forbidden: field is immutable",
+        "target": "properties.platform.vmSize"
+      }
+      {
+        "code": "InvalidRequestContent",
+        "message": "Forbidden: field is immutable",
+        "target": "properties.platform.availabilityZone"
+      }
+      {
+        "code": "InvalidRequestContent",
+        "message": "Forbidden: field is immutable",
+        "target": "properties.platform.enableEncryptionAtHost"
+      }
+      {
+        "code": "InvalidRequestContent",
+        "message": "Forbidden: field is immutable",
+        "target": "properties.platform.osDisk"
+      }
+      {
+        "code": "InvalidRequestContent",
+        "message": "Unsupported value: \"Changed\": supported values: \"Premium_LRS\", \"StandardSSD_LRS\", \"Standard_LRS\"",
+        "target": "properties.platform.osDisk.diskStorageAccountType"
+      }
+      {
+        "code": "InvalidRequestContent",
+        "message": "Forbidden: field is immutable",
+        "target": "properties.platform"
+      }

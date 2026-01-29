@@ -17,15 +17,15 @@ package utils
 import (
 	"log/slog"
 	"os"
+
+	"github.com/go-logr/logr"
 )
 
 const TracerName = "github.com/Azure/ARO-HCP/frontend"
 
-func DefaultLogger() *slog.Logger {
-	handlerOptions := slog.HandlerOptions{
+func DefaultLogger() logr.Logger {
+	handler := slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{
 		AddSource: true,
-	}
-	handler := slog.NewJSONHandler(os.Stdout, &handlerOptions)
-	logger := slog.New(handler)
-	return logger
+	})
+	return logr.FromSlogHandler(handler)
 }

@@ -18,7 +18,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -27,7 +26,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/go-logr/logr"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -42,6 +40,7 @@ import (
 	"k8s.io/client-go/tools/leaderelection"
 	"k8s.io/client-go/tools/leaderelection/resourcelock"
 	"k8s.io/klog/v2"
+	utilsclock "k8s.io/utils/clock"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
@@ -49,10 +48,20 @@ import (
 
 	ocmsdk "github.com/openshift-online/ocm-sdk-go"
 
-	"github.com/Azure/ARO-HCP/backend/controllers"
+	"github.com/Azure/ARO-HCP/backend/oldoperationscanner"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/informers"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/mismatchcontrollers"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/operationcontrollers"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/validationcontrollers"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/validationcontrollers/validations"
+	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/tracing"
+	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/internal/version"
 )
 
@@ -64,15 +73,18 @@ const (
 )
 
 var (
-	argKubeconfig           string
-	argNamespace            string
-	argLocation             string
-	argCosmosName           string
-	argCosmosURL            string
-	argClustersServiceURL   string
-	argInsecure             bool
-	argMetricsListenAddress string
-	argPortListenAddress    string
+	argKubeconfig             string
+	argNamespace              string
+	argLocation               string
+	argCosmosName             string
+	argCosmosURL              string
+	argClustersServiceURL     string
+	argInsecure               bool
+	argMetricsListenAddress   string
+	argPortListenAddress      string
+	argAzureRuntimeConfigPath string
+	argAzureFPACertBundlePath string
+	argAzureFPAClientID       string
 
 	processName = filepath.Base(os.Args[0])
 
@@ -107,6 +119,23 @@ func init() {
 	rootCmd.Flags().BoolVar(&argInsecure, "insecure", false, "Skip validating TLS for clusters-service")
 	rootCmd.Flags().StringVar(&argMetricsListenAddress, "metrics-listen-address", ":8081", "Address on which to expose metrics")
 	rootCmd.Flags().StringVar(&argPortListenAddress, "healthz-listen-address", ":8083", "Address on which Healthz endpoint will be supported")
+	rootCmd.Flags().StringVar(
+		&argAzureRuntimeConfigPath, "azure-runtime-config-path", "",
+		"Path to a file containing the Azure runtime configuration in JSON or YAML format following the schema defined "+
+			"in backend/pkg/apis/config/v1.AzureRuntimeConfig",
+	)
+	rootCmd.Flags().StringVar(
+		&argAzureFPACertBundlePath,
+		"azure-first-party-application-certificate-bundle-path", "",
+		"Path to a file containing an X.509 Certificate based client certificate, consisting of a private key and "+
+			"certificate chain, in a PEM or PKCS#12 format for authenticating clients with a first party application identity",
+	)
+	rootCmd.Flags().StringVar(
+		&argAzureFPAClientID,
+		"azure-first-party-application-client-id",
+		"",
+		"The client id of the first party application identity",
+	)
 
 	rootCmd.MarkFlagsRequiredTogether("cosmos-name", "cosmos-url")
 
@@ -122,22 +151,21 @@ func newKubeconfig(kubeconfig string) (*rest.Config, error) {
 }
 
 func Run(cmd *cobra.Command, args []string) error {
-	handler := slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
-		AddSource: true,
-	})
-	logger := slog.New(handler)
-	klog.SetLogger(logr.FromSlogHandler(handler))
+	ctx := context.Background()
+
+	logger := utils.DefaultLogger()
+	klog.SetLogger(logger)
+	ctx = utils.ContextWithLogger(ctx, logger)
 
 	if len(argLocation) == 0 {
 		return errors.New("location is required")
 	}
-	arm.SetAzureLocation(argLocation)
 
 	logger.Info(fmt.Sprintf(
 		"%s (%s) started in %s",
 		cmd.Short,
 		version.CommitSHA,
-		arm.GetAzureLocation()))
+		argLocation))
 
 	// Use pod name as the lock identity.
 	hostname, err := os.Hostname()
@@ -164,11 +192,10 @@ func Run(cmd *cobra.Command, args []string) error {
 	}
 
 	// Initialize the global OpenTelemetry tracer.
-	ctx := context.Background()
 	otelShutdown, err := tracing.ConfigureOpenTelemetryTracer(
 		ctx,
 		logger,
-		semconv.CloudRegion(arm.GetAzureLocation()),
+		semconv.CloudRegion(argLocation),
 		semconv.ServiceNameKey.String("ARO HCP Backend"),
 		semconv.ServiceVersionKey.String(version.CommitSHA),
 	)
@@ -273,11 +300,96 @@ func Run(cmd *cobra.Command, args []string) error {
 		}
 	}()
 
+	clusterServiceClient := ocm.NewClusterServiceClientWithTracing(
+		ocm.NewClusterServiceClient(
+			ocmConnection,
+			"",
+			false,
+			false,
+		),
+		oldoperationscanner.TracerName,
+	)
+	subscriptionLister := listers.NewThreadSafeAtomicLister[arm.Subscription]()
+
 	group.Go(func() error {
 		var (
-			startedLeading      atomic.Bool
-			operationsScanner   = NewOperationsScanner(dbClient, ocmConnection)
-			doNothingController = controllers.NewDoNothingExampleController(dbClient)
+			startedLeading                 atomic.Bool
+			operationsScanner              = oldoperationscanner.NewOperationsScanner(dbClient, ocmConnection, argLocation, subscriptionLister)
+			subscriptionInformerController = informers.NewSubscriptionInformerController(dbClient, subscriptionLister)
+			dataDumpController             = controllerutils.NewClusterWatchingController(
+				"DataDump", dbClient, subscriptionLister, 1*time.Minute, controllers.NewDataDumpController(dbClient))
+			doNothingController              = controllers.NewDoNothingExampleController(dbClient, subscriptionLister)
+			operationClusterCreateController = operationcontrollers.NewGenericOperationController(
+				"OperationClusterCreate",
+				operationcontrollers.NewOperationClusterCreateSynchronizer(
+					argLocation,
+					dbClient,
+					clusterServiceClient,
+					http.DefaultClient,
+				),
+				10*time.Second,
+				subscriptionLister,
+				dbClient,
+			)
+			operationClusterUpdateController = operationcontrollers.NewGenericOperationController(
+				"OperationClusterUpdate",
+				operationcontrollers.NewOperationClusterUpdateSynchronizer(
+					dbClient,
+					clusterServiceClient,
+					http.DefaultClient,
+				),
+				10*time.Second,
+				subscriptionLister,
+				dbClient,
+			)
+			operationClusterDeleteController = operationcontrollers.NewGenericOperationController(
+				"OperationClusterDelete",
+				operationcontrollers.NewOperationClusterDeleteSynchronizer(
+					dbClient,
+					clusterServiceClient,
+					http.DefaultClient,
+				),
+				10*time.Second,
+				subscriptionLister,
+				dbClient,
+			)
+			operationRequestCredentialController = operationcontrollers.NewGenericOperationController(
+				"OperationRequestCredential",
+				operationcontrollers.NewOperationRequestCredentialSynchronizer(
+					dbClient,
+					clusterServiceClient,
+					http.DefaultClient,
+				),
+				10*time.Second,
+				subscriptionLister,
+				dbClient,
+			)
+			operationRevokeCredentialsController = operationcontrollers.NewGenericOperationController(
+				"OperationRevokeCredentials",
+				operationcontrollers.NewOperationRevokeCredentialsSynchronizer(
+					dbClient,
+					clusterServiceClient,
+					http.DefaultClient,
+				),
+				10*time.Second,
+				subscriptionLister,
+				dbClient,
+			)
+			clusterServiceMatchingClusterController = mismatchcontrollers.NewClusterServiceClusterMatchingController(dbClient, subscriptionLister, clusterServiceClient)
+			cosmosMatchingNodePoolController        = controllerutils.NewClusterWatchingController(
+				"CosmosMatchingNodePools", dbClient, subscriptionLister, 60*time.Minute,
+				mismatchcontrollers.NewCosmosNodePoolMatchingController(dbClient, clusterServiceClient))
+			cosmosMatchingExternalAuthController = controllerutils.NewClusterWatchingController(
+				"CosmosMatchingExternalAuths", dbClient, subscriptionLister, 60*time.Minute,
+				mismatchcontrollers.NewCosmosExternalAuthMatchingController(dbClient, clusterServiceClient))
+			cosmosMatchingClusterController = controllerutils.NewClusterWatchingController(
+				"CosmosMatchingClusters", dbClient, subscriptionLister, 60*time.Minute,
+				mismatchcontrollers.NewCosmosClusterMatchingController(utilsclock.RealClock{}, dbClient, clusterServiceClient))
+			alwaysSuccessClusterValidationController = validationcontrollers.NewClusterValidationController(
+				validations.NewAlwaysSuccessValidation(),
+				dbClient,
+				subscriptionLister,
+			)
 		)
 
 		le, err := leaderelection.NewLeaderElector(leaderelection.LeaderElectionConfig{
@@ -287,13 +399,25 @@ func Run(cmd *cobra.Command, args []string) error {
 			RetryPeriod:   leaderElectionRetryPeriod,
 			Callbacks: leaderelection.LeaderCallbacks{
 				OnStartedLeading: func(ctx context.Context) {
-					operationsScanner.leaderGauge.Set(1)
+					operationsScanner.LeaderGauge.Set(1)
 					startedLeading.Store(true)
-					go operationsScanner.Run(ctx, logger)
+					go subscriptionInformerController.Run(ctx, 1)
+					go operationsScanner.Run(ctx)
+					go dataDumpController.Run(ctx, 20)
 					go doNothingController.Run(ctx, 20)
+					go operationClusterCreateController.Run(ctx, 20)
+					go operationClusterUpdateController.Run(ctx, 20)
+					go operationClusterDeleteController.Run(ctx, 20)
+					go operationRequestCredentialController.Run(ctx, 20)
+					go operationRevokeCredentialsController.Run(ctx, 20)
+					go clusterServiceMatchingClusterController.Run(ctx, 20)
+					go cosmosMatchingNodePoolController.Run(ctx, 20)
+					go cosmosMatchingExternalAuthController.Run(ctx, 20)
+					go cosmosMatchingClusterController.Run(ctx, 20)
+					go alwaysSuccessClusterValidationController.Run(ctx, 20)
 				},
 				OnStoppedLeading: func() {
-					operationsScanner.leaderGauge.Set(0)
+					operationsScanner.LeaderGauge.Set(0)
 					if startedLeading.Load() {
 						operationsScanner.Join()
 					}
@@ -312,7 +436,7 @@ func Run(cmd *cobra.Command, args []string) error {
 	})
 
 	if err := group.Wait(); err != nil {
-		logger.Error(err.Error())
+		logger.Error(err, "backend exiting with error")
 		os.Exit(1)
 	}
 

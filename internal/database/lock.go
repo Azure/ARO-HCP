@@ -14,6 +14,8 @@
 
 package database
 
+//go:generate $MOCKGEN -typed -source=lock.go -destination=mock_lock.go -package database LockClientInterface
+
 import (
 	"context"
 	"encoding/json"

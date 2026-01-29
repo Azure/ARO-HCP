@@ -28,7 +28,7 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
-	"github.com/Azure/ARO-HCP/internal/mocks"
+	"github.com/Azure/ARO-HCP/internal/database"
 )
 
 func TestMiddlewareLockSubscription(t *testing.T) {
@@ -45,8 +45,8 @@ func TestMiddlewareLockSubscription(t *testing.T) {
 
 	ctx := context.Background()
 	mockController := gomock.NewController(t)
-	mockDBClient := mocks.NewMockDBClient(mockController)
-	mockLockClient := mocks.NewMockLockClientInterface(mockController)
+	mockDBClient := database.NewMockDBClient(mockController)
+	mockLockClient := database.NewMockLockClientInterface(mockController)
 	mockLockClient.EXPECT().GetDefaultTimeToLive().Return(10 * time.Second)
 	lockResponse := &azcosmos.ItemResponse{}
 	mockLockClient.EXPECT().AcquireLock(gomock.Not(gomock.Nil()), "TheSubscriptionID", ptr.To(10*time.Second)).Return(lockResponse, nil)

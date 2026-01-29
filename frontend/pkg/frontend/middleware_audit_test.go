@@ -17,11 +17,11 @@ package frontend
 import (
 	"bytes"
 	"context"
-	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
+	"github.com/go-logr/logr/testr"
 	"github.com/microsoft/go-otel-audit/audit/base"
 	"github.com/microsoft/go-otel-audit/audit/msgs"
 	"github.com/stretchr/testify/assert"
@@ -62,7 +62,7 @@ func TestMiddlewareAudit(t *testing.T) {
 			ctx := context.Background()
 			testClient := testClient{messages: []msgs.Msg{}}
 
-			ctx = utils.ContextWithLogger(ctx, slog.Default())
+			ctx = utils.ContextWithLogger(ctx, testr.New(t))
 
 			writer := httptest.NewRecorder()
 			request, err := http.NewRequest("GET", "", bytes.NewReader([]byte{}))

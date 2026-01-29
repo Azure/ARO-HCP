@@ -14,6 +14,8 @@
 
 package database
 
+//go:generate $MOCKGEN -typed -source=crud_untyped_resource.go -destination=mock_crud_untyped_resource.go -package database UntypedResourceCRUD
+
 import (
 	"context"
 	"fmt"

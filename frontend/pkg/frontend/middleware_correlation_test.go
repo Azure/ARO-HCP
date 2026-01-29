@@ -22,6 +22,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/go-logr/logr"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/Azure/ARO-HCP/internal/api/arm"
@@ -133,7 +134,7 @@ func TestMiddlewareCorrelation(t *testing.T) {
 				writer = httptest.NewRecorder()
 				req    = &tt.r
 				buf    bytes.Buffer
-				logger = slog.New(slog.NewTextHandler(&buf, nil))
+				logger = logr.FromSlogHandler(slog.NewTextHandler(&buf, nil))
 				data   *arm.CorrelationData
 			)
 			req = req.WithContext(utils.ContextWithLogger(req.Context(), logger))

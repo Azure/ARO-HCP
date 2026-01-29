@@ -15,18 +15,23 @@
 package api
 
 import (
+	"strings"
+
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+
+	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
 
-type CosmosPersistable interface {
-	GetCosmosData() CosmosData
-	SetCosmosDocumentData(cosmosUID string)
-}
+type CosmosMetadata = arm.CosmosMetadata
+type CosmosMetadataAccessor = arm.CosmosMetadataAccessor
+type CosmosPersistable = arm.CosmosPersistable
+type CosmosData = arm.CosmosMetadata
 
-// CosmosData contains the information that persisted resources must have for us to support CRUD against them.
-// These are not (currently) all stored in the same place in our various types.
-type CosmosData struct {
-	CosmosUID    string
-	PartitionKey string
-	ItemID       *azcorearm.ResourceID
+var (
+	ResourceIDToCosmosID       = arm.ResourceIDToCosmosID
+	ResourceIDStringToCosmosID = arm.ResourceIDStringToCosmosID
+)
+
+func CosmosIDToResourceID(resourceID string) (*azcorearm.ResourceID, error) {
+	return azcorearm.ParseResourceID(strings.ReplaceAll(resourceID, "|", "/"))
 }

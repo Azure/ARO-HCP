@@ -79,7 +79,6 @@ func (f *Frontend) routes(r prometheus.Registerer) http.Handler {
 		MiddlewarePanic,
 		MiddlewareBody,
 		MiddlewareSystemData,
-		MiddlewareValidateStatic,
 	)
 
 	middlewareMux.HandleFunc("/", f.NotFound)

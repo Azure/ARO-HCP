@@ -33,6 +33,13 @@ param subnetName string
 @description('The KeyVault name that contains the etcd encryption key')
 param keyVaultName string
 
+@description('RBAC scope to use for role assignments: resourceGroup or resource')
+@allowed([
+  'resource'
+  'resourceGroup'
+])
+param rbacScope string = 'resourceGroup'
+
 //
 // E X I S T I N G   R E S O U R C E S
 //
@@ -104,7 +111,17 @@ var hcpControlPlaneOperatorRoleId = subscriptionResourceId(
   'fc0c873f-45e9-4d0d-a7d1-585aab30c6ed'
 )
 
-resource hcpControlPlaneOperatorVnetRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+resource hcpControlPlaneOperatorResourceGroupRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (rbacScope == 'resourceGroup') {
+  name: guid(resourceGroup().id, controlPlaneMi.id, hcpControlPlaneOperatorRoleId)
+  scope: resourceGroup()
+  properties: {
+    principalId: controlPlaneMi.properties.principalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: hcpControlPlaneOperatorRoleId
+  }
+}
+
+resource hcpControlPlaneOperatorVnetRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (rbacScope == 'resource') {
   name: guid(resourceGroup().id, controlPlaneMi.id, hcpControlPlaneOperatorRoleId, vnet.id)
   scope: vnet
   properties: {
@@ -114,7 +131,7 @@ resource hcpControlPlaneOperatorVnetRoleAssignment 'Microsoft.Authorization/role
   }
 }
 
-resource hcpControlPlaneOperatorNsgRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+resource hcpControlPlaneOperatorNsgRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (rbacScope == 'resource') {
   name: guid(resourceGroup().id, controlPlaneMi.id, hcpControlPlaneOperatorRoleId, nsg.id)
   scope: nsg
   properties: {
@@ -141,7 +158,17 @@ var cloudControllerManagerRoleId = subscriptionResourceId(
   'a1f96423-95ce-4224-ab27-4e3dc72facd4'
 )
 
-resource cloudControllerManagerRoleSubnetAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+resource cloudControllerManagerRoleResourceGroupAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (rbacScope == 'resourceGroup') {
+  name: guid(resourceGroup().id, cloudControllerManagerMi.id, cloudControllerManagerRoleId)
+  scope: resourceGroup()
+  properties: {
+    principalId: cloudControllerManagerMi.properties.principalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: cloudControllerManagerRoleId
+  }
+}
+
+resource cloudControllerManagerRoleSubnetAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (rbacScope == 'resource') {
   name: guid(resourceGroup().id, cloudControllerManagerMi.id, cloudControllerManagerRoleId, subnet.id)
   scope: subnet
   properties: {
@@ -151,7 +178,7 @@ resource cloudControllerManagerRoleSubnetAssignment 'Microsoft.Authorization/rol
   }
 }
 
-resource cloudControllerManagerRoleNsgAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+resource cloudControllerManagerRoleNsgAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (rbacScope == 'resource') {
   name: guid(resourceGroup().id, cloudControllerManagerMi.id, cloudControllerManagerRoleId, nsg.id)
   scope: nsg
   properties: {
@@ -216,7 +243,17 @@ var fileStorageOperatorRoleId = subscriptionResourceId(
   '0d7aedc0-15fd-4a67-a412-efad370c947e'
 )
 
-resource fileStorageOperatorRoleSubnetAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+resource fileStorageOperatorRoleResourceGroupAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (rbacScope == 'resourceGroup') {
+  name: guid(resourceGroup().id, fileCsiDriverMi.id, fileStorageOperatorRoleId)
+  scope: resourceGroup()
+  properties: {
+    principalId: fileCsiDriverMi.properties.principalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: fileStorageOperatorRoleId
+  }
+}
+
+resource fileStorageOperatorRoleSubnetAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (rbacScope == 'resource') {
   name: guid(resourceGroup().id, fileCsiDriverMi.id, fileStorageOperatorRoleId, subnet.id)
   scope: subnet
   properties: {
@@ -226,7 +263,7 @@ resource fileStorageOperatorRoleSubnetAssignment 'Microsoft.Authorization/roleAs
   }
 }
 
-resource fileStorageOperatorRoleNsgAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+resource fileStorageOperatorRoleNsgAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (rbacScope == 'resource') {
   name: guid(resourceGroup().id, fileCsiDriverMi.id, fileStorageOperatorRoleId, nsg.id)
   scope: nsg
   properties: {
@@ -263,7 +300,17 @@ var networkOperatorRoleId = subscriptionResourceId(
   'be7a6435-15ae-4171-8f30-4a343eff9e8f'
 )
 
-resource networkOperatorRoleSubnetAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+resource networkOperatorRoleResourceGroupAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (rbacScope == 'resourceGroup') {
+  name: guid(resourceGroup().id, cloudNetworkConfigMi.id, networkOperatorRoleId)
+  scope: resourceGroup()
+  properties: {
+    principalId: cloudNetworkConfigMi.properties.principalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: networkOperatorRoleId
+  }
+}
+
+resource networkOperatorRoleSubnetAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (rbacScope == 'resource') {
   name: guid(resourceGroup().id, cloudNetworkConfigMi.id, networkOperatorRoleId, subnet.id)
   scope: subnet
   properties: {
@@ -273,7 +320,7 @@ resource networkOperatorRoleSubnetAssignment 'Microsoft.Authorization/roleAssign
   }
 }
 
-resource networkOperatorRoleVnetAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+resource networkOperatorRoleVnetAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (rbacScope == 'resource') {
   name: guid(resourceGroup().id, cloudNetworkConfigMi.id, networkOperatorRoleId, vnet.id)
   scope: vnet
   properties: {
@@ -298,7 +345,17 @@ resource dpFileCsiDriverMi 'Microsoft.ManagedIdentity/userAssignedIdentities@202
   scope: resourceGroup(resourceGroupName)
 }
 
-resource dpFileCsiDriverFileStorageOperatorRoleSubnetAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+resource dpFileCsiDriverFileStorageOperatorRoleResourceGroupAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (rbacScope == 'resourceGroup') {
+  name: guid(resourceGroup().id, dpFileCsiDriverMi.id, fileStorageOperatorRoleId)
+  scope: resourceGroup()
+  properties: {
+    principalId: dpFileCsiDriverMi.properties.principalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: fileStorageOperatorRoleId
+  }
+}
+
+resource dpFileCsiDriverFileStorageOperatorRoleSubnetAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (rbacScope == 'resource') {
   name: guid(resourceGroup().id, dpFileCsiDriverMi.id, fileStorageOperatorRoleId, subnet.id)
   scope: subnet
   properties: {
@@ -308,7 +365,7 @@ resource dpFileCsiDriverFileStorageOperatorRoleSubnetAssignment 'Microsoft.Autho
   }
 }
 
-resource dpFileCsiDriverFileStorageOperatorRoleNsgAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+resource dpFileCsiDriverFileStorageOperatorRoleNsgAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (rbacScope == 'resource') {
   name: guid(resourceGroup().id, dpFileCsiDriverMi.id, fileStorageOperatorRoleId, nsg.id)
   scope: nsg
   properties: {
@@ -339,8 +396,18 @@ var hcpServiceManagedIdentityRoleId = subscriptionResourceId(
   'c0ff367d-66d8-445e-917c-583feb0ef0d4'
 )
 
+resource serviceManagedIdentityRoleAssignmentResourceGroup 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (rbacScope == 'resourceGroup') {
+  name: guid(resourceGroup().id, serviceManagedIdentity.id, hcpServiceManagedIdentityRoleId)
+  scope: resourceGroup()
+  properties: {
+    principalId: serviceManagedIdentity.properties.principalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: hcpServiceManagedIdentityRoleId
+  }
+}
+
 // grant service managed identity role to the service managed identity over the user provided subnet
-resource serviceManagedIdentityRoleAssignmentVnet 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+resource serviceManagedIdentityRoleAssignmentVnet 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (rbacScope == 'resource') {
   name: guid(resourceGroup().id, serviceManagedIdentity.id, hcpServiceManagedIdentityRoleId, vnet.id)
   scope: vnet
   properties: {
@@ -351,7 +418,7 @@ resource serviceManagedIdentityRoleAssignmentVnet 'Microsoft.Authorization/roleA
 }
 
 // grant service managed identity role to the service managed identity over the user provided subnet
-resource serviceManagedIdentityRoleAssignmentSubnet 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+resource serviceManagedIdentityRoleAssignmentSubnet 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (rbacScope == 'resource') {
   name: guid(resourceGroup().id, serviceManagedIdentity.id, hcpServiceManagedIdentityRoleId, subnet.id)
   scope: subnet
   properties: {
@@ -362,7 +429,7 @@ resource serviceManagedIdentityRoleAssignmentSubnet 'Microsoft.Authorization/rol
 }
 
 // grant service managed identity role to the service managed identity over the user provided NSG
-resource serviceManagedIdentityRoleAssignmentNSG 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+resource serviceManagedIdentityRoleAssignmentNSG 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (rbacScope == 'resource') {
   name: guid(resourceGroup().id, serviceManagedIdentity.id, hcpServiceManagedIdentityRoleId, nsg.id)
   scope: nsg
   properties: {

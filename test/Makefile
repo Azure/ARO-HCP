@@ -20,7 +20,11 @@ $(BICEP_OUTPUT_DIR)%.json: $(TEST_BICEP_DIR)/%.bicep
 	@mkdir -p $(dir $@)
 	az bicep build --file=$< --outfile=$@
 
-update: $(DEMO_BICEP_OUTPUTS) $(TEST_BICEP_OUTPUTS)
+update-go-fixtures:
+	UPDATE=true go test --count=1 ./... -v
+.PHONY: update-go-fixtures
+
+update: $(DEMO_BICEP_OUTPUTS) $(TEST_BICEP_OUTPUTS) update-go-fixtures
 .PHONY: update
 
 TEST_SOURCES = $(shell find $(TEST_DIR) -name '*.go' -o -name '*.json' -o -name '*.bicep')

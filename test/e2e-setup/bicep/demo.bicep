@@ -16,7 +16,7 @@ param usePooledIdentities bool = false
 param openshiftControlPlaneVersionId string = '4.20'
 
 @description('NodePool OpenShift Version ID')
-param openshiftNodePoolVersionId string = '4.20.5'
+param openshiftNodePoolVersionId string = '4.20.8'
 
 module customerInfra 'modules/customer-infra.bicep' = {
   name: 'customerInfra'

@@ -14,6 +14,8 @@
 
 package ocm
 
+//go:generate $MOCKGEN -typed -source=client.go -destination=mock_client.go -package ocm ClusterServiceClientSpec
+
 import (
 	"context"
 	"fmt"
@@ -30,7 +32,7 @@ import (
 // The patch version is managed by Red Hat.
 const (
 	OpenShift419Patch = "7"
-	OpenShift420Patch = "5"
+	OpenShift420Patch = "8"
 )
 
 type ClusterServiceClientSpec interface {

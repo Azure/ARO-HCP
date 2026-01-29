@@ -4,7 +4,7 @@
     "_rid": "QS9oAIjBpYUCAAAAAAAAAA==",
     "_self": "dbs/QS9oAA==/colls/QS9oAIjBpYU=/docs/QS9oAIjBpYUCAAAAAAAAAA==/",
     "_ts": 1764966610,
-    "id": "8feb19cd-3d3c-4575-863b-b26ad817ce18",
+    "id": "|subscriptions|f52dfea2-47ee-4396-8006-4a27d47d59c5|resourcegroups|some-resource-group|providers|microsoft.redhatopenshift|hcpopenshiftclusters|basic-external-auth",
     "partitionKey": "f52dfea2-47ee-4396-8006-4a27d47d59c5",
     "properties": {
         "customerDesiredState": null,

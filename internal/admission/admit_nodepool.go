@@ -20,8 +20,6 @@ import (
 
 	"k8s.io/apimachinery/pkg/util/validation/field"
 
-	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
-
 	"github.com/Azure/ARO-HCP/internal/api"
 )
 
@@ -38,21 +36,15 @@ func AdmitNodePool(nodePool *api.HCPOpenShiftClusterNodePool, cluster *api.HCPOp
 		))
 	}
 
-	if len(nodePool.Properties.Platform.SubnetID) > 0 && len(cluster.CustomerProperties.Platform.SubnetID) > 0 {
-		clusterSubnetResourceID, _ := azcorearm.ParseResourceID(cluster.CustomerProperties.Platform.SubnetID)
-		nodePoolSubnetResourceID, _ := azcorearm.ParseResourceID(nodePool.Properties.Platform.SubnetID)
-
-		// if this fails, then other validation will fail
-		if clusterSubnetResourceID != nil && nodePoolSubnetResourceID != nil {
-			clusterVNet := clusterSubnetResourceID.Parent.String()
-			nodePoolVNet := nodePoolSubnetResourceID.Parent.String()
-			if !strings.EqualFold(nodePoolVNet, clusterVNet) {
-				errs = append(errs, field.Invalid(
-					field.NewPath("properties", "platform", "subnetId"),
-					nodePool.Properties.Platform.SubnetID,
-					fmt.Sprintf("must belong to the same VNet as the parent cluster VNet '%s'", clusterVNet),
-				))
-			}
+	if nodePool.Properties.Platform.SubnetID != nil && cluster.CustomerProperties.Platform.SubnetID != nil {
+		clusterVNet := cluster.CustomerProperties.Platform.SubnetID.Parent.String()
+		nodePoolVNet := nodePool.Properties.Platform.SubnetID.Parent.String()
+		if !strings.EqualFold(nodePoolVNet, clusterVNet) {
+			errs = append(errs, field.Invalid(
+				field.NewPath("properties", "platform", "subnetId"),
+				nodePool.Properties.Platform.SubnetID,
+				fmt.Sprintf("must belong to the same VNet as the parent cluster VNet '%s'", clusterVNet),
+			))
 		}
 	}
 

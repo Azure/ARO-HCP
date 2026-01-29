@@ -1,0 +1,39 @@
+{
+	"name": "duplicate-client-components-auth",
+	"properties": {
+		"claim": {
+			"mappings": {
+				"username": {
+					"claim": "sub",
+					"prefixPolicy": "None"
+				}
+			}
+		},
+		"clients": [
+			{
+				"clientId": "client-1",
+				"component": {
+					"authClientNamespace": "openshift-console",
+					"name": "duplicate-component"
+				},
+				"type": "Confidential"
+			},
+			{
+				"clientId": "client-2",
+				"component": {
+					"authClientNamespace": "openshift-console",
+					"name": "duplicate-component"
+				},
+				"type": "Public"
+			}
+		],
+		"issuer": {
+			"audiences": [
+				"client-1",
+				"client-2"
+			],
+			"url": "https://login.microsoftonline.com/12345678-1234-1234-1234-123456789abc/v2.0"
+		}
+	},
+	"type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/externalAuths"
+}

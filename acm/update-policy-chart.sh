@@ -11,25 +11,48 @@ TMP_DIR=$(mktemp -d)
 policy_helm_charts_dir="$POLICY_HELM_CHART_BASE_DIR/charts"
 
 # Check required environment variables
-if [[ -z "${ACM_VERSION:-}" ]]; then
-  echo "Error: ACM_VERSION environment variable must be set."
-  exit 1
-fi
-
-# Validate ACM_VERSION format (must be a.b.c, where a, b, c are numbers(e.g., 2.14.3).)
-if ! [[ "$ACM_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-  echo "Error: ACM_VERSION must be in the format a.b.c (e.g., 2.14.3) but got $ACM_VERSION."
-  exit 1
-fi
-
-echo "# The ACM version is $ACM_VERSION."
-
 if [[ -z "${ACM_OPERATOR_BUNDLE_IMAGE:-}" ]]; then
   echo "Error: ACM_OPERATOR_BUNDLE_IMAGE environment variable must be set."
   exit 1
 fi
 
 echo "# The ACM operator bundle image is $ACM_OPERATOR_BUNDLE_IMAGE."
+echo "# Extracting ACM version from bundle image..."
+
+# Download the bundle image to extract version
+ACM_BUNDLE_TARBALL="$TMP_DIR/acm-operator-bundle.tar"
+skopeo copy --override-arch amd64 "docker://$ACM_OPERATOR_BUNDLE_IMAGE" "docker-archive:$ACM_BUNDLE_TARBALL"
+
+# Extract the tarball and find the version from extras/*.json filename
+tar -xf "$ACM_BUNDLE_TARBALL" -C "$TMP_DIR"
+for layer in "$TMP_DIR"/*.tar; do
+  if [ -f "$layer" ]; then
+    if tar -tf "$layer" 2>/dev/null | grep -q "extras/"; then
+      # Extract the JSON filename and get version from it
+      json_file=$(tar -tf "$layer" 2>/dev/null | grep -E "extras/[0-9]+\.[0-9]+\.[0-9]+\.json$" | head -n 1)
+      if [ -n "$json_file" ]; then
+        # Extract version from filename (e.g., extras/2.15.1.json -> 2.15.1)
+        ACM_VERSION=$(basename "$json_file" .json)
+        break
+      fi
+    fi
+  fi
+done
+
+if [[ -z "${ACM_VERSION:-}" ]]; then
+  echo "Error: Could not extract ACM version from bundle image"
+  rm -rf "$TMP_DIR"
+  exit 1
+fi
+
+# Validate ACM_VERSION format (must be a.b.c, where a, b, c are numbers(e.g., 2.14.3).)
+if ! [[ "$ACM_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+  echo "Error: ACM_VERSION must be in the format a.b.c (e.g., 2.14.3) but got $ACM_VERSION."
+  rm -rf "$TMP_DIR"
+  exit 1
+fi
+
+echo "# The ACM version is $ACM_VERSION."
 echo "# Start updating the Policy helm chart."
 
 # Extract a.b as BRANCH
@@ -132,19 +155,10 @@ done
 echo "# The Policy helm chart is updated."
 
 echo "# Start updating the images in the values.yaml."
-echo "## Download the acm-operator-bundle image $ACM_OPERATOR_BUNDLE_IMAGE."
-
-# Download image as tarball using skopeo
-ACM_BUNDLE_TARBALL="$TMP_DIR/acm-operator-bundle.tar"
-skopeo copy --override-arch amd64 "docker://$ACM_OPERATOR_BUNDLE_IMAGE" "docker-archive:$ACM_BUNDLE_TARBALL"
-
-echo "## Extract the image JSON file from the tarball."
+echo "## Extract the image JSON file from the bundle."
 image_json_file="$ACM_VERSION.json"
 
-# Extract the tarball and find the extras directory
-tar -xf "$ACM_BUNDLE_TARBALL" -C "$TMP_DIR"
-
-# Find and extract the layer containing /extras directory
+# Find and extract the layer containing /extras directory (bundle already downloaded above)
 for layer in "$TMP_DIR"/*.tar; do
   if [ -f "$layer" ]; then
     if tar -tf "$layer" 2>/dev/null | grep -q "extras/$image_json_file"; then

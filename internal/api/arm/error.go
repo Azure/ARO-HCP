@@ -103,7 +103,7 @@ func cloudErrorBodyFromFieldError(fieldError *field.Error) *CloudErrorBody {
 	}
 }
 
-func CloudErrorFromFieldErrors(fieldErrors field.ErrorList) *CloudError {
+func CloudErrorFromFieldErrors(fieldErrors field.ErrorList) error {
 	if len(fieldErrors) == 0 {
 		return nil
 	}

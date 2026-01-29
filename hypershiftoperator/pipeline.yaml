@@ -31,6 +31,16 @@ resourceGroups:
         resourceGroup: global
         step: output
         name: globalMSIId
+- name: kusto
+  resourceGroup: '{{ .kusto.rg }}'
+  subscription: '{{ .global.subscription.key }}'
+  steps:
+  - name: kusto-lookup
+    action: ARM
+    template: ../dev-infrastructure/templates/kusto-lookup.bicep
+    parameters: ../dev-infrastructure/configurations/kusto-lookup.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
 - name: management
   resourceGroup: '{{ .mgmt.rg }}'
   subscription: '{{ .mgmt.subscription.key }}'
@@ -48,6 +58,12 @@ resourceGroups:
     releaseNamespace: '{{ .hypershift.namespace }}'
     chartDir: ./deploy
     valuesFile: ./values.yaml
+    kustoEndpoint:
+      resourceGroup: kusto
+      step: kusto-lookup
+      name: kustoUri
+    kustoDatabase: '{{ .kusto.serviceLogsDatabase }}'
+    kustoTable: 'containerLogs'
     inputVariables:
       csiSecretStoreClientId:
         resourceGroup: management

@@ -52,8 +52,8 @@ param icmAutomitigationEnabledMSFT string
 @description('Enable creating ICM action groups')
 param manageConnection bool
 
-@description('Indicates if the region is in buildout mode. When true, action groups will be disabled.')
-param regionBuildout bool
+@description('Whether ICM alerting is enabled for this region')
+param alertsEnabled bool
 
 module actionGroups '../modules/metrics/actiongroups.bicep' = if (manageConnection) {
   name: 'actionGroups'
@@ -73,7 +73,7 @@ module actionGroups '../modules/metrics/actiongroups.bicep' = if (manageConnecti
     icmActionGroupShortNameMSFT: icmActionGroupShortNameMSFT
     icmRoutingIdMSFT: icmRoutingIdMSFT
     icmAutomitigationEnabledMSFT: icmAutomitigationEnabledMSFT
-    regionBuildout: regionBuildout
+    alertingEnabled: alertsEnabled
   }
 }
 

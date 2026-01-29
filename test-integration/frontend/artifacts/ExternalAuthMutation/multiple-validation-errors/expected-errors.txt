@@ -1,3 +1,0 @@
-InvalidRequestContent: properties.clients[1]: Duplicate value: {"component":{"name":"same-component","authClientNamespace":"openshift-console"},"clientId":"another-nonexistent-client-id","extraScopes":[],"type":"Public"}
-InvalidRequestContent: properties.clients[0].clientId: Invalid value: "nonexistent-client-id": must match an audience in issuer audiences
-InvalidRequestContent: properties.clients[1].clientId: Invalid value: "another-nonexistent-client-id": must match an audience in issuer audiences

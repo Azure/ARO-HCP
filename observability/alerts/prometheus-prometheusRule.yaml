@@ -13,7 +13,7 @@ spec:
   - name: prometheus-wip-rules
     rules:
     - alert: PrometheusJobUp
-      expr: min by (job, namespace) (up{job="prometheus/prometheus",namespace="prometheus"}) == 0
+      expr: group by (cluster) (up{job="kube-state-metrics"}) unless on(cluster) group by (cluster) (up{job="prometheus/prometheus",namespace="prometheus"} == 1)
       for: 5m
       labels:
         severity: critical
@@ -25,7 +25,7 @@ spec:
         runbook_url: TBD # https://runbooks.prometheus-operator.dev/runbooks/prometheus/prometheusdown
         summary: Prometheus is unreachable for 5 minutes.
     - alert: PrometheusUptime
-      expr: avg by (job, namespace) (avg_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d])) < 0.95
+      expr: avg by (job, namespace, cluster) (avg_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d])) < 0.95
       for: 10m
       labels:
         severity: critical

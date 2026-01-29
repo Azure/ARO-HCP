@@ -1,3 +1,4 @@
 {
-	"parentResourceID": "/subscriptions/subscriptionID/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/basic/nodePools/second-node-pool"
+	"parentResourceID": "/subscriptions/subscriptionID/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/basic/nodePools/second-node-pool",
+	"resourceType": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/nodePools/hcpOpenShiftControllers"
 }

@@ -18,12 +18,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 
+	"github.com/go-logr/logr"
 	"github.com/microsoft/go-otel-audit/audit/base"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/cobra"
@@ -136,17 +138,18 @@ func (opts *FrontendOpts) Run() error {
 	if len(opts.location) == 0 {
 		return errors.New("location is required")
 	}
-	arm.SetAzureLocation(opts.location)
 
 	logger.Info(fmt.Sprintf(
 		"%s (%s) started in %s",
 		frontend.ProgramName,
 		version.CommitSHA,
-		arm.GetAzureLocation()))
+		opts.location))
 
+	// Create an slog logger for external dependencies that require it
+	slogLogger := slog.New(logr.ToSlogHandler(logger))
 	auditClient, err := audit.NewOtelAuditClient(
 		audit.CreateConn(opts.auditConnectSocket),
-		base.WithLogger(logger),
+		base.WithLogger(slogLogger),
 		base.WithSettings(base.Settings{
 			QueueSize: opts.auditLogQueueSize,
 		}))
@@ -162,7 +165,7 @@ func (opts *FrontendOpts) Run() error {
 	otelShutdown, err := tracing.ConfigureOpenTelemetryTracer(
 		ctx,
 		logger,
-		semconv.CloudRegion(arm.GetAzureLocation()),
+		semconv.CloudRegion(opts.location),
 		semconv.ServiceNameKey.String(frontend.ProgramName),
 		semconv.ServiceVersionKey.String(version.CommitSHA),
 	)
@@ -226,7 +229,7 @@ func (opts *FrontendOpts) Run() error {
 		utils.TracerName,
 	)
 
-	f := frontend.NewFrontend(logger, listener, metricsListener, prometheus.DefaultRegisterer, dbClient, csClient, auditClient)
+	f := frontend.NewFrontend(logger, listener, metricsListener, prometheus.DefaultRegisterer, dbClient, csClient, auditClient, opts.location)
 
 	stop := make(chan struct{})
 	signalChannel := make(chan os.Signal, 1)

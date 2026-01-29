@@ -1,4 +1,5 @@
-{{ range $version := .Values.istioVersions }}
+{{ range $versionList := .Values.istioVersions }}
+{{ range $version := splitList "," $versionList }}
 ---
 kind: ConfigMap
 apiVersion: v1
@@ -16,4 +17,5 @@ data:
         port: "8080"
         includeRequestHeadersInCheck: ["x-ext-authz", "mise-inbound-policies-to-filter"]
         pathPrefix: "/v1/EnvoyValidateRequest"
+{{ end }}
 {{ end }}

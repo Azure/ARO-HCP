@@ -1,4 +1,0 @@
-1. allegedly only "stable" is allowed, but there is no error when updating to different value in ARO-HCP.
-2. why does the baseDomainPrefix not need to be set when issuing the update?
-
-It is possible cluster-service is catching these, but we need to catch them in ARO-HCP to remove it.

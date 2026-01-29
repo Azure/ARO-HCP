@@ -1,0 +1,15 @@
+      {
+        "code": "InvalidRequestContent",
+        "message": "Duplicate value: {\"component\":{\"name\":\"same-component\",\"authClientNamespace\":\"openshift-console\"},\"clientId\":\"another-nonexistent-client-id\",\"extraScopes\":[],\"type\":\"Public\"}",
+        "target": "properties.clients[1]"
+      }
+      {
+        "code": "InvalidRequestContent",
+        "message": "Invalid value: \"nonexistent-client-id\": must match an audience in issuer audiences",
+        "target": "properties.clients[0].clientId"
+      }
+      {
+        "code": "InvalidRequestContent",
+        "message": "Invalid value: \"another-nonexistent-client-id\": must match an audience in issuer audiences",
+        "target": "properties.clients[1].clientId"
+      }

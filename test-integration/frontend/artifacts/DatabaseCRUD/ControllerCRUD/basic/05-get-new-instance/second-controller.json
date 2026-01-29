@@ -1,14 +1,17 @@
 {
+	"cosmosMetadata": {
+		"resourceId": "/subscriptions/subscriptionID/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/parentCluster/hcpOpenShiftControllers/second-controller"
+	},
 	"externalId": "/subscriptions/subscriptionID/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/parentCluster",
-	"controllerName": "second-controller",
+	"resourceId": "/subscriptions/subscriptionID/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/parentCluster/hcpOpenShiftControllers/second-controller",
 	"status": {
 		"conditions": [
 			{
-				"type": "Degraded",
-				"status": "False",
 				"lastTransitionTime": "2025-12-04T08:01:57.129283149-05:00",
+				"message": "Updated",
 				"reason": "SomeAction",
-				"message": "Updated"
+				"status": "False",
+				"type": "Degraded"
 			}
 		]
 	}

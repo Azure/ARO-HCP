@@ -1,0 +1,7 @@
+{
+	"cosmosMetadata": {
+		"resourceID": "/subscriptions/ca3b7be4-6ac8-4784-b2b5-0e398a60269a/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/parentCluster/serviceProviderClusters/default"
+	},
+	"resourceId": "/subscriptions/ca3b7be4-6ac8-4784-b2b5-0e398a60269a/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/parentCluster/serviceProviderClusters/default",
+	"loadBalancerResourceID": "/subscriptions/your-subscription-id/resourceGroups/myResourceGroup/providers/Microsoft.Network/loadBalancers/myLoadBalancer"
+}

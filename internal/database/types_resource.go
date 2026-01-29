@@ -20,7 +20,6 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 )
@@ -43,15 +42,6 @@ type ResourceDocument struct {
 func NewResourceDocument(resourceID *azcorearm.ResourceID) *ResourceDocument {
 	return &ResourceDocument{
 		ResourceID: resourceID,
-	}
-}
-
-// GetValidTypes returns the valid resource types for a ResourceDocument.
-func (doc ResourceDocument) GetValidTypes() []string {
-	return []string{
-		api.ClusterResourceType.String(),
-		api.NodePoolResourceType.String(),
-		api.ExternalAuthResourceType.String(),
 	}
 }
 

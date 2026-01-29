@@ -115,6 +115,8 @@ resourceGroups:
       configRef: armHelperFPAPrincipalId
     - name: MI_MOCK_SERVICE_PRINCIPAL_CERT_NAME
       configRef: miMockCertName
+    - name: AZURE_CLOUD_ENVIRONMENT_NAME
+      configRef: cloudEnvironmentName
     - name: ARM_HELPER_CERT_NAME
       configRef: armHelperCertName
     - name: CX_PARENT_DNS_ZONE_NAME

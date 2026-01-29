@@ -63,21 +63,23 @@ func init() {
 }
 
 const (
-	ProviderNamespace               = "Microsoft.RedHatOpenShift"
-	ProviderNamespaceDisplay        = "Azure Red Hat OpenShift"
-	ClusterResourceTypeName         = "hcpOpenShiftClusters"
-	VersionResourceTypeName         = "hcpOpenShiftVersions"
-	NodePoolResourceTypeName        = "nodePools"
-	ExternalAuthResourceTypeName    = "externalAuths"
-	OperationResultResourceTypeName = "hcpOperationResults"
-	OperationStatusResourceTypeName = "hcpOperationStatuses"
-	ControllerResourceTypeName      = "hcpOpenShiftControllers"
-	ResourceTypeDisplay             = "Hosted Control Plane (HCP) OpenShift Clusters"
+	ProviderNamespace                      = "Microsoft.RedHatOpenShift"
+	ProviderNamespaceDisplay               = "Azure Red Hat OpenShift"
+	ClusterResourceTypeName                = "hcpOpenShiftClusters"
+	ServiceProviderClusterResourceTypeName = "serviceProviderClusters"
+	VersionResourceTypeName                = "hcpOpenShiftVersions"
+	NodePoolResourceTypeName               = "nodePools"
+	ExternalAuthResourceTypeName           = "externalAuths"
+	OperationResultResourceTypeName        = "hcpOperationResults"
+	OperationStatusResourceTypeName        = "hcpOperationStatuses"
+	ControllerResourceTypeName             = "hcpOpenShiftControllers"
+	ResourceTypeDisplay                    = "Hosted Control Plane (HCP) OpenShift Clusters"
 )
 
 var (
 	OperationStatusResourceType        = azcorearm.NewResourceType(ProviderNamespace, OperationStatusResourceTypeName)
 	ClusterResourceType                = azcorearm.NewResourceType(ProviderNamespace, ClusterResourceTypeName)
+	ServiceProviderClusterResourceType = azcorearm.NewResourceType(ProviderNamespace, ClusterResourceTypeName+"/"+ServiceProviderClusterResourceTypeName)
 	NodePoolResourceType               = azcorearm.NewResourceType(ProviderNamespace, ClusterResourceTypeName+"/"+NodePoolResourceTypeName)
 	ExternalAuthResourceType           = azcorearm.NewResourceType(ProviderNamespace, ClusterResourceTypeName+"/"+ExternalAuthResourceTypeName)
 	PreflightResourceType              = azcorearm.NewResourceType(ProviderNamespace, "deployments/preflight")
@@ -88,14 +90,13 @@ var (
 )
 
 type VersionedResource interface {
-	GetVersion() Version
 }
 
-type VersionedCreatableResource[T any] interface {
+type VersionedCreatableResource[InternalAPIType any] interface {
 	VersionedResource
 	NewExternal() any
 	SetDefaultValues(any) error
-	Normalize(*T)
+	ConvertToInternal() (*InternalAPIType, error)
 }
 
 type VersionedHCPOpenShiftCluster VersionedCreatableResource[HCPOpenShiftCluster]

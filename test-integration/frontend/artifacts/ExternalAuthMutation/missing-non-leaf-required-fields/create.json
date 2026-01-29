@@ -1,5 +1,0 @@
-{
-  "name": "missing-non-leaf-required-fields-auth",
-  "properties": {},
-  "type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/externalAuths"
-}

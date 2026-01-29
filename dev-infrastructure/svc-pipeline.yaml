@@ -159,6 +159,8 @@ resourceGroups:
       step: oncert-public-kv-issuer
     automatedRetry:
       errorContainsAny:
+      - "DeploymentScriptACIProvisioningTimeout"
+      - "InternalServerError"
       - "Internal server error"
       - "Resource is in Updating state"
       maximumRetryCount: 3
@@ -215,6 +217,12 @@ resourceGroups:
     - ../observability/prometheus/namespace.svc.yaml
     chartDir: ../observability/prometheus/deploy
     valuesFile: ../observability/prometheus/values-svc.yaml
+    kustoEndpoint:
+      resourceGroup: kusto
+      step: output
+      name: kustoUri
+    kustoDatabase: '{{ .kusto.serviceLogsDatabase }}'
+    kustoTable: 'containerLogs'
     inputVariables:
       dcrRemoteWriteUrl:
         resourceGroup: service
@@ -251,6 +259,12 @@ resourceGroups:
     valuesFile: ../istio/values.yaml
     namespaceFiles:
     - ../istio/mise.namespace.yaml
+    kustoEndpoint:
+      resourceGroup: kusto
+      step: output
+      name: kustoUri
+    kustoDatabase: '{{ .kusto.serviceLogsDatabase }}'
+    kustoTable: 'containerLogs'
     dependsOn:
     - resourceGroup: service
       step: prometheus
@@ -307,6 +321,12 @@ resourceGroups:
     releaseNamespace: acrpull
     chartDir: ./../acrpull/deploy
     valuesFile: ./../acrpull/deploy/values.yaml
+    kustoEndpoint:
+      resourceGroup: kusto
+      step: output
+      name: kustoUri
+    kustoDatabase: '{{ .kusto.serviceLogsDatabase }}'
+    kustoTable: 'containerLogs'
     dependsOn:
     - resourceGroup: service
       step: prometheus
@@ -337,6 +357,12 @@ resourceGroups:
     releaseNamespace: 'arobit'
     chartDir: ../observability/arobit/deploy
     valuesFile: ../observability/arobit/values-svc.yaml
+    kustoEndpoint:
+      resourceGroup: kusto
+      step: output
+      name: kustoUri
+    kustoDatabase: '{{ .kusto.serviceLogsDatabase }}'
+    kustoTable: 'containerLogs'
     dependsOn:
     - resourceGroup: service
       step: prometheus
@@ -371,6 +397,12 @@ resourceGroups:
     releaseNamespace: monitoring
     chartDir: ./../observability/kube-events/deploy
     valuesFile: ./../observability/kube-events/values.yaml
+    kustoEndpoint:
+      resourceGroup: kusto
+      step: output
+      name: kustoUri
+    kustoDatabase: '{{ .kusto.serviceLogsDatabase }}'
+    kustoTable: 'containerLogs'
     dependsOn:
     - resourceGroup: service
       step: cluster

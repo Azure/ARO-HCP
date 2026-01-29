@@ -22,20 +22,16 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-
-	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 )
 
 type createStep[InternalAPIType any] struct {
-	stepID      StepID
-	key         CosmosCRUDKey
-	specializer ResourceCRUDTestSpecializer[InternalAPIType]
+	stepID StepID
+	key    CosmosCRUDKey
 
-	cosmosContainer *azcosmos.ContainerClient
-	resources       []*InternalAPIType
+	resources []*InternalAPIType
 }
 
-func newCreateStep[InternalAPIType any](stepID StepID, specializer ResourceCRUDTestSpecializer[InternalAPIType], cosmosContainer *azcosmos.ContainerClient, stepDir fs.FS) (*createStep[InternalAPIType], error) {
+func newCreateStep[InternalAPIType any](stepID StepID, stepDir fs.FS) (*createStep[InternalAPIType], error) {
 	keyBytes, err := fs.ReadFile(stepDir, "00-key.json")
 	if err != nil {
 		return nil, fmt.Errorf("failed to read key.json: %w", err)
@@ -51,11 +47,9 @@ func newCreateStep[InternalAPIType any](stepID StepID, specializer ResourceCRUDT
 	}
 
 	return &createStep[InternalAPIType]{
-		stepID:          stepID,
-		key:             key,
-		specializer:     specializer,
-		cosmosContainer: cosmosContainer,
-		resources:       resources,
+		stepID:    stepID,
+		key:       key,
+		resources: resources,
 	}, nil
 }
 
@@ -65,11 +59,11 @@ func (l *createStep[InternalAPIType]) StepID() StepID {
 	return l.stepID
 }
 
-func (l *createStep[InternalAPIType]) RunTest(ctx context.Context, t *testing.T) {
-	controllerCRUDClient := l.specializer.ResourceCRUDFromKey(t, l.cosmosContainer, l.key)
+func (l *createStep[InternalAPIType]) RunTest(ctx context.Context, t *testing.T, stepInput StepInput) {
+	resourceCRUDClient := NewCosmosCRUD[InternalAPIType](t, stepInput.DBClient, l.key.ParentResourceID, l.key.ResourceType.ResourceType)
 
 	for _, resource := range l.resources {
-		_, err := controllerCRUDClient.Create(ctx, resource, nil)
+		_, err := resourceCRUDClient.Create(ctx, resource, nil)
 		require.NoError(t, err, "failed to create controller")
 	}
 }

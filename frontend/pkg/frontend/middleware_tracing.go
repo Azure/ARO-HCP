@@ -51,7 +51,7 @@ func middlewareTracing(w http.ResponseWriter, r *http.Request, next http.Handler
 			if err != nil {
 				span := trace.SpanFromContext(ctx)
 				span.RecordError(err)
-				logger.ErrorContext(ctx, "failed to find correlation data in context", "error", err)
+				logger.Error(err, "failed to find correlation data in context")
 				next(w, r)
 				return
 			}
@@ -104,9 +104,8 @@ func addCorrelationDataToSpanContext(ctx context.Context, data *arm.CorrelationD
 
 		m, err := baggage.NewMemberRaw(string(e.attr), e.value)
 		if err != nil {
-			msg := fmt.Sprintf("unable to create baggage member %q", e.attr)
-			span.RecordError(fmt.Errorf("%s: %w", msg, err))
-			logger.ErrorContext(ctx, msg, "error", err)
+			span.RecordError(fmt.Errorf("unable to create baggage member %q: %w", e.attr, err))
+			logger.Error(err, "unable to create baggage member", "attr", e.attr)
 
 			continue
 		}

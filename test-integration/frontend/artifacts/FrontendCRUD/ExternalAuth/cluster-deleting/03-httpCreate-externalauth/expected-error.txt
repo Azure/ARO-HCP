@@ -1,0 +1,2 @@
+"code": "Conflict",
+    "message": "Cannot create resource while parent resource is deleting"

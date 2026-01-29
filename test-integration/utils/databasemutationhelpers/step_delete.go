@@ -24,31 +24,20 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-
-	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 )
 
-type CosmosDeleteKey struct {
-	CosmosCRUDKey `json:",inline"`
-
-	DeleteResourceName string `json:"deleteResourceName"`
-}
-
 type deleteStep[InternalAPIType any] struct {
-	stepID      StepID
-	key         CosmosDeleteKey
-	specializer ResourceCRUDTestSpecializer[InternalAPIType]
-
-	cosmosContainer *azcosmos.ContainerClient
-	expectedError   string
+	stepID        StepID
+	key           CosmosItemKey
+	expectedError string
 }
 
-func newDeleteStep[InternalAPIType any](stepID StepID, specializer ResourceCRUDTestSpecializer[InternalAPIType], cosmosContainer *azcosmos.ContainerClient, stepDir fs.FS) (*deleteStep[InternalAPIType], error) {
+func newDeleteStep[InternalAPIType any](stepID StepID, stepDir fs.FS) (*deleteStep[InternalAPIType], error) {
 	keyBytes, err := fs.ReadFile(stepDir, "00-key.json")
 	if err != nil {
 		return nil, fmt.Errorf("failed to read key.json: %w", err)
 	}
-	var key CosmosDeleteKey
+	var key CosmosItemKey
 	if err := json.Unmarshal(keyBytes, &key); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal key.json: %w", err)
 	}
@@ -60,11 +49,9 @@ func newDeleteStep[InternalAPIType any](stepID StepID, specializer ResourceCRUDT
 	expectedError := strings.TrimSpace(string(expectedErrorBytes))
 
 	return &deleteStep[InternalAPIType]{
-		stepID:          stepID,
-		key:             key,
-		specializer:     specializer,
-		cosmosContainer: cosmosContainer,
-		expectedError:   expectedError,
+		stepID:        stepID,
+		key:           key,
+		expectedError: expectedError,
 	}, nil
 }
 
@@ -74,9 +61,9 @@ func (l *deleteStep[InternalAPIType]) StepID() StepID {
 	return l.stepID
 }
 
-func (l *deleteStep[InternalAPIType]) RunTest(ctx context.Context, t *testing.T) {
-	controllerCRUDClient := l.specializer.ResourceCRUDFromKey(t, l.cosmosContainer, l.key.CosmosCRUDKey)
-	err := controllerCRUDClient.Delete(ctx, l.key.DeleteResourceName)
+func (l *deleteStep[InternalAPIType]) RunTest(ctx context.Context, t *testing.T, stepInput StepInput) {
+	resourceCRUDClient := NewCosmosCRUD[InternalAPIType](t, stepInput.DBClient, l.key.ResourceID.Parent, l.key.ResourceID.ResourceType)
+	err := resourceCRUDClient.Delete(ctx, l.key.ResourceID.Name)
 	switch {
 	case len(l.expectedError) > 0:
 		require.ErrorContains(t, err, l.expectedError)

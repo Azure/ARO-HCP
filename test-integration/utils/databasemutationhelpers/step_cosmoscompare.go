@@ -16,14 +16,10 @@ package databasemutationhelpers
 
 import (
 	"context"
-	"encoding/json"
 	"io/fs"
 	"testing"
 
-	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
-
-	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -32,11 +28,10 @@ import (
 type cosmosCompare struct {
 	stepID StepID
 
-	cosmosContainer *azcosmos.ContainerClient
 	expectedContent []*database.TypedDocument
 }
 
-func NewCosmosCompareStep(stepID StepID, cosmosContainer *azcosmos.ContainerClient, stepDir fs.FS) (*cosmosCompare, error) {
+func NewCosmosCompareStep(stepID StepID, stepDir fs.FS) (*cosmosCompare, error) {
 	expectedContent, err := readResourcesInDir[database.TypedDocument](stepDir)
 	if err != nil {
 		return nil, utils.TrackError(err)
@@ -44,7 +39,6 @@ func NewCosmosCompareStep(stepID StepID, cosmosContainer *azcosmos.ContainerClie
 
 	return &cosmosCompare{
 		stepID:          stepID,
-		cosmosContainer: cosmosContainer,
 		expectedContent: expectedContent,
 	}, nil
 }
@@ -55,46 +49,31 @@ func (l *cosmosCompare) StepID() StepID {
 	return l.stepID
 }
 
-func (l *cosmosCompare) RunTest(ctx context.Context, t *testing.T) {
-	// Query all documents in the container
-	querySQL := "SELECT * FROM c"
-	queryOptions := &azcosmos.QueryOptions{
-		QueryParameters: []azcosmos.QueryParameter{},
-	}
+func (l *cosmosCompare) RunTest(ctx context.Context, t *testing.T, stepInput StepInput) {
+	var allActual []*database.TypedDocument
+	var err error
 
-	queryPager := l.cosmosContainer.NewQueryItemsPager(querySQL, azcosmos.PartitionKey{}, queryOptions)
+	// Use the DocumentLister interface (works with both Cosmos and mock)
+	allActual, err = stepInput.DocumentLister.ListAllDocuments(ctx)
+	require.NoError(t, err)
 
-	allActual := []*database.TypedDocument{}
-	for queryPager.More() {
-		queryResponse, err := queryPager.NextPage(ctx)
-		require.NoError(t, err)
-
-		for _, item := range queryResponse.Items {
-			// Parse the document to get its ID for filename
-			curr := &database.TypedDocument{}
-			err = json.Unmarshal(item, curr)
-			require.NoError(t, err)
-			allActual = append(allActual, curr)
-		}
-	}
-
-	typedDocumentSpecializer := UntypedCRUDSpecializer{}
 	for _, currExpected := range l.expectedContent {
 		found := false
 		currDiffs := []string{}
 		for _, currActual := range allActual {
-			if typedDocumentSpecializer.InstanceEquals(currExpected, currActual) {
+			diff, equals := ResourceInstanceEquals(t, currExpected, currActual)
+			if equals {
 				found = true
 				break
 			}
-			currDiffs = append(currDiffs, cmp.Diff(stringifyResource(currExpected), stringifyResource(currActual)))
+			currDiffs = append(currDiffs, diff)
 		}
 		if !found {
 			t.Log(stringifyResource(allActual))
 			for _, diff := range currDiffs {
 				t.Log(diff)
 			}
-			t.Errorf("did not find: %v", currExpected)
+			t.Errorf("did not find:\n%v", stringifyResource(currExpected))
 		}
 	}
 }

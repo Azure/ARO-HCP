@@ -1,83 +1,165 @@
 # Image Updater
 
-Automatically fetches the latest image digests from container registries and updates ARO-HCP configuration files.
+A tool that automatically fetches the latest container image digests from registries and updates ARO-HCP configuration files. It supports multiple registry types, environment-based promotions, and secure credential management via Azure Key Vault.
 
-## Supported Registries
+## Table of Contents
 
-The image-updater supports multiple container registry types with optimized clients:
+- [Quick Start](#quick-start)
+- [Supported Registries](#supported-registries)
+- [How It Works](#how-it-works)
+- [Key Features](#key-features)
+- [Common Usage Patterns](#common-usage-patterns)
+  - [Development Workflow](#development-workflow)
+  - [Environment Promotion](#environment-promotion)
+  - [Output to File](#output-to-file)
+  - [Debugging](#debugging)
+- [Configuration](#configuration)
+  - [Basic Image Configuration](#basic-image-configuration)
+  - [Registry-Specific Examples](#registry-specific-examples)
+  - [Architecture Examples](#architecture-examples)
+- [Authentication](#authentication)
+  - [Authentication Methods by Registry](#authentication-methods-by-registry)
+  - [Azure Key Vault Integration](#azure-key-vault-integration)
+  - [Docker Credentials](#docker-credentials)
+- [Tag Selection](#tag-selection)
+  - [Specific Tag (Pinning)](#specific-tag-pinning)
+  - [Tag Pattern (Auto-updates)](#tag-pattern-auto-updates)
+  - [Version Labels](#version-labels)
+- [Architecture Filtering](#architecture-filtering)
+  - [Single-Architecture (Default)](#single-architecture-default)
+  - [Multi-Architecture Manifests](#multi-architecture-manifests)
+- [Output Format](#output-format)
+  - [Inline Comments](#inline-comments)
+  - [Output Formats](#output-formats)
+- [Command Reference](#command-reference)
+  - [Flags](#flags)
+  - [Verbosity Levels](#verbosity-levels)
+- [Configuration Reference](#configuration-reference)
+  - [Source Fields](#source-fields)
+  - [Target Fields](#target-fields)
+- [Reliability Features](#reliability-features)
+  - [Automatic Retry](#automatic-retry)
+  - [Context Cancellation](#context-cancellation)
 
-- **Quay.io** - Uses Quay's proprietary API for enhanced tag discovery
-- **Azure Container Registry (ACR)** - Uses Azure SDK with optional authentication
-- **Microsoft Container Registry (MCR)** - Uses Docker Registry HTTP API v2
-- **Generic Registries** - Any Docker Registry HTTP API v2 compatible registry (Docker Hub, Harbor, etc.)
-
-## Key Features
-
-### Registry Support
-
-- **Universal Registry Support**: Works with any Docker Registry HTTP API v2 compatible registry
-- **Anonymous by Default**: No authentication required for public registries (MCR, Docker Hub, public Quay.io)
-- **Opt-in Authentication**: Explicitly enable authentication only for private registries
-- **Azure Key Vault Integration**: Per-image Key Vault configuration for secure credential management
-- **Smart Credential Caching**: Automatically deduplicates Key Vault secret fetches across images
-- **Architecture-Aware**: Automatically filters images by architecture (defaults to amd64)
-- **Multi-Registry Client**: Automatically selects the appropriate client based on registry URL
-- **Flexible Digest Format**: Supports both `.digest` fields (with `sha256:` prefix) and `.sha` fields (hash only)
-
-### Reliability & Performance
-
-- **Automatic Retry Logic**: Exponential backoff retry for transient network errors and server failures (5xx, 429)
-- **Context Cancellation Support**: Proper context propagation for graceful shutdown and timeout handling
-- **Enhanced Logging**: Detailed structured logging with verbosity levels for debugging and monitoring
-- **Optimized Pagination**: Configurable page size (100 tags/page) for efficient bulk tag fetching from Quay.io
-- **Timestamp Enrichment**: Automatic tag timestamp retrieval and sorting for both Quay API and Registry V2 API
-- **Descriptor Caching**: Eliminates duplicate API calls by caching image descriptors during tag processing (~50% reduction in API calls)
-
-## Usage
+## Quick Start
 
 ```bash
-# Update all images (default: dev and int environments)
+# Update all images in dev/int environments
 make update
 
 # Preview changes without modifying files
 ./image-updater update --config config.yaml --dry-run
 
-# Update dev and int environments (default behavior - omit --env flag)
-./image-updater update --config config.yaml
+# Promote images from int to stage
+./image-updater update --config config.yaml --env stg
 
-# Promote images from int to stage (copies digests, no registry fetch)
-./image-updater update --config config.yaml --env stg --dry-run
-
-# Promote images from stage to production (copies digests, no registry fetch)
-./image-updater update --config config.yaml --env prod --dry-run
+# Promote images from stage to production
+./image-updater update --config config.yaml --env prod
 
 # Update specific components only
 ./image-updater update --config config.yaml --components maestro,hypershift
 
-# Update all components except specific ones
-./image-updater update --config config.yaml --exclude-components arohcpfrontend,arohcpbackend
-
-# Combine environment and component filters
-./image-updater update --config config.yaml --env stg --components maestro,hypershift --dry-run
-
-# Enable verbose logging for debugging (shows all details including retry attempts, API calls)
-./image-updater update --config config.yaml -v=2
+# Save output to file
+./image-updater update --config config.yaml --output-file results.md --output-format markdown
 ```
 
-## Environment Promotion Flow
+## Supported Registries
 
-The image updater supports a structured promotion flow across environments:
+The tool works with any Docker Registry HTTP API v2 compatible registry, with specialized clients for:
 
-1. **dev & int** (default when `--env` omitted): Fetches latest images from registries
-2. **stage** (`--env stg`): Promotes (copies) digests from int environment
-3. **prod** (`--env prod`): Promotes (copies) digests from stage environment
+- **Quay.io** - Uses Quay's API for enhanced tag discovery and pagination
+- **Azure Container Registry (ACR)** - Uses Azure SDK with DefaultAzureCredential
+- **Microsoft Container Registry (MCR)** - Uses Docker Registry HTTP API v2
+- **Generic Registries** - Docker Hub, Harbor, GHCR, and other compatible registries
 
-When using `--env stg` or `--env prod`, the tool operates in **promotion mode**:
-- No registry lookups are performed
-- Digests are copied from the source environment to the target environment
-- Ensures consistent promotion path: dev/int → stage → prod
+All registries support anonymous access by default for public images. Private registries require explicit `useAuth: true` configuration.
 
-**Example promotion workflow:**
+## How It Works
+
+1. **Load Configuration**: Reads `config.yaml` to get list of images and target YAML files to update
+
+2. **Authenticate** (if needed): 
+   - Fetches credentials from Azure Key Vault (deduplicates by vault URL + secret name)
+   - Merges with local Docker config (`~/.docker/config.json`)
+   - Supports Azure CLI, Managed Identity, and other Azure authentication methods
+
+3. **Select Registry Client**: Automatically chooses the appropriate client based on registry URL
+   - `quay.io` → QuayClient (Quay API with 100 tags/page pagination)
+   - `*.azurecr.io` → ACRClient (Azure SDK)
+   - Others → GenericRegistryClient (Docker Registry HTTP API v2)
+
+4. **Fetch or Promote Images**:
+   - **Default mode** (dev/int): Fetches latest digests from registry with retry logic
+   - **Promotion mode** (stg/prod): Copies digests from source environment (no registry fetch)
+
+5. **Filter and Validate**:
+   - Filters tags by regex pattern (if specified)
+   - Validates architecture (amd64, arm64, etc.) or multi-arch manifests
+   - Sorts by timestamp to find the latest matching image
+
+6. **Update YAML Files**:
+   - Updates digest fields using JSONPath notation
+   - Adds inline comments with version and timestamp: `# v1.2.3 (2025-01-15 10:30)`
+   - Preserves YAML formatting, structure, and other comments
+
+7. **Output Results**: Displays formatted table or writes to file (table/markdown/json)
+
+## Key Features
+
+### Environment Promotion
+
+- **Structured Promotion Flow**: dev/int → stage → prod
+- **No Registry Lookups in Promotion**: Copies digests directly from source environment
+- **Version Preservation**: Maintains tags and timestamps during promotion
+
+### Registry & Authentication
+
+- **Universal Registry Support**: Works with any Docker Registry HTTP API v2 compatible registry
+- **Anonymous by Default**: No authentication for public registries (MCR, Docker Hub, public Quay.io)
+- **Azure Key Vault Integration**: Per-image credential configuration with automatic deduplication
+- **Multiple Auth Methods**: Docker config, Azure CLI, Managed Identity
+
+### Reliability & Performance
+
+- **Automatic Retry Logic**: Exponential backoff for network errors and 5xx/429 responses
+- **Smart Caching**: Eliminates duplicate API calls (~50% reduction)
+- **Context Cancellation**: Graceful shutdown and timeout handling
+- **Enhanced Logging**: Structured logging with verbosity levels (V(0), V(1), V(2))
+
+### Flexibility
+
+- **Architecture-Aware**: Filters by architecture (amd64, arm64, etc.) or multi-arch manifests
+- **Flexible Tag Selection**: Exact tag or regex pattern matching
+- **Component Filtering**: Update specific components or exclude certain ones
+- **Multiple Output Formats**: Table, Markdown, or JSON to file or stdout
+- **Digest Format Support**: Both `.digest` (sha256:...) and `.sha` (hash only) fields
+
+## Common Usage Patterns
+
+### Development Workflow
+
+```bash
+# Update dev and int environments with latest images
+./image-updater update --config config.yaml
+
+# Preview changes first
+./image-updater update --config config.yaml --dry-run
+
+# Update only specific components
+./image-updater update --config config.yaml --components maestro,hypershift
+
+# Exclude certain components
+./image-updater update --config config.yaml --exclude-components arohcpfrontend
+```
+
+### Environment Promotion
+
+The tool supports a structured promotion flow across environments:
+
+1. **dev & int** (default): Fetches latest images from registries
+2. **stage** (`--env stg`): Promotes digests from int environment
+3. **prod** (`--env prod`): Promotes digests from stage environment
+
 ```bash
 # Step 1: Update dev and int with latest images
 ./image-updater update --config config.yaml
@@ -89,54 +171,87 @@ When using `--env stg` or `--env prod`, the tool operates in **promotion mode**:
 ./image-updater update --config config.yaml --env prod
 ```
 
-## Output Format
+### Output to File
 
-When the tool updates image digests in YAML files, it automatically adds inline comments with version information and timestamp:
+```bash
+# Save results as markdown
+./image-updater update --config config.yaml --output-file results.md --output-format markdown
 
-```yaml
-defaults:
-  pko:
-    imagePackage:
-      digest: sha256:abc123... # v1.18.4 (2025-11-24 14:30)
+# Save as JSON for automation
+./image-updater update --config config.yaml --output-file results.json --output-format json
+
+# Use Makefile variables
+make promote-stage OUTPUT_FILE=stage-promotion.md OUTPUT_FORMAT=markdown
 ```
 
-This helps track:
+### Debugging
 
-- **Version**: The version information from either:
-  - Container label (if `versionLabel` is configured) - e.g., a commit hash from `org.opencontainers.image.revision`
-  - Tag name (if no version label is configured) - e.g., `v1.18.4`
-- **Timestamp**: When the image was created/published (format: `YYYY-MM-DD HH:MM`)
+```bash
+# Enable verbose logging (shows retry attempts, API calls)
+./image-updater update --config config.yaml -v=2
 
-The comments are automatically generated and updated each time the tool runs.
-
-### Version Labels
-
-By default, when using the `tag` field (e.g., `tag: "latest"`), the tool automatically extracts version information from the `org.opencontainers.image.revision` container label if present. This provides meaningful version information even when using generic tags like "latest" or "stable".
-
-You can customize the label to extract using the `versionLabel` field:
-
-```yaml
-source:
-  image: quay.io/example/image
-  tag: "latest"
-  versionLabel: "org.opencontainers.image.revision"  # Default when using 'tag'
+# Combine with dry-run for debugging without changes
+./image-updater update --config config.yaml --dry-run -v=2
 ```
 
-When using `tagPattern`, no version label is extracted by default (uses the tag name), but you can explicitly configure one if needed.
+### Pinning Images and Rolling Back
+
+To pin an image to a specific digest and prevent automatic updates:
+
+**Use Case**: You need to rollback to a known-good version or prevent an image from being automatically updated.
+
+**Steps**:
+
+1. **Identify the digest** you want to pin (e.g., from a previous working deployment or registry)
+
+2. **Update `config.yaml`** to use a specific `tag` instead of `tagPattern`:
+
+```yaml
+arohcpfrontend:
+  source:
+    image: arohcpsvcint.azurecr.io/arohcpfrontend
+    tag: "013ae7f72821c95873141388054ed7fdaa75dbf71d78e8701240fb39e5a39c51"  # Pin to specific digest
+    useAuth: true
+  targets:
+  - jsonPath: clouds.dev.defaults.frontend.image.digest
+    filePath: ../../config/config.yaml
+    env: dev
+```
+
+3. **Authenticate to Azure** (required for ACR access):
+
+```bash
+az login
+```
+
+4. **Run the image-updater** to apply the pinned digest:
+
+```bash
+# Update specific component
+make update COMPONENTS=arohcpfrontend
+```
+
+5. **Run materialize** to update rendered configs:
+
+```bash
+make -C config materialize
+```
+
+6. **Commit the changes** - the image will now stay pinned at this digest until you manually change it
+
+**Note**: The tool will fetch the specified digest and update all target environments. Unlike `tagPattern`, this will not automatically update to newer images.
 
 ## Configuration
 
-Define images to monitor and target files to update. Each image can optionally specify Azure Key Vault credentials for authentication.
-
-### Image Configuration Examples
+### Basic Image Configuration
 
 ```yaml
 images:
-  # Image with multi-environment targets
+  # Multi-environment image with tag pattern
   maestro:
     source:
       image: quay.io/redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro
-      tagPattern: "^[a-f0-9]{40}$"  # Optional regex to filter tags
+      tagPattern: "^[a-f0-9]{40}$"  # Match 40-character commit hashes
     targets:
     - jsonPath: clouds.dev.defaults.maestro.image.digest
       filePath: ../../config/config.yaml
@@ -151,491 +266,396 @@ images:
       filePath: ../../config/config.msft.clouds-overlay.yaml
       env: prod
 
-  # Single-arch image (explicitly targets amd64 only)
-  hypershift:
-    source:
-      image: quay.io/acm-d/rhtap-hypershift-operator
-      tagPattern: "^sha256-[a-f0-9]{64}$"
-      architecture: amd64  # Target architecture - skips multi-arch manifests
-    targets:
-    - jsonPath: clouds.dev.defaults.hypershift.image.digest
-      filePath: ../../config/config.yaml
-      env: dev
-    - jsonPath: clouds.public.environments.int.defaults.hypershift.image.digest
-      filePath: ../../config/config.msft.clouds-overlay.yaml
-      env: int
-
-  # Quay.io image with semantic version tags
-  pko-package:
-    source:
-      image: quay.io/package-operator/package-operator-package
-      tagPattern: "^v\\d+\\.\\d+\\.\\d+$"  # Match semver tags
-    targets:
-    - jsonPath: defaults.pko.imagePackage.digest
-      filePath: ../../config/config.yaml
-      env: dev
-
-  # Quay.io image pinned to specific version (e.g., during rollback)
+  # Pinned to specific version
   pko-manager:
     source:
       image: quay.io/package-operator/package-operator-manager
-      tag: "v1.18.3"  # Pin to specific version instead of using pattern
+      tag: "v1.18.3"  # Exact version (useful for rollbacks)
     targets:
     - jsonPath: defaults.pko.imageManager.digest
       filePath: ../../config/config.yaml
       env: dev
 
-  # Image using generic tag with version label extraction
+  # Using generic tag with version label
   my-app:
     source:
       image: quay.io/example/my-app
-      tag: "latest"  # Generic tag
-      versionLabel: "org.opencontainers.image.revision"  # Extracts commit hash from label (default)
+      tag: "latest"
+      versionLabel: "org.opencontainers.image.revision"  # Extract commit hash
     targets:
     - jsonPath: defaults.myApp.image.digest
       filePath: ../../config/config.yaml
       env: dev
+```
 
-  # Private ACR image requiring authentication
-  arohcpfrontend:
-    source:
-      image: arohcpsvcdev.azurecr.io/arohcpfrontend
-      useAuth: true  # Explicitly require authentication
-    targets:
-    - jsonPath: clouds.dev.defaults.frontend.image.digest
-      filePath: ../../config/config.yaml
-      env: dev
+### Registry-Specific Examples
 
-  # Public ACR image (anonymous access)
-  kubeEvents:
-    source:
-      image: kubernetesshared.azurecr.io/shared/kube-events
-      tagPattern: "^\\d+\\.\\d+$"
-      # useAuth defaults to false
-    targets:
-    - jsonPath: defaults.kubeEvents.image.digest
-      filePath: ../../config/config.yaml
-      env: dev
+**Quay.io (Public)**:
+```yaml
+pko-package:
+  source:
+    image: quay.io/package-operator/package-operator-package
+    tagPattern: "^v\\d+\\.\\d+\\.\\d+$"  # Semantic versions
+  targets:
+  - jsonPath: defaults.pko.imagePackage.digest
+    filePath: ../../config/config.yaml
+    env: dev
+```
 
-  # MCR (Microsoft Container Registry) image
-  acrPull:
-    source:
-      image: mcr.microsoft.com/aks/msi-acrpull
-      tagPattern: "^v\\d+\\.\\d+\\.\\d+$"
-      # useAuth defaults to false for MCR
-    targets:
-    - jsonPath: defaults.acrPull.image.digest
-      filePath: ../../config/config.yaml
-      env: dev
+**Quay.io (Private with Key Vault)**:
+```yaml
+clusters-service:
+  source:
+    image: quay.io/app-sre/aro-hcp-clusters-service
+    tagPattern: "^[a-f0-9]{7}$"
+    useAuth: true  # Required for private repos
+    keyVault:
+      url: "https://arohcpdev-global.vault.azure.net/"
+      secretName: "component-sync-pull-secret"
+  targets:
+  - jsonPath: clouds.dev.defaults.clustersService.image.digest
+    filePath: ../../config/config.yaml
+    env: dev
+```
 
-  # Multi-arch manifest list (returns digest of manifest list, not single-arch image)
-  secretSyncController:
-    source:
-      image: registry.k8s.io/secrets-store-sync/controller
-      tagPattern: "^v\\d+\\.\\d+\\.\\d+$"
-      multiArch: true  # Fetch multi-arch manifest list digest
-    targets:
-    - jsonPath: defaults.secretSyncController.image.digest
-      filePath: ../../config/config.yaml
+**Azure Container Registry (Private)**:
+```yaml
+arohcpfrontend:
+  source:
+    image: arohcpsvcdev.azurecr.io/arohcpfrontend
+    useAuth: true  # Uses DefaultAzureCredential
+  targets:
+  - jsonPath: clouds.dev.defaults.frontend.image.digest
+    filePath: ../../config/config.yaml
+    env: dev
+```
 
-  # Example using .sha field (stores hash without sha256: prefix)
-  prometheus-operator:
-    source:
-      image: mcr.microsoft.com/oss/v2/prometheus/prometheus-operator
-      tagPattern: "^v\\d+\\.\\d+\\.\\d+-?\\d?$"
-      multiArch: true
-    targets:
-    - jsonPath: defaults.prometheus.prometheusOperator.image.sha
-      filePath: ../../config/config.yaml
+**Azure Container Registry (Public)**:
+```yaml
+kubeEvents:
+  source:
+    image: kubernetesshared.azurecr.io/shared/kube-events
+    tagPattern: "^\\d+\\.\\d+$"
+    # useAuth defaults to false
+  targets:
+  - jsonPath: defaults.kubeEvents.image.digest
+    filePath: ../../config/config.yaml
+    env: dev
+```
+
+**Microsoft Container Registry**:
+```yaml
+acrPull:
+  source:
+    image: mcr.microsoft.com/aks/msi-acrpull
+    tagPattern: "^v\\d+\\.\\d+\\.\\d+$"
+    # Always uses anonymous access
+  targets:
+  - jsonPath: defaults.acrPull.image.digest
+    filePath: ../../config/config.yaml
+    env: dev
+```
+
+### Architecture Examples
+
+**Single Architecture (Default)**:
+```yaml
+hypershift:
+  source:
+    image: quay.io/acm-d/rhtap-hypershift-operator
+    tagPattern: "^sha256-[a-f0-9]{64}$"
+    architecture: amd64  # Defaults to amd64, can use arm64, etc.
+  targets:
+  - jsonPath: clouds.dev.defaults.hypershift.image.digest
+    filePath: ../../config/config.yaml
+    env: dev
+```
+
+**Multi-Architecture Manifest**:
+```yaml
+secretSyncController:
+  source:
+    image: registry.k8s.io/secrets-store-sync/controller
+    tagPattern: "^v\\d+\\.\\d+\\.\\d+$"
+    multiArch: true  # Returns manifest list digest
+  targets:
+  - jsonPath: defaults.secretSyncController.image.digest
+    filePath: ../../config/config.yaml
+    env: dev
+```
+
+**Using .sha field (without sha256: prefix)**:
+```yaml
+prometheus-operator:
+  source:
+    image: mcr.microsoft.com/oss/v2/prometheus/prometheus-operator
+    tagPattern: "^v\\d+\\.\\d+\\.\\d+-?\\d?$"
+    multiArch: true
+  targets:
+  - jsonPath: defaults.prometheus.prometheusOperator.image.sha  # Stores hash only
+    filePath: ../../config/config.yaml
+    env: dev
 ```
 
 ## Authentication
 
-Authentication behavior varies by registry type.
+### Prerequisites
 
-### Default Behavior (useAuth defaults to `false`)
+**Azure Authentication** (required only when accessing Azure Container Registry or Azure Key Vault):
 
-- **Quay.io**: Uses anonymous access by default, set `useAuth: true` for private repositories
-- **MCR (mcr.microsoft.com)**: Always uses anonymous access
-- **Generic registries**: Uses anonymous access by default, set `useAuth: true` for private registries
-- **Azure Container Registry**: Uses anonymous access by default, set `useAuth: true` for private registries
+The tool uses the Azure SDK for ACR access and Key Vault integration. You must authenticate with the appropriate Azure account based on the registry environment:
 
-### Registry-Specific Authentication
-
-**Private Quay.io repositories (requires authentication)**:
-
-```yaml
-source:
-  image: quay.io/your-org/private-repo
-  useAuth: true  # Required for private Quay repositories
+**For dev environment** (`arohcpsvcdev.azurecr.io`):
+```bash
+# Login with Red Hat account (@redhat.com)
+az login
 ```
 
-**Public Quay.io repositories (anonymous access)**:
-
-```yaml
-source:
-  image: quay.io/redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro
-  # useAuth defaults to false for public repos
+**For int/stg/prod environments** (`arohcpsvcint.azurecr.io`, etc.):
+```bash
+# Login with Microsoft account (b-* account or @microsoft.com)
+az login
 ```
 
-**Private Quay.io repositories (requires authentication)**:
+Authentication is only required when:
+- Accessing private Azure Container Registries (`*.azurecr.io`)
+- Using Azure Key Vault for credential storage (`keyVault` configuration)
+
+Without proper authentication, you will encounter `401 Unauthorized` errors when accessing these Azure resources. Public registries (MCR, Quay.io, Docker Hub, etc.) do not require Azure authentication.
+
+### Authentication Methods by Registry
+
+| Registry | Default | Auth Methods |
+|----------|---------|--------------|
+| Quay.io (public) | Anonymous | None needed |
+| Quay.io (private) | Requires auth | Docker config, Key Vault |
+| ACR (public) | Anonymous | None needed |
+| ACR (private) | Requires auth | DefaultAzureCredential (Azure CLI, Managed Identity, etc.) |
+| MCR | Anonymous | Always public |
+| Generic/Docker Hub | Anonymous | Docker config |
+
+### Azure Key Vault Integration
+
+For private registries, configure Azure Key Vault on a per-image basis:
 
 ```yaml
 source:
-  image: quay.io/app-sre/aro-hcp-clusters-service
-  tagPattern: "^[a-f0-9]{7}$"
+  image: quay.io/app-sre/private-repo
   useAuth: true
   keyVault:
     url: "https://arohcpdev-global.vault.azure.net/"
     secretName: "component-sync-pull-secret"
 ```
 
-**Note**: For Quay.io, authentication can use either:
-
-1. **Docker credentials from `~/.docker/config.json`**:
-
-   ```bash
-   docker login quay.io
-   # Or use podman:
-   podman login quay.io
-   ```
-
-2. **Azure Key Vault pull secrets** (recommended for CI/CD and private repositories):
-   Configure the `keyVault` section in the image's source configuration (as shown above).
-   The tool will automatically fetch the pull secret from Azure Key Vault and merge it with your local Docker config before authenticating. This requires Azure CLI authentication (`az login`).
-
-**Private ACR (requires authentication)**:
-
-```yaml
-source:
-  image: arohcpsvcdev.azurecr.io/arohcpfrontend
-  useAuth: true  # Required for private ACR
-```
-
-**Public ACR (anonymous access)**:
-
-```yaml
-source:
-  image: kubernetesshared.azurecr.io/shared/kube-events
-  # useAuth defaults to false
-```
-
-**MCR images**:
-
-```yaml
-source:
-  image: mcr.microsoft.com/aks/msi-acrpull
-  # useAuth defaults to false, MCR is always public
-```
-
-**Authentication Methods by Registry**:
-
-- **Quay.io**:
-  - Docker credentials from `~/.docker/config.json` (via `docker login quay.io`)
-  - Azure Key Vault pull secrets (per-image configuration)
-- **Azure Container Registry**: Uses `DefaultAzureCredential` which supports:
-  - Managed Identity
-  - Azure CLI credentials (`az login`)
-  - Environment variables
-  - And other Azure authentication methods
-- **Generic registries**: Uses Docker credentials from `~/.docker/config.json`
-
-### Azure Key Vault Authentication
-
-For private registries that require authentication, you can configure Azure Key Vault credentials on a per-image basis. This is the recommended approach for CI/CD pipelines and production environments.
-
 **Benefits**:
-
-- **Secure**: Credentials stored in Azure Key Vault, not in configuration files
-- **Flexible**: Different images can use different Key Vault secrets
-- **Efficient**: Automatic deduplication prevents fetching the same secret multiple times
-- **Integrated**: Works seamlessly with Azure CLI authentication (`az login`)
-
-**Configuration**:
-
-```yaml
-images:
-  clusters-service:
-    source:
-      image: quay.io/app-sre/aro-hcp-clusters-service
-      tagPattern: "^[a-f0-9]{7}$"
-      useAuth: true
-      keyVault:
-        url: "https://arohcpdev-global.vault.azure.net/"
-        secretName: "component-sync-pull-secret"
-    targets:
-      - jsonPath: clouds.dev.defaults.clustersService.image.digest
-        filePath: ../../config/config.yaml
-```
-
-**How it works**:
-
-1. Tool authenticates to Azure using `DefaultAzureCredential` (supports `az login`, managed identity, etc.)
-2. Fetches the pull secret from the specified Key Vault
-3. Merges credentials with your local `~/.docker/config.json`
-4. Uses merged credentials to authenticate with the registry
-5. Multiple images with the same Key Vault URL + secret name are deduplicated (fetched only once)
+- Credentials stored securely in Azure Key Vault
+- Different images can use different secrets
+- Automatic deduplication (same vault+secret fetched only once)
+- Works with `az login` and other Azure authentication
 
 **Requirements**:
+- Azure CLI authenticated (`az login`) or Managed Identity
+- Read access to the Key Vault
+- Pull secret in Docker config.json format (base64 or raw JSON)
 
-- Azure CLI installed and authenticated (`az login`)
-- Read access to the specified Key Vault
-- Pull secret must be stored in Key Vault in Docker config.json format (supports both base64-encoded and raw JSON)
+### Docker Credentials
+
+For Quay.io and generic registries, you can also use Docker credentials:
+
+```bash
+# Login to Quay.io
+docker login quay.io
+# or
+podman login quay.io
+```
+
+Credentials are stored in `~/.docker/config.json` and automatically used when `useAuth: true`.
 
 ## Tag Selection
 
-You can specify which image tag to use in two ways:
+### Specific Tag (Pinning)
 
-### Option 1: Specific Tag (Recommended for pinning versions)
-
-Use the `tag` field to specify an exact tag name:
+Use when you need a specific version:
 
 ```yaml
 source:
   image: quay.io/package-operator/package-operator-package
-  tag: "v1.18.3"  # Pin to specific version
+  tag: "v1.18.3"  # Exact tag name
 ```
 
-**Use cases:**
-- Pinning to a specific version temporarily (e.g., during a rollback)
-- Testing a specific release
-- Production stability requirements
+**Benefits**:
+- Fast (no tag listing required)
+- Useful for rollbacks or testing specific releases
 
-**Performance benefits:**
-- **No pagination required** - fetches only the specified tag directly from the registry
-- Faster execution compared to pattern matching which requires listing all tags
+### Tag Pattern (Auto-updates)
 
-### Option 2: Tag Pattern (Recommended for automatic updates)
-
-Use the `tagPattern` field with a regex pattern to automatically select the latest matching tag:
+Use regex to automatically select the latest matching tag:
 
 ```yaml
 source:
   image: quay.io/package-operator/package-operator-package
-  tagPattern: "^v\\d+\\.\\d+\\.\\d+$"  # Match any semantic version
+  tagPattern: "^v\\d+\\.\\d+\\.\\d+$"  # Match semver tags
 ```
 
-**Common regex patterns:**
-- `^[a-f0-9]{7}$` - 7-character commit hashes (short)
-- `^[a-f0-9]{40}$` - 40-character commit hashes (full)
-- `^sha256-[a-f0-9]{64}$` - SHA256-prefixed single-arch images
-- `^latest$` - Only 'latest' tag
+**Common Patterns**:
+- `^[a-f0-9]{7}$` - 7-char commit hashes
+- `^[a-f0-9]{40}$` - Full commit hashes
+- `^sha256-[a-f0-9]{64}$` - SHA256-prefixed images
 - `^v\\d+\\.\\d+\\.\\d+$` - Semantic versions (v1.2.3)
-- `^main-.*` - Tags starting with 'main-'
+- `^main-.*` - Tags starting with "main-"
+- `^latest$` - Only "latest" tag
 
-**Use cases:**
-- Continuous updates to the latest version matching a pattern
-- Development and staging environments
-- Following a release branch
+### Version Labels
 
-### Important Notes
+When using `tag` (like `tag: "latest"`), the tool extracts version info from container labels:
 
-- `tag` and `tagPattern` are **mutually exclusive** - you can only specify one
-- If neither is specified, the tool uses the most recently pushed tag
-- When using `tag`, the tool will find and use that exact tag (case-sensitive)
+```yaml
+source:
+  image: quay.io/example/my-app
+  tag: "latest"
+  versionLabel: "org.opencontainers.image.revision"  # Default for 'tag'
+```
+
+This provides meaningful version info (like commit hash) even with generic tags.
 
 ## Architecture Filtering
 
-### Single-Architecture Images (Default)
+### Single-Architecture (Default)
 
-By default, the tool filters for single-architecture images matching the specified architecture (defaults to `amd64`):
+Filters for specific architecture (defaults to amd64):
 
 ```yaml
 source:
-  image: quay.io/acm-d/rhtap-hypershift-operator
-  tagPattern: "^sha256-[a-f0-9]{64}$"
-  architecture: amd64  # Defaults to amd64 if omitted
+  architecture: amd64  # Can be amd64, arm64, ppc64le, etc.
 ```
 
-**How it works:**
-
-1. Fetches all tags matching the pattern
-2. Iterates through tags (newest first)
-3. **Skips multi-arch manifest lists**
-4. Verifies architecture matches and OS = linux
-5. Returns the first matching single-arch image digest
-
-**Supported architectures**: `amd64`, `arm64`, `ppc64le`, etc.
+The tool:
+1. Lists all matching tags
+2. Skips multi-arch manifest lists
+3. Verifies architecture and OS match
+4. Returns first matching single-arch digest
 
 ### Multi-Architecture Manifests
 
-To fetch multi-arch manifest list digests instead of single-arch images, set `multiArch: true`:
+For multi-arch manifest lists:
 
 ```yaml
 source:
-  image: registry.k8s.io/secrets-store-sync/controller
-  tagPattern: "^v\\d+\\.\\d+\\.\\d+$"
-  multiArch: true  # Returns the manifest list digest
+  multiArch: true  # Returns manifest list digest
 ```
 
-**How it works:**
+The tool:
+1. Lists all matching tags
+2. Finds multi-arch manifest lists
+3. Returns manifest list digest (not single-arch image)
 
-1. Fetches all tags matching the pattern
-2. Iterates through tags (newest first)
-3. **Finds multi-arch manifest lists** (skips single-arch images)
-4. Returns the first multi-arch manifest list digest
+**Note**: `multiArch` and `architecture` are mutually exclusive.
 
-**Use cases**:
+## Output Format
 
-- Images that only publish multi-arch manifests
-- When you need the manifest list digest for platform-agnostic deployments
-- Container runtimes that resolve architecture-specific images from manifest lists
+### Inline Comments
 
-**Note**: `multiArch` and `architecture` are mutually exclusive. If `multiArch: true`, the `architecture` field is ignored.
+The tool adds version and timestamp comments to YAML files:
 
-### Registry-Specific Implementation
-
-- **Quay.io**: Uses `go-containerregistry` to inspect image manifests and detect multi-arch via `MediaType.IsIndex()`
-- **Azure Container Registry**: Uses Azure SDK's `GetManifestProperties` API and detects multi-arch via `RelatedArtifacts` field
-- **Generic/MCR**: Uses `go-containerregistry` to inspect Docker Registry HTTP API v2 manifests
-
-## Command Options
-
-```text
-Flags:
-      --config string             Path to configuration file (required)
-      --dry-run                   Preview changes without modifying files
-      --components string         Comma-separated list of components to update (optional)
-      --exclude-components string Comma-separated list of components to exclude (optional)
-  -v, --verbosity int             Log verbosity level (default 0)
+```yaml
+defaults:
+  pko:
+    imagePackage:
+      digest: sha256:abc123... # v1.18.4 (2025-11-24 14:30)
 ```
 
-**Component Filtering**:
+- **Version**: From container label (e.g., commit hash) or tag name
+- **Timestamp**: When the image was created (YYYY-MM-DD HH:MM)
 
-- Use `--components` to update only specific images: `--components maestro,hypershift`
-- Use `--exclude` to update all images except specific ones: `--exclude arohcpfrontend,arohcpbackend`
-- If `--components` is specified, `--exclude` is ignored
-- If neither is specified, all images are updated
+### Output Formats
 
-**Logging Verbosity Levels**:
+Write results to file in different formats:
 
-- **Level 0 or 1** (default): Clean summary output only
-  - Shows a formatted summary table with total images checked and updates applied
-  - Displays markdown-formatted commit message with changes
-  - No verbose logging noise
-  - Ideal for CI/CD pipelines and regular usage
+```bash
+# Table format (default)
+./image-updater update --config config.yaml --output-file results.txt
 
-- **Level 2+** (debug): Detailed debug logging for troubleshooting
-  - Registry API calls and responses
-  - Retry attempts with backoff durations
-  - Tag filtering and architecture validation steps
-  - Key Vault authentication details
-  - Individual tag inspection operations
-  - Manifest fetching and parsing details
-  - All debug information for troubleshooting
+# Markdown format
+./image-updater update --config config.yaml --output-file results.md --output-format markdown
 
-Use `--verbosity 2` or higher when debugging authentication issues, tag filtering problems, or transient network failures.
+# JSON format
+./image-updater update --config config.yaml --output-file results.json --output-format json
+```
+
+## Command Reference
+
+### Flags
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--config` | string | - | Path to configuration file (required) |
+| `--dry-run` | bool | false | Preview changes without modifying files |
+| `--env` | string | - | Environment to target: `stg` or `prod` (omit for dev/int) |
+| `--components` | string | - | Comma-separated list of components to update |
+| `--exclude-components` | string | - | Comma-separated list of components to exclude |
+| `--output-file` | string | - | Write results to file instead of stdout |
+| `--output-format` | string | table | Output format: `table`, `markdown`, or `json` |
+| `-v, --verbosity` | int | 0 | Log verbosity: 0=clean, 1=summary, 2+=debug |
+
+### Verbosity Levels
+
+- **Level 0-1** (default): Clean summary output
+  - Formatted table with updates
+  - Markdown commit message
+  - No verbose logging
+
+- **Level 2+** (debug): Detailed troubleshooting info
+  - Registry API calls
+  - Retry attempts with backoff
+  - Tag filtering steps
+  - Key Vault authentication
+  - Manifest inspection
+
+Use `-v=2` for debugging auth issues, tag filtering, or network failures.
 
 ## Configuration Reference
 
-### Source Configuration Options
+### Source Fields
 
 | Field | Type | Required | Default | Description |
 |-------|------|----------|---------|-------------|
 | `image` | string | Yes | - | Full image reference (registry/repository) |
-| `tag` | string | No | - | Exact tag to use (mutually exclusive with `tagPattern`) |
-| `tagPattern` | string | No | - | Regex pattern to filter tags (mutually exclusive with `tag`) |
-| `versionLabel` | string | No | `org.opencontainers.image.revision` (when using `tag`), empty (when using `tagPattern`) | Container label to extract for human-friendly version in comments and output table. Defaults to `org.opencontainers.image.revision` when using `tag` field. |
-| `architecture` | string | No | `amd64` | Target architecture for single-arch images (`amd64`, `arm64`, etc.) |
-| `multiArch` | bool | No | `false` | If `true`, fetches multi-arch manifest list digest |
-| `useAuth` | bool | No | `false` | If `true`, uses authentication (required for private registries) |
-| `keyVault` | object | No | - | Azure Key Vault configuration for fetching pull secrets |
-| `keyVault.url` | string | No | - | Azure Key Vault URL (e.g., `https://vault.vault.azure.net/`) |
-| `keyVault.secretName` | string | No | - | Name of the pull secret in Key Vault |
+| `tag` | string | No | - | Exact tag (mutually exclusive with `tagPattern`) |
+| `tagPattern` | string | No | - | Regex pattern (mutually exclusive with `tag`) |
+| `versionLabel` | string | No | `org.opencontainers.image.revision` (with `tag`), empty (with `tagPattern`) | Container label to extract for version info |
+| `architecture` | string | No | `amd64` | Target architecture (mutually exclusive with `multiArch`) |
+| `multiArch` | bool | No | `false` | Fetch multi-arch manifest list (mutually exclusive with `architecture`) |
+| `useAuth` | bool | No | `false` | Require authentication (needed for private registries) |
+| `keyVault.url` | string | No | - | Azure Key Vault URL |
+| `keyVault.secretName` | string | No | - | Pull secret name in Key Vault |
 
-**Notes**:
-
-- `tag` and `tagPattern` are mutually exclusive - only one can be specified
-- If neither `tag` nor `tagPattern` is specified, uses the most recently pushed tag
-- `multiArch` and `architecture` are mutually exclusive
-- `useAuth` defaults to `false` for all registries
-- For private registries, explicitly set `useAuth: true`
-- `keyVault` is optional and only needed for registries requiring Azure Key Vault credentials
-- When `keyVault` is configured, credentials are automatically fetched before registry authentication
-
-### Target Configuration Options
+### Target Fields
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `filePath` | string | Yes | Path to YAML file to update |
-| `jsonPath` | string | Yes | Dot-notation path to digest field (e.g., `defaults.image.digest` or `defaults.image.sha`) |
+| `jsonPath` | string | Yes | Dot-notation path to field (e.g., `defaults.image.digest`) |
+| `env` | string | Yes | Environment tag: `dev`, `int`, `stg`, or `prod` |
 
-**Note on digest vs sha fields:**
-
-- Fields ending with `.digest` will store the full digest including the `sha256:` prefix
-- Fields ending with `.sha` will store only the hash value without the `sha256:` prefix
-- This allows the tool to work with different configuration formats that have different digest field conventions
+**Note**: Fields ending with `.digest` store full digest (`sha256:...`), fields ending with `.sha` store hash only.
 
 ## Reliability Features
 
-### Automatic Retry with Exponential Backoff
+### Automatic Retry
 
-The image-updater implements robust retry logic to handle transient failures gracefully:
+- **Initial Interval**: 500ms
+- **Max Interval**: 60s
+- **Max Elapsed Time**: 5 minutes
+- **Multiplier**: 2.0 (exponential backoff)
+- **Randomization**: 0.1 (jitter)
 
-**Configuration** (default values):
-
-- **Initial Interval**: 500ms - Starting delay before first retry
-- **Max Interval**: 60s - Maximum delay between retries
-- **Max Elapsed Time**: 5 minutes - Total time before giving up
-- **Multiplier**: 2.0 - Exponential backoff multiplier
-- **Randomization Factor**: 0.1 - Jitter to prevent thundering herd
-
-**Retryable Scenarios**:
-
-- Network errors (connection failures, timeouts)
-- HTTP 5xx server errors
+Retries on:
+- Network errors
+- HTTP 5xx errors
 - HTTP 429 (rate limiting)
-
-**Registry Support**:
-
-- **Quay.io**: Retry on API calls and Registry V2 API requests
-- **Generic Registries**: Retry on all HTTP requests
-- **ACR**: Uses Azure SDK's built-in retry mechanisms
-
-**Logging**:
-
-- Logs each retry attempt with backoff duration
-- Logs final failure after all retries exhausted
 
 ### Context Cancellation
 
-All registry operations support context cancellation for:
-
-- Graceful shutdown on interrupt signals (Ctrl+C)
-- Timeout enforcement for long-running operations
-- Proper cleanup of resources (HTTP connections, etc.)
-
-Context is propagated through all layers:
-
-- Registry client operations
-- HTTP requests with retry logic
-- Tag fetching and manifest inspection
-
-## How It Works
-
-1. **Key Vault Authentication** (if configured):
-   - Collects all unique Key Vault configurations from images
-   - Deduplicates by vault URL + secret name combination
-   - Fetches each unique secret from Azure Key Vault
-   - Merges credentials with local `~/.docker/config.json`
-
-2. **Registry Client Selection**: Automatically selects the appropriate client based on registry URL:
-   - `quay.io` → QuayClient (uses Quay API with 100 tags/page pagination)
-   - `*.azurecr.io` → ACRClient (uses Azure SDK)
-   - `mcr.microsoft.com` → GenericRegistryClient (uses Docker Registry HTTP API v2)
-   - Others → GenericRegistryClient (uses Docker Registry HTTP API v2)
-
-3. **Tag Discovery** (with retry logic):
-   - Fetches all tags from the registry with automatic retries on failures
-   - Filters by `tagPattern` (if specified)
-   - Enriches tags with timestamps for proper sorting (both Quay API and Registry V2 API)
-
-4. **Architecture Validation**:
-   - For single-arch mode: Inspects each tag to find matching architecture and OS
-   - For multi-arch mode: Finds multi-arch manifest lists
-
-5. **Digest Update**: Updates the specified YAML files with the latest digest using JSONPath notation
-
-6. **Tag and Timestamp Comments**: Automatically adds inline comments with the tag name and creation timestamp
-
-7. **Preserves Formatting**: Maintains YAML structure, comments, and formatting when updating files
+- Supports Ctrl+C for graceful shutdown
+- Timeout enforcement
+- Proper resource cleanup

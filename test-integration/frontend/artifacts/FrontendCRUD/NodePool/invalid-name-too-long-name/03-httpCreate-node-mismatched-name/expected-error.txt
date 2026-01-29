@@ -1,0 +1,7 @@
+{
+  "error": {
+    "code": "InvalidRequestContent",
+    "message": "Invalid value: \"long and not valid node name\": name must match resourceID path: /subscriptions/85176f51-8b54-4150-b6b5-b4ff5d007f5b/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/basic/nodePools/basic",
+    "target": "name"
+  }
+}

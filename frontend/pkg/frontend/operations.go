@@ -40,7 +40,7 @@ func AddAsyncOperationHeader(writer http.ResponseWriter, request *http.Request, 
 	// MiddlewareReferer ensures Referer is present.
 	u, err := url.ParseRequestURI(request.Referer())
 	if err != nil {
-		logger.Error(err.Error())
+		logger.Error(err, "failed to parse request referer")
 		return
 	}
 
@@ -64,7 +64,7 @@ func AddLocationHeader(writer http.ResponseWriter, request *http.Request, operat
 	// MiddlewareReferer ensures Referer is present.
 	u, err := url.ParseRequestURI(request.Referer())
 	if err != nil {
-		logger.Error(err.Error())
+		logger.Error(err, "failed to parse request referer")
 		return
 	}
 

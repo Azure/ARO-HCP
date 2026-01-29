@@ -700,7 +700,7 @@ func TestValidateExternalAuthCustomValidation(t *testing.T) {
 }
 
 func createMinimalExternalAuth() *api.HCPOpenShiftClusterExternalAuth {
-	resourceID, _ := azcorearm.ParseResourceID("/subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster/externalAuth/test-auth")
+	resourceID, _ := azcorearm.ParseResourceID("/subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster/externalAuths/test-auth")
 	obj := api.NewDefaultHCPOpenShiftClusterExternalAuth(resourceID)
 	obj.Properties.Claim.Mappings.Username.Claim = "sub"
 	return obj
@@ -710,9 +710,9 @@ func createValidExternalAuth() *api.HCPOpenShiftClusterExternalAuth {
 	return &api.HCPOpenShiftClusterExternalAuth{
 		ProxyResource: arm.ProxyResource{
 			Resource: arm.Resource{
-				ID:   api.Must(azcorearm.ParseResourceID("/subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster/externalAuth/test-auth")),
+				ID:   api.Must(azcorearm.ParseResourceID("/subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster/externalAuths/test-auth")),
 				Name: "test-auth",
-				Type: "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/externalAuth",
+				Type: "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/externalAuths",
 			},
 		},
 		Properties: api.HCPOpenShiftClusterExternalAuthProperties{

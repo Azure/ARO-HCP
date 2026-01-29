@@ -1,4 +1,3 @@
 {
-	"parentResourceID": "/subscriptions/subscriptionID/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/basic/nodePools/first-node-pool",
-	"deleteResourceName": "first-controller"
+	"resourceID": "/subscriptions/subscriptionID/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/basic/nodePools/first-node-pool/hcpOpenShiftControllers/first-controller"
 }

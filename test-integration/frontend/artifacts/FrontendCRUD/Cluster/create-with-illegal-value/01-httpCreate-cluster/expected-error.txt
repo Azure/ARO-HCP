@@ -1,0 +1,5 @@
+{
+    "code": "InvalidRequestContent",
+    "message": "Invalid value: 30: must be less than or equal to 26",
+    "target": "properties.network.hostPrefix"
+  }

@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/onsi/ginkgo/v2"
+	"go.yaml.in/yaml/v2"
 
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -44,6 +45,7 @@ var staticFiles embed.FS
 
 type verifySimpleWebApp struct {
 	namespaceName string
+	nodeSelector  map[string]string
 }
 
 func (v verifySimpleWebApp) Name() string {
@@ -80,7 +82,30 @@ func (v verifySimpleWebApp) Verify(ctx context.Context, adminRESTConfig *rest.Co
 		return fmt.Errorf("failed to create dynamic client: %w", err)
 	}
 
-	deployment, err := createArbitraryResource(ctx, dynamicClient, namespace.Name, must(staticFiles.ReadFile("artifacts/serving_app/deployment.yaml")))
+	deploymentYAML := must(staticFiles.ReadFile("artifacts/serving_app/deployment.yaml"))
+
+	if v.nodeSelector != nil {
+
+		var deploymentMap map[string]any
+		if err := yaml.Unmarshal(deploymentYAML, &deploymentMap); err != nil {
+			return fmt.Errorf("failed to unmarshal deployment YAML: %w", err)
+		}
+
+		if spec, ok := deploymentMap["spec"].(map[string]any); ok {
+			if template, ok := spec["template"].(map[string]any); ok {
+				if templateSpec, ok := template["spec"].(map[string]any); ok {
+					templateSpec["nodeSelector"] = v.nodeSelector
+				}
+			}
+		}
+
+		deploymentYAML, err = yaml.Marshal(deploymentMap)
+		if err != nil {
+			return fmt.Errorf("failed to marshal modified deployment: %w", err)
+		}
+	}
+
+	deployment, err := createArbitraryResource(ctx, dynamicClient, namespace.Name, deploymentYAML)
 	if err != nil {
 		return fmt.Errorf("failed to create deployment: %w", err)
 	}
@@ -266,8 +291,12 @@ func (v verifySimpleWebApp) cleanup(ctx context.Context, adminRESTConfig *rest.C
 	return nil
 }
 
-func VerifySimpleWebApp() HostedClusterVerifier {
-	return verifySimpleWebApp{}
+func VerifySimpleWebApp(nodeSelector ...map[string]string) HostedClusterVerifier {
+	var ns map[string]string
+	if len(nodeSelector) > 0 {
+		ns = nodeSelector[0]
+	}
+	return verifySimpleWebApp{nodeSelector: ns}
 }
 
 func must[T any](v T, err error) T {

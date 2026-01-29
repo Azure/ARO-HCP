@@ -67,10 +67,9 @@ var _ = Describe("Customer", func() {
 			clusterParams, err = tc.CreateClusterCustomerResources(ctx,
 				resourceGroup,
 				clusterParams,
-				map[string]interface{}{
-					"persistTagValue": false,
-				},
+				map[string]interface{}{},
 				TestArtifactsFS,
+				framework.RBACScopeResourceGroup,
 			)
 			Expect(err).NotTo(HaveOccurred())
 
@@ -149,10 +148,9 @@ var _ = Describe("Customer", func() {
 			clusterParams, err = tc.CreateClusterCustomerResources(ctx,
 				resourceGroup,
 				clusterParams,
-				map[string]interface{}{
-					"persistTagValue": false,
-				},
+				map[string]interface{}{},
 				TestArtifactsFS,
+				framework.RBACScopeResourceGroup,
 			)
 			Expect(err).NotTo(HaveOccurred())
 
@@ -216,10 +214,10 @@ var _ = Describe("Customer", func() {
 			clusterParams, err = tc.CreateClusterCustomerResources(ctx,
 				resourceGroup,
 				clusterParams,
-				map[string]interface{}{
-					"persistTagValue": false,
-				},
-				TestArtifactsFS)
+				map[string]interface{}{},
+				TestArtifactsFS,
+				framework.RBACScopeResourceGroup,
+			)
 			Expect(err).NotTo(HaveOccurred())
 
 			err = tc.CreateHCPClusterFromParam(ctx,

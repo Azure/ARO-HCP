@@ -15,6 +15,7 @@
 package api
 
 import (
+	"path"
 	"strings"
 	"time"
 
@@ -72,25 +73,22 @@ type Operation struct {
 	Error *arm.CloudErrorBody `json:"error,omitempty"`
 }
 
-// GetValidTypes returns the valid resource types for an OperationDocument.
-func (doc Operation) GetValidTypes() []string {
-	return []string{OperationStatusResourceType.String()}
-}
-
 var _ CosmosPersistable = &Operation{}
 
 func (o *Operation) ComputeLogicalResourceID() *azcorearm.ResourceID {
-	return o.ResourceID
+	return Must(azcorearm.ParseResourceID(
+		strings.ToLower(
+			path.Join(
+				"/subscriptions",
+				o.OperationID.SubscriptionID,
+				"providers",
+				OperationStatusResourceType.String(),
+				o.OperationID.Name,
+			))))
 }
 
-func (o *Operation) GetCosmosData() CosmosData {
-	return CosmosData{
-		CosmosUID:    o.OperationID.Name,
-		PartitionKey: strings.ToLower(o.ExternalID.SubscriptionID),
-		ItemID:       o.ComputeLogicalResourceID(),
+func (o *Operation) GetCosmosData() *CosmosData {
+	return &CosmosData{
+		ResourceID: o.ResourceID,
 	}
-}
-
-func (o *Operation) SetCosmosDocumentData(cosmosUID string) {
-	panic("coding error: all operations must initialize with a cosmosID")
 }

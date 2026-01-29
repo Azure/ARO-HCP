@@ -18,6 +18,7 @@ import (
 	"fmt"
 
 	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -40,6 +41,9 @@ func CosmosToInternal[InternalAPIType, CosmosAPIType any](obj *CosmosAPIType) (*
 	case *Operation:
 		internalObj, err = CosmosToInternalOperation(cosmosObj)
 
+	case *Subscription:
+		internalObj, err = CosmosToInternalSubscription(cosmosObj)
+
 	case *TypedDocument:
 		var expectedObj InternalAPIType
 		switch castObj := any(expectedObj).(type) {
@@ -48,6 +52,9 @@ func CosmosToInternal[InternalAPIType, CosmosAPIType any](obj *CosmosAPIType) (*
 		default:
 			return nil, fmt.Errorf("unexpected return type: %T", castObj)
 		}
+
+	case *GenericDocument[InternalAPIType]:
+		internalObj, err = CosmosGenericToInternal[InternalAPIType](cosmosObj)
 
 	default:
 		return nil, fmt.Errorf("unknown type %T", cosmosObj)
@@ -83,6 +90,9 @@ func InternalToCosmos[InternalAPIType, CosmosAPIType any](obj *InternalAPIType) 
 	case *api.Operation:
 		cosmosObj, err = InternalToCosmosOperation(internalObj)
 
+	case *arm.Subscription:
+		cosmosObj, err = InternalToCosmosSubscription(internalObj)
+
 	case *TypedDocument:
 		var expectedObj CosmosAPIType
 		switch castObj := any(expectedObj).(type) {
@@ -93,7 +103,7 @@ func InternalToCosmos[InternalAPIType, CosmosAPIType any](obj *InternalAPIType) 
 		}
 
 	default:
-		return nil, fmt.Errorf("unknown type %T", internalObj)
+		cosmosObj, err = InternalToCosmosGeneric[InternalAPIType](obj)
 	}
 
 	if err != nil {

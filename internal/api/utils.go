@@ -25,6 +25,11 @@ import (
 	"dario.cat/mergo"
 	jsonpatch "github.com/evanphx/json-patch"
 
+	"k8s.io/apimachinery/pkg/util/sets"
+	"k8s.io/apimachinery/pkg/util/validation/field"
+
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -51,6 +56,13 @@ func isEmptyValue(v reflect.Value) bool {
 		return v.IsZero()
 	}
 	return false
+}
+
+func ResourceIDToStringPtr(resourceID *azcorearm.ResourceID) *string {
+	if resourceID == nil {
+		return nil
+	}
+	return Ptr(resourceID.String())
 }
 
 // PtrOrNil returns a pointer to p or nil if p is an empty value as
@@ -132,6 +144,18 @@ func StringPtrSliceToStringSlice(s []*string) []string {
 	return out
 }
 
+func ResourceIDMapToStringPtrMap(m map[string]*azcorearm.ResourceID) map[string]*string {
+	// Preserve nil in case it matters.
+	if m == nil {
+		return nil
+	}
+	out := make(map[string]*string, len(m))
+	for key, val := range m {
+		out[key] = ResourceIDToStringPtr(val)
+	}
+	return out
+}
+
 // StringMapToStringPtrMap converts a map of strings to a map of string pointers.
 func StringMapToStringPtrMap(m map[string]string) map[string]*string {
 	// Preserve nil in case it matters.
@@ -165,19 +189,31 @@ func StringPtrMapToStringMap(m map[string]*string) map[string]string {
 // key in src has a nil value, that entry is deleted from dst. The function
 // takes a pointer to the dst map in case the dst map is nil and needs to be
 // initialized.
-func MergeStringPtrMap(src map[string]*string, dst *map[string]string) {
+func MergeStringPtrMapIntoResourceIDMap(fldPath *field.Path, src map[string]*string, dst *map[string]*azcorearm.ResourceID) field.ErrorList {
+	errs := field.ErrorList{}
+
 	if src != nil && dst != nil {
-		for key, val := range src {
+		// convert in order so errors are in order.
+		for _, key := range sets.StringKeySet(src).List() {
+			val := src[key]
 			if val == nil {
 				delete(*dst, key)
 			} else {
 				if *dst == nil {
-					*dst = make(map[string]string)
+					*dst = make(map[string]*azcorearm.ResourceID)
 				}
-				(*dst)[key] = *val
+				if len(*val) > 0 {
+					if resourceID, err := azcorearm.ParseResourceID(*val); err != nil {
+						errs = append(errs, field.Invalid(fldPath.Key(key), *val, err.Error()))
+					} else {
+						(*dst)[key] = resourceID
+					}
+				}
 			}
 		}
 	}
+
+	return errs
 }
 
 // ApplyRequestBody applies a JSON request body to the value pointed to by v.

@@ -20,6 +20,8 @@ import (
 	"net/http"
 	"strings"
 
+	"k8s.io/apimachinery/pkg/util/validation/field"
+
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api"
@@ -96,15 +98,11 @@ func checkForProvisioningStateConflict(
 		}
 	}
 
-	parent := resourceID.Parent
+	// For nested resource types, check the provisioning state of the parent cluster.
+	if strings.EqualFold(resourceID.ResourceType.String(), api.NodePoolResourceType.String()) ||
+		strings.EqualFold(resourceID.ResourceType.String(), api.ExternalAuthResourceType.String()) {
 
-	// ResourceType casing is preserved for parents in the same namespace.
-	// TODO if I understand this correctly, this is ONLY the Cluster itself, in which case these calls could change.
-	for parent.ResourceType.Namespace == resourceID.ResourceType.Namespace {
-		if !strings.EqualFold(parent.ResourceType.String(), api.ClusterResourceType.String()) {
-			return fmt.Errorf("unable to determine provisioning state of %q", parent.ResourceType.String())
-		}
-		cluster, err := cosmosClient.HCPClusters(parent.SubscriptionID, parent.ResourceGroupName).Get(ctx, parent.Name)
+		cluster, err := cosmosClient.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).Get(ctx, resourceID.Parent.Name)
 		if err != nil {
 			return utils.TrackError(err)
 		}
@@ -130,8 +128,6 @@ func checkForProvisioningStateConflict(
 				"Cannot %s resource while parent resource is deleting",
 				strings.ToLower(string(operationRequest)))
 		}
-
-		parent = parent.Parent
 	}
 
 	return nil
@@ -164,4 +160,10 @@ func (f *Frontend) DeleteAllResourcesInSubscription(ctx context.Context, subscri
 	}
 
 	return nil
+}
+
+func nameResourceIDMismatch(resourceID *azcorearm.ResourceID, name string) error {
+	return arm.CloudErrorFromFieldErrors(field.ErrorList{
+		field.Invalid(field.NewPath("name"), name, fmt.Sprintf("name must match resourceID path: %v", resourceID)),
+	})
 }

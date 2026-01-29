@@ -4,8 +4,8 @@ kind: ConfigMap
 apiVersion: v1
 metadata:
   labels:
-    istio.io/rev: 'asm-1-25'
-  name: istio-shared-configmap-asm-1-25
+    istio.io/rev: 'asm-1-26'
+  name: istio-shared-configmap-asm-1-26
   namespace: aks-istio-system
 data:
   mesh: |-

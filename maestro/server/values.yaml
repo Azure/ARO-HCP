@@ -39,6 +39,7 @@ clustersService:
 istio:
   restrictIngress: {{ .maestro.restrictIstioIngress }}
 azure:
+  cloudEnvironmentName: "{{ .cloudEnvironmentName }}"
   clientId: "__maestroMsiClientId__"
   tenantId: "__tenantId__"
 image:

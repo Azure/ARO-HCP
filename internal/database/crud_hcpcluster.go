@@ -14,6 +14,8 @@
 
 package database
 
+//go:generate $MOCKGEN -typed -source=crud_hcpcluster.go -destination=mock_crud_hcpcluster.go -package database OperationCRUD
+
 import (
 	"fmt"
 	"path"
@@ -42,7 +44,7 @@ type OperationCRUD interface {
 	// Note that ListActiveOperations does not perform the search, but merely prepares an iterator
 	// to do so. Hence the lack of a Context argument. The search is performed by calling Items() on
 	// the iterator in a ranged for loop.
-	ListActiveOperations(options *DBClientListActiveOperationDocsOptions) DBClientIterator[OperationDocument]
+	ListActiveOperations(options *DBClientListActiveOperationDocsOptions) DBClientIterator[api.Operation]
 }
 
 type operationCRUD struct {
@@ -63,7 +65,7 @@ func NewOperationCRUD(containerClient *azcosmos.ContainerClient, subscriptionID 
 
 var _ OperationCRUD = &operationCRUD{}
 
-func (d *operationCRUD) ListActiveOperations(options *DBClientListActiveOperationDocsOptions) DBClientIterator[OperationDocument] {
+func (d *operationCRUD) ListActiveOperations(options *DBClientListActiveOperationDocsOptions) DBClientIterator[api.Operation] {
 	var queryOptions azcosmos.QueryOptions
 
 	query := fmt.Sprintf(

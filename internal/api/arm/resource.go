@@ -53,10 +53,10 @@ type TrackedResource struct {
 }
 
 // NewTrackedResource returns a TrackedResource initialized from resourceID.
-func NewTrackedResource(resourceID *azcorearm.ResourceID) TrackedResource {
+func NewTrackedResource(resourceID *azcorearm.ResourceID, azureLocation string) TrackedResource {
 	return TrackedResource{
 		Resource: NewResource(resourceID),
-		Location: GetAzureLocation(),
+		Location: azureLocation,
 	}
 }
 

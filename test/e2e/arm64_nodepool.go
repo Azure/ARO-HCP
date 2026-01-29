@@ -70,12 +70,12 @@ var _ = Describe("Customer", func() {
 				resourceGroup,
 				clusterParams,
 				map[string]interface{}{
-					"persistTagValue":        false,
 					"customerNsgName":        customerNetworkSecurityGroupName,
 					"customerVnetName":       customerVnetName,
 					"customerVnetSubnetName": customerVnetSubnetName,
 				},
 				TestArtifactsFS,
+				framework.RBACScopeResourceGroup,
 			)
 			Expect(err).NotTo(HaveOccurred())
 

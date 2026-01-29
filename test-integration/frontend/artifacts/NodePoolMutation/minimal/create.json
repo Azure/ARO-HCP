@@ -1,9 +1,0 @@
-{
-  "name": "minimal-np",
-  "properties": {
-    "platform": {
-      "vmSize": "large"
-    }
-  },
-  "type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/nodePools"
-}

@@ -1,0 +1,68 @@
+{
+	"identity": {
+		"type": "UserAssigned",
+		"userAssignedIdentities": {}
+	},
+	"name": "basic",
+	"properties": {
+		"api": {
+			"visibility": "Public"
+		},
+		"clusterImageRegistry": {
+			"state": "Disabled"
+		},
+		"console": {},
+		"dns": {},
+		"etcd": {
+			"dataEncryption": {
+				"customerManaged": {
+					"encryptionType": "KMS",
+					"kms": {
+						"activeKey": {
+							"name": "encryptionKeyName",
+							"vaultName": "keyVaultName",
+							"version": "2024-12-01-preview"
+						}
+					}
+				},
+				"keyManagementMode": "CustomerManaged"
+			}
+		},
+		"network": {
+			"hostPrefix": 23,
+			"machineCidr": "10.0.0.0/16",
+			"networkType": "OVNKubernetes",
+			"podCidr": "10.128.0.0/14",
+			"serviceCidr": "172.30.0.0/16"
+		},
+		"autoscaling": {
+			"maxPodGracePeriodSeconds": -1
+		},
+		"platform": {
+			"managedResourceGroup": "managed-resource-group-name",
+			"networkSecurityGroupId": "/invalid2",
+			"outboundType": "LoadBalancer",
+			"subnetId": "/invalid1",
+			"operatorsAuthentication": {
+				"userAssignedIdentities": {
+					"controlPlaneOperators": {
+						"serviceManagedIdentity11": "/invalid3",
+						"serviceManagedIdentity22": "/invalid4"
+					},
+					"dataPlaneOperators": {
+						"serviceManagedIdentity33": "/invalid5",
+						"serviceManagedIdentity43": "/invalid6"
+					},
+					"serviceManagedIdentity": "/invalid7"
+				}
+			}
+		},
+		"version": {
+			"channelGroup": "stable"
+		}
+	},
+	"tags": {
+		"one": "apple"
+	},
+	"type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters"
+}

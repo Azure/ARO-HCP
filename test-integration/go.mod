@@ -1,16 +1,14 @@
 module github.com/Azure/ARO-HCP/test-integration
 
-go 1.24.4
+go 1.24.11
 
 require (
 	dario.cat/mergo v1.0.1
 	github.com/Azure/ARO-HCP/backend v0.0.0-00010101000000-000000000000
-	github.com/Azure/ARO-HCP/frontend v0.0.0-20251215171147-ff127faefe61
+	github.com/Azure/ARO-HCP/frontend v0.0.0-00010101000000-000000000000
 	github.com/Azure/ARO-HCP/internal v0.0.0-00010101000000-000000000000
 	github.com/Azure/ARO-HCP/test/sdk/v20240610preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp v0.0.0-00010101000000-000000000000
 	github.com/google/go-cmp v0.7.0
-	github.com/google/uuid v1.6.0
-	github.com/neilotoole/slogt v1.1.0
 	github.com/openshift-online/ocm-api-model/clientapi v0.0.435
 	github.com/openshift-online/ocm-sdk-go v0.1.480
 	github.com/prometheus/client_golang v1.23.2
@@ -32,6 +30,7 @@ require (
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang/protobuf v1.5.4 // indirect
+	github.com/google/uuid v1.6.0 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.27.2 // indirect
 	github.com/hashicorp/go-version v1.7.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
@@ -89,15 +88,15 @@ require (
 require (
 	github.com/Azure/azure-sdk-for-go v68.0.0+incompatible // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.20.0
-	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.13.0 // indirect
+	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.13.1 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos v1.4.1
 	github.com/Azure/azure-sdk-for-go/sdk/internal v1.11.2 // indirect
-	github.com/AzureAD/microsoft-authentication-library-for-go v1.5.0 // indirect
+	github.com/AzureAD/microsoft-authentication-library-for-go v1.6.0 // indirect
 	github.com/aymerick/douceur v0.2.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
-	github.com/go-logr/logr v1.4.3 // indirect
+	github.com/go-logr/logr v1.4.3
 	github.com/golang-jwt/jwt/v4 v4.5.2 // indirect
 	github.com/golang-jwt/jwt/v5 v5.3.0 // indirect
 	github.com/golang/glog v1.2.5 // indirect
@@ -122,8 +121,10 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
-replace github.com/Azure/ARO-HCP/internal => ../internal
-
 replace github.com/Azure/ARO-HCP/backend => ../backend
+
+replace github.com/Azure/ARO-HCP/frontend => ../frontend
+
+replace github.com/Azure/ARO-HCP/internal => ../internal
 
 replace github.com/Azure/ARO-HCP/test/sdk/v20240610preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp => ../test/sdk/v20240610preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp

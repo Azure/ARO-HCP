@@ -16,13 +16,13 @@ package frontend
 
 import (
 	"bytes"
-	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
 	"testing"
 	"time"
 
+	"github.com/go-logr/logr/testr"
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
 
@@ -87,7 +87,7 @@ func TestMiddlewareSystemData(t *testing.T) {
 			}
 
 			// Add a logger to the context so parsing errors will be logged.
-			ctx := utils.ContextWithLogger(request.Context(), slog.Default())
+			ctx := utils.ContextWithLogger(request.Context(), testr.New(t))
 			request = request.WithContext(ctx)
 
 			next := func(w http.ResponseWriter, r *http.Request) {

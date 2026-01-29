@@ -1,0 +1,22 @@
+{
+	"_attachments": "attachments/",
+	"_etag": "\"00000000-0000-0000-80da-b404ec0501dc\"",
+	"_rid": "NNYoALQEciYIAAAAAAAAAA==",
+	"_self": "dbs/NNYoAA==/colls/NNYoALQEciY=/docs/NNYoALQEciYIAAAAAAAAAA==/",
+	"_ts": 1767902972,
+	"id": "50c1a0ba-3bc4-48fb-857e-eb0974df1e1c",
+	"partitionKey": "6b690bec-0c16-4ecb-8f67-781caf40bba7",
+	"properties": {
+		"externalId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/create-with-tags/nodePools/basic-node-pool",
+		"internalId": "/api/clusters_mgmt/v1/clusters/9p2sk955gj/node_pools/59mkgdzg9s",
+		"lastTransitionTime": "2026-01-08T20:09:32.571015378Z",
+		"operationId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/providers/Microsoft.RedHatOpenShift/locations/fake-location/hcpOperationStatuses/50c1a0ba-3bc4-48fb-857e-eb0974df1e1c",
+		"request": "Update",
+		"resourceId": null,
+		"startTime": "2026-01-08T20:09:32.571015378Z",
+		"status": "Accepted",
+		"tenantId": "00000000-0000-0000-0000-000000000000"
+	},
+	"resourceType": "Microsoft.RedHatOpenShift/hcpOperationStatuses",
+	"ttl": 604800
+}

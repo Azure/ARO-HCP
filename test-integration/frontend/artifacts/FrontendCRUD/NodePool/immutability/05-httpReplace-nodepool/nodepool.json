@@ -1,0 +1,16 @@
+{
+	"name": "immutability-np",
+	"properties": {
+		"autoRepair": false,
+		"platform": {
+			"availabilityZone": "updated",
+			"enableEncryptionAtHost": true,
+			"osDisk": {
+				"diskStorageAccountType": "Changed",
+				"sizeGiB": 65
+			},
+			"vmSize": "different"
+		}
+	},
+	"type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/nodePools"
+}

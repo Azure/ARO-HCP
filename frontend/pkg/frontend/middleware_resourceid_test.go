@@ -16,13 +16,13 @@ package frontend
 
 import (
 	"context"
-	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
 	"strings"
 	"testing"
 
+	"github.com/go-logr/logr/testr"
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
 	semconv "go.opentelemetry.io/otel/semconv/v1.27.0"
@@ -128,7 +128,7 @@ func TestMiddlewareResourceID(t *testing.T) {
 			url := "http://example.com" + strings.ToLower(tt.path)
 
 			ctx := context.Background()
-			ctx = utils.ContextWithLogger(ctx, slog.Default())
+			ctx = utils.ContextWithLogger(ctx, testr.New(t))
 			ctx = ContextWithOriginalPath(ctx, tt.path)
 
 			ctx, sr := initSpanRecorder(ctx)

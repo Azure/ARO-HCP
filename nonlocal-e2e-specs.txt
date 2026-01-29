@@ -10,12 +10,6 @@
   "Successfully lists clusters filtered by subscription ID",
   "creates a cluster and fails to update its name with a PATCH request",
   "creates and deletes vm type NC6sv3 in a single cluster",
-  "should be able to create a cluster with an external auth config and get the external auth config",
-  "should be able to create an HCP cluster and custom node pool osDisk size using bicep template",
-  "should be able to create several HCP clusters in their customer resource group, but not in the same managed resource group",
-  "should be able to lifecycle and confirm external auth on a cluster",
-  "should be able to list HCP clusters without node pools at both subscription and resource group levels",
   "should confirm the HCP cluster is deleted (not found)",
-  "should create an HCP cluster and validate TLS certificates",
-  "should not be able to create a 4.18 HCP cluster"
+  "should create an HCP cluster and validate TLS certificates"
 ]

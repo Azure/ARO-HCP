@@ -15,7 +15,6 @@
 package api
 
 import (
-	"strings"
 	"time"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -33,16 +32,10 @@ type HCPOpenShiftClusterExternalAuth struct {
 
 var _ CosmosPersistable = &HCPOpenShiftClusterExternalAuth{}
 
-func (o *HCPOpenShiftClusterExternalAuth) GetCosmosData() CosmosData {
-	return CosmosData{
-		CosmosUID:    o.ServiceProviderProperties.CosmosUID,
-		PartitionKey: strings.ToLower(o.ID.SubscriptionID),
-		ItemID:       o.ID,
+func (o *HCPOpenShiftClusterExternalAuth) GetCosmosData() *CosmosData {
+	return &CosmosData{
+		ResourceID: o.ID,
 	}
-}
-
-func (o *HCPOpenShiftClusterExternalAuth) SetCosmosDocumentData(cosmosUID string) {
-	o.ServiceProviderProperties.CosmosUID = cosmosUID
 }
 
 // HCPOpenShiftClusterNodePoolProperties represents the property bag of a
@@ -56,7 +49,6 @@ type HCPOpenShiftClusterExternalAuthProperties struct {
 }
 
 type HCPOpenShiftClusterExternalAuthServiceProviderProperties struct {
-	CosmosUID         string     `json:"cosmosUID,omitempty"`
 	ClusterServiceID  InternalID `json:"clusterServiceID,omitempty"`
 	ActiveOperationID string     `json:"activeOperationId,omitempty"`
 }

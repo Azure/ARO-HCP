@@ -9,7 +9,7 @@ provision_shards:
   status: active
   region: '{{ .region }}'
   cloud_provider: azure
-  topology: dedicated
+  topology: shared
   azure_shard:
     public_dns_zone_resource_id: "{{ .extraVars.zoneResourceId }}"
     cx_secrets_key_vault_url: "{{ .extraVars.cxSecretsKeyVaultUrl }}"

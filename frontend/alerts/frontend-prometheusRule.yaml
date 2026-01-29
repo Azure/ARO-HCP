@@ -24,9 +24,9 @@ spec:
         summary: 'Frontend latency is high: 95th percentile exceeds 5 seconds'
     - alert: FrontendClusterServiceErrorRate
       expr: |
-        (sum(max without(prometheus_replica) (rate(frontend_clusters_service_client_request_count{code=~"4..|5.."}[1h]))))
+        (sum by (cluster) (max without(prometheus_replica) (rate(frontend_clusters_service_client_request_count{code=~"4..|5.."}[1h]))))
         /
-        (sum(max without(prometheus_replica) (rate(frontend_clusters_service_client_request_count[1h]))))
+        (sum by (cluster) (max without(prometheus_replica) (rate(frontend_clusters_service_client_request_count[1h]))))
         > 0.05
       for: 5m
       labels:

@@ -59,11 +59,25 @@ resource certificateSignerCA 'Microsoft.EventGrid/namespaces/caCertificates@2024
   'OneCert'
 )) {
   parent: eventGridNamespace
+  // deprecate this in favor of amerootv2 after migration is complete
   name: 'ameroot'
   properties: {
     description: 'root certificate for OneCertV2-PrivateCA'
     // this expires in May 2026 !!!!
     encodedCertificate: replace(loadTextContent('../../ca/AMEROOT_ameroot.pem'), '\n', '')
+  }
+}
+
+resource certificateSignerCAameV2 'Microsoft.EventGrid/namespaces/caCertificates@2024-12-15-preview' = if (startsWith(
+  certificateIssuer,
+  'OneCert'
+)) {
+  parent: eventGridNamespace
+  name: 'amerootv2'
+  properties: {
+    description: 'AMEV2 root certificate for OneCertV2-PrivateCA'
+    // this expires in Feb 2049 !!!!
+    encodedCertificate: replace(loadTextContent('../../ca/AMEROOT_amerootv2.pem'), '\n', '')
   }
 }
 

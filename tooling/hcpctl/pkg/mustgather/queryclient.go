@@ -52,6 +52,16 @@ func NewQueryClient(client kusto.KustoClient, queryTimeout time.Duration, output
 	}
 }
 
+// NewQueryClient creates a new QueryClient with default dependencies
+func NewQueryClientWithFileWriter(client kusto.KustoClient, queryTimeout time.Duration, outputPath string, fileWriter FileWriter) *QueryClient {
+	return &QueryClient{
+		Client:       client,
+		QueryTimeout: queryTimeout,
+		OutputPath:   outputPath,
+		FileWriter:   fileWriter,
+	}
+}
+
 func (q *QueryClient) ConcurrentQueries(ctx context.Context, queries []*kusto.ConfigurableQuery, outputChannel chan *table.Row) error {
 	logger := logr.FromContextOrDiscard(ctx)
 	wg := sync.WaitGroup{}
@@ -68,9 +78,11 @@ func (q *QueryClient) ConcurrentQueries(ctx context.Context, queries []*kusto.Co
 				errorCh <- fmt.Errorf("failed to execute query: %w", err)
 				return
 			}
-			err = q.FileWriter.WriteFile(q.OutputPath, fmt.Sprintf("%s.json", query.Name), result)
-			if err != nil {
-				errorCh <- fmt.Errorf("failed to write query result to file: %w", err)
+			if q.FileWriter != nil {
+				err = q.FileWriter.WriteFile(q.OutputPath, fmt.Sprintf("%s.json", query.Name), result)
+				if err != nil {
+					errorCh <- fmt.Errorf("failed to write query result to file: %w", err)
+				}
 			}
 		}(query, i)
 	}

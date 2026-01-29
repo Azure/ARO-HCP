@@ -18,6 +18,13 @@ type ManagedIdentities = {
 @description('Identities to assign')
 param identities ManagedIdentities
 
+@description('RBAC scope to use for role assignments: resourceGroup or resource')
+@allowed([
+  'resource'
+  'resourceGroup'
+])
+param rbacScope string = 'resourceGroup'
+
 resource clusterApiAzureMi 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
   name: identities.clusterApiAzureMiName
 }
@@ -92,7 +99,17 @@ var federatedCredentialsRoleId = subscriptionResourceId(
 //
 // R E A D E R   R O L E   (service MSI -> control-plane MSIs)
 //
-resource serviceMiReaderOnClusterApi 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+resource serviceMiReaderOnIdentitiesResourceGroup 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (rbacScope == 'resourceGroup') {
+  name: guid(resourceGroup().id, serviceManagedIdentity.id, readerRoleId)
+  scope: resourceGroup()
+  properties: {
+    principalId: serviceManagedIdentity.properties.principalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: readerRoleId
+  }
+}
+
+resource serviceMiReaderOnClusterApi 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (rbacScope == 'resource') {
   name: guid(clusterApiAzureMi.id, serviceManagedIdentity.id, readerRoleId)
   scope: clusterApiAzureMi
   properties: {
@@ -102,7 +119,7 @@ resource serviceMiReaderOnClusterApi 'Microsoft.Authorization/roleAssignments@20
   }
 }
 
-resource serviceMiReaderOnControlPlane 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+resource serviceMiReaderOnControlPlane 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (rbacScope == 'resource') {
   name: guid(controlPlaneMi.id, serviceManagedIdentity.id, readerRoleId)
   scope: controlPlaneMi
   properties: {
@@ -112,7 +129,7 @@ resource serviceMiReaderOnControlPlane 'Microsoft.Authorization/roleAssignments@
   }
 }
 
-resource serviceMiReaderOnCloudControllerManager 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+resource serviceMiReaderOnCloudControllerManager 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (rbacScope == 'resource') {
   name: guid(cloudControllerManagerMi.id, serviceManagedIdentity.id, readerRoleId)
   scope: cloudControllerManagerMi
   properties: {
@@ -122,7 +139,7 @@ resource serviceMiReaderOnCloudControllerManager 'Microsoft.Authorization/roleAs
   }
 }
 
-resource serviceMiReaderOnIngress 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+resource serviceMiReaderOnIngress 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (rbacScope == 'resource') {
   name: guid(ingressMi.id, serviceManagedIdentity.id, readerRoleId)
   scope: ingressMi
   properties: {
@@ -132,7 +149,7 @@ resource serviceMiReaderOnIngress 'Microsoft.Authorization/roleAssignments@2022-
   }
 }
 
-resource serviceMiReaderOnDiskCsiDriver 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+resource serviceMiReaderOnDiskCsiDriver 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (rbacScope == 'resource') {
   name: guid(diskCsiDriverMi.id, serviceManagedIdentity.id, readerRoleId)
   scope: diskCsiDriverMi
   properties: {
@@ -142,7 +159,7 @@ resource serviceMiReaderOnDiskCsiDriver 'Microsoft.Authorization/roleAssignments
   }
 }
 
-resource serviceMiReaderOnFileCsiDriver 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+resource serviceMiReaderOnFileCsiDriver 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (rbacScope == 'resource') {
   name: guid(fileCsiDriverMi.id, serviceManagedIdentity.id, readerRoleId)
   scope: fileCsiDriverMi
   properties: {
@@ -152,7 +169,7 @@ resource serviceMiReaderOnFileCsiDriver 'Microsoft.Authorization/roleAssignments
   }
 }
 
-resource serviceMiReaderOnImageRegistry 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+resource serviceMiReaderOnImageRegistry 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (rbacScope == 'resource') {
   name: guid(imageRegistryMi.id, serviceManagedIdentity.id, readerRoleId)
   scope: imageRegistryMi
   properties: {
@@ -162,7 +179,7 @@ resource serviceMiReaderOnImageRegistry 'Microsoft.Authorization/roleAssignments
   }
 }
 
-resource serviceMiReaderOnCloudNetworkConfig 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+resource serviceMiReaderOnCloudNetworkConfig 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (rbacScope == 'resource') {
   name: guid(cloudNetworkConfigMi.id, serviceManagedIdentity.id, readerRoleId)
   scope: cloudNetworkConfigMi
   properties: {
@@ -172,7 +189,7 @@ resource serviceMiReaderOnCloudNetworkConfig 'Microsoft.Authorization/roleAssign
   }
 }
 
-resource serviceMiReaderOnKms 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+resource serviceMiReaderOnKms 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (rbacScope == 'resource') {
   name: guid(kmsMi.id, serviceManagedIdentity.id, readerRoleId)
   scope: kmsMi
   properties: {
@@ -185,7 +202,17 @@ resource serviceMiReaderOnKms 'Microsoft.Authorization/roleAssignments@2022-04-0
 //
 // F E D E R A T E D   C R E D E N T I A L   R O L E   (service MSI -> dataplane MSIs)
 //
-resource dpDiskCsiDriverMiFederatedCredentialsRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+resource serviceMiFederatedCredentialsOnIdentitiesResourceGroup 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (rbacScope == 'resourceGroup') {
+  name: guid(resourceGroup().id, serviceManagedIdentity.id, federatedCredentialsRoleId)
+  scope: resourceGroup()
+  properties: {
+    principalId: serviceManagedIdentity.properties.principalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: federatedCredentialsRoleId
+  }
+}
+
+resource dpDiskCsiDriverMiFederatedCredentialsRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (rbacScope == 'resource') {
   name: guid(dpDiskCsiDriverMi.id, serviceManagedIdentity.id, federatedCredentialsRoleId)
   scope: dpDiskCsiDriverMi
   properties: {
@@ -195,7 +222,7 @@ resource dpDiskCsiDriverMiFederatedCredentialsRoleAssignment 'Microsoft.Authoriz
   }
 }
 
-resource dpFileCsiDriverMiFederatedCredentialsRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+resource dpFileCsiDriverMiFederatedCredentialsRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (rbacScope == 'resource') {
   name: guid(dpFileCsiDriverMi.id, serviceManagedIdentity.id, federatedCredentialsRoleId)
   scope: dpFileCsiDriverMi
   properties: {
@@ -205,7 +232,7 @@ resource dpFileCsiDriverMiFederatedCredentialsRoleAssignment 'Microsoft.Authoriz
   }
 }
 
-resource dpImageRegistryMiFederatedCredentialsRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+resource dpImageRegistryMiFederatedCredentialsRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (rbacScope == 'resource') {
   name: guid(dpImageRegistryMi.id, serviceManagedIdentity.id, federatedCredentialsRoleId)
   scope: dpImageRegistryMi
   properties: {

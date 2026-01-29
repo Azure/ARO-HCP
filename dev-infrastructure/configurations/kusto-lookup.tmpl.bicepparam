@@ -2,4 +2,4 @@ using '../templates/kusto-lookup.bicep'
 
 param kustoName = '{{ .kusto.kustoName }}'
 
-param manageInstance = {{ .kusto.manageInstance }}
+param kustoEnabled = {{ .arobit.kusto.enabled }}

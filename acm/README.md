@@ -13,8 +13,15 @@ Installation and configuration are split into three individual helm charts
 
 ## Updating charts
 
-To update the MCE and policy charts, change the `acm.mce` and `acm.bundle` configuration in `config/config.yaml` and run `make helm-charts`. Commit the resulting chart changes.
+To update the MCE and policy charts, change the `acm.mce.bundle` and `acm.operator.bundle` digests in `config/config.yaml` and run `make helm-charts`. Commit the resulting chart changes.
 
-Official release digests for MCE versions can be found [here](https://catalog.redhat.com/software/containers/multicluster-engine/mce-operator-bundle/6160406290fb938ecf6009c6). The digests for `acm.bundle.digest` needs to be compatible with MCE version. For the time being we don't have a better process than to contact the ACM team and ask them for the digest.
+The ACM version is automatically extracted from the ACM operator bundle image at build time. The version is used to:
+- Clone the appropriate upstream branch (`release-x.y`)
+- Extract the correct image manifest (`extras/x.y.z.json`)
+- Set helm chart versions
 
-It is possible to use pre-release versions of MCE and policy by setting the `acm.mce` and `acm.bundle` configuration in `config/config.yaml` to the desired pre-release version digests. Contract the ACM team to discuss pre-release version usage.
+Official release digests can be found here:
+- MCE: [multicluster-engine/mce-operator-bundle](https://catalog.redhat.com/software/containers/multicluster-engine/mce-operator-bundle/6160406290fb938ecf6009c6)
+- ACM: Contact the ACM team for compatible ACM operator bundle digests
+
+It is possible to use pre-release versions of MCE and ACM by setting the `acm.mce.bundle` and `acm.operator.bundle` digests in `config/config.yaml` to the desired pre-release version digests. Contact the ACM team to discuss pre-release version usage.

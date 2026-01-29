@@ -1,0 +1,12 @@
+let _startTime = datetime("{{.StartTime}}");
+let _endTime = datetime("{{.EndTime}}");
+let _resource_group = '{{.ResourceGroupName}}';
+let cid = (database('ServiceLogs').table('clustersServiceLogs')
+| where timestamp between (_startTime .. _endTime)
+| where resource_id has _resource_group
+| where strlen( cid) > 0
+| distinct cid);
+database('HostedControlPlaneLogs').table('containerLogs')
+| where timestamp between (_startTime .. _endTime)
+| where namespace_name has_any (cid)
+| project timestamp, log

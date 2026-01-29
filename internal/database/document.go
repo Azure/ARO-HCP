@@ -14,19 +14,6 @@
 
 package database
 
-// DocumentProperties is an interface for types that can serve as
-// TypedDocument.Properties.
-type DocumentProperties interface {
-	GetValidTypes() []string
-}
-
-// ResourceProperties is an interface for types that can serve as
-// TypedDocument.Properties.
-type ResourceProperties interface {
-	ValidateResourceType() error
-	GetTypedDocument() *TypedDocument
-}
-
 type TypedDocumentAccessor interface {
 	GetTypedDocument() *TypedDocument
 }

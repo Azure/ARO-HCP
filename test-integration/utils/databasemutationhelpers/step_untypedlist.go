@@ -24,21 +24,18 @@ import (
 	"github.com/stretchr/testify/require"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
-	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
 	"github.com/Azure/ARO-HCP/internal/database"
 )
 
 type untypedListStep struct {
-	stepID      StepID
-	key         UntypedCRUDKey
-	specializer ResourceCRUDTestSpecializer[database.TypedDocument]
+	stepID StepID
+	key    UntypedCRUDKey
 
-	cosmosContainer   *azcosmos.ContainerClient
 	expectedResources []*database.TypedDocument
 }
 
-func newUntypedListStep(stepID StepID, cosmosContainer *azcosmos.ContainerClient, stepDir fs.FS) (*untypedListStep, error) {
+func newUntypedListStep(stepID StepID, stepDir fs.FS) (*untypedListStep, error) {
 	keyBytes, err := fs.ReadFile(stepDir, "00-key.json")
 	if err != nil {
 		return nil, fmt.Errorf("failed to read key.json: %w", err)
@@ -56,8 +53,6 @@ func newUntypedListStep(stepID StepID, cosmosContainer *azcosmos.ContainerClient
 	return &untypedListStep{
 		stepID:            stepID,
 		key:               key,
-		specializer:       UntypedCRUDSpecializer{},
-		cosmosContainer:   cosmosContainer,
 		expectedResources: expectedResources,
 	}, nil
 }
@@ -68,11 +63,9 @@ func (l *untypedListStep) StepID() StepID {
 	return l.stepID
 }
 
-func (l *untypedListStep) RunTest(ctx context.Context, t *testing.T) {
-	parentResourceID, err := azcorearm.ParseResourceID(l.key.ParentResourceID)
+func (l *untypedListStep) RunTest(ctx context.Context, t *testing.T, stepInput StepInput) {
+	untypedCRUD, err := stepInput.DBClient.UntypedCRUD(*l.key.ParentResourceID)
 	require.NoError(t, err)
-
-	untypedCRUD := database.NewUntypedCRUD(l.cosmosContainer, *parentResourceID)
 	for _, childKey := range l.key.Descendents {
 		childResourceType, err := azcorearm.ParseResourceType(childKey.ResourceType)
 		require.NoError(t, err)
@@ -97,7 +90,7 @@ func (l *untypedListStep) RunTest(ctx context.Context, t *testing.T) {
 	for _, expected := range l.expectedResources {
 		found := false
 		for _, actual := range actualResources {
-			if l.specializer.InstanceEquals(expected, actual) {
+			if _, equals := ResourceInstanceEquals(t, expected, actual); equals {
 				found = true
 				break
 			}
@@ -105,14 +98,14 @@ func (l *untypedListStep) RunTest(ctx context.Context, t *testing.T) {
 		if !found {
 			t.Logf("actual:\n%v", stringifyResource(actualResources))
 		}
-		require.True(t, found, "expected resource not found: %v", l.specializer.NameFromInstance(expected))
+		require.True(t, found, "expected resource not found: %v", ResourceName(expected))
 	}
 
 	// all the actual must be expected
 	for _, actual := range actualResources {
 		found := false
 		for _, expected := range l.expectedResources {
-			if l.specializer.InstanceEquals(expected, actual) {
+			if _, equals := ResourceInstanceEquals(t, expected, actual); equals {
 				found = true
 				break
 			}
@@ -120,6 +113,6 @@ func (l *untypedListStep) RunTest(ctx context.Context, t *testing.T) {
 		if !found {
 			t.Logf("expected:\n%v", stringifyResource(l.expectedResources))
 		}
-		require.True(t, found, "actual resource not found: %v", l.specializer.NameFromInstance(actual))
+		require.True(t, found, "actual resource not found: %v", ResourceName(actual))
 	}
 }
