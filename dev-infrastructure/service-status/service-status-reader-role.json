@@ -1,0 +1,14 @@
+{
+  "Name": "ARO HCP Release Service Status Reader",
+  "Description": "Custom role for ARO HCP Release Website to read blobs and filter by tags from the release storage account",
+  "Actions": [],
+  "NotActions": [],
+  "DataActions": [
+    "Microsoft.Storage/storageAccounts/blobServices/containers/blobs/read",
+    "Microsoft.Storage/storageAccounts/blobServices/containers/blobs/filter/action"
+  ],
+  "NotDataActions": [],
+  "AssignableScopes": [
+    "/subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/global/providers/Microsoft.Storage/storageAccounts/aroreleases"
+  ]
+}
