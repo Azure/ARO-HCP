@@ -407,32 +407,31 @@ func getServiceLogLinks(steps []pipeline.NodeInfo) ([]LinkDetails, error) {
 	}
 
 	endTime := localClock.Now().Add(1 * time.Hour) // we need to include all cleanup, this is a good bet.
-	for _, clusterName := range allClusterNames {
-		allLinks = append(allLinks, createLinkForTest("Backend Logs", "backend-logs.kql.tmpl", QueryInfo{
-			ResourceGroupName: clusterName,
-			Database:          "ServiceLogs",
-			ClusterName:       clusterName,
-			StartTime:         earliestStartTime.Format(time.RFC3339),
-			EndTime:           endTime.Format(time.RFC3339),
-		}))
+
+	// Define all components and their log query templates
+	components := []struct {
+		component string
+		template  string
+	}{
+		{"Backend Logs", "backend-logs.kql.tmpl"},
+		{"Frontend Logs", "frontend-logs.kql.tmpl"},
+		{"Clusters Service Logs", "clusters-service-logs.kql.tmpl"},
+		{"Maestro Logs", "maestro-logs.kql.tmpl"},
+		{"Hypershift Logs", "hypershift-logs.kql.tmpl"},
+		{"ACM Logs", "acm-logs.kql.tmpl"},
 	}
+
+	// Generate links for each component and cluster
 	for _, clusterName := range allClusterNames {
-		allLinks = append(allLinks, createLinkForTest("Frontend Logs", "frontend-logs.kql.tmpl", QueryInfo{
-			ResourceGroupName: clusterName,
-			Database:          "ServiceLogs",
-			ClusterName:       clusterName,
-			StartTime:         earliestStartTime.Format(time.RFC3339),
-			EndTime:           endTime.Format(time.RFC3339),
-		}))
-	}
-	for _, clusterName := range allClusterNames {
-		allLinks = append(allLinks, createLinkForTest("Clusters Service Logs", "clusters-service-logs.kql.tmpl", QueryInfo{
-			ResourceGroupName: clusterName,
-			Database:          "ServiceLogs",
-			ClusterName:       clusterName,
-			StartTime:         earliestStartTime.Format(time.RFC3339),
-			EndTime:           endTime.Format(time.RFC3339),
-		}))
+		for _, comp := range components {
+			allLinks = append(allLinks, createLinkForTest(comp.component, comp.template, QueryInfo{
+				ResourceGroupName: clusterName,
+				Database:          "ServiceLogs",
+				ClusterName:       clusterName,
+				StartTime:         earliestStartTime.Format(time.RFC3339),
+				EndTime:           endTime.Format(time.RFC3339),
+			}))
+		}
 	}
 
 	return allLinks, nil
