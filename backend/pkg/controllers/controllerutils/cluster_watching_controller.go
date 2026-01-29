@@ -17,13 +17,16 @@ package controllerutils
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
+	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -39,6 +42,7 @@ type clusterWatchingController struct {
 
 	subscriptionLister listers.SubscriptionLister
 	cosmosClient       database.DBClient
+	informer           Informer[*api.HCPOpenShiftCluster]
 
 	// queue is where incoming work is placed to de-dup and to allow "easy"
 	// rate limited requeues on errors
@@ -57,6 +61,7 @@ func NewClusterWatchingController(
 		name:               name,
 		subscriptionLister: subscriptionLister,
 		cosmosClient:       cosmosClient,
+		informer:           NewDumbInformer[*api.HCPOpenShiftCluster](),
 		syncer:             syncer,
 		resyncDuration:     resyncDuration,
 		queue: workqueue.NewTypedRateLimitingQueueWithConfig(
@@ -89,6 +94,8 @@ func (c *clusterWatchingController) SyncOnce(ctx context.Context, keyObj any) er
 func (c *clusterWatchingController) queueAllHCPClusters(ctx context.Context) {
 	logger := utils.LoggerFromContext(ctx)
 
+	var hcpClusterList []*api.HCPOpenShiftCluster
+
 	allSubscriptions, err := c.subscriptionLister.List(ctx)
 	if err != nil {
 		logger.Error(err, "unable to list subscriptions")
@@ -102,16 +109,37 @@ func (c *clusterWatchingController) queueAllHCPClusters(ctx context.Context) {
 		}
 
 		for _, hcpCluster := range allHCPClusters.Items(ctx) {
-			c.queue.Add(HCPClusterKey{
-				SubscriptionID:    hcpCluster.ID.SubscriptionID,
-				ResourceGroupName: hcpCluster.ID.ResourceGroupName,
-				HCPClusterName:    hcpCluster.ID.Name,
-			})
+			hcpClusterList = append(hcpClusterList, hcpCluster)
 		}
 		if err := allHCPClusters.GetError(); err != nil {
 			logger.Error(err, "unable to iterate over HCP clusters", "subscription_id", subscription.ResourceID.SubscriptionID)
 		}
 	}
+
+	err = c.informer.Sync(hcpClusterList, func(obj any) (string, error) {
+		hcpCluster := obj.(*api.HCPOpenShiftCluster)
+		return hcpCluster.GetCosmosData().CosmosUID, nil
+	})
+	if err != nil {
+		logger.Error(err, "unable to sync HCP clusters")
+	}
+}
+
+func (c *clusterWatchingController) enqueueCluster(obj any) {
+	hcpCluster, ok := obj.(*api.HCPOpenShiftCluster)
+	if !ok {
+		utilruntime.HandleError(cache.KeyError{
+			Obj: obj,
+			Err: fmt.Errorf("object must be an *api.HCPOpenShiftCluster"),
+		})
+		return
+	}
+
+	c.queue.Add(HCPClusterKey{
+		SubscriptionID:    hcpCluster.ID.SubscriptionID,
+		ResourceGroupName: hcpCluster.ID.ResourceGroupName,
+		HCPClusterName:    hcpCluster.ID.Name,
+	})
 }
 
 func (c *clusterWatchingController) Run(ctx context.Context, threadiness int) {
@@ -124,6 +152,17 @@ func (c *clusterWatchingController) Run(ctx context.Context, threadiness int) {
 	logger = logger.WithValues("controller_name", c.name)
 	ctx = utils.ContextWithLogger(ctx, logger)
 	logger.Info("Starting")
+
+	c.informer.AddEventHandler(cache.ResourceEventHandlerDetailedFuncs{
+		AddFunc: func(obj any, isInInitialList bool) {
+			c.enqueueCluster(obj)
+		},
+		UpdateFunc: func(oldObj, newObj any) {
+			c.enqueueCluster(newObj)
+		},
+	})
+
+	c.informer.Run(ctx)
 
 	// start up your worker threads based on threadiness.  Some controllers
 	// have multiple kinds of workers
