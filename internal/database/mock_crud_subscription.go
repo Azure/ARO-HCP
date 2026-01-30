@@ -13,10 +13,9 @@ import (
 	context "context"
 	reflect "reflect"
 
+	arm "github.com/Azure/ARO-HCP/internal/api/arm"
 	azcosmos "github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 	gomock "go.uber.org/mock/gomock"
-
-	arm "github.com/Azure/ARO-HCP/internal/api/arm"
 )
 
 // MockSubscriptionCRUD is a mock of SubscriptionCRUD interface.
