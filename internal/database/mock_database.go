@@ -255,6 +255,44 @@ func (c *MockDBClientGetLockClientCall) DoAndReturn(f func() LockClientInterface
 	return c
 }
 
+// GlobalListers mocks base method.
+func (m *MockDBClient) GlobalListers() GlobalListers {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GlobalListers")
+	ret0, _ := ret[0].(GlobalListers)
+	return ret0
+}
+
+// GlobalListers indicates an expected call of GlobalListers.
+func (mr *MockDBClientMockRecorder) GlobalListers() *MockDBClientGlobalListersCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GlobalListers", reflect.TypeOf((*MockDBClient)(nil).GlobalListers))
+	return &MockDBClientGlobalListersCall{Call: call}
+}
+
+// MockDBClientGlobalListersCall wrap *gomock.Call
+type MockDBClientGlobalListersCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockDBClientGlobalListersCall) Return(arg0 GlobalListers) *MockDBClientGlobalListersCall {
+	c.Call = c.Call.Return(arg0)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockDBClientGlobalListersCall) Do(f func() GlobalListers) *MockDBClientGlobalListersCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockDBClientGlobalListersCall) DoAndReturn(f func() GlobalListers) *MockDBClientGlobalListersCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
 // HCPClusters mocks base method.
 func (m *MockDBClient) HCPClusters(subscriptionID, resourceGroupName string) HCPClusterCRUD {
 	m.ctrl.T.Helper()

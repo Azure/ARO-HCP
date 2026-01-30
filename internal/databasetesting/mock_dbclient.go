@@ -152,6 +152,12 @@ func (m *MockDBClient) Subscriptions() database.SubscriptionCRUD {
 	return newMockSubscriptionCRUD(m)
 }
 
+// GlobalListers returns interfaces for listing all resources of a particular
+// type across all partitions.
+func (m *MockDBClient) GlobalListers() database.GlobalListers {
+	return &mockGlobalListers{client: m}
+}
+
 // ServiceProviderClusters returns a CRUD interface for service provider cluster resources.
 func (m *MockDBClient) ServiceProviderClusters(subscriptionID, resourceGroupName, clusterName string) database.ServiceProviderClusterCRUD {
 	clusterResourceID := database.NewClusterResourceID(subscriptionID, resourceGroupName, clusterName)
