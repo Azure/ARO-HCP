@@ -111,14 +111,14 @@ spec:
         livenessProbe:
           httpGet:
             path: /healthz/live
-            port: 8443
+            port: 8444
           initialDelaySeconds: 15
           periodSeconds: 20
           failureThreshold: 3
         readinessProbe:
           httpGet:
             path: /healthz/ready
-            port: 8443
+            port: 8444
           initialDelaySeconds: 5
           periodSeconds: 10
         volumeMounts:
