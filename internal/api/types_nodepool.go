@@ -64,8 +64,51 @@ type HCPOpenShiftClusterNodePoolServiceProviderProperties struct {
 // NodePoolVersionProfile represents the worker node pool version.
 // Visbility for the entire struct is "read create update".
 type NodePoolVersionProfile struct {
-	ID           string `json:"id,omitempty"`
+	// ID is the user desired version that the controller will try to reconcile,
+	// An update in this field will be consider a node pool upgrade
+	// During creation: should this be mandatory? Or, if not provided, should it default to control plane version?
+	// Q: Do we want to also being able to update the DesiredChannelGroup?
+	// Q: Is this forcing to create a duplicate field for each one that we allow to update?
+	// How would a controller write this
+	// read
+	//  - ARM nodePool.nodePoolVersionProfile.id
+	//  - ARM nodePool.nodePoolVersionProfile.channelGroup
+	//  - ARM nodePool.versionProfileStatus.id
+	//	- ARM cluster.version.id
+	//	VALIDATIONS (frontend)
+	//  - Reading desired version (ID) and the actual version to check if there is a change
+	//	? Do we want to allow upgrades that skip a minor? i.e. from 4.19.0 to 4.21.0 -> allowing this will mean we are managing upgrades on behalf the user
+	//		? What happens if this minor skip upgra fails?
+	//	? Do we want to allow major upgrades
+	//  - Reading the actual version of the node pool to determine allowedness of upgrade -> actual version should have a pathway to update to the desired ?
+	//  - Reading the actual version of the cluster and the desired version of the node pool
+	// 	  to determine allowedness of upgrade, there are some constraints that we need to check:
+	// 			Node Pools cannot have a version greater that clusters
+	//			Node Pools needs to have a difference of at most y-2
+	//  QUESTIONS
+	//   ? What cluster version do we use for comparission so we don't have a non-supported version difference between clusters and node pools?
+	//		When upgrading a cluster, as we are not blocking, we can have cases of creating/upgrading node pools with a difference of <y-2 or greater than the cluster
+	//	 ? Do wan't to allow control plane upgrades happen at the same time as node pool upgrades? ROSA-HCP doesn't allow this
+	// logic (backend)
+	//	 Before triggering the upgrade, check the validations again as the state of world could have change after the frontend validations have run (upgrades on the cluster)
+	//	 If we don't allow skip minor versions
+	//	    select desired version (ID) to trigger the upgrade call in CS
+	//	 If we allow skip minor versions
+	//		Compute the upgrade path from the cininnati version graph
+	//		Before upgrade, check the actual version is in the path:
+	//			Check the upgrade path is still correct (a condition could make the path not working anymore)
+	//			if it is in the path call CS to make the upgrade to the nextJump
+	//			if it is not in the path, compute again the upgrade path with the actual version
+	ID *string `json:"id,omitempty"`
+
 	ChannelGroup string `json:"channelGroup,omitempty"`
+}
+
+type VersionProfileStatus struct {
+	// ID is the unique identifier of the version that has been install in the node pool by indicated by ocp.
+	// It can differ from ID
+	// During creation, should this be nil?
+	ID *string `json:"ID,omitempty"` //ReadOnly
 }
 
 // NodePoolPlatformProfile represents a worker node pool configuration.
