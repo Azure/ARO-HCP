@@ -81,7 +81,7 @@ resourceGroups:
         resourceGroup: global
         step: output
         name: grafanaResourceId
-    - name: MONITOR_WORKSPACE_ID
+    - name: MONITOR_WORKSPACE_IDS
       input:
         resourceGroup: regional
         step: output

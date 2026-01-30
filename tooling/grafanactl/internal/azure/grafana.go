@@ -20,9 +20,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-logr/logr"
+
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/dashboard/armdashboard"
-	"github.com/go-logr/logr"
 )
 
 // ManagedGrafanaClient provides operations for Managed Grafana Resources

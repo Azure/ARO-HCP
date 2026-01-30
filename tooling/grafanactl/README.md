@@ -55,7 +55,7 @@ All command-line options can also be set via environment variables to simplify u
 - `GRAFANA_NAME` - Azure Managed Grafana instance name (alternative to `--grafana-name`)
 - `GRAFANA_RESOURCE_ID` - Complete Azure Grafana resource ID (automatically parses subscription, resource group, and name)
 - `GRAFANA_OUTPUT` - Output format: `table` or `json` (alternative to `--output`)
-- `MONITOR_WORKSPACE_ID` - Azure Monitor Workspace resource ID (alternative to `--monitor-workspace-id`)
+- `MONITOR_WORKSPACE_IDS` - Azure Monitor Workspace resource IDs, comma-separated (alternative to `--monitor-workspace-ids`)
 - `DRY_RUN` - Set to `true` or `false` to enable/disable dry-run mode (alternative to `--dry-run`)
 
 Environment variables take precedence over default values but can be overridden by explicit command-line flags.
@@ -100,7 +100,7 @@ export GRAFANA_RESOURCE_ID="/subscriptions/12345678-1234-1234-1234-123456789abc/
 
 # All commands work without additional parameters
 grafanactl list datasources
-grafanactl modify datasource add --monitor-workspace-id "/subscriptions/.../providers/Microsoft.Monitor/accounts/my-workspace"
+grafanactl modify datasource add --monitor-workspace-ids "/subscriptions/.../providers/Microsoft.Monitor/accounts/my-workspace"
 ```
 
 **Example using environment variables:**
@@ -119,7 +119,7 @@ export GRAFANA_RESOURCE_ID="/subscriptions/your-subscription/resourceGroups/your
 grafanactl list datasources
 
 # Add datasource with environment variable
-export MONITOR_WORKSPACE_ID="/subscriptions/your-subscription/resourceGroups/your-rg/providers/Microsoft.Monitor/accounts/your-workspace"
+export MONITOR_WORKSPACE_IDS="/subscriptions/your-subscription/resourceGroups/your-rg/providers/Microsoft.Monitor/accounts/your-workspace"
 export DRY_RUN="true"
 grafanactl modify datasource add
 ```
@@ -164,7 +164,7 @@ grafanactl modify datasource add \
   --subscription "your-subscription-id" \
   --resource-group "your-resource-group" \
   --grafana-name "your-grafana-instance" \
-  --monitor-workspace-id "/subscriptions/your-subscription/resourceGroups/your-rg/providers/Microsoft.Monitor/accounts/your-workspace" \
+  --monitor-workspace-ids "/subscriptions/your-subscription/resourceGroups/your-rg/providers/Microsoft.Monitor/accounts/your-workspace" \
   --dry-run
 
 # Apply changes
@@ -172,14 +172,14 @@ grafanactl modify datasource add \
   --subscription "your-subscription-id" \
   --resource-group "your-resource-group" \
   --grafana-name "your-grafana-instance" \
-  --monitor-workspace-id "/subscriptions/your-subscription/resourceGroups/your-rg/providers/Microsoft.Monitor/accounts/your-workspace"
+  --monitor-workspace-ids "/subscriptions/your-subscription/resourceGroups/your-rg/providers/Microsoft.Monitor/accounts/your-workspace"
 ```
 
 **Important notes:**
 - The command will automatically build a correct list of all existing Azure Monitor Workspace integrations and add the new one
 - If the workspace is already integrated, the command will do nothing
 - Only valid Azure Monitor Workspaces that still exist will be included in the final integration list
-- The `--monitor-workspace-id` must be the full Azure resource ID of the Azure Monitor Workspace
+- The `--monitor-workspace-ids` must be the full Azure resource ID(s) of the Azure Monitor Workspace(s)
 
 ### Clean Commands
 

@@ -20,9 +20,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/monitor/armmonitor"
 	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
+
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/monitor/armmonitor"
 )
 
 const datasourceGroupID = "datasource"
@@ -95,7 +96,7 @@ func (o *CompletedAddDatasourceOptions) getValidWorkspaceIDs(ctx context.Context
 		retryNeeded = false
 		for _, workspace := range monitorWorkspaces {
 			for _, workspaceID := range o.MonitorWorkspaceIDs {
-				if strings.ToLower(*workspace.ID) == strings.ToLower(workspaceID) {
+				if strings.EqualFold(*workspace.ID, workspaceID) {
 					if *workspace.Properties.ProvisioningState != armmonitor.ProvisioningStateSucceeded {
 						retryNeeded = true
 					}
