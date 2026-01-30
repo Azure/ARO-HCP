@@ -195,7 +195,7 @@ func WriteCRsToDisk(hostedClusterNamespace string, crLists []*unstructured.Unstr
 		}
 
 		kind := crList.Items[0].GetKind()
-		filename := filepath.Join(outputPath, strings.ToLower(kind)+"list.yaml")
+		filename := filepath.Join(outputPath, strings.ToLower(kind)+"_list.yaml")
 
 		fmt.Printf("Writing %d %s resources to %s\n", len(crList.Items), kind, filename)
 
