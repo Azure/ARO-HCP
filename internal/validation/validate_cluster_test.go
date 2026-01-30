@@ -644,3 +644,80 @@ func TestRestrictedResourceID(t *testing.T) {
 		})
 	}
 }
+
+func TestURL(t *testing.T) {
+	ctx := context.Background()
+	op := operation.Operation{Type: operation.Create}
+	fldPath := field.NewPath("url")
+
+	tests := []struct {
+		name         string
+		value        *string
+		expectErrors []expectedError
+	}{
+		{
+			name:         "nil value - valid",
+			value:        nil,
+			expectErrors: []expectedError{},
+		},
+		{
+			name:         "empty string - valid (url.Parse accepts empty string)",
+			value:        ptr.To(""),
+			expectErrors: []expectedError{},
+		},
+		{
+			name:         "valid HTTP URL - valid",
+			value:        ptr.To("http://example.com"),
+			expectErrors: []expectedError{},
+		},
+		{
+			name:         "valid HTTPS URL - valid",
+			value:        ptr.To("https://example.com"),
+			expectErrors: []expectedError{},
+		},
+		{
+			name:         "valid URL with path - valid",
+			value:        ptr.To("https://example.com/path/to/resource"),
+			expectErrors: []expectedError{},
+		},
+		{
+			name:         "valid URL with query parameters - valid",
+			value:        ptr.To("https://example.com/path?key=value&other=param"),
+			expectErrors: []expectedError{},
+		},
+		{
+			name:         "valid URL with fragment - valid",
+			value:        ptr.To("https://example.com/path#fragment"),
+			expectErrors: []expectedError{},
+		},
+		{
+			name:         "valid URL with port - valid",
+			value:        ptr.To("https://example.com:8080/path"),
+			expectErrors: []expectedError{},
+		},
+		{
+			name:         "valid URL with user info - valid",
+			value:        ptr.To("https://user:pass@example.com/path"),
+			expectErrors: []expectedError{},
+		},
+		{
+			name:         "invalid URL - missing scheme - valid",
+			value:        ptr.To("example.com/path"),
+			expectErrors: []expectedError{},
+		},
+		{
+			name:  "invalid URL - invalid",
+			value: ptr.To("://invalid"),
+			expectErrors: []expectedError{
+				{fieldPath: "url", message: "parse"},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			errs := URL(ctx, op, fldPath, tt.value, nil)
+			verifyErrorsMatch(t, tt.expectErrors, errs)
+		})
+	}
+}
