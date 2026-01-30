@@ -61,8 +61,8 @@ resourceGroups:
   - name: add-svc-grafana-datasource
     action: Shell
     omitFromServiceGroupCompletion: true
-    command: ./add-grafana-datasource.sh
-    workingDir: ./scripts
+    command: make build && ./grafanactl modify datasource add
+    workingDir: ../tooling/grafanactl
     automatedRetry:
       errorContainsAny:
       - "is invalid as it is being provisioned with state"
@@ -71,18 +71,17 @@ resourceGroups:
       - "InvalidMonitorAccountIntegration"
       maximumRetryCount: 5
       durationBetweenRetries: 2m
+    dryRun:
+      variables:
+      - name: DRY_RUN
+        value: "true"
     variables:
     - name: GRAFANA_RESOURCE_ID
       input:
         resourceGroup: global
         step: output
         name: grafanaResourceId
-    - name: PROM_QUERY_URL
-      input:
-        resourceGroup: regional
-        step: output
-        name: monitorPrometheusQueryEndpoint
-    - name: MONITOR_ID
+    - name: MONITOR_WORKSPACE_ID
       input:
         resourceGroup: regional
         step: output
@@ -95,8 +94,8 @@ resourceGroups:
   - name: add-hcp-grafana-datasource
     action: Shell
     omitFromServiceGroupCompletion: true
-    command: ./add-grafana-datasource.sh
-    workingDir: ./scripts
+    command: make build && ./grafanactl modify datasource add
+    workingDir: ../tooling/grafanactl
     automatedRetry:
       errorContainsAny:
       - "is invalid as it is being provisioned with state"
@@ -105,18 +104,17 @@ resourceGroups:
       - "InvalidMonitorAccountIntegration"
       maximumRetryCount: 5
       durationBetweenRetries: 2m
+    dryRun:
+      variables:
+      - name: DRY_RUN
+        value: "true"
     variables:
     - name: GRAFANA_RESOURCE_ID
       input:
         resourceGroup: global
         step: output
         name: grafanaResourceId
-    - name: PROM_QUERY_URL
-      input:
-        resourceGroup: regional
-        step: output
-        name: hcpMonitorPrometheusQueryEndpoint
-    - name: MONITOR_ID
+    - name: MONITOR_WORKSPACE_ID
       input:
         resourceGroup: regional
         step: output

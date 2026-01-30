@@ -16,6 +16,9 @@ package base
 
 import (
 	"fmt"
+	"os"
+	"strconv"
+	"strings"
 
 	"github.com/spf13/cobra"
 )
@@ -26,6 +29,7 @@ type BaseOptions struct {
 	ResourceGroup  string
 	GrafanaName    string
 	OutputFormat   string
+	DryRun         bool
 }
 
 // DefaultBaseOptions returns a new BaseOptions with default values
@@ -37,15 +41,47 @@ func DefaultBaseOptions() *BaseOptions {
 
 // BindBaseOptions binds common command-line flags to the base options
 func BindBaseOptions(opts *BaseOptions, cmd *cobra.Command) error {
-	flags := cmd.Flags()
-	flags.StringVar(&opts.SubscriptionID, "subscription", "", "Azure subscription ID (required)")
-	flags.StringVar(&opts.ResourceGroup, "resource-group", "", "Azure resource group name (required)")
-	flags.StringVar(&opts.GrafanaName, "grafana-name", "", "Azure Managed Grafana instance name (required)")
-	flags.StringVar(&opts.OutputFormat, "output", opts.OutputFormat, "Output format: table or json")
+	// Set defaults from environment variables if available
+	if envSub := os.Getenv("GRAFANA_SUBSCRIPTION"); envSub != "" {
+		opts.SubscriptionID = envSub
+	}
+	if envRG := os.Getenv("GRAFANA_RESOURCE_GROUP"); envRG != "" {
+		opts.ResourceGroup = envRG
+	}
+	if envGrafana := os.Getenv("GRAFANA_NAME"); envGrafana != "" {
+		opts.GrafanaName = envGrafana
+	}
+	if envResourceId := os.Getenv("GRAFANA_RESOURCE_ID"); envResourceId != "" {
+		resourceID := strings.Split(envResourceId, "/")
+		opts.SubscriptionID = resourceID[2]
+		opts.ResourceGroup = resourceID[4]
+		opts.GrafanaName = resourceID[8]
+	}
+	if envOutput := os.Getenv("GRAFANA_OUTPUT"); envOutput != "" {
+		opts.OutputFormat = envOutput
+	}
+	if envDryRun := os.Getenv("DRY_RUN"); envDryRun != "" {
+		if dryRun, err := strconv.ParseBool(envDryRun); err == nil {
+			opts.DryRun = dryRun
+		}
+	}
 
-	_ = cmd.MarkFlagRequired("subscription")
-	_ = cmd.MarkFlagRequired("resource-group")
-	_ = cmd.MarkFlagRequired("grafana-name")
+	flags := cmd.Flags()
+	flags.StringVar(&opts.SubscriptionID, "subscription", opts.SubscriptionID, "Azure subscription ID (required) [env: GRAFANACTL_SUBSCRIPTION]")
+	flags.StringVar(&opts.ResourceGroup, "resource-group", opts.ResourceGroup, "Azure resource group name (required) [env: GRAFANACTL_RESOURCE_GROUP]")
+	flags.StringVar(&opts.GrafanaName, "grafana-name", opts.GrafanaName, "Azure Managed Grafana instance name (required) [env: GRAFANACTL_GRAFANA_NAME]")
+	flags.StringVar(&opts.OutputFormat, "output", opts.OutputFormat, "Output format: table or json [env: GRAFANACTL_OUTPUT]")
+
+	// Mark flags as required only if not set via environment variables
+	if opts.SubscriptionID == "" {
+		_ = cmd.MarkFlagRequired("subscription")
+	}
+	if opts.ResourceGroup == "" {
+		_ = cmd.MarkFlagRequired("resource-group")
+	}
+	if opts.GrafanaName == "" {
+		_ = cmd.MarkFlagRequired("grafana-name")
+	}
 
 	return nil
 }
