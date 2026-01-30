@@ -275,10 +275,10 @@ model PlatformProfile {
   @visibility(Lifecycle.Read, Lifecycle.Create)
   subnetId: SubnetResourceId;
 
-  /** The Azure resource ID of the subnet used to inject hosted
-   * control plane components into the cluster's vnet.
-   * Note that this subnet cannot be shared with the default worker subnet
-   * or any nodepools' subnets.
+  /** The Azure resource ID of a subnet that enables direct,
+   * private network connectivity between the hosted control plane
+   * and your cluster's nodes. This subnet must be dedicated to ARO HCP
+   * and cannot be shared with the cluster subnet or any node pool subnets.
    */
   @visibility(Lifecycle.Read, Lifecycle.Create)
   @added(Versions.v2025_12_23_preview)
