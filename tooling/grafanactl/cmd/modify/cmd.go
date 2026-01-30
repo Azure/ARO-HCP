@@ -21,8 +21,6 @@ import (
 
 	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
-
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/dashboard/armdashboard"
 )
 
 const datasourceGroupID = "datasource"
@@ -94,11 +92,6 @@ func (o *CompletedAddDatasourceOptions) Run(ctx context.Context) error {
 		return fmt.Errorf("failed to get Grafana instance: %w", err)
 	}
 
-	if *grafana.Properties.ProvisioningState != armdashboard.ProvisioningStateSucceeded && strings.Contains(o.MonitorWorkspaceID, prowRgSuffix) {
-		logger.Info("This is a Prow test run and Grafana is not in a succeeded state, skipping integration")
-		return nil
-	}
-
 	monitorWorkspaces, err := o.MonitorWorkspaceClient.GetAllMonitorWorkspaces(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to list Azure Monitor Workspaces: %w", err)
@@ -106,10 +99,10 @@ func (o *CompletedAddDatasourceOptions) Run(ctx context.Context) error {
 
 	validWorkspaceIDs := make(map[string]bool)
 	for _, workspace := range monitorWorkspaces {
-		validWorkspaceIDs[*workspace.ID] = true
+		validWorkspaceIDs[strings.ToLower(*workspace.ID)] = true
 	}
 
-	if !validWorkspaceIDs[o.MonitorWorkspaceID] {
+	if !validWorkspaceIDs[strings.ToLower(o.MonitorWorkspaceID)] {
 		return fmt.Errorf("provided Azure Monitor Workspace not found: %s", o.MonitorWorkspaceID)
 	}
 

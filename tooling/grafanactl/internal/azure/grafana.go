@@ -18,9 +18,11 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/dashboard/armdashboard"
+	"github.com/go-logr/logr"
 )
 
 // ManagedGrafanaClient provides operations for Managed Grafana Resources
@@ -55,6 +57,11 @@ func (p *ManagedGrafanaClient) GetGrafanaInstance(ctx context.Context, resourceG
 
 // ListPrometheusInstances returns all managed Prometheus instances in the subscription
 func (p *ManagedGrafanaClient) UpdataGrafanaIntegrations(ctx context.Context, resourceGroup, grafanaName string, integrations []string) error {
+	err := p.waitForReadyGrafana(ctx, resourceGroup, grafanaName)
+	if err != nil {
+		return fmt.Errorf("failed to wait for Grafana to be ready: %w", err)
+	}
+
 	azureMonitorWorkspaceIntegrations := make([]*armdashboard.AzureMonitorWorkspaceIntegration, 0)
 	for _, integration := range integrations {
 		azureMonitorWorkspaceIntegrations = append(azureMonitorWorkspaceIntegrations, &armdashboard.AzureMonitorWorkspaceIntegration{
@@ -62,7 +69,7 @@ func (p *ManagedGrafanaClient) UpdataGrafanaIntegrations(ctx context.Context, re
 		})
 	}
 
-	_, err := p.client.Update(ctx, resourceGroup, grafanaName, armdashboard.ManagedGrafanaUpdateParameters{
+	_, err = p.client.Update(ctx, resourceGroup, grafanaName, armdashboard.ManagedGrafanaUpdateParameters{
 		Properties: &armdashboard.ManagedGrafanaPropertiesUpdateParameters{
 			GrafanaIntegrations: &armdashboard.GrafanaIntegrations{
 				AzureMonitorWorkspaceIntegrations: azureMonitorWorkspaceIntegrations,
@@ -94,4 +101,19 @@ func (c *ManagedGrafanaClient) GetGrafanaEndpoint(ctx context.Context, subscript
 	}
 
 	return endpoint, nil
+}
+
+func (c *ManagedGrafanaClient) waitForReadyGrafana(ctx context.Context, resourceGroup, grafanaName string) error {
+	logger := logr.FromContextOrDiscard(ctx)
+	for {
+		grafana, err := c.GetGrafanaInstance(ctx, resourceGroup, grafanaName)
+		if err != nil {
+			return fmt.Errorf("failed to get Grafana instance: %w", err)
+		}
+		if *grafana.Properties.ProvisioningState == armdashboard.ProvisioningStateSucceeded {
+			return nil
+		}
+		logger.Info("Waiting for Grafana to be ready", "resourceGroup", resourceGroup, "grafanaName", grafanaName)
+		time.Sleep(10 * time.Second)
+	}
 }
