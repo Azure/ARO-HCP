@@ -28,20 +28,20 @@ import (
 )
 
 // InformerBasedSubscriptionLister lists and gets subscriptions from an informer's indexer.
-type InformerBasedSubscriptionLister interface {
+type SubscriptionLister interface {
 	List(ctx context.Context) ([]*arm.Subscription, error)
 	Get(ctx context.Context, subscriptionID string) (*arm.Subscription, error)
 }
 
-// informerBasedSubscriptionLister implements InformerBasedSubscriptionLister backed by a SharedIndexInformer.
+// informerBasedSubscriptionLister implements SubscriptionLister backed by a SharedIndexInformer.
 type informerBasedSubscriptionLister struct {
 	indexer cache.Indexer
 }
 
-// NewInformerBasedSubscriptionLister creates an InformerBasedSubscriptionLister from a SharedIndexInformer's indexer.
-func NewInformerBasedSubscriptionLister(informer cache.SharedIndexInformer) InformerBasedSubscriptionLister {
+// NewSubscriptionLister creates an SubscriptionLister from a SharedIndexInformer's indexer.
+func NewSubscriptionLister(indexer cache.Indexer) SubscriptionLister {
 	return &informerBasedSubscriptionLister{
-		indexer: informer.GetIndexer(),
+		indexer: indexer,
 	}
 }
 

@@ -19,12 +19,12 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/Azure/ARO-HCP/internal/database"
-	"github.com/Azure/ARO-HCP/internal/utils"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 // ActiveOperationLister lists and gets active (non-terminal) operations from an informer's indexer.
@@ -39,9 +39,9 @@ type activeOperationLister struct {
 }
 
 // NewActiveOperationLister creates an ActiveOperationLister from a SharedIndexInformer's indexer.
-func NewActiveOperationLister(informer cache.SharedIndexInformer) ActiveOperationLister {
+func NewActiveOperationLister(indexer cache.Indexer) ActiveOperationLister {
 	return &activeOperationLister{
-		indexer: informer.GetIndexer(),
+		indexer: indexer,
 	}
 }
 

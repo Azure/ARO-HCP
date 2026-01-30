@@ -20,10 +20,12 @@ import (
 	"testing"
 	"time"
 
-	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/stretchr/testify/require"
+
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/cache"
+
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/informers"
 	"github.com/Azure/ARO-HCP/internal/api"
@@ -568,6 +570,9 @@ func activeOperationInformerIntegrationTestCase() informerIntegrationTestCase {
 				"/providers/Microsoft.RedHatOpenShift/hcpOperationStatuses/"+opName)
 		now := time.Now().UTC()
 		return &api.Operation{
+			CosmosMetadata: api.CosmosMetadata{
+				ResourceID: resourceID,
+			},
 			ResourceID:         resourceID,
 			OperationID:        operationID,
 			ExternalID:         externalID,

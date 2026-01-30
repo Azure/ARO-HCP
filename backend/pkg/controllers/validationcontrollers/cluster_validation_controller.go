@@ -20,9 +20,10 @@ import (
 	"net/http"
 	"time"
 
+	"k8s.io/client-go/tools/cache"
+
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/validationcontrollers/validations"
-	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -44,7 +45,7 @@ var _ controllerutils.ClusterSyncer = (*clusterValidationSyncer)(nil)
 func NewClusterValidationController(
 	validation validations.ClusterValidation,
 	cosmosClient database.DBClient,
-	subscriptionLister listers.SubscriptionLister,
+	clusterInformer cache.SharedIndexInformer,
 ) controllerutils.Controller {
 
 	syncer := &clusterValidationSyncer{
@@ -55,7 +56,7 @@ func NewClusterValidationController(
 	controller := controllerutils.NewClusterWatchingController(
 		fmt.Sprintf("ClusterValidation%s", validation.Name()),
 		cosmosClient,
-		subscriptionLister,
+		clusterInformer,
 		1*time.Minute,
 		syncer,
 	)

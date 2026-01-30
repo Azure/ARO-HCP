@@ -21,11 +21,13 @@ import (
 	"strings"
 	"testing"
 
-	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/google/go-cmp/cmp"
+
 	"k8s.io/apimachinery/pkg/runtime"
 
 	"sigs.k8s.io/randfill"
+
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
