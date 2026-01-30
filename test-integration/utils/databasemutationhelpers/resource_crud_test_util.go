@@ -29,6 +29,7 @@ import (
 
 	"github.com/go-logr/logr/testr"
 	"github.com/stretchr/testify/require"
+
 	"k8s.io/apimachinery/pkg/util/wait"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -103,11 +104,18 @@ func readSteps[InternalAPIType any](ctx context.Context, testDir fs.FS) ([]Integ
 func (tt *ResourceMutationTest) RunTest(t *testing.T) {
 	ctx := t.Context()
 	ctx, cancel := context.WithCancel(ctx)
-	started := atomic.Bool{}
+	frontendStarted := atomic.Bool{}
 	frontendErrCh := make(chan error, 1)
 	defer func() {
-		if started.Load() {
+		if frontendStarted.Load() {
 			require.NoError(t, <-frontendErrCh)
+		}
+	}()
+	adminAPIStarted := atomic.Bool{}
+	adminAPIErrCh := make(chan error, 1)
+	defer func() {
+		if adminAPIStarted.Load() {
+			require.NoError(t, <-adminAPIErrCh)
 		}
 	}()
 	defer cancel()
@@ -119,16 +127,23 @@ func (tt *ResourceMutationTest) RunTest(t *testing.T) {
 	cleanupCtx = utils.ContextWithLogger(cleanupCtx, testr.New(t))
 	defer testInfo.Cleanup(cleanupCtx)
 	go func() {
-		started.Store(true)
+		frontendStarted.Store(true)
 		frontendErrCh <- testInfo.Frontend.Run(ctx)
+	}()
+	go func() {
+		adminAPIStarted.Store(true)
+		adminAPIErrCh <- testInfo.AdminAPI.Run(ctx)
 	}()
 
 	// wait for migration to complete to eliminate races with our test's second call migrateCosmos and to ensure the server is ready for testing
+	serverUrls := []string{testInfo.FrontendURL, testInfo.AdminURL}
 	err = wait.PollUntilContextCancel(ctx, 1*time.Second, true, func(ctx context.Context) (bool, error) {
-		_, err := http.Get(testInfo.FrontendURL)
-		if err != nil {
-			t.Log(err)
-			return false, nil
+		for _, url := range serverUrls {
+			_, err := http.Get(url)
+			if err != nil {
+				t.Log(err)
+				return false, nil
+			}
 		}
 		return true, nil
 	})
