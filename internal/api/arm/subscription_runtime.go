@@ -15,6 +15,8 @@
 package arm
 
 import (
+	"strings"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -50,7 +52,7 @@ func (s *Subscription) DeepCopyObject() runtime.Object {
 func (s *Subscription) GetObjectMeta() metav1.Object {
 	om := &metav1.ObjectMeta{}
 	if s.ResourceID != nil {
-		om.Name = s.ResourceID.SubscriptionID
+		om.Name = strings.ToLower(s.ResourceID.String())
 	}
 	return om
 }
