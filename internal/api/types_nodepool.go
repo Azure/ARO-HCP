@@ -64,8 +64,42 @@ type HCPOpenShiftClusterNodePoolServiceProviderProperties struct {
 // NodePoolVersionProfile represents the worker node pool version.
 // Visbility for the entire struct is "read create update".
 type NodePoolVersionProfile struct {
-	ID           string `json:"id,omitempty"`
+	// ID is the user desired version that the controller will try to reconcile,
+	// An update in this field will be consider a node pool upgrade
+	// Q: Is this pattern forcing to create a duplicate field for each one that we allow to update?
+	// How would a controller write this
+	// read
+	//  - ARM nodePool.nodePoolVersionProfile.id
+	//  - ARM nodePool.nodePoolVersionProfile.channelGroup
+	//  - ARM nodePool.versionProfileStatus.id
+	//	- ARM cluster.version.id
+	//	VALIDATIONS (frontend)
+	//  - Reading desired version (ID) and the actual version to check if there is a change
+	//		- Do not allow updates that skip a minor, i.e. node pool is in version 4.18 and customer wants to update it to 4.20 this should be rejected
+	//  - Reading the actual version of the node pool to determine allowedness of upgrade -> The actual version should have a pathway to update to the desired
+	//  - Reading the actual version of the cluster and the desired version of the node pool
+	// 	  to determine allowedness of upgrade. The RP should reject
+	// 			Node Pools updates with a version than cluster versions
+	//			Node Pools updates with a version that is lesser that cluster versions y-2
+	//  QUESTIONS
+	//    What cluster version do we use for comparission so we don't have a non-supported version difference between clusters and node pools?
+	// 		We should use the whole slice and use the most restrictive.
+	//	  Do we want to allow control plane upgrades to happen at the same time as node pool upgrades? Yes, as it was mentioned in the arch calls.
+	// logic (backend)
+	//	 Before triggering the upgrade, check the validations again as the state of world could have change after the frontend validations have run (upgrades on the cluster)
+	//	 If we don't allow skip minor versions
+	//	    select desired version (ID) to trigger the upgrade call in CS
+	ID *string `json:"id,omitempty"`
+
 	ChannelGroup string `json:"channelGroup,omitempty"`
+}
+
+type VersionProfileStatus struct {
+	// ID is the unique identifier of the version that has been install in the node pool by indicated by ocp.
+	// It can differ from ID
+	// During creation, should this be nil?
+	//TODO this needs to be a slice
+	OCPVersion []string `json:"ID,omitempty"` //ReadOnly
 }
 
 // NodePoolPlatformProfile represents a worker node pool configuration.
