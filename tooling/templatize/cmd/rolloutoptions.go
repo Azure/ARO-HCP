@@ -134,6 +134,10 @@ func (o *RawRolloutOptions) Validate(ctx context.Context) (*ValidatedRolloutOpti
 			return nil, fmt.Errorf("provide the cloud for dev environment %s with --cloud", o.DevEnvironment)
 		}
 
+		if o.RegionShortOverride != "" && o.RegionShortSuffix != "" {
+			return nil, fmt.Errorf("regionShortOverride and regionShortSuffix cannot be provided together")
+		}
+
 		devSettings, err := settings.Load(o.DevSettingsFile)
 		if err != nil {
 			return nil, fmt.Errorf("failed to load developer settings: %w", err)
