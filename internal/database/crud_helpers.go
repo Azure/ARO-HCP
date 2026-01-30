@@ -228,6 +228,13 @@ func addReplaceToTransaction[InternalAPIType, CosmosAPIType any](ctx context.Con
 		ResourceID: cosmosMetadata.ResourceID.String(),
 	}
 
+	if opts == nil {
+		opts = &azcosmos.TransactionalBatchItemOptions{}
+	}
+	if len(cosmosMetadata.CosmosETag) > 0 {
+		opts.IfMatchETag = &cosmosMetadata.CosmosETag
+	}
+
 	transaction.AddStep(
 		transactionDetails,
 		func(b *azcosmos.TransactionalBatch) (string, error) {
@@ -256,6 +263,7 @@ func create[InternalAPIType, CosmosAPIType any](ctx context.Context, containerCl
 		opts = &azcosmos.ItemOptions{}
 	}
 	opts.EnableContentResponseOnWrite = true
+
 	responseItem, err := containerClient.CreateItem(ctx, azcosmos.NewPartitionKeyString(partitionKeyString), data, opts)
 	if err != nil {
 		return nil, err
@@ -288,7 +296,11 @@ func replace[InternalAPIType, CosmosAPIType any](ctx context.Context, containerC
 	if opts == nil {
 		opts = &azcosmos.ItemOptions{}
 	}
+	if len(cosmosMetadata.CosmosETag) > 0 {
+		opts.IfMatchEtag = &cosmosMetadata.CosmosETag
+	}
 	opts.EnableContentResponseOnWrite = true
+
 	responseItem, err := containerClient.ReplaceItem(ctx, azcosmos.NewPartitionKeyString(partitionKeyString), cosmosMetadata.GetCosmosUID(), data, opts)
 	if err != nil {
 		return nil, err

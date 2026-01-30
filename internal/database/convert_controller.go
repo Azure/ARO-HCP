@@ -67,6 +67,7 @@ func CosmosToInternalController(cosmosObj *Controller) (*api.Controller, error) 
 	tempInternalAPI.CosmosMetadata = api.CosmosMetadata{
 		ResourceID: cosmosObj.ControllerProperties.ResourceID,
 	}
+	tempInternalAPI.SetEtag(cosmosObj.CosmosETag)
 
 	// some pieces of data are stored on the BaseDocument, so we need to restore that data
 

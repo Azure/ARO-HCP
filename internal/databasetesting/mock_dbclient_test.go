@@ -546,6 +546,196 @@ func TestMockDBClient_Clear(t *testing.T) {
 	}
 }
 
+func TestMockDBClient_ServiceProviderCluster_ETagConditionalReplace(t *testing.T) {
+	mock := NewMockDBClient()
+	ctx := context.Background()
+
+	subscriptionID := "6b690bec-0c16-4ecb-8f67-781caf40bba7"
+	resourceGroupName := "test-rg"
+	clusterName := "test-cluster"
+
+	// Create the resource ID for the ServiceProviderCluster
+	serviceProviderClusterResourceID := api.Must(azcorearm.ParseResourceID(
+		"/subscriptions/" + subscriptionID +
+			"/resourceGroups/" + resourceGroupName +
+			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + clusterName +
+			"/serviceProviderClusters/default"))
+
+	serviceProviderCluster := &api.ServiceProviderCluster{
+		CosmosMetadata: api.CosmosMetadata{
+			ResourceID: serviceProviderClusterResourceID,
+		},
+		ResourceID: *serviceProviderClusterResourceID,
+	}
+
+	spClusterCRUD := mock.ServiceProviderClusters(subscriptionID, resourceGroupName, clusterName)
+
+	// Create the document
+	created, err := spClusterCRUD.Create(ctx, serviceProviderCluster, nil)
+	if err != nil {
+		t.Fatalf("Failed to create service provider cluster: %v", err)
+	}
+
+	// The created object should have an etag
+	if len(created.CosmosETag) == 0 {
+		t.Fatal("Expected created object to have an etag")
+	}
+	originalETag := created.CosmosETag
+
+	t.Run("positive case - matching etag succeeds", func(t *testing.T) {
+		// Get the current version to ensure we have the correct etag
+		current, err := spClusterCRUD.Get(ctx, "default")
+		if err != nil {
+			t.Fatalf("Failed to get service provider cluster: %v", err)
+		}
+
+		// Update with the correct etag
+		loadBalancerResourceID := api.Must(azcorearm.ParseResourceID(
+			"/subscriptions/" + subscriptionID +
+				"/resourceGroups/" + resourceGroupName +
+				"/providers/Microsoft.Network/loadBalancers/my-lb"))
+
+		current.LoadBalancerResourceID = loadBalancerResourceID
+
+		replaced, err := spClusterCRUD.Replace(ctx, current, nil)
+		if err != nil {
+			t.Fatalf("Replace with matching etag should succeed, got error: %v", err)
+		}
+
+		if replaced.LoadBalancerResourceID == nil || replaced.LoadBalancerResourceID.String() != loadBalancerResourceID.String() {
+			t.Errorf("Expected LoadBalancerResourceID to be updated")
+		}
+
+		// The new etag should be different from the original
+		if replaced.CosmosETag == originalETag {
+			t.Errorf("Expected new etag after replace, got same etag")
+		}
+	})
+
+	t.Run("negative case - mismatched etag fails", func(t *testing.T) {
+		// Get the current version
+		current, err := spClusterCRUD.Get(ctx, "default")
+		if err != nil {
+			t.Fatalf("Failed to get service provider cluster: %v", err)
+		}
+
+		// Set an incorrect etag
+		current.CosmosETag = "wrong-etag-value"
+
+		_, err = spClusterCRUD.Replace(ctx, current, nil)
+		if err == nil {
+			t.Fatal("Replace with wrong etag should fail")
+		}
+
+		if !database.IsResponseError(err, 412) {
+			t.Errorf("Expected 412 Precondition Failed, got: %v", err)
+		}
+	})
+}
+
+func TestMockDBClient_Controller_ETagConditionalReplace(t *testing.T) {
+	mock := NewMockDBClient()
+	ctx := context.Background()
+
+	subscriptionID := "6b690bec-0c16-4ecb-8f67-781caf40bba7"
+	resourceGroupName := "test-rg"
+	clusterName := "test-cluster"
+	controllerName := "test-controller"
+
+	// Create the resource ID for the Controller
+	// Note: The controller resource type is "hcpOpenShiftControllers" not "controller"
+	controllerResourceID := api.Must(azcorearm.ParseResourceID(
+		"/subscriptions/" + subscriptionID +
+			"/resourceGroups/" + resourceGroupName +
+			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + clusterName +
+			"/hcpOpenShiftControllers/" + controllerName))
+
+	clusterResourceID := api.Must(azcorearm.ParseResourceID(
+		"/subscriptions/" + subscriptionID +
+			"/resourceGroups/" + resourceGroupName +
+			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + clusterName))
+
+	controller := &api.Controller{
+		CosmosMetadata: api.CosmosMetadata{
+			ResourceID: controllerResourceID,
+		},
+		ResourceID: controllerResourceID,
+		ExternalID: clusterResourceID,
+		Status: api.ControllerStatus{
+			Conditions: []api.Condition{
+				{
+					Type:               "Degraded",
+					Status:             api.ConditionFalse,
+					LastTransitionTime: time.Now(),
+					Reason:             "AllHealthy",
+					Message:            "All systems operational",
+				},
+			},
+		},
+	}
+
+	// Get controller CRUD via HCPClusters -> Controllers
+	clusterCRUD := mock.HCPClusters(subscriptionID, resourceGroupName)
+	controllerCRUD := clusterCRUD.Controllers(clusterName)
+
+	// Create the document
+	created, err := controllerCRUD.Create(ctx, controller, nil)
+	if err != nil {
+		t.Fatalf("Failed to create controller: %v", err)
+	}
+
+	// The created object should have an etag
+	if len(created.CosmosETag) == 0 {
+		t.Fatal("Expected created object to have an etag")
+	}
+	originalETag := created.CosmosETag
+
+	t.Run("positive case - matching etag succeeds", func(t *testing.T) {
+		// Get the current version to ensure we have the correct etag
+		current, err := controllerCRUD.Get(ctx, controllerName)
+		if err != nil {
+			t.Fatalf("Failed to get controller: %v", err)
+		}
+
+		// Update with the correct etag
+		current.Status.Conditions[0].Message = "Updated message"
+
+		replaced, err := controllerCRUD.Replace(ctx, current, nil)
+		if err != nil {
+			t.Fatalf("Replace with matching etag should succeed, got error: %v", err)
+		}
+
+		if replaced.Status.Conditions[0].Message != "Updated message" {
+			t.Errorf("Expected condition message to be updated")
+		}
+
+		// The new etag should be different from the original
+		if replaced.CosmosETag == originalETag {
+			t.Errorf("Expected new etag after replace, got same etag")
+		}
+	})
+
+	t.Run("negative case - mismatched etag fails", func(t *testing.T) {
+		// Get the current version
+		current, err := controllerCRUD.Get(ctx, controllerName)
+		if err != nil {
+			t.Fatalf("Failed to get controller: %v", err)
+		}
+
+		// Set an incorrect etag
+		current.CosmosETag = "wrong-etag-value"
+
+		_, err = controllerCRUD.Replace(ctx, current, nil)
+		if err == nil {
+			t.Fatal("Replace with wrong etag should fail")
+		}
+
+		if !database.IsResponseError(err, 412) {
+			t.Errorf("Expected 412 Precondition Failed, got: %v", err)
+		}
+	})
+}
+
 func TestMockLockClient(t *testing.T) {
 	ctx := context.Background()
 	lockClient := NewMockLockClient(30 * time.Second)

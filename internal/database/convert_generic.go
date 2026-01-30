@@ -55,5 +55,11 @@ func CosmosGenericToInternal[InternalAPIType any](cosmosObj *GenericDocument[Int
 		return nil, nil
 	}
 
+	ret, ok := any(&cosmosObj.Content).(api.CosmosMetadataAccessor)
+	if !ok {
+		return nil, fmt.Errorf("internalObj must be an api.CosmosMetadataAccessor: %T", cosmosObj)
+	}
+	ret.SetEtag(cosmosObj.CosmosETag)
+
 	return &cosmosObj.Content, nil
 }
