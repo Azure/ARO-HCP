@@ -76,6 +76,10 @@ func NewAdminAPI(
 
 	metricsMux := http.NewServeMux()
 	metricsMux.Handle("GET /metrics", promhttp.Handler())
+	// keeping these handlers on the metrics mux/listener during the migration to the api mux/listener
+	// remove once we can shift the deployment health checks to the other port
+	metricsMux.HandleFunc("GET /healthz/ready", healthzReadyHandler)
+	metricsMux.HandleFunc("GET /healthz/live", healthzLiveHandler)
 
 	return &AdminAPI{
 		location:        location,
