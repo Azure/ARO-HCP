@@ -18,7 +18,9 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/monitor/armmonitor"
 	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
 )
@@ -80,6 +82,36 @@ func (opts *RawAddDatasourceOptions) Run(ctx context.Context) error {
 	return completed.Run(ctx)
 }
 
+func (o *CompletedAddDatasourceOptions) getValidWorkspaceIDs(ctx context.Context) (map[string]bool, error) {
+	logger := logr.FromContextOrDiscard(ctx)
+	retryNeeded := true
+	validWorkspaceIDs := make(map[string]bool)
+	for retryNeeded {
+		monitorWorkspaces, err := o.MonitorWorkspaceClient.GetAllMonitorWorkspaces(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to list Azure Monitor Workspaces: %w", err)
+		}
+
+		retryNeeded = false
+		for _, workspace := range monitorWorkspaces {
+			for _, workspaceID := range o.MonitorWorkspaceIDs {
+				if strings.ToLower(*workspace.ID) == strings.ToLower(workspaceID) {
+					if *workspace.Properties.ProvisioningState != armmonitor.ProvisioningStateSucceeded {
+						retryNeeded = true
+					}
+				}
+			}
+			validWorkspaceIDs[strings.ToLower(*workspace.ID)] = true
+		}
+		if retryNeeded {
+			logger.Info("Waiting for Azure Monitor Workspaces to be ready", "workspace-ids", o.MonitorWorkspaceIDs)
+			time.Sleep(10 * time.Second)
+		}
+	}
+
+	return validWorkspaceIDs, nil
+}
+
 func (o *CompletedAddDatasourceOptions) Run(ctx context.Context) error {
 	logger := logr.FromContextOrDiscard(ctx)
 
@@ -90,14 +122,9 @@ func (o *CompletedAddDatasourceOptions) Run(ctx context.Context) error {
 		return fmt.Errorf("failed to get Grafana instance: %w", err)
 	}
 
-	monitorWorkspaces, err := o.MonitorWorkspaceClient.GetAllMonitorWorkspaces(ctx)
+	validWorkspaceIDs, err := o.getValidWorkspaceIDs(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to list Azure Monitor Workspaces: %w", err)
-	}
-
-	validWorkspaceIDs := make(map[string]bool)
-	for _, workspace := range monitorWorkspaces {
-		validWorkspaceIDs[strings.ToLower(*workspace.ID)] = true
+		return fmt.Errorf("failed to get valid workspace IDs: %w", err)
 	}
 
 	currentIntegrations := make(map[string]bool)
