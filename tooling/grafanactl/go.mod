@@ -4,14 +4,15 @@ go 1.24.11
 
 require (
 	github.com/Azure/ARO-Tools v0.0.0-20260126192926-5c105c81e1f1
-	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.20.0
-	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/dashboard/armdashboard v1.2.0
+	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.21.0
+	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/dashboard/armdashboard/v2 v2.0.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/monitor/armmonitor v0.11.0
 	github.com/dusted-go/logging v1.3.0
 	github.com/go-logr/logr v1.4.3
 	github.com/grafana-tools/sdk v0.0.0-20220919052116-6562121319fc
 	github.com/hashicorp/go-retryablehttp v0.7.8
 	github.com/spf13/cobra v1.10.2
+	k8s.io/utils v0.0.0-20260108192941-914a6e750570
 )
 
 require (
@@ -30,9 +31,9 @@ require (
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/rainycape/unidecode v0.0.0-20150907023854-cb7f23ec59be // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
-	golang.org/x/crypto v0.46.0 // indirect
-	golang.org/x/net v0.47.0 // indirect
-	golang.org/x/sys v0.39.0 // indirect
-	golang.org/x/text v0.32.0 // indirect
+	golang.org/x/crypto v0.47.0 // indirect
+	golang.org/x/net v0.49.0 // indirect
+	golang.org/x/sys v0.40.0 // indirect
+	golang.org/x/text v0.33.0 // indirect
 	k8s.io/apimachinery v0.34.3 // indirect
 )

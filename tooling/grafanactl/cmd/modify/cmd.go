@@ -21,11 +21,13 @@ import (
 
 	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
+
+	"k8s.io/utils/set"
+
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/monitor/armmonitor"
 )
 
 const datasourceGroupID = "datasource"
-
-const prowRgSuffix = "prow"
 
 func NewModifyCommand(group string) (*cobra.Command, error) {
 	opts := DefaultAddDatasourceOptions()
@@ -50,9 +52,9 @@ func NewModifyCommand(group string) (*cobra.Command, error) {
 	}
 
 	addDatasourceCmd := &cobra.Command{
-		Use:   "add",
-		Short: "Add Azure Monitor Workspace datasource to Grafana",
-		Long:  "Add an Azure Monitor Workspace as a datasource to the Azure Managed Grafana instance. This integrates the workspace with Grafana and creates the necessary datasource configuration.",
+		Use:   "reconcile",
+		Short: "Reconcile Azure Monitor Workspace datasources in Grafana",
+		Long:  "Reconcile Azure Monitor Workspace datasources in the Azure Managed Grafana instance. This integrates the workspaces with Grafana and creates the necessary datasource configuration.",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return opts.Run(cmd.Context())
 		},
@@ -82,63 +84,74 @@ func (opts *RawAddDatasourceOptions) Run(ctx context.Context) error {
 	return completed.Run(ctx)
 }
 
-func (o *CompletedAddDatasourceOptions) Run(ctx context.Context) error {
-	logger := logr.FromContextOrDiscard(ctx)
+func (o *CompletedAddDatasourceOptions) getMatchingWorkspaceIDs(ctx context.Context, logger logr.Logger) (set.Set[string], error) {
+	validWorkspaceIDs := set.New[string]()
 
-	logger.Info("add datasource command executed", "monitor-workspace-id", o.MonitorWorkspaceID, "dry-run", o.DryRun)
+	monitorWorkspaces, err := o.MonitorWorkspaceClient.GetAllMonitorWorkspaces(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list Azure Monitor Workspaces: %w", err)
+	}
+
+	for _, workspace := range monitorWorkspaces {
+		// if workspace.Tags[o.TagKey] == nil {
+		// 	continue
+		// }
+		if *workspace.Properties.ProvisioningState == armmonitor.ProvisioningStateSucceeded {
+			logger.Info("Found", "workspace-id", *workspace.ID, "provisioning-state", *workspace.Properties.ProvisioningState)
+			// if *workspace.Tags[o.TagKey] == o.TagValue {
+			validWorkspaceIDs.Insert(*workspace.ID)
+			// }
+		}
+	}
+
+	return validWorkspaceIDs, nil
+}
+
+func (o *CompletedAddDatasourceOptions) Run(ctx context.Context) error {
+	logger := logr.FromContextOrDiscard(ctx).WithValues("resource-group", o.ResourceGroup, "grafana-name", o.GrafanaName)
+
+	logger.Info("add datasource command executed")
 
 	grafana, err := o.ManagedGrafanaClient.GetGrafanaInstance(ctx, o.ResourceGroup, o.GrafanaName)
 	if err != nil {
 		return fmt.Errorf("failed to get Grafana instance: %w", err)
 	}
 
-	monitorWorkspaces, err := o.MonitorWorkspaceClient.GetAllMonitorWorkspaces(ctx)
+	validWorkspaceIDs, err := o.getMatchingWorkspaceIDs(ctx, logger)
 	if err != nil {
-		return fmt.Errorf("failed to list Azure Monitor Workspaces: %w", err)
+		return fmt.Errorf("failed to get valid workspace IDs: %w", err)
 	}
 
-	validWorkspaceIDs := make(map[string]bool)
-	for _, workspace := range monitorWorkspaces {
-		validWorkspaceIDs[strings.ToLower(*workspace.ID)] = true
-	}
-
-	if !validWorkspaceIDs[strings.ToLower(o.MonitorWorkspaceID)] {
-		return fmt.Errorf("provided Azure Monitor Workspace not found: %s", o.MonitorWorkspaceID)
-	}
-
-	currentIntegrations := make(map[string]bool)
+	integrationList := set.New[string]()
 	for _, integration := range grafana.Properties.GrafanaIntegrations.AzureMonitorWorkspaceIntegrations {
-		workspaceID := *integration.AzureMonitorWorkspaceResourceID
-		if validWorkspaceIDs[workspaceID] {
-			currentIntegrations[workspaceID] = true
+		if integration.AzureMonitorWorkspaceResourceID == nil {
+			return fmt.Errorf("got nil resource ID for integration, this looks like a bug")
+		}
+		integrationID := strings.ToLower(*integration.AzureMonitorWorkspaceResourceID)
+		if !validWorkspaceIDs.Has(integrationID) {
+			logger.Info("Removing", "workspace-id", integrationID)
+		}
+		integrationList.Insert(*integration.AzureMonitorWorkspaceResourceID)
+	}
+
+	for _, workspaceID := range validWorkspaceIDs.UnsortedList() {
+		if !integrationList.Has(workspaceID) {
+			logger.Info("Adding", "workspace-id", workspaceID)
+			integrationList.Insert(workspaceID)
 		}
 	}
 
-	if currentIntegrations[o.MonitorWorkspaceID] {
-		logger.Info("Azure Monitor Workspace is already integrated", "workspace-id", o.MonitorWorkspaceID)
-		return nil
-	}
-
-	// This effectively adds the new provided workspace to the list of integrations
-	currentIntegrations[o.MonitorWorkspaceID] = true
-
-	integrationList := make([]string, 0, len(currentIntegrations))
-	for workspaceID := range currentIntegrations {
-		integrationList = append(integrationList, workspaceID)
-	}
-
 	if o.DryRun {
-		logger.Info("Dry run - would add Azure Monitor Workspace integration", "workspace-id", o.MonitorWorkspaceID, "total-integrations", len(integrationList))
+		logger.Info("Dry run - would add Azure Monitor Workspace integration", "total-integrations", validWorkspaceIDs.Len())
 		return nil
 	}
 
-	logger.Info("Adding Azure Monitor Workspace integration", "workspace-id", o.MonitorWorkspaceID, "total-integrations", len(integrationList))
+	logger.Info("Adding Azure Monitor Workspace integration", "total-integrations", len(validWorkspaceIDs))
 
-	err = o.ManagedGrafanaClient.UpdataGrafanaIntegrations(ctx, o.ResourceGroup, o.GrafanaName, integrationList)
+	err = o.ManagedGrafanaClient.UpdataGrafanaIntegrations(ctx, o.ResourceGroup, o.GrafanaName, validWorkspaceIDs.UnsortedList())
 	if err != nil {
 		return fmt.Errorf("failed to update Grafana integrations: %w", err)
 	}
 
-	logger.Info("Successfully added Azure Monitor Workspace integration", "workspace-id", o.MonitorWorkspaceID)
 	return nil
 }

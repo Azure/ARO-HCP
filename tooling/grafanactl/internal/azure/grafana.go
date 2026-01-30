@@ -20,9 +20,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/dashboard/armdashboard"
 	"github.com/go-logr/logr"
+
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/dashboard/armdashboard/v2"
 )
 
 // ManagedGrafanaClient provides operations for Managed Grafana Resources
@@ -33,12 +34,10 @@ type ManagedGrafanaClient struct {
 
 // NewManagedGrafanaClient creates a new ManagedGrafanaClient with the provided credentials
 func NewManagedGrafanaClient(subscriptionID string, cred azcore.TokenCredential) (*ManagedGrafanaClient, error) {
-	client, err := armdashboard.NewClientFactory(subscriptionID, cred, nil)
+	grafanaClient, err := armdashboard.NewGrafanaClient(subscriptionID, cred, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Azure Monitor Workspaces client: %w", err)
 	}
-
-	grafanaClient := client.NewGrafanaClient()
 
 	return &ManagedGrafanaClient{
 		client: grafanaClient,
@@ -69,13 +68,18 @@ func (p *ManagedGrafanaClient) UpdataGrafanaIntegrations(ctx context.Context, re
 		})
 	}
 
-	_, err = p.client.Update(ctx, resourceGroup, grafanaName, armdashboard.ManagedGrafanaUpdateParameters{
+	poller, err := p.client.BeginUpdate(ctx, resourceGroup, grafanaName, armdashboard.ManagedGrafanaUpdateParameters{
 		Properties: &armdashboard.ManagedGrafanaPropertiesUpdateParameters{
 			GrafanaIntegrations: &armdashboard.GrafanaIntegrations{
 				AzureMonitorWorkspaceIntegrations: azureMonitorWorkspaceIntegrations,
 			},
 		},
 	}, nil)
+	if err != nil {
+		return fmt.Errorf("failed to update Grafana instance: %w", err)
+	}
+
+	_, err = poller.PollUntilDone(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("failed to update Grafana instance: %w", err)
 	}

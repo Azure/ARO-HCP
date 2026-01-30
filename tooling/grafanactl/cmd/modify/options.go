@@ -17,9 +17,6 @@ package modify
 import (
 	"context"
 	"fmt"
-	"os"
-	"strconv"
-	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -32,7 +29,8 @@ import (
 // RawAddDatasourceOptions represents the initial, unvalidated configuration for add datasource operations.
 type RawAddDatasourceOptions struct {
 	*base.BaseOptions
-	MonitorWorkspaceID string
+	TagKey   string
+	TagValue string
 }
 
 // validatedAddDatasourceOptions is a private struct that enforces the options validation pattern.
@@ -58,6 +56,8 @@ type CompletedAddDatasourceOptions struct {
 func DefaultAddDatasourceOptions() *RawAddDatasourceOptions {
 	return &RawAddDatasourceOptions{
 		BaseOptions: base.DefaultBaseOptions(),
+		TagKey:      "grafanactl-discovery",
+		TagValue:    "true",
 	}
 }
 
@@ -67,24 +67,10 @@ func BindAddDatasourceOptions(opts *RawAddDatasourceOptions, cmd *cobra.Command)
 		return err
 	}
 
-	// Set defaults from environment variables if available
-	if envWorkspaceID := os.Getenv("MONITOR_WORKSPACE_ID"); envWorkspaceID != "" {
-		opts.MonitorWorkspaceID = envWorkspaceID
-	}
-	if envDryRun := os.Getenv("DRY_RUN"); envDryRun != "" {
-		if dryRun, err := strconv.ParseBool(envDryRun); err == nil {
-			opts.DryRun = dryRun
-		}
-	}
-
 	flags := cmd.Flags()
-	flags.StringVar(&opts.MonitorWorkspaceID, "monitor-workspace-id", opts.MonitorWorkspaceID, "Azure Monitor Workspace resource ID to add as datasource (required) [env: GRAFANACTL_MONITOR_WORKSPACE_ID]")
-	flags.BoolVar(&opts.DryRun, "dry-run", opts.DryRun, "Perform a dry run without making changes [env: GRAFANACTL_DRY_RUN]")
-
-	// Mark flag as required only if not set via environment variable
-	if opts.MonitorWorkspaceID == "" {
-		_ = cmd.MarkFlagRequired("monitor-workspace-id")
-	}
+	flags.StringVar(&opts.TagKey, "tag-key", opts.TagKey, "Azure Monitor Workspace tag key to filter by")
+	flags.StringVar(&opts.TagValue, "tag-value", opts.TagValue, "Azure Monitor Workspace tag value to filter by")
+	flags.BoolVar(&opts.DryRun, "dry-run", opts.DryRun, "Perform a dry run without making changes (default: false)")
 
 	return nil
 }
@@ -95,24 +81,13 @@ func (o *RawAddDatasourceOptions) Validate(ctx context.Context) (*ValidatedAddDa
 		return nil, err
 	}
 
-	// Validate monitor workspace ID format
-	if o.MonitorWorkspaceID == "" {
-		return nil, fmt.Errorf("monitor workspace ID is required")
-	}
-
-	// Basic validation of resource ID format
-	if !strings.HasPrefix(o.MonitorWorkspaceID, "/subscriptions/") {
-		return nil, fmt.Errorf("monitor workspace ID must be a valid Azure resource ID starting with /subscriptions/")
-	}
-
-	// Validate that it's an Azure Monitor Workspace resource
-	if !strings.Contains(o.MonitorWorkspaceID, "/providers/Microsoft.Monitor/accounts/") {
-		return nil, fmt.Errorf("monitor workspace ID must be an Azure Monitor Workspace resource ID")
-	}
-
 	return &ValidatedAddDatasourceOptions{
 		validatedAddDatasourceOptions: &validatedAddDatasourceOptions{
-			RawAddDatasourceOptions: o,
+			RawAddDatasourceOptions: &RawAddDatasourceOptions{
+				BaseOptions: o.BaseOptions,
+				TagKey:      o.TagKey,
+				TagValue:    o.TagValue,
+			},
 		},
 	}, nil
 }
