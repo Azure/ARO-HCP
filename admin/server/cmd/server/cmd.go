@@ -22,6 +22,7 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
 
+	"github.com/Azure/ARO-HCP/admin/server/pkg/signal"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -46,7 +47,8 @@ func NewCommand() (*cobra.Command, error) {
 		// Create a logr.Logger and add it to context for use throughout the application
 		handlerOptions := &slog.HandlerOptions{Level: slog.Level(validated.LogVerbosity * -1)}
 		logrLogger := logr.FromSlogHandler(slog.NewJSONHandler(os.Stdout, handlerOptions))
-		ctx := utils.ContextWithLogger(cmd.Context(), logrLogger)
+		ctx := signal.SetupSignalContext()
+		ctx = utils.ContextWithLogger(ctx, logrLogger)
 
 		completed, err := validated.Complete(ctx)
 		if err != nil {

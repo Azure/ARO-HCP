@@ -63,7 +63,7 @@ spec:
           name: http
           protocol: TCP
         - containerPort: 8444
-          name: health
+          name: metrics
           protocol: TCP
         resources:
           requests:
@@ -82,15 +82,15 @@ spec:
             type: RuntimeDefault
         livenessProbe:
           httpGet:
-            path: /healthz
-            port: 8444
+            path: /healthz/live
+            port: 8443
           initialDelaySeconds: 15
           periodSeconds: 20
           failureThreshold: 3
         readinessProbe:
           httpGet:
             path: /healthz/ready
-            port: 8444
+            port: 8443
           initialDelaySeconds: 5
           periodSeconds: 10
         volumeMounts:
