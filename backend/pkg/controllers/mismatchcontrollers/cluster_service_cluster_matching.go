@@ -169,6 +169,7 @@ func (c *clusterServiceClusterMatching) Run(ctx context.Context, threadiness int
 		go wait.UntilWithContext(ctx, c.runWorker, time.Second)
 	}
 
+	// TODO before switching to a regular informer, build a basic LRU "don't fire unless your cooldown is over"
 	go wait.JitterUntilWithContext(ctx, func(ctx context.Context) { c.queue.Add("default") }, 60*time.Minute, 0.1, true)
 
 	logger.Info("Started workers")

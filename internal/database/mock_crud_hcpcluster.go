@@ -13,9 +13,10 @@ import (
 	context "context"
 	reflect "reflect"
 
-	api "github.com/Azure/ARO-HCP/internal/api"
 	azcosmos "github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 	gomock "go.uber.org/mock/gomock"
+
+	api "github.com/Azure/ARO-HCP/internal/api"
 )
 
 // MockControllerContainer is a mock of ControllerContainer interface.
