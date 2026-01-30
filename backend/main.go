@@ -42,10 +42,6 @@ import (
 	"k8s.io/klog/v2"
 	utilsclock "k8s.io/utils/clock"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
-	"github.com/Azure/azure-sdk-for-go/sdk/tracing/azotel"
-
 	ocmsdk "github.com/openshift-online/ocm-sdk-go"
 
 	"github.com/Azure/ARO-HCP/backend/oldoperationscanner"
@@ -73,18 +69,22 @@ const (
 )
 
 var (
-	argKubeconfig             string
-	argNamespace              string
-	argLocation               string
-	argCosmosName             string
-	argCosmosURL              string
-	argClustersServiceURL     string
-	argInsecure               bool
-	argMetricsListenAddress   string
-	argPortListenAddress      string
-	argAzureRuntimeConfigPath string
-	argAzureFPACertBundlePath string
-	argAzureFPAClientID       string
+	argKubeconfig                  string
+	argNamespace                   string
+	argLocation                    string
+	argCosmosName                  string
+	argCosmosURL                   string
+	argClustersServiceURL          string
+	argInsecure                    bool
+	argMetricsListenAddress        string
+	argPortListenAddress           string
+	argAzureRuntimeConfigPath      string
+	argAzureFPACertBundlePath      string
+	argAzureFPAClientID            string
+	argAzureMIMockSPCertBundlePath string
+	argAzureMIMockSPClientID       string
+	argAzureMIMockSPPrincipalID    string
+	argAzureMIMockTenantID         string
 
 	processName = filepath.Base(os.Args[0])
 
@@ -137,7 +137,57 @@ func init() {
 		"The client id of the first party application identity",
 	)
 
+	rootCmd.Flags().StringVar(
+		&argAzureMIMockSPCertBundlePath,
+		"azure-mi-mock-certificate-bundle-path",
+		"",
+		"Path to a file containing an X.509 Certificate based client certificate, consisting of a private key and "+
+			"certificate chain, in a PEM or PKCS#12 format for authenticating clients with the msi mock identity, which is "+
+			"a common Azure Service Principal identity. This flag should only be set in environments where "+
+			"Microsoft's MI Dataplane service is not available. "+
+			"When set, it must be set in combination with the '--azure-mi-mock-client-id' and "+
+			"'--azure-mi-mock-service-principal-id' and '--azure-mi-mock-tenant-id' flags.",
+	)
+
+	rootCmd.Flags().StringVar(
+		&argAzureMIMockSPClientID,
+		"azure-mi-mock-client-id",
+		"",
+		"The client id of the ARO-HCP Clusters Managed Identities (MI) mock identity, which is a common Azure Service Principal identity. "+
+			"This flag should only be set in environments where Microsoft's MI Dataplane service is not available. "+
+			"When set, it must be set in combination with the '--azure-mi-mock-certificate-bundle-path' and "+
+			"'--azure-mi-mock-service-principal-id' and '--azure-mi-mock-tenant-id' flags.",
+	)
+
+	rootCmd.Flags().StringVar(
+		&argAzureMIMockSPPrincipalID,
+		"azure-mi-mock-service-principal-id",
+		"",
+		"The principal id of the ARO-HCP Clusters Managed Identities (MI) mock identity, which is a common Azure Service Principal identity. "+
+			"This flag should only be set in environments where Microsoft's MI Dataplane service is not available. "+
+			"When set, it must be set in combination with the '--azure-mi-mock-certificate-bundle-path' and "+
+			"'--azure-mi-mock-principal-client-id' and '--azure-mi-mock-tenant-id' flags.",
+	)
+
+	rootCmd.Flags().StringVar(
+		&argAzureMIMockTenantID,
+		"azure-mi-mock-tenant-id",
+		"",
+		"The tenant id of the ARO-HCP Clusters Managed Identities (MI) mock identity, which is a common Azure Service Principal identity. "+
+			"This flag should only be set in environments where Microsoft's MI Dataplane service is not available. "+
+			"When set, it must be set in combination with the '--azure-mi-mock-certificate-bundle-path', "+
+			"'--azure-mi-mock-client-id' and '--azure-mi-mock-service-principal-id' flags.",
+	)
+
 	rootCmd.MarkFlagsRequiredTogether("cosmos-name", "cosmos-url")
+
+	// We require that if one of the mi mock service principal flags is set, all of them must be set together.
+	rootCmd.MarkFlagsRequiredTogether(
+		"azure-mi-mock-certificate-bundle-path",
+		"azure-mi-mock-client-id",
+		"azure-mi-mock-principal-id",
+		"azure-mi-mock-tenant-id",
+	)
 
 	rootCmd.Version = version.CommitSHA
 }
@@ -203,15 +253,38 @@ func Run(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("could not initialize opentelemetry sdk: %w", err)
 	}
 
+	otelTracerProvider := otel.GetTracerProvider()
+
+	azureConfig, err := getAzureConfig(ctx, argAzureRuntimeConfigPath, otelTracerProvider)
+	if err != nil {
+		return fmt.Errorf("error getting azure configuration: %w", err)
+	}
+
+	fpaTokenCredRetriever, err := getFirstPartyApplicationTokenCredentialRetriever(ctx, argAzureFPACertBundlePath, argAzureFPAClientID, azureConfig)
+	if err != nil {
+		return fmt.Errorf("error getting FPA token credential retriever: %w", err)
+	}
+
+	fpaClientBuilder, err := getFirstPartyApplicationClientBuilder(fpaTokenCredRetriever, azureConfig)
+	if err != nil {
+		return fmt.Errorf("error getting FPA client builder: %w", err)
+	}
+
+	fpaMIDataplaneClientBuilder, err := getFirstPartyApplicationManagedIdentitiesDataplaneClientBuilder(
+		fpaTokenCredRetriever,
+		argAzureMIMockSPCertBundlePath, argAzureMIMockSPClientID, argAzureMIMockSPPrincipalID, argAzureMIMockTenantID,
+		azureConfig,
+	)
+	if err != nil {
+		return fmt.Errorf("error getting FPA MI dataplane client builder: %w", err)
+	}
+	smiClientBuilderFactory := getServiceManagedIdentityClientBuilderFactory(fpaMIDataplaneClientBuilder, azureConfig)
+
 	// Create the database client.
 	cosmosDatabaseClient, err := database.NewCosmosDatabaseClient(
 		argCosmosURL,
 		argCosmosName,
-		azcore.ClientOptions{
-			// FIXME Cloud should be determined by other means.
-			Cloud:           cloud.AzurePublic,
-			TracingProvider: azotel.NewTracingProvider(otel.GetTracerProvider(), nil),
-		},
+		*azureConfig.CloudEnvironment.PolicyClientOptions(),
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create the CosmosDB client: %w", err)
@@ -390,6 +463,17 @@ func Run(cmd *cobra.Command, args []string) error {
 				dbClient,
 				subscriptionLister,
 			)
+			azureRPRegistrationValidationController = validationcontrollers.NewClusterValidationController(
+				validations.NewAzureResourceProvidersRegistrationValidation(fpaClientBuilder),
+				dbClient,
+				subscriptionLister,
+			)
+
+			azureClusterManagedIdentitiesExistenceValidationController = validationcontrollers.NewClusterValidationController(
+				validations.NewAzureClusterManagedIdetitiesExistenceValidation(smiClientBuilderFactory),
+				dbClient,
+				subscriptionLister,
+			)
 		)
 
 		le, err := leaderelection.NewLeaderElector(leaderelection.LeaderElectionConfig{
@@ -415,6 +499,8 @@ func Run(cmd *cobra.Command, args []string) error {
 					go cosmosMatchingExternalAuthController.Run(ctx, 20)
 					go cosmosMatchingClusterController.Run(ctx, 20)
 					go alwaysSuccessClusterValidationController.Run(ctx, 20)
+					go azureRPRegistrationValidationController.Run(ctx, 20)
+					go azureClusterManagedIdentitiesExistenceValidationController.Run(ctx, 20)
 				},
 				OnStoppedLeading: func() {
 					operationsScanner.LeaderGauge.Set(0)
