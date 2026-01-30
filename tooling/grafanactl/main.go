@@ -27,6 +27,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/tooling/grafanactl/cmd/clean"
 	"github.com/Azure/ARO-HCP/tooling/grafanactl/cmd/list"
+	"github.com/Azure/ARO-HCP/tooling/grafanactl/cmd/modify"
 )
 
 const (
@@ -76,6 +77,7 @@ and other operational tasks.`,
 	mainCommands := []func(string) (*cobra.Command, error){
 		clean.NewCleanCommand,
 		list.NewListCommand,
+		modify.NewModifyCommand,
 	}
 	for _, newCmd := range mainCommands {
 		c, err := newCmd(mainGroupID)
