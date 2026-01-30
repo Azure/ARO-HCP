@@ -15,11 +15,18 @@
 package api
 
 import (
+	"fmt"
+	"maps"
+	"slices"
 	"strings"
+	"time"
 
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+
+	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
 
 var (
@@ -113,19 +120,4 @@ var _ runtime.Object = &OperationList{}
 
 func (l *OperationList) GetObjectKind() schema.ObjectKind {
 	return &l.TypeMeta
-}
-
-func (l *OperationList) DeepCopyObject() runtime.Object {
-	if l == nil {
-		return nil
-	}
-	out := *l
-	if l.Items != nil {
-		out.Items = make([]Operation, len(l.Items))
-		for i := range l.Items {
-			copied := l.Items[i].DeepCopyObject().(*Operation)
-			out.Items[i] = *copied
-		}
-	}
-	return &out
 }
