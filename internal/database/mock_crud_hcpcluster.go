@@ -479,7 +479,7 @@ func (m *MockHCPClusterCRUD) EXPECT() *MockHCPClusterCRUDMockRecorder {
 }
 
 // AddCreateToTransaction mocks base method.
-func (m *MockHCPClusterCRUD) AddCreateToTransaction(ctx context.Context, transaction DBTransaction, newObj *api.HCPOpenShiftCluster, opts *azcosmos.TransactionalBatchItemOptions) (string, error) {
+func (m *MockHCPClusterCRUD) AddCreateToTransaction(ctx context.Context, transaction DBTransaction, newObj *api.Cluster, opts *azcosmos.TransactionalBatchItemOptions) (string, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "AddCreateToTransaction", ctx, transaction, newObj, opts)
 	ret0, _ := ret[0].(string)
@@ -506,19 +506,19 @@ func (c *MockHCPClusterCRUDAddCreateToTransactionCall) Return(arg0 string, arg1 
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockHCPClusterCRUDAddCreateToTransactionCall) Do(f func(context.Context, DBTransaction, *api.HCPOpenShiftCluster, *azcosmos.TransactionalBatchItemOptions) (string, error)) *MockHCPClusterCRUDAddCreateToTransactionCall {
+func (c *MockHCPClusterCRUDAddCreateToTransactionCall) Do(f func(context.Context, DBTransaction, *api.Cluster, *azcosmos.TransactionalBatchItemOptions) (string, error)) *MockHCPClusterCRUDAddCreateToTransactionCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockHCPClusterCRUDAddCreateToTransactionCall) DoAndReturn(f func(context.Context, DBTransaction, *api.HCPOpenShiftCluster, *azcosmos.TransactionalBatchItemOptions) (string, error)) *MockHCPClusterCRUDAddCreateToTransactionCall {
+func (c *MockHCPClusterCRUDAddCreateToTransactionCall) DoAndReturn(f func(context.Context, DBTransaction, *api.Cluster, *azcosmos.TransactionalBatchItemOptions) (string, error)) *MockHCPClusterCRUDAddCreateToTransactionCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
 
 // AddReplaceToTransaction mocks base method.
-func (m *MockHCPClusterCRUD) AddReplaceToTransaction(ctx context.Context, transaction DBTransaction, newObj *api.HCPOpenShiftCluster, opts *azcosmos.TransactionalBatchItemOptions) (string, error) {
+func (m *MockHCPClusterCRUD) AddReplaceToTransaction(ctx context.Context, transaction DBTransaction, newObj *api.Cluster, opts *azcosmos.TransactionalBatchItemOptions) (string, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "AddReplaceToTransaction", ctx, transaction, newObj, opts)
 	ret0, _ := ret[0].(string)
@@ -545,13 +545,13 @@ func (c *MockHCPClusterCRUDAddReplaceToTransactionCall) Return(arg0 string, arg1
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockHCPClusterCRUDAddReplaceToTransactionCall) Do(f func(context.Context, DBTransaction, *api.HCPOpenShiftCluster, *azcosmos.TransactionalBatchItemOptions) (string, error)) *MockHCPClusterCRUDAddReplaceToTransactionCall {
+func (c *MockHCPClusterCRUDAddReplaceToTransactionCall) Do(f func(context.Context, DBTransaction, *api.Cluster, *azcosmos.TransactionalBatchItemOptions) (string, error)) *MockHCPClusterCRUDAddReplaceToTransactionCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockHCPClusterCRUDAddReplaceToTransactionCall) DoAndReturn(f func(context.Context, DBTransaction, *api.HCPOpenShiftCluster, *azcosmos.TransactionalBatchItemOptions) (string, error)) *MockHCPClusterCRUDAddReplaceToTransactionCall {
+func (c *MockHCPClusterCRUDAddReplaceToTransactionCall) DoAndReturn(f func(context.Context, DBTransaction, *api.Cluster, *azcosmos.TransactionalBatchItemOptions) (string, error)) *MockHCPClusterCRUDAddReplaceToTransactionCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -595,10 +595,10 @@ func (c *MockHCPClusterCRUDControllersCall) DoAndReturn(f func(string) ResourceC
 }
 
 // Create mocks base method.
-func (m *MockHCPClusterCRUD) Create(ctx context.Context, newObj *api.HCPOpenShiftCluster, options *azcosmos.ItemOptions) (*api.HCPOpenShiftCluster, error) {
+func (m *MockHCPClusterCRUD) Create(ctx context.Context, newObj *api.Cluster, options *azcosmos.ItemOptions) (*api.Cluster, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Create", ctx, newObj, options)
-	ret0, _ := ret[0].(*api.HCPOpenShiftCluster)
+	ret0, _ := ret[0].(*api.Cluster)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -616,19 +616,19 @@ type MockHCPClusterCRUDCreateCall struct {
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *MockHCPClusterCRUDCreateCall) Return(arg0 *api.HCPOpenShiftCluster, arg1 error) *MockHCPClusterCRUDCreateCall {
+func (c *MockHCPClusterCRUDCreateCall) Return(arg0 *api.Cluster, arg1 error) *MockHCPClusterCRUDCreateCall {
 	c.Call = c.Call.Return(arg0, arg1)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockHCPClusterCRUDCreateCall) Do(f func(context.Context, *api.HCPOpenShiftCluster, *azcosmos.ItemOptions) (*api.HCPOpenShiftCluster, error)) *MockHCPClusterCRUDCreateCall {
+func (c *MockHCPClusterCRUDCreateCall) Do(f func(context.Context, *api.Cluster, *azcosmos.ItemOptions) (*api.Cluster, error)) *MockHCPClusterCRUDCreateCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockHCPClusterCRUDCreateCall) DoAndReturn(f func(context.Context, *api.HCPOpenShiftCluster, *azcosmos.ItemOptions) (*api.HCPOpenShiftCluster, error)) *MockHCPClusterCRUDCreateCall {
+func (c *MockHCPClusterCRUDCreateCall) DoAndReturn(f func(context.Context, *api.Cluster, *azcosmos.ItemOptions) (*api.Cluster, error)) *MockHCPClusterCRUDCreateCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -710,10 +710,10 @@ func (c *MockHCPClusterCRUDExternalAuthCall) DoAndReturn(f func(string) External
 }
 
 // Get mocks base method.
-func (m *MockHCPClusterCRUD) Get(ctx context.Context, resourceID string) (*api.HCPOpenShiftCluster, error) {
+func (m *MockHCPClusterCRUD) Get(ctx context.Context, resourceID string) (*api.Cluster, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Get", ctx, resourceID)
-	ret0, _ := ret[0].(*api.HCPOpenShiftCluster)
+	ret0, _ := ret[0].(*api.Cluster)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -731,28 +731,28 @@ type MockHCPClusterCRUDGetCall struct {
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *MockHCPClusterCRUDGetCall) Return(arg0 *api.HCPOpenShiftCluster, arg1 error) *MockHCPClusterCRUDGetCall {
+func (c *MockHCPClusterCRUDGetCall) Return(arg0 *api.Cluster, arg1 error) *MockHCPClusterCRUDGetCall {
 	c.Call = c.Call.Return(arg0, arg1)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockHCPClusterCRUDGetCall) Do(f func(context.Context, string) (*api.HCPOpenShiftCluster, error)) *MockHCPClusterCRUDGetCall {
+func (c *MockHCPClusterCRUDGetCall) Do(f func(context.Context, string) (*api.Cluster, error)) *MockHCPClusterCRUDGetCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockHCPClusterCRUDGetCall) DoAndReturn(f func(context.Context, string) (*api.HCPOpenShiftCluster, error)) *MockHCPClusterCRUDGetCall {
+func (c *MockHCPClusterCRUDGetCall) DoAndReturn(f func(context.Context, string) (*api.Cluster, error)) *MockHCPClusterCRUDGetCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
 
 // GetByID mocks base method.
-func (m *MockHCPClusterCRUD) GetByID(ctx context.Context, cosmosID string) (*api.HCPOpenShiftCluster, error) {
+func (m *MockHCPClusterCRUD) GetByID(ctx context.Context, cosmosID string) (*api.Cluster, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetByID", ctx, cosmosID)
-	ret0, _ := ret[0].(*api.HCPOpenShiftCluster)
+	ret0, _ := ret[0].(*api.Cluster)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -770,28 +770,28 @@ type MockHCPClusterCRUDGetByIDCall struct {
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *MockHCPClusterCRUDGetByIDCall) Return(arg0 *api.HCPOpenShiftCluster, arg1 error) *MockHCPClusterCRUDGetByIDCall {
+func (c *MockHCPClusterCRUDGetByIDCall) Return(arg0 *api.Cluster, arg1 error) *MockHCPClusterCRUDGetByIDCall {
 	c.Call = c.Call.Return(arg0, arg1)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockHCPClusterCRUDGetByIDCall) Do(f func(context.Context, string) (*api.HCPOpenShiftCluster, error)) *MockHCPClusterCRUDGetByIDCall {
+func (c *MockHCPClusterCRUDGetByIDCall) Do(f func(context.Context, string) (*api.Cluster, error)) *MockHCPClusterCRUDGetByIDCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockHCPClusterCRUDGetByIDCall) DoAndReturn(f func(context.Context, string) (*api.HCPOpenShiftCluster, error)) *MockHCPClusterCRUDGetByIDCall {
+func (c *MockHCPClusterCRUDGetByIDCall) DoAndReturn(f func(context.Context, string) (*api.Cluster, error)) *MockHCPClusterCRUDGetByIDCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
 
 // List mocks base method.
-func (m *MockHCPClusterCRUD) List(ctx context.Context, opts *DBClientListResourceDocsOptions) (DBClientIterator[api.HCPOpenShiftCluster], error) {
+func (m *MockHCPClusterCRUD) List(ctx context.Context, opts *DBClientListResourceDocsOptions) (DBClientIterator[api.Cluster], error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "List", ctx, opts)
-	ret0, _ := ret[0].(DBClientIterator[api.HCPOpenShiftCluster])
+	ret0, _ := ret[0].(DBClientIterator[api.Cluster])
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -809,19 +809,19 @@ type MockHCPClusterCRUDListCall struct {
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *MockHCPClusterCRUDListCall) Return(arg0 DBClientIterator[api.HCPOpenShiftCluster], arg1 error) *MockHCPClusterCRUDListCall {
+func (c *MockHCPClusterCRUDListCall) Return(arg0 DBClientIterator[api.Cluster], arg1 error) *MockHCPClusterCRUDListCall {
 	c.Call = c.Call.Return(arg0, arg1)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockHCPClusterCRUDListCall) Do(f func(context.Context, *DBClientListResourceDocsOptions) (DBClientIterator[api.HCPOpenShiftCluster], error)) *MockHCPClusterCRUDListCall {
+func (c *MockHCPClusterCRUDListCall) Do(f func(context.Context, *DBClientListResourceDocsOptions) (DBClientIterator[api.Cluster], error)) *MockHCPClusterCRUDListCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockHCPClusterCRUDListCall) DoAndReturn(f func(context.Context, *DBClientListResourceDocsOptions) (DBClientIterator[api.HCPOpenShiftCluster], error)) *MockHCPClusterCRUDListCall {
+func (c *MockHCPClusterCRUDListCall) DoAndReturn(f func(context.Context, *DBClientListResourceDocsOptions) (DBClientIterator[api.Cluster], error)) *MockHCPClusterCRUDListCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -865,10 +865,10 @@ func (c *MockHCPClusterCRUDNodePoolsCall) DoAndReturn(f func(string) NodePoolsCR
 }
 
 // Replace mocks base method.
-func (m *MockHCPClusterCRUD) Replace(ctx context.Context, newObj *api.HCPOpenShiftCluster, options *azcosmos.ItemOptions) (*api.HCPOpenShiftCluster, error) {
+func (m *MockHCPClusterCRUD) Replace(ctx context.Context, newObj *api.Cluster, options *azcosmos.ItemOptions) (*api.Cluster, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Replace", ctx, newObj, options)
-	ret0, _ := ret[0].(*api.HCPOpenShiftCluster)
+	ret0, _ := ret[0].(*api.Cluster)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -886,19 +886,19 @@ type MockHCPClusterCRUDReplaceCall struct {
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *MockHCPClusterCRUDReplaceCall) Return(arg0 *api.HCPOpenShiftCluster, arg1 error) *MockHCPClusterCRUDReplaceCall {
+func (c *MockHCPClusterCRUDReplaceCall) Return(arg0 *api.Cluster, arg1 error) *MockHCPClusterCRUDReplaceCall {
 	c.Call = c.Call.Return(arg0, arg1)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockHCPClusterCRUDReplaceCall) Do(f func(context.Context, *api.HCPOpenShiftCluster, *azcosmos.ItemOptions) (*api.HCPOpenShiftCluster, error)) *MockHCPClusterCRUDReplaceCall {
+func (c *MockHCPClusterCRUDReplaceCall) Do(f func(context.Context, *api.Cluster, *azcosmos.ItemOptions) (*api.Cluster, error)) *MockHCPClusterCRUDReplaceCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockHCPClusterCRUDReplaceCall) DoAndReturn(f func(context.Context, *api.HCPOpenShiftCluster, *azcosmos.ItemOptions) (*api.HCPOpenShiftCluster, error)) *MockHCPClusterCRUDReplaceCall {
+func (c *MockHCPClusterCRUDReplaceCall) DoAndReturn(f func(context.Context, *api.Cluster, *azcosmos.ItemOptions) (*api.Cluster, error)) *MockHCPClusterCRUDReplaceCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -928,7 +928,7 @@ func (m *MockNodePoolsCRUD) EXPECT() *MockNodePoolsCRUDMockRecorder {
 }
 
 // AddCreateToTransaction mocks base method.
-func (m *MockNodePoolsCRUD) AddCreateToTransaction(ctx context.Context, transaction DBTransaction, newObj *api.HCPOpenShiftClusterNodePool, opts *azcosmos.TransactionalBatchItemOptions) (string, error) {
+func (m *MockNodePoolsCRUD) AddCreateToTransaction(ctx context.Context, transaction DBTransaction, newObj *api.NodePool, opts *azcosmos.TransactionalBatchItemOptions) (string, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "AddCreateToTransaction", ctx, transaction, newObj, opts)
 	ret0, _ := ret[0].(string)
@@ -955,19 +955,19 @@ func (c *MockNodePoolsCRUDAddCreateToTransactionCall) Return(arg0 string, arg1 e
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockNodePoolsCRUDAddCreateToTransactionCall) Do(f func(context.Context, DBTransaction, *api.HCPOpenShiftClusterNodePool, *azcosmos.TransactionalBatchItemOptions) (string, error)) *MockNodePoolsCRUDAddCreateToTransactionCall {
+func (c *MockNodePoolsCRUDAddCreateToTransactionCall) Do(f func(context.Context, DBTransaction, *api.NodePool, *azcosmos.TransactionalBatchItemOptions) (string, error)) *MockNodePoolsCRUDAddCreateToTransactionCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockNodePoolsCRUDAddCreateToTransactionCall) DoAndReturn(f func(context.Context, DBTransaction, *api.HCPOpenShiftClusterNodePool, *azcosmos.TransactionalBatchItemOptions) (string, error)) *MockNodePoolsCRUDAddCreateToTransactionCall {
+func (c *MockNodePoolsCRUDAddCreateToTransactionCall) DoAndReturn(f func(context.Context, DBTransaction, *api.NodePool, *azcosmos.TransactionalBatchItemOptions) (string, error)) *MockNodePoolsCRUDAddCreateToTransactionCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
 
 // AddReplaceToTransaction mocks base method.
-func (m *MockNodePoolsCRUD) AddReplaceToTransaction(ctx context.Context, transaction DBTransaction, newObj *api.HCPOpenShiftClusterNodePool, opts *azcosmos.TransactionalBatchItemOptions) (string, error) {
+func (m *MockNodePoolsCRUD) AddReplaceToTransaction(ctx context.Context, transaction DBTransaction, newObj *api.NodePool, opts *azcosmos.TransactionalBatchItemOptions) (string, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "AddReplaceToTransaction", ctx, transaction, newObj, opts)
 	ret0, _ := ret[0].(string)
@@ -994,13 +994,13 @@ func (c *MockNodePoolsCRUDAddReplaceToTransactionCall) Return(arg0 string, arg1 
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockNodePoolsCRUDAddReplaceToTransactionCall) Do(f func(context.Context, DBTransaction, *api.HCPOpenShiftClusterNodePool, *azcosmos.TransactionalBatchItemOptions) (string, error)) *MockNodePoolsCRUDAddReplaceToTransactionCall {
+func (c *MockNodePoolsCRUDAddReplaceToTransactionCall) Do(f func(context.Context, DBTransaction, *api.NodePool, *azcosmos.TransactionalBatchItemOptions) (string, error)) *MockNodePoolsCRUDAddReplaceToTransactionCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockNodePoolsCRUDAddReplaceToTransactionCall) DoAndReturn(f func(context.Context, DBTransaction, *api.HCPOpenShiftClusterNodePool, *azcosmos.TransactionalBatchItemOptions) (string, error)) *MockNodePoolsCRUDAddReplaceToTransactionCall {
+func (c *MockNodePoolsCRUDAddReplaceToTransactionCall) DoAndReturn(f func(context.Context, DBTransaction, *api.NodePool, *azcosmos.TransactionalBatchItemOptions) (string, error)) *MockNodePoolsCRUDAddReplaceToTransactionCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -1044,10 +1044,10 @@ func (c *MockNodePoolsCRUDControllersCall) DoAndReturn(f func(string) ResourceCR
 }
 
 // Create mocks base method.
-func (m *MockNodePoolsCRUD) Create(ctx context.Context, newObj *api.HCPOpenShiftClusterNodePool, options *azcosmos.ItemOptions) (*api.HCPOpenShiftClusterNodePool, error) {
+func (m *MockNodePoolsCRUD) Create(ctx context.Context, newObj *api.NodePool, options *azcosmos.ItemOptions) (*api.NodePool, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Create", ctx, newObj, options)
-	ret0, _ := ret[0].(*api.HCPOpenShiftClusterNodePool)
+	ret0, _ := ret[0].(*api.NodePool)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -1065,19 +1065,19 @@ type MockNodePoolsCRUDCreateCall struct {
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *MockNodePoolsCRUDCreateCall) Return(arg0 *api.HCPOpenShiftClusterNodePool, arg1 error) *MockNodePoolsCRUDCreateCall {
+func (c *MockNodePoolsCRUDCreateCall) Return(arg0 *api.NodePool, arg1 error) *MockNodePoolsCRUDCreateCall {
 	c.Call = c.Call.Return(arg0, arg1)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockNodePoolsCRUDCreateCall) Do(f func(context.Context, *api.HCPOpenShiftClusterNodePool, *azcosmos.ItemOptions) (*api.HCPOpenShiftClusterNodePool, error)) *MockNodePoolsCRUDCreateCall {
+func (c *MockNodePoolsCRUDCreateCall) Do(f func(context.Context, *api.NodePool, *azcosmos.ItemOptions) (*api.NodePool, error)) *MockNodePoolsCRUDCreateCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockNodePoolsCRUDCreateCall) DoAndReturn(f func(context.Context, *api.HCPOpenShiftClusterNodePool, *azcosmos.ItemOptions) (*api.HCPOpenShiftClusterNodePool, error)) *MockNodePoolsCRUDCreateCall {
+func (c *MockNodePoolsCRUDCreateCall) DoAndReturn(f func(context.Context, *api.NodePool, *azcosmos.ItemOptions) (*api.NodePool, error)) *MockNodePoolsCRUDCreateCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -1121,10 +1121,10 @@ func (c *MockNodePoolsCRUDDeleteCall) DoAndReturn(f func(context.Context, string
 }
 
 // Get mocks base method.
-func (m *MockNodePoolsCRUD) Get(ctx context.Context, resourceID string) (*api.HCPOpenShiftClusterNodePool, error) {
+func (m *MockNodePoolsCRUD) Get(ctx context.Context, resourceID string) (*api.NodePool, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Get", ctx, resourceID)
-	ret0, _ := ret[0].(*api.HCPOpenShiftClusterNodePool)
+	ret0, _ := ret[0].(*api.NodePool)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -1142,28 +1142,28 @@ type MockNodePoolsCRUDGetCall struct {
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *MockNodePoolsCRUDGetCall) Return(arg0 *api.HCPOpenShiftClusterNodePool, arg1 error) *MockNodePoolsCRUDGetCall {
+func (c *MockNodePoolsCRUDGetCall) Return(arg0 *api.NodePool, arg1 error) *MockNodePoolsCRUDGetCall {
 	c.Call = c.Call.Return(arg0, arg1)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockNodePoolsCRUDGetCall) Do(f func(context.Context, string) (*api.HCPOpenShiftClusterNodePool, error)) *MockNodePoolsCRUDGetCall {
+func (c *MockNodePoolsCRUDGetCall) Do(f func(context.Context, string) (*api.NodePool, error)) *MockNodePoolsCRUDGetCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockNodePoolsCRUDGetCall) DoAndReturn(f func(context.Context, string) (*api.HCPOpenShiftClusterNodePool, error)) *MockNodePoolsCRUDGetCall {
+func (c *MockNodePoolsCRUDGetCall) DoAndReturn(f func(context.Context, string) (*api.NodePool, error)) *MockNodePoolsCRUDGetCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
 
 // GetByID mocks base method.
-func (m *MockNodePoolsCRUD) GetByID(ctx context.Context, cosmosID string) (*api.HCPOpenShiftClusterNodePool, error) {
+func (m *MockNodePoolsCRUD) GetByID(ctx context.Context, cosmosID string) (*api.NodePool, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetByID", ctx, cosmosID)
-	ret0, _ := ret[0].(*api.HCPOpenShiftClusterNodePool)
+	ret0, _ := ret[0].(*api.NodePool)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -1181,28 +1181,28 @@ type MockNodePoolsCRUDGetByIDCall struct {
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *MockNodePoolsCRUDGetByIDCall) Return(arg0 *api.HCPOpenShiftClusterNodePool, arg1 error) *MockNodePoolsCRUDGetByIDCall {
+func (c *MockNodePoolsCRUDGetByIDCall) Return(arg0 *api.NodePool, arg1 error) *MockNodePoolsCRUDGetByIDCall {
 	c.Call = c.Call.Return(arg0, arg1)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockNodePoolsCRUDGetByIDCall) Do(f func(context.Context, string) (*api.HCPOpenShiftClusterNodePool, error)) *MockNodePoolsCRUDGetByIDCall {
+func (c *MockNodePoolsCRUDGetByIDCall) Do(f func(context.Context, string) (*api.NodePool, error)) *MockNodePoolsCRUDGetByIDCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockNodePoolsCRUDGetByIDCall) DoAndReturn(f func(context.Context, string) (*api.HCPOpenShiftClusterNodePool, error)) *MockNodePoolsCRUDGetByIDCall {
+func (c *MockNodePoolsCRUDGetByIDCall) DoAndReturn(f func(context.Context, string) (*api.NodePool, error)) *MockNodePoolsCRUDGetByIDCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
 
 // List mocks base method.
-func (m *MockNodePoolsCRUD) List(ctx context.Context, opts *DBClientListResourceDocsOptions) (DBClientIterator[api.HCPOpenShiftClusterNodePool], error) {
+func (m *MockNodePoolsCRUD) List(ctx context.Context, opts *DBClientListResourceDocsOptions) (DBClientIterator[api.NodePool], error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "List", ctx, opts)
-	ret0, _ := ret[0].(DBClientIterator[api.HCPOpenShiftClusterNodePool])
+	ret0, _ := ret[0].(DBClientIterator[api.NodePool])
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -1220,28 +1220,28 @@ type MockNodePoolsCRUDListCall struct {
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *MockNodePoolsCRUDListCall) Return(arg0 DBClientIterator[api.HCPOpenShiftClusterNodePool], arg1 error) *MockNodePoolsCRUDListCall {
+func (c *MockNodePoolsCRUDListCall) Return(arg0 DBClientIterator[api.NodePool], arg1 error) *MockNodePoolsCRUDListCall {
 	c.Call = c.Call.Return(arg0, arg1)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockNodePoolsCRUDListCall) Do(f func(context.Context, *DBClientListResourceDocsOptions) (DBClientIterator[api.HCPOpenShiftClusterNodePool], error)) *MockNodePoolsCRUDListCall {
+func (c *MockNodePoolsCRUDListCall) Do(f func(context.Context, *DBClientListResourceDocsOptions) (DBClientIterator[api.NodePool], error)) *MockNodePoolsCRUDListCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockNodePoolsCRUDListCall) DoAndReturn(f func(context.Context, *DBClientListResourceDocsOptions) (DBClientIterator[api.HCPOpenShiftClusterNodePool], error)) *MockNodePoolsCRUDListCall {
+func (c *MockNodePoolsCRUDListCall) DoAndReturn(f func(context.Context, *DBClientListResourceDocsOptions) (DBClientIterator[api.NodePool], error)) *MockNodePoolsCRUDListCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
 
 // Replace mocks base method.
-func (m *MockNodePoolsCRUD) Replace(ctx context.Context, newObj *api.HCPOpenShiftClusterNodePool, options *azcosmos.ItemOptions) (*api.HCPOpenShiftClusterNodePool, error) {
+func (m *MockNodePoolsCRUD) Replace(ctx context.Context, newObj *api.NodePool, options *azcosmos.ItemOptions) (*api.NodePool, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Replace", ctx, newObj, options)
-	ret0, _ := ret[0].(*api.HCPOpenShiftClusterNodePool)
+	ret0, _ := ret[0].(*api.NodePool)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -1259,19 +1259,19 @@ type MockNodePoolsCRUDReplaceCall struct {
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *MockNodePoolsCRUDReplaceCall) Return(arg0 *api.HCPOpenShiftClusterNodePool, arg1 error) *MockNodePoolsCRUDReplaceCall {
+func (c *MockNodePoolsCRUDReplaceCall) Return(arg0 *api.NodePool, arg1 error) *MockNodePoolsCRUDReplaceCall {
 	c.Call = c.Call.Return(arg0, arg1)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockNodePoolsCRUDReplaceCall) Do(f func(context.Context, *api.HCPOpenShiftClusterNodePool, *azcosmos.ItemOptions) (*api.HCPOpenShiftClusterNodePool, error)) *MockNodePoolsCRUDReplaceCall {
+func (c *MockNodePoolsCRUDReplaceCall) Do(f func(context.Context, *api.NodePool, *azcosmos.ItemOptions) (*api.NodePool, error)) *MockNodePoolsCRUDReplaceCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockNodePoolsCRUDReplaceCall) DoAndReturn(f func(context.Context, *api.HCPOpenShiftClusterNodePool, *azcosmos.ItemOptions) (*api.HCPOpenShiftClusterNodePool, error)) *MockNodePoolsCRUDReplaceCall {
+func (c *MockNodePoolsCRUDReplaceCall) DoAndReturn(f func(context.Context, *api.NodePool, *azcosmos.ItemOptions) (*api.NodePool, error)) *MockNodePoolsCRUDReplaceCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -1301,7 +1301,7 @@ func (m *MockExternalAuthsCRUD) EXPECT() *MockExternalAuthsCRUDMockRecorder {
 }
 
 // AddCreateToTransaction mocks base method.
-func (m *MockExternalAuthsCRUD) AddCreateToTransaction(ctx context.Context, transaction DBTransaction, newObj *api.HCPOpenShiftClusterExternalAuth, opts *azcosmos.TransactionalBatchItemOptions) (string, error) {
+func (m *MockExternalAuthsCRUD) AddCreateToTransaction(ctx context.Context, transaction DBTransaction, newObj *api.ExternalAuth, opts *azcosmos.TransactionalBatchItemOptions) (string, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "AddCreateToTransaction", ctx, transaction, newObj, opts)
 	ret0, _ := ret[0].(string)
@@ -1328,19 +1328,19 @@ func (c *MockExternalAuthsCRUDAddCreateToTransactionCall) Return(arg0 string, ar
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockExternalAuthsCRUDAddCreateToTransactionCall) Do(f func(context.Context, DBTransaction, *api.HCPOpenShiftClusterExternalAuth, *azcosmos.TransactionalBatchItemOptions) (string, error)) *MockExternalAuthsCRUDAddCreateToTransactionCall {
+func (c *MockExternalAuthsCRUDAddCreateToTransactionCall) Do(f func(context.Context, DBTransaction, *api.ExternalAuth, *azcosmos.TransactionalBatchItemOptions) (string, error)) *MockExternalAuthsCRUDAddCreateToTransactionCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockExternalAuthsCRUDAddCreateToTransactionCall) DoAndReturn(f func(context.Context, DBTransaction, *api.HCPOpenShiftClusterExternalAuth, *azcosmos.TransactionalBatchItemOptions) (string, error)) *MockExternalAuthsCRUDAddCreateToTransactionCall {
+func (c *MockExternalAuthsCRUDAddCreateToTransactionCall) DoAndReturn(f func(context.Context, DBTransaction, *api.ExternalAuth, *azcosmos.TransactionalBatchItemOptions) (string, error)) *MockExternalAuthsCRUDAddCreateToTransactionCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
 
 // AddReplaceToTransaction mocks base method.
-func (m *MockExternalAuthsCRUD) AddReplaceToTransaction(ctx context.Context, transaction DBTransaction, newObj *api.HCPOpenShiftClusterExternalAuth, opts *azcosmos.TransactionalBatchItemOptions) (string, error) {
+func (m *MockExternalAuthsCRUD) AddReplaceToTransaction(ctx context.Context, transaction DBTransaction, newObj *api.ExternalAuth, opts *azcosmos.TransactionalBatchItemOptions) (string, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "AddReplaceToTransaction", ctx, transaction, newObj, opts)
 	ret0, _ := ret[0].(string)
@@ -1367,13 +1367,13 @@ func (c *MockExternalAuthsCRUDAddReplaceToTransactionCall) Return(arg0 string, a
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockExternalAuthsCRUDAddReplaceToTransactionCall) Do(f func(context.Context, DBTransaction, *api.HCPOpenShiftClusterExternalAuth, *azcosmos.TransactionalBatchItemOptions) (string, error)) *MockExternalAuthsCRUDAddReplaceToTransactionCall {
+func (c *MockExternalAuthsCRUDAddReplaceToTransactionCall) Do(f func(context.Context, DBTransaction, *api.ExternalAuth, *azcosmos.TransactionalBatchItemOptions) (string, error)) *MockExternalAuthsCRUDAddReplaceToTransactionCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockExternalAuthsCRUDAddReplaceToTransactionCall) DoAndReturn(f func(context.Context, DBTransaction, *api.HCPOpenShiftClusterExternalAuth, *azcosmos.TransactionalBatchItemOptions) (string, error)) *MockExternalAuthsCRUDAddReplaceToTransactionCall {
+func (c *MockExternalAuthsCRUDAddReplaceToTransactionCall) DoAndReturn(f func(context.Context, DBTransaction, *api.ExternalAuth, *azcosmos.TransactionalBatchItemOptions) (string, error)) *MockExternalAuthsCRUDAddReplaceToTransactionCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -1417,10 +1417,10 @@ func (c *MockExternalAuthsCRUDControllersCall) DoAndReturn(f func(string) Resour
 }
 
 // Create mocks base method.
-func (m *MockExternalAuthsCRUD) Create(ctx context.Context, newObj *api.HCPOpenShiftClusterExternalAuth, options *azcosmos.ItemOptions) (*api.HCPOpenShiftClusterExternalAuth, error) {
+func (m *MockExternalAuthsCRUD) Create(ctx context.Context, newObj *api.ExternalAuth, options *azcosmos.ItemOptions) (*api.ExternalAuth, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Create", ctx, newObj, options)
-	ret0, _ := ret[0].(*api.HCPOpenShiftClusterExternalAuth)
+	ret0, _ := ret[0].(*api.ExternalAuth)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -1438,19 +1438,19 @@ type MockExternalAuthsCRUDCreateCall struct {
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *MockExternalAuthsCRUDCreateCall) Return(arg0 *api.HCPOpenShiftClusterExternalAuth, arg1 error) *MockExternalAuthsCRUDCreateCall {
+func (c *MockExternalAuthsCRUDCreateCall) Return(arg0 *api.ExternalAuth, arg1 error) *MockExternalAuthsCRUDCreateCall {
 	c.Call = c.Call.Return(arg0, arg1)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockExternalAuthsCRUDCreateCall) Do(f func(context.Context, *api.HCPOpenShiftClusterExternalAuth, *azcosmos.ItemOptions) (*api.HCPOpenShiftClusterExternalAuth, error)) *MockExternalAuthsCRUDCreateCall {
+func (c *MockExternalAuthsCRUDCreateCall) Do(f func(context.Context, *api.ExternalAuth, *azcosmos.ItemOptions) (*api.ExternalAuth, error)) *MockExternalAuthsCRUDCreateCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockExternalAuthsCRUDCreateCall) DoAndReturn(f func(context.Context, *api.HCPOpenShiftClusterExternalAuth, *azcosmos.ItemOptions) (*api.HCPOpenShiftClusterExternalAuth, error)) *MockExternalAuthsCRUDCreateCall {
+func (c *MockExternalAuthsCRUDCreateCall) DoAndReturn(f func(context.Context, *api.ExternalAuth, *azcosmos.ItemOptions) (*api.ExternalAuth, error)) *MockExternalAuthsCRUDCreateCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -1494,10 +1494,10 @@ func (c *MockExternalAuthsCRUDDeleteCall) DoAndReturn(f func(context.Context, st
 }
 
 // Get mocks base method.
-func (m *MockExternalAuthsCRUD) Get(ctx context.Context, resourceID string) (*api.HCPOpenShiftClusterExternalAuth, error) {
+func (m *MockExternalAuthsCRUD) Get(ctx context.Context, resourceID string) (*api.ExternalAuth, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Get", ctx, resourceID)
-	ret0, _ := ret[0].(*api.HCPOpenShiftClusterExternalAuth)
+	ret0, _ := ret[0].(*api.ExternalAuth)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -1515,28 +1515,28 @@ type MockExternalAuthsCRUDGetCall struct {
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *MockExternalAuthsCRUDGetCall) Return(arg0 *api.HCPOpenShiftClusterExternalAuth, arg1 error) *MockExternalAuthsCRUDGetCall {
+func (c *MockExternalAuthsCRUDGetCall) Return(arg0 *api.ExternalAuth, arg1 error) *MockExternalAuthsCRUDGetCall {
 	c.Call = c.Call.Return(arg0, arg1)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockExternalAuthsCRUDGetCall) Do(f func(context.Context, string) (*api.HCPOpenShiftClusterExternalAuth, error)) *MockExternalAuthsCRUDGetCall {
+func (c *MockExternalAuthsCRUDGetCall) Do(f func(context.Context, string) (*api.ExternalAuth, error)) *MockExternalAuthsCRUDGetCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockExternalAuthsCRUDGetCall) DoAndReturn(f func(context.Context, string) (*api.HCPOpenShiftClusterExternalAuth, error)) *MockExternalAuthsCRUDGetCall {
+func (c *MockExternalAuthsCRUDGetCall) DoAndReturn(f func(context.Context, string) (*api.ExternalAuth, error)) *MockExternalAuthsCRUDGetCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
 
 // GetByID mocks base method.
-func (m *MockExternalAuthsCRUD) GetByID(ctx context.Context, cosmosID string) (*api.HCPOpenShiftClusterExternalAuth, error) {
+func (m *MockExternalAuthsCRUD) GetByID(ctx context.Context, cosmosID string) (*api.ExternalAuth, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetByID", ctx, cosmosID)
-	ret0, _ := ret[0].(*api.HCPOpenShiftClusterExternalAuth)
+	ret0, _ := ret[0].(*api.ExternalAuth)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -1554,28 +1554,28 @@ type MockExternalAuthsCRUDGetByIDCall struct {
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *MockExternalAuthsCRUDGetByIDCall) Return(arg0 *api.HCPOpenShiftClusterExternalAuth, arg1 error) *MockExternalAuthsCRUDGetByIDCall {
+func (c *MockExternalAuthsCRUDGetByIDCall) Return(arg0 *api.ExternalAuth, arg1 error) *MockExternalAuthsCRUDGetByIDCall {
 	c.Call = c.Call.Return(arg0, arg1)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockExternalAuthsCRUDGetByIDCall) Do(f func(context.Context, string) (*api.HCPOpenShiftClusterExternalAuth, error)) *MockExternalAuthsCRUDGetByIDCall {
+func (c *MockExternalAuthsCRUDGetByIDCall) Do(f func(context.Context, string) (*api.ExternalAuth, error)) *MockExternalAuthsCRUDGetByIDCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockExternalAuthsCRUDGetByIDCall) DoAndReturn(f func(context.Context, string) (*api.HCPOpenShiftClusterExternalAuth, error)) *MockExternalAuthsCRUDGetByIDCall {
+func (c *MockExternalAuthsCRUDGetByIDCall) DoAndReturn(f func(context.Context, string) (*api.ExternalAuth, error)) *MockExternalAuthsCRUDGetByIDCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
 
 // List mocks base method.
-func (m *MockExternalAuthsCRUD) List(ctx context.Context, opts *DBClientListResourceDocsOptions) (DBClientIterator[api.HCPOpenShiftClusterExternalAuth], error) {
+func (m *MockExternalAuthsCRUD) List(ctx context.Context, opts *DBClientListResourceDocsOptions) (DBClientIterator[api.ExternalAuth], error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "List", ctx, opts)
-	ret0, _ := ret[0].(DBClientIterator[api.HCPOpenShiftClusterExternalAuth])
+	ret0, _ := ret[0].(DBClientIterator[api.ExternalAuth])
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -1593,28 +1593,28 @@ type MockExternalAuthsCRUDListCall struct {
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *MockExternalAuthsCRUDListCall) Return(arg0 DBClientIterator[api.HCPOpenShiftClusterExternalAuth], arg1 error) *MockExternalAuthsCRUDListCall {
+func (c *MockExternalAuthsCRUDListCall) Return(arg0 DBClientIterator[api.ExternalAuth], arg1 error) *MockExternalAuthsCRUDListCall {
 	c.Call = c.Call.Return(arg0, arg1)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockExternalAuthsCRUDListCall) Do(f func(context.Context, *DBClientListResourceDocsOptions) (DBClientIterator[api.HCPOpenShiftClusterExternalAuth], error)) *MockExternalAuthsCRUDListCall {
+func (c *MockExternalAuthsCRUDListCall) Do(f func(context.Context, *DBClientListResourceDocsOptions) (DBClientIterator[api.ExternalAuth], error)) *MockExternalAuthsCRUDListCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockExternalAuthsCRUDListCall) DoAndReturn(f func(context.Context, *DBClientListResourceDocsOptions) (DBClientIterator[api.HCPOpenShiftClusterExternalAuth], error)) *MockExternalAuthsCRUDListCall {
+func (c *MockExternalAuthsCRUDListCall) DoAndReturn(f func(context.Context, *DBClientListResourceDocsOptions) (DBClientIterator[api.ExternalAuth], error)) *MockExternalAuthsCRUDListCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
 
 // Replace mocks base method.
-func (m *MockExternalAuthsCRUD) Replace(ctx context.Context, newObj *api.HCPOpenShiftClusterExternalAuth, options *azcosmos.ItemOptions) (*api.HCPOpenShiftClusterExternalAuth, error) {
+func (m *MockExternalAuthsCRUD) Replace(ctx context.Context, newObj *api.ExternalAuth, options *azcosmos.ItemOptions) (*api.ExternalAuth, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Replace", ctx, newObj, options)
-	ret0, _ := ret[0].(*api.HCPOpenShiftClusterExternalAuth)
+	ret0, _ := ret[0].(*api.ExternalAuth)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -1632,19 +1632,19 @@ type MockExternalAuthsCRUDReplaceCall struct {
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *MockExternalAuthsCRUDReplaceCall) Return(arg0 *api.HCPOpenShiftClusterExternalAuth, arg1 error) *MockExternalAuthsCRUDReplaceCall {
+func (c *MockExternalAuthsCRUDReplaceCall) Return(arg0 *api.ExternalAuth, arg1 error) *MockExternalAuthsCRUDReplaceCall {
 	c.Call = c.Call.Return(arg0, arg1)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockExternalAuthsCRUDReplaceCall) Do(f func(context.Context, *api.HCPOpenShiftClusterExternalAuth, *azcosmos.ItemOptions) (*api.HCPOpenShiftClusterExternalAuth, error)) *MockExternalAuthsCRUDReplaceCall {
+func (c *MockExternalAuthsCRUDReplaceCall) Do(f func(context.Context, *api.ExternalAuth, *azcosmos.ItemOptions) (*api.ExternalAuth, error)) *MockExternalAuthsCRUDReplaceCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockExternalAuthsCRUDReplaceCall) DoAndReturn(f func(context.Context, *api.HCPOpenShiftClusterExternalAuth, *azcosmos.ItemOptions) (*api.HCPOpenShiftClusterExternalAuth, error)) *MockExternalAuthsCRUDReplaceCall {
+func (c *MockExternalAuthsCRUDReplaceCall) DoAndReturn(f func(context.Context, *api.ExternalAuth, *azcosmos.ItemOptions) (*api.ExternalAuth, error)) *MockExternalAuthsCRUDReplaceCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }

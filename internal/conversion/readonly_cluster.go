@@ -27,7 +27,7 @@ func CopyReadOnlyTrackedResourceValues(dest, src *arm.TrackedResource) {
 	dest.SystemData = src.SystemData
 }
 
-func CopyReadOnlyClusterValues(dest, src *api.HCPOpenShiftCluster) {
+func CopyReadOnlyClusterValues(dest, src *api.Cluster) {
 	// the old code appeared to shallow copies only
 	CopyReadOnlyTrackedResourceValues(&dest.TrackedResource, &src.TrackedResource)
 

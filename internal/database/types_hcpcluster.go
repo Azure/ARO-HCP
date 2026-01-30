@@ -32,7 +32,7 @@ type HCPClusterProperties struct {
 }
 
 type ClusterInternalState struct {
-	InternalAPI api.HCPOpenShiftCluster `json:"internalAPI"`
+	InternalAPI api.Cluster `json:"internalAPI"`
 }
 
 func (o *HCPCluster) GetTypedDocument() *TypedDocument {

@@ -22,7 +22,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/ocm"
 )
 
-func InternalToCosmosExternalAuth(internalObj *api.HCPOpenShiftClusterExternalAuth) (*ExternalAuth, error) {
+func InternalToCosmosExternalAuth(internalObj *api.ExternalAuth) (*ExternalAuth, error) {
 	if internalObj == nil {
 		return nil, nil
 	}
@@ -62,7 +62,7 @@ func InternalToCosmosExternalAuth(internalObj *api.HCPOpenShiftClusterExternalAu
 	return cosmosObj, nil
 }
 
-func CosmosToInternalExternalAuth(cosmosObj *ExternalAuth) (*api.HCPOpenShiftClusterExternalAuth, error) {
+func CosmosToInternalExternalAuth(cosmosObj *ExternalAuth) (*api.ExternalAuth, error) {
 	if cosmosObj == nil {
 		return nil, nil
 	}

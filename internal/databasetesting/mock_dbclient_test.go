@@ -145,7 +145,7 @@ func TestMockDBClient_CRUD_Cluster(t *testing.T) {
 		t.Fatalf("Failed to create internal ID: %v", err)
 	}
 
-	cluster := &api.HCPOpenShiftCluster{
+	cluster := &api.Cluster{
 		TrackedResource: arm.TrackedResource{
 			Resource: arm.Resource{
 				ID:   clusterResourceID,
@@ -154,7 +154,7 @@ func TestMockDBClient_CRUD_Cluster(t *testing.T) {
 			},
 			Location: "eastus",
 		},
-		ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
+		ServiceProviderProperties: api.ClusterServiceProviderProperties{
 			ProvisioningState: arm.ProvisioningStateSucceeded,
 			ClusterServiceID:  internalID,
 		},
@@ -377,7 +377,7 @@ func TestMockDBClient_Transaction(t *testing.T) {
 		t.Fatalf("Failed to create internal ID: %v", err)
 	}
 
-	cluster := &api.HCPOpenShiftCluster{
+	cluster := &api.Cluster{
 		TrackedResource: arm.TrackedResource{
 			Resource: arm.Resource{
 				ID:   clusterResourceID,
@@ -386,7 +386,7 @@ func TestMockDBClient_Transaction(t *testing.T) {
 			},
 			Location: "eastus",
 		},
-		ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
+		ServiceProviderProperties: api.ClusterServiceProviderProperties{
 			ProvisioningState: arm.ProvisioningStateSucceeded,
 			ClusterServiceID:  internalID,
 		},
@@ -435,7 +435,7 @@ func TestMockDBClient_UntypedCRUD(t *testing.T) {
 		t.Fatalf("Failed to create internal ID: %v", err)
 	}
 
-	cluster := &api.HCPOpenShiftCluster{
+	cluster := &api.Cluster{
 		TrackedResource: arm.TrackedResource{
 			Resource: arm.Resource{
 				ID:   clusterResourceID,
@@ -444,7 +444,7 @@ func TestMockDBClient_UntypedCRUD(t *testing.T) {
 			},
 			Location: "eastus",
 		},
-		ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
+		ServiceProviderProperties: api.ClusterServiceProviderProperties{
 			ProvisioningState: arm.ProvisioningStateSucceeded,
 			ClusterServiceID:  internalID,
 		},

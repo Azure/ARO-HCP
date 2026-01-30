@@ -43,9 +43,9 @@ func NewCosmosExternalAuthMatchingController(cosmosClient database.DBClient, clu
 	return c
 }
 
-func (c *cosmosExternalAuthMatching) getAllCosmosObjs(ctx context.Context, keyObj controllerutils.HCPClusterKey) (map[string]*api.HCPOpenShiftClusterExternalAuth, []*api.HCPOpenShiftClusterExternalAuth, error) {
-	clusterServiceIDToExternalAuth := map[string]*api.HCPOpenShiftClusterExternalAuth{}
-	ret := []*api.HCPOpenShiftClusterExternalAuth{}
+func (c *cosmosExternalAuthMatching) getAllCosmosObjs(ctx context.Context, keyObj controllerutils.HCPClusterKey) (map[string]*api.ExternalAuth, []*api.ExternalAuth, error) {
+	clusterServiceIDToExternalAuth := map[string]*api.ExternalAuth{}
+	ret := []*api.ExternalAuth{}
 
 	allExternalAuths, err := c.cosmosClient.HCPClusters(keyObj.SubscriptionID, keyObj.ResourceGroupName).ExternalAuth(keyObj.HCPClusterName).List(ctx, nil)
 	if err != nil {

@@ -38,7 +38,7 @@ func TestValidateNodePoolCreate(t *testing.T) {
 
 	tests := []struct {
 		name         string
-		nodePool     *api.HCPOpenShiftClusterNodePool
+		nodePool     *api.NodePool
 		expectErrors []expectedError
 	}{
 		{
@@ -48,7 +48,7 @@ func TestValidateNodePoolCreate(t *testing.T) {
 		},
 		{
 			name: "valid nodepool with autoscaling - create",
-			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+			nodePool: func() *api.NodePool {
 				np := createValidNodePool()
 				np.Properties.AutoScaling = &api.NodePoolAutoScaling{
 					Min: 1,
@@ -61,7 +61,7 @@ func TestValidateNodePoolCreate(t *testing.T) {
 		},
 		{
 			name: "valid nodepool with autoscaling min=0 - create",
-			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+			nodePool: func() *api.NodePool {
 				np := createValidNodePool()
 				np.Properties.AutoScaling = &api.NodePoolAutoScaling{
 					Min: 0,
@@ -74,7 +74,7 @@ func TestValidateNodePoolCreate(t *testing.T) {
 		},
 		{
 			name: "valid nodepool with labels - create",
-			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+			nodePool: func() *api.NodePool {
 				np := createValidNodePool()
 				np.Properties.Labels = map[string]string{
 					"environment":           "test",
@@ -87,7 +87,7 @@ func TestValidateNodePoolCreate(t *testing.T) {
 		},
 		{
 			name: "valid nodepool with taints - create",
-			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+			nodePool: func() *api.NodePool {
 				np := createValidNodePool()
 				np.Properties.Taints = []api.Taint{
 					{
@@ -107,7 +107,7 @@ func TestValidateNodePoolCreate(t *testing.T) {
 		},
 		{
 			name: "valid nodepool with encryption set ID - create",
-			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+			nodePool: func() *api.NodePool {
 				np := createValidNodePool()
 				np.Properties.Platform.OSDisk.EncryptionSetID = api.Must(azcorearm.ParseResourceID("/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.Compute/diskEncryptionSets/test-des"))
 				return np
@@ -116,7 +116,7 @@ func TestValidateNodePoolCreate(t *testing.T) {
 		},
 		{
 			name: "valid nodepool with custom OS disk size - create",
-			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+			nodePool: func() *api.NodePool {
 				np := createValidNodePool()
 				np.Properties.Platform.OSDisk.SizeGiB = ptr.To[int32](64)
 				return np
@@ -125,7 +125,7 @@ func TestValidateNodePoolCreate(t *testing.T) {
 		},
 		{
 			name: "valid nodepool with different storage account type - create",
-			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+			nodePool: func() *api.NodePool {
 				np := createValidNodePool()
 				np.Properties.Platform.OSDisk.DiskStorageAccountType = api.DiskStorageAccountTypeStandardSSD_LRS
 				return np
@@ -134,7 +134,7 @@ func TestValidateNodePoolCreate(t *testing.T) {
 		},
 		{
 			name: "valid nodepool with availability zone - create",
-			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+			nodePool: func() *api.NodePool {
 				np := createValidNodePool()
 				np.Properties.Platform.AvailabilityZone = "1"
 				return np
@@ -143,7 +143,7 @@ func TestValidateNodePoolCreate(t *testing.T) {
 		},
 		{
 			name: "valid nodepool with node drain timeout - create",
-			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+			nodePool: func() *api.NodePool {
 				np := createValidNodePool()
 				np.Properties.NodeDrainTimeoutMinutes = ptr.To[int32](60)
 				return np
@@ -152,7 +152,7 @@ func TestValidateNodePoolCreate(t *testing.T) {
 		},
 		{
 			name: "valid nodepool with version ID - create",
-			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+			nodePool: func() *api.NodePool {
 				np := createValidNodePool()
 				np.Properties.Version.ID = "4.15.1"
 				np.Properties.Version.ChannelGroup = "fast"
@@ -162,7 +162,7 @@ func TestValidateNodePoolCreate(t *testing.T) {
 		},
 		{
 			name: "invalid version ID - create",
-			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+			nodePool: func() *api.NodePool {
 				np := createValidNodePool()
 				np.Properties.Version.ID = "invalid-version"
 				return np
@@ -173,7 +173,7 @@ func TestValidateNodePoolCreate(t *testing.T) {
 		},
 		{
 			name: "missing channel group - create",
-			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+			nodePool: func() *api.NodePool {
 				np := createValidNodePool()
 				np.Properties.Version.ChannelGroup = ""
 				return np
@@ -184,7 +184,7 @@ func TestValidateNodePoolCreate(t *testing.T) {
 		},
 		{
 			name: "missing version ID when channel group is not stable - create",
-			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+			nodePool: func() *api.NodePool {
 				np := createValidNodePool()
 				np.Properties.Version.ID = ""
 				np.Properties.Version.ChannelGroup = "fast"
@@ -196,7 +196,7 @@ func TestValidateNodePoolCreate(t *testing.T) {
 		},
 		{
 			name: "nil subnet ID - valid - create",
-			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+			nodePool: func() *api.NodePool {
 				np := createValidNodePool()
 				// SubnetID is optional for nodepools
 				np.Properties.Platform.SubnetID = nil
@@ -206,7 +206,7 @@ func TestValidateNodePoolCreate(t *testing.T) {
 		},
 		{
 			name: "wrong subnet resource type - create",
-			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+			nodePool: func() *api.NodePool {
 				np := createValidNodePool()
 				np.Properties.Platform.SubnetID = api.Must(azcorearm.ParseResourceID("/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.Network/virtualNetworks/test-vnet"))
 				return np
@@ -217,7 +217,7 @@ func TestValidateNodePoolCreate(t *testing.T) {
 		},
 		{
 			name: "missing VM size - create",
-			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+			nodePool: func() *api.NodePool {
 				np := createValidNodePool()
 				np.Properties.Platform.VMSize = ""
 				return np
@@ -228,7 +228,7 @@ func TestValidateNodePoolCreate(t *testing.T) {
 		},
 		{
 			name: "OS disk size too small - create",
-			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+			nodePool: func() *api.NodePool {
 				np := createValidNodePool()
 				np.Properties.Platform.OSDisk.SizeGiB = ptr.To[int32](63)
 				return np
@@ -239,7 +239,7 @@ func TestValidateNodePoolCreate(t *testing.T) {
 		},
 		{
 			name: "invalid disk storage account type - create",
-			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+			nodePool: func() *api.NodePool {
 				np := createValidNodePool()
 				np.Properties.Platform.OSDisk.DiskStorageAccountType = "InvalidType"
 				return np
@@ -250,7 +250,7 @@ func TestValidateNodePoolCreate(t *testing.T) {
 		},
 		{
 			name: "wrong encryption set resource type - create",
-			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+			nodePool: func() *api.NodePool {
 				np := createValidNodePool()
 				np.Properties.Platform.OSDisk.EncryptionSetID = api.Must(azcorearm.ParseResourceID("/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.Network/virtualNetworks/test-vnet"))
 				return np
@@ -261,7 +261,7 @@ func TestValidateNodePoolCreate(t *testing.T) {
 		},
 		{
 			name: "replicas at maximum limit (200) - create",
-			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+			nodePool: func() *api.NodePool {
 				np := createValidNodePool()
 				np.Properties.Replicas = MaxNodePoolNodes
 				return np
@@ -270,7 +270,7 @@ func TestValidateNodePoolCreate(t *testing.T) {
 		},
 		{
 			name: "negative replicas - create",
-			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+			nodePool: func() *api.NodePool {
 				np := createValidNodePool()
 				np.Properties.Replicas = -1
 				return np
@@ -281,7 +281,7 @@ func TestValidateNodePoolCreate(t *testing.T) {
 		},
 		{
 			name: "replicas exceeds maximum limit (201) - create",
-			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+			nodePool: func() *api.NodePool {
 				np := createValidNodePool()
 				np.Properties.Replicas = MaxNodePoolNodes + 1
 				return np
@@ -292,7 +292,7 @@ func TestValidateNodePoolCreate(t *testing.T) {
 		},
 		{
 			name: "non-zero replicas with autoscaling - create",
-			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+			nodePool: func() *api.NodePool {
 				np := createValidNodePool()
 				np.Properties.Replicas = 3
 				np.Properties.AutoScaling = &api.NodePoolAutoScaling{
@@ -307,7 +307,7 @@ func TestValidateNodePoolCreate(t *testing.T) {
 		},
 		{
 			name: "autoscaling max at maximum limit (200) - create",
-			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+			nodePool: func() *api.NodePool {
 				np := createValidNodePool()
 				np.Properties.Replicas = 0
 				np.Properties.AutoScaling = &api.NodePoolAutoScaling{
@@ -320,7 +320,7 @@ func TestValidateNodePoolCreate(t *testing.T) {
 		},
 		{
 			name: "autoscaling min too small - create",
-			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+			nodePool: func() *api.NodePool {
 				np := createValidNodePool()
 				np.Properties.Replicas = 0
 				np.Properties.AutoScaling = &api.NodePoolAutoScaling{
@@ -336,7 +336,7 @@ func TestValidateNodePoolCreate(t *testing.T) {
 		{
 			// When Min is invalid (too large), Max is valid, we should only get Min error (not Max >= Min error).
 			name: "autoscaling min exceeds limit but max is valid - create",
-			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+			nodePool: func() *api.NodePool {
 				np := createValidNodePool()
 				np.Properties.Replicas = 0
 				np.Properties.AutoScaling = &api.NodePoolAutoScaling{
@@ -352,7 +352,7 @@ func TestValidateNodePoolCreate(t *testing.T) {
 		{
 			// When Min is invalid (too small), Max is valid, we should only get Min error (not Max >= Min error).
 			name: "autoscaling min negative but max is valid - create",
-			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+			nodePool: func() *api.NodePool {
 				np := createValidNodePool()
 				np.Properties.Replicas = 0
 				np.Properties.AutoScaling = &api.NodePoolAutoScaling{
@@ -367,7 +367,7 @@ func TestValidateNodePoolCreate(t *testing.T) {
 		},
 		{
 			name: "autoscaling max less than min - create",
-			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+			nodePool: func() *api.NodePool {
 				np := createValidNodePool()
 				np.Properties.Replicas = 0
 				np.Properties.AutoScaling = &api.NodePoolAutoScaling{
@@ -384,7 +384,7 @@ func TestValidateNodePoolCreate(t *testing.T) {
 			// Note: Both Min and Max validate max=200 (though logically redundant) for explicit error messages on both fields.
 			// When Min is invalid, we skip the Min<=Max check to avoid misleading "Max must be >= invalid_min" errors.
 			name: "autoscaling min and max both exceed limit with min > max - create",
-			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+			nodePool: func() *api.NodePool {
 				np := createValidNodePool()
 				np.Properties.Replicas = 0
 				np.Properties.AutoScaling = &api.NodePoolAutoScaling{
@@ -400,7 +400,7 @@ func TestValidateNodePoolCreate(t *testing.T) {
 		},
 		{
 			name: "invalid label key - create",
-			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+			nodePool: func() *api.NodePool {
 				np := createValidNodePool()
 				np.Properties.Labels = map[string]string{
 					"invalid key with spaces": "value",
@@ -413,7 +413,7 @@ func TestValidateNodePoolCreate(t *testing.T) {
 		},
 		{
 			name: "invalid label value - create",
-			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+			nodePool: func() *api.NodePool {
 				np := createValidNodePool()
 				np.Properties.Labels = map[string]string{
 					"valid-key": "invalid value with spaces and special chars!@#",
@@ -426,7 +426,7 @@ func TestValidateNodePoolCreate(t *testing.T) {
 		},
 		{
 			name: "empty label key - create",
-			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+			nodePool: func() *api.NodePool {
 				np := createValidNodePool()
 				np.Properties.Labels = map[string]string{
 					"": "value",
@@ -439,7 +439,7 @@ func TestValidateNodePoolCreate(t *testing.T) {
 		},
 		{
 			name: "taint missing key - create",
-			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+			nodePool: func() *api.NodePool {
 				np := createValidNodePool()
 				np.Properties.Taints = []api.Taint{
 					{
@@ -455,7 +455,7 @@ func TestValidateNodePoolCreate(t *testing.T) {
 		},
 		{
 			name: "taint invalid key - create",
-			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+			nodePool: func() *api.NodePool {
 				np := createValidNodePool()
 				np.Properties.Taints = []api.Taint{
 					{
@@ -472,7 +472,7 @@ func TestValidateNodePoolCreate(t *testing.T) {
 		},
 		{
 			name: "taint invalid value - create",
-			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+			nodePool: func() *api.NodePool {
 				np := createValidNodePool()
 				np.Properties.Taints = []api.Taint{
 					{
@@ -489,7 +489,7 @@ func TestValidateNodePoolCreate(t *testing.T) {
 		},
 		{
 			name: "taint invalid effect - create",
-			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+			nodePool: func() *api.NodePool {
 				np := createValidNodePool()
 				np.Properties.Taints = []api.Taint{
 					{
@@ -506,7 +506,7 @@ func TestValidateNodePoolCreate(t *testing.T) {
 		},
 		{
 			name: "multiple validation errors - create",
-			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+			nodePool: func() *api.NodePool {
 				np := createValidNodePool()
 				np.Properties.Version.ID = "invalid-version"
 				np.Properties.Platform.VMSize = ""
@@ -523,7 +523,7 @@ func TestValidateNodePoolCreate(t *testing.T) {
 		},
 		{
 			name: "multiple taint errors - create",
-			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+			nodePool: func() *api.NodePool {
 				np := createValidNodePool()
 				np.Properties.Taints = []api.Taint{
 					{
@@ -547,7 +547,7 @@ func TestValidateNodePoolCreate(t *testing.T) {
 		},
 		{
 			name: "multiple label errors - create",
-			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+			nodePool: func() *api.NodePool {
 				np := createValidNodePool()
 				np.Properties.Labels = map[string]string{
 					"":                        "value1",
@@ -564,7 +564,7 @@ func TestValidateNodePoolCreate(t *testing.T) {
 		},
 		{
 			name: "valid empty optional fields - create",
-			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+			nodePool: func() *api.NodePool {
 				np := createValidNodePool()
 				np.Properties.Platform.SubnetID = nil
 				np.Properties.Platform.AvailabilityZone = ""
@@ -578,7 +578,7 @@ func TestValidateNodePoolCreate(t *testing.T) {
 		},
 		{
 			name: "missing location - create",
-			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+			nodePool: func() *api.NodePool {
 				np := createValidNodePool()
 				np.Location = ""
 				return np
@@ -589,7 +589,7 @@ func TestValidateNodePoolCreate(t *testing.T) {
 		},
 		{
 			name: "replicas exceeds 200 with availability zone set - valid - create",
-			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+			nodePool: func() *api.NodePool {
 				np := createValidNodePool()
 				np.Properties.Platform.AvailabilityZone = "1"
 				np.Properties.Replicas = 250
@@ -599,7 +599,7 @@ func TestValidateNodePoolCreate(t *testing.T) {
 		},
 		{
 			name: "autoscaling both min and max exceed 200 with availability zone set - valid - create",
-			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+			nodePool: func() *api.NodePool {
 				np := createValidNodePool()
 				np.Properties.Platform.AvailabilityZone = "1"
 				np.Properties.Replicas = 0
@@ -614,7 +614,7 @@ func TestValidateNodePoolCreate(t *testing.T) {
 		// Node pool resource naming validation tests (covering middleware_validatestatic_test.go patterns)
 		{
 			name: "invalid nodepool resource name - special character",
-			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+			nodePool: func() *api.NodePool {
 				np := createValidNodePool()
 				np.ID.Name = "$"
 				return np
@@ -625,7 +625,7 @@ func TestValidateNodePoolCreate(t *testing.T) {
 		},
 		{
 			name: "invalid nodepool resource name - starts with hyphen",
-			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+			nodePool: func() *api.NodePool {
 				np := createValidNodePool()
 				np.ID.Name = "-abcde"
 				return np
@@ -636,7 +636,7 @@ func TestValidateNodePoolCreate(t *testing.T) {
 		},
 		{
 			name: "invalid nodepool resource name - starts with number",
-			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+			nodePool: func() *api.NodePool {
 				np := createValidNodePool()
 				np.ID.Name = "1nodepool"
 				return np
@@ -647,7 +647,7 @@ func TestValidateNodePoolCreate(t *testing.T) {
 		},
 		{
 			name: "invalid nodepool resource name - too long",
-			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+			nodePool: func() *api.NodePool {
 				np := createValidNodePool()
 				np.ID.Name = "07B4gc00vjA2C8KL3Ns4No9fi" // Too long for node pool name
 				return np
@@ -658,7 +658,7 @@ func TestValidateNodePoolCreate(t *testing.T) {
 		},
 		{
 			name: "invalid nodepool resource name - too short",
-			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+			nodePool: func() *api.NodePool {
 				np := createValidNodePool()
 				np.ID.Name = "a"
 				return np
@@ -669,7 +669,7 @@ func TestValidateNodePoolCreate(t *testing.T) {
 		},
 		{
 			name: "valid nodepool resource name - minimum length",
-			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+			nodePool: func() *api.NodePool {
 				np := createValidNodePool()
 				np.ID.Name = "abc"
 				np.Name = "abc"
@@ -679,7 +679,7 @@ func TestValidateNodePoolCreate(t *testing.T) {
 		},
 		{
 			name: "valid nodepool resource name - with hyphens",
-			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+			nodePool: func() *api.NodePool {
 				np := createValidNodePool()
 				np.ID.Name = "my-pool-1"
 				np.Name = "my-pool-1"
@@ -689,7 +689,7 @@ func TestValidateNodePoolCreate(t *testing.T) {
 		},
 		{
 			name: "valid nodepool resource name - maximum length",
-			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+			nodePool: func() *api.NodePool {
 				np := createValidNodePool()
 				np.ID.Name = "myNodePool12345" // 15 chars total - at max length
 				np.Name = "myNodePool12345"
@@ -740,8 +740,8 @@ func TestValidateNodePoolUpdate(t *testing.T) {
 
 	tests := []struct {
 		name         string
-		newNodePool  *api.HCPOpenShiftClusterNodePool
-		oldNodePool  *api.HCPOpenShiftClusterNodePool
+		newNodePool  *api.NodePool
+		oldNodePool  *api.NodePool
 		expectErrors []expectedError
 	}{
 		{
@@ -752,12 +752,12 @@ func TestValidateNodePoolUpdate(t *testing.T) {
 		},
 		{
 			name: "valid nodepool update - replicas change",
-			newNodePool: func() *api.HCPOpenShiftClusterNodePool {
+			newNodePool: func() *api.NodePool {
 				np := createValidNodePool()
 				np.Properties.Replicas = 5
 				return np
 			}(),
-			oldNodePool: func() *api.HCPOpenShiftClusterNodePool {
+			oldNodePool: func() *api.NodePool {
 				np := createValidNodePool()
 				np.Properties.Replicas = 3
 				return np
@@ -766,7 +766,7 @@ func TestValidateNodePoolUpdate(t *testing.T) {
 		},
 		{
 			name: "valid nodepool update - autoscaling change",
-			newNodePool: func() *api.HCPOpenShiftClusterNodePool {
+			newNodePool: func() *api.NodePool {
 				np := createValidNodePool()
 				np.Properties.Replicas = 0
 				np.Properties.AutoScaling = &api.NodePoolAutoScaling{
@@ -775,7 +775,7 @@ func TestValidateNodePoolUpdate(t *testing.T) {
 				}
 				return np
 			}(),
-			oldNodePool: func() *api.HCPOpenShiftClusterNodePool {
+			oldNodePool: func() *api.NodePool {
 				np := createValidNodePool()
 				np.Properties.Replicas = 0
 				np.Properties.AutoScaling = &api.NodePoolAutoScaling{
@@ -788,7 +788,7 @@ func TestValidateNodePoolUpdate(t *testing.T) {
 		},
 		{
 			name: "valid nodepool update - labels change",
-			newNodePool: func() *api.HCPOpenShiftClusterNodePool {
+			newNodePool: func() *api.NodePool {
 				np := createValidNodePool()
 				np.Properties.Labels = map[string]string{
 					"environment": "production",
@@ -796,7 +796,7 @@ func TestValidateNodePoolUpdate(t *testing.T) {
 				}
 				return np
 			}(),
-			oldNodePool: func() *api.HCPOpenShiftClusterNodePool {
+			oldNodePool: func() *api.NodePool {
 				np := createValidNodePool()
 				np.Properties.Labels = map[string]string{
 					"environment": "test",
@@ -807,7 +807,7 @@ func TestValidateNodePoolUpdate(t *testing.T) {
 		},
 		{
 			name: "valid nodepool update - taints change",
-			newNodePool: func() *api.HCPOpenShiftClusterNodePool {
+			newNodePool: func() *api.NodePool {
 				np := createValidNodePool()
 				np.Properties.Taints = []api.Taint{
 					{
@@ -823,7 +823,7 @@ func TestValidateNodePoolUpdate(t *testing.T) {
 				}
 				return np
 			}(),
-			oldNodePool: func() *api.HCPOpenShiftClusterNodePool {
+			oldNodePool: func() *api.NodePool {
 				np := createValidNodePool()
 				np.Properties.Taints = []api.Taint{
 					{
@@ -838,12 +838,12 @@ func TestValidateNodePoolUpdate(t *testing.T) {
 		},
 		{
 			name: "valid nodepool update - node drain timeout change",
-			newNodePool: func() *api.HCPOpenShiftClusterNodePool {
+			newNodePool: func() *api.NodePool {
 				np := createValidNodePool()
 				np.Properties.NodeDrainTimeoutMinutes = ptr.To[int32](120)
 				return np
 			}(),
-			oldNodePool: func() *api.HCPOpenShiftClusterNodePool {
+			oldNodePool: func() *api.NodePool {
 				np := createValidNodePool()
 				np.Properties.NodeDrainTimeoutMinutes = ptr.To[int32](60)
 				return np
@@ -852,12 +852,12 @@ func TestValidateNodePoolUpdate(t *testing.T) {
 		},
 		{
 			name: "valid nodepool update - version change",
-			newNodePool: func() *api.HCPOpenShiftClusterNodePool {
+			newNodePool: func() *api.NodePool {
 				np := createValidNodePool()
 				np.Properties.Version.ID = "4.15.2"
 				return np
 			}(),
-			oldNodePool: func() *api.HCPOpenShiftClusterNodePool {
+			oldNodePool: func() *api.NodePool {
 				np := createValidNodePool()
 				np.Properties.Version.ID = "4.15.1"
 				return np
@@ -866,12 +866,12 @@ func TestValidateNodePoolUpdate(t *testing.T) {
 		},
 		{
 			name: "immutable provisioning state - update",
-			newNodePool: func() *api.HCPOpenShiftClusterNodePool {
+			newNodePool: func() *api.NodePool {
 				np := createValidNodePool()
 				np.Properties.ProvisioningState = arm.ProvisioningStateProvisioning
 				return np
 			}(),
-			oldNodePool: func() *api.HCPOpenShiftClusterNodePool {
+			oldNodePool: func() *api.NodePool {
 				np := createValidNodePool()
 				np.Properties.ProvisioningState = arm.ProvisioningStateSucceeded
 				return np
@@ -882,12 +882,12 @@ func TestValidateNodePoolUpdate(t *testing.T) {
 		},
 		{
 			name: "immutable platform profile - update",
-			newNodePool: func() *api.HCPOpenShiftClusterNodePool {
+			newNodePool: func() *api.NodePool {
 				np := createValidNodePool()
 				np.Properties.Platform.VMSize = "Standard_D4s_v3"
 				return np
 			}(),
-			oldNodePool: func() *api.HCPOpenShiftClusterNodePool {
+			oldNodePool: func() *api.NodePool {
 				np := createValidNodePool()
 				np.Properties.Platform.VMSize = "Standard_D2s_v3"
 				return np
@@ -898,12 +898,12 @@ func TestValidateNodePoolUpdate(t *testing.T) {
 		},
 		{
 			name: "immutable OS disk size - update",
-			newNodePool: func() *api.HCPOpenShiftClusterNodePool {
+			newNodePool: func() *api.NodePool {
 				np := createValidNodePool()
 				np.Properties.Platform.OSDisk.SizeGiB = ptr.To[int32](64)
 				return np
 			}(),
-			oldNodePool: func() *api.HCPOpenShiftClusterNodePool {
+			oldNodePool: func() *api.NodePool {
 				np := createValidNodePool()
 				np.Properties.Platform.OSDisk.SizeGiB = ptr.To[int32](128)
 				return np
@@ -914,12 +914,12 @@ func TestValidateNodePoolUpdate(t *testing.T) {
 		},
 		{
 			name: "immutable auto repair - update",
-			newNodePool: func() *api.HCPOpenShiftClusterNodePool {
+			newNodePool: func() *api.NodePool {
 				np := createValidNodePool()
 				np.Properties.AutoRepair = false
 				return np
 			}(),
-			oldNodePool: func() *api.HCPOpenShiftClusterNodePool {
+			oldNodePool: func() *api.NodePool {
 				np := createValidNodePool()
 				np.Properties.AutoRepair = true
 				return np
@@ -930,12 +930,12 @@ func TestValidateNodePoolUpdate(t *testing.T) {
 		},
 		{
 			name: "immutable location - update",
-			newNodePool: func() *api.HCPOpenShiftClusterNodePool {
+			newNodePool: func() *api.NodePool {
 				np := createValidNodePool()
 				np.Location = "westus2"
 				return np
 			}(),
-			oldNodePool: func() *api.HCPOpenShiftClusterNodePool {
+			oldNodePool: func() *api.NodePool {
 				np := createValidNodePool()
 				np.Location = "eastus"
 				return np
@@ -946,7 +946,7 @@ func TestValidateNodePoolUpdate(t *testing.T) {
 		},
 		{
 			name: "invalid new field value on update - update",
-			newNodePool: func() *api.HCPOpenShiftClusterNodePool {
+			newNodePool: func() *api.NodePool {
 				np := createValidNodePool()
 				np.Properties.Replicas = -1
 				return np
@@ -958,12 +958,12 @@ func TestValidateNodePoolUpdate(t *testing.T) {
 		},
 		{
 			name: "scale up to maximum limit - update",
-			newNodePool: func() *api.HCPOpenShiftClusterNodePool {
+			newNodePool: func() *api.NodePool {
 				np := createValidNodePool()
 				np.Properties.Replicas = MaxNodePoolNodes
 				return np
 			}(),
-			oldNodePool: func() *api.HCPOpenShiftClusterNodePool {
+			oldNodePool: func() *api.NodePool {
 				np := createValidNodePool()
 				return np
 			}(),
@@ -971,7 +971,7 @@ func TestValidateNodePoolUpdate(t *testing.T) {
 		},
 		{
 			name: "replicas exceeds maximum limit - update",
-			newNodePool: func() *api.HCPOpenShiftClusterNodePool {
+			newNodePool: func() *api.NodePool {
 				np := createValidNodePool()
 				np.Properties.Replicas = MaxNodePoolNodes + 1
 				return np
@@ -983,7 +983,7 @@ func TestValidateNodePoolUpdate(t *testing.T) {
 		},
 		{
 			name: "autoscaling min and max to maximum limit - update",
-			newNodePool: func() *api.HCPOpenShiftClusterNodePool {
+			newNodePool: func() *api.NodePool {
 				np := createValidNodePool()
 				np.Properties.Replicas = 0
 				np.Properties.AutoScaling = &api.NodePoolAutoScaling{
@@ -992,7 +992,7 @@ func TestValidateNodePoolUpdate(t *testing.T) {
 				}
 				return np
 			}(),
-			oldNodePool: func() *api.HCPOpenShiftClusterNodePool {
+			oldNodePool: func() *api.NodePool {
 				np := createValidNodePool()
 				return np
 			}(),
@@ -1000,7 +1000,7 @@ func TestValidateNodePoolUpdate(t *testing.T) {
 		},
 		{
 			name: "invalid autoscaling on update - update",
-			newNodePool: func() *api.HCPOpenShiftClusterNodePool {
+			newNodePool: func() *api.NodePool {
 				np := createValidNodePool()
 				np.Properties.Replicas = 0
 				np.Properties.AutoScaling = &api.NodePoolAutoScaling{
@@ -1016,7 +1016,7 @@ func TestValidateNodePoolUpdate(t *testing.T) {
 		},
 		{
 			name: "autoscaling min and max exceeds maximum limit with min > max - update",
-			newNodePool: func() *api.HCPOpenShiftClusterNodePool {
+			newNodePool: func() *api.NodePool {
 				np := createValidNodePool()
 				np.Properties.Replicas = 0
 				np.Properties.AutoScaling = &api.NodePoolAutoScaling{
@@ -1033,7 +1033,7 @@ func TestValidateNodePoolUpdate(t *testing.T) {
 		},
 		{
 			name: "invalid labels on update - update",
-			newNodePool: func() *api.HCPOpenShiftClusterNodePool {
+			newNodePool: func() *api.NodePool {
 				np := createValidNodePool()
 				np.Properties.Labels = map[string]string{
 					"invalid key with spaces": "value",
@@ -1047,7 +1047,7 @@ func TestValidateNodePoolUpdate(t *testing.T) {
 		},
 		{
 			name: "invalid taints on update - update",
-			newNodePool: func() *api.HCPOpenShiftClusterNodePool {
+			newNodePool: func() *api.NodePool {
 				np := createValidNodePool()
 				np.Properties.Taints = []api.Taint{
 					{
@@ -1065,7 +1065,7 @@ func TestValidateNodePoolUpdate(t *testing.T) {
 		},
 		{
 			name: "invalid version on update - update",
-			newNodePool: func() *api.HCPOpenShiftClusterNodePool {
+			newNodePool: func() *api.NodePool {
 				np := createValidNodePool()
 				np.Properties.Version.ID = "invalid-version"
 				return np
@@ -1077,7 +1077,7 @@ func TestValidateNodePoolUpdate(t *testing.T) {
 		},
 		{
 			name: "multiple immutable field changes - update",
-			newNodePool: func() *api.HCPOpenShiftClusterNodePool {
+			newNodePool: func() *api.NodePool {
 				np := createValidNodePool()
 				np.Properties.ProvisioningState = arm.ProvisioningStateProvisioning
 				np.Properties.Platform.VMSize = "Standard_D4s_v3"
@@ -1085,7 +1085,7 @@ func TestValidateNodePoolUpdate(t *testing.T) {
 				np.Location = "westus2"
 				return np
 			}(),
-			oldNodePool: func() *api.HCPOpenShiftClusterNodePool {
+			oldNodePool: func() *api.NodePool {
 				np := createValidNodePool()
 				np.Properties.ProvisioningState = arm.ProvisioningStateSucceeded
 				np.Properties.Platform.VMSize = "Standard_D2s_v3"
@@ -1102,7 +1102,7 @@ func TestValidateNodePoolUpdate(t *testing.T) {
 		},
 		{
 			name: "enable autoscaling - update",
-			newNodePool: func() *api.HCPOpenShiftClusterNodePool {
+			newNodePool: func() *api.NodePool {
 				np := createValidNodePool()
 				np.Properties.Replicas = 0
 				np.Properties.AutoScaling = &api.NodePoolAutoScaling{
@@ -1111,7 +1111,7 @@ func TestValidateNodePoolUpdate(t *testing.T) {
 				}
 				return np
 			}(),
-			oldNodePool: func() *api.HCPOpenShiftClusterNodePool {
+			oldNodePool: func() *api.NodePool {
 				np := createValidNodePool()
 				np.Properties.Replicas = 3
 				np.Properties.AutoScaling = nil
@@ -1121,13 +1121,13 @@ func TestValidateNodePoolUpdate(t *testing.T) {
 		},
 		{
 			name: "disable autoscaling - update",
-			newNodePool: func() *api.HCPOpenShiftClusterNodePool {
+			newNodePool: func() *api.NodePool {
 				np := createValidNodePool()
 				np.Properties.Replicas = 3
 				np.Properties.AutoScaling = nil
 				return np
 			}(),
-			oldNodePool: func() *api.HCPOpenShiftClusterNodePool {
+			oldNodePool: func() *api.NodePool {
 				np := createValidNodePool()
 				np.Properties.Replicas = 0
 				np.Properties.AutoScaling = &api.NodePoolAutoScaling{
@@ -1140,12 +1140,12 @@ func TestValidateNodePoolUpdate(t *testing.T) {
 		},
 		{
 			name: "clear labels - update",
-			newNodePool: func() *api.HCPOpenShiftClusterNodePool {
+			newNodePool: func() *api.NodePool {
 				np := createValidNodePool()
 				np.Properties.Labels = nil
 				return np
 			}(),
-			oldNodePool: func() *api.HCPOpenShiftClusterNodePool {
+			oldNodePool: func() *api.NodePool {
 				np := createValidNodePool()
 				np.Properties.Labels = map[string]string{
 					"environment": "test",
@@ -1157,12 +1157,12 @@ func TestValidateNodePoolUpdate(t *testing.T) {
 		},
 		{
 			name: "clear taints - update",
-			newNodePool: func() *api.HCPOpenShiftClusterNodePool {
+			newNodePool: func() *api.NodePool {
 				np := createValidNodePool()
 				np.Properties.Taints = nil
 				return np
 			}(),
-			oldNodePool: func() *api.HCPOpenShiftClusterNodePool {
+			oldNodePool: func() *api.NodePool {
 				np := createValidNodePool()
 				np.Properties.Taints = []api.Taint{
 					{
@@ -1177,13 +1177,13 @@ func TestValidateNodePoolUpdate(t *testing.T) {
 		},
 		{
 			name: "replicas exceeds 200 with availability zone set - valid - update",
-			newNodePool: func() *api.HCPOpenShiftClusterNodePool {
+			newNodePool: func() *api.NodePool {
 				np := createValidNodePool()
 				np.Properties.Platform.AvailabilityZone = "1"
 				np.Properties.Replicas = 250
 				return np
 			}(),
-			oldNodePool: func() *api.HCPOpenShiftClusterNodePool {
+			oldNodePool: func() *api.NodePool {
 				np := createValidNodePool()
 				np.Properties.Platform.AvailabilityZone = "1"
 				np.Properties.Replicas = 3
@@ -1193,7 +1193,7 @@ func TestValidateNodePoolUpdate(t *testing.T) {
 		},
 		{
 			name: "autoscaling min exceeds 200 with availability zone set - valid - update",
-			newNodePool: func() *api.HCPOpenShiftClusterNodePool {
+			newNodePool: func() *api.NodePool {
 				np := createValidNodePool()
 				np.Properties.Platform.AvailabilityZone = "2"
 				np.Properties.Replicas = 0
@@ -1203,7 +1203,7 @@ func TestValidateNodePoolUpdate(t *testing.T) {
 				}
 				return np
 			}(),
-			oldNodePool: func() *api.HCPOpenShiftClusterNodePool {
+			oldNodePool: func() *api.NodePool {
 				np := createValidNodePool()
 				np.Properties.Platform.AvailabilityZone = "2"
 				return np
@@ -1212,7 +1212,7 @@ func TestValidateNodePoolUpdate(t *testing.T) {
 		},
 		{
 			name: "autoscaling both min and max exceed 200 with availability zone set - valid - update",
-			newNodePool: func() *api.HCPOpenShiftClusterNodePool {
+			newNodePool: func() *api.NodePool {
 				np := createValidNodePool()
 				np.Properties.Platform.AvailabilityZone = "1"
 				np.Properties.Replicas = 0
@@ -1222,7 +1222,7 @@ func TestValidateNodePoolUpdate(t *testing.T) {
 				}
 				return np
 			}(),
-			oldNodePool: func() *api.HCPOpenShiftClusterNodePool {
+			oldNodePool: func() *api.NodePool {
 				np := createValidNodePool()
 				np.Properties.Platform.AvailabilityZone = "1"
 				return np
@@ -1262,7 +1262,7 @@ func TestValidateNodePoolUpdate(t *testing.T) {
 }
 
 // Helper function to create a valid nodepool for testing
-func createValidNodePool() *api.HCPOpenShiftClusterNodePool {
+func createValidNodePool() *api.NodePool {
 	nodePool := api.NewDefaultHCPOpenShiftClusterNodePool(
 		api.Must(azcorearm.ParseResourceID("/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster/nodePools/test-nodepool")),
 		api.TestLocation,

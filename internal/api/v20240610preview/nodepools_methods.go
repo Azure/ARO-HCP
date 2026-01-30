@@ -32,7 +32,7 @@ type NodePool struct {
 	generated.NodePool
 }
 
-var _ api.VersionedCreatableResource[api.HCPOpenShiftClusterNodePool] = &NodePool{}
+var _ api.VersionedCreatableResource[api.NodePool] = &NodePool{}
 
 func (h *NodePool) NewExternal() any {
 	return &NodePool{}
@@ -79,8 +79,8 @@ func (h *NodePool) GetVersion() api.Version {
 	return versionedInterface
 }
 
-func (h *NodePool) ConvertToInternal() (*api.HCPOpenShiftClusterNodePool, error) {
-	out := &api.HCPOpenShiftClusterNodePool{}
+func (h *NodePool) ConvertToInternal() (*api.NodePool, error) {
+	out := &api.NodePool{}
 	errs := field.ErrorList{}
 
 	if h.ID != nil {
@@ -300,7 +300,7 @@ func newNodePoolAutoScaling(from *api.NodePoolAutoScaling) generated.NodePoolAut
 	}
 }
 
-func (v version) NewHCPOpenShiftClusterNodePool(from *api.HCPOpenShiftClusterNodePool) api.VersionedHCPOpenShiftClusterNodePool {
+func (v version) NewHCPOpenShiftClusterNodePool(from *api.NodePool) api.VersionedHCPOpenShiftClusterNodePool {
 	if from == nil {
 		ret := &NodePool{}
 		SetDefaultValuesNodePool(ret)

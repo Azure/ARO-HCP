@@ -58,7 +58,7 @@ func TestRoundTripClusterInternalCosmosInternal(t *testing.T) {
 			j.Name = "change-channel"
 			j.Type = "Microsoft.RedHatOpenShift/hcpOpenShiftClusters"
 		},
-		func(j *api.HCPOpenShiftClusterServiceProviderProperties, c randfill.Continue) {
+		func(j *api.ClusterServiceProviderProperties, c randfill.Continue) {
 			c.FillNoCustom(j)
 			if j == nil {
 				return
@@ -67,7 +67,7 @@ func TestRoundTripClusterInternalCosmosInternal(t *testing.T) {
 			foo := api.Must(api.NewInternalID("/api/clusters_mgmt/v1/clusters/r" + strings.ReplaceAll(c.String(10), "/", "-")))
 			j.ClusterServiceID = foo
 		},
-		func(j *api.HCPOpenShiftCluster, c randfill.Continue) {
+		func(j *api.Cluster, c randfill.Continue) {
 			c.FillNoCustom(j)
 			if j == nil {
 				return
@@ -87,9 +87,9 @@ func TestRoundTripClusterInternalCosmosInternal(t *testing.T) {
 
 	// Try a few times, since runTest uses random values.
 	for i := 0; i < 20; i++ {
-		original := &api.HCPOpenShiftCluster{}
+		original := &api.Cluster{}
 		fuzzer.Fill(original)
-		roundTripInternalToCosmosToInternal[api.HCPOpenShiftCluster, HCPCluster](t, original)
+		roundTripInternalToCosmosToInternal[api.Cluster, HCPCluster](t, original)
 	}
 }
 

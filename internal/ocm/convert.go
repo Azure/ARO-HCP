@@ -367,11 +367,11 @@ func convertCIDRBlockAllowAccessRPToCS(in api.CustomerAPIProfile) (*arohcpv1alph
 	return arohcpv1alpha1.NewCIDRBlockAccess().Allow(cidrBlockAllowAccess), nil
 }
 
-// ConvertCStoHCPOpenShiftCluster converts a CS Cluster object into an HCPOpenShiftCluster object.
-func ConvertCStoHCPOpenShiftCluster(resourceID *azcorearm.ResourceID, azureLocation string, cluster *arohcpv1alpha1.Cluster) (*api.HCPOpenShiftCluster, error) {
+// ConvertCStoHCPOpenShiftCluster converts a CS Cluster object into an Cluster object.
+func ConvertCStoHCPOpenShiftCluster(resourceID *azcorearm.ResourceID, azureLocation string, cluster *arohcpv1alpha1.Cluster) (*api.Cluster, error) {
 	// A word about ProvisioningState:
 	// ProvisioningState is stored in Cosmos and is applied to the
-	// HCPOpenShiftCluster struct along with the ARM metadata that
+	// Cluster struct along with the ARM metadata that
 	// is also stored in Cosmos. We could convert the ClusterState
 	// from Cluster Service to a ProvisioningState, but instead we
 	// defer that to the backend pod so that the ProvisioningState
@@ -409,7 +409,7 @@ func ConvertCStoHCPOpenShiftCluster(resourceID *azcorearm.ResourceID, azureLocat
 		}
 	}
 
-	hcpcluster := &api.HCPOpenShiftCluster{
+	hcpcluster := &api.Cluster{
 		TrackedResource: arm.TrackedResource{
 			Resource: arm.Resource{
 				ID:   resourceID,
@@ -418,7 +418,7 @@ func ConvertCStoHCPOpenShiftCluster(resourceID *azcorearm.ResourceID, azureLocat
 			},
 			Location: azureLocation,
 		},
-		CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
+		CustomerProperties: api.ClusterCustomerProperties{
 			Version: api.VersionProfile{
 				ID:           NewOpenShiftVersionXY(cluster.Version().ID()),
 				ChannelGroup: cluster.Version().ChannelGroup(),
@@ -450,7 +450,7 @@ func ConvertCStoHCPOpenShiftCluster(resourceID *azcorearm.ResourceID, azureLocat
 				State: clusterImageRegistryState,
 			},
 		},
-		ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
+		ServiceProviderProperties: api.ClusterServiceProviderProperties{
 			DNS: api.ServiceProviderDNSProfile{
 				BaseDomain: cluster.DNS().BaseDomain(),
 			},
@@ -489,7 +489,7 @@ func ConvertCStoHCPOpenShiftCluster(resourceID *azcorearm.ResourceID, azureLocat
 	}
 
 	// Each managed identity retrieved from Cluster Service needs to be added
-	// to the HCPOpenShiftCluster in two places:
+	// to the Cluster in two places:
 	// - The top-level Identity.UserAssignedIdentities map will need both the
 	//   resourceID (as keys) and principal+client IDs (as values).
 	// - The operator-specific maps under OperatorsAuthentication mimics the
@@ -555,7 +555,7 @@ func ConvertCStoHCPOpenShiftCluster(resourceID *azcorearm.ResourceID, azureLocat
 
 // ensureManagedResourceGroupName makes sure the ManagedResourceGroupName field is set.
 // If the field is empty a default is generated.
-func ensureManagedResourceGroupName(hcpCluster *api.HCPOpenShiftCluster) string {
+func ensureManagedResourceGroupName(hcpCluster *api.Cluster) string {
 	if hcpCluster.CustomerProperties.Platform.ManagedResourceGroup != "" {
 		return hcpCluster.CustomerProperties.Platform.ManagedResourceGroup
 	}
@@ -588,8 +588,8 @@ func convertRpAutoscalarToCSBuilder(in *api.ClusterAutoscalingProfile) (*arohcpv
 		), nil
 }
 
-// BuildCSCluster creates a CS ClusterBuilder object from an HCPOpenShiftCluster object.
-func BuildCSCluster(resourceID *azcorearm.ResourceID, requestHeader http.Header, hcpCluster *api.HCPOpenShiftCluster, updating bool) (*arohcpv1alpha1.ClusterBuilder, *arohcpv1alpha1.ClusterAutoscalerBuilder, error) {
+// BuildCSCluster creates a CS ClusterBuilder object from an Cluster object.
+func BuildCSCluster(resourceID *azcorearm.ResourceID, requestHeader http.Header, hcpCluster *api.Cluster, updating bool) (*arohcpv1alpha1.ClusterBuilder, *arohcpv1alpha1.ClusterAutoscalerBuilder, error) {
 	var err error
 
 	// Ensure required headers are present.
@@ -638,7 +638,7 @@ func BuildCSCluster(resourceID *azcorearm.ResourceID, requestHeader http.Header,
 	return clusterBuilder, clusterAutoscalerBuilder, nil
 }
 
-func withImmutableAttributes(clusterBuilder *arohcpv1alpha1.ClusterBuilder, hcpCluster *api.HCPOpenShiftCluster, subscriptionID, resourceGroupName, tenantID, identityURL string) (*arohcpv1alpha1.ClusterBuilder, error) {
+func withImmutableAttributes(clusterBuilder *arohcpv1alpha1.ClusterBuilder, hcpCluster *api.Cluster, subscriptionID, resourceGroupName, tenantID, identityURL string) (*arohcpv1alpha1.ClusterBuilder, error) {
 	clusterImageRegistryState, err := convertClusterImageRegistryStateRPToCS(hcpCluster.CustomerProperties.ClusterImageRegistry)
 	if err != nil {
 		return nil, err
@@ -728,8 +728,8 @@ func withImmutableAttributes(clusterBuilder *arohcpv1alpha1.ClusterBuilder, hcpC
 	return clusterBuilder, nil
 }
 
-// ConvertCStoNodePool converts a CS NodePool object into an HCPOpenShiftClusterNodePool object.
-func ConvertCStoNodePool(resourceID *azcorearm.ResourceID, azureLocation string, np *arohcpv1alpha1.NodePool) (*api.HCPOpenShiftClusterNodePool, error) {
+// ConvertCStoNodePool converts a CS NodePool object into an NodePool object.
+func ConvertCStoNodePool(resourceID *azcorearm.ResourceID, azureLocation string, np *arohcpv1alpha1.NodePool) (*api.NodePool, error) {
 	var subnetID *azcorearm.ResourceID
 	if len(np.Subnet()) > 0 {
 		var err error
@@ -739,7 +739,7 @@ func ConvertCStoNodePool(resourceID *azcorearm.ResourceID, azureLocation string,
 		}
 	}
 
-	nodePool := &api.HCPOpenShiftClusterNodePool{
+	nodePool := &api.NodePool{
 		TrackedResource: arm.TrackedResource{
 			Resource: arm.Resource{
 				ID:   resourceID,
@@ -748,7 +748,7 @@ func ConvertCStoNodePool(resourceID *azcorearm.ResourceID, azureLocation string,
 			},
 			Location: azureLocation,
 		},
-		Properties: api.HCPOpenShiftClusterNodePoolProperties{
+		Properties: api.NodePoolProperties{
 			Version: api.NodePoolVersionProfile{
 				ID:           ConvertOpenShiftVersionNoPrefix(np.Version().ID()),
 				ChannelGroup: np.Version().ChannelGroup(),
@@ -800,8 +800,8 @@ func ConvertCStoNodePool(resourceID *azcorearm.ResourceID, azureLocation string,
 	return nodePool, nil
 }
 
-// BuildCSNodePool creates a CS NodePoolBuilder object from an HCPOpenShiftClusterNodePool object.
-func BuildCSNodePool(ctx context.Context, nodePool *api.HCPOpenShiftClusterNodePool, updating bool) (*arohcpv1alpha1.NodePoolBuilder, error) {
+// BuildCSNodePool creates a CS NodePoolBuilder object from an NodePool object.
+func BuildCSNodePool(ctx context.Context, nodePool *api.NodePool, updating bool) (*arohcpv1alpha1.NodePoolBuilder, error) {
 	nodePoolBuilder := arohcpv1alpha1.NewNodePool()
 
 	// These attributes cannot be updated after node pool creation.
@@ -858,14 +858,14 @@ func BuildCSNodePool(ctx context.Context, nodePool *api.HCPOpenShiftClusterNodeP
 	return nodePoolBuilder, nil
 }
 
-// ConvertCStoExternalAuth converts a CS ExternalAuth object into HCPOpenShiftClusterExternalAuth object.
-func ConvertCStoExternalAuth(resourceID *azcorearm.ResourceID, csExternalAuth *arohcpv1alpha1.ExternalAuth) (*api.HCPOpenShiftClusterExternalAuth, error) {
+// ConvertCStoExternalAuth converts a CS ExternalAuth object into ExternalAuth object.
+func ConvertCStoExternalAuth(resourceID *azcorearm.ResourceID, csExternalAuth *arohcpv1alpha1.ExternalAuth) (*api.ExternalAuth, error) {
 	usernameClaimPrefixPolicy, err := convertUsernameClaimPrefixPolicyCSToRP(csExternalAuth.Claim().Mappings().UserName().PrefixPolicy())
 	if err != nil {
 		return nil, err
 	}
 
-	externalAuth := &api.HCPOpenShiftClusterExternalAuth{
+	externalAuth := &api.ExternalAuth{
 		ProxyResource: arm.ProxyResource{
 			Resource: arm.Resource{
 				ID:   resourceID,
@@ -873,7 +873,7 @@ func ConvertCStoExternalAuth(resourceID *azcorearm.ResourceID, csExternalAuth *a
 				Type: resourceID.ResourceType.String(),
 			},
 		},
-		Properties: api.HCPOpenShiftClusterExternalAuthProperties{
+		Properties: api.ExternalAuthProperties{
 			// TODO fill these out later when CS supports Conditions fully
 			// Condition: api.ExternalAuthCondition{},
 			Issuer: api.TokenIssuerProfile{
@@ -937,8 +937,8 @@ func ConvertCStoExternalAuth(resourceID *azcorearm.ResourceID, csExternalAuth *a
 	return externalAuth, nil
 }
 
-// BuildCSExternalAuth creates a CS ExternalAuthBuilder object from an HCPOpenShiftClusterExternalAuth object.
-func BuildCSExternalAuth(ctx context.Context, externalAuth *api.HCPOpenShiftClusterExternalAuth, updating bool) (*arohcpv1alpha1.ExternalAuthBuilder, error) {
+// BuildCSExternalAuth creates a CS ExternalAuthBuilder object from an ExternalAuth object.
+func BuildCSExternalAuth(ctx context.Context, externalAuth *api.ExternalAuth, updating bool) (*arohcpv1alpha1.ExternalAuthBuilder, error) {
 	externalAuthBuilder := arohcpv1alpha1.NewExternalAuth()
 
 	// These attributes cannot be updated after node pool creation.
@@ -979,7 +979,7 @@ func BuildCSExternalAuth(ctx context.Context, externalAuth *api.HCPOpenShiftClus
 	return externalAuthBuilder, nil
 }
 
-func buildClaims(externalAuthBuilder *arohcpv1alpha1.ExternalAuthBuilder, hcpExternalAuth api.HCPOpenShiftClusterExternalAuth) error {
+func buildClaims(externalAuthBuilder *arohcpv1alpha1.ExternalAuthBuilder, hcpExternalAuth api.ExternalAuth) error {
 	usernameClaimPrefixPolicy, err := convertUsernameClaimPrefixPolicyRPToCS(hcpExternalAuth.Properties.Claim.Mappings.Username.PrefixPolicy)
 	if err != nil {
 		return err

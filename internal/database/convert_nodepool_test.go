@@ -40,7 +40,7 @@ func TestRoundTripNodePoolInternalCosmosInternal(t *testing.T) {
 			j.Name = "change-channel"
 			j.Type = "Microsoft.RedHatOpenShift/hcpOpenShiftClusters"
 		},
-		func(j *api.HCPOpenShiftClusterNodePool, c randfill.Continue) {
+		func(j *api.NodePool, c randfill.Continue) {
 			c.FillNoCustom(j)
 			if j == nil {
 				return
@@ -60,8 +60,8 @@ func TestRoundTripNodePoolInternalCosmosInternal(t *testing.T) {
 
 	// Try a few times, since runTest uses random values.
 	for i := 0; i < 20; i++ {
-		original := &api.HCPOpenShiftClusterNodePool{}
+		original := &api.NodePool{}
 		fuzzer.Fill(original)
-		roundTripInternalToCosmosToInternal[api.HCPOpenShiftClusterNodePool, NodePool](t, original)
+		roundTripInternalToCosmosToInternal[api.NodePool, NodePool](t, original)
 	}
 }

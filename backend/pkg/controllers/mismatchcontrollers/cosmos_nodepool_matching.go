@@ -43,9 +43,9 @@ func NewCosmosNodePoolMatchingController(cosmosClient database.DBClient, cluster
 	return c
 }
 
-func (c *cosmosNodePoolMatching) getAllCosmosObjs(ctx context.Context, keyObj controllerutils.HCPClusterKey) (map[string]*api.HCPOpenShiftClusterNodePool, []*api.HCPOpenShiftClusterNodePool, error) {
-	clusterServiceIDToNodePool := map[string]*api.HCPOpenShiftClusterNodePool{}
-	ret := []*api.HCPOpenShiftClusterNodePool{}
+func (c *cosmosNodePoolMatching) getAllCosmosObjs(ctx context.Context, keyObj controllerutils.HCPClusterKey) (map[string]*api.NodePool, []*api.NodePool, error) {
+	clusterServiceIDToNodePool := map[string]*api.NodePool{}
+	ret := []*api.NodePool{}
 
 	allNodePools, err := c.cosmosClient.HCPClusters(keyObj.SubscriptionID, keyObj.ResourceGroupName).NodePools(keyObj.HCPClusterName).List(ctx, nil)
 	if err != nil {

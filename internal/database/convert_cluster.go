@@ -22,7 +22,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/ocm"
 )
 
-func InternalToCosmosCluster(internalObj *api.HCPOpenShiftCluster) (*HCPCluster, error) {
+func InternalToCosmosCluster(internalObj *api.Cluster) (*HCPCluster, error) {
 	if internalObj == nil {
 		return nil, nil
 	}
@@ -111,7 +111,7 @@ func copyTags(src map[string]string) map[string]string {
 	return tags
 }
 
-func CosmosToInternalCluster(cosmosObj *HCPCluster) (*api.HCPOpenShiftCluster, error) {
+func CosmosToInternalCluster(cosmosObj *HCPCluster) (*api.Cluster, error) {
 	if cosmosObj == nil {
 		return nil, nil
 	}

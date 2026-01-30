@@ -462,7 +462,7 @@ func (iter *mockIterator[T]) GetError() error {
 	return iter.err
 }
 
-var _ database.DBClientIterator[api.HCPOpenShiftCluster] = &mockIterator[api.HCPOpenShiftCluster]{}
+var _ database.DBClientIterator[api.Cluster] = &mockIterator[api.Cluster]{}
 
 // MockLockClient implements database.LockClientInterface for testing.
 type MockLockClient struct {

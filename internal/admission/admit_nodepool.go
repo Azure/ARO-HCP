@@ -25,7 +25,7 @@ import (
 
 // AdmitNodePool performs non-static checks of nodepool.  Checks that require more information than is contained inside of
 // of the nodepool instance itself.
-func AdmitNodePool(nodePool *api.HCPOpenShiftClusterNodePool, cluster *api.HCPOpenShiftCluster) field.ErrorList {
+func AdmitNodePool(nodePool *api.NodePool, cluster *api.Cluster) field.ErrorList {
 	errs := field.ErrorList{}
 
 	if nodePool.Properties.Version.ChannelGroup != cluster.CustomerProperties.Version.ChannelGroup {

@@ -40,21 +40,21 @@ func TestRoundTripInternalExternalInternal(t *testing.T) {
 		func(j *azcorearm.ResourceID, c randfill.Continue) {
 			*j = *api.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/myRg"))
 		},
-		func(j *api.HCPOpenShiftClusterServiceProviderProperties, c randfill.Continue) {
+		func(j *api.ClusterServiceProviderProperties, c randfill.Continue) {
 			c.FillNoCustom(j)
 			// ActiveOperationID does not roundtrip through the external type because it is purely an internal detail
 			j.ActiveOperationID = ""
 			// ClusterServiceID does not roundtrip through the external type because it is purely an internal detail
 			j.ClusterServiceID = ocm.InternalID{}
 		},
-		func(j *api.HCPOpenShiftClusterNodePoolServiceProviderProperties, c randfill.Continue) {
+		func(j *api.NodePoolServiceProviderProperties, c randfill.Continue) {
 			c.FillNoCustom(j)
 			// ActiveOperationID does not roundtrip through the external type because it is purely an internal detail
 			j.ActiveOperationID = ""
 			// ClusterServiceID does not roundtrip through the external type because it is purely an internal detail
 			j.ClusterServiceID = ocm.InternalID{}
 		},
-		func(j *api.HCPOpenShiftClusterExternalAuthServiceProviderProperties, c randfill.Continue) {
+		func(j *api.ExternalAuthServiceProviderProperties, c randfill.Continue) {
 			c.FillNoCustom(j)
 			// ActiveOperationID does not roundtrip through the external type because it is purely an internal detail
 			j.ActiveOperationID = ""
@@ -73,19 +73,19 @@ func TestRoundTripInternalExternalInternal(t *testing.T) {
 
 	// Try a few times, since runTest uses random values.
 	for i := 0; i < 200; i++ {
-		original := &api.HCPOpenShiftCluster{}
+		original := &api.Cluster{}
 		fuzzer.Fill(original)
 		roundTripHCPCluster(t, original)
 	}
 
 	for i := 0; i < 200; i++ {
-		original := &api.HCPOpenShiftClusterNodePool{}
+		original := &api.NodePool{}
 		fuzzer.Fill(original)
 		roundTripNodePool(t, original)
 	}
 
 	for i := 0; i < 200; i++ {
-		original := &api.HCPOpenShiftClusterExternalAuth{}
+		original := &api.ExternalAuth{}
 		fuzzer.Fill(original)
 		roundTripExternalAuth(t, original)
 	}
@@ -101,7 +101,7 @@ func fuzzerFor(funcs []interface{}, src rand.Source) *randfill.Filler {
 	return f
 }
 
-func roundTripHCPCluster(t *testing.T, original *api.HCPOpenShiftCluster) {
+func roundTripHCPCluster(t *testing.T, original *api.Cluster) {
 	v := version{}
 	externalObj := v.NewHCPOpenShiftCluster(original)
 
@@ -119,7 +119,7 @@ func roundTripHCPCluster(t *testing.T, original *api.HCPOpenShiftCluster) {
 	}
 }
 
-func roundTripNodePool(t *testing.T, original *api.HCPOpenShiftClusterNodePool) {
+func roundTripNodePool(t *testing.T, original *api.NodePool) {
 	v := version{}
 	externalObj := v.NewHCPOpenShiftClusterNodePool(original)
 
@@ -137,7 +137,7 @@ func roundTripNodePool(t *testing.T, original *api.HCPOpenShiftClusterNodePool) 
 	}
 }
 
-func roundTripExternalAuth(t *testing.T, original *api.HCPOpenShiftClusterExternalAuth) {
+func roundTripExternalAuth(t *testing.T, original *api.ExternalAuth) {
 	v := version{}
 	externalObj := v.NewHCPOpenShiftClusterExternalAuth(original)
 
