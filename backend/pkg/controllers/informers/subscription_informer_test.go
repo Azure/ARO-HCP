@@ -16,7 +16,6 @@ package informers
 
 import (
 	"context"
-	"net/http"
 	"sync"
 	"testing"
 	"time"
@@ -33,24 +32,11 @@ import (
 	"github.com/Azure/ARO-HCP/internal/databasetesting"
 )
 
-// subscriptionKeyFunc extracts the subscription ID as the cache key.
-func subscriptionKeyFunc(obj interface{}) (string, error) {
-	sub, ok := obj.(*arm.Subscription)
-	if !ok {
-		return "", nil
-	}
-	if sub.ResourceID == nil {
-		return "", nil
-	}
-	return sub.ResourceID.SubscriptionID, nil
-}
-
 // newSubscriptionListerWatcher returns a cache.ListerWatcher that lists subscriptions
 // from the given database client and watches using an expiring watcher.
 func newSubscriptionListerWatcher(dbClient database.DBClient, watchExpiry time.Duration) cache.ListerWatcher {
 	return &cache.ListWatch{
-		ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
-			ctx := context.Background()
+		ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
 			iter, err := dbClient.Subscriptions().List(ctx, nil)
 			if err != nil {
 				return nil, err
@@ -67,53 +53,10 @@ func newSubscriptionListerWatcher(dbClient database.DBClient, watchExpiry time.D
 
 			return list, nil
 		},
-		WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
-			return newExpiringWatcher(watchExpiry), nil
+		WatchFuncWithContext: func(ctx context.Context, options metav1.ListOptions) (watch.Interface, error) {
+			return NewExpiringWatcher(watchExpiry), nil
 		},
 	}
-}
-
-// expiringWatcher implements watch.Interface and sends an expired error after
-// the configured duration to cause the reflector to relist.
-type expiringWatcher struct {
-	result chan watch.Event
-	done   chan struct{}
-}
-
-func newExpiringWatcher(expiry time.Duration) *expiringWatcher {
-	w := &expiringWatcher{
-		result: make(chan watch.Event),
-		done:   make(chan struct{}),
-	}
-	go func() {
-		select {
-		case <-time.After(expiry):
-			w.result <- watch.Event{
-				Type: watch.Error,
-				Object: &metav1.Status{
-					Status:  metav1.StatusFailure,
-					Code:    http.StatusGone,
-					Reason:  metav1.StatusReasonExpired,
-					Message: "watch expired",
-				},
-			}
-		case <-w.done:
-		}
-		close(w.result)
-	}()
-	return w
-}
-
-func (w *expiringWatcher) Stop() {
-	select {
-	case <-w.done:
-	default:
-		close(w.done)
-	}
-}
-
-func (w *expiringWatcher) ResultChan() <-chan watch.Event {
-	return w.result
 }
 
 func mustParseResourceID(t *testing.T, id string) *azcorearm.ResourceID {
