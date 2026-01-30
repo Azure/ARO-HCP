@@ -2288,6 +2288,15 @@
             "read",
             "create"
           ]
+        },
+        "fipsEnabled": {
+          "type": "boolean",
+          "description": "Cluster uses FIPS validated cryptographic libraries",
+          "default": false,
+          "x-ms-mutability": [
+            "read",
+            "create"
+          ]
         }
       },
       "required": [
