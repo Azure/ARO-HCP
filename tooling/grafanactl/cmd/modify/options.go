@@ -16,10 +16,8 @@ package modify
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"os"
-	"strconv"
-	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -67,23 +65,16 @@ func BindAddDatasourceOptions(opts *RawAddDatasourceOptions, cmd *cobra.Command)
 		return err
 	}
 
-	// Set defaults from environment variables if available
-	if envWorkspaceID := os.Getenv("MONITOR_WORKSPACE_IDS"); envWorkspaceID != "" {
-		opts.MonitorWorkspaceIDs = strings.Split(envWorkspaceID, ",")
-	}
-	if envDryRun := os.Getenv("DRY_RUN"); envDryRun != "" {
-		if dryRun, err := strconv.ParseBool(envDryRun); err == nil {
-			opts.DryRun = dryRun
-		}
-	}
-
 	flags := cmd.Flags()
 	flags.StringSliceVar(&opts.MonitorWorkspaceIDs, "monitor-workspace-ids", opts.MonitorWorkspaceIDs, "Azure Monitor Workspace resource IDs to add as datasource (required) [env: GRAFANACTL_MONITOR_WORKSPACE_IDS]")
 	flags.BoolVar(&opts.DryRun, "dry-run", opts.DryRun, "Perform a dry run without making changes [env: GRAFANACTL_DRY_RUN]")
 
 	// Mark flag as required only if not set via environment variable
 	if len(opts.MonitorWorkspaceIDs) == 0 {
-		_ = cmd.MarkFlagRequired("monitor-workspace-id")
+		err := cmd.MarkFlagRequired("monitor-workspace-ids")
+		if err != nil {
+			return fmt.Errorf("failed to mark monitor workspace IDs flag as required: %w", err)
+		}
 	}
 
 	return nil
@@ -99,15 +90,16 @@ func (o *RawAddDatasourceOptions) Validate(ctx context.Context) (*ValidatedAddDa
 		return nil, fmt.Errorf("monitor workspace IDs are required")
 	}
 
+	var allErrors error
 	for _, workspaceID := range o.MonitorWorkspaceIDs {
-		if !strings.HasPrefix(workspaceID, "/subscriptions/") {
-			return nil, fmt.Errorf("monitor workspace ID must be a valid Azure resource ID starting with /subscriptions/")
+		_, err := base.ValidateAzureResourceID(workspaceID, "Microsoft.Monitor/accounts")
+		if err != nil {
+			allErrors = errors.Join(allErrors, fmt.Errorf("failed to validate monitor workspace ID: %w", err))
 		}
+	}
 
-		// Validate that it's an Azure Monitor Workspace resource
-		if !strings.Contains(workspaceID, "/providers/Microsoft.Monitor/accounts/") {
-			return nil, fmt.Errorf("monitor workspace ID must be an Azure Monitor Workspace resource ID")
-		}
+	if allErrors != nil {
+		return nil, allErrors
 	}
 
 	return &ValidatedAddDatasourceOptions{
