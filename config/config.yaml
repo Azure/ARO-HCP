@@ -715,7 +715,7 @@ defaults:
       bundle:
         registry: quay.io
         repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-210
-        digest: sha256:423d291fcfed1f3f3ef07ab13a8b20d5eca3e4c9f3657f0a8ffeaf0924c33967 # v2.10.1-354 (2026-01-29 16:05)
+        digest: sha256:fd16d4a7c18f098d6072bcbcaa9a06a19d37e28a5b09dde97b4215ee24ae39a9 # v2.10.1-355 (2026-01-30 11:14)
   # Cluster Service
   clustersService:
     image:
@@ -965,11 +965,11 @@ clouds:
       # Backplane API
       backplaneAPI:
         image:
-          digest: sha256:b8e059b0b2a8074f5f09799565b197217b53c7eee6f4f3cdb3eda80aca2361af # 0f5982a (2026-01-23 04:40)
+          digest: sha256:31c069f77e2423e8271c41d68117762f30bd1c086e8422fa025b7c9f64350889 # 0a027ba (2026-01-30 07:35)
       # Admin API
       adminApi:
         image:
-          digest: sha256:6b7d5adece5674e4cb0e99a87bc8be75b035ce680f0840dfe2a7e76bc59a307c # 2e57996 (2026-01-30 02:24)
+          digest: sha256:b2b49d53c4e9008f03dffb2126b537bfd051bf196dd93a978b99db932e75218c # 1c6ac30 (2026-01-30 13:47)
         cert:
           issuer: Self
       # Frontend

@@ -26,7 +26,7 @@ clouds:
           # Backplane API
           backplaneAPI:
             image:
-              digest: sha256:b8e059b0b2a8074f5f09799565b197217b53c7eee6f4f3cdb3eda80aca2361af # 0f5982a (2026-01-23 04:40)
+              digest: sha256:31c069f77e2423e8271c41d68117762f30bd1c086e8422fa025b7c9f64350889 # 0a027ba (2026-01-30 07:35)
           # PKO
           pko:
             imagePackage:
@@ -78,7 +78,7 @@ clouds:
           # Admin API
           adminApi:
             image:
-              digest: sha256:6b7d5adece5674e4cb0e99a87bc8be75b035ce680f0840dfe2a7e76bc59a307c # 2e57996 (2026-01-30 02:24)
+              digest: sha256:b2b49d53c4e9008f03dffb2126b537bfd051bf196dd93a978b99db932e75218c # 1c6ac30 (2026-01-30 13:47)
           # Hypershift
           hypershift:
             image:
