@@ -58,7 +58,7 @@ resourceGroups:
         resourceGroup: global
         step: output
         name: globalMSIId
-  - name: add-svc-grafana-datasource
+  - name: add-grafana-datasource
     action: Shell
     omitFromServiceGroupCompletion: true
     command: make build && ./grafanactl modify datasource add
@@ -85,43 +85,7 @@ resourceGroups:
       input:
         resourceGroup: regional
         step: output
-        name: azureMonitoringWorkspaceId
-    shellIdentity:
-      input:
-        resourceGroup: global
-        step: output
-        name: globalMSIId
-  - name: add-hcp-grafana-datasource
-    action: Shell
-    omitFromServiceGroupCompletion: true
-    command: make build && ./grafanactl modify datasource add
-    workingDir: ../tooling/grafanactl
-    automatedRetry:
-      errorContainsAny:
-      - "is invalid as it is being provisioned with state"
-      - "503 Server Error: Service Unavailable for url"
-      - "(CreateOrUpdateConflict) Operation conflict occurred for workspace"
-      - "InvalidMonitorAccountIntegration"
-      maximumRetryCount: 5
-      durationBetweenRetries: 2m
-    dryRun:
-      variables:
-      - name: DRY_RUN
-        value: "true"
-    variables:
-    - name: GRAFANA_RESOURCE_ID
-      input:
-        resourceGroup: global
-        step: output
-        name: grafanaResourceId
-    - name: MONITOR_WORKSPACE_ID
-      input:
-        resourceGroup: regional
-        step: output
-        name: hcpAzureMonitoringWorkspaceId
-    dependsOn:
-    - resourceGroup: global
-      step: add-svc-grafana-datasource
+        name: allWorkspaceIds
     shellIdentity:
       input:
         resourceGroup: global
