@@ -35,11 +35,11 @@ func (v version) String() string {
 
 func (v version) ValidationPathRewriter(internalObj any) (api.ValidationPathMapperFunc, error) {
 	switch internalObj.(type) {
-	case *api.HCPOpenShiftClusterNodePool:
+	case *api.NodePool:
 		return nil, nil
-	case *api.HCPOpenShiftClusterExternalAuth:
+	case *api.ExternalAuth:
 		return nil, nil
-	case *api.HCPOpenShiftCluster:
+	case *api.Cluster:
 		return propertiesReplacer.Replace, nil
 
 	default:

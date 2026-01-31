@@ -29,7 +29,7 @@ import (
 
 // AdmitCluster performs non-static checks of cluster.  Checks that require more information than is contained inside of
 // of the cluster instance itself.
-func AdmitClusterOnCreate(ctx context.Context, newVersion *api.HCPOpenShiftCluster, subscription *arm.Subscription) field.ErrorList {
+func AdmitClusterOnCreate(ctx context.Context, newVersion *api.Cluster, subscription *arm.Subscription) field.ErrorList {
 	op := operation.Operation{Type: operation.Create}
 	errs := admitVersionProfileOnCreate(ctx, &newVersion.CustomerProperties.Version, op, subscription)
 

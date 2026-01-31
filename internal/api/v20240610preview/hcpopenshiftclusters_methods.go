@@ -32,7 +32,7 @@ type HcpOpenShiftCluster struct {
 	generated.HcpOpenShiftCluster
 }
 
-var _ api.VersionedCreatableResource[api.HCPOpenShiftCluster] = &HcpOpenShiftCluster{}
+var _ api.VersionedCreatableResource[api.Cluster] = &HcpOpenShiftCluster{}
 
 func (h *HcpOpenShiftCluster) NewExternal() any {
 	return &HcpOpenShiftCluster{}
@@ -301,7 +301,7 @@ func newManagedServiceIdentity(from *arm.ManagedServiceIdentity) *generated.Mana
 	}
 }
 
-func (v version) NewHCPOpenShiftCluster(from *api.HCPOpenShiftCluster) api.VersionedHCPOpenShiftCluster {
+func (v version) NewHCPOpenShiftCluster(from *api.Cluster) api.VersionedHCPOpenShiftCluster {
 	if from == nil {
 		ret := &HcpOpenShiftCluster{}
 		SetDefaultValuesCluster(ret)
@@ -345,8 +345,8 @@ func (c *HcpOpenShiftCluster) GetVersion() api.Version {
 	return versionedInterface
 }
 
-func (c *HcpOpenShiftCluster) ConvertToInternal() (*api.HCPOpenShiftCluster, error) {
-	out := &api.HCPOpenShiftCluster{}
+func (c *HcpOpenShiftCluster) ConvertToInternal() (*api.Cluster, error) {
+	out := &api.Cluster{}
 	errs := field.ErrorList{}
 
 	if c.ID != nil {

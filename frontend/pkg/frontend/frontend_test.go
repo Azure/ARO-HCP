@@ -676,13 +676,13 @@ func TestRequestAdminCredential(t *testing.T) {
 			mockClusterCRUD.EXPECT().
 				Get(gomock.Any(), clusterResourceID.Name).
 				Return(
-					&api.HCPOpenShiftCluster{
+					&api.Cluster{
 						TrackedResource: arm.TrackedResource{
 							Resource: arm.Resource{
 								ID: clusterResourceID,
 							},
 						},
-						ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
+						ServiceProviderProperties: api.ClusterServiceProviderProperties{
 							ProvisioningState: test.clusterProvisioningState,
 							ClusterServiceID:  clusterInternalID,
 						},
@@ -851,13 +851,13 @@ func TestRevokeCredentials(t *testing.T) {
 			mockClusterCRUD.EXPECT().
 				Get(gomock.Any(), clusterResourceID.Name).
 				Return(
-					&api.HCPOpenShiftCluster{
+					&api.Cluster{
 						TrackedResource: arm.TrackedResource{
 							Resource: arm.Resource{
 								ID: clusterResourceID,
 							},
 						},
-						ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
+						ServiceProviderProperties: api.ClusterServiceProviderProperties{
 							ProvisioningState: test.clusterProvisioningState,
 							ClusterServiceID:  clusterInternalID,
 						},

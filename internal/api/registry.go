@@ -99,9 +99,9 @@ type VersionedCreatableResource[InternalAPIType any] interface {
 	ConvertToInternal() (*InternalAPIType, error)
 }
 
-type VersionedHCPOpenShiftCluster VersionedCreatableResource[HCPOpenShiftCluster]
-type VersionedHCPOpenShiftClusterNodePool VersionedCreatableResource[HCPOpenShiftClusterNodePool]
-type VersionedHCPOpenShiftClusterExternalAuth VersionedCreatableResource[HCPOpenShiftClusterExternalAuth]
+type VersionedHCPOpenShiftCluster VersionedCreatableResource[Cluster]
+type VersionedHCPOpenShiftClusterNodePool VersionedCreatableResource[NodePool]
+type VersionedHCPOpenShiftClusterExternalAuth VersionedCreatableResource[ExternalAuth]
 type VersionedHCPOpenShiftVersion VersionedResource
 
 // ValidationPathMapperFunc takes an internal path from validation and converts it to the external path
@@ -116,9 +116,9 @@ type Version interface {
 
 	// Resource Types
 	// Passing a nil pointer creates a resource with default values.
-	NewHCPOpenShiftCluster(*HCPOpenShiftCluster) VersionedHCPOpenShiftCluster
-	NewHCPOpenShiftClusterNodePool(*HCPOpenShiftClusterNodePool) VersionedHCPOpenShiftClusterNodePool
-	NewHCPOpenShiftClusterExternalAuth(*HCPOpenShiftClusterExternalAuth) VersionedHCPOpenShiftClusterExternalAuth
+	NewHCPOpenShiftCluster(*Cluster) VersionedHCPOpenShiftCluster
+	NewHCPOpenShiftClusterNodePool(*NodePool) VersionedHCPOpenShiftClusterNodePool
+	NewHCPOpenShiftClusterExternalAuth(*ExternalAuth) VersionedHCPOpenShiftClusterExternalAuth
 	NewHCPOpenShiftVersion(*HCPOpenShiftVersion) VersionedHCPOpenShiftVersion
 
 	// Response Marshaling

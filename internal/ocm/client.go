@@ -163,7 +163,7 @@ func (csc *clusterServiceClient) addProperties(builder *arohcpv1alpha1.ClusterBu
 }
 
 // resolveClusterLinks replaces link objects with full objects that are
-// necessary to fully construct an HCPOpenShiftCluster model.
+// necessary to fully construct an Cluster model.
 func resolveClusterLinks(ctx context.Context, conn *sdk.Connection, cluster *arohcpv1alpha1.Cluster) (*arohcpv1alpha1.Cluster, error) {
 	builder := arohcpv1alpha1.NewCluster().Copy(cluster)
 
@@ -187,7 +187,7 @@ func resolveClusterLinks(ctx context.Context, conn *sdk.Connection, cluster *aro
 }
 
 // resolveNodePoolLinks replaces link objects with full objects that are
-// necessary to fully construct an HCPOpenShiftClusterNodePool model.
+// necessary to fully construct an NodePool model.
 func resolveNodePoolLinks(ctx context.Context, conn *sdk.Connection, nodePool *arohcpv1alpha1.NodePool) (*arohcpv1alpha1.NodePool, error) {
 	builder := arohcpv1alpha1.NewNodePool().Copy(nodePool)
 

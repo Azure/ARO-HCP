@@ -40,7 +40,7 @@ func TestRoundTripExternalAuthInternalCosmosInternal(t *testing.T) {
 			j.Name = "change-channel"
 			j.Type = "Microsoft.RedHatOpenShift/hcpOpenShiftClusters"
 		},
-		func(j *api.HCPOpenShiftClusterExternalAuth, c randfill.Continue) {
+		func(j *api.ExternalAuth, c randfill.Continue) {
 			c.FillNoCustom(j)
 			if j == nil {
 				return
@@ -60,8 +60,8 @@ func TestRoundTripExternalAuthInternalCosmosInternal(t *testing.T) {
 
 	// Try a few times, since runTest uses random values.
 	for i := 0; i < 20; i++ {
-		original := &api.HCPOpenShiftClusterExternalAuth{}
+		original := &api.ExternalAuth{}
 		fuzzer.Fill(original)
-		roundTripInternalToCosmosToInternal[api.HCPOpenShiftClusterExternalAuth, ExternalAuth](t, original)
+		roundTripInternalToCosmosToInternal[api.ExternalAuth, ExternalAuth](t, original)
 	}
 }

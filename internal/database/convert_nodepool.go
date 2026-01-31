@@ -23,7 +23,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/ocm"
 )
 
-func InternalToCosmosNodePool(internalObj *api.HCPOpenShiftClusterNodePool) (*NodePool, error) {
+func InternalToCosmosNodePool(internalObj *api.NodePool) (*NodePool, error) {
 	if internalObj == nil {
 		return nil, nil
 	}
@@ -68,7 +68,7 @@ func InternalToCosmosNodePool(internalObj *api.HCPOpenShiftClusterNodePool) (*No
 	return cosmosObj, nil
 }
 
-func CosmosToInternalNodePool(cosmosObj *NodePool) (*api.HCPOpenShiftClusterNodePool, error) {
+func CosmosToInternalNodePool(cosmosObj *NodePool) (*api.NodePool, error) {
 	if cosmosObj == nil {
 		return nil, nil
 	}

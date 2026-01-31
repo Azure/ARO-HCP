@@ -65,12 +65,12 @@ func TestConvertCStoHCPOpenShiftCluster(t *testing.T) {
 	testCases := []struct {
 		name             string
 		ocmClusterTweaks *arohcpv1alpha1.ClusterBuilder
-		hcpClusterTweaks *api.HCPOpenShiftCluster
+		hcpClusterTweaks *api.Cluster
 	}{
 		{
 			name:             "zero",
 			ocmClusterTweaks: arohcpv1alpha1.NewCluster(),
-			hcpClusterTweaks: &api.HCPOpenShiftCluster{},
+			hcpClusterTweaks: &api.Cluster{},
 		},
 		{
 			name: "converts nodeDrainGracePeriod to nodeDrainTimeoutMinutes",
@@ -79,8 +79,8 @@ func TestConvertCStoHCPOpenShiftCluster(t *testing.T) {
 					Unit(csNodeDrainGracePeriodUnit).
 					Value(42),
 				),
-			hcpClusterTweaks: &api.HCPOpenShiftCluster{
-				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
+			hcpClusterTweaks: &api.Cluster{
+				CustomerProperties: api.ClusterCustomerProperties{
 					NodeDrainTimeoutMinutes: 42,
 				},
 			},
@@ -95,8 +95,8 @@ func TestConvertCStoHCPOpenShiftCluster(t *testing.T) {
 						),
 					),
 				),
-			hcpClusterTweaks: &api.HCPOpenShiftCluster{
-				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
+			hcpClusterTweaks: &api.Cluster{
+				CustomerProperties: api.ClusterCustomerProperties{
 					Etcd: api.EtcdProfile{
 						DataEncryption: api.EtcdDataEncryptionProfile{
 							KeyManagementMode: api.EtcdDataEncryptionKeyManagementModeTypePlatformManaged,
@@ -126,8 +126,8 @@ func TestConvertCStoHCPOpenShiftCluster(t *testing.T) {
 						),
 					),
 				),
-			hcpClusterTweaks: &api.HCPOpenShiftCluster{
-				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
+			hcpClusterTweaks: &api.Cluster{
+				CustomerProperties: api.ClusterCustomerProperties{
 					Etcd: api.EtcdProfile{
 						DataEncryption: api.EtcdDataEncryptionProfile{
 							CustomerManaged: &api.CustomerManagedEncryptionProfile{
@@ -152,8 +152,8 @@ func TestConvertCStoHCPOpenShiftCluster(t *testing.T) {
 				ImageRegistry(arohcpv1alpha1.NewClusterImageRegistry().
 					State(string(csImageRegistryStateDisabled)),
 				),
-			hcpClusterTweaks: &api.HCPOpenShiftCluster{
-				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
+			hcpClusterTweaks: &api.Cluster{
+				CustomerProperties: api.ClusterCustomerProperties{
 					ClusterImageRegistry: api.ClusterImageRegistryProfile{
 						State: api.ClusterImageRegistryProfileStateDisabled,
 					},
@@ -166,8 +166,8 @@ func TestConvertCStoHCPOpenShiftCluster(t *testing.T) {
 				Version(arohcpv1alpha1.NewVersion().
 					ID("openshift-v4.19.7").
 					ChannelGroup("stable")),
-			hcpClusterTweaks: &api.HCPOpenShiftCluster{
-				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
+			hcpClusterTweaks: &api.Cluster{
+				CustomerProperties: api.ClusterCustomerProperties{
 					Version: api.VersionProfile{
 						ID:           "4.19",
 						ChannelGroup: "stable",
@@ -181,8 +181,8 @@ func TestConvertCStoHCPOpenShiftCluster(t *testing.T) {
 				Version(arohcpv1alpha1.NewVersion().
 					ID("openshift-v4.19.0-0.nightly-2025-01-01-nightly").
 					ChannelGroup("nightly")),
-			hcpClusterTweaks: &api.HCPOpenShiftCluster{
-				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
+			hcpClusterTweaks: &api.Cluster{
+				CustomerProperties: api.ClusterCustomerProperties{
 					Version: api.VersionProfile{
 						ID:           "4.19",
 						ChannelGroup: "nightly",
@@ -196,8 +196,8 @@ func TestConvertCStoHCPOpenShiftCluster(t *testing.T) {
 				Version(arohcpv1alpha1.NewVersion().
 					ID("openshift-v4.19.1-candidate").
 					ChannelGroup("candidate")),
-			hcpClusterTweaks: &api.HCPOpenShiftCluster{
-				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
+			hcpClusterTweaks: &api.Cluster{
+				CustomerProperties: api.ClusterCustomerProperties{
 					Version: api.VersionProfile{
 						ID:           "4.19",
 						ChannelGroup: "candidate",
@@ -222,18 +222,18 @@ func TestConvertCStoHCPOpenShiftCluster(t *testing.T) {
 func TestWithImmutableAttributes(t *testing.T) {
 	testCases := []struct {
 		name       string
-		hcpCluster *api.HCPOpenShiftCluster
+		hcpCluster *api.Cluster
 		want       *arohcpv1alpha1.Cluster
 	}{
 		{
 			name:       "simple default",
-			hcpCluster: &api.HCPOpenShiftCluster{},
+			hcpCluster: &api.Cluster{},
 			want:       ocmCluster(t, ocmClusterDefaults(api.TestLocation)),
 		},
 		{
 			name: "converts stable version from RP to CS (adds patch and prefix)",
-			hcpCluster: &api.HCPOpenShiftCluster{
-				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
+			hcpCluster: &api.Cluster{
+				CustomerProperties: api.ClusterCustomerProperties{
 					Version: api.VersionProfile{
 						ID:           "4.19",
 						ChannelGroup: "stable",
@@ -247,8 +247,8 @@ func TestWithImmutableAttributes(t *testing.T) {
 		},
 		{
 			name: "converts candidate version from RP to CS (preserves patch)",
-			hcpCluster: &api.HCPOpenShiftCluster{
-				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
+			hcpCluster: &api.Cluster{
+				CustomerProperties: api.ClusterCustomerProperties{
 					Version: api.VersionProfile{
 						ID:           "4.19.19",
 						ChannelGroup: "candidate",
@@ -262,8 +262,8 @@ func TestWithImmutableAttributes(t *testing.T) {
 		},
 		{
 			name: "converts nightly version from RP to CS (preserves semver)",
-			hcpCluster: &api.HCPOpenShiftCluster{
-				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
+			hcpCluster: &api.Cluster{
+				CustomerProperties: api.ClusterCustomerProperties{
 					Version: api.VersionProfile{
 						ID:           "4.19.0-0.nightly-2025-01-01",
 						ChannelGroup: "nightly",
@@ -277,8 +277,8 @@ func TestWithImmutableAttributes(t *testing.T) {
 		},
 		{
 			name: "with version 4.19",
-			hcpCluster: &api.HCPOpenShiftCluster{
-				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
+			hcpCluster: &api.Cluster{
+				CustomerProperties: api.ClusterCustomerProperties{
 					Version: api.VersionProfile{ID: "4.19", ChannelGroup: "stable"},
 				},
 			},
@@ -287,8 +287,8 @@ func TestWithImmutableAttributes(t *testing.T) {
 		},
 		{
 			name: "with version 4.20",
-			hcpCluster: &api.HCPOpenShiftCluster{
-				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
+			hcpCluster: &api.Cluster{
+				CustomerProperties: api.ClusterCustomerProperties{
 					Version: api.VersionProfile{ID: "4.20", ChannelGroup: "stable"},
 				},
 			},
@@ -403,9 +403,9 @@ func ocmClusterDefaults(azureLocation string) *arohcpv1alpha1.ClusterBuilder {
 			State(csImageRegistryStateEnabled))
 }
 
-func getHCPNodePoolResource(opts ...func(*api.HCPOpenShiftClusterNodePool)) *api.HCPOpenShiftClusterNodePool {
-	nodePool := &api.HCPOpenShiftClusterNodePool{
-		Properties: api.HCPOpenShiftClusterNodePoolProperties{
+func getHCPNodePoolResource(opts ...func(*api.NodePool)) *api.NodePool {
+	nodePool := &api.NodePool{
+		Properties: api.NodePoolProperties{
 			Platform: api.NodePoolPlatformProfile{
 				OSDisk: api.OSDiskProfile{
 					// SizeGiB is initialized to 64 to reflect the default value set by SetDefaultValuesNodePool
@@ -452,7 +452,7 @@ func TestBuildCSNodePool(t *testing.T) {
 	resourceID := testResourceID(t)
 	testCases := []struct {
 		name               string
-		hcpNodePool        *api.HCPOpenShiftClusterNodePool
+		hcpNodePool        *api.NodePool
 		expectedCSNodePool *arohcpv1alpha1.NodePoolBuilder
 	}{
 		{
@@ -463,7 +463,7 @@ func TestBuildCSNodePool(t *testing.T) {
 		{
 			name: "handle multiple taints",
 			hcpNodePool: getHCPNodePoolResource(
-				func(hsc *api.HCPOpenShiftClusterNodePool) {
+				func(hsc *api.NodePool) {
 					hsc.Properties.Taints = []api.Taint{
 						{Effect: "a"},
 						{Effect: "b"},
@@ -484,7 +484,7 @@ func TestBuildCSNodePool(t *testing.T) {
 		{
 			name: "converts stable version from RP to CS (adds patch and prefix)",
 			hcpNodePool: getHCPNodePoolResource(
-				func(hsc *api.HCPOpenShiftClusterNodePool) {
+				func(hsc *api.NodePool) {
 					hsc.Properties.Version = api.NodePoolVersionProfile{
 						ID:           "4.19",
 						ChannelGroup: "stable",
@@ -499,7 +499,7 @@ func TestBuildCSNodePool(t *testing.T) {
 		{
 			name: "converts candidate version from RP to CS (adds channel suffix)",
 			hcpNodePool: getHCPNodePoolResource(
-				func(hsc *api.HCPOpenShiftClusterNodePool) {
+				func(hsc *api.NodePool) {
 					hsc.Properties.Version = api.NodePoolVersionProfile{
 						ID:           "4.19.19",
 						ChannelGroup: "candidate",
@@ -514,7 +514,7 @@ func TestBuildCSNodePool(t *testing.T) {
 		{
 			name: "converts nightly version from RP to CS with semver",
 			hcpNodePool: getHCPNodePoolResource(
-				func(hsc *api.HCPOpenShiftClusterNodePool) {
+				func(hsc *api.NodePool) {
 					hsc.Properties.Version = api.NodePoolVersionProfile{
 						ID:           "4.19.0-0.nightly-2025-01-01",
 						ChannelGroup: "nightly",
@@ -541,7 +541,7 @@ func TestBuildCSNodePool(t *testing.T) {
 	}
 }
 
-func externalAuthResource(opts ...func(*api.HCPOpenShiftClusterExternalAuth)) *api.HCPOpenShiftClusterExternalAuth {
+func externalAuthResource(opts ...func(*api.ExternalAuth)) *api.ExternalAuth {
 	externalAuth := api.NewDefaultHCPOpenShiftClusterExternalAuth(nil)
 
 	for _, opt := range opts {
@@ -551,7 +551,7 @@ func externalAuthResource(opts ...func(*api.HCPOpenShiftClusterExternalAuth)) *a
 }
 
 // Because we don't distinguish between unset and empty values in our JSON parsing
-// we will get the resulting CS object from an empty HCPOpenShiftClusterExternalAuth object.
+// we will get the resulting CS object from an empty ExternalAuth object.
 func getBaseCSExternalAuthBuilder() *arohcpv1alpha1.ExternalAuthBuilder {
 	return arohcpv1alpha1.NewExternalAuth().
 		ID("").
@@ -576,7 +576,7 @@ func TestBuildCSExternalAuth(t *testing.T) {
 	resourceID := testResourceID(t)
 	testCases := []struct {
 		name                   string
-		hcpExternalAuth        *api.HCPOpenShiftClusterExternalAuth
+		hcpExternalAuth        *api.ExternalAuth
 		expectedCSExternalAuth *arohcpv1alpha1.ExternalAuthBuilder
 	}{
 		{
@@ -587,7 +587,7 @@ func TestBuildCSExternalAuth(t *testing.T) {
 		{
 			name: "correctly parse PrefixPolicy",
 			hcpExternalAuth: externalAuthResource(
-				func(hsc *api.HCPOpenShiftClusterExternalAuth) {
+				func(hsc *api.ExternalAuth) {
 					hsc.Properties.Claim.Mappings.Username.PrefixPolicy = api.UsernameClaimPrefixPolicyPrefix
 				},
 			),
@@ -605,7 +605,7 @@ func TestBuildCSExternalAuth(t *testing.T) {
 		{
 			name: "correctly parse Issuer",
 			hcpExternalAuth: externalAuthResource(
-				func(hsc *api.HCPOpenShiftClusterExternalAuth) {
+				func(hsc *api.ExternalAuth) {
 					hsc.Properties.Issuer = api.TokenIssuerProfile{
 						CA:        dummyCA,
 						URL:       dummyURL,
@@ -623,7 +623,7 @@ func TestBuildCSExternalAuth(t *testing.T) {
 		{
 			name: "correctly parse Claim",
 			hcpExternalAuth: externalAuthResource(
-				func(hsc *api.HCPOpenShiftClusterExternalAuth) {
+				func(hsc *api.ExternalAuth) {
 					hsc.Properties.Claim = api.ExternalAuthClaimProfile{
 						Mappings: api.TokenClaimMappingsProfile{
 							Username: api.UsernameClaimProfile{
@@ -681,7 +681,7 @@ func TestBuildCSExternalAuth(t *testing.T) {
 		{
 			name: "handle multiple clients",
 			hcpExternalAuth: externalAuthResource(
-				func(hsc *api.HCPOpenShiftClusterExternalAuth) {
+				func(hsc *api.ExternalAuth) {
 					hsc.Properties.Clients = []api.ExternalAuthClientProfile{
 						{
 							ClientID: "a",
@@ -759,7 +759,7 @@ func getBaseCSClusterBuilder(updating bool) *arohcpv1alpha1.ClusterBuilder {
 func TestBuildCSCluster(t *testing.T) {
 	testCases := []struct {
 		name              string
-		hcpCluster        *api.HCPOpenShiftCluster
+		hcpCluster        *api.Cluster
 		updating          bool
 		expectedCSCluster *arohcpv1alpha1.ClusterBuilder
 		expectedError     string
@@ -767,8 +767,8 @@ func TestBuildCSCluster(t *testing.T) {
 		{
 			name:     "CREATE - sets CIDRBlockAccess with nil AuthorizedCIDRs",
 			updating: false,
-			hcpCluster: &api.HCPOpenShiftCluster{
-				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
+			hcpCluster: &api.Cluster{
+				CustomerProperties: api.ClusterCustomerProperties{
 					API: api.CustomerAPIProfile{
 						AuthorizedCIDRs: nil,
 					},
@@ -779,7 +779,7 @@ func TestBuildCSCluster(t *testing.T) {
 		{
 			name:     "CREATE - rejects empty AuthorizedCIDRs",
 			updating: false,
-			hcpCluster: func() *api.HCPOpenShiftCluster {
+			hcpCluster: func() *api.Cluster {
 				cluster := api.MinimumValidClusterTestCase()
 				cluster.CustomerProperties.API.AuthorizedCIDRs = make([]string, 0)
 				return cluster
@@ -789,8 +789,8 @@ func TestBuildCSCluster(t *testing.T) {
 		{
 			name:     "CREATE - sets CIDRBlockAccess with non-empty AuthorizedCIDRs",
 			updating: false,
-			hcpCluster: &api.HCPOpenShiftCluster{
-				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
+			hcpCluster: &api.Cluster{
+				CustomerProperties: api.ClusterCustomerProperties{
 					API: api.CustomerAPIProfile{
 						Visibility:      api.VisibilityPrivate,
 						AuthorizedCIDRs: []string{"10.0.0.0/8", "192.168.0.0/16"},
@@ -808,8 +808,8 @@ func TestBuildCSCluster(t *testing.T) {
 		{
 			name:     "UPDATE - sets CIDRBlockAccess with nil AuthorizedCIDRs",
 			updating: true,
-			hcpCluster: &api.HCPOpenShiftCluster{
-				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
+			hcpCluster: &api.Cluster{
+				CustomerProperties: api.ClusterCustomerProperties{
 					API: api.CustomerAPIProfile{
 						AuthorizedCIDRs: nil,
 					},
@@ -820,7 +820,7 @@ func TestBuildCSCluster(t *testing.T) {
 		{
 			name:     "UPDATE - rejects empty AuthorizedCIDRs",
 			updating: true,
-			hcpCluster: func() *api.HCPOpenShiftCluster {
+			hcpCluster: func() *api.Cluster {
 				cluster := api.MinimumValidClusterTestCase()
 				cluster.CustomerProperties.API.AuthorizedCIDRs = make([]string, 0)
 				return cluster
@@ -830,8 +830,8 @@ func TestBuildCSCluster(t *testing.T) {
 		{
 			name:     "UPDATE - sets only CIDRBlockAccess with non-empty AuthorizedCIDRs",
 			updating: true,
-			hcpCluster: &api.HCPOpenShiftCluster{
-				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
+			hcpCluster: &api.Cluster{
+				CustomerProperties: api.ClusterCustomerProperties{
 					API: api.CustomerAPIProfile{
 						AuthorizedCIDRs: []string{"172.16.0.0/12", "203.0.113.0/24"},
 					},
@@ -850,7 +850,7 @@ func TestBuildCSCluster(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Create a complete minimal cluster for testing
 			// For error test cases with expected errors, use the cluster as-is to preserve empty slices
-			var hcpCluster *api.HCPOpenShiftCluster
+			var hcpCluster *api.Cluster
 			if tc.expectedError != "" {
 				hcpCluster = tc.hcpCluster
 			} else {

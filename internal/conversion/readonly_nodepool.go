@@ -19,7 +19,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
 
-func CopyReadOnlyNodePoolValues(dest, src *api.HCPOpenShiftClusterNodePool) {
+func CopyReadOnlyNodePoolValues(dest, src *api.NodePool) {
 	// the old code appeared to shallow copies only
 	CopyReadOnlyTrackedResourceValues(&dest.TrackedResource, &src.TrackedResource)
 

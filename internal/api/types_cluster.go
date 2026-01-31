@@ -20,25 +20,25 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
 
-// HCPOpenShiftCluster represents an ARO HCP OpenShift cluster resource.
-type HCPOpenShiftCluster struct {
+// Cluster represents an ARO HCP OpenShift cluster resource.
+type Cluster struct {
 	arm.TrackedResource
 
-	CustomerProperties        HCPOpenShiftClusterCustomerProperties        `json:"customerProperties,omitempty"`
-	ServiceProviderProperties HCPOpenShiftClusterServiceProviderProperties `json:"serviceProviderProperties,omitempty"`
-	Identity                  *arm.ManagedServiceIdentity                  `json:"identity,omitempty"`
+	CustomerProperties        ClusterCustomerProperties        `json:"customerProperties,omitempty"`
+	ServiceProviderProperties ClusterServiceProviderProperties `json:"serviceProviderProperties,omitempty"`
+	Identity                  *arm.ManagedServiceIdentity      `json:"identity,omitempty"`
 }
 
-var _ CosmosPersistable = &HCPOpenShiftCluster{}
+var _ CosmosPersistable = &Cluster{}
 
-func (o *HCPOpenShiftCluster) GetCosmosData() *CosmosData {
+func (o *Cluster) GetCosmosData() *CosmosData {
 	return &CosmosData{
 		ResourceID: o.ID,
 	}
 }
 
-// HCPOpenShiftClusterCustomerProperties represents the property bag of a HCPOpenShiftCluster resource.
-type HCPOpenShiftClusterCustomerProperties struct {
+// ClusterCustomerProperties represents the property bag of a Cluster resource.
+type ClusterCustomerProperties struct {
 	Version                 VersionProfile              `json:"version,omitempty"`
 	DNS                     CustomerDNSProfile          `json:"dns,omitempty"`
 	Network                 NetworkProfile              `json:"network,omitempty"`
@@ -50,8 +50,8 @@ type HCPOpenShiftClusterCustomerProperties struct {
 	ClusterImageRegistry    ClusterImageRegistryProfile `json:"clusterImageRegistry,omitempty"`
 }
 
-// HCPOpenShiftClusterCustomerProperties represents the property bag of a HCPOpenShiftCluster resource.
-type HCPOpenShiftClusterServiceProviderProperties struct {
+// ClusterCustomerProperties represents the property bag of a Cluster resource.
+type ClusterServiceProviderProperties struct {
 	ProvisioningState arm.ProvisioningState          `json:"provisioningState,omitempty"`
 	ClusterServiceID  InternalID                     `json:"clusterServiceID,omitempty"`
 	ActiveOperationID string                         `json:"activeOperationId,omitempty"`
@@ -188,11 +188,11 @@ type ClusterImageRegistryProfile struct {
 	State ClusterImageRegistryProfileState `json:"state,omitempty"`
 }
 
-// Creates an HCPOpenShiftCluster with any non-zero default values.
-func NewDefaultHCPOpenShiftCluster(resourceID *azcorearm.ResourceID, azureLocation string) *HCPOpenShiftCluster {
-	return &HCPOpenShiftCluster{
+// Creates an Cluster with any non-zero default values.
+func NewDefaultHCPOpenShiftCluster(resourceID *azcorearm.ResourceID, azureLocation string) *Cluster {
+	return &Cluster{
 		TrackedResource: arm.NewTrackedResource(resourceID, azureLocation),
-		CustomerProperties: HCPOpenShiftClusterCustomerProperties{
+		CustomerProperties: ClusterCustomerProperties{
 			Version: VersionProfile{
 				ChannelGroup: "stable",
 			},
@@ -227,6 +227,6 @@ func NewDefaultHCPOpenShiftCluster(resourceID *azcorearm.ResourceID, azureLocati
 	}
 }
 
-func (o *HCPOpenShiftCluster) Validate() []arm.CloudErrorBody {
+func (o *Cluster) Validate() []arm.CloudErrorBody {
 	return nil
 }

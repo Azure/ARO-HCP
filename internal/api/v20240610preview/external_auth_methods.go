@@ -32,7 +32,7 @@ type ExternalAuth struct {
 	generated.ExternalAuth
 }
 
-var _ api.VersionedCreatableResource[api.HCPOpenShiftClusterExternalAuth] = &ExternalAuth{}
+var _ api.VersionedCreatableResource[api.ExternalAuth] = &ExternalAuth{}
 
 func (h *ExternalAuth) NewExternal() any {
 	return &ExternalAuth{}
@@ -70,8 +70,8 @@ func (h *ExternalAuth) GetVersion() api.Version {
 	return versionedInterface
 }
 
-func (h *ExternalAuth) ConvertToInternal() (*api.HCPOpenShiftClusterExternalAuth, error) {
-	out := &api.HCPOpenShiftClusterExternalAuth{}
+func (h *ExternalAuth) ConvertToInternal() (*api.ExternalAuth, error) {
+	out := &api.ExternalAuth{}
 
 	if h.ID != nil {
 		out.ID = api.Must(azcorearm.ParseResourceID(strings.ToLower(*h.ID)))
@@ -320,7 +320,7 @@ func newTokenRequiredClaim(from *api.TokenRequiredClaim) generated.TokenRequired
 	}
 }
 
-func (v version) NewHCPOpenShiftClusterExternalAuth(from *api.HCPOpenShiftClusterExternalAuth) api.VersionedHCPOpenShiftClusterExternalAuth {
+func (v version) NewHCPOpenShiftClusterExternalAuth(from *api.ExternalAuth) api.VersionedHCPOpenShiftClusterExternalAuth {
 	if from == nil {
 		ret := &ExternalAuth{}
 		SetDefaultValuesExternalAuth(ret)

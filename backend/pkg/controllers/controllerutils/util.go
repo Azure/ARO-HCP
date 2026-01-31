@@ -52,14 +52,14 @@ func (k *OperationKey) GetParentResourceID() *azcorearm.ResourceID {
 
 func (k *OperationKey) AddLoggerValues(logger logr.Logger) logr.Logger {
 	parentResourceID := k.GetParentResourceID()
-	hcpClusterName := ""
+	clusterName := ""
 	switch {
 	case strings.EqualFold(parentResourceID.ResourceType.String(), api.ClusterResourceType.String()):
-		hcpClusterName = parentResourceID.Name
+		clusterName = parentResourceID.Name
 	case strings.EqualFold(parentResourceID.ResourceType.String(), api.NodePoolResourceType.String()):
-		hcpClusterName = parentResourceID.Parent.Name
+		clusterName = parentResourceID.Parent.Name
 	case strings.EqualFold(parentResourceID.ResourceType.String(), api.ExternalAuthResourceType.String()):
-		hcpClusterName = parentResourceID.Name
+		clusterName = parentResourceID.Name
 	}
 
 	return logger.WithValues(
@@ -68,7 +68,7 @@ func (k *OperationKey) AddLoggerValues(logger logr.Logger) logr.Logger {
 		"resource_name", parentResourceID.Name,
 		"resource_id", k.ParentResourceID,
 		"operation_id", k.OperationName,
-		"hcp_cluster_name", hcpClusterName,
+		"hcp_cluster_name", clusterName,
 	)
 }
 

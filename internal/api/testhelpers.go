@@ -71,7 +71,7 @@ func NewTestUserAssignedIdentity(name string) *azcorearm.ResourceID {
 	return Must(azcorearm.ParseResourceID(path.Join(TestResourceGroupResourceID, "providers", "Microsoft.ManagedIdentity", "userAssignedIdentities", name)))
 }
 
-func MinimumValidClusterTestCase() *HCPOpenShiftCluster {
+func MinimumValidClusterTestCase() *Cluster {
 	resource := NewDefaultHCPOpenShiftCluster(Must(azcorearm.ParseResourceID(TestClusterResourceID)), TestLocation)
 	resource.CustomerProperties.Version.ID = "4.15"
 	resource.CustomerProperties.DNS.BaseDomainPrefix = "testcluster"
@@ -81,13 +81,13 @@ func MinimumValidClusterTestCase() *HCPOpenShiftCluster {
 	return resource
 }
 
-func ClusterTestCase(t *testing.T, tweaks *HCPOpenShiftCluster) *HCPOpenShiftCluster {
+func ClusterTestCase(t *testing.T, tweaks *Cluster) *Cluster {
 	resource := MinimumValidClusterTestCase()
 	require.NoError(t, mergo.Merge(resource, tweaks, mergo.WithOverride))
 	return resource
 }
 
-func MinimumValidExternalAuthTestCase() *HCPOpenShiftClusterExternalAuth {
+func MinimumValidExternalAuthTestCase() *ExternalAuth {
 	resource := NewDefaultHCPOpenShiftClusterExternalAuth(Must(azcorearm.ParseResourceID(TestExternalAuthResourceID)))
 	resource.Properties.Issuer.URL = "https://www.redhat.com"
 	resource.Properties.Issuer.Audiences = []string{"audience1"}
@@ -95,7 +95,7 @@ func MinimumValidExternalAuthTestCase() *HCPOpenShiftClusterExternalAuth {
 	return resource
 }
 
-func ExternalAuthTestCase(t *testing.T, tweaks *HCPOpenShiftClusterExternalAuth) *HCPOpenShiftClusterExternalAuth {
+func ExternalAuthTestCase(t *testing.T, tweaks *ExternalAuth) *ExternalAuth {
 	externalAuth := MinimumValidExternalAuthTestCase()
 	require.NoError(t, mergo.Merge(externalAuth, tweaks, mergo.WithOverride))
 	return externalAuth

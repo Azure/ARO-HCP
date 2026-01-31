@@ -36,7 +36,7 @@ type ExternalAuthProperties struct {
 }
 
 type ExternalAuthInternalState struct {
-	InternalAPI api.HCPOpenShiftClusterExternalAuth `json:"internalAPI"`
+	InternalAPI api.ExternalAuth `json:"internalAPI"`
 }
 
 func (o *ExternalAuth) GetTypedDocument() *TypedDocument {

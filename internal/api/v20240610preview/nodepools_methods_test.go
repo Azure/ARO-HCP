@@ -35,11 +35,11 @@ import (
 func TestSizeGiBRoundTrip(t *testing.T) {
 	tests := []struct {
 		name     string
-		original *api.HCPOpenShiftClusterNodePool
+		original *api.NodePool
 	}{
 		{
 			name: "SizeGiB with explicit value should round-trip",
-			original: &api.HCPOpenShiftClusterNodePool{
+			original: &api.NodePool{
 				TrackedResource: arm.TrackedResource{
 					Resource: arm.Resource{
 						ID:   api.Must(azcorearm.ParseResourceID(strings.ToLower("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/myRg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/myCluster/nodePools/myNodePool"))),
@@ -48,7 +48,7 @@ func TestSizeGiBRoundTrip(t *testing.T) {
 					},
 					Location: "eastus",
 				},
-				Properties: api.HCPOpenShiftClusterNodePoolProperties{
+				Properties: api.NodePoolProperties{
 					Version: api.NodePoolVersionProfile{
 						ID:           "4.15.1",
 						ChannelGroup: "stable",
@@ -339,7 +339,7 @@ func TestNewOSDiskProfile(t *testing.T) {
 	}
 }
 
-func roundTripInternalNodePool(t *testing.T, original *api.HCPOpenShiftClusterNodePool) {
+func roundTripInternalNodePool(t *testing.T, original *api.NodePool) {
 	v := version{}
 	roundTrippedObj, err := v.NewHCPOpenShiftClusterNodePool(original).ConvertToInternal()
 	require.NoError(t, err)

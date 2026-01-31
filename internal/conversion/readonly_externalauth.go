@@ -26,7 +26,7 @@ func CopyReadOnlyProxyResourceValues(dest, src *arm.ProxyResource) {
 	dest.SystemData = src.SystemData
 }
 
-func CopyReadOnlyExternalAuthValues(dest, src *api.HCPOpenShiftClusterExternalAuth) {
+func CopyReadOnlyExternalAuthValues(dest, src *api.ExternalAuth) {
 	// the old code appeared to shallow copies only
 	CopyReadOnlyProxyResourceValues(&dest.ProxyResource, &src.ProxyResource)
 

@@ -47,7 +47,7 @@ type nestedCosmosResourceCRUD[InternalAPIType, CosmosAPIType any] struct {
 	resourceType     azcorearm.ResourceType
 }
 
-var _ ResourceCRUD[api.HCPOpenShiftClusterNodePool] = &nestedCosmosResourceCRUD[api.HCPOpenShiftClusterNodePool, NodePool]{}
+var _ ResourceCRUD[api.NodePool] = &nestedCosmosResourceCRUD[api.NodePool, NodePool]{}
 
 func NewCosmosResourceCRUD[InternalAPIType, CosmosAPIType any](
 	containerClient *azcosmos.ContainerClient, parentResourceID *azcorearm.ResourceID, resourceType azcorearm.ResourceType) *nestedCosmosResourceCRUD[InternalAPIType, CosmosAPIType] {

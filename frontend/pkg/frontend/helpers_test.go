@@ -127,13 +127,13 @@ func TestCheckForProvisioningStateConflict(t *testing.T) {
 				mockClusterCRUD.EXPECT().
 					Get(gomock.Any(), parentResourceID.Name).
 					Return(
-						&api.HCPOpenShiftCluster{
+						&api.Cluster{
 							TrackedResource: arm.TrackedResource{
 								Resource: arm.Resource{
 									ID: parentResourceID,
 								},
 							},
-							ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
+							ServiceProviderProperties: api.ClusterServiceProviderProperties{
 								ProvisioningState: arm.ProvisioningStateSucceeded,
 							},
 						},
@@ -182,13 +182,13 @@ func TestCheckForProvisioningStateConflict(t *testing.T) {
 						mockClusterCRUD.EXPECT().
 							Get(gomock.Any(), parentResourceID.Name).
 							Return(
-								&api.HCPOpenShiftCluster{
+								&api.Cluster{
 									TrackedResource: arm.TrackedResource{
 										Resource: arm.Resource{
 											ID: parentResourceID,
 										},
 									},
-									ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
+									ServiceProviderProperties: api.ClusterServiceProviderProperties{
 										ProvisioningState: provisioningState,
 									},
 								},
