@@ -123,6 +123,10 @@ type DBClient interface {
 	Subscriptions() SubscriptionCRUD
 
 	ServiceProviderClusters(subscriptionID, resourceGroupName, clusterName string) ServiceProviderClusterCRUD
+
+	// GlobalListers returns interfaces for listing all resources of a particular
+	// type across all partitions, intended for feeding SharedInformers.
+	GlobalListers() GlobalListers
 }
 
 var _ DBClient = &cosmosDBClient{}
@@ -283,6 +287,10 @@ func (d *cosmosDBClient) ServiceProviderClusters(subscriptionID, resourceGroupNa
 
 func (d *cosmosDBClient) UntypedCRUD(parentResourceID azcorearm.ResourceID) (UntypedResourceCRUD, error) {
 	return NewUntypedCRUD(d.resources, parentResourceID), nil
+}
+
+func (d *cosmosDBClient) GlobalListers() GlobalListers {
+	return NewCosmosGlobalListers(d.resources)
 }
 
 // NewCosmosDatabaseClient instantiates a generic Cosmos database client.

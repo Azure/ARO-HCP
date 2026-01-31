@@ -57,7 +57,6 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/validationcontrollers"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/validationcontrollers/validations"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/tracing"
@@ -309,15 +308,19 @@ func Run(cmd *cobra.Command, args []string) error {
 		),
 		oldoperationscanner.TracerName,
 	)
-	subscriptionLister := listers.NewThreadSafeAtomicLister[arm.Subscription]()
+
+	subscriptionInformer := informers.NewSubscriptionInformer(dbClient.GlobalListers().Subscriptions())
+	activeOperationInformer := informers.NewActiveOperationInformer(dbClient.GlobalListers().ActiveOperations())
+	clusterInformer := informers.NewClusterInformer(dbClient.GlobalListers().Clusters())
+
+	subscriptionLister := listers.NewSubscriptionLister(subscriptionInformer.GetIndexer())
 
 	group.Go(func() error {
 		var (
-			startedLeading                 atomic.Bool
-			operationsScanner              = oldoperationscanner.NewOperationsScanner(dbClient, ocmConnection, argLocation, subscriptionLister)
-			subscriptionInformerController = informers.NewSubscriptionInformerController(dbClient, subscriptionLister)
-			dataDumpController             = controllerutils.NewClusterWatchingController(
-				"DataDump", dbClient, subscriptionLister, 1*time.Minute, controllers.NewDataDumpController(dbClient))
+			startedLeading     atomic.Bool
+			operationsScanner  = oldoperationscanner.NewOperationsScanner(dbClient, ocmConnection, argLocation, subscriptionLister)
+			dataDumpController = controllerutils.NewClusterWatchingController(
+				"DataDump", dbClient, clusterInformer, 1*time.Minute, controllers.NewDataDumpController(dbClient))
 			doNothingController              = controllers.NewDoNothingExampleController(dbClient, subscriptionLister)
 			operationClusterCreateController = operationcontrollers.NewGenericOperationController(
 				"OperationClusterCreate",
@@ -328,7 +331,7 @@ func Run(cmd *cobra.Command, args []string) error {
 					http.DefaultClient,
 				),
 				10*time.Second,
-				subscriptionLister,
+				activeOperationInformer,
 				dbClient,
 			)
 			operationClusterUpdateController = operationcontrollers.NewGenericOperationController(
@@ -339,7 +342,7 @@ func Run(cmd *cobra.Command, args []string) error {
 					http.DefaultClient,
 				),
 				10*time.Second,
-				subscriptionLister,
+				activeOperationInformer,
 				dbClient,
 			)
 			operationClusterDeleteController = operationcontrollers.NewGenericOperationController(
@@ -350,7 +353,7 @@ func Run(cmd *cobra.Command, args []string) error {
 					http.DefaultClient,
 				),
 				10*time.Second,
-				subscriptionLister,
+				activeOperationInformer,
 				dbClient,
 			)
 			operationRequestCredentialController = operationcontrollers.NewGenericOperationController(
@@ -361,7 +364,7 @@ func Run(cmd *cobra.Command, args []string) error {
 					http.DefaultClient,
 				),
 				10*time.Second,
-				subscriptionLister,
+				activeOperationInformer,
 				dbClient,
 			)
 			operationRevokeCredentialsController = operationcontrollers.NewGenericOperationController(
@@ -372,23 +375,23 @@ func Run(cmd *cobra.Command, args []string) error {
 					http.DefaultClient,
 				),
 				10*time.Second,
-				subscriptionLister,
+				activeOperationInformer,
 				dbClient,
 			)
 			clusterServiceMatchingClusterController = mismatchcontrollers.NewClusterServiceClusterMatchingController(dbClient, subscriptionLister, clusterServiceClient)
 			cosmosMatchingNodePoolController        = controllerutils.NewClusterWatchingController(
-				"CosmosMatchingNodePools", dbClient, subscriptionLister, 60*time.Minute,
+				"CosmosMatchingNodePools", dbClient, clusterInformer, 60*time.Minute,
 				mismatchcontrollers.NewCosmosNodePoolMatchingController(dbClient, clusterServiceClient))
 			cosmosMatchingExternalAuthController = controllerutils.NewClusterWatchingController(
-				"CosmosMatchingExternalAuths", dbClient, subscriptionLister, 60*time.Minute,
+				"CosmosMatchingExternalAuths", dbClient, clusterInformer, 60*time.Minute,
 				mismatchcontrollers.NewCosmosExternalAuthMatchingController(dbClient, clusterServiceClient))
 			cosmosMatchingClusterController = controllerutils.NewClusterWatchingController(
-				"CosmosMatchingClusters", dbClient, subscriptionLister, 60*time.Minute,
+				"CosmosMatchingClusters", dbClient, clusterInformer, 60*time.Minute,
 				mismatchcontrollers.NewCosmosClusterMatchingController(utilsclock.RealClock{}, dbClient, clusterServiceClient))
 			alwaysSuccessClusterValidationController = validationcontrollers.NewClusterValidationController(
 				validations.NewAlwaysSuccessValidation(),
 				dbClient,
-				subscriptionLister,
+				clusterInformer,
 			)
 		)
 
@@ -401,7 +404,12 @@ func Run(cmd *cobra.Command, args []string) error {
 				OnStartedLeading: func(ctx context.Context) {
 					operationsScanner.LeaderGauge.Set(1)
 					startedLeading.Store(true)
-					go subscriptionInformerController.Run(ctx, 1)
+
+					// start the SharedInformers
+					go subscriptionInformer.RunWithContext(ctx)
+					go activeOperationInformer.RunWithContext(ctx)
+					go clusterInformer.RunWithContext(ctx)
+
 					go operationsScanner.Run(ctx)
 					go dataDumpController.Run(ctx, 20)
 					go doNothingController.Run(ctx, 20)

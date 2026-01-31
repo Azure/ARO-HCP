@@ -79,13 +79,6 @@ func (m *mockResourceCRUD[InternalAPIType, CosmosAPIType]) makeResourceIDPath(re
 	return azcorearm.ParseResourceID(resourcePathString)
 }
 
-func NewNotFoundError() *azcore.ResponseError {
-	return &azcore.ResponseError{
-		ErrorCode:  "404 Not Found",
-		StatusCode: http.StatusNotFound,
-	}
-}
-
 func (m *mockResourceCRUD[InternalAPIType, CosmosAPIType]) GetByID(ctx context.Context, cosmosID string) (*InternalAPIType, error) {
 	if strings.ToLower(cosmosID) != cosmosID {
 		return nil, fmt.Errorf("cosmosID must be lowercase, not: %q", cosmosID)
@@ -93,7 +86,7 @@ func (m *mockResourceCRUD[InternalAPIType, CosmosAPIType]) GetByID(ctx context.C
 
 	data, ok := m.client.GetDocument(cosmosID)
 	if !ok {
-		return nil, NewNotFoundError()
+		return nil, database.NewNotFoundError()
 	}
 
 	var cosmosObj CosmosAPIType
@@ -206,7 +199,7 @@ func (m *mockResourceCRUD[InternalAPIType, CosmosAPIType]) Replace(ctx context.C
 
 	// Check that document exists
 	if _, exists := m.client.GetDocument(cosmosID); !exists {
-		return nil, NewNotFoundError()
+		return nil, database.NewNotFoundError()
 	}
 
 	m.client.StoreDocument(cosmosID, data)
@@ -499,7 +492,7 @@ func (m *mockSubscriptionCRUD) GetByID(ctx context.Context, cosmosID string) (*a
 
 	data, ok := m.client.GetDocument(cosmosID)
 	if !ok {
-		return nil, NewNotFoundError()
+		return nil, database.NewNotFoundError()
 	}
 
 	var cosmosObj database.Subscription
@@ -596,7 +589,7 @@ func (m *mockSubscriptionCRUD) Replace(ctx context.Context, newObj *arm.Subscrip
 	cosmosID := cosmosData.GetCosmosUID()
 
 	if _, exists := m.client.GetDocument(cosmosID); !exists {
-		return nil, NewNotFoundError()
+		return nil, database.NewNotFoundError()
 	}
 
 	m.client.StoreDocument(cosmosID, data)
@@ -758,7 +751,7 @@ func (m *mockUntypedCRUD) Get(ctx context.Context, resourceID *azcorearm.Resourc
 			}
 		}
 
-		return nil, NewNotFoundError()
+		return nil, database.NewNotFoundError()
 	}
 
 	var typedDoc database.TypedDocument
