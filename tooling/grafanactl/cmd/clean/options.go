@@ -30,7 +30,6 @@ import (
 // RawCleanOptions represents the initial, unvalidated configuration for clean operations.
 type RawCleanDatasourcesOptions struct {
 	*base.BaseOptions
-	DryRun bool
 }
 
 // validatedCleanOptions is a private struct that enforces the options validation pattern.
@@ -57,7 +56,6 @@ type CompletedCleanDatasourcesOptions struct {
 func DefaultCleanDatasourcesOptions() *RawCleanDatasourcesOptions {
 	return &RawCleanDatasourcesOptions{
 		BaseOptions: base.DefaultBaseOptions(),
-		DryRun:      false,
 	}
 }
 
@@ -67,8 +65,6 @@ func BindCleanDatasourcesOptions(opts *RawCleanDatasourcesOptions, cmd *cobra.Co
 		return err
 	}
 
-	flags := cmd.Flags()
-	flags.BoolVar(&opts.DryRun, "dry-run", false, "Perform a dry run without making changes")
 	return nil
 }
 
