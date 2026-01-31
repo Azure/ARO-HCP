@@ -42,13 +42,12 @@ import (
 	"k8s.io/klog/v2"
 	utilsclock "k8s.io/utils/clock"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
-	"github.com/Azure/azure-sdk-for-go/sdk/tracing/azotel"
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	ocmsdk "github.com/openshift-online/ocm-sdk-go"
 
 	"github.com/Azure/ARO-HCP/backend/oldoperationscanner"
+	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/informers"
@@ -57,6 +56,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/validationcontrollers"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/validationcontrollers/validations"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
+	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -116,6 +116,23 @@ func init() {
 	rootCmd.Flags().StringVar(&argCosmosName, "cosmos-name", os.Getenv("DB_NAME"), "Cosmos database name")
 	rootCmd.Flags().StringVar(&argCosmosURL, "cosmos-url", os.Getenv("DB_URL"), "Cosmos database URL")
 	rootCmd.Flags().StringVar(&argClustersServiceURL, "clusters-service-url", "https://api.openshift.com", "URL of the OCM API gateway")
+	rootCmd.Flags().StringVar(
+		&argAzureRuntimeConfigPath, "azure-runtime-config-path", "",
+		"Path to a file containing the Azure runtime configuration in JSON or YAML format following the schema defined "+
+			"in backend/api/azure/v1/AzureRuntimeConfig",
+	)
+	rootCmd.Flags().StringVar(
+		&argAzureFPACertBundlePath,
+		"azure-first-party-application-certificate-bundle-path", "",
+		"Path to a file containing an X.509 Certificate based client certificate, consisting of a private key and "+
+			"certificate chain, in a PEM or PKCS#12 format for authenticating clients with a first party application identity",
+	)
+	rootCmd.Flags().StringVar(
+		&argAzureFPAClientID,
+		"azure-first-party-application-client-id",
+		"",
+		"The client id of the first party application identity",
+	)
 	rootCmd.Flags().BoolVar(&argInsecure, "insecure", false, "Skip validating TLS for clusters-service")
 	rootCmd.Flags().StringVar(&argMetricsListenAddress, "metrics-listen-address", ":8081", "Address on which to expose metrics")
 	rootCmd.Flags().StringVar(&argPortListenAddress, "healthz-listen-address", ":8083", "Address on which Healthz endpoint will be supported")
@@ -140,6 +157,52 @@ func init() {
 	rootCmd.MarkFlagsRequiredTogether("cosmos-name", "cosmos-url")
 
 	rootCmd.Version = version.CommitSHA
+}
+
+func getAzureHCPExampleSubscriptionAndCluster() (*arm.Subscription, *api.HCPOpenShiftCluster) {
+	// The tenant and subscription values would come when a cluster is processed. Here in main we do not process
+	// particular clusters so we do not have that information so for this example we just set the red hat dev account info.
+
+	resourceID := api.Must(azcorearm.ParseResourceID("/subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/testcluster"))
+
+	exampleHCPClusterSubscription := &arm.Subscription{
+		ResourceID:       api.Must(arm.ToSubscriptionResourceID(resourceID.SubscriptionID)),
+		State:            arm.SubscriptionStateRegistered,
+		RegistrationDate: api.Ptr(time.Now().String()),
+		Properties:       nil,
+	}
+	exampleHCPCluster := api.NewDefaultHCPOpenShiftCluster(resourceID, "westus3")
+	return exampleHCPClusterSubscription, exampleHCPCluster
+}
+
+func callAzureRPRegistrationValidation(ctx context.Context, clientBuilder azureclient.FirstPartyApplicationClientBuilder,
+	exampleHCPClusterSubscription *arm.Subscription, exampleHCPCluster *api.HCPOpenShiftCluster,
+) error {
+	logger := utils.LoggerFromContext(ctx)
+	logger.Info("calling Azure example inflight method")
+
+	validation := controllers.NewAzureResourceProvidersRegistrationValidation(clientBuilder)
+	err := validation.Validate(ctx, exampleHCPClusterSubscription, exampleHCPCluster)
+	if err != nil {
+		return fmt.Errorf("azure RP registration validation error: %w", err)
+	}
+	logger.Info("Azure RP registration validation completed without errors")
+
+	return nil
+}
+
+func callAzureClusterResourceGroupExistenceValidation(ctx context.Context, clientBuilder azureclient.FirstPartyApplicationClientBuilder,
+	exampleHCPClusterSubscription *arm.Subscription, exampleHCPCluster *api.HCPOpenShiftCluster,
+) error {
+	logger := utils.LoggerFromContext(ctx)
+	logger.Info("calling Azure HCP cluster resource group existence validation")
+
+	validation := controllers.NewAzureClusterResourceGroupExistenceValidation(clientBuilder)
+	err := validation.Validate(ctx, exampleHCPClusterSubscription, exampleHCPCluster)
+	if err != nil {
+		return fmt.Errorf("resource group existence validation error")
+	}
+	return nil
 }
 
 func newKubeconfig(kubeconfig string) (*rest.Config, error) {
@@ -203,15 +266,37 @@ func Run(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("could not initialize opentelemetry sdk: %w", err)
 	}
 
+	otelTracerProvider := otel.GetTracerProvider()
+
+	azureConfig, err := getAzureConfig(ctx, argAzureRuntimeConfigPath, otelTracerProvider)
+	if err != nil {
+		return fmt.Errorf("error getting azure configuration: %w", err)
+	}
+
+	fpaClientBuilder, err := getFirstPartyApplicationClientBuilder(ctx, logger, argAzureFPACertBundlePath, argAzureFPAClientID, azureConfig)
+	if err != nil {
+		return fmt.Errorf("error configuring FPA client builder: %w", err)
+	}
+
+	// TODO remove once start being used
+	_ = fpaClientBuilder
+
+	exampleHCPClusterSubscription, exampleHCPCluster := getAzureHCPExampleSubscriptionAndCluster()
+	err = callAzureRPRegistrationValidation(ctx, fpaClientBuilder, exampleHCPClusterSubscription, exampleHCPCluster)
+	if err != nil {
+		return err
+	}
+
+	err = callAzureClusterResourceGroupExistenceValidation(ctx, fpaClientBuilder, exampleHCPClusterSubscription, exampleHCPCluster)
+	if err != nil {
+		return err
+	}
+
 	// Create the database client.
 	cosmosDatabaseClient, err := database.NewCosmosDatabaseClient(
 		argCosmosURL,
 		argCosmosName,
-		azcore.ClientOptions{
-			// FIXME Cloud should be determined by other means.
-			Cloud:           cloud.AzurePublic,
-			TracingProvider: azotel.NewTracingProvider(otel.GetTracerProvider(), nil),
-		},
+		azureConfig.CloudEnvironment.PolicyClientOptions(),
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create the CosmosDB client: %w", err)
