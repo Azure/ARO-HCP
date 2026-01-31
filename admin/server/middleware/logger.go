@@ -15,7 +15,6 @@
 package middleware
 
 import (
-	"context"
 	"net/http"
 	"time"
 
@@ -23,12 +22,11 @@ import (
 )
 
 // WithLogger creates a middleware that attaches a request-specific logger to the request context.
-// It expects the provided context to already have a logger via utils.ContextWithLogger.
-func WithLogger(ctx context.Context, next http.Handler) http.Handler {
-	baseLogger := utils.LoggerFromContext(ctx)
+func WithLogger(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		logger := utils.LoggerFromContext(request.Context())
 		start := time.Now()
-		requestLogger := baseLogger.WithValues("path", request.URL.Path, "method", request.Method)
+		requestLogger := logger.WithValues("path", request.URL.Path, "method", request.Method)
 		requestLogger.Info("Got request.")
 
 		requestCtx := utils.ContextWithLogger(request.Context(), requestLogger)

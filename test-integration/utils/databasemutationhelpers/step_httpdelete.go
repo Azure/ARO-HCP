@@ -24,15 +24,11 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-
-	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
-
-	"github.com/Azure/ARO-HCP/internal/api"
 )
 
 type httpDeleteStep struct {
 	stepID StepID
-	key    FrontendResourceKey
+	key    ResourceKey
 
 	expectedError string
 }
@@ -42,7 +38,7 @@ func newHTTPDeleteStep(stepID StepID, stepDir fs.FS) (*httpDeleteStep, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to read key.json: %w", err)
 	}
-	var key FrontendResourceKey
+	var key ResourceKey
 	if err := json.Unmarshal(keyBytes, &key); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal key.json: %w", err)
 	}
@@ -67,8 +63,7 @@ func (l *httpDeleteStep) StepID() StepID {
 }
 
 func (l *httpDeleteStep) RunTest(ctx context.Context, t *testing.T, stepInput StepInput) {
-	subscriptionID := api.Must(azcorearm.ParseResourceID(l.key.ResourceID)).SubscriptionID
-	accessor := newFrontendHTTPTestAccessor(stepInput.FrontendURL, stepInput.FrontendClient(subscriptionID))
+	accessor := stepInput.HTTPTestAccessor(l.key)
 
 	err := accessor.Delete(ctx, l.key.ResourceID)
 

@@ -13,12 +13,12 @@ LDFLAGS = -ldflags "\
 # Default target
 .DEFAULT_GOAL := test
 
-# Build the binary
+# Run the integration tests with the Cosmos DB emulator running in a container.
 test:
-	go test github.com/Azure/ARO-HCP/test-int
-.PHONY: build
+	./hack/start-cosmos-emulator.sh
+	./hack/test-integration.sh
+.PHONY: test
 
 
 clean:
 .PHONY: clean
-
