@@ -353,8 +353,8 @@ pipeline/%:
 	$(MAKE) local-run WHAT="--service-group Microsoft.Azure.ARO.HCP.$(notdir $@)"
 
 LOG_LEVEL ?= 3
-DRY_RUN ?= "false"
-PERSIST ?= "false"
+DRY_RUN ?= false
+PERSIST ?= false
 TIMING_OUTPUT ?= timing/steps.yaml
 ENTRYPOINT_JUNIT_OUTPUT ?= _artifacts/junit_entrypoint.xml
 
@@ -366,6 +366,7 @@ local-run: $(TEMPLATIZE)
 	                                 --dev-environment $(DEPLOY_ENV) \
 	                                 $(WHAT) $(EXTRA_ARGS) \
 	                                 --dry-run=$(DRY_RUN) \
+	                                 --persist-tag=$(PERSIST) \
 	                                 --verbosity=$(LOG_LEVEL) \
 	                                 --timing-output=$(TIMING_OUTPUT) \
 	                                 --junit-output=$(ENTRYPOINT_JUNIT_OUTPUT)
