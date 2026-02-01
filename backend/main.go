@@ -315,6 +315,7 @@ func Run(cmd *cobra.Command, args []string) error {
 		var (
 			startedLeading                 atomic.Bool
 			operationsScanner              = oldoperationscanner.NewOperationsScanner(dbClient, ocmConnection, argLocation, subscriptionLister)
+			changeFeedInformerController   = informers.NewChangeFeedInformerController(dbClient, subscriptionLister)
 			subscriptionInformerController = informers.NewSubscriptionInformerController(dbClient, subscriptionLister)
 			dataDumpController             = controllerutils.NewClusterWatchingController(
 				"DataDump", dbClient, subscriptionLister, 1*time.Minute, controllers.NewDataDumpController(dbClient))
@@ -392,6 +393,9 @@ func Run(cmd *cobra.Command, args []string) error {
 			)
 		)
 
+		// Use feed ranges as a heuristic for changeFeedInformer threadiness.
+		changeFeedInformerThreadiness := max(1, len(dbClient.GetResourcesFeedRanges()))
+
 		le, err := leaderelection.NewLeaderElector(leaderelection.LeaderElectionConfig{
 			Lock:          leaderElectionLock,
 			LeaseDuration: leaderElectionLeaseDuration,
@@ -401,6 +405,7 @@ func Run(cmd *cobra.Command, args []string) error {
 				OnStartedLeading: func(ctx context.Context) {
 					operationsScanner.LeaderGauge.Set(1)
 					startedLeading.Store(true)
+					go changeFeedInformerController.Run(ctx, changeFeedInformerThreadiness)
 					go subscriptionInformerController.Run(ctx, 1)
 					go operationsScanner.Run(ctx)
 					go dataDumpController.Run(ctx, 20)
