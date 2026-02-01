@@ -51,8 +51,8 @@ func DefaultExecuteOptions() *RawExecuteOptions {
 		Labels:              make(map[string]string),
 		Annotations:         make(map[string]string),
 		EnvironmentVars:     make(map[string]string),
-		PollInterval:        60 * time.Second,
-		Timeout:             2 * time.Hour,
+		PollInterval:        300 * time.Second,
+		Timeout:             3 * time.Hour,
 		GangwayURL:          defaultGangwayURL,
 		ProwURL:             defaultProwURL,
 	}
@@ -311,8 +311,8 @@ func parseEV2RolloutVersionAsAnnotations(version string) (map[string]string, err
 func DefaultMonitorOptions() *RawMonitorOptions {
 	return &RawMonitorOptions{
 		RawProwTokenOptions: NewDefaultRawProwTokenOptions(),
-		PollInterval:        60 * time.Second,
-		Timeout:             2 * time.Hour,
+		PollInterval:        300 * time.Second,
+		Timeout:             3 * time.Hour,
 		GangwayURL:          defaultGangwayURL,
 		ProwURL:             defaultProwURL,
 	}
