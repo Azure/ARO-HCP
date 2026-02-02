@@ -32,6 +32,7 @@ import (
 
 type ClusterSyncer interface {
 	SyncOnce(ctx context.Context, keyObj HCPClusterKey) error
+	CooldownChecker() CooldownChecker
 }
 
 type clusterWatchingController struct {
@@ -55,7 +56,6 @@ func NewClusterWatchingController(
 	cosmosClient database.DBClient,
 	clusterInformer cache.SharedIndexInformer,
 	resyncDuration time.Duration,
-	cooldownDuration time.Duration,
 	syncer ClusterSyncer,
 ) Controller {
 	c := &clusterWatchingController{
@@ -162,12 +162,16 @@ func (c *clusterWatchingController) processNextWorkItem(ctx context.Context) boo
 
 func (c *clusterWatchingController) enqueueAdd(newObj interface{}) {
 	castObj := newObj.(*api.HCPOpenShiftCluster)
-
-	c.queue.Add(HCPClusterKey{
+	key := HCPClusterKey{
 		SubscriptionID:    castObj.ID.SubscriptionID,
 		ResourceGroupName: castObj.ID.ResourceGroupName,
 		HCPClusterName:    castObj.ID.Name,
-	})
+	}
+	if !c.syncer.CooldownChecker().CanSync(context.TODO(), key) {
+		return
+	}
+
+	c.queue.Add(key)
 }
 
 func (c *clusterWatchingController) enqueueUpdate(_ interface{}, newObj interface{}) {

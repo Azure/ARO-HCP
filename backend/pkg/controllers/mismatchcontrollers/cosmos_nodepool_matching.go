@@ -18,6 +18,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"time"
 
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 
@@ -29,6 +30,7 @@ import (
 )
 
 type cosmosNodePoolMatching struct {
+	cooldownChecker      controllerutils.CooldownChecker
 	cosmosClient         database.DBClient
 	clusterServiceClient ocm.ClusterServiceClientSpec
 }
@@ -36,6 +38,7 @@ type cosmosNodePoolMatching struct {
 // NewCosmosNodePoolMatchingController periodically looks for mismatched cluster-service and cosmos nodepool
 func NewCosmosNodePoolMatchingController(cosmosClient database.DBClient, clusterServiceClient ocm.ClusterServiceClientSpec) controllerutils.ClusterSyncer {
 	c := &cosmosNodePoolMatching{
+		cooldownChecker:      controllerutils.NewTimeBasedCooldownChecker(1 * time.Hour),
 		cosmosClient:         cosmosClient,
 		clusterServiceClient: clusterServiceClient,
 	}
@@ -145,4 +148,8 @@ func (c *cosmosNodePoolMatching) synchronizeAllNodes(ctx context.Context, keyObj
 func (c *cosmosNodePoolMatching) SyncOnce(ctx context.Context, keyObj controllerutils.HCPClusterKey) error {
 	syncErr := c.synchronizeAllNodes(ctx, keyObj)
 	return utils.TrackError(syncErr)
+}
+
+func (c *cosmosNodePoolMatching) CooldownChecker() controllerutils.CooldownChecker {
+	return c.cooldownChecker
 }

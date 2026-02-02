@@ -44,3 +44,11 @@ func ToResourceGroupResourceID(subscriptionName, resourcGroupName string) (*azco
 func ToResourceGroupResourceIDString(subscriptionName, resourcGroupName string) string {
 	return strings.ToLower(path.Join("/subscriptions", subscriptionName, "resourceGroups", resourcGroupName))
 }
+
+func ToClusterResourceIDString(subscriptionName, resourceGroupName, clusterName string) string {
+	return strings.ToLower(path.Join(
+		"/subscriptions", subscriptionName,
+		"resourceGroups", resourceGroupName,
+		ClusterResourceType.String(), clusterName,
+	))
+}

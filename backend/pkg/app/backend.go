@@ -161,6 +161,7 @@ func (b *Backend) Run(ctx context.Context) error {
 	clusterInformer := informers.NewClusterInformer(b.options.CosmosDBClient.GlobalListers().Clusters())
 
 	subscriptionLister := listers.NewSubscriptionLister(subscriptionInformer.GetIndexer())
+	activeOperationLister := listers.NewActiveOperationLister(activeOperationInformer.GetIndexer())
 
 	group.Go(func() error {
 		var (
@@ -168,7 +169,7 @@ func (b *Backend) Run(ctx context.Context) error {
 			operationsScanner = oldoperationscanner.NewOperationsScanner(
 				b.options.CosmosDBClient, b.options.ClustersServiceClient, b.options.AzureLocation, subscriptionLister)
 			dataDumpController = controllerutils.NewClusterWatchingController(
-				"DataDump", b.options.CosmosDBClient, clusterInformer, 1*time.Minute, controllers.NewDataDumpController(b.options.CosmosDBClient))
+				"DataDump", b.options.CosmosDBClient, clusterInformer, 1*time.Minute, controllers.NewDataDumpController(activeOperationLister, b.options.CosmosDBClient))
 			doNothingController              = controllers.NewDoNothingExampleController(b.options.CosmosDBClient, subscriptionLister)
 			operationClusterCreateController = operationcontrollers.NewGenericOperationController(
 				"OperationClusterCreate",
@@ -238,6 +239,7 @@ func (b *Backend) Run(ctx context.Context) error {
 				mismatchcontrollers.NewCosmosClusterMatchingController(utilsclock.RealClock{}, b.options.CosmosDBClient, b.options.ClustersServiceClient))
 			alwaysSuccessClusterValidationController = validationcontrollers.NewClusterValidationController(
 				validations.NewAlwaysSuccessValidation(),
+				activeOperationLister,
 				b.options.CosmosDBClient,
 				clusterInformer,
 			)

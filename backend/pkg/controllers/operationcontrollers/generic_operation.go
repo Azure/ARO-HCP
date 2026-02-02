@@ -41,8 +41,9 @@ type OperationSynchronizer interface {
 type genericOperation struct {
 	name string
 
-	synchronizer OperationSynchronizer
-	cosmosClient database.DBClient
+	cooldownChecker controllerutils.CooldownChecker
+	synchronizer    OperationSynchronizer
+	cosmosClient    database.DBClient
 
 	// queue is where incoming work is placed to de-dup and to allow "easy"
 	// rate limited requeues on errors
@@ -61,9 +62,10 @@ func NewGenericOperationController(
 	cosmosClient database.DBClient,
 ) controllerutils.Controller {
 	c := &genericOperation{
-		name:         name,
-		synchronizer: synchronizer,
-		cosmosClient: cosmosClient,
+		name:            name,
+		cooldownChecker: controllerutils.NewTimeBasedCooldownChecker(10 * time.Second),
+		synchronizer:    synchronizer,
+		cosmosClient:    cosmosClient,
 		queue: workqueue.NewTypedRateLimitingQueueWithConfig(
 			workqueue.DefaultTypedControllerRateLimiter[controllerutils.OperationKey](),
 			workqueue.TypedRateLimitingQueueConfig[controllerutils.OperationKey]{
@@ -169,15 +171,20 @@ func (c *genericOperation) enqueueAdd(newObj interface{}) {
 	if castObj.ExternalID == nil {
 		return
 	}
+	key := controllerutils.OperationKey{
+		SubscriptionID:   castObj.ExternalID.SubscriptionID,
+		OperationName:    castObj.ResourceID.Name,
+		ParentResourceID: castObj.ExternalID.String(),
+	}
+
+	if !c.cooldownChecker.CanSync(context.TODO(), key) {
+		return
+	}
 	if !c.synchronizer.ShouldProcess(context.Background(), castObj) {
 		return
 	}
 
-	c.queue.Add(controllerutils.OperationKey{
-		SubscriptionID:   castObj.ExternalID.SubscriptionID,
-		OperationName:    castObj.ResourceID.Name,
-		ParentResourceID: castObj.ExternalID.String(),
-	})
+	c.queue.Add(key)
 }
 
 func (c *genericOperation) enqueueUpdate(_ interface{}, newObj interface{}) {

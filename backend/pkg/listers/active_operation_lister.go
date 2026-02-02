@@ -22,6 +22,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/client-go/tools/cache"
 
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/informers"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -31,6 +32,7 @@ import (
 type ActiveOperationLister interface {
 	List(ctx context.Context) ([]*api.Operation, error)
 	Get(ctx context.Context, subscriptionID, name string) (*api.Operation, error)
+	ListActiveOperationsForCluster(ctx context.Context, subscriptionName, resourceGroupName, clusterName string) ([]*api.Operation, error)
 }
 
 // activeOperationLister implements ActiveOperationLister backed by a SharedIndexInformer.
@@ -80,4 +82,21 @@ func (l *activeOperationLister) Get(ctx context.Context, subscriptionID, name st
 		return nil, utils.TrackError(fmt.Errorf("expected *api.Operation, got %T", item))
 	}
 	return op, nil
+}
+
+func (l *activeOperationLister) ListActiveOperationsForCluster(ctx context.Context, subscriptionName, resourceGroupName, clusterName string) ([]*api.Operation, error) {
+	key := api.ToClusterResourceIDString(subscriptionName, resourceGroupName, clusterName)
+	items, err := l.indexer.ByIndex(informers.ByCluster, key)
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
+	result := make([]*api.Operation, 0, len(items))
+	for _, item := range items {
+		op, ok := item.(*api.Operation)
+		if !ok {
+			return nil, utils.TrackError(fmt.Errorf("expected *api.Operation, got %T", item))
+		}
+		result = append(result, op)
+	}
+	return result, nil
 }
