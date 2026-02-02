@@ -24,19 +24,15 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-
-	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
-
-	"github.com/Azure/ARO-HCP/internal/api"
 )
 
-type FrontendResourceKey struct {
+type ResourceKey struct {
 	ResourceID string `json:"resourceId"`
 }
 
 type httpGetStep struct {
 	stepID StepID
-	key    FrontendResourceKey
+	key    ResourceKey
 
 	expectedResource map[string]any
 	expectedError    string
@@ -47,7 +43,7 @@ func newHTTPGetStep(stepID StepID, stepDir fs.FS) (*httpGetStep, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to read key.json: %w", err)
 	}
-	var key FrontendResourceKey
+	var key ResourceKey
 	if err := json.Unmarshal(keyBytes, &key); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal key.json: %w", err)
 	}
@@ -90,9 +86,7 @@ func (l *httpGetStep) StepID() StepID {
 }
 
 func (l *httpGetStep) RunTest(ctx context.Context, t *testing.T, stepInput StepInput) {
-	resourceID := api.Must(azcorearm.ParseResourceID(l.key.ResourceID))
-	subscriptionID := resourceID.SubscriptionID
-	accessor := newFrontendHTTPTestAccessor(stepInput.FrontendURL, stepInput.FrontendClient(subscriptionID))
+	accessor := stepInput.HTTPTestAccessor(l.key)
 	actual, err := accessor.Get(ctx, l.key.ResourceID)
 	switch {
 	case len(l.expectedError) > 0:

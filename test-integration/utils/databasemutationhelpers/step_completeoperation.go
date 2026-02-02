@@ -26,7 +26,7 @@ import (
 
 type completeOperationStep struct {
 	stepID StepID
-	key    FrontendResourceKey
+	key    ResourceKey
 }
 
 func newCompleteOperationStep(stepID StepID, stepDir fs.FS) (*completeOperationStep, error) {
@@ -34,7 +34,7 @@ func newCompleteOperationStep(stepID StepID, stepDir fs.FS) (*completeOperationS
 	if err != nil {
 		return nil, fmt.Errorf("failed to read key.json: %w", err)
 	}
-	var key FrontendResourceKey
+	var key ResourceKey
 	if err := json.Unmarshal(keyBytes, &key); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal key.json: %w", err)
 	}

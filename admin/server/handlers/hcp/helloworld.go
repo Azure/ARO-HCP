@@ -36,7 +36,7 @@ import (
 //   in tandem.
 //
 
-func HCPHelloWorld(dbClient database.DBClient, csClient ocm.ClusterServiceClientSpec, fpaCredentialRetriever fpa.FirstPartyApplicationTokenCredentialRetriever) http.Handler {
+func HCPHelloWorld(dbClient database.DBClient, csClient ocm.ClusterServiceClientSpec) http.Handler {
 	return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		// get the azure resource ID for this HCP
 		resourceID, err := utils.ResourceIDFromContext(request.Context())
@@ -66,20 +66,53 @@ func HCPHelloWorld(dbClient database.DBClient, csClient ocm.ClusterServiceClient
 			return
 		}
 
+		// some output
+		output := map[string]any{
+			"resourceID":           hcp.ID.String(),
+			"internalClusterID":    hcp.ServiceProviderProperties.ClusterServiceID,
+			"clientPrincipalName":  clientPrincipalName,
+			"tenantID":             csCluster.Azure().TenantID(),
+			"managedResourceGroup": csCluster.Azure().ManagedResourceGroupName(),
+			"hcpName":              hcp.Name,
+		}
+		err = json.NewEncoder(writer).Encode(output)
+		if err != nil {
+			http.Error(writer, fmt.Sprintf("failed to encode output: %v", err), http.StatusInternalServerError)
+			return
+		}
+	})
+}
+
+func HCPDemoListLoadbalancers(dbClient database.DBClient, csClient ocm.ClusterServiceClientSpec, fpaCredentialRetriever fpa.FirstPartyApplicationTokenCredentialRetriever) http.Handler {
+	return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		// get the azure resource ID for this HCP
+		resourceID, err := utils.ResourceIDFromContext(request.Context())
+		if err != nil {
+			http.Error(writer, fmt.Sprintf("failed to get resource ID: %v", err), http.StatusInternalServerError)
+			return
+		}
+
+		// load the HCP from the cosmos DB
+		hcp, err := dbClient.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).Get(request.Context(), resourceID.Name)
+		if err != nil {
+			http.Error(writer, fmt.Sprintf("failed to get HCP: %v", err), http.StatusInternalServerError)
+			return
+		}
+
 		// get first party application token credentials for the HCP
-		tokenCredential, err := fpaCredentialRetriever.RetrieveCredential(csCluster.Azure().TenantID())
+		tokenCredential, err := fpaCredentialRetriever.RetrieveCredential(hcp.Identity.TenantID)
 		if err != nil {
 			http.Error(writer, fmt.Sprintf("failed to get FPA token credentials: %v", err), http.StatusInternalServerError)
 			return
 		}
 
 		// fetch all loadbalancers from the managedresource group using azuresdk
-		lbClient, err := armnetwork.NewLoadBalancersClient(csCluster.Azure().SubscriptionID(), tokenCredential, nil)
+		lbClient, err := armnetwork.NewLoadBalancersClient(hcp.ID.SubscriptionID, tokenCredential, nil)
 		if err != nil {
 			http.Error(writer, fmt.Sprintf("failed to create load balancer client: %v", err), http.StatusInternalServerError)
 			return
 		}
-		pager := lbClient.NewListPager(csCluster.Azure().ManagedResourceGroupName(), nil)
+		pager := lbClient.NewListPager(hcp.CustomerProperties.Platform.ManagedResourceGroup, nil)
 		var loadBalancers []string
 		for pager.More() {
 			page, err := pager.NextPage(request.Context())
@@ -95,15 +128,7 @@ func HCPHelloWorld(dbClient database.DBClient, csClient ocm.ClusterServiceClient
 		}
 
 		// some output
-		output := map[string]any{
-			"resourceID":           resourceID.String(),
-			"internalClusterID":    hcp.ServiceProviderProperties.ClusterServiceID,
-			"clientPrincipalName":  clientPrincipalName,
-			"hcp":                  hcp,
-			"tenantID":             csCluster.Azure().TenantID(),
-			"managedResourceGroup": csCluster.Azure().ManagedResourceGroupName(),
-			"loadBalancers":        loadBalancers,
-		}
+		output := map[string]any{"loadBalancers": loadBalancers}
 		err = json.NewEncoder(writer).Encode(output)
 		if err != nil {
 			http.Error(writer, fmt.Sprintf("failed to encode output: %v", err), http.StatusInternalServerError)

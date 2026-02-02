@@ -1,0 +1,175 @@
+// Copyright 2026 Microsoft Corporation
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package server
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"net"
+	"net/http"
+	"sync"
+	"time"
+
+	"github.com/go-logr/logr"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+
+	"github.com/Azure/azure-kusto-go/kusto"
+
+	"github.com/Azure/ARO-HCP/admin/server/handlers"
+	"github.com/Azure/ARO-HCP/admin/server/handlers/cosmosdump"
+	"github.com/Azure/ARO-HCP/admin/server/handlers/hcp"
+	"github.com/Azure/ARO-HCP/admin/server/middleware"
+	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/fpa"
+	"github.com/Azure/ARO-HCP/internal/ocm"
+	"github.com/Azure/ARO-HCP/internal/utils"
+)
+
+type AdminAPI struct {
+	clustersServiceClient  ocm.ClusterServiceClientSpec
+	dbClient               database.DBClient
+	kustoClient            *kusto.Client
+	fpaCredentialRetriever fpa.FirstPartyApplicationTokenCredentialRetriever
+
+	location string
+
+	listener        net.Listener
+	metricsListener net.Listener
+	server          http.Server
+	metricsServer   http.Server
+}
+
+func NewAdminAPI(
+	logger logr.Logger,
+	location string,
+	listener net.Listener,
+	metricsListener net.Listener,
+	dbClient database.DBClient,
+	clustersServiceClient ocm.ClusterServiceClientSpec,
+	kustoClient *kusto.Client,
+	fpaCredentialRetriever fpa.FirstPartyApplicationTokenCredentialRetriever,
+) *AdminAPI {
+	// Submux for V1 HCP endpoints
+	v1HCPMux := middleware.NewHCPResourceServerMux()
+	v1HCPMux.Handle("GET", "/helloworld", hcp.HCPHelloWorld(dbClient, clustersServiceClient))
+	v1HCPMux.Handle("GET", "/hellworld/lbs", hcp.HCPDemoListLoadbalancers(dbClient, clustersServiceClient, fpaCredentialRetriever))
+	v1HCPMux.Handle("GET", "/cosmosdump", cosmosdump.NewCosmosDumpHandler(dbClient))
+
+	apiMux := http.NewServeMux()
+	apiMux.Handle("GET /admin/helloworld", handlers.HelloWorldHandler())
+	apiMux.Handle("/admin/v1/hcp/", middleware.WithClientPrincipal(middleware.WithLowercaseURLPathValue(middleware.WithLogger(http.StripPrefix("/admin/v1/hcp", v1HCPMux.Handler())))))
+	apiMux.HandleFunc("GET /healthz/ready", healthzReadyHandler)
+	apiMux.HandleFunc("GET /healthz/live", healthzLiveHandler)
+
+	metricsMux := http.NewServeMux()
+	metricsMux.Handle("GET /metrics", promhttp.Handler())
+	// keeping these handlers on the metrics mux/listener during the migration to the api mux/listener
+	// remove once we can shift the deployment health checks to the other port
+	metricsMux.HandleFunc("GET /healthz/ready", healthzReadyHandler)
+	metricsMux.HandleFunc("GET /healthz/live", healthzLiveHandler)
+
+	return &AdminAPI{
+		location:        location,
+		listener:        listener,
+		metricsListener: metricsListener,
+		server: http.Server{
+			BaseContext: func(net.Listener) context.Context {
+				ctx := context.Background()
+				ctx = utils.ContextWithLogger(ctx, logger)
+				return ctx
+			},
+			Handler: apiMux,
+		},
+		metricsServer: http.Server{
+			BaseContext: func(net.Listener) context.Context {
+				return utils.ContextWithLogger(context.Background(), logger)
+			},
+			Handler: metricsMux,
+		},
+		dbClient:               dbClient,
+		clustersServiceClient:  clustersServiceClient,
+		kustoClient:            kustoClient,
+		fpaCredentialRetriever: fpaCredentialRetriever,
+	}
+}
+
+func (a *AdminAPI) Run(ctx context.Context) error {
+	ctx, cancel := context.WithCancelCause(ctx)
+	defer func() {
+		cancel(fmt.Errorf("run returned"))
+
+		// always attempt a graceful shutdown, a double ctrl+c exits the process
+		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 31*time.Second)
+		defer shutdownCancel()
+		_ = a.server.Shutdown(shutdownCtx)
+		_ = a.metricsServer.Shutdown(shutdownCtx)
+	}()
+
+	if len(a.location) == 0 {
+		panic("location must be set")
+	}
+
+	logger := utils.LoggerFromContext(ctx)
+	logger.Info(fmt.Sprintf("listening on %s", a.listener.Addr().String()))
+	logger.Info(fmt.Sprintf("metrics listening on %s", a.metricsListener.Addr().String()))
+
+	errCh := make(chan error, 2)
+	wg := sync.WaitGroup{}
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		errCh <- a.server.Serve(a.listener)
+	}()
+	go func() {
+		defer wg.Done()
+		errCh <- a.metricsServer.Serve(a.metricsListener)
+	}()
+
+	<-ctx.Done()
+
+	// always attempt a graceful shutdown, a double ctrl+c exits the process
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 31*time.Second)
+	defer shutdownCancel()
+	if err := a.server.Shutdown(shutdownCtx); err != nil {
+		logger.Error(err, "failed to shutdown http server")
+	}
+	if err := a.metricsServer.Shutdown(shutdownCtx); err != nil {
+		logger.Error(err, "failed to shutdown metrics server")
+	}
+
+	wg.Wait()
+	close(errCh)
+	errs := []error{}
+	for err := range errCh {
+		if err != nil {
+			logger.Info("go func completed", "message", err.Error())
+		}
+		if !errors.Is(err, http.ErrServerClosed) {
+			errs = append(errs, err)
+		}
+	}
+	return errors.Join(errs...)
+}
+
+func healthzReadyHandler(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte("ready"))
+}
+
+func healthzLiveHandler(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte("live"))
+}

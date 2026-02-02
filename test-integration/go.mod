@@ -4,6 +4,7 @@ go 1.24.11
 
 require (
 	dario.cat/mergo v1.0.1
+	github.com/Azure/ARO-HCP/admin/server v0.0.0-00010101000000-000000000000
 	github.com/Azure/ARO-HCP/backend v0.0.0-00010101000000-000000000000
 	github.com/Azure/ARO-HCP/frontend v0.0.0-00010101000000-000000000000
 	github.com/Azure/ARO-HCP/internal v0.0.0-00010101000000-000000000000
@@ -19,6 +20,8 @@ require (
 )
 
 require (
+	github.com/Azure/azure-kusto-go v0.16.1 // indirect
+	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v6 v6.2.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/tracing/azotel v0.4.0 // indirect
 	github.com/Azure/retry v0.0.0-20250221010952-92c9290cea0f // indirect
 	github.com/cenkalti/backoff/v5 v5.0.3 // indirect
@@ -40,7 +43,9 @@ require (
 	github.com/openshift-online/ocm-api-model/model v0.0.435 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
+	github.com/samber/lo v1.51.0 // indirect
 	github.com/sanity-io/litter v1.5.8 // indirect
+	github.com/shopspring/decimal v1.4.0 // indirect
 	github.com/spf13/cobra v1.10.2 // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
 	github.com/vmihailenco/msgpack/v4 v4.3.13 // indirect
@@ -119,6 +124,8 @@ require (
 	google.golang.org/protobuf v1.36.10 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
+
+replace github.com/Azure/ARO-HCP/admin/server => ../admin/server
 
 replace github.com/Azure/ARO-HCP/backend => ../backend
 
