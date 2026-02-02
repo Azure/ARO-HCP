@@ -22,6 +22,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/uuid"
 
 	"k8s.io/apimachinery/pkg/runtime"
 
@@ -41,14 +42,19 @@ func deepCopyFuzzerFor(src rand.Source) *randfill.Filler {
 	}
 	f.Funcs(
 		func(j *azcorearm.ResourceID, c randfill.Continue) {
-			if c.Bool() {
+			if c.Intn(100) < 5 {
 				return
 			}
-			*j = *Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/myRg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/myCluster"))
+
+			sub := Must(uuid.NewUUID()).String()
+			resourceGroup := strings.ReplaceAll(c.String(10), "/", "-")
+			*j = *Must(azcorearm.ParseResourceID("/subscriptions/" + sub + "/resourceGroups/" + resourceGroup + "/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/myCluster"))
 		},
 		func(j *arm.Resource, c randfill.Continue) {
 			c.FillNoCustom(j)
-			j.ID = Must(azcorearm.ParseResourceID("/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/myCluster"))
+			sub := Must(uuid.NewUUID()).String()
+			resourceGroup := strings.ReplaceAll(c.String(10), "/", "-")
+			j.ID = Must(azcorearm.ParseResourceID("/subscriptions/" + sub + "/resourceGroups/" + resourceGroup + "/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/myCluster"))
 			j.Name = "myCluster"
 			j.Type = "Microsoft.RedHatOpenShift/hcpOpenShiftClusters"
 		},
@@ -89,7 +95,7 @@ func TestDeepCopyHCPOpenShiftCluster(t *testing.T) {
 
 	fuzzer := deepCopyFuzzerFor(rand.NewSource(seed))
 
-	for i := 0; i < 20; i++ {
+	for i := 0; i < 200; i++ {
 		original := &HCPOpenShiftCluster{}
 		fuzzer.Fill(original)
 		doDeepCopyTest(t, original, fuzzer)
@@ -102,7 +108,7 @@ func TestDeepCopyHCPOpenShiftClusterNodePool(t *testing.T) {
 
 	fuzzer := deepCopyFuzzerFor(rand.NewSource(seed))
 
-	for i := 0; i < 20; i++ {
+	for i := 0; i < 200; i++ {
 		original := &HCPOpenShiftClusterNodePool{}
 		fuzzer.Fill(original)
 		doDeepCopyTest(t, original, fuzzer)
@@ -115,7 +121,7 @@ func TestDeepCopyOperation(t *testing.T) {
 
 	fuzzer := deepCopyFuzzerFor(rand.NewSource(seed))
 
-	for i := 0; i < 20; i++ {
+	for i := 0; i < 200; i++ {
 		original := &Operation{}
 		fuzzer.Fill(original)
 		doDeepCopyTest(t, original, fuzzer)

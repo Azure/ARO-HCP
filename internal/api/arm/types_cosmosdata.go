@@ -100,7 +100,12 @@ func DeepCopyResourceID(id *azcorearm.ResourceID) *azcorearm.ResourceID {
 	if id == nil {
 		return nil
 	}
-	copied, err := azcorearm.ParseResourceID(id.String())
+	resourceIDString := id.String()
+	if len(resourceIDString) == 0 { // weird edge case.
+		return &azcorearm.ResourceID{}
+	}
+
+	copied, err := azcorearm.ParseResourceID(resourceIDString)
 	if err != nil {
 		panic(fmt.Sprintf("failed to deep copy ResourceID %q: %v", id.String(), err))
 	}
