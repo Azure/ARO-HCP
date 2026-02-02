@@ -7,6 +7,9 @@
     "id": "ea807c13-7e15-43d4-b760-69ef7e31d273",
     "partitionKey": "6b690bec-0c16-4ecb-8f67-781caf40bba7",
     "properties": {
+        "cosmosMetadata": {
+            "resourceID": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/providers/Microsoft.RedHatOpenShift/hcpOperationStatuses/ea807c13-7e15-43d4-b760-69ef7e31d273"
+        },
         "externalId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/create-with-tags/externalAuths/default",
         "internalId": "/api/clusters_mgmt/v1/clusters/swzpxg6nxn/external_auth_config/external_auths/5fghjjqxvd",
         "lastTransitionTime": "2026-01-09T18:30:03.439824696Z",

@@ -38,6 +38,8 @@ const (
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type Operation struct {
+	CosmosMetadata `json:"cosmosMetadata"`
+
 	// ResourceID must be serialized exactly here for the generic CRUD to work.
 	// ResourceID here is NOT an ARM resourceID, it just parses like and one and is guarantee unique
 	ResourceID *azcorearm.ResourceID `json:"resourceId"`
@@ -86,10 +88,4 @@ func (o *Operation) ComputeLogicalResourceID() *azcorearm.ResourceID {
 				OperationStatusResourceType.String(),
 				o.OperationID.Name,
 			))))
-}
-
-func (o *Operation) GetCosmosData() *CosmosData {
-	return &CosmosData{
-		ResourceID: o.ResourceID,
-	}
 }

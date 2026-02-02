@@ -237,6 +237,9 @@ func TestMockDBClient_CRUD_Operation(t *testing.T) {
 
 	now := time.Now().UTC()
 	operation := &api.Operation{
+		CosmosMetadata: api.CosmosMetadata{
+			ResourceID: resourceID,
+		},
 		ResourceID:         resourceID,
 		OperationID:        operationID,
 		ExternalID:         externalID,

@@ -64,7 +64,7 @@ func NewOperation(
 
 	now := time.Now().UTC()
 
-	doc := &api.Operation{
+	operation := &api.Operation{
 		Request:            request,
 		ExternalID:         externalID,
 		InternalID:         internalID,
@@ -75,8 +75,8 @@ func NewOperation(
 		LastTransitionTime: now,
 		Status:             arm.ProvisioningStateAccepted,
 	}
-	doc.OperationID = api.Must(azcorearm.ParseResourceID(path.Join("/",
-		"subscriptions", doc.ExternalID.SubscriptionID,
+	operation.OperationID = api.Must(azcorearm.ParseResourceID(path.Join("/",
+		"subscriptions", operation.ExternalID.SubscriptionID,
 		"providers", api.ProviderNamespace,
 		"locations", location,
 		api.OperationStatusResourceTypeName,
@@ -86,24 +86,25 @@ func NewOperation(
 	// Microsoft.RedHatOpenShift/locations/hcpOperationStatuses.  This type is not compatible with the current cosmos storage and
 	// nests in a way that doesn't match other types. Since our operationID.Name is a UID, this is still a globally unique
 	// resourceID.
-	doc.ResourceID = api.Must(azcorearm.ParseResourceID(path.Join("/",
-		"subscriptions", doc.ExternalID.SubscriptionID,
+	operation.CosmosMetadata.ResourceID = api.Must(azcorearm.ParseResourceID(path.Join("/",
+		"subscriptions", operation.ExternalID.SubscriptionID,
 		"providers", api.ProviderNamespace,
-		api.OperationStatusResourceTypeName, doc.OperationID.Name,
+		api.OperationStatusResourceTypeName, operation.OperationID.Name,
 	)))
+	operation.ResourceID = operation.CosmosMetadata.ResourceID
 
 	if correlationData != nil {
-		doc.ClientRequestID = correlationData.ClientRequestID
-		doc.CorrelationRequestID = correlationData.CorrelationRequestID
+		operation.ClientRequestID = correlationData.ClientRequestID
+		operation.CorrelationRequestID = correlationData.CorrelationRequestID
 	}
 
 	// When deleting, set Status directly to ProvisioningStateDeleting
 	// so any further deletion requests are rejected with 409 Conflict.
 	if request == OperationRequestDelete {
-		doc.Status = arm.ProvisioningStateDeleting
+		operation.Status = arm.ProvisioningStateDeleting
 	}
 
-	return doc
+	return operation
 }
 
 // ToStatus converts an OperationDocument to the ARM operation status format.
