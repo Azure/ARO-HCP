@@ -23,14 +23,13 @@ func CopyReadOnlyProxyResourceValues(dest, src *arm.ProxyResource) {
 	dest.ID = src.ID
 	dest.Name = src.Name
 	dest.Type = src.Type
-	dest.SystemData = src.SystemData
+	dest.SystemData = src.SystemData.DeepCopy()
 }
 
 func CopyReadOnlyExternalAuthValues(dest, src *api.HCPOpenShiftClusterExternalAuth) {
-	// the old code appeared to shallow copies only
 	CopyReadOnlyProxyResourceValues(&dest.ProxyResource, &src.ProxyResource)
 
 	dest.Properties.ProvisioningState = src.Properties.ProvisioningState
-	dest.Properties.Condition = src.Properties.Condition
-	dest.ServiceProviderProperties = src.ServiceProviderProperties
+	dest.Properties.Condition = *src.Properties.Condition.DeepCopy()
+	dest.ServiceProviderProperties = *src.ServiceProviderProperties.DeepCopy()
 }

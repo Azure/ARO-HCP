@@ -20,7 +20,6 @@ import (
 )
 
 func CopyReadOnlyNodePoolValues(dest, src *api.HCPOpenShiftClusterNodePool) {
-	// the old code appeared to shallow copies only
 	CopyReadOnlyTrackedResourceValues(&dest.TrackedResource, &src.TrackedResource)
 
 	switch {
@@ -34,6 +33,6 @@ func CopyReadOnlyNodePoolValues(dest, src *api.HCPOpenShiftClusterNodePool) {
 	}
 
 	dest.Properties.ProvisioningState = src.Properties.ProvisioningState
-	dest.ServiceProviderProperties = src.ServiceProviderProperties
+	dest.ServiceProviderProperties = *src.ServiceProviderProperties.DeepCopy()
 
 }
