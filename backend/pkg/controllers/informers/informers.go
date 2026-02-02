@@ -86,7 +86,7 @@ func NewSubscriptionInformerWithRelistDuration(lister database.GlobalLister[arm.
 		lw,
 		&arm.Subscription{},
 		cache.SharedIndexInformerOptions{
-			ResyncPeriod: 1 * time.Hour,
+			ResyncPeriod: 1 * time.Hour, // this is only a default.  Shorter resyncs can be added when registering handlers.
 		},
 	)
 }
@@ -127,7 +127,7 @@ func NewClusterInformerWithRelistDuration(lister database.GlobalLister[api.HCPOp
 		lw,
 		&api.HCPOpenShiftCluster{},
 		cache.SharedIndexInformerOptions{
-			ResyncPeriod: 1 * time.Hour,
+			ResyncPeriod: 1 * time.Hour, // this is only a default.  Shorter resyncs can be added when registering handlers.
 			Indexers: cache.Indexers{
 				ByResourceGroup: resourceGroupIndexFunc,
 			},
@@ -171,7 +171,7 @@ func NewNodePoolInformerWithRelistDuration(lister database.GlobalLister[api.HCPO
 		lw,
 		&api.HCPOpenShiftClusterNodePool{},
 		cache.SharedIndexInformerOptions{
-			ResyncPeriod: 1 * time.Hour,
+			ResyncPeriod: 1 * time.Hour, // this is only a default.  Shorter resyncs can be added when registering handlers.
 			Indexers: cache.Indexers{
 				ByResourceGroup: resourceGroupIndexFunc,
 				ByCluster:       clusterResourceIDIndexFunc,
@@ -218,7 +218,7 @@ func NewActiveOperationInformerWithRelistDuration(lister database.GlobalLister[a
 		lw,
 		&api.Operation{},
 		cache.SharedIndexInformerOptions{
-			ResyncPeriod: 1 * time.Hour,
+			ResyncPeriod: 1 * time.Hour, // this is only a default.  Shorter resyncs can be added when registering handlers.
 			Indexers: cache.Indexers{
 				ByResourceGroup: activeOperationResourceGroupIndexFunc,
 				ByCluster:       activeOperationClusterIndexFunc,
