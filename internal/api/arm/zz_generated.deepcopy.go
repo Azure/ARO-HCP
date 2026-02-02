@@ -23,7 +23,6 @@ import (
 	json "encoding/json"
 	time "time"
 
-	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 )
 
@@ -151,8 +150,7 @@ func (in *CosmosMetadata) DeepCopyInto(out *CosmosMetadata) {
 	*out = *in
 	if in.ResourceID != nil {
 		in, out := &in.ResourceID, &out.ResourceID
-		*out = new(azcorearm.ResourceID)
-		**out = **in
+		*out = DeepCopyResourceID(*in)
 	}
 	return
 }
@@ -308,8 +306,7 @@ func (in *Operation) DeepCopyInto(out *Operation) {
 	*out = *in
 	if in.ID != nil {
 		in, out := &in.ID, &out.ID
-		*out = new(azcorearm.ResourceID)
-		**out = **in
+		*out = DeepCopyResourceID(*in)
 	}
 	if in.StartTime != nil {
 		in, out := &in.StartTime, &out.StartTime
@@ -400,8 +397,7 @@ func (in *Resource) DeepCopyInto(out *Resource) {
 	*out = *in
 	if in.ID != nil {
 		in, out := &in.ID, &out.ID
-		*out = new(azcorearm.ResourceID)
-		**out = **in
+		*out = DeepCopyResourceID(*in)
 	}
 	if in.SystemData != nil {
 		in, out := &in.SystemData, &out.SystemData
@@ -426,8 +422,7 @@ func (in *Subscription) DeepCopyInto(out *Subscription) {
 	*out = *in
 	if in.ResourceID != nil {
 		in, out := &in.ResourceID, &out.ResourceID
-		*out = new(azcorearm.ResourceID)
-		**out = **in
+		*out = DeepCopyResourceID(*in)
 	}
 	if in.RegistrationDate != nil {
 		in, out := &in.RegistrationDate, &out.RegistrationDate

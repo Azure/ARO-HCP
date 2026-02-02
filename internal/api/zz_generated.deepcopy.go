@@ -81,13 +81,11 @@ func (in *Controller) DeepCopyInto(out *Controller) {
 	in.CosmosMetadata.DeepCopyInto(&out.CosmosMetadata)
 	if in.ResourceID != nil {
 		in, out := &in.ResourceID, &out.ResourceID
-		*out = new(azcorearm.ResourceID)
-		**out = **in
+		*out = arm.DeepCopyResourceID(*in)
 	}
 	if in.ExternalID != nil {
 		in, out := &in.ExternalID, &out.ExternalID
-		*out = new(azcorearm.ResourceID)
-		**out = **in
+		*out = arm.DeepCopyResourceID(*in)
 	}
 	in.Status.DeepCopyInto(&out.Status)
 	return
@@ -189,13 +187,11 @@ func (in *CustomerPlatformProfile) DeepCopyInto(out *CustomerPlatformProfile) {
 	*out = *in
 	if in.SubnetID != nil {
 		in, out := &in.SubnetID, &out.SubnetID
-		*out = new(azcorearm.ResourceID)
-		**out = **in
+		*out = arm.DeepCopyResourceID(*in)
 	}
 	if in.NetworkSecurityGroupID != nil {
 		in, out := &in.NetworkSecurityGroupID, &out.NetworkSecurityGroupID
-		*out = new(azcorearm.ResourceID)
-		**out = **in
+		*out = arm.DeepCopyResourceID(*in)
 	}
 	in.OperatorsAuthentication.DeepCopyInto(&out.OperatorsAuthentication)
 	return
@@ -730,8 +726,7 @@ func (in *NodePoolPlatformProfile) DeepCopyInto(out *NodePoolPlatformProfile) {
 	*out = *in
 	if in.SubnetID != nil {
 		in, out := &in.SubnetID, &out.SubnetID
-		*out = new(azcorearm.ResourceID)
-		**out = **in
+		*out = arm.DeepCopyResourceID(*in)
 	}
 	in.OSDisk.DeepCopyInto(&out.OSDisk)
 	return
@@ -773,8 +768,7 @@ func (in *OSDiskProfile) DeepCopyInto(out *OSDiskProfile) {
 	}
 	if in.EncryptionSetID != nil {
 		in, out := &in.EncryptionSetID, &out.EncryptionSetID
-		*out = new(azcorearm.ResourceID)
-		**out = **in
+		*out = arm.DeepCopyResourceID(*in)
 	}
 	return
 }
@@ -794,19 +788,16 @@ func (in *Operation) DeepCopyInto(out *Operation) {
 	*out = *in
 	if in.ResourceID != nil {
 		in, out := &in.ResourceID, &out.ResourceID
-		*out = new(azcorearm.ResourceID)
-		**out = **in
+		*out = arm.DeepCopyResourceID(*in)
 	}
 	if in.ExternalID != nil {
 		in, out := &in.ExternalID, &out.ExternalID
-		*out = new(azcorearm.ResourceID)
-		**out = **in
+		*out = arm.DeepCopyResourceID(*in)
 	}
 	out.InternalID = in.InternalID
 	if in.OperationID != nil {
 		in, out := &in.OperationID, &out.OperationID
-		*out = new(azcorearm.ResourceID)
-		**out = **in
+		*out = arm.DeepCopyResourceID(*in)
 	}
 	out.StartTime = in.StartTime
 	out.LastTransitionTime = in.LastTransitionTime
@@ -873,11 +864,10 @@ func (in *ServiceProviderAPIProfile) DeepCopy() *ServiceProviderAPIProfile {
 func (in *ServiceProviderCluster) DeepCopyInto(out *ServiceProviderCluster) {
 	*out = *in
 	in.CosmosMetadata.DeepCopyInto(&out.CosmosMetadata)
-	out.ResourceID = in.ResourceID
+	out.ResourceID = *arm.DeepCopyResourceID(&in.ResourceID)
 	if in.LoadBalancerResourceID != nil {
 		in, out := &in.LoadBalancerResourceID, &out.LoadBalancerResourceID
-		*out = new(azcorearm.ResourceID)
-		**out = **in
+		*out = arm.DeepCopyResourceID(*in)
 	}
 	if in.Validations != nil {
 		in, out := &in.Validations, &out.Validations
@@ -1051,8 +1041,7 @@ func (in *UserAssignedIdentitiesProfile) DeepCopyInto(out *UserAssignedIdentitie
 				(*out)[key] = nil
 			} else {
 				in, out := &val, &outVal
-				*out = new(azcorearm.ResourceID)
-				**out = **in
+				*out = arm.DeepCopyResourceID(*in)
 			}
 			(*out)[key] = outVal
 		}
@@ -1066,16 +1055,14 @@ func (in *UserAssignedIdentitiesProfile) DeepCopyInto(out *UserAssignedIdentitie
 				(*out)[key] = nil
 			} else {
 				in, out := &val, &outVal
-				*out = new(azcorearm.ResourceID)
-				**out = **in
+				*out = arm.DeepCopyResourceID(*in)
 			}
 			(*out)[key] = outVal
 		}
 	}
 	if in.ServiceManagedIdentity != nil {
 		in, out := &in.ServiceManagedIdentity, &out.ServiceManagedIdentity
-		*out = new(azcorearm.ResourceID)
-		**out = **in
+		*out = arm.DeepCopyResourceID(*in)
 	}
 	return
 }

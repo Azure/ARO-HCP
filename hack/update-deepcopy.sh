@@ -33,12 +33,13 @@ DEEPCOPY_GEN="${DEEPCOPY_GEN:-deepcopy-gen}"
 # deepcopy-gen resolves the azcorearm.ResourceID type alias to its internal
 # definition (github.com/Azure/azure-sdk-for-go/sdk/azcore/arm/internal/resource),
 # producing an import that is not accessible outside the Azure SDK module.
-# We replace it with the public import path.
+# We replace it with the public import path and rewrite DeepCopyInto calls on
+# ResourceID to use arm.DeepCopyResourceID which round-trips through String/Parse.
 #
-# Additionally, deepcopy-gen emits .DeepCopyInto() calls for external types
-# that do not implement the interface (azcorearm.ResourceID and time.Time).
-# We replace those with plain value copies. The "any" interface also gets an
-# erroneous .DeepCopyany() call which we replace with a direct assignment.
+# Additionally, deepcopy-gen emits .DeepCopyInto() calls for time.Time which
+# does not implement the interface. We replace those with plain value copies.
+# The "any" interface also gets an erroneous .DeepCopyany() call which we
+# replace with a direct assignment.
 for f in \
   "${REPO_ROOT}/internal/api/zz_generated.deepcopy.go" \
   "${REPO_ROOT}/internal/api/arm/zz_generated.deepcopy.go"; do
@@ -47,31 +48,38 @@ for f in \
     continue
   fi
 
+  # Determine the function prefix based on which package we're in.
+  if [[ "${f}" == *"/arm/"* ]]; then
+    RESOURCEID_FUNC="DeepCopyResourceID"
+  else
+    RESOURCEID_FUNC="arm.DeepCopyResourceID"
+  fi
+
   # Fix internal Azure SDK import path and type references.
   sed -i \
     -e 's|resource "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm/internal/resource"|azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"|g' \
     -e 's|resource\.ResourceID|azcorearm.ResourceID|g' \
     "${f}"
 
-  # Fix pointer-type fields for external types without DeepCopyInto.
-  # Pattern:  *out = new(T)   →   *out = new(T)
-  #           (*in).DeepCopyInto(*out)   →   **out = **in
-  for type in 'azcorearm\.ResourceID' 'time\.Time'; do
-    sed -i \
-      "/\*out = new(${type})/{n;s/(\*in)\.DeepCopyInto(\*out)/**out = **in/;}" \
-      "${f}"
-  done
-
-  # Fix value-type azcorearm.ResourceID field (ServiceProviderCluster.ResourceID).
-  sed -i \
-    's/in\.ResourceID\.DeepCopyInto(&out\.ResourceID)/out.ResourceID = in.ResourceID/g' \
+  # Fix pointer-type azcorearm.ResourceID fields: replace two-line
+  #     *out = new(azcorearm.ResourceID)
+  #     (*in).DeepCopyInto(*out)
+  # with single-line call to DeepCopyResourceID.
+  sed -i -E \
+    "/\*out = new\(azcorearm\.ResourceID\)/{N;s|\*out = new\(azcorearm\.ResourceID\)\n[[:space:]]*\(\*in\)\.DeepCopyInto\(\*out\)|*out = ${RESOURCEID_FUNC}(*in)|;}" \
     "${f}"
 
-  # Fix value-type time.Time fields. These appear as:
-  #   in.<Field>.DeepCopyInto(&out.<Field>)
-  # and need to become:
-  #   out.<Field> = in.<Field>
-  # We match all known time.Time field names in the codebase.
+  # Fix value-type azcorearm.ResourceID field (e.g. ServiceProviderCluster.ResourceID).
+  sed -i \
+    "s/in\.ResourceID\.DeepCopyInto(&out\.ResourceID)/out.ResourceID = *${RESOURCEID_FUNC}(\&in.ResourceID)/g" \
+    "${f}"
+
+  # Fix pointer-type time.Time fields (time.Time has no DeepCopyInto).
+  sed -i \
+    '/\*out = new(time\.Time)/{n;s/(\*in)\.DeepCopyInto(\*out)/**out = **in/;}' \
+    "${f}"
+
+  # Fix value-type time.Time fields.
   for field in LastTransitionTime StartTime ExpirationTimestamp EndOfLifeTimestamp; do
     sed -i \
       "s/in\.${field}\.DeepCopyInto(&out\.${field})/out.${field} = in.${field}/g" \
