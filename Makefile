@@ -297,18 +297,18 @@ generate-kiota:
 #
 # One-Step Personal Dev Environment
 #
-ifeq ($(DEPLOY_ENV),pers)
+ifeq ($(DEPLOY_ENV),$(filter $(DEPLOY_ENV),pers swft))
 personal-dev-env: install-tools entrypoint/Region infra.svc.aks.kubeconfig infra.mgmt.aks.kubeconfig infra.tracing
 else
 personal-dev-env:
-	$(error personal-dev-env: DEPLOY_ENV must be set to "pers", not "$(DEPLOY_ENV)")
+	$(error personal-dev-env: DEPLOY_ENV must be set to "pers" or "swft", not "$(DEPLOY_ENV)")
 endif
 .PHONY: personal-dev-env
 
 #
 # Local Cluster Service Development Environment
 #
-ifeq ($(DEPLOY_ENV),pers)
+ifeq ($(DEPLOY_ENV),$(filter $(DEPLOY_ENV),pers swft))
 local-pers-dev-env: personal-dev-env
 	@echo ""
 	@echo "===================================================================="
@@ -331,7 +331,7 @@ local-pers-dev-env: personal-dev-env
 	@echo "===================================================================="
 else
 local-pers-dev-env:
-	$(error local-pers-dev-env: DEPLOY_ENV must be set to "pers", not "$(DEPLOY_ENV)")
+	$(error local-pers-dev-env: DEPLOY_ENV must be set to "pers" or "swft", not "$(DEPLOY_ENV)")
 endif
 .PHONY: local-pers-dev-env
 
