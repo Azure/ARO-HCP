@@ -99,7 +99,10 @@ func (m *Monitor) WaitForCompletion(ctx context.Context, logger logr.Logger, pro
 
 		select {
 		case <-ctx.Done():
-			return fmt.Errorf("job monitoring timed out after %v - job %s may still be running, check Prow UI: %s", m.timeout, prowExecutionID, job.Status.URL)
+			if job != nil {
+				return fmt.Errorf("job monitoring timed out after %v - job %s may still be running, check Prow UI: %s", m.timeout, prowExecutionID, job.Status.URL)
+			}
+			return fmt.Errorf("job monitoring timed out after %v - job %s may still be running (unable to retrieve job status)", m.timeout, prowExecutionID)
 		case <-ticker.C:
 			// Continue to next iteration
 		}
