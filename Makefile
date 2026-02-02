@@ -43,10 +43,11 @@ verify-generate: generate
 deepcopy: $(DEEPCOPY_GEN) $(GOIMPORTS)
 	DEEPCOPY_GEN=$(DEEPCOPY_GEN) hack/update-deepcopy.sh
 	$(GOIMPORTS) -w -local github.com/Azure/ARO-HCP internal/api/zz_generated.deepcopy.go internal/api/arm/zz_generated.deepcopy.go
+	$(MAKE) all-tidy
 .PHONY: deepcopy
 
-verify-deepcopy: $(DEEPCOPY_GEN) $(GOIMPORTS)
-	DEEPCOPY_GEN=$(DEEPCOPY_GEN) hack/verify-deepcopy.sh
+verify-deepcopy: deepcopy
+	./hack/verify.sh deepcopy
 .PHONY: verify-deepcopy
 
 verify: verify-deepcopy
