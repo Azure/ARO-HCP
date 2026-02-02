@@ -26,5 +26,5 @@ type ClusterValidation interface {
 	// Name returns the name of the validation.
 	Name() string
 	// Validate validates the Cluster. It returns nil if the validation succeeds and an error otherwise.
-	Validate(ctx context.Context, clusterSubscription *arm.Subscription, cluster *api.HCPOpenShiftCluster) error
+	Validate(ctx context.Context, clusterSubscription *arm.Subscription, cluster *api.Cluster) error
 }

@@ -314,10 +314,10 @@ func TestUpdateOperationStatus(t *testing.T) {
 			operationDoc.NotificationURI = server.URL
 			operationDoc.Status = tt.currentOperationStatus
 
-			var resourceDoc *api.HCPOpenShiftCluster
-			var clusterCopy api.HCPOpenShiftCluster
+			var resourceDoc *api.Cluster
+			var clusterCopy api.Cluster
 			if tt.resourceDocPresent {
-				resourceDoc = &api.HCPOpenShiftCluster{
+				resourceDoc = &api.Cluster{
 					TrackedResource: arm.TrackedResource{
 						Resource: arm.Resource{
 							ID: resourceID,
@@ -353,7 +353,7 @@ func TestUpdateOperationStatus(t *testing.T) {
 				Return(mockHCPCluster)
 			mockHCPCluster.EXPECT().
 				Get(gomock.Any(), resourceID.Name).
-				DoAndReturn(func(ctx context.Context, s string) (*api.HCPOpenShiftCluster, error) {
+				DoAndReturn(func(ctx context.Context, s string) (*api.Cluster, error) {
 					if resourceDoc != nil {
 						return &clusterCopy, nil
 					}
@@ -362,7 +362,7 @@ func TestUpdateOperationStatus(t *testing.T) {
 			if tt.resourceDocPresent && resourceDoc.ServiceProviderProperties.ActiveOperationID == operationDoc.OperationID.Name {
 				mockHCPCluster.EXPECT().
 					Replace(gomock.Any(), gomock.Any(), nil).
-					DoAndReturn(func(ctx context.Context, cluster *api.HCPOpenShiftCluster, options *azcosmos.ItemOptions) (*api.HCPOpenShiftCluster, error) {
+					DoAndReturn(func(ctx context.Context, cluster *api.Cluster, options *azcosmos.ItemOptions) (*api.Cluster, error) {
 						if resourceDoc.ServiceProviderProperties.ActiveOperationID == operationDoc.OperationID.Name {
 							resourceDoc.ServiceProviderProperties.ProvisioningState = operationDoc.Status
 							if operationDoc.Status.IsTerminal() {

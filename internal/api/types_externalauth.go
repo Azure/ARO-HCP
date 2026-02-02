@@ -22,25 +22,25 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
 
-// HCPOpenShiftClusterExternalAuth represents the external auth config resource for ARO HCP
+// ExternalAuth represents the external auth config resource for ARO HCP
 // OpenShift clusters.
-type HCPOpenShiftClusterExternalAuth struct {
+type ExternalAuth struct {
 	arm.ProxyResource
-	Properties                HCPOpenShiftClusterExternalAuthProperties                `json:"properties"`
-	ServiceProviderProperties HCPOpenShiftClusterExternalAuthServiceProviderProperties `json:"serviceProviderProperties,omitempty"`
+	Properties                ExternalAuthProperties                `json:"properties"`
+	ServiceProviderProperties ExternalAuthServiceProviderProperties `json:"serviceProviderProperties,omitempty"`
 }
 
-var _ CosmosPersistable = &HCPOpenShiftClusterExternalAuth{}
+var _ CosmosPersistable = &ExternalAuth{}
 
-func (o *HCPOpenShiftClusterExternalAuth) GetCosmosData() *CosmosData {
+func (o *ExternalAuth) GetCosmosData() *CosmosData {
 	return &CosmosData{
 		ResourceID: o.ID,
 	}
 }
 
-// HCPOpenShiftClusterNodePoolProperties represents the property bag of a
-// HCPOpenShiftClusterNodePool resource.
-type HCPOpenShiftClusterExternalAuthProperties struct {
+// NodePoolProperties represents the property bag of a
+// NodePool resource.
+type ExternalAuthProperties struct {
 	ProvisioningState arm.ProvisioningState       `json:"provisioningState"`
 	Condition         ExternalAuthCondition       `json:"condition,omitzero"`
 	Issuer            TokenIssuerProfile          `json:"issuer"`
@@ -48,7 +48,7 @@ type HCPOpenShiftClusterExternalAuthProperties struct {
 	Claim             ExternalAuthClaimProfile    `json:"claim"`
 }
 
-type HCPOpenShiftClusterExternalAuthServiceProviderProperties struct {
+type ExternalAuthServiceProviderProperties struct {
 	ClusterServiceID  InternalID `json:"clusterServiceID,omitempty"`
 	ActiveOperationID string     `json:"activeOperationId,omitempty"`
 }
@@ -144,10 +144,10 @@ type TokenRequiredClaim struct {
 	RequiredValue string `json:"requiredValue"`
 }
 
-func NewDefaultHCPOpenShiftClusterExternalAuth(resourceID *azcorearm.ResourceID) *HCPOpenShiftClusterExternalAuth {
-	return &HCPOpenShiftClusterExternalAuth{
+func NewDefaultHCPOpenShiftClusterExternalAuth(resourceID *azcorearm.ResourceID) *ExternalAuth {
+	return &ExternalAuth{
 		ProxyResource: arm.NewProxyResource(resourceID),
-		Properties: HCPOpenShiftClusterExternalAuthProperties{
+		Properties: ExternalAuthProperties{
 			Claim: ExternalAuthClaimProfile{
 				Mappings: TokenClaimMappingsProfile{
 					Username: UsernameClaimProfile{
@@ -159,6 +159,6 @@ func NewDefaultHCPOpenShiftClusterExternalAuth(resourceID *azcorearm.ResourceID)
 	}
 }
 
-func (o *HCPOpenShiftClusterExternalAuth) Validate() []arm.CloudErrorBody {
+func (o *ExternalAuth) Validate() []arm.CloudErrorBody {
 	return nil
 }

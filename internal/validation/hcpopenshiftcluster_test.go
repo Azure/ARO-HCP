@@ -35,13 +35,13 @@ var (
 func TestClusterRequired(t *testing.T) {
 	tests := []struct {
 		name         string
-		resource     *api.HCPOpenShiftCluster
-		tweaks       *api.HCPOpenShiftCluster
+		resource     *api.Cluster
+		tweaks       *api.Cluster
 		expectErrors []expectedError
 	}{
 		{
 			name:     "Empty cluster",
-			resource: &api.HCPOpenShiftCluster{},
+			resource: &api.Cluster{},
 			expectErrors: []expectedError{
 				{
 					message:   "Required value",
@@ -125,8 +125,8 @@ func TestClusterRequired(t *testing.T) {
 		},
 		{
 			name: "Cluster with identity",
-			tweaks: &api.HCPOpenShiftCluster{
-				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
+			tweaks: &api.Cluster{
+				CustomerProperties: api.ClusterCustomerProperties{
 					Platform: api.CustomerPlatformProfile{
 						OperatorsAuthentication: api.OperatorsAuthenticationProfile{
 							UserAssignedIdentities: api.UserAssignedIdentitiesProfile{
@@ -166,19 +166,19 @@ func TestClusterValidate(t *testing.T) {
 	// This function tests all the other validators in use.
 	tests := []struct {
 		name         string
-		resource     *api.HCPOpenShiftCluster
-		tweaks       *api.HCPOpenShiftCluster
+		resource     *api.Cluster
+		tweaks       *api.Cluster
 		expectErrors []expectedError
 	}{
 		{
 			name:         "Minimum valid cluster",
-			tweaks:       &api.HCPOpenShiftCluster{},
+			tweaks:       &api.Cluster{},
 			expectErrors: []expectedError{},
 		},
 		{
 			name: "Bad cidrv4",
-			tweaks: &api.HCPOpenShiftCluster{
-				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
+			tweaks: &api.Cluster{
+				CustomerProperties: api.ClusterCustomerProperties{
 					Network: api.NetworkProfile{
 						PodCIDR: "Mmm... apple cider",
 					},
@@ -193,8 +193,8 @@ func TestClusterValidate(t *testing.T) {
 		},
 		{
 			name: "Bad dns_rfc1035_label",
-			tweaks: &api.HCPOpenShiftCluster{
-				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
+			tweaks: &api.Cluster{
+				CustomerProperties: api.ClusterCustomerProperties{
 					DNS: api.CustomerDNSProfile{
 						BaseDomainPrefix: "0badlabel",
 					},
@@ -209,8 +209,8 @@ func TestClusterValidate(t *testing.T) {
 		},
 		{
 			name: "Bad enum_outboundtype",
-			tweaks: &api.HCPOpenShiftCluster{
-				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
+			tweaks: &api.Cluster{
+				CustomerProperties: api.ClusterCustomerProperties{
 					Platform: api.CustomerPlatformProfile{
 						OutboundType: "loadJuggler",
 					},
@@ -225,7 +225,7 @@ func TestClusterValidate(t *testing.T) {
 		},
 		{
 			name: "Bad required_unless",
-			resource: func() *api.HCPOpenShiftCluster {
+			resource: func() *api.Cluster {
 				r := api.MinimumValidClusterTestCase()
 				r.CustomerProperties.Version.ID = ""
 				r.CustomerProperties.Version.ChannelGroup = "fast"
@@ -240,8 +240,8 @@ func TestClusterValidate(t *testing.T) {
 		},
 		{
 			name: "Bad enum_visibility",
-			tweaks: &api.HCPOpenShiftCluster{
-				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
+			tweaks: &api.Cluster{
+				CustomerProperties: api.ClusterCustomerProperties{
 					API: api.CustomerAPIProfile{
 						Visibility: "it's a secret to everybody",
 					},
@@ -256,7 +256,7 @@ func TestClusterValidate(t *testing.T) {
 		},
 		{
 			name: "Bad enum_managedserviceidentitytype",
-			tweaks: &api.HCPOpenShiftCluster{
+			tweaks: &api.Cluster{
 				Identity: &arm.ManagedServiceIdentity{
 					Type: "brokenServiceType",
 				},
@@ -270,8 +270,8 @@ func TestClusterValidate(t *testing.T) {
 		},
 		{
 			name: "Bad enum_clusterimageregistryprofilestate",
-			tweaks: &api.HCPOpenShiftCluster{
-				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
+			tweaks: &api.Cluster{
+				CustomerProperties: api.ClusterCustomerProperties{
 					ClusterImageRegistry: api.ClusterImageRegistryProfile{
 						State: api.ClusterImageRegistryProfileState("not enabled"),
 					},
@@ -286,8 +286,8 @@ func TestClusterValidate(t *testing.T) {
 		},
 		{
 			name: "Base domain prefix is too long",
-			tweaks: &api.HCPOpenShiftCluster{
-				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
+			tweaks: &api.Cluster{
+				CustomerProperties: api.ClusterCustomerProperties{
 					DNS: api.CustomerDNSProfile{
 						BaseDomainPrefix: "this-domain-is-too-long",
 					},
@@ -302,8 +302,8 @@ func TestClusterValidate(t *testing.T) {
 		},
 		{
 			name: "Host prefix is too small",
-			tweaks: &api.HCPOpenShiftCluster{
-				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
+			tweaks: &api.Cluster{
+				CustomerProperties: api.ClusterCustomerProperties{
 					Network: api.NetworkProfile{
 						HostPrefix: 22,
 					},
@@ -318,8 +318,8 @@ func TestClusterValidate(t *testing.T) {
 		},
 		{
 			name: "Host prefix is too large",
-			tweaks: &api.HCPOpenShiftCluster{
-				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
+			tweaks: &api.Cluster{
+				CustomerProperties: api.ClusterCustomerProperties{
 					Network: api.NetworkProfile{
 						HostPrefix: 27,
 					},
@@ -334,8 +334,8 @@ func TestClusterValidate(t *testing.T) {
 		},
 		{
 			name: "Control plane operator name cannot be empty",
-			tweaks: &api.HCPOpenShiftCluster{
-				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
+			tweaks: &api.Cluster{
+				CustomerProperties: api.ClusterCustomerProperties{
 					Platform: api.CustomerPlatformProfile{
 						OperatorsAuthentication: api.OperatorsAuthenticationProfile{
 							UserAssignedIdentities: api.UserAssignedIdentitiesProfile{
@@ -361,8 +361,8 @@ func TestClusterValidate(t *testing.T) {
 
 		{
 			name: "Data plane operator name cannot be empty",
-			tweaks: &api.HCPOpenShiftCluster{
-				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
+			tweaks: &api.Cluster{
+				CustomerProperties: api.ClusterCustomerProperties{
 					Platform: api.CustomerPlatformProfile{
 						OperatorsAuthentication: api.OperatorsAuthenticationProfile{
 							UserAssignedIdentities: api.UserAssignedIdentitiesProfile{
@@ -383,8 +383,8 @@ func TestClusterValidate(t *testing.T) {
 		},
 		{
 			name: "Customer managed ETCD key management mode requires CustomerManaged fields",
-			tweaks: &api.HCPOpenShiftCluster{
-				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
+			tweaks: &api.Cluster{
+				CustomerProperties: api.ClusterCustomerProperties{
 					Etcd: api.EtcdProfile{
 						DataEncryption: api.EtcdDataEncryptionProfile{
 							KeyManagementMode: api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged,
@@ -401,8 +401,8 @@ func TestClusterValidate(t *testing.T) {
 		},
 		{
 			name: "Platform managed ETCD key management mode excludes CustomerManaged fields",
-			tweaks: &api.HCPOpenShiftCluster{
-				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
+			tweaks: &api.Cluster{
+				CustomerProperties: api.ClusterCustomerProperties{
 					Etcd: api.EtcdProfile{
 						DataEncryption: api.EtcdDataEncryptionProfile{
 							KeyManagementMode: api.EtcdDataEncryptionKeyManagementModeTypePlatformManaged,
@@ -424,8 +424,8 @@ func TestClusterValidate(t *testing.T) {
 		},
 		{
 			name: "Customer managed Key Management Service (KMS) requires Kms fields",
-			tweaks: &api.HCPOpenShiftCluster{
-				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
+			tweaks: &api.Cluster{
+				CustomerProperties: api.ClusterCustomerProperties{
 					Etcd: api.EtcdProfile{
 						DataEncryption: api.EtcdDataEncryptionProfile{
 							KeyManagementMode: api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged,
@@ -446,8 +446,8 @@ func TestClusterValidate(t *testing.T) {
 		{
 			// FIXME Use a valid alternate EncryptionType once we have one.
 			name: "Alternate customer managed ETCD encyption type excludes Kms fields",
-			tweaks: &api.HCPOpenShiftCluster{
-				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
+			tweaks: &api.Cluster{
+				CustomerProperties: api.ClusterCustomerProperties{
 					Etcd: api.EtcdProfile{
 						DataEncryption: api.EtcdDataEncryptionProfile{
 							KeyManagementMode: api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged,
@@ -489,8 +489,8 @@ func TestClusterValidate(t *testing.T) {
 
 		{
 			name: "Cluster with overlapping machine and service CIDRs",
-			tweaks: &api.HCPOpenShiftCluster{
-				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
+			tweaks: &api.Cluster{
+				CustomerProperties: api.ClusterCustomerProperties{
 					Network: api.NetworkProfile{
 						ServiceCIDR: "10.0.0.0/23",
 						MachineCIDR: "10.0.0.0/16",
@@ -506,8 +506,8 @@ func TestClusterValidate(t *testing.T) {
 		},
 		{
 			name: "Cluster with overlapping machine and pod CIDRs",
-			tweaks: &api.HCPOpenShiftCluster{
-				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
+			tweaks: &api.Cluster{
+				CustomerProperties: api.ClusterCustomerProperties{
 					Network: api.NetworkProfile{
 						PodCIDR:     "10.1.0.0/18",
 						MachineCIDR: "10.1.0.0/23",
@@ -523,8 +523,8 @@ func TestClusterValidate(t *testing.T) {
 		},
 		{
 			name: "Cluster with overlapping service and pod CIDRs",
-			tweaks: &api.HCPOpenShiftCluster{
-				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
+			tweaks: &api.Cluster{
+				CustomerProperties: api.ClusterCustomerProperties{
 					Network: api.NetworkProfile{
 						PodCIDR:     "10.2.0.0/18",
 						ServiceCIDR: "10.2.0.0/24",
@@ -540,8 +540,8 @@ func TestClusterValidate(t *testing.T) {
 		},
 		{
 			name: "Cluster with invalid managed resource group",
-			tweaks: &api.HCPOpenShiftCluster{
-				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
+			tweaks: &api.Cluster{
+				CustomerProperties: api.ClusterCustomerProperties{
 					Platform: api.CustomerPlatformProfile{
 						ManagedResourceGroup: api.TestResourceGroupName,
 						// Use a different resource group name to avoid a subnet ID error.
@@ -558,8 +558,8 @@ func TestClusterValidate(t *testing.T) {
 		},
 		{
 			name: "Cluster with invalid subnet ID",
-			tweaks: &api.HCPOpenShiftCluster{
-				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
+			tweaks: &api.Cluster{
+				CustomerProperties: api.ClusterCustomerProperties{
 					Platform: api.CustomerPlatformProfile{
 						ManagedResourceGroup: "MRG",
 						SubnetID:             api.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/MRG/providers/Microsoft.Network/virtualNetworks/testVirtualNetwork/subnets/testSubnet")),
@@ -583,8 +583,8 @@ func TestClusterValidate(t *testing.T) {
 		},
 		{
 			name: "Cluster with differently-cased identities",
-			tweaks: &api.HCPOpenShiftCluster{
-				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
+			tweaks: &api.Cluster{
+				CustomerProperties: api.ClusterCustomerProperties{
 					Platform: api.CustomerPlatformProfile{
 						OperatorsAuthentication: api.OperatorsAuthenticationProfile{
 							UserAssignedIdentities: api.UserAssignedIdentitiesProfile{
@@ -607,8 +607,8 @@ func TestClusterValidate(t *testing.T) {
 		},
 		{
 			name: "Cluster with broken identities",
-			tweaks: &api.HCPOpenShiftCluster{
-				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
+			tweaks: &api.Cluster{
+				CustomerProperties: api.ClusterCustomerProperties{
 					Platform: api.CustomerPlatformProfile{
 						OperatorsAuthentication: api.OperatorsAuthenticationProfile{
 							UserAssignedIdentities: api.UserAssignedIdentitiesProfile{
@@ -644,8 +644,8 @@ func TestClusterValidate(t *testing.T) {
 		},
 		{
 			name: "Cluster with multiple identities",
-			tweaks: &api.HCPOpenShiftCluster{
-				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
+			tweaks: &api.Cluster{
+				CustomerProperties: api.ClusterCustomerProperties{
 					Platform: api.CustomerPlatformProfile{
 						OperatorsAuthentication: api.OperatorsAuthenticationProfile{
 							UserAssignedIdentities: api.UserAssignedIdentitiesProfile{
@@ -674,8 +674,8 @@ func TestClusterValidate(t *testing.T) {
 		},
 		{
 			name: "Cluster with invalid data plane operator identities",
-			tweaks: &api.HCPOpenShiftCluster{
-				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
+			tweaks: &api.Cluster{
+				CustomerProperties: api.ClusterCustomerProperties{
 					Platform: api.CustomerPlatformProfile{
 						OperatorsAuthentication: api.OperatorsAuthenticationProfile{
 							UserAssignedIdentities: api.UserAssignedIdentitiesProfile{

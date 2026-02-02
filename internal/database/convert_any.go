@@ -75,13 +75,13 @@ func InternalToCosmos[InternalAPIType, CosmosAPIType any](obj *InternalAPIType) 
 	var cosmosObj any
 	var err error
 	switch internalObj := any(obj).(type) {
-	case *api.HCPOpenShiftClusterExternalAuth:
+	case *api.ExternalAuth:
 		cosmosObj, err = InternalToCosmosExternalAuth(internalObj)
 
-	case *api.HCPOpenShiftCluster:
+	case *api.Cluster:
 		cosmosObj, err = InternalToCosmosCluster(internalObj)
 
-	case *api.HCPOpenShiftClusterNodePool:
+	case *api.NodePool:
 		cosmosObj, err = InternalToCosmosNodePool(internalObj)
 
 	case *api.Controller:

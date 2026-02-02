@@ -28,37 +28,37 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
 
-func ValidateExternalAuthCreate(ctx context.Context, newObj *api.HCPOpenShiftClusterExternalAuth) field.ErrorList {
+func ValidateExternalAuthCreate(ctx context.Context, newObj *api.ExternalAuth) field.ErrorList {
 	op := operation.Operation{Type: operation.Create}
 	return validateExternalAuth(ctx, op, newObj, nil)
 }
 
-func ValidateExternalAuthUpdate(ctx context.Context, newObj, oldObj *api.HCPOpenShiftClusterExternalAuth) field.ErrorList {
+func ValidateExternalAuthUpdate(ctx context.Context, newObj, oldObj *api.ExternalAuth) field.ErrorList {
 	op := operation.Operation{Type: operation.Update}
 	return validateExternalAuth(ctx, op, newObj, oldObj)
 }
 
 var (
-	toExternalAuthProxyResource = func(oldObj *api.HCPOpenShiftClusterExternalAuth) *arm.ProxyResource { return &oldObj.ProxyResource }
-	toExternalAuthProperties    = func(oldObj *api.HCPOpenShiftClusterExternalAuth) *api.HCPOpenShiftClusterExternalAuthProperties {
+	toExternalAuthProxyResource = func(oldObj *api.ExternalAuth) *arm.ProxyResource { return &oldObj.ProxyResource }
+	toExternalAuthProperties    = func(oldObj *api.ExternalAuth) *api.ExternalAuthProperties {
 		return &oldObj.Properties
 	}
-	toExternalAuthServiceProviderProperties = func(oldObj *api.HCPOpenShiftClusterExternalAuth) *api.HCPOpenShiftClusterExternalAuthServiceProviderProperties {
+	toExternalAuthServiceProviderProperties = func(oldObj *api.ExternalAuth) *api.ExternalAuthServiceProviderProperties {
 		return &oldObj.ServiceProviderProperties
 	}
 )
 
-func validateExternalAuth(ctx context.Context, op operation.Operation, newObj, oldObj *api.HCPOpenShiftClusterExternalAuth) field.ErrorList {
+func validateExternalAuth(ctx context.Context, op operation.Operation, newObj, oldObj *api.ExternalAuth) field.ErrorList {
 	errs := field.ErrorList{}
 
 	//arm.ProxyResource
 	errs = append(errs, validateProxyResource(ctx, op, field.NewPath("trackedResource"), &newObj.ProxyResource, safe.Field(oldObj, toExternalAuthProxyResource))...)
 	errs = append(errs, RestrictedResourceIDWithResourceGroup(ctx, op, field.NewPath("id"), newObj.ID, nil, api.ExternalAuthResourceType.String())...)
 
-	//Properties HCPOpenShiftClusterExternalAuthProperties `json:"properties"`
+	//Properties ExternalAuthProperties `json:"properties"`
 	errs = append(errs, validateExternalAuthProperties(ctx, op, field.NewPath("properties"), &newObj.Properties, safe.Field(oldObj, toExternalAuthProperties))...)
 
-	//ServiceProviderProperties HCPOpenShiftClusterExternalAuthServiceProviderProperties `json:"serviceProviderProperties,omitempty"`
+	//ServiceProviderProperties ExternalAuthServiceProviderProperties `json:"serviceProviderProperties,omitempty"`
 	errs = append(errs, validateExternalAuthServiceProviderProperties(ctx, op, field.NewPath("serviceProviderProperties"), &newObj.ServiceProviderProperties, safe.Field(oldObj, toExternalAuthServiceProviderProperties))...)
 
 	return errs
@@ -78,24 +78,24 @@ func validateProxyResource(ctx context.Context, op operation.Operation, fldPath 
 }
 
 var (
-	toExternalAuthPropertiesProvisioningState = func(oldObj *api.HCPOpenShiftClusterExternalAuthProperties) *arm.ProvisioningState {
+	toExternalAuthPropertiesProvisioningState = func(oldObj *api.ExternalAuthProperties) *arm.ProvisioningState {
 		return &oldObj.ProvisioningState
 	}
-	toExternalAuthPropertiesCondition = func(oldObj *api.HCPOpenShiftClusterExternalAuthProperties) *api.ExternalAuthCondition {
+	toExternalAuthPropertiesCondition = func(oldObj *api.ExternalAuthProperties) *api.ExternalAuthCondition {
 		return &oldObj.Condition
 	}
-	toExternalAuthPropertiesIssuer = func(oldObj *api.HCPOpenShiftClusterExternalAuthProperties) *api.TokenIssuerProfile {
+	toExternalAuthPropertiesIssuer = func(oldObj *api.ExternalAuthProperties) *api.TokenIssuerProfile {
 		return &oldObj.Issuer
 	}
-	toExternalAuthPropertiesClients = func(oldObj *api.HCPOpenShiftClusterExternalAuthProperties) []api.ExternalAuthClientProfile {
+	toExternalAuthPropertiesClients = func(oldObj *api.ExternalAuthProperties) []api.ExternalAuthClientProfile {
 		return oldObj.Clients
 	}
-	toExternalAuthPropertiesClaim = func(oldObj *api.HCPOpenShiftClusterExternalAuthProperties) *api.ExternalAuthClaimProfile {
+	toExternalAuthPropertiesClaim = func(oldObj *api.ExternalAuthProperties) *api.ExternalAuthClaimProfile {
 		return &oldObj.Claim
 	}
 )
 
-func validateExternalAuthProperties(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *api.HCPOpenShiftClusterExternalAuthProperties) field.ErrorList {
+func validateExternalAuthProperties(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *api.ExternalAuthProperties) field.ErrorList {
 	errs := field.ErrorList{}
 
 	//ProvisioningState arm.ProvisioningState       `json:"provisioningState"`
@@ -146,12 +146,12 @@ func validateExternalAuthProperties(ctx context.Context, op operation.Operation,
 }
 
 var (
-	toExternalAuthServiceProviderClusterServiceID = func(oldObj *api.HCPOpenShiftClusterExternalAuthServiceProviderProperties) *api.InternalID {
+	toExternalAuthServiceProviderClusterServiceID = func(oldObj *api.ExternalAuthServiceProviderProperties) *api.InternalID {
 		return &oldObj.ClusterServiceID
 	}
 )
 
-func validateExternalAuthServiceProviderProperties(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *api.HCPOpenShiftClusterExternalAuthServiceProviderProperties) field.ErrorList {
+func validateExternalAuthServiceProviderProperties(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *api.ExternalAuthServiceProviderProperties) field.ErrorList {
 	errs := field.ErrorList{}
 
 	//ClusterServiceID  InternalID                     `json:"clusterServiceID,omitempty"`

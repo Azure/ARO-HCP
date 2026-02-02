@@ -81,7 +81,7 @@ func TestAdmitClusterOnCreate(t *testing.T) {
 
 	tests := []struct {
 		name         string
-		cluster      *api.HCPOpenShiftCluster
+		cluster      *api.Cluster
 		subscription *arm.Subscription
 		expectErrors []expectedError
 	}{
@@ -99,7 +99,7 @@ func TestAdmitClusterOnCreate(t *testing.T) {
 		},
 		{
 			name: "invalid channel group without feature flag - candidate",
-			cluster: func() *api.HCPOpenShiftCluster {
+			cluster: func() *api.Cluster {
 				c := api.MinimumValidClusterTestCase()
 				c.CustomerProperties.Version.ChannelGroup = "candidate"
 				c.CustomerProperties.Version.ID = "4.15"
@@ -114,7 +114,7 @@ func TestAdmitClusterOnCreate(t *testing.T) {
 		},
 		{
 			name: "invalid channel group without feature flag - fast",
-			cluster: func() *api.HCPOpenShiftCluster {
+			cluster: func() *api.Cluster {
 				c := api.MinimumValidClusterTestCase()
 				c.CustomerProperties.Version.ChannelGroup = "fast"
 				c.CustomerProperties.Version.ID = "4.15"
@@ -128,7 +128,7 @@ func TestAdmitClusterOnCreate(t *testing.T) {
 		},
 		{
 			name: "invalid channel group without feature flag - nightly",
-			cluster: func() *api.HCPOpenShiftCluster {
+			cluster: func() *api.Cluster {
 				c := api.MinimumValidClusterTestCase()
 				c.CustomerProperties.Version.ChannelGroup = "nightly"
 				c.CustomerProperties.Version.ID = "4.15"
@@ -142,7 +142,7 @@ func TestAdmitClusterOnCreate(t *testing.T) {
 		},
 		{
 			name: "invalid version with malformed version",
-			cluster: func() *api.HCPOpenShiftCluster {
+			cluster: func() *api.Cluster {
 				c := api.MinimumValidClusterTestCase()
 				c.CustomerProperties.Version.ID = "invalid-version"
 				return c
@@ -153,7 +153,7 @@ func TestAdmitClusterOnCreate(t *testing.T) {
 		},
 		{
 			name: "invalid version format with patch version",
-			cluster: func() *api.HCPOpenShiftCluster {
+			cluster: func() *api.Cluster {
 				c := api.MinimumValidClusterTestCase()
 				c.CustomerProperties.Version.ID = "4.15.1"
 				return c
@@ -165,7 +165,7 @@ func TestAdmitClusterOnCreate(t *testing.T) {
 		},
 		{
 			name: "invalid version format with prerelease",
-			cluster: func() *api.HCPOpenShiftCluster {
+			cluster: func() *api.Cluster {
 				c := api.MinimumValidClusterTestCase()
 				c.CustomerProperties.Version.ID = "4.15.0-rc.1"
 				return c
@@ -178,7 +178,7 @@ func TestAdmitClusterOnCreate(t *testing.T) {
 
 		{
 			name: "valid cluster with fast channel group",
-			cluster: func() *api.HCPOpenShiftCluster {
+			cluster: func() *api.Cluster {
 				c := api.MinimumValidClusterTestCase()
 				c.CustomerProperties.Version.ChannelGroup = "fast"
 				c.CustomerProperties.Version.ID = "4.17"
@@ -203,12 +203,12 @@ func TestAdmitClusterOnCreateWithNonStableChannels(t *testing.T) {
 
 	tests := []struct {
 		name         string
-		cluster      *api.HCPOpenShiftCluster
+		cluster      *api.Cluster
 		expectErrors []expectedError
 	}{
 		{
 			name: "valid cluster with candidate channel group and MAJOR.MINOR version",
-			cluster: func() *api.HCPOpenShiftCluster {
+			cluster: func() *api.Cluster {
 				c := api.MinimumValidClusterTestCase()
 				c.CustomerProperties.Version.ChannelGroup = "candidate"
 				c.CustomerProperties.Version.ID = "4.15"
@@ -218,7 +218,7 @@ func TestAdmitClusterOnCreateWithNonStableChannels(t *testing.T) {
 		},
 		{
 			name: "valid cluster with fast channel group and MAJOR.MINOR version",
-			cluster: func() *api.HCPOpenShiftCluster {
+			cluster: func() *api.Cluster {
 				c := api.MinimumValidClusterTestCase()
 				c.CustomerProperties.Version.ChannelGroup = "fast"
 				c.CustomerProperties.Version.ID = "4.16"
@@ -228,7 +228,7 @@ func TestAdmitClusterOnCreateWithNonStableChannels(t *testing.T) {
 		},
 		{
 			name: "valid cluster with nightly channel group and full semver",
-			cluster: func() *api.HCPOpenShiftCluster {
+			cluster: func() *api.Cluster {
 				c := api.MinimumValidClusterTestCase()
 				c.CustomerProperties.Version.ChannelGroup = "nightly"
 				c.CustomerProperties.Version.ID = "4.17.0-0.nightly-2024-01-15-123456"
@@ -238,7 +238,7 @@ func TestAdmitClusterOnCreateWithNonStableChannels(t *testing.T) {
 		},
 		{
 			name: "valid cluster with candidate channel group and prerelease version",
-			cluster: func() *api.HCPOpenShiftCluster {
+			cluster: func() *api.Cluster {
 				c := api.MinimumValidClusterTestCase()
 				c.CustomerProperties.Version.ChannelGroup = "candidate"
 				c.CustomerProperties.Version.ID = "4.15.0-rc.1"
@@ -248,7 +248,7 @@ func TestAdmitClusterOnCreateWithNonStableChannels(t *testing.T) {
 		},
 		{
 			name: "valid cluster with custom channel group",
-			cluster: func() *api.HCPOpenShiftCluster {
+			cluster: func() *api.Cluster {
 				c := api.MinimumValidClusterTestCase()
 				c.CustomerProperties.Version.ChannelGroup = "custom-channel"
 				c.CustomerProperties.Version.ID = "4.15.0-custom.1"
@@ -258,7 +258,7 @@ func TestAdmitClusterOnCreateWithNonStableChannels(t *testing.T) {
 		},
 		{
 			name: "stable channel group still requires MAJOR.MINOR version",
-			cluster: func() *api.HCPOpenShiftCluster {
+			cluster: func() *api.Cluster {
 				c := api.MinimumValidClusterTestCase()
 				c.CustomerProperties.Version.ChannelGroup = "stable"
 				c.CustomerProperties.Version.ID = "4.15"
@@ -268,7 +268,7 @@ func TestAdmitClusterOnCreateWithNonStableChannels(t *testing.T) {
 		},
 		{
 			name: "stable channel group rejects full semver",
-			cluster: func() *api.HCPOpenShiftCluster {
+			cluster: func() *api.Cluster {
 				c := api.MinimumValidClusterTestCase()
 				c.CustomerProperties.Version.ChannelGroup = "stable"
 				c.CustomerProperties.Version.ID = "4.15.1"

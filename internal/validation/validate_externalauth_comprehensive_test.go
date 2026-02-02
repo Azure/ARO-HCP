@@ -32,8 +32,8 @@ func TestValidateExternalAuth(t *testing.T) {
 
 	tests := []struct {
 		name         string
-		newObj       *api.HCPOpenShiftClusterExternalAuth
-		oldObj       *api.HCPOpenShiftClusterExternalAuth
+		newObj       *api.ExternalAuth
+		oldObj       *api.ExternalAuth
 		op           operation.Operation
 		expectErrors []expectedError
 	}{
@@ -45,7 +45,7 @@ func TestValidateExternalAuth(t *testing.T) {
 		},
 		{
 			name: "valid external auth with multiple unique clients",
-			newObj: func() *api.HCPOpenShiftClusterExternalAuth {
+			newObj: func() *api.ExternalAuth {
 				obj := createValidExternalAuth()
 				obj.Properties.Issuer.Audiences = []string{"client1", "client2", "client3"}
 				obj.Properties.Clients = []api.ExternalAuthClientProfile{
@@ -81,7 +81,7 @@ func TestValidateExternalAuth(t *testing.T) {
 		},
 		{
 			name: "valid external auth without CA certificate",
-			newObj: func() *api.HCPOpenShiftClusterExternalAuth {
+			newObj: func() *api.ExternalAuth {
 				obj := createValidExternalAuth()
 				obj.Properties.Issuer.CA = "" // CA is optional
 				return obj
@@ -100,7 +100,7 @@ func TestValidateExternalAuth(t *testing.T) {
 		},
 		{
 			name: "invalid issuer URL - not HTTPS",
-			newObj: func() *api.HCPOpenShiftClusterExternalAuth {
+			newObj: func() *api.ExternalAuth {
 				obj := createMinimalExternalAuth()
 				obj.Properties.Issuer.URL = "http://insecure.example.com"
 				return obj
@@ -113,7 +113,7 @@ func TestValidateExternalAuth(t *testing.T) {
 		},
 		{
 			name: "missing issuer audiences",
-			newObj: func() *api.HCPOpenShiftClusterExternalAuth {
+			newObj: func() *api.ExternalAuth {
 				obj := createMinimalExternalAuth()
 				obj.Properties.Issuer.URL = "https://valid.example.com"
 				obj.Properties.Issuer.Audiences = []string{}
@@ -127,7 +127,7 @@ func TestValidateExternalAuth(t *testing.T) {
 		},
 		{
 			name: "too many issuer audiences",
-			newObj: func() *api.HCPOpenShiftClusterExternalAuth {
+			newObj: func() *api.ExternalAuth {
 				obj := createMinimalExternalAuth()
 				obj.Properties.Issuer.URL = "https://valid.example.com"
 				obj.Properties.Issuer.Audiences = make([]string, 11)
@@ -143,7 +143,7 @@ func TestValidateExternalAuth(t *testing.T) {
 		},
 		{
 			name: "invalid CA certificate",
-			newObj: func() *api.HCPOpenShiftClusterExternalAuth {
+			newObj: func() *api.ExternalAuth {
 				obj := createMinimalExternalAuth()
 				obj.Properties.Issuer.URL = "https://valid.example.com"
 				obj.Properties.Issuer.Audiences = []string{"audience1"}
@@ -157,7 +157,7 @@ func TestValidateExternalAuth(t *testing.T) {
 		},
 		{
 			name: "too many clients",
-			newObj: func() *api.HCPOpenShiftClusterExternalAuth {
+			newObj: func() *api.ExternalAuth {
 				obj := createMinimalExternalAuth()
 				obj.Properties.Issuer.URL = "https://valid.example.com"
 				obj.Properties.Issuer.Audiences = []string{"audience1"}
@@ -181,7 +181,7 @@ func TestValidateExternalAuth(t *testing.T) {
 		},
 		{
 			name: "missing client component name",
-			newObj: func() *api.HCPOpenShiftClusterExternalAuth {
+			newObj: func() *api.ExternalAuth {
 				obj := createMinimalExternalAuth()
 				obj.Properties.Issuer.URL = "https://valid.example.com"
 				obj.Properties.Issuer.Audiences = []string{"audience1"}
@@ -204,7 +204,7 @@ func TestValidateExternalAuth(t *testing.T) {
 		},
 		{
 			name: "client component name too long",
-			newObj: func() *api.HCPOpenShiftClusterExternalAuth {
+			newObj: func() *api.ExternalAuth {
 				obj := createValidExternalAuth()
 				longName := make([]byte, 257)
 				for i := range longName {
@@ -220,7 +220,7 @@ func TestValidateExternalAuth(t *testing.T) {
 		},
 		{
 			name: "group claim too long",
-			newObj: func() *api.HCPOpenShiftClusterExternalAuth {
+			newObj: func() *api.ExternalAuth {
 				obj := createValidExternalAuth()
 				longClaim := make([]byte, 257)
 				for i := range longClaim {
@@ -236,7 +236,7 @@ func TestValidateExternalAuth(t *testing.T) {
 		},
 		{
 			name: "missing username claim",
-			newObj: func() *api.HCPOpenShiftClusterExternalAuth {
+			newObj: func() *api.ExternalAuth {
 				obj := createValidExternalAuth()
 				obj.Properties.Claim.Mappings.Username.Claim = ""
 				return obj
@@ -248,7 +248,7 @@ func TestValidateExternalAuth(t *testing.T) {
 		},
 		{
 			name: "duplicate client components (unique validation)",
-			newObj: func() *api.HCPOpenShiftClusterExternalAuth {
+			newObj: func() *api.ExternalAuth {
 				obj := createValidExternalAuth()
 				obj.Properties.Issuer.Audiences = []string{"client1", "client2"}
 				obj.Properties.Clients = []api.ExternalAuthClientProfile{
@@ -278,7 +278,7 @@ func TestValidateExternalAuth(t *testing.T) {
 		},
 		{
 			name: "client ID not matching any issuer audience",
-			newObj: func() *api.HCPOpenShiftClusterExternalAuth {
+			newObj: func() *api.ExternalAuth {
 				obj := createValidExternalAuth()
 				obj.Properties.Issuer.Audiences = []string{"audience1", "audience2"}
 				obj.Properties.Clients = []api.ExternalAuthClientProfile{
@@ -300,7 +300,7 @@ func TestValidateExternalAuth(t *testing.T) {
 		},
 		{
 			name: "multiple clients with mismatched audiences",
-			newObj: func() *api.HCPOpenShiftClusterExternalAuth {
+			newObj: func() *api.ExternalAuth {
 				obj := createValidExternalAuth()
 				obj.Properties.Issuer.Audiences = []string{"audience1"}
 				obj.Properties.Clients = []api.ExternalAuthClientProfile{
@@ -330,7 +330,7 @@ func TestValidateExternalAuth(t *testing.T) {
 		},
 		{
 			name: "invalid client type",
-			newObj: func() *api.HCPOpenShiftClusterExternalAuth {
+			newObj: func() *api.ExternalAuth {
 				obj := createValidExternalAuth()
 				obj.Properties.Clients[0].Type = "InvalidType"
 				return obj
@@ -342,14 +342,14 @@ func TestValidateExternalAuth(t *testing.T) {
 		},
 		{
 			name: "immutable provisioning state on update",
-			newObj: func() *api.HCPOpenShiftClusterExternalAuth {
+			newObj: func() *api.ExternalAuth {
 				obj := createValidExternalAuth()
 				obj.Properties.ProvisioningState = arm.ProvisioningStateSucceeded
 				// Set ValidationRules to empty to avoid nil pointer in discriminated union validation
 				obj.Properties.Claim.ValidationRules = []api.TokenClaimValidationRule{}
 				return obj
 			}(),
-			oldObj: func() *api.HCPOpenShiftClusterExternalAuth {
+			oldObj: func() *api.ExternalAuth {
 				obj := createValidExternalAuth()
 				obj.Properties.ProvisioningState = arm.ProvisioningStateProvisioning
 				// Set ValidationRules to empty to avoid nil pointer in discriminated union validation
@@ -382,12 +382,12 @@ func TestValidateExternalAuthDiscriminatedUnions(t *testing.T) {
 
 	tests := []struct {
 		name         string
-		setupObject  func() *api.HCPOpenShiftClusterExternalAuth
+		setupObject  func() *api.ExternalAuth
 		expectErrors []expectedError
 	}{
 		{
 			name: "username prefix policy - valid None with no prefix",
-			setupObject: func() *api.HCPOpenShiftClusterExternalAuth {
+			setupObject: func() *api.ExternalAuth {
 				obj := createValidExternalAuth()
 				obj.Properties.Claim.Mappings.Username = api.UsernameClaimProfile{
 					Claim:        "sub",
@@ -399,7 +399,7 @@ func TestValidateExternalAuthDiscriminatedUnions(t *testing.T) {
 		},
 		{
 			name: "username prefix policy - valid NoPrefix with no prefix",
-			setupObject: func() *api.HCPOpenShiftClusterExternalAuth {
+			setupObject: func() *api.ExternalAuth {
 				obj := createValidExternalAuth()
 				obj.Properties.Claim.Mappings.Username = api.UsernameClaimProfile{
 					Claim:        "sub",
@@ -411,7 +411,7 @@ func TestValidateExternalAuthDiscriminatedUnions(t *testing.T) {
 		},
 		{
 			name: "username prefix policy - valid Prefix with prefix",
-			setupObject: func() *api.HCPOpenShiftClusterExternalAuth {
+			setupObject: func() *api.ExternalAuth {
 				obj := createValidExternalAuth()
 				obj.Properties.Claim.Mappings.Username = api.UsernameClaimProfile{
 					Claim:        "sub",
@@ -424,7 +424,7 @@ func TestValidateExternalAuthDiscriminatedUnions(t *testing.T) {
 		},
 		{
 			name: "username prefix policy - invalid None with prefix (discriminated union violation)",
-			setupObject: func() *api.HCPOpenShiftClusterExternalAuth {
+			setupObject: func() *api.ExternalAuth {
 				obj := createValidExternalAuth()
 				obj.Properties.Claim.Mappings.Username = api.UsernameClaimProfile{
 					Claim:        "sub",
@@ -439,7 +439,7 @@ func TestValidateExternalAuthDiscriminatedUnions(t *testing.T) {
 		},
 		{
 			name: "username prefix policy - invalid Prefix without prefix (discriminated union violation)",
-			setupObject: func() *api.HCPOpenShiftClusterExternalAuth {
+			setupObject: func() *api.ExternalAuth {
 				obj := createValidExternalAuth()
 				obj.Properties.Claim.Mappings.Username = api.UsernameClaimProfile{
 					Claim:        "sub",
@@ -453,7 +453,7 @@ func TestValidateExternalAuthDiscriminatedUnions(t *testing.T) {
 		},
 		{
 			name: "token validation rule - valid RequiredClaim with claim",
-			setupObject: func() *api.HCPOpenShiftClusterExternalAuth {
+			setupObject: func() *api.ExternalAuth {
 				obj := createValidExternalAuth()
 				obj.Properties.Claim.ValidationRules = []api.TokenClaimValidationRule{
 					{
@@ -470,7 +470,7 @@ func TestValidateExternalAuthDiscriminatedUnions(t *testing.T) {
 		},
 		{
 			name: "token validation rule - invalid RequiredClaim without claim (discriminated union violation)",
-			setupObject: func() *api.HCPOpenShiftClusterExternalAuth {
+			setupObject: func() *api.ExternalAuth {
 				obj := createValidExternalAuth()
 				obj.Properties.Claim.ValidationRules = []api.TokenClaimValidationRule{
 					{
@@ -487,7 +487,7 @@ func TestValidateExternalAuthDiscriminatedUnions(t *testing.T) {
 		},
 		{
 			name: "token validation rule - invalid RequiredClaim with empty claim field",
-			setupObject: func() *api.HCPOpenShiftClusterExternalAuth {
+			setupObject: func() *api.ExternalAuth {
 				obj := createValidExternalAuth()
 				obj.Properties.Claim.ValidationRules = []api.TokenClaimValidationRule{
 					{
@@ -506,7 +506,7 @@ func TestValidateExternalAuthDiscriminatedUnions(t *testing.T) {
 		},
 		{
 			name: "token validation rule - invalid RequiredClaim with empty required value",
-			setupObject: func() *api.HCPOpenShiftClusterExternalAuth {
+			setupObject: func() *api.ExternalAuth {
 				obj := createValidExternalAuth()
 				obj.Properties.Claim.ValidationRules = []api.TokenClaimValidationRule{
 					{
@@ -525,7 +525,7 @@ func TestValidateExternalAuthDiscriminatedUnions(t *testing.T) {
 		},
 		{
 			name: "username prefix policy - invalid NoPrefix with non-empty prefix (discriminated union violation)",
-			setupObject: func() *api.HCPOpenShiftClusterExternalAuth {
+			setupObject: func() *api.ExternalAuth {
 				obj := createValidExternalAuth()
 				obj.Properties.Claim.Mappings.Username = api.UsernameClaimProfile{
 					Claim:        "sub",
@@ -540,7 +540,7 @@ func TestValidateExternalAuthDiscriminatedUnions(t *testing.T) {
 		},
 		{
 			name: "username prefix policy - invalid empty prefixPolicy",
-			setupObject: func() *api.HCPOpenShiftClusterExternalAuth {
+			setupObject: func() *api.ExternalAuth {
 				obj := createValidExternalAuth()
 				obj.Properties.Claim.Mappings.Username = api.UsernameClaimProfile{
 					Claim:        "sub",
@@ -554,7 +554,7 @@ func TestValidateExternalAuthDiscriminatedUnions(t *testing.T) {
 		},
 		{
 			name: "token validation rule - invalid empty type",
-			setupObject: func() *api.HCPOpenShiftClusterExternalAuth {
+			setupObject: func() *api.ExternalAuth {
 				obj := createValidExternalAuth()
 				obj.Properties.Claim.ValidationRules = []api.TokenClaimValidationRule{
 					{
@@ -588,12 +588,12 @@ func TestValidateExternalAuthCustomValidation(t *testing.T) {
 
 	tests := []struct {
 		name         string
-		newObj       *api.HCPOpenShiftClusterExternalAuth
+		newObj       *api.ExternalAuth
 		expectErrors []expectedError
 	}{
 		{
 			name: "client ID matches audience",
-			newObj: func() *api.HCPOpenShiftClusterExternalAuth {
+			newObj: func() *api.ExternalAuth {
 				obj := createValidExternalAuth()
 				obj.Properties.Issuer.Audiences = []string{"client1", "client2"}
 				obj.Properties.Clients = []api.ExternalAuthClientProfile{
@@ -612,7 +612,7 @@ func TestValidateExternalAuthCustomValidation(t *testing.T) {
 		},
 		{
 			name: "client ID does not match any audience",
-			newObj: func() *api.HCPOpenShiftClusterExternalAuth {
+			newObj: func() *api.ExternalAuth {
 				obj := createValidExternalAuth()
 				obj.Properties.Issuer.Audiences = []string{"audience1", "audience2"}
 				obj.Properties.Clients = []api.ExternalAuthClientProfile{
@@ -633,7 +633,7 @@ func TestValidateExternalAuthCustomValidation(t *testing.T) {
 		},
 		{
 			name: "unique client identifiers",
-			newObj: func() *api.HCPOpenShiftClusterExternalAuth {
+			newObj: func() *api.ExternalAuth {
 				obj := createValidExternalAuth()
 				obj.Properties.Issuer.Audiences = []string{"client1", "client2"}
 				obj.Properties.Clients = []api.ExternalAuthClientProfile{
@@ -660,7 +660,7 @@ func TestValidateExternalAuthCustomValidation(t *testing.T) {
 		},
 		{
 			name: "duplicate client identifiers",
-			newObj: func() *api.HCPOpenShiftClusterExternalAuth {
+			newObj: func() *api.ExternalAuth {
 				obj := createValidExternalAuth()
 				obj.Properties.Issuer.Audiences = []string{"client1"}
 				obj.Properties.Clients = []api.ExternalAuthClientProfile{
@@ -699,15 +699,15 @@ func TestValidateExternalAuthCustomValidation(t *testing.T) {
 	}
 }
 
-func createMinimalExternalAuth() *api.HCPOpenShiftClusterExternalAuth {
+func createMinimalExternalAuth() *api.ExternalAuth {
 	resourceID, _ := azcorearm.ParseResourceID("/subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster/externalAuths/test-auth")
 	obj := api.NewDefaultHCPOpenShiftClusterExternalAuth(resourceID)
 	obj.Properties.Claim.Mappings.Username.Claim = "sub"
 	return obj
 }
 
-func createValidExternalAuth() *api.HCPOpenShiftClusterExternalAuth {
-	return &api.HCPOpenShiftClusterExternalAuth{
+func createValidExternalAuth() *api.ExternalAuth {
+	return &api.ExternalAuth{
 		ProxyResource: arm.ProxyResource{
 			Resource: arm.Resource{
 				ID:   api.Must(azcorearm.ParseResourceID("/subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster/externalAuths/test-auth")),
@@ -715,7 +715,7 @@ func createValidExternalAuth() *api.HCPOpenShiftClusterExternalAuth {
 				Type: "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/externalAuths",
 			},
 		},
-		Properties: api.HCPOpenShiftClusterExternalAuthProperties{
+		Properties: api.ExternalAuthProperties{
 			Issuer: api.TokenIssuerProfile{
 				URL:       "https://issuer.example.com",
 				Audiences: []string{"audience1", "audience2"},

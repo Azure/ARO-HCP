@@ -99,7 +99,7 @@ func (f *Frontend) ArmResourceListClusters(writer http.ResponseWriter, request *
 	if err != nil {
 		return utils.TrackError(err)
 	}
-	clustersByClusterServiceID := make(map[string]*api.HCPOpenShiftCluster)
+	clustersByClusterServiceID := make(map[string]*api.Cluster)
 	for _, internalCluster := range internalClusterIterator.Items(ctx) {
 		clustersByClusterServiceID[internalCluster.ServiceProviderProperties.ClusterServiceID.ID()] = internalCluster
 	}
@@ -227,7 +227,7 @@ func (f *Frontend) CreateOrUpdateHCPCluster(writer http.ResponseWriter, request 
 	}
 }
 
-func decodeDesiredClusterCreate(ctx context.Context, azureLocation string) (*api.HCPOpenShiftCluster, error) {
+func decodeDesiredClusterCreate(ctx context.Context, azureLocation string) (*api.Cluster, error) {
 	versionedInterface, err := VersionFromContext(ctx)
 	if err != nil {
 		return nil, utils.TrackError(err)
@@ -245,7 +245,7 @@ func decodeDesiredClusterCreate(ctx context.Context, azureLocation string) (*api
 		return nil, utils.TrackError(err)
 	}
 
-	externalClusterFromRequest := versionedInterface.NewHCPOpenShiftCluster(&api.HCPOpenShiftCluster{})
+	externalClusterFromRequest := versionedInterface.NewHCPOpenShiftCluster(&api.Cluster{})
 	if err := json.Unmarshal(body, &externalClusterFromRequest); err != nil {
 		return nil, utils.TrackError(err)
 	}
@@ -317,7 +317,7 @@ func (f *Frontend) createHCPCluster(writer http.ResponseWriter, request *http.Re
 		return utils.TrackError(err)
 	}
 
-	validationErrs := validation.ValidateClusterCreate(ctx, newInternalCluster, api.Must(versionedInterface.ValidationPathRewriter(&api.HCPOpenShiftCluster{})))
+	validationErrs := validation.ValidateClusterCreate(ctx, newInternalCluster, api.Must(versionedInterface.ValidationPathRewriter(&api.Cluster{})))
 	validationErrs = append(validationErrs, admission.AdmitClusterOnCreate(ctx, newInternalCluster, subscription)...)
 	if err := arm.CloudErrorFromFieldErrors(validationErrs); err != nil {
 		return utils.TrackError(err)
@@ -382,7 +382,7 @@ func (f *Frontend) createHCPCluster(writer http.ResponseWriter, request *http.Re
 	if err != nil {
 		return utils.TrackError(err)
 	}
-	resultingInternalCluster, ok := resultingUncastInternalCluster.(*api.HCPOpenShiftCluster)
+	resultingInternalCluster, ok := resultingUncastInternalCluster.(*api.Cluster)
 	if !ok {
 		return fmt.Errorf("unexpected type %T", resultingUncastInternalCluster)
 	}
@@ -404,7 +404,7 @@ func (f *Frontend) createHCPCluster(writer http.ResponseWriter, request *http.Re
 	return nil
 }
 
-func decodeDesiredClusterReplace(ctx context.Context, oldInternalCluster *api.HCPOpenShiftCluster) (*api.HCPOpenShiftCluster, error) {
+func decodeDesiredClusterReplace(ctx context.Context, oldInternalCluster *api.Cluster) (*api.Cluster, error) {
 	versionedInterface, err := VersionFromContext(ctx)
 	if err != nil {
 		return nil, utils.TrackError(err)
@@ -430,7 +430,7 @@ func decodeDesiredClusterReplace(ctx context.Context, oldInternalCluster *api.HC
 		return nil, utils.TrackError(err)
 	}
 	// Exact user request
-	externalClusterFromRequest := versionedInterface.NewHCPOpenShiftCluster(&api.HCPOpenShiftCluster{})
+	externalClusterFromRequest := versionedInterface.NewHCPOpenShiftCluster(&api.Cluster{})
 	if err := json.Unmarshal(body, &externalClusterFromRequest); err != nil {
 		return nil, utils.TrackError(err)
 	}
@@ -499,7 +499,7 @@ func decodeDesiredClusterReplace(ctx context.Context, oldInternalCluster *api.HC
 	return newInternalCluster, nil
 }
 
-func (f *Frontend) updateHCPCluster(writer http.ResponseWriter, request *http.Request, oldInternalCluster *api.HCPOpenShiftCluster) error {
+func (f *Frontend) updateHCPCluster(writer http.ResponseWriter, request *http.Request, oldInternalCluster *api.Cluster) error {
 	// PUT requests overlay the request body onto a default resource
 	// struct, which only has API-specified non-zero default values.
 	// This means all required properties must be specified in the
@@ -515,7 +515,7 @@ func (f *Frontend) updateHCPCluster(writer http.ResponseWriter, request *http.Re
 	return f.updateHCPClusterInCosmos(ctx, writer, request, http.StatusOK, newInternalCluster, oldInternalCluster)
 }
 
-func decodeDesiredClusterPatch(ctx context.Context, oldInternalCluster *api.HCPOpenShiftCluster) (*api.HCPOpenShiftCluster, error) {
+func decodeDesiredClusterPatch(ctx context.Context, oldInternalCluster *api.Cluster) (*api.Cluster, error) {
 	versionedInterface, err := VersionFromContext(ctx)
 	if err != nil {
 		return nil, utils.TrackError(err)
@@ -573,7 +573,7 @@ func decodeDesiredClusterPatch(ctx context.Context, oldInternalCluster *api.HCPO
 	return newInternalCluster, nil
 }
 
-func (f *Frontend) patchHCPCluster(writer http.ResponseWriter, request *http.Request, oldInternalCluster *api.HCPOpenShiftCluster) error {
+func (f *Frontend) patchHCPCluster(writer http.ResponseWriter, request *http.Request, oldInternalCluster *api.Cluster) error {
 	// PATCH requests overlay the request body onto a resource struct
 	// that represents an existing resource to be updated.
 	ctx := request.Context()
@@ -586,7 +586,7 @@ func (f *Frontend) patchHCPCluster(writer http.ResponseWriter, request *http.Req
 	return f.updateHCPClusterInCosmos(ctx, writer, request, http.StatusAccepted, newInternalCluster, oldInternalCluster)
 }
 
-func (f *Frontend) updateHCPClusterInCosmos(ctx context.Context, writer http.ResponseWriter, request *http.Request, httpStatusCode int, newInternalCluster, oldInternalCluster *api.HCPOpenShiftCluster) error {
+func (f *Frontend) updateHCPClusterInCosmos(ctx context.Context, writer http.ResponseWriter, request *http.Request, httpStatusCode int, newInternalCluster, oldInternalCluster *api.Cluster) error {
 	logger := utils.LoggerFromContext(ctx)
 
 	versionedInterface, err := VersionFromContext(ctx)
@@ -598,7 +598,7 @@ func (f *Frontend) updateHCPClusterInCosmos(ctx context.Context, writer http.Res
 		return utils.TrackError(err)
 	}
 
-	validationErrs := validation.ValidateClusterUpdate(ctx, newInternalCluster, oldInternalCluster, api.Must(versionedInterface.ValidationPathRewriter(&api.HCPOpenShiftCluster{})))
+	validationErrs := validation.ValidateClusterUpdate(ctx, newInternalCluster, oldInternalCluster, api.Must(versionedInterface.ValidationPathRewriter(&api.Cluster{})))
 	if err := arm.CloudErrorFromFieldErrors(validationErrs); err != nil {
 		return utils.TrackError(err)
 	}
@@ -669,7 +669,7 @@ func (f *Frontend) updateHCPClusterInCosmos(ctx context.Context, writer http.Res
 	if err != nil {
 		return utils.TrackError(err)
 	}
-	resultingInternalCluster := resultingUncastObj.(*api.HCPOpenShiftCluster)
+	resultingInternalCluster := resultingUncastObj.(*api.Cluster)
 
 	// TODO this overwrite will transformed into a "set" function as we transition fields to ownership in cosmos
 	resultingInternalCluster, err = mergeToInternalCluster(resultingClusterServiceCluster, resultingInternalCluster, f.azureLocation)
@@ -735,7 +735,7 @@ func (f *Frontend) DeleteCluster(writer http.ResponseWriter, request *http.Reque
 	return nil
 }
 
-func (f *Frontend) addDeleteClusterToTransaction(ctx context.Context, writer http.ResponseWriter, request *http.Request, transaction database.DBTransaction, cluster *api.HCPOpenShiftCluster) error {
+func (f *Frontend) addDeleteClusterToTransaction(ctx context.Context, writer http.ResponseWriter, request *http.Request, transaction database.DBTransaction, cluster *api.Cluster) error {
 	logger := utils.LoggerFromContext(ctx)
 
 	correlationData, err := CorrelationDataFromContext(ctx)
@@ -827,7 +827,7 @@ func (f *Frontend) addDeleteClusterToTransaction(ctx context.Context, writer htt
 // the necessary conversions for the API version of the request.
 // TODO this overwrite will transformed into a "set" function as we transition fields to ownership in cosmos
 // TODO remove the azure location once we have migrated every record to store the location
-func mergeToInternalCluster(csCluster *arohcpv1alpha1.Cluster, internalCluster *api.HCPOpenShiftCluster, azureLocation string) (*api.HCPOpenShiftCluster, error) {
+func mergeToInternalCluster(csCluster *arohcpv1alpha1.Cluster, internalCluster *api.Cluster, azureLocation string) (*api.Cluster, error) {
 	clusterServiceBasedInternalCluster, err := ocm.ConvertCStoHCPOpenShiftCluster(internalCluster.ID, azureLocation, csCluster)
 	if err != nil {
 		return nil, utils.TrackError(err)
@@ -855,7 +855,7 @@ func mergeToInternalCluster(csCluster *arohcpv1alpha1.Cluster, internalCluster *
 // readInternalClusterFromClusterService takes an internal Cluster read from cosmos, retrieves the corresponding cluster-service data,
 // merges the states together, and returns the internal representation.
 // TODO remove the header it takes and collapse that to some general error handling.
-func (f *Frontend) readInternalClusterFromClusterService(ctx context.Context, oldInternalCluster *api.HCPOpenShiftCluster) (*api.HCPOpenShiftCluster, error) {
+func (f *Frontend) readInternalClusterFromClusterService(ctx context.Context, oldInternalCluster *api.Cluster) (*api.Cluster, error) {
 	oldClusterServiceCluster, err := f.clusterServiceClient.GetCluster(ctx, oldInternalCluster.ServiceProviderProperties.ClusterServiceID)
 	if err != nil {
 		return nil, utils.TrackError(err)
@@ -870,7 +870,7 @@ func (f *Frontend) readInternalClusterFromClusterService(ctx context.Context, ol
 	return oldInternalCluster, nil
 }
 
-func (f *Frontend) getInternalClusterFromStorage(ctx context.Context, resourceID *azcorearm.ResourceID) (*api.HCPOpenShiftCluster, error) {
+func (f *Frontend) getInternalClusterFromStorage(ctx context.Context, resourceID *azcorearm.ResourceID) (*api.Cluster, error) {
 	internalCluster, err := f.dbClient.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).Get(ctx, resourceID.Name)
 	if database.IsResponseError(err, http.StatusNotFound) {
 		return nil, arm.NewResourceNotFoundError(resourceID)

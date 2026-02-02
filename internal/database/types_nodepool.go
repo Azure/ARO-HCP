@@ -36,7 +36,7 @@ type NodePoolProperties struct {
 }
 
 type NodePoolInternalState struct {
-	InternalAPI api.HCPOpenShiftClusterNodePool `json:"internalAPI"`
+	InternalAPI api.NodePool `json:"internalAPI"`
 }
 
 func (o *NodePool) GetTypedDocument() *TypedDocument {

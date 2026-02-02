@@ -25,26 +25,26 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
 
-// HCPOpenShiftClusterNodePool represents a node pool resource for ARO HCP
+// NodePool represents a node pool resource for ARO HCP
 // OpenShift clusters.
-type HCPOpenShiftClusterNodePool struct {
+type NodePool struct {
 	arm.TrackedResource
-	Properties                HCPOpenShiftClusterNodePoolProperties                `json:"properties,omitempty"`
-	ServiceProviderProperties HCPOpenShiftClusterNodePoolServiceProviderProperties `json:"serviceProviderProperties,omitempty"`
-	Identity                  *arm.ManagedServiceIdentity                          `json:"identity,omitempty"`
+	Properties                NodePoolProperties                `json:"properties,omitempty"`
+	ServiceProviderProperties NodePoolServiceProviderProperties `json:"serviceProviderProperties,omitempty"`
+	Identity                  *arm.ManagedServiceIdentity       `json:"identity,omitempty"`
 }
 
-var _ CosmosPersistable = &HCPOpenShiftClusterNodePool{}
+var _ CosmosPersistable = &NodePool{}
 
-func (o *HCPOpenShiftClusterNodePool) GetCosmosData() *CosmosData {
+func (o *NodePool) GetCosmosData() *CosmosData {
 	return &CosmosData{
 		ResourceID: o.ID,
 	}
 }
 
-// HCPOpenShiftClusterNodePoolProperties represents the property bag of a
-// HCPOpenShiftClusterNodePool resource.
-type HCPOpenShiftClusterNodePoolProperties struct {
+// NodePoolProperties represents the property bag of a
+// NodePool resource.
+type NodePoolProperties struct {
 	ProvisioningState       arm.ProvisioningState   `json:"provisioningState,omitempty"`
 	Version                 NodePoolVersionProfile  `json:"version,omitempty"`
 	Platform                NodePoolPlatformProfile `json:"platform,omitempty"`
@@ -56,7 +56,7 @@ type HCPOpenShiftClusterNodePoolProperties struct {
 	NodeDrainTimeoutMinutes *int32                  `json:"nodeDrainTimeoutMinutes,omitempty"`
 }
 
-type HCPOpenShiftClusterNodePoolServiceProviderProperties struct {
+type NodePoolServiceProviderProperties struct {
 	ClusterServiceID  InternalID `json:"clusterServiceID,omitempty"`
 	ActiveOperationID string     `json:"activeOperationId,omitempty"`
 }
@@ -102,10 +102,10 @@ type Taint struct {
 	Value  string `json:"value,omitempty"`
 }
 
-func NewDefaultHCPOpenShiftClusterNodePool(resourceID *azcorearm.ResourceID, azureLocation string) *HCPOpenShiftClusterNodePool {
-	return &HCPOpenShiftClusterNodePool{
+func NewDefaultHCPOpenShiftClusterNodePool(resourceID *azcorearm.ResourceID, azureLocation string) *NodePool {
+	return &NodePool{
 		TrackedResource: arm.NewTrackedResource(resourceID, azureLocation),
-		Properties: HCPOpenShiftClusterNodePoolProperties{
+		Properties: NodePoolProperties{
 			Version: NodePoolVersionProfile{
 				ChannelGroup: "stable",
 			},
@@ -120,7 +120,7 @@ func NewDefaultHCPOpenShiftClusterNodePool(resourceID *azcorearm.ResourceID, azu
 	}
 }
 
-func (nodePool *HCPOpenShiftClusterNodePool) validateVersion(cluster *HCPOpenShiftCluster) []arm.CloudErrorBody {
+func (nodePool *NodePool) validateVersion(cluster *Cluster) []arm.CloudErrorBody {
 	var errorDetails []arm.CloudErrorBody
 
 	if nodePool.Properties.Version.ChannelGroup != cluster.CustomerProperties.Version.ChannelGroup {
@@ -137,7 +137,7 @@ func (nodePool *HCPOpenShiftClusterNodePool) validateVersion(cluster *HCPOpenShi
 	return errorDetails
 }
 
-func (nodePool *HCPOpenShiftClusterNodePool) validateSubnetID(cluster *HCPOpenShiftCluster) []arm.CloudErrorBody {
+func (nodePool *NodePool) validateSubnetID(cluster *Cluster) []arm.CloudErrorBody {
 	var errorDetails []arm.CloudErrorBody
 
 	if nodePool.Properties.Platform.SubnetID == nil {
@@ -161,7 +161,7 @@ func (nodePool *HCPOpenShiftClusterNodePool) validateSubnetID(cluster *HCPOpenSh
 	return errorDetails
 }
 
-func (nodePool *HCPOpenShiftClusterNodePool) Validate(cluster *HCPOpenShiftCluster) []arm.CloudErrorBody {
+func (nodePool *NodePool) Validate(cluster *Cluster) []arm.CloudErrorBody {
 	var errorDetails []arm.CloudErrorBody
 
 	if cluster != nil {

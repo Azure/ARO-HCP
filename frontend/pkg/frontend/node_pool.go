@@ -90,7 +90,7 @@ func (f *Frontend) ArmResourceListNodePools(writer http.ResponseWriter, request 
 
 	pagedResponse := arm.NewPagedResponse()
 
-	nodePoolsByClusterServiceID := make(map[string]*api.HCPOpenShiftClusterNodePool)
+	nodePoolsByClusterServiceID := make(map[string]*api.NodePool)
 	internalNodePoolIterator, err := f.dbClient.HCPClusters(subscriptionID, resourceGroupName).NodePools(clusterName).List(ctx, dbListOptionsFromRequest(request))
 	if err != nil {
 		return utils.TrackError(err)
@@ -204,7 +204,7 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 	}
 }
 
-func decodeDesiredNodePoolCreate(ctx context.Context, azureLocation string) (*api.HCPOpenShiftClusterNodePool, error) {
+func decodeDesiredNodePoolCreate(ctx context.Context, azureLocation string) (*api.NodePool, error) {
 	versionedInterface, err := VersionFromContext(ctx)
 	if err != nil {
 		return nil, utils.TrackError(err)
@@ -222,7 +222,7 @@ func decodeDesiredNodePoolCreate(ctx context.Context, azureLocation string) (*ap
 		return nil, utils.TrackError(err)
 	}
 
-	externalNodePoolFromRequest := versionedInterface.NewHCPOpenShiftClusterNodePool(&api.HCPOpenShiftClusterNodePool{})
+	externalNodePoolFromRequest := versionedInterface.NewHCPOpenShiftClusterNodePool(&api.NodePool{})
 	if err := json.Unmarshal(body, &externalNodePoolFromRequest); err != nil {
 		return nil, utils.TrackError(err)
 	}
@@ -340,7 +340,7 @@ func (f *Frontend) createNodePool(writer http.ResponseWriter, request *http.Requ
 	if err != nil {
 		return utils.TrackError(err)
 	}
-	resultingInternalNodePool, ok := resultingUncastInternalNodePool.(*api.HCPOpenShiftClusterNodePool)
+	resultingInternalNodePool, ok := resultingUncastInternalNodePool.(*api.NodePool)
 	if !ok {
 		return fmt.Errorf("unexpected type %T", resultingUncastInternalNodePool)
 	}
@@ -362,7 +362,7 @@ func (f *Frontend) createNodePool(writer http.ResponseWriter, request *http.Requ
 	return nil
 }
 
-func decodeDesiredNodePoolReplace(ctx context.Context, oldInternalNodePool *api.HCPOpenShiftClusterNodePool) (*api.HCPOpenShiftClusterNodePool, error) {
+func decodeDesiredNodePoolReplace(ctx context.Context, oldInternalNodePool *api.NodePool) (*api.NodePool, error) {
 	versionedInterface, err := VersionFromContext(ctx)
 	if err != nil {
 		return nil, utils.TrackError(err)
@@ -391,7 +391,7 @@ func decodeDesiredNodePoolReplace(ctx context.Context, oldInternalNodePool *api.
 	// Initialize versionedRequestNodePool to include both
 	// non-zero default values and current read-only values.
 	// Exact user request
-	externalNodePoolFromRequest := versionedInterface.NewHCPOpenShiftClusterNodePool(&api.HCPOpenShiftClusterNodePool{})
+	externalNodePoolFromRequest := versionedInterface.NewHCPOpenShiftClusterNodePool(&api.NodePool{})
 	if err := json.Unmarshal(body, &externalNodePoolFromRequest); err != nil {
 		return nil, utils.TrackError(err)
 	}
@@ -444,7 +444,7 @@ func decodeDesiredNodePoolReplace(ctx context.Context, oldInternalNodePool *api.
 	return newInternalNodePool, nil
 }
 
-func (f *Frontend) updateNodePool(writer http.ResponseWriter, request *http.Request, oldInternalNodePool *api.HCPOpenShiftClusterNodePool) error {
+func (f *Frontend) updateNodePool(writer http.ResponseWriter, request *http.Request, oldInternalNodePool *api.NodePool) error {
 	ctx := request.Context()
 
 	newInternalNodePool, err := decodeDesiredNodePoolReplace(ctx, oldInternalNodePool)
@@ -455,7 +455,7 @@ func (f *Frontend) updateNodePool(writer http.ResponseWriter, request *http.Requ
 	return f.updateNodePoolInCosmos(ctx, writer, request, http.StatusOK, newInternalNodePool, oldInternalNodePool)
 }
 
-func decodeDesiredNodePoolPatch(ctx context.Context, oldInternalNodePool *api.HCPOpenShiftClusterNodePool) (*api.HCPOpenShiftClusterNodePool, error) {
+func decodeDesiredNodePoolPatch(ctx context.Context, oldInternalNodePool *api.NodePool) (*api.NodePool, error) {
 	versionedInterface, err := VersionFromContext(ctx)
 	if err != nil {
 		return nil, utils.TrackError(err)
@@ -507,7 +507,7 @@ func decodeDesiredNodePoolPatch(ctx context.Context, oldInternalNodePool *api.HC
 	return newInternalNodePool, nil
 }
 
-func (f *Frontend) patchNodePool(writer http.ResponseWriter, request *http.Request, oldInternalNodePool *api.HCPOpenShiftClusterNodePool) error {
+func (f *Frontend) patchNodePool(writer http.ResponseWriter, request *http.Request, oldInternalNodePool *api.NodePool) error {
 	// PATCH requests overlay the request body onto a resource struct
 	// that represents an existing resource to be updated.
 	ctx := request.Context()
@@ -520,7 +520,7 @@ func (f *Frontend) patchNodePool(writer http.ResponseWriter, request *http.Reque
 	return f.updateNodePoolInCosmos(ctx, writer, request, http.StatusAccepted, newInternalNodePool, oldInternalNodePool)
 }
 
-func (f *Frontend) updateNodePoolInCosmos(ctx context.Context, writer http.ResponseWriter, request *http.Request, httpStatusCode int, newInternalNodePool, oldInternalNodePool *api.HCPOpenShiftClusterNodePool) error {
+func (f *Frontend) updateNodePoolInCosmos(ctx context.Context, writer http.ResponseWriter, request *http.Request, httpStatusCode int, newInternalNodePool, oldInternalNodePool *api.NodePool) error {
 	logger := utils.LoggerFromContext(ctx)
 
 	versionedInterface, err := VersionFromContext(ctx)
@@ -598,7 +598,7 @@ func (f *Frontend) updateNodePoolInCosmos(ctx context.Context, writer http.Respo
 	if err != nil {
 		return utils.TrackError(err)
 	}
-	resultingInternalNodePool, ok := resultingUncastInternalNodePool.(*api.HCPOpenShiftClusterNodePool)
+	resultingInternalNodePool, ok := resultingUncastInternalNodePool.(*api.NodePool)
 	if !ok {
 		return fmt.Errorf("unexpected type %T", resultingUncastInternalNodePool)
 	}
@@ -679,7 +679,7 @@ func (f *Frontend) DeleteNodePool(writer http.ResponseWriter, request *http.Requ
 	return nil
 }
 
-func (f *Frontend) addDeleteNodePoolToTransaction(ctx context.Context, writer http.ResponseWriter, request *http.Request, transaction database.DBTransaction, nodePool *api.HCPOpenShiftClusterNodePool) error {
+func (f *Frontend) addDeleteNodePoolToTransaction(ctx context.Context, writer http.ResponseWriter, request *http.Request, transaction database.DBTransaction, nodePool *api.NodePool) error {
 	correlationData, err := CorrelationDataFromContext(ctx)
 	if err != nil {
 		return utils.TrackError(err)
@@ -731,7 +731,7 @@ func (f *Frontend) addDeleteNodePoolToTransaction(ctx context.Context, writer ht
 
 // the necessary conversions for the API version of the request.
 // TODO remove azureLocation once we have migrated all records to store the azureLocation
-func mergeToInternalNodePool(clusterServiceNode *arohcpv1alpha1.NodePool, internalNodePool *api.HCPOpenShiftClusterNodePool, azureLocation string) (*api.HCPOpenShiftClusterNodePool, error) {
+func mergeToInternalNodePool(clusterServiceNode *arohcpv1alpha1.NodePool, internalNodePool *api.NodePool, azureLocation string) (*api.NodePool, error) {
 	mergedOldClusterServiceNodePool, err := ocm.ConvertCStoNodePool(internalNodePool.ID, azureLocation, clusterServiceNode)
 	if err != nil {
 		return nil, utils.TrackError(err)
@@ -747,7 +747,7 @@ func mergeToInternalNodePool(clusterServiceNode *arohcpv1alpha1.NodePool, intern
 	return mergedOldClusterServiceNodePool, nil
 }
 
-func (f *Frontend) getInternalNodePoolFromStorage(ctx context.Context, resourceID *azcorearm.ResourceID) (*api.HCPOpenShiftClusterNodePool, error) {
+func (f *Frontend) getInternalNodePoolFromStorage(ctx context.Context, resourceID *azcorearm.ResourceID) (*api.NodePool, error) {
 	internalNodePool, err := f.dbClient.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).NodePools(resourceID.Parent.Name).Get(ctx, resourceID.Name)
 	if database.IsResponseError(err, http.StatusNotFound) {
 		return nil, arm.NewResourceNotFoundError(resourceID)
@@ -781,7 +781,7 @@ func (f *Frontend) getInternalNodePoolFromStorage(ctx context.Context, resourceI
 
 // readInternalNodePoolFromClusterService takes an internal NodePool read from cosmos, retrieves the corresponding cluster-service data,
 // merges the states together, and returns the internal representation.
-func (f *Frontend) readInternalNodePoolFromClusterService(ctx context.Context, oldInternalNodePool *api.HCPOpenShiftClusterNodePool) (*api.HCPOpenShiftClusterNodePool, error) {
+func (f *Frontend) readInternalNodePoolFromClusterService(ctx context.Context, oldInternalNodePool *api.NodePool) (*api.NodePool, error) {
 	oldClusterServiceNodePool, err := f.clusterServiceClient.GetNodePool(ctx, oldInternalNodePool.ServiceProviderProperties.ClusterServiceID)
 	if err != nil {
 		return nil, utils.TrackError(err)
