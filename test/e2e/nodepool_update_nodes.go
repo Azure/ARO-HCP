@@ -38,6 +38,7 @@ var _ = Describe("Customer", func() {
 		labels.Positive,
 		labels.AroRpApiCompatible,
 		func(ctx context.Context) {
+			Skip("Skipping WIP test: https://issues.redhat.com/browse/ARO-23768")
 			const (
 				customerClusterName  = "np-update-nodes-hcp-cluster"
 				customerNodePoolName = "np-update-nodes"
