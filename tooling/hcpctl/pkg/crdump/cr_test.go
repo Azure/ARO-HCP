@@ -531,3 +531,215 @@ func TestListCRs_CRDWithoutStorageVersion(t *testing.T) {
 	assert.Contains(t, err.Error(), "no storage version found for CRD broken.example.com")
 	assert.Nil(t, crLists)
 }
+
+func TestStreamCRs(t *testing.T) {
+	testCases := []struct {
+		name                   string
+		namespace              *corev1.Namespace
+		crds                   []*apiextensionsv1.CustomResourceDefinition
+		crs                    []*unstructured.Unstructured
+		hostedClusterNamespace string
+		expectedCRListCount    int
+		expectedTotalCRs       int
+		expectedError          string
+	}{
+		{
+			name: "streams CRs through channel",
+			namespace: &corev1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "test-hc-ns",
+					Labels: map[string]string{
+						clusterIDLabelKey: "cluster-123",
+					},
+				},
+			},
+			crds: []*apiextensionsv1.CustomResourceDefinition{
+				{
+					ObjectMeta: metav1.ObjectMeta{Name: "hostedclusters.hypershift.openshift.io"},
+					Spec: apiextensionsv1.CustomResourceDefinitionSpec{
+						Group: "hypershift.openshift.io",
+						Names: apiextensionsv1.CustomResourceDefinitionNames{
+							Kind:     "HostedCluster",
+							ListKind: "HostedClusterList",
+							Plural:   "hostedclusters",
+						},
+						Scope: apiextensionsv1.NamespaceScoped,
+						Versions: []apiextensionsv1.CustomResourceDefinitionVersion{
+							{Name: "v1beta1", Storage: true, Served: true},
+						},
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{Name: "nodepools.hypershift.openshift.io"},
+					Spec: apiextensionsv1.CustomResourceDefinitionSpec{
+						Group: "hypershift.openshift.io",
+						Names: apiextensionsv1.CustomResourceDefinitionNames{
+							Kind:     "NodePool",
+							ListKind: "NodePoolList",
+							Plural:   "nodepools",
+						},
+						Scope: apiextensionsv1.NamespaceScoped,
+						Versions: []apiextensionsv1.CustomResourceDefinitionVersion{
+							{Name: "v1beta1", Storage: true, Served: true},
+						},
+					},
+				},
+			},
+			crs: []*unstructured.Unstructured{
+				createUnstructuredCR("hypershift.openshift.io/v1beta1", "HostedCluster", "my-hc", "test-hc-ns", nil),
+				createUnstructuredCR("hypershift.openshift.io/v1beta1", "NodePool", "my-nodepool-1", "test-hc-ns", nil),
+				createUnstructuredCR("hypershift.openshift.io/v1beta1", "NodePool", "my-nodepool-2", "test-hc-ns", nil),
+			},
+			hostedClusterNamespace: "test-hc-ns",
+			expectedCRListCount:    2,
+			expectedTotalCRs:       3,
+		},
+		{
+			name: "returns error when namespace missing cluster ID label",
+			namespace: &corev1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:   "test-hc-ns",
+					Labels: map[string]string{},
+				},
+			},
+			crds:                   []*apiextensionsv1.CustomResourceDefinition{},
+			crs:                    []*unstructured.Unstructured{},
+			hostedClusterNamespace: "test-hc-ns",
+			expectedError:          "namespace test-hc-ns missing label api.openshift.com/id",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			scheme := newTestScheme()
+
+			for _, crd := range tc.crds {
+				gvk := schema.GroupVersionKind{
+					Group:   crd.Spec.Group,
+					Version: crd.Spec.Versions[0].Name,
+					Kind:    crd.Spec.Names.Kind,
+				}
+				listGVK := schema.GroupVersionKind{
+					Group:   crd.Spec.Group,
+					Version: crd.Spec.Versions[0].Name,
+					Kind:    crd.Spec.Names.ListKind,
+				}
+
+				scheme.AddKnownTypeWithName(gvk, &unstructured.Unstructured{})
+				scheme.AddKnownTypeWithName(listGVK, &unstructured.UnstructuredList{})
+			}
+
+			var objs []client.Object
+			if tc.namespace != nil {
+				objs = append(objs, tc.namespace)
+			}
+			for _, crd := range tc.crds {
+				objs = append(objs, crd)
+			}
+			for _, cr := range tc.crs {
+				objs = append(objs, cr)
+			}
+
+			fakeClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects(objs...).Build()
+			lister := NewCustomResourceLister(fakeClient)
+			ctx := context.Background()
+
+			crChan := make(chan *unstructured.UnstructuredList)
+			var receivedLists []*unstructured.UnstructuredList
+
+			// Start goroutine to receive from channel
+			done := make(chan struct{})
+			go func() {
+				for crList := range crChan {
+					receivedLists = append(receivedLists, crList)
+				}
+				close(done)
+			}()
+
+			err := lister.StreamCRs(ctx, tc.hostedClusterNamespace, crChan)
+			// close the consumer go routine channel.
+			close(crChan)
+			// Wait for the consumer to finish.
+			<-done
+
+			if tc.expectedError != "" {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tc.expectedError)
+			} else {
+				require.NoError(t, err)
+				assert.Len(t, receivedLists, tc.expectedCRListCount)
+
+				totalCRs := 0
+				for _, crList := range receivedLists {
+					totalCRs += len(crList.Items)
+				}
+				assert.Equal(t, tc.expectedTotalCRs, totalCRs)
+			}
+		})
+	}
+}
+
+func TestDumper_DumpCRs(t *testing.T) {
+	scheme := newTestScheme()
+
+	namespace := &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "test-hc-ns",
+			Labels: map[string]string{
+				clusterIDLabelKey: "cluster-123",
+			},
+		},
+	}
+
+	crd := &apiextensionsv1.CustomResourceDefinition{
+		ObjectMeta: metav1.ObjectMeta{Name: "hostedclusters.hypershift.openshift.io"},
+		Spec: apiextensionsv1.CustomResourceDefinitionSpec{
+			Group: "hypershift.openshift.io",
+			Names: apiextensionsv1.CustomResourceDefinitionNames{
+				Kind:     "HostedCluster",
+				ListKind: "HostedClusterList",
+				Plural:   "hostedclusters",
+			},
+			Scope: apiextensionsv1.NamespaceScoped,
+			Versions: []apiextensionsv1.CustomResourceDefinitionVersion{
+				{Name: "v1beta1", Storage: true, Served: true},
+			},
+		},
+	}
+
+	gvk := schema.GroupVersionKind{
+		Group:   crd.Spec.Group,
+		Version: crd.Spec.Versions[0].Name,
+		Kind:    crd.Spec.Names.Kind,
+	}
+	listGVK := schema.GroupVersionKind{
+		Group:   crd.Spec.Group,
+		Version: crd.Spec.Versions[0].Name,
+		Kind:    crd.Spec.Names.ListKind,
+	}
+	scheme.AddKnownTypeWithName(gvk, &unstructured.Unstructured{})
+	scheme.AddKnownTypeWithName(listGVK, &unstructured.UnstructuredList{})
+
+	cr := createUnstructuredCR("hypershift.openshift.io/v1beta1", "HostedCluster", "my-hc", "test-hc-ns", nil)
+
+	fakeClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects(namespace, crd, cr).Build()
+	lister := NewCustomResourceLister(fakeClient)
+
+	// Custom output function that collects CRs
+	var collectedCRs []*unstructured.UnstructuredList
+	customOutputFunc := func(crChan <-chan *unstructured.UnstructuredList, options CROutputOptions) error {
+		for crList := range crChan {
+			collectedCRs = append(collectedCRs, crList)
+		}
+		return nil
+	}
+
+	dumper := NewDumper(lister, customOutputFunc, CROutputOptions{})
+
+	err := dumper.DumpCRs(context.Background(), "test-hc-ns")
+
+	require.NoError(t, err)
+	assert.Len(t, collectedCRs, 1)
+	assert.Len(t, collectedCRs[0].Items, 1)
+	assert.Equal(t, "my-hc", collectedCRs[0].Items[0].GetName())
+}
