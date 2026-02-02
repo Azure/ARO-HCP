@@ -106,8 +106,15 @@ func (c *deleteOrphanedCosmosResources) synchronizeSubscription(ctx context.Cont
 
 	// longer strings are first, so we're guaranteed to see children before parents when we iterate
 	resourceIDStrings := sets.KeySet(allSubscriptionResourceIDs).UnsortedList()
-	slices.Sort(resourceIDStrings)
-	slices.Reverse(resourceIDStrings)
+	slices.SortFunc(resourceIDStrings, func(a, b string) int {
+		if len(a) > len(b) {
+			return -1
+		}
+		if len(b) > len(a) {
+			return 1
+		}
+		return strings.Compare(a, b)
+	})
 
 	// at this point we have every resourceID under the subscription that is under a resourcegroup
 	resourceGroupPrefix := subscriptionResourceID.String() + "/resourcegroups/"
@@ -115,29 +122,37 @@ func (c *deleteOrphanedCosmosResources) synchronizeSubscription(ctx context.Cont
 		currResourceID := allSubscriptionResourceIDs[currResourceIDString]
 		switch {
 		case strings.EqualFold(currResourceID.ResourceType.String(), api.ClusterResourceType.String()):
-			// clusters clearly have an owning cluster
+			// clusters have an owning cluster by definition (themselves)
 			continue
 		case !strings.HasPrefix(strings.ToLower(currResourceIDString), strings.ToLower(resourceGroupPrefix)):
-			// skip anything outside a resourcegroup (operations for instance)
+			// skip anything outside a resourcegroup (operations for instance).  These have TTLs and logically need to live past clusters.
+			// For instance, a DNSReservation must exist for a week after the cluster using it is gone to avoid unexpected reuse.
 			continue
 		case !strings.EqualFold(currResourceID.ResourceType.Namespace, api.ProviderNamespace):
-			// any resources outside our namespace we shouldn't delete
+			// any resources outside our namespace we shouldn't delete. Subscriptions exist outside our namespace for instance.
 			continue
 		}
 
+		localLogger := logger.WithValues(
+			"cosmosResourceID", currResourceIDString,
+			"resource_group", currResourceID.ResourceGroupName,
+			"resource_id", currResourceID,
+			"resource_name", currResourceID.Name,
+			"hcp_cluster_name", clusterNameOfResourceID(currResourceID),
+		)
+		ctxWithLocalLogger := utils.ContextWithLogger(ctx, localLogger) // setting so that other calls down the chain will show correctly in kusto for the delete
+
+		if currResourceID.Parent == nil {
+			// this is an unexpected state, so we'll log it and hope it is rare.
+			localLogger.Error(nil, "cosmos resource has no parent", "cosmosResourceID", currResourceIDString)
+			continue
+		}
 		_, parentExists := allSubscriptionResourceIDs[currResourceID.Parent.String()]
 		if !parentExists {
-			localLogger := logger.WithValues(
-				"cosmosResourceID", currResourceIDString,
-				"resource_group", currResourceID.ResourceGroupName,
-				"resource_id", currResourceID,
-				"resource_name", currResourceID.Name,
-				"hcp_cluster_name", clusterNameOfResourceID(currResourceID),
-			)
-			ctxWithLocalLogger := utils.ContextWithLogger(ctx, localLogger) // setting so that other calls down the chain will show correctly in kusto for the delete
 			localLogger.Info("deleting orphaned cosmos resource")
 			if err := untypedSubscriptionCRUD.Delete(ctxWithLocalLogger, currResourceID); err != nil {
-				errs = append(errs, utils.TrackError(fmt.Errorf("unable to delete %q in %q: %w", currResourceIDString, currResourceID.Parent.String(), err)))
+				localLogger.Error(err, "unable to delete orphaned cosmos resource") // logged here so we a log line with a filterable context.
+				errs = append(errs, utils.TrackError(fmt.Errorf("unable to delete %v in %v: %w", currResourceIDString, currResourceID.Parent.String(), err)))
 			}
 		}
 	}
