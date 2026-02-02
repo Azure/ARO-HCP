@@ -160,6 +160,10 @@ func CreateTestSubscription(registeredFeatures ...string) *arm.Subscription {
 	}
 
 	return &arm.Subscription{
+		CosmosMetadata: CosmosMetadata{
+			ResourceID: Must(azcorearm.ParseResourceID(TestSubscriptionResourceID)),
+		},
+		ResourceID:       Must(azcorearm.ParseResourceID(TestSubscriptionResourceID)),
 		State:            arm.SubscriptionStateRegistered,
 		RegistrationDate: ptr.To(time.Now().Format(time.RFC1123)),
 		Properties: &arm.SubscriptionProperties{

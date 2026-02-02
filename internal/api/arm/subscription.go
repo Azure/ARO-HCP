@@ -34,6 +34,8 @@ func ToSubscriptionResourceID(subscriptionName string) (*azcorearm.ResourceID, e
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type Subscription struct {
+	CosmosMetadata `json:"cosmosMetadata"`
+
 	ResourceID *azcorearm.ResourceID `json:"resourceId,omitempty"`
 
 	// The resource provider contract gives an example RegistrationDate
@@ -46,9 +48,6 @@ type Subscription struct {
 	// LastUpdated is a copy of the Cosmos DB system generated
 	// "_ts" last updated timestamp field for metrics reporting.
 	LastUpdated int `json:"-"`
-
-	// CosmosUID is used to keep track of whether we have transitioned to a new cosmosUID scheme for this item
-	CosmosUID string `json:"-"`
 }
 
 func (o *Subscription) GetCosmosData() *CosmosMetadata {
