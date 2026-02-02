@@ -17,7 +17,6 @@ package listers
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/client-go/tools/cache"
@@ -63,7 +62,7 @@ func (l *informerBasedSubscriptionLister) List(ctx context.Context) ([]*arm.Subs
 //
 //	/subscriptions/<subscriptionID>
 func (l *informerBasedSubscriptionLister) Get(ctx context.Context, subscriptionID string) (*arm.Subscription, error) {
-	key := strings.ToLower(fmt.Sprintf("/subscriptions/%s", subscriptionID))
+	key := arm.ToSubscriptionResourceIDString(subscriptionID)
 	item, exists, err := l.indexer.GetByKey(key)
 	if apierrors.IsNotFound(err) {
 		return nil, database.NewNotFoundError()

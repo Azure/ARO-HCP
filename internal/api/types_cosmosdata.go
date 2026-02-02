@@ -45,10 +45,21 @@ func ToResourceGroupResourceIDString(subscriptionName, resourcGroupName string) 
 	return strings.ToLower(path.Join("/subscriptions", subscriptionName, "resourceGroups", resourcGroupName))
 }
 
+func ToClusterResourceID(subscriptionName, resourceGroupName, clusterName string) (*azcorearm.ResourceID, error) {
+	return azcorearm.ParseResourceID(ToClusterResourceIDString(subscriptionName, resourceGroupName, clusterName))
+}
+
 func ToClusterResourceIDString(subscriptionName, resourceGroupName, clusterName string) string {
 	return strings.ToLower(path.Join(
 		"/subscriptions", subscriptionName,
 		"resourceGroups", resourceGroupName,
-		ClusterResourceType.String(), clusterName,
+		"providers", ClusterResourceType.String(), clusterName,
+	))
+}
+
+func ToOperationResourceIDString(subscriptionName, operationName string) string {
+	return strings.ToLower(path.Join(
+		"/subscriptions", subscriptionName,
+		"providers", OperationStatusResourceType.String(), operationName,
 	))
 }

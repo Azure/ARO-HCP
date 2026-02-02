@@ -180,6 +180,8 @@ func (c *genericOperation) enqueueAdd(newObj interface{}) {
 	if !c.cooldownChecker.CanSync(context.TODO(), key) {
 		return
 	}
+	// we check here whether we should queue or not. If our view is stale and another update is coming, then we are guaranteed to be
+	// informed of an update again.  At this point we can check if it meets our preconditions again.
 	if !c.synchronizer.ShouldProcess(context.Background(), castObj) {
 		return
 	}

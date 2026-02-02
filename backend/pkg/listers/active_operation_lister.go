@@ -17,7 +17,6 @@ package listers
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/client-go/tools/cache"
@@ -65,8 +64,7 @@ func (l *activeOperationLister) List(ctx context.Context) ([]*api.Operation, err
 //
 //	/subscriptions/<sub>/providers/microsoft.redhatopenshift/hcpoperationstatuses/<name>
 func (l *activeOperationLister) Get(ctx context.Context, subscriptionID, name string) (*api.Operation, error) {
-	key := strings.ToLower(fmt.Sprintf("/subscriptions/%s/providers/%s/%s/%s",
-		subscriptionID, api.OperationStatusResourceType.Namespace, api.OperationStatusResourceType.Type, name))
+	key := api.ToOperationResourceIDString(subscriptionID, name)
 	item, exists, err := l.indexer.GetByKey(key)
 	if apierrors.IsNotFound(err) {
 		return nil, database.NewNotFoundError()
