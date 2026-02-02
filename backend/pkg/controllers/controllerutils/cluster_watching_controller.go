@@ -46,11 +46,16 @@ type clusterWatchingController struct {
 }
 
 // NewClusterWatchingController periodically looks up all clusters and queues them
+// cooldownDuration is how long to wait before allowing a new notification to fire the controller.
+// Since our detection of change is coarse, we are being triggered every few second without new information.
+// Until we get a changefeed, the cooldownDuration value is effectively the min resync time.
+// This does NOT prevent us from re-executing on errors, so errors will continue to trigger fast checks as expected.
 func NewClusterWatchingController(
 	name string,
 	cosmosClient database.DBClient,
 	clusterInformer cache.SharedIndexInformer,
 	resyncDuration time.Duration,
+	cooldownDuration time.Duration,
 	syncer ClusterSyncer,
 ) Controller {
 	c := &clusterWatchingController{

@@ -25,9 +25,12 @@ import (
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/tools/cache"
 
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 const (
@@ -126,7 +129,7 @@ func NewClusterInformerWithRelistDuration(lister database.GlobalLister[api.HCPOp
 		cache.SharedIndexInformerOptions{
 			ResyncPeriod: 1 * time.Hour,
 			Indexers: cache.Indexers{
-				ByResourceGroup: clusterResourceGroupIndexFunc,
+				ByResourceGroup: resourceGroupIndexFunc,
 			},
 		},
 	)
@@ -170,8 +173,8 @@ func NewNodePoolInformerWithRelistDuration(lister database.GlobalLister[api.HCPO
 		cache.SharedIndexInformerOptions{
 			ResyncPeriod: 1 * time.Hour,
 			Indexers: cache.Indexers{
-				ByResourceGroup: nodePoolResourceGroupIndexFunc,
-				ByCluster:       nodePoolClusterIndexFunc,
+				ByResourceGroup: resourceGroupIndexFunc,
+				ByCluster:       clusterResourceIDIndexFunc,
 			},
 		},
 	)
@@ -224,71 +227,54 @@ func NewActiveOperationInformerWithRelistDuration(lister database.GlobalLister[a
 	)
 }
 
-// resourceGroupKey returns the resource group index key for a resource ID in the
-// format: /subscriptions/<sub>/resourcegroups/<rg>
-func resourceGroupKey(id interface{ String() string }) string {
-	// Parse the resource ID string to extract subscription and resource group.
-	// Resource IDs follow the pattern:
-	//   /subscriptions/<sub>/resourceGroups/<rg>/providers/...
-	parts := strings.Split(strings.ToLower(id.String()), "/")
-	// Find subscriptions and resourcegroups segments.
-	var sub, rg string
-	for i := 0; i < len(parts)-1; i++ {
-		switch parts[i] {
-		case "subscriptions":
-			sub = parts[i+1]
-		case "resourcegroups":
-			rg = parts[i+1]
-		}
+func resourceGroupIndexFunc(obj interface{}) ([]string, error) {
+	switch castObj := obj.(type) {
+	case api.CosmosMetadataAccessor:
+		return []string{api.ToResourceGroupResourceIDString(castObj.GetResourceID().SubscriptionID, castObj.GetResourceID().ResourceGroupName)}, nil
+	case api.CosmosPersistable:
+		return []string{api.ToResourceGroupResourceIDString(castObj.GetCosmosData().ResourceID.SubscriptionID, castObj.GetCosmosData().ResourceID.ResourceGroupName)}, nil
+	default:
+		return nil, utils.TrackError(fmt.Errorf("unexpected type %T, expected api.CosmosMetadataAccessor or api.CosmosPersistable", obj))
 	}
-	if sub == "" || rg == "" {
-		return ""
-	}
-	return fmt.Sprintf("/subscriptions/%s/resourcegroups/%s", sub, rg)
 }
 
-// clusterResourceGroupIndexFunc indexes clusters by resource group.
-func clusterResourceGroupIndexFunc(obj interface{}) ([]string, error) {
-	cluster, ok := obj.(*api.HCPOpenShiftCluster)
-	if !ok {
-		return nil, fmt.Errorf("expected *api.HCPOpenShiftCluster, got %T", obj)
+func clusterResourceIDIndexFunc(obj interface{}) ([]string, error) {
+	switch castObj := obj.(type) {
+	case api.CosmosMetadataAccessor:
+		return clusterResourceIDFromResourceID(castObj.GetResourceID())
+	case api.CosmosPersistable:
+		return clusterResourceIDFromResourceID(castObj.GetCosmosData().ResourceID)
+	default:
+		return nil, utils.TrackError(fmt.Errorf("unexpected type %T, expected api.CosmosMetadataAccessor or api.CosmosPersistable", obj))
 	}
-	if cluster.ID == nil {
-		return nil, nil
-	}
-	key := resourceGroupKey(cluster.ID)
-	if key == "" {
-		return nil, nil
-	}
-	return []string{key}, nil
 }
 
-// nodePoolResourceGroupIndexFunc indexes node pools by resource group.
-func nodePoolResourceGroupIndexFunc(obj interface{}) ([]string, error) {
-	np, ok := obj.(*api.HCPOpenShiftClusterNodePool)
-	if !ok {
-		return nil, fmt.Errorf("expected *api.HCPOpenShiftClusterNodePool, got %T", obj)
-	}
-	if np.ID == nil {
+func clusterResourceIDFromResourceID(resourceID *azcorearm.ResourceID) ([]string, error) {
+	switch {
+	case resourceID == nil:
 		return nil, nil
-	}
-	key := resourceGroupKey(np.ID)
-	if key == "" {
-		return nil, nil
-	}
-	return []string{key}, nil
-}
 
-// nodePoolClusterIndexFunc indexes node pools by their parent cluster resource ID.
-func nodePoolClusterIndexFunc(obj interface{}) ([]string, error) {
-	np, ok := obj.(*api.HCPOpenShiftClusterNodePool)
-	if !ok {
-		return nil, fmt.Errorf("expected *api.HCPOpenShiftClusterNodePool, got %T", obj)
-	}
-	if np.ID == nil || np.ID.Parent == nil {
+	case strings.EqualFold(resourceID.ResourceType.String(), api.ClusterResourceType.String()):
+		return []string{strings.ToLower(resourceID.String())}, nil
+
+	case resourceID.Parent == nil:
+		return nil, nil
+	case strings.EqualFold(resourceID.Parent.ResourceType.String(), api.ClusterResourceType.String()):
+		return []string{strings.ToLower(resourceID.Parent.String())}, nil
+
+	case resourceID.Parent.Parent == nil:
+		return nil, nil
+	case strings.EqualFold(resourceID.Parent.Parent.ResourceType.String(), api.ClusterResourceType.String()):
+		return []string{strings.ToLower(resourceID.Parent.Parent.String())}, nil
+
+	case resourceID.Parent.Parent.Parent == nil:
+		return nil, nil
+	case strings.EqualFold(resourceID.Parent.Parent.Parent.ResourceType.String(), api.ClusterResourceType.String()):
+		return []string{strings.ToLower(resourceID.Parent.Parent.Parent.String())}, nil
+
+	default:
 		return nil, nil
 	}
-	return []string{strings.ToLower(np.ID.Parent.String())}, nil
 }
 
 // activeOperationResourceGroupIndexFunc indexes operations by the resource group
@@ -301,11 +287,8 @@ func activeOperationResourceGroupIndexFunc(obj interface{}) ([]string, error) {
 	if op.ExternalID == nil {
 		return nil, nil
 	}
-	key := resourceGroupKey(op.ExternalID)
-	if key == "" {
-		return nil, nil
-	}
-	return []string{key}, nil
+
+	return []string{api.ToResourceGroupResourceIDString(op.ExternalID.SubscriptionID, op.ExternalID.ResourceGroupName)}, nil
 }
 
 // activeOperationClusterIndexFunc indexes operations by their associated cluster
@@ -317,20 +300,6 @@ func activeOperationClusterIndexFunc(obj interface{}) ([]string, error) {
 	if !ok {
 		return nil, fmt.Errorf("expected *api.Operation, got %T", obj)
 	}
-	if op.ExternalID == nil {
-		return nil, nil
-	}
 
-	if strings.EqualFold(op.ExternalID.ResourceType.String(), api.ClusterResourceType.String()) {
-		return []string{strings.ToLower(op.ExternalID.String())}, nil
-	}
-
-	// For child resources (nodepools, externalauths), use the parent cluster ID
-	// only if the parent is actually a cluster.
-	if op.ExternalID.Parent != nil &&
-		strings.EqualFold(op.ExternalID.Parent.ResourceType.String(), api.ClusterResourceType.String()) {
-		return []string{strings.ToLower(op.ExternalID.Parent.String())}, nil
-	}
-
-	return nil, nil
+	return clusterResourceIDFromResourceID(op.ExternalID)
 }
