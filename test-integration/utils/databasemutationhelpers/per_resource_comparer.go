@@ -105,9 +105,12 @@ func ResourceInstanceEquals(t *testing.T, expected, actual any) (string, bool) {
 
 		// this loops handles the cosmosObj possibility and the internalObj possibility
 		for _, possiblePrepend := range []string{"", "properties"} {
-			unstructured.RemoveNestedField(currMap, prepend(possiblePrepend, "lastTransitionTime")...) // operations
-			unstructured.RemoveNestedField(currMap, prepend(possiblePrepend, "startTime")...)          // operations
-			unstructured.RemoveNestedField(currMap, prepend(possiblePrepend, "operationId")...)        // operations
+			unstructured.RemoveNestedField(currMap, prepend(possiblePrepend, "lastTransitionTime")...)                     // operations
+			unstructured.RemoveNestedField(currMap, prepend(possiblePrepend, "startTime")...)                              // operations
+			unstructured.RemoveNestedField(currMap, prepend(possiblePrepend, "operationId")...)                            // operations
+			unstructured.RemoveNestedField(currMap, prepend(possiblePrepend, "cosmosUID")...)                              // controllers
+			unstructured.RemoveNestedField(currMap, prepend(possiblePrepend, "serviceProviderProperties", "cosmosUID")...) // cluster, nodepool, externalauth
+			unstructured.RemoveNestedField(currMap, prepend(possiblePrepend, "internalState", "internalAPI", "serviceProviderProperties", "billingDocId")...) // cluster - UUID generated
 
 			for _, nestedPossiblePrepend := range []string{"", "intermediateResourceDoc"} {
 				unstructured.RemoveNestedField(currMap, prepend(possiblePrepend, prepend(nestedPossiblePrepend, "activeOperationId")...)...) // cluster, nodepool, externalauth

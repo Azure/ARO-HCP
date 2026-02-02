@@ -239,6 +239,10 @@ func (d *cosmosDBClient) CreateBillingDoc(ctx context.Context, doc *BillingDocum
 		return errors.New("BillingDocument is missing a ResourceID")
 	}
 
+	if doc.ID == "" {
+		return errors.New("BillingDocument is missing an ID")
+	}
+
 	pk := NewPartitionKey(doc.ResourceID.SubscriptionID)
 
 	data, err := json.Marshal(doc)

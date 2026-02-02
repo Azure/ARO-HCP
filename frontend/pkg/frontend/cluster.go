@@ -27,6 +27,7 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
+	"github.com/google/uuid"
 
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
@@ -266,6 +267,7 @@ func decodeDesiredClusterCreate(ctx context.Context, azureLocation string) (*api
 	// set fields that were not included during the conversion, because the user does not provide them or because the
 	// data is determined live on read.
 	newInternalCluster.SystemData = systemData
+	newInternalCluster.ServiceProviderProperties.BillingDocID = uuid.New().String()
 	// Clear the user-assigned identities map since that is reconstructed from Cluster Service data.
 	// TODO we'd like to have the instance complete when we go to validate it.  Right now validation fails if we clear this.
 	// TODO we probably update validation to require this field is cleared.
