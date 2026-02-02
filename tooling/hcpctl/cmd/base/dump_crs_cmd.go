@@ -2,7 +2,9 @@ package base
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -19,6 +21,44 @@ type DumpCRsCmdOptions struct {
 	RawBreakglassAKSOptions
 	HostedClusterNamespace string
 	OutputPath             string
+}
+
+type ValidatedDumpCRsCmdOptions struct {
+	*ValidatedBreakglassAKSOptions
+	HostedClusterNamespace string
+	OutputPath             string
+}
+
+func (o *DumpCRsCmdOptions) Validate(ctx context.Context) (*ValidatedDumpCRsCmdOptions, error) {
+	if o.HostedClusterNamespace == "" {
+		return nil, fmt.Errorf("hosted-cluster-namespace is required")
+	}
+
+	if o.OutputPath == "" {
+		return nil, fmt.Errorf("output-path is required")
+	}
+
+	info, err := os.Stat(o.OutputPath)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, fmt.Errorf("output-path %s does not exist", o.OutputPath)
+		}
+		return nil, err
+	}
+	if !info.IsDir() {
+		return nil, fmt.Errorf("output-path %s is not a directory", o.OutputPath)
+	}
+
+	validated, err := o.RawBreakglassAKSOptions.Validate(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return &ValidatedDumpCRsCmdOptions{
+		ValidatedBreakglassAKSOptions: validated,
+		HostedClusterNamespace:        o.HostedClusterNamespace,
+		OutputPath:                    o.OutputPath,
+	}, nil
 }
 
 func newDumpCrsCommand(config ClusterConfig) (*cobra.Command, error) {
@@ -66,7 +106,7 @@ func runDumpCrs(ctx context.Context, opts DumpCRsCmdOptions, config ClusterConfi
 		return fmt.Errorf("validation failed: %w", err)
 	}
 
-	completed, err := config.CompleteBreakglass(ctx, validated)
+	completed, err := config.CompleteBreakglass(ctx, validated.ValidatedBreakglassAKSOptions)
 	if err != nil {
 		return err
 	}
@@ -88,13 +128,10 @@ func runDumpCrs(ctx context.Context, opts DumpCRsCmdOptions, config ClusterConfi
 	}
 
 	crLister := crdump.NewCustomResourceLister(k8sClient)
-	crsList, err := crLister.ListCRs(ctx, opts.HostedClusterNamespace)
-	if err != nil {
-		return fmt.Errorf("failed to list CRs: %w", err)
-	}
+	dumper := crdump.NewCliDumper(crLister, opts.OutputPath, opts.HostedClusterNamespace)
 
-	if err := crdump.WriteCRsToDisk(opts.HostedClusterNamespace, crsList, opts.OutputPath); err != nil {
-		return fmt.Errorf("failed to write CRs to disk: %w", err)
+	if err := dumper.DumpCRs(ctx, opts.HostedClusterNamespace); err != nil {
+		return fmt.Errorf("failed to dump CRs: %w", err)
 	}
 	return nil
 }
