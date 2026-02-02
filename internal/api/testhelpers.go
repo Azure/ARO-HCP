@@ -101,6 +101,7 @@ func ExternalAuthTestCase(t *testing.T, tweaks *HCPOpenShiftClusterExternalAuth)
 	return externalAuth
 }
 
+// +k8s:deepcopy-gen=false
 type ExternalTestResource struct {
 	ID         *string
 	Name       *string

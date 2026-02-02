@@ -36,6 +36,7 @@ const (
 	OperationRequestRevokeCredentials OperationRequest = "RevokeCredentials"
 )
 
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type Operation struct {
 	// ResourceID must be serialized exactly here for the generic CRUD to work.
 	// ResourceID here is NOT an ARM resourceID, it just parses like and one and is guarantee unique
