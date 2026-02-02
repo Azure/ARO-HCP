@@ -40,3 +40,18 @@ func (s *Subscription) GetObjectMeta() metav1.Object {
 	}
 	return om
 }
+
+// SubscriptionList is a list of Subscriptions compatible with runtime.Object
+// for use with Kubernetes informer machinery.
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+type SubscriptionList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata,omitempty"`
+	Items           []Subscription `json:"items"`
+}
+
+var _ runtime.Object = &SubscriptionList{}
+
+func (l *SubscriptionList) GetObjectKind() schema.ObjectKind {
+	return &l.TypeMeta
+}

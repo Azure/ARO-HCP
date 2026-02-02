@@ -15,19 +15,11 @@
 package api
 
 import (
-	"fmt"
-	"maps"
-	"slices"
 	"strings"
-	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-
-	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
-
-	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
 
 var (
@@ -49,6 +41,7 @@ func (o *HCPOpenShiftCluster) GetObjectMeta() metav1.Object {
 
 // HCPOpenShiftClusterList is a list of HCPOpenShiftClusters compatible with
 // runtime.Object for use with Kubernetes informer machinery.
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type HCPOpenShiftClusterList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
@@ -80,6 +73,7 @@ func (o *HCPOpenShiftClusterNodePool) GetObjectMeta() metav1.Object {
 
 // HCPOpenShiftClusterNodePoolList is a list of HCPOpenShiftClusterNodePools
 // compatible with runtime.Object for use with Kubernetes informer machinery.
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type HCPOpenShiftClusterNodePoolList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
@@ -111,6 +105,7 @@ func (o *Operation) GetObjectMeta() metav1.Object {
 
 // OperationList is a list of Operations compatible with runtime.Object for use
 // with Kubernetes informer machinery.
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type OperationList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
