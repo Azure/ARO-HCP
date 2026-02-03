@@ -1,12 +1,12 @@
 acm:
   mce:
     bundle:
-      digest: sha256:5673e5368aba2c95ec131e54bdb4cb86d185bcb887b33c687561d34d65094b4d
+      digest: sha256:97ad52ee2c2f67a1fd8b9203df3b4dbe4e697913a4038963289e3410bbe8196d
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-210
   operator:
     bundle:
-      digest: sha256:480b3c9d12bfe90b2e879bff16410e9938106b07f082a4f99864908fcf7a7ae7
+      digest: sha256:3319cb9ceb262a13cb4b7467f33cc86f373b598e9edd80cef075119bd1ef07e0
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-215
 acr:
@@ -33,7 +33,7 @@ adminApi:
     issuer: Self
     name: admin-api-cert-perf-usw3ptest
   image:
-    digest: sha256:0708293c939c7ab06523a48ef7da45fc07a90ada05fb36281635988f2856519a
+    digest: sha256:2f1c9d0cc8ca2a883d9e08081266b153929a01396ea7bb62ee7b7d9741985c67
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpadminapi
   k8s:
@@ -69,7 +69,7 @@ backend:
   azureRuntimeConfig:
     tlsCertificatesIssuer: Self
   image:
-    digest: sha256:e53d080006459fd12501dde158e00064dca720b98476a861cc8ddba6cafeaa8e
+    digest: sha256:0cb682758bf0ffbef1394bc455f9f9ff4f2f888abfa2a7f701106a631f9fe257
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpbackend
   k8s:
@@ -82,7 +82,7 @@ backend:
     exporter: ""
 backplaneAPI:
   image:
-    digest: sha256:31c069f77e2423e8271c41d68117762f30bd1c086e8422fa025b7c9f64350889
+    digest: sha256:6e4a2f480497dc4124943327d75d8c3e694181d2a3def583f75c8c464c8592bf
     registry: quay.io
     repository: app-sre/backplane-api
 billing:
@@ -126,7 +126,7 @@ clustersService:
   deployDebugJobs: false
   environment: arohcpdev
   image:
-    digest: sha256:4e8ddbf22bfc2b9f37c013bec1de1655d3d62f2a7565a2552f70e10894a129c7
+    digest: sha256:6fda27f6324deeaa9d884b7e6e9514e11defcd47c78c8ae96a0c969482139e3a
     registry: quay.io
     repository: app-sre/aro-hcp-clusters-service
   k8s:
@@ -218,7 +218,7 @@ frontend:
     resourceContainerMaxScale: 4000
     zoneRedundantMode: Auto
   image:
-    digest: sha256:2e4b32c8eb346025f01fec8aafba9a0748f6f7d4773ae900a8803c81a6adfc71
+    digest: sha256:da86c68ae5f2aa69b42dc63dd701488af6e6e2f9f1c0296248b43ad6ef59b926
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpfrontend
   k8s:
@@ -323,7 +323,7 @@ global:
 hypershift:
   additionalInstallArg: --enable-cpo-overrides
   image:
-    digest: sha256:143971dddf67419341aee0fac2399b9d15263e2f7f802d87daa5f43ce7056932
+    digest: sha256:26c4891ecb692307b985423fb04f7aa7db764870befae88a3f394cd0482dcc00
     registry: quay.io
     repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
   limitClusterSizes: true
@@ -334,7 +334,7 @@ imageSync:
   ocMirror:
     enabled: true
     image:
-      digest: sha256:402c80a85b53504af96af4d2d712f35ba6accda9767727d87122fe5cc566674e
+      digest: sha256:f210a0fee4970b7eb1fb10ce0357578ee602553927cbdd7ea60581e9432ee7ac
       registry: arohcpsvcdev.azurecr.io
       repository: image-sync/oc-mirror
     jobNamePrefix: ""
@@ -397,7 +397,7 @@ maestro:
     name: arohcp-perf-maestro-usw3ptest
     private: false
   image:
-    digest: sha256:8f264437a8539fb48df1486eca3580bb737233219141bac9bb475b02676cd98f
+    digest: sha256:6308bf1a47ad0779b4b2af1185bdcf349596cdfa1b22b1c95effb3fef8e8d030
     registry: quay.io
     repository: redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro
   postgres:
