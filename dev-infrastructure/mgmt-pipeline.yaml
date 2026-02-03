@@ -215,6 +215,8 @@ resourceGroups:
       - "InternalServerError"
       - "Internal server error"
       - "Resource is in Updating state"
+      - "There was a problem communicating with the identity service"
+      - "DeploymentScriptExceededMaxAllowedTime"
       maximumRetryCount: 3
       durationBetweenRetries: 2m
   - name: nsp
