@@ -443,7 +443,7 @@ defaults:
         poolCount: 2
         zones: ""
         zoneRedundantMode: "Auto"
-      newInfraAgentPool:
+      infraAgentPoolB:
         minCount: 1
         maxCount: 3
         vmSize: 'Standard_D4ds_v5'

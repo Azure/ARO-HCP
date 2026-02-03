@@ -35,13 +35,13 @@ param infraAgentPoolZones array
 param infraAgentPoolCount int
 param infraZoneRedundantMode string
 
-// New Infra agentpool spec
-param newInfraAgentMinCount int
-param newInfraAgentMaxCount int
-param newInfraAgentVMSize string
-param newInfraAgentPoolZones array
-param newInfraAgentPoolCount int
-param newInfraZoneRedundantMode string
+// Infra B agentpool spec
+param infraBAgentMinCount int
+param infraBAgentMaxCount int
+param infraBAgentVMSize string
+param infraBAgentPoolZones array
+param infraBAgentPoolCount int
+param infraBZoneRedundantMode string
 
 param serviceCidr string = '10.130.0.0/16'
 param dnsServiceIP string = '10.130.0.10'
@@ -100,7 +100,7 @@ param dnsPrefix string = aksClusterName
 param systemOsDiskSizeGB int
 param userOsDiskSizeGB int
 param infraOsDiskSizeGB int
-param newInfraOsDiskSizeGB int
+param infraBOsDiskSizeGB int
 
 @description('The resource IDs of ACR instances that the AKS cluster will pull images from')
 param pullAcrResourceIds array = []
@@ -560,22 +560,22 @@ module infraAgentPools '../modules/aks/pool.bicep' = {
   }
 }
 
-module newInfraAgentPools '../modules/aks/pool.bicep' = if (newInfraAgentPoolCount > 0) {
-  name: 'new-infra-agent-pools'
+module infraBAgentPools '../modules/aks/pool.bicep' = if (infraBAgentPoolCount > 0) {
+  name: 'infra-b-agent-pools'
   params: {
     aksClusterName: aksCluster.name
-    poolBaseName: 'newinfra'
-    poolZones: newInfraAgentPoolZones
-    poolCount: newInfraAgentPoolCount
+    poolBaseName: 'infrab'
+    poolZones: infraBAgentPoolZones
+    poolCount: infraBAgentPoolCount
     poolRole: 'infra'
     enableSwiftV2: false
-    minCount: newInfraAgentMinCount
-    maxCount: newInfraAgentMaxCount
-    vmSize: newInfraAgentVMSize
-    osDiskSizeGB: newInfraOsDiskSizeGB
+    minCount: infraBAgentMinCount
+    maxCount: infraBAgentMaxCount
+    vmSize: infraBAgentVMSize
+    osDiskSizeGB: infraBOsDiskSizeGB
     vnetSubnetId: nodeSubnetId
     podSubnetId: aksPodSubnet.id
-    zoneRedundantMode: newInfraZoneRedundantMode
+    zoneRedundantMode: infraBZoneRedundantMode
     maxPods: 225
     taints: [
       'infra=true:NoSchedule'

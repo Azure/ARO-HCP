@@ -72,26 +72,26 @@ param infraOsDiskSizeGB int
 @description('Zone redundant mode for the infra nodes')
 param infraZoneRedundantMode string
 
-@description('Min replicas for the new infra worker nodes')
-param newInfraAgentMinCount int
+@description('Min replicas for infra B worker nodes')
+param infraBAgentMinCount int
 
-@description('Max replicas for the new infra worker nodes')
-param newInfraAgentMaxCount int
+@description('Max replicas for infra B worker nodes')
+param infraBAgentMaxCount int
 
-@description('VM instance type for the new infra worker nodes')
-param newInfraAgentVMSize string
+@description('VM instance type for infra B worker nodes')
+param infraBAgentVMSize string
 
-@description('Number of pools to create for new infra nodes')
-param newInfraAgentPoolCount int
+@description('Number of pools to create for infra B nodes')
+param infraBAgentPoolCount int
 
-@description('Zones to use for the new infra nodes')
-param newInfraAgentPoolZones string
+@description('Zones to use for infra B nodes')
+param infraBAgentPoolZones string
 
-@description('Disk size for the AKS new infra nodes')
-param newInfraOsDiskSizeGB int
+@description('Disk size for AKS infra B nodes')
+param infraBOsDiskSizeGB int
 
-@description('Zone redundant mode for the new infra nodes')
-param newInfraZoneRedundantMode string
+@description('Zone redundant mode for infra B nodes')
+param infraBZoneRedundantMode string
 
 @description('Min replicas for the system nodes')
 param systemAgentMinCount int = 2
@@ -386,15 +386,15 @@ module mgmtCluster '../modules/aks-cluster-base.bicep' = {
       : locationAvailabilityZoneList
     infraZoneRedundantMode: infraZoneRedundantMode
     infraOsDiskSizeGB: infraOsDiskSizeGB
-    newInfraAgentMinCount: newInfraAgentMinCount
-    newInfraAgentMaxCount: newInfraAgentMaxCount
-    newInfraAgentVMSize: newInfraAgentVMSize
-    newInfraAgentPoolCount: newInfraAgentPoolCount
-    newInfraAgentPoolZones: length(csvToArray(newInfraAgentPoolZones)) > 0
-      ? csvToArray(newInfraAgentPoolZones)
+    infraBAgentMinCount: infraBAgentMinCount
+    infraBAgentMaxCount: infraBAgentMaxCount
+    infraBAgentVMSize: infraBAgentVMSize
+    infraBAgentPoolCount: infraBAgentPoolCount
+    infraBAgentPoolZones: length(csvToArray(infraBAgentPoolZones)) > 0
+      ? csvToArray(infraBAgentPoolZones)
       : locationAvailabilityZoneList
-    newInfraZoneRedundantMode: newInfraZoneRedundantMode
-    newInfraOsDiskSizeGB: newInfraOsDiskSizeGB
+    infraBZoneRedundantMode: infraBZoneRedundantMode
+    infraBOsDiskSizeGB: infraBOsDiskSizeGB
     networkDataplane: aksNetworkDataplane
     networkPolicy: aksNetworkPolicy
     deploymentMsiId: globalMSIId

@@ -439,11 +439,7 @@ mgmt:
       vmSize: Standard_D2s_v3
       zoneRedundantMode: Auto
       zones: ""
-    kubernetesVersion: 1.32.5
-    name: swft-lnstest-mgmt-1
-    networkDataplane: azure
-    networkPolicy: azure
-    newInfraAgentPool:
+    infraAgentPoolB:
       maxCount: 3
       minCount: 1
       osDiskSizeGB: 32
@@ -451,6 +447,10 @@ mgmt:
       vmSize: Standard_D4ds_v5
       zoneRedundantMode: Auto
       zones: ""
+    kubernetesVersion: 1.32.5
+    name: swft-lnstest-mgmt-1
+    networkDataplane: azure
+    networkPolicy: azure
     podSubnetPrefix: 10.128.64.0/18
     subnetPrefix: 10.128.8.0/21
     systemAgentPool:

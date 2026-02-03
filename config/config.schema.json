@@ -513,7 +513,7 @@
         "infraAgentPool": {
           "$ref": "#/definitions/aksAgentPool"
         },
-        "newInfraAgentPool": {
+        "infraAgentPoolB": {
           "$ref": "#/definitions/aksAgentPool"
         },
         "clusterOutboundIPAddressIPTags": {
