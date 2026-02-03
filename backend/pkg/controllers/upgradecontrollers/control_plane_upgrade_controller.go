@@ -20,12 +20,17 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/hashicorp/go-version"
+	"github.com/blang/semver/v4"
+	"github.com/google/uuid"
+
 	ocmsdk "github.com/openshift-online/ocm-sdk-go"
+	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
+	configv1 "github.com/openshift/api/config/v1"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/cincinatti"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -40,11 +45,6 @@ type controlPlaneUpgradeSyncer struct {
 }
 
 var _ controllerutils.ClusterSyncer = (*controlPlaneUpgradeSyncer)(nil)
-
-const (
-	// TracerName is the name used for tracing OCM API calls
-	TracerName = "github.com/Azure/ARO-HCP/backend"
-)
 
 // NewControlPlaneUpgradeController creates a new controller that manages control plane upgrades.
 // It periodically checks each cluster and determines if an upgrade is needed based on the
@@ -62,7 +62,7 @@ func NewControlPlaneUpgradeController(
 			false,
 			false,
 		),
-		TracerName,
+		"github.com/Azure/ARO-HCP/backend",
 	)
 
 	syncer := &controlPlaneUpgradeSyncer{
@@ -90,20 +90,9 @@ func NewControlPlaneUpgradeController(
 //  4. Compute the desired z-stream version based on upgrade logic (initial/z-stream/y-stream)
 //  5. If the computed desired version differs from the previously stored desired version:
 //     - Update the DesiredVersion field
-//     - Trigger the upgrade via version service
+//     - Trigger the upgrade
 //  6. Save the updated service provider cluster state
-//
-// TODO: Add comprehensive logging throughout the reconciliation process for:
-//   - Version resolution decisions (which case, why this version was selected)
-//   - Upgrade triggers (old version -> new version)
-//   - Active version updates (from version service)
-//
-// TODO: Complete the upgrade logic implementation for all three cases:
-//   - Initial version selection (Case 1)
-//   - Z-stream managed upgrades (Case 2)
-//   - Y-stream user-initiated upgrades (Case 3)
-func (c *controlPlaneUpgradeSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
-	// Get the customer's desired cluster configuration
+func (c *controlPlaneUpgradeSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error { // Get the customer's desired cluster configuration
 	existingCluster, err := c.cosmosClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Get(ctx, key.HCPClusterName)
 	if database.IsResponseError(err, http.StatusNotFound) {
 		return nil // cluster doesn't exist, no work to do
@@ -112,50 +101,59 @@ func (c *controlPlaneUpgradeSyncer) SyncOnce(ctx context.Context, key controller
 		return utils.TrackError(fmt.Errorf("failed to get Cluster: %w", err))
 	}
 
-	// Get or create the service provider cluster state
 	existingServiceProviderCluster, err := controllerutils.GetOrCreateServiceProviderCluster(ctx, c.cosmosClient, key.GetResourceID())
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get or create ServiceProviderCluster: %w", err))
 	}
 
-	// Initialize the HCPClusterVersion if it doesn't exist
 	if existingServiceProviderCluster.Version == nil {
 		existingServiceProviderCluster.Version = &api.HCPClusterVersion{}
 	}
 
-	// Update the actual version in the status array by querying the version service
-	err = c.updateActualVersionInStatus(ctx, existingCluster, existingServiceProviderCluster)
+	csCluster, err := c.clusterServiceClient.GetCluster(ctx, existingCluster.ServiceProviderProperties.ClusterServiceID)
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to get cluster from Cluster Service: %w", err))
+	}
+
+	// Create Cincinnati client with cluster UUID from Cluster Service
+	clusterID, err := uuid.Parse(csCluster.ExternalID())
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("invalid cluster UUID from Cluster Service: %w", err))
+	}
+	cincinnatiClient := cincinatti.NewCincinnatiClient(clusterID)
+
+	err = c.updateActualVersionInStatus(csCluster, existingServiceProviderCluster)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to update actual version in status: %w", err))
 	}
 
-	// Determine the desired z-stream version
-	desiredVersion, err := c.desiredControlPlaneZVersion(ctx, existingCluster, existingServiceProviderCluster)
+	desiredVersion, err := c.desiredControlPlaneZVersion(ctx, cincinnatiClient, existingCluster, existingServiceProviderCluster)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to determine desired control plane version: %w", err))
 	}
 
-	// Check if we need to trigger an upgrade
-	// We trigger an upgrade if the computed desired version differs from the previously stored desired version
+	logger := utils.LoggerFromContext(ctx)
+	logger.Info("Selected desired version",
+		"desiredVersion", desiredVersion,
+		"previousDesiredVersion", existingServiceProviderCluster.Version.DesiredVersion,
+	)
+
 	previousDesiredVersion := existingServiceProviderCluster.Version.DesiredVersion
 	if len(desiredVersion) > 0 && desiredVersion != previousDesiredVersion {
+		existingServiceProviderCluster.Version.DesiredVersion = desiredVersion
+
 		// TODO: Make API call to version service to trigger the upgrade
 		// The version service API is idempotent:
 		// - If desiredVersion == current cluster version: NOOP
 		// - Otherwise: Initiate the upgrade to desiredVersion
 
-		// Update the desired version to reflect the new decision
-		existingServiceProviderCluster.Version.DesiredVersion = desiredVersion
-
 		// For now, just log that we would trigger an upgrade
-		logger := utils.LoggerFromContext(ctx)
 		logger.Info("Would trigger control plane upgrade",
 			"cluster", key.HCPClusterName,
 			"desiredVersion", desiredVersion,
 			"previousDesiredVersion", previousDesiredVersion)
 	}
 
-	// Save the updated service provider cluster state
 	serviceProviderClustersCosmosClient := c.cosmosClient.ServiceProviderClusters(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	_, err = serviceProviderClustersCosmosClient.Replace(ctx, existingServiceProviderCluster, nil)
 	if err != nil {
@@ -165,11 +163,37 @@ func (c *controlPlaneUpgradeSyncer) SyncOnce(ctx context.Context, key controller
 	return nil
 }
 
-// updateActualVersionInStatus queries version service to get cluster's actual version
+// updateActualVersionInStatus extracts the actual version from the Cluster Service cluster
 // and updates version.active_versions with the retrieved actual version.
-func (c *controlPlaneUpgradeSyncer) updateActualVersionInStatus(ctx context.Context, cluster *api.HCPOpenShiftCluster, serviceProviderCluster *api.ServiceProviderCluster) error {
-	// TODO: Query version service to get the cluster's actual version, then add to version.active_versions
-	//       (only insert if not already present in the array, prepend to keep most recent first)
+func (c *controlPlaneUpgradeSyncer) updateActualVersionInStatus(csCluster *arohcpv1alpha1.Cluster, serviceProviderCluster *api.ServiceProviderCluster) error {
+	version, ok := csCluster.GetVersion()
+	if !ok {
+		return fmt.Errorf("cluster version not found in Cluster Service response")
+	}
+
+	actualVersion := version.RawID()
+
+	if serviceProviderCluster.Version.ActiveVersions == nil {
+		serviceProviderCluster.Version.ActiveVersions = []api.HCPClusterActiveVersion{}
+	}
+
+	// Check if the tip (most recent version) is already the actual version
+	// If so, no need to update (avoids prepending the same version repeatedly)
+	if len(serviceProviderCluster.Version.ActiveVersions) > 0 &&
+		serviceProviderCluster.Version.ActiveVersions[0].Version == actualVersion {
+		return nil
+	}
+
+	// Create and prepend the new active version entry at the tip
+	newActiveVersion := api.HCPClusterActiveVersion{
+		Version:            actualVersion,
+		LastTransitionTime: time.Now().UTC().Format(time.RFC3339),
+	}
+
+	serviceProviderCluster.Version.ActiveVersions = append(
+		[]api.HCPClusterActiveVersion{newActiveVersion},
+		serviceProviderCluster.Version.ActiveVersions...,
+	)
 
 	return nil
 }
@@ -183,136 +207,239 @@ func (c *controlPlaneUpgradeSyncer) updateActualVersionInStatus(ctx context.Cont
 // - Case 1: Initial version selection (no active versions yet)
 // - Case 2: Z-stream managed upgrade (customer desired minor == actual minor)
 // - Case 3: Next Y-stream user-initiated upgrade (customer desired minor == actual minor + 1)
-func (c *controlPlaneUpgradeSyncer) desiredControlPlaneZVersion(ctx context.Context, customerDesired *api.HCPOpenShiftCluster, serviceProviderCluster *api.ServiceProviderCluster) (string, error) {
-	// Step 1: Read user's desired_minor x.y version
+func (c *controlPlaneUpgradeSyncer) desiredControlPlaneZVersion(ctx context.Context, cincinnatiClient cincinatti.Client, customerDesired *api.HCPOpenShiftCluster, serviceProviderCluster *api.ServiceProviderCluster) (string, error) {
 	customerDesiredMinor := customerDesired.CustomerProperties.Version.ID
-	_ = customerDesired.CustomerProperties.Version.ChannelGroup // TODO: Use channelGroup in version queries
+	channelGroup := customerDesired.CustomerProperties.Version.ChannelGroup
+	targetCincinnatiChannel := fmt.Sprintf("%s-%s", channelGroup, customerDesiredMinor)
 
-	// Step 2: Retrieve the actual x.y.z version from the first element in the active versions array
-	actualFullVersion := c.getLatestActiveVersion(serviceProviderCluster)
+	actualLatestVersionStr := c.getLatestActiveVersion(serviceProviderCluster)
 
-	// Step 3: Determine what case we're in
-	if len(actualFullVersion) == 0 {
-		// Case 1: Initial cluster creation (no actual version yet)
-		return c.resolveInitialDesiredVersion(ctx, customerDesiredMinor, serviceProviderCluster)
+	logger := utils.LoggerFromContext(ctx)
+	logger.Info("Retrieved cluster version state",
+		"actualLatestVersion", actualLatestVersionStr,
+		"customerDesiredMinor", customerDesiredMinor,
+		"channelGroup", channelGroup,
+	)
+
+	// NOTE: This should rarely happen - indicates installation version selection issue.
+	if len(actualLatestVersionStr) == 0 {
+		logger.Info("Resolving initial desired version for new cluster",
+			"customerDesiredMinor", customerDesiredMinor,
+			"channelGroup", channelGroup,
+		)
+		// Use seed version x.y.0 to discover available versions
+		// TODO: Verify seeding approach for all versions (for sure it doesn't work for nightly).
+		seedVersionString := customerDesiredMinor + ".0"
+		seedVersion, err := semver.Parse(seedVersionString)
+		if err != nil {
+			return "", fmt.Errorf("invalid seed version %s: %w", seedVersionString, err)
+		}
+		return c.findLatestVersionInMinor(ctx, cincinnatiClient, targetCincinnatiChannel, seedVersion)
 	}
 
-	// Extract minor version from actual (x.y from x.y.z)
-	actualMinor := ocm.NewOpenShiftVersionXY(actualFullVersion)
-
-	if actualMinor == customerDesiredMinor {
-		// Case 2: Z-stream managed upgrade (actual minor == desired minor)
-		return c.resolveNextZStream(ctx, customerDesiredMinor, actualFullVersion)
+	actualLatestVersion, err := semver.Parse(actualLatestVersionStr)
+	if err != nil {
+		return "", fmt.Errorf("invalid actual latest version %s: %w", actualLatestVersionStr, err)
 	}
 
-	// Case 3: Next Y-stream upgrade (actual minor != desired minor)
-	// User-initiated upgrade to the next minor version (e.g., 4.19 -> 4.20)
+	actualMinor := fmt.Sprintf("%d.%d", actualLatestVersion.Major, actualLatestVersion.Minor)
+
+	if actualMinor == customerDesiredMinor { // we need to do a z-stream upgrade (actual minor == desired minor)
+		logger.Info("Resolving next z-stream version for managed upgrade",
+			"actualLatestVersion", actualLatestVersionStr,
+			"customerDesiredMinor", customerDesiredMinor,
+			"channelGroup", channelGroup,
+		)
+		return c.findLatestVersionInMinor(ctx, cincinnatiClient, targetCincinnatiChannel, actualLatestVersion)
+	}
+
+	// If we reach here it is because we need to do a next y-stream upgrade (actual minor != desired minor)
 	// Validate that desired minor is exactly one minor ahead (actualMinor + 1)
 	// We don't allow downgrades or skipping minor versions
-	if !c.isValidNextYStreamUpgradePath(actualMinor, customerDesiredMinor) {
+	if !isValidNextYStreamUpgradePath(actualMinor, customerDesiredMinor) {
 		return "", fmt.Errorf("invalid next y-stream upgrade path from %s to %s: only upgrades to the next minor version are allowed, no downgrades or skipping minor versions", actualMinor, customerDesiredMinor)
 	}
 
-	return c.resolveNextYStream(ctx, customerDesiredMinor, actualMinor, actualFullVersion)
+	return c.resolveNextYStream(ctx, cincinnatiClient, targetCincinnatiChannel, actualLatestVersion)
 }
 
-// resolveInitialDesiredVersion handles Case 1: Initial cluster creation (no actual version yet).
+// resolveNextYStream handles user-initiated Y-stream upgrades to the next minor version.
 //
-// Version selection logic:
-//  1. Find all candidate versions 4.y.z in the customer's desired minor (4.y)
-//  2. Check if 4.y is the latest available minor:
-//     - If NOT the latest, filter candidates to only those with an edge to 4.(y+1).something
-//     - If IS the latest, all candidates are eligible
-//  3. Pick the biggest (latest) eligible 4.y.z
+// This method attempts to find the latest version in the target minor. If no direct upgrade
+// path exists, it falls back to a Z-stream upgrade in the current minor to help the cluster
+// reach a gateway version.
 //
-// This ensures new clusters start on a version that can be upgraded to the next minor when available.
-func (c *controlPlaneUpgradeSyncer) resolveInitialDesiredVersion(ctx context.Context, customerDesiredMinor string, serviceProviderCluster *api.ServiceProviderCluster) (string, error) {
-	// TODO: Find all candidate versions in customerDesiredMinor
-	// TODO: Filter candidates: if next minor available, keep only versions with edge to next minor
-	// TODO: Pick the biggest (latest) eligible version
-	return "", fmt.Errorf("initial version selection not yet implemented")
-}
-
-// resolveNextZStream handles Case 2: Z-stream managed upgrade (actual minor == desired minor).
-//
-// This is an automated upgrade where the controller decides to move to a newer z-stream
-// within the current minor version (e.g., 4.19.10 → 4.19.22) without user intervention.
-//
-// Version selection logic:
-//  1. Find all candidate versions 4.y.z in the upgrade graph where:
-//     - 4.y.z has an upgrade edge from ALL currently active versions (not just the latest)
-//     - 4.y.z > latest active 4.y.z
-//  2. Check if 4.y is the latest available minor:
-//     - If NOT the latest, filter candidates to only those with an edge to 4.(y+1).something
-//     - If IS the latest, all candidates are eligible
-//  3. Pick the biggest (latest) eligible 4.y.z
-//
-// The controller always tries to stay on the latest z-stream that maintains an upgrade
-// path to the next minor version (when available).
-func (c *controlPlaneUpgradeSyncer) resolveNextZStream(ctx context.Context, customerDesiredMinor string, actualFullVersion string) (string, error) {
-	// TODO: Find all candidates with upgrade edge from ALL active versions and > latest active version
-	// TODO: Filter candidates: if next minor available, keep only versions with edge to next minor
-	// TODO: Pick the biggest (latest) eligible version
-	return "", fmt.Errorf("z-stream upgrade not yet implemented")
-}
-
-// resolveNextYStream handles Case 3: Next Y-stream upgrade (user-initiated minor version upgrade).
-//
-// This handles user-initiated upgrades to the next minor version (e.g., 4.19.x → 4.20.y).
-// The validation that desired minor is exactly one ahead (actualMinor + 1) has already been performed by the caller.
-//
-// Version selection logic:
-//  1. Find all candidate versions 4.(y+1).z in the upgrade graph where:
-//     - 4.(y+1).z has an upgrade edge from ALL currently active versions (not just the latest)
-//     - 4.(y+1).z > latest active 4.y.z
-//  2. Check if 4.(y+1) is the latest available minor:
-//     - If NOT the latest, filter candidates to only those with an edge to 4.(y+2).something
-//     - If IS the latest, all candidates are eligible
-//  3. Pick the biggest (latest) eligible 4.(y+1).z
-func (c *controlPlaneUpgradeSyncer) resolveNextYStream(ctx context.Context, customerDesiredMinor string, actualMinor string, actualFullVersion string) (string, error) {
-	// TODO: Find all candidates in next minor with upgrade edge from ALL active versions and > latest active version
-	// TODO: Filter candidates: if next minor+1 available, keep only versions with edge to next minor+1
-	// TODO: Pick the biggest (latest) eligible version
-	return "", fmt.Errorf("next y-stream upgrade not yet implemented")
-}
-
-// isValidNextYStreamUpgradePath validates that a next Y-stream upgrade path is valid.
-// It ensures the desired minor is exactly one ahead of the actual minor (actualMinor + 1) and prevents downgrades.
-// Returns true if the upgrade path is valid, false otherwise.
-func (c *controlPlaneUpgradeSyncer) isValidNextYStreamUpgradePath(actualMinor string, desiredMinor string) bool {
-	actualVersion, err := version.NewVersion(actualMinor + ".0")
+// Examples:
+//   - Direct upgrade: 4.19.22 → 4.20.15 (direct path available)
+//   - Fallback: 4.19.15 → 4.19.22 (no direct path to 4.20, upgrade to gateway first)
+func (c *controlPlaneUpgradeSyncer) resolveNextYStream(ctx context.Context, cincinnatiClient cincinatti.Client, targetCincinnatiChannel string, actualLatestVersion semver.Version) (string, error) {
+	channelGroup, customerDesiredMinor, err := cincinatti.ParseCincinnatiChannel(targetCincinnatiChannel)
 	if err != nil {
-		return false
+		return "", err
 	}
-	desiredVersion, err := version.NewVersion(desiredMinor + ".0")
+
+	actualMinor := fmt.Sprintf("%d.%d", actualLatestVersion.Major, actualLatestVersion.Minor)
+	actualLatestVersionStr := actualLatestVersion.String()
+
+	logger := utils.LoggerFromContext(ctx)
+	logger.Info("Resolving next Y-stream upgrade",
+		"actualMinor", actualMinor,
+		"actualLatestVersion", actualLatestVersionStr,
+		"targetCincinnatiChannel", targetCincinnatiChannel,
+		"customerDesiredMinor", customerDesiredMinor,
+		"channelGroup", channelGroup,
+	)
+
+	// Try to find latest version in target minor (Y-stream upgrade)
+	latestVersion, err := c.findLatestVersionInMinor(ctx, cincinnatiClient, targetCincinnatiChannel, actualLatestVersion)
 	if err != nil {
-		return false
+		return "", err
 	}
 
-	// Check for downgrade (desired < actual)
-	if desiredVersion.LessThan(actualVersion) {
-		return false
+	// If no upgrade path to target minor, fall back to Z-stream upgrade in current minor
+	// This helps the cluster reach a gateway version that may enable the Y-stream upgrade later
+	if latestVersion == "" {
+		logger.Info("No upgrade path to target minor, falling back to Z-stream upgrade in actual minor",
+			"actualMinor", actualMinor,
+			"customerDesiredMinor", customerDesiredMinor,
+		)
+		fallbackCincinnatiChannel := fmt.Sprintf("%s-%s", channelGroup, actualMinor)
+		return c.findLatestVersionInMinor(ctx, cincinnatiClient, fallbackCincinnatiChannel, actualLatestVersion)
 	}
 
-	// Check if desired minor is exactly one ahead
-	actualSegments := actualVersion.Segments()
-	desiredSegments := desiredVersion.Segments()
+	logger.Info("Successfully found Y-stream upgrade path",
+		"selectedVersion", latestVersion,
+		"targetMinor", customerDesiredMinor,
+	)
+	return latestVersion, nil
+}
 
-	actualMajor := actualSegments[0]
-	actualMinorNum := actualSegments[1]
-	desiredMajor := desiredSegments[0]
-	desiredMinorNum := desiredSegments[1]
+// findLatestVersionInMinor queries Cincinnati and finds the latest version within the specified target minor.
+//
+// This method implements the core version selection logic for all upgrade scenarios (both Y-stream and Z-stream).
+// It prioritizes versions that have an upgrade path to the next minor version (gateway versions).
+//
+// Version selection algorithm:
+//  1. Query Cincinnati for all available updates from actualLatestVersion in the target minor channel
+//  2. Sort candidates by version (descending - latest first)
+//  3. Iterate through candidates in the target minor:
+//     - For each candidate, check if it has an upgrade path to 4.(y+1) (next minor)
+//     - If yes: return this version (latest gateway found)
+//     - If no: continue checking older versions
+//  4. If no gateway found: return the latest version in target minor
+//
+// Examples:
+//   - Z-stream (4.19.15 → 4.19.z): Find latest 4.19.z with path to 4.20, or latest 4.19.z
+//   - Y-stream (4.19.x → 4.20.z): Find latest 4.20.z with path to 4.21, or latest 4.20.z
+//
+// The controller always tries to select the latest z-stream that maintains an upgrade
+// path to the next minor version (gateway), falling back to the latest available version.
+func (c *controlPlaneUpgradeSyncer) findLatestVersionInMinor(ctx context.Context, cincinnatiClient cincinatti.Client, cincinnatiChannel string, actualLatestVersion semver.Version) (string, error) {
+	logger := utils.LoggerFromContext(ctx)
 
-	// Ensure desired is exactly one minor ahead (same major, minor + 1)
-	if desiredMajor != actualMajor || desiredMinorNum != actualMinorNum+1 {
-		return false
+	logger.Info("Querying Cincinnati for latest version in minor",
+		"cincinnatiChannel", cincinnatiChannel,
+		"actualLatestVersion", actualLatestVersion.String(),
+	)
+
+	candidateReleases, err := getAndCombineUpdates(ctx, cincinnatiClient, cincinnatiChannel, actualLatestVersion)
+	if err != nil {
+		if cincinatti.IsCincinnatiVersionNotFoundError(err) {
+			return "", fmt.Errorf("no updates found for channel %s from version %s", cincinnatiChannel, actualLatestVersion.String())
+		}
+		return "", fmt.Errorf("failed to query Cincinnati for channel %s from version %s: %w", cincinnatiChannel, actualLatestVersion.String(), err)
 	}
 
-	return true
+	if len(candidateReleases) == 0 {
+		return "", nil
+	}
+
+	logger.V(2).Info("Starting version selection",
+		"candidateCount", len(candidateReleases),
+		"cincinnatiChannel", cincinnatiChannel,
+		"actualLatestVersion", actualLatestVersion.String(),
+	)
+
+	sortReleasesByVersionDescending(candidateReleases)
+
+	return c.selectBestVersionFromCandidates(ctx, cincinnatiClient, cincinnatiChannel, candidateReleases, actualLatestVersion)
+}
+
+// selectBestVersionFromCandidates finds the best version to upgrade to from a list of candidate releases.
+// It prioritizes versions that are gateways to the next minor version, falling back to the latest version overall.
+func (c *controlPlaneUpgradeSyncer) selectBestVersionFromCandidates(ctx context.Context, cincinnatiClient cincinatti.Client, cincinnatiChannel string, candidates []configv1.Release, actualLatestVersion semver.Version) (string, error) {
+	channelGroup, targetMinor, err := cincinatti.ParseCincinnatiChannel(cincinnatiChannel)
+	if err != nil {
+		return "", err
+	}
+
+	targetMinorVersion, err := semver.Parse(targetMinor + ".0")
+	if err != nil {
+		return "", fmt.Errorf("invalid desired minor %s: %w", targetMinor, err)
+	}
+
+	nextMinor := fmt.Sprintf("%d.%d", targetMinorVersion.Major, targetMinorVersion.Minor+1)
+	nextMinorCincinnatiChannel := fmt.Sprintf("%s-%s", channelGroup, nextMinor)
+
+	logger := utils.LoggerFromContext(ctx)
+	var latestOverall string
+	for _, update := range candidates {
+		ver, err := semver.Parse(update.Version)
+		if err != nil { // should never happen
+			continue
+		}
+
+		// Only consider versions in target minor
+		if !isVersionInTargetMinor(ver, targetMinorVersion) {
+			logger.V(2).Info("Skipping version not in target minor",
+				"version", ver.String(),
+				"targetMinor", targetMinor,
+			)
+			continue
+		}
+
+		// Track first (latest) version in target minor
+		if latestOverall == "" {
+			latestOverall = ver.String()
+		}
+
+		// Check if this version is a gateway to next minor
+		isGateway, err := isGatewayToNextMinor(ctx, ver, cincinnatiClient, nextMinorCincinnatiChannel)
+		if err != nil {
+			return "", err
+		}
+
+		if isGateway {
+			logger.Info("Selected latest version with gateway to next minor",
+				"selectedVersion", ver.String(),
+				"targetMinor", targetMinor,
+				"nextMinor", nextMinor,
+			)
+			return ver.String(), nil
+		}
+	}
+
+	// No gateway to next minor found, return latest version in target minor (if any)
+	if latestOverall == "" {
+		// No versions found in target minor - no upgrade path exists from actualLatestVersion
+		logger.Info("No upgrade path found to target minor",
+			"actualLatestVersion", actualLatestVersion.String(),
+			"targetMinor", targetMinor,
+		)
+		return "", nil
+	}
+
+	logger.Info("No gateway found to next minor, selected latest version",
+		"selectedVersion", latestOverall,
+		"targetMinor", targetMinor,
+		"nextMinor", nextMinor,
+	)
+	return latestOverall, nil
 }
 
 // getLatestActiveVersion retrieves the most recent active version from the service provider cluster.
 // Returns an empty string if no active version is recorded yet (e.g., for newly created clusters).
+// TODO: Confirm if we need to consider all the versions transitions from the beginning?
 func (c *controlPlaneUpgradeSyncer) getLatestActiveVersion(serviceProviderCluster *api.ServiceProviderCluster) string {
 	if len(serviceProviderCluster.Version.ActiveVersions) > 0 {
 		return serviceProviderCluster.Version.ActiveVersions[0].Version
