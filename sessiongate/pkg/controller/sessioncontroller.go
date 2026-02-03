@@ -1,0 +1,677 @@
+// Copyright 2025 Microsoft Corporation
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package controller
+
+import (
+	"context"
+	"crypto/rand"
+	"crypto/rsa"
+	"errors"
+	"fmt"
+	"time"
+
+	securityv1beta1 "istio.io/client-go/pkg/apis/security/v1beta1"
+	securityapplyv1beta1 "istio.io/client-go/pkg/applyconfiguration/security/v1beta1"
+	istioclient "istio.io/client-go/pkg/clientset/versioned/typed/security/v1beta1"
+	istioinformers "istio.io/client-go/pkg/informers/externalversions"
+
+	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/apimachinery/pkg/util/wait"
+	certapplyv1 "k8s.io/client-go/applyconfigurations/certificates/v1"
+	corev1applyconfigurations "k8s.io/client-go/applyconfigurations/core/v1"
+	applyv1 "k8s.io/client-go/applyconfigurations/meta/v1"
+	kubeinformers "k8s.io/client-go/informers"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/tools/cache"
+	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/util/workqueue"
+	"k8s.io/klog/v2"
+	"k8s.io/utils/clock"
+
+	certificatesv1alpha1apply "github.com/openshift/hypershift/client/applyconfiguration/certificates/v1alpha1"
+
+	sessiongatev1alpha1 "github.com/Azure/ARO-HCP/sessiongate/pkg/apis/sessiongate/v1alpha1"
+	sessiongatv1alpha1applyconfigurations "github.com/Azure/ARO-HCP/sessiongate/pkg/generated/applyconfiguration/sessiongate/v1alpha1"
+	sessiongateclient "github.com/Azure/ARO-HCP/sessiongate/pkg/generated/clientset/versioned"
+	sessiongateinformers "github.com/Azure/ARO-HCP/sessiongate/pkg/generated/informers/externalversions"
+)
+
+const (
+	managementClusterIndexName = "sessions-by-management-cluster"
+)
+
+// SessionEndpointProvider provides session endpoint URLs
+type SessionEndpointProvider interface {
+	GetSessionEndpoint(sessionID string) string
+}
+
+type SessionController struct {
+	namespace            string
+	workqueue            workqueue.TypedRateLimitingInterface[cache.ObjectName]
+	mgmtClusterWorkQueue workqueue.TypedRateLimitingInterface[string]
+	cachesToSync         []cache.InformerSynced
+	kubeClient           kubernetes.Interface
+	sessiongateClient    sessiongateclient.Interface
+	istioClient          istioclient.SecurityV1beta1Interface
+	clock                clock.PassiveClock
+
+	fieldManager                   string
+	eventRecorder                  record.EventRecorder
+	endpointProvider               SessionEndpointProvider
+	managementClusterInventory     *ManagementClusterInventory
+	getSession                     func(namespace, name string) (*sessiongatev1alpha1.Session, error)
+	getSessionsByManagementCluster func(mgmtClusterResourceID string) ([]*sessiongatev1alpha1.Session, error)
+	getAuthorizationPolicy         func(namespace, name string) (*securityv1beta1.AuthorizationPolicy, error)
+	getSecret                      func(namespace, name string) (*corev1.Secret, error)
+	getManagementClusterProvider   func(resourceID string) (*ManagementClusterProvider, bool)
+	newPrivateKey                  func(size int) (*rsa.PrivateKey, error)
+}
+
+func NewSessionController(
+	kubeClient kubernetes.Interface,
+	sessiongateClient sessiongateclient.Interface,
+	istioClient istioclient.SecurityV1beta1Interface,
+	sessiongateInformers sessiongateinformers.SharedInformerFactory,
+	istioInformers istioinformers.SharedInformerFactory,
+	kubeinformers kubeinformers.SharedInformerFactory,
+	eventRecorder record.EventRecorder,
+	namespace string,
+	managementClusterProviderBuilder ManagementClusterProviderBuilder,
+	endpointProvider SessionEndpointProvider,
+) (*SessionController, error) {
+	workQueue := workqueue.NewTypedRateLimitingQueueWithConfig(
+		workqueue.DefaultTypedControllerRateLimiter[cache.ObjectName](),
+		workqueue.TypedRateLimitingQueueConfig[cache.ObjectName]{
+			Name: "SessionControlPlaneController",
+		},
+	)
+	mgmtClusterWorkQueue := workqueue.NewTypedRateLimitingQueueWithConfig(
+		workqueue.DefaultTypedControllerRateLimiter[string](),
+		workqueue.TypedRateLimitingQueueConfig[string]{
+			Name: "ManagementClusterInventory",
+		},
+	)
+
+	// session informer hookup
+	sessionInformer := sessiongateInformers.Sessiongate().V1alpha1().Sessions().Informer()
+	if err := registerInformer(sessionInformer, keyForObject, workQueue); err != nil {
+		return nil, fmt.Errorf("failed to register session informer: %w", err)
+	}
+
+	// we index sessions by management cluster resource ID so we can quickly find
+	// all sessions for a given management cluster. useful for mgmt cluster informer setup.
+	if err := sessionInformer.AddIndexers(cache.Indexers{
+		managementClusterIndexName: func(obj interface{}) ([]string, error) {
+			session, ok := obj.(*sessiongatev1alpha1.Session)
+			if !ok {
+				return nil, fmt.Errorf("object is not a Session")
+			}
+			return []string{session.Spec.ManagementCluster.ResourceID}, nil
+		},
+	}); err != nil {
+		return nil, fmt.Errorf("failed to add indexers to session informer: %w", err)
+	}
+	if err := registerInformer(sessionInformer, mgmtClusterResourceIdFromSession, mgmtClusterWorkQueue); err != nil {
+		return nil, fmt.Errorf("failed to register management cluster informer: %w", err)
+	}
+
+	// authorization policy informer hookup
+	authPolicyInformer := istioInformers.Security().V1beta1().AuthorizationPolicies().Informer()
+	if err := registerInformer(authPolicyInformer, sessionKeyFromOwnershipReference, workQueue); err != nil {
+		return nil, fmt.Errorf("failed to register authorization policy informer: %w", err)
+	}
+
+	// secret informer hookup
+	secretInformer := kubeinformers.Core().V1().Secrets().Informer()
+	if err := registerInformer(secretInformer, sessionKeyFromOwnershipReference, workQueue); err != nil {
+		return nil, fmt.Errorf("failed to register secret informer: %w", err)
+	}
+
+	managementClusterInventory := NewManagementClusterInventory(managementClusterProviderBuilder, workQueue)
+
+	return &SessionController{
+		workqueue:            workQueue,
+		mgmtClusterWorkQueue: mgmtClusterWorkQueue,
+		cachesToSync: []cache.InformerSynced{
+			sessionInformer.HasSynced,
+			authPolicyInformer.HasSynced,
+			secretInformer.HasSynced,
+		},
+		fieldManager:               ControllerAgentName,
+		eventRecorder:              eventRecorder,
+		endpointProvider:           endpointProvider,
+		kubeClient:                 kubeClient,
+		sessiongateClient:          sessiongateClient,
+		istioClient:                istioClient,
+		namespace:                  namespace,
+		clock:                      clock.RealClock{},
+		managementClusterInventory: managementClusterInventory,
+		getSession: func(namespace, name string) (*sessiongatev1alpha1.Session, error) {
+			return sessiongateInformers.Sessiongate().V1alpha1().Sessions().Lister().Sessions(namespace).Get(name)
+		},
+		getSessionsByManagementCluster: func(mgmtClusterResourceID string) ([]*sessiongatev1alpha1.Session, error) {
+			objs, err := sessiongateInformers.Sessiongate().V1alpha1().Sessions().Informer().GetIndexer().ByIndex(
+				managementClusterIndexName,
+				mgmtClusterResourceID,
+			)
+			if err != nil {
+				return nil, err
+			}
+			sessions := make([]*sessiongatev1alpha1.Session, len(objs))
+			for i, obj := range objs {
+				sessions[i] = obj.(*sessiongatev1alpha1.Session)
+			}
+			return sessions, nil
+		},
+		getAuthorizationPolicy: func(namespace, name string) (*securityv1beta1.AuthorizationPolicy, error) {
+			return istioInformers.Security().V1beta1().AuthorizationPolicies().Lister().AuthorizationPolicies(namespace).Get(name)
+		},
+		getSecret: func(namespace, name string) (*corev1.Secret, error) {
+			return kubeinformers.Core().V1().Secrets().Lister().Secrets(namespace).Get(name)
+		},
+		getManagementClusterProvider: func(resourceID string) (*ManagementClusterProvider, bool) {
+			return managementClusterInventory.GetProvider(resourceID)
+		},
+		newPrivateKey: func(size int) (*rsa.PrivateKey, error) {
+			return rsa.GenerateKey(rand.Reader, size)
+		},
+	}, nil
+}
+
+func (c *SessionController) Run(ctx context.Context, workers int) error {
+	defer utilruntime.HandleCrash()
+	defer c.workqueue.ShutDown()
+	defer c.mgmtClusterWorkQueue.ShutDown()
+
+	klog.InfoS("Starting control plane controller... waiting for informer caches to sync")
+
+	if ok := cache.WaitForCacheSync(ctx.Done(), c.cachesToSync...); !ok {
+		return fmt.Errorf("failed to wait for caches to sync")
+	}
+
+	klog.InfoS("Starting workers", "count", workers)
+	for range workers {
+		go wait.UntilWithContext(ctx, c.runSessionWorker, time.Second)
+	}
+
+	go wait.UntilWithContext(ctx, c.runManagementClusterWorker, time.Second)
+
+	klog.InfoS("Started workers")
+	<-ctx.Done()
+	klog.InfoS("Shutting down workers")
+
+	return nil
+}
+
+func (c *SessionController) runSessionWorker(ctx context.Context) {
+	for c.processNextSessionWorkItem(ctx) {
+	}
+}
+
+func (c *SessionController) processNextSessionWorkItem(ctx context.Context) bool {
+	objRef, shutdown := c.workqueue.Get()
+
+	if shutdown {
+		return false
+	}
+
+	defer c.workqueue.Done(objRef)
+
+	session, err := c.getSession(objRef.Namespace, objRef.Name)
+	if err != nil && apierrors.IsNotFound(err) {
+		// session is gone, nothing to do
+		return true
+	} else if err != nil {
+		c.workqueue.AddRateLimited(objRef)
+		return true
+	}
+
+	// requeue for the expiration time
+	if session.Status.ExpiresAt != nil {
+		requeueAfter := time.Until(session.Status.ExpiresAt.Time)
+		if requeueAfter > 0 {
+			c.workqueue.AddAfter(objRef, requeueAfter+1*time.Second)
+		}
+	}
+
+	// get the management cluster provider
+	mc, ok := c.getManagementClusterProvider(session.Spec.ManagementCluster.ResourceID)
+	if !ok {
+		// provider not yet registered, requeue after a short delay
+		c.workqueue.AddAfter(objRef, 1*time.Second)
+		return true
+	}
+
+	// reconcile the session
+	err = c.syncSession(ctx, session, mc)
+	if err != nil {
+		utilruntime.HandleErrorWithContext(ctx, err, "Error syncing; requeuing for later retry", "objectReference", objRef)
+		c.workqueue.AddRateLimited(objRef)
+		return true
+	}
+	c.workqueue.Forget(objRef)
+	return true
+}
+
+func (c *SessionController) syncSession(ctx context.Context, session *sessiongatev1alpha1.Session, mc *ManagementClusterProvider) error {
+	action, err := c.processSession(ctx, session, mc)
+	if err != nil {
+		klog.ErrorS(err, "Error processing session", "session", session.Name, "namespace", session.Namespace)
+		return err
+	}
+
+	if action != nil {
+		if err = action.validate(); err != nil {
+			panic(err) // if validation fails, we have a programming error
+		}
+		if action.Event != nil {
+			c.eventRecorder.Eventf(session, corev1.EventTypeNormal, action.Event.Reason, action.Event.MessageFmt, action.Event.Args...)
+		}
+
+		// about Force: true - we are the sole owner of these resources
+		switch {
+		case action.Session != nil:
+			_, err = c.sessiongateClient.SessiongateV1alpha1().Sessions(session.Namespace).ApplyStatus(ctx, action.Session, metav1.ApplyOptions{FieldManager: c.fieldManager})
+		case action.Secret != nil:
+			_, err = c.kubeClient.CoreV1().Secrets(*action.Secret.Namespace).Apply(ctx, action.Secret, metav1.ApplyOptions{FieldManager: c.fieldManager, Force: true})
+		case action.AuthPolicy != nil:
+			_, err = c.istioClient.AuthorizationPolicies(*action.AuthPolicy.Namespace).Apply(ctx, action.AuthPolicy, metav1.ApplyOptions{FieldManager: c.fieldManager, Force: true})
+		case action.CSR != nil:
+			_, err = mc.KubeClient.CertificatesV1().CertificateSigningRequests().Apply(ctx, action.CSR, metav1.ApplyOptions{FieldManager: c.fieldManager, Force: true})
+		case action.CSRApproval != nil:
+			_, err = mc.CertificatesClient.CertificateSigningRequestApprovals(action.CSRApproval.Namespace).Apply(ctx, action.CSRApproval.Approval, metav1.ApplyOptions{FieldManager: c.fieldManager, Force: true})
+		case action.DeleteSession:
+			err = c.sessiongateClient.SessiongateV1alpha1().Sessions(session.Namespace).Delete(ctx, session.Name, metav1.DeleteOptions{})
+		case action.DeleteCSR:
+			err = mc.KubeClient.CertificatesV1().CertificateSigningRequests().Delete(ctx, getCSRNameForSession(session), metav1.DeleteOptions{})
+		}
+	}
+
+	return err
+}
+
+type actions struct {
+	Event         *eventInfo
+	Session       *sessiongatv1alpha1applyconfigurations.SessionApplyConfiguration
+	DeleteSession bool
+	Secret        *corev1applyconfigurations.SecretApplyConfiguration
+	AuthPolicy    *securityapplyv1beta1.AuthorizationPolicyApplyConfiguration
+	CSR           *certapplyv1.CertificateSigningRequestApplyConfiguration
+	CSRApproval   *csrApprovalAction
+	DeleteCSR     bool
+}
+
+type csrApprovalAction struct {
+	Namespace string
+	Approval  *certificatesv1alpha1apply.CertificateSigningRequestApprovalApplyConfiguration
+}
+
+func (a *actions) validate() error {
+	var set int
+	if a.Session != nil {
+		set += 1
+	}
+	if a.AuthPolicy != nil {
+		set += 1
+	}
+	if a.Secret != nil {
+		set += 1
+	}
+	if a.DeleteSession {
+		set += 1
+	}
+	if a.CSR != nil {
+		set += 1
+	}
+	if a.DeleteCSR {
+		set += 1
+	}
+	if a.CSRApproval != nil {
+		set += 1
+	}
+	if set > 1 {
+		return errors.New("programmer error: more than one action set")
+	}
+	return nil
+}
+
+type eventInfo struct {
+	Reason, MessageFmt string
+	Args               []interface{}
+}
+
+func event(reason, messageFmt string, args ...interface{}) *eventInfo {
+	return &eventInfo{
+		Reason:     reason,
+		MessageFmt: messageFmt,
+		Args:       args,
+	}
+}
+
+func (c *SessionController) processSession(ctx context.Context, session *sessiongatev1alpha1.Session, mc ManagementClusterQuerier) (*actions, error) {
+	for _, step := range []sessionStep{
+		// this is a new session, so we need to manifest the expiration timestamp
+		c.handleExpiration,
+		// ensure authorization policy is present before we do anything that might expose the session
+		c.ensureAuthorizationPolicy,
+		// generate credentials
+		c.generateCredentials,
+		// ensure network path is available
+		c.ensureNetworkPath,
+		// finalize session with endpoint and backend URL
+		c.finalizeSession,
+	} {
+		// each step either handles the current step or hands off to the next one
+		done, action, err := step(ctx, session, mc)
+		if done {
+			return action, err
+		}
+	}
+	// nothing to do
+	return nil, nil
+}
+
+// sessionStep is a step in the session reconciliation process
+// returns:
+// - done: whether the current reconciliation loop should stop with the current step result
+// - action: the action to take
+// - error: an error that occurred
+type sessionStep func(ctx context.Context, session *sessiongatev1alpha1.Session, mc ManagementClusterQuerier) (bool, *actions, error)
+
+// handleExpiration calculates session expiration time and deletes expired sessions.
+// Sets ExpiresAt on first reconcile, then checks on subsequent reconciles and deletes when TTL is exceeded.
+func (c *SessionController) handleExpiration(ctx context.Context, session *sessiongatev1alpha1.Session, mc ManagementClusterQuerier) (bool, *actions, error) {
+	expiresAt := metav1.NewTime(session.CreationTimestamp.Add(session.Spec.TTL.Duration))
+	if c.clock.Now().After(expiresAt.Time) {
+		e := event("SessionExpiration", "Session has expired, deleting %s/%s.", session.Namespace, session.Name)
+		return true, &actions{Event: e, DeleteSession: true}, nil
+	}
+	sessionUpdate, needsUpdate := NewStatus(session.Status).
+		WithExpiresAt(expiresAt).
+		AsApplyConfiguration(session)
+	if needsUpdate {
+		return true, &actions{Session: sessionUpdate}, nil
+	}
+	return false, nil, nil
+}
+
+func (c *SessionController) ensureAuthorizationPolicy(ctx context.Context, session *sessiongatev1alpha1.Session, mc ManagementClusterQuerier) (bool, *actions, error) {
+	authPolicyName := authorizationPolicyNameForSession(session)
+
+	// commit on authorization policy ref
+	sessionUpdate, needsUpdate := NewStatus(session.Status).
+		WithAuthorizationPolicyRef(authPolicyName).
+		AsApplyConfiguration(session)
+	if needsUpdate {
+		return true, &actions{Session: sessionUpdate}, nil
+	}
+
+	existingAuthPolicy, err := c.getAuthorizationPolicy(session.Namespace, authPolicyName)
+	if err != nil && !apierrors.IsNotFound(err) {
+		return true, nil, err
+	}
+
+	desiredAuthPolicy, err := buildAuthorizationPolicyApplyConfiguration(session)
+	if err != nil {
+		return true, nil, fmt.Errorf("failed to build authorization policy apply configuration: %w", err)
+	}
+
+	// original policy creation
+	if existingAuthPolicy == nil {
+		e := event("AuthorizationPolicyGeneration", "Creating authorization policy for %s/%s.", session.Namespace, session.Name)
+		return true, &actions{Event: e, AuthPolicy: desiredAuthPolicy}, nil
+	}
+
+	// policy drift detection
+	if authorizationPolicyUpdateNeeded(existingAuthPolicy, desiredAuthPolicy) {
+		e := event("AuthorizationPolicyUpdate", "Updating authorization policy for %s/%s.", session.Namespace, session.Name)
+		return true, &actions{Event: e, AuthPolicy: desiredAuthPolicy}, nil
+	}
+
+	// record condition
+	sessionUpdate, needsUpdate = NewStatus(session.Status).
+		WithConditions(
+			applyv1.Condition().
+				WithType(string(sessiongatev1alpha1.SessionConditionTypeAuthorizationPolicyAvailable)).
+				WithStatus(metav1.ConditionTrue).
+				WithReason("AuthorizationPolicyAvailable").
+				WithMessage("Authorization policy available").
+				WithObservedGeneration(session.Generation).
+				WithLastTransitionTime(metav1.NewTime(c.clock.Now())),
+		).
+		AsApplyConfiguration(session)
+	if needsUpdate {
+		return true, &actions{Session: sessionUpdate}, nil
+	}
+	return false, nil, nil
+}
+
+func (c *SessionController) getCredentialSecret(session *sessiongatev1alpha1.Session) (*CredentialSecret, error) {
+	secretName := credentialSecretNameForSession(session)
+	existingSecret, err := c.getSecret(session.Namespace, secretName)
+	var secretData map[string][]byte
+	if err != nil && !apierrors.IsNotFound(err) {
+		return nil, err
+	} else if err != nil {
+		secretData = make(map[string][]byte)
+	} else {
+		secretData = existingSecret.Data
+	}
+	return NewCredentialSecret(session.Name, secretName, session.Namespace, session.UID, c.fieldManager, secretData), nil
+}
+
+func (c *SessionController) generateCredentials(ctx context.Context, session *sessiongatev1alpha1.Session, mc ManagementClusterQuerier) (bool, *actions, error) {
+	credentialSecret, err := c.getCredentialSecret(session)
+	if err != nil {
+		return true, nil, err
+	}
+
+	// if there is already a certificate in the secret, nothing to do
+	if _, certExists := credentialSecret.GetCertificate(); certExists {
+		sessionUpdate, needsUpdate := NewStatus(session.Status).
+			WithConditions(
+				applyv1.Condition().
+					WithType(string(sessiongatev1alpha1.SessionConditionTypeCredentialsAvailable)).
+					WithStatus(metav1.ConditionTrue).
+					WithReason("CredentialsAvailable").
+					WithMessage("Credentials available").
+					WithObservedGeneration(session.Generation).
+					WithLastTransitionTime(metav1.NewTime(c.clock.Now())),
+			).AsApplyConfiguration(session)
+		if needsUpdate {
+			return true, &actions{Session: sessionUpdate}, nil
+		}
+		return false, nil, nil
+	}
+
+	// the certificate is not yet in the secret, so lets check the CSR and update the secret
+	csrName := getCSRNameForSession(session)
+	csr, err := mc.GetCSR(ctx, csrName)
+	if err != nil && !apierrors.IsNotFound(err) {
+		return true, nil, fmt.Errorf("failed to get CSR: %w", err)
+	}
+
+	// a CSR exists
+	if csr != nil {
+		// ... but it's invalid, so we need to delete it and regenerate
+		privateKey, privateKeyExists := credentialSecret.GetPrivateKey()
+		if !privateKeyExists || !validateCSR(csr, privateKey, session.Spec.Owner.Name, session.Spec.AccessLevel.Group) {
+			e := event("CSRInvalid", "CSR for %s/%s is invalid, deleting to regenerate.", session.Namespace, session.Name)
+			return true, &actions{Event: e, DeleteCSR: true}, nil
+		}
+		// ... if it has a certificate, we can bring it to the secret
+		if len(csr.Status.Certificate) > 0 {
+			return true, &actions{Secret: credentialSecret.ApplyConfigurationForCertificate(csr.Status.Certificate)}, nil
+		}
+		// ... if it is approved but has no certificate yet, we just need to wait
+		// the informer will let us know when the CSR changes
+		if len(csr.Status.Certificate) == 0 && isCSRApproved(csr) {
+			return true, nil, nil
+		}
+		// ... if not, let's handle approval
+		if !isCSRApproved(csr) {
+			sessionUpdate, needsUpdate := NewStatus(session.Status).
+				WithConditions(
+					CredentialsNotAvailableCondition("CertificateSigningRequestPending", "Certificate signing request pending, waiting for approval", session.Generation, c.clock.Now()),
+					NotReadyCondition(session.Generation, c.clock.Now()),
+				).AsApplyConfiguration(session)
+			if needsUpdate {
+				return true, &actions{Session: sessionUpdate}, nil
+			}
+
+			csrApproval, err := mc.GetCSRApproval(ctx, session.Spec.HostedControlPlane.Namespace, csrName)
+			if err != nil && !apierrors.IsNotFound(err) {
+				return true, nil, fmt.Errorf("failed to get CSR Approval: %w", err)
+			}
+			if csrApproval == nil {
+				return true, &actions{CSRApproval: &csrApprovalAction{
+					Namespace: session.Spec.HostedControlPlane.Namespace,
+					Approval: certificatesv1alpha1apply.CertificateSigningRequestApproval(
+						csrName,
+						session.Spec.HostedControlPlane.Namespace,
+					),
+				}}, nil
+			}
+			// approval is in place, so we just need to wait some more - the CSR informer will let us know when the CSR changed
+			return true, nil, nil
+		}
+	}
+
+	// there is no CSR yet, so we need to create one
+	privateKey, privateKeyExists := credentialSecret.GetPrivateKey()
+	if privateKeyExists {
+		sessionUpdate, needsUpdate := NewStatus(session.Status).
+			WithConditions(
+				CredentialsNotAvailableCondition("PrivateKeyCreated", "Private key created, waiting for CSR to be created", session.Generation, c.clock.Now()),
+				NotReadyCondition(session.Generation, c.clock.Now()),
+			).AsApplyConfiguration(session)
+		if needsUpdate {
+			return true, &actions{Session: sessionUpdate}, nil
+		}
+
+		csrApplyConfig, err := createCSRApplyConfiguration(session, privateKey)
+		if err != nil {
+			return true, nil, fmt.Errorf("failed to create CSR apply configuration: %w", err)
+		}
+		e := event("CSRGeneration", "Creating CSR for %s/%s on management cluster.", session.Namespace, session.Name)
+		return true, &actions{Event: e, CSR: csrApplyConfig}, nil
+	}
+
+	// ... but to create a CSR, we need a private key first
+	if session.Status.CredentialsSecretRef != "" {
+		privateKey, err = c.newPrivateKey(RSAKeySize)
+		if err != nil {
+			return true, nil, fmt.Errorf("failed to generate private key: %w", err)
+		}
+		e := event("PrivateKeyGeneration", "Generating private key for %s/%s.", session.Namespace, session.Name)
+		return true, &actions{Event: e, Secret: credentialSecret.ApplyConfigurationForPrivateKey(privateKey)}, nil
+	}
+
+	// ... but before we can create a private key, we need to write down the secret name in the status
+	sessionUpdate, _ := NewStatus(session.Status).
+		WithCredentialsSecretRef(credentialSecret.SecretName()).
+		AsApplyConfiguration(session)
+	return true, &actions{Session: sessionUpdate}, nil
+}
+
+func (c *SessionController) ensureNetworkPath(ctx context.Context, session *sessiongatev1alpha1.Session, mc ManagementClusterQuerier) (bool, *actions, error) {
+	// right now we only have public HCPs, so we just the public HCP API endpoint as
+	// network path and set it in the status
+	// once we have private HCPs, this step will establish network connectivity
+	// (e.g. portforwarding to the HCP's API server pods) and publish the in-cluster
+	// endpoint in the status
+	if session.Status.BackendKASURL != "" {
+		return false, nil, nil
+	}
+
+	hcp, err := mc.GetHostedControlPlane(ctx, session.Spec.HostedControlPlane.Namespace)
+	if err != nil {
+		return true, nil, fmt.Errorf("failed to get HostedCluster: %w", err)
+	}
+	statusUpdate, needsUpdate := NewStatus(session.Status).
+		WithBackendKASURL(fmt.Sprintf("https://%s", hcp.Spec.KubeAPIServerDNSName)).
+		WithConditions(
+			applyv1.Condition().
+				WithType(string(sessiongatev1alpha1.SessionConditionTypeNetworkPathAvailable)).
+				WithStatus(metav1.ConditionTrue).
+				WithReason("NetworkPathAvailable").
+				WithMessage("Network path available via public endpoint").
+				WithObservedGeneration(session.Generation).
+				WithLastTransitionTime(metav1.NewTime(c.clock.Now())),
+		).
+		AsApplyConfiguration(session)
+	if needsUpdate {
+		e := event("NetworkPathAvailable", "Network path available via public endpoint for session %s/%s.", session.Namespace, session.Name)
+		return true, &actions{Event: e, Session: statusUpdate}, nil
+	}
+	return false, nil, nil
+}
+
+func (c *SessionController) finalizeSession(ctx context.Context, session *sessiongatev1alpha1.Session, mc ManagementClusterQuerier) (bool, *actions, error) {
+	// build status update
+	statusUpdate, needsUpdate := NewStatus(session.Status).
+		WithEndpoint(c.endpointProvider.GetSessionEndpoint(session.Name)).
+		WithConditions(
+			applyv1.Condition().
+				WithType(string(sessiongatev1alpha1.SessionConditionTypeReady)).
+				WithStatus(metav1.ConditionTrue).
+				WithReason("Ready").
+				WithMessage("Session is ready").
+				WithObservedGeneration(session.Generation).
+				WithLastTransitionTime(metav1.NewTime(c.clock.Now())),
+		).
+		AsApplyConfiguration(session)
+	if needsUpdate {
+		e := event("SessionFinalization", "Finalizing session %s/%s with endpoint and backend URL.", session.Namespace, session.Name)
+		return true, &actions{Event: e, Session: statusUpdate}, nil
+	}
+	return false, nil, nil
+}
+
+func (c *SessionController) runManagementClusterWorker(ctx context.Context) {
+	for c.processNextManagementClusterWorkItem(ctx) {
+	}
+}
+
+func (c *SessionController) processNextManagementClusterWorkItem(ctx context.Context) bool {
+	mgmtClusterResourceID, shutdown := c.mgmtClusterWorkQueue.Get()
+	if shutdown {
+		return false
+	}
+	defer c.mgmtClusterWorkQueue.Done(mgmtClusterResourceID)
+
+	if err := c.reconcileManagementClusterProvider(ctx, mgmtClusterResourceID); err != nil {
+		c.mgmtClusterWorkQueue.AddRateLimited(mgmtClusterResourceID)
+		return true
+	}
+
+	c.mgmtClusterWorkQueue.Forget(mgmtClusterResourceID)
+	return true
+}
+
+func (c *SessionController) reconcileManagementClusterProvider(ctx context.Context, mgmtClusterID string) error {
+	sessions, err := c.getSessionsByManagementCluster(mgmtClusterID)
+	if err != nil {
+		return err
+	}
+	if len(sessions) == 0 {
+		return c.managementClusterInventory.Unregister(mgmtClusterID)
+	} else {
+		return c.managementClusterInventory.Register(ctx, mgmtClusterID, 30*time.Second)
+	}
+}
