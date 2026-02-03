@@ -3,7 +3,7 @@
 set -o errexit
 set -o nounset
 set -o pipefail
-
+set -x
 retry_command() {
     local retries=5
     local count=0
@@ -19,6 +19,12 @@ retry_command() {
         fi
     done
 }
+
+if [[ ${MONITOR_ID} =~ .*prow.* ]];
+then
+    echo "Skipping prow instance ${MONITOR_ID}"
+    exit 0
+fi
 
 # parse resource IDs
 IFS='/'
