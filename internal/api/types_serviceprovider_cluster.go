@@ -37,10 +37,45 @@ type ServiceProviderCluster struct {
 
 	LoadBalancerResourceID *azcorearm.ResourceID `json:"loadBalancerResourceID,omitempty"`
 
+	// Version tracks the cluster control plane version information.
+	// DesiredVersion is the controller's computed target version.
+	// ActiveVersions contains all versions currently active in the control plane.
+	// During upgrades, multiple versions can be active simultaneously.
+	// The list is ordered with the most recent first.
+	// Example JSON structure:
+	// {
+	//   "desired_version": "4.19.2",
+	//   "active_versions": [
+	//     {"version": "4.19.2", "lastTransitionTime": "2026-01-30T10:00:00Z"},
+	//     {"version": "4.19.1", "lastTransitionTime": "2026-01-15T08:30:00Z"}
+	//   ]
+	// }
+	Version *HCPClusterVersion `json:"version,omitempty"`
+
 	// Validations is a list of conditions that tracks the status of each cluster validation.
 	// Each Condition Type represents a validation and it should be unique among all validations.
 	// A Condition Status of True means that the validation passed successfully, and a Condition Status of False means that the validation failed.
 	// The Condition Reason and Message are used to provide more details about the validation status.
 	// The Condition LastTransitionTime is used to track the last time the validation transitioned from one status to another.
 	Validations []Condition `json:"validations,omitempty"`
+}
+
+// HCPClusterVersion represents the OpenShift Container Platform version information for a cluster.
+type HCPClusterVersion struct {
+	// DesiredVersion is the full version the controller has resolved and wants to upgrade to (format: x.y.z)
+	// This is compared on each sync to detect when a new upgrade should be triggered.
+	DesiredVersion string `json:"desired_version,omitempty"`
+
+	// ActiveVersions is an array of versions currently active in the control plane, ordered with the most recent first.
+	// During upgrades, multiple versions can be active simultaneously.
+	ActiveVersions []HCPClusterActiveVersion `json:"active_versions,omitempty"`
+}
+
+// HCPClusterActiveVersion represents a single version active in the control plane.
+type HCPClusterActiveVersion struct {
+	// Version is the full version in x.y.z format (e.g., "4.19.2")
+	Version string `json:"version,omitempty"`
+
+	// LastTransitionTime is the timestamp when this version became active
+	LastTransitionTime string `json:"lastTransitionTime,omitempty"`
 }
