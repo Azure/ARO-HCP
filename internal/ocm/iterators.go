@@ -325,16 +325,10 @@ func (iter BreakGlassCredentialListIterator) GetError() error {
 
 // Items returns a push iterator that can be used directly in for/range loops.
 // If an error occurs during paging, iteration stops and the error is recorded.
-// Options can be passed to configure search parameters.
-func (iter *VersionsListIterator) Items(ctx context.Context, opts *VersionsListOptions) iter.Seq[*arohcpv1alpha1.Version] {
+func (iter *VersionsListIterator) Items(ctx context.Context) iter.Seq[*arohcpv1alpha1.Version] {
 	return func(yield func(*arohcpv1alpha1.Version) bool) {
 		// Request can be nil to allow for mocking.
 		if iter.request != nil {
-			// Apply options if provided
-			if opts != nil && opts.Search != "" {
-				iter.request.Search(opts.Search)
-			}
-
 			var page = 0
 			var count = 0
 			var total = math.MaxInt

@@ -122,12 +122,6 @@ type ClusterServiceClientSpec interface {
 	ListVersions() *VersionsListIterator
 }
 
-// VersionsListOptions contains options for listing versions.
-type VersionsListOptions struct {
-	// Search is the search expression to filter versions.
-	Search string
-}
-
 type clusterServiceClient struct {
 	// Conn is an ocm-sdk-go connection to Cluster Service
 	conn *sdk.Connection
