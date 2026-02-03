@@ -21,6 +21,7 @@ import (
 	"hash/fnv"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"path"
 	"path/filepath"
@@ -142,7 +143,12 @@ func (tc *perBinaryInvocationTestContext) getAzureCredentials() (azcore.TokenCre
 type armSystemDataPolicy struct{}
 
 func (p *armSystemDataPolicy) Do(req *policy.Request) (*http.Response, error) {
-	if req.Raw().URL.Host == "localhost:8443" {
+	frontendURL, err := url.Parse(frontendAddress())
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse frontend address: %w", err)
+	}
+
+	if req.Raw().URL.Host == frontendURL.Host {
 		systemData := fmt.Sprintf(`{"createdBy": "e2e-test", "createdByType": "Application", "createdAt": "%s"}`, time.Now().UTC().Format(time.RFC3339))
 		req.Raw().Header.Set("X-Ms-Arm-Resource-System-Data", systemData)
 		req.Raw().Header.Set("X-Ms-Identity-Url", "https://dummyhost.identity.azure.net")

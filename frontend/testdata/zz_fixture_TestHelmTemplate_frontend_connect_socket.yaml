@@ -273,7 +273,7 @@ spec:
         namespaces: ["aks-istio-ingress"]
     to:
     - operation:
-        methods: ["GET", "PUT", "POST","PATCH", "DELETE"]
+        methods: ["GET", "PUT", "POST", "PATCH", "DELETE"]
         ports:
         - "8443"
 ---
