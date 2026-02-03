@@ -18,10 +18,13 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/blang/semver/v4"
 	"github.com/google/uuid"
+	"github.com/openshift/cluster-version-operator/pkg/cincinnati"
+	"k8s.io/utils/lru"
 
 	ocmsdk "github.com/openshift-online/ocm-sdk-go"
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
@@ -42,6 +45,9 @@ import (
 type controlPlaneUpgradeSyncer struct {
 	cosmosClient         database.DBClient
 	clusterServiceClient ocm.ClusterServiceClientSpec
+
+	cincinnatiClientLock      sync.RWMutex
+	clusterToCincinnatiClient *lru.Cache
 }
 
 var _ controllerutils.ClusterSyncer = (*controlPlaneUpgradeSyncer)(nil)
@@ -66,8 +72,9 @@ func NewControlPlaneUpgradeController(
 	)
 
 	syncer := &controlPlaneUpgradeSyncer{
-		cosmosClient:         cosmosClient,
-		clusterServiceClient: clusterServiceClient,
+		clusterToCincinnatiClient: lru.New(100000),
+		cosmosClient:              cosmosClient,
+		clusterServiceClient:      clusterServiceClient,
 	}
 
 	controller := controllerutils.NewClusterWatchingController(
@@ -79,6 +86,21 @@ func NewControlPlaneUpgradeController(
 	)
 
 	return controller
+}
+
+// getCincinnatiClient provides a point for unit testing.  Likely need to provide transport injection for integration testing.
+func (c *controlPlaneUpgradeSyncer) getCincinnatiClient(key controllerutils.HCPClusterKey, clusterID uuid.UUID) cincinatti.Client {
+	c.cincinnatiClientLock.RLock()
+	defer c.cincinnatiClientLock.RUnlock()
+
+	ret, ok := c.clusterToCincinnatiClient.Get(key)
+	if ok {
+		return ret.(cincinatti.Client)
+	}
+
+	ret = cincinnati.NewClient(clusterID, http.DefaultTransport.(*http.Transport), "ARO-HCP", cincinatti.NewAlwaysConditionRegistry())
+	c.clusterToCincinnatiClient.Add(key, ret)
+	return ret.(cincinatti.Client)
 }
 
 // SyncOnce performs a single reconciliation of the control plane upgrade for a given cluster.
@@ -106,21 +128,18 @@ func (c *controlPlaneUpgradeSyncer) SyncOnce(ctx context.Context, key controller
 		return utils.TrackError(fmt.Errorf("failed to get or create ServiceProviderCluster: %w", err))
 	}
 
-	if existingServiceProviderCluster.Version == nil {
-		existingServiceProviderCluster.Version = &api.HCPClusterVersion{}
-	}
-
+	// TODO bring into serviceprovidercluster
 	csCluster, err := c.clusterServiceClient.GetCluster(ctx, existingCluster.ServiceProviderProperties.ClusterServiceID)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get cluster from Cluster Service: %w", err))
 	}
 
-	// Create Cincinnati client with cluster UUID from Cluster Service
+	// Create official CVO Cincinnati client with our custom registry
 	clusterID, err := uuid.Parse(csCluster.ExternalID())
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("invalid cluster UUID from Cluster Service: %w", err))
 	}
-	cincinnatiClient := cincinatti.NewCincinnatiClient(clusterID)
+	cincinnatiClient := c.getCincinnatiClient(key, clusterID)
 
 	err = c.updateActualVersionInStatus(csCluster, existingServiceProviderCluster)
 	if err != nil {
@@ -173,10 +192,6 @@ func (c *controlPlaneUpgradeSyncer) updateActualVersionInStatus(csCluster *arohc
 
 	actualVersion := version.RawID()
 
-	if serviceProviderCluster.Version.ActiveVersions == nil {
-		serviceProviderCluster.Version.ActiveVersions = []api.HCPClusterActiveVersion{}
-	}
-
 	// Check if the tip (most recent version) is already the actual version
 	// If so, no need to update (avoids prepending the same version repeatedly)
 	if len(serviceProviderCluster.Version.ActiveVersions) > 0 &&
@@ -186,7 +201,8 @@ func (c *controlPlaneUpgradeSyncer) updateActualVersionInStatus(csCluster *arohc
 
 	// Create and prepend the new active version entry at the tip
 	newActiveVersion := api.HCPClusterActiveVersion{
-		Version:            actualVersion,
+		Version: actualVersion,
+		// TODO add utilclock.PassiveClock to controller
 		LastTransitionTime: time.Now().UTC().Format(time.RFC3339),
 	}
 
