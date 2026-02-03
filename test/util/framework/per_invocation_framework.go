@@ -147,6 +147,10 @@ func (tc *perBinaryInvocationTestContext) getClientFactoryOptions() *azcorearm.C
 
 func (tc *perBinaryInvocationTestContext) getHCPClientFactoryOptions() *azcorearm.ClientOptions {
 	if tc.isDevelopmentEnvironment {
+		frontendAddress := os.Getenv("FRONTEND_ADDRESS")
+		if frontendAddress == "" {
+			frontendAddress = "http://localhost:8443"
+		}
 		return &azcorearm.ClientOptions{
 			ClientOptions: azcore.ClientOptions{
 				Cloud: cloud.Configuration{
@@ -154,7 +158,7 @@ func (tc *perBinaryInvocationTestContext) getHCPClientFactoryOptions() *azcorear
 					Services: map[cloud.ServiceName]cloud.ServiceConfiguration{
 						cloud.ResourceManager: {
 							Audience: "https://management.core.windows.net/",
-							Endpoint: "http://localhost:8443",
+							Endpoint: frontendAddress,
 						},
 					},
 				},
