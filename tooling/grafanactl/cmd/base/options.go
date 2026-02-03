@@ -16,16 +16,21 @@ package base
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/spf13/cobra"
+
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 )
 
 // BaseOptions represents common options used across multiple commands.
 type BaseOptions struct {
-	SubscriptionID string
-	ResourceGroup  string
-	GrafanaName    string
-	OutputFormat   string
+	SubscriptionID    string
+	ResourceGroup     string
+	GrafanaName       string
+	GrafanaResourceID string
+	OutputFormat      string
+	DryRun            bool
 }
 
 // DefaultBaseOptions returns a new BaseOptions with default values
@@ -38,14 +43,11 @@ func DefaultBaseOptions() *BaseOptions {
 // BindBaseOptions binds common command-line flags to the base options
 func BindBaseOptions(opts *BaseOptions, cmd *cobra.Command) error {
 	flags := cmd.Flags()
-	flags.StringVar(&opts.SubscriptionID, "subscription", "", "Azure subscription ID (required)")
-	flags.StringVar(&opts.ResourceGroup, "resource-group", "", "Azure resource group name (required)")
-	flags.StringVar(&opts.GrafanaName, "grafana-name", "", "Azure Managed Grafana instance name (required)")
+	flags.StringVar(&opts.SubscriptionID, "subscription", opts.SubscriptionID, "Azure subscription ID ")
+	flags.StringVar(&opts.ResourceGroup, "resource-group", opts.ResourceGroup, "Azure resource group name ")
+	flags.StringVar(&opts.GrafanaName, "grafana-name", opts.GrafanaName, "Azure Managed Grafana instance name ")
+	flags.StringVar(&opts.GrafanaResourceID, "grafana-resource-id", opts.GrafanaResourceID, "Azure Managed Grafana instance resource ID")
 	flags.StringVar(&opts.OutputFormat, "output", opts.OutputFormat, "Output format: table or json")
-
-	_ = cmd.MarkFlagRequired("subscription")
-	_ = cmd.MarkFlagRequired("resource-group")
-	_ = cmd.MarkFlagRequired("grafana-name")
 
 	return nil
 }
@@ -53,14 +55,19 @@ func BindBaseOptions(opts *BaseOptions, cmd *cobra.Command) error {
 // ValidateBaseOptions performs validation on the base options
 func ValidateBaseOptions(opts *BaseOptions) error {
 	// Validate required fields
-	if opts.SubscriptionID == "" {
-		return fmt.Errorf("subscription ID is required")
-	}
-	if opts.ResourceGroup == "" {
-		return fmt.Errorf("resource group is required")
-	}
-	if opts.GrafanaName == "" {
-		return fmt.Errorf("grafana name is required")
+
+	if opts.GrafanaResourceID == "" {
+		if opts.SubscriptionID == "" || opts.ResourceGroup == "" || opts.GrafanaName == "" {
+			return fmt.Errorf("subscription ID, resource group, and grafana name are required if grafana resource ID is not provided")
+		}
+	} else {
+		resourceID, err := ValidateAzureResourceID(opts.GrafanaResourceID, "Microsoft.Dashboard/grafana")
+		if err != nil {
+			return fmt.Errorf("failed to validate grafana resource ID: %w", err)
+		}
+		opts.SubscriptionID = resourceID.SubscriptionID
+		opts.ResourceGroup = resourceID.ResourceGroupName
+		opts.GrafanaName = resourceID.Name
 	}
 
 	// Validate output format
@@ -69,4 +76,26 @@ func ValidateBaseOptions(opts *BaseOptions) error {
 	}
 
 	return nil
+}
+
+// ValidateAzureResourceID validates an Azure resource ID and ensures it's an Azure Managed Grafana resource
+func ValidateAzureResourceID(resourceID string, expectedFullType string) (*azcorearm.ResourceID, error) {
+	if resourceID == "" {
+		return nil, fmt.Errorf("resourceID cannot be empty")
+	}
+
+	parsedID, err := azcorearm.ParseResourceID(resourceID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid Azure resource ID format: %w", err)
+	}
+
+	if !strings.EqualFold(parsedID.ResourceType.String(), expectedFullType) {
+		return nil, fmt.Errorf("invalid Azure resource type: expected '%s', got '%s'", expectedFullType, parsedID.ResourceType.String())
+	}
+
+	if parsedID.Name == "" {
+		return nil, fmt.Errorf("resource name cannot be empty in resource ID")
+	}
+
+	return parsedID, nil
 }
