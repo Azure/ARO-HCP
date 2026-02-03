@@ -17,6 +17,7 @@ package pipeline
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -390,7 +391,9 @@ func runGraph(ctx context.Context, logger logr.Logger, executionGraph *graph.Gra
 					state.Lock()
 					state.Timing[step].StartedAt = time.Now().Format(time.RFC3339)
 					state.Unlock()
-					details, runCount, err := executeNode(stepLogger, executor, executionGraph, step, consumerCtx, options, state)
+					stepCtx, stepCtxCancel := context.WithTimeoutCause(consumerCtx, 30*time.Minute, errors.New("exceeded the single-step timeout for sanity"))
+					details, runCount, err := executeNode(stepLogger, executor, executionGraph, step, stepCtx, options, state)
+					stepCtxCancel()
 					if details != nil {
 						consumerWg.Add(1)
 						go func(step graph.Identifier, logger logr.Logger) {
