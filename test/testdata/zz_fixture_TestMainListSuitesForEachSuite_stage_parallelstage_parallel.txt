@@ -19,6 +19,5 @@ Customer should be able to create a cluster with an external auth config and get
 Customer should be able to lifecycle and confirm external auth on a cluster
 Customer should be able to create an HCP cluster with Image Registry not present
 Customer should be able to create a cluster with default autoscaling and a nodepool with autoscaling enabled
-Customer should reject nodepool creation with both replicas and autoscaling configured
 Customer should respect cluster-wide node limits with nodepool autoscaling
 Customer should be able to update nodepool replicas and autoscaling

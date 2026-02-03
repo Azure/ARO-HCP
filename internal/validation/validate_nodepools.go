@@ -109,8 +109,9 @@ func validateNodePoolProperties(ctx context.Context, op operation.Operation, fld
 	errs = append(errs, validate.Minimum(ctx, op, fldPath.Child("replicas"), &newObj.Replicas, safe.Field(oldObj, toNodePoolPropertiesReplicas), 0)...)
 	// Validate max=200 only when availabilityZone is unset. When availabilityZone is set, no maximum limit applies.
 	errs = append(errs, MaximumIfNoAZ(ctx, op, fldPath.Child("replicas"), &newObj.Replicas, safe.Field(oldObj, toNodePoolPropertiesReplicas), MaxNodePoolNodes, newObj.Platform.AvailabilityZone)...)
-	if newObj.AutoScaling != nil {
-		errs = append(errs, EQ(ctx, op, fldPath.Child("replicas"), &newObj.Replicas, safe.Field(oldObj, toNodePoolPropertiesReplicas), 0)...)
+
+	if newObj.AutoScaling != nil && newObj.Replicas > 0 {
+		errs = append(errs, field.Invalid(fldPath.Child("replicas"), &newObj.AutoScaling.Min, "cannot specify replicas when autoScaling is enabled"))
 	}
 
 	//AutoRepair              bool                    `json:"autoRepair,omitempty"`
