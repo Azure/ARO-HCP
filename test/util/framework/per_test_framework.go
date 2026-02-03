@@ -20,6 +20,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -28,6 +29,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/go-logr/logr"
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
 	"golang.org/x/sync/errgroup"
@@ -63,6 +65,7 @@ type perItOrDescribeTestContext struct {
 	armNetworkClientFactory       *armnetwork.ClientFactory
 	graphClient                   *graphutil.Client
 
+	azureLogFile     *os.File
 	timingMetadata   timing.SpecTimingMetadata
 	knownDeployments []deploymentInfo
 }
@@ -72,16 +75,43 @@ type deploymentInfo struct {
 	deploymentName    string
 }
 
-func NewTestContext() *perItOrDescribeTestContext {
-	log.SetListener(func(event log.Event, msg string) {
-		ginkgo.GinkgoLogr.Info("Azure Log", "event", event, "message", msg)
-	})
+func setupAzureLogging(artifactDir string) *os.File {
+	if len(artifactDir) == 0 {
+		return nil
+	}
 
+	// Set up Azure SDK logging to a file so it doesn't pollute test output but is
+	// available for debugging. The log file is written to ${ARTIFACT_DIR}/<test-name>/azure.log.
+	report := ginkgo.CurrentSpecReport()
+	testName := sanitizeTestName(append(report.ContainerHierarchyTexts, report.LeafNodeText))
+	logDir := filepath.Join(artifactDir, testName)
+	if err := os.MkdirAll(logDir, 0755); err != nil {
+		ginkgo.GinkgoLogr.Error(err, "failed to create azure log file")
+		return nil
+	}
+
+	azureLogFile, err := os.Create(filepath.Join(logDir, "azure.log"))
+	if err != nil {
+		ginkgo.GinkgoLogr.Error(err, "failed to create azure log file")
+		return nil
+	}
+
+	azureLogger := logr.FromSlogHandler(slog.NewJSONHandler(azureLogFile, &slog.HandlerOptions{}))
+	log.SetListener(func(event log.Event, msg string) {
+		azureLogger.Info(msg, "event", event)
+	})
 	// There are other options to log, but they are really noisy.  If we must we can enable them.
-	log.SetEvents(log.EventResponseError, log.EventRetryPolicy)
+	log.SetEvents(log.EventRequest, log.EventResponse, log.EventResponseError, log.EventRetryPolicy, log.EventLRO)
+
+	return azureLogFile
+}
+
+func NewTestContext() *perItOrDescribeTestContext {
+	azureLogFile := setupAzureLogging(artifactDir())
 
 	tc := &perItOrDescribeTestContext{
 		perBinaryInvocationTestContext: invocationContext(),
+		azureLogFile:                   azureLogFile,
 		timingMetadata: timing.SpecTimingMetadata{
 			// Answering the question of "what's the currently-running test name?" in Ginkgo is difficult -
 			// all we know in general is the hierarchy of nodes under which we are currently running. We
@@ -111,6 +141,25 @@ func NewTestContext() *perItOrDescribeTestContext {
 	return tc
 }
 
+// sanitizeTestName creates a filesystem-safe directory name from a test's hierarchy of texts.
+func sanitizeTestName(parts []string) string {
+	name := strings.Join(parts, "_")
+	name = strings.Map(func(r rune) rune {
+		if r == '/' || r == '\\' || r == ':' || r == '*' || r == '?' || r == '"' || r == '<' || r == '>' || r == '|' {
+			return '_'
+		}
+		if r == ' ' {
+			return '_'
+		}
+		return r
+	}, name)
+	// Truncate to a reasonable length for filesystem paths
+	if len(name) > 200 {
+		name = name[:200]
+	}
+	return name
+}
+
 // BeforeEach gives a chance for initialization (none yet) and registers the cleanup
 func (tc *perItOrDescribeTestContext) BeforeEach(ctx context.Context) {
 	// DeferCleanup, in contrast to AfterEach, triggers execution in
@@ -130,6 +179,14 @@ func (tc *perItOrDescribeTestContext) BeforeEach(ctx context.Context) {
 	ginkgo.DeferCleanup(tc.collectDebugInfo, AnnotatedLocation("dump debug info"), ginkgo.NodeTimeout(45*time.Minute))
 
 	ginkgo.DeferCleanup(tc.commitTimingMetadata, AnnotatedLocation("dump timing info"), ginkgo.NodeTimeout(45*time.Minute))
+
+	ginkgo.DeferCleanup(tc.closeAzureLogFile, AnnotatedLocation("close azure log file"))
+}
+
+func (tc *perItOrDescribeTestContext) closeAzureLogFile() {
+	if tc.azureLogFile != nil {
+		tc.azureLogFile.Close()
+	}
 }
 
 // deleteCreatedResources deletes what was created that we know of.
