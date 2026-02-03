@@ -6,6 +6,7 @@ use (
 	./backend
 	./frontend
 	./internal
+	./route-monitor-controller
 	./test
 	./test-integration
 	./tooling/grafanactl
