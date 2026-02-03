@@ -121,7 +121,7 @@ e2e-local/setup:
 		--request PUT \
 		--header "Content-Type: application/json" \
 		--data '{"state":"Registered", "registrationDate": "now", "properties": { "tenantId": "'$${TENANT_ID}'"}}' \
-		"ADDRESS/subscriptions/$${SUBSCRIPTION_ID}?api-version=2.0"
+		"$${ADDRESS}/subscriptions/$${SUBSCRIPTION_ID}?api-version=2.0"
 .PHONY: e2e-local/setup
 
 e2e-local/run: $(ARO_HCP_TESTS)

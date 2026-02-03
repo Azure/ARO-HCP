@@ -15,13 +15,10 @@
 package framework
 
 import (
-	"bytes"
 	"context"
 	"crypto/tls"
-	"errors"
 	"fmt"
 	"hash/fnv"
-	"io"
 	"net"
 	"net/http"
 	"os"
@@ -32,12 +29,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/ginkgo/v2/types"
 	"golang.org/x/net/http2"
-
-	"k8s.io/apimachinery/pkg/util/sets"
-	"k8s.io/apimachinery/pkg/util/wait"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -55,6 +48,8 @@ type perBinaryInvocationTestContext struct {
 	testUserClientID         string
 	location                 string
 	pullSecretPath           string
+	frontendAddress          string
+	skipCertVerification     bool
 	isDevelopmentEnvironment bool
 	skipCleanup              bool
 	pooledIdentities         bool
@@ -94,6 +89,8 @@ func invocationContext() *perBinaryInvocationTestContext {
 			testUserClientID:         testUserClientID(),
 			location:                 location(),
 			pullSecretPath:           pullSecretPath(),
+			frontendAddress:          frontendAddress(),
+			skipCertVerification:     skipCertVerification(),
 			isDevelopmentEnvironment: IsDevelopmentEnvironment(),
 			skipCleanup:              skipCleanup(),
 			pooledIdentities:         pooledIdentities(),
@@ -169,12 +166,8 @@ func (tc *perBinaryInvocationTestContext) getClientFactoryOptions() *azcorearm.C
 func (tc *perBinaryInvocationTestContext) getHCPClientFactoryOptions() *azcorearm.ClientOptions {
 	if tc.isDevelopmentEnvironment {
 		transport := tc.defaultTransport
-		if os.Getenv("SKIP_CERT_VERIFICATION") == "true" {
+		if tc.skipCertVerification {
 			transport.TLSClientConfig.InsecureSkipVerify = true
-		}
-		frontendAddress := os.Getenv("FRONTEND_ADDRESS")
-		if frontendAddress == "" {
-			frontendAddress = "http://localhost:8443"
 		}
 		return &azcorearm.ClientOptions{
 			ClientOptions: azcore.ClientOptions{
@@ -183,7 +176,7 @@ func (tc *perBinaryInvocationTestContext) getHCPClientFactoryOptions() *azcorear
 					Services: map[cloud.ServiceName]cloud.ServiceConfiguration{
 						cloud.ResourceManager: {
 							Audience: "https://management.core.windows.net/",
-							Endpoint: frontendAddress,
+							Endpoint: tc.frontendAddress,
 						},
 					},
 				},
@@ -236,47 +229,7 @@ type proxiedConnectionTransporter struct {
 }
 
 func (t *proxiedConnectionTransporter) Do(req *http.Request) (*http.Response, error) {
-	retryCtx, cancel := context.WithTimeoutCause(req.Context(), 2*time.Minute, errors.New("proxy transport retry timeout"))
-	defer cancel()
-
-	var body []byte
-	if req != nil && req.Body != nil {
-		b, err := io.ReadAll(req.Body)
-		if err != nil {
-			return nil, fmt.Errorf("failed to read request body: %w", err)
-		}
-		if err := req.Body.Close(); err != nil {
-			return nil, fmt.Errorf("failed to close request body: %w", err)
-		}
-		body = b
-	}
-
-	var response *http.Response
-	responseErr := wait.ExponentialBackoffWithContext(retryCtx, wait.Backoff{
-		Duration: 800 * time.Millisecond,
-		Factor:   2,
-		Jitter:   0.1,
-		Steps:    10,
-		Cap:      20 * time.Second,
-	}, func(ctx context.Context) (done bool, err error) {
-		thisReq := req.Clone(ctx)
-		thisReq.Body = io.NopCloser(bytes.NewReader(body))
-		resp, err := t.delegate.RoundTrip(thisReq)
-		response = resp
-		if err != nil {
-			if sets.NewString(
-				"connect: connection refused",
-				"connect: connection reset by peer",
-				"proxy error from localhost",
-			).Has(err.Error()) {
-				ginkgo.GinkgoLogr.Info("Re-trying request.", "err", err)
-				return false, nil
-			}
-			return true, fmt.Errorf("failed to round trip request: %w", err)
-		}
-		return true, nil
-	})
-	return response, responseErr
+	return t.delegate.RoundTrip(req)
 }
 
 func (tc *perBinaryInvocationTestContext) getSubscriptionID(ctx context.Context, subscriptionClient *armsubscriptions.Client) (string, error) {
@@ -398,6 +351,24 @@ func pullSecretPath() string {
 		return "/var/run/aro-hcp-qe-pull-secret"
 	}
 	return path
+}
+
+// frontendAddress returns the value of FRONTEND_ADDRESS environment variable
+func frontendAddress() string {
+	address := os.Getenv("FRONTEND_ADDRESS")
+	if address == "" {
+		return "http://localhost:8443"
+	}
+	return address
+}
+
+// skipCertVerification returns the value of SKIP_CERT_VERIFICATION environment variable
+func skipCertVerification() bool {
+	b, err := strconv.ParseBool(strings.TrimSpace(os.Getenv("SKIP_CERT_VERIFICATION")))
+	if err != nil {
+		return false
+	}
+	return b
 }
 
 // IsDevelopmentEnvironment indicates when this environment is development.  This controls client endpoints and disables security
