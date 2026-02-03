@@ -49,8 +49,6 @@ func newKASProxyHandler(
 	sessionID string,
 	stripPathPrefix string,
 ) (*kasProxySession, error) {
-	klog.V(4).InfoS("Creating KAS proxy handler", "sessionID", sessionID, "host", restCfg.Host, "stripPathPrefix", stripPathPrefix)
-
 	backendBase, err := url.Parse(restCfg.Host)
 	if err != nil {
 		return nil, err
@@ -81,10 +79,9 @@ func newKASProxyHandler(
 	sessionCtx, cancel := context.WithCancel(ctx)
 
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		logger := klog.FromContext(r.Context()).WithValues("sessionID", sessionID, "host", restCfg.Host)
+		logger := klog.FromContext(r.Context()).WithValues("session", sessionID)
 		// Use the session context so requests can be cancelled when session is unregistered
 		r = r.Clone(klog.NewContext(sessionCtx, logger))
-		logger.V(6).Info("Proxying request", "method", r.Method, "path", r.URL.Path)
 
 		if !strings.HasPrefix(r.URL.Path, stripPathPrefix) {
 			http.NotFound(w, r)
@@ -97,7 +94,7 @@ func newKASProxyHandler(
 		backendURL.Path = backendURL.Path + restPath
 		backendURL.RawQuery = r.URL.RawQuery
 
-		klog.V(6).Info("Backend URL constructed", "backendURL", backendURL.String())
+		klog.V(4).InfoS("proxying request", "session", sessionID, "method", r.Method, "path", restPath)
 
 		proxyHandler := proxy.NewUpgradeAwareHandler(&backendURL, transport, true, false, &sessionErrorResponder{sessionID: sessionID})
 		proxyHandler.ServeHTTP(w, r)

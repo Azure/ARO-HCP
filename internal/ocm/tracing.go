@@ -83,6 +83,20 @@ func (csc *clusterServiceClientWithTracing) GetClusterInflightChecks(ctx context
 	return csc.csc.GetClusterInflightChecks(ctx, internalID)
 }
 
+func (csc *clusterServiceClientWithTracing) GetClusterHypershiftDetails(ctx context.Context, internalID InternalID) (*cmv1.HypershiftConfig, error) {
+	ctx, span := csc.startChildSpan(ctx, "ClusterServiceClient.GetClusterHypershiftDetails")
+	defer span.End()
+
+	return csc.csc.GetClusterHypershiftDetails(ctx, internalID)
+}
+
+func (csc *clusterServiceClientWithTracing) GetClusterProvisionShard(ctx context.Context, internalID InternalID) (*arohcpv1alpha1.ProvisionShard, error) {
+	ctx, span := csc.startChildSpan(ctx, "ClusterServiceClient.GetClusterProvisionShard")
+	defer span.End()
+
+	return csc.csc.GetClusterProvisionShard(ctx, internalID)
+}
+
 func (csc *clusterServiceClientWithTracing) PostCluster(ctx context.Context, clusterBuilder *arohcpv1alpha1.ClusterBuilder, autoscalerBuilder *arohcpv1alpha1.ClusterAutoscalerBuilder) (*arohcpv1alpha1.Cluster, error) {
 	ctx, span := csc.startChildSpan(ctx, "ClusterServiceClient.PostCluster")
 	defer span.End()
