@@ -190,6 +190,9 @@ func NewStep[InternalAPIType any](indexString, stepType, stepName string, testDi
 	case "replace":
 		return newReplaceStep[InternalAPIType](stepID, stepDir)
 
+	case "replaceWithETag":
+		return newReplaceWithETagStep[InternalAPIType](stepID, stepDir)
+
 	case "get":
 		return newGetStep[InternalAPIType](stepID, stepDir)
 

@@ -106,7 +106,7 @@ func (m *MockDBClient) PatchBillingDoc(ctx context.Context, resourceID *azcorear
 		}
 	}
 
-	if foundID == "" {
+	if len(foundID) == 0 {
 		return &azcore.ResponseError{StatusCode: http.StatusNotFound}
 	}
 
@@ -192,7 +192,7 @@ func (m *MockDBClient) LoadFromDirectory(dirPath string) error {
 		}
 
 		// Store the document
-		if typedDoc.ID != "" {
+		if len(typedDoc.ID) != 0 {
 			m.documents[strings.ToLower(typedDoc.ID)] = data
 		}
 
@@ -209,7 +209,7 @@ func (m *MockDBClient) LoadContent(ctx context.Context, content []byte) error {
 		return fmt.Errorf("failed to unmarshal content: %w", err)
 	}
 
-	if typedDoc.ID == "" {
+	if len(typedDoc.ID) == 0 {
 		return fmt.Errorf("document is missing ID field")
 	}
 
@@ -278,7 +278,7 @@ func (m *MockDBClient) ListDocuments(resourceType *azcorearm.ResourceType, prefi
 		}
 
 		// Check prefix match if specified
-		if prefix != "" {
+		if len(prefix) != 0 {
 			var props map[string]any
 			if err := json.Unmarshal(typedDoc.Properties, &props); err != nil {
 				continue

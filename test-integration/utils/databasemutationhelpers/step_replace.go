@@ -17,8 +17,10 @@ package databasemutationhelpers
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/fs"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -28,7 +30,8 @@ type replaceStep[InternalAPIType any] struct {
 	stepID StepID
 	key    CosmosItemKey
 
-	resources []*InternalAPIType
+	resources     []*InternalAPIType
+	expectedError string
 }
 
 func newReplaceStep[InternalAPIType any](stepID StepID, stepDir fs.FS) (*replaceStep[InternalAPIType], error) {
@@ -41,15 +44,22 @@ func newReplaceStep[InternalAPIType any](stepID StepID, stepDir fs.FS) (*replace
 		return nil, fmt.Errorf("failed to unmarshal key.json: %w", err)
 	}
 
+	expectedErrorBytes, err := fs.ReadFile(stepDir, "expected-error.txt")
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return nil, fmt.Errorf("failed to read expected-error.txt: %w", err)
+	}
+	expectedError := strings.TrimSpace(string(expectedErrorBytes))
+
 	resources, err := readResourcesInDir[InternalAPIType](stepDir)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read resource in dir: %w", err)
 	}
 
 	return &replaceStep[InternalAPIType]{
-		stepID:    stepID,
-		key:       key,
-		resources: resources,
+		stepID:        stepID,
+		key:           key,
+		resources:     resources,
+		expectedError: expectedError,
 	}, nil
 }
 
@@ -64,6 +74,10 @@ func (l *replaceStep[InternalAPIType]) RunTest(ctx context.Context, t *testing.T
 
 	for _, resource := range l.resources {
 		_, err := resourceCRUDClient.Replace(ctx, resource, nil)
+		if len(l.expectedError) > 0 {
+			require.ErrorContains(t, err, l.expectedError, "expected error during replace")
+			return
+		}
 		require.NoError(t, err, "failed to replace resource")
 	}
 }
