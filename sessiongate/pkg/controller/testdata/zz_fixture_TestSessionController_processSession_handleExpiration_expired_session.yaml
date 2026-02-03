@@ -1,0 +1,13 @@
+AuthPolicy: null
+CSR: null
+CSRApproval: null
+DeleteCSR: false
+DeleteSession: true
+Event:
+  Args:
+  - test-namespace
+  - test-session
+  MessageFmt: Session has expired, deleting %s/%s.
+  Reason: SessionExpiration
+Secret: null
+Session: null

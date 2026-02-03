@@ -420,6 +420,15 @@ param auditLogsEventHubName string
 @description('Resource ID of the event hub authorization rule for AKS audit logs')
 param auditLogsEventHubAuthRuleId string
 
+@description('The name of the Session Gate managed identity')
+param sessiongateMIName string
+
+@description('The namespace of the Session Gate managed identity')
+param sessiongateNamespace string
+
+@description('The service account name of the Session Gate managed identity')
+param sessiongateServiceAccountName string
+
 resource serviceKeyVault 'Microsoft.KeyVault/vaults@2024-04-01-preview' existing = {
   name: serviceKeyVaultName
   scope: resourceGroup(serviceKeyVaultResourceGroup)
@@ -474,6 +483,11 @@ var workloadIdentities = items({
     uamiName: adminApiMIName
     namespace: adminApiNamespace
     serviceAccountName: adminApiServiceAccountName
+  }
+  sessiongate_wi: {
+    uamiName: sessiongateMIName
+    namespace: sessiongateNamespace
+    serviceAccountName: sessiongateServiceAccountName
   }
 })
 
