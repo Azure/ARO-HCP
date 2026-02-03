@@ -15,6 +15,8 @@
 package framework
 
 import (
+	"bytes"
+	"compress/gzip"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -899,13 +901,36 @@ func (tc *perItOrDescribeTestContext) commitTimingMetadata(ctx context.Context) 
 	hash := sha256.New()
 	hash.Write(encodedIdentifier)
 	hashBytes := hash.Sum(nil)
+
+	var outputData []byte
+	var fileExtension string
+
+	if tc.perBinaryInvocationTestContext.compressTimingMetadata {
+		// Gzip the encoded data
+		var gzipBuffer bytes.Buffer
+		gzipWriter := gzip.NewWriter(&gzipBuffer)
+		if _, err := gzipWriter.Write(encoded); err != nil {
+			ginkgo.GinkgoLogr.Error(err, "Failed to gzip timing metadata")
+			return
+		}
+		if err := gzipWriter.Close(); err != nil {
+			ginkgo.GinkgoLogr.Error(err, "Failed to close gzip writer")
+			return
+		}
+		outputData = gzipBuffer.Bytes()
+		fileExtension = "yaml.gz"
+	} else {
+		outputData = encoded
+		fileExtension = "yaml"
+	}
+
 	for _, dir := range []string{tc.perBinaryInvocationTestContext.sharedDir, filepath.Join(tc.perBinaryInvocationTestContext.artifactDir, "test-timing")} {
-		output := filepath.Join(dir, fmt.Sprintf("timing-metadata-%s.yaml", hex.EncodeToString(hashBytes)))
+		output := filepath.Join(dir, fmt.Sprintf("timing-metadata-%s.%s", hex.EncodeToString(hashBytes), fileExtension))
 		if err := os.MkdirAll(filepath.Dir(output), 0755); err != nil {
 			ginkgo.GinkgoLogr.Error(err, "Failed to create directory for timing metadata")
 			continue
 		}
-		if err := os.WriteFile(output, encoded, 0644); err != nil {
+		if err := os.WriteFile(output, outputData, 0644); err != nil {
 			ginkgo.GinkgoLogr.Error(err, "Failed to write timing metadata")
 			continue
 		}

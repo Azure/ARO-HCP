@@ -48,6 +48,7 @@ type perBinaryInvocationTestContext struct {
 	isDevelopmentEnvironment bool
 	skipCleanup              bool
 	pooledIdentities         bool
+	compressTimingMetadata   bool
 
 	contextLock       sync.RWMutex
 	subscriptionID    string
@@ -85,6 +86,7 @@ func invocationContext() *perBinaryInvocationTestContext {
 			isDevelopmentEnvironment: IsDevelopmentEnvironment(),
 			skipCleanup:              skipCleanup(),
 			pooledIdentities:         pooledIdentities(),
+			compressTimingMetadata:   compressTimingMetadata(),
 		}
 	})
 	return invocationContextInstance
@@ -238,6 +240,11 @@ func artifactDir() string {
 func pooledIdentities() bool {
 	b, _ := strconv.ParseBool(strings.TrimSpace(os.Getenv(UsePooledIdentitiesEnvvar)))
 	return b
+}
+
+func compressTimingMetadata() bool {
+	ret, _ := strconv.ParseBool(os.Getenv("COMPRESS_TIMING_METADATA"))
+	return ret
 }
 
 // SharedDir is SHARED_DIR.  It is a spot to store *files only* that can be shared between ci-operator steps.
