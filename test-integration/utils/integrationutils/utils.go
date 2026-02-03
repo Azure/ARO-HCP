@@ -109,6 +109,10 @@ func NewIntegrationTestInfoFromEnv(ctx context.Context, t *testing.T, withMock b
 	// cluster service setup
 	clusterServiceMockInfo := NewClusterServiceMock(t, storageIntegrationTestInfo.GetArtifactDir())
 
+	// kubernetes client sets setup
+	sessionNamespace := "aro-hcp-breakglass-sessions"
+	kubernetesClientSets := NewKubernetesClientSets(sessionNamespace)
+
 	// frontend setup
 	frontendListener, err := net.Listen("tcp4", "127.0.0.1:0")
 	if err != nil {
@@ -131,7 +135,18 @@ func NewIntegrationTestInfoFromEnv(ctx context.Context, t *testing.T, withMock b
 	if err != nil {
 		return nil, err
 	}
-	adminAPI := adminApiServer.NewAdminAPI(logger, "fake-location", adminListener, adminMetricsListener, storageIntegrationTestInfo.CosmosClient(), clusterServiceMockInfo.MockClusterServiceClient, nil, nil)
+	adminAPI := adminApiServer.NewAdminAPI(
+		logger,
+		"fake-location",
+		adminListener,
+		adminMetricsListener,
+		storageIntegrationTestInfo.CosmosClient(),
+		clusterServiceMockInfo.MockClusterServiceClient,
+		nil,
+		nil,
+		kubernetesClientSets.SessiongateClientset.SessiongateV1alpha1().Sessions(sessionNamespace),
+		kubernetesClientSets.SessionInformerFactory.Sessiongate().V1alpha1().Sessions().Lister().Sessions(sessionNamespace),
+	)
 
 	frontendURL := fmt.Sprintf("http://%s", frontendListener.Addr().String())
 	adminURL := fmt.Sprintf("http://%s", adminListener.Addr().String())
@@ -144,6 +159,7 @@ func NewIntegrationTestInfoFromEnv(ctx context.Context, t *testing.T, withMock b
 		AdminURL:                   adminURL,
 		AdminAPI:                   adminAPI,
 		adminAPIListener:           adminListener,
+		KubernetesClientSets:       kubernetesClientSets,
 	}
 	return testInfo, nil
 }

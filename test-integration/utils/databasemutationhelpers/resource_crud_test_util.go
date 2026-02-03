@@ -158,6 +158,7 @@ func (tt *ResourceMutationTest) RunTest(t *testing.T) {
 	stepInput.FrontendURL = testInfo.FrontendURL
 	stepInput.AdminURL = testInfo.AdminURL
 	stepInput.ClusterServiceMockInfo = testInfo.ClusterServiceMock
+	stepInput.KubeFakeClientSets = testInfo.KubernetesClientSets
 
 	for _, step := range tt.steps {
 		t.Logf("Running step %s", step.StepID())
@@ -248,6 +249,15 @@ func NewStep[InternalAPIType any](indexString, stepType, stepName string, testDi
 
 	case "migrateCosmos":
 		return newMigrateCosmosStep(stepID, stepDir)
+
+	case "kubernetesLoad":
+		return NewKubernetesLoadStep(stepID, stepDir)
+
+	case "kubernetesApply":
+		return NewKubernetesApplyStep(stepID, stepDir)
+
+	case "kubernetesCompare":
+		return NewKubernetesCompareStep(stepID, stepDir)
 
 	default:
 		return nil, fmt.Errorf("unknown step type: %s", stepType)
@@ -366,6 +376,7 @@ type StepInput struct {
 	FrontendURL            string
 	AdminURL               string
 	ClusterServiceMockInfo *integrationutils.ClusterServiceMock
+	KubeFakeClientSets     *integrationutils.KubernetesClientSets
 }
 
 func (s StepInput) HTTPTestAccessor(key ResourceKey) HTTPTestAccessor {

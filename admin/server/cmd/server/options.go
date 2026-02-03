@@ -17,6 +17,7 @@ package server
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net"
 	"os"
 	"time"
@@ -24,17 +25,25 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/cobra"
 
+	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
+
 	"github.com/Azure/azure-kusto-go/kusto"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
 
 	sdk "github.com/openshift-online/ocm-sdk-go"
 
+	"github.com/Azure/ARO-HCP/admin/server/pkg/logging"
 	"github.com/Azure/ARO-HCP/admin/server/server"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/fpa"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
+	clientset "github.com/Azure/ARO-HCP/sessiongate/pkg/generated/clientset/versioned"
+	sessiongatev1alpha1 "github.com/Azure/ARO-HCP/sessiongate/pkg/generated/clientset/versioned/typed/sessiongate/v1alpha1"
+	informers "github.com/Azure/ARO-HCP/sessiongate/pkg/generated/informers/externalversions"
+	sessiongatelisterv1alpha1 "github.com/Azure/ARO-HCP/sessiongate/pkg/generated/listers/sessiongate/v1alpha1"
 )
 
 func DefaultOptions() *RawOptions {
@@ -46,16 +55,18 @@ func DefaultOptions() *RawOptions {
 
 // RawOptions holds input values.
 type RawOptions struct {
-	LogVerbosity       int
-	Port               int
-	MetricsPort        int
-	Location           string
-	ClustersServiceURL string
-	CosmosURL          string
-	CosmosName         string
-	KustoEndpoint      string
-	FpaCertBundlePath  string
-	FpaClientID        string
+	LogVerbosity         int
+	Port                 int
+	MetricsPort          int
+	Location             string
+	ClustersServiceURL   string
+	CosmosURL            string
+	CosmosName           string
+	KustoEndpoint        string
+	FpaCertBundlePath    string
+	FpaClientID          string
+	Kubeconfig           string
+	SessiongateNamespace string
 }
 
 func (opts *RawOptions) BindOptions(cmd *cobra.Command) error {
@@ -68,6 +79,8 @@ func (opts *RawOptions) BindOptions(cmd *cobra.Command) error {
 	cmd.Flags().StringVar(&opts.KustoEndpoint, "kusto-endpoint", getEnv("KUSTO_ENDPOINT", opts.KustoEndpoint), "Endpoint of the Kusto cluster.")
 	cmd.Flags().StringVar(&opts.FpaClientID, "fpa-client-id", getEnv("FPA_CLIENT_ID", opts.FpaClientID), "Client ID of the FPA application.")
 	cmd.Flags().StringVar(&opts.FpaCertBundlePath, "fpa-cert-bundle-path", getEnv("FPA_CERT_BUNDLE_PATH", opts.FpaCertBundlePath), "Path to the FPA certificate bundle.")
+	cmd.Flags().StringVar(&opts.Kubeconfig, "kubeconfig", getEnv("KUBECONFIG", opts.Kubeconfig), "Path to kubeconfig file.")
+	cmd.Flags().StringVar(&opts.SessiongateNamespace, "sessiongate-namespace", getEnv("SESSIONGATE_NAMESPACE", opts.SessiongateNamespace), "Namespace to watch for sessions.")
 	return nil
 }
 
@@ -97,6 +110,9 @@ type completedOptions struct {
 	ClusterServiceClient   ocm.ClusterServiceClientSpec
 	KustoClient            *kusto.Client
 	FpaCredentialRetriever fpa.FirstPartyApplicationTokenCredentialRetriever
+	SessionClient          sessiongatev1alpha1.SessionInterface
+	SessionLister          sessiongatelisterv1alpha1.SessionNamespaceLister
+	Logger                 *slog.Logger
 }
 
 type Options struct {
@@ -117,6 +133,9 @@ func (o *RawOptions) Validate() (*ValidatedOptions, error) {
 	if o.CosmosName == "" {
 		return nil, fmt.Errorf("cosmos-name is required")
 	}
+	if o.SessiongateNamespace == "" {
+		return nil, fmt.Errorf("sessiongate-namespace is required")
+	}
 	return &ValidatedOptions{
 		validatedOptions: &validatedOptions{
 			RawOptions: o,
@@ -125,6 +144,8 @@ func (o *RawOptions) Validate() (*ValidatedOptions, error) {
 }
 
 func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
+	logger := logging.New(o.LogVerbosity)
+
 	// Create CS client
 	csConnection, err := sdk.NewUnauthenticatedConnectionBuilder().
 		URL(o.ClustersServiceURL).
@@ -170,11 +191,30 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to create certificate reader: %w", err)
 	}
-
 	fpaCredentialRetriever, err := fpa.NewFirstPartyApplicationTokenCredentialRetriever(o.FpaClientID, certReader, azcore.ClientOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create the FPA token credentials: %w", err)
 	}
+
+	// Sessiongate client and informer
+	kubeConfig, err := o.buildKubeConfig()
+	if err != nil {
+		return nil, fmt.Errorf("failed to build kubeconfig: %w", err)
+	}
+	sessiongateClientset, err := clientset.NewForConfig(kubeConfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create sessiongate clientset: %w", err)
+	}
+	sessiongateInformers := informers.NewSharedInformerFactoryWithOptions(
+		sessiongateClientset,
+		time.Second*300,
+		informers.WithNamespace(o.SessiongateNamespace),
+	)
+	sessionLister := sessiongateInformers.Sessiongate().V1alpha1().Sessions().Lister().Sessions(o.SessiongateNamespace)
+	sessiongateInformers.Start(ctx.Done())
+	sessiongateInformers.WaitForCacheSync(ctx.Done())
+
+	sessionClient := sessiongateClientset.SessiongateV1alpha1().Sessions(o.SessiongateNamespace)
 
 	return &Options{
 		completedOptions: &completedOptions{
@@ -185,8 +225,30 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 			ClusterServiceClient:   csClient,
 			KustoClient:            kustoClient,
 			FpaCredentialRetriever: fpaCredentialRetriever,
+			SessionClient:          sessionClient,
+			SessionLister:          sessionLister,
+			Logger:                 logger,
 		},
 	}, nil
+}
+
+func (o *ValidatedOptions) buildKubeConfig() (*rest.Config, error) {
+	loadingRules := clientcmd.NewDefaultClientConfigLoadingRules()
+	if o.Kubeconfig != "" {
+		loadingRules.ExplicitPath = o.Kubeconfig
+	}
+	kubeConfig := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(loadingRules, &clientcmd.ConfigOverrides{})
+	config, err := kubeConfig.ClientConfig()
+	if err == nil {
+		return config, nil
+	}
+
+	config, err = rest.InClusterConfig()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create in-cluster kubeconfig: %w", err)
+	}
+
+	return config, nil
 }
 
 func (opts *Options) Run(ctx context.Context) error {
@@ -213,6 +275,8 @@ func (opts *Options) Run(ctx context.Context) error {
 		opts.ClusterServiceClient,
 		opts.KustoClient,
 		opts.FpaCredentialRetriever,
+		opts.SessionClient,
+		opts.SessionLister,
 	)
 
 	runErrCh := make(chan error)

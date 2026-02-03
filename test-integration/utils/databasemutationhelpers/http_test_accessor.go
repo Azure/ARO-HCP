@@ -17,10 +17,11 @@ package databasemutationhelpers
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+
+	"sigs.k8s.io/yaml"
 
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -111,7 +112,9 @@ func (a *httpHTTPTestAccessor) doRequest(ctx context.Context, method, path strin
 	}
 
 	var result map[string]any
-	if err := json.Unmarshal(bodyBytes, &result); err != nil {
+
+	// handles both JSON and YAML
+	if err := yaml.Unmarshal(bodyBytes, &result); err != nil {
 		return nil, utils.TrackError(err)
 	}
 
