@@ -259,6 +259,24 @@ spec:
     matchLabels:
       app: "aro-hcp-frontend"
 ---
+# Source: frontend/templates/allow-ingress.authorizationpolicy.yaml
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-istio-ingress
+  namespace: 'aro-hcp'
+spec:
+  action: ALLOW
+  rules:
+  - from:
+    - source:
+        namespaces: ["aks-istio-ingress"]
+    to:
+    - operation:
+        methods: ["GET", "PUT", "POST","PATCH", "DELETE"]
+        ports:
+        - "8443"
+---
 # Source: frontend/templates/allow-metrics.authorizationpolicy.yaml
 apiVersion: security.istio.io/v1
 kind: AuthorizationPolicy

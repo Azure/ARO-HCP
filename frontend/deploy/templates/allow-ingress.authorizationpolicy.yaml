@@ -1,4 +1,3 @@
-{{- if eq .Values.mise.deploy true }}
 apiVersion: security.istio.io/v1beta1
 kind: AuthorizationPolicy
 metadata:
@@ -15,4 +14,3 @@ spec:
         methods: ["GET", "PUT", "POST","PATCH", "DELETE"]
         ports:
         - "8443"
-{{- end }}

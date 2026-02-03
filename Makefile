@@ -98,6 +98,10 @@ tidy: $(MODULES:/...=.tidy)
 all-tidy: tidy fmt licenses
 	go work sync
 
+frontend-grant-ingress:
+	make -C dev-infrastructure frontend-grant-ingress
+.PHONY: frontend-grant-ingress
+
 record-nonlocal-e2e: $(GOJQ)
 	go run github.com/onsi/ginkgo/v2/ginkgo run \
 		--no-color --tags E2Etests --label-filter='!ARO-HCP-RP-API-Compatible' --dry-run --output-dir=test/e2e --json-report=report.json test/e2e && \
