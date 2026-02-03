@@ -246,6 +246,12 @@ func (tc *perItOrDescribeTestContext) DeployManagedIdentities(
 // AssignIdentityContainers attempts to assign n free identity containers to the caller by marking
 // them as "assigned". It retries if there are fewer than n free entries until the context is done.
 func (tc *perItOrDescribeTestContext) AssignIdentityContainers(ctx context.Context, count uint8, waitBetweenRetries time.Duration) error {
+	startTime := time.Now()
+	defer func() {
+		finishTime := time.Now()
+		tc.RecordTestStep(fmt.Sprintf("Assign %d identity containers", count), startTime, finishTime)
+	}()
+
 	state, err := tc.perBinaryInvocationTestContext.getLeasedIdentityPoolState()
 	if err != nil {
 		return fmt.Errorf("failed to open managed identities pool state file: %w", err)
@@ -271,6 +277,11 @@ func (tc *perItOrDescribeTestContext) AssignIdentityContainers(ctx context.Conte
 // getLeasedIdentities returns the leased identities and container resource group by using one
 // of the leases assigned to the calling test spec.
 func (tc *perItOrDescribeTestContext) getLeasedIdentities() (LeasedIdentityPool, error) {
+	startTime := time.Now()
+	defer func() {
+		finishTime := time.Now()
+		tc.RecordTestStep("Lease identity container", startTime, finishTime)
+	}()
 
 	state, err := tc.perBinaryInvocationTestContext.getLeasedIdentityPoolState()
 	if err != nil {
@@ -310,6 +321,12 @@ func (tc *perItOrDescribeTestContext) leasedIdentityContainers() ([]string, erro
 // releaseLeasedIdentities releases all the identity containers leased to the calling test spec.
 // To be used only in the cleanup phase of the test.
 func (tc *perItOrDescribeTestContext) releaseLeasedIdentities(ctx context.Context) error {
+	startTime := time.Now()
+	defer func() {
+		finishTime := time.Now()
+		tc.RecordTestStep("Release leased identities", startTime, finishTime)
+	}()
+
 	if !tc.UsePooledIdentities() {
 		return nil
 	}
