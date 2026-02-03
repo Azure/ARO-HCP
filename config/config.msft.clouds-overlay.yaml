@@ -12,7 +12,7 @@ clouds:
           # Cluster Service
           clustersService:
             image:
-              digest: sha256:4e8ddbf22bfc2b9f37c013bec1de1655d3d62f2a7565a2552f70e10894a129c7 # 833b8a9d448eedafe81455cd173a2a9120e8f286 (2026-02-02 12:24)
+              digest: sha256:6fda27f6324deeaa9d884b7e6e9514e11defcd47c78c8ae96a0c969482139e3a # 0b888d3b7b960b14b193b0b2d3c199ba5ad9d603 (2026-02-03 13:59)
           # ACR Pull
           acrPull:
             image:
@@ -26,7 +26,7 @@ clouds:
           # Backplane API
           backplaneAPI:
             image:
-              digest: sha256:31c069f77e2423e8271c41d68117762f30bd1c086e8422fa025b7c9f64350889 # 0a027ba (2026-01-30 07:35)
+              digest: sha256:6e4a2f480497dc4124943327d75d8c3e694181d2a3def583f75c8c464c8592bf # 17f3d6d (2026-02-03 11:04)
           # PKO
           pko:
             imagePackage:
@@ -68,25 +68,25 @@ clouds:
           # RP Frontend
           frontend:
             image:
-              digest: sha256:2e4b32c8eb346025f01fec8aafba9a0748f6f7d4773ae900a8803c81a6adfc71 # 6ac98bd (2026-02-02 13:27)
+              digest: sha256:da86c68ae5f2aa69b42dc63dd701488af6e6e2f9f1c0296248b43ad6ef59b926 # 56dd66a (2026-02-03 08:05)
             audit:
               connectSocket: true
           # RP Backend
           backend:
             image:
-              digest: sha256:e53d080006459fd12501dde158e00064dca720b98476a861cc8ddba6cafeaa8e # 6ac98bd (2026-02-02 13:28)
+              digest: sha256:0cb682758bf0ffbef1394bc455f9f9ff4f2f888abfa2a7f701106a631f9fe257 # 56dd66a (2026-02-03 08:06)
           # Admin API
           adminApi:
             image:
-              digest: sha256:0708293c939c7ab06523a48ef7da45fc07a90ada05fb36281635988f2856519a # 6ac98bd (2026-02-02 13:27)
+              digest: sha256:2f1c9d0cc8ca2a883d9e08081266b153929a01396ea7bb62ee7b7d9741985c67 # 56dd66a (2026-02-03 08:05)
           # Hypershift
           hypershift:
             image:
-              digest: sha256:143971dddf67419341aee0fac2399b9d15263e2f7f802d87daa5f43ce7056932 # 940153d4d03df39f2e85c0f0d09851080bf54eec (2026-01-31 11:38)
+              digest: sha256:26c4891ecb692307b985423fb04f7aa7db764870befae88a3f394cd0482dcc00 # a8694da4b07ef5cb809ad6d7438ae62f4d7dd3ac (2026-02-02 18:08)
           # Maestro
           maestro:
             image:
-              digest: sha256:8f264437a8539fb48df1486eca3580bb737233219141bac9bb475b02676cd98f # 48b47506a2542e7c27f75e0cb1709e13d7aee22a (2026-02-02 06:30)
+              digest: sha256:6308bf1a47ad0779b4b2af1185bdcf349596cdfa1b22b1c95effb3fef8e8d030 # 18a68bb9f1474ada8a747ef530c69ec04970aa1b (2026-02-03 06:29)
             agent:
               sidecar:
                 image:
@@ -95,7 +95,7 @@ clouds:
           imageSync:
             ocMirror:
               image:
-                digest: sha256:402c80a85b53504af96af4d2d712f35ba6accda9767727d87122fe5cc566674e # 6ac98bd (2026-02-02 13:27)
+                digest: sha256:f210a0fee4970b7eb1fb10ce0357578ee602553927cbdd7ea60581e9432ee7ac # 56dd66a (2026-02-03 08:05)
           # Mise
           mise:
             image:
