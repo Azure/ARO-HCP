@@ -26,6 +26,8 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
+	"k8s.io/apimachinery/pkg/util/sets"
+
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api"
@@ -105,7 +107,15 @@ func MiddlewareLogging(w http.ResponseWriter, r *http.Request, next http.Handler
 	ctx = utils.ContextWithLogger(ctx, logger)
 	r = r.WithContext(ctx)
 
-	logger.Info("read request",
+	// list out headers for future debugging.  limit to 100 headers
+	headers := sets.Set[string]{}
+	for _, header := range sets.KeySet(r.Header).UnsortedList() {
+		headers.Insert(strings.ToLower(header))
+		if len(headers) >= 100 {
+			break
+		}
+	}
+	requestContextValues := []any{
 		"request_proto", r.Proto,
 		"request_query", r.URL.RawQuery,
 		// TODO referrer is under the client's control.  Printing it out could be huge.
@@ -113,15 +123,31 @@ func MiddlewareLogging(w http.ResponseWriter, r *http.Request, next http.Handler
 		"request_remote_addr", r.RemoteAddr,
 		// TODO user agent is under the client's control.  Printing it out could be huge.
 		"request_user_agent", r.UserAgent(),
-	)
+		"header_keys", sets.List(headers),
+	}
+	logger.Info("request received", requestContextValues...)
 
 	next(w, r)
 
-	logger.Info("send response",
+	responseContextValues := []any{
 		"body_read_bytes", r.Body.(*LoggingReadCloser).bytesRead,
 		"body_written_bytes", w.(*LoggingResponseWriter).bytesWritten,
 		"response_status_code", w.(*LoggingResponseWriter).statusCode,
-		"duration", time.Since(startTime).Seconds())
+		"duration", time.Since(startTime).Seconds(),
+	}
+	for _, header := range []string{
+		"Azure-AsyncOperation", // used by poller async.Applicable
+		"Fake-Poller-Status",   // used by poller fake.Applicable
+		"Operation-Location",   // used by op.Applicable
+		"Location",             // used by loc.Applicable
+		"Retry-After",
+		"Retry-After-Ms",
+		"x-ms-error-code",
+	} {
+		responseContextValues = append(responseContextValues, "Header---"+header, w.Header().Get(header))
+	}
+
+	logger.Info("response complete", responseContextValues...)
 }
 
 // MiddlewareLoggingPostMux extends the contextual logger with additional
