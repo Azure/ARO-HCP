@@ -168,6 +168,10 @@ func (tc *perBinaryInvocationTestContext) getClientFactoryOptions() *azcorearm.C
 
 func (tc *perBinaryInvocationTestContext) getHCPClientFactoryOptions() *azcorearm.ClientOptions {
 	if tc.isDevelopmentEnvironment {
+		transport := tc.defaultTransport
+		if os.Getenv("SKIP_CERT_VERIFICATION") == "true" {
+			transport.TLSClientConfig.InsecureSkipVerify = true
+		}
 		frontendAddress := os.Getenv("FRONTEND_ADDRESS")
 		if frontendAddress == "" {
 			frontendAddress = "http://localhost:8443"
@@ -184,7 +188,7 @@ func (tc *perBinaryInvocationTestContext) getHCPClientFactoryOptions() *azcorear
 					},
 				},
 				Transport: &proxiedConnectionTransporter{
-					delegate: tc.defaultTransport,
+					delegate: transport,
 				},
 				InsecureAllowCredentialWithHTTP: true,
 				PerCallPolicies: []policy.Policy{
@@ -203,7 +207,6 @@ func defaultHTTPTransport() *http.Transport {
 		KeepAlive: 30 * time.Second,
 	}
 	defaultTransport := &http.Transport{
-		Proxy:                 http.ProxyFromEnvironment,
 		DialContext:           dialer.DialContext,
 		ForceAttemptHTTP2:     true,
 		MaxIdleConns:          100,
@@ -240,10 +243,10 @@ func (t *proxiedConnectionTransporter) Do(req *http.Request) (*http.Response, er
 	if req != nil && req.Body != nil {
 		b, err := io.ReadAll(req.Body)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to read request body: %w", err)
 		}
 		if err := req.Body.Close(); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to close request body: %w", err)
 		}
 		body = b
 	}
@@ -269,7 +272,7 @@ func (t *proxiedConnectionTransporter) Do(req *http.Request) (*http.Response, er
 				ginkgo.GinkgoLogr.Info("Re-trying request.", "err", err)
 				return false, nil
 			}
-			return true, err
+			return true, fmt.Errorf("failed to round trip request: %w", err)
 		}
 		return true, nil
 	})
