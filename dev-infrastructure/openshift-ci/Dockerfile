@@ -12,7 +12,12 @@ RUN curl -L https://go.dev/dl/go1.25.7.linux-amd64.tar.gz | tar -xzf - -C /usr/l
 RUN mkdir -p /usr/local/bin
 ENV PATH="/usr/local/bin:/usr/bin:$PATH"
 RUN az bicep install && mv /root/.azure/bin/bicep /usr/local/bin
-RUN az aks install-cli --install-location /usr/local/bin/kubectl --kubelogin-install-location /usr/local/bin/kubelogin
+# Install kubectl and kubelogin with retry logic
+RUN for i in 1 2 3; do \
+      az aks install-cli --install-location /usr/local/bin/kubectl --kubelogin-install-location /usr/local/bin/kubelogin && break; \
+      [ $i -eq 3 ] && echo "ERROR: Failed to install kubectl/kubelogin after 3 attempts" && exit 1; \
+      echo "Attempt $i failed, retrying in 5s..." && sleep 5; \
+    done
 RUN curl -LO "https://mirror.openshift.com/pub/openshift-v4/clients/ocp/stable/openshift-client-linux.tar.gz" && \
     tar -xzf openshift-client-linux.tar.gz -C /usr/local/bin oc && \
     rm openshift-client-linux.tar.gz && \
