@@ -16,6 +16,7 @@ package arm
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -78,6 +79,21 @@ func ResourceIDStringToCosmosID(resourceID string) (string, error) {
 	// We chose | because that is a delimiter that is not allowed inside of an ARM resource ID because it is a separator
 	// for multiple resource IDs.
 	return strings.ReplaceAll(strings.ToLower(resourceID), "/", "|"), nil
+}
+
+// DeepCopyResourceID creates a true deep copy of an azcorearm.ResourceID by
+// round-tripping through its string representation. This is necessary because
+// ResourceID contains unexported fields (including parent pointers) that cannot
+// be copied by simple struct assignment.
+func DeepCopyResourceID(id *azcorearm.ResourceID) *azcorearm.ResourceID {
+	if id == nil {
+		return nil
+	}
+	copied, err := azcorearm.ParseResourceID(id.String())
+	if err != nil {
+		panic(fmt.Sprintf("failed to deep copy ResourceID %q: %v", id.String(), err))
+	}
+	return copied
 }
 
 // Must is a helper function that takes a value and error, returns the value if no error occurred,

@@ -21,6 +21,7 @@ import (
 )
 
 // HCPOpenShiftCluster represents an ARO HCP OpenShift cluster resource.
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type HCPOpenShiftCluster struct {
 	arm.TrackedResource
 

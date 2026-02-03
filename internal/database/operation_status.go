@@ -149,8 +149,7 @@ func PatchOperationDocument(ctx context.Context, dbClient DBClient, oldOperation
 		return nil
 	}
 
-	// shallow copy works since all the fields we're touching are shallow
-	operationToWrite := *oldOperation
+	operationToWrite := oldOperation.DeepCopy()
 	operationToWrite.LastTransitionTime = localClock.Now()
 	operationToWrite.Status = newOperationStatus
 	if newOperationError != nil {
@@ -159,7 +158,7 @@ func PatchOperationDocument(ctx context.Context, dbClient DBClient, oldOperation
 
 	// TODO see if we want to plumb etags through to prevent stomping.  Right now this will stomp a concurrent write.
 	// we don't expect concurrent writes and the last one winning is ok.
-	latestOperation, err := dbClient.Operations(operationToWrite.OperationID.SubscriptionID).Replace(ctx, &operationToWrite, nil)
+	latestOperation, err := dbClient.Operations(operationToWrite.OperationID.SubscriptionID).Replace(ctx, operationToWrite, nil)
 	if err != nil {
 		return utils.TrackError(err)
 	}

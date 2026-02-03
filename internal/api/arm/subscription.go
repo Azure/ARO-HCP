@@ -32,6 +32,7 @@ func ToSubscriptionResourceID(subscriptionName string) (*azcorearm.ResourceID, e
 	return azcorearm.ParseResourceID(strings.ToLower(path.Join("/subscriptions", subscriptionName)))
 }
 
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type Subscription struct {
 	ResourceID *azcorearm.ResourceID `json:"resourceId,omitempty"`
 

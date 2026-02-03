@@ -27,6 +27,7 @@ import (
 
 // HCPOpenShiftClusterNodePool represents a node pool resource for ARO HCP
 // OpenShift clusters.
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type HCPOpenShiftClusterNodePool struct {
 	arm.TrackedResource
 	Properties                HCPOpenShiftClusterNodePoolProperties                `json:"properties,omitempty"`
