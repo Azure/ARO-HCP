@@ -1957,6 +1957,28 @@
             "audienceFQDN"
           ]
         },
+        "sessiongate": {
+          "type": "object",
+          "properties": {
+            "policyLabel": {
+              "type": "string",
+              "description": "The label of the Session Gate policy."
+            },
+            "authorityFQDN": {
+              "type": "string",
+              "description": "The authority/issuer FQDN of the Session Gate applications auth tokens."
+            },
+            "audience": {
+              "type": "string",
+              "description": "The audience of the Session Gate applications auth tokens."
+            }
+          },
+          "required": [
+            "policyLabel",
+            "authorityFQDN",
+            "audience"
+          ]
+        },
         "image": {
           "$ref": "#/definitions/containerImage"
         },
@@ -1970,6 +1992,7 @@
         "image",
         "arm",
         "genevaActions",
+        "sessiongate",
         "tracing"
       ]
     },

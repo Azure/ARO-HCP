@@ -31,11 +31,14 @@ import (
 	"github.com/Azure/ARO-HCP/admin/server/handlers"
 	"github.com/Azure/ARO-HCP/admin/server/handlers/cosmosdump"
 	"github.com/Azure/ARO-HCP/admin/server/handlers/hcp"
+	breakglasshandlers "github.com/Azure/ARO-HCP/admin/server/handlers/hcp/breakglass"
 	"github.com/Azure/ARO-HCP/admin/server/middleware"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/fpa"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
+	sessiongatev1alpha1 "github.com/Azure/ARO-HCP/sessiongate/pkg/generated/clientset/versioned/typed/sessiongate/v1alpha1"
+	sessiongatelisterv1alpha1 "github.com/Azure/ARO-HCP/sessiongate/pkg/generated/listers/sessiongate/v1alpha1"
 )
 
 type AdminAPI struct {
@@ -52,6 +55,10 @@ type AdminAPI struct {
 	metricsServer   http.Server
 }
 
+const (
+	breakglassSessionProxyPathPattern = "/admin/v1/breakglass/%s"
+)
+
 func NewAdminAPI(
 	logger logr.Logger,
 	location string,
@@ -61,16 +68,21 @@ func NewAdminAPI(
 	clustersServiceClient ocm.ClusterServiceClientSpec,
 	kustoClient *kusto.Client,
 	fpaCredentialRetriever fpa.FirstPartyApplicationTokenCredentialRetriever,
+	sessionClient sessiongatev1alpha1.SessionInterface,
+	sessionLister sessiongatelisterv1alpha1.SessionNamespaceLister,
 ) *AdminAPI {
 	// Submux for V1 HCP endpoints
-	v1HCPMux := middleware.NewHCPResourceServerMux()
+	v1HCPMux := middleware.NewHCPResourceServerMux("/admin/v1/hcp")
 	v1HCPMux.Handle("GET", "/helloworld", hcp.HCPHelloWorld(dbClient, clustersServiceClient))
 	v1HCPMux.Handle("GET", "/hellworld/lbs", hcp.HCPDemoListLoadbalancers(dbClient, clustersServiceClient, fpaCredentialRetriever))
+	v1HCPMux.Handle("PUT", "/breakglass", breakglasshandlers.NewHCPBreakglassSessionCreationHandler(dbClient, clustersServiceClient, sessionClient))
+	v1HCPMux.Handle("GET", "/breakglass/{sessionName}/kubeconfig", breakglasshandlers.NewHCPBreakglassSessionKubeconfigHandler(sessionLister, breakglassSessionProxyPathPattern))
 	v1HCPMux.Handle("GET", "/cosmosdump", cosmosdump.NewCosmosDumpHandler(dbClient))
 
 	apiMux := http.NewServeMux()
 	apiMux.Handle("GET /admin/helloworld", handlers.HelloWorldHandler())
-	apiMux.Handle("/admin/v1/hcp/", middleware.WithClientPrincipal(middleware.WithLowercaseURLPathValue(middleware.WithLogger(http.StripPrefix("/admin/v1/hcp", v1HCPMux.Handler())))))
+	apiMux.Handle("/admin/v1/hcp/", middleware.WithClientPrincipal(middleware.WithLowercaseURLPathValue(middleware.WithLogger(v1HCPMux.Handler()))))
+	apiMux.Handle(fmt.Sprintf(breakglassSessionProxyPathPattern, "{sessionName}/{path...}"), breakglasshandlers.NewHCPBreakglassSessionKASProxyHandler(sessionLister))
 	apiMux.HandleFunc("GET /healthz/ready", healthzReadyHandler)
 	apiMux.HandleFunc("GET /healthz/live", healthzLiveHandler)
 
