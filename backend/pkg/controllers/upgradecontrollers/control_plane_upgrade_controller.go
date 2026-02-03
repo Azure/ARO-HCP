@@ -24,6 +24,7 @@ import (
 	"github.com/blang/semver/v4"
 	"github.com/golang/groupcache/lru"
 	"github.com/google/uuid"
+
 	utilsclock "k8s.io/utils/clock"
 
 	ocmsdk "github.com/openshift-online/ocm-sdk-go"
@@ -354,22 +355,21 @@ func (c *controlPlaneUpgradeSyncer) resolveNextYStream(ctx context.Context, cinc
 // The controller always tries to select the latest z-stream that maintains an upgrade
 // path to the next minor version (gateway), falling back to the latest available version.
 func (c *controlPlaneUpgradeSyncer) findLatestVersionInMinor(ctx context.Context, cincinnatiClient cincinatti.Client, channelGroup string, targetMinor string, actualLatestVersion semver.Version) (string, error) {
-	cincinnatiChannel := fmt.Sprintf("%s-%s", channelGroup, targetMinor)
 	logger := utils.LoggerFromContext(ctx)
 
 	logger.Info("Querying Cincinnati for latest version in minor",
 		"channelGroup", channelGroup,
 		"targetMinor", targetMinor,
-		"cincinnatiChannel", cincinnatiChannel,
 		"actualLatestVersion", actualLatestVersion.String(),
 	)
 	cincinnatiURI, err := cincinatti.GetCincinnatiURI(channelGroup)
 	if err != nil {
-		return "", fmt.Errorf("failed to get Cincinnati URI for channel %s: %w", cincinnatiChannel, err)
+		return "", fmt.Errorf("failed to get Cincinnati URI for channel %s: %w", channelGroup, err)
 	}
 
 	// Query Cincinnati for available updates
 	// ARO-HCP uses Multi architecture for all clusters
+	cincinnatiChannel := fmt.Sprintf("%s-%s", channelGroup, targetMinor)
 	_, candidateReleases, _, err := cincinnatiClient.GetUpdates(
 		ctx,
 		cincinnatiURI,
@@ -388,18 +388,13 @@ func (c *controlPlaneUpgradeSyncer) findLatestVersionInMinor(ctx context.Context
 	if len(candidateReleases) == 0 {
 		return "", nil
 	}
-
-	logger.V(2).Info("Starting version selection",
-		"cincinnatiChannel", cincinnatiChannel,
-		"actualLatestVersion", actualLatestVersion.String(),
-	)
-
 	return c.selectBestVersionFromCandidates(ctx, cincinnatiClient, channelGroup, targetMinor, candidateReleases, actualLatestVersion)
 }
 
 // selectBestVersionFromCandidates finds the best version to upgrade to from a list of candidate releases.
-// It accepts an unsorted list of candidates and prioritizes versions that are gateways to the next minor version,
-// falling back to the latest version overall.
+// It accepts an unsorted list of candidates and prioritizes versions that are gateways to the next minor version.
+// For Z-stream upgrades, if the current actual version has an edge to the next minor, the selected version
+// must also have that edge to avoid breaking the upgrade path.
 func (c *controlPlaneUpgradeSyncer) selectBestVersionFromCandidates(ctx context.Context, cincinnatiClient cincinatti.Client, channelGroup string, targetMinor string, candidates []configv1.Release, actualLatestVersion semver.Version) (string, error) {
 	// Sort candidates by version (descending - latest first)
 	sortReleasesByVersionDescending(candidates)
@@ -440,18 +435,32 @@ func (c *controlPlaneUpgradeSyncer) selectBestVersionFromCandidates(ctx context.
 		}
 
 		if isGateway {
-			logger.Info("Selected latest version with gateway to next minor",
-				"selectedVersion", ver.String(),
-				"targetMinor", targetMinor,
-				"nextMinor", nextMinor,
-			)
 			return ver.String(), nil
 		}
 	}
 
-	// No gateway to next minor found, return latest version in target minor (if any)
+	// No gateway to next minor found
 	if len(latestOverall) == 0 {
 		return "", nil
+	}
+
+	// For Z-stream upgrades, check if the current actual version has an edge to the next minor
+	// If it does, we must maintain that upgrade path - don't select a version without a gateway
+	// For Y-stream upgrades (moving to next minor), since the user asked to move to the next minor and we care
+	// about landing there more, we can return the latest version without this check
+	actualMinor := fmt.Sprintf("%d.%d", actualLatestVersion.Major, actualLatestVersion.Minor)
+	if actualMinor == targetMinor {
+		// Z-stream upgrade: check if we would break an existing upgrade path
+		actualHasEdgeToNextMinor, err := isGatewayToNextMinor(ctx, actualLatestVersion, cincinnatiClient, channelGroup, nextMinor)
+		if err != nil {
+			return "", err
+		}
+
+		if actualHasEdgeToNextMinor {
+			// Current version has edge to next minor, but no gateway found in candidates
+			// Cannot upgrade safely - would break the upgrade path
+			return "", nil
+		}
 	}
 
 	return latestOverall, nil

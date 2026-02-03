@@ -19,8 +19,9 @@ import (
 	"strings"
 	"testing"
 
-	configv1 "github.com/openshift/api/config/v1"
 	"go.uber.org/mock/gomock"
+
+	configv1 "github.com/openshift/api/config/v1"
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/cincinatti"
@@ -104,11 +105,12 @@ func TestDesiredControlPlaneZVersion_ZStreamManagedUpgrade(t *testing.T) {
 			expectedError:   false,
 		},
 		{
-			name:                 "Z-stream upgrade - multiple candidates, selects gateway",
+			name:                 "Z-stream upgrade - actual has edge to next minor, no gateway in candidates",
 			actualLatestVersion:  "4.19.15",
 			customerDesiredMinor: "4.19",
 			channelGroup:         "stable",
 			mockSetup: func(mc *cincinatti.MockClient) {
+				// Query for 4.19 versions from 4.19.15
 				mc.EXPECT().GetUpdates(
 					gomock.Any(),
 					gomock.Any(),
@@ -119,31 +121,101 @@ func TestDesiredControlPlaneZVersion_ZStreamManagedUpgrade(t *testing.T) {
 				).Return(
 					configv1.Release{Version: "4.19.15"},
 					[]configv1.Release{
-						{Version: "4.19.18"},
-						{Version: "4.19.22"},
-						{Version: "4.20.5"},
+						{Version: "4.19.20"}, // Latest, but no gateway to 4.20
 					},
 					[]configv1.ConditionalUpdate{},
 					nil,
 				)
 
-				// Mock next minor checks - algorithm checks versions in descending order
-				// 4.19.22 is checked first (latest), has gateway to 4.20
+				// Check if 4.19.20 is a gateway to 4.20 (it's not)
 				mc.EXPECT().GetUpdates(
 					gomock.Any(),
 					gomock.Any(),
 					"multi",
 					"multi",
 					"stable-4.20",
-					mustParse("4.19.22"),
+					mustParse("4.19.20"),
 				).Return(
-					configv1.Release{Version: "4.19.22"},
-					[]configv1.Release{{Version: "4.20.5"}},
+					configv1.Release{Version: "4.19.20"},
+					[]configv1.Release{}, // No path to 4.20
+					[]configv1.ConditionalUpdate{},
+					nil,
+				)
+
+				// Check if actual version 4.19.15 has edge to 4.20 (it does)
+				mc.EXPECT().GetUpdates(
+					gomock.Any(),
+					gomock.Any(),
+					"multi",
+					"multi",
+					"stable-4.20",
+					mustParse("4.19.15"),
+				).Return(
+					configv1.Release{Version: "4.19.15"},
+					[]configv1.Release{
+						{Version: "4.20.5"}, // Has path to 4.20
+					},
 					[]configv1.ConditionalUpdate{},
 					nil,
 				)
 			},
-			expectedVersion: "4.19.22",
+			expectedVersion: "", // No upgrade - would break existing path
+			expectedError:   false,
+		},
+		{
+			name:                 "Z-stream upgrade - actual has NO edge to next minor, no gateway in candidates",
+			actualLatestVersion:  "4.19.10",
+			customerDesiredMinor: "4.19",
+			channelGroup:         "stable",
+			mockSetup: func(mc *cincinatti.MockClient) {
+				// Query for 4.19 versions from 4.19.10
+				mc.EXPECT().GetUpdates(
+					gomock.Any(),
+					gomock.Any(),
+					"multi",
+					"multi",
+					"stable-4.19",
+					mustParse("4.19.10"),
+				).Return(
+					configv1.Release{Version: "4.19.10"},
+					[]configv1.Release{
+						{Version: "4.19.18"}, // Latest, but no gateway to 4.20
+					},
+					[]configv1.ConditionalUpdate{},
+					nil,
+				)
+
+				// Check if 4.19.18 is a gateway to 4.20 (it's not)
+				mc.EXPECT().GetUpdates(
+					gomock.Any(),
+					gomock.Any(),
+					"multi",
+					"multi",
+					"stable-4.20",
+					mustParse("4.19.18"),
+				).Return(
+					configv1.Release{Version: "4.19.18"},
+					[]configv1.Release{}, // No path to 4.20
+					[]configv1.ConditionalUpdate{},
+					nil,
+				)
+
+				// Check if actual version 4.19.10 has edge to 4.20 (it doesn't)
+				mc.EXPECT().GetUpdates(
+					gomock.Any(),
+					gomock.Any(),
+					"multi",
+					"multi",
+					"stable-4.20",
+					mustParse("4.19.10"),
+				).Return(
+					configv1.Release{Version: "4.19.10"},
+					[]configv1.Release{}, // No path to 4.20
+					[]configv1.ConditionalUpdate{},
+					nil,
+				)
+			},
+			expectedVersion: "4.19.18", // Safe to upgrade - no existing path to break
 			expectedError:   false,
 		},
 		{
@@ -218,7 +290,7 @@ func TestDesiredControlPlaneZVersion_NextYStreamUpgrade(t *testing.T) {
 		expectedErrorContains string
 	}{
 		{
-			name:                 "Y-stream upgrade - direct path available",
+			name:                 "Y-stream upgrade - direct path available returns latest version with gateway to next minor",
 			actualLatestVersion:  "4.19.22",
 			customerDesiredMinor: "4.20",
 			channelGroup:         "stable",
@@ -241,7 +313,7 @@ func TestDesiredControlPlaneZVersion_NextYStreamUpgrade(t *testing.T) {
 					nil,
 				)
 
-				// Mock next minor check for gateway detection (4.20.15)
+				// Check if 4.20.15 (latest) has gateway to 4.21 - it doesn't
 				mc.EXPECT().GetUpdates(
 					gomock.Any(),
 					gomock.Any(),
@@ -251,6 +323,21 @@ func TestDesiredControlPlaneZVersion_NextYStreamUpgrade(t *testing.T) {
 					mustParse("4.20.15"),
 				).Return(
 					configv1.Release{Version: "4.20.15"},
+					[]configv1.Release{}, // No path to 4.21
+					[]configv1.ConditionalUpdate{},
+					nil,
+				)
+
+				// Check if 4.20.10 has gateway to 4.21 - it does
+				mc.EXPECT().GetUpdates(
+					gomock.Any(),
+					gomock.Any(),
+					"multi",
+					"multi",
+					"stable-4.21",
+					mustParse("4.20.10"),
+				).Return(
+					configv1.Release{Version: "4.20.10"},
 					[]configv1.Release{
 						{Version: "4.21.0"},
 					},
@@ -258,7 +345,7 @@ func TestDesiredControlPlaneZVersion_NextYStreamUpgrade(t *testing.T) {
 					nil,
 				)
 			},
-			expectedVersion: "4.20.15",
+			expectedVersion: "4.20.10",
 			expectedError:   false,
 		},
 		{
@@ -341,49 +428,44 @@ func TestDesiredControlPlaneZVersion_NextYStreamUpgrade(t *testing.T) {
 			expectedErrorContains: "invalid next y-stream upgrade path",
 		},
 		{
-			name:                 "Y-stream upgrade - finds gateway in target minor",
-			actualLatestVersion:  "4.19.22",
+			name:                 "Y-stream upgrade - no gateway found but returns latest anyway",
+			actualLatestVersion:  "4.19.15",
 			customerDesiredMinor: "4.20",
 			channelGroup:         "stable",
 			mockSetup: func(mc *cincinatti.MockClient) {
-				// Query for 4.20 versions from 4.19.22
+				// Query for 4.20 versions from 4.19.15
 				mc.EXPECT().GetUpdates(
 					gomock.Any(),
 					gomock.Any(),
 					"multi",
 					"multi",
 					"stable-4.20",
-					mustParse("4.19.22"),
+					mustParse("4.19.15"),
 				).Return(
-					configv1.Release{Version: "4.19.22"},
+					configv1.Release{Version: "4.19.15"},
 					[]configv1.Release{
-						{Version: "4.20.15"},
-						{Version: "4.20.10"},
-						{Version: "4.21.0"},
-						{Version: "4.20.10"},
+						{Version: "4.20.12"}, // Latest in 4.20, but no gateway to 4.21
 					},
 					[]configv1.ConditionalUpdate{},
 					nil,
 				)
 
-				// Mock next minor check for 4.20.15 - has gateway to 4.21
+				// Check if 4.20.12 is a gateway to 4.21 (it's not)
 				mc.EXPECT().GetUpdates(
 					gomock.Any(),
 					gomock.Any(),
 					"multi",
 					"multi",
 					"stable-4.21",
-					mustParse("4.20.15"),
+					mustParse("4.20.12"),
 				).Return(
-					configv1.Release{Version: "4.20.15"},
-					[]configv1.Release{
-						{Version: "4.21.0"},
-					},
+					configv1.Release{Version: "4.20.12"},
+					[]configv1.Release{}, // No path to 4.21
 					[]configv1.ConditionalUpdate{},
 					nil,
 				)
 			},
-			expectedVersion: "4.20.15",
+			expectedVersion: "4.20.12", // Returns latest even without gateway - user wants to be on 4.20
 			expectedError:   false,
 		},
 	}

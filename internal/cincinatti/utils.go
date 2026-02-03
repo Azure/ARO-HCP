@@ -16,11 +16,8 @@ package cincinatti
 
 import (
 	"errors"
-	"fmt"
 	"net/url"
-	"strings"
 
-	configv1 "github.com/openshift/api/config/v1"
 	"github.com/openshift/cluster-version-operator/pkg/cincinnati"
 )
 
@@ -32,50 +29,6 @@ func GetCincinnatiURI(channelGroup string) (*url.URL, error) {
 		return url.Parse("https://multi.ocp.releases.ci.openshift.org/graph")
 	}
 	return url.Parse("https://api.openshift.com/api/upgrades_info/graph")
-}
-
-// ParseCincinnatiChannel parses a Cincinnati channel name (e.g., "stable-4.20") into its
-// constituent parts: channel group (e.g., "stable") and minor version (e.g., "4.20").
-// Returns an error if the channel format is invalid.
-func ParseCincinnatiChannel(channel string) (string, string, error) {
-	parts := strings.Split(channel, "-")
-	if len(parts) < 2 {
-		return "", "", fmt.Errorf("invalid cincinnati channel format: %s (expected format: 'channelGroup-minorVersion')", channel)
-	}
-	return parts[0], parts[1], nil
-}
-
-// ExcludeConditionalUpdatesWithAzureOrHyperShiftRisks filters out conditional updates that mention
-// Azure, HyperShift, or Hosted Control Plane (HCP) in their risk messages. Since ARO-HCP runs on
-// Azure with HyperShift and uses Hosted Control Planes, these platform-specific risks apply to
-// ARO-HCP clusters and should be excluded.
-//
-// NOTE: This is a temporary workaround. Once ARO-21547 is implemented, proper PromQL condition
-// evaluation will be performed, and this keyword-based risk filtering can be removed.
-// See: https://issues.redhat.com/browse/ARO-21547
-func ExcludeConditionalUpdatesWithAzureOrHyperShiftRisks(conditionalUpdates []configv1.ConditionalUpdate) []configv1.ConditionalUpdate {
-	filtered := make([]configv1.ConditionalUpdate, 0, len(conditionalUpdates))
-	for _, condUpdate := range conditionalUpdates {
-		if !hasAroHcpPlatformRisk(condUpdate.Risks) {
-			filtered = append(filtered, condUpdate)
-		}
-	}
-	return filtered
-}
-
-// hasAroHcpPlatformRisk checks if any risk message contains ARO-HCP platform-specific keywords.
-func hasAroHcpPlatformRisk(risks []configv1.ConditionalUpdateRisk) bool {
-	platformKeywords := []string{"azure", "hypershift", "hcp", "hosted control plane"}
-
-	for _, risk := range risks {
-		message := strings.ToLower(risk.Message)
-		for _, keyword := range platformKeywords {
-			if strings.Contains(message, keyword) {
-				return true
-			}
-		}
-	}
-	return false
 }
 
 // IsCincinnatiVersionNotFoundError checks if an error from Cincinnati is specifically a "VersionNotFound" error.
