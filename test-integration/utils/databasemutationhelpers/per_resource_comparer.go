@@ -74,7 +74,7 @@ func ResourceInstanceEquals(t *testing.T, expected, actual any) (string, bool) {
 		case strings.EqualFold(resourceType, api.OperationStatusResourceType.String()):
 			// this field is UUID generated, so usually cannot be compared for operations, but CAN be compared for everything else.
 			unstructured.RemoveNestedField(currMap, "id")
-			unstructured.RemoveNestedField(currMap, "resourceId")
+			unstructured.RemoveNestedField(currMap, "resourceID")
 		}
 
 		// this loops handles the cosmosObj possibility and the internalObj possibility
@@ -105,6 +105,7 @@ func ResourceInstanceEquals(t *testing.T, expected, actual any) (string, bool) {
 			case strings.EqualFold(resourceType, api.OperationStatusResourceType.String()):
 				// this field is UUID generated, so usually cannot be compared for operations, but CAN be compared for everything else.
 				unstructured.RemoveNestedField(currMap, prepend(possiblePrepend, "resourceId")...)
+				unstructured.RemoveNestedField(currMap, prepend(possiblePrepend, "resourceID")...)
 				// cosmosMetadata.resourceID is derived from the same UUID-generated data, so strip it too.
 				unstructured.RemoveNestedField(currMap, prepend(possiblePrepend, "cosmosMetadata")...)
 			}
@@ -129,19 +130,9 @@ func ResourceName(resource any) string {
 		return cast.GetCosmosData().ResourceID.String()
 
 	case database.TypedDocument:
-		cosmosUID := cast.ID
-		resourceID, err := api.CosmosIDToResourceID(cosmosUID)
-		if err != nil {
-			return cosmosUID
-		}
-		return resourceID.String()
+		return cast.ResourceID.String()
 	case *database.TypedDocument:
-		cosmosUID := cast.ID
-		resourceID, err := api.CosmosIDToResourceID(cosmosUID)
-		if err != nil {
-			return cosmosUID
-		}
-		return resourceID.String()
+		return cast.ResourceID.String()
 
 	default:
 		return fmt.Sprintf("%v", resource)

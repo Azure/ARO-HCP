@@ -15,10 +15,6 @@
 package api
 
 import (
-	"strings"
-
-	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
-
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
 
@@ -31,7 +27,3 @@ var (
 	ResourceIDToCosmosID       = arm.ResourceIDToCosmosID
 	ResourceIDStringToCosmosID = arm.ResourceIDStringToCosmosID
 )
-
-func CosmosIDToResourceID(resourceID string) (*azcorearm.ResourceID, error) {
-	return azcorearm.ParseResourceID(strings.ReplaceAll(resourceID, "|", "/"))
-}

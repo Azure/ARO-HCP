@@ -34,6 +34,7 @@ func InternalToCosmosNodePool(internalObj *api.HCPOpenShiftClusterNodePool) (*No
 				ID: internalObj.GetCosmosData().GetCosmosUID(),
 			},
 			PartitionKey: strings.ToLower(internalObj.ID.SubscriptionID),
+			ResourceID:   internalObj.ID,
 			ResourceType: internalObj.ID.ResourceType.String(),
 		},
 		NodePoolProperties: NodePoolProperties{
