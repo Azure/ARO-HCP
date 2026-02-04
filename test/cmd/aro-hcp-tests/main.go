@@ -51,7 +51,10 @@ func setupCli() *cobra.Command {
 			// TODO we will need per-env markers eventually, but it's ok to start here
 			fmt.Sprintf(`labels.exists(l, l=="%s") && !labels.exists(l, l=="%s")`, labels.RequireNothing[0], labels.DevelopmentOnly[0]),
 		},
-		Parallelism: 20,
+		// Spec parallelism is limited by the leased identity containers. We set suite parallelism slightly avobe the number of
+		// leased identity containers to avoid multi-HCP tests blocking single-HCP tests from obtaining a lease.
+		// LEASED_MSI_CONTAINERS=20
+		Parallelism: 24,
 	})
 
 	ext.AddSuite(e.Suite{
@@ -61,7 +64,10 @@ func setupCli() *cobra.Command {
 			// TODO we will need per-env markers eventually, but it's ok to start here
 			fmt.Sprintf(`labels.exists(l, l=="%s") && !labels.exists(l, l=="%s") && !labels.exists(l, l=="%s")`, labels.RequireNothing[0], labels.IntegrationOnly[0], labels.DevelopmentOnly[0]),
 		},
-		Parallelism: 10,
+		// Spec parallelism is limited by the leased identity containers. We set suite parallelism slightly avobe the number of
+		// leased identity containers to avoid multi-HCP tests blocking single-HCP tests from obtaining a lease.
+		// LEASED_MSI_CONTAINERS=20
+		Parallelism: 34,
 	})
 
 	ext.AddSuite(e.Suite{
@@ -71,7 +77,10 @@ func setupCli() *cobra.Command {
 			// TODO we will need per-env markers eventually, but it's ok to start here
 			fmt.Sprintf(`labels.exists(l, l=="%s") && !labels.exists(l, l=="%s") && !labels.exists(l, l=="%s")`, labels.RequireNothing[0], labels.IntegrationOnly[0], labels.DevelopmentOnly[0]),
 		},
-		Parallelism: 10,
+		// Spec parallelism is limited by the leased identity containers. We set suite parallelism slightly avobe the number of
+		// leased identity containers to avoid multi-HCP tests blocking single-HCP tests from obtaining a lease.
+		// LEASED_MSI_CONTAINERS=30
+		Parallelism: 34,
 	})
 
 	ext.AddSuite(e.Suite{
@@ -82,7 +91,10 @@ func setupCli() *cobra.Command {
 			// TODO: revisit labels to tweak which tests to select here
 			fmt.Sprintf(`labels.exists(l, l=="%s" ) && labels.exists(l, l=="%s")`, labels.AroRpApiCompatible[0], labels.Positive[0]),
 		},
-		Parallelism: 20,
+		// Spec parallelism is limited by the leased identity containers. We set suite parallelism slightly avobe the number of
+		// leased identity containers to avoid multi-HCP tests blocking single-HCP tests from obtaining a lease.
+		// LEASED_MSI_CONTAINERS=15
+		Parallelism: 19,
 	})
 
 	rpApiCompatBaseQualifier := fmt.Sprintf(`labels.exists(l, l=="%s")`, labels.AroRpApiCompatible[0])
