@@ -4,7 +4,6 @@
 	"_rid": "qt1+AP1vXOAGAAAAAAAAAA==",
 	"_self": "dbs/qt1+AA==/colls/qt1+AP1vXOA=/docs/qt1+AP1vXOAGAAAAAAAAAA==/",
 	"_ts": 1768403927,
-	"id": "|subscriptions|6b690bec-0c16-4ecb-8f67-781caf40bba7|resourcegroups|resourcegroupname|providers|microsoft.redhatopenshift|hcpopenshiftclusters|create-with-tags",
 	"partitionKey": "6b690bec-0c16-4ecb-8f67-781caf40bba7",
 	"properties": {
 		"identity": {
