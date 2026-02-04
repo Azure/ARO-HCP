@@ -6,6 +6,7 @@
 	"_ts": 1764939717,
 	"id": "|subscriptions|de3c5eaa-5fd0-4b8e-bd61-7c1a797b3780|resourcegroups|resourcegroupname|providers|microsoft.redhatopenshift|hcpopenshiftclusters|parentcluster|hcpopenshiftcontrollers|test-controller",
 	"partitionKey": "de3c5eaa-5fd0-4b8e-bd61-7c1a797b3780",
+	"resourceID": "/subscriptions/de3c5eaa-5fd0-4b8e-bd61-7c1a797b3780/resourceGroups/resourcegroupname/providers/microsoft.redhatopenshift/hcpopenshiftclusters/parentcluster/hcpopenshiftcontrollers/test-controller",
 	"properties": {
 		"internalState": {
 			"controllerName": "test-controller",

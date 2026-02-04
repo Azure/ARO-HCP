@@ -31,6 +31,7 @@ func InternalToCosmosController(internalObj *api.Controller) (*Controller, error
 				ID: internalObj.GetCosmosData().GetCosmosUID(),
 			},
 			PartitionKey: strings.ToLower(internalObj.ExternalID.SubscriptionID),
+			ResourceID:   internalObj.CosmosMetadata.ResourceID,
 			ResourceType: internalObj.ResourceID.ResourceType.String(),
 		},
 		ControllerProperties: ControllerProperties{
