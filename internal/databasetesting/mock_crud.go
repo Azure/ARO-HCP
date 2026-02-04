@@ -959,6 +959,11 @@ func (m *mockUntypedCRUD) Delete(ctx context.Context, resourceID *azcorearm.Reso
 	return nil
 }
 
+func (m *mockUntypedCRUD) DeleteByCosmosID(ctx context.Context, partitionKey, cosmosID string) error {
+	m.client.DeleteDocument(cosmosID)
+	return nil
+}
+
 func (m *mockUntypedCRUD) Child(resourceType azcorearm.ResourceType, resourceName string) (database.UntypedResourceCRUD, error) {
 	if len(resourceName) == 0 {
 		return nil, fmt.Errorf("resourceName is required")

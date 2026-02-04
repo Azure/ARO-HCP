@@ -1,0 +1,11 @@
+{
+	"id": "|subscriptions|a433a095-1277-44f1-8453-8d61a4d848c2",
+	"partitionKey": "a433a095-1277-44f1-8453-8d61a4d848c2",
+	"properties": {
+		"resourceId": "/subscriptions/a433a095-1277-44f1-8453-8d61a4d848c2",
+		"properties": null,
+		"registrationDate": "2025-12-19T19:53:15+00:00",
+		"state": "Registered"
+	},
+	"resourceType": "microsoft.resources/subscriptions"
+}

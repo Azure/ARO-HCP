@@ -1,0 +1,47 @@
+{
+	"id": "|subscriptions|a433a095-1277-44f1-8453-8d61a4d848c2|resourcegroups|unimportantpostponement|providers|microsoft.redhatopenshift|hcpopenshiftclusters|monstrousprecinct",
+	"partitionKey": "a433a095-1277-44f1-8453-8d61a4d848c2",
+	"properties": {
+		"activeOperationId": "6aeeebf8-f771-4d4e-9097-45b972cb96e4",
+		"identity": {
+			"type": "UserAssigned"
+		},
+		"internalId": "/api/clusters_mgmt/v1/clusters/1243e9e9-d150-4ef1-9735-2bbc3cabc7d0",
+		"internalState": {
+			"internalAPI": {
+				"customerProperties": {
+					"api": {
+						"visibility": "Public"
+					},
+					"network": {
+						"hostPrefix": 23,
+						"machineCidr": "10.0.0.0/16",
+						"networkType": "OVNKubernetes",
+						"podCidr": "10.128.0.0/14",
+						"serviceCidr": "172.30.0.0/16"
+					},
+					"platform": {
+						"managedResourceGroup": "uprightPairing",
+						"outboundType": "LoadBalancer",
+						"subnetId": "/subscriptions/a433a095-1277-44f1-8453-8d61a4d848c2/resourceGroups/different-resource-group/providers/Microsoft.Network/virtualNetworks/vnet/subnets/subnet"
+					},
+					"version": {
+						"channelGroup": "stable"
+					}
+				},
+				"location": "fake-location",
+				"serviceProviderProperties": {
+					"api": {},
+					"clusterServiceID": "",
+					"console": {},
+					"dns": {},
+					"platform": {}
+				}
+			}
+		},
+		"provisioningState": "Accepted",
+		"resourceId": "/subscriptions/a433a095-1277-44f1-8453-8d61a4d848c2/resourceGroups/unimportantPostponement/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/monstrousPrecinct",
+		"systemData": {}
+	},
+	"resourceType": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters"
+}
