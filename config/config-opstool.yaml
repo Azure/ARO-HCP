@@ -20,6 +20,11 @@ clouds:
         rg: "opstool-{{ .ctx.region }}"
         subscription:
           key: "ARO Hosted Control Planes (EA Subscription 1)"
+        # Placeholder with empty id as was manually deployed using azure cli. Re-enable when the existing role assignment is cleaned up.
+        acr:
+          name: "arohcpsvcdev"
+          resourceGroup: "global"
+          id: ""
       monitoring:
         alertRuleOwningTeamTag: ""
       dns:
@@ -69,6 +74,16 @@ clouds:
               registry: "mcr.microsoft.com/oss/v2"
               repository: "prometheus/prometheus"
               sha: "70296b2f2cc69c88d070fe8b627d347bd070e084c14babbc93e91583e03eca06"
+        keyVault:
+          name: "opstool-kv-{{ .ctx.regionShort }}"
+        alerting:
+          email: "aro-hcp-service-lifecycle-team@redhat.com"
+          enabled: true
+        tenantQuota:
+          image:
+            registry: "arohcpsvcdev.azurecr.io"
+            repository: "tenant-quota-collector"
+            tag: "latest"
     environments:
       opstool:
         regions:

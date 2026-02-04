@@ -75,6 +75,12 @@ param aksKeyVaultTagValue string
 @description('Enable soft delete for AKS Key Vault')
 param aksEtcdKVEnableSoftDelete bool = false
 
+@description('Name for the workload Key Vault')
+param workloadKVName string
+
+@description('The resource ID of the SVC ACR for image pulls')
+param svcAcrResourceId string = ''
+
 module managedIdentities '../modules/managed-identities.bicep' = {
   name: 'opstool-managed-identities'
   params: {
@@ -82,6 +88,7 @@ module managedIdentities '../modules/managed-identities.bicep' = {
     manageIdentityNames: [
       'opstool'
       'prometheus'
+      'tenant-quota'
     ]
   }
 }
@@ -110,6 +117,11 @@ var workloadIdentities = items({
     uamiName: 'prometheus'
     namespace: 'prometheus'
     serviceAccountName: 'prometheus'
+  }
+  tenant_quota_wi: {
+    uamiName: 'tenant-quota'
+    namespace: 'tenant-quota'
+    serviceAccountName: 'tenant-quota-collector'
   }
 })
 
@@ -187,7 +199,7 @@ module opstoolCluster '../modules/aks-cluster-base.bicep' = {
     aksKeyVaultName: aksKeyVaultName
     aksKeyVaultTagName: aksKeyVaultTagName
     aksKeyVaultTagValue: aksKeyVaultTagValue
-    pullAcrResourceIds: []
+    pullAcrResourceIds: empty(svcAcrResourceId) ? [] : [svcAcrResourceId]
     deploymentMsiId: opstoolMI.uamiID
     enableSwiftV2Nodepools: false
     owningTeamTagValue: owningTeamTagValue
@@ -218,5 +230,37 @@ module dataCollection '../modules/metrics/datacollection.bicep' = {
   ]
 }
 
+//
+//   W O R K L O A D   S E C R E T S   K E Y   V A U L T
+//
+
+var tenantQuotaMI = mi.getManagedIdentityByName(managedIdentities.outputs.managedIdentities, 'tenant-quota')
+
+module workloadKV '../modules/keyvault/keyvault.bicep' = {
+  name: 'opstool-workload-secrets-kv'
+  params: {
+    location: location
+    keyVaultName: workloadKVName
+    enableSoftDelete: false
+    private: false
+    tagKey: 'aroHCPPurpose'
+    tagValue: 'opstool-workload-secrets'
+  }
+}
+
+module tenantQuotaKVAccess '../modules/keyvault/keyvault-secret-access.bicep' = {
+  name: 'tenant-quota-kv-access'
+  params: {
+    keyVaultName: workloadKVName
+    roleName: 'Key Vault Secrets User'
+    managedIdentityPrincipalIds: [tenantQuotaMI.uamiPrincipalID]
+  }
+  dependsOn: [
+    workloadKV
+  ]
+}
+
 output aksClusterName string = opstoolCluster.outputs.aksClusterName
 output azureMonitorWorkspaceId string = azureMonitorWorkspace.id
+output workloadKVName string = workloadKV.outputs.kvName
+output workloadKVUrl string = workloadKV.outputs.kvUrl

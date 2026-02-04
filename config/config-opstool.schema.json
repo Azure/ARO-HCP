@@ -60,6 +60,15 @@
                   "type": "string"
                 }
               }
+            },
+            "acr": {
+              "type": "object",
+              "description": "Azure Container Registry configuration",
+              "properties": {
+                "name": { "type": "string" },
+                "resourceGroup": { "type": "string" },
+                "id": { "type": "string", "description": "Full resource ID of the ACR" }
+              }
             }
           }
         },
@@ -153,6 +162,28 @@
                     "image": { "$ref": "#/$defs/Image" }
                   }
                 }
+              }
+            },
+            "keyVault": {
+              "type": "object",
+              "description": "KeyVault configuration for secrets",
+              "properties": {
+                "name": { "type": "string" }
+              }
+            },
+            "alerting": {
+              "type": "object",
+              "description": "Alerting configuration",
+              "properties": {
+                "email": { "type": "string", "description": "Email address for alert notifications" },
+                "enabled": { "type": "boolean", "description": "Enable or disable alerting" }
+              }
+            },
+            "tenantQuota": {
+              "type": "object",
+              "description": "Tenant quota collector configuration",
+              "properties": {
+                "image": { "$ref": "#/$defs/Image" }
               }
             }
           }
