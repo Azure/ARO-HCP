@@ -47,17 +47,14 @@ func NewTimeBasedCooldownChecker(cooldownDuration time.Duration) *TimeBasedCoold
 
 func (c *TimeBasedCooldownChecker) CanSync(ctx context.Context, key any) bool {
 	now := c.clock.Now()
-	defer c.nextExecTime.Add(key, now.Add(c.cooldownDuration))
 
 	nextExecTime, ok := c.nextExecTime.Get(key)
-	if !ok {
+	if !ok || now.After(nextExecTime.(time.Time)) {
+		c.nextExecTime.Add(key, now.Add(c.cooldownDuration))
 		return true
 	}
-	if nextExecTime.(time.Time).Before(now) {
-		return false
-	}
 
-	return true
+	return false
 }
 
 type ActiveOperationBasedChecker struct {
