@@ -93,6 +93,15 @@ func testDatabaseCRUD(t *testing.T, withMock bool) {
 					withMock)
 			})
 
+		case "ServiceProviderNodePoolCRUD":
+			t.Run(crudSuiteDirEntry.Name(), func(t *testing.T) {
+				testCRUDSuite[api.ServiceProviderNodePool](
+					ctx,
+					t,
+					crudSuiteDir,
+					withMock)
+			})
+
 		default:
 			t.Fatalf("unknown crud suite dir: %s", crudSuiteDirEntry.Name())
 		}
