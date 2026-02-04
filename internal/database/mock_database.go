@@ -483,6 +483,44 @@ func (c *MockDBClientServiceProviderClustersCall) DoAndReturn(f func(string, str
 	return c
 }
 
+// ServiceProviderNodePools mocks base method.
+func (m *MockDBClient) ServiceProviderNodePools(subscriptionID, resourceGroupName, clusterName, nodePoolName string) ServiceProviderNodePoolCRUD {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ServiceProviderNodePools", subscriptionID, resourceGroupName, clusterName, nodePoolName)
+	ret0, _ := ret[0].(ServiceProviderNodePoolCRUD)
+	return ret0
+}
+
+// ServiceProviderNodePools indicates an expected call of ServiceProviderNodePools.
+func (mr *MockDBClientMockRecorder) ServiceProviderNodePools(subscriptionID, resourceGroupName, clusterName, nodePoolName any) *MockDBClientServiceProviderNodePoolsCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ServiceProviderNodePools", reflect.TypeOf((*MockDBClient)(nil).ServiceProviderNodePools), subscriptionID, resourceGroupName, clusterName, nodePoolName)
+	return &MockDBClientServiceProviderNodePoolsCall{Call: call}
+}
+
+// MockDBClientServiceProviderNodePoolsCall wrap *gomock.Call
+type MockDBClientServiceProviderNodePoolsCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockDBClientServiceProviderNodePoolsCall) Return(arg0 ServiceProviderNodePoolCRUD) *MockDBClientServiceProviderNodePoolsCall {
+	c.Call = c.Call.Return(arg0)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockDBClientServiceProviderNodePoolsCall) Do(f func(string, string, string, string) ServiceProviderNodePoolCRUD) *MockDBClientServiceProviderNodePoolsCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockDBClientServiceProviderNodePoolsCall) DoAndReturn(f func(string, string, string, string) ServiceProviderNodePoolCRUD) *MockDBClientServiceProviderNodePoolsCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
 // Subscriptions mocks base method.
 func (m *MockDBClient) Subscriptions() SubscriptionCRUD {
 	m.ctrl.T.Helper()
