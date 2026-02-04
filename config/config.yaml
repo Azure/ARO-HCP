@@ -93,6 +93,12 @@ defaults:
     image:
       registry: mcr.microsoft.com
       repository: aks/msi-acrpull
+  # AKS Runtime Image
+  aksCommandRuntime:
+    image:
+      registry: mcr.microsoft.com
+      repository: aks/command/runtime
+      digest: sha256:1c49cb26c44ce9f846257ca1bae2d275862ebeb31d5529a62a6c4075665fd38f # master.210524.9 (2021-05-24 21:31)
   # Arobit
   arobit:
     forwarder:

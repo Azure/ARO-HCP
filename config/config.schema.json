@@ -2253,6 +2253,18 @@
         "image"
       ]
     },
+    "aksCommandRuntime": {
+      "type": "object",
+      "properties": {
+        "image": {
+          "$ref": "#/definitions/containerImage"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "image"
+      ]
+    },
     "secretSyncController": {
       "type": "object",
       "properties": {
