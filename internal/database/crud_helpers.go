@@ -77,24 +77,49 @@ func getByItemID[InternalAPIType, CosmosAPIType any](ctx context.Context, contai
 }
 
 func get[InternalAPIType, CosmosAPIType any](ctx context.Context, containerClient *azcosmos.ContainerClient, partitionKeyString string, completeResourceID *azcorearm.ResourceID) (*InternalAPIType, error) {
-	// try the ID format first because it'll be more often correct.
-	oldExactCosmosID, err := OldResourceIDToCosmosID(completeResourceID)
-	if err != nil {
-		return nil, utils.TrackError(err)
-	}
-	ret, err := getByItemID[InternalAPIType, CosmosAPIType](ctx, containerClient, partitionKeyString, oldExactCosmosID)
-	if err == nil {
-		return ret, nil
-	}
-	if !IsResponseError(err, http.StatusNotFound) {
-		return nil, utils.TrackError(err)
-	}
-
-	// now try the new format in case we've started migrating or rolled back.
+	// try to see if the cosmosID we've passed is also the exact resource ID.  If so, then return the value we got.
 	newExactCosmosID, err := arm.ResourceIDToCosmosID(completeResourceID)
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}
+	ret, newCosmosIDErr := getByItemID[InternalAPIType, CosmosAPIType](ctx, containerClient, partitionKeyString, newExactCosmosID)
+	if newCosmosIDErr == nil {
+		return ret, nil
+	}
+	if !IsResponseError(newCosmosIDErr, http.StatusNotFound) {
+		return nil, utils.TrackError(newCosmosIDErr)
+	}
+
+	partitionKey := azcosmos.NewPartitionKeyString(partitionKeyString)
+	oldExactCosmosID, err := OldResourceIDToCosmosID(completeResourceID)
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
+	responseItem, err := containerClient.ReadItem(ctx, partitionKey, oldExactCosmosID, nil)
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
+
+	objAsMap := map[string]any{}
+	if err := json.Unmarshal(responseItem.Value, &objAsMap); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal Resources container item for '%s': %w", completeResourceID, err)
+	}
+	originalCosmosID := objAsMap["id"].(string)
+	objAsMap["id"] = newExactCosmosID
+	newBytes, err := json.Marshal(objAsMap)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal Cosmos DB item for '%s': %w", completeResourceID, err)
+	}
+
+	logger := utils.LoggerFromContext(ctx)
+	logger.Info("migrating item", "newCosmosID", newExactCosmosID, "oldCosmosID", originalCosmosID)
+	if _, err := containerClient.CreateItem(ctx, partitionKey, newBytes, nil); err != nil {
+		return nil, utils.TrackError(err)
+	}
+	if _, err = containerClient.DeleteItem(ctx, partitionKey, originalCosmosID, nil); err != nil {
+		return nil, utils.TrackError(err)
+	}
+
 	return getByItemID[InternalAPIType, CosmosAPIType](ctx, containerClient, partitionKeyString, newExactCosmosID)
 }
 
