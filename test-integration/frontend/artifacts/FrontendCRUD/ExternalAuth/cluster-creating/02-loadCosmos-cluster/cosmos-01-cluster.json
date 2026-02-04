@@ -1,20 +1,21 @@
 {
-  "id" : "|subscriptions|0465bc32-c654-41b8-8d87-9815d7abe8f6|resourcegroups|some-resource-group|providers|microsoft.redhatopenshift|hcpopenshiftclusters|cluster-creating",
-  "partitionKey" : "0465bc32-c654-41b8-8d87-9815d7abe8f6",
-  "resourceType" : "microsoft.redhatopenshift/hcpopenshiftclusters",
-  "properties" : {
-    "resourceId" : "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-creating",
-    "internalId" : "/api/aro_hcp/v1alpha1/clusters/cs-cluster-creating",
-    "identity" : {
-      "principalId" : "the-principal",
-      "tenantId" : "the-tenant",
-      "type" : ""
-    },
-    "tags" : {
-      "foo" : "bar"
-    },
-    "provisioningState": "Provisioning",
-    "customerDesiredState" : null,
-    "serviceProviderState" : null
-  }
+    "id": "|subscriptions|0465bc32-c654-41b8-8d87-9815d7abe8f6|resourcegroups|some-resource-group|providers|microsoft.redhatopenshift|hcpopenshiftclusters|cluster-creating",
+    "partitionKey": "0465bc32-c654-41b8-8d87-9815d7abe8f6",
+    "resourceType": "microsoft.redhatopenshift/hcpopenshiftclusters",
+    "resourceID": "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-creating",
+    "properties": {
+        "resourceId": "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-creating",
+        "internalId": "/api/aro_hcp/v1alpha1/clusters/cs-cluster-creating",
+        "identity": {
+            "principalId": "the-principal",
+            "tenantId": "the-tenant",
+            "type": ""
+        },
+        "tags": {
+            "foo": "bar"
+        },
+        "provisioningState": "Provisioning",
+        "customerDesiredState": null,
+        "serviceProviderState": null
+    }
 }
