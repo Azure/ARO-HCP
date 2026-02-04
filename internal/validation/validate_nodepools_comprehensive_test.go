@@ -302,7 +302,7 @@ func TestValidateNodePoolCreate(t *testing.T) {
 				return np
 			}(),
 			expectErrors: []expectedError{
-				{message: "must be equal to 0", fieldPath: "properties.replicas"},
+				{message: "cannot specify replicas when autoScaling is enabled", fieldPath: "properties.replicas"},
 			},
 		},
 		{
@@ -997,6 +997,22 @@ func TestValidateNodePoolUpdate(t *testing.T) {
 				return np
 			}(),
 			expectErrors: []expectedError{},
+		},
+		{
+			name: "non-zero replicas with autoscaling - update",
+			newNodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.Replicas = 3
+				np.Properties.AutoScaling = &api.NodePoolAutoScaling{
+					Min: 1,
+					Max: 5,
+				}
+				return np
+			}(),
+			oldNodePool: createValidNodePool(),
+			expectErrors: []expectedError{
+				{message: "cannot specify replicas when autoScaling is enabled", fieldPath: "properties.replicas"},
+			},
 		},
 		{
 			name: "invalid autoscaling on update - update",

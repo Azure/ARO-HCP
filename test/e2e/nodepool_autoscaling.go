@@ -119,69 +119,6 @@ var _ = Describe("Customer", func() {
 
 		})
 
-	It("should reject nodepool creation with both replicas and autoscaling configured",
-		labels.RequireNothing,
-		labels.Critical,
-		labels.Negative,
-		labels.AroRpApiCompatible,
-		func(ctx context.Context) {
-			const (
-				customerClusterName  = "mutual-exclusion-cluster"
-				customerNodePoolName = "conflicted-nodepool"
-			)
-			tc := framework.NewTestContext()
-
-			if tc.UsePooledIdentities() {
-				err := tc.AssignIdentityContainers(ctx, 1, 60*time.Second)
-				Expect(err).NotTo(HaveOccurred())
-			}
-
-			By("creating a resource group")
-			resourceGroup, err := tc.NewResourceGroup(ctx, "mutual-exclusion-test", tc.Location())
-			Expect(err).NotTo(HaveOccurred())
-
-			By("creating cluster")
-			clusterParams := framework.NewDefaultClusterParams()
-			clusterParams.ClusterName = customerClusterName
-			clusterParams.ManagedResourceGroupName = framework.SuffixName(*resourceGroup.Name, "-managed", 64)
-
-			clusterParams, err = tc.CreateClusterCustomerResources(ctx,
-				resourceGroup,
-				clusterParams,
-				map[string]interface{}{},
-				TestArtifactsFS,
-				framework.RBACScopeResourceGroup,
-			)
-			Expect(err).NotTo(HaveOccurred())
-
-			err = tc.CreateHCPClusterFromParam(ctx,
-				GinkgoLogr,
-				*resourceGroup.Name,
-				clusterParams,
-				45*time.Minute,
-			)
-			Expect(err).NotTo(HaveOccurred())
-
-			By("attempting to create nodepool with both replicas and autoscaling")
-			nodePoolParams := framework.NewDefaultNodePoolParams()
-			nodePoolParams.ClusterName = customerClusterName
-			nodePoolParams.NodePoolName = customerNodePoolName
-			nodePoolParams.Replicas = int32(3) // Fixed replicas
-			nodePoolParams.AutoScaling = &framework.NodePoolAutoScalingParams{
-				Min: 1,
-				Max: 5,
-			} // AND autoscaling - this should be rejected
-
-			// This should fail quickly during validation due to mutual exclusion constraint
-			err = tc.CreateNodePoolFromParam(ctx,
-				*resourceGroup.Name,
-				customerClusterName,
-				nodePoolParams,
-				5*time.Minute,
-			)
-			Expect(err).To(HaveOccurred(), "Expected nodepool creation to fail when both replicas and autoscaling are specified")
-		})
-
 	It("should respect cluster-wide node limits with nodepool autoscaling",
 		labels.RequireNothing,
 		labels.Medium,
