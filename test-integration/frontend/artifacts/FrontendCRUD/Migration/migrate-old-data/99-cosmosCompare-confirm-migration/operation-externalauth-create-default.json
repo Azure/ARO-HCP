@@ -4,7 +4,6 @@
 	"_rid": "MFstAI+1dLsEAAAAAAAAAA==",
 	"_self": "dbs/MFstAA==/colls/MFstAI+1dLs=/docs/MFstAI+1dLsEAAAAAAAAAA==/",
 	"_ts": 1767983530,
-	"id": "|subscriptions|6b690bec-0c16-4ecb-8f67-781caf40bba7|providers|microsoft.redhatopenshift|hcpoperationstatuses|5dce3cac-e09b-4ef5-803c-cb8f17b3a552",
 	"partitionKey": "6b690bec-0c16-4ecb-8f67-781caf40bba7",
 	"properties": {
 		"externalId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/create-with-tags/externalAuths/default",
