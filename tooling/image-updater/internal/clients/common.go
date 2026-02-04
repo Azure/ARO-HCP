@@ -118,16 +118,42 @@ func PrepareTagsForArchValidation(tags []Tag, repository string, tagPattern stri
 		useSemverSort = allSemver
 	}
 
-	// Sort tags: semver by version (descending), otherwise by date (descending)
+	// Detect if the pattern is SHA-like (only hex characters)
+	// SHA patterns should use date-based sorting since the hash values have no semantic ordering
+	isSHAPattern := false
+	if tagPattern != "" {
+		// Match patterns like ^[a-f0-9]{7}$ or ^[a-fA-F0-9]+$ which are typical SHA patterns
+		// These patterns contain character classes with only hex digits (a-f, A-F, 0-9)
+		shaPattern := regexp.MustCompile(`\[[\da-fA-F\-]+\]`)
+		noVersionPattern := !strings.Contains(tagPattern, `\d+\.\d+`)
+		isSHAPattern = shaPattern.MatchString(tagPattern) && noVersionPattern
+	}
+
+	// Sort tags based on the tag pattern and type
 	sort.Slice(tags, func(i, j int) bool {
 		if useSemverSort {
+			// For semver tags, sort by version (descending)
 			cmp := semver.Compare(canonicalizeVersion(tags[i].Name), canonicalizeVersion(tags[j].Name))
 			if cmp != 0 {
 				return cmp > 0 // Higher version first
 			}
-		}
-		// Use date as tiebreaker or default sorting
+		} else if tagPattern == "" || isSHAPattern {
+			// For unfiltered tags (no pattern) or SHA patterns, sort by date (newest first)
+			if !tags[i].LastModified.Equal(tags[j].LastModified) {
+				return tags[i].LastModified.After(tags[j].LastModified)
+			}
+			// Use tag name as tiebreaker when dates are identical
+			return tags[i].Name > tags[j].Name
+		} else {
+			// For non-semver tags with patterns (e.g., master.YYMMDD.N),
+			// sort lexicographically by tag name (descending) as primary sort
+			if tags[i].Name != tags[j].Name {
+				return tags[i].Name > tags[j].Name
+			}
+			// Use date as tiebreaker when tag names are identical
 		return tags[i].LastModified.After(tags[j].LastModified)
+		}
+		return false
 	})
 
 	return tags, nil

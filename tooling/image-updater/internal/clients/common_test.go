@@ -258,6 +258,20 @@ func TestPrepareTagsForArchValidation(t *testing.T) {
 			wantTagNames: []string{"v1.7.2", "v1.7.2-2", "v1.7.2-1"},
 			wantErr:      false,
 		},
+		{
+			name: "SHA pattern sorting uses dates not lexicographic",
+			tags: []Tag{
+				// SHA tags should be sorted by date, not lexicographically
+				// 'abc1234' < 'def5678' lexicographically, but 'def5678' is newer
+				{Name: "abc1234", Digest: "sha256:abc", LastModified: twoDaysAgo},
+				{Name: "def5678", Digest: "sha256:def", LastModified: now},
+				{Name: "9876543", Digest: "sha256:987", LastModified: oneHourAgo},
+			},
+			repository:   "test/repo",
+			tagPattern:   `^[a-f0-9]{7}$`,
+			wantTagNames: []string{"def5678", "9876543", "abc1234"},
+			wantErr:      false,
+		},
 	}
 
 	for _, tt := range tests {
