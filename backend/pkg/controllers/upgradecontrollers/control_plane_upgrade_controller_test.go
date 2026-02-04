@@ -22,9 +22,10 @@ import (
 	"go.uber.org/mock/gomock"
 
 	configv1 "github.com/openshift/api/config/v1"
+	"github.com/openshift/cluster-version-operator/pkg/cincinnati"
 
 	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/cincinatti"
+	cincinatti "github.com/Azure/ARO-HCP/internal/cincinatti"
 )
 
 func TestDesiredControlPlaneZVersion_ZStreamManagedUpgrade(t *testing.T) {
@@ -227,6 +228,31 @@ func TestDesiredControlPlaneZVersion_ZStreamManagedUpgrade(t *testing.T) {
 			expectedVersion:       "",
 			expectedError:         true,
 			expectedErrorContains: "invalid actual latest version",
+		},
+		{
+			name:                 "Z-stream upgrade - Cincinnati query error",
+			actualLatestVersion:  "4.19.15",
+			customerDesiredMinor: "4.19",
+			channelGroup:         "stable",
+			mockSetup: func(mc *cincinatti.MockClient) {
+				// Mock Cincinnati returning an error
+				mc.EXPECT().GetUpdates(
+					gomock.Any(),
+					gomock.Any(),
+					"multi",
+					"multi",
+					"stable-4.19",
+					mustParse("4.19.15"),
+				).Return(
+					configv1.Release{},
+					nil,
+					nil,
+					&cincinnati.Error{Message: "example error message"},
+				)
+			},
+			expectedVersion:       "",
+			expectedError:         true,
+			expectedErrorContains: "example error message",
 		},
 	}
 
@@ -468,6 +494,31 @@ func TestDesiredControlPlaneZVersion_NextYStreamUpgrade(t *testing.T) {
 			expectedVersion: "4.20.12", // Returns latest even without gateway - user wants to be on 4.20
 			expectedError:   false,
 		},
+		{
+			name:                 "Y-stream upgrade - Cincinnati query error",
+			actualLatestVersion:  "4.19.22",
+			customerDesiredMinor: "4.20",
+			channelGroup:         "stable",
+			mockSetup: func(mc *cincinatti.MockClient) {
+				// Mock Cincinnati returning an error
+				mc.EXPECT().GetUpdates(
+					gomock.Any(),
+					gomock.Any(),
+					"multi",
+					"multi",
+					"stable-4.20",
+					mustParse("4.19.22"),
+				).Return(
+					configv1.Release{},
+					nil,
+					nil,
+					&cincinnati.Error{Message: "example error message"},
+				)
+			},
+			expectedVersion:       "",
+			expectedError:         true,
+			expectedErrorContains: "example error message",
+		},
 	}
 
 	for _, tt := range tests {
@@ -675,6 +726,30 @@ func TestDesiredControlPlaneZVersion_InitialVersionSelection(t *testing.T) {
 			expectedVersion:       "",
 			expectedError:         true,
 			expectedErrorContains: "",
+		},
+		{
+			name:                 "Initial version - Cincinnati query error",
+			customerDesiredMinor: "4.19",
+			channelGroup:         "stable",
+			mockSetup: func(mc *cincinatti.MockClient) {
+				// Mock Cincinnati returning an error
+				mc.EXPECT().GetUpdates(
+					gomock.Any(),
+					gomock.Any(),
+					"multi",
+					"multi",
+					"stable-4.19",
+					mustParse("4.19.0"),
+				).Return(
+					configv1.Release{},
+					nil,
+					nil,
+					&cincinnati.Error{Message: "example error message"},
+				)
+			},
+			expectedVersion:       "",
+			expectedError:         true,
+			expectedErrorContains: "example error message",
 		},
 	}
 
