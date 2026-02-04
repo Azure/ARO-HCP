@@ -98,6 +98,10 @@ tidy: $(MODULES:/...=.tidy)
 all-tidy: tidy fmt licenses
 	go work sync
 
+frontend-grant-ingress:
+	make -C dev-infrastructure frontend-grant-ingress
+.PHONY: frontend-grant-ingress
+
 record-nonlocal-e2e: $(GOJQ)
 	go run github.com/onsi/ginkgo/v2/ginkgo run \
 		--no-color --tags E2Etests --label-filter='!ARO-HCP-RP-API-Compatible' --dry-run --output-dir=test/e2e --json-report=report.json test/e2e && \
@@ -105,17 +109,19 @@ record-nonlocal-e2e: $(GOJQ)
 .PHONY: record-nonlocal-e2e
 
 e2e/local: e2e-local/setup
-	$(MAKE) e2e-local/run
+	$(MAKE) e2e-local/run 
 .PHONY: e2e/local
 
 e2e-local/setup:
 	@SUBSCRIPTION_ID="$$(az account show --query id --output tsv)"; \
 	TENANT_ID="$$(az account show --query tenantId --output tsv)"; \
+	ADDRESS="$${FRONTEND_ADDRESS:-http://localhost:8443}"; \
 	curl --silent --show-error --include \
+		--insecure \
 		--request PUT \
 		--header "Content-Type: application/json" \
 		--data '{"state":"Registered", "registrationDate": "now", "properties": { "tenantId": "'$${TENANT_ID}'"}}' \
-		"http://localhost:8443/subscriptions/$${SUBSCRIPTION_ID}?api-version=2.0"
+		"$${ADDRESS}/subscriptions/$${SUBSCRIPTION_ID}?api-version=2.0"
 .PHONY: e2e-local/setup
 
 e2e-local/run: $(ARO_HCP_TESTS)
@@ -125,6 +131,9 @@ e2e-local/run: $(ARO_HCP_TESTS)
 	export ARTIFACT_DIR=$${ARTIFACT_DIR:-_artifacts}; \
 	export JUNIT_PATH=$${JUNIT_PATH:-$$ARTIFACT_DIR/junit.xml}; \
 	export HTML_PATH=$${HTML_PATH:-$$ARTIFACT_DIR/extension-test-result-summary.html}; \
+	export SKIP_CERT_VERIFICATION=$${SKIP_CERT_VERIFICATION:-false}; \
+	export FRONTEND_ADDRESS=$${FRONTEND_ADDRESS:-http://localhost:8443}; \
+	export ADMIN_API_ADDRESS=$${ADMIN_API_ADDRESS:-http://localhost:8444}; \
 	mkdir -p "$$ARTIFACT_DIR"; \
 	$(ARO_HCP_TESTS) run-suite "rp-api-compat-all/parallel" --junit-path="$$JUNIT_PATH" --html-path="$$HTML_PATH" --max-concurrency 100
 .PHONY: e2e-local/run

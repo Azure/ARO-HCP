@@ -213,6 +213,9 @@ grant-e2e-access:
 		--only-show-errors
 .PHONY: grant-e2e-access
 
+frontend-grant-ingress:
+	./scripts/frontend-grant-ingress-from-ip.sh "${SVC_RESOURCEGROUP}"
+.PHONY: frontend-grant-ingress
 
 #
 # Global

@@ -16,9 +16,12 @@ package framework
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"hash/fnv"
+	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"path"
 	"path/filepath"
@@ -28,6 +31,7 @@ import (
 	"time"
 
 	"github.com/onsi/ginkgo/v2/types"
+	"golang.org/x/net/http2"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -45,6 +49,8 @@ type perBinaryInvocationTestContext struct {
 	testUserClientID         string
 	location                 string
 	pullSecretPath           string
+	frontendAddress          string
+	skipCertVerification     bool
 	isDevelopmentEnvironment bool
 	skipCleanup              bool
 	pooledIdentities         bool
@@ -54,6 +60,7 @@ type perBinaryInvocationTestContext struct {
 	subscriptionID    string
 	azureCredentials  azcore.TokenCredential
 	identityPoolState *leasedIdentityPoolState
+	defaultTransport  *http.Transport
 }
 
 type CleanupFunc func(ctx context.Context) error
@@ -83,10 +90,13 @@ func invocationContext() *perBinaryInvocationTestContext {
 			testUserClientID:         testUserClientID(),
 			location:                 location(),
 			pullSecretPath:           pullSecretPath(),
+			frontendAddress:          frontendAddress(),
+			skipCertVerification:     skipCertVerification(),
 			isDevelopmentEnvironment: IsDevelopmentEnvironment(),
 			skipCleanup:              skipCleanup(),
 			pooledIdentities:         pooledIdentities(),
 			compressTimingMetadata:   compressTimingMetadata(),
+			defaultTransport:         defaultHTTPTransport(),
 		}
 	})
 	return invocationContextInstance
@@ -133,7 +143,12 @@ func (tc *perBinaryInvocationTestContext) getAzureCredentials() (azcore.TokenCre
 type armSystemDataPolicy struct{}
 
 func (p *armSystemDataPolicy) Do(req *policy.Request) (*http.Response, error) {
-	if req.Raw().URL.Host == "localhost:8443" {
+	frontendURL, err := url.Parse(frontendAddress())
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse frontend address: %w", err)
+	}
+
+	if req.Raw().URL.Host == frontendURL.Host {
 		systemData := fmt.Sprintf(`{"createdBy": "e2e-test", "createdByType": "Application", "createdAt": "%s"}`, time.Now().UTC().Format(time.RFC3339))
 		req.Raw().Header.Set("X-Ms-Arm-Resource-System-Data", systemData)
 		req.Raw().Header.Set("X-Ms-Identity-Url", "https://dummyhost.identity.azure.net")
@@ -142,11 +157,24 @@ func (p *armSystemDataPolicy) Do(req *policy.Request) (*http.Response, error) {
 }
 
 func (tc *perBinaryInvocationTestContext) getClientFactoryOptions() *azcorearm.ClientOptions {
+	if tc.isDevelopmentEnvironment {
+		return &azcorearm.ClientOptions{
+			ClientOptions: azcore.ClientOptions{
+				Transport: &proxiedConnectionTransporter{
+					delegate: tc.defaultTransport,
+				},
+			},
+		}
+	}
 	return nil
 }
 
 func (tc *perBinaryInvocationTestContext) getHCPClientFactoryOptions() *azcorearm.ClientOptions {
 	if tc.isDevelopmentEnvironment {
+		transport := tc.defaultTransport
+		if tc.skipCertVerification {
+			transport.TLSClientConfig.InsecureSkipVerify = true
+		}
 		return &azcorearm.ClientOptions{
 			ClientOptions: azcore.ClientOptions{
 				Cloud: cloud.Configuration{
@@ -154,9 +182,12 @@ func (tc *perBinaryInvocationTestContext) getHCPClientFactoryOptions() *azcorear
 					Services: map[cloud.ServiceName]cloud.ServiceConfiguration{
 						cloud.ResourceManager: {
 							Audience: "https://management.core.windows.net/",
-							Endpoint: "http://localhost:8443",
+							Endpoint: tc.frontendAddress,
 						},
 					},
+				},
+				Transport: &proxiedConnectionTransporter{
+					delegate: transport,
 				},
 				InsecureAllowCredentialWithHTTP: true,
 				PerCallPolicies: []policy.Policy{
@@ -166,6 +197,45 @@ func (tc *perBinaryInvocationTestContext) getHCPClientFactoryOptions() *azcorear
 		}
 	}
 	return nil
+}
+
+// default transport taken judiciously from azcore library to mimick their behavior when no transporter is provided
+func defaultHTTPTransport() *http.Transport {
+	dialer := &net.Dialer{
+		Timeout:   30 * time.Second,
+		KeepAlive: 30 * time.Second,
+	}
+	defaultTransport := &http.Transport{
+		DialContext:           dialer.DialContext,
+		ForceAttemptHTTP2:     true,
+		MaxIdleConns:          100,
+		MaxIdleConnsPerHost:   10,
+		IdleConnTimeout:       90 * time.Second,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ExpectContinueTimeout: 1 * time.Second,
+		TLSClientConfig: &tls.Config{
+			MinVersion:    tls.VersionTLS12,
+			Renegotiation: tls.RenegotiateFreelyAsClient,
+		},
+	}
+	// TODO: evaluate removing this once https://github.com/golang/go/issues/59690 has been fixed
+	if http2Transport, err := http2.ConfigureTransports(defaultTransport); err == nil {
+		// if the connection has been idle for 10 seconds, send a ping frame for a health check
+		http2Transport.ReadIdleTimeout = 10 * time.Second
+		// if there's no response to the ping within the timeout, the connection will be closed
+		http2Transport.PingTimeout = 5 * time.Second
+	}
+	return defaultTransport
+}
+
+// proxiedConnectionTransporter retries connections done across the proxy path to a local RP,
+// in order to paper over transient errors in the proxied connection
+type proxiedConnectionTransporter struct {
+	delegate *http.Transport
+}
+
+func (t *proxiedConnectionTransporter) Do(req *http.Request) (*http.Response, error) {
+	return t.delegate.RoundTrip(req)
 }
 
 func (tc *perBinaryInvocationTestContext) getSubscriptionID(ctx context.Context, subscriptionClient *armsubscriptions.Client) (string, error) {
@@ -287,6 +357,24 @@ func pullSecretPath() string {
 		return "/var/run/aro-hcp-qe-pull-secret"
 	}
 	return path
+}
+
+// frontendAddress returns the value of FRONTEND_ADDRESS environment variable
+func frontendAddress() string {
+	address := os.Getenv("FRONTEND_ADDRESS")
+	if address == "" {
+		return "http://localhost:8443"
+	}
+	return address
+}
+
+// skipCertVerification returns the value of SKIP_CERT_VERIFICATION environment variable
+func skipCertVerification() bool {
+	b, err := strconv.ParseBool(strings.TrimSpace(os.Getenv("SKIP_CERT_VERIFICATION")))
+	if err != nil {
+		return false
+	}
+	return b
 }
 
 // IsDevelopmentEnvironment indicates when this environment is development.  This controls client endpoints and disables security
