@@ -67,7 +67,7 @@ start_emulator() {
         # vnext-preview docs: https://learn.microsoft.com/en-gb/azure/cosmos-db/emulator-linux#docker-commands
         container_image="mcr.microsoft.com/cosmosdb/linux/azure-cosmos-emulator:vnext-preview"
         # the vnext-preview image logs a different message when ready
-        ready_log_message="PostgreSQL and pgcosmos extension are ready"
+        ready_log_message="Package updates completed"
     fi
 
     echo "Starting Cosmos DB emulator with container name: ${container_name}"
@@ -114,7 +114,18 @@ start_emulator() {
         sleep 2
     done
 
+    echo "Waiting for emulator CPU usage to calm down... (max 10 minutes, then continue anyway)"
+    for i in {1..120}; do
+        CPU_USAGE=$(${CONTAINER_RUNTIME} stats "${container_name}" --no-stream --format "{{printf \"%.0f\" .CPU}}" -i 5)
+        echo "CPU usage: ${CPU_USAGE}"
+        if [ "$CPU_USAGE" -lt 40 ]; then
+            echo "CPU usage is below 40%, continuing..."
+            break
+        fi
+        sleep 5
+    done
+
     echo "Cosmos DB emulator started successfully!"
-    echo "Container name: ${CONTAINER_NAME}"
+    echo "Container name: ${container_name}"
     echo "Endpoint: ${DEFAULT_COSMOS_ENDPOINT}"
 }
