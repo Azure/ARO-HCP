@@ -68,6 +68,32 @@ To check progress on
 ./05-delete-cluster.sh
 ```
 
+## Use candidate or nightly channel group
+
+To use these channel groups in the personal dev environment. We need to have a subscription with the AFEC flag registered.
+Use the script `FFLAG=AllowDevNonStableChannels ./register-feature-flag.sh` to registered the AFEC to your subscription.
+
+Then run the scripts described previously.
+Make sure to change the version in the template to use the desired one, both for clusters and node pools.
+
+```json
+    "version": {
+      "id": "4.20.5", 
+      "channelGroup": "candidate"
+    },
+```
+or 
+
+```json
+    "version": {
+      "id": "4.19.0-0.nightly-multi-2026-01-12-061259", 
+      "channelGroup": "nightly"
+    },
+```
+
+A good way to select a version is looking into Cininnati https://multi.ocp.releases.ci.openshift.org/
+this can be used to get the name of the version. Especially for nightly versions.
+
 ## Observe and debug
 
 ### Check RP pod logs
