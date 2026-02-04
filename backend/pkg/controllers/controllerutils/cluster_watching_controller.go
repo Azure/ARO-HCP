@@ -166,7 +166,7 @@ func (c *clusterWatchingController) processNextWorkItem(ctx context.Context) boo
 		return true
 	}
 
-	utilruntime.HandleErrorWithContext(ctx, err, "Error syncing; requeuing for later retry", "objectReference", ref)
+	utilruntime.HandleErrorWithContext(ctx, err, "Error syncing; requeuing for later retry", "objectReference", ref, "controllerName", c.name)
 	c.queue.AddRateLimited(ref)
 
 	return true
