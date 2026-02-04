@@ -30,10 +30,10 @@ type HCPOpenShiftCluster struct {
 	Identity                  *arm.ManagedServiceIdentity                  `json:"identity,omitempty"`
 }
 
-var _ CosmosPersistable = &HCPOpenShiftCluster{}
+var _ arm.CosmosPersistable = &HCPOpenShiftCluster{}
 
-func (o *HCPOpenShiftCluster) GetCosmosData() *CosmosData {
-	return &CosmosData{
+func (o *HCPOpenShiftCluster) GetCosmosData() *arm.CosmosMetadata {
+	return &arm.CosmosMetadata{
 		ResourceID:        o.ID,
 		ExistingCosmosUID: o.ServiceProviderProperties.ExistingCosmosUID,
 	}

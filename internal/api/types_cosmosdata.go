@@ -19,11 +19,3 @@ import (
 )
 
 type CosmosMetadata = arm.CosmosMetadata
-type CosmosMetadataAccessor = arm.CosmosMetadataAccessor
-type CosmosPersistable = arm.CosmosPersistable
-type CosmosData = arm.CosmosMetadata
-
-var (
-	ResourceIDToCosmosID       = arm.ResourceIDToCosmosID
-	ResourceIDStringToCosmosID = arm.ResourceIDStringToCosmosID
-)

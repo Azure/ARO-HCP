@@ -18,7 +18,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
 
 func InternalToCosmosGeneric[InternalAPIType any](internalObj *InternalAPIType) (*GenericDocument[InternalAPIType], error) {
@@ -26,20 +26,15 @@ func InternalToCosmosGeneric[InternalAPIType any](internalObj *InternalAPIType) 
 		return nil, nil
 	}
 
-	metadata, ok := any(internalObj).(api.CosmosMetadataAccessor)
+	metadata, ok := any(internalObj).(arm.CosmosMetadataAccessor)
 	if !ok {
-		return nil, fmt.Errorf("internalObj must be an api.CosmosMetadataAccessor: %T", internalObj)
-	}
-
-	cosmosID, err := api.ResourceIDToCosmosID(metadata.GetResourceID())
-	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("internalObj must be an arm.CosmosMetadataAccessor: %T", internalObj)
 	}
 
 	cosmosObj := &GenericDocument[InternalAPIType]{
 		TypedDocument: TypedDocument{
 			BaseDocument: BaseDocument{
-				ID: cosmosID,
+				ID: metadata.GetCosmosUID(),
 			},
 			PartitionKey: strings.ToLower(metadata.GetResourceID().SubscriptionID),
 			ResourceID:   metadata.GetResourceID(),
@@ -56,9 +51,9 @@ func CosmosGenericToInternal[InternalAPIType any](cosmosObj *GenericDocument[Int
 		return nil, nil
 	}
 
-	ret, ok := any(&cosmosObj.Content).(api.CosmosMetadataAccessor)
+	ret, ok := any(&cosmosObj.Content).(arm.CosmosMetadataAccessor)
 	if !ok {
-		return nil, fmt.Errorf("internalObj must be an api.CosmosMetadataAccessor: %T", cosmosObj)
+		return nil, fmt.Errorf("internalObj must be an arm.CosmosMetadataAccessor: %T", cosmosObj)
 	}
 	ret.SetEtag(cosmosObj.CosmosETag)
 

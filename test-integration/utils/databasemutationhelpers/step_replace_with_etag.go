@@ -25,7 +25,7 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 
-	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
 
 // replaceWithETagStep reads the current resource to get its etag, then performs a replace
@@ -89,7 +89,7 @@ func (l *replaceWithETagStep[InternalAPIType]) RunTest(ctx context.Context, t *t
 // getETagFromResource extracts the etag from a resource if it has embedded CosmosMetadata
 func getETagFromResource(resource any) azcore.ETag {
 	switch v := resource.(type) {
-	case api.CosmosMetadataAccessor:
+	case arm.CosmosMetadataAccessor:
 		return v.GetEtag()
 	}
 	return ""
@@ -98,7 +98,7 @@ func getETagFromResource(resource any) azcore.ETag {
 // setETagOnResource sets the etag on a resource if it has embedded CosmosMetadata
 func setETagOnResource(resource any, etag azcore.ETag) {
 	switch v := resource.(type) {
-	case api.CosmosMetadataAccessor:
+	case arm.CosmosMetadataAccessor:
 		v.SetEtag(etag)
 	}
 }

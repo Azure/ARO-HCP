@@ -14,7 +14,7 @@
 
 package database
 
-// pointer of InternalAPIType needs to be api.CosmosMetadataAccessor
+// pointer of InternalAPIType needs to be arm.CosmosMetadataAccessor
 type GenericDocument[InternalAPIType any] struct {
 	TypedDocument `json:",inline"`
 

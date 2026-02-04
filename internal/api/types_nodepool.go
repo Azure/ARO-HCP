@@ -35,10 +35,10 @@ type HCPOpenShiftClusterNodePool struct {
 	Identity                  *arm.ManagedServiceIdentity                          `json:"identity,omitempty"`
 }
 
-var _ CosmosPersistable = &HCPOpenShiftClusterNodePool{}
+var _ arm.CosmosPersistable = &HCPOpenShiftClusterNodePool{}
 
-func (o *HCPOpenShiftClusterNodePool) GetCosmosData() *CosmosData {
-	return &CosmosData{
+func (o *HCPOpenShiftClusterNodePool) GetCosmosData() *arm.CosmosMetadata {
+	return &arm.CosmosMetadata{
 		ResourceID:        o.ID,
 		ExistingCosmosUID: o.ServiceProviderProperties.ExistingCosmosUID,
 	}
