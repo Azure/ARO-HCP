@@ -133,7 +133,7 @@ e2e-local/run: $(ARO_HCP_TESTS)
 	export HTML_PATH=$${HTML_PATH:-$$ARTIFACT_DIR/extension-test-result-summary.html}; \
 	export SKIP_CERT_VERIFICATION=$${SKIP_CERT_VERIFICATION:-false}; \
 	export FRONTEND_ADDRESS=$${FRONTEND_ADDRESS:-http://localhost:8443}; \
-	export ADMIN_API_ADDRESS=$${ADMIN_API_ADDRESS:-http://localhost:8443}; \
+	export ADMIN_API_ADDRESS=$${ADMIN_API_ADDRESS:-http://localhost:8444}; \
 	mkdir -p "$$ARTIFACT_DIR"; \
 	$(ARO_HCP_TESTS) run-suite "rp-api-compat-all/parallel" --junit-path="$$JUNIT_PATH" --html-path="$$HTML_PATH" --max-concurrency 100
 .PHONY: e2e-local/run
