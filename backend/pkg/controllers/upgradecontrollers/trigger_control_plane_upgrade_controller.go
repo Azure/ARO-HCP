@@ -20,6 +20,8 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/blang/semver/v4"
+
 	ocmsdk "github.com/openshift-online/ocm-sdk-go"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
@@ -50,14 +52,11 @@ func NewTriggerControlPlaneUpgradeController(
 	subscriptionLister listers.SubscriptionLister,
 ) controllerutils.Controller {
 
-	clusterServiceClient := ocm.NewClusterServiceClientWithTracing(
-		ocm.NewClusterServiceClient(
-			ocmConnection,
-			"",
-			false,
-			false,
-		),
-		"github.com/Azure/ARO-HCP/backend",
+	clusterServiceClient := ocm.NewClusterServiceClient(
+		ocmConnection,
+		"",
+		false,
+		false,
 	)
 
 	syncer := &triggerControlPlaneUpgradeSyncer{
@@ -97,23 +96,19 @@ func (c *triggerControlPlaneUpgradeSyncer) SyncOnce(ctx context.Context, key con
 		return utils.TrackError(fmt.Errorf("failed to get or create ServiceProviderCluster: %w", err))
 	}
 
-	if existingServiceProviderCluster.Version == nil {
-		return nil // No version information yet
-	}
-
-	desiredVersion := existingServiceProviderCluster.Version.DesiredVersion
-	if len(desiredVersion) == 0 {
+	desiredVersion := existingServiceProviderCluster.Spec.Version.DesiredVersion
+	if desiredVersion == nil {
 		return nil // No desired version set
 	}
 
 	// Get actual version from active versions
-	var actualVersion string
-	if len(existingServiceProviderCluster.Version.ActiveVersions) > 0 {
-		actualVersion = existingServiceProviderCluster.Version.ActiveVersions[0].Version
+	var actualLatestVersion *semver.Version
+	if len(existingServiceProviderCluster.Status.Version.ActiveVersions) > 0 {
+		actualLatestVersion = existingServiceProviderCluster.Status.Version.ActiveVersions[0].Version
 	}
 
 	// If desired version matches actual version, nothing to do
-	if desiredVersion == actualVersion {
+	if actualLatestVersion != nil && desiredVersion.EQ(*actualLatestVersion) {
 		return nil
 	}
 
@@ -128,7 +123,7 @@ func (c *triggerControlPlaneUpgradeSyncer) SyncOnce(ctx context.Context, key con
 	logger.Info("Would trigger control plane upgrade",
 		"cluster", key.HCPClusterName,
 		"desiredVersion", desiredVersion,
-		"actualVersion", actualVersion,
+		"actualVersion", actualLatestVersion,
 		"clusterServiceID", existingCluster.ServiceProviderProperties.ClusterServiceID,
 	)
 

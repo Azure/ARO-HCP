@@ -15,6 +15,8 @@
 package api
 
 import (
+	"github.com/blang/semver/v4"
+
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 )
 
@@ -37,20 +39,11 @@ type ServiceProviderCluster struct {
 
 	LoadBalancerResourceID *azcorearm.ResourceID `json:"loadBalancerResourceID,omitempty"`
 
-	// Version tracks the cluster control plane version information.
-	// DesiredVersion is the controller's computed target version.
-	// ActiveVersions contains all versions currently active in the control plane.
-	// During upgrades, multiple versions can be active simultaneously.
-	// The list is ordered with the most recent first.
-	// Example JSON structure:
-	// {
-	//   "desired_version": "4.19.2",
-	//   "active_versions": [
-	//     {"version": "4.19.2", "lastTransitionTime": "2026-01-30T10:00:00Z"},
-	//     {"version": "4.19.1", "lastTransitionTime": "2026-01-15T08:30:00Z"}
-	//   ]
-	// }
-	Version *HCPClusterVersion `json:"version,omitempty"`
+	// Spec contains the desired state of the cluster.
+	Spec ServiceProviderClusterSpec `json:"spec,omitempty"`
+
+	// Status contains the observed state of the cluster.
+	Status ServiceProviderClusterStatus `json:"status,omitempty"`
 
 	// Validations is a list of conditions that tracks the status of each cluster validation.
 	// Each Condition Type represents a validation and it should be unique among all validations.
@@ -60,12 +53,45 @@ type ServiceProviderCluster struct {
 	Validations []Condition `json:"validations,omitempty"`
 }
 
-// HCPClusterVersion represents the OpenShift Container Platform version information for a cluster.
-type HCPClusterVersion struct {
+// ServiceProviderClusterSpec contains the desired state of the cluster.
+type ServiceProviderClusterSpec struct {
+	// Version contains the desired control plane version information.
+	// Example JSON structure:
+	// {
+	//   "version": {
+	//     "desired_version": "4.19.2"
+	//   }
+	// }
+	Version ServiceProviderClusterSpecVersion `json:"version,omitempty"`
+}
+
+// ServiceProviderClusterSpecVersion contains the desired version information.
+type ServiceProviderClusterSpecVersion struct {
 	// DesiredVersion is the full version the controller has resolved and wants to upgrade to (format: x.y.z)
 	// This is compared on each sync to detect when a new upgrade should be triggered.
-	DesiredVersion string `json:"desired_version,omitempty"`
+	DesiredVersion *semver.Version `json:"desired_version,omitempty"`
+}
 
+// ServiceProviderClusterStatus contains the observed state of the cluster.
+type ServiceProviderClusterStatus struct {
+	// Version contains the actual control plane version information.
+	// ActiveVersions contains the last two active versions for the cluster.
+	// During upgrades, multiple versions can be active simultaneously.
+	// The list is ordered with the most recent first.
+	// Example JSON structure:
+	// {
+	//   "version": {
+	//     "active_versions": [
+	//       {"version": "4.19.2"},
+	//       {"version": "4.19.1"}
+	//     ]
+	//   }
+	// }
+	Version ServiceProviderClusterStatusVersion `json:"version,omitempty"`
+}
+
+// ServiceProviderClusterStatusVersion contains the actual version information.
+type ServiceProviderClusterStatusVersion struct {
 	// ActiveVersions is an array of versions currently active in the control plane, ordered with the most recent first.
 	// During upgrades, multiple versions can be active simultaneously.
 	ActiveVersions []HCPClusterActiveVersion `json:"active_versions,omitempty"`
@@ -74,8 +100,5 @@ type HCPClusterVersion struct {
 // HCPClusterActiveVersion represents a single version active in the control plane.
 type HCPClusterActiveVersion struct {
 	// Version is the full version in x.y.z format (e.g., "4.19.2")
-	Version string `json:"version,omitempty"`
-
-	// LastTransitionTime is the timestamp when this version became active
-	LastTransitionTime string `json:"lastTransitionTime,omitempty"`
+	Version *semver.Version `json:"version,omitempty"`
 }

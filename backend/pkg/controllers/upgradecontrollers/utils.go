@@ -27,22 +27,6 @@ import (
 	"github.com/Azure/ARO-HCP/internal/cincinatti"
 )
 
-// sortReleasesByVersionDescending sorts releases in descending order (latest version first).
-func sortReleasesByVersionDescending(releases []configv1.Release) {
-	slices.SortFunc(releases, func(a, b configv1.Release) int {
-		aVersion, err := semver.Parse(a.Version)
-		if err != nil {
-			return 0 // should never happen
-		}
-
-		bVersion, err := semver.Parse(b.Version)
-		if err != nil { // should never happen
-			return 0
-		}
-		return bVersion.Compare(aVersion) // descending: latest first
-	})
-}
-
 // isValidNextYStreamUpgradePath validates that a next Y-stream upgrade path is valid.
 // It ensures the desired minor is exactly one minor version ahead of the actual minor
 // and prevents downgrades or skipping minors.

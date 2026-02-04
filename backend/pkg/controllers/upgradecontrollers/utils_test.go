@@ -16,10 +16,6 @@ package upgradecontrollers
 
 import (
 	"testing"
-
-	"github.com/blang/semver/v4"
-
-	configv1 "github.com/openshift/api/config/v1"
 )
 
 func TestIsValidNextYStreamUpgradePath(t *testing.T) {
@@ -70,76 +66,4 @@ func TestIsValidNextYStreamUpgradePath(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestSortReleasesByVersionDescending(t *testing.T) {
-	tests := []struct {
-		name     string
-		input    []configv1.Release
-		expected []string // Expected version strings in order
-	}{
-		{
-			name:     "Empty slice",
-			input:    []configv1.Release{},
-			expected: []string{},
-		},
-		{
-			name: "Single element",
-			input: []configv1.Release{
-				{Version: "4.19.15"},
-			},
-			expected: []string{"4.19.15"},
-		},
-		{
-			name: "Random order with multiple minors and patches",
-			input: []configv1.Release{
-				{Version: "4.19.22"},
-				{Version: "4.20.5"},
-				{Version: "4.19.15"},
-				{Version: "4.20.3"},
-			},
-			expected: []string{"4.20.5", "4.20.3", "4.19.22", "4.19.15"},
-		},
-		{
-			name: "Versions with pre-release info",
-			input: []configv1.Release{
-				{Version: "4.20.0"},
-				{Version: "4.20.0-rc.1"},
-				{Version: "4.19.22"},
-			},
-			expected: []string{"4.20.0", "4.20.0-rc.1", "4.19.22"},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Make a copy to avoid modifying the test case
-			releases := make([]configv1.Release, len(tt.input))
-			copy(releases, tt.input)
-
-			// Sort the releases
-			sortReleasesByVersionDescending(releases)
-
-			// Verify the order
-			if len(releases) != len(tt.expected) {
-				t.Fatalf("Expected %d releases, got %d", len(tt.expected), len(releases))
-			}
-
-			for i, expectedVersion := range tt.expected {
-				if releases[i].Version != expectedVersion {
-					t.Errorf("Position %d: expected version %q, got %q", i, expectedVersion, releases[i].Version)
-				}
-			}
-		})
-	}
-}
-
-// mustParse is a test helper that parses a semantic version string and panics if parsing fails.
-// This is useful in test setup where version strings are known to be valid.
-func mustParse(version string) semver.Version {
-	v, err := semver.Parse(version)
-	if err != nil {
-		panic("invalid version in test: " + version)
-	}
-	return v
 }
