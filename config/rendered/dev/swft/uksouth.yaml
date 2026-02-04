@@ -1,12 +1,12 @@
 acm:
   mce:
     bundle:
-      digest: sha256:97ad52ee2c2f67a1fd8b9203df3b4dbe4e697913a4038963289e3410bbe8196d
+      digest: sha256:bb5fc2858d09063465a5b75333b855ee00e55a66e85b013f5725c8ed39601bb5
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-210
   operator:
     bundle:
-      digest: sha256:3319cb9ceb262a13cb4b7467f33cc86f373b598e9edd80cef075119bd1ef07e0
+      digest: sha256:ffc6aeefd2203ee476d91d88c3a6c585ec5cabb01a8821ab2dca27c3262fa653
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-215
 acr:
@@ -33,7 +33,7 @@ adminApi:
     issuer: Self
     name: admin-api-cert-swft-lnstest
   image:
-    digest: sha256:2f1c9d0cc8ca2a883d9e08081266b153929a01396ea7bb62ee7b7d9741985c67
+    digest: sha256:f42d6319a5d17108d1d3da18e82247bfad32860b0736eb06f274a475b8897c5e
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpadminapi
   k8s:
@@ -69,7 +69,7 @@ backend:
   azureRuntimeConfig:
     tlsCertificatesIssuer: Self
   image:
-    digest: sha256:0cb682758bf0ffbef1394bc455f9f9ff4f2f888abfa2a7f701106a631f9fe257
+    digest: sha256:5c48f2be231d9b0f1a37eecd017cd1b1e92a8b07fa03b57fb42442296b267d70
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpbackend
   k8s:
@@ -218,7 +218,7 @@ frontend:
     resourceContainerMaxScale: 4000
     zoneRedundantMode: Disabled
   image:
-    digest: sha256:da86c68ae5f2aa69b42dc63dd701488af6e6e2f9f1c0296248b43ad6ef59b926
+    digest: sha256:070885159bf6c1c44a73d4989529f9fdb725c8b7278b30711be0fe37f1857af0
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpfrontend
   k8s:
@@ -334,7 +334,7 @@ imageSync:
   ocMirror:
     enabled: true
     image:
-      digest: sha256:f210a0fee4970b7eb1fb10ce0357578ee602553927cbdd7ea60581e9432ee7ac
+      digest: sha256:cbca5ef36f4094fb53f7a798994eb13833c55c8ba4f733aa306e517d1bf3a6c8
       registry: arohcpsvcdev.azurecr.io
       repository: image-sync/oc-mirror
     jobNamePrefix: ""
