@@ -62,6 +62,18 @@ func NormalizeArchitecture(arch string) string {
 	return arch
 }
 
+// ParseDateFromTag attempts to extract a date from tag names with embedded YYMMDD format
+// Example: master.251204.1 -> 2025-12-04
+func ParseDateFromTag(tagName string) (time.Time, bool) {
+	datePattern := regexp.MustCompile(`^[^.]+\.(\d{6})\.`)
+	if matches := datePattern.FindStringSubmatch(tagName); len(matches) > 1 {
+		if t, err := time.Parse("060102", matches[1]); err == nil {
+			return t, true
+		}
+	}
+	return time.Time{}, false
+}
+
 // canonicalizeVersion ensures tag has 'v' prefix for semver library
 func canonicalizeVersion(tag string) string {
 	if !strings.HasPrefix(tag, "v") {
@@ -151,7 +163,7 @@ func PrepareTagsForArchValidation(tags []Tag, repository string, tagPattern stri
 				return tags[i].Name > tags[j].Name
 			}
 			// Use date as tiebreaker when tag names are identical
-		return tags[i].LastModified.After(tags[j].LastModified)
+			return tags[i].LastModified.After(tags[j].LastModified)
 		}
 		return false
 	})
