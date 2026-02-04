@@ -261,7 +261,23 @@ func (c *controlPlaneUpgradeSyncer) desiredControlPlaneZVersion(ctx context.Cont
 		if err != nil {
 			return "", err
 		}
-		return c.findLatestVersionInMinor(ctx, cincinnatiClient, channelGroup, customerDesiredMinor, seedVersion)
+
+		initialDesiredVersion, err := c.findLatestVersionInMinor(ctx, cincinnatiClient, channelGroup, customerDesiredMinor, seedVersion)
+		if err != nil {
+			return "", err
+		}
+
+		// If no desired version found, fall back to seedVersion
+		// This happens when either:
+		// - there is no latestVersion greater than seedVersion
+		// - or there is a latestVersion greater than seedVersion but it doesn't have an upgrade path to the next minor
+		// In both cases, seedVersion is guaranteed to exist (since we didn't get a VersionNotFound error back when querying
+		// for it from Cincinnati).  It is safe to use.
+		if initialDesiredVersion == "" {
+			initialDesiredVersion = seedVersion.String()
+		}
+
+		return initialDesiredVersion, nil
 	}
 
 	actualLatestVersion, err := semver.Parse(actualLatestVersionStr)
@@ -379,10 +395,7 @@ func (c *controlPlaneUpgradeSyncer) findLatestVersionInMinor(ctx context.Context
 		actualLatestVersion,
 	)
 	if err != nil {
-		if cincinatti.IsCincinnatiVersionNotFoundError(err) {
-			return "", fmt.Errorf("no updates found for channel %s from version %s", cincinnatiChannel, actualLatestVersion.String())
-		}
-		return "", fmt.Errorf("failed to query Cincinnati for channel %s from version %s: %w", cincinnatiChannel, actualLatestVersion.String(), err)
+		return "", err
 	}
 
 	if len(candidateReleases) == 0 {
