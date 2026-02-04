@@ -4,7 +4,7 @@
 	"_rid": "tKR1ALL7Gp0DAAAAAAAAAA==",
 	"_self": "dbs/tKR1AA==/colls/tKR1ALL7Gp0=/docs/tKR1ALL7Gp0DAAAAAAAAAA==/",
 	"_ts": 1767984258,
-	"id": "9696fbeb-0e78-4a32-a3fd-a6e987c2a015",
+	"id": "|subscriptions|6b690bec-0c16-4ecb-8f67-781caf40bba7|providers|microsoft.redhatopenshift|hcpoperationstatuses|9696fbeb-0e78-4a32-a3fd-a6e987c2a015",
 	"partitionKey": "6b690bec-0c16-4ecb-8f67-781caf40bba7",
 	"properties": {
 		"externalId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/create-with-tags",
