@@ -31,10 +31,10 @@ type HCPOpenShiftClusterExternalAuth struct {
 	ServiceProviderProperties HCPOpenShiftClusterExternalAuthServiceProviderProperties `json:"serviceProviderProperties,omitempty"`
 }
 
-var _ CosmosPersistable = &HCPOpenShiftClusterExternalAuth{}
+var _ arm.CosmosPersistable = &HCPOpenShiftClusterExternalAuth{}
 
-func (o *HCPOpenShiftClusterExternalAuth) GetCosmosData() *CosmosData {
-	return &CosmosData{
+func (o *HCPOpenShiftClusterExternalAuth) GetCosmosData() *arm.CosmosMetadata {
+	return &arm.CosmosMetadata{
 		ResourceID:        o.ID,
 		ExistingCosmosUID: o.ServiceProviderProperties.ExistingCosmosUID,
 	}

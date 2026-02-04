@@ -144,7 +144,7 @@ func (m *mockResourceCRUD[InternalAPIType, CosmosAPIType]) Get(ctx context.Conte
 		return nil, fmt.Errorf("failed to make ResourceID path for '%s': %w", resourceID, err)
 	}
 
-	cosmosID, err := api.ResourceIDToCosmosID(completeResourceID)
+	cosmosID, err := arm.ResourceIDToCosmosID(completeResourceID)
 	if err != nil {
 		return nil, err
 	}
@@ -199,7 +199,7 @@ func (m *mockResourceCRUD[InternalAPIType, CosmosAPIType]) Create(ctx context.Co
 	}
 
 	// Get cosmos ID from the object
-	cosmosPersistable, ok := any(newObj).(api.CosmosPersistable)
+	cosmosPersistable, ok := any(newObj).(arm.CosmosPersistable)
 	if !ok {
 		return nil, fmt.Errorf("type %T does not implement CosmosPersistable", newObj)
 	}
@@ -235,7 +235,7 @@ func (m *mockResourceCRUD[InternalAPIType, CosmosAPIType]) Replace(ctx context.C
 	}
 
 	// Get cosmos ID and etag from the object
-	cosmosPersistable, ok := any(newObj).(api.CosmosPersistable)
+	cosmosPersistable, ok := any(newObj).(arm.CosmosPersistable)
 	if !ok {
 		return nil, fmt.Errorf("type %T does not implement CosmosPersistable", newObj)
 	}
@@ -274,7 +274,7 @@ func (m *mockResourceCRUD[InternalAPIType, CosmosAPIType]) Delete(ctx context.Co
 		return err
 	}
 
-	cosmosUID := any(curr).(api.CosmosPersistable).GetCosmosData().GetCosmosUID()
+	cosmosUID := any(curr).(arm.CosmosPersistable).GetCosmosData().GetCosmosUID()
 	m.client.DeleteDocument(cosmosUID)
 	return nil
 }
@@ -290,7 +290,7 @@ func (m *mockResourceCRUD[InternalAPIType, CosmosAPIType]) AddCreateToTransactio
 		return "", fmt.Errorf("failed to marshal cosmos object: %w", err)
 	}
 
-	cosmosPersistable, ok := any(newObj).(api.CosmosPersistable)
+	cosmosPersistable, ok := any(newObj).(arm.CosmosPersistable)
 	if !ok {
 		return "", fmt.Errorf("type %T does not implement CosmosPersistable", newObj)
 	}
@@ -336,7 +336,7 @@ func (m *mockResourceCRUD[InternalAPIType, CosmosAPIType]) AddReplaceToTransacti
 		return "", fmt.Errorf("failed to marshal cosmos object: %w", err)
 	}
 
-	cosmosPersistable, ok := any(newObj).(api.CosmosPersistable)
+	cosmosPersistable, ok := any(newObj).(arm.CosmosPersistable)
 	if !ok {
 		return "", fmt.Errorf("type %T does not implement CosmosPersistable", newObj)
 	}
@@ -591,7 +591,7 @@ func (m *mockSubscriptionCRUD) Get(ctx context.Context, resourceName string) (*a
 		return nil, fmt.Errorf("failed to make ResourceID path for '%s': %w", resourceName, err)
 	}
 
-	cosmosID, err := api.ResourceIDToCosmosID(completeResourceID)
+	cosmosID, err := arm.ResourceIDToCosmosID(completeResourceID)
 	if err != nil {
 		return nil, err
 	}
@@ -703,7 +703,7 @@ func (m *mockSubscriptionCRUD) Delete(ctx context.Context, resourceName string) 
 		return fmt.Errorf("failed to make ResourceID path for '%s': %w", resourceName, err)
 	}
 
-	cosmosID, err := api.ResourceIDToCosmosID(completeResourceID)
+	cosmosID, err := arm.ResourceIDToCosmosID(completeResourceID)
 	if err != nil {
 		return err
 	}
@@ -840,7 +840,7 @@ func (m *mockUntypedCRUD) Get(ctx context.Context, resourceID *azcorearm.Resourc
 		return nil, fmt.Errorf("resourceID %q must be a descendent of parentResourceID %q", resourceID.String(), m.parentResourceID.String())
 	}
 
-	cosmosID, err := api.ResourceIDToCosmosID(resourceID)
+	cosmosID, err := arm.ResourceIDToCosmosID(resourceID)
 	if err != nil {
 		return nil, err
 	}

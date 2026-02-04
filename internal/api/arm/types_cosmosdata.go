@@ -76,6 +76,7 @@ func (o *CosmosMetadata) GetCosmosData() *CosmosMetadata {
 }
 
 type CosmosMetadataAccessor interface {
+	GetCosmosUID() string
 	GetResourceID() *azcorearm.ResourceID
 	SetResourceID(*azcorearm.ResourceID)
 	GetEtag() azcore.ETag

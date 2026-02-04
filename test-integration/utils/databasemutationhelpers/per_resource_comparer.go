@@ -29,6 +29,7 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
 )
 
@@ -124,9 +125,9 @@ func prepend(first string, rest ...string) []string {
 
 func ResourceName(resource any) string {
 	switch cast := resource.(type) {
-	case api.CosmosMetadataAccessor:
+	case arm.CosmosMetadataAccessor:
 		return cast.GetResourceID().String()
-	case api.CosmosPersistable:
+	case arm.CosmosPersistable:
 		return cast.GetCosmosData().ResourceID.String()
 
 	case database.TypedDocument:
