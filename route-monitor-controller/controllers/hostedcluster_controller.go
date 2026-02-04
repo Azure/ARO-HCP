@@ -58,6 +58,14 @@ func (r *HostedClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 
 	availableCondition := meta.FindStatusCondition(hostedCluster.Status.Conditions, string(hypershiftv1beta1.HostedClusterAvailable))
 	if availableCondition == nil {
+		logger.Info("HostedCluster is still being Provisioned")
+		return ctrl.Result{}, nil
+	}
+	if availableCondition.Status != metav1.ConditionTrue {
+		logger.Info("HostedCluster is not available yet",
+			"cluster", hostedCluster.Name,
+			"status", availableCondition.Status,
+			"reason", availableCondition.Reason)
 		return ctrl.Result{}, nil
 	}
 
@@ -98,46 +106,23 @@ func (r *HostedClusterReconciler) reconcileServiceMonitor(ctx context.Context, h
 		logger.Error(err, "Failed to get ServiceMonitor")
 		return ctrl.Result{}, err
 	}
+
 	needsUpdate := false
 
-	if !equality.Semantic.DeepEqual(&existing.Spec, &desired.Spec) {
-		logger.Info("ServiceMonitor spec differs, updating")
+	if !equality.Semantic.DeepEqual(existing.Spec, desired.Spec) {
 		existing.Spec = desired.Spec
-		return ctrl.Result{}, r.Update(ctx, &existing)
-	}
-
-	if !equality.Semantic.DeepEqual(&existing.Labels, &desired.Labels) {
-		logger.Info("ServiceMonitor labels differ, updating")
-		existing.Labels = desired.Labels
-		return ctrl.Result{}, r.Update(ctx, &existing)
-	}
-
-	logger.Info("ServiceMonitor is up to date")
-
-	// Verify OwnerReference is set (in case someone removed it)
-	hasOwnerRef := false
-	for _, ref := range existing.OwnerReferences {
-		if ref.UID == hostedCluster.UID {
-			hasOwnerRef = true
-			break
-		}
-	}
-	if !hasOwnerRef {
-		logger.Info("OwnerReference missing, re-adding")
-		if err := controllerutil.SetControllerReference(hostedCluster, &existing, r.Scheme); err != nil {
-			logger.Error(err, "Failed to set OwnerReference on existing ServiceMonitor")
-			return ctrl.Result{}, err
-		}
 		needsUpdate = true
 	}
-
+	if !equality.Semantic.DeepEqual(existing.Labels, desired.Labels) {
+		existing.Labels = desired.Labels
+		needsUpdate = true
+	}
+	if !equality.Semantic.DeepEqual(existing.OwnerReferences, desired.OwnerReferences) {
+		existing.OwnerReferences = desired.OwnerReferences
+		needsUpdate = true
+	}
 	if needsUpdate {
-		if err := r.Update(ctx, &existing); err != nil {
-			logger.Error(err, "Failed to update ServiceMonitor")
-			return ctrl.Result{}, err
-		}
-		logger.Info("Successfully updated ServiceMonitor")
-		return ctrl.Result{}, nil
+		return ctrl.Result{}, r.Update(ctx, &existing)
 	}
 
 	logger.Info("ServiceMonitor is up to date")
@@ -145,7 +130,7 @@ func (r *HostedClusterReconciler) reconcileServiceMonitor(ctx context.Context, h
 }
 
 func (r *HostedClusterReconciler) buildServiceMonitor(hostedCluster *hypershiftv1beta1.HostedCluster) (*monitoringv1.ServiceMonitor, error) {
-	serviceMonitorName := fmt.Sprintf("%s-route-monitor", hostedCluster.Name)
+	serviceMonitorName := "hcp-kas-monitor"
 	namespace := hostedCluster.Namespace
 
 	/*module := "http_2xx"
@@ -195,6 +180,10 @@ func (r *HostedClusterReconciler) buildServiceMonitor(hostedCluster *hypershiftv
 							Replacement: &hostedCluster.Spec.ClusterID,
 							TargetLabel: "_id",
 						},
+						{
+							Replacement: &hostedCluster.Namespace,
+							TargetLabel: "namespace",
+						},
 					},
 				},
 			},
@@ -205,7 +194,7 @@ func (r *HostedClusterReconciler) buildServiceMonitor(hostedCluster *hypershiftv
 func (r *HostedClusterReconciler) handleDeletion(ctx context.Context, hostedCluster *hypershiftv1beta1.HostedCluster) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
 
-	serviceMonitorName := fmt.Sprintf("%s-route-monitor", hostedCluster.Name)
+	serviceMonitorName := "hcp-kas-monitor"
 	namespace := hostedCluster.Namespace
 
 	var serviceMonitor monitoringv1.ServiceMonitor
@@ -235,7 +224,7 @@ func (r *HostedClusterReconciler) handleDeletion(ctx context.Context, hostedClus
 func (r *HostedClusterReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&hypershiftv1beta1.HostedCluster{}).
-		Owns(&monitoringv1.ServiceMonitor{}). // This makes it watch ServiceMonitor changes
+		Owns(&monitoringv1.ServiceMonitor{}).
 		Complete(r)
 }
 
@@ -243,8 +232,9 @@ func getRouteURL(hostedCluster *hypershiftv1beta1.HostedCluster) string {
 
 	for _, service := range hostedCluster.Spec.Services {
 		if service.Service == hypershiftv1beta1.APIServer {
-			routeUrl := service.ServicePublishingStrategy.Route.Hostname
-			return routeUrl
+			if service.ServicePublishingStrategy.Route != nil {
+				return service.ServicePublishingStrategy.Route.Hostname
+			}
 		}
 	}
 	return ""
