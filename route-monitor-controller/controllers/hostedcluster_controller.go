@@ -20,6 +20,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -50,21 +51,33 @@ func (r *HostedClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		return ctrl.Result{}, err
 	}
 
+	if !hostedCluster.DeletionTimestamp.IsZero() {
+		logger.Info("HostedCluster is being deleted, cleaning up ServiceMonitor")
+		return r.handleDeletion(ctx, &hostedCluster)
+	}
+
+	availableCondition := meta.FindStatusCondition(hostedCluster.Status.Conditions, string(hypershiftv1beta1.HostedClusterAvailable))
+	if availableCondition == nil {
+		return ctrl.Result{}, nil
+	}
+
 	return r.reconcileServiceMonitor(ctx, &hostedCluster)
 }
 
 func (r *HostedClusterReconciler) reconcileServiceMonitor(ctx context.Context, hostedCluster *hypershiftv1beta1.HostedCluster) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
-	desired := r.buildServiceMonitor(hostedCluster)
+	desired, err := r.buildServiceMonitor(hostedCluster)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
 
-	//Set OwnerReference for automatic garbage collection
 	if err := controllerutil.SetControllerReference(hostedCluster, desired, r.Scheme); err != nil {
 		logger.Error(err, "Failed to set OwnerReference")
 		return ctrl.Result{}, err
 	}
 
 	var existing monitoringv1.ServiceMonitor
-	err := r.Get(ctx, types.NamespacedName{
+	err = r.Get(ctx, types.NamespacedName{
 		Name:      desired.Name,
 		Namespace: desired.Namespace,
 	}, &existing)
@@ -131,7 +144,7 @@ func (r *HostedClusterReconciler) reconcileServiceMonitor(ctx context.Context, h
 	return ctrl.Result{}, nil
 }
 
-func (r *HostedClusterReconciler) buildServiceMonitor(hostedCluster *hypershiftv1beta1.HostedCluster) *monitoringv1.ServiceMonitor {
+func (r *HostedClusterReconciler) buildServiceMonitor(hostedCluster *hypershiftv1beta1.HostedCluster) (*monitoringv1.ServiceMonitor, error) {
 	serviceMonitorName := fmt.Sprintf("%s-route-monitor", hostedCluster.Name)
 	namespace := hostedCluster.Namespace
 
@@ -139,8 +152,11 @@ func (r *HostedClusterReconciler) buildServiceMonitor(hostedCluster *hypershiftv
 	if useInsecure {
 		module = "insecure_http_2xx"
 	}*/
-	module = "insecure_http_2xx"
+	module := "insecure_http_2xx"
 	routeURL := getRouteURL(hostedCluster)
+	if routeURL == "" {
+		return nil, fmt.Errorf("Route URL empty for the HostedCluster %s", hostedCluster.Name)
+	}
 
 	params := map[string][]string{
 		"module": {module},
@@ -159,7 +175,7 @@ func (r *HostedClusterReconciler) buildServiceMonitor(hostedCluster *hypershiftv
 		Spec: monitoringv1.ServiceMonitorSpec{
 			Selector: metav1.LabelSelector{
 				MatchLabels: map[string]string{
-					"app.kubernetes.io/name": "route-monitor-target",
+					"app.kubernetes.io/name": "route-monitor-controller",
 				},
 			},
 			Endpoints: []monitoringv1.Endpoint{
@@ -183,7 +199,37 @@ func (r *HostedClusterReconciler) buildServiceMonitor(hostedCluster *hypershiftv
 				},
 			},
 		},
+	}, nil
+}
+
+func (r *HostedClusterReconciler) handleDeletion(ctx context.Context, hostedCluster *hypershiftv1beta1.HostedCluster) (ctrl.Result, error) {
+	logger := log.FromContext(ctx)
+
+	serviceMonitorName := fmt.Sprintf("%s-route-monitor", hostedCluster.Name)
+	namespace := hostedCluster.Namespace
+
+	var serviceMonitor monitoringv1.ServiceMonitor
+	err := r.Get(ctx, client.ObjectKey{
+		Name:      serviceMonitorName,
+		Namespace: namespace,
+	}, &serviceMonitor)
+
+	if err != nil {
+		if errors.IsNotFound(err) {
+			logger.Info("ServiceMonitor not found, may already be deleted")
+			return ctrl.Result{}, nil
+		}
+		logger.Error(err, "Failed to get ServiceMonitor for deletion")
+		return ctrl.Result{}, err
 	}
+
+	logger.Info("Deleting ServiceMonitor", "name", serviceMonitorName, "namespace", namespace)
+	if err := r.Delete(ctx, &serviceMonitor); err != nil {
+		logger.Error(err, "Failed to delete ServiceMonitor")
+		return ctrl.Result{}, err
+	}
+
+	return ctrl.Result{}, nil
 }
 
 func (r *HostedClusterReconciler) SetupWithManager(mgr ctrl.Manager) error {
