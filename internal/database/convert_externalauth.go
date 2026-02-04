@@ -37,6 +37,9 @@ func InternalToCosmosExternalAuth(internalObj *api.HCPOpenShiftClusterExternalAu
 			ResourceType: internalObj.ID.ResourceType.String(),
 		},
 		ExternalAuthProperties: ExternalAuthProperties{
+			CosmosMetadata: api.CosmosMetadata{
+				ResourceID: internalObj.ID,
+			},
 			ResourceDocument: &ResourceDocument{
 				ResourceID:        internalObj.ID,
 				InternalID:        internalObj.ServiceProviderProperties.ClusterServiceID,
@@ -46,6 +49,7 @@ func InternalToCosmosExternalAuth(internalObj *api.HCPOpenShiftClusterExternalAu
 				SystemData:        internalObj.SystemData,
 				Tags:              nil,
 			},
+
 			InternalState: ExternalAuthInternalState{
 				InternalAPI: *internalObj,
 			},

@@ -16,13 +16,9 @@ package database
 
 import (
 	"fmt"
-	"path"
 	"strings"
 
-	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
-
 	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 func InternalToCosmosSubscription(internalObj *arm.Subscription) (*Subscription, error) {
@@ -48,7 +44,6 @@ func InternalToCosmosSubscription(internalObj *arm.Subscription) (*Subscription,
 	}
 
 	// some pieces of data conflict with standard fields.  We may evolve over time, but for now avoid persisting those.
-	cosmosObj.InternalState.CosmosUID = ""
 
 	return cosmosObj, nil
 }
@@ -61,17 +56,11 @@ func CosmosToInternalSubscription(cosmosObj *Subscription) (*arm.Subscription, e
 	tempInternalAPI := cosmosObj.InternalState.Subscription
 	internalObj := &tempInternalAPI
 
-	// some pieces of data are stored on the ResourceDocument, so we need to restore that data
-	// this allows us to read old data until we migrate all existing data
-	if internalObj.ResourceID == nil {
-		resourceID, err := azcorearm.ParseResourceID(path.Join("/subscriptions", cosmosObj.ID))
-		if err != nil {
-			return nil, utils.TrackError(err)
-		}
-		internalObj.ResourceID = resourceID
+	// old records don't serialize this, but we want all readers to be able to depend on it.
+	if internalObj.CosmosMetadata.ResourceID == nil {
+		internalObj.CosmosMetadata.ResourceID = internalObj.ResourceID
 	}
 	internalObj.LastUpdated = cosmosObj.CosmosTimestamp
-	internalObj.CosmosUID = cosmosObj.ID
 
 	return internalObj, nil
 }

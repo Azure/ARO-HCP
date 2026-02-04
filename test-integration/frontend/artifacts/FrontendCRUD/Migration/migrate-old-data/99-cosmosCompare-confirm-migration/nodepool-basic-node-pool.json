@@ -8,6 +8,9 @@
 	"partitionKey": "6b690bec-0c16-4ecb-8f67-781caf40bba7",
 	"properties": {
 		"activeOperationId": "cdfb496e-6e70-4022-9f8d-b0dacf6d2ff5",
+		"cosmosMetadata": {
+			"resourceID": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/create-with-tags/nodePools/basic-node-pool"
+		},
 		"intermediateResourceDoc": {
 			"activeOperationId": "cdfb496e-6e70-4022-9f8d-b0dacf6d2ff5",
 			"internalId": "/api/clusters_mgmt/v1/clusters/9p2sk955gj/node_pools/59mkgdzg9s",

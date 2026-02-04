@@ -101,6 +101,8 @@ func ResourceInstanceEquals(t *testing.T, expected, actual any) (string, bool) {
 			case strings.EqualFold(resourceType, api.OperationStatusResourceType.String()):
 				// this field is UUID generated, so usually cannot be compared for operations, but CAN be compared for everything else.
 				unstructured.RemoveNestedField(currMap, prepend(possiblePrepend, "resourceId")...)
+				// cosmosMetadata.resourceID is derived from the same UUID-generated data, so strip it too.
+				unstructured.RemoveNestedField(currMap, prepend(possiblePrepend, "cosmosMetadata")...)
 			}
 		}
 	}

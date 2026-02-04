@@ -8,6 +8,9 @@
 	"partitionKey": "6b690bec-0c16-4ecb-8f67-781caf40bba7",
 	"properties": {
 		"activeOperationId": "bb83a448-9eb0-431c-9fd3-9cec8699ea5f",
+		"cosmosMetadata": {
+			"resourceID": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/create-with-tags"
+		},
 		"identity": {
 			"type": "UserAssigned"
 		},
@@ -73,8 +76,8 @@
 						"subnetId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/bar/providers/Microsoft.Network/virtualNetworks/vnet/subnets/subnet"
 					},
 					"version": {
-						"id": "4.20",
-						"channelGroup": "stable"
+						"channelGroup": "stable",
+						"id": "4.20"
 					}
 				},
 				"location": "fake-location",

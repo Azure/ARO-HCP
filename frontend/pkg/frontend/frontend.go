@@ -510,10 +510,11 @@ func (f *Frontend) ArmSubscriptionPut(writer http.ResponseWriter, request *http.
 	if err != nil {
 		return arm.NewInvalidRequestContentError(err)
 	}
-	requestSubscription.ResourceID, err = arm.ToSubscriptionResourceID(subscriptionID)
+	requestSubscription.CosmosMetadata.ResourceID, err = arm.ToSubscriptionResourceID(subscriptionID)
 	if err != nil {
 		return utils.TrackError(err)
 	}
+	requestSubscription.ResourceID = requestSubscription.CosmosMetadata.ResourceID
 
 	validationErrs := validation.ValidateSubscriptionCreate(ctx, &requestSubscription)
 	if err := arm.CloudErrorFromFieldErrors(validationErrs); err != nil {
