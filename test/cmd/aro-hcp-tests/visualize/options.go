@@ -15,11 +15,14 @@
 package visualize
 
 import (
+	"bytes"
+	"compress/gzip"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -102,7 +105,7 @@ func (o *RawOptions) Validate() (*ValidatedOptions, error) {
 }
 
 func (o *ValidatedOptions) Complete(logger logr.Logger) (*Options, error) {
-	timingPathMatcher, err := regexp.Compile(`timing-metadata-[a-z0-9]+.yaml`)
+	timingPathMatcher, err := regexp.Compile(`timing-metadata-[a-z0-9]+\.yaml(\.gz)?`)
 	if err != nil {
 		return nil, fmt.Errorf("failed to compile timing file regexp: %w", err)
 	}
@@ -120,9 +123,26 @@ func (o *ValidatedOptions) Complete(logger logr.Logger) (*Options, error) {
 		}
 		file := filepath.Join(o.TimingInputDir, path)
 		logger.Info("Reading input file", "path", file)
-		rawTiming, err := os.ReadFile(file)
+		fileData, err := os.ReadFile(file)
 		if err != nil {
 			return fmt.Errorf("failed to read timing input file: %w", err)
+		}
+
+		var rawTiming []byte
+		// Check if file is gzipped
+		if strings.HasSuffix(d.Name(), ".gz") {
+			gzipReader, err := gzip.NewReader(bytes.NewReader(fileData))
+			if err != nil {
+				return fmt.Errorf("failed to create gzip reader: %w", err)
+			}
+			defer gzipReader.Close()
+
+			rawTiming, err = io.ReadAll(gzipReader)
+			if err != nil {
+				return fmt.Errorf("failed to decompress timing file: %w", err)
+			}
+		} else {
+			rawTiming = fileData
 		}
 
 		var rawTime timing.SpecTimingMetadata

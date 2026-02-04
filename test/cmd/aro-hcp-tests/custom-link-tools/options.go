@@ -22,6 +22,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"html/template"
+	"io"
 	"net/url"
 	"os"
 	"path"
@@ -124,9 +125,31 @@ func (o *RawOptions) Validate() (*ValidatedOptions, error) {
 
 func (o *ValidatedOptions) Complete(logger logr.Logger) (*Options, error) {
 	// we consume steps.yaml (output of templatize and stored for us by the visualization) to determine the cluster name
-	stepsYamlBytes, err := os.ReadFile(path.Join(o.TimingInputDir, "steps.yaml"))
-	if err != nil {
-		return nil, utils.TrackError(err)
+	// Try to read compressed file first, then fall back to uncompressed
+	var stepsYamlBytes []byte
+
+	compressedPath := path.Join(o.TimingInputDir, "steps.yaml.gz")
+	uncompressedPath := path.Join(o.TimingInputDir, "steps.yaml")
+
+	// Try compressed file first
+	compressedData, err := os.ReadFile(compressedPath)
+	if err == nil {
+		gzipReader, err := gzip.NewReader(bytes.NewReader(compressedData))
+		if err != nil {
+			return nil, fmt.Errorf("failed to create gzip reader: %w", err)
+		}
+		defer gzipReader.Close()
+
+		stepsYamlBytes, err = io.ReadAll(gzipReader)
+		if err != nil {
+			return nil, fmt.Errorf("failed to decompress steps.yaml.gz: %w", err)
+		}
+	} else {
+		// Fall back to uncompressed file
+		stepsYamlBytes, err = os.ReadFile(uncompressedPath)
+		if err != nil {
+			return nil, utils.TrackError(err)
+		}
 	}
 
 	var steps []pipeline.NodeInfo
@@ -315,7 +338,7 @@ func loadAllTestTimingInfo(timingInputDir string) (map[string]TimingInfo, error)
 		}
 		if !info.IsDir() {
 			fileName := filepath.Base(path)
-			if strings.HasSuffix(fileName, ".yaml") && strings.HasPrefix(fileName, "timing-metadata-") {
+			if (strings.HasSuffix(fileName, ".yaml") || strings.HasSuffix(fileName, ".yaml.gz")) && strings.HasPrefix(fileName, "timing-metadata-") {
 				allTimingFiles = append(allTimingFiles, path)
 			}
 		}
@@ -328,10 +351,28 @@ func loadAllTestTimingInfo(timingInputDir string) (map[string]TimingInfo, error)
 	var allTimingInfo = make(map[string]TimingInfo)
 
 	for _, timingFile := range allTimingFiles {
-		timingFileBytes, err := os.ReadFile(timingFile)
+		fileData, err := os.ReadFile(timingFile)
 		if err != nil {
 			return nil, err
 		}
+
+		var timingFileBytes []byte
+		// Check if file is gzipped
+		if strings.HasSuffix(timingFile, ".gz") {
+			gzipReader, err := gzip.NewReader(bytes.NewReader(fileData))
+			if err != nil {
+				return nil, fmt.Errorf("failed to create gzip reader for %s: %w", timingFile, err)
+			}
+			defer gzipReader.Close()
+
+			timingFileBytes, err = io.ReadAll(gzipReader)
+			if err != nil {
+				return nil, fmt.Errorf("failed to decompress %s: %w", timingFile, err)
+			}
+		} else {
+			timingFileBytes = fileData
+		}
+
 		var timing timing.SpecTimingMetadata
 		err = yaml.Unmarshal(timingFileBytes, &timing)
 		if err != nil {
