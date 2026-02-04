@@ -870,7 +870,7 @@ func (m *mockUntypedCRUD) Get(ctx context.Context, resourceID *azcorearm.Resourc
 				if err := json.Unmarshal(docData, &typedDoc); err != nil {
 					continue
 				}
-				return &typedDoc, nil
+				return database.CosmosToInternal[database.TypedDocument, database.TypedDocument](&typedDoc)
 			}
 		}
 
@@ -882,7 +882,7 @@ func (m *mockUntypedCRUD) Get(ctx context.Context, resourceID *azcorearm.Resourc
 		return nil, fmt.Errorf("failed to unmarshal document: %w", err)
 	}
 
-	return &typedDoc, nil
+	return database.CosmosToInternal[database.TypedDocument, database.TypedDocument](&typedDoc)
 }
 
 func (m *mockUntypedCRUD) List(ctx context.Context, opts *database.DBClientListResourceDocsOptions) (database.DBClientIterator[database.TypedDocument], error) {
@@ -934,8 +934,12 @@ func (m *mockUntypedCRUD) listInternal(ctx context.Context, opts *database.DBCli
 		}
 
 		docCopy := typedDoc
-		ids = append(ids, typedDoc.ID)
-		items = append(items, &docCopy)
+		docPointer, err := database.CosmosToInternal[database.TypedDocument, database.TypedDocument](&docCopy)
+		if err != nil {
+			continue
+		}
+		ids = append(ids, docPointer.ID)
+		items = append(items, docPointer)
 	}
 
 	return newMockIterator(ids, items), nil

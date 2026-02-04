@@ -41,6 +41,7 @@ func InternalToCosmosOperation(internalObj *api.Operation) (*Operation, error) {
 				TimeToLive: operationTimeToLive,
 			},
 			PartitionKey: strings.ToLower(internalObj.ExternalID.SubscriptionID),
+			ResourceID:   internalObj.CosmosMetadata.ResourceID,
 			ResourceType: api.OperationStatusResourceType.String(),
 		},
 		OperationProperties: *internalObj,

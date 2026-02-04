@@ -42,6 +42,7 @@ func InternalToCosmosGeneric[InternalAPIType any](internalObj *InternalAPIType) 
 				ID: cosmosID,
 			},
 			PartitionKey: strings.ToLower(metadata.GetResourceID().SubscriptionID),
+			ResourceID:   metadata.GetResourceID(),
 			ResourceType: metadata.GetResourceID().ResourceType.String(),
 		},
 		Content: *internalObj,

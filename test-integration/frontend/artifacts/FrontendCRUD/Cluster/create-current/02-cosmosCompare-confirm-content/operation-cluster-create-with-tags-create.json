@@ -6,6 +6,7 @@
 	"_ts": 1766174370,
 	"id": "|subscriptions|6b690bec-0c16-4ecb-8f67-781caf40bba7|providers|microsoft.redhatopenshift|hcpoperationstatuses|7a4ed07a-47a1-4efb-966a-93a6316522a0",
 	"partitionKey": "6b690bec-0c16-4ecb-8f67-781caf40bba7",
+	"resourceID": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/providers/Microsoft.RedHatOpenShift/hcpOperationStatuses/7a4ed07a-47a1-4efb-966a-93a6316522a0",
 	"properties": {
 		"cosmosMetadata": {
 			"resourceID": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/providers/Microsoft.RedHatOpenShift/hcpOperationStatuses/7a4ed07a-47a1-4efb-966a-93a6316522a0"

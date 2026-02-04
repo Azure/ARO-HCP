@@ -33,14 +33,6 @@ var (
 	ResourceIDStringToCosmosID = arm.ResourceIDStringToCosmosID
 )
 
-func CosmosIDToResourceID(resourceID string) (*azcorearm.ResourceID, error) {
-	return azcorearm.ParseResourceID(strings.ReplaceAll(resourceID, "|", "/"))
-}
-
-func ToResourceGroupResourceID(subscriptionName, resourcGroupName string) (*azcorearm.ResourceID, error) {
-	return azcorearm.ParseResourceID(ToResourceGroupResourceIDString(subscriptionName, resourcGroupName))
-}
-
 func ToResourceGroupResourceIDString(subscriptionName, resourcGroupName string) string {
 	return strings.ToLower(path.Join("/subscriptions", subscriptionName, "resourceGroups", resourcGroupName))
 }
