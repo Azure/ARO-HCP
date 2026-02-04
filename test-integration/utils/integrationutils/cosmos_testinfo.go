@@ -308,7 +308,7 @@ func saveContainerContent(ctx context.Context, documentLister DocumentLister, ou
 				filename = filepath.Join("unknown", fmt.Sprintf("unknown_%d.json", docCount))
 			}
 		}
-		filename = filepath.Join(containerDir, filename)
+		filename = filepath.Join(containerDir, strings.ToLower(filename))
 		logger.Info("Saving document", "filename", filename)
 
 		dirName := filepath.Dir(filename)
