@@ -205,6 +205,7 @@ spec:
     name: xlarge
   - criteria:
       from: 361
+      to: 999998
     effects:
       kasGoMemLimit: 72GiB
       resourceRequests:
@@ -239,6 +240,41 @@ spec:
         deploymentName: ovnkube-control-plane
         memory: 2Gi
     name: xxlarge
+  - criteria:
+      from: 999999
+    effects:
+      maximumMutatingRequestsInflight: 99999
+      maximumRequestsInflight: 99999
+      resourceRequests:
+      - containerName: kube-apiserver
+        deploymentName: kube-apiserver
+        memory: 100Mi
+        cpu: 100m
+      - containerName: openshift-controller-manager
+        deploymentName: openshift-controller-manager
+        memory: 100Mi
+        cpu: 100m
+      - containerName: cluster-policy-controller
+        deploymentName: cluster-policy-controller
+        memory: 100Mi
+        cpu: 100m
+      - containerName: kube-controller-manager
+        deploymentName: kube-controller-manager
+        memory: 100Mi
+        cpu: 100m
+      - containerName: openshift-apiserver
+        deploymentName: openshift-apiserver
+        memory: 100Mi
+        cpu: 100m
+      - containerName: etcd
+        deploymentName: etcd
+        memory: 100Mi
+        cpu: 100m
+      - containerName: ovnkube-control-plane
+        deploymentName: ovnkube-control-plane
+        memory: 100Mi
+        cpu: 100m
+    name: e2e_minimal
   transitionDelay:
     decrease: 20m
     increase: 0s
