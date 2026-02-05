@@ -181,12 +181,13 @@ func (c *controlPlaneUpgradeSyncer) SyncOnce(ctx context.Context, key controller
 // with the new version prepended if it differs from the most recent version.
 // If the most recent version matches the new version, returns the original slice unchanged.
 // The returned slice is capped to the 2 most recent versions.
-func (c *controlPlaneUpgradeSyncer) prependActiveVersionIfChanged(
-	currentVersions []api.HCPClusterActiveVersion,
+func (c *controlPlaneUpgradeSyncer) prependActiveVersionIfChanged(currentVersions []api.HCPClusterActiveVersion,
 	newVersion string,
 ) []api.HCPClusterActiveVersion {
 	// Check if the tip (most recent version) is already the new version
-	if len(currentVersions) > 0 && currentVersions[0].Version != nil && currentVersions[0].Version.String() == newVersion {
+	if len(currentVersions) > 0 &&
+		currentVersions[0].Version != nil &&
+		currentVersions[0].Version.String() == newVersion {
 		return currentVersions
 	}
 
@@ -200,21 +201,38 @@ func (c *controlPlaneUpgradeSyncer) prependActiveVersionIfChanged(
 	return newVersions
 }
 
-// getCincinnatiClient provides a point for unit testing.  Likely need to provide transport injection for integration testing.
-func (c *controlPlaneUpgradeSyncer) getCincinnatiClient(key controllerutils.HCPClusterKey, clusterID uuid.UUID) cincinatti.Client {
+// getCincinnatiClient provides a point for unit testing.
+// Likely need to provide transport injection for integration testing.
+func (c *controlPlaneUpgradeSyncer) getCincinnatiClient(key controllerutils.HCPClusterKey, clusterID uuid.UUID,
+) cincinatti.Client {
+	// Fast path: check cache with read lock
 	c.cincinnatiClientLock.RLock()
-	defer c.cincinnatiClientLock.RUnlock()
+	client, ok := c.clusterToCincinnatiClient.Get(key)
+	c.cincinnatiClientLock.RUnlock()
 
-	ret, ok := c.clusterToCincinnatiClient.Get(key)
 	if ok {
-		return ret.(cincinatti.Client)
+		return client.(cincinatti.Client)
 	}
 
+	// Slow path: cache miss, need to create
 	c.cincinnatiClientLock.Lock()
 	defer c.cincinnatiClientLock.Unlock()
-	ret = cincinnati.NewClient(clusterID, http.DefaultTransport.(*http.Transport), "ARO-HCP", cincinatti.NewAlwaysConditionRegistry())
-	c.clusterToCincinnatiClient.Add(key, ret)
-	return ret.(cincinatti.Client)
+
+	// Double-check: another goroutine might have created it while we waited
+	client, ok = c.clusterToCincinnatiClient.Get(key)
+	if ok {
+		return client.(cincinatti.Client)
+	}
+
+	// Create and cache
+	client = cincinnati.NewClient(
+		clusterID,
+		http.DefaultTransport.(*http.Transport),
+		"ARO-HCP",
+		cincinatti.NewAlwaysConditionRegistry(),
+	)
+	c.clusterToCincinnatiClient.Add(key, client)
+	return client.(cincinatti.Client)
 }
 
 // desiredControlPlaneZVersion determines the desired z-stream version for the control plane.
@@ -228,7 +246,11 @@ func (c *controlPlaneUpgradeSyncer) getCincinnatiClient(key controllerutils.HCPC
 // - Case 3: Next Y-stream user-initiated upgrade (customer desired minor == actual minor + 1)
 //
 // Returns nil if no upgrade is needed.
-func (c *controlPlaneUpgradeSyncer) desiredControlPlaneZVersion(ctx context.Context, cincinnatiClient cincinatti.Client, customerDesiredMinor string, channelGroup string, activeVersions []api.HCPClusterActiveVersion) (*semver.Version, error) {
+func (c *controlPlaneUpgradeSyncer) desiredControlPlaneZVersion(
+	ctx context.Context, cincinnatiClient cincinatti.Client,
+	customerDesiredMinor string, channelGroup string,
+	activeVersions []api.HCPClusterActiveVersion,
+) (*semver.Version, error) {
 	logger := utils.LoggerFromContext(ctx)
 	logger.Info("Retrieved cluster version state",
 		"activeVersions", activeVersions,
