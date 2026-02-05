@@ -119,6 +119,7 @@ func (tt *ResourceMutationTest) RunTest(t *testing.T) {
 	}()
 	defer cancel()
 	ctx = utils.ContextWithLogger(ctx, integrationutils.DefaultLogger(t))
+	logger := utils.LoggerFromContext(ctx)
 
 	testInfo, err := integrationutils.NewIntegrationTestInfoFromEnv(ctx, t, tt.withMock)
 	require.NoError(t, err)
@@ -138,10 +139,13 @@ func (tt *ResourceMutationTest) RunTest(t *testing.T) {
 	serverUrls := []string{testInfo.FrontendURL, testInfo.AdminURL}
 	err = wait.PollUntilContextCancel(ctx, 1*time.Second, true, func(ctx context.Context) (bool, error) {
 		for _, url := range serverUrls {
-			_, err := http.Get(url)
+			resp, err := http.Get(url)
 			if err != nil {
 				t.Log(err)
 				return false, nil
+			}
+			if err := resp.Body.Close(); err != nil {
+				logger.Error(err, "failed to close response body")
 			}
 		}
 		return true, nil
