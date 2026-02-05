@@ -226,6 +226,7 @@ func (tc *perItOrDescribeTestContext) DeployManagedIdentities(
 		"msiResourceGroupName":     msiRGName,
 		"identities":               identities,
 		"rbacScope":                rbacScope,
+		"clusterName":              clusterName,
 	}
 
 	deploymentResult, err := tc.CreateBicepTemplateAndWait(ctx,
