@@ -59,6 +59,7 @@ func CosmosToInternalSubscription(cosmosObj *Subscription) (*arm.Subscription, e
 
 	// old records don't serialize this, but we want all readers to be able to depend on it.
 	internalObj.ExistingCosmosUID = cosmosObj.ID
+	internalObj.CosmosETag = cosmosObj.CosmosETag
 	if internalObj.CosmosMetadata.ResourceID == nil {
 		internalObj.CosmosMetadata.ResourceID = internalObj.ResourceID
 	}
