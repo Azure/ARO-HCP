@@ -62,8 +62,8 @@ func GetOrCreateServiceProviderCluster(
 		return nil, utils.TrackError(fmt.Errorf("failed to get ServiceProviderCluster: %w", err))
 	}
 
-	intialServiceProviderCluster := newInitialServiceProviderCluster(clusterResourceID)
-	existingServiceProviderCluster, err = serviceProviderClustersDBClient.Create(ctx, intialServiceProviderCluster, nil)
+	initialServiceProviderCluster := newInitialServiceProviderCluster(clusterResourceID)
+	existingServiceProviderCluster, err = serviceProviderClustersDBClient.Create(ctx, initialServiceProviderCluster, nil)
 	if err == nil {
 		return existingServiceProviderCluster, nil
 	}
