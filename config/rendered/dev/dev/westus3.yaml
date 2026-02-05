@@ -44,6 +44,11 @@ adminApi:
 administration:
   readerGroupId: ""
   releaseManagementGroupId: ""
+aksCommandRuntime:
+  image:
+    digest: sha256:f8e7b759f7756f30f4f8f2c3c35ad8d7450d7ad78ced1fcefff913c037568a53
+    registry: mcr.microsoft.com
+    repository: aks/command/runtime
 armHelperCertName: armHelperCert2
 armHelperClientId: 3331e670-0804-48e8-a086-6241671ddc93
 armHelperFPAPrincipalId: 47f69502-0065-4d9a-b19b-d403e183d2f4
@@ -334,7 +339,7 @@ imageSync:
   ocMirror:
     enabled: true
     image:
-      digest: sha256:ca4ed897cc1d00d43771c48606b03c6e304b691af50f2a7c3ded614b19968d68
+      digest: sha256:a53440a24a71e7d5d145ed962a37cf177a44d287dee6c8fa07cc3b4968e5c95a
       registry: arohcpsvcdev.azurecr.io
       repository: image-sync/oc-mirror
     jobNamePrefix: ""

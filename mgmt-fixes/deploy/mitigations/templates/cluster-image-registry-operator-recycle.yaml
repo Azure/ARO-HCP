@@ -22,7 +22,7 @@ spec:
           restartPolicy: OnFailure
           containers:
           - name: recycle-operator
-            image: mcr.microsoft.com/aks/command/runtime:master.240118.1
+            image: "{{ .Values.recycleOperatorImage }}"
             command:
             - /bin/bash
             - -c

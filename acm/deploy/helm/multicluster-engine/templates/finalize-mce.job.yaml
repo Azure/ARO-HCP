@@ -31,7 +31,7 @@ spec:
             sleep 5
           done
           echo "Namespace 'local-cluster' found."
-        image: mcr.microsoft.com/aks/command/runtime:master.240118.1
+        image: '{{ .Values.finalizeMceJobImage }}'
         name: finalize
       restartPolicy: Never
       serviceAccountName: multicluster-engine-operator

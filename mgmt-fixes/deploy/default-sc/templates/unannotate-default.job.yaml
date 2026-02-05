@@ -50,7 +50,7 @@ spec:
         - -c
         - |
           kubectl annotate storageclass default storageclass.kubernetes.io/is-default-class=false --overwrite
-        image: mcr.microsoft.com/aks/command/runtime:master.240118.1
+        image: "{{ .Values.unannotateJobImage }}"
         name: finalize
       restartPolicy: OnFailure
       serviceAccountName: annotator

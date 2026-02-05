@@ -62,6 +62,18 @@ func NormalizeArchitecture(arch string) string {
 	return arch
 }
 
+// ParseDateFromTag attempts to extract a date from tag names with embedded YYMMDD format
+// Example: master.251204.1 -> 2025-12-04
+func ParseDateFromTag(tagName string) (time.Time, bool) {
+	datePattern := regexp.MustCompile(`^[^.]+\.(\d{6})\.`)
+	if matches := datePattern.FindStringSubmatch(tagName); len(matches) > 1 {
+		if t, err := time.Parse("060102", matches[1]); err == nil {
+			return t, true
+		}
+	}
+	return time.Time{}, false
+}
+
 // canonicalizeVersion ensures tag has 'v' prefix for semver library
 func canonicalizeVersion(tag string) string {
 	if !strings.HasPrefix(tag, "v") {
@@ -118,16 +130,23 @@ func PrepareTagsForArchValidation(tags []Tag, repository string, tagPattern stri
 		useSemverSort = allSemver
 	}
 
-	// Sort tags: semver by version (descending), otherwise by date (descending)
+	// Sort tags based on the tag pattern and type
 	sort.Slice(tags, func(i, j int) bool {
 		if useSemverSort {
+			// For semver tags, sort by version (descending)
 			cmp := semver.Compare(canonicalizeVersion(tags[i].Name), canonicalizeVersion(tags[j].Name))
 			if cmp != 0 {
 				return cmp > 0 // Higher version first
 			}
 		}
-		// Use date as tiebreaker or default sorting
-		return tags[i].LastModified.After(tags[j].LastModified)
+
+		// Default: sort by date (newest first), fallback to tag name
+		// This applies to: unfiltered tags, SHA patterns, and non-semver pattern tags
+		if !tags[i].LastModified.Equal(tags[j].LastModified) {
+			return tags[i].LastModified.After(tags[j].LastModified)
+		}
+		// Use tag name as tiebreaker when dates are identical, missing, or invalid
+		return tags[i].Name > tags[j].Name
 	})
 
 	return tags, nil

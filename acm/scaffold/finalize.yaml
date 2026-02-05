@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
       - name: finalize
-        image: mcr.microsoft.com/aks/command/runtime:master.240118.1
+        image: "{{ .Values.finalizeMceJobImage }}"
         command:
         - /bin/sh
         - -c

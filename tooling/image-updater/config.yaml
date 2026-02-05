@@ -220,6 +220,16 @@ images:
     - jsonPath: defaults.acm.mce.bundle.digest
       filePath: ../../config/config.yaml
       env: dev
+  # AKS Runtime Image
+  aksCommandRuntime:
+    source:
+      image: mcr.microsoft.com/aks/command/runtime
+      tagPattern: "^master\\.\\d+\\.\\d+$"
+      multiArch: true
+    targets:
+    - jsonPath: defaults.aksCommandRuntime.image.digest
+      filePath: ../../config/config.yaml
+      env: dev
   # MSI-Acrpull image
   acrPull:
     source:
