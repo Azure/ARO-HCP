@@ -61,6 +61,7 @@ func CosmosToInternalOperation(cosmosObj *Operation) (*api.Operation, error) {
 	internalObj := &tempInternalAPI
 
 	// old records don't serialize this, but we want all readers to be able to depend on it.
+	internalObj.ExistingCosmosUID = cosmosObj.ID
 	if internalObj.CosmosMetadata.ResourceID == nil {
 		internalObj.CosmosMetadata.ResourceID = internalObj.ResourceID
 	}

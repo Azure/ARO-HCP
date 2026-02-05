@@ -146,6 +146,7 @@ func CosmosToInternalCluster(cosmosObj *HCPCluster) (*api.HCPOpenShiftCluster, e
 	internalObj.Identity = toInternalIdentity(resourceDoc.Identity)
 	internalObj.SystemData = resourceDoc.SystemData
 	internalObj.Tags = copyTags(resourceDoc.Tags)
+	internalObj.ServiceProviderProperties.ExistingCosmosUID = cosmosObj.ID
 	internalObj.ServiceProviderProperties.ProvisioningState = resourceDoc.ProvisioningState
 	internalObj.ServiceProviderProperties.ClusterServiceID = resourceDoc.InternalID
 	internalObj.ServiceProviderProperties.ActiveOperationID = resourceDoc.ActiveOperationID

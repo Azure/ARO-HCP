@@ -34,7 +34,8 @@ var _ CosmosPersistable = &HCPOpenShiftClusterExternalAuth{}
 
 func (o *HCPOpenShiftClusterExternalAuth) GetCosmosData() *CosmosData {
 	return &CosmosData{
-		ResourceID: o.ID,
+		ResourceID:        o.ID,
+		ExistingCosmosUID: o.ServiceProviderProperties.ExistingCosmosUID,
 	}
 }
 
@@ -49,6 +50,7 @@ type HCPOpenShiftClusterExternalAuthProperties struct {
 }
 
 type HCPOpenShiftClusterExternalAuthServiceProviderProperties struct {
+	ExistingCosmosUID string     `json:"existingCosmosUID,omitempty"`
 	ClusterServiceID  InternalID `json:"clusterServiceID,omitempty"`
 	ActiveOperationID string     `json:"activeOperationId,omitempty"`
 }

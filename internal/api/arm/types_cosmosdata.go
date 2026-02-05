@@ -28,6 +28,10 @@ import (
 type CosmosMetadata struct {
 	ResourceID *azcorearm.ResourceID `json:"resourceID"`
 
+	// ExistingCosmosUID exists to allow for a migration path from where we are today to a uuid based cosmosID
+	// and this will be deleted afterwards.
+	ExistingCosmosUID string `json:"existingCosmosUID,omitempty"`
+
 	CosmosETag azcore.ETag `json:"etag,omitempty"`
 }
 
@@ -41,6 +45,9 @@ type CosmosPersistable interface {
 }
 
 func (o *CosmosMetadata) GetCosmosUID() string {
+	if len(o.ExistingCosmosUID) > 0 {
+		return o.ExistingCosmosUID
+	}
 	return Must(ResourceIDToCosmosID(o.ResourceID))
 }
 

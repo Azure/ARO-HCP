@@ -34,7 +34,8 @@ var _ CosmosPersistable = &HCPOpenShiftCluster{}
 
 func (o *HCPOpenShiftCluster) GetCosmosData() *CosmosData {
 	return &CosmosData{
-		ResourceID: o.ID,
+		ResourceID:        o.ID,
+		ExistingCosmosUID: o.ServiceProviderProperties.ExistingCosmosUID,
 	}
 }
 
@@ -53,6 +54,7 @@ type HCPOpenShiftClusterCustomerProperties struct {
 
 // HCPOpenShiftClusterCustomerProperties represents the property bag of a HCPOpenShiftCluster resource.
 type HCPOpenShiftClusterServiceProviderProperties struct {
+	ExistingCosmosUID string                         `json:"existingCosmosUID,omitempty"`
 	ProvisioningState arm.ProvisioningState          `json:"provisioningState,omitempty"`
 	ClusterServiceID  InternalID                     `json:"clusterServiceID,omitempty"`
 	ActiveOperationID string                         `json:"activeOperationId,omitempty"`
