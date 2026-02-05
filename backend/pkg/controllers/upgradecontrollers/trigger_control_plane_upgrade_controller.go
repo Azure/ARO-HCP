@@ -22,8 +22,6 @@ import (
 
 	"github.com/blang/semver/v4"
 
-	ocmsdk "github.com/openshift-online/ocm-sdk-go"
-
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/internal/database"
@@ -48,17 +46,9 @@ var _ controllerutils.ClusterSyncer = (*triggerControlPlaneUpgradeSyncer)(nil)
 //   - Otherwise: Initiate the upgrade to desiredVersion
 func NewTriggerControlPlaneUpgradeController(
 	cosmosClient database.DBClient,
-	ocmConnection *ocmsdk.Connection,
+	clusterServiceClient ocm.ClusterServiceClientSpec,
 	subscriptionLister listers.SubscriptionLister,
 ) controllerutils.Controller {
-
-	clusterServiceClient := ocm.NewClusterServiceClient(
-		ocmConnection,
-		"",
-		false,
-		false,
-	)
-
 	syncer := &triggerControlPlaneUpgradeSyncer{
 		cosmosClient:         cosmosClient,
 		clusterServiceClient: clusterServiceClient,

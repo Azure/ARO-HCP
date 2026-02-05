@@ -28,7 +28,6 @@ import (
 
 	utilsclock "k8s.io/utils/clock"
 
-	ocmsdk "github.com/openshift-online/ocm-sdk-go"
 	"github.com/openshift/cluster-version-operator/pkg/cincinnati"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
@@ -59,16 +58,9 @@ var _ controllerutils.ClusterSyncer = (*controlPlaneUpgradeSyncer)(nil)
 // OCPVersion logic documented in the ServiceProviderCluster type.
 func NewControlPlaneUpgradeController(
 	cosmosClient database.DBClient,
-	ocmConnection *ocmsdk.Connection,
+	clusterServiceClient ocm.ClusterServiceClientSpec,
 	subscriptionLister listers.SubscriptionLister,
 ) controllerutils.Controller {
-
-	clusterServiceClient := ocm.NewClusterServiceClient(
-		ocmConnection,
-		"",
-		false,
-		false,
-	)
 
 	syncer := &controlPlaneUpgradeSyncer{
 		clock:                     utilsclock.RealClock{},
