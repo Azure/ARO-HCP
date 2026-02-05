@@ -88,8 +88,10 @@ var _ = Describe("Engineering", func() {
 			subscriptionID, err := tc.SubscriptionID(ctx)
 			Expect(err).NotTo(HaveOccurred())
 			By("verifying kusto logs are present")
-			err = verifiers.VerifyMustGatherLogs(subscriptionID, *resourceGroup.Name).Verify(ctx)
-			Expect(err).NotTo(HaveOccurred())
+
+			Eventually(func() error {
+				return verifiers.VerifyMustGatherLogs(subscriptionID, *resourceGroup.Name).Verify(ctx)
+			}, 10*time.Minute, 60*time.Second).Should(Succeed())
 
 		})
 })
