@@ -31,7 +31,7 @@ spec:
             sleep 5
           done
           echo "Namespace 'local-cluster' found."
-        image: "{{ .Values.finalizeMceJobImage }}"
+        image: '{{ .Values.finalizeMceJobImage }}'
         name: finalize
       restartPolicy: Never
       serviceAccountName: multicluster-engine-operator

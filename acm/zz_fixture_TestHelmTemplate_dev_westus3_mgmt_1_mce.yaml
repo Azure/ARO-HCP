@@ -2127,7 +2127,7 @@ spec:
             sleep 5
           done
           echo "Namespace 'local-cluster' found."
-        image: mcr.microsoft.com/aks/command/runtime:master.240118.1
+        image: 'mcr.microsoft.com/aks/command/runtime@sha256:1234567890'
         name: finalize
       restartPolicy: Never
       serviceAccountName: multicluster-engine-operator

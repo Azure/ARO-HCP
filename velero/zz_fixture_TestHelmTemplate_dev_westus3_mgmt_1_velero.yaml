@@ -422,7 +422,7 @@ spec:
           mountPath: /manifest
       containers:
       - name: apply-manifest
-        image: "mcr.microsoft.com/aks/command/runtime:master.240118.1"
+        image: "mcr.microsoft.com/aks/command/runtime@sha256:1234567890"
         imagePullPolicy: IfNotPresent
         command:
         - /bin/bash
