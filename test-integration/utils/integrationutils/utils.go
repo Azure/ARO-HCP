@@ -23,6 +23,8 @@ import (
 	"testing"
 
 	_ "github.com/Azure/ARO-HCP/internal/api/v20240610preview"
+	"github.com/go-logr/logr"
+	"github.com/go-logr/logr/testr"
 
 	"github.com/prometheus/client_golang/prometheus"
 
@@ -48,6 +50,13 @@ func WithAndWithoutCosmos(t *testing.T, testFn func(t *testing.T, withMock bool)
 
 func hasCosmos() bool {
 	return os.Getenv("FRONTEND_SIMULATION_TESTING") == "true"
+}
+
+func DefaultLogger(t *testing.T) logr.Logger {
+	return testr.NewWithInterface(t, testr.Options{
+		LogTimestamp: true,
+		Verbosity:    0,
+	})
 }
 
 var (
