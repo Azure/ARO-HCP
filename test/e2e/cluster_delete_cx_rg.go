@@ -38,10 +38,10 @@ var _ = Describe("Customer", func() {
 		labels.AroRpApiCompatible,
 		func(ctx context.Context) {
 			const (
-				customerNetworkSecurityGroupName = "customer-nsg-name"
-				customerVnetName                 = "customer-vnet-name"
+				customerNetworkSecurityGroupName = "customer-nsg"
+				customerVnetName                 = "customer-vnet"
 				customerVnetSubnetName           = "customer-vnet-subnet1"
-				customerClusterName              = "basic-hcp-cluster"
+				customerClusterName              = "cx-rg-hcp-cluster"
 				customerNodePool1Name            = "np-1"
 				customerNodePool2Name            = "np-2"
 				customerNodePool2VMSize          = "Standard_D4s_v3"
@@ -54,7 +54,7 @@ var _ = Describe("Customer", func() {
 			}
 
 			By("creating a resource group")
-			resourceGroup, err := tc.NewResourceGroup(ctx, "basic-cluster", tc.Location())
+			resourceGroup, err := tc.NewResourceGroup(ctx, "cx-rg-cluster", tc.Location())
 			Expect(err).NotTo(HaveOccurred())
 
 			By("creating cluster parameters")
@@ -121,16 +121,25 @@ var _ = Describe("Customer", func() {
 			nodePoolParams2.VMSize = customerNodePool2VMSize
 			nodePoolParams2.Replicas = int32(1)
 
-			By("verifying nodepool DiskStorageAccountType matches framework default for node pools")
-			for _, np := range []*framework.NodePoolParams{&nodePoolParams, &nodePoolParams2} {
-				err = framework.ValidateNodePoolDiskStorageAccountType(ctx,
-					tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient(),
-					*resourceGroup.Name,
-					customerClusterName,
-					np.NodePoolName,
-				)
-				Expect(err).NotTo(HaveOccurred())
-			}
+			nodePoolsClient := tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient()
+
+			By("verifying first nodepool DiskStorageAccountType matches framework default")
+			err = framework.ValidateNodePoolDiskStorageAccountType(ctx,
+				nodePoolsClient,
+				*resourceGroup.Name,
+				customerClusterName,
+				customerNodePool1Name,
+			)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("verifying second nodepool DiskStorageAccountType matches framework default")
+			err = framework.ValidateNodePoolDiskStorageAccountType(ctx,
+				nodePoolsClient,
+				*resourceGroup.Name,
+				customerClusterName,
+				customerNodePool2Name,
+			)
+			Expect(err).NotTo(HaveOccurred())
 
 			By("verifying a simple web app can run")
 			err = verifiers.VerifySimpleWebApp().Verify(ctx, adminRESTConfig)
