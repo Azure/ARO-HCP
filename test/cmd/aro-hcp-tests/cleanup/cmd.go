@@ -15,14 +15,13 @@
 package cleanup
 
 import (
-	"log/slog"
 	"os"
 	"os/signal"
 
-	"github.com/dusted-go/logging/prettylog"
 	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
 
+	"github.com/Azure/ARO-HCP/test/pkg/logger"
 	"github.com/Azure/ARO-HCP/test/util/cleanup"
 	kustoroleassignments "github.com/Azure/ARO-HCP/test/util/cleanup/kusto-role-assignments"
 	"github.com/Azure/ARO-HCP/test/util/cleanup/resourcegroups"
@@ -44,7 +43,7 @@ func NewCommand() *cobra.Command {
 	cmd.AddCommand(newDeleteKustoRoleAssignmentsCommand())
 
 	cmd.PersistentPreRun = func(cmd *cobra.Command, args []string) {
-		ctx := logr.NewContext(cmd.Context(), createLogger(opt.Verbosity))
+		ctx := logr.NewContext(cmd.Context(), logger.NewWithVerbosity(opt.Verbosity))
 		cmd.SetContext(ctx)
 	}
 	return cmd
@@ -117,13 +116,4 @@ func newCleanupResourceGroupsCommand() *cobra.Command {
 	}
 
 	return cmd
-}
-
-func createLogger(verbosity int) logr.Logger {
-	prettyHandler := prettylog.NewHandler(&slog.HandlerOptions{
-		Level:       slog.Level(verbosity * -1),
-		AddSource:   false,
-		ReplaceAttr: nil,
-	})
-	return logr.FromSlogHandler(prettyHandler)
 }
