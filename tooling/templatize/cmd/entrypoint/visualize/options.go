@@ -15,9 +15,12 @@
 package visualize
 
 import (
+	"bytes"
+	"compress/gzip"
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -99,9 +102,26 @@ func (o *RawOptions) Validate() (*ValidatedOptions, error) {
 }
 
 func (o *ValidatedOptions) Complete(logger logr.Logger) (*Options, error) {
-	rawTiming, err := os.ReadFile(o.TimingInputFile)
+	fileData, err := os.ReadFile(o.TimingInputFile)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read timing input file: %w", err)
+	}
+
+	var rawTiming []byte
+	// Check if file is gzipped
+	if strings.HasSuffix(o.TimingInputFile, ".gz") {
+		gzipReader, err := gzip.NewReader(bytes.NewReader(fileData))
+		if err != nil {
+			return nil, fmt.Errorf("failed to create gzip reader: %w", err)
+		}
+		defer gzipReader.Close()
+
+		rawTiming, err = io.ReadAll(gzipReader)
+		if err != nil {
+			return nil, fmt.Errorf("failed to decompress timing file: %w", err)
+		}
+	} else {
+		rawTiming = fileData
 	}
 
 	var rawTimes []pipeline.NodeInfo
