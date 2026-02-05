@@ -345,7 +345,7 @@ func (in *HCPClusterActiveVersion) DeepCopyInto(out *HCPClusterActiveVersion) {
 	if in.Version != nil {
 		in, out := &in.Version, &out.Version
 		*out = new(v4.Version)
-		(*in).DeepCopyInto(*out)
+		**out = **in
 	}
 	return
 }
@@ -937,7 +937,7 @@ func (in *ServiceProviderClusterSpecVersion) DeepCopyInto(out *ServiceProviderCl
 	if in.DesiredVersion != nil {
 		in, out := &in.DesiredVersion, &out.DesiredVersion
 		*out = new(v4.Version)
-		(*in).DeepCopyInto(*out)
+		**out = **in
 	}
 	return
 }
