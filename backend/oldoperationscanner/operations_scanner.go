@@ -35,12 +35,12 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
 
-	ocmsdk "github.com/openshift-online/ocm-sdk-go"
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
 	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
+	backendtracing "github.com/Azure/ARO-HCP/backend/pkg/tracing"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
@@ -61,8 +61,6 @@ const (
 	pollClusterOperationLabel      = "poll_cluster"
 	pollNodePoolOperationLabel     = "poll_node_pool"
 	pollExternalAuthOperationLabel = "poll_external_auth"
-
-	TracerName = "github.com/Azure/ARO-HCP/backend"
 )
 
 // Copied from uhc-clusters-service, because the
@@ -148,19 +146,11 @@ type OperationsScanner struct {
 	subscriptionsByState   *prometheus.GaugeVec
 }
 
-func NewOperationsScanner(dbClient database.DBClient, ocmConnection *ocmsdk.Connection, azureLocation string, subscriptionLister listers.SubscriptionLister) *OperationsScanner {
+func NewOperationsScanner(dbClient database.DBClient, clustersServiceClient ocm.ClusterServiceClientSpec, azureLocation string, subscriptionLister listers.SubscriptionLister) *OperationsScanner {
 	s := &OperationsScanner{
-		dbClient:   dbClient,
-		lockClient: dbClient.GetLockClient(),
-		clusterService: ocm.NewClusterServiceClientWithTracing(
-			ocm.NewClusterServiceClient(
-				ocmConnection,
-				"",
-				false,
-				false,
-			),
-			TracerName,
-		),
+		dbClient:            dbClient,
+		lockClient:          dbClient.GetLockClient(),
+		clusterService:      clustersServiceClient,
 		azureLocation:       azureLocation,
 		notificationClient:  http.DefaultClient,
 		subscriptionsLister: subscriptionLister,
@@ -881,7 +871,7 @@ func convertInflightCheckDetails(inflightCheck *arohcpv1alpha1.InflightCheck) (s
 // StartRootSpan initiates a new parent trace.
 func StartRootSpan(ctx context.Context, name string) (context.Context, trace.Span) {
 	return otel.GetTracerProvider().
-		Tracer(TracerName).
+		Tracer(backendtracing.BackendTracerName).
 		Start(
 			ctx,
 			name,
@@ -894,6 +884,6 @@ func StartRootSpan(ctx context.Context, name string) (context.Context, trace.Spa
 func startChildSpan(ctx context.Context, name string) (context.Context, trace.Span) {
 	return trace.SpanFromContext(ctx).
 		TracerProvider().
-		Tracer(TracerName).
+		Tracer(backendtracing.BackendTracerName).
 		Start(ctx, name)
 }

@@ -12,18 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package main
+package tracing
 
-import (
-	"os"
-
-	"github.com/Azure/ARO-HCP/backend/cmd"
+const (
+	// BackendTracerName is the name of the tracer for the backend component
+	BackendTracerName = "github.com/Azure/ARO-HCP/backend"
 )
-
-func main() {
-	cmdRoot := cmd.NewCmdRoot()
-	if err := cmdRoot.Execute(); err != nil {
-		cmdRoot.PrintErrln(cmdRoot.ErrPrefix(), err.Error())
-		os.Exit(1)
-	}
-}

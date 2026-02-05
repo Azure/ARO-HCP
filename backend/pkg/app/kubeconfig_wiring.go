@@ -12,18 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package main
+package app
 
 import (
-	"os"
-
-	"github.com/Azure/ARO-HCP/backend/cmd"
+	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
 )
 
-func main() {
-	cmdRoot := cmd.NewCmdRoot()
-	if err := cmdRoot.Execute(); err != nil {
-		cmdRoot.PrintErrln(cmdRoot.ErrPrefix(), err.Error())
-		os.Exit(1)
+// NewKubeconfig creates a new Kubernetes configuration from a kubeconfig path.
+// If kubeconfigPath is empty, it will attempt to load the kubeconfig
+// following the default Kubernetes client-go cmd configuration loading rules.
+func NewKubeconfig(kubeconfigPath string) (*rest.Config, error) {
+	loader := clientcmd.NewDefaultClientConfigLoadingRules()
+	if kubeconfigPath != "" {
+		loader.ExplicitPath = kubeconfigPath
 	}
+	return clientcmd.NewNonInteractiveDeferredLoadingClientConfig(loader, nil).ClientConfig()
 }
