@@ -15,6 +15,7 @@ require (
 	github.com/openshift-online/ocm-sdk-go v0.1.493
 	github.com/prometheus/client_golang v1.23.2
 	github.com/stretchr/testify v1.11.1
+	go.uber.org/goleak v1.3.0
 	go.uber.org/mock v0.6.0
 	k8s.io/apimachinery v0.34.3
 	k8s.io/utils v0.0.0-20250820121507-0af2bda4dd1d

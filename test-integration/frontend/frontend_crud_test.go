@@ -26,6 +26,7 @@ import (
 )
 
 func TestFrontendCRUD(t *testing.T) {
+	defer integrationutils.VerifyNoNewGoLeaks(t)
 	integrationutils.WithAndWithoutCosmos(t, testFrontendCRUD)
 }
 

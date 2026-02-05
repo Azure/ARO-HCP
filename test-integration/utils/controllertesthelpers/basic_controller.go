@@ -55,6 +55,8 @@ type BasicControllerTest struct {
 }
 
 func (tc *BasicControllerTest) RunTest(t *testing.T) {
+	defer integrationutils.VerifyNoNewGoLeaks(t)
+
 	ctx := context.Background()
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()

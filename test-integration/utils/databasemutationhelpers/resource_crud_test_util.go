@@ -101,6 +101,8 @@ func readSteps[InternalAPIType any](ctx context.Context, testDir fs.FS) ([]Integ
 }
 
 func (tt *ResourceMutationTest) RunTest(t *testing.T) {
+	defer integrationutils.VerifyNoNewGoLeaks(t)
+
 	ctx := t.Context()
 	ctx, cancel := context.WithCancel(ctx)
 	frontendStarted := atomic.Bool{}

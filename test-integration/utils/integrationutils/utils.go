@@ -29,6 +29,7 @@ import (
 	"github.com/microsoft/go-otel-audit/audit/base"
 	"github.com/microsoft/go-otel-audit/audit/msgs"
 	"github.com/prometheus/client_golang/prometheus"
+	"go.uber.org/goleak"
 
 	adminApiServer "github.com/Azure/ARO-HCP/admin/server/server"
 	"github.com/Azure/ARO-HCP/frontend/pkg/frontend"
@@ -51,6 +52,15 @@ func WithAndWithoutCosmos(t *testing.T, testFn func(t *testing.T, withMock bool)
 
 func hasCosmos() bool {
 	return os.Getenv("FRONTEND_SIMULATION_TESTING") == "true"
+}
+
+func VerifyNoNewGoLeaks(t *testing.T) {
+	goleak.VerifyNone(t,
+		// can't fix
+		goleak.IgnoreTopFunction("github.com/golang/glog.(*fileSink).flushDaemon"),
+		// stop the bleeding so we don't make it worse.  There is a shutdownWithDrain on workqueues
+		goleak.IgnoreTopFunction("k8s.io/client-go/util/workqueue.(*delayingType[...]).waitingLoop"),
+	)
 }
 
 func DefaultLogger(t *testing.T) logr.Logger {

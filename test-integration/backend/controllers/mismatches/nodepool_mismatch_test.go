@@ -34,6 +34,7 @@ import (
 )
 
 func TestNodePoolMismatchController(t *testing.T) {
+	defer integrationutils.VerifyNoNewGoLeaks(t)
 	integrationutils.WithAndWithoutCosmos(t, testNodePoolMismatchController)
 }
 

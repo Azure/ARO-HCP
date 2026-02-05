@@ -32,6 +32,7 @@ import (
 )
 
 func TestDeleteOrphanedCosmosResourcesController(t *testing.T) {
+	defer integrationutils.VerifyNoNewGoLeaks(t)
 	integrationutils.WithAndWithoutCosmos(t, testDeleteOrphanedCosmosResourcesController)
 }
 

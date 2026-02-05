@@ -34,6 +34,7 @@ import (
 )
 
 func TestExternalAuthMismatchController(t *testing.T) {
+	defer integrationutils.VerifyNoNewGoLeaks(t)
 	integrationutils.WithAndWithoutCosmos(t, testExternalAuthMismatchController)
 }
 
