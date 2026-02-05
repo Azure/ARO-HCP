@@ -66,7 +66,7 @@ func setupCli() *cobra.Command {
 		},
 		// Spec parallelism is limited by the leased identity containers. We set suite parallelism slightly avobe the number of
 		// leased identity containers to avoid multi-HCP tests blocking single-HCP tests from obtaining a lease.
-		// LEASED_MSI_CONTAINERS=20
+		// LEASED_MSI_CONTAINERS=30
 		Parallelism: 34,
 	})
 
@@ -79,8 +79,8 @@ func setupCli() *cobra.Command {
 		},
 		// Spec parallelism is limited by the leased identity containers. We set suite parallelism slightly avobe the number of
 		// leased identity containers to avoid multi-HCP tests blocking single-HCP tests from obtaining a lease.
-		// LEASED_MSI_CONTAINERS=30
-		Parallelism: 34,
+		// LEASED_MSI_CONTAINERS=15
+		Parallelism: 19,
 	})
 
 	ext.AddSuite(e.Suite{
@@ -91,10 +91,7 @@ func setupCli() *cobra.Command {
 			// TODO: revisit labels to tweak which tests to select here
 			fmt.Sprintf(`labels.exists(l, l=="%s" ) && labels.exists(l, l=="%s")`, labels.AroRpApiCompatible[0], labels.Positive[0]),
 		},
-		// Spec parallelism is limited by the leased identity containers. We set suite parallelism slightly avobe the number of
-		// leased identity containers to avoid multi-HCP tests blocking single-HCP tests from obtaining a lease.
-		// LEASED_MSI_CONTAINERS=15
-		Parallelism: 19,
+		Parallelism: 20,
 	})
 
 	rpApiCompatBaseQualifier := fmt.Sprintf(`labels.exists(l, l=="%s")`, labels.AroRpApiCompatible[0])
@@ -106,9 +103,12 @@ func setupCli() *cobra.Command {
 	}
 
 	ext.AddSuite(e.Suite{
-		Name:        "rp-api-compat-all/parallel",
-		Qualifiers:  []string{rpApiCompatBaseQualifier},
-		Parallelism: 10,
+		Name:       "rp-api-compat-all/parallel",
+		Qualifiers: []string{rpApiCompatBaseQualifier},
+		// Spec parallelism is limited by the leased identity containers. We set suite parallelism slightly avobe the number of
+		// leased identity containers to avoid multi-HCP tests blocking single-HCP tests from obtaining a lease.
+		// LEASED_MSI_CONTAINERS=20
+		Parallelism: 24,
 	})
 
 	// If using Ginkgo, build test specs automatically
