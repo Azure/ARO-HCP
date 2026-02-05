@@ -1,0 +1,39 @@
+{
+	"id": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/create-with-tags/nodePools/node-pool-02",
+	"location": "fake-location",
+	"name": "node-pool-02",
+	"properties": {
+		"autoRepair": true,
+		"autoScaling": {
+			"max": 5,
+			"min": 1
+		},
+		"labels": [
+			{
+				"key": "label-ky",
+				"value": "label-value"
+			}
+		],
+		"nodeDrainTimeoutMinutes": 2,
+		"platform": {
+			"enableEncryptionAtHost": false,
+			"osDisk": {
+				"diskStorageAccountType": "Premium_LRS",
+				"sizeGiB": 64
+			},
+			"vmSize": "large"
+		},
+		"provisioningState": "Accepted",
+		"taints": [
+			{
+				"effect": "NoExecute",
+				"key": "foo.com/key",
+				"value": "valid"
+			}
+		],
+		"version": {
+			"channelGroup": "stable"
+		}
+	},
+	"type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/nodePools"
+}

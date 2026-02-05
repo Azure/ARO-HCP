@@ -1,0 +1,46 @@
+{
+	"claim": {
+		"mappings": {
+			"groups": {
+				"claim": "groups",
+				"prefix": ""
+			},
+			"username": {
+				"claim": "sub",
+				"prefix": "prefix-",
+				"prefix_policy": "Prefix"
+			}
+		},
+		"validation_rules": []
+	},
+	"clients": [
+		{
+			"component": {
+				"name": "console",
+				"namespace": "openshift-console"
+			},
+			"extra_scopes": [],
+			"id": "87654321-4321-4321-4321-abcdefghijkl",
+			"type": "confidential"
+		},
+		{
+			"component": {
+				"name": "cli",
+				"namespace": "openshift-console"
+			},
+			"extra_scopes": [],
+			"id": "87654321-4321-4321-4321-abcdefghijkl",
+			"type": "public"
+		}
+	],
+	"href": "/api/clusters_mgmt/v1/clusters/9p2sk955gj/external_auth_config/external_auths/zt59xrx22b",
+	"id": "zt59xrx22b",
+	"issuer": {
+		"audiences": [
+			"87654321-4321-4321-4321-abcdefghijkl"
+		],
+		"ca": "",
+		"url": "https://login.microsoftonline.com/12345678-1234-1234-1234-123456789abc/v2.0"
+	},
+	"kind": "ExternalAuth"
+}

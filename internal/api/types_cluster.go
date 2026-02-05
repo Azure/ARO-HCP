@@ -54,7 +54,7 @@ type HCPOpenShiftClusterCustomerProperties struct {
 
 // HCPOpenShiftClusterCustomerProperties represents the property bag of a HCPOpenShiftCluster resource.
 type HCPOpenShiftClusterServiceProviderProperties struct {
-	ExistingCosmosUID string                         `json:"existingCosmosUID,omitempty"`
+	ExistingCosmosUID string                         `json:"-"`
 	ProvisioningState arm.ProvisioningState          `json:"provisioningState,omitempty"`
 	ClusterServiceID  InternalID                     `json:"clusterServiceID,omitempty"`
 	ActiveOperationID string                         `json:"activeOperationId,omitempty"`
