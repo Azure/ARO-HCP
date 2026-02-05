@@ -31,11 +31,12 @@ var _ = Describe("Customer", func() {
 		// do nothing.  per test initialization usually ages better than shared.
 	})
 
-	It("should be able to create an HCP cluster",
+	It("should be able to create an HCP cluster then delete it by deleting the customer resource group",
 		labels.RequireNothing,
 		labels.Critical,
 		labels.Positive,
 		labels.AroRpApiCompatible,
+		labels.TeardownValidation,
 		func(ctx context.Context) {
 			const (
 				customerNetworkSecurityGroupName = "customer-nsg"
@@ -53,7 +54,7 @@ var _ = Describe("Customer", func() {
 				Expect(err).NotTo(HaveOccurred())
 			}
 
-			By("creating a resource group")
+			By("creating the customer resource group")
 			resourceGroup, err := tc.NewResourceGroup(ctx, "cx-rg-cluster", tc.Location())
 			Expect(err).NotTo(HaveOccurred())
 
@@ -101,12 +102,11 @@ var _ = Describe("Customer", func() {
 			err = verifiers.VerifyHCPCluster(ctx, adminRESTConfig)
 			Expect(err).NotTo(HaveOccurred())
 
-			By("creating the firstnode pool")
+			By("creating the first nodepool")
 			nodePoolParams := framework.NewDefaultNodePoolParams()
 			nodePoolParams.ClusterName = customerClusterName
 			nodePoolParams.NodePoolName = customerNodePool1Name
 			nodePoolParams.Replicas = int32(2)
-
 			err = tc.CreateNodePoolFromParam(ctx,
 				*resourceGroup.Name,
 				customerClusterName,
@@ -114,16 +114,24 @@ var _ = Describe("Customer", func() {
 				45*time.Minute,
 			)
 			Expect(err).NotTo(HaveOccurred())
-			By("creating the second node pool")
+
+			By("creating the second nodepool")
 			nodePoolParams2 := framework.NewDefaultNodePoolParams()
 			nodePoolParams2.ClusterName = customerClusterName
 			nodePoolParams2.NodePoolName = customerNodePool2Name
 			nodePoolParams2.VMSize = customerNodePool2VMSize
 			nodePoolParams2.Replicas = int32(1)
+			err = tc.CreateNodePoolFromParam(ctx,
+				*resourceGroup.Name,
+				customerClusterName,
+				nodePoolParams2,
+				45*time.Minute,
+			)
+			Expect(err).NotTo(HaveOccurred())
 
 			nodePoolsClient := tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient()
 
-			By("verifying first nodepool DiskStorageAccountType matches framework default")
+			By("verifying the first nodepool DiskStorageAccountType matches framework default")
 			err = framework.ValidateNodePoolDiskStorageAccountType(ctx,
 				nodePoolsClient,
 				*resourceGroup.Name,
@@ -132,7 +140,7 @@ var _ = Describe("Customer", func() {
 			)
 			Expect(err).NotTo(HaveOccurred())
 
-			By("verifying second nodepool DiskStorageAccountType matches framework default")
+			By("verifying the second nodepool DiskStorageAccountType matches framework default")
 			err = framework.ValidateNodePoolDiskStorageAccountType(ctx,
 				nodePoolsClient,
 				*resourceGroup.Name,
@@ -145,14 +153,14 @@ var _ = Describe("Customer", func() {
 			err = verifiers.VerifySimpleWebApp().Verify(ctx, adminRESTConfig)
 			Expect(err).NotTo(HaveOccurred())
 
-			By("deleting parent resource group to trigger cluster deletion")
+			By("deleting customer resource group to trigger cluster deletion")
 			rgClient := tc.GetARMResourcesClientFactoryOrDie(ctx).NewResourceGroupsClient()
 			networkClient, err := tc.GetARMNetworkClientFactory(ctx)
 			Expect(err).NotTo(HaveOccurred())
 			err = framework.DeleteResourceGroup(ctx, rgClient, networkClient, *resourceGroup.Name, false, 45*time.Minute)
 			Expect(err).NotTo(HaveOccurred())
 
-			By("verifying parent resource group is deleted (404)")
+			By("verifying customer resource group is deleted (404)")
 			_, err = rgClient.Get(ctx, *resourceGroup.Name, nil)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("ResourceGroupNotFound"))
