@@ -145,8 +145,8 @@ start_emulator() {
     for i in {1..120}; do
         CPU_USAGE=$(${CONTAINER_RUNTIME} stats "${container_name}" --no-stream --format "{{printf \"%.0f\" .CPU}}" -i 5)
         echo "CPU usage: ${CPU_USAGE}"
-        if [ "$CPU_USAGE" -lt 40 ]; then
-            echo "CPU usage is below 40%, continuing..."
+        if [ "$CPU_USAGE" -lt 30 ]; then
+            echo "CPU usage is below 30%, continuing..."
             break
         fi
         sleep 5
