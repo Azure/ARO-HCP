@@ -348,7 +348,8 @@ func createCosmosClientFromEnv() (*azcosmos.Client, error) {
 	// Configure HTTP client to skip certificate verification for the emulator
 	httpClient := &http.Client{
 		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+			TLSClientConfig:   &tls.Config{InsecureSkipVerify: true},
+			DisableKeepAlives: true,
 		},
 	}
 
@@ -375,6 +376,8 @@ func createCosmosClientFromEnv() (*azcosmos.Client, error) {
 }
 
 func initializeCosmosDBForFrontend(ctx context.Context, cosmosClient *azcosmos.Client, cosmosDatabaseName string) (*azcosmos.DatabaseClient, error) {
+	logger := utils.LoggerFromContext(ctx)
+
 	// Create the database if it doesn't exist
 	databaseProperties := azcosmos.DatabaseProperties{ID: cosmosDatabaseName}
 	_, err := cosmosClient.CreateDatabase(ctx, databaseProperties, nil)
@@ -399,6 +402,8 @@ func initializeCosmosDBForFrontend(ctx context.Context, cosmosClient *azcosmos.C
 		{"Locks", "/id", &[]int32{10}[0]}, // 10 second TTL for locks
 	}
 
+	start := time.Now()
+	logger.Info("Create all containers")
 	for _, container := range containers {
 		containerProperties := azcosmos.ContainerProperties{
 			ID: container.name,
@@ -411,7 +416,11 @@ func initializeCosmosDBForFrontend(ctx context.Context, cosmosClient *azcosmos.C
 		}
 
 		var lastErr error
+		logger.Info("Creating container", "containerName", container.name)
 		err := wait.PollUntilContextTimeout(ctx, 1*time.Second, 60*time.Second, true, func(ctx context.Context) (done bool, err error) {
+			//&azcosmos.CreateContainerOptions{
+			//	ThroughputProperties: ptr.To(azcosmos.NewManualThroughputProperties(100)),
+			//}
 			_, err = cosmosDatabaseClient.CreateContainer(ctx, containerProperties, nil)
 			lastErr = err
 			if err != nil {
@@ -426,7 +435,10 @@ func initializeCosmosDBForFrontend(ctx context.Context, cosmosClient *azcosmos.C
 		if err != nil {
 			return nil, utils.TrackError(err)
 		}
+		logger.Info("Container created", "containerName", container.name)
 	}
+	end := time.Now()
+	logger.Info("All containers created", "duration", end.Sub(start))
 
 	return cosmosDatabaseClient, nil
 

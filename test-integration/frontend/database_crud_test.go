@@ -29,6 +29,7 @@ import (
 )
 
 func TestDatabaseCRUD(t *testing.T) {
+	defer integrationutils.VerifyNoNewGoLeaks(t)
 	integrationutils.WithAndWithoutCosmos(t, testDatabaseCRUD)
 }
 

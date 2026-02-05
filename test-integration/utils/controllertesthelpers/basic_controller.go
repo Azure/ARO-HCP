@@ -22,7 +22,6 @@ import (
 	"path"
 	"testing"
 
-	"github.com/go-logr/logr/testr"
 	"github.com/stretchr/testify/require"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
@@ -56,6 +55,8 @@ type BasicControllerTest struct {
 }
 
 func (tc *BasicControllerTest) RunTest(t *testing.T) {
+	defer integrationutils.VerifyNoNewGoLeaks(t)
+
 	ctx := context.Background()
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -64,7 +65,7 @@ func (tc *BasicControllerTest) RunTest(t *testing.T) {
 	testDir, err := fs.Sub(tc.ArtifactDir, tc.Name)
 	require.NoError(t, err)
 
-	ctx = utils.ContextWithLogger(ctx, testr.New(t))
+	ctx = utils.ContextWithLogger(ctx, integrationutils.DefaultLogger(t))
 	logger := utils.LoggerFromContext(ctx)
 	logger = tc.ControllerKey.AddLoggerValues(logger)
 	ctx = utils.ContextWithLogger(ctx, logger)
@@ -77,9 +78,9 @@ func (tc *BasicControllerTest) RunTest(t *testing.T) {
 	}
 	require.NoError(t, err)
 	require.NoError(t, err)
-	defer storageIntegrationTestInfo.Cleanup(utils.ContextWithLogger(context.Background(), testr.New(t)))
+	defer storageIntegrationTestInfo.Cleanup(utils.ContextWithLogger(context.Background(), integrationutils.DefaultLogger(t)))
 	clusterServiceMockInfo := integrationutils.NewClusterServiceMock(t, storageIntegrationTestInfo.GetArtifactDir())
-	defer clusterServiceMockInfo.Cleanup(utils.ContextWithLogger(context.Background(), testr.New(t)))
+	defer clusterServiceMockInfo.Cleanup(utils.ContextWithLogger(context.Background(), integrationutils.DefaultLogger(t)))
 	stepInput := databasemutationhelpers.NewCosmosStepInput(storageIntegrationTestInfo)
 	stepInput.ClusterServiceMockInfo = clusterServiceMockInfo
 

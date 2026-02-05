@@ -40,6 +40,7 @@ import (
 var artifacts embed.FS
 
 func TestClusterMismatchController(t *testing.T) {
+	defer integrationutils.VerifyNoNewGoLeaks(t)
 	integrationutils.WithAndWithoutCosmos(t, testClusterMismatchController)
 }
 

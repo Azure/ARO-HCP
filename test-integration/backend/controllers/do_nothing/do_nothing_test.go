@@ -32,6 +32,7 @@ import (
 var artifacts embed.FS
 
 func TestDoNothingController(t *testing.T) {
+	defer integrationutils.VerifyNoNewGoLeaks(t)
 	integrationutils.WithAndWithoutCosmos(t, testDoNothingController)
 }
 

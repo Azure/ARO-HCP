@@ -31,6 +31,8 @@ import (
 var artifacts embed.FS
 
 func TestAdminCRUD(t *testing.T) {
+	defer integrationutils.VerifyNoNewGoLeaks(t)
+
 	integrationutils.WithAndWithoutCosmos(t, testAdminCRUD)
 }
 

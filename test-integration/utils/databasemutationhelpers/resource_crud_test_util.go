@@ -27,7 +27,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-logr/logr/testr"
 	"github.com/stretchr/testify/require"
 
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -102,6 +101,8 @@ func readSteps[InternalAPIType any](ctx context.Context, testDir fs.FS) ([]Integ
 }
 
 func (tt *ResourceMutationTest) RunTest(t *testing.T) {
+	defer integrationutils.VerifyNoNewGoLeaks(t)
+
 	ctx := t.Context()
 	ctx, cancel := context.WithCancel(ctx)
 	frontendStarted := atomic.Bool{}
@@ -119,12 +120,13 @@ func (tt *ResourceMutationTest) RunTest(t *testing.T) {
 		}
 	}()
 	defer cancel()
-	ctx = utils.ContextWithLogger(ctx, testr.New(t))
+	ctx = utils.ContextWithLogger(ctx, integrationutils.DefaultLogger(t))
+	logger := utils.LoggerFromContext(ctx)
 
 	testInfo, err := integrationutils.NewIntegrationTestInfoFromEnv(ctx, t, tt.withMock)
 	require.NoError(t, err)
 	cleanupCtx := context.Background()
-	cleanupCtx = utils.ContextWithLogger(cleanupCtx, testr.New(t))
+	cleanupCtx = utils.ContextWithLogger(cleanupCtx, integrationutils.DefaultLogger(t))
 	defer testInfo.Cleanup(cleanupCtx)
 	go func() {
 		frontendStarted.Store(true)
@@ -139,10 +141,13 @@ func (tt *ResourceMutationTest) RunTest(t *testing.T) {
 	serverUrls := []string{testInfo.FrontendURL, testInfo.AdminURL}
 	err = wait.PollUntilContextCancel(ctx, 1*time.Second, true, func(ctx context.Context) (bool, error) {
 		for _, url := range serverUrls {
-			_, err := http.Get(url)
+			resp, err := http.Get(url)
 			if err != nil {
 				t.Log(err)
 				return false, nil
+			}
+			if err := resp.Body.Close(); err != nil {
+				logger.Error(err, "failed to close response body")
 			}
 		}
 		return true, nil
@@ -157,7 +162,7 @@ func (tt *ResourceMutationTest) RunTest(t *testing.T) {
 	for _, step := range tt.steps {
 		t.Logf("Running step %s", step.StepID())
 		ctx := t.Context()
-		ctx = utils.ContextWithLogger(ctx, testr.New(t))
+		ctx = utils.ContextWithLogger(ctx, integrationutils.DefaultLogger(t))
 
 		step.RunTest(ctx, t, *stepInput)
 	}
