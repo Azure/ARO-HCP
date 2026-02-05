@@ -1,4 +1,4 @@
-module github.com/Azure/ARO-HCP/route-monitor-controller
+module github.com/Azure/ARO-HCP/kas-monitor-controller
 
 go 1.24.11
 
@@ -40,7 +40,7 @@ require (
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/onsi/ginkgo/v2 v2.23.4 // indirect
 	github.com/onsi/gomega v1.37.0 // indirect
-	github.com/openshift/api v0.0.0-20250609083529-2b129d95495e // indirect
+	github.com/openshift/api v0.0.0-20260114133223-6ab113cb7368 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/prometheus/client_golang v1.23.2 // indirect

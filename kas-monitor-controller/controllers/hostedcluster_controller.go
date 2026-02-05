@@ -154,13 +154,13 @@ func (r *HostedClusterReconciler) buildServiceMonitor(hostedCluster *hypershiftv
 			Namespace: namespace,
 			Labels: map[string]string{
 				"app.kubernetes.io/name":       hostedCluster.Name,
-				"app.kubernetes.io/managed-by": "route-monitor-controller",
+				"app.kubernetes.io/managed-by": "kas-monitor-controller",
 			},
 		},
 		Spec: monitoringv1.ServiceMonitorSpec{
 			Selector: metav1.LabelSelector{
 				MatchLabels: map[string]string{
-					"app.kubernetes.io/name": "route-monitor-controller",
+					"app.kubernetes.io/name": "kas-monitor-controller",
 				},
 			},
 			Endpoints: []monitoringv1.Endpoint{
