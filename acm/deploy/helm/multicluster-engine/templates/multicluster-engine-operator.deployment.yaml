@@ -60,7 +60,7 @@ spec:
         - name: OPERAND_IMAGE_BACKPLANE_MUST_GATHER
           value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/must-gather-rhel9@sha256:3700f0ea7fd981185be8522aa5ffb064e74f25cc21f3084b8bc4a31c59d395a9'
         - name: OPERAND_IMAGE_BACKPLANE_OPERATOR
-          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/backplane-rhel9-operator@sha256:567bf520e0bebc86278c7072b3085d1554349f4cb2596b2421c125e1e3d765d0'
+          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/backplane-rhel9-operator@sha256:33e2a10bccb975d191577e114e2c6de329464881a960cb459b7604769600b5cf'
         - name: OPERAND_IMAGE_CLUSTER_API_PROVIDER_AGENT
           value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/cluster-api-provider-agent-rhel9@sha256:f87bbb3f9c79c982b508e93265f91e0e74bd205887765fe84e12f66223140d4e'
         - name: OPERAND_IMAGE_CLUSTER_API_PROVIDER_AWS_RHEL9
@@ -86,7 +86,7 @@ spec:
         - name: OPERAND_IMAGE_CLUSTER_PROXY
           value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/cluster-proxy-rhel9@sha256:0f886ca43b1f64f686b8610a49e2c5b147607656591ede96b9a1ff998bfeced4'
         - name: OPERAND_IMAGE_CONSOLE_MCE
-          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/console-mce-rhel9@sha256:816fd9f7145a6e4009e54cef861dc55ea8db2ed1f18c63cb155bb2e73e618823'
+          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/console-mce-rhel9@sha256:fbf947c6835b66fa4a57290928b8ee2e19098853885e1adecc5ad9d7f12c0646'
         - name: OPERAND_IMAGE_DISCOVERY_OPERATOR
           value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/discovery-rhel9@sha256:b8fef661c0acc1de9708d5737159f3cf178c0e96d93035a7f66e90350721c6d4'
         - name: OPERAND_IMAGE_OPENSHIFT_HIVE
@@ -137,7 +137,7 @@ spec:
           value: 2.10.1
         - name: OPERATOR_PACKAGE
           value: multicluster-engine
-        image: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/backplane-rhel9-operator@sha256:567bf520e0bebc86278c7072b3085d1554349f4cb2596b2421c125e1e3d765d0'
+        image: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/backplane-rhel9-operator@sha256:33e2a10bccb975d191577e114e2c6de329464881a960cb459b7604769600b5cf'
         livenessProbe:
           httpGet:
             path: /healthz
