@@ -54,12 +54,6 @@ type Subscription struct {
 	LastUpdated int `json:"-"`
 }
 
-func (o *Subscription) GetCosmosData() *CosmosMetadata {
-	return &CosmosMetadata{
-		ResourceID: o.ResourceID,
-	}
-}
-
 type SubscriptionProperties struct {
 	TenantId             *string              `json:"tenantId,omitempty"`
 	LocationPlacementId  *string              `json:"locationPlacementId,omitempty"`

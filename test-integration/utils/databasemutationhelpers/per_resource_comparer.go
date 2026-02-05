@@ -54,6 +54,8 @@ func ResourceInstanceEquals(t *testing.T, expected, actual any) (string, bool) {
 		unstructured.RemoveNestedField(currMap, "endTime") // for arm.Operation
 		// etag is dynamically generated, so remove it from cosmosMetadata as well
 		unstructured.RemoveNestedField(currMap, "cosmosMetadata", "etag")
+		// temporary and not worth tracking
+		unstructured.RemoveNestedField(currMap, "cosmosMetadata", "existingCosmosUID")
 
 		if resourceIDStr, ok := currMap["resourceID"].(string); ok && len(resourceIDStr) > 0 {
 			currMap["resourceID"] = strings.ToLower(resourceIDStr)

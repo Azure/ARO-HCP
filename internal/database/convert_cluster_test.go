@@ -72,6 +72,7 @@ func TestRoundTripClusterInternalCosmosInternal(t *testing.T) {
 			if j == nil {
 				return
 			}
+			j.ServiceProviderProperties.ExistingCosmosUID = ""
 		},
 		func(j *arm.ManagedServiceIdentity, c randfill.Continue) {
 			c.FillNoCustom(j)
@@ -102,6 +103,16 @@ func roundTripInternalToCosmosToInternal[InternalAPIType, CosmosAPIType any](t *
 
 	final, err := CosmosToInternal[InternalAPIType, CosmosAPIType](intermediate)
 	require.NoError(t, err)
+
+	// this value is set during conversion, so we need clear for comparison
+	switch cast := any(final).(type) {
+	case *api.HCPOpenShiftCluster:
+		cast.ServiceProviderProperties.ExistingCosmosUID = ""
+	case *api.HCPOpenShiftClusterNodePool:
+		cast.ServiceProviderProperties.ExistingCosmosUID = ""
+	case *api.HCPOpenShiftClusterExternalAuth:
+		cast.ServiceProviderProperties.ExistingCosmosUID = ""
+	}
 	//finalJSON, _ := json.MarshalIndent(final, "", "    ")
 
 	// we compare the JSON here because many of these types have private fields that cannot be introspected

@@ -310,6 +310,9 @@ func TestMockDBClient_CRUD_Subscription(t *testing.T) {
 
 	registrationDate := "2025-01-01T00:00:00Z"
 	subscription := &arm.Subscription{
+		CosmosMetadata: api.CosmosMetadata{
+			ResourceID: subscriptionResourceID,
+		},
 		ResourceID:       subscriptionResourceID,
 		State:            arm.SubscriptionStateRegistered,
 		RegistrationDate: &registrationDate,
