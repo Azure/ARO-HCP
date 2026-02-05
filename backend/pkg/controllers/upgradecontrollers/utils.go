@@ -27,39 +27,6 @@ import (
 	"github.com/Azure/ARO-HCP/internal/cincinatti"
 )
 
-// isValidNextYStreamUpgradePath validates that a next Y-stream upgrade path is valid.
-// It ensures the desired minor is exactly one minor version ahead of the actual minor
-// and prevents downgrades or skipping minors.
-//
-// Parameters:
-//   - actualMinor: Current minor version in "X.Y" format (e.g., "4.19")
-//   - desiredMinor: Target minor version in "X.Y" format (e.g., "4.20")
-func isValidNextYStreamUpgradePath(actualMinor, desiredMinor string) bool {
-	// Parse actualMinor (e.g., "4.19" -> 4.19.0)
-	actualVersion, err := semver.Parse(actualMinor + ".0")
-	if err != nil {
-		return false
-	}
-
-	// Parse desiredMinor (e.g., "4.20" -> 4.20.0)
-	desiredVersion, err := semver.Parse(desiredMinor + ".0")
-	if err != nil {
-		return false
-	}
-
-	// Check for downgrade (desired < actual)
-	if desiredVersion.LT(actualVersion) {
-		return false
-	}
-
-	// Ensure desired is exactly one minor ahead (same major, minor + 1)
-	if desiredVersion.Major != actualVersion.Major || desiredVersion.Minor != actualVersion.Minor+1 {
-		return false
-	}
-
-	return true
-}
-
 // isGatewayToNextMinor checks if a given version has an upgrade path to the next minor version.
 // Returns true if the version is a gateway, false otherwise. Returns an error if the check fails.
 func isGatewayToNextMinor(ctx context.Context, ver semver.Version, cincinnatiClient cincinatti.Client, channelGroup string, nextMinor string) (bool, error) {

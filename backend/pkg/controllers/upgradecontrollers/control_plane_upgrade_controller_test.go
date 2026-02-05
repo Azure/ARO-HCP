@@ -311,16 +311,6 @@ func TestDesiredControlPlaneZVersion_ZStreamManagedUpgrade(t *testing.T) {
 			expectedError:   false,
 		},
 		{
-			name:                  "Z-stream upgrade - invalid actual version",
-			activeVersions:        []api.HCPClusterActiveVersion{{Version: mustParsePtr("0.0.0")}},
-			customerDesiredMinor:  "4.19",
-			channelGroup:          "stable",
-			mockSetup:             func(mc *cincinatti.MockClient) {},
-			expectedVersion:       nil,
-			expectedError:         true,
-			expectedErrorContains: "invalid next y-stream upgrade path",
-		},
-		{
 			name:                 "Z-stream upgrade - Cincinnati query error",
 			activeVersions:       []api.HCPClusterActiveVersion{{Version: mustParsePtr("4.19.15")}},
 			customerDesiredMinor: "4.19",
@@ -613,26 +603,6 @@ func TestDesiredControlPlaneZVersion_NextYStreamUpgrade(t *testing.T) {
 			expectedError:   false,
 		},
 		{
-			name:                  "Y-stream upgrade - invalid path (skip minor)",
-			activeVersions:        []api.HCPClusterActiveVersion{{Version: mustParsePtr("4.19.22")}},
-			customerDesiredMinor:  "4.21",
-			channelGroup:          "stable",
-			mockSetup:             func(mc *cincinatti.MockClient) {},
-			expectedVersion:       nil,
-			expectedError:         true,
-			expectedErrorContains: "invalid next y-stream upgrade path",
-		},
-		{
-			name:                  "Y-stream upgrade - invalid path (downgrade)",
-			activeVersions:        []api.HCPClusterActiveVersion{{Version: mustParsePtr("4.20.15")}},
-			customerDesiredMinor:  "4.19",
-			channelGroup:          "stable",
-			mockSetup:             func(mc *cincinatti.MockClient) {},
-			expectedVersion:       nil,
-			expectedError:         true,
-			expectedErrorContains: "invalid next y-stream upgrade path",
-		},
-		{
 			name:                 "Y-stream upgrade - no gateway found but returns latest anyway",
 			activeVersions:       []api.HCPClusterActiveVersion{{Version: mustParsePtr("4.19.15")}},
 			customerDesiredMinor: "4.20",
@@ -698,6 +668,112 @@ func TestDesiredControlPlaneZVersion_NextYStreamUpgrade(t *testing.T) {
 			expectedVersion:       nil,
 			expectedError:         true,
 			expectedErrorContains: "example error message",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			mockCincinnatiClient := cincinatti.NewMockClient(ctrl)
+			tt.mockSetup(mockCincinnatiClient)
+
+			syncer := &controlPlaneUpgradeSyncer{}
+
+			ctx := context.Background()
+			result, err := syncer.desiredControlPlaneZVersion(ctx, mockCincinnatiClient, tt.customerDesiredMinor, tt.channelGroup, tt.activeVersions)
+
+			if tt.expectedError {
+				if err == nil {
+					t.Errorf("Expected error but got none")
+				} else if tt.expectedErrorContains != "" && !strings.Contains(err.Error(), tt.expectedErrorContains) {
+					t.Errorf("Expected error containing %q, got %q", tt.expectedErrorContains, err.Error())
+				}
+			} else {
+				if err != nil {
+					t.Errorf("Unexpected error: %v", err)
+				}
+				if (result == nil) != (tt.expectedVersion == nil) {
+					t.Errorf("Expected version %v, got %v", tt.expectedVersion, result)
+				} else if result != nil && tt.expectedVersion != nil && !result.EQ(*tt.expectedVersion) {
+					t.Errorf("Expected version %q, got %q", tt.expectedVersion.String(), result.String())
+				}
+			}
+		})
+	}
+}
+
+func TestDesiredControlPlaneZVersion_Validations(t *testing.T) {
+	tests := []struct {
+		name                  string
+		activeVersions        []api.HCPClusterActiveVersion
+		customerDesiredMinor  string
+		channelGroup          string
+		mockSetup             func(*cincinatti.MockClient)
+		expectedVersion       *semver.Version
+		expectedError         bool
+		expectedErrorContains string
+	}{
+		{
+			name:                  "Validation - downgrade not allowed (4.20 -> 4.19)",
+			activeVersions:        []api.HCPClusterActiveVersion{{Version: mustParsePtr("4.20.15")}},
+			customerDesiredMinor:  "4.19",
+			channelGroup:          "stable",
+			mockSetup:             func(mc *cincinatti.MockClient) {},
+			expectedVersion:       nil,
+			expectedError:         true,
+			expectedErrorContains: "invalid next y-stream upgrade path from 4.20 to 4.19: only upgrades to the next minor version are allowed, no downgrades",
+		},
+		{
+			name:                  "Validation - major version change not supported (4.20 -> 5.0)",
+			activeVersions:        []api.HCPClusterActiveVersion{{Version: mustParsePtr("4.20.15")}},
+			customerDesiredMinor:  "5.0",
+			channelGroup:          "stable",
+			mockSetup:             func(mc *cincinatti.MockClient) {},
+			expectedVersion:       nil,
+			expectedError:         true,
+			expectedErrorContains: "invalid next y-stream upgrade path from 4.20 to 5.0: major version changes are not supported",
+		},
+		{
+			name:                  "Validation - skip minor version not allowed (4.19 -> 4.21)",
+			activeVersions:        []api.HCPClusterActiveVersion{{Version: mustParsePtr("4.19.22")}},
+			customerDesiredMinor:  "4.21",
+			channelGroup:          "stable",
+			mockSetup:             func(mc *cincinatti.MockClient) {},
+			expectedVersion:       nil,
+			expectedError:         true,
+			expectedErrorContains: "invalid next y-stream upgrade path from 4.19 to 4.21: only upgrades to the next minor version are allowed, no skipping minor versions",
+		},
+		{
+			name:                  "Validation - same major, downgrade minor (4.20 -> 4.18)",
+			activeVersions:        []api.HCPClusterActiveVersion{{Version: mustParsePtr("4.20.5")}},
+			customerDesiredMinor:  "4.18",
+			channelGroup:          "stable",
+			mockSetup:             func(mc *cincinatti.MockClient) {},
+			expectedVersion:       nil,
+			expectedError:         true,
+			expectedErrorContains: "invalid next y-stream upgrade path from 4.20 to 4.18: only upgrades to the next minor version are allowed, no downgrades",
+		},
+		{
+			name:                  "Validation - invalid customerDesiredMinor format",
+			activeVersions:        []api.HCPClusterActiveVersion{{Version: mustParsePtr("4.19.15")}},
+			customerDesiredMinor:  "invalid.version",
+			channelGroup:          "stable",
+			mockSetup:             func(mc *cincinatti.MockClient) {},
+			expectedVersion:       nil,
+			expectedError:         true,
+			expectedErrorContains: "invalid desired minor version",
+		},
+		{
+			name:                  "Validation - invalid actual version (0.0.0)",
+			activeVersions:        []api.HCPClusterActiveVersion{{Version: mustParsePtr("0.0.0")}},
+			customerDesiredMinor:  "4.19",
+			channelGroup:          "stable",
+			mockSetup:             func(mc *cincinatti.MockClient) {},
+			expectedVersion:       nil,
+			expectedError:         true,
+			expectedErrorContains: "invalid next y-stream upgrade path",
 		},
 	}
 
@@ -886,15 +962,6 @@ func TestDesiredControlPlaneZVersion_InitialVersionSelection(t *testing.T) {
 			},
 			expectedVersion: mustParsePtr("4.19.22"), // Returns latest - no next minor to preserve path to
 			expectedError:   false,
-		},
-		{
-			name:                  "Initial version - invalid customerDesiredMinor",
-			customerDesiredMinor:  "invalid",
-			channelGroup:          "stable",
-			mockSetup:             func(mc *cincinatti.MockClient) {},
-			expectedVersion:       nil,
-			expectedError:         true,
-			expectedErrorContains: "",
 		},
 		{
 			name:                 "Initial version - Cincinnati query error",
