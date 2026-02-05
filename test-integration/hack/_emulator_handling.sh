@@ -3,6 +3,8 @@
 
 # Constants
 DEFAULT_COSMOS_ENDPOINT="https://localhost:8081"
+DEFAULT_COSMOS_KEY="C2y6yDjf5/R+ob0N8A7Cgv30VRDJIWEHLM+4QDU5DE2nQ9nDuVTqobD4b8mGGyPMbIZnqyMsEcaGQy67XIw/Jw=="
+DEFAULT_COSMOS_CONN_STRING="AccountEndpoint=https://localhost:8081/;AccountKey=C2y6yDjf5/R+ob0N8A7Cgv30VRDJIWEHLM+4QDU5DE2nQ9nDuVTqobD4b8mGGyPMbIZnqyMsEcaGQy67XIw/Jw==;"
 
 # Choose container runtime (prefer podman, fallback to docker)
 get_container_runtime() {
@@ -19,6 +21,31 @@ CONTAINER_RUNTIME=$(get_container_runtime)
 
 get_running_emulator_container_name() {
     ${CONTAINER_RUNTIME} ps --filter "name=local-cosmos-emulator-*" --format "{{.Names}}" | head -n 1
+}
+
+# Save logs from all running emulator containers to specified directory
+save_emulator_logs() {
+    local output_dir=$1
+    if [ -z "${output_dir}" ]; then
+        echo "Error: save_emulator_logs requires output directory as argument"
+        return
+    fi
+    echo "Collecting Cosmos DB emulator logs..."
+
+    local containers
+    containers=$(${CONTAINER_RUNTIME} ps -q --filter "name=local-cosmos-emulator-*" 2>/dev/null || true)
+
+    if [ -n "$containers" ]; then
+        for container in $containers; do
+            local container_name
+            container_name=$(${CONTAINER_RUNTIME} inspect --format='{{.Name}}' "$container" | sed 's|^/||')
+            echo "Saving logs for container: $container_name"
+            ${CONTAINER_RUNTIME} logs "$container" > "${output_dir}/${container_name}.log" 2>&1 || true
+        done
+        echo "Cosmos container logs saved to: $output_dir"
+    else
+        echo "No running Cosmos emulator containers found to collect logs from"
+    fi
 }
 
 # Stop and remove emulator containers
