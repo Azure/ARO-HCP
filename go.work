@@ -6,7 +6,7 @@ use (
 	./backend
 	./frontend
 	./internal
-	./route-monitor-controller
+	./kas-monitor-controller
 	./test
 	./test-integration
 	./tooling/grafanactl
