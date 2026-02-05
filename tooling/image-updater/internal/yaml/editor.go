@@ -36,6 +36,7 @@ type Update struct {
 	FilePath  string // Path to the YAML file
 	JsonPath  string // JSON path to the value in the YAML
 	Line      int    // Line number in the file
+	ValueType string
 }
 
 type EditorInterface interface {
@@ -237,19 +238,45 @@ func (e *Editor) ApplyUpdates(updates []Update) error {
 
 				// Build the new value with the digest and optional comment
 				newValue := updates[updateIndex].NewDigest
+
+				// If the config requested "tag" mode, use the tag instead of SHA
+				if updates[updateIndex].ValueType == "tag" {
+					// Use the tag (e.g. "2.10.1")
+					// We quote it to ensure YAML treats it as a string (prevents "1.20" -> 1.2 float parsing)
+					newValue = fmt.Sprintf("%q", updates[updateIndex].Tag)
+				}
+
+				// Prepare the comment (Version/Tag + Date)
 				// Use Version if available, otherwise fall back to Tag
 				versionInfo := updates[updateIndex].Version
 				if versionInfo == "" {
 					versionInfo = updates[updateIndex].Tag
 				}
-				if versionInfo != "" {
-					comment := versionInfo
-					if updates[updateIndex].Date != "" {
-						comment = comment + " (" + updates[updateIndex].Date + ")"
-					}
-					newValue = newValue + " # " + comment
-				}
 
+				// Construct the comment
+				if versionInfo != "" {
+					comment := ""
+
+					// Logic to avoid redundancy:
+					// If we are writing the Tag as the value, don't repeat it in the comment.
+					// Only show the date.
+					if updates[updateIndex].ValueType == "tag" {
+						if updates[updateIndex].Date != "" {
+							comment = "(" + updates[updateIndex].Date + ")"
+						}
+					} else {
+						// Standard Digest Mode: Show "v1.2.3 (Date)"
+						comment = versionInfo
+						if updates[updateIndex].Date != "" {
+							comment = comment + " (" + updates[updateIndex].Date + ")"
+						}
+					}
+
+					// Append comment if it's not empty
+					if comment != "" {
+						newValue = newValue + " # " + comment
+					}
+				}
 				line = prefix + newValue
 			} else {
 				// Fallback: if we can't find a colon, just replace the old digest with new

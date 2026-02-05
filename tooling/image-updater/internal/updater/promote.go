@@ -94,6 +94,7 @@ type ImageDeclaration struct {
 	Line        int
 	VersionTag  string
 	VersionDate string
+	ValueType   string
 }
 
 type editorGetter func(string) (yaml.EditorInterface, error)
@@ -219,6 +220,7 @@ func (p *Promotion) Execute(ctx context.Context, forceUpdate bool) ([]yaml.Updat
 			JsonPath:  target.JSONPath,
 			FilePath:  target.FilePath,
 			Line:      target.Line,
+			ValueType: target.ValueType,
 		})
 	}
 	return updates, nil

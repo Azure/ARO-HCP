@@ -61,9 +61,10 @@ type KeyVaultConfig struct {
 
 // Target defines where to update the image digest
 type Target struct {
-	JsonPath string `yaml:"jsonPath"`
-	FilePath string `yaml:"filePath"`
-	Env      string `yaml:"env,omitempty"` // Environment (dev, int, stg, prod)
+	JsonPath  string `yaml:"jsonPath"`
+	FilePath  string `yaml:"filePath"`
+	Env       string `yaml:"env,omitempty"` // Environment (dev, int, stg, prod)
+	ValueType string `yaml:"valueType,omitempty"`
 }
 
 // Validate checks if the Source configuration is valid

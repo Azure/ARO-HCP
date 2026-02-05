@@ -412,6 +412,7 @@ func (u *Updater) ProcessImageUpdates(ctx context.Context, name string, tag *cli
 		JsonPath:  target.JsonPath,
 		FilePath:  target.FilePath,
 		Line:      line,
+		ValueType: target.ValueType,
 	})
 
 	if u.DryRun {
