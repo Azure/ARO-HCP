@@ -348,7 +348,8 @@ func createCosmosClientFromEnv() (*azcosmos.Client, error) {
 	// Configure HTTP client to skip certificate verification for the emulator
 	httpClient := &http.Client{
 		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+			TLSClientConfig:   &tls.Config{InsecureSkipVerify: true},
+			DisableKeepAlives: true,
 		},
 	}
 
