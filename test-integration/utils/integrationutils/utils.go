@@ -23,15 +23,16 @@ import (
 	"testing"
 
 	_ "github.com/Azure/ARO-HCP/internal/api/v20240610preview"
+
 	"github.com/go-logr/logr"
 	"github.com/go-logr/logr/testr"
-
+	"github.com/microsoft/go-otel-audit/audit/base"
+	"github.com/microsoft/go-otel-audit/audit/msgs"
 	"github.com/prometheus/client_golang/prometheus"
 
 	adminApiServer "github.com/Azure/ARO-HCP/admin/server/server"
 	"github.com/Azure/ARO-HCP/frontend/pkg/frontend"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/audit"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -106,12 +107,9 @@ func NewIntegrationTestInfoFromEnv(ctx context.Context, t *testing.T, withMock b
 	if err != nil {
 		return nil, err
 	}
-	noOpAuditClient, err := audit.NewOtelAuditClient(audit.CreateConn(false))
-	if err != nil {
-		return nil, err
-	}
+	fakeAuditClient := &FakeOTELClient{}
 	metricsRegistry := prometheus.NewRegistry()
-	aroHCPFrontend := frontend.NewFrontend(logger, frontendListener, frontendMetricsListener, metricsRegistry, storageIntegrationTestInfo.CosmosClient(), clusterServiceMockInfo.MockClusterServiceClient, noOpAuditClient, "fake-location")
+	aroHCPFrontend := frontend.NewFrontend(logger, frontendListener, frontendMetricsListener, metricsRegistry, storageIntegrationTestInfo.CosmosClient(), clusterServiceMockInfo.MockClusterServiceClient, fakeAuditClient, "fake-location")
 
 	// admin api setup
 	adminListener, err := net.Listen("tcp4", "127.0.0.1:0")
@@ -153,5 +151,13 @@ func MarkOperationsCompleteForName(ctx context.Context, dbClient database.DBClie
 	if operationsIterator.GetError() != nil {
 		return operationsIterator.GetError()
 	}
+	return nil
+}
+
+type FakeOTELClient struct{}
+
+func (t *FakeOTELClient) Send(ctx context.Context, msg msgs.Msg, options ...base.SendOption) error {
+	logger := utils.LoggerFromContext(ctx)
+	logger.Info("Sending message", "msg", msg)
 	return nil
 }
