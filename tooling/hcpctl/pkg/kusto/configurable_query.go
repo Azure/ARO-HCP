@@ -19,7 +19,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Azure/azure-kusto-go/kusto/kql"
+	"github.com/Azure/azure-kusto-go/azkustodata/kql"
 )
 
 type ConfigurableQuery struct {

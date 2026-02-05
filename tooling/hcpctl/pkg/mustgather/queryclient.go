@@ -23,16 +23,16 @@ import (
 
 	"github.com/go-logr/logr"
 
-	"github.com/Azure/azure-kusto-go/kusto/data/table"
+	azkquery "github.com/Azure/azure-kusto-go/azkustodata/query"
 
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/kusto"
 )
 
 // QueryClientInterface defines the interface for querying data
 type QueryClientInterface interface {
-	ConcurrentQueries(ctx context.Context, queries []*kusto.ConfigurableQuery, outputChannel chan *table.Row) error
+	ConcurrentQueries(ctx context.Context, queries []*kusto.ConfigurableQuery, outputChannel chan<- azkquery.Row) error
 	Close() error
-	ExecutePreconfiguredQuery(ctx context.Context, query *kusto.ConfigurableQuery, outputChannel chan *table.Row) (*kusto.QueryResult, error)
+	ExecutePreconfiguredQuery(ctx context.Context, query *kusto.ConfigurableQuery, outputChannel chan<- azkquery.Row) (*kusto.QueryResult, error)
 }
 
 type QueryClient struct {
@@ -62,7 +62,7 @@ func NewQueryClientWithFileWriter(client kusto.KustoClient, queryTimeout time.Du
 	}
 }
 
-func (q *QueryClient) ConcurrentQueries(ctx context.Context, queries []*kusto.ConfigurableQuery, outputChannel chan *table.Row) error {
+func (q *QueryClient) ConcurrentQueries(ctx context.Context, queries []*kusto.ConfigurableQuery, outputChannel chan<- azkquery.Row) error {
 	logger := logr.FromContextOrDiscard(ctx)
 	wg := sync.WaitGroup{}
 	wg.Add(len(queries))
@@ -105,6 +105,6 @@ func (q *QueryClient) Close() error {
 	return q.Client.Close()
 }
 
-func (q *QueryClient) ExecutePreconfiguredQuery(ctx context.Context, query *kusto.ConfigurableQuery, outputChannel chan *table.Row) (*kusto.QueryResult, error) {
+func (q *QueryClient) ExecutePreconfiguredQuery(ctx context.Context, query *kusto.ConfigurableQuery, outputChannel chan<- azkquery.Row) (*kusto.QueryResult, error) {
 	return q.Client.ExecutePreconfiguredQuery(ctx, query, outputChannel)
 }

@@ -26,7 +26,7 @@ import (
 	"github.com/go-logr/logr"
 	"golang.org/x/sync/errgroup"
 
-	"github.com/Azure/azure-kusto-go/kusto/data/table"
+	azkquery "github.com/Azure/azure-kusto-go/azkustodata/query"
 
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/kusto"
 )
@@ -309,7 +309,7 @@ func (g *Gatherer) GatherLogs(ctx context.Context) error {
 }
 
 func (g *Gatherer) executeClusterIdQuery(ctx context.Context, query *kusto.ConfigurableQuery) ([]string, error) {
-	outputChannel := make(chan *table.Row)
+	outputChannel := make(chan azkquery.Row)
 	allClusterIds := make([]string, 0)
 
 	group := new(errgroup.Group)
@@ -341,7 +341,7 @@ func (g *Gatherer) executeClusterIdQuery(ctx context.Context, query *kusto.Confi
 
 func (g *Gatherer) queryAndWriteToFile(ctx context.Context, queryType QueryType, queries []*kusto.ConfigurableQuery) error {
 	// logger := logr.FromContextOrDiscard(ctx)
-	queryOutputChannel := make(chan *table.Row)
+	queryOutputChannel := make(chan azkquery.Row)
 
 	queryGroup := new(errgroup.Group)
 	queryGroup.Go(func() error {
@@ -363,7 +363,7 @@ func (g *Gatherer) queryAndWriteToFile(ctx context.Context, queryType QueryType,
 	return nil
 }
 
-func (g *Gatherer) convertRowsAndOutput(outputChannel chan *table.Row, queryType QueryType) error {
+func (g *Gatherer) convertRowsAndOutput(outputChannel <-chan azkquery.Row, queryType QueryType) error {
 	logLineChan := make(chan *NormalizedLogLine)
 
 	// Start output processing in background
