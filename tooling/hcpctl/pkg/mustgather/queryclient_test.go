@@ -197,7 +197,7 @@ func TestQueryClient_ConcurrentQueries_FileWriteError(t *testing.T) {
 	queries := []*kusto.ConfigurableQuery{query}
 
 	result := &kusto.QueryResult{
-		Columns:    []kusto.Column{{Name: "col1", Type: "string"}},
+		Columns:    azkquery.Columns{&MockColumn{name: "col1", ctype: "string", index: 0}},
 		QueryStats: kusto.QueryStats{ExecutionTime: 100 * time.Millisecond, TotalRows: 10, DataSize: 1024},
 	}
 
