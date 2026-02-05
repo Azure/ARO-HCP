@@ -26,8 +26,6 @@ import (
 	"github.com/golang/groupcache/lru"
 	"github.com/google/uuid"
 
-	utilsclock "k8s.io/utils/clock"
-
 	"github.com/openshift/cluster-version-operator/pkg/cincinnati"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
@@ -43,7 +41,6 @@ import (
 // It handles automated (managed) z-stream (patch) upgrades and assists with y-stream (minor)
 // version upgrades by selecting the appropriate z-stream within the user-desired minor version.
 type controlPlaneUpgradeSyncer struct {
-	clock                utilsclock.PassiveClock
 	cosmosClient         database.DBClient
 	clusterServiceClient ocm.ClusterServiceClientSpec
 
@@ -63,7 +60,6 @@ func NewControlPlaneUpgradeController(
 ) controllerutils.Controller {
 
 	syncer := &controlPlaneUpgradeSyncer{
-		clock:                     utilsclock.RealClock{},
 		cosmosClient:              cosmosClient,
 		clusterToCincinnatiClient: lru.New(100000),
 		clusterServiceClient:      clusterServiceClient,
