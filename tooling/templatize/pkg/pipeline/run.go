@@ -241,8 +241,9 @@ func runGraph(ctx context.Context, logger logr.Logger, executionGraph *graph.Gra
 
 			var outputData []byte
 			outputFile := options.TimingOutputFile
+			compressed := compressTimingMetadata()
 
-			if compressTimingMetadata() {
+			if compressed {
 				// Gzip the encoded data
 				var gzipBuffer bytes.Buffer
 				gzipWriter := gzip.NewWriter(&gzipBuffer)
@@ -263,7 +264,7 @@ func runGraph(ctx context.Context, logger logr.Logger, executionGraph *graph.Gra
 				outputData = encodedTiming
 			}
 
-			logger.Info("Writing timing report.", "file", outputFile)
+			logger.Info("Writing timing report.", "file", outputFile, "size", len(outputData), "compressed", compressed)
 			if err := os.WriteFile(outputFile, outputData, 0644); err != nil {
 				logger.Error(err, "error writing timing")
 			}
