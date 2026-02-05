@@ -54,10 +54,7 @@ type CosmosPersistable interface {
 }
 
 func (o *CosmosMetadata) GetCosmosUID() string {
-	if len(o.ExistingCosmosUID) > 0 {
-		return o.ExistingCosmosUID
-	}
-	return Must(oldResourceIDToCosmosID(o.ResourceID))
+	return Must(ResourceIDToCosmosID(o.ResourceID))
 }
 
 func (o *CosmosMetadata) GetPartitionKey() string {
@@ -90,23 +87,6 @@ type CosmosMetadataAccessor interface {
 	SetResourceID(*azcorearm.ResourceID)
 	GetEtag() azcore.ETag
 	SetEtag(cosmosETag azcore.ETag)
-}
-
-func oldResourceIDToCosmosID(resourceID *azcorearm.ResourceID) (string, error) {
-	if resourceID == nil {
-		return "", errors.New("resource ID is nil")
-	}
-	return oldResourceIDStringToCosmosID(resourceID.String())
-}
-
-func oldResourceIDStringToCosmosID(resourceID string) (string, error) {
-	if len(resourceID) == 0 {
-		return "", errors.New("resource ID is empty")
-	}
-	// cosmos uses a REST API, which means that IDs that contain slashes cause problems with URL handling.
-	// We chose | because that is a delimiter that is not allowed inside of an ARM resource ID because it is a separator
-	// for multiple resource IDs.
-	return strings.ReplaceAll(strings.ToLower(resourceID), "/", "|"), nil
 }
 
 func ResourceIDToCosmosID(resourceID *azcorearm.ResourceID) (string, error) {
