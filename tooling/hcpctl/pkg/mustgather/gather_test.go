@@ -26,7 +26,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
-	"github.com/Azure/azure-kusto-go/kusto/data/table"
+	azkquery "github.com/Azure/azure-kusto-go/azkustodata/query"
 
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/kusto"
 )
@@ -36,7 +36,7 @@ type MockQueryClient struct {
 	mock.Mock
 }
 
-func (m *MockQueryClient) ConcurrentQueries(ctx context.Context, queries []*kusto.ConfigurableQuery, outputChannel chan *table.Row) error {
+func (m *MockQueryClient) ConcurrentQueries(ctx context.Context, queries []*kusto.ConfigurableQuery, outputChannel chan<- azkquery.Row) error {
 	args := m.Called(ctx, queries, outputChannel)
 	return args.Error(0)
 }
@@ -46,7 +46,7 @@ func (m *MockQueryClient) Close() error {
 	return args.Error(0)
 }
 
-func (m *MockQueryClient) ExecutePreconfiguredQuery(ctx context.Context, query *kusto.ConfigurableQuery, outputChannel chan *table.Row) (*kusto.QueryResult, error) {
+func (m *MockQueryClient) ExecutePreconfiguredQuery(ctx context.Context, query *kusto.ConfigurableQuery, outputChannel chan<- azkquery.Row) (*kusto.QueryResult, error) {
 	args := m.Called(ctx, query, outputChannel)
 	result := args.Get(0)
 	if result == nil {
@@ -105,14 +105,14 @@ func TestGatherer_GatherLogs(t *testing.T) {
 	ctx := context.Background()
 
 	// Success case
-	mockQueryClient.On("ExecutePreconfiguredQuery", ctx, mock.AnythingOfType("*kusto.ConfigurableQuery"), mock.AnythingOfType("chan *table.Row")).Return(&kusto.QueryResult{}, nil).Once()
-	mockQueryClient.On("ConcurrentQueries", ctx, mock.AnythingOfType("[]*kusto.ConfigurableQuery"), mock.AnythingOfType("chan *table.Row")).Return(nil).Twice()
+	mockQueryClient.On("ExecutePreconfiguredQuery", ctx, mock.AnythingOfType("*kusto.ConfigurableQuery"), mock.Anything).Return(&kusto.QueryResult{}, nil).Once()
+	mockQueryClient.On("ConcurrentQueries", ctx, mock.AnythingOfType("[]*kusto.ConfigurableQuery"), mock.Anything).Return(nil).Twice()
 
 	err := gatherer.GatherLogs(ctx)
 	assert.NoError(t, err)
 
 	// Error case
-	mockQueryClient.On("ExecutePreconfiguredQuery", ctx, mock.AnythingOfType("*kusto.ConfigurableQuery"), mock.AnythingOfType("chan *table.Row")).Return(nil, errors.New("query failed"))
+	mockQueryClient.On("ExecutePreconfiguredQuery", ctx, mock.AnythingOfType("*kusto.ConfigurableQuery"), mock.Anything).Return(nil, errors.New("query failed"))
 
 	err = gatherer.GatherLogs(ctx)
 	assert.Error(t, err)
