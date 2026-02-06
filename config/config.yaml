@@ -812,10 +812,10 @@ defaults:
           minVersion: 4.19.0
           maxVersion: 4.20.9
         candidate:
-          minVersion: ""
+          minVersion: 4.19.7
           maxVersion: ""
         nightly:
-          minVersion: ""
+          minVersion: 4.19.0-0.nightly-20200101
           maxVersion: ""
   # Image Sync
   imageSync:
@@ -979,13 +979,6 @@ clouds:
           roleSetName: dev
         azureRuntimeConfig:
           tlsCertificatesIssuer: Self
-        # OCP Versions configuration
-        ocpVersions:
-          channelGroups:
-            candidate:
-              minVersion: 4.19.7
-            nightly:
-              minVersion: 4.19.0-0.nightly-20200101
       # Hypershift Operator
       hypershift:
         limitClusterSizes: true
