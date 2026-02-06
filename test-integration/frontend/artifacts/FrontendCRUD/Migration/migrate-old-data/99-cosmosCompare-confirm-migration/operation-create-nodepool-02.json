@@ -4,7 +4,6 @@
 	"_rid": "3+dlAMzyjkYGAAAAAAAAAA==",
 	"_self": "dbs/3+dlAA==/colls/3+dlAMzyjkY=/docs/3+dlAMzyjkYGAAAAAAAAAA==/",
 	"_ts": 1767902645,
-	"id": "|subscriptions|6b690bec-0c16-4ecb-8f67-781caf40bba7|providers|microsoft.redhatopenshift|hcpoperationstatuses|4067756a-fcc1-4732-a211-d785d888203c",
 	"partitionKey": "6b690bec-0c16-4ecb-8f67-781caf40bba7",
 	"properties": {
 		"externalId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/create-with-tags/nodePools/node-pool-02",
@@ -18,5 +17,6 @@
 		"tenantId": "00000000-0000-0000-0000-000000000000"
 	},
 	"resourceType": "Microsoft.RedHatOpenShift/hcpOperationStatuses",
+	"resourceID": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/providers/Microsoft.RedHatOpenShift/hcpOperationStatuses/4067756a-fcc1-4732-a211-d785d888203c",
 	"ttl": 604800
 }

@@ -69,7 +69,7 @@ func testClusterMismatchController(t *testing.T, withMock bool) {
 				allItems, err := crud.ListRecursive(ctx, nil)
 				require.NoError(t, err)
 				for _, curr := range allItems.Items(ctx) {
-					if curr.ID == "|subscriptions|a433a095-1277-44f1-8453-8d61a4d848c2|resourcegroups|unimportantpostponement|providers|microsoft.redhatopenshift|hcpopenshiftclusters|monstrousprecinct|hcpopenshiftcontrollers|cosmosmatchingclusters" {
+					if strings.EqualFold(curr.ResourceID.String(), "/subscriptions/a433a095-1277-44f1-8453-8d61a4d848c2/resourcegroups/unimportantpostponement/providers/microsoft.redhatopenshift/hcpopenshiftclusters/monstrousprecinct/hcpopenshiftcontrollers/cosmosmatchingclusters") {
 						// we create an instance to indicate we deleted a thing.  We'll clean it up in a separate controller later that does NOT report.
 						// we want this one to report in case it cannot cleanup, so we'll leave the standard logic.
 						continue

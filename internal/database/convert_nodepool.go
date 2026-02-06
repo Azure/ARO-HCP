@@ -34,6 +34,7 @@ func InternalToCosmosNodePool(internalObj *api.HCPOpenShiftClusterNodePool) (*No
 				ID: internalObj.GetCosmosData().GetCosmosUID(),
 			},
 			PartitionKey: strings.ToLower(internalObj.ID.SubscriptionID),
+			ResourceID:   internalObj.ID,
 			ResourceType: internalObj.ID.ResourceType.String(),
 		},
 		NodePoolProperties: NodePoolProperties{
@@ -101,6 +102,7 @@ func CosmosToInternalNodePool(cosmosObj *NodePool) (*api.HCPOpenShiftClusterNode
 	internalObj.Properties.ProvisioningState = resourceDoc.ProvisioningState
 	internalObj.SystemData = resourceDoc.SystemData
 	internalObj.Tags = copyTags(resourceDoc.Tags)
+	internalObj.ServiceProviderProperties.ExistingCosmosUID = cosmosObj.ID
 	internalObj.ServiceProviderProperties.ClusterServiceID = resourceDoc.InternalID
 	internalObj.ServiceProviderProperties.ActiveOperationID = resourceDoc.ActiveOperationID
 

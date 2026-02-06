@@ -19,6 +19,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/gofrs/uuid"
+
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 )
@@ -28,13 +30,26 @@ import (
 type CosmosMetadata struct {
 	ResourceID *azcorearm.ResourceID `json:"resourceID"`
 
+	// ExistingCosmosUID exists to allow for a migration path from where we are today to a uuid based cosmosID
+	// and this will be deleted afterwards.
+	ExistingCosmosUID string `json:"-"`
+
 	CosmosETag azcore.ETag `json:"etag,omitempty"`
 }
 
 var (
 	_ CosmosPersistable      = &CosmosMetadata{}
 	_ CosmosMetadataAccessor = &CosmosMetadata{}
+
+	// namespaceUUID was randomly created once.
+	namespaceUUID uuid.UUID
 )
+
+func init() {
+	if err := namespaceUUID.Parse("bf1ee0a1-0147-41ed-a083-d3cbbf7bea99"); err != nil {
+		panic(err)
+	}
+}
 
 type CosmosPersistable interface {
 	GetCosmosData() *CosmosMetadata
@@ -69,6 +84,7 @@ func (o *CosmosMetadata) GetCosmosData() *CosmosMetadata {
 }
 
 type CosmosMetadataAccessor interface {
+	GetCosmosUID() string
 	GetResourceID() *azcorearm.ResourceID
 	SetResourceID(*azcorearm.ResourceID)
 	GetEtag() azcore.ETag
@@ -86,10 +102,9 @@ func ResourceIDStringToCosmosID(resourceID string) (string, error) {
 	if len(resourceID) == 0 {
 		return "", errors.New("resource ID is empty")
 	}
-	// cosmos uses a REST API, which means that IDs that contain slashes cause problems with URL handling.
-	// We chose | because that is a delimiter that is not allowed inside of an ARM resource ID because it is a separator
-	// for multiple resource IDs.
-	return strings.ReplaceAll(strings.ToLower(resourceID), "/", "|"), nil
+
+	// we predictably hash the values because there are length limitations on Azure.
+	return uuid.NewV5(namespaceUUID, strings.ToLower(resourceID)).String(), nil
 }
 
 // DeepCopyResourceID creates a true deep copy of an azcorearm.ResourceID by

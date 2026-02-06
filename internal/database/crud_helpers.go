@@ -17,6 +17,7 @@ package database
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -26,10 +27,26 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
-	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
+
+func OldResourceIDToCosmosID(resourceID *azcorearm.ResourceID) (string, error) {
+	if resourceID == nil {
+		return "", errors.New("resource ID is nil")
+	}
+	return oldResourceIDStringToCosmosID(resourceID.String())
+}
+
+func oldResourceIDStringToCosmosID(resourceID string) (string, error) {
+	if len(resourceID) == 0 {
+		return "", errors.New("resource ID is empty")
+	}
+	// cosmos uses a REST API, which means that IDs that contain slashes cause problems with URL handling.
+	// We chose | because that is a delimiter that is not allowed inside of an ARM resource ID because it is a separator
+	// for multiple resource IDs.
+	return strings.ReplaceAll(strings.ToLower(resourceID), "/", "|"), nil
+}
 
 // TODO this will eventually be the standard GET, but until we rewrite all records with new `id` values, it must remain separate and specifically called.
 func getByItemID[InternalAPIType, CosmosAPIType any](ctx context.Context, containerClient *azcosmos.ContainerClient, partitionKeyString string, cosmosID string) (*InternalAPIType, error) {
@@ -60,13 +77,50 @@ func getByItemID[InternalAPIType, CosmosAPIType any](ctx context.Context, contai
 }
 
 func get[InternalAPIType, CosmosAPIType any](ctx context.Context, containerClient *azcosmos.ContainerClient, partitionKeyString string, completeResourceID *azcorearm.ResourceID) (*InternalAPIType, error) {
-
 	// try to see if the cosmosID we've passed is also the exact resource ID.  If so, then return the value we got.
-	exactCosmosID, err := api.ResourceIDToCosmosID(completeResourceID)
+	newExactCosmosID, err := arm.ResourceIDToCosmosID(completeResourceID)
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}
-	return getByItemID[InternalAPIType, CosmosAPIType](ctx, containerClient, partitionKeyString, exactCosmosID)
+	ret, newCosmosIDErr := getByItemID[InternalAPIType, CosmosAPIType](ctx, containerClient, partitionKeyString, newExactCosmosID)
+	if newCosmosIDErr == nil {
+		return ret, nil
+	}
+	if !IsResponseError(newCosmosIDErr, http.StatusNotFound) {
+		return nil, utils.TrackError(newCosmosIDErr)
+	}
+
+	partitionKey := azcosmos.NewPartitionKeyString(partitionKeyString)
+	oldExactCosmosID, err := OldResourceIDToCosmosID(completeResourceID)
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
+	responseItem, err := containerClient.ReadItem(ctx, partitionKey, oldExactCosmosID, nil)
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
+
+	objAsMap := map[string]any{}
+	if err := json.Unmarshal(responseItem.Value, &objAsMap); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal Resources container item for '%s': %w", completeResourceID, err)
+	}
+	originalCosmosID := objAsMap["id"].(string)
+	objAsMap["id"] = newExactCosmosID
+	newBytes, err := json.Marshal(objAsMap)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal Cosmos DB item for '%s': %w", completeResourceID, err)
+	}
+
+	logger := utils.LoggerFromContext(ctx)
+	logger.Info("migrating item", "newCosmosID", newExactCosmosID, "oldCosmosID", originalCosmosID)
+	if _, err := containerClient.CreateItem(ctx, partitionKey, newBytes, nil); err != nil {
+		return nil, utils.TrackError(err)
+	}
+	if _, err = containerClient.DeleteItem(ctx, partitionKey, originalCosmosID, nil); err != nil {
+		return nil, utils.TrackError(err)
+	}
+
+	return getByItemID[InternalAPIType, CosmosAPIType](ctx, containerClient, partitionKeyString, newExactCosmosID)
 }
 
 func list[InternalAPIType, CosmosAPIType any](ctx context.Context, containerClient *azcosmos.ContainerClient, partitionKeyString string, resourceType *azcorearm.ResourceType, prefix *azcorearm.ResourceID, options *DBClientListResourceDocsOptions, untypedNonRecursive bool) (DBClientIterator[InternalAPIType], error) {
@@ -151,7 +205,7 @@ func list[InternalAPIType, CosmosAPIType any](ctx context.Context, containerClie
 // serializeItem will create a CosmosUID if it doesn't exist, otherwise uses what exists.  This makes it compatible with
 // create, replace, and create
 func serializeItem[InternalAPIType, CosmosAPIType any](newObj *InternalAPIType) (*arm.CosmosMetadata, []byte, error) {
-	cosmosPersistable, ok := any(newObj).(api.CosmosPersistable)
+	cosmosPersistable, ok := any(newObj).(arm.CosmosPersistable)
 	if !ok {
 		return nil, nil, fmt.Errorf("type %T does not implement CosmosPersistable interface", newObj)
 	}

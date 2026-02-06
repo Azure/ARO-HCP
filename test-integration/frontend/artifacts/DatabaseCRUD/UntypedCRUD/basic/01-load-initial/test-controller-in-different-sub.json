@@ -24,5 +24,6 @@
 		},
 		"resourceId": "/subscriptions/de3c5eaa-5fd0-4b8e-bd61-7c1a797b3780/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/parentCluster/hcpOpenShiftControllers/test-controller"
 	},
-	"resourceType": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/hcpOpenShiftControllers"
+	"resourceType": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/hcpOpenShiftControllers",
+	"resourceID": "/subscriptions/de3c5eaa-5fd0-4b8e-bd61-7c1a797b3780/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/parentCluster/hcpOpenShiftControllers/test-controller"
 }
