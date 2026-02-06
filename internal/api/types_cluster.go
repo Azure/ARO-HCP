@@ -60,6 +60,7 @@ type HCPOpenShiftClusterServiceProviderProperties struct {
 	Console           ServiceProviderConsoleProfile  `json:"console,omitempty"`
 	API               ServiceProviderAPIProfile      `json:"api,omitempty"`
 	Platform          ServiceProviderPlatformProfile `json:"platform,omitempty"`
+	BillingDocID      string                         `json:"billingDocId,omitempty"`
 }
 
 // VersionProfile represents the cluster control plane version.

@@ -43,9 +43,11 @@ type BillingDocument struct {
 	ManagedResourceGroup string `json:"managedResourceGroup,omitempty"`
 }
 
-func NewBillingDocument(resourceID *azcorearm.ResourceID) *BillingDocument {
+func NewBillingDocument(id string, resourceID *azcorearm.ResourceID) *BillingDocument {
 	return &BillingDocument{
-		BaseDocument:   newBaseDocument(),
+		BaseDocument:  BaseDocument{
+			ID: id,
+		},
 		SubscriptionID: resourceID.SubscriptionID,
 		ResourceID:     resourceID,
 	}
