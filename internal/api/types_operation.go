@@ -76,8 +76,6 @@ type Operation struct {
 	Error *arm.CloudErrorBody `json:"error,omitempty"`
 }
 
-var _ CosmosPersistable = &Operation{}
-
 func (o *Operation) ComputeLogicalResourceID() *azcorearm.ResourceID {
 	return Must(azcorearm.ParseResourceID(
 		strings.ToLower(
