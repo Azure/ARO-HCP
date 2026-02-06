@@ -810,7 +810,7 @@ defaults:
       channelGroups:
         stable:
           minVersion: 4.19.0
-          maxVersion: 4.20.9
+          maxVersion: ""
         candidate:
           minVersion: 4.19.7
           maxVersion: ""
