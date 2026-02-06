@@ -279,7 +279,7 @@ func (d *cosmosDBClient) Operations(subscriptionID string) OperationCRUD {
 }
 
 func (d *cosmosDBClient) Subscriptions() SubscriptionCRUD {
-	return NewCosmosResourceCRUD[arm.Subscription, Subscription](
+	return NewCosmosResourceCRUD[arm.Subscription, GenericDocument[arm.Subscription]](
 		d.resources, nil, azcorearm.SubscriptionResourceType)
 }
 

@@ -7,6 +7,9 @@
 	"id": "|subscriptions|6b690bec-0c16-4ecb-8f67-781caf40bba7|providers|microsoft.redhatopenshift|hcpoperationstatuses|9696fbeb-0e78-4a32-a3fd-a6e987c2a015",
 	"partitionKey": "6b690bec-0c16-4ecb-8f67-781caf40bba7",
 	"properties": {
+		"cosmosMetadata": {
+			"resourceID": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/providers/Microsoft.RedHatOpenShift/hcpOperationStatuses/9696fbeb-0e78-4a32-a3fd-a6e987c2a015"
+		},
 		"externalId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/create-with-tags",
 		"internalId": "/api/clusters_mgmt/v1/clusters/m6bpjxtlqf",
 		"lastTransitionTime": "2026-01-09T13:32:10.270740712-05:00",

@@ -452,7 +452,7 @@ func (m *mockHCPClusterCRUD) Controllers(hcpClusterName string) database.Resourc
 			m.resourceType.Type,
 			hcpClusterName)))
 
-	return newMockResourceCRUD[api.Controller, database.Controller](m.client, parentResourceID, api.ClusterControllerResourceType)
+	return newMockResourceCRUD[api.Controller, database.GenericDocument[api.Controller]](m.client, parentResourceID, api.ClusterControllerResourceType)
 }
 
 var _ database.HCPClusterCRUD = &mockHCPClusterCRUD{}
@@ -470,7 +470,7 @@ func (m *mockNodePoolsCRUD) Controllers(nodePoolName string) database.ResourceCR
 			nodePoolName,
 		)))
 
-	return newMockResourceCRUD[api.Controller, database.Controller](m.client, parentResourceID, api.NodePoolControllerResourceType)
+	return newMockResourceCRUD[api.Controller, database.GenericDocument[api.Controller]](m.client, parentResourceID, api.NodePoolControllerResourceType)
 }
 
 var _ database.NodePoolsCRUD = &mockNodePoolsCRUD{}
@@ -488,19 +488,19 @@ func (m *mockExternalAuthCRUD) Controllers(externalAuthName string) database.Res
 			externalAuthName,
 		)))
 
-	return newMockResourceCRUD[api.Controller, database.Controller](m.client, parentResourceID, api.ExternalAuthControllerResourceType)
+	return newMockResourceCRUD[api.Controller, database.GenericDocument[api.Controller]](m.client, parentResourceID, api.ExternalAuthControllerResourceType)
 }
 
 var _ database.ExternalAuthsCRUD = &mockExternalAuthCRUD{}
 
 // mockOperationCRUD implements database.OperationCRUD.
 type mockOperationCRUD struct {
-	*mockResourceCRUD[api.Operation, database.Operation]
+	*mockResourceCRUD[api.Operation, database.GenericDocument[api.Operation]]
 }
 
 func newMockOperationCRUD(client *MockDBClient, parentResourceID *azcorearm.ResourceID) *mockOperationCRUD {
 	return &mockOperationCRUD{
-		mockResourceCRUD: newMockResourceCRUD[api.Operation, database.Operation](client, parentResourceID, api.OperationStatusResourceType),
+		mockResourceCRUD: newMockResourceCRUD[api.Operation, database.GenericDocument[api.Operation]](client, parentResourceID, api.OperationStatusResourceType),
 	}
 }
 
@@ -521,13 +521,13 @@ func (m *mockOperationCRUD) ListActiveOperations(options *database.DBClientListA
 			continue
 		}
 
-		var cosmosObj database.Operation
+		var cosmosObj database.GenericDocument[api.Operation]
 		if err := json.Unmarshal(data, &cosmosObj); err != nil {
 			continue
 		}
 
 		// Filter out terminal states
-		status := cosmosObj.OperationProperties.Status
+		status := cosmosObj.Content.Status
 		if status == arm.ProvisioningStateSucceeded ||
 			status == arm.ProvisioningStateFailed ||
 			status == arm.ProvisioningStateCanceled {
@@ -536,12 +536,12 @@ func (m *mockOperationCRUD) ListActiveOperations(options *database.DBClientListA
 
 		// Apply options filters
 		if options != nil {
-			if options.Request != nil && cosmosObj.OperationProperties.Request != *options.Request {
+			if options.Request != nil && cosmosObj.Content.Request != *options.Request {
 				continue
 			}
 
 			if options.ExternalID != nil {
-				externalID := cosmosObj.OperationProperties.ExternalID
+				externalID := cosmosObj.Content.ExternalID
 				if externalID == nil {
 					continue
 				}
@@ -558,7 +558,7 @@ func (m *mockOperationCRUD) ListActiveOperations(options *database.DBClientListA
 			}
 		}
 
-		internalObj, err := database.CosmosToInternalOperation(&cosmosObj)
+		internalObj, err := database.CosmosGenericToInternal(&cosmosObj)
 		if err != nil {
 			continue
 		}
@@ -591,12 +591,12 @@ func (m *mockSubscriptionCRUD) GetByID(ctx context.Context, cosmosID string) (*a
 		return nil, database.NewNotFoundError()
 	}
 
-	var cosmosObj database.Subscription
+	var cosmosObj database.GenericDocument[arm.Subscription]
 	if err := json.Unmarshal(data, &cosmosObj); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal document: %w", err)
 	}
 
-	return database.CosmosToInternalSubscription(&cosmosObj)
+	return database.CosmosGenericToInternal(&cosmosObj)
 }
 
 func (m *mockSubscriptionCRUD) Get(ctx context.Context, resourceName string) (*arm.Subscription, error) {
@@ -634,12 +634,12 @@ func (m *mockSubscriptionCRUD) List(ctx context.Context, options *database.DBCli
 	var items []*arm.Subscription
 
 	for _, data := range documents {
-		var cosmosObj database.Subscription
+		var cosmosObj database.GenericDocument[arm.Subscription]
 		if err := json.Unmarshal(data, &cosmosObj); err != nil {
 			continue
 		}
 
-		internalObj, err := database.CosmosToInternalSubscription(&cosmosObj)
+		internalObj, err := database.CosmosGenericToInternal(&cosmosObj)
 		if err != nil {
 			continue
 		}
@@ -652,7 +652,7 @@ func (m *mockSubscriptionCRUD) List(ctx context.Context, options *database.DBCli
 }
 
 func (m *mockSubscriptionCRUD) Create(ctx context.Context, newObj *arm.Subscription, options *azcosmos.ItemOptions) (*arm.Subscription, error) {
-	cosmosObj, err := database.InternalToCosmosSubscription(newObj)
+	cosmosObj, err := database.InternalToCosmosGeneric(newObj)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert to cosmos type: %w", err)
 	}
@@ -679,7 +679,7 @@ func (m *mockSubscriptionCRUD) Create(ctx context.Context, newObj *arm.Subscript
 }
 
 func (m *mockSubscriptionCRUD) Replace(ctx context.Context, newObj *arm.Subscription, options *azcosmos.ItemOptions) (*arm.Subscription, error) {
-	cosmosObj, err := database.InternalToCosmosSubscription(newObj)
+	cosmosObj, err := database.InternalToCosmosGeneric(newObj)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert to cosmos type: %w", err)
 	}
@@ -725,7 +725,7 @@ func (m *mockSubscriptionCRUD) Delete(ctx context.Context, resourceName string) 
 }
 
 func (m *mockSubscriptionCRUD) AddCreateToTransaction(ctx context.Context, transaction database.DBTransaction, newObj *arm.Subscription, opts *azcosmos.TransactionalBatchItemOptions) (string, error) {
-	cosmosObj, err := database.InternalToCosmosSubscription(newObj)
+	cosmosObj, err := database.InternalToCosmosGeneric(newObj)
 	if err != nil {
 		return "", fmt.Errorf("failed to convert to cosmos type: %w", err)
 	}
@@ -766,7 +766,7 @@ func (m *mockSubscriptionCRUD) AddCreateToTransaction(ctx context.Context, trans
 }
 
 func (m *mockSubscriptionCRUD) AddReplaceToTransaction(ctx context.Context, transaction database.DBTransaction, newObj *arm.Subscription, opts *azcosmos.TransactionalBatchItemOptions) (string, error) {
-	cosmosObj, err := database.InternalToCosmosSubscription(newObj)
+	cosmosObj, err := database.InternalToCosmosGeneric(newObj)
 	if err != nil {
 		return "", fmt.Errorf("failed to convert to cosmos type: %w", err)
 	}
