@@ -70,10 +70,6 @@ func (o *RawOptions) Validate(ctx context.Context) (*ValidatedOptions, error) {
 		return nil, fmt.Errorf("subscription ID is required")
 	}
 
-	if o.Region == "" {
-		return nil, fmt.Errorf("region is required")
-	}
-
 	if o.CacheTTL == 0 {
 		return nil, fmt.Errorf("cache TTL is required")
 	}
@@ -147,10 +143,6 @@ func BindOptions(opts *RawOptions, cmd *cobra.Command) error {
 	err := cmd.MarkFlagRequired("subscription-id")
 	if err != nil {
 		return fmt.Errorf("failed to mark flag %q as required: %w", "subscription-id", err)
-	}
-	err = cmd.MarkFlagRequired("region")
-	if err != nil {
-		return fmt.Errorf("failed to mark flag %q as required: %w", "region", err)
 	}
 	return nil
 }

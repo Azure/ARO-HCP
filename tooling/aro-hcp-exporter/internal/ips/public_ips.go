@@ -16,51 +16,28 @@ package ips
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"strings"
 
-	internal "github.com/Azure/ARO-HCP/tooling/aro-hcp-exporter/internal/utils"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
+	"github.com/Azure/ARO-HCP/tooling/aro-hcp-exporter/internal/utils"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v8"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resourcegraph/armresourcegraph"
 )
 
-type PublicIPAddressClient interface {
-	NewListAllPager(options *armnetwork.PublicIPAddressesClientListAllOptions) *runtime.Pager[armnetwork.PublicIPAddressesClientListAllResponse]
-}
+//[{"ipTagType":"FirstPartyUsage","tag":"/Unprivileged"}]
 
 type IPTag struct {
-	ServiceTagType  string
-	ServiceTagValue string
+	ServiceTagType  string `json:"ipTagType"`
+	ServiceTagValue string `json:"tag"`
 }
 
 type PublicIPAddress struct {
-	ID             string
-	Name           string
-	IPAddress      *string
-	Location       *string
-	ResourceGroup  string
-	SubscriptionID string
+	Location       string
 	ServiceTags    []IPTag
-}
-
-// GetDummyPublicIPAddresses returns a dummy public IP address for testing purposes.
-// This is useful, cause in our RedHat tenant we can not use Service Tags, and have no data to test with.
-func GetDummyPublicIPAddresses() ([]PublicIPAddress, error) {
-	return []PublicIPAddress{
-		{
-			ID:             "123",
-			Name:           "test",
-			IPAddress:      to.Ptr("123.45.67.89"),
-			ResourceGroup:  "test-rg",
-			SubscriptionID: "123",
-			ServiceTags: []IPTag{
-				{
-					ServiceTagType:  "FirstPartyUsage",
-					ServiceTagValue: "Dummy",
-				},
-			},
-		},
-	}, nil
+	SubscriptionId string
+	Count          float64
 }
 
 // GetAllPublicIPAddresses retrieves all public IP addresses from Azure using the provided client.
@@ -69,72 +46,72 @@ func GetDummyPublicIPAddresses() ([]PublicIPAddress, error) {
 func GetAllPublicIPAddresses(ctx context.Context, client *armnetwork.PublicIPAddressesClient, region string) ([]PublicIPAddress, error) {
 	var allIPs []PublicIPAddress
 
-	pager := client.NewListAllPager(nil)
-
-	for pager.More() {
-		page, err := pager.NextPage(ctx)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get next page of public IP addresses: %w", err)
-		}
-
-		for _, ip := range page.Value {
-			if ip == nil {
-				continue
-			}
-
-			if *ip.Location != region {
-				continue
-			}
-
-			publicIP := PublicIPAddress{
-				ID:          *ip.ID,
-				Name:        *ip.Name,
-				Location:    ip.Location,
-				ServiceTags: extractServiceTags(ip.Properties.IPTags),
-			}
-
-			if ip.Properties != nil && ip.Properties.IPAddress != nil {
-				publicIP.IPAddress = ip.Properties.IPAddress
-			}
-
-			if publicIP.ID != "" {
-				resourceGroup, subscriptionID, err := extractResourceInfo(publicIP.ID)
-				if err != nil {
-					return nil, fmt.Errorf("failed to extract resource info: %w", err)
-				}
-				publicIP.ResourceGroup = resourceGroup
-				publicIP.SubscriptionID = subscriptionID
-			}
-
-			allIPs = append(allIPs, publicIP)
-		}
-	}
-
 	return allIPs, nil
 }
 
-func extractResourceInfo(resourceID string) (string, string, error) {
-	parsedID, err := internal.ParseResourceID(resourceID)
-	if err != nil {
-		return "", "", fmt.Errorf("failed to parse resource ID: %w", err)
+// DiscoverClusters discovers AKS clusters using Azure Resource Graph
+func DiscoverPublicIPAddresses(ctx context.Context, client *armresourcegraph.Client) ([]PublicIPAddress, error) {
+	kqlQuery := buildKQLQuery()
+	queryRequest := &armresourcegraph.QueryRequest{
+		Query:         &kqlQuery,
+		Subscriptions: []*string{to.Ptr("5299e6b7-b23b-46c8-8277-dc1147807117")},
 	}
+	result, err := client.Resources(ctx, *queryRequest, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to execute Resource Graph query: %w", err)
+	}
+	return parseResourceGraphResults(result)
 
-	return parsedID.ResourceGroupName, parsedID.SubscriptionID, nil
 }
 
-func extractServiceTags(ipTags []*armnetwork.IPTag) []IPTag {
-	serviceTags := make([]IPTag, 0)
+func buildKQLQuery() string {
+	var query strings.Builder
 
-	for _, tag := range ipTags {
-		if tag == nil {
-			continue
-		}
+	query.WriteString("resources\n")
+	query.WriteString("| where type == 'microsoft.network/publicipaddresses'\n")
+	query.WriteString("| summarize Count=count()  by  subscriptionId, location, tostring(properties['ipTags'])\n")
 
-		serviceTags = append(serviceTags, IPTag{
-			ServiceTagType:  *tag.IPTagType,
-			ServiceTagValue: *tag.Tag,
-		})
+	return query.String()
+}
+
+func parseResourceGraphResults(result armresourcegraph.ClientResourcesResponse) ([]PublicIPAddress, error) {
+	publicIPAddresses := []PublicIPAddress{}
+	rows, err := utils.ParseResourceGraphResultData(result.Data)
+	if err != nil {
+		return nil, err
 	}
 
-	return serviceTags
+	for _, row := range rows {
+		fmt.Println(row)
+		ipTags, err := parseIPTags(utils.ParseStringField(row, "ipTags"))
+		if err != nil {
+			return nil, err
+		}
+		count := utils.ParseIntField(row, "Count")
+		if count == nil {
+			continue
+		}
+		publicIPAddress := PublicIPAddress{
+			SubscriptionId: utils.ParseStringField(row, "subscriptionId"),
+			Location:       utils.ParseStringField(row, "location"),
+			ServiceTags:    ipTags,
+			Count:          *count,
+		}
+		publicIPAddresses = append(publicIPAddresses, publicIPAddress)
+	}
+	fmt.Println(publicIPAddresses)
+	return publicIPAddresses, nil
+}
+
+func parseIPTags(ipTagsAsString string) ([]IPTag, error) {
+	ipTags := []IPTag{}
+
+	if ipTagsAsString == "" {
+		return ipTags, nil
+	}
+	err := json.Unmarshal([]byte(ipTagsAsString), &ipTags)
+	if err != nil {
+		return nil, fmt.Errorf("error parsing IPs %s, %w", ipTagsAsString, err)
+	}
+	return ipTags, nil
 }

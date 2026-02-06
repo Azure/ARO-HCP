@@ -25,7 +25,7 @@ import (
 	"github.com/Azure/ARO-HCP/tooling/aro-hcp-exporter/internal/ips"
 	"github.com/Azure/ARO-HCP/tooling/aro-hcp-exporter/pkg/cache"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v8"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resourcegraph/armresourcegraph"
 )
 
 const (
@@ -37,14 +37,14 @@ var (
 	ServiceTagUsageByPublicIpCountDesc = prometheus.NewDesc(
 		"public_ip_count_by_region_service_tag",
 		"Number of public IP addresses in a region by service tag",
-		[]string{"region", "service_tag_type", "service_tag_value"},
+		[]string{"subscription_id", "region", "service_tag_type", "service_tag_value"},
 		nil,
 	)
 )
 
 // ServiceTagUsageCollector is a Prometheus collector that gathers public IP metrics from Azure
 type ServiceTagUsageCollector struct {
-	client           *armnetwork.PublicIPAddressesClient
+	client           *armresourcegraph.Client
 	cache            *cache.MetricsCache
 	name             string
 	region           string
@@ -55,16 +55,15 @@ var _ CachingCollector = &ServiceTagUsageCollector{}
 
 // NewServiceTagUsageCollector creates a new ServiceTagUsageCollector
 func NewServiceTagUsageCollector(subscriptionID string, region string, credential azcore.TokenCredential, cacheTTL time.Duration, runInDevelopment bool) (*ServiceTagUsageCollector, error) {
-	var publicIPClient *armnetwork.PublicIPAddressesClient
+	var resourceGraphClient *armresourcegraph.Client
 	var err error
-	if !runInDevelopment {
-		publicIPClient, err = armnetwork.NewPublicIPAddressesClient(subscriptionID, credential, nil)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create Azure network public IP addresses client: %w", err)
-		}
+	resourceGraphClient, err = armresourcegraph.NewClient(credential, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create Resource Graph client: %w", err)
 	}
+
 	return &ServiceTagUsageCollector{
-		client:           publicIPClient,
+		client:           resourceGraphClient,
 		cache:            cache.NewMetricsCache(cacheTTL),
 		runInDevelopment: runInDevelopment,
 		region:           region,
@@ -91,41 +90,28 @@ func (c *ServiceTagUsageCollector) CollectMetricValues(ctx context.Context) {
 
 	var publicIPs []ips.PublicIPAddress
 	var err error
-	if c.runInDevelopment {
-		publicIPs, err = ips.GetDummyPublicIPAddresses()
-		if err != nil {
-			logger.Error(err, "error collecting dummy public IP addresses")
-			return
-		}
-	} else {
-		publicIPs, err = ips.GetAllPublicIPAddresses(ctx, c.client, c.region)
-		if err != nil {
-			logger.Error(err, "error collecting public IP addresses")
-			return
-		}
-	}
 
-	// mapping of ServiceTagType to ServiceTagValue to count of PublicIPs
-	serviceTypeTagCounts := make(map[string]map[string]int)
+	publicIPs, err = ips.DiscoverPublicIPAddresses(ctx, c.client)
+	if err != nil {
+		logger.Error(err, "error collecting public IP addresses")
+		return
+	}
 
 	for _, publicIP := range publicIPs {
-		for _, serviceTag := range publicIP.ServiceTags {
-			if _, ok := serviceTypeTagCounts[serviceTag.ServiceTagType]; !ok {
-				serviceTypeTagCounts[serviceTag.ServiceTagType] = make(map[string]int)
-			}
-			serviceTypeTagCounts[serviceTag.ServiceTagType][serviceTag.ServiceTagValue]++
+		tag_type := ""
+		tag_value := ""
+		if len(publicIP.ServiceTags) > 0 {
+			tag_type = publicIP.ServiceTags[0].ServiceTagType
+			tag_value = publicIP.ServiceTags[0].ServiceTagValue
 		}
-	}
-	for serviceTagType, serviceTagValueCounts := range serviceTypeTagCounts {
-		for serviceTagValue, count := range serviceTagValueCounts {
-			c.cache.AddMetric(prometheus.MustNewConstMetric(
-				ServiceTagUsageByPublicIpCountDesc,
-				prometheus.GaugeValue,
-				float64(count),
-				c.region,
-				serviceTagType,
-				serviceTagValue,
-			))
-		}
+		c.cache.AddMetric(prometheus.MustNewConstMetric(
+			ServiceTagUsageByPublicIpCountDesc,
+			prometheus.GaugeValue,
+			publicIP.Count,
+			publicIP.SubscriptionId,
+			publicIP.Location,
+			tag_type,
+			tag_value,
+		))
 	}
 }
