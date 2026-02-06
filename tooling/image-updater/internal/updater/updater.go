@@ -32,18 +32,6 @@ const (
 	DefaultArchitecture = "amd64"
 )
 
-// PromotionMode defines how image digests are obtained
-type PromotionMode int
-
-const (
-	// FetchLatest fetches the latest digest from the registry
-	FetchLatest PromotionMode = iota
-	// PromoteToStage copies digests from int environment to stage
-	PromoteToStage
-	// PromoteToProduction copies digests from stage environment to prod
-	PromoteToProduction
-)
-
 // Updater contains all pre-created resources needed for execution
 type Updater struct {
 	Config          *config.Config
@@ -52,14 +40,12 @@ type Updater struct {
 	RegistryClients map[string]clients.RegistryClient
 	YAMLEditors     map[string]yaml.EditorInterface
 	Updates         map[string][]yaml.Update
-	PromotionMode   PromotionMode
-	Environments    []string
 	OutputFile      string
 	OutputFormat    string
 }
 
 // New creates a new Updater with all necessary resources pre-initialized
-func New(cfg *config.Config, dryRun bool, forceUpdate bool, registryClients map[string]clients.RegistryClient, yamlEditors map[string]yaml.EditorInterface, promotionMode PromotionMode, environments []string, outputFile, outputFormat string) *Updater {
+func New(cfg *config.Config, dryRun bool, forceUpdate bool, registryClients map[string]clients.RegistryClient, yamlEditors map[string]yaml.EditorInterface, outputFile, outputFormat string) *Updater {
 	return &Updater{
 		Config:          cfg,
 		DryRun:          dryRun,
@@ -67,8 +53,6 @@ func New(cfg *config.Config, dryRun bool, forceUpdate bool, registryClients map[
 		RegistryClients: registryClients,
 		YAMLEditors:     yamlEditors,
 		Updates:         make(map[string][]yaml.Update),
-		PromotionMode:   promotionMode,
-		Environments:    environments,
 		OutputFile:      outputFile,
 		OutputFormat:    outputFormat,
 	}
@@ -81,17 +65,7 @@ func (u *Updater) UpdateImages(ctx context.Context) error {
 		return fmt.Errorf("logger not found in context: %w", err)
 	}
 
-	logger.V(1).Info("starting image updates",
-		"totalImages", len(u.Config.Images),
-		"promotionMode", u.getPromotionModeString(),
-		"environments", u.Environments)
-
-	// Handle promotion mode (copy from lower environment)
-	if u.PromotionMode != FetchLatest {
-		return u.promoteImages(ctx)
-	}
-
-	// Regular fetch mode
+	logger.V(1).Info("starting image updates", "totalImages", len(u.Config.Images))
 	imageNum := 0
 	updatedCount := 0
 	for name, imageConfig := range u.Config.Images {
@@ -183,132 +157,6 @@ func (u *Updater) outputResults(ctx context.Context) error {
 	}
 
 	return nil
-}
-
-// promoteImages handles copying digests from a lower environment to a higher environment
-func (u *Updater) promoteImages(ctx context.Context) error {
-	logger, err := logr.FromContext(ctx)
-	if err != nil {
-		return fmt.Errorf("logger not found in context: %w", err)
-	}
-
-	sourceEnv, targetEnv := u.getPromotionSourceAndTarget()
-	logger = logger.WithValues("from", sourceEnv, "to", targetEnv)
-	ctx = logr.NewContext(ctx, logger)
-
-	logger.V(1).Info("promoting images")
-
-	var promotions []Promotion
-	for name, imageConfig := range u.Config.Images {
-		logger.V(1).Info("processing image for promotion", "name", name, "source", imageConfig.Source.Image)
-
-		promotion := Promotion{ImageName: name}
-		for _, target := range imageConfig.Targets {
-			// Find all the targets thar target the source env
-			if target.Env == sourceEnv {
-				promotion.SourceImageDeclaration = append(promotion.SourceImageDeclaration, &ImageDeclaration{
-					JSONPath: target.JsonPath,
-					FilePath: target.FilePath,
-				})
-			}
-
-			// Find all the targets thar target the target env
-			if target.Env == targetEnv {
-				promotion.TargetImageDeclaration = append(promotion.TargetImageDeclaration, &ImageDeclaration{
-					JSONPath: target.JsonPath,
-					FilePath: target.FilePath,
-				})
-			}
-		}
-
-		getEditor := func(filePath string) (yaml.EditorInterface, error) {
-			editor, exists := u.YAMLEditors[filePath]
-			if !exists {
-				return nil, fmt.Errorf("no YAML editor available for %s", filePath)
-			}
-			return editor, nil
-		}
-
-		if err := promotion.Build(getEditor); err != nil {
-			if IsSkippablePromotionBuildError(err) {
-				logger.Error(err, "skipping image promotion due to invalid/unclear source", "name", name)
-				continue
-			}
-			return fmt.Errorf("failed to build promotion for image %s: %w", name, err)
-		}
-
-		promotions = append(promotions, promotion)
-	}
-
-	updatedCount := 0
-	for _, promotion := range promotions {
-		updates, err := promotion.Execute(ctx, u.ForceUpdate)
-		if err != nil {
-			return fmt.Errorf("failed to execute promotion for image %s: %w", promotion.ImageName, err)
-		}
-		updatedCount += len(updates)
-		for _, update := range updates {
-			u.Updates[update.FilePath] = append(u.Updates[update.FilePath], update)
-		}
-	}
-
-	// Always show summary
-	if u.DryRun {
-		fmt.Fprintf(os.Stderr, "Promoting from %s to %s: %d images would be updated (dry-run mode)\n",
-			sourceEnv, targetEnv, updatedCount)
-	} else {
-		fmt.Fprintf(os.Stderr, "Promoting from %s to %s: %d images updated\n",
-			sourceEnv, targetEnv, updatedCount)
-	}
-
-	if !u.DryRun && len(u.Updates) > 0 {
-		for filePath, updates := range u.Updates {
-			editor, exists := u.YAMLEditors[filePath]
-			if !exists {
-				return fmt.Errorf("no YAML editor available for %s", filePath)
-			}
-
-			if err := editor.ApplyUpdates(updates); err != nil {
-				return fmt.Errorf("failed to apply updates to %s: %w", filePath, err)
-			}
-		}
-
-		commitMsg := fmt.Sprintf("Promoted images from %s to %s", sourceEnv, targetEnv)
-		fmt.Println(commitMsg)
-	}
-
-	// Generate and output results
-	if err := u.outputResults(ctx); err != nil {
-		return fmt.Errorf("failed to output results: %w", err)
-	}
-
-	return nil
-}
-
-// getPromotionSourceAndTarget returns the source and target environments for promotion
-func (u *Updater) getPromotionSourceAndTarget() (source, target string) {
-	switch u.PromotionMode {
-	case PromoteToStage:
-		return "int", "stg"
-	case PromoteToProduction:
-		return "stg", "prod"
-	default:
-		return "", ""
-	}
-}
-
-// getPromotionModeString returns a string representation of the promotion mode
-func (u *Updater) getPromotionModeString() string {
-	switch u.PromotionMode {
-	case FetchLatest:
-		return "fetch-latest"
-	case PromoteToStage:
-		return "promote-to-stage"
-	case PromoteToProduction:
-		return "promote-to-production"
-	default:
-		return "unknown"
-	}
 }
 
 // fetchLatestDigest retrieves the latest digest from the appropriate registry
