@@ -5,6 +5,7 @@ go 1.24.11
 require (
 	github.com/openshift/hypershift/api v0.0.0-20240604072534-cd2d5291e2b7
 	github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring v0.85.0
+	github.com/stretchr/testify v1.11.1
 	k8s.io/apimachinery v0.34.3
 	k8s.io/client-go v0.34.1
 	sigs.k8s.io/controller-runtime v0.22.3

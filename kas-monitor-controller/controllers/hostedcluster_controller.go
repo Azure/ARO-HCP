@@ -93,7 +93,7 @@ func (r *HostedClusterReconciler) reconcileServiceMonitor(ctx context.Context, h
 	if err != nil {
 		if errors.IsNotFound(err) {
 			logger.Info("Creating ServiceMonitor with OwnerReference",
-				"name", desired.Name,
+				"serviceMonitorName", desired.Name,
 				"namespace", desired.Namespace,
 				"owner", hostedCluster.Name)
 			if err := r.Create(ctx, desired); err != nil {
