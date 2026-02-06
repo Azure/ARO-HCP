@@ -914,4 +914,3 @@ func TestSource_ParseImageReference(t *testing.T) {
 		})
 	}
 }
-
