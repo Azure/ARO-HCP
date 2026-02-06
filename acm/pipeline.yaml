@@ -31,7 +31,7 @@ resourceGroups:
     action: Helm
     releaseName: 'mce-crds'
     releaseNamespace: 'multicluster-engine'
-    chartDir: ./deploy/helm/multicluster-engine-crds
+    chartDir: oci://{{ .acr.svc.name }}.{{ .acrDNSSuffix }}/helm/multicluster-engine-crds@{{ .acm.charts.crds }}
     valuesFile: multicluster-engine-crds.values.yaml
     kustoEndpoint:
       resourceGroup: kusto
@@ -55,7 +55,7 @@ resourceGroups:
     action: Helm
     releaseName: 'mce'
     releaseNamespace: 'multicluster-engine'
-    chartDir: ./deploy/helm/multicluster-engine
+    chartDir: oci://{{ .acr.svc.name }}.{{ .acrDNSSuffix }}/helm/multicluster-engine@{{ .acm.charts.mce }}
     valuesFile: multicluster-engine.values.yaml
     kustoEndpoint:
       resourceGroup: kusto
@@ -82,7 +82,7 @@ resourceGroups:
     action: Helm
     releaseName: 'mce-config'
     releaseNamespace: 'multicluster-engine'
-    chartDir: ./deploy/helm/multicluster-engine-config
+    chartDir: oci://{{ .acr.svc.name }}.{{ .acrDNSSuffix }}/helm/multicluster-engine-local-cluster@{{ .acm.charts.config }}
     valuesFile: multicluster-engine-config.values.yaml
     kustoEndpoint:
       resourceGroup: kusto

@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -124,25 +125,50 @@ func runHelmStep(id graph.Identifier, step *types.HelmStep, ctx context.Context,
 	}
 	if err := os.WriteFile(values, processed, 0644); err != nil {
 		return fmt.Errorf("failed to write file %s: %w", values, err)
+    }
+
+	// Changes to support OCI Helm Images
+	var chartDir string
+
+	// If it is an OCI URL, we must pull it manually first.
+    if strings.HasPrefix(step.ChartDir, "oci://") {
+        cleanURL := strings.TrimSpace(step.ChartDir)
+
+        args := []string{"pull", cleanURL}
+        args = append(args, "--destination", tmpdir, "--untar")
+
+        cmd := exec.CommandContext(ctx, "helm", args...)
+        cmd.Env = os.Environ()
+
+		logger.Info("Pulling OCI chart", "command", cmd.String())
+		if out, err := cmd.CombinedOutput(); err != nil {
+			return fmt.Errorf("failed to pull OCI chart: %s: %w", string(out), err)
+		}
+
+		// Find the directory helm created
+		entries, err := os.ReadDir(tmpdir)
+		if err != nil {
+			return fmt.Errorf("failed to read temp dir: %w", err)
+		}
+
+		found := false
+		for _, e := range entries {
+			if e.IsDir() && e.Name() != "namespaces" {
+				chartDir = filepath.Join(tmpdir, e.Name())
+				found = true
+				break
+			}
+		}
+		if !found {
+			return fmt.Errorf("helm pull succeeded but could not find extracted chart directory in %s", tmpdir)
+		}
+
+	} else {
+		// Standard Local File Logic
+		chartDir = filepath.Join(options.PipelineDirectory, step.ChartDir)
 	}
 
-	// then, run the helm release
-	chartDir := filepath.Join(options.PipelineDirectory, step.ChartDir)
-	opts := helm.RawOptions{
-		NamespaceFiles:    namespaceFiles,
-		ReleaseName:       step.ReleaseName,
-		ReleaseNamespace:  step.ReleaseNamespace,
-		ChartDir:          chartDir,
-		ValuesFile:        values,
-		KustoDatabase:     step.KustoDatabase,
-		KustoTable:        step.KustoTable,
-		KustoEndpoint:     kustoEndpointString,
-		Timeout:           5 * time.Minute,
-		KubeconfigFile:    kubeconfig,
-		DryRun:            options.DryRun,
-		RollbackOnFailure: step.RollbackOnFailure,
-	}
-
+	// Now chartDir is always a local folder (either original or pulled)
 	chartData := map[string][]byte{}
 	if err := filepath.WalkDir(chartDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
@@ -163,6 +189,21 @@ func runHelmStep(id graph.Identifier, step *types.HelmStep, ctx context.Context,
 		return nil
 	}); err != nil {
 		return fmt.Errorf("failed to walk helm chart dir: %w", err)
+	}
+
+	opts := helm.RawOptions{
+		NamespaceFiles:    namespaceFiles,
+		ReleaseName:       step.ReleaseName,
+		ReleaseNamespace:  step.ReleaseNamespace,
+		ChartDir:          chartDir,
+		ValuesFile:        values,
+		KustoDatabase:     step.KustoDatabase,
+		KustoTable:        step.KustoTable,
+		KustoEndpoint:     kustoEndpointString,
+		Timeout:           5 * time.Minute,
+		KubeconfigFile:    kubeconfig,
+		DryRun:            options.DryRun,
+		RollbackOnFailure: step.RollbackOnFailure,
 	}
 
 	inputs := helmInputs{
