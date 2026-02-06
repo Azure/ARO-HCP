@@ -286,6 +286,19 @@ func TestNormalizeOSDiskProfile(t *testing.T) {
 	}
 }
 
+func TestNormalizeOSDiskProfile_DiskTypeNotImplemented(t *testing.T) {
+	input := &generated.OsDiskProfile{
+		DiskType: ptr.To(generated.OsDiskTypeEphemeral),
+	}
+	existing := &api.OSDiskProfile{}
+
+	errs := normalizeOSDiskProfile(field.NewPath("platform", "osDisk"), input, existing)
+
+	require.Len(t, errs, 1)
+	require.Contains(t, errs[0].Error(), "diskType is not yet implemented")
+	require.Equal(t, "platform.osDisk.diskType", errs[0].Field)
+}
+
 func TestNewOSDiskProfile(t *testing.T) {
 	tests := []struct {
 		name     string

@@ -2044,6 +2044,7 @@ func (o *OperatorsAuthenticationProfileUpdate) UnmarshalJSON(data []byte) error 
 func (o OsDiskProfile) MarshalJSON() ([]byte, error) {
 	objectMap := make(map[string]any)
 	populate(objectMap, "diskStorageAccountType", o.DiskStorageAccountType)
+	populate(objectMap, "diskType", o.DiskType)
 	populate(objectMap, "encryptionSetId", o.EncryptionSetID)
 	populate(objectMap, "sizeGiB", o.SizeGiB)
 	return json.Marshal(objectMap)
@@ -2060,6 +2061,9 @@ func (o *OsDiskProfile) UnmarshalJSON(data []byte) error {
 		switch key {
 		case "diskStorageAccountType":
 			err = unpopulate(val, "DiskStorageAccountType", &o.DiskStorageAccountType)
+			delete(rawMsg, key)
+		case "diskType":
+			err = unpopulate(val, "DiskType", &o.DiskType)
 			delete(rawMsg, key)
 		case "encryptionSetId":
 			err = unpopulate(val, "EncryptionSetID", &o.EncryptionSetID)

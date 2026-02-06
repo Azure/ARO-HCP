@@ -288,6 +288,28 @@ func PossibleOriginValues() []Origin {
 	}
 }
 
+// OsDiskType - The type of the OS disk.
+// * https://learn.microsoft.com/en-us/azure/virtual-machines/ephemeral-os-disks
+type OsDiskType string
+
+const (
+	// OsDiskTypeEphemeral - Ephemeral OS disk - stored on local VM cache/temporary storage.
+	// Provides lower latency and faster node operations.
+	// Requires VM with sufficient cache size.
+	OsDiskTypeEphemeral OsDiskType = "Ephemeral"
+	// OsDiskTypeManaged - Managed OS disk - stored as an Azure managed disk (network-attached).
+	// Default behavior for VMs without sufficient cache.
+	OsDiskTypeManaged OsDiskType = "Managed"
+)
+
+// PossibleOsDiskTypeValues returns the possible values for the OsDiskType const type.
+func PossibleOsDiskTypeValues() []OsDiskType {
+	return []OsDiskType{
+		OsDiskTypeEphemeral,
+		OsDiskTypeManaged,
+	}
+}
+
 // OutboundType - The core outgoing configuration
 type OutboundType string
 
