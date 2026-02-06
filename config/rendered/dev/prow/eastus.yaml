@@ -153,7 +153,7 @@ clustersService:
         maxVersion: ""
         minVersion: 4.19.0-0.nightly-20200101
       stable:
-        maxVersion: 4.20.9
+        maxVersion: ""
         minVersion: 4.19.0
     defaultVersion:
       version: 4.20.8
