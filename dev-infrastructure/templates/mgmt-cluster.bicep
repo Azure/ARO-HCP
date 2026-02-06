@@ -206,6 +206,12 @@ param hcpBackupsStorageAccountName string
 @description('The cluster tag value for the owning team')
 param owningTeamTagValue string
 
+@description('Event Hub name for AKS audit logs')
+param auditLogsEventHubName string
+
+@description('Resource ID of the event hub authorization rule for AKS audit logs')
+param auditLogsEventHubAuthRuleId string
+
 //
 //   M A N A G E D   I D E N T I T I E S
 //
@@ -520,5 +526,20 @@ module hcpBackupsRbac '../modules/hcp-backups/storage-rbac.bicep' = {
   params: {
     storageAccountName: hcpBackupsStorageAccountName
     veleroManagedIdentityPrincipalId: mi.getManagedIdentityByName(managedIdentities.outputs.managedIdentities, 'velero').uamiPrincipalID
+  }
+}
+
+//
+//  A K S   D I A G N O S T I C   S E T T I N G S
+//
+module diagnosticSetting '../modules/aks/diagnostic-setting.bicep' = if (auditLogsEventHubAuthRuleId != '') {
+  name: 'aks-diagnostic-setting'
+  dependsOn: [
+    mgmtCluster
+  ]
+  params: {
+    aksClusterName: aksClusterName
+    auditLogsEventHubName: auditLogsEventHubName
+    auditLogsEventHubAuthRuleId: auditLogsEventHubAuthRuleId
   }
 }

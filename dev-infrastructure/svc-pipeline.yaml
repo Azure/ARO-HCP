@@ -206,6 +206,11 @@ resourceGroups:
         resourceGroup: global
         step: output
         name: grafanaPrincipalId
+    - name: auditLogsEventHubAuthRuleId
+      input:
+        resourceGroup: kusto
+        step: output
+        name: auditLogsEventHubAuthRuleId
     dependsOn:
     - resourceGroup: service
       step: oncert-private-kv-issuer

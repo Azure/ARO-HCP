@@ -1,0 +1,43 @@
+.create-merge table rawAksEvents (
+    records: dynamic 
+)
+with (docstring = "Temporary table for storing events from aks cluster")
+
+.alter-merge table rawAksEvents policy retention softdelete = 0s recoverability = disabled
+
+.create-or-alter table rawAksEvents ingestion json mapping "rawAksEventsMapping"
+```
+[
+  {"column":"records","path":"$['records']","datatype":""}
+]
+```
+
+.create-merge table aksEvents (
+    category:string,
+    operationName:string,
+    containerId:string,
+    stream:string,
+    pod:string,
+    log:string,
+    resourceId:string,
+    timestamp:datetime
+)
+with (docstring = "Stores events from aks cluster")
+
+.create-or-alter function 
+with (docstring = 'process aks events', skipvalidation = "true")
+rawAksEventsTransform()  {
+  rawAksEvents
+  | mv-expand (records)
+  | extend category=tostring(records["category"]), 
+  operationName=tostring(records["category"]), 
+  containerId=tostring(records["properties"]["containerID"]),
+  stream=tostring(records["properties"]["stream"]),
+  pod=tostring(records["properties"]["pod"]),
+  log=tostring(records["properties"]["log"]),
+  resourceId=tolower(tostring(records["resourceId"])),
+  timestamp=todatetime(records["time"])
+  | project-away records
+}
+
+.alter table aksEvents policy update @'[{"IsEnabled": true, "Source": "rawAksEvents", "Query": "rawAksEventsTransform()", "IsTransactional": true, "PropagateIngestionProperties": false}]'

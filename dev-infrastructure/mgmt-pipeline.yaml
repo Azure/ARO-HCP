@@ -202,6 +202,11 @@ resourceGroups:
         resourceGroup: regional
         step: output
         name: maestroEventGridNamespaceId
+    - name: auditLogsEventHubAuthRuleId
+      input:
+        resourceGroup: kusto
+        step: output
+        name: auditLogsEventHubAuthRuleId
     dependsOn:
     - resourceGroup: management
       step: cx-oncert-public-kv-issuer

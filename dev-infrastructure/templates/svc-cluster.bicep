@@ -402,6 +402,12 @@ param resourceContainerMaxScale int
 param billingContainerMaxScale int
 param locksContainerMaxScale int
 
+@description('Event Hub name for AKS audit logs')
+param auditLogsEventHubName string
+
+@description('Resource ID of the event hub authorization rule for AKS audit logs')
+param auditLogsEventHubAuthRuleId string
+
 resource serviceKeyVault 'Microsoft.KeyVault/vaults@2024-04-01-preview' existing = {
   name: serviceKeyVaultName
   scope: resourceGroup(serviceKeyVaultResourceGroup)
@@ -1031,4 +1037,19 @@ module svcKVNSPProfile '../modules/network/nsp-profile.bicep' = if (serviceKeyVa
   dependsOn: [
     svcNSP
   ]
+}
+
+//
+//  A K S   D I A G N O S T I C   S E T T I N G S
+//
+module diagnosticSetting '../modules/aks/diagnostic-setting.bicep' = if (auditLogsEventHubAuthRuleId != '') {
+  name: 'aks-diagnostic-setting'
+  dependsOn: [
+    svcCluster
+  ]
+  params: {
+    aksClusterName: aksClusterName
+    auditLogsEventHubName: auditLogsEventHubName
+    auditLogsEventHubAuthRuleId: auditLogsEventHubAuthRuleId
+  }
 }

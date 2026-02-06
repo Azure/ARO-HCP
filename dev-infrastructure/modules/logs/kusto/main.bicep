@@ -31,6 +31,18 @@ param autoScaleMax int
 @description('Toggle if autoscale should be enabled')
 param enableAutoScale bool
 
+@description('Event Hub namespace name for AKS audit logs')
+param auditLogsEventHubNamespaceName string
+
+@description('Event Hub name for AKS audit logs')
+param auditLogsEventHubName string
+
+@description('Consumer group name for Kusto data connection')
+param auditLogsKustoConsumerGroupName string
+
+@description('Diagnostic settings authorization rule name')
+param auditLogsDiagnosticSettingsRuleName string
+
 var db = {
   serviceLogs: serviceLogsDatabase
   hostedControlPlaneLogs: hostedControlPlaneLogsDatabase
@@ -46,6 +58,7 @@ var allServiceLogsTablesKQL = {
   frontendLogs: loadTextContent('tables/frontendLogs.kql')
   clustersServiceLogs: loadTextContent('tables/clustersServiceLogs.kql')
   kubernetesEvents: loadTextContent('tables/kubernetesEvents.kql')
+  aksEvents: loadTextContent('tables/aksEvents.kql')
 }
 
 var allCustomerLogsTablesKQL = {
@@ -136,7 +149,35 @@ module databaseUserScripts 'database-users.bicep' = [
   }
 ]
 
-// 5. Remove the caller principal
+// 4. Event Hub for AKS audit logs
+module auditLogsEventHub '../eventhub/audit-logs-eventhub.bicep' = {
+  name: 'audit-logs-eventhub-deployment'
+  params: {
+    auditLogsEventHubNamespaceName: auditLogsEventHubNamespaceName
+    auditLogsEventHubName: auditLogsEventHubName
+    auditLogsKustoConsumerGroupName: auditLogsKustoConsumerGroupName
+    auditLogsDiagnosticSettingsRuleName: auditLogsDiagnosticSettingsRuleName
+  }
+}
+
+// 5. Data connections
+// Kusto Event Hub data connection for AKS audit logs
+resource kustoDataConnection 'Microsoft.Kusto/clusters/databases/dataConnections@2024-04-13' = {
+  name: '${kustoName}/${db.serviceLogs}/aks-audit-logs'
+  location: resourceGroup().location
+  kind: 'EventHub'
+  dependsOn: [serviceLogsTables]
+  properties: {
+    eventHubResourceId: auditLogsEventHub.outputs.eventHubId
+    consumerGroup: auditLogsKustoConsumerGroupName
+    tableName: 'rawAksEvents'
+    dataFormat: 'JSON'
+    compression: 'None'
+    mappingRuleName: 'rawAksEventsMapping'
+  }
+}
+
+// 6. Remove the caller principal
 // THIS MUST BE THE LAST SCRIPT TO RUN
 module removePermission 'script.bicep' = [
   for (database, i) in databases: {
