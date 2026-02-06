@@ -745,6 +745,10 @@ defaults:
         registry: quay.io
         repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-210
         digest: sha256:7fb73770a8dd3401dfd6137003bc4f57cb9b24a0bf94b7ba5a1a689016c0fae8 # v2.10.1-367 (2026-02-04 23:05)
+    charts:
+      crds: sha256:095daf30499a0edaa4b40c06b62d306381c566d2e484ef5bafe9228498f2c233 # 2.10.2-370 (2026-02-06 03:37)
+      mce: sha256:66b2306ca0473d4a0da47c6f19992ebe16635ed9a54284e8762b394fce2f3fae # 2.10.2-370 (2026-02-06 03:37)
+      config: sha256:a954bfbdd2c7c980b2e341dc90814f49a5c6a93b61082af1f0bf743646c61592 # 2.15.1-367 (2026-02-06 03:37)
   # Cluster Service
   clustersService:
     image:

@@ -83,6 +83,16 @@ done
 
 echo "## Update the grc sub-chart."
 grc_chart_dir="$TMP_DIR/multiclusterhub-operator/pkg/templates/charts/toggle/grc"
+
+# Copy Chart.yaml from upstream
+if [[ -f "$grc_chart_dir/Chart.yaml" ]]; then
+    echo "Copying Chart.yaml for grc..."
+    cp "$grc_chart_dir/Chart.yaml" "$policy_helm_charts_dir/grc/"
+else
+    echo "Error: Upstream grc/Chart.yaml not found!"
+    exit 1
+fi
+
 grc_files=(
   "grc-clusterrole.yaml"
   "grc-policy-addon-role.yaml"
@@ -116,6 +126,16 @@ done
 
 echo "## Update the cluster-lifecycle sub-chart."
 cluster_lifecycle_dir="$TMP_DIR/multiclusterhub-operator/pkg/templates/charts/toggle/cluster-lifecycle"
+
+# Copy Chart.yaml from upstream ---
+if [[ -f "$cluster_lifecycle_dir/Chart.yaml" ]]; then
+    echo "Copying Chart.yaml for cluster-lifecycle..."
+    cp "$cluster_lifecycle_dir/Chart.yaml" "$policy_helm_charts_dir/cluster-lifecycle/"
+else
+    echo "Error: Upstream cluster-lifecycle/Chart.yaml not found!"
+    exit 1
+fi
+
 cluster_lifecycle_files=(
   "$cluster_lifecycle_dir/templates/klusterlet-addon-role.yaml"
   "$cluster_lifecycle_dir/templates/klusterlet-addon-role_binding.yaml"
@@ -203,4 +223,4 @@ done
 
 rm -rf "$TMP_DIR"
 
-echo "!!! Policy Helm chart is update successfully !!!"
+echo "!!! Policy Helm chart updated successfully !!!"

@@ -4,3 +4,6 @@ MCE_BUNDLE_DIGEST ?= {{ .acm.mce.bundle.digest }}
 ACM_BUNDLE_REGISTRY ?= {{ .acm.operator.bundle.registry }}
 ACM_BUNDLE_REPOSITORY ?= {{ .acm.operator.bundle.repository }}
 ACM_BUNDLE_DIGEST ?= {{ .acm.operator.bundle.digest }}
+MCE_CHART_VERSION = {{ .acm.charts.mce }}
+MCE_CRDS_CHART_VERSION = {{ .acm.charts.crds }}
+MCE_CONFIG_CHART_VERSION = {{ .acm.charts.config }}

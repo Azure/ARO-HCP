@@ -125,6 +125,31 @@ images:
       multiArch: true
     targets:
     - jsonPath: defaults.aksCommandRuntime.image.digest
+  acm-downstream-crds:
+    source:
+      image: arohcpsvcdev.azurecr.io/helm/multicluster-engine-crds
+      tagPattern: "^\\d+\\.\\d+\\.\\d+-\\d+$"
+      useAuth: true
+    targets:
+    - jsonPath: defaults.acm.charts.crds
+      filePath: ../../config/config.yaml
+      env: dev
+  acm-downstream-mce:
+    source:
+      image: arohcpsvcdev.azurecr.io/helm/multicluster-engine 
+      tagPattern: "^\\d+\\.\\d+\\.\\d+-\\d+$"
+      useAuth: true
+    targets:
+    - jsonPath: defaults.acm.charts.mce
+      filePath: ../../config/config.yaml
+      env: dev
+  acm-downstream-config:
+    source:
+      image: arohcpsvcdev.azurecr.io/helm/multicluster-engine-local-cluster 
+      tagPattern: "^\\d+\\.\\d+\\.\\d+-\\d+$"
+      useAuth: true
+    targets:
+    - jsonPath: defaults.acm.charts.config
       filePath: ../../config/config.yaml
   # MSI-Acrpull image
   acrPull:
