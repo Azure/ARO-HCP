@@ -55,14 +55,14 @@ type ServiceProviderCluster struct {
 
 // ServiceProviderClusterSpec contains the desired state of the cluster.
 type ServiceProviderClusterSpec struct {
-	// Version contains the desired control plane version information.
+	// ControlPlaneVersion contains the desired control plane version information.
 	// Example JSON structure:
 	// {
-	//   "version": {
+	//   "control_plane_version": {
 	//     "desired_version": "4.19.2"
 	//   }
 	// }
-	Version ServiceProviderClusterSpecVersion `json:"version,omitempty"`
+	ControlPlaneVersion ServiceProviderClusterSpecVersion `json:"control_plane_version,omitempty"`
 }
 
 // ServiceProviderClusterSpecVersion contains the desired version information.
@@ -74,20 +74,27 @@ type ServiceProviderClusterSpecVersion struct {
 
 // ServiceProviderClusterStatus contains the observed state of the cluster.
 type ServiceProviderClusterStatus struct {
-	// Version contains the actual control plane version information.
-	// ActiveVersions contains the last two active versions for the cluster.
-	// During upgrades, multiple versions can be active simultaneously.
-	// The list is ordered with the most recent first.
+	// ControlPlaneVersion contains the actual control plane version information.
+	// ActiveVersions contains all versions currently active in the control plane.
+	// Currently, we maintain up to two versions, but this is designed to hold all active versions
+	// and will be expanded to track the complete set when we start reading from Maestro.
+	//
+	// During an upgrade, multiple versions can be active simultaneously. For example:
+	// - Simple upgrade: [vNew, vOld]
+	// - Sequential upgrades before completion: [vNewest, vNewer, vNew, vOld]
+	//
+	// The list is ordered with the most recent version first.
+	//
 	// Example JSON structure:
 	// {
-	//   "version": {
+	//   "control_plane_version": {
 	//     "active_versions": [
 	//       {"version": "4.19.2"},
 	//       {"version": "4.19.1"}
 	//     ]
 	//   }
 	// }
-	Version ServiceProviderClusterStatusVersion `json:"version,omitempty"`
+	ControlPlaneVersion ServiceProviderClusterStatusVersion `json:"control_plane_version,omitempty"`
 }
 
 // ServiceProviderClusterStatusVersion contains the actual version information.

@@ -89,8 +89,7 @@ func NewControlPlaneUpgradeController(
 //
 // Get the customer's desired cluster configuration
 func (c *controlPlaneUpgradeSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
-	existingCluster, err := c.cosmosClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).
-		Get(ctx, key.HCPClusterName)
+	existingCluster, err := c.cosmosClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Get(ctx, key.HCPClusterName)
 	if database.IsResponseError(err, http.StatusNotFound) {
 		return nil // cluster doesn't exist, no work to do
 	}
@@ -104,31 +103,25 @@ func (c *controlPlaneUpgradeSyncer) SyncOnce(ctx context.Context, key controller
 	}
 
 	// TODO bring the cluster uuid into serviceprovidercluster
-	csCluster, err := c.clusterServiceClient.GetCluster(ctx, existingCluster.ServiceProviderProperties.ClusterServiceID)
+	clusterServiceCluster, err := c.clusterServiceClient.GetCluster(ctx, existingCluster.ServiceProviderProperties.ClusterServiceID)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get cluster from Cluster Service: %w", err))
 	}
 
-	version, ok := csCluster.GetVersion()
+	version, ok := clusterServiceCluster.GetVersion()
 	if !ok {
 		return utils.TrackError(fmt.Errorf("cluster version not found in Cluster Service response"))
 	}
 
-	actualVersion := version.RawID()
+	actualVersion := semver.MustParse(version.RawID())
 
-	oldActiveVersions := existingServiceProviderCluster.Status.Version.ActiveVersions
-	existingServiceProviderCluster.Status.Version.ActiveVersions = c.prependActiveVersionIfChanged(
-		oldActiveVersions,
-		actualVersion,
-	)
+	oldActiveVersions := existingServiceProviderCluster.Status.ControlPlaneVersion.ActiveVersions
+	existingServiceProviderCluster.Status.ControlPlaneVersion.ActiveVersions = c.prependActiveVersionIfChanged(oldActiveVersions, actualVersion)
 
 	serviceProviderClustersCosmosClient := c.cosmosClient.ServiceProviderClusters(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
-	if !slices.Equal(oldActiveVersions, existingServiceProviderCluster.Status.Version.ActiveVersions) {
+	if !slices.Equal(oldActiveVersions, existingServiceProviderCluster.Status.ControlPlaneVersion.ActiveVersions) {
 		logger := utils.LoggerFromContext(ctx)
-		logger.Info("Active versions changed",
-			"oldActiveVersions", oldActiveVersions,
-			"newActiveVersions", existingServiceProviderCluster.Status.Version.ActiveVersions,
-		)
+		logger.Info("Active versions changed", "oldActiveVersions", oldActiveVersions, "newActiveVersions", existingServiceProviderCluster.Status.ControlPlaneVersion.ActiveVersions)
 		existingServiceProviderCluster, err = serviceProviderClustersCosmosClient.Replace(ctx, existingServiceProviderCluster, nil)
 		if err != nil {
 			return utils.TrackError(fmt.Errorf("failed to replace ServiceProviderCluster: %w", err))
@@ -136,7 +129,7 @@ func (c *controlPlaneUpgradeSyncer) SyncOnce(ctx context.Context, key controller
 	}
 
 	// Create Cincinnati client with cluster UUID from Cluster Service
-	clusterUUID, err := uuid.Parse(csCluster.ExternalID())
+	clusterUUID, err := uuid.Parse(clusterServiceCluster.ExternalID())
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("invalid cluster UUID from Cluster Service: %w", err))
 	}
@@ -144,7 +137,7 @@ func (c *controlPlaneUpgradeSyncer) SyncOnce(ctx context.Context, key controller
 
 	customerDesiredMinor := existingCluster.CustomerProperties.Version.ID
 	channelGroup := existingCluster.CustomerProperties.Version.ChannelGroup
-	activeVersions := existingServiceProviderCluster.Status.Version.ActiveVersions
+	activeVersions := existingServiceProviderCluster.Status.ControlPlaneVersion.ActiveVersions
 	desiredVersion, err := c.desiredControlPlaneZVersion(ctx, cincinnatiClient, customerDesiredMinor, channelGroup, activeVersions)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to determine desired control plane version: %w", err))
@@ -156,18 +149,15 @@ func (c *controlPlaneUpgradeSyncer) SyncOnce(ctx context.Context, key controller
 	}
 
 	// Check if it's the same as the previously set desired version
-	previousDesiredVersion := existingServiceProviderCluster.Spec.Version.DesiredVersion
+	previousDesiredVersion := existingServiceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion
 	if previousDesiredVersion != nil && desiredVersion.EQ(*previousDesiredVersion) {
 		return nil
 	}
 
 	logger := utils.LoggerFromContext(ctx)
-	logger.Info("Selected desired version",
-		"desiredVersion", desiredVersion,
-		"previousDesiredVersion", previousDesiredVersion,
-	)
+	logger.Info("Selected desired version", "desiredVersion", desiredVersion, "previousDesiredVersion", previousDesiredVersion)
 
-	existingServiceProviderCluster.Spec.Version.DesiredVersion = desiredVersion
+	existingServiceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion = desiredVersion
 
 	_, err = serviceProviderClustersCosmosClient.Replace(ctx, existingServiceProviderCluster, nil)
 	if err != nil {
@@ -181,20 +171,14 @@ func (c *controlPlaneUpgradeSyncer) SyncOnce(ctx context.Context, key controller
 // with the new version prepended if it differs from the most recent version.
 // If the most recent version matches the new version, returns the original slice unchanged.
 // The returned slice is capped to the 2 most recent versions.
-func (c *controlPlaneUpgradeSyncer) prependActiveVersionIfChanged(currentVersions []api.HCPClusterActiveVersion,
-	newVersion string,
-) []api.HCPClusterActiveVersion {
+func (c *controlPlaneUpgradeSyncer) prependActiveVersionIfChanged(currentVersions []api.HCPClusterActiveVersion, newVersion semver.Version) []api.HCPClusterActiveVersion {
 	// Check if the tip (most recent version) is already the new version
-	if len(currentVersions) > 0 &&
-		currentVersions[0].Version != nil &&
-		currentVersions[0].Version.String() == newVersion {
+	if len(currentVersions) > 0 && currentVersions[0].Version != nil && currentVersions[0].Version.EQ(newVersion) {
 		return currentVersions
 	}
 
-	newVer := semver.MustParse(newVersion)
-
 	// Create new list with at most 2 versions: new version + most recent old version
-	newVersions := []api.HCPClusterActiveVersion{{Version: &newVer}}
+	newVersions := []api.HCPClusterActiveVersion{{Version: &newVersion}}
 	if len(currentVersions) > 0 {
 		newVersions = append(newVersions, currentVersions[0])
 	}
@@ -203,8 +187,7 @@ func (c *controlPlaneUpgradeSyncer) prependActiveVersionIfChanged(currentVersion
 
 // getCincinnatiClient provides a point for unit testing.
 // Likely need to provide transport injection for integration testing.
-func (c *controlPlaneUpgradeSyncer) getCincinnatiClient(key controllerutils.HCPClusterKey, clusterID uuid.UUID,
-) cincinatti.Client {
+func (c *controlPlaneUpgradeSyncer) getCincinnatiClient(key controllerutils.HCPClusterKey, clusterID uuid.UUID) cincinatti.Client {
 	// Fast path: check cache with read lock
 	c.cincinnatiClientLock.RLock()
 	client, ok := c.clusterToCincinnatiClient.Get(key)
@@ -225,12 +208,7 @@ func (c *controlPlaneUpgradeSyncer) getCincinnatiClient(key controllerutils.HCPC
 	}
 
 	// Create and cache
-	client = cincinnati.NewClient(
-		clusterID,
-		http.DefaultTransport.(*http.Transport),
-		"ARO-HCP",
-		cincinatti.NewAlwaysConditionRegistry(),
-	)
+	client = cincinnati.NewClient(clusterID, http.DefaultTransport.(*http.Transport), "ARO-HCP", cincinatti.NewAlwaysConditionRegistry())
 	c.clusterToCincinnatiClient.Add(key, client)
 	return client.(cincinatti.Client)
 }
@@ -252,110 +230,88 @@ func (c *controlPlaneUpgradeSyncer) desiredControlPlaneZVersion(
 	activeVersions []api.HCPClusterActiveVersion,
 ) (*semver.Version, error) {
 	logger := utils.LoggerFromContext(ctx)
-	logger.Info("Retrieved cluster version state",
-		"activeVersions", activeVersions,
-		"customerDesiredMinor", customerDesiredMinor,
-		"channelGroup", channelGroup,
-	)
+	logger.Info("Retrieved cluster version state", "activeVersions", activeVersions, "customerDesiredMinor", customerDesiredMinor, "channelGroup", channelGroup)
 
 	if len(activeVersions) == 0 {
-		logger.Info("Resolving initial desired version for new cluster",
-			"customerDesiredMinor", customerDesiredMinor,
-			"channelGroup", channelGroup,
-		)
+		logger.Info("Resolving initial desired version for new cluster", "customerDesiredMinor", customerDesiredMinor, "channelGroup", channelGroup)
 
-		seedVersion, err := semver.ParseTolerant(customerDesiredMinor)
+		// ParseTolerant implicitly places a .0 (e.g., "4.19" becomes "4.19.0")
+		customerDotZeroRelease, err := semver.ParseTolerant(customerDesiredMinor)
 		if err != nil {
-			return nil, err
+			return nil, utils.TrackError(err)
 		}
 
-		initialDesiredVersion, err := c.findLatestVersionInMinor(
-			ctx, cincinnatiClient, channelGroup, seedVersion, []semver.Version{seedVersion},
-		)
+		initialDesiredVersion, err := c.findLatestVersionInMinor(ctx, cincinnatiClient, channelGroup, customerDotZeroRelease, []semver.Version{customerDotZeroRelease})
 		if err != nil {
-			return nil, err
+			return nil, utils.TrackError(err)
 		}
 
-		// If no desired version found, fall back to seedVersion
+		// If no desired version found, fall back to customerDotZeroRelease
 		// This happens when either:
-		// - there is no latestVersion greater than seedVersion
-		// - or there is a latestVersion greater than seedVersion but it doesn't have an upgrade path to the next minor
-		// In both cases, seedVersion is guaranteed to exist (since we didn't get a VersionNotFound error back when querying
+		// - there is no latestVersion greater than customerDotZeroRelease
+		// - or there is a latestVersion greater than customerDotZeroRelease but it doesn't have an upgrade path to the next minor
+		// In both cases, customerDotZeroRelease is guaranteed to exist (since we didn't get a VersionNotFound error back when querying
 		// for it from Cincinnati).  It is safe to use.
 		if initialDesiredVersion == nil {
-			return &seedVersion, nil
+			return &customerDotZeroRelease, nil
 		}
 
 		return initialDesiredVersion, nil
 	}
 
 	// Extract active versions and determine actual minor (if any)
-	var activeVersionList []semver.Version
-	var actualMinorString string
-
-	activeVersionList = make([]semver.Version, 0, len(activeVersions))
-	for _, av := range activeVersions {
-		activeVersionList = append(activeVersionList, *av.Version)
-	}
 	// Use the most recent version to determine the minor version
-	actualLatestVersion := activeVersionList[0]
-	actualMinorString = fmt.Sprintf("%d.%d", actualLatestVersion.Major, actualLatestVersion.Minor)
+	actualLatestVersion := activeVersions[0].Version
 
-	actualMinorVersion, err := semver.ParseTolerant(actualMinorString)
+	actualMinorVersion, err := semver.ParseTolerant(fmt.Sprintf("%d.%d", actualLatestVersion.Major, actualLatestVersion.Minor))
 	if err != nil {
-		return nil, fmt.Errorf("invalid actual minor version %s: %w", actualMinorString, err)
+		return nil, utils.TrackError(fmt.Errorf("invalid actual minor version %d.%d: %w", actualLatestVersion.Major, actualLatestVersion.Minor, err))
 	}
 
 	desiredMinorVersion, err := semver.ParseTolerant(customerDesiredMinor)
 	if err != nil {
-		return nil, fmt.Errorf("invalid desired minor version %s: %w", customerDesiredMinor, err)
+		return nil, utils.TrackError(fmt.Errorf("invalid desired minor version %s: %w", customerDesiredMinor, err))
 	}
 
 	if desiredMinorVersion.LT(actualMinorVersion) {
-		return nil, fmt.Errorf(
+		return nil, utils.TrackError(fmt.Errorf(
 			"invalid next y-stream upgrade path from %s to %s: only upgrades to the next minor version are allowed, no downgrades",
-			actualMinorString, customerDesiredMinor,
-		)
+			actualMinorVersion.String(), customerDesiredMinor,
+		))
 	}
 
 	if desiredMinorVersion.GT(actualMinorVersion) {
 		// TODO: Add support for major version upgrades (e.g., 4.20 → 5.0) when needed
 		if desiredMinorVersion.Major != actualMinorVersion.Major {
-			return nil, fmt.Errorf(
+			return nil, utils.TrackError(fmt.Errorf(
 				"invalid next y-stream upgrade path from %s to %s: major version changes are not supported",
-				actualMinorString, customerDesiredMinor,
-			)
+				actualMinorVersion.String(), customerDesiredMinor,
+			))
 		}
 		if desiredMinorVersion.Minor != actualMinorVersion.Minor+1 {
-			return nil, fmt.Errorf(
+			return nil, utils.TrackError(fmt.Errorf(
 				"invalid next y-stream upgrade path from %s to %s: only upgrades to the next minor version are allowed, no skipping minor versions",
-				actualMinorString, customerDesiredMinor,
-			)
+				actualMinorVersion.String(), customerDesiredMinor,
+			))
 		}
 	}
 
 	targetMinorVersion := desiredMinorVersion
 
-	if desiredMinorVersion.Minor == actualMinorVersion.Minor+1 {
-		logger.Info("Resolving next Y-stream upgrade",
-			"actualMinor", actualMinorString,
-			"activeVersions", activeVersions,
-			"channelGroup", channelGroup,
-			"targetMinor", customerDesiredMinor,
-		)
+	activeVersionList := make([]semver.Version, 0, len(activeVersions))
+	for _, av := range activeVersions {
+		activeVersionList = append(activeVersionList, *av.Version)
+	}
 
-		latestVersion, err := c.findLatestVersionInMinor(
-			ctx, cincinnatiClient, channelGroup, desiredMinorVersion, activeVersionList,
-		)
+	if desiredMinorVersion.Minor == actualMinorVersion.Minor+1 {
+		logger.Info("Resolving next Y-stream upgrade", "actualMinor", actualMinorVersion.String(), "activeVersions", activeVersions, "channelGroup", channelGroup, "targetMinor", customerDesiredMinor)
+
+		latestVersion, err := c.findLatestVersionInMinor(ctx, cincinnatiClient, channelGroup, desiredMinorVersion, activeVersionList)
 		if err != nil {
-			return nil, err
+			return nil, utils.TrackError(err)
 		}
 
 		if latestVersion != nil {
-			logger.Info("Successfully found Y-stream upgrade path",
-				"selectedVersion", latestVersion,
-				"targetMinor", customerDesiredMinor,
-			)
 			return latestVersion, nil
 		}
 
@@ -364,12 +320,7 @@ func (c *controlPlaneUpgradeSyncer) desiredControlPlaneZVersion(
 		targetMinorVersion = actualMinorVersion
 	}
 
-	logger.Info("Resolving next z-stream version for managed upgrade",
-		"activeVersions", activeVersions,
-		"customerDesiredMinor", customerDesiredMinor,
-		"targetMinor", targetMinorVersion.String(),
-		"channelGroup", channelGroup,
-	)
+	logger.Info("Resolving next z-stream version for managed upgrade", "activeVersions", activeVersions, "customerDesiredMinor", customerDesiredMinor, "targetMinor", targetMinorVersion.String(), "channelGroup", channelGroup)
 	return c.findLatestVersionInMinor(ctx, cincinnatiClient, channelGroup, targetMinorVersion, activeVersionList)
 }
 
@@ -408,7 +359,7 @@ func (c *controlPlaneUpgradeSyncer) findLatestVersionInMinor(
 ) (*semver.Version, error) {
 	cincinnatiURI, err := cincinatti.GetCincinnatiURI(channelGroup)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get Cincinnati URI for channel %s: %w", channelGroup, err)
+		return nil, utils.TrackError(fmt.Errorf("failed to get Cincinnati URI for channel %s: %w", channelGroup, err))
 	}
 
 	targetMinorString := fmt.Sprintf("%d.%d", targetMinorVersion.Major, targetMinorVersion.Minor)
@@ -421,47 +372,36 @@ func (c *controlPlaneUpgradeSyncer) findLatestVersionInMinor(
 	}{}
 
 	for _, activeVersion := range activeVersions {
-		_, candidateReleases, _, err := cincinnatiClient.GetUpdates(
-			ctx,
-			cincinnatiURI,
-			"multi",
-			"multi",
-			cincinnatiChannel,
-			activeVersion,
-		)
+		_, candidateReleases, _, err := cincinnatiClient.GetUpdates(ctx, cincinnatiURI, "multi", "multi", cincinnatiChannel, activeVersion)
 		if err != nil {
-			return nil, err
+			return nil, utils.TrackError(err)
 		}
 
 		for _, candidate := range candidateReleases {
-			ver, err := semver.Parse(candidate.Version)
-			if err != nil { // should never happen
-				continue
-			}
+			candidateTargetVersion := semver.MustParse(candidate.Version)
 
 			// Filter: only include versions in target minor
-			if ver.Major != targetMinorVersion.Major || ver.Minor != targetMinorVersion.Minor {
+			if candidateTargetVersion.Major != targetMinorVersion.Major || candidateTargetVersion.Minor != targetMinorVersion.Minor {
 				continue
 			}
 
-			versionStr := ver.String()
-			entry := candidatesByVersion[versionStr]
-			entry.version = ver
-			entry.count++
-			candidatesByVersion[versionStr] = entry
+			candidateEntry := candidatesByVersion[candidateTargetVersion.String()]
+			candidateEntry.version = candidateTargetVersion
+			candidateEntry.count++
+			candidatesByVersion[candidateTargetVersion.String()] = candidateEntry
 		}
 	}
 
 	// Extract only candidates that appeared for ALL active versions (intersection)
 	commonCandidates := []semver.Version{}
-	for _, entry := range candidatesByVersion {
-		if entry.count == len(activeVersions) {
-			commonCandidates = append(commonCandidates, entry.version)
+	for _, candidateEntry := range candidatesByVersion {
+		if candidateEntry.count == len(activeVersions) {
+			commonCandidates = append(commonCandidates, candidateEntry.version)
 		}
 	}
 
 	// Use the most recent active version for additional validation logic
-	return c.selectBestVersionFromCandidates(ctx, cincinnatiClient, channelGroup, targetMinorVersion, commonCandidates, activeVersions[0])
+	return c.selectBestVersionFromCandidates(ctx, cincinnatiClient, channelGroup, targetMinorVersion, commonCandidates)
 }
 
 // selectBestVersionFromCandidates finds the best version to upgrade to from a list of candidate versions.
@@ -482,7 +422,6 @@ func (c *controlPlaneUpgradeSyncer) selectBestVersionFromCandidates(
 	channelGroup string,
 	targetMinorVersion semver.Version,
 	candidates []semver.Version,
-	actualLatestVersion semver.Version,
 ) (*semver.Version, error) {
 	if len(candidates) == 0 {
 		return nil, nil
@@ -494,35 +433,19 @@ func (c *controlPlaneUpgradeSyncer) selectBestVersionFromCandidates(
 	})
 
 	// Check if next minor channel exists before checking for gateways
-	actualMinor := fmt.Sprintf("%d.%d", actualLatestVersion.Major, actualLatestVersion.Minor)
-	targetMinor := fmt.Sprintf("%d.%d", targetMinorVersion.Major, targetMinorVersion.Minor)
-
-	versionToCheckNextMinor := actualLatestVersion
-	if targetMinor != actualMinor {
-		// Y-stream upgrade: use latest candidate version
-		versionToCheckNextMinor = candidates[0]
-	}
-
 	nextMinor := fmt.Sprintf("%d.%d", targetMinorVersion.Major, targetMinorVersion.Minor+1)
-	// Here we are sure that the version to check next minor existence is in the graph,
+	// Here we are sure that the latest candidate version is in the graph,
 	// we just want to check if next minor exists
 	// If we get VersionNotFound error, it means that the next minor doesn't exist
 	cincinnatiURI, err := cincinatti.GetCincinnatiURI(channelGroup)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get Cincinnati URI for channel %s: %w", channelGroup, err)
+		return nil, utils.TrackError(fmt.Errorf("failed to get Cincinnati URI for channel %s: %w", channelGroup, err))
 	}
 
-	_, _, _, nextMinorExistsErr := cincinnatiClient.GetUpdates(
-		ctx,
-		cincinnatiURI,
-		"multi",
-		"multi",
-		fmt.Sprintf("%s-%s", channelGroup, nextMinor),
-		versionToCheckNextMinor,
-	)
+	_, _, _, nextMinorExistsErr := cincinnatiClient.GetUpdates(ctx, cincinnatiURI, "multi", "multi", fmt.Sprintf("%s-%s", channelGroup, nextMinor), candidates[0])
 
 	if nextMinorExistsErr != nil && !cincinatti.IsCincinnatiVersionNotFoundError(nextMinorExistsErr) {
-		return nil, nextMinorExistsErr
+		return nil, utils.TrackError(nextMinorExistsErr)
 	}
 
 	nextMinorExists := nextMinorExistsErr == nil
@@ -533,14 +456,14 @@ func (c *controlPlaneUpgradeSyncer) selectBestVersionFromCandidates(
 	}
 
 	// otherwise return the candidate that is a gateway t next minor
-	for _, ver := range candidates {
-		isGateway, err := isGatewayToNextMinor(ctx, ver, cincinnatiClient, channelGroup, nextMinor)
+	for _, candidate := range candidates {
+		isGateway, err := isGatewayToNextMinor(ctx, candidate, cincinnatiClient, channelGroup, nextMinor)
 		if err != nil {
-			return nil, err
+			return nil, utils.TrackError(err)
 		}
 
 		if isGateway {
-			return &ver, nil
+			return &candidate, nil
 		}
 	}
 

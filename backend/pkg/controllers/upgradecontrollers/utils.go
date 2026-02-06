@@ -47,10 +47,10 @@ func isGatewayToNextMinor(ctx context.Context, ver semver.Version, cincinnatiCli
 		nextMinorCincinnatiChannel,
 		ver,
 	)
+	if cincinatti.IsCincinnatiVersionNotFoundError(err) {
+		return false, nil
+	}
 	if err != nil {
-		if cincinatti.IsCincinnatiVersionNotFoundError(err) {
-			return false, nil
-		}
 		return false, err
 	}
 

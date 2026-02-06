@@ -69,7 +69,7 @@ func NewTriggerControlPlaneUpgradeController(
 //
 // High-level flow:
 //  1. Fetch the customer's desired cluster configuration and service provider state
-//  2. Check if desiredVersion differs from actual version
+//  2. Check if desiredVersion differs from latest actual version
 //  3. If different, call version service API to trigger upgrade
 //  4. The version service API is idempotent and handles the actual upgrade orchestration
 func (c *triggerControlPlaneUpgradeSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
@@ -86,15 +86,15 @@ func (c *triggerControlPlaneUpgradeSyncer) SyncOnce(ctx context.Context, key con
 		return utils.TrackError(fmt.Errorf("failed to get or create ServiceProviderCluster: %w", err))
 	}
 
-	desiredVersion := existingServiceProviderCluster.Spec.Version.DesiredVersion
+	desiredVersion := existingServiceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion
 	if desiredVersion == nil {
 		return nil // No desired version set
 	}
 
 	// Get actual version from active versions
 	var actualLatestVersion *semver.Version
-	if len(existingServiceProviderCluster.Status.Version.ActiveVersions) > 0 {
-		actualLatestVersion = existingServiceProviderCluster.Status.Version.ActiveVersions[0].Version
+	if len(existingServiceProviderCluster.Status.ControlPlaneVersion.ActiveVersions) > 0 {
+		actualLatestVersion = existingServiceProviderCluster.Status.ControlPlaneVersion.ActiveVersions[0].Version
 	}
 
 	// If desired version matches actual version, nothing to do
