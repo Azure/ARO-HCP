@@ -13,11 +13,14 @@ param customerVnetSubnetName string = 'customer-subnet-1'
 @description('The name of the encryption key for etcd')
 param customerEtcdEncryptionKeyName string = 'etcd-data-kms-encryption-key'
 
+@description('Cluster name used to ensure unique resource names within the resource group')
+param clusterName string = ''
+
 //
 // Variables
 //
 
-var randomSuffix = toLower(uniqueString(resourceGroup().id))
+var randomSuffix = toLower(uniqueString(resourceGroup().id, clusterName))
 
 // The Key Vault Name is defined here in a variable instead of using a
 // parameter because of strict Azure requirements for KeyVault names
