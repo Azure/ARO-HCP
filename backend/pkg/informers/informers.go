@@ -313,9 +313,9 @@ func NewActiveOperationInformerWithRelistDuration(lister database.GlobalLister[a
 
 func resourceGroupIndexFunc(obj interface{}) ([]string, error) {
 	switch castObj := obj.(type) {
-	case api.CosmosMetadataAccessor:
+	case arm.CosmosMetadataAccessor:
 		return []string{api.ToResourceGroupResourceIDString(castObj.GetResourceID().SubscriptionID, castObj.GetResourceID().ResourceGroupName)}, nil
-	case api.CosmosPersistable:
+	case arm.CosmosPersistable:
 		return []string{api.ToResourceGroupResourceIDString(castObj.GetCosmosData().ResourceID.SubscriptionID, castObj.GetCosmosData().ResourceID.ResourceGroupName)}, nil
 	default:
 		return nil, utils.TrackError(fmt.Errorf("unexpected type %T, expected api.CosmosMetadataAccessor or api.CosmosPersistable", obj))
@@ -324,9 +324,9 @@ func resourceGroupIndexFunc(obj interface{}) ([]string, error) {
 
 func clusterResourceIDIndexFunc(obj interface{}) ([]string, error) {
 	switch castObj := obj.(type) {
-	case api.CosmosMetadataAccessor:
+	case arm.CosmosMetadataAccessor:
 		return clusterResourceIDFromResourceID(castObj.GetResourceID())
-	case api.CosmosPersistable:
+	case arm.CosmosPersistable:
 		return clusterResourceIDFromResourceID(castObj.GetCosmosData().ResourceID)
 	default:
 		return nil, utils.TrackError(fmt.Errorf("unexpected type %T, expected api.CosmosMetadataAccessor or api.CosmosPersistable", obj))

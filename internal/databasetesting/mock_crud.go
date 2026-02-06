@@ -880,7 +880,7 @@ func (m *mockUntypedCRUD) Get(ctx context.Context, resourceID *azcorearm.Resourc
 		return database.CosmosToInternal[database.TypedDocument, database.TypedDocument](&typedDoc)
 	}
 
-	return nil, NewNotFoundError()
+	return nil, database.NewNotFoundError()
 }
 
 func (m *mockUntypedCRUD) List(ctx context.Context, opts *database.DBClientListResourceDocsOptions) (database.DBClientIterator[database.TypedDocument], error) {

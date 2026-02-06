@@ -57,8 +57,12 @@ func ResourceInstanceEquals(t *testing.T, expected, actual any) (string, bool) {
 		// temporary and not worth tracking
 		unstructured.RemoveNestedField(currMap, "cosmosMetadata", "existingCosmosUID")
 
-		if resourceIDStr, ok := currMap["resourceID"].(string); ok && len(resourceIDStr) > 0 {
-			currMap["resourceID"] = strings.ToLower(resourceIDStr)
+		// these are case insensitive
+		if value, ok := currMap["resourceID"].(string); ok && len(value) > 0 {
+			currMap["resourceID"] = strings.ToLower(value)
+		}
+		if value, ok := currMap["resourceType"].(string); ok && len(value) > 0 {
+			currMap["resourceType"] = strings.ToLower(value)
 		}
 
 		resourceType, ok := currMap["resourceType"].(string)
