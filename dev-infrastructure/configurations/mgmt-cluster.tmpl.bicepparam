@@ -88,3 +88,7 @@ param owningTeamTagValue = '{{ .monitoring.alertRuleOwningTeamTag }}'
 
 // HCP Backups Storage Account
 param hcpBackupsStorageAccountName = '{{ .mgmt.hcpBackups.storageAccount.name }}'
+
+// Audit Logs Event Hub
+param auditLogsEventHubName = '{{ .kusto.auditLogsEventHub.name }}'
+param auditLogsEventHubAuthRuleId = '__auditLogsEventHubAuthRuleId__'

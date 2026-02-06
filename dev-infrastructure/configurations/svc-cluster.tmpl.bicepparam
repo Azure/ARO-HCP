@@ -158,3 +158,7 @@ param owningTeamTagValue = '{{ .monitoring.alertRuleOwningTeamTag }}'
 param resourceContainerMaxScale = {{ .frontend.cosmosDB.resourceContainerMaxScale }}
 param billingContainerMaxScale = {{ .frontend.cosmosDB.billingContainerMaxScale }}
 param locksContainerMaxScale = {{ .frontend.cosmosDB.locksContainerMaxScale }}
+
+// Audit Logs Event Hub
+param auditLogsEventHubName = '{{ .kusto.auditLogsEventHub.name }}'
+param auditLogsEventHubAuthRuleId = '__auditLogsEventHubAuthRuleId__'
