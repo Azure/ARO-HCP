@@ -6,6 +6,7 @@
 	"_ts": 1768346727,
 	"id": "|subscriptions|6b690bec-0c16-4ecb-8f67-781caf40bba7|resourcegroups|resourcegroupname|providers|microsoft.redhatopenshift|hcpopenshiftclusters|create-with-tags|externalauths|default",
 	"partitionKey": "6b690bec-0c16-4ecb-8f67-781caf40bba7",
+	"resourceID": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/create-with-tags/externalAuths/default",
 	"properties": {
 		"activeOperationId": "d99a71e0-9237-4ae2-8617-e76035e2bcd4",
 		"cosmosMetadata": {

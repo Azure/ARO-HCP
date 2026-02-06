@@ -1,5 +1,5 @@
 {
-	"id": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/providers/Microsoft.RedHatOpenShift/locations/globals-are-evil/hcpOperationStatuses/90b2322c-2c26-47ca-b6f9-d9b1a8385cbc",
+	"id": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/providers/Microsoft.RedHatOpenShift/locations/fake-location/hcpOperationStatuses/90b2322c-2c26-47ca-b6f9-d9b1a8385cbc",
 	"name": "90b2322c-2c26-47ca-b6f9-d9b1a8385cbc",
 	"status": "Succeeded",
 	"startTime": "2026-01-05T18:29:58.181047849Z",

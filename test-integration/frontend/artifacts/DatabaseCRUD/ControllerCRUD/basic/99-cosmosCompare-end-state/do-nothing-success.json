@@ -6,6 +6,7 @@
 	"_attachments": "attachments/",
 	"_ts": 1767910967,
 	"partitionKey": "subscriptionid",
+	"resourceID": "/subscriptions/subscriptionID/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/parentCluster/hcpOpenShiftControllers/second-controller",
 	"resourceType": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/hcpOpenShiftControllers",
 	"properties": {
 		"cosmosMetadata": {

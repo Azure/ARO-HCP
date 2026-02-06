@@ -6,6 +6,7 @@
 	"_ts": 1764966625,
 	"id": "|subscriptions|f52dfea2-47ee-4396-8006-4a27d47d59c5|providers|microsoft.redhatopenshift|hcpoperationstatuses|37332504-70b3-4796-9af6-301a5d47d127",
 	"partitionKey": "f52dfea2-47ee-4396-8006-4a27d47d59c5",
+	"resourceID": "/subscriptions/f52dfea2-47ee-4396-8006-4a27d47d59c5/providers/microsoft.redhatopenshift/hcpoperationstatuses/37332504-70b3-4796-9af6-301a5d47d127",
 	"properties": {
 		"externalId": "/subscriptions/f52dfea2-47ee-4396-8006-4a27d47d59c5/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/immutability/nodePools/immutability-np",
 		"internalId": "/api/aro_hcp/v1alpha1/clusters/cs-immutability/node_pools/4nd28q7n8q",

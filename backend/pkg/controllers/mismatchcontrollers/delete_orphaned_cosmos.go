@@ -89,16 +89,7 @@ func (c *deleteOrphanedCosmosResources) synchronizeSubscription(ctx context.Cont
 	// while the number of items is large, but we can paginate through
 	allSubscriptionResourceIDs := map[string]*azcorearm.ResourceID{}
 	for _, subscriptionResource := range subscriptionResourceIterator.Items(ctx) {
-		resourceID, err := api.CosmosIDToResourceID(subscriptionResource.ID)
-		if err != nil {
-			// we cannot convert the stored cosmos ID into a resourceID, then it was never migrated. This means it was inaccessible and needs to be removed
-			logger.Error(err, "cosmos resource not accessible, removing", "cosmosResourceID", subscriptionResource.ID)
-			if err := untypedSubscriptionCRUD.DeleteByCosmosID(ctx, subscriptionResource.PartitionKey, subscriptionResource.ID); err != nil {
-				errs = append(errs, utils.TrackError(fmt.Errorf("unable to delete %q in %q: %w", subscriptionResource.ID, subscriptionResource.PartitionKey, err)))
-			}
-			continue
-		}
-		allSubscriptionResourceIDs[resourceID.String()] = resourceID
+		allSubscriptionResourceIDs[subscriptionResource.ResourceID.String()] = subscriptionResource.ResourceID
 	}
 	if err := subscriptionResourceIterator.GetError(); err != nil {
 		return utils.TrackError(err)

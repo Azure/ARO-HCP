@@ -36,6 +36,7 @@ func InternalToCosmosSubscription(internalObj *arm.Subscription) (*Subscription,
 				ID: internalObj.GetCosmosData().GetCosmosUID(),
 			},
 			PartitionKey: strings.ToLower(internalObj.ResourceID.Name),
+			ResourceID:   internalObj.ResourceID,
 			ResourceType: internalObj.ResourceID.ResourceType.String(),
 		},
 		InternalState: SubscriptionProperties{

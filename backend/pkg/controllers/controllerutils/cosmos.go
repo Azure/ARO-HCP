@@ -21,7 +21,6 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -57,11 +56,7 @@ func DeleteRecursively(ctx context.Context, cosmosClient database.DBClient, root
 		return utils.TrackError(err)
 	}
 	for _, nestedContent := range nestedContentIterator.Items(ctx) {
-		nestedResourceID, err := api.CosmosIDToResourceID(nestedContent.ID)
-		if err != nil {
-			return utils.TrackError(err)
-		}
-		if err := untypedClient.Delete(ctx, nestedResourceID); err != nil {
+		if err := untypedClient.Delete(ctx, nestedContent.ResourceID); err != nil {
 			return utils.TrackError(err)
 		}
 	}

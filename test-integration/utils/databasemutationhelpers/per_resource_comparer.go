@@ -45,7 +45,6 @@ func ResourceInstanceEquals(t *testing.T, expected, actual any) (string, bool) {
 
 	// clear the fields from TypedDocument (wrapper) that don't compare
 	for _, currMap := range []map[string]any{expectedMap, actualMap} {
-		unstructured.RemoveNestedField(currMap, "id") // TODO restore when names are predictable
 		unstructured.RemoveNestedField(currMap, "_rid")
 		unstructured.RemoveNestedField(currMap, "_self")
 		unstructured.RemoveNestedField(currMap, "_etag")
@@ -71,13 +70,18 @@ func ResourceInstanceEquals(t *testing.T, expected, actual any) (string, bool) {
 			}
 		}
 
+		switch {
+		case strings.EqualFold(resourceType, api.OperationStatusResourceType.String()):
+			// this field is UUID generated, so usually cannot be compared for operations, but CAN be compared for everything else.
+			unstructured.RemoveNestedField(currMap, "id")
+			unstructured.RemoveNestedField(currMap, "resourceID")
+		}
+
 		// this loops handles the cosmosObj possibility and the internalObj possibility
 		for _, possiblePrepend := range []string{"", "properties"} {
-			unstructured.RemoveNestedField(currMap, prepend(possiblePrepend, "lastTransitionTime")...)                     // operations
-			unstructured.RemoveNestedField(currMap, prepend(possiblePrepend, "startTime")...)                              // operations
-			unstructured.RemoveNestedField(currMap, prepend(possiblePrepend, "operationId")...)                            // operations
-			unstructured.RemoveNestedField(currMap, prepend(possiblePrepend, "cosmosUID")...)                              // controllers
-			unstructured.RemoveNestedField(currMap, prepend(possiblePrepend, "serviceProviderProperties", "cosmosUID")...) // cluster, nodepool, externalauth
+			unstructured.RemoveNestedField(currMap, prepend(possiblePrepend, "lastTransitionTime")...) // operations
+			unstructured.RemoveNestedField(currMap, prepend(possiblePrepend, "startTime")...)          // operations
+			unstructured.RemoveNestedField(currMap, prepend(possiblePrepend, "operationId")...)        // operations
 
 			for _, nestedPossiblePrepend := range []string{"", "intermediateResourceDoc"} {
 				unstructured.RemoveNestedField(currMap, prepend(possiblePrepend, prepend(nestedPossiblePrepend, "activeOperationId")...)...) // cluster, nodepool, externalauth
@@ -101,6 +105,7 @@ func ResourceInstanceEquals(t *testing.T, expected, actual any) (string, bool) {
 			case strings.EqualFold(resourceType, api.OperationStatusResourceType.String()):
 				// this field is UUID generated, so usually cannot be compared for operations, but CAN be compared for everything else.
 				unstructured.RemoveNestedField(currMap, prepend(possiblePrepend, "resourceId")...)
+				unstructured.RemoveNestedField(currMap, prepend(possiblePrepend, "resourceID")...)
 				// cosmosMetadata.resourceID is derived from the same UUID-generated data, so strip it too.
 				unstructured.RemoveNestedField(currMap, prepend(possiblePrepend, "cosmosMetadata")...)
 			}
@@ -125,19 +130,9 @@ func ResourceName(resource any) string {
 		return cast.GetCosmosData().ResourceID.String()
 
 	case database.TypedDocument:
-		cosmosUID := cast.ID
-		resourceID, err := api.CosmosIDToResourceID(cosmosUID)
-		if err != nil {
-			return cosmosUID
-		}
-		return resourceID.String()
+		return cast.ResourceID.String()
 	case *database.TypedDocument:
-		cosmosUID := cast.ID
-		resourceID, err := api.CosmosIDToResourceID(cosmosUID)
-		if err != nil {
-			return cosmosUID
-		}
-		return resourceID.String()
+		return cast.ResourceID.String()
 
 	default:
 		return fmt.Sprintf("%v", resource)
