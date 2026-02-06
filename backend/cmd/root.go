@@ -33,6 +33,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/tracing/azotel"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/app"
+	"github.com/Azure/ARO-HCP/backend/pkg/signal"
 	"github.com/Azure/ARO-HCP/internal/tracing"
 	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/internal/version"
@@ -243,14 +244,14 @@ func RunRootCmd(cmd *cobra.Command, flags *BackendRootCmdFlags) error {
 		return utils.TrackError(fmt.Errorf("flags validation failed: %w", err))
 	}
 
+	// Setup signal context allowing for both graceful and forceful shutdown
+	// through linux signals (SIGINT and SIGTERM).
+	ctx := signal.SetupSignalContext()
+
 	// Create a logr.Logger and add it to context for use throughout the application.
 	// We use slog.Level(flags.LogVerbosity * -1) to convert the verbosity level to a slog.Level.
 	// A value of 0 is equivalent to INFO. Higher values mean more verbose output.
 	handlerOptions := &slog.HandlerOptions{Level: slog.Level(flags.LogVerbosity * -1), AddSource: true}
-
-	// TODO move signal-aware context creation from backend/pkg/app/backend.go here,
-	// and redo context handling similar to frontend/cmd/cmd.go.
-	ctx := context.Background()
 	slogJSONHandler := slog.NewJSONHandler(os.Stdout, handlerOptions)
 	logger := logr.FromSlogHandler(slogJSONHandler)
 	ctx = utils.ContextWithLogger(ctx, logger)
