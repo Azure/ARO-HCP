@@ -83,11 +83,15 @@ func (csc *clusterServiceClientWithTracing) GetClusterInflightChecks(ctx context
 	return csc.csc.GetClusterInflightChecks(ctx, internalID)
 }
 
-func (csc *clusterServiceClientWithTracing) PostCluster(ctx context.Context, clusterBuilder *arohcpv1alpha1.ClusterBuilder, autoscalerBuilder *arohcpv1alpha1.ClusterAutoscalerBuilder) (*arohcpv1alpha1.Cluster, error) {
+func (csc *clusterServiceClientWithTracing) PostCluster(ctx context.Context, clusterBuilder *arohcpv1alpha1.ClusterBuilder, autoscalerBuilder *arohcpv1alpha1.ClusterAutoscalerBuilder, opts *ClusterOptions) (*arohcpv1alpha1.Cluster, error) {
 	ctx, span := csc.startChildSpan(ctx, "ClusterServiceClient.PostCluster")
 	defer span.End()
 
-	cluster, err := csc.csc.PostCluster(ctx, clusterBuilder, autoscalerBuilder)
+	if opts != nil {
+		span.SetAttributes(tracing.FeatureMinimalResourceRequestsKey.Bool(opts.MinimalResourceRequests))
+	}
+
+	cluster, err := csc.csc.PostCluster(ctx, clusterBuilder, autoscalerBuilder, opts)
 	if err != nil {
 		span.RecordError(err)
 	} else {
@@ -97,11 +101,15 @@ func (csc *clusterServiceClientWithTracing) PostCluster(ctx context.Context, clu
 	return cluster, err
 }
 
-func (csc *clusterServiceClientWithTracing) UpdateCluster(ctx context.Context, internalID InternalID, builder *arohcpv1alpha1.ClusterBuilder) (*arohcpv1alpha1.Cluster, error) {
+func (csc *clusterServiceClientWithTracing) UpdateCluster(ctx context.Context, internalID InternalID, builder *arohcpv1alpha1.ClusterBuilder, opts *ClusterOptions) (*arohcpv1alpha1.Cluster, error) {
 	ctx, span := csc.startChildSpan(ctx, "ClusterServiceClient.UpdateCluster")
 	defer span.End()
 
-	cluster, err := csc.csc.UpdateCluster(ctx, internalID, builder)
+	if opts != nil {
+		span.SetAttributes(tracing.FeatureMinimalResourceRequestsKey.Bool(opts.MinimalResourceRequests))
+	}
+
+	cluster, err := csc.csc.UpdateCluster(ctx, internalID, builder, opts)
 	if err != nil {
 		span.RecordError(err)
 	} else {

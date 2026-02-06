@@ -19,4 +19,11 @@ const (
 	// allows the usage of non stable channels (i.e. candidate, nightly) for creation
 	// of new OpenShift clusters.
 	FeatureAllowDevNonStableChannels = "Microsoft.RedHatOpenShift/AllowDevNonStableChannels"
+
+	// Feature flag FeatureMinimalResourceRequests AFEC enables minimal Pod resource requests
+	// for Hosted Control Plane components. Affects cluster creation and update operations.
+	// Significantly reduces resource requests on HCPs and sets their availability to
+	// SingleReplica. Useful for E2Es, detrimental for production clusters expecting load
+	// and SLA requirements.
+	FeatureMinimalResourceRequests = "Microsoft.RedHatOpenShift/MinimalResourceRequests"
 )

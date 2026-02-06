@@ -29,6 +29,19 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
+// ClusterOptions contains options for cluster operations that may vary per request.
+// These options allow callers to enable AFEC-gated features without coupling
+// the OCM client to subscription internals.
+//
+// Passing nil is equivalent to using all default/false values. Callers should
+// explicitly construct a ClusterOptions struct when enabling any features.
+type ClusterOptions struct {
+	// MinimalResourceRequests enables reduced Pod resource requests for Hosted
+	// Control Plane components. Set to true when the FeatureMinimalResourceRequests
+	// AFEC is registered on the subscription.
+	MinimalResourceRequests bool
+}
+
 // The patch version is managed by Red Hat.
 const (
 	OpenShift419Patch = "7"
@@ -46,10 +59,12 @@ type ClusterServiceClientSpec interface {
 	GetClusterInflightChecks(ctx context.Context, internalID InternalID) (*arohcpv1alpha1.InflightCheckList, error)
 
 	// PostCluster sends a POST request to create a cluster in Cluster Service.
-	PostCluster(ctx context.Context, clusterBuilder *arohcpv1alpha1.ClusterBuilder, autoscalerBuilder *arohcpv1alpha1.ClusterAutoscalerBuilder) (*arohcpv1alpha1.Cluster, error)
+	// The opts parameter allows passing subscription-specific feature flags.
+	PostCluster(ctx context.Context, clusterBuilder *arohcpv1alpha1.ClusterBuilder, autoscalerBuilder *arohcpv1alpha1.ClusterAutoscalerBuilder, opts *ClusterOptions) (*arohcpv1alpha1.Cluster, error)
 
 	// UpdateCluster sends a PATCH request to update a cluster in Cluster Service.
-	UpdateCluster(ctx context.Context, internalID InternalID, builder *arohcpv1alpha1.ClusterBuilder) (*arohcpv1alpha1.Cluster, error)
+	// The opts parameter allows passing subscription-specific feature flags.
+	UpdateCluster(ctx context.Context, internalID InternalID, builder *arohcpv1alpha1.ClusterBuilder, opts *ClusterOptions) (*arohcpv1alpha1.Cluster, error)
 
 	// UpdateClusterAutoscaler sends a PATCH request to update cluster autoscaling values in Cluster Service.
 	UpdateClusterAutoscaler(ctx context.Context, internalID InternalID, builder *arohcpv1alpha1.ClusterAutoscalerBuilder) (*arohcpv1alpha1.ClusterAutoscaler, error)
@@ -148,7 +163,10 @@ func NewClusterServiceClient(conn *sdk.Connection, provisionShardID string, prov
 	}
 }
 
-func (csc *clusterServiceClient) addProperties(builder *arohcpv1alpha1.ClusterBuilder) *arohcpv1alpha1.ClusterBuilder {
+// addProperties adds internal properties to the cluster builder based on client
+// configuration and request-specific options. The opts parameter may be nil, in
+// which case no feature flags will be enabled.
+func (csc *clusterServiceClient) addProperties(builder *arohcpv1alpha1.ClusterBuilder, opts *ClusterOptions) *arohcpv1alpha1.ClusterBuilder {
 	additionalProperties := map[string]string{}
 	if csc.provisionShardID != "" {
 		additionalProperties["provision_shard_id"] = csc.provisionShardID
@@ -158,6 +176,10 @@ func (csc *clusterServiceClient) addProperties(builder *arohcpv1alpha1.ClusterBu
 	}
 	if csc.provisionerNoOpDeprovision {
 		additionalProperties["provisioner_noop_deprovision"] = "true"
+	}
+	// Enable minimal resource requests for Hosted Control Plane components.
+	if opts != nil && opts.MinimalResourceRequests {
+		additionalProperties["hosted_cluster_minimal_resource_requests"] = "true"
 	}
 	return builder.Properties(additionalProperties)
 }
@@ -258,11 +280,11 @@ func (csc *clusterServiceClient) GetClusterInflightChecks(ctx context.Context, i
 	return inflightChecks, nil
 }
 
-func (csc *clusterServiceClient) PostCluster(ctx context.Context, clusterBuilder *arohcpv1alpha1.ClusterBuilder, autoscalerBuilder *arohcpv1alpha1.ClusterAutoscalerBuilder) (*arohcpv1alpha1.Cluster, error) {
+func (csc *clusterServiceClient) PostCluster(ctx context.Context, clusterBuilder *arohcpv1alpha1.ClusterBuilder, autoscalerBuilder *arohcpv1alpha1.ClusterAutoscalerBuilder, opts *ClusterOptions) (*arohcpv1alpha1.Cluster, error) {
 	if autoscalerBuilder != nil {
 		clusterBuilder.Autoscaler(autoscalerBuilder)
 	}
-	cluster, err := csc.addProperties(clusterBuilder).Build()
+	cluster, err := csc.addProperties(clusterBuilder, opts).Build()
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}
@@ -277,8 +299,8 @@ func (csc *clusterServiceClient) PostCluster(ctx context.Context, clusterBuilder
 	return resolveClusterLinks(ctx, csc.conn, cluster)
 }
 
-func (csc *clusterServiceClient) UpdateCluster(ctx context.Context, internalID InternalID, builder *arohcpv1alpha1.ClusterBuilder) (*arohcpv1alpha1.Cluster, error) {
-	cluster, err := csc.addProperties(builder).Build()
+func (csc *clusterServiceClient) UpdateCluster(ctx context.Context, internalID InternalID, builder *arohcpv1alpha1.ClusterBuilder, opts *ClusterOptions) (*arohcpv1alpha1.Cluster, error) {
+	cluster, err := csc.addProperties(builder, opts).Build()
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}

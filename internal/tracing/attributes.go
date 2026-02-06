@@ -140,6 +140,13 @@ const (
 	BreakGlassCredentialExpirationTimestampKey attribute.Key = "cs.break_glass_credential.expiration_time"
 )
 
+// Feature flag attributes.
+const (
+	// FeatureMinimalResourceRequestsKey is the span's attribute Key reporting whether
+	// the minimal resource requests feature flag is enabled for a cluster operation.
+	FeatureMinimalResourceRequestsKey = attribute.Key("aro.feature.minimal_resource_requests")
+)
+
 // SetClusterAttributes sets attributes on the span to identify the cluster.
 func SetClusterAttributes(span trace.Span, cluster *arohcpv1alpha1.Cluster) {
 	addAttributeIfPresent(span, ClusterIDKey, cluster.GetID)
