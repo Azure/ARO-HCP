@@ -46,6 +46,8 @@ type nestedCosmosResourceCRUD[InternalAPIType, CosmosAPIType any] struct {
 	// resources directly under a subscription or resourcegroup are handled a little specially when computing a resourceIDPath.
 	parentResourceID *azcorearm.ResourceID
 	resourceType     azcorearm.ResourceType
+
+	hasCosmosMetadata bool
 }
 
 var _ ResourceCRUD[api.HCPOpenShiftClusterNodePool] = &nestedCosmosResourceCRUD[api.HCPOpenShiftClusterNodePool, NodePool]{}
@@ -54,9 +56,23 @@ func NewCosmosResourceCRUD[InternalAPIType, CosmosAPIType any](
 	containerClient *azcosmos.ContainerClient, parentResourceID *azcorearm.ResourceID, resourceType azcorearm.ResourceType) *nestedCosmosResourceCRUD[InternalAPIType, CosmosAPIType] {
 
 	ret := &nestedCosmosResourceCRUD[InternalAPIType, CosmosAPIType]{
-		containerClient:  containerClient,
-		parentResourceID: parentResourceID,
-		resourceType:     resourceType,
+		containerClient:   containerClient,
+		parentResourceID:  parentResourceID,
+		resourceType:      resourceType,
+		hasCosmosMetadata: true,
+	}
+
+	return ret
+}
+
+func NewCosmosResourceCRUDOldStyle[InternalAPIType, CosmosAPIType any](
+	containerClient *azcosmos.ContainerClient, parentResourceID *azcorearm.ResourceID, resourceType azcorearm.ResourceType) *nestedCosmosResourceCRUD[InternalAPIType, CosmosAPIType] {
+
+	ret := &nestedCosmosResourceCRUD[InternalAPIType, CosmosAPIType]{
+		containerClient:   containerClient,
+		parentResourceID:  parentResourceID,
+		resourceType:      resourceType,
+		hasCosmosMetadata: false,
 	}
 
 	return ret
@@ -125,7 +141,7 @@ func (d *nestedCosmosResourceCRUD[InternalAPIType, CosmosAPIType]) Get(ctx conte
 
 func (d *nestedCosmosResourceCRUD[InternalAPIType, CosmosAPIType]) List(ctx context.Context, options *DBClientListResourceDocsOptions) (DBClientIterator[InternalAPIType], error) {
 	if d.parentResourceID == nil {
-		return list[InternalAPIType, CosmosAPIType](ctx, d.containerClient, "", &azcorearm.SubscriptionResourceType, nil, options, false)
+		return list[InternalAPIType, CosmosAPIType](ctx, d.containerClient, "", &azcorearm.SubscriptionResourceType, nil, options, false, d.hasCosmosMetadata)
 	}
 
 	prefix, err := d.makeResourceIDPath("")
@@ -134,7 +150,7 @@ func (d *nestedCosmosResourceCRUD[InternalAPIType, CosmosAPIType]) List(ctx cont
 	}
 	partitionKey := strings.ToLower(d.parentResourceID.SubscriptionID)
 
-	return list[InternalAPIType, CosmosAPIType](ctx, d.containerClient, partitionKey, &d.resourceType, prefix, options, false)
+	return list[InternalAPIType, CosmosAPIType](ctx, d.containerClient, partitionKey, &d.resourceType, prefix, options, false, d.hasCosmosMetadata)
 }
 
 func (d *nestedCosmosResourceCRUD[InternalAPIType, CosmosAPIType]) AddCreateToTransaction(ctx context.Context, transaction DBTransaction, newObj *InternalAPIType, opts *azcosmos.TransactionalBatchItemOptions) (string, error) {
