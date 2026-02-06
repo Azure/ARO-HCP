@@ -81,13 +81,6 @@ func (m *mockResourceCRUD[InternalAPIType, CosmosAPIType]) makeResourceIDPath(re
 	return azcorearm.ParseResourceID(resourcePathString)
 }
 
-func NewNotFoundError() *azcore.ResponseError {
-	return &azcore.ResponseError{
-		ErrorCode:  "404 Not Found",
-		StatusCode: http.StatusNotFound,
-	}
-}
-
 func NewPreconditionFailedError() *azcore.ResponseError {
 	return &azcore.ResponseError{
 		ErrorCode:  "412 Precondition Failed",
@@ -134,7 +127,7 @@ func (m *mockResourceCRUD[InternalAPIType, CosmosAPIType]) GetByID(ctx context.C
 
 	data, ok := m.client.GetDocument(cosmosID)
 	if !ok {
-		return nil, NewNotFoundError()
+		return nil, database.NewNotFoundError()
 	}
 
 	var cosmosObj CosmosAPIType
@@ -253,7 +246,7 @@ func (m *mockResourceCRUD[InternalAPIType, CosmosAPIType]) Replace(ctx context.C
 	// Check that document exists
 	existingData, exists := m.client.GetDocument(cosmosID)
 	if !exists {
-		return nil, NewNotFoundError()
+		return nil, database.NewNotFoundError()
 	}
 
 	// Check etag if one is provided
@@ -370,7 +363,7 @@ func (m *mockResourceCRUD[InternalAPIType, CosmosAPIType]) AddReplaceToTransacti
 			if len(expectedETag) > 0 {
 				existingData, exists := m.client.GetDocument(cosmosID)
 				if !exists {
-					return "", nil, NewNotFoundError()
+					return "", nil, database.NewNotFoundError()
 				}
 				storedETag := getStoredETag(existingData)
 				if storedETag != expectedETag {
@@ -581,7 +574,7 @@ func (m *mockSubscriptionCRUD) GetByID(ctx context.Context, cosmosID string) (*a
 
 	data, ok := m.client.GetDocument(cosmosID)
 	if !ok {
-		return nil, NewNotFoundError()
+		return nil, database.NewNotFoundError()
 	}
 
 	var cosmosObj database.Subscription
@@ -684,7 +677,7 @@ func (m *mockSubscriptionCRUD) Replace(ctx context.Context, newObj *arm.Subscrip
 
 	existingData, exists := m.client.GetDocument(cosmosID)
 	if !exists {
-		return nil, NewNotFoundError()
+		return nil, database.NewNotFoundError()
 	}
 
 	// Check etag if one is provided
@@ -793,7 +786,7 @@ func (m *mockSubscriptionCRUD) AddReplaceToTransaction(ctx context.Context, tran
 			if len(expectedETag) > 0 {
 				existingData, exists := m.client.GetDocument(cosmosID)
 				if !exists {
-					return "", nil, NewNotFoundError()
+					return "", nil, database.NewNotFoundError()
 				}
 				storedETag := getStoredETag(existingData)
 				if storedETag != expectedETag {
@@ -881,7 +874,7 @@ func (m *mockUntypedCRUD) Get(ctx context.Context, resourceID *azcorearm.Resourc
 			}
 		}
 
-		return nil, NewNotFoundError()
+		return nil, database.NewNotFoundError()
 	}
 
 	var typedDoc database.TypedDocument

@@ -18,6 +18,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"time"
 
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 
@@ -29,6 +30,7 @@ import (
 )
 
 type cosmosExternalAuthMatching struct {
+	cooldownChecker      controllerutils.CooldownChecker
 	cosmosClient         database.DBClient
 	clusterServiceClient ocm.ClusterServiceClientSpec
 }
@@ -36,6 +38,7 @@ type cosmosExternalAuthMatching struct {
 // NewCosmosExternalAuthMatchingController periodically looks for mismatched cluster-service and cosmos externalauths
 func NewCosmosExternalAuthMatchingController(cosmosClient database.DBClient, clusterServiceClient ocm.ClusterServiceClientSpec) controllerutils.ClusterSyncer {
 	c := &cosmosExternalAuthMatching{
+		cooldownChecker:      controllerutils.NewTimeBasedCooldownChecker(1 * time.Hour),
 		cosmosClient:         cosmosClient,
 		clusterServiceClient: clusterServiceClient,
 	}
@@ -145,4 +148,8 @@ func (c *cosmosExternalAuthMatching) synchronizeAllExternalAuths(ctx context.Con
 func (c *cosmosExternalAuthMatching) SyncOnce(ctx context.Context, keyObj controllerutils.HCPClusterKey) error {
 	syncErr := c.synchronizeAllExternalAuths(ctx, keyObj)
 	return utils.TrackError(syncErr)
+}
+
+func (c *cosmosExternalAuthMatching) CooldownChecker() controllerutils.CooldownChecker {
+	return c.cooldownChecker
 }

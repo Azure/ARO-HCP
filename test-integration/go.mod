@@ -18,6 +18,7 @@ require (
 	go.uber.org/goleak v1.3.0
 	go.uber.org/mock v0.6.0
 	k8s.io/apimachinery v0.34.3
+	k8s.io/client-go v0.34.1
 	k8s.io/utils v0.0.0-20250820121507-0af2bda4dd1d
 )
 
@@ -77,17 +78,18 @@ require (
 	go.opentelemetry.io/proto/otlp v1.7.1 // indirect
 	go.yaml.in/yaml/v2 v2.4.2 // indirect
 	golang.org/x/exp v0.0.0-20250911091902-df9299821621 // indirect
+	golang.org/x/term v0.38.0 // indirect
 	golang.org/x/time v0.14.0 // indirect
 	google.golang.org/appengine v1.6.8 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20250825161204-c5933d9347a5 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250825161204-c5933d9347a5 // indirect
 	google.golang.org/grpc v1.76.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
-	k8s.io/client-go v0.34.1 // indirect
 	k8s.io/klog/v2 v2.130.1 // indirect
 	sigs.k8s.io/json v0.0.0-20250730193827-2d320260d730 // indirect
 	sigs.k8s.io/randfill v1.0.0 // indirect
 	sigs.k8s.io/structured-merge-diff/v6 v6.3.0 // indirect
+	sigs.k8s.io/yaml v1.6.0 // indirect
 )
 
 require (

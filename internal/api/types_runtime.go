@@ -39,6 +39,21 @@ func (o *HCPOpenShiftCluster) GetObjectMeta() metav1.Object {
 	return om
 }
 
+// HCPOpenShiftClusterList is a list of HCPOpenShiftClusters compatible with
+// runtime.Object for use with Kubernetes informer machinery.
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+type HCPOpenShiftClusterList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata,omitempty"`
+	Items           []HCPOpenShiftCluster `json:"items"`
+}
+
+var _ runtime.Object = &HCPOpenShiftClusterList{}
+
+func (l *HCPOpenShiftClusterList) GetObjectKind() schema.ObjectKind {
+	return &l.TypeMeta
+}
+
 var (
 	_ runtime.Object            = &HCPOpenShiftClusterNodePool{}
 	_ metav1.ObjectMetaAccessor = &HCPOpenShiftClusterNodePool{}
@@ -56,6 +71,21 @@ func (o *HCPOpenShiftClusterNodePool) GetObjectMeta() metav1.Object {
 	return om
 }
 
+// HCPOpenShiftClusterNodePoolList is a list of HCPOpenShiftClusterNodePools
+// compatible with runtime.Object for use with Kubernetes informer machinery.
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+type HCPOpenShiftClusterNodePoolList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata,omitempty"`
+	Items           []HCPOpenShiftClusterNodePool `json:"items"`
+}
+
+var _ runtime.Object = &HCPOpenShiftClusterNodePoolList{}
+
+func (l *HCPOpenShiftClusterNodePoolList) GetObjectKind() schema.ObjectKind {
+	return &l.TypeMeta
+}
+
 var (
 	_ runtime.Object            = &Operation{}
 	_ metav1.ObjectMetaAccessor = &Operation{}
@@ -71,4 +101,19 @@ func (o *Operation) GetObjectMeta() metav1.Object {
 		om.Name = strings.ToLower(o.ResourceID.String())
 	}
 	return om
+}
+
+// OperationList is a list of Operations compatible with runtime.Object for use
+// with Kubernetes informer machinery.
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+type OperationList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata,omitempty"`
+	Items           []Operation `json:"items"`
+}
+
+var _ runtime.Object = &OperationList{}
+
+func (l *OperationList) GetObjectKind() schema.ObjectKind {
+	return &l.TypeMeta
 }

@@ -21,13 +21,15 @@ import (
 	"k8s.io/utils/lru"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
+	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/serverutils"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 type dataDump struct {
-	cosmosClient database.DBClient
+	cooldownChecker controllerutils.CooldownChecker
+	cosmosClient    database.DBClient
 
 	// nextDataDumpTime is a map of resourceID strings to a time at which all information related to them should be dumped.
 	// This should work for any resource, though we're starting with Clusters because of coverage.  Every time we dump
@@ -37,8 +39,9 @@ type dataDump struct {
 }
 
 // NewDataDumpController periodically lists all clusters and for each out when the cluster was created and its state.
-func NewDataDumpController(cosmosClient database.DBClient) controllerutils.ClusterSyncer {
+func NewDataDumpController(activeOperationLister listers.ActiveOperationLister, cosmosClient database.DBClient) controllerutils.ClusterSyncer {
 	c := &dataDump{
+		cooldownChecker:  controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
 		cosmosClient:     cosmosClient,
 		nextDataDumpTime: lru.New(10000),
 	}
@@ -61,4 +64,8 @@ func (c *dataDump) SyncOnce(ctx context.Context, key controllerutils.HCPClusterK
 	}
 
 	return nil
+}
+
+func (c *dataDump) CooldownChecker() controllerutils.CooldownChecker {
+	return c.cooldownChecker
 }

@@ -6,13 +6,13 @@
 	"_attachments": "attachments/",
 	"_ts": 1767912219,
 	"partitionKey": "4fa75980-6637-4157-9726-84d878a62e83",
-	"resourceType": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/hcpOpenShiftControllers",
+	"resourceType": "microsoft.redhatopenshift/hcpopenshiftclusters/hcpOpenShiftControllers",
 	"properties": {
 		"cosmosMetadata": {
-			"resourceID": "/subscriptions/4fa75980-6637-4157-9726-84d878a62e83/resourceGroups/shrillEffectiveness/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/lavishUnhappiness/hcpOpenShiftControllers/DoNothingExample"
+			"resourceID": "/subscriptions/4fa75980-6637-4157-9726-84d878a62e83/resourceGroups/shrilleffectiveness/providers/microsoft.redhatopenshift/hcpopenshiftclusters/lavishunhappiness/hcpOpenShiftControllers/DoNothingExample"
 		},
-		"resourceId": "/subscriptions/4fa75980-6637-4157-9726-84d878a62e83/resourceGroups/shrillEffectiveness/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/lavishUnhappiness/hcpOpenShiftControllers/DoNothingExample",
-		"externalId": "/subscriptions/4fa75980-6637-4157-9726-84d878a62e83/resourceGroups/shrillEffectiveness/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/lavishUnhappiness",
+		"resourceId": "/subscriptions/4fa75980-6637-4157-9726-84d878a62e83/resourceGroups/shrilleffectiveness/providers/microsoft.redhatopenshift/hcpopenshiftclusters/lavishunhappiness/hcpOpenShiftControllers/DoNothingExample",
+		"externalId": "/subscriptions/4fa75980-6637-4157-9726-84d878a62e83/resourceGroups/shrilleffectiveness/providers/microsoft.redhatopenshift/hcpopenshiftclusters/lavishunhappiness",
 		"status": {
 			"conditions": [
 				{

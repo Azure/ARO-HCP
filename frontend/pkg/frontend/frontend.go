@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	"path"
 	"strconv"
 	"strings"
 	"sync"
@@ -800,11 +799,7 @@ func (f *Frontend) OperationStatus(writer http.ResponseWriter, request *http.Req
 	if database.IsResponseError(err, http.StatusNotFound) {
 		// try using the new storage ID
 		// we store operations without the location so the type stays as we expect/predict
-		operationStorageResourceID := path.Join(
-			"/subscriptions", resourceID.SubscriptionID,
-			"providers", api.OperationStatusResourceType.String(),
-			resourceID.Name,
-		)
+		operationStorageResourceID := api.ToOperationResourceIDString(resourceID.SubscriptionID, resourceID.Name)
 		operation, err = f.dbClient.Operations(resourceID.SubscriptionID).GetByID(ctx, api.Must(api.ResourceIDStringToCosmosID(operationStorageResourceID)))
 	}
 	if err != nil {
@@ -890,11 +885,7 @@ func (f *Frontend) OperationResult(writer http.ResponseWriter, request *http.Req
 	if database.IsResponseError(err, http.StatusNotFound) {
 		// try using the new storage ID
 		// we store operations without the location so the type stays as we expect/predict
-		operationStorageResourceID := path.Join(
-			"/subscriptions", resourceID.SubscriptionID,
-			"providers", api.OperationStatusResourceType.String(),
-			resourceID.Name,
-		)
+		operationStorageResourceID := api.ToOperationResourceIDString(resourceID.SubscriptionID, resourceID.Name)
 		operation, err = f.dbClient.Operations(resourceID.SubscriptionID).GetByID(ctx, api.Must(api.ResourceIDStringToCosmosID(operationStorageResourceID)))
 	}
 	if err != nil {

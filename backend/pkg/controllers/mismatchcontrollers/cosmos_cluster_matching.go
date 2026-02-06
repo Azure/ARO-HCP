@@ -18,6 +18,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"time"
 
 	utilsclock "k8s.io/utils/clock"
 
@@ -31,6 +32,7 @@ import (
 
 type cosmosClusterMatching struct {
 	clock                utilsclock.PassiveClock
+	cooldownChecker      controllerutils.CooldownChecker
 	cosmosClient         database.DBClient
 	clusterServiceClient ocm.ClusterServiceClientSpec
 }
@@ -39,6 +41,7 @@ type cosmosClusterMatching struct {
 func NewCosmosClusterMatchingController(clock utilsclock.PassiveClock, cosmosClient database.DBClient, clusterServiceClient ocm.ClusterServiceClientSpec) controllerutils.ClusterSyncer {
 	c := &cosmosClusterMatching{
 		clock:                clock,
+		cooldownChecker:      controllerutils.NewTimeBasedCooldownChecker(1 * time.Hour),
 		cosmosClient:         cosmosClient,
 		clusterServiceClient: clusterServiceClient,
 	}
@@ -87,4 +90,8 @@ func (c *cosmosClusterMatching) synchronizeClusters(ctx context.Context, keyObj 
 func (c *cosmosClusterMatching) SyncOnce(ctx context.Context, keyObj controllerutils.HCPClusterKey) error {
 	syncErr := c.synchronizeClusters(ctx, keyObj)
 	return utils.TrackError(syncErr)
+}
+
+func (c *cosmosClusterMatching) CooldownChecker() controllerutils.CooldownChecker {
+	return c.cooldownChecker
 }

@@ -21,24 +21,25 @@ import (
 
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
+	"k8s.io/utils/ptr"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/listers"
+	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 type ClusterSyncer interface {
 	SyncOnce(ctx context.Context, keyObj HCPClusterKey) error
+	CooldownChecker() CooldownChecker
 }
 
 type clusterWatchingController struct {
-	name           string
-	syncer         ClusterSyncer
-	resyncDuration time.Duration
+	name   string
+	syncer ClusterSyncer
 
-	subscriptionLister listers.SubscriptionLister
-	cosmosClient       database.DBClient
+	cosmosClient database.DBClient
 
 	// queue is where incoming work is placed to de-dup and to allow "easy"
 	// rate limited requeues on errors
@@ -46,25 +47,42 @@ type clusterWatchingController struct {
 }
 
 // NewClusterWatchingController periodically looks up all clusters and queues them
+// cooldownDuration is how long to wait before allowing a new notification to fire the controller.
+// Since our detection of change is coarse, we are being triggered every few second without new information.
+// Until we get a changefeed, the cooldownDuration value is effectively the min resync time.
+// This does NOT prevent us from re-executing on errors, so errors will continue to trigger fast checks as expected.
 func NewClusterWatchingController(
 	name string,
 	cosmosClient database.DBClient,
-	subscriptionLister listers.SubscriptionLister,
+	clusterInformer cache.SharedIndexInformer,
 	resyncDuration time.Duration,
 	syncer ClusterSyncer,
 ) Controller {
 	c := &clusterWatchingController{
-		name:               name,
-		subscriptionLister: subscriptionLister,
-		cosmosClient:       cosmosClient,
-		syncer:             syncer,
-		resyncDuration:     resyncDuration,
+		name:         name,
+		cosmosClient: cosmosClient,
+		syncer:       syncer,
 		queue: workqueue.NewTypedRateLimitingQueueWithConfig(
 			workqueue.DefaultTypedControllerRateLimiter[HCPClusterKey](),
 			workqueue.TypedRateLimitingQueueConfig[HCPClusterKey]{
 				Name: name,
 			},
 		),
+	}
+
+	// this happens when unit tests don't want triggering.  This isn't beautiful, but fails to do nothing which is pretty safe.
+	if clusterInformer != nil {
+		_, err := clusterInformer.AddEventHandlerWithOptions(
+			cache.ResourceEventHandlerFuncs{
+				AddFunc:    c.enqueueAdd,
+				UpdateFunc: c.enqueueUpdate,
+			},
+			cache.HandlerOptions{
+				ResyncPeriod: ptr.To(resyncDuration),
+			})
+		if err != nil {
+			panic(err) // coding error
+		}
 	}
 
 	return c
@@ -86,34 +104,6 @@ func (c *clusterWatchingController) SyncOnce(ctx context.Context, keyObj any) er
 	return errors.Join(syncErr, controllerWriteErr)
 }
 
-func (c *clusterWatchingController) queueAllHCPClusters(ctx context.Context) {
-	logger := utils.LoggerFromContext(ctx)
-
-	allSubscriptions, err := c.subscriptionLister.List(ctx)
-	if err != nil {
-		logger.Error(err, "unable to list subscriptions")
-	}
-	for _, subscription := range allSubscriptions {
-		subscriptionID := subscription.ResourceID.SubscriptionID
-		allHCPClusters, err := c.cosmosClient.HCPClusters(subscriptionID, "").List(ctx, nil)
-		if err != nil {
-			logger.Error(err, "unable to list HCP clusters", "subscription_id", subscription.ResourceID.SubscriptionID)
-			continue
-		}
-
-		for _, hcpCluster := range allHCPClusters.Items(ctx) {
-			c.queue.Add(HCPClusterKey{
-				SubscriptionID:    hcpCluster.ID.SubscriptionID,
-				ResourceGroupName: hcpCluster.ID.ResourceGroupName,
-				HCPClusterName:    hcpCluster.ID.Name,
-			})
-		}
-		if err := allHCPClusters.GetError(); err != nil {
-			logger.Error(err, "unable to iterate over HCP clusters", "subscription_id", subscription.ResourceID.SubscriptionID)
-		}
-	}
-}
-
 func (c *clusterWatchingController) Run(ctx context.Context, threadiness int) {
 	// don't let panics crash the process
 	defer utilruntime.HandleCrash()
@@ -132,8 +122,6 @@ func (c *clusterWatchingController) Run(ctx context.Context, threadiness int) {
 		// then rekick the worker after one second
 		go wait.UntilWithContext(ctx, c.runWorker, time.Second)
 	}
-
-	go wait.JitterUntilWithContext(ctx, c.queueAllHCPClusters, c.resyncDuration, 0.1, true)
 
 	logger.Info("Started workers")
 
@@ -170,4 +158,22 @@ func (c *clusterWatchingController) processNextWorkItem(ctx context.Context) boo
 	c.queue.AddRateLimited(ref)
 
 	return true
+}
+
+func (c *clusterWatchingController) enqueueAdd(newObj interface{}) {
+	castObj := newObj.(*api.HCPOpenShiftCluster)
+	key := HCPClusterKey{
+		SubscriptionID:    castObj.ID.SubscriptionID,
+		ResourceGroupName: castObj.ID.ResourceGroupName,
+		HCPClusterName:    castObj.ID.Name,
+	}
+	if !c.syncer.CooldownChecker().CanSync(context.TODO(), key) {
+		return
+	}
+
+	c.queue.Add(key)
+}
+
+func (c *clusterWatchingController) enqueueUpdate(_ interface{}, newObj interface{}) {
+	c.enqueueAdd(newObj)
 }
