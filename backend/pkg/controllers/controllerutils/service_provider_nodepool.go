@@ -43,10 +43,13 @@ func newInitialServiceProviderNodePool(npResourceID *azcorearm.ResourceID) *api.
 // GetOrCreateServiceProviderNodePool gets the singleton ServiceProviderNodePool
 // instance named `default` for the given node pool resource ID.
 // If it doesn't exist, it creates a new one.
-// nodePoolResourceID is assumed to be a nodePool resource ID.
 func GetOrCreateServiceProviderNodePool(
 	ctx context.Context, dbClient database.DBClient, nodePoolResourceID *azcorearm.ResourceID,
 ) (*api.ServiceProviderNodePool, error) {
+	if nodePoolResourceID.ResourceType.String() != api.NodePoolResourceType.String() {
+		return nil, utils.TrackError(fmt.Errorf("expected resource type %s, got %s", api.NodePoolResourceType, nodePoolResourceID.ResourceType))
+	}
+
 	serviceProviderNodePoolsDBClient := dbClient.ServiceProviderNodePools(
 		nodePoolResourceID.SubscriptionID,
 		nodePoolResourceID.ResourceGroupName,

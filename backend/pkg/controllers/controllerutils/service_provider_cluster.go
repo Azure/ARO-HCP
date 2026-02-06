@@ -43,10 +43,13 @@ func newInitialServiceProviderCluster(clusterResourceID *azcorearm.ResourceID) *
 // GetOrCreateServiceProviderCluster gets the singleton ServiceProviderCluster
 // instance named `default` for the given cluster resource ID.
 // If it doesn't exist, it creates a new one.
-// clusterResourceID is assumed to be a cluster resource ID.
 func GetOrCreateServiceProviderCluster(
 	ctx context.Context, dbClient database.DBClient, clusterResourceID *azcorearm.ResourceID,
 ) (*api.ServiceProviderCluster, error) {
+	if clusterResourceID.ResourceType.String() != api.ClusterResourceType.String() {
+		return nil, utils.TrackError(fmt.Errorf("expected resource type %s, got %s", api.ClusterResourceType, clusterResourceID.ResourceType))
+	}
+
 	serviceProviderClustersDBClient := dbClient.ServiceProviderClusters(
 		clusterResourceID.SubscriptionID,
 		clusterResourceID.ResourceGroupName,
