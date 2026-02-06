@@ -36,6 +36,7 @@ func ToSubscriptionResourceID(subscriptionName string) (*azcorearm.ResourceID, e
 type Subscription struct {
 	CosmosMetadata `json:"cosmosMetadata"`
 
+	// kept so untyped client can function
 	ResourceID *azcorearm.ResourceID `json:"resourceId,omitempty"`
 
 	// The resource provider contract gives an example RegistrationDate

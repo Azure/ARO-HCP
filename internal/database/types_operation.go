@@ -39,21 +39,6 @@ const (
 	OperationRequestRevokeCredentials OperationRequest = "RevokeCredentials"
 )
 
-type Operation struct {
-	TypedDocument `json:",inline"`
-
-	OperationProperties api.Operation `json:"properties"`
-}
-
-func (o *Operation) GetTypedDocument() *TypedDocument {
-	return &o.TypedDocument
-}
-
-func (o *Operation) SetResourceID(_ *azcorearm.ResourceID) {
-	// do nothing.  There is no real resource ID to set and we don't need to worry about conforming to ARM casing rules.
-	// TODO, consider whether this should be done in the frontend and not in storage (likely)
-}
-
 func NewOperation(
 	request OperationRequest,
 	externalID *azcorearm.ResourceID,

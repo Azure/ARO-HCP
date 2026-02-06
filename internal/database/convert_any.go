@@ -18,7 +18,6 @@ import (
 	"fmt"
 
 	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -34,15 +33,6 @@ func CosmosToInternal[InternalAPIType, CosmosAPIType any](obj *CosmosAPIType) (*
 
 	case *NodePool:
 		internalObj, err = CosmosToInternalNodePool(cosmosObj)
-
-	case *Controller:
-		internalObj, err = CosmosToInternalController(cosmosObj)
-
-	case *Operation:
-		internalObj, err = CosmosToInternalOperation(cosmosObj)
-
-	case *Subscription:
-		internalObj, err = CosmosToInternalSubscription(cosmosObj)
 
 	case *TypedDocument:
 		var expectedObj InternalAPIType
@@ -83,15 +73,6 @@ func InternalToCosmos[InternalAPIType, CosmosAPIType any](obj *InternalAPIType) 
 
 	case *api.HCPOpenShiftClusterNodePool:
 		cosmosObj, err = InternalToCosmosNodePool(internalObj)
-
-	case *api.Controller:
-		cosmosObj, err = InternalToCosmosController(internalObj)
-
-	case *api.Operation:
-		cosmosObj, err = InternalToCosmosOperation(internalObj)
-
-	case *arm.Subscription:
-		cosmosObj, err = InternalToCosmosSubscription(internalObj)
 
 	case *TypedDocument:
 		var expectedObj CosmosAPIType

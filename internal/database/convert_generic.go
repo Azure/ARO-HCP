@@ -19,7 +19,10 @@ import (
 	"strings"
 
 	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
+
+const operationTimeToLive = 604800 // 7 days
 
 func InternalToCosmosGeneric[InternalAPIType any](internalObj *InternalAPIType) (*GenericDocument[InternalAPIType], error) {
 	if internalObj == nil {
@@ -47,6 +50,13 @@ func InternalToCosmosGeneric[InternalAPIType any](internalObj *InternalAPIType) 
 		Content: *internalObj,
 	}
 
+	// this isn't pretty, but on balance it's a better choice so that we can share all the rest.
+	switch any(internalObj).(type) {
+	case *api.Operation:
+		// TODO Add TTL to cosmosMetadata
+		cosmosObj.TimeToLive = operationTimeToLive
+	}
+
 	return cosmosObj, nil
 }
 
@@ -60,6 +70,14 @@ func CosmosGenericToInternal[InternalAPIType any](cosmosObj *GenericDocument[Int
 		return nil, fmt.Errorf("internalObj must be an api.CosmosMetadataAccessor: %T", cosmosObj)
 	}
 	ret.SetEtag(cosmosObj.CosmosETag)
+
+	// this isn't pretty, but on balance it's a better choice so that we can share all the rest.
+	switch castObj := any(ret).(type) {
+	case *arm.Subscription:
+		castObj.LastUpdated = cosmosObj.CosmosTimestamp
+	case arm.Subscription:
+		castObj.LastUpdated = cosmosObj.CosmosTimestamp
+	}
 
 	return &cosmosObj.Content, nil
 }
