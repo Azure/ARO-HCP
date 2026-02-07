@@ -37,6 +37,20 @@ list:
 	@grep '^[^#[:space:]].*:' Makefile
 .PHONY: list
 
+ci-export-provision-vars:
+	@if [ -z "$${SHARED_DIR}" ]; then \
+		echo "Error: SHARED_DIR is not set" >&2; \
+		exit 1; \
+	fi
+	@{ \
+		echo "export SVC_RESOURCEGROUP='$(SVC_RESOURCEGROUP)'"; \
+		echo "export MGMT_RESOURCEGROUP='$(MGMT_RESOURCEGROUP)'"; \
+		echo "export REGIONAL_RESOURCEGROUP='$(REGIONAL_RESOURCEGROUP)'"; \
+		echo "export GLOBAL_RESOURCEGROUP='$(GLOBAL_RESOURCEGROUP)'"; \
+		echo "export REGION='$(REGION)'"; \
+	} > "$${SHARED_DIR}/provision.env"
+.PHONY: ci-export-provision-vars
+
 templates := $(wildcard ./templates/*.bicep)
 modules := $(shell find ./modules -name "*.bicep")
 parameters := $(filter-out $(wildcard ./templates/*.tmpl.bicepparam),$(wildcard ./templates/*.bicepparam))
