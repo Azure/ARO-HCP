@@ -21,7 +21,6 @@ import (
 	"hash/fnv"
 	"net"
 	"net/http"
-	"net/url"
 	"os"
 	"path"
 	"path/filepath"
@@ -139,23 +138,6 @@ func (tc *perBinaryInvocationTestContext) getAzureCredentials() (azcore.TokenCre
 	return tc.azureCredentials, nil
 }
 
-// armSystemDataPolicy adds ARM system data headers for localhost requests
-type armSystemDataPolicy struct{}
-
-func (p *armSystemDataPolicy) Do(req *policy.Request) (*http.Response, error) {
-	frontendURL, err := url.Parse(frontendAddress())
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse frontend address: %w", err)
-	}
-
-	if req.Raw().URL.Host == frontendURL.Host {
-		systemData := fmt.Sprintf(`{"createdBy": "e2e-test", "createdByType": "Application", "createdAt": "%s"}`, time.Now().UTC().Format(time.RFC3339))
-		req.Raw().Header.Set("X-Ms-Arm-Resource-System-Data", systemData)
-		req.Raw().Header.Set("X-Ms-Identity-Url", "https://dummyhost.identity.azure.net")
-	}
-	return req.Next()
-}
-
 func (tc *perBinaryInvocationTestContext) getClientFactoryOptions() *azcorearm.ClientOptions {
 	if tc.isDevelopmentEnvironment {
 		return &azcorearm.ClientOptions{
@@ -163,10 +145,19 @@ func (tc *perBinaryInvocationTestContext) getClientFactoryOptions() *azcorearm.C
 				Transport: &proxiedConnectionTransporter{
 					delegate: tc.defaultTransport,
 				},
+				PerCallPolicies: []policy.Policy{
+					NewLROPollerRetryDeploymentNotFoundPolicy(),
+				},
 			},
 		}
 	}
-	return nil
+	return &azcorearm.ClientOptions{
+		ClientOptions: azcore.ClientOptions{
+			PerCallPolicies: []policy.Policy{
+				NewLROPollerRetryDeploymentNotFoundPolicy(),
+			},
+		},
+	}
 }
 
 func (tc *perBinaryInvocationTestContext) getHCPClientFactoryOptions() *azcorearm.ClientOptions {
