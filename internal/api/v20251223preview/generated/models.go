@@ -341,6 +341,9 @@ type HcpOpenShiftClusterProperties struct {
 	// Configure ETCD.
 	Etcd *EtcdProfile
 
+	// imageDigestMirrors is a set of rules to allow pulling images from a mirrored registry by using digest specifications.
+	ImageDigestMirrors []*ImageDigestMirror
+
 	// Cluster network configuration
 	Network *NetworkProfile
 
@@ -368,6 +371,9 @@ type HcpOpenShiftClusterProperties struct {
 type HcpOpenShiftClusterPropertiesUpdate struct {
 	// Configure ClusterAutoscaling .
 	Autoscaling *ClusterAutoscalingProfile
+
+	// imageDigestMirrors is a set of rules to allow pulling images from a mirrored registry by using digest specifications.
+	ImageDigestMirrors []*ImageDigestMirror
 
 	// nodeDrainTimeoutMinutes is the grace period for how long Pod Disruption Budget-protected workloads will be respected during
 	// any node draining operation. After this grace period, any workloads
@@ -484,6 +490,18 @@ type HcpOperatorIdentityRoleSetProperties struct {
 
 	// REQUIRED; The role definitions required for the User-Assigned managed identities used by Data Plane operators on a cluster.
 	DataPlaneOperators []*OperatorIdentityRoles
+}
+
+// ImageDigestMirror specifies a set of mirror registries to redirect image pulls targeting the specified source registries.
+type ImageDigestMirror struct {
+	// REQUIRED; The unique identifier for this image digest mirror definition
+	ID *string
+
+	// REQUIRED; The set of mirror registries to redirect image pulls to
+	Mirrors []*string
+
+	// REQUIRED; The source image registry to redirect image pulls from
+	Source *string
 }
 
 // KmsEncryptionProfile - Configure etcd encryption Key Management Service (KMS) key. Your Microsoft Entra application used

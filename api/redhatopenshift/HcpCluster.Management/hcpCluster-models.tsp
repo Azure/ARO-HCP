@@ -6,6 +6,7 @@ import "@azure-tools/typespec-azure-resource-manager";
 import "@azure-tools/typespec-client-generator-core";
 
 using TypeSpec.Rest;
+using TypeSpec.Versioning;
 using Azure.Core;
 using Azure.ResourceManager;
 using Azure.ClientGenerator.Core;
@@ -88,6 +89,13 @@ model HcpOpenShiftClusterProperties {
   /** Configure ETCD. */
   @visibility(Lifecycle.Read, Lifecycle.Create)
   etcd?: EtcdProfile;
+
+  /** imageDigestMirrors is a set of rules to allow pulling images from a
+   * mirrored registry by using digest specifications.
+   */
+  @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
+  @added(Versions.v2025_12_23_preview)
+  imageDigestMirrors?: ImageDigestMirror[];
 
   /** nodeDrainTimeoutMinutes is the grace period for how long Pod Disruption Budget-protected workloads will be
    * respected during any node draining operation. After this grace period, any workloads protected by Pod Disruption
@@ -337,6 +345,21 @@ model ClusterAutoscalingProfile {
    *        https://github.com/Azure/typespec-azure/issues/1586
    */
   podPriorityThreshold?: int32;
+}
+
+/** ImageDigestMirror specifies a set of mirror registries to redirect image
+ * pulls targeting the specified source registries.
+ */
+model ImageDigestMirror {
+  /** The unique identifier for this image digest mirror definition */
+  id: string;
+
+  /** The source image registry to redirect image pulls from */
+  source: string;
+
+  /** The set of mirror registries to redirect image pulls to */
+  @minItems(1)
+  mirrors: string[];
 }
 
 /** OpenShift cluster image registry */

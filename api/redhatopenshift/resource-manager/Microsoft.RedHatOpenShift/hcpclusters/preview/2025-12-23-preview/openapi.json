@@ -2269,6 +2269,18 @@
             "create"
           ]
         },
+        "imageDigestMirrors": {
+          "type": "array",
+          "description": "imageDigestMirrors is a set of rules to allow pulling images from a\nmirrored registry by using digest specifications.",
+          "items": {
+            "$ref": "#/definitions/ImageDigestMirror"
+          },
+          "x-ms-mutability": [
+            "read",
+            "update",
+            "create"
+          ]
+        },
         "nodeDrainTimeoutMinutes": {
           "type": "integer",
           "format": "int32",
@@ -2319,6 +2331,18 @@
         "autoscaling": {
           "$ref": "#/definitions/ClusterAutoscalingProfile",
           "description": "Configure ClusterAutoscaling .",
+          "x-ms-mutability": [
+            "read",
+            "update",
+            "create"
+          ]
+        },
+        "imageDigestMirrors": {
+          "type": "array",
+          "description": "imageDigestMirrors is a set of rules to allow pulling images from a\nmirrored registry by using digest specifications.",
+          "items": {
+            "$ref": "#/definitions/ImageDigestMirror"
+          },
           "x-ms-mutability": [
             "read",
             "update",
@@ -2482,6 +2506,33 @@
       "required": [
         "controlPlaneOperators",
         "dataPlaneOperators"
+      ]
+    },
+    "ImageDigestMirror": {
+      "type": "object",
+      "description": "ImageDigestMirror specifies a set of mirror registries to redirect image\npulls targeting the specified source registries.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "The unique identifier for this image digest mirror definition"
+        },
+        "source": {
+          "type": "string",
+          "description": "The source image registry to redirect image pulls from"
+        },
+        "mirrors": {
+          "type": "array",
+          "description": "The set of mirror registries to redirect image pulls to",
+          "minItems": 1,
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "source",
+        "mirrors"
       ]
     },
     "KmsEncryptionProfile": {
