@@ -1,12 +1,12 @@
 acm:
   mce:
     bundle:
-      digest: sha256:7fb73770a8dd3401dfd6137003bc4f57cb9b24a0bf94b7ba5a1a689016c0fae8
+      digest: sha256:c79800f574c8eb482d3e8a61b8cf840df17573c641e82abc71fe0695988d1c3d
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-210
   operator:
     bundle:
-      digest: sha256:78a3e4d27e3a2ba1fac4d5c5baf5ba89c71b3ad3e122e247706e45bec985ba8f
+      digest: sha256:e9f99003623eb63d511c6fb4b1cefc6b358a2f202cc37ff41a1b8356f1c2285d
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-215
 acr:
@@ -33,7 +33,7 @@ adminApi:
     issuer: Self
     name: admin-api-cert-pers-usw3test
   image:
-    digest: sha256:929057e0c26c9f615bf3920f4a9c993a275b54ec19fac41e728bd404110998ef
+    digest: sha256:836a9ee7e817944d4913e091d9240e4bc8af60b532d3735fd52df06fe96dae43
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpadminapi
   k8s:
@@ -46,7 +46,7 @@ administration:
   releaseManagementGroupId: ""
 aksCommandRuntime:
   image:
-    digest: sha256:f8e7b759f7756f30f4f8f2c3c35ad8d7450d7ad78ced1fcefff913c037568a53
+    digest: sha256:1c49cb26c44ce9f846257ca1bae2d275862ebeb31d5529a62a6c4075665fd38f
     registry: mcr.microsoft.com
     repository: aks/command/runtime
 armHelperCertName: armHelperCert2
@@ -74,7 +74,7 @@ backend:
   azureRuntimeConfig:
     tlsCertificatesIssuer: Self
   image:
-    digest: sha256:6269308c1f6bd677a84ba5e4041a1cb107355f11a24bf21eb2b85aae7729517e
+    digest: sha256:fa7678c0479e77c4383b0137ab1a768cf5b1062f57eba3123e21840a4d639dbd
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpbackend
   k8s:
@@ -131,7 +131,7 @@ clustersService:
   deployDebugJobs: false
   environment: arohcpdev
   image:
-    digest: sha256:6f4a244b780e1510945dd938459ed9e52da1b947dc498abda9fab301ca867703
+    digest: sha256:36c11ee056b0f1d1dcb1a3be52f9a1423daa5fc23d015df8921867eafd935a18
     registry: quay.io
     repository: app-sre/aro-hcp-clusters-service
   k8s:
@@ -223,7 +223,7 @@ frontend:
     resourceContainerMaxScale: 4000
     zoneRedundantMode: Disabled
   image:
-    digest: sha256:ed0d44075be8892707eb1030877d2978ee40b05e95bc24b470f2c5965d9b34a9
+    digest: sha256:92a7ec57ad003f91918d21170dffed6dd5f459167fa6ef783a73bacd2a8d656a
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpfrontend
   k8s:
@@ -328,7 +328,7 @@ global:
 hypershift:
   additionalInstallArg: --enable-cpo-overrides
   image:
-    digest: sha256:7d6781daa1420755798dbc636e45dc25a4dc22a242241a5a2abcc1d14f251984
+    digest: sha256:26dc5bfbbdec3b4b0d7232b931f3ac0e817c7d088460b10b60ced6e6173d4223
     registry: quay.io
     repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
   limitClusterSizes: true
@@ -339,7 +339,7 @@ imageSync:
   ocMirror:
     enabled: true
     image:
-      digest: sha256:a53440a24a71e7d5d145ed962a37cf177a44d287dee6c8fa07cc3b4968e5c95a
+      digest: sha256:d82868d96f9d9a140846fbd2607eda71fadf864e9f4fe4f188f78095130051b8
       registry: arohcpsvcdev.azurecr.io
       repository: image-sync/oc-mirror
     jobNamePrefix: ""
@@ -515,7 +515,7 @@ mgmt:
       image:
         registry: mcr.microsoft.com/oss/v2
         repository: prometheus/prometheus
-        sha: 8c051b2f9ff25f35e2d9e64137923c9d7d471d7bcaeb0c1713cfc52c83c50f6e
+        sha: dc62834a1d7a9c9117c5e14aefbc95b78c08bb8a6a2a4af70906235c5f21ba6a
       replicas: 2
       resources:
         limits:
@@ -795,7 +795,7 @@ svc:
       image:
         registry: mcr.microsoft.com/oss/v2
         repository: prometheus/prometheus
-        sha: 8c051b2f9ff25f35e2d9e64137923c9d7d471d7bcaeb0c1713cfc52c83c50f6e
+        sha: dc62834a1d7a9c9117c5e14aefbc95b78c08bb8a6a2a4af70906235c5f21ba6a
       replicas: 2
       resources:
         limits:
