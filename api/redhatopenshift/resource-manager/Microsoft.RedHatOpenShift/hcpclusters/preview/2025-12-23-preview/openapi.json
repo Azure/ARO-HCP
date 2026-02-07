@@ -3122,6 +3122,14 @@
             "create"
           ]
         },
+        "vnetIntegrationSubnetId": {
+          "$ref": "#/definitions/SubnetResourceId",
+          "description": "The Azure resource ID of a subnet that enables direct,\nprivate network connectivity between the hosted control plane\nand your cluster's nodes. This subnet must be dedicated to ARO HCP\nand cannot be shared with the cluster subnet or any node pool subnets.",
+          "x-ms-mutability": [
+            "read",
+            "create"
+          ]
+        },
         "outboundType": {
           "type": "string",
           "description": "The core outgoing configuration",
@@ -3171,6 +3179,7 @@
       },
       "required": [
         "subnetId",
+        "vnetIntegrationSubnetId",
         "networkSecurityGroupId",
         "operatorsAuthentication",
         "issuerUrl"

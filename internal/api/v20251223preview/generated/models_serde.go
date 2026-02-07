@@ -2086,6 +2086,7 @@ func (p PlatformProfile) MarshalJSON() ([]byte, error) {
 	populate(objectMap, "operatorsAuthentication", p.OperatorsAuthentication)
 	populate(objectMap, "outboundType", p.OutboundType)
 	populate(objectMap, "subnetId", p.SubnetID)
+	populate(objectMap, "vnetIntegrationSubnetId", p.VnetIntegrationSubnetID)
 	return json.Marshal(objectMap)
 }
 
@@ -2115,6 +2116,9 @@ func (p *PlatformProfile) UnmarshalJSON(data []byte) error {
 			delete(rawMsg, key)
 		case "subnetId":
 			err = unpopulate(val, "SubnetID", &p.SubnetID)
+			delete(rawMsg, key)
+		case "vnetIntegrationSubnetId":
+			err = unpopulate(val, "VnetIntegrationSubnetID", &p.VnetIntegrationSubnetID)
 			delete(rawMsg, key)
 		default:
 			err = fmt.Errorf("unmarshalling type %T, unknown field %q", p, key)
