@@ -35,6 +35,7 @@ import (
 	utilsclock "k8s.io/utils/clock"
 
 	"github.com/Azure/ARO-HCP/backend/oldoperationscanner"
+	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/informers"
@@ -62,6 +63,7 @@ type BackendOptions struct {
 	MetricsServerListenAddress string
 	HealthzServerListenAddress string
 	TracerProviderShutdownFunc func(context.Context) error
+	FPAClientBuilder           azureclient.FirstPartyApplicationClientBuilder
 }
 
 func (o *BackendOptions) RunBackend(ctx context.Context) error {
@@ -244,6 +246,11 @@ func (b *Backend) Run(ctx context.Context) error {
 				clusterInformer,
 			)
 			deleteOrphanedCosmosResourcesController = mismatchcontrollers.NewDeleteOrphanedCosmosResourcesController(b.options.CosmosDBClient, subscriptionLister)
+			azureRPRegistrationValidationController = validationcontrollers.NewClusterValidationController(
+				validations.NewAzureResourceProvidersRegistrationValidation(b.options.FPAClientBuilder),
+				b.options.CosmosDBClient,
+				subscriptionLister,
+			)
 		)
 
 		le, err := leaderelection.NewLeaderElector(leaderelection.LeaderElectionConfig{
@@ -275,6 +282,7 @@ func (b *Backend) Run(ctx context.Context) error {
 					go cosmosMatchingClusterController.Run(ctx, 20)
 					go alwaysSuccessClusterValidationController.Run(ctx, 20)
 					go deleteOrphanedCosmosResourcesController.Run(ctx, 20)
+					go azureRPRegistrationValidationController.Run(ctx, 20)
 				},
 				OnStoppedLeading: func() {
 					operationsScanner.LeaderGauge.Set(0)
