@@ -26,6 +26,7 @@ const (
 )
 
 // ServiceProviderCluster is used internally by controllers to track and pass information between them.
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type ServiceProviderCluster struct {
 	// CosmosMetadata ResourceID is nested under the cluster so that association and cleanup work as expected
 	// it will be the ServiceProviderCluster type and the name default

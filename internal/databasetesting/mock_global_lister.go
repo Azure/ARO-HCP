@@ -58,6 +58,13 @@ func (g *mockGlobalListers) ExternalAuths() database.GlobalLister[api.HCPOpenShi
 	}
 }
 
+func (g *mockGlobalListers) ServiceProviderClusters() database.GlobalLister[api.ServiceProviderCluster] {
+	return &mockTypedGlobalLister[api.ServiceProviderCluster, database.GenericDocument[api.ServiceProviderCluster]]{
+		client:       g.client,
+		resourceType: api.ServiceProviderClusterResourceType,
+	}
+}
+
 func (g *mockGlobalListers) Operations() database.GlobalLister[api.Operation] {
 	return &mockTypedGlobalLister[api.Operation, database.Operation]{
 		client:       g.client,

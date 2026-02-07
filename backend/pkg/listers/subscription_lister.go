@@ -16,14 +16,10 @@ package listers
 
 import (
 	"context"
-	"fmt"
 
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/database"
-	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 // InformerBasedSubscriptionLister lists and gets subscriptions from an informer's indexer.
@@ -45,16 +41,7 @@ func NewSubscriptionLister(indexer cache.Indexer) SubscriptionLister {
 }
 
 func (l *informerBasedSubscriptionLister) List(ctx context.Context) ([]*arm.Subscription, error) {
-	items := l.indexer.List()
-	result := make([]*arm.Subscription, 0, len(items))
-	for _, item := range items {
-		sub, ok := item.(*arm.Subscription)
-		if !ok {
-			return nil, utils.TrackError(fmt.Errorf("expected *arm.Subscription, got %T", item))
-		}
-		result = append(result, sub)
-	}
-	return result, nil
+	return listAll[arm.Subscription](l.indexer)
 }
 
 // Get retrieves a single subscription by subscription ID.
@@ -63,19 +50,5 @@ func (l *informerBasedSubscriptionLister) List(ctx context.Context) ([]*arm.Subs
 //	/subscriptions/<subscriptionID>
 func (l *informerBasedSubscriptionLister) Get(ctx context.Context, subscriptionID string) (*arm.Subscription, error) {
 	key := arm.ToSubscriptionResourceIDString(subscriptionID)
-	item, exists, err := l.indexer.GetByKey(key)
-	if apierrors.IsNotFound(err) {
-		return nil, database.NewNotFoundError()
-	}
-	if err != nil {
-		return nil, utils.TrackError(err)
-	}
-	if !exists {
-		return nil, database.NewNotFoundError()
-	}
-	sub, ok := item.(*arm.Subscription)
-	if !ok {
-		return nil, utils.TrackError(fmt.Errorf("expected *arm.Subscription, got %T", item))
-	}
-	return sub, nil
+	return getByKey[arm.Subscription](l.indexer, key)
 }

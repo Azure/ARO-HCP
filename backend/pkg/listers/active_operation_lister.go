@@ -16,15 +16,10 @@ package listers
 
 import (
 	"context"
-	"fmt"
 
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/client-go/tools/cache"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/informers"
 	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/database"
-	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 // ActiveOperationLister lists and gets active (non-terminal) operations from an informer's indexer.
@@ -47,16 +42,7 @@ func NewActiveOperationLister(indexer cache.Indexer) ActiveOperationLister {
 }
 
 func (l *activeOperationLister) List(ctx context.Context) ([]*api.Operation, error) {
-	items := l.indexer.List()
-	result := make([]*api.Operation, 0, len(items))
-	for _, item := range items {
-		op, ok := item.(*api.Operation)
-		if !ok {
-			return nil, utils.TrackError(fmt.Errorf("expected *api.Operation, got %T", item))
-		}
-		result = append(result, op)
-	}
-	return result, nil
+	return listAll[api.Operation](l.indexer)
 }
 
 // Get retrieves a single active operation by subscription ID and name.
@@ -65,36 +51,10 @@ func (l *activeOperationLister) List(ctx context.Context) ([]*api.Operation, err
 //	/subscriptions/<sub>/providers/microsoft.redhatopenshift/hcpoperationstatuses/<name>
 func (l *activeOperationLister) Get(ctx context.Context, subscriptionID, name string) (*api.Operation, error) {
 	key := api.ToOperationResourceIDString(subscriptionID, name)
-	item, exists, err := l.indexer.GetByKey(key)
-	if apierrors.IsNotFound(err) {
-		return nil, database.NewNotFoundError()
-	}
-	if err != nil {
-		return nil, utils.TrackError(err)
-	}
-	if !exists {
-		return nil, database.NewNotFoundError()
-	}
-	op, ok := item.(*api.Operation)
-	if !ok {
-		return nil, utils.TrackError(fmt.Errorf("expected *api.Operation, got %T", item))
-	}
-	return op, nil
+	return getByKey[api.Operation](l.indexer, key)
 }
 
 func (l *activeOperationLister) ListActiveOperationsForCluster(ctx context.Context, subscriptionName, resourceGroupName, clusterName string) ([]*api.Operation, error) {
 	key := api.ToClusterResourceIDString(subscriptionName, resourceGroupName, clusterName)
-	items, err := l.indexer.ByIndex(informers.ByCluster, key)
-	if err != nil {
-		return nil, utils.TrackError(err)
-	}
-	result := make([]*api.Operation, 0, len(items))
-	for _, item := range items {
-		op, ok := item.(*api.Operation)
-		if !ok {
-			return nil, utils.TrackError(fmt.Errorf("expected *api.Operation, got %T", item))
-		}
-		result = append(result, op)
-	}
-	return result, nil
+	return listFromIndex[api.Operation](l.indexer, ByCluster, key)
 }

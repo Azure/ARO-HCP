@@ -39,7 +39,7 @@ func (o *HCPOpenShiftCluster) GetObjectMeta() metav1.Object {
 	return om
 }
 
-// HCPOpenShiftClusterList is a list of HCPOpenShiftClusters compatible with
+// HCPOpenShiftClusterList is a list of Clusters compatible with
 // runtime.Object for use with Kubernetes informer machinery.
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type HCPOpenShiftClusterList struct {
@@ -71,7 +71,7 @@ func (o *HCPOpenShiftClusterNodePool) GetObjectMeta() metav1.Object {
 	return om
 }
 
-// HCPOpenShiftClusterNodePoolList is a list of HCPOpenShiftClusterNodePools
+// HCPOpenShiftClusterNodePoolList is a list of NodePools
 // compatible with runtime.Object for use with Kubernetes informer machinery.
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type HCPOpenShiftClusterNodePoolList struct {
@@ -83,6 +83,70 @@ type HCPOpenShiftClusterNodePoolList struct {
 var _ runtime.Object = &HCPOpenShiftClusterNodePoolList{}
 
 func (l *HCPOpenShiftClusterNodePoolList) GetObjectKind() schema.ObjectKind {
+	return &l.TypeMeta
+}
+
+var (
+	_ runtime.Object            = &HCPOpenShiftClusterExternalAuth{}
+	_ metav1.ObjectMetaAccessor = &HCPOpenShiftClusterExternalAuth{}
+)
+
+func (o *HCPOpenShiftClusterExternalAuth) GetObjectKind() schema.ObjectKind {
+	return schema.EmptyObjectKind
+}
+
+func (o *HCPOpenShiftClusterExternalAuth) GetObjectMeta() metav1.Object {
+	om := &metav1.ObjectMeta{}
+	if o.ID != nil {
+		om.Name = strings.ToLower(o.ID.String())
+	}
+	return om
+}
+
+// HCPOpenShiftClusterExternalAuthList is a list of ExternalAuths
+// compatible with runtime.Object for use with Kubernetes informer machinery.
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+type HCPOpenShiftClusterExternalAuthList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata,omitempty"`
+	Items           []HCPOpenShiftClusterExternalAuth `json:"items"`
+}
+
+var _ runtime.Object = &HCPOpenShiftClusterExternalAuthList{}
+
+func (l *HCPOpenShiftClusterExternalAuthList) GetObjectKind() schema.ObjectKind {
+	return &l.TypeMeta
+}
+
+var (
+	_ runtime.Object            = &ServiceProviderCluster{}
+	_ metav1.ObjectMetaAccessor = &ServiceProviderCluster{}
+)
+
+func (o *ServiceProviderCluster) GetObjectKind() schema.ObjectKind {
+	return schema.EmptyObjectKind
+}
+
+func (o *ServiceProviderCluster) GetObjectMeta() metav1.Object {
+	om := &metav1.ObjectMeta{}
+	if o.GetResourceID() != nil {
+		om.Name = strings.ToLower(o.GetResourceID().String())
+	}
+	return om
+}
+
+// ServiceProviderClusterList is a list of ServiceProviderClusters
+// compatible with runtime.Object for use with Kubernetes informer machinery.
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+type ServiceProviderClusterList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata,omitempty"`
+	Items           []ServiceProviderCluster `json:"items"`
+}
+
+var _ runtime.Object = &ServiceProviderClusterList{}
+
+func (l *ServiceProviderClusterList) GetObjectKind() schema.ObjectKind {
 	return &l.TypeMeta
 }
 

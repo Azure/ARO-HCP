@@ -37,12 +37,11 @@ import (
 	"github.com/Azure/ARO-HCP/backend/oldoperationscanner"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/mismatchcontrollers"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/operationcontrollers"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/validationcontrollers"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/validationcontrollers/validations"
-	"github.com/Azure/ARO-HCP/backend/pkg/listers"
+	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -156,12 +155,11 @@ func (b *Backend) Run(ctx context.Context) error {
 		}
 	}()
 
-	subscriptionInformer := informers.NewSubscriptionInformer(b.options.CosmosDBClient.GlobalListers().Subscriptions())
-	activeOperationInformer := informers.NewActiveOperationInformer(b.options.CosmosDBClient.GlobalListers().ActiveOperations())
-	clusterInformer := informers.NewClusterInformer(b.options.CosmosDBClient.GlobalListers().Clusters())
+	backendInformers := informers.NewBackendInformers(ctx, b.options.CosmosDBClient.GlobalListers())
 
-	subscriptionLister := listers.NewSubscriptionLister(subscriptionInformer.GetIndexer())
-	activeOperationLister := listers.NewActiveOperationLister(activeOperationInformer.GetIndexer())
+	_, subscriptionLister := backendInformers.Subscriptions()
+	activeOperationInformer, activeOperationLister := backendInformers.ActiveOperations()
+	clusterInformer, _ := backendInformers.Clusters()
 
 	group.Go(func() error {
 		var (
@@ -257,9 +255,7 @@ func (b *Backend) Run(ctx context.Context) error {
 					startedLeading.Store(true)
 
 					// start the SharedInformers
-					go subscriptionInformer.RunWithContext(ctx)
-					go activeOperationInformer.RunWithContext(ctx)
-					go clusterInformer.RunWithContext(ctx)
+					go backendInformers.RunWithContext(ctx)
 
 					go operationsScanner.Run(ctx)
 					go dataDumpController.Run(ctx, 20)
