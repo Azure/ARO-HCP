@@ -133,13 +133,13 @@ func (o *ValidatedOptions) Complete(logger logr.Logger) (*Options, error) {
 		if strings.HasSuffix(d.Name(), ".gz") {
 			gzipReader, err := gzip.NewReader(bytes.NewReader(fileData))
 			if err != nil {
-				return fmt.Errorf("failed to create gzip reader: %w", err)
+				return fmt.Errorf("failed to create gzip reader for %s: %w", file, err)
 			}
 			defer gzipReader.Close()
 
 			rawTiming, err = io.ReadAll(gzipReader)
 			if err != nil {
-				return fmt.Errorf("failed to decompress timing file: %w", err)
+				return fmt.Errorf("failed to decompress %s: %w", file, err)
 			}
 		} else {
 			rawTiming = fileData

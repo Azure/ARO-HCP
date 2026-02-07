@@ -136,13 +136,13 @@ func (o *ValidatedOptions) Complete(logger logr.Logger) (*Options, error) {
 	if err == nil {
 		gzipReader, err := gzip.NewReader(bytes.NewReader(compressedData))
 		if err != nil {
-			return nil, fmt.Errorf("failed to create gzip reader: %w", err)
+			return nil, fmt.Errorf("failed to create gzip reader for %s: %w", compressedPath, err)
 		}
 		defer gzipReader.Close()
 
 		stepsYamlBytes, err = io.ReadAll(gzipReader)
 		if err != nil {
-			return nil, fmt.Errorf("failed to decompress steps.yaml.gz: %w", err)
+			return nil, fmt.Errorf("failed to decompress %s: %w", compressedPath, err)
 		}
 	} else {
 		// Fall back to uncompressed file
