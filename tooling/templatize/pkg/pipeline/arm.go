@@ -414,6 +414,24 @@ func pollAndGetOutputFromExistingDeployment(ctx context.Context, client *armreso
 		}
 		switch *output.ProvisioningState {
 		case armresources.ProvisioningStateCanceled, armresources.ProvisioningStateDeleted, armresources.ProvisioningStateDeleting, armresources.ProvisioningStateFailed, armresources.ProvisioningStateNotSpecified:
+			// Log detailed information about the failed deployment
+			logFields := []any{
+				"provisioningState", *output.ProvisioningState,
+			}
+			if output.Mode != nil {
+				logFields = append(logFields, "deploymentMode", fmt.Sprintf("%v", *output.Mode))
+			}
+			if output.Timestamp != nil {
+				logFields = append(logFields, "timestamp", output.Timestamp.Format(time.RFC3339))
+			}
+			if output.CorrelationID != nil {
+				logFields = append(logFields, "correlationId", *output.CorrelationID)
+			}
+			if output.Duration != nil {
+				logFields = append(logFields, "duration", *output.Duration)
+			}
+			logger.Error(nil, "Found pre-existing deployment in failed state", logFields...)
+
 			if output.Error != nil {
 				return false, nil, nil, fmt.Errorf("pre-existing deployment failed: %w", createError(*output.Error))
 			}
