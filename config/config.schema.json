@@ -1004,12 +1004,23 @@
           "required": [
             "bundle"
           ]
+        },
+        "charts": {
+          "type": "object",
+          "properties": {
+            "crds": { "type": "string" },
+            "mce": { "type": "string" },
+            "config": { "type": "string" }
+          },
+          "additionalProperties": false,
+          "required": ["crds", "mce", "config"]
         }
       },
       "additionalProperties": false,
       "required": [
         "operator",
-        "mce"
+        "mce",
+        "charts"
       ]
     },
     "pko": {
