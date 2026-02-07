@@ -377,7 +377,7 @@ func pollAndGetOutputFromExistingDeployment(ctx context.Context, client *armreso
 	if err != nil {
 		return false, nil, nil, err
 	}
-	logger = logger.WithValues("deployment", deploymentName)
+	logger = logger.WithValues("deployment", deploymentName, "azRG", resourceGroup, "scope", deploymentLevel)
 
 	var details DetailsProducer
 	var get func(ctx context.Context) (output *armresources.DeploymentPropertiesExtended, err error)
