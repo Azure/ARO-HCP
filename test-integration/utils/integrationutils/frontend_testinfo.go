@@ -19,6 +19,8 @@ import (
 	"net"
 	"net/http"
 	"path/filepath"
+	"regexp"
+	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -83,13 +85,43 @@ func Get20240610ClientFactory(frontendURL string, subscriptionID string) *hcpsdk
 	)
 }
 
+var (
+	// clusterCreateOrUpdatePathRegex matches the pattern (case-insensitive):
+	// /subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/{hcpOpenShiftClusterName}
+	clusterCreateOrUpdatePathRegex = regexp.MustCompile(
+		`(?i)^/subscriptions/[^/]+/resourceGroups/[^/]+/providers/` + regexp.QuoteMeta(api.ClusterResourceType.String()) + `/[^/]+$`,
+	)
+)
+
 // emptySystemData provides enough systemdata (normally supplied somewhere in ARM) to enable the server tow ork.
 type emptySystemData struct{}
 
-func (emptySystemData) Do(req *policy.Request) (*http.Response, error) {
+func (d emptySystemData) Do(req *policy.Request) (*http.Response, error) {
 	req.Raw().Header.Set(arm.HeaderNameARMResourceSystemData, "{}")
 	req.Raw().Header.Set(arm.HeaderNameHomeTenantID, api.TestTenantID)
+
+	// Only set X-Ms-Identity-Url header for cluster create/update requests:
+	// In AME environments, ARM sets the header but not for all resource types nor actions.
+	// We need to set the headers because in test-integration tests there's no ARM running to set them.
+	// We attempt to approximate what ARM does by checking if the request is a cluster create/update request.
+	if d.isClusterCreateOrUpdateRequest(req) {
+		req.Raw().Header.Set(arm.HeaderNameIdentityURL, api.TestManagedIdentitiesDataPlaneIdentityURL)
+	}
+
 	return req.Next()
+}
+
+// isClusterCreateOrUpdateRequest checks if the request is cluster create/update request
+// where {hcpOpenShiftClusterName} cannot contain slashes.
+func (d emptySystemData) isClusterCreateOrUpdateRequest(req *policy.Request) bool {
+	path := req.Raw().URL.Path
+	method := strings.ToUpper(req.Raw().Method)
+
+	if method != http.MethodPut && method != http.MethodPatch {
+		return false
+	}
+
+	return clusterCreateOrUpdatePathRegex.MatchString(path)
 }
 
 func (s *IntegrationTestInfo) Cleanup(ctx context.Context) {
