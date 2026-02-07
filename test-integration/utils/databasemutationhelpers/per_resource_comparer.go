@@ -17,6 +17,7 @@ package databasemutationhelpers
 import (
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"strings"
 	"testing"
 
@@ -43,71 +44,108 @@ func ResourceInstanceEquals(t *testing.T, expected, actual any) (string, bool) {
 	actualMap := map[string]any{}
 	require.NoError(t, json.Unmarshal(actualBytes, &actualMap))
 
-	// clear the fields from TypedDocument (wrapper) that don't compare
 	for _, currMap := range []map[string]any{expectedMap, actualMap} {
-		unstructured.RemoveNestedField(currMap, "id") // TODO restore when names are predictable
-		unstructured.RemoveNestedField(currMap, "_rid")
-		unstructured.RemoveNestedField(currMap, "_self")
-		unstructured.RemoveNestedField(currMap, "_etag")
-		unstructured.RemoveNestedField(currMap, "_attachments")
-		unstructured.RemoveNestedField(currMap, "_ts")
-		unstructured.RemoveNestedField(currMap, "endTime") // for arm.Operation
-		// etag is dynamically generated, so remove it from cosmosMetadata as well
-		unstructured.RemoveNestedField(currMap, "cosmosMetadata", "etag")
-
-		resourceType, ok := currMap["resourceType"].(string)
-		if !ok || len(resourceType) == 0 {
-			// this happens when not working directly against cosmos data
-			if resourceIDString, ok := currMap["resourceId"].(string); ok { // usually where we hold it
-				resourceID, err := azcorearm.ParseResourceID(resourceIDString)
-				if err == nil {
-					resourceType = resourceID.ResourceType.String()
-				}
-			} else {
-				// otherwise start checking. operations are common
-				if _, ok := currMap["operationId"].(string); ok {
-					resourceType = api.OperationStatusResourceType.String()
-				}
-			}
-		}
-
-		// this loops handles the cosmosObj possibility and the internalObj possibility
-		for _, possiblePrepend := range []string{"", "properties"} {
-			unstructured.RemoveNestedField(currMap, prepend(possiblePrepend, "lastTransitionTime")...)                     // operations
-			unstructured.RemoveNestedField(currMap, prepend(possiblePrepend, "startTime")...)                              // operations
-			unstructured.RemoveNestedField(currMap, prepend(possiblePrepend, "operationId")...)                            // operations
-			unstructured.RemoveNestedField(currMap, prepend(possiblePrepend, "cosmosUID")...)                              // controllers
-			unstructured.RemoveNestedField(currMap, prepend(possiblePrepend, "serviceProviderProperties", "cosmosUID")...) // cluster, nodepool, externalauth
-
-			for _, nestedPossiblePrepend := range []string{"", "intermediateResourceDoc"} {
-				unstructured.RemoveNestedField(currMap, prepend(possiblePrepend, prepend(nestedPossiblePrepend, "activeOperationId")...)...) // cluster, nodepool, externalauth
-				unstructured.RemoveNestedField(currMap, prepend(possiblePrepend, prepend(nestedPossiblePrepend, "internalId")...)...)        // cluster, nodepool, externalauth
-			}
-
-			// for controllers
-			for _, nestedPossiblePrepend := range []string{"", "internalState"} {
-				expectedConditions, found, err := unstructured.NestedSlice(currMap, prepend(possiblePrepend, prepend(nestedPossiblePrepend, "status", "conditions")...)...)
-				if found && err == nil {
-					for i := range expectedConditions {
-						delete(expectedConditions[i].(map[string]any), "lastTransitionTime")
-					}
-					if err := unstructured.SetNestedSlice(currMap, expectedConditions, prepend(possiblePrepend, prepend(nestedPossiblePrepend, "status", "conditions")...)...); err != nil {
-						panic(err)
-					}
-				}
-			}
-
-			switch {
-			case strings.EqualFold(resourceType, api.OperationStatusResourceType.String()):
-				// this field is UUID generated, so usually cannot be compared for operations, but CAN be compared for everything else.
-				unstructured.RemoveNestedField(currMap, prepend(possiblePrepend, "resourceId")...)
-				// cosmosMetadata.resourceID is derived from the same UUID-generated data, so strip it too.
-				unstructured.RemoveNestedField(currMap, prepend(possiblePrepend, "cosmosMetadata")...)
-			}
+		if currMap["kind"] == "Config" && currMap["apiVersion"] == "v1" {
+			kubeConfigScrubbing(currMap)
+		} else {
+			azureResourceTypeScrubbing(currMap)
 		}
 	}
 
 	return cmp.Diff(expectedMap, actualMap), equality.Semantic.DeepEqual(expectedMap, actualMap)
+}
+
+// clear the fields from TypedDocument (wrapper) that don't compare
+func azureResourceTypeScrubbing(document map[string]any) {
+	unstructured.RemoveNestedField(document, "id") // TODO restore when names are predictable
+	unstructured.RemoveNestedField(document, "_rid")
+	unstructured.RemoveNestedField(document, "_self")
+	unstructured.RemoveNestedField(document, "_etag")
+	unstructured.RemoveNestedField(document, "_attachments")
+	unstructured.RemoveNestedField(document, "_ts")
+	unstructured.RemoveNestedField(document, "endTime") // for arm.Operation
+	// etag is dynamically generated, so remove it from cosmosMetadata as well
+	unstructured.RemoveNestedField(document, "cosmosMetadata", "etag")
+
+	resourceType, ok := document["resourceType"].(string)
+	if !ok || len(resourceType) == 0 {
+		// this happens when not working directly against cosmos data
+		if resourceIDString, ok := document["resourceId"].(string); ok { // usually where we hold it
+			resourceID, err := azcorearm.ParseResourceID(resourceIDString)
+			if err == nil {
+				resourceType = resourceID.ResourceType.String()
+			}
+		} else {
+			// otherwise start checking. operations are common
+			if _, ok := document["operationId"].(string); ok {
+				resourceType = api.OperationStatusResourceType.String()
+			}
+		}
+	}
+
+	// this loops handles the cosmosObj possibility and the internalObj possibility
+	for _, possiblePrepend := range []string{"", "properties"} {
+		unstructured.RemoveNestedField(document, prepend(possiblePrepend, "lastTransitionTime")...)                     // operations
+		unstructured.RemoveNestedField(document, prepend(possiblePrepend, "startTime")...)                              // operations
+		unstructured.RemoveNestedField(document, prepend(possiblePrepend, "operationId")...)                            // operations
+		unstructured.RemoveNestedField(document, prepend(possiblePrepend, "cosmosUID")...)                              // controllers
+		unstructured.RemoveNestedField(document, prepend(possiblePrepend, "serviceProviderProperties", "cosmosUID")...) // cluster, nodepool, externalauth
+
+		for _, nestedPossiblePrepend := range []string{"", "intermediateResourceDoc"} {
+			unstructured.RemoveNestedField(document, prepend(possiblePrepend, prepend(nestedPossiblePrepend, "activeOperationId")...)...) // cluster, nodepool, externalauth
+			unstructured.RemoveNestedField(document, prepend(possiblePrepend, prepend(nestedPossiblePrepend, "internalId")...)...)        // cluster, nodepool, externalauth
+		}
+
+		// for controllers
+		for _, nestedPossiblePrepend := range []string{"", "internalState"} {
+			expectedConditions, found, err := unstructured.NestedSlice(document, prepend(possiblePrepend, prepend(nestedPossiblePrepend, "status", "conditions")...)...)
+			if found && err == nil {
+				for i := range expectedConditions {
+					delete(expectedConditions[i].(map[string]any), "lastTransitionTime")
+				}
+				if err := unstructured.SetNestedSlice(document, expectedConditions, prepend(possiblePrepend, prepend(nestedPossiblePrepend, "status", "conditions")...)...); err != nil {
+					panic(err)
+				}
+			}
+		}
+
+		switch {
+		case strings.EqualFold(resourceType, api.OperationStatusResourceType.String()):
+			// this field is UUID generated, so usually cannot be compared for operations, but CAN be compared for everything else.
+			unstructured.RemoveNestedField(document, prepend(possiblePrepend, "resourceId")...)
+			// cosmosMetadata.resourceID is derived from the same UUID-generated data, so strip it too.
+			unstructured.RemoveNestedField(document, prepend(possiblePrepend, "cosmosMetadata")...)
+		}
+	}
+}
+
+func kubeConfigScrubbing(document map[string]any) {
+	// replace the port in clusters[].server with $port
+	clusters, found, err := unstructured.NestedSlice(document, "clusters")
+	if found && err == nil {
+		for _, cluster := range clusters {
+			clusterMap, ok := cluster.(map[string]any)
+			if !ok {
+				continue
+			}
+			serverURLString, ok, err := unstructured.NestedString(clusterMap, "cluster", "server")
+			if !ok || err != nil {
+				continue
+			}
+			serverURL, err := url.Parse(serverURLString)
+			if err != nil {
+				continue
+			}
+			serverURL.Host = fmt.Sprintf("%s:%s", serverURL.Hostname(), "$port")
+			err = unstructured.SetNestedField(clusterMap, serverURL.String(), "cluster", "server")
+			if err != nil {
+				panic(err)
+			}
+		}
+		if err := unstructured.SetNestedSlice(document, clusters, "clusters"); err != nil {
+			panic(err)
+		}
+	}
 }
 
 func prepend(first string, rest ...string) []string {

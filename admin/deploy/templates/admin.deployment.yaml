@@ -58,6 +58,8 @@ spec:
           value: "/secrets/fpa-cert/bundle"
         - name: FPA_CLIENT_ID
           value: "{{ .Values.fpa.clientId }}"
+        - name: SESSIONGATE_NAMESPACE
+          value: "{{ .Values.sessiongate.namespace }}"
         ports:
         - containerPort: 8443
           name: http

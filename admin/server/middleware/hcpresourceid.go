@@ -43,7 +43,8 @@ var patternPrefix = strings.ToLower(
 )
 
 type HCPResourceServerMux struct {
-	mux *http.ServeMux
+	mux    *http.ServeMux
+	prefix string
 }
 
 func (m *HCPResourceServerMux) Handler() http.Handler {
@@ -51,12 +52,13 @@ func (m *HCPResourceServerMux) Handler() http.Handler {
 }
 
 func (m *HCPResourceServerMux) Handle(method string, pattern string, handler http.Handler) {
-	m.mux.Handle(fmt.Sprintf("%s %s%s", method, patternPrefix, pattern), withHCPResourceID(handler))
+	m.mux.Handle(fmt.Sprintf("%s %s%s%s", method, m.prefix, patternPrefix, pattern), withHCPResourceID(handler))
 }
 
-func NewHCPResourceServerMux() *HCPResourceServerMux {
+func NewHCPResourceServerMux(prefix string) *HCPResourceServerMux {
 	return &HCPResourceServerMux{
-		mux: http.NewServeMux(),
+		mux:    http.NewServeMux(),
+		prefix: prefix,
 	}
 }
 

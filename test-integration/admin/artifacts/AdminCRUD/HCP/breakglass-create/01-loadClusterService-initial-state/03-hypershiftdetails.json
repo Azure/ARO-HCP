@@ -1,0 +1,4 @@
+{
+    "_cluster_href" :"/api/aro_hcp/v1alpha1/clusters/fixed-value",
+    "hcp_namespace": "ocm-arohcpdev-fixed-ns-value"
+}

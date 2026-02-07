@@ -50,6 +50,10 @@ param backendMIName = '{{ .backend.managedIdentityName }}'
 param backendNamespace = '{{ .backend.k8s.namespace }}'
 param backendServiceAccountName = '{{ .backend.k8s.serviceAccountName }}'
 
+param sessiongateMIName = '{{ .sessiongate.managedIdentityName }}'
+param sessiongateNamespace = '{{ .sessiongate.k8s.namespace }}'
+param sessiongateServiceAccountName = '{{ .sessiongate.k8s.serviceAccountName }}'
+
 param maestroMIName = '{{ .maestro.server.managedIdentityName }}'
 param maestroNamespace = '{{ .maestro.server.k8s.namespace }}'
 param maestroServiceAccountName = '{{ .maestro.server.k8s.serviceAccountName }}'
