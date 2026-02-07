@@ -450,11 +450,3 @@ cleanup: $(TEMPLATIZE)
 image-updater:
 	@$(MAKE) -C tooling/image-updater update
 .PHONY: image-updater
-
-promote-stage:
-	@$(MAKE) -C tooling/image-updater promote-stage
-.PHONY: promote-stage
-
-promote-prod:
-	@$(MAKE) -C tooling/image-updater promote-prod
-.PHONY: promote-prod
