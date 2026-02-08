@@ -736,18 +736,18 @@ func (c *MockClusterServiceClientSpecPostBreakGlassCredentialCall) DoAndReturn(f
 }
 
 // PostCluster mocks base method.
-func (m *MockClusterServiceClientSpec) PostCluster(ctx context.Context, clusterBuilder *v1alpha1.ClusterBuilder, autoscalerBuilder *v1alpha1.ClusterAutoscalerBuilder) (*v1alpha1.Cluster, error) {
+func (m *MockClusterServiceClientSpec) PostCluster(ctx context.Context, clusterBuilder *v1alpha1.ClusterBuilder, autoscalerBuilder *v1alpha1.ClusterAutoscalerBuilder, opts *ClusterOptions) (*v1alpha1.Cluster, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "PostCluster", ctx, clusterBuilder, autoscalerBuilder)
+	ret := m.ctrl.Call(m, "PostCluster", ctx, clusterBuilder, autoscalerBuilder, opts)
 	ret0, _ := ret[0].(*v1alpha1.Cluster)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // PostCluster indicates an expected call of PostCluster.
-func (mr *MockClusterServiceClientSpecMockRecorder) PostCluster(ctx, clusterBuilder, autoscalerBuilder any) *MockClusterServiceClientSpecPostClusterCall {
+func (mr *MockClusterServiceClientSpecMockRecorder) PostCluster(ctx, clusterBuilder, autoscalerBuilder, opts any) *MockClusterServiceClientSpecPostClusterCall {
 	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PostCluster", reflect.TypeOf((*MockClusterServiceClientSpec)(nil).PostCluster), ctx, clusterBuilder, autoscalerBuilder)
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PostCluster", reflect.TypeOf((*MockClusterServiceClientSpec)(nil).PostCluster), ctx, clusterBuilder, autoscalerBuilder, opts)
 	return &MockClusterServiceClientSpecPostClusterCall{Call: call}
 }
 
@@ -763,13 +763,13 @@ func (c *MockClusterServiceClientSpecPostClusterCall) Return(arg0 *v1alpha1.Clus
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockClusterServiceClientSpecPostClusterCall) Do(f func(context.Context, *v1alpha1.ClusterBuilder, *v1alpha1.ClusterAutoscalerBuilder) (*v1alpha1.Cluster, error)) *MockClusterServiceClientSpecPostClusterCall {
+func (c *MockClusterServiceClientSpecPostClusterCall) Do(f func(context.Context, *v1alpha1.ClusterBuilder, *v1alpha1.ClusterAutoscalerBuilder, *ClusterOptions) (*v1alpha1.Cluster, error)) *MockClusterServiceClientSpecPostClusterCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockClusterServiceClientSpecPostClusterCall) DoAndReturn(f func(context.Context, *v1alpha1.ClusterBuilder, *v1alpha1.ClusterAutoscalerBuilder) (*v1alpha1.Cluster, error)) *MockClusterServiceClientSpecPostClusterCall {
+func (c *MockClusterServiceClientSpecPostClusterCall) DoAndReturn(f func(context.Context, *v1alpha1.ClusterBuilder, *v1alpha1.ClusterAutoscalerBuilder, *ClusterOptions) (*v1alpha1.Cluster, error)) *MockClusterServiceClientSpecPostClusterCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -853,18 +853,18 @@ func (c *MockClusterServiceClientSpecPostNodePoolCall) DoAndReturn(f func(contex
 }
 
 // UpdateCluster mocks base method.
-func (m *MockClusterServiceClientSpec) UpdateCluster(ctx context.Context, internalID InternalID, builder *v1alpha1.ClusterBuilder) (*v1alpha1.Cluster, error) {
+func (m *MockClusterServiceClientSpec) UpdateCluster(ctx context.Context, internalID InternalID, builder *v1alpha1.ClusterBuilder, opts *ClusterOptions) (*v1alpha1.Cluster, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateCluster", ctx, internalID, builder)
+	ret := m.ctrl.Call(m, "UpdateCluster", ctx, internalID, builder, opts)
 	ret0, _ := ret[0].(*v1alpha1.Cluster)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // UpdateCluster indicates an expected call of UpdateCluster.
-func (mr *MockClusterServiceClientSpecMockRecorder) UpdateCluster(ctx, internalID, builder any) *MockClusterServiceClientSpecUpdateClusterCall {
+func (mr *MockClusterServiceClientSpecMockRecorder) UpdateCluster(ctx, internalID, builder, opts any) *MockClusterServiceClientSpecUpdateClusterCall {
 	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateCluster", reflect.TypeOf((*MockClusterServiceClientSpec)(nil).UpdateCluster), ctx, internalID, builder)
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateCluster", reflect.TypeOf((*MockClusterServiceClientSpec)(nil).UpdateCluster), ctx, internalID, builder, opts)
 	return &MockClusterServiceClientSpecUpdateClusterCall{Call: call}
 }
 
@@ -880,13 +880,13 @@ func (c *MockClusterServiceClientSpecUpdateClusterCall) Return(arg0 *v1alpha1.Cl
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockClusterServiceClientSpecUpdateClusterCall) Do(f func(context.Context, InternalID, *v1alpha1.ClusterBuilder) (*v1alpha1.Cluster, error)) *MockClusterServiceClientSpecUpdateClusterCall {
+func (c *MockClusterServiceClientSpecUpdateClusterCall) Do(f func(context.Context, InternalID, *v1alpha1.ClusterBuilder, *ClusterOptions) (*v1alpha1.Cluster, error)) *MockClusterServiceClientSpecUpdateClusterCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockClusterServiceClientSpecUpdateClusterCall) DoAndReturn(f func(context.Context, InternalID, *v1alpha1.ClusterBuilder) (*v1alpha1.Cluster, error)) *MockClusterServiceClientSpecUpdateClusterCall {
+func (c *MockClusterServiceClientSpecUpdateClusterCall) DoAndReturn(f func(context.Context, InternalID, *v1alpha1.ClusterBuilder, *ClusterOptions) (*v1alpha1.Cluster, error)) *MockClusterServiceClientSpecUpdateClusterCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }

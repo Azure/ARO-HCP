@@ -1,2 +1,2 @@
-# Go binary
-frontend
+# Go binary, but not nested frontend directories
+./frontend

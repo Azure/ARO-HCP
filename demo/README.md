@@ -94,6 +94,26 @@ or
 A good way to select a version is looking into Cininnati https://multi.ocp.releases.ci.openshift.org/
 this can be used to get the name of the version. Especially for nightly versions.
 
+## Enable minimal resource requests for control plane components
+
+For development and testing environments where resource constraints are tighter, you can enable
+minimal resource requests for Hosted Control Plane components. This reduces the CPU and memory
+requests for control plane pods, allowing more clusters to run on limited infrastructure.
+
+To enable this feature, register the `Microsoft.RedHatOpenShift/MinimalResourceRequests` AFEC
+flag on your subscription:
+
+```bash
+FFLAG=MinimalResourceRequests ./register-feature-flag.sh
+```
+
+Once registered, all new clusters created in that subscription will have the
+`hosted_cluster_minimal_resource_requests` property set to `true`, which configures the control
+plane components with reduced resource requests.
+
+**Note:** This feature is intended for development and testing only. Production clusters should
+use standard resource requests to ensure stability and performance.
+
 ## Observe and debug
 
 ### Check RP pod logs

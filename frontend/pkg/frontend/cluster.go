@@ -332,7 +332,13 @@ func (f *Frontend) createHCPCluster(writer http.ResponseWriter, request *http.Re
 		return utils.TrackError(err)
 	}
 	logger.Info(fmt.Sprintf("creating resource %s", newInternalCluster.ID))
-	resultingClusterServiceCluster, err := f.clusterServiceClient.PostCluster(ctx, newClusterServiceClusterBuilder, newClusterServiceAutoscalerBuilder)
+	minimalResources := subscription.HasRegisteredFeature(api.FeatureMinimalResourceRequests)
+	logger.Info("evaluated feature flags for cluster creation",
+		"clusterId", newInternalCluster.ID.String(),
+		"minimalResourceRequests", minimalResources)
+	resultingClusterServiceCluster, err := f.clusterServiceClient.PostCluster(ctx, newClusterServiceClusterBuilder, newClusterServiceAutoscalerBuilder, &ocm.ClusterOptions{
+		MinimalResourceRequests: minimalResources,
+	})
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -589,6 +595,11 @@ func (f *Frontend) patchHCPCluster(writer http.ResponseWriter, request *http.Req
 func (f *Frontend) updateHCPClusterInCosmos(ctx context.Context, writer http.ResponseWriter, request *http.Request, httpStatusCode int, newInternalCluster, oldInternalCluster *api.HCPOpenShiftCluster) error {
 	logger := utils.LoggerFromContext(ctx)
 
+	subscription, err := f.dbClient.Subscriptions().Get(ctx, oldInternalCluster.ID.SubscriptionID)
+	if err != nil {
+		return err
+	}
+
 	versionedInterface, err := VersionFromContext(ctx)
 	if err != nil {
 		return utils.TrackError(err)
@@ -617,7 +628,13 @@ func (f *Frontend) updateHCPClusterInCosmos(ctx context.Context, writer http.Res
 	if err != nil {
 		return utils.TrackError(err)
 	}
-	resultingClusterServiceCluster, err := f.clusterServiceClient.UpdateCluster(ctx, oldInternalCluster.ServiceProviderProperties.ClusterServiceID, newClusterServiceClusterBuilder)
+	minimalResources := subscription.HasRegisteredFeature(api.FeatureMinimalResourceRequests)
+	logger.Info("evaluated feature flags for cluster update",
+		"clusterId", oldInternalCluster.ID.String(),
+		"minimalResourceRequests", minimalResources)
+	resultingClusterServiceCluster, err := f.clusterServiceClient.UpdateCluster(ctx, oldInternalCluster.ServiceProviderProperties.ClusterServiceID, newClusterServiceClusterBuilder, &ocm.ClusterOptions{
+		MinimalResourceRequests: minimalResources,
+	})
 	if err != nil {
 		return utils.TrackError(err)
 	}
