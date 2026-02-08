@@ -238,6 +238,9 @@ func normalizeOSDiskProfile(fldPath *field.Path, p *generated.OsDiskProfile, out
 			out.EncryptionSetID = resourceID
 		}
 	}
+	if p.DiskType != nil {
+		errs = append(errs, field.Invalid(fldPath.Child("diskType"), *p.DiskType, "diskType is not yet implemented"))
+	}
 	return errs
 }
 
