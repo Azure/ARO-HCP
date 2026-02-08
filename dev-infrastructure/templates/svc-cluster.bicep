@@ -429,6 +429,9 @@ param sessiongateNamespace string
 @description('The service account name of the Session Gate managed identity')
 param sessiongateServiceAccountName string
 
+@description('The name of the Session Gate ingress certificate')
+param sessiongateIngressCertName string
+
 resource serviceKeyVault 'Microsoft.KeyVault/vaults@2024-04-01-preview' existing = {
   name: serviceKeyVaultName
   scope: resourceGroup(serviceKeyVaultResourceGroup)
@@ -526,6 +529,7 @@ module istioIngressGatewayIPAddress '../modules/network/publicipaddress.bicep' =
         'Microsoft.Authorization/roleDefinitions/',
         '4d97b98b-1d4f-4787-a291-c67834d212e7'
       )
+
     }
   }
 }
@@ -1029,6 +1033,50 @@ module adminApiDNS '../modules/dns/a-record.bicep' = {
     zoneName: regionalSvcDNSZoneName
     recordName: adminApiDnsName
     ipAddress: istioIngressGatewayIPAddress.outputs.ipAddress
+    ttl: 300
+  }
+}
+
+//
+//   S E S S I O N G A T E
+//
+
+var sessiongateDnsName = 'sessiongate'
+var sessiongateDnsFQDN = '${sessiongateDnsName}.${regionalSvcDNSZoneName}'
+
+module sessiongateCert '../modules/keyvault/key-vault-cert.bicep' = {
+  name: 'sessiongate-cert-${uniqueString(resourceGroup().name)}'
+  scope: resourceGroup(serviceKeyVaultResourceGroup)
+  params: {
+    keyVaultName: serviceKeyVaultName
+    subjectName: 'CN=${sessiongateDnsFQDN}'
+    certName: sessiongateIngressCertName
+    keyVaultManagedIdentityId: globalMSIId
+    dnsNames: [
+      sessiongateDnsFQDN
+    ]
+    issuerName: adminApiIngressCertIssuer
+  }
+}
+
+module sessiongateIngressCertCSIAccess '../modules/keyvault/keyvault-secret-access.bicep' = {
+  name: 'aksSPCRead-${sessiongateIngressCertName}'
+  scope: resourceGroup(serviceKeyVaultResourceGroup)
+  params: {
+    keyVaultName: serviceKeyVaultName
+    roleName: 'Key Vault Secrets User'
+    managedIdentityPrincipalIds: [svcCluster.outputs.aksClusterKeyVaultSecretsProviderPrincipalId]
+    secretName: sessiongateIngressCertName
+  }
+}
+
+module sessiongateDNS '../modules/dns/a-record.bicep' = {
+  name: 'sessiongate-dns'
+  scope: resourceGroup(regionalResourceGroup)
+  params: {
+    zoneName: regionalSvcDNSZoneName
+    recordName: sessiongateDnsName
+    ipAddress: opsIngressGatewayIPAddress.outputs.ipAddress
     ttl: 300
   }
 }

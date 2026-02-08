@@ -30,7 +30,7 @@ import (
 	"github.com/Azure/ARO-HCP/test/util/verifiers"
 )
 
-var _ = Describe("Engineering", func() {
+var _ = Describe("SRE", func() {
 	BeforeEach(func() {
 		// do nothing.  per test initialization usually ages better than shared.
 	})
@@ -97,24 +97,44 @@ var _ = Describe("Engineering", func() {
 				verifiers.VerifyCanRead("nodes", "namespaces"),
 			}
 
+			// aro-sre access
+
 			By("creating SRE breakglass credentials with aro-sre permissions")
-			aroSreRestConfig, err := tc.SREBreakglassCredentials(ctx, hcpResourceID, 2*time.Minute, "aro-sre")
+			aroSreRestConfig, expiresAt, err := tc.SREBreakglassCredentialsForCurrentUser(ctx, hcpResourceID, 2*time.Minute, "aro-sre")
 			Expect(err).NotTo(HaveOccurred())
 			err = runSREBreakglassCredentialsVerifier(ctx, "aro-sre", aroSreRestConfig, append(commonVerifiers,
 				verifiers.VerifyCannotReadNamespaced("kube-system", "secrets"),
 			))
 			Expect(err).NotTo(HaveOccurred())
+			By("waiting for the session to expire")
+			time.Sleep(time.Until(expiresAt))
+			By("verifying the session is expired")
+			Expect(verifiers.VerifyCanRead("namespaces").Verify(ctx, aroSreRestConfig)).To(HaveOccurred())
+
+			// aro-sre-cluster-admin access
 
 			By("creating SRE breakglass credentials with aro-sre permissions")
-			aroSreAdminRestConfig, err := tc.SREBreakglassCredentials(ctx, hcpResourceID, 2*time.Minute, "aro-sre-cluster-admin")
+			aroSreAdminRestConfig, expiresAt, err := tc.SREBreakglassCredentialsForCurrentUser(ctx, hcpResourceID, 2*time.Minute, "aro-sre-cluster-admin")
 			Expect(err).NotTo(HaveOccurred())
 			err = runSREBreakglassCredentialsVerifier(ctx, "aro-sre-cluster-admin", aroSreAdminRestConfig, append(commonVerifiers,
 				verifiers.VerifyCanReadNamespaced("kube-system", "secrets"),
 			))
 			Expect(err).NotTo(HaveOccurred())
+			By("waiting for the session to expire")
+			time.Sleep(time.Until(expiresAt))
+			By("verifying the session is expired")
+			Expect(verifiers.VerifyCanRead("namespaces").Verify(ctx, aroSreRestConfig)).To(HaveOccurred())
+
+			// owner access restriction
+
+			By("trying to access a breakglass session of another user")
+			otherUserRestConfig, _, err := tc.SREBreakglassCredentials(ctx, hcpResourceID, 2*time.Minute, "aro-sre", "other-user@example.com")
+			Expect(err).NotTo(HaveOccurred())
+			By("and expecting cluster access to be denied")
+			Expect(verifiers.VerifyWhoAmI("aro-sre").Verify(ctx, otherUserRestConfig)).To(HaveOccurred())
 
 			// TODO: cover more capabilities per access level
-			// TODO: cover expiry
+			// TODO: test auto-closing of long-running connections on session expiration
 		})
 })
 

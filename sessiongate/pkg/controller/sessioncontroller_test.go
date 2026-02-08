@@ -15,7 +15,6 @@
 package controller
 
 import (
-	"context"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
@@ -27,9 +26,6 @@ import (
 	_ "embed"
 
 	"github.com/google/go-cmp/cmp"
-	securityv1beta1api "istio.io/api/security/v1beta1"
-	typev1beta1 "istio.io/api/type/v1beta1"
-	securityv1beta1 "istio.io/client-go/pkg/apis/security/v1beta1"
 
 	certificatesv1 "k8s.io/api/certificates/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -92,7 +88,7 @@ type mockManagementClusterQuerier struct {
 	csrApproval             *certificatesv1alpha1.CertificateSigningRequestApproval
 }
 
-func (m *mockManagementClusterQuerier) GetHostedControlPlane(ctx context.Context, namespace string) (*hypershiftv1beta1.HostedControlPlane, error) {
+func (m *mockManagementClusterQuerier) GetHostedControlPlane(namespace string) (*hypershiftv1beta1.HostedControlPlane, error) {
 	if m.hostedControlPlaneError != nil {
 		return nil, m.hostedControlPlaneError
 	}
@@ -102,7 +98,7 @@ func (m *mockManagementClusterQuerier) GetHostedControlPlane(ctx context.Context
 	return m.hostedControlPlane, nil
 }
 
-func (m *mockManagementClusterQuerier) GetCSR(ctx context.Context, name string) (*certificatesv1.CertificateSigningRequest, error) {
+func (m *mockManagementClusterQuerier) GetCSR(name string) (*certificatesv1.CertificateSigningRequest, error) {
 	if m.csrErr != nil {
 		return nil, m.csrErr
 	}
@@ -112,7 +108,7 @@ func (m *mockManagementClusterQuerier) GetCSR(ctx context.Context, name string) 
 	return m.csr, nil
 }
 
-func (m *mockManagementClusterQuerier) GetCSRApproval(ctx context.Context, namespace, name string) (*certificatesv1alpha1.CertificateSigningRequestApproval, error) {
+func (m *mockManagementClusterQuerier) GetCSRApproval(namespace, name string) (*certificatesv1alpha1.CertificateSigningRequestApproval, error) {
 	if m.csrErr != nil {
 		return nil, m.csrErr
 	}
@@ -161,58 +157,6 @@ var sampleSession = &sessiongatev1alpha1.Session{
 			ResourceID: "/subscriptions/test/resourceGroups/test/providers/Microsoft.ContainerService/managedClusters/mgmt",
 		},
 	},
-}
-
-var samplePolicy = &securityv1beta1.AuthorizationPolicy{
-	ObjectMeta: metav1.ObjectMeta{
-		Name:      "sessiongate-9b1f64c3",
-		Namespace: "test-namespace",
-		Labels: map[string]string{
-			"app.kubernetes.io/managed-by": "sessiongate-controller",
-		},
-		OwnerReferences: []metav1.OwnerReference{
-			{
-				APIVersion: sessiongatev1alpha1.SchemeGroupVersion.String(),
-				Kind:       "Session",
-				Name:       "test-session",
-				UID:        types.UID("test-uid"),
-			},
-		},
-	},
-	Spec: securityv1beta1api.AuthorizationPolicy{
-		Selector: &typev1beta1.WorkloadSelector{
-			MatchLabels: map[string]string{
-				"app.kubernetes.io/name": "sessiongate",
-			},
-		},
-		Action: securityv1beta1api.AuthorizationPolicy_ALLOW,
-		Rules: []*securityv1beta1api.Rule{
-			{
-				To: []*securityv1beta1api.Rule_To{
-					{
-						Operation: &securityv1beta1api.Operation{
-							Paths: []string{"/sessiongate/test-session/kas/*"},
-						},
-					},
-				},
-				When: []*securityv1beta1api.Condition{
-					{
-						Key:    "request.auth.claims[upn]",
-						Values: []string{"user@example.com"},
-					},
-				},
-			},
-		},
-	},
-}
-
-var authPolicyAvailableCondition = metav1.Condition{
-	Type:               string(sessiongatev1alpha1.SessionConditionTypeAuthorizationPolicyAvailable),
-	Status:             metav1.ConditionTrue,
-	Reason:             "AuthorizationPolicyAvailable",
-	Message:            "Authorization policy available",
-	ObservedGeneration: sampleSession.Generation,
-	LastTransitionTime: metav1.Time{Time: fixedTime},
 }
 
 var sessionNotReadyCondition = metav1.Condition{
@@ -275,141 +219,10 @@ func TestSessionController_processSession_handleExpiration(t *testing.T) {
 
 			// Setup controller with mock getters
 			controller := &SessionController{
-				fieldManager:     "test-controller",
 				clock:            clocktesting.NewFakeClock(fixedTime),
 				endpointProvider: &mockEndpointProvider{},
 				getSecret: func(namespace, name string) (*corev1.Secret, error) {
 					return nil, apierrors.NewNotFound(schema.GroupResource{Resource: "secrets"}, name)
-				},
-				getAuthorizationPolicy: func(namespace, name string) (*securityv1beta1.AuthorizationPolicy, error) {
-					return nil, apierrors.NewNotFound(schema.GroupResource{Resource: "authorizationpolicies"}, name)
-				},
-				newPrivateKey: func(size int) (*rsa.PrivateKey, error) {
-					return nil, errors.New("not implemented")
-				},
-			}
-
-			// Execute
-			action, err := controller.processSession(t.Context(), testSession, &mockManagementClusterQuerier{})
-
-			// Verify error expectation
-			if tt.expectedErr && err == nil {
-				t.Errorf("expected error but got none")
-			} else if !tt.expectedErr && err != nil {
-				t.Errorf("expected no error but got: %v", err)
-			}
-
-			// Verify action
-			if !tt.expectAction && action != nil {
-				t.Errorf("expected no action but got: %+v", action)
-			} else if tt.expectAction && action == nil {
-				t.Errorf("expected action but got none")
-			} else if action != nil {
-				// Validate action
-				if err := action.validate(); err != nil {
-					t.Errorf("action validation failed: %v", err)
-				}
-				// Compare with golden fixture
-				CompareWithFixture(t, action, compareActions()...)
-			}
-		})
-	}
-}
-
-func TestSessionController_processSession_ensureAuthorizationPolicy(t *testing.T) {
-	tests := []struct {
-		name            string
-		sessionStatus   sessiongatev1alpha1.SessionStatus
-		existingSecret  *corev1.Secret
-		existingPolicy  *securityv1beta1.AuthorizationPolicy
-		expectAction    bool
-		expectedRequeue bool
-		expectedErr     bool
-	}{
-		{
-			name: "session with expiration but no auth policy ref",
-			sessionStatus: sessiongatev1alpha1.SessionStatus{
-				ExpiresAt: &metav1.Time{Time: fixedTime.Add(24 * time.Hour)},
-				// AuthorizationPolicyRef is empty and no condition
-			},
-			existingPolicy: nil,
-			expectAction:   true,
-		},
-		{
-			name: "session with auth policy ref but no policy",
-			sessionStatus: sessiongatev1alpha1.SessionStatus{
-				ExpiresAt:              &metav1.Time{Time: fixedTime.Add(24 * time.Hour)},
-				AuthorizationPolicyRef: "sessiongate-9b1f64c3",
-			},
-			existingPolicy: nil, // policy missing
-			expectAction:   true,
-		},
-		{
-			name: "session with policy but no condition",
-			sessionStatus: sessiongatev1alpha1.SessionStatus{
-				ExpiresAt:              &metav1.Time{Time: fixedTime.Add(24 * time.Hour)},
-				AuthorizationPolicyRef: "sessiongate-9b1f64c3",
-				// Conditions missing
-			},
-			existingPolicy: samplePolicy,
-			expectAction:   true,
-		},
-		{
-			name: "session with auth policy drift",
-			sessionStatus: sessiongatev1alpha1.SessionStatus{
-				ExpiresAt:              &metav1.Time{Time: fixedTime.Add(24 * time.Hour)},
-				AuthorizationPolicyRef: "sessiongate-9b1f64c3",
-				Conditions: []metav1.Condition{
-					authPolicyAvailableCondition,
-				},
-			},
-			existingPolicy: &securityv1beta1.AuthorizationPolicy{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "sessiongate-test-session",
-					Namespace: "test-namespace",
-				},
-				Spec: securityv1beta1api.AuthorizationPolicy{
-					Selector: &typev1beta1.WorkloadSelector{
-						MatchLabels: map[string]string{
-							"app.kubernetes.io/name": "sessiongate",
-						},
-					},
-					Action: securityv1beta1api.AuthorizationPolicy_ALLOW,
-					Rules: []*securityv1beta1api.Rule{
-						{
-							To: []*securityv1beta1api.Rule_To{
-								{
-									Operation: &securityv1beta1api.Operation{
-										Paths: []string{"/here-is-the-drift"},
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-			expectAction: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			testSession := sampleSession.DeepCopy()
-			testSession.Status = tt.sessionStatus
-
-			// Setup controller with mock getters
-			controller := &SessionController{
-				fieldManager:     "test-controller",
-				clock:            clocktesting.NewFakeClock(fixedTime),
-				endpointProvider: &mockEndpointProvider{},
-				getSecret: func(namespace, name string) (*corev1.Secret, error) {
-					return nil, apierrors.NewNotFound(schema.GroupResource{Resource: "secrets"}, name)
-				},
-				getAuthorizationPolicy: func(namespace, name string) (*securityv1beta1.AuthorizationPolicy, error) {
-					if tt.existingPolicy != nil && tt.existingPolicy.Namespace == namespace && tt.existingPolicy.Name == name {
-						return tt.existingPolicy, nil
-					}
-					return nil, apierrors.NewNotFound(schema.GroupResource{Resource: "authorizationpolicies"}, name)
 				},
 				newPrivateKey: func(size int) (*rsa.PrivateKey, error) {
 					return nil, errors.New("not implemented")
@@ -507,11 +320,9 @@ func TestSessionController_processSession_generateCredentials(t *testing.T) {
 		{
 			name: "session without secret and credentials secret ref",
 			sessionStatus: sessiongatev1alpha1.SessionStatus{
-				ExpiresAt:              &metav1.Time{Time: fixedTime.Add(24 * time.Hour)},
-				AuthorizationPolicyRef: "sessiongate-9b1f64c3",
+				ExpiresAt: &metav1.Time{Time: fixedTime.Add(24 * time.Hour)},
 				// CredentialsSecretRef missing
 				Conditions: []metav1.Condition{
-					authPolicyAvailableCondition,
 					sessionNotReadyCondition,
 				},
 			},
@@ -524,11 +335,9 @@ func TestSessionController_processSession_generateCredentials(t *testing.T) {
 		{
 			name: "session without secret",
 			sessionStatus: sessiongatev1alpha1.SessionStatus{
-				ExpiresAt:              &metav1.Time{Time: fixedTime.Add(24 * time.Hour)},
-				AuthorizationPolicyRef: "sessiongate-9b1f64c3",
-				CredentialsSecretRef:   "sessiongate-9b1f64c3",
+				ExpiresAt:            &metav1.Time{Time: fixedTime.Add(24 * time.Hour)},
+				CredentialsSecretRef: "sessiongate-9b1f64c3",
 				Conditions: []metav1.Condition{
-					authPolicyAvailableCondition,
 					sessionNotReadyCondition,
 				},
 			},
@@ -541,11 +350,9 @@ func TestSessionController_processSession_generateCredentials(t *testing.T) {
 		{
 			name: "session with private key but no private keyconditions",
 			sessionStatus: sessiongatev1alpha1.SessionStatus{
-				ExpiresAt:              &metav1.Time{Time: fixedTime.Add(24 * time.Hour)},
-				AuthorizationPolicyRef: "sessiongate-9b1f64c3",
-				CredentialsSecretRef:   "sessiongate-9b1f64c3",
+				ExpiresAt:            &metav1.Time{Time: fixedTime.Add(24 * time.Hour)},
+				CredentialsSecretRef: "sessiongate-9b1f64c3",
 				Conditions: []metav1.Condition{
-					authPolicyAvailableCondition,
 					sessionNotReadyCondition,
 					// Credentials conditions missing
 				},
@@ -561,11 +368,9 @@ func TestSessionController_processSession_generateCredentials(t *testing.T) {
 		{
 			name: "session with private key but no CSR",
 			sessionStatus: sessiongatev1alpha1.SessionStatus{
-				ExpiresAt:              &metav1.Time{Time: fixedTime.Add(24 * time.Hour)},
-				AuthorizationPolicyRef: "sessiongate-9b1f64c3",
-				CredentialsSecretRef:   "sessiongate-9b1f64c3",
+				ExpiresAt:            &metav1.Time{Time: fixedTime.Add(24 * time.Hour)},
+				CredentialsSecretRef: "sessiongate-9b1f64c3",
 				Conditions: []metav1.Condition{
-					authPolicyAvailableCondition,
 					sessionNotReadyCondition,
 					{
 						Type:               string(sessiongatev1alpha1.SessionConditionTypeCredentialsAvailable),
@@ -586,11 +391,9 @@ func TestSessionController_processSession_generateCredentials(t *testing.T) {
 		{
 			name: "session with CSR but missing status updates",
 			sessionStatus: sessiongatev1alpha1.SessionStatus{
-				ExpiresAt:              &metav1.Time{Time: fixedTime.Add(24 * time.Hour)},
-				AuthorizationPolicyRef: "sessiongate-9b1f64c3",
-				CredentialsSecretRef:   "sessiongate-9b1f64c3",
+				ExpiresAt:            &metav1.Time{Time: fixedTime.Add(24 * time.Hour)},
+				CredentialsSecretRef: "sessiongate-9b1f64c3",
 				Conditions: []metav1.Condition{
-					authPolicyAvailableCondition,
 					sessionNotReadyCondition,
 					{
 						Type:               string(sessiongatev1alpha1.SessionConditionTypeCredentialsAvailable),
@@ -612,11 +415,9 @@ func TestSessionController_processSession_generateCredentials(t *testing.T) {
 		{
 			name: "session with CSR but missing CSR approval",
 			sessionStatus: sessiongatev1alpha1.SessionStatus{
-				ExpiresAt:              &metav1.Time{Time: fixedTime.Add(24 * time.Hour)},
-				AuthorizationPolicyRef: "sessiongate-9b1f64c3",
-				CredentialsSecretRef:   "sessiongate-9b1f64c3",
+				ExpiresAt:            &metav1.Time{Time: fixedTime.Add(24 * time.Hour)},
+				CredentialsSecretRef: "sessiongate-9b1f64c3",
 				Conditions: []metav1.Condition{
-					authPolicyAvailableCondition,
 					sessionNotReadyCondition,
 					{
 						Type:               string(sessiongatev1alpha1.SessionConditionTypeCredentialsAvailable),
@@ -637,11 +438,9 @@ func TestSessionController_processSession_generateCredentials(t *testing.T) {
 		{
 			name: "session with private key mismatch in CSR",
 			sessionStatus: sessiongatev1alpha1.SessionStatus{
-				ExpiresAt:              &metav1.Time{Time: fixedTime.Add(24 * time.Hour)},
-				AuthorizationPolicyRef: "sessiongate-9b1f64c3",
-				CredentialsSecretRef:   "sessiongate-9b1f64c3",
+				ExpiresAt:            &metav1.Time{Time: fixedTime.Add(24 * time.Hour)},
+				CredentialsSecretRef: "sessiongate-9b1f64c3",
 				Conditions: []metav1.Condition{
-					authPolicyAvailableCondition,
 					sessionNotReadyCondition,
 					{
 						Type:               string(sessiongatev1alpha1.SessionConditionTypeCredentialsAvailable),
@@ -672,11 +471,9 @@ func TestSessionController_processSession_generateCredentials(t *testing.T) {
 		{
 			name: "session with approval but unsigned CSR",
 			sessionStatus: sessiongatev1alpha1.SessionStatus{
-				ExpiresAt:              &metav1.Time{Time: fixedTime.Add(24 * time.Hour)},
-				AuthorizationPolicyRef: "sessiongate-9b1f64c3",
-				CredentialsSecretRef:   "sessiongate-9b1f64c3",
+				ExpiresAt:            &metav1.Time{Time: fixedTime.Add(24 * time.Hour)},
+				CredentialsSecretRef: "sessiongate-9b1f64c3",
 				Conditions: []metav1.Condition{
-					authPolicyAvailableCondition,
 					sessionNotReadyCondition,
 					{
 						Type:               string(sessiongatev1alpha1.SessionConditionTypeCredentialsAvailable),
@@ -697,11 +494,9 @@ func TestSessionController_processSession_generateCredentials(t *testing.T) {
 		{
 			name: "session with signed CSR but no certificate in secret",
 			sessionStatus: sessiongatev1alpha1.SessionStatus{
-				ExpiresAt:              &metav1.Time{Time: fixedTime.Add(24 * time.Hour)},
-				AuthorizationPolicyRef: "sessiongate-9b1f64c3",
-				CredentialsSecretRef:   "sessiongate-9b1f64c3",
+				ExpiresAt:            &metav1.Time{Time: fixedTime.Add(24 * time.Hour)},
+				CredentialsSecretRef: "sessiongate-9b1f64c3",
 				Conditions: []metav1.Condition{
-					authPolicyAvailableCondition,
 					sessionNotReadyCondition,
 					{
 						Type:               string(sessiongatev1alpha1.SessionConditionTypeCredentialsAvailable),
@@ -722,11 +517,9 @@ func TestSessionController_processSession_generateCredentials(t *testing.T) {
 		{
 			name: "session with credentials in secret but no status update",
 			sessionStatus: sessiongatev1alpha1.SessionStatus{
-				ExpiresAt:              &metav1.Time{Time: fixedTime.Add(24 * time.Hour)},
-				AuthorizationPolicyRef: "sessiongate-9b1f64c3",
-				CredentialsSecretRef:   "sessiongate-9b1f64c3",
+				ExpiresAt:            &metav1.Time{Time: fixedTime.Add(24 * time.Hour)},
+				CredentialsSecretRef: "sessiongate-9b1f64c3",
 				Conditions: []metav1.Condition{
-					authPolicyAvailableCondition,
 					sessionNotReadyCondition,
 					{
 						Type:               string(sessiongatev1alpha1.SessionConditionTypeCredentialsAvailable),
@@ -753,7 +546,6 @@ func TestSessionController_processSession_generateCredentials(t *testing.T) {
 
 			// Setup controller with mock getters
 			controller := &SessionController{
-				fieldManager:     "test-controller",
 				clock:            clocktesting.NewFakeClock(fixedTime),
 				endpointProvider: &mockEndpointProvider{},
 				getSecret: func(namespace, name string) (*corev1.Secret, error) {
@@ -761,12 +553,6 @@ func TestSessionController_processSession_generateCredentials(t *testing.T) {
 						return tt.existingSecret, nil
 					}
 					return nil, apierrors.NewNotFound(schema.GroupResource{Resource: "secrets"}, name)
-				},
-				getAuthorizationPolicy: func(namespace, name string) (*securityv1beta1.AuthorizationPolicy, error) {
-					if name == samplePolicy.Name && namespace == samplePolicy.Namespace {
-						return samplePolicy, nil
-					}
-					return nil, apierrors.NewNotFound(schema.GroupResource{Resource: "authorizationpolicies"}, name)
 				},
 				newPrivateKey: func(size int) (*rsa.PrivateKey, error) {
 					return testPrivateKey, nil
@@ -810,11 +596,9 @@ func TestSessionController_processSession_ensureNetworkPath(t *testing.T) {
 		{
 			name: "session with credentials but no backend URL",
 			sessionStatus: sessiongatev1alpha1.SessionStatus{
-				ExpiresAt:              &metav1.Time{Time: fixedTime.Add(24 * time.Hour)},
-				AuthorizationPolicyRef: "sessiongate-9b1f64c3",
-				CredentialsSecretRef:   "sessiongate-9b1f64c3",
+				ExpiresAt:            &metav1.Time{Time: fixedTime.Add(24 * time.Hour)},
+				CredentialsSecretRef: "sessiongate-9b1f64c3",
 				Conditions: []metav1.Condition{
-					authPolicyAvailableCondition,
 					sessionNotReadyCondition,
 					credentialsAvailableCondition,
 				},
@@ -831,7 +615,6 @@ func TestSessionController_processSession_ensureNetworkPath(t *testing.T) {
 
 			// Setup controller with mock getters
 			controller := &SessionController{
-				fieldManager:     "test-controller",
 				clock:            clocktesting.NewFakeClock(fixedTime),
 				endpointProvider: &mockEndpointProvider{},
 				getSecret: func(namespace, name string) (*corev1.Secret, error) {
@@ -839,12 +622,6 @@ func TestSessionController_processSession_ensureNetworkPath(t *testing.T) {
 						return secretWithFullTestCredentials, nil
 					}
 					return nil, apierrors.NewNotFound(schema.GroupResource{Resource: "secrets"}, name)
-				},
-				getAuthorizationPolicy: func(namespace, name string) (*securityv1beta1.AuthorizationPolicy, error) {
-					if name == samplePolicy.Name && namespace == samplePolicy.Namespace {
-						return samplePolicy, nil
-					}
-					return nil, apierrors.NewNotFound(schema.GroupResource{Resource: "authorizationpolicies"}, name)
 				},
 				newPrivateKey: func(size int) (*rsa.PrivateKey, error) {
 					return nil, errors.New("should not be called in these tests")
@@ -896,12 +673,10 @@ func TestSessionController_processSession_finalize(t *testing.T) {
 		{
 			name: "session without endpoint",
 			sessionStatus: sessiongatev1alpha1.SessionStatus{
-				ExpiresAt:              &metav1.Time{Time: fixedTime.Add(24 * time.Hour)},
-				AuthorizationPolicyRef: "sessiongate-9b1f64c3",
-				CredentialsSecretRef:   "sessiongate-9b1f64c3",
-				BackendKASURL:          "https://api.test-hcp.example.com",
+				ExpiresAt:            &metav1.Time{Time: fixedTime.Add(24 * time.Hour)},
+				CredentialsSecretRef: "sessiongate-9b1f64c3",
+				BackendKASURL:        "https://api.test-hcp.example.com",
 				Conditions: []metav1.Condition{
-					authPolicyAvailableCondition,
 					sessionNotReadyCondition,
 					credentialsAvailableCondition,
 					networkPathAvailableCondition,
@@ -913,12 +688,10 @@ func TestSessionController_processSession_finalize(t *testing.T) {
 		{
 			name: "session already ready",
 			sessionStatus: sessiongatev1alpha1.SessionStatus{
-				ExpiresAt:              &metav1.Time{Time: fixedTime.Add(24 * time.Hour)},
-				AuthorizationPolicyRef: "sessiongate-9b1f64c3",
-				CredentialsSecretRef:   "sessiongate-9b1f64c3",
-				BackendKASURL:          "https://api.test-hcp.example.com",
+				ExpiresAt:            &metav1.Time{Time: fixedTime.Add(24 * time.Hour)},
+				CredentialsSecretRef: "sessiongate-9b1f64c3",
+				BackendKASURL:        "https://api.test-hcp.example.com",
 				Conditions: []metav1.Condition{
-					authPolicyAvailableCondition,
 					credentialsAvailableCondition,
 					networkPathAvailableCondition,
 					{
@@ -943,8 +716,7 @@ func TestSessionController_processSession_finalize(t *testing.T) {
 
 			// Setup controller with mock getters
 			controller := &SessionController{
-				fieldManager: "test-controller",
-				clock:        clocktesting.NewFakeClock(fixedTime),
+				clock: clocktesting.NewFakeClock(fixedTime),
 				endpointProvider: &mockEndpointProvider{
 					endpoint: "https://localhost:8080/sessiongate/test-session/kas",
 				},
@@ -953,12 +725,6 @@ func TestSessionController_processSession_finalize(t *testing.T) {
 						return secretWithFullTestCredentials, nil
 					}
 					return nil, apierrors.NewNotFound(schema.GroupResource{Resource: "secrets"}, name)
-				},
-				getAuthorizationPolicy: func(namespace, name string) (*securityv1beta1.AuthorizationPolicy, error) {
-					if name == samplePolicy.Name && namespace == samplePolicy.Namespace {
-						return samplePolicy, nil
-					}
-					return nil, apierrors.NewNotFound(schema.GroupResource{Resource: "authorizationpolicies"}, name)
 				},
 				newPrivateKey: func(size int) (*rsa.PrivateKey, error) {
 					return nil, errors.New("should not be called in these tests")

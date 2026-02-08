@@ -40,7 +40,6 @@ import (
 type DataplaneController struct {
 	workqueue    workqueue.TypedRateLimitingInterface[cache.ObjectName]
 	cachesToSync []cache.InformerSynced
-	fieldManager string
 	logger       klog.Logger
 	registry     registry.SessionRegistry
 	getSession   func(namespace, name string) (*sessiongatev1alpha1.Session, error)
@@ -70,6 +69,9 @@ func NewDataplaneController(
 
 	// secret informer hookup
 	secretInformer := kubeInformers.Core().V1().Secrets().Informer()
+	if err := registerInformer(secretInformer, sessionKeyFromOwnershipReference, workQueue); err != nil {
+		return nil, fmt.Errorf("failed to register secret informer: %w", err)
+	}
 
 	return &DataplaneController{
 		workqueue: workQueue,
@@ -77,9 +79,8 @@ func NewDataplaneController(
 			sessionInformer.HasSynced,
 			secretInformer.HasSynced,
 		},
-		fieldManager: ControllerAgentName,
-		logger:       logger,
-		registry:     registry,
+		logger:   logger,
+		registry: registry,
 		getSession: func(namespace, name string) (*sessiongatev1alpha1.Session, error) {
 			return sessiongateInformers.Sessiongate().V1alpha1().Sessions().Lister().Sessions(namespace).Get(name)
 		},
@@ -165,17 +166,11 @@ func (c *DataplaneController) isReadyForRegistration(session *sessiongatev1alpha
 }
 
 func (c *DataplaneController) getCredentialSecret(session *sessiongatev1alpha1.Session) (*CredentialSecret, error) {
-	secretName := credentialSecretNameForSession(session)
-	existingSecret, err := c.getSecret(session.Namespace, secretName)
-	var secretData map[string][]byte
+	existingSecret, err := c.getSecret(session.Namespace, credentialSecretNameForSession(session))
 	if err != nil && !apierrors.IsNotFound(err) {
 		return nil, err
-	} else if err != nil {
-		secretData = make(map[string][]byte)
-	} else {
-		secretData = existingSecret.Data
 	}
-	return NewCredentialSecret(session.Name, secretName, session.Namespace, session.UID, c.fieldManager, secretData), nil
+	return NewCredentialSecret(existingSecret), nil
 }
 
 func (c *DataplaneController) registerSession(session *sessiongatev1alpha1.Session) error {
@@ -202,11 +197,7 @@ func (c *DataplaneController) registerSession(session *sessiongatev1alpha1.Sessi
 		},
 	}
 
-	_, err = c.registry.RegisterSession(registry.NewSessionOptions(
-		session.Name,
-		session.Status.BackendKASURL,
-		restConfig,
-	))
+	_, err = c.registry.RegisterSession(session.Name, session.Spec.HostedControlPlane.ResourceID, session.Spec.Owner, restConfig)
 	if err != nil {
 		return fmt.Errorf("failed to register session: %w", err)
 	}

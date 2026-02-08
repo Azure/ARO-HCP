@@ -20,12 +20,8 @@ import (
 	"crypto/rsa"
 	"errors"
 	"fmt"
+	"sync"
 	"time"
-
-	securityv1beta1 "istio.io/client-go/pkg/apis/security/v1beta1"
-	securityapplyv1beta1 "istio.io/client-go/pkg/applyconfiguration/security/v1beta1"
-	istioclient "istio.io/client-go/pkg/clientset/versioned/typed/security/v1beta1"
-	istioinformers "istio.io/client-go/pkg/informers/externalversions"
 
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -67,31 +63,29 @@ type SessionController struct {
 	cachesToSync         []cache.InformerSynced
 	kubeClient           kubernetes.Interface
 	sessiongateClient    sessiongateclient.Interface
-	istioClient          istioclient.SecurityV1beta1Interface
+	sessiongateInformers sessiongateinformers.SharedInformerFactory
 	clock                clock.PassiveClock
 
-	fieldManager                   string
-	eventRecorder                  record.EventRecorder
-	endpointProvider               SessionEndpointProvider
-	managementClusterInventory     *ManagementClusterInventory
-	getSession                     func(namespace, name string) (*sessiongatev1alpha1.Session, error)
-	getSessionsByManagementCluster func(mgmtClusterResourceID string) ([]*sessiongatev1alpha1.Session, error)
-	getAuthorizationPolicy         func(namespace, name string) (*securityv1beta1.AuthorizationPolicy, error)
-	getSecret                      func(namespace, name string) (*corev1.Secret, error)
-	getManagementClusterProvider   func(resourceID string) (*ManagementClusterProvider, bool)
-	newPrivateKey                  func(size int) (*rsa.PrivateKey, error)
+	eventRecorder    record.EventRecorder
+	endpointProvider SessionEndpointProvider
+
+	mcProviders       map[string]*ManagementClusterProvider
+	mcProvidersMu     sync.RWMutex
+	mcProviderFactory *ManagementClusterProviderFactory
+
+	getSession    func(namespace, name string) (*sessiongatev1alpha1.Session, error)
+	getSecret     func(namespace, name string) (*corev1.Secret, error)
+	newPrivateKey func(size int) (*rsa.PrivateKey, error)
 }
 
 func NewSessionController(
 	kubeClient kubernetes.Interface,
 	sessiongateClient sessiongateclient.Interface,
-	istioClient istioclient.SecurityV1beta1Interface,
 	sessiongateInformers sessiongateinformers.SharedInformerFactory,
-	istioInformers istioinformers.SharedInformerFactory,
 	kubeinformers kubeinformers.SharedInformerFactory,
 	eventRecorder record.EventRecorder,
 	namespace string,
-	managementClusterProviderBuilder ManagementClusterProviderBuilder,
+	managementClusterProviderFactory *ManagementClusterProviderFactory,
 	endpointProvider SessionEndpointProvider,
 ) (*SessionController, error) {
 	workQueue := workqueue.NewTypedRateLimitingQueueWithConfig(
@@ -130,62 +124,33 @@ func NewSessionController(
 		return nil, fmt.Errorf("failed to register management cluster informer: %w", err)
 	}
 
-	// authorization policy informer hookup
-	authPolicyInformer := istioInformers.Security().V1beta1().AuthorizationPolicies().Informer()
-	if err := registerInformer(authPolicyInformer, sessionKeyFromOwnershipReference, workQueue); err != nil {
-		return nil, fmt.Errorf("failed to register authorization policy informer: %w", err)
-	}
-
 	// secret informer hookup
 	secretInformer := kubeinformers.Core().V1().Secrets().Informer()
 	if err := registerInformer(secretInformer, sessionKeyFromOwnershipReference, workQueue); err != nil {
 		return nil, fmt.Errorf("failed to register secret informer: %w", err)
 	}
 
-	managementClusterInventory := NewManagementClusterInventory(managementClusterProviderBuilder, workQueue)
-
 	return &SessionController{
 		workqueue:            workQueue,
 		mgmtClusterWorkQueue: mgmtClusterWorkQueue,
 		cachesToSync: []cache.InformerSynced{
 			sessionInformer.HasSynced,
-			authPolicyInformer.HasSynced,
 			secretInformer.HasSynced,
 		},
-		fieldManager:               ControllerAgentName,
-		eventRecorder:              eventRecorder,
-		endpointProvider:           endpointProvider,
-		kubeClient:                 kubeClient,
-		sessiongateClient:          sessiongateClient,
-		istioClient:                istioClient,
-		namespace:                  namespace,
-		clock:                      clock.RealClock{},
-		managementClusterInventory: managementClusterInventory,
+		eventRecorder:        eventRecorder,
+		endpointProvider:     endpointProvider,
+		kubeClient:           kubeClient,
+		sessiongateClient:    sessiongateClient,
+		sessiongateInformers: sessiongateInformers,
+		namespace:            namespace,
+		clock:                clock.RealClock{},
+		mcProviders:          make(map[string]*ManagementClusterProvider),
+		mcProviderFactory:    managementClusterProviderFactory,
 		getSession: func(namespace, name string) (*sessiongatev1alpha1.Session, error) {
 			return sessiongateInformers.Sessiongate().V1alpha1().Sessions().Lister().Sessions(namespace).Get(name)
 		},
-		getSessionsByManagementCluster: func(mgmtClusterResourceID string) ([]*sessiongatev1alpha1.Session, error) {
-			objs, err := sessiongateInformers.Sessiongate().V1alpha1().Sessions().Informer().GetIndexer().ByIndex(
-				managementClusterIndexName,
-				mgmtClusterResourceID,
-			)
-			if err != nil {
-				return nil, err
-			}
-			sessions := make([]*sessiongatev1alpha1.Session, len(objs))
-			for i, obj := range objs {
-				sessions[i] = obj.(*sessiongatev1alpha1.Session)
-			}
-			return sessions, nil
-		},
-		getAuthorizationPolicy: func(namespace, name string) (*securityv1beta1.AuthorizationPolicy, error) {
-			return istioInformers.Security().V1beta1().AuthorizationPolicies().Lister().AuthorizationPolicies(namespace).Get(name)
-		},
 		getSecret: func(namespace, name string) (*corev1.Secret, error) {
 			return kubeinformers.Core().V1().Secrets().Lister().Secrets(namespace).Get(name)
-		},
-		getManagementClusterProvider: func(resourceID string) (*ManagementClusterProvider, bool) {
-			return managementClusterInventory.GetProvider(resourceID)
 		},
 		newPrivateKey: func(size int) (*rsa.PrivateKey, error) {
 			return rsa.GenerateKey(rand.Reader, size)
@@ -245,7 +210,7 @@ func (c *SessionController) processNextSessionWorkItem(ctx context.Context) bool
 	if session.Status.ExpiresAt != nil {
 		requeueAfter := time.Until(session.Status.ExpiresAt.Time)
 		if requeueAfter > 0 {
-			c.workqueue.AddAfter(objRef, requeueAfter+1*time.Second)
+			c.workqueue.AddAfter(objRef, requeueAfter)
 		}
 	}
 
@@ -286,15 +251,13 @@ func (c *SessionController) syncSession(ctx context.Context, session *sessiongat
 		// about Force: true - we are the sole owner of these resources
 		switch {
 		case action.Session != nil:
-			_, err = c.sessiongateClient.SessiongateV1alpha1().Sessions(session.Namespace).ApplyStatus(ctx, action.Session, metav1.ApplyOptions{FieldManager: c.fieldManager})
+			_, err = c.sessiongateClient.SessiongateV1alpha1().Sessions(session.Namespace).ApplyStatus(ctx, action.Session, metav1.ApplyOptions{FieldManager: ControllerAgentName})
 		case action.Secret != nil:
-			_, err = c.kubeClient.CoreV1().Secrets(*action.Secret.Namespace).Apply(ctx, action.Secret, metav1.ApplyOptions{FieldManager: c.fieldManager, Force: true})
-		case action.AuthPolicy != nil:
-			_, err = c.istioClient.AuthorizationPolicies(*action.AuthPolicy.Namespace).Apply(ctx, action.AuthPolicy, metav1.ApplyOptions{FieldManager: c.fieldManager, Force: true})
+			_, err = c.kubeClient.CoreV1().Secrets(*action.Secret.Namespace).Apply(ctx, action.Secret, metav1.ApplyOptions{FieldManager: ControllerAgentName, Force: true})
 		case action.CSR != nil:
-			_, err = mc.KubeClient.CertificatesV1().CertificateSigningRequests().Apply(ctx, action.CSR, metav1.ApplyOptions{FieldManager: c.fieldManager, Force: true})
+			_, err = mc.KubeClient.CertificatesV1().CertificateSigningRequests().Apply(ctx, action.CSR, metav1.ApplyOptions{FieldManager: ControllerAgentName, Force: true})
 		case action.CSRApproval != nil:
-			_, err = mc.CertificatesClient.CertificateSigningRequestApprovals(action.CSRApproval.Namespace).Apply(ctx, action.CSRApproval.Approval, metav1.ApplyOptions{FieldManager: c.fieldManager, Force: true})
+			_, err = mc.CertificatesClient.CertificateSigningRequestApprovals(action.CSRApproval.Namespace).Apply(ctx, action.CSRApproval.Approval, metav1.ApplyOptions{FieldManager: ControllerAgentName, Force: true})
 		case action.DeleteSession:
 			err = c.sessiongateClient.SessiongateV1alpha1().Sessions(session.Namespace).Delete(ctx, session.Name, metav1.DeleteOptions{})
 		case action.DeleteCSR:
@@ -310,7 +273,6 @@ type actions struct {
 	Session       *sessiongatv1alpha1applyconfigurations.SessionApplyConfiguration
 	DeleteSession bool
 	Secret        *corev1applyconfigurations.SecretApplyConfiguration
-	AuthPolicy    *securityapplyv1beta1.AuthorizationPolicyApplyConfiguration
 	CSR           *certapplyv1.CertificateSigningRequestApplyConfiguration
 	CSRApproval   *csrApprovalAction
 	DeleteCSR     bool
@@ -324,9 +286,6 @@ type csrApprovalAction struct {
 func (a *actions) validate() error {
 	var set int
 	if a.Session != nil {
-		set += 1
-	}
-	if a.AuthPolicy != nil {
 		set += 1
 	}
 	if a.Secret != nil {
@@ -367,8 +326,6 @@ func (c *SessionController) processSession(ctx context.Context, session *session
 	for _, step := range []sessionStep{
 		// this is a new session, so we need to manifest the expiration timestamp
 		c.handleExpiration,
-		// ensure authorization policy is present before we do anything that might expose the session
-		c.ensureAuthorizationPolicy,
 		// generate credentials
 		c.generateCredentials,
 		// ensure network path is available
@@ -410,69 +367,12 @@ func (c *SessionController) handleExpiration(ctx context.Context, session *sessi
 	return false, nil, nil
 }
 
-func (c *SessionController) ensureAuthorizationPolicy(ctx context.Context, session *sessiongatev1alpha1.Session, mc ManagementClusterQuerier) (bool, *actions, error) {
-	authPolicyName := authorizationPolicyNameForSession(session)
-
-	// commit on authorization policy ref
-	sessionUpdate, needsUpdate := NewStatus(session.Status).
-		WithAuthorizationPolicyRef(authPolicyName).
-		AsApplyConfiguration(session)
-	if needsUpdate {
-		return true, &actions{Session: sessionUpdate}, nil
-	}
-
-	existingAuthPolicy, err := c.getAuthorizationPolicy(session.Namespace, authPolicyName)
-	if err != nil && !apierrors.IsNotFound(err) {
-		return true, nil, err
-	}
-
-	desiredAuthPolicy, err := buildAuthorizationPolicyApplyConfiguration(session)
-	if err != nil {
-		return true, nil, fmt.Errorf("failed to build authorization policy apply configuration: %w", err)
-	}
-
-	// original policy creation
-	if existingAuthPolicy == nil {
-		e := event("AuthorizationPolicyGeneration", "Creating authorization policy for %s/%s.", session.Namespace, session.Name)
-		return true, &actions{Event: e, AuthPolicy: desiredAuthPolicy}, nil
-	}
-
-	// policy drift detection
-	if authorizationPolicyUpdateNeeded(existingAuthPolicy, desiredAuthPolicy) {
-		e := event("AuthorizationPolicyUpdate", "Updating authorization policy for %s/%s.", session.Namespace, session.Name)
-		return true, &actions{Event: e, AuthPolicy: desiredAuthPolicy}, nil
-	}
-
-	// record condition
-	sessionUpdate, needsUpdate = NewStatus(session.Status).
-		WithConditions(
-			applyv1.Condition().
-				WithType(string(sessiongatev1alpha1.SessionConditionTypeAuthorizationPolicyAvailable)).
-				WithStatus(metav1.ConditionTrue).
-				WithReason("AuthorizationPolicyAvailable").
-				WithMessage("Authorization policy available").
-				WithObservedGeneration(session.Generation).
-				WithLastTransitionTime(metav1.NewTime(c.clock.Now())),
-		).
-		AsApplyConfiguration(session)
-	if needsUpdate {
-		return true, &actions{Session: sessionUpdate}, nil
-	}
-	return false, nil, nil
-}
-
 func (c *SessionController) getCredentialSecret(session *sessiongatev1alpha1.Session) (*CredentialSecret, error) {
-	secretName := credentialSecretNameForSession(session)
-	existingSecret, err := c.getSecret(session.Namespace, secretName)
-	var secretData map[string][]byte
+	existingSecret, err := c.getSecret(session.Namespace, credentialSecretNameForSession(session))
 	if err != nil && !apierrors.IsNotFound(err) {
 		return nil, err
-	} else if err != nil {
-		secretData = make(map[string][]byte)
-	} else {
-		secretData = existingSecret.Data
 	}
-	return NewCredentialSecret(session.Name, secretName, session.Namespace, session.UID, c.fieldManager, secretData), nil
+	return NewCredentialSecret(existingSecret), nil
 }
 
 func (c *SessionController) generateCredentials(ctx context.Context, session *sessiongatev1alpha1.Session, mc ManagementClusterQuerier) (bool, *actions, error) {
@@ -501,7 +401,7 @@ func (c *SessionController) generateCredentials(ctx context.Context, session *se
 
 	// the certificate is not yet in the secret, so lets check the CSR and update the secret
 	csrName := getCSRNameForSession(session)
-	csr, err := mc.GetCSR(ctx, csrName)
+	csr, err := mc.GetCSR(csrName)
 	if err != nil && !apierrors.IsNotFound(err) {
 		return true, nil, fmt.Errorf("failed to get CSR: %w", err)
 	}
@@ -516,7 +416,7 @@ func (c *SessionController) generateCredentials(ctx context.Context, session *se
 		}
 		// ... if it has a certificate, we can bring it to the secret
 		if len(csr.Status.Certificate) > 0 {
-			return true, &actions{Secret: credentialSecret.ApplyConfigurationForCertificate(csr.Status.Certificate)}, nil
+			return true, &actions{Secret: credentialSecret.ApplyConfigurationForCertificate(session, csr.Status.Certificate)}, nil
 		}
 		// ... if it is approved but has no certificate yet, we just need to wait
 		// the informer will let us know when the CSR changes
@@ -534,7 +434,7 @@ func (c *SessionController) generateCredentials(ctx context.Context, session *se
 				return true, &actions{Session: sessionUpdate}, nil
 			}
 
-			csrApproval, err := mc.GetCSRApproval(ctx, session.Spec.HostedControlPlane.Namespace, csrName)
+			csrApproval, err := mc.GetCSRApproval(session.Spec.HostedControlPlane.Namespace, csrName)
 			if err != nil && !apierrors.IsNotFound(err) {
 				return true, nil, fmt.Errorf("failed to get CSR Approval: %w", err)
 			}
@@ -579,12 +479,12 @@ func (c *SessionController) generateCredentials(ctx context.Context, session *se
 			return true, nil, fmt.Errorf("failed to generate private key: %w", err)
 		}
 		e := event("PrivateKeyGeneration", "Generating private key for %s/%s.", session.Namespace, session.Name)
-		return true, &actions{Event: e, Secret: credentialSecret.ApplyConfigurationForPrivateKey(privateKey)}, nil
+		return true, &actions{Event: e, Secret: credentialSecret.ApplyConfigurationForPrivateKey(session, privateKey)}, nil
 	}
 
 	// ... but before we can create a private key, we need to write down the secret name in the status
 	sessionUpdate, _ := NewStatus(session.Status).
-		WithCredentialsSecretRef(credentialSecret.SecretName()).
+		WithCredentialsSecretRef(credentialSecretNameForSession(session)).
 		AsApplyConfiguration(session)
 	return true, &actions{Session: sessionUpdate}, nil
 }
@@ -599,7 +499,7 @@ func (c *SessionController) ensureNetworkPath(ctx context.Context, session *sess
 		return false, nil, nil
 	}
 
-	hcp, err := mc.GetHostedControlPlane(ctx, session.Spec.HostedControlPlane.Namespace)
+	hcp, err := mc.GetHostedControlPlane(session.Spec.HostedControlPlane.Namespace)
 	if err != nil {
 		return true, nil, fmt.Errorf("failed to get HostedCluster: %w", err)
 	}
@@ -670,8 +570,23 @@ func (c *SessionController) reconcileManagementClusterProvider(ctx context.Conte
 		return err
 	}
 	if len(sessions) == 0 {
-		return c.managementClusterInventory.Unregister(mgmtClusterID)
+		return c.unregisterMCProvider(mgmtClusterID)
 	} else {
-		return c.managementClusterInventory.Register(ctx, mgmtClusterID, 30*time.Second)
+		return c.registerMCProvider(ctx, mgmtClusterID, MCProviderCacheSyncTimeout)
 	}
+}
+
+func (c *SessionController) getSessionsByManagementCluster(mgmtClusterResourceID string) ([]*sessiongatev1alpha1.Session, error) {
+	objs, err := c.sessiongateInformers.Sessiongate().V1alpha1().Sessions().Informer().GetIndexer().ByIndex(
+		managementClusterIndexName,
+		mgmtClusterResourceID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	sessions := make([]*sessiongatev1alpha1.Session, len(objs))
+	for i, obj := range objs {
+		sessions[i] = obj.(*sessiongatev1alpha1.Session)
+	}
+	return sessions, nil
 }

@@ -21,7 +21,6 @@ import (
 	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/types"
 	corev1apply "k8s.io/client-go/applyconfigurations/core/v1"
 	metav1apply "k8s.io/client-go/applyconfigurations/meta/v1"
 
@@ -35,12 +34,8 @@ const (
 )
 
 type CredentialSecret struct {
-	fieldManager     string
-	sessionName      string
-	secretName       string
-	sessionNamespace string
-	sessionUID       types.UID
-	data             map[string][]byte
+	privateKey  []byte
+	certificate []byte
 }
 
 func credentialSecretNameForSession(session *sessiongatev1alpha1.Session) string {
@@ -50,35 +45,32 @@ func credentialSecretNameForSession(session *sessiongatev1alpha1.Session) string
 	return fmt.Sprintf("sessiongate-%s", getDeterministicSuffixForSession(session.Namespace, session.Name))
 }
 
-func NewCredentialSecret(sessionName string, secretName string, sessionNamespace string, sessionUID types.UID, fieldManager string, data map[string][]byte) *CredentialSecret {
-	return &CredentialSecret{
-		fieldManager:     fieldManager,
-		secretName:       secretName,
-		sessionName:      sessionName,
-		sessionNamespace: sessionNamespace,
-		sessionUID:       sessionUID,
-		data:             data,
+func NewCredentialSecret(secret *corev1.Secret) *CredentialSecret {
+	if secret == nil {
+		return &CredentialSecret{
+			privateKey:  nil,
+			certificate: nil,
+		}
 	}
-}
-
-func (c *CredentialSecret) SecretName() string {
-	return c.secretName
+	data := secret.Data
+	return &CredentialSecret{
+		privateKey:  data[secretKeyPrivateKey],
+		certificate: data[secretKeyCertificate],
+	}
 }
 
 func (c *CredentialSecret) GetPrivateKeyBytes() ([]byte, bool) {
-	privateKeyBytes, exists := c.data[secretKeyPrivateKey]
-	if !exists || len(privateKeyBytes) == 0 {
+	if len(c.privateKey) == 0 {
 		return nil, false
 	}
-	return privateKeyBytes, true
+	return c.privateKey, true
 }
 
 func (c *CredentialSecret) GetPrivateKey() (*rsa.PrivateKey, bool) {
 	privateKeyBytes, exists := c.GetPrivateKeyBytes()
-	if !exists || len(privateKeyBytes) == 0 {
+	if !exists {
 		return nil, false
 	}
-	// Decode PEM
 	block, _ := pem.Decode(privateKeyBytes)
 	if block == nil {
 		return nil, false
@@ -91,94 +83,40 @@ func (c *CredentialSecret) GetPrivateKey() (*rsa.PrivateKey, bool) {
 }
 
 func (c *CredentialSecret) GetCertificate() ([]byte, bool) {
-	certificateBytes, exists := c.data[secretKeyCertificate]
-	if !exists {
+	if len(c.certificate) == 0 {
 		return nil, false
 	}
-	if len(certificateBytes) == 0 {
-		return nil, false
-	}
-	return certificateBytes, true
+	return c.certificate, true
 }
 
-// ValidateCertificateMatchesPrivateKey checks if the stored certificate's public key
-// matches the stored private key. Prevents using mismatched credentials which would
-// cause authentication failures when connecting to the management cluster.
-func (c *CredentialSecret) ValidateCertificateMatchesPrivateKey() bool {
-	// Get the private key
-	privateKey, privateKeyExists := c.GetPrivateKey()
-	if !privateKeyExists {
-		return false
-	}
-
-	// Get the certificate
-	certificateBytes, certificateExists := c.GetCertificate()
-	if !certificateExists {
-		return false
-	}
-
-	// Parse the PEM-encoded certificate
-	block, _ := pem.Decode(certificateBytes)
-	if block == nil || block.Type != "CERTIFICATE" {
-		return false
-	}
-
-	// Parse the certificate
-	cert, err := x509.ParseCertificate(block.Bytes)
-	if err != nil {
-		return false
-	}
-
-	// Verify the public key in the certificate matches our private key
-	certPublicKey, ok := cert.PublicKey.(*rsa.PublicKey)
-	if !ok {
-		return false
-	}
-
-	// Compare the public keys
-	if !PrivateKeyAndPublicKeyMatch(privateKey, certPublicKey) {
-		return false
-	}
-	return true
+func (c *CredentialSecret) ApplyConfigurationForPrivateKey(session *sessiongatev1alpha1.Session, privateKey *rsa.PrivateKey) *corev1apply.SecretApplyConfiguration {
+	return c.applyConfiguration(session, EncodePrivateKey(privateKey), nil)
 }
 
-func (c *CredentialSecret) ApplyConfigurationForPrivateKey(privateKey *rsa.PrivateKey) *corev1apply.SecretApplyConfiguration {
-	return c.applyConfigurationForFields(map[string][]byte{
-		secretKeyPrivateKey:  EncodePrivateKey(privateKey),
-		secretKeyCertificate: nil,
-	})
+func (c *CredentialSecret) ApplyConfigurationForCertificate(session *sessiongatev1alpha1.Session, certificate []byte) *corev1apply.SecretApplyConfiguration {
+	return c.applyConfiguration(session, c.privateKey, certificate)
 }
 
-func (c *CredentialSecret) ApplyConfigurationForCertificate(certificate []byte) *corev1apply.SecretApplyConfiguration {
-	return c.applyConfigurationForFields(map[string][]byte{
+func (c *CredentialSecret) applyConfiguration(session *sessiongatev1alpha1.Session, privateKey, certificate []byte) *corev1apply.SecretApplyConfiguration {
+	data := map[string][]byte{
+		secretKeyPrivateKey:  privateKey,
 		secretKeyCertificate: certificate,
-	})
-}
-
-func (c *CredentialSecret) applyConfigurationForFields(fields map[string][]byte) *corev1apply.SecretApplyConfiguration {
-	// make a copy of the data
-	dataCopy := make(map[string][]byte)
-	for k, v := range c.data {
-		dataCopy[k] = v
 	}
-	for k, v := range fields {
-		dataCopy[k] = v
-	}
-	return corev1apply.Secret(c.secretName, c.sessionNamespace).
+	return corev1apply.Secret(credentialSecretNameForSession(session), session.Namespace).
 		WithLabels(map[string]string{
-			LabelManagedBy: c.fieldManager,
+			LabelManagedBy: ControllerAgentName,
 		}).
 		WithOwnerReferences(
 			metav1apply.OwnerReference().
 				WithAPIVersion(sessiongatev1alpha1.SchemeGroupVersion.String()).
 				WithKind("Session").
-				WithName(c.sessionName).
-				WithUID(c.sessionUID).
+				WithName(session.Name).
+				WithUID(session.UID).
 				WithController(true).
 				WithBlockOwnerDeletion(true),
 		).
 		WithType(corev1.SecretTypeOpaque).
-		WithData(dataCopy)
+		WithData(data)
 }
 
 func EncodePrivateKey(privateKey *rsa.PrivateKey) []byte {

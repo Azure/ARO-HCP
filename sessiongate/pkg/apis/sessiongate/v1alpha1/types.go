@@ -28,8 +28,8 @@ import (
 // Sessions are created to grant temporary access to an HCP's Kubernetes API server for debugging,
 // administrative operations, or support purposes. Each session is bound to a specific owner
 // (identified by JWT claims), targets a specific HCP on a management cluster, and expires
-// after the configured TTL. The controller provisions the necessary resources (credentials,
-// authorization policies, and proxy endpoint) to enable secure access.
+// after the configured TTL. The controller provisions the necessary resources (credentials, and
+// proxy endpoint) to enable secure access.
 type Session struct {
 	metav1.TypeMeta `json:",inline"`
 
@@ -49,20 +49,22 @@ type Session struct {
 	Spec SessionSpec `json:"spec"`
 
 	// +optional
+	// +kubebuilder:validation:XValidation:rule="!has(oldSelf.expiresAt) || (has(self.expiresAt) && self.expiresAt == oldSelf.expiresAt)",message="expiresAt is immutable once set"
 	// status contains the observed state of the Session, including provisioned resources,
 	// the session endpoint URL, expiration time, and condition status.
 	Status SessionStatus `json:"status,omitempty,omitzero"`
 }
 
 // SessionSpec defines the desired state of a Session. All fields are immutable after creation
-// to ensure session integrity and auditability. The spec identifies the target HCP, the
-// management cluster hosting it, the access level granted, and the owner's identity.
+// to ensure that all interactions remain auditable and to prevent privilege escalation.
+// The spec identifies the target HCP, the management cluster hosting it, the access level
+// granted, and the owner's identity.
 type SessionSpec struct {
 	// +kubebuilder:validation:Required
 	// ttl is the time-to-live duration for the session. The session will automatically
 	// expire after this duration from its creation time. The expiration timestamp is
 	// recorded in status.expiresAt. Once expired, the session's provisioned resources
-	// (credentials, authorization policies) are cleaned up by the controller.
+	// are cleaned up by the controller.
 	TTL metav1.Duration `json:"ttl"`
 
 	// +kubebuilder:validation:Required
@@ -73,8 +75,7 @@ type SessionSpec struct {
 
 	// +kubebuilder:validation:Required
 	// hostedControlPlane identifies the Hypershift Hosted Control Plane that this session
-	// provides access to. The session will create an authorization policy and proxy endpoint
-	// to enable authenticated access to this HCP's Kubernetes API server.
+	// provides access to.
 	HostedControlPlane HostedControlPlane `json:"hostedControlPlane"`
 
 	// +kubebuilder:validation:Required
@@ -146,7 +147,7 @@ const (
 	PrincipalTypeAzureServicePrincipal PrincipalType = "azureServicePrincipal"
 )
 
-// Principal identifies the authenticated Azure identity hat owns this session.
+// Principal identifies the authenticated Azure identity that owns this session.
 // based on the identity type and name.
 type Principal struct {
 	// +kubebuilder:validation:Required
@@ -175,7 +176,6 @@ type SessionStatus struct {
 	// conditions represent the current state of the session. Known condition types are:
 	// - "Ready": True when the session is fully provisioned and accessible
 	// - "CredentialsAvailable": True when session credentials have been created
-	// - "AuthorizationPolicyAvailable": True when the authorization policy is in place
 	// - "NetworkPathAvailable": True when the network path to the HCP is established
 	// The status of each condition is one of True, False, or Unknown.
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
@@ -184,7 +184,7 @@ type SessionStatus struct {
 	// expiresAt is the timestamp when the session will expire and become invalid.
 	// This is calculated as the session's creation timestamp plus the TTL specified in spec.ttl.
 	// After this time, the controller will clean up session resources and the session
-	// endpoint will no longer accept connections.
+	// endpoint will no longer accept connections. This field is immutable once set.
 	ExpiresAt *metav1.Time `json:"expiresAt,omitempty"`
 
 	// +optional
@@ -193,12 +193,6 @@ type SessionStatus struct {
 	// target HCP's KAS after validating the session owner's identity. The endpoint is
 	// provisioned by the controller and becomes available when the session is ready.
 	Endpoint string `json:"endpoint,omitempty"`
-
-	// +optional
-	// authorizationPolicyRef is a reference to the Istio AuthorizationPolicy resource that
-	// was created to control access for this session. The authorization policy enforces
-	// the access level and owner identity constraints defined in the session spec.
-	AuthorizationPolicyRef string `json:"authorizationPolicyRef,omitempty"`
 
 	// +optional
 	// credentialsSecretRef is a reference to the Kubernetes Secret containing the session's

@@ -25,6 +25,26 @@ pullBinding:
 service:
   name: sessiongate
   port: 8080
+# HTTPRoute for ops-ingress gateway
+httpRoute:
+  host: "sessiongate.{{ .dns.regionalSubdomain }}.{{ .dns.svcParentZoneName }}"
+  gateway:
+    name: ops-ingress-gateway
+    namespace: aks-istio-ingress
+    sectionName: sessiongate-https
+# MISE authorization
+mise:
+  policyLabel: "{{ .mise.sessiongate.policyLabel }}"
+  deploy: {{ .mise.deploy }}
 auth:
   authority: "https://{{ .mise.sessiongate.authorityFQDN }}/{{ .tenantId }}" # iss
   audience: "{{ .mise.sessiongate.audience }}" # aud
+# Azure
+azure:
+  cloudEnvironmentName: "{{ .cloudEnvironmentName }}"
+  clientId: "__csiSecretStoreClientId__"
+  tenantId: "__tenantId__"
+# TLS Credentials
+credsKeyVault:
+  name: "{{ .serviceKeyVault.name }}"
+  secret: "{{ .sessiongate.cert.name }}"

@@ -131,6 +131,12 @@ func validateCSR(csr *certificatesv1.CertificateSigningRequest, privateKey *rsa.
 		return false
 	}
 
+	// Verify the CSR signature hasn't been tampered with
+	if err := parsedCSR.CheckSignature(); err != nil {
+		klog.ErrorS(err, "CSR signature verification failed", "csr", csr.Name)
+		return false
+	}
+
 	// Verify the public key matches our private key
 	csrPublicKey, ok := parsedCSR.PublicKey.(*rsa.PublicKey)
 	if !ok {

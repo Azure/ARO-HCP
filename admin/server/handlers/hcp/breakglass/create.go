@@ -23,6 +23,8 @@ import (
 	"github.com/google/uuid"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	utilerrors "k8s.io/apimachinery/pkg/util/errors"
+	"k8s.io/utils/set"
 
 	"github.com/Azure/ARO-HCP/admin/server/middleware"
 	"github.com/Azure/ARO-HCP/internal/database"
@@ -32,42 +34,25 @@ import (
 	sessiongatev1alpha1 "github.com/Azure/ARO-HCP/sessiongate/pkg/generated/clientset/versioned/typed/sessiongate/v1alpha1"
 )
 
-const (
-	// MaxSessionTTL ensures sessions don't persist indefinitely.
-	MaxSessionTTL = 24 * time.Hour
-)
-
-// AllowedGroups defines the Kubernetes groups that can be requested for breakglass access.
-// These groups must have corresponding RoleBindings/ClusterRoleBindings on target HCPs.
-var AllowedGroups = map[string]struct{}{
-	"aro-sre":               {},
-	"aro-sre-cluster-admin": {},
-}
-
-// validateSessionParameters validates the group and TTL parameters for session creation.
-func validateSessionParameters(group string, ttl time.Duration) error {
-	if _, ok := AllowedGroups[group]; !ok {
-		return fmt.Errorf("group %q is not in the allowed list", group)
-	}
-	if ttl > MaxSessionTTL {
-		return fmt.Errorf("ttl must not exceed %v", MaxSessionTTL)
-	}
-	return nil
-}
-
 // HCPBreakglassSessionCreationHandler handles requests to create breakglass sessions.
 // This endpoint is accessed exclusively via Geneva Actions. See package documentation for security model.
 type HCPBreakglassSessionCreationHandler struct {
-	dbClient      database.DBClient
-	csClient      ocm.ClusterServiceClientSpec
-	sessionClient sessiongatev1alpha1.SessionInterface
+	dbClient                database.DBClient
+	csClient                ocm.ClusterServiceClientSpec
+	sessionClient           sessiongatev1alpha1.SessionInterface
+	AllowedBreakglassGroups set.Set[string]
+	MinSessionTTL           time.Duration
+	MaxSessionTTL           time.Duration
 }
 
-func NewHCPBreakglassSessionCreationHandler(dbClient database.DBClient, csClient ocm.ClusterServiceClientSpec, sessionClient sessiongatev1alpha1.SessionInterface) *HCPBreakglassSessionCreationHandler {
+func NewHCPBreakglassSessionCreationHandler(dbClient database.DBClient, csClient ocm.ClusterServiceClientSpec, sessionClient sessiongatev1alpha1.SessionInterface, allowedBreakglassGroups set.Set[string], minSessionTTL time.Duration, maxSessionTTL time.Duration) *HCPBreakglassSessionCreationHandler {
 	return &HCPBreakglassSessionCreationHandler{
-		dbClient:      dbClient,
-		csClient:      csClient,
-		sessionClient: sessionClient,
+		dbClient:                dbClient,
+		csClient:                csClient,
+		sessionClient:           sessionClient,
+		MinSessionTTL:           minSessionTTL,
+		MaxSessionTTL:           maxSessionTTL,
+		AllowedBreakglassGroups: allowedBreakglassGroups,
 	}
 }
 
@@ -93,7 +78,7 @@ func (h *HCPBreakglassSessionCreationHandler) ServeHTTP(writer http.ResponseWrit
 	// get HCP details
 	hcp, err := h.dbClient.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).Get(request.Context(), resourceID.Name)
 	if err != nil {
-		logger.Error(err, "failed to get HCP from database", "resourceID", resourceID.String())
+		logger.Error(err, "failed to get HCP from database")
 		http.Error(writer, "failed to retrieve cluster information", http.StatusInternalServerError)
 		return
 	}
@@ -112,42 +97,23 @@ func (h *HCPBreakglassSessionCreationHandler) ServeHTTP(writer http.ResponseWrit
 		return
 	}
 
-	// authorization level - get from group parameter
-	group := request.URL.Query().Get("group")
-	if group == "" {
-		http.Error(writer, "group parameter is required", http.StatusBadRequest)
-		return
-	}
-
-	// get TTL from query parameter
-	ttlParam := request.URL.Query().Get("ttl")
-	if ttlParam == "" {
-		http.Error(writer, "ttl parameter is required", http.StatusBadRequest)
-		return
-	}
-	ttl, err := time.ParseDuration(ttlParam)
+	group, ttl, err := h.validateSessionParameters(request)
 	if err != nil {
-		http.Error(writer, fmt.Sprintf("invalid ttl parameter: %v", err), http.StatusBadRequest)
-		return
-	}
-
-	if err := validateSessionParameters(group, ttl); err != nil {
+		logger.Error(err, "failed to validate session parameters")
 		http.Error(writer, err.Error(), http.StatusBadRequest)
 		return
 	}
 
 	principalType, err := getPrincipalType(clientPrincipalName)
 	if err != nil {
-		logger.Error(err, "failed to get principal type", "principalName", clientPrincipalName)
-		http.Error(writer, "failed to infer principal type", http.StatusInternalServerError)
+		logger.Error(err, "failed to infer principal type", "principalName", clientPrincipalName)
+		http.Error(writer, "failed to infer principal type", http.StatusBadRequest)
 		return
 	}
 
 	session := &sessiongateapiv1alpha1.Session{
 		ObjectMeta: metav1.ObjectMeta{
 			GenerateName: "breakglass-",
-
-			// namespace is handled by the namespace-scoped client
 		},
 		Spec: sessiongateapiv1alpha1.SessionSpec{
 			TTL: metav1.Duration{Duration: ttl},
@@ -169,7 +135,7 @@ func (h *HCPBreakglassSessionCreationHandler) ServeHTTP(writer http.ResponseWrit
 	}
 	createdSession, err := h.sessionClient.Create(request.Context(), session, metav1.CreateOptions{})
 	if err != nil {
-		logger.Error(err, "failed to create session", "resourceID", resourceID.String())
+		logger.Error(err, "failed to create session")
 		http.Error(writer, "failed to create breakglass session", http.StatusInternalServerError)
 		return
 	}
@@ -209,4 +175,38 @@ func getPrincipalType(principalName string) (sessiongateapiv1alpha1.PrincipalTyp
 	}
 
 	return "", fmt.Errorf("principal name %q is neither a valid UUID nor email address", principalName)
+}
+
+// validateSessionParameters validates the group and TTL parameters for session creation.
+func (h *HCPBreakglassSessionCreationHandler) validateSessionParameters(request *http.Request) (string, time.Duration, error) {
+	var errs []error
+	var err error
+
+	// authorization level - get from group parameter
+	group := request.URL.Query().Get("group")
+	if group == "" {
+		errs = append(errs, fmt.Errorf("group parameter is required"))
+	} else if ok := h.AllowedBreakglassGroups.Has(group); !ok {
+		errs = append(errs, fmt.Errorf("group %q is not in the allowed list %v", group, h.AllowedBreakglassGroups.SortedList()))
+	}
+
+	// get TTL from query parameter
+	var ttl time.Duration
+	ttlParam := request.URL.Query().Get("ttl")
+	if ttlParam == "" {
+		errs = append(errs, fmt.Errorf("ttl parameter is required"))
+	} else {
+		ttl, err = time.ParseDuration(ttlParam)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("invalid ttl parameter: %v", err))
+		}
+		if ttl > h.MaxSessionTTL {
+			errs = append(errs, fmt.Errorf("ttl must not exceed %v", h.MaxSessionTTL))
+		}
+		if ttl < h.MinSessionTTL {
+			errs = append(errs, fmt.Errorf("ttl must be at least %v", h.MinSessionTTL))
+		}
+	}
+
+	return group, ttl, utilerrors.NewAggregate(errs)
 }

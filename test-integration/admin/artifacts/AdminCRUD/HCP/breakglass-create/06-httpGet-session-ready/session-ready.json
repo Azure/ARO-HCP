@@ -3,7 +3,7 @@
     "clusters": [
       {
         "cluster": {
-          "server": "http://127.0.0.1/admin/v1/breakglass/breakglass-1"
+          "server": "https://sessiongate.westus3.hcpsvc.osadev.cloud/admin/v1/breakglass/breakglass-1"
         },
         "name": "hcp"
       }

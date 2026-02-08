@@ -94,9 +94,10 @@ func withHCPResourceID(next http.Handler) http.Handler {
 		ctx := utils.ContextWithResourceID(r.Context(), resourceID)
 
 		// Strip the static prefix and the resource ID path from the URL path
-		strippedRequest := r.Clone(ctx)
-		strippedRequest.URL.Path = strings.TrimPrefix(strippedRequest.URL.Path, resourceIDPath)
+		//strippedRequest := r.Clone(ctx)
+		//strippedRequest.URL.Path = strings.TrimPrefix(strippedRequest.URL.Path, resourceIDPath)
 
-		next.ServeHTTP(w, strippedRequest)
+		ctx = utils.ContextWithLogger(ctx, utils.LoggerFromContext(ctx).WithValues("resourceID", resourceID.String()))
+		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }

@@ -19,10 +19,9 @@ import metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 type SessionConditionType string
 
 const (
-	SessionConditionTypeReady                        SessionConditionType = "Ready"
-	SessionConditionTypeCredentialsAvailable         SessionConditionType = "CredentialsAvailable"
-	SessionConditionTypeAuthorizationPolicyAvailable SessionConditionType = "AuthorizationPolicyAvailable"
-	SessionConditionTypeNetworkPathAvailable         SessionConditionType = "NetworkPathAvailable"
+	SessionConditionTypeReady                SessionConditionType = "Ready"
+	SessionConditionTypeCredentialsAvailable SessionConditionType = "CredentialsAvailable"
+	SessionConditionTypeNetworkPathAvailable SessionConditionType = "NetworkPathAvailable"
 )
 
 func (session *Session) IsReady() bool {

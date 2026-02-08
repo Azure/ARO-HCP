@@ -11,19 +11,7 @@ spec:
   http:
   - match:
     - uri:
-        prefix: /admin/v1/breakglass
-    headers:
-      request:
-        add:
-          mise-inbound-policies-to-filter: "{{ .Values.sessiongate.mise.policyLabel }}"
-    route:
-    - destination:
-        host: admin-api
-        port:
-          number: 8443
-  - match:
-    - uri:
-        prefix: /admin/
+        prefix: /
     headers:
       request:
         add:

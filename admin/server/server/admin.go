@@ -26,6 +26,8 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
+	"k8s.io/utils/set"
+
 	"github.com/Azure/azure-kusto-go/kusto"
 
 	"github.com/Azure/ARO-HCP/admin/server/handlers"
@@ -55,10 +57,6 @@ type AdminAPI struct {
 	metricsServer   http.Server
 }
 
-const (
-	breakglassSessionProxyPathPattern = "/admin/v1/breakglass/%s"
-)
-
 func NewAdminAPI(
 	logger logr.Logger,
 	location string,
@@ -70,19 +68,21 @@ func NewAdminAPI(
 	fpaCredentialRetriever fpa.FirstPartyApplicationTokenCredentialRetriever,
 	sessionClient sessiongatev1alpha1.SessionInterface,
 	sessionLister sessiongatelisterv1alpha1.SessionNamespaceLister,
+	minSessionTTL time.Duration,
+	maxSessionTTL time.Duration,
+	allowedBreakglassGroups set.Set[string],
 ) *AdminAPI {
 	// Submux for V1 HCP endpoints
 	v1HCPMux := middleware.NewHCPResourceServerMux("/admin/v1/hcp")
 	v1HCPMux.Handle("GET", "/helloworld", hcp.HCPHelloWorld(dbClient, clustersServiceClient))
 	v1HCPMux.Handle("GET", "/hellworld/lbs", hcp.HCPDemoListLoadbalancers(dbClient, clustersServiceClient, fpaCredentialRetriever))
-	v1HCPMux.Handle("PUT", "/breakglass", breakglasshandlers.NewHCPBreakglassSessionCreationHandler(dbClient, clustersServiceClient, sessionClient))
-	v1HCPMux.Handle("GET", "/breakglass/{sessionName}/kubeconfig", breakglasshandlers.NewHCPBreakglassSessionKubeconfigHandler(sessionLister, breakglassSessionProxyPathPattern))
+	v1HCPMux.Handle("PUT", "/breakglass", breakglasshandlers.NewHCPBreakglassSessionCreationHandler(dbClient, clustersServiceClient, sessionClient, allowedBreakglassGroups, minSessionTTL, maxSessionTTL))
+	v1HCPMux.Handle("GET", "/breakglass/{sessionName}/kubeconfig", breakglasshandlers.NewHCPBreakglassSessionKubeconfigHandler(sessionLister, sessionClient))
 	v1HCPMux.Handle("GET", "/cosmosdump", cosmosdump.NewCosmosDumpHandler(dbClient))
 
 	apiMux := http.NewServeMux()
 	apiMux.Handle("GET /admin/helloworld", handlers.HelloWorldHandler())
 	apiMux.Handle("/admin/v1/hcp/", middleware.WithClientPrincipal(middleware.WithLowercaseURLPathValue(middleware.WithLogger(v1HCPMux.Handler()))))
-	apiMux.Handle(fmt.Sprintf(breakglassSessionProxyPathPattern, "{sessionName}/{path...}"), breakglasshandlers.NewHCPBreakglassSessionKASProxyHandler(sessionLister))
 	apiMux.HandleFunc("GET /healthz/ready", healthzReadyHandler)
 	apiMux.HandleFunc("GET /healthz/live", healthzLiveHandler)
 

@@ -580,6 +580,8 @@ defaults:
       replicas: 2
       namespace: sessiongate
       serviceAccountName: sessiongate
+    cert:
+      name: sessiongate-cert-{{ .ctx.environment }}-{{ .ctx.regionShort }}
   # Frontend
   frontend:
     audit:
@@ -990,6 +992,10 @@ clouds:
         limitClusterSizes: true
       # Admin API
       adminApi:
+        cert:
+          issuer: Self
+      # Sessiongate
+      sessiongate:
         cert:
           issuer: Self
       # Frontend

@@ -63,3 +63,5 @@ sessiongate:
   servicePort: 8080
   mise:
     policyLabel: "{{ .mise.sessiongate.policyLabel }}"
+  minSessionTTL: 1m
+  maxSessionTTL: 24h

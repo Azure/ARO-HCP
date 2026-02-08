@@ -58,6 +58,7 @@ param backendServiceAccountName = '{{ .backend.k8s.serviceAccountName }}'
 param sessiongateMIName = '{{ .sessiongate.managedIdentityName }}'
 param sessiongateNamespace = '{{ .sessiongate.k8s.namespace }}'
 param sessiongateServiceAccountName = '{{ .sessiongate.k8s.serviceAccountName }}'
+param sessiongateIngressCertName = '{{ .sessiongate.cert.name }}'
 
 param maestroMIName = '{{ .maestro.server.managedIdentityName }}'
 param maestroNamespace = '{{ .maestro.server.k8s.namespace }}'

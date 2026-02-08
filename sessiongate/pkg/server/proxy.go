@@ -15,17 +15,43 @@
 package server
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"net"
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"k8s.io/apimachinery/pkg/util/proxy"
 	"k8s.io/client-go/rest"
 	"k8s.io/klog/v2"
+
+	sessiongatev1alpha1 "github.com/Azure/ARO-HCP/sessiongate/pkg/apis/sessiongate/v1alpha1"
+	"github.com/Azure/ARO-HCP/sessiongate/pkg/server/middleware"
 )
+
+// responseCapture wraps http.ResponseWriter to capture the status code for logging.
+type responseCapture struct {
+	http.ResponseWriter
+	statusCode int
+	hijacked   bool
+}
+
+func (rc *responseCapture) WriteHeader(code int) {
+	rc.statusCode = code
+	rc.ResponseWriter.WriteHeader(code)
+}
+
+func (rc *responseCapture) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	hijacker, ok := rc.ResponseWriter.(http.Hijacker)
+	if !ok {
+		return nil, nil, fmt.Errorf("response writer does not support hijacking")
+	}
+	rc.hijacked = true
+	return hijacker.Hijack()
+}
 
 // kasProxySession wraps a KAS proxy handler with lifecycle management
 type kasProxySession struct {
@@ -46,7 +72,8 @@ func (s *kasProxySession) Close() {
 func newKASProxyHandler(
 	ctx context.Context,
 	restCfg *rest.Config,
-	sessionID string,
+	sessionName string,
+	owner sessiongatev1alpha1.Principal,
 	stripPathPrefix string,
 ) (*kasProxySession, error) {
 	backendBase, err := url.Parse(restCfg.Host)
@@ -79,7 +106,7 @@ func newKASProxyHandler(
 	sessionCtx, cancel := context.WithCancel(ctx)
 
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		logger := klog.FromContext(r.Context()).WithValues("session", sessionID)
+		logger := klog.FromContext(r.Context()).WithValues("session", sessionName, "identity", owner.Name)
 		// Use the session context so requests can be cancelled when session is unregistered
 		r = r.Clone(klog.NewContext(sessionCtx, logger))
 
@@ -94,14 +121,31 @@ func newKASProxyHandler(
 		backendURL.Path = backendURL.Path + restPath
 		backendURL.RawQuery = r.URL.RawQuery
 
-		klog.V(4).InfoS("proxying request", "session", sessionID, "method", r.Method, "path", restPath)
+		rc := &responseCapture{ResponseWriter: w, statusCode: http.StatusOK}
+		start := time.Now()
 
-		proxyHandler := proxy.NewUpgradeAwareHandler(&backendURL, transport, true, false, &sessionErrorResponder{sessionID: sessionID})
-		proxyHandler.ServeHTTP(w, r)
+		proxyHandler := proxy.NewUpgradeAwareHandler(&backendURL, transport, true, false, &sessionErrorResponder{sessionName: sessionName})
+		proxyHandler.ServeHTTP(rc, r)
+
+		if rc.hijacked {
+			logger.V(2).Info("proxied request (upgraded)",
+				"method", r.Method,
+				"path", restPath,
+				"userAgent", r.UserAgent(),
+			)
+		} else {
+			logger.Info("proxied request",
+				"method", r.Method,
+				"path", restPath,
+				"status", rc.statusCode,
+				"duration", time.Since(start).String(),
+				"userAgent", r.UserAgent(),
+			)
+		}
 	})
 
 	return &kasProxySession{
-		handler: handler,
+		handler: middleware.WithSessionProxyClaimHeaderAuthorization(owner, handler),
 		cleanup: func() {
 			cancel()
 			// Kill all active connections immediately when the session expires.
@@ -109,18 +153,18 @@ func newKASProxyHandler(
 			// terminated promptly rather than waiting for idle timeouts.
 			err := tracker.CloseAll()
 			if err != nil {
-				klog.Error(err, "Failed to close connections", "sessionID", sessionID)
+				klog.Error(err, "Failed to close connections", "session", sessionName)
 			}
-			klog.V(2).InfoS("Session closed", "sessionID", sessionID)
+			klog.V(2).InfoS("Session closed", "session", sessionName)
 		},
 	}, nil
 }
 
 // sessionErrorResponder implements proxy.ErrorResponder with session-specific context
 type sessionErrorResponder struct {
-	sessionID string
+	sessionName string
 }
 
 func (r *sessionErrorResponder) Error(w http.ResponseWriter, req *http.Request, err error) {
-	http.Error(w, fmt.Sprintf("Proxy request failed for session %s: %v", r.sessionID, err), http.StatusBadGateway)
+	http.Error(w, fmt.Sprintf("Proxy request failed for session %s: %v", r.sessionName, err), http.StatusBadGateway)
 }

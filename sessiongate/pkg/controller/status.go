@@ -38,12 +38,27 @@ func NewStatus(status sessiongatev1alpha1.SessionStatus) *Status {
 }
 
 func (s *Status) WithConditions(updated ...*applyv1.ConditionApplyConfiguration) *Status {
+	// Build a map of existing conditions by type for timestamp preservation
+	existingByType := make(map[string]*applyv1.ConditionApplyConfiguration)
+	for i := range s.applyConfig.Conditions {
+		if s.applyConfig.Conditions[i].Type != nil {
+			existingByType[*s.applyConfig.Conditions[i].Type] = &s.applyConfig.Conditions[i]
+		}
+	}
+
 	updatedTypes := sets.New[string]()
 	for _, condition := range updated {
 		if condition.Type == nil {
 			panic(fmt.Errorf("programmer error: must set a type for condition: %#v", condition))
 		}
 		updatedTypes.Insert(*condition.Type)
+
+		// If the condition content hasn't changed, preserve the existing timestamp
+		if existing, ok := existingByType[*condition.Type]; ok {
+			if conditionContentEqual(condition, existing) {
+				condition.LastTransitionTime = existing.LastTransitionTime
+			}
+		}
 	}
 	conditions := make([]*applyv1.ConditionApplyConfiguration, 0, len(updated)+len(s.applyConfig.Conditions))
 	conditions = append(conditions, updated...)
@@ -56,6 +71,24 @@ func (s *Status) WithConditions(updated ...*applyv1.ConditionApplyConfiguration)
 	s.applyConfig.Conditions = nil
 	s.applyConfig.WithConditions(conditions...)
 	return s
+}
+
+// conditionContentEqual returns true if two conditions have the same
+// status, reason, message, and observed generation (ignoring timestamps).
+func conditionContentEqual(a, b *applyv1.ConditionApplyConfiguration) bool {
+	if (a.Status == nil) != (b.Status == nil) || (a.Status != nil && *a.Status != *b.Status) {
+		return false
+	}
+	if (a.Reason == nil) != (b.Reason == nil) || (a.Reason != nil && *a.Reason != *b.Reason) {
+		return false
+	}
+	if (a.Message == nil) != (b.Message == nil) || (a.Message != nil && *a.Message != *b.Message) {
+		return false
+	}
+	if (a.ObservedGeneration == nil) != (b.ObservedGeneration == nil) || (a.ObservedGeneration != nil && *a.ObservedGeneration != *b.ObservedGeneration) {
+		return false
+	}
+	return true
 }
 
 func (s *Status) WithCredentialsSecretRef(ref string) *Status {
@@ -73,30 +106,30 @@ func (s *Status) WithEndpoint(endpoint string) *Status {
 	return s
 }
 
-func (s *Status) WithAuthorizationPolicyRef(ref string) *Status {
-	s.applyConfig.WithAuthorizationPolicyRef(ref)
-	return s
-}
-
 func (s *Status) WithBackendKASURL(url string) *Status {
 	s.applyConfig.WithBackendKASURL(url)
 	return s
 }
 
-// AsApplyConfiguration returns the apply configuration for the status and a boolean indicating if the status needs to be updated
-// to determine if an update is needed, it compares the SessionStatusApplyConfiguration with the provided session status
+// AsApplyConfiguration returns the apply configuration for the status and a boolean indicating
+// if the status needs to be updated. The needsUpdate check is required because the controller
+// uses an action-based reconciliation pattern where each sync loop performs at most one mutating
+// action. The controller must know whether a status update is necessary before deciding to emit
+// it as the action for the current loop iteration, rather than falling through to the next step.
 func (s *Status) AsApplyConfiguration(session *sessiongatev1alpha1.Session) (*sessiongatv1alpha1applyconfigurations.SessionApplyConfiguration, bool) {
-	needsUpdate := s.applyConfig.ExpiresAt != nil && session.Status.ExpiresAt == nil
+	var needsUpdate bool
 
 	// Compare ExpiresAt (only needs to be set once, immutable after that)
+	if s.applyConfig.ExpiresAt != nil {
+		if session.Status.ExpiresAt == nil {
+			needsUpdate = true
+		} else if !s.applyConfig.ExpiresAt.Equal(session.Status.ExpiresAt) {
+			needsUpdate = true
+		}
+	}
 
 	// Compare Endpoint
 	if (s.applyConfig.Endpoint != nil && *s.applyConfig.Endpoint != session.Status.Endpoint) || (s.applyConfig.Endpoint == nil && session.Status.Endpoint != "") {
-		needsUpdate = true
-	}
-
-	// Compare AuthorizationPolicyRef
-	if (s.applyConfig.AuthorizationPolicyRef != nil && *s.applyConfig.AuthorizationPolicyRef != session.Status.AuthorizationPolicyRef) || (s.applyConfig.AuthorizationPolicyRef == nil && session.Status.AuthorizationPolicyRef != "") {
 		needsUpdate = true
 	}
 
@@ -151,7 +184,10 @@ func conditionsEqual(applyConditions []applyv1.ConditionApplyConfiguration, stat
 		if applyCond.Message == nil || *applyCond.Message != statusCond.Message {
 			return false
 		}
-		if applyCond.ObservedGeneration != nil && statusCond.ObservedGeneration != 0 && *applyCond.ObservedGeneration != statusCond.ObservedGeneration {
+		if applyCond.ObservedGeneration == nil && statusCond.ObservedGeneration != 0 {
+			return false
+		}
+		if applyCond.ObservedGeneration != nil && *applyCond.ObservedGeneration != statusCond.ObservedGeneration {
 			return false
 		}
 	}
@@ -167,9 +203,6 @@ func ApplyConfigForStatus(status sessiongatev1alpha1.SessionStatus) *sessiongatv
 	}
 	if status.Endpoint != "" {
 		cfg.WithEndpoint(status.Endpoint)
-	}
-	if status.AuthorizationPolicyRef != "" {
-		cfg.WithAuthorizationPolicyRef(status.AuthorizationPolicyRef)
 	}
 	if status.CredentialsSecretRef != "" {
 		cfg.WithCredentialsSecretRef(status.CredentialsSecretRef)

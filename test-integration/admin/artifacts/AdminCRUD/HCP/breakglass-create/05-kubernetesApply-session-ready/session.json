@@ -6,6 +6,8 @@
     "namespace": "aro-hcp-breakglass-sessions"
   },
   "status": {
+    "endpoint": "https://sessiongate.westus3.hcpsvc.osadev.cloud/admin/v1/breakglass/breakglass-1",
+    "expiresAt": "2025-02-04T13:00:00Z",
     "conditions": [
       {
         "type": "Ready",
