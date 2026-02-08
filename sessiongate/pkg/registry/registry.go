@@ -16,25 +16,9 @@ package registry
 
 import (
 	"k8s.io/client-go/rest"
+
+	sessiongatev1alpha1 "github.com/Azure/ARO-HCP/sessiongate/pkg/apis/sessiongate/v1alpha1"
 )
-
-// SessionOptions contains the configuration for registering a session.
-// This is defined in the controller package to avoid circular dependencies
-// between controller and server packages.
-type SessionOptions struct {
-	SessionID  string
-	ResourceID string
-	RESTConfig *rest.Config
-}
-
-// NewSessionOptions creates a new SessionOptions with the given parameters
-func NewSessionOptions(sessionID string, resourceID string, restConfig *rest.Config) SessionOptions {
-	return SessionOptions{
-		SessionID:  sessionID,
-		ResourceID: resourceID,
-		RESTConfig: restConfig,
-	}
-}
 
 // SessionRegistry defines the interface for registering and unregistering sessions
 // with a session server. This abstraction allows for easier testing by enabling
@@ -42,10 +26,10 @@ func NewSessionOptions(sessionID string, resourceID string, restConfig *rest.Con
 type SessionRegistry interface {
 	// RegisterSession registers a session with the given options and returns
 	// the public endpoint URL for accessing the session.
-	RegisterSession(opts SessionOptions) (string, error)
+	RegisterSession(sessionName, resourceID string, owner sessiongatev1alpha1.Principal, restConfig *rest.Config) (string, error)
 
 	// UnregisterSession removes a session registration by its session ID.
-	UnregisterSession(sessionID string)
+	UnregisterSession(sessionName string)
 
 	// GetSessionEndpoint computes the public endpoint URL for a session ID
 	// without registering it. This is useful for updating status before

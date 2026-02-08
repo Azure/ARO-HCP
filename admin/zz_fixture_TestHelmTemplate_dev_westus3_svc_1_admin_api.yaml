@@ -214,22 +214,6 @@ spec:
       tenantID: '__tenantId__'
   serviceAccountName: 'admin-api'
 ---
-# Source: ARO HCP Admin API/templates/ext-authz.authorizationpolicy.yaml
-apiVersion: security.istio.io/v1beta1
-kind: AuthorizationPolicy
-metadata:
-  name: ext-authz
-  namespace: 'aro-hcp-admin-api'
-spec:
-  action: CUSTOM
-  provider:
-    name: ext-authz
-  rules:
-  - to:
-    - operation:
-        paths: ["/*"]
-        notPaths: ["/metrics"]
----
 # Source: ARO HCP Admin API/templates/admin.fpa.secretproviderclass.yaml
 apiVersion: secrets-store.csi.x-k8s.io/v1
 kind: SecretProviderClass

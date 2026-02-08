@@ -103,7 +103,7 @@ func createSREBreakglassSession(ctx context.Context, httpClient *http.Client, br
 	return location, nil
 }
 
-func waitForSREBreakglassSessionReady(ctx context.Context, httpClient *http.Client, kubeconfigEndpoint string, username string) (*clientcmdapi.Config, error) {
+func waitForSREBreakglassSessionReady(ctx context.Context, httpClient *http.Client, kubeconfigEndpoint string, username string) (*clientcmdapi.Config, time.Time, error) {
 	timeout := time.NewTimer(5 * time.Minute)
 	defer timeout.Stop()
 
@@ -113,26 +113,27 @@ func waitForSREBreakglassSessionReady(ctx context.Context, httpClient *http.Clie
 	for {
 		select {
 		case <-ctx.Done():
-			return nil, ctx.Err()
+			return nil, time.Time{}, ctx.Err()
 		case <-timeout.C:
-			return nil, fmt.Errorf("timeout waiting for session to become ready")
+			return nil, time.Time{}, fmt.Errorf("timeout waiting for session to become ready")
 		case <-ticker.C:
 			req, err := http.NewRequestWithContext(ctx, http.MethodGet, kubeconfigEndpoint, nil)
 			if err != nil {
-				return nil, fmt.Errorf("failed to create request: %w", err)
+				return nil, time.Time{}, fmt.Errorf("failed to create request: %w", err)
 			}
 
 			req.Header.Set("X-Ms-Client-Principal-Name", username)
 
 			resp, err := httpClient.Do(req)
 			if err != nil {
-				return nil, fmt.Errorf("failed to send request: %w", err)
+				return nil, time.Time{}, fmt.Errorf("failed to send request: %w", err)
 			}
 
 			body, err := io.ReadAll(resp.Body)
+			expiresAt := resp.Header.Get("Expires")
 			resp.Body.Close()
 			if err != nil {
-				return nil, fmt.Errorf("failed to read response body: %w", err)
+				return nil, time.Time{}, fmt.Errorf("failed to read response body: %w", err)
 			}
 
 			if resp.StatusCode == http.StatusAccepted {
@@ -141,25 +142,35 @@ func waitForSREBreakglassSessionReady(ctx context.Context, httpClient *http.Clie
 			}
 
 			if resp.StatusCode != http.StatusOK {
-				return nil, fmt.Errorf("expected status 200 OK, got %d: %s", resp.StatusCode, string(body))
+				return nil, time.Time{}, fmt.Errorf("expected status 200 OK, got %d: %s", resp.StatusCode, string(body))
 			}
 
 			// Parse the kubeconfig from the response (YAML format)
 			config, err := clientcmd.Load(body)
 			if err != nil {
-				return nil, fmt.Errorf("failed to load kubeconfig: %w", err)
+				return nil, time.Time{}, fmt.Errorf("failed to load kubeconfig: %w", err)
 			}
-			return config, nil
+
+			// Parse expiration header
+			expiresAtTime, err := time.Parse(time.RFC3339, expiresAt)
+			if err != nil {
+				return nil, time.Time{}, fmt.Errorf("failed to parse expiration header: %w", err)
+			}
+			return config, expiresAtTime, nil
 		}
 	}
 }
 
-func (tc *perItOrDescribeTestContext) SREBreakglassCredentials(ctx context.Context, resourceID string, ttl time.Duration, accessLevel string) (*rest.Config, error) {
+func (tc *perItOrDescribeTestContext) SREBreakglassCredentialsForCurrentUser(ctx context.Context, resourceID string, ttl time.Duration, accessLevel string) (*rest.Config, time.Time, error) {
 	username, err := tc.perBinaryInvocationTestContext.getCurrentAzureIdentityName(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get Azure username: %w", err)
+		return nil, time.Time{}, fmt.Errorf("failed to get Azure username: %w", err)
 	}
 
+	return tc.SREBreakglassCredentials(ctx, resourceID, ttl, accessLevel, username)
+}
+
+func (tc *perItOrDescribeTestContext) SREBreakglassCredentials(ctx context.Context, resourceID string, ttl time.Duration, accessLevel string, username string) (*rest.Config, time.Time, error) {
 	httpClient := &http.Client{
 		Transport: &http.Transport{
 			TLSClientConfig: &tls.Config{
@@ -180,7 +191,7 @@ func (tc *perItOrDescribeTestContext) SREBreakglassCredentials(ctx context.Conte
 	)
 	kubeconfigReqPath, err := createSREBreakglassSession(ctx, httpClient, breakglassEndpoint, username)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create SRE breakglass session: %w", err)
+		return nil, time.Time{}, fmt.Errorf("failed to create SRE breakglass session: %w", err)
 	}
 
 	By(fmt.Sprintf("waiting for SRE breakglass session to be ready at %s", kubeconfigReqPath))
@@ -188,18 +199,18 @@ func (tc *perItOrDescribeTestContext) SREBreakglassCredentials(ctx context.Conte
 		adminAPIEndpoint,
 		kubeconfigReqPath,
 	)
-	kubeconfig, err := waitForSREBreakglassSessionReady(ctx, httpClient, kubeconfigEndpoint, username)
+	kubeconfig, expiresAt, err := waitForSREBreakglassSessionReady(ctx, httpClient, kubeconfigEndpoint, username)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get ready session kubeconfig from %s: %w", kubeconfigReqPath, err)
+		return nil, time.Time{}, fmt.Errorf("failed to get ready session kubeconfig from %s: %w", kubeconfigReqPath, err)
 	}
 
 	restConfig, err := clientcmd.NewDefaultClientConfig(*kubeconfig, &clientcmd.ConfigOverrides{}).ClientConfig()
 	if err != nil {
-		return nil, fmt.Errorf("failed to create rest config from kubeconfig: %w", err)
+		return nil, time.Time{}, fmt.Errorf("failed to create rest config from kubeconfig: %w", err)
 	}
 	// Skip TLS verification for development environments with self-signed certificates
 	if IsDevelopmentEnvironment() {
 		restConfig.Insecure = true
 	}
-	return restConfig, nil
+	return restConfig, expiresAt, nil
 }

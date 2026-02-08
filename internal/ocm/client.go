@@ -269,15 +269,6 @@ func (csc *clusterServiceClient) GetClusterInflightChecks(ctx context.Context, i
 	if !ok {
 		return nil, fmt.Errorf("OCM path is not a cluster: %s", internalID)
 	}
-	provisionShardGetResponse, err := client.ProvisionShard().Get().SendContext(ctx)
-	if err != nil {
-		return nil, utils.TrackError(err)
-	}
-	provisionShard, ok := provisionShardGetResponse.GetBody()
-	if !ok {
-		return nil, fmt.Errorf("empty response body")
-	}
-	provisionShard.AzureShard().AksManagementClusterResourceId()
 	clusterInflightChecksResponse, err := client.InflightChecks().List().SendContext(ctx)
 	if err != nil {
 		return nil, utils.TrackError(err)

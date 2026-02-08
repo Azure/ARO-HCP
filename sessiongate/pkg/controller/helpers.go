@@ -74,7 +74,7 @@ func mgmtClusterResourceIdFromSession(obj interface{}) (string, error) {
 }
 
 // sessionKeyFromOwnershipReference extracts the Session namespace/name workqueue
-// key from resources owned by a Session.
+// key from on-cluster resources owned by a Session via a controller owner reference.
 func sessionKeyFromOwnershipReference(obj interface{}) (cache.ObjectName, error) {
 	var object metav1.Object
 	var ok bool
@@ -94,19 +94,13 @@ func sessionKeyFromOwnershipReference(obj interface{}) (cache.ObjectName, error)
 		}
 		return cache.NewObjectName(object.GetNamespace(), ownerRef.Name), nil
 	}
-	if sessiongateAnnotation, ok := object.GetAnnotations()[AnnotationSessiongate]; ok {
-		namespace, name, err := cache.SplitMetaNamespaceKey(sessiongateAnnotation)
-		if err != nil {
-			return cache.ObjectName{}, fmt.Errorf("failed to split meta namespace key: %w", err)
-		}
-		return cache.NewObjectName(namespace, name), nil
-	}
 	return cache.ObjectName{}, fmt.Errorf("object has no controller owner reference")
 }
 
 // sessionKeyFromOwnershipAnnotation extracts the Session namespace/name workqueue
-// key from resources owned by a Session via an ownership annotation. This is used
-// for cross-cluster resources (like CSRs) where owner references aren't possible.
+// key from resources on a management cluster that are associated with a Session via
+// an ownership annotation. Owner references aren't possible for cross-cluster resources
+// like CSRs and CSRApprovals.
 func sessionKeyFromOwnershipAnnotation(obj interface{}) (cache.ObjectName, error) {
 	var object metav1.Object
 	var ok bool
@@ -127,7 +121,7 @@ func sessionKeyFromOwnershipAnnotation(obj interface{}) (cache.ObjectName, error
 		}
 		return cache.NewObjectName(namespace, name), nil
 	}
-	return cache.ObjectName{}, fmt.Errorf("object has no controller owner reference")
+	return cache.ObjectName{}, fmt.Errorf("object has no sessiongate ownership annotation")
 }
 
 func getDeterministicSuffixForSession(namespace, name string) string {

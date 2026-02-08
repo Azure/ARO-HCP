@@ -1,8 +1,7 @@
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: sessiongate-session-mgmt
-  namespace: '{{ .Release.Namespace }}'
+  name: sessiongate-session-management
 rules:
 - apiGroups:
   - sessiongate.aro-hcp.azure.com

@@ -24,8 +24,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/cobra"
 	"golang.org/x/sync/errgroup"
-	istioclientset "istio.io/client-go/pkg/clientset/versioned"
-	istioinformers "istio.io/client-go/pkg/informers/externalversions"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -62,7 +60,6 @@ type RawControllerOptions struct {
 	LeaderElectionLeaseDuration time.Duration
 	LeaderElectionRenewDeadline time.Duration
 	LeaderElectionRetryPeriod   time.Duration
-	CredentialCheckInterval     time.Duration
 }
 
 func DefaultControllerOptions() *RawControllerOptions {
@@ -71,7 +68,6 @@ func DefaultControllerOptions() *RawControllerOptions {
 		LeaderElectionLeaseDuration: 15 * time.Second,
 		LeaderElectionRenewDeadline: 10 * time.Second,
 		LeaderElectionRetryPeriod:   2 * time.Second,
-		CredentialCheckInterval:     2 * time.Second,
 		Workers:                     5,
 	}
 }
@@ -88,7 +84,6 @@ func (o *RawControllerOptions) BindFlags(cmd *cobra.Command) error {
 	cmd.Flags().DurationVar(&o.LeaderElectionLeaseDuration, "leader-election-lease-duration", o.LeaderElectionLeaseDuration, "Leader election lease duration")
 	cmd.Flags().DurationVar(&o.LeaderElectionRenewDeadline, "leader-election-renew-deadline", o.LeaderElectionRenewDeadline, "Leader election renew deadline")
 	cmd.Flags().DurationVar(&o.LeaderElectionRetryPeriod, "leader-election-retry-period", o.LeaderElectionRetryPeriod, "Leader election retry period")
-	cmd.Flags().DurationVar(&o.CredentialCheckInterval, "credential-check-interval", o.CredentialCheckInterval, "Interval for checking credential minting status when pending (min 500ms, max 30s)")
 	cmd.Flags().AddGoFlagSet(flag.CommandLine)
 
 	return nil
@@ -107,7 +102,6 @@ type completedControllerOptions struct {
 	controlPlaneController     *controller.SessionController
 	dataPlaneController        *controller.DataplaneController
 	sessiongateInformerFactory informers.SharedInformerFactory
-	istioInformerFactory       istioinformers.SharedInformerFactory
 	kubeInformerFactory        kubeinformers.SharedInformerFactory
 	workers                    int
 	leaderElectionCfg          *controller.LeaderElectionConfig
@@ -155,24 +149,10 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 	if err != nil {
 		return nil, fmt.Errorf("failed to create sessiongate clientset: %w", err)
 	}
-	istioClientset, err := istioclientset.NewForConfig(kubeConfig)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create istio clientset: %w", err)
-	}
 	sessiongateInformers := informers.NewSharedInformerFactoryWithOptions(
 		sessiongateClientset,
 		time.Second*300,
 		informers.WithNamespace(o.Namespace),
-	)
-
-	// create Istio informer factory for AuthorizationPolicies
-	istioInformers := istioinformers.NewSharedInformerFactoryWithOptions(
-		istioClientset,
-		time.Second*300,
-		istioinformers.WithNamespace(o.Namespace),
-		istioinformers.WithTweakListOptions(func(opts *metav1.ListOptions) {
-			opts.LabelSelector = controller.ManagedByLabelSelector()
-		}),
 	)
 
 	// create Secret informer for watching session credentials
@@ -226,13 +206,11 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 	controlPlaneCtrl, err := controller.NewSessionController(
 		kubeClientset,
 		sessiongateClientset,
-		istioClientset.SecurityV1beta1(),
 		sessiongateInformers,
-		istioInformers,
 		kubeInformers,
 		controlPlaneEventRecorder,
 		o.Namespace,
-		controller.NewAKSManagementClusterBuilder(azureCredential),
+		controller.NewManagementClusterProviderFactory(azureCredential),
 		srv,
 	)
 	if err != nil {
@@ -256,7 +234,6 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 		completedControllerOptions: &completedControllerOptions{
 			server:                     srv,
 			sessiongateInformerFactory: sessiongateInformers,
-			istioInformerFactory:       istioInformers,
 			kubeInformerFactory:        kubeInformers,
 			controlPlaneController:     controlPlaneCtrl,
 			dataPlaneController:        dataPlaneCtrl,
@@ -298,7 +275,6 @@ func (o *ControllerOptions) Run(ctx context.Context) error {
 
 	// start informers
 	o.sessiongateInformerFactory.Start(ctx.Done())
-	o.istioInformerFactory.Start(ctx.Done())
 	o.kubeInformerFactory.Start(ctx.Done())
 	logger.V(6).Info("Informer factories started")
 

@@ -26,8 +26,10 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
+	"k8s.io/client-go/rest"
 	"k8s.io/klog/v2"
 
+	sessiongatev1alpha1 "github.com/Azure/ARO-HCP/sessiongate/pkg/apis/sessiongate/v1alpha1"
 	"github.com/Azure/ARO-HCP/sessiongate/pkg/registry"
 	"github.com/Azure/ARO-HCP/sessiongate/pkg/server/middleware"
 )
@@ -36,31 +38,30 @@ const (
 	sessionGatePathPrefix = "/sessiongate"
 )
 
-type sessionRegistration struct {
-	session *kasProxySession
-}
-
 // Server manages a shared HTTP server with dynamic session path handlers
 type Server struct {
 	bindAddress    string
 	ingressBaseURL string
 	server         *http.Server
 	mux            *http.ServeMux
-	sessions       map[string]*sessionRegistration
+	sessions       map[string]*kasProxySession
 	mu             sync.RWMutex
 	reg            prometheus.Registerer
 }
 
+// make sure Server implements the Registry interface
+var _ registry.SessionRegistry = &Server{}
+
 // NewServer creates a new shared webserver instance
 // bindAddress is the local bind address (e.g., "localhost:8080" or ":8080")
-// ingressBaseURL is the externally-accessible base URL for session URLs (e.g., "https://sessiongate.example.com")
+// ingressBaseURL is the externally-accessible base URL for session URLs
 func NewServer(bindAddress, ingressBaseURL string, reg prometheus.Registerer) *Server {
 	mux := http.NewServeMux()
 	s := &Server{
 		bindAddress:    bindAddress,
 		ingressBaseURL: ingressBaseURL,
 		mux:            mux,
-		sessions:       make(map[string]*sessionRegistration),
+		sessions:       make(map[string]*kasProxySession),
 		reg:            reg,
 		server: &http.Server{
 			Addr:    bindAddress,
@@ -98,18 +99,15 @@ func (s *Server) BindAddress() string {
 }
 
 // Run starts the HTTP server and blocks until the context is cancelled or an error occurs.
-// It fails fast if the port is unavailable, then serves requests until shutdown.
 func (s *Server) Run(ctx context.Context) error {
-	// Bind the port immediately - fails fast if port unavailable
 	listener, err := net.Listen("tcp", s.bindAddress)
 	if err != nil {
 		return fmt.Errorf("failed to bind to %s: %w", s.bindAddress, err)
 	}
 	defer listener.Close()
 
-	// Register handlers using Go 1.22+ path patterns with logging middleware
 	s.mux.Handle(
-		fmt.Sprintf("%s/{path...}", BuildSessionKASUrlPath("{sessionID}")),
+		fmt.Sprintf("%s/{path...}", BuildSessionKASUrlPath("{session}")),
 		middleware.WithMetrics(
 			"sessiongate_kas_proxy_requests_total",
 			"sessiongate_kas_proxy_requests_duration_seconds",
@@ -149,62 +147,62 @@ func (s *Server) Run(ctx context.Context) error {
 // If the session already exists, this is a no-op (returns existing endpoint).
 // Note: Sessions are immutable - we don't support updating REST config for existing sessions.
 // To update credentials, the session must be unregistered and re-registered.
-func (s *Server) RegisterSession(opts registry.SessionOptions) (string, error) {
+func (s *Server) RegisterSession(sessionName, resourceID string, owner sessiongatev1alpha1.Principal, restConfig *rest.Config) (string, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	_, exists := s.sessions[opts.SessionID]
+	logger := klog.FromContext(context.Background()).WithValues("sessionName", sessionName, "resourceID", resourceID, "identity", owner.Name)
+
+	_, exists := s.sessions[sessionName]
 	if !exists {
-		klog.V(2).Info("Registering new session", "sessionID", opts.SessionID, "resourceID", opts.ResourceID)
-		session, err := newKASProxyHandler(context.Background(), opts.RESTConfig, opts.SessionID, BuildSessionKASUrlPath(opts.SessionID))
+		logger.V(2).Info("Registering new session")
+		session, err := newKASProxyHandler(context.Background(), restConfig, sessionName, owner, BuildSessionKASUrlPath(sessionName))
 		if err != nil {
-			klog.Error(err, "Failed to create KAS proxy handler", "sessionID", opts.SessionID)
+			logger.Error(err, "Failed to create KAS proxy handler")
 			return "", fmt.Errorf("failed to create KAS proxy handler: %w", err)
 		}
-		s.sessions[opts.SessionID] = &sessionRegistration{
-			session: session,
-		}
+		s.sessions[sessionName] = session
 	} else {
-		klog.V(4).Info("Session already registered, returning existing endpoint", "sessionID", opts.SessionID)
+		logger.V(4).Info("Session already registered, returning existing endpoint")
 	}
 
-	endpoint := s.GetSessionEndpoint(opts.SessionID)
+	endpoint := s.GetSessionEndpoint(sessionName)
 	return endpoint, nil
 }
 
 // GetSessionEndpoint computes the public endpoint URL for a given session ID.
-func (s *Server) GetSessionEndpoint(sessionID string) string {
-	return fmt.Sprintf("%s%s", s.ingressBaseURL, BuildSessionKASUrlPath(sessionID))
+func (s *Server) GetSessionEndpoint(sessionName string) string {
+	return fmt.Sprintf("%s%s", s.ingressBaseURL, BuildSessionKASUrlPath(sessionName))
 }
 
 // UnregisterSession removes session data and forcibly stops all backend interactions.
 // This is a hard stop - all in-flight requests will be cancelled, WebSocket/SPDY upgrades
 // will fail, and idle connections will be closed.
-func (s *Server) UnregisterSession(sessionID string) {
+func (s *Server) UnregisterSession(sessionName string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if reg, exists := s.sessions[sessionID]; exists {
-		klog.V(2).InfoS("Unregister session", "sessionID", sessionID)
-		reg.session.Close()
+	if session, exists := s.sessions[sessionName]; exists {
+		klog.V(2).InfoS("Unregister session", "session", sessionName)
+		session.Close()
 
-		delete(s.sessions, sessionID)
+		delete(s.sessions, sessionName)
 	}
 }
 
-// kasProxyHandler handles /session/{sessionID}/kas/* requests
+// kasProxyHandler handles /session/{session}/kas/* requests
 func (s *Server) kasProxyHandler(w http.ResponseWriter, r *http.Request) {
-	sessionID := r.PathValue("sessionID")
+	sessionName := r.PathValue("session")
 
 	s.mu.RLock()
-	info, exists := s.sessions[sessionID]
+	session, exists := s.sessions[sessionName]
 	s.mu.RUnlock()
 
 	if !exists {
 		http.Error(w, "Session not found", http.StatusNotFound)
 		return
 	}
-	info.session.ServeHTTP(w, r)
+	session.ServeHTTP(w, r)
 }
 
 // healthzHandler returns 200 OK if the server is running

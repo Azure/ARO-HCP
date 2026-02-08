@@ -1,3 +1,4 @@
+{{- if .Values.image.digest }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -24,7 +25,7 @@ spec:
         args:
         - controller
         - "--bind-address=:{{ .Values.service.port }}"
-        - "--ingress-base-url=http://{{ .Values.service.name }}.{{ .Values.namespace }}.svc.cluster.local:{{ .Values.service.port }}"
+        - "--ingress-base-url=https://{{ .Values.httpRoute.host }}"
         - "-v={{ .Values.logLevel }}"
         - "--leader-election-lease-duration={{ .Values.leaderElection.leaseDuration }}"
         - "--leader-election-renew-deadline={{ .Values.leaderElection.renewDeadline }}"
@@ -62,12 +63,9 @@ spec:
           initialDelaySeconds: 5
           periodSeconds: 10
         resources:
-          limits:
+          requests:
             cpu: 500m
             memory: 128Mi
-          requests:
-            cpu: 10m
-            memory: 64Mi
         volumeMounts: []
       volumes: []
       serviceAccountName: {{ .Values.serviceAccount.name }}
@@ -84,3 +82,4 @@ spec:
       tolerations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+{{- end }}

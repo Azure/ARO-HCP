@@ -1,3 +1,17 @@
+---
+# Source: sessiongate/templates/serviceaccount.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  labels:
+    app.kubernetes.io/name: sessiongate
+  annotations:
+    azure.workload.identity/client-id: '__sessiongateMsiClientId__'
+    azure.workload.identity/tenant-id: '__tenantId__'
+  name: sessiongate
+  namespace: sessiongate
+---
+# Source: sessiongate/templates/sessiongate.aro-hcp.azure.com_sessions.yaml
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
@@ -252,3 +266,447 @@ spec:
     storage: true
     subresources:
       status: {}
+---
+# Source: sessiongate/templates/sessionmgmt.clusterrole.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: sessiongate-session-management
+rules:
+- apiGroups:
+  - sessiongate.aro-hcp.azure.com
+  resources:
+  - sessions
+  verbs:
+  - create
+  - get
+  - list
+  - watch
+- apiGroups:
+  - sessiongate.aro-hcp.azure.com
+  resources:
+  - sessions/status
+  verbs:
+  - get
+  - list
+  - watch
+---
+# Source: sessiongate/templates/controller_role.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  labels:
+    app.kubernetes.io/name: sessiongate
+  name: sessiongate-controller
+  namespace: sessiongate
+rules:
+- apiGroups:
+  - sessiongate.aro-hcp.azure.com
+  resources:
+  - sessions
+  verbs:
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - sessiongate.aro-hcp.azure.com
+  resources:
+  - sessions/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - sessiongate.aro-hcp.azure.com
+  resources:
+  - sessions/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - ""
+  - events.k8s.io
+  resources:
+  - events
+  verbs:
+  - create
+  - patch
+  - update
+- apiGroups:
+  - ""
+  resources:
+  - secrets
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - security.istio.io
+  resources:
+  - authorizationpolicies
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+---
+# Source: sessiongate/templates/leader_election_role.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  labels:
+    app.kubernetes.io/name: sessiongate
+  name: sessiongate-controller-leader-election
+  namespace: sessiongate
+rules:
+- apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - create
+  - patch
+---
+# Source: sessiongate/templates/controller_role_binding.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  labels:
+    app.kubernetes.io/name: sessiongate
+  name: sessiongate-controller-binding
+  namespace: "sessiongate"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: sessiongate-controller
+subjects:
+- kind: ServiceAccount
+  name: sessiongate
+  namespace: sessiongate
+---
+# Source: sessiongate/templates/leader_election_role_binding.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  labels:
+    app.kubernetes.io/name: sessiongate
+  name: sessiongate-controller-leader-election-binding
+  namespace: sessiongate
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: sessiongate-controller-leader-election
+subjects:
+- kind: ServiceAccount
+  name: sessiongate
+  namespace: sessiongate
+---
+# Source: sessiongate/templates/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: sessiongate
+  namespace: 'sessiongate'
+  labels:
+    app.kubernetes.io/name: "sessiongate"
+    component: "session-ingress"
+spec:
+  selector:
+    app.kubernetes.io/name: sessiongate
+  ports:
+  - port: 8080
+    targetPort: 8080
+    protocol: TCP
+---
+# Source: sessiongate/templates/deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sessiongate
+  namespace: sessiongate
+  labels:
+    app.kubernetes.io/name: sessiongate
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: sessiongate
+  replicas: 2
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: sessiongate
+        azure.workload.identity/use: "true"
+    spec:
+      securityContext:
+        runAsNonRoot: true
+      containers:
+      - command:
+        - "/sessiongate"
+        args:
+        - controller
+        - "--bind-address=:8080"
+        - "--ingress-base-url=https://sessiongate.westus3.hcpsvc.osadev.cloud"
+        - "-v=2"
+        - "--leader-election-lease-duration=15s"
+        - "--leader-election-renew-deadline=10s"
+        - "--leader-election-retry-period=2s"
+        image: "arohcpsvcdev.azurecr.io/arohcpsessiongate@sha256:1234567890"
+        name: sessiongate-controller
+        env:
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        ports:
+        - containerPort: 8080
+          protocol: TCP
+          name: sessions
+        securityContext:
+          runAsNonRoot: true
+          seccompProfile:
+            type: RuntimeDefault
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - "ALL"
+          readOnlyRootFilesystem: true
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8080
+          initialDelaySeconds: 15
+          periodSeconds: 20
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        resources:
+          requests:
+            cpu: 500m
+            memory: 128Mi
+        volumeMounts: []
+      volumes: []
+      serviceAccountName: sessiongate
+      terminationGracePeriodSeconds: 10
+      nodeSelector:
+---
+# Source: sessiongate/templates/ingress.secret-refresher.yaml
+################################
+#
+# This keeps the certificate secret fresh because the secret is mounted from the keyVault (via the SecretProviderClass) and
+# if the certificate changes in the keyvault this will trigger a refresh of the kubernetes secret.
+#
+# Note: the istio plugin doesn't support using the SecretProviderClass directly. When it does this can be removed.
+#
+################################
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sessiongate-certificate-refresher
+  namespace: aks-istio-ingress
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: sessiongate-certificate-refresher
+  template:
+    metadata:
+      labels:
+        app: sessiongate-certificate-refresher
+    spec:
+      containers:
+      - command:
+        - "/bin/sleep"
+        - "infinity"
+        image: mcr.microsoft.com/cbl-mariner/busybox:1.35
+        name: init-container-msg-container-init
+        volumeMounts:
+        - name: secrets-store01-inline
+          mountPath: "/mnt/secrets-store"
+          readOnly: true
+      volumes:
+      - name: secrets-store01-inline
+        csi:
+          driver: secrets-store.csi.k8s.io
+          readOnly: true
+          volumeAttributes:
+            secretProviderClass: "sessiongate-scp"
+---
+# Source: sessiongate/templates/acrpullbinding.yaml
+apiVersion: acrpull.microsoft.com/v1beta2
+kind: AcrPullBinding
+metadata:
+  name: pull-binding
+  namespace: "sessiongate"
+spec:
+  acr:
+    environment: PublicCloud
+    server: 'arohcpsvcdev.azurecr.io'
+    scope: 'repository:arohcpsessiongate:pull'
+  auth:
+    workloadIdentity:
+      serviceAccountRef: 'sessiongate'
+      clientID: '__imagePullerMsiClientId__'
+      tenantID: '__tenantId__'
+  serviceAccountName: 'sessiongate'
+---
+# Source: sessiongate/templates/allow-ingress.authorizationpolicy.yaml
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-istio-ingress
+  namespace: 'sessiongate'
+spec:
+  action: ALLOW
+  rules:
+  - from:
+    - source:
+        namespaces: ["aks-istio-ingress"]
+    to:
+    - operation:
+        methods: ["GET", "PUT", "POST", "PATCH", "DELETE"]
+        ports:
+        - "8080"
+---
+# Source: sessiongate/templates/allow-metrics.authorizationpolicy.yaml
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-metrics-scraping
+  namespace: 'sessiongate'
+spec:
+  action: "ALLOW"
+  rules:
+  - to:
+    - operation:
+        paths: ["/metrics"]
+        methods: ["GET"]
+        ports: ["8080"]
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: "sessiongate"
+      component: "session-ingress"
+---
+# Source: sessiongate/templates/allow-nothing.authorizationpolicy.yaml
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-nothing
+  namespace: 'sessiongate'
+spec: {}
+---
+# Source: sessiongate/templates/authorizationpolicy.yaml
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-nothing
+  namespace: 'sessiongate'
+spec: {}
+---
+# Source: sessiongate/templates/sessiongate.httproute.yaml
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: sessiongate
+  namespace: sessiongate
+spec:
+  parentRefs:
+  - name: ops-ingress-gateway
+    namespace: aks-istio-ingress
+    sectionName: sessiongate-https
+  hostnames:
+  - "sessiongate.westus3.hcpsvc.osadev.cloud"
+  rules:
+  - matches:
+    - path:
+        type: PathPrefix
+        value: /
+    filters:
+    - type: RequestHeaderModifier
+      requestHeaderModifier:
+        add:
+        - name: mise-inbound-policies-to-filter
+          value: "Session Gate"
+    backendRefs:
+    - name: sessiongate
+      port: 8080
+---
+# Source: sessiongate/templates/requestauthentication.yaml
+apiVersion: security.istio.io/v1beta1
+kind: RequestAuthentication
+metadata:
+  name: sessiongate-request-auth
+  namespace: 'sessiongate'
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: sessiongate
+  jwtRules:
+  - issuer: "https://sts.windows.net/64dc69e4-d083-49fc-9569-ebece1dd1408/"
+    jwksUri: "https://sts.windows.net/64dc69e4-d083-49fc-9569-ebece1dd1408/discovery/v2.0/keys"
+    audiences:
+    - "6dae42f8-4368-4678-94ff-3960e28e3630"
+    outputClaimToHeaders:
+    - header: "X-JWT-Claim-AppId"
+      claim: "appId"
+    - header: "X-JWT-Claim-Upn"
+      claim: "upn"
+---
+# Source: sessiongate/templates/ingress.secretproviderclass.yaml
+################################
+#
+# The addition of the secretObjects is to facilitate the istio plugin as it can't yet consume  the SecretProviderClass directly.
+# When it does this can be simplified and the secret.refresher removed.
+#
+################################
+apiVersion: secrets-store.csi.x-k8s.io/v1
+kind: SecretProviderClass
+metadata:
+  name: sessiongate-scp
+  namespace: aks-istio-ingress
+spec:
+  parameters:
+    usePodIdentity: "false"
+    useVMManagedIdentity: "true"
+    userAssignedIdentityID: '__csiSecretStoreClientId__'
+    keyvaultName: 'aro-hcp-dev-svc-kv'
+    objects: |-
+      array:
+        - |
+          objectName: 'sessiongate-cert-dev-usw3'
+          objectType: secret
+          objectAlias: sessiongate-cert
+    tenantId: '__tenantId__'
+  provider: azure
+  secretObjects:
+  - secretName: sessiongate-credential
+    type: kubernetes.io/tls
+    data:
+    - objectName: sessiongate-cert
+      key: tls.crt
+    - objectName: sessiongate-cert
+      key: tls.key
+

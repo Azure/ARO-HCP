@@ -12,3 +12,8 @@ spec:
     jwksUri: "{{ .Values.auth.authority }}/discovery/v2.0/keys"
     audiences:
     - "{{ .Values.auth.audience }}"
+    outputClaimToHeaders:
+    - header: "X-JWT-Claim-AppId"
+      claim: "appId"
+    - header: "X-JWT-Claim-Upn"
+      claim: "upn"

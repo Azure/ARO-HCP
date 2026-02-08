@@ -16,11 +16,12 @@ package controller
 
 import (
 	"fmt"
+	"time"
 )
 
 const (
 
-	// FieldManager distinguishes this controller from other things writing to API objects
+	// ControllerAgentName distinguishes this controller from other things writing to API objects
 	ControllerAgentName = "sessiongate-controller"
 
 	// LabelManagedBy identifies resources managed by the sessiongate controller
@@ -32,6 +33,10 @@ const (
 
 	// RSAKeySize is the size in bits for RSA private keys generated for session credentials
 	RSAKeySize = 2048
+
+	// MCProviderCacheSyncTimeout is the maximum time to wait for management cluster
+	// informer caches to sync during provider registration
+	MCProviderCacheSyncTimeout = 30 * time.Second
 )
 
 // ManagedByLabelSelector returns a label selector string for resources managed by this controller

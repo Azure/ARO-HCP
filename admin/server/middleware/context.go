@@ -17,6 +17,8 @@ package middleware
 import (
 	"context"
 	"fmt"
+
+	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 // contextKey is an unexported type used to embed content in the request context, so users must acquire the value with our getters.
@@ -76,6 +78,7 @@ func UrlPathValueFromContext(ctx context.Context) (string, error) {
 }
 
 func ContextWithClientPrincipalName(ctx context.Context, clientPrincipalName string) context.Context {
+	ctx = utils.ContextWithLogger(ctx, utils.LoggerFromContext(ctx).WithValues("clientPrincipalName", clientPrincipalName))
 	return context.WithValue(ctx, contextKeyClientPrincipalName, clientPrincipalName)
 }
 
