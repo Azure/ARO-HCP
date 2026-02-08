@@ -125,20 +125,20 @@ func runHelmStep(id graph.Identifier, step *types.HelmStep, ctx context.Context,
 	}
 	if err := os.WriteFile(values, processed, 0644); err != nil {
 		return fmt.Errorf("failed to write file %s: %w", values, err)
-    }
+	}
 
 	// Changes to support OCI Helm Images
 	var chartDir string
 
 	// If it is an OCI URL, we must pull it manually first.
-    if strings.HasPrefix(step.ChartDir, "oci://") {
-        cleanURL := strings.TrimSpace(step.ChartDir)
+	if strings.HasPrefix(step.ChartDir, "oci://") {
+		cleanURL := strings.TrimSpace(step.ChartDir)
 
-        args := []string{"pull", cleanURL}
-        args = append(args, "--destination", tmpdir, "--untar")
+		args := []string{"pull", cleanURL}
+		args = append(args, "--destination", tmpdir, "--untar")
 
-        cmd := exec.CommandContext(ctx, "helm", args...)
-        cmd.Env = os.Environ()
+		cmd := exec.CommandContext(ctx, "helm", args...)
+		cmd.Env = os.Environ()
 
 		logger.Info("Pulling OCI chart", "command", cmd.String())
 		if out, err := cmd.CombinedOutput(); err != nil {
