@@ -19,6 +19,7 @@ import (
 	"context"
 	"fmt"
 	"io/fs"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -133,6 +134,40 @@ func runHelmStep(id graph.Identifier, step *types.HelmStep, ctx context.Context,
 	// If it is an OCI URL, we must pull it manually first.
 	if strings.HasPrefix(step.ChartDir, "oci://") {
 		cleanURL := strings.TrimSpace(step.ChartDir)
+
+		parsedURL, err := url.Parse(cleanURL)
+		if err != nil {
+			return fmt.Errorf("failed to parse OCI URL: %w", err)
+		}
+		registryHost := parsedURL.Host
+
+		logger.Info("Authenticating Helm to ACR", "registry", registryHost)
+
+		// Command: az acr login --name <host> --expose-token --output tsv --query accessToken
+		getTokenCmd := exec.CommandContext(ctx, "az", "acr", "login",
+			"--name", registryHost,
+			"--expose-token",
+			"--output", "tsv",
+			"--query", "accessToken")
+
+		tokenOut, err := getTokenCmd.Output()
+		if err != nil {
+			// Log the error but maybe try continuing? (In case we are already logged in)
+			// But usually, this is fatal.
+			return fmt.Errorf("failed to get ACR token: %w", err)
+		}
+		accessToken := strings.TrimSpace(string(tokenOut))
+
+		// Command: helm registry login <host> --username <uuid> --password-stdin
+		loginCmd := exec.CommandContext(ctx, "helm", "registry", "login",
+			registryHost,
+			"--username", "00000000-0000-0000-0000-000000000000",
+			"--password-stdin")
+		loginCmd.Stdin = strings.NewReader(accessToken)
+
+		if out, err := loginCmd.CombinedOutput(); err != nil {
+			return fmt.Errorf("failed to login to helm registry: %s: %w", string(out), err)
+		}
 
 		args := []string{"pull", cleanURL}
 		args = append(args, "--destination", tmpdir, "--untar")
