@@ -1,0 +1,21 @@
+{{- if and .Values.deployDbDebugJobs (not .Values.useAzureDb) }}
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-db-debug-executor-to-database
+  namespace: '{{ .Release.Namespace }}'
+spec:
+  action: "ALLOW"
+  rules:
+  - from:
+    - source:
+        principals:
+        - "cluster.local/ns/{{ .Release.Namespace }}/sa/cs-db-debug-executor"
+    to:
+    - operation:
+        ports:
+        - "5432"
+  selector:
+    matchLabels:
+      name: "ocm-cs-db"
+{{- end }}

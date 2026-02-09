@@ -107,6 +107,16 @@ deploy-cs-debug-jobs:
 	  --set imageDigest=${IMAGE_DIGEST} \
 	  --set deployDebugJobs=${DEPLOY_DEBUG_JOBS}
 
+deploy-cs-db-debug-jobs:
+	DB_HOST=$$(if [ "${USE_AZURE_DB}" = "true" ]; then az postgres flexible-server show -g ${REGIONAL_RESOURCEGROUP} -n ${DATABASE_SERVER_NAME} --query fullyQualifiedDomainName -o tsv; else echo "ocm-cs-db"; fi) && \
+	OVERRIDES=$$(if [ "${USE_AZURE_DB}" = "true" ]; then echo "azuredb.values.yaml"; else echo "containerdb.values.yaml"; fi) && \
+	./hack/helm.sh cs-db-debug-jobs helm-charts/cs-db-debug-jobs ${NAMESPACE} \
+	  -f helm-charts/cluster-service/$${OVERRIDES} \
+	  --set imageDigest=${IMAGE_DIGEST} \
+	  --set deployDbDebugJobs=${DEPLOY_DB_DEBUG_JOBS} \
+	  --set databaseHost=$${DB_HOST} \
+	  --set useAzureDb=${USE_AZURE_DB}
+
 deploy-pr-env-deps:
 	AZURE_CS_MI_CLIENT_ID=$(shell az identity show -g ${RESOURCEGROUP} -n clusters-service --query clientId -o tsv) && \
 	oc process --local -f cspr/cluster-service-namespace.yaml \

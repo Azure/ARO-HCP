@@ -1051,6 +1051,10 @@
           "type": "boolean",
           "description": "If true, debug jobs will be deployed to the cluster. The jobs will be used to debug the CS service."
         },
+        "deployDbDebugJobs": {
+          "type": "boolean",
+          "description": "If true, database debug jobs will be deployed to the cluster. The jobs will be used to debug the CS database."
+        },
         "environment": {
           "type": "string",
           "minLength": 1,
