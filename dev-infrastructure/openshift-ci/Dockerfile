@@ -13,6 +13,11 @@ RUN mkdir -p /usr/local/bin
 ENV PATH="/usr/local/bin:/usr/bin:$PATH"
 RUN az bicep install && mv /root/.azure/bin/bicep /usr/local/bin
 RUN az aks install-cli --install-location /usr/local/bin/kubectl --kubelogin-install-location /usr/local/bin/kubelogin
+ENV HELM_VERSION="v3.16.3"
+RUN curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 && \
+    chmod 700 get_helm.sh && \
+    ./get_helm.sh --version ${HELM_VERSION} --no-sudo && \
+    rm get_helm.sh
 RUN curl -LO "https://mirror.openshift.com/pub/openshift-v4/clients/ocp/stable/openshift-client-linux.tar.gz" && \
     tar -xzf openshift-client-linux.tar.gz -C /usr/local/bin oc && \
     rm openshift-client-linux.tar.gz && \
