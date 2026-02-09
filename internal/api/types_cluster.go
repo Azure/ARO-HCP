@@ -50,6 +50,7 @@ type HCPOpenShiftClusterCustomerProperties struct {
 	NodeDrainTimeoutMinutes int32                       `json:"nodeDrainTimeoutMinutes,omitempty"`
 	Etcd                    EtcdProfile                 `json:"etcd,omitempty"`
 	ClusterImageRegistry    ClusterImageRegistryProfile `json:"clusterImageRegistry,omitempty"`
+	FipsEnabled             bool                        `json:"fipsEnabled,omitempty"`
 }
 
 // HCPOpenShiftClusterCustomerProperties represents the property bag of a HCPOpenShiftCluster resource.
