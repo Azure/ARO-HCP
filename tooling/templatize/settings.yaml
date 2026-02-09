@@ -36,7 +36,7 @@ environments:
     cloud: dev
     ev2Cloud: public
     cxStamp: 1
-    regionShortSuffix: "j${BUILD_ID: -3}"
+    regionShortOverride: "j${BUILD_ID: -7}"
 - name: perf
   description: |
     Used for performance testing.
