@@ -183,7 +183,9 @@ func runHelmStep(id graph.Identifier, step *types.HelmStep, ctx context.Context,
 		logger.Info("Pulling OCI chart", "url", cleanURL, "length", len(cleanURL))
 
 		if out, err := cmd.CombinedOutput(); err != nil {
-			return fmt.Errorf("failed to pull OCI chart: %s: %w", string(out), err)
+			// CHANGE THIS LINE:
+			// %q prints the string in quotes, escaping any hidden characters (like \n or \r)
+			return fmt.Errorf("failed to pull OCI chart %q: output=%s: %w", cleanURL, string(out), err)
 		}
 
 		// Find the directory helm created
