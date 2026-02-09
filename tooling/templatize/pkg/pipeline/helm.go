@@ -137,14 +137,25 @@ func runHelmStep(id graph.Identifier, step *types.HelmStep, ctx context.Context,
 		cleanURL := strings.TrimSpace(step.ChartDir)
 		cleanURL = strings.Trim(cleanURL, "\"'")
 
+		// 1. Resolve Digest to Tag
+		// This gives us "oci://registry/repo:tag"
 		safeURL, err := resolveTagFromDigest(ctx, logger, cleanURL)
 		if err != nil {
 			return fmt.Errorf("failed to resolve tag: %w", err)
 		}
-		cleanURL = safeURL
 
-		// 2. Parse Registry Host
-		parsedURL, err := url.Parse(cleanURL)
+		// 2. Split URL for explicit "--version" flag usage
+		// We separate "oci://registry/repo" from "tag"
+		lastColon := strings.LastIndex(safeURL, ":")
+		if lastColon == -1 {
+			return fmt.Errorf("resolved URL %q is missing a version tag separator ':'", safeURL)
+		}
+
+		repoURL := safeURL[:lastColon]      // e.g. oci://arohcpsvcdev.azurecr.io/helm/mce
+		versionTag := safeURL[lastColon+1:] // e.g. 2.10.2-370
+
+		// 3. Parse Registry Host (from the Repo URL)
+		parsedURL, err := url.Parse(repoURL)
 		if err != nil {
 			return fmt.Errorf("failed to parse OCI URL: %w", err)
 		}
@@ -179,17 +190,18 @@ func runHelmStep(id graph.Identifier, step *types.HelmStep, ctx context.Context,
 			return fmt.Errorf("failed to login to helm registry: %s: %w", string(out), err)
 		}
 
-		// 4. Pull the Chart
-		args := []string{"pull", cleanURL, "--destination", tmpdir, "--untar"}
+		// 4. Pull the Chart (Test Modification)
+		// Instead of pulling "oci://...:tag", we pull "oci://..." and pass "--version tag"
+		args := []string{"pull", repoURL, "--version", versionTag, "--destination", tmpdir, "--untar"}
 
 		cmd := exec.CommandContext(ctx, "helm", args...)
 		cmd.Env = os.Environ()
 
-		// Debug Log: Print the exact string we are passing to prove it's clean
-		logger.Info("Pulling OCI chart", "url", cleanURL, "length", len(cleanURL))
+		// Debug Log: Print the split values to confirm we are testing correctly
+		logger.Info("Pulling OCI chart with explicit version flag", "repo", repoURL, "version", versionTag)
 
 		if out, err := cmd.CombinedOutput(); err != nil {
-			return fmt.Errorf("failed to pull OCI chart %q: output=%s: %w", cleanURL, string(out), err)
+			return fmt.Errorf("failed to pull OCI chart %q (version %s): output=%s: %w", repoURL, versionTag, string(out), err)
 		}
 
 		// Find the directory helm created
