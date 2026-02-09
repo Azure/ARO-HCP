@@ -34,7 +34,6 @@ require (
 	github.com/fxamacker/cbor/v2 v2.9.0 // indirect
 	github.com/go-json-experiment/json v0.0.0-20250517221953-25912455fbc8 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
-	github.com/gofrs/uuid v4.4.0+incompatible // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/google/uuid v1.6.0 // indirect

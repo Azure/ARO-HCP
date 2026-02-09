@@ -19,7 +19,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/gofrs/uuid"
+	"github.com/google/uuid"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -46,9 +46,7 @@ var (
 )
 
 func init() {
-	if err := namespaceUUID.Parse("bf1ee0a1-0147-41ed-a083-d3cbbf7bea99"); err != nil {
-		panic(err)
-	}
+	namespaceUUID = Must(uuid.Parse("bf1ee0a1-0147-41ed-a083-d3cbbf7bea99"))
 }
 
 type CosmosPersistable interface {
@@ -124,7 +122,7 @@ func ResourceIDStringToCosmosID(resourceID string) (string, error) {
 	}
 
 	// we predictably hash the values because there are length limitations on Azure.
-	return uuid.NewV5(namespaceUUID, strings.ToLower(resourceID)).String(), nil
+	return uuid.NewSHA1(namespaceUUID, []byte(strings.ToLower(resourceID))).String(), nil
 }
 
 // DeepCopyResourceID creates a true deep copy of an azcorearm.ResourceID by
