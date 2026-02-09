@@ -137,6 +137,12 @@ func runHelmStep(id graph.Identifier, step *types.HelmStep, ctx context.Context,
 		cleanURL := strings.TrimSpace(step.ChartDir)
 		cleanURL = strings.Trim(cleanURL, "\"'")
 
+		safeURL, err := resolveTagFromDigest(ctx, logger, cleanURL)
+		if err != nil {
+			return fmt.Errorf("failed to resolve tag: %w", err)
+		}
+		cleanURL = safeURL
+
 		// 2. Parse Registry Host
 		parsedURL, err := url.Parse(cleanURL)
 		if err != nil {
@@ -181,13 +187,8 @@ func runHelmStep(id graph.Identifier, step *types.HelmStep, ctx context.Context,
 
 		// Debug Log: Print the exact string we are passing to prove it's clean
 		logger.Info("Pulling OCI chart", "url", cleanURL, "length", len(cleanURL))
-		versionCmd := exec.CommandContext(ctx, "helm", "version")
-		out, _ := versionCmd.CombinedOutput()
-		logger.Info("Helm Version in CI", "version", string(out))
 
 		if out, err := cmd.CombinedOutput(); err != nil {
-			// CHANGE THIS LINE:
-			// %q prints the string in quotes, escaping any hidden characters (like \n or \r)
 			return fmt.Errorf("failed to pull OCI chart %q: output=%s: %w", cleanURL, string(out), err)
 		}
 
@@ -284,6 +285,48 @@ func runHelmStep(id graph.Identifier, step *types.HelmStep, ctx context.Context,
 	}
 
 	return commit()
+}
+
+// function to work around helm oci:// bug
+func resolveTagFromDigest(ctx context.Context, logger logr.Logger, fullURL string) (string, error) {
+	// 1. Check if we actually have a digest
+	if !strings.Contains(fullURL, "@sha256:") {
+		return fullURL, nil // It's already a tag or simple path
+	}
+
+	imageRef := strings.TrimPrefix(fullURL, "oci://")
+
+	logger.Info("Attempting to resolve Digest to Tag via AZ CLI...", "imageRef", imageRef)
+
+	// 3. Query ACR for the Tag
+	// Command: az acr manifest show-metadata <imageRef> --query "tags[0]" -o tsv
+	cmd := exec.CommandContext(ctx, "az", "acr", "manifest", "show-metadata",
+		imageRef,
+		"--query", "tags[0]", // Just grab the first tag
+		"--output", "tsv",
+	)
+	cmd.Env = os.Environ() // Important for MSI auth
+	outBytes, err := cmd.Output()
+	if err != nil {
+		// If it fails, try to capture stderr from the error object for debugging
+		var stderrMsg string
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			stderrMsg = string(exitErr.Stderr)
+		}
+		return "", fmt.Errorf("failed to resolve tag: %w (stderr: %s)", err, stderrMsg)
+	}
+
+	tag := strings.TrimSpace(string(outBytes))
+	if tag == "" {
+		return "", fmt.Errorf("digest found but it has no tags (cannot use workaround)")
+	}
+
+	parts := strings.Split(fullURL, "@")
+	baseURL := parts[0] // oci://reg/repo
+
+	newURL := fmt.Sprintf("%s:%s", baseURL, tag)
+
+	return newURL, nil
 }
 
 type helmInputs struct {
