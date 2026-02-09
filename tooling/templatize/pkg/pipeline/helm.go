@@ -181,6 +181,9 @@ func runHelmStep(id graph.Identifier, step *types.HelmStep, ctx context.Context,
 
 		// Debug Log: Print the exact string we are passing to prove it's clean
 		logger.Info("Pulling OCI chart", "url", cleanURL, "length", len(cleanURL))
+		versionCmd := exec.CommandContext(ctx, "helm", "version")
+		out, _ := versionCmd.CombinedOutput()
+		logger.Info("Helm Version in CI", "version", string(out))
 
 		if out, err := cmd.CombinedOutput(); err != nil {
 			// CHANGE THIS LINE:
