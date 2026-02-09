@@ -133,8 +133,11 @@ func runHelmStep(id graph.Identifier, step *types.HelmStep, ctx context.Context,
 
 	// If it is an OCI URL, we must pull it manually first.
 	if strings.HasPrefix(step.ChartDir, "oci://") {
-		cleanURL := strings.TrimSpace(step.ChartDir)
 
+		cleanURL := strings.TrimSpace(step.ChartDir)
+		cleanURL = strings.Trim(cleanURL, "\"'")
+
+		// 2. Parse Registry Host
 		parsedURL, err := url.Parse(cleanURL)
 		if err != nil {
 			return fmt.Errorf("failed to parse OCI URL: %w", err)
@@ -143,39 +146,42 @@ func runHelmStep(id graph.Identifier, step *types.HelmStep, ctx context.Context,
 
 		logger.Info("Authenticating Helm to ACR", "registry", registryHost)
 
-		// Command: az acr login --name <host> --expose-token --output tsv --query accessToken
+		// Command: az acr login --name <host> --expose-token ...
 		getTokenCmd := exec.CommandContext(ctx, "az", "acr", "login",
 			"--name", registryHost,
 			"--expose-token",
 			"--output", "tsv",
 			"--query", "accessToken")
 
+		getTokenCmd.Env = os.Environ()
+
 		tokenOut, err := getTokenCmd.Output()
 		if err != nil {
-			// Log the error but maybe try continuing? (In case we are already logged in)
-			// But usually, this is fatal.
 			return fmt.Errorf("failed to get ACR token: %w", err)
 		}
 		accessToken := strings.TrimSpace(string(tokenOut))
 
-		// Command: helm registry login <host> --username <uuid> --password-stdin
+		// Command: helm registry login ...
 		loginCmd := exec.CommandContext(ctx, "helm", "registry", "login",
 			registryHost,
 			"--username", "00000000-0000-0000-0000-000000000000",
 			"--password-stdin")
 		loginCmd.Stdin = strings.NewReader(accessToken)
+		loginCmd.Env = os.Environ()
 
 		if out, err := loginCmd.CombinedOutput(); err != nil {
 			return fmt.Errorf("failed to login to helm registry: %s: %w", string(out), err)
 		}
 
-		args := []string{"pull", cleanURL}
-		args = append(args, "--destination", tmpdir, "--untar")
+		// 4. Pull the Chart
+		args := []string{"pull", cleanURL, "--destination", tmpdir, "--untar"}
 
 		cmd := exec.CommandContext(ctx, "helm", args...)
 		cmd.Env = os.Environ()
 
-		logger.Info("Pulling OCI chart", "command", cmd.String())
+		// Debug Log: Print the exact string we are passing to prove it's clean
+		logger.Info("Pulling OCI chart", "url", cleanURL, "length", len(cleanURL))
+
 		if out, err := cmd.CombinedOutput(); err != nil {
 			return fmt.Errorf("failed to pull OCI chart: %s: %w", string(out), err)
 		}
