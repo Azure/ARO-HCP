@@ -136,7 +136,7 @@ images:
       env: dev
   acm-downstream-mce:
     source:
-      image: arohcpsvcdev.azurecr.io/helm/multicluster-engine 
+      image: arohcpsvcdev.azurecr.io/helm/multicluster-engine
       tagPattern: "^\\d+\\.\\d+\\.\\d+-\\d+$"
       useAuth: true
     targets:
@@ -145,7 +145,7 @@ images:
       env: dev
   acm-downstream-config:
     source:
-      image: arohcpsvcdev.azurecr.io/helm/multicluster-engine-local-cluster 
+      image: arohcpsvcdev.azurecr.io/helm/multicluster-engine-local-cluster
       tagPattern: "^\\d+\\.\\d+\\.\\d+-\\d+$"
       useAuth: true
     targets:
