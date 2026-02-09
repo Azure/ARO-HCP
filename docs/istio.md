@@ -143,20 +143,4 @@ The Ops Ingress serves operations components (Admin API, Sessiongate) using the 
 
 The gateway uses hostname-based routing with separate TLS certificates for each service:
 
-Each service defines its own `VirtualService` to handle routing and MISE header injection, referencing the shared `ops-ingress-gateway`.
-
-### Why Two Different Gateway APIs?
-
-| Aspect | RP Frontend | Ops Ingress |
-|--------|-------------|-------------|
-| **Gateway Type** | Istio Gateway API (`networking.istio.io`) | Kubernetes Gateway API (`gateway.networking.k8s.io`) |
-| **LoadBalancer** | AKS-managed default (`aks-istio-ingressgateway-external`) | Gateway-provisioned dedicated LoadBalancer |
-| **IP Assignment** | Via `istio.sh` annotation patching | Via `spec.infrastructure.annotations` on Gateway |
-| **Traffic Restriction** | NSG rules (ARM service tag) | NSG rules (SRE service tag) |
-| **Multi-service** | Single service (RP frontend) | Multiple services (Admin API, Sessiongate) |
-
-The Kubernetes Gateway API approach for Ops Ingress provides:
-1. **Dedicated LoadBalancer:** Isolated from RP frontend traffic
-2. **Multiple listeners:** Host-based routing for different operations services
-3. **Self-contained configuration:** IP and TLS defined in the Gateway resource itself
-4. **Shared infrastructure:** Certificate refresher and SecretProviderClass managed in istio chart
+Each service defines its own `HTTPRoute` to handle routing and MISE header injection, referencing the shared `ops-ingress-gateway`.
