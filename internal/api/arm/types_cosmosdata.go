@@ -41,12 +41,12 @@ var (
 	_ CosmosPersistable      = &CosmosMetadata{}
 	_ CosmosMetadataAccessor = &CosmosMetadata{}
 
-	// namespaceUUID was randomly created once.
-	namespaceUUID uuid.UUID
+	// cosmosDocIDUUIDNamespace was randomly created once.
+	cosmosDocIDUUIDNamespace uuid.UUID
 )
 
 func init() {
-	namespaceUUID = Must(uuid.Parse("bf1ee0a1-0147-41ed-a083-d3cbbf7bea99"))
+	cosmosDocIDUUIDNamespace = Must(uuid.Parse("bf1ee0a1-0147-41ed-a083-d3cbbf7bea99"))
 }
 
 type CosmosPersistable interface {
@@ -102,7 +102,7 @@ func ResourceIDStringToCosmosID(resourceID string) (string, error) {
 	}
 
 	// we predictably hash the values because there are length limitations on Azure.
-	return uuid.NewSHA1(namespaceUUID, []byte(strings.ToLower(resourceID))).String(), nil
+	return uuid.NewSHA1(cosmosDocIDUUIDNamespace, []byte(strings.ToLower(resourceID))).String(), nil
 }
 
 // DeepCopyResourceID creates a true deep copy of an azcorearm.ResourceID by
