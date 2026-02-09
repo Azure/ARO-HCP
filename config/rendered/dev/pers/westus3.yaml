@@ -134,6 +134,7 @@ clustersService:
   batchProcesses: ""
   batchProcessesDryRun: true
   denyAssignments: disabled
+  deployDbDebugJobs: false
   deployDebugJobs: false
   environment: arohcppers
   image:

@@ -1,0 +1,8 @@
+# Image digest for the debug job
+imageDigest: ""
+# Controls if the database debug job is deployed to the cluster
+deployDbDebugJobs: false
+# The name of the K8s secret where CS DB connection information is placed
+databaseK8sSecretName: "ocm-cs-db"
+# Whether Azure DB is used (true) or container DB (false)
+useAzureDb: false
