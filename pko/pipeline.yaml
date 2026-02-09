@@ -31,6 +31,11 @@ resourceGroups:
         resourceGroup: global
         step: output
         name: globalMSIId
+    automatedRetry:
+      errorContainsAny:
+      - "unknown_storage_failure"
+      maximumRetryCount: 5
+      durationBetweenRetries: 30s
   - name: mirror-image-manager
     action: ImageMirror
     targetACR:
@@ -50,6 +55,11 @@ resourceGroups:
         resourceGroup: global
         step: output
         name: globalMSIId
+    automatedRetry:
+      errorContainsAny:
+      - "unknown_storage_failure"
+      maximumRetryCount: 5
+      durationBetweenRetries: 30s
   - name: mirror-image-remotephase-manager
     action: ImageMirror
     targetACR:
@@ -69,6 +79,11 @@ resourceGroups:
         resourceGroup: global
         step: output
         name: globalMSIId
+    automatedRetry:
+      errorContainsAny:
+      - "unknown_storage_failure"
+      maximumRetryCount: 5
+      durationBetweenRetries: 30s
 - name: kusto
   resourceGroup: '{{ .kusto.rg }}'
   subscription: '{{ .global.subscription.key }}'
