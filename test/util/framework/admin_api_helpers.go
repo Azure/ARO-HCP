@@ -110,12 +110,13 @@ func waitForSREBreakglassSessionReady(ctx context.Context, httpClient *http.Clie
 	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
 
+	lastStatus := ""
 	for {
 		select {
 		case <-ctx.Done():
 			return nil, time.Time{}, ctx.Err()
 		case <-timeout.C:
-			return nil, time.Time{}, fmt.Errorf("timeout waiting for session to become ready")
+			return nil, time.Time{}, fmt.Errorf("timeout waiting for session to become ready (last status: %s)", lastStatus)
 		case <-ticker.C:
 			req, err := http.NewRequestWithContext(ctx, http.MethodGet, kubeconfigEndpoint, nil)
 			if err != nil {
@@ -137,7 +138,14 @@ func waitForSREBreakglassSessionReady(ctx context.Context, httpClient *http.Clie
 			}
 
 			if resp.StatusCode == http.StatusAccepted {
-				// Session not ready yet, continue polling
+				// Session not ready yet - log status changes
+				var statusBody struct {
+					Status string `json:"status"`
+				}
+				if json.Unmarshal(body, &statusBody) == nil && statusBody.Status != lastStatus {
+					lastStatus = statusBody.Status
+					fmt.Fprintf(GinkgoWriter, "Session status: %s\n", lastStatus)
+				}
 				continue
 			}
 
