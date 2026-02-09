@@ -69,12 +69,17 @@ func get[InternalAPIType, CosmosAPIType any](ctx context.Context, containerClien
 	return getByItemID[InternalAPIType, CosmosAPIType](ctx, containerClient, partitionKeyString, exactCosmosID)
 }
 
-func list[InternalAPIType, CosmosAPIType any](ctx context.Context, containerClient *azcosmos.ContainerClient, partitionKeyString string, resourceType *azcorearm.ResourceType, prefix *azcorearm.ResourceID, options *DBClientListResourceDocsOptions, untypedNonRecursive bool) (DBClientIterator[InternalAPIType], error) {
+func list[InternalAPIType, CosmosAPIType any](ctx context.Context, containerClient *azcosmos.ContainerClient, partitionKeyString string, resourceType *azcorearm.ResourceType, prefix *azcorearm.ResourceID, options *DBClientListResourceDocsOptions, untypedNonRecursive, withCosmosMetadata bool) (DBClientIterator[InternalAPIType], error) {
 	if strings.ToLower(partitionKeyString) != partitionKeyString {
 		return nil, fmt.Errorf("partitionKeyString must be lowercase, not: %q", partitionKeyString)
 	}
 	if prefix == nil && resourceType == nil {
 		return nil, fmt.Errorf("prefix or resource type is required")
+	}
+
+	resourceIDField := "properties.resourceId"
+	if withCosmosMetadata {
+		resourceIDField = "properties.cosmosMetadata.resourceID"
 	}
 
 	query := ""
@@ -84,7 +89,7 @@ func list[InternalAPIType, CosmosAPIType any](ctx context.Context, containerClie
 	if prefix == nil {
 		query = "SELECT * FROM c"
 	} else {
-		query = "SELECT * FROM c WHERE STARTSWITH(c.properties.resourceId, @prefix, true)"
+		query = "SELECT * FROM c WHERE STARTSWITH(c." + resourceIDField + ", @prefix, true)"
 		queryOptions = azcosmos.QueryOptions{
 			PageSizeHint: -1,
 			QueryParameters: []azcosmos.QueryParameter{
@@ -119,7 +124,7 @@ func list[InternalAPIType, CosmosAPIType any](ctx context.Context, containerClie
 		}
 
 		// no sql injection risk because it's an int we control
-		query += fmt.Sprintf(" AND (LENGTH(c.properties.resourceId) - LENGTH(REPLACE(c.properties.resourceId, '/', ''))) = %d", requiredNumSlashes)
+		query += fmt.Sprintf(" AND (LENGTH(c."+resourceIDField+") - LENGTH(REPLACE(c."+resourceIDField+", '/', ''))) = %d", requiredNumSlashes)
 	}
 
 	if options != nil {
