@@ -63,7 +63,6 @@ type KeyVaultConfig struct {
 type Target struct {
 	JsonPath string `yaml:"jsonPath"`
 	FilePath string `yaml:"filePath"`
-	Env      string `yaml:"env,omitempty"` // Environment (dev, int, stg, prod)
 }
 
 // Validate checks if the Source configuration is valid
@@ -215,46 +214,6 @@ func (c *Config) FilterExcludingComponents(componentNames []string) (*Config, er
 		if !excluded.Has(name) {
 			filteredImages[name] = imageConfig
 		}
-	}
-
-	return &Config{
-		Images: filteredImages,
-	}, nil
-}
-
-// FilterByEnvironments returns a new Config with targets filtered by environment
-func (c *Config) FilterByEnvironments(environments []string) (*Config, error) {
-	if len(environments) == 0 {
-		return c, nil
-	}
-
-	// Build map for O(1) lookup
-	envMap := make(map[string]bool, len(environments))
-	for _, env := range environments {
-		envMap[env] = true
-	}
-
-	filteredImages := make(map[string]ImageConfig)
-	for name, imageConfig := range c.Images {
-		filteredTargets := make([]Target, 0)
-		for _, target := range imageConfig.Targets {
-			// Only include targets that match one of the requested environments
-			if envMap[target.Env] {
-				filteredTargets = append(filteredTargets, target)
-			}
-		}
-
-		// Only include the image if it has at least one matching target
-		if len(filteredTargets) > 0 {
-			filteredImageConfig := imageConfig
-			filteredImageConfig.Targets = filteredTargets
-			filteredImages[name] = filteredImageConfig
-		}
-	}
-
-	// Return error if no targets match the specified environments
-	if len(filteredImages) == 0 {
-		return nil, fmt.Errorf("no targets found for environments: %v", environments)
 	}
 
 	return &Config{
