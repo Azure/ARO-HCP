@@ -24,6 +24,7 @@ import (
 
 // HCPOpenShiftClusterExternalAuth represents the external auth config resource for ARO HCP
 // OpenShift clusters.
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type HCPOpenShiftClusterExternalAuth struct {
 	arm.ProxyResource
 	Properties                HCPOpenShiftClusterExternalAuthProperties                `json:"properties"`

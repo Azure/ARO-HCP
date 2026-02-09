@@ -27,6 +27,7 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
+	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
@@ -34,20 +35,14 @@ import (
 )
 
 const (
-	// ByResourceGroup is the indexer name for looking up resources by resource group.
-	// Keys are in the format: /subscriptions/<sub>/resourcegroups/<rg>
-	ByResourceGroup = "byResourceGroup"
-
-	// ByCluster is the indexer name for looking up resources by parent cluster.
-	// Keys are the full lowercase cluster resource ID string.
-	ByCluster = "byCluster"
-
 	// These durations indicate the maximum time it will take for us to notice a new instance of a particular type.
 	// Remember that these will not fire in order, so it's entirely possible to get an operation for subscription we have no observed.
-	SubscriptionRelistDuration     = 30 * time.Second
-	ClusterRelistDuration          = 30 * time.Second
-	NodePoolRelistDuration         = 30 * time.Second
-	ActiveOperationsRelistDuration = 10 * time.Second
+	SubscriptionRelistDuration           = 30 * time.Second
+	ClusterRelistDuration                = 30 * time.Second
+	NodePoolRelistDuration               = 30 * time.Second
+	ExternalAuthRelistDuration           = 30 * time.Second
+	ServiceProviderClusterRelistDuration = 30 * time.Second
+	ActiveOperationsRelistDuration       = 10 * time.Second
 )
 
 // NewSubscriptionInformer creates an unstarted SharedIndexInformer for subscriptions
@@ -129,7 +124,7 @@ func NewClusterInformerWithRelistDuration(lister database.GlobalLister[api.HCPOp
 		cache.SharedIndexInformerOptions{
 			ResyncPeriod: 1 * time.Hour, // this is only a default.  Shorter resyncs can be added when registering handlers.
 			Indexers: cache.Indexers{
-				ByResourceGroup: resourceGroupIndexFunc,
+				listers.ByResourceGroup: resourceGroupIndexFunc,
 			},
 		},
 	)
@@ -173,8 +168,97 @@ func NewNodePoolInformerWithRelistDuration(lister database.GlobalLister[api.HCPO
 		cache.SharedIndexInformerOptions{
 			ResyncPeriod: 1 * time.Hour, // this is only a default.  Shorter resyncs can be added when registering handlers.
 			Indexers: cache.Indexers{
-				ByResourceGroup: resourceGroupIndexFunc,
-				ByCluster:       clusterResourceIDIndexFunc,
+				listers.ByResourceGroup: resourceGroupIndexFunc,
+				listers.ByCluster:       clusterResourceIDIndexFunc,
+			},
+		},
+	)
+}
+
+// NewExternalAuthInformer creates an unstarted SharedIndexInformer for external auths
+// with resource group and cluster indexes using the default relist duration.
+func NewExternalAuthInformer(lister database.GlobalLister[api.HCPOpenShiftClusterExternalAuth]) cache.SharedIndexInformer {
+	return NewExternalAuthInformerWithRelistDuration(lister, ExternalAuthRelistDuration)
+}
+
+// NewExternalAuthInformerWithRelistDuration creates an unstarted SharedIndexInformer for external auths
+// with resource group and cluster indexes and a configurable relist duration.
+func NewExternalAuthInformerWithRelistDuration(lister database.GlobalLister[api.HCPOpenShiftClusterExternalAuth], relistDuration time.Duration) cache.SharedIndexInformer {
+	lw := &cache.ListWatch{
+		ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
+			iter, err := lister.List(ctx, nil)
+			if err != nil {
+				return nil, err
+			}
+
+			list := &api.HCPOpenShiftClusterExternalAuthList{}
+			list.ResourceVersion = "0"
+			for _, ea := range iter.Items(ctx) {
+				list.Items = append(list.Items, *ea)
+			}
+			if err := iter.GetError(); err != nil {
+				return nil, err
+			}
+
+			return list, nil
+		},
+		WatchFuncWithContext: func(ctx context.Context, options metav1.ListOptions) (watch.Interface, error) {
+			return NewExpiringWatcher(relistDuration), nil
+		},
+	}
+
+	return cache.NewSharedIndexInformerWithOptions(
+		lw,
+		&api.HCPOpenShiftClusterExternalAuth{},
+		cache.SharedIndexInformerOptions{
+			ResyncPeriod: 1 * time.Hour, // this is only a default.  Shorter resyncs can be added when registering handlers.
+			Indexers: cache.Indexers{
+				listers.ByResourceGroup: resourceGroupIndexFunc,
+				listers.ByCluster:       clusterResourceIDIndexFunc,
+			},
+		},
+	)
+}
+
+// NewServiceProviderClusterInformer creates an unstarted SharedIndexInformer for service provider clusters
+// with a cluster index using the default relist duration.
+func NewServiceProviderClusterInformer(lister database.GlobalLister[api.ServiceProviderCluster]) cache.SharedIndexInformer {
+	return NewServiceProviderClusterInformerWithRelistDuration(lister, ServiceProviderClusterRelistDuration)
+}
+
+// NewServiceProviderClusterInformerWithRelistDuration creates an unstarted SharedIndexInformer for service provider clusters
+// with a cluster index and a configurable relist duration.
+func NewServiceProviderClusterInformerWithRelistDuration(lister database.GlobalLister[api.ServiceProviderCluster], relistDuration time.Duration) cache.SharedIndexInformer {
+	lw := &cache.ListWatch{
+		ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
+			iter, err := lister.List(ctx, nil)
+			if err != nil {
+				return nil, err
+			}
+
+			list := &api.ServiceProviderClusterList{}
+			list.ResourceVersion = "0"
+			for _, spc := range iter.Items(ctx) {
+				list.Items = append(list.Items, *spc)
+			}
+			if err := iter.GetError(); err != nil {
+				return nil, err
+			}
+
+			return list, nil
+		},
+		WatchFuncWithContext: func(ctx context.Context, options metav1.ListOptions) (watch.Interface, error) {
+			return NewExpiringWatcher(relistDuration), nil
+		},
+	}
+
+	return cache.NewSharedIndexInformerWithOptions(
+		lw,
+		&api.ServiceProviderCluster{},
+		cache.SharedIndexInformerOptions{
+			ResyncPeriod: 1 * time.Hour, // this is only a default.  Shorter resyncs can be added when registering handlers.
+			Indexers: cache.Indexers{
+				listers.ByCluster: clusterResourceIDIndexFunc,
 			},
 		},
 	)
@@ -220,8 +304,8 @@ func NewActiveOperationInformerWithRelistDuration(lister database.GlobalLister[a
 		cache.SharedIndexInformerOptions{
 			ResyncPeriod: 1 * time.Hour, // this is only a default.  Shorter resyncs can be added when registering handlers.
 			Indexers: cache.Indexers{
-				ByResourceGroup: activeOperationResourceGroupIndexFunc,
-				ByCluster:       activeOperationClusterIndexFunc,
+				listers.ByResourceGroup: activeOperationResourceGroupIndexFunc,
+				listers.ByCluster:       activeOperationClusterIndexFunc,
 			},
 		},
 	)

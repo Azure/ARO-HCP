@@ -57,6 +57,37 @@ func ToClusterResourceIDString(subscriptionName, resourceGroupName, clusterName 
 	))
 }
 
+func ToNodePoolResourceID(subscriptionName, resourceGroupName, clusterName, nodePoolName string) (*azcorearm.ResourceID, error) {
+	return azcorearm.ParseResourceID(ToNodePoolResourceIDString(subscriptionName, resourceGroupName, clusterName, nodePoolName))
+}
+
+func ToNodePoolResourceIDString(subscriptionName, resourceGroupName, clusterName, nodePoolName string) string {
+	return strings.ToLower(path.Join(
+		"/subscriptions", subscriptionName,
+		"resourceGroups", resourceGroupName,
+		"providers", ClusterResourceType.String(), clusterName,
+		NodePoolResourceType.Types[len(NodePoolResourceType.Types)-1], nodePoolName,
+	))
+}
+
+func ToExternalAuthResourceIDString(subscriptionName, resourceGroupName, clusterName, externalAuthName string) string {
+	return strings.ToLower(path.Join(
+		"/subscriptions", subscriptionName,
+		"resourceGroups", resourceGroupName,
+		"providers", ClusterResourceType.String(), clusterName,
+		ExternalAuthResourceType.Types[len(ExternalAuthResourceType.Types)-1], externalAuthName,
+	))
+}
+
+func ToServiceProviderClusterResourceIDString(subscriptionName, resourceGroupName, clusterName string) string {
+	return strings.ToLower(path.Join(
+		"/subscriptions", subscriptionName,
+		"resourceGroups", resourceGroupName,
+		"providers", ClusterResourceType.String(), clusterName,
+		ServiceProviderClusterResourceType.Types[len(ServiceProviderClusterResourceType.Types)-1], ServiceProviderClusterResourceName,
+	))
+}
+
 func ToOperationResourceIDString(subscriptionName, operationName string) string {
 	return strings.ToLower(path.Join(
 		"/subscriptions", subscriptionName,
