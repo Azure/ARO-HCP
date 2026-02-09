@@ -43,6 +43,7 @@ func BindOptions(opts *RawOptions, cmd *cobra.Command) error {
 	cmd.Flags().BoolVar(&opts.DryRun, "dry-run", opts.DryRun, "validate the pipeline without executing it")
 	cmd.Flags().BoolVar(&opts.Persist, "persist-tag", opts.Persist, "toggle if persist tag should be set")
 	cmd.Flags().IntVar(&opts.DeploymentTimeoutSeconds, "deployment-timeout-seconds", opts.DeploymentTimeoutSeconds, "Timeout in Seconds to wait for previous deployments of the pipeline to finish")
+	cmd.Flags().BoolVar(&opts.AbortOnExistingRG, "abort-on-existing-rg", opts.AbortOnExistingRG, "Abort deployment if regional resource groups already exist (concurrent execution prevention)")
 
 	return nil
 }
@@ -53,6 +54,7 @@ type RawOptions struct {
 	DryRun                   bool
 	Persist                  bool
 	DeploymentTimeoutSeconds int
+	AbortOnExistingRG        bool
 
 	TimingOutputFile string
 	JUnitOutputFile  string
@@ -76,6 +78,7 @@ type completedOptions struct {
 	DryRun                   bool
 	NoPersist                bool
 	DeploymentTimeoutSeconds int
+	AbortOnExistingRG        bool
 
 	TimingOutputFile string
 	JUnitOutputFile  string
@@ -113,6 +116,7 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 			DryRun:                   o.DryRun,
 			NoPersist:                !o.Persist,
 			DeploymentTimeoutSeconds: o.DeploymentTimeoutSeconds,
+			AbortOnExistingRG:        o.AbortOnExistingRG,
 
 			TimingOutputFile: o.TimingOutputFile,
 			JUnitOutputFile:  o.JUnitOutputFile,
@@ -131,6 +135,19 @@ func (o *Options) Run(ctx context.Context) error {
 		}
 	}()
 
+	// Extract target resource group names from config for precheck
+	var regionRGNames []string
+	if o.AbortOnExistingRG {
+		rgPaths := []string{"regionRG", "svc.rg", "mgmt.rg"}
+		for _, path := range rgPaths {
+			if rg, err := o.Config.GetByPath(path); err == nil {
+				if rgStr, ok := rg.(string); ok {
+					regionRGNames = append(regionRGNames, rgStr)
+				}
+			}
+		}
+	}
+
 	runOpts := &pipeline.PipelineRunOptions{
 		BaseRunOptions: pipeline.BaseRunOptions{
 			DryRun:                               o.DryRun,
@@ -148,6 +165,8 @@ func (o *Options) Run(ctx context.Context) error {
 		Concurrency:           o.Concurrency,
 		TimingOutputFile:      o.TimingOutputFile,
 		JUnitOutputFile:       o.JUnitOutputFile,
+		AbortOnExistingRG:     o.AbortOnExistingRG,
+		RegionRGNames:         regionRGNames,
 	}
 
 	if o.Entrypoint != nil {
