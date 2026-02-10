@@ -373,7 +373,7 @@ func (s StepInput) HTTPTestAccessor(key ResourceKey) HTTPTestAccessor {
 		})
 	}
 	subscriptionID := api.Must(azcorearm.ParseResourceID(key.ResourceID)).SubscriptionID
-	return newFrontendHTTPTestAccessor(s.FrontendURL, integrationutils.Get20240610ClientFactory(s.FrontendURL, subscriptionID))
+	return NewFrontendHTTPTestAccessor(s.FrontendURL, integrationutils.Get20240610ClientFactory(s.FrontendURL, subscriptionID))
 }
 
 func NewCosmosStepInput(storageInfo integrationutils.StorageIntegrationTestInfo) *StepInput {

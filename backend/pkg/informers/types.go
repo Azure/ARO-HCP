@@ -16,6 +16,7 @@ package informers
 
 import (
 	"context"
+	"time"
 
 	"k8s.io/client-go/tools/cache"
 
@@ -80,23 +81,38 @@ func (b *backendInformers) ServiceProviderClusters() (cache.SharedIndexInformer,
 }
 
 func NewBackendInformers(ctx context.Context, globalListers database.GlobalListers) BackendInformers {
+	return NewBackendInformersWithRelistDuration(ctx, globalListers, nil)
+}
+
+func NewBackendInformersWithRelistDuration(ctx context.Context, globalListers database.GlobalListers, relistDuration *time.Duration) BackendInformers {
+	subscriptionRelistDuration := SubscriptionRelistDuration
+	clusterRelistDuration := ClusterRelistDuration
+	nodePoolRelistDuration := NodePoolRelistDuration
+	externalAuthRelistDuration := ExternalAuthRelistDuration
+	serviceProviderClusterRelistDuration := ServiceProviderClusterRelistDuration
+	activeOperationsRelistDuration := ActiveOperationsRelistDuration
+	if relistDuration != nil {
+		subscriptionRelistDuration = *relistDuration
+		clusterRelistDuration = *relistDuration
+		nodePoolRelistDuration = *relistDuration
+		externalAuthRelistDuration = *relistDuration
+		serviceProviderClusterRelistDuration = *relistDuration
+		activeOperationsRelistDuration = *relistDuration
+	}
+
 	ret := &backendInformers{}
-	ret.subscriptionInformer = NewSubscriptionInformer(globalListers.Subscriptions())
+	ret.subscriptionInformer = NewSubscriptionInformerWithRelistDuration(globalListers.Subscriptions(), subscriptionRelistDuration)
+	ret.activeOperationInformer = NewActiveOperationInformerWithRelistDuration(globalListers.ActiveOperations(), activeOperationsRelistDuration)
+	ret.clusterInformer = NewClusterInformerWithRelistDuration(globalListers.Clusters(), clusterRelistDuration)
+	ret.nodePoolInformer = NewNodePoolInformerWithRelistDuration(globalListers.NodePools(), nodePoolRelistDuration)
+	ret.externalAuthInformer = NewExternalAuthInformerWithRelistDuration(globalListers.ExternalAuths(), externalAuthRelistDuration)
+	ret.serviceProviderClusterInformer = NewServiceProviderClusterInformerWithRelistDuration(globalListers.ServiceProviderClusters(), serviceProviderClusterRelistDuration)
+
 	ret.subscriptionLister = listers.NewSubscriptionLister(ret.subscriptionInformer.GetIndexer())
-
-	ret.activeOperationInformer = NewActiveOperationInformer(globalListers.ActiveOperations())
 	ret.activeOperationLister = listers.NewActiveOperationLister(ret.activeOperationInformer.GetIndexer())
-
-	ret.clusterInformer = NewClusterInformer(globalListers.Clusters())
 	ret.clusterLister = listers.NewClusterLister(ret.clusterInformer.GetIndexer())
-
-	ret.nodePoolInformer = NewNodePoolInformer(globalListers.NodePools())
 	ret.nodePoolLister = listers.NewNodePoolLister(ret.nodePoolInformer.GetIndexer())
-
-	ret.externalAuthInformer = NewExternalAuthInformer(globalListers.ExternalAuths())
 	ret.externalAuthLister = listers.NewExternalAuthLister(ret.externalAuthInformer.GetIndexer())
-
-	ret.serviceProviderClusterInformer = NewServiceProviderClusterInformer(globalListers.ServiceProviderClusters())
 	ret.serviceProviderClusterLister = listers.NewServiceProviderClusterLister(ret.serviceProviderClusterInformer.GetIndexer())
 
 	return ret

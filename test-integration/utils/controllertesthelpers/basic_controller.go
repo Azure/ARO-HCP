@@ -29,7 +29,6 @@ import (
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
-	"github.com/Azure/ARO-HCP/test-integration/backend/livelisters"
 	"github.com/Azure/ARO-HCP/test-integration/utils/databasemutationhelpers"
 	"github.com/Azure/ARO-HCP/test-integration/utils/integrationutils"
 )
@@ -108,7 +107,6 @@ func (tc *BasicControllerTest) RunTest(t *testing.T) {
 
 	controllerInput := &ControllerInitializationInput{
 		CosmosClient:         storageIntegrationTestInfo.CosmosClient(),
-		SubscriptionLister:   livelisters.NewSubscriptionLiveLister(storageIntegrationTestInfo.CosmosClient()),
 		ClusterServiceClient: clusterServiceMockInfo.MockClusterServiceClient,
 	}
 

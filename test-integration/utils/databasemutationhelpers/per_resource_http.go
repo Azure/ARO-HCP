@@ -37,7 +37,7 @@ type frontendHTTPTestAccessor struct {
 	frontendClient *hcpsdk20240610preview.ClientFactory
 }
 
-func newFrontendHTTPTestAccessor(frontEndURL string, frontendClient *hcpsdk20240610preview.ClientFactory) *frontendHTTPTestAccessor {
+func NewFrontendHTTPTestAccessor(frontEndURL string, frontendClient *hcpsdk20240610preview.ClientFactory) *frontendHTTPTestAccessor {
 	return &frontendHTTPTestAccessor{
 		frontEndURL:    frontEndURL,
 		frontendClient: frontendClient,
