@@ -115,3 +115,38 @@ resource sessiongateAksAccess 'Microsoft.Authorization/roleAssignments@2022-04-0
     principalType: 'ServicePrincipal'
   }
 }
+
+//
+//   A D M I N   A P I   A K S   C L U S T E R   A C C E S S
+//
+
+// Azure Kubernetes Service Cluster User Role - allows ListClusterUserCredentials
+// https://www.azadvertizer.net/azrolesadvertizer/4abbcc35-e782-43d8-92c5-2d3f1bd2253f.html
+var aksClusterUserRoleId = subscriptionResourceId(
+  'Microsoft.Authorization/roleDefinitions',
+  '4abbcc35-e782-43d8-92c5-2d3f1bd2253f'
+)
+
+// Azure Kubernetes Service RBAC Cluster Admin - full K8s API access (reusing aksClusterRBACAdminRoleId from sessiongate section)
+
+// Grant admin API the ability to list cluster user credentials (for kubeconfig)
+resource adminApiAksClusterUserRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (res.isMsiResourceId(adminApiMIResourceId)) {
+  scope: aksCluster
+  name: guid(aksCluster.id, adminApiMIResourceId, aksClusterUserRoleId)
+  properties: {
+    roleDefinitionId: aksClusterUserRoleId
+    principalId: adminApiMSI.properties.principalId
+    principalType: 'ServicePrincipal'
+  }
+}
+
+// Grant admin API RBAC Cluster Admin on the AKS cluster for K8s API access
+resource adminApiAksRbacClusterAdmin 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (res.isMsiResourceId(adminApiMIResourceId)) {
+  scope: aksCluster
+  name: guid(aksCluster.id, adminApiMIResourceId, aksClusterRBACAdminRoleId)
+  properties: {
+    roleDefinitionId: aksClusterRBACAdminRoleId
+    principalId: adminApiMSI.properties.principalId
+    principalType: 'ServicePrincipal'
+  }
+}

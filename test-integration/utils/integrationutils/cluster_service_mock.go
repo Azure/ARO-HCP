@@ -70,6 +70,13 @@ func (s *ClusterServiceMock) setupMockClusterService(t *testing.T) {
 	internalIDToProvisionShard := s.GetOrCreateMockData(t.Name() + "_provisionShards")
 	internalIDToHypershiftDetails := s.GetOrCreateMockData(t.Name() + "_hypershiftDetails")
 
+	s.MockClusterServiceClient.EXPECT().GetClusterProvisionShard(gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, id ocm.InternalID) (*arohcpv1alpha1.ProvisionShard, error) {
+		return arohcpv1alpha1.NewProvisionShard().
+			AzureShard(arohcpv1alpha1.NewAzureShard().
+				AksManagementClusterResourceId("fake-aks-resource-id")).
+			Build()
+	}).AnyTimes()
+
 	s.MockClusterServiceClient.EXPECT().PostCluster(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, clusterBuilder *arohcpv1alpha1.ClusterBuilder, autoscalerBuilder *arohcpv1alpha1.ClusterAutoscalerBuilder) (*arohcpv1alpha1.Cluster, error) {
 		justID := rand.String(10)
 		internalID := "/api/clusters_mgmt/v1/clusters/" + justID

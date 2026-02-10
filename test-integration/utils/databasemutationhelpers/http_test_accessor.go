@@ -32,6 +32,7 @@ import (
 type HTTPTestAccessor interface {
 	Get(ctx context.Context, resourceIDString string) (any, error)
 	List(ctx context.Context, parentResourceIDString string) ([]any, error)
+	Post(ctx context.Context, resourceIDString string, content []byte) (any, error)
 	CreateOrUpdate(ctx context.Context, resourceIDString string, content []byte) error
 	Post(ctx context.Context, resourceIDString string, content []byte) error
 	Patch(ctx context.Context, resourceIDString string, content []byte) error
@@ -113,6 +114,10 @@ func (a *httpHTTPTestAccessor) Post(ctx context.Context, resourceIDString string
 func (a *httpHTTPTestAccessor) Patch(ctx context.Context, resourceIDString string, content []byte) error {
 	_, err := a.doRequest(ctx, http.MethodPatch, resourceIDString, content)
 	return err
+}
+
+func (a *httpHTTPTestAccessor) Post(ctx context.Context, resourceIDString string, content []byte) (any, error) {
+	return a.doRequest(ctx, http.MethodPost, resourceIDString, content)
 }
 
 func (a *httpHTTPTestAccessor) Delete(ctx context.Context, resourceIDString string) error {

@@ -254,6 +254,11 @@ var workloadIdentities = items({
     namespace: 'velero'
     serviceAccountName: 'velero'
   }
+  hcp_recovery_wi: {
+    uamiName: 'hcp-recovery'
+    namespace: 'hcp-recovery'
+    serviceAccountName: 'hcp-recovery'
+  }
 })
 
 module managedIdentities '../modules/managed-identities.bicep' = {

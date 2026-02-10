@@ -23,6 +23,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/go-logr/logr"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -76,6 +77,8 @@ func NewAdminAPI(
 	maxSessionTTL time.Duration,
 	allowedBreakglassGroups set.Set[string],
 	gatherer prometheus.Gatherer,
+	azureCredential azcore.TokenCredential,
+	drClientFactory hcp.DrClientFactory,
 ) *AdminAPI {
 	// Pre-mux middleware (runs on all admin routes before pattern matching)
 	middlewareMux := middleware.NewMiddlewareMux(
@@ -108,6 +111,18 @@ func NewAdminAPI(
 	middlewareMux.Handle(
 		middleware.V1HCPResourcePattern("GET", "/cosmosdump"),
 		hcpMiddleware.HandlerFunc(errorutils.ReportError(cosmosdump.NewCosmosDumpHandler(dbClient).ServeHTTP)),
+	)
+	middlewareMux.Handle(
+		middleware.V1HCPResourcePattern("GET", "/backups"),
+		hcpMiddleware.Handler(hcp.ListBackups(dbClient, clustersServiceClient, azureCredential, drClientFactory)),
+	)
+	middlewareMux.Handle(
+		middleware.V1HCPResourcePattern("GET", "/backups/{backupName}"),
+		hcpMiddleware.Handler(hcp.GetBackup(dbClient, clustersServiceClient, azureCredential, drClientFactory)),
+	)
+	middlewareMux.Handle(
+		middleware.V1HCPResourcePattern("POST", "/backups"),
+		hcpMiddleware.Handler(hcp.CreateBackup(dbClient, clustersServiceClient, azureCredential, drClientFactory)),
 	)
 
 	// Non-HCP admin routes

@@ -62,6 +62,9 @@ services:
           purpose: Deploy the Route Monitor Operator.
         pipelinePath: dev-infrastructure/mgmt-pipeline.yaml
         purpose: Deploy a management cluster and backing infrastructure.
+      - serviceGroup: Microsoft.Azure.ARO.HCP.Log.Infra
+        pipelinePath: dev-infrastructure/kusto-pipeline.yaml
+        purpose: Deploy the kusto log infrastructure.
       - serviceGroup: Microsoft.Azure.ARO.HCP.Monitoring
         pipelinePath: dev-infrastructure/monitoring-pipeline.yaml
         purpose: Deploy the Monitoring resources

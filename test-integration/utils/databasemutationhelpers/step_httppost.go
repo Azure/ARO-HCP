@@ -30,8 +30,9 @@ type httpPostStep struct {
 	stepID StepID
 	key    ResourceKey
 
-	resources     [][]byte
-	expectedError string
+	resources        [][]byte
+	expectedResource map[string]any
+	expectedError    string
 }
 
 func newHTTPPostStep(stepID StepID, stepDir fs.FS) (*httpPostStep, error) {
@@ -55,11 +56,25 @@ func newHTTPPostStep(stepID StepID, stepDir fs.FS) (*httpPostStep, error) {
 	}
 	expectedError := strings.TrimSpace(string(expectedErrorBytes))
 
+	var expectedResource map[string]any
+	expectedResources, err := readResourcesInDir[map[string]any](stepDir)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read expected resources in dir: %w", err)
+	}
+	switch len(expectedResources) {
+	case 0:
+	case 1:
+		expectedResource = *expectedResources[0]
+	default:
+		return nil, fmt.Errorf("cannot expect more than one resource")
+	}
+
 	return &httpPostStep{
-		stepID:        stepID,
-		key:           key,
-		resources:     resources,
-		expectedError: expectedError,
+		stepID:           stepID,
+		key:              key,
+		resources:        resources,
+		expectedResource: expectedResource,
+		expectedError:    expectedError,
 	}, nil
 }
 
@@ -72,18 +87,28 @@ func (l *httpPostStep) StepID() StepID {
 func (l *httpPostStep) RunTest(ctx context.Context, t *testing.T, stepInput StepInput) {
 	accessor := stepInput.HTTPTestAccessor(l.key)
 
-	for _, resource := range l.resources {
-		err := accessor.Post(ctx, l.key.ResourceID, resource)
+	var body []byte
+	if len(l.resources) > 0 {
+		body = l.resources[0]
+	}
 
-		switch {
-		case len(l.expectedError) > 0:
-			expectedErrors := splitExpectedErrors(l.expectedError)
-			for _, expectedErr := range expectedErrors {
-				require.ErrorContains(t, err, expectedErr)
-			}
-			return
-		default:
-			require.NoError(t, err)
+	actual, err := accessor.Post(ctx, l.key.ResourceID, body)
+
+	switch {
+	case len(l.expectedError) > 0:
+		expectedErrors := splitExpectedErrors(l.expectedError)
+		for _, expectedErr := range expectedErrors {
+			require.ErrorContains(t, err, expectedErr)
+		}
+		return
+	default:
+		require.NoError(t, err)
+	}
+
+	if l.expectedResource != nil {
+		if diff, equals := ResourceInstanceEquals(t, l.expectedResource, actual); !equals {
+			t.Logf("actual:\n%v", stringifyResource(actual))
+			t.Error(diff)
 		}
 	}
 }

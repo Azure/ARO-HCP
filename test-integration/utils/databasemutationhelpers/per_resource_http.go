@@ -166,6 +166,10 @@ func (c frontendHTTPTestAccessor) List(ctx context.Context, exemplarResourceIDSt
 	}
 }
 
+func (c frontendHTTPTestAccessor) Post(ctx context.Context, resourceIDString string, content []byte) (any, error) {
+	return nil, utils.TrackError(fmt.Errorf("Post not implemented for frontendHTTPTestAccessor"))
+}
+
 func (c frontendHTTPTestAccessor) CreateOrUpdate(ctx context.Context, resourceIDString string, content []byte) error {
 	logger := utils.LoggerFromContext(ctx)
 

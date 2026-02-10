@@ -1,0 +1,86 @@
+// Copyright 2025 Microsoft Corporation
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package getbackup
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/go-logr/logr"
+	"github.com/spf13/cobra"
+
+	"github.com/Azure/ARO-HCP/admin/client/cmd/base"
+	adminClient "github.com/Azure/ARO-HCP/admin/client/pkg/client"
+)
+
+func NewGetBackupCommand() (*cobra.Command, error) {
+	opts := base.DefaultAuthOptions()
+	var subscriptionID, resourceGroup, clusterName, backupName string
+
+	cmd := &cobra.Command{
+		Use:           "get-backup",
+		Short:         "Get a backup for an HCP cluster",
+		SilenceErrors: true,
+		SilenceUsage:  true,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return execute(cmd.Context(), opts, subscriptionID, resourceGroup, clusterName, backupName)
+		},
+	}
+
+	cmd.Flags().StringVar(&subscriptionID, "subscription-id", "", "Azure subscription ID")
+	cmd.Flags().StringVar(&resourceGroup, "resource-group", "", "Azure resource group name")
+	cmd.Flags().StringVar(&clusterName, "cluster-name", "", "HCP cluster name")
+	cmd.Flags().StringVar(&backupName, "backup-name", "", "Backup name")
+
+	for _, flag := range []string{"subscription-id", "resource-group", "cluster-name", "backup-name"} {
+		if err := cmd.MarkFlagRequired(flag); err != nil {
+			return nil, fmt.Errorf("failed to mark flag %q as required: %w", flag, err)
+		}
+	}
+
+	if err := opts.BindFlags(cmd); err != nil {
+		return nil, err
+	}
+
+	return cmd, nil
+}
+
+func execute(ctx context.Context, opts *base.RawAuthOptions, subscriptionID, resourceGroup, clusterName, backupName string) error {
+	validated, err := opts.Validate(ctx)
+	if err != nil {
+		return err
+	}
+
+	completed, err := validated.Complete(ctx)
+	if err != nil {
+		return err
+	}
+
+	logger, err := logr.FromContext(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get logger from context: %w", err)
+	}
+	logger.Info("Getting backup", "subscriptionID", subscriptionID, "resourceGroup", resourceGroup, "clusterName", clusterName, "backupName", backupName)
+
+	client := adminClient.NewClient(completed.Endpoint, completed.Host, completed.Token, completed.Insecure, false)
+	err = client.GetBackup(ctx, subscriptionID, resourceGroup, clusterName, backupName)
+	if err != nil {
+		return fmt.Errorf("failed to send request: %w", err)
+	}
+
+	logger.Info("Request successful")
+
+	return nil
+}

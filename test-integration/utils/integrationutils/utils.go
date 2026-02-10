@@ -24,6 +24,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	hypershiftv1beta1 "github.com/openshift/hypershift/api/hypershift/v1beta1"
+	velerov1api "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	hcphandlers "github.com/Azure/ARO-HCP/admin/server/handlers/hcp"
+	_ "github.com/Azure/ARO-HCP/internal/api/v20240610preview"
+	"github.com/Azure/ARO-HCP/internal/recovery"
+
 	"github.com/go-logr/logr"
 	"github.com/go-logr/logr/testr"
 	"github.com/microsoft/go-otel-audit/audit/base"
@@ -156,6 +165,8 @@ func NewIntegrationTestInfoFromEnv(ctx context.Context, t *testing.T, withMock b
 		24*time.Hour,
 		set.New("aro-sre-pso", "aro-sre-csa"),
 		metricsRegistry,
+		nil,
+		FakeDrFactory,
 	)
 
 	frontendURL := fmt.Sprintf("http://%s", frontendListener.Addr().String())
@@ -210,4 +221,26 @@ func AllAPIVersions() []string {
 	versions := registry.ListVersions().UnsortedList()
 	sort.Strings(versions)
 	return versions
+}
+
+func FakeDrFactory(ctx context.Context, aksResourceID string, credential azcore.TokenCredential) (hcphandlers.BackupClient, error) {
+	return recovery.NewFakeClient(
+		&velerov1api.Backup{
+			ObjectMeta: v1.ObjectMeta{
+				Name:      "test-backup-1",
+				Namespace: "velero",
+				Labels:    map[string]string{"api.openshift.com/id": "fixed-value"},
+			},
+			Status: velerov1api.BackupStatus{
+				Phase: velerov1api.BackupPhaseCompleted,
+			},
+		},
+		&hypershiftv1beta1.HostedCluster{
+			ObjectMeta: v1.ObjectMeta{
+				Name:      "test-hosted-cluster",
+				Namespace: "test-namespace",
+				Labels:    map[string]string{"api.openshift.com/id": "fixed-value"},
+			},
+		},
+	)
 }

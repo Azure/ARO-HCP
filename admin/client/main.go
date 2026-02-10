@@ -25,7 +25,10 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
 
+	"github.com/Azure/ARO-HCP/admin/client/cmd/createbackup"
+	"github.com/Azure/ARO-HCP/admin/client/cmd/getbackup"
 	"github.com/Azure/ARO-HCP/admin/client/cmd/helloworld"
+	"github.com/Azure/ARO-HCP/admin/client/cmd/listbackups"
 )
 
 func main() {
@@ -54,6 +57,9 @@ func main() {
 	// Add subcommands
 	subcommands := []func() (*cobra.Command, error){
 		helloworld.NewHelloWorldCommand,
+		createbackup.NewCreateBackupCommand,
+		listbackups.NewListBackupsCommand,
+		getbackup.NewGetBackupCommand,
 	}
 
 	for _, newCmd := range subcommands {
