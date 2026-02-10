@@ -20,6 +20,8 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/go-logr/logr"
+
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/tools/cache"
@@ -171,6 +173,10 @@ func (c *genericOperation) processNextWorkItem(ctx context.Context) bool {
 }
 
 func (c *genericOperation) enqueueAdd(newObj interface{}) {
+	logger := utils.DefaultLogger()
+	logger = logger.WithValues("controller_name", c.name)
+	ctx := logr.NewContext(context.TODO(), logger)
+
 	castObj := newObj.(*api.Operation)
 	if castObj.ExternalID == nil {
 		return
@@ -180,13 +186,15 @@ func (c *genericOperation) enqueueAdd(newObj interface{}) {
 		OperationName:    castObj.ResourceID.Name,
 		ParentResourceID: castObj.ExternalID.String(),
 	}
+	logger = key.AddLoggerValues(logger)
+	ctx = logr.NewContext(context.TODO(), logger)
 
-	if !c.cooldownChecker.CanSync(context.TODO(), key) {
+	if !c.cooldownChecker.CanSync(ctx, key) {
 		return
 	}
 	// we check here whether we should queue or not. If our view is stale and another update is coming, then we are guaranteed to be
 	// informed of an update again.  At this point we can check if it meets our preconditions again.
-	if !c.synchronizer.ShouldProcess(context.Background(), castObj) {
+	if !c.synchronizer.ShouldProcess(ctx, castObj) {
 		return
 	}
 
