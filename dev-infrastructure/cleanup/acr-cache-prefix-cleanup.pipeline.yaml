@@ -1,5 +1,6 @@
 # One-off: clean ACR repos at cache target prefixes so cache rules can be created (TargetRepositoryPrefixMatchesExistingRegistries).
 # Run: make pipeline/ACR.Cleanup  |  Test (no deletes): DRY_RUN=true make pipeline/ACR.Cleanup
+# ACR is chosen by DEPLOY_ENV (default pers); set DEPLOY_ENV=dev or cspr etc.
 #
 $schema: pipeline.schema.v1
 rolloutName: ACR Cache Prefix Cleanup
