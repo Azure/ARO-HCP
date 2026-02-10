@@ -1,6 +1,6 @@
 module github.com/Azure/ARO-HCP/tooling/grafanactl
 
-go 1.24.11
+go 1.25.0
 
 require (
 	github.com/Azure/ARO-Tools v0.0.0-20260206230628-bf0d350d6edb

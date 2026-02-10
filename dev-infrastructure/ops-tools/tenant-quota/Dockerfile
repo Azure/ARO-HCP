@@ -1,7 +1,7 @@
 ARG PLATFORM
 
 # Builder image
-FROM --platform=${PLATFORM} mcr.microsoft.com/oss/go/microsoft/golang:1.24-fips-azurelinux3.0 AS builder
+FROM --platform=${PLATFORM} mcr.microsoft.com/oss/go/microsoft/golang:1.25-fips-azurelinux3.0 AS builder
 COPY internal/go.mod internal/go.sum internal/
 COPY dev-infrastructure/ops-tools/tenant-quota/go.mod dev-infrastructure/ops-tools/tenant-quota/go.sum dev-infrastructure/ops-tools/tenant-quota/
 RUN cd dev-infrastructure/ops-tools/tenant-quota && go mod download
