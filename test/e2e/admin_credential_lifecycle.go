@@ -53,7 +53,6 @@ var _ = Describe("Customer", func() {
 		labels.Positive,
 		labels.AroRpApiCompatible,
 		func(ctx context.Context) {
-			Skip("Skipping WIP test: https://issues.redhat.com/browse/ARO-23882")
 			clusterName := "admin-cred-lifecycle-" + rand.String(6)
 			tc := framework.NewTestContext()
 
