@@ -1,0 +1,36 @@
+# One-off: clean ACR repos at cache target prefixes so cache rules can be created (TargetRepositoryPrefixMatchesExistingRegistries).
+# Run: make pipeline/ACR.Cleanup  |  Test (no deletes): DRY_RUN=true make pipeline/ACR.Cleanup
+#
+$schema: pipeline.schema.v1
+rolloutName: ACR Cache Prefix Cleanup
+serviceGroup: Microsoft.Azure.ARO.HCP.ACR.Cleanup
+resourceGroups:
+- name: global
+  resourceGroup: '{{ .global.rg }}'
+  subscription: '{{ .global.subscription.key }}'
+  steps:
+  - name: output
+    action: ARM
+    template: templates/output-global.bicep
+    parameters: ./../configurations/output-global.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
+  - name: cleanup-acr-cache-prefixes
+    action: Shell
+    command: ./acr-cache-prefix-cleanup.sh
+    workingDir: ./../scripts
+    dryRun:
+      variables:
+      - name: DRY_RUN
+        value: "true"
+    variables:
+    - name: SVC_ACR_NAME
+      configRef: acr.svc.name
+    shellIdentity:
+      input:
+        resourceGroup: global
+        step: output
+        name: globalMSIId
+    dependsOn:
+    - resourceGroup: global
+      step: output

@@ -96,6 +96,9 @@ services:
 - serviceGroup: Microsoft.Azure.ARO.HCP.Kusto.Delete
   pipelinePath: dev-infrastructure/cleanup/delete.kusto.instance.pipeline.yaml
   purpose: Delete the kusto instance.
+- serviceGroup: Microsoft.Azure.ARO.HCP.ACR.Cleanup
+  pipelinePath: dev-infrastructure/cleanup/acr-cache-prefix-cleanup.pipeline.yaml
+  purpose: Clean up ACR repos at cache target prefixes so cache rules can be created (one-off or when needed).
 - serviceGroup: Microsoft.Azure.ARO.HCP.Service.Kubeconfig
   pipelinePath: dev-infrastructure/svc-kubeconfig.yaml
   purpose: Grant access to AKS SVC AKS Clusters, mainly intended for E2E test setup.
