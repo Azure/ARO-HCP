@@ -1003,6 +1003,8 @@ clouds:
       backend:
         azureRuntimeConfig:
           tlsCertificatesIssuer: Self
+        maestro:
+          sourceEnvironmentIdentifier: "arohcpdev"
       # Image Sync
       imageSync:
         ocMirror:
