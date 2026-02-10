@@ -67,6 +67,7 @@ image: Dockerfile $(ADMIN_API_SOURCES) Makefile
 	@rm -f $(BINARY)
 	cd $(ADMIN_DIR)/.. && \
 	$(CONTAINER_ENGINE) build . --file admin/Dockerfile \
+		--platform linux/amd64 \
 		--build-arg PLATFORM=linux/amd64 \
 		--build-arg ARO_HCP_REVISION=${ARO_HCP_REVISION} \
 		--build-arg ARO_HCP_COMMIT_TIME=${ARO_HCP_COMMIT_TIME} \

@@ -11,7 +11,7 @@ COPY . .
 # https://github.com/microsoft/go/tree/microsoft/main/eng/doc/fips#build-option-to-require-fips-mode
 # NOTE: starting with go 1.27, GODEBUG=fips140=only can be used at runtime to also reject
 # non-FIPS algorithms. See https://github.com/microsoft/go/tree/microsoft/main/eng/doc/fips
-ENV CGO_ENABLED=1 GOFIPS140=latest
+ENV CGO_ENABLED=1 GOFIPS140=latest GOOS=linux GOARCH=amd64
 ARG ARO_HCP_IMAGE_TAG
 ARG ARO_HCP_REVISION
 RUN make --directory admin build ARO_HCP_IMAGE_TAG=${ARO_HCP_IMAGE_TAG} ARO_HCP_REVISION=${ARO_HCP_REVISION}
