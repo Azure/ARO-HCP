@@ -102,6 +102,43 @@ func (k *HCPClusterKey) InitialController(controllerName string) *api.Controller
 	}
 }
 
+// HCPNodePoolKey is for driving workqueus keyed for nodepools
+type HCPNodePoolKey struct {
+	SubscriptionID    string `json:"subscriptionID"`
+	ResourceGroupName string `json:"resourceGroupName"`
+	HCPClusterName    string `json:"hcpClusterName"`
+	HCPNodePoolName   string `json:"hcpNodePoolName"`
+}
+
+func (k *HCPNodePoolKey) GetResourceID() *azcorearm.ResourceID {
+	return api.Must(api.ToNodePoolResourceID(k.SubscriptionID, k.ResourceGroupName, k.HCPClusterName, k.HCPNodePoolName))
+}
+
+func (k *HCPNodePoolKey) AddLoggerValues(logger logr.Logger) logr.Logger {
+	return logger.WithValues(
+		"subscription_id", k.SubscriptionID,
+		"resource_group", k.ResourceGroupName,
+		"cluster_name", k.HCPClusterName,
+		"resource_name", k.HCPNodePoolName,
+		"resource_id", k.GetResourceID().String(),
+		"hcp_node_pool_name", k.HCPNodePoolName,
+	)
+}
+
+func (k *HCPNodePoolKey) InitialController(controllerName string) *api.Controller {
+	resourceID := api.Must(azcorearm.ParseResourceID(k.GetResourceID().String() + "/" + api.ControllerResourceTypeName + "/" + controllerName))
+	return &api.Controller{
+		CosmosMetadata: api.CosmosMetadata{
+			ResourceID: resourceID,
+		},
+		ResourceID: resourceID,
+		ExternalID: k.GetResourceID(),
+		Status: api.ControllerStatus{
+			Conditions: []api.Condition{},
+		},
+	}
+}
+
 // clock is used by helper functions for setting last transition time.  It is injectable for unit testing.
 var clock utilsclock.Clock = utilsclock.RealClock{}
 
