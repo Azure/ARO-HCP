@@ -70,24 +70,24 @@ type simpleMaestroClient struct {
 	maestroConsumerName string
 }
 
-func (c *simpleMaestroClient) CreateMaestroBundle(ctx context.Context, maestroBundle *workv1.ManifestWork, opts metav1.CreateOptions) (*workv1.ManifestWork, error) {
-	return c.maestroManifestWorksInterface.Create(ctx, maestroBundle, opts)
+func (c *simpleMaestroClient) CreateMaestroBundle(ctx context.Context, bundle *workv1.ManifestWork, opts metav1.CreateOptions) (*workv1.ManifestWork, error) {
+	return c.maestroManifestWorksInterface.Create(ctx, bundle, opts)
 }
 
-func (c *simpleMaestroClient) GetMaestroBundle(ctx context.Context, bundleName string, opts metav1.GetOptions) (*workv1.ManifestWork, error) {
-	return c.maestroManifestWorksInterface.Get(ctx, bundleName, opts)
+func (c *simpleMaestroClient) GetMaestroBundle(ctx context.Context, bundleMetadataName string, opts metav1.GetOptions) (*workv1.ManifestWork, error) {
+	return c.maestroManifestWorksInterface.Get(ctx, bundleMetadataName, opts)
 }
 
-func (c *simpleMaestroClient) DeleteMaestroBundle(ctx context.Context, bundleName string, opts metav1.DeleteOptions) error {
-	return c.maestroManifestWorksInterface.Delete(ctx, bundleName, opts)
+func (c *simpleMaestroClient) DeleteMaestroBundle(ctx context.Context, bundleMetadataName string, opts metav1.DeleteOptions) error {
+	return c.maestroManifestWorksInterface.Delete(ctx, bundleMetadataName, opts)
 }
 
 func (c *simpleMaestroClient) UpdateMaestroBundle(ctx context.Context, bundle *workv1.ManifestWork, opts metav1.UpdateOptions) (*workv1.ManifestWork, error) {
 	return c.maestroManifestWorksInterface.Update(ctx, bundle, opts)
 }
 
-func (c *simpleMaestroClient) PatchMaestroBundle(ctx context.Context, bundleName string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *workv1.ManifestWork, err error) {
-	return c.maestroManifestWorksInterface.Patch(ctx, bundleName, pt, data, opts, subresources...)
+func (c *simpleMaestroClient) PatchMaestroBundle(ctx context.Context, bundleMetadataName string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *workv1.ManifestWork, err error) {
+	return c.maestroManifestWorksInterface.Patch(ctx, bundleMetadataName, pt, data, opts, subresources...)
 }
 
 func (c *simpleMaestroClient) ListMaestroBundles(ctx context.Context, opts metav1.ListOptions) (*workv1.ManifestWorkList, error) {
