@@ -745,10 +745,18 @@ defaults:
         registry: quay.io
         repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-210
         digest: sha256:7fb73770a8dd3401dfd6137003bc4f57cb9b24a0bf94b7ba5a1a689016c0fae8 # v2.10.1-367 (2026-02-04 23:05)
-    charts:
-      crds: sha256:e316fd25c4dbf4006c20c94f042b233fe3aa7095218c19ac7feb8d28f1c567ad # 2.10.2-370 (2026-02-06 03:37)
-      mce: sha256:52e1362ae0c2762cfe8b73f7b173c986f0a03169f1de84ef5df30dd0c416c7df # 2.10.2-370 (2026-02-06 03:37)
-      config: sha256:aae4a5244b3ec1c4a85deb5b7a2d4e55450c7b82ff6c09c09cc3b13b5356434f # 2.15.1-367 (2026-02-06 03:37)
+    chartCrds:
+      registry: arohcpsvcdev.azurecr.io
+      repository: helm/multicluster-engine-crds
+      digest: sha256:e316fd25c4dbf4006c20c94f042b233fe3aa7095218c19ac7feb8d28f1c567ad # 2.10.2-370 (2026-02-06 03:37)
+    chartMce:
+      registry: arohcpsvcdev.azurecr.io
+      repository: helm/multicluster-engine
+      digest: sha256:52e1362ae0c2762cfe8b73f7b173c986f0a03169f1de84ef5df30dd0c416c7df # 2.10.2-370 (2026-02-06 03:37)
+    chartConfig:
+      registry: arohcpsvcdev.azurecr.io
+      repository: helm/multicluster-engine-local-cluster
+      digest: sha256:aae4a5244b3ec1c4a85deb5b7a2d4e55450c7b82ff6c09c09cc3b13b5356434f # 2.15.1-367 (2026-02-06 03:37)
   # Cluster Service
   clustersService:
     image:

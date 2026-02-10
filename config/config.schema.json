@@ -1005,22 +1005,23 @@
             "bundle"
           ]
         },
-        "charts": {
-          "type": "object",
-          "properties": {
-            "crds": { "type": "string" },
-            "mce": { "type": "string" },
-            "config": { "type": "string" }
-          },
-          "additionalProperties": false,
-          "required": ["crds", "mce", "config"]
+        "chartCrds": {
+          "$ref": "#/definitions/containerImage"
+        },
+        "chartMce": {
+          "$ref": "#/definitions/containerImage"
+        },
+        "chartConfig": {
+          "$ref": "#/definitions/containerImage"
         }
       },
       "additionalProperties": false,
       "required": [
         "operator",
         "mce",
-        "charts"
+        "chartCrds",
+        "chartMce",
+        "chartConfig"
       ]
     },
     "pko": {

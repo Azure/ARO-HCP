@@ -107,7 +107,7 @@ push-charts:
 		$(SKOPEO) inspect --raw "docker://$$REPO:$$TAG" | sha256sum | awk '{print "sha256:"$$1}' > $(BUILD_DIR)/mce_digest; \
 	else \
 		echo "Pushing $$PKG..."; \
-		$(HELM) push $$PKG "oci://${REGISTRY}/helm" $(HELM_OPTS) 2>&1 | tee /dev/tty | grep "Digest:" | awk '{print $$2}' | tr -d '\r' > $(BUILD_DIR)/mce_digest; \
+		# $(HELM) push $$PKG "oci://${REGISTRY}/helm" $(HELM_OPTS) 2>&1 | tee /dev/tty | grep "Digest:" | awk '{print $$2}' | tr -d '\r' > $(BUILD_DIR)/mce_digest; \
 	fi
 
 
@@ -120,7 +120,7 @@ push-charts:
 		$(SKOPEO) inspect --raw "docker://$$REPO:$$TAG" | sha256sum | awk '{print "sha256:"$$1}' > $(BUILD_DIR)/crds_digest; \
 	else \
 		echo "Pushing $$PKG..."; \
-		$(HELM) push $$PKG "oci://${REGISTRY}/helm" $(HELM_OPTS) 2>&1 | tee /dev/tty | grep "Digest:" | awk '{print $$2}' | tr -d '\r' > $(BUILD_DIR)/crds_digest; \
+		# $(HELM) push $$PKG "oci://${REGISTRY}/helm" $(HELM_OPTS) 2>&1 | tee /dev/tty | grep "Digest:" | awk '{print $$2}' | tr -d '\r' > $(BUILD_DIR)/crds_digest; \
 	fi
 
 	# 3. Config Chart
@@ -132,7 +132,7 @@ push-charts:
 		$(SKOPEO) inspect --raw "docker://$$REPO:$$TAG" | sha256sum | awk '{print "sha256:"$$1}' > $(BUILD_DIR)/config_digest; \
 	else \
 		echo "Pushing $$PKG..."; \
-		$(HELM) push $$PKG "oci://${REGISTRY}/helm" $(HELM_OPTS) 2>&1 | tee /dev/tty | grep "Digest:" | awk '{print $$2}' | tr -d '\r' > $(BUILD_DIR)/config_digest; \
+		# $(HELM) push $$PKG "oci://${REGISTRY}/helm" $(HELM_OPTS) 2>&1 | tee /dev/tty | grep "Digest:" | awk '{print $$2}' | tr -d '\r' > $(BUILD_DIR)/config_digest; \
 	fi
 
 .PHONY: build-and-push
@@ -149,9 +149,9 @@ record-override: $(YQ)
 	$(eval CRDS_SHA := $(shell cat $(BUILD_DIR)/crds_digest))
 	$(eval CFG_SHA := $(shell cat $(BUILD_DIR)/config_digest))
 	$(YQ) eval -n "\
-		.clouds.dev.environments.$(DEPLOY_ENV).defaults.acm.charts.mce = \"$(MCE_SHA)\" | \
-		.clouds.dev.environments.$(DEPLOY_ENV).defaults.acm.charts.config = \"$(CFG_SHA)\" | \
-		.clouds.dev.environments.$(DEPLOY_ENV).defaults.acm.charts.crds = \"$(CRDS_SHA)\" \
+		.clouds.dev.environments.$(DEPLOY_ENV).defaults.acm.chartMce.digest = \"$(MCE_SHA)\" | \
+		.clouds.dev.environments.$(DEPLOY_ENV).defaults.acm.chartConfig.digest = \"$(CFG_SHA)\" | \
+		.clouds.dev.environments.$(DEPLOY_ENV).defaults.acm.chartCrds.digest = \"$(CRDS_SHA)\" \
 	" > $(OVERRIDE_CONFIG_FILE)
 
 deploy: build-and-push record-override

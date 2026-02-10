@@ -12,6 +12,78 @@ resourceGroups:
     parameters: ./../dev-infrastructure/configurations/output-global.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     outputOnly: true
+  - name: mirror-image-crds
+    action: ImageMirror
+    targetACR:
+      configRef: 'acr.svc.name'
+    sourceRegistry:
+      configRef: acm.chartCrds.registry
+    repository:
+      configRef: acm.chartCrds.repository
+    digest:
+      configRef: acm.chartCrds.digest
+    pullSecretKeyVault:
+      configRef: global.keyVault.name
+    pullSecretName:
+      configRef: imageSync.ondemandSync.pullSecretName
+    shellIdentity:
+      input:
+        resourceGroup: global
+        step: output
+        name: globalMSIId
+    automatedRetry:
+      errorContainsAny:
+      - "unknown_storage_failure"
+      maximumRetryCount: 5
+      durationBetweenRetries: 1m
+  - name: mirror-image-mce
+    action: ImageMirror
+    targetACR:
+      configRef: 'acr.svc.name'
+    sourceRegistry:
+      configRef: acm.chartMce.registry
+    repository:
+      configRef: acm.chartMce.repository
+    digest:
+      configRef: acm.chartMce.digest
+    pullSecretKeyVault:
+      configRef: global.keyVault.name
+    pullSecretName:
+      configRef: imageSync.ondemandSync.pullSecretName
+    shellIdentity:
+      input:
+        resourceGroup: global
+        step: output
+        name: globalMSIId
+    automatedRetry:
+      errorContainsAny:
+      - "unknown_storage_failure"
+      maximumRetryCount: 5
+      durationBetweenRetries: 1m
+  - name: mirror-image-config
+    action: ImageMirror
+    targetACR:
+      configRef: 'acr.svc.name'
+    sourceRegistry:
+      configRef: acm.chartConfig.registry
+    repository:
+      configRef: acm.chartConfig.repository
+    digest:
+      configRef: acm.chartConfig.digest
+    pullSecretKeyVault:
+      configRef: global.keyVault.name
+    pullSecretName:
+      configRef: imageSync.ondemandSync.pullSecretName
+    shellIdentity:
+      input:
+        resourceGroup: global
+        step: output
+        name: globalMSIId
+    automatedRetry:
+      errorContainsAny:
+      - "unknown_storage_failure"
+      maximumRetryCount: 5
+      durationBetweenRetries: 1m
 - name: kusto
   resourceGroup: '{{ .kusto.rg }}'
   subscription: '{{ .global.subscription.key }}'
@@ -31,7 +103,7 @@ resourceGroups:
     action: Helm
     releaseName: 'mce-crds'
     releaseNamespace: 'multicluster-engine'
-    chartDir: oci://{{ .acr.svc.name }}.{{ .acrDNSSuffix }}/helm/multicluster-engine-crds@{{ .acm.charts.crds }}
+    chartDir: oci://{{ .acr.svc.name }}.{{ .acrDNSSuffix }}/helm/multicluster-engine-crds@{{ .acm.chartCrds.digest }}
     valuesFile: multicluster-engine-crds.values.yaml
     kustoEndpoint:
       resourceGroup: kusto
@@ -55,7 +127,7 @@ resourceGroups:
     action: Helm
     releaseName: 'mce'
     releaseNamespace: 'multicluster-engine'
-    chartDir: oci://{{ .acr.svc.name }}.{{ .acrDNSSuffix }}/helm/multicluster-engine@{{ .acm.charts.mce }}
+    chartDir: oci://{{ .acr.svc.name }}.{{ .acrDNSSuffix }}/helm/multicluster-engine@{{ .acm.chartMce.digest }}
     valuesFile: multicluster-engine.values.yaml
     kustoEndpoint:
       resourceGroup: kusto
@@ -82,7 +154,7 @@ resourceGroups:
     action: Helm
     releaseName: 'mce-config'
     releaseNamespace: 'multicluster-engine'
-    chartDir: oci://{{ .acr.svc.name }}.{{ .acrDNSSuffix }}/helm/multicluster-engine-local-cluster@{{ .acm.charts.config }}
+    chartDir: oci://{{ .acr.svc.name }}.{{ .acrDNSSuffix }}/helm/multicluster-engine-local-cluster@{{ .acm.chartConfig.digest }}
     valuesFile: multicluster-engine-config.values.yaml
     kustoEndpoint:
       resourceGroup: kusto
