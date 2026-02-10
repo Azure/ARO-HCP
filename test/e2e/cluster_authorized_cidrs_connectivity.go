@@ -33,6 +33,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 
 	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
@@ -93,20 +94,24 @@ var _ = Describe("Authorized CIDRs", func() {
 
 				By("deploying test VM")
 				vmName := fmt.Sprintf("%s-test-vm", clusterName)
-				vmDeployment, err := tc.CreateBicepTemplateAndWait(ctx,
-					framework.WithTemplateFromFS(TestArtifactsFS, "test-artifacts/generated-test-artifacts/modules/test-vm.json"),
-					framework.WithDeploymentName("test-vm"),
-					framework.WithScope(framework.BicepDeploymentScopeResourceGroup),
-					framework.WithClusterResourceGroup(*resourceGroup.Name),
-					framework.WithParameters(map[string]any{
-						"vmName":       vmName,
-						"vnetName":     customerVnetName,
-						"subnetName":   customerVnetSubnetName,
-						"sshPublicKey": sshPublicKey,
-					}),
-					framework.WithTimeout(30*time.Minute),
-				)
-				Expect(err).NotTo(HaveOccurred())
+				var vmDeployment *armresources.DeploymentExtended
+				Eventually(func() error {
+					var err error
+					vmDeployment, err = tc.CreateBicepTemplateAndWait(ctx,
+						framework.WithTemplateFromFS(TestArtifactsFS, "test-artifacts/generated-test-artifacts/modules/test-vm.json"),
+						framework.WithDeploymentName("test-vm"),
+						framework.WithScope(framework.BicepDeploymentScopeResourceGroup),
+						framework.WithClusterResourceGroup(*resourceGroup.Name),
+						framework.WithParameters(map[string]any{
+							"vmName":       vmName,
+							"vnetName":     customerVnetName,
+							"subnetName":   customerVnetSubnetName,
+							"sshPublicKey": sshPublicKey,
+						}),
+						framework.WithTimeout(30*time.Minute),
+					)
+					return err
+				}, 30*time.Minute, 20*time.Second).Should(Succeed())
 
 				By("extracting VM public IP from deployment outputs")
 				vmPublicIP, err := framework.GetOutputValueString(vmDeployment, "publicIP")
