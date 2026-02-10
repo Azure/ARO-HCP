@@ -232,7 +232,7 @@ func (opts *FrontendOpts) Run() error {
 
 	f := frontend.NewFrontend(logger, listener, metricsListener, prometheus.DefaultRegisterer, dbClient, csClient, auditClient, opts.location)
 
-	runErrCh := make(chan error)
+	runErrCh := make(chan error, 1)
 	go func() {
 		runErrCh <- f.Run(ctx)
 		cancel(fmt.Errorf("frontend exited"))
