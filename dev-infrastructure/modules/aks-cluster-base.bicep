@@ -57,20 +57,10 @@ param networkDataplane string
 param networkPolicy string
 param enableSwiftV2Nodepools bool
 
-@description('Istio Ingress Gateway Public IP Address resource name')
-param istioIngressGatewayIPAddressName string = ''
+param aksClusterUserDefinedManagedIdentityName string
 
 @description('IPTags to be set on the cluster outbound IP address in the format of ipTagType:tag,ipTagType:tag')
 param aksClusterOutboundIPAddressIPTags string = ''
-var aksClusterOutboundIPAddressIPTagsArray = [
-  for tag in csvToArray(aksClusterOutboundIPAddressIPTags): parseIPServiceTag(tag)
-]
-
-@description('IPTags to be set on the Istio Ingress Gateway IP address in the format of ipTagType:tag,ipTagType:tag')
-param istioIngressGatewayIPAddressIPTags string = ''
-var istioIngressGatewayIPAddressIPTagsArray = [
-  for tag in csvToArray(istioIngressGatewayIPAddressIPTags): parseIPServiceTag(tag)
-]
 
 @maxLength(24)
 param aksKeyVaultName string
@@ -212,9 +202,8 @@ resource aksPodSubnet 'Microsoft.Network/virtualNetworks/subnets@2023-11-01' = {
 //   E G R E S S   A N D   I N G R E S S
 //
 
-resource aksClusterUserDefinedManagedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
-  name: '${aksClusterName}-msi'
-  location: location
+resource aksClusterUserDefinedManagedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
+  name: aksClusterUserDefinedManagedIdentityName
 }
 
 resource aksNetworkContributorRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
@@ -227,30 +216,13 @@ resource aksNetworkContributorRoleAssignment 'Microsoft.Authorization/roleAssign
   }
 }
 
-module istioIngressGatewayIPAddress '../modules/network/publicipaddress.bicep' = if (deployIstio) {
-  name: istioIngressGatewayIPAddressName
-  scope: resourceGroup(ipResourceGroup)
-  params: {
-    name: istioIngressGatewayIPAddressName
-    ipTags: istioIngressGatewayIPAddressIPTagsArray
-    location: location
-    zones: length(ipZones) > 0 ? ipZones : null
-    // Role Assignment needed for the public IP address to be used on the Load Balancer
-    roleAssignmentProperties: {
-      principalId: aksClusterUserDefinedManagedIdentity.properties.principalId
-      principalType: 'ServicePrincipal'
-      roleDefinitionId: networkContributorRoleId
-    }
-  }
-}
-
 var aksClusterOutboundIPAddressName = '${aksClusterName}-outbound-ip'
 module aksClusterOutboundIPAddress '../modules/network/publicipaddress.bicep' = {
   name: aksClusterOutboundIPAddressName
   scope: resourceGroup(ipResourceGroup)
   params: {
     name: aksClusterOutboundIPAddressName
-    ipTags: aksClusterOutboundIPAddressIPTagsArray
+    ipTags: aksClusterOutboundIPAddressIPTags
     location: location
     zones: length(ipZones) > 0 ? ipZones : null
     // Role Assignment needed for the public IP address to be used on the Load Balancer
@@ -286,7 +258,7 @@ var systemPoolZonesArray = systemZoneRedundantMode == 'Enabled' || (systemZoneRe
   ? systemAgentPoolZones
   : null
 
-resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-10-01' = {
+resource aksCluster 'Microsoft.ContainerService/managedClusters@2025-07-02-preview' = {
   location: location
   name: aksClusterName
   sku: {
@@ -451,6 +423,14 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-10-01' = {
           }
         }
       : null
+    // TODO: ops-ingress phase 2: enable k8s gateway api
+    // ingressProfile: deployIstio
+    //   ? {
+    //       gatewayAPI: {
+    //         installation: 'Standard'
+    //       }
+    //     }
+    //   : null
     storageProfile: {
       diskCSIDriver: {
         enabled: true
@@ -651,5 +631,5 @@ resource aroDevopsMSIClusterAdmin 'Microsoft.Authorization/roleAssignments@2022-
 output aksOidcIssuerUrl string = aksCluster.properties.oidcIssuerProfile.issuerURL
 output aksClusterName string = aksClusterName
 output aksClusterKeyVaultSecretsProviderPrincipalId string = aksCluster.properties.addonProfiles.azureKeyvaultSecretsProvider.identity.objectId
-output istioIngressGatewayIPAddress string = deployIstio ? istioIngressGatewayIPAddress.outputs.ipAddress : ''
+output aksClusterManagedIdentityPrincipalId string = aksClusterUserDefinedManagedIdentity.properties.principalId
 output etcKeyVaultId string = aks_keyvault_builder.outputs.kvId

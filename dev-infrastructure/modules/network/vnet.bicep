@@ -150,3 +150,4 @@ resource provisionedSwiftVnet 'Microsoft.Network/virtualNetworks@2024-05-01' exi
 }
 
 output vnetId string = enableSwift ? provisionedSwiftVnet.id : vnet.id
+output vnetName string = enableSwift ? provisionedSwiftVnet.name : vnet.name

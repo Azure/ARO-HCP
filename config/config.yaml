@@ -34,6 +34,7 @@ defaults:
   administration:
     readerGroupId: ""
     releaseManagementGroupId: ""
+    sreServiceTag: ""
   # Global scope settings
   global:
     safeDnsIntAppObjectId: "" # intentionally left empty
@@ -322,6 +323,8 @@ defaults:
           features:
           - name: IstioNativeSidecarModePreview
             poll: true
+          - name: ManagedGatewayAPIPreview
+            poll: true
         'Microsoft.DbForPostgreSQL':
           poll: true
     rg: "hcp-underlay-{{ .ctx.environment }}-{{ .ctx.region }}-svc"
@@ -332,6 +335,10 @@ defaults:
       tag: "prod-stable"
       ingressGatewayIPAddressName: "aro-hcp-istio-ingress"
       ingressGatewayIPAddressIPTags: ""
+    opsIngress:
+      gateway:
+        ipAddressName: "aro-hcp-ops-ingress"
+        ipAddressTags: ""
     aks:
       name: "{{ .ctx.environment }}-{{ .ctx.region }}-svc-1" # [env-unique]
       vnetAddressPrefix: "10.128.0.0/14"

@@ -1,3 +1,8 @@
+import {
+  csvToArray
+  parseIPServiceTag
+} from '../../modules/common.bicep'
+
 @minLength(5)
 @maxLength(80)
 @description('Name of the Azure Public IP address')
@@ -10,7 +15,7 @@ param location string
 param zones array = []
 
 @description('IPTags for the Public IP address')
-param ipTags array = []
+param ipTags string = ''
 
 @description('Tags to set on the Public IP address')
 param tags object = {}
@@ -18,12 +23,14 @@ param tags object = {}
 @description('The Public IP address\'s role assignment properties')
 param roleAssignmentProperties object = {}
 
+var tagsArray = [for tag in csvToArray(ipTags): parseIPServiceTag(tag)]
+
 resource publicIPAddress 'Microsoft.Network/publicIPAddresses@2024-05-01' = {
   name: name
   location: location
   tags: tags
   properties: {
-    ipTags: ipTags
+    ipTags: tagsArray
     publicIPAddressVersion: 'IPv4'
     publicIPAllocationMethod: 'Static'
   }

@@ -18,6 +18,7 @@ spec:
       credentialName: frontend-credential
     hosts:
     - "{{ .Values.virtualService.host }}"
+  # TODO: ops-ingress phase 4: cleanup, remove routing for admin API
   - port:
       number: 443
       name: admin-api-https
