@@ -20,6 +20,9 @@ set -o pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
+# shellcheck source=hack/utils.sh
+source "${REPO_ROOT}/hack/utils.sh"
+
 DEEPCOPY_GEN="${DEEPCOPY_GEN:-deepcopy-gen}"
 
 "${DEEPCOPY_GEN}" \
@@ -56,7 +59,7 @@ for f in \
   fi
 
   # Fix internal Azure SDK import path and type references.
-  sed -i \
+  os::util::sed \
     -e 's|resource "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm/internal/resource"|azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"|g' \
     -e 's|resource\.ResourceID|azcorearm.ResourceID|g' \
     "${f}"
@@ -65,23 +68,23 @@ for f in \
   #     *out = new(azcorearm.ResourceID)
   #     (*in).DeepCopyInto(*out)
   # with single-line call to DeepCopyResourceID.
-  sed -i -E \
+  os::util::sed -E \
     "/\*out = new\(azcorearm\.ResourceID\)/{N;s|\*out = new\(azcorearm\.ResourceID\)\n[[:space:]]*\(\*in\)\.DeepCopyInto\(\*out\)|*out = ${RESOURCEID_FUNC}(*in)|;}" \
     "${f}"
 
   # Fix value-type azcorearm.ResourceID field (e.g. ServiceProviderCluster.ResourceID).
-  sed -i \
+  os::util::sed \
     "s/in\.ResourceID\.DeepCopyInto(&out\.ResourceID)/out.ResourceID = *${RESOURCEID_FUNC}(\&in.ResourceID)/g" \
     "${f}"
 
   # Fix pointer-type time.Time fields (time.Time has no DeepCopyInto).
-  sed -i \
+  os::util::sed \
     '/\*out = new(time\.Time)/{n;s/(\*in)\.DeepCopyInto(\*out)/**out = **in/;}' \
     "${f}"
 
   # Fix value-type time.Time fields.
   for field in LastTransitionTime StartTime ExpirationTimestamp EndOfLifeTimestamp; do
-    sed -i \
+    os::util::sed \
       "s/in\.${field}\.DeepCopyInto(&out\.${field})/out.${field} = in.${field}/g" \
       "${f}"
   done
@@ -89,7 +92,7 @@ for f in \
   # Fix "any" fields: deepcopy-gen generates .DeepCopyany() which does not
   # exist on interface{}. The initial *out = *in already performs a shallow
   # copy so we just reassign the value.
-  sed -i \
+  os::util::sed \
     's/\(.*\)\.DeepCopyany()/\1/g' \
     "${f}"
 done
