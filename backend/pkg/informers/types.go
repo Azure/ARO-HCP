@@ -16,6 +16,7 @@ package informers
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	"k8s.io/client-go/tools/cache"
@@ -123,12 +124,39 @@ func (b *backendInformers) RunWithContext(ctx context.Context) {
 	logger.Info("starting informers")
 	defer logger.Info("stopped informers")
 
-	go b.subscriptionInformer.RunWithContext(ctx)
-	go b.activeOperationInformer.RunWithContext(ctx)
-	go b.clusterInformer.RunWithContext(ctx)
-	go b.nodePoolInformer.RunWithContext(ctx)
-	go b.externalAuthInformer.RunWithContext(ctx)
-	go b.serviceProviderClusterInformer.RunWithContext(ctx)
+	wg := sync.WaitGroup{}
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		b.subscriptionInformer.RunWithContext(ctx)
+	}()
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		b.activeOperationInformer.RunWithContext(ctx)
+	}()
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		b.clusterInformer.RunWithContext(ctx)
+	}()
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		b.nodePoolInformer.RunWithContext(ctx)
+	}()
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		b.externalAuthInformer.RunWithContext(ctx)
+	}()
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		b.serviceProviderClusterInformer.RunWithContext(ctx)
+	}()
 
 	<-ctx.Done()
+	wg.Wait()
 }
