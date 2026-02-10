@@ -126,10 +126,30 @@ func (c *DataplaneController) processNextWorkItem(ctx context.Context) bool {
 
 	defer c.workqueue.Done(objRef)
 
+	session, err := c.getSession(objRef.Namespace, objRef.Name)
+	if err != nil && apierrors.IsNotFound(err) {
+		// session is gone, nothing to do
+		return true
+	} else if err != nil {
+		c.workqueue.AddRateLimited(objRef)
+		return true
+	}
+
+	logger := klog.FromContext(ctx).WithValues(
+		"session", session.Name,
+		"namespace", session.Namespace,
+		"managementClusterID", session.Spec.ManagementCluster.ResourceID,
+		"hostedControlPlaneResourceID", session.Spec.HostedControlPlane.Namespace,
+	)
+	ctx = klog.NewContext(ctx, logger)
+
+	logger.Info("start sync")
+	defer logger.Info("end sync")
+
 	// reconcile the session
-	err := c.syncSession(ctx, objRef.Namespace, objRef.Name)
+	err = c.syncSession(session)
 	if err != nil {
-		utilruntime.HandleErrorWithContext(ctx, err, "Error syncing; requeuing for later retry", "objectReference", objRef)
+		utilruntime.HandleErrorWithContext(ctx, err, "Error syncing; requeuing for later retry")
 		c.workqueue.AddRateLimited(objRef)
 		return true
 	}
@@ -137,15 +157,7 @@ func (c *DataplaneController) processNextWorkItem(ctx context.Context) bool {
 	return true
 }
 
-func (c *DataplaneController) syncSession(ctx context.Context, namespace, name string) error {
-	session, err := c.getSession(namespace, name)
-	if err != nil && apierrors.IsNotFound(err) {
-		c.registry.UnregisterSession(name)
-		return nil // nothing to be done, Session is gone
-	} else if err != nil {
-		return err
-	}
-
+func (c *DataplaneController) syncSession(session *sessiongatev1alpha1.Session) error {
 	if ready, _ := c.isReadyForRegistration(session); !ready {
 		c.registry.UnregisterSession(session.Name)
 		return nil

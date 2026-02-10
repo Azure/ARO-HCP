@@ -203,6 +203,17 @@ func (c *SessionController) processNextSessionWorkItem(ctx context.Context) bool
 		return true
 	}
 
+	logger := klog.FromContext(ctx).WithValues(
+		"session", session.Name,
+		"namespace", session.Namespace,
+		"managementClusterID", session.Spec.ManagementCluster.ResourceID,
+		"hostedControlPlaneResourceID", session.Spec.HostedControlPlane.Namespace,
+	)
+	ctx = klog.NewContext(ctx, logger)
+
+	logger.Info("start sync")
+	defer logger.Info("end sync")
+
 	// requeue for the expiration time
 	if session.Status.ExpiresAt != nil {
 		requeueAfter := time.Until(session.Status.ExpiresAt.Time)
@@ -214,15 +225,16 @@ func (c *SessionController) processNextSessionWorkItem(ctx context.Context) bool
 	// get the management cluster provider
 	mc, ok := c.getManagementClusterProvider(session.Spec.ManagementCluster.ResourceID)
 	if !ok {
-		// provider not yet registered
-		c.workqueue.AddRateLimited(objRef)
+		logger.V(4).Info(
+			"management cluster provider not yet registered, skipping session reconciliation as the registration process will requeue",
+		)
 		return true
 	}
 
 	// reconcile the session
 	err = c.syncSession(ctx, session, mc)
 	if err != nil {
-		utilruntime.HandleErrorWithContext(ctx, err, "Error syncing; requeuing for later retry", "objectReference", objRef)
+		utilruntime.HandleErrorWithContext(ctx, err, "Error syncing; requeuing for later retry")
 		c.workqueue.AddRateLimited(objRef)
 		return true
 	}
@@ -231,9 +243,11 @@ func (c *SessionController) processNextSessionWorkItem(ctx context.Context) bool
 }
 
 func (c *SessionController) syncSession(ctx context.Context, session *sessiongatev1alpha1.Session, mc *ManagementClusterProvider) error {
+	logger := klog.FromContext(ctx)
+
 	action, err := c.processSession(ctx, session, mc)
 	if err != nil {
-		klog.ErrorS(err, "Error processing session", "session", session.Name, "namespace", session.Namespace)
+		logger.Error(err, "Error processing session")
 		return err
 	}
 
