@@ -143,7 +143,7 @@ func validateCSR(csr *certificatesv1.CertificateSigningRequest, privateKey *rsa.
 		klog.ErrorS(nil, "CSR public key is not an RSA public key", "csr", csr.Name)
 		return false
 	}
-	if !PrivateKeyAndPublicKeyMatch(privateKey, csrPublicKey) {
+	if !privateKeyAndPublicKeyMatch(privateKey, csrPublicKey) {
 		klog.ErrorS(nil, "CSR public key does not match private key", "csr", csr.Name)
 		return false
 	}

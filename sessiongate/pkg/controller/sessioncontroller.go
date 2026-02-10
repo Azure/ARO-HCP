@@ -16,7 +16,6 @@ package controller
 
 import (
 	"context"
-	"crypto/rand"
 	"crypto/rsa"
 	"errors"
 	"fmt"
@@ -152,9 +151,7 @@ func NewSessionController(
 		getSecret: func(namespace, name string) (*corev1.Secret, error) {
 			return kubeinformers.Core().V1().Secrets().Lister().Secrets(namespace).Get(name)
 		},
-		newPrivateKey: func(size int) (*rsa.PrivateKey, error) {
-			return rsa.GenerateKey(rand.Reader, size)
-		},
+		newPrivateKey: createPrivateKey,
 	}, nil
 }
 
