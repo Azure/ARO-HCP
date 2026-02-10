@@ -81,16 +81,17 @@ var secretWithFullTestCredentials = &corev1.Secret{
 
 // mockManagementClusterProvider implements ManagementClusterProvider for testing
 type mockManagementClusterQuerier struct {
-	hostedControlPlane      *hypershiftv1beta1.HostedControlPlane
-	hostedControlPlaneError error
-	csr                     *certificatesv1.CertificateSigningRequest
-	csrErr                  error
-	csrApproval             *certificatesv1alpha1.CertificateSigningRequestApproval
+	hostedControlPlane     *hypershiftv1beta1.HostedControlPlane
+	getHostedControlPlaneErr error
+	csr                    *certificatesv1.CertificateSigningRequest
+	getCSRErr              error
+	csrApproval            *certificatesv1alpha1.CertificateSigningRequestApproval
+	getCSRApprovalErr      error
 }
 
 func (m *mockManagementClusterQuerier) GetHostedControlPlane(namespace string) (*hypershiftv1beta1.HostedControlPlane, error) {
-	if m.hostedControlPlaneError != nil {
-		return nil, m.hostedControlPlaneError
+	if m.getHostedControlPlaneErr != nil {
+		return nil, m.getHostedControlPlaneErr
 	}
 	if m.hostedControlPlane == nil {
 		return nil, apierrors.NewNotFound(schema.GroupResource{Resource: "hostedcontrolplanes"}, namespace)
@@ -99,8 +100,8 @@ func (m *mockManagementClusterQuerier) GetHostedControlPlane(namespace string) (
 }
 
 func (m *mockManagementClusterQuerier) GetCSR(name string) (*certificatesv1.CertificateSigningRequest, error) {
-	if m.csrErr != nil {
-		return nil, m.csrErr
+	if m.getCSRErr != nil {
+		return nil, m.getCSRErr
 	}
 	if m.csr == nil {
 		return nil, apierrors.NewNotFound(schema.GroupResource{Resource: "certificatesigningrequests"}, name)
@@ -109,8 +110,8 @@ func (m *mockManagementClusterQuerier) GetCSR(name string) (*certificatesv1.Cert
 }
 
 func (m *mockManagementClusterQuerier) GetCSRApproval(namespace, name string) (*certificatesv1alpha1.CertificateSigningRequestApproval, error) {
-	if m.csrErr != nil {
-		return nil, m.csrErr
+	if m.getCSRApprovalErr != nil {
+		return nil, m.getCSRApprovalErr
 	}
 	if m.csrApproval == nil {
 		return nil, apierrors.NewNotFound(schema.GroupResource{Resource: "certificatesigningrequestapprovals"}, name)
@@ -312,6 +313,8 @@ func TestSessionController_processSession_generateCredentials(t *testing.T) {
 		name            string
 		sessionStatus   sessiongatev1alpha1.SessionStatus
 		existingSecret  *corev1.Secret
+		getSecretErr    error
+		newPrivateKeyErr error
 		mq              ManagementClusterQuerier
 		expectAction    bool
 		expectedRequeue bool
@@ -328,7 +331,7 @@ func TestSessionController_processSession_generateCredentials(t *testing.T) {
 			},
 			mq: &mockManagementClusterQuerier{
 				csr:    nil,
-				csrErr: apierrors.NewNotFound(schema.GroupResource{Resource: "certificatesigningrequests"}, "test-session"),
+				getCSRErr: apierrors.NewNotFound(schema.GroupResource{Resource: "certificatesigningrequests"}, "test-session"),
 			},
 			expectAction: true,
 		},
@@ -343,7 +346,7 @@ func TestSessionController_processSession_generateCredentials(t *testing.T) {
 			},
 			mq: &mockManagementClusterQuerier{
 				csr:    nil,
-				csrErr: apierrors.NewNotFound(schema.GroupResource{Resource: "certificatesigningrequests"}, "test-session"),
+				getCSRErr: apierrors.NewNotFound(schema.GroupResource{Resource: "certificatesigningrequests"}, "test-session"),
 			},
 			expectAction: true,
 		},
@@ -361,7 +364,7 @@ func TestSessionController_processSession_generateCredentials(t *testing.T) {
 			existingSecret: secretWithTestPrivateKey,
 			mq: &mockManagementClusterQuerier{
 				csr:    nil, // No CSR exists yet
-				csrErr: apierrors.NewNotFound(schema.GroupResource{Resource: "certificatesigningrequests"}, "test-session"),
+				getCSRErr: apierrors.NewNotFound(schema.GroupResource{Resource: "certificatesigningrequests"}, "test-session"),
 			},
 			expectAction: true,
 		},
@@ -384,7 +387,7 @@ func TestSessionController_processSession_generateCredentials(t *testing.T) {
 			existingSecret: secretWithTestPrivateKey,
 			mq: &mockManagementClusterQuerier{
 				csr:    nil, // No CSR exists yet
-				csrErr: apierrors.NewNotFound(schema.GroupResource{Resource: "certificatesigningrequests"}, "test-session"),
+				getCSRErr: apierrors.NewNotFound(schema.GroupResource{Resource: "certificatesigningrequests"}, "test-session"),
 			},
 			expectAction: true,
 		},
@@ -407,7 +410,7 @@ func TestSessionController_processSession_generateCredentials(t *testing.T) {
 			existingSecret: secretWithTestPrivateKey,
 			mq: &mockManagementClusterQuerier{
 				csr:    unapprovedCSR,
-				csrErr: nil,
+				getCSRErr: nil,
 			},
 			expectAction: true,
 		},
@@ -431,7 +434,7 @@ func TestSessionController_processSession_generateCredentials(t *testing.T) {
 			existingSecret: secretWithTestPrivateKey,
 			mq: &mockManagementClusterQuerier{
 				csr:    unapprovedCSR,
-				csrErr: nil,
+				getCSRErr: nil,
 			},
 			expectAction: true,
 		},
@@ -537,6 +540,178 @@ func TestSessionController_processSession_generateCredentials(t *testing.T) {
 			},
 			expectAction: true,
 		},
+		// Error handling test cases
+		{
+			name: "credential secret transient error",
+			sessionStatus: sessiongatev1alpha1.SessionStatus{
+				ExpiresAt:            &metav1.Time{Time: fixedTime.Add(24 * time.Hour)},
+				CredentialsSecretRef: "sessiongate-9b1f64c3",
+				Conditions: []metav1.Condition{
+					sessionNotReadyCondition,
+				},
+			},
+			getSecretErr: apierrors.NewServiceUnavailable("service unavailable"),
+			mq:           &mockManagementClusterQuerier{},
+			expectAction: false,
+			expectedErr:  true,
+		},
+		{
+			name: "credential secret forbidden error",
+			sessionStatus: sessiongatev1alpha1.SessionStatus{
+				ExpiresAt:            &metav1.Time{Time: fixedTime.Add(24 * time.Hour)},
+				CredentialsSecretRef: "sessiongate-9b1f64c3",
+				Conditions: []metav1.Condition{
+					sessionNotReadyCondition,
+				},
+			},
+			getSecretErr: apierrors.NewForbidden(schema.GroupResource{Resource: "secrets"}, "sessiongate-9b1f64c3", errors.New("forbidden")),
+			mq:           &mockManagementClusterQuerier{},
+			expectAction: true,
+		},
+		{
+			name: "credential secret infrastructure error",
+			sessionStatus: sessiongatev1alpha1.SessionStatus{
+				ExpiresAt:            &metav1.Time{Time: fixedTime.Add(24 * time.Hour)},
+				CredentialsSecretRef: "sessiongate-9b1f64c3",
+				Conditions: []metav1.Condition{
+					sessionNotReadyCondition,
+				},
+			},
+			getSecretErr: apierrors.NewInternalError(errors.New("internal error")),
+			mq:           &mockManagementClusterQuerier{},
+			expectAction: true,
+		},
+		{
+			name: "CSR transient error",
+			sessionStatus: sessiongatev1alpha1.SessionStatus{
+				ExpiresAt:            &metav1.Time{Time: fixedTime.Add(24 * time.Hour)},
+				CredentialsSecretRef: "sessiongate-9b1f64c3",
+				Conditions: []metav1.Condition{
+					sessionNotReadyCondition,
+				},
+			},
+			existingSecret: secretWithTestPrivateKey,
+			mq: &mockManagementClusterQuerier{
+				getCSRErr: apierrors.NewServiceUnavailable("service unavailable"),
+			},
+			expectAction: false,
+			expectedErr:  true,
+		},
+		{
+			name: "CSR forbidden error",
+			sessionStatus: sessiongatev1alpha1.SessionStatus{
+				ExpiresAt:            &metav1.Time{Time: fixedTime.Add(24 * time.Hour)},
+				CredentialsSecretRef: "sessiongate-9b1f64c3",
+				Conditions: []metav1.Condition{
+					sessionNotReadyCondition,
+				},
+			},
+			existingSecret: secretWithTestPrivateKey,
+			mq: &mockManagementClusterQuerier{
+				getCSRErr: apierrors.NewForbidden(schema.GroupResource{Resource: "certificatesigningrequests"}, "test-session", errors.New("forbidden")),
+			},
+			expectAction: true,
+		},
+		{
+			name: "CSR infrastructure error",
+			sessionStatus: sessiongatev1alpha1.SessionStatus{
+				ExpiresAt:            &metav1.Time{Time: fixedTime.Add(24 * time.Hour)},
+				CredentialsSecretRef: "sessiongate-9b1f64c3",
+				Conditions: []metav1.Condition{
+					sessionNotReadyCondition,
+				},
+			},
+			existingSecret: secretWithTestPrivateKey,
+			mq: &mockManagementClusterQuerier{
+				getCSRErr: apierrors.NewInternalError(errors.New("internal error")),
+			},
+			expectAction: true,
+		},
+		{
+			name: "CSR approval transient error",
+			sessionStatus: sessiongatev1alpha1.SessionStatus{
+				ExpiresAt:            &metav1.Time{Time: fixedTime.Add(24 * time.Hour)},
+				CredentialsSecretRef: "sessiongate-9b1f64c3",
+				Conditions: []metav1.Condition{
+					sessionNotReadyCondition,
+					{
+						Type:               string(sessiongatev1alpha1.SessionConditionTypeCredentialsAvailable),
+						Status:             metav1.ConditionFalse,
+						Reason:             "CertificateSigningRequestPending",
+						Message:            "Certificate signing request pending, waiting for approval",
+						ObservedGeneration: sampleSession.Generation,
+					},
+				},
+			},
+			existingSecret: secretWithTestPrivateKey,
+			mq: &mockManagementClusterQuerier{
+				csr:               unapprovedCSR,
+				getCSRApprovalErr: apierrors.NewServiceUnavailable("service unavailable"),
+			},
+			expectAction: false,
+			expectedErr:  true,
+		},
+		{
+			name: "CSR approval forbidden error",
+			sessionStatus: sessiongatev1alpha1.SessionStatus{
+				ExpiresAt:            &metav1.Time{Time: fixedTime.Add(24 * time.Hour)},
+				CredentialsSecretRef: "sessiongate-9b1f64c3",
+				Conditions: []metav1.Condition{
+					sessionNotReadyCondition,
+					{
+						Type:               string(sessiongatev1alpha1.SessionConditionTypeCredentialsAvailable),
+						Status:             metav1.ConditionFalse,
+						Reason:             "CertificateSigningRequestPending",
+						Message:            "Certificate signing request pending, waiting for approval",
+						ObservedGeneration: sampleSession.Generation,
+					},
+				},
+			},
+			existingSecret: secretWithTestPrivateKey,
+			mq: &mockManagementClusterQuerier{
+				csr:               unapprovedCSR,
+				getCSRApprovalErr: apierrors.NewForbidden(schema.GroupResource{Resource: "certificatesigningrequestapprovals"}, "test-session", errors.New("forbidden")),
+			},
+			expectAction: true,
+		},
+		{
+			name: "CSR approval infrastructure error",
+			sessionStatus: sessiongatev1alpha1.SessionStatus{
+				ExpiresAt:            &metav1.Time{Time: fixedTime.Add(24 * time.Hour)},
+				CredentialsSecretRef: "sessiongate-9b1f64c3",
+				Conditions: []metav1.Condition{
+					sessionNotReadyCondition,
+					{
+						Type:               string(sessiongatev1alpha1.SessionConditionTypeCredentialsAvailable),
+						Status:             metav1.ConditionFalse,
+						Reason:             "CertificateSigningRequestPending",
+						Message:            "Certificate signing request pending, waiting for approval",
+						ObservedGeneration: sampleSession.Generation,
+					},
+				},
+			},
+			existingSecret: secretWithTestPrivateKey,
+			mq: &mockManagementClusterQuerier{
+				csr:               unapprovedCSR,
+				getCSRApprovalErr: apierrors.NewInternalError(errors.New("internal error")),
+			},
+			expectAction: true,
+		},
+		{
+			name: "private key generation error",
+			sessionStatus: sessiongatev1alpha1.SessionStatus{
+				ExpiresAt:            &metav1.Time{Time: fixedTime.Add(24 * time.Hour)},
+				CredentialsSecretRef: "sessiongate-9b1f64c3",
+				Conditions: []metav1.Condition{
+					sessionNotReadyCondition,
+				},
+			},
+			newPrivateKeyErr: errors.New("failed to generate private key"),
+			mq: &mockManagementClusterQuerier{
+				getCSRErr: apierrors.NewNotFound(schema.GroupResource{Resource: "certificatesigningrequests"}, "test-session"),
+			},
+			expectAction: true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -549,12 +724,18 @@ func TestSessionController_processSession_generateCredentials(t *testing.T) {
 				clock:            clocktesting.NewFakeClock(fixedTime),
 				endpointProvider: &mockEndpointProvider{},
 				getSecret: func(namespace, name string) (*corev1.Secret, error) {
+					if tt.getSecretErr != nil {
+						return nil, tt.getSecretErr
+					}
 					if tt.existingSecret != nil && tt.existingSecret.Namespace == namespace && tt.existingSecret.Name == name {
 						return tt.existingSecret, nil
 					}
 					return nil, apierrors.NewNotFound(schema.GroupResource{Resource: "secrets"}, name)
 				},
 				newPrivateKey: func(size int) (*rsa.PrivateKey, error) {
+					if tt.newPrivateKeyErr != nil {
+						return nil, tt.newPrivateKeyErr
+					}
 					return testPrivateKey, nil
 				},
 			}
