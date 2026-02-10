@@ -98,9 +98,7 @@ helm-charts: init-build
 push-charts:
 	@echo "Checking registry for existing charts..."
 
-	# ------------------------------------------------------------------------
 	# 1. MCE Chart
-	# ------------------------------------------------------------------------
 	@REPO="${REGISTRY}/helm/multicluster-engine"; \
 	TAG="$(MCE_VERSION)"; \
 	PKG="$(BUILD_DIR)/multicluster-engine-$$TAG.tgz"; \
@@ -112,9 +110,8 @@ push-charts:
 		$(HELM) push $$PKG "oci://${REGISTRY}/helm" $(HELM_OPTS) 2>&1 | tee /dev/tty | grep "Digest:" | awk '{print $$2}' | tr -d '\r' > $(BUILD_DIR)/mce_digest; \
 	fi
 
-	# ------------------------------------------------------------------------
+
 	# 2. CRDs Chart
-	# ------------------------------------------------------------------------
 	@REPO="${REGISTRY}/helm/multicluster-engine-crds"; \
 	TAG="$(MCE_VERSION)"; \
 	PKG="$(BUILD_DIR)/multicluster-engine-crds-$$TAG.tgz"; \
@@ -126,9 +123,7 @@ push-charts:
 		$(HELM) push $$PKG "oci://${REGISTRY}/helm" $(HELM_OPTS) 2>&1 | tee /dev/tty | grep "Digest:" | awk '{print $$2}' | tr -d '\r' > $(BUILD_DIR)/crds_digest; \
 	fi
 
-	# ------------------------------------------------------------------------
 	# 3. Config Chart
-	# ------------------------------------------------------------------------
 	@REPO="${REGISTRY}/helm/multicluster-engine-local-cluster"; \
 	TAG="$(ACM_VERSION)"; \
 	PKG="$(BUILD_DIR)/multicluster-engine-local-cluster-$$TAG.tgz"; \

@@ -138,14 +138,12 @@ func runHelmStep(id graph.Identifier, step *types.HelmStep, ctx context.Context,
 		cleanURL = strings.Trim(cleanURL, "\"'")
 
 		// 1. Resolve Digest to Tag
-		// This gives us "oci://registry/repo:tag"
 		safeURL, err := resolveTagFromDigest(ctx, logger, cleanURL)
 		if err != nil {
 			return fmt.Errorf("failed to resolve tag: %w", err)
 		}
 
 		// 2. Split URL for explicit "--version" flag usage
-		// We separate "oci://registry/repo" from "tag"
 		lastColon := strings.LastIndex(safeURL, ":")
 		if lastColon == -1 {
 			return fmt.Errorf("resolved URL %q is missing a version tag separator ':'", safeURL)
@@ -190,14 +188,12 @@ func runHelmStep(id graph.Identifier, step *types.HelmStep, ctx context.Context,
 			return fmt.Errorf("failed to login to helm registry: %s: %w", string(out), err)
 		}
 
-		// 4. Pull the Chart (Test Modification)
-		// Instead of pulling "oci://...:tag", we pull "oci://..." and pass "--version tag"
+		// 4. Pull the Chart (have to use --version because of broken helm)
 		args := []string{"pull", repoURL, "--version", versionTag, "--destination", tmpdir, "--untar"}
 
 		cmd := exec.CommandContext(ctx, "helm", args...)
 		cmd.Env = os.Environ()
 
-		// Debug Log: Print the split values to confirm we are testing correctly
 		logger.Info("Pulling OCI chart with explicit version flag", "repo", repoURL, "version", versionTag)
 
 		if out, err := cmd.CombinedOutput(); err != nil {
