@@ -249,7 +249,7 @@ func RunRootCmd(cmd *cobra.Command, flags *BackendRootCmdFlags) error {
 	handlerOptions := &slog.HandlerOptions{Level: slog.Level(flags.LogVerbosity * -1), AddSource: true}
 	// Temporary hardcode the log level to -4 to see increased klog logging
 	// verbosity.
-	handlerOptions.Level = slog.Level(flags.LogVerbosity * -4)
+	handlerOptions.Level = slog.Level(-4)
 
 	// TODO move signal-aware context creation from backend/pkg/app/backend.go here,
 	// and redo context handling similar to frontend/cmd/cmd.go.
