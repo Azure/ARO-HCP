@@ -195,7 +195,7 @@ resourceGroups:
       errorContainsAny:
       - "unknown_storage_failure"
       maximumRetryCount: 5
-      durationBetweenRetries: 30s
+      durationBetweenRetries: 1m
   # deploys the image mirror for the ACRs
   - name: imagemirror
     action: ARM
