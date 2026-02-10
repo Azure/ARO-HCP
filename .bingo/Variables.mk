@@ -89,11 +89,11 @@ $(LISTER_GEN): $(BINGO_DIR)/lister-gen.mod
 	@echo "(re)installing $(GOBIN)/lister-gen-v0.34.3"
 	@cd $(BINGO_DIR) && GOWORK=off GOOS=$(GOHOSTOS) GOARCH=$(GOHOSTARCH) GOARM=$(GOHOSTARM) $(GO) build -mod=mod -modfile=lister-gen.mod -o=$(GOBIN)/lister-gen-v0.34.3 "k8s.io/code-generator/cmd/lister-gen"
 
-MOCKGEN := $(GOBIN)/mockgen-v0.5.0
+MOCKGEN := $(GOBIN)/mockgen-v0.6.0
 $(MOCKGEN): $(BINGO_DIR)/mockgen.mod
 	@# Install binary/ries using Go 1.14+ build command. This is using bwplotka/bingo-controlled, separate go module with pinned dependencies.
-	@echo "(re)installing $(GOBIN)/mockgen-v0.5.0"
-	@cd $(BINGO_DIR) && GOWORK=off GOOS=$(GOHOSTOS) GOARCH=$(GOHOSTARCH) GOARM=$(GOHOSTARM) $(GO) build -mod=mod -modfile=mockgen.mod -o=$(GOBIN)/mockgen-v0.5.0 "go.uber.org/mock/mockgen"
+	@echo "(re)installing $(GOBIN)/mockgen-v0.6.0"
+	@cd $(BINGO_DIR) && GOWORK=off GOOS=$(GOHOSTOS) GOARCH=$(GOHOSTARCH) GOARM=$(GOHOSTARM) $(GO) build -mod=mod -modfile=mockgen.mod -o=$(GOBIN)/mockgen-v0.6.0 "go.uber.org/mock/mockgen"
 
 ORAS := $(GOBIN)/oras-v1.2.3
 $(ORAS): $(BINGO_DIR)/oras.mod
