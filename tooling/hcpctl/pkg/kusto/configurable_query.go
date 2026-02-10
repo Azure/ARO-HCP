@@ -27,6 +27,7 @@ type ConfigurableQuery struct {
 	Database   string
 	Query      *kql.Builder
 	Parameters *kql.Parameters
+	Unlimited  bool
 }
 
 func NewConfigurableQuery(name string, database string) *ConfigurableQuery {
@@ -35,6 +36,7 @@ func NewConfigurableQuery(name string, database string) *ConfigurableQuery {
 		Database:   database,
 		Query:      kql.New(""),
 		Parameters: kql.NewParameters(),
+		Unlimited:  false,
 	}
 }
 
@@ -55,6 +57,7 @@ func (q *ConfigurableQuery) WithClusterId(clusterId string) *ConfigurableQuery {
 }
 
 func (q *ConfigurableQuery) WithNoTruncation() *ConfigurableQuery {
+	q.Unlimited = true
 	q.Query.AddLiteral("set notruncation;\n")
 	return q
 }
