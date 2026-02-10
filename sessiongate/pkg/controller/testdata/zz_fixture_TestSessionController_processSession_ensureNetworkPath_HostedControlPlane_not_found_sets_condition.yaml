@@ -13,16 +13,22 @@ Session:
   status:
     conditions:
     - lastTransitionTime: "2025-01-07T12:00:00Z"
-      message: Unable to access credentials secret
+      message: HostedControlPlane not found on management cluster
       observedGeneration: 0
-      reason: CredentialsSecretAccessError
+      reason: HostedControlPlaneNotFound
       status: "False"
-      type: CredentialsAvailable
+      type: HostedControlPlaneAvailable
     - lastTransitionTime: "2025-01-07T12:00:00Z"
       message: Session is not ready
       observedGeneration: 0
       reason: NotReady
       status: "False"
       type: Ready
+    - lastTransitionTime: "2025-01-07T12:00:00Z"
+      message: Credentials available
+      observedGeneration: 0
+      reason: CredentialsAvailable
+      status: "True"
+      type: CredentialsAvailable
     credentialsSecretRef: sessiongate-9b1f64c3
     expiresAt: "2025-01-08T12:00:00Z"

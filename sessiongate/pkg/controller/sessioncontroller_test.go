@@ -79,14 +79,38 @@ var secretWithFullTestCredentials = &corev1.Secret{
 	},
 }
 
+func buildHCP(available bool) *hypershiftv1beta1.HostedControlPlane {
+	status := metav1.ConditionTrue
+	if !available {
+		status = metav1.ConditionFalse
+	}
+	return &hypershiftv1beta1.HostedControlPlane{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "some-hcp",
+			Namespace: "clusters-test-hcp",
+		},
+		Spec: hypershiftv1beta1.HostedControlPlaneSpec{
+			KubeAPIServerDNSName: "api.test-hcp.example.com",
+		},
+		Status: hypershiftv1beta1.HostedControlPlaneStatus{
+			Conditions: []metav1.Condition{
+				{
+					Type:   "Available",
+					Status: status,
+				},
+			},
+		},
+	}
+}
+
 // mockManagementClusterProvider implements ManagementClusterProvider for testing
 type mockManagementClusterQuerier struct {
-	hostedControlPlane     *hypershiftv1beta1.HostedControlPlane
+	hostedControlPlane       *hypershiftv1beta1.HostedControlPlane
 	getHostedControlPlaneErr error
-	csr                    *certificatesv1.CertificateSigningRequest
-	getCSRErr              error
-	csrApproval            *certificatesv1alpha1.CertificateSigningRequestApproval
-	getCSRApprovalErr      error
+	csr                      *certificatesv1.CertificateSigningRequest
+	getCSRErr                error
+	csrApproval              *certificatesv1alpha1.CertificateSigningRequestApproval
+	getCSRApprovalErr        error
 }
 
 func (m *mockManagementClusterQuerier) GetHostedControlPlane(namespace string) (*hypershiftv1beta1.HostedControlPlane, error) {
@@ -165,6 +189,15 @@ var sessionNotReadyCondition = metav1.Condition{
 	Status:             metav1.ConditionFalse,
 	Reason:             sessiongatev1alpha1.SessionNotReadyReason,
 	Message:            "Session is not ready",
+	ObservedGeneration: sampleSession.Generation,
+	LastTransitionTime: metav1.Time{Time: fixedTime},
+}
+
+var hostedControlPlaneAvailableCondition = metav1.Condition{
+	Type:               string(sessiongatev1alpha1.SessionConditionTypeHostedControlPlaneAvailable),
+	Status:             metav1.ConditionTrue,
+	Reason:             sessiongatev1alpha1.HostedControlPlaneAvailableReason,
+	Message:            "HostedControlPlane is available and ready",
 	ObservedGeneration: sampleSession.Generation,
 	LastTransitionTime: metav1.Time{Time: fixedTime},
 }
@@ -310,15 +343,15 @@ func TestSessionController_processSession_generateCredentials(t *testing.T) {
 	}
 
 	tests := []struct {
-		name            string
-		sessionStatus   sessiongatev1alpha1.SessionStatus
-		existingSecret  *corev1.Secret
-		getSecretErr    error
+		name             string
+		sessionStatus    sessiongatev1alpha1.SessionStatus
+		existingSecret   *corev1.Secret
+		getSecretErr     error
 		newPrivateKeyErr error
-		mq              ManagementClusterQuerier
-		expectAction    bool
-		expectedRequeue bool
-		expectedErr     bool
+		mq               ManagementClusterQuerier
+		expectAction     bool
+		expectedRequeue  bool
+		expectedErr      bool
 	}{
 		{
 			name: "session without secret and credentials secret ref",
@@ -326,12 +359,14 @@ func TestSessionController_processSession_generateCredentials(t *testing.T) {
 				ExpiresAt: &metav1.Time{Time: fixedTime.Add(24 * time.Hour)},
 				// CredentialsSecretRef missing
 				Conditions: []metav1.Condition{
+					hostedControlPlaneAvailableCondition,
 					sessionNotReadyCondition,
 				},
 			},
 			mq: &mockManagementClusterQuerier{
-				csr:    nil,
-				getCSRErr: apierrors.NewNotFound(schema.GroupResource{Resource: "certificatesigningrequests"}, "test-session"),
+				hostedControlPlane: buildHCP(true),
+				csr:                nil,
+				getCSRErr:          apierrors.NewNotFound(schema.GroupResource{Resource: "certificatesigningrequests"}, "test-session"),
 			},
 			expectAction: true,
 		},
@@ -342,11 +377,13 @@ func TestSessionController_processSession_generateCredentials(t *testing.T) {
 				CredentialsSecretRef: "sessiongate-9b1f64c3",
 				Conditions: []metav1.Condition{
 					sessionNotReadyCondition,
+					hostedControlPlaneAvailableCondition,
 				},
 			},
 			mq: &mockManagementClusterQuerier{
-				csr:    nil,
-				getCSRErr: apierrors.NewNotFound(schema.GroupResource{Resource: "certificatesigningrequests"}, "test-session"),
+				hostedControlPlane: buildHCP(true),
+				csr:                nil,
+				getCSRErr:          apierrors.NewNotFound(schema.GroupResource{Resource: "certificatesigningrequests"}, "test-session"),
 			},
 			expectAction: true,
 		},
@@ -357,14 +394,16 @@ func TestSessionController_processSession_generateCredentials(t *testing.T) {
 				CredentialsSecretRef: "sessiongate-9b1f64c3",
 				Conditions: []metav1.Condition{
 					sessionNotReadyCondition,
+					hostedControlPlaneAvailableCondition,
 					// Credentials conditions missing
 				},
 				// CredentialsSecretRef missing
 			},
 			existingSecret: secretWithTestPrivateKey,
 			mq: &mockManagementClusterQuerier{
-				csr:    nil, // No CSR exists yet
-				getCSRErr: apierrors.NewNotFound(schema.GroupResource{Resource: "certificatesigningrequests"}, "test-session"),
+				hostedControlPlane: buildHCP(true),
+				csr:                nil, // No CSR exists yet
+				getCSRErr:          apierrors.NewNotFound(schema.GroupResource{Resource: "certificatesigningrequests"}, "test-session"),
 			},
 			expectAction: true,
 		},
@@ -375,6 +414,7 @@ func TestSessionController_processSession_generateCredentials(t *testing.T) {
 				CredentialsSecretRef: "sessiongate-9b1f64c3",
 				Conditions: []metav1.Condition{
 					sessionNotReadyCondition,
+					hostedControlPlaneAvailableCondition,
 					{
 						Type:               string(sessiongatev1alpha1.SessionConditionTypeCredentialsAvailable),
 						Status:             metav1.ConditionFalse,
@@ -386,8 +426,9 @@ func TestSessionController_processSession_generateCredentials(t *testing.T) {
 			},
 			existingSecret: secretWithTestPrivateKey,
 			mq: &mockManagementClusterQuerier{
-				csr:    nil, // No CSR exists yet
-				getCSRErr: apierrors.NewNotFound(schema.GroupResource{Resource: "certificatesigningrequests"}, "test-session"),
+				hostedControlPlane: buildHCP(true),
+				csr:                nil, // No CSR exists yet
+				getCSRErr:          apierrors.NewNotFound(schema.GroupResource{Resource: "certificatesigningrequests"}, "test-session"),
 			},
 			expectAction: true,
 		},
@@ -398,6 +439,7 @@ func TestSessionController_processSession_generateCredentials(t *testing.T) {
 				CredentialsSecretRef: "sessiongate-9b1f64c3",
 				Conditions: []metav1.Condition{
 					sessionNotReadyCondition,
+					hostedControlPlaneAvailableCondition,
 					{
 						Type:               string(sessiongatev1alpha1.SessionConditionTypeCredentialsAvailable),
 						Status:             metav1.ConditionFalse,
@@ -409,8 +451,9 @@ func TestSessionController_processSession_generateCredentials(t *testing.T) {
 			},
 			existingSecret: secretWithTestPrivateKey,
 			mq: &mockManagementClusterQuerier{
-				csr:    unapprovedCSR,
-				getCSRErr: nil,
+				hostedControlPlane: buildHCP(true),
+				csr:                unapprovedCSR,
+				getCSRErr:          nil,
 			},
 			expectAction: true,
 		},
@@ -422,6 +465,7 @@ func TestSessionController_processSession_generateCredentials(t *testing.T) {
 				CredentialsSecretRef: "sessiongate-9b1f64c3",
 				Conditions: []metav1.Condition{
 					sessionNotReadyCondition,
+					hostedControlPlaneAvailableCondition,
 					{
 						Type:               string(sessiongatev1alpha1.SessionConditionTypeCredentialsAvailable),
 						Status:             metav1.ConditionFalse,
@@ -433,8 +477,9 @@ func TestSessionController_processSession_generateCredentials(t *testing.T) {
 			},
 			existingSecret: secretWithTestPrivateKey,
 			mq: &mockManagementClusterQuerier{
-				csr:    unapprovedCSR,
-				getCSRErr: nil,
+				hostedControlPlane: buildHCP(true),
+				csr:                unapprovedCSR,
+				getCSRErr:          nil,
 			},
 			expectAction: true,
 		},
@@ -445,6 +490,7 @@ func TestSessionController_processSession_generateCredentials(t *testing.T) {
 				CredentialsSecretRef: "sessiongate-9b1f64c3",
 				Conditions: []metav1.Condition{
 					sessionNotReadyCondition,
+					hostedControlPlaneAvailableCondition,
 					{
 						Type:               string(sessiongatev1alpha1.SessionConditionTypeCredentialsAvailable),
 						Status:             metav1.ConditionFalse,
@@ -467,7 +513,8 @@ func TestSessionController_processSession_generateCredentials(t *testing.T) {
 				},
 			},
 			mq: &mockManagementClusterQuerier{
-				csr: unapprovedCSR,
+				hostedControlPlane: buildHCP(true),
+				csr:                unapprovedCSR,
 			},
 			expectAction: true,
 		},
@@ -478,6 +525,7 @@ func TestSessionController_processSession_generateCredentials(t *testing.T) {
 				CredentialsSecretRef: "sessiongate-9b1f64c3",
 				Conditions: []metav1.Condition{
 					sessionNotReadyCondition,
+					hostedControlPlaneAvailableCondition,
 					{
 						Type:               string(sessiongatev1alpha1.SessionConditionTypeCredentialsAvailable),
 						Status:             metav1.ConditionFalse,
@@ -489,8 +537,9 @@ func TestSessionController_processSession_generateCredentials(t *testing.T) {
 			},
 			existingSecret: secretWithTestPrivateKey,
 			mq: &mockManagementClusterQuerier{
-				csr:         approvedCSR,
-				csrApproval: csrApproval,
+				hostedControlPlane: buildHCP(true),
+				csr:                approvedCSR,
+				csrApproval:        csrApproval,
 			},
 			expectAction: false,
 		},
@@ -501,6 +550,7 @@ func TestSessionController_processSession_generateCredentials(t *testing.T) {
 				CredentialsSecretRef: "sessiongate-9b1f64c3",
 				Conditions: []metav1.Condition{
 					sessionNotReadyCondition,
+					hostedControlPlaneAvailableCondition,
 					{
 						Type:               string(sessiongatev1alpha1.SessionConditionTypeCredentialsAvailable),
 						Status:             metav1.ConditionFalse,
@@ -512,10 +562,233 @@ func TestSessionController_processSession_generateCredentials(t *testing.T) {
 			},
 			existingSecret: secretWithTestPrivateKey,
 			mq: &mockManagementClusterQuerier{
-				csr:         signedCSR,
-				csrApproval: csrApproval,
+				hostedControlPlane: buildHCP(true),
+				csr:                signedCSR,
+				csrApproval:        csrApproval,
 			},
 			expectAction: true,
+		},
+		{
+			name: "transient error retrieving credential secret",
+			sessionStatus: sessiongatev1alpha1.SessionStatus{
+				ExpiresAt:            &metav1.Time{Time: fixedTime.Add(24 * time.Hour)},
+				CredentialsSecretRef: "sessiongate-9b1f64c3",
+				Conditions: []metav1.Condition{
+					sessionNotReadyCondition,
+					hostedControlPlaneAvailableCondition,
+				},
+			},
+			getSecretErr: apierrors.NewTimeoutError("timeout", 5),
+			mq: &mockManagementClusterQuerier{
+				hostedControlPlane: buildHCP(true),
+			},
+			expectAction: false,
+			expectedErr:  true,
+		},
+		{
+			name: "forbidden error retrieving credential secret sets condition",
+			sessionStatus: sessiongatev1alpha1.SessionStatus{
+				ExpiresAt:            &metav1.Time{Time: fixedTime.Add(24 * time.Hour)},
+				CredentialsSecretRef: "sessiongate-9b1f64c3",
+				Conditions: []metav1.Condition{
+					sessionNotReadyCondition,
+					hostedControlPlaneAvailableCondition,
+				},
+			},
+			getSecretErr: apierrors.NewForbidden(schema.GroupResource{Resource: "secrets"}, "sessiongate-9b1f64c3", errors.New("access denied")),
+			mq: &mockManagementClusterQuerier{
+				hostedControlPlane: buildHCP(true),
+			},
+			expectAction: true,
+			expectedErr:  false,
+		},
+		{
+			name: "transient error retrieving CSR",
+			sessionStatus: sessiongatev1alpha1.SessionStatus{
+				ExpiresAt:            &metav1.Time{Time: fixedTime.Add(24 * time.Hour)},
+				CredentialsSecretRef: "sessiongate-9b1f64c3",
+				Conditions: []metav1.Condition{
+					sessionNotReadyCondition,
+					hostedControlPlaneAvailableCondition,
+				},
+			},
+			mq: &mockManagementClusterQuerier{
+				hostedControlPlane: buildHCP(true),
+				getCSRErr:          apierrors.NewServiceUnavailable("service unavailable"),
+			},
+			expectAction: false,
+			expectedErr:  true,
+		},
+		{
+			name: "forbidden error retrieving CSR sets condition",
+			sessionStatus: sessiongatev1alpha1.SessionStatus{
+				ExpiresAt:            &metav1.Time{Time: fixedTime.Add(24 * time.Hour)},
+				CredentialsSecretRef: "sessiongate-9b1f64c3",
+				Conditions: []metav1.Condition{
+					sessionNotReadyCondition,
+					hostedControlPlaneAvailableCondition,
+				},
+			},
+			mq: &mockManagementClusterQuerier{
+				hostedControlPlane: buildHCP(true),
+				getCSRErr:          apierrors.NewForbidden(schema.GroupResource{Resource: "certificatesigningrequests"}, "test-session", errors.New("access denied")),
+			},
+			expectAction: true,
+			expectedErr:  false,
+		},
+		{
+			name: "infrastructure error retrieving CSR sets condition",
+			sessionStatus: sessiongatev1alpha1.SessionStatus{
+				ExpiresAt:            &metav1.Time{Time: fixedTime.Add(24 * time.Hour)},
+				CredentialsSecretRef: "sessiongate-9b1f64c3",
+				Conditions: []metav1.Condition{
+					sessionNotReadyCondition,
+					hostedControlPlaneAvailableCondition,
+				},
+			},
+			mq: &mockManagementClusterQuerier{
+				hostedControlPlane: buildHCP(true),
+				getCSRErr:          apierrors.NewInternalError(errors.New("internal server error")),
+			},
+			expectAction: true,
+			expectedErr:  false,
+		},
+		{
+			name: "private key generation failure sets condition",
+			sessionStatus: sessiongatev1alpha1.SessionStatus{
+				ExpiresAt:            &metav1.Time{Time: fixedTime.Add(24 * time.Hour)},
+				CredentialsSecretRef: "sessiongate-9b1f64c3",
+				Conditions: []metav1.Condition{
+					sessionNotReadyCondition,
+					hostedControlPlaneAvailableCondition,
+				},
+			},
+			mq: &mockManagementClusterQuerier{
+				hostedControlPlane: buildHCP(true),
+				getCSRErr:          apierrors.NewNotFound(schema.GroupResource{Resource: "certificatesigningrequests"}, "test-session"),
+			},
+			newPrivateKeyErr: errors.New("entropy source exhausted"),
+			expectAction:     true,
+			expectedErr:      false,
+		},
+		{
+			name: "infrastructure error retrieving credential secret sets condition",
+			sessionStatus: sessiongatev1alpha1.SessionStatus{
+				ExpiresAt:            &metav1.Time{Time: fixedTime.Add(24 * time.Hour)},
+				CredentialsSecretRef: "sessiongate-9b1f64c3",
+				Conditions: []metav1.Condition{
+					sessionNotReadyCondition,
+					hostedControlPlaneAvailableCondition,
+				},
+			},
+			getSecretErr: apierrors.NewInternalError(errors.New("etcd leader changed")),
+			mq: &mockManagementClusterQuerier{
+				hostedControlPlane: buildHCP(true),
+			},
+			expectAction: true,
+			expectedErr:  false,
+		},
+		{
+			name: "transient error retrieving CSR with pending condition",
+			sessionStatus: sessiongatev1alpha1.SessionStatus{
+				ExpiresAt:            &metav1.Time{Time: fixedTime.Add(24 * time.Hour)},
+				CredentialsSecretRef: "sessiongate-9b1f64c3",
+				Conditions: []metav1.Condition{
+					sessionNotReadyCondition,
+					hostedControlPlaneAvailableCondition,
+					{
+						Type:               string(sessiongatev1alpha1.SessionConditionTypeCredentialsAvailable),
+						Status:             metav1.ConditionFalse,
+						Reason:             "CertificateSigningRequestPending",
+						Message:            "Certificate signing request pending, waiting for approval",
+						ObservedGeneration: sampleSession.Generation,
+					},
+				},
+			},
+			mq: &mockManagementClusterQuerier{
+				hostedControlPlane: buildHCP(true),
+				getCSRErr:          apierrors.NewTimeoutError("timeout", 5),
+			},
+			expectAction: false,
+			expectedErr:  true,
+		},
+		{
+			name: "transient error retrieving CSR approval",
+			sessionStatus: sessiongatev1alpha1.SessionStatus{
+				ExpiresAt:            &metav1.Time{Time: fixedTime.Add(24 * time.Hour)},
+				CredentialsSecretRef: "sessiongate-9b1f64c3",
+				Conditions: []metav1.Condition{
+					sessionNotReadyCondition,
+					hostedControlPlaneAvailableCondition,
+					{
+						Type:               string(sessiongatev1alpha1.SessionConditionTypeCredentialsAvailable),
+						Status:             metav1.ConditionFalse,
+						Reason:             "CertificateSigningRequestPending",
+						Message:            "Certificate signing request pending, waiting for approval",
+						ObservedGeneration: sampleSession.Generation,
+					},
+				},
+			},
+			existingSecret: secretWithTestPrivateKey,
+			mq: &mockManagementClusterQuerier{
+				hostedControlPlane: buildHCP(true),
+				csr:                unapprovedCSR,
+				getCSRApprovalErr:  apierrors.NewTimeoutError("timeout", 5),
+			},
+			expectAction: false,
+			expectedErr:  true,
+		},
+		{
+			name: "forbidden error retrieving CSR approval sets condition",
+			sessionStatus: sessiongatev1alpha1.SessionStatus{
+				ExpiresAt:            &metav1.Time{Time: fixedTime.Add(24 * time.Hour)},
+				CredentialsSecretRef: "sessiongate-9b1f64c3",
+				Conditions: []metav1.Condition{
+					sessionNotReadyCondition,
+					hostedControlPlaneAvailableCondition,
+					{
+						Type:               string(sessiongatev1alpha1.SessionConditionTypeCredentialsAvailable),
+						Status:             metav1.ConditionFalse,
+						Reason:             "CertificateSigningRequestPending",
+						Message:            "Certificate signing request pending, waiting for approval",
+						ObservedGeneration: sampleSession.Generation,
+					},
+				},
+			},
+			existingSecret: secretWithTestPrivateKey,
+			mq: &mockManagementClusterQuerier{
+				hostedControlPlane: buildHCP(true),
+				csr:                unapprovedCSR,
+				getCSRApprovalErr:  apierrors.NewForbidden(schema.GroupResource{Resource: "certificatesigningrequestapprovals"}, "test-session", errors.New("access denied")),
+			},
+			expectAction: true,
+			expectedErr:  false,
+		},
+		{
+			name: "infrastructure error retrieving CSR approval sets condition",
+			sessionStatus: sessiongatev1alpha1.SessionStatus{
+				ExpiresAt:            &metav1.Time{Time: fixedTime.Add(24 * time.Hour)},
+				CredentialsSecretRef: "sessiongate-9b1f64c3",
+				Conditions: []metav1.Condition{
+					sessionNotReadyCondition,
+					hostedControlPlaneAvailableCondition,
+					{
+						Type:               string(sessiongatev1alpha1.SessionConditionTypeCredentialsAvailable),
+						Status:             metav1.ConditionFalse,
+						Reason:             "CertificateSigningRequestPending",
+						Message:            "Certificate signing request pending, waiting for approval",
+						ObservedGeneration: sampleSession.Generation,
+					},
+				},
+			},
+			existingSecret: secretWithTestPrivateKey,
+			mq: &mockManagementClusterQuerier{
+				hostedControlPlane: buildHCP(true),
+				csr:                unapprovedCSR,
+				getCSRApprovalErr:  apierrors.NewInternalError(errors.New("internal server error")),
+			},
+			expectAction: true,
+			expectedErr:  false,
 		},
 		{
 			name: "session with credentials in secret but no status update",
@@ -524,6 +797,7 @@ func TestSessionController_processSession_generateCredentials(t *testing.T) {
 				CredentialsSecretRef: "sessiongate-9b1f64c3",
 				Conditions: []metav1.Condition{
 					sessionNotReadyCondition,
+					hostedControlPlaneAvailableCondition,
 					{
 						Type:               string(sessiongatev1alpha1.SessionConditionTypeCredentialsAvailable),
 						Status:             metav1.ConditionFalse,
@@ -535,180 +809,9 @@ func TestSessionController_processSession_generateCredentials(t *testing.T) {
 			},
 			existingSecret: secretWithFullTestCredentials,
 			mq: &mockManagementClusterQuerier{
-				csr:         signedCSR,
-				csrApproval: csrApproval,
-			},
-			expectAction: true,
-		},
-		// Error handling test cases
-		{
-			name: "credential secret transient error",
-			sessionStatus: sessiongatev1alpha1.SessionStatus{
-				ExpiresAt:            &metav1.Time{Time: fixedTime.Add(24 * time.Hour)},
-				CredentialsSecretRef: "sessiongate-9b1f64c3",
-				Conditions: []metav1.Condition{
-					sessionNotReadyCondition,
-				},
-			},
-			getSecretErr: apierrors.NewServiceUnavailable("service unavailable"),
-			mq:           &mockManagementClusterQuerier{},
-			expectAction: false,
-			expectedErr:  true,
-		},
-		{
-			name: "credential secret forbidden error",
-			sessionStatus: sessiongatev1alpha1.SessionStatus{
-				ExpiresAt:            &metav1.Time{Time: fixedTime.Add(24 * time.Hour)},
-				CredentialsSecretRef: "sessiongate-9b1f64c3",
-				Conditions: []metav1.Condition{
-					sessionNotReadyCondition,
-				},
-			},
-			getSecretErr: apierrors.NewForbidden(schema.GroupResource{Resource: "secrets"}, "sessiongate-9b1f64c3", errors.New("forbidden")),
-			mq:           &mockManagementClusterQuerier{},
-			expectAction: true,
-		},
-		{
-			name: "credential secret infrastructure error",
-			sessionStatus: sessiongatev1alpha1.SessionStatus{
-				ExpiresAt:            &metav1.Time{Time: fixedTime.Add(24 * time.Hour)},
-				CredentialsSecretRef: "sessiongate-9b1f64c3",
-				Conditions: []metav1.Condition{
-					sessionNotReadyCondition,
-				},
-			},
-			getSecretErr: apierrors.NewInternalError(errors.New("internal error")),
-			mq:           &mockManagementClusterQuerier{},
-			expectAction: true,
-		},
-		{
-			name: "CSR transient error",
-			sessionStatus: sessiongatev1alpha1.SessionStatus{
-				ExpiresAt:            &metav1.Time{Time: fixedTime.Add(24 * time.Hour)},
-				CredentialsSecretRef: "sessiongate-9b1f64c3",
-				Conditions: []metav1.Condition{
-					sessionNotReadyCondition,
-				},
-			},
-			existingSecret: secretWithTestPrivateKey,
-			mq: &mockManagementClusterQuerier{
-				getCSRErr: apierrors.NewServiceUnavailable("service unavailable"),
-			},
-			expectAction: false,
-			expectedErr:  true,
-		},
-		{
-			name: "CSR forbidden error",
-			sessionStatus: sessiongatev1alpha1.SessionStatus{
-				ExpiresAt:            &metav1.Time{Time: fixedTime.Add(24 * time.Hour)},
-				CredentialsSecretRef: "sessiongate-9b1f64c3",
-				Conditions: []metav1.Condition{
-					sessionNotReadyCondition,
-				},
-			},
-			existingSecret: secretWithTestPrivateKey,
-			mq: &mockManagementClusterQuerier{
-				getCSRErr: apierrors.NewForbidden(schema.GroupResource{Resource: "certificatesigningrequests"}, "test-session", errors.New("forbidden")),
-			},
-			expectAction: true,
-		},
-		{
-			name: "CSR infrastructure error",
-			sessionStatus: sessiongatev1alpha1.SessionStatus{
-				ExpiresAt:            &metav1.Time{Time: fixedTime.Add(24 * time.Hour)},
-				CredentialsSecretRef: "sessiongate-9b1f64c3",
-				Conditions: []metav1.Condition{
-					sessionNotReadyCondition,
-				},
-			},
-			existingSecret: secretWithTestPrivateKey,
-			mq: &mockManagementClusterQuerier{
-				getCSRErr: apierrors.NewInternalError(errors.New("internal error")),
-			},
-			expectAction: true,
-		},
-		{
-			name: "CSR approval transient error",
-			sessionStatus: sessiongatev1alpha1.SessionStatus{
-				ExpiresAt:            &metav1.Time{Time: fixedTime.Add(24 * time.Hour)},
-				CredentialsSecretRef: "sessiongate-9b1f64c3",
-				Conditions: []metav1.Condition{
-					sessionNotReadyCondition,
-					{
-						Type:               string(sessiongatev1alpha1.SessionConditionTypeCredentialsAvailable),
-						Status:             metav1.ConditionFalse,
-						Reason:             "CertificateSigningRequestPending",
-						Message:            "Certificate signing request pending, waiting for approval",
-						ObservedGeneration: sampleSession.Generation,
-					},
-				},
-			},
-			existingSecret: secretWithTestPrivateKey,
-			mq: &mockManagementClusterQuerier{
-				csr:               unapprovedCSR,
-				getCSRApprovalErr: apierrors.NewServiceUnavailable("service unavailable"),
-			},
-			expectAction: false,
-			expectedErr:  true,
-		},
-		{
-			name: "CSR approval forbidden error",
-			sessionStatus: sessiongatev1alpha1.SessionStatus{
-				ExpiresAt:            &metav1.Time{Time: fixedTime.Add(24 * time.Hour)},
-				CredentialsSecretRef: "sessiongate-9b1f64c3",
-				Conditions: []metav1.Condition{
-					sessionNotReadyCondition,
-					{
-						Type:               string(sessiongatev1alpha1.SessionConditionTypeCredentialsAvailable),
-						Status:             metav1.ConditionFalse,
-						Reason:             "CertificateSigningRequestPending",
-						Message:            "Certificate signing request pending, waiting for approval",
-						ObservedGeneration: sampleSession.Generation,
-					},
-				},
-			},
-			existingSecret: secretWithTestPrivateKey,
-			mq: &mockManagementClusterQuerier{
-				csr:               unapprovedCSR,
-				getCSRApprovalErr: apierrors.NewForbidden(schema.GroupResource{Resource: "certificatesigningrequestapprovals"}, "test-session", errors.New("forbidden")),
-			},
-			expectAction: true,
-		},
-		{
-			name: "CSR approval infrastructure error",
-			sessionStatus: sessiongatev1alpha1.SessionStatus{
-				ExpiresAt:            &metav1.Time{Time: fixedTime.Add(24 * time.Hour)},
-				CredentialsSecretRef: "sessiongate-9b1f64c3",
-				Conditions: []metav1.Condition{
-					sessionNotReadyCondition,
-					{
-						Type:               string(sessiongatev1alpha1.SessionConditionTypeCredentialsAvailable),
-						Status:             metav1.ConditionFalse,
-						Reason:             "CertificateSigningRequestPending",
-						Message:            "Certificate signing request pending, waiting for approval",
-						ObservedGeneration: sampleSession.Generation,
-					},
-				},
-			},
-			existingSecret: secretWithTestPrivateKey,
-			mq: &mockManagementClusterQuerier{
-				csr:               unapprovedCSR,
-				getCSRApprovalErr: apierrors.NewInternalError(errors.New("internal error")),
-			},
-			expectAction: true,
-		},
-		{
-			name: "private key generation error",
-			sessionStatus: sessiongatev1alpha1.SessionStatus{
-				ExpiresAt:            &metav1.Time{Time: fixedTime.Add(24 * time.Hour)},
-				CredentialsSecretRef: "sessiongate-9b1f64c3",
-				Conditions: []metav1.Condition{
-					sessionNotReadyCondition,
-				},
-			},
-			newPrivateKeyErr: errors.New("failed to generate private key"),
-			mq: &mockManagementClusterQuerier{
-				getCSRErr: apierrors.NewNotFound(schema.GroupResource{Resource: "certificatesigningrequests"}, "test-session"),
+				hostedControlPlane: buildHCP(true),
+				csr:                signedCSR,
+				csrApproval:        csrApproval,
 			},
 			expectAction: true,
 		},
@@ -771,6 +874,7 @@ func TestSessionController_processSession_ensureNetworkPath(t *testing.T) {
 	tests := []struct {
 		name          string
 		sessionStatus sessiongatev1alpha1.SessionStatus
+		mq            ManagementClusterQuerier
 		expectAction  bool
 		expectedErr   bool
 	}{
@@ -781,11 +885,81 @@ func TestSessionController_processSession_ensureNetworkPath(t *testing.T) {
 				CredentialsSecretRef: "sessiongate-9b1f64c3",
 				Conditions: []metav1.Condition{
 					sessionNotReadyCondition,
+					hostedControlPlaneAvailableCondition,
 					credentialsAvailableCondition,
 				},
 				// BackendKASURL missing
 			},
+			mq: &mockManagementClusterQuerier{
+				hostedControlPlane: buildHCP(true),
+			},
 			expectAction: true,
+		},
+		{
+			name: "transient error retrieving HostedControlPlane",
+			sessionStatus: sessiongatev1alpha1.SessionStatus{
+				ExpiresAt:            &metav1.Time{Time: fixedTime.Add(24 * time.Hour)},
+				CredentialsSecretRef: "sessiongate-9b1f64c3",
+				Conditions: []metav1.Condition{
+					sessionNotReadyCondition,
+					hostedControlPlaneAvailableCondition,
+					credentialsAvailableCondition,
+				},
+			},
+			mq: &mockManagementClusterQuerier{
+				getHostedControlPlaneErr: apierrors.NewServiceUnavailable("service unavailable"),
+			},
+			expectAction: false,
+			expectedErr:  true,
+		},
+		{
+			name: "HostedControlPlane not found sets condition",
+			sessionStatus: sessiongatev1alpha1.SessionStatus{
+				ExpiresAt:            &metav1.Time{Time: fixedTime.Add(24 * time.Hour)},
+				CredentialsSecretRef: "sessiongate-9b1f64c3",
+				Conditions: []metav1.Condition{
+					sessionNotReadyCondition,
+					hostedControlPlaneAvailableCondition,
+					credentialsAvailableCondition,
+				},
+			},
+			mq:           &mockManagementClusterQuerier{},
+			expectAction: true,
+			expectedErr:  false,
+		},
+		{
+			name: "forbidden error retrieving HostedControlPlane sets condition",
+			sessionStatus: sessiongatev1alpha1.SessionStatus{
+				ExpiresAt:            &metav1.Time{Time: fixedTime.Add(24 * time.Hour)},
+				CredentialsSecretRef: "sessiongate-9b1f64c3",
+				Conditions: []metav1.Condition{
+					sessionNotReadyCondition,
+					hostedControlPlaneAvailableCondition,
+					credentialsAvailableCondition,
+				},
+			},
+			mq: &mockManagementClusterQuerier{
+				getHostedControlPlaneErr: apierrors.NewForbidden(schema.GroupResource{Resource: "hostedcontrolplanes"}, "clusters-test-hcp", errors.New("access denied")),
+			},
+			expectAction: true,
+			expectedErr:  false,
+		},
+		{
+			name: "infrastructure error retrieving HostedControlPlane sets condition",
+			sessionStatus: sessiongatev1alpha1.SessionStatus{
+				ExpiresAt:            &metav1.Time{Time: fixedTime.Add(24 * time.Hour)},
+				CredentialsSecretRef: "sessiongate-9b1f64c3",
+				Conditions: []metav1.Condition{
+					sessionNotReadyCondition,
+					hostedControlPlaneAvailableCondition,
+					credentialsAvailableCondition,
+				},
+			},
+			mq: &mockManagementClusterQuerier{
+				getHostedControlPlaneErr: apierrors.NewInternalError(errors.New("internal server error")),
+			},
+			expectAction: true,
+			expectedErr:  false,
 		},
 	}
 
@@ -809,16 +983,8 @@ func TestSessionController_processSession_ensureNetworkPath(t *testing.T) {
 				},
 			}
 
-			mq := &mockManagementClusterQuerier{
-				hostedControlPlane: &hypershiftv1beta1.HostedControlPlane{
-					Spec: hypershiftv1beta1.HostedControlPlaneSpec{
-						KubeAPIServerDNSName: "api.test-hcp.example.com",
-					},
-				},
-			}
-
 			// Execute
-			action, err := controller.processSession(t.Context(), testSession, mq)
+			action, err := controller.processSession(t.Context(), testSession, tt.mq)
 
 			// Verify error expectation
 			if tt.expectedErr && err == nil {
@@ -859,6 +1025,7 @@ func TestSessionController_processSession_finalize(t *testing.T) {
 				BackendKASURL:        "https://api.test-hcp.example.com",
 				Conditions: []metav1.Condition{
 					sessionNotReadyCondition,
+					hostedControlPlaneAvailableCondition,
 					credentialsAvailableCondition,
 					networkPathAvailableCondition,
 				},
@@ -873,6 +1040,7 @@ func TestSessionController_processSession_finalize(t *testing.T) {
 				CredentialsSecretRef: "sessiongate-9b1f64c3",
 				BackendKASURL:        "https://api.test-hcp.example.com",
 				Conditions: []metav1.Condition{
+					hostedControlPlaneAvailableCondition,
 					credentialsAvailableCondition,
 					networkPathAvailableCondition,
 					{
@@ -913,7 +1081,9 @@ func TestSessionController_processSession_finalize(t *testing.T) {
 			}
 
 			// Execute
-			action, err := controller.processSession(t.Context(), testSession, &mockManagementClusterQuerier{})
+			action, err := controller.processSession(t.Context(), testSession, &mockManagementClusterQuerier{
+				hostedControlPlane: buildHCP(true),
+			})
 
 			// Verify error expectation
 			if tt.expectedErr && err == nil {

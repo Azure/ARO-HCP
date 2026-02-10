@@ -21,6 +21,7 @@ import (
 
 	certificatesv1 "k8s.io/api/certificates/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -168,13 +169,41 @@ func (c *SessionController) registerMCProvider(ctx context.Context, resourceId s
 		return fmt.Errorf("failed to register CSR approval informer: %w", err)
 	}
 
-	// Register HostedControlPlane informer
-	provider.HypershiftInformers.Hypershift().V1beta1().HostedControlPlanes().Informer()
-
-	// TODO: provide a key func that resolves the sessions using an HCP
-	// if err := registerInformer(hcpInformer, keyForOwningSession, c.workqueue); err != nil {
-	// 	return fmt.Errorf("failed to register HCP informer: %w", err)
-	// }
+	// Register HostedControlPlane informer.
+	// Only enqueue sessions on HCP creation/deletion and when the HCP Available condition
+	// changes to avoid unnecessary reconciliations from unrelated HCP status updates.
+	hcpInformer := provider.HypershiftInformers.Hypershift().V1beta1().HostedControlPlanes().Informer()
+	enqueueSessionsForHCP := func(obj interface{}) {
+		hcp, ok := obj.(*hypershiftv1beta1.HostedControlPlane)
+		if !ok {
+			return
+		}
+		for _, key := range c.sessionKeysForHCP(resourceId, hcp) {
+			c.workqueue.Add(key)
+		}
+	}
+	if _, err := hcpInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc: enqueueSessionsForHCP,
+		UpdateFunc: func(old, cur interface{}) {
+			oldHCP, ok := old.(*hypershiftv1beta1.HostedControlPlane)
+			if !ok {
+				return
+			}
+			curHCP, ok := cur.(*hypershiftv1beta1.HostedControlPlane)
+			if !ok {
+				return
+			}
+			oldAvailable := meta.FindStatusCondition(oldHCP.Status.Conditions, "Available")
+			curAvailable := meta.FindStatusCondition(curHCP.Status.Conditions, "Available")
+			if !hasConditionStatusChanged(oldAvailable, curAvailable) {
+				return
+			}
+			enqueueSessionsForHCP(curHCP)
+		},
+		DeleteFunc: enqueueSessionsForHCP,
+	}); err != nil {
+		return fmt.Errorf("failed to register HCP informer: %w", err)
+	}
 
 	klog.InfoS("starting management cluster provider informers", "resourceID", resourceId)
 	provider.KubeInformers.Start(provider.stopCh)
@@ -226,6 +255,18 @@ func (c *SessionController) unregisterMCProvider(resourceId string) error {
 
 	delete(c.mcProviders, resourceId)
 	return nil
+}
+
+// hasConditionStatusChanged returns true if the condition status
+// differs between old and new, including the case where one or both are nil.
+func hasConditionStatusChanged(old, cur *metav1.Condition) bool {
+	if old == nil && cur == nil {
+		return false
+	}
+	if old == nil || cur == nil {
+		return true
+	}
+	return old.Status != cur.Status
 }
 
 func (c *SessionController) getManagementClusterProvider(resourceId string) (*ManagementClusterProvider, bool) {
