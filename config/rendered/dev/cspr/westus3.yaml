@@ -367,7 +367,7 @@ kusto:
   enableAutoScale: false
   hostedControlPlaneLogsDatabase: HostedControlPlaneLogs
   kustoName: hcp-dev-us
-  manageInstance: true
+  manageInstance: false
   rg: hcp-kusto-us
   serviceLogsDatabase: ServiceLogs
   sku: Dev(No SLA)_Standard_D11_v2
