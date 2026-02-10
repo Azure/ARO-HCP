@@ -28,6 +28,8 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 
+	"github.com/google/go-cmp/cmp"
+
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
@@ -110,7 +112,7 @@ func waitForSREBreakglassSessionReady(ctx context.Context, httpClient *http.Clie
 	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
 
-	lastStatus := ""
+	lastStatus := map[string]any{}
 	for {
 		select {
 		case <-ctx.Done():
@@ -139,12 +141,13 @@ func waitForSREBreakglassSessionReady(ctx context.Context, httpClient *http.Clie
 
 			if resp.StatusCode == http.StatusAccepted {
 				// Session not ready yet - log status changes
-				var statusBody struct {
-					Status string `json:"status"`
-				}
-				if json.Unmarshal(body, &statusBody) == nil && statusBody.Status != lastStatus {
-					lastStatus = statusBody.Status
-					fmt.Fprintf(GinkgoWriter, "Session status: %s\n", lastStatus)
+				statusBody := map[string]any{}
+				if json.Unmarshal(body, &statusBody) == nil {
+					diff := cmp.Diff(lastStatus, statusBody)
+					if diff != "" {
+						fmt.Fprintf(GinkgoWriter, "Session status changed: %s\n", diff)
+						lastStatus = statusBody
+					}
 				}
 				continue
 			}
