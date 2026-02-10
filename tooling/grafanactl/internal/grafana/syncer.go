@@ -30,15 +30,10 @@ import (
 
 // DashboardSyncer handles syncing dashboards from the filesystem to Grafana.
 type DashboardSyncer struct {
-	client             *Client
-	config             *config.ObservabilityConfig
-	configDir          string
-	dryRun             bool
-	existingFolders    []sdk.Folder
-	existingDashboards []sdk.FoundBoard
-	dashboardsVisited  map[string]bool
-	validationErrors   []ValidationIssue
-	validationWarnings []ValidationIssue
+	client    *Client
+	config    *config.ObservabilityConfig
+	configDir string
+	dryRun    bool
 }
 
 // ValidationIssue represents a validation error or warning for a dashboard.
@@ -48,61 +43,73 @@ type ValidationIssue struct {
 	Message string
 }
 
+// syncState holds the state during a sync operation.
+type syncState struct {
+	existingFolders    []sdk.Folder
+	existingDashboards []sdk.FoundBoard
+	dashboardsVisited  map[string]bool
+	validationErrors   []ValidationIssue
+	validationWarnings []ValidationIssue
+}
+
 // NewDashboardSyncer creates a new DashboardSyncer.
 func NewDashboardSyncer(client *Client, cfg *config.ObservabilityConfig, configFilePath string, dryRun bool) *DashboardSyncer {
 	return &DashboardSyncer{
-		client:            client,
-		config:            cfg,
-		configDir:         filepath.Dir(configFilePath),
-		dryRun:            dryRun,
-		dashboardsVisited: make(map[string]bool),
+		client:    client,
+		config:    cfg,
+		configDir: filepath.Dir(configFilePath),
+		dryRun:    dryRun,
 	}
 }
 
 // Sync performs the full sync operation.
 func (s *DashboardSyncer) Sync(ctx context.Context) error {
 	logger := logr.FromContextOrDiscard(ctx)
-	var err error
 
-	s.existingFolders, err = s.client.ListFolders(ctx)
+	state := &syncState{
+		dashboardsVisited: make(map[string]bool),
+	}
+
+	var err error
+	state.existingFolders, err = s.client.ListFolders(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to list existing folders: %w", err)
 	}
-	logger.Info("Fetched existing folders", "count", len(s.existingFolders))
+	logger.Info("Fetched existing folders", "count", len(state.existingFolders))
 
-	s.existingDashboards, err = s.client.ListDashboards(ctx)
+	state.existingDashboards, err = s.client.ListDashboards(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to list existing dashboards: %w", err)
 	}
-	logger.Info("Fetched existing dashboards", "count", len(s.existingDashboards))
+	logger.Info("Fetched existing dashboards", "count", len(state.existingDashboards))
 
 	// Process each folder from config
 	for _, folder := range s.config.GrafanaDashboards.DashboardFolders {
-		if err := s.syncFolder(ctx, folder); err != nil {
+		if err := s.syncFolder(ctx, folder, state); err != nil {
 			return fmt.Errorf("failed to sync folder %q: %w", folder.Name, err)
 		}
 	}
 
 	// Delete stale dashboards
-	if err := s.deleteStale(ctx); err != nil {
+	if err := s.deleteStale(ctx, state); err != nil {
 		return fmt.Errorf("failed to delete stale dashboards: %w", err)
 	}
 
 	// Report validation issues
-	s.reportValidationIssues(ctx)
+	reportValidationIssues(ctx, state.validationErrors, state.validationWarnings)
 
-	if len(s.validationErrors) > 0 {
-		return fmt.Errorf("validation errors found in %d dashboards", len(s.validationErrors))
+	if len(state.validationErrors) > 0 {
+		return fmt.Errorf("validation errors found in %d dashboards", len(state.validationErrors))
 	}
 
 	return nil
 }
 
-func (s *DashboardSyncer) syncFolder(ctx context.Context, folder config.DashboardFolder) error {
+func (s *DashboardSyncer) syncFolder(ctx context.Context, folder config.DashboardFolder, state *syncState) error {
 	logger := logr.FromContextOrDiscard(ctx)
 	logger.Info("Syncing folder", "name", folder.Name, "path", folder.Path)
 
-	grafanaFolder, err := s.getOrCreateFolder(ctx, folder.Name)
+	grafanaFolder, err := s.getOrCreateFolder(ctx, folder.Name, state)
 	if err != nil {
 		return fmt.Errorf("failed to get or create folder %q: %w", folder.Name, err)
 	}
@@ -115,7 +122,7 @@ func (s *DashboardSyncer) syncFolder(ctx context.Context, folder config.Dashboar
 
 	// Sync each dashboard
 	for _, dashboard := range dashboards {
-		if err := s.syncDashboard(ctx, dashboard, grafanaFolder, folder.Path); err != nil {
+		if err := s.syncDashboard(ctx, dashboard, grafanaFolder, folder.Path, state); err != nil {
 			logger.Error(err, "Failed to sync dashboard", "title", dashboard.Title)
 		}
 	}
@@ -123,10 +130,10 @@ func (s *DashboardSyncer) syncFolder(ctx context.Context, folder config.Dashboar
 	return nil
 }
 
-func (s *DashboardSyncer) getOrCreateFolder(ctx context.Context, name string) (sdk.Folder, error) {
+func (s *DashboardSyncer) getOrCreateFolder(ctx context.Context, name string, state *syncState) (sdk.Folder, error) {
 	logger := logr.FromContextOrDiscard(ctx)
 
-	for _, f := range s.existingFolders {
+	for _, f := range state.existingFolders {
 		if f.Title == name {
 			logger.V(1).Info("Folder already exists", "name", name, "uid", f.UID, "id", f.ID)
 			return f, nil
@@ -145,7 +152,7 @@ func (s *DashboardSyncer) getOrCreateFolder(ctx context.Context, name string) (s
 	}
 
 	logger.Info("Created folder", "name", name, "uid", folder.UID, "id", folder.ID)
-	s.existingFolders = append(s.existingFolders, folder)
+	state.existingFolders = append(state.existingFolders, folder)
 	return folder, nil
 }
 
@@ -166,7 +173,7 @@ func (s *DashboardSyncer) readDashboardsFromPath(ctx context.Context, path strin
 		}
 
 		filePath := filepath.Join(fullPath, entry.Name())
-		dashboard, err := s.readDashboardFile(filePath)
+		dashboard, err := readDashboardFile(filePath)
 		if err != nil {
 			logger.Error(err, "Failed to read dashboard file", "file", filePath)
 			continue
@@ -178,7 +185,7 @@ func (s *DashboardSyncer) readDashboardsFromPath(ctx context.Context, path strin
 	return dashboards, nil
 }
 
-func (s *DashboardSyncer) readDashboardFile(path string) (sdk.Board, error) {
+func readDashboardFile(path string) (sdk.Board, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return sdk.Board{}, fmt.Errorf("failed to read file %q: %w", path, err)
@@ -201,16 +208,23 @@ func (s *DashboardSyncer) readDashboardFile(path string) (sdk.Board, error) {
 	return board, nil
 }
 
-func (s *DashboardSyncer) syncDashboard(ctx context.Context, localDashboard sdk.Board, folder sdk.Folder, folderPath string) error {
+func (s *DashboardSyncer) syncDashboard(ctx context.Context, localDashboard sdk.Board, folder sdk.Folder, folderPath string, state *syncState) error {
 	logger := logr.FromContextOrDiscard(ctx)
 
-	s.validateDashboard(localDashboard, folderPath)
+	errors, warnings := validateDashboard(localDashboard, folderPath)
+	state.validationErrors = append(state.validationErrors, errors...)
+	state.validationWarnings = append(state.validationWarnings, warnings...)
+
+	if len(errors) > 0 {
+		logger.Info("Skipping dashboard due to validation errors", "title", localDashboard.Title)
+		return nil
+	}
 
 	// Mark dashboard UID as visited
-	s.dashboardsVisited[localDashboard.UID] = true
+	state.dashboardsVisited[localDashboard.UID] = true
 
 	// Check if dashboard already exists in Grafana
-	existingBoard := s.findExistingDashboard(localDashboard.UID)
+	existingBoard := findExistingDashboard(localDashboard.UID, state.existingDashboards)
 
 	// If dashboard exists in the correct folder, check if it matches
 	if existingBoard != nil && existingBoard.FolderUID == folder.UID {
@@ -242,10 +256,10 @@ func (s *DashboardSyncer) syncDashboard(ctx context.Context, localDashboard sdk.
 	return s.client.SetDashboard(ctx, localDashboard, folder.ID, true)
 }
 
-func (s *DashboardSyncer) findExistingDashboard(uid string) *sdk.FoundBoard {
-	for i, d := range s.existingDashboards {
+func findExistingDashboard(uid string, existingDashboards []sdk.FoundBoard) *sdk.FoundBoard {
+	for i, d := range existingDashboards {
 		if d.UID == uid {
-			return &s.existingDashboards[i]
+			return &existingDashboards[i]
 		}
 	}
 	return nil
@@ -272,19 +286,21 @@ func areDashboardsEqual(remote, local sdk.Board) bool {
 	return string(remoteJSON) == string(localJSON)
 }
 
-func (s *DashboardSyncer) validateDashboard(localDashboard sdk.Board, folderPath string) {
+// validateDashboard validates a dashboard and returns validation errors and warnings.
+// If errors are returned, the dashboard should not be synced.
+func validateDashboard(localDashboard sdk.Board, folderPath string) (errors []ValidationIssue, warnings []ValidationIssue) {
 	// Check for required fields
 	if localDashboard.Title == "" {
-		s.validationErrors = append(s.validationErrors, ValidationIssue{
+		errors = append(errors, ValidationIssue{
 			Folder:  folderPath,
 			Title:   "(unknown)",
 			Message: "Invalid dashboard, missing 'title' key",
 		})
-		return
+		return errors, warnings // Return early since Title is needed for following validations
 	}
 
 	if localDashboard.UID == "" {
-		s.validationErrors = append(s.validationErrors, ValidationIssue{
+		errors = append(errors, ValidationIssue{
 			Folder:  folderPath,
 			Title:   localDashboard.Title,
 			Message: "Invalid dashboard, missing 'uid' key",
@@ -292,7 +308,7 @@ func (s *DashboardSyncer) validateDashboard(localDashboard sdk.Board, folderPath
 	}
 
 	if len(localDashboard.UID) > 40 {
-		s.validationErrors = append(s.validationErrors, ValidationIssue{
+		errors = append(errors, ValidationIssue{
 			Folder:  folderPath,
 			Title:   localDashboard.Title,
 			Message: fmt.Sprintf("Dashboard uid '%s' is too long, must be less than 40 characters", localDashboard.UID),
@@ -301,7 +317,7 @@ func (s *DashboardSyncer) validateDashboard(localDashboard sdk.Board, folderPath
 
 	// Check for templating
 	if len(localDashboard.Templating.List) == 0 {
-		s.validationErrors = append(s.validationErrors, ValidationIssue{
+		errors = append(errors, ValidationIssue{
 			Folder:  folderPath,
 			Title:   localDashboard.Title,
 			Message: "Dashboard does not have any variables set",
@@ -326,7 +342,7 @@ func (s *DashboardSyncer) validateDashboard(localDashboard sdk.Board, folderPath
 	}
 
 	if !hasPrometheusDatasource {
-		s.validationErrors = append(s.validationErrors, ValidationIssue{
+		errors = append(errors, ValidationIssue{
 			Folder:  folderPath,
 			Title:   localDashboard.Title,
 			Message: "Dashboard does not have a datasource of type prometheus",
@@ -335,20 +351,22 @@ func (s *DashboardSyncer) validateDashboard(localDashboard sdk.Board, folderPath
 
 	// Warning: check for regex on datasource variable
 	if datasourceVar != nil && datasourceVar.Regex == "" {
-		s.validationWarnings = append(s.validationWarnings, ValidationIssue{
+		warnings = append(warnings, ValidationIssue{
 			Folder:  folderPath,
 			Title:   localDashboard.Title,
 			Message: "Dashboard does not have a regex set for the datasource variable",
 		})
 	}
+
+	return errors, warnings
 }
 
-func (s *DashboardSyncer) deleteStale(ctx context.Context) error {
+func (s *DashboardSyncer) deleteStale(ctx context.Context, state *syncState) error {
 	logger := logr.FromContextOrDiscard(ctx)
 
 	azureManagedFolderUIDs := make(map[string]bool)
 	for _, name := range s.config.GrafanaDashboards.AzureManagedFolders {
-		for _, f := range s.existingFolders {
+		for _, f := range state.existingFolders {
 			if f.Title == name {
 				azureManagedFolderUIDs[f.UID] = true
 				break
@@ -356,9 +374,9 @@ func (s *DashboardSyncer) deleteStale(ctx context.Context) error {
 		}
 	}
 
-	for _, d := range s.existingDashboards {
+	for _, d := range state.existingDashboards {
 		// Check if dashboard was visited by its UID
-		if s.dashboardsVisited[d.UID] {
+		if state.dashboardsVisited[d.UID] {
 			continue
 		}
 
@@ -383,19 +401,19 @@ func (s *DashboardSyncer) deleteStale(ctx context.Context) error {
 	return nil
 }
 
-func (s *DashboardSyncer) reportValidationIssues(ctx context.Context) {
+func reportValidationIssues(ctx context.Context, validationErrors, validationWarnings []ValidationIssue) {
 	logger := logr.FromContextOrDiscard(ctx)
 
-	if len(s.validationWarnings) > 0 {
-		logger.Info("Dashboards with warnings", "count", len(s.validationWarnings))
-		for _, w := range s.validationWarnings {
+	if len(validationWarnings) > 0 {
+		logger.Info("Dashboards with warnings", "count", len(validationWarnings))
+		for _, w := range validationWarnings {
 			logger.Info("Warning", "folder", w.Folder, "title", w.Title, "message", w.Message)
 		}
 	}
 
-	if len(s.validationErrors) > 0 {
-		logger.Info("Dashboards with errors that need to be fixed", "count", len(s.validationErrors))
-		for _, e := range s.validationErrors {
+	if len(validationErrors) > 0 {
+		logger.Info("Dashboards with errors that need to be fixed", "count", len(validationErrors))
+		for _, e := range validationErrors {
 			logger.Error(nil, "Validation error", "folder", e.Folder, "title", e.Title, "message", e.Message)
 		}
 	}
