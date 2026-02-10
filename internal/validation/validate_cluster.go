@@ -256,6 +256,9 @@ var (
 	toServiceProviderPlatform = func(oldObj *api.HCPOpenShiftClusterServiceProviderProperties) *api.ServiceProviderPlatformProfile {
 		return &oldObj.Platform
 	}
+	toServiceProviderBillingDocID = func(oldObj *api.HCPOpenShiftClusterServiceProviderProperties) *string {
+		return &oldObj.BillingDocID
+	}
 )
 
 func validateClusterServiceProviderProperties(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *api.HCPOpenShiftClusterServiceProviderProperties) field.ErrorList {
@@ -280,6 +283,9 @@ func validateClusterServiceProviderProperties(ctx context.Context, op operation.
 	// Platform                CustomerPlatformProfile             `json:"platform,omitempty"`
 	errs = append(errs, validate.ImmutableByReflect(ctx, op, fldPath.Child("platform"), &newObj.Platform, safe.Field(oldObj, toServiceProviderPlatform))...)
 	errs = append(errs, validateServiceProviderPlatformProfile(ctx, op, fldPath.Child("platform"), &newObj.Platform, safe.Field(oldObj, toServiceProviderPlatform))...)
+
+	// BillingDocID      string                         `json:"billingDocId,omitempty"`
+	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("billingDocId"), &newObj.BillingDocID, safe.Field(oldObj, toServiceProviderBillingDocID))...)
 
 	return errs
 }
