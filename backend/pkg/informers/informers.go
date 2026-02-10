@@ -54,7 +54,7 @@ func NewSubscriptionInformer(lister database.GlobalLister[arm.Subscription]) cac
 // NewSubscriptionInformerWithRelistDuration creates an unstarted SharedIndexInformer for subscriptions
 // with a configurable relist duration.
 func NewSubscriptionInformerWithRelistDuration(lister database.GlobalLister[arm.Subscription], relistDuration time.Duration) cache.SharedIndexInformer {
-	lw := &cache.ListWatch{
+	lw := cache.ToListWatcherWithWatchListSemantics(&cache.ListWatch{
 		ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
 			logger := utils.LoggerFromContext(ctx)
 			logger.Info("listing subscriptions")
@@ -79,7 +79,7 @@ func NewSubscriptionInformerWithRelistDuration(lister database.GlobalLister[arm.
 		WatchFuncWithContext: func(ctx context.Context, options metav1.ListOptions) (watch.Interface, error) {
 			return NewExpiringWatcher(relistDuration), nil
 		},
-	}
+	}, lister)
 
 	return cache.NewSharedIndexInformerWithOptions(
 		lw,
@@ -99,7 +99,7 @@ func NewClusterInformer(lister database.GlobalLister[api.HCPOpenShiftCluster]) c
 // NewClusterInformerWithRelistDuration creates an unstarted SharedIndexInformer for clusters
 // with a resource group index and a configurable relist duration.
 func NewClusterInformerWithRelistDuration(lister database.GlobalLister[api.HCPOpenShiftCluster], relistDuration time.Duration) cache.SharedIndexInformer {
-	lw := &cache.ListWatch{
+	lw := cache.ToListWatcherWithWatchListSemantics(&cache.ListWatch{
 		ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
 			logger := utils.LoggerFromContext(ctx)
 			logger.Info("listing clusters")
@@ -124,7 +124,7 @@ func NewClusterInformerWithRelistDuration(lister database.GlobalLister[api.HCPOp
 		WatchFuncWithContext: func(ctx context.Context, options metav1.ListOptions) (watch.Interface, error) {
 			return NewExpiringWatcher(relistDuration), nil
 		},
-	}
+	}, lister)
 
 	return cache.NewSharedIndexInformerWithOptions(
 		lw,
@@ -147,7 +147,7 @@ func NewNodePoolInformer(lister database.GlobalLister[api.HCPOpenShiftClusterNod
 // NewNodePoolInformerWithRelistDuration creates an unstarted SharedIndexInformer for node pools
 // with resource group and cluster indexes and a configurable relist duration.
 func NewNodePoolInformerWithRelistDuration(lister database.GlobalLister[api.HCPOpenShiftClusterNodePool], relistDuration time.Duration) cache.SharedIndexInformer {
-	lw := &cache.ListWatch{
+	lw := cache.ToListWatcherWithWatchListSemantics(&cache.ListWatch{
 		ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
 			logger := utils.LoggerFromContext(ctx)
 			logger.Info("listing node pools")
@@ -172,7 +172,7 @@ func NewNodePoolInformerWithRelistDuration(lister database.GlobalLister[api.HCPO
 		WatchFuncWithContext: func(ctx context.Context, options metav1.ListOptions) (watch.Interface, error) {
 			return NewExpiringWatcher(relistDuration), nil
 		},
-	}
+	}, lister)
 
 	return cache.NewSharedIndexInformerWithOptions(
 		lw,
@@ -196,7 +196,7 @@ func NewExternalAuthInformer(lister database.GlobalLister[api.HCPOpenShiftCluste
 // NewExternalAuthInformerWithRelistDuration creates an unstarted SharedIndexInformer for external auths
 // with resource group and cluster indexes and a configurable relist duration.
 func NewExternalAuthInformerWithRelistDuration(lister database.GlobalLister[api.HCPOpenShiftClusterExternalAuth], relistDuration time.Duration) cache.SharedIndexInformer {
-	lw := &cache.ListWatch{
+	lw := cache.ToListWatcherWithWatchListSemantics(&cache.ListWatch{
 		ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
 			logger := utils.LoggerFromContext(ctx)
 			logger.Info("listing external auths")
@@ -221,7 +221,7 @@ func NewExternalAuthInformerWithRelistDuration(lister database.GlobalLister[api.
 		WatchFuncWithContext: func(ctx context.Context, options metav1.ListOptions) (watch.Interface, error) {
 			return NewExpiringWatcher(relistDuration), nil
 		},
-	}
+	}, lister)
 
 	return cache.NewSharedIndexInformerWithOptions(
 		lw,
@@ -245,7 +245,7 @@ func NewServiceProviderClusterInformer(lister database.GlobalLister[api.ServiceP
 // NewServiceProviderClusterInformerWithRelistDuration creates an unstarted SharedIndexInformer for service provider clusters
 // with a cluster index and a configurable relist duration.
 func NewServiceProviderClusterInformerWithRelistDuration(lister database.GlobalLister[api.ServiceProviderCluster], relistDuration time.Duration) cache.SharedIndexInformer {
-	lw := &cache.ListWatch{
+	lw := cache.ToListWatcherWithWatchListSemantics(&cache.ListWatch{
 		ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
 			logger := utils.LoggerFromContext(ctx)
 			logger.Info("listing service provider clusters")
@@ -270,7 +270,7 @@ func NewServiceProviderClusterInformerWithRelistDuration(lister database.GlobalL
 		WatchFuncWithContext: func(ctx context.Context, options metav1.ListOptions) (watch.Interface, error) {
 			return NewExpiringWatcher(relistDuration), nil
 		},
-	}
+	}, lister)
 
 	return cache.NewSharedIndexInformerWithOptions(
 		lw,
@@ -295,7 +295,7 @@ func NewActiveOperationInformer(lister database.GlobalLister[api.Operation]) cac
 // active (non-terminal) operations with resource group and cluster indexes
 // and a configurable relist duration.
 func NewActiveOperationInformerWithRelistDuration(lister database.GlobalLister[api.Operation], relistDuration time.Duration) cache.SharedIndexInformer {
-	lw := &cache.ListWatch{
+	lw := cache.ToListWatcherWithWatchListSemantics(&cache.ListWatch{
 		ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
 			logger := utils.LoggerFromContext(ctx)
 			logger.Info("listing active operations")
@@ -320,7 +320,7 @@ func NewActiveOperationInformerWithRelistDuration(lister database.GlobalLister[a
 		WatchFuncWithContext: func(ctx context.Context, options metav1.ListOptions) (watch.Interface, error) {
 			return NewExpiringWatcher(relistDuration), nil
 		},
-	}
+	}, lister)
 
 	return cache.NewSharedIndexInformerWithOptions(
 		lw,

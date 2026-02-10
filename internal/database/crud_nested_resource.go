@@ -152,3 +152,9 @@ func (d *nestedCosmosResourceCRUD[InternalAPIType, CosmosAPIType]) Delete(ctx co
 
 	return deleteResource(ctx, d.containerClient, partitionKey, completeResourceID)
 }
+
+// IsWatchListSemanticsUnSupported implements the opt-out for WatchList semantics.
+// See k8s.io/client-go/util/watchlist.DoesClientNotSupportWatchListSemantics.
+func (d *nestedCosmosResourceCRUD[InternalAPIType, CosmosAPIType]) IsWatchListSemanticsUnSupported() bool {
+	return true
+}

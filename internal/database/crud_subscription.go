@@ -100,3 +100,9 @@ func (d *subscriptionCRUD) Delete(ctx context.Context, resourceName string) erro
 
 	return deleteResource(ctx, d.containerClient, partitionKey, completeResourceID)
 }
+
+// IsWatchListSemanticsUnSupported implements the opt-out for WatchList semantics.
+// See k8s.io/client-go/util/watchlist.DoesClientNotSupportWatchListSemantics.
+func (d *subscriptionCRUD) IsWatchListSemanticsUnSupported() bool {
+	return true
+}
