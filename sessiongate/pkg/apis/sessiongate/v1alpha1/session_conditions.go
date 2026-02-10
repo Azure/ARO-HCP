@@ -19,9 +19,29 @@ import metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 type SessionConditionType string
 
 const (
-	SessionConditionTypeReady                SessionConditionType = "Ready"
-	SessionConditionTypeCredentialsAvailable SessionConditionType = "CredentialsAvailable"
-	SessionConditionTypeNetworkPathAvailable SessionConditionType = "NetworkPathAvailable"
+	SessionConditionTypeReady                       SessionConditionType = "Ready"
+	SessionConditionTypeHostedControlPlaneAvailable SessionConditionType = "HostedControlPlaneAvailable"
+	SessionConditionTypeCredentialsAvailable        SessionConditionType = "CredentialsAvailable"
+	SessionConditionTypeNetworkPathAvailable        SessionConditionType = "NetworkPathAvailable"
+
+	SessionReadyReason    string = "Ready"
+	SessionNotReadyReason string = "NotReady"
+
+	HostedControlPlaneNotFoundReason    string = "HostedControlPlaneNotFound"
+	HostedControlPlaneAccessErrorReason string = "HostedControlPlaneAccessError"
+	HostedControlPlaneNotReadyReason    string = "HostedControlPlaneNotReady"
+	HostedControlPlaneAvailableReason   string = "HostedControlPlaneAvailable"
+
+	CredentialsAvailableReason         string = "CredentialsAvailable"
+	CredentialsSecretAccessErrorReason string = "CredentialsSecretAccessError"
+
+	CertificateSigningRequestAccessErrorReason    string = "CertificateSigningRequestAccessError"
+	CertificateSigningRequestPendingReason        string = "CertificateSigningRequestPending"
+	CertificateSigningRequestCreationFailedReason string = "CertificateSigningRequestCreationFailed"
+
+	PrivateKeyGenerationFailedReason string = "PrivateKeyGenerationFailed"
+
+	NetworkPathAvailableReason string = "NetworkPathAvailable"
 )
 
 func (session *Session) IsReady() bool {

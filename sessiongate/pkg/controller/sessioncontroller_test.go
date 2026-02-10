@@ -162,7 +162,7 @@ var sampleSession = &sessiongatev1alpha1.Session{
 var sessionNotReadyCondition = metav1.Condition{
 	Type:               string(sessiongatev1alpha1.SessionConditionTypeReady),
 	Status:             metav1.ConditionFalse,
-	Reason:             "NotReady",
+	Reason:             sessiongatev1alpha1.SessionNotReadyReason,
 	Message:            "Session is not ready",
 	ObservedGeneration: sampleSession.Generation,
 	LastTransitionTime: metav1.Time{Time: fixedTime},
@@ -171,7 +171,7 @@ var sessionNotReadyCondition = metav1.Condition{
 var credentialsAvailableCondition = metav1.Condition{
 	Type:               string(sessiongatev1alpha1.SessionConditionTypeCredentialsAvailable),
 	Status:             metav1.ConditionTrue,
-	Reason:             "CredentialsAvailable",
+	Reason:             sessiongatev1alpha1.CredentialsAvailableReason,
 	Message:            "Credentials available",
 	ObservedGeneration: sampleSession.Generation,
 	LastTransitionTime: metav1.Time{Time: fixedTime},
@@ -180,7 +180,7 @@ var credentialsAvailableCondition = metav1.Condition{
 var networkPathAvailableCondition = metav1.Condition{
 	Type:               string(sessiongatev1alpha1.SessionConditionTypeNetworkPathAvailable),
 	Status:             metav1.ConditionTrue,
-	Reason:             "NetworkPathAvailable",
+	Reason:             sessiongatev1alpha1.NetworkPathAvailableReason,
 	Message:            "Network path available via public endpoint",
 	ObservedGeneration: sampleSession.Generation,
 	LastTransitionTime: metav1.Time{Time: fixedTime},
