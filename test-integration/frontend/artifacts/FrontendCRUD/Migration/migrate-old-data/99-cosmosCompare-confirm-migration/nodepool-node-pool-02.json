@@ -6,6 +6,7 @@
 	"_ts": 1768350854,
 	"id": "|subscriptions|6b690bec-0c16-4ecb-8f67-781caf40bba7|resourcegroups|resourcegroupname|providers|microsoft.redhatopenshift|hcpopenshiftclusters|create-with-tags|nodepools|node-pool-02",
 	"partitionKey": "6b690bec-0c16-4ecb-8f67-781caf40bba7",
+	"resourceID": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/create-with-tags/nodePools/node-pool-02",
 	"properties": {
 		"activeOperationId": "4067756a-fcc1-4732-a211-d785d888203c",
 		"cosmosMetadata": {

@@ -125,12 +125,19 @@ Most steps contain:
 
 ## Cosmos Document ID Format
 
-The `.id` field in cosmos documents is derived from the resource's ARM resource ID:
+The `.id` field in cosmos documents is a UUID V5 derived from the resource's ARM resource ID:
 - Lowercase the entire resource ID
-- Replace all `/` with `|`
+- Generate a UUID V5 using a fixed namespace UUID (`bf1ee0a1-0147-41ed-a083-d3cbbf7bea99`) and the lowercased resource ID as the name
 
 Example: `/subscriptions/AAA/resourceGroups/BBB/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/CCC`
-becomes: `|subscriptions|aaa|resourcegroups|bbb|providers|microsoft.redhatopenshift|hcpopenshiftclusters|ccc`
+becomes: `<uuid-v5-hash>` (e.g., `a1b2c3d4-e5f6-5789-abcd-ef0123456789`)
+
+The UUID V5 format provides:
+- Deterministic IDs (same resource ID always produces the same UUID)
+- Compliance with Cosmos DB key length limits
+- URL-safe characters (no `/` or `|` delimiters)
+
+Implementation: `internal/api/arm/types_cosmosdata.go:ResourceIDStringToCosmosID()`
 
 ## ResourceInstanceEquals (comparison logic)
 

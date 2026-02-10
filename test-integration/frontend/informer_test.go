@@ -257,10 +257,16 @@ func subscriptionInformerIntegrationTestCase() informerIntegrationTestCase {
 		seedDB: func(t *testing.T, ctx context.Context, dbClient database.DBClient) {
 			t.Helper()
 			sub1 := &arm.Subscription{
+				CosmosMetadata: arm.CosmosMetadata{
+					ResourceID: mustParseResourceID(t, "/subscriptions/sub-1"),
+				},
 				ResourceID: mustParseResourceID(t, "/subscriptions/sub-1"),
 				State:      arm.SubscriptionStateRegistered,
 			}
 			sub2 := &arm.Subscription{
+				CosmosMetadata: arm.CosmosMetadata{
+					ResourceID: mustParseResourceID(t, "/subscriptions/sub-2"),
+				},
 				ResourceID: mustParseResourceID(t, "/subscriptions/sub-2"),
 				State:      arm.SubscriptionStateRegistered,
 			}
@@ -276,6 +282,9 @@ func subscriptionInformerIntegrationTestCase() informerIntegrationTestCase {
 		mutateDB: func(t *testing.T, ctx context.Context, dbClient database.DBClient) {
 			t.Helper()
 			sub1Updated := &arm.Subscription{
+				CosmosMetadata: arm.CosmosMetadata{
+					ResourceID: mustParseResourceID(t, "/subscriptions/sub-1"),
+				},
 				ResourceID: mustParseResourceID(t, "/subscriptions/sub-1"),
 				State:      arm.SubscriptionStateWarned,
 			}
@@ -283,6 +292,9 @@ func subscriptionInformerIntegrationTestCase() informerIntegrationTestCase {
 			require.NoError(t, err)
 
 			sub3 := &arm.Subscription{
+				CosmosMetadata: arm.CosmosMetadata{
+					ResourceID: mustParseResourceID(t, "/subscriptions/sub-3"),
+				},
 				ResourceID: mustParseResourceID(t, "/subscriptions/sub-3"),
 				State:      arm.SubscriptionStateRegistered,
 			}

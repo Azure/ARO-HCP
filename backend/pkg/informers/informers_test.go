@@ -233,10 +233,16 @@ func subscriptionInformerTestCase() informerTestCase {
 		seedDB: func(t *testing.T, ctx context.Context, mockDB *databasetesting.MockDBClient) {
 			t.Helper()
 			sub1 := &arm.Subscription{
+				CosmosMetadata: arm.CosmosMetadata{
+					ResourceID: mustParseResourceID(t, "/subscriptions/sub-1"),
+				},
 				ResourceID: mustParseResourceID(t, "/subscriptions/sub-1"),
 				State:      arm.SubscriptionStateRegistered,
 			}
 			sub2 := &arm.Subscription{
+				CosmosMetadata: arm.CosmosMetadata{
+					ResourceID: mustParseResourceID(t, "/subscriptions/sub-2"),
+				},
 				ResourceID: mustParseResourceID(t, "/subscriptions/sub-2"),
 				State:      arm.SubscriptionStateRegistered,
 			}
@@ -253,6 +259,9 @@ func subscriptionInformerTestCase() informerTestCase {
 			t.Helper()
 			// Update sub-1.
 			sub1Updated := &arm.Subscription{
+				CosmosMetadata: arm.CosmosMetadata{
+					ResourceID: mustParseResourceID(t, "/subscriptions/sub-1"),
+				},
 				ResourceID: mustParseResourceID(t, "/subscriptions/sub-1"),
 				State:      arm.SubscriptionStateWarned,
 			}
@@ -261,6 +270,9 @@ func subscriptionInformerTestCase() informerTestCase {
 
 			// Add sub-3.
 			sub3 := &arm.Subscription{
+				CosmosMetadata: arm.CosmosMetadata{
+					ResourceID: mustParseResourceID(t, "/subscriptions/sub-3"),
+				},
 				ResourceID: mustParseResourceID(t, "/subscriptions/sub-3"),
 				State:      arm.SubscriptionStateRegistered,
 			}

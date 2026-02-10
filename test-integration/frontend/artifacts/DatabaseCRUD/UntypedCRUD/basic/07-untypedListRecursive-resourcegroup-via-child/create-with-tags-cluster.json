@@ -6,6 +6,7 @@
     "_ts": 1764966599,
     "id": "|subscriptions|f52dfea2-47ee-4396-8006-4a27d47d59c5|resourcegroups|some-resource-group|providers|microsoft.redhatopenshift|hcpopenshiftclusters|create-with-tags",
     "partitionKey": "f52dfea2-47ee-4396-8006-4a27d47d59c5",
+	"resourceID": "/subscriptions/f52dfea2-47ee-4396-8006-4a27d47d59c5/resourceGroups/some-resource-group/providers/microsoft.redhatopenshift/hcpopenshiftclusters/create-with-tags",
     "properties": {
         "activeOperationId": "7c6b7caa-572f-41b6-9f18-1bb11adfba31",
         "identity": {

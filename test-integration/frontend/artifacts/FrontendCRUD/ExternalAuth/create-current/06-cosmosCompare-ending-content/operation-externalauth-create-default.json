@@ -4,8 +4,9 @@
     "_rid": "M4dGAP57SmwEAAAAAAAAAA==",
     "_self": "dbs/M4dGAA==/colls/M4dGAP57Smw=/docs/M4dGAP57SmwEAAAAAAAAAA==/",
     "_ts": 1767983403,
-    "id": "ea807c13-7e15-43d4-b760-69ef7e31d273",
+    "id": "|subscriptions|6b690bec-0c16-4ecb-8f67-781caf40bba7|providers|microsoft.redhatopenshift|hcpoperationstatuses|ea807c13-7e15-43d4-b760-69ef7e31d273",
     "partitionKey": "6b690bec-0c16-4ecb-8f67-781caf40bba7",
+	"resourceID": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/providers/Microsoft.RedHatOpenShift/hcpOperationStatuses/ea807c13-7e15-43d4-b760-69ef7e31d273",
     "properties": {
         "cosmosMetadata": {
             "resourceID": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/providers/Microsoft.RedHatOpenShift/hcpOperationStatuses/ea807c13-7e15-43d4-b760-69ef7e31d273"

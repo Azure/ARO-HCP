@@ -6,7 +6,8 @@
 	"_attachments": "attachments/",
 	"_ts": 1767912219,
 	"partitionKey": "4fa75980-6637-4157-9726-84d878a62e83",
-	"resourceType": "microsoft.redhatopenshift/hcpopenshiftclusters/hcpOpenShiftControllers",
+	"resourceID": "/subscriptions/4fa75980-6637-4157-9726-84d878a62e83/resourceGroups/shrillEffectiveness/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/lavishUnhappiness/hcpOpenShiftControllers/DoNothingExample",
+	"resourceType": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/hcpOpenShiftControllers",
 	"properties": {
 		"cosmosMetadata": {
 			"resourceID": "/subscriptions/4fa75980-6637-4157-9726-84d878a62e83/resourceGroups/shrilleffectiveness/providers/microsoft.redhatopenshift/hcpopenshiftclusters/lavishunhappiness/hcpOpenShiftControllers/DoNothingExample"
