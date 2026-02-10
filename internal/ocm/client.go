@@ -116,8 +116,8 @@ type ClusterServiceClientSpec interface {
 	// GetVersion sends a GET request to fetch cluster version
 	GetVersion(ctx context.Context, versionName string) (*arohcpv1alpha1.Version, error)
 
-	// ListVersions prepares a GET request. Call Items() on
-	// the returned iterator in a for/range loop to execute the request and paginate over results,
+	// ListVersions prepares a GET request.
+	// Call Items() on the returned iterator with options in a for/range loop to execute the request and paginate over results,
 	// then call GetError() to check for an iteration error.
 	ListVersions() *VersionsListIterator
 }
