@@ -130,7 +130,7 @@ clustersService:
   batchProcessesDryRun: true
   denyAssignments: disabled
   deployDebugJobs: false
-  environment: arohcpdev
+  environment: arohcpprow
   image:
     digest: sha256:dbdd7608dcc7ec11c933c1cbbffe77350c6e0aa326e01136aad66f644efbd271
     registry: quay.io
