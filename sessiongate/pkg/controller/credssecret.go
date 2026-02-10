@@ -15,6 +15,7 @@
 package controller
 
 import (
+	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
 	"encoding/pem"
@@ -71,11 +72,7 @@ func (c *CredentialSecret) GetPrivateKey() (*rsa.PrivateKey, bool) {
 	if !exists {
 		return nil, false
 	}
-	block, _ := pem.Decode(privateKeyBytes)
-	if block == nil {
-		return nil, false
-	}
-	privateKey, err := x509.ParsePKCS1PrivateKey(block.Bytes)
+	privateKey, err := decodePrivateKey(privateKeyBytes)
 	if err != nil {
 		return nil, false
 	}
@@ -90,7 +87,7 @@ func (c *CredentialSecret) GetCertificate() ([]byte, bool) {
 }
 
 func (c *CredentialSecret) ApplyConfigurationForPrivateKey(session *sessiongatev1alpha1.Session, privateKey *rsa.PrivateKey) *corev1apply.SecretApplyConfiguration {
-	return c.applyConfiguration(session, EncodePrivateKey(privateKey), nil)
+	return c.applyConfiguration(session, encodePrivateKey(privateKey), nil)
 }
 
 func (c *CredentialSecret) ApplyConfigurationForCertificate(session *sessiongatev1alpha1.Session, certificate []byte) *corev1apply.SecretApplyConfiguration {
@@ -119,13 +116,32 @@ func (c *CredentialSecret) applyConfiguration(session *sessiongatev1alpha1.Sessi
 		WithData(data)
 }
 
-func EncodePrivateKey(privateKey *rsa.PrivateKey) []byte {
+func createPrivateKey(size int) (*rsa.PrivateKey, error) {
+	return rsa.GenerateKey(rand.Reader, size)
+}
+
+func encodePrivateKey(privateKey *rsa.PrivateKey) []byte {
 	return pem.EncodeToMemory(&pem.Block{
 		Type:  "RSA PRIVATE KEY",
 		Bytes: x509.MarshalPKCS1PrivateKey(privateKey),
 	})
 }
 
-func PrivateKeyAndPublicKeyMatch(privateKey *rsa.PrivateKey, publicKey *rsa.PublicKey) bool {
+func decodePrivateKey(privateKeyBytes []byte) (*rsa.PrivateKey, error) {
+	block, rest := pem.Decode(privateKeyBytes)
+	if block == nil || len(rest) > 0 {
+		// we expect private keys to be a single PEM encoded block
+		// this decode functions expects to be used in tandem with
+		// the createPrivateKey and encodePrivateKey functions to ensure
+		// this invariant is maintained
+		//
+		// also the ApplyConfigurationForPrivateKey function is the only valid
+		// way to bring a single private key into the secret
+		return nil, fmt.Errorf("private key is not a single PEM encoded block")
+	}
+	return x509.ParsePKCS1PrivateKey(block.Bytes)
+}
+
+func privateKeyAndPublicKeyMatch(privateKey *rsa.PrivateKey, publicKey *rsa.PublicKey) bool {
 	return privateKey.N.Cmp(publicKey.N) == 0 && privateKey.E == publicKey.E
 }
