@@ -232,8 +232,28 @@ func NotReadyCondition(generation int64, now time.Time) *applyv1.ConditionApplyC
 	return applyv1.Condition().
 		WithType(string(sessiongatev1alpha1.SessionConditionTypeReady)).
 		WithStatus(metav1.ConditionFalse).
-		WithReason("NotReady").
+		WithReason(sessiongatev1alpha1.SessionNotReadyReason).
 		WithMessage("Session is not ready").
+		WithObservedGeneration(generation).
+		WithLastTransitionTime(metav1.NewTime(now))
+}
+
+func HostedControlPlaneAvailableCondition(generation int64, now time.Time) *applyv1.ConditionApplyConfiguration {
+	return applyv1.Condition().
+		WithType(string(sessiongatev1alpha1.SessionConditionTypeHostedControlPlaneAvailable)).
+		WithStatus(metav1.ConditionTrue).
+		WithReason(sessiongatev1alpha1.HostedControlPlaneAvailableReason).
+		WithMessage("HostedControlPlane is available and ready").
+		WithObservedGeneration(generation).
+		WithLastTransitionTime(metav1.NewTime(now))
+}
+
+func HostedControlPlaneNotAvailableCondition(reason, message string, generation int64, now time.Time) *applyv1.ConditionApplyConfiguration {
+	return applyv1.Condition().
+		WithType(string(sessiongatev1alpha1.SessionConditionTypeHostedControlPlaneAvailable)).
+		WithStatus(metav1.ConditionFalse).
+		WithReason(reason).
+		WithMessage(message).
 		WithObservedGeneration(generation).
 		WithLastTransitionTime(metav1.NewTime(now))
 }

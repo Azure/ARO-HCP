@@ -47,7 +47,7 @@ import (
 )
 
 const (
-	managementClusterIndexName = "sessions-by-management-cluster"
+	sessionsByManagementClusterIndexName  = "sessions-by-management-cluster"
 )
 
 // SessionEndpointProvider provides session endpoint URLs
@@ -109,7 +109,7 @@ func NewSessionController(
 	// we index sessions by management cluster resource ID so we can quickly find
 	// all sessions for a given management cluster. useful for mgmt cluster informer setup.
 	if err := sessionInformer.AddIndexers(cache.Indexers{
-		managementClusterIndexName: func(obj interface{}) ([]string, error) {
+		sessionsByManagementClusterIndexName: func(obj interface{}) ([]string, error) {
 			session, ok := obj.(*sessiongatev1alpha1.Session)
 			if !ok {
 				return nil, fmt.Errorf("object is not a Session")
@@ -385,7 +385,7 @@ func (c *SessionController) generateCredentials(ctx context.Context, session *se
 				applyv1.Condition().
 					WithType(string(sessiongatev1alpha1.SessionConditionTypeCredentialsAvailable)).
 					WithStatus(metav1.ConditionTrue).
-					WithReason("CredentialsAvailable").
+					WithReason(sessiongatev1alpha1.CredentialsAvailableReason).
 					WithMessage("Credentials available").
 					WithObservedGeneration(session.Generation).
 					WithLastTransitionTime(metav1.NewTime(c.clock.Now())),
@@ -424,7 +424,7 @@ func (c *SessionController) generateCredentials(ctx context.Context, session *se
 		if !isCSRApproved(csr) {
 			sessionUpdate, needsUpdate := NewStatus(session.Status).
 				WithConditions(
-					CredentialsNotAvailableCondition("CertificateSigningRequestPending", "Certificate signing request pending, waiting for approval", session.Generation, c.clock.Now()),
+					CredentialsNotAvailableCondition(sessiongatev1alpha1.CertificateSigningRequestPendingReason, "Certificate signing request pending, waiting for approval", session.Generation, c.clock.Now()),
 					NotReadyCondition(session.Generation, c.clock.Now()),
 				).AsApplyConfiguration(session)
 			if needsUpdate {
@@ -506,7 +506,7 @@ func (c *SessionController) ensureNetworkPath(ctx context.Context, session *sess
 			applyv1.Condition().
 				WithType(string(sessiongatev1alpha1.SessionConditionTypeNetworkPathAvailable)).
 				WithStatus(metav1.ConditionTrue).
-				WithReason("NetworkPathAvailable").
+				WithReason(sessiongatev1alpha1.NetworkPathAvailableReason).
 				WithMessage("Network path available via public endpoint").
 				WithObservedGeneration(session.Generation).
 				WithLastTransitionTime(metav1.NewTime(c.clock.Now())),
@@ -527,7 +527,7 @@ func (c *SessionController) finalizeSession(ctx context.Context, session *sessio
 			applyv1.Condition().
 				WithType(string(sessiongatev1alpha1.SessionConditionTypeReady)).
 				WithStatus(metav1.ConditionTrue).
-				WithReason("Ready").
+				WithReason(sessiongatev1alpha1.SessionReadyReason).
 				WithMessage("Session is ready").
 				WithObservedGeneration(session.Generation).
 				WithLastTransitionTime(metav1.NewTime(c.clock.Now())),
@@ -575,7 +575,7 @@ func (c *SessionController) reconcileManagementClusterProvider(ctx context.Conte
 
 func (c *SessionController) getSessionsByManagementCluster(mgmtClusterResourceID string) ([]*sessiongatev1alpha1.Session, error) {
 	objs, err := c.sessiongateInformers.Sessiongate().V1alpha1().Sessions().Informer().GetIndexer().ByIndex(
-		managementClusterIndexName,
+		sessionsByManagementClusterIndexName,
 		mgmtClusterResourceID,
 	)
 	if err != nil {
