@@ -20,6 +20,7 @@ import (
 	"testing"
 	"time"
 
+	"k8s.io/apimachinery/pkg/api/operation"
 	"k8s.io/utils/ptr"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -896,7 +897,40 @@ func TestValidateClusterCreate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			errs := ValidateClusterCreate(ctx, tt.cluster, nil)
+			errs := ValidateClusterCreate(ctx, operation.Operation{Type: operation.Create}, tt.cluster, nil)
+			verifyErrorsMatch(t, tt.expectErrors, errs)
+		})
+	}
+}
+
+// TestValidateClusterCreate_ManagedIdentitiesDataPlaneIdentityURLOptionalOperationOption tests that
+// when ManagedIdentitiesDataPlaneIdentityURLOptionalOperationOption is set, the field becomes optional
+func TestValidateClusterCreate_ManagedIdentitiesDataPlaneIdentityURLOptionalOperationOption(t *testing.T) {
+	ctx := context.Background()
+
+	tests := []struct {
+		name         string
+		cluster      *api.HCPOpenShiftCluster
+		expectErrors []expectedError
+	}{
+		{
+			name: "empty ManagedIdentitiesDataPlaneIdentityURL with option set - valid",
+			cluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.ServiceProviderProperties.ManagedIdentitiesDataPlaneIdentityURL = ""
+				return c
+			}(),
+			expectErrors: []expectedError{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			op := operation.Operation{
+				Type:    operation.Create,
+				Options: []string{ManagedIdentitiesDataPlaneIdentityURLOptionalOperationOption},
+			}
+			errs := ValidateClusterCreate(ctx, op, tt.cluster, nil)
 			verifyErrorsMatch(t, tt.expectErrors, errs)
 		})
 	}
@@ -1524,6 +1558,7 @@ func TestValidateClusterUpdate(t *testing.T) {
 				c.CustomerProperties.Version.ChannelGroup = "fast"
 				c.CustomerProperties.DNS.BaseDomainPrefix = "newprefix"
 				c.CustomerProperties.API.Visibility = api.VisibilityPrivate
+				c.ServiceProviderProperties.ManagedIdentitiesDataPlaneIdentityURL = "https://newhost.identity.azure.net"
 				return c
 			}(),
 			oldCluster: func() *api.HCPOpenShiftCluster {
@@ -1532,6 +1567,7 @@ func TestValidateClusterUpdate(t *testing.T) {
 				c.CustomerProperties.Version.ChannelGroup = "stable"
 				c.CustomerProperties.DNS.BaseDomainPrefix = "oldprefix"
 				c.CustomerProperties.API.Visibility = api.VisibilityPublic
+				c.ServiceProviderProperties.ManagedIdentitiesDataPlaneIdentityURL = "https://oldhost.identity.azure.net"
 				return c
 			}(),
 			expectErrors: []expectedError{
@@ -1539,7 +1575,25 @@ func TestValidateClusterUpdate(t *testing.T) {
 				{message: "field is immutable", fieldPath: "customerProperties.version.channelGroup"},
 				{message: "field is immutable", fieldPath: "customerProperties.dns.baseDomainPrefix"},
 				{message: "field is immutable", fieldPath: "customerProperties.api.visiblity"},
+				{message: "field is immutable", fieldPath: "serviceProviderProperties.managedIdentitiesDataPlaneIdentityURL"},
 			},
+		},
+		{
+			// This test is to ensure that the ManagedIdentitiesDataPlaneIdentityURL is not required when the old value is
+			// empty, which could happen if a previously existing cluster is being updated and the old value has not
+			// been migrated yet.
+			name: "not required ManagedIdentitiesDataPlaneIdentityURL when old value is empty",
+			newCluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.ServiceProviderProperties.ManagedIdentitiesDataPlaneIdentityURL = ""
+				return c
+			}(),
+			oldCluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.ServiceProviderProperties.ManagedIdentitiesDataPlaneIdentityURL = ""
+				return c
+			}(),
+			expectErrors: []expectedError{},
 		},
 	}
 
@@ -1590,6 +1644,8 @@ func createValidCluster() *api.HCPOpenShiftCluster {
 			identityID: {},
 		},
 	}
+
+	cluster.ServiceProviderProperties.ManagedIdentitiesDataPlaneIdentityURL = api.TestManagedIdentitiesDataPlaneIdentityURL
 
 	return cluster
 }

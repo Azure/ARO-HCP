@@ -60,6 +60,15 @@ type HCPOpenShiftClusterServiceProviderProperties struct {
 	Console           ServiceProviderConsoleProfile  `json:"console,omitempty"`
 	API               ServiceProviderAPIProfile      `json:"api,omitempty"`
 	Platform          ServiceProviderPlatformProfile `json:"platform,omitempty"`
+	// ManagedIdentitiesDataPlaneIdentityURL is the Managed Identities Data Plane
+	// Identity URL associated with the cluster. It is the URL that will be used
+	// to communicate with the Managed Identities Resource Provider (MI RP).
+	// When an ARO-HCP Cluster is created, ARM sends a HTTP header X-Ms-Identity-Url
+	// that contains the cluster's identity url. For ARO-HCP environments where
+	// the Managed Identities Dataplane service is not available the http header
+	// is set to a dummy value by our tools/testsuites/developers when
+	// creating ARO-HCP Clusters
+	ManagedIdentitiesDataPlaneIdentityURL string `json:"managedIdentitiesDataPlaneIdentityURL,omitempty"`
 }
 
 // VersionProfile represents the cluster control plane version.

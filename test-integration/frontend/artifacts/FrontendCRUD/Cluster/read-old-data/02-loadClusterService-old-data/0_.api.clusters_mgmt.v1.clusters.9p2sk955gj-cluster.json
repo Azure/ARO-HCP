@@ -32,7 +32,7 @@
             "managed_identities": {
                 "control_plane_operators_managed_identities": {},
                 "data_plane_operators_managed_identities": {},
-                "managed_identities_data_plane_identity_url": ""
+                "managed_identities_data_plane_identity_url": "https://dummyhost.identity.azure.net/otherinformation?aqueryarg=somevalue"
             }
         },
         "resource_group_name": "resourcegroupname",
