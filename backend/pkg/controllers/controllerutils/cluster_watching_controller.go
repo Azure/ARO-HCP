@@ -178,7 +178,7 @@ func (c *clusterWatchingController) enqueueAdd(newObj interface{}) {
 		HCPClusterName:    castObj.ID.Name,
 	}
 	logger = key.AddLoggerValues(logger)
-	ctx = logr.NewContext(context.TODO(), logger)
+	ctx = logr.NewContext(ctx, logger)
 
 	if !c.syncer.CooldownChecker().CanSync(ctx, key) {
 		return

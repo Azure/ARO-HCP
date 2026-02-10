@@ -187,7 +187,7 @@ func (c *genericOperation) enqueueAdd(newObj interface{}) {
 		ParentResourceID: castObj.ExternalID.String(),
 	}
 	logger = key.AddLoggerValues(logger)
-	ctx = logr.NewContext(context.TODO(), logger)
+	ctx = logr.NewContext(ctx, logger)
 
 	if !c.cooldownChecker.CanSync(ctx, key) {
 		return
