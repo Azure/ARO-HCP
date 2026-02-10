@@ -40,6 +40,7 @@ type GlobalListers interface {
 	NodePools() GlobalLister[api.HCPOpenShiftClusterNodePool]
 	ExternalAuths() GlobalLister[api.HCPOpenShiftClusterExternalAuth]
 	ServiceProviderClusters() GlobalLister[api.ServiceProviderCluster]
+	ServiceProviderNodePools() GlobalLister[api.ServiceProviderNodePool]
 	Operations() GlobalLister[api.Operation]
 	ActiveOperations() GlobalLister[api.Operation]
 }
@@ -87,6 +88,13 @@ func (g *cosmosGlobalListers) ServiceProviderClusters() GlobalLister[api.Service
 	return &cosmosGlobalLister[api.ServiceProviderCluster, GenericDocument[api.ServiceProviderCluster]]{
 		containerClient: g.resources,
 		resourceType:    api.ServiceProviderClusterResourceType,
+	}
+}
+
+func (g *cosmosGlobalListers) ServiceProviderNodePools() GlobalLister[api.ServiceProviderNodePool] {
+	return &cosmosGlobalLister[api.ServiceProviderNodePool, GenericDocument[api.ServiceProviderNodePool]]{
+		containerClient: g.resources,
+		resourceType:    api.ServiceProviderNodePoolResourceType,
 	}
 }
 

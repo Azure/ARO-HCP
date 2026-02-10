@@ -65,6 +65,13 @@ func (g *mockGlobalListers) ServiceProviderClusters() database.GlobalLister[api.
 	}
 }
 
+func (g *mockGlobalListers) ServiceProviderNodePools() database.GlobalLister[api.ServiceProviderNodePool] {
+	return &mockTypedGlobalLister[api.ServiceProviderNodePool, database.GenericDocument[api.ServiceProviderNodePool]]{
+		client:       g.client,
+		resourceType: api.ServiceProviderNodePoolResourceType,
+	}
+}
+
 func (g *mockGlobalListers) Operations() database.GlobalLister[api.Operation] {
 	return &mockTypedGlobalLister[api.Operation, database.GenericDocument[api.Operation]]{
 		client:       g.client,

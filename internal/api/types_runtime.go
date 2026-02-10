@@ -151,6 +151,38 @@ func (l *ServiceProviderClusterList) GetObjectKind() schema.ObjectKind {
 }
 
 var (
+	_ runtime.Object            = &ServiceProviderNodePool{}
+	_ metav1.ObjectMetaAccessor = &ServiceProviderNodePool{}
+)
+
+func (o *ServiceProviderNodePool) GetObjectKind() schema.ObjectKind {
+	return schema.EmptyObjectKind
+}
+
+func (o *ServiceProviderNodePool) GetObjectMeta() metav1.Object {
+	om := &metav1.ObjectMeta{}
+	if o.GetResourceID() != nil {
+		om.Name = strings.ToLower(o.GetResourceID().String())
+	}
+	return om
+}
+
+// ServiceProviderNodePoolList is a list of ServiceProviderNodePools
+// compatible with runtime.Object for use with Kubernetes informer machinery.
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+type ServiceProviderNodePoolList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata,omitempty"`
+	Items           []ServiceProviderNodePool `json:"items"`
+}
+
+var _ runtime.Object = &ServiceProviderNodePoolList{}
+
+func (l *ServiceProviderNodePoolList) GetObjectKind() schema.ObjectKind {
+	return &l.TypeMeta
+}
+
+var (
 	_ runtime.Object            = &Operation{}
 	_ metav1.ObjectMetaAccessor = &Operation{}
 )
