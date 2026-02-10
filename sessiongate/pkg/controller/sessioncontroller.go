@@ -214,8 +214,8 @@ func (c *SessionController) processNextSessionWorkItem(ctx context.Context) bool
 	// get the management cluster provider
 	mc, ok := c.getManagementClusterProvider(session.Spec.ManagementCluster.ResourceID)
 	if !ok {
-		// provider not yet registered, requeue after a short delay
-		c.workqueue.AddAfter(objRef, 1*time.Second)
+		// provider not yet registered
+		c.workqueue.AddRateLimited(objRef)
 		return true
 	}
 
@@ -487,7 +487,7 @@ func (c *SessionController) generateCredentials(ctx context.Context, session *se
 }
 
 func (c *SessionController) ensureNetworkPath(ctx context.Context, session *sessiongatev1alpha1.Session, mc ManagementClusterQuerier) (bool, *actions, error) {
-	// right now we only have public HCPs, so we just the public HCP API endpoint as
+	// right now we only have public HCPs, so we just use the public HCP API endpoint as
 	// network path and set it in the status
 	// once we have private HCPs, this step will establish network connectivity
 	// (e.g. portforwarding to the HCP's API server pods) and publish the in-cluster
