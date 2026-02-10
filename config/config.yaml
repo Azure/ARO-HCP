@@ -890,7 +890,6 @@ clouds:
       cloudEnvironmentName: "AzurePublicCloud"
       kusto:
         kustoName: "hcp-dev-us"
-        manageInstance: true
         sku: "Dev(No SLA)_Standard_D11_v2"
         tier: "Basic"
         adminGroups: "6b6d3adf-8476-4727-9812-20ffdef2b85c"
@@ -1087,6 +1086,8 @@ clouds:
       dev:
         # this is the integrated DEV environment
         defaults:
+          kusto:
+            manageInstance: true
           regionRG: hcp-underlay-{{ .ctx.environment }}-{{ .ctx.region }}
           mgmt:
             aks:
