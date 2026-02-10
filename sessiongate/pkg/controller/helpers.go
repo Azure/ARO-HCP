@@ -21,6 +21,9 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
+	"k8s.io/klog/v2"
+
+	hypershiftv1beta1 "github.com/openshift/hypershift/api/hypershift/v1beta1"
 
 	sessiongatev1alpha1 "github.com/Azure/ARO-HCP/sessiongate/pkg/apis/sessiongate/v1alpha1"
 )
@@ -128,4 +131,29 @@ func getDeterministicSuffixForSession(namespace, name string) string {
 	hasher := fnv.New32a()
 	fmt.Fprintf(hasher, "%s-%s", namespace, name)
 	return fmt.Sprintf("%x", hasher.Sum32())
+}
+
+// sessionKeysForHCP looks up session keys associated with a HostedControlPlane via
+// the sessionsByHostedControlPlaneIndexName index. Since we don't have an HCP resource
+// ID on the HostedControlPlane object (yet), we use the management cluster resource ID
+// and the HCP namespace as the composite index key.
+// TODO: switch to using the HCP resource ID once it is available on the HostedControlPlane object
+func (c *SessionController) sessionKeysForHCP(mgmtClusterResourceID string, hcp *hypershiftv1beta1.HostedControlPlane) []cache.ObjectName {
+	objs, err := c.sessiongateInformers.Sessiongate().V1alpha1().Sessions().Informer().GetIndexer().ByIndex(
+		sessionsByHostedControlPlaneIndexName,
+		hostedControlPlaneIndexKey(mgmtClusterResourceID, hcp.Namespace),
+	)
+	if err != nil {
+		klog.ErrorS(err, "failed to get sessions by hosted control plane", "namespace", hcp.Namespace)
+		return nil
+	}
+	sessionKeys := make([]cache.ObjectName, 0, len(objs))
+	for _, obj := range objs {
+		session, ok := obj.(*sessiongatev1alpha1.Session)
+		if !ok {
+			continue
+		}
+		sessionKeys = append(sessionKeys, cache.NewObjectName(session.Namespace, session.Name))
+	}
+	return sessionKeys
 }

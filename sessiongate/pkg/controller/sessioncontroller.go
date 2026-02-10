@@ -24,6 +24,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -48,7 +49,12 @@ import (
 
 const (
 	sessionsByManagementClusterIndexName  = "sessions-by-management-cluster"
+	sessionsByHostedControlPlaneIndexName = "sessions-by-hosted-control-plane"
 )
+
+func hostedControlPlaneIndexKey(mgmtClusterResourceID, hostedControlPlaneNamespace string) string {
+	return fmt.Sprintf("%s/%s", mgmtClusterResourceID, hostedControlPlaneNamespace)
+}
 
 // SessionEndpointProvider provides session endpoint URLs
 type SessionEndpointProvider interface {
@@ -115,6 +121,13 @@ func NewSessionController(
 				return nil, fmt.Errorf("object is not a Session")
 			}
 			return []string{session.Spec.ManagementCluster.ResourceID}, nil
+		},
+		sessionsByHostedControlPlaneIndexName: func(obj interface{}) ([]string, error) {
+			session, ok := obj.(*sessiongatev1alpha1.Session)
+			if !ok {
+				return nil, fmt.Errorf("object is not a Session")
+			}
+			return []string{hostedControlPlaneIndexKey(session.Spec.ManagementCluster.ResourceID, session.Spec.HostedControlPlane.Namespace)}, nil
 		},
 	}); err != nil {
 		return nil, fmt.Errorf("failed to add indexers to session informer: %w", err)
@@ -334,6 +347,8 @@ func (c *SessionController) processSession(ctx context.Context, session *session
 	for _, step := range []sessionStep{
 		// this is a new session, so we need to manifest the expiration timestamp
 		c.handleExpiration,
+		// verify the hosted control plane is ready
+		c.verifyHostedControlPlaneReady,
 		// generate credentials
 		c.generateCredentials,
 		// ensure network path is available
@@ -410,6 +425,68 @@ func (c *SessionController) handleExpiration(ctx context.Context, session *sessi
 	return false, nil, nil
 }
 
+func (c *SessionController) verifyHostedControlPlaneReady(ctx context.Context, session *sessiongatev1alpha1.Session, mc ManagementClusterQuerier) (bool, *actions, error) {
+	logger := klog.FromContext(ctx)
+	hcp, err := mc.GetHostedControlPlane(session.Spec.HostedControlPlane.Namespace)
+	if err != nil {
+		switch {
+		case apierrors.IsTimeout(err), apierrors.IsServerTimeout(err),
+			apierrors.IsServiceUnavailable(err), apierrors.IsTooManyRequests(err):
+			logger.V(4).Info("transient error retrieving HostedControlPlane", "error", err)
+			return c.handleTransientError(err)
+		case apierrors.IsNotFound(err):
+			logger.Error(err, "failed to retrieve HostedControlPlane")
+			return c.handlePermanentError(
+				session,
+				HostedControlPlaneNotAvailableCondition(
+					sessiongatev1alpha1.HostedControlPlaneNotFoundReason,
+					"HostedControlPlane not found on management cluster",
+					session.Generation, c.clock.Now()),
+			)
+		case apierrors.IsForbidden(err), apierrors.IsUnauthorized(err):
+			logger.Error(err, "failed to retrieve HostedControlPlane")
+			return c.handlePermanentError(
+				session,
+				HostedControlPlaneNotAvailableCondition(
+					sessiongatev1alpha1.HostedControlPlaneAccessErrorReason,
+					"Access denied to HostedControlPlane",
+					session.Generation, c.clock.Now()),
+			)
+		default:
+			logger.Error(err, "failed to retrieve HostedControlPlane")
+			return c.handleRetryableError(
+				session,
+				HostedControlPlaneNotAvailableCondition(sessiongatev1alpha1.HostedControlPlaneAccessErrorReason,
+					"Unable to access HostedControlPlane in management cluster",
+					session.Generation, c.clock.Now()),
+				err)
+		}
+	}
+
+	hcpAvailable := meta.FindStatusCondition(hcp.Status.Conditions, "Available")
+	if hcpAvailable == nil || hcpAvailable.Status != metav1.ConditionTrue {
+		sessionUpdate, needsUpdate := NewStatus(session.Status).
+			WithConditions(
+				HostedControlPlaneNotAvailableCondition(sessiongatev1alpha1.HostedControlPlaneNotReadyReason, "HostedControlPlane exists but is not ready", session.Generation, c.clock.Now()),
+				NotReadyCondition(session.Generation, c.clock.Now()),
+			).AsApplyConfiguration(session)
+		if needsUpdate {
+			return true, &actions{Session: sessionUpdate}, nil
+		}
+		return true, nil, nil // don't requeue if HCP is not ready, the informer will let us know when it changes
+	}
+
+	// HCP exists and is available, set condition to true
+	sessionUpdate, needsUpdate := NewStatus(session.Status).
+		WithConditions(
+			HostedControlPlaneAvailableCondition(session.Generation, c.clock.Now()),
+		).AsApplyConfiguration(session)
+	if needsUpdate {
+		return true, &actions{Session: sessionUpdate}, nil
+	}
+	return false, nil, nil
+}
+
 func (c *SessionController) getCredentialSecret(session *sessiongatev1alpha1.Session) (*CredentialSecret, error) {
 	existingSecret, err := c.getSecret(session.Namespace, credentialSecretNameForSession(session))
 	if err != nil && !apierrors.IsNotFound(err) {
@@ -420,20 +497,30 @@ func (c *SessionController) getCredentialSecret(session *sessiongatev1alpha1.Ses
 
 func (c *SessionController) generateCredentials(ctx context.Context, session *sessiongatev1alpha1.Session, mc ManagementClusterQuerier) (bool, *actions, error) {
 	logger := klog.FromContext(ctx)
-
 	credentialSecret, err := c.getCredentialSecret(session)
 	if err != nil {
-		condition := CredentialsNotAvailableCondition(sessiongatev1alpha1.CredentialsSecretAccessErrorReason, "Unable to access credentials secret", session.Generation, c.clock.Now())
 		switch {
-		case apierrors.IsTimeout(err) || apierrors.IsServerTimeout(err) || apierrors.IsServiceUnavailable(err) || apierrors.IsTooManyRequests(err):
+		case apierrors.IsTimeout(err), apierrors.IsServerTimeout(err),
+			apierrors.IsServiceUnavailable(err), apierrors.IsTooManyRequests(err):
 			logger.V(4).Info("transient error retrieving credential secret", "error", err)
 			return c.handleTransientError(err)
-		case apierrors.IsForbidden(err):
-			logger.Error(err, "access denied retrieving credential secret")
-			return c.handlePermanentError(session, condition)
+		case apierrors.IsForbidden(err), apierrors.IsUnauthorized(err):
+			logger.Error(err, "failed to retrieve credential secret")
+			return c.handlePermanentError(
+				session,
+				CredentialsNotAvailableCondition(sessiongatev1alpha1.CredentialsSecretAccessErrorReason,
+					"Access denied when retrieving credential secret",
+					session.Generation, c.clock.Now()),
+			)
 		default:
-			logger.Error(err, "infrastructure error retrieving credential secret")
-			return c.handleRetryableError(session, condition, err)
+			logger.Error(err, "failed to retrieve credential secret")
+			return c.handleRetryableError(
+				session,
+				CredentialsNotAvailableCondition(sessiongatev1alpha1.CredentialsSecretAccessErrorReason,
+					"Unable to retrieve credential secret",
+					session.Generation, c.clock.Now()),
+				err,
+			)
 		}
 	}
 
@@ -459,17 +546,27 @@ func (c *SessionController) generateCredentials(ctx context.Context, session *se
 	csrName := getCSRNameForSession(session)
 	csr, err := mc.GetCSR(csrName)
 	if err != nil && !apierrors.IsNotFound(err) {
-		condition := CredentialsNotAvailableCondition(sessiongatev1alpha1.CertificateSigningRequestAccessErrorReason, "Unable to retrieve certificate signing request from management cluster", session.Generation, c.clock.Now())
 		switch {
-		case apierrors.IsTimeout(err) || apierrors.IsServerTimeout(err) || apierrors.IsServiceUnavailable(err) || apierrors.IsTooManyRequests(err):
+		case apierrors.IsTimeout(err), apierrors.IsServerTimeout(err),
+			apierrors.IsServiceUnavailable(err), apierrors.IsTooManyRequests(err):
 			logger.V(4).Info("transient error retrieving CSR", "error", err)
 			return c.handleTransientError(err)
-		case apierrors.IsForbidden(err):
-			logger.Error(err, "access denied retrieving CSR")
-			return c.handlePermanentError(session, condition)
+		case apierrors.IsForbidden(err), apierrors.IsUnauthorized(err):
+			logger.Error(err, "failed to retrieve CSR", "csr", csrName)
+			return c.handlePermanentError(
+				session,
+				CredentialsNotAvailableCondition(sessiongatev1alpha1.CertificateSigningRequestAccessErrorReason,
+					"Access denied when retrieving certificate signing request",
+					session.Generation, c.clock.Now()),
+			)
 		default:
-			logger.Error(err, "infrastructure error retrieving CSR")
-			return c.handleRetryableError(session, condition, err)
+			logger.Error(err, "failed to retrieve CSR", "csr", csrName)
+			return c.handleRetryableError(
+				session,
+				CredentialsNotAvailableCondition(sessiongatev1alpha1.CertificateSigningRequestAccessErrorReason,
+					"Unable to retrieve certificate signing request from management cluster",
+					session.Generation, c.clock.Now()),
+				err)
 		}
 	}
 
@@ -503,17 +600,27 @@ func (c *SessionController) generateCredentials(ctx context.Context, session *se
 
 			csrApproval, err := mc.GetCSRApproval(session.Spec.HostedControlPlane.Namespace, csrName)
 			if err != nil && !apierrors.IsNotFound(err) {
-				condition := CredentialsNotAvailableCondition(sessiongatev1alpha1.CertificateSigningRequestAccessErrorReason, "Unable to retrieve certificate signing request approval from management cluster", session.Generation, c.clock.Now())
 				switch {
-				case apierrors.IsTimeout(err) || apierrors.IsServerTimeout(err) || apierrors.IsServiceUnavailable(err) || apierrors.IsTooManyRequests(err):
+				case apierrors.IsTimeout(err), apierrors.IsServerTimeout(err),
+					apierrors.IsServiceUnavailable(err), apierrors.IsTooManyRequests(err):
 					logger.V(4).Info("transient error retrieving CSR approval", "error", err)
 					return c.handleTransientError(err)
-				case apierrors.IsForbidden(err):
-					logger.Error(err, "access denied retrieving CSR approval")
-					return c.handlePermanentError(session, condition)
+				case apierrors.IsForbidden(err), apierrors.IsUnauthorized(err):
+					logger.Error(err, "failed to retrieve CSR approval", "csrApproval", csrName)
+					return c.handlePermanentError(
+						session,
+						CredentialsNotAvailableCondition(sessiongatev1alpha1.CertificateSigningRequestAccessErrorReason,
+							"Access denied when retrieving certificate signing request approval",
+							session.Generation, c.clock.Now()),
+					)
 				default:
-					logger.Error(err, "infrastructure error retrieving CSR approval")
-					return c.handleRetryableError(session, condition, err)
+					logger.Error(err, "failed to retrieve CSR approval", "csrApproval", csrName)
+					return c.handleRetryableError(
+						session,
+						CredentialsNotAvailableCondition(sessiongatev1alpha1.CertificateSigningRequestAccessErrorReason,
+							"Unable to retrieve certificate signing request approval from management cluster",
+							session.Generation, c.clock.Now()),
+						err)
 				}
 			}
 			if csrApproval == nil {
@@ -544,8 +651,13 @@ func (c *SessionController) generateCredentials(ctx context.Context, session *se
 
 		csrApplyConfig, err := createCSRApplyConfiguration(session, privateKey)
 		if err != nil {
-			logger.Error(err, "failed to create CSR apply configuration")
-			return c.handlePermanentError(session, CredentialsNotAvailableCondition(sessiongatev1alpha1.CertificateSigningRequestCreationFailedReason, "Failed to create certificate signing request", session.Generation, c.clock.Now()))
+			logger.Error(err, "failed to prepare CSR apply configuration")
+			return c.handlePermanentError(
+				session,
+				CredentialsNotAvailableCondition(sessiongatev1alpha1.CertificateSigningRequestCreationFailedReason,
+					"Failed to prepare certificate signing request",
+					session.Generation, c.clock.Now()),
+			)
 		}
 		e := event("CSRGeneration", "Creating CSR for %s/%s on management cluster.", session.Namespace, session.Name)
 		return true, &actions{Event: e, CSR: csrApplyConfig}, nil
@@ -556,7 +668,13 @@ func (c *SessionController) generateCredentials(ctx context.Context, session *se
 		privateKey, err = c.newPrivateKey(RSAKeySize)
 		if err != nil {
 			logger.Error(err, "failed to generate private key")
-			return c.handlePermanentError(session, CredentialsNotAvailableCondition(sessiongatev1alpha1.PrivateKeyGenerationFailedReason, "Failed to generate private key", session.Generation, c.clock.Now()))
+			return c.handleRetryableError(
+				session,
+				CredentialsNotAvailableCondition(sessiongatev1alpha1.PrivateKeyGenerationFailedReason,
+					"Private key generation failed",
+					session.Generation, c.clock.Now()),
+				err,
+			)
 		}
 		e := event("PrivateKeyGeneration", "Generating private key for %s/%s.", session.Namespace, session.Name)
 		return true, &actions{Event: e, Secret: credentialSecret.ApplyConfigurationForPrivateKey(session, privateKey)}, nil
@@ -585,6 +703,7 @@ func (c *SessionController) ensureNetworkPath(ctx context.Context, session *sess
 		// step at the beginning of the chain will handle them appropriately and requeue if needed
 		return true, nil, err
 	}
+
 	statusUpdate, needsUpdate := NewStatus(session.Status).
 		WithBackendKASURL(fmt.Sprintf("https://%s", hcp.Spec.KubeAPIServerDNSName)).
 		WithConditions(
