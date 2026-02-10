@@ -71,12 +71,11 @@ func BindRolloutOptions(opts *RawRolloutOptions, cmd *cobra.Command) error {
 
 // RawRolloutOptions holds input values.
 type RawRolloutOptions struct {
-	Region              string
-	RegionShortOverride string
-	RegionShortSuffix   string
-	Stamp               string
-	ExtraVars           map[string]string
-	BaseOptions         *RawOptions
+	Region            string
+	RegionShortSuffix string
+	Stamp             string
+	ExtraVars         map[string]string
+	BaseOptions       *RawOptions
 
 	DevSettingsFile string
 	DevEnvironment  string
@@ -134,10 +133,6 @@ func (o *RawRolloutOptions) Validate(ctx context.Context) (*ValidatedRolloutOpti
 			return nil, fmt.Errorf("provide the cloud for dev environment %s with --cloud", o.DevEnvironment)
 		}
 
-		if o.RegionShortOverride != "" && o.RegionShortSuffix != "" {
-			return nil, fmt.Errorf("regionShortOverride and regionShortSuffix cannot be provided together")
-		}
-
 		devSettings, err := settings.Load(o.DevSettingsFile)
 		if err != nil {
 			return nil, fmt.Errorf("failed to load developer settings: %w", err)
@@ -156,7 +151,6 @@ func (o *RawRolloutOptions) Validate(ctx context.Context) (*ValidatedRolloutOpti
 		o.BaseOptions.DeployEnv = env.Environment
 		o.Region = region
 		o.RegionShortSuffix = env.RegionShortSuffix
-		o.RegionShortOverride = env.RegionShortOverride
 		o.Stamp = strconv.Itoa(env.Stamp)
 		subscriptions = devSettings.Subscriptions
 	}
@@ -196,9 +190,6 @@ func (o *ValidatedRolloutOptions) Complete(ctx context.Context) (*RolloutOptions
 	regionShort, isString := rawRegionShort.(string)
 	if !isString {
 		return nil, fmt.Errorf("regionShortName is %T, not string for ev2Config[%s][%s]", rawRegionShort, o.Ev2Cloud, o.Region)
-	}
-	if o.RegionShortOverride != "" {
-		regionShort = o.RegionShortOverride
 	}
 
 	resolver, err := completed.ConfigProvider.GetResolver(&config.ConfigReplacements{

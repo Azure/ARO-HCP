@@ -220,11 +220,10 @@ func (opts *Options) ValidateServiceConfig(ctx context.Context) error {
 			}
 
 			contexts[env.Cloud][env.Environment] = append(contexts[env.Cloud][env.Environment], RegionContext{
-				Region:              env.Region,
-				Ev2Cloud:            env.Ev2Cloud,
-				RegionShortOverride: env.RegionShortOverride,
-				RegionShortSuffix:   env.RegionShortSuffix,
-				Stamp:               env.Stamp,
+				Region:            env.Region,
+				Ev2Cloud:          env.Ev2Cloud,
+				RegionShortSuffix: env.RegionShortSuffix,
+				Stamp:             env.Stamp,
 			})
 		}
 	}
@@ -242,11 +241,10 @@ func (opts *Options) ValidateServiceConfig(ctx context.Context) error {
 }
 
 type RegionContext struct {
-	Region              string
-	Ev2Cloud            string
-	RegionShortOverride string
-	RegionShortSuffix   string
-	Stamp               int
+	Region            string
+	Ev2Cloud          string
+	RegionShortSuffix string
+	Stamp             int
 }
 
 func ValidateServiceConfig(
@@ -322,9 +320,6 @@ func ValidateServiceConfig(
 						return fmt.Errorf("%s %q is not a string", prefix, key)
 					}
 					*into = str
-				}
-				if regionCtx.RegionShortOverride != "" {
-					replacements.RegionShortReplacement = regionCtx.RegionShortOverride
 				}
 				if regionCtx.RegionShortSuffix != "" {
 					replacements.RegionShortReplacement += regionCtx.RegionShortSuffix
