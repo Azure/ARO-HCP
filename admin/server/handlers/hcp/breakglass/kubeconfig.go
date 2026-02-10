@@ -67,11 +67,8 @@ func (h *HCPBreakglassSessionKubeconfigHandler) ServeHTTP(writer http.ResponseWr
 	}
 
 	if !session.IsReady() {
-		message := "Session is not ready"
-		if readyCondition := session.GetCondition(sessiongateapiv1alpha1.SessionConditionTypeReady); readyCondition != nil {
-			message = readyCondition.Message
-		}
-		h.writeRetryResponse(writer, logger, message, 5)
+		details := GetSessionNotReadyDetails(session)
+		h.writeRetryResponse(writer, logger, details, 5)
 		return
 	}
 
@@ -100,15 +97,14 @@ func (h *HCPBreakglassSessionKubeconfigHandler) getSession(ctx context.Context, 
 	return session, nil
 }
 
-func (h *HCPBreakglassSessionKubeconfigHandler) writeRetryResponse(writer http.ResponseWriter, logger logr.Logger, message string, retryAfter int) {
+func (h *HCPBreakglassSessionKubeconfigHandler) writeRetryResponse(writer http.ResponseWriter, logger logr.Logger, sessionStatus map[string]any, retryAfter int) {
 	writer.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
 	writer.Header().Set("Retry-After", fmt.Sprintf("%d", retryAfter))
 	writer.Header().Set("Content-Type", "application/json")
 	writer.WriteHeader(http.StatusAccepted)
-	data := map[string]string{
-		"status": message,
-	}
-	jsonBytes, _ := json.Marshal(data)
+
+	jsonBytes, _ := json.Marshal(sessionStatus)
+
 	_, err := writer.Write(jsonBytes)
 	if err != nil {
 		logger.Error(err, "failed to write retry response")
@@ -134,4 +130,33 @@ func (h *HCPBreakglassSessionKubeconfigHandler) writeKubeconfigResponse(writer h
 		http.Error(writer, "failed to generate kubeconfig", http.StatusInternalServerError)
 		return
 	}
+}
+
+func GetSessionNotReadyDetails(session *sessiongateapiv1alpha1.Session) map[string]any {
+	details := map[string]any{
+		"status": "Session is not ready",
+	}
+
+	if readyCondition := session.GetCondition(sessiongateapiv1alpha1.SessionConditionTypeReady); readyCondition != nil {
+		details["status"] = readyCondition.Message
+	}
+
+	// Check all non-Ready conditions and include details if not True
+	conditionsToCheck := []sessiongateapiv1alpha1.SessionConditionType{
+		sessiongateapiv1alpha1.SessionConditionTypeHostedControlPlaneAvailable,
+		sessiongateapiv1alpha1.SessionConditionTypeCredentialsAvailable,
+		sessiongateapiv1alpha1.SessionConditionTypeNetworkPathAvailable,
+	}
+
+	for _, conditionType := range conditionsToCheck {
+		if condition := session.GetCondition(conditionType); condition != nil && condition.Status != metav1.ConditionTrue {
+			details[string(conditionType)] = map[string]string{
+				"status":  string(condition.Status),
+				"reason":  condition.Reason,
+				"message": condition.Message,
+			}
+		}
+	}
+
+	return details
 }
