@@ -3,7 +3,7 @@ module github.com/Azure/ARO-HCP/tooling/grafanactl
 go 1.25.0
 
 require (
-	github.com/Azure/ARO-Tools v0.0.0-20260206230628-bf0d350d6edb
+	github.com/Azure/ARO-Tools v0.0.0-20260210222404-30605e5b1ccc
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.20.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/dashboard/armdashboard v1.2.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/monitor/armmonitor v0.11.0
