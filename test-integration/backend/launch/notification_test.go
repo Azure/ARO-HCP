@@ -69,7 +69,7 @@ func TestControllerNotifications(t *testing.T) {
 		defer cancel()
 		ctx = utils.ContextWithLogger(ctx, integrationutils.DefaultLogger(t))
 
-		testInfo, err := integrationutils.NewIntegrationTestInfoFromEnv(ctx, t, withMock)
+		testInfo, err := integrationutils.NewIntegrationTestInfoFromEnv(ctx, t, &integrationutils.TestEnvSettings{}, withMock)
 		require.NoError(t, err)
 		cleanupCtx := context.Background()
 		cleanupCtx = utils.ContextWithLogger(cleanupCtx, integrationutils.DefaultLogger(t))

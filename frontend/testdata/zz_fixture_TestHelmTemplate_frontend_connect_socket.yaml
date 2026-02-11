@@ -129,6 +129,8 @@ spec:
             configMapKeyRef:
               name: frontend-config
               key: LOCATION
+        - name: ADMIN_CREDENTIAL_REVOCATION_FEATURE
+          value: "enabled"
         - name: OTEL_EXPORTER_OTLP_ENDPOINT
           value: ""
         - name: OTEL_TRACES_EXPORTER

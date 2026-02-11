@@ -38,10 +38,11 @@ var (
 	v1ExternalAuthPattern         = path.Join(v1ClusterPattern, externalAuthKey, "*")
 	v1BreakGlassCredentialPattern = path.Join(v1ClusterPattern, breakGlassCredentialKey, "*")
 
-	aroHcpV1Alpha1Pattern             = "/api/aro_hcp/v1alpha1"
-	aroHcpV1Alpha1ClusterPattern      = path.Join(aroHcpV1Alpha1Pattern, clusterKey, "*")
-	aroHcpV1Alpha1NodePoolPattern     = path.Join(aroHcpV1Alpha1ClusterPattern, nodePoolKey, "*")
-	aroHcpV1Alpha1ExternalAuthPattern = path.Join(aroHcpV1Alpha1ClusterPattern, externalAuthKey, "*")
+	aroHcpV1Alpha1Pattern                     = "/api/aro_hcp/v1alpha1"
+	aroHcpV1Alpha1ClusterPattern              = path.Join(aroHcpV1Alpha1Pattern, clusterKey, "*")
+	aroHcpV1Alpha1NodePoolPattern             = path.Join(aroHcpV1Alpha1ClusterPattern, nodePoolKey, "*")
+	aroHcpV1Alpha1ExternalAuthPattern         = path.Join(aroHcpV1Alpha1ClusterPattern, externalAuthKey, "*")
+	aroHcpV1Alpha1BreakGlassCredentialPattern = path.Join(aroHcpV1Alpha1ClusterPattern, breakGlassCredentialKey, "*")
 )
 
 // InternalID represents a Cluster Service resource.
@@ -91,6 +92,11 @@ func (id *InternalID) validate() error {
 
 	if match, _ = path.Match(aroHcpV1Alpha1ExternalAuthPattern, id.path); match {
 		id.kind = arohcpv1alpha1.ExternalAuthKind
+		return nil
+	}
+
+	if match, _ = path.Match(aroHcpV1Alpha1BreakGlassCredentialPattern, id.path); match {
+		id.kind = arohcpv1alpha1.BreakGlassCredentialKind
 		return nil
 	}
 

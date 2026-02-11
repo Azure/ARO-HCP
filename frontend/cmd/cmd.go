@@ -65,6 +65,8 @@ type FrontendOpts struct {
 
 	cosmosName string
 	cosmosURL  string
+
+	adminCredentialRevocationFeatureGateEnabled bool
 }
 
 func NewRootCmd() *cobra.Command {
@@ -101,6 +103,7 @@ func NewRootCmd() *cobra.Command {
 	rootCmd.Flags().StringVar(&opts.clusterServiceProvisionShard, "cluster-service-provision-shard", "", "Manually specify provision shard for all requests to cluster service")
 	rootCmd.Flags().BoolVar(&opts.clusterServiceNoopProvision, "cluster-service-noop-provision", false, "Skip cluster service provisioning steps for development purposes")
 	rootCmd.Flags().BoolVar(&opts.clusterServiceNoopDeprovision, "cluster-service-noop-deprovision", false, "Skip cluster service deprovisioning steps for development purposes")
+	rootCmd.Flags().BoolVar(&opts.adminCredentialRevocationFeatureGateEnabled, "admin-credential-revocation-feature", os.Getenv("ADMIN_CREDENTIAL_REVOCATION_FEATURE") == "enabled", "When enabled, admin credential revocation is available for all clusters. When disabled (default), revocation requires the ExperimentalReleaseFeatures AFEC and a per-cluster resource tag.")
 
 	rootCmd.MarkFlagsRequiredTogether("cosmos-name", "cosmos-url")
 
@@ -230,7 +233,7 @@ func (opts *FrontendOpts) Run() error {
 		utils.TracerName,
 	)
 
-	f := frontend.NewFrontend(logger, listener, metricsListener, prometheus.DefaultRegisterer, dbClient, csClient, auditClient, opts.location)
+	f := frontend.NewFrontend(logger, listener, metricsListener, prometheus.DefaultRegisterer, dbClient, csClient, auditClient, opts.location, opts.adminCredentialRevocationFeatureGateEnabled)
 
 	runErrCh := make(chan error)
 	go func() {

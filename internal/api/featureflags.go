@@ -19,4 +19,15 @@ const (
 	// allows the usage of non stable channels (i.e. candidate, nightly) for creation
 	// of new OpenShift clusters.
 	FeatureAllowDevNonStableChannels = "Microsoft.RedHatOpenShift/AllowDevNonStableChannels"
+
+	// FeatureExperimentalReleaseFeatures is the subscription-level AFEC that gates all
+	// tag-based experimental features. When registered, per-resource tags in the
+	// "aro-hcp.experimental.*" namespace are honored. Without this AFEC, experimental
+	// tags are ignored.
+	FeatureExperimentalReleaseFeatures = "Microsoft.RedHatOpenShift/ExperimentalReleaseFeatures"
+
+	// TagClusterCredentialRevocationEnabled is the ARM resource tag that enables
+	// the admin credential revocation action when the
+	// ExperimentalReleaseFeatures AFEC is registered on the subscription.
+	TagClusterCredentialRevocationEnabled = "aro-hcp.experimental.cluster/admin-credential-revocation-enabled"
 )

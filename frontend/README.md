@@ -23,6 +23,19 @@ The local code can also be deployed directly into a personal DEV environment by 
 
 The [pipeline.yaml](pipeline.yaml) file in this directory contains the pipeline definition for the Frontend. It is integrated into the [topology.yaml](../topology.yaml) file and runs as part of the service cluster deployment.
 
+## Admin Credential Revocation
+
+Admin credential revocation is controlled by the `ADMIN_CREDENTIAL_REVOCATION_FEATURE` environment variable (or `--admin-credential-revocation-feature` CLI flag).
+
+When set to `enabled`, revocation is available for all clusters.
+
+When set to any other value (default `disabled`), revocation requires:
+
+1. The subscription has the `Microsoft.RedHatOpenShift/ExperimentalReleaseFeatures` AFEC registered
+2. The cluster has the `aro-hcp.experimental.cluster/admin-credential-revocation-enabled` tag set to `"true"`
+
+See [ARO-23882](https://issues.redhat.com/browse/ARO-23882) for the tracking ticket. This gate will be removed once admin credential revocation is generally available.
+
 ## Available endpoints
 
 > Note: If you need a test cluster.json file or node_pool.json for some of the below API calls, you can generate one using [utils/create.go](./utils/create.go)

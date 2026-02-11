@@ -45,6 +45,7 @@ const (
 	CloudErrorCodeInvalidResourceName      = "InvalidResourceName"
 	CloudErrorCodeInvalidResourceGroupName = "InvalidResourceGroupName"
 	CloudErrorCodeLockContention           = "LockContention"
+	CloudErrorCodeFeatureNotEnabled        = "FeatureNotEnabled"
 )
 
 // CloudError represents a complete resource provider error.
