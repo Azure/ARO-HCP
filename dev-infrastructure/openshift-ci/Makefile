@@ -8,7 +8,7 @@ CONTAINER_ENGINE ?= $(shell command -v podman 2>/dev/null || echo docker)
 GO_WORK_VERSION := $(shell sed -n 's/^go //p' ../../go.work)
 
 # All versioned ARGs that must stay in sync between versions.mk and the Dockerfile.
-VERSION_ARGS = GO_VERSION KUBECTL_VERSION KUBELOGIN_VERSION PROMTOOL_VERSION
+VERSION_ARGS = GO_INSTALL_VERSION KUBECTL_VERSION KUBELOGIN_VERSION PROMTOOL_VERSION
 
 .PHONY: verify build test
 
@@ -24,14 +24,14 @@ verify: ## Check versions.mk ↔ Dockerfile sync and Go major.minor constraint
 			fail=1; \
 		fi; \
 	done; \
-	mk_mm=$$(echo $(GO_VERSION) | cut -d. -f1,2); \
+	mk_mm=$$(echo $(GO_INSTALL_VERSION) | cut -d. -f1,2); \
 	gw_mm=$$(echo $(GO_WORK_VERSION) | cut -d. -f1,2); \
 	if [ "$$mk_mm" != "$$gw_mm" ]; then \
-		echo "ERROR: Go $(GO_VERSION) ($$mk_mm) ≠ go.work $(GO_WORK_VERSION) ($$gw_mm)"; \
+		echo "ERROR: Go $(GO_INSTALL_VERSION) ($$mk_mm) ≠ go.work $(GO_WORK_VERSION) ($$gw_mm)"; \
 		fail=1; \
 	fi; \
 	if [ $$fail -ne 0 ]; then exit 1; fi
-	@echo "  Go         $(GO_VERSION) (go.work $(GO_WORK_VERSION)) OK"
+	@echo "  Go         $(GO_INSTALL_VERSION) (go.work $(GO_WORK_VERSION)) OK"
 	@echo "  kubectl    $(KUBECTL_VERSION)"
 	@echo "  kubelogin  $(KUBELOGIN_VERSION)"
 	@echo "  promtool   $(PROMTOOL_VERSION)"

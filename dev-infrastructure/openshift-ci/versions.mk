@@ -10,7 +10,7 @@
 #   kubelogin: https://github.com/Azure/kubelogin/releases
 #   promtool:  https://github.com/prometheus/prometheus/releases
 
-GO_VERSION        ?= 1.25.7
+GO_INSTALL_VERSION ?= 1.25.7
 KUBECTL_VERSION   ?= v1.35.0
 KUBELOGIN_VERSION ?= v0.2.14
 PROMTOOL_VERSION  ?= 3.2.1

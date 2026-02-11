@@ -1,7 +1,7 @@
 FROM registry.access.redhat.com/ubi9/ubi:latest
 
 # Tool versions - defaults here must be kept in sync with /versions.mk
-ARG GO_VERSION=1.25.7
+ARG GO_INSTALL_VERSION=1.25.7
 ARG KUBECTL_VERSION=v1.35.0
 ARG KUBELOGIN_VERSION=v0.2.14
 ARG PROMTOOL_VERSION=3.2.1
@@ -14,7 +14,7 @@ RUN mkdir -p /etc/yum.repos.art/ci/ && ln -s /etc/yum.repos.d/microsoft-prod.rep
 RUN dnf install -y azure-cli libicu make git procps-ng
 # Install Go
 RUN curl -fsSL -o /tmp/go.tar.gz \
-        "https://dl.google.com/go/go${GO_VERSION}.linux-amd64.tar.gz" && \
+        "https://dl.google.com/go/go${GO_INSTALL_VERSION}.linux-amd64.tar.gz" && \
     tar -xzf /tmp/go.tar.gz -C /usr/local && \
     rm /tmp/go.tar.gz && \
     ln -s /usr/local/go/bin/go /usr/local/bin/go && \
