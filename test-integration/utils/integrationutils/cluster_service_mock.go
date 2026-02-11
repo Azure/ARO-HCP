@@ -38,6 +38,7 @@ import (
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
 
+	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 )
 
@@ -46,6 +47,11 @@ type ClusterServiceMock struct {
 	mockData     map[string]map[string][]any
 
 	MockClusterServiceClient *ocm.MockClusterServiceClientSpec
+
+	// ExperimentalFeaturesByID captures the ExperimentalFeatures passed to
+	// PostCluster and UpdateCluster, keyed by cluster internal ID. Tests can
+	// assert on these to verify feature flag propagation.
+	ExperimentalFeaturesByID map[string]*api.ExperimentalFeatures
 }
 
 func NewClusterServiceMock(t *testing.T, artifactsDir string) *ClusterServiceMock {
@@ -56,6 +62,7 @@ func NewClusterServiceMock(t *testing.T, artifactsDir string) *ClusterServiceMoc
 		ArtifactsDir:             artifactsDir,
 		mockData:                 map[string]map[string][]any{},
 		MockClusterServiceClient: clusterServiceClient,
+		ExperimentalFeaturesByID: map[string]*api.ExperimentalFeatures{},
 	}
 	ret.setupMockClusterService(t)
 	return ret
@@ -67,7 +74,7 @@ func (s *ClusterServiceMock) setupMockClusterService(t *testing.T) {
 	internalIDToNodePool := s.GetOrCreateMockData(t.Name() + "_nodePools")
 	internalIDToAutoscaler := s.GetOrCreateMockData(t.Name() + "_autoscalers")
 
-	s.MockClusterServiceClient.EXPECT().PostCluster(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, clusterBuilder *csarhcpv1alpha1.ClusterBuilder, autoscalerBuilder *csarhcpv1alpha1.ClusterAutoscalerBuilder) (*csarhcpv1alpha1.Cluster, error) {
+	s.MockClusterServiceClient.EXPECT().PostCluster(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, clusterBuilder *arohcpv1alpha1.ClusterBuilder, autoscalerBuilder *arohcpv1alpha1.ClusterAutoscalerBuilder) (*arohcpv1alpha1.Cluster, error) {
 		justID := rand.String(10)
 		internalID := "/api/clusters_mgmt/v1/clusters/" + justID
 
@@ -85,6 +92,9 @@ func (s *ClusterServiceMock) setupMockClusterService(t *testing.T) {
 			return nil, err
 		}
 
+		// Capture experimental features from properties set by BuildCSCluster.
+		s.ExperimentalFeaturesByID[internalID] = experimentalFeaturesFromProperties(ret.Properties())
+
 		// these values are normally looked up directly from azure inside of cluster-service.  For mocks we do it here.
 		ret, err = addFakeAzureIdentityData(ret)
 		if err != nil {
@@ -99,6 +109,9 @@ func (s *ClusterServiceMock) setupMockClusterService(t *testing.T) {
 		if err != nil {
 			return nil, err
 		}
+
+		// Capture experimental features from properties set by BuildCSCluster.
+		s.ExperimentalFeaturesByID[id.String()] = experimentalFeaturesFromProperties(ret.Properties())
 
 		internalIDToCluster[id.String()] = append(internalIDToCluster[id.String()], ret)
 		return ret, nil
@@ -306,6 +319,23 @@ func (s *ClusterServiceMock) AddContent(t *testing.T, initialDataDir fs.FS) erro
 	}
 
 	return nil
+}
+
+// experimentalFeaturesFromProperties reconstructs ExperimentalFeatures from the
+// CS cluster properties map. BuildCSCluster sets these properties on the builder.
+func experimentalFeaturesFromProperties(properties map[string]string) *api.ExperimentalFeatures {
+	if properties == nil {
+		return nil
+	}
+	singleReplica := properties[ocm.CSPropertySingleReplica] == "true"
+	sizeOverride := properties[ocm.CSPropertySizeOverride] == "true"
+	if !singleReplica && !sizeOverride {
+		return nil
+	}
+	return &api.ExperimentalFeatures{
+		SingleReplica: singleReplica,
+		SizeOverride:  sizeOverride,
+	}
 }
 
 func addFakeAzureIdentityData(clusterServiceCluster any) (*csarhcpv1alpha1.Cluster, error) {

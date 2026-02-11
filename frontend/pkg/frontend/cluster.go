@@ -317,6 +317,8 @@ func (f *Frontend) createHCPCluster(writer http.ResponseWriter, request *http.Re
 		return utils.TrackError(err)
 	}
 
+	admission.MutateCluster(newInternalCluster, subscription)
+
 	validationErrs := validation.ValidateClusterCreate(ctx, newInternalCluster, api.Must(versionedInterface.ValidationPathRewriter(&api.HCPOpenShiftCluster{})))
 	validationErrs = append(validationErrs, admission.AdmitClusterOnCreate(ctx, newInternalCluster, subscription)...)
 	if err := arm.CloudErrorFromFieldErrors(validationErrs); err != nil {
@@ -589,6 +591,11 @@ func (f *Frontend) patchHCPCluster(writer http.ResponseWriter, request *http.Req
 func (f *Frontend) updateHCPClusterInCosmos(ctx context.Context, writer http.ResponseWriter, request *http.Request, httpStatusCode int, newInternalCluster, oldInternalCluster *api.HCPOpenShiftCluster) error {
 	logger := utils.LoggerFromContext(ctx)
 
+	subscription, err := f.dbClient.Subscriptions().Get(ctx, oldInternalCluster.ID.SubscriptionID)
+	if err != nil {
+		return utils.TrackError(err)
+	}
+
 	versionedInterface, err := VersionFromContext(ctx)
 	if err != nil {
 		return utils.TrackError(err)
@@ -597,6 +604,8 @@ func (f *Frontend) updateHCPClusterInCosmos(ctx context.Context, writer http.Res
 	if err != nil {
 		return utils.TrackError(err)
 	}
+
+	admission.MutateCluster(newInternalCluster, subscription)
 
 	validationErrs := validation.ValidateClusterUpdate(ctx, newInternalCluster, oldInternalCluster, api.Must(versionedInterface.ValidationPathRewriter(&api.HCPOpenShiftCluster{})))
 	if err := arm.CloudErrorFromFieldErrors(validationErrs); err != nil {

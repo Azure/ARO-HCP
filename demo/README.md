@@ -94,6 +94,28 @@ or
 A good way to select a version is looking into Cininnati https://multi.ocp.releases.ci.openshift.org/
 this can be used to get the name of the version. Especially for nightly versions.
 
+## Enable experimental cluster features
+
+Experimental features are gated by the `ExperimentalReleaseFeatures` AFEC and controlled via per-resource ARM tags. Register the AFEC first:
+
+```bash
+FFLAG=ExperimentalReleaseFeatures ./register-feature-flag.sh
+```
+
+Then set one or both tags on your cluster:
+
+```json
+{
+  "tags": {
+    "aro-hcp.experimental.cluster/single-replica": "true",
+    "aro-hcp.experimental.cluster/size-override": "true"
+  }
+}
+```
+
+- **`single-replica`** — single-replica control plane components (AvailabilityPolicy)
+- **`size-override`** — reduced resource requests for control plane components (ClusterSizeOverride)
+
 ## Observe and debug
 
 ### Check RP pod logs

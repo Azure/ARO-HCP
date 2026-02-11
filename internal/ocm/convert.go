@@ -59,6 +59,14 @@ const (
 	csUsernameClaimPrefixPolicyPrefix   string = "Prefix"
 	csCIDRBlockAllowAccessModeAllowAll  string = "allow_all"
 	csCIDRBlockAllowAccessModeAllowList string = "allow_list"
+
+	// CSPropertySingleReplica is the CS cluster property key for configuring
+	// AvailabilityPolicy to use single-replica control plane components.
+	CSPropertySingleReplica string = "hosted_cluster_single_replica"
+
+	// CSPropertySizeOverride is the CS cluster property key for setting the
+	// ClusterSizeOverride annotation for reduced resource requests.
+	CSPropertySizeOverride string = "hosted_cluster_size_override"
 )
 
 // Sentinel error for use with errors.Is
@@ -600,6 +608,23 @@ func BuildCSCluster(resourceID *azcorearm.ResourceID, requestHeader http.Header,
 
 	clusterBuilder := arohcpv1alpha1.NewCluster()
 	clusterAPIBuilder := arohcpv1alpha1.NewClusterAPI()
+
+	// Set experimental feature properties on the builder. The frontend
+	// evaluates AFEC + tags and stores the result in ExperimentalFeatures.
+	// The builder replaces the entire properties map, so we build a single
+	// map with all experimental properties first.
+	if ef := hcpCluster.ServiceProviderProperties.ExperimentalFeatures; ef != nil {
+		props := map[string]string{}
+		if ef.SingleReplica {
+			props[CSPropertySingleReplica] = "true"
+		}
+		if ef.SizeOverride {
+			props[CSPropertySizeOverride] = "true"
+		}
+		if len(props) > 0 {
+			clusterBuilder.Properties(props)
+		}
+	}
 
 	// These attributes cannot be updated after cluster creation.
 	if !updating {

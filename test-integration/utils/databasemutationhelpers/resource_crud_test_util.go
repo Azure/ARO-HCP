@@ -243,6 +243,9 @@ func NewStep[InternalAPIType any](indexString, stepType, stepName string, testDi
 	case "completeOperation":
 		return newCompleteOperationStep(stepID, stepDir)
 
+	case "assertExperimentalFeatures":
+		return newAssertExperimentalFeaturesStep(stepID, stepDir)
+
 	case "migrateCosmos":
 		return newMigrateCosmosStep(stepID, stepDir)
 

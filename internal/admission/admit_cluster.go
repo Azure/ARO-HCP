@@ -16,6 +16,7 @@ package admission
 
 import (
 	"context"
+	"strings"
 
 	"k8s.io/apimachinery/pkg/api/operation"
 	"k8s.io/apimachinery/pkg/api/validate"
@@ -27,8 +28,40 @@ import (
 	"github.com/Azure/ARO-HCP/internal/validation"
 )
 
-// AdmitCluster performs non-static checks of cluster.  Checks that require more information than is contained inside of
-// of the cluster instance itself.
+// MutateCluster sets internal cluster state derived from subscription features
+// and resource tags. Must be called before validation.
+func MutateCluster(cluster *api.HCPOpenShiftCluster, subscription *arm.Subscription) {
+	singleReplica := hasExperimentalTag(subscription, cluster.Tags, api.TagClusterSingleReplica)
+	sizeOverride := hasExperimentalTag(subscription, cluster.Tags, api.TagClusterSizeOverride)
+
+	if singleReplica || sizeOverride {
+		if cluster.ServiceProviderProperties.ExperimentalFeatures == nil {
+			cluster.ServiceProviderProperties.ExperimentalFeatures = &api.ExperimentalFeatures{}
+		}
+		cluster.ServiceProviderProperties.ExperimentalFeatures.SingleReplica = singleReplica
+		cluster.ServiceProviderProperties.ExperimentalFeatures.SizeOverride = sizeOverride
+	} else {
+		cluster.ServiceProviderProperties.ExperimentalFeatures = nil
+	}
+}
+
+// hasExperimentalTag returns true if the subscription has the
+// ExperimentalReleaseFeatures AFEC registered and the given tag is set to
+// "true" (case-insensitive).
+func hasExperimentalTag(subscription *arm.Subscription, tags map[string]string, tagKey string) bool {
+	if subscription == nil || !subscription.HasRegisteredFeature(api.FeatureExperimentalReleaseFeatures) {
+		return false
+	}
+	for k, v := range tags {
+		if strings.EqualFold(k, tagKey) && strings.EqualFold(v, "true") {
+			return true
+		}
+	}
+	return false
+}
+
+// AdmitClusterOnCreate performs non-static checks of cluster. Checks that
+// require more information than is contained inside of the cluster instance itself.
 func AdmitClusterOnCreate(ctx context.Context, newVersion *api.HCPOpenShiftCluster, subscription *arm.Subscription) field.ErrorList {
 	op := operation.Operation{Type: operation.Create}
 	errs := admitVersionProfileOnCreate(ctx, &newVersion.CustomerProperties.Version, op, subscription)
