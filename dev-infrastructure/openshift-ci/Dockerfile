@@ -13,7 +13,10 @@ RUN dnf install -y https://packages.microsoft.com/config/rhel/9.0/packages-micro
 RUN mkdir -p /etc/yum.repos.art/ci/ && ln -s /etc/yum.repos.d/microsoft-prod.repo /etc/yum.repos.art/ci/
 RUN dnf install -y azure-cli libicu make git procps-ng
 # Install Go
-RUN curl -fsSL https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz | tar -xzf - -C /usr/local && \
+RUN curl -fsSL -o /tmp/go.tar.gz \
+        "https://dl.google.com/go/go1.25.7.linux-amd64.tar.gz" && \
+    tar -xzf /tmp/go.tar.gz -C /usr/local && \
+    rm /tmp/go.tar.gz && \
     ln -s /usr/local/go/bin/go /usr/local/bin/go && \
     ln -s /usr/local/go/bin/gofmt /usr/local/bin/gofmt
 RUN mkdir -p /usr/local/bin
