@@ -39,6 +39,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/mismatchcontrollers"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/operationcontrollers"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/upgradecontrollers"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/validationcontrollers"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/validationcontrollers/validations"
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
@@ -242,6 +243,18 @@ func (b *Backend) Run(ctx context.Context) error {
 				clusterInformer,
 			)
 			deleteOrphanedCosmosResourcesController = mismatchcontrollers.NewDeleteOrphanedCosmosResourcesController(b.options.CosmosDBClient, subscriptionLister)
+			controlPlaneVersionController           = upgradecontrollers.NewControlPlaneVersionController(
+				b.options.CosmosDBClient,
+				b.options.ClustersServiceClient,
+				activeOperationLister,
+				clusterInformer,
+			)
+			triggerControlPlaneUpgradeController = upgradecontrollers.NewTriggerControlPlaneUpgradeController(
+				b.options.CosmosDBClient,
+				b.options.ClustersServiceClient,
+				activeOperationLister,
+				clusterInformer,
+			)
 		)
 
 		le, err := leaderelection.NewLeaderElector(leaderelection.LeaderElectionConfig{
@@ -271,6 +284,8 @@ func (b *Backend) Run(ctx context.Context) error {
 					go cosmosMatchingClusterController.Run(ctx, 20)
 					go alwaysSuccessClusterValidationController.Run(ctx, 20)
 					go deleteOrphanedCosmosResourcesController.Run(ctx, 20)
+					go controlPlaneVersionController.Run(ctx, 20)
+					go triggerControlPlaneUpgradeController.Run(ctx, 20)
 				},
 				OnStoppedLeading: func() {
 					operationsScanner.LeaderGauge.Set(0)
