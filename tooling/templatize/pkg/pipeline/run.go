@@ -66,8 +66,8 @@ type PipelineRunOptions struct {
 	TimingOutputFile string
 	JUnitOutputFile  string
 
-	AbortOnExistingRG bool
-	RegionRGNames     []string // Specific RG names to check for concurrent execution prevention
+	AbortIfRegionalExist bool
+	RegionRGNames        []string // Specific RG names to check for concurrent execution prevention
 }
 
 type BaseRunOptions struct {
@@ -243,7 +243,7 @@ func RunPipeline(service *topology.Service, pipeline *types.Pipeline, ctx contex
 	}
 
 	if err := precheckResourceGroups(ctx, logger, executionGraph,
-		options.SubsciptionLookupFunc, options.AbortOnExistingRG, options.RegionRGNames); err != nil {
+		options.SubsciptionLookupFunc, options.AbortIfRegionalExist, options.RegionRGNames); err != nil {
 		return nil, err
 	}
 
@@ -263,7 +263,7 @@ func RunEntrypoint(topo *topology.Topology, entrypoint *topology.Entrypoint, pip
 	}
 
 	if err := precheckResourceGroups(ctx, logger, executionGraph,
-		options.SubsciptionLookupFunc, options.AbortOnExistingRG, options.RegionRGNames); err != nil {
+		options.SubsciptionLookupFunc, options.AbortIfRegionalExist, options.RegionRGNames); err != nil {
 		return nil, err
 	}
 
