@@ -1,0 +1,8 @@
+{
+  "status": "Session is not ready",
+  "HostedControlPlaneAvailable": {
+    "status": "False",
+    "reason": "HostedControlPlaneNotFound",
+    "message": "HostedControlPlane not found on management cluster"
+  }
+}

@@ -113,15 +113,34 @@ Traffic origin is validated using `source.principal` fields where applicable, re
 
 ## Ingress Management
 
-Ingress traffic to the service cluster is handled through a single shared Istio ingress gateway. This gateway is configured to terminate TLS traffic and route external requests to the RP frontend.
+Ingress traffic to the service cluster is handled through two separate ingress paths, each with dedicated public IPs and security controls:
 
-The Istio `Gateway` and `VirtualService` are currently defined as part of the RP frontend’s Helm chart. TLS termination occurs at the Istio ingress gateway itself, using a certificate sourced from the regional service Key Vault.
+### RP Frontend Ingress (ARM Traffic)
 
-The ingress traffic path is as follows:
+The RP Frontend uses the AKS-managed Istio ingress gateway (`aks-istio-ingressgateway-external`) with an Istio Gateway API resource (`networking.istio.io/v1beta1`).
 
-* Requests arrive at the public ingress IP of the AKS cluster.
-* Traffic is forwarded to the Istio ingress gateway.
-* The gateway routes the request through the mesh to the RP frontend service.
-* ... but only after MISE authorized the request using the external authorization policy
+* **Public IP:** `aro-hcp-istio-ingress` - Annotated via `istio.sh` script
+* **Gateway:** `aro-hcp-gateway-external` (defined in `frontend/deploy/templates/frontend.gateway.yaml`)
+* **NSG Rule:** Allows traffic from `AzureResourceManager` service tag
+* **Authorization:** MISE external authorization policy validates ARM requests
 
-As of now, the ingress setup supports only the RP frontend. However, the architecture is expected to evolve to accommodate additional services such as the admin API and backplane. Future revisions may refactor gateway and routing ownership to a shared location to better support multi-ingress scenarios.
+The ingress traffic path:
+
+1. ARM requests arrive at the frontend public IP
+2. Traffic is forwarded to the Istio ingress gateway
+3. MISE authorizes the request using external authorization policy
+4. The gateway routes the request through the mesh to the RP frontend service
+
+### Ops Ingress (Operations Traffic)
+
+The Ops Ingress serves operations components (Admin API, Sessiongate) using the Kubernetes Gateway API (`gateway.networking.k8s.io/v1`). It provisions a dedicated LoadBalancer with multiple hostname-based listeners.
+
+* **Public IP:** `aro-hcp-ops-ingress` - Configured via Gateway resource annotations
+* **Gateway:** `ops-ingress-gateway` (defined in `istio/deploy/templates/ops-ingress.gateway.yaml`)
+* **Listeners:** Multiple TLS listeners for different hostnames (admin API, sessiongate)
+* **NSG Rule:** Allows traffic from SAW and Geneva Action service tags
+* **Authorization:** MISE external authorization policy validates requests
+
+The gateway uses hostname-based routing with separate TLS certificates for each service:
+
+Each service defines its own `HTTPRoute` to handle routing and MISE header injection, referencing the shared `ops-ingress-gateway`.

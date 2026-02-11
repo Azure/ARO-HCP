@@ -27,7 +27,7 @@ module certificateOfficerAccess 'keyvault-secret-access.bicep' = {
 }
 
 resource newCertwithRotationKV 'Microsoft.Resources/deploymentScripts@2023-08-01' = {
-  name: 'newCertwithRotationKV-${certName}'
+  name: 'newCert-${certName}'
   identity: {
     type: 'UserAssigned'
     userAssignedIdentities: {

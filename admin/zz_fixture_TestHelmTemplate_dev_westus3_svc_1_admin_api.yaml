@@ -9,6 +9,21 @@ metadata:
   name: admin-api
   namespace: 'aro-hcp-admin-api'
 ---
+# Source: ARO HCP Admin API/templates/sessiongate.rolebinding.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: admin-api-session-mgmt
+  namespace: 'sessiongate'
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: sessiongate-session-management
+subjects:
+- kind: ServiceAccount
+  name: admin-api
+  namespace: 'aro-hcp-admin-api'
+---
 # Source: ARO HCP Admin API/templates/admin.service.yaml
 apiVersion: v1
 kind: Service
@@ -86,6 +101,12 @@ spec:
           value: "/secrets/fpa-cert/bundle"
         - name: FPA_CLIENT_ID
           value: "b3cb2fab-15cb-4583-ad06-f91da9bfe2d1"
+        - name: SESSIONGATE_NAMESPACE
+          value: "sessiongate"
+        - name: MIN_SESSION_TTL
+          value: "1m"
+        - name: MAX_SESSION_TTL
+          value: "24h"
         ports:
         - containerPort: 8443
           name: http
@@ -193,6 +214,34 @@ spec:
       tenantID: '__tenantId__'
   serviceAccountName: 'admin-api'
 ---
+# Source: ARO HCP Admin API/templates/admin.httproute.yaml
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: sessiongate
+  namespace: aro-hcp-admin-api
+spec:
+  parentRefs:
+  - name: ops-ingress-gateway
+    namespace: aks-istio-ingress
+    sectionName: admin-api-https
+  hostnames:
+  - "admin.westus3.hcpsvc.osadev.cloud"
+  rules:
+  - matches:
+    - path:
+        type: PathPrefix
+        value: /
+    filters:
+    - type: RequestHeaderModifier
+      requestHeaderModifier:
+        add:
+        - name: mise-inbound-policies-to-filter
+          value: "Geneva Actions"
+    backendRefs:
+    - name: admin-api
+      port: 8443
+---
 # Source: ARO HCP Admin API/templates/admin.fpa.secretproviderclass.yaml
 apiVersion: secrets-store.csi.x-k8s.io/v1
 kind: SecretProviderClass
@@ -263,7 +312,7 @@ spec:
   http:
   - match:
     - uri:
-        regex: '.+'
+        prefix: /
     headers:
       request:
         add:

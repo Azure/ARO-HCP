@@ -44,6 +44,7 @@ adminApi:
 administration:
   readerGroupId: ""
   releaseManagementGroupId: ""
+  sreServiceTag: ""
 aksCommandRuntime:
   image:
     digest: sha256:f8e7b759f7756f30f4f8f2c3c35ad8d7450d7ad78ced1fcefff913c037568a53
@@ -582,6 +583,10 @@ mise:
   image:
     digest: sha256:4822b1998fafa4c7ed1e0723dfed8fd0562e1525545327b821e6d9ef29573c74
     repository: mise-1p-container-image
+  sessiongate:
+    audience: 6dae42f8-4368-4678-94ff-3960e28e3630
+    authorityFQDN: sts.windows.net
+    policyLabel: Session Gate
   tracing:
     address: ""
     exporter: ""
@@ -710,6 +715,9 @@ serviceKeyVault:
   tagKey: aroHCPPurpose
   tagValue: service
 sessiongate:
+  cert:
+    issuer: Self
+    name: sessiongate-cert-prow-j7654321
   image:
     digest: ""
     registry: arohcpsvcdev.azurecr.io
@@ -771,6 +779,10 @@ svc:
   nsp:
     accessMode: Learning
     name: nsp-j7654321-svc
+  opsIngress:
+    gateway:
+      ipAddressName: aro-hcp-ops-ingress
+      ipAddressTags: ""
   prometheus:
     admissionWebhook:
       patch:
@@ -826,6 +838,8 @@ svc:
       Microsoft.ContainerService:
         features:
         - name: IstioNativeSidecarModePreview
+          poll: true
+        - name: ManagedGatewayAPIPreview
           poll: true
         poll: true
       Microsoft.Dashboard:

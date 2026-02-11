@@ -11,7 +11,7 @@ spec:
   http:
   - match:
     - uri:
-        regex: '.+'
+        prefix: /
     headers:
       request:
         add:

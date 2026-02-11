@@ -1,5 +1,14 @@
 istioVersions:
 - "{{ .svc.istio.versions }}"
+opsIngress:
+  publicIpAddress: "{{ .svc.opsIngress.gateway.ipAddressName }}"
+  publicIpResourceGroup: "{{ .regionRG }}"
+  adminApi:
+    hostname: "admin.{{ .dns.regionalSubdomain }}.{{ .dns.svcParentZoneName }}"
+    credentialName: "admin-api-credential"
+  sessiongate:
+    hostname: "sessiongate.{{ .dns.regionalSubdomain }}.{{ .dns.svcParentZoneName }}"
+    credentialName: "sessiongate-credential"
 mise:
   deploy: {{ .mise.deploy }}
   namespace: "mise"
@@ -27,3 +36,7 @@ mise:
     authority: "https://{{ .mise.genevaActions.authorityFQDN }}/__tenantId__/" # iss
     audience: "https://{{ .mise.genevaActions.audienceFQDN }}" # aud
     applicationId: "__genevaActionsAppId__"
+  sessiongatePolicy:
+    label: "{{ .mise.sessiongate.policyLabel }}"
+    authority: "https://{{ .mise.sessiongate.authorityFQDN }}/__tenantId__" # iss
+    audience: "{{ .mise.sessiongate.audience }}" # aud
