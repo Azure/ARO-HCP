@@ -370,8 +370,9 @@ func (v verifyCatalogSourceReady) Verify(ctx context.Context, adminRESTConfig *r
 		return fmt.Errorf("catalog source connection state is %q, expected READY", state)
 	}
 
-	// Use shared catalog source health check
-	return catalogSourceHealthCheck(ctx, v.namespace, v.catalogSource, dynamicClient, kubeClient, true)
+	// Use shared catalog source health check (requirePod=false because HCP clusters
+	// may serve catalog sources via external gRPC endpoints without a local pod)
+	return catalogSourceHealthCheck(ctx, v.namespace, v.catalogSource, dynamicClient, kubeClient, false)
 }
 
 // VerifyCatalogSourceReady verifies that a catalog source is healthy and ready to serve operators
