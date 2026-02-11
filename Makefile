@@ -379,6 +379,7 @@ DRY_RUN ?= "false"
 PERSIST ?= "false"
 TIMING_OUTPUT ?= timing/steps.yaml
 ENTRYPOINT_JUNIT_OUTPUT ?= _artifacts/junit_entrypoint.xml
+CONFIG_OUTPUT ?= _artifacts/config.yaml
 
 local-run: $(TEMPLATIZE)
 	$(TEMPLATIZE) entrypoint run --config-file "${CONFIG_FILE}" \
@@ -390,7 +391,8 @@ local-run: $(TEMPLATIZE)
 	                                 --dry-run=$(DRY_RUN) \
 	                                 --verbosity=$(LOG_LEVEL) \
 	                                 --timing-output=$(TIMING_OUTPUT) \
-	                                 --junit-output=$(ENTRYPOINT_JUNIT_OUTPUT)
+	                                 --junit-output=$(ENTRYPOINT_JUNIT_OUTPUT) \
+	                                 --config-output=$(CONFIG_OUTPUT)
 
 
 ifeq ($(wildcard $(YQ)),$(YQ))

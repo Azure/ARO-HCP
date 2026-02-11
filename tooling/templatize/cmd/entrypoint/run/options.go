@@ -15,11 +15,15 @@
 package run
 
 import (
+	"compress/gzip"
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/spf13/cobra"
+	"sigs.k8s.io/yaml"
 
 	"github.com/Azure/ARO-HCP/tooling/templatize/cmd/entrypoint/entrypointutils"
 	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/pipeline"
@@ -39,6 +43,7 @@ func BindOptions(opts *RawOptions, cmd *cobra.Command) error {
 
 	cmd.Flags().StringVar(&opts.TimingOutputFile, "timing-output", opts.TimingOutputFile, "Path to the file where timing outputs will be written.")
 	cmd.Flags().StringVar(&opts.JUnitOutputFile, "junit-output", opts.JUnitOutputFile, "If provided, jUnit outputs for pipeline steps will be written to this file.")
+	cmd.Flags().StringVar(&opts.ConfigOutputFile, "config-output", opts.ConfigOutputFile, "If provided, the rendered configuration will be written to this file. Supports .gz extension for gzip compression.")
 
 	cmd.Flags().BoolVar(&opts.DryRun, "dry-run", opts.DryRun, "validate the pipeline without executing it")
 	cmd.Flags().BoolVar(&opts.Persist, "persist-tag", opts.Persist, "toggle if persist tag should be set")
@@ -56,6 +61,7 @@ type RawOptions struct {
 
 	TimingOutputFile string
 	JUnitOutputFile  string
+	ConfigOutputFile string
 }
 
 // validatedOptions is a private wrapper that enforces a call of Validate() before Complete() can be invoked.
@@ -79,6 +85,7 @@ type completedOptions struct {
 
 	TimingOutputFile string
 	JUnitOutputFile  string
+	ConfigOutputFile string
 }
 
 type Options struct {
@@ -116,11 +123,18 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 
 			TimingOutputFile: o.TimingOutputFile,
 			JUnitOutputFile:  o.JUnitOutputFile,
+			ConfigOutputFile: o.ConfigOutputFile,
 		},
 	}, nil
 }
 
 func (o *Options) Run(ctx context.Context) error {
+	if o.ConfigOutputFile != "" {
+		if err := o.writeConfigOutput(); err != nil {
+			return fmt.Errorf("failed to write config output: %w", err)
+		}
+	}
+
 	subscriptionIdToAzureConfigDirectory, err := pipeline.GetAllRequiredAzureClients(ctx, o.Pipelines, o.Subscriptions)
 	if err != nil {
 		return fmt.Errorf("failed to get all required Azure clients: %w", err)
@@ -156,5 +170,35 @@ func (o *Options) Run(ctx context.Context) error {
 	}
 
 	_, err = pipeline.RunPipeline(o.Service, o.Pipelines[o.Service.ServiceGroup], ctx, runOpts, pipeline.RunStep)
+	return err
+}
+
+func (o *Options) writeConfigOutput() error {
+	data, err := yaml.Marshal(o.Config)
+	if err != nil {
+		return fmt.Errorf("failed to marshal config: %w", err)
+	}
+
+	if err := os.MkdirAll(filepath.Dir(o.ConfigOutputFile), 0755); err != nil {
+		return fmt.Errorf("failed to create output directory: %w", err)
+	}
+
+	f, err := os.Create(o.ConfigOutputFile)
+	if err != nil {
+		return fmt.Errorf("failed to create output file: %w", err)
+	}
+	defer f.Close()
+
+	if strings.HasSuffix(o.ConfigOutputFile, ".gz") {
+		gw, err := gzip.NewWriterLevel(f, gzip.BestCompression)
+		if err != nil {
+			return fmt.Errorf("failed to create gzip writer: %w", err)
+		}
+		defer gw.Close()
+		_, err = gw.Write(data)
+		return err
+	}
+
+	_, err = f.Write(data)
 	return err
 }
