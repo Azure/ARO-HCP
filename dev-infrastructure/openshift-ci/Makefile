@@ -53,7 +53,7 @@ test: build ## Build and smoke-test all tools in the image
 		echo "Azure CLI: $$(az version -o tsv 2>/dev/null | head -1)" && \
 		echo "Bicep:     $$(bicep --version 2>&1)" && \
 		echo "kubectl:   $$(kubectl version --client 2>&1 | head -1)" && \
-		echo "kubelogin: $$(kubelogin --version 2>&1 | head -1)" && \
+		echo "kubelogin: $$(kubelogin --version 2>&1 | head -2)" && \
 		echo "oc:        $$(oc version --client 2>&1 | head -1)" && \
 		echo "promtool:  $$(promtool --version 2>&1 | head -1)" && \
 		echo "make:      $$(make --version | head -1)" && \
