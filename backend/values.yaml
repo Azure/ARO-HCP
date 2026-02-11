@@ -44,3 +44,5 @@ azure:
   tlsCertificatesConfig:
     issuer: "{{ .backend.azureRuntimeConfig.tlsCertificatesIssuer }}"
     certificatesGenerationSource: "AzureKeyVault"
+  maestro:
+    sourceEnvironmentIdentifier: "{{ .backend.maestro.sourceEnvironmentIdentifier }}"
