@@ -37,6 +37,10 @@ const (
 	// MCProviderCacheSyncTimeout is the maximum time to wait for management cluster
 	// informer caches to sync during provider registration
 	MCProviderCacheSyncTimeout = 30 * time.Second
+
+	// MinCSRExpirationSeconds is the minimum CSR expiration allowed by Kubernetes (10 minutes).
+	// See https://kubernetes.io/docs/reference/access-authn-authz/certificate-signing-requests/
+	MinCSRExpirationSeconds = 600
 )
 
 // ManagedByLabelSelector returns a label selector string for resources managed by this controller

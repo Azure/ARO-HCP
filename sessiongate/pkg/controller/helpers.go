@@ -137,7 +137,10 @@ func getDeterministicSuffixForSession(namespace, name string) string {
 // the sessionsByHostedControlPlaneIndexName index. Since we don't have an HCP resource
 // ID on the HostedControlPlane object (yet), we use the management cluster resource ID
 // and the HCP namespace as the composite index key.
-// TODO: switch to using the HCP resource ID once it is available on the HostedControlPlane object
+//
+// Migration assumption: Once the HCP resource ID is available on the HostedControlPlane
+// object, this index should switch to using it directly instead of the composite key.
+// This would simplify the lookup and decouple it from the management cluster resource ID.
 func (c *SessionController) sessionKeysForHCP(mgmtClusterResourceID string, hcp *hypershiftv1beta1.HostedControlPlane) []cache.ObjectName {
 	objs, err := c.sessiongateInformers.Sessiongate().V1alpha1().Sessions().Informer().GetIndexer().ByIndex(
 		sessionsByHostedControlPlaneIndexName,

@@ -159,8 +159,10 @@ func (h *HCPBreakglassSessionCreationHandler) ServeHTTP(writer http.ResponseWrit
 // The inference relies on the convention that Azure application IDs (service principals)
 // are GUIDs, while user principals are UPNs (email format like user@example.com).
 //
-// TODO: Investigate whether Geneva Actions can be configured to pass principal type
-// metadata directly, eliminating the need for format-based inference.
+// Migration assumption: This heuristic should be replaced once Geneva Actions supports
+// passing principal type metadata directly (e.g. via a dedicated header). Until then,
+// the format-based inference is the only option. If the heuristic proves unreliable,
+// an explicit principal type parameter could be added to the breakglass API.
 func getPrincipalType(principalName string) (sessiongateapiv1alpha1.PrincipalType, error) {
 	if principalName == "" {
 		return "", fmt.Errorf("principal name cannot be empty")

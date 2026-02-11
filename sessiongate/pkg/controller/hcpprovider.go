@@ -133,11 +133,13 @@ func (d *ManagementClusterProvider) GetCSRApproval(hostedControlPlaneNamespace, 
 //
 // registerMCProvider and unregisterMCProvider are called exclusively from the
 // management cluster workqueue worker (single goroutine, see Run()), so they
-// never run concurrently for the same resource ID. The workqueue provides
-// deduplication and serialization.
+// never run concurrently with each other. The workqueue provides deduplication
+// and serialization, guaranteeing that at most one goroutine is writing to the
+// providers map at any time. The write lock exists solely to synchronize with
+// concurrent readers (session worker goroutines calling getManagementClusterProvider).
 //
-// getMCProvider is called from session worker goroutines and uses a read lock
-// for safe concurrent access to the providers map.
+// getManagementClusterProvider is called from session worker goroutines and uses
+// a read lock for safe concurrent access to the providers map.
 
 func (c *SessionController) registerMCProvider(ctx context.Context, resourceId string, cacheSyncTimeout time.Duration) error {
 	c.mcProvidersMu.RLock()

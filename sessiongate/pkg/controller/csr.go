@@ -72,11 +72,12 @@ func createCSRApplyConfiguration(session *sessiongatev1alpha1.Session, privateKe
 	if err != nil {
 		return nil, fmt.Errorf("failed to create CSR request body: %w", err)
 	}
-	// Kubernetes requires CSR expirationSeconds to be at least 600 seconds (10 minutes).
-	// We use max(TTL, 600) here because session access is controlled by session expiration,
-	// not certificate expiration. Once a session expires, the authorization policy is removed
-	// and access to the HCP is blocked regardless of certificate validity.
-	csrExpirationSeconds := max(int32(session.Spec.TTL.Seconds()), 600)
+	// Kubernetes requires CSR expirationSeconds to be at least MinCSRExpirationSeconds.
+	// We use max(TTL, MinCSRExpirationSeconds) here because session access is controlled
+	// by session expiration, not certificate expiration. Once a session expires, the
+	// authorization policy is removed and access to the HCP is blocked regardless of
+	// certificate validity.
+	csrExpirationSeconds := max(int32(session.Spec.TTL.Seconds()), MinCSRExpirationSeconds)
 
 	return certapplyv1.CertificateSigningRequest(getCSRNameForSession(session)).
 		WithLabels(map[string]string{
