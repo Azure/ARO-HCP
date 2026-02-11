@@ -538,14 +538,15 @@ module hcpBackupsRbac '../modules/hcp-backups/storage-rbac.bicep' = {
 //
 //  A K S   D I A G N O S T I C   S E T T I N G S
 //
-module diagnosticSetting '../modules/aks/diagnostic-setting.bicep' = if (auditLogsEventHubAuthRuleId != '') {
-  name: 'aks-diagnostic-setting'
-  dependsOn: [
-    mgmtCluster
-  ]
-  params: {
-    aksClusterName: aksClusterName
-    auditLogsEventHubName: auditLogsEventHubName
-    auditLogsEventHubAuthRuleId: auditLogsEventHubAuthRuleId
-  }
-}
+// jboll, needs to disable, cause stage deployment fails 
+// module diagnosticSetting '../modules/aks/diagnostic-setting.bicep' = if (auditLogsEventHubAuthRuleId != '') {
+//   name: 'aks-diagnostic-setting'
+//   dependsOn: [
+//     mgmtCluster
+//   ]
+//   params: {
+//     aksClusterName: aksClusterName
+//     auditLogsEventHubName: auditLogsEventHubName
+//     auditLogsEventHubAuthRuleId: auditLogsEventHubAuthRuleId
+//   }
+// }
