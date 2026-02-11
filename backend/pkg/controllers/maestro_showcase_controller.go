@@ -232,12 +232,21 @@ func (c *maestroShowcaseSyncer) logMaestroBundles(ctx context.Context, maestroBu
 	logger := utils.LoggerFromContext(ctx)
 	logger.Info("logging maestro bundles")
 	for _, maestroBundle := range maestroBundlesList.Items {
+		// Redact sensitive data (e.g. Secrets, nested ManifestWorks containing
+		// Secrets, status feedback JsonRaw with serialized Secrets) before any
+		// logging to prevent leaking credentials or other confidential material.
+		redactedBundle, err := RedactManifestWork(&maestroBundle)
+		if err != nil {
+			return utils.TrackError(fmt.Errorf("failed to redact ManifestWork %s/%s: %w",
+				maestroBundle.GetNamespace(), maestroBundle.GetName(), err))
+		}
+
 		// Log Some Maestro Bundle Information
-		maestroBundleName := maestroBundle.GetName()
-		maestroBundleNamespace := maestroBundle.GetNamespace()
-		maestroBundleUID := maestroBundle.GetUID()
-		maestroBundleStatus := maestroBundle.Status
-		maestroBundleManifestConfigs := maestroBundle.Spec.ManifestConfigs
+		maestroBundleName := redactedBundle.GetName()
+		maestroBundleNamespace := redactedBundle.GetNamespace()
+		maestroBundleUID := redactedBundle.GetUID()
+		maestroBundleStatus := redactedBundle.Status
+		maestroBundleManifestConfigs := redactedBundle.Spec.ManifestConfigs
 		logger.Info("maestro bundle", "name", maestroBundleName, "namespace", maestroBundleNamespace, "uid", maestroBundleUID)
 		if maestroBundleStatusJSON, err := json.Marshal(maestroBundleStatus); err != nil {
 			logger.Error(err, "failed to marshal maestro bundle status")
@@ -253,19 +262,27 @@ func (c *maestroShowcaseSyncer) logMaestroBundles(ctx context.Context, maestroBu
 		// In CS it shouldn't be possible to end up with an empty list of resources
 		// within the Maestro Bundle because in CS we only allow one and only one
 		// resource within the Maestro Bundle
-		if len(maestroBundle.Spec.Workload.Manifests) == 0 {
+		if len(redactedBundle.Spec.Workload.Manifests) == 0 {
 			return nil // no Maestro Bundles found, no work to do
 		}
 
 		// In CS we only allow one resource within the Maestro Bundle so getting
 		// more than one resource is unexpected as of now
-		if len(maestroBundle.Spec.Workload.Manifests) > 1 {
+		if len(redactedBundle.Spec.Workload.Manifests) > 1 {
 			return utils.TrackError(fmt.Errorf("expected exactly one resource withint the Maestro Bundle, got %d", len(maestroBundlesList.Items)))
 		}
 
-		// Log the Resource within the Maestro Bundle
-		resource := maestroBundle.Spec.Workload.Manifests[0]
-		resourceGVK := resource.Object.GetObjectKind().GroupVersionKind()
+		// Log the Resource within the Maestro Bundle (already redacted)
+		resource := redactedBundle.Spec.Workload.Manifests[0]
+
+		var resourceGVK schema.GroupVersionKind
+		if resource.Object != nil {
+			resourceGVK = resource.Object.GetObjectKind().GroupVersionKind()
+		} else if len(resource.Raw) > 0 {
+			if gvk, ok := detectGVKFromRaw(resource.Raw); ok {
+				resourceGVK = gvk
+			}
+		}
 		logger.Info("maestro bundle manifest resource", "gvk", resourceGVK)
 
 		resourceJSON, err := resource.MarshalJSON()
