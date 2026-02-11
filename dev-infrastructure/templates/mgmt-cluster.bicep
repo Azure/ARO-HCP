@@ -15,6 +15,15 @@ var locationAvailabilityZoneList = csvToArray(locationAvailabilityZones)
 @description('AKS cluster name')
 param aksClusterName string = 'aro-hcp-aks'
 
+@description('Name of the system agent pool')
+param systemAgentPoolName string
+
+@description('Name of the user agent pool')
+param userAgentPoolName string
+
+@description('Name of the infra agent pool')
+param infraAgentPoolName string
+
 @description('Disk size for the AKS system nodes')
 param systemOsDiskSizeGB int
 
@@ -345,6 +354,7 @@ module mgmtCluster '../modules/aks-cluster-base.bicep' = {
     aksKeyVaultTagName: aksKeyVaultTagName
     aksKeyVaultTagValue: aksKeyVaultTagValue
     pullAcrResourceIds: [ocpAcrResourceId, svcAcrResourceId]
+    systemAgentPoolName: systemAgentPoolName
     systemAgentMinCount: systemAgentMinCount
     systemAgentMaxCount: systemAgentMaxCount
     systemAgentVMSize: systemAgentVMSize
@@ -354,6 +364,7 @@ module mgmtCluster '../modules/aks-cluster-base.bicep' = {
     systemOsDiskSizeGB: systemOsDiskSizeGB
     systemZoneRedundantMode: systemZoneRedundantMode
     userOsDiskSizeGB: userOsDiskSizeGB
+    userAgentPoolName: userAgentPoolName
     userAgentMinCount: userAgentMinCount
     userAgentMaxCount: userAgentMaxCount
     userAgentVMSize: userAgentVMSize
@@ -362,6 +373,7 @@ module mgmtCluster '../modules/aks-cluster-base.bicep' = {
       ? csvToArray(userAgentPoolZones)
       : locationAvailabilityZoneList
     userZoneRedundantMode: userZoneRedundantMode
+    infraAgentPoolName: infraAgentPoolName
     infraAgentMinCount: infraAgentMinCount
     infraAgentMaxCount: infraAgentMaxCount
     infraAgentVMSize: infraAgentVMSize
