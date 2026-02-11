@@ -339,8 +339,8 @@ data:
   kustomization.yaml: |
     resources:
     - velero.yaml
-    patches:
-    - path: scheduling-patch.yaml
+    patchesStrategicMerge:
+    - scheduling-patch.yaml
   scheduling-patch.yaml: |
     apiVersion: apps/v1
     kind: Deployment
