@@ -52,15 +52,16 @@ type Backend struct {
 }
 
 type BackendOptions struct {
-	AppShortDescriptionName    string
-	AppVersion                 string
-	AzureLocation              string
-	LeaderElectionLock         resourcelock.Interface
-	CosmosDBClient             database.DBClient
-	ClustersServiceClient      ocm.ClusterServiceClientSpec
-	MetricsServerListenAddress string
-	HealthzServerListenAddress string
-	TracerProviderShutdownFunc func(context.Context) error
+	AppShortDescriptionName            string
+	AppVersion                         string
+	AzureLocation                      string
+	LeaderElectionLock                 resourcelock.Interface
+	CosmosDBClient                     database.DBClient
+	ClustersServiceClient              ocm.ClusterServiceClientSpec
+	MetricsServerListenAddress         string
+	HealthzServerListenAddress         string
+	TracerProviderShutdownFunc         func(context.Context) error
+	MaestroSourceEnvironmentIdentifier string
 }
 
 func (o *BackendOptions) RunBackend(ctx context.Context) error {
@@ -242,6 +243,10 @@ func (b *Backend) Run(ctx context.Context) error {
 				clusterInformer,
 			)
 			deleteOrphanedCosmosResourcesController = mismatchcontrollers.NewDeleteOrphanedCosmosResourcesController(b.options.CosmosDBClient, subscriptionLister)
+			maestroShowcaseController               = controllers.NewMaestroShowcaseController(
+				activeOperationLister, b.options.CosmosDBClient, b.options.ClustersServiceClient,
+				clusterInformer, b.options.MaestroSourceEnvironmentIdentifier,
+			)
 		)
 
 		le, err := leaderelection.NewLeaderElector(leaderelection.LeaderElectionConfig{
@@ -271,6 +276,7 @@ func (b *Backend) Run(ctx context.Context) error {
 					go cosmosMatchingClusterController.Run(ctx, 20)
 					go alwaysSuccessClusterValidationController.Run(ctx, 20)
 					go deleteOrphanedCosmosResourcesController.Run(ctx, 20)
+					go maestroShowcaseController.Run(ctx, 20)
 				},
 				OnStoppedLeading: func() {
 					operationsScanner.LeaderGauge.Set(0)

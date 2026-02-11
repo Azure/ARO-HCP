@@ -40,7 +40,7 @@ func validateTrackedResource(ctx context.Context, op operation.Operation, fldPat
 
 	//Location string            `json:"location,omitempty"`
 	errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("location"), &newObj.Location, safe.Field(oldObj, toTrackedResourceLocation))...)
-	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("location"), &newObj.Location, safe.Field(oldObj, toTrackedResourceLocation))...)
+	errs = append(errs, ImmutableByCompare(ctx, op, fldPath.Child("location"), &newObj.Location, safe.Field(oldObj, toTrackedResourceLocation))...)
 
 	//Tags     map[string]string `json:"tags,omitempty"`
 
@@ -59,18 +59,18 @@ func validateResource(ctx context.Context, op operation.Operation, fldPath *fiel
 	errs := field.ErrorList{}
 
 	//ID         string      `json:"id,omitempty"`
-	errs = append(errs, validate.ImmutableByReflect(ctx, op, fldPath.Child("id"), newObj.ID, safe.Field(oldObj, toResourceID))...)
+	errs = append(errs, ImmutableByReflect(ctx, op, fldPath.Child("id"), newObj.ID, safe.Field(oldObj, toResourceID))...)
 	errs = append(errs, validate.RequiredPointer(ctx, op, fldPath.Child("id"), newObj.ID, safe.Field(oldObj, toResourceID))...)
 	errs = append(errs, GenericResourceID(ctx, op, fldPath.Child("id"), newObj.ID, safe.Field(oldObj, toResourceID))...)
 
 	//Name       string      `json:"name,omitempty"`
-	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("name"), &newObj.Name, safe.Field(oldObj, toResourceName))...)
+	errs = append(errs, ImmutableByCompare(ctx, op, fldPath.Child("name"), &newObj.Name, safe.Field(oldObj, toResourceName))...)
 	if newObj.ID != nil {
 		errs = append(errs, EqualFold(ctx, op, fldPath.Child("name"), &newObj.Name, safe.Field(oldObj, toResourceName), newObj.ID.Name)...)
 	}
 
 	//Type       string      `json:"type,omitempty"`
-	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("type"), &newObj.Type, safe.Field(oldObj, toResourceType))...)
+	errs = append(errs, ImmutableByCompare(ctx, op, fldPath.Child("type"), &newObj.Type, safe.Field(oldObj, toResourceType))...)
 	if newObj.ID != nil {
 		errs = append(errs, EqualFold(ctx, op, fldPath.Child("type"), &newObj.Type, safe.Field(oldObj, toResourceType), newObj.ID.ResourceType.String())...)
 	}
