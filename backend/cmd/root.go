@@ -52,6 +52,7 @@ type BackendRootCmdFlags struct {
 	AzureFirstPartyApplicationCertificateBundlePath string
 	AzureFirstPartyApplicationClientID              string
 	LogVerbosity                                    int
+	MaestroSourceEnvironmentIdentifier              string
 }
 
 func (f *BackendRootCmdFlags) AddFlags(cmd *cobra.Command) {
@@ -82,6 +83,13 @@ func (f *BackendRootCmdFlags) AddFlags(cmd *cobra.Command) {
 		"The client id of the first party application identity",
 	)
 	cmd.Flags().IntVar(&f.LogVerbosity, "log-verbosity", f.LogVerbosity, "Log verbosity. 0 is the default verbosity level, equivalent to INFO. It must be a value >= 0, where a higher value means more verbose output.")
+
+	cmd.Flags().StringVar(&f.MaestroSourceEnvironmentIdentifier, "maestro-source-environment-identifier", f.MaestroSourceEnvironmentIdentifier,
+		"The environment name part used when generating Maestro Source IDs using the backend/pkg/maestro.GenerateMaestroSourceID function. "+
+			"It must be between 1 and 10 characters and can contain only lowercase letters. Example value: arohcpdev."+
+			"Changing the value causes the Maestro Source IDs generated to change which impacts visibility of previously existing resources. It is "+
+			"therefore a must to first understand and plan the impact changing the value would have, including any potential migration plan before changing it.",
+	)
 
 	cmd.MarkFlagsRequiredTogether("cosmos-name", "cosmos-url")
 }
@@ -166,15 +174,16 @@ func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.C
 	}
 
 	backendOptions := &app.BackendOptions{
-		AppShortDescriptionName:    cmd.Short,
-		AppVersion:                 cmd.Version,
-		AzureLocation:              f.AzureLocation,
-		LeaderElectionLock:         leaderElectionLock,
-		CosmosDBClient:             cosmosDBClient,
-		ClustersServiceClient:      clustersServiceClient,
-		MetricsServerListenAddress: f.MetricsServerListenAddress,
-		HealthzServerListenAddress: f.HealthzServerListenAddress,
-		TracerProviderShutdownFunc: otelShutdown,
+		AppShortDescriptionName:            cmd.Short,
+		AppVersion:                         cmd.Version,
+		AzureLocation:                      f.AzureLocation,
+		LeaderElectionLock:                 leaderElectionLock,
+		CosmosDBClient:                     cosmosDBClient,
+		ClustersServiceClient:              clustersServiceClient,
+		MetricsServerListenAddress:         f.MetricsServerListenAddress,
+		HealthzServerListenAddress:         f.HealthzServerListenAddress,
+		TracerProviderShutdownFunc:         otelShutdown,
+		MaestroSourceEnvironmentIdentifier: f.MaestroSourceEnvironmentIdentifier,
 	}
 
 	return backendOptions, nil
@@ -195,6 +204,7 @@ func NewBackendRootCmdFlags() *BackendRootCmdFlags {
 		AzureFirstPartyApplicationCertificateBundlePath: "",
 		AzureFirstPartyApplicationClientID:              "",
 		LogVerbosity:                                    0,
+		MaestroSourceEnvironmentIdentifier:              "",
 	}
 
 	return flags

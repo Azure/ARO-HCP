@@ -627,6 +627,21 @@
         "OneCertV2-PrivateCA"
       ]
     },
+    "backendMaestroConfig": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "sourceEnvironmentIdentifier": {
+          "type": "string",
+          "maxLength": 10,
+          "pattern": "^[a-z]+$",
+          "description": "The source environment identifier must be between 1 and 10 characters and can contain only lowercase letters"
+        }
+      },
+      "required": [
+        "sourceEnvironmentIdentifier"
+      ]
+    },
     "imageArtifact": {
       "type": "object",
       "additionalProperties": false,
@@ -1328,6 +1343,9 @@
           "required": [
             "tlsCertificatesIssuer"
           ]
+        },
+        "maestro": {
+          "$ref": "#/definitions/backendMaestroConfig"
         }
       },
       "additionalProperties": false,
@@ -1336,7 +1354,8 @@
         "tracing",
         "k8s",
         "managedIdentityName",
-        "azureRuntimeConfig"
+        "azureRuntimeConfig",
+        "maestro"
       ]
     },
     "sessiongate": {
