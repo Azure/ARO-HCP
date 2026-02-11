@@ -35,8 +35,8 @@ import (
 
 func DefaultOptions() *RawOptions {
 	return &RawOptions{
-		RawOptions:           entrypointutils.DefaultOptions(),
-		IgnoreResourceGroups: []string{"global", "hcp-kusto-us"},
+		RawOptions:   entrypointutils.DefaultOptions(),
+		OnlyRegional: true,
 	}
 }
 
@@ -45,7 +45,7 @@ func BindOptions(opts *RawOptions, cmd *cobra.Command) error {
 		return err
 	}
 
-	cmd.Flags().StringArrayVar(&opts.IgnoreResourceGroups, "ignore", opts.IgnoreResourceGroups, "Ignore this resource group.")
+	cmd.Flags().BoolVar(&opts.OnlyRegional, "only-regional", opts.OnlyRegional, "Only cleanup resources from regional resource groups.")
 
 	cmd.Flags().BoolVar(&opts.DryRun, "dry-run", opts.DryRun, "Print the resource groups that would be cleaned up without deleting them.")
 	cmd.Flags().BoolVar(&opts.Wait, "wait", opts.Wait, "Wait for the resource groups to be fully cleaned up.")
@@ -56,7 +56,7 @@ func BindOptions(opts *RawOptions, cmd *cobra.Command) error {
 type RawOptions struct {
 	*entrypointutils.RawOptions
 
-	IgnoreResourceGroups []string
+	OnlyRegional bool
 
 	DryRun bool
 	Wait   bool
@@ -80,7 +80,7 @@ type completedOptions struct {
 	AzureCredential    azcore.TokenCredential
 	SubscriptionLookup pipeline.SubscriptionLookup
 
-	IgnoreResourceGroups sets.Set[string]
+	OnlyRegional bool
 
 	DryRun bool
 	Wait   bool
@@ -123,7 +123,7 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 			AzureCredential:    azCredential,
 			SubscriptionLookup: pipeline.LookupSubscriptionID(o.Subscriptions),
 
-			IgnoreResourceGroups: sets.New[string](o.IgnoreResourceGroups...),
+			OnlyRegional: o.OnlyRegional,
 
 			DryRun: o.DryRun,
 			Wait:   o.Wait,
@@ -147,13 +147,18 @@ func (o *Options) CleanUpResources(ctx context.Context) error {
 		return fmt.Errorf("failed to generate execution graph: %w", err)
 	}
 
+	var regionalRGs sets.Set[string]
+	if o.OnlyRegional {
+		regionalRGs = sets.New[string](entrypointutils.RegionalResourceGroupNames(o.Config)...)
+	}
+
 	group, groupCtx := errgroup.WithContext(ctx)
 
-	for rgName, resourceGroup := range executionGraph.ResourceGroups {
+	for _, resourceGroup := range executionGraph.ResourceGroups {
 		rgLogger := logger.WithValues("resourceGroup", resourceGroup.ResourceGroup)
 
-		if o.IgnoreResourceGroups.Has(rgName) {
-			rgLogger.Info("Ignoring resource group")
+		if o.OnlyRegional && !regionalRGs.Has(resourceGroup.ResourceGroup) {
+			rgLogger.Info("Skipping non-regional resource group")
 			continue
 		}
 
