@@ -31,6 +31,7 @@ ignore:
 - '**/zz_fixture_TestHelmTemplate*.yaml'
 - 'velero/deploy/templates/install-job.yaml'
 - 'maestro/server/deploy/templates/allow-cluster-service.authorizationpolicy.yaml'
+- 'maestro/server/deploy/templates/allow-backend.authorizationpolicy.yaml'
 rules:
   brackets: enable
   colons: enable
