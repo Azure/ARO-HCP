@@ -44,6 +44,7 @@ adminApi:
 administration:
   readerGroupId: ""
   releaseManagementGroupId: ""
+  sreServiceTag: ""
 aksCommandRuntime:
   image:
     digest: sha256:f8e7b759f7756f30f4f8f2c3c35ad8d7450d7ad78ced1fcefff913c037568a53
@@ -767,6 +768,10 @@ svc:
   nsp:
     accessMode: Learning
     name: nsp-usw3-svc
+  opsIngress:
+    gateway:
+      ipAddressName: aro-hcp-ops-ingress
+      ipAddressTags: ""
   prometheus:
     admissionWebhook:
       patch:
@@ -822,6 +827,8 @@ svc:
       Microsoft.ContainerService:
         features:
         - name: IstioNativeSidecarModePreview
+          poll: true
+        - name: ManagedGatewayAPIPreview
           poll: true
         poll: true
       Microsoft.Dashboard:

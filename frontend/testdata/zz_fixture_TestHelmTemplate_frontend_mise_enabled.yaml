@@ -332,6 +332,7 @@ spec:
       credentialName: frontend-credential
     hosts:
     - "rp.westus3.hcpsvc.osadev.cloud"
+  # TODO: ops-ingress phase 4: cleanup, remove routing for admin API
   - port:
       number: 443
       name: admin-api-https
