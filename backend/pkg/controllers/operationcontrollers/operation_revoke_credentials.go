@@ -20,6 +20,8 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
+
 	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
@@ -123,6 +125,26 @@ func (opsync *operationRevokeCredentials) SynchronizeOperation(ctx context.Conte
 		return nil
 	}
 
+	// FIXME May want a version of patchOperation that acts on a transaction
+	//       so we can group these two writes together. For now, if the cluster
+	//       replace fails we'll just retry later since the operation status
+	//       will remain non-terminal.
+
+	logger.Info("clearing RevokeCredentialsOperationID from cluster")
+	dbClient := opsync.cosmosClient.HCPClusters(oldOperation.ExternalID.SubscriptionID, oldOperation.ExternalID.ResourceGroupName)
+	cluster, err := dbClient.Get(ctx, oldOperation.ExternalID.Name)
+	if err != nil {
+		return utils.TrackError(err)
+	}
+	cluster.ServiceProviderProperties.RevokeCredentialsOperationID = ""
+	_, err = dbClient.Replace(ctx, cluster, &azcosmos.ItemOptions{
+		IfMatchEtag: api.Ptr(cluster.GetCosmosData().GetEtag()),
+	})
+	if err != nil {
+		return utils.TrackError(err)
+	}
+
+	logger.Info("updating status")
 	err = patchOperation(ctx, opsync.cosmosClient, oldOperation, newOperationStatus, newOperationError, postAsyncNotificationFn(opsync.notificationClient))
 	if err != nil {
 		return utils.TrackError(err)

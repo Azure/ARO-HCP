@@ -347,19 +347,9 @@ func (f *Frontend) ArmResourceActionRequestAdminCredential(writer http.ResponseW
 
 	// New credential cannot be requested while credentials are being revoked.
 
-	iterator := f.dbClient.Operations(clusterResourceID.SubscriptionID).ListActiveOperations(&database.DBClientListActiveOperationDocsOptions{
-		Request:    api.Ptr(database.OperationRequestRevokeCredentials),
-		ExternalID: clusterResourceID,
-	})
-
-	for range iterator.Items(ctx) {
+	if len(cluster.ServiceProviderProperties.RevokeCredentialsOperationID) > 0 {
 		writer.Header().Set("Retry-After", strconv.Itoa(10))
 		return arm.NewConflictError(clusterResourceID, "Cannot request credential while credentials are being revoked")
-	}
-
-	err = iterator.GetError()
-	if err != nil {
-		return utils.TrackError(err)
 	}
 
 	csCredential, err := f.clusterServiceClient.PostBreakGlassCredential(ctx, cluster.ServiceProviderProperties.ClusterServiceID)
@@ -449,19 +439,9 @@ func (f *Frontend) ArmResourceActionRevokeCredentials(writer http.ResponseWriter
 
 	// Credential revocation cannot be requested while another revocation is in progress.
 
-	iterator := f.dbClient.Operations(clusterResourceID.SubscriptionID).ListActiveOperations(&database.DBClientListActiveOperationDocsOptions{
-		Request:    api.Ptr(database.OperationRequestRevokeCredentials),
-		ExternalID: clusterResourceID,
-	})
-
-	for range iterator.Items(ctx) {
+	if len(cluster.ServiceProviderProperties.RevokeCredentialsOperationID) > 0 {
 		writer.Header().Set("Retry-After", strconv.Itoa(10))
 		return arm.NewConflictError(clusterResourceID, "Credentials are already being revoked")
-	}
-
-	err = iterator.GetError()
-	if err != nil {
-		return utils.TrackError(err)
 	}
 
 	err = f.clusterServiceClient.DeleteBreakGlassCredentials(ctx, cluster.ServiceProviderProperties.ClusterServiceID)
@@ -492,6 +472,15 @@ func (f *Frontend) ArmResourceActionRevokeCredentials(writer http.ResponseWriter
 		correlationData)
 	transaction.OnSuccess(addOperationResponseHeaders(writer, request, operationDoc.NotificationURI, operationDoc.OperationID))
 	_, err = f.dbClient.Operations(operationDoc.OperationID.SubscriptionID).AddCreateToTransaction(ctx, transaction, operationDoc, nil)
+	if err != nil {
+		return utils.TrackError(err)
+	}
+
+	// Setting this field effectively blocks further credential
+	// requests or revocations until the backend clears the field.
+	cluster.ServiceProviderProperties.RevokeCredentialsOperationID = operationDoc.OperationID.Name
+
+	_, err = f.dbClient.HCPClusters(cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName).AddReplaceToTransaction(ctx, transaction, cluster, nil)
 	if err != nil {
 		return utils.TrackError(err)
 	}
