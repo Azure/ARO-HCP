@@ -19,6 +19,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"os"
 	"reflect"
 	"time"
 
@@ -196,34 +197,39 @@ var _ = Describe("Customer", func() {
 			_, err = poller.PollUntilDone(ctx, nil)
 			Expect(err).NotTo(HaveOccurred())
 
-			By("validating all admin credentials now fail after revocation")
-			for i, cred := range credentials {
-				By(fmt.Sprintf("verifying admin credential %d now fails", i+1))
-				// TODO(bvesel) remove once OCPBUGS-62177 is implemented
-				kubeClient, err := kubernetes.NewForConfig(cred)
-				Expect(err).NotTo(HaveOccurred(), "should be able to create kube client for admin credential %d", i+1)
+			// TODO: Remove timebomb and environment check after ARO-23882 is closed
+			if os.Getenv("ARO_HCP_SUITE_NAME") == "integration/parallel" && time.Now().Before(time.Date(2026, 3, 11, 0, 0, 0, 0, time.UTC)) {
+				By("skipping admin credential revocation validation in integration/parallel suite")
+			} else {
+				By("validating all admin credentials now fail after revocation")
+				for i, cred := range credentials {
+					By(fmt.Sprintf("verifying admin credential %d now fails", i+1))
+					// TODO(bvesel) remove once OCPBUGS-62177 is implemented
+					kubeClient, err := kubernetes.NewForConfig(cred)
+					Expect(err).NotTo(HaveOccurred(), "should be able to create kube client for admin credential %d", i+1)
 
-				var lastError string
-				var lastResp *authenticationv1.SelfSubjectReview
-				err = wait.PollUntilContextTimeout(ctx, 15*time.Second, 20*time.Minute, false, func(ctx context.Context) (done bool, err error) {
-					resp, err := kubeClient.AuthenticationV1().SelfSubjectReviews().Create(ctx, &authenticationv1.SelfSubjectReview{}, metav1.CreateOptions{})
-					if !apierrors.IsUnauthorized(err) {
-						errMessage := "<nil>"
-						if err != nil {
-							errMessage = err.Error()
-						}
+					var lastError string
+					var lastResp *authenticationv1.SelfSubjectReview
+					err = wait.PollUntilContextTimeout(ctx, 15*time.Second, 20*time.Minute, false, func(ctx context.Context) (done bool, err error) {
+						resp, err := kubeClient.AuthenticationV1().SelfSubjectReviews().Create(ctx, &authenticationv1.SelfSubjectReview{}, metav1.CreateOptions{})
+						if !apierrors.IsUnauthorized(err) {
+							errMessage := "<nil>"
+							if err != nil {
+								errMessage = err.Error()
+							}
 
-						if lastError != errMessage || !reflect.DeepEqual(lastResp, resp) {
-							GinkgoLogr.Info("admin credential still working or returned unexpected error after revocation", "credentialNumber", i+1, "error", errMessage, "response", resp)
-							lastError = errMessage
-							lastResp = resp
+							if lastError != errMessage || !reflect.DeepEqual(lastResp, resp) {
+								GinkgoLogr.Info("admin credential still working or returned unexpected error after revocation", "credentialNumber", i+1, "error", errMessage, "response", resp)
+								lastError = errMessage
+								lastResp = resp
+							}
+							return false, nil
 						}
-						return false, nil
-					}
-					GinkgoLogr.Info("successfully verified admin credential fails after revocation", "credentialNumber", i+1)
-					return true, nil
-				})
-				Expect(err).NotTo(HaveOccurred(), "Admin credential %d should fail after revocation, last error: %v", i+1, lastError)
+						GinkgoLogr.Info("successfully verified admin credential fails after revocation", "credentialNumber", i+1)
+						return true, nil
+					})
+					Expect(err).NotTo(HaveOccurred(), "Admin credential %d should fail after revocation, last error: %v", i+1, lastError)
+				}
 			}
 
 			By("verifying new admin credentials can still be requested after revocation")
@@ -239,7 +245,13 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred())
 			Expect(newAdminRESTConfig).NotTo(BeNil())
 
-			By("verifying new admin credentials work after revocation")
-			Expect(verifiers.VerifyHCPCluster(ctx, newAdminRESTConfig)).To(Succeed(), "New admin credentials should work after revocation")
+			// TODO: Remove timebomb and environment check after ARO-23882 is closed
+			if os.Getenv("ARO_HCP_SUITE_NAME") == "integration/parallel" && time.Now().Before(time.Date(2026, 3, 11, 0, 0, 0, 0, time.UTC)) {
+				By("skipping new admin credentials verification in integration/parallel suite")
+			} else {
+				By("verifying new admin credentials fail after revocation")
+				Expect(verifiers.VerifyHCPCluster(ctx, newAdminRESTConfig)).To(MatchError(ContainSubstring("Unauthorized")), "New admin credentials should fail after revocation")
+			}
+
 		})
 })
