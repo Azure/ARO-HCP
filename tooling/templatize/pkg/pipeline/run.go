@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strconv"
@@ -172,6 +173,15 @@ func RunPipeline(service *topology.Service, pipeline *types.Pipeline, ctx contex
 		return nil, err
 	}
 
+	// Execute build step if defined
+	if pipeline.BuildStep != nil {
+		pipelineDir := filepath.Join(options.TopologyDir, filepath.Dir(service.PipelinePath))
+		logger.Info("Running build step.", "serviceGroup", service.ServiceGroup, "directory", pipelineDir)
+		if err := runBuildStep(ctx, *pipeline.BuildStep, service.ServiceGroup, pipelineDir); err != nil {
+			return nil, fmt.Errorf("build step execution failed for %s: %w", service.ServiceGroup, err)
+		}
+	}
+
 	logger.Info("Generating execution graph.")
 	executionGraph, err := graph.ForPipeline(service, pipeline)
 	if err != nil {
@@ -187,6 +197,15 @@ func RunEntrypoint(topo *topology.Topology, entrypoint *topology.Entrypoint, pip
 		return nil, err
 	}
 
+	// Execute build steps for all pipelines in the service tree
+	service, err := topo.Lookup(entrypoint.Identifier)
+	if err != nil {
+		return nil, fmt.Errorf("failed to lookup service group %s: %w", entrypoint.Identifier, err)
+	}
+	if err := runBuildStepsForService(ctx, service, options.TopologyDir, pipelines); err != nil {
+		return nil, err
+	}
+
 	logger.Info("Generating execution graph.")
 	executionGraph, err := graph.ForEntrypoint(topo, entrypoint, pipelines)
 	if err != nil {
@@ -194,6 +213,42 @@ func RunEntrypoint(topo *topology.Topology, entrypoint *topology.Entrypoint, pip
 	}
 
 	return runGraph(ctx, logger, executionGraph, options, executor)
+}
+
+// runBuildStepsForService recursively executes build steps for all pipelines in the service tree.
+func runBuildStepsForService(ctx context.Context, service *topology.Service, topologyDir string, pipelines map[string]*types.Pipeline) error {
+	logger := logr.FromContextOrDiscard(ctx)
+	pipe, ok := pipelines[service.ServiceGroup]
+	if ok && pipe.BuildStep != nil {
+		pipelineDir := filepath.Join(topologyDir, filepath.Dir(service.PipelinePath))
+		logger.Info("Running build step.", "serviceGroup", service.ServiceGroup, "directory", pipelineDir)
+		if err := runBuildStep(ctx, *pipe.BuildStep, service.ServiceGroup, pipelineDir); err != nil {
+			return fmt.Errorf("build step execution failed for %s: %w", service.ServiceGroup, err)
+		}
+	}
+
+	for _, child := range service.Children {
+		if err := runBuildStepsForService(ctx, &child, topologyDir, pipelines); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// runBuildStep executes a single build step command.
+func runBuildStep(ctx context.Context, buildStep types.BuildStep, serviceGroup, workingDirectory string) error {
+	var stdout, stderr bytes.Buffer
+	cmd := exec.CommandContext(ctx, buildStep.Command, buildStep.Args...)
+	cmd.Dir = workingDirectory
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to execute build step '%s %s' for %s in directory '%s': %w\nstdout: %s\nstderr: %s",
+			buildStep.Command, strings.Join(buildStep.Args, " "), serviceGroup, workingDirectory, err, stdout.String(), stderr.String())
+	}
+
+	return nil
 }
 
 func runGraph(ctx context.Context, logger logr.Logger, executionGraph *graph.Graph, options *PipelineRunOptions, executor Executor) (Outputs, error) {

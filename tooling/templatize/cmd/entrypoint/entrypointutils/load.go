@@ -15,12 +15,8 @@
 package entrypointutils
 
 import (
-	"context"
 	"fmt"
-	"os"
-	"os/exec"
 	"path/filepath"
-	"strings"
 
 	configtypes "github.com/Azure/ARO-Tools/pkg/config/types"
 	"github.com/Azure/ARO-Tools/pkg/topology"
@@ -40,13 +36,6 @@ func LoadPipelines(
 		return fmt.Errorf("pipeline loaded from %s is for %s, not %s", pipelineConfigFilePath, pipe.ServiceGroup, root.ServiceGroup)
 	}
 
-	// Execute pipeline build step if one is specified
-	if pipe.BuildStep != nil {
-		if err := runBuildStep(context.Background(), *pipe.BuildStep, filepath.Dir(pipelineConfigFilePath)); err != nil {
-			return fmt.Errorf("build step execution failed: %w", err)
-		}
-	}
-
 	pipelines[root.ServiceGroup] = pipe
 
 	for _, child := range root.Children {
@@ -54,19 +43,5 @@ func LoadPipelines(
 			return err
 		}
 	}
-	return nil
-}
-
-func runBuildStep(ctx context.Context, buildStep types.BuildStep, workingDirectory string) error {
-	cmd := exec.CommandContext(ctx, buildStep.Command, buildStep.Args...)
-	cmd.Dir = workingDirectory
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to execute build step '%s %s' in directory '%s': %w",
-			buildStep.Command, strings.Join(buildStep.Args, " "), workingDirectory, err)
-	}
-
 	return nil
 }
