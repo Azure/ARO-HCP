@@ -15,9 +15,7 @@
 package oldoperationscanner
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"iter"
@@ -29,7 +27,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/go-logr/logr"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"go.opentelemetry.io/otel"
@@ -39,6 +36,7 @@ import (
 	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
 	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
 
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/operationcontrollers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	backendtracing "github.com/Azure/ARO-HCP/backend/pkg/tracing"
 	"github.com/Azure/ARO-HCP/internal/api"
@@ -78,10 +76,6 @@ const (
 	NodePoolStateUninstalling     NodePoolStateValue = "uninstalling"
 	NodePoolStateRecoverableError NodePoolStateValue = "recoverable_error"
 	NodePoolStateError            NodePoolStateValue = "error"
-)
-
-const (
-	InflightChecksFailedProvisionErrorCode = "OCM4001"
 )
 
 type operation struct {
@@ -522,7 +516,7 @@ func (s *OperationsScanner) pollNodePoolOperation(ctx context.Context, op operat
 	if err != nil {
 		var ocmError *ocmerrors.Error
 		if errors.As(err, &ocmError) && ocmError.Status() == http.StatusNotFound && op.doc.Request == database.OperationRequestDelete {
-			err = SetDeleteOperationAsCompleted(ctx, s.dbClient, op.doc, s.postAsyncNotification)
+			err = operationcontrollers.SetDeleteOperationAsCompleted(ctx, s.dbClient, op.doc, s.postAsyncNotification)
 			if err != nil {
 				s.recordOperationError(ctx, pollNodePoolOperationLabel, err)
 				logger.Error(err, "Failed to handle a completed deletion")
@@ -542,7 +536,7 @@ func (s *OperationsScanner) pollNodePoolOperation(ctx context.Context, op operat
 		return
 	}
 
-	err = database.UpdateOperationStatus(ctx, s.dbClient, op.doc, opStatus, opError, s.postAsyncNotification)
+	err = operationcontrollers.UpdateOperationStatus(ctx, s.dbClient, op.doc, opStatus, opError, s.postAsyncNotification)
 	if err != nil {
 		s.recordOperationError(ctx, pollNodePoolOperationLabel, err)
 		logger.Error(err, "Failed to update operation status")
@@ -561,7 +555,7 @@ func (s *OperationsScanner) pollExternalAuthOperation(ctx context.Context, op op
 	if err != nil {
 		var ocmError *ocmerrors.Error
 		if errors.As(err, &ocmError) && ocmError.Status() == http.StatusNotFound && op.doc.Request == database.OperationRequestDelete {
-			err = SetDeleteOperationAsCompleted(ctx, s.dbClient, op.doc, s.postAsyncNotification)
+			err = operationcontrollers.SetDeleteOperationAsCompleted(ctx, s.dbClient, op.doc, s.postAsyncNotification)
 			if err != nil {
 				s.recordOperationError(ctx, pollExternalAuthOperationLabel, err)
 				logger.Error(err, "Failed to handle a completed deletion")
@@ -573,7 +567,7 @@ func (s *OperationsScanner) pollExternalAuthOperation(ctx context.Context, op op
 
 		return
 	}
-	err = database.UpdateOperationStatus(ctx, s.dbClient, op.doc, arm.ProvisioningStateSucceeded, nil, s.postAsyncNotification)
+	err = operationcontrollers.UpdateOperationStatus(ctx, s.dbClient, op.doc, arm.ProvisioningStateSucceeded, nil, s.postAsyncNotification)
 	if err != nil {
 		s.recordOperationError(ctx, pollExternalAuthOperationLabel, err)
 		logger.Error(err, "Failed to update operation status")
@@ -617,145 +611,9 @@ func WithSubscriptionLock(ctx context.Context, lockClient database.LockClientInt
 	}
 }
 
-// setDeleteOperationAsCompleted updates Cosmos DB to reflect a completed resource deletion.
-func SetDeleteOperationAsCompleted(ctx context.Context, cosmosClient database.DBClient, operation *api.Operation, postAsyncNotificationFn database.PostAsyncNotificationFunc) error {
-	// Delete the resource document first. If it fails the backend will retry
-	// by virtue of the operation document still having a non-terminal status.
-	untypedCRUD, err := cosmosClient.UntypedCRUD(*operation.ExternalID)
-	if err != nil {
-		return utils.TrackError(err)
-	}
-	if err := untypedCRUD.Delete(ctx, operation.ExternalID); err != nil {
-		return utils.TrackError(err)
-	}
-
-	// TODO once we rekey based on resourceID, consider doing this all in a transaction.
-	// If any fail, we re-enter because the operation still exists
-	// If a controller starts working the first time and the cluster is deleted in that timeframe, then the controller
-	// may create an instance of its controller status.  We can create a controller to periodically scrape orphans
-	// and either delete them or call them out.
-	childIterator, err := untypedCRUD.List(ctx, nil)
-	if err != nil {
-		return utils.TrackError(err)
-	}
-	for _, childResource := range childIterator.Items(ctx) {
-		// clusters, nodepools, and externalauths have special deletion handling, so don't delete them from here.
-		switch strings.ToLower(childResource.ResourceType) {
-		case strings.ToLower(api.ClusterControllerResourceType.String()),
-			strings.ToLower(api.NodePoolControllerResourceType.String()),
-			strings.ToLower(api.ExternalAuthControllerResourceType.String()):
-			continue
-		}
-
-		resourceInfo := database.ResourceDocument{}
-		if err := json.Unmarshal(childResource.Properties, &resourceInfo); err != nil {
-			return utils.TrackError(err)
-		}
-		if err := untypedCRUD.Delete(ctx, resourceInfo.ResourceID); err != nil {
-			return utils.TrackError(err)
-		}
-	}
-	if err := childIterator.GetError(); err != nil {
-		return utils.TrackError(err)
-	}
-
-	// Save a final "succeeded" operation status until TTL expires.
-	err = database.PatchOperationDocument(ctx, cosmosClient, operation, arm.ProvisioningStateSucceeded, nil, postAsyncNotificationFn)
-	if err != nil {
-		return utils.TrackError(err)
-	}
-
-	return nil
-}
-
 // PostAsyncNotification submits an POST request with status payload to the given URL.
 func (s *OperationsScanner) postAsyncNotification(ctx context.Context, operation *api.Operation) error {
-	return PostAsyncNotification(ctx, s.notificationClient, operation)
-}
-
-func PostAsyncNotification(ctx context.Context, notificationClient *http.Client, operation *api.Operation) error {
-	data, err := arm.MarshalJSON(database.ToStatus(operation))
-	if err != nil {
-		return err
-	}
-
-	request, err := http.NewRequestWithContext(ctx, http.MethodPost, operation.NotificationURI, bytes.NewBuffer(data))
-	if err != nil {
-		return err
-	}
-
-	request.Header.Set("Content-Type", "application/json")
-
-	response, err := notificationClient.Do(request)
-	if err != nil {
-		return err
-	}
-
-	defer response.Body.Close()
-	if response.StatusCode >= 400 {
-		return errors.New(response.Status)
-	}
-
-	return nil
-}
-
-// ConvertClusterStatus attempts to translate a ClusterStatus object from
-// Cluster Service into an ARM provisioning state and, if necessary, a
-// structured OData error.
-func ConvertClusterStatus(ctx context.Context, clusterServiceClient ocm.ClusterServiceClientSpec, operation *api.Operation, clusterStatus *arohcpv1alpha1.ClusterStatus) (arm.ProvisioningState, *arm.CloudErrorBody, error) {
-	var newOperationStatus = operation.Status
-	var opError *arm.CloudErrorBody
-	var err error
-
-	switch state := clusterStatus.State(); state {
-	case arohcpv1alpha1.ClusterStateError:
-		newOperationStatus = arm.ProvisioningStateFailed
-		// Provision error codes are defined in the CS repo:
-		// https://gitlab.cee.redhat.com/service/uhc-clusters-service/-/blob/master/pkg/api/cluster_errors.go
-		code := clusterStatus.ProvisionErrorCode()
-		if code == "" {
-			code = arm.CloudErrorCodeInternalServerError
-		}
-		message := clusterStatus.ProvisionErrorMessage()
-		if message == "" {
-			message = clusterStatus.Description()
-		}
-		// Construct the cloud error code depending on the provision error code.
-		switch code {
-		case InflightChecksFailedProvisionErrorCode:
-			opError, err = ConvertInflightChecks(ctx, clusterServiceClient, operation.InternalID)
-			if err != nil {
-				return newOperationStatus, opError, err
-			}
-		default:
-			opError = &arm.CloudErrorBody{Code: code, Message: message}
-		}
-	case arohcpv1alpha1.ClusterStateInstalling:
-		newOperationStatus = arm.ProvisioningStateProvisioning
-	case arohcpv1alpha1.ClusterStateUpdating:
-		newOperationStatus = arm.ProvisioningStateUpdating
-	case arohcpv1alpha1.ClusterStateReady:
-		// Resource deletion is successful when fetching its state
-		// from Cluster Service returns a "404 Not Found" error. If
-		// we see the resource in a "Ready" state during a deletion
-		// operation, leave the current provisioning state as is.
-		if operation.Request != database.OperationRequestDelete {
-			newOperationStatus = arm.ProvisioningStateSucceeded
-		}
-	case arohcpv1alpha1.ClusterStateUninstalling:
-		newOperationStatus = arm.ProvisioningStateDeleting
-	case arohcpv1alpha1.ClusterStatePending, arohcpv1alpha1.ClusterStateValidating:
-		// These are valid cluster states for ARO-HCP but there are
-		// no unique ProvisioningState values for them. They should
-		// only occur when ProvisioningState is Accepted.
-		if newOperationStatus != arm.ProvisioningStateAccepted {
-			err = fmt.Errorf("got ClusterState '%s' while ProvisioningState was '%s' instead of '%s'", state, newOperationStatus, arm.ProvisioningStateAccepted)
-		}
-	default:
-		err = fmt.Errorf("unhandled ClusterState '%s'", state)
-	}
-
-	return newOperationStatus, opError, err
+	return operationcontrollers.PostAsyncNotification(ctx, s.notificationClient, operation)
 }
 
 // convertNodePoolStatus attempts to translate a NodePoolStatus object
@@ -802,70 +660,6 @@ func convertNodePoolStatus(op operation, nodePoolStatus *arohcpv1alpha1.NodePool
 	}
 
 	return opStatus, opError, err
-}
-
-// convertInflightChecks gets a cluster internal ID, fetches inflight check errors from CS endpoint, and converts them
-// to arm.CloudErrorBody type.
-// The function should be triggered only if inflight errors occurred with provision error code OCM4001.
-func ConvertInflightChecks(ctx context.Context, clusterServiceClient ocm.ClusterServiceClientSpec, internalId ocm.InternalID) (*arm.CloudErrorBody, error) {
-	logger := utils.LoggerFromContext(ctx)
-
-	inflightChecks, err := clusterServiceClient.GetClusterInflightChecks(ctx, internalId)
-	if err != nil {
-		return &arm.CloudErrorBody{}, err
-	}
-
-	var cloudErrors []arm.CloudErrorBody
-	for _, inflightCheck := range inflightChecks.Items() {
-		if inflightCheck.State() == arohcpv1alpha1.InflightCheckStateFailed {
-			cloudErrors = append(cloudErrors, convertInflightCheck(inflightCheck, logger))
-		}
-	}
-
-	// This is a fallback case and should not normally occur. If the provision error code is OCM4001,
-	// there should be at least one inflight failure.
-	if len(cloudErrors) == 0 {
-		logger.Info("Cluster returned error code OCM4001, but no inflight failures were found", "internalId", internalId)
-		return &arm.CloudErrorBody{
-			Code: arm.CloudErrorCodeInternalServerError,
-		}, nil
-	}
-
-	return arm.NewCloudErrorBodyFromSlice(cloudErrors, "Cluster provisioning failed due to multiple errors"), nil
-}
-
-func convertInflightCheck(inflightCheck *arohcpv1alpha1.InflightCheck, logger logr.Logger) arm.CloudErrorBody {
-	message, succeeded := convertInflightCheckDetails(inflightCheck)
-	if !succeeded {
-		logger.Error(nil, "error converting inflight check details", "name", inflightCheck.Name())
-	}
-
-	return arm.CloudErrorBody{
-		Code:    arm.CloudErrorCodeInternalServerError,
-		Message: message,
-	}
-}
-
-// convertInflightCheckDetails gets an inflight check object and extracts the error message.
-func convertInflightCheckDetails(inflightCheck *arohcpv1alpha1.InflightCheck) (string, bool) {
-	details, ok := inflightCheck.GetDetails()
-	if !ok {
-		return "", false
-	}
-
-	detailsMap, ok := details.(map[string]interface{})
-	if !ok {
-		return "", false
-	}
-
-	// Retrieve "error" key safely
-	if errMsg, exists := detailsMap["error"]; exists {
-		if errStr, ok := errMsg.(string); ok {
-			return errStr, true
-		}
-	}
-
-	return "", false
 }
 
 // StartRootSpan initiates a new parent trace.

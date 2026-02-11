@@ -104,24 +104,26 @@ func (opsync *operationRevokeCredentials) SynchronizeOperation(ctx context.Conte
 	logger := utils.LoggerFromContext(ctx)
 	logger.Info("checking operation")
 
-	operation, err := opsync.cosmosClient.Operations(key.SubscriptionID).Get(ctx, key.OperationName)
+	oldOperation, err := opsync.cosmosClient.Operations(key.SubscriptionID).Get(ctx, key.OperationName)
 	if database.IsResponseError(err, http.StatusNotFound) {
 		return nil // no work to do
 	}
 	if err != nil {
 		return fmt.Errorf("failed to get active operation: %w", err)
 	}
-	if !opsync.ShouldProcess(ctx, operation) {
+	if !opsync.ShouldProcess(ctx, oldOperation) {
 		return nil // no work to do
 	}
 
-	opStatus, opError, err := opsync.nextOperationStatus(ctx, operation)
+	newOperationStatus, newOperationError, err := opsync.nextOperationStatus(ctx, oldOperation)
 	if err != nil {
 		return utils.TrackError(err)
 	}
+	if !needToPatchOperation(oldOperation, newOperationStatus, newOperationError) {
+		return nil
+	}
 
-	logger.Info("updating status")
-	err = database.PatchOperationDocument(ctx, opsync.cosmosClient, operation, opStatus, opError, PostAsyncNotification(opsync.notificationClient))
+	err = patchOperation(ctx, opsync.cosmosClient, oldOperation, newOperationStatus, newOperationError, postAsyncNotificationFn(opsync.notificationClient))
 	if err != nil {
 		return utils.TrackError(err)
 	}
