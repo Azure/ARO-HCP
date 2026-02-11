@@ -66,7 +66,7 @@ func VerifyNoNewGoLeaks(t *testing.T) {
 func DefaultLogger(t *testing.T) logr.Logger {
 	return testr.NewWithInterface(t, testr.Options{
 		LogTimestamp: true,
-		Verbosity:    0,
+		Verbosity:    4,
 	})
 }
 

@@ -16,6 +16,8 @@ package informers
 
 import (
 	"context"
+	"sync"
+	"time"
 
 	"k8s.io/client-go/tools/cache"
 
@@ -80,23 +82,38 @@ func (b *backendInformers) ServiceProviderClusters() (cache.SharedIndexInformer,
 }
 
 func NewBackendInformers(ctx context.Context, globalListers database.GlobalListers) BackendInformers {
+	return NewBackendInformersWithRelistDuration(ctx, globalListers, nil)
+}
+
+func NewBackendInformersWithRelistDuration(ctx context.Context, globalListers database.GlobalListers, relistDuration *time.Duration) BackendInformers {
+	subscriptionRelistDuration := SubscriptionRelistDuration
+	clusterRelistDuration := ClusterRelistDuration
+	nodePoolRelistDuration := NodePoolRelistDuration
+	externalAuthRelistDuration := ExternalAuthRelistDuration
+	serviceProviderClusterRelistDuration := ServiceProviderClusterRelistDuration
+	activeOperationsRelistDuration := ActiveOperationsRelistDuration
+	if relistDuration != nil {
+		subscriptionRelistDuration = *relistDuration
+		clusterRelistDuration = *relistDuration
+		nodePoolRelistDuration = *relistDuration
+		externalAuthRelistDuration = *relistDuration
+		serviceProviderClusterRelistDuration = *relistDuration
+		activeOperationsRelistDuration = *relistDuration
+	}
+
 	ret := &backendInformers{}
-	ret.subscriptionInformer = NewSubscriptionInformer(globalListers.Subscriptions())
+	ret.subscriptionInformer = NewSubscriptionInformerWithRelistDuration(globalListers.Subscriptions(), subscriptionRelistDuration)
+	ret.activeOperationInformer = NewActiveOperationInformerWithRelistDuration(globalListers.ActiveOperations(), activeOperationsRelistDuration)
+	ret.clusterInformer = NewClusterInformerWithRelistDuration(globalListers.Clusters(), clusterRelistDuration)
+	ret.nodePoolInformer = NewNodePoolInformerWithRelistDuration(globalListers.NodePools(), nodePoolRelistDuration)
+	ret.externalAuthInformer = NewExternalAuthInformerWithRelistDuration(globalListers.ExternalAuths(), externalAuthRelistDuration)
+	ret.serviceProviderClusterInformer = NewServiceProviderClusterInformerWithRelistDuration(globalListers.ServiceProviderClusters(), serviceProviderClusterRelistDuration)
+
 	ret.subscriptionLister = listers.NewSubscriptionLister(ret.subscriptionInformer.GetIndexer())
-
-	ret.activeOperationInformer = NewActiveOperationInformer(globalListers.ActiveOperations())
 	ret.activeOperationLister = listers.NewActiveOperationLister(ret.activeOperationInformer.GetIndexer())
-
-	ret.clusterInformer = NewClusterInformer(globalListers.Clusters())
 	ret.clusterLister = listers.NewClusterLister(ret.clusterInformer.GetIndexer())
-
-	ret.nodePoolInformer = NewNodePoolInformer(globalListers.NodePools())
 	ret.nodePoolLister = listers.NewNodePoolLister(ret.nodePoolInformer.GetIndexer())
-
-	ret.externalAuthInformer = NewExternalAuthInformer(globalListers.ExternalAuths())
 	ret.externalAuthLister = listers.NewExternalAuthLister(ret.externalAuthInformer.GetIndexer())
-
-	ret.serviceProviderClusterInformer = NewServiceProviderClusterInformer(globalListers.ServiceProviderClusters())
 	ret.serviceProviderClusterLister = listers.NewServiceProviderClusterLister(ret.serviceProviderClusterInformer.GetIndexer())
 
 	return ret
@@ -107,12 +124,39 @@ func (b *backendInformers) RunWithContext(ctx context.Context) {
 	logger.Info("starting informers")
 	defer logger.Info("stopped informers")
 
-	go b.subscriptionInformer.RunWithContext(ctx)
-	go b.activeOperationInformer.RunWithContext(ctx)
-	go b.clusterInformer.RunWithContext(ctx)
-	go b.nodePoolInformer.RunWithContext(ctx)
-	go b.externalAuthInformer.RunWithContext(ctx)
-	go b.serviceProviderClusterInformer.RunWithContext(ctx)
+	wg := sync.WaitGroup{}
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		b.subscriptionInformer.RunWithContext(ctx)
+	}()
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		b.activeOperationInformer.RunWithContext(ctx)
+	}()
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		b.clusterInformer.RunWithContext(ctx)
+	}()
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		b.nodePoolInformer.RunWithContext(ctx)
+	}()
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		b.externalAuthInformer.RunWithContext(ctx)
+	}()
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		b.serviceProviderClusterInformer.RunWithContext(ctx)
+	}()
 
 	<-ctx.Done()
+	wg.Wait()
 }

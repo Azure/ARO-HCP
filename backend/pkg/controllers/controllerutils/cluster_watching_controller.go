@@ -19,6 +19,8 @@ import (
 	"errors"
 	"time"
 
+	"github.com/go-logr/logr"
+
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/tools/cache"
@@ -89,6 +91,10 @@ func NewClusterWatchingController(
 }
 
 func (c *clusterWatchingController) SyncOnce(ctx context.Context, keyObj any) error {
+	logger := utils.LoggerFromContext(ctx)
+	logger.Info("start sync")
+	defer logger.Info("end sync")
+
 	key := keyObj.(HCPClusterKey)
 
 	syncErr := c.syncer.SyncOnce(ctx, key) // we'll handle this is a moment.
@@ -161,13 +167,20 @@ func (c *clusterWatchingController) processNextWorkItem(ctx context.Context) boo
 }
 
 func (c *clusterWatchingController) enqueueAdd(newObj interface{}) {
+	logger := utils.DefaultLogger()
+	logger = logger.WithValues("controller_name", c.name)
+	ctx := logr.NewContext(context.TODO(), logger)
+
 	castObj := newObj.(*api.HCPOpenShiftCluster)
 	key := HCPClusterKey{
 		SubscriptionID:    castObj.ID.SubscriptionID,
 		ResourceGroupName: castObj.ID.ResourceGroupName,
 		HCPClusterName:    castObj.ID.Name,
 	}
-	if !c.syncer.CooldownChecker().CanSync(context.TODO(), key) {
+	logger = key.AddLoggerValues(logger)
+	ctx = logr.NewContext(ctx, logger)
+
+	if !c.syncer.CooldownChecker().CanSync(ctx, key) {
 		return
 	}
 
