@@ -33,6 +33,7 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
 
+	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/utils/clock"
 
 	"sigs.k8s.io/yaml"
@@ -48,9 +49,17 @@ var templatesFS embed.FS
 var endGracePeriodDuration = 45 * time.Minute
 
 var (
+	defaultADXClusterName = "hcp-dev-us.westus3"
+
 	serviceClusterStepID = pipeline.Identifier{
 		ServiceGroup:  "Microsoft.Azure.ARO.HCP.Service.Infra",
 		ResourceGroup: "service",
+		Step:          "cluster",
+	}
+
+	managementClusterStepID = pipeline.Identifier{
+		ServiceGroup:  "Microsoft.Azure.ARO.HCP.Management.Infra",
+		ResourceGroup: "management",
 		Step:          "cluster",
 	}
 )
@@ -64,13 +73,18 @@ func mustReadArtifact(name string) []byte {
 }
 
 func DefaultOptions() *RawOptions {
-	return &RawOptions{}
+	return &RawOptions{
+		ADXClusterName: defaultADXClusterName,
+	}
 }
 
 // keeping these options consistent with the visualize command.
 func BindOptions(opts *RawOptions, cmd *cobra.Command) error {
 	cmd.Flags().StringVar(&opts.TimingInputDir, "timing-input", opts.TimingInputDir, "Path to the directory holding timing outputs from an end-to-end test run.")
 	cmd.Flags().StringVar(&opts.OutputDir, "output", opts.OutputDir, "Path to the directory where html will be written.")
+	cmd.Flags().StringVar(&opts.Region, "region", opts.Region, "Region used to derive service and management cluster names.")
+	cmd.Flags().StringVar(&opts.Environment, "environment", opts.Environment, "Environment used to derive service and management cluster names.")
+	cmd.Flags().StringVar(&opts.ADXClusterName, "adx-cluster", opts.ADXClusterName, "ADX cluster name used in generated Kusto URLs.")
 
 	return nil
 }
@@ -78,6 +92,9 @@ func BindOptions(opts *RawOptions, cmd *cobra.Command) error {
 type RawOptions struct {
 	TimingInputDir string
 	OutputDir      string
+	Region         string
+	Environment    string
+	ADXClusterName string
 }
 
 // validatedOptions is a private wrapper that enforces a call of Validate() before Complete() can be invoked.
@@ -95,6 +112,8 @@ type completedOptions struct {
 	TimingInputDir string
 	OutputDir      string
 	Steps          []pipeline.NodeInfo
+	ClusterNames   ClusterNames
+	ADXClusterName string
 }
 
 type Options struct {
@@ -116,6 +135,10 @@ func (o *RawOptions) Validate() (*ValidatedOptions, error) {
 		}
 	}
 
+	if (o.Region != "") != (o.Environment != "") {
+		return nil, fmt.Errorf("--region and --environment must either both be set or both be unset")
+	}
+
 	return &ValidatedOptions{
 		validatedOptions: &validatedOptions{
 			RawOptions: o,
@@ -124,43 +147,57 @@ func (o *RawOptions) Validate() (*ValidatedOptions, error) {
 }
 
 func (o *ValidatedOptions) Complete(logger logr.Logger) (*Options, error) {
-	// we consume steps.yaml (output of templatize and stored for us by the visualization) to determine the cluster name
-	// Try to read compressed file first, then fall back to uncompressed
-	var stepsYamlBytes []byte
+	var (
+		steps        []pipeline.NodeInfo
+		clusterNames ClusterNames
+	)
 
-	compressedPath := path.Join(o.TimingInputDir, "steps.yaml.gz")
-	uncompressedPath := path.Join(o.TimingInputDir, "steps.yaml")
-
-	// Try compressed file first
-	compressedData, err := os.ReadFile(compressedPath)
-	if err == nil {
-		gzipReader, err := gzip.NewReader(bytes.NewReader(compressedData))
-		if err != nil {
-			return nil, fmt.Errorf("failed to create gzip reader for %s: %w", compressedPath, err)
-		}
-		defer gzipReader.Close()
-
-		stepsYamlBytes, err = io.ReadAll(gzipReader)
-		if err != nil {
-			return nil, fmt.Errorf("failed to decompress %s: %w", compressedPath, err)
+	if o.Region != "" && o.Environment != "" {
+		clusterNames = ClusterNames{
+			Service:    fmt.Sprintf("%s-%s-svc-1", o.Environment, o.Region),
+			Management: fmt.Sprintf("%s-%s-mgmt-1", o.Environment, o.Region),
 		}
 	} else {
-		// Fall back to uncompressed file
-		stepsYamlBytes, err = os.ReadFile(uncompressedPath)
-		if err != nil {
-			return nil, utils.TrackError(err)
+		// We consume steps.yaml (output of templatize and stored for us by the visualization) to determine the cluster name.
+		// Try to read compressed file first, then fall back to uncompressed.
+		var stepsYamlBytes []byte
+
+		compressedPath := path.Join(o.TimingInputDir, "steps.yaml.gz")
+		uncompressedPath := path.Join(o.TimingInputDir, "steps.yaml")
+
+		// Try compressed file first.
+		compressedData, err := os.ReadFile(compressedPath)
+		if err == nil {
+			gzipReader, err := gzip.NewReader(bytes.NewReader(compressedData))
+			if err != nil {
+				return nil, fmt.Errorf("failed to create gzip reader for %s: %w", compressedPath, err)
+			}
+			defer gzipReader.Close()
+
+			stepsYamlBytes, err = io.ReadAll(gzipReader)
+			if err != nil {
+				return nil, fmt.Errorf("failed to decompress %s: %w", compressedPath, err)
+			}
+		} else {
+			// Fall back to uncompressed file.
+			stepsYamlBytes, err = os.ReadFile(uncompressedPath)
+			if err != nil {
+				return nil, utils.TrackError(err)
+			}
+		}
+
+		if err := yaml.Unmarshal(stepsYamlBytes, &steps); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal timing input file: %w", err)
 		}
 	}
 
-	var steps []pipeline.NodeInfo
-	if err := yaml.Unmarshal(stepsYamlBytes, &steps); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal timing input file: %w", err)
-	}
 	return &Options{
 		completedOptions: &completedOptions{
 			Steps:          steps,
 			OutputDir:      o.OutputDir,
 			TimingInputDir: o.TimingInputDir,
+			ClusterNames:   clusterNames,
+			ADXClusterName: o.ADXClusterName,
 		},
 	}, nil
 }
@@ -183,7 +220,13 @@ type QueryInfo struct {
 	StartTime         string
 	EndTime           string
 	ClusterName       string
+	ADXClusterName    string
 	Database          string
+}
+
+type ClusterNames struct {
+	Service    string
+	Management string
 }
 
 type TimingInfo struct {
@@ -202,7 +245,7 @@ func createQueryURL(templatePath string, info QueryInfo) string {
 	currURL := url.URL{
 		Scheme: "https",
 		Host:   "dataexplorer.azure.com",
-		Path:   fmt.Sprintf("clusters/hcp-dev-us.westus3/databases/%s", info.Database),
+		Path:   fmt.Sprintf("clusters/%s/databases/%s", info.ADXClusterName, info.Database),
 	}
 	urlQuery := currURL.Query()
 	template, err := template.New("custom-link-tools").Parse(string(mustReadArtifact(templatePath)))
@@ -264,12 +307,14 @@ func (o Options) Run(ctx context.Context) error {
 				Links: []LinkDetails{
 					createLinkForTest("Hosted Control Plane Logs", "hosted-controlplane.kql.tmpl", QueryInfo{
 						ResourceGroupName: rg,
+						ADXClusterName:    o.ADXClusterName,
 						Database:          "HostedControlPlaneLogs",
 						StartTime:         timing.StartTime.Format(time.RFC3339),
 						EndTime:           timing.EndTime.Format(time.RFC3339),
 					}),
 					createLinkForTest("Service Logs", "service-logs.kql.tmpl", QueryInfo{
 						ResourceGroupName: rg,
+						ADXClusterName:    o.ADXClusterName,
 						Database:          "ServiceLogs",
 						StartTime:         timing.StartTime.Format(time.RFC3339),
 						EndTime:           timing.EndTime.Format(time.RFC3339),
@@ -296,7 +341,12 @@ func (o Options) Run(ctx context.Context) error {
 		return utils.TrackError(err)
 	}
 
-	serviceLogLinks, err := getServiceLogLinks(o.Steps)
+	var serviceLogLinks []LinkDetails
+	if o.ClusterNames.Service == "" && o.ClusterNames.Management == "" {
+		serviceLogLinks, err = getServiceLogLinksFromSteps(o.Steps, o.ADXClusterName)
+	} else {
+		serviceLogLinks, err = getServiceLogLinksFromClusterNames(o.ClusterNames, o.ADXClusterName)
+	}
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -413,11 +463,10 @@ func loadAllTestTimingInfo(timingInputDir string) (map[string]TimingInfo, error)
 
 var localClock clock.PassiveClock = clock.RealClock{}
 
-func getServiceLogLinks(steps []pipeline.NodeInfo) ([]LinkDetails, error) {
-	allLinks := []LinkDetails{}
-
+func getServiceLogLinksFromSteps(steps []pipeline.NodeInfo, adxClusterName string) ([]LinkDetails, error) {
 	earliestStartTime := time.Time{}
-	allClusterNames := []string{}
+	allSvcClusterNames := sets.New[string]()
+	allMgmtClusterNames := sets.New[string]()
 	for _, step := range steps {
 		if len(step.Info.StartedAt) > 0 {
 			startTime, err := time.Parse(time.RFC3339, step.Info.StartedAt)
@@ -429,12 +478,19 @@ func getServiceLogLinks(steps []pipeline.NodeInfo) ([]LinkDetails, error) {
 			}
 		}
 
-		// we're looking for the service cluster's step to make a query for backend and frontend
-		// forming like this so that we can easily add more steps (like the management cluster) that we want queries for
+		// We're looking for the service cluster step to make component queries.
 		if step.Identifier == serviceClusterStepID {
 			if step.Details != nil && step.Details.ARM != nil {
 				for _, operation := range step.Details.ARM.Operations {
-					allClusterNames = append(allClusterNames, locateAllServiceClusters(operation)...)
+					allSvcClusterNames.Insert(locateAllClusters(operation)...)
+				}
+			}
+		}
+		// We're looking for the management cluster step to make component queries.
+		if step.Identifier == managementClusterStepID {
+			if step.Details != nil && step.Details.ARM != nil {
+				for _, operation := range step.Details.ARM.Operations {
+					allMgmtClusterNames.Insert(locateAllClusters(operation)...)
 				}
 			}
 		}
@@ -442,46 +498,65 @@ func getServiceLogLinks(steps []pipeline.NodeInfo) ([]LinkDetails, error) {
 	if earliestStartTime.IsZero() {
 		earliestStartTime = localClock.Now().Add(-6 * time.Hour) // lots longer than default timeouts, but still shorter than forever
 	}
+	uniqueSvcClusterNames := sets.List(allSvcClusterNames)
+	uniqueMgmtClusterNames := sets.List(allMgmtClusterNames)
 
-	if len(allClusterNames) != 1 {
-		return nil, fmt.Errorf("expecting only one service cluster, found %d: %s", len(allClusterNames), strings.Join(allClusterNames, ", "))
+	if allSvcClusterNames.Len() != 1 {
+		return nil, fmt.Errorf("expecting only one service cluster, found %d: %s", allSvcClusterNames.Len(), strings.Join(uniqueSvcClusterNames, ", "))
+	}
+	if allMgmtClusterNames.Len() != 1 {
+		return nil, fmt.Errorf("expecting only one management cluster, found %d: %s", allMgmtClusterNames.Len(), strings.Join(uniqueMgmtClusterNames, ", "))
 	}
 
 	endTime := localClock.Now().Add(1 * time.Hour) // we need to include all cleanup, this is a good bet.
+	clusterNames := ClusterNames{Service: uniqueSvcClusterNames[0], Management: uniqueMgmtClusterNames[0]}
 
-	// Define all components and their log query templates
+	return getServiceLogLinksFromClusterNamesWithWindow(clusterNames, adxClusterName, earliestStartTime, endTime)
+}
+
+func getServiceLogLinksFromClusterNames(clusterNames ClusterNames, adxClusterName string) ([]LinkDetails, error) {
+	if clusterNames.Service == "" {
+		return nil, fmt.Errorf("service cluster name must be provided when deriving links from cluster names")
+	}
+
+	startTime := localClock.Now().Add(-6 * time.Hour)
+	endTime := localClock.Now().Add(1 * time.Hour)
+	return getServiceLogLinksFromClusterNamesWithWindow(clusterNames, adxClusterName, startTime, endTime)
+}
+
+func getServiceLogLinksFromClusterNamesWithWindow(clusterNames ClusterNames, adxClusterName string, startTime time.Time, endTime time.Time) ([]LinkDetails, error) {
+	allLinks := []LinkDetails{}
+
 	components := []struct {
 		component string
 		template  string
+		cluster   string
 	}{
-		{"Backend Logs", "backend-logs.kql.tmpl"},
-		{"Frontend Logs", "frontend-logs.kql.tmpl"},
-		{"Clusters Service Logs", "clusters-service-logs.kql.tmpl"},
-		{"Maestro Logs", "maestro-logs.kql.tmpl"},
-		{"Hypershift Logs", "hypershift-logs.kql.tmpl"},
-		{"ACM Logs", "acm-logs.kql.tmpl"},
+		{"Backend Logs", "backend-logs.kql.tmpl", clusterNames.Service},
+		{"Frontend Logs", "frontend-logs.kql.tmpl", clusterNames.Service},
+		{"Clusters Service Logs", "clusters-service-logs.kql.tmpl", clusterNames.Service},
+		{"Maestro Logs", "maestro-logs.kql.tmpl", clusterNames.Service},
+		{"Hypershift Logs", "hypershift-logs.kql.tmpl", clusterNames.Management},
+		{"ACM Logs", "acm-logs.kql.tmpl", clusterNames.Management},
 	}
-
-	// Generate links for each component and cluster
-	for _, clusterName := range allClusterNames {
-		for _, comp := range components {
-			allLinks = append(allLinks, createLinkForTest(comp.component, comp.template, QueryInfo{
-				ResourceGroupName: clusterName,
-				Database:          "ServiceLogs",
-				ClusterName:       clusterName,
-				StartTime:         earliestStartTime.Format(time.RFC3339),
-				EndTime:           endTime.Format(time.RFC3339),
-			}))
-		}
+	for _, comp := range components {
+		allLinks = append(allLinks, createLinkForTest(comp.component, comp.template, QueryInfo{
+			ResourceGroupName: comp.cluster,
+			Database:          "ServiceLogs",
+			ClusterName:       comp.cluster,
+			ADXClusterName:    adxClusterName,
+			StartTime:         startTime.Format(time.RFC3339),
+			EndTime:           endTime.Format(time.RFC3339),
+		}))
 	}
 
 	return allLinks, nil
 }
 
-func locateAllServiceClusters(operation pipeline.Operation) []string {
+func locateAllClusters(operation pipeline.Operation) []string {
 	allClusterNames := []string{}
 	for _, currChild := range operation.Children {
-		currClusterNames := locateAllServiceClusters(currChild)
+		currClusterNames := locateAllClusters(currChild)
 		if len(currClusterNames) > 0 {
 			allClusterNames = append(allClusterNames, currClusterNames...)
 		}
