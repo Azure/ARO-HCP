@@ -38,6 +38,8 @@ type BackendInformers interface {
 }
 
 type backendInformers struct {
+	cosmosDBListWatch *CosmosDBListWatch
+
 	subscriptionInformer cache.SharedIndexInformer
 	subscriptionLister   listers.SubscriptionLister
 
@@ -81,11 +83,11 @@ func (b *backendInformers) ServiceProviderClusters() (cache.SharedIndexInformer,
 	return b.serviceProviderClusterInformer, b.serviceProviderClusterLister
 }
 
-func NewBackendInformers(ctx context.Context, globalListers database.GlobalListers) BackendInformers {
-	return NewBackendInformersWithRelistDuration(ctx, globalListers, nil)
+func NewBackendInformers(ctx context.Context, cosmosClient database.DBClient) BackendInformers {
+	return NewBackendInformersWithRelistDuration(ctx, cosmosClient, nil)
 }
 
-func NewBackendInformersWithRelistDuration(ctx context.Context, globalListers database.GlobalListers, relistDuration *time.Duration) BackendInformers {
+func NewBackendInformersWithRelistDuration(ctx context.Context, cosmosClient database.DBClient, relistDuration *time.Duration) BackendInformers {
 	subscriptionRelistDuration := SubscriptionRelistDuration
 	clusterRelistDuration := ClusterRelistDuration
 	nodePoolRelistDuration := NodePoolRelistDuration
@@ -102,12 +104,13 @@ func NewBackendInformersWithRelistDuration(ctx context.Context, globalListers da
 	}
 
 	ret := &backendInformers{}
-	ret.subscriptionInformer = NewSubscriptionInformerWithRelistDuration(globalListers.Subscriptions(), subscriptionRelistDuration)
-	ret.activeOperationInformer = NewActiveOperationInformerWithRelistDuration(globalListers.ActiveOperations(), activeOperationsRelistDuration)
-	ret.clusterInformer = NewClusterInformerWithRelistDuration(globalListers.Clusters(), clusterRelistDuration)
-	ret.nodePoolInformer = NewNodePoolInformerWithRelistDuration(globalListers.NodePools(), nodePoolRelistDuration)
-	ret.externalAuthInformer = NewExternalAuthInformerWithRelistDuration(globalListers.ExternalAuths(), externalAuthRelistDuration)
-	ret.serviceProviderClusterInformer = NewServiceProviderClusterInformerWithRelistDuration(globalListers.ServiceProviderClusters(), serviceProviderClusterRelistDuration)
+	ret.cosmosDBListWatch = NewCosmosDBListWatch(cosmosClient)
+	ret.subscriptionInformer = NewSubscriptionInformerWithRelistDuration(ret.cosmosDBListWatch, subscriptionRelistDuration)
+	ret.activeOperationInformer = NewActiveOperationInformerWithRelistDuration(ret.cosmosDBListWatch, activeOperationsRelistDuration)
+	ret.clusterInformer = NewClusterInformerWithRelistDuration(ret.cosmosDBListWatch, clusterRelistDuration)
+	ret.nodePoolInformer = NewNodePoolInformerWithRelistDuration(ret.cosmosDBListWatch, nodePoolRelistDuration)
+	ret.externalAuthInformer = NewExternalAuthInformerWithRelistDuration(ret.cosmosDBListWatch, externalAuthRelistDuration)
+	ret.serviceProviderClusterInformer = NewServiceProviderClusterInformerWithRelistDuration(ret.cosmosDBListWatch, serviceProviderClusterRelistDuration)
 
 	ret.subscriptionLister = listers.NewSubscriptionLister(ret.subscriptionInformer.GetIndexer())
 	ret.activeOperationLister = listers.NewActiveOperationLister(ret.activeOperationInformer.GetIndexer())
@@ -126,6 +129,11 @@ func (b *backendInformers) RunWithContext(ctx context.Context) {
 
 	wg := sync.WaitGroup{}
 
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		b.cosmosDBListWatch.Run(ctx)
+	}()
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
