@@ -96,6 +96,7 @@ helm-charts: init-build
 
 .PHONY: push-charts
 push-charts:
+    # OCI Image SHA will change every time they're built even if the charts haven't changed.  Checking to see if image needs updated before pushing prevents endless loop with image-updater
 	@echo "Checking registry for existing charts..."
 
 	# 1. MCE Chart
