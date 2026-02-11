@@ -138,14 +138,7 @@ func (o *Options) Run(ctx context.Context) error {
 	// Extract target resource group names from config for precheck
 	var regionRGNames []string
 	if o.AbortIfRegionalExist {
-		rgPaths := []string{"regionRG", "svc.rg", "mgmt.rg"}
-		for _, path := range rgPaths {
-			if rg, err := o.Config.GetByPath(path); err == nil {
-				if rgStr, ok := rg.(string); ok {
-					regionRGNames = append(regionRGNames, rgStr)
-				}
-			}
-		}
+		regionRGNames = entrypointutils.RegionalResourceGroupNames(o.Config)
 	}
 
 	runOpts := &pipeline.PipelineRunOptions{
