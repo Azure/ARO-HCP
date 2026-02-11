@@ -36,6 +36,10 @@ import (
 
 const (
 	sessionGatePathPrefix = "/sessiongate"
+
+	// gracefulShutdownTimeout is the maximum time to wait for in-flight requests
+	// to complete during server shutdown.
+	gracefulShutdownTimeout = 5 * time.Second
 )
 
 // Server manages a shared HTTP server with dynamic session path handlers
@@ -131,7 +135,7 @@ func (s *Server) Run(ctx context.Context) error {
 	select {
 	case <-ctx.Done():
 		klog.Info("Context cancelled - performing graceful webserver shutdown")
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), gracefulShutdownTimeout)
 		defer cancel()
 		if err := s.server.Shutdown(shutdownCtx); err != nil {
 			return fmt.Errorf("failed to shutdown server: %w", err)

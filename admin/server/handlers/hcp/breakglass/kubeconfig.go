@@ -34,6 +34,12 @@ import (
 	sessiongatelisterv1alpha1 "github.com/Azure/ARO-HCP/sessiongate/pkg/generated/listers/sessiongate/v1alpha1"
 )
 
+const (
+	// sessionNotReadyRetryAfterSeconds is the Retry-After value (in seconds) sent to clients
+	// when a session is not yet ready.
+	sessionNotReadyRetryAfterSeconds = 5
+)
+
 // HCPBreakglassSessionKubeconfigHandler handles requests to retrieve kubeconfig for a session.
 // This endpoint is accessed exclusively via Geneva Actions. See package documentation for security model.
 type HCPBreakglassSessionKubeconfigHandler struct {
@@ -68,7 +74,7 @@ func (h *HCPBreakglassSessionKubeconfigHandler) ServeHTTP(writer http.ResponseWr
 
 	if !session.IsReady() {
 		details := GetSessionNotReadyDetails(session)
-		h.writeRetryResponse(writer, logger, details, 5)
+		h.writeRetryResponse(writer, logger, details, sessionNotReadyRetryAfterSeconds)
 		return
 	}
 
