@@ -21,13 +21,15 @@ import (
 	"net/http"
 	"time"
 
-	maestroopenapi "github.com/openshift-online/maestro/pkg/api/openapi"
-	maestrogrpcsource "github.com/openshift-online/maestro/pkg/client/cloudevents/grpcsource"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
 	workv1client "open-cluster-management.io/api/client/work/clientset/versioned/typed/work/v1"
 	workv1 "open-cluster-management.io/api/work/v1"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic/options/grpc"
+
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
+
+	maestroopenapi "github.com/openshift-online/maestro/pkg/api/openapi"
+	maestrogrpcsource "github.com/openshift-online/maestro/pkg/client/cloudevents/grpcsource"
 
 	"github.com/Azure/ARO-HCP/internal/utils"
 )

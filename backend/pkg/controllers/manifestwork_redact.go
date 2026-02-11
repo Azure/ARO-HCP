@@ -18,13 +18,16 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/Azure/ARO-HCP/internal/utils"
+	workv1 "open-cluster-management.io/api/work/v1"
+
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	workv1 "open-cluster-management.io/api/work/v1"
+
+	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
+// redactedValue is the placeholder value used when redacting sensitive data.
 const redactedValue = "[REDACTED]"
 
 // RedactManifestWork returns a deep copy of the given ManifestWork with sensitive
@@ -38,6 +41,14 @@ const redactedValue = "[REDACTED]"
 // Resources whose GVK cannot be determined from their raw JSON (e.g. partial
 // status objects without apiVersion/kind) are left unchanged, as their type
 // cannot be reliably inferred.
+//
+// NOTE on the output representation of each manifest's runtime.RawExtension:
+// the returned deep copy preserves only Object or only Raw, but not both: Manifests
+// that entered with a typed recognized Object (*corev1.Secret, *workv1.ManifestWork) will
+// have Object set and Raw nil. Manifests that entered with only Raw, or with
+// an unrecognized Object type (e.g. *unstructured.Unstructured or any other CR type), will have Raw
+// set and Object nil. Both states are valid for runtime.RawExtension. MarshalJSON
+// handles either correctly, but callers should not assume a specific field is populated.
 func RedactManifestWork(mw *workv1.ManifestWork) (*workv1.ManifestWork, error) {
 	redacted := mw.DeepCopy()
 	if err := redactManifestWorkInPlace(redacted); err != nil {
@@ -105,20 +116,23 @@ func redactManifestInPlace(m *workv1.Manifest) error {
 			return nil
 		default:
 			// Any other typed K8s object (e.g. *unstructured.Unstructured or a
-			// different CR type. Serialize to raw JSON — overwriting any pre-existing Raw
-			// bytes — and process via the raw path so we can still detect
+			// different CR type. Serialize to raw JSON overwriting any pre-existing Raw
+			// bytes and process via the raw path so we can still detect
 			// Secrets/ManifestWorks by GVK.
 			raw, err := json.Marshal(obj)
 			if err != nil {
 				return utils.TrackError(fmt.Errorf("marshaling typed object to JSON for redaction: %w", err))
 			}
 			m.Raw = raw
+			// Nil out Object to prevent leaking unredacted sensitive data that
+			// may be present in pre-existing Object. After this, callers
+			// serializing the manifest will use the redacted Raw.
 			m.Object = nil
 			return redactManifestFromRawInPlace(m)
 		}
 	}
 
-	// Object is nil — process the raw JSON bytes directly.
+	// Object is nil - process the raw JSON bytes directly.
 	if len(m.Raw) > 0 {
 		return redactManifestFromRawInPlace(m)
 	}

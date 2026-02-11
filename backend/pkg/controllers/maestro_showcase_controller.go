@@ -22,6 +22,14 @@ import (
 	"strings"
 	"time"
 
+	workv1 "open-cluster-management.io/api/work/v1"
+
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/tools/cache"
+
+	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
+
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/backend/pkg/maestro"
@@ -29,13 +37,6 @@ import (
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
-
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/client-go/tools/cache"
-	workv1 "open-cluster-management.io/api/work/v1"
-
-	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 )
 
 type maestroShowcaseSyncer struct {
@@ -44,8 +45,6 @@ type maestroShowcaseSyncer struct {
 	activeOperationLister listers.ActiveOperationLister
 
 	cosmosClient database.DBClient
-
-	subscriptionLister listers.SubscriptionLister
 
 	clusterServiceClient ocm.ClusterServiceClientSpec
 
@@ -123,15 +122,17 @@ func (c *maestroShowcaseSyncer) SyncOnce(ctx context.Context, key controllerutil
 	// log them here.
 	maestroSourceID := maestro.GenerateMaestroSourceID(c.maestroSourceEnvironmentIdentifier, clusterProvisionShard.ID())
 	provisionShardMaestroConsumerName := clusterProvisionShard.MaestroConfig().ConsumerName()
-	logger.Info("listing maestro bundles with source ID %s and Maestro Consumer Name %s", maestroSourceID, provisionShardMaestroConsumerName)
+	logger = logger.WithValues("maestroSourceID", maestroSourceID, "maestroConsumerName", provisionShardMaestroConsumerName)
+	ctx = utils.ContextWithLogger(ctx, logger)
+	logger.Info("listing maestro bundles...")
 	err = c.listAndLogAllMaestroBundlesWithSourceIDAndConsumerName(ctx, maestroClient)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to log all Maestro Bundles with Source ID %s and Maestro Consumer Name %s: %w", maestroSourceID, provisionShardMaestroConsumerName, err))
 	}
 
-	manifestWorkGK := schema.GroupResource{Group: "work.open-cluster-management.io", Resource: "manifestworks"}
-	logger.Info("listing maestro bundles with source ID %s, Maestro Consumer Name %s and GroupResource %s", maestroSourceID, provisionShardMaestroConsumerName, manifestWorkGK)
-	err = c.listAndLogMaestroBundlesWithSourceIDAndConsumerNameWithManifestConfigsMatchingGR(ctx, maestroClient, manifestWorkGK)
+	manifestWorkGR := schema.GroupResource{Group: "work.open-cluster-management.io", Resource: "manifestworks"}
+	logger.Info(fmt.Sprintf("listing maestro bundles with source ID %s, Maestro Consumer Name %s and GroupResource %s", maestroSourceID, provisionShardMaestroConsumerName, manifestWorkGR))
+	err = c.listAndLogMaestroBundlesWithSourceIDAndConsumerNameWithManifestConfigsMatchingGR(ctx, maestroClient, manifestWorkGR)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to log Maestro Bundles with Source ID %s and Maestro Consumer Name %s: %w", maestroSourceID, provisionShardMaestroConsumerName, err))
 	}
@@ -151,6 +152,8 @@ func (c *maestroShowcaseSyncer) CooldownChecker() controllerutils.CooldownChecke
 func (c *maestroShowcaseSyncer) createSimpleMaestroClient(
 	ctx context.Context, clusterProvisionShard *arohcpv1alpha1.ProvisionShard,
 ) (maestro.SimpleMaestroClient, error) {
+	logger := utils.LoggerFromContext(ctx)
+
 	provisionShardMaestroConsumerName := clusterProvisionShard.MaestroConfig().ConsumerName()
 	provisionShardMaestroRESTAPIEndpoint := clusterProvisionShard.MaestroConfig().RestApiConfig().Url()
 	provisionShardMaestroGRPCAPIEndpoint := clusterProvisionShard.MaestroConfig().GrpcApiConfig().Url()
@@ -158,13 +161,13 @@ func (c *maestroShowcaseSyncer) createSimpleMaestroClient(
 	// provision shard and environment. This should have the same source ID as what CS has in each corresponding environment
 	// because otherwise we would not have visibility on the Maestro Bundles owned
 	maestroSourceID := maestro.GenerateMaestroSourceID(c.maestroSourceEnvironmentIdentifier, clusterProvisionShard.ID())
-	maestroClient, err := maestro.NewSimpleMaestroClient(
-		ctx,
-		provisionShardMaestroRESTAPIEndpoint,
-		provisionShardMaestroGRPCAPIEndpoint,
-		provisionShardMaestroConsumerName,
-		maestroSourceID,
+	logger.Info(fmt.Sprintf(
+		"creating simple maestro client with source ID %s, Maestro Consumer Name %s, REST API Endpoint %s, GRPC API Endpoint %s",
+		maestroSourceID, provisionShardMaestroConsumerName, provisionShardMaestroRESTAPIEndpoint, provisionShardMaestroGRPCAPIEndpoint),
 	)
+
+	maestroClient, err := maestro.NewSimpleMaestroClient(ctx, provisionShardMaestroRESTAPIEndpoint, provisionShardMaestroGRPCAPIEndpoint, provisionShardMaestroConsumerName, maestroSourceID)
+
 	return maestroClient, err
 }
 
@@ -185,11 +188,11 @@ func (c *maestroShowcaseSyncer) listAndLogAllMaestroBundlesWithSourceIDAndConsum
 // resources inside those are not considered. Note: workv1.ResourceIdentifier has Group and
 // Resource (plural resource name), not Version or Kind; field selector support depends on
 // the ManifestWork CRD's selectableFields.
-func (c *maestroShowcaseSyncer) listAndLogMaestroBundlesWithSourceIDAndConsumerNameWithManifestConfigsMatchingGR(ctx context.Context, maestroClient maestro.SimpleMaestroClient, gk schema.GroupResource) error {
+func (c *maestroShowcaseSyncer) listAndLogMaestroBundlesWithSourceIDAndConsumerNameWithManifestConfigsMatchingGR(ctx context.Context, maestroClient maestro.SimpleMaestroClient, gr schema.GroupResource) error {
 	// ResourceIdentifier has: Group, Resource, Name, Namespace (no Version or Kind).
 	selectors := []string{
-		fmt.Sprintf("spec.manifestConfigs.resourceIdentifier.group=%s", gk.Group),
-		fmt.Sprintf("spec.manifestConfigs.resourceIdentifier.resource=%s", gk.Resource),
+		fmt.Sprintf("spec.manifestConfigs.resourceIdentifier.group=%s", gr.Group),
+		fmt.Sprintf("spec.manifestConfigs.resourceIdentifier.resource=%s", gr.Resource),
 	}
 
 	listOptions := metav1.ListOptions{
@@ -206,12 +209,7 @@ func (c *maestroShowcaseSyncer) listAndLogMaestroBundlesWithSourceIDAndConsumerN
 	// they are not filtered to a particular cluster.
 	// It should be possible to reconstruct the bundle name by using the same algorithm that CS uses to generate them but
 	// it requires knowing the GVK, K8s Name and K8s Namespace of the resource that is put within the bundle. Knowing those
-	// in advance is challenging as they do not follow a consistent pattern. For example, for the ACM ManifestWork that
-	// contains the HostedCluster (along with other resources within that ManifestWork) the ManifestWork `name` is the
-	// CS Cluster ID and the ManifestWork `namespace` is the `local-cluster` namespace., we allso know the typemeta
-	// so it should be possible to reconstruct but that changes depending on the resource type. Also, it is not possible
-	// to directly filter by attributes of the resource within the Maestro Bundle TODO figure if this last statement
-	// is accurate or not.
+	// in advance is challenging as they do not follow a consistent pattern.
 	logger.Info("listing maestro bundles with list options", "listOptions", listOptions)
 	maestroBundlesList, err := maestroClient.ListMaestroBundles(ctx, listOptions)
 	if err != nil {
@@ -231,7 +229,10 @@ func (c *maestroShowcaseSyncer) listAndLogMaestroBundlesWithSourceIDAndConsumerN
 func (c *maestroShowcaseSyncer) logMaestroBundles(ctx context.Context, maestroBundlesList *workv1.ManifestWorkList) error {
 	logger := utils.LoggerFromContext(ctx)
 	logger.Info("logging maestro bundles")
-	for _, maestroBundle := range maestroBundlesList.Items {
+	for idx, maestroBundle := range maestroBundlesList.Items {
+		logger = logger.WithValues("bundleIndex", idx)
+		ctx = utils.ContextWithLogger(ctx, logger)
+		logger.Info("logging maestro bundle")
 		// Redact sensitive data (e.g. Secrets, nested ManifestWorks containing
 		// Secrets, status feedback JsonRaw with serialized Secrets) before any
 		// logging to prevent leaking credentials or other confidential material.
@@ -246,8 +247,12 @@ func (c *maestroShowcaseSyncer) logMaestroBundles(ctx context.Context, maestroBu
 		maestroBundleNamespace := redactedBundle.GetNamespace()
 		maestroBundleUID := redactedBundle.GetUID()
 		maestroBundleStatus := redactedBundle.Status
+		maestroBundleMetaName := redactedBundle.ObjectMeta.Name
 		maestroBundleManifestConfigs := redactedBundle.Spec.ManifestConfigs
-		logger.Info("maestro bundle", "name", maestroBundleName, "namespace", maestroBundleNamespace, "uid", maestroBundleUID)
+		logger = logger.WithValues("bundleName", maestroBundleName, "bundleNamespace", maestroBundleNamespace, "bundleUID", maestroBundleUID, "bundleMetaName", maestroBundleMetaName)
+		ctx = utils.ContextWithLogger(ctx, logger)
+		logger.Info("maestro logging basic information")
+
 		if maestroBundleStatusJSON, err := json.Marshal(maestroBundleStatus); err != nil {
 			logger.Error(err, "failed to marshal maestro bundle status")
 		} else {
@@ -283,13 +288,13 @@ func (c *maestroShowcaseSyncer) logMaestroBundles(ctx context.Context, maestroBu
 				resourceGVK = gvk
 			}
 		}
-		logger.Info("maestro bundle manifest resource", "gvk", resourceGVK)
+		logger.Info("maestro bundle manifest resource gvk", "gvk", resourceGVK)
 
 		resourceJSON, err := resource.MarshalJSON()
 		if err != nil {
 			logger.Error(err, "failed to marshal manifest resource to JSON")
 		} else {
-			logger.Info("maestro bundle manifest resource", "json", string(resourceJSON))
+			logger.Info("maestro bundle manifest resource", "bundleManifestResource", string(resourceJSON))
 		}
 	}
 
