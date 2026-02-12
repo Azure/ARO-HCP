@@ -23,7 +23,5 @@ tests:
         name: cluster-1
       exp_annotations:
         summary: "Cluster hcp-ns-1 stuck deleting"
-        description: |
-          Cluster hcp-ns-1 has been in a deleting state for more than 2 hours.
-          This may indicate that finalizers are stuck or resources are failing to cleanup.
+        description: "Cluster hcp-ns-1 has been in a deleting state for more than 2 hours. \nThis may indicate that finalizers are stuck or resources are failing to cleanup.\n"
         runbook_url: TBD

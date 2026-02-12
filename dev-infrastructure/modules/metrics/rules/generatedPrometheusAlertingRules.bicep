@@ -588,10 +588,10 @@ resource hcpDeletionRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-
         }
         annotations: {
           correlationId: 'HCPClusterStuckDeleting/{{ $labels.cluster }}/{{ $labels.exported_namespace }}'
-          description: '''Cluster {{ $labels.exported_namespace }} has been in a deleting state for more than 2 hours.
+          description: '''Cluster {{ $labels.exported_namespace }} has been in a deleting state for more than 2 hours. 
 This may indicate that finalizers are stuck or resources are failing to cleanup.
 '''
-          info: '''Cluster {{ $labels.exported_namespace }} has been in a deleting state for more than 2 hours.
+          info: '''Cluster {{ $labels.exported_namespace }} has been in a deleting state for more than 2 hours. 
 This may indicate that finalizers are stuck or resources are failing to cleanup.
 '''
           runbook_url: 'TBD'
