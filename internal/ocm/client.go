@@ -148,26 +148,6 @@ func NewClusterServiceClient(conn *sdk.Connection, provisionShardID string, prov
 	}
 }
 
-// addClientProperties merges client-level properties (provision shard, noop
-// flags) into a built Cluster object, preserving any properties already set
-// by BuildCSCluster (e.g., experimental features).
-func (csc *clusterServiceClient) addClientProperties(cluster *arohcpv1alpha1.Cluster) (*arohcpv1alpha1.Cluster, error) {
-	properties := map[string]string{}
-	for k, v := range cluster.Properties() {
-		properties[k] = v
-	}
-	if csc.provisionShardID != "" {
-		properties["provision_shard_id"] = csc.provisionShardID
-	}
-	if csc.provisionerNoOpProvision {
-		properties["provisioner_noop_provision"] = "true"
-	}
-	if csc.provisionerNoOpDeprovision {
-		properties["provisioner_noop_deprovision"] = "true"
-	}
-	return arohcpv1alpha1.NewCluster().Copy(cluster).Properties(properties).Build()
-}
-
 // resolveClusterLinks replaces link objects with full objects that are
 // necessary to fully construct an HCPOpenShiftCluster model.
 func resolveClusterLinks(ctx context.Context, conn *sdk.Connection, cluster *arohcpv1alpha1.Cluster) (*arohcpv1alpha1.Cluster, error) {
@@ -272,10 +252,7 @@ func (csc *clusterServiceClient) PostCluster(ctx context.Context, clusterBuilder
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}
-	cluster, err = csc.addClientProperties(cluster)
-	if err != nil {
-		return nil, utils.TrackError(err)
-	}
+
 	clustersAddResponse, err := csc.conn.AroHCP().V1alpha1().Clusters().Add().Body(cluster).SendContext(ctx)
 	if err != nil {
 		return nil, utils.TrackError(err)
@@ -289,10 +266,6 @@ func (csc *clusterServiceClient) PostCluster(ctx context.Context, clusterBuilder
 
 func (csc *clusterServiceClient) UpdateCluster(ctx context.Context, internalID InternalID, builder *arohcpv1alpha1.ClusterBuilder) (*arohcpv1alpha1.Cluster, error) {
 	cluster, err := builder.Build()
-	if err != nil {
-		return nil, utils.TrackError(err)
-	}
-	cluster, err = csc.addClientProperties(cluster)
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}
