@@ -67,6 +67,8 @@ type Operation struct {
 
 	// StartTime marks the start of the operation
 	StartTime time.Time `json:"startTime,omitempty"`
+	// Dispatched is true when the operation has been dispatched to external services
+	Dispatched bool `json:"dispatched,omitempty"`
 	// LastTransitionTime marks the most recent state change
 	LastTransitionTime time.Time `json:"lastTransitionTime,omitempty"`
 	// Status is the current operation status, using the same set of values
@@ -74,6 +76,15 @@ type Operation struct {
 	Status arm.ProvisioningState `json:"status,omitempty"`
 	// Error is an OData error, present when Status is "Failed" or "Canceled"
 	Error *arm.CloudErrorBody `json:"error,omitempty"`
+}
+
+// ShouldPoll returns true if the operation is in a state where Cluster
+// Service should be polled for status updates. This has two conditions:
+// 1. the operation must be ongoing (have a non-terminal status), and 2.
+// the appropriate request(s) have been dispatched to Cluster Service to
+// initiate the asynchronous operation.
+func (o *Operation) ShouldPoll() bool {
+	return !o.Status.IsTerminal() && o.Dispatched
 }
 
 func (o *Operation) ComputeLogicalResourceID() *azcorearm.ResourceID {

@@ -48,7 +48,7 @@ func NewOperationRequestCredentialSynchronizer(
 }
 
 func (opsync *operationRequestCredential) ShouldProcess(ctx context.Context, operation *api.Operation) bool {
-	if operation.Status.IsTerminal() {
+	if !operation.ShouldPoll() {
 		return false
 	}
 	if operation.Request != database.OperationRequestRequestCredential {
