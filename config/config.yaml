@@ -348,6 +348,7 @@ defaults:
       networkDataplane: "cilium"
       networkPolicy: "cilium"
       systemAgentPool:
+        name: 'system'
         minCount: 1
         maxCount: 3
         vmSize: 'Standard_D2s_v3'
@@ -356,6 +357,7 @@ defaults:
         zones: ""
         zoneRedundantMode: "Auto"
       userAgentPool:
+        name: 'user'
         minCount: 1
         maxCount: 3
         vmSize: 'Standard_D2s_v3'
@@ -364,6 +366,7 @@ defaults:
         zones: ""
         zoneRedundantMode: "Auto"
       infraAgentPool:
+        name: 'infra'
         minCount: 1
         maxCount: 3
         vmSize: 'Standard_D4ds_v5'
@@ -469,6 +472,7 @@ defaults:
         tagKey: aroHCPPurpose
         tagValue: etcd-encryption
       systemAgentPool:
+        name: 'system'
         vmSize: 'Standard_E8ds_v6'
         osDiskSizeGB: 128
         minCount: 1
@@ -476,6 +480,7 @@ defaults:
         zones: ""
         zoneRedundantMode: "Auto"
       userAgentPool:
+        name: 'user'
         vmSize: 'Standard_E32ds_v6'
         osDiskSizeGB: 512
         minCount: 1
@@ -483,6 +488,7 @@ defaults:
         zones: ""
         zoneRedundantMode: "Auto"
       infraAgentPool:
+        name: 'infra'
         minCount: 1
         maxCount: 3
         vmSize: 'Standard_D4ds_v5'
