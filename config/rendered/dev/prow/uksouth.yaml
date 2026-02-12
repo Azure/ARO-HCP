@@ -468,7 +468,7 @@ mgmt:
       maxCount: 4
       minCount: 1
       name: system
-      osDiskSizeGB: 64
+      osDiskSizeGB: 48
       poolCount: 1
       vmSize: Standard_E2s_v3
       zoneRedundantMode: Auto
@@ -751,7 +751,7 @@ svc:
       maxCount: 3
       minCount: 1
       name: system
-      osDiskSizeGB: 64
+      osDiskSizeGB: 48
       poolCount: 1
       vmSize: Standard_E2s_v3
       zoneRedundantMode: Auto
