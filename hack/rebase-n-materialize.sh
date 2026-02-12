@@ -2,7 +2,7 @@
 
 # Configuration
 export GIT_EDITOR=true
-autoresolve_files="config/dev.digests.yaml config/rendered"
+autoresolve_files="config/rendered"
 
 # Function to get list of conflicted files
 get_conflicted_files() {
