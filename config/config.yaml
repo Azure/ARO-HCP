@@ -1441,6 +1441,6 @@ clouds:
             jaeger:
               deploy: true
         regions:
-          westus3:
+          uksouth:
             monitoring:
               alertsEnabled: true
