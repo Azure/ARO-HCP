@@ -1452,6 +1452,7 @@ clouds:
               aks:
                 systemAgentPool:
                   vmSize: Standard_E2s_v3
+                  osDiskSizeGB: 48 # Max allowed for Standard_E2s_v3
                 userAgentPool:
                   vmSize: Standard_E4s_v3
                 infraAgentPool:
@@ -1460,6 +1461,7 @@ clouds:
               aks:
                 systemAgentPool:
                   vmSize: Standard_E2s_v3
+                  osDiskSizeGB: 48 # Max allowed for Standard_E2s_v3
                 userAgentPool:
                   vmSize: Standard_E4s_v3
                 infraAgentPool:
