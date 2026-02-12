@@ -18,6 +18,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"hash/crc32"
 	"maps"
 	"math/rand"
 	"net/http"
@@ -327,7 +328,13 @@ func doWaitForDeployment(ctx context.Context, bicepClient *bicep.LSPClient, clie
 	}
 	// for retries, append retry attempt to deployment name so we can keep the previous failed deployment around for debugging purposes
 	if retryAttempt > 0 {
-		deploymentName = fmt.Sprintf("%s-r%d", deploymentName, retryAttempt)
+		checksum := fmt.Sprintf("%08x", crc32.ChecksumIEEE([]byte(deploymentName)))
+		suffix := fmt.Sprintf("-r%d-%s", retryAttempt, checksum)
+		maxBaseLen := 64 - len(suffix)
+		if len(deploymentName) > maxBaseLen {
+			deploymentName = deploymentName[:maxBaseLen]
+		}
+		deploymentName += suffix
 	}
 
 	var output ArmOutput

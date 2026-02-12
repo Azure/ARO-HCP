@@ -35,7 +35,7 @@ resourceGroups:
       errorContainsAny:
       - "unknown_storage_failure"
       maximumRetryCount: 5
-      durationBetweenRetries: 30s
+      durationBetweenRetries: 1m
   - name: mirror-blackbox-image
     action: ImageMirror
     targetACR:
@@ -59,7 +59,7 @@ resourceGroups:
       errorContainsAny:
       - "unknown_storage_failure"
       maximumRetryCount: 5
-      durationBetweenRetries: 30s
+      durationBetweenRetries: 1m
 - name: kusto
   resourceGroup: '{{ .kusto.rg }}'
   subscription: '{{ .global.subscription.key }}'

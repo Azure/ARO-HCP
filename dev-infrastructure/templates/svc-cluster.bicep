@@ -17,6 +17,9 @@ var locationAvailabilityZoneList = csvToArray(locationAvailabilityZones)
 @description('AKS cluster name')
 param aksClusterName string
 
+@description('Name of the system agent pool')
+param systemAgentPoolName string
+
 @description('Minimum node count for system agent pool')
 param systemAgentMinCount int
 
@@ -44,6 +47,9 @@ param aksNetworkDataplane string
 @description('Network policy plugin for the AKS cluster')
 param aksNetworkPolicy string
 
+@description('Name of the user agent pool')
+param userAgentPoolName string
+
 @description('Min replicas for the worker nodes')
 param userAgentMinCount int
 
@@ -61,6 +67,9 @@ param userAgentPoolZones string
 
 @description('Zone redundant mode for the user nodes')
 param userZoneRedundantMode string
+
+@description('Name of the infra agent pool')
+param infraAgentPoolName string
 
 @description('Min replicas for the infra worker nodes')
 param infraAgentMinCount int
@@ -128,6 +137,12 @@ param istioIngressGatewayIPAddressName string = ''
 
 @description('IPTags to be set on the Istio Ingress Gateway IP address in the format of ipTagType:tag,ipTagType:tag')
 param istioIngressGatewayIPAddressIPTags string = ''
+
+@description('Admin API Istio Ingress Gateway IP Address Name')
+param opsIngressGatewayIPAddressName string = ''
+
+@description('IPTags to be set on the Admin API Istio Ingress Gateway IP address in the format of ipTagType:tag,ipTagType:tag')
+param opsIngressGatewayIPAddressTags string = ''
 
 // TODO: When the work around workload identity for the RP is finalized, change this to true
 @description('disableLocalAuth for the ARO HCP RP CosmosDB')
@@ -321,6 +336,9 @@ param manageFpaCertificate bool
 @description('The service tag for Geneva Actions')
 param genevaActionsServiceTag string
 
+@description('The service tag for SRE access')
+param sreServiceTag string
+
 @description('The Azure Resource ID of the Azure Monitor Workspace (stores prometheus metrics)')
 param azureMonitoringWorkspaceId string
 
@@ -477,6 +495,33 @@ module managedIdentities '../modules/managed-identities.bicep' = {
 //   A K S
 //
 
+resource aksClusterUserDefinedManagedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
+  name: '${aksClusterName}-msi'
+  location: location
+}
+
+module istioIngressGatewayIPAddress '../modules/network/publicipaddress.bicep' = {
+  name: istioIngressGatewayIPAddressName
+  scope: resourceGroup(regionalResourceGroup)
+  params: {
+    name: istioIngressGatewayIPAddressName
+    ipTags: istioIngressGatewayIPAddressIPTags
+    location: location
+    zones: locationAvailabilityZoneList
+    // Role Assignment needed for the public IP address to be used on the Load Balancer
+    roleAssignmentProperties: {
+      principalId: aksClusterUserDefinedManagedIdentity.properties.principalId
+      principalType: 'ServicePrincipal'
+      // Network Contributor Role
+      // https://www.azadvertizer.net/azrolesadvertizer/4d97b98b-1d4f-4787-a291-c67834d212e7.html
+      roleDefinitionId: subscriptionResourceId(
+        'Microsoft.Authorization/roleDefinitions/',
+        '4d97b98b-1d4f-4787-a291-c67834d212e7'
+      )
+    }
+  }
+}
+
 resource svcClusterNSG 'Microsoft.Network/networkSecurityGroups@2023-11-01' = {
   location: location
   name: 'svc-cluster-node-nsg'
@@ -486,7 +531,7 @@ resource svcClusterNSG 'Microsoft.Network/networkSecurityGroups@2023-11-01' = {
         name: 'rp-in-arm'
         properties: {
           access: 'Allow'
-          destinationAddressPrefix: '*'
+          destinationAddressPrefix: istioIngressGatewayIPAddress.outputs.ipAddress
           destinationPortRange: '443'
           direction: 'Inbound'
           priority: 120
@@ -499,7 +544,9 @@ resource svcClusterNSG 'Microsoft.Network/networkSecurityGroups@2023-11-01' = {
         name: 'admin-in-geneva'
         properties: {
           access: 'Allow'
-          destinationAddressPrefix: '*'
+          destinationAddressPrefix: istioIngressGatewayIPAddress.outputs.ipAddress
+          // TODO: ops-ingress phase 3: switch to ops IP
+          // destinationAddressPrefix: opsIngressGatewayIPAddress.outputs.ipAddress
           destinationPortRange: '443'
           direction: 'Inbound'
           priority: 130
@@ -508,6 +555,20 @@ resource svcClusterNSG 'Microsoft.Network/networkSecurityGroups@2023-11-01' = {
           sourcePortRange: '*'
         }
       }
+      // TODO: ops-ingress phase 3: add SRE ingress rule for breakglass
+      // {
+      //   name: 'sre-in-ops'
+      //   properties: {
+      //     access: 'Allow'
+      //     destinationAddressPrefix: opsIngressGatewayIPAddress.outputs.ipAddress
+      //     destinationPortRange: '443'
+      //     direction: 'Inbound'
+      //     priority: 140
+      //     protocol: 'Tcp'
+      //     sourceAddressPrefix: sreServiceTag != '' ? sreServiceTag : '*'
+      //     sourcePortRange: '*'
+      //   }
+      // }
     ]
   }
 }
@@ -553,13 +614,12 @@ module svcCluster '../modules/aks-cluster-base.bicep' = {
     kubernetesVersion: kubernetesVersion
     deployIstio: true
     istioVersions: split(istioVersions, ',')
-    istioIngressGatewayIPAddressName: istioIngressGatewayIPAddressName
-    istioIngressGatewayIPAddressIPTags: istioIngressGatewayIPAddressIPTags
     vnetName: vnetName
     nodeSubnetId: nodeSubnetCreation.outputs.subnetId
     podSubnetPrefix: podSubnetPrefix
     clusterType: 'svc-cluster'
     userOsDiskSizeGB: userOsDiskSizeGB
+    userAgentPoolName: userAgentPoolName
     userAgentMinCount: userAgentMinCount
     userAgentMaxCount: userAgentMaxCount
     userAgentVMSize: userAgentVMSize
@@ -568,6 +628,7 @@ module svcCluster '../modules/aks-cluster-base.bicep' = {
       ? csvToArray(userAgentPoolZones)
       : locationAvailabilityZoneList
     userZoneRedundantMode: userZoneRedundantMode
+    infraAgentPoolName: infraAgentPoolName
     infraAgentMinCount: infraAgentMinCount
     infraAgentMaxCount: infraAgentMaxCount
     infraAgentVMSize: infraAgentVMSize
@@ -578,6 +639,7 @@ module svcCluster '../modules/aks-cluster-base.bicep' = {
     infraOsDiskSizeGB: infraOsDiskSizeGB
     infraZoneRedundantMode: infraZoneRedundantMode
     systemOsDiskSizeGB: aksSystemOsDiskSizeGB
+    systemAgentPoolName: systemAgentPoolName
     systemAgentMinCount: systemAgentMinCount
     systemAgentMaxCount: systemAgentMaxCount
     systemAgentVMSize: systemAgentVMSize
@@ -595,6 +657,7 @@ module svcCluster '../modules/aks-cluster-base.bicep' = {
     deploymentMsiId: globalMSIId
     enableSwiftV2Nodepools: false
     owningTeamTagValue: owningTeamTagValue
+    aksClusterUserDefinedManagedIdentityName: aksClusterUserDefinedManagedIdentity.name
   }
   dependsOn: [
     managedIdentities
@@ -602,6 +665,33 @@ module svcCluster '../modules/aks-cluster-base.bicep' = {
 }
 
 output aksClusterName string = svcCluster.outputs.aksClusterName
+
+//
+//   O P S   I N G R E S S   P U B L I C   I P
+//
+
+// TODO: ops-ingress phase 2: add ops ingress gateway IP address
+// module opsIngressGatewayIPAddress '../modules/network/publicipaddress.bicep' = if (!empty(opsIngressGatewayIPAddressName)) {
+//   name: opsIngressGatewayIPAddressName
+//   scope: resourceGroup(regionalResourceGroup)
+//   params: {
+//     name: opsIngressGatewayIPAddressName
+//     ipTags: opsIngressGatewayIPAddressTags
+//     location: location
+//     zones: length(locationAvailabilityZoneList) > 0 ? locationAvailabilityZoneList : null
+//     // Role Assignment needed for the public IP address to be used on the Load Balancer
+//     roleAssignmentProperties: {
+//       principalId: aksClusterUserDefinedManagedIdentity.properties.principalId
+//       principalType: 'ServicePrincipal'
+//       // Network Contributor Role - needed for the AKS managed identity to use the public IP on the LoadBalancer
+//       // https://www.azadvertizer.net/azrolesadvertizer/4d97b98b-1d4f-4787-a291-c67834d212e7.html
+//       roleDefinitionId: subscriptionResourceId(
+//         'Microsoft.Authorization/roleDefinitions/',
+//         '4d97b98b-1d4f-4787-a291-c67834d212e7'
+//       )
+//     }
+//   }
+// }
 
 //
 // M E T R I C S
@@ -897,7 +987,7 @@ module frontendDNS '../modules/dns/a-record.bicep' = {
   params: {
     zoneName: regionalSvcDNSZoneName
     recordName: frontendDnsName
-    ipAddress: svcCluster.outputs.istioIngressGatewayIPAddress
+    ipAddress: istioIngressGatewayIPAddress.outputs.ipAddress
     ttl: 300
   }
 }
@@ -935,13 +1025,14 @@ module adminApiIngressCertCSIAccess '../modules/keyvault/keyvault-secret-access.
   }
 }
 
+// TODO: ops-ingress phase 3: move DNS to ops ingress when k8s gateway is deployed to prod
 module adminApiDNS '../modules/dns/a-record.bicep' = {
   name: 'admin-api-dns'
   scope: resourceGroup(regionalResourceGroup)
   params: {
     zoneName: regionalSvcDNSZoneName
     recordName: adminApiDnsName
-    ipAddress: svcCluster.outputs.istioIngressGatewayIPAddress
+    ipAddress: istioIngressGatewayIPAddress.outputs.ipAddress
     ttl: 300
   }
 }
@@ -1042,14 +1133,16 @@ module svcKVNSPProfile '../modules/network/nsp-profile.bicep' = if (serviceKeyVa
 //
 //  A K S   D I A G N O S T I C   S E T T I N G S
 //
-module diagnosticSetting '../modules/aks/diagnostic-setting.bicep' = if (auditLogsEventHubAuthRuleId != '') {
-  name: 'aks-diagnostic-setting'
-  dependsOn: [
-    svcCluster
-  ]
-  params: {
-    aksClusterName: aksClusterName
-    auditLogsEventHubName: auditLogsEventHubName
-    auditLogsEventHubAuthRuleId: auditLogsEventHubAuthRuleId
-  }
-}
+
+// jboll, needs to disable, cause stage deployment fails 
+// module diagnosticSetting '../modules/aks/diagnostic-setting.bicep' = if (auditLogsEventHubAuthRuleId != '') {
+//   name: 'aks-diagnostic-setting'
+//   dependsOn: [
+//     svcCluster
+//   ]
+//   params: {
+//     aksClusterName: aksClusterName
+//     auditLogsEventHubName: auditLogsEventHubName
+//     auditLogsEventHubAuthRuleId: auditLogsEventHubAuthRuleId
+//   }
+// }

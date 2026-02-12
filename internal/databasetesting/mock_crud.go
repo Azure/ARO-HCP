@@ -31,6 +31,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 // mockResourceCRUD is a generic mock implementation of database.ResourceCRUD.
@@ -144,12 +145,26 @@ func (m *mockResourceCRUD[InternalAPIType, CosmosAPIType]) Get(ctx context.Conte
 		return nil, fmt.Errorf("failed to make ResourceID path for '%s': %w", resourceID, err)
 	}
 
-	cosmosID, err := api.ResourceIDToCosmosID(completeResourceID)
+	newCosmosID, err := arm.ResourceIDToCosmosID(completeResourceID)
 	if err != nil {
 		return nil, err
 	}
 
-	return m.GetByID(ctx, cosmosID)
+	// Try the new cosmos ID first.
+	ret, newCosmosIDErr := m.GetByID(ctx, newCosmosID)
+	if newCosmosIDErr == nil {
+		return ret, nil
+	}
+	if !database.IsResponseError(newCosmosIDErr, http.StatusNotFound) {
+		return nil, newCosmosIDErr
+	}
+
+	// Not found under new ID, try the old cosmos ID format and migrate if found.
+	oldCosmosID, err := database.OldResourceIDToCosmosID(completeResourceID)
+	if err != nil {
+		return nil, err
+	}
+	return m.GetByID(ctx, oldCosmosID)
 }
 
 func (m *mockResourceCRUD[InternalAPIType, CosmosAPIType]) List(ctx context.Context, opts *database.DBClientListResourceDocsOptions) (database.DBClientIterator[InternalAPIType], error) {
@@ -199,7 +214,7 @@ func (m *mockResourceCRUD[InternalAPIType, CosmosAPIType]) Create(ctx context.Co
 	}
 
 	// Get cosmos ID from the object
-	cosmosPersistable, ok := any(newObj).(api.CosmosPersistable)
+	cosmosPersistable, ok := any(newObj).(arm.CosmosPersistable)
 	if !ok {
 		return nil, fmt.Errorf("type %T does not implement CosmosPersistable", newObj)
 	}
@@ -235,7 +250,7 @@ func (m *mockResourceCRUD[InternalAPIType, CosmosAPIType]) Replace(ctx context.C
 	}
 
 	// Get cosmos ID and etag from the object
-	cosmosPersistable, ok := any(newObj).(api.CosmosPersistable)
+	cosmosPersistable, ok := any(newObj).(arm.CosmosPersistable)
 	if !ok {
 		return nil, fmt.Errorf("type %T does not implement CosmosPersistable", newObj)
 	}
@@ -243,15 +258,14 @@ func (m *mockResourceCRUD[InternalAPIType, CosmosAPIType]) Replace(ctx context.C
 	cosmosData := cosmosPersistable.GetCosmosData()
 	cosmosID := cosmosData.GetCosmosUID()
 
-	// Check that document exists
-	existingData, exists := m.client.GetDocument(cosmosID)
-	if !exists {
-		return nil, database.NewNotFoundError()
+	oldObj, err := m.Get(ctx, cosmosPersistable.GetCosmosData().GetResourceID().Name)
+	if err != nil {
+		return nil, utils.TrackError(err)
 	}
+	storedETag := any(oldObj).(arm.CosmosPersistable).GetCosmosData().CosmosETag
 
 	// Check etag if one is provided
 	if len(cosmosData.CosmosETag) > 0 {
-		storedETag := getStoredETag(existingData)
 		if storedETag != cosmosData.CosmosETag {
 			return nil, NewPreconditionFailedError()
 		}
@@ -274,7 +288,7 @@ func (m *mockResourceCRUD[InternalAPIType, CosmosAPIType]) Delete(ctx context.Co
 		return err
 	}
 
-	cosmosUID := any(curr).(api.CosmosPersistable).GetCosmosData().GetCosmosUID()
+	cosmosUID := any(curr).(arm.CosmosPersistable).GetCosmosData().GetCosmosUID()
 	m.client.DeleteDocument(cosmosUID)
 	return nil
 }
@@ -290,7 +304,7 @@ func (m *mockResourceCRUD[InternalAPIType, CosmosAPIType]) AddCreateToTransactio
 		return "", fmt.Errorf("failed to marshal cosmos object: %w", err)
 	}
 
-	cosmosPersistable, ok := any(newObj).(api.CosmosPersistable)
+	cosmosPersistable, ok := any(newObj).(arm.CosmosPersistable)
 	if !ok {
 		return "", fmt.Errorf("type %T does not implement CosmosPersistable", newObj)
 	}
@@ -336,7 +350,7 @@ func (m *mockResourceCRUD[InternalAPIType, CosmosAPIType]) AddReplaceToTransacti
 		return "", fmt.Errorf("failed to marshal cosmos object: %w", err)
 	}
 
-	cosmosPersistable, ok := any(newObj).(api.CosmosPersistable)
+	cosmosPersistable, ok := any(newObj).(arm.CosmosPersistable)
 	if !ok {
 		return "", fmt.Errorf("type %T does not implement CosmosPersistable", newObj)
 	}
@@ -591,23 +605,26 @@ func (m *mockSubscriptionCRUD) Get(ctx context.Context, resourceName string) (*a
 		return nil, fmt.Errorf("failed to make ResourceID path for '%s': %w", resourceName, err)
 	}
 
-	cosmosID, err := api.ResourceIDToCosmosID(completeResourceID)
+	newCosmosID, err := arm.ResourceIDToCosmosID(completeResourceID)
 	if err != nil {
 		return nil, err
 	}
 
-	// Try exact match first
-	result, err := m.GetByID(ctx, cosmosID)
+	// Try new cosmos ID first.
+	result, err := m.GetByID(ctx, newCosmosID)
 	if err == nil {
 		return result, nil
 	}
-
-	// If not found by new ID, try old lookup
 	if !database.IsResponseError(err, http.StatusNotFound) {
 		return nil, err
 	}
 
-	return m.GetByID(ctx, resourceName)
+	// Not found under new ID, try the old cosmos ID format and migrate if found.
+	oldCosmosID, err := database.OldResourceIDToCosmosID(completeResourceID)
+	if err != nil {
+		return nil, err
+	}
+	return m.GetByID(ctx, oldCosmosID)
 }
 
 func (m *mockSubscriptionCRUD) List(ctx context.Context, options *database.DBClientListResourceDocsOptions) (database.DBClientIterator[arm.Subscription], error) {
@@ -698,17 +715,12 @@ func (m *mockSubscriptionCRUD) Replace(ctx context.Context, newObj *arm.Subscrip
 }
 
 func (m *mockSubscriptionCRUD) Delete(ctx context.Context, resourceName string) error {
-	completeResourceID, err := arm.ToSubscriptionResourceID(resourceName)
+	existing, err := m.Get(ctx, resourceName)
 	if err != nil {
-		return fmt.Errorf("failed to make ResourceID path for '%s': %w", resourceName, err)
+		return utils.TrackError(err)
 	}
 
-	cosmosID, err := api.ResourceIDToCosmosID(completeResourceID)
-	if err != nil {
-		return err
-	}
-
-	m.client.DeleteDocument(cosmosID)
+	m.client.DeleteDocument(existing.GetCosmosUID())
 	return nil
 }
 
@@ -822,6 +834,20 @@ func newMockServiceProviderClusterCRUD(client *MockDBClient, parentResourceID *a
 
 var _ database.ServiceProviderClusterCRUD = &mockServiceProviderClusterCRUD{}
 
+// mockServiceProviderNodePoolCRUD implements database.ServiceProviderNodePoolCRUD.
+type mockServiceProviderNodePoolCRUD struct {
+	*mockResourceCRUD[api.ServiceProviderNodePool, database.GenericDocument[api.ServiceProviderNodePool]]
+}
+
+func newMockServiceProviderNodePoolCRUD(client *MockDBClient, parentResourceID *azcorearm.ResourceID) *mockServiceProviderNodePoolCRUD {
+	return &mockServiceProviderNodePoolCRUD{
+		mockResourceCRUD: newMockResourceCRUD[api.ServiceProviderNodePool, database.GenericDocument[api.ServiceProviderNodePool]](
+			client, parentResourceID, api.ServiceProviderNodePoolResourceType),
+	}
+}
+
+var _ database.ServiceProviderNodePoolCRUD = &mockServiceProviderNodePoolCRUD{}
+
 // mockUntypedCRUD implements database.UntypedResourceCRUD.
 type mockUntypedCRUD struct {
 	client           *MockDBClient
@@ -840,49 +866,35 @@ func (m *mockUntypedCRUD) Get(ctx context.Context, resourceID *azcorearm.Resourc
 		return nil, fmt.Errorf("resourceID %q must be a descendent of parentResourceID %q", resourceID.String(), m.parentResourceID.String())
 	}
 
-	cosmosID, err := api.ResourceIDToCosmosID(resourceID)
+	newCosmosID, err := arm.ResourceIDToCosmosID(resourceID)
 	if err != nil {
 		return nil, err
 	}
 
-	data, ok := m.client.GetDocument(cosmosID)
-	if !ok {
-		// Search by resourceID
-		allDocs := m.client.GetAllDocuments()
-
-		for _, docData := range allDocs {
-			var typedDoc database.TypedDocument
-			if err := json.Unmarshal(docData, &typedDoc); err != nil {
-				continue
-			}
-
-			var props map[string]any
-			if err := json.Unmarshal(typedDoc.Properties, &props); err != nil {
-				continue
-			}
-
-			resourceIDStr, ok := props["resourceId"].(string)
-			if !ok {
-				continue
-			}
-
-			if strings.EqualFold(resourceIDStr, resourceID.String()) {
-				if err := json.Unmarshal(docData, &typedDoc); err != nil {
-					continue
-				}
-				return &typedDoc, nil
-			}
+	data, ok := m.client.GetDocument(newCosmosID)
+	if ok {
+		var typedDoc database.TypedDocument
+		if err := json.Unmarshal(data, &typedDoc); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal document: %w", err)
 		}
-
-		return nil, database.NewNotFoundError()
+		return database.CosmosToInternal[database.TypedDocument, database.TypedDocument](&typedDoc)
 	}
 
-	var typedDoc database.TypedDocument
-	if err := json.Unmarshal(data, &typedDoc); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal document: %w", err)
+	// Not found under new ID, try the old cosmos ID format and migrate if found.
+	oldCosmosID, err := database.OldResourceIDToCosmosID(resourceID)
+	if err != nil {
+		return nil, err
+	}
+	data, ok = m.client.GetDocument(oldCosmosID)
+	if ok {
+		var typedDoc database.TypedDocument
+		if err := json.Unmarshal(data, &typedDoc); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal document: %w", err)
+		}
+		return database.CosmosToInternal[database.TypedDocument, database.TypedDocument](&typedDoc)
 	}
 
-	return &typedDoc, nil
+	return nil, database.NewNotFoundError()
 }
 
 func (m *mockUntypedCRUD) List(ctx context.Context, opts *database.DBClientListResourceDocsOptions) (database.DBClientIterator[database.TypedDocument], error) {
@@ -934,8 +946,12 @@ func (m *mockUntypedCRUD) listInternal(ctx context.Context, opts *database.DBCli
 		}
 
 		docCopy := typedDoc
-		ids = append(ids, typedDoc.ID)
-		items = append(items, &docCopy)
+		docPointer, err := database.CosmosToInternal[database.TypedDocument, database.TypedDocument](&docCopy)
+		if err != nil {
+			continue
+		}
+		ids = append(ids, docPointer.ID)
+		items = append(items, docPointer)
 	}
 
 	return newMockIterator(ids, items), nil

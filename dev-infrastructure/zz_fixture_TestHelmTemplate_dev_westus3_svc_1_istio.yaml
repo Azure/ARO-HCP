@@ -17,6 +17,34 @@ data:
         includeRequestHeadersInCheck: ["x-ext-authz", "mise-inbound-policies-to-filter"]
         pathPrefix: "/v1/EnvoyValidateRequest"
 ---
+# Source: istio/templates/ops-ingress.gateway.yaml.commented
+# TODO: ops-ingress phase 2: rollout api gateway resources
+# TODO: remove .commented suffix when rolling
+# apiVersion: gateway.networking.k8s.io/v1
+# kind: Gateway
+# metadata:
+#   name: ops-ingress-gateway
+#   namespace: aks-istio-ingress
+# spec:
+#   gatewayClassName: istio
+#   infrastructure:
+#     annotations:
+#       service.beta.kubernetes.io/azure-pip-name: "aro-hcp-ops-ingress"
+#       service.beta.kubernetes.io/azure-load-balancer-resource-group: "hcp-underlay-dev-westus3"
+#   listeners:
+#   - name: admin-api-https
+#     port: 443
+#     protocol: HTTPS
+#     hostname: "admin.westus3.hcpsvc.osadev.cloud"
+#     tls:
+#       mode: Terminate
+#       certificateRefs:
+#       - name: admin-api-credential
+#         kind: Secret
+#     allowedRoutes:
+#       namespaces:
+#         from: All
+---
 # Source: istio/templates/strict_mtls.yml
 apiVersion: security.istio.io/v1beta1
 kind: PeerAuthentication

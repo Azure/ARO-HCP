@@ -73,8 +73,8 @@ github.com/Azure/ARO-HCP/tooling/hcpctl v0.0.0-20260113131010-8f869ff652e6 h1:p8
 github.com/Azure/ARO-HCP/tooling/hcpctl v0.0.0-20260113131010-8f869ff652e6/go.mod h1:oPokR2W+VXuygKP0gn5yU71KBsmZA8mD5GlNheHBoHs=
 github.com/Azure/ARO-HCP/tooling/templatize v0.0.0-20260107114435-98c5eb6d5d91 h1:0X36yXkzceM65M9qUD2Kcz5Dx8glBB2qt74Xx+7kJJQ=
 github.com/Azure/ARO-HCP/tooling/templatize v0.0.0-20260107114435-98c5eb6d5d91/go.mod h1:R5j2MWwCxNmf0ekPeK1k3JgzuGZ1+qWVJyQoqHJaLGs=
-github.com/Azure/ARO-Tools v0.0.0-20260206230628-bf0d350d6edb h1:giHEV0aXIV3We7Qqitbz6M4IGkZUOsfKLsQQVgXyOfg=
-github.com/Azure/ARO-Tools v0.0.0-20260206230628-bf0d350d6edb/go.mod h1:57ivOjxXfWnAC7ATstbZH2M1aXqkH/prolqMhv+Akcs=
+github.com/Azure/ARO-Tools v0.0.0-20260210222404-30605e5b1ccc h1:4juisjGut976bvYdlSzdFmwHxaChEnfeeneCUURy1Ws=
+github.com/Azure/ARO-Tools v0.0.0-20260210222404-30605e5b1ccc/go.mod h1:57ivOjxXfWnAC7ATstbZH2M1aXqkH/prolqMhv+Akcs=
 github.com/Azure/azure-kusto-go v0.16.1 h1:vCBWcQghmC1qIErUUgVNWHxGhZVStu1U/hki6iBA14k=
 github.com/Azure/azure-kusto-go v0.16.1/go.mod h1:9F2zvXH8B6eWzgI1S4k1ZXAIufnBZ1bv1cW1kB1n3D0=
 github.com/Azure/azure-sdk-for-go v68.0.0+incompatible h1:fcYLmCpyNYRnvJbPerq7U0hS+6+I79yEDJBqVNcqUzU=

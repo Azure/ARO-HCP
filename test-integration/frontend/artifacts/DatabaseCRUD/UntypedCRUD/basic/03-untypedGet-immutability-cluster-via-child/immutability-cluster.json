@@ -6,6 +6,7 @@
 	"_ts": 1764966624,
 	"id": "|subscriptions|f52dfea2-47ee-4396-8006-4a27d47d59c5|resourcegroups|some-resource-group|providers|microsoft.redhatopenshift|hcpopenshiftclusters|immutability",
 	"partitionKey": "f52dfea2-47ee-4396-8006-4a27d47d59c5",
+	"resourceID": "/subscriptions/f52dfea2-47ee-4396-8006-4a27d47d59c5/resourceGroups/some-resource-group/providers/microsoft.redhatopenshift/hcpopenshiftclusters/immutability",
 	"properties": {
 		"customerDesiredState": null,
 		"identity": {

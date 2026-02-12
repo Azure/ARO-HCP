@@ -430,6 +430,9 @@
     "aksAgentPool": {
       "type": "object",
       "properties": {
+        "name": {
+          "type": "string"
+        },
         "maxCount": {
           "type": "number"
         },
@@ -455,6 +458,7 @@
       },
       "additionalProperties": false,
       "required": [
+        "name",
         "maxCount",
         "minCount",
         "osDiskSizeGB",
@@ -2831,6 +2835,34 @@
             "ingressGatewayIPAddressName"
           ]
         },
+        "opsIngress": {
+          "type": "object",
+          "description": "Operations ingress configuration for Admin API and other ops components",
+          "properties": {
+            "gateway": {
+              "type": "object",
+              "properties": {
+                "ipAddressName": {
+                  "description": "The name of the ops ingress gateway public IP address resource",
+                  "type": "string"
+                },
+                "ipAddressTags": {
+                  "description": "IPTags to be set on the ops ingress gateway IP address",
+                  "$ref": "#/definitions/keyColonValueCSV"
+                }
+              },
+              "additionalProperties": false,
+              "required": [
+                "ipAddressName",
+                "ipAddressTags"
+              ]
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "gateway"
+          ]
+        },
         "prometheus": {
           "description": "Prometheus deployment configuration",
           "$ref": "#/definitions/prometheus"
@@ -2841,7 +2873,8 @@
         "rg",
         "subscription",
         "aks",
-        "istio"
+        "istio",
+        "opsIngress"
       ]
     },
     "acr": {
@@ -2884,12 +2917,17 @@
         },
         "releaseManagementGroupId": {
           "type": "string"
+        },
+        "sreServiceTag": {
+          "type": "string",
+          "description": "The service tag for SRE access to the service clusters operations ingress"
         }
       },
       "additionalProperties": false,
       "required": [
         "readerGroupId",
-        "releaseManagementGroupId"
+        "releaseManagementGroupId",
+        "sreServiceTag"
       ]
     },
     "keyVaultDNSSuffix": {

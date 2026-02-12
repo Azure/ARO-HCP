@@ -56,6 +56,10 @@ func NewSubscriptionInformer(lister database.GlobalLister[arm.Subscription]) cac
 func NewSubscriptionInformerWithRelistDuration(lister database.GlobalLister[arm.Subscription], relistDuration time.Duration) cache.SharedIndexInformer {
 	lw := &cache.ListWatch{
 		ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
+			logger := utils.LoggerFromContext(ctx)
+			logger.Info("listing subscriptions")
+			defer logger.Info("finished listing subscriptions")
+
 			iter, err := lister.List(ctx, nil)
 			if err != nil {
 				return nil, err
@@ -97,6 +101,10 @@ func NewClusterInformer(lister database.GlobalLister[api.HCPOpenShiftCluster]) c
 func NewClusterInformerWithRelistDuration(lister database.GlobalLister[api.HCPOpenShiftCluster], relistDuration time.Duration) cache.SharedIndexInformer {
 	lw := &cache.ListWatch{
 		ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
+			logger := utils.LoggerFromContext(ctx)
+			logger.Info("listing clusters")
+			defer logger.Info("finished listing clusters")
+
 			iter, err := lister.List(ctx, nil)
 			if err != nil {
 				return nil, err
@@ -141,6 +149,10 @@ func NewNodePoolInformer(lister database.GlobalLister[api.HCPOpenShiftClusterNod
 func NewNodePoolInformerWithRelistDuration(lister database.GlobalLister[api.HCPOpenShiftClusterNodePool], relistDuration time.Duration) cache.SharedIndexInformer {
 	lw := &cache.ListWatch{
 		ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
+			logger := utils.LoggerFromContext(ctx)
+			logger.Info("listing node pools")
+			defer logger.Info("finished listing node pools")
+
 			iter, err := lister.List(ctx, nil)
 			if err != nil {
 				return nil, err
@@ -186,6 +198,10 @@ func NewExternalAuthInformer(lister database.GlobalLister[api.HCPOpenShiftCluste
 func NewExternalAuthInformerWithRelistDuration(lister database.GlobalLister[api.HCPOpenShiftClusterExternalAuth], relistDuration time.Duration) cache.SharedIndexInformer {
 	lw := &cache.ListWatch{
 		ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
+			logger := utils.LoggerFromContext(ctx)
+			logger.Info("listing external auths")
+			defer logger.Info("finished listing external auths")
+
 			iter, err := lister.List(ctx, nil)
 			if err != nil {
 				return nil, err
@@ -231,6 +247,10 @@ func NewServiceProviderClusterInformer(lister database.GlobalLister[api.ServiceP
 func NewServiceProviderClusterInformerWithRelistDuration(lister database.GlobalLister[api.ServiceProviderCluster], relistDuration time.Duration) cache.SharedIndexInformer {
 	lw := &cache.ListWatch{
 		ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
+			logger := utils.LoggerFromContext(ctx)
+			logger.Info("listing service provider clusters")
+			defer logger.Info("finished listing service provider clusters")
+
 			iter, err := lister.List(ctx, nil)
 			if err != nil {
 				return nil, err
@@ -277,6 +297,10 @@ func NewActiveOperationInformer(lister database.GlobalLister[api.Operation]) cac
 func NewActiveOperationInformerWithRelistDuration(lister database.GlobalLister[api.Operation], relistDuration time.Duration) cache.SharedIndexInformer {
 	lw := &cache.ListWatch{
 		ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
+			logger := utils.LoggerFromContext(ctx)
+			logger.Info("listing active operations")
+			defer logger.Info("finished listing active operations")
+
 			iter, err := lister.List(ctx, nil)
 			if err != nil {
 				return nil, err
@@ -313,9 +337,9 @@ func NewActiveOperationInformerWithRelistDuration(lister database.GlobalLister[a
 
 func resourceGroupIndexFunc(obj interface{}) ([]string, error) {
 	switch castObj := obj.(type) {
-	case api.CosmosMetadataAccessor:
+	case arm.CosmosMetadataAccessor:
 		return []string{api.ToResourceGroupResourceIDString(castObj.GetResourceID().SubscriptionID, castObj.GetResourceID().ResourceGroupName)}, nil
-	case api.CosmosPersistable:
+	case arm.CosmosPersistable:
 		return []string{api.ToResourceGroupResourceIDString(castObj.GetCosmosData().ResourceID.SubscriptionID, castObj.GetCosmosData().ResourceID.ResourceGroupName)}, nil
 	default:
 		return nil, utils.TrackError(fmt.Errorf("unexpected type %T, expected api.CosmosMetadataAccessor or api.CosmosPersistable", obj))
@@ -324,9 +348,9 @@ func resourceGroupIndexFunc(obj interface{}) ([]string, error) {
 
 func clusterResourceIDIndexFunc(obj interface{}) ([]string, error) {
 	switch castObj := obj.(type) {
-	case api.CosmosMetadataAccessor:
+	case arm.CosmosMetadataAccessor:
 		return clusterResourceIDFromResourceID(castObj.GetResourceID())
-	case api.CosmosPersistable:
+	case arm.CosmosPersistable:
 		return clusterResourceIDFromResourceID(castObj.GetCosmosData().ResourceID)
 	default:
 		return nil, utils.TrackError(fmt.Errorf("unexpected type %T, expected api.CosmosMetadataAccessor or api.CosmosPersistable", obj))

@@ -1,6 +1,6 @@
 module github.com/Azure/ARO-HCP/frontend
 
-go 1.24.11
+go 1.25.0
 
 require (
 	github.com/Azure/ARO-HCP/internal v0.0.0-00010101000000-000000000000

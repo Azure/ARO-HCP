@@ -36,6 +36,7 @@ func InternalToCosmosSubscription(internalObj *arm.Subscription) (*Subscription,
 				ID: internalObj.GetCosmosData().GetCosmosUID(),
 			},
 			PartitionKey: strings.ToLower(internalObj.ResourceID.Name),
+			ResourceID:   internalObj.ResourceID,
 			ResourceType: internalObj.ResourceID.ResourceType.String(),
 		},
 		InternalState: SubscriptionProperties{
@@ -57,6 +58,7 @@ func CosmosToInternalSubscription(cosmosObj *Subscription) (*arm.Subscription, e
 	internalObj := &tempInternalAPI
 
 	// old records don't serialize this, but we want all readers to be able to depend on it.
+	internalObj.ExistingCosmosUID = cosmosObj.ID
 	if internalObj.CosmosMetadata.ResourceID == nil {
 		internalObj.CosmosMetadata.ResourceID = internalObj.ResourceID
 	}
