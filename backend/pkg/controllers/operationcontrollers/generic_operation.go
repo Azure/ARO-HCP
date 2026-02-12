@@ -119,7 +119,7 @@ func (c *genericOperation) Run(ctx context.Context, threadiness int) {
 	defer c.queue.ShutDown()
 
 	logger := utils.LoggerFromContext(ctx)
-	logger = logger.WithValues("controller_name", c.name)
+	logger = logger.WithValues(utils.LogValues{}.AddControllerName(c.name)...)
 	ctx = utils.ContextWithLogger(ctx, logger)
 	logger.Info("Starting")
 
@@ -165,7 +165,7 @@ func (c *genericOperation) processNextWorkItem(ctx context.Context) bool {
 
 func (c *genericOperation) enqueueAdd(newObj interface{}) {
 	logger := utils.DefaultLogger()
-	logger = logger.WithValues("controller_name", c.name)
+	logger = logger.WithValues(utils.LogValues{}.AddControllerName(c.name)...)
 	ctx := logr.NewContext(context.TODO(), logger)
 
 	castObj := newObj.(*api.Operation)

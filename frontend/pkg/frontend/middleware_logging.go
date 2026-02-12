@@ -75,8 +75,9 @@ func MiddlewareLogging(w http.ResponseWriter, r *http.Request, next http.Handler
 	startTime := time.Now()
 
 	logger = logger.WithValues(
-		"request_method", r.Method,
-		"request_path", r.URL.Path,
+		utils.LogValues{}.
+			AddMethod(r.Method).
+			AddPath(r.URL.Path)...,
 	)
 
 	// make a best attempt at parsing the resourceID. This will often fail because we have non-resource requests.
@@ -85,22 +86,7 @@ func MiddlewareLogging(w http.ResponseWriter, r *http.Request, next http.Handler
 	// It's important to do before the second panic handler so that panics can be correlated easily.
 	// TODO are the value we find case sensitive or case insensitive.  They used to be case sensitive, so I have left that
 	if resourceID, err := azcorearm.ParseResourceID(r.URL.Path); err == nil {
-		logger = logger.WithValues(
-			"subscription_id", resourceID.SubscriptionID,
-			"resource_group", resourceID.ResourceGroupName,
-		)
-
-		currID := resourceID
-		for currID != nil {
-			// TODO we have the option on recording each type.  I have no real preference
-			if currID.ResourceType.String() == strings.ToLower(api.ClusterResourceType.String()) {
-				logger = logger.WithValues(
-					"hcp_cluster_name", currID.Name,
-				)
-				break
-			}
-			currID = currID.Parent
-		}
+		logger = logger.WithValues(utils.LogValues{}.AddLogValuesForResourceID(resourceID)...)
 	}
 
 	// include the context values (logger.With) with every line so we can grep for them.
@@ -192,11 +178,11 @@ func (a *attributes) resourceID() string {
 // on the wildcards from the matched pattern.
 func (a *attributes) extendLogr(logger logr.Logger) logr.Logger {
 	if a.resourceName != "" {
-		logger = logger.WithValues("resource_name", a.resourceName)
+		logger = logger.WithValues(utils.LogValues{}.AddResourceName(a.resourceName)...)
 	}
 
 	if resourceID := a.resourceID(); resourceID != "" {
-		logger = logger.WithValues("resource_id", resourceID)
+		logger = logger.WithValues(utils.LogValues{}.AddLogValuesForResourceIDString(resourceID)...)
 	}
 
 	return logger

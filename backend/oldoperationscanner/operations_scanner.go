@@ -23,7 +23,6 @@ import (
 	"os"
 	"slices"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
 
@@ -294,7 +293,7 @@ func (s *OperationsScanner) Run(ctx context.Context) {
 				localCtx, span := StartRootSpan(ctx, "processOperations")
 				span.SetAttributes(tracing.SubscriptionIDKey.String(subscriptionID))
 
-				localLogger := logger.WithValues("subscription_id", subscriptionID)
+				localLogger := logger.WithValues(utils.LogValues{}.AddSubscriptionID(subscriptionID)...)
 				localCtx = utils.ContextWithLogger(localCtx, localLogger)
 				s.withSubscriptionLock(localCtx, subscriptionID, func(ctx context.Context) {
 					s.processOperations(localCtx, subscriptionID)
@@ -436,28 +435,15 @@ func (s *OperationsScanner) processOperations(ctx context.Context, subscriptionI
 	for operationID, operationDoc := range iterator.Items(ctx) {
 		n++
 
-		clusterName := ""
-		switch {
-		case strings.EqualFold(operationDoc.ExternalID.ResourceType.String(), api.ClusterResourceType.String()):
-			clusterName = operationDoc.ExternalID.Name
-		case strings.EqualFold(operationDoc.ExternalID.ResourceType.String(), api.NodePoolResourceType.String()):
-			clusterName = operationDoc.ExternalID.Parent.Name
-		case strings.EqualFold(operationDoc.ExternalID.ResourceType.String(), api.ExternalAuthResourceType.String()):
-			clusterName = operationDoc.ExternalID.Parent.Name
-		}
-
 		// add info for our logger
 		localLogger := logger.WithValues(
-			"operation", operationDoc.Request,
-			"operation_id", operationID,
-			"resource_group", operationDoc.ExternalID.ResourceGroupName,
-			"resource_name", operationDoc.ExternalID.Name,
-			"resource_id", operationDoc.ExternalID.String(),
-			"hcp_cluster_name", clusterName, // provides standard location for everything related to a cluster
-			"internal_id", operationDoc.InternalID.String(),
-			"client_request_id", operationDoc.ClientRequestID,
-			"correlation_request_id", operationDoc.CorrelationRequestID,
-		)
+			utils.LogValues{}.
+				AddOperation(string(operationDoc.Request)).
+				AddOperationID(operationID).
+				AddLogValuesForResourceID(operationDoc.ExternalID).
+				AddInternalID(operationDoc.InternalID.String()).
+				AddClientRequestID(operationDoc.ClientRequestID).
+				AddCorrelationRequestID(operationDoc.CorrelationRequestID)...)
 		localCtx := utils.ContextWithLogger(ctx, localLogger)
 
 		s.processOperation(
