@@ -23,7 +23,7 @@ environments:
   description: |
     Used for personal development and testing.
   defaults:
-    region: westus3
+    region: uksouth
     cloud: dev
     ev2Cloud: public
     cxStamp: 1

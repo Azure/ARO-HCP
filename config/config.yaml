@@ -1214,6 +1214,23 @@ clouds:
           westus3:
             monitoring:
               alertsEnabled: true
+          uksouth:
+            svc:
+              aks:
+                systemAgentPool:
+                  vmSize: Standard_E2s_v3
+                userAgentPool:
+                  vmSize: Standard_E4s_v3
+                infraAgentPool:
+                  vmSize: Standard_E4s_v3
+            mgmt:
+              aks:
+                systemAgentPool:
+                  vmSize: Standard_E2s_v3
+                userAgentPool:
+                  vmSize: Standard_E4s_v3
+                infraAgentPool:
+                  vmSize: Standard_E4s_v3
         # this is the personal DEV environment
         defaults:
           # Service Key Vault
