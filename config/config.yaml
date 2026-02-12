@@ -352,7 +352,7 @@ defaults:
         minCount: 1
         maxCount: 3
         vmSize: 'Standard_D2s_v3'
-        osDiskSizeGB: 32
+        osDiskSizeGB: 64
         poolCount: 3
         zones: ""
         zoneRedundantMode: "Auto"
@@ -361,7 +361,7 @@ defaults:
         minCount: 1
         maxCount: 3
         vmSize: 'Standard_D2s_v3'
-        osDiskSizeGB: 32
+        osDiskSizeGB: 64
         poolCount: 3
         zones: ""
         zoneRedundantMode: "Auto"
@@ -370,7 +370,7 @@ defaults:
         minCount: 1
         maxCount: 3
         vmSize: 'Standard_D4ds_v5'
-        osDiskSizeGB: 32
+        osDiskSizeGB: 64
         poolCount: 2
         zones: ""
         zoneRedundantMode: "Auto"
@@ -492,7 +492,7 @@ defaults:
         minCount: 1
         maxCount: 3
         vmSize: 'Standard_D4ds_v5'
-        osDiskSizeGB: 32
+        osDiskSizeGB: 64
         poolCount: 2
         zones: ""
         zoneRedundantMode: "Auto"
@@ -1425,7 +1425,7 @@ clouds:
               name: "{{ .ctx.environment }}-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}"
               systemAgentPool:
                 maxCount: 4
-                osDiskSizeGB: 32
+                osDiskSizeGB: 64
                 vmSize: Standard_D2s_v3
               userAgentPool:
                 maxCount: 14
