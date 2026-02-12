@@ -452,6 +452,7 @@ mgmt:
     infraAgentPool:
       maxCount: 3
       minCount: 1
+      name: infra
       osDiskSizeGB: 32
       poolCount: 2
       vmSize: Standard_D4ds_v5
@@ -466,6 +467,7 @@ mgmt:
     systemAgentPool:
       maxCount: 4
       minCount: 1
+      name: system
       osDiskSizeGB: 32
       poolCount: 1
       vmSize: Standard_D2s_v3
@@ -474,6 +476,7 @@ mgmt:
     userAgentPool:
       maxCount: 14
       minCount: 4
+      name: user
       osDiskSizeGB: 100
       poolCount: 3
       vmSize: Standard_D4s_v3
@@ -732,6 +735,7 @@ svc:
     infraAgentPool:
       maxCount: 3
       minCount: 1
+      name: infra
       osDiskSizeGB: 32
       poolCount: 1
       vmSize: Standard_D4ds_v5
@@ -746,6 +750,7 @@ svc:
     systemAgentPool:
       maxCount: 3
       minCount: 1
+      name: system
       osDiskSizeGB: 32
       poolCount: 1
       vmSize: Standard_D2s_v3
@@ -754,6 +759,7 @@ svc:
     userAgentPool:
       maxCount: 3
       minCount: 1
+      name: user
       osDiskSizeGB: 32
       poolCount: 3
       vmSize: Standard_D2s_v3
