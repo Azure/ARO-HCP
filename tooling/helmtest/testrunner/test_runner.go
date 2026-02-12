@@ -162,17 +162,19 @@ func RunTestHelmTemplate(t *testing.T, settingsPath string) {
 		}
 		chartPath := helmStep.ChartDirFromRoot(settings.TopologyDir)
 		if strings.Contains(chartPath, "oci:") {
-			// get the full path to the values file
-			fullValuesPath := helmStep.ValuesFileFromRoot(settings.TopologyDir)
+			if strings.Contains(chartPath, "multicluster") {
+				// get the full path to the values file
+				fullValuesPath := helmStep.ValuesFileFromRoot(settings.TopologyDir)
 
-			// extract filename
-			fileName := filepath.Base(fullValuesPath)
+				// extract filename
+				fileName := filepath.Base(fullValuesPath)
 
-			// split on "." to get chartDir
-			chartName := strings.Split(fileName, ".")[0]
+				// split on "." to get chartDir
+				chartName := strings.Split(fileName, ".")[0]
 
-			// final path
-			chartPath = filepath.Join(settings.TopologyDir, "acm/deploy/helm", chartName)
+				// final path
+				chartPath = filepath.Join(settings.TopologyDir, "acm/deploy/helm", chartName)
+			}
 		}
 
 		allCases = append(allCases, internal.TestCase{
