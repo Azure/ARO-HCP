@@ -15,9 +15,6 @@ param jobNamePrefix string
 
 @description('Container app public IP service tags')
 param containerAppOutboundServiceTags string
-var containerAppOutboundServiceTagsArray = [
-  for tag in (csvToArray(containerAppOutboundServiceTags)): parseIPServiceTag(tag)
-]
 
 @description('Specifies the name of the log analytics workspace.')
 param containerAppLogAnalyticsName string = 'containerapp-log'
@@ -63,7 +60,7 @@ module containerAppOutboundPublicIP '../modules/network/publicipaddress.bicep' =
   name: 'containerapp-nat-gateway-ip'
   params: {
     name: 'containerapp-nat-gateway-ip'
-    ipTags: containerAppOutboundServiceTagsArray
+    ipTags: containerAppOutboundServiceTags
     location: location
     zones: locationHasAvailabilityZones ? locationAvailabilityZones : null
   }

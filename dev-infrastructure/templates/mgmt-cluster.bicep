@@ -256,6 +256,11 @@ module managedIdentities '../modules/managed-identities.bicep' = {
 //   A K S
 //
 
+resource aksClusterUserDefinedManagedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
+  name: '${aksClusterName}-msi'
+  location: location
+}
+
 resource mgmtClusterNSG 'Microsoft.Network/networkSecurityGroups@2023-11-01' = {
   location: location
   name: 'mgmt-cluster-node-nsg'
@@ -371,6 +376,7 @@ module mgmtCluster '../modules/aks-cluster-base.bicep' = {
     deploymentMsiId: globalMSIId
     enableSwiftV2Nodepools: aksEnableSwiftNodepools
     owningTeamTagValue: owningTeamTagValue
+    aksClusterUserDefinedManagedIdentityName: aksClusterUserDefinedManagedIdentity.name
   }
   dependsOn: [
     managedIdentities
@@ -532,14 +538,15 @@ module hcpBackupsRbac '../modules/hcp-backups/storage-rbac.bicep' = {
 //
 //  A K S   D I A G N O S T I C   S E T T I N G S
 //
-module diagnosticSetting '../modules/aks/diagnostic-setting.bicep' = if (auditLogsEventHubAuthRuleId != '') {
-  name: 'aks-diagnostic-setting'
-  dependsOn: [
-    mgmtCluster
-  ]
-  params: {
-    aksClusterName: aksClusterName
-    auditLogsEventHubName: auditLogsEventHubName
-    auditLogsEventHubAuthRuleId: auditLogsEventHubAuthRuleId
-  }
-}
+// jboll, needs to disable, cause stage deployment fails 
+// module diagnosticSetting '../modules/aks/diagnostic-setting.bicep' = if (auditLogsEventHubAuthRuleId != '') {
+//   name: 'aks-diagnostic-setting'
+//   dependsOn: [
+//     mgmtCluster
+//   ]
+//   params: {
+//     aksClusterName: aksClusterName
+//     auditLogsEventHubName: auditLogsEventHubName
+//     auditLogsEventHubAuthRuleId: auditLogsEventHubAuthRuleId
+//   }
+// }

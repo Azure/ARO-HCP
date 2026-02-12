@@ -164,6 +164,12 @@ func (m *MockDBClient) ServiceProviderClusters(subscriptionID, resourceGroupName
 	return newMockServiceProviderClusterCRUD(m, clusterResourceID)
 }
 
+// ServiceProviderNodePools returns a CRUD interface for service provider node pool resources.
+func (m *MockDBClient) ServiceProviderNodePools(subscriptionID, resourceGroupName, clusterName, nodePoolName string) database.ServiceProviderNodePoolCRUD {
+	nodePoolResourceID := database.NewNodePoolResourceID(subscriptionID, resourceGroupName, clusterName, nodePoolName)
+	return newMockServiceProviderNodePoolCRUD(m, nodePoolResourceID)
+}
+
 // LoadFromDirectory loads cosmos-record context data from a directory.
 // It reads all JSON files that match the pattern for "load" directories.
 func (m *MockDBClient) LoadFromDirectory(dirPath string) error {

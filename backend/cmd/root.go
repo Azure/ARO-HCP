@@ -242,11 +242,13 @@ func RunRootCmd(cmd *cobra.Command, flags *BackendRootCmdFlags) error {
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("flags validation failed: %w", err))
 	}
-
 	// Create a logr.Logger and add it to context for use throughout the application.
 	// We use slog.Level(flags.LogVerbosity * -1) to convert the verbosity level to a slog.Level.
 	// A value of 0 is equivalent to INFO. Higher values mean more verbose output.
 	handlerOptions := &slog.HandlerOptions{Level: slog.Level(flags.LogVerbosity * -1), AddSource: true}
+	// Temporary hardcode the log level to -4 to see increased klog logging
+	// verbosity.
+	handlerOptions.Level = slog.Level(-4)
 
 	// TODO move signal-aware context creation from backend/pkg/app/backend.go here,
 	// and redo context handling similar to frontend/cmd/cmd.go.

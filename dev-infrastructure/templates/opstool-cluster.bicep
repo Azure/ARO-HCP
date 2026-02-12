@@ -149,6 +149,11 @@ module nodeSubnetCreation '../modules/network/aks-node-subnet.bicep' = {
   ]
 }
 
+resource aksClusterUserDefinedManagedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
+  name: '${aksClusterName}-msi'
+  location: location
+}
+
 module opstoolCluster '../modules/aks-cluster-base.bicep' = {
   name: 'cluster-${uniqueString(resourceGroup().name)}'
   scope: resourceGroup()
@@ -163,8 +168,6 @@ module opstoolCluster '../modules/aks-cluster-base.bicep' = {
     kubernetesVersion: kubernetesVersion
     deployIstio: false
     istioVersions: []
-    istioIngressGatewayIPAddressName: ''
-    istioIngressGatewayIPAddressIPTags: ''
     vnetName: vnetName
     nodeSubnetId: nodeSubnetCreation.outputs.subnetId
     podSubnetPrefix: podSubnetPrefix
@@ -203,6 +206,7 @@ module opstoolCluster '../modules/aks-cluster-base.bicep' = {
     deploymentMsiId: opstoolMI.uamiID
     enableSwiftV2Nodepools: false
     owningTeamTagValue: owningTeamTagValue
+    aksClusterUserDefinedManagedIdentityName: aksClusterUserDefinedManagedIdentity.name
   }
 }
 

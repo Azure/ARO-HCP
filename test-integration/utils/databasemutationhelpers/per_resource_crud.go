@@ -46,6 +46,9 @@ func NewCosmosCRUD[InternalAPIType any](t *testing.T, cosmosClient database.DBCl
 	case strings.EqualFold(resourceType.String(), api.ServiceProviderClusterResourceType.String()):
 		return any(cosmosClient.ServiceProviderClusters(parentResourceID.SubscriptionID, parentResourceID.ResourceGroupName, parentResourceID.Name)).(database.ResourceCRUD[InternalAPIType])
 
+	case strings.EqualFold(resourceType.String(), api.ServiceProviderNodePoolResourceType.String()):
+		return any(cosmosClient.ServiceProviderNodePools(parentResourceID.SubscriptionID, parentResourceID.ResourceGroupName, parentResourceID.Parent.Name, parentResourceID.Name)).(database.ResourceCRUD[InternalAPIType])
+
 	default:
 		t.Fatalf("unsupported resource type and parent: %q under %v", resourceType, parentResourceID.ResourceType.String())
 	}

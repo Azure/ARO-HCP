@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: admin-api
+  name: {{ .Values.service.name }}
   namespace: '{{ .Release.Namespace }}'
   labels:
     app: admin-api
@@ -9,6 +9,6 @@ spec:
   selector:
     app: admin-api
   ports:
-  - port: 8443
-    targetPort: 8443
+  - port: {{ .Values.service.port }}
+    targetPort: {{ .Values.service.port }}
     protocol: TCP
