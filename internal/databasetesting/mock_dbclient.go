@@ -152,10 +152,22 @@ func (m *MockDBClient) Subscriptions() database.SubscriptionCRUD {
 	return newMockSubscriptionCRUD(m)
 }
 
+// GlobalListers returns interfaces for listing all resources of a particular
+// type across all partitions.
+func (m *MockDBClient) GlobalListers() database.GlobalListers {
+	return &mockGlobalListers{client: m}
+}
+
 // ServiceProviderClusters returns a CRUD interface for service provider cluster resources.
 func (m *MockDBClient) ServiceProviderClusters(subscriptionID, resourceGroupName, clusterName string) database.ServiceProviderClusterCRUD {
 	clusterResourceID := database.NewClusterResourceID(subscriptionID, resourceGroupName, clusterName)
 	return newMockServiceProviderClusterCRUD(m, clusterResourceID)
+}
+
+// ServiceProviderNodePools returns a CRUD interface for service provider node pool resources.
+func (m *MockDBClient) ServiceProviderNodePools(subscriptionID, resourceGroupName, clusterName, nodePoolName string) database.ServiceProviderNodePoolCRUD {
+	nodePoolResourceID := database.NewNodePoolResourceID(subscriptionID, resourceGroupName, clusterName, nodePoolName)
+	return newMockServiceProviderNodePoolCRUD(m, nodePoolResourceID)
 }
 
 // LoadFromDirectory loads cosmos-record context data from a directory.

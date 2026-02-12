@@ -40,8 +40,6 @@ type contextKey int
 
 func (c contextKey) String() string {
 	switch c {
-	case contextKeyLogger:
-		return "logger"
 	case contextKeyResourceID:
 		return "resourceID"
 	}
@@ -50,21 +48,16 @@ func (c contextKey) String() string {
 
 const (
 	// Keys for request-scoped data in http.Request contexts
-	contextKeyLogger contextKey = iota
-	contextKeyResourceID
+	contextKeyResourceID contextKey = iota
 )
 
 func ContextWithLogger(ctx context.Context, logger logr.Logger) context.Context {
-	return context.WithValue(ctx, contextKeyLogger, logger)
+	return logr.NewContext(ctx, logger)
 }
 
 func LoggerFromContext(ctx context.Context) logr.Logger {
-	logger, ok := ctx.Value(contextKeyLogger).(logr.Logger)
-	if !ok {
-		err := &ContextError{
-			got: logger,
-			key: contextKeyLogger,
-		}
+	logger, err := logr.FromContext(ctx)
+	if err != nil {
 		// Return the default logger as a fail-safe, but log
 		// the failure to obtain the logger from the context.
 		logger = DefaultLogger()

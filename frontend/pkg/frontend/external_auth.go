@@ -688,10 +688,9 @@ func mergeToInternalExternalAuth(csEternalAuth *arohcpv1alpha1.ExternalAuth, int
 	}
 
 	// this does not use conversion.CopyReadOnly* because some ServiceProvider properties come from cluster-service-only or live reads
-	mergedExternalAuth.SystemData = internalObj.SystemData
+	mergedExternalAuth.SystemData = internalObj.SystemData.DeepCopy()
 	mergedExternalAuth.Properties.ProvisioningState = internalObj.Properties.ProvisioningState
-	mergedExternalAuth.ServiceProviderProperties.ClusterServiceID = internalObj.ServiceProviderProperties.ClusterServiceID
-	mergedExternalAuth.ServiceProviderProperties.ActiveOperationID = internalObj.ServiceProviderProperties.ActiveOperationID
+	mergedExternalAuth.ServiceProviderProperties = *internalObj.ServiceProviderProperties.DeepCopy()
 
 	return mergedExternalAuth, nil
 }

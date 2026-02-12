@@ -10,12 +10,14 @@ param aksKeyVaultName = '{{ .mgmt.aks.etcd.name }}'
 param aksKeyVaultTagName = '{{ .mgmt.aks.etcd.tagKey }}'
 param aksKeyVaultTagValue = '{{ .mgmt.aks.etcd.tagValue }}'
 param aksEtcdKVEnableSoftDelete = {{ .mgmt.aks.etcd.softDelete }}
+param systemAgentPoolName = '{{ .mgmt.aks.systemAgentPool.name }}'
 param systemAgentMinCount = {{ .mgmt.aks.systemAgentPool.minCount}}
 param systemAgentMaxCount = {{ .mgmt.aks.systemAgentPool.maxCount }}
 param systemAgentVMSize = '{{ .mgmt.aks.systemAgentPool.vmSize }}'
 param systemAgentPoolZones = '{{ .mgmt.aks.systemAgentPool.zones }}'
 param systemOsDiskSizeGB = {{ .mgmt.aks.systemAgentPool.osDiskSizeGB }}
 param systemZoneRedundantMode = '{{ .mgmt.aks.systemAgentPool.zoneRedundantMode }}'
+param userAgentPoolName = '{{ .mgmt.aks.userAgentPool.name }}'
 param userAgentMinCount = {{ .mgmt.aks.userAgentPool.minCount }}
 param userAgentMaxCount = {{ .mgmt.aks.userAgentPool.maxCount }}
 param userAgentVMSize = '{{ .mgmt.aks.userAgentPool.vmSize }}'
@@ -23,6 +25,7 @@ param userAgentPoolCount = {{ .mgmt.aks.userAgentPool.poolCount }}
 param userOsDiskSizeGB = {{ .mgmt.aks.userAgentPool.osDiskSizeGB }}
 param userAgentPoolZones = '{{ .mgmt.aks.userAgentPool.zones }}'
 param userZoneRedundantMode = '{{ .mgmt.aks.userAgentPool.zoneRedundantMode }}'
+param infraAgentPoolName = '{{ .mgmt.aks.infraAgentPool.name }}'
 param infraAgentMinCount = {{ .mgmt.aks.infraAgentPool.minCount }}
 param infraAgentMaxCount = {{ .mgmt.aks.infraAgentPool.maxCount }}
 param infraAgentVMSize = '{{ .mgmt.aks.infraAgentPool.vmSize }}'
@@ -88,3 +91,7 @@ param owningTeamTagValue = '{{ .monitoring.alertRuleOwningTeamTag }}'
 
 // HCP Backups Storage Account
 param hcpBackupsStorageAccountName = '{{ .mgmt.hcpBackups.storageAccount.name }}'
+
+// Audit Logs Event Hub
+param auditLogsEventHubName = '{{ .kusto.auditLogsEventHub.name }}'
+param auditLogsEventHubAuthRuleId = '__auditLogsEventHubAuthRuleId__'

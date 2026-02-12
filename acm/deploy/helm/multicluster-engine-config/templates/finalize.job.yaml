@@ -46,7 +46,7 @@ spec:
             exit 1
           fi
           echo "MulticlusterEngine is available"
-        image: mcr.microsoft.com/aks/command/runtime:master.240118.1
+        image: "{{ .Values.finalizeMceJobImage }}"
         name: finalize
       restartPolicy: Never
       serviceAccountName: multicluster-engine-operator

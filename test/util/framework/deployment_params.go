@@ -263,6 +263,9 @@ func (tc *perItOrDescribeTestContext) CreateClusterCustomerResources(ctx context
 	customerInfraDeploymentName := fmt.Sprintf("customer-infra-%s-%s", clusterParams.ClusterName, randomSuffix)
 	managedIdentitiesDeploymentName := fmt.Sprintf("mi-%s-%s", clusterParams.ClusterName, randomSuffix)
 
+	// ensure customer-infra resource names are unique per cluster
+	infraParameters["clusterName"] = clusterParams.ClusterName
+
 	customerInfraDeploymentResult, err := tc.CreateBicepTemplateAndWait(ctx,
 		WithTemplateFromFS(artifactsFS, "test-artifacts/generated-test-artifacts/modules/customer-infra.json"),
 		WithDeploymentName(customerInfraDeploymentName),

@@ -29,6 +29,7 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
 )
 
@@ -45,7 +46,6 @@ func ResourceInstanceEquals(t *testing.T, expected, actual any) (string, bool) {
 
 	// clear the fields from TypedDocument (wrapper) that don't compare
 	for _, currMap := range []map[string]any{expectedMap, actualMap} {
-		unstructured.RemoveNestedField(currMap, "id") // TODO restore when names are predictable
 		unstructured.RemoveNestedField(currMap, "_rid")
 		unstructured.RemoveNestedField(currMap, "_self")
 		unstructured.RemoveNestedField(currMap, "_etag")
@@ -54,6 +54,16 @@ func ResourceInstanceEquals(t *testing.T, expected, actual any) (string, bool) {
 		unstructured.RemoveNestedField(currMap, "endTime") // for arm.Operation
 		// etag is dynamically generated, so remove it from cosmosMetadata as well
 		unstructured.RemoveNestedField(currMap, "cosmosMetadata", "etag")
+		// temporary and not worth tracking
+		unstructured.RemoveNestedField(currMap, "cosmosMetadata", "existingCosmosUID")
+
+		// these are case insensitive
+		if value, ok := currMap["resourceID"].(string); ok && len(value) > 0 {
+			currMap["resourceID"] = strings.ToLower(value)
+		}
+		if value, ok := currMap["resourceType"].(string); ok && len(value) > 0 {
+			currMap["resourceType"] = strings.ToLower(value)
+		}
 
 		resourceType, ok := currMap["resourceType"].(string)
 		if !ok || len(resourceType) == 0 {
@@ -71,13 +81,18 @@ func ResourceInstanceEquals(t *testing.T, expected, actual any) (string, bool) {
 			}
 		}
 
+		switch {
+		case strings.EqualFold(resourceType, api.OperationStatusResourceType.String()):
+			// this field is UUID generated, so usually cannot be compared for operations, but CAN be compared for everything else.
+			unstructured.RemoveNestedField(currMap, "id")
+			unstructured.RemoveNestedField(currMap, "resourceID")
+		}
+
 		// this loops handles the cosmosObj possibility and the internalObj possibility
 		for _, possiblePrepend := range []string{"", "properties"} {
-			unstructured.RemoveNestedField(currMap, prepend(possiblePrepend, "lastTransitionTime")...)                     // operations
-			unstructured.RemoveNestedField(currMap, prepend(possiblePrepend, "startTime")...)                              // operations
-			unstructured.RemoveNestedField(currMap, prepend(possiblePrepend, "operationId")...)                            // operations
-			unstructured.RemoveNestedField(currMap, prepend(possiblePrepend, "cosmosUID")...)                              // controllers
-			unstructured.RemoveNestedField(currMap, prepend(possiblePrepend, "serviceProviderProperties", "cosmosUID")...) // cluster, nodepool, externalauth
+			unstructured.RemoveNestedField(currMap, prepend(possiblePrepend, "lastTransitionTime")...) // operations
+			unstructured.RemoveNestedField(currMap, prepend(possiblePrepend, "startTime")...)          // operations
+			unstructured.RemoveNestedField(currMap, prepend(possiblePrepend, "operationId")...)        // operations
 
 			for _, nestedPossiblePrepend := range []string{"", "intermediateResourceDoc"} {
 				unstructured.RemoveNestedField(currMap, prepend(possiblePrepend, prepend(nestedPossiblePrepend, "activeOperationId")...)...) // cluster, nodepool, externalauth
@@ -101,6 +116,7 @@ func ResourceInstanceEquals(t *testing.T, expected, actual any) (string, bool) {
 			case strings.EqualFold(resourceType, api.OperationStatusResourceType.String()):
 				// this field is UUID generated, so usually cannot be compared for operations, but CAN be compared for everything else.
 				unstructured.RemoveNestedField(currMap, prepend(possiblePrepend, "resourceId")...)
+				unstructured.RemoveNestedField(currMap, prepend(possiblePrepend, "resourceID")...)
 				// cosmosMetadata.resourceID is derived from the same UUID-generated data, so strip it too.
 				unstructured.RemoveNestedField(currMap, prepend(possiblePrepend, "cosmosMetadata")...)
 			}
@@ -119,25 +135,15 @@ func prepend(first string, rest ...string) []string {
 
 func ResourceName(resource any) string {
 	switch cast := resource.(type) {
-	case api.CosmosMetadataAccessor:
+	case arm.CosmosMetadataAccessor:
 		return cast.GetResourceID().String()
-	case api.CosmosPersistable:
+	case arm.CosmosPersistable:
 		return cast.GetCosmosData().ResourceID.String()
 
 	case database.TypedDocument:
-		cosmosUID := cast.ID
-		resourceID, err := api.CosmosIDToResourceID(cosmosUID)
-		if err != nil {
-			return cosmosUID
-		}
-		return resourceID.String()
+		return cast.ResourceID.String()
 	case *database.TypedDocument:
-		cosmosUID := cast.ID
-		resourceID, err := api.CosmosIDToResourceID(cosmosUID)
-		if err != nil {
-			return cosmosUID
-		}
-		return resourceID.String()
+		return cast.ResourceID.String()
 
 	default:
 		return fmt.Sprintf("%v", resource)

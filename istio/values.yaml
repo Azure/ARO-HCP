@@ -1,5 +1,11 @@
 istioVersions:
 - "{{ .svc.istio.versions }}"
+opsIngress:
+  publicIpAddress: "{{ .svc.opsIngress.gateway.ipAddressName }}"
+  publicIpResourceGroup: "{{ .regionRG }}"
+  adminApi:
+    hostname: "admin.{{ .dns.regionalSubdomain }}.{{ .dns.svcParentZoneName }}"
+    credentialName: "admin-api-credential"
 mise:
   deploy: {{ .mise.deploy }}
   namespace: "mise"

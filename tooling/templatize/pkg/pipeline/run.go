@@ -16,6 +16,7 @@ package pipeline
 
 import (
 	"bytes"
+	"compress/gzip"
 	"context"
 	"errors"
 	"fmt"
@@ -23,6 +24,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -43,6 +45,11 @@ import (
 )
 
 var DefaultDeploymentTimeoutSeconds = 30 * 6
+
+func compressTimingMetadata() bool {
+	ret, _ := strconv.ParseBool(os.Getenv("COMPRESS_TIMING_METADATA"))
+	return ret
+}
 
 type PipelineRunOptions struct {
 	BaseRunOptions
@@ -232,8 +239,33 @@ func runGraph(ctx context.Context, logger logr.Logger, executionGraph *graph.Gra
 				logger.Error(err, "error marshalling timing")
 			}
 
-			logger.Info("Writing timing report.", "file", options.TimingOutputFile)
-			if err := os.WriteFile(options.TimingOutputFile, encodedTiming, 0644); err != nil {
+			var outputData []byte
+			outputFile := options.TimingOutputFile
+			compressed := compressTimingMetadata()
+
+			if compressed {
+				// Gzip the encoded data
+				var gzipBuffer bytes.Buffer
+				gzipWriter := gzip.NewWriter(&gzipBuffer)
+				if _, err := gzipWriter.Write(encodedTiming); err != nil {
+					logger.Error(err, "Failed to gzip timing metadata")
+					return
+				}
+				if err := gzipWriter.Close(); err != nil {
+					logger.Error(err, "Failed to close gzip writer")
+					return
+				}
+				outputData = gzipBuffer.Bytes()
+				// Change file extension to .yaml.gz if not already
+				if strings.HasSuffix(outputFile, ".yaml") {
+					outputFile = outputFile + ".gz"
+				}
+			} else {
+				outputData = encodedTiming
+			}
+
+			logger.Info("Writing timing report.", "file", outputFile, "size", len(outputData), "compressed", compressed)
+			if err := os.WriteFile(outputFile, outputData, 0644); err != nil {
 				logger.Error(err, "error writing timing")
 			}
 		}()

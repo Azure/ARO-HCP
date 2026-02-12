@@ -1,6 +1,6 @@
 # Image Updater
 
-A tool that automatically fetches the latest container image digests from registries and updates ARO-HCP configuration files. It supports multiple registry types, environment-based promotions, and secure credential management via Azure Key Vault.
+A tool that automatically fetches the latest container image digests from registries and updates ARO-HCP configuration files. It supports multiple registry types and secure credential management via Azure Key Vault.
 
 ## Table of Contents
 
@@ -10,7 +10,6 @@ A tool that automatically fetches the latest container image digests from regist
 - [Key Features](#key-features)
 - [Common Usage Patterns](#common-usage-patterns)
   - [Development Workflow](#development-workflow)
-  - [Environment Promotion](#environment-promotion)
   - [Output to File](#output-to-file)
   - [Debugging](#debugging)
 - [Configuration](#configuration)
@@ -44,17 +43,11 @@ A tool that automatically fetches the latest container image digests from regist
 ## Quick Start
 
 ```bash
-# Update all images in dev/int environments
+# Update all images
 make update
 
 # Preview changes without modifying files
 ./image-updater update --config config.yaml --dry-run
-
-# Promote images from int to stage
-./image-updater update --config config.yaml --env stg
-
-# Promote images from stage to production
-./image-updater update --config config.yaml --env prod
 
 # Update specific components only
 ./image-updater update --config config.yaml --components maestro,hypershift
@@ -88,9 +81,7 @@ All registries support anonymous access by default for public images. Private re
    - `*.azurecr.io` → ACRClient (Azure SDK)
    - Others → GenericRegistryClient (Docker Registry HTTP API v2)
 
-4. **Fetch or Promote Images**:
-   - **Default mode** (dev/int): Fetches latest digests from registry with retry logic
-   - **Promotion mode** (stg/prod): Copies digests from source environment (no registry fetch)
+4. **Fetch Images**: Fetches latest digests from registry with retry logic
 
 5. **Filter and Validate**:
    - Filters tags by regex pattern (if specified)
@@ -105,12 +96,6 @@ All registries support anonymous access by default for public images. Private re
 7. **Output Results**: Displays formatted table or writes to file (table/markdown/json)
 
 ## Key Features
-
-### Environment Promotion
-
-- **Structured Promotion Flow**: dev/int → stage → prod
-- **No Registry Lookups in Promotion**: Copies digests directly from source environment
-- **Version Preservation**: Maintains tags and timestamps during promotion
 
 ### Registry & Authentication
 
@@ -139,7 +124,7 @@ All registries support anonymous access by default for public images. Private re
 ### Development Workflow
 
 ```bash
-# Update dev and int environments with latest images
+# Update all images with latest digests
 ./image-updater update --config config.yaml
 
 # Preview changes first
@@ -152,25 +137,6 @@ All registries support anonymous access by default for public images. Private re
 ./image-updater update --config config.yaml --exclude-components arohcpfrontend
 ```
 
-### Environment Promotion
-
-The tool supports a structured promotion flow across environments:
-
-1. **dev & int** (default): Fetches latest images from registries
-2. **stage** (`--env stg`): Promotes digests from int environment
-3. **prod** (`--env prod`): Promotes digests from stage environment
-
-```bash
-# Step 1: Update dev and int with latest images
-./image-updater update --config config.yaml
-
-# Step 2: After validation, promote to stage
-./image-updater update --config config.yaml --env stg
-
-# Step 3: After stage validation, promote to production
-./image-updater update --config config.yaml --env prod
-```
-
 ### Output to File
 
 ```bash
@@ -181,7 +147,7 @@ The tool supports a structured promotion flow across environments:
 ./image-updater update --config config.yaml --output-file results.json --output-format json
 
 # Use Makefile variables
-make promote-stage OUTPUT_FILE=stage-promotion.md OUTPUT_FORMAT=markdown
+make update OUTPUT_FILE=results.md OUTPUT_FORMAT=markdown
 ```
 
 ### Debugging
@@ -213,9 +179,8 @@ arohcpfrontend:
     tag: "013ae7f72821c95873141388054ed7fdaa75dbf71d78e8701240fb39e5a39c51"  # Pin to specific digest
     useAuth: true
   targets:
-  - jsonPath: clouds.dev.defaults.frontend.image.digest
+  - jsonPath: defaults.frontend.image.digest
     filePath: ../../config/config.yaml
-    env: dev
 ```
 
 3. **Authenticate to Azure** (required for ACR access):
@@ -247,24 +212,14 @@ make -C config materialize
 
 ```yaml
 images:
-  # Multi-environment image with tag pattern
+  # Image with tag pattern
   maestro:
     source:
       image: quay.io/redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro
       tagPattern: "^[a-f0-9]{40}$"  # Match 40-character commit hashes
     targets:
-    - jsonPath: clouds.dev.defaults.maestro.image.digest
+    - jsonPath: defaults.maestro.image.digest
       filePath: ../../config/config.yaml
-      env: dev
-    - jsonPath: clouds.public.environments.int.defaults.maestro.image.digest
-      filePath: ../../config/config.msft.clouds-overlay.yaml
-      env: int
-    - jsonPath: clouds.public.environments.stg.defaults.maestro.image.digest
-      filePath: ../../config/config.msft.clouds-overlay.yaml
-      env: stg
-    - jsonPath: clouds.public.environments.prod.defaults.maestro.image.digest
-      filePath: ../../config/config.msft.clouds-overlay.yaml
-      env: prod
 
   # Pinned to specific version
   pko-manager:
@@ -274,7 +229,6 @@ images:
     targets:
     - jsonPath: defaults.pko.imageManager.digest
       filePath: ../../config/config.yaml
-      env: dev
 
   # Using generic tag with version label
   my-app:
@@ -285,7 +239,6 @@ images:
     targets:
     - jsonPath: defaults.myApp.image.digest
       filePath: ../../config/config.yaml
-      env: dev
 ```
 
 ### Registry-Specific Examples
@@ -299,7 +252,6 @@ pko-package:
   targets:
   - jsonPath: defaults.pko.imagePackage.digest
     filePath: ../../config/config.yaml
-    env: dev
 ```
 
 **Quay.io (Private with Key Vault)**:
@@ -313,9 +265,8 @@ clusters-service:
       url: "https://arohcpdev-global.vault.azure.net/"
       secretName: "component-sync-pull-secret"
   targets:
-  - jsonPath: clouds.dev.defaults.clustersService.image.digest
+  - jsonPath: defaults.clustersService.image.digest
     filePath: ../../config/config.yaml
-    env: dev
 ```
 
 **Azure Container Registry (Private)**:
@@ -325,9 +276,8 @@ arohcpfrontend:
     image: arohcpsvcdev.azurecr.io/arohcpfrontend
     useAuth: true  # Uses DefaultAzureCredential
   targets:
-  - jsonPath: clouds.dev.defaults.frontend.image.digest
+  - jsonPath: defaults.frontend.image.digest
     filePath: ../../config/config.yaml
-    env: dev
 ```
 
 **Azure Container Registry (Public)**:
@@ -340,7 +290,6 @@ kubeEvents:
   targets:
   - jsonPath: defaults.kubeEvents.image.digest
     filePath: ../../config/config.yaml
-    env: dev
 ```
 
 **Microsoft Container Registry**:
@@ -353,7 +302,6 @@ acrPull:
   targets:
   - jsonPath: defaults.acrPull.image.digest
     filePath: ../../config/config.yaml
-    env: dev
 ```
 
 ### Architecture Examples
@@ -366,9 +314,8 @@ hypershift:
     tagPattern: "^sha256-[a-f0-9]{64}$"
     architecture: amd64  # Defaults to amd64, can use arm64, etc.
   targets:
-  - jsonPath: clouds.dev.defaults.hypershift.image.digest
+  - jsonPath: defaults.hypershift.image.digest
     filePath: ../../config/config.yaml
-    env: dev
 ```
 
 **Multi-Architecture Manifest**:
@@ -381,7 +328,6 @@ secretSyncController:
   targets:
   - jsonPath: defaults.secretSyncController.image.digest
     filePath: ../../config/config.yaml
-    env: dev
 ```
 
 **Using .sha field (without sha256: prefix)**:
@@ -394,7 +340,6 @@ prometheus-operator:
   targets:
   - jsonPath: defaults.prometheus.prometheusOperator.image.sha  # Stores hash only
     filePath: ../../config/config.yaml
-    env: dev
 ```
 
 ## Authentication
@@ -590,7 +535,6 @@ Write results to file in different formats:
 |------|------|---------|-------------|
 | `--config` | string | - | Path to configuration file (required) |
 | `--dry-run` | bool | false | Preview changes without modifying files |
-| `--env` | string | - | Environment to target: `stg` or `prod` (omit for dev/int) |
 | `--components` | string | - | Comma-separated list of components to update |
 | `--exclude-components` | string | - | Comma-separated list of components to exclude |
 | `--output-file` | string | - | Write results to file instead of stdout |
@@ -635,7 +579,6 @@ Use `-v=2` for debugging auth issues, tag filtering, or network failures.
 |-------|------|----------|-------------|
 | `filePath` | string | Yes | Path to YAML file to update |
 | `jsonPath` | string | Yes | Dot-notation path to field (e.g., `defaults.image.digest`) |
-| `env` | string | Yes | Environment tag: `dev`, `int`, `stg`, or `prod` |
 
 **Note**: Fields ending with `.digest` store full digest (`sha256:...`), fields ending with `.sha` store hash only.
 

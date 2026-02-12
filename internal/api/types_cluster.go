@@ -30,11 +30,12 @@ type HCPOpenShiftCluster struct {
 	Identity                  *arm.ManagedServiceIdentity                  `json:"identity,omitempty"`
 }
 
-var _ CosmosPersistable = &HCPOpenShiftCluster{}
+var _ arm.CosmosPersistable = &HCPOpenShiftCluster{}
 
-func (o *HCPOpenShiftCluster) GetCosmosData() *CosmosData {
-	return &CosmosData{
-		ResourceID: o.ID,
+func (o *HCPOpenShiftCluster) GetCosmosData() *arm.CosmosMetadata {
+	return &arm.CosmosMetadata{
+		ResourceID:        o.ID,
+		ExistingCosmosUID: o.ServiceProviderProperties.ExistingCosmosUID,
 	}
 }
 
@@ -53,6 +54,7 @@ type HCPOpenShiftClusterCustomerProperties struct {
 
 // HCPOpenShiftClusterCustomerProperties represents the property bag of a HCPOpenShiftCluster resource.
 type HCPOpenShiftClusterServiceProviderProperties struct {
+	ExistingCosmosUID string                         `json:"-"`
 	ProvisioningState arm.ProvisioningState          `json:"provisioningState,omitempty"`
 	ClusterServiceID  InternalID                     `json:"clusterServiceID,omitempty"`
 	ActiveOperationID string                         `json:"activeOperationId,omitempty"`

@@ -430,6 +430,9 @@
     "aksAgentPool": {
       "type": "object",
       "properties": {
+        "name": {
+          "type": "string"
+        },
         "maxCount": {
           "type": "number"
         },
@@ -455,6 +458,7 @@
       },
       "additionalProperties": false,
       "required": [
+        "name",
         "maxCount",
         "minCount",
         "osDiskSizeGB",
@@ -1832,6 +1836,34 @@
           "minLength": 4,
           "maxLength": 22
         },
+        "auditLogsEventHub": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "description": "Name of the Event Hub for AKS audit logs"
+            },
+            "namespace": {
+              "type": "string",
+              "description": "Name of the Audit logs Event Hub namespace"
+            },
+            "authRuleName": {
+              "type": "string",
+              "description": "Name of the authorization rule for the Event Hub for use by the aks clusters"
+            },
+            "kustoConsumerGroupName": {
+              "type": "string",
+              "description": "Name of the consumer group for Kusto data connection"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "name",
+            "namespace",
+            "authRuleName",
+            "kustoConsumerGroupName"
+          ]
+        },
         "resourceGroup": {
           "description": "DEPRECATED, for backward compatibility only",
           "type": "string"
@@ -1863,7 +1895,8 @@
         "adminGroups",
         "viewerGroups",
         "kustoName",
-        "enableAutoScale"
+        "enableAutoScale",
+        "auditLogsEventHub"
       ]
     },
     "mise": {
@@ -2242,6 +2275,18 @@
       ]
     },
     "acrPull": {
+      "type": "object",
+      "properties": {
+        "image": {
+          "$ref": "#/definitions/containerImage"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "image"
+      ]
+    },
+    "aksCommandRuntime": {
       "type": "object",
       "properties": {
         "image": {
@@ -2790,6 +2835,34 @@
             "ingressGatewayIPAddressName"
           ]
         },
+        "opsIngress": {
+          "type": "object",
+          "description": "Operations ingress configuration for Admin API and other ops components",
+          "properties": {
+            "gateway": {
+              "type": "object",
+              "properties": {
+                "ipAddressName": {
+                  "description": "The name of the ops ingress gateway public IP address resource",
+                  "type": "string"
+                },
+                "ipAddressTags": {
+                  "description": "IPTags to be set on the ops ingress gateway IP address",
+                  "$ref": "#/definitions/keyColonValueCSV"
+                }
+              },
+              "additionalProperties": false,
+              "required": [
+                "ipAddressName",
+                "ipAddressTags"
+              ]
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "gateway"
+          ]
+        },
         "prometheus": {
           "description": "Prometheus deployment configuration",
           "$ref": "#/definitions/prometheus"
@@ -2800,7 +2873,8 @@
         "rg",
         "subscription",
         "aks",
-        "istio"
+        "istio",
+        "opsIngress"
       ]
     },
     "acr": {
@@ -2843,12 +2917,17 @@
         },
         "releaseManagementGroupId": {
           "type": "string"
+        },
+        "sreServiceTag": {
+          "type": "string",
+          "description": "The service tag for SRE access to the service clusters operations ingress"
         }
       },
       "additionalProperties": false,
       "required": [
         "readerGroupId",
-        "releaseManagementGroupId"
+        "releaseManagementGroupId",
+        "sreServiceTag"
       ]
     },
     "keyVaultDNSSuffix": {

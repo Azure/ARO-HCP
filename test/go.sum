@@ -73,8 +73,8 @@ github.com/Azure/ARO-HCP/tooling/hcpctl v0.0.0-20260113131010-8f869ff652e6 h1:p8
 github.com/Azure/ARO-HCP/tooling/hcpctl v0.0.0-20260113131010-8f869ff652e6/go.mod h1:oPokR2W+VXuygKP0gn5yU71KBsmZA8mD5GlNheHBoHs=
 github.com/Azure/ARO-HCP/tooling/templatize v0.0.0-20260107114435-98c5eb6d5d91 h1:0X36yXkzceM65M9qUD2Kcz5Dx8glBB2qt74Xx+7kJJQ=
 github.com/Azure/ARO-HCP/tooling/templatize v0.0.0-20260107114435-98c5eb6d5d91/go.mod h1:R5j2MWwCxNmf0ekPeK1k3JgzuGZ1+qWVJyQoqHJaLGs=
-github.com/Azure/ARO-Tools v0.0.0-20260126192926-5c105c81e1f1 h1:IY7FQk6aqufe/1RCBPoz7UO0FLj3pNrfXMOMNZh2dTg=
-github.com/Azure/ARO-Tools v0.0.0-20260126192926-5c105c81e1f1/go.mod h1:57ivOjxXfWnAC7ATstbZH2M1aXqkH/prolqMhv+Akcs=
+github.com/Azure/ARO-Tools v0.0.0-20260210222404-30605e5b1ccc h1:4juisjGut976bvYdlSzdFmwHxaChEnfeeneCUURy1Ws=
+github.com/Azure/ARO-Tools v0.0.0-20260210222404-30605e5b1ccc/go.mod h1:57ivOjxXfWnAC7ATstbZH2M1aXqkH/prolqMhv+Akcs=
 github.com/Azure/azure-kusto-go v0.16.1 h1:vCBWcQghmC1qIErUUgVNWHxGhZVStu1U/hki6iBA14k=
 github.com/Azure/azure-kusto-go v0.16.1/go.mod h1:9F2zvXH8B6eWzgI1S4k1ZXAIufnBZ1bv1cW1kB1n3D0=
 github.com/Azure/azure-sdk-for-go v68.0.0+incompatible h1:fcYLmCpyNYRnvJbPerq7U0hS+6+I79yEDJBqVNcqUzU=
@@ -687,10 +687,10 @@ github.com/opencontainers/image-spec v1.1.1 h1:y0fUlFfIZhPF1W537XOLg0/fcx6zcHCJw
 github.com/opencontainers/image-spec v1.1.1/go.mod h1:qpqAh3Dmcf36wStyyWU+kCeDgrGnAve2nCC8+7h8Q0M=
 github.com/openshift-eng/openshift-tests-extension v0.0.0-20260127124016-0fed2b824818 h1:jJLE/aCAqDf8U4wc3bE1IEKgIxbb0ICjCNVFA49x/8s=
 github.com/openshift-eng/openshift-tests-extension v0.0.0-20260127124016-0fed2b824818/go.mod h1:6gkP5f2HL0meusT0Aim8icAspcD1cG055xxBZ9yC68M=
-github.com/openshift-online/ocm-api-model/clientapi v0.0.435 h1:5t/65lUYiXoD87LTpexUnMo/fHgEYvTPmOcQtHBfScY=
-github.com/openshift-online/ocm-api-model/clientapi v0.0.435/go.mod h1:fZwy5HY2URG9nrExvQeXrDU/08TGqZ16f8oymVEN5lo=
-github.com/openshift-online/ocm-sdk-go v0.1.480 h1:49tZXL9uD9eHfc83dbqVefZblf9tO3L6CTtcxWQBMFg=
-github.com/openshift-online/ocm-sdk-go v0.1.480/go.mod h1:3rOvkr2ErtyF68tHEsb7PSXsWKg/OUF6KWtWztl3ihQ=
+github.com/openshift-online/ocm-api-model/clientapi v0.0.448 h1:XMsU5Rk5zwWNlXgTeEv9uEXLrLbEVIz2YzE/6XCQgFw=
+github.com/openshift-online/ocm-api-model/clientapi v0.0.448/go.mod h1:fZwy5HY2URG9nrExvQeXrDU/08TGqZ16f8oymVEN5lo=
+github.com/openshift-online/ocm-sdk-go v0.1.493 h1:+889zmbwN0guA8LFRr5WHpH2+VJNq8+r0fvrXY+x/6E=
+github.com/openshift-online/ocm-sdk-go v0.1.493/go.mod h1:ThqKHtIyvTvDA5AxGFZph80sllVr63lZ+sb4qQP57+o=
 github.com/openshift/api v0.0.0-20260114133223-6ab113cb7368 h1:kSr3DOlq0NCrHd65HB2o/pBsks7AfRm+fkpf9RLUPoc=
 github.com/openshift/api v0.0.0-20260114133223-6ab113cb7368/go.mod h1:d5uzF0YN2nQQFA0jIEWzzOZ+edmo6wzlGLvx5Fhz4uY=
 github.com/openshift/client-go v0.0.0-20260108185524-48f4ccfc4e13 h1:6rd4zSo2UaWQcAPZfHK9yzKVqH0BnMv1hqMzqXZyTds=
@@ -764,8 +764,8 @@ github.com/rubenv/sql-migrate v1.8.0/go.mod h1:F2bGFBwCU+pnmbtNYDeKvSuvL6lBVtXDX
 github.com/russross/blackfriday/v2 v2.1.0 h1:JIOH55/0cWyOuilr9/qlrm0BSXldqnqwMsf35Ld67mk=
 github.com/russross/blackfriday/v2 v2.1.0/go.mod h1:+Rmxgy9KzJVeS9/2gXHxylqXiyQDYRxCVz55jmeOWTM=
 github.com/rwcarlsen/goexif v0.0.0-20190401172101-9e8deecbddbd/go.mod h1:hPqNNc0+uJM6H+SuU8sEs5K5IQeKccPqeSjfgcKGgPk=
-github.com/samber/lo v1.51.0 h1:kysRYLbHy/MB7kQZf5DSN50JHmMsNEdeY24VzJFu7wI=
-github.com/samber/lo v1.51.0/go.mod h1:4+MXEGsJzbKGaUEQFKBq2xtfuznW9oz/WrgyzMzRoM0=
+github.com/samber/lo v1.52.0 h1:Rvi+3BFHES3A8meP33VPAxiBZX/Aws5RxrschYGjomw=
+github.com/samber/lo v1.52.0/go.mod h1:4+MXEGsJzbKGaUEQFKBq2xtfuznW9oz/WrgyzMzRoM0=
 github.com/santhosh-tekuri/jsonschema/v6 v6.0.2 h1:KRzFb2m7YtdldCEkzs6KqmJw4nqEVZGK7IN2kJkjTuQ=
 github.com/santhosh-tekuri/jsonschema/v6 v6.0.2/go.mod h1:JXeL+ps8p7/KNMjDQk3TCwPpBy0wYklyWTfbkIzdIFU=
 github.com/segmentio/asm v1.1.3 h1:WM03sfUOENvvKexOLp+pCqgb/WDjsi7EK8gIsICtzhc=

@@ -121,6 +121,41 @@ func (c *GenericRegistryClient) doRequestWithRetry(ctx context.Context, req *htt
 	return resp, nil
 }
 
+// extractTimestampFromMultiArchManifest attempts to get a meaningful timestamp for a multi-arch manifest
+// It tries three approaches in order:
+// 1. Use the provided timestamp if it's already set and not Unix epoch
+// 2. Extract from the first platform-specific image's config
+// 3. Parse from the tag name if it contains an embedded date (e.g., master.251204.1)
+func extractTimestampFromMultiArchManifest(desc *remote.Descriptor, tagName string, currentTimestamp time.Time) time.Time {
+	unixEpoch := time.Unix(0, 0).UTC()
+
+	// If we already have a valid timestamp, use it
+	if !currentTimestamp.IsZero() && !currentTimestamp.Equal(unixEpoch) {
+		return currentTimestamp
+	}
+
+	// Try to get timestamp from a platform-specific image in the manifest
+	if idx, err := desc.ImageIndex(); err == nil {
+		if manifest, err := idx.IndexManifest(); err == nil && len(manifest.Manifests) > 0 {
+			if platformImg, err := idx.Image(manifest.Manifests[0].Digest); err == nil {
+				if configFile, err := platformImg.ConfigFile(); err == nil {
+					ts := configFile.Created.Time
+					if !ts.IsZero() && !ts.Equal(unixEpoch) {
+						return ts
+					}
+				}
+			}
+		}
+	}
+
+	// Fallback: try parsing date from tag name
+	if parsedDate, ok := ParseDateFromTag(tagName); ok {
+		return parsedDate
+	}
+
+	return currentTimestamp
+}
+
 func (c *GenericRegistryClient) getAllTags(ctx context.Context, repository string) ([]Tag, error) {
 	logger, err := logr.FromContext(ctx)
 	if err != nil {
@@ -249,6 +284,7 @@ func (c *GenericRegistryClient) GetArchSpecificDigest(ctx context.Context, repos
 		if multiArch && desc.MediaType.IsIndex() {
 			logger.V(2).Info("found multi-arch manifest", "tag", tag.Name, "mediaType", desc.MediaType, "digest", desc.Digest.String())
 			tag.Digest = desc.Digest.String()
+			tag.LastModified = extractTimestampFromMultiArchManifest(desc, tag.Name, tag.LastModified)
 			return &tag, nil
 		}
 
@@ -339,6 +375,7 @@ func (c *GenericRegistryClient) GetDigestForTag(ctx context.Context, repository 
 			return nil, fmt.Errorf("tag %s is not a multi-arch manifest (mediaType: %s)", tagName, desc.MediaType)
 		}
 		logger.V(2).Info("found multi-arch manifest", "tag", tagName, "mediaType", desc.MediaType, "digest", desc.Digest.String())
+		tag.LastModified = extractTimestampFromMultiArchManifest(desc, tagName, tag.LastModified)
 		return &tag, nil
 	}
 

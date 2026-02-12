@@ -18,7 +18,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"path"
 	"slices"
 	"strings"
 
@@ -96,18 +95,7 @@ type HCPClusterKey struct {
 }
 
 func (k *HCPClusterKey) GetResourceID() *azcorearm.ResourceID {
-	parts := []string{
-		"/subscriptions",
-		k.SubscriptionID,
-		"resourceGroups",
-		k.ResourceGroupName,
-		"providers",
-		api.ProviderNamespace,
-		api.ClusterResourceType.Type,
-		k.HCPClusterName,
-	}
-
-	return api.Must(azcorearm.ParseResourceID(path.Join(parts...)))
+	return api.Must(api.ToClusterResourceID(k.SubscriptionID, k.ResourceGroupName, k.HCPClusterName))
 }
 
 func (k *HCPClusterKey) AddLoggerValues(logger logr.Logger) logr.Logger {

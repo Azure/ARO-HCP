@@ -28,7 +28,7 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/sync/errgroup"
 
-	"github.com/Azure/azure-kusto-go/kusto/data/table"
+	azkquery "github.com/Azure/azure-kusto-go/azkustodata/query"
 
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/kusto"
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/mustgather"
@@ -123,7 +123,7 @@ func executeKubeSystemHostedControlPlaneLogsQuery(ctx context.Context, opts *Mus
 }
 
 func castQueryAndWriteToFile(ctx context.Context, opts *MustGatherOptions, targetDirectory string, queries []*kusto.ConfigurableQuery) error {
-	castFunction := func(input *table.Row) (*LegacyNormalizedLogLine, error) {
+	castFunction := func(input azkquery.Row) (*LegacyNormalizedLogLine, error) {
 		// can directly cast, cause the row is already normalized
 		legacyLogLine := &KubesystemLogsRow{}
 		if err := input.ToStruct(legacyLogLine); err != nil {
@@ -170,9 +170,9 @@ func GetKubeSystemHostedControlPlaneLogsQuery(opts *MustGatherOptions) []*kusto.
 	return queries
 }
 
-func queryAndWriteToFile(ctx context.Context, opts *MustGatherOptions, targetDirectory string, castFunction func(input *table.Row) (*LegacyNormalizedLogLine, error), queries []*kusto.ConfigurableQuery) error {
+func queryAndWriteToFile(ctx context.Context, opts *MustGatherOptions, targetDirectory string, castFunction func(input azkquery.Row) (*LegacyNormalizedLogLine, error), queries []*kusto.ConfigurableQuery) error {
 	// logger := logr.FromContextOrDiscard(ctx)
-	queryOutputChannel := make(chan *table.Row)
+	queryOutputChannel := make(chan azkquery.Row)
 
 	queryGroup := new(errgroup.Group)
 	queryGroup.Go(func() error {
@@ -194,7 +194,7 @@ func queryAndWriteToFile(ctx context.Context, opts *MustGatherOptions, targetDir
 	return nil
 }
 
-func writeNormalizedLogsToFile(outputChannel chan *table.Row, castFunction func(input *table.Row) (*LegacyNormalizedLogLine, error), outputPath string, directory string) error {
+func writeNormalizedLogsToFile(outputChannel chan azkquery.Row, castFunction func(input azkquery.Row) (*LegacyNormalizedLogLine, error), outputPath string, directory string) error {
 	openedFiles := make(map[string]*os.File)
 	var allErrors error
 	for row := range outputChannel {
@@ -220,7 +220,7 @@ func writeNormalizedLogsToFile(outputChannel chan *table.Row, castFunction func(
 }
 
 func executeClusterIdQuery(ctx context.Context, opts *MustGatherOptions, query *kusto.ConfigurableQuery) ([]string, error) {
-	outputChannel := make(chan *table.Row)
+	outputChannel := make(chan azkquery.Row)
 	allClusterIds := make([]string, 0)
 
 	g := new(errgroup.Group)

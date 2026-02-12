@@ -17,7 +17,7 @@ package kusto
 import (
 	"fmt"
 
-	"github.com/Azure/azure-kusto-go/kusto/kql"
+	"github.com/Azure/azure-kusto-go/azkustodata/kql"
 )
 
 func NewClusterIdQuery(database, clusterServiceLogsTable, subscriptionId, resourceGroup string) *ConfigurableQuery {

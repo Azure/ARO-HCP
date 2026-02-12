@@ -18,7 +18,6 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -30,8 +29,7 @@ import (
 	"testing"
 	"time"
 
-	"k8s.io/apimachinery/pkg/util/rand"
-	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/apimachinery/pkg/util/sets"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -50,7 +48,6 @@ type CosmosIntegrationTestInfo struct {
 	CosmosDatabaseClient *azcosmos.DatabaseClient
 	DBClient             database.DBClient
 	cosmosClient         *azcosmos.Client
-	DatabaseName         string
 }
 
 func NewCosmosFromTestingEnv(ctx context.Context, t *testing.T) (StorageIntegrationTestInfo, error) {
@@ -58,8 +55,7 @@ func NewCosmosFromTestingEnv(ctx context.Context, t *testing.T) (StorageIntegrat
 	if err != nil {
 		return nil, err
 	}
-	cosmosDatabaseName := "frontend-simulation-testing-" + rand.String(5)
-	cosmosDatabaseClient, err := initializeCosmosDBForFrontend(ctx, cosmosClient, cosmosDatabaseName)
+	cosmosDatabaseClient, err := initializeCosmosDBForFrontend(ctx, cosmosClient)
 	if err != nil {
 		return nil, fmt.Errorf("failed to Initialize Cosmos DB: %w", err)
 	}
@@ -73,7 +69,6 @@ func NewCosmosFromTestingEnv(ctx context.Context, t *testing.T) (StorageIntegrat
 		CosmosDatabaseClient: cosmosDatabaseClient,
 		DBClient:             dbClient,
 		cosmosClient:         cosmosClient,
-		DatabaseName:         cosmosDatabaseName,
 	}
 	return testInfo, nil
 }
@@ -146,7 +141,7 @@ func LoadCosmosContent(ctx context.Context, cosmosContainer *azcosmos.ContainerC
 }
 
 func (s *CosmosIntegrationTestInfo) CosmosResourcesContainer() *azcosmos.ContainerClient {
-	resources, err := s.cosmosClient.NewContainer(s.DatabaseName, "Resources")
+	resources, err := s.cosmosClient.NewContainer(integrationTestCosmosDatabaseName, "Resources")
 	if err != nil {
 		panic(err)
 	}
@@ -164,7 +159,7 @@ func (s *CosmosIntegrationTestInfo) Cleanup(ctx context.Context) {
 // CleanupDatabase reads all records from all containers and saves them to artifacts, then deletes the database
 func (s *CosmosIntegrationTestInfo) cleanupDatabase(ctx context.Context) error {
 	logger := utils.LoggerFromContext(ctx)
-	if s.CosmosDatabaseClient == nil || s.DatabaseName == "" {
+	if s.CosmosDatabaseClient == nil {
 		return nil // Nothing to cleanup
 	}
 
@@ -174,17 +169,48 @@ func (s *CosmosIntegrationTestInfo) cleanupDatabase(ctx context.Context) error {
 		// Continue with deletion even if saving fails
 	}
 
-	_, err := s.CosmosDatabaseClient.Delete(ctx, nil)
-	if err != nil {
-		// Ignore 404 errors - database already doesn't exist
-		var responseErr *azcore.ResponseError
-		if errors.As(err, &responseErr) && responseErr.StatusCode == 404 {
-			return nil
-		}
-		return fmt.Errorf("failed to delete database %s: %w", s.DatabaseName, err)
-	}
+	s.deleteAllCosmosItems(ctx)
 
 	return nil
+}
+
+func (s *CosmosIntegrationTestInfo) deleteAllCosmosItems(ctx context.Context) {
+	logger := utils.LoggerFromContext(ctx)
+
+	querySQL := "SELECT * FROM c"
+	queryOptions := &azcosmos.QueryOptions{
+		QueryParameters: []azcosmos.QueryParameter{},
+	}
+
+	logger.Info("Deleting all documents from Cosmos DB")
+	for _, containerName := range []string{"Resources"} {
+		containerClient, err := s.cosmosClient.NewContainer(integrationTestCosmosDatabaseName, containerName)
+		if err != nil {
+			logger.Error(err, "Failed to create container client")
+			continue
+		}
+		queryPager := containerClient.NewQueryItemsPager(querySQL, azcosmos.PartitionKey{}, queryOptions)
+		for queryPager.More() {
+			queryResponse, err := queryPager.NextPage(ctx)
+			if err != nil {
+				logger.Error(err, "Failed to query documents")
+			}
+
+			for _, item := range queryResponse.Items {
+				var doc database.TypedDocument
+				if err := json.Unmarshal(item, &doc); err != nil {
+					logger.Error(err, "Failed to decode document")
+					continue
+				}
+				logger.Info("Deleting document", "id", doc.ID)
+				if _, err := containerClient.DeleteItem(ctx, azcosmos.NewPartitionKeyString(doc.PartitionKey), doc.ID, nil); err != nil {
+					logger.Error(err, "Failed to delete document", "id", doc.ID)
+					continue
+				}
+			}
+		}
+	}
+	logger.Info("Deleted all documents from Cosmos DB")
 }
 
 // saveAllDatabaseContent reads all records from all containers and saves them to files
@@ -348,7 +374,8 @@ func createCosmosClientFromEnv() (*azcosmos.Client, error) {
 	// Configure HTTP client to skip certificate verification for the emulator
 	httpClient := &http.Client{
 		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+			TLSClientConfig:   &tls.Config{InsecureSkipVerify: true},
+			DisableKeepAlives: true,
 		},
 	}
 
@@ -374,18 +401,37 @@ func createCosmosClientFromEnv() (*azcosmos.Client, error) {
 	return cosmosClient, nil
 }
 
-func initializeCosmosDBForFrontend(ctx context.Context, cosmosClient *azcosmos.Client, cosmosDatabaseName string) (*azcosmos.DatabaseClient, error) {
+const (
+	integrationTestCosmosDatabaseName = "integration-test"
+)
+
+func initializeCosmosDBForFrontend(ctx context.Context, cosmosClient *azcosmos.Client) (*azcosmos.DatabaseClient, error) {
+	logger := utils.LoggerFromContext(ctx)
+
 	// Create the database if it doesn't exist
-	databaseProperties := azcosmos.DatabaseProperties{ID: cosmosDatabaseName}
+	databaseProperties := azcosmos.DatabaseProperties{ID: integrationTestCosmosDatabaseName}
 	_, err := cosmosClient.CreateDatabase(ctx, databaseProperties, nil)
-	if err != nil {
+	if err != nil && !database.IsResponseError(err, http.StatusConflict) {
 		return nil, fmt.Errorf("failed to create database: %w", err)
 	}
 
 	// Get the database client
-	cosmosDatabaseClient, err := cosmosClient.NewDatabase(cosmosDatabaseName)
+	cosmosDatabaseClient, err := cosmosClient.NewDatabase(integrationTestCosmosDatabaseName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create database client: %w", err)
+	}
+
+	allContainers := sets.NewString()
+	allContainersQuery := cosmosDatabaseClient.NewQueryContainersPager("select * from containers c", nil)
+	for allContainersQuery.More() {
+		queryResponse, err := allContainersQuery.NextPage(context.Background())
+		if err != nil {
+			return nil, utils.TrackError(err)
+		}
+
+		for _, container := range queryResponse.Containers {
+			allContainers.Insert(container.ID)
+		}
 	}
 
 	// Create required containers
@@ -399,7 +445,13 @@ func initializeCosmosDBForFrontend(ctx context.Context, cosmosClient *azcosmos.C
 		{"Locks", "/id", &[]int32{10}[0]}, // 10 second TTL for locks
 	}
 
+	start := time.Now()
+	logger.Info("Create all containers")
 	for _, container := range containers {
+		if allContainers.Has(container.name) {
+			logger.Info("Container already exists", "containerName", container.name)
+			continue
+		}
 		containerProperties := azcosmos.ContainerProperties{
 			ID: container.name,
 			PartitionKeyDefinition: azcosmos.PartitionKeyDefinition{
@@ -410,23 +462,15 @@ func initializeCosmosDBForFrontend(ctx context.Context, cosmosClient *azcosmos.C
 			containerProperties.DefaultTimeToLive = container.defaultTTL
 		}
 
-		var lastErr error
-		err := wait.PollUntilContextTimeout(ctx, 1*time.Second, 60*time.Second, true, func(ctx context.Context) (done bool, err error) {
-			_, err = cosmosDatabaseClient.CreateContainer(ctx, containerProperties, nil)
-			lastErr = err
-			if err != nil {
-				return false, nil
-			}
-
-			return true, nil
-		})
-		if lastErr != nil {
-			return nil, utils.TrackError(fmt.Errorf("failed to create container %s: %w", container.name, lastErr))
-		}
-		if err != nil {
+		logger.Info("Creating container", "containerName", container.name)
+		_, err = cosmosDatabaseClient.CreateContainer(ctx, containerProperties, nil)
+		if err != nil && !database.IsResponseError(err, http.StatusConflict) {
 			return nil, utils.TrackError(err)
 		}
+		logger.Info("Container created", "containerName", container.name)
 	}
+	end := time.Now()
+	logger.Info("All containers created", "duration", end.Sub(start))
 
 	return cosmosDatabaseClient, nil
 

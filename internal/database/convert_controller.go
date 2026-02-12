@@ -31,6 +31,7 @@ func InternalToCosmosController(internalObj *api.Controller) (*Controller, error
 				ID: internalObj.GetCosmosData().GetCosmosUID(),
 			},
 			PartitionKey: strings.ToLower(internalObj.ExternalID.SubscriptionID),
+			ResourceID:   internalObj.CosmosMetadata.ResourceID,
 			ResourceType: internalObj.ResourceID.ResourceType.String(),
 		},
 		ControllerProperties: ControllerProperties{
@@ -48,6 +49,7 @@ func CosmosToInternalController(cosmosObj *Controller) (*api.Controller, error) 
 
 	// some pieces of data are stored on the BaseDocument, so we need to restore that data
 	internalObj := cosmosObj.ControllerProperties.Controller
+	internalObj.ExistingCosmosUID = cosmosObj.ID
 	internalObj.SetEtag(cosmosObj.CosmosETag)
 
 	return &internalObj, nil

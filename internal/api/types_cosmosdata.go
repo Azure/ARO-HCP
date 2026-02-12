@@ -15,6 +15,7 @@
 package api
 
 import (
+	"path"
 	"strings"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -23,15 +24,57 @@ import (
 )
 
 type CosmosMetadata = arm.CosmosMetadata
-type CosmosMetadataAccessor = arm.CosmosMetadataAccessor
-type CosmosPersistable = arm.CosmosPersistable
-type CosmosData = arm.CosmosMetadata
 
-var (
-	ResourceIDToCosmosID       = arm.ResourceIDToCosmosID
-	ResourceIDStringToCosmosID = arm.ResourceIDStringToCosmosID
-)
+func ToResourceGroupResourceIDString(subscriptionName, resourcGroupName string) string {
+	return strings.ToLower(path.Join("/subscriptions", subscriptionName, "resourceGroups", resourcGroupName))
+}
 
-func CosmosIDToResourceID(resourceID string) (*azcorearm.ResourceID, error) {
-	return azcorearm.ParseResourceID(strings.ReplaceAll(resourceID, "|", "/"))
+func ToClusterResourceID(subscriptionName, resourceGroupName, clusterName string) (*azcorearm.ResourceID, error) {
+	return azcorearm.ParseResourceID(ToClusterResourceIDString(subscriptionName, resourceGroupName, clusterName))
+}
+
+func ToClusterResourceIDString(subscriptionName, resourceGroupName, clusterName string) string {
+	return strings.ToLower(path.Join(
+		"/subscriptions", subscriptionName,
+		"resourceGroups", resourceGroupName,
+		"providers", ClusterResourceType.String(), clusterName,
+	))
+}
+
+func ToNodePoolResourceID(subscriptionName, resourceGroupName, clusterName, nodePoolName string) (*azcorearm.ResourceID, error) {
+	return azcorearm.ParseResourceID(ToNodePoolResourceIDString(subscriptionName, resourceGroupName, clusterName, nodePoolName))
+}
+
+func ToNodePoolResourceIDString(subscriptionName, resourceGroupName, clusterName, nodePoolName string) string {
+	return strings.ToLower(path.Join(
+		"/subscriptions", subscriptionName,
+		"resourceGroups", resourceGroupName,
+		"providers", ClusterResourceType.String(), clusterName,
+		NodePoolResourceType.Types[len(NodePoolResourceType.Types)-1], nodePoolName,
+	))
+}
+
+func ToExternalAuthResourceIDString(subscriptionName, resourceGroupName, clusterName, externalAuthName string) string {
+	return strings.ToLower(path.Join(
+		"/subscriptions", subscriptionName,
+		"resourceGroups", resourceGroupName,
+		"providers", ClusterResourceType.String(), clusterName,
+		ExternalAuthResourceType.Types[len(ExternalAuthResourceType.Types)-1], externalAuthName,
+	))
+}
+
+func ToServiceProviderClusterResourceIDString(subscriptionName, resourceGroupName, clusterName string) string {
+	return strings.ToLower(path.Join(
+		"/subscriptions", subscriptionName,
+		"resourceGroups", resourceGroupName,
+		"providers", ClusterResourceType.String(), clusterName,
+		ServiceProviderClusterResourceType.Types[len(ServiceProviderClusterResourceType.Types)-1], ServiceProviderClusterResourceName,
+	))
+}
+
+func ToOperationResourceIDString(subscriptionName, operationName string) string {
+	return strings.ToLower(path.Join(
+		"/subscriptions", subscriptionName,
+		"providers", OperationStatusResourceType.String(), operationName,
+	))
 }

@@ -30,6 +30,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/cleanup"
 	customlinktools "github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/custom-link-tools"
+	identitypool "github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/identity-pool"
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/visualize"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
@@ -51,7 +52,10 @@ func setupCli() *cobra.Command {
 			// TODO we will need per-env markers eventually, but it's ok to start here
 			fmt.Sprintf(`labels.exists(l, l=="%s") && !labels.exists(l, l=="%s")`, labels.RequireNothing[0], labels.DevelopmentOnly[0]),
 		},
-		Parallelism: 20,
+		// Spec parallelism is limited by the leased identity containers. We set suite parallelism slightly avobe the number of
+		// leased identity containers to avoid multi-HCP tests blocking single-HCP tests from obtaining a lease.
+		// LEASED_MSI_CONTAINERS=20
+		Parallelism: 24,
 	})
 
 	ext.AddSuite(e.Suite{
@@ -61,7 +65,10 @@ func setupCli() *cobra.Command {
 			// TODO we will need per-env markers eventually, but it's ok to start here
 			fmt.Sprintf(`labels.exists(l, l=="%s") && !labels.exists(l, l=="%s") && !labels.exists(l, l=="%s")`, labels.RequireNothing[0], labels.IntegrationOnly[0], labels.DevelopmentOnly[0]),
 		},
-		Parallelism: 10,
+		// Spec parallelism is limited by the leased identity containers. We set suite parallelism slightly avobe the number of
+		// leased identity containers to avoid multi-HCP tests blocking single-HCP tests from obtaining a lease.
+		// LEASED_MSI_CONTAINERS=30
+		Parallelism: 34,
 	})
 
 	ext.AddSuite(e.Suite{
@@ -71,7 +78,10 @@ func setupCli() *cobra.Command {
 			// TODO we will need per-env markers eventually, but it's ok to start here
 			fmt.Sprintf(`labels.exists(l, l=="%s") && !labels.exists(l, l=="%s") && !labels.exists(l, l=="%s")`, labels.RequireNothing[0], labels.IntegrationOnly[0], labels.DevelopmentOnly[0]),
 		},
-		Parallelism: 10,
+		// Spec parallelism is limited by the leased identity containers. We set suite parallelism slightly avobe the number of
+		// leased identity containers to avoid multi-HCP tests blocking single-HCP tests from obtaining a lease.
+		// LEASED_MSI_CONTAINERS=15
+		Parallelism: 19,
 	})
 
 	ext.AddSuite(e.Suite{
@@ -94,9 +104,12 @@ func setupCli() *cobra.Command {
 	}
 
 	ext.AddSuite(e.Suite{
-		Name:        "rp-api-compat-all/parallel",
-		Qualifiers:  []string{rpApiCompatBaseQualifier},
-		Parallelism: 10,
+		Name:       "rp-api-compat-all/parallel",
+		Qualifiers: []string{rpApiCompatBaseQualifier},
+		// Spec parallelism is limited by the leased identity containers. We set suite parallelism slightly avobe the number of
+		// leased identity containers to avoid multi-HCP tests blocking single-HCP tests from obtaining a lease.
+		// LEASED_MSI_CONTAINERS=20
+		Parallelism: 24,
 	})
 
 	// If using Ginkgo, build test specs automatically
@@ -176,6 +189,7 @@ func setupCli() *cobra.Command {
 	root.AddCommand(cleanup.NewCommand())
 	root.AddCommand(api.Must(visualize.NewCommand()))
 	root.AddCommand(api.Must(customlinktools.NewCommand()))
+	root.AddCommand(api.Must(identitypool.NewCommand()))
 	return root
 }
 

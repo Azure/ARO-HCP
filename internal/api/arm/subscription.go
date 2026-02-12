@@ -29,7 +29,11 @@ import (
 const SubscriptionAPIVersion = "2.0"
 
 func ToSubscriptionResourceID(subscriptionName string) (*azcorearm.ResourceID, error) {
-	return azcorearm.ParseResourceID(strings.ToLower(path.Join("/subscriptions", subscriptionName)))
+	return azcorearm.ParseResourceID(ToSubscriptionResourceIDString(subscriptionName))
+}
+
+func ToSubscriptionResourceIDString(subscriptionName string) string {
+	return strings.ToLower(path.Join("/subscriptions", subscriptionName))
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
@@ -48,12 +52,6 @@ type Subscription struct {
 	// LastUpdated is a copy of the Cosmos DB system generated
 	// "_ts" last updated timestamp field for metrics reporting.
 	LastUpdated int `json:"-"`
-}
-
-func (o *Subscription) GetCosmosData() *CosmosMetadata {
-	return &CosmosMetadata{
-		ResourceID: o.ResourceID,
-	}
 }
 
 type SubscriptionProperties struct {

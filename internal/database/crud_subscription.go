@@ -18,17 +18,13 @@ package database
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"net/http"
 	"strings"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
-	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 type SubscriptionCRUD interface {
@@ -58,65 +54,12 @@ func (d *subscriptionCRUD) GetByID(ctx context.Context, cosmosID string) (*arm.S
 }
 
 func (d *subscriptionCRUD) Get(ctx context.Context, resourceName string) (*arm.Subscription, error) {
-	logger := utils.LoggerFromContext(ctx)
-
 	// for subscriptions, the resourceName IS the partitionKey (at least for now).
 	completeResourceID, err := arm.ToSubscriptionResourceID(resourceName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to make ResourceID path for '%s': %w", resourceName, err)
 	}
 	partitionKey := strings.ToLower(completeResourceID.SubscriptionID)
-
-	subscription, err := get[arm.Subscription, Subscription](ctx, d.containerClient, partitionKey, completeResourceID)
-	if err == nil {
-		return subscription, nil
-	}
-	if !IsResponseError(err, http.StatusNotFound) {
-		return nil, err
-	}
-
-	logger.Info("record has not been migrated, trying old lookup")
-	// notice that this function will not work until we rewrite all records so that subscriptions contain a resourceID
-	// first attempt to use the old way.
-	subscription, err = d.GetByID(ctx, resourceName)
-	if err != nil {
-		return nil, utils.TrackError(err)
-	}
-
-	// To get here, we didn't find the item by direct cosmos ID, but after re-keying we will.
-	// We also know for sure it exists.  Let's go ahead and create the replacement item and delete the original
-	// Old frontends will continue to work because the query used will still match since all the non-cosmos ID data remains the same.
-	// After a successful create, we will delete the original.
-	// If we crash after the create and before the delete or the delete fails, we will get a detectable failure of `ErrAmbiguousResult`
-	// which will force a manual cleanup. Given how few of these we have, it should be uncommon.
-	oldCosmosSubscription, err := InternalToCosmosSubscription(subscription)
-	if err != nil {
-		return nil, utils.TrackError(err)
-	}
-	responseItem, err := json.Marshal(oldCosmosSubscription)
-	if err != nil {
-		return nil, utils.TrackError(err)
-	}
-
-	objAsMap := map[string]any{}
-	if err := json.Unmarshal(responseItem, &objAsMap); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal Resources container item for '%s': %w", completeResourceID, err)
-	}
-	originalCosmosID := objAsMap["id"].(string)
-	newCosmosID := api.Must(api.ResourceIDToCosmosID(completeResourceID))
-	objAsMap["id"] = newCosmosID
-	newBytes, err := json.Marshal(objAsMap)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal Cosmos DB item for '%s': %w", completeResourceID, err)
-	}
-
-	logger.Info("creating new item", "newCosmosID", newCosmosID, "oldCosmosID", originalCosmosID)
-	if _, err := d.containerClient.CreateItem(ctx, azcosmos.NewPartitionKeyString(partitionKey), newBytes, nil); err != nil {
-		return nil, utils.TrackError(err)
-	}
-	if _, err = d.containerClient.DeleteItem(ctx, azcosmos.NewPartitionKeyString(partitionKey), originalCosmosID, nil); err != nil {
-		return nil, utils.TrackError(err)
-	}
 
 	return get[arm.Subscription, Subscription](ctx, d.containerClient, partitionKey, completeResourceID)
 }

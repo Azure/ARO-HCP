@@ -37,7 +37,7 @@ type frontendHTTPTestAccessor struct {
 	frontendClient *hcpsdk20240610preview.ClientFactory
 }
 
-func newFrontendHTTPTestAccessor(frontEndURL string, frontendClient *hcpsdk20240610preview.ClientFactory) *frontendHTTPTestAccessor {
+func NewFrontendHTTPTestAccessor(frontEndURL string, frontendClient *hcpsdk20240610preview.ClientFactory) *frontendHTTPTestAccessor {
 	return &frontendHTTPTestAccessor{
 		frontEndURL:    frontEndURL,
 		frontendClient: frontendClient,
@@ -47,6 +47,8 @@ func newFrontendHTTPTestAccessor(frontEndURL string, frontendClient *hcpsdk20240
 var _ HTTPTestAccessor = &frontendHTTPTestAccessor{}
 
 func (c frontendHTTPTestAccessor) Get(ctx context.Context, resourceIDString string) (any, error) {
+	logger := utils.LoggerFromContext(ctx)
+
 	resourceID, err := azcorearm.ParseResourceID(resourceIDString)
 	if err != nil {
 		return nil, utils.TrackError(err)
@@ -85,7 +87,11 @@ func (c frontendHTTPTestAccessor) Get(ctx context.Context, resourceIDString stri
 		if err != nil {
 			return nil, utils.TrackError(err)
 		}
-		defer resp.Body.Close()
+		defer func() {
+			if err := resp.Body.Close(); err != nil {
+				logger.Error(err, "failed to close response body")
+			}
+		}()
 
 		if resp.StatusCode != 200 {
 			return nil, utils.TrackError(fmt.Errorf("expected 200 status code, got %d", resp.StatusCode))
@@ -161,6 +167,8 @@ func (c frontendHTTPTestAccessor) List(ctx context.Context, exemplarResourceIDSt
 }
 
 func (c frontendHTTPTestAccessor) CreateOrUpdate(ctx context.Context, resourceIDString string, content []byte) error {
+	logger := utils.LoggerFromContext(ctx)
+
 	resourceID, err := azcorearm.ParseResourceID(resourceIDString)
 	if err != nil {
 		return utils.TrackError(err)
@@ -211,6 +219,12 @@ func (c frontendHTTPTestAccessor) CreateOrUpdate(ctx context.Context, resourceID
 		if err != nil {
 			return utils.TrackError(err)
 		}
+		defer func() {
+			if err := response.Body.Close(); err != nil {
+				logger.Error(err, "failed to close response body")
+			}
+		}()
+
 		if response.StatusCode != 200 {
 			return utils.TrackError(fmt.Errorf("expected 200 status code, got %d", response.StatusCode))
 		}

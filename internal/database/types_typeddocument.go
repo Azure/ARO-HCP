@@ -16,6 +16,8 @@ package database
 
 import (
 	"encoding/json"
+
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 )
 
 // TypedDocument is a BaseDocument with a ResourceType field to
@@ -24,9 +26,10 @@ import (
 // implements the DocumentProperties interface.
 type TypedDocument struct {
 	BaseDocument
-	PartitionKey string          `json:"partitionKey"`
-	ResourceType string          `json:"resourceType"`
-	Properties   json.RawMessage `json:"properties"`
+	PartitionKey string                `json:"partitionKey"`
+	ResourceID   *azcorearm.ResourceID `json:"resourceID"`
+	ResourceType string                `json:"resourceType"`
+	Properties   json.RawMessage       `json:"properties"`
 }
 
 var (

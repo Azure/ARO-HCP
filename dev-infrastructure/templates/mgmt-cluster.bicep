@@ -15,6 +15,15 @@ var locationAvailabilityZoneList = csvToArray(locationAvailabilityZones)
 @description('AKS cluster name')
 param aksClusterName string = 'aro-hcp-aks'
 
+@description('Name of the system agent pool')
+param systemAgentPoolName string
+
+@description('Name of the user agent pool')
+param userAgentPoolName string
+
+@description('Name of the infra agent pool')
+param infraAgentPoolName string
+
 @description('Disk size for the AKS system nodes')
 param systemOsDiskSizeGB int
 
@@ -206,6 +215,12 @@ param hcpBackupsStorageAccountName string
 @description('The cluster tag value for the owning team')
 param owningTeamTagValue string
 
+@description('Event Hub name for AKS audit logs')
+param auditLogsEventHubName string
+
+@description('Resource ID of the event hub authorization rule for AKS audit logs')
+param auditLogsEventHubAuthRuleId string
+
 //
 //   M A N A G E D   I D E N T I T I E S
 //
@@ -249,6 +264,11 @@ module managedIdentities '../modules/managed-identities.bicep' = {
 //
 //   A K S
 //
+
+resource aksClusterUserDefinedManagedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
+  name: '${aksClusterName}-msi'
+  location: location
+}
 
 resource mgmtClusterNSG 'Microsoft.Network/networkSecurityGroups@2023-11-01' = {
   location: location
@@ -334,6 +354,7 @@ module mgmtCluster '../modules/aks-cluster-base.bicep' = {
     aksKeyVaultTagName: aksKeyVaultTagName
     aksKeyVaultTagValue: aksKeyVaultTagValue
     pullAcrResourceIds: [ocpAcrResourceId, svcAcrResourceId]
+    systemAgentPoolName: systemAgentPoolName
     systemAgentMinCount: systemAgentMinCount
     systemAgentMaxCount: systemAgentMaxCount
     systemAgentVMSize: systemAgentVMSize
@@ -343,6 +364,7 @@ module mgmtCluster '../modules/aks-cluster-base.bicep' = {
     systemOsDiskSizeGB: systemOsDiskSizeGB
     systemZoneRedundantMode: systemZoneRedundantMode
     userOsDiskSizeGB: userOsDiskSizeGB
+    userAgentPoolName: userAgentPoolName
     userAgentMinCount: userAgentMinCount
     userAgentMaxCount: userAgentMaxCount
     userAgentVMSize: userAgentVMSize
@@ -351,6 +373,7 @@ module mgmtCluster '../modules/aks-cluster-base.bicep' = {
       ? csvToArray(userAgentPoolZones)
       : locationAvailabilityZoneList
     userZoneRedundantMode: userZoneRedundantMode
+    infraAgentPoolName: infraAgentPoolName
     infraAgentMinCount: infraAgentMinCount
     infraAgentMaxCount: infraAgentMaxCount
     infraAgentVMSize: infraAgentVMSize
@@ -365,6 +388,7 @@ module mgmtCluster '../modules/aks-cluster-base.bicep' = {
     deploymentMsiId: globalMSIId
     enableSwiftV2Nodepools: aksEnableSwiftNodepools
     owningTeamTagValue: owningTeamTagValue
+    aksClusterUserDefinedManagedIdentityName: aksClusterUserDefinedManagedIdentity.name
   }
   dependsOn: [
     managedIdentities
@@ -522,3 +546,19 @@ module hcpBackupsRbac '../modules/hcp-backups/storage-rbac.bicep' = {
     veleroManagedIdentityPrincipalId: mi.getManagedIdentityByName(managedIdentities.outputs.managedIdentities, 'velero').uamiPrincipalID
   }
 }
+
+//
+//  A K S   D I A G N O S T I C   S E T T I N G S
+//
+// jboll, needs to disable, cause stage deployment fails 
+// module diagnosticSetting '../modules/aks/diagnostic-setting.bicep' = if (auditLogsEventHubAuthRuleId != '') {
+//   name: 'aks-diagnostic-setting'
+//   dependsOn: [
+//     mgmtCluster
+//   ]
+//   params: {
+//     aksClusterName: aksClusterName
+//     auditLogsEventHubName: auditLogsEventHubName
+//     auditLogsEventHubAuthRuleId: auditLogsEventHubAuthRuleId
+//   }
+// }

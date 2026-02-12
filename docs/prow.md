@@ -17,6 +17,7 @@ This document is intended for ARO HCP developers and SREs. It provides an overvi
     - [Image Updater Tooling](#image-updater-tooling)
     - [Resource Group Cleanup](#resource-group-cleanup)
     - [Periodic E2E Tests](#periodic-e2e-tests)
+- [Managed Identity Reuse for E2E Tests](#managed-identity-reuse-for-e2e-tests)
 - [EV2 Pipeline Integration](#ev2-pipeline-integration)
 - [Working with Prow Jobs](#working-with-prow-jobs)
 - [Best Practices](#best-practices)
@@ -57,7 +58,7 @@ Presubmit jobs run automatically or on-demand for pull requests to the main bran
 
 | Property | Value |
 |----------|-------|
-| **Job Names** | [`pull-ci-Azure-ARO-HCP-main-images`](https://prow.ci.openshift.org/?job=pull-ci-Azure-ARO-HCP-main-images)<br>[`pull-ci-Azure-ARO-HCP-main-image-updater-images`](https://prow.ci.openshift.org/?job=pull-ci-Azure-ARO-HCP-main-image-updater-images)<br>[`pull-ci-Azure-ARO-HCP-main-periodic-images`](https://prow.ci.openshift.org/?job=pull-ci-Azure-ARO-HCP-main-periodic-images) |
+| **Job Names** | [pull-ci-Azure-ARO-HCP-main-images](https://prow.ci.openshift.org/?job=pull-ci-Azure-ARO-HCP-main-images)<br>[pull-ci-Azure-ARO-HCP-main-image-updater-images](https://prow.ci.openshift.org/?job=pull-ci-Azure-ARO-HCP-main-image-updater-images)<br>[pull-ci-Azure-ARO-HCP-main-periodic-images](https://prow.ci.openshift.org/?job=pull-ci-Azure-ARO-HCP-main-periodic-images) |
 | **Status** | Always runs (required) |
 | **Purpose** | Builds and validates container images for the project. The standard `images` job builds the main service images, while `image-updater-images` builds the image updater tooling variant, and `periodic-images` builds the images used by periodic jobs. |
 
@@ -67,7 +68,7 @@ Presubmit jobs run automatically or on-demand for pull requests to the main bran
 
 | Property | Value |
 |----------|-------|
-| **Job Name** | [`pull-ci-Azure-ARO-HCP-main-frontend-simulation`](https://prow.ci.openshift.org/?job=pull-ci-Azure-ARO-HCP-main-frontend-simulation) |
+| **Job Name** | [pull-ci-Azure-ARO-HCP-main-frontend-simulation](https://prow.ci.openshift.org/?job=pull-ci-Azure-ARO-HCP-main-frontend-simulation) |
 | **Status** | Always runs (required) |
 | **Cluster** | build10 |
 | **Step Registry** | [frontend-simulation](https://steps.ci.openshift.org/job?org=Azure&repo=ARO-HCP&branch=main&test=frontend-simulation) |
@@ -79,7 +80,7 @@ Presubmit jobs run automatically or on-demand for pull requests to the main bran
 
 | Property | Value |
 |----------|-------|
-| **Job Name** | [`pull-ci-Azure-ARO-HCP-main-e2e-parallel`](https://prow.ci.openshift.org/?job=pull-ci-Azure-ARO-HCP-main-e2e-parallel) |
+| **Job Name** | [pull-ci-Azure-ARO-HCP-main-e2e-parallel](https://prow.ci.openshift.org/?job=pull-ci-Azure-ARO-HCP-main-e2e-parallel) |
 | **Status** | Always runs, but optional (does not block merge) |
 | **Environment** | Dev (westus3) |
 | **Cluster** | build07 |
@@ -96,7 +97,7 @@ These optional jobs allow testing against specific Azure environments before mer
 
 | Property | Value |
 |----------|-------|
-| **Job Name** | [`pull-ci-Azure-ARO-HCP-main-integration-e2e-parallel`](https://prow.ci.openshift.org/?job=pull-ci-Azure-ARO-HCP-main-integration-e2e-parallel) |
+| **Job Name** | [pull-ci-Azure-ARO-HCP-main-integration-e2e-parallel](https://prow.ci.openshift.org/?job=pull-ci-Azure-ARO-HCP-main-integration-e2e-parallel) |
 | **Status** | Optional (runs only when triggered) |
 | **Environment** | Int (uksouth) |
 | **Step Registry** | [integration-e2e-parallel](https://steps.ci.openshift.org/job?org=Azure&repo=ARO-HCP&branch=main&test=integration-e2e-parallel) |
@@ -106,7 +107,7 @@ These optional jobs allow testing against specific Azure environments before mer
 
 | Property | Value |
 |----------|-------|
-| **Job Name** | [`pull-ci-Azure-ARO-HCP-main-stage-e2e-parallel`](https://prow.ci.openshift.org/?job=pull-ci-Azure-ARO-HCP-main-stage-e2e-parallel) |
+| **Job Name** | [pull-ci-Azure-ARO-HCP-main-stage-e2e-parallel](https://prow.ci.openshift.org/?job=pull-ci-Azure-ARO-HCP-main-stage-e2e-parallel) |
 | **Status** | Optional (runs only when triggered) |
 | **Environment** | Stage (uksouth) |
 | **Step Registry** | [stage-e2e-parallel](https://steps.ci.openshift.org/job?org=Azure&repo=ARO-HCP&branch=main&test=stage-e2e-parallel) |
@@ -116,7 +117,7 @@ These optional jobs allow testing against specific Azure environments before mer
 
 | Property | Value |
 |----------|-------|
-| **Job Name** | [`pull-ci-Azure-ARO-HCP-main-prod-e2e-parallel`](https://prow.ci.openshift.org/?job=pull-ci-Azure-ARO-HCP-main-prod-e2e-parallel) |
+| **Job Name** | [pull-ci-Azure-ARO-HCP-main-prod-e2e-parallel](https://prow.ci.openshift.org/?job=pull-ci-Azure-ARO-HCP-main-prod-e2e-parallel) |
 | **Status** | Optional (runs only when triggered) |
 | **Environment** | Prod (uksouth) |
 | **Step Registry** | [prod-e2e-parallel](https://steps.ci.openshift.org/job?org=Azure&repo=ARO-HCP&branch=main&test=prod-e2e-parallel) |
@@ -133,7 +134,7 @@ Periodic jobs run on a regular schedule to maintain system health, perform routi
 
 | Property | Value |
 |----------|-------|
-| **Job Name** | [`periodic-ci-Azure-ARO-HCP-main-image-updater-image-updater-tooling`](https://prow.ci.openshift.org/?job=periodic-ci-Azure-ARO-HCP-main-image-updater-image-updater-tooling) |
+| **Job Name** | [periodic-ci-Azure-ARO-HCP-main-image-updater-image-updater-tooling](https://prow.ci.openshift.org/?job=periodic-ci-Azure-ARO-HCP-main-image-updater-image-updater-tooling) |
 | **Schedule** | Daily at 2:00 AM UTC, Monday through Friday (`0 2 * * 1-5`) |
 | **Step Registry** | [image-updater-tooling](https://steps.ci.openshift.org/job?org=Azure&repo=ARO-HCP&branch=main&variant=image-updater&test=image-updater-tooling) |
 | **Purpose** | Runs the image updater tooling to check for and update container image references. This helps keep the project's container images up to date with the latest patches and security fixes. |
@@ -148,7 +149,7 @@ These jobs automatically delete expired resource groups across different environ
 
 | Property | Value |
 |----------|-------|
-| **Job Name** | [`periodic-ci-Azure-ARO-HCP-main-periodic-delete-expired-integration-resource-groups`](https://prow.ci.openshift.org/?job=periodic-ci-Azure-ARO-HCP-main-periodic-delete-expired-integration-resource-groups) |
+| **Job Name** | [periodic-ci-Azure-ARO-HCP-main-periodic-delete-expired-integration-resource-groups](https://prow.ci.openshift.org/?job=periodic-ci-Azure-ARO-HCP-main-periodic-delete-expired-integration-resource-groups) |
 | **Schedule** | Every 30 minutes (`*/30 * * * *`) |
 | **Environment** | Int (uksouth) |
 | **Step Registry** | [delete-expired-integration-resource-groups](https://steps.ci.openshift.org/job?org=Azure&repo=ARO-HCP&branch=main&variant=periodic&test=delete-expired-integration-resource-groups) |
@@ -158,7 +159,7 @@ These jobs automatically delete expired resource groups across different environ
 
 | Property | Value |
 |----------|-------|
-| **Job Name** | [`periodic-ci-Azure-ARO-HCP-main-periodic-delete-expired-stage-resource-groups`](https://prow.ci.openshift.org/?job=periodic-ci-Azure-ARO-HCP-main-periodic-delete-expired-stage-resource-groups) |
+| **Job Name** | [periodic-ci-Azure-ARO-HCP-main-periodic-delete-expired-stage-resource-groups](https://prow.ci.openshift.org/?job=periodic-ci-Azure-ARO-HCP-main-periodic-delete-expired-stage-resource-groups) |
 | **Schedule** | Every 30 minutes (`*/30 * * * *`) |
 | **Environment** | Stage (uksouth) |
 | **Step Registry** | [delete-expired-stage-resource-groups](https://steps.ci.openshift.org/job?org=Azure&repo=ARO-HCP&branch=main&variant=periodic&test=delete-expired-stage-resource-groups) |
@@ -168,7 +169,7 @@ These jobs automatically delete expired resource groups across different environ
 
 | Property | Value |
 |----------|-------|
-| **Job Name** | [`periodic-ci-Azure-ARO-HCP-main-periodic-delete-expired-prod-resource-groups`](https://prow.ci.openshift.org/?job=periodic-ci-Azure-ARO-HCP-main-periodic-delete-expired-prod-resource-groups) |
+| **Job Name** | [periodic-ci-Azure-ARO-HCP-main-periodic-delete-expired-prod-resource-groups](https://prow.ci.openshift.org/?job=periodic-ci-Azure-ARO-HCP-main-periodic-delete-expired-prod-resource-groups) |
 | **Schedule** | Every 30 minutes (`*/30 * * * *`) |
 | **Environment** | Prod (uksouth) |
 | **Step Registry** | [delete-expired-prod-resource-groups](https://steps.ci.openshift.org/job?org=Azure&repo=ARO-HCP&branch=main&variant=periodic&test=delete-expired-prod-resource-groups) |
@@ -184,7 +185,7 @@ These jobs run comprehensive end-to-end tests on a schedule to catch regressions
 
 | Property | Value |
 |----------|-------|
-| **Job Name** | [`periodic-ci-Azure-ARO-HCP-main-periodic-integration-e2e-parallel`](https://prow.ci.openshift.org/?job=periodic-ci-Azure-ARO-HCP-main-periodic-integration-e2e-parallel) |
+| **Job Name** | [periodic-ci-Azure-ARO-HCP-main-periodic-integration-e2e-parallel](https://prow.ci.openshift.org/?job=periodic-ci-Azure-ARO-HCP-main-periodic-integration-e2e-parallel) |
 | **Schedule** | January 1st at midnight (`0 0 1 1 *`) - placeholder only |
 | **Environment** | Int (uksouth) |
 | **Step Registry** | [integration-e2e-parallel](https://steps.ci.openshift.org/job?org=Azure&repo=ARO-HCP&branch=main&variant=periodic&test=integration-e2e-parallel) |
@@ -197,7 +198,7 @@ These jobs run comprehensive end-to-end tests on a schedule to catch regressions
 
 | Property | Value |
 |----------|-------|
-| **Job Name** | [`periodic-ci-Azure-ARO-HCP-main-periodic-stage-e2e-parallel`](https://prow.ci.openshift.org/?job=periodic-ci-Azure-ARO-HCP-main-periodic-stage-e2e-parallel) |
+| **Job Name** | [periodic-ci-Azure-ARO-HCP-main-periodic-stage-e2e-parallel](https://prow.ci.openshift.org/?job=periodic-ci-Azure-ARO-HCP-main-periodic-stage-e2e-parallel) |
 | **Schedule** | Daily at 2:00 AM UTC (`0 2 * * *`) |
 | **Environment** | Stage (uksouth) |
 | **Step Registry** | [stage-e2e-parallel](https://steps.ci.openshift.org/job?org=Azure&repo=ARO-HCP&branch=main&variant=periodic&test=stage-e2e-parallel) |
@@ -207,11 +208,136 @@ These jobs run comprehensive end-to-end tests on a schedule to catch regressions
 
 | Property | Value |
 |----------|-------|
-| **Job Name** | [`periodic-ci-Azure-ARO-HCP-main-periodic-prod-e2e-parallel`](https://prow.ci.openshift.org/?job=periodic-ci-Azure-ARO-HCP-main-periodic-prod-e2e-parallel) |
+| **Job Name** | [periodic-ci-Azure-ARO-HCP-main-periodic-prod-e2e-parallel](https://prow.ci.openshift.org/?job=periodic-ci-Azure-ARO-HCP-main-periodic-prod-e2e-parallel) |
 | **Schedule** | Daily at 2:00 AM UTC (`0 2 * * *`) |
 | **Environment** | Prod (uksouth) |
 | **Step Registry** | [prod-e2e-parallel](https://steps.ci.openshift.org/job?org=Azure&repo=ARO-HCP&branch=main&variant=periodic&test=prod-e2e-parallel) |
 | **Purpose** | Runs end-to-end parallel tests against the production environment daily to ensure production environment health. |
+
+## Managed Identity Reuse for E2E Tests
+
+The E2E suites use a **managed identity pool** backed by **Boskos leases** to avoid re‑creating Azure managed identities on every run while still allowing high parallelism and isolation.
+
+### Design and runtime behavior
+
+- **Two modes of operation**
+  - **Pooled mode** (default in CI) is enabled when `POOLED_IDENTITIES=true`. In this mode tests reuse pre‑created "identity containers" (resource groups that hold the well‑known managed identities for a single HCP cluster).
+  - **Non‑pooled mode** (`POOLED_IDENTITIES=false`) creates identities directly in the cluster resource group using suffixed names (e.g. `control-plane-<clusterName>`). This is mainly for local or ad‑hoc runs.
+- **Per‑spec leasing protocol**
+  - The implementation lives in [test/util/framework/identities_helper.go](../test/util/framework/identities_helper.go).
+  - On startup, the test binary reads the `LEASED_MSI_CONTAINERS` environment variable, which contains a **space‑separated list of resource group names** provided by Boskos for the current job.
+  - Those resource groups are written into a YAML state file as a list of entries, each with a **three‑state lease lifecycle**:
+    - `free`: container is available to be used by any test.
+    - `assigned`: container has been reserved for a specific Ginkgo spec but is not yet in use.
+    - `busy`: container is actively being used by that spec.
+  - Each spec is identified by a stable **spec ID** (`specID()`), derived from the Ginkgo spec text and the OS process ID (`"<FullText-with-dashes>|pid:<pid>"`).
+  - At the start of a spec, `AssignIdentityContainers` calls `assignNTo(specID, N)` to atomically reserve the required number of containers by transitioning `free → assigned`. If there are not enough free entries, it returns `ErrNotEnoughFreeIdentityContainers` and the helper retries with backoff until containers become available or the context is cancelled.
+  - When a spec actually needs a container (for Bicep/ARM deployments), `ResolveIdentitiesForTemplate` / `DeployManagedIdentities` call `useNextAssigned(specID)`, which transitions a single entry from `assigned → busy` and returns its resource group name.
+  - During test cleanup, `releaseLeasedIdentities` transitions all containers leased by that spec back to `free` via `releaseByContainerName`, and performs best‑effort cleanup of:
+    - Federated identity credentials in each managed identity.
+    - Role assignments scoped to the identity container resource group.
+- **File‑based IPC for Ginkgo workers**
+  - The [openshift-tests-extension](https://github.com/openshift-eng/openshift-tests-extension) parallelization model runs a **parent test process** that spawns multiple **OS worker processes** for Ginkgo specs.
+  - These worker processes coordinate identity leases via a **shared YAML state file** plus a **separate lock file**:
+    - The lock file ensures that only one worker modifies the state file at a time.
+    - Each leasing operation (`assignNTo`, `useNextAssigned`, `releaseByContainerName`, `getLeasedIdentityContainers`) follows the pattern: take the lock, load state from disk, modify it in memory, then persist the updated state back to disk.
+  - The YAML state file is created on first use from `LEASED_MSI_CONTAINERS` and then treated as the **single source of truth** for the lifetime of the job.
+- **Identity naming**
+  - The set of managed identities in each container is fixed and defined in `NewDefaultIdentities()` in `identities_helper.go` (e.g. `cluster-api-azure`, `control-plane`, `cloud-controller-manager`, `image-registry`, etc.).
+  - In pooled mode, these canonical names are used as‑is in every identity container resource group.
+  - In non‑pooled mode, the same base names are suffixed with the cluster name to ensure uniqueness within the cluster resource group.
+
+### Prow, ci-operator, and Boskos configuration
+
+For background on how leases work in OpenShift CI, see:
+
+- [Quota and Leases](https://docs.ci.openshift.org/docs/architecture/quota-and-leases/)
+- [Step Registry – Leases](https://docs.ci.openshift.org/docs/architecture/step-registry/#leases)
+
+- **Boskos resource types**
+  - The Boskos configuration is generated from [core-services/prow/02_config/generate-boskos.py](https://github.com/openshift/release/blob/master/core-services/prow/02_config/generate-boskos.py).
+  - It defines four resource types that back the identity containers:
+    - `aro-hcp-test-msi-containers-dev`
+    - `aro-hcp-test-msi-containers-int`
+    - `aro-hcp-test-msi-containers-stg`
+    - `aro-hcp-test-msi-containers-prod`
+  - For each type, the script creates a fixed number of named resources, for example:
+    - `aro-hcp-test-msi-containers-dev-0` … `aro-hcp-test-msi-containers-dev-299`
+    - `aro-hcp-test-msi-containers-int-0` … `aro-hcp-test-msi-containers-int-149`
+    - (and similarly for `stg` and `prod`)
+  - Each Boskos resource name corresponds **1:1 to an Azure resource group** that contains the managed identities needed to create a single HCP cluster.
+- **Leases in job configuration**
+  - E2E jobs request identity container leases from Boskos via ci-operator `leases` sections, which populate `LEASED_MSI_CONTAINERS` with a space‑separated list of resource names:
+    - **Presubmit jobs** (`integration-e2e-parallel`, `stage-e2e-parallel`, `prod-e2e-parallel`): leasing configuration lives in [ci-operator/config/Azure/ARO-HCP/Azure-ARO-HCP-main.yaml](https://github.com/openshift/release/blob/master/ci-operator/config/Azure/ARO-HCP/Azure-ARO-HCP-main.yaml).
+    - **Periodic / gating jobs** (`integration-e2e-parallel`, `stage-e2e-parallel`, `prod-e2e-parallel`): leasing configuration lives in [ci-operator/config/Azure/ARO-HCP/Azure-ARO-HCP-main__periodic.yaml](https://github.com/openshift/release/blob/master/ci-operator/config/Azure/ARO-HCP/Azure-ARO-HCP-main__periodic.yaml).
+    - **Dev presubmit jobs**: leasing configuration for the `aro-hcp-local-e2e` workflow lives in [ci-operator/step-registry/aro-hcp/local-e2e/aro-hcp-local-e2e-workflow.yaml](https://github.com/openshift/release/blob/master/ci-operator/step-registry/aro-hcp/local-e2e/aro-hcp-local-e2e-workflow.yaml).
+  - A typical leasing stanza looks like:
+
+    ```yaml
+    leases:
+    - resource_type: aro-hcp-test-msi-containers-dev
+      env: LEASED_MSI_CONTAINERS
+      count: 20
+    ```
+
+  - The `LEASED_MSI_CONTAINERS` environment variable is then consumed by `newLeasedIdentityPoolState` in `identities_helper.go`; if it is empty while `POOLED_IDENTITIES=true`, the test run fails fast with a clear error.
+- **Toggling pooled vs non‑pooled identities**
+  - The test steps that actually run the `aro-hcp-tests` binary define `POOLED_IDENTITIES`:
+    - `aro-hcp-test-local` ([ci-operator/step-registry/aro-hcp/test/local/aro-hcp-test-local-ref.yaml](https://github.com/openshift/release/blob/master/ci-operator/step-registry/aro-hcp/test/local/aro-hcp-test-local-ref.yaml)):
+      - Sets `POOLED_IDENTITIES` with default `"true"`.
+    - `aro-hcp-test-persistent` ([ci-operator/step-registry/aro-hcp/test/persistent/aro-hcp-test-persistent-ref.yaml](https://github.com/openshift/release/blob/master/ci-operator/step-registry/aro-hcp/test/persistent/aro-hcp-test-persistent-ref.yaml)):
+      - Sets `POOLED_IDENTITIES` with default `"true"`.
+  - In the test framework, `UsePooledIdentities()` reads this environment variable and routes identity provisioning:
+    - `true`: use the Boskos‑backed identity containers and the lease state machine.
+    - `false`: skip Boskos and create identities directly in the cluster resource group.
+
+### Managing the identity pools
+
+- **`identity-pool` CLI**
+  - The `test/cmd/aro-hcp-tests/identity-pool` subcommand is a small CLI that **creates and maintains** the identity container resource groups in each test subscription.
+  - It wraps a pre‑generated ARM template (`msi-pools.json`, built from `test/e2e-setup/bicep/msi-pools.bicep`) and applies it as an Azure **deployment stack** named `aro-hcp-msi-pool`:
+    - The `apply` command is implemented in `options.go` and `cmd.go`.
+    - It uses a per‑environment mapping (`identityPoolMapping`) that defines:
+      - The Azure location for the pool.
+      - The base name for identity container resource groups.
+      - The default **pool size** (number of containers) per environment.
+      - A `subscriptionIDHash` prefix to ensure the command is being run against the correct subscription.
+  - Example usage (run from the `test` image or a local build):
+    - `./test/aro-hcp-tests identity-pool apply --environment dev`
+    - `./test/aro-hcp-tests identity-pool apply --environment int --pool-size 150`
+  - The CLI validates that the hash of the current subscription ID matches the expected prefix for the chosen environment, which helps prevent accidentally creating pools in the wrong subscription.
+- **Keeping Boskos and the pool in sync**
+  - The **number of identity containers** provisioned by `identity-pool apply` must be large enough to satisfy:
+    - The **maximum number of Boskos leases** requested by all E2E jobs in that environment, and
+    - The **maximum number of containers per test** (some specs may reserve more than one container).
+  - Any time you change:
+    - The Boskos resource type counts in `generate-boskos.py`, or
+    - The pool sizing logic / defaults in `identity-pool/options.go`,
+    you must:
+    - Regenerate Boskos configuration in `openshift/release`.
+    - Re‑apply the identity pool in each affected subscription using the `identity-pool apply` CLI.
+
+### Operational notes and troubleshooting
+
+- **Analyzing test timing**
+  - When the pool is saturated, tests **block inside `AssignIdentityContainers`** until containers are freed by other specs.
+  - From Ginkgo's perspective, this wait time is part of the overall spec runtime, but the framework records dedicated **test steps** using `RecordTestStep`:
+    - `"Assign N identity containers"`
+    - `"Lease identity container"`
+    - `"Release leased identities"`
+  - When analyzing performance (either from Prow artifacts or local runs), you can subtract or separately report the time spent in these steps to distinguish **infra wait time** from **actual test logic time**.
+- **Common failure modes**
+  - **`expected envvar LEASED_MSI_CONTAINERS to not be empty`**:
+    - The job did not request Boskos leases or the leases failed to be assigned.
+    - Check the ci-operator job configuration and Boskos health in `openshift/release`.
+  - **`no assigned identity containers available for <specID>`**:
+    - The spec called `useNextAssigned` without first successfully calling `AssignIdentityContainers`, or it is attempting to lease more containers than it previously reserved.
+    - Verify that the test reserves the correct number of containers at the beginning of the spec and that all `ResolveIdentitiesForTemplate` / `DeployManagedIdentities` calls stay within that reservation.
+  - **Leaked role assignments / FICs in identity container resource groups**:
+    - `releaseLeasedIdentities` attempts best‑effort cleanup by:
+      - Listing and deleting all FICs for each managed identity in the container RG.
+      - Listing role assignments for the RG and deleting only those whose scope starts with the RG's resource ID.
+    - Persistent leaks typically indicate either Azure permission issues or unexpected resources created; in that case, investigate the identity container RG directly in Azure.
 
 ## EV2 Pipeline Integration
 
@@ -221,7 +347,7 @@ The periodic E2E test jobs are integrated with EV2 (Express V2) deployment pipel
 
 The connection between Prow jobs and EV2 pipelines is established through configuration in the ARO-HCP repository:
 
-1. **Configuration Files**: The [`config/config.msft.clouds-overlay.yaml`](../config/config.msft.clouds-overlay.yaml) file defines the `prowJobName` for each environment:
+1. **Configuration Files**: The [config/config.msft.clouds-overlay.yaml](../config/config.msft.clouds-overlay.yaml) file defines the `prowJobName` for each environment:
 
    ```yaml
    e2e:
@@ -230,7 +356,7 @@ The connection between Prow jobs and EV2 pipelines is established through config
        gatePromotion: true  # Optional: gates promotion on test success
    ```
 
-2. **E2E Pipeline**: The [`test/e2e-pipeline.yaml`](../test/e2e-pipeline.yaml) file defines the E2E test execution pipeline that references the `prowJobName`:
+2. **E2E Pipeline**: The [test/e2e-pipeline.yaml](../test/e2e-pipeline.yaml) file defines the E2E test execution pipeline that references the `prowJobName`:
 
    ```yaml
    variables:
@@ -319,7 +445,7 @@ Prow job definitions are maintained in the [openshift/release](https://github.co
 To modify or add jobs:
 
 1. Fork the [openshift/release](https://github.com/openshift/release) repository
-2. Edit configuration files in [`ci-operator/config/Azure/ARO-HCP/`](https://github.com/openshift/release/tree/master/ci-operator/config/Azure/ARO-HCP):
+2. Edit configuration files in [ci-operator/config/Azure/ARO-HCP/](https://github.com/openshift/release/tree/master/ci-operator/config/Azure/ARO-HCP):
    - `Azure-ARO-HCP-main.yaml` for presubmit and postsubmit jobs
    - `Azure-ARO-HCP-main__periodic.yaml` for periodic jobs
    - `Azure-ARO-HCP-main__image-updater.yaml` for image updater jobs

@@ -1,6 +1,6 @@
 module github.com/Azure/ARO-HCP/backend
 
-go 1.24.11
+go 1.25.0
 
 require (
 	github.com/Azure/ARO-HCP/internal v0.0.0-00010101000000-000000000000
@@ -8,7 +8,7 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos v1.4.1
 	github.com/Azure/azure-sdk-for-go/sdk/tracing/azotel v0.4.0
 	github.com/go-logr/logr v1.4.3
-	github.com/openshift-online/ocm-sdk-go v0.1.480
+	github.com/openshift-online/ocm-sdk-go v0.1.493
 	github.com/prometheus/client_golang v1.23.2
 	github.com/spf13/cobra v1.10.2
 	github.com/stretchr/testify v1.11.1
@@ -62,8 +62,8 @@ require (
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.3-0.20250322232337-35a7c28c31ee // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
-	github.com/openshift-online/ocm-api-model/clientapi v0.0.435 // indirect
-	github.com/openshift-online/ocm-api-model/model v0.0.435 // indirect
+	github.com/openshift-online/ocm-api-model/clientapi v0.0.448 // indirect
+	github.com/openshift-online/ocm-api-model/model v0.0.448 // indirect
 	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect

@@ -29,6 +29,7 @@ import (
 )
 
 func TestDatabaseCRUD(t *testing.T) {
+	defer integrationutils.VerifyNoNewGoLeaks(t)
 	integrationutils.WithAndWithoutCosmos(t, testDatabaseCRUD)
 }
 
@@ -86,6 +87,15 @@ func testDatabaseCRUD(t *testing.T, withMock bool) {
 		case "UntypedCRUD":
 			t.Run(crudSuiteDirEntry.Name(), func(t *testing.T) {
 				testCRUDSuite[database.TypedDocument](
+					ctx,
+					t,
+					crudSuiteDir,
+					withMock)
+			})
+
+		case "ServiceProviderNodePoolCRUD":
+			t.Run(crudSuiteDirEntry.Name(), func(t *testing.T) {
+				testCRUDSuite[api.ServiceProviderNodePool](
 					ctx,
 					t,
 					crudSuiteDir,

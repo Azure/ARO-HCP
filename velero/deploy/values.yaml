@@ -9,6 +9,7 @@ imageRegistry: "{{ .acr.svc.name }}.{{ .acrDNSSuffix }}"
 pullBinding:
   workloadIdentityClientId: "__imagePullerMsiClientId__"
   workloadIdentityTenantId: "__imagePullerMsiTenantId__"
+installJobImage: "{{ .aksCommandRuntime.image.registry }}/{{ .aksCommandRuntime.image.repository }}@{{ .aksCommandRuntime.image.digest }}"
 veleroServer:
   repository: "{{ .velero.server.repository }}"
   digest: "{{ .velero.server.digest }}"

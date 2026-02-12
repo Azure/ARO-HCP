@@ -30,7 +30,11 @@ func MiddlewareReferer(w http.ResponseWriter, r *http.Request, next http.Handler
 		var refererURL = *r.URL
 
 		if refererURL.Scheme == "" {
-			if r.TLS != nil {
+			// when testing via a reverse proxy, we need to rely on the X-Forwarded-Host
+			// header to determine what the original protocol was
+			if proto := r.Header.Get("X-Forwarded-Proto"); proto != "" {
+				refererURL.Scheme = proto
+			} else if r.TLS != nil {
 				refererURL.Scheme = "https"
 			} else {
 				refererURL.Scheme = "http"

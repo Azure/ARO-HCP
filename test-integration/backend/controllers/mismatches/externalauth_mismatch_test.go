@@ -34,6 +34,7 @@ import (
 )
 
 func TestExternalAuthMismatchController(t *testing.T) {
+	defer integrationutils.VerifyNoNewGoLeaks(t)
 	integrationutils.WithAndWithoutCosmos(t, testExternalAuthMismatchController)
 }
 
@@ -49,7 +50,7 @@ func testExternalAuthMismatchController(t *testing.T, withMock bool) {
 			ArtifactDir: api.Must(fs.Sub(artifacts, path.Join("artifacts/externalauth"))),
 			ControllerInitializerFn: func(ctx context.Context, t *testing.T, input *controllertesthelpers.ControllerInitializationInput) (controller controllerutils.Controller, testMemory map[string]any) {
 				return controllerutils.NewClusterWatchingController(
-						"CosmosMatchingExternalAuths", input.CosmosClient, input.SubscriptionLister, 60*time.Minute,
+						"CosmosMatchingExternalAuths", input.CosmosClient, nil, 60*time.Minute,
 						mismatchcontrollers.NewCosmosExternalAuthMatchingController(input.CosmosClient, input.ClusterServiceClient)),
 					map[string]any{}
 			},
@@ -82,7 +83,7 @@ func testExternalAuthMismatchController(t *testing.T, withMock bool) {
 			ArtifactDir: api.Must(fs.Sub(artifacts, path.Join("artifacts/externalauth"))),
 			ControllerInitializerFn: func(ctx context.Context, t *testing.T, input *controllertesthelpers.ControllerInitializationInput) (controller controllerutils.Controller, testMemory map[string]any) {
 				return controllerutils.NewClusterWatchingController(
-						"CosmosMatchingExternalAuths", input.CosmosClient, input.SubscriptionLister, 60*time.Minute,
+						"CosmosMatchingExternalAuths", input.CosmosClient, nil, 60*time.Minute,
 						mismatchcontrollers.NewCosmosExternalAuthMatchingController(input.CosmosClient, input.ClusterServiceClient)),
 					map[string]any{}
 

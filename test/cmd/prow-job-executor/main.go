@@ -16,18 +16,18 @@ package main
 
 import (
 	"context"
-	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
 
-	"github.com/dusted-go/logging/prettylog"
 	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
+
+	"github.com/Azure/ARO-HCP/test/pkg/logger"
 )
 
 func main() {
-	logger := createLogger(0)
+	setupLog := logger.NewWithVerbosity(0)
 
 	// Create a root context with signal handling
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -41,7 +41,7 @@ func main() {
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
-			ctx = logr.NewContext(ctx, createLogger(logVerbosity))
+			ctx = logr.NewContext(ctx, logger.NewWithVerbosity(logVerbosity))
 			cmd.SetContext(ctx)
 		},
 	}
@@ -57,14 +57,14 @@ func main() {
 	for _, newCmd := range subcommands {
 		subCmd, err := newCmd()
 		if err != nil {
-			logger.Error(err, "failed to create subcommand")
+			setupLog.Error(err, "failed to create subcommand")
 			os.Exit(1)
 		}
 		cmd.AddCommand(subCmd)
 	}
 
 	if err := cmd.ExecuteContext(ctx); err != nil {
-		logger.Error(err, "command failed")
+		setupLog.Error(err, "command failed")
 		os.Exit(1)
 	}
 }
@@ -147,16 +147,4 @@ func runMonitor(ctx context.Context, opts *RawMonitorOptions) error {
 	logger.Info("Starting Prow job monitoring", "jobExecutionID", completed.JobExecutionID)
 
 	return completed.Monitor(ctx, logger)
-}
-
-func createLogger(verbosity int) logr.Logger {
-	level := slog.Level(verbosity * -1)
-	prettyHandler := prettylog.NewHandler(&slog.HandlerOptions{
-		Level:       level,
-		AddSource:   false,
-		ReplaceAttr: nil,
-	})
-	slog.SetDefault(slog.New(prettyHandler))
-	slog.SetLogLoggerLevel(level)
-	return logr.FromSlogHandler(prettyHandler)
 }

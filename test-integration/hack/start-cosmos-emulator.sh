@@ -14,7 +14,7 @@ RESTART_EXISTING_EMULATOR="${RESTART_EXISTING_EMULATOR:-false}"
 # Increase if a lot of tests run in parallel and start failing with 503 errors
 # AI claims
 #   The default total partition count for the Azure Cosmos DB emulator is 25.  Increasing
-PARTITION_COUNT="${PARTITION_COUNT:-50}"
+PARTITION_COUNT="${PARTITION_COUNT:-25}"
 
 RUNNING_CONTAINER=$(get_running_emulator_container_name)
 if [ -n "${RUNNING_CONTAINER}" ]; then

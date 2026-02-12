@@ -71,6 +71,8 @@ func (a *httpHTTPTestAccessor) Delete(ctx context.Context, resourceIDString stri
 }
 
 func (a *httpHTTPTestAccessor) doRequest(ctx context.Context, method, path string, body []byte) (any, error) {
+	logger := utils.LoggerFromContext(ctx)
+
 	var reqBody io.Reader
 	if len(body) > 0 {
 		reqBody = bytes.NewReader(body)
@@ -89,7 +91,11 @@ func (a *httpHTTPTestAccessor) doRequest(ctx context.Context, method, path strin
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			logger.Error(err, "failed to close response body")
+		}
+	}()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return nil, utils.TrackError(fmt.Errorf("HTTP %d", resp.StatusCode))

@@ -22,13 +22,12 @@ import (
 
 	"github.com/go-logr/logr"
 
-	"github.com/Azure/azure-kusto-go/kusto"
-	kustoErrors "github.com/Azure/azure-kusto-go/kusto/data/errors"
-	"github.com/Azure/azure-kusto-go/kusto/data/table"
+	"github.com/Azure/azure-kusto-go/azkustodata"
+	azkquery "github.com/Azure/azure-kusto-go/azkustodata/query"
 )
 
 type KustoClient interface {
-	ExecutePreconfiguredQuery(ctx context.Context, query *ConfigurableQuery, outputChannel chan<- *table.Row) (*QueryResult, error)
+	ExecutePreconfiguredQuery(ctx context.Context, query *ConfigurableQuery, outputChannel chan<- azkquery.Row) (*QueryResult, error)
 	Close() error
 }
 
@@ -36,21 +35,15 @@ type KustoClient interface {
 type Client struct {
 	ClusterName  string
 	QueryTimeout time.Duration
-	kustoClient  *kusto.Client
+	kustoClient  *azkustodata.Client
 }
 
 var _ KustoClient = &Client{}
 
 // QueryResult represents the result of a Kusto query execution
 type QueryResult struct {
-	Columns    []Column
+	Columns    azkquery.Columns
 	QueryStats QueryStats
-}
-
-// Column represents a column in the query result
-type Column struct {
-	Name string
-	Type string
 }
 
 // QueryStats represents statistics about the query execution
@@ -75,13 +68,13 @@ func NewClient(endpoint *url.URL, queryTimeout time.Duration) (*Client, error) {
 	}
 
 	// Create connection string builder
-	kcsb := kusto.NewConnectionStringBuilder(endpoint.String())
+	kcsb := azkustodata.NewConnectionStringBuilder(endpoint.String())
 
 	// Use Azure default credential chain for authentication
 	kcsb = kcsb.WithDefaultAzureCredential()
 
 	// Create Kusto client with authentication
-	kustoClient, err := kusto.New(kcsb)
+	kustoClient, err := azkustodata.New(kcsb)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Kusto client: %w", err)
 	}
@@ -93,7 +86,7 @@ func NewClient(endpoint *url.URL, queryTimeout time.Duration) (*Client, error) {
 }
 
 // ExecutePreconfiguredQuery executes a KQL query against the Azure Data Explorer cluster
-func (c *Client) ExecutePreconfiguredQuery(ctx context.Context, query *ConfigurableQuery, outputChannel chan<- *table.Row) (*QueryResult, error) {
+func (c *Client) ExecutePreconfiguredQuery(ctx context.Context, query *ConfigurableQuery, outputChannel chan<- azkquery.Row) (*QueryResult, error) {
 	queryCtx, cancel := context.WithTimeout(ctx, c.QueryTimeout)
 	defer cancel()
 
@@ -104,48 +97,30 @@ func (c *Client) ExecutePreconfiguredQuery(ctx context.Context, query *Configura
 	logger.V(2).Info("Query", "query", query.Query.String())
 	logger.V(2).Info("Parameters", "parameters", query.Parameters.ToParameterCollection())
 
-	iter, err := c.kustoClient.Query(queryCtx, query.Database, query.Query, kusto.QueryParameters(query.Parameters))
+	dataset, err := c.kustoClient.IterativeQuery(queryCtx, query.Database, query.Query, azkustodata.QueryParameters(query.Parameters))
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute query: %w", err)
 	}
-	defer iter.Stop()
 
 	// Process results
-	var columns []Column
+	var columns azkquery.Columns
 	var totalRows int
 	var dataSize int64
 	startTime := time.Now()
 
-	// Process rows using DoOnRowOrError
-	err = iter.DoOnRowOrError(func(row *table.Row, e *kustoErrors.Error) error {
-		logger.V(8).Info("Processing row", "row", row)
-		if e != nil {
-			return fmt.Errorf("failed to process row: %w", e)
-		}
+	// Process the first table (primary result)
+	primaryResult := <-dataset.Tables()
 
-		// Extract column information from the first row
-		if totalRows == 0 {
-			// Get column information from the row
-			colNames := row.ColumnNames()
-			colTypes := row.ColumnTypes
-			for i, name := range colNames {
-				columns = append(columns, Column{
-					Name: name,
-					Type: string(colTypes[i].Type),
-				})
-			}
+	columsSet := false
+	for row := range primaryResult.Table().Rows() {
+		row := row.Row()
+		if !columsSet {
+			columns = row.Columns()
+			columsSet = true
 		}
-
-		// Convert row to struct
 		outputChannel <- row
 		totalRows++
-		dataSize += int64(len(fmt.Sprintf("%v", row.Values)))
-
-		return nil
-	})
-
-	if err != nil {
-		return nil, fmt.Errorf("error during query iteration: %w", err)
+		dataSize += int64(len(fmt.Sprintf("%v", row)))
 	}
 
 	executionTime := time.Since(startTime)

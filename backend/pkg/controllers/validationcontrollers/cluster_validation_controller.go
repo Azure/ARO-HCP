@@ -20,6 +20,8 @@ import (
 	"net/http"
 	"time"
 
+	"k8s.io/client-go/tools/cache"
+
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/validationcontrollers/validations"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
@@ -31,7 +33,8 @@ import (
 // clusterValidationSyncer is a Cluster syncer that performs a Cluster
 // validation.
 type clusterValidationSyncer struct {
-	cosmosClient database.DBClient
+	cooldownChecker controllerutils.CooldownChecker
+	cosmosClient    database.DBClient
 
 	// validation is the validation to perform on the cluster.
 	validation validations.ClusterValidation
@@ -43,19 +46,21 @@ var _ controllerutils.ClusterSyncer = (*clusterValidationSyncer)(nil)
 // executes the provided Cluster validation on each cluster.
 func NewClusterValidationController(
 	validation validations.ClusterValidation,
+	activeOperationLister listers.ActiveOperationLister,
 	cosmosClient database.DBClient,
-	subscriptionLister listers.SubscriptionLister,
+	clusterInformer cache.SharedIndexInformer,
 ) controllerutils.Controller {
 
 	syncer := &clusterValidationSyncer{
-		cosmosClient: cosmosClient,
-		validation:   validation,
+		cooldownChecker: controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
+		cosmosClient:    cosmosClient,
+		validation:      validation,
 	}
 
 	controller := controllerutils.NewClusterWatchingController(
 		fmt.Sprintf("ClusterValidation%s", validation.Name()),
 		cosmosClient,
-		subscriptionLister,
+		clusterInformer,
 		1*time.Minute,
 		syncer,
 	)
@@ -119,4 +124,8 @@ func (c *clusterValidationSyncer) SyncOnce(ctx context.Context, key controllerut
 // it failed to run successfully in a previous attempt.
 func (c *clusterValidationSyncer) shouldProcess(serviceProviderCluster *api.ServiceProviderCluster) bool {
 	return !controllerutils.IsConditionTrue(serviceProviderCluster.Validations, c.validation.Name())
+}
+
+func (c *clusterValidationSyncer) CooldownChecker() controllerutils.CooldownChecker {
+	return c.cooldownChecker
 }

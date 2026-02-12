@@ -31,6 +31,11 @@ resourceGroups:
         resourceGroup: global
         step: output
         name: globalMSIId
+    automatedRetry:
+      errorContainsAny:
+      - "unknown_storage_failure"
+      maximumRetryCount: 5
+      durationBetweenRetries: 1m
 - name: management
   resourceGroup: '{{ .mgmt.rg }}'
   subscription: '{{ .mgmt.subscription.key }}'

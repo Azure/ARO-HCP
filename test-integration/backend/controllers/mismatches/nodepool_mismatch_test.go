@@ -34,6 +34,7 @@ import (
 )
 
 func TestNodePoolMismatchController(t *testing.T) {
+	defer integrationutils.VerifyNoNewGoLeaks(t)
 	integrationutils.WithAndWithoutCosmos(t, testNodePoolMismatchController)
 }
 
@@ -49,7 +50,7 @@ func testNodePoolMismatchController(t *testing.T, withMock bool) {
 			ArtifactDir: api.Must(fs.Sub(artifacts, path.Join("artifacts/nodepool"))),
 			ControllerInitializerFn: func(ctx context.Context, t *testing.T, input *controllertesthelpers.ControllerInitializationInput) (controller controllerutils.Controller, testMemory map[string]any) {
 				return controllerutils.NewClusterWatchingController(
-						"CosmosMatchingNodePools", input.CosmosClient, input.SubscriptionLister, 60*time.Minute,
+						"CosmosMatchingNodePools", input.CosmosClient, nil, 60*time.Minute,
 						mismatchcontrollers.NewCosmosNodePoolMatchingController(input.CosmosClient, input.ClusterServiceClient)),
 					map[string]any{}
 			},
@@ -82,7 +83,7 @@ func testNodePoolMismatchController(t *testing.T, withMock bool) {
 			ArtifactDir: api.Must(fs.Sub(artifacts, path.Join("artifacts/nodepool"))),
 			ControllerInitializerFn: func(ctx context.Context, t *testing.T, input *controllertesthelpers.ControllerInitializationInput) (controller controllerutils.Controller, testMemory map[string]any) {
 				return controllerutils.NewClusterWatchingController(
-						"CosmosMatchingNodePools", input.CosmosClient, input.SubscriptionLister, 60*time.Minute,
+						"CosmosMatchingNodePools", input.CosmosClient, nil, 60*time.Minute,
 						mismatchcontrollers.NewCosmosNodePoolMatchingController(input.CosmosClient, input.ClusterServiceClient)),
 					map[string]any{}
 

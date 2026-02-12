@@ -24,17 +24,19 @@ import (
 
 // HCPOpenShiftClusterExternalAuth represents the external auth config resource for ARO HCP
 // OpenShift clusters.
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type HCPOpenShiftClusterExternalAuth struct {
 	arm.ProxyResource
 	Properties                HCPOpenShiftClusterExternalAuthProperties                `json:"properties"`
 	ServiceProviderProperties HCPOpenShiftClusterExternalAuthServiceProviderProperties `json:"serviceProviderProperties,omitempty"`
 }
 
-var _ CosmosPersistable = &HCPOpenShiftClusterExternalAuth{}
+var _ arm.CosmosPersistable = &HCPOpenShiftClusterExternalAuth{}
 
-func (o *HCPOpenShiftClusterExternalAuth) GetCosmosData() *CosmosData {
-	return &CosmosData{
-		ResourceID: o.ID,
+func (o *HCPOpenShiftClusterExternalAuth) GetCosmosData() *arm.CosmosMetadata {
+	return &arm.CosmosMetadata{
+		ResourceID:        o.ID,
+		ExistingCosmosUID: o.ServiceProviderProperties.ExistingCosmosUID,
 	}
 }
 
@@ -49,6 +51,7 @@ type HCPOpenShiftClusterExternalAuthProperties struct {
 }
 
 type HCPOpenShiftClusterExternalAuthServiceProviderProperties struct {
+	ExistingCosmosUID string     `json:"-"`
 	ClusterServiceID  InternalID `json:"clusterServiceID,omitempty"`
 	ActiveOperationID string     `json:"activeOperationId,omitempty"`
 }

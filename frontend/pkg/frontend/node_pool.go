@@ -738,11 +738,10 @@ func mergeToInternalNodePool(clusterServiceNode *arohcpv1alpha1.NodePool, intern
 	}
 
 	// this does not use conversion.CopyReadOnly* because some ServiceProvider properties come from cluster-service-only or live reads
-	mergedOldClusterServiceNodePool.SystemData = internalNodePool.SystemData
+	mergedOldClusterServiceNodePool.SystemData = internalNodePool.SystemData.DeepCopy()
 	mergedOldClusterServiceNodePool.Tags = maps.Clone(internalNodePool.Tags)
 	mergedOldClusterServiceNodePool.Properties.ProvisioningState = internalNodePool.Properties.ProvisioningState
-	mergedOldClusterServiceNodePool.ServiceProviderProperties.ClusterServiceID = internalNodePool.ServiceProviderProperties.ClusterServiceID
-	mergedOldClusterServiceNodePool.ServiceProviderProperties.ActiveOperationID = internalNodePool.ServiceProviderProperties.ActiveOperationID
+	mergedOldClusterServiceNodePool.ServiceProviderProperties = *internalNodePool.ServiceProviderProperties.DeepCopy()
 
 	return mergedOldClusterServiceNodePool, nil
 }

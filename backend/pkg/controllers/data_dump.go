@@ -16,49 +16,48 @@ package controllers
 
 import (
 	"context"
-	"time"
-
-	"k8s.io/utils/lru"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
+	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/serverutils"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 type dataDump struct {
-	cosmosClient database.DBClient
+	cooldownChecker controllerutils.CooldownChecker
+	cosmosClient    database.DBClient
 
-	// nextDataDumpTime is a map of resourceID strings to a time at which all information related to them should be dumped.
-	// This should work for any resource, though we're starting with Clusters because of coverage.  Every time we dump
-	// we set the value forward by 10 minutes.  We only actually dump if an entry already exists in the LRU.  This prevents
-	// us from spamming the log if we get super busy, but could be reconsidered if it doesn't work well.
-	nextDataDumpTime *lru.Cache
+	// nextDataDumpChecker ensures we don't hotloop from any source.
+	nextDataDumpChecker controllerutils.CooldownChecker
 }
 
 // NewDataDumpController periodically lists all clusters and for each out when the cluster was created and its state.
-func NewDataDumpController(cosmosClient database.DBClient) controllerutils.ClusterSyncer {
+func NewDataDumpController(activeOperationLister listers.ActiveOperationLister, cosmosClient database.DBClient) controllerutils.ClusterSyncer {
 	c := &dataDump{
-		cosmosClient:     cosmosClient,
-		nextDataDumpTime: lru.New(10000),
+		cooldownChecker:     controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
+		cosmosClient:        cosmosClient,
+		nextDataDumpChecker: controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
 	}
 
 	return c
 }
 
 func (c *dataDump) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
-	logger := utils.LoggerFromContext(ctx)
-
-	resourceID := key.GetResourceID()
-	if nextDataDumpTime, exists := c.nextDataDumpTime.Get(resourceID); !exists || time.Now().Before(nextDataDumpTime.(time.Time)) {
+	if !c.nextDataDumpChecker.CanSync(ctx, key) {
 		return nil
 	}
-	defer c.nextDataDumpTime.Add(resourceID, time.Now().Add(5*time.Minute))
 
-	if err := serverutils.DumpDataToLogger(ctx, c.cosmosClient, resourceID); err != nil {
+	logger := utils.LoggerFromContext(ctx)
+
+	if err := serverutils.DumpDataToLogger(ctx, c.cosmosClient, key.GetResourceID()); err != nil {
 		// never fail, this is best effort
 		logger.Error(err, "failed to dump data to logger")
 	}
 
 	return nil
+}
+
+func (c *dataDump) CooldownChecker() controllerutils.CooldownChecker {
+	return c.cooldownChecker
 }

@@ -40,6 +40,7 @@ import (
 var artifacts embed.FS
 
 func TestClusterMismatchController(t *testing.T) {
+	defer integrationutils.VerifyNoNewGoLeaks(t)
 	integrationutils.WithAndWithoutCosmos(t, testClusterMismatchController)
 }
 
@@ -55,7 +56,7 @@ func testClusterMismatchController(t *testing.T, withMock bool) {
 			ArtifactDir: api.Must(fs.Sub(artifacts, path.Join("artifacts/cluster"))),
 			ControllerInitializerFn: func(ctx context.Context, t *testing.T, input *controllertesthelpers.ControllerInitializationInput) (controller controllerutils.Controller, testMemory map[string]any) {
 				return controllerutils.NewClusterWatchingController(
-						"CosmosMatchingClusters", input.CosmosClient, input.SubscriptionLister, 60*time.Minute,
+						"CosmosMatchingClusters", input.CosmosClient, nil, 60*time.Minute,
 						mismatchcontrollers.NewCosmosClusterMatchingController(utilsclock.RealClock{}, input.CosmosClient, input.ClusterServiceClient)),
 					map[string]any{}
 			},
@@ -88,7 +89,7 @@ func testClusterMismatchController(t *testing.T, withMock bool) {
 			ArtifactDir: api.Must(fs.Sub(artifacts, path.Join("artifacts/cluster"))),
 			ControllerInitializerFn: func(ctx context.Context, t *testing.T, input *controllertesthelpers.ControllerInitializationInput) (controller controllerutils.Controller, testMemory map[string]any) {
 				return controllerutils.NewClusterWatchingController(
-						"CosmosMatchingClusters", input.CosmosClient, input.SubscriptionLister, 60*time.Minute,
+						"CosmosMatchingClusters", input.CosmosClient, nil, 60*time.Minute,
 						mismatchcontrollers.NewCosmosClusterMatchingController(utilsclock.RealClock{}, input.CosmosClient, input.ClusterServiceClient)),
 					map[string]any{}
 			},
