@@ -1859,3 +1859,49 @@ resource mgmtCapacityRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
     ]
   }
 }
+
+resource hcpClusterHealthRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'hcp-cluster-health.rules'
+  location: resourceGroup().location
+  properties: {
+    interval: 'PT1M'
+    rules: [
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'HCPClusterVersionUnhealthy'
+        enabled: true
+        labels: {
+          severity: 'warning'
+        }
+        annotations: {
+          correlationId: 'HCPClusterVersionUnhealthy/{{ $labels.cluster }}/{{ $labels.namespace }}'
+          description: '''The Cluster Version Operator for {{ $labels.namespace }} (on Mgmt Cluster {{ $labels.cluster }}) 
+has been in a Failing or Degraded state for more than 1 hour.
+This usually indicates critical operators (Network, API, etc.) are down.
+'''
+          info: '''The Cluster Version Operator for {{ $labels.namespace }} (on Mgmt Cluster {{ $labels.cluster }}) 
+has been in a Failing or Degraded state for more than 1 hour.
+This usually indicates critical operators (Network, API, etc.) are down.
+'''
+          runbook_url: 'TBD'
+          summary: 'HCP Cluster {{ $labels.namespace }} is unhealthy'
+          title: 'HCP Cluster {{ $labels.namespace }} is unhealthy'
+        }
+        expression: 'sum by (cluster, namespace) ( cluster_operator_conditions{name="version", condition=~"failing|degraded"} ) > 0'
+        for: 'PT1H'
+        severity: 3
+      }
+    ]
+    scopes: [
+      azureMonitoring
+    ]
+  }
+}

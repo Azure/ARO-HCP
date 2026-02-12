@@ -1,0 +1,32 @@
+rule_files:
+- HCPdeletionStuck-prometheusRule.yaml
+evaluation_interval: 1m
+
+tests:
+- interval: 1m
+  input_series:
+  # Scenario 1: A cluster that has been deleting for 7500s (over the 7200s threshold)
+  - series: 'hypershift_cluster_deleting_duration_seconds{exported_namespace="hcp-ns-1",name="cluster-1",pod="pod-abc"}'
+    values: "7500+0x15" # Value stays at 7500 for 15 minutes
+  
+  # Scenario 2: A cluster that is deleting but only for 3000s (safe)
+  - series: 'hypershift_cluster_deleting_duration_seconds{exported_namespace="hcp-ns-2",name="cluster-2",pod="pod-xyz"}'
+    values: "3000+0x15" # Value stays at 3000
+
+  alert_rule_test:
+  # At minute 0: Alert should be pending (Active) for cluster-1, but not firing yet (needs 5m)
+  # At minute 6: Alert should be Firing
+  - eval_time: 6m
+    alertname: HCPClusterStuckDeleting
+    exp_alerts:
+    - exp_labels:
+        alertname: HCPClusterStuckDeleting
+        severity: warning
+        exported_namespace: hcp-ns-1
+        name: cluster-1
+      exp_annotations:
+        summary: "Cluster hcp-ns-1 stuck deleting"
+        description: |
+          Cluster hcp-ns-1 has been in a deleting state for more than 2 hours.
+          This may indicate that finalizers are stuck or resources are failing to cleanup.
+        runbook_url: TBD

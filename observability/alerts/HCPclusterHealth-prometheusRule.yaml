@@ -1,0 +1,25 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: hcp-cluster-health-rules
+  namespace: monitoring
+spec:
+  groups:
+  - name: hcp-cluster-health.rules
+    rules:
+    - alert: HCPClusterVersionUnhealthy
+      # Trigger if the Cluster Version Operator is 'Failing' OR 'Degraded'
+      expr: |
+        sum by (cluster, namespace) (
+          cluster_operator_conditions{name="version", condition=~"failing|degraded"}
+        ) > 0
+      for: 1h
+      labels:
+        severity: warning
+      annotations:
+        summary: "HCP Cluster {{ $labels.namespace }} is unhealthy"
+        description: |
+          The Cluster Version Operator for {{ $labels.namespace }} (on Mgmt Cluster {{ $labels.cluster }}) 
+          has been in a Failing or Degraded state for more than 1 hour.
+          This usually indicates critical operators (Network, API, etc.) are down.
+        runbook_url: TBD
