@@ -652,6 +652,7 @@ func BuildHCPClusterFromParams(
 	return hcpsdk20240610preview.HcpOpenShiftCluster{
 		Location: to.Ptr(location),
 		Identity: parameters.Identity,
+		Tags:     parameters.Tags,
 		Properties: &hcpsdk20240610preview.HcpOpenShiftClusterProperties{
 			Version: &hcpsdk20240610preview.VersionProfile{
 				ID:           to.Ptr(parameters.OpenshiftVersionId),
