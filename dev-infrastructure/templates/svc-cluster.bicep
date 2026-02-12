@@ -670,28 +670,27 @@ output aksClusterName string = svcCluster.outputs.aksClusterName
 //   O P S   I N G R E S S   P U B L I C   I P
 //
 
-// TODO: ops-ingress phase 2: add ops ingress gateway IP address
-// module opsIngressGatewayIPAddress '../modules/network/publicipaddress.bicep' = if (!empty(opsIngressGatewayIPAddressName)) {
-//   name: opsIngressGatewayIPAddressName
-//   scope: resourceGroup(regionalResourceGroup)
-//   params: {
-//     name: opsIngressGatewayIPAddressName
-//     ipTags: opsIngressGatewayIPAddressTags
-//     location: location
-//     zones: length(locationAvailabilityZoneList) > 0 ? locationAvailabilityZoneList : null
-//     // Role Assignment needed for the public IP address to be used on the Load Balancer
-//     roleAssignmentProperties: {
-//       principalId: aksClusterUserDefinedManagedIdentity.properties.principalId
-//       principalType: 'ServicePrincipal'
-//       // Network Contributor Role - needed for the AKS managed identity to use the public IP on the LoadBalancer
-//       // https://www.azadvertizer.net/azrolesadvertizer/4d97b98b-1d4f-4787-a291-c67834d212e7.html
-//       roleDefinitionId: subscriptionResourceId(
-//         'Microsoft.Authorization/roleDefinitions/',
-//         '4d97b98b-1d4f-4787-a291-c67834d212e7'
-//       )
-//     }
-//   }
-// }
+module opsIngressGatewayIPAddress '../modules/network/publicipaddress.bicep' = if (!empty(opsIngressGatewayIPAddressName)) {
+  name: opsIngressGatewayIPAddressName
+  scope: resourceGroup(regionalResourceGroup)
+  params: {
+    name: opsIngressGatewayIPAddressName
+    ipTags: opsIngressGatewayIPAddressTags
+    location: location
+    zones: length(locationAvailabilityZoneList) > 0 ? locationAvailabilityZoneList : null
+    // Role Assignment needed for the public IP address to be used on the Load Balancer
+    roleAssignmentProperties: {
+      principalId: aksClusterUserDefinedManagedIdentity.properties.principalId
+      principalType: 'ServicePrincipal'
+      // Network Contributor Role - needed for the AKS managed identity to use the public IP on the LoadBalancer
+      // https://www.azadvertizer.net/azrolesadvertizer/4d97b98b-1d4f-4787-a291-c67834d212e7.html
+      roleDefinitionId: subscriptionResourceId(
+        'Microsoft.Authorization/roleDefinitions/',
+        '4d97b98b-1d4f-4787-a291-c67834d212e7'
+      )
+    }
+  }
+}
 
 //
 // M E T R I C S
