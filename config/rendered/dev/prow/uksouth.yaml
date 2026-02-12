@@ -455,7 +455,7 @@ mgmt:
       name: infra
       osDiskSizeGB: 32
       poolCount: 2
-      vmSize: Standard_D4ds_v5
+      vmSize: Standard_E4s_v3
       zoneRedundantMode: Auto
       zones: ""
     kubernetesVersion: 1.32.5
@@ -470,7 +470,7 @@ mgmt:
       name: system
       osDiskSizeGB: 32
       poolCount: 1
-      vmSize: Standard_D2s_v3
+      vmSize: Standard_E2s_v3
       zoneRedundantMode: Auto
       zones: ""
     userAgentPool:
@@ -479,7 +479,7 @@ mgmt:
       name: user
       osDiskSizeGB: 100
       poolCount: 3
-      vmSize: Standard_D4s_v3
+      vmSize: Standard_E4s_v3
       zoneRedundantMode: Auto
       zones: ""
     vnetAddressPrefix: 10.128.0.0/14
@@ -738,7 +738,7 @@ svc:
       name: infra
       osDiskSizeGB: 32
       poolCount: 1
-      vmSize: Standard_D4ds_v5
+      vmSize: Standard_E4s_v3
       zoneRedundantMode: Auto
       zones: ""
     kubernetesVersion: 1.32.5
@@ -753,7 +753,7 @@ svc:
       name: system
       osDiskSizeGB: 32
       poolCount: 1
-      vmSize: Standard_D2s_v3
+      vmSize: Standard_E2s_v3
       zoneRedundantMode: Auto
       zones: ""
     userAgentPool:
@@ -762,7 +762,7 @@ svc:
       name: user
       osDiskSizeGB: 32
       poolCount: 3
-      vmSize: Standard_D2s_v3
+      vmSize: Standard_E4s_v3
       zoneRedundantMode: Auto
       zones: ""
     vnetAddressPrefix: 10.128.0.0/14

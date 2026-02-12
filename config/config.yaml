@@ -1448,5 +1448,21 @@ clouds:
               deploy: true
         regions:
           uksouth:
+            svc:
+              aks:
+                systemAgentPool:
+                  vmSize: Standard_E2s_v3
+                userAgentPool:
+                  vmSize: Standard_E4s_v3
+                infraAgentPool:
+                  vmSize: Standard_E4s_v3
+            mgmt:
+              aks:
+                systemAgentPool:
+                  vmSize: Standard_E2s_v3
+                userAgentPool:
+                  vmSize: Standard_E4s_v3
+                infraAgentPool:
+                  vmSize: Standard_E4s_v3
             monitoring:
               alertsEnabled: true
