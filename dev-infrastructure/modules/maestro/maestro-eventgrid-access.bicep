@@ -33,7 +33,7 @@ param certificateThumbprint string
 @description('The subject alternative name of the certificate')
 param certificateSAN string
 
-resource eventGridNamespace 'Microsoft.EventGrid/namespaces@2023-12-15-preview' existing = {
+resource eventGridNamespace 'Microsoft.EventGrid/namespaces@2025-07-15-preview' existing = {
   name: eventGridNamespaceName
 }
 
@@ -45,7 +45,7 @@ resource eventGridNamespace 'Microsoft.EventGrid/namespaces@2023-12-15-preview' 
 // certificates, this is the only secure option. But it comes at the price of updating the
 // thumbprints in the eventgrid namespace every time a new certificate is issued.
 //
-resource selfSignedCertMqttClient 'Microsoft.EventGrid/namespaces/clients@2023-12-15-preview' = if (certificateIssuer == 'Self') {
+resource selfSignedCertMqttClient 'Microsoft.EventGrid/namespaces/clients@2025-07-15-preview' = if (certificateIssuer == 'Self') {
   name: clientName
   parent: eventGridNamespace
   properties: {
@@ -72,7 +72,7 @@ resource selfSignedCertMqttClient 'Microsoft.EventGrid/namespaces/clients@2023-1
 // This way certificates can be rotated without updating the eventgrid MQTT client
 // configuration.
 //
-resource certMqttClient 'Microsoft.EventGrid/namespaces/clients@2023-12-15-preview' = if (certificateIssuer != 'Self') {
+resource certMqttClient 'Microsoft.EventGrid/namespaces/clients@2025-07-15-preview' = if (certificateIssuer != 'Self') {
   name: clientName
   parent: eventGridNamespace
   properties: {

@@ -29,7 +29,7 @@ output hcpMonitorPrometheusQueryEndpoint string = hcpMonitor.properties.metrics.
 //  E V E N T G R I D
 //
 
-resource maestroEventGridNamespace 'Microsoft.EventGrid/namespaces@2024-06-01-preview' existing = {
+resource maestroEventGridNamespace 'Microsoft.EventGrid/namespaces@2025-07-15-preview' existing = {
   name: maestroEventGridNamespacesName
 }
 

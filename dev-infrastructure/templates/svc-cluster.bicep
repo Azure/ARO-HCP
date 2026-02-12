@@ -918,7 +918,7 @@ module oidc '../modules/oidc/region/main.bicep' = {
 //  E V E N T   G R I D   P R I V A T E   E N D P O I N T   C O N N E C T I O N
 //
 
-resource eventGridNamespace 'Microsoft.EventGrid/namespaces@2024-06-01-preview' existing = {
+resource eventGridNamespace 'Microsoft.EventGrid/namespaces@2025-07-15-preview' existing = {
   name: maestroEventGridNamespacesName
   scope: resourceGroup(regionalResourceGroup)
 }
