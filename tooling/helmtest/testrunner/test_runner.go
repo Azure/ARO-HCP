@@ -20,6 +20,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -159,12 +160,26 @@ func RunTestHelmTemplate(t *testing.T, settingsPath string) {
 			allCases = append(allCases, customTestCases...)
 			chartDirsVisited[helmStep.ChartDirFromRoot(settings.TopologyDir)] = true
 		}
+		chartPath := helmStep.ChartDirFromRoot(settings.TopologyDir)
+		if strings.Contains(chartPath, "oci:") {
+			// get the full path to the values file
+			fullValuesPath := helmStep.ValuesFileFromRoot(settings.TopologyDir)
+
+			// extract filename
+			fileName := filepath.Base(fullValuesPath)
+
+			// split on "." to get chartDir
+			chartName := strings.Split(fileName, ".")[0]
+
+			// final path
+			chartPath = filepath.Join(settings.TopologyDir, "acm/deploy/helm", chartName)
+		}
 
 		allCases = append(allCases, internal.TestCase{
 			Name:         fmt.Sprintf("%s-%s", helmStep.AKSCluster, helmStep.HelmStep.ReleaseName),
 			Namespace:    helmStep.HelmStep.ReleaseNamespace,
 			Values:       helmStep.ValuesFileFromRoot(settings.TopologyDir),
-			HelmChartDir: helmStep.ChartDirFromRoot(settings.TopologyDir),
+			HelmChartDir: chartPath,
 			TestData:     map[string]any{},
 			Implicit:     true,
 		})
