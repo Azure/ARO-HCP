@@ -18,8 +18,5 @@ spec:
         severity: warning
       annotations:
         summary: "HCP Cluster {{ $labels.namespace }} is unhealthy"
-        description: |
-          The Cluster Version Operator for {{ $labels.namespace }} (on Mgmt Cluster {{ $labels.cluster }}) 
-          has been in a Failing or Degraded state for more than 1 hour.
-          This usually indicates critical operators (Network, API, etc.) are down.
+        description: "The Cluster Version Operator for {{ $labels.namespace }} (on Mgmt Cluster {{ $labels.cluster }}) \nhas been in a Failing or Degraded state for more than 1 hour.\nThis usually indicates critical operators (Network, API, etc.) are down.\n"
         runbook_url: TBD

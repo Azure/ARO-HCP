@@ -1,7 +1,6 @@
 rule_files:
 - HCPclusterHealth-prometheusRule.yaml
 evaluation_interval: 1m
-
 tests:
 - interval: 1m
   input_series:
@@ -10,21 +9,17 @@ tests:
     values: "1+0x120"
   - series: 'cluster_operator_conditions{cluster="mgmt-1", namespace="hcp-healthy", name="version", condition="failing"}'
     values: "0+0x120"
-  
   # Scenario 2: Failing Cluster (Failing=1 for 2 hours)
   - series: 'cluster_operator_conditions{cluster="mgmt-1", namespace="hcp-failing", name="version", condition="failing"}'
     values: "1+0x120" # 120 minutes of Failing state
-
   # Scenario 3: Degraded Cluster (Degraded=1 for 2 hours)
   - series: 'cluster_operator_conditions{cluster="mgmt-1", namespace="hcp-degraded", name="version", condition="degraded"}'
     values: "1+0x120" # 120 minutes of Degraded state
-
   alert_rule_test:
   # Check at 30 minutes: Should NOT fire (needs 1h)
   - eval_time: 30m
     alertname: HCPClusterVersionUnhealthy
     exp_alerts: []
-
   # Check at 65 minutes: Should FIRE for both Failing and Degraded clusters
   - eval_time: 65m
     alertname: HCPClusterVersionUnhealthy
@@ -36,12 +31,8 @@ tests:
         namespace: hcp-failing
       exp_annotations:
         summary: "HCP Cluster hcp-failing is unhealthy"
-        description: |
-          The Cluster Version Operator for hcp-failing (on Mgmt Cluster mgmt-1) 
-          has been in a Failing or Degraded state for more than 1 hour.
-          This usually indicates critical operators (Network, API, etc.) are down.
+        description: "The Cluster Version Operator for hcp-failing (on Mgmt Cluster mgmt-1) \nhas been in a Failing or Degraded state for more than 1 hour.\nThis usually indicates critical operators (Network, API, etc.) are down.\n"
         runbook_url: TBD
-        
     - exp_labels:
         alertname: HCPClusterVersionUnhealthy
         severity: warning
@@ -49,8 +40,5 @@ tests:
         namespace: hcp-degraded
       exp_annotations:
         summary: "HCP Cluster hcp-degraded is unhealthy"
-        description: |
-          The Cluster Version Operator for hcp-degraded (on Mgmt Cluster mgmt-1) 
-          has been in a Failing or Degraded state for more than 1 hour.
-          This usually indicates critical operators (Network, API, etc.) are down.
+        description: "The Cluster Version Operator for hcp-degraded (on Mgmt Cluster mgmt-1) \nhas been in a Failing or Degraded state for more than 1 hour.\nThis usually indicates critical operators (Network, API, etc.) are down.\n"
         runbook_url: TBD
