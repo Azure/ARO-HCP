@@ -107,8 +107,21 @@ func NewInternalID(path string) (InternalID, error) {
 	return internalID, nil
 }
 
+// NewInternalID attempts to create a new InternalID from a Cluster Service
+// API path, returning an error if the API path is invalid or unsupported.
+func NewInternalIDPtr(path string) (*InternalID, error) {
+	internalID := InternalID{path: strings.ToLower(path)}
+	if err := internalID.validate(); err != nil {
+		return nil, err
+	}
+	return &internalID, nil
+}
+
 // String allows an InternalID to be used as a fmt.Stringer.
 func (id *InternalID) String() string {
+	if id == nil {
+		return ""
+	}
 	return id.path
 }
 

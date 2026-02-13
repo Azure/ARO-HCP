@@ -59,8 +59,11 @@ func (c *cosmosClusterMatching) synchronizeClusters(ctx context.Context, keyObj 
 	if err != nil {
 		return utils.TrackError(err)
 	}
+	if cosmosCluster.ServiceProviderProperties.ClusterServiceID == nil {
+		return nil // no work to do.
+	}
 
-	_, err = c.clusterServiceClient.GetCluster(ctx, cosmosCluster.ServiceProviderProperties.ClusterServiceID)
+	_, err = c.clusterServiceClient.GetCluster(ctx, *cosmosCluster.ServiceProviderProperties.ClusterServiceID)
 	var ocmGetClusterError *ocmerrors.Error
 	isClusterServiceObjNotFound := errors.As(err, &ocmGetClusterError) && ocmGetClusterError.Status() == http.StatusNotFound
 	if err != nil && !isClusterServiceObjNotFound {
