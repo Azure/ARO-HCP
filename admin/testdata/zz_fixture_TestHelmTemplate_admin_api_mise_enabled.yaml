@@ -175,36 +175,6 @@ spec:
           volumeAttributes:
             secretProviderClass: "admin-api-scp"
 ---
-# Source: ARO HCP Admin API/templates/admin.httproute.yaml.commented
-# TODO: ops-ingress phase 2: rollout api gateway resources
-# TODO: remove .commented suffix when rolling
-# apiVersion: gateway.networking.k8s.io/v1
-# kind: HTTPRoute
-# metadata:
-#   name: sessiongate
-#   namespace: aro-hcp-admin-api
-# spec:
-#   parentRefs:
-#   - name: ops-ingress-gateway
-#     namespace: aks-istio-ingress
-#     sectionName: admin-api-https
-#   hostnames:
-#   - "admin.westus3.hcpsvc.osadev.cloud"
-#   rules:
-#   - matches:
-#     - path:
-#         type: PathPrefix
-#         value: /
-#     filters:
-#     - type: RequestHeaderModifier
-#       requestHeaderModifier:
-#         add:
-#         - name: mise-inbound-policies-to-filter
-#           value: "Geneva Actions"
-#     backendRefs:
-#     - name: admin-api
-#       port: 8443
----
 # Source: ARO HCP Admin API/templates/acrpullbinding.yaml
 apiVersion: acrpull.microsoft.com/v1beta2
 kind: AcrPullBinding
@@ -238,6 +208,34 @@ spec:
     - operation:
         paths: ["/*"]
         notPaths: ["/metrics"]
+---
+# Source: ARO HCP Admin API/templates/admin.httproute.yaml
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: admin-api
+  namespace: aro-hcp-admin-api
+spec:
+  parentRefs:
+  - name: ops-ingress-gateway
+    namespace: aks-istio-ingress
+    sectionName: admin-api-https
+  hostnames:
+  - "admin.westus3.hcpsvc.osadev.cloud"
+  rules:
+  - matches:
+    - path:
+        type: PathPrefix
+        value: /
+    filters:
+    - type: RequestHeaderModifier
+      requestHeaderModifier:
+        add:
+        - name: mise-inbound-policies-to-filter
+          value: "Geneva Actions"
+    backendRefs:
+    - name: admin-api
+      port: 8443
 ---
 # Source: ARO HCP Admin API/templates/admin.fpa.secretproviderclass.yaml
 apiVersion: secrets-store.csi.x-k8s.io/v1
