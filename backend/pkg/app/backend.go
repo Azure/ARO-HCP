@@ -247,6 +247,10 @@ func (b *Backend) Run(ctx context.Context) error {
 				activeOperationLister, b.options.CosmosDBClient, b.options.ClustersServiceClient,
 				clusterInformer, b.options.MaestroSourceEnvironmentIdentifier,
 			)
+			maestroReadAndPersistResourcesController = controllers.NewReadAndPersistResourcesFromMaestroController(
+				activeOperationLister, b.options.CosmosDBClient, b.options.ClustersServiceClient,
+				clusterInformer, b.options.MaestroSourceEnvironmentIdentifier,
+			)
 		)
 
 		le, err := leaderelection.NewLeaderElector(leaderelection.LeaderElectionConfig{
@@ -277,6 +281,7 @@ func (b *Backend) Run(ctx context.Context) error {
 					go alwaysSuccessClusterValidationController.Run(ctx, 20)
 					go deleteOrphanedCosmosResourcesController.Run(ctx, 20)
 					go maestroShowcaseController.Run(ctx, 20)
+					go maestroReadAndPersistResourcesController.Run(ctx, 20)
 				},
 				OnStoppedLeading: func() {
 					operationsScanner.LeaderGauge.Set(0)

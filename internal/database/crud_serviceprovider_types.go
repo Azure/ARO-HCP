@@ -40,3 +40,17 @@ func NewClusterResourceID(subscriptionID, resourceGroupName, clusterName string)
 	}
 	return api.Must(azcorearm.ParseResourceID(strings.ToLower(path.Join(parts...))))
 }
+
+func NewManagementClusterContentResourceID(subscriptionID, resourceGroupName, clusterName string, maestroBundleInternalName api.MaestroBundleInternalName) *azcorearm.ResourceID {
+	parts := []string{
+		"/subscriptions",
+		strings.ToLower(subscriptionID),
+		"resourceGroups",
+		resourceGroupName,
+		"providers",
+		api.ManagementClusterContentResourceType.Namespace,
+		api.ManagementClusterContentResourceType.Type,
+		clusterName,
+	}
+	return api.Must(azcorearm.ParseResourceID(strings.ToLower(path.Join(parts...))))
+}
