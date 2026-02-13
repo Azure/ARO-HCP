@@ -16,6 +16,7 @@ if [ -z "$IP_ADDRESS" ]; then
     exit 1
 fi
 
+
 az network nsg rule create \
     --resource-group "${RESOURCE_GROUP}" \
     --nsg-name "${NSG_NAME}" \

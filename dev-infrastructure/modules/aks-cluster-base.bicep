@@ -13,6 +13,7 @@ param metricLabelsAllowlist string = ''
 param metricAnnotationsAllowList string = ''
 
 // System agentpool spec (Infra)
+param systemAgentPoolName string
 param systemAgentMinCount int
 param systemAgentMaxCount int
 param systemAgentVMSize string
@@ -20,6 +21,7 @@ param systemAgentPoolZones array
 param systemZoneRedundantMode string
 
 // User agentpool spec (Worker)
+param userAgentPoolName string
 param userAgentMinCount int
 param userAgentMaxCount int
 param userAgentVMSize string
@@ -28,6 +30,7 @@ param userAgentPoolCount int
 param userZoneRedundantMode string
 
 // User agentpool spec (Infra)
+param infraAgentPoolName string
 param infraAgentMinCount int
 param infraAgentMaxCount int
 param infraAgentVMSize string
@@ -295,7 +298,7 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2025-07-02-previ
     }
     agentPoolProfiles: [
       {
-        name: 'system'
+        name: systemAgentPoolName
         osType: 'Linux'
         osSKU: 'AzureLinux'
         mode: 'System'
@@ -492,7 +495,7 @@ module userAgentPools '../modules/aks/pool.bicep' = {
   name: 'user-agent-pools'
   params: {
     aksClusterName: aksCluster.name
-    poolBaseName: 'user'
+    poolBaseName: userAgentPoolName
     poolZones: userAgentPoolZones
     poolCount: userAgentPoolCount
     poolRole: 'worker'
@@ -512,7 +515,7 @@ module infraAgentPools '../modules/aks/pool.bicep' = {
   name: 'infra-agent-pools'
   params: {
     aksClusterName: aksCluster.name
-    poolBaseName: 'infra'
+    poolBaseName: infraAgentPoolName
     poolZones: infraAgentPoolZones
     poolCount: infraAgentPoolCount
     poolRole: 'infra'
