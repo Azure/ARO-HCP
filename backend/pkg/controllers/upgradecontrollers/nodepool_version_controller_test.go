@@ -520,7 +520,6 @@ func createServiceProviderClusterWithVersion(t *testing.T, ctx context.Context, 
 		CosmosMetadata: api.CosmosMetadata{
 			ResourceID: api.Must(azcorearm.ParseResourceID(spClusterResourceID)),
 		},
-		ResourceID: *api.Must(azcorearm.ParseResourceID(clusterResourceID)),
 		Status: api.ServiceProviderClusterStatus{
 			ControlPlaneVersion: api.ServiceProviderClusterStatusVersion{
 				ActiveVersions: []api.HCPClusterActiveVersion{
@@ -549,7 +548,6 @@ func createServiceProviderNodePoolWithVersion(t *testing.T, ctx context.Context,
 		CosmosMetadata: api.CosmosMetadata{
 			ResourceID: api.Must(azcorearm.ParseResourceID(spNodePoolResourceID)),
 		},
-		ResourceID: *api.Must(azcorearm.ParseResourceID(nodePoolResourceID)),
 		Status: api.ServiceProviderNodePoolStatus{
 			NodePoolVersion: api.ServiceProviderNodePoolStatusVersion{
 				ActiveVersions: []api.HCPNodePoolActiveVersion{

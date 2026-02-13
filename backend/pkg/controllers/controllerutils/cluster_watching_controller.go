@@ -225,9 +225,9 @@ func (c *clusterWatchingController) enqueueClusterUpdate(_ interface{}, newObj i
 }
 
 func (c *clusterWatchingController) enqueueServiceProviderClusterAdd(newObj interface{}) {
-	c.EnqueueResourceIDAdd(newObj.(*api.ServiceProviderCluster).CosmosMetadata.ResourceID)
+	c.EnqueueResourceIDAdd(newObj.(*api.ServiceProviderCluster).ResourceID)
 }
 
 func (c *clusterWatchingController) enqueueServiceProviderClusterUpdate(_ interface{}, newObj interface{}) {
-	c.EnqueueResourceIDAdd(newObj.(*api.ServiceProviderCluster).CosmosMetadata.ResourceID)
+	c.EnqueueResourceIDAdd(newObj.(*api.ServiceProviderCluster).ResourceID)
 }
