@@ -32,6 +32,7 @@ import (
 	"go.uber.org/goleak"
 
 	adminApiServer "github.com/Azure/ARO-HCP/admin/server/server"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/operationcontrollers"
 	"github.com/Azure/ARO-HCP/frontend/pkg/frontend"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
@@ -153,7 +154,7 @@ func MarkOperationsCompleteForName(ctx context.Context, dbClient database.DBClie
 		if operation.ExternalID.Name != resourceName {
 			continue
 		}
-		err := database.UpdateOperationStatus(ctx, dbClient, operation, arm.ProvisioningStateSucceeded, nil, nil)
+		err := operationcontrollers.UpdateOperationStatus(ctx, dbClient, operation, arm.ProvisioningStateSucceeded, nil, nil)
 		if err != nil {
 			return err
 		}
