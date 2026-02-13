@@ -3,7 +3,7 @@
 RESOURCE_GROUP=$1
 
 NSG_NAME="svc-cluster-node-nsg"
-IP_ADDRESS=$(curl -s -4 ifconfig.me)
+IP_ADDRESS=$(curl -s -4 ifconfig.me || curl -s -4 icanhazip.com)
 
 az network nsg rule create \
     --resource-group "${RESOURCE_GROUP}" \
