@@ -1214,6 +1214,9 @@ clouds:
           westus3:
             monitoring:
               alertsEnabled: true
+          eastus:
+            monitoring:
+              alertsEnabled: true
         # this is the personal DEV environment
         defaults:
           # Service Key Vault
