@@ -40,7 +40,7 @@ import (
 )
 
 // eventuallyVerify is a helper to reduce boilerplate when waiting for verifiers
-func eventuallyVerify(verifier verifiers.HostedClusterVerifier, ctx context.Context,
+func eventuallyVerify(ctx context.Context, verifier verifiers.HostedClusterVerifier,
 	adminRESTConfig *rest.Config, timeout, interval time.Duration, message string) {
 	Eventually(func() error {
 		err := verifier.Verify(ctx, adminRESTConfig)
@@ -75,14 +75,11 @@ var _ = Describe("Customer", func() {
 				nfdNamespace           = "openshift-nfd"
 
 				// Timeouts and intervals for verifications
-				pullSecretMergeTimeout  = 10 * time.Minute
-				pullSecretMergeInterval = 30 * time.Second
-				daemonSetSyncTimeout    = 5 * time.Minute
-				daemonSetSyncInterval   = 15 * time.Second
-				catalogSourceTimeout    = 5 * time.Minute
-				catalogSourceInterval   = 15 * time.Second
-				operatorInstallTimeout  = 10 * time.Minute
-				operatorInstallInterval = 30 * time.Second
+				pullSecretMergeTimeout = 10 * time.Minute
+				daemonSetSyncTimeout   = 5 * time.Minute
+				catalogSourceTimeout   = 5 * time.Minute
+				operatorInstallTimeout = 10 * time.Minute
+				verifierPollInterval   = 15 * time.Second
 			)
 			tc := framework.NewTestContext()
 
@@ -176,12 +173,12 @@ var _ = Describe("Customer", func() {
 
 			By("waiting for HCCO to merge the additional pull secret with the global pull secret")
 			verifier := verifiers.VerifyPullSecretMergedIntoGlobal(testPullSecretHost)
-			eventuallyVerify(verifier, ctx, adminRESTConfig, pullSecretMergeTimeout, pullSecretMergeInterval,
+			eventuallyVerify(ctx, verifier, adminRESTConfig, pullSecretMergeTimeout, verifierPollInterval,
 				"additional pull secret should be merged into global-pull-secret by HCCO")
 
 			By("verifying the DaemonSet for global pull secret synchronization is created")
 			verifier = verifiers.VerifyGlobalPullSecretSyncer()
-			eventuallyVerify(verifier, ctx, adminRESTConfig, daemonSetSyncTimeout, daemonSetSyncInterval,
+			eventuallyVerify(ctx, verifier, adminRESTConfig, daemonSetSyncTimeout, verifierPollInterval,
 				"global-pull-secret-syncer DaemonSet should be created")
 
 			By("verifying the pull secret was merged into the global pull secret")
@@ -237,12 +234,12 @@ var _ = Describe("Customer", func() {
 
 			By("waiting for HCCO to merge the updated pull secret (with registry.redhat.io) into global pull secret")
 			verifier = verifiers.VerifyPullSecretMergedIntoGlobal(redhatRegistryHost)
-			eventuallyVerify(verifier, ctx, adminRESTConfig, pullSecretMergeTimeout, pullSecretMergeInterval,
+			eventuallyVerify(ctx, verifier, adminRESTConfig, pullSecretMergeTimeout, verifierPollInterval,
 				"registry.redhat.io pull secret should be merged into global-pull-secret by HCCO")
 
 			By("waiting for global-pull-secret-syncer DaemonSet to sync updated secret to all nodes")
 			verifier = verifiers.VerifyGlobalPullSecretSyncer()
-			eventuallyVerify(verifier, ctx, adminRESTConfig, daemonSetSyncTimeout, daemonSetSyncInterval,
+			eventuallyVerify(ctx, verifier, adminRESTConfig, daemonSetSyncTimeout, verifierPollInterval,
 				"global-pull-secret-syncer should have synced pull secret to all nodes")
 
 			By("verifying both test registries are now in the global pull secret")
@@ -260,7 +257,7 @@ var _ = Describe("Customer", func() {
 
 			By("verifying redhat-operators catalog source is ready")
 			verifier = verifiers.VerifyCatalogSourceReady(catalogSourceNamespace, catalogSourceName)
-			eventuallyVerify(verifier, ctx, adminRESTConfig, catalogSourceTimeout, catalogSourceInterval,
+			eventuallyVerify(ctx, verifier, adminRESTConfig, catalogSourceTimeout, verifierPollInterval,
 				"redhat-operators catalog source should be ready before creating subscription")
 
 			By("creating dynamic client for operator installation")
@@ -325,7 +322,7 @@ var _ = Describe("Customer", func() {
 
 			By("waiting for NFD operator to be installed")
 			verifier = verifiers.VerifyOperatorInstalled(nfdNamespace, "nfd")
-			eventuallyVerify(verifier, ctx, adminRESTConfig, operatorInstallTimeout, operatorInstallInterval,
+			eventuallyVerify(ctx, verifier, adminRESTConfig, operatorInstallTimeout, verifierPollInterval,
 				"NFD operator should be installed successfully")
 
 			By("creating NodeFeatureDiscovery CR to deploy NFD worker")
@@ -368,11 +365,11 @@ var _ = Describe("Customer", func() {
 					}
 				}
 				return fmt.Errorf("nfd-worker DaemonSet not found")
-			}, operatorInstallTimeout, operatorInstallInterval).Should(Succeed(), "NFD worker DaemonSet should be created and have ready pods")
+			}, operatorInstallTimeout, verifierPollInterval).Should(Succeed(), "NFD worker DaemonSet should be created and have ready pods")
 
 			By("waiting for NFD worker pods to be created and verify images from registry.redhat.io can be pulled")
 			verifier = verifiers.VerifyImagePulled(nfdNamespace, "registry.redhat.io", "ose-node-feature-discovery")
-			eventuallyVerify(verifier, ctx, adminRESTConfig, operatorInstallTimeout, operatorInstallInterval,
+			eventuallyVerify(ctx, verifier, adminRESTConfig, operatorInstallTimeout, verifierPollInterval,
 				"NFD worker images from registry.redhat.io should be pulled successfully with the added pull secret")
 		})
 })

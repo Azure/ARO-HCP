@@ -28,12 +28,17 @@ import (
 	"k8s.io/client-go/rest"
 )
 
+const (
+	reasonImagePullBackOff = "ImagePullBackOff"
+	reasonErrImagePull     = "ErrImagePull"
+)
+
 // checkPodImagePullErrors checks if a pod has image pull errors in any container
 func checkPodImagePullErrors(pod corev1.Pod, contextName string) error {
 	for _, cs := range append(pod.Status.ContainerStatuses, pod.Status.InitContainerStatuses...) {
 		if cs.State.Waiting != nil {
 			reason := cs.State.Waiting.Reason
-			if reason == "ImagePullBackOff" || reason == "ErrImagePull" {
+			if reason == reasonImagePullBackOff || reason == reasonErrImagePull {
 				return fmt.Errorf("%s %s, container %s: %s (%s)",
 					contextName, pod.Name, cs.Name, reason, cs.State.Waiting.Message)
 			}
@@ -44,7 +49,10 @@ func checkPodImagePullErrors(pod corev1.Pod, contextName string) error {
 
 // checkResourceConditions checks unstructured resource conditions for errors
 func checkResourceConditions(obj map[string]any, resourceType, namespace, name string) error {
-	conditions, found, _ := unstructured.NestedSlice(obj, "status", "conditions")
+	conditions, found, err := unstructured.NestedSlice(obj, "status", "conditions")
+	if err != nil {
+		return fmt.Errorf("failed to read conditions from %s %s/%s: %w", resourceType, namespace, name, err)
+	}
 	if !found {
 		return nil
 	}
@@ -71,20 +79,10 @@ func checkResourceConditions(obj map[string]any, resourceType, namespace, name s
 	return nil
 }
 
-// catalogSourceHealthCheck contains shared logic for checking catalog source health
-func catalogSourceHealthCheck(ctx context.Context, namespace, catalogSource string,
-	dynamicClient dynamic.Interface, kubeClient *kubernetes.Clientset, requirePod bool) error {
-
-	catalogSourceGVR := schema.GroupVersionResource{
-		Group:    "operators.coreos.com",
-		Version:  "v1alpha1",
-		Resource: "catalogsources",
-	}
-
-	cs, err := dynamicClient.Resource(catalogSourceGVR).Namespace(namespace).Get(ctx, catalogSource, metav1.GetOptions{})
-	if err != nil {
-		return fmt.Errorf("failed to get catalog source %s/%s: %w", namespace, catalogSource, err)
-	}
+// catalogSourceHealthCheck contains shared logic for checking catalog source health.
+// It takes an already-fetched CatalogSource object to avoid redundant API calls.
+func catalogSourceHealthCheck(ctx context.Context, cs *unstructured.Unstructured, namespace, catalogSource string,
+	kubeClient kubernetes.Interface, requirePod bool) error {
 
 	// Check for error conditions in CatalogSource
 	if err := checkResourceConditions(cs.Object, "catalog source", namespace, catalogSource); err != nil {
@@ -104,13 +102,13 @@ func catalogSourceHealthCheck(ctx context.Context, namespace, catalogSource stri
 	for _, pod := range pods.Items {
 		if strings.Contains(pod.Name, catalogSource) {
 			podFound = true
-			if requirePod && pod.Status.Phase != "Running" {
+			if requirePod && pod.Status.Phase != corev1.PodRunning {
 				return fmt.Errorf("catalog source pod %s is in phase %s, expected Running", pod.Name, pod.Status.Phase)
 			}
 
 			// Check for image pull errors
 			if err := checkPodImagePullErrors(pod, "catalog source pod"); err != nil {
-				return fmt.Errorf("%s - check pull secret configuration", err.Error())
+				return fmt.Errorf("check pull secret configuration: %w", err)
 			}
 		}
 	}
@@ -219,11 +217,13 @@ func (v verifyOperatorInstalled) Verify(ctx context.Context, adminRESTConfig *re
 	return nil
 }
 
-// checkImagePullErrors checks for image pull failures in the operator namespace
-func (v verifyOperatorInstalled) checkImagePullErrors(ctx context.Context, kubeClient *kubernetes.Clientset) error {
+// checkImagePullErrors checks for image pull failures in the operator namespace.
+// This is a best-effort diagnostic: if pods cannot be listed, the error is
+// intentionally suppressed so that the caller falls through to other checks.
+func (v verifyOperatorInstalled) checkImagePullErrors(ctx context.Context, kubeClient kubernetes.Interface) error {
 	pods, err := kubeClient.CoreV1().Pods(v.namespace).List(ctx, metav1.ListOptions{})
 	if err != nil {
-		return nil // Don't fail verification if we can't check pods
+		return nil
 	}
 
 	var pullErrors []string
@@ -242,16 +242,33 @@ func (v verifyOperatorInstalled) checkImagePullErrors(ctx context.Context, kubeC
 
 // checkCatalogSourceHealth verifies the catalog source is healthy
 func (v verifyOperatorInstalled) checkCatalogSourceHealth(ctx context.Context, subscription *unstructured.Unstructured,
-	kubeClient *kubernetes.Clientset, dynamicClient dynamic.Interface) error {
+	kubeClient kubernetes.Interface, dynamicClient dynamic.Interface) error {
 
-	catalogSource, _, _ := unstructured.NestedString(subscription.Object, "spec", "source")
-	catalogSourceNS, _, _ := unstructured.NestedString(subscription.Object, "spec", "sourceNamespace")
+	catalogSource, _, err := unstructured.NestedString(subscription.Object, "spec", "source")
+	if err != nil {
+		return fmt.Errorf("failed to read spec.source from subscription: %w", err)
+	}
+	catalogSourceNS, _, err := unstructured.NestedString(subscription.Object, "spec", "sourceNamespace")
+	if err != nil {
+		return fmt.Errorf("failed to read spec.sourceNamespace from subscription: %w", err)
+	}
 
 	if catalogSource == "" || catalogSourceNS == "" {
 		return nil
 	}
 
-	return catalogSourceHealthCheck(ctx, catalogSourceNS, catalogSource, dynamicClient, kubeClient, false)
+	catalogSourceGVR := schema.GroupVersionResource{
+		Group:    "operators.coreos.com",
+		Version:  "v1alpha1",
+		Resource: "catalogsources",
+	}
+
+	cs, err := dynamicClient.Resource(catalogSourceGVR).Namespace(catalogSourceNS).Get(ctx, catalogSource, metav1.GetOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to get catalog source %s/%s: %w", catalogSourceNS, catalogSource, err)
+	}
+
+	return catalogSourceHealthCheck(ctx, cs, catalogSourceNS, catalogSource, kubeClient, false)
 }
 
 // checkSubscriptionConditions examines subscription conditions for errors
@@ -365,14 +382,17 @@ func (v verifyCatalogSourceReady) Verify(ctx context.Context, adminRESTConfig *r
 		return fmt.Errorf("failed to get catalog source %s/%s: %w", v.namespace, v.catalogSource, err)
 	}
 
-	state, found, _ := unstructured.NestedString(cs.Object, "status", "connectionState", "lastObservedState")
+	state, found, err := unstructured.NestedString(cs.Object, "status", "connectionState", "lastObservedState")
+	if err != nil {
+		return fmt.Errorf("failed to read connection state from catalog source %s/%s: %w", v.namespace, v.catalogSource, err)
+	}
 	if found && state != "READY" {
 		return fmt.Errorf("catalog source connection state is %q, expected READY", state)
 	}
 
 	// Use shared catalog source health check (requirePod=false because HCP clusters
 	// may serve catalog sources via external gRPC endpoints without a local pod)
-	return catalogSourceHealthCheck(ctx, v.namespace, v.catalogSource, dynamicClient, kubeClient, false)
+	return catalogSourceHealthCheck(ctx, cs, v.namespace, v.catalogSource, kubeClient, false)
 }
 
 // VerifyCatalogSourceReady verifies that a catalog source is healthy and ready to serve operators
