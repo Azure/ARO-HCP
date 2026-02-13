@@ -404,6 +404,7 @@ maestro:
   certDomain: selfsigned.maestro.keyvault.azure.com
   certIssuer: Self
   eventGrid:
+    location: ""
     maxClientSessionsPerAuthName: 6
     name: arohcp-perf-maestro-usw3ptest
     private: false

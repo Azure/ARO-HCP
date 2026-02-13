@@ -9,6 +9,7 @@ param regionalDNSSubdomain = '{{ .dns.regionalSubdomain }}'
 param maestroEventGridNamespacesName = '{{ .maestro.eventGrid.name }}'
 param maestroEventGridMaxClientSessionsPerAuthName = {{ .maestro.eventGrid.maxClientSessionsPerAuthName }}
 param maestroEventGridPrivate = {{ .maestro.eventGrid.private }}
+param maestroEventGridLocation = '{{ .maestro.eventGrid.location }}'
 param maestroCertificateIssuer = '{{ .maestro.certIssuer }}'
 
 // MI for resource access during pipeline runs

@@ -69,8 +69,8 @@ arobit:
       registry: mcr.microsoft.com
       repository: geneva/distroless/mdsd
 automationDryRun: false
-azureGeoShortId: uk
-azureRegionAvailabilityZoneCount: 3
+azureGeoShortId: us
+azureRegionAvailabilityZoneCount: 4
 backend:
   azureRuntimeConfig:
     tlsCertificatesIssuer: Self
@@ -404,6 +404,7 @@ maestro:
   certDomain: selfsigned.maestro.keyvault.azure.com
   certIssuer: Self
   eventGrid:
+    location: eastus
     maxClientSessionsPerAuthName: 6
     name: arohcp-prow-maestro-j7654321
     private: false
@@ -455,7 +456,7 @@ mgmt:
       name: infra
       osDiskSizeGB: 32
       poolCount: 2
-      vmSize: Standard_E4s_v3
+      vmSize: Standard_D4ds_v5
       zoneRedundantMode: Auto
       zones: ""
     kubernetesVersion: 1.32.5
@@ -468,9 +469,9 @@ mgmt:
       maxCount: 4
       minCount: 1
       name: system
-      osDiskSizeGB: 48
+      osDiskSizeGB: 32
       poolCount: 1
-      vmSize: Standard_E2s_v3
+      vmSize: Standard_D2s_v3
       zoneRedundantMode: Auto
       zones: ""
     userAgentPool:
@@ -479,7 +480,7 @@ mgmt:
       name: user
       osDiskSizeGB: 100
       poolCount: 3
-      vmSize: Standard_E4s_v3
+      vmSize: Standard_D4s_v3
       zoneRedundantMode: Auto
       zones: ""
     vnetAddressPrefix: 10.128.0.0/14
@@ -539,7 +540,7 @@ mgmt:
     certificateDomains:
     - '*.hcp.osadev.cloud'
     - '*.hcpsvc.osadev.cloud'
-    displayName: Azure Red Hat OpenShift HCP - UK South - MGMT - 1
+    displayName: Azure Red Hat OpenShift HCP - West US 3 - MGMT - 1
     key: ARO Hosted Control Planes (EA Subscription 1)
     providers:
       Microsoft.Compute:
@@ -591,7 +592,7 @@ mise:
     exporter: ""
 monitoring:
   alertRuleOwningTeamTag: ""
-  alertsEnabled: true
+  alertsEnabled: false
   crossTenantSecurityGroup: ""
   grafanaMajorVersion: "11"
   grafanaName: arohcp-dev
@@ -664,7 +665,7 @@ oidc:
     useManagedCertificates: true
   storageAccount:
     name: arohcpprowoidcj7654321
-    privateLinkLocation: uksouth
+    privateLinkLocation: westus3
     public: true
     zoneRedundantMode: Auto
 pko:
@@ -684,7 +685,7 @@ pko:
     digest: sha256:0298985d8a02c983be382d351e9243c45edd035b11aa23a6ed077b3d6df7aa45
     registry: quay.io
     repository: package-operator/remote-phase-manager
-region: uksouth
+region: westus3
 regionRG: hcp-underlay-prow-j7654321
 routeMonitorOperator:
   blackboxExporterImage:
@@ -738,7 +739,7 @@ svc:
       name: infra
       osDiskSizeGB: 32
       poolCount: 1
-      vmSize: Standard_E4s_v3
+      vmSize: Standard_D4ds_v5
       zoneRedundantMode: Auto
       zones: ""
     kubernetesVersion: 1.32.5
@@ -751,9 +752,9 @@ svc:
       maxCount: 3
       minCount: 1
       name: system
-      osDiskSizeGB: 48
+      osDiskSizeGB: 32
       poolCount: 1
-      vmSize: Standard_E2s_v3
+      vmSize: Standard_D2s_v3
       zoneRedundantMode: Auto
       zones: ""
     userAgentPool:
@@ -762,7 +763,7 @@ svc:
       name: user
       osDiskSizeGB: 32
       poolCount: 3
-      vmSize: Standard_E4s_v3
+      vmSize: Standard_D2s_v3
       zoneRedundantMode: Auto
       zones: ""
     vnetAddressPrefix: 10.128.0.0/14
@@ -826,7 +827,7 @@ svc:
   subscription:
     certificateDomains:
     - '*.hcpsvc.osadev.cloud'
-    displayName: Azure Red Hat OpenShift HCP - UK South - SVC
+    displayName: Azure Red Hat OpenShift HCP - West US 3 - SVC
     key: ARO Hosted Control Planes (EA Subscription 1)
     providers:
       Microsoft.Compute:

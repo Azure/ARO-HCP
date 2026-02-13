@@ -2414,13 +2414,18 @@
             },
             "private": {
               "type": "boolean"
+            },
+            "location": {
+              "type": "string",
+              "description": "Optional location override for the EventGrid Namespace. If empty, the resource group location is used."
             }
           },
           "additionalProperties": false,
           "required": [
             "maxClientSessionsPerAuthName",
             "name",
-            "private"
+            "private",
+            "location"
           ]
         },
         "image": {

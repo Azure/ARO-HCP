@@ -10,6 +10,9 @@ param maestroEventGridMaxClientSessionsPerAuthName int
 @description('Allow/deny public network access to the Maestro EventGrid Namespace')
 param maestroEventGridPrivate bool
 
+@description('Optional location override for the EventGrid Namespace. If empty, the resource group location is used.')
+param maestroEventGridLocation string = ''
+
 @description('The certificate issuer for the EventGrid Namespace')
 param maestroCertificateIssuer string
 
@@ -109,7 +112,7 @@ module maestroInfra '../modules/maestro/maestro-infra.bicep' = {
   name: 'maestro-infra-deployment'
   params: {
     eventGridNamespaceName: maestroEventGridNamespacesName
-    location: location
+    location: !empty(maestroEventGridLocation) ? maestroEventGridLocation : location
     maxClientSessionsPerAuthName: maestroEventGridMaxClientSessionsPerAuthName
     publicNetworkAccess: maestroEventGridPrivate ? 'Disabled' : 'Enabled'
     certificateIssuer: maestroCertificateIssuer

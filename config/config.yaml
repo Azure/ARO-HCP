@@ -707,6 +707,7 @@ defaults:
       name: "arohcp-{{ .ctx.environment }}-maestro-{{ .ctx.regionShort }}" # [globally-unique]
       maxClientSessionsPerAuthName: 6
       private: false
+      location: ""
     postgres:
       name: "arohcp-{{ .ctx.environment }}-dbmaestro-{{ .ctx.regionShort }}" # [globally-unique]
       serverVersion: '15'
@@ -1392,6 +1393,8 @@ clouds:
             regionalSubdomain: '{{ .ctx.regionShort }}'
           # Maestro
           maestro:
+            eventGrid:
+              location: "eastus"
             postgres:
               deploy: false
               password: 'TheBlurstOfTimes'
