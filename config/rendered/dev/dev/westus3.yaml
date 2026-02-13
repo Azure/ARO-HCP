@@ -453,7 +453,7 @@ mgmt:
       maxCount: 3
       minCount: 1
       name: infra
-      osDiskSizeGB: 64
+      osDiskSizeGB: 32
       poolCount: 2
       vmSize: Standard_D2s_v3
       zoneRedundantMode: Auto
@@ -734,7 +734,7 @@ svc:
       maxCount: 3
       minCount: 1
       name: infra
-      osDiskSizeGB: 64
+      osDiskSizeGB: 32
       poolCount: 1
       vmSize: Standard_D2s_v3
       zoneRedundantMode: Auto
@@ -749,7 +749,7 @@ svc:
       maxCount: 3
       minCount: 1
       name: system
-      osDiskSizeGB: 64
+      osDiskSizeGB: 32
       poolCount: 1
       vmSize: Standard_D2s_v3
       zoneRedundantMode: Auto
@@ -758,7 +758,7 @@ svc:
       maxCount: 3
       minCount: 1
       name: user
-      osDiskSizeGB: 64
+      osDiskSizeGB: 32
       poolCount: 3
       vmSize: Standard_D2s_v3
       zoneRedundantMode: Auto
