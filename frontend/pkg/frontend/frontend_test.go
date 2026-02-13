@@ -40,8 +40,6 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
-	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
-
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
@@ -639,7 +637,6 @@ func TestRequestAdminCredential(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			reg := prometheus.NewRegistry()
 			mockDBClient := database.NewMockDBClient(ctrl)
-			mockCSClient := ocm.NewMockClusterServiceClientSpec(ctrl)
 			mockOperationCRUD := database.NewMockOperationCRUD(ctrl)
 			mockClusterCRUD := database.NewMockHCPClusterCRUD(ctrl)
 			mockSubscriptionCRUD := database.NewMockSubscriptionCRUD(ctrl)
@@ -650,7 +647,7 @@ func TestRequestAdminCredential(t *testing.T) {
 				nil,
 				reg,
 				mockDBClient,
-				mockCSClient,
+				nil,
 				newNoopAuditClient(t),
 				api.TestLocation,
 				"", false, false,
@@ -696,11 +693,6 @@ func TestRequestAdminCredential(t *testing.T) {
 					mockDBTransaction := database.NewMockDBTransaction(ctrl)
 					mockDBTransactionResult := database.NewMockDBTransactionResult(ctrl)
 
-					// ArmResourceActionRequestAdminCredential
-					mockCSClient.EXPECT().
-						PostBreakGlassCredential(gomock.Any(), clusterInternalID).
-						Return(cmv1.NewBreakGlassCredential().
-							HREF(ocm.GenerateBreakGlassCredentialHREF(clusterInternalID.String(), "0")).Build())
 					// ArmResourceActionRequestAdminCredential
 					mockDBClient.EXPECT().
 						NewTransaction(api.TestSubscriptionID).
@@ -856,37 +848,13 @@ func TestRevokeCredentials(t *testing.T) {
 					Return(mockSubscriptionCRUD)
 
 				if test.revokeCredentialsOperationID == "" {
-					mockOperationIter := database.NewMockDBClientIterator[api.Operation](ctrl)
 					mockDBTransaction := database.NewMockDBTransaction(ctrl)
 					mockDBTransactionResult := database.NewMockDBTransactionResult(ctrl)
-
-					// ArmResourceActionRequestAdminCredential
-					mockCSClient.EXPECT().
-						DeleteBreakGlassCredentials(gomock.Any(), clusterInternalID).
-						Return(nil)
 
 					// ArmResourceActionRequestAdminCredential
 					mockDBClient.EXPECT().
 						NewTransaction(api.TestSubscriptionID).
 						Return(mockDBTransaction)
-
-					// CancelActiveOperations
-					mockDBTransaction.EXPECT().
-						GetPartitionKey().
-						Return(api.TestSubscriptionID)
-					// CancelActiveOperations
-					mockDBClient.EXPECT().
-						Operations(clusterResourceID.SubscriptionID).
-						Return(mockOperationCRUD)
-					mockOperationCRUD.EXPECT().
-						ListActiveOperations(gomock.Any()).
-						Return(mockOperationIter)
-					mockOperationIter.EXPECT().
-						Items(gomock.Any()).
-						Return(database.DBClientIteratorItem[api.Operation](maps.All(map[string]*api.Operation{})))
-					mockOperationIter.EXPECT().
-						GetError().
-						Return(nil)
 
 					// ArmResourceActionRequestAdminCredential
 					operationID := uuid.New().String()

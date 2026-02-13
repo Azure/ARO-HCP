@@ -352,22 +352,12 @@ func (f *Frontend) ArmResourceActionRequestAdminCredential(writer http.ResponseW
 		return arm.NewConflictError(clusterResourceID, "Cannot request credential while credentials are being revoked")
 	}
 
-	csCredential, err := f.clusterServiceClient.PostBreakGlassCredential(ctx, cluster.ServiceProviderProperties.ClusterServiceID)
-	if err != nil {
-		return utils.TrackError(err)
-	}
-
-	csCredentialClusterServiceID, err := api.NewInternalID(csCredential.HREF())
-	if err != nil {
-		return utils.TrackError(err)
-	}
-
 	transaction := f.dbClient.NewTransaction(clusterResourceID.SubscriptionID)
 
 	operationDoc := database.NewOperation(
 		operationRequest,
 		clusterResourceID,
-		csCredentialClusterServiceID,
+		api.InternalID{},
 		f.azureLocation,
 		request.Header.Get(arm.HeaderNameHomeTenantID),
 		request.Header.Get(arm.HeaderNameClientObjectID),
@@ -444,22 +434,7 @@ func (f *Frontend) ArmResourceActionRevokeCredentials(writer http.ResponseWriter
 		return arm.NewConflictError(clusterResourceID, "Credentials are already being revoked")
 	}
 
-	err = f.clusterServiceClient.DeleteBreakGlassCredentials(ctx, cluster.ServiceProviderProperties.ClusterServiceID)
-	if err != nil {
-		return utils.TrackError(err)
-	}
-
 	transaction := f.dbClient.NewTransaction(clusterResourceID.SubscriptionID)
-
-	// Just as deleting an ARM resource cancels any other operations on the resource,
-	// revoking credentials cancels any credential requests in progress.
-	err = database.CancelActiveOperations(ctx, f.dbClient, transaction, &database.DBClientListActiveOperationDocsOptions{
-		Request:    api.Ptr(database.OperationRequestRequestCredential),
-		ExternalID: clusterResourceID,
-	})
-	if err != nil {
-		return utils.TrackError(err)
-	}
 
 	operationDoc := database.NewOperation(
 		operationRequest,

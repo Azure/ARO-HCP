@@ -28,6 +28,7 @@ import (
 	"k8s.io/utils/clock"
 
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
+	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
@@ -535,6 +536,142 @@ func convertInflightCheckDetails(inflightCheck *arohcpv1alpha1.InflightCheck) (s
 	}
 
 	return "", false
+}
+
+func DeleteCluster(ctx context.Context, cosmosClient database.DBClient, clusterServiceClient ocm.ClusterServiceClientSpec, cluster *api.HCPOpenShiftCluster, transaction database.DBTransaction) error {
+	logger := utils.LoggerFromContext(ctx)
+
+	err := clusterServiceClient.DeleteCluster(ctx, cluster.ServiceProviderProperties.ClusterServiceID)
+	var ocmError *ocmerrors.Error
+	if errors.As(err, &ocmError) && ocmError.Status() == http.StatusNotFound {
+		// StatusNotFound means we have stale data in Cosmos DB. This
+		// can happen in test environments if a user bypasses the RP to
+		// delete a resource (e.g. "ocm delete"). It can also happen if
+		// an asynchronous deletion operation fails. We will fall through
+		// and cancel all operations and go through as normal a deletion
+		// flow as we can to avoid leading data related to the resource,
+		// like controller status.
+		logger.Info("Cluster Service cluster missing, trying to clean up", "err", err)
+	} else if err != nil {
+		return utils.TrackError(err)
+	}
+
+	// Cluster Service will take care of canceling any ongoing operations
+	// on the resource or child resources, but we need to do some database
+	// bookkeeping to reflect that.
+	err = database.CancelActiveOperations(ctx, cosmosClient, transaction, &database.DBClientListActiveOperationDocsOptions{
+		ExternalID:             cluster.ID,
+		IncludeNestedResources: true,
+	})
+	if err != nil {
+		return utils.TrackError(err)
+	}
+
+	cosmosClusterClient := cosmosClient.HCPClusters(
+		cluster.ID.SubscriptionID,
+		cluster.ID.ResourceGroupName)
+
+	// Recurse down to delete children.
+	nodePoolIterator, err := cosmosClusterClient.NodePools(cluster.ID.Name).List(ctx, nil)
+	if err != nil {
+		return utils.TrackError(err)
+	}
+	for _, nodePool := range nodePoolIterator.Items(ctx) {
+		err = DeleteNodePool(ctx, cosmosClient, nil, nodePool, transaction)
+		if err != nil {
+			return utils.TrackError(err)
+		}
+	}
+	err = nodePoolIterator.GetError()
+	if err != nil {
+		return utils.TrackError(err)
+	}
+	externalAuthIterator, err := cosmosClusterClient.ExternalAuth(cluster.ID.Name).List(ctx, nil)
+	if err != nil {
+		return utils.TrackError(err)
+	}
+	for _, externalAuth := range externalAuthIterator.Items(ctx) {
+		err = DeleteExternalAuth(ctx, cosmosClient, nil, externalAuth, transaction)
+		if err != nil {
+			return utils.TrackError(err)
+		}
+	}
+	err = externalAuthIterator.GetError()
+	if err != nil {
+		return utils.TrackError(err)
+	}
+
+	return nil
+}
+
+func DeleteNodePool(ctx context.Context, cosmosClient database.DBClient, clusterServiceClient ocm.ClusterServiceClientSpec, nodePool *api.HCPOpenShiftClusterNodePool, transaction database.DBTransaction) error {
+	logger := utils.LoggerFromContext(ctx)
+
+	// This is only nil when called from DeleteCluster.
+	if clusterServiceClient != nil {
+		err := clusterServiceClient.DeleteNodePool(ctx, nodePool.ServiceProviderProperties.ClusterServiceID)
+		var ocmError *ocmerrors.Error
+		if errors.As(err, &ocmError) && ocmError.Status() == http.StatusNotFound {
+			// StatusNotFound means we have stale data in Cosmos DB. This
+			// can happen in test environments if a user bypasses the RP to
+			// delete a resource (e.g. "ocm delete"). It can also happen if
+			// an asynchronous deletion operation fails. We will fall through
+			// and cancel all operations and go through as normal a deletion
+			// flow as we can to avoid leading data related to the resource,
+			// like controller status.
+			logger.Info("Cluster Service node pool missing, trying to clean up", "err", err)
+		} else if err != nil {
+			return utils.TrackError(err)
+		}
+	}
+
+	// Cluster Service will take care of canceling any ongoing operations
+	// on the resource or child resources, but we need to do some database
+	// bookkeeping to reflect that.
+	err := database.CancelActiveOperations(ctx, cosmosClient, transaction, &database.DBClientListActiveOperationDocsOptions{
+		ExternalID:             nodePool.ID,
+		IncludeNestedResources: true,
+	})
+	if err != nil {
+		return utils.TrackError(err)
+	}
+
+	return nil
+}
+
+func DeleteExternalAuth(ctx context.Context, cosmosClient database.DBClient, clusterServiceClient ocm.ClusterServiceClientSpec, externalAuth *api.HCPOpenShiftClusterExternalAuth, transaction database.DBTransaction) error {
+	logger := utils.LoggerFromContext(ctx)
+
+	// This is only nil when called from DeleteCluster.
+	if clusterServiceClient != nil {
+		err := clusterServiceClient.DeleteExternalAuth(ctx, externalAuth.ServiceProviderProperties.ClusterServiceID)
+		var ocmError *ocmerrors.Error
+		if errors.As(err, &ocmError) && ocmError.Status() == http.StatusNotFound {
+			// StatusNotFound means we have stale data in Cosmos DB. This
+			// can happen in test environments if a user bypasses the RP to
+			// delete a resource (e.g. "ocm delete"). It can also happen if
+			// an asynchronous deletion operation fails. We will fall through
+			// and cancel all operations and go through as normal a deletion
+			// flow as we can to avoid leading data related to the resource,
+			// like controller status.
+			logger.Info("Cluster Service external auth missing, trying to clean up", "err", err)
+		} else if err != nil {
+			return utils.TrackError(err)
+		}
+	}
+
+	// Cluster Service will take care of canceling any ongoing operations
+	// on the resource or child resources, but we need to do some database
+	// bookkeeping to reflect that.
+	err := database.CancelActiveOperations(ctx, cosmosClient, transaction, &database.DBClientListActiveOperationDocsOptions{
+		ExternalID:             externalAuth.ID,
+		IncludeNestedResources: true,
+	})
+	if err != nil {
+		return utils.TrackError(err)
+	}
+
+	return nil
 }
 
 // setDeleteOperationAsCompleted updates Cosmos DB to reflect a completed resource deletion.

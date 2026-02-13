@@ -67,12 +67,6 @@ func NewOperation(
 		api.OperationStatusResourceTypeName,
 		uuid.New().String())))
 
-	// XXX THIS IS TEMPORARY
-	//     Today operations are dispatched immediately since Cluster Service
-	//     calls are made from frontend pods. This will change once a backend
-	//     controller handles making Cluster Service calls for new operations.
-	operation.Dispatched = true
-
 	// this ID does not include the location because doing so changes the resulting azcorearm.ParseResourceID().ResourceType to be
 	// Microsoft.RedHatOpenShift/locations/hcpOperationStatuses.  This type is not compatible with the current cosmos storage and
 	// nests in a way that doesn't match other types. Since our operationID.Name is a UID, this is still a globally unique
