@@ -86,12 +86,11 @@ func NewOperation(
 	// Microsoft.RedHatOpenShift/locations/hcpOperationStatuses.  This type is not compatible with the current cosmos storage and
 	// nests in a way that doesn't match other types. Since our operationID.Name is a UID, this is still a globally unique
 	// resourceID.
-	operation.CosmosMetadata.ResourceID = api.Must(azcorearm.ParseResourceID(path.Join("/",
+	operation.ResourceID = api.Must(azcorearm.ParseResourceID(path.Join("/",
 		"subscriptions", operation.ExternalID.SubscriptionID,
 		"providers", api.ProviderNamespace,
 		api.OperationStatusResourceTypeName, operation.OperationID.Name,
 	)))
-	operation.ResourceID = operation.CosmosMetadata.ResourceID
 
 	if correlationData != nil {
 		operation.ClientRequestID = correlationData.ClientRequestID

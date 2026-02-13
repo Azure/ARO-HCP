@@ -933,10 +933,6 @@ func (in *OSDiskProfile) DeepCopy() *OSDiskProfile {
 func (in *Operation) DeepCopyInto(out *Operation) {
 	*out = *in
 	in.CosmosMetadata.DeepCopyInto(&out.CosmosMetadata)
-	if in.ResourceID != nil {
-		in, out := &in.ResourceID, &out.ResourceID
-		*out = arm.DeepCopyResourceID(*in)
-	}
 	if in.ExternalID != nil {
 		in, out := &in.ExternalID, &out.ExternalID
 		*out = arm.DeepCopyResourceID(*in)
@@ -1044,7 +1040,6 @@ func (in *ServiceProviderAPIProfile) DeepCopy() *ServiceProviderAPIProfile {
 func (in *ServiceProviderCluster) DeepCopyInto(out *ServiceProviderCluster) {
 	*out = *in
 	in.CosmosMetadata.DeepCopyInto(&out.CosmosMetadata)
-	out.ResourceID = *arm.DeepCopyResourceID(&in.ResourceID)
 	if in.LoadBalancerResourceID != nil {
 		in, out := &in.LoadBalancerResourceID, &out.LoadBalancerResourceID
 		*out = arm.DeepCopyResourceID(*in)
@@ -1226,7 +1221,6 @@ func (in *ServiceProviderDNSProfile) DeepCopy() *ServiceProviderDNSProfile {
 func (in *ServiceProviderNodePool) DeepCopyInto(out *ServiceProviderNodePool) {
 	*out = *in
 	in.CosmosMetadata.DeepCopyInto(&out.CosmosMetadata)
-	out.ResourceID = *arm.DeepCopyResourceID(&in.ResourceID)
 	return
 }
 
