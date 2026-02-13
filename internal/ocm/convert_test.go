@@ -861,41 +861,144 @@ func TestBuildCSCluster(t *testing.T) {
 							Values("172.16.0.0/12", "203.0.113.0/24")))),
 		},
 		{
-			name: "CREATE - required properties are set",
-			requiredProperties: map[string]string{
-				"provision_shard_id":           "test-shard",
-				"provisioner_noop_provision":   "true",
-				"provisioner_noop_deprovision": "true",
+			name: "CREATE - sets experimental feature properties to true",
+			hcpCluster: &api.HCPOpenShiftCluster{
+				ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
+					ExperimentalFeatures: api.ExperimentalFeatures{
+						ControlPlaneAvailability: api.SingleReplicaControlPlane,
+						ControlPlanePodSizing:    api.MinimalControlPlanePodSizing,
+					},
+				},
 			},
-			hcpCluster: &api.HCPOpenShiftCluster{},
 			expectedCSCluster: getBaseCSClusterBuilder(false).
 				Properties(map[string]string{
-					"provision_shard_id":           "test-shard",
-					"provisioner_noop_provision":   "true",
-					"provisioner_noop_deprovision": "true",
+					"hosted_cluster_single_replica": "true",
+					"hosted_cluster_size_override":  "true",
 				}),
 		},
 		{
-			name: "UPDATE - preserves old properties and overlays required",
+			name: "CREATE - sets only single-replica",
+			hcpCluster: &api.HCPOpenShiftCluster{
+				ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
+					ExperimentalFeatures: api.ExperimentalFeatures{
+						ControlPlaneAvailability: api.SingleReplicaControlPlane,
+					},
+				},
+			},
+			expectedCSCluster: getBaseCSClusterBuilder(false).
+				Properties(map[string]string{
+					"hosted_cluster_single_replica": "true",
+				}),
+		},
+		{
+			name: "UPDATE - tag removal clears previously set properties",
 			oldClusterServiceCluster: func() *arohcpv1alpha1.Cluster {
 				c, err := arohcpv1alpha1.NewCluster().Properties(map[string]string{
-					"provisioner_noop_provision":   "true",
-					"provisioner_noop_deprovision": "true",
+					"hosted_cluster_single_replica": "true",
+					"hosted_cluster_size_override":  "true",
 				}).Build()
 				if err != nil {
 					panic(err)
 				}
 				return c
 			}(),
-			requiredProperties: map[string]string{
-				"provision_shard_id": "new-shard",
-			},
 			hcpCluster: &api.HCPOpenShiftCluster{},
 			expectedCSCluster: getBaseCSClusterBuilder(true).
+				Properties(map[string]string{}),
+		},
+		{
+			name: "UPDATE - partial feature disablement keeps remaining feature",
+			oldClusterServiceCluster: func() *arohcpv1alpha1.Cluster {
+				c, err := arohcpv1alpha1.NewCluster().Properties(map[string]string{
+					"hosted_cluster_single_replica": "true",
+					"hosted_cluster_size_override":  "true",
+				}).Build()
+				if err != nil {
+					panic(err)
+				}
+				return c
+			}(),
+			hcpCluster: &api.HCPOpenShiftCluster{
+				ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
+					ExperimentalFeatures: api.ExperimentalFeatures{
+						ControlPlanePodSizing: api.MinimalControlPlanePodSizing,
+					},
+				},
+			},
+			expectedCSCluster: getBaseCSClusterBuilder(true).
 				Properties(map[string]string{
-					"provisioner_noop_provision":   "true",
-					"provisioner_noop_deprovision": "true",
-					"provision_shard_id":           "new-shard",
+					"hosted_cluster_size_override": "true",
+				}),
+		},
+		{
+			name: "UPDATE - preserves non-experimental old properties",
+			oldClusterServiceCluster: func() *arohcpv1alpha1.Cluster {
+				c, err := arohcpv1alpha1.NewCluster().Properties(map[string]string{
+					"provisioner_noop_provision":    "true",
+					"provisioner_noop_deprovision":  "true",
+					"hosted_cluster_single_replica": "true",
+				}).Build()
+				if err != nil {
+					panic(err)
+				}
+				return c
+			}(),
+			hcpCluster: &api.HCPOpenShiftCluster{
+				ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
+					ExperimentalFeatures: api.ExperimentalFeatures{
+						ControlPlaneAvailability: api.SingleReplicaControlPlane,
+					},
+				},
+			},
+			expectedCSCluster: getBaseCSClusterBuilder(true).
+				Properties(map[string]string{
+					"provisioner_noop_provision":    "true",
+					"provisioner_noop_deprovision":  "true",
+					"hosted_cluster_single_replica": "true",
+				}),
+		},
+		{
+			name: "CREATE - required properties merged with experimental features",
+			requiredProperties: map[string]string{
+				"provision_shard_id":           "test-shard",
+				"provisioner_noop_provision":   "true",
+				"provisioner_noop_deprovision": "true",
+			},
+			hcpCluster: &api.HCPOpenShiftCluster{
+				ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
+					ExperimentalFeatures: api.ExperimentalFeatures{
+						ControlPlaneAvailability: api.SingleReplicaControlPlane,
+						ControlPlanePodSizing:    api.MinimalControlPlanePodSizing,
+					},
+				},
+			},
+			expectedCSCluster: getBaseCSClusterBuilder(false).
+				Properties(map[string]string{
+					"provision_shard_id":            "test-shard",
+					"provisioner_noop_provision":    "true",
+					"provisioner_noop_deprovision":  "true",
+					"hosted_cluster_single_replica": "true",
+					"hosted_cluster_size_override":  "true",
+				}),
+		},
+		{
+			name: "CREATE - experimental features override conflicting required properties",
+			requiredProperties: map[string]string{
+				"hosted_cluster_single_replica": "false",
+				"hosted_cluster_size_override":  "false",
+			},
+			hcpCluster: &api.HCPOpenShiftCluster{
+				ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
+					ExperimentalFeatures: api.ExperimentalFeatures{
+						ControlPlaneAvailability: api.SingleReplicaControlPlane,
+						ControlPlanePodSizing:    api.MinimalControlPlanePodSizing,
+					},
+				},
+			},
+			expectedCSCluster: getBaseCSClusterBuilder(false).
+				Properties(map[string]string{
+					"hosted_cluster_single_replica": "true",
+					"hosted_cluster_size_override":  "true",
 				}),
 		},
 	}

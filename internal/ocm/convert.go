@@ -639,7 +639,9 @@ func BuildCSCluster(resourceID *azcorearm.ResourceID, requestHeader http.Header,
 	}
 
 	// Property layering: preserve existing CS properties (on update), then
-	// overlay caller-specified properties.
+	// overlay caller-specified properties, then experimental features.
+	// Experimental feature properties are added when enabled and deleted
+	// when disabled to ensure tag removal clears previously set values.
 	properties := map[string]string{}
 	if oldClusterServiceCluster != nil {
 		for k, v := range oldClusterServiceCluster.Properties() {
@@ -648,6 +650,17 @@ func BuildCSCluster(resourceID *azcorearm.ResourceID, requestHeader http.Header,
 	}
 	for k, v := range requiredProperties {
 		properties[k] = v
+	}
+	experimentalFeatures := hcpCluster.ServiceProviderProperties.ExperimentalFeatures
+	if experimentalFeatures.ControlPlaneAvailability == api.SingleReplicaControlPlane {
+		properties[CSPropertySingleReplica] = CSPropertyEnabled
+	} else {
+		delete(properties, CSPropertySingleReplica)
+	}
+	if experimentalFeatures.ControlPlanePodSizing == api.MinimalControlPlanePodSizing {
+		properties[CSPropertySizeOverride] = CSPropertyEnabled
+	} else {
+		delete(properties, CSPropertySizeOverride)
 	}
 	clusterBuilder = clusterBuilder.Properties(properties)
 
