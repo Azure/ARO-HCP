@@ -226,3 +226,28 @@ images:
     targets:
     - jsonPath: defaults.adminApi.image.digest
       filePath: ../../config/config.yaml
+  # Velero images
+  velero-server:
+    source:
+      image: quay.io/konveyor/velero
+      tag: "latest"
+      multiArch: true
+    targets:
+    - jsonPath: defaults.velero.server.digest
+      filePath: ../../config/config.yaml
+  velero-azure-plugin:
+    source:
+      image: quay.io/konveyor/velero-plugin-for-microsoft-azure
+      tag: "latest"
+      multiArch: true
+    targets:
+    - jsonPath: defaults.velero.azurePlugin.digest
+      filePath: ../../config/config.yaml
+  velero-hypershift-plugin:
+    source:
+      image: quay.io/redhat-user-workloads/ocp-art-tenant/oadp-hypershift-oadp-plugin-main
+      tagPattern: "^sha256-[a-f0-9]{64}$"
+      multiArch: true
+    targets:
+    - jsonPath: defaults.velero.hypershiftPlugin.digest
+      filePath: ../../config/config.yaml
