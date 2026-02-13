@@ -247,6 +247,11 @@ func (c *maestroShowcaseSyncer) logMaestroBundles(ctx context.Context, maestroBu
 		maestroBundleNamespace := redactedBundle.GetNamespace()
 		maestroBundleUID := redactedBundle.GetUID()
 		maestroBundleStatus := redactedBundle.Status
+		// We add nolint because the linter was changing redactedBundle.ObjectMeta.Name
+		// to redactedBundle.Name but I think in the case of Maestro Bundles those do not
+		// match. TODO if we want to be fully sure about whether this nolint must be kept
+		// we should verify how maestro sets it specifically.
+		// nolint
 		maestroBundleMetaName := redactedBundle.ObjectMeta.Name
 		maestroBundleManifestConfigs := redactedBundle.Spec.ManifestConfigs
 		logger = logger.WithValues("bundleName", maestroBundleName, "bundleNamespace", maestroBundleNamespace, "bundleUID", maestroBundleUID, "bundleMetaName", maestroBundleMetaName)
