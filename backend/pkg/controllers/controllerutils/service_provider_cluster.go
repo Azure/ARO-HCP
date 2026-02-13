@@ -36,7 +36,6 @@ func newInitialServiceProviderCluster(clusterResourceID *azcorearm.ResourceID) *
 		CosmosMetadata: api.CosmosMetadata{
 			ResourceID: resourceID,
 		},
-		ResourceID: *resourceID,
 	}
 }
 
