@@ -923,23 +923,13 @@ func (m *mockUntypedCRUD) listInternal(ctx context.Context, opts *database.DBCli
 			continue
 		}
 
-		var props map[string]any
-		if err := json.Unmarshal(typedDoc.Properties, &props); err != nil {
-			continue
-		}
-
-		resourceIDStr, ok := props["resourceId"].(string)
-		if !ok {
-			continue
-		}
-
-		if !strings.HasPrefix(strings.ToLower(resourceIDStr), strings.ToLower(prefix)) {
+		if !strings.HasPrefix(strings.ToLower(typedDoc.ResourceID.String()), strings.ToLower(prefix)) {
 			continue
 		}
 
 		// For non-recursive, check slash count
 		if nonRecursive {
-			slashCount := strings.Count(resourceIDStr, "/")
+			slashCount := strings.Count(typedDoc.ResourceID.String(), "/")
 			if slashCount != requiredSlashes {
 				continue
 			}
