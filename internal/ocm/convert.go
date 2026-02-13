@@ -589,7 +589,10 @@ func convertRpAutoscalarToCSBuilder(in *api.ClusterAutoscalingProfile) (*arohcpv
 }
 
 // BuildCSCluster creates a CS ClusterBuilder object from an HCPOpenShiftCluster object.
-func BuildCSCluster(resourceID *azcorearm.ResourceID, requestHeader http.Header, hcpCluster *api.HCPOpenShiftCluster, updating bool) (*arohcpv1alpha1.ClusterBuilder, *arohcpv1alpha1.ClusterAutoscalerBuilder, error) {
+// requiredProperties are caller-specified properties (e.g. provision shard, noop flags).
+// oldClusterServiceCluster, if non-nil, indicates an update and its existing properties
+// are preserved as a base layer.
+func BuildCSCluster(resourceID *azcorearm.ResourceID, requestHeader http.Header, hcpCluster *api.HCPOpenShiftCluster, requiredProperties map[string]string, oldClusterServiceCluster *arohcpv1alpha1.Cluster) (*arohcpv1alpha1.ClusterBuilder, *arohcpv1alpha1.ClusterAutoscalerBuilder, error) {
 	var err error
 
 	// Ensure required headers are present.
@@ -602,7 +605,7 @@ func BuildCSCluster(resourceID *azcorearm.ResourceID, requestHeader http.Header,
 	clusterAPIBuilder := arohcpv1alpha1.NewClusterAPI()
 
 	// These attributes cannot be updated after cluster creation.
-	if !updating {
+	if oldClusterServiceCluster == nil {
 		// Add attributes that cannot be updated after cluster creation.
 		clusterBuilder, err = withImmutableAttributes(clusterBuilder, hcpCluster,
 			resourceID.SubscriptionID,
@@ -634,6 +637,19 @@ func BuildCSCluster(resourceID *azcorearm.ResourceID, requestHeader http.Header,
 	if err != nil {
 		return nil, nil, err
 	}
+
+	// Property layering: preserve existing CS properties (on update), then
+	// overlay caller-specified properties.
+	properties := map[string]string{}
+	if oldClusterServiceCluster != nil {
+		for k, v := range oldClusterServiceCluster.Properties() {
+			properties[k] = v
+		}
+	}
+	for k, v := range requiredProperties {
+		properties[k] = v
+	}
+	clusterBuilder = clusterBuilder.Properties(properties)
 
 	return clusterBuilder, clusterAutoscalerBuilder, nil
 }
