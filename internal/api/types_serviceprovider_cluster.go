@@ -44,4 +44,54 @@ type ServiceProviderCluster struct {
 	// The Condition Reason and Message are used to provide more details about the validation status.
 	// The Condition LastTransitionTime is used to track the last time the validation transitioned from one status to another.
 	Validations []Condition `json:"validations,omitempty"`
+
+	// MaestroReadonlyBundles contains a list of Maestro readonly bundles references.
+	// These bundles are used to retrieve particular K8s resources from the Management Cluster.
+	// The reference contains a mapping between the logical name we give to the Maestro bundle internally
+	// and the Maestro Bundle Name and ID at the Maestro API level.
+	MaestroReadonlyBundles MaestroBundleReferenceList `json:"maestroReadonlyBundles,omitempty"`
 }
+
+type MaestroBundleReference struct {
+	// Name is a logical name that represents the Maestro Bundle conceptually.
+	Name MaestroBundleInternalName `json:"name"`
+	// MaestroAPIMaestroBundleName is the name of the Maestro Bundle in the Maestro API.
+	// It must be unique within a given Maestro Consumer Name and Maestro Source ID.
+	// Maestro's ManifestWorks Go client abstraction uses Maestro Bundle Names to
+	// identify the Maestro Bundle.
+	MaestroAPIMaestroBundleName string `json:"maestroAPIMaestroBundleName"`
+	// MaestroAPIMaestroBundleID is the ID of the Maestro Bundle in the Maestro API.
+	// Returned by the Maestro API when the Maestro Bundle is first created.
+	// This attribute can be unset if the Maestro Bundle reference has been created
+	// but the Maestro Bundle has not been created yet.
+	// Maestro's REST API Go client abstraction uses Maestro Bundle IDs to identify the Maestro Bundle.
+	MaestroAPIMaestroBundleID string `json:"maestroAPIMaestroBundleID"`
+}
+
+// MaestroBundleReferenceList is a list of Maestro Bundle references.
+type MaestroBundleReferenceList []*MaestroBundleReference
+
+// Get returns the Maestro Bundle reference for a given Maestro Bundle internal name.
+// If the Maestro Bundle reference identifies by name does not exist, it returns nil.
+func (l MaestroBundleReferenceList) Get(name MaestroBundleInternalName) *MaestroBundleReference {
+	for _, bundle := range l {
+		if bundle.Name == name {
+			return bundle
+		}
+	}
+	return nil
+}
+
+// MaestroBundleInternalName is a type that represents the internal name of a Maestro Bundle.
+// It is used to identify the Maestro Bundle internally and to retrieve it from the MaestroBundleReferenceList.
+type MaestroBundleInternalName string
+
+const (
+	// MaestroBundleInternalNameHypershiftHostedCluster is the internal name of the Maestro Bundle that represents
+	// the Cluster's Hypershift's HostedCluster K8s resource.
+	MaestroBundleInternalNameHypershiftHostedCluster MaestroBundleInternalName = "hypershiftHostedCluster"
+
+	// MaestroBundleInternalNameHypershiftHostedClusterManifestWork is the internal name of the Maestro Bundle that represents
+	// the Cluster's Hypershift's HostedClusterManifestWork K8s resource.
+	MaestroBundleInternalNameHypershiftHostedClusterManifestWork MaestroBundleInternalName = "hypershiftHostedClusterManifestWork"
+)

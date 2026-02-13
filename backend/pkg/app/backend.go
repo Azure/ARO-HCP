@@ -247,6 +247,14 @@ func (b *Backend) Run(ctx context.Context) error {
 				activeOperationLister, b.options.CosmosDBClient, b.options.ClustersServiceClient,
 				clusterInformer, b.options.MaestroSourceEnvironmentIdentifier,
 			)
+			maestroCreateReadonlyBundlesController = controllers.NewCreateMaestroReadonlyBundlesController(
+				activeOperationLister, b.options.CosmosDBClient, b.options.ClustersServiceClient,
+				clusterInformer, b.options.MaestroSourceEnvironmentIdentifier,
+			)
+			maestroReadAndPersistReadonlyBundlesContentController = controllers.NewReadAndPersistMaestroReadonlyBundlesContentController(
+				activeOperationLister, b.options.CosmosDBClient, b.options.ClustersServiceClient,
+				clusterInformer, b.options.MaestroSourceEnvironmentIdentifier,
+			)
 		)
 
 		le, err := leaderelection.NewLeaderElector(leaderelection.LeaderElectionConfig{
@@ -277,6 +285,8 @@ func (b *Backend) Run(ctx context.Context) error {
 					go alwaysSuccessClusterValidationController.Run(ctx, 20)
 					go deleteOrphanedCosmosResourcesController.Run(ctx, 20)
 					go maestroShowcaseController.Run(ctx, 20)
+					go maestroCreateReadonlyBundlesController.Run(ctx, 20)
+					go maestroReadAndPersistReadonlyBundlesContentController.Run(ctx, 20)
 				},
 				OnStoppedLeading: func() {
 					operationsScanner.LeaderGauge.Set(0)

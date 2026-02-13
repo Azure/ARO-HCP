@@ -18,6 +18,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
@@ -46,7 +47,8 @@ func newInitialServiceProviderCluster(clusterResourceID *azcorearm.ResourceID) *
 func GetOrCreateServiceProviderCluster(
 	ctx context.Context, dbClient database.DBClient, clusterResourceID *azcorearm.ResourceID,
 ) (*api.ServiceProviderCluster, error) {
-	if clusterResourceID.ResourceType.String() != api.ClusterResourceType.String() {
+	// Azure resource types are case-insensitive; ToClusterResourceIDString lowercases the path so parsed IDs may have lowercase type.
+	if !strings.EqualFold(clusterResourceID.ResourceType.String(), api.ClusterResourceType.String()) {
 		return nil, utils.TrackError(fmt.Errorf("expected resource type %s, got %s", api.ClusterResourceType, clusterResourceID.ResourceType))
 	}
 

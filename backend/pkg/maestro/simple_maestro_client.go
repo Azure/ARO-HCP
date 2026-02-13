@@ -43,7 +43,6 @@ type SimpleMaestroClient interface {
 	CreateMaestroBundle(ctx context.Context, maestroBundle *workv1.ManifestWork, opts metav1.CreateOptions) (*workv1.ManifestWork, error)
 	GetMaestroBundle(ctx context.Context, bundleName string, opts metav1.GetOptions) (*workv1.ManifestWork, error)
 	DeleteMaestroBundle(ctx context.Context, bundleName string, opts metav1.DeleteOptions) error
-	UpdateMaestroBundle(ctx context.Context, bundleName *workv1.ManifestWork, opts metav1.UpdateOptions) (*workv1.ManifestWork, error)
 	PatchMaestroBundle(ctx context.Context, bundleName string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *workv1.ManifestWork, err error)
 	ListMaestroBundles(ctx context.Context, opts metav1.ListOptions) (*workv1.ManifestWorkList, error)
 }
@@ -80,10 +79,6 @@ func (c *simpleMaestroClient) GetMaestroBundle(ctx context.Context, bundleMetada
 
 func (c *simpleMaestroClient) DeleteMaestroBundle(ctx context.Context, bundleMetadataName string, opts metav1.DeleteOptions) error {
 	return c.maestroManifestWorksInterface.Delete(ctx, bundleMetadataName, opts)
-}
-
-func (c *simpleMaestroClient) UpdateMaestroBundle(ctx context.Context, bundle *workv1.ManifestWork, opts metav1.UpdateOptions) (*workv1.ManifestWork, error) {
-	return c.maestroManifestWorksInterface.Update(ctx, bundle, opts)
 }
 
 func (c *simpleMaestroClient) PatchMaestroBundle(ctx context.Context, bundleMetadataName string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *workv1.ManifestWork, err error) {

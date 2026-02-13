@@ -124,6 +124,8 @@ type DBClient interface {
 
 	ServiceProviderClusters(subscriptionID, resourceGroupName, clusterName string) ServiceProviderClusterCRUD
 
+	ManagementClusterContents(subscriptionID, resourceGroupName, clusterName string) ManagementClusterContentCRUD
+
 	// GlobalListers returns interfaces for listing all resources of a particular
 	// type across all partitions, intended for feeding SharedInformers.
 	GlobalListers() GlobalListers
@@ -291,6 +293,12 @@ func (d *cosmosDBClient) ServiceProviderNodePools(subscriptionID, resourceGroupN
 	nodePoolResourceID := NewNodePoolResourceID(subscriptionID, resourceGroupName, clusterName, nodePoolName)
 	return NewCosmosResourceCRUD[api.ServiceProviderNodePool, GenericDocument[api.ServiceProviderNodePool]](
 		d.resources, nodePoolResourceID, api.ServiceProviderNodePoolResourceType)
+}
+
+func (d *cosmosDBClient) ManagementClusterContents(subscriptionID, resourceGroupName, clusterName string) ManagementClusterContentCRUD {
+	clusterResourceID := NewClusterResourceID(subscriptionID, resourceGroupName, clusterName)
+	return NewCosmosResourceCRUD[api.ManagementClusterContent, GenericDocument[api.ManagementClusterContent]](
+		d.resources, clusterResourceID, api.ManagementClusterContentResourceType)
 }
 
 func (d *cosmosDBClient) UntypedCRUD(parentResourceID azcorearm.ResourceID) (UntypedResourceCRUD, error) {

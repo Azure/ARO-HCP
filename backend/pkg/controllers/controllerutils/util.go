@@ -221,6 +221,23 @@ func SetCondition(conditions *[]api.Condition, toSet api.Condition) {
 	existingCondition.Message = toSet.Message
 }
 
+// RemoveCondition deletes the condition with the given type from the list of conditions
+// if present and it returns true if the condition was removed.
+// If the condition with condition type conditionType is not found, it does nothing.
+// If conditions is nil or the list of conditions is empty it does nothing.
+func RemoveCondition(conditions *[]api.Condition, conditionType string) bool {
+	if conditions == nil || len(*conditions) == 0 {
+		return false
+	}
+
+	prevLen := len(*conditions)
+	*conditions = slices.DeleteFunc(*conditions, func(c api.Condition) bool {
+		return c.Type == conditionType
+	})
+
+	return len(*conditions) != prevLen
+}
+
 // GetCondition returns the condition with the given type from the list of conditions.
 // If the list of conditions is nil, returns nil.
 // If the condition with condition type conditionType is not found, returns nil.
