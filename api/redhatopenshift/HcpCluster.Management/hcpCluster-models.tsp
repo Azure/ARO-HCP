@@ -1,4 +1,5 @@
 import "@typespec/rest";
+import "@typespec/versioning";
 import "@typespec/http";
 import "@typespec/versioning";
 import "@azure-tools/typespec-azure-core";
@@ -6,6 +7,7 @@ import "@azure-tools/typespec-azure-resource-manager";
 import "@azure-tools/typespec-client-generator-core";
 
 using TypeSpec.Rest;
+using TypeSpec.Versioning;
 using Azure.Core;
 using Azure.ResourceManager;
 using Azure.ClientGenerator.Core;
@@ -59,7 +61,8 @@ model HcpOpenShiftClusterProperties {
 
   /** Version of the control plane components */
   @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
-  version?: VersionProfile;
+  @madeRequired(Versions.v2025_12_23_preview)
+  version: VersionProfile;
 
   /** Cluster DNS configuration */
   @visibility(Lifecycle.Read, Lifecycle.Create)
@@ -146,7 +149,15 @@ union ExternalAuthProvisioningState {
 model VersionProfile {
   /** ID is the unique identifier of the version. */
   @visibility(Lifecycle.Read, Lifecycle.Create)
-  id?: string;
+  @removed(Versions.v2025_12_23_preview)
+  @renamedFrom(Versions.v2025_12_23_preview, "id")
+  idNoUpdate?: string;
+
+  /** ID is the desired X.Y version of the cluster control plane. */
+  @added(Versions.v2025_12_23_preview)
+  @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
+  @madeRequired(Versions.v2025_12_23_preview)
+  id: string;
 
   /** ChannelGroup is the name of the set to which this version belongs.
    *  Each version belongs to only a single set.
