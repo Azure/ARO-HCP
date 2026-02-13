@@ -291,12 +291,7 @@ func (m *MockDBClient) ListDocuments(resourceType *azcorearm.ResourceType, prefi
 
 		// Check prefix match if specified
 		if len(prefix) != 0 {
-			var props map[string]any
-			if err := json.Unmarshal(typedDoc.Properties, &props); err != nil {
-				continue
-			}
-			resourceIDStr, ok := props["resourceId"].(string)
-			if !ok || !strings.HasPrefix(strings.ToLower(resourceIDStr), strings.ToLower(prefix)) {
+			if !strings.HasPrefix(strings.ToLower(typedDoc.ResourceID.String()), strings.ToLower(prefix)) {
 				continue
 			}
 		}
