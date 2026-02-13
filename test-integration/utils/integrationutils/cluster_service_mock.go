@@ -36,6 +36,7 @@ import (
 
 	csarhcpv1alpha1 "github.com/openshift-online/ocm-api-model/clientapi/arohcp/v1alpha1"
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
+	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
 	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
 
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -232,6 +233,17 @@ func (s *ClusterServiceMock) setupMockClusterService(t *testing.T) {
 			allObjs = append(allObjs, obj)
 		}
 		return ocm.NewSimpleNodePoolListIterator(allObjs, nil)
+	}).AnyTimes()
+
+	s.MockClusterServiceClient.EXPECT().DeleteBreakGlassCredentials(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	s.MockClusterServiceClient.EXPECT().PostBreakGlassCredential(gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, clusterID ocm.InternalID) (*cmv1.BreakGlassCredential, error) {
+		justID := rand.String(10)
+		credentialInternalID := clusterID.String() + "/break_glass_credentials/" + justID
+		ret, err := cmv1.NewBreakGlassCredential().ID(justID).HREF(credentialInternalID).Build()
+		if err != nil {
+			return nil, err
+		}
+		return ret, nil
 	}).AnyTimes()
 }
 

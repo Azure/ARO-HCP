@@ -167,6 +167,20 @@ go test ./test-integration/admin/...
 
 Tests run against mock infrastructure by default. Set `FRONTEND_SIMULATION_TESTING=true` to also run against real Cosmos DB.
 
+## Test Environment Configuration
+
+Test cases can include an optional `env.json` file at the test case root (alongside the numbered step directories) to customize the frontend or other service configuration for that specific test.
+
+```
+artifacts/<SuiteName>/<ResourceType>/<TestCase>/
+  env.json                          # optional per-test configuration
+  00-load-initial-state/
+  01-httpCreate-resource/
+  ...
+```
+
+See `TestEnvSettings` and  `NewIntegrationTestInfoFromEnv` in `utils/integrationutils/utils.go` to learn what options are available and how they are used.
+
 ## Key Source Files
 
 - `utils/databasemutationhelpers/resource_crud_test_util.go` -- test orchestration, step discovery

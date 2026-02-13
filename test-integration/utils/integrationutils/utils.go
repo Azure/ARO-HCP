@@ -16,7 +16,9 @@ package integrationutils
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"io/fs"
 	"net"
 	"os"
 	"sync"
@@ -91,7 +93,28 @@ func getArtifactDir() string {
 	return artifactDir
 }
 
-func NewIntegrationTestInfoFromEnv(ctx context.Context, t *testing.T, withMock bool) (*IntegrationTestInfo, error) {
+// per-test settings that can be used to customize the integration test environment.
+type TestEnvSettings struct {
+	Frontend FrontendEnvSettings `json:"frontend"`
+}
+
+type FrontendEnvSettings struct {
+	AdminCredentialRevocationFeatureGateEnabled bool `json:"adminCredentialRevocationFeatureGateEnabled"`
+}
+
+func ReadTestEnvSettings(testDir fs.FS) (*TestEnvSettings, error) {
+	var envSettings TestEnvSettings
+	envBytes, err := fs.ReadFile(testDir, "env.json")
+	if err != nil {
+		return &envSettings, nil
+	}
+	if err := json.Unmarshal(envBytes, &envSettings); err != nil {
+		return &envSettings, fmt.Errorf("failed to unmarshal env.json: %w", err)
+	}
+	return &envSettings, nil
+}
+
+func NewIntegrationTestInfoFromEnv(ctx context.Context, t *testing.T, testEnvSettings *TestEnvSettings, withMock bool) (*IntegrationTestInfo, error) {
 	logger := utils.DefaultLogger()
 
 	// cosmos setup
@@ -120,7 +143,7 @@ func NewIntegrationTestInfoFromEnv(ctx context.Context, t *testing.T, withMock b
 	}
 	fakeAuditClient := &FakeOTELClient{}
 	metricsRegistry := prometheus.NewRegistry()
-	aroHCPFrontend := frontend.NewFrontend(logger, frontendListener, frontendMetricsListener, metricsRegistry, storageIntegrationTestInfo.CosmosClient(), clusterServiceMockInfo.MockClusterServiceClient, fakeAuditClient, "fake-location")
+	aroHCPFrontend := frontend.NewFrontend(logger, frontendListener, frontendMetricsListener, metricsRegistry, storageIntegrationTestInfo.CosmosClient(), clusterServiceMockInfo.MockClusterServiceClient, fakeAuditClient, "fake-location", testEnvSettings.Frontend.AdminCredentialRevocationFeatureGateEnabled)
 
 	// admin api setup
 	adminListener, err := net.Listen("tcp4", "127.0.0.1:0")

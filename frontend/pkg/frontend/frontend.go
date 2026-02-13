@@ -61,6 +61,18 @@ type Frontend struct {
 	// this is the azure location for this instance of the frontend
 	azureLocation string
 
+	// adminCredentialRevocationFeatureGateEnabled controls admin credential revocation.
+	// When true, revocation is available for all clusters.
+	// When false (default), revocation requires:
+	//   1. Subscription has FeatureExperimentalReleaseFeatures registered
+	//   2. Cluster has tag TagClusterCredentialRevocationEnabled
+	// This is a temporary gate and relates to
+	// * https://issues.redhat.com/browse/ARO-23882
+	// * https://issues.redhat.com/browse/OCPBUGS-62177
+	// TODO(ARO-23882): Remove this temporary gate once admin credential
+	// revocation is generally available for all subscriptions.
+	adminCredentialRevocationFeatureGateEnabled bool
+
 	apiRegistry api.APIRegistry
 }
 
@@ -73,6 +85,7 @@ func NewFrontend(
 	csClient ocm.ClusterServiceClientSpec,
 	auditClient audit.Client,
 	azureLocation string,
+	adminCredentialRevocationFeatureGateEnabled bool,
 ) *Frontend {
 	// zero side-effect registration path
 	apiRegistry := api.NewAPIRegistry()
@@ -105,7 +118,8 @@ func NewFrontend(
 			},
 		),
 		azureLocation: azureLocation,
-		apiRegistry:   apiRegistry,
+		adminCredentialRevocationFeatureGateEnabled: adminCredentialRevocationFeatureGateEnabled,
+		apiRegistry: apiRegistry,
 	}
 
 	f.server.Handler = f.routes(reg)
@@ -409,6 +423,40 @@ func (f *Frontend) ArmResourceActionRevokeCredentials(writer http.ResponseWriter
 	// but does log unexpected errors like database failures.
 	if err := checkForProvisioningStateConflict(ctx, f.dbClient, operationRequest, cluster.ID, cluster.ServiceProviderProperties.ProvisioningState); err != nil {
 		return utils.TrackError(err)
+	}
+
+	if !f.adminCredentialRevocationFeatureGateEnabled {
+		subscription, err := f.dbClient.Subscriptions().Get(ctx, clusterResourceID.SubscriptionID)
+		if err != nil {
+			return utils.TrackError(err)
+		}
+
+		logger := utils.LoggerFromContext(ctx)
+
+		if !subscription.HasRegisteredFeature(api.FeatureExperimentalReleaseFeatures) {
+			logger.Info("admin credential revocation denied: AFEC feature not registered",
+				"subscriptionId", clusterResourceID.SubscriptionID,
+				"requiredFeature", api.FeatureExperimentalReleaseFeatures,
+			)
+			return arm.NewCloudError(
+				http.StatusForbidden,
+				arm.CloudErrorCodeFeatureNotEnabled,
+				clusterResourceID.String(),
+				"Admin credential revocation not enabled for this subscription.")
+		}
+
+		if cluster.Tags[api.TagClusterCredentialRevocationEnabled] != "true" {
+			logger.Info("admin credential revocation denied: cluster tag not set",
+				"subscriptionId", clusterResourceID.SubscriptionID,
+				"clusterResourceId", clusterResourceID.String(),
+				"requiredTag", api.TagClusterCredentialRevocationEnabled,
+			)
+			return arm.NewCloudError(
+				http.StatusForbidden,
+				arm.CloudErrorCodeFeatureNotEnabled,
+				clusterResourceID.String(),
+				"Admin credential revocation disabled for this cluster.")
+		}
 	}
 
 	// Credential revocation cannot be requested while another revocation is in progress.

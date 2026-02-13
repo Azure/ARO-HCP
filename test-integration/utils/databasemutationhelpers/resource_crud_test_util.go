@@ -41,8 +41,9 @@ import (
 )
 
 type ResourceMutationTest struct {
-	testDir  fs.FS
-	withMock bool
+	testDir     fs.FS
+	envSettings *integrationutils.TestEnvSettings
+	withMock    bool
 
 	steps []IntegrationTestStep
 }
@@ -53,14 +54,19 @@ type IntegrationTestStep interface {
 }
 
 func NewResourceMutationTest[InternalAPIType any](ctx context.Context, testName string, testDir fs.FS, withMock bool) (*ResourceMutationTest, error) {
+	envSettings, err := integrationutils.ReadTestEnvSettings(testDir)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read test env settings for test %q: %w", testName, err)
+	}
 	steps, err := readSteps[InternalAPIType](ctx, testDir)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read steps for test %q: %w", testName, err)
 	}
 	return &ResourceMutationTest{
-		testDir:  testDir,
-		withMock: withMock,
-		steps:    steps,
+		testDir:     testDir,
+		envSettings: envSettings,
+		withMock:    withMock,
+		steps:       steps,
 	}, nil
 }
 
@@ -70,6 +76,9 @@ func readSteps[InternalAPIType any](ctx context.Context, testDir fs.FS) ([]Integ
 	numLoadClusterServiceSteps := 0
 	testContent := api.Must(fs.ReadDir(testDir, "."))
 	for _, dirEntry := range testContent {
+		if !dirEntry.IsDir() {
+			continue
+		}
 		filenameParts := strings.SplitN(dirEntry.Name(), "-", 3)
 		switch len(filenameParts) {
 		case 1:
@@ -123,7 +132,7 @@ func (tt *ResourceMutationTest) RunTest(t *testing.T) {
 	ctx = utils.ContextWithLogger(ctx, integrationutils.DefaultLogger(t))
 	logger := utils.LoggerFromContext(ctx)
 
-	testInfo, err := integrationutils.NewIntegrationTestInfoFromEnv(ctx, t, tt.withMock)
+	testInfo, err := integrationutils.NewIntegrationTestInfoFromEnv(ctx, t, tt.envSettings, tt.withMock)
 	require.NoError(t, err)
 	cleanupCtx := context.Background()
 	cleanupCtx = utils.ContextWithLogger(cleanupCtx, integrationutils.DefaultLogger(t))

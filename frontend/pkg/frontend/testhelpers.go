@@ -49,6 +49,7 @@ func NewTestFrontend(t *testing.T) *Frontend {
 		nil,
 		newNoopAuditClient(t),
 		api.TestLocation,
+		true,
 	)
 	return f
 }
