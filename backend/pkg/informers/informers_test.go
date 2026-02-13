@@ -580,7 +580,6 @@ func activeOperationInformerTestCase() informerTestCase {
 			CosmosMetadata: api.CosmosMetadata{
 				ResourceID: resourceID,
 			},
-			ResourceID:         resourceID,
 			OperationID:        operationID,
 			ExternalID:         externalID,
 			Request:            api.OperationRequestCreate,

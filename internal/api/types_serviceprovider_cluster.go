@@ -32,10 +32,6 @@ type ServiceProviderCluster struct {
 	// it will be the ServiceProviderCluster type and the name default
 	CosmosMetadata `json:"cosmosMetadata"`
 
-	// resourceID exists to match cosmosMetadata.resourceID until we're able to transition all types to use cosmosMetadata,
-	// at which point we will stop using properties.resourceId in our queries. That will be about a month from now.
-	ResourceID azcorearm.ResourceID `json:"resourceId"`
-
 	LoadBalancerResourceID *azcorearm.ResourceID `json:"loadBalancerResourceID,omitempty"`
 
 	// Validations is a list of conditions that tracks the status of each cluster validation.
