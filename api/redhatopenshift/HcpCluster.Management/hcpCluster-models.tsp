@@ -6,6 +6,7 @@ import "@azure-tools/typespec-azure-resource-manager";
 import "@azure-tools/typespec-client-generator-core";
 
 using TypeSpec.Rest;
+using TypeSpec.Versioning;
 using Azure.Core;
 using Azure.ResourceManager;
 using Azure.ClientGenerator.Core;
@@ -273,6 +274,15 @@ model PlatformProfile {
    */
   @visibility(Lifecycle.Read, Lifecycle.Create)
   subnetId: SubnetResourceId;
+
+  /** The Azure resource ID of a subnet that enables direct,
+   * private network connectivity between the hosted control plane
+   * and your cluster's nodes. This subnet must be dedicated to ARO HCP
+   * and cannot be shared with the cluster subnet or any node pool subnets.
+   */
+  @visibility(Lifecycle.Read, Lifecycle.Create)
+  @added(Versions.v2025_12_23_preview)
+  vnetIntegrationSubnetId: SubnetResourceId;
 
   /** The core outgoing configuration */
   @visibility(Lifecycle.Read, Lifecycle.Create)
