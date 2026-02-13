@@ -15,20 +15,16 @@
 package frontend
 
 import (
-	"context"
-	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
 	"path"
 	"strings"
-	"time"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -82,37 +78,6 @@ func AddLocationHeader(writer http.ResponseWriter, request *http.Request, operat
 	}
 
 	writer.Header().Set("Location", u.String())
-}
-
-// CancelActiveOperations queries for operation documents with a non-terminal
-// status using the filters specified in opts. For every document returned in
-// the query result, CancelActiveOperations adds patch operations to the given
-// DBTransaction to mark the document as canceled.
-func (f *Frontend) CancelActiveOperations(ctx context.Context, transaction database.DBTransaction, opts *database.DBClientListActiveOperationDocsOptions) error {
-	var now = time.Now().UTC()
-
-	errs := []error{}
-	subscriptionID := transaction.GetPartitionKey()
-	iterator := f.dbClient.Operations(subscriptionID).ListActiveOperations(opts)
-	for _, operation := range iterator.Items(ctx) {
-		operationToWrite := operation.DeepCopy()
-		operationToWrite.LastTransitionTime = now
-		operationToWrite.Status = arm.ProvisioningStateCanceled
-		operationToWrite.Error = &arm.CloudErrorBody{
-			Code:    arm.CloudErrorCodeCanceled,
-			Message: "This operation was superseded by another",
-		}
-
-		_, err := f.dbClient.Operations(subscriptionID).AddReplaceToTransaction(ctx, transaction, operationToWrite, nil)
-		if err != nil {
-			errs = append(errs, utils.TrackError(err))
-		}
-	}
-	if err := iterator.GetError(); err != nil {
-		errs = append(errs, utils.TrackError(err))
-	}
-
-	return errors.Join(errs...)
 }
 
 // OperationIsVisible returns true if the request is being called from the same
