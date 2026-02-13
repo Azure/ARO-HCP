@@ -631,6 +631,17 @@
         "OneCertV2-PrivateCA"
       ]
     },
+    "backendMaestroConfig": {
+      "type": "object",
+      "properties": {
+        "sourceEnvironmentIdentifier": {
+          "type": "string",
+          "maxLength": 10,
+          "pattern": "^[a-z]+$",
+          "description": "The source environment identifier must be between 1 and 10 characters and can contain only lowercase letters"
+        }
+      }
+    },
     "imageArtifact": {
       "type": "object",
       "additionalProperties": false,
@@ -1332,6 +1343,9 @@
           "required": [
             "tlsCertificatesIssuer"
           ]
+        },
+        "maestro": {
+          "$ref": "#/definitions/backendMaestroConfig"
         }
       },
       "additionalProperties": false,

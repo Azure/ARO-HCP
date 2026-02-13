@@ -1,0 +1,24 @@
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-backend
+  namespace: '{{ .Release.Namespace }}'
+spec:
+  action: "ALLOW"
+  rules:
+    - to:
+      - operation:
+          ports:
+            - "{{ .Values.maestro.httpBindPort }}"
+            - "{{ .Values.maestro.grpcBindPort }}"
+      from:
+      - source:
+          principals:
+            {{- if .Values.istio.restrictIngress }}
+            - "cluster.local/ns/{{ .Values.backend.namespace }}/sa/{{ .Values.backend.serviceAccount }}"
+            {{- else }}
+            - "*"
+            {{- end }}
+  selector:
+    matchLabels:
+      app: "maestro"

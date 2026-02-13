@@ -554,6 +554,8 @@ defaults:
       serviceAccountName: backend
     azureRuntimeConfig:
       tlsCertificatesIssuer: OneCertV2-PublicCA
+    maestro:
+      sourceEnvironmentIdentifier: "arohcp{{ .ctx.environment }}"
   # Admin API
   adminApi:
     image:
@@ -1001,6 +1003,8 @@ clouds:
       backend:
         azureRuntimeConfig:
           tlsCertificatesIssuer: Self
+        maestro:
+          sourceEnvironmentIdentifier: "arohcpdev"
       # Image Sync
       imageSync:
         ocMirror:

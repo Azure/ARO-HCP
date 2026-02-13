@@ -401,6 +401,28 @@ spec:
       tenantID: '__tenantId__'
   serviceAccountName: 'maestro'
 ---
+# Source: maestro-server/templates/allow-backend.authorizationpolicy.yaml
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-backend
+  namespace: 'maestro'
+spec:
+  action: "ALLOW"
+  rules:
+    - to:
+      - operation:
+          ports:
+            - "8000"
+            - "8090"
+      from:
+      - source:
+          principals:
+            - "cluster.local/ns/aro-hcp/sa/backend"
+  selector:
+    matchLabels:
+      app: "maestro"
+---
 # Source: maestro-server/templates/allow-cluster-service.authorizationpolicy.yaml
 apiVersion: security.istio.io/v1
 kind: AuthorizationPolicy
