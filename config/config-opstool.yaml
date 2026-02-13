@@ -48,7 +48,7 @@ clouds:
             minCount: 1
             maxCount: 3
             vmSize: "Standard_D4s_v3"
-            osDiskSizeGB: 64
+            osDiskSizeGB: 32
             zones: "1"
             zoneRedundantMode: "Disabled"
         monitoring:
