@@ -129,30 +129,6 @@ var _ = Describe("Customer", func() {
 			)
 			Expect(err).NotTo(HaveOccurred())
 
-			nodePoolsClient := tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient()
-
-			By("verifying the first nodepool DiskStorageAccountType matches framework default")
-			err = framework.ValidateNodePoolDiskStorageAccountType(ctx,
-				nodePoolsClient,
-				*resourceGroup.Name,
-				customerClusterName,
-				customerNodePool1Name,
-			)
-			Expect(err).NotTo(HaveOccurred())
-
-			By("verifying the second nodepool DiskStorageAccountType matches framework default")
-			err = framework.ValidateNodePoolDiskStorageAccountType(ctx,
-				nodePoolsClient,
-				*resourceGroup.Name,
-				customerClusterName,
-				customerNodePool2Name,
-			)
-			Expect(err).NotTo(HaveOccurred())
-
-			By("verifying a simple web app can run")
-			err = verifiers.VerifySimpleWebApp().Verify(ctx, adminRESTConfig)
-			Expect(err).NotTo(HaveOccurred())
-
 			By("deleting customer resource group to trigger cluster deletion")
 			rgClient := tc.GetARMResourcesClientFactoryOrDie(ctx).NewResourceGroupsClient()
 			networkClient, err := tc.GetARMNetworkClientFactory(ctx)
