@@ -1861,7 +1861,7 @@ resource mgmtCapacityRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
 }
 
 resource hcpClusterHealthRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
-  name: 'hcp-cluster-health.rules'
+  name: 'hcp-cluster-health-rules'
   location: resourceGroup().location
   properties: {
     interval: 'PT1M'

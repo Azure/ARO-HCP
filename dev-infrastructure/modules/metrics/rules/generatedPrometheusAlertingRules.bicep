@@ -566,7 +566,7 @@ Check the status of the Arobit forwarder pods, service endpoints, and network co
 }
 
 resource hcpDeletionRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
-  name: 'hcp-deletion.rules'
+  name: 'hcp-deletion-rules'
   location: resourceGroup().location
   properties: {
     interval: 'PT1M'

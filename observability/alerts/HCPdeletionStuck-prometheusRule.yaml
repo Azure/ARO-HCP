@@ -5,7 +5,7 @@ metadata:
   namespace: monitoring
 spec:
   groups:
-  - name: hcp-deletion.rules
+  - name: hcp-deletion-rules
     rules:
     - alert: HCPClusterStuckDeleting
       # Trigger if deletion duration > 2 hours (7200 seconds)

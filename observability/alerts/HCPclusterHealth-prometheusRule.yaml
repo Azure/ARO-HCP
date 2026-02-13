@@ -5,7 +5,7 @@ metadata:
   namespace: monitoring
 spec:
   groups:
-  - name: hcp-cluster-health.rules
+  - name: hcp-cluster-health-rules
     rules:
     - alert: HCPClusterVersionUnhealthy
       # Trigger if the Cluster Version Operator is 'Failing' OR 'Degraded'
