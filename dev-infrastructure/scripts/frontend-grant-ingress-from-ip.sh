@@ -3,7 +3,12 @@
 RESOURCE_GROUP=$1
 
 NSG_NAME="svc-cluster-node-nsg"
-IP_ADDRESS=$(curl -s -4 ifconfig.me || curl -s -4 icanhazip.com)
+IP_ADDRESS=$(dig @1.1.1.1 ch txt whoami.cloudflare +short | tr -d '"')
+
+# Fallback to OpenDNS if that fails
+if [ -z "$IP_ADDRESS" ]; then
+    IP_ADDRESS=$(dig @208.67.222.222 myip.opendns.com +short | tr -d '"')
+fi
 
 az network nsg rule create \
     --resource-group "${RESOURCE_GROUP}" \
