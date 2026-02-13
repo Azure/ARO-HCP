@@ -101,6 +101,9 @@ func (f *Frontend) ArmResourceListClusters(writer http.ResponseWriter, request *
 	}
 	clustersByClusterServiceID := make(map[string]*api.HCPOpenShiftCluster)
 	for _, internalCluster := range internalClusterIterator.Items(ctx) {
+		if internalCluster.ServiceProviderProperties.ClusterServiceID == nil {
+			continue
+		}
 		clustersByClusterServiceID[internalCluster.ServiceProviderProperties.ClusterServiceID.ID()] = internalCluster
 	}
 	err = internalClusterIterator.GetError()
@@ -337,7 +340,7 @@ func (f *Frontend) createHCPCluster(writer http.ResponseWriter, request *http.Re
 		return utils.TrackError(err)
 	}
 
-	newInternalCluster.ServiceProviderProperties.ClusterServiceID, err = api.NewInternalID(resultingClusterServiceCluster.HREF())
+	newInternalCluster.ServiceProviderProperties.ClusterServiceID, err = api.NewInternalIDPtr(resultingClusterServiceCluster.HREF())
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -743,18 +746,20 @@ func (f *Frontend) addDeleteClusterToTransaction(ctx context.Context, writer htt
 		return utils.TrackError(err)
 	}
 
-	err = f.clusterServiceClient.DeleteCluster(ctx, cluster.ServiceProviderProperties.ClusterServiceID)
-	var ocmError *ocmerrors.Error
-	if errors.As(err, &ocmError) && ocmError.Status() == http.StatusNotFound {
-		// StatusNotFound means we have stale data in Cosmos DB.
-		// This can happen in test environments if a user bypasses
-		// the RP to delete a resource (e.g. "ocm delete"). It can
-		// also happen if an asynchronous deletion operation fails.
-		// we will fall through and cancel all operations and go through as normal a deletion flow as we can to avoid
-		// leaking data related to the resource, like controller status.
-		logger.Info("clusterService cluster missing, trying to clean up", "err", err)
-	} else if err != nil {
-		return utils.TrackError(err)
+	if cluster.ServiceProviderProperties.ClusterServiceID != nil {
+		err = f.clusterServiceClient.DeleteCluster(ctx, *cluster.ServiceProviderProperties.ClusterServiceID)
+		var ocmError *ocmerrors.Error
+		if errors.As(err, &ocmError) && ocmError.Status() == http.StatusNotFound {
+			// StatusNotFound means we have stale data in Cosmos DB.
+			// This can happen in test environments if a user bypasses
+			// the RP to delete a resource (e.g. "ocm delete"). It can
+			// also happen if an asynchronous deletion operation fails.
+			// we will fall through and cancel all operations and go through as normal a deletion flow as we can to avoid
+			// leaking data related to the resource, like controller status.
+			logger.Info("clusterService cluster missing, trying to clean up", "err", err)
+		} else if err != nil {
+			return utils.TrackError(err)
+		}
 	}
 
 	// Cluster Service will take care of canceling any ongoing operations
@@ -857,6 +862,9 @@ func mergeToInternalCluster(csCluster *arohcpv1alpha1.Cluster, internalCluster *
 // merges the states together, and returns the internal representation.
 // TODO remove the header it takes and collapse that to some general error handling.
 func (f *Frontend) readInternalClusterFromClusterService(ctx context.Context, oldInternalCluster *api.HCPOpenShiftCluster) (*api.HCPOpenShiftCluster, error) {
+	if oldInternalCluster.ServiceProviderProperties.ClusterServiceID == nil {
+		return nil, fmt.Errorf("cluster service ID is required to read cluster data")
+	}
 	oldClusterServiceCluster, err := f.clusterServiceClient.GetCluster(ctx, oldInternalCluster.ServiceProviderProperties.ClusterServiceID)
 	if err != nil {
 		return nil, utils.TrackError(err)

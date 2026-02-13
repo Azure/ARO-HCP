@@ -64,6 +64,8 @@ func NewClusterServiceClusterMatchingController(cosmosClient database.DBClient, 
 }
 
 func (c *clusterServiceClusterMatching) getAllCosmosObjs(ctx context.Context) (map[string]*api.HCPOpenShiftCluster, []*api.HCPOpenShiftCluster, error) {
+	logger := utils.LoggerFromContext(ctx)
+
 	clusterServiceIDToCluster := map[string]*api.HCPOpenShiftCluster{}
 	ret := []*api.HCPOpenShiftCluster{}
 
@@ -80,6 +82,10 @@ func (c *clusterServiceClusterMatching) getAllCosmosObjs(ctx context.Context) (m
 
 		for _, cluster := range allHCPClusters.Items(ctx) {
 			ret = append(ret, cluster)
+			if cluster.ServiceProviderProperties.ClusterServiceID == nil {
+				logger.Info("cluster doesn't have cluster service id", "clusterID", cluster.ID.String())
+				continue
+			}
 			existingCluster, exists := clusterServiceIDToCluster[cluster.ServiceProviderProperties.ClusterServiceID.String()]
 			if exists {
 				return nil, nil, utils.TrackError(fmt.Errorf("duplicate obj found: %s, owned by %q and %q", cluster.ID.String(), existingCluster.ID.String(), cluster.ID.String()))

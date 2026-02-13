@@ -29,7 +29,7 @@ import (
 // ARM-specific metadata for the resource.
 type ResourceDocument struct {
 	ResourceID        *azcorearm.ResourceID       `json:"resourceId,omitempty"`
-	InternalID        ocm.InternalID              `json:"internalId,omitempty"`
+	InternalID        *ocm.InternalID             `json:"internalId,omitempty"`
 	ActiveOperationID string                      `json:"activeOperationId,omitempty"`
 	ProvisioningState arm.ProvisioningState       `json:"provisioningState,omitempty"`
 	Identity          *arm.ManagedServiceIdentity `json:"identity,omitempty"`

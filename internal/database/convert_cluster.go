@@ -20,7 +20,6 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/ocm"
 )
 
 func InternalToCosmosCluster(internalObj *api.HCPOpenShiftCluster) (*HCPCluster, error) {
@@ -66,7 +65,7 @@ func InternalToCosmosCluster(internalObj *api.HCPOpenShiftCluster) (*HCPCluster,
 	cosmosObj.InternalState.InternalAPI.SystemData = nil
 	cosmosObj.InternalState.InternalAPI.Tags = nil
 	cosmosObj.InternalState.InternalAPI.ServiceProviderProperties.ProvisioningState = ""
-	cosmosObj.InternalState.InternalAPI.ServiceProviderProperties.ClusterServiceID = ocm.InternalID{}
+	cosmosObj.InternalState.InternalAPI.ServiceProviderProperties.ClusterServiceID = nil
 	cosmosObj.InternalState.InternalAPI.ServiceProviderProperties.ActiveOperationID = ""
 
 	// This is not the place for validation, but during such a transition we need to ensure we fail quickly and certainly
@@ -153,9 +152,6 @@ func CosmosToInternalCluster(cosmosObj *HCPCluster) (*api.HCPOpenShiftCluster, e
 
 	// This is not the place for validation, but during such a transition we need to ensure we fail quickly and certainly
 	// This flow happens when reading both old and new data.  The old data should *always* have the internalID set
-	if len(internalObj.ServiceProviderProperties.ClusterServiceID.String()) == 0 {
-		panic("Developer Error: InternalID is required")
-	}
 
 	return internalObj, nil
 }

@@ -100,6 +100,9 @@ func (c *cosmosNodePoolMatching) synchronizeAllNodes(ctx context.Context, keyObj
 	if err != nil {
 		return utils.TrackError(err)
 	}
+	if cluster.ServiceProviderProperties.ClusterServiceID == nil {
+		return nil // no work to do
+	}
 
 	clusterServiceIDToCosmosNodePools, allCosmosNodePools, err := c.getAllCosmosObjs(ctx, keyObj)
 	if err != nil {
