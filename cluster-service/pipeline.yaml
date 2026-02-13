@@ -249,3 +249,39 @@ resourceGroups:
         resourceGroup: global
         step: output
         name: globalMSIId
+  - name: deploy-cs-db-debug-jobs
+    aksCluster: '{{ .svc.aks.name }}'
+    action: Shell
+    command: make deploy-cs-db-debug-jobs
+    workingDir: ./
+    dryRun:
+      variables:
+      - name: DRY_RUN
+        value: "true"
+    dependsOn:
+    - resourceGroup: service
+      step: deploy
+    variables:
+    - name: REGION
+      configRef: region
+    - name: RESOURCEGROUP
+      configRef: svc.rg
+    - name: AKS_NAME
+      configRef: svc.aks.name
+    - name: IMAGE_DIGEST
+      configRef: clustersService.image.digest
+    - name: REGIONAL_RESOURCEGROUP
+      configRef: regionRG
+    - name: NAMESPACE
+      configRef: clustersService.k8s.namespace
+    - name: USE_AZURE_DB
+      configRef: clustersService.postgres.deploy
+    - name: DATABASE_SERVER_NAME
+      configRef: clustersService.postgres.name
+    - name: DEPLOY_DB_DEBUG_JOBS
+      configRef: clustersService.deployDbDebugJobs
+    shellIdentity:
+      input:
+        resourceGroup: global
+        step: output
+        name: globalMSIId

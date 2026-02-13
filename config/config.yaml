@@ -771,6 +771,8 @@ defaults:
     batchProcesses: ""
     # controls if debug jobs are deployed to the cluster.
     deployDebugJobs: false
+    # controls if database debug jobs are deployed to the cluster.
+    deployDbDebugJobs: false
     tracing: # NOTE: Currently only enabled for pers.
       address: ""
       exporter: ""

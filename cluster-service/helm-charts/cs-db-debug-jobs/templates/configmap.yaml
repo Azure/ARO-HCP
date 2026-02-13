@@ -1,0 +1,10 @@
+{{- if .Values.deployDbDebugJobs }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cs-db-debug-scripts
+  namespace: '{{ .Release.Namespace }}'
+data:
+  db-commands.sh: |
+    {{- (.Files.Get "scripts/db-commands.sh") | nindent 4 }}
+{{- end }}
