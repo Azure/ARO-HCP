@@ -59,3 +59,4 @@ colima start --cpu 4 --memory 8 --vz-rosetta --vm-type=vz
 
 Then, rebuild and connect to the dev container: `cmd + shift + P` => `dev containers: rebuild container`
 
+# Test change for image-bumper app PR creation
