@@ -124,6 +124,7 @@ e2e-local/setup:
 		"$${ADDRESS}/subscriptions/$${SUBSCRIPTION_ID}?api-version=2.0"
 .PHONY: e2e-local/setup
 
+e2e-local/run: export LOCATION="eastus2"
 e2e-local/run: $(ARO_HCP_TESTS)
 	export LOCATION="$${LOCATION:-uksouth}"; \
 	export AROHCP_ENV="development"; \
