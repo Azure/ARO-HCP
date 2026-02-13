@@ -44,4 +44,42 @@ type ServiceProviderCluster struct {
 	// The Condition Reason and Message are used to provide more details about the validation status.
 	// The Condition LastTransitionTime is used to track the last time the validation transitioned from one status to another.
 	Validations []Condition `json:"validations,omitempty"`
+
+	// TODO do we want to differentiate between the readonly bundles and the "writable" bundles?
+	// There cannot be two readonly bundles with the same Name attribute.
+	MaestroReadonlyBundles MaestroBundleReferenceList `json:"maestroReadonlyBundles,omitempty"`
 }
+
+type MaestroBundleReference struct {
+	// Name is a logical name that represents the Maestro Bundle conceptually.
+	Name MaestroBundleInternalName `json:"name"`
+	// MaestroAPIMaestroBundleName is the name of the Maestro Bundle in the Maestro API.
+	// It must be unique within a given Maestro Consumer Name and Maestro Source ID.
+	MaestroAPIMaestroBundleName string `json:"maestroAPIMaestroBundleName"`
+	// MaestroAPIMaestroBundleID is the ID of the Maestro Bundle in the Maestro API.
+	// Returned by the Maestro API when the Maestro Bundle is first created.
+	// TODO unsure if we need this. If we were to interact with the HTTP REST API client
+	// that works with Maestro Bundle IDs. The GRPC one abstracts the Maestro Bundle
+	// via ManifestWorks and usage of Maestro Bundle Names
+	MaestroAPIMaestroBundleID string `json:"maestroAPIMaestroBundleID"`
+}
+
+type MaestroBundleReferenceList []MaestroBundleReference
+
+func (l MaestroBundleReferenceList) Get(name MaestroBundleInternalName) *MaestroBundleReference {
+	for _, bundle := range l {
+		if bundle.Name == name {
+			return &bundle
+		}
+	}
+	return nil
+}
+
+// TODO how should we name this type to avoid confusion between the Maestro Bundle Name in the Maestro API and the
+// name that we use internally which is used as the key for the managementClusterContent Cosmos resource?
+type MaestroBundleInternalName string
+
+const (
+	MaestroBundleInternalNameHypershiftHostedClusterManifestWork MaestroBundleInternalName = "hypershiftHostedClusterManifestWork"
+	MaestroBundleInternalNameHypershiftHostedCluster             MaestroBundleInternalName = "hypershiftHostedCluster"
+)

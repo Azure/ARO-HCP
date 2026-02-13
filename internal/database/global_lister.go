@@ -114,6 +114,12 @@ func (l *cosmosGlobalLister[InternalAPIType, CosmosAPIType]) List(ctx context.Co
 	return list[InternalAPIType, CosmosAPIType](ctx, l.containerClient, "", &l.resourceType, nil, options, false)
 }
 
+// IsWatchListSemanticsUnSupported implements the opt-out for WatchList semantics.
+// See k8s.io/client-go/util/watchlist.DoesClientNotSupportWatchListSemantics.
+func (d *cosmosGlobalLister[InternalAPIType, CosmosAPIType]) IsWatchListSemanticsUnSupported() bool {
+	return true
+}
+
 // cosmosActiveOperationsGlobalLister lists operations with non-terminal status
 // across all partitions.
 type cosmosActiveOperationsGlobalLister struct {
@@ -146,4 +152,10 @@ func (l *cosmosActiveOperationsGlobalLister) List(ctx context.Context, options *
 		return newQueryResourcesSinglePageIterator[api.Operation, Operation](pager), nil
 	}
 	return newQueryResourcesIterator[api.Operation, Operation](pager), nil
+}
+
+// IsWatchListSemanticsUnSupported implements the opt-out for WatchList semantics.
+// See k8s.io/client-go/util/watchlist.DoesClientNotSupportWatchListSemantics.
+func (l *cosmosActiveOperationsGlobalLister) IsWatchListSemanticsUnSupported() bool {
+	return true
 }

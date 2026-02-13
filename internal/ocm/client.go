@@ -120,6 +120,9 @@ type ClusterServiceClientSpec interface {
 	// the returned iterator in a for/range loop to execute the request and paginate over results,
 	// then call GetError() to check for an iteration error.
 	ListVersions() *VersionsListIterator
+
+	// GetClusterProvisionShard sends a GET request to fetch a cluster's provision shard from Cluster Service.
+	GetClusterProvisionShard(ctx context.Context, internalID InternalID) (*arohcpv1alpha1.ProvisionShard, error)
 }
 
 type clusterServiceClient struct {
@@ -426,6 +429,24 @@ func (csc *clusterServiceClient) ListNodePools(clusterInternalID InternalID, sea
 		nodePoolsListRequest.Search(searchExpression)
 	}
 	return &nodePoolListIterator{conn: csc.conn, request: nodePoolsListRequest}
+}
+
+func (csc *clusterServiceClient) GetClusterProvisionShard(ctx context.Context, internalID InternalID) (*arohcpv1alpha1.ProvisionShard, error) {
+	client, ok := getAroHCPClusterClient(internalID, csc.conn)
+	if !ok {
+		return nil, fmt.Errorf("OCM path is not a cluster: %s", internalID)
+	}
+
+	clusterProvisionShardSubresourceGetResponse, err := client.ProvisionShard().Get().SendContext(ctx)
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
+	clusterProvisionShard, ok := clusterProvisionShardSubresourceGetResponse.GetBody()
+	if !ok {
+		return nil, fmt.Errorf("empty response body")
+	}
+
+	return clusterProvisionShard, nil
 }
 
 func (csc *clusterServiceClient) GetExternalAuth(ctx context.Context, internalID InternalID) (*arohcpv1alpha1.ExternalAuth, error) {

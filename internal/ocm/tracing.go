@@ -335,3 +335,7 @@ func (csc *clusterServiceClientWithTracing) GetVersion(ctx context.Context, vers
 func (csc *clusterServiceClientWithTracing) ListVersions() *VersionsListIterator {
 	return csc.csc.ListVersions()
 }
+
+func (csc *clusterServiceClientWithTracing) GetClusterProvisionShard(ctx context.Context, internalID InternalID) (*arohcpv1alpha1.ProvisionShard, error) {
+	return csc.csc.GetClusterProvisionShard(ctx, internalID)
+}

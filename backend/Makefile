@@ -55,7 +55,9 @@ build-and-push: image $(ORAS)
 	docker push ${BACKEND_TAGGED_IMAGE}
 .PHONY: build-and-push
 
-OVERRIDE_CONFIG_FILE ?= /tmp/backend-override-config-$(date +%s).yaml
+# Unix timestamp for this make run; computed once so multiple targets see the same value.
+MAKE_RUN_TS := $(shell date +%s)
+OVERRIDE_CONFIG_FILE ?= /tmp/backend-override-config-$(MAKE_RUN_TS).yaml
 
 record-override: $(YQ) $(ORAS)
 	@az acr login --name ${ARO_HCP_IMAGE_ACR} --expose-token --output tsv --query accessToken | \

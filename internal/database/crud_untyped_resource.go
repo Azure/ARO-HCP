@@ -127,3 +127,9 @@ func (d *untypedCRUD) Child(resourceType azcorearm.ResourceType, resourceName st
 
 	return NewUntypedCRUD(d.containerClient, *newParentResourceID), nil
 }
+
+// IsWatchListSemanticsUnSupported implements the opt-out for WatchList semantics.
+// See k8s.io/client-go/util/watchlist.DoesClientNotSupportWatchListSemantics.
+func (d *untypedCRUD) IsWatchListSemanticsUnSupported() bool {
+	return true
+}

@@ -209,14 +209,14 @@ func validateClusterCustomerProperties(ctx context.Context, op operation.Operati
 	errs = append(errs, validateCustomerDNSProfile(ctx, op, fldPath.Child("dns"), &newObj.DNS, safe.Field(oldObj, toCustomerDNS))...)
 
 	// Network                 NetworkProfile              `json:"network,omitempty"`
-	errs = append(errs, validate.ImmutableByReflect(ctx, op, fldPath.Child("network"), &newObj.Network, safe.Field(oldObj, toNetwork))...)
+	errs = append(errs, ImmutableByReflect(ctx, op, fldPath.Child("network"), &newObj.Network, safe.Field(oldObj, toNetwork))...)
 	errs = append(errs, validateNetworkProfile(ctx, op, fldPath.Child("network"), &newObj.Network, safe.Field(oldObj, toNetwork))...)
 
 	// API                     CustomerAPIProfile                  `json:"api,omitempty"`
 	errs = append(errs, validateCustomerAPIProfile(ctx, op, fldPath.Child("api"), &newObj.API, safe.Field(oldObj, toCustomerAPI))...)
 
 	// Platform                CustomerPlatformProfile             `json:"platform,omitempty"`
-	errs = append(errs, validate.ImmutableByReflect(ctx, op, fldPath.Child("platform"), &newObj.Platform, safe.Field(oldObj, toCustomerPlatform))...)
+	errs = append(errs, ImmutableByReflect(ctx, op, fldPath.Child("platform"), &newObj.Platform, safe.Field(oldObj, toCustomerPlatform))...)
 	errs = append(errs, validateCustomerPlatformProfile(ctx, op, fldPath.Child("platform"), &newObj.Platform, safe.Field(oldObj, toCustomerPlatform))...)
 
 	//Autoscaling             ClusterAutoscalingProfile   `json:"autoscaling,omitempty"`
@@ -227,11 +227,11 @@ func validateClusterCustomerProperties(ctx context.Context, op operation.Operati
 	errs = append(errs, Maximum(ctx, op, fldPath.Child("nodeDrainTimeoutMinutes"), &newObj.NodeDrainTimeoutMinutes, safe.Field(oldObj, toNodeDrainTimeoutMinutes), 10080)...)
 
 	//Etcd                    EtcdProfile                 `json:"etcd,omitempty"`
-	errs = append(errs, validate.ImmutableByReflect(ctx, op, fldPath.Child("etcd"), &newObj.Etcd, safe.Field(oldObj, toEtcd))...)
+	errs = append(errs, ImmutableByReflect(ctx, op, fldPath.Child("etcd"), &newObj.Etcd, safe.Field(oldObj, toEtcd))...)
 	errs = append(errs, validateEtcdProfile(ctx, op, fldPath.Child("etcd"), &newObj.Etcd, safe.Field(oldObj, toEtcd))...)
 
 	//ClusterImageRegistry    ClusterImageRegistryProfile `json:"clusterImageRegistry,omitempty"`
-	errs = append(errs, validate.ImmutableByReflect(ctx, op, fldPath.Child("clusterImageRegistry"), &newObj.ClusterImageRegistry, safe.Field(oldObj, toClusterImageRegistry))...)
+	errs = append(errs, ImmutableByReflect(ctx, op, fldPath.Child("clusterImageRegistry"), &newObj.ClusterImageRegistry, safe.Field(oldObj, toClusterImageRegistry))...)
 	errs = append(errs, validateClusterImageRegistryProfile(ctx, op, fldPath.Child("clusterImageRegistry"), &newObj.ClusterImageRegistry, safe.Field(oldObj, toClusterImageRegistry))...)
 
 	return errs
@@ -262,23 +262,23 @@ func validateClusterServiceProviderProperties(ctx context.Context, op operation.
 	errs := field.ErrorList{}
 
 	// ProvisioningState       arm.ProvisioningState       `json:"provisioningState,omitempty"`
-	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("provisioningState"), &newObj.ProvisioningState, safe.Field(oldObj, toHCPOpenShiftClusterServiceProviderPropertiesProvisioningState))...)
+	errs = append(errs, ImmutableByCompare(ctx, op, fldPath.Child("provisioningState"), &newObj.ProvisioningState, safe.Field(oldObj, toHCPOpenShiftClusterServiceProviderPropertiesProvisioningState))...)
 
 	//ClusterServiceID  InternalID                     `json:"clusterServiceID,omitempty"`
-	errs = append(errs, validate.ImmutableByReflect(ctx, op, fldPath.Child("clusterServiceID"), &newObj.ClusterServiceID, safe.Field(oldObj, toServiceProviderClusterServiceID))...)
+	errs = append(errs, ImmutableByReflect(ctx, op, fldPath.Child("clusterServiceID"), &newObj.ClusterServiceID, safe.Field(oldObj, toServiceProviderClusterServiceID))...)
 
 	// DNS                     CustomerDNSProfile                  `json:"dns,omitempty"`
 	errs = append(errs, validateServiceProviderDNSProfile(ctx, op, fldPath.Child("dns"), &newObj.DNS, safe.Field(oldObj, toServiceProviderDNS))...)
 
 	// Console                 ServiceProviderConsoleProfile              `json:"console,omitempty"`
-	errs = append(errs, validate.ImmutableByReflect(ctx, op, fldPath.Child("console"), &newObj.Console, safe.Field(oldObj, toServiceProviderConsole))...)
+	errs = append(errs, ImmutableByReflect(ctx, op, fldPath.Child("console"), &newObj.Console, safe.Field(oldObj, toServiceProviderConsole))...)
 	errs = append(errs, validateServiceProviderConsoleProfile(ctx, op, fldPath.Child("console"), &newObj.Console, safe.Field(oldObj, toServiceProviderConsole))...)
 
 	// API                     CustomerAPIProfile                  `json:"api,omitempty"`
 	errs = append(errs, validateServiceProviderAPIProfile(ctx, op, fldPath.Child("api"), &newObj.API, safe.Field(oldObj, toServiceProviderAPI))...)
 
 	// Platform                CustomerPlatformProfile             `json:"platform,omitempty"`
-	errs = append(errs, validate.ImmutableByReflect(ctx, op, fldPath.Child("platform"), &newObj.Platform, safe.Field(oldObj, toServiceProviderPlatform))...)
+	errs = append(errs, ImmutableByReflect(ctx, op, fldPath.Child("platform"), &newObj.Platform, safe.Field(oldObj, toServiceProviderPlatform))...)
 	errs = append(errs, validateServiceProviderPlatformProfile(ctx, op, fldPath.Child("platform"), &newObj.Platform, safe.Field(oldObj, toServiceProviderPlatform))...)
 
 	return errs
@@ -296,10 +296,10 @@ func validateVersionProfile(ctx context.Context, op operation.Operation, fldPath
 	// Version should be immutable once is created
 	// additional validations may depend on the subscription, hence they will be done in the admission package
 	// ID           string `json:"id,omitempty"
-	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("id"), &newObj.ID, safe.Field(oldObj, toVersionID))...)
+	errs = append(errs, ImmutableByCompare(ctx, op, fldPath.Child("id"), &newObj.ID, safe.Field(oldObj, toVersionID))...)
 
 	// ChannelGroup string `json:"channelGroup,omitempty"`
-	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("channelGroup"), &newObj.ChannelGroup, safe.Field(oldObj, toChannelGroup))...)
+	errs = append(errs, ImmutableByCompare(ctx, op, fldPath.Child("channelGroup"), &newObj.ChannelGroup, safe.Field(oldObj, toChannelGroup))...)
 
 	errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("channelGroup"), &newObj.ChannelGroup, nil)...)
 
@@ -320,7 +320,7 @@ func validateCustomerDNSProfile(ctx context.Context, op operation.Operation, fld
 	errs := field.ErrorList{}
 
 	// BaseDomainPrefix string `json:"baseDomainPrefix,omitempty"`
-	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("baseDomainPrefix"), &newObj.BaseDomainPrefix, safe.Field(oldObj, toDNSBaseDomainPrefix))...)
+	errs = append(errs, ImmutableByCompare(ctx, op, fldPath.Child("baseDomainPrefix"), &newObj.BaseDomainPrefix, safe.Field(oldObj, toDNSBaseDomainPrefix))...)
 	errs = append(errs, MaxLen(ctx, op, fldPath.Child("baseDomainPrefix"), &newObj.BaseDomainPrefix, nil, 15)...)
 	errs = append(errs, MatchesRegex(ctx, op, fldPath.Child("baseDomainPrefix"), &newObj.BaseDomainPrefix, nil, rfc1035LabelRegex, rfc1035ErrorString)...)
 
@@ -336,7 +336,7 @@ func validateServiceProviderDNSProfile(ctx context.Context, op operation.Operati
 	errs := field.ErrorList{}
 
 	// BaseDomain       string `json:"baseDomain,omitempty"`
-	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("baseDomain"), &newObj.BaseDomain, safe.Field(oldObj, toDNSBaseDomain))...)
+	errs = append(errs, ImmutableByCompare(ctx, op, fldPath.Child("baseDomain"), &newObj.BaseDomain, safe.Field(oldObj, toDNSBaseDomain))...)
 
 	return errs
 }
@@ -354,23 +354,23 @@ func validateNetworkProfile(ctx context.Context, op operation.Operation, fldPath
 	errs := field.ErrorList{}
 
 	// NetworkType NetworkType `json:"networkType,omitempty"`
-	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("networkType"), &newObj.NetworkType, safe.Field(oldObj, toNetworkType))...)
-	errs = append(errs, validate.Enum(ctx, op, fldPath.Child("networkType"), &newObj.NetworkType, nil, api.ValidNetworkTypes)...)
+	errs = append(errs, ImmutableByCompare(ctx, op, fldPath.Child("networkType"), &newObj.NetworkType, safe.Field(oldObj, toNetworkType))...)
+	errs = append(errs, validate.Enum(ctx, op, fldPath.Child("networkType"), &newObj.NetworkType, nil, api.ValidNetworkTypes, nil)...)
 
 	// PodCIDR     string      `json:"podCidr,omitempty"`
-	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("podCidr"), &newObj.PodCIDR, safe.Field(oldObj, toPodCIDR))...)
+	errs = append(errs, ImmutableByCompare(ctx, op, fldPath.Child("podCidr"), &newObj.PodCIDR, safe.Field(oldObj, toPodCIDR))...)
 	errs = append(errs, CIDRv4(ctx, op, fldPath.Child("podCidr"), &newObj.PodCIDR, nil)...)
 
 	// ServiceCIDR string      `json:"serviceCidr,omitempty"`
-	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("serviceCidr"), &newObj.ServiceCIDR, safe.Field(oldObj, toServiceCIDR))...)
+	errs = append(errs, ImmutableByCompare(ctx, op, fldPath.Child("serviceCidr"), &newObj.ServiceCIDR, safe.Field(oldObj, toServiceCIDR))...)
 	errs = append(errs, CIDRv4(ctx, op, fldPath.Child("serviceCidr"), &newObj.ServiceCIDR, nil)...)
 
 	// MachineCIDR string      `json:"machineCidr,omitempty"`
-	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("machineCidr"), &newObj.MachineCIDR, safe.Field(oldObj, toMachineCIDR))...)
+	errs = append(errs, ImmutableByCompare(ctx, op, fldPath.Child("machineCidr"), &newObj.MachineCIDR, safe.Field(oldObj, toMachineCIDR))...)
 	errs = append(errs, CIDRv4(ctx, op, fldPath.Child("machineCidr"), &newObj.MachineCIDR, nil)...)
 
 	// HostPrefix  int32       `json:"hostPrefix,omitempty"`
-	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("hostPrefix"), &newObj.HostPrefix, safe.Field(oldObj, toHostPrefix))...)
+	errs = append(errs, ImmutableByCompare(ctx, op, fldPath.Child("hostPrefix"), &newObj.HostPrefix, safe.Field(oldObj, toHostPrefix))...)
 	errs = append(errs, validate.Minimum(ctx, op, fldPath.Child("hostPrefix"), &newObj.HostPrefix, nil, 23)...)
 	errs = append(errs, Maximum(ctx, op, fldPath.Child("hostPrefix"), &newObj.HostPrefix, nil, 26)...)
 
@@ -408,7 +408,7 @@ func validateServiceProviderConsoleProfile(ctx context.Context, op operation.Ope
 	errs := field.ErrorList{}
 
 	// URL string `json:"url,omitempty"`
-	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("url"), &newObj.URL, safe.Field(oldObj, toConsoleURL))...)
+	errs = append(errs, ImmutableByCompare(ctx, op, fldPath.Child("url"), &newObj.URL, safe.Field(oldObj, toConsoleURL))...)
 
 	return errs
 }
@@ -422,8 +422,8 @@ func validateCustomerAPIProfile(ctx context.Context, op operation.Operation, fld
 	errs := field.ErrorList{}
 
 	// Visibility      Visibility `json:"visibility,omitempty"`
-	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("visiblity"), &newObj.Visibility, safe.Field(oldObj, toAPIVisibility))...)
-	errs = append(errs, validate.Enum(ctx, op, fldPath.Child("visiblity"), &newObj.Visibility, nil, api.ValidVisibility)...)
+	errs = append(errs, ImmutableByCompare(ctx, op, fldPath.Child("visiblity"), &newObj.Visibility, safe.Field(oldObj, toAPIVisibility))...)
+	errs = append(errs, validate.Enum(ctx, op, fldPath.Child("visiblity"), &newObj.Visibility, nil, api.ValidVisibility, nil)...)
 
 	// AuthorizedCIDRs []string   `json:"authorizedCidrs,omitempty"`
 	errs = append(errs, MaxItems(ctx, op, fldPath.Child("authorizedCidrs"), newObj.AuthorizedCIDRs, nil, 500)...)
@@ -461,7 +461,7 @@ func validateServiceProviderAPIProfile(ctx context.Context, op operation.Operati
 	errs := field.ErrorList{}
 
 	// URL             string     `json:"url,omitempty"`
-	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("url"), &newObj.URL, safe.Field(oldObj, toAPIURL))...)
+	errs = append(errs, ImmutableByCompare(ctx, op, fldPath.Child("url"), &newObj.URL, safe.Field(oldObj, toAPIURL))...)
 
 	return errs
 }
@@ -481,24 +481,24 @@ func validateCustomerPlatformProfile(ctx context.Context, op operation.Operation
 	errs := field.ErrorList{}
 
 	//ManagedResourceGroup    string                         `json:"managedResourceGroup,omitempty"`
-	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("managedResourceGroup"), &newObj.ManagedResourceGroup, safe.Field(oldObj, toPlatformManagedResourceGroup))...)
+	errs = append(errs, ImmutableByCompare(ctx, op, fldPath.Child("managedResourceGroup"), &newObj.ManagedResourceGroup, safe.Field(oldObj, toPlatformManagedResourceGroup))...)
 
 	//SubnetID                string                         `json:"subnetId,omitempty"`
-	errs = append(errs, validate.ImmutableByReflect(ctx, op, fldPath.Child("subnetId"), newObj.SubnetID, safe.Field(oldObj, toPlatformSubnetID))...)
+	errs = append(errs, ImmutableByReflect(ctx, op, fldPath.Child("subnetId"), newObj.SubnetID, safe.Field(oldObj, toPlatformSubnetID))...)
 	errs = append(errs, validate.RequiredPointer(ctx, op, fldPath.Child("subnetId"), newObj.SubnetID, safe.Field(oldObj, toPlatformSubnetID))...)
 	errs = append(errs, DifferentResourceGroupNameFromResourceID(ctx, op, fldPath.Child("subnetId"), newObj.SubnetID, nil, newObj.ManagedResourceGroup)...)
 
 	//OutboundType            OutboundType                   `json:"outboundType,omitempty"`
-	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("outboundType"), &newObj.OutboundType, safe.Field(oldObj, toPlatformOutboundType))...)
-	errs = append(errs, validate.Enum(ctx, op, fldPath.Child("outboundType"), &newObj.OutboundType, nil, api.ValidOutboundTypes)...)
+	errs = append(errs, ImmutableByCompare(ctx, op, fldPath.Child("outboundType"), &newObj.OutboundType, safe.Field(oldObj, toPlatformOutboundType))...)
+	errs = append(errs, validate.Enum(ctx, op, fldPath.Child("outboundType"), &newObj.OutboundType, nil, api.ValidOutboundTypes, nil)...)
 
 	//NetworkSecurityGroupID  string                         `json:"networkSecurityGroupId,omitempty"`
-	errs = append(errs, validate.ImmutableByReflect(ctx, op, fldPath.Child("networkSecurityGroupId"), newObj.NetworkSecurityGroupID, safe.Field(oldObj, toPlatformNetworkSecurityGroupID))...)
+	errs = append(errs, ImmutableByReflect(ctx, op, fldPath.Child("networkSecurityGroupId"), newObj.NetworkSecurityGroupID, safe.Field(oldObj, toPlatformNetworkSecurityGroupID))...)
 	errs = append(errs, validate.RequiredPointer(ctx, op, fldPath.Child("networkSecurityGroupId"), newObj.NetworkSecurityGroupID, safe.Field(oldObj, toPlatformNetworkSecurityGroupID))...)
 	errs = append(errs, RestrictedResourceIDWithResourceGroup(ctx, op, fldPath.Child("networkSecurityGroupId"), newObj.NetworkSecurityGroupID, safe.Field(oldObj, toPlatformNetworkSecurityGroupID), "Microsoft.Network/networkSecurityGroups")...)
 
 	//OperatorsAuthentication OperatorsAuthenticationProfile `json:"operatorsAuthentication,omitempty"`
-	errs = append(errs, validate.ImmutableByReflect(ctx, op, fldPath.Child("operatorsAuthentication"), &newObj.OperatorsAuthentication, safe.Field(oldObj, toPlatformOperatorsAuthentication))...)
+	errs = append(errs, ImmutableByReflect(ctx, op, fldPath.Child("operatorsAuthentication"), &newObj.OperatorsAuthentication, safe.Field(oldObj, toPlatformOperatorsAuthentication))...)
 	errs = append(errs, validateOperatorsAuthenticationProfile(ctx, op, fldPath.Child("operatorsAuthentication"), &newObj.OperatorsAuthentication, safe.Field(oldObj, toPlatformOperatorsAuthentication))...)
 
 	return errs
@@ -513,7 +513,7 @@ func validateServiceProviderPlatformProfile(ctx context.Context, op operation.Op
 	errs := field.ErrorList{}
 
 	//IssuerURL               string                         `json:"issuerUrl,omitempty"`
-	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("issuerUrl"), &newObj.IssuerURL, safe.Field(oldObj, toServiceProviderPlatformProfileIssuerURL))...)
+	errs = append(errs, ImmutableByCompare(ctx, op, fldPath.Child("issuerUrl"), &newObj.IssuerURL, safe.Field(oldObj, toServiceProviderPlatformProfileIssuerURL))...)
 
 	return errs
 }
@@ -528,7 +528,7 @@ func validateOperatorsAuthenticationProfile(ctx context.Context, op operation.Op
 	errs := field.ErrorList{}
 
 	//UserAssignedIdentities UserAssignedIdentitiesProfile `json:"userAssignedIdentities,omitempty"`
-	errs = append(errs, validate.ImmutableByReflect(ctx, op, fldPath.Child("userAssignedIdentities"), &newObj.UserAssignedIdentities, safe.Field(oldObj, toAuthenticationUserAssignedIdentities))...)
+	errs = append(errs, ImmutableByReflect(ctx, op, fldPath.Child("userAssignedIdentities"), &newObj.UserAssignedIdentities, safe.Field(oldObj, toAuthenticationUserAssignedIdentities))...)
 	errs = append(errs, validateUserAssignedIdentitiesProfile(ctx, op, fldPath.Child("userAssignedIdentities"), &newObj.UserAssignedIdentities, safe.Field(oldObj, toAuthenticationUserAssignedIdentities))...)
 
 	return errs
@@ -550,7 +550,7 @@ func validateUserAssignedIdentitiesProfile(ctx context.Context, op operation.Ope
 	errs := field.ErrorList{}
 
 	//ControlPlaneOperators  map[string]string `json:"controlPlaneOperators,omitempty"`
-	errs = append(errs, validate.ImmutableByReflect(ctx, op, fldPath.Child("controlPlaneOperators"), newObj.ControlPlaneOperators, safe.Field(oldObj, toUserAssignedIdentitiesControlPlaneOperators))...)
+	errs = append(errs, ImmutableByReflect(ctx, op, fldPath.Child("controlPlaneOperators"), newObj.ControlPlaneOperators, safe.Field(oldObj, toUserAssignedIdentitiesControlPlaneOperators))...)
 	errs = append(errs, EachMapKey(ctx, op, fldPath.Child("controlPlaneOperators"),
 		newObj.ControlPlaneOperators, safe.Field(oldObj, toUserAssignedIdentitiesControlPlaneOperators),
 		validate.RequiredValue,
@@ -568,7 +568,7 @@ func validateUserAssignedIdentitiesProfile(ctx context.Context, op operation.Ope
 	)...)
 
 	//DataPlaneOperators     map[string]string `json:"dataPlaneOperators,omitempty"`
-	errs = append(errs, validate.ImmutableByReflect(ctx, op, fldPath.Child("dataPlaneOperators"), newObj.DataPlaneOperators, safe.Field(oldObj, toUserAssignedIdentitiesDataPlaneOperators))...)
+	errs = append(errs, ImmutableByReflect(ctx, op, fldPath.Child("dataPlaneOperators"), newObj.DataPlaneOperators, safe.Field(oldObj, toUserAssignedIdentitiesDataPlaneOperators))...)
 	errs = append(errs, EachMapKey(ctx, op, fldPath.Child("dataPlaneOperators"),
 		newObj.DataPlaneOperators, safe.Field(oldObj, toUserAssignedIdentitiesDataPlaneOperators),
 		validate.RequiredValue,
@@ -586,7 +586,7 @@ func validateUserAssignedIdentitiesProfile(ctx context.Context, op operation.Ope
 	)...)
 
 	//ServiceManagedIdentity string            `json:"serviceManagedIdentity,omitempty"`
-	errs = append(errs, validate.ImmutableByReflect(ctx, op, fldPath.Child("serviceManagedIdentity"), newObj.ServiceManagedIdentity, safe.Field(oldObj, toUserAssignedIdentitiesServiceManagedIdentity))...)
+	errs = append(errs, ImmutableByReflect(ctx, op, fldPath.Child("serviceManagedIdentity"), newObj.ServiceManagedIdentity, safe.Field(oldObj, toUserAssignedIdentitiesServiceManagedIdentity))...)
 	errs = append(errs, RestrictedResourceIDWithResourceGroup(ctx, op, fldPath.Child("serviceManagedIdentity"), newObj.ServiceManagedIdentity, safe.Field(oldObj, toUserAssignedIdentitiesServiceManagedIdentity), "Microsoft.ManagedIdentity/userAssignedIdentities")...)
 
 	return errs
@@ -631,7 +631,7 @@ func validateEtcdProfile(ctx context.Context, op operation.Operation, fldPath *f
 	errs := field.ErrorList{}
 
 	//DataEncryption EtcdDataEncryptionProfile `json:"dataEncryption,omitempty"`
-	errs = append(errs, validate.ImmutableByReflect(ctx, op, fldPath.Child("dataEncryption"), &newObj.DataEncryption, safe.Field(oldObj, toEtcdProfileDataEncryption))...)
+	errs = append(errs, ImmutableByReflect(ctx, op, fldPath.Child("dataEncryption"), &newObj.DataEncryption, safe.Field(oldObj, toEtcdProfileDataEncryption))...)
 	errs = append(errs, validateEtcdDataEncryptionProfile(ctx, op, fldPath.Child("dataEncryption"), &newObj.DataEncryption, safe.Field(oldObj, toEtcdProfileDataEncryption))...)
 
 	return errs
@@ -650,12 +650,12 @@ func validateEtcdDataEncryptionProfile(ctx context.Context, op operation.Operati
 	errs := field.ErrorList{}
 
 	//KeyManagementMode EtcdDataEncryptionKeyManagementModeType `json:"keyManagementMode,omitempty"`
-	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("keyManagementMode"), &newObj.KeyManagementMode, safe.Field(oldObj, toEtcdDataEncryptionProfileKeyManagementMode))...)
-	errs = append(errs, validate.Enum(ctx, op, fldPath.Child("keyManagementMode"), &newObj.KeyManagementMode, safe.Field(oldObj, toEtcdDataEncryptionProfileKeyManagementMode), api.ValidEtcdDataEncryptionKeyManagementModeType)...)
+	errs = append(errs, ImmutableByCompare(ctx, op, fldPath.Child("keyManagementMode"), &newObj.KeyManagementMode, safe.Field(oldObj, toEtcdDataEncryptionProfileKeyManagementMode))...)
+	errs = append(errs, validate.Enum(ctx, op, fldPath.Child("keyManagementMode"), &newObj.KeyManagementMode, safe.Field(oldObj, toEtcdDataEncryptionProfileKeyManagementMode), api.ValidEtcdDataEncryptionKeyManagementModeType, nil)...)
 
 	//CustomerManaged   *CustomerManagedEncryptionProfile       `json:"customerManaged,omitempty"`
-	errs = append(errs, validate.ImmutableByReflect(ctx, op, fldPath.Child("customerManaged"), newObj.CustomerManaged, safe.Field(oldObj, toEtcdDataEncryptionProfileCustomerManaged))...)
-	union := validate.NewDiscriminatedUnionMembership("keyManagementMode", [2]string{"customerManaged", "CustomerManaged"})
+	errs = append(errs, ImmutableByReflect(ctx, op, fldPath.Child("customerManaged"), newObj.CustomerManaged, safe.Field(oldObj, toEtcdDataEncryptionProfileCustomerManaged))...)
+	union := validate.NewDiscriminatedUnionMembership("keyManagementMode", validate.NewDiscriminatedUnionMember("customerManaged", "CustomerManaged"))
 	discriminatorExtractor := func(obj *api.EtcdDataEncryptionProfile) api.EtcdDataEncryptionKeyManagementModeType {
 		return obj.KeyManagementMode
 	}
@@ -685,12 +685,12 @@ func validateCustomerManagedEncryptionProfile(ctx context.Context, op operation.
 	errs := field.ErrorList{}
 
 	//EncryptionType CustomerManagedEncryptionType `json:"encryptionType,omitempty"`
-	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("encryptionType"), &newObj.EncryptionType, safe.Field(oldObj, toCustomerManagedEncryptionProfileEncryptionType))...)
-	errs = append(errs, validate.Enum(ctx, op, fldPath.Child("encryptionType"), &newObj.EncryptionType, safe.Field(oldObj, toCustomerManagedEncryptionProfileEncryptionType), api.ValidCustomerManagedEncryptionType)...)
+	errs = append(errs, ImmutableByCompare(ctx, op, fldPath.Child("encryptionType"), &newObj.EncryptionType, safe.Field(oldObj, toCustomerManagedEncryptionProfileEncryptionType))...)
+	errs = append(errs, validate.Enum(ctx, op, fldPath.Child("encryptionType"), &newObj.EncryptionType, safe.Field(oldObj, toCustomerManagedEncryptionProfileEncryptionType), api.ValidCustomerManagedEncryptionType, nil)...)
 
 	//Kms            *KmsEncryptionProfile         `json:"kms,omitempty"`
-	errs = append(errs, validate.ImmutableByReflect(ctx, op, fldPath.Child("kms"), newObj.Kms, safe.Field(oldObj, toEtcdDataEncryptionProfileKms))...)
-	union := validate.NewDiscriminatedUnionMembership("encryptionType", [2]string{"kms", "KMS"})
+	errs = append(errs, ImmutableByReflect(ctx, op, fldPath.Child("kms"), newObj.Kms, safe.Field(oldObj, toEtcdDataEncryptionProfileKms))...)
+	union := validate.NewDiscriminatedUnionMembership("encryptionType", validate.NewDiscriminatedUnionMember("kms", "KMS"))
 	discriminatorExtractor := func(obj *api.CustomerManagedEncryptionProfile) api.CustomerManagedEncryptionType {
 		return obj.EncryptionType
 	}
@@ -717,7 +717,7 @@ func validateKmsEncryptionProfile(ctx context.Context, op operation.Operation, f
 	errs := field.ErrorList{}
 
 	//ActiveKey KmsKey `json:"activeKey,omitempty"`
-	errs = append(errs, validate.ImmutableByReflect(ctx, op, fldPath.Child("activeKey"), &newObj.ActiveKey, safe.Field(oldObj, toKmsEncryptionProfileActiveKey))...)
+	errs = append(errs, ImmutableByReflect(ctx, op, fldPath.Child("activeKey"), &newObj.ActiveKey, safe.Field(oldObj, toKmsEncryptionProfileActiveKey))...)
 	errs = append(errs, validateKmsKey(ctx, op, fldPath.Child("activeKey"), &newObj.ActiveKey, safe.Field(oldObj, toKmsEncryptionProfileActiveKey))...)
 
 	return errs
@@ -733,17 +733,17 @@ func validateKmsKey(ctx context.Context, op operation.Operation, fldPath *field.
 	errs := field.ErrorList{}
 
 	//Name      string `json:"name"`
-	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("name"), &newObj.Name, safe.Field(oldObj, toKmsKeyName))...)
+	errs = append(errs, ImmutableByCompare(ctx, op, fldPath.Child("name"), &newObj.Name, safe.Field(oldObj, toKmsKeyName))...)
 	errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("name"), &newObj.Name, nil)...)
 	errs = append(errs, MaxLen(ctx, op, fldPath.Child("name"), &newObj.Name, nil, 255)...)
 
 	//VaultName string `json:"vaultName"`
-	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("vaultName"), &newObj.VaultName, safe.Field(oldObj, toKmsKeyVaultName))...)
+	errs = append(errs, ImmutableByCompare(ctx, op, fldPath.Child("vaultName"), &newObj.VaultName, safe.Field(oldObj, toKmsKeyVaultName))...)
 	errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("vaultName"), &newObj.VaultName, nil)...)
 	errs = append(errs, MaxLen(ctx, op, fldPath.Child("vaultName"), &newObj.VaultName, nil, 255)...)
 
 	//Version   string `json:"version"`
-	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("version"), &newObj.Version, safe.Field(oldObj, toKmsKeyVersion))...)
+	errs = append(errs, ImmutableByCompare(ctx, op, fldPath.Child("version"), &newObj.Version, safe.Field(oldObj, toKmsKeyVersion))...)
 	errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("version"), &newObj.Version, nil)...)
 	errs = append(errs, MaxLen(ctx, op, fldPath.Child("version"), &newObj.Version, nil, 255)...)
 
@@ -760,8 +760,8 @@ func validateClusterImageRegistryProfile(ctx context.Context, op operation.Opera
 	errs := field.ErrorList{}
 
 	//State ClusterImageRegistryProfileState `json:"state,omitempty"`
-	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("state"), &newObj.State, safe.Field(oldObj, toPlatformClusterImageRegistryState))...)
-	errs = append(errs, validate.Enum(ctx, op, fldPath.Child("state"), &newObj.State, safe.Field(oldObj, toPlatformClusterImageRegistryState), api.ValidClusterImageRegistryProfileStates)...)
+	errs = append(errs, ImmutableByCompare(ctx, op, fldPath.Child("state"), &newObj.State, safe.Field(oldObj, toPlatformClusterImageRegistryState))...)
+	errs = append(errs, validate.Enum(ctx, op, fldPath.Child("state"), &newObj.State, safe.Field(oldObj, toPlatformClusterImageRegistryState), api.ValidClusterImageRegistryProfileStates, nil)...)
 
 	return errs
 }
@@ -783,13 +783,13 @@ func validateManagedServiceIdentity(ctx context.Context, op operation.Operation,
 	errs := field.ErrorList{}
 
 	//PrincipalID            string                           `json:"principalId,omitempty"`
-	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("principalId"), &newObj.PrincipalID, safe.Field(oldObj, toManagedServiceIdentityPrincipalID))...)
+	errs = append(errs, ImmutableByCompare(ctx, op, fldPath.Child("principalId"), &newObj.PrincipalID, safe.Field(oldObj, toManagedServiceIdentityPrincipalID))...)
 	//TenantID               string                           `json:"tenantId,omitempty"`
-	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("tenantId"), &newObj.TenantID, safe.Field(oldObj, toManagedServiceIdentityTenantID))...)
+	errs = append(errs, ImmutableByCompare(ctx, op, fldPath.Child("tenantId"), &newObj.TenantID, safe.Field(oldObj, toManagedServiceIdentityTenantID))...)
 
 	//Type                   ManagedServiceIdentityType       `json:"type"`
 	errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("type"), &newObj.Type, nil)...)
-	errs = append(errs, validate.Enum(ctx, op, fldPath.Child("state"), &newObj.Type, safe.Field(oldObj, toManagedServiceIdentityType), arm.ValidManagedServiceIdentityTypes)...)
+	errs = append(errs, validate.Enum(ctx, op, fldPath.Child("state"), &newObj.Type, safe.Field(oldObj, toManagedServiceIdentityType), arm.ValidManagedServiceIdentityTypes, nil)...)
 
 	//UserAssignedIdentities map[string]*UserAssignedIdentity `json:"userAssignedIdentities,omitempty"`
 	errs = append(errs, EachMapKey(ctx, op, fldPath.Child("userAssignedIdentities"),
@@ -832,10 +832,10 @@ func validateUserAssignedIdentity(ctx context.Context, op operation.Operation, f
 	errs := field.ErrorList{}
 
 	//ClientID    *string `json:"clientId,omitempty"`
-	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("clientId"), (*newObj).ClientID, safe.Field(oldObj, toUserAssignedIdentityClientID))...)
+	errs = append(errs, ImmutableByCompare(ctx, op, fldPath.Child("clientId"), (*newObj).ClientID, safe.Field(oldObj, toUserAssignedIdentityClientID))...)
 
 	//PrincipalID *string `json:"principalId,omitempty"`
-	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("principalId"), (*newObj).PrincipalID, safe.Field(oldObj, toUserAssignedIdentityPrincipalID))...)
+	errs = append(errs, ImmutableByCompare(ctx, op, fldPath.Child("principalId"), (*newObj).PrincipalID, safe.Field(oldObj, toUserAssignedIdentityPrincipalID))...)
 
 	return errs
 }
