@@ -373,71 +373,72 @@ func ValidateServiceConfig(
 			}
 		}
 	}
-	if digests != nil {
-		for cloud, environments := range digests.Clouds {
-			if _, ok := currentDigests.Clouds[cloud]; !ok && !update {
-				return fmt.Errorf("digests.clouds: cloud %q present in previous digests, but not current ones", cloud)
+	if digests == nil {
+		return nil
+	}
+	for cloud, environments := range digests.Clouds {
+		if _, ok := currentDigests.Clouds[cloud]; !ok && !update {
+			return fmt.Errorf("digests.clouds: cloud %q present in previous digests, but not current ones", cloud)
+		}
+		for environment, regions := range environments.Environments {
+			if _, ok := currentDigests.Clouds[cloud].Environments[environment]; !ok && !update {
+				return fmt.Errorf("digests.clouds[%s].environments: environment %q present in previous digests, but not current ones", cloud, environment)
 			}
-			for environment, regions := range environments.Environments {
-				if _, ok := currentDigests.Clouds[cloud].Environments[environment]; !ok && !update {
-					return fmt.Errorf("digests.clouds[%s].environments: environment %q present in previous digests, but not current ones", cloud, environment)
+			for region, digest := range regions.Regions {
+				currentDigest, ok := currentDigests.Clouds[cloud].Environments[environment].Regions[region]
+				if !ok && !update {
+					return fmt.Errorf("digests.clouds[%s].environments[%s].regions: region %q present in previous digests, but not current ones", cloud, environment, region)
 				}
-				for region, digest := range regions.Regions {
-					currentDigest, ok := currentDigests.Clouds[cloud].Environments[environment].Regions[region]
-					if !ok && !update {
-						return fmt.Errorf("digests.clouds[%s].environments[%s].regions: region %q present in previous digests, but not current ones", cloud, environment, region)
-					}
 
-					var regionCtx *RegionContext
-					for _, candidate := range contexts[cloud][environment] {
-						if candidate.Region == region {
-							regionCtx = &candidate
-						}
+				var regionCtx *RegionContext
+				for _, candidate := range contexts[cloud][environment] {
+					if candidate.Region == region {
+						regionCtx = &candidate
 					}
-					if regionCtx == nil {
-						return fmt.Errorf("digests.clouds[%s].environments[%s].regions: region %q missing from configuration", cloud, environment, region)
-					}
+				}
+				if regionCtx == nil {
+					return fmt.Errorf("digests.clouds[%s].environments[%s].regions: region %q missing from configuration", cloud, environment, region)
+				}
 
-					if currentDigest != digest {
-						if !update {
-							if err := renderDiff(
-								ctx,
-								cloud, environment, *regionCtx,
-								serviceConfigFile, jsonSchemaPath,
-								centralRemoteUrl, outputDir, scratchDir,
-							); err != nil {
-								logger.WithValues("cloud", cloud, "environment", environment, "region", region).Error(err, "Failed to render diff.")
-							}
-							return fmt.Errorf("digests.clouds[%s].environments[%s].regions[%s]: rendered configuration digest %s doesn't match previous digest %s", cloud, environment, region, currentDigest, digest)
+				if currentDigest != digest {
+					if !update {
+						if err := renderDiff(
+							ctx,
+							cloud, environment, *regionCtx,
+							serviceConfigFile, jsonSchemaPath,
+							centralRemoteUrl, outputDir, scratchDir,
+						); err != nil {
+							logger.WithValues("cloud", cloud, "environment", environment, "region", region).Error(err, "Failed to render diff.")
 						}
+						return fmt.Errorf("digests.clouds[%s].environments[%s].regions[%s]: rendered configuration digest %s doesn't match previous digest %s", cloud, environment, region, currentDigest, digest)
 					}
 				}
 			}
 		}
-		for cloud, environments := range currentDigests.Clouds {
-			if _, ok := digests.Clouds[cloud]; !ok && !update {
-				return fmt.Errorf("digests.clouds: cloud %q present in current digests, but not previous ones", cloud)
+	}
+	for cloud, environments := range currentDigests.Clouds {
+		if _, ok := digests.Clouds[cloud]; !ok && !update {
+			return fmt.Errorf("digests.clouds: cloud %q present in current digests, but not previous ones", cloud)
+		}
+		for environment, regions := range environments.Environments {
+			if _, ok := digests.Clouds[cloud].Environments[environment]; !ok && !update {
+				return fmt.Errorf("digests.clouds[%s].environments: environment %q present in current digests, but not previous ones", cloud, environment)
 			}
-			for environment, regions := range environments.Environments {
-				if _, ok := digests.Clouds[cloud].Environments[environment]; !ok && !update {
-					return fmt.Errorf("digests.clouds[%s].environments: environment %q present in current digests, but not previous ones", cloud, environment)
-				}
-				for region := range regions.Regions {
-					if _, ok := digests.Clouds[cloud].Environments[environment].Regions[region]; !ok && !update {
-						return fmt.Errorf("digests.clouds[%s].environments[%s].regions: region %q present in current digests, but not previous ones", cloud, environment, region)
-					}
+			for region := range regions.Regions {
+				if _, ok := digests.Clouds[cloud].Environments[environment].Regions[region]; !ok && !update {
+					return fmt.Errorf("digests.clouds[%s].environments[%s].regions: region %q present in current digests, but not previous ones", cloud, environment, region)
 				}
 			}
 		}
-		if update {
-			encoded, err := yaml.Marshal(currentDigests)
-			if err != nil {
-				return fmt.Errorf("failed to marshal current digests: %w", err)
-			}
+	}
+	if update {
+		encoded, err := yaml.Marshal(currentDigests)
+		if err != nil {
+			return fmt.Errorf("failed to marshal current digests: %w", err)
+		}
 
-			if os.WriteFile(digestFile, encoded, os.ModePerm) != nil {
-				return fmt.Errorf("failed to write current digests: %w", err)
-			}
+		if os.WriteFile(digestFile, encoded, os.ModePerm) != nil {
+			return fmt.Errorf("failed to write current digests: %w", err)
 		}
 	}
 
