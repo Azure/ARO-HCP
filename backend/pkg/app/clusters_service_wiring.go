@@ -43,12 +43,7 @@ func NewClustersServiceClient(ctx context.Context, clustersServiceURL string, cl
 
 	// Create Cluster Service Client using the OCM connection
 	clusterServiceClient := ocm.NewClusterServiceClientWithTracing(
-		ocm.NewClusterServiceClient(
-			ocmConnection,
-			"",
-			false,
-			false,
-		),
+		ocm.NewClusterServiceClient(ocmConnection),
 		backendtracing.BackendTracerName,
 	)
 
