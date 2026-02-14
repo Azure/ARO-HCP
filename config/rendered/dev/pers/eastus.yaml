@@ -184,7 +184,7 @@ cxKeyVault:
   tagValue: cx
 dns:
   baseDnsZoneRG: global
-  cxParentZoneName: hcp.osadev.cloud
+  cxParentZoneName: hcptmp.osadev.cloud
   globalCertificatesDomain: hcp-global.osadev.cloud
   parentZoneName: osadev.cloud
   regionalSubdomain: bltest
