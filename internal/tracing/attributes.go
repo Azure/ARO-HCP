@@ -140,6 +140,17 @@ const (
 	BreakGlassCredentialExpirationTimestampKey attribute.Key = "cs.break_glass_credential.expiration_time"
 )
 
+// Feature flag attributes.
+const (
+	// FeatureSingleReplicaKey is the span's attribute Key reporting whether
+	// single-replica control plane is enabled for a cluster operation.
+	FeatureSingleReplicaKey = attribute.Key("aro.feature.single_replica")
+
+	// FeatureSizeOverrideKey is the span's attribute Key reporting whether
+	// the cluster size override is enabled for a cluster operation.
+	FeatureSizeOverrideKey = attribute.Key("aro.feature.size_override")
+)
+
 // SetClusterAttributes sets attributes on the span to identify the cluster.
 func SetClusterAttributes(span trace.Span, cluster *arohcpv1alpha1.Cluster) {
 	addAttributeIfPresent(span, ClusterIDKey, cluster.GetID)

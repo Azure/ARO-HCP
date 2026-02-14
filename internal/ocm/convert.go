@@ -59,6 +59,14 @@ const (
 	csUsernameClaimPrefixPolicyPrefix   string = "Prefix"
 	csCIDRBlockAllowAccessModeAllowAll  string = "allow_all"
 	csCIDRBlockAllowAccessModeAllowList string = "allow_list"
+
+	// CSPropertySingleReplica is the CS cluster property key for configuring
+	// AvailabilityPolicy to use single-replica control plane components.
+	CSPropertySingleReplica string = "hosted_cluster_single_replica"
+
+	// CSPropertySizeOverride is the CS cluster property key for setting the
+	// ClusterSizeOverride annotation for reduced resource requests.
+	CSPropertySizeOverride string = "hosted_cluster_size_override"
 )
 
 // Sentinel error for use with errors.Is
@@ -589,7 +597,7 @@ func convertRpAutoscalarToCSBuilder(in *api.ClusterAutoscalingProfile) (*arohcpv
 }
 
 // BuildCSCluster creates a CS ClusterBuilder object from an HCPOpenShiftCluster object.
-func BuildCSCluster(resourceID *azcorearm.ResourceID, requestHeader http.Header, hcpCluster *api.HCPOpenShiftCluster, updating bool) (*arohcpv1alpha1.ClusterBuilder, *arohcpv1alpha1.ClusterAutoscalerBuilder, error) {
+func BuildCSCluster(resourceID *azcorearm.ResourceID, requestHeader http.Header, hcpCluster *api.HCPOpenShiftCluster, requiredProperties map[string]string, oldClusterServiceCluster *arohcpv1alpha1.Cluster) (*arohcpv1alpha1.ClusterBuilder, *arohcpv1alpha1.ClusterAutoscalerBuilder, error) {
 	var err error
 
 	// Ensure required headers are present.
@@ -601,8 +609,25 @@ func BuildCSCluster(resourceID *azcorearm.ResourceID, requestHeader http.Header,
 	clusterBuilder := arohcpv1alpha1.NewCluster()
 	clusterAPIBuilder := arohcpv1alpha1.NewClusterAPI()
 
+	// Set experimental feature properties on the builder. The frontend
+	// evaluates AFEC + tags and stores the result in ExperimentalFeatures.
+	// The builder replaces the entire properties map, so we build a single
+	// map with all experimental properties first.
+	if ef := hcpCluster.ServiceProviderProperties.ExperimentalFeatures; ef != nil {
+		props := map[string]string{}
+		if ef.SingleReplica {
+			props[CSPropertySingleReplica] = "true"
+		}
+		if ef.SizeOverride {
+			props[CSPropertySizeOverride] = "true"
+		}
+		if len(props) > 0 {
+			clusterBuilder.Properties(props)
+		}
+	}
+
 	// These attributes cannot be updated after cluster creation.
-	if !updating {
+	if oldClusterServiceCluster != nil {
 		// Add attributes that cannot be updated after cluster creation.
 		clusterBuilder, err = withImmutableAttributes(clusterBuilder, hcpCluster,
 			resourceID.SubscriptionID,
@@ -634,6 +659,20 @@ func BuildCSCluster(resourceID *azcorearm.ResourceID, requestHeader http.Header,
 	if err != nil {
 		return nil, nil, err
 	}
+
+	properties := map[string]string{}
+	if oldClusterServiceCluster != nil {
+		for k, v := range oldClusterServiceCluster.Properties() {
+			properties[k] = v
+		}
+	}
+	for k, v := range requiredProperties {
+		properties[k] = v
+	}
+	if hcpCluster.ServiceProviderProperties.ExperimentalFeatures != nil && hcpCluster.ServiceProviderProperties.ExperimentalFeatures.SizeOverride {
+		properties[CSPropertySizeOverride] = "true"
+	}
+	clusterBuilder = clusterBuilder.Properties(properties)
 
 	return clusterBuilder, clusterAutoscalerBuilder, nil
 }

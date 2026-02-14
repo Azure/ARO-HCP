@@ -92,6 +92,12 @@ func (csc *clusterServiceClientWithTracing) PostCluster(ctx context.Context, clu
 		span.RecordError(err)
 	} else {
 		tracing.SetClusterAttributes(span, cluster)
+		if cluster.Properties()[CSPropertySingleReplica] == "true" {
+			span.SetAttributes(tracing.FeatureSingleReplicaKey.Bool(true))
+		}
+		if cluster.Properties()[CSPropertySizeOverride] == "true" {
+			span.SetAttributes(tracing.FeatureSizeOverrideKey.Bool(true))
+		}
 	}
 
 	return cluster, err
@@ -106,6 +112,12 @@ func (csc *clusterServiceClientWithTracing) UpdateCluster(ctx context.Context, i
 		span.RecordError(err)
 	} else {
 		tracing.SetClusterAttributes(span, cluster)
+		if cluster.Properties()[CSPropertySingleReplica] == "true" {
+			span.SetAttributes(tracing.FeatureSingleReplicaKey.Bool(true))
+		}
+		if cluster.Properties()[CSPropertySizeOverride] == "true" {
+			span.SetAttributes(tracing.FeatureSizeOverrideKey.Bool(true))
+		}
 	}
 
 	return cluster, err

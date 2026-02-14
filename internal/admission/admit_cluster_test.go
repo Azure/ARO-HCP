@@ -20,6 +20,7 @@ import (
 	"testing"
 
 	"k8s.io/apimachinery/pkg/util/validation/field"
+	"k8s.io/utils/ptr"
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
@@ -284,6 +285,125 @@ func TestAdmitClusterOnCreateWithNonStableChannels(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			errs := AdmitClusterOnCreate(ctx, tt.cluster, subscription)
 			verifyErrorsMatch(t, tt.expectErrors, errs)
+		})
+	}
+}
+
+func TestMutateCluster(t *testing.T) {
+	afecRegistered := &arm.Subscription{
+		Properties: &arm.SubscriptionProperties{
+			RegisteredFeatures: &[]arm.Feature{
+				{
+					Name:  ptr.To(api.FeatureExperimentalReleaseFeatures),
+					State: ptr.To("Registered"),
+				},
+			},
+		},
+	}
+	noAFEC := &arm.Subscription{
+		Properties: &arm.SubscriptionProperties{},
+	}
+
+	tests := []struct {
+		name                  string
+		subscription          *arm.Subscription
+		tags                  map[string]string
+		expectNilFeatures     bool
+		expectedSingleReplica bool
+		expectedSizeOverride  bool
+	}{
+		{
+			name:              "nil subscription ignores all tags",
+			subscription:      nil,
+			tags:              map[string]string{api.TagClusterSingleReplica: "true", api.TagClusterSizeOverride: "true"},
+			expectNilFeatures: true,
+		},
+		{
+			name:              "no AFEC registered ignores all tags",
+			subscription:      noAFEC,
+			tags:              map[string]string{api.TagClusterSingleReplica: "true", api.TagClusterSizeOverride: "true"},
+			expectNilFeatures: true,
+		},
+		{
+			name:                  "AFEC registered with single-replica tag only",
+			subscription:          afecRegistered,
+			tags:                  map[string]string{api.TagClusterSingleReplica: "true"},
+			expectedSingleReplica: true,
+			expectedSizeOverride:  false,
+		},
+		{
+			name:                  "AFEC registered with size-override tag only",
+			subscription:          afecRegistered,
+			tags:                  map[string]string{api.TagClusterSizeOverride: "true"},
+			expectedSingleReplica: false,
+			expectedSizeOverride:  true,
+		},
+		{
+			name:                  "AFEC registered with both tags",
+			subscription:          afecRegistered,
+			tags:                  map[string]string{api.TagClusterSingleReplica: "true", api.TagClusterSizeOverride: "true"},
+			expectedSingleReplica: true,
+			expectedSizeOverride:  true,
+		},
+		{
+			name:              "AFEC registered but no tags",
+			subscription:      afecRegistered,
+			tags:              map[string]string{},
+			expectNilFeatures: true,
+		},
+		{
+			name:                  "AFEC registered with case insensitive tag values",
+			subscription:          afecRegistered,
+			tags:                  map[string]string{api.TagClusterSingleReplica: "True", api.TagClusterSizeOverride: "TRUE"},
+			expectedSingleReplica: true,
+			expectedSizeOverride:  true,
+		},
+		{
+			name:                 "AFEC registered with case insensitive tag keys",
+			subscription:         afecRegistered,
+			tags:                 map[string]string{"ARO-HCP.Experimental.Cluster/Size-Override": "true"},
+			expectedSizeOverride: true,
+		},
+		{
+			name:              "AFEC registered but tag values are not true",
+			subscription:      afecRegistered,
+			tags:              map[string]string{api.TagClusterSingleReplica: "false", api.TagClusterSizeOverride: "false"},
+			expectNilFeatures: true,
+		},
+		{
+			name:              "nil tags",
+			subscription:      afecRegistered,
+			tags:              nil,
+			expectNilFeatures: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cluster := &api.HCPOpenShiftCluster{
+				TrackedResource: arm.TrackedResource{
+					Tags: tt.tags,
+				},
+			}
+			MutateCluster(cluster, tt.subscription)
+
+			if tt.expectNilFeatures {
+				if cluster.ServiceProviderProperties.ExperimentalFeatures != nil {
+					t.Errorf("expected nil ExperimentalFeatures, got %+v", cluster.ServiceProviderProperties.ExperimentalFeatures)
+				}
+				return
+			}
+			if cluster.ServiceProviderProperties.ExperimentalFeatures == nil {
+				t.Fatalf("expected non-nil ExperimentalFeatures")
+			}
+			if cluster.ServiceProviderProperties.ExperimentalFeatures.SingleReplica != tt.expectedSingleReplica {
+				t.Errorf("expected SingleReplica %v, got %v",
+					tt.expectedSingleReplica, cluster.ServiceProviderProperties.ExperimentalFeatures.SingleReplica)
+			}
+			if cluster.ServiceProviderProperties.ExperimentalFeatures.SizeOverride != tt.expectedSizeOverride {
+				t.Errorf("expected SizeOverride %v, got %v",
+					tt.expectedSizeOverride, cluster.ServiceProviderProperties.ExperimentalFeatures.SizeOverride)
+			}
 		})
 	}
 }

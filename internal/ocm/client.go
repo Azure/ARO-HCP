@@ -148,20 +148,6 @@ func NewClusterServiceClient(conn *sdk.Connection, provisionShardID string, prov
 	}
 }
 
-func (csc *clusterServiceClient) addProperties(builder *arohcpv1alpha1.ClusterBuilder) *arohcpv1alpha1.ClusterBuilder {
-	additionalProperties := map[string]string{}
-	if csc.provisionShardID != "" {
-		additionalProperties["provision_shard_id"] = csc.provisionShardID
-	}
-	if csc.provisionerNoOpProvision {
-		additionalProperties["provisioner_noop_provision"] = "true"
-	}
-	if csc.provisionerNoOpDeprovision {
-		additionalProperties["provisioner_noop_deprovision"] = "true"
-	}
-	return builder.Properties(additionalProperties)
-}
-
 // resolveClusterLinks replaces link objects with full objects that are
 // necessary to fully construct an HCPOpenShiftCluster model.
 func resolveClusterLinks(ctx context.Context, conn *sdk.Connection, cluster *arohcpv1alpha1.Cluster) (*arohcpv1alpha1.Cluster, error) {
@@ -262,10 +248,11 @@ func (csc *clusterServiceClient) PostCluster(ctx context.Context, clusterBuilder
 	if autoscalerBuilder != nil {
 		clusterBuilder.Autoscaler(autoscalerBuilder)
 	}
-	cluster, err := csc.addProperties(clusterBuilder).Build()
+	cluster, err := clusterBuilder.Build()
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}
+
 	clustersAddResponse, err := csc.conn.AroHCP().V1alpha1().Clusters().Add().Body(cluster).SendContext(ctx)
 	if err != nil {
 		return nil, utils.TrackError(err)
@@ -278,7 +265,7 @@ func (csc *clusterServiceClient) PostCluster(ctx context.Context, clusterBuilder
 }
 
 func (csc *clusterServiceClient) UpdateCluster(ctx context.Context, internalID InternalID, builder *arohcpv1alpha1.ClusterBuilder) (*arohcpv1alpha1.Cluster, error) {
-	cluster, err := csc.addProperties(builder).Build()
+	cluster, err := builder.Build()
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}
