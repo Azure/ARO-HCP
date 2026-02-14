@@ -41,12 +41,12 @@ var (
 	_ CosmosPersistable      = &CosmosMetadata{}
 	_ CosmosMetadataAccessor = &CosmosMetadata{}
 
-	// namespaceUUID was randomly created once.
-	namespaceUUID uuid.UUID
+	// cosmosDocIDUUIDNamespace was randomly created once.
+	cosmosDocIDUUIDNamespace uuid.UUID
 )
 
 func init() {
-	namespaceUUID = Must(uuid.Parse("bf1ee0a1-0147-41ed-a083-d3cbbf7bea99"))
+	cosmosDocIDUUIDNamespace = Must(uuid.Parse("bf1ee0a1-0147-41ed-a083-d3cbbf7bea99"))
 }
 
 type CosmosPersistable interface {
@@ -54,10 +54,7 @@ type CosmosPersistable interface {
 }
 
 func (o *CosmosMetadata) GetCosmosUID() string {
-	if len(o.ExistingCosmosUID) > 0 {
-		return o.ExistingCosmosUID
-	}
-	return Must(oldResourceIDToCosmosID(o.ResourceID))
+	return Must(ResourceIDToCosmosID(o.ResourceID))
 }
 
 func (o *CosmosMetadata) GetPartitionKey() string {
@@ -92,23 +89,6 @@ type CosmosMetadataAccessor interface {
 	SetEtag(cosmosETag azcore.ETag)
 }
 
-func oldResourceIDToCosmosID(resourceID *azcorearm.ResourceID) (string, error) {
-	if resourceID == nil {
-		return "", errors.New("resource ID is nil")
-	}
-	return oldResourceIDStringToCosmosID(resourceID.String())
-}
-
-func oldResourceIDStringToCosmosID(resourceID string) (string, error) {
-	if len(resourceID) == 0 {
-		return "", errors.New("resource ID is empty")
-	}
-	// cosmos uses a REST API, which means that IDs that contain slashes cause problems with URL handling.
-	// We chose | because that is a delimiter that is not allowed inside of an ARM resource ID because it is a separator
-	// for multiple resource IDs.
-	return strings.ReplaceAll(strings.ToLower(resourceID), "/", "|"), nil
-}
-
 func ResourceIDToCosmosID(resourceID *azcorearm.ResourceID) (string, error) {
 	if resourceID == nil {
 		return "", errors.New("resource ID is nil")
@@ -122,7 +102,7 @@ func ResourceIDStringToCosmosID(resourceID string) (string, error) {
 	}
 
 	// we predictably hash the values because there are length limitations on Azure.
-	return uuid.NewSHA1(namespaceUUID, []byte(strings.ToLower(resourceID))).String(), nil
+	return uuid.NewSHA1(cosmosDocIDUUIDNamespace, []byte(strings.ToLower(resourceID))).String(), nil
 }
 
 // DeepCopyResourceID creates a true deep copy of an azcorearm.ResourceID by

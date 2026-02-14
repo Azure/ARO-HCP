@@ -4,7 +4,6 @@
 	"_rid": "Vo8AALAS0MoKAAAAAAAAAA==",
 	"_self": "dbs/Vo8AAA==/colls/Vo8AALAS0Mo=/docs/Vo8AALAS0MoKAAAAAAAAAA==/",
 	"_ts": 1768329143,
-	"id": "|subscriptions|6b690bec-0c16-4ecb-8f67-781caf40bba7",
 	"partitionKey": "6b690bec-0c16-4ecb-8f67-781caf40bba7",
 	"properties": {
 		"properties": null,
@@ -12,5 +11,6 @@
 		"resourceId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7",
 		"state": "Registered"
 	},
-	"resourceType": "Microsoft.Resources/subscriptions"
+	"resourceType": "Microsoft.Resources/subscriptions",
+	"resourceID": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7"
 }

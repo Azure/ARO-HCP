@@ -73,5 +73,6 @@
 		"resourceId": "/subscriptions/4fa75980-6637-4157-9726-84d878a62e83/resourceGroups/shrillEffectiveness/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/lavishUnhappiness",
 		"systemData": {}
 	},
-	"resourceType": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters"
+	"resourceType": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters",
+	"resourceID": "/subscriptions/4fa75980-6637-4157-9726-84d878a62e83/resourceGroups/shrillEffectiveness/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/lavishUnhappiness"
 }
