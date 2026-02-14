@@ -40,6 +40,7 @@ func TestGeneratedHTML(t *testing.T) {
 	opts := Options{
 		completedOptions: &completedOptions{
 			TimingInputDir: "../testdata/output",
+			ADXClusterName: defaultADXClusterName,
 			Steps: []pipeline.NodeInfo{
 				{
 					Identifier: pipeline.Identifier{
@@ -56,6 +57,27 @@ func TestGeneratedHTML(t *testing.T) {
 										ResourceType:  "Microsoft.ContainerService/managedClusters",
 										Name:          "hcp-underlay-prow-usw3j688-svc-1",
 										ResourceGroup: "hcp-underlay-prow-usw3j688-svc-1",
+									},
+								},
+							},
+						},
+					},
+				},
+				{
+					Identifier: pipeline.Identifier{
+						ServiceGroup:  "Microsoft.Azure.ARO.HCP.Management.Infra",
+						ResourceGroup: "management",
+						Step:          "cluster",
+					},
+					Details: &pipeline.ExecutionDetails{
+						ARM: &pipeline.ARMExecutionDetails{
+							Operations: []pipeline.Operation{
+								{
+									OperationType: "Create",
+									Resource: &pipeline.Resource{
+										ResourceType:  "Microsoft.ContainerService/managedClusters",
+										Name:          "hcp-underlay-prow-usw3j688-mgmt-1",
+										ResourceGroup: "hcp-underlay-prow-usw3j688-mgmt-1",
 									},
 								},
 							},
