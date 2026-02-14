@@ -750,6 +750,7 @@ func getBaseCSClusterBuilder(updating bool) *arohcpv1alpha1.ClusterBuilder {
 			MaxPodGracePeriod(600).
 			ResourceLimits(arohcpv1alpha1.NewAutoscalerResourceLimits().
 				MaxNodesTotal(0))).
+		Properties(map[string]string{}).
 		API(clusterAPIBuilder.CIDRBlockAccess(arohcpv1alpha1.NewCIDRBlockAccess().
 			Allow(arohcpv1alpha1.NewCIDRBlockAllowAccess().
 				Mode(csCIDRBlockAllowAccessModeAllowAll))))
@@ -757,15 +758,15 @@ func getBaseCSClusterBuilder(updating bool) *arohcpv1alpha1.ClusterBuilder {
 
 func TestBuildCSCluster(t *testing.T) {
 	testCases := []struct {
-		name              string
-		hcpCluster        *api.HCPOpenShiftCluster
-		updating          bool
-		expectedCSCluster *arohcpv1alpha1.ClusterBuilder
-		expectedError     string
+		name                     string
+		hcpCluster               *api.HCPOpenShiftCluster
+		requiredProperties       map[string]string
+		oldClusterServiceCluster *arohcpv1alpha1.Cluster
+		expectedCSCluster        *arohcpv1alpha1.ClusterBuilder
+		expectedError            string
 	}{
 		{
-			name:     "CREATE - sets CIDRBlockAccess with nil AuthorizedCIDRs",
-			updating: false,
+			name: "CREATE - sets CIDRBlockAccess with nil AuthorizedCIDRs",
 			hcpCluster: &api.HCPOpenShiftCluster{
 				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
 					API: api.CustomerAPIProfile{
@@ -776,8 +777,7 @@ func TestBuildCSCluster(t *testing.T) {
 			expectedCSCluster: getBaseCSClusterBuilder(false),
 		},
 		{
-			name:     "CREATE - rejects empty AuthorizedCIDRs",
-			updating: false,
+			name: "CREATE - rejects empty AuthorizedCIDRs",
 			hcpCluster: func() *api.HCPOpenShiftCluster {
 				cluster := api.MinimumValidClusterTestCase()
 				cluster.CustomerProperties.API.AuthorizedCIDRs = make([]string, 0)
@@ -786,8 +786,7 @@ func TestBuildCSCluster(t *testing.T) {
 			expectedError: "AuthorizedCIDRs cannot be an empty list",
 		},
 		{
-			name:     "CREATE - sets CIDRBlockAccess with non-empty AuthorizedCIDRs",
-			updating: false,
+			name: "CREATE - sets CIDRBlockAccess with non-empty AuthorizedCIDRs",
 			hcpCluster: &api.HCPOpenShiftCluster{
 				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
 					API: api.CustomerAPIProfile{
@@ -805,8 +804,14 @@ func TestBuildCSCluster(t *testing.T) {
 							Values("10.0.0.0/8", "192.168.0.0/16")))),
 		},
 		{
-			name:     "UPDATE - sets CIDRBlockAccess with nil AuthorizedCIDRs",
-			updating: true,
+			name: "UPDATE - sets CIDRBlockAccess with nil AuthorizedCIDRs",
+			oldClusterServiceCluster: func() *arohcpv1alpha1.Cluster {
+				c, err := arohcpv1alpha1.NewCluster().Build()
+				if err != nil {
+					panic(err)
+				}
+				return c
+			}(),
 			hcpCluster: &api.HCPOpenShiftCluster{
 				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
 					API: api.CustomerAPIProfile{
@@ -817,8 +822,14 @@ func TestBuildCSCluster(t *testing.T) {
 			expectedCSCluster: getBaseCSClusterBuilder(true),
 		},
 		{
-			name:     "UPDATE - rejects empty AuthorizedCIDRs",
-			updating: true,
+			name: "UPDATE - rejects empty AuthorizedCIDRs",
+			oldClusterServiceCluster: func() *arohcpv1alpha1.Cluster {
+				c, err := arohcpv1alpha1.NewCluster().Build()
+				if err != nil {
+					panic(err)
+				}
+				return c
+			}(),
 			hcpCluster: func() *api.HCPOpenShiftCluster {
 				cluster := api.MinimumValidClusterTestCase()
 				cluster.CustomerProperties.API.AuthorizedCIDRs = make([]string, 0)
@@ -827,8 +838,14 @@ func TestBuildCSCluster(t *testing.T) {
 			expectedError: "AuthorizedCIDRs cannot be an empty list",
 		},
 		{
-			name:     "UPDATE - sets only CIDRBlockAccess with non-empty AuthorizedCIDRs",
-			updating: true,
+			name: "UPDATE - sets only CIDRBlockAccess with non-empty AuthorizedCIDRs",
+			oldClusterServiceCluster: func() *arohcpv1alpha1.Cluster {
+				c, err := arohcpv1alpha1.NewCluster().Build()
+				if err != nil {
+					panic(err)
+				}
+				return c
+			}(),
 			hcpCluster: &api.HCPOpenShiftCluster{
 				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
 					API: api.CustomerAPIProfile{
@@ -842,6 +859,147 @@ func TestBuildCSCluster(t *testing.T) {
 						Allow(arohcpv1alpha1.NewCIDRBlockAllowAccess().
 							Mode(csCIDRBlockAllowAccessModeAllowList).
 							Values("172.16.0.0/12", "203.0.113.0/24")))),
+		},
+		{
+			name: "CREATE - sets experimental feature properties to true",
+			hcpCluster: &api.HCPOpenShiftCluster{
+				ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
+					ExperimentalFeatures: api.ExperimentalFeatures{
+						ControlPlaneAvailability: api.SingleReplicaControlPlane,
+						ControlPlanePodSizing:    api.MinimalControlPlanePodSizing,
+					},
+				},
+			},
+			expectedCSCluster: getBaseCSClusterBuilder(false).
+				Properties(map[string]string{
+					"hosted_cluster_single_replica": "true",
+					"hosted_cluster_size_override":  "true",
+				}),
+		},
+		{
+			name: "CREATE - sets only single-replica",
+			hcpCluster: &api.HCPOpenShiftCluster{
+				ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
+					ExperimentalFeatures: api.ExperimentalFeatures{
+						ControlPlaneAvailability: api.SingleReplicaControlPlane,
+					},
+				},
+			},
+			expectedCSCluster: getBaseCSClusterBuilder(false).
+				Properties(map[string]string{
+					"hosted_cluster_single_replica": "true",
+				}),
+		},
+		{
+			name: "UPDATE - tag removal clears previously set properties",
+			oldClusterServiceCluster: func() *arohcpv1alpha1.Cluster {
+				c, err := arohcpv1alpha1.NewCluster().Properties(map[string]string{
+					"hosted_cluster_single_replica": "true",
+					"hosted_cluster_size_override":  "true",
+				}).Build()
+				if err != nil {
+					panic(err)
+				}
+				return c
+			}(),
+			hcpCluster: &api.HCPOpenShiftCluster{},
+			expectedCSCluster: getBaseCSClusterBuilder(true).
+				Properties(map[string]string{}),
+		},
+		{
+			name: "UPDATE - partial feature disablement keeps remaining feature",
+			oldClusterServiceCluster: func() *arohcpv1alpha1.Cluster {
+				c, err := arohcpv1alpha1.NewCluster().Properties(map[string]string{
+					"hosted_cluster_single_replica": "true",
+					"hosted_cluster_size_override":  "true",
+				}).Build()
+				if err != nil {
+					panic(err)
+				}
+				return c
+			}(),
+			hcpCluster: &api.HCPOpenShiftCluster{
+				ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
+					ExperimentalFeatures: api.ExperimentalFeatures{
+						ControlPlanePodSizing: api.MinimalControlPlanePodSizing,
+					},
+				},
+			},
+			expectedCSCluster: getBaseCSClusterBuilder(true).
+				Properties(map[string]string{
+					"hosted_cluster_size_override": "true",
+				}),
+		},
+		{
+			name: "UPDATE - preserves non-experimental old properties",
+			oldClusterServiceCluster: func() *arohcpv1alpha1.Cluster {
+				c, err := arohcpv1alpha1.NewCluster().Properties(map[string]string{
+					"provisioner_noop_provision":    "true",
+					"provisioner_noop_deprovision":  "true",
+					"hosted_cluster_single_replica": "true",
+				}).Build()
+				if err != nil {
+					panic(err)
+				}
+				return c
+			}(),
+			hcpCluster: &api.HCPOpenShiftCluster{
+				ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
+					ExperimentalFeatures: api.ExperimentalFeatures{
+						ControlPlaneAvailability: api.SingleReplicaControlPlane,
+					},
+				},
+			},
+			expectedCSCluster: getBaseCSClusterBuilder(true).
+				Properties(map[string]string{
+					"provisioner_noop_provision":    "true",
+					"provisioner_noop_deprovision":  "true",
+					"hosted_cluster_single_replica": "true",
+				}),
+		},
+		{
+			name: "CREATE - required properties merged with experimental features",
+			requiredProperties: map[string]string{
+				"provision_shard_id":           "test-shard",
+				"provisioner_noop_provision":   "true",
+				"provisioner_noop_deprovision": "true",
+			},
+			hcpCluster: &api.HCPOpenShiftCluster{
+				ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
+					ExperimentalFeatures: api.ExperimentalFeatures{
+						ControlPlaneAvailability: api.SingleReplicaControlPlane,
+						ControlPlanePodSizing:    api.MinimalControlPlanePodSizing,
+					},
+				},
+			},
+			expectedCSCluster: getBaseCSClusterBuilder(false).
+				Properties(map[string]string{
+					"provision_shard_id":            "test-shard",
+					"provisioner_noop_provision":    "true",
+					"provisioner_noop_deprovision":  "true",
+					"hosted_cluster_single_replica": "true",
+					"hosted_cluster_size_override":  "true",
+				}),
+		},
+		{
+			name: "CREATE - experimental features override conflicting required properties",
+			requiredProperties: map[string]string{
+				"hosted_cluster_single_replica": "false",
+				"hosted_cluster_size_override":  "false",
+			},
+			hcpCluster: &api.HCPOpenShiftCluster{
+				ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
+					ExperimentalFeatures: api.ExperimentalFeatures{
+						ControlPlaneAvailability: api.SingleReplicaControlPlane,
+						ControlPlanePodSizing:    api.MinimalControlPlanePodSizing,
+					},
+				},
+			},
+			expectedCSCluster: getBaseCSClusterBuilder(false).
+				Properties(map[string]string{
+					"hosted_cluster_single_replica": "true",
+					"hosted_cluster_size_override":  "true",
+				}),
 		},
 	}
 
@@ -865,7 +1023,7 @@ func TestBuildCSCluster(t *testing.T) {
 			require.NoError(t, err)
 
 			// Build actual CS cluster
-			actualClusterBuilder, actualAutoscalerBuilder, err := BuildCSCluster(resourceID, requestHeader, hcpCluster, tc.updating)
+			actualClusterBuilder, actualAutoscalerBuilder, err := BuildCSCluster(resourceID, requestHeader, hcpCluster, tc.requiredProperties, tc.oldClusterServiceCluster)
 
 			if tc.expectedError != "" {
 				require.Error(t, err)

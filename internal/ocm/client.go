@@ -35,6 +35,17 @@ const (
 	OpenShift420Patch = "8"
 )
 
+// CS cluster property keys and values used in the Cluster Service API.
+const (
+	CSPropertyProvisionShardID = "provision_shard_id"
+	CSPropertyNoopProvision    = "provisioner_noop_provision"
+	CSPropertyNoopDeprovision  = "provisioner_noop_deprovision"
+	CSPropertySingleReplica    = "hosted_cluster_single_replica"
+	CSPropertySizeOverride     = "hosted_cluster_size_override"
+
+	CSPropertyEnabled = "true"
+)
+
 type ClusterServiceClientSpec interface {
 	// GetCluster sends a GET request to fetch a cluster from Cluster Service.
 	GetCluster(ctx context.Context, internalID InternalID) (*arohcpv1alpha1.Cluster, error)
@@ -125,41 +136,12 @@ type ClusterServiceClientSpec interface {
 type clusterServiceClient struct {
 	// Conn is an ocm-sdk-go connection to Cluster Service
 	conn *sdk.Connection
-
-	// ProvisionShardID sets the provision_shard_id property for all cluster requests to Cluster Service, which pins all
-	// cluster requests to Cluster Service to a specific shard during testing
-	provisionShardID string
-
-	// ProvisionerNoOpProvision sets the provisioner_noop_provision property for all cluster requests to Cluster
-	// Service, which short-circuits the full provision flow during testing
-	provisionerNoOpProvision bool
-
-	// ProvisionerNoOpDeprovision sets the provisioner_noop_deprovision property for all cluster requests to Cluster
-	// Service, which short-circuits the full deprovision flow during testing
-	provisionerNoOpDeprovision bool
 }
 
-func NewClusterServiceClient(conn *sdk.Connection, provisionShardID string, provisionerNoOpProvision, provisionerNoOpDeprovision bool) ClusterServiceClientSpec {
+func NewClusterServiceClient(conn *sdk.Connection) ClusterServiceClientSpec {
 	return &clusterServiceClient{
-		conn:                       conn,
-		provisionShardID:           provisionShardID,
-		provisionerNoOpProvision:   provisionerNoOpProvision,
-		provisionerNoOpDeprovision: provisionerNoOpDeprovision,
+		conn: conn,
 	}
-}
-
-func (csc *clusterServiceClient) addProperties(builder *arohcpv1alpha1.ClusterBuilder) *arohcpv1alpha1.ClusterBuilder {
-	additionalProperties := map[string]string{}
-	if csc.provisionShardID != "" {
-		additionalProperties["provision_shard_id"] = csc.provisionShardID
-	}
-	if csc.provisionerNoOpProvision {
-		additionalProperties["provisioner_noop_provision"] = "true"
-	}
-	if csc.provisionerNoOpDeprovision {
-		additionalProperties["provisioner_noop_deprovision"] = "true"
-	}
-	return builder.Properties(additionalProperties)
 }
 
 // resolveClusterLinks replaces link objects with full objects that are
@@ -262,7 +244,7 @@ func (csc *clusterServiceClient) PostCluster(ctx context.Context, clusterBuilder
 	if autoscalerBuilder != nil {
 		clusterBuilder.Autoscaler(autoscalerBuilder)
 	}
-	cluster, err := csc.addProperties(clusterBuilder).Build()
+	cluster, err := clusterBuilder.Build()
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}
@@ -278,7 +260,7 @@ func (csc *clusterServiceClient) PostCluster(ctx context.Context, clusterBuilder
 }
 
 func (csc *clusterServiceClient) UpdateCluster(ctx context.Context, internalID InternalID, builder *arohcpv1alpha1.ClusterBuilder) (*arohcpv1alpha1.Cluster, error) {
-	cluster, err := csc.addProperties(builder).Build()
+	cluster, err := builder.Build()
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}

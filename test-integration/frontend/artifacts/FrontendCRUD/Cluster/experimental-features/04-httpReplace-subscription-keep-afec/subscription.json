@@ -1,0 +1,13 @@
+{
+	"resourceId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7",
+	"state": "Registered",
+	"registrationDate": "2025-12-19T19:53:15+00:00",
+	"properties": {
+		"registeredFeatures": [
+			{
+				"name": "Microsoft.RedHatOpenShift/ExperimentalReleaseFeatures",
+				"state": "Registered"
+			}
+		]
+	}
+}

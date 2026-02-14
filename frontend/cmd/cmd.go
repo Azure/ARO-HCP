@@ -221,16 +221,11 @@ func (opts *FrontendOpts) Run() error {
 	}
 
 	csClient := ocm.NewClusterServiceClientWithTracing(
-		ocm.NewClusterServiceClient(
-			conn,
-			opts.clusterServiceProvisionShard,
-			opts.clusterServiceNoopDeprovision,
-			opts.clusterServiceNoopDeprovision,
-		),
+		ocm.NewClusterServiceClient(conn),
 		utils.TracerName,
 	)
 
-	f := frontend.NewFrontend(logger, listener, metricsListener, prometheus.DefaultRegisterer, dbClient, csClient, auditClient, opts.location)
+	f := frontend.NewFrontend(logger, listener, metricsListener, prometheus.DefaultRegisterer, dbClient, csClient, auditClient, opts.location, opts.clusterServiceProvisionShard, opts.clusterServiceNoopProvision, opts.clusterServiceNoopDeprovision)
 
 	runErrCh := make(chan error)
 	go func() {

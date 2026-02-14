@@ -24,8 +24,10 @@ import (
 
 	"k8s.io/apimachinery/pkg/util/rand"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 
+	"github.com/Azure/ARO-HCP/internal/api"
 	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 )
 
@@ -58,6 +60,7 @@ type ClusterParams struct {
 	ChannelGroup                  string
 	AuthorizedCIDRs               []*string
 	Autoscaling                   *hcpsdk20240610preview.ClusterAutoscalingProfile
+	Tags                          map[string]*string
 }
 
 type NetworkConfig struct {
@@ -99,6 +102,11 @@ func NewDefaultClusterParams() ClusterParams {
 		APIVisibility:               "Public",
 		ImageRegistryState:          "Enabled",
 		ChannelGroup:                "stable",
+		// NOTE: The E2E subscription must have the ExperimentalReleaseFeatures AFEC
+		// registered for this tag to be honored.
+		Tags: map[string]*string{
+			api.TagClusterSizeOverride: to.Ptr(string(api.MinimalControlPlanePodSizing)),
+		},
 	}
 }
 
