@@ -936,7 +936,7 @@ clouds:
       # DNS
       dns:
         baseDnsZoneRG: global
-        cxParentZoneName: hcp.osadev.cloud
+        cxParentZoneName: hcptmp.osadev.cloud
         svcParentZoneName: hcpsvc.osadev.cloud
         parentZoneName: osadev.cloud
         globalCertificatesDomain: hcp-global.osadev.cloud
