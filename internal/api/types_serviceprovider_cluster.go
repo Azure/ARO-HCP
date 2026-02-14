@@ -16,6 +16,8 @@ package api
 
 import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+
+	"github.com/openshift/hypershift/api/hypershift/v1beta1"
 )
 
 const (
@@ -36,6 +38,8 @@ type ServiceProviderCluster struct {
 	// at which point we will stop using properties.resourceId in our queries. That will be about a month from now.
 	ResourceID azcorearm.ResourceID `json:"resourceId"`
 
+	Spec ServiceProviderClusterSpec `json:"spec"`
+
 	LoadBalancerResourceID *azcorearm.ResourceID `json:"loadBalancerResourceID,omitempty"`
 
 	// Validations is a list of conditions that tracks the status of each cluster validation.
@@ -44,4 +48,12 @@ type ServiceProviderCluster struct {
 	// The Condition Reason and Message are used to provide more details about the validation status.
 	// The Condition LastTransitionTime is used to track the last time the validation transitioned from one status to another.
 	Validations []Condition `json:"validations,omitempty"`
+}
+
+type ServiceProviderClusterSpec struct {
+	// DesiredHostedCluster is the HostedCluster that we want to exist on the management cluster.
+	// We will only explicitly set the fields we care about, but serialization may store additional empty fields.
+	// Once this contains the critical values, we will create it on management clusters.
+	// We may or may not choose to store the actual state in status.  We may choose to store the actual state independently.
+	DesiredHostedCluster *v1beta1.HostedCluster `json:"desiredHostedCluster,omitempty"`
 }
