@@ -422,6 +422,9 @@ func (c *HcpOpenShiftCluster) ConvertToInternal() (*api.HCPOpenShiftCluster, err
 			if c.Properties.Etcd != nil {
 				normalizeEtcd(c.Properties.Etcd, &out.CustomerProperties.Etcd)
 			}
+			if c.Properties.FipsEnabled != nil {
+				out.CustomerProperties.FipsEnabled = *c.Properties.FipsEnabled
+			}
 		}
 	}
 
