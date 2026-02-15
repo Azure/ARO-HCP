@@ -31,6 +31,7 @@ The tool will be available on SAW devices similar to how the `oc` utility is acc
 
 - `hcpctl mc list` - List available management clusters
 - `hcpctl mc breakglass <cluster-name>` - Get access to management cluster
+- `hcpctl mc dump-crs <cluster-name> --hosted-cluster-namespace=<ns>` - Dump Custom Resources for a HostedCluster
 
 ### Hosted Control Plane Operations (`hcp`)
 
@@ -85,6 +86,16 @@ hcpctl mc breakglass int-usw3-mgmt-1
 # Generate kubeconfig only (no shell)
 hcpctl mc breakglass int-usw3-mgmt-1 --output /tmp/mc.kubeconfig --no-shell
 KUBECONFIG=/tmp/mc.kubeconfig kubectl get ns
+```
+
+### Dump Custom Resources for a HostedCluster
+
+```bash
+# Dump all CRs for a HostedCluster namespace to current directory
+hcpctl mc dump-crs int-usw3-mgmt-1 --hosted-cluster-namespace aro-12345678-abcd-1234-5678-123456789abc
+
+# Dump CRs to a specific directory
+hcpctl mc dump-crs int-usw3-mgmt-1 --hosted-cluster-namespace aro-12345678-abcd-1234-5678-123456789abc -o /tmp/hcp-debug
 ```
 
 ### List Hosted Control Planes
