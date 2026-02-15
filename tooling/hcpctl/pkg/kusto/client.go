@@ -111,10 +111,25 @@ func (c *Client) ExecutePreconfiguredQuery(ctx context.Context, query *Configura
 	// Process the first table (primary result)
 	primaryResult := <-dataset.Tables()
 
+	err = primaryResult.Err()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get primary result: %w", err)
+	}
+
+	if primaryResult.Table() == nil {
+		return nil, fmt.Errorf("primary result is nil")
+	}
+
 	columsSet := false
 	for row := range primaryResult.Table().Rows() {
 		row := row.Row()
-		if !columsSet {
+		if row == nil {
+			if query.Unlimited {
+				logger.Error(fmt.Errorf("Query is unlimited and result is nil, most likely a serverside error occured. Try rerunning the query with limits"), "error while getting result")
+			}
+			continue
+		}
+		if !columsSet && row.Columns() != nil {
 			columns = row.Columns()
 			columsSet = true
 		}
