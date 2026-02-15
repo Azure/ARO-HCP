@@ -89,6 +89,11 @@ for f in \
       "${f}"
   done
 
+  # Fix pointer-type semver.Version fields (github.com/blang/semver/v4).
+  sed -i \
+    '/\*out = new(v4\.Version)/{n;s/(\*in)\.DeepCopyInto(\*out)/**out = **in/;}' \
+    "${f}"
+
   # Fix "any" fields: deepcopy-gen generates .DeepCopyany() which does not
   # exist on interface{}. The initial *out = *in already performs a shallow
   # copy so we just reassign the value.
