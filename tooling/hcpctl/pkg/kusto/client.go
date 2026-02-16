@@ -125,7 +125,7 @@ func (c *Client) ExecutePreconfiguredQuery(ctx context.Context, query *Configura
 		row := row.Row()
 		if row == nil {
 			if query.Unlimited {
-				logger.Error(fmt.Errorf("Query is unlimited and result is nil, most likely a serverside error occured. Try rerunning the query with limits"), "error while getting result")
+				logger.Error(fmt.Errorf("query is unlimited and result is nil, most likely a serverside error occured. Try rerunning the query with limits"), "error while getting result")
 			}
 			continue
 		}
