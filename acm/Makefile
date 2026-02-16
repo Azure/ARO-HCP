@@ -108,7 +108,7 @@ push-charts:
 		$(SKOPEO) inspect --raw "docker://$$REPO:$$TAG" | sha256sum | awk '{print "sha256:"$$1}' > $(BUILD_DIR)/mce_digest; \
 	else \
 		echo "Pushing $$PKG..."; \
-		# $(HELM) push $$PKG "oci://${REGISTRY}/helm" $(HELM_OPTS) 2>&1 | tee /dev/tty | grep "Digest:" | awk '{print $$2}' | tr -d '\r' > $(BUILD_DIR)/mce_digest; \
+		$(HELM) push $$PKG "oci://${REGISTRY}/helm" $(HELM_OPTS) 2>&1 | tee /dev/tty | grep "Digest:" | awk '{print $$2}' | tr -d '\r' > $(BUILD_DIR)/mce_digest; \
 	fi
 
 
@@ -121,7 +121,7 @@ push-charts:
 		$(SKOPEO) inspect --raw "docker://$$REPO:$$TAG" | sha256sum | awk '{print "sha256:"$$1}' > $(BUILD_DIR)/crds_digest; \
 	else \
 		echo "Pushing $$PKG..."; \
-		# $(HELM) push $$PKG "oci://${REGISTRY}/helm" $(HELM_OPTS) 2>&1 | tee /dev/tty | grep "Digest:" | awk '{print $$2}' | tr -d '\r' > $(BUILD_DIR)/crds_digest; \
+		$(HELM) push $$PKG "oci://${REGISTRY}/helm" $(HELM_OPTS) 2>&1 | tee /dev/tty | grep "Digest:" | awk '{print $$2}' | tr -d '\r' > $(BUILD_DIR)/crds_digest; \
 	fi
 
 	# 3. Config Chart
@@ -133,8 +133,9 @@ push-charts:
 		$(SKOPEO) inspect --raw "docker://$$REPO:$$TAG" | sha256sum | awk '{print "sha256:"$$1}' > $(BUILD_DIR)/config_digest; \
 	else \
 		echo "Pushing $$PKG..."; \
-		# $(HELM) push $$PKG "oci://${REGISTRY}/helm" $(HELM_OPTS) 2>&1 | tee /dev/tty | grep "Digest:" | awk '{print $$2}' | tr -d '\r' > $(BUILD_DIR)/config_digest; \
+		$(HELM) push $$PKG "oci://${REGISTRY}/helm" $(HELM_OPTS) 2>&1 | tee /dev/tty | grep "Digest:" | awk '{print $$2}' | tr -d '\r' > $(BUILD_DIR)/config_digest; \
 	fi
+	$(MAKE) clean
 
 .PHONY: build-and-push
 build-and-push: 
