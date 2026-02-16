@@ -692,7 +692,7 @@ type NodePoolPropertiesUpdate struct {
 	Taints []*Taint
 
 	// OpenShift version for the nodepool
-	Version *NodePoolVersionProfile
+	Version *NodePoolVersionProfileUpdate
 }
 
 // NodePoolUpdate - Concrete tracked resource types can be created by aliasing this type using a specific property type.
@@ -721,6 +721,19 @@ type NodePoolUpdate struct {
 
 // NodePoolVersionProfile - Versions represents an OpenShift version.
 type NodePoolVersionProfile struct {
+	// REQUIRED; ID is the unique identifier of the version.
+	ID *string
+
+	// ChannelGroup is the name of the set to which this version belongs. Each version belongs to only a single set.
+	// If not specified, the default value is 'stable'.
+	// Note: The default value is not declared in the API specification because of a TypeSpec bug with updatable fields. The default
+	// value will be declared in a future API version once the TypeSpec bug is
+	// fixed. https://github.com/Azure/typespec-azure/issues/1586
+	ChannelGroup *string
+}
+
+// NodePoolVersionProfileUpdate - Versions represents an OpenShift version.
+type NodePoolVersionProfileUpdate struct {
 	// ChannelGroup is the name of the set to which this version belongs. Each version belongs to only a single set.
 	// If not specified, the default value is 'stable'.
 	// Note: The default value is not declared in the API specification because of a TypeSpec bug with updatable fields. The default
