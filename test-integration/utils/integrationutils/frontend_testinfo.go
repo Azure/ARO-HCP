@@ -30,6 +30,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/utils/apihelpers"
 	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/v20240610preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 )
 
@@ -120,7 +121,7 @@ func resourceIDToDir(resourceID *azcorearm.ResourceID) string {
 		)
 
 	default:
-		if resourceID.Parent.ResourceType.String() == "Microsoft.Resources/resourceGroups" {
+		if apihelpers.ResourceTypeEqual(resourceID.Parent.ResourceType, azcorearm.ResourceGroupResourceType) {
 			return filepath.Join(
 				startingDir,
 				resourceID.ResourceType.String(),
