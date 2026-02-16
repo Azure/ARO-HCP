@@ -1,6 +1,6 @@
 module github.com/Azure/ARO-HCP/tooling/hcpctl
 
-go 1.25.0
+go 1.25.7
 
 require (
 	github.com/Azure/ARO-Tools v0.0.0-20260210222404-30605e5b1ccc

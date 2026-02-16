@@ -1,6 +1,6 @@
 module github.com/Azure/ARO-HCP/test-integration
 
-go 1.25.0
+go 1.25.7
 
 require (
 	dario.cat/mergo v1.0.1

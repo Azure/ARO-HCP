@@ -1,6 +1,6 @@
 module github.com/Azure/ARO-HCP/admin/client
 
-go 1.25.0
+go 1.25.7
 
 require (
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.20.0

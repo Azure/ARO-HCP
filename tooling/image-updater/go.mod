@@ -1,6 +1,6 @@
 module github.com/Azure/ARO-HCP/tooling/image-updater
 
-go 1.25.0
+go 1.25.7
 
 require (
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.13.1
