@@ -10,6 +10,9 @@
 				"sizeGiB": 65
 			},
 			"vmSize": "different"
+		},
+		"version": {
+			"id": "4.20.1"
 		}
 	},
 	"type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/nodePools"
