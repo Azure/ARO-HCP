@@ -124,13 +124,13 @@ module svcPublicCaching '../modules/acr/public-cache.bicep' = {
       }
       {
         ruleName: 'quay-konveyor-velero'
-        sourceRepo: 'quay.io/konveyor/velero'
-        targetRepo: 'quay-cache/konveyor/velero'
+        sourceRepo: 'quay.io/konveyor/velero/*'
+        targetRepo: 'quay-cache/konveyor/velero/*'
       }
       {
         ruleName: 'quay-konveyor-velero-plugin-azure'
-        sourceRepo: 'quay.io/konveyor/velero-plugin-for-microsoft-azure'
-        targetRepo: 'quay-cache/konveyor/velero-plugin-for-microsoft-azure'
+        sourceRepo: 'quay.io/konveyor/velero-plugin-for-microsoft-azure/*'
+        targetRepo: 'quay-cache/konveyor/velero-plugin-for-microsoft-azure/*'
       }
     ]
   }
