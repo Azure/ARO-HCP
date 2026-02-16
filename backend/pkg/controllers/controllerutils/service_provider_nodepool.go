@@ -24,6 +24,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/utils"
+	"github.com/Azure/ARO-HCP/internal/utils/apihelpers"
 )
 
 // newInitialServiceProviderNodePool returns a new ServiceProviderNodePool with
@@ -46,7 +47,7 @@ func newInitialServiceProviderNodePool(npResourceID *azcorearm.ResourceID) *api.
 func GetOrCreateServiceProviderNodePool(
 	ctx context.Context, dbClient database.DBClient, nodePoolResourceID *azcorearm.ResourceID,
 ) (*api.ServiceProviderNodePool, error) {
-	if nodePoolResourceID.ResourceType.String() != api.NodePoolResourceType.String() {
+	if !apihelpers.ResourceTypeEqual(nodePoolResourceID.ResourceType, api.NodePoolResourceType) {
 		return nil, utils.TrackError(fmt.Errorf("expected resource type %s, got %s", api.NodePoolResourceType, nodePoolResourceID.ResourceType))
 	}
 
