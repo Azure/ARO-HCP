@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: kas-monitor-controller-metrics
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "deploy.labels" . | nindent 4 }}
+    app.kubernetes.io/name: kas-monitor-controller
+spec:
+  selector:
+    {{- include "deploy.selectorLabels" . | nindent 4 }}
+  ports:
+  - name: {{ .Values.service.name }}
+    port: {{ .Values.service.port }}
+    targetPort: metrics
+    protocol: TCP
+  type: {{ .Values.service.type }}

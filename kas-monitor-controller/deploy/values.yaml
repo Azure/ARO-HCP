@@ -1,0 +1,65 @@
+# Default values for kas-monitor-controller
+# This is a YAML-formatted file.
+
+# Image configuration - templated from config.yaml
+image: '{{ .acr.svc.name }}.azurecr.io/{{ .kasMonitorController.image.repository }}@{{ .kasMonitorController.image.digest }}'
+imagePullPolicy: IfNotPresent
+
+replicaCount: 1
+
+# Controller configuration
+controller:
+  metricsBindAddress: ":8080"
+  healthProbeBindAddress: ":8081"
+  leaderElection: true
+  logDevMode: false
+
+# Service account configuration
+serviceAccount:
+  create: true
+  name: kas-monitor-controller
+
+# Resource limits and requests
+resources:
+  limits:
+    cpu: 200m
+    memory: 256Mi
+  requests:
+    cpu: 100m
+    memory: 128Mi
+
+# Security context
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+    - ALL
+  runAsNonRoot: true
+
+# Service for metrics endpoint
+service:
+  type: ClusterIP
+  port: 8080
+  name: metrics
+
+# Node selector - run on infra nodes
+nodeSelector:
+  aro-hcp.azure.com/role: infra
+
+# Tolerations for infra nodes
+tolerations:
+- effect: NoSchedule
+  key: infra
+  operator: "Equal"
+  value: "true"
+
+# Affinity rules
+affinity:
+  nodeAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      nodeSelectorTerms:
+      - matchExpressions:
+        - key: aro-hcp.azure.com/role
+          operator: In
+          values:
+          - infra
