@@ -287,11 +287,11 @@ defaults:
   velero:
     server:
       registry: quay.io
-      repository: konveyor/velero
+      repository: quay-cache/konveyor/velero
       digest: sha256:a23111a98c9a7e99ce7a36e2a9288614dcfe13cd5ec9ac2bcf52c849772b160a
     azurePlugin:
       registry: quay.io
-      repository: konveyor/velero-plugin-for-microsoft-azure
+      repository: quay-cache/konveyor/velero-plugin-for-microsoft-azure
       digest: sha256:b2db5f09da514e817a74c992dcca5f90b77c2ab0b2797eba947d224271d6070e
     hypershiftPlugin:
       registry: quay.io
