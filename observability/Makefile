@@ -2,10 +2,6 @@ deploy:
 	make -C ./tracing deploy
 .PHONY: deploy
 
-grafana:
-	python3 grafana/grafana.py
-.PHONY: grafana
-
 kubernetesControlPlane-prometheusRule:
 	PROMETHEUS_OPERATOR_REF=$(shell yq -r '.prometheusRules.prometheusOperatorVersion' observability.yaml) && \
 	wget --quiet --output-document=alerts/kubernetesControlPlane-prometheusRule.yaml \
