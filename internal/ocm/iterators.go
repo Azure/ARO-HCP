@@ -44,6 +44,11 @@ type ExternalAuthListIterator interface {
 	GetError() error
 }
 
+type ControlPlaneUpgradePolicyListIterator interface {
+	Items(ctx context.Context) iter.Seq[*arohcpv1alpha1.ControlPlaneUpgradePolicy]
+	GetError() error
+}
+
 type simpleListIterator[T any] struct {
 	clusters []*T
 	err      error
@@ -65,6 +70,13 @@ func NewSimpleNodePoolListIterator(objs []*arohcpv1alpha1.NodePool, err error) N
 
 func NewSimpleExternalAuthListIterator(objs []*arohcpv1alpha1.ExternalAuth, err error) ExternalAuthListIterator {
 	return &simpleListIterator[arohcpv1alpha1.ExternalAuth]{
+		clusters: objs,
+		err:      err,
+	}
+}
+
+func NewSimpleControlPlaneUpgradePolicyListIterator(objs []*arohcpv1alpha1.ControlPlaneUpgradePolicy, err error) ControlPlaneUpgradePolicyListIterator {
+	return &simpleListIterator[arohcpv1alpha1.ControlPlaneUpgradePolicy]{
 		clusters: objs,
 		err:      err,
 	}
@@ -369,5 +381,53 @@ func (iter *VersionsListIterator) Items(ctx context.Context) iter.Seq[*arohcpv1a
 // GetError returns any error that occurred during iteration. Call this after the
 // for/range loop that calls Items() to check if iteration completed successfully.
 func (iter VersionsListIterator) GetError() error {
+	return iter.err
+}
+
+type controlPlaneUpgradePolicyListIterator struct {
+	request *arohcpv1alpha1.ControlPlaneUpgradePoliciesListRequest
+	err     error
+}
+
+// Items returns a push iterator that can be used directly in for/range loops.
+// If an error occurs during paging, iteration stops and the error is recorded.
+func (iter *controlPlaneUpgradePolicyListIterator) Items(ctx context.Context) iter.Seq[*arohcpv1alpha1.ControlPlaneUpgradePolicy] {
+	return func(yield func(*arohcpv1alpha1.ControlPlaneUpgradePolicy) bool) {
+		// Request can be nil to allow for mocking.
+		if iter.request != nil {
+			var page = 0
+			var count = 0
+			var total = math.MaxInt
+
+			for count < total {
+				page++
+				result, err := iter.request.Page(page).SendContext(ctx)
+				if err != nil {
+					iter.err = err
+					return
+				}
+
+				total = result.Total()
+				items := result.Items()
+
+				// Safety check to prevent an infinite loop in case
+				// the result is somehow empty before count = total.
+				if items == nil || items.Empty() {
+					return
+				}
+
+				count += items.Len()
+
+				items.Each(func(item *arohcpv1alpha1.ControlPlaneUpgradePolicy) bool {
+					return yield(item)
+				})
+			}
+		}
+	}
+}
+
+// GetError returns any error that occurred during iteration. Call this after the
+// for/range loop that calls Items() to check if iteration completed successfully.
+func (iter controlPlaneUpgradePolicyListIterator) GetError() error {
 	return iter.err
 }
