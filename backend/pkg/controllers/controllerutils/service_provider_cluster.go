@@ -21,6 +21,8 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
+	"github.com/Azure/ARO-HCP/internal/utils/apihelpers"
+
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -46,7 +48,7 @@ func newInitialServiceProviderCluster(clusterResourceID *azcorearm.ResourceID) *
 func GetOrCreateServiceProviderCluster(
 	ctx context.Context, dbClient database.DBClient, clusterResourceID *azcorearm.ResourceID,
 ) (*api.ServiceProviderCluster, error) {
-	if clusterResourceID.ResourceType.String() != api.ClusterResourceType.String() {
+	if !apihelpers.ResourceTypeEqual(clusterResourceID.ResourceType, api.ClusterResourceType) {
 		return nil, utils.TrackError(fmt.Errorf("expected resource type %s, got %s", api.ClusterResourceType, clusterResourceID.ResourceType))
 	}
 
