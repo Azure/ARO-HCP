@@ -31,7 +31,7 @@ acrPull:
 adminApi:
   cert:
     issuer: Self
-    name: admin-api-cert-swft-blstest
+    name: admin-api-cert-swft-lnstest
   image:
     digest: sha256:53d3991f57d163d874dae63ab665271645dfc9e96cfeafb5d091b45bc52d8800
     registry: arohcpsvcdev.azurecr.io
@@ -69,7 +69,7 @@ arobit:
       registry: mcr.microsoft.com
       repository: geneva/distroless/mdsd
 automationDryRun: false
-azureGeoShortId: us
+azureGeoShortId: uk
 azureRegionAvailabilityZoneCount: 3
 backend:
   azureRuntimeConfig:
@@ -166,7 +166,7 @@ clustersService:
     deploy: false
     geoRedundantBackup: false
     minTLSVersion: TLSV1.2
-    name: arohcp-swft-dbcs-blstest
+    name: arohcp-swft-dbcs-lnstest
     password: TheBlurstOfTimes
     private: false
     serverStorageSizeGB: 128
@@ -177,7 +177,7 @@ clustersService:
     address: ""
     exporter: ""
 cxKeyVault:
-  name: ah-swft-cx-blstest-1
+  name: ah-swft-cx-lnstest-1
   private: false
   softDelete: false
   tagKey: aroHCPPurpose
@@ -187,7 +187,7 @@ dns:
   cxParentZoneName: hcptmp.osadev.cloud
   globalCertificatesDomain: hcp-global.osadev.cloud
   parentZoneName: osadev.cloud
-  regionalSubdomain: blstest
+  regionalSubdomain: lnstest
   svcParentZoneName: hcpsvc.osadev.cloud
 e2e:
   prow:
@@ -213,13 +213,13 @@ frontend:
     connectSocket: false
   cert:
     issuer: Self
-    name: frontend-cert-swft-blstest
+    name: frontend-cert-swft-lnstest
   cosmosDB:
     billingContainerMaxScale: 4000
     deploy: true
     disableLocalAuth: true
     locksContainerMaxScale: 4000
-    name: arohcpswft-rp-blstest
+    name: arohcpswft-rp-lnstest
     private: false
     resourceContainerMaxScale: 4000
     zoneRedundantMode: Disabled
@@ -389,7 +389,7 @@ logs:
     subscriptions: []
 maestro:
   agent:
-    consumerName: hcp-underlay-blstest-mgmt-1
+    consumerName: hcp-underlay-lnstest-mgmt-1
     k8s:
       namespace: maestro
       replicas: 3
@@ -405,7 +405,7 @@ maestro:
   certIssuer: Self
   eventGrid:
     maxClientSessionsPerAuthName: 6
-    name: arohcp-swft-maestro-blstest
+    name: arohcp-swft-maestro-lnstest
     private: false
   image:
     digest: sha256:7c8d004335e1a3142abb694cb0511eb0bebe18e8379af563b59b00db087c994a
@@ -420,7 +420,7 @@ maestro:
     deploy: false
     geoRedundantBackup: false
     minTLSVersion: TLSV1.2
-    name: arohcp-swft-dbmaestro-blstest
+    name: arohcp-swft-dbmaestro-lnstest
     password: TheBlurstOfTimes
     private: false
     serverStorageSizeGB: 32
@@ -434,7 +434,7 @@ maestro:
       serviceAccountName: maestro
     loglevel: 2
     managedIdentityName: maestro-server
-    mqttClientName: maestro-server-blstest
+    mqttClientName: maestro-server-lnstest
     tracing:
       address: ""
       exporter: ""
@@ -444,7 +444,7 @@ mgmt:
     enableSwiftV2Nodepools: true
     enableSwiftV2Vnet: true
     etcd:
-      name: ah-swft-me-blstest-1
+      name: ah-swft-me-lnstest-1
       private: true
       softDelete: false
       tagKey: aroHCPPurpose
@@ -459,7 +459,7 @@ mgmt:
       zoneRedundantMode: Auto
       zones: ""
     kubernetesVersion: 1.32.5
-    name: swft-blstest-mgmt-1
+    name: swft-lnstest-mgmt-1
     networkDataplane: azure
     networkPolicy: azure
     podSubnetPrefix: 10.128.64.0/18
@@ -486,7 +486,7 @@ mgmt:
   applyKubeletFixes: false
   hcpBackups:
     storageAccount:
-      name: oadpswftblstest1
+      name: oadpswftlnstest1
       public: false
       zoneRedundantMode: Auto
     storageAccountContainerName: backups
@@ -494,7 +494,7 @@ mgmt:
     deploy: false
   nsp:
     accessMode: Learning
-    name: nsp-blstest-mgmt-1
+    name: nsp-lnstest-mgmt-1
   prometheus:
     admissionWebhook:
       patch:
@@ -534,12 +534,12 @@ mgmt:
           cpu: NONE
           memory: NONE
       shards: 1
-  rg: hcp-underlay-swft-blstest-mgmt-1
+  rg: hcp-underlay-swft-lnstest-mgmt-1
   subscription:
     certificateDomains:
     - '*.hcp.osadev.cloud'
     - '*.hcpsvc.osadev.cloud'
-    displayName: Azure Red Hat OpenShift HCP - East US - MGMT - 1
+    displayName: Azure Red Hat OpenShift HCP - UK South - MGMT - 1
     key: ARO Hosted Control Planes (EA Subscription 1)
     providers:
       Microsoft.Compute:
@@ -563,7 +563,7 @@ mgmt:
         poll: true
     usePlannedQuota: true
 mgmtKeyVault:
-  name: ah-swft-mg-blstest-1
+  name: ah-swft-mg-lnstest-1
   private: false
   softDelete: false
   tagKey: aroHCPPurpose
@@ -597,7 +597,7 @@ monitoring:
   grafanaName: arohcp-dev
   grafanaRoles: 6b6d3adf-8476-4727-9812-20ffdef2b85c/Group/Admin
   grafanaZoneRedundantMode: Disabled
-  hcpWorkspaceName: hcps-blstest
+  hcpWorkspaceName: hcps-lnstest
   icm:
     connectionId: ""
     connectionName: ""
@@ -618,7 +618,7 @@ monitoring:
       actionGroupShortName: ""
       automitigationEnabled: ""
       routingId: ""
-  svcWorkspaceName: services-blstest
+  svcWorkspaceName: services-lnstest
 msiCredentialsRefresher:
   certificate:
     commonName: ""
@@ -641,7 +641,7 @@ msiCredentialsRefresher:
     serviceAccountName: msi-credential-refresher
   managedIdentityName: msi-credential-refresher
 msiKeyVault:
-  name: ah-swft-mi-blstest-1
+  name: ah-swft-mi-lnstest-1
   private: false
   softDelete: false
   tagKey: aroHCPPurpose
@@ -663,8 +663,8 @@ oidc:
     subdomain: oic
     useManagedCertificates: true
   storageAccount:
-    name: arohcpswftoidcblstest
-    privateLinkLocation: eastus
+    name: arohcpswftoidclnstest
+    privateLinkLocation: uksouth
     public: true
     zoneRedundantMode: Auto
 pko:
@@ -684,8 +684,8 @@ pko:
     digest: sha256:0298985d8a02c983be382d351e9243c45edd035b11aa23a6ed077b3d6df7aa45
     registry: quay.io
     repository: package-operator/remote-phase-manager
-region: eastus
-regionRG: hcp-underlay-swft-blstest
+region: uksouth
+regionRG: hcp-underlay-swft-lnstest
 routeMonitorOperator:
   blackboxExporterImage:
     digest: sha256:b04a9fef4fa086a02fc7fcd8dcdbc4b7b35cc30cdee860fdc6a19dd8b208d63e
@@ -727,7 +727,7 @@ svc:
   aks:
     clusterOutboundIPAddressIPTags: ""
     etcd:
-      name: ah-swft-se-blstest-1
+      name: ah-swft-se-lnstest-1
       private: true
       softDelete: false
       tagKey: aroHCPPurpose
@@ -742,7 +742,7 @@ svc:
       zoneRedundantMode: Auto
       zones: ""
     kubernetesVersion: 1.32.5
-    name: swft-blstest-svc
+    name: swft-lnstest-svc
     networkDataplane: cilium
     networkPolicy: cilium
     podSubnetPrefix: 10.128.64.0/18
@@ -775,7 +775,7 @@ svc:
     versions: asm-1-26
   nsp:
     accessMode: Learning
-    name: nsp-blstest-svc
+    name: nsp-lnstest-svc
   opsIngress:
     gateway:
       ipAddressName: aro-hcp-ops-ingress
@@ -820,11 +820,11 @@ svc:
           memory: NONE
       shards: 1
       version: ""
-  rg: hcp-underlay-swft-blstest-svc
+  rg: hcp-underlay-swft-lnstest-svc
   subscription:
     certificateDomains:
     - '*.hcpsvc.osadev.cloud'
-    displayName: Azure Red Hat OpenShift HCP - East US - SVC
+    displayName: Azure Red Hat OpenShift HCP - UK South - SVC
     key: ARO Hosted Control Planes (EA Subscription 1)
     providers:
       Microsoft.Compute:
