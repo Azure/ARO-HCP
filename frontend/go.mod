@@ -8,7 +8,7 @@ require (
 	github.com/google/go-cmp v0.7.0
 	github.com/google/uuid v1.6.0
 	github.com/microsoft/go-otel-audit v0.2.2
-	github.com/openshift-online/ocm-sdk-go v0.1.493
+	github.com/openshift-online/ocm-sdk-go v0.1.494
 	github.com/prometheus/client_golang v1.23.2
 	github.com/spf13/cobra v1.10.2
 	github.com/stretchr/testify v1.11.1
@@ -41,8 +41,8 @@ require (
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/jedib0t/go-pretty/v6 v6.6.7 // indirect
 	github.com/mattn/go-runewidth v0.0.16 // indirect
-	github.com/openshift-online/ocm-api-model/clientapi v0.0.448 // indirect
-	github.com/openshift-online/ocm-api-model/model v0.0.448 // indirect
+	github.com/openshift-online/ocm-api-model/clientapi v0.0.449 // indirect
+	github.com/openshift-online/ocm-api-model/model v0.0.449 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/sanity-io/litter v1.5.8 // indirect
