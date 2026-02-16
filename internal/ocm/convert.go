@@ -367,8 +367,9 @@ func convertCIDRBlockAllowAccessRPToCS(in api.CustomerAPIProfile) (*arohcpv1alph
 	return arohcpv1alpha1.NewCIDRBlockAccess().Allow(cidrBlockAllowAccess), nil
 }
 
-// ConvertCStoHCPOpenShiftCluster converts a CS Cluster object into an HCPOpenShiftCluster object.
-func ConvertCStoHCPOpenShiftCluster(resourceID *azcorearm.ResourceID, azureLocation string, cluster *arohcpv1alpha1.Cluster) (*api.HCPOpenShiftCluster, error) {
+// LegacyCreateInternalClusterFromClusterService this exists only for clusters that were created before we held all
+// customer desired state in cosmos.
+func LegacyCreateInternalClusterFromClusterService(resourceID *azcorearm.ResourceID, azureLocation string, cluster *arohcpv1alpha1.Cluster) (*api.HCPOpenShiftCluster, error) {
 	// A word about ProvisioningState:
 	// ProvisioningState is stored in Cosmos and is applied to the
 	// HCPOpenShiftCluster struct along with the ARM metadata that
@@ -551,6 +552,25 @@ func ConvertCStoHCPOpenShiftCluster(resourceID *azcorearm.ResourceID, azureLocat
 	}
 
 	return hcpcluster, nil
+}
+
+// SetClusterServiceOnlyFieldsOnCluster converts a CS Cluster object into an HCPOpenShiftCluster object.
+func SetClusterServiceOnlyFieldsOnCluster(internalCluster *api.HCPOpenShiftCluster, clusterServiceCluster *arohcpv1alpha1.Cluster) {
+	// this is defaulted if the user doesn't specify, so it isn't always known to to frontend.  We will eventually have to
+	// choose when and where we set this.
+	if len(internalCluster.CustomerProperties.DNS.BaseDomainPrefix) == 0 {
+		internalCluster.CustomerProperties.DNS.BaseDomainPrefix = clusterServiceCluster.DomainPrefix()
+	}
+
+	// this is defaulted if the user doesn't specify, so it isn't always known to to frontend.  We will eventually have to
+	// choose when and where we set this.
+	if len(internalCluster.CustomerProperties.Platform.ManagedResourceGroup) == 0 {
+		internalCluster.CustomerProperties.Platform.ManagedResourceGroup = clusterServiceCluster.Azure().ManagedResourceGroupName()
+	}
+
+	internalCluster.ServiceProviderProperties.DNS.BaseDomain = clusterServiceCluster.DNS().BaseDomain()
+	internalCluster.ServiceProviderProperties.Console.URL = clusterServiceCluster.Console().URL()
+	internalCluster.ServiceProviderProperties.API.URL = clusterServiceCluster.API().URL()
 }
 
 // ensureManagedResourceGroupName makes sure the ManagedResourceGroupName field is set.

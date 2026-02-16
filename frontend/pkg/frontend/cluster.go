@@ -853,7 +853,18 @@ func (f *Frontend) addDeleteClusterToTransaction(ctx context.Context, writer htt
 // TODO this overwrite will transformed into a "set" function as we transition fields to ownership in cosmos
 // TODO remove the azure location once we have migrated every record to store the location
 func mergeToInternalCluster(csCluster *arohcpv1alpha1.Cluster, internalCluster *api.HCPOpenShiftCluster, azureLocation string) (*api.HCPOpenShiftCluster, error) {
-	clusterServiceBasedInternalCluster, err := ocm.ConvertCStoHCPOpenShiftCluster(internalCluster.ID, azureLocation, csCluster)
+	if len(internalCluster.CustomerProperties.Version.ChannelGroup) == 0 {
+		// if we hit this branch, then we have old data that exists from before we stored all the content of the requested cluster
+		return legacyMergeToInternalCluster(csCluster, internalCluster, azureLocation)
+	}
+
+	// otherwise use as much from cosmos as possible, so we have a clear list of what remains in cluster-service
+	ocm.SetClusterServiceOnlyFieldsOnCluster(internalCluster, csCluster)
+	return internalCluster, nil
+}
+
+func legacyMergeToInternalCluster(csCluster *arohcpv1alpha1.Cluster, internalCluster *api.HCPOpenShiftCluster, azureLocation string) (*api.HCPOpenShiftCluster, error) {
+	clusterServiceBasedInternalCluster, err := ocm.LegacyCreateInternalClusterFromClusterService(internalCluster.ID, azureLocation, csCluster)
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}

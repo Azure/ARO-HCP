@@ -60,12 +60,36 @@ func TestClusterRequired(t *testing.T) {
 					fieldPath: "customerProperties.version.id",
 				},
 				{
+					message:   "Required value",
+					fieldPath: "customerProperties.network.networkType",
+				},
+				{
 					message:   "Unsupported value",
 					fieldPath: "customerProperties.network.networkType",
 				},
 				{
+					message:   "Required value",
+					fieldPath: "customerProperties.network.podCidr",
+				},
+				{
+					message:   "Required value",
+					fieldPath: "customerProperties.network.serviceCidr",
+				},
+				{
+					message:   "Required value",
+					fieldPath: "customerProperties.network.machineCidr",
+				},
+				{
+					message:   "Required value",
+					fieldPath: "customerProperties.network.hostPrefix",
+				},
+				{
 					message:   "must be greater than or equal to 23",
 					fieldPath: "customerProperties.network.hostPrefix",
+				},
+				{
+					message:   "Required value",
+					fieldPath: "customerProperties.api.visiblity",
 				},
 				{
 					message:   "Unsupported value",
@@ -76,6 +100,10 @@ func TestClusterRequired(t *testing.T) {
 					fieldPath: "customerProperties.platform.subnetId",
 				},
 				{
+					message:   "Required value",
+					fieldPath: "customerProperties.platform.outboundType",
+				},
+				{
 					message:   "Unsupported value",
 					fieldPath: "customerProperties.platform.outboundType",
 				},
@@ -84,20 +112,40 @@ func TestClusterRequired(t *testing.T) {
 					fieldPath: "customerProperties.platform.networkSecurityGroupId",
 				},
 				{
-					message:   "Unsupported value",
-					fieldPath: "customerProperties.etcd.dataEncryption.keyManagementMode",
-				},
-				{
-					message:   "Unsupported value",
-					fieldPath: "customerProperties.clusterImageRegistry.state",
+					message:   "Required value",
+					fieldPath: "customerProperties.autoscaling.maxPodGracePeriodSeconds",
 				},
 				{
 					message:   "Invalid value: 0: must be greater than or equal to 1",
 					fieldPath: "customerProperties.autoscaling.maxPodGracePeriodSeconds",
 				},
 				{
+					message:   "Required value",
+					fieldPath: "customerProperties.autoscaling.maxNodeProvisionTimeSeconds",
+				},
+				{
 					message:   "Invalid value: 0: must be greater than or equal to 1",
 					fieldPath: "customerProperties.autoscaling.maxNodeProvisionTimeSeconds",
+				},
+				{
+					message:   "Required value",
+					fieldPath: "customerProperties.autoscaling.podPriorityThreshold",
+				},
+				{
+					message:   "Required value",
+					fieldPath: "customerProperties.etcd.dataEncryption.keyManagementMode",
+				},
+				{
+					message:   "Unsupported value",
+					fieldPath: "customerProperties.etcd.dataEncryption.keyManagementMode",
+				},
+				{
+					message:   "Required value",
+					fieldPath: "customerProperties.clusterImageRegistry.state",
+				},
+				{
+					message:   "Unsupported value",
+					fieldPath: "customerProperties.clusterImageRegistry.state",
 				},
 			},
 		},
