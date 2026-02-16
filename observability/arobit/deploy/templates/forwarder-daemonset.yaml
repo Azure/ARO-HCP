@@ -84,7 +84,7 @@ spec:
               mountPath: /etc/machine-id
               readOnly: true
             - name: flb-storage
-              mountPath: /var/log/flb-storage
+              mountPath: /var/fluent-bit/flb-storage
             - name: varlibdockercontainers
               mountPath: /var/lib/docker/containers
               readOnly: true

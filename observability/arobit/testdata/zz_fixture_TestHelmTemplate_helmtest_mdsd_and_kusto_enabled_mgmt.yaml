@@ -38,7 +38,7 @@ data:
         Parsers_File              /forwarder/etc/parsers_custom.conf
         Plugins_File              /fluent-bit/etc/plugins.conf
         HTTP_Server               On
-        storage.path              /var/log/flb-storage/
+        storage.path              /var/fluent-bit/flb-storage
         # If the input plugin has enabled filesystem storage type, this property sets the maximum number of Chunks that can be up in memory.
         # (default: 128)
         storage.max_chunks_up     256
@@ -141,7 +141,7 @@ data:
         Systemd_Filter  _SYSTEMD_UNIT=kubelet.service
         Read_From_Tail  On
         Strip_Underscores On
-        DB              /var/log/flb-storage/flb-systemdb.db
+        DB              /var/fluent-bit/flb-storage/flb-systemdb.db
   filter.conf: |
     [FILTER]
         Name   lua
@@ -404,7 +404,7 @@ spec:
         app: arobit-forwarder
         azure.workload.identity/use: "true"
       annotations:
-        checksum/configmap: f073ac71a49e59cbc88472302385eb72222f9188e2e223a7ca51341ad18b7848
+        checksum/configmap: 473f3515bd19a8df12fad1f2860e940ffe87d0348a5c08a363115cc3b851925d
     spec:
       serviceAccountName: 'arobit-forwarder'
       shareProcessNamespace: true
@@ -462,7 +462,7 @@ spec:
               mountPath: /etc/machine-id
               readOnly: true
             - name: flb-storage
-              mountPath: /var/log/flb-storage
+              mountPath: /var/fluent-bit/flb-storage
             - name: varlibdockercontainers
               mountPath: /var/lib/docker/containers
               readOnly: true
