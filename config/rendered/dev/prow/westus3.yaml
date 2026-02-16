@@ -70,7 +70,7 @@ arobit:
       repository: geneva/distroless/mdsd
 automationDryRun: false
 azureGeoShortId: us
-azureRegionAvailabilityZoneCount: 3
+azureRegionAvailabilityZoneCount: 4
 backend:
   azureRuntimeConfig:
     tlsCertificatesIssuer: Self
@@ -539,7 +539,7 @@ mgmt:
     certificateDomains:
     - '*.hcp.osadev.cloud'
     - '*.hcpsvc.osadev.cloud'
-    displayName: Azure Red Hat OpenShift HCP - East US - MGMT - 1
+    displayName: Azure Red Hat OpenShift HCP - West US 3 - MGMT - 1
     key: ARO Hosted Control Planes (EA Subscription 1)
     providers:
       Microsoft.Compute:
@@ -664,7 +664,7 @@ oidc:
     useManagedCertificates: true
   storageAccount:
     name: arohcpprowoidcj7654321
-    privateLinkLocation: eastus
+    privateLinkLocation: westus3
     public: true
     zoneRedundantMode: Auto
 pko:
@@ -684,7 +684,7 @@ pko:
     digest: sha256:0298985d8a02c983be382d351e9243c45edd035b11aa23a6ed077b3d6df7aa45
     registry: quay.io
     repository: package-operator/remote-phase-manager
-region: eastus
+region: westus3
 regionRG: hcp-underlay-prow-j7654321
 routeMonitorOperator:
   blackboxExporterImage:
@@ -826,7 +826,7 @@ svc:
   subscription:
     certificateDomains:
     - '*.hcpsvc.osadev.cloud'
-    displayName: Azure Red Hat OpenShift HCP - East US - SVC
+    displayName: Azure Red Hat OpenShift HCP - West US 3 - SVC
     key: ARO Hosted Control Planes (EA Subscription 1)
     providers:
       Microsoft.Compute:
