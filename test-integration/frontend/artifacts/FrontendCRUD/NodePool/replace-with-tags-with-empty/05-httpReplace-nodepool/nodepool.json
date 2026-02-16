@@ -22,7 +22,10 @@
 				"key": "foo.com/key",
 				"value": "valid"
 			}
-		]
+		],
+		"version": {
+			"id": "4.20.1"
+		}
 	},
 	"tags": {},
 	"type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/nodePools"

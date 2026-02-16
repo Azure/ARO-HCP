@@ -3,6 +3,9 @@
 	"properties": {
 		"platform": {
 			"vmSize": "large"
+		},
+		"version": {
+			"id": "4.20.1"
 		}
 	},
 	"type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/nodePools"
