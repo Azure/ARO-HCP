@@ -210,7 +210,7 @@ func TestConvertCStoHCPOpenShiftCluster(t *testing.T) {
 			csCluster := ocmCluster(t, ocmClusterDefaults(api.TestLocation), tc.ocmClusterTweaks)
 			expectHcpCluster := api.ClusterTestCase(t, tc.hcpClusterTweaks)
 
-			actualHcpCluster, err := ConvertCStoHCPOpenShiftCluster(resourceID, api.TestLocation, csCluster)
+			actualHcpCluster, err := LegacyCreateInternalClusterFromClusterService(resourceID, api.TestLocation, csCluster)
 			require.NoError(t, err)
 
 			assert.Equal(t, expectHcpCluster, actualHcpCluster)
