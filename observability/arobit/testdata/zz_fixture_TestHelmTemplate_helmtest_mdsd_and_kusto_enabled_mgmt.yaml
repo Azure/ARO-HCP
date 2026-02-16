@@ -132,6 +132,16 @@ data:
         Alias  otlp
         Listen 0.0.0.0
         Port   4318
+
+    [INPUT]
+        Name            systemd
+        Alias           systemd
+        Tag             systemd.*
+        Systemd_Filter  _SYSTEMD_UNIT=containerd.service
+        Systemd_Filter  _SYSTEMD_UNIT=kubelet.service
+        Read_From_Tail  On
+        Strip_Underscores On
+        DB              /var/log/flb-storage/flb-systemdb.db
   filter.conf: |
     [FILTER]
         Name   lua
@@ -142,7 +152,7 @@ data:
     
     [FILTER]
         Name modify
-        Match kubernetes.var.log.containers.*
+        Match kubernetes.var.log.containers.* | systemd.*
         Add environment dev
         Add region westus3
         Add cluster dev-westus3-mgmt-1
@@ -220,7 +230,7 @@ data:
         Database_Name HostedControlPlaneLogs
         Table_Name containerLogs
         ingestion_mapping_reference ingestionMapping
-        buffer_dir /var/kusto
+        buffer_dir /var/fluent-bit/kusto
     [OUTPUT]
         Match other.logs
         Name azure_kusto
@@ -232,7 +242,7 @@ data:
         Database_Name ServiceLogs
         Table_Name containerLogs
         ingestion_mapping_reference ingestionMapping
-        buffer_dir /var/kusto
+        buffer_dir /var/fluent-bit/kusto
 
     [OUTPUT]
         Match kube-events.logs
@@ -245,7 +255,21 @@ data:
         Database_Name ServiceLogs
         Table_Name kubernetesEvents
         ingestion_mapping_reference ingestionMapping
-        buffer_dir /var/kusto
+        buffer_dir /var/fluent-bit/kusto
+
+    [OUTPUT]
+        Match systemd.*
+        Name azure_kusto
+        auth_type workload_identity
+        tenant_id __tenantId__
+        client_id __msiClientId__
+        workload_identity_token_file ${AZURE_FEDERATED_TOKEN_FILE}
+        Ingestion_Endpoint __kustoDataIngestionUri__
+        Database_Name ServiceLogs
+        Table_Name systemdLogs
+        ingestion_mapping_reference ingestionMapping
+        buffer_dir /var/fluent-bit/kusto
+
   output-mdsd.conf: |
     # Forward logs to mdsd instance (default port)
     [OUTPUT]
@@ -380,7 +404,7 @@ spec:
         app: arobit-forwarder
         azure.workload.identity/use: "true"
       annotations:
-        checksum/configmap: 90d9000e54316252ad4b4bd95046fcd30a7c74304ab28dc20e0cdad382a29850
+        checksum/configmap: f073ac71a49e59cbc88472302385eb72222f9188e2e223a7ca51341ad18b7848
     spec:
       serviceAccountName: 'arobit-forwarder'
       shareProcessNamespace: true
@@ -434,12 +458,19 @@ spec:
           volumeMounts:
             - name: varlog
               mountPath: /var/log
+            - name: machine-id
+              mountPath: /etc/machine-id
+              readOnly: true
+            - name: flb-storage
+              mountPath: /var/log/flb-storage
             - name: varlibdockercontainers
               mountPath: /var/lib/docker/containers
               readOnly: true
             - name: flb-config
               mountPath: /forwarder/etc
               readOnly: true
+            - name: kusto
+              mountPath: /var/fluent-bit/kusto
         - name: mdsd
           image: mcr.microsoft.com/geneva/distroless/mdsd@sha256:1234567890
           imagePullPolicy: 'IfNotPresent'
@@ -619,10 +650,19 @@ spec:
               name: geneva-certs-clusterlogs
               readOnly: true
       volumes:
+        - name: kusto
+          emptyDir: {}
+        - name: systemd
+          emptyDir: {}
         - name: sp-host
           hostPath:
             type: Directory
             path: /etc/kubernetes/
+        - name: flb-storage
+          emptyDir: {}
+        - name: machine-id
+          hostPath:
+            path: /etc/machine-id
         - name: varlog
           hostPath:
             path: /var/log

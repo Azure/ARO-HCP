@@ -80,12 +80,19 @@ spec:
           volumeMounts:
             - name: varlog
               mountPath: /var/log
+            - name: machine-id
+              mountPath: /etc/machine-id
+              readOnly: true
+            - name: flb-storage
+              mountPath: /var/log/flb-storage
             - name: varlibdockercontainers
               mountPath: /var/lib/docker/containers
               readOnly: true
             - name: flb-config
               mountPath: /forwarder/etc
               readOnly: true
+            - name: kusto
+              mountPath: /var/fluent-bit/kusto
         {{- if .Values.forwarder.mdsd.enabled }}
         - name: mdsd
           image: {{ .Values.forwarder.mdsd.image.registry }}/{{ .Values.forwarder.mdsd.image.repository }}@{{ .Values.forwarder.mdsd.image.digest }}
@@ -269,10 +276,19 @@ spec:
         {{- end }}
         {{- end }}
       volumes:
+        - name: kusto
+          emptyDir: {}
+        - name: systemd
+          emptyDir: {}
         - name: sp-host
           hostPath:
             type: Directory
             path: /etc/kubernetes/
+        - name: flb-storage
+          emptyDir: {}
+        - name: machine-id
+          hostPath:
+            path: /etc/machine-id
         - name: varlog
           hostPath:
             path: /var/log

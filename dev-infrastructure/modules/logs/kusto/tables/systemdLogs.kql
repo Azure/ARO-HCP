@@ -1,0 +1,18 @@
+.create-merge table systemdLogs (
+  timestamp: datetime,
+  log: dynamic,
+  systemd_unit: string,
+  message: string,
+  tag: string
+)
+
+.create-or-alter table systemdLogs ingestion json mapping 'ingestionMapping'
+```
+[
+  {"column":"timestamp","Properties":{"path":"$.timestamp"}},
+  {"column":"log","Properties":{"path":"$.log"}},
+  {"column":"systemd_unit","Properties":{"path":"$.log.SYSTEMD_UNIT"}},
+  {"column":"message","Properties":{"path":"$.log.MESSAGE"}},
+  {"column":"tag","Properties":{"path":"$.tag"}}
+]
+```

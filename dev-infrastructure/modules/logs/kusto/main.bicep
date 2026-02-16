@@ -59,6 +59,7 @@ var allServiceLogsTablesKQL = {
   clustersServiceLogs: loadTextContent('tables/clustersServiceLogs.kql')
   kubernetesEvents: loadTextContent('tables/kubernetesEvents.kql')
   aksEvents: loadTextContent('tables/aksEvents.kql')
+  systemdLogs: loadTextContent('tables/systemdLogs.kql')
 }
 
 var allCustomerLogsTablesKQL = {
