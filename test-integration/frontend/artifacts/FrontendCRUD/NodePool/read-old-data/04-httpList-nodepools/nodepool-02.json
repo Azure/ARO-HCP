@@ -32,6 +32,7 @@
 			}
 		],
 		"version": {
+			"id": "4.20.1",
 			"channelGroup": "stable"
 		}
 	},
