@@ -1,5 +1,19 @@
 SHELL = /bin/bash
-STAMP=999
+STAMP ?= 1
+
+render-config:
+	$(MAKE) -C ./../tooling/templatize templatize
+	./../tooling/templatize/templatize configuration render \
+	  --service-config-file ./config.yaml \
+	  --config-file-override ./config.msft.clouds-overlay.yaml \
+	  --skip-schema-validation \
+	  --cloud "$(ARO_HCP_CLOUD)" \
+	  --environment "$(ARO_HCP_DEPLOY_ENV)" \
+	  --region "$(LOCATION)" \
+	  --stamp "$(STAMP)" \
+	  --ev2-cloud public \
+	  --output "$(CONFIG_OUTPUT)"
+.PHONY: render-config
 
 materialize: render
 	$(MAKE) -C .. update-helm-fixtures
