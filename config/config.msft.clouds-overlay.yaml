@@ -1,6 +1,5 @@
 clouds:
   public:
-    defaults:
     environments:
       int:
         # this is the MSFT INT environment
