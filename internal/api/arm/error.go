@@ -22,8 +22,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/validation/field"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
-
-	"github.com/Azure/ARO-HCP/internal/utils/apihelpers"
 )
 
 // CloudError codes
@@ -242,13 +240,13 @@ func NewResourceNotFoundError(resourceID *azcorearm.ResourceID) *CloudError {
 	var code string
 	var message string
 
-	switch {
-	case apihelpers.ResourceTypeEqual(resourceID.ResourceType, azcorearm.SubscriptionResourceType):
+	switch resourceID.ResourceType.String() {
+	case azcorearm.SubscriptionResourceType.String():
 		code = CloudErrorCodeSubscriptionNotFound
 		message = fmt.Sprintf(
 			"The subscription '%s' was not found.",
 			resourceID.SubscriptionID)
-	case apihelpers.ResourceTypeEqual(resourceID.ResourceType, azcorearm.ResourceGroupResourceType):
+	case azcorearm.ResourceGroupResourceType.String():
 		code = CloudErrorCodeResourceGroupNotFound
 		message = fmt.Sprintf(
 			"The resource group '%s' under subscription '%s' was not found.",

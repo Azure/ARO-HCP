@@ -21,8 +21,6 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/utils/apihelpers"
-
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -48,7 +46,7 @@ func newInitialServiceProviderNodePool(npResourceID *azcorearm.ResourceID) *api.
 func GetOrCreateServiceProviderNodePool(
 	ctx context.Context, dbClient database.DBClient, nodePoolResourceID *azcorearm.ResourceID,
 ) (*api.ServiceProviderNodePool, error) {
-	if !apihelpers.ResourceTypeEqual(nodePoolResourceID.ResourceType, api.NodePoolResourceType) {
+	if nodePoolResourceID.ResourceType.String() != api.NodePoolResourceType.String() {
 		return nil, utils.TrackError(fmt.Errorf("expected resource type %s, got %s", api.NodePoolResourceType, nodePoolResourceID.ResourceType))
 	}
 
