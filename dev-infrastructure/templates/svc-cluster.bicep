@@ -17,6 +17,9 @@ var locationAvailabilityZoneList = csvToArray(locationAvailabilityZones)
 @description('AKS cluster name')
 param aksClusterName string
 
+@description('Name of the system agent pool')
+param systemAgentPoolName string
+
 @description('Minimum node count for system agent pool')
 param systemAgentMinCount int
 
@@ -44,6 +47,9 @@ param aksNetworkDataplane string
 @description('Network policy plugin for the AKS cluster')
 param aksNetworkPolicy string
 
+@description('Name of the user agent pool')
+param userAgentPoolName string
+
 @description('Min replicas for the worker nodes')
 param userAgentMinCount int
 
@@ -61,6 +67,9 @@ param userAgentPoolZones string
 
 @description('Zone redundant mode for the user nodes')
 param userZoneRedundantMode string
+
+@description('Name of the infra agent pool')
+param infraAgentPoolName string
 
 @description('Min replicas for the infra worker nodes')
 param infraAgentMinCount int
@@ -610,6 +619,7 @@ module svcCluster '../modules/aks-cluster-base.bicep' = {
     podSubnetPrefix: podSubnetPrefix
     clusterType: 'svc-cluster'
     userOsDiskSizeGB: userOsDiskSizeGB
+    userAgentPoolName: userAgentPoolName
     userAgentMinCount: userAgentMinCount
     userAgentMaxCount: userAgentMaxCount
     userAgentVMSize: userAgentVMSize
@@ -618,6 +628,7 @@ module svcCluster '../modules/aks-cluster-base.bicep' = {
       ? csvToArray(userAgentPoolZones)
       : locationAvailabilityZoneList
     userZoneRedundantMode: userZoneRedundantMode
+    infraAgentPoolName: infraAgentPoolName
     infraAgentMinCount: infraAgentMinCount
     infraAgentMaxCount: infraAgentMaxCount
     infraAgentVMSize: infraAgentVMSize
@@ -628,6 +639,7 @@ module svcCluster '../modules/aks-cluster-base.bicep' = {
     infraOsDiskSizeGB: infraOsDiskSizeGB
     infraZoneRedundantMode: infraZoneRedundantMode
     systemOsDiskSizeGB: aksSystemOsDiskSizeGB
+    systemAgentPoolName: systemAgentPoolName
     systemAgentMinCount: systemAgentMinCount
     systemAgentMaxCount: systemAgentMaxCount
     systemAgentVMSize: systemAgentVMSize
@@ -658,28 +670,27 @@ output aksClusterName string = svcCluster.outputs.aksClusterName
 //   O P S   I N G R E S S   P U B L I C   I P
 //
 
-// TODO: ops-ingress phase 2: add ops ingress gateway IP address
-// module opsIngressGatewayIPAddress '../modules/network/publicipaddress.bicep' = if (!empty(opsIngressGatewayIPAddressName)) {
-//   name: opsIngressGatewayIPAddressName
-//   scope: resourceGroup(regionalResourceGroup)
-//   params: {
-//     name: opsIngressGatewayIPAddressName
-//     ipTags: opsIngressGatewayIPAddressTags
-//     location: location
-//     zones: length(locationAvailabilityZoneList) > 0 ? locationAvailabilityZoneList : null
-//     // Role Assignment needed for the public IP address to be used on the Load Balancer
-//     roleAssignmentProperties: {
-//       principalId: aksClusterUserDefinedManagedIdentity.properties.principalId
-//       principalType: 'ServicePrincipal'
-//       // Network Contributor Role - needed for the AKS managed identity to use the public IP on the LoadBalancer
-//       // https://www.azadvertizer.net/azrolesadvertizer/4d97b98b-1d4f-4787-a291-c67834d212e7.html
-//       roleDefinitionId: subscriptionResourceId(
-//         'Microsoft.Authorization/roleDefinitions/',
-//         '4d97b98b-1d4f-4787-a291-c67834d212e7'
-//       )
-//     }
-//   }
-// }
+module opsIngressGatewayIPAddress '../modules/network/publicipaddress.bicep' = if (!empty(opsIngressGatewayIPAddressName)) {
+  name: opsIngressGatewayIPAddressName
+  scope: resourceGroup(regionalResourceGroup)
+  params: {
+    name: opsIngressGatewayIPAddressName
+    ipTags: opsIngressGatewayIPAddressTags
+    location: location
+    zones: length(locationAvailabilityZoneList) > 0 ? locationAvailabilityZoneList : null
+    // Role Assignment needed for the public IP address to be used on the Load Balancer
+    roleAssignmentProperties: {
+      principalId: aksClusterUserDefinedManagedIdentity.properties.principalId
+      principalType: 'ServicePrincipal'
+      // Network Contributor Role - needed for the AKS managed identity to use the public IP on the LoadBalancer
+      // https://www.azadvertizer.net/azrolesadvertizer/4d97b98b-1d4f-4787-a291-c67834d212e7.html
+      roleDefinitionId: subscriptionResourceId(
+        'Microsoft.Authorization/roleDefinitions/',
+        '4d97b98b-1d4f-4787-a291-c67834d212e7'
+      )
+    }
+  }
+}
 
 //
 // M E T R I C S

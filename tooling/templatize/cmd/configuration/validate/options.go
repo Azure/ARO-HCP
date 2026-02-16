@@ -116,9 +116,7 @@ func (o *RawOptions) Validate() (*ValidatedOptions, error) {
 		value *string
 	}{
 		{flag: "service-config-file", name: "service configuration file", value: &o.ServiceConfigFile},
-		{flag: "digest-file", name: "digest file", value: &o.DigestFile},
 		{flag: "output-dir", name: "output directory", value: &o.OutputDir},
-		{flag: "central-remote-url", name: "central git remote URL", value: &o.OutputDir},
 	} {
 		if item.value == nil || *item.value == "" {
 			return nil, fmt.Errorf("the %s must be provided with --%s", item.name, item.flag)
@@ -133,9 +131,13 @@ func (o *RawOptions) Validate() (*ValidatedOptions, error) {
 }
 
 func (o *ValidatedOptions) Complete() (*Options, error) {
-	d, err := LoadDigests(o.DigestFile)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load digests: %w", err)
+	var d *Digests
+	if o.DigestFile != "" {
+		var err error
+		d, err = LoadDigests(o.DigestFile)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load digests: %w", err)
+		}
 	}
 
 	var s *settings.Settings
@@ -370,6 +372,9 @@ func ValidateServiceConfig(
 				currentDigests.Clouds[cloud].Environments[environment].Regions[region] = hex.EncodeToString(hashBytes)
 			}
 		}
+	}
+	if digests == nil {
+		return nil
 	}
 	for cloud, environments := range digests.Clouds {
 		if _, ok := currentDigests.Clouds[cloud]; !ok && !update {

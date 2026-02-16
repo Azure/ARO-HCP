@@ -430,6 +430,9 @@
     "aksAgentPool": {
       "type": "object",
       "properties": {
+        "name": {
+          "type": "string"
+        },
         "maxCount": {
           "type": "number"
         },
@@ -455,6 +458,7 @@
       },
       "additionalProperties": false,
       "required": [
+        "name",
         "maxCount",
         "minCount",
         "osDiskSizeGB",

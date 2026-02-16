@@ -222,7 +222,7 @@ defaults:
     image:
       registry: quay.io
       repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
-      digest: sha256:6414610a22802b0202d8cbb55857659b56e8b1b0634afb5d08424d657e5e5ee0 # 3b8c325b6af34efa4364e69bc4da8a436f0cb81f (2026-02-11 04:56)
+      digest: sha256:3b7455fb6e59b7777a3bed295559bf826b65f981161df4f03640e9ea5fdad2d2 # cf61c1535ee4023702d9c83007c973274a88a889 (2026-02-12 15:28)
     namespace: hypershift
     additionalInstallArg: '--enable-cpo-overrides'
     # By default we set it to empty as this tag is only required for msft environments. We override
@@ -331,7 +331,7 @@ defaults:
     nsp:
       name: nsp-{{ .ctx.regionShort }}-svc
     istio:
-      istioctlVersion: "1.24.1"
+      istioctlVersion: "1.28.3"
       tag: "prod-stable"
       ingressGatewayIPAddressName: "aro-hcp-istio-ingress"
       ingressGatewayIPAddressIPTags: ""
@@ -348,6 +348,7 @@ defaults:
       networkDataplane: "cilium"
       networkPolicy: "cilium"
       systemAgentPool:
+        name: 'system'
         minCount: 1
         maxCount: 3
         vmSize: 'Standard_D2s_v3'
@@ -356,6 +357,7 @@ defaults:
         zones: ""
         zoneRedundantMode: "Auto"
       userAgentPool:
+        name: 'user'
         minCount: 1
         maxCount: 3
         vmSize: 'Standard_D2s_v3'
@@ -364,6 +366,7 @@ defaults:
         zones: ""
         zoneRedundantMode: "Auto"
       infraAgentPool:
+        name: 'infra'
         minCount: 1
         maxCount: 3
         vmSize: 'Standard_D4ds_v5'
@@ -469,6 +472,7 @@ defaults:
         tagKey: aroHCPPurpose
         tagValue: etcd-encryption
       systemAgentPool:
+        name: 'system'
         vmSize: 'Standard_E8ds_v6'
         osDiskSizeGB: 128
         minCount: 1
@@ -476,6 +480,7 @@ defaults:
         zones: ""
         zoneRedundantMode: "Auto"
       userAgentPool:
+        name: 'user'
         vmSize: 'Standard_E32ds_v6'
         osDiskSizeGB: 512
         minCount: 1
@@ -483,6 +488,7 @@ defaults:
         zones: ""
         zoneRedundantMode: "Auto"
       infraAgentPool:
+        name: 'infra'
         minCount: 1
         maxCount: 3
         vmSize: 'Standard_D4ds_v5'
@@ -721,7 +727,7 @@ defaults:
     image:
       registry: quay.io
       repository: redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro
-      digest: sha256:e8b171e2e0c6b4371318f8d491aafd2a9d61a767fb7343ab60fa9c53fc950bca # cf18ed956efeb5827cd9fae96927b6484cb69e08 (2026-02-10 14:14)
+      digest: sha256:7c8d004335e1a3142abb694cb0511eb0bebe18e8379af563b59b00db087c994a # 0154ff4e42bbc939db7fb87f63c2fb8730545b12 (2026-02-12 02:36)
   # PKO
   pko:
     managedIdentityName: package-operator
@@ -769,7 +775,7 @@ defaults:
     image:
       registry: quay.io
       repository: app-sre/aro-hcp-clusters-service
-      digest: sha256:36c11ee056b0f1d1dcb1a3be52f9a1423daa5fc23d015df8921867eafd935a18 # 277d8fda11728e792e2073e4d0c4ff20d3c222d7 (2026-02-06 09:34)
+      digest: sha256:dbdd7608dcc7ec11c933c1cbbffe77350c6e0aa326e01136aad66f644efbd271 # b7a6d25b51bf52bd2c4be6d15435529d72bfc071 (2026-02-12 14:14)
     # controls how many HCPs can be placed on an MC, sadly not configurable per MC
     provisionShardClusterLimit: 100
     # batch processes
@@ -835,7 +841,7 @@ defaults:
       image:
         registry: arohcpsvcdev.azurecr.io
         repository: image-sync/oc-mirror
-        digest: sha256:e2715d35619f9235323d69aedc718b5b554be93d4e6cc95d4418c20a5b9753ca # f0c884e (2026-02-11 04:55)
+        digest: sha256:0c21a3e956f9ffe460fe82bf2212692259d966fe1afceb9973110d741d87fae7 # 9ae1262 (2026-02-12 17:20)
       pullSecretName: ocmirror-pull-secret
       operatorVersionsToMirror: "4.18,4.19,4.20"
   # Automation Account
@@ -942,7 +948,7 @@ clouds:
       # DNS
       dns:
         baseDnsZoneRG: global
-        cxParentZoneName: hcp.osadev.cloud
+        cxParentZoneName: hcptmp.osadev.cloud
         svcParentZoneName: hcpsvc.osadev.cloud
         parentZoneName: osadev.cloud
         globalCertificatesDomain: hcp-global.osadev.cloud
@@ -1220,6 +1226,9 @@ clouds:
           westus3:
             monitoring:
               alertsEnabled: true
+          eastus:
+            monitoring:
+              alertsEnabled: true
         # this is the personal DEV environment
         defaults:
           # Service Key Vault
@@ -1453,6 +1462,5 @@ clouds:
             jaeger:
               deploy: true
         regions:
-          westus3:
-            monitoring:
-              alertsEnabled: true
+          monitoring:
+            alertsEnabled: true

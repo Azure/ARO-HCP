@@ -17,7 +17,6 @@ package operationcontrollers
 import (
 	"context"
 	"errors"
-	"net/http"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -28,7 +27,6 @@ import (
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/utils/ptr"
 
-	"github.com/Azure/ARO-HCP/backend/oldoperationscanner"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/database"
@@ -92,13 +90,6 @@ func NewGenericOperationController(
 	}
 
 	return c
-}
-
-// PostAsyncNotification submits an POST request with status payload to the given URL.
-func PostAsyncNotification(notificationClient *http.Client) database.PostAsyncNotificationFunc {
-	return func(ctx context.Context, operation *api.Operation) error {
-		return oldoperationscanner.PostAsyncNotification(ctx, notificationClient, operation)
-	}
 }
 
 func (c *genericOperation) SyncOnce(ctx context.Context, keyObj any) error {
