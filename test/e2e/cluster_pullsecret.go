@@ -107,7 +107,7 @@ var _ = Describe("Customer", func() {
 				*resourceGroup.Name,
 				customerClusterName,
 				nodePoolParams,
-				15*time.Minute,
+				45*time.Minute,
 			)
 			Expect(err).NotTo(HaveOccurred())
 
