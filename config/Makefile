@@ -1,7 +1,7 @@
 SHELL = /bin/bash
 STAMP ?= 1
 
-render-config:
+render-partial-config:
 	$(MAKE) -C ./../tooling/templatize templatize
 	./../tooling/templatize/templatize configuration render \
 	  --service-config-file ./config.yaml \
@@ -13,7 +13,7 @@ render-config:
 	  --stamp "$(STAMP)" \
 	  --ev2-cloud public \
 	  --output "$(CONFIG_OUTPUT)"
-.PHONY: render-config
+.PHONY: render-partial-config
 
 materialize: render
 	$(MAKE) -C .. update-helm-fixtures
