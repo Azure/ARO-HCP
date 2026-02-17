@@ -33,7 +33,7 @@ var _ = Describe("Customer", func() {
 		// do nothing. per test initialization usually ages better than shared.
 	})
 
-	It("should be able to create a cluster with default autoscaling and a nodepool with autoscaling enabled",
+	It("should be able to create a cluster with default autoscaling and a nodepool with autoscaling enabled up to 500 replicas",
 		labels.RequireNothing,
 		labels.Medium,
 		labels.Positive,
@@ -45,7 +45,7 @@ var _ = Describe("Customer", func() {
 
 				// Autoscaling configuration
 				autoscalingMin int32 = 1
-				autoscalingMax int32 = 5
+				autoscalingMax int32 = 500
 			)
 			tc := framework.NewTestContext()
 
@@ -67,7 +67,7 @@ var _ = Describe("Customer", func() {
 			clusterParams, err = tc.CreateClusterCustomerResources(ctx,
 				resourceGroup,
 				clusterParams,
-				map[string]interface{}{},
+				map[string]any{},
 				TestArtifactsFS,
 				framework.RBACScopeResourceGroup,
 			)
@@ -151,7 +151,7 @@ var _ = Describe("Customer", func() {
 			clusterParams, err = tc.CreateClusterCustomerResources(ctx,
 				resourceGroup,
 				clusterParams,
-				map[string]interface{}{},
+				map[string]any{},
 				TestArtifactsFS,
 				framework.RBACScopeResourceGroup,
 			)
