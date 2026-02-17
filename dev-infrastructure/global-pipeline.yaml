@@ -15,7 +15,7 @@ buildStep:
   args:
   - -C
   - ../tooling/grafanactl
-  - build
+  - bundle
 resourceGroups:
 - name: global
   resourceGroup: '{{ .global.rg }}'
@@ -97,7 +97,7 @@ resourceGroups:
   - name: grafana-dashboards
     action: Shell
     omitFromServiceGroupCompletion: true
-    command: ./grafanactl sync dashboards --subscription=${SUBSCRIPTION_ID} --resource-group=${GLOBAL_RESOURCEGROUP} --grafana-name=${GRAFANA_NAME} --config-file=../../observability/observability.yaml
+    command: ./grafanactl sync dashboards --subscription=${SUBSCRIPTION_ID} --resource-group=${GLOBAL_RESOURCEGROUP} --grafana-name=${GRAFANA_NAME} --config-file=./observability.yaml
     workingDir: ../tooling/grafanactl
     dependsOn:
     - resourceGroup: global
@@ -105,7 +105,7 @@ resourceGroups:
     - resourceGroup: global
       step: output
     dryRun:
-      command: ./grafanactl sync dashboards --subscription=${SUBSCRIPTION_ID} --resource-group=${GLOBAL_RESOURCEGROUP} --grafana-name=${GRAFANA_NAME} --config-file=../../observability/observability.yaml --dry-run
+      command: ./grafanactl sync dashboards --subscription=${SUBSCRIPTION_ID} --resource-group=${GLOBAL_RESOURCEGROUP} --grafana-name=${GRAFANA_NAME} --config-file=./observability.yaml --dry-run
     variables:
     - name: GRAFANA_NAME
       configRef: monitoring.grafanaName
