@@ -16,6 +16,10 @@ clouds:
       stg:
         # this is the MSFT STAGE environment
         defaults:
+          # This must be defined here, so our ci jobs can know this
+          kusto:
+            rg: "hcp-kusto-prod-{{ .ev2.geoShortId }}"
+            kustoName: "hcp-prod-{{ .ev2.geoShortId }}"
           # E2E
           e2e:
             regionTest:
