@@ -1,0 +1,21 @@
+image:
+  registry: '{{ .metrics.image.registry }}'
+  repository: '{{ .metrics.image.repository }}'
+  digest: '{{ .metrics.image.digest }}'
+
+serviceAccount:
+  create: true
+  name: "aro-hcp-exporter"
+  msiClientId: "__msiClientId__"
+service:
+  name: "aro-hcp-exporter"
+deployment:
+  name: "aro-hcp-exporter"
+subscriptionIds: 
+  - "{{ .svc.subscription.key }}"
+  - "{{ .mgmt.subscription.key }}"
+listenAddress: ":8080"
+cacheTTL: "60m"
+collectionInterval: "2m"
+enabledCollectors:
+  - service-tag-usage

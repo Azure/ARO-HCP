@@ -1,0 +1,72 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: '{{ .Values.deployment.name }}'
+  namespace: '{{ .Release.Namespace }}'
+  labels:
+    app.kubernetes.io/name: '{{ .Values.deployment.name }}'
+    app.kubernetes.io/instance: '{{ .Release.Name }}'
+    app: '{{ .Values.deployment.name }}'
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: '{{ .Values.deployment.name }}'
+      app.kubernetes.io/instance: '{{ .Release.Name }}'
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: '{{ .Values.deployment.name }}'
+        app.kubernetes.io/instance: '{{ .Release.Name }}'
+        app: '{{ .Values.deployment.name }}'
+        azure.workload.identity/use: "true"
+    spec:
+      serviceAccountName: '{{ .Values.serviceAccount.name }}'
+      containers:
+        - name: aro-hcp-exporter
+          image: {{ .Values.image.registry }}/{{ .Values.image.repository }}@{{ .Values.image.digest }}
+          imagePullPolicy: IfNotPresent
+          args:
+            - serve
+            - --subscription-id={{ .Values.subscriptionId }}
+            - --listen-address={{ .Values.listenAddress }}
+            - --cache-ttl={{ .Values.cacheTTL }}
+            - --collection-interval={{ .Values.collectionInterval }}
+            - --enabled-collectors={{ join "," .Values.enabledCollectors }}
+          ports:
+            - name: metrics
+              containerPort: 8080
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /metrics
+              port: metrics
+            initialDelaySeconds: 15
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 6
+            successThreshold: 1
+          readinessProbe:
+            httpGet:
+              path: /metrics
+              port: metrics
+            initialDelaySeconds: 15
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 6
+            successThreshold: 1
+          securityContext:
+            privileged: false
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+            capabilities:
+              drop: ['ALL']
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              memory: 512Mi

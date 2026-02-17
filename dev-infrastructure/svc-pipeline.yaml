@@ -468,3 +468,23 @@ resourceGroups:
       - "context deadline exceeded"
       maximumRetryCount: 3
       durationBetweenRetries: 1m
+  - name: aro-hcp-exporter
+    aksCluster: '{{ .svc.aks.name }}'
+    action: Helm
+    releaseName: aro-hcp-exporter
+    releaseNamespace: aro-hcp-exporter
+    chartDir: ./../tooling/aro-hcp-exporter/deploy
+    valuesFile: ./../tooling/aro-hcp-exporter/deploy/values.yaml
+    kustoEndpoint:
+      resourceGroup: kusto
+      step: output
+      name: kustoUri
+    kustoDatabase: '{{ .kusto.serviceLogsDatabase }}'
+    kustoTable: 'containerLogs'
+    dependsOn:
+    - resourceGroup: service
+      step: cluster
+    identityFrom:
+      resourceGroup: global
+      step: output
+      name: globalMSIId

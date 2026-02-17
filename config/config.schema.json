@@ -2311,6 +2311,18 @@
         }
       }
     },
+    "metrics": {
+      "type": "object",
+      "properties": {
+        "image": {
+          "$ref": "#/definitions/containerImage"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "image"
+      ]
+    },
     "kubeEvents": {
       "type": "object",
       "properties": {

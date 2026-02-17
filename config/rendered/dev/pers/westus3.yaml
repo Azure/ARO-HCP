@@ -442,6 +442,11 @@ maestro:
     tracing:
       address: http://ingest.observability:4318
       exporter: otlp
+metrics:
+  image:
+    digest: sha256:9d8bb8d3de197454cb7a737ad039f49c6a6a16b88728951ef7a0a7b303ac8bfa
+    registry: arohcpsvcdev.azurecr.io
+    repository: arohcpmetrics
 mgmt:
   aks:
     clusterOutboundIPAddressIPTags: ""
