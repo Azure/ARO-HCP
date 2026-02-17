@@ -26,7 +26,10 @@ func WithLogger(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		logger := utils.LoggerFromContext(request.Context())
 		start := time.Now()
-		requestLogger := logger.WithValues("path", request.URL.Path, "method", request.Method)
+		requestLogger := logger.WithValues(
+			utils.LogValues{}.
+				AddPath(request.URL.Path).
+				AddMethod(request.Method)...)
 		requestLogger.Info("Got request.")
 
 		requestCtx := utils.ContextWithLogger(request.Context(), requestLogger)

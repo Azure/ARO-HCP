@@ -19,7 +19,6 @@ import (
 	"fmt"
 	"net/http"
 	"slices"
-	"strings"
 
 	"github.com/go-logr/logr"
 
@@ -50,25 +49,10 @@ func (k *OperationKey) GetParentResourceID() *azcorearm.ResourceID {
 }
 
 func (k *OperationKey) AddLoggerValues(logger logr.Logger) logr.Logger {
-	parentResourceID := k.GetParentResourceID()
-	hcpClusterName := ""
-	switch {
-	case strings.EqualFold(parentResourceID.ResourceType.String(), api.ClusterResourceType.String()):
-		hcpClusterName = parentResourceID.Name
-	case strings.EqualFold(parentResourceID.ResourceType.String(), api.NodePoolResourceType.String()):
-		hcpClusterName = parentResourceID.Parent.Name
-	case strings.EqualFold(parentResourceID.ResourceType.String(), api.ExternalAuthResourceType.String()):
-		hcpClusterName = parentResourceID.Name
-	}
-
 	return logger.WithValues(
-		"subscription_id", k.SubscriptionID,
-		"resource_group", parentResourceID.ResourceGroupName,
-		"resource_name", parentResourceID.Name,
-		"resource_id", k.ParentResourceID,
-		"operation_id", k.OperationName,
-		"hcp_cluster_name", hcpClusterName,
-	)
+		utils.LogValues{}.
+			AddLogValuesForResourceID(k.GetParentResourceID()).
+			AddOperationID(k.OperationName)...)
 }
 
 func (k *OperationKey) InitialController(controllerName string) *api.Controller {
@@ -100,12 +84,8 @@ func (k *HCPClusterKey) GetResourceID() *azcorearm.ResourceID {
 
 func (k *HCPClusterKey) AddLoggerValues(logger logr.Logger) logr.Logger {
 	return logger.WithValues(
-		"subscription_id", k.SubscriptionID,
-		"resource_group", k.ResourceGroupName,
-		"resource_name", k.HCPClusterName,
-		"resource_id", k.GetResourceID().String(),
-		"hcp_cluster_name", k.HCPClusterName, // provides standard location for resources like nodes
-	)
+		utils.LogValues{}.
+			AddLogValuesForResourceID(k.GetResourceID())...)
 }
 
 func (k *HCPClusterKey) InitialController(controllerName string) *api.Controller {

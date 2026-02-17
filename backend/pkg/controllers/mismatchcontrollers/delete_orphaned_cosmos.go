@@ -125,12 +125,9 @@ func (c *deleteOrphanedCosmosResources) synchronizeSubscription(ctx context.Cont
 		}
 
 		localLogger := logger.WithValues(
-			"cosmosResourceID", currResourceIDString,
-			"resource_group", currResourceID.ResourceGroupName,
-			"resource_id", currResourceID,
-			"resource_name", currResourceID.Name,
-			"hcp_cluster_name", clusterNameOfResourceID(currResourceID),
-		)
+			utils.LogValues{}.
+				AddCosmosResourceID(currResourceIDString).
+				AddLogValuesForResourceID(currResourceID)...)
 		ctxWithLocalLogger := utils.ContextWithLogger(ctx, localLogger) // setting so that other calls down the chain will show correctly in kusto for the delete
 
 		if currResourceID.Parent == nil {
@@ -149,19 +146,6 @@ func (c *deleteOrphanedCosmosResources) synchronizeSubscription(ctx context.Cont
 	}
 
 	return errors.Join(errs...)
-}
-
-func clusterNameOfResourceID(resourceID *azcorearm.ResourceID) string {
-	if resourceID == nil {
-		return ""
-	}
-	if !strings.EqualFold(resourceID.ResourceType.Namespace, api.ProviderNamespace) {
-		return ""
-	}
-	if strings.EqualFold(resourceID.ResourceType.String(), api.ClusterResourceType.String()) {
-		return resourceID.String()
-	}
-	return clusterNameOfResourceID(resourceID.Parent)
 }
 
 func (c *deleteOrphanedCosmosResources) SyncOnce(ctx context.Context, subscription any) error {
@@ -194,7 +178,7 @@ func (c *deleteOrphanedCosmosResources) Run(ctx context.Context, threadiness int
 	defer c.queue.ShutDown()
 
 	logger := utils.LoggerFromContext(ctx)
-	logger = logger.WithValues("controller_name", c.name)
+	logger = logger.WithValues(utils.LogValues{}.AddControllerName(c.name)...)
 	ctx = utils.ContextWithLogger(ctx, logger)
 	logger.Info("Starting")
 
@@ -230,7 +214,7 @@ func (c *deleteOrphanedCosmosResources) processNextWorkItem(ctx context.Context)
 	defer c.queue.Done(ref)
 
 	logger := utils.LoggerFromContext(ctx)
-	logger = logger.WithValues("subscription_id", ref)
+	logger = logger.WithValues(utils.LogValues{}.AddSubscriptionID(ref)...)
 	ctx = utils.ContextWithLogger(ctx, logger)
 
 	err := c.SyncOnce(ctx, ref)

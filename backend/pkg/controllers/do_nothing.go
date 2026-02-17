@@ -161,7 +161,7 @@ func (c *doNothingExample) Run(ctx context.Context, threadiness int) {
 	defer c.queue.ShutDown()
 
 	logger := utils.LoggerFromContext(ctx)
-	logger = logger.WithValues("controller_name", c.name)
+	logger = logger.WithValues(utils.LogValues{}.AddControllerName(c.name)...)
 	ctx = utils.ContextWithLogger(ctx, logger)
 	logger.Info("Starting")
 

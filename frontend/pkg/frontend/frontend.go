@@ -625,7 +625,7 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 			continue
 		}
 
-		resourceLogger := logger.WithValues("resourceType", preflightResource.Type, "resourceName", preflightResource.Name)
+		resourceLogger := logger.WithValues(utils.LogValues{}.AddResourceName(preflightResource.Name).AddResourceType(preflightResource.Type)...)
 
 		switch strings.ToLower(preflightResource.Type) {
 		case strings.ToLower(api.ClusterResourceType.String()):

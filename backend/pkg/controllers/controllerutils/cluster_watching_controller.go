@@ -117,7 +117,7 @@ func (c *clusterWatchingController) Run(ctx context.Context, threadiness int) {
 	defer c.queue.ShutDown()
 
 	logger := utils.LoggerFromContext(ctx)
-	logger = logger.WithValues("controller_name", c.name)
+	logger = logger.WithValues(utils.LogValues{}.AddControllerName(c.name)...)
 	ctx = utils.ContextWithLogger(ctx, logger)
 	logger.Info("Starting")
 
@@ -168,7 +168,7 @@ func (c *clusterWatchingController) processNextWorkItem(ctx context.Context) boo
 
 func (c *clusterWatchingController) enqueueAdd(newObj interface{}) {
 	logger := utils.DefaultLogger()
-	logger = logger.WithValues("controller_name", c.name)
+	logger = logger.WithValues(utils.LogValues{}.AddControllerName(c.name)...)
 	ctx := logr.NewContext(context.TODO(), logger)
 
 	castObj := newObj.(*api.HCPOpenShiftCluster)
