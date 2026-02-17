@@ -119,6 +119,7 @@ func (k *HCPNodePoolKey) AddLoggerValues(logger logr.Logger) logr.Logger {
 		"subscription_id", k.SubscriptionID,
 		"resource_group", k.ResourceGroupName,
 		"cluster_name", k.HCPClusterName,
+		"hcp_cluster_name", k.HCPClusterName,
 		"resource_name", k.HCPNodePoolName,
 		"resource_id", k.GetResourceID().String(),
 		"hcp_node_pool_name", k.HCPNodePoolName,
