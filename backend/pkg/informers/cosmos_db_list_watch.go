@@ -110,7 +110,9 @@ func (w *watcher) ResultChan() <-chan watch.Event {
 
 // watcherSet holds a set of watchers for a particular resource type.
 type watcherSet struct {
-	mutex    sync.Mutex
+	mutex sync.Mutex
+	// The map key is watcher.id, which itself is a UUID. The key
+	// value is meaningless, just needs to be unique and comparable.
 	watchers map[string]*watcher
 }
 
