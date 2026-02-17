@@ -151,7 +151,14 @@ data:
     
     [FILTER]
         Name modify
-        Match kubernetes.var.log.containers.* | systemd.*
+        Match systemd.*
+        Add environment dev
+        Add region westus3
+        Add cluster dev-westus3-svc-1
+
+    [FILTER]
+        Name modify
+        Match kubernetes.var.log.containers.*
         Add environment dev
         Add region westus3
         Add cluster dev-westus3-svc-1
@@ -429,7 +436,7 @@ spec:
         app: arobit-forwarder
         azure.workload.identity/use: "true"
       annotations:
-        checksum/configmap: a21ef40c22b4db28349452239b48ce7ad81d85435e262d497109b95d48fc3808
+        checksum/configmap: e3ccca30db8ed903dfb77953ea8a81559fb62b0e3cbcaab0873e2d260e01fe5f
     spec:
       serviceAccountName: 'arobit-forwarder'
       shareProcessNamespace: true
@@ -587,8 +594,6 @@ spec:
               readOnly: true
       volumes:
         - name: kusto
-          emptyDir: {}
-        - name: systemd
           emptyDir: {}
         - name: sp-host
           hostPath:

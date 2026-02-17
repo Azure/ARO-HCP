@@ -278,8 +278,6 @@ spec:
       volumes:
         - name: kusto
           emptyDir: {}
-        - name: systemd
-          emptyDir: {}
         - name: sp-host
           hostPath:
             type: Directory

@@ -147,7 +147,14 @@ data:
     
     [FILTER]
         Name modify
-        Match kubernetes.var.log.containers.* | systemd.*
+        Match systemd.*
+        Add environment {{ .Values.forwarder.environment }}
+        Add region {{ .Values.forwarder.region }}
+        Add cluster {{ .Values.forwarder.clusterName }}
+
+    [FILTER]
+        Name modify
+        Match kubernetes.var.log.containers.*
         Add environment {{ .Values.forwarder.environment }}
         Add region {{ .Values.forwarder.region }}
         Add cluster {{ .Values.forwarder.clusterName }}
