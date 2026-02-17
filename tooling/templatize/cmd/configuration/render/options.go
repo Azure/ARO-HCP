@@ -134,13 +134,7 @@ func (o *ValidatedOptions) Complete() (*Options, error) {
 	var err error
 
 	if o.ConfigFileOverride != "" {
-		mergedConfigFile, err := os.CreateTemp("", "merged-config-*.yaml")
-		if err != nil {
-			return nil, fmt.Errorf("failed to create temporary file for merged configuration: %w", err)
-		}
-		mergedConfigFilePath := mergedConfigFile.Name()
-
-		schemaBaseDir := filepath.Dir(mergedConfigFilePath)
+		schemaBaseDir := filepath.Dir(o.ServiceConfigFile)
 		mergedConfigData, err := types.MergeRawConfigurationFiles(schemaBaseDir, []string{o.ServiceConfigFile, o.ConfigFileOverride})
 		if err != nil {
 			return nil, fmt.Errorf("failed to merge configuration files: %w", err)
