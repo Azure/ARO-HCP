@@ -28,6 +28,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/utils"
+	"github.com/go-logr/logr"
 )
 
 type NodePoolSyncer interface {
@@ -36,8 +37,9 @@ type NodePoolSyncer interface {
 }
 
 type nodePoolWatchingController struct {
-	name         string
-	syncer       NodePoolSyncer
+	name   string
+	syncer NodePoolSyncer
+
 	cosmosClient database.DBClient
 
 	// queue is where incoming work is placed to de-dup and to allow "easy"
@@ -160,6 +162,10 @@ func (c *nodePoolWatchingController) processNextWorkItem(ctx context.Context) bo
 }
 
 func (c *nodePoolWatchingController) enqueueAdd(newObj interface{}) {
+	logger := utils.DefaultLogger()
+	logger = logger.WithValues("controller_name", c.name)
+	ctx := logr.NewContext(context.TODO(), logger)
+
 	castObj := newObj.(*api.HCPOpenShiftClusterNodePool)
 	key := HCPNodePoolKey{
 		SubscriptionID:    castObj.ID.SubscriptionID,
@@ -167,8 +173,10 @@ func (c *nodePoolWatchingController) enqueueAdd(newObj interface{}) {
 		HCPClusterName:    castObj.ID.Parent.Name,
 		HCPNodePoolName:   castObj.ID.Name,
 	}
+	logger = key.AddLoggerValues(logger)
+	ctx = logr.NewContext(ctx, logger)
 
-	if !c.syncer.CooldownChecker().CanSync(context.TODO(), key) {
+	if !c.syncer.CooldownChecker().CanSync(ctx, key) {
 		return
 	}
 
