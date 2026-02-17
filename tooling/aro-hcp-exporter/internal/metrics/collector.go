@@ -28,12 +28,12 @@ type CachingCollector interface {
 
 // CreateEnabledCollectors creates a list of enabled collectors
 // It iterates over the enabled collectors and creates the corresponding collector
-func CreateEnabledCollectors(ctx context.Context, subscriptionID string, creds azcore.TokenCredential, cacheTTL time.Duration, enabledCollectors []string) ([]CachingCollector, error) {
+func CreateEnabledCollectors(ctx context.Context, subscriptionIDs []string, creds azcore.TokenCredential, cacheTTL time.Duration, enabledCollectors []string) ([]CachingCollector, error) {
 	var collectors []CachingCollector
 	for _, collector := range enabledCollectors {
 		switch collector {
 		case ServiceTagUsageCollectorName:
-			publicIPCollector, err := NewServiceTagUsageCollector(subscriptionID, creds, cacheTTL)
+			publicIPCollector, err := NewServiceTagUsageCollector(subscriptionIDs, creds, cacheTTL)
 			if err != nil {
 				return nil, fmt.Errorf("failed to create public IP collector: %w", err)
 			}
