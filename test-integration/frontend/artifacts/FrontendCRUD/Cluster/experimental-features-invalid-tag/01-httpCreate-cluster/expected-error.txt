@@ -1,0 +1,5 @@
+{
+    "code": "InvalidRequestContent",
+    "message": "Invalid value: \"aro-hcp.experimental.cluster/unknown-feature\": unrecognized experimental tag",
+    "target": "tags[aro-hcp.experimental.cluster/unknown-feature]"
+  }

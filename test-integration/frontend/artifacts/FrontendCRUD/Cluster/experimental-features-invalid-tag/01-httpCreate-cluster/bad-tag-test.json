@@ -1,0 +1,53 @@
+{
+	"tags": {
+		"aro-hcp.experimental.cluster/single-replica": "SingleReplica",
+		"aro-hcp.experimental.cluster/unknown-feature": "something"
+	},
+	"identity": {
+		"type": "UserAssigned",
+		"userAssignedIdentities": {}
+	},
+	"name": "bad-tag-test",
+	"properties": {
+		"api": {
+			"visibility": "Public"
+		},
+		"clusterImageRegistry": {
+			"state": "Disabled"
+		},
+		"console": {},
+		"dns": {},
+		"etcd": {
+			"dataEncryption": {
+				"customerManaged": {
+					"encryptionType": "KMS",
+					"kms": {
+						"activeKey": {
+							"name": "encryptionKeyName",
+							"vaultName": "keyVaultName",
+							"version": "2024-12-01-preview"
+						}
+					}
+				},
+				"keyManagementMode": "CustomerManaged"
+			}
+		},
+		"network": {
+			"hostPrefix": 23,
+			"machineCidr": "10.0.0.0/16",
+			"networkType": "OVNKubernetes",
+			"podCidr": "10.128.0.0/14",
+			"serviceCidr": "172.30.0.0/16"
+		},
+		"platform": {
+			"managedResourceGroup": "managed-resource-group-name",
+			"networkSecurityGroupId": "/subscriptions/b2c3d4e5-0000-0000-0000-afec00000001/resourceGroups/bar/providers/Microsoft.Network/networkSecurityGroups/nsg",
+			"outboundType": "LoadBalancer",
+			"subnetId": "/subscriptions/b2c3d4e5-0000-0000-0000-afec00000001/resourceGroups/bar/providers/Microsoft.Network/virtualNetworks/vnet/subnets/subnet"
+		},
+		"version": {
+			"channelGroup": "stable"
+		}
+	},
+	"type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters"
+}
