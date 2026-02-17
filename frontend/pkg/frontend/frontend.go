@@ -61,16 +61,6 @@ type Frontend struct {
 	// this is the azure location for this instance of the frontend
 	azureLocation string
 
-	// clusterServiceProvisionShard pins cluster requests to a specific
-	// Cluster Service provision shard during testing.
-	clusterServiceProvisionShard string
-	// clusterServiceNoopProvision short-circuits the full provision flow
-	// during testing.
-	clusterServiceNoopProvision bool
-	// clusterServiceNoopDeprovision short-circuits the full deprovision flow
-	// during testing.
-	clusterServiceNoopDeprovision bool
-
 	apiRegistry api.APIRegistry
 }
 
@@ -83,9 +73,6 @@ func NewFrontend(
 	csClient ocm.ClusterServiceClientSpec,
 	auditClient audit.Client,
 	azureLocation string,
-	clusterServiceProvisionShard string,
-	clusterServiceNoopProvision bool,
-	clusterServiceNoopDeprovision bool,
 ) *Frontend {
 	// zero side-effect registration path
 	apiRegistry := api.NewAPIRegistry()
@@ -108,12 +95,9 @@ func NewFrontend(
 				return utils.ContextWithLogger(context.Background(), logger)
 			},
 		},
-		auditClient:                   auditClient,
-		dbClient:                      dbClient,
-		collector:                     metrics.NewSubscriptionCollector(reg, dbClient, azureLocation),
-		clusterServiceProvisionShard:  clusterServiceProvisionShard,
-		clusterServiceNoopProvision:   clusterServiceNoopProvision,
-		clusterServiceNoopDeprovision: clusterServiceNoopDeprovision,
+		auditClient: auditClient,
+		dbClient:    dbClient,
+		collector:   metrics.NewSubscriptionCollector(reg, dbClient, azureLocation),
 		healthGauge: promauto.With(reg).NewGauge(
 			prometheus.GaugeOpts{
 				Name: healthGaugeName,
