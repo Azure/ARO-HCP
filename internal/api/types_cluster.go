@@ -59,6 +59,8 @@ type HCPOpenShiftClusterServiceProviderProperties struct {
 	ClusterServiceID             InternalID                     `json:"clusterServiceID,omitempty"`
 	ActiveOperationID            string                         `json:"activeOperationId,omitempty"`
 	RevokeCredentialsOperationID string                         `json:"revokeCredentialsOperationId,omitempty"`
+	TenantID                     string                         `json:"tenantId,omitempty"`
+	IdentityURL                  string                         `json:"identityUrl,omitempty"`
 	DNS                          ServiceProviderDNSProfile      `json:"dns,omitempty"`
 	Console                      ServiceProviderConsoleProfile  `json:"console,omitempty"`
 	API                          ServiceProviderAPIProfile      `json:"api,omitempty"`

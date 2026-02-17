@@ -592,14 +592,8 @@ func convertRpAutoscalarToCSBuilder(in *api.ClusterAutoscalingProfile) (*arohcpv
 // requiredProperties are caller-specified properties (e.g. provision shard, noop flags).
 // oldClusterServiceCluster, if non-nil, indicates an update and its existing properties
 // are preserved as a base layer.
-func BuildCSCluster(resourceID *azcorearm.ResourceID, requestHeader http.Header, hcpCluster *api.HCPOpenShiftCluster, requiredProperties map[string]string, oldClusterServiceCluster *arohcpv1alpha1.Cluster) (*arohcpv1alpha1.ClusterBuilder, *arohcpv1alpha1.ClusterAutoscalerBuilder, error) {
+func BuildCSCluster(resourceID *azcorearm.ResourceID, hcpCluster *api.HCPOpenShiftCluster, requiredProperties map[string]string, oldClusterServiceCluster *arohcpv1alpha1.Cluster) (*arohcpv1alpha1.ClusterBuilder, *arohcpv1alpha1.ClusterAutoscalerBuilder, error) {
 	var err error
-
-	// Ensure required headers are present.
-	tenantID := requestHeader.Get(arm.HeaderNameHomeTenantID)
-	if tenantID == "" {
-		return nil, nil, fmt.Errorf("missing " + arm.HeaderNameHomeTenantID + " header")
-	}
 
 	clusterBuilder := arohcpv1alpha1.NewCluster()
 	clusterAPIBuilder := arohcpv1alpha1.NewClusterAPI()
@@ -610,8 +604,8 @@ func BuildCSCluster(resourceID *azcorearm.ResourceID, requestHeader http.Header,
 		clusterBuilder, err = withImmutableAttributes(clusterBuilder, hcpCluster,
 			resourceID.SubscriptionID,
 			resourceID.ResourceGroupName,
-			tenantID,
-			requestHeader.Get(arm.HeaderNameIdentityURL),
+			hcpCluster.ServiceProviderProperties.TenantID,
+			hcpCluster.ServiceProviderProperties.IdentityURL,
 		)
 		if err != nil {
 			return nil, nil, err
