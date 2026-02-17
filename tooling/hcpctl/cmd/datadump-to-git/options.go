@@ -186,11 +186,15 @@ func findBackendLogs(dir string) ([]string, error) {
 			return nil
 		}
 
-		// Look for files matching *backend*.log in service/ directories
+		// Look for files matching *backend*.log or *backend*.jsonl in service/ directories
 		filename := filepath.Base(path)
+		lowerFilename := strings.ToLower(filename)
 		parentDir := filepath.Base(filepath.Dir(path))
 
-		if parentDir == "service" && strings.Contains(strings.ToLower(filename), "backend") && strings.HasSuffix(strings.ToLower(filename), ".log") {
+		isBackendLog := parentDir == "service" &&
+			strings.Contains(lowerFilename, "backend") &&
+			(strings.HasSuffix(lowerFilename, ".log") || strings.HasSuffix(lowerFilename, ".jsonl"))
+		if isBackendLog {
 			logFiles = append(logFiles, path)
 		}
 
@@ -230,9 +234,12 @@ func extractTarGz(tarGzPath, destDir string) error {
 			continue
 		}
 
-		// Only extract files we care about (backend logs)
+		// Only extract files we care about (backend logs - .log or .jsonl)
 		filename := filepath.Base(header.Name)
-		if !strings.Contains(strings.ToLower(filename), "backend") || !strings.HasSuffix(strings.ToLower(filename), ".log") {
+		lowerFilename := strings.ToLower(filename)
+		isBackendLog := strings.Contains(lowerFilename, "backend") &&
+			(strings.HasSuffix(lowerFilename, ".log") || strings.HasSuffix(lowerFilename, ".jsonl"))
+		if !isBackendLog {
 			continue
 		}
 

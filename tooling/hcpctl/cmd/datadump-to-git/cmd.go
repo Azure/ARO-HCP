@@ -18,8 +18,6 @@ import (
 	"bufio"
 	"bytes"
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -115,8 +113,8 @@ func (opts *options) Run(ctx context.Context) error {
 
 	logger.Info("Found data dump entries", "count", len(allEntries), "files", len(opts.logFiles))
 
-	// Sort entries by timestamp
-	sort.Slice(allEntries, func(i, j int) bool {
+	// Sort entries by timestamp (stable sort preserves order of entries with same timestamp)
+	sort.SliceStable(allEntries, func(i, j int) bool {
 		return allEntries[i].Timestamp < allEntries[j].Timestamp
 	})
 
@@ -285,9 +283,9 @@ func processEntries(ctx context.Context, entries []dataDumpEntry, outputDir stri
 			currentContent = nil
 		}
 
-		// Check if content changed
+		// Check if content changed (direct string comparison)
 		previousContent, exists := lastContent[normalizedResourceID]
-		if exists && hashContent(prettyContent) == hashContent(mustPrettyPrint(previousContent)) {
+		if exists && prettyContent == mustPrettyPrint(previousContent) {
 			// Content unchanged, skip
 			continue
 		}
@@ -362,8 +360,8 @@ func generateCommitMessage(resourceID string, oldContent, newContent map[string]
 	}
 
 	if newContent == nil {
-		// This is a delete
-		sb.WriteString("\nDELETED")
+		// newContent is nil when JSON unmarshal fails, not a true deletion
+		sb.WriteString("\nUPDATED (content could not be parsed as JSON)")
 		return sb.String()
 	}
 
@@ -408,9 +406,18 @@ func findChanges(prefix string, oldObj, newObj map[string]interface{}) []string 
 			newMap, newIsMap := newVal.(map[string]interface{})
 			if oldIsMap && newIsMap {
 				changes = append(changes, findChanges(fieldPath, oldMap, newMap)...)
-			} else {
-				changes = append(changes, fmt.Sprintf("%s: %v", fieldPath, formatValue(newVal)))
+				continue
 			}
+
+			// Check if both are arrays - recurse into array elements
+			oldArr, oldIsArr := oldVal.([]interface{})
+			newArr, newIsArr := newVal.([]interface{})
+			if oldIsArr && newIsArr {
+				changes = append(changes, findArrayChanges(fieldPath, oldArr, newArr)...)
+				continue
+			}
+
+			changes = append(changes, fmt.Sprintf("%s: %v", fieldPath, formatValue(newVal)))
 		}
 	}
 
@@ -422,6 +429,55 @@ func findChanges(prefix string, oldObj, newObj map[string]interface{}) []string 
 				fieldPath = prefix + "." + key
 			}
 			changes = append(changes, fmt.Sprintf("%s: (removed)", fieldPath))
+		}
+	}
+
+	return changes
+}
+
+// findArrayChanges compares two arrays and returns changes
+func findArrayChanges(prefix string, oldArr, newArr []interface{}) []string {
+	var changes []string
+
+	// Compare by index
+	maxLen := len(oldArr)
+	if len(newArr) > maxLen {
+		maxLen = len(newArr)
+	}
+
+	for i := 0; i < maxLen; i++ {
+		elemPath := fmt.Sprintf("%s[%d]", prefix, i)
+
+		if i >= len(oldArr) {
+			changes = append(changes, fmt.Sprintf("%s: %v (added)", elemPath, formatValue(newArr[i])))
+			continue
+		}
+		if i >= len(newArr) {
+			changes = append(changes, fmt.Sprintf("%s: (removed)", elemPath))
+			continue
+		}
+
+		oldVal := oldArr[i]
+		newVal := newArr[i]
+
+		if !valuesEqual(oldVal, newVal) {
+			// Check if both are maps - recurse
+			oldMap, oldIsMap := oldVal.(map[string]interface{})
+			newMap, newIsMap := newVal.(map[string]interface{})
+			if oldIsMap && newIsMap {
+				changes = append(changes, findChanges(elemPath, oldMap, newMap)...)
+				continue
+			}
+
+			// Check if both are arrays - recurse
+			oldSubArr, oldIsArr := oldVal.([]interface{})
+			newSubArr, newIsArr := newVal.([]interface{})
+			if oldIsArr && newIsArr {
+				changes = append(changes, findArrayChanges(elemPath, oldSubArr, newSubArr)...)
+				continue
+			}
+
+			changes = append(changes, fmt.Sprintf("%s: %v", elemPath, formatValue(newVal)))
 		}
 	}
 
@@ -451,15 +507,19 @@ func formatValue(v interface{}) string {
 }
 
 // mustPrettyPrint pretty prints a map, returning empty string on error
+// Uses the same formatting as prettyPrintJSON (no HTML escaping) for consistent comparison
 func mustPrettyPrint(content map[string]interface{}) string {
 	if content == nil {
 		return ""
 	}
-	data, err := json.MarshalIndent(content, "", "  ")
-	if err != nil {
+	var buf bytes.Buffer
+	encoder := json.NewEncoder(&buf)
+	encoder.SetIndent("", "  ")
+	encoder.SetEscapeHTML(false)
+	if err := encoder.Encode(content); err != nil {
 		return ""
 	}
-	return string(data)
+	return strings.TrimSpace(buf.String())
 }
 
 // resourceIDToPathWithContent converts an Azure resource ID to a directory path structure
@@ -468,31 +528,31 @@ func mustPrettyPrint(content map[string]interface{}) string {
 func resourceIDToPathWithContent(resourceID string, msgJSON string) string {
 	// Check if this is an operation status with an externalId
 	var content msgContent
-	if err := json.Unmarshal([]byte(msgJSON), &content); err == nil {
-		if content.ExternalId != "" && content.Request != "" {
-			// Extract operation ID from the resource ID (last path component)
-			operationID := filepath.Base(resourceID)
-
-			// Use externalId as the base path, with request-operationID as filename
-			basePath := strings.TrimPrefix(content.ExternalId, "/")
-			basePath = strings.ReplaceAll(basePath, "\\", "/")
-			basePath = strings.ToLower(basePath)
-
-			// Sanitize path components
-			parts := strings.Split(basePath, "/")
-			for i, part := range parts {
-				re := regexp.MustCompile(`[:*?"<>|]`)
-				parts[i] = re.ReplaceAllString(part, "_")
-			}
-
-			// Create filename with request prefix
-			filename := fmt.Sprintf("%s-%s.json", strings.ToLower(content.Request), strings.ToLower(operationID))
-			return filepath.Join(append(parts, filename)...)
-		}
+	if err := json.Unmarshal([]byte(msgJSON), &content); err != nil {
+		return resourceIDToPath(resourceID)
+	}
+	if content.ExternalId == "" || content.Request == "" {
+		return resourceIDToPath(resourceID)
 	}
 
-	// Default: use resourceIDToPath
-	return resourceIDToPath(resourceID)
+	// Extract operation ID from the resource ID (last path component)
+	operationID := filepath.Base(resourceID)
+
+	// Use externalId as the base path, with request-operationID as filename
+	basePath := strings.TrimPrefix(content.ExternalId, "/")
+	basePath = strings.ReplaceAll(basePath, "\\", "/")
+	basePath = strings.ToLower(basePath)
+
+	// Sanitize path components
+	parts := strings.Split(basePath, "/")
+	for i, part := range parts {
+		re := regexp.MustCompile(`[:*?"<>|]`)
+		parts[i] = re.ReplaceAllString(part, "_")
+	}
+
+	// Create filename with request prefix
+	filename := fmt.Sprintf("%s-%s.json", strings.ToLower(content.Request), strings.ToLower(operationID))
+	return filepath.Join(append(parts, filename)...)
 }
 
 // resourceIDToPath converts an Azure resource ID to a directory path structure
@@ -503,6 +563,7 @@ func resourceIDToPath(resourceID string) string {
 	path := strings.TrimPrefix(resourceID, "/")
 
 	// Normalize path separators (handle both / and \)
+	// Backslashes may appear in resource IDs from Windows-based tooling or escaped JSON strings
 	path = strings.ReplaceAll(path, "\\", "/")
 
 	// Lowercase the entire path for consistent file/directory names
@@ -535,9 +596,4 @@ func prettyPrintJSON(content string) (string, error) {
 	}
 
 	return strings.TrimSpace(buf.String()), nil
-}
-
-func hashContent(content string) string {
-	hash := sha256.Sum256([]byte(content))
-	return hex.EncodeToString(hash[:])
 }
