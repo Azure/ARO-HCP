@@ -135,7 +135,10 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Clusters Service client: %w", err)
 	}
-	csClient := ocm.NewClusterServiceClient(csConnection)
+	csClient := ocm.NewClusterServiceClient(csConnection, "", false, false)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create the Clusters Service client: %w", err)
+	}
 
 	// Create the database client.
 	cosmosDatabaseClient, err := database.NewCosmosDatabaseClient(
