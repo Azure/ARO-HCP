@@ -29,11 +29,11 @@ spec:
           imagePullPolicy: IfNotPresent
           args:
             - serve
-            - --subscription-id={{ .Values.subscriptionId }}
-            - --listen-address={{ .Values.listenAddress }}
-            - --cache-ttl={{ .Values.cacheTTL }}
-            - --collection-interval={{ .Values.collectionInterval }}
-            - --enabled-collectors={{ join "," .Values.enabledCollectors }}
+            - --subscription-ids={{ join "," .Values.subscriptionIds | quote }}
+            - --listen-address={{ .Values.listenAddress | quote }}
+            - --cache-ttl={{ .Values.cacheTTL | quote }}
+            - --collection-interval={{ .Values.collectionInterval | quote }}
+            - --enabled-collectors={{ join "," .Values.enabledCollectors | quote }}
           ports:
             - name: metrics
               containerPort: 8080
