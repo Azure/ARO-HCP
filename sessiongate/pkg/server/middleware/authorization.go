@@ -29,7 +29,7 @@ func WithSessionProxyClaimHeaderAuthorization(owner sessiongatev1alpha1.Principa
 	case sessiongatev1alpha1.PrincipalTypeAzureUser:
 		claimName = "X-JWT-Claim-Upn"
 	case sessiongatev1alpha1.PrincipalTypeAzureServicePrincipal:
-		claimName = "X-JWT-Claim-AppId"
+		claimName = "X-JWT-Claim-Oid"
 	default:
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, fmt.Sprintf("unauthorized: unexpected owner type: %s", string(owner.Type)), http.StatusUnauthorized)
@@ -39,10 +39,8 @@ func WithSessionProxyClaimHeaderAuthorization(owner sessiongatev1alpha1.Principa
 		logger := klog.FromContext(r.Context()).WithValues("identity", owner.Name, "identityType", owner.Type)
 		claimValue := r.Header.Get(claimName)
 		if claimValue != owner.Name {
-			// Log full details server-side for debugging, but return a generic
-			// error to the client to avoid leaking expected claim values.
 			logger.Error(fmt.Errorf("claim validation failed"), "unauthorized",
-				"claimHeader", claimName, "presentedValue", claimValue)
+				"expected", fmt.Sprintf("%s=%s", claimName, owner.Name), "got", fmt.Sprintf("%s=%s", claimName, claimValue))
 			http.Error(w, "unauthorized: claim validation failed", http.StatusUnauthorized)
 			return
 		}

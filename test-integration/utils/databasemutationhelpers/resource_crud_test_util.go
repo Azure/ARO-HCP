@@ -383,6 +383,7 @@ func (s StepInput) HTTPTestAccessor(key ResourceKey) HTTPTestAccessor {
 	if strings.HasPrefix(key.ResourceID, "/admin/") {
 		return newHTTPTestAccessor(s.AdminURL, map[string]string{
 			"X-Ms-Client-Principal-Name": "test-user@example.com",
+			"X-Ms-Client-Principal-Type": "dstsUser",
 			"Content-Type":               "application/json",
 		})
 	}

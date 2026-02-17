@@ -125,29 +125,8 @@ func (c *DataplaneController) processNextWorkItem(ctx context.Context) bool {
 	}
 
 	defer c.workqueue.Done(objRef)
-
-	session, err := c.getSession(objRef.Namespace, objRef.Name)
-	if err != nil && apierrors.IsNotFound(err) {
-		// session is gone, nothing to do
-		return true
-	} else if err != nil {
-		c.workqueue.AddRateLimited(objRef)
-		return true
-	}
-
-	logger := klog.FromContext(ctx).WithValues(
-		"session", session.Name,
-		"namespace", session.Namespace,
-		"managementClusterID", session.Spec.ManagementCluster.ResourceID,
-		"hostedControlPlaneResourceID", session.Spec.HostedControlPlane.Namespace,
-	)
-	ctx = klog.NewContext(ctx, logger)
-
-	logger.Info("start sync")
-	defer logger.Info("end sync")
-
 	// reconcile the session
-	err = c.syncSession(session)
+	err := c.syncSession(ctx, objRef)
 	if err != nil {
 		utilruntime.HandleErrorWithContext(ctx, err, "Error syncing; requeuing for later retry")
 		c.workqueue.AddRateLimited(objRef)
@@ -157,13 +136,32 @@ func (c *DataplaneController) processNextWorkItem(ctx context.Context) bool {
 	return true
 }
 
-func (c *DataplaneController) syncSession(session *sessiongatev1alpha1.Session) error {
+func (c *DataplaneController) syncSession(ctx context.Context, objRef cache.ObjectName) error {
+	logger := klog.FromContext(ctx).WithValues(
+		"session", objRef.Name,
+		"namespace", objRef.Namespace,
+	)
+	logger.Info("start sync")
+	defer logger.Info("end sync")
+
+	session, err := c.getSession(objRef.Namespace, objRef.Name)
+	if err != nil && apierrors.IsNotFound(err) {
+		// session is gone, unregister it from the proxy
+		logger.Info("session is gone, unregistering from proxy")
+		c.registry.UnregisterSession(objRef.Name)
+		return nil
+	} else if err != nil {
+		return nil
+	}
+
 	if ready, _ := c.isReadyForRegistration(session); !ready {
+		logger.Info("session is not ready, unregistering from proxy")
 		c.registry.UnregisterSession(session.Name)
 		return nil
 	}
 
 	// register the session with the local registry for proxying traffic
+	logger.Info("registering session with proxy")
 	return c.registerSession(session)
 }
 

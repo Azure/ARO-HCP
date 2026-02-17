@@ -17,10 +17,7 @@ package breakglass
 import (
 	"fmt"
 	"net/http"
-	"net/mail"
 	"time"
-
-	"github.com/google/uuid"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
@@ -67,14 +64,6 @@ func (h *HCPBreakglassSessionCreationHandler) ServeHTTP(writer http.ResponseWrit
 		return
 	}
 
-	// get client principal name attached to the request
-	clientPrincipalName, err := middleware.ClientPrincipalNameFromContext(request.Context())
-	if err != nil {
-		logger.Error(err, "failed to get client principal name from context")
-		http.Error(writer, "missing client principal", http.StatusUnauthorized)
-		return
-	}
-
 	// get HCP details
 	hcp, err := h.dbClient.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).Get(request.Context(), resourceID.Name)
 	if err != nil {
@@ -104,10 +93,17 @@ func (h *HCPBreakglassSessionCreationHandler) ServeHTTP(writer http.ResponseWrit
 		return
 	}
 
-	principalType, err := getPrincipalType(clientPrincipalName)
+	clientPrincipalReference, err := middleware.ClientPrincipalFromContext(request.Context())
 	if err != nil {
-		logger.Error(err, "failed to infer principal type", "principalName", clientPrincipalName)
-		http.Error(writer, "failed to infer principal type", http.StatusBadRequest)
+		logger.Error(err, "failed to get client principal AAD reference from context")
+		http.Error(writer, "missing client principal AAD reference", http.StatusUnauthorized)
+		return
+	}
+
+	principalName, principalType, err := mapGenevaActionClientReference(clientPrincipalReference)
+	if err != nil {
+		logger.Error(err, "failed to map Geneva Action client reference to principal")
+		http.Error(writer, err.Error(), http.StatusBadRequest)
 		return
 	}
 
@@ -128,7 +124,7 @@ func (h *HCPBreakglassSessionCreationHandler) ServeHTTP(writer http.ResponseWrit
 				Group: group,
 			},
 			Owner: sessiongateapiv1alpha1.Principal{
-				Name: clientPrincipalName,
+				Name: principalName,
 				Type: principalType,
 			},
 		},
@@ -146,37 +142,16 @@ func (h *HCPBreakglassSessionCreationHandler) ServeHTTP(writer http.ResponseWrit
 	writer.WriteHeader(http.StatusAccepted)
 }
 
-// getPrincipalType determines the type of principal based on the principal name format.
-//
-// This function uses format inference because Geneva Actions currently only provides
-// the principal name (X-Ms-Client-Principal-Name header) without indicating the principal
-// type. The principal type is required because:
-//
-//  1. The kubeconfig's user.exec command differs for users vs service principals
-//  2. Access token claims are credential-type specific (e.g., "upn" for users, "appid"
-//     for service principals)
-//
-// The inference relies on the convention that Azure application IDs (service principals)
-// are GUIDs, while user principals are UPNs (email format like user@example.com).
-//
-// Migration assumption: This heuristic should be replaced once Geneva Actions supports
-// passing principal type metadata directly (e.g. via a dedicated header). Until then,
-// the format-based inference is the only option. If the heuristic proves unreliable,
-// an explicit principal type parameter could be added to the breakglass API.
-func getPrincipalType(principalName string) (sessiongateapiv1alpha1.PrincipalType, error) {
-	if principalName == "" {
-		return "", fmt.Errorf("principal name cannot be empty")
+// dSTS user identities are passed down from Geneva Actions as "dstsUser" in the X-Ms-Client-Principal-Type header, the name is the user's email address.
+// AAD service principal identities are passed down from Geneva Actions as "aadServicePrincipal" in the X-Ms-Client-Principal-Type header, the name is the service principal's object ID.
+func mapGenevaActionClientReference(clientPrincipalReference middleware.ClientPrincipalReference) (string, sessiongateapiv1alpha1.PrincipalType, error) {
+	switch clientPrincipalReference.Type {
+	case middleware.PrincipalTypeDSTSUser:
+		return clientPrincipalReference.Name, sessiongateapiv1alpha1.PrincipalTypeAzureUser, nil
+	case middleware.PrincipalTypeAADServicePrincipal:
+		return clientPrincipalReference.Name, sessiongateapiv1alpha1.PrincipalTypeAzureServicePrincipal, nil
 	}
-
-	if uuid.Validate(principalName) == nil {
-		return sessiongateapiv1alpha1.PrincipalTypeAzureServicePrincipal, nil
-	}
-
-	if _, err := mail.ParseAddress(principalName); err == nil {
-		return sessiongateapiv1alpha1.PrincipalTypeAzureUser, nil
-	}
-
-	return "", fmt.Errorf("principal name %q is neither a valid UUID nor email address", principalName)
+	return "", "", fmt.Errorf("invalid client principal reference type: %s", clientPrincipalReference.Type)
 }
 
 // validateSessionParameters validates the group and TTL parameters for session creation.

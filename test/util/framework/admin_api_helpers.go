@@ -17,75 +17,132 @@ package framework
 import (
 	"context"
 	"crypto/tls"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
-	"strings"
 	"time"
 
+	"github.com/golang-jwt/jwt/v5"
 	. "github.com/onsi/ginkgo/v2"
 
 	"github.com/google/go-cmp/cmp"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
-
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 )
 
-func (tc *perBinaryInvocationTestContext) getCurrentAzureIdentityName(ctx context.Context) (string, error) {
-	// Use Azure CLI credentials in development, default credentials otherwise
+const (
+	// clientPrincipalNameHeader is the header Geneva Actions sets to identify the calling principal.
+	clientPrincipalNameHeader = "X-Ms-Client-Principal-Name"
+	// clientAADTypeHeader is the header Geneva Actions sets to identify the calling principal type.
+	clientAADTypeHeader = "X-Ms-Client-Principal-Type"
+
+	// adminAPIRequestTimeout is the timeout for individual HTTP requests to the admin API.
+	adminAPIRequestTimeout = 30 * time.Second
+	// sessionReadyTimeout is the maximum time to wait for a breakglass session to become
+	// ready. Session creation involves creating a Session CR, reconciling RBAC bindings,
+	// and generating a kubeconfig with a short-lived token.
+	sessionReadyTimeout = 1 * time.Minute
+	// sessionReadyPollInterval is how frequently to poll the session status endpoint
+	// while waiting for readiness.
+	sessionReadyPollInterval = 5 * time.Second
+)
+
+// PrincipalType represents the type of Azure AD principal.
+type PrincipalType string
+
+const (
+	PrincipalTypeDSTSUser            PrincipalType = "dstsUser"
+	PrincipalTypeAADServicePrincipal PrincipalType = "aadServicePrincipal"
+)
+
+type AzureIdentityDetails struct {
+	PrincipalName string
+	PrincipalType PrincipalType
+}
+
+// GetCurrentAzureIdentityDetails extracts the current Azure identity from the
+// credentials configured for this test run. Callers should call this once and
+// pass the result to CreateSREBreakglassCredentials rather than re-fetching per call.
+func (tc *perBinaryInvocationTestContext) GetCurrentAzureIdentityDetails(ctx context.Context) (*AzureIdentityDetails, error) {
 	cred, err := tc.getAzureCredentials()
 	if err != nil {
-		return "", fmt.Errorf("failed to get Azure credentials: %w", err)
+		return nil, fmt.Errorf("failed to get Azure credentials: %w", err)
 	}
 
-	// Get token for Azure Resource Manager
 	token, err := cred.GetToken(ctx, policy.TokenRequestOptions{
 		Scopes: []string{"https://management.azure.com/.default"},
 	})
 	if err != nil {
-		return "", fmt.Errorf("failed to get Azure token: %w", err)
+		return nil, fmt.Errorf("failed to get Azure token: %w", err)
 	}
 
-	// Parse JWT token to extract username from claims
-	parts := strings.Split(token.Token, ".")
-	if len(parts) != 3 {
-		return "", fmt.Errorf("invalid JWT token format")
-	}
-
-	// Decode payload (second part of JWT)
-	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
+	// We use ParseUnverified because Azure AD token signature verification
+	// requires fetching JWKS keys from the Azure AD discovery endpoint, which is
+	// unnecessary here — we trust the token returned by the Azure SDK's own
+	// credential flow. We only need to extract claims for identity details.
+	parsed, _, err := jwt.NewParser().ParseUnverified(token.Token, jwt.MapClaims{})
 	if err != nil {
-		return "", fmt.Errorf("failed to decode JWT payload: %w", err)
+		return nil, fmt.Errorf("failed to parse JWT token: %w", err)
 	}
 
-	var claims map[string]interface{}
-	if err := json.Unmarshal(payload, &claims); err != nil {
-		return "", fmt.Errorf("failed to parse JWT claims: %w", err)
+	claims, ok := parsed.Claims.(jwt.MapClaims)
+	if !ok {
+		return nil, fmt.Errorf("unexpected JWT claims type %T", parsed.Claims)
 	}
 
-	// Try to get username from common claims (upn, unique_name, email, preferred_username)
-	if upn, ok := claims["upn"].(string); ok && upn != "" {
-		return upn, nil
+	idType, ok := claims["idtyp"].(string)
+	if !ok {
+		return nil, fmt.Errorf("idtyp claim missing or not a string in token")
 	}
-	if uniqueName, ok := claims["appid"].(string); ok && uniqueName != "" {
-		return uniqueName, nil
+	if idType == "user" {
+		upn, ok := claims["upn"].(string)
+		if !ok {
+			return nil, fmt.Errorf("upn claim missing or not a string for user identity")
+		}
+		return &AzureIdentityDetails{
+			PrincipalName: upn,
+			PrincipalType: PrincipalTypeDSTSUser,
+		}, nil
 	}
-
-	return "", fmt.Errorf("no identifying claim found in token claims")
+	if idType == "app" {
+		oid, ok := claims["oid"].(string)
+		if !ok {
+			return nil, fmt.Errorf("oid claim missing or not a string for app identity")
+		}
+		return &AzureIdentityDetails{
+			PrincipalName: oid,
+			PrincipalType: PrincipalTypeAADServicePrincipal,
+		}, nil
+	}
+	return nil, fmt.Errorf("unknown identity type %q in token claims", idType)
 }
 
-func createSREBreakglassSession(ctx context.Context, httpClient *http.Client, breakglassEndpoint string, username string) (string, error) {
+// clientPrincipalTransport simulates the Geneva Actions gateway by injecting
+// client principal headers that identify the authenticated user or service
+// principal. In production, these headers are set by Geneva Actions based on
+// Azure AD authentication and cannot be set by clients directly. This transport
+// is only for testing the admin API's consumption of these headers.
+type clientPrincipalTransport struct {
+	base            http.RoundTripper
+	identityDetails *AzureIdentityDetails
+}
+
+func (t *clientPrincipalTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	req.Header.Set(clientPrincipalNameHeader, t.identityDetails.PrincipalName)
+	req.Header.Set(clientAADTypeHeader, string(t.identityDetails.PrincipalType))
+	return t.base.RoundTrip(req)
+}
+
+func createSREBreakglassSession(ctx context.Context, httpClient *http.Client, breakglassEndpoint string) (string, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodPut, breakglassEndpoint, nil)
 	if err != nil {
 		return "", fmt.Errorf("failed to create request: %w", err)
 	}
-	req.Header.Set("X-Ms-Client-Principal-Name", username)
 
 	resp, err := httpClient.Do(req)
 	if err != nil {
@@ -94,7 +151,10 @@ func createSREBreakglassSession(ctx context.Context, httpClient *http.Client, br
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusAccepted {
-		body, _ := io.ReadAll(resp.Body)
+		body, readErr := io.ReadAll(resp.Body)
+		if readErr != nil {
+			return "", fmt.Errorf("expected status 202 Accepted, got %d (failed to read body: %w)", resp.StatusCode, readErr)
+		}
 		return "", fmt.Errorf("expected status 202 Accepted, got %d: %s", resp.StatusCode, string(body))
 	}
 
@@ -105,90 +165,110 @@ func createSREBreakglassSession(ctx context.Context, httpClient *http.Client, br
 	return location, nil
 }
 
-func waitForSREBreakglassSessionReady(ctx context.Context, httpClient *http.Client, kubeconfigEndpoint string, username string) (*clientcmdapi.Config, time.Time, error) {
-	timeout := time.NewTimer(5 * time.Minute)
+// pollSessionStatus performs a single poll of the session status endpoint.
+// It returns the response body, status code, and Expires header value.
+func pollSessionStatus(ctx context.Context, httpClient *http.Client, kubeconfigEndpoint string) (body []byte, statusCode int, expiresAt string, err error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, kubeconfigEndpoint, nil)
+	if err != nil {
+		return nil, 0, "", fmt.Errorf("failed to create request: %w", err)
+	}
+
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return nil, 0, "", fmt.Errorf("failed to send request: %w", err)
+	}
+
+	body, err = io.ReadAll(resp.Body)
+	expiresAt = resp.Header.Get("Expires")
+	resp.Body.Close()
+	if err != nil {
+		return nil, 0, "", fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	return body, resp.StatusCode, expiresAt, nil
+}
+
+// parseKubeconfigResponse parses a successful session response into a
+// kubeconfig and its expiration time.
+func parseKubeconfigResponse(body []byte, expiresAt string) (*clientcmdapi.Config, time.Time, error) {
+	config, err := clientcmd.Load(body)
+	if err != nil {
+		return nil, time.Time{}, fmt.Errorf("failed to load kubeconfig: %w", err)
+	}
+
+	expiresAtTime, err := time.Parse(time.RFC3339, expiresAt)
+	if err != nil {
+		return nil, time.Time{}, fmt.Errorf("failed to parse expiration header: %w", err)
+	}
+	return config, expiresAtTime, nil
+}
+
+func waitForSREBreakglassSessionReady(ctx context.Context, httpClient *http.Client, kubeconfigEndpoint string) (*clientcmdapi.Config, time.Time, error) {
+	timeout := time.NewTimer(sessionReadyTimeout)
 	defer timeout.Stop()
 
-	ticker := time.NewTicker(5 * time.Second)
+	ticker := time.NewTicker(sessionReadyPollInterval)
 	defer ticker.Stop()
 
-	lastStatus := map[string]any{}
+	var previousStatus map[string]any
 	for {
+		body, statusCode, expiresAt, err := pollSessionStatus(ctx, httpClient, kubeconfigEndpoint)
+		if err != nil {
+			return nil, time.Time{}, err
+		}
+
+		switch statusCode {
+		case http.StatusAccepted:
+			// Session not ready yet - log status changes (skip the initial observation)
+			statusBody := map[string]any{}
+			if json.Unmarshal(body, &statusBody) == nil {
+				if previousStatus != nil {
+					diff := cmp.Diff(previousStatus, statusBody)
+					if diff != "" {
+						fmt.Fprintf(GinkgoWriter, "Session status changed: %s\n", diff)
+					}
+				}
+				previousStatus = statusBody
+			}
+		case http.StatusOK:
+			return parseKubeconfigResponse(body, expiresAt)
+		default:
+			return nil, time.Time{}, fmt.Errorf("unexpected status %d from session endpoint: %s", statusCode, string(body))
+		}
+
 		select {
 		case <-ctx.Done():
 			return nil, time.Time{}, ctx.Err()
 		case <-timeout.C:
-			return nil, time.Time{}, fmt.Errorf("timeout waiting for session to become ready (last status: %s)", lastStatus)
+			previousStatusJSON, marshalErr := json.Marshal(previousStatus)
+			if marshalErr != nil {
+				return nil, time.Time{}, fmt.Errorf("timeout waiting for session to become ready (failed to marshal last status: %w)", marshalErr)
+			}
+			return nil, time.Time{}, fmt.Errorf("timeout waiting for session to become ready (last status: %s)", string(previousStatusJSON))
 		case <-ticker.C:
-			req, err := http.NewRequestWithContext(ctx, http.MethodGet, kubeconfigEndpoint, nil)
-			if err != nil {
-				return nil, time.Time{}, fmt.Errorf("failed to create request: %w", err)
-			}
-
-			req.Header.Set("X-Ms-Client-Principal-Name", username)
-
-			resp, err := httpClient.Do(req)
-			if err != nil {
-				return nil, time.Time{}, fmt.Errorf("failed to send request: %w", err)
-			}
-
-			body, err := io.ReadAll(resp.Body)
-			expiresAt := resp.Header.Get("Expires")
-			resp.Body.Close()
-			if err != nil {
-				return nil, time.Time{}, fmt.Errorf("failed to read response body: %w", err)
-			}
-
-			if resp.StatusCode == http.StatusAccepted {
-				// Session not ready yet - log status changes
-				statusBody := map[string]any{}
-				if json.Unmarshal(body, &statusBody) == nil {
-					diff := cmp.Diff(lastStatus, statusBody)
-					if diff != "" {
-						fmt.Fprintf(GinkgoWriter, "Session status changed: %s\n", diff)
-						lastStatus = statusBody
-					}
-				}
-				continue
-			}
-
-			if resp.StatusCode != http.StatusOK {
-				return nil, time.Time{}, fmt.Errorf("expected status 200 OK, got %d: %s", resp.StatusCode, string(body))
-			}
-
-			// Parse the kubeconfig from the response (YAML format)
-			config, err := clientcmd.Load(body)
-			if err != nil {
-				return nil, time.Time{}, fmt.Errorf("failed to load kubeconfig: %w", err)
-			}
-
-			// Parse expiration header
-			expiresAtTime, err := time.Parse(time.RFC3339, expiresAt)
-			if err != nil {
-				return nil, time.Time{}, fmt.Errorf("failed to parse expiration header: %w", err)
-			}
-			return config, expiresAtTime, nil
 		}
 	}
 }
 
-func (tc *perItOrDescribeTestContext) SREBreakglassCredentialsForCurrentUser(ctx context.Context, resourceID string, ttl time.Duration, accessLevel string) (*rest.Config, time.Time, error) {
-	username, err := tc.perBinaryInvocationTestContext.getCurrentAzureIdentityName(ctx)
-	if err != nil {
-		return nil, time.Time{}, fmt.Errorf("failed to get Azure username: %w", err)
-	}
-
-	return tc.SREBreakglassCredentials(ctx, resourceID, ttl, accessLevel, username)
+// GetCurrentAzureIdentityDetails returns the identity details for the current
+// Azure credentials configured on the per-invocation test context.
+func (tc *perItOrDescribeTestContext) GetCurrentAzureIdentityDetails(ctx context.Context) (*AzureIdentityDetails, error) {
+	return tc.perBinaryInvocationTestContext.GetCurrentAzureIdentityDetails(ctx)
 }
 
-func (tc *perItOrDescribeTestContext) SREBreakglassCredentials(ctx context.Context, resourceID string, ttl time.Duration, accessLevel string, username string) (*rest.Config, time.Time, error) {
+func (tc *perItOrDescribeTestContext) CreateSREBreakglassCredentials(ctx context.Context, resourceID string, ttl time.Duration, accessLevel string, identityDetails *AzureIdentityDetails) (*rest.Config, time.Time, error) {
+	tlsConfig := &tls.Config{}
+	if IsDevelopmentEnvironment() {
+		tlsConfig.InsecureSkipVerify = true
+	}
 	httpClient := &http.Client{
-		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{
-				InsecureSkipVerify: true,
+		Transport: &clientPrincipalTransport{
+			base: &http.Transport{
+				TLSClientConfig: tlsConfig,
 			},
+			identityDetails: identityDetails,
 		},
-		Timeout: 30 * time.Second,
+		Timeout: adminAPIRequestTimeout,
 	}
 
 	adminAPIEndpoint := tc.perBinaryInvocationTestContext.adminAPIAddress
@@ -200,7 +280,7 @@ func (tc *perItOrDescribeTestContext) SREBreakglassCredentials(ctx context.Conte
 		url.QueryEscape(accessLevel),
 		ttl.String(),
 	)
-	kubeconfigReqPath, err := createSREBreakglassSession(ctx, httpClient, breakglassEndpoint, username)
+	kubeconfigReqPath, err := createSREBreakglassSession(ctx, httpClient, breakglassEndpoint)
 	if err != nil {
 		return nil, time.Time{}, fmt.Errorf("failed to create SRE breakglass session: %w", err)
 	}
@@ -210,7 +290,7 @@ func (tc *perItOrDescribeTestContext) SREBreakglassCredentials(ctx context.Conte
 		adminAPIEndpoint,
 		kubeconfigReqPath,
 	)
-	kubeconfig, expiresAt, err := waitForSREBreakglassSessionReady(ctx, httpClient, kubeconfigEndpoint, username)
+	kubeconfig, expiresAt, err := waitForSREBreakglassSessionReady(ctx, httpClient, kubeconfigEndpoint)
 	if err != nil {
 		return nil, time.Time{}, fmt.Errorf("failed to get ready session kubeconfig from %s: %w", kubeconfigReqPath, err)
 	}

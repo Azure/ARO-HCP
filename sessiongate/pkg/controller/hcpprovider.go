@@ -235,6 +235,20 @@ func (c *SessionController) registerMCProvider(ctx context.Context, resourceId s
 	c.mcProvidersMu.Unlock()
 
 	klog.InfoS("management cluster provider registered", "resourceID", resourceId)
+
+	// Re-queue all sessions for this management cluster now that the
+	// provider is registered and caches are synced.
+	sessions, err := c.getSessionsByManagementCluster(resourceId)
+	if err != nil {
+		return fmt.Errorf("failed to re-queue sessions after provider registration: %w", err)
+	}
+	for _, session := range sessions {
+		c.workqueue.Add(cache.ObjectName{
+			Namespace: session.Namespace,
+			Name:      session.Name,
+		})
+	}
+
 	return nil
 }
 

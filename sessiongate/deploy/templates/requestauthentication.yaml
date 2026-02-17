@@ -13,7 +13,7 @@ spec:
     audiences:
     - "{{ .Values.auth.audience }}"
     outputClaimToHeaders:
-    - header: "X-JWT-Claim-AppId"
-      claim: "appId"
+    - header: "X-JWT-Claim-Oid"
+      claim: "oid"
     - header: "X-JWT-Claim-Upn"
       claim: "upn"

@@ -97,48 +97,69 @@ var _ = Describe("SRE", func() {
 				verifiers.VerifyCanRead("nodes", "namespaces"),
 			}
 
+			By("resolving current Azure identity")
+			currentIdentity, err := tc.GetCurrentAzureIdentityDetails(ctx)
+			Expect(err).NotTo(HaveOccurred())
+
 			// aro-sre access
 
 			By("creating SRE breakglass credentials with aro-sre permissions")
-			aroSreRestConfig, expiresAt, err := tc.SREBreakglassCredentialsForCurrentUser(ctx, hcpResourceID, 2*time.Minute, "aro-sre")
+			aroSreRestConfig, expiresAt, err := tc.CreateSREBreakglassCredentials(ctx, hcpResourceID, 1*time.Minute, "aro-sre", currentIdentity)
 			Expect(err).NotTo(HaveOccurred())
-			err = runSREBreakglassCredentialsVerifier(ctx, "aro-sre", aroSreRestConfig, append(commonVerifiers,
+			err = runCreateSREBreakglassCredentialsVerifier(ctx, "aro-sre", aroSreRestConfig, append(commonVerifiers,
 				verifiers.VerifyCannotReadNamespaced("kube-system", "secrets"),
 			))
 			Expect(err).NotTo(HaveOccurred())
 			By("waiting for the session to expire")
-			time.Sleep(time.Until(expiresAt))
+			waitForSessionExpiration(expiresAt)
 			By("verifying the session is expired")
-			Expect(verifiers.VerifyCanRead("namespaces").Verify(ctx, aroSreRestConfig)).To(HaveOccurred())
+			Eventually(func() error {
+				return verifiers.VerifyCanRead("namespaces").Verify(ctx, aroSreRestConfig)
+			}, 30*time.Second, 2*time.Second).Should(HaveOccurred())
 
 			// aro-sre-cluster-admin access
 
 			By("creating SRE breakglass credentials with aro-sre permissions")
-			aroSreAdminRestConfig, expiresAt, err := tc.SREBreakglassCredentialsForCurrentUser(ctx, hcpResourceID, 2*time.Minute, "aro-sre-cluster-admin")
+			aroSreAdminRestConfig, expiresAt, err := tc.CreateSREBreakglassCredentials(ctx, hcpResourceID, 1*time.Minute, "aro-sre-cluster-admin", currentIdentity)
 			Expect(err).NotTo(HaveOccurred())
-			err = runSREBreakglassCredentialsVerifier(ctx, "aro-sre-cluster-admin", aroSreAdminRestConfig, append(commonVerifiers,
+			err = runCreateSREBreakglassCredentialsVerifier(ctx, "aro-sre-cluster-admin", aroSreAdminRestConfig, append(commonVerifiers,
 				verifiers.VerifyCanReadNamespaced("kube-system", "secrets"),
 			))
 			Expect(err).NotTo(HaveOccurred())
 			By("waiting for the session to expire")
-			time.Sleep(time.Until(expiresAt))
+			waitForSessionExpiration(expiresAt)
 			By("verifying the session is expired")
-			Expect(verifiers.VerifyCanRead("namespaces").Verify(ctx, aroSreRestConfig)).To(HaveOccurred())
+			Eventually(func() error {
+				return verifiers.VerifyCanRead("namespaces").Verify(ctx, aroSreAdminRestConfig)
+			}, 30*time.Second, 2*time.Second).Should(HaveOccurred())
 
 			// owner access restriction
 
 			By("trying to access a breakglass session of another user")
-			otherUserRestConfig, _, err := tc.SREBreakglassCredentials(ctx, hcpResourceID, 2*time.Minute, "aro-sre", "other-user@example.com")
+			otherUserRestConfig, _, err := tc.CreateSREBreakglassCredentials(ctx, hcpResourceID, 1*time.Minute, "aro-sre", &framework.AzureIdentityDetails{
+				PrincipalName: "other-app-oid",
+				PrincipalType: framework.PrincipalTypeAADServicePrincipal,
+			})
 			Expect(err).NotTo(HaveOccurred())
 			By("and expecting cluster access to be denied")
 			Expect(verifiers.VerifyWhoAmI("aro-sre").Verify(ctx, otherUserRestConfig)).To(HaveOccurred())
 
 			// TODO: cover more capabilities per access level
+			// TODO: test kubectl logs and exec capabilities
 			// TODO: test auto-closing of long-running connections on session expiration
 		})
 })
 
-func runSREBreakglassCredentialsVerifier(ctx context.Context, expectedGroup string, restConfig *rest.Config, tests []verifiers.HostedClusterVerifier) error {
+// waitForSessionExpiration sleeps until the session's expiration time has passed.
+// If the expiration is already in the past (e.g. session creation took longer
+// than the TTL), this returns immediately.
+func waitForSessionExpiration(expiresAt time.Time) {
+	if remaining := time.Until(expiresAt); remaining > 0 {
+		time.Sleep(remaining)
+	}
+}
+
+func runCreateSREBreakglassCredentialsVerifier(ctx context.Context, expectedGroup string, restConfig *rest.Config, tests []verifiers.HostedClusterVerifier) error {
 	By(fmt.Sprintf("verifying %s group membership", expectedGroup))
 	Eventually(func() error {
 		return verifiers.VerifyWhoAmI(expectedGroup).Verify(ctx, restConfig)
