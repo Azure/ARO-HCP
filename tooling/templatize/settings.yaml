@@ -32,7 +32,7 @@ environments:
   description: |
     Used for PR end-to-end tests in Prow.
   defaults:
-    region: eastus
+    region: westus3
     cloud: dev
     ev2Cloud: public
     cxStamp: 1
