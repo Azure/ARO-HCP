@@ -243,9 +243,6 @@ func NewStep[InternalAPIType any](indexString, stepType, stepName string, testDi
 	case "completeOperation":
 		return newCompleteOperationStep(stepID, stepDir)
 
-	case "clusterServiceCompare":
-		return newClusterServiceCompareStep(stepID, stepDir)
-
 	case "migrateCosmos":
 		return newMigrateCosmosStep(stepID, stepDir)
 

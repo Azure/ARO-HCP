@@ -19,26 +19,4 @@ const (
 	// allows the usage of non stable channels (i.e. candidate, nightly) for creation
 	// of new OpenShift clusters.
 	FeatureAllowDevNonStableChannels = "Microsoft.RedHatOpenShift/AllowDevNonStableChannels"
-
-	// FeatureExperimentalReleaseFeatures is the subscription-level AFEC that gates all
-	// tag-based experimental features. When registered, per-resource tags in the
-	// "aro-hcp.experimental.*" namespace are honored. Without this AFEC, experimental
-	// tags are ignored.
-	FeatureExperimentalReleaseFeatures = "Microsoft.RedHatOpenShift/ExperimentalReleaseFeatures"
-
-	// ExperimentalClusterTagPrefix is the prefix for all experimental cluster
-	// tags. Tags with this prefix are only honored when the
-	// ExperimentalReleaseFeatures AFEC is registered. Unrecognized tags
-	// with this prefix are rejected.
-	ExperimentalClusterTagPrefix = "aro-hcp.experimental.cluster/"
-
-	// TagClusterSingleReplica is the ARM resource tag that enables
-	// single-replica control plane components when the
-	// ExperimentalReleaseFeatures AFEC is registered on the subscription.
-	TagClusterSingleReplica = ExperimentalClusterTagPrefix + "single-replica"
-
-	// TagClusterSizeOverride is the ARM resource tag that enables the
-	// ClusterSizeOverride annotation for reduced resource requests when the
-	// ExperimentalReleaseFeatures AFEC is registered on the subscription.
-	TagClusterSizeOverride = ExperimentalClusterTagPrefix + "size-override"
 )
