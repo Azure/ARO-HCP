@@ -35,9 +35,9 @@ import (
 
 // logEntry represents a single log line from the backend
 type logEntry struct {
-	Time   string `json:"time"`
-	Level  string `json:"level"`
-	Msg    string `json:"msg"`
+	Time  string `json:"time"`
+	Level string `json:"level"`
+	Msg   string `json:"msg"`
 }
 
 // msgContent represents the JSON content inside the msg field
