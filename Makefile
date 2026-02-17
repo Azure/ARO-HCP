@@ -124,8 +124,6 @@ e2e-local/setup:
 		"$${ADDRESS}/subscriptions/$${SUBSCRIPTION_ID}?api-version=2.0"
 .PHONY: e2e-local/setup
 
-# Hardcode the location to eastus so the region change is atomic and does not
-# require a PR in openshift/release. This is a temporary change.
 e2e-local/run: $(ARO_HCP_TESTS)
 	export LOCATION="$${LOCATION:-uksouth}"; \
 	export AROHCP_ENV="development"; \
