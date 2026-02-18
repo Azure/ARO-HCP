@@ -24,12 +24,12 @@ import (
 
 	"k8s.io/utils/ptr"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v6"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armsubscriptions"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 )
 
 func GetSubscriptionID(ctx context.Context, subscriptionClient *armsubscriptions.Client, subscriptionName string) (string, error) {
@@ -148,21 +148,21 @@ func DeleteResourceGroup(
 
 	poller, err := resourceGroupsClient.BeginDelete(ctx, resourceGroupName, opts)
 	if err != nil {
-        if errors.Is(err, context.DeadlineExceeded) {
-            return fmt.Errorf("failed to delete resource group, caused by: %w, error: %w", context.Cause(ctx), err)
-        }
-        return enrichErrorWithCorrelationID(err, "failed to begin deleting resource group")
-    }
+		if errors.Is(err, context.DeadlineExceeded) {
+			return fmt.Errorf("failed to delete resource group, caused by: %w, error: %w", context.Cause(ctx), err)
+		}
+		return enrichErrorWithCorrelationID(err, "failed to begin deleting resource group")
+	}
 
 	operationResult, err := poller.PollUntilDone(ctx, &runtime.PollUntilDoneOptions{
 		Frequency: StandardPollInterval,
 	})
-    if err != nil {
-        if errors.Is(err, context.DeadlineExceeded) {
-            return fmt.Errorf("failed to delete resource group, caused by: %w, error: %w", context.Cause(ctx), err)
-        }
-        return enrichErrorWithCorrelationID(err, fmt.Sprintf("failed waiting for resourcegroup=%q to finish deleting", resourceGroupName))
-    }
+	if err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			return fmt.Errorf("failed to delete resource group, caused by: %w, error: %w", context.Cause(ctx), err)
+		}
+		return enrichErrorWithCorrelationID(err, fmt.Sprintf("failed waiting for resourcegroup=%q to finish deleting", resourceGroupName))
+	}
 
 	switch m := any(operationResult).(type) {
 	case armresources.ResourceGroupsClientDeleteResponse:
@@ -176,15 +176,15 @@ func DeleteResourceGroup(
 
 // enrichErrorWithCorrelationID extracts the Azure Correlation ID and wraps the error with it.
 func enrichErrorWithCorrelationID(originalErr error, contextMsg string) error {
-    var respErr *azcore.ResponseError
-    if errors.As(originalErr, &respErr) && respErr.RawResponse != nil {
-        corrID := respErr.RawResponse.Header.Get("x-ms-correlation-request-id")
-        if corrID != "" {
-            return fmt.Errorf("%s (CorrelationID: %s): %w", contextMsg, corrID, originalErr)
-        }
-    }
-    // Fallback if no ID found
-    return fmt.Errorf("%s: %w", contextMsg, originalErr)
+	var respErr *azcore.ResponseError
+	if errors.As(originalErr, &respErr) && respErr.RawResponse != nil {
+		corrID := respErr.RawResponse.Header.Get("x-ms-correlation-request-id")
+		if corrID != "" {
+			return fmt.Errorf("%s (CorrelationID: %s): %w", contextMsg, corrID, originalErr)
+		}
+	}
+	// Fallback if no ID found
+	return fmt.Errorf("%s: %w", contextMsg, originalErr)
 }
 
 // detach any NSGs from subnets to avoid blocking deletion of the RG
