@@ -35,7 +35,7 @@ PUT /admin/v1/hcp{resourceId}/breakglass?group=...&ttl=...
 
 - Required header: `X-Ms-Client-Principal-Name` (identity of the calling user/SP)
 - Query parameters:
-  - `group` (required) - the RBAC group for the session (e.g. `aro-sre-cluster-admin`)
+  - `group` (required) - the RBAC group for the session (e.g. `aro-sre-csa`)
   - `ttl` (required) - session lifetime (e.g. `1h`, `30m`), bounded by server-configured min/max
 - Returns `202 Accepted` with a `Location` header pointing to the kubeconfig endpoint
 

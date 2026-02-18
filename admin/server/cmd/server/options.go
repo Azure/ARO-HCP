@@ -49,7 +49,7 @@ func DefaultOptions() *RawOptions {
 	return &RawOptions{
 		Port:                    8443,
 		MetricsPort:             8444,
-		AllowedBreakglassGroups: []string{"aro-sre", "aro-sre-cluster-admin"},
+		AllowedBreakglassGroups: []string{"aro-sre-pso", "aro-sre-csa"},
 	}
 }
 

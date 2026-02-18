@@ -50,7 +50,7 @@ spec:
     resourceId: /subscriptions/.../resourceGroups/.../providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/the-hcp
     namespace: namespace-that-contains-the-hosted-control-plane-cr
   accessLevel:
-    group: aro-sre-cluster-admin
+    group: aro-sre-pso
   owner:
     type: User
     userPrincipal:

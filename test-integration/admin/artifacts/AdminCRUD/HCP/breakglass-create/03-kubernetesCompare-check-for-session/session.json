@@ -16,7 +16,7 @@
       "namespace": "ocm-arohcpdev-fixed-ns-value"
     },
     "accessLevel": {
-      "group": "aro-sre-cluster-admin"
+      "group": "aro-sre-csa"
     },
     "owner": {
       "name": "test-user@example.com",

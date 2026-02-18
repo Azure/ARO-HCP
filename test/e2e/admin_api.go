@@ -102,12 +102,12 @@ var _ = Describe("SRE", func() {
 			currentIdentity, err := tc.GetCurrentAzureIdentityDetails(ctx)
 			Expect(err).NotTo(HaveOccurred())
 
-			// aro-sre access
+			// aro-sre-pso access
 
-			By("creating SRE breakglass credentials with aro-sre permissions")
-			aroSreRestConfig, expiresAt, err := tc.CreateSREBreakglassCredentials(ctx, hcpResourceID, 1*time.Minute, "aro-sre", currentIdentity)
+			By("creating SRE breakglass credentials with aro-sre-pso permissions")
+			aroSrePsoRestConfig, expiresAt, err := tc.CreateSREBreakglassCredentials(ctx, hcpResourceID, 1*time.Minute, "aro-sre-pso", currentIdentity)
 			Expect(err).NotTo(HaveOccurred())
-			err = runCreateSREBreakglassCredentialsVerifier(ctx, "aro-sre", aroSreRestConfig, append(commonVerifiers,
+			err = runCreateSREBreakglassCredentialsVerifier(ctx, "aro-sre-pso", aroSrePsoRestConfig, append(commonVerifiers,
 				verifiers.ExpectForbidden(verifiers.VerifyCanReadNamespaced("kube-system", "secrets")),
 			))
 			Expect(err).NotTo(HaveOccurred())
@@ -115,15 +115,15 @@ var _ = Describe("SRE", func() {
 			waitForSessionExpiration(expiresAt)
 			By("verifying the session is expired")
 			Eventually(func() error {
-				return verifiers.VerifyCanRead("namespaces").Verify(ctx, aroSreRestConfig)
+				return verifiers.VerifyCanRead("namespaces").Verify(ctx, aroSrePsoRestConfig)
 			}, 30*time.Second, 2*time.Second).Should(HaveOccurred())
 
-			// aro-sre-cluster-admin access
+			// aro-sre-csa access
 
-			By("creating SRE breakglass credentials with aro-sre permissions")
-			aroSreAdminRestConfig, expiresAt, err := tc.CreateSREBreakglassCredentials(ctx, hcpResourceID, 1*time.Minute, "aro-sre-cluster-admin", currentIdentity)
+			By("creating SRE breakglass credentials with aro-sre-csa permissions")
+			aroSreCsaRestConfig, expiresAt, err := tc.CreateSREBreakglassCredentials(ctx, hcpResourceID, 1*time.Minute, "aro-sre-csa", currentIdentity)
 			Expect(err).NotTo(HaveOccurred())
-			err = runCreateSREBreakglassCredentialsVerifier(ctx, "aro-sre-cluster-admin", aroSreAdminRestConfig, append(commonVerifiers,
+			err = runCreateSREBreakglassCredentialsVerifier(ctx, "aro-sre-csa", aroSreCsaRestConfig, append(commonVerifiers,
 				verifiers.VerifyCanReadNamespaced("kube-system", "secrets"),
 			))
 			Expect(err).NotTo(HaveOccurred())
@@ -131,13 +131,13 @@ var _ = Describe("SRE", func() {
 			waitForSessionExpiration(expiresAt)
 			By("verifying the session is expired")
 			Eventually(func() error {
-				return verifiers.VerifyCanRead("namespaces").Verify(ctx, aroSreAdminRestConfig)
+				return verifiers.VerifyCanRead("namespaces").Verify(ctx, aroSreCsaRestConfig)
 			}, 30*time.Second, 2*time.Second).Should(HaveOccurred())
 
 			// owner access restriction
 
 			By("trying to access a breakglass session of another user")
-			otherUserRestConfig, _, err := tc.CreateSREBreakglassCredentials(ctx, hcpResourceID, 1*time.Minute, "aro-sre", &framework.AzureIdentityDetails{
+			otherUserRestConfig, _, err := tc.CreateSREBreakglassCredentials(ctx, hcpResourceID, 1*time.Minute, "aro-sre-pso", &framework.AzureIdentityDetails{
 				PrincipalName: "other-app-oid",
 				PrincipalType: framework.PrincipalTypeAADServicePrincipal,
 			})
@@ -145,6 +145,7 @@ var _ = Describe("SRE", func() {
 			By("and expecting cluster access to be denied")
 			Expect(verifiers.VerifyWhoAmI("aro-sre").Verify(ctx, otherUserRestConfig)).To(HaveOccurred())
 
+			// TODO: test for invalid group
 			// TODO: cover more capabilities per access level
 			// TODO: test kubectl logs and exec capabilities
 			// TODO: test auto-closing of long-running connections on session expiration
