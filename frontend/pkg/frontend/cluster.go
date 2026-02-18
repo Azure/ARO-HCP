@@ -860,6 +860,7 @@ func mergeToInternalCluster(csCluster *arohcpv1alpha1.Cluster, internalCluster *
 
 	// otherwise use as much from cosmos as possible, so we have a clear list of what remains in cluster-service
 	ocm.SetClusterServiceOnlyFieldsOnCluster(internalCluster, csCluster)
+
 	return internalCluster, nil
 }
 
