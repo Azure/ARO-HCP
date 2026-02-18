@@ -15,14 +15,16 @@ package controllers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
+	"slices"
 	"time"
 
 	"github.com/google/uuid"
 	workv1 "open-cluster-management.io/api/work/v1"
 
-	"k8s.io/apimachinery/pkg/api/errors"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -101,6 +103,36 @@ func (c *createMaestroReadonlyBundlesSyncer) SyncOnce(ctx context.Context, key c
 		return utils.TrackError(fmt.Errorf("failed to get or create ServiceProviderCluster: %w", err))
 	}
 
+	// The list of Maestro Bundle internal names that are recognized by the controller.
+	// Any Maestro Bundle internal name that is not in this list will not be synced by the
+	// controller and reported as an error.
+	recognizedMaestroBundles := []api.MaestroBundleInternalName{
+		api.MaestroBundleInternalNameHypershiftHostedCluster,
+	}
+
+	var maestroBundlesToSync []api.MaestroBundleInternalName
+	// We first check if there's any recognized Maestro Bundle reference that needs to be synced.
+	for _, maestroBundleInternalName := range recognizedMaestroBundles {
+		currentMaestroBundleReference := existingServiceProviderCluster.MaestroReadonlyBundles.Get(maestroBundleInternalName)
+		if currentMaestroBundleReference == nil {
+			maestroBundlesToSync = append(maestroBundlesToSync, maestroBundleInternalName)
+			continue
+		}
+		if currentMaestroBundleReference.MaestroAPIMaestroBundleName == "" {
+			maestroBundlesToSync = append(maestroBundlesToSync, maestroBundleInternalName)
+			continue
+		}
+		if currentMaestroBundleReference.MaestroAPIMaestroBundleID == "" {
+			maestroBundlesToSync = append(maestroBundlesToSync, maestroBundleInternalName)
+			continue
+
+		}
+	}
+	if len(maestroBundlesToSync) == 0 {
+		// No Maestro Bundles to sync, we check if there are any unrecognized Maestro Bundles and report an error if there are.
+		return utils.TrackError(errors.Join(c.checkForUnrecognizedMaestroBundles(existingServiceProviderCluster, recognizedMaestroBundles)...))
+	}
+
 	serviceProviderClustersDBClient := c.cosmosClient.ServiceProviderClusters(
 		key.SubscriptionID,
 		key.ResourceGroupName,
@@ -128,6 +160,47 @@ func (c *createMaestroReadonlyBundlesSyncer) SyncOnce(ctx context.Context, key c
 	}
 	csClusterDomainPrefix := csCluster.DomainPrefix()
 
+	// We sync the Maestro Bundles that need to be synced.
+	var syncErrors []error
+	for _, maestroBundleInternalName := range maestroBundlesToSync {
+		switch maestroBundleInternalName {
+		case api.MaestroBundleInternalNameHypershiftHostedCluster:
+			err = c.syncHostedClusterMaestroBundle(
+				ctx, existingServiceProviderCluster, existingCluster, maestroClient,
+				serviceProviderClustersDBClient, clusterProvisionShard, csClusterDomainPrefix,
+			)
+			if err != nil {
+				syncErrors = append(syncErrors, utils.TrackError(fmt.Errorf("failed to sync HostedCluster Maestro Bundle: %w", err)))
+			}
+		default:
+			syncErrors = append(syncErrors, utils.TrackError(fmt.Errorf("unrecognized Maestro Bundle internal name: %s", maestroBundleInternalName)))
+		}
+	}
+
+	// We also check if there are any Maestro Bundle references that are not recognized.
+	// If that is the case we report an error.
+	syncErrors = append(syncErrors, c.checkForUnrecognizedMaestroBundles(existingServiceProviderCluster, recognizedMaestroBundles)...)
+
+	return utils.TrackError(errors.Join(syncErrors...))
+}
+
+// checkForUnrecognizedMaestroBundles checks if there are any Maestro Bundle references that are not recognized.
+// If that is the case an error is returned.
+func (c *createMaestroReadonlyBundlesSyncer) checkForUnrecognizedMaestroBundles(existingServiceProviderCluster *api.ServiceProviderCluster, recognizedMaestroBundles []api.MaestroBundleInternalName) []error {
+	var errors []error
+	for _, maestroBundleReference := range existingServiceProviderCluster.MaestroReadonlyBundles {
+		if !slices.Contains(recognizedMaestroBundles, maestroBundleReference.Name) {
+			errors = append(errors, utils.TrackError(fmt.Errorf("unrecognized Maestro Bundle internal name: %s", maestroBundleReference.Name)))
+		}
+	}
+	return errors
+}
+
+func (c *createMaestroReadonlyBundlesSyncer) syncHostedClusterMaestroBundle(
+	ctx context.Context, existingServiceProviderCluster *api.ServiceProviderCluster, existingCluster *api.HCPOpenShiftCluster,
+	maestroClient maestro.SimpleMaestroClient, serviceProviderClustersDBClient database.ServiceProviderClusterCRUD,
+	clusterProvisionShard *arohcpv1alpha1.ProvisionShard, csClusterDomainPrefix string,
+) error {
 	hostedClusterMaestroBundleInternalName := api.MaestroBundleInternalNameHypershiftHostedCluster
 	hostedClusterMaestroBundleReference := existingServiceProviderCluster.MaestroReadonlyBundles.Get(hostedClusterMaestroBundleInternalName)
 	// If the Maestro Bundle reference does not exist, we create a new Maestro Bundle
@@ -149,7 +222,7 @@ func (c *createMaestroReadonlyBundlesSyncer) SyncOnce(ctx context.Context, key c
 		}
 	}
 
-	err = c.ensureHostedClusterMaestroBundleExists(
+	err := c.ensureHostedClusterMaestroBundleExists(
 		ctx, hostedClusterMaestroBundleReference, maestroClient, clusterProvisionShard.MaestroConfig().ConsumerName(), existingServiceProviderCluster,
 		serviceProviderClustersDBClient, existingCluster, csClusterDomainPrefix,
 	)
@@ -351,7 +424,7 @@ func (c *createMaestroReadonlyBundlesSyncer) getOrCreateMaestroBundle(ctx contex
 		logger.Info(fmt.Sprintf("retrieved maestro bundle name %s with resource name %s", maestroBundle.Name, maestroBundle.Spec.ManifestConfigs[0].ResourceIdentifier.Name))
 		return existingMaestroBundle, nil
 	}
-	if !errors.IsNotFound(err) {
+	if !k8serrors.IsNotFound(err) {
 		logger.Error(err, "failed to get Maestro Bundle and it is not already exists error")
 		return nil, utils.TrackError(fmt.Errorf("failed to get Maestro Bundle: %w", err))
 	}
@@ -362,7 +435,7 @@ func (c *createMaestroReadonlyBundlesSyncer) getOrCreateMaestroBundle(ctx contex
 		logger.Info(fmt.Sprintf("created maestro bundle name %s with resource name %s", maestroBundle.Name, maestroBundle.Spec.ManifestConfigs[0].ResourceIdentifier.Name))
 		return existingMaestroBundle, nil
 	}
-	if !errors.IsAlreadyExists(err) {
+	if !k8serrors.IsAlreadyExists(err) {
 		logger.Error(err, "failed to create Maestro Bundle and it is not already exists error")
 		return nil, utils.TrackError(fmt.Errorf("failed to create Maestro Bundle: %w", err))
 	}

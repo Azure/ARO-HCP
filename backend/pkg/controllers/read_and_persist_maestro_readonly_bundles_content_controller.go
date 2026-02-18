@@ -16,6 +16,7 @@ package controllers
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -24,10 +25,12 @@ import (
 	workv1 "open-cluster-management.io/api/work/v1"
 
 	"k8s.io/apimachinery/pkg/api/equality"
-	"k8s.io/apimachinery/pkg/api/errors"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/cache"
+
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 	hsv1beta1 "github.com/openshift/hypershift/api/hypershift/v1beta1"
@@ -39,8 +42,6 @@ import (
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
-
-	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 )
 
 // readAndPersistMaestroReadonlyBundlesContentSyncer is a controller that reads the Maestro readonly bundles
@@ -119,27 +120,20 @@ func (c *readAndPersistMaestroReadonlyBundlesContentSyncer) SyncOnce(ctx context
 		return utils.TrackError(fmt.Errorf("failed to create Simple Maestro client: %w", err))
 	}
 
-	// TODO in the future we might want to process the list in general and not just the hosted cluster. In that case
-	// a switch based on the different recognized names could be used. However, we would need to decide what to do
-	// if an unrecognized name is found, as well as what happens if in the middle of the processing one of them has
-	// not fully reconciled or returned an error.
-	hostedClusterMaestroBundleReference := existingServiceProviderCluster.MaestroReadonlyBundles.Get(api.MaestroBundleInternalNameHypershiftHostedCluster)
-	if hostedClusterMaestroBundleReference == nil {
-		return nil // hosted cluster maestro bundle reference not found, no work to do
-	}
-	if hostedClusterMaestroBundleReference.MaestroAPIMaestroBundleID == "" {
-		// TODO This means the bundle entry was created in Cosmos but the ID not persisted (for example if backend crashes).
-		// If that's the case, eventually in a next reconcile cycle this will be set as the CreateMaestroReadonlyBundlesController
-		// will persist the ID. Do we want to return an error in this case or do we want to continue as succeeded?
-		return nil
+	var syncErrors []error
+	for _, maestroBundleReference := range existingServiceProviderCluster.MaestroReadonlyBundles {
+		switch maestroBundleReference.Name {
+		case api.MaestroBundleInternalNameHypershiftHostedCluster:
+			err = c.readAndPersistHostedCluster(ctx, existingCluster, maestroBundleReference, maestroClient)
+			if err != nil {
+				syncErrors = append(syncErrors, utils.TrackError(fmt.Errorf("failed to read and persist HostedCluster: %w", err)))
+			}
+		default:
+			syncErrors = append(syncErrors, utils.TrackError(fmt.Errorf("unrecognized Maestro Bundle internal name: %s", maestroBundleReference.Name)))
+		}
 	}
 
-	err = c.readAndPersistHostedCluster(ctx, existingCluster, hostedClusterMaestroBundleReference, maestroClient)
-	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to read and persist hosted cluster: %w", err))
-	}
-
-	return nil
+	return utils.TrackError(errors.Join(syncErrors...))
 }
 
 // readAndPersistHostedCluster reads the Cluster's Hypershift HostedCluster resource using the
@@ -153,46 +147,52 @@ func (c *readAndPersistMaestroReadonlyBundlesContentSyncer) readAndPersistHosted
 ) error {
 
 	managementClusterContentsClient := c.cosmosClient.ManagementClusterContents(cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName, cluster.ID.Name)
-	existingManagementClusterContent, err := controllerutils.GetOrCreateManagementClusterContent(ctx, c.cosmosClient, cluster.ID, hostedClusterMaestroBundleReference.Name)
+	existingManagementClusterContent, err := c.GetOrCreateManagementClusterContent(ctx, c.cosmosClient, cluster.ID, hostedClusterMaestroBundleReference.Name)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get or create ManagementClusterContent: %w", err))
 	}
 
+	// Build desiredManagementClusterContent state from a deep copy so we can compare and only Replace when something changed (scales with new fields).
+	desiredManagementClusterContent := existingManagementClusterContent.DeepCopy()
+
 	existingMaestroBundle, err := maestroClient.GetMaestroBundle(ctx, hostedClusterMaestroBundleReference.MaestroAPIMaestroBundleName, metav1.GetOptions{})
-	if errors.IsNotFound(err) {
+	if k8serrors.IsNotFound(err) {
 		maestroBundleExistsCondition := c.buildMaestroBundleExistsCondition(false)
-		controllerutils.SetCondition(&existingManagementClusterContent.Status.Conditions, maestroBundleExistsCondition)
+		controllerutils.SetCondition(&desiredManagementClusterContent.Status.Conditions, maestroBundleExistsCondition)
+		controllerutils.SetCondition(&desiredManagementClusterContent.Status.Conditions, c.buildMaestroBundleStatusFeedbackAvailableCondition(false, err.Error()))
+		err = c.replaceManagementClusterContentIfChanged(ctx, managementClusterContentsClient, existingManagementClusterContent, desiredManagementClusterContent)
 		// TODO should we deal with other contents/conditions or we leave them as they are?
-		return nil
+		// TODO do we want to return early or do we try to calculate everything and replace if changed at the end?
+		// doing the latter adds nesting as we would not return early anymore in some places
+		return utils.TrackError(err)
 	}
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get Maestro Bundle: %w", err))
 	}
 	maestroBundleExistsCondition := c.buildMaestroBundleExistsCondition(true)
-	controllerutils.SetCondition(&existingManagementClusterContent.Status.Conditions, maestroBundleExistsCondition)
+	controllerutils.SetCondition(&desiredManagementClusterContent.Status.Conditions, maestroBundleExistsCondition)
 
-	// TODO it can take some time for the Maestro Bundle content in the status feedback to be available.
-	// How do we want to handle this? do we return error like now or do we want to differentiate?
 	rawBytes, err := c.getSingleResourceStatusFeedbackRawJSONFromMaestroBundle(existingMaestroBundle)
 	if err != nil {
 		maestroBundleStatusFeedbackAvailableCondition := c.buildMaestroBundleStatusFeedbackAvailableCondition(false, err.Error())
-		controllerutils.SetCondition(&existingManagementClusterContent.Status.Conditions, maestroBundleStatusFeedbackAvailableCondition)
+		controllerutils.SetCondition(&desiredManagementClusterContent.Status.Conditions, maestroBundleStatusFeedbackAvailableCondition)
+		err = c.replaceManagementClusterContentIfChanged(ctx, managementClusterContentsClient, existingManagementClusterContent, desiredManagementClusterContent)
+		if err != nil {
+			return utils.TrackError(err)
+		}
 		// TODO should we deal with other contents/conditions or we leave them as they are?
+		// TODO do we want to return early or do we try to calculate everything and replace if changed at the end?
+		// doing the latter adds nesting as we would not return early anymore in some places
 		return nil
 	}
 	maestroBundleStatusFeedbackAvailableCondition := c.buildMaestroBundleStatusFeedbackAvailableCondition(true, "")
-	controllerutils.SetCondition(&existingManagementClusterContent.Status.Conditions, maestroBundleStatusFeedbackAvailableCondition)
-
-	// Build desiredManagementClusterContent state from a deep copy so we can compare and only Replace when something changed (scales with new fields).
-	desiredManagementClusterContent := existingManagementClusterContent.DeepCopy()
+	controllerutils.SetCondition(&desiredManagementClusterContent.Status.Conditions, maestroBundleStatusFeedbackAvailableCondition)
 
 	kubeContentMaxSizeExceededCondition := c.buildKubeContentMaxSizeExceededCondition(len(rawBytes), "HostedCluster")
 	// We only persist the retrieved content if it is within the size limit. If it
 	// is outside the limit, we do not persist the content but we also do not unset
 	// the kubeContent field. This is, when kubeContent is present it holds the
 	// last successfully stored content.
-	// TODO on size limit exceeded do we want to return an error aside from setting
-	// the condition or do we just set the condition and continue as succeeded?
 	if kubeContentMaxSizeExceededCondition.Status == api.ConditionFalse {
 		hostedCluster := &hsv1beta1.HostedCluster{}
 		err = json.Unmarshal(rawBytes, hostedCluster)
@@ -210,17 +210,27 @@ func (c *readAndPersistMaestroReadonlyBundlesContentSyncer) readAndPersistHosted
 	}
 	controllerutils.SetCondition(&desiredManagementClusterContent.Status.Conditions, kubeContentMaxSizeExceededCondition)
 
-	// TODO do we want this or reflect.DeepEqual? what happens with empty vs nil map/slice? are there some cases where
-	// we might want to know that distinction and at the same time use part of what Semantic Deepequal provides?
-	if equality.Semantic.DeepEqual(existingManagementClusterContent, desiredManagementClusterContent) {
-		return nil // nothing changed, skip write
+	err = c.replaceManagementClusterContentIfChanged(ctx, managementClusterContentsClient, existingManagementClusterContent, desiredManagementClusterContent)
+	if err != nil {
+		return utils.TrackError(err)
 	}
 
-	_, err = managementClusterContentsClient.Replace(ctx, desiredManagementClusterContent, nil)
+	return nil
+}
+
+func (c *readAndPersistMaestroReadonlyBundlesContentSyncer) replaceManagementClusterContentIfChanged(
+	ctx context.Context, managementClusterContentsClient database.ManagementClusterContentCRUD,
+	existing *api.ManagementClusterContent, desired *api.ManagementClusterContent,
+) error {
+	// TODO do we want this or reflect.DeepEqual? what happens with empty vs nil map/slice? are there some cases where
+	// we might want to know that distinction and at the same time use part of what Semantic Deepequal provides?
+	if equality.Semantic.DeepEqual(existing, desired) {
+		return nil
+	}
+	_, err := managementClusterContentsClient.Replace(ctx, desired, nil)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to replace ManagementClusterContent: %w", err))
 	}
-
 	return nil
 }
 
@@ -292,7 +302,7 @@ func (c *readAndPersistMaestroReadonlyBundlesContentSyncer) buildMaestroBundleSt
 // with its name being "resource" and its type being JsonRaw.
 func (c *readAndPersistMaestroReadonlyBundlesContentSyncer) getSingleResourceStatusFeedbackRawJSONFromMaestroBundle(maestroBundle *workv1.ManifestWork) (json.RawMessage, error) {
 	resourceStatusManifests := maestroBundle.Status.ResourceStatus.Manifests
-	if len(resourceStatusManifests) == 0 {
+	if len(resourceStatusManifests) != 1 {
 		return nil, utils.TrackError(fmt.Errorf("expected exactly one resource within the Maestro Bundle, got %d", len(resourceStatusManifests)))
 	}
 
