@@ -19,7 +19,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"strings"
 	"time"
 
 	workv1 "open-cluster-management.io/api/work/v1"
@@ -27,13 +26,13 @@ import (
 	"k8s.io/apimachinery/pkg/api/equality"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/cache"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
-	hsv1beta1 "github.com/openshift/hypershift/api/hypershift/v1beta1"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
@@ -106,6 +105,11 @@ func (c *readAndPersistMaestroReadonlyBundlesContentSyncer) SyncOnce(ctx context
 		return utils.TrackError(fmt.Errorf("failed to get or create ServiceProviderCluster: %w", err))
 	}
 
+	// We return early if there are no Maestro Bundle references to process.
+	if len(existingServiceProviderCluster.MaestroReadonlyBundles) == 0 {
+		return nil
+	}
+
 	// We get the provision shard (management cluster) the CS cluster is allocated to.
 	// As of now in CS the shard allocation occurs synchronously during aro-hcp cluster creation call in CS API so
 	// we are guaranteed to have a shard allocated for the cluster. If this changes in the future
@@ -122,138 +126,168 @@ func (c *readAndPersistMaestroReadonlyBundlesContentSyncer) SyncOnce(ctx context
 
 	var syncErrors []error
 	for _, maestroBundleReference := range existingServiceProviderCluster.MaestroReadonlyBundles {
-		switch maestroBundleReference.Name {
-		case api.MaestroBundleInternalNameHypershiftHostedCluster:
-			err = c.readAndPersistHostedCluster(ctx, existingCluster, maestroBundleReference, maestroClient)
-			if err != nil {
-				syncErrors = append(syncErrors, utils.TrackError(fmt.Errorf("failed to read and persist HostedCluster: %w", err)))
-			}
-		default:
-			syncErrors = append(syncErrors, utils.TrackError(fmt.Errorf("unrecognized Maestro Bundle internal name: %s", maestroBundleReference.Name)))
+		// TODO one thing we lost here in comparison to the previous implementation is that we don't check for unrecognized Maestro Bundle references.
+		// We blindly process what we receive in the serviceProviderCluster.MaestroReadonlyBundles field.
+		err = c.readAndPersistMaestroBundleContent(ctx, existingCluster, maestroBundleReference, maestroClient)
+		if err != nil {
+			syncErrors = append(syncErrors, utils.TrackError(fmt.Errorf("failed to read and persist HostedCluster: %w", err)))
 		}
+
 	}
 
 	return utils.TrackError(errors.Join(syncErrors...))
 }
 
-// readAndPersistHostedCluster reads the Cluster's Hypershift HostedCluster resource using the
-// Maestro readonly bundle reference and persists it in Cosmos.
-// To achieve that, it gets the Maestro readonly bundle pointing to the Cluster's HostedCluster, it extracts the
-// returned content by Maestro by taking it from the Maestro bundles's status feedback rule that contains the whole object and then it persists it
-// in Cosmos.
-func (c *readAndPersistMaestroReadonlyBundlesContentSyncer) readAndPersistHostedCluster(
+// calculateManagementClusterContentFromMaestroBundle calculates the desired ManagementClusterContent from the given Maestro Bundle reference.
+// It returns the desired ManagementClusterContent or an error if the calculation fails.
+func (c *readAndPersistMaestroReadonlyBundlesContentSyncer) calculateManagementClusterContentFromMaestroBundle(
 	ctx context.Context, cluster *api.HCPOpenShiftCluster, hostedClusterMaestroBundleReference *api.MaestroBundleReference,
 	maestroClient maestro.SimpleMaestroClient,
-) error {
-
-	managementClusterContentsClient := c.cosmosClient.ManagementClusterContents(cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName, cluster.ID.Name)
-	existingManagementClusterContent, err := c.GetOrCreateManagementClusterContent(ctx, c.cosmosClient, cluster.ID, hostedClusterMaestroBundleReference.Name)
-	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get or create ManagementClusterContent: %w", err))
-	}
-
-	// Build desiredManagementClusterContent state from a deep copy so we can compare and only Replace when something changed (scales with new fields).
-	desiredManagementClusterContent := existingManagementClusterContent.DeepCopy()
+) (*api.ManagementClusterContent, error) {
+	managementClusterContentResourceID := c.managementClusterContentResourceIDFromClusterResourceID(cluster.ID, hostedClusterMaestroBundleReference.Name)
+	desired := c.newInitialManagementClusterContent(managementClusterContentResourceID)
 
 	existingMaestroBundle, err := maestroClient.GetMaestroBundle(ctx, hostedClusterMaestroBundleReference.MaestroAPIMaestroBundleName, metav1.GetOptions{})
+	if err != nil && !k8serrors.IsNotFound(err) {
+		return nil, utils.TrackError(fmt.Errorf("failed to get Maestro Bundle: %w", err))
+	}
 	if k8serrors.IsNotFound(err) {
 		maestroBundleExistsCondition := c.buildMaestroBundleExistsCondition(false)
-		controllerutils.SetCondition(&desiredManagementClusterContent.Status.Conditions, maestroBundleExistsCondition)
-		controllerutils.SetCondition(&desiredManagementClusterContent.Status.Conditions, c.buildMaestroBundleStatusFeedbackAvailableCondition(false, err.Error()))
-		err = c.replaceManagementClusterContentIfChanged(ctx, managementClusterContentsClient, existingManagementClusterContent, desiredManagementClusterContent)
-		// TODO should we deal with other contents/conditions or we leave them as they are?
-		// TODO do we want to return early or do we try to calculate everything and replace if changed at the end?
-		// doing the latter adds nesting as we would not return early anymore in some places
-		return utils.TrackError(err)
+		maestroBundleStatusFeedbackAvailableCondition := c.buildMaestroBundleStatusFeedbackAvailableCondition(false, err.Error())
+		controllerutils.SetCondition(&desired.Status.Conditions, maestroBundleExistsCondition)
+		controllerutils.SetCondition(&desired.Status.Conditions, maestroBundleStatusFeedbackAvailableCondition)
+		return desired, nil
 	}
-	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get Maestro Bundle: %w", err))
-	}
+
 	maestroBundleExistsCondition := c.buildMaestroBundleExistsCondition(true)
-	controllerutils.SetCondition(&desiredManagementClusterContent.Status.Conditions, maestroBundleExistsCondition)
+	controllerutils.SetCondition(&desired.Status.Conditions, maestroBundleExistsCondition)
 
 	rawBytes, err := c.getSingleResourceStatusFeedbackRawJSONFromMaestroBundle(existingMaestroBundle)
 	if err != nil {
 		maestroBundleStatusFeedbackAvailableCondition := c.buildMaestroBundleStatusFeedbackAvailableCondition(false, err.Error())
-		controllerutils.SetCondition(&desiredManagementClusterContent.Status.Conditions, maestroBundleStatusFeedbackAvailableCondition)
-		err = c.replaceManagementClusterContentIfChanged(ctx, managementClusterContentsClient, existingManagementClusterContent, desiredManagementClusterContent)
-		if err != nil {
-			return utils.TrackError(err)
-		}
-		// TODO should we deal with other contents/conditions or we leave them as they are?
-		// TODO do we want to return early or do we try to calculate everything and replace if changed at the end?
-		// doing the latter adds nesting as we would not return early anymore in some places
-		return nil
+		controllerutils.SetCondition(&desired.Status.Conditions, maestroBundleStatusFeedbackAvailableCondition)
+		return desired, nil
 	}
 	maestroBundleStatusFeedbackAvailableCondition := c.buildMaestroBundleStatusFeedbackAvailableCondition(true, "")
-	controllerutils.SetCondition(&desiredManagementClusterContent.Status.Conditions, maestroBundleStatusFeedbackAvailableCondition)
+	controllerutils.SetCondition(&desired.Status.Conditions, maestroBundleStatusFeedbackAvailableCondition)
 
-	kubeContentMaxSizeExceededCondition := c.buildKubeContentMaxSizeExceededCondition(len(rawBytes), "HostedCluster")
+	kubeContentMaxSizeExceeded := len(rawBytes) > c.kubeContentMaxSizeBytes()
+	var kubeContextMaxSizeExceededConditionMessage string
 	// We only persist the retrieved content if it is within the size limit. If it
 	// is outside the limit, we do not persist the content but we also do not unset
 	// the kubeContent field. This is, when kubeContent is present it holds the
 	// last successfully stored content.
-	if kubeContentMaxSizeExceededCondition.Status == api.ConditionFalse {
-		hostedCluster := &hsv1beta1.HostedCluster{}
-		err = json.Unmarshal(rawBytes, hostedCluster)
-		if err != nil {
-			return utils.TrackError(fmt.Errorf("failed to unmarshal hosted cluster from status feedback value: %w", err))
-		}
+	// We use unstructured.Unstructured so we can implement logic agnostic to the type of the content.
+	unstructured := &unstructured.Unstructured{}
+	err = json.Unmarshal(rawBytes, unstructured)
+	if err != nil {
+		return nil, utils.TrackError(fmt.Errorf("failed to unmarshal object from status feedback value: %w", err))
+	}
+	kind := unstructured.GetKind()
+	if kind == "" {
+		return nil, utils.TrackError(fmt.Errorf("expected kind to be not empty"))
+	}
+	if kubeContentMaxSizeExceeded {
+		kubeContextMaxSizeExceededConditionMessage = fmt.Sprintf("%s serialized size %.2f MiB exceeds Kube content max size %.2f MiB;", kind, float64(len(rawBytes))/(1024*1024), float64(c.kubeContentMaxSizeBytes())/(1024*1024))
+	} else {
 		// TODO is ListMeta or TypeMeta required at the metav1.List level?
-		desiredManagementClusterContent.KubeContent = &metav1.List{
+		desired.KubeContent = &metav1.List{
 			Items: []runtime.RawExtension{
 				{
-					Object: hostedCluster,
+					Object: unstructured,
 				},
 			},
 		}
 	}
-	controllerutils.SetCondition(&desiredManagementClusterContent.Status.Conditions, kubeContentMaxSizeExceededCondition)
+	kubeContentMaxSizeExceededCondition := c.buildKubeContentMaxSizeExceededCondition(kubeContentMaxSizeExceeded, kubeContextMaxSizeExceededConditionMessage)
+	controllerutils.SetCondition(&desired.Status.Conditions, kubeContentMaxSizeExceededCondition)
 
-	err = c.replaceManagementClusterContentIfChanged(ctx, managementClusterContentsClient, existingManagementClusterContent, desiredManagementClusterContent)
-	if err != nil {
-		return utils.TrackError(err)
-	}
-
-	return nil
+	return desired, nil
 }
 
-func (c *readAndPersistMaestroReadonlyBundlesContentSyncer) replaceManagementClusterContentIfChanged(
-	ctx context.Context, managementClusterContentsClient database.ManagementClusterContentCRUD,
-	existing *api.ManagementClusterContent, desired *api.ManagementClusterContent,
+// readAndPersistMaestroBundleContent reads the Maestro Bundle content from the given Maestro Bundle reference
+// and persists it in Cosmos.
+// To achieve that, it gets the Maestro readonly bundle pointing to the Cluster's HostedCluster, it extracts the
+// returned content by Maestro by taking it from the Maestro bundles's status feedback rule that contains the whole object and then it persists it
+// in Cosmos.
+func (c *readAndPersistMaestroReadonlyBundlesContentSyncer) readAndPersistMaestroBundleContent(
+	ctx context.Context, cluster *api.HCPOpenShiftCluster, hostedClusterMaestroBundleReference *api.MaestroBundleReference,
+	maestroClient maestro.SimpleMaestroClient,
 ) error {
+
+	desired, err := c.calculateManagementClusterContentFromMaestroBundle(ctx, cluster, hostedClusterMaestroBundleReference, maestroClient)
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to calculate ManagementClusterContent from Maestro Bundle: %w", err))
+	}
+
+	managementClusterContentsDBClient := c.cosmosClient.ManagementClusterContents(
+		cluster.ID.SubscriptionID,
+		cluster.ID.ResourceGroupName,
+		cluster.ID.Name,
+	)
+
+	existing, err := managementClusterContentsDBClient.Get(ctx, desired.CosmosMetadata.ResourceID.Name)
+	if err != nil && !k8serrors.IsNotFound(err) {
+		return utils.TrackError(fmt.Errorf("failed to get ManagementClusterContent: %w", err))
+	}
+	if k8serrors.IsNotFound(err) {
+		_, err := managementClusterContentsDBClient.Create(ctx, desired, nil)
+		if err != nil {
+			return utils.TrackError(fmt.Errorf("failed to create ManagementClusterContent: %w", err))
+		}
+		return nil
+	}
+
+	// We set the Cosmos ETag to the existing one to avoid conflicts when replacing the document
+	// unless someone else has modified the document since we last read it.
+	desired.CosmosETag = existing.CosmosETag
+
+	// If we haven't been able to retrieve the content but there was already content
+	// stored we keep the previously existing stored content.
+	if desired.KubeContent == nil && existing.KubeContent != nil {
+		desired.KubeContent = existing.KubeContent
+	}
+
+	// TODO concern here that by building desired from zero we might lose information
+	// set by other controllers now or in the future. The same concern applies to other
+	// controllers we might implement in the future.
+
 	// TODO do we want this or reflect.DeepEqual? what happens with empty vs nil map/slice? are there some cases where
 	// we might want to know that distinction and at the same time use part of what Semantic Deepequal provides?
 	if equality.Semantic.DeepEqual(existing, desired) {
 		return nil
 	}
-	_, err := managementClusterContentsClient.Replace(ctx, desired, nil)
+
+	_, err = managementClusterContentsDBClient.Replace(ctx, desired, nil)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to replace ManagementClusterContent: %w", err))
 	}
+
 	return nil
 }
 
-// buildKubeContentMaxSizeExceededCondition builds the condition for the given raw content size and a boolean indicating
-// if the content is within the limit (condition status False).
-// The content is considered within the limit if its size is less than or equal to 90% of the maximum size of a Cosmos DB item (2MB).
+// kubeContentMaxSizeBytes returns the maximum size of a Cosmos DB item in bytes.
 // 2MB is the maximum size of a Cosmos DB item (https://learn.microsoft.com/en-us/azure/cosmos-db/concepts-limits#per-item-limits).
-func (c *readAndPersistMaestroReadonlyBundlesContentSyncer) buildKubeContentMaxSizeExceededCondition(rawSizeBytes int, contentDescription string) api.Condition {
-	kubeContentMaxSizeBytes := 1887436 // 2MB * 0.9
-	withinLimit := rawSizeBytes <= kubeContentMaxSizeBytes
+func (c *readAndPersistMaestroReadonlyBundlesContentSyncer) kubeContentMaxSizeBytes() int {
+	return 1887436 // 2MB * 0.9
+}
 
+// buildKubeContentMaxSizeExceededCondition builds the KubeContentMaxSizeExceeded condition for the given boolean indicating
+// if the content size exceeds the limit (condition status True) or not (condition status False).
+// The conditionMessage is used to set the condition message.
+func (c *readAndPersistMaestroReadonlyBundlesContentSyncer) buildKubeContentMaxSizeExceededCondition(exceeded bool, conditionMessage string) api.Condition {
 	condition := api.Condition{
 		Type: "KubeContentMaxSizeExceeded",
 	}
 
-	if withinLimit {
-		condition.Status = api.ConditionFalse
-		condition.Reason = "WithinLimit"
-	} else {
+	if exceeded {
 		condition.Status = api.ConditionTrue
 		condition.Reason = "MaxSizeExceeded"
-		condition.Message = fmt.Sprintf("%s serialized size %.2f MiB exceeds Kube content max size %.2f MiB; current content was not persisted.", contentDescription, float64(rawSizeBytes)/(1024*1024), float64(kubeContentMaxSizeBytes)/(1024*1024))
+	} else {
+		condition.Status = api.ConditionFalse
+		condition.Reason = "WithinLimit"
 	}
+	condition.Message = conditionMessage
 
 	return condition
 }
@@ -324,13 +358,6 @@ func (c *readAndPersistMaestroReadonlyBundlesContentSyncer) getSingleResourceSta
 		return nil, utils.TrackError(fmt.Errorf("expected status feedback value JsonRaw to be not nil"))
 	}
 
-	// The following conditions could help telling giving some insights:
-	// meta.IsStatusConditionTrue(resultMaestroBundle.Status.Conditions, "Applied")
-	// meta.IsStatusConditionTrue(resultMaestroBundle.Status.Conditions, "Available")
-	// meta.IsStatusConditionTrue(resultMaestroBundle.Status.Conditions, "StatusFeedbackApplied")
-	// There are also `.version`, `.status.ObservedVersion` as well as some generation/version related fields in the bundle
-	// as well as manifests within it, together with other inner levels of K8s conditions that could be explored.
-
 	return []byte(*statusFeedbackValue.Value.JsonRaw), nil
 }
 
@@ -376,55 +403,4 @@ func (c *readAndPersistMaestroReadonlyBundlesContentSyncer) newInitialManagement
 // ManagementClusterContent associated to the given cluster resource ID and maestro bundle internal name.
 func (c *readAndPersistMaestroReadonlyBundlesContentSyncer) managementClusterContentResourceIDFromClusterResourceID(clusterResourceID *azcorearm.ResourceID, maestroBundleInternalName api.MaestroBundleInternalName) *azcorearm.ResourceID {
 	return api.Must(azcorearm.ParseResourceID(fmt.Sprintf("%s/%s/%s", clusterResourceID.String(), api.ManagementClusterContentResourceTypeName, maestroBundleInternalName)))
-}
-
-// GetOrCreateManagementClusterContent gets the ManagementClusterContent
-// instance for the given cluster resource ID.
-// If it doesn't exist, it creates a new one.
-// clusterResourceID is assumed to be a cluster resource ID.
-func (c *readAndPersistMaestroReadonlyBundlesContentSyncer) GetOrCreateManagementClusterContent(
-	ctx context.Context, dbClient database.DBClient, clusterResourceID *azcorearm.ResourceID, maestroBundleInternalName api.MaestroBundleInternalName,
-) (*api.ManagementClusterContent, error) {
-	// Azure resource types are case-insensitive; ToClusterResourceIDString lowercases the path so parsed IDs may have lowercase type.
-	if !strings.EqualFold(clusterResourceID.ResourceType.String(), api.ClusterResourceType.String()) {
-		return nil, utils.TrackError(fmt.Errorf("expected resource type %s, got %s", api.ClusterResourceType, clusterResourceID.ResourceType))
-	}
-
-	managementClusterContentsDBClient := dbClient.ManagementClusterContents(
-		clusterResourceID.SubscriptionID,
-		clusterResourceID.ResourceGroupName,
-		clusterResourceID.Name,
-	)
-
-	resourceID := c.managementClusterContentResourceIDFromClusterResourceID(clusterResourceID, maestroBundleInternalName)
-	managementClusterContentName := string(maestroBundleInternalName)
-	existingManagementClusterContent, err := managementClusterContentsDBClient.Get(ctx, managementClusterContentName)
-	if err == nil {
-		return existingManagementClusterContent, nil
-	}
-
-	if !database.IsResponseError(err, http.StatusNotFound) {
-		return nil, utils.TrackError(fmt.Errorf("failed to get ManagementClusterContent: %w", err))
-	}
-
-	initialManagementClusterContent := c.newInitialManagementClusterContent(resourceID)
-	existingManagementClusterContent, err = managementClusterContentsDBClient.Create(ctx, initialManagementClusterContent, nil)
-	if err == nil {
-		return existingManagementClusterContent, nil
-	}
-
-	// We optimize here and if creation failed because it already exists, we try
-	// to get again one last time.
-	// According to the Cosmos DB API documentation, a HTTP 409 Conflict error
-	// is returned when the item already exists: https://learn.microsoft.com/en-us/rest/api/cosmos-db/create-a-document#status-codes
-	if !database.IsResponseError(err, http.StatusConflict) {
-		return nil, utils.TrackError(fmt.Errorf("failed to create ManagementClusterContent: %w", err))
-	}
-
-	existingManagementClusterContent, err = managementClusterContentsDBClient.Get(ctx, managementClusterContentName)
-	if err != nil {
-		return nil, utils.TrackError(fmt.Errorf("failed to get ManagementClusterContent: %w", err))
-	}
-
-	return existingManagementClusterContent, nil
 }

@@ -15,6 +15,9 @@
 package api
 
 import (
+	"fmt"
+
+	"github.com/Azure/ARO-HCP/internal/utils"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 )
 
@@ -73,13 +76,19 @@ type MaestroBundleReferenceList []*MaestroBundleReference
 
 // Get returns the Maestro Bundle reference for a given Maestro Bundle internal name.
 // If the Maestro Bundle reference identifies by name does not exist, it returns nil.
-func (l MaestroBundleReferenceList) Get(name MaestroBundleInternalName) *MaestroBundleReference {
+// If multiple Maestro Bundle references are found for the same internal name, it returns an error.
+func (l MaestroBundleReferenceList) Get(name MaestroBundleInternalName) (*MaestroBundleReference, error) {
+	var bundleReference *MaestroBundleReference
+
 	for _, bundle := range l {
 		if bundle.Name == name {
-			return bundle
+			if bundleReference != nil {
+				return nil, utils.TrackError(fmt.Errorf("multiple Maestro Bundle references found for the same internal name: %s", name))
+			}
+			bundleReference = bundle
 		}
 	}
-	return nil
+	return bundleReference, nil
 }
 
 // MaestroBundleInternalName is a type that represents the internal name of a Maestro Bundle.
