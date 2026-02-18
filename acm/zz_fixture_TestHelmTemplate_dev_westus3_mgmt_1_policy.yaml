@@ -886,6 +886,7 @@ spec:
               - '*'
               verbs:
               - get
+        # groups used by hcpctl - migrate hcpctl to aro-sre-pso and aro-sre-csa once the new groups have been rolled out
         - complianceType: MustHave
           objectDefinition:
             apiVersion: rbac.authorization.k8s.io/v1
@@ -913,5 +914,34 @@ spec:
             subjects:
             - kind: Group
               name: aro-sre-cluster-admin
+              apiGroup: rbac.authorization.k8s.io
+        # group used by breakglass
+        - complianceType: MustHave
+          objectDefinition:
+            apiVersion: rbac.authorization.k8s.io/v1
+            kind: ClusterRoleBinding
+            metadata:
+              name: aro-sre-pso
+            roleRef:
+              apiGroup: rbac.authorization.k8s.io
+              kind: ClusterRole
+              name: system:aro-sre
+            subjects:
+            - kind: Group
+              name: aro-sre-pso
+              apiGroup: rbac.authorization.k8s.io
+        - complianceType: MustHave
+          objectDefinition:
+            apiVersion: rbac.authorization.k8s.io/v1
+            kind: ClusterRoleBinding
+            metadata:
+              name: aro-sre-csa
+            roleRef:
+              apiGroup: rbac.authorization.k8s.io
+              kind: ClusterRole
+              name: cluster-admin
+            subjects:
+            - kind: Group
+              name: aro-sre-csa
               apiGroup: rbac.authorization.k8s.io
 

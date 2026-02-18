@@ -670,8 +670,8 @@ spec:
     audiences:
     - "6dae42f8-4368-4678-94ff-3960e28e3630"
     outputClaimToHeaders:
-    - header: "X-JWT-Claim-AppId"
-      claim: "appId"
+    - header: "X-JWT-Claim-Oid"
+      claim: "oid"
     - header: "X-JWT-Claim-Upn"
       claim: "upn"
 ---
