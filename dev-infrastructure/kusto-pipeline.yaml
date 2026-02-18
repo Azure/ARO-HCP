@@ -22,6 +22,7 @@ resourceGroups:
     - canadacentral
     - centralindia
     - eastus2
+    - eastus2euap
     - westeurope
     - switzerlandnorth
     - uksouth
