@@ -16,8 +16,10 @@ package resourcegroups
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/go-logr/logr"
 
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -106,6 +108,19 @@ func (o *Options) Run(ctx context.Context) error {
 		ctx,
 		opts)
 	if err != nil {
+		var respErr *azcore.ResponseError
+		if errors.As(err, &respErr) && respErr.RawResponse != nil {
+			// Extract the Correlation ID header
+			corrID := respErr.RawResponse.Header.Get("x-ms-correlation-request-id")
+
+			logger.Error(err, "Failed to delete some resource groups",
+				"count", len(resourceGroupsToDelete),
+				"correlationID", corrID)
+
+			return fmt.Errorf("cleanup failed (CorrelationID: %s): %w", corrID, err)
+		}
+
+		// Fallback for non-Azure errors
 		logger.Error(err, "Failed to delete some resource groups", "count", len(resourceGroupsToDelete))
 		return err
 	}
