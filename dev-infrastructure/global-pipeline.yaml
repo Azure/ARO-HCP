@@ -10,6 +10,12 @@
 $schema: "pipeline.schema.v1"
 serviceGroup: Microsoft.Azure.ARO.HCP.Global
 rolloutName: Global Resource Rollout
+buildStep:
+  command: make
+  args:
+  - -C
+  - ../tooling/grafanactl
+  - bundle
 resourceGroups:
 - name: global
   resourceGroup: '{{ .global.rg }}'
@@ -91,22 +97,25 @@ resourceGroups:
   - name: grafana-dashboards
     action: Shell
     omitFromServiceGroupCompletion: true
-    command: make grafana
-    workingDir: ./../observability/
+    command: ./grafanactl sync dashboards --subscription=${SUBSCRIPTION_ID} --resource-group=${GLOBAL_RESOURCEGROUP} --grafana-name=${GRAFANA_NAME} --config-file=./observability.yaml
+    workingDir: ../tooling/grafanactl
     dependsOn:
     - resourceGroup: global
       step: housekeeping
     - resourceGroup: global
-      step: infra
+      step: output
     dryRun:
-      variables:
-      - name: DRY_RUN
-        value: "true"
+      command: ./grafanactl sync dashboards --subscription=${SUBSCRIPTION_ID} --resource-group=${GLOBAL_RESOURCEGROUP} --grafana-name=${GRAFANA_NAME} --config-file=./observability.yaml --dry-run
     variables:
     - name: GRAFANA_NAME
       configRef: monitoring.grafanaName
     - name: GLOBAL_RESOURCEGROUP
       configRef: global.rg
+    - name: SUBSCRIPTION_ID
+      input:
+        resourceGroup: global
+        step: output
+        name: subscriptionId
     shellIdentity:
       input:
         resourceGroup: global
