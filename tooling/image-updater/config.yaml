@@ -226,26 +226,6 @@ images:
     targets:
     - jsonPath: defaults.adminApi.image.digest
       filePath: ../../config/config.yaml
-  # Route Monitor Operator images
-  route-monitor-operator:
-    source:
-      image: quay.io/app-sre/route-monitor-operator
-      tag: "latest"
-      versionLabel: "vcs-ref"
-      useAuth: true
-      keyVault:
-        url: "https://arohcpdev-global.vault.azure.net/"
-        secretName: "component-sync-pull-secret"
-    targets:
-    - jsonPath: defaults.routeMonitorOperator.operatorImage.digest
-      filePath: ../../config/config.yaml
-  blackbox-exporter:
-    source:
-      image: quay.io/prometheus/blackbox-exporter
-      tagPattern: "^v\\d+\\.\\d+\\.\\d+$"
-    targets:
-    - jsonPath: defaults.routeMonitorOperator.blackboxExporterImage.digest
-      filePath: ../../config/config.yaml
   # Kube Webhook Certgen (Ingress NGINX)
   kube-webhook-certgen:
     source:
@@ -256,37 +236,4 @@ images:
       filePath: ../../config/config.yaml
     - jsonPath: defaults.mgmt.ingress.controller.admissionWebhook.patch.image.sha
       filePath: ../../config/config.yaml
-  # AKS Command Runtime
-  aks-command-runtime:
-    source:
-      image: mcr.microsoft.com/aks/command/runtime
-      tagPattern: "^master\\.\\d+\\.\\d+$"
-    targets:
-    - jsonPath: defaults.aksCommandRuntime.image.digest
-      filePath: ../../config/config.yaml
-  # Velero images (using pull-through cache)
-  velero-server:
-    source:
-      image: quay.io/konveyor/velero
-      tagPattern: "^oadp-\\d+\\.\\d+$"
-    targets:
-    - jsonPath: defaults.velero.server.digest
-      filePath: ../../config/config.yaml
-  velero-plugin-azure:
-    source:
-      image: quay.io/konveyor/velero-plugin-for-microsoft-azure
-      tagPattern: "^oadp-\\d+\\.\\d+$"
-    targets:
-    - jsonPath: defaults.velero.azurePlugin.digest
-      filePath: ../../config/config.yaml
-  velero-hypershift-plugin:
-    source:
-      image: quay.io/redhat-user-workloads/ocp-art-tenant/oadp-hypershift-oadp-plugin-main
-      tagPattern: "^[a-f0-9]{40}$"
-      useAuth: true
-      keyVault:
-        url: "https://arohcpdev-global.vault.azure.net/"
-        secretName: "component-sync-pull-secret"
-    targets:
-    - jsonPath: defaults.velero.hypershiftPlugin.digest
-      filePath: ../../config/config.yaml
+
