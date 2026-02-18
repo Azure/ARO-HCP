@@ -571,6 +571,42 @@ func SetClusterServiceOnlyFieldsOnCluster(internalCluster *api.HCPOpenShiftClust
 	internalCluster.ServiceProviderProperties.DNS.BaseDomain = clusterServiceCluster.DNS().BaseDomain()
 	internalCluster.ServiceProviderProperties.Console.URL = clusterServiceCluster.Console().URL()
 	internalCluster.ServiceProviderProperties.API.URL = clusterServiceCluster.API().URL()
+
+	// the clientID and principalID are currently only known to cluster-service. We'll need to determine them somewhere else.
+	if clusterServiceCluster.Azure().OperatorsAuthentication() != nil {
+		if mi, ok := clusterServiceCluster.Azure().OperatorsAuthentication().GetManagedIdentities(); ok {
+			for _, operatorIdentity := range mi.ControlPlaneOperatorsManagedIdentities() {
+				if internalCluster.Identity == nil {
+					internalCluster.Identity = &arm.ManagedServiceIdentity{}
+				}
+				if internalCluster.Identity.UserAssignedIdentities == nil {
+					internalCluster.Identity.UserAssignedIdentities = make(map[string]*arm.UserAssignedIdentity)
+				}
+
+				clientID, _ := operatorIdentity.GetClientID()
+				principalID, _ := operatorIdentity.GetPrincipalID()
+				internalCluster.Identity.UserAssignedIdentities[operatorIdentity.ResourceID()] = &arm.UserAssignedIdentity{
+					ClientID:    &clientID,
+					PrincipalID: &principalID,
+				}
+			}
+			if len(mi.ServiceManagedIdentity().ResourceID()) > 0 {
+				if internalCluster.Identity == nil {
+					internalCluster.Identity = &arm.ManagedServiceIdentity{}
+				}
+				if internalCluster.Identity.UserAssignedIdentities == nil {
+					internalCluster.Identity.UserAssignedIdentities = make(map[string]*arm.UserAssignedIdentity)
+				}
+
+				clientID, _ := mi.ServiceManagedIdentity().GetClientID()
+				principalID, _ := mi.ServiceManagedIdentity().GetPrincipalID()
+				internalCluster.Identity.UserAssignedIdentities[mi.ServiceManagedIdentity().ResourceID()] = &arm.UserAssignedIdentity{
+					ClientID:    &clientID,
+					PrincipalID: &principalID,
+				}
+			}
+		}
+	}
 }
 
 // ensureManagedResourceGroupName makes sure the ManagedResourceGroupName field is set.
