@@ -15,6 +15,12 @@ resourceGroups:
   - clouds:
     - public
     environments:
+    - stg
+    regions:
+    - uksouth
+  - clouds:
+    - public
+    environments:
     - prod
     regions:
     - australiaeast
