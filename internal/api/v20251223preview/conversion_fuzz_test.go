@@ -119,7 +119,7 @@ func roundTripHCPCluster(t *testing.T, original *api.HCPOpenShiftCluster) {
 		originalJSON, _ := json.MarshalIndent(original, "", "    ")
 		intermediateJSON, _ := json.MarshalIndent(externalObj, "", "    ")
 		resultJSON, _ := json.MarshalIndent(roundTrippedObj, "", "    ")
-		t.Logf("Original: %s\n\nIntermediat: %s\n\n result: %s\n\n", string(originalJSON), string(intermediateJSON), string(resultJSON))
+		t.Logf("Original: %s\n\nIntermediate: %s\n\n result: %s\n\n", string(originalJSON), string(intermediateJSON), string(resultJSON))
 		t.Errorf("Round trip failed: %v", cmp.Diff(original, roundTrippedObj, api.CmpDiffOptions...))
 	}
 }
@@ -137,7 +137,7 @@ func roundTripNodePool(t *testing.T, original *api.HCPOpenShiftClusterNodePool) 
 		originalJSON, _ := json.MarshalIndent(original, "", "    ")
 		intermediateJSON, _ := json.MarshalIndent(externalObj, "", "    ")
 		resultJSON, _ := json.MarshalIndent(roundTrippedObj, "", "    ")
-		t.Logf("Original: %s\n\nIntermediat: %s\n\n result: %s\n\n", string(originalJSON), string(intermediateJSON), string(resultJSON))
+		t.Logf("Original: %s\n\nIntermediate: %s\n\n result: %s\n\n", string(originalJSON), string(intermediateJSON), string(resultJSON))
 		t.Errorf("Round trip failed: %v", cmp.Diff(original, roundTrippedObj, api.CmpDiffOptions...))
 	}
 }
@@ -155,7 +155,7 @@ func roundTripExternalAuth(t *testing.T, original *api.HCPOpenShiftClusterExtern
 		originalJSON, _ := json.MarshalIndent(original, "", "    ")
 		intermediateJSON, _ := json.MarshalIndent(externalObj, "", "    ")
 		resultJSON, _ := json.MarshalIndent(roundTrippedObj, "", "    ")
-		t.Logf("Original: %s\n\nIntermediat: %s\n\n result: %s\n\n", string(originalJSON), string(intermediateJSON), string(resultJSON))
+		t.Logf("Original: %s\n\nIntermediate: %s\n\n result: %s\n\n", string(originalJSON), string(intermediateJSON), string(resultJSON))
 		t.Errorf("Round trip failed: %v", cmp.Diff(original, roundTrippedObj, api.CmpDiffOptions...))
 	}
 }
