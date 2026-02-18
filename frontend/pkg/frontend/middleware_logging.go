@@ -15,7 +15,9 @@
 package frontend
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -48,13 +50,23 @@ func (rc *LoggingReadCloser) Read(b []byte) (int, error) {
 
 type LoggingResponseWriter struct {
 	http.ResponseWriter
-	statusCode   int
-	bytesWritten int
+	statusCode    int
+	bytesWritten  int
+	observedBytes *bytes.Buffer
+	logger        logr.Logger
 }
 
 func (w *LoggingResponseWriter) Write(b []byte) (int, error) {
 	n, err := w.ResponseWriter.Write(b)
 	w.bytesWritten += n
+
+	if w.observedBytes != nil {
+		// best effort to capture the body for debugging. Very expensive memory-wise, but we're having trouble with an invisible problem at the moment
+		if m, err := w.observedBytes.Write(b[:n]); err != nil || m != n {
+			w.logger.Error(err, "failed to write to observed bytes buffer", "n", n, "m", m)
+		}
+	}
+
 	return n, err
 }
 
@@ -67,18 +79,22 @@ func (w *LoggingResponseWriter) WriteHeader(statusCode int) {
 func MiddlewareLogging(w http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
 	ctx := r.Context()
 	logger := utils.LoggerFromContext(ctx)
-
-	// Capture the request and response data for logging.
-	r.Body = &LoggingReadCloser{ReadCloser: r.Body}
-	w = &LoggingResponseWriter{ResponseWriter: w, statusCode: http.StatusOK}
-
-	startTime := time.Now()
-
 	logger = logger.WithValues(
 		utils.LogValues{}.
 			AddMethod(r.Method).
 			AddPath(r.URL.Path)...,
 	)
+
+	startTime := time.Now()
+
+	// Capture the request and response data for logging.
+	r.Body = &LoggingReadCloser{ReadCloser: r.Body}
+	w = &LoggingResponseWriter{
+		ResponseWriter: w,
+		statusCode:     http.StatusOK,
+		observedBytes:  &bytes.Buffer{}, // set this to nil to stop the expensive collection
+		logger:         logger,          // the responsewriter interface doesn't take a context, so we have to track the logger like this.
+	}
 
 	// make a best attempt at parsing the resourceID. This will often fail because we have non-resource requests.
 	// we do this so that we can add subscription, resourceGroup, and hcpCluster to the logger context for future searching
@@ -121,6 +137,16 @@ func MiddlewareLogging(w http.ResponseWriter, r *http.Request, next http.Handler
 		"response_status_code", w.(*LoggingResponseWriter).statusCode,
 		"duration", time.Since(startTime).Seconds(),
 	}
+	if w.(*LoggingResponseWriter).observedBytes != nil {
+		// super expensive, but much easier to read. hopefully this is turned off at some point.
+		ret := map[string]any{}
+		if err := json.Unmarshal(w.(*LoggingResponseWriter).observedBytes.Bytes(), &ret); err == nil {
+			responseContextValues = append(responseContextValues, "body_json", ret)
+		} else {
+			responseContextValues = append(responseContextValues, "body", w.(*LoggingResponseWriter).observedBytes.String())
+		}
+	}
+
 	for _, header := range []string{
 		"Azure-AsyncOperation", // used by poller async.Applicable
 		"Fake-Poller-Status",   // used by poller fake.Applicable
