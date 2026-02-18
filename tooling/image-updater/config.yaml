@@ -256,11 +256,3 @@ images:
       filePath: ../../config/config.yaml
     - jsonPath: defaults.mgmt.ingress.controller.admissionWebhook.patch.image.sha
       filePath: ../../config/config.yaml
-  # AKS Command Runtime
-  aks-command-runtime:
-    source:
-      image: mcr.microsoft.com/aks/command/runtime
-      tagPattern: "^master\\.\\d+\\.\\d+$"
-    targets:
-    - jsonPath: defaults.aksCommandRuntime.image.digest
-      filePath: ../../config/config.yaml
