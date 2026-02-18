@@ -420,6 +420,15 @@ param resourceContainerMaxScale int
 param billingContainerMaxScale int
 param locksContainerMaxScale int
 
+@description('The name of the Exporter managed identity')
+param exporterMIName string
+
+@description('The namespace of the Exporter managed identity')
+param exporterNamespace string
+
+@description('The service account name of the Exporter managed identity')
+param exporterServiceAccountName string
+
 @description('Event Hub name for AKS audit logs')
 param auditLogsEventHubName string
 
@@ -480,6 +489,11 @@ var workloadIdentities = items({
     uamiName: adminApiMIName
     namespace: adminApiNamespace
     serviceAccountName: adminApiServiceAccountName
+  }
+  exporter_wi: {
+    uamiName: exporterMIName
+    namespace: exporterNamespace
+    serviceAccountName: exporterServiceAccountName
   }
 })
 

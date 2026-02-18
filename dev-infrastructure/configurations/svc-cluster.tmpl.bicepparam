@@ -168,3 +168,8 @@ param locksContainerMaxScale = {{ .frontend.cosmosDB.locksContainerMaxScale }}
 // Audit Logs Event Hub
 param auditLogsEventHubName = '{{ .kusto.auditLogsEventHub.name }}'
 param auditLogsEventHubAuthRuleId = '__auditLogsEventHubAuthRuleId__'
+
+// Exporter
+param exporterMIName = '{{ .customExporter.managedIdentityName }}'
+param exporterNamespace = '{{ .customExporter.k8s.namespace }}'
+param exporterServiceAccountName = '{{ .customExporter.k8s.serviceAccountName }}'
