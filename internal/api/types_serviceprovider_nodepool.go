@@ -15,6 +15,8 @@
 package api
 
 import (
+	"github.com/blang/semver/v4"
+
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 )
 
@@ -34,4 +36,40 @@ type ServiceProviderNodePool struct {
 	// resourceID exists to match cosmosMetadata.resourceID until we're able to transition all types to use cosmosMetadata,
 	// at which point we will stop using properties.resourceId in our queries. That will be about a month from now.
 	ResourceID azcorearm.ResourceID `json:"resourceId"`
+
+	// Spec contains the desired state of the nodepool
+	Spec ServiceProviderNodePoolSpec `json:"spec,omitempty"`
+
+	// Status contains the observed state of the nodepool
+	Status ServiceProviderNodePoolStatus `json:"status,omitempty"`
+}
+
+// ServiceProviderNodePoolSpec contains the desired state of the nodepool.
+type ServiceProviderNodePoolSpec struct {
+	// NodePoolVersion contains the desired node pool version information.
+	// Example JSON structure:
+	// {
+	//   "nodepool_version": {
+	//     "desired_version": "4.19.2"
+	//   }
+	// }
+	NodePoolVersion ServiceProviderNodePoolSpecVersion `json:"control_plane_version,omitempty"`
+}
+
+// ServiceProviderNodePoolSpecVersion contains the desired version information.
+type ServiceProviderNodePoolSpecVersion struct {
+	// DesiredVersion is the full version the controller wants to upgrade to (format: x.y.z)
+	DesiredVersion *semver.Version `json:"desired_version,omitempty"`
+}
+
+// ServiceProviderNodePoolStatus contains the observed state of the node pool.
+type ServiceProviderNodePoolStatus struct {
+	NodePoolVersion ServiceProviderNodePoolStatusVersion `json:"nodepool_version,omitempty"`
+}
+
+// ServiceProviderNodePoolStatusVersion contains the actual version information.
+type ServiceProviderNodePoolStatusVersion struct {
+	// ActiveVersions is an array of versions currently active in the nodepool, ordered with the most recent first.
+	// During upgrades, multiple versions can be active simultaneously.
+	ActiveVersion *semver.Version `json:"active_version,omitempty"`
 }
