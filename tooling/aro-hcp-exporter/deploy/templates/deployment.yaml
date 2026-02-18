@@ -1,4 +1,3 @@
----
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -24,49 +23,49 @@ spec:
     spec:
       serviceAccountName: '{{ .Values.serviceAccount.name }}'
       containers:
-        - name: aro-hcp-exporter
-          image: {{ .Values.image.registry }}/{{ .Values.image.repository }}@{{ .Values.image.digest }}
-          imagePullPolicy: IfNotPresent
-          args:
-            - serve
-            - --subscription-ids={{ join "," .Values.subscriptionIds | quote }}
-            - --listen-address={{ .Values.listenAddress | quote }}
-            - --cache-ttl={{ .Values.cacheTTL | quote }}
-            - --collection-interval={{ .Values.collectionInterval | quote }}
-            - --enabled-collectors={{ join "," .Values.enabledCollectors | quote }}
-          ports:
-            - name: metrics
-              containerPort: 8080
-              protocol: TCP
-          livenessProbe:
-            httpGet:
-              path: /metrics
-              port: metrics
-            initialDelaySeconds: 15
-            periodSeconds: 15
-            timeoutSeconds: 5
-            failureThreshold: 6
-            successThreshold: 1
-          readinessProbe:
-            httpGet:
-              path: /metrics
-              port: metrics
-            initialDelaySeconds: 15
-            periodSeconds: 15
-            timeoutSeconds: 5
-            failureThreshold: 6
-            successThreshold: 1
-          securityContext:
-            privileged: false
-            allowPrivilegeEscalation: false
-            runAsNonRoot: true
-            seccompProfile:
-              type: RuntimeDefault
-            capabilities:
-              drop: ['ALL']
-          resources:
-            requests:
-              cpu: 100m
-              memory: 128Mi
-            limits:
-              memory: 512Mi
+      - name: aro-hcp-exporter
+        image: '{{ .Values.image.registry }}/{{ .Values.image.repository }}@{{ .Values.image.digest }}'
+        imagePullPolicy: IfNotPresent
+        args:
+        - serve
+        - --subscription-names={{ join "," .Values.subscriptionNames | quote }}
+        - --listen-address={{ .Values.listenAddress }}
+        - --cache-ttl={{ .Values.cacheTTL }}
+        - --collection-interval={{ .Values.collectionInterval }}
+        - --enabled-collectors={{ join "," .Values.enabledCollectors | quote }}
+        ports:
+        - name: metrics
+          containerPort: 8080
+          protocol: TCP
+        livenessProbe:
+          httpGet:
+            path: /metrics
+            port: metrics
+          initialDelaySeconds: 15
+          periodSeconds: 15
+          timeoutSeconds: 5
+          failureThreshold: 6
+          successThreshold: 1
+        readinessProbe:
+          httpGet:
+            path: /metrics
+            port: metrics
+          initialDelaySeconds: 15
+          periodSeconds: 15
+          timeoutSeconds: 5
+          failureThreshold: 6
+          successThreshold: 1
+        securityContext:
+          privileged: false
+          allowPrivilegeEscalation: false
+          runAsNonRoot: true
+          seccompProfile:
+            type: RuntimeDefault
+          capabilities:
+            drop: ['ALL']
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            memory: 512Mi

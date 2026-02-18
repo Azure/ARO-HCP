@@ -58,52 +58,52 @@ spec:
     spec:
       serviceAccountName: 'aro-hcp-exporter'
       containers:
-        - name: aro-hcp-exporter
-          image: arohcpsvcdev.azurecr.io/arohcpmetrics@sha256:1234567890
-          imagePullPolicy: IfNotPresent
-          args:
-            - serve
-            - --subscription-id=
-            - --listen-address=:8080
-            - --cache-ttl=60m
-            - --collection-interval=2m
-            - --enabled-collectors=service-tag-usage
-          ports:
-            - name: metrics
-              containerPort: 8080
-              protocol: TCP
-          livenessProbe:
-            httpGet:
-              path: /metrics
-              port: metrics
-            initialDelaySeconds: 15
-            periodSeconds: 15
-            timeoutSeconds: 5
-            failureThreshold: 6
-            successThreshold: 1
-          readinessProbe:
-            httpGet:
-              path: /metrics
-              port: metrics
-            initialDelaySeconds: 15
-            periodSeconds: 15
-            timeoutSeconds: 5
-            failureThreshold: 6
-            successThreshold: 1
-          securityContext:
-            privileged: false
-            allowPrivilegeEscalation: false
-            runAsNonRoot: true
-            seccompProfile:
-              type: RuntimeDefault
-            capabilities:
-              drop: ['ALL']
-          resources:
-            requests:
-              cpu: 100m
-              memory: 128Mi
-            limits:
-              memory: 512Mi
+      - name: aro-hcp-exporter
+        image: 'arohcpsvcdev.azurecr.io/arohcpmetrics@sha256:1234567890'
+        imagePullPolicy: IfNotPresent
+        args:
+        - serve
+        - --subscription-names="ARO Hosted Control Planes (EA Subscription 1),ARO Hosted Control Planes (EA Subscription 1)"
+        - --listen-address=:8080
+        - --cache-ttl=60m
+        - --collection-interval=2m
+        - --enabled-collectors="service-tag-usage"
+        ports:
+        - name: metrics
+          containerPort: 8080
+          protocol: TCP
+        livenessProbe:
+          httpGet:
+            path: /metrics
+            port: metrics
+          initialDelaySeconds: 15
+          periodSeconds: 15
+          timeoutSeconds: 5
+          failureThreshold: 6
+          successThreshold: 1
+        readinessProbe:
+          httpGet:
+            path: /metrics
+            port: metrics
+          initialDelaySeconds: 15
+          periodSeconds: 15
+          timeoutSeconds: 5
+          failureThreshold: 6
+          successThreshold: 1
+        securityContext:
+          privileged: false
+          allowPrivilegeEscalation: false
+          runAsNonRoot: true
+          seccompProfile:
+            type: RuntimeDefault
+          capabilities:
+            drop: ['ALL']
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            memory: 512Mi
 ---
 # Source: aro-hcp-exporter/templates/servicemonitor.yaml
 apiVersion: monitoring.coreos.com/v1

@@ -180,6 +180,15 @@ clustersService:
   tracing:
     address: ""
     exporter: ""
+customExporter:
+  image:
+    digest: sha256:b138301009f792415bbd9283194d5142126db46886f3dd7ecd6f6ba855e53c18
+    registry: arohcpsvcdev.azurecr.io
+    repository: arohcpmetrics
+  k8s:
+    namespace: aro-hcp-exporter
+    serviceAccountName: aro-hcp-exporter
+  managedIdentityName: aro-hcp-exporter
 cxKeyVault:
   name: ah-cspr-cx-usw3-1
   private: false
@@ -442,11 +451,6 @@ maestro:
     tracing:
       address: ""
       exporter: ""
-metrics:
-  image:
-    digest: sha256:9d8bb8d3de197454cb7a737ad039f49c6a6a16b88728951ef7a0a7b303ac8bfa
-    registry: arohcpsvcdev.azurecr.io
-    repository: arohcpmetrics
 mgmt:
   aks:
     clusterOutboundIPAddressIPTags: ""

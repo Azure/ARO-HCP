@@ -468,6 +468,53 @@ resourceGroups:
       - "context deadline exceeded"
       maximumRetryCount: 3
       durationBetweenRetries: 1m
+  - name: mirror-image
+    action: ImageMirror
+    targetACR:
+      configRef: 'acr.svc.name'
+    sourceRegistry:
+      configRef: customExporter.image.registry
+    repository:
+      configRef: customExporter.image.repository
+    digest:
+      configRef: customExporter.image.digest
+    pullSecretKeyVault:
+      configRef: global.keyVault.name
+    pullSecretName:
+      configRef: imageSync.ondemandSync.pullSecretName
+    shellIdentity:
+      input:
+        resourceGroup: global
+        step: output
+        name: globalMSIId
+    automatedRetry:
+      errorContainsAny:
+      - "unknown_storage_failure"
+      maximumRetryCount: 5
+      durationBetweenRetries: 1m
+  - name: exporter-output
+    action: ARM
+    template: templates/exporter-lookup.bicep
+    parameters: configurations/exporter-lookup.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
+    dependsOn:
+    - resourceGroup: service
+      step: cluster
+  - name: exporter-permissions
+    action: ARM
+    template: templates/exporter-permissions.bicep
+    parameters: configurations/exporter-permissions.tmpl.bicepparam
+    deploymentLevel: Subscription
+    variables:
+    - name: exporterPrincipalId
+      input:
+        resourceGroup: service
+        step: exporter-output
+        name: exporterPrincipalId
+    dependsOn:
+    - resourceGroup: service
+      step: exporter-output
   - name: aro-hcp-exporter
     aksCluster: '{{ .svc.aks.name }}'
     action: Helm
@@ -484,6 +531,11 @@ resourceGroups:
     dependsOn:
     - resourceGroup: service
       step: cluster
+    inputVariables:
+      msiClientId:
+        resourceGroup: service
+        step: exporter-output
+        name: msiClientId
     identityFrom:
       resourceGroup: global
       step: output
