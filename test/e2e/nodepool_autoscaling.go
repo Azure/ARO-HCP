@@ -117,6 +117,18 @@ var _ = Describe("Customer", func() {
 			// MaxNodesTotal should be nil (no maximum limit) when not explicitly set
 			Expect(clusterResp.Properties.Autoscaling.MaxNodesTotal).To(BeNil(), "Expected MaxNodesTotal to be nil when not explicitly set")
 
+			By("verifying the nodepool has the correct number of minReplicas and maxReplicas for autoscaling")
+			nodePoolResp, err := framework.GetNodePool(ctx,
+				tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient(),
+				*resourceGroup.Name,
+				customerClusterName,
+				customerNodePoolName)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(nodePoolResp.Properties).NotTo(BeNil())
+			Expect(nodePoolResp.Properties.AutoScaling).NotTo(BeNil(), "Expected nodepool to have autoscaling configuration")
+			Expect(nodePoolResp.Properties.AutoScaling.Min).To(Equal(to.Ptr(autoscalingMin)))
+			Expect(nodePoolResp.Properties.AutoScaling.Max).To(Equal(to.Ptr(autoscalingMax)))
+
 		})
 
 	It("should respect cluster-wide node limits with nodepool autoscaling",
