@@ -31,6 +31,32 @@ type HostedClusterVerifier interface {
 	Verify(ctx context.Context, restConfig *rest.Config) error
 }
 
+// ExpectForbidden returns a verifier that runs inner and succeeds only when inner.Verify
+// returns a forbidden (403) error. Use it to assert that an identity must not be able
+// to perform the action implemented by inner, without defining separate "Cannot" verifiers.
+func ExpectForbidden(inner HostedClusterVerifier) HostedClusterVerifier {
+	return expectForbidden{inner: inner}
+}
+
+type expectForbidden struct {
+	inner HostedClusterVerifier
+}
+
+func (w expectForbidden) Name() string {
+	return fmt.Sprintf("ExpectForbidden(%s)", w.inner.Name())
+}
+
+func (w expectForbidden) Verify(ctx context.Context, restConfig *rest.Config) error {
+	err := w.inner.Verify(ctx, restConfig)
+	if err == nil {
+		return fmt.Errorf("expected forbidden, but %s succeeded", w.inner.Name())
+	}
+	if !apierrors.IsForbidden(err) {
+		return fmt.Errorf("expected forbidden from %s, got: %w", w.inner.Name(), err)
+	}
+	return nil
+}
+
 type verifyImageRegistryDisabled struct{}
 
 func (v verifyImageRegistryDisabled) Name() string {

@@ -384,7 +384,7 @@ func (c *SessionController) handleTransientError(err error) (bool, *actions, err
 // permanent errors usually don't resolve themselves just by retrying,
 // so we set the condition and don't actively requeue by returning the error.
 // we will passively though through the informer first time the permanent error
-// is handled, due to the condition update.
+// is handled, due to the condition update and on every relist
 func (c *SessionController) handlePermanentError(session *sessiongatev1alpha1.Session, condition *applyv1.ConditionApplyConfiguration) (bool, *actions, error) {
 	sessionUpdate, needsUpdate := NewStatus(session.Status).
 		WithConditions(

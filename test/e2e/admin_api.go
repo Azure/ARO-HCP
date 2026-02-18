@@ -44,10 +44,10 @@ var _ = Describe("SRE", func() {
 		labels.AroRpApiCompatible,
 		func(ctx context.Context) {
 			const (
-				engineeringNetworkSecurityGroupName = "engineering-nsg-name"
-				engineeringVnetName                 = "engineering-vnet-name"
-				engineeringVnetSubnetName           = "engineering-vnet-subnet1"
-				engineeringClusterName              = "engineering-hcp-cluster"
+				engineeringNetworkSecurityGroupName = "sre-nsg-name"
+				engineeringVnetName                 = "sre-vnet-name"
+				engineeringVnetSubnetName           = "sre-vnet-subnet1"
+				engineeringClusterName              = "sre-hcp-cluster"
 			)
 			tc := framework.NewTestContext()
 
@@ -95,6 +95,7 @@ var _ = Describe("SRE", func() {
 			commonVerifiers := []verifiers.HostedClusterVerifier{
 				verifiers.VerifyCanReadNamespaced("kube-system", "pods", "configmaps"),
 				verifiers.VerifyCanRead("nodes", "namespaces"),
+				verifiers.VerifyCanGetDeploymentLogs("openshift-monitoring", "prometheus-operator", ""),
 			}
 
 			By("resolving current Azure identity")
@@ -107,7 +108,7 @@ var _ = Describe("SRE", func() {
 			aroSreRestConfig, expiresAt, err := tc.CreateSREBreakglassCredentials(ctx, hcpResourceID, 1*time.Minute, "aro-sre", currentIdentity)
 			Expect(err).NotTo(HaveOccurred())
 			err = runCreateSREBreakglassCredentialsVerifier(ctx, "aro-sre", aroSreRestConfig, append(commonVerifiers,
-				verifiers.VerifyCannotReadNamespaced("kube-system", "secrets"),
+				verifiers.ExpectForbidden(verifiers.VerifyCanReadNamespaced("kube-system", "secrets")),
 			))
 			Expect(err).NotTo(HaveOccurred())
 			By("waiting for the session to expire")

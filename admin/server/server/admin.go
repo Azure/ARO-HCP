@@ -76,7 +76,7 @@ func NewAdminAPI(
 	v1HCPMux := middleware.NewHCPResourceServerMux("/admin/v1/hcp")
 	v1HCPMux.Handle("GET", "/helloworld", hcp.HCPHelloWorld(dbClient, clustersServiceClient))
 	v1HCPMux.Handle("GET", "/hellworld/lbs", hcp.HCPDemoListLoadbalancers(dbClient, clustersServiceClient, fpaCredentialRetriever))
-	v1HCPMux.Handle("PUT", "/breakglass", breakglasshandlers.NewHCPBreakglassSessionCreationHandler(dbClient, clustersServiceClient, sessionClient, allowedBreakglassGroups, minSessionTTL, maxSessionTTL))
+	v1HCPMux.Handle("POST", "/breakglass", breakglasshandlers.NewHCPBreakglassSessionCreationHandler(dbClient, clustersServiceClient, sessionClient, allowedBreakglassGroups, minSessionTTL, maxSessionTTL))
 	v1HCPMux.Handle("GET", "/breakglass/{sessionName}/kubeconfig", breakglasshandlers.NewHCPBreakglassSessionKubeconfigHandler(sessionLister, sessionClient))
 	v1HCPMux.Handle("GET", "/cosmosdump", cosmosdump.NewCosmosDumpHandler(dbClient))
 

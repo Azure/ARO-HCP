@@ -24,15 +24,16 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/golang-jwt/jwt/v5"
 	. "github.com/onsi/ginkgo/v2"
 
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/go-cmp/cmp"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
+
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 )
 
 const (
@@ -139,7 +140,7 @@ func (t *clientPrincipalTransport) RoundTrip(req *http.Request) (*http.Response,
 }
 
 func createSREBreakglassSession(ctx context.Context, httpClient *http.Client, breakglassEndpoint string) (string, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodPut, breakglassEndpoint, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, breakglassEndpoint, nil)
 	if err != nil {
 		return "", fmt.Errorf("failed to create request: %w", err)
 	}

@@ -16,10 +16,13 @@ package verifiers
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io"
 	"strings"
 
 	authenticationv1 "k8s.io/api/authentication/v1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -95,86 +98,118 @@ func (v verifyCanRead) Verify(ctx context.Context, restConfig *rest.Config) erro
 		return fmt.Errorf("failed to create kubernetes client: %w", err)
 	}
 
-	var errs []string
+	var errs []error
 	for _, resource := range v.resources {
 		switch resource {
 		case "nodes":
 			_, err := client.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
 			if err != nil {
-				errs = append(errs, fmt.Sprintf("get nodes: %v", err))
+				errs = append(errs, fmt.Errorf("get nodes: %w", err))
 			}
 		case "namespaces":
 			_, err := client.CoreV1().Namespaces().List(ctx, metav1.ListOptions{})
 			if err != nil {
-				errs = append(errs, fmt.Sprintf("get namespaces: %v", err))
+				errs = append(errs, fmt.Errorf("get namespaces: %w", err))
 			}
 		case "pods":
 			_, err := client.CoreV1().Pods(v.namespace).List(ctx, metav1.ListOptions{})
 			if err != nil {
-				errs = append(errs, fmt.Sprintf("get pods -n %s: %v", v.namespace, err))
+				errs = append(errs, fmt.Errorf("get pods -n %s: %w", v.namespace, err))
 			}
 		case "secrets":
 			_, err := client.CoreV1().Secrets(v.namespace).List(ctx, metav1.ListOptions{})
 			if err != nil {
-				errs = append(errs, fmt.Sprintf("get secrets -n %s: %v", v.namespace, err))
+				errs = append(errs, fmt.Errorf("get secrets -n %s: %w", v.namespace, err))
 			}
 		case "configmaps":
 			_, err := client.CoreV1().ConfigMaps(v.namespace).List(ctx, metav1.ListOptions{})
 			if err != nil {
-				errs = append(errs, fmt.Sprintf("get configmaps -n %s: %v", v.namespace, err))
+				errs = append(errs, fmt.Errorf("get configmaps -n %s: %w", v.namespace, err))
 			}
 		default:
-			errs = append(errs, fmt.Sprintf("unknown resource: %s", resource))
+			errs = append(errs, fmt.Errorf("unknown resource: %s", resource))
 		}
 	}
 
-	if len(errs) > 0 {
-		return fmt.Errorf("read access verification failed:\n  %s", strings.Join(errs, "\n  "))
+	if len(errs) == 0 {
+		return nil
 	}
-	return nil
+	return fmt.Errorf("read access verification failed: %w", errors.Join(errs...))
 }
 
-type verifyCannotRead struct {
-	namespace string
-	resources []string
+type verifyCanGetDeploymentLogs struct {
+	namespace      string
+	deploymentName string
+	containerName  string
 }
 
-func VerifyCannotRead(resources ...string) HostedClusterVerifier {
-	return verifyCannotRead{namespace: "", resources: resources}
-}
-
-func VerifyCannotReadNamespaced(namespace string, resources ...string) HostedClusterVerifier {
-	return verifyCannotRead{namespace: namespace, resources: resources}
-}
-
-func (v verifyCannotRead) Name() string {
-	if v.namespace == "" {
-		return fmt.Sprintf("VerifyCannotRead(resources=%s)", strings.Join(v.resources, ","))
+// VerifyCanGetDeploymentLogs returns a verifier that checks the identity can read logs from
+// a pod of the given deployment. It discovers one pod via the deployment's label selector
+// and fetches logs from it. containerName is optional; leave empty for the pod's default container.
+func VerifyCanGetDeploymentLogs(namespace, deploymentName, containerName string) HostedClusterVerifier {
+	return verifyCanGetDeploymentLogs{
+		namespace:      namespace,
+		deploymentName: deploymentName,
+		containerName:  containerName,
 	}
-	return fmt.Sprintf("VerifyCannotRead(namespace=%s, resources=%s)", v.namespace, strings.Join(v.resources, ","))
 }
 
-func (v verifyCannotRead) Verify(ctx context.Context, restConfig *rest.Config) error {
+func (v verifyCanGetDeploymentLogs) Name() string {
+	if v.containerName == "" {
+		return fmt.Sprintf("VerifyCanGetDeploymentLogs(namespace=%s, deployment=%s)", v.namespace, v.deploymentName)
+	}
+	return fmt.Sprintf("VerifyCanGetDeploymentLogs(namespace=%s, deployment=%s, container=%s)", v.namespace, v.deploymentName, v.containerName)
+}
+
+func (v verifyCanGetDeploymentLogs) Verify(ctx context.Context, restConfig *rest.Config) error {
 	client, err := kubernetes.NewForConfig(restConfig)
 	if err != nil {
 		return fmt.Errorf("failed to create kubernetes client: %w", err)
 	}
 
-	var errs []string
-	for _, resource := range v.resources {
-		switch resource {
-		case "secrets":
-			_, err := client.CoreV1().Secrets(v.namespace).List(ctx, metav1.ListOptions{})
-			if err == nil {
-				errs = append(errs, fmt.Sprintf("get secrets -n %s: expected access denied, but succeeded", v.namespace))
-			}
-		default:
-			errs = append(errs, fmt.Sprintf("unknown resource for deny check: %s", resource))
-		}
+	deployment, err := client.AppsV1().Deployments(v.namespace).Get(ctx, v.deploymentName, metav1.GetOptions{})
+	if err != nil {
+		return fmt.Errorf("get deployment %s -n %s: %w", v.deploymentName, v.namespace, err)
 	}
 
-	if len(errs) > 0 {
-		return fmt.Errorf("access denial verification failed:\n  %s", strings.Join(errs, "\n  "))
+	selector, err := metav1.LabelSelectorAsSelector(deployment.Spec.Selector)
+	if err != nil {
+		return fmt.Errorf("deployment %s selector: %w", v.deploymentName, err)
+	}
+
+	pods, err := client.CoreV1().Pods(v.namespace).List(ctx, metav1.ListOptions{LabelSelector: selector.String()})
+	if err != nil {
+		return fmt.Errorf("list pods for deployment %s -n %s: %w", v.deploymentName, v.namespace, err)
+	}
+	if len(pods.Items) == 0 {
+		return fmt.Errorf("deployment %s -n %s has no pods", v.deploymentName, v.namespace)
+	}
+
+	// Use first running pod
+	var podName, containerName string
+	for _, p := range pods.Items {
+		if p.Status.Phase == corev1.PodRunning {
+			podName = p.Name
+			containerName = p.Spec.Containers[0].Name
+			break
+		}
+	}
+	if podName == "" {
+		return fmt.Errorf("deployment %s -n %s has no running pods", v.deploymentName, v.namespace)
+	}
+
+	opts := &corev1.PodLogOptions{
+		Container: containerName,
+	}
+	req := client.CoreV1().Pods(v.namespace).GetLogs(podName, opts)
+	stream, err := req.Stream(ctx)
+	if err != nil {
+		return fmt.Errorf("get logs -n %s %s (deployment %s): %w", v.namespace, podName, v.deploymentName, err)
+	}
+	defer stream.Close()
+	_, err = io.Copy(io.Discard, stream)
+	if err != nil {
+		return fmt.Errorf("read logs -n %s %s (deployment %s): %w", v.namespace, podName, v.deploymentName, err)
 	}
 	return nil
 }

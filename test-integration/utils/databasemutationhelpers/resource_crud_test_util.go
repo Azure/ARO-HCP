@@ -235,6 +235,9 @@ func NewStep[InternalAPIType any](indexString, stepType, stepName string, testDi
 	case "httpCreate", "httpReplace":
 		return newHTTPCreateStep(stepID, stepDir)
 
+	case "httpPost":
+		return newHTTPPostStep(stepID, stepDir)
+
 	case "httpPatch":
 		return newHTTPPatchStep(stepID, stepDir)
 

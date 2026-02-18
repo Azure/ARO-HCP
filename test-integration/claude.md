@@ -60,6 +60,7 @@ artifacts/<SuiteName>/<ResourceType>/<TestCase>/
 | `httpGet` | GET a single resource | Yes, via `ResourceInstanceEquals` |
 | `httpList` | LIST resources | Yes, each item compared |
 | `httpCreate` / `httpReplace` | PUT a resource | No (checks error only) |
+| `httpPost` | POST a resource | No (checks error only) |
 | `httpPatch` | PATCH a resource | No (checks error only) |
 | `httpDelete` | DELETE a resource | No (checks error only) |
 
