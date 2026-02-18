@@ -161,7 +161,7 @@ func (b *Backend) Run(ctx context.Context) error {
 	_, subscriptionLister := backendInformers.Subscriptions()
 	activeOperationInformer, activeOperationLister := backendInformers.ActiveOperations()
 	clusterInformer, _ := backendInformers.Clusters()
-	nodePoolInformer := backendInformers.NodePool()
+	nodePoolInformer, _ := backendInformers.NodePools()
 
 	group.Go(func() error {
 		var (

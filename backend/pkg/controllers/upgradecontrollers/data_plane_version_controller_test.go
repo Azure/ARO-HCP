@@ -4,7 +4,7 @@
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//     http://www.apache.org/licenses/LICENSE-2.0
+//	http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -19,8 +19,10 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/blang/semver/v4"
 	"github.com/go-logr/logr"
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
@@ -39,9 +41,9 @@ const (
 	testResourceGroupName = "test-rg"
 	testClusterName       = "test-cluster"
 	testNodePoolName      = "test-nodepool"
-	testCSClusterID       = "/api/clusters_mgmt/v1/clusters/abc123"
-	testCSNodePoolID      = "/api/clusters_mgmt/v1/clusters/abc123/node_pools/np456"
-	testVersionID         = "4.14.0"
+	testCSClusterID       = "/api/aro_hcp/v1alpha1/clusters/clusterTest"
+	testCSNodePoolID      = "/api/aro_hcp/v1alpha1/clusters/clusterTest/node_pools/nodePoolTest"
+	testVersionID         = "4.19.0"
 )
 
 // alwaysAllowCooldown is a test helper that always allows sync.
@@ -53,22 +55,14 @@ func (a *alwaysAllowCooldown) CanSync(ctx context.Context, key any) bool {
 
 var _ controllerutils.CooldownChecker = &alwaysAllowCooldown{}
 
-func mustParseResourceID(t *testing.T, id string) *azcorearm.ResourceID {
-	t.Helper()
-	rid, err := azcorearm.ParseResourceID(id)
-	require.NoError(t, err)
-	return rid
-}
-
 // instantiateTestNodePool creates a parent cluster and a node pool in the mock database.
 func instantiateTestNodePool(t *testing.T, ctx context.Context, mockDB *databasetesting.MockDBClient) {
 	t.Helper()
 
 	// Create parent cluster first (required by mock DB structure).
-	clusterResourceID := mustParseResourceID(t,
-		"/subscriptions/"+testSubscriptionID+
-			"/resourceGroups/"+testResourceGroupName+
-			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/"+testClusterName)
+	clusterResourceID := api.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID +
+		"/resourceGroups/" + testResourceGroupName +
+		"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName))
 	clusterInternalID, err := api.NewInternalID(testCSClusterID)
 	require.NoError(t, err)
 
@@ -90,11 +84,10 @@ func instantiateTestNodePool(t *testing.T, ctx context.Context, mockDB *database
 	require.NoError(t, err)
 
 	// Create node pool.
-	nodePoolResourceID := mustParseResourceID(t,
-		"/subscriptions/"+testSubscriptionID+
-			"/resourceGroups/"+testResourceGroupName+
-			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/"+testClusterName+
-			"/nodePools/"+testNodePoolName)
+	nodePoolResourceID := api.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID +
+		"/resourceGroups/" + testResourceGroupName +
+		"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName +
+		"/nodePools/" + testNodePoolName))
 	nodePoolInternalID, err := api.NewInternalID(testCSNodePoolID)
 	require.NoError(t, err)
 
@@ -106,6 +99,11 @@ func instantiateTestNodePool(t *testing.T, ctx context.Context, mockDB *database
 				Type: api.NodePoolResourceType.String(),
 			},
 			Location: "eastus",
+		},
+		Properties: api.HCPOpenShiftClusterNodePoolProperties{
+			Version: api.NodePoolVersionProfile{
+				ID: testVersionID,
+			},
 		},
 		ServiceProviderProperties: api.HCPOpenShiftClusterNodePoolServiceProviderProperties{
 			ClusterServiceID: nodePoolInternalID,
@@ -121,8 +119,7 @@ func newCSNodePool(t *testing.T, withVersion bool) *arohcpv1alpha1.NodePool {
 	t.Helper()
 
 	builder := arohcpv1alpha1.NewNodePool().
-		ID("np456").
-		HREF(testCSNodePoolID)
+		ID("nodePoolTest")
 
 	if withVersion {
 		builder = builder.Version(arohcpv1alpha1.NewVersion().ID(testVersionID))
@@ -133,20 +130,6 @@ func newCSNodePool(t *testing.T, withVersion bool) *arohcpv1alpha1.NodePool {
 	return csNodePool
 }
 
-// syncerTestCase defines a test case for the dataPlaneVersionSyncer.
-type syncerTestCase struct {
-	name string
-
-	// seedDB populates the mock database with initial items.
-	seedDB func(t *testing.T, ctx context.Context, mockDB *databasetesting.MockDBClient)
-
-	// setupCSMock configures the Cluster Service mock expectations.
-	setupCSMock func(t *testing.T, mockCS *ocm.MockClusterServiceClientSpec)
-
-	// expectError indicates whether SyncOnce should return an error.
-	expectError bool
-}
-
 func TestDataPlaneVersionSyncer_SyncOnce(t *testing.T) {
 	testKey := controllerutils.HCPNodePoolKey{
 		SubscriptionID:    testSubscriptionID,
@@ -155,14 +138,20 @@ func TestDataPlaneVersionSyncer_SyncOnce(t *testing.T) {
 		HCPNodePoolName:   testNodePoolName,
 	}
 
-	testCases := []syncerTestCase{
+	tests := []struct {
+		name                  string
+		seedDB                func(t *testing.T, ctx context.Context, mockDB *databasetesting.MockDBClient)
+		mockSetup             func(t *testing.T, mockCS *ocm.MockClusterServiceClientSpec)
+		expectedError         bool
+		expectedErrorContains string
+	}{
 		{
-			name: "successful sync logs version",
+			name: "successful sync persists versions to ServiceProviderNodePool",
 			seedDB: func(t *testing.T, ctx context.Context, mockDB *databasetesting.MockDBClient) {
 				t.Helper()
 				instantiateTestNodePool(t, ctx, mockDB)
 			},
-			setupCSMock: func(t *testing.T, mockCS *ocm.MockClusterServiceClientSpec) {
+			mockSetup: func(t *testing.T, mockCS *ocm.MockClusterServiceClientSpec) {
 				t.Helper()
 				csNodePool := newCSNodePool(t, true)
 				mockCS.EXPECT().
@@ -170,42 +159,43 @@ func TestDataPlaneVersionSyncer_SyncOnce(t *testing.T) {
 					Return(csNodePool, nil).
 					Times(1)
 			},
-			expectError: false,
+			expectedError: false,
 		},
 		{
-			name: "cosmos not found returns error",
+			name: "nodepool not found in cosmos returns nil",
 			seedDB: func(t *testing.T, ctx context.Context, mockDB *databasetesting.MockDBClient) {
 				t.Helper()
 				// Don't seed any node pool - Get will fail with not found.
 			},
-			setupCSMock: func(t *testing.T, mockCS *ocm.MockClusterServiceClientSpec) {
+			mockSetup: func(t *testing.T, mockCS *ocm.MockClusterServiceClientSpec) {
 				t.Helper()
 				// No CS mock setup needed - we won't reach CS call.
 			},
-			expectError: true,
+			expectedError: false,
 		},
 		{
-			name: "cluster service error logs and returns nil",
+			name: "cluster service error returns error",
 			seedDB: func(t *testing.T, ctx context.Context, mockDB *databasetesting.MockDBClient) {
 				t.Helper()
 				instantiateTestNodePool(t, ctx, mockDB)
 			},
-			setupCSMock: func(t *testing.T, mockCS *ocm.MockClusterServiceClientSpec) {
+			mockSetup: func(t *testing.T, mockCS *ocm.MockClusterServiceClientSpec) {
 				t.Helper()
 				mockCS.EXPECT().
 					GetNodePool(gomock.Any(), gomock.Any()).
 					Return(nil, errors.New("cluster service unavailable")).
 					Times(1)
 			},
-			expectError: false, // Controller logs error but returns nil
+			expectedError:         true,
+			expectedErrorContains: "cluster service unavailable",
 		},
 		{
-			name: "missing version logs and returns nil",
+			name: "missing version returns error",
 			seedDB: func(t *testing.T, ctx context.Context, mockDB *databasetesting.MockDBClient) {
 				t.Helper()
 				instantiateTestNodePool(t, ctx, mockDB)
 			},
-			setupCSMock: func(t *testing.T, mockCS *ocm.MockClusterServiceClientSpec) {
+			mockSetup: func(t *testing.T, mockCS *ocm.MockClusterServiceClientSpec) {
 				t.Helper()
 				csNodePool := newCSNodePool(t, false) // No version
 				mockCS.EXPECT().
@@ -213,12 +203,13 @@ func TestDataPlaneVersionSyncer_SyncOnce(t *testing.T) {
 					Return(csNodePool, nil).
 					Times(1)
 			},
-			expectError: false, // Controller logs error but returns nil
+			expectedError:         true,
+			expectedErrorContains: "version",
 		},
 	}
 
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
 			ctx := context.Background()
 			ctrl := gomock.NewController(t)
 			defer ctrl.Finish()
@@ -226,8 +217,8 @@ func TestDataPlaneVersionSyncer_SyncOnce(t *testing.T) {
 			mockDB := databasetesting.NewMockDBClient()
 			mockCS := ocm.NewMockClusterServiceClientSpec(ctrl)
 
-			tc.seedDB(t, ctx, mockDB)
-			tc.setupCSMock(t, mockCS)
+			tt.seedDB(t, ctx, mockDB)
+			tt.mockSetup(t, mockCS)
 
 			syncer := &dataPlaneVersionSyncer{
 				cooldownChecker:      &alwaysAllowCooldown{},
@@ -235,16 +226,11 @@ func TestDataPlaneVersionSyncer_SyncOnce(t *testing.T) {
 				clusterServiceClient: mockCS,
 			}
 
-			// Create a context with a no-op logger for tests.
 			ctx = utils.ContextWithLogger(ctx, logr.Discard())
 
 			err := syncer.SyncOnce(ctx, testKey)
 
-			if tc.expectError {
-				require.Error(t, err)
-			} else {
-				require.NoError(t, err)
-			}
+			assertSyncResult(t, err, tt.expectedError, tt.expectedErrorContains)
 		})
 	}
 }
@@ -265,4 +251,73 @@ func TestDataPlaneVersionSyncer_CooldownChecker(t *testing.T) {
 
 	require.Same(t, cooldownChecker, syncer.CooldownChecker(),
 		"CooldownChecker() should return the configured cooldown checker")
+}
+
+func TestDataPlaneVersionSyncer_PersistsVersions(t *testing.T) {
+	ctx := context.Background()
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockDB := databasetesting.NewMockDBClient()
+	mockCS := ocm.NewMockClusterServiceClientSpec(ctrl)
+
+	// Seed the database with a node pool
+	instantiateTestNodePool(t, ctx, mockDB)
+
+	// Setup CS mock to return a node pool with version
+	csNodePool := newCSNodePool(t, true)
+	mockCS.EXPECT().
+		GetNodePool(gomock.Any(), gomock.Any()).
+		Return(csNodePool, nil).
+		Times(1)
+
+	syncer := &dataPlaneVersionSyncer{
+		cooldownChecker:      &alwaysAllowCooldown{},
+		cosmosClient:         mockDB,
+		clusterServiceClient: mockCS,
+	}
+
+	testKey := controllerutils.HCPNodePoolKey{
+		SubscriptionID:    testSubscriptionID,
+		ResourceGroupName: testResourceGroupName,
+		HCPClusterName:    testClusterName,
+		HCPNodePoolName:   testNodePoolName,
+	}
+
+	ctx = utils.ContextWithLogger(ctx, logr.Discard())
+	err := syncer.SyncOnce(ctx, testKey)
+	require.NoError(t, err)
+
+	// Verify the ServiceProviderNodePool was created with correct versions
+	spnp, err := mockDB.ServiceProviderNodePools(
+		testSubscriptionID, testResourceGroupName, testClusterName, testNodePoolName,
+	).Get(ctx, api.ServiceProviderNodePoolResourceName)
+	require.NoError(t, err, "ServiceProviderNodePool should exist after sync")
+
+	expectedVersion := semver.MustParse(testVersionID)
+
+	// Verify ActiveVersion was persisted (from Cluster Service)
+	require.NotNil(t, spnp.Status.NodePoolVersion.ActiveVersion,
+		"ActiveVersion should be set")
+	require.True(t, expectedVersion.EQ(*spnp.Status.NodePoolVersion.ActiveVersion),
+		"ActiveVersion should match CS version %s, got %s", testVersionID, spnp.Status.NodePoolVersion.ActiveVersion)
+
+	// Verify DesiredVersion was persisted (from customer's HCPNodePool)
+	require.NotNil(t, spnp.Spec.NodePoolVersion.DesiredVersion,
+		"DesiredVersion should be set")
+	require.True(t, expectedVersion.EQ(*spnp.Spec.NodePoolVersion.DesiredVersion),
+		"DesiredVersion should match customer version %s, got %s", testVersionID, spnp.Spec.NodePoolVersion.DesiredVersion)
+}
+
+// assertSyncResult is a helper function that validates the result of SyncOnce
+func assertSyncResult(t *testing.T, err error, expectedError bool, expectedErrorContains string) {
+	t.Helper()
+	if expectedError {
+		assert.Error(t, err)
+		if expectedErrorContains != "" {
+			assert.ErrorContains(t, err, expectedErrorContains)
+		}
+	} else {
+		assert.NoError(t, err)
+	}
 }
