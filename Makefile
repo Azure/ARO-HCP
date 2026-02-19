@@ -120,7 +120,7 @@ e2e-local/setup:
 		--insecure \
 		--request PUT \
 		--header "Content-Type: application/json" \
-		--data '{"state":"Registered", "registrationDate": "now", "properties": { "tenantId": "'$${TENANT_ID}'"}}' \
+		--data '{"state":"Registered", "registrationDate": "now", "properties": { "tenantId": "'$${TENANT_ID}'", "registeredFeatures": [{"name": "Microsoft.RedHatOpenShift/ExperimentalReleaseFeatures", "state": "Registered"}]}}' \
 		"$${ADDRESS}/subscriptions/$${SUBSCRIPTION_ID}?api-version=2.0"
 .PHONY: e2e-local/setup
 

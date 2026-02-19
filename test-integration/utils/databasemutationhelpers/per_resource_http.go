@@ -236,6 +236,19 @@ func (c frontendHTTPTestAccessor) CreateOrUpdate(ctx context.Context, resourceID
 
 		return nil
 
+	case strings.ToLower(api.RequestAdminCredentialActionType.String()):
+		_, err := c.frontendClient.NewHcpOpenShiftClustersClient().BeginRequestAdminCredential(ctx, resourceID.Parent.ResourceGroupName, resourceID.Parent.Name, nil)
+		if err != nil {
+			return utils.TrackError(err)
+		}
+		return nil
+
+	case strings.ToLower(api.RevokeAdminCredentialsActionType.String()):
+		_, err := c.frontendClient.NewHcpOpenShiftClustersClient().BeginRevokeCredentials(ctx, resourceID.Parent.ResourceGroupName, resourceID.Parent.Name, nil)
+		if err != nil {
+			return utils.TrackError(err)
+		}
+		return nil
 	default:
 		return utils.TrackError(fmt.Errorf("unknown resource type: %s", resourceID.ResourceType.String()))
 	}
@@ -281,6 +294,19 @@ func (c frontendHTTPTestAccessor) Patch(ctx context.Context, resourceIDString st
 		}
 		return nil
 
+	case strings.ToLower(api.RequestAdminCredentialActionType.String()):
+		_, err := c.frontendClient.NewHcpOpenShiftClustersClient().BeginRequestAdminCredential(ctx, resourceID.ResourceGroupName, resourceID.Name, nil)
+		if err != nil {
+			return utils.TrackError(err)
+		}
+		return nil
+
+	case strings.ToLower(api.RevokeAdminCredentialsActionType.String()):
+		_, err := c.frontendClient.NewHcpOpenShiftClustersClient().BeginRevokeCredentials(ctx, resourceID.ResourceGroupName, resourceID.Name, nil)
+		if err != nil {
+			return utils.TrackError(err)
+		}
+		return nil
 	default:
 		return utils.TrackError(fmt.Errorf("unknown resource type: %s", resourceID.ResourceType.String()))
 	}

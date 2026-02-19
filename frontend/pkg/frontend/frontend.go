@@ -427,6 +427,26 @@ func (f *Frontend) ArmResourceActionRevokeCredentials(writer http.ResponseWriter
 		return utils.TrackError(err)
 	}
 
+	subscription, err := f.dbClient.Subscriptions().Get(ctx, clusterResourceID.SubscriptionID)
+	if err != nil {
+		return utils.TrackError(err)
+	}
+
+	if !subscription.HasRegisteredFeature(api.FeatureExperimentalReleaseFeatures) {
+		logger := utils.LoggerFromContext(ctx)
+		logger.Info("admin credential revocation denied: AFEC feature not registered",
+			"subscriptionId", clusterResourceID.SubscriptionID,
+			"requiredFeature", api.FeatureExperimentalReleaseFeatures,
+		)
+		return utils.TrackError(
+			arm.NewCloudError(
+				http.StatusForbidden,
+				arm.CloudErrorCodeFeatureNotEnabled,
+				clusterResourceID.String(),
+				"Admin credential revocation not enabled for this subscription."),
+		)
+	}
+
 	// Credential revocation cannot be requested while another revocation is in progress.
 
 	iterator := f.dbClient.Operations(clusterResourceID.SubscriptionID).ListActiveOperations(&database.DBClientListActiveOperationDocsOptions{
