@@ -147,6 +147,7 @@ func (tc *perBinaryInvocationTestContext) getClientFactoryOptions() *azcorearm.C
 				},
 				PerCallPolicies: []policy.Policy{
 					NewLROPollerRetryDeploymentNotFoundPolicy(),
+					&sanitizeAuthHeaderPolicy{},
 				},
 			},
 		}
@@ -155,6 +156,7 @@ func (tc *perBinaryInvocationTestContext) getClientFactoryOptions() *azcorearm.C
 		ClientOptions: azcore.ClientOptions{
 			PerCallPolicies: []policy.Policy{
 				NewLROPollerRetryDeploymentNotFoundPolicy(),
+				&sanitizeAuthHeaderPolicy{},
 			},
 		},
 	}
@@ -183,11 +185,18 @@ func (tc *perBinaryInvocationTestContext) getHCPClientFactoryOptions() *azcorear
 				InsecureAllowCredentialWithHTTP: true,
 				PerCallPolicies: []policy.Policy{
 					&armSystemDataPolicy{},
+					&sanitizeAuthHeaderPolicy{},
 				},
 			},
 		}
 	}
-	return nil
+	return &azcorearm.ClientOptions{
+		ClientOptions: azcore.ClientOptions{
+			PerCallPolicies: []policy.Policy{
+				&sanitizeAuthHeaderPolicy{},
+			},
+		},
+	}
 }
 
 // default transport taken judiciously from azcore library to mimick their behavior when no transporter is provided
