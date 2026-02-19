@@ -20,6 +20,10 @@ resourceGroups:
 - name: global
   resourceGroup: '{{ .global.rg }}'
   subscription: '{{ .global.subscription.key }}'
+  executionConstraints:
+  - regions:
+    - uksouth
+    - eastus2euap
   steps:
   - name: infra
     action: ARM
