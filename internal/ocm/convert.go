@@ -367,8 +367,9 @@ func convertCIDRBlockAllowAccessRPToCS(in api.CustomerAPIProfile) (*arohcpv1alph
 	return arohcpv1alpha1.NewCIDRBlockAccess().Allow(cidrBlockAllowAccess), nil
 }
 
-// ConvertCStoHCPOpenShiftCluster converts a CS Cluster object into an HCPOpenShiftCluster object.
-func ConvertCStoHCPOpenShiftCluster(resourceID *azcorearm.ResourceID, azureLocation string, cluster *arohcpv1alpha1.Cluster) (*api.HCPOpenShiftCluster, error) {
+// LegacyCreateInternalClusterFromClusterService this exists only for clusters that were created before we held all
+// customer desired state in cosmos.
+func LegacyCreateInternalClusterFromClusterService(resourceID *azcorearm.ResourceID, azureLocation string, cluster *arohcpv1alpha1.Cluster) (*api.HCPOpenShiftCluster, error) {
 	// A word about ProvisioningState:
 	// ProvisioningState is stored in Cosmos and is applied to the
 	// HCPOpenShiftCluster struct along with the ARM metadata that
@@ -551,6 +552,61 @@ func ConvertCStoHCPOpenShiftCluster(resourceID *azcorearm.ResourceID, azureLocat
 	}
 
 	return hcpcluster, nil
+}
+
+// SetClusterServiceOnlyFieldsOnCluster converts a CS Cluster object into an HCPOpenShiftCluster object.
+func SetClusterServiceOnlyFieldsOnCluster(internalCluster *api.HCPOpenShiftCluster, clusterServiceCluster *arohcpv1alpha1.Cluster) {
+	// this is defaulted if the user doesn't specify, so it isn't always known to to frontend.  We will eventually have to
+	// choose when and where we set this.
+	if len(internalCluster.CustomerProperties.DNS.BaseDomainPrefix) == 0 {
+		internalCluster.CustomerProperties.DNS.BaseDomainPrefix = clusterServiceCluster.DomainPrefix()
+	}
+
+	// this is defaulted if the user doesn't specify, so it isn't always known to to frontend.  We will eventually have to
+	// choose when and where we set this.
+	if len(internalCluster.CustomerProperties.Platform.ManagedResourceGroup) == 0 {
+		internalCluster.CustomerProperties.Platform.ManagedResourceGroup = clusterServiceCluster.Azure().ManagedResourceGroupName()
+	}
+
+	internalCluster.ServiceProviderProperties.DNS.BaseDomain = clusterServiceCluster.DNS().BaseDomain()
+	internalCluster.ServiceProviderProperties.Console.URL = clusterServiceCluster.Console().URL()
+	internalCluster.ServiceProviderProperties.API.URL = clusterServiceCluster.API().URL()
+
+	// the clientID and principalID are currently only known to cluster-service. We'll need to determine them somewhere else.
+	if clusterServiceCluster.Azure().OperatorsAuthentication() != nil {
+		if mi, ok := clusterServiceCluster.Azure().OperatorsAuthentication().GetManagedIdentities(); ok {
+			for _, operatorIdentity := range mi.ControlPlaneOperatorsManagedIdentities() {
+				if internalCluster.Identity == nil {
+					internalCluster.Identity = &arm.ManagedServiceIdentity{}
+				}
+				if internalCluster.Identity.UserAssignedIdentities == nil {
+					internalCluster.Identity.UserAssignedIdentities = make(map[string]*arm.UserAssignedIdentity)
+				}
+
+				clientID, _ := operatorIdentity.GetClientID()
+				principalID, _ := operatorIdentity.GetPrincipalID()
+				internalCluster.Identity.UserAssignedIdentities[operatorIdentity.ResourceID()] = &arm.UserAssignedIdentity{
+					ClientID:    &clientID,
+					PrincipalID: &principalID,
+				}
+			}
+			if len(mi.ServiceManagedIdentity().ResourceID()) > 0 {
+				if internalCluster.Identity == nil {
+					internalCluster.Identity = &arm.ManagedServiceIdentity{}
+				}
+				if internalCluster.Identity.UserAssignedIdentities == nil {
+					internalCluster.Identity.UserAssignedIdentities = make(map[string]*arm.UserAssignedIdentity)
+				}
+
+				clientID, _ := mi.ServiceManagedIdentity().GetClientID()
+				principalID, _ := mi.ServiceManagedIdentity().GetPrincipalID()
+				internalCluster.Identity.UserAssignedIdentities[mi.ServiceManagedIdentity().ResourceID()] = &arm.UserAssignedIdentity{
+					ClientID:    &clientID,
+					PrincipalID: &principalID,
+				}
+			}
+		}
+	}
 }
 
 // ensureManagedResourceGroupName makes sure the ManagedResourceGroupName field is set.
