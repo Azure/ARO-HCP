@@ -763,6 +763,7 @@ func BuildNodePoolFromParams(
 					SizeGiB:                to.Ptr(parameters.OSDiskSizeGiB),
 					DiskStorageAccountType: to.Ptr(hcpsdk20240610preview.DiskStorageAccountType(parameters.DiskStorageAccountType)),
 				},
+				AvailabilityZone: to.Ptr(parameters.AvailabilityZone),
 			},
 		},
 	}
