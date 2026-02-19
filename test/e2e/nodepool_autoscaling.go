@@ -46,7 +46,7 @@ var _ = Describe("Customer", func() {
 				// Autoscaling configuration
 				autoscalingMin   int32 = 1
 				autoscalingMax   int32 = 500
-				availibilityZone       = "1"
+				availabilityZone       = "1"
 			)
 			tc := framework.NewTestContext()
 
@@ -92,7 +92,7 @@ var _ = Describe("Customer", func() {
 				Min: autoscalingMin,
 				Max: autoscalingMax,
 			}
-			nodePoolParams.AvailabilityZone = availibilityZone
+			nodePoolParams.AvailabilityZone = availabilityZone
 
 			By("creating the autoscaling nodepool")
 			err = tc.CreateNodePoolFromParam(ctx,
