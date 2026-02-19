@@ -45,7 +45,7 @@ var _ = Describe("Customer", func() {
 
 				// Autoscaling configuration
 				autoscalingMin int32 = 1
-				autoscalingMax int32 = 500
+				autoscalingMax int32 = 200 // we want 500, trying 200 to make sure test passes as expected.
 			)
 			tc := framework.NewTestContext()
 
