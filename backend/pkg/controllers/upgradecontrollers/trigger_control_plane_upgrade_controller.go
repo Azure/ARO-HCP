@@ -22,9 +22,8 @@ import (
 
 	"github.com/blang/semver/v4"
 
-	"k8s.io/client-go/tools/cache"
-
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
+	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -51,7 +50,7 @@ func NewTriggerControlPlaneUpgradeController(
 	cosmosClient database.DBClient,
 	clusterServiceClient ocm.ClusterServiceClientSpec,
 	activeOperationLister listers.ActiveOperationLister,
-	clusterInformer cache.SharedIndexInformer,
+	informers informers.BackendInformers,
 ) controllerutils.Controller {
 	syncer := &triggerControlPlaneUpgradeSyncer{
 		cooldownChecker:      controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
@@ -62,7 +61,7 @@ func NewTriggerControlPlaneUpgradeController(
 	controller := controllerutils.NewClusterWatchingController(
 		"TriggerControlPlaneUpgrade",
 		cosmosClient,
-		clusterInformer,
+		informers,
 		5*time.Minute,
 		syncer,
 	)

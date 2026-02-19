@@ -27,9 +27,13 @@ import (
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/utils/ptr"
 
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+
+	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/utils"
+	"github.com/Azure/ARO-HCP/internal/utils/apihelpers"
 )
 
 type ClusterSyncer interface {
@@ -56,7 +60,7 @@ type clusterWatchingController struct {
 func NewClusterWatchingController(
 	name string,
 	cosmosClient database.DBClient,
-	clusterInformer cache.SharedIndexInformer,
+	informers informers.BackendInformers,
 	resyncDuration time.Duration,
 	syncer ClusterSyncer,
 ) Controller {
@@ -73,11 +77,24 @@ func NewClusterWatchingController(
 	}
 
 	// this happens when unit tests don't want triggering.  This isn't beautiful, but fails to do nothing which is pretty safe.
-	if clusterInformer != nil {
+	if informers != nil {
+		clusterInformer, _ := informers.Clusters()
 		_, err := clusterInformer.AddEventHandlerWithOptions(
 			cache.ResourceEventHandlerFuncs{
-				AddFunc:    c.enqueueAdd,
-				UpdateFunc: c.enqueueUpdate,
+				AddFunc:    c.enqueueClusterAdd,
+				UpdateFunc: c.enqueueClusterUpdate,
+			},
+			cache.HandlerOptions{
+				ResyncPeriod: ptr.To(resyncDuration),
+			})
+		if err != nil {
+			panic(err) // coding error
+		}
+		serviceProviderInformer, _ := informers.ServiceProviderClusters()
+		_, err = serviceProviderInformer.AddEventHandlerWithOptions(
+			cache.ResourceEventHandlerFuncs{
+				AddFunc:    c.enqueueServiceProviderClusterAdd,
+				UpdateFunc: c.enqueueServiceProviderClusterUpdate,
 			},
 			cache.HandlerOptions{
 				ResyncPeriod: ptr.To(resyncDuration),
@@ -166,17 +183,26 @@ func (c *clusterWatchingController) processNextWorkItem(ctx context.Context) boo
 	return true
 }
 
-func (c *clusterWatchingController) enqueueAdd(newObj interface{}) {
+// EnqueueResourceIDAdd traverses to find a resourceID that is an hcpcluster and adds it if found.
+// It is exposed so that individual controllers can add other items to requeue based on easily.
+func (c *clusterWatchingController) EnqueueResourceIDAdd(resourceID *azcorearm.ResourceID) {
+	if resourceID == nil {
+		return
+	}
+	if !apihelpers.ResourceTypeEqual(resourceID.ResourceType, api.ClusterResourceType) {
+		c.EnqueueResourceIDAdd(resourceID.Parent)
+		return
+	}
+
+	key := HCPClusterKey{
+		SubscriptionID:    resourceID.SubscriptionID,
+		ResourceGroupName: resourceID.ResourceGroupName,
+		HCPClusterName:    resourceID.Name,
+	}
+
 	logger := utils.DefaultLogger()
 	logger = logger.WithValues(utils.LogValues{}.AddControllerName(c.name)...)
 	ctx := logr.NewContext(context.TODO(), logger)
-
-	castObj := newObj.(*api.HCPOpenShiftCluster)
-	key := HCPClusterKey{
-		SubscriptionID:    castObj.ID.SubscriptionID,
-		ResourceGroupName: castObj.ID.ResourceGroupName,
-		HCPClusterName:    castObj.ID.Name,
-	}
 	logger = key.AddLoggerValues(logger)
 	ctx = logr.NewContext(ctx, logger)
 
@@ -187,6 +213,19 @@ func (c *clusterWatchingController) enqueueAdd(newObj interface{}) {
 	c.queue.Add(key)
 }
 
-func (c *clusterWatchingController) enqueueUpdate(_ interface{}, newObj interface{}) {
-	c.enqueueAdd(newObj)
+// TODO once these share common metadata, recollapse
+func (c *clusterWatchingController) enqueueClusterAdd(newObj interface{}) {
+	c.EnqueueResourceIDAdd(newObj.(*api.HCPOpenShiftCluster).ID)
+}
+
+func (c *clusterWatchingController) enqueueClusterUpdate(_ interface{}, newObj interface{}) {
+	c.EnqueueResourceIDAdd(newObj.(*api.HCPOpenShiftCluster).ID)
+}
+
+func (c *clusterWatchingController) enqueueServiceProviderClusterAdd(newObj interface{}) {
+	c.EnqueueResourceIDAdd(newObj.(*api.ServiceProviderCluster).CosmosMetadata.ResourceID)
+}
+
+func (c *clusterWatchingController) enqueueServiceProviderClusterUpdate(_ interface{}, newObj interface{}) {
+	c.EnqueueResourceIDAdd(newObj.(*api.ServiceProviderCluster).CosmosMetadata.ResourceID)
 }
