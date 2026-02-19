@@ -20,35 +20,35 @@ import (
 	"net/http"
 	"time"
 
-	"k8s.io/client-go/tools/cache"
+	"github.com/blang/semver/v4"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
+	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
-	"github.com/blang/semver/v4"
 )
 
-// dataPlaneVersionSyncer reads the node pool version from Cluster Service
+// nodePoolVersionSyncer reads the node pool version from Cluster Service
 // and actuates the ServiceProviderNodePool data in Cosmos.
-type dataPlaneVersionSyncer struct {
+type nodePoolVersionSyncer struct {
 	cooldownChecker      controllerutils.CooldownChecker
 	cosmosClient         database.DBClient
 	clusterServiceClient ocm.ClusterServiceClientSpec
 }
 
-var _ controllerutils.NodePoolSyncer = (*dataPlaneVersionSyncer)(nil)
+var _ controllerutils.NodePoolSyncer = (*nodePoolVersionSyncer)(nil)
 
-// NewDataPlaneVersionController creates a new syncer that reads node pool versions
+// NewNodePoolVersionController creates a new syncer that reads node pool versions
 // from Cluster Service.
-func NewDataPlaneVersionController(
+func NewNodePoolVersionController(
 	cosmosClient database.DBClient,
 	clusterServiceClient ocm.ClusterServiceClientSpec,
 	activeOperationLister listers.ActiveOperationLister,
-	nodePoolInformer cache.SharedIndexInformer,
+	informers informers.BackendInformers,
 ) controllerutils.Controller {
-	syncer := &dataPlaneVersionSyncer{
+	syncer := &nodePoolVersionSyncer{
 		cooldownChecker:      controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
 		cosmosClient:         cosmosClient,
 		clusterServiceClient: clusterServiceClient,
@@ -57,7 +57,7 @@ func NewDataPlaneVersionController(
 	controller := controllerutils.NewNodePoolWatchingController(
 		"NodePoolVersions",
 		cosmosClient,
-		nodePoolInformer,
+		informers,
 		5*time.Minute, // Check for upgrades every 5 minutes
 		syncer,
 	)
@@ -74,7 +74,7 @@ func NewDataPlaneVersionController(
 //
 // This allows other controllers to watch ServiceProviderNodePool for version
 // changes.
-func (c *dataPlaneVersionSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPNodePoolKey) error {
+func (c *nodePoolVersionSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPNodePoolKey) error {
 	// Get node pool from Cosmos to get CS internal ID
 	nodePool, err := c.cosmosClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).
 		NodePools(key.HCPClusterName).Get(ctx, key.HCPNodePoolName)
@@ -125,7 +125,7 @@ func (c *dataPlaneVersionSyncer) SyncOnce(ctx context.Context, key controlleruti
 	if existingServiceProviderNodePool.Spec.NodePoolVersion.DesiredVersion == nil ||
 		!customerDesiredVersion.EQ(*existingServiceProviderNodePool.Spec.NodePoolVersion.DesiredVersion) {
 		existingServiceProviderNodePool.Spec.NodePoolVersion.DesiredVersion = &customerDesiredVersion
-		existingServiceProviderNodePool, err = serviceProviderCosmosNodePoolClient.Replace(ctx, existingServiceProviderNodePool, nil)
+		_, err = serviceProviderCosmosNodePoolClient.Replace(ctx, existingServiceProviderNodePool, nil)
 
 		if err != nil {
 			return utils.TrackError(fmt.Errorf("failed to replace ServiceProviderNodePool: %w", err))
@@ -135,6 +135,6 @@ func (c *dataPlaneVersionSyncer) SyncOnce(ctx context.Context, key controlleruti
 	return nil
 }
 
-func (c *dataPlaneVersionSyncer) CooldownChecker() controllerutils.CooldownChecker {
+func (c *nodePoolVersionSyncer) CooldownChecker() controllerutils.CooldownChecker {
 	return c.cooldownChecker
 }

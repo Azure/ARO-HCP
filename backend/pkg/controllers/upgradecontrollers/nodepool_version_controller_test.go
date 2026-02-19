@@ -21,12 +21,13 @@ import (
 
 	"github.com/blang/semver/v4"
 	"github.com/go-logr/logr"
-	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+
+	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
@@ -220,7 +221,7 @@ func TestDataPlaneVersionSyncer_SyncOnce(t *testing.T) {
 			tt.seedDB(t, ctx, mockDB)
 			tt.mockSetup(t, mockCS)
 
-			syncer := &dataPlaneVersionSyncer{
+			syncer := &nodePoolVersionSyncer{
 				cooldownChecker:      &alwaysAllowCooldown{},
 				cosmosClient:         mockDB,
 				clusterServiceClient: mockCS,
@@ -243,7 +244,7 @@ func TestDataPlaneVersionSyncer_CooldownChecker(t *testing.T) {
 	mockCS := ocm.NewMockClusterServiceClientSpec(ctrl)
 	cooldownChecker := &alwaysAllowCooldown{}
 
-	syncer := &dataPlaneVersionSyncer{
+	syncer := &nodePoolVersionSyncer{
 		cooldownChecker:      cooldownChecker,
 		cosmosClient:         mockDB,
 		clusterServiceClient: mockCS,
@@ -271,7 +272,7 @@ func TestDataPlaneVersionSyncer_PersistsVersions(t *testing.T) {
 		Return(csNodePool, nil).
 		Times(1)
 
-	syncer := &dataPlaneVersionSyncer{
+	syncer := &nodePoolVersionSyncer{
 		cooldownChecker:      &alwaysAllowCooldown{},
 		cosmosClient:         mockDB,
 		clusterServiceClient: mockCS,
