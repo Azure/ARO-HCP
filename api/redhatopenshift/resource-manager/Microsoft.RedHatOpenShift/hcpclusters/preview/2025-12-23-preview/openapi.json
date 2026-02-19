@@ -2850,7 +2850,7 @@
       "description": "Represents the node pool properties",
       "properties": {
         "version": {
-          "$ref": "#/definitions/NodePoolVersionProfile",
+          "$ref": "#/definitions/NodePoolVersionProfileUpdate",
           "description": "OpenShift version for the nodepool",
           "x-ms-mutability": [
             "read",
@@ -2943,6 +2943,33 @@
       ]
     },
     "NodePoolVersionProfile": {
+      "type": "object",
+      "description": "Versions represents an OpenShift version.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "ID is the unique identifier of the version.",
+          "x-ms-mutability": [
+            "read",
+            "update",
+            "create"
+          ]
+        },
+        "channelGroup": {
+          "type": "string",
+          "description": "ChannelGroup is the name of the set to which this version belongs.\nEach version belongs to only a single set.\n\nIf not specified, the default value is 'stable'.\n\nNote: The default value is not declared in the API specification because\nof a TypeSpec bug with updatable fields. The default value will be\ndeclared in a future API version once the TypeSpec bug is fixed.\nhttps://github.com/Azure/typespec-azure/issues/1586",
+          "x-ms-mutability": [
+            "read",
+            "update",
+            "create"
+          ]
+        }
+      },
+      "required": [
+        "id"
+      ]
+    },
+    "NodePoolVersionProfileUpdate": {
       "type": "object",
       "description": "Versions represents an OpenShift version.",
       "properties": {

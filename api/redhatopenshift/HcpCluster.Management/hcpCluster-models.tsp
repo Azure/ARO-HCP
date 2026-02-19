@@ -1,4 +1,5 @@
 import "@typespec/rest";
+import "@typespec/versioning";
 import "@typespec/http";
 import "@typespec/versioning";
 import "@azure-tools/typespec-azure-core";
@@ -6,6 +7,7 @@ import "@azure-tools/typespec-azure-resource-manager";
 import "@azure-tools/typespec-client-generator-core";
 
 using TypeSpec.Rest;
+using TypeSpec.Versioning;
 using Azure.Core;
 using Azure.ResourceManager;
 using Azure.ClientGenerator.Core;
@@ -618,7 +620,8 @@ model Label {
 model NodePoolVersionProfile {
   /** ID is the unique identifier of the version. */
   @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
-  id?: string;
+  @madeRequired(Versions.v2025_12_23_preview)
+  id: string;
 
   /** ChannelGroup is the name of the set to which this version belongs.
    *  Each version belongs to only a single set.

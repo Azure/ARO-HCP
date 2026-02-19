@@ -8,7 +8,10 @@
 		"platform": {
 			"vmSize": "large"
 		},
-		"replicas": 1
+		"replicas": 1,
+		"version": {
+			"id": "4.20.1"
+		}
 	},
 	"type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/nodePools"
 }
