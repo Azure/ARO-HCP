@@ -371,7 +371,7 @@ kusto:
   manageInstance: true
   rg: hcp-kusto-us
   serviceLogsDatabase: ServiceLogs
-  sku: Dev(No SLA)_Standard_D11_v2
+  sku: Standard_E4ads_v5
   tier: Basic
   viewerGroups: 64dc69e4-d083-49fc-9569-ebece1dd1408/6b6d3adf-8476-4727-9812-20ffdef2b85c
 kvCertAccessPrincipalId: c9b1819d-bb29-4ac2-9abe-39e4fe9b59eb
