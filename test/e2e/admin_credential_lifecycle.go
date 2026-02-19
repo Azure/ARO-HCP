@@ -202,7 +202,6 @@ var _ = Describe("Customer", func() {
 			}
 
 			By("validating all admin credentials now fail after revocation")
-			skipInt := false
 			for i, cred := range credentials {
 				By(fmt.Sprintf("verifying admin credential %d now fails", i+1))
 				// TODO(bvesel) remove once OCPBUGS-62177 is implemented
@@ -231,7 +230,6 @@ var _ = Describe("Customer", func() {
 				})
 				if err != nil && os.Getenv("ARO_HCP_SUITE_NAME") == "integration/parallel" && time.Now().Before(time.Date(2026, 3, 11, 0, 0, 0, 0, time.UTC)) {
 					By("skipping in integration/parallel suite")
-					skipInt = true
 					break
 				} else {
 					Expect(err).NotTo(HaveOccurred(), "Admin credential %d should fail after revocation, last error: %v", i+1, lastError)
@@ -252,7 +250,7 @@ var _ = Describe("Customer", func() {
 			Expect(newAdminRESTConfig).NotTo(BeNil())
 
 			By("verifying new admin credentials work after revocation")
-			if skipInt && os.Getenv("ARO_HCP_SUITE_NAME") == "integration/parallel" && time.Now().Before(time.Date(2026, 3, 11, 0, 0, 0, 0, time.UTC)) {
+			if os.Getenv("ARO_HCP_SUITE_NAME") == "integration/parallel" && time.Now().Before(time.Date(2026, 3, 11, 0, 0, 0, 0, time.UTC)) {
 				By("skipping in integration/parallel suite")
 			} else {
 				Expect(verifiers.VerifyHCPCluster(ctx, newAdminRESTConfig)).To(Succeed(), "New admin credentials should work after revocation")
