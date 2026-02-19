@@ -73,6 +73,23 @@
               }
             }
           },
+          "imageDigestMirrors": [
+            {
+              "id": "image1",
+              "source": "registry.example.com/image1",
+              "mirrors": [
+                "mirror1.example.com/image1",
+                "mirror2.example.com/image1"
+              ]
+            },
+            {
+              "id": "image2",
+              "source": "registry.example.com/image2",
+              "mirrors": [
+                "mirror1.example.com/image2"
+              ]
+            }
+          ],
           "nodeDrainTimeoutMinutes": 20,
           "clusterImageRegistry": {
             "state": "Enabled"
