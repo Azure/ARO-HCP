@@ -37,7 +37,7 @@ const (
 
 type RawOptions struct {
 	ListenAddress       string
-	SubscriptionID      string
+	SubscriptionNames   []string
 	Region              string
 	CacheTTL            time.Duration
 	CollectionInterval  time.Duration
@@ -48,7 +48,7 @@ type RawOptions struct {
 func DefaultOptions() *RawOptions {
 	return &RawOptions{
 		ListenAddress:       DefaultListenAddress,
-		SubscriptionID:      "",
+		SubscriptionNames:   []string{},
 		Region:              "",
 		CacheTTL:            DefaultCacheTTL,
 		CollectionInterval:  DefaultCollectionInterval,
@@ -59,7 +59,7 @@ func DefaultOptions() *RawOptions {
 
 type ValidatedOptions struct {
 	ListenAddress      string
-	SubscriptionID     string
+	SubscriptionNames  []string
 	Region             string
 	CacheTTL           time.Duration
 	CollectionInterval time.Duration
@@ -68,7 +68,7 @@ type ValidatedOptions struct {
 
 type CompletedOptions struct {
 	ListenAddress      string
-	SubscriptionID     string
+	SubscriptionNames  []string
 	Region             string
 	CacheTTL           time.Duration
 	Registry           *prometheus.Registry
@@ -77,8 +77,8 @@ type CompletedOptions struct {
 }
 
 func (o *RawOptions) Validate(ctx context.Context) (*ValidatedOptions, error) {
-	if o.SubscriptionID == "" {
-		return nil, fmt.Errorf("subscription ID is required")
+	if len(o.SubscriptionNames) == 0 {
+		return nil, fmt.Errorf("subscription IDs are required")
 	}
 
 	if o.CacheTTL == 0 {
@@ -97,7 +97,7 @@ func (o *RawOptions) Validate(ctx context.Context) (*ValidatedOptions, error) {
 
 	return &ValidatedOptions{
 		ListenAddress:      o.ListenAddress,
-		SubscriptionID:     o.SubscriptionID,
+		SubscriptionNames:  o.SubscriptionNames,
 		Region:             o.Region,
 		CacheTTL:           o.CacheTTL,
 		CollectionInterval: o.CollectionInterval,
@@ -110,7 +110,7 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*CompletedOptions, err
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Azure credential: %w", err)
 	}
-	collectors, err := metrics.CreateEnabledCollectors(ctx, o.SubscriptionID, cred, o.CacheTTL, o.EnabledCollectors)
+	collectors, err := metrics.CreateEnabledCollectors(ctx, o.SubscriptionNames, cred, o.CacheTTL, o.EnabledCollectors)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create collectors: %w", err)
 	}
@@ -123,7 +123,7 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*CompletedOptions, err
 
 	return &CompletedOptions{
 		ListenAddress:      o.ListenAddress,
-		SubscriptionID:     o.SubscriptionID,
+		SubscriptionNames:  o.SubscriptionNames,
 		Region:             o.Region,
 		CacheTTL:           o.CacheTTL,
 		Registry:           registry,
@@ -134,14 +134,14 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*CompletedOptions, err
 
 func BindOptions(opts *RawOptions, cmd *cobra.Command) error {
 	cmd.Flags().StringVar(&opts.ListenAddress, "listen-address", opts.ListenAddress, fmt.Sprintf("Address to listen on for metrics (default: %s)", DefaultListenAddress))
-	cmd.Flags().StringVar(&opts.SubscriptionID, "subscription-id", opts.SubscriptionID, "Azure subscription ID")
+	cmd.Flags().StringSliceVar(&opts.SubscriptionNames, "subscription-names", opts.SubscriptionNames, "Azure subscription names")
 	cmd.Flags().DurationVar(&opts.CacheTTL, "cache-ttl", opts.CacheTTL, fmt.Sprintf("Cache TTL (default: %s)", DefaultCacheTTL.String()))
 	cmd.Flags().DurationVar(&opts.CollectionInterval, "collection-interval", opts.CollectionInterval, fmt.Sprintf("Collection interval (default: %s)", DefaultCollectionInterval.String()))
 	cmd.Flags().StringSliceVar(&opts.EnabledCollectors, "enabled-collectors", opts.EnabledCollectors, fmt.Sprintf("Enabled collectors (default: %s)", strings.Join(opts.supportedCollectors, ", ")))
 
-	err := cmd.MarkFlagRequired("subscription-id")
+	err := cmd.MarkFlagRequired("subscription-names")
 	if err != nil {
-		return fmt.Errorf("failed to mark flag %q as required: %w", "subscription-id", err)
+		return fmt.Errorf("failed to mark flag %q as required: %w", "subscription-names", err)
 	}
 	return nil
 }
