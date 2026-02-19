@@ -770,7 +770,7 @@ svc:
     istioctlVersion: 1.28.3
     tag: prod-stable
     targetVersion: asm-1-26
-    versions: asm-1-26
+    versions: asm-1-26,asm-1-25
   nsp:
     accessMode: Learning
     name: nsp-usw3ptest-svc
