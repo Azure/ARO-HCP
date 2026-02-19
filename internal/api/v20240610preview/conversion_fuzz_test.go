@@ -66,6 +66,11 @@ func TestRoundTripInternalExternalInternal(t *testing.T) {
 			j.ClusterServiceID = ocm.InternalID{}
 			j.ExistingCosmosUID = ""
 		},
+		func(j *api.HCPOpenShiftClusterCustomerProperties, c randfill.Continue) {
+			c.FillNoCustom(j)
+			// VnetIntegrationSubnetID is introduced in a future API version and will not roundtrip
+			j.Platform.VnetIntegrationSubnetID = nil
+		},
 		func(j *api.CustomerManagedEncryptionProfile, c randfill.Continue) {
 			c.FillNoCustom(j)
 			// we cannot properly roundtrip a zero value here, so nil when that happens
