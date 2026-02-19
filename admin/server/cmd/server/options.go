@@ -17,10 +17,13 @@ package server
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net"
 	"os"
 	"time"
 
+	"github.com/go-logr/logr"
+	"github.com/microsoft/go-otel-audit/audit/base"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/cobra"
 
@@ -31,6 +34,7 @@ import (
 	sdk "github.com/openshift-online/ocm-sdk-go"
 
 	"github.com/Azure/ARO-HCP/admin/server/server"
+	"github.com/Azure/ARO-HCP/internal/audit"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/fpa"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -39,8 +43,9 @@ import (
 
 func DefaultOptions() *RawOptions {
 	return &RawOptions{
-		Port:        8443,
-		MetricsPort: 8444,
+		Port:              8443,
+		MetricsPort:       8444,
+		AuditLogQueueSize: 2048,
 	}
 }
 
@@ -56,6 +61,8 @@ type RawOptions struct {
 	KustoEndpoint      string
 	FpaCertBundlePath  string
 	FpaClientID        string
+	AuditLogQueueSize  int
+	AuditConnectSocket bool
 }
 
 func (opts *RawOptions) BindOptions(cmd *cobra.Command) error {
@@ -68,6 +75,8 @@ func (opts *RawOptions) BindOptions(cmd *cobra.Command) error {
 	cmd.Flags().StringVar(&opts.KustoEndpoint, "kusto-endpoint", getEnv("KUSTO_ENDPOINT", opts.KustoEndpoint), "Endpoint of the Kusto cluster.")
 	cmd.Flags().StringVar(&opts.FpaClientID, "fpa-client-id", getEnv("FPA_CLIENT_ID", opts.FpaClientID), "Client ID of the FPA application.")
 	cmd.Flags().StringVar(&opts.FpaCertBundlePath, "fpa-cert-bundle-path", getEnv("FPA_CERT_BUNDLE_PATH", opts.FpaCertBundlePath), "Path to the FPA certificate bundle.")
+	cmd.Flags().IntVar(&opts.AuditLogQueueSize, "audit-log-queue-size", opts.AuditLogQueueSize, "Log queue size for audit logging client.")
+	cmd.Flags().BoolVar(&opts.AuditConnectSocket, "audit-connect-socket", os.Getenv("AUDIT_CONNECT_SOCKET") == "true", "Connect to mdsd audit socket.")
 	return nil
 }
 
@@ -97,6 +106,7 @@ type completedOptions struct {
 	ClusterServiceClient   ocm.ClusterServiceClientSpec
 	KustoClient            *kusto.Client
 	FpaCredentialRetriever fpa.FirstPartyApplicationTokenCredentialRetriever
+	AuditClient            audit.Client
 }
 
 type Options struct {
@@ -176,6 +186,19 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 		return nil, fmt.Errorf("failed to create the FPA token credentials: %w", err)
 	}
 
+	// Create audit client
+	logger := utils.LoggerFromContext(ctx)
+	slogLogger := slog.New(logr.ToSlogHandler(logger))
+	auditClient, err := audit.NewOtelAuditClient(
+		audit.CreateConn(o.AuditConnectSocket),
+		base.WithLogger(slogLogger),
+		base.WithSettings(base.Settings{
+			QueueSize: o.AuditLogQueueSize,
+		}))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create audit client: %w", err)
+	}
+
 	return &Options{
 		completedOptions: &completedOptions{
 			Port:                   o.Port,
@@ -185,6 +208,7 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 			ClusterServiceClient:   csClient,
 			KustoClient:            kustoClient,
 			FpaCredentialRetriever: fpaCredentialRetriever,
+			AuditClient:            auditClient,
 		},
 	}, nil
 }
@@ -213,6 +237,7 @@ func (opts *Options) Run(ctx context.Context) error {
 		opts.ClusterServiceClient,
 		opts.KustoClient,
 		opts.FpaCredentialRetriever,
+		opts.AuditClient,
 	)
 
 	runErrCh := make(chan error)

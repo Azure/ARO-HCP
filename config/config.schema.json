@@ -1386,6 +1386,9 @@
     "adminApi": {
       "type": "object",
       "properties": {
+        "audit": {
+          "$ref": "#/definitions/audit"
+        },
         "image": {
           "$ref": "#/definitions/containerImage"
         },
@@ -1417,6 +1420,7 @@
       },
       "additionalProperties": false,
       "required": [
+        "audit",
         "image",
         "k8s",
         "managedIdentityName",

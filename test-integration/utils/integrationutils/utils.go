@@ -131,7 +131,7 @@ func NewIntegrationTestInfoFromEnv(ctx context.Context, t *testing.T, withMock b
 	if err != nil {
 		return nil, err
 	}
-	adminAPI := adminApiServer.NewAdminAPI(logger, "fake-location", adminListener, adminMetricsListener, storageIntegrationTestInfo.CosmosClient(), clusterServiceMockInfo.MockClusterServiceClient, nil, nil)
+	adminAPI := adminApiServer.NewAdminAPI(logger, "fake-location", adminListener, adminMetricsListener, storageIntegrationTestInfo.CosmosClient(), clusterServiceMockInfo.MockClusterServiceClient, nil, nil, fakeAuditClient)
 
 	frontendURL := fmt.Sprintf("http://%s", frontendListener.Addr().String())
 	adminURL := fmt.Sprintf("http://%s", adminListener.Addr().String())

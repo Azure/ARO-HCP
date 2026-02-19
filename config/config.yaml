@@ -558,6 +558,8 @@ defaults:
       sourceEnvironmentIdentifier: "arohcp{{ .ctx.environment }}"
   # Admin API
   adminApi:
+    audit:
+      connectSocket: false
     image:
       registry: arohcpsvcdev.azurecr.io
       repository: arohcpadminapi
