@@ -6,6 +6,7 @@ use (
 	./backend
 	./frontend
 	./internal
+	./kas-monitor-controller
 	./test
 	./test-integration
 	./tooling/aro-hcp-exporter
