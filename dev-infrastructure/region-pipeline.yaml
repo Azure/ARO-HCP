@@ -58,11 +58,11 @@ resourceGroups:
         resourceGroup: global
         step: output
         name: globalMSIId
-  - name: add-svc-grafana-datasource
+  - name: add-grafana-datasource
     action: Shell
     omitFromServiceGroupCompletion: true
-    command: ./add-grafana-datasource.sh
-    workingDir: ./scripts
+    command: make build && ./grafanactl modify datasource add
+    workingDir: ../tooling/grafanactl
     automatedRetry:
       errorContainsAny:
       - "is invalid as it is being provisioned with state"
@@ -71,59 +71,21 @@ resourceGroups:
       - "InvalidMonitorAccountIntegration"
       maximumRetryCount: 5
       durationBetweenRetries: 2m
+    dryRun:
+      variables:
+      - name: DRY_RUN
+        value: "true"
     variables:
     - name: GRAFANA_RESOURCE_ID
       input:
         resourceGroup: global
         step: output
         name: grafanaResourceId
-    - name: PROM_QUERY_URL
+    - name: MONITOR_WORKSPACE_IDS
       input:
         resourceGroup: regional
         step: output
-        name: monitorPrometheusQueryEndpoint
-    - name: MONITOR_ID
-      input:
-        resourceGroup: regional
-        step: output
-        name: azureMonitoringWorkspaceId
-    shellIdentity:
-      input:
-        resourceGroup: global
-        step: output
-        name: globalMSIId
-  - name: add-hcp-grafana-datasource
-    action: Shell
-    omitFromServiceGroupCompletion: true
-    command: ./add-grafana-datasource.sh
-    workingDir: ./scripts
-    automatedRetry:
-      errorContainsAny:
-      - "is invalid as it is being provisioned with state"
-      - "503 Server Error: Service Unavailable for url"
-      - "(CreateOrUpdateConflict) Operation conflict occurred for workspace"
-      - "InvalidMonitorAccountIntegration"
-      maximumRetryCount: 5
-      durationBetweenRetries: 2m
-    variables:
-    - name: GRAFANA_RESOURCE_ID
-      input:
-        resourceGroup: global
-        step: output
-        name: grafanaResourceId
-    - name: PROM_QUERY_URL
-      input:
-        resourceGroup: regional
-        step: output
-        name: hcpMonitorPrometheusQueryEndpoint
-    - name: MONITOR_ID
-      input:
-        resourceGroup: regional
-        step: output
-        name: hcpAzureMonitoringWorkspaceId
-    dependsOn:
-    - resourceGroup: global
-      step: add-svc-grafana-datasource
+        name: allWorkspaceIds
     shellIdentity:
       input:
         resourceGroup: global

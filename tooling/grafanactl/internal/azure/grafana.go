@@ -18,9 +18,12 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
+
+	"github.com/go-logr/logr"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/dashboard/armdashboard"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/dashboard/armdashboard/v2"
 )
 
 // ManagedGrafanaClient provides operations for Managed Grafana Resources
@@ -31,12 +34,10 @@ type ManagedGrafanaClient struct {
 
 // NewManagedGrafanaClient creates a new ManagedGrafanaClient with the provided credentials
 func NewManagedGrafanaClient(subscriptionID string, cred azcore.TokenCredential) (*ManagedGrafanaClient, error) {
-	client, err := armdashboard.NewClientFactory(subscriptionID, cred, nil)
+	grafanaClient, err := armdashboard.NewGrafanaClient(subscriptionID, cred, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Azure Monitor Workspaces client: %w", err)
 	}
-
-	grafanaClient := client.NewGrafanaClient()
 
 	return &ManagedGrafanaClient{
 		client: grafanaClient,
@@ -55,6 +56,11 @@ func (p *ManagedGrafanaClient) GetGrafanaInstance(ctx context.Context, resourceG
 
 // ListPrometheusInstances returns all managed Prometheus instances in the subscription
 func (p *ManagedGrafanaClient) UpdateGrafanaIntegrations(ctx context.Context, resourceGroup, grafanaName string, integrations []string) error {
+	err := p.waitForReadyGrafana(ctx, resourceGroup, grafanaName)
+	if err != nil {
+		return fmt.Errorf("failed to wait for Grafana to be ready: %w", err)
+	}
+
 	azureMonitorWorkspaceIntegrations := make([]*armdashboard.AzureMonitorWorkspaceIntegration, 0)
 	for _, integration := range integrations {
 		azureMonitorWorkspaceIntegrations = append(azureMonitorWorkspaceIntegrations, &armdashboard.AzureMonitorWorkspaceIntegration{
@@ -62,13 +68,18 @@ func (p *ManagedGrafanaClient) UpdateGrafanaIntegrations(ctx context.Context, re
 		})
 	}
 
-	_, err := p.client.Update(ctx, resourceGroup, grafanaName, armdashboard.ManagedGrafanaUpdateParameters{
+	poller, err := p.client.BeginUpdate(ctx, resourceGroup, grafanaName, armdashboard.ManagedGrafanaUpdateParameters{
 		Properties: &armdashboard.ManagedGrafanaPropertiesUpdateParameters{
 			GrafanaIntegrations: &armdashboard.GrafanaIntegrations{
 				AzureMonitorWorkspaceIntegrations: azureMonitorWorkspaceIntegrations,
 			},
 		},
 	}, nil)
+	if err != nil {
+		return fmt.Errorf("failed to update Grafana instance: %w", err)
+	}
+
+	_, err = poller.PollUntilDone(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("failed to update Grafana instance: %w", err)
 	}
@@ -94,4 +105,19 @@ func (c *ManagedGrafanaClient) GetGrafanaEndpoint(ctx context.Context, subscript
 	}
 
 	return endpoint, nil
+}
+
+func (c *ManagedGrafanaClient) waitForReadyGrafana(ctx context.Context, resourceGroup, grafanaName string) error {
+	logger := logr.FromContextOrDiscard(ctx)
+	for {
+		grafana, err := c.GetGrafanaInstance(ctx, resourceGroup, grafanaName)
+		if err != nil {
+			return fmt.Errorf("failed to get Grafana instance: %w", err)
+		}
+		if *grafana.Properties.ProvisioningState == armdashboard.ProvisioningStateSucceeded {
+			return nil
+		}
+		logger.Info("Waiting for Grafana to be ready", "resourceGroup", resourceGroup, "grafanaName", grafanaName)
+		time.Sleep(10 * time.Second)
+	}
 }

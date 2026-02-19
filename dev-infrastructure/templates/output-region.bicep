@@ -25,6 +25,7 @@ output monitorPrometheusQueryEndpoint string = monitor.properties.metrics.promet
 output hcpAzureMonitoringWorkspaceId string = hcpMonitor.id
 output hcpMonitorPrometheusQueryEndpoint string = hcpMonitor.properties.metrics.prometheusQueryEndpoint
 
+output allWorkspaceIds string = join([monitor.id, hcpMonitor.id], ',')
 //
 //  E V E N T G R I D
 //
