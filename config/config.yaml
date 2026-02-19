@@ -967,7 +967,6 @@ clouds:
           public: true
         frontdoor:
           name: arohcpdev
-          manage: false
       # Maestro
       maestro:
         certDomain: selfsigned.maestro.keyvault.azure.com

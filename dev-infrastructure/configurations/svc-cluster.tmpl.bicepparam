@@ -138,10 +138,6 @@ param manageFpaCertificate = {{ .firstPartyAppCertificate.manage }}
 // Azure Monitor Workspace
 param azureMonitoringWorkspaceId = '__azureMonitoringWorkspaceId__'
 
-// Grafana
-param grafanaResourceId = '__grafanaResourceId__'
-param grafanaPrincipalId = '__grafanaPrincipalId__'
-
 // MDSD / Genevabits
 param logsNamespace = '{{ .logs.mdsd.namespace }}'
 param logsMSI = '{{ .logs.mdsd.msiName }}'
