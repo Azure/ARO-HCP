@@ -73,7 +73,8 @@
               "nodeDrainTimeoutMinutes": 20,
               "clusterImageRegistry": {
                 "state": "Enabled"
-              }
+              },
+              "fipsEnabled": false
             },
             "identity": {
               "principalId": "e5867472-f0ed-4fc1-80e1-59b4c0256adb",
