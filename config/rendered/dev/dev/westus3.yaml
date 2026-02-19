@@ -82,6 +82,8 @@ backend:
     namespace: aro-hcp
     replicas: 2
     serviceAccountName: backend
+  maestro:
+    sourceEnvironmentIdentifier: arohcpdev
   managedIdentityName: backend
   tracing:
     address: ""
