@@ -39,6 +39,11 @@ var _ = Describe("Engineering", func() {
 		labels.DevelopmentOnly,
 		labels.AroRpApiCompatible,
 		func(ctx context.Context) {
+			// TODO: Remove this skip after 2026-03-09
+			if time.Now().Before(time.Date(2026, 3, 9, 0, 0, 0, 0, time.UTC)) {
+				Skip("Temporarily skipping kusto logs test until 2026-03-09")
+			}
+
 			const (
 				engineeringNetworkSecurityGroupName = "engineering-nsg-name"
 				engineeringVnetName                 = "engineering-vnet-name"
