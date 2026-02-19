@@ -21,9 +21,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 
 	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
@@ -135,60 +136,55 @@ var _ = Describe("Customer", func() {
 
 			// TEST CASE: Immutable field updates should be rejected
 			By("attempting to update immutable platform profile fields")
-
-			immutableTests := []struct {
-				name       string
-				updateFunc func(*hcpsdk20240610preview.NodePool)
-			}{
-				{
-					name: "VMSize",
-					updateFunc: func(np *hcpsdk20240610preview.NodePool) {
-						if np.Properties != nil && np.Properties.Platform != nil {
-							np.Properties.Platform.VMSize = to.Ptr("Standard_D16s_v3")
-						}
-					},
-				},
-				{
-					name: "AvailabilityZone",
-					updateFunc: func(np *hcpsdk20240610preview.NodePool) {
-						if np.Properties != nil && np.Properties.Platform != nil {
-							np.Properties.Platform.AvailabilityZone = to.Ptr("2")
-						}
-					},
-				},
-				{
-					name: "OSDisk.SizeGiB",
-					updateFunc: func(np *hcpsdk20240610preview.NodePool) {
-						if np.Properties != nil && np.Properties.Platform != nil && np.Properties.Platform.OSDisk != nil {
-							np.Properties.Platform.OSDisk.SizeGiB = to.Ptr[int32](256)
-						}
-					},
-				},
-				{
-					name: "OSDisk.DiskStorageAccountType",
-					updateFunc: func(np *hcpsdk20240610preview.NodePool) {
-						if np.Properties != nil && np.Properties.Platform != nil && np.Properties.Platform.OSDisk != nil {
-							np.Properties.Platform.OSDisk.DiskStorageAccountType = to.Ptr(hcpsdk20240610preview.DiskStorageAccountTypePremiumLRS)
-						}
-					},
-				},
-			}
-
-			for _, test := range immutableTests {
-				nodePool, err := nodePoolClient.Get(ctx, *resourceGroup.Name, clusterParams.ClusterName, nodePoolParams.NodePoolName, nil)
-				if err != nil {
-					errs = append(errs, fmt.Errorf("immutable field %s: failed to get nodepool: %w", test.name, err))
-					continue
-				}
-
+			nodePool, err := nodePoolClient.Get(ctx, *resourceGroup.Name, clusterParams.ClusterName, nodePoolParams.NodePoolName, nil)
+			if err != nil {
+				errs = append(errs, fmt.Errorf("failed to get nodepool: %w", err))
+			} else {
 				modifiedNodePool := nodePool.NodePool
-				test.updateFunc(&modifiedNodePool)
+				if modifiedNodePool.Properties != nil && modifiedNodePool.Properties.Platform != nil {
+					modifiedNodePool.Properties.Platform.VMSize = to.Ptr("Standard_D16s_v3")
+					modifiedNodePool.Properties.Platform.AvailabilityZone = to.Ptr("2")
+					if modifiedNodePool.Properties.Platform.OSDisk != nil {
+						modifiedNodePool.Properties.Platform.OSDisk.SizeGiB = to.Ptr[int32](256)
+						modifiedNodePool.Properties.Platform.OSDisk.DiskStorageAccountType = to.Ptr(hcpsdk20240610preview.DiskStorageAccountTypePremiumLRS)
+					}
+				}
 
 				_, err = nodePoolClient.BeginCreateOrUpdate(ctx, *resourceGroup.Name, clusterParams.ClusterName, nodePoolParams.NodePoolName, modifiedNodePool, nil)
 				if err == nil {
-					errs = append(errs, fmt.Errorf("immutable field %s: expected error when updating, but no error occurred", test.name))
-				} else if !strings.Contains(err.Error(), "Forbidden: field is immutable") {
-					errs = append(errs, fmt.Errorf("immutable field %s: expected 'Forbidden: field is immutable', got: %s", test.name, err.Error()))
+					errs = append(errs, fmt.Errorf("expected error when updating immutable fields, but no error occurred"))
+				} else {
+					errorStr := err.Error()
+					if !strings.Contains(errorStr, "Forbidden: field is immutable") {
+						errs = append(errs, fmt.Errorf("expected 'Forbidden: field is immutable', got: %s", errorStr))
+					} else {
+						updatedNodePool, getErr := nodePoolClient.Get(ctx, *resourceGroup.Name, clusterParams.ClusterName, nodePoolParams.NodePoolName, nil)
+						if getErr != nil {
+							errs = append(errs, fmt.Errorf("failed to verify nodepool after failed update: %w", getErr))
+						} else {
+							if updatedNodePool.Properties != nil && updatedNodePool.Properties.Platform != nil {
+								platform := updatedNodePool.Properties.Platform
+
+								if platform.VMSize == nil || *platform.VMSize != "Standard_D8s_v3" {
+									errs = append(errs, fmt.Errorf("vmSize was modified despite immutable error"))
+								}
+
+								if platform.AvailabilityZone != nil {
+									errs = append(errs, fmt.Errorf("availabilityZone was modified despite immutable error"))
+								}
+
+								if platform.OSDisk != nil {
+									if platform.OSDisk.SizeGiB == nil || *platform.OSDisk.SizeGiB != 64 {
+										errs = append(errs, fmt.Errorf("osDisk.sizeGiB was modified despite immutable error"))
+									}
+
+									if platform.OSDisk.DiskStorageAccountType == nil || *platform.OSDisk.DiskStorageAccountType != hcpsdk20240610preview.DiskStorageAccountTypeStandardSSDLRS {
+										errs = append(errs, fmt.Errorf("osDisk.diskStorageAccountType was modified despite immutable error"))
+									}
+								}
+							}
+						}
+					}
 				}
 			}
 			// TEST CASE: https://issues.redhat.com/browse/ARO-22240 to be implemented here
