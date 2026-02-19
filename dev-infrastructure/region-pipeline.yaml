@@ -10,6 +10,12 @@
 $schema: "pipeline.schema.v1"
 serviceGroup: Microsoft.Azure.ARO.HCP.Region
 rolloutName: Region Rollout
+buildStep:
+  command: make
+  args:
+  - -C
+  - ../tooling/grafanactl
+  - build
 resourceGroups:
 - name: global
   resourceGroup: '{{ .global.rg }}'
@@ -61,7 +67,7 @@ resourceGroups:
   - name: add-grafana-datasource
     action: Shell
     omitFromServiceGroupCompletion: true
-    command: make build && ./grafanactl modify datasource add
+    command: ./grafanactl modify datasource reconcile --grafana-resource-id ${GRAFANA_RESOURCE_ID}
     workingDir: ../tooling/grafanactl
     automatedRetry:
       errorContainsAny:
@@ -72,9 +78,7 @@ resourceGroups:
       maximumRetryCount: 5
       durationBetweenRetries: 2m
     dryRun:
-      variables:
-      - name: DRY_RUN
-        value: "true"
+      command: ./grafanactl modify datasource reconcile --grafana-resource-id ${GRAFANA_RESOURCE_ID} --dry-run
     variables:
     - name: GRAFANA_RESOURCE_ID
       input:

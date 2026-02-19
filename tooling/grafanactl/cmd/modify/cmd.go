@@ -148,7 +148,7 @@ func (o *CompletedAddDatasourceOptions) Run(ctx context.Context) error {
 
 	logger.Info("Adding Azure Monitor Workspace integration", "total-integrations", len(validWorkspaceIDs))
 
-	err = o.ManagedGrafanaClient.UpdataGrafanaIntegrations(ctx, o.ResourceGroup, o.GrafanaName, validWorkspaceIDs.UnsortedList())
+	err = o.ManagedGrafanaClient.UpdateGrafanaIntegrations(ctx, o.ResourceGroup, o.GrafanaName, validWorkspaceIDs.UnsortedList())
 	if err != nil {
 		return fmt.Errorf("failed to update Grafana integrations: %w", err)
 	}
