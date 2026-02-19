@@ -161,7 +161,6 @@ func (b *Backend) Run(ctx context.Context) error {
 	_, subscriptionLister := backendInformers.Subscriptions()
 	activeOperationInformer, activeOperationLister := backendInformers.ActiveOperations()
 	clusterInformer, _ := backendInformers.Clusters()
-	nodePoolInformer, _ := backendInformers.NodePools()
 
 	group.Go(func() error {
 		var (
@@ -256,7 +255,7 @@ func (b *Backend) Run(ctx context.Context) error {
 				activeOperationLister,
 				clusterInformer,
 			)
-			dataPlaneVersionController = upgradecontrollers.NewDataPlaneVersionController(b.options.CosmosDBClient, b.options.ClustersServiceClient, activeOperationLister, nodePoolInformer)
+			nodePoolVersionController = upgradecontrollers.NewNodePoolVersionController(b.options.CosmosDBClient, b.options.ClustersServiceClient, activeOperationLister, backendInformers)
 		)
 
 		le, err := leaderelection.NewLeaderElector(leaderelection.LeaderElectionConfig{
@@ -288,7 +287,7 @@ func (b *Backend) Run(ctx context.Context) error {
 					go deleteOrphanedCosmosResourcesController.Run(ctx, 20)
 					go controlPlaneVersionController.Run(ctx, 20)
 					go triggerControlPlaneUpgradeController.Run(ctx, 20)
-					go dataPlaneVersionController.Run(ctx, 20)
+					go nodePoolVersionController.Run(ctx, 20)
 				},
 				OnStoppedLeading: func() {
 					operationsScanner.LeaderGauge.Set(0)
