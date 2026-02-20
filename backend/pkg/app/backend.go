@@ -157,7 +157,7 @@ func (b *Backend) Run(ctx context.Context) error {
 		}
 	}()
 
-	backendInformers := informers.NewBackendInformers(ctx, b.options.CosmosDBClient.GlobalListers())
+	backendInformers := informers.NewBackendInformers(ctx, b.options.CosmosDBClient)
 
 	_, subscriptionLister := backendInformers.Subscriptions()
 	activeOperationInformer, activeOperationLister := backendInformers.ActiveOperations()
