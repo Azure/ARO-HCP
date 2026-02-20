@@ -27,6 +27,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/tooling/grafanactl/cmd/clean"
 	"github.com/Azure/ARO-HCP/tooling/grafanactl/cmd/list"
+	"github.com/Azure/ARO-HCP/tooling/grafanactl/cmd/modify"
 	"github.com/Azure/ARO-HCP/tooling/grafanactl/cmd/sync"
 )
 
@@ -78,6 +79,7 @@ and other operational tasks.`,
 		clean.NewCleanCommand,
 		list.NewListCommand,
 		sync.NewSyncCommand,
+		modify.NewModifyCommand,
 	}
 	for _, newCmd := range mainCommands {
 		c, err := newCmd(mainGroupID)
