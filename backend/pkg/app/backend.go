@@ -256,6 +256,7 @@ func (b *Backend) Run(ctx context.Context) error {
 				activeOperationLister,
 				clusterInformer,
 			)
+			nodePoolVersionController = upgradecontrollers.NewNodePoolVersionController(b.options.CosmosDBClient, b.options.ClustersServiceClient, activeOperationLister, backendInformers)
 		)
 
 		le, err := leaderelection.NewLeaderElector(leaderelection.LeaderElectionConfig{
@@ -287,6 +288,7 @@ func (b *Backend) Run(ctx context.Context) error {
 					go deleteOrphanedCosmosResourcesController.Run(ctx, 20)
 					go controlPlaneVersionController.Run(ctx, 20)
 					go triggerControlPlaneUpgradeController.Run(ctx, 20)
+					go nodePoolVersionController.Run(ctx, 20)
 				},
 				OnStoppedLeading: func() {
 					operationsScanner.LeaderGauge.Set(0)
