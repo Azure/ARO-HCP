@@ -31,6 +31,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
 	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -278,7 +279,8 @@ func (d *cosmosDBClient) Operations(subscriptionID string) OperationCRUD {
 }
 
 func (d *cosmosDBClient) Subscriptions() SubscriptionCRUD {
-	return NewSubscriptionCRUD(d.resources)
+	return NewCosmosResourceCRUD[arm.Subscription, GenericDocument[arm.Subscription]](
+		d.resources, nil, azcorearm.SubscriptionResourceType)
 }
 
 func (d *cosmosDBClient) ServiceProviderClusters(subscriptionID, resourceGroupName, clusterName string) ServiceProviderClusterCRUD {

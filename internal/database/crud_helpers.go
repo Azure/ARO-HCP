@@ -113,7 +113,7 @@ func list[InternalAPIType, CosmosAPIType any](ctx context.Context, containerClie
 	if prefix == nil {
 		query = "SELECT * FROM c"
 	} else {
-		query = "SELECT * FROM c WHERE STARTSWITH(c.properties.resourceId, @prefix, true)"
+		query = "SELECT * FROM c WHERE STARTSWITH(c.resourceID, @prefix, true)"
 		queryOptions = azcosmos.QueryOptions{
 			PageSizeHint: -1,
 			QueryParameters: []azcosmos.QueryParameter{
@@ -148,7 +148,7 @@ func list[InternalAPIType, CosmosAPIType any](ctx context.Context, containerClie
 		}
 
 		// no sql injection risk because it's an int we control
-		query += fmt.Sprintf(" AND (LENGTH(c.properties.resourceId) - LENGTH(REPLACE(c.properties.resourceId, '/', ''))) = %d", requiredNumSlashes)
+		query += fmt.Sprintf(" AND (LENGTH(c.resourceID) - LENGTH(REPLACE(c.resourceID, '/', ''))) = %d", requiredNumSlashes)
 	}
 
 	if options != nil {
