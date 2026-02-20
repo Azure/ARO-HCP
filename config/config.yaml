@@ -222,7 +222,7 @@ defaults:
     image:
       registry: quay.io
       repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
-      digest: sha256:8ef071025ea25ca968d76e6478e20589f7a43cbc6a15a077ddb2ec05361b197d # 3e0034d72bf0c58f40d43b31288a572e60413d63 (2026-02-20 06:35)
+      digest: sha256:0aec082892bb6fa9d0b53dd2160f680fd3a3d3c9cf7e9fd1b4d1ead2a9776a0a # 8d9421da17a3087369e36d6bc29e83db33b2370c (2026-02-20 16:12)
     namespace: hypershift
     additionalInstallArg: '--enable-cpo-overrides'
     # By default we set it to empty as this tag is only required for msft environments. We override
@@ -543,7 +543,7 @@ defaults:
     image:
       registry: arohcpsvcdev.azurecr.io
       repository: arohcpbackend
-      digest: sha256:797bb5834485b886c5649c1c908915ece693e409d4c0faf25ba80e2a59912e16 # 9fc81a5 (2026-02-20 10:56)
+      digest: sha256:2153eb3e112444981796bb4991944e3b83afebbc825a47ecfb18e7737444927d # 61de61e (2026-02-20 18:14)
     tracing:
       address: ""
       exporter: ""
@@ -561,7 +561,7 @@ defaults:
     image:
       registry: arohcpsvcdev.azurecr.io
       repository: arohcpadminapi
-      digest: sha256:1a96733e5622a58229ed86f34e40ca8d6df2bf4f4619061f297b5a38bf39604d # 9fc81a5 (2026-02-20 10:56)
+      digest: sha256:47c5b3c3b1cfd6a5443d20bedb1297ba62afe0ce899462f179feb25ffa13cd32 # 61de61e (2026-02-20 18:14)
     managedIdentityName: admin-api
     k8s:
       replicas: 2
@@ -587,7 +587,7 @@ defaults:
     image:
       registry: arohcpsvcdev.azurecr.io
       repository: arohcpfrontend
-      digest: sha256:9a61ea6a68fb93fbe977373c4cfc32424a475f5ce01952b25fe0b3b46d074723 # 9fc81a5 (2026-02-20 10:55)
+      digest: sha256:9341f965185c5cdb55aeb4b55eec24ad3b3a1b3b1df5e24228510d1e4f10e33e # 61de61e (2026-02-20 18:14)
     tracing:
       address: ""
       exporter: ""
@@ -831,7 +831,7 @@ defaults:
       image:
         registry: arohcpsvcdev.azurecr.io
         repository: image-sync/oc-mirror
-        digest: sha256:6cf543fa917493b00e9fd95c66733f54ef9f1f758194ced9f81674605180067d # 9fc81a5 (2026-02-20 10:55)
+        digest: sha256:fe98359ad4cf89c26764b479c23bb0243fae95a7491f71f543cf0ed0912d0dd8 # 61de61e (2026-02-20 18:13)
       pullSecretName: ocmirror-pull-secret
       operatorVersionsToMirror: "4.18,4.19,4.20"
   # Automation Account
