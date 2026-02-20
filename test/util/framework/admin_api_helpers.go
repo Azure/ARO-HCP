@@ -15,13 +15,13 @@
 package framework
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -139,8 +139,15 @@ func (t *clientPrincipalTransport) RoundTrip(req *http.Request) (*http.Response,
 	return t.base.RoundTrip(req)
 }
 
-func createSREBreakglassSession(ctx context.Context, httpClient *http.Client, breakglassEndpoint string) (string, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, breakglassEndpoint, nil)
+func createSREBreakglassSession(ctx context.Context, httpClient *http.Client, breakglassEndpoint string, accessLevel string, ttl time.Duration) (string, error) {
+	requestBody, err := json.Marshal(map[string]string{
+		"group": accessLevel,
+		"ttl":   ttl.String(),
+	})
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal request body: %w", err)
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, breakglassEndpoint, bytes.NewReader(requestBody))
 	if err != nil {
 		return "", fmt.Errorf("failed to create request: %w", err)
 	}
@@ -275,13 +282,11 @@ func (tc *perItOrDescribeTestContext) CreateSREBreakglassCredentials(ctx context
 	adminAPIEndpoint := tc.perBinaryInvocationTestContext.adminAPIAddress
 
 	By(fmt.Sprintf("reaching out to the admin API to create a breakglass session for %s with %s permissions", resourceID, accessLevel))
-	breakglassEndpoint := fmt.Sprintf("%s/admin/v1/hcp%s/breakglass?group=%s&ttl=%s",
+	breakglassEndpoint := fmt.Sprintf("%s/admin/v1/hcp%s/breakglass",
 		adminAPIEndpoint,
 		resourceID,
-		url.QueryEscape(accessLevel),
-		ttl.String(),
 	)
-	kubeconfigReqPath, err := createSREBreakglassSession(ctx, httpClient, breakglassEndpoint)
+	kubeconfigReqPath, err := createSREBreakglassSession(ctx, httpClient, breakglassEndpoint, accessLevel, ttl)
 	if err != nil {
 		return nil, time.Time{}, fmt.Errorf("failed to create SRE breakglass session: %w", err)
 	}

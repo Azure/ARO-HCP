@@ -15,6 +15,7 @@
 package breakglass
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"time"
@@ -154,28 +155,38 @@ func mapGenevaActionClientReference(clientPrincipalReference middleware.ClientPr
 	return "", "", fmt.Errorf("invalid client principal reference type: %s", clientPrincipalReference.Type)
 }
 
-// validateSessionParameters validates the group and TTL parameters for session creation.
+// sessionCreationRequest represents the JSON body for creating a breakglass session.
+type sessionCreationRequest struct {
+	Group string `json:"group"`
+	TTL   string `json:"ttl"`
+}
+
+// validateSessionParameters validates the group and TTL parameters for session creation
+// by reading them from the request body.
 func (h *HCPBreakglassSessionCreationHandler) validateSessionParameters(request *http.Request) (string, time.Duration, error) {
+	var body sessionCreationRequest
+	if err := json.NewDecoder(request.Body).Decode(&body); err != nil {
+		return "", 0, fmt.Errorf("failed to decode request body: %v", err)
+	}
+
 	var errs []error
 	var err error
 
-	// authorization level - get from group parameter
-	group := request.URL.Query().Get("group")
-	if group == "" {
-		errs = append(errs, fmt.Errorf("group parameter is required"))
-	} else if ok := h.AllowedBreakglassGroups.Has(group); !ok {
-		errs = append(errs, fmt.Errorf("group %q is not in the allowed list %v", group, h.AllowedBreakglassGroups.SortedList()))
+	// authorization level - get from group field
+	if body.Group == "" {
+		errs = append(errs, fmt.Errorf("group field is required"))
+	} else if ok := h.AllowedBreakglassGroups.Has(body.Group); !ok {
+		errs = append(errs, fmt.Errorf("group %q is not in the allowed list %v", body.Group, h.AllowedBreakglassGroups.SortedList()))
 	}
 
-	// get TTL from query parameter
+	// get TTL from body field
 	var ttl time.Duration
-	ttlParam := request.URL.Query().Get("ttl")
-	if ttlParam == "" {
-		errs = append(errs, fmt.Errorf("ttl parameter is required"))
+	if body.TTL == "" {
+		errs = append(errs, fmt.Errorf("ttl field is required"))
 	} else {
-		ttl, err = time.ParseDuration(ttlParam)
+		ttl, err = time.ParseDuration(body.TTL)
 		if err != nil {
-			errs = append(errs, fmt.Errorf("invalid ttl parameter: %v", err))
+			errs = append(errs, fmt.Errorf("invalid ttl field: %v", err))
 		}
 		if ttl > h.MaxSessionTTL {
 			errs = append(errs, fmt.Errorf("ttl must not exceed %v", h.MaxSessionTTL))
@@ -185,5 +196,5 @@ func (h *HCPBreakglassSessionCreationHandler) validateSessionParameters(request 
 		}
 	}
 
-	return group, ttl, utilerrors.NewAggregate(errs)
+	return body.Group, ttl, utilerrors.NewAggregate(errs)
 }

@@ -8,7 +8,7 @@ Breakglass provides SREs with temporary, identity-scoped kubectl access to HCP c
 
 ```
 1. SRE triggers Geneva Action
-2. Geneva Action → Admin API: PUT .../breakglass?group=...&ttl=...
+2. Geneva Action → Admin API: POST .../breakglass with {"group":"...","ttl":"..."}
 3. Admin API creates a Session CR in Kubernetes → returns 202 + Location header
 4. SRE/GA polls: GET .../breakglass/{sessionName}/kubeconfig
    - Sessiongate controller mints credentials and ensures a network path to the HCP is established
@@ -30,14 +30,20 @@ Breakglass provides SREs with temporary, identity-scoped kubectl access to HCP c
 ### Create session
 
 ```
-PUT /admin/v1/hcp{resourceId}/breakglass?group=...&ttl=...
+POST /admin/v1/hcp{resourceId}/breakglass
 ```
 
 - Required header: `X-Ms-Client-Principal-Name` (identity of the calling user/SP)
-- Query parameters:
+- Request body (JSON):
   - `group` (required) - the RBAC group for the session (e.g. `aro-sre-csa`)
   - `ttl` (required) - session lifetime (e.g. `1h`, `30m`), bounded by server-configured min/max
 - Returns `202 Accepted` with a `Location` header pointing to the kubeconfig endpoint
+
+Example:
+
+```json
+{"group": "aro-sre-csa", "ttl": "1h"}
+```
 
 ### Get kubeconfig
 
@@ -83,12 +89,3 @@ Key points:
 - The kubeconfig's `user.exec` generates an access token with identity claims
 - Per-session Istio AuthorizationPolicy validates that token claims match the session owner
 - Sessiongate proxies requests to the HCP KAS using session-specific credentials
-
-## Principal Type Inference
-
-The Admin API needs to know whether the caller is a user or service principal because:
-
-1. The kubeconfig's `user.exec` command differs for users vs service principals
-2. Access token claims are credential-type specific (`upn` for users, `appid` for service principals)
-
-Currently, Geneva Actions only provides the principal name without indicating the type. The code infers the type by checking if the name is a UUID (service principal) or email format (user). See `getPrincipalType()` in `server/handlers/hcp/breakglass/create.go`.
