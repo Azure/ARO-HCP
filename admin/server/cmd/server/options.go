@@ -43,9 +43,16 @@ import (
 
 func DefaultOptions() *RawOptions {
 	return &RawOptions{
-		Port:              8443,
-		MetricsPort:       8444,
-		AuditLogQueueSize: 2048,
+		Port:               8443,
+		MetricsPort:        8444,
+		AuditLogQueueSize:  2048,
+		ClustersServiceURL: os.Getenv("CLUSTERS_SERVICE_URL"),
+		CosmosURL:          os.Getenv("COSMOS_URL"),
+		CosmosName:         os.Getenv("COSMOS_NAME"),
+		KustoEndpoint:      os.Getenv("KUSTO_ENDPOINT"),
+		FpaCertBundlePath:  os.Getenv("FPA_CERT_BUNDLE_PATH"),
+		FpaClientID:        os.Getenv("FPA_CLIENT_ID"),
+		AuditConnectSocket: os.Getenv("AUDIT_CONNECT_SOCKET") == "true",
 	}
 }
 
@@ -69,22 +76,15 @@ func (opts *RawOptions) BindOptions(cmd *cobra.Command) error {
 	cmd.Flags().IntVar(&opts.Port, "port", opts.Port, "Port to serve content on.")
 	cmd.Flags().IntVar(&opts.MetricsPort, "metrics-port", opts.MetricsPort, "Port to serve metrics on.")
 	cmd.Flags().StringVar(&opts.Location, "location", opts.Location, "Location to serve content on.")
-	cmd.Flags().StringVar(&opts.ClustersServiceURL, "clusters-service-url", getEnv("CLUSTERS_SERVICE_URL", opts.ClustersServiceURL), "URL of the Clusters Service.")
-	cmd.Flags().StringVar(&opts.CosmosURL, "cosmos-url", getEnv("COSMOS_URL", opts.CosmosURL), "URL of the Cosmos DB.")
-	cmd.Flags().StringVar(&opts.CosmosName, "cosmos-name", getEnv("COSMOS_NAME", opts.CosmosName), "Name of the Cosmos DB.")
-	cmd.Flags().StringVar(&opts.KustoEndpoint, "kusto-endpoint", getEnv("KUSTO_ENDPOINT", opts.KustoEndpoint), "Endpoint of the Kusto cluster.")
-	cmd.Flags().StringVar(&opts.FpaClientID, "fpa-client-id", getEnv("FPA_CLIENT_ID", opts.FpaClientID), "Client ID of the FPA application.")
-	cmd.Flags().StringVar(&opts.FpaCertBundlePath, "fpa-cert-bundle-path", getEnv("FPA_CERT_BUNDLE_PATH", opts.FpaCertBundlePath), "Path to the FPA certificate bundle.")
+	cmd.Flags().StringVar(&opts.ClustersServiceURL, "clusters-service-url", opts.ClustersServiceURL, "URL of the Clusters Service.")
+	cmd.Flags().StringVar(&opts.CosmosURL, "cosmos-url", opts.CosmosURL, "URL of the Cosmos DB.")
+	cmd.Flags().StringVar(&opts.CosmosName, "cosmos-name", opts.CosmosName, "Name of the Cosmos DB.")
+	cmd.Flags().StringVar(&opts.KustoEndpoint, "kusto-endpoint", opts.KustoEndpoint, "Endpoint of the Kusto cluster.")
+	cmd.Flags().StringVar(&opts.FpaClientID, "fpa-client-id", opts.FpaClientID, "Client ID of the FPA application.")
+	cmd.Flags().StringVar(&opts.FpaCertBundlePath, "fpa-cert-bundle-path", opts.FpaCertBundlePath, "Path to the FPA certificate bundle.")
 	cmd.Flags().IntVar(&opts.AuditLogQueueSize, "audit-log-queue-size", opts.AuditLogQueueSize, "Log queue size for audit logging client.")
-	cmd.Flags().BoolVar(&opts.AuditConnectSocket, "audit-connect-socket", os.Getenv("AUDIT_CONNECT_SOCKET") == "true", "Connect to mdsd audit socket.")
+	cmd.Flags().BoolVar(&opts.AuditConnectSocket, "audit-connect-socket", opts.AuditConnectSocket, "Connect to mdsd audit socket.")
 	return nil
-}
-
-func getEnv(key, defaultValue string) string {
-	if value := os.Getenv(key); value != "" {
-		return value
-	}
-	return defaultValue
 }
 
 // validatedOptions is a private wrapper that enforces a call of Validate() before Complete() can be invoked.
