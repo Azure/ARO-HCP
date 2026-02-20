@@ -42,6 +42,8 @@ type RawMustGatherOptions struct {
 	TimestampMin               time.Time     // Timestamp minimum
 	TimestampMax               time.Time     // Timestamp maximum
 	Limit                      int           // Limit the number of results
+	GatherInfraLogs            bool          // Gather all logs from the infrastructure, does NOT gather HCP logs
+	InfraClusterName           string        // Name of the infrastructure cluster
 }
 
 // DefaultMustGatherOptions returns a new RawMustGatherOptions struct initialized with sensible defaults.
@@ -80,6 +82,8 @@ func BindMustGatherOptions(opts *RawMustGatherOptions, cmd *cobra.Command) error
 	cmd.Flags().StringVar(&opts.Region, "region", opts.Region, "Azure Data Explorer cluster region (required)")
 	cmd.Flags().DurationVar(&opts.QueryTimeout, "query-timeout", opts.QueryTimeout, "timeout for query execution")
 	cmd.Flags().StringVar(&opts.OutputPath, "output-path", opts.OutputPath, "path to write the output file")
+	cmd.Flags().BoolVar(&opts.GatherInfraLogs, "gather-infra-logs", false, "gather all logs from the infrastructure, does NOT gather HCP logs")
+	cmd.Flags().StringVar(&opts.InfraClusterName, "infra-cluster-name", opts.InfraClusterName, "name of the infrastructure cluster")
 	cmd.Flags().StringVar(&opts.SubscriptionID, "subscription-id", opts.SubscriptionID, "subscription ID")
 	cmd.Flags().StringVar(&opts.ResourceGroup, "resource-group", opts.ResourceGroup, "resource group")
 	cmd.Flags().StringVar(&opts.ResourceId, "resource-id", opts.ResourceId, "resource ID")
@@ -141,17 +145,17 @@ func (o *RawMustGatherOptions) Validate(ctx context.Context) (*ValidatedMustGath
 	}
 
 	// Validate subscription ID
-	if o.SubscriptionID == "" && o.ResourceId == "" {
+	if o.SubscriptionID == "" && o.ResourceId == "" && o.InfraClusterName == "" {
 		return nil, fmt.Errorf("subscription-id is required")
 	}
 
 	// Validate resource group
-	if o.ResourceGroup == "" && o.ResourceId == "" {
+	if o.ResourceGroup == "" && o.ResourceId == "" && o.InfraClusterName == "" {
 		return nil, fmt.Errorf("resource-group is required")
 	}
 
-	if o.ResourceId != "" && (o.ResourceGroup != "" || o.SubscriptionID != "") {
-		logger.Info("warning: both resource-id and resource-group/subscription-id are provided, will use resource-id to gather cluster ID")
+	if o.ResourceId != "" && (o.ResourceGroup != "" || o.SubscriptionID != "" || o.InfraClusterName != "") {
+		logger.Info("warning: both resource-id and resource-group/subscription-id/infra-cluster-name are provided, will use resource-id to gather cluster ID")
 	}
 
 	if o.TimestampMin.After(o.TimestampMax) {
