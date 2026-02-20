@@ -34,5 +34,6 @@
         "resourceId": "/subscriptions/f52dfea2-47ee-4396-8006-4a27d47d59c5/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/immutability/nodePools/immutability-np",
         "systemData": {}
     },
-    "resourceType": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/nodePools"
+    "resourceType": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/nodePools",
+    "resourceID": "/subscriptions/f52dfea2-47ee-4396-8006-4a27d47d59c5/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/immutability/nodePools/immutability-np"
 }

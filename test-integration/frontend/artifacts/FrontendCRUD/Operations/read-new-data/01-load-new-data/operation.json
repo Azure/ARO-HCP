@@ -19,5 +19,6 @@
 		"tenantId": "00000000-0000-0000-0000-000000000000"
 	},
 	"resourceType": "Microsoft.RedHatOpenShift/hcpOperationStatuses",
+	"resourceID": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/providers/Microsoft.RedHatOpenShift/hcpOperationStatuses/ab5d298a-2267-432a-ad71-313bbdae0349",
 	"ttl": 604800
 }
