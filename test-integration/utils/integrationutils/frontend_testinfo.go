@@ -55,6 +55,8 @@ type IntegrationTestInfo struct {
 	AdminURL         string
 	AdminAPI         *server.AdminAPI
 	adminAPIListener net.Listener
+
+	KubernetesClientSets *KubernetesClientSets
 }
 
 func Get20240610ClientFactory(frontendURL string, subscriptionID string) *hcpsdk20240610preview.ClientFactory {
@@ -96,6 +98,9 @@ func (emptySystemData) Do(req *policy.Request) (*http.Response, error) {
 func (s *IntegrationTestInfo) Cleanup(ctx context.Context) {
 	s.StorageIntegrationTestInfo.Cleanup(ctx)
 	s.ClusterServiceMock.Cleanup(ctx)
+	if s.KubernetesClientSets != nil {
+		s.KubernetesClientSets.Stop()
+	}
 }
 
 func resourceIDToDir(resourceID *azcorearm.ResourceID) string {

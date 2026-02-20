@@ -42,6 +42,18 @@ spec:
     allowedRoutes:
       namespaces:
         from: All
+  - name: sessiongate-https
+    port: 443
+    protocol: HTTPS
+    hostname: "sessiongate.westus3.hcpsvc.osadev.cloud"
+    tls:
+      mode: Terminate
+      certificateRefs:
+      - name: sessiongate-credential
+        kind: Secret
+    allowedRoutes:
+      namespaces:
+        from: All
 ---
 # Source: istio/templates/strict_mtls.yml
 apiVersion: security.istio.io/v1beta1

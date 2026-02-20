@@ -49,6 +49,7 @@ type perBinaryInvocationTestContext struct {
 	location                 string
 	pullSecretPath           string
 	frontendAddress          string
+	adminAPIAddress          string
 	skipCertVerification     bool
 	isDevelopmentEnvironment bool
 	skipCleanup              bool
@@ -90,6 +91,7 @@ func invocationContext() *perBinaryInvocationTestContext {
 			location:                 location(),
 			pullSecretPath:           pullSecretPath(),
 			frontendAddress:          frontendAddress(),
+			adminAPIAddress:          adminAPIAddress(),
 			skipCertVerification:     skipCertVerification(),
 			isDevelopmentEnvironment: IsDevelopmentEnvironment(),
 			skipCleanup:              skipCleanup(),
@@ -364,6 +366,15 @@ func frontendAddress() string {
 	address := os.Getenv("FRONTEND_ADDRESS")
 	if address == "" {
 		return "http://localhost:8443"
+	}
+	return address
+}
+
+// adminAPIAddress returns the value of ADMIN_API_ADDRESS environment variable
+func adminAPIAddress() string {
+	address := os.Getenv("ADMIN_API_ADDRESS")
+	if address == "" {
+		return "http://localhost:8444"
 	}
 	return address
 }

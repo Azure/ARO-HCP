@@ -580,6 +580,8 @@ defaults:
       replicas: 2
       namespace: sessiongate
       serviceAccountName: sessiongate
+    cert:
+      name: sessiongate-cert-{{ .ctx.environment }}-{{ .ctx.regionShort }}
   # Frontend
   frontend:
     audit:
@@ -648,6 +650,10 @@ defaults:
       policyLabel: "Geneva Actions"
       authorityFQDN: "{{ .ev2.entra.fqdn.sts }}"
       audienceFQDN: "{{ .ev2.arm.endpoint }}"
+    sessiongate:
+      policyLabel: "Session Gate"
+      authorityFQDN: "{{ .ev2.entra.fqdn.sts }}"
+      audience: "6dae42f8-4368-4678-94ff-3960e28e3630"
     image:
       repository: "mise-1p-container-image"
       digest: ""
@@ -986,6 +992,10 @@ clouds:
         limitClusterSizes: true
       # Admin API
       adminApi:
+        cert:
+          issuer: Self
+      # Sessiongate
+      sessiongate:
         cert:
           issuer: Self
       # Frontend

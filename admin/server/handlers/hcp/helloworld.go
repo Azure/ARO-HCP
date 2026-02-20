@@ -46,7 +46,7 @@ func HCPHelloWorld(dbClient database.DBClient, csClient ocm.ClusterServiceClient
 		}
 
 		// get client princiapal name attached to the request
-		clientPrincipalName, err := middleware.ClientPrincipalNameFromContext(request.Context())
+		clientPrincipalReference, err := middleware.ClientPrincipalFromContext(request.Context())
 		if err != nil {
 			http.Error(writer, fmt.Sprintf("failed to get client principal name: %v", err), http.StatusInternalServerError)
 			return
@@ -70,7 +70,7 @@ func HCPHelloWorld(dbClient database.DBClient, csClient ocm.ClusterServiceClient
 		output := map[string]any{
 			"resourceID":           hcp.ID.String(),
 			"internalClusterID":    hcp.ServiceProviderProperties.ClusterServiceID,
-			"clientPrincipalName":  clientPrincipalName,
+			"clientPrincipalName":  clientPrincipalReference.Name,
 			"tenantID":             csCluster.Azure().TenantID(),
 			"managedResourceGroup": csCluster.Azure().ManagedResourceGroupName(),
 			"hcpName":              hcp.Name,
