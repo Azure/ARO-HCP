@@ -41,7 +41,7 @@ func InternalToCosmosOperation(internalObj *api.Operation) (*Operation, error) {
 				TimeToLive: operationTimeToLive,
 			},
 			PartitionKey: strings.ToLower(internalObj.ExternalID.SubscriptionID),
-			ResourceID:   internalObj.CosmosMetadata.ResourceID,
+			ResourceID:   internalObj.ResourceID,
 			ResourceType: api.OperationStatusResourceType.String(),
 		},
 		OperationProperties: *internalObj,
@@ -62,9 +62,6 @@ func CosmosToInternalOperation(cosmosObj *Operation) (*api.Operation, error) {
 
 	// old records don't serialize this, but we want all readers to be able to depend on it.
 	internalObj.ExistingCosmosUID = cosmosObj.ID
-	if internalObj.CosmosMetadata.ResourceID == nil {
-		internalObj.CosmosMetadata.ResourceID = internalObj.ResourceID
-	}
 
 	return internalObj, nil
 }
