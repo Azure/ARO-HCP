@@ -336,6 +336,16 @@ func create[InternalAPIType, CosmosAPIType any](ctx context.Context, containerCl
 }
 
 func replace[InternalAPIType, CosmosAPIType any](ctx context.Context, containerClient *azcosmos.ContainerClient, partitionKeyString string, newObj *InternalAPIType, opts *azcosmos.ItemOptions) (*InternalAPIType, error) {
+	cosmosPersistable, ok := any(newObj).(arm.CosmosPersistable)
+	if !ok {
+		return nil, fmt.Errorf("type %T does not implement CosmosPersistable interface", newObj)
+	}
+	// do a get first to ensure the ID is migrated
+	_, err := get[InternalAPIType, CosmosAPIType](ctx, containerClient, partitionKeyString, cosmosPersistable.GetCosmosData().GetResourceID())
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
+
 	if strings.ToLower(partitionKeyString) != partitionKeyString {
 		return nil, fmt.Errorf("partitionKeyString must be lowercase, not: %q", partitionKeyString)
 	}
