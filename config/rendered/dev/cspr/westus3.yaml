@@ -353,7 +353,7 @@ imageSync:
   outboundServiceTags: ""
 keyVaultDNSSuffix: vault.azure.net
 kubeEvents:
-  enabled: false
+  enabled: true
   image:
     digest: sha256:6cf65c67321d5fc18e878715049a6ac8a8aea1ac2c63b096fbe18fade52f4be5
     registry: kubernetesshared.azurecr.io
