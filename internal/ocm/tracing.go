@@ -335,3 +335,19 @@ func (csc *clusterServiceClientWithTracing) GetVersion(ctx context.Context, vers
 func (csc *clusterServiceClientWithTracing) ListVersions() *VersionsListIterator {
 	return csc.csc.ListVersions()
 }
+
+func (csc *clusterServiceClientWithTracing) ListControlPlaneUpgradePolicies(clusterInternalID InternalID, orderBy string) ControlPlaneUpgradePolicyListIterator {
+	return csc.csc.ListControlPlaneUpgradePolicies(clusterInternalID, orderBy)
+}
+
+func (csc *clusterServiceClientWithTracing) PostControlPlaneUpgradePolicy(ctx context.Context, clusterInternalID InternalID, builder *arohcpv1alpha1.ControlPlaneUpgradePolicyBuilder) (*arohcpv1alpha1.ControlPlaneUpgradePolicy, error) {
+	ctx, span := csc.startChildSpan(ctx, "ClusterServiceClient.PostControlPlaneUpgradePolicy")
+	defer span.End()
+
+	policy, err := csc.csc.PostControlPlaneUpgradePolicy(ctx, clusterInternalID, builder)
+	if err != nil {
+		span.RecordError(err)
+	}
+
+	return policy, err
+}

@@ -131,6 +131,14 @@ type ClusterServiceClientSpec interface {
 	// Call Items() on the returned iterator with options in a for/range loop to execute the request and paginate over results,
 	// then call GetError() to check for an iteration error.
 	ListVersions() *VersionsListIterator
+
+	// ListControlPlaneUpgradePolicies prepares a GET request to list control plane upgrade policies for a cluster.
+	// Call Items() on the returned iterator in a for/range loop to execute the request and paginate over results,
+	// then call GetError() to check for an iteration error.
+	ListControlPlaneUpgradePolicies(clusterInternalID InternalID, orderBy string) ControlPlaneUpgradePolicyListIterator
+
+	// PostControlPlaneUpgradePolicy sends a POST request to create a control plane upgrade policy in Cluster Service.
+	PostControlPlaneUpgradePolicy(ctx context.Context, clusterInternalID InternalID, builder *arohcpv1alpha1.ControlPlaneUpgradePolicyBuilder) (*arohcpv1alpha1.ControlPlaneUpgradePolicy, error)
 }
 
 type clusterServiceClient struct {
@@ -570,6 +578,38 @@ func (csc *clusterServiceClient) GetVersion(ctx context.Context, versionName str
 func (csc *clusterServiceClient) ListVersions() *VersionsListIterator {
 	versionsListRequest := csc.conn.AroHCP().V1alpha1().Versions().List()
 	return &VersionsListIterator{request: versionsListRequest}
+}
+
+func (csc *clusterServiceClient) ListControlPlaneUpgradePolicies(clusterInternalID InternalID, orderBy string) ControlPlaneUpgradePolicyListIterator {
+	client, ok := getAroHCPClusterClient(clusterInternalID, csc.conn)
+	if !ok {
+		return &controlPlaneUpgradePolicyListIterator{err: fmt.Errorf("OCM path is not a cluster: %s", clusterInternalID)}
+	}
+	policiesListRequest := client.ControlPlaneUpgradePolicies().List()
+	if orderBy != "" {
+		policiesListRequest.Parameter("order", orderBy)
+	}
+	return &controlPlaneUpgradePolicyListIterator{request: policiesListRequest}
+}
+
+func (csc *clusterServiceClient) PostControlPlaneUpgradePolicy(ctx context.Context, clusterInternalID InternalID, builder *arohcpv1alpha1.ControlPlaneUpgradePolicyBuilder) (*arohcpv1alpha1.ControlPlaneUpgradePolicy, error) {
+	client, ok := getAroHCPClusterClient(clusterInternalID, csc.conn)
+	if !ok {
+		return nil, fmt.Errorf("OCM path is not a cluster: %s", clusterInternalID)
+	}
+	policy, err := builder.Build()
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
+	policiesAddResponse, err := client.ControlPlaneUpgradePolicies().Add().Body(policy).SendContext(ctx)
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
+	policy, ok = policiesAddResponse.GetBody()
+	if !ok {
+		return nil, fmt.Errorf("empty response body")
+	}
+	return policy, nil
 }
 
 // NewOpenShiftVersionXY parses the given version, stripping off any

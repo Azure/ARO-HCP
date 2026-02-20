@@ -24,8 +24,11 @@ import (
 
 	"k8s.io/client-go/tools/cache"
 
+	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
+
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
+	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -100,31 +103,57 @@ func (c *triggerControlPlaneUpgradeSyncer) SyncOnce(ctx context.Context, key con
 		return nil // No desired version set
 	}
 
-	// Get actual version from active versions
+	// Get latest actual version from active versions
 	var actualLatestVersion *semver.Version
 	if len(existingServiceProviderCluster.Status.ControlPlaneVersion.ActiveVersions) > 0 {
 		actualLatestVersion = existingServiceProviderCluster.Status.ControlPlaneVersion.ActiveVersions[0].Version
 	}
 
-	// If desired version matches actual version, nothing to do
+	// If desired version matches latest actual version, nothing to do
 	if actualLatestVersion != nil && desiredVersion.EQ(*actualLatestVersion) {
 		return nil
 	}
 
+	return c.createUpgradePolicyIfNeeded(ctx, desiredVersion, existingCluster.ServiceProviderProperties.ClusterServiceID)
+}
+
+// createUpgradePolicyIfNeeded ensures a control plane upgrade policy exists for the desired version.
+// It creates a new policy only if the most recently created policy does not match the desired version.
+//
+// The method:
+//  1. Queries existing upgrade policies from Cluster Service (sorted by creation_timestamp desc)
+//  2. Checks if the latest policy matches the desired version - returns nil if it does
+//  3. Otherwise, creates a new upgrade policy with the desired version
+func (c *triggerControlPlaneUpgradeSyncer) createUpgradePolicyIfNeeded(ctx context.Context, desiredVersion *semver.Version, clusterServiceID api.InternalID) error {
 	logger := utils.LoggerFromContext(ctx)
 
-	// TODO: Make API call to version service to trigger the upgrade
-	// The version service API is idempotent:
-	// - If desiredVersion == current cluster version: NOOP
-	// - Otherwise: Initiate the upgrade to desiredVersion
+	// Query existing control plane upgrade policies from Cluster Service
+	iterator := c.clusterServiceClient.ListControlPlaneUpgradePolicies(clusterServiceID, "creation_timestamp desc")
 
-	// For now, just log that we would trigger an upgrade
-	logger.Info("Would trigger control plane upgrade",
-		"cluster", key.HCPClusterName,
-		"desiredVersion", desiredVersion,
-		"actualVersion", actualLatestVersion,
-		"clusterServiceID", existingCluster.ServiceProviderProperties.ClusterServiceID,
-	)
+	// Only create a new upgrade policy if the latest created policy doesn't match the desired version
+	for policy := range iterator.Items(ctx) {
+		// Only check the first (latest) policy
+		if latestPolicyVersion, ok := policy.GetVersion(); ok {
+			if latestPolicyVersion == desiredVersion.String() {
+				return nil
+			}
+		}
+		break // Only need to check the first policy
+	}
+
+	if err := iterator.GetError(); err != nil {
+		return utils.TrackError(fmt.Errorf("failed to list control plane upgrade policies: %w", err))
+	}
+
+	// Create a new control plane upgrade policy for the desired version
+	logger.Info("Creating control plane upgrade policy", "desiredVersion", desiredVersion)
+
+	_, policyErr := c.clusterServiceClient.PostControlPlaneUpgradePolicy(ctx, clusterServiceID, arohcpv1alpha1.NewControlPlaneUpgradePolicy().Version(desiredVersion.String()))
+	if policyErr != nil {
+		return utils.TrackError(fmt.Errorf("failed to create control plane upgrade policy: %w", policyErr))
+	}
+
+	logger.Info("Successfully created control plane upgrade policy", "desiredVersion", desiredVersion)
 
 	return nil
 }
