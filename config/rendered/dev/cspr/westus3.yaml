@@ -29,6 +29,8 @@ acrPull:
     registry: mcr.microsoft.com
     repository: aks/msi-acrpull
 adminApi:
+  audit:
+    connectSocket: false
   cert:
     issuer: Self
     name: admin-api-cert-cspr-usw3

@@ -58,6 +58,8 @@ spec:
           value: "/secrets/fpa-cert/bundle"
         - name: FPA_CLIENT_ID
           value: "{{ .Values.fpa.clientId }}"
+        - name: AUDIT_CONNECT_SOCKET
+          value: "{{ .Values.audit.connectSocket }}"
         ports:
         - containerPort: 8443
           name: http
@@ -97,6 +99,10 @@ spec:
         - name: fpa-cert
           mountPath: /secrets/fpa-cert
           readOnly: true
+        {{- if .Values.audit.connectSocket }}
+        - name: mdsd-asa-run-vol
+          mountPath: /var/run/mdsd
+        {{- end }}
       volumes:
       - name: fpa-cert
         csi:
@@ -104,3 +110,9 @@ spec:
           readOnly: true
           volumeAttributes:
             secretProviderClass: fpa-cert
+      {{- if .Values.audit.connectSocket }}
+      - name: mdsd-asa-run-vol
+        hostPath:
+          path: /var/run/mdsd
+          type: Directory
+      {{- end }}

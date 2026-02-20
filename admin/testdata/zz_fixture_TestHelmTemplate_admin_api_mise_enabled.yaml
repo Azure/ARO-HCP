@@ -86,6 +86,8 @@ spec:
           value: "/secrets/fpa-cert/bundle"
         - name: FPA_CLIENT_ID
           value: "b3cb2fab-15cb-4583-ad06-f91da9bfe2d1"
+        - name: AUDIT_CONNECT_SOCKET
+          value: "false"
         ports:
         - containerPort: 8443
           name: http

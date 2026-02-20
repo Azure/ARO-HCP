@@ -32,6 +32,7 @@ import (
 	"github.com/Azure/ARO-HCP/admin/server/handlers/cosmosdump"
 	"github.com/Azure/ARO-HCP/admin/server/handlers/hcp"
 	"github.com/Azure/ARO-HCP/admin/server/middleware"
+	"github.com/Azure/ARO-HCP/internal/audit"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/fpa"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -61,6 +62,7 @@ func NewAdminAPI(
 	clustersServiceClient ocm.ClusterServiceClientSpec,
 	kustoClient *kusto.Client,
 	fpaCredentialRetriever fpa.FirstPartyApplicationTokenCredentialRetriever,
+	auditClient audit.Client,
 ) *AdminAPI {
 	// Submux for V1 HCP endpoints
 	v1HCPMux := middleware.NewHCPResourceServerMux()
@@ -68,9 +70,12 @@ func NewAdminAPI(
 	v1HCPMux.Handle("GET", "/hellworld/lbs", hcp.HCPDemoListLoadbalancers(dbClient, clustersServiceClient, fpaCredentialRetriever))
 	v1HCPMux.Handle("GET", "/cosmosdump", cosmosdump.NewCosmosDumpHandler(dbClient))
 
+	adminMux := http.NewServeMux()
+	adminMux.Handle("GET /admin/helloworld", middleware.WithClientPrincipal(handlers.HelloWorldHandler()))
+	adminMux.Handle("/admin/v1/hcp/", middleware.WithClientPrincipal(middleware.WithLowercaseURLPathValue(middleware.WithLogger(http.StripPrefix("/admin/v1/hcp", v1HCPMux.Handler())))))
+
 	apiMux := http.NewServeMux()
-	apiMux.Handle("GET /admin/helloworld", handlers.HelloWorldHandler())
-	apiMux.Handle("/admin/v1/hcp/", middleware.WithClientPrincipal(middleware.WithLowercaseURLPathValue(middleware.WithLogger(http.StripPrefix("/admin/v1/hcp", v1HCPMux.Handler())))))
+	apiMux.Handle("/admin/", middleware.WithAudit(auditClient, adminMux))
 	apiMux.HandleFunc("GET /healthz/ready", healthzReadyHandler)
 	apiMux.HandleFunc("GET /healthz/live", healthzLiveHandler)
 
