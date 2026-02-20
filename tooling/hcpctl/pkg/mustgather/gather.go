@@ -84,6 +84,7 @@ type NormalizedLogLine struct {
 // These options are used to configure the Gatherer and are passed to the Gatherer constructor
 // They are used to generate the queries as well
 type GathererOptions struct {
+	GatherInfraLogs            bool          // Gather all logs from the infrastructure, does NOT gather HCP logs
 	SkipHostedControlPlaneLogs bool          // Skip hosted control plane logs
 	QueryOptions               *QueryOptions // Query options
 }
@@ -174,6 +175,7 @@ type Gatherer struct {
 	QueryClient   QueryClientInterface
 	outputFunc    RowOutputFunc
 	outputOptions RowOutputOptions
+	infraLogsOnly bool
 }
 
 // NewGatherer creates a new Gatherer with custom output function and options.
@@ -218,6 +220,7 @@ func NewGatherer(queryClient QueryClientInterface, outputFunc RowOutputFunc, out
 		outputFunc:    outputFunc,
 		outputOptions: outputOptions,
 		opts:          opts,
+		infraLogsOnly: false,
 	}
 }
 
@@ -238,12 +241,18 @@ func NewCliGatherer(queryClient QueryClientInterface, outputPath, serviceLogsDir
 		outputFunc:    cliOutputFunc,
 		outputOptions: outputOptions,
 		opts:          opts,
+		infraLogsOnly: opts.GatherInfraLogs,
 	}
 }
 
 func cliOutputFunc(logLineChan chan *NormalizedLogLine, queryType QueryType, options RowOutputOptions) error {
 	outputPath := options["outputPath"].(string)
-	directory := options[string(queryType)].(string)
+	var directory string
+	var ok bool
+	if directory, ok = options[string(queryType)].(string); !ok {
+		directory = "cluster"
+	}
+
 	openedFiles := make(map[string]*os.File)
 
 	var allErrors error
@@ -258,7 +267,12 @@ func cliOutputFunc(logLineChan chan *NormalizedLogLine, queryType QueryType, opt
 	}()
 
 	for logLine := range logLineChan {
-		fileName := fmt.Sprintf("%s-%s-%s.log", logLine.Cluster, logLine.Namespace, logLine.ContainerName)
+		var fileName string
+		if queryType == QueryTypeKubernetesEvents || queryType == QueryTypeSystemdLogs {
+			fileName = fmt.Sprintf("%s-%s.log", logLine.Cluster, queryType)
+		} else {
+			fileName = fmt.Sprintf("%s-%s-%s.log", logLine.Cluster, logLine.Namespace, logLine.ContainerName)
+		}
 
 		file, ok := openedFiles[fileName]
 		if !ok {
@@ -281,6 +295,10 @@ func cliOutputFunc(logLineChan chan *NormalizedLogLine, queryType QueryType, opt
 
 func (g *Gatherer) GatherLogs(ctx context.Context) error {
 	logger := logr.FromContextOrDiscard(ctx)
+	if g.infraLogsOnly {
+		logger.V(1).Info("Gathering infrastructure logs only")
+		return g.gatherInfraLogs(ctx)
+	}
 
 	// First, get all cluster IDs
 	clusterIds, err := g.executeClusterIdQuery(ctx, g.opts.QueryOptions.GetClusterIdQuery())
@@ -305,6 +323,19 @@ func (g *Gatherer) GatherLogs(ctx context.Context) error {
 		}
 	}
 
+	return nil
+}
+
+func (g *Gatherer) gatherInfraLogs(ctx context.Context) error {
+	if err := g.queryAndWriteToFile(ctx, QueryTypeKubernetesEvents, g.opts.QueryOptions.GetInfraKubernetesEventsQuery()); err != nil {
+		return fmt.Errorf("failed to execute kubernetes events query: %w", err)
+	}
+	if err := g.queryAndWriteToFile(ctx, QueryTypeSystemdLogs, g.opts.QueryOptions.GetInfraSystemdLogsQuery()); err != nil {
+		return fmt.Errorf("failed to execute systemd logs query: %w", err)
+	}
+	if err := g.queryAndWriteToFile(ctx, QueryTypeServices, g.opts.QueryOptions.GetInfraServicesQueries()); err != nil {
+		return fmt.Errorf("failed to execute services query: %w", err)
+	}
 	return nil
 }
 
@@ -340,7 +371,6 @@ func (g *Gatherer) executeClusterIdQuery(ctx context.Context, query *kusto.Confi
 }
 
 func (g *Gatherer) queryAndWriteToFile(ctx context.Context, queryType QueryType, queries []*kusto.ConfigurableQuery) error {
-	// logger := logr.FromContextOrDiscard(ctx)
 	queryOutputChannel := make(chan azkquery.Row)
 
 	queryGroup := new(errgroup.Group)
