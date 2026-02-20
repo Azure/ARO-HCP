@@ -45,6 +45,11 @@ func (q *ConfigurableQuery) WithTable(tableName string) *ConfigurableQuery {
 	return q
 }
 
+func (q *ConfigurableQuery) WithInfraFields() *ConfigurableQuery {
+	q.Query.AddLiteral("\n| project timestamp, log, cluster")
+	return q
+}
+
 func (q *ConfigurableQuery) WithDefaultFields() *ConfigurableQuery {
 	q.Query.AddLiteral("\n| project timestamp, log, cluster, namespace_name, container_name")
 	return q
@@ -93,5 +98,11 @@ func (q *ConfigurableQuery) WithClusterIdOrSubscriptionAndResourceGroup(clusterI
 		q.Query.AddLiteral("\n| where log has subResourceGroupId")
 	}
 	q.Parameters.AddString("subResourceGroupId", fmt.Sprintf("/subscriptions/%s/resourceGroups/%s", subscriptionId, resourceGroup))
+	return q
+}
+
+func (q *ConfigurableQuery) WithCluster(clusterName string) *ConfigurableQuery {
+	q.Query.AddLiteral("\n| where cluster == clusterName")
+	q.Parameters.AddString("clusterName", clusterName)
 	return q
 }
