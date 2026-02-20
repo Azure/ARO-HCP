@@ -49,33 +49,18 @@ stop_emulator() {
     ${CONTAINER_RUNTIME} ps -aq --filter "name=local-cosmos-emulator-*" | xargs -r "${CONTAINER_RUNTIME}" rm
 }
 
-# Start the emulator container and wait until ready (handles OS differences internally)
+# Start the emulator container and wait until ready
 start_emulator() {
     local container_name=$1
-    local partition_count=$2
-    local os_type
-    local container_image
-    local ready_log_message
-
-    os_type=$(uname -s)
-    container_image="mcr.microsoft.com/cosmosdb/linux/azure-cosmos-emulator:latest"
-    ready_log_message="Started $((partition_count+1))/$((partition_count+1)) partitions"
-
-    if [ "${os_type}" = "Darwin" ]; then
-        # on OSX we need to use the vnext-preview image because the regular one does not support ARM64
-        # and also fails when running in qemu emulation mode under podman.
-        # vnext-preview docs: https://learn.microsoft.com/en-gb/azure/cosmos-db/emulator-linux#docker-commands
-        container_image="mcr.microsoft.com/cosmosdb/linux/azure-cosmos-emulator:vnext-preview"
-        # the vnext-preview image logs a different message when ready
-        ready_log_message="PostgreSQL and pgcosmos extension are ready"
-    fi
+    # vnext-preview docs: https://learn.microsoft.com/en-gb/azure/cosmos-db/emulator-linux#docker-commands
+    local container_image="mcr.microsoft.com/cosmosdb/linux/azure-cosmos-emulator:vnext-preview"
+    local ready_log_message="PostgreSQL and pgcosmos extension are ready"
 
     echo "Starting Cosmos DB emulator with container name: ${container_name}"
     ${CONTAINER_RUNTIME} run \
       --publish 8081:8081 \
       --publish 10250-10255:10250-10255 \
       -e AZURE_COSMOS_EMULATOR_IP_ADDRESS_OVERRIDE=127.0.0.1 \
-      -e AZURE_COSMOS_EMULATOR_PARTITION_COUNT="${partition_count}" \
       -e PROTOCOL=https \
       --name "${container_name}" \
       --detach \
