@@ -90,7 +90,7 @@ for f in \
   done
 
   # Fix pointer-type semver.Version fields (github.com/blang/semver/v4).
-  sed -i \
+  os::util::sed \
     '/\*out = new(v4\.Version)/{n;s/(\*in)\.DeepCopyInto(\*out)/**out = **in/;}' \
     "${f}"
 

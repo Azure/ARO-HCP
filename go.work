@@ -6,6 +6,7 @@ use (
 	./backend
 	./frontend
 	./internal
+	./sessiongate
 	./test
 	./test-integration
 	./tooling/aro-hcp-exporter
