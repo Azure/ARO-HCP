@@ -18,7 +18,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"hash/crc32"
 	"maps"
 	"math/rand"
 	"net/http"
@@ -311,6 +310,7 @@ func doWaitForDeployment(ctx context.Context, bicepClient *bicep.LSPClient, clie
 		Properties:      deploymentProperties,
 		ResourceGroup:   rgName,
 		DeploymentLevel: step.DeploymentLevel,
+		RetryAttempt:    retryAttempt,
 	}
 
 	digest, skip, commit, err := checkCachedOutput[ArmOutput](logger, inputs, stepCacheDir)
@@ -325,16 +325,6 @@ func doWaitForDeployment(ctx context.Context, bicepClient *bicep.LSPClient, clie
 	deploymentName := randString()
 	if digest != "" {
 		deploymentName = digest
-	}
-	// for retries, append retry attempt to deployment name so we can keep the previous failed deployment around for debugging purposes
-	if retryAttempt > 0 {
-		checksum := fmt.Sprintf("%08x", crc32.ChecksumIEEE([]byte(deploymentName)))
-		suffix := fmt.Sprintf("-r%d-%s", retryAttempt, checksum)
-		maxBaseLen := 64 - len(suffix)
-		if len(deploymentName) > maxBaseLen {
-			deploymentName = deploymentName[:maxBaseLen]
-		}
-		deploymentName += suffix
 	}
 
 	var output ArmOutput
@@ -443,6 +433,7 @@ type deploymentInputs struct {
 	Properties      *armresources.DeploymentProperties
 	ResourceGroup   string
 	DeploymentLevel string
+	RetryAttempt    int
 }
 
 // computeResourceGroupTags determines the final tags for a resource group based on existing tags and persist settings.
