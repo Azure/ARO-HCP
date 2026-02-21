@@ -56,6 +56,13 @@ start_emulator() {
     local container_image="mcr.microsoft.com/cosmosdb/linux/azure-cosmos-emulator:vnext-preview"
     local ready_log_message="PostgreSQL and pgcosmos extension are ready"
 
+    # The vnext image has a /home/nonroot dir owned by UID 65532 which rootless
+    # podman in OpenShift CI cannot map. The emulator doesn't use it, so ignoring
+    # the chown error during pull is safe.
+    if [ "${CONTAINER_RUNTIME}" = "podman" ]; then
+        ${CONTAINER_RUNTIME} pull --storage-opt ignore_chown_errors=true "${container_image}"
+    fi
+
     echo "Starting Cosmos DB emulator with container name: ${container_name}"
     ${CONTAINER_RUNTIME} run \
       --publish 8081:8081 \
