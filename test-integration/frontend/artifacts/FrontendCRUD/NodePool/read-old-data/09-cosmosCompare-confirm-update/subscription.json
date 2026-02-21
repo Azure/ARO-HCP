@@ -4,7 +4,6 @@
 	"_rid": "NNYoALQEciYHAAAAAAAAAA==",
 	"_self": "dbs/NNYoAA==/colls/NNYoALQEciY=/docs/NNYoALQEciYHAAAAAAAAAA==/",
 	"_ts": 1767902971,
-	"id": "|subscriptions|6b690bec-0c16-4ecb-8f67-781caf40bba7",
 	"partitionKey": "6b690bec-0c16-4ecb-8f67-781caf40bba7",
 	"properties": {
 		"properties": null,

@@ -65,6 +65,21 @@ func ResourceInstanceEquals(t *testing.T, expected, actual any) (string, bool) {
 			currMap["resourceType"] = strings.ToLower(value)
 		}
 
+		// if id is empty, compute it from resourceID using arm.ResourceIDToCosmosID
+		if idVal, _ := currMap["id"].(string); len(idVal) == 0 {
+			if resourceIDStr, ok := currMap["resourceID"].(string); ok && len(resourceIDStr) > 0 {
+				resourceID, err := azcorearm.ParseResourceID(resourceIDStr)
+				if err == nil {
+					if cosmosID, err := arm.ResourceIDToCosmosID(resourceID); err == nil {
+						currMap["id"] = cosmosID
+					}
+				}
+			}
+		}
+		if resourceIDStr, ok := currMap["resourceID"].(string); ok && len(resourceIDStr) > 0 {
+			currMap["resourceID"] = strings.ToLower(resourceIDStr)
+		}
+
 		resourceType, ok := currMap["resourceType"].(string)
 		if !ok || len(resourceType) == 0 {
 			// this happens when not working directly against cosmos data
