@@ -222,6 +222,7 @@ resourceGroups:
     automatedRetry:
       errorContainsAny:
       - "unknown_storage_failure"
+      - "unauthorized: authentication required"
       maximumRetryCount: 5
       durationBetweenRetries: 1m
   # deploys the image mirror for the ACRs
