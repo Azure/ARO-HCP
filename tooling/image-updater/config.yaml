@@ -212,7 +212,7 @@ images:
   kube-state-metrics:
     source:
       image: mcr.microsoft.com/oss/v2/kubernetes/kube-state-metrics
-      tagPattern: "^v\\d+\\.\\d+\\.\\d+-?\\d?$"
+      tagPattern: "^v\\d+\\.\\d+\\.\\d+(-\\d+)?$"
       multiArch: true # This image only publishes multi-arch manifests
     targets:
     - jsonPath: defaults.svc.prometheus.kubeStateMetrics.image.digest
