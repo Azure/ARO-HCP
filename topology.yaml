@@ -8,14 +8,6 @@ entrypoints:
   metadata:
     name: Region
     scopeDoc: high-level-architecture.md#regional-scope
-- identifier: 'Microsoft.Azure.ARO.HCP.Service.Infra'
-  metadata:
-    name: Service Cluster
-    scopeDoc: high-level-architecture.md#service-cluster
-- identifier: 'Microsoft.Azure.ARO.HCP.Management.Infra'
-  metadata:
-    name: Management Cluster
-    scopeDoc: high-level-architecture.md#management-clusters
 services:
 - serviceGroup: Microsoft.Azure.ARO.HCP.Global
   children:

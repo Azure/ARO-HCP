@@ -76,57 +76,50 @@ func TestStepsWellFormed(t *testing.T) {
 		t.Fatalf("failed to validate topology: %v", err)
 	}
 
-	serviceGroup := "Microsoft.Azure.ARO.HCP.Global"
-	service, err := topo.Lookup(serviceGroup)
-	if err != nil {
-		t.Fatalf("failed to look up entrypoint %s in topology: %v", serviceGroup, err)
-	}
+	for _, entrypoint := range topo.Entrypoints {
+		t.Run(entrypoint.Identifier, func(t *testing.T) {
+			service, err := topo.Lookup(entrypoint.Identifier)
+			if err != nil {
+				t.Fatalf("failed to look up entrypoint %s in topology: %v", entrypoint.Identifier, err)
+			}
 
-	var e *topology.Entrypoint
-	for _, option := range topo.Entrypoints {
-		if option.Identifier == serviceGroup {
-			e = &option
-		}
-	}
-	if e == nil {
-		t.Fatalf("no entrypoint found for service group %s", serviceGroup)
-	}
+			pipelines := map[string]*types.Pipeline{}
+			if err := entrypointutils.LoadPipelines(service, repoRootDir, pipelines, cfg); err != nil {
+				t.Fatalf("failed to load pipelines: %v", err)
+			}
 
-	pipelines := map[string]*types.Pipeline{}
-	if err := entrypointutils.LoadPipelines(service, repoRootDir, pipelines, cfg); err != nil {
-		t.Fatalf("failed to load pipelines: %v", err)
-	}
+			executionGraph, graphConstructionErr := graph.ForEntrypoint(&topo, &entrypoint, pipelines)
+			if graphConstructionErr != nil {
+				t.Fatalf("failed to construct graph: %v", graphConstructionErr)
+			}
 
-	executionGraph, graphConstructionErr := graph.ForEntrypoint(&topo, e, pipelines)
-	if graphConstructionErr != nil {
-		t.Fatalf("failed to construct graph: %v", graphConstructionErr)
-	}
+			illFormed := map[string]map[string]map[string]string{}
+			for serviceGroupName, resourceGroups := range executionGraph.Steps {
+				for resourceGroupName, steps := range resourceGroups {
+					for stepName, step := range steps {
+						if !step.IsWellFormedOverInputs() {
+							reason := "unknown"
+							switch s := step.(type) {
+							case *types.ShellStep:
+								if strings.Contains(s.Command, "make") && strings.Contains(s.Command, "deploy") {
+									reason = "helm step needing migration"
+								} else if s.WorkingDir == "" {
+									reason = "raw shell step needing working directory"
+								}
+							}
 
-	illFormed := map[string]map[string]map[string]string{}
-	for serviceGroupName, resourceGroups := range executionGraph.Steps {
-		for resourceGroupName, steps := range resourceGroups {
-			for stepName, step := range steps {
-				if !step.IsWellFormedOverInputs() {
-					reason := "unknown"
-					switch s := step.(type) {
-					case *types.ShellStep:
-						if strings.Contains(s.Command, "make") && strings.Contains(s.Command, "deploy") {
-							reason = "helm step needing migration"
-						} else if s.WorkingDir == "" {
-							reason = "raw shell step needing working directory"
+							if _, exists := illFormed[serviceGroupName]; !exists {
+								illFormed[serviceGroupName] = map[string]map[string]string{}
+							}
+							if _, exists := illFormed[serviceGroupName][resourceGroupName]; !exists {
+								illFormed[serviceGroupName][resourceGroupName] = map[string]string{}
+							}
+							illFormed[serviceGroupName][resourceGroupName][stepName] = reason
+							t.Errorf("%s/%s/%s: step is ill-formed over inputs: %v", serviceGroupName, resourceGroupName, stepName, reason)
 						}
 					}
-
-					if _, exists := illFormed[serviceGroupName]; !exists {
-						illFormed[serviceGroupName] = map[string]map[string]string{}
-					}
-					if _, exists := illFormed[serviceGroupName][resourceGroupName]; !exists {
-						illFormed[serviceGroupName][resourceGroupName] = map[string]string{}
-					}
-					illFormed[serviceGroupName][resourceGroupName][stepName] = reason
-					t.Errorf("%s/%s/%s: step is ill-formed over inputs: %v", serviceGroupName, resourceGroupName, stepName, reason)
 				}
 			}
-		}
+		})
 	}
 }
