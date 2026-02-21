@@ -3099,6 +3099,35 @@
             "read",
             "create"
           ]
+        },
+        "diskType": {
+          "type": "string",
+          "description": "The type of the OS disk.\n- https://learn.microsoft.com/en-us/azure/virtual-machines/ephemeral-os-disks",
+          "default": "Managed",
+          "enum": [
+            "Ephemeral",
+            "Managed"
+          ],
+          "x-ms-enum": {
+            "name": "OsDiskType",
+            "modelAsString": true,
+            "values": [
+              {
+                "name": "Ephemeral",
+                "value": "Ephemeral",
+                "description": "Ephemeral OS disk - stored on local VM cache/temporary storage.\nProvides lower latency and faster node operations.\nRequires VM with sufficient cache size."
+              },
+              {
+                "name": "Managed",
+                "value": "Managed",
+                "description": "Managed OS disk - stored as an Azure managed disk (network-attached).\nDefault behavior for VMs without sufficient cache."
+              }
+            ]
+          },
+          "x-ms-mutability": [
+            "read",
+            "create"
+          ]
         }
       }
     },
