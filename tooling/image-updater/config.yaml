@@ -226,3 +226,13 @@ images:
     targets:
     - jsonPath: defaults.adminApi.image.digest
       filePath: ../../config/config.yaml
+  # Kube Webhook Certgen (Ingress NGINX)
+  kube-webhook-certgen:
+    source:
+      image: registry.k8s.io/ingress-nginx/kube-webhook-certgen
+      tagPattern: "^v\\d+\\.\\d+\\.\\d+$"
+    targets:
+    - jsonPath: defaults.svc.ingress.controller.admissionWebhook.patch.image.sha
+      filePath: ../../config/config.yaml
+    - jsonPath: defaults.mgmt.ingress.controller.admissionWebhook.patch.image.sha
+      filePath: ../../config/config.yaml
