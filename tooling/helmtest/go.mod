@@ -1,6 +1,6 @@
 module github.com/Azure/ARO-HCP/tooling/helmtest
 
-go 1.25.0
+go 1.25.5
 
 require (
 	github.com/Azure/ARO-Tools v0.0.0-20260210222404-30605e5b1ccc
