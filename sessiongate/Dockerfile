@@ -2,7 +2,7 @@ ARG PLATFORM
 
 # Builder image installs tools needed to build aro-hcp-backend
 FROM --platform=${PLATFORM} mcr.microsoft.com/oss/go/microsoft/golang:1.25-fips-azurelinux3.0 AS builder
-COPY sessiongate/go.mod sessiongate/go.sum sessiongate
+COPY sessiongate/go.mod sessiongate/go.sum sessiongate/
 RUN cd sessiongate && go mod download
 WORKDIR /app
 COPY . .
