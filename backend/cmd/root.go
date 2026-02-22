@@ -46,6 +46,9 @@ type BackendRootCmdFlags struct {
 	AzureCosmosDBURL                                string
 	ClustersServiceURL                              string
 	ClustersServiceTLSInsecure                      bool
+	ClusterServiceProvisionShard                    string
+	ClusterServiceNoopProvision                     bool
+	ClusterServiceNoopDeprovision                   bool
 	MetricsServerListenAddress                      string
 	HealthzServerListenAddress                      string
 	AzureRuntimeConfigPath                          string
@@ -63,6 +66,9 @@ func (f *BackendRootCmdFlags) AddFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&f.AzureCosmosDBURL, "cosmos-url", f.AzureCosmosDBURL, "Cosmos database URL")
 	cmd.Flags().StringVar(&f.ClustersServiceURL, "clusters-service-url", f.ClustersServiceURL, "URL of the OCM API gateway")
 	cmd.Flags().BoolVar(&f.ClustersServiceTLSInsecure, "insecure", f.ClustersServiceTLSInsecure, "Skip validating TLS for clusters-service")
+	cmd.Flags().StringVar(&f.ClusterServiceProvisionShard, "cluster-service-provision-shard", "", "Manually specify provision shard for all requests to cluster service")
+	cmd.Flags().BoolVar(&f.ClusterServiceNoopProvision, "cluster-service-noop-provision", false, "Skip cluster service provisioning steps for development purposes")
+	cmd.Flags().BoolVar(&f.ClusterServiceNoopDeprovision, "cluster-service-noop-deprovision", false, "Skip cluster service deprovisioning steps for development purposes")
 	cmd.Flags().StringVar(&f.MetricsServerListenAddress, "metrics-listen-address", f.MetricsServerListenAddress, "Address on which to expose metrics")
 	cmd.Flags().StringVar(&f.HealthzServerListenAddress, "healthz-listen-address", f.HealthzServerListenAddress, "Address on which Healthz endpoint will be supported")
 	cmd.Flags().StringVar(
