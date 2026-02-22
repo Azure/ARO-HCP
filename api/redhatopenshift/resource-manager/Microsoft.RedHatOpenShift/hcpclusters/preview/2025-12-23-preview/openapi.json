@@ -2291,6 +2291,7 @@
         }
       },
       "required": [
+        "version",
         "platform"
       ]
     },
@@ -2299,7 +2300,7 @@
       "description": "HCP cluster properties",
       "properties": {
         "version": {
-          "$ref": "#/definitions/VersionProfile",
+          "$ref": "#/definitions/VersionProfileUpdate",
           "description": "Version of the control plane components",
           "x-ms-mutability": [
             "read",
@@ -3654,9 +3655,37 @@
       "properties": {
         "id": {
           "type": "string",
-          "description": "ID is the unique identifier of the version.",
+          "description": "ID is the desired X.Y version of the cluster control plane.",
           "x-ms-mutability": [
             "read",
+            "update",
+            "create"
+          ]
+        },
+        "channelGroup": {
+          "type": "string",
+          "description": "ChannelGroup is the name of the set to which this version belongs.\nEach version belongs to only a single set.\n\nIf not specified, the default value is 'stable'.\n\nNote: The default value is not declared in the API specification because\nof a TypeSpec bug with updatable fields. The default value will be\ndeclared in a future API version once the TypeSpec bug is fixed.\nhttps://github.com/Azure/typespec-azure/issues/1586",
+          "x-ms-mutability": [
+            "read",
+            "update",
+            "create"
+          ]
+        }
+      },
+      "required": [
+        "id"
+      ]
+    },
+    "VersionProfileUpdate": {
+      "type": "object",
+      "description": "Versions represents an OpenShift version.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "ID is the desired X.Y version of the cluster control plane.",
+          "x-ms-mutability": [
+            "read",
+            "update",
             "create"
           ]
         },
