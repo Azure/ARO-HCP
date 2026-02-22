@@ -29,8 +29,6 @@ import (
 	"testing"
 	"time"
 
-	"k8s.io/apimachinery/pkg/util/sets"
-
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
@@ -422,20 +420,6 @@ func initializeCosmosDBForFrontend(ctx context.Context, cosmosClient *azcosmos.C
 		return nil, fmt.Errorf("failed to create database client: %w", err)
 	}
 
-	allContainers := sets.NewString()
-	allContainersQuery := cosmosDatabaseClient.NewQueryContainersPager("select * from containers c", nil)
-	for allContainersQuery.More() {
-		queryResponse, err := allContainersQuery.NextPage(context.Background())
-		if err != nil {
-			return nil, utils.TrackError(err)
-		}
-
-		for _, container := range queryResponse.Containers {
-			allContainers.Insert(container.ID)
-		}
-	}
-
-	// Create required containers
 	containers := []struct {
 		name         string
 		partitionKey string
@@ -449,10 +433,6 @@ func initializeCosmosDBForFrontend(ctx context.Context, cosmosClient *azcosmos.C
 	start := time.Now()
 	logger.Info("Create all containers")
 	for _, container := range containers {
-		if allContainers.Has(container.name) {
-			logger.Info("Container already exists", "containerName", container.name)
-			continue
-		}
 		containerProperties := azcosmos.ContainerProperties{
 			ID: container.name,
 			PartitionKeyDefinition: azcosmos.PartitionKeyDefinition{
@@ -465,10 +445,13 @@ func initializeCosmosDBForFrontend(ctx context.Context, cosmosClient *azcosmos.C
 
 		logger.Info("Creating container", "containerName", container.name)
 		_, err = cosmosDatabaseClient.CreateContainer(ctx, containerProperties, nil)
-		if err != nil && !database.IsResponseError(err, http.StatusConflict) {
+		if err != nil && database.IsResponseError(err, http.StatusConflict) {
+			logger.Info("Container already exists", "containerName", container.name)
+		} else if err != nil {
 			return nil, utils.TrackError(err)
+		} else {
+			logger.Info("Container created", "containerName", container.name)
 		}
-		logger.Info("Container created", "containerName", container.name)
 	}
 	end := time.Now()
 	logger.Info("All containers created", "duration", end.Sub(start))
