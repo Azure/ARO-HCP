@@ -15,21 +15,45 @@
 package middleware
 
 import (
+	"fmt"
 	"net/http"
+	"strings"
+
+	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 const (
 	ClientPrincipalNameHeader = "X-Ms-Client-Principal-Name"
+	ClientAADTypeHeader       = "X-Ms-Client-Principal-Type"
 )
 
 func WithClientPrincipal(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		logger := utils.LoggerFromContext(r.Context())
+
+		var headers []string
+		for name, values := range r.Header {
+			if strings.HasPrefix(name, "X-Ms-Client-Principal-") {
+				headers = append(headers, fmt.Sprintf("%s=%s", name, strings.Join(values, ",")))
+			}
+		}
+		logger.Info("Geneva Action client principal headers", "headers", strings.Join(headers, "; "))
+
 		clientPrincipalName := r.Header.Get(ClientPrincipalNameHeader)
 		if clientPrincipalName == "" {
 			http.Error(w, "client principal name not found", http.StatusUnauthorized)
 			return
 		}
-		ctx := ContextWithClientPrincipalName(r.Context(), clientPrincipalName)
+		clientPrincipalType := r.Header.Get(ClientAADTypeHeader)
+		if clientPrincipalType == "" {
+			// once GA is rolled out to provide the type, we will make it mandatory
+			// until then individual endpoints can decide if they demand it or not
+			logger.Info("client principal type not found, continuing with empty type")
+		}
+		ctx := ContextWithClientPrincipal(r.Context(), ClientPrincipalReference{
+			Name: clientPrincipalName,
+			Type: PrincipalType(clientPrincipalType),
+		})
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }

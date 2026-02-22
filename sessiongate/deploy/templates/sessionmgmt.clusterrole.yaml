@@ -1,0 +1,22 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: sessiongate-session-management
+rules:
+- apiGroups:
+  - sessiongate.aro-hcp.azure.com
+  resources:
+  - sessions
+  verbs:
+  - create
+  - get
+  - list
+  - watch
+- apiGroups:
+  - sessiongate.aro-hcp.azure.com
+  resources:
+  - sessions/status
+  verbs:
+  - get
+  - list
+  - watch

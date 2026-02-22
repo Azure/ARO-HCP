@@ -1,0 +1,19 @@
+apiVersion: security.istio.io/v1beta1
+kind: RequestAuthentication
+metadata:
+  name: sessiongate-request-auth
+  namespace: '{{ .Release.Namespace }}'
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: sessiongate
+  jwtRules:
+  - issuer: "{{ .Values.auth.authority }}/"
+    jwksUri: "{{ .Values.auth.authority }}/discovery/v2.0/keys"
+    audiences:
+    - "{{ .Values.auth.audience }}"
+    outputClaimToHeaders:
+    - header: "X-JWT-Claim-Oid"
+      claim: "oid"
+    - header: "X-JWT-Claim-Upn"
+      claim: "upn"

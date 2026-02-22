@@ -1362,13 +1362,32 @@
         "managedIdentityName": {
           "type": "string",
           "description": "The name of the MSI that will be used by the sessiongate to interact with Azure"
+        },
+        "cert": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "maxLength": 127,
+              "pattern": "^[a-zA-Z0-9-]+$"
+            },
+            "issuer": {
+              "$ref": "#/definitions/certificateIssuer"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "name",
+            "issuer"
+          ]
         }
       },
       "additionalProperties": false,
       "required": [
         "image",
         "k8s",
-        "managedIdentityName"
+        "managedIdentityName",
+        "cert"
       ]
     },
     "adminApi": {
@@ -1972,6 +1991,28 @@
             "audienceFQDN"
           ]
         },
+        "sessiongate": {
+          "type": "object",
+          "properties": {
+            "policyLabel": {
+              "type": "string",
+              "description": "The label of the Session Gate policy."
+            },
+            "authorityFQDN": {
+              "type": "string",
+              "description": "The authority/issuer FQDN of the Session Gate applications auth tokens."
+            },
+            "audience": {
+              "type": "string",
+              "description": "The audience of the Session Gate applications auth tokens."
+            }
+          },
+          "required": [
+            "policyLabel",
+            "authorityFQDN",
+            "audience"
+          ]
+        },
         "image": {
           "$ref": "#/definitions/containerImage"
         },
@@ -1985,6 +2026,7 @@
         "image",
         "arm",
         "genevaActions",
+        "sessiongate",
         "tracing"
       ]
     },

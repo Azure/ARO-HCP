@@ -24,7 +24,7 @@ az network nsg rule create \
     --access Allow \
     --protocol Tcp \
     --direction Inbound \
-    --source-address-prefix "${IP_ADDRESS}" \
+    --source-address-prefix "*" \
     --source-port-range "*" \
     --destination-address-prefix "*" \
     --destination-port-range "443" \

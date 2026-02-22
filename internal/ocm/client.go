@@ -53,8 +53,14 @@ type ClusterServiceClientSpec interface {
 	// GetClusterStatus sends a GET request to fetch a cluster's status from Cluster Service.
 	GetClusterStatus(ctx context.Context, internalID InternalID) (*arohcpv1alpha1.ClusterStatus, error)
 
+	// GetClusterProvisionShard sends a GET request to fetch a cluster's provision shard from Cluster Service.
+	GetClusterProvisionShard(ctx context.Context, internalID InternalID) (*arohcpv1alpha1.ProvisionShard, error)
+
 	// GetClusterInflightChecks sends a GET request to fetch a cluster's inflight checks from Cluster Service.
 	GetClusterInflightChecks(ctx context.Context, internalID InternalID) (*arohcpv1alpha1.InflightCheckList, error)
+
+	// GetClusterHypershiftDetails sends a GET request to fetch a cluster's hypershift details from Cluster Service.
+	GetClusterHypershiftDetails(ctx context.Context, internalID InternalID) (*cmv1.HypershiftConfig, error)
 
 	// PostCluster sends a POST request to create a cluster in Cluster Service.
 	PostCluster(ctx context.Context, clusterBuilder *arohcpv1alpha1.ClusterBuilder, autoscalerBuilder *arohcpv1alpha1.ClusterAutoscalerBuilder) (*arohcpv1alpha1.Cluster, error)
@@ -232,6 +238,22 @@ func (csc *clusterServiceClient) GetClusterStatus(ctx context.Context, internalI
 	return status, nil
 }
 
+func (csc *clusterServiceClient) GetClusterProvisionShard(ctx context.Context, internalID InternalID) (*arohcpv1alpha1.ProvisionShard, error) {
+	client, ok := getAroHCPClusterClient(internalID, csc.conn)
+	if !ok {
+		return nil, fmt.Errorf("OCM path is not a cluster: %s", internalID)
+	}
+	provisionShardGetResponse, err := client.ProvisionShard().Get().SendContext(ctx)
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
+	provisionShard, ok := provisionShardGetResponse.GetBody()
+	if !ok {
+		return nil, fmt.Errorf("empty response body")
+	}
+	return provisionShard, nil
+}
+
 func (csc *clusterServiceClient) GetClusterInflightChecks(ctx context.Context, internalID InternalID) (*arohcpv1alpha1.InflightCheckList, error) {
 	client, ok := getAroHCPClusterClient(internalID, csc.conn)
 	if !ok {
@@ -246,6 +268,25 @@ func (csc *clusterServiceClient) GetClusterInflightChecks(ctx context.Context, i
 		return nil, fmt.Errorf("empty response body")
 	}
 	return inflightChecks, nil
+}
+
+// At this point, there is no way to get the hypershift details of a cluster via
+// the AroHCP().V1alpha1().Clusters(), not does an equivalent endpoint for Hypershift() exist.
+// To still be able to consume the hypershift details, we make a call to the non-ARO-HCP CS endpoint.
+func (csc *clusterServiceClient) GetClusterHypershiftDetails(ctx context.Context, internalID InternalID) (*cmv1.HypershiftConfig, error) {
+	client, ok := getClusterClient(internalID, csc.conn)
+	if !ok {
+		return nil, fmt.Errorf("OCM path is not a cluster: %s", internalID)
+	}
+	hypershiftGetResponse, err := client.Hypershift().Get().SendContext(ctx)
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
+	hypershiftConfig, ok := hypershiftGetResponse.GetBody()
+	if !ok {
+		return nil, fmt.Errorf("empty response body")
+	}
+	return hypershiftConfig, nil
 }
 
 func (csc *clusterServiceClient) PostCluster(ctx context.Context, clusterBuilder *arohcpv1alpha1.ClusterBuilder, autoscalerBuilder *arohcpv1alpha1.ClusterAutoscalerBuilder) (*arohcpv1alpha1.Cluster, error) {

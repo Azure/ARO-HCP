@@ -9,6 +9,21 @@ metadata:
   name: admin-api
   namespace: 'aro-hcp-admin-api'
 ---
+# Source: ARO HCP Admin API/templates/sessiongate.rolebinding.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: admin-api-session-mgmt
+  namespace: 'sessiongate'
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: sessiongate-session-management
+subjects:
+- kind: ServiceAccount
+  name: admin-api
+  namespace: 'aro-hcp-admin-api'
+---
 # Source: ARO HCP Admin API/templates/admin.service.yaml
 apiVersion: v1
 kind: Service
@@ -88,6 +103,12 @@ spec:
           value: "b3cb2fab-15cb-4583-ad06-f91da9bfe2d1"
         - name: AUDIT_CONNECT_SOCKET
           value: "false"
+        - name: SESSIONGATE_NAMESPACE
+          value: "sessiongate"
+        - name: MIN_SESSION_TTL
+          value: "1m"
+        - name: MAX_SESSION_TTL
+          value: "24h"
         ports:
         - containerPort: 8443
           name: http

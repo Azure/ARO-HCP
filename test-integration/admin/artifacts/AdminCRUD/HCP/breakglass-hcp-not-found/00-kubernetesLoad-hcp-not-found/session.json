@@ -1,0 +1,26 @@
+{
+  "apiVersion": "sessiongate.aro-hcp.azure.com/v1alpha1",
+  "kind": "Session",
+  "metadata": {
+    "name": "breakglass-1",
+    "namespace": "aro-hcp-breakglass-sessions"
+  },
+  "status": {
+    "conditions": [
+      {
+        "type": "Ready",
+        "status": "False",
+        "reason": "NotReady",
+        "message": "Session is not ready",
+        "lastTransitionTime": "2025-02-04T12:00:00Z"
+      },
+      {
+        "type": "HostedControlPlaneAvailable",
+        "status": "False",
+        "reason": "HostedControlPlaneNotFound",
+        "message": "HostedControlPlane not found on management cluster",
+        "lastTransitionTime": "2025-02-04T12:00:00Z"
+      }
+    ]
+  }
+}

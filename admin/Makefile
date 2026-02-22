@@ -53,7 +53,8 @@ run-with-sc-integration: $(BINARY)
 					--cosmos-name ${COSMOS_DB_NAME} \
 					--kusto-endpoint $${KUSTO_ENDPOINT} \
 					--fpa-client-id ${FPA_CLIENT_ID} \
-					--fpa-cert-bundle-path $${CRT_BUNDLE}
+					--fpa-cert-bundle-path $${CRT_BUNDLE} \
+					--sessiongate-namespace ${SESSIONGATE_NAMESPACE}
 .PHONY: run-with-sc-integration
 
 clean:
