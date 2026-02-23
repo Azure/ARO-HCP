@@ -231,8 +231,9 @@ images:
     source:
       image: registry.k8s.io/ingress-nginx/kube-webhook-certgen
       tagPattern: "^v\\d+\\.\\d+\\.\\d+$"
+      multiArch: true # This image only publishes multi-arch manifests
     targets:
-    - jsonPath: defaults.svc.ingress.controller.admissionWebhook.patch.image.sha
+    - jsonPath: defaults.svc.prometheus.admissionWebhook.patch.image.sha
       filePath: ../../config/config.yaml
-    - jsonPath: defaults.mgmt.ingress.controller.admissionWebhook.patch.image.sha
+    - jsonPath: defaults.mgmt.prometheus.admissionWebhook.patch.image.sha
       filePath: ../../config/config.yaml
