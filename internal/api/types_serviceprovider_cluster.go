@@ -96,11 +96,7 @@ func (l MaestroBundleReferenceList) Get(name MaestroBundleInternalName) (*Maestr
 type MaestroBundleInternalName string
 
 const (
-	// MaestroBundleInternalNameHypershiftHostedCluster is the internal name of the Maestro Bundle that represents
+	// MaestroBundleInternalNameReadonlyHypershiftHostedCluster is the internal name of the Maestro Bundle that represents
 	// the Cluster's Hypershift's HostedCluster K8s resource.
-	MaestroBundleInternalNameHypershiftHostedCluster MaestroBundleInternalName = "hypershiftHostedCluster"
-
-	// MaestroBundleInternalNameHypershiftHostedClusterManifestWork is the internal name of the Maestro Bundle that represents
-	// the Cluster's Hypershift's HostedClusterManifestWork K8s resource.
-	MaestroBundleInternalNameHypershiftHostedClusterManifestWork MaestroBundleInternalName = "hypershiftHostedClusterManifestWork"
+	MaestroBundleInternalNameReadonlyHypershiftHostedCluster MaestroBundleInternalName = "readonlyHypershiftHostedCluster"
 )

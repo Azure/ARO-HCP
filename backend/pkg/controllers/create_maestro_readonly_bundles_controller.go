@@ -18,7 +18,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"slices"
 	"time"
 
 	"github.com/google/uuid"
@@ -107,7 +106,7 @@ func (c *createMaestroReadonlyBundlesSyncer) SyncOnce(ctx context.Context, key c
 	// Any Maestro Bundle internal name that is not in this list will not be synced by the
 	// controller and reported as an error.
 	recognizedMaestroBundles := []api.MaestroBundleInternalName{
-		api.MaestroBundleInternalNameHypershiftHostedCluster,
+		api.MaestroBundleInternalNameReadonlyHypershiftHostedCluster,
 	}
 
 	var maestroBundlesToSync []api.MaestroBundleInternalName
@@ -132,8 +131,7 @@ func (c *createMaestroReadonlyBundlesSyncer) SyncOnce(ctx context.Context, key c
 		}
 	}
 	if len(maestroBundlesToSync) == 0 {
-		// No Maestro Bundles to sync, we check if there are any unrecognized Maestro Bundles and report an error if there are.
-		return utils.TrackError(errors.Join(c.checkForUnrecognizedMaestroBundles(existingServiceProviderCluster, recognizedMaestroBundles)...))
+		return nil
 	}
 
 	serviceProviderClustersDBClient := c.cosmosClient.ServiceProviderClusters(
@@ -181,23 +179,7 @@ func (c *createMaestroReadonlyBundlesSyncer) SyncOnce(ctx context.Context, key c
 		}
 	}
 
-	// We also check if there are any Maestro Bundle references that are not recognized.
-	// If that is the case we report an error.
-	syncErrors = append(syncErrors, c.checkForUnrecognizedMaestroBundles(existingServiceProviderCluster, recognizedMaestroBundles)...)
-
 	return utils.TrackError(errors.Join(syncErrors...))
-}
-
-// checkForUnrecognizedMaestroBundles checks if there are any Maestro Bundle references that are not recognized.
-// If that is the case an error is returned.
-func (c *createMaestroReadonlyBundlesSyncer) checkForUnrecognizedMaestroBundles(existingServiceProviderCluster *api.ServiceProviderCluster, recognizedMaestroBundles []api.MaestroBundleInternalName) []error {
-	var errors []error
-	for _, maestroBundleReference := range existingServiceProviderCluster.MaestroReadonlyBundles {
-		if !slices.Contains(recognizedMaestroBundles, maestroBundleReference.Name) {
-			errors = append(errors, utils.TrackError(fmt.Errorf("unrecognized Maestro Bundle internal name: %s", maestroBundleReference.Name)))
-		}
-	}
-	return errors
 }
 
 // syncMaestroBundle ensures the given Maestro bundle exists in the SPC and in Maestro, persisting the bundle ID if needed.
@@ -251,7 +233,7 @@ func (c *createMaestroReadonlyBundlesSyncer) syncMaestroBundle(
 
 	var desiredMaestroBundle *workv1.ManifestWork
 	switch maestroBundleInternalName {
-	case api.MaestroBundleInternalNameHypershiftHostedCluster:
+	case api.MaestroBundleInternalNameReadonlyHypershiftHostedCluster:
 		desiredMaestroBundle = c.buildInitialReadonlyMaestroBundleForHostedCluster(existingCluster, csClusterDomainPrefix, maestroBundleNamespacedName)
 	default:
 		return nil, utils.TrackError(fmt.Errorf("unrecognized Maestro Bundle internal name: %s", maestroBundleInternalName))
