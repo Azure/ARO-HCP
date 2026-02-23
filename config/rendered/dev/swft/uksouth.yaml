@@ -505,6 +505,7 @@ mgmt:
         image:
           registry: arohcpsvcdev.azurecr.io
           repository: k8s-cache/ingress-nginx/kube-webhook-certgen
+          sha: ""
           tag: v1.5.2
     kubeStateMetrics:
       image:
@@ -790,6 +791,7 @@ svc:
         image:
           registry: arohcpsvcdev.azurecr.io
           repository: k8s-cache/ingress-nginx/kube-webhook-certgen
+          sha: ""
           tag: v1.5.2
     kubeStateMetrics:
       image:
