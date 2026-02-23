@@ -167,7 +167,7 @@ func VerifyMustGatherLogs(subscriptionID, rgName string) verifyMustGatherLogsImp
 				Database:      "ServiceLogs",
 			},
 			{
-				NamespacePrefix: "ocm-arohcpdev-",
+				NamespacePrefix: "ocm-arohcp",
 				Database:        "HostedControlPlaneLogs",
 				ContainerName:   "kube-apiserver",
 			},
