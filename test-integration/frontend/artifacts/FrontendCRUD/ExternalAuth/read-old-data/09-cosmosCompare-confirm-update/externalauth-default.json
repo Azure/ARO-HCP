@@ -4,7 +4,6 @@
 	"_rid": "fCtUANHeX3UHAAAAAAAAAA==",
 	"_self": "dbs/fCtUAA==/colls/fCtUANHeX3U=/docs/fCtUANHeX3UHAAAAAAAAAA==/",
 	"_ts": 1768346727,
-	"id": "|subscriptions|6b690bec-0c16-4ecb-8f67-781caf40bba7|resourcegroups|resourcegroupname|providers|microsoft.redhatopenshift|hcpopenshiftclusters|create-with-tags|externalauths|default",
 	"partitionKey": "6b690bec-0c16-4ecb-8f67-781caf40bba7",
 	"resourceID": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/create-with-tags/externalAuths/default",
 	"properties": {
