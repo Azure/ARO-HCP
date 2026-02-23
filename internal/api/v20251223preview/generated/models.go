@@ -504,6 +504,9 @@ type KmsKey struct {
 
 	// REQUIRED; version contains the version of the key to use.
 	Version *string
+
+	// REQUIRED; visibility of the keyvault that contains the secret.
+	Visibility *KeyVaultVisibility
 }
 
 // Label represents the Kubernetes label

@@ -6,6 +6,7 @@ import "@azure-tools/typespec-azure-resource-manager";
 import "@azure-tools/typespec-client-generator-core";
 
 using TypeSpec.Rest;
+using TypeSpec.Versioning;
 using Azure.Core;
 using Azure.ResourceManager;
 using Azure.ClientGenerator.Core;
@@ -421,10 +422,25 @@ model KmsKey {
   @minLength(1)
   name: string;
 
+  /** visibility of the keyvault that contains the secret. */
+  @added(Versions.v2025_12_23_preview)
+  visibility: KeyVaultVisibility;
+
   /** version contains the version of the key to use. */
   @maxLength(255)
   @minLength(1)
   version: string;
+}
+
+/** The internet visibility of a keyvault resource */
+union KeyVaultVisibility {
+  string,
+
+  /** The keyvault is visible from the internet. */
+  Public: "Public",
+
+  /** The keyvault is not visible from the internet. */
+  Private: "Private",
 }
 
 /** The ETCD settings and configuration options. */

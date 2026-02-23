@@ -1312,6 +1312,7 @@ func (k KmsKey) MarshalJSON() ([]byte, error) {
 	populate(objectMap, "name", k.Name)
 	populate(objectMap, "vaultName", k.VaultName)
 	populate(objectMap, "version", k.Version)
+	populate(objectMap, "visibility", k.Visibility)
 	return json.Marshal(objectMap)
 }
 
@@ -1332,6 +1333,9 @@ func (k *KmsKey) UnmarshalJSON(data []byte) error {
 			delete(rawMsg, key)
 		case "version":
 			err = unpopulate(val, "Version", &k.Version)
+			delete(rawMsg, key)
+		case "visibility":
+			err = unpopulate(val, "Visibility", &k.Visibility)
 			delete(rawMsg, key)
 		default:
 			err = fmt.Errorf("unmarshalling type %T, unknown field %q", k, key)

@@ -2484,6 +2484,30 @@
         "dataPlaneOperators"
       ]
     },
+    "KeyVaultVisibility": {
+      "type": "string",
+      "description": "The internet visibility of a keyvault resource",
+      "enum": [
+        "Public",
+        "Private"
+      ],
+      "x-ms-enum": {
+        "name": "KeyVaultVisibility",
+        "modelAsString": true,
+        "values": [
+          {
+            "name": "Public",
+            "value": "Public",
+            "description": "The keyvault is visible from the internet."
+          },
+          {
+            "name": "Private",
+            "value": "Private",
+            "description": "The keyvault is not visible from the internet."
+          }
+        ]
+      }
+    },
     "KmsEncryptionProfile": {
       "type": "object",
       "description": "Configure etcd encryption Key Management Service (KMS) key.\nYour Microsoft Entra application used to create the cluster must be authorized to access this keyvault,\ne.g using the AzureCLI: `az keyvault set-policy -n $KEYVAULT_NAME --key-permissions decrypt encrypt --spn (YOUR APPLICATION CLIENT ID)`",
@@ -2517,6 +2541,10 @@
           "minLength": 1,
           "maxLength": 255
         },
+        "visibility": {
+          "$ref": "#/definitions/KeyVaultVisibility",
+          "description": "visibility of the keyvault that contains the secret."
+        },
         "version": {
           "type": "string",
           "description": "version contains the version of the key to use.",
@@ -2527,6 +2555,7 @@
       "required": [
         "vaultName",
         "name",
+        "visibility",
         "version"
       ]
     },
