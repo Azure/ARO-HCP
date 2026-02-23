@@ -36,19 +36,12 @@ import (
 
 	"sigs.k8s.io/yaml"
 
-<<<<<<< HEAD
-	"github.com/Azure/ARO-Tools/pkg/cmdutils"
-	configtypes "github.com/Azure/ARO-Tools/pkg/config/types"
-	"github.com/Azure/ARO-Tools/pkg/graph"
-	"github.com/Azure/ARO-Tools/pkg/topology"
-	"github.com/Azure/ARO-Tools/pkg/types"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
-=======
 	configtypes "github.com/Azure/ARO-Tools/config/types"
 	"github.com/Azure/ARO-Tools/pipelines/graph"
 	"github.com/Azure/ARO-Tools/pipelines/topology"
 	"github.com/Azure/ARO-Tools/pipelines/types"
->>>>>>> 9d6ea99b5 (*: update to ARO-Tools modules)
+	"github.com/Azure/ARO-Tools/tools/cmdutils"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 
 	"github.com/Azure/ARO-HCP/tooling/templatize/bicep"
 	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/junit"
@@ -800,6 +793,16 @@ func RunStep(id graph.Identifier, s types.Step, ctx context.Context, executionTa
 	case *types.HelmStep:
 		if err := runHelmStep(id, step, ctx, options, executionTarget, state); err != nil {
 			return nil, nil, fmt.Errorf("error running Helm release deployment Step, %v", err)
+		}
+		return nil, nil, nil
+	case *types.ProwJobStep:
+		if err := runProwJobStep(step, ctx, options); err != nil {
+			return nil, nil, fmt.Errorf("error running Prow Job Step, %v", err)
+		}
+		return nil, nil, nil
+	case *types.GrafanaDashboardsStep:
+		if err := runGrafanaDashboardsStep(id, step, ctx, options, executionTarget, state); err != nil {
+			return nil, nil, fmt.Errorf("error running Grafana Dashboard Upsert Step, %v", err)
 		}
 		return nil, nil, nil
 	case *types.ARMStep:
