@@ -164,18 +164,17 @@ func (c *createMaestroReadonlyBundlesSyncer) SyncOnce(ctx context.Context, key c
 	// We sync the Maestro Bundles that need to be synced.
 	// We pass the latest existingServiceProviderCluster into each iteration and use the returned
 	// updated SPC for the next, so that multiple bundles see persisted updates from previous iterations.
+	// We always apply updatedSPC (even on error) so in-memory state stays in sync with Cosmos
+	// when syncMaestroBundle persisted a partial change before failing.
 	var syncErrors []error
 	for _, maestroBundleInternalName := range maestroBundlesToSync {
 		updatedSPC, syncErr := c.syncMaestroBundle(
 			ctx, maestroBundleInternalName, existingServiceProviderCluster, existingCluster, maestroClient,
 			serviceProviderClustersDBClient, clusterProvisionShard, csClusterDomainPrefix,
 		)
+		existingServiceProviderCluster = updatedSPC
 		if syncErr != nil {
 			syncErrors = append(syncErrors, utils.TrackError(fmt.Errorf("failed to sync Maestro Bundle %q: %w", maestroBundleInternalName, syncErr)))
-		} else {
-			// TODO I think there's a bug here where if we returned error from syncMaestroBundle we don't update the existingServiceProviderCluster.
-			// but there's the change that has occurred as it persists the allocation of the Maestro Bundle reference in Cosmos.
-			existingServiceProviderCluster = updatedSPC
 		}
 	}
 
@@ -184,6 +183,8 @@ func (c *createMaestroReadonlyBundlesSyncer) SyncOnce(ctx context.Context, key c
 
 // syncMaestroBundle ensures the given Maestro bundle exists in the SPC and in Maestro, persisting the bundle ID if needed.
 // It returns the updated ServiceProviderCluster (after any Replace calls) so the caller can pass it into the next sync.
+// On error, the first return value is always the lastest persisted ServiceProviderClass SPC, so the
+// caller can keep in-memory state in sync and subsequent bundle syncs in the same run never see stale data.
 func (c *createMaestroReadonlyBundlesSyncer) syncMaestroBundle(
 	ctx context.Context,
 	maestroBundleInternalName api.MaestroBundleInternalName,
@@ -194,10 +195,11 @@ func (c *createMaestroReadonlyBundlesSyncer) syncMaestroBundle(
 	clusterProvisionShard *arohcpv1alpha1.ProvisionShard,
 	csClusterDomainPrefix string,
 ) (*api.ServiceProviderCluster, error) {
+	lastPersistedSPC := existingServiceProviderCluster
 
 	existingMaestroBundleRef, err := existingServiceProviderCluster.MaestroReadonlyBundles.Get(maestroBundleInternalName)
 	if err != nil {
-		return nil, utils.TrackError(fmt.Errorf("failed to get Maestro Bundle reference: %w", err))
+		return lastPersistedSPC, utils.TrackError(fmt.Errorf("failed to get Maestro Bundle reference: %w", err))
 	}
 	// If the Maestro Bundle reference does not exist, we create a new Maestro Bundle
 	// reference for the Maestro API Maestro Bundle name.
@@ -209,19 +211,20 @@ func (c *createMaestroReadonlyBundlesSyncer) syncMaestroBundle(
 		var err error
 		existingMaestroBundleRef, err = c.buildInitialMaestroBundleReference(maestroBundleInternalName)
 		if err != nil {
-			return nil, utils.TrackError(fmt.Errorf("failed to build initial Maestro Bundle reference: %w", err))
+			return lastPersistedSPC, utils.TrackError(fmt.Errorf("failed to build initial Maestro Bundle reference: %w", err))
 		}
 		existingServiceProviderCluster.MaestroReadonlyBundles = append(existingServiceProviderCluster.MaestroReadonlyBundles, existingMaestroBundleRef)
 		existingServiceProviderCluster, err = serviceProviderClustersDBClient.Replace(ctx, existingServiceProviderCluster, nil)
 		if err != nil {
-			return nil, utils.TrackError(fmt.Errorf("failed to replace ServiceProviderCluster in database: %w", err))
+			return lastPersistedSPC, utils.TrackError(fmt.Errorf("failed to replace ServiceProviderCluster in database: %w", err))
 		}
+		lastPersistedSPC = existingServiceProviderCluster
 		existingMaestroBundleRef, err = existingServiceProviderCluster.MaestroReadonlyBundles.Get(maestroBundleInternalName)
 		if err != nil {
-			return nil, utils.TrackError(fmt.Errorf("failed to get Maestro Bundle reference: %w", err))
+			return lastPersistedSPC, utils.TrackError(fmt.Errorf("failed to get Maestro Bundle reference: %w", err))
 		}
 		if existingMaestroBundleRef == nil {
-			return nil, utils.TrackError(fmt.Errorf("Maestro Bundle reference %q not found in ServiceProviderCluster", maestroBundleInternalName))
+			return lastPersistedSPC, utils.TrackError(fmt.Errorf("Maestro Bundle reference %q not found in ServiceProviderCluster", maestroBundleInternalName))
 		}
 	}
 
@@ -236,26 +239,26 @@ func (c *createMaestroReadonlyBundlesSyncer) syncMaestroBundle(
 	case api.MaestroBundleInternalNameReadonlyHypershiftHostedCluster:
 		desiredMaestroBundle = c.buildInitialReadonlyMaestroBundleForHostedCluster(existingCluster, csClusterDomainPrefix, maestroBundleNamespacedName)
 	default:
-		return nil, utils.TrackError(fmt.Errorf("unrecognized Maestro Bundle internal name: %s", maestroBundleInternalName))
+		return lastPersistedSPC, utils.TrackError(fmt.Errorf("unrecognized Maestro Bundle internal name: %s", maestroBundleInternalName))
 	}
 
 	resultMaestroBundle, err := c.getOrCreateMaestroBundle(ctx, maestroClient, desiredMaestroBundle)
 	if err != nil {
-		return nil, utils.TrackError(fmt.Errorf("failed to get or create Maestro Bundle: %w", err))
+		return lastPersistedSPC, utils.TrackError(fmt.Errorf("failed to get or create Maestro Bundle: %w", err))
 	}
 
 	// If the Maestro API MaestroBundle ID is not set we store the returned Maestro Bundle ID in the corresponding Maestro Bundle reference of the ServiceProviderCluster in Cosmos.
 	if existingMaestroBundleRef.MaestroAPIMaestroBundleID == "" {
-
 		bundleID := string(resultMaestroBundle.UID)
 		existingMaestroBundleRef.MaestroAPIMaestroBundleID = bundleID
 		existingServiceProviderCluster, err = serviceProviderClustersDBClient.Replace(ctx, existingServiceProviderCluster, nil)
 		if err != nil {
-			return nil, utils.TrackError(fmt.Errorf("failed to replace ServiceProviderCluster in database: %w", err))
+			return lastPersistedSPC, utils.TrackError(fmt.Errorf("failed to replace ServiceProviderCluster in database: %w", err))
 		}
+		lastPersistedSPC = existingServiceProviderCluster
 	}
 
-	return existingServiceProviderCluster, nil
+	return lastPersistedSPC, nil
 }
 
 // buildClusterEmptyHostedCluster returns an empty hosted cluster representing the Cluster's Hypershift HostedCluster resource.
