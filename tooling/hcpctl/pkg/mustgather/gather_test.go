@@ -55,7 +55,7 @@ func (m *MockQueryClient) ExecutePreconfiguredQuery(ctx context.Context, query *
 	return result.(*kusto.QueryResult), args.Error(1)
 }
 
-func mockOutputFunc(logLineChan chan *NormalizedLogLine, queryType QueryType, options RowOutputOptions) error {
+func mockOutputFunc(ctx context.Context, logLineChan chan *NormalizedLogLine, queryType QueryType, options RowOutputOptions) error {
 	for range logLineChan {
 		// Consume all messages
 	}
@@ -77,7 +77,7 @@ func TestNewGatherer(t *testing.T) {
 	assert.Equal(t, mockQueryClient, gatherer.QueryClient)
 
 	// Test custom gatherer
-	customOutputFunc := func(logLineChan chan *NormalizedLogLine, queryType QueryType, options RowOutputOptions) error {
+	customOutputFunc := func(ctx context.Context, logLineChan chan *NormalizedLogLine, queryType QueryType, options RowOutputOptions) error {
 		for range logLineChan {
 		}
 		return nil
@@ -102,19 +102,17 @@ func TestGatherer_GatherLogs(t *testing.T) {
 		outputOptions: RowOutputOptions{"outputPath": "/test"},
 	}
 
-	ctx := context.Background()
-
 	// Success case
-	mockQueryClient.On("ExecutePreconfiguredQuery", ctx, mock.AnythingOfType("*kusto.ConfigurableQuery"), mock.Anything).Return(&kusto.QueryResult{}, nil).Once()
-	mockQueryClient.On("ConcurrentQueries", ctx, mock.AnythingOfType("[]*kusto.ConfigurableQuery"), mock.Anything).Return(nil).Twice()
+	mockQueryClient.On("ExecutePreconfiguredQuery", mock.AnythingOfType("*context.cancelCtx"), mock.AnythingOfType("*kusto.ConfigurableQuery"), mock.Anything).Return(&kusto.QueryResult{}, nil).Once()
+	mockQueryClient.On("ConcurrentQueries", mock.AnythingOfType("*context.cancelCtx"), mock.AnythingOfType("[]*kusto.ConfigurableQuery"), mock.Anything).Return(nil).Twice()
 
-	err := gatherer.GatherLogs(ctx)
+	err := gatherer.GatherLogs(t.Context())
 	assert.NoError(t, err)
 
 	// Error case
-	mockQueryClient.On("ExecutePreconfiguredQuery", ctx, mock.AnythingOfType("*kusto.ConfigurableQuery"), mock.Anything).Return(nil, errors.New("query failed"))
+	mockQueryClient.On("ExecutePreconfiguredQuery", mock.AnythingOfType("*context.cancelCtx"), mock.AnythingOfType("*kusto.ConfigurableQuery"), mock.Anything).Return(nil, errors.New("query failed"))
 
-	err = gatherer.GatherLogs(ctx)
+	err = gatherer.GatherLogs(t.Context())
 	assert.Error(t, err)
 
 	mockQueryClient.AssertExpectations(t)
@@ -146,7 +144,7 @@ func TestCliOutputFunc(t *testing.T) {
 		close(logLineChan)
 	}()
 
-	err = cliOutputFunc(logLineChan, QueryTypeServices, options)
+	err = cliOutputFunc(t.Context(), logLineChan, QueryTypeServices, options)
 	assert.NoError(t, err)
 
 	// Verify file was created and contains log
@@ -174,6 +172,6 @@ func TestCliOutputFunc(t *testing.T) {
 		close(logLineChan)
 	}()
 
-	err = cliOutputFunc(logLineChan, QueryTypeServices, badOptions)
+	err = cliOutputFunc(t.Context(), logLineChan, QueryTypeServices, badOptions)
 	assert.Error(t, err)
 }

@@ -78,6 +78,7 @@ func (v verifyMustGatherLogsImpl) Verify(ctx context.Context) error {
 		v.config.SubscriptionID,
 		v.config.ResourceGroup,
 		"",                            // resourceId
+		"",                            // infraClusterName
 		time.Now().Add(-24*time.Hour), // timestampMin
 		time.Now(),                    // timestampMax
 		-1,                            // limit: -1 means no truncation
@@ -89,7 +90,7 @@ func (v verifyMustGatherLogsImpl) Verify(ctx context.Context) error {
 	foundLogSources := make(map[string]bool)
 	var foundMutex sync.Mutex
 
-	outputFunc := func(logLineChan chan *mustgather.NormalizedLogLine, queryType mustgather.QueryType, options mustgather.RowOutputOptions) error {
+	outputFunc := func(ctx context.Context, logLineChan chan *mustgather.NormalizedLogLine, queryType mustgather.QueryType, options mustgather.RowOutputOptions) error {
 		for logLine := range logLineChan {
 			// Create a key for namespace/container combination
 			key := fmt.Sprintf("%s/%s", logLine.Namespace, logLine.ContainerName)

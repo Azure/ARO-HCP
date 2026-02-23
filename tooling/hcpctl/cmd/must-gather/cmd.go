@@ -20,6 +20,7 @@ import (
 
 var ServicesLogDirectory = "service"
 var HostedControlPlaneLogDirectory = "hosted-control-plane"
+var InfraLogDirectory = "cluster"
 
 var OptionsOutputFile = "options.json"
 

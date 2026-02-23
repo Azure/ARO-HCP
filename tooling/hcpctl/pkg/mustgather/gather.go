@@ -50,7 +50,7 @@ type RowOutputOptions map[string]any
 //
 // Custom implementations can output to files, databases, APIs, or any other destination.
 // The channel will be closed by the caller when all data has been sent.
-type RowOutputFunc func(logLineChan chan *NormalizedLogLine, queryType QueryType, options RowOutputOptions) error
+type RowOutputFunc func(ctx context.Context, logLineChan chan *NormalizedLogLine, queryType QueryType, options RowOutputOptions) error
 
 // NormalizedLogLine represents a single log entry with standardized fields.
 // This structure is passed to RowOutputFunc implementations for processing.
@@ -245,7 +245,7 @@ func NewCliGatherer(queryClient QueryClientInterface, outputPath, serviceLogsDir
 	}
 }
 
-func cliOutputFunc(logLineChan chan *NormalizedLogLine, queryType QueryType, options RowOutputOptions) error {
+func cliOutputFunc(ctx context.Context, logLineChan chan *NormalizedLogLine, queryType QueryType, options RowOutputOptions) error {
 	outputPath := options["outputPath"].(string)
 	var directory string
 	var ok bool
@@ -265,31 +265,36 @@ func cliOutputFunc(logLineChan chan *NormalizedLogLine, queryType QueryType, opt
 			}
 		}
 	}()
-
-	for logLine := range logLineChan {
-		var fileName string
-		if queryType == QueryTypeKubernetesEvents || queryType == QueryTypeSystemdLogs {
-			fileName = fmt.Sprintf("%s-%s.log", logLine.Cluster, queryType)
-		} else {
-			fileName = fmt.Sprintf("%s-%s-%s.log", logLine.Cluster, logLine.Namespace, logLine.ContainerName)
-		}
-
-		file, ok := openedFiles[fileName]
-		if !ok {
-			newFile, err := os.Create(path.Join(outputPath, directory, fileName))
-			if err != nil {
-				allErrors = errors.Join(allErrors, fmt.Errorf("failed to create output file: %w", err))
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case logLine, ok := <-logLineChan:
+			if !ok {
 				return allErrors
 			}
-			openedFiles[fileName] = newFile
-			file = newFile
-		}
+			var fileName string
+			if queryType == QueryTypeKubernetesEvents || queryType == QueryTypeSystemdLogs {
+				fileName = fmt.Sprintf("%s-%s.log", logLine.Cluster, queryType)
+			} else {
+				fileName = fmt.Sprintf("%s-%s-%s.log", logLine.Cluster, logLine.Namespace, logLine.ContainerName)
+			}
 
-		if _, err := fmt.Fprintf(file, "%s\n", string(logLine.Log)); err != nil {
-			allErrors = errors.Join(allErrors, fmt.Errorf("failed to write to file %s: %w", fileName, err))
-			continue
+			file, ok := openedFiles[fileName]
+			if !ok {
+				newFile, err := os.Create(path.Join(outputPath, directory, fileName))
+				if err != nil {
+					return errors.Join(allErrors, fmt.Errorf("failed to create output file: %w", err))
+				}
+				openedFiles[fileName] = newFile
+				file = newFile
+			}
+			if _, err := fmt.Fprintf(file, "%s\n", string(logLine.Log)); err != nil {
+				allErrors = errors.Join(allErrors, fmt.Errorf("failed to write to file %s: %w", fileName, err))
+			}
 		}
 	}
+
 	return allErrors
 }
 
@@ -371,54 +376,53 @@ func (g *Gatherer) executeClusterIdQuery(ctx context.Context, query *kusto.Confi
 }
 
 func (g *Gatherer) queryAndWriteToFile(ctx context.Context, queryType QueryType, queries []*kusto.ConfigurableQuery) error {
+	logger := logr.FromContextOrDiscard(ctx)
 	queryOutputChannel := make(chan azkquery.Row)
+	logLineChan := make(chan *NormalizedLogLine)
 
-	queryGroup := new(errgroup.Group)
+	logger.V(6).Info("Executing query", "queryType", queryType, "queries", len(queries), "queries", queries)
+
+	queryGroup, queryCtx := errgroup.WithContext(ctx)
 	queryGroup.Go(func() error {
-		return g.QueryClient.ConcurrentQueries(ctx, queries, queryOutputChannel)
+		defer close(queryOutputChannel)
+		return g.QueryClient.ConcurrentQueries(queryCtx, queries, queryOutputChannel)
 	})
 
-	consumerGroup := new(errgroup.Group)
-	consumerGroup.Go(func() error {
-		return g.convertRowsAndOutput(queryOutputChannel, queryType)
+	queryGroup.Go(func() error {
+		return g.outputFunc(queryCtx, logLineChan, queryType, g.outputOptions)
 	})
 
+	queryGroup.Go(func() error {
+		defer close(logLineChan)
+		return g.convertRows(queryCtx, queryOutputChannel, logLineChan)
+	})
+
+	logger.V(6).Info("Waiting for query to complete", "queryType", queryType)
 	if err := queryGroup.Wait(); err != nil {
 		return fmt.Errorf("error during query execution: %w", err)
 	}
-	close(queryOutputChannel)
-	if err := consumerGroup.Wait(); err != nil {
-		return fmt.Errorf("error during query data transformation: %w", err)
-	}
+
 	return nil
 }
 
-func (g *Gatherer) convertRowsAndOutput(outputChannel <-chan azkquery.Row, queryType QueryType) error {
-	logLineChan := make(chan *NormalizedLogLine)
-
-	// Start output processing in background
-	outputErrChan := make(chan error, 1)
-	go func() {
-		outputErrChan <- g.outputFunc(logLineChan, queryType, g.outputOptions)
-	}()
-
-	// Process rows and send to output
-	for row := range outputChannel {
-		normalizedLogLine := &NormalizedLogLine{}
-		if err := row.ToStruct(normalizedLogLine); err != nil {
-			close(logLineChan)
-			return fmt.Errorf("failed to convert row to struct: %w", err)
+func (g *Gatherer) convertRows(ctx context.Context, rowChannel <-chan azkquery.Row, outPutChannel chan<- *NormalizedLogLine) error {
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case row, ok := <-rowChannel:
+			if !ok {
+				return nil
+			}
+			normalizedLogLine := &NormalizedLogLine{}
+			if err := row.ToStruct(normalizedLogLine); err != nil {
+				return fmt.Errorf("failed to convert row to struct: %w", err)
+			}
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case outPutChannel <- normalizedLogLine: // now interruptible
+			}
 		}
-		logLineChan <- normalizedLogLine
 	}
-
-	// Close the channel to signal completion to the output function
-	close(logLineChan)
-
-	// Wait for output processing to complete and check for errors
-	if outputErr := <-outputErrChan; outputErr != nil {
-		return fmt.Errorf("failed to output data: %w", outputErr)
-	}
-
-	return nil
 }

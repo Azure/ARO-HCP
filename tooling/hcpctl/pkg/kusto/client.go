@@ -109,6 +109,7 @@ func (c *Client) ExecutePreconfiguredQuery(ctx context.Context, query *Configura
 	startTime := time.Now()
 
 	// Process the first table (primary result)
+	logger.V(6).Info("Processing primary result")
 	primaryResult := <-dataset.Tables()
 
 	err = primaryResult.Err()
@@ -122,6 +123,7 @@ func (c *Client) ExecutePreconfiguredQuery(ctx context.Context, query *Configura
 
 	columsSet := false
 	for row := range primaryResult.Table().Rows() {
+		logger.V(8).Info("Processing row", "rowNumber", totalRows)
 		row := row.Row()
 		if row == nil {
 			if query.Unlimited {
@@ -133,14 +135,18 @@ func (c *Client) ExecutePreconfiguredQuery(ctx context.Context, query *Configura
 			columns = row.Columns()
 			columsSet = true
 		}
-		outputChannel <- row
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case outputChannel <- row:
+		}
 		totalRows++
 		dataSize += int64(len(fmt.Sprintf("%v", row)))
 	}
 
 	executionTime := time.Since(startTime)
 
-	logger.V(1).Info("Query competed", "query", query.Name, "rows", totalRows, "KiloBytes", dataSize/1024, "executionTime", executionTime)
+	logger.V(1).Info("Query completed", "query", query.Name, "rows", totalRows, "KiloBytes", dataSize/1024, "executionTime", executionTime)
 
 	return &QueryResult{
 		Columns: columns,

@@ -187,6 +187,11 @@ func (o *ValidatedMustGatherOptions) Complete(ctx context.Context) (*MustGatherO
 		return nil, fmt.Errorf("failed to create service logs directory: %w", err)
 	}
 
+	err = os.MkdirAll(path.Join(o.OutputPath, InfraLogDirectory), 0755)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create infrastructure logs directory: %w", err)
+	}
+
 	if !o.SkipHostedControlPlaneLogs {
 		err = os.MkdirAll(path.Join(o.OutputPath, HostedControlPlaneLogDirectory), 0755)
 		if err != nil {
