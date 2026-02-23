@@ -1859,3 +1859,156 @@ resource mgmtCapacityRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
     ]
   }
 }
+
+resource hcpHostedclusterMonitorRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'hcp-hostedcluster-monitor-rules'
+  location: resourceGroup().location
+  properties: {
+    interval: 'PT1M'
+    rules: [
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'hostedcluster-KubeAPIServer-ErrorBudgetBurn'
+        enabled: true
+        labels: {
+          long_window: '1h'
+          severity: 'info'
+          short_window: '30m'
+        }
+        annotations: {
+          correlationId: 'hostedcluster-KubeAPIServer-ErrorBudgetBurn/{{ $labels._id }}/{{ $labels.cluster }}/{{ $labels.name }}'
+          description: 'HostedCluster {{ $labels.name }} (ID: {{ $labels._id }}) KubeAPIServer availability is below SLO (current value: {{ $value }})'
+          info: 'HostedCluster {{ $labels.name }} (ID: {{ $labels._id }}) KubeAPIServer availability is below SLO (current value: {{ $value }})'
+          summary: 'High KubeAPIServer error budget burn for HostedCluster {{ $labels.name }}'
+          title: 'High KubeAPIServer error budget burn for HostedCluster {{ $labels.name }}'
+        }
+        expression: '1 - (sum by (name, namespace, _id, cluster) (sum_over_time(kube_customresource_kubeapiserver_available{status="True"}[30m])) / sum by (name, namespace, _id, cluster) (count_over_time(kube_customresource_kubeapiserver_available{status="True"}[30m]))) > (14.4 * (1 - 0.9995)) and sum by (name, namespace, _id, cluster) (count_over_time(kube_customresource_kubeapiserver_available{status="True"}[30m])) > 5 and 1 - (sum by (name, namespace, _id,cluster) (sum_over_time(kube_customresource_kubeapiserver_available{status="True"}[1h])) / sum by (name, namespace, _id, cluster)(count_over_time(kube_customresource_kubeapiserver_available{status="True"}[1h]))) > (14.4 * (1 - 0.9995)) and sum by (name, namespace, _id, cluster)(count_over_time(kube_customresource_kubeapiserver_available{status="True"}[1h])) > 60'
+        for: 'PT2M'
+        severity: 4
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'hostedcluster-KubeAPIServer-ErrorBudgetBurn'
+        enabled: true
+        labels: {
+          long_window: '6h'
+          severity: 'info'
+          short_window: '30m'
+        }
+        annotations: {
+          correlationId: 'hostedcluster-KubeAPIServer-ErrorBudgetBurn/{{ $labels._id }}/{{ $labels.cluster }}/{{ $labels.name }}'
+          description: 'HostedCluster {{ $labels.name }} (ID: {{ $labels._id }}) KubeAPIServer availability is below SLO (current value: {{ $value }})'
+          info: 'HostedCluster {{ $labels.name }} (ID: {{ $labels._id }}) KubeAPIServer availability is below SLO (current value: {{ $value }})'
+          summary: 'High KubeAPIServer error budget burn for HostedCluster {{ $labels.name }}'
+          title: 'High KubeAPIServer error budget burn for HostedCluster {{ $labels.name }}'
+        }
+        expression: '1 - (sum by (name, namespace, _id, cluster) (sum_over_time(kube_customresource_kubeapiserver_available{status="True"}[30m])) / sum by (name,namespace, _id, cluster) (count_over_time(kube_customresource_kubeapiserver_available{status="True"}[30m]))) > (6 * (1 - 0.9995)) and sum by (name,namespace, _id, cluster) (count_over_time(kube_customresource_kubeapiserver_available{status="True"}[30m])) > 30 and 1 - (sum by (name, namespace, _id,cluster) (sum_over_time(kube_customresource_kubeapiserver_available{status="True"}[6h])) / sum by (name, namespace, _id, cluster)(count_over_time(kube_customresource_kubeapiserver_available{status="True"}[6h]))) > (6 * (1 - 0.9995)) and sum by (name, namespace, _id, cluster)(count_over_time(kube_customresource_kubeapiserver_available{status="True"}[6h])) > 360'
+        for: 'PT15M'
+        severity: 4
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'hostedcluster-KubeAPIServer-ErrorBudgetBurn'
+        enabled: true
+        labels: {
+          long_window: '1d'
+          severity: 'info'
+          short_window: '2h'
+        }
+        annotations: {
+          correlationId: 'hostedcluster-KubeAPIServer-ErrorBudgetBurn/{{ $labels._id }}/{{ $labels.cluster }}/{{ $labels.name }}'
+          description: 'HostedCluster {{ $labels.name }} (ID: {{ $labels._id }}) KubeAPIServer availability is below SLO (current value: {{ $value }})'
+          info: 'HostedCluster {{ $labels.name }} (ID: {{ $labels._id }}) KubeAPIServer availability is below SLO (current value: {{ $value }})'
+          summary: 'High KubeAPIServer error budget burn for HostedCluster {{ $labels.name }}'
+          title: 'High KubeAPIServer error budget burn for HostedCluster {{ $labels.name }}'
+        }
+        expression: '1 - (sum by (name, namespace, _id, cluster) (sum_over_time(kube_customresource_kubeapiserver_available{status="True"}[2h])) / sum by (name,namespace, _id, cluster) (count_over_time(kube_customresource_kubeapiserver_available{status="True"}[2h]))) > (3 * (1 - 0.9995)) and sum by (name,namespace, _id, cluster) (count_over_time(kube_customresource_kubeapiserver_available{status="True"}[2h])) > 120 and 1 - (sum by (name, namespace, _id,cluster) (sum_over_time(kube_customresource_kubeapiserver_available{status="True"}[1d])) / sum by (name, namespace, _id, cluster)(count_over_time(kube_customresource_kubeapiserver_available{status="True"}[1d]))) > (3 * (1 - 0.9995)) and sum by (name, namespace, _id, cluster)(count_over_time(kube_customresource_kubeapiserver_available{status="True"}[1d])) > 1440'
+        for: 'PT1H'
+        severity: 4
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'hostedcluster-KubeAPIServer-ErrorBudgetBurn'
+        enabled: true
+        labels: {
+          long_window: '3d'
+          severity: 'info'
+          short_window: '6h'
+        }
+        annotations: {
+          correlationId: 'hostedcluster-KubeAPIServer-ErrorBudgetBurn/{{ $labels._id }}/{{ $labels.cluster }}/{{ $labels.name }}'
+          description: 'HostedCluster {{ $labels.name }} (ID: {{ $labels._id }}) KubeAPIServer availability is below SLO (current value: {{ $value }})'
+          info: 'HostedCluster {{ $labels.name }} (ID: {{ $labels._id }}) KubeAPIServer availability is below SLO (current value: {{ $value }})'
+          summary: 'High KubeAPIServer error budget burn for HostedCluster {{ $labels.name }}'
+          title: 'High KubeAPIServer error budget burn for HostedCluster {{ $labels.name }}'
+        }
+        expression: '1 - (sum by (name, namespace, _id, cluster) (sum_over_time(kube_customresource_kubeapiserver_available{status="True"}[6h])) / sum by (name,namespace, _id, cluster) (count_over_time(kube_customresource_kubeapiserver_available{status="True"}[6h]))) > (1 * (1 - 0.9995)) and sum by (name,namespace, _id, cluster) (count_over_time(kube_customresource_kubeapiserver_available{status="True"}[6h])) > 360 and 1 - (sum by (name, namespace, _id,cluster) (sum_over_time(kube_customresource_kubeapiserver_available{status="True"}[3d])) / sum by (name, namespace, _id, cluster)(count_over_time(kube_customresource_kubeapiserver_available{status="True"}[3d]))) > (1 * (1 - 0.9995)) and sum by (name, namespace, _id, cluster)(count_over_time(kube_customresource_kubeapiserver_available{status="True"}[3d])) > 4320'
+        for: 'PT3H'
+        severity: 4
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'hostedcluster-Available-ErrorBudgetBurn'
+        enabled: true
+        labels: {
+          long_window: '1h'
+          severity: 'info'
+          short_window: '30m'
+        }
+        annotations: {
+          correlationId: 'hostedcluster-Available-ErrorBudgetBurn/{{ $labels._id }}/{{ $labels.cluster }}/{{ $labels.name }}'
+          description: 'HostedCluster {{ $labels.name }} (ID: {{ $labels._id }}) overall availability is below SLO (current value: {{ $value }})'
+          info: 'HostedCluster {{ $labels.name }} (ID: {{ $labels._id }}) overall availability is below SLO (current value: {{ $value }})'
+          summary: 'High availability error budget burn for HostedCluster {{ $labels.name }}'
+          title: 'High availability error budget burn for HostedCluster {{ $labels.name }}'
+        }
+        expression: '1 - (sum by (name, namespace, _id, cluster) (sum_over_time(kube_customresource_available{status="True"}[30m])) / sum by (name, namespace, _id,cluster) (count_over_time(kube_customresource_available{status="True"}[30m]))) > (14.4 * (1 - 0.9995)) and sum by (name, namespace, _id, cluster)(count_over_time(kube_customresource_available{status="True"}[30m])) > 5 and 1 - (sum by (name, namespace, _id, cluster)(sum_over_time(kube_customresource_available{status="True"}[1h])) / sum by (name, namespace, _id, cluster)(count_over_time(kube_customresource_available{status="True"}[1h]))) > (14.4 * (1 - 0.9995)) and sum by (name, namespace, _id, cluster)(count_over_time(kube_customresource_available{status="True"}[1h])) > 60'
+        for: 'PT2M'
+        severity: 4
+      }
+    ]
+    scopes: [
+      azureMonitoring
+    ]
+  }
+}

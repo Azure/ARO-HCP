@@ -1,0 +1,230 @@
+rule_files:
+- HCPkasMonitor-prometheusRule-KMS.yaml
+evaluation_interval: 1m
+tests:
+# Test 1: Normal operation - KubeAPIServer always available, no alerts should fire
+- interval: 1m
+  name: "Test 1: Normal operation - perfect availability, no alerts"
+  input_series:
+  - series: 'kube_customresource_kubeapiserver_available{status="True", name="test-cluster", namespace="clusters", _id="abc-123", cluster="mgmt-cluster"}'
+    values: "1+0x4500" # Perfect availability for 75 hours (3+ days)
+  - series: 'kube_customresource_available{status="True", name="test-cluster", namespace="clusters", _id="abc-123", cluster="mgmt-cluster"}'
+    values: "1+0x4500" # Perfect availability for 75 hours (3+ days)
+  alert_rule_test:
+  - eval_time: 4500m
+    alertname: hostedcluster-KubeAPIServer-ErrorBudgetBurn
+    exp_alerts: []
+  - eval_time: 4500m
+    alertname: hostedcluster-Available-ErrorBudgetBurn
+    exp_alerts: []
+
+# Test 2: Fast burn - KubeAPIServer complete failure triggers 30m/1h alert (for: 2m)
+- interval: 30s # Generate data every 30 seconds to meet sample count requirements
+  name: "Test 2: KubeAPIServer fast burn - complete failure triggers 30m/1h alert"
+  input_series:
+  - series: 'kube_customresource_kubeapiserver_available{status="True", name="test-cluster", namespace="clusters", _id="abc-123", cluster="mgmt-cluster"}'
+    # Complete failure: 0% availability
+    # With 30s interval: 30m window has 60 samples (>5 ✓), 1h window has 120 samples (>60 ✓)
+    # Alert condition: 1 - (0/60) > 0.0072 AND 1 - (0/120) > 0.0072 = TRUE
+    # With 'for: 2m', alert should fire at 63m (condition true at 61m + 2m)
+    values: "0+0x130" # Complete failure for 65+ minutes (130 * 30s = 65m)
+  alert_rule_test:
+  - eval_time: 31m # When condition becomes true (before 'for' delay)
+    alertname: hostedcluster-KubeAPIServer-ErrorBudgetBurn
+    exp_alerts: [] # Still pending (for: 2m not satisfied yet)
+  - eval_time: 33m # After 'for' condition satisfied (31m + 2m)
+    alertname: hostedcluster-KubeAPIServer-ErrorBudgetBurn
+    exp_alerts:
+    - exp_labels:
+        severity: info
+        long_window: 1h
+        short_window: 30m
+        name: test-cluster
+        namespace: clusters
+        _id: abc-123
+        cluster: mgmt-cluster
+      exp_annotations:
+        summary: "High KubeAPIServer error budget burn for HostedCluster test-cluster"
+        description: "HostedCluster test-cluster (ID: abc-123) KubeAPIServer availability is below SLO (current value: 1)"
+
+# Test 3: Medium burn - KubeAPIServer failure triggers 30m/6h alert (for: 15m)
+- interval: 30s
+  name: "Test 3: KubeAPIServer medium burn - triggers 30m/6h alert"
+  input_series:
+  - series: 'kube_customresource_kubeapiserver_available{status="True", name="test-cluster", namespace="clusters", _id="abc-123", cluster="mgmt-cluster"}'
+    # Complete failure for sufficient duration
+    # With 30s interval: 30m window has 60 samples (>30 ✓), 6h window has 720 samples (>360 ✓)
+    values: "0+0x800" # Complete failure for 400+ minutes (800 * 30s = 400m)
+  alert_rule_test:
+  - eval_time: 180m # Before 'for: 15m' condition satisfied for 6h alert (6h window has 360 samples at 180m)
+    alertname: hostedcluster-KubeAPIServer-ErrorBudgetBurn
+    exp_alerts:
+    - exp_labels:
+        severity: info
+        long_window: 1h
+        short_window: 30m
+        name: test-cluster
+        namespace: clusters
+        _id: abc-123
+        cluster: mgmt-cluster
+      exp_annotations:
+        summary: "High KubeAPIServer error budget burn for HostedCluster test-cluster"
+        description: "HostedCluster test-cluster (ID: abc-123) KubeAPIServer availability is below SLO (current value: 1)"
+  - eval_time: 195m # After 6h alert 'for: 15m' satisfied (180m + 15m)
+    alertname: hostedcluster-KubeAPIServer-ErrorBudgetBurn
+    exp_alerts:
+    - exp_labels:
+        severity: info
+        long_window: 1h
+        short_window: 30m
+        name: test-cluster
+        namespace: clusters
+        _id: abc-123
+        cluster: mgmt-cluster
+      exp_annotations:
+        summary: "High KubeAPIServer error budget burn for HostedCluster test-cluster"
+        description: "HostedCluster test-cluster (ID: abc-123) KubeAPIServer availability is below SLO (current value: 1)"
+    - exp_labels:
+        severity: info
+        long_window: 6h
+        short_window: 30m
+        name: test-cluster
+        namespace: clusters
+        _id: abc-123
+        cluster: mgmt-cluster
+      exp_annotations:
+        summary: "High KubeAPIServer error budget burn for HostedCluster test-cluster"
+        description: "HostedCluster test-cluster (ID: abc-123) KubeAPIServer availability is below SLO (current value: 1)"
+
+# Test 4: All four KubeAPIServer alerts fire simultaneously after prolonged failure
+- interval: 30s
+  name: "Test 4: KubeAPIServer all alerts fire after prolonged failure"
+  input_series:
+  - series: 'kube_customresource_kubeapiserver_available{status="True", name="test-cluster", namespace="clusters", _id="abc-123", cluster="mgmt-cluster"}'
+    # Complete failure for 3+ days to satisfy all four alert time windows
+    values: "0+0x9000" # 4500 minutes = 75 hours = 3+ days of failure
+  alert_rule_test:
+  - eval_time: 4500m # After sufficient time for all windows + 'for' conditions
+    alertname: hostedcluster-KubeAPIServer-ErrorBudgetBurn
+    exp_alerts:
+    - exp_labels:
+        severity: info
+        long_window: 1h
+        short_window: 30m
+        name: test-cluster
+        namespace: clusters
+        _id: abc-123
+        cluster: mgmt-cluster
+      exp_annotations:
+        summary: "High KubeAPIServer error budget burn for HostedCluster test-cluster"
+        description: "HostedCluster test-cluster (ID: abc-123) KubeAPIServer availability is below SLO (current value: 1)"
+    - exp_labels:
+        severity: info
+        long_window: 6h
+        short_window: 30m
+        name: test-cluster
+        namespace: clusters
+        _id: abc-123
+        cluster: mgmt-cluster
+      exp_annotations:
+        summary: "High KubeAPIServer error budget burn for HostedCluster test-cluster"
+        description: "HostedCluster test-cluster (ID: abc-123) KubeAPIServer availability is below SLO (current value: 1)"
+    - exp_labels:
+        severity: info
+        long_window: 1d
+        short_window: 2h
+        name: test-cluster
+        namespace: clusters
+        _id: abc-123
+        cluster: mgmt-cluster
+      exp_annotations:
+        summary: "High KubeAPIServer error budget burn for HostedCluster test-cluster"
+        description: "HostedCluster test-cluster (ID: abc-123) KubeAPIServer availability is below SLO (current value: 1)"
+    - exp_labels:
+        severity: info
+        long_window: 3d
+        short_window: 6h
+        name: test-cluster
+        namespace: clusters
+        _id: abc-123
+        cluster: mgmt-cluster
+      exp_annotations:
+        summary: "High KubeAPIServer error budget burn for HostedCluster test-cluster"
+        description: "HostedCluster test-cluster (ID: abc-123) KubeAPIServer availability is below SLO (current value: 1)"
+
+# Test 5: HostedCluster overall availability - fast burn (30m/1h, for: 2m)
+- interval: 30s
+  name: "Test 5: HostedCluster availability fast burn - triggers 30m/1h alert"
+  input_series:
+  - series: 'kube_customresource_available{status="True", name="test-cluster", namespace="clusters", _id="abc-123", cluster="mgmt-cluster"}'
+    # Complete failure for sufficient duration
+    values: "0+0x130" # Complete failure for 65+ minutes
+  alert_rule_test:
+  - eval_time: 31m
+    alertname: hostedcluster-Available-ErrorBudgetBurn
+    exp_alerts: [] # Still pending (for: 2m not satisfied yet)
+  - eval_time: 33m
+    alertname: hostedcluster-Available-ErrorBudgetBurn
+    exp_alerts:
+    - exp_labels:
+        severity: info
+        long_window: 1h
+        short_window: 30m
+        name: test-cluster
+        namespace: clusters
+        _id: abc-123
+        cluster: mgmt-cluster
+      exp_annotations:
+        summary: "High availability error budget burn for HostedCluster test-cluster"
+        description: "HostedCluster test-cluster (ID: abc-123) overall availability is below SLO (current value: 1)"
+
+# Test 6: Combined test - both KubeAPIServer and overall availability alerts fire
+- interval: 30s
+  name: "Test 6: Both KubeAPIServer and overall availability alerts fire together"
+  input_series:
+  - series: 'kube_customresource_kubeapiserver_available{status="True", name="test-cluster", namespace="clusters", _id="abc-123", cluster="mgmt-cluster"}'
+    values: "0+0x130" # Complete failure for 65+ minutes
+  - series: 'kube_customresource_available{status="True", name="test-cluster", namespace="clusters", _id="abc-123", cluster="mgmt-cluster"}'
+    values: "0+0x130" # Complete failure for 65+ minutes
+  alert_rule_test:
+  - eval_time: 33m
+    alertname: hostedcluster-KubeAPIServer-ErrorBudgetBurn
+    exp_alerts:
+    - exp_labels:
+        severity: info
+        long_window: 1h
+        short_window: 30m
+        name: test-cluster
+        namespace: clusters
+        _id: abc-123
+        cluster: mgmt-cluster
+      exp_annotations:
+        summary: "High KubeAPIServer error budget burn for HostedCluster test-cluster"
+        description: "HostedCluster test-cluster (ID: abc-123) KubeAPIServer availability is below SLO (current value: 1)"
+  - eval_time: 33m
+    alertname: hostedcluster-Available-ErrorBudgetBurn
+    exp_alerts:
+    - exp_labels:
+        severity: info
+        long_window: 1h
+        short_window: 30m
+        name: test-cluster
+        namespace: clusters
+        _id: abc-123
+        cluster: mgmt-cluster
+      exp_annotations:
+        summary: "High availability error budget burn for HostedCluster test-cluster"
+        description: "HostedCluster test-cluster (ID: abc-123) overall availability is below SLO (current value: 1)"
+
+# Test 7: Partial failure - below error budget threshold, no alert
+- interval: 30s
+  name: "Test 7: Partial failure below threshold - no alert fires"
+  input_series:
+  - series: 'kube_customresource_kubeapiserver_available{status="True", name="test-cluster", namespace="clusters", _id="abc-123", cluster="mgmt-cluster"}'
+    # Simulate 99.96% availability (0.04% error rate, below 0.5% threshold)
+    # Pattern: mostly available with very occasional failures
+    values: "1+0x10 0 1+0x2500" # One brief failure in 2500+ samples
+  alert_rule_test:
+  - eval_time: 1300m
+    alertname: hostedcluster-KubeAPIServer-ErrorBudgetBurn
+    exp_alerts: [] # Should not fire with availability above threshold
