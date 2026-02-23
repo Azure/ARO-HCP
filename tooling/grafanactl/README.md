@@ -8,6 +8,7 @@ grafanactl helps maintain Azure Managed Grafana instances by providing tools to:
 - List all datasources in a Grafana instance
 - Remove orphaned Azure Monitor Workspace integrations
 - Clean up stale datasources pointing to deleted resources
+- Sync dashboards and folders from git to Grafana
 
 This tool is particularly useful when Azure Monitor Workspaces (Prometheus instances) are removed from your infrastructure but their references remain in Grafana, creating stale integrations.
 
@@ -108,6 +109,39 @@ grafanactl clean fixup-datasources \
   --resource-group "your-resource-group" \
   --grafana-name "your-grafana-instance"
 ```
+
+### Sync Commands
+
+Sync commands help keep your Grafana instance in sync with dashboard definitions stored in git.
+
+#### Sync Dashboards
+
+Synchronize dashboards and folders from a configuration file to Grafana. This will:
+- Create folders that don't exist in Grafana
+- Create or update dashboards from JSON files
+- Delete stale dashboards that are no longer in git (excluding Azure managed folders)
+- Validate dashboards and report errors/warnings
+
+```bash
+# Preview changes (dry-run)
+grafanactl sync dashboards \
+  --subscription "your-subscription-id" \
+  --resource-group "your-resource-group" \
+  --grafana-name "your-grafana-instance" \
+  --config-file "../../observability/observability.yaml" \
+  --dry-run
+
+# Apply changes
+grafanactl sync dashboards \
+  --subscription "your-subscription-id" \
+  --resource-group "your-resource-group" \
+  --grafana-name "your-grafana-instance" \
+  --config-file "../../observability/observability.yaml"
+```
+
+The config file (e.g., `observability.yaml`) defines:
+- `grafana-dashboards.dashboardFolders`: List of folders with `name` and `path` to dashboard JSON files
+- `grafana-dashboards.azureManagedFolders`: List of folder names managed by Azure (will not be modified)
 
 ## Error Handling
 

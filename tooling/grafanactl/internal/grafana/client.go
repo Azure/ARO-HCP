@@ -108,3 +108,69 @@ func (c *Client) DeleteDataSource(ctx context.Context, dataSourceName string) er
 
 	return nil
 }
+
+// ListFolders returns all folders in the Grafana instance.
+func (c *Client) ListFolders(ctx context.Context) ([]sdk.Folder, error) {
+	folders, err := c.grafanaClient.GetAllFolders(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get folders: %w", err)
+	}
+
+	return folders, nil
+}
+
+// ListDashboards returns all dashboards in the Grafana instance.
+func (c *Client) ListDashboards(ctx context.Context) ([]sdk.FoundBoard, error) {
+	boards, err := c.grafanaClient.SearchDashboards(ctx, "", false)
+	if err != nil {
+		return nil, fmt.Errorf("failed to search dashboards: %w", err)
+	}
+
+	return boards, nil
+}
+
+// CreateFolder creates a new folder in Grafana.
+func (c *Client) CreateFolder(ctx context.Context, title string) (sdk.Folder, error) {
+	folder := sdk.Folder{Title: title}
+	createdFolder, err := c.grafanaClient.CreateFolder(ctx, folder)
+	if err != nil {
+		return sdk.Folder{}, fmt.Errorf("failed to create folder %q: %w", title, err)
+	}
+
+	return createdFolder, nil
+}
+
+// GetDashboardByUID retrieves a dashboard by its UID.
+func (c *Client) GetDashboardByUID(ctx context.Context, uid string) (sdk.Board, sdk.BoardProperties, error) {
+	board, props, err := c.grafanaClient.GetDashboardByUID(ctx, uid)
+	if err != nil {
+		return sdk.Board{}, sdk.BoardProperties{}, fmt.Errorf("failed to get dashboard %q: %w", uid, err)
+	}
+
+	return board, props, nil
+}
+
+// SetDashboard creates or updates a dashboard.
+func (c *Client) SetDashboard(ctx context.Context, board sdk.Board, folderID int, overwrite bool) error {
+	params := sdk.SetDashboardParams{
+		FolderID:  folderID,
+		Overwrite: overwrite,
+	}
+
+	_, err := c.grafanaClient.SetDashboard(ctx, board, params)
+	if err != nil {
+		return fmt.Errorf("failed to set dashboard: %w", err)
+	}
+
+	return nil
+}
+
+// DeleteDashboardByUID removes a dashboard by its UID.
+func (c *Client) DeleteDashboardByUID(ctx context.Context, uid string) error {
+	_, err := c.grafanaClient.DeleteDashboardByUID(ctx, uid)
+	if err != nil {
+		return fmt.Errorf("failed to delete dashboard %q: %w", uid, err)
+	}
+
+	return nil
+}

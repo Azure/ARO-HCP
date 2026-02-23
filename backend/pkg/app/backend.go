@@ -53,15 +53,16 @@ type Backend struct {
 }
 
 type BackendOptions struct {
-	AppShortDescriptionName    string
-	AppVersion                 string
-	AzureLocation              string
-	LeaderElectionLock         resourcelock.Interface
-	CosmosDBClient             database.DBClient
-	ClustersServiceClient      ocm.ClusterServiceClientSpec
-	MetricsServerListenAddress string
-	HealthzServerListenAddress string
-	TracerProviderShutdownFunc func(context.Context) error
+	AppShortDescriptionName            string
+	AppVersion                         string
+	AzureLocation                      string
+	LeaderElectionLock                 resourcelock.Interface
+	CosmosDBClient                     database.DBClient
+	ClustersServiceClient              ocm.ClusterServiceClientSpec
+	MetricsServerListenAddress         string
+	HealthzServerListenAddress         string
+	TracerProviderShutdownFunc         func(context.Context) error
+	MaestroSourceEnvironmentIdentifier string
 }
 
 func (o *BackendOptions) RunBackend(ctx context.Context) error {

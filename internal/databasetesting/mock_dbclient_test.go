@@ -26,6 +26,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/utils/apihelpers"
 )
 
 func TestMockDBClient_LoadFromDirectory(t *testing.T) {
@@ -61,13 +62,13 @@ func TestMockDBClient_LoadFromDirectory(t *testing.T) {
 		}
 
 		switch {
-		case typedDoc.ResourceType == api.ClusterResourceType.String():
+		case apihelpers.ResourceTypeStringEqual(typedDoc.ResourceType, api.ClusterResourceType):
 			foundCluster = true
-		case typedDoc.ResourceType == api.NodePoolResourceType.String():
+		case apihelpers.ResourceTypeStringEqual(typedDoc.ResourceType, api.NodePoolResourceType):
 			foundNodePool = true
-		case typedDoc.ResourceType == azcorearm.SubscriptionResourceType.String():
+		case apihelpers.ResourceTypeStringEqual(typedDoc.ResourceType, azcorearm.SubscriptionResourceType):
 			foundSubscription = true
-		case typedDoc.ResourceType == api.OperationStatusResourceType.String():
+		case apihelpers.ResourceTypeStringEqual(typedDoc.ResourceType, api.OperationStatusResourceType):
 			foundOperation = true
 		}
 	}
@@ -478,7 +479,7 @@ func TestMockDBClient_UntypedCRUD(t *testing.T) {
 		t.Fatalf("Failed to get cluster via untyped CRUD: %v", err)
 	}
 
-	if retrieved.ResourceType != api.ClusterResourceType.String() {
+	if !apihelpers.ResourceTypeStringEqual(retrieved.ResourceType, api.ClusterResourceType) {
 		t.Errorf("Expected resource type %s, got %s", api.ClusterResourceType.String(), retrieved.ResourceType)
 	}
 }

@@ -1,4 +1,6 @@
 location: "{{ .region }}"
+audit:
+  connectSocket: {{ .adminApi.audit.connectSocket }}
 deployment:
   replicas: {{ .adminApi.k8s.replicas }}
   requests:

@@ -62,6 +62,10 @@ type HCPOpenShiftClusterServiceProviderProperties struct {
 	Console           ServiceProviderConsoleProfile  `json:"console,omitempty"`
 	API               ServiceProviderAPIProfile      `json:"api,omitempty"`
 	Platform          ServiceProviderPlatformProfile `json:"platform,omitempty"`
+
+	// ExperimentalFeatures captures experimental feature state evaluated from
+	// AFEC and per-resource tags. Stored in Cosmos but NOT exposed via ARM API.
+	ExperimentalFeatures ExperimentalFeatures `json:"experimentalFeatures,omitzero"`
 }
 
 // VersionProfile represents the cluster control plane version.

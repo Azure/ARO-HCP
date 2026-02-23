@@ -132,7 +132,7 @@ func (o *CompletedCleanDatasourcesOptions) Run(ctx context.Context) error {
 			logger.Info("Dry run - would remove integrations", "count", removedCount, "remaining", len(keptIntegrations))
 		} else {
 			logger.Info("Updating Grafana resource", "removingCount", removedCount, "keepingCount", len(keptIntegrations))
-			err := o.ManagedGrafanaClient.UpdataGrafanaIntegrations(ctx, o.ResourceGroup, o.GrafanaName, keptIntegrations)
+			err := o.ManagedGrafanaClient.UpdateGrafanaIntegrations(ctx, o.ResourceGroup, o.GrafanaName, keptIntegrations)
 			if err != nil {
 				return fmt.Errorf("failed to update Azure Monitor Workspace integrations: %w", err)
 			}

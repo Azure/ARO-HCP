@@ -582,6 +582,44 @@ func (c *MockClusterServiceClientSpecListClustersCall) DoAndReturn(f func(string
 	return c
 }
 
+// ListControlPlaneUpgradePolicies mocks base method.
+func (m *MockClusterServiceClientSpec) ListControlPlaneUpgradePolicies(clusterInternalID InternalID, orderBy string) ControlPlaneUpgradePolicyListIterator {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListControlPlaneUpgradePolicies", clusterInternalID, orderBy)
+	ret0, _ := ret[0].(ControlPlaneUpgradePolicyListIterator)
+	return ret0
+}
+
+// ListControlPlaneUpgradePolicies indicates an expected call of ListControlPlaneUpgradePolicies.
+func (mr *MockClusterServiceClientSpecMockRecorder) ListControlPlaneUpgradePolicies(clusterInternalID, orderBy any) *MockClusterServiceClientSpecListControlPlaneUpgradePoliciesCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListControlPlaneUpgradePolicies", reflect.TypeOf((*MockClusterServiceClientSpec)(nil).ListControlPlaneUpgradePolicies), clusterInternalID, orderBy)
+	return &MockClusterServiceClientSpecListControlPlaneUpgradePoliciesCall{Call: call}
+}
+
+// MockClusterServiceClientSpecListControlPlaneUpgradePoliciesCall wrap *gomock.Call
+type MockClusterServiceClientSpecListControlPlaneUpgradePoliciesCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockClusterServiceClientSpecListControlPlaneUpgradePoliciesCall) Return(arg0 ControlPlaneUpgradePolicyListIterator) *MockClusterServiceClientSpecListControlPlaneUpgradePoliciesCall {
+	c.Call = c.Call.Return(arg0)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockClusterServiceClientSpecListControlPlaneUpgradePoliciesCall) Do(f func(InternalID, string) ControlPlaneUpgradePolicyListIterator) *MockClusterServiceClientSpecListControlPlaneUpgradePoliciesCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockClusterServiceClientSpecListControlPlaneUpgradePoliciesCall) DoAndReturn(f func(InternalID, string) ControlPlaneUpgradePolicyListIterator) *MockClusterServiceClientSpecListControlPlaneUpgradePoliciesCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
 // ListExternalAuths mocks base method.
 func (m *MockClusterServiceClientSpec) ListExternalAuths(clusterInternalID InternalID, searchExpression string) ExternalAuthListIterator {
 	m.ctrl.T.Helper()
@@ -770,6 +808,45 @@ func (c *MockClusterServiceClientSpecPostClusterCall) Do(f func(context.Context,
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
 func (c *MockClusterServiceClientSpecPostClusterCall) DoAndReturn(f func(context.Context, *v1alpha1.ClusterBuilder, *v1alpha1.ClusterAutoscalerBuilder) (*v1alpha1.Cluster, error)) *MockClusterServiceClientSpecPostClusterCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
+// PostControlPlaneUpgradePolicy mocks base method.
+func (m *MockClusterServiceClientSpec) PostControlPlaneUpgradePolicy(ctx context.Context, clusterInternalID InternalID, builder *v1alpha1.ControlPlaneUpgradePolicyBuilder) (*v1alpha1.ControlPlaneUpgradePolicy, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "PostControlPlaneUpgradePolicy", ctx, clusterInternalID, builder)
+	ret0, _ := ret[0].(*v1alpha1.ControlPlaneUpgradePolicy)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// PostControlPlaneUpgradePolicy indicates an expected call of PostControlPlaneUpgradePolicy.
+func (mr *MockClusterServiceClientSpecMockRecorder) PostControlPlaneUpgradePolicy(ctx, clusterInternalID, builder any) *MockClusterServiceClientSpecPostControlPlaneUpgradePolicyCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PostControlPlaneUpgradePolicy", reflect.TypeOf((*MockClusterServiceClientSpec)(nil).PostControlPlaneUpgradePolicy), ctx, clusterInternalID, builder)
+	return &MockClusterServiceClientSpecPostControlPlaneUpgradePolicyCall{Call: call}
+}
+
+// MockClusterServiceClientSpecPostControlPlaneUpgradePolicyCall wrap *gomock.Call
+type MockClusterServiceClientSpecPostControlPlaneUpgradePolicyCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockClusterServiceClientSpecPostControlPlaneUpgradePolicyCall) Return(arg0 *v1alpha1.ControlPlaneUpgradePolicy, arg1 error) *MockClusterServiceClientSpecPostControlPlaneUpgradePolicyCall {
+	c.Call = c.Call.Return(arg0, arg1)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockClusterServiceClientSpecPostControlPlaneUpgradePolicyCall) Do(f func(context.Context, InternalID, *v1alpha1.ControlPlaneUpgradePolicyBuilder) (*v1alpha1.ControlPlaneUpgradePolicy, error)) *MockClusterServiceClientSpecPostControlPlaneUpgradePolicyCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockClusterServiceClientSpecPostControlPlaneUpgradePolicyCall) DoAndReturn(f func(context.Context, InternalID, *v1alpha1.ControlPlaneUpgradePolicyBuilder) (*v1alpha1.ControlPlaneUpgradePolicy, error)) *MockClusterServiceClientSpecPostControlPlaneUpgradePolicyCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
