@@ -177,32 +177,48 @@ func (c *readAndPersistMaestroReadonlyBundlesContentSyncer) calculateManagementC
 	// is outside the limit, we do not persist the content but we also do not unset
 	// the kubeContent field. This is, when kubeContent is present it holds the
 	// last successfully stored content.
-	// We use unstructured.Unstructured so we can implement logic agnostic to the type of the content.
-	unstructured := &unstructured.Unstructured{}
-	err = json.Unmarshal(rawBytes, unstructured)
+	// We use unstructuredObj.Unstructured so we can implement logic agnostic to the type of the content.
+	unstructuredObj := &unstructured.Unstructured{}
+	err = json.Unmarshal(rawBytes, unstructuredObj)
 	if err != nil {
 		return nil, utils.TrackError(fmt.Errorf("failed to unmarshal object from status feedback value: %w", err))
 	}
-	kind := unstructured.GetKind()
+	kind := unstructuredObj.GetKind()
 	if kind == "" {
 		return nil, utils.TrackError(fmt.Errorf("expected kind to be not empty"))
 	}
-	if kubeContentMaxSizeExceeded {
-		kubeContextMaxSizeExceededConditionMessage = fmt.Sprintf("%s serialized size %.2f MiB exceeds Kube content max size %.2f MiB;", kind, float64(len(rawBytes))/(1024*1024), float64(c.kubeContentMaxSizeBytes())/(1024*1024))
-	} else {
+
+	objs, err := c.buildObjectsFromUnstructuredObj(unstructuredObj)
+	if err != nil {
+		return nil, utils.TrackError(fmt.Errorf("failed to build objects from unstructured object: %w", err))
+	}
+	if !kubeContentMaxSizeExceeded {
 		// TODO is ListMeta or TypeMeta required at the metav1.List level?
-		desired.KubeContent = &metav1.List{
-			Items: []runtime.RawExtension{
-				{
-					Object: unstructured,
-				},
-			},
-		}
+		desired.KubeContent = &metav1.List{Items: objs}
+	} else {
+		kubeContextMaxSizeExceededConditionMessage = fmt.Sprintf("%s serialized size %.2f MiB exceeds Kube content max size %.2f MiB;", kind, float64(len(rawBytes))/(1024*1024), float64(c.kubeContentMaxSizeBytes())/(1024*1024))
 	}
 	kubeContentMaxSizeExceededCondition := c.buildKubeContentMaxSizeExceededCondition(kubeContentMaxSizeExceeded, kubeContextMaxSizeExceededConditionMessage)
 	controllerutils.SetCondition(&desired.Status.Conditions, kubeContentMaxSizeExceededCondition)
 
 	return desired, nil
+}
+
+// buildObjectsFromUnstructuredObj builds the list of objects from the given unstructured object.
+// If the unstructured object is a list, it flattens the list of objects from the list of items. Nested lists are not flattened.
+// If the unstructured object is not a list, it returns a list with a single item being the single object.
+func (c *readAndPersistMaestroReadonlyBundlesContentSyncer) buildObjectsFromUnstructuredObj(unstructuredObj *unstructured.Unstructured) ([]runtime.RawExtension, error) {
+	if !unstructuredObj.IsList() {
+		return []runtime.RawExtension{{Object: unstructuredObj}}, nil
+	}
+
+	objs := []runtime.RawExtension{}
+	unstructuredObj.EachListItem(func(o runtime.Object) error {
+		objs = append(objs, runtime.RawExtension{Object: o})
+		return nil
+	})
+
+	return objs, nil
 }
 
 // readAndPersistMaestroBundleContent reads the Maestro Bundle content from the given Maestro Bundle reference
