@@ -420,7 +420,7 @@ defaults:
           image:
             registry: arohcpsvcdev.azurecr.io
             repository: k8s-cache/ingress-nginx/kube-webhook-certgen
-            tag: v1.5.2
+            sha: 7c74a715af2c94cb734785b4d3ea1357b4f02b88e1e123c622a9cb68b62f669c # v1.6.7 (2026-01-29 12:24)
   # MGMT cluster specifics
   mgmt:
     hcpBackups:
@@ -537,7 +537,7 @@ defaults:
           image:
             registry: arohcpsvcdev.azurecr.io
             repository: k8s-cache/ingress-nginx/kube-webhook-certgen
-            tag: v1.5.2
+            sha: 7c74a715af2c94cb734785b4d3ea1357b4f02b88e1e123c622a9cb68b62f669c # v1.6.7 (2026-01-29 12:24)
   # Backend
   backend:
     image:
