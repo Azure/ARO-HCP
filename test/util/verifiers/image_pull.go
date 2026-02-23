@@ -87,11 +87,14 @@ func (v verifyImagePulled) Verify(ctx context.Context, adminRESTConfig *rest.Con
 			}
 		}
 
-		// Also check for ImagePullBackOff errors
+		// Also check for image pull errors in pod conditions
 		for _, condition := range pod.Status.Conditions {
 			if condition.Type == "PodScheduled" && condition.Status == "False" {
-				if strings.Contains(condition.Message, reasonImagePullBackOff) || strings.Contains(condition.Message, reasonErrImagePull) {
-					imagePullErrors = append(imagePullErrors, fmt.Sprintf("pod %s: %s", pod.Name, condition.Message))
+				for reason := range imagePullErrorReasons {
+					if strings.Contains(condition.Message, reason) {
+						imagePullErrors = append(imagePullErrors, fmt.Sprintf("pod %s: %s", pod.Name, condition.Message))
+						break
+					}
 				}
 			}
 		}
@@ -111,7 +114,7 @@ func (v verifyImagePulled) Verify(ctx context.Context, adminRESTConfig *rest.Con
 					"image", containerStatus.Image)
 
 				// Track image pull errors specifically
-				if reason == reasonImagePullBackOff || reason == reasonErrImagePull {
+				if imagePullErrorReasons[reason] {
 					imagePullErrors = append(imagePullErrors, fmt.Sprintf("pod %s container %s: %s - %s",
 						pod.Name, containerStatus.Name, reason, message))
 				}

@@ -28,20 +28,22 @@ import (
 	"k8s.io/client-go/rest"
 )
 
-const (
-	reasonImagePullBackOff = "ImagePullBackOff"
-	reasonErrImagePull     = "ErrImagePull"
-)
+// imagePullErrorReasons lists all container waiting reasons that indicate an
+// image pull problem.  Values come from k8s.io/kubernetes/pkg/kubelet/images/types.go.
+var imagePullErrorReasons = map[string]bool{
+	"ImagePullBackOff":  true,
+	"ErrImagePull":      true,
+	"ImageInspectError": true,
+	"ErrImageNeverPull": true,
+	"InvalidImageName":  true,
+}
 
 // checkPodImagePullErrors checks if a pod has image pull errors in any container
 func checkPodImagePullErrors(pod corev1.Pod, contextName string) error {
 	for _, cs := range append(pod.Status.ContainerStatuses, pod.Status.InitContainerStatuses...) {
-		if cs.State.Waiting != nil {
-			reason := cs.State.Waiting.Reason
-			if reason == reasonImagePullBackOff || reason == reasonErrImagePull {
-				return fmt.Errorf("%s %s, container %s: %s (%s)",
-					contextName, pod.Name, cs.Name, reason, cs.State.Waiting.Message)
-			}
+		if cs.State.Waiting != nil && imagePullErrorReasons[cs.State.Waiting.Reason] {
+			return fmt.Errorf("%s %s, container %s: %s (%s)",
+				contextName, pod.Name, cs.Name, cs.State.Waiting.Reason, cs.State.Waiting.Message)
 		}
 	}
 	return nil
