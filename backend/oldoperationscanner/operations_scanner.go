@@ -31,10 +31,6 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
 
-	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
-	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
-	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
-
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/operationcontrollers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	backendtracing "github.com/Azure/ARO-HCP/backend/pkg/tracing"
@@ -60,23 +56,6 @@ const (
 	pollExternalAuthOperationLabel = "poll_external_auth"
 )
 
-// Copied from uhc-clusters-service, because the
-// OCM SDK does not define this for some reason.
-type NodePoolStateValue string
-
-const (
-	NodePoolStateValidating       NodePoolStateValue = "validating"
-	NodePoolStatePending          NodePoolStateValue = "pending"
-	NodePoolStateInstalling       NodePoolStateValue = "installing"
-	NodePoolStateReady            NodePoolStateValue = "ready"
-	NodePoolStateUpdating         NodePoolStateValue = "updating"
-	NodePoolStateValidatingUpdate NodePoolStateValue = "validating_update"
-	NodePoolStatePendingUpdate    NodePoolStateValue = "pending_update"
-	NodePoolStateUninstalling     NodePoolStateValue = "uninstalling"
-	NodePoolStateRecoverableError NodePoolStateValue = "recoverable_error"
-	NodePoolStateError            NodePoolStateValue = "error"
-)
-
 type operation struct {
 	id  string
 	doc *api.Operation
@@ -93,25 +72,6 @@ func listOperationLabelValues() iter.Seq[string] {
 		pollNodePoolOperationLabel,
 		pollExternalAuthOperationLabel,
 	})
-}
-
-// setSpanAttributes sets the operation and resource attributes on the span.
-func (o *operation) setSpanAttributes(span trace.Span) {
-	// Operation attributes.
-	span.SetAttributes(
-		tracing.OperationIDKey.String(string(o.id)),
-		tracing.OperationTypeKey.String(string(o.doc.Request)),
-		tracing.OperationStatusKey.String(string(o.doc.Status)),
-	)
-
-	// Resource attributes.
-	if o.doc.ExternalID != nil {
-		span.SetAttributes(
-			tracing.ResourceGroupNameKey.String(o.doc.ExternalID.ResourceGroupName),
-			tracing.ResourceNameKey.String(o.doc.ExternalID.Name),
-			tracing.ResourceTypeKey.String(o.doc.ExternalID.ResourceType.Type),
-		)
-	}
 }
 
 type OperationsScanner struct {
@@ -466,18 +426,15 @@ func (s *OperationsScanner) processOperations(ctx context.Context, subscriptionI
 // processOperation processes a single operation on a resource.
 func (s *OperationsScanner) processOperation(ctx context.Context, op operation) {
 	logger := utils.LoggerFromContext(ctx)
-	ctx, span := startChildSpan(ctx, "processOperation")
+	_, span := startChildSpan(ctx, "processOperation")
 	defer span.End()
 
 	logger.Info("Processing")
 	defer logger.Info("Processed")
 
-	switch op.doc.InternalID.Kind() {
-	case arohcpv1alpha1.NodePoolKind:
-		s.pollNodePoolOperation(ctx, op)
-	case cmv1.ExternalAuthKind:
-		s.pollExternalAuthOperation(ctx, op)
-	}
+	// XXX The previous business logic of OperationsScanner has
+	//     been converted to various Kubernetes-style controllers
+	//     that fulfill the OperationSynchronizer interface.
 }
 
 func (s *OperationsScanner) recordOperationError(ctx context.Context, operationName string, err error) {
@@ -488,76 +445,6 @@ func (s *OperationsScanner) recordOperationError(ctx context.Context, operationN
 	s.operationsFailedCount.WithLabelValues(operationName).Inc()
 	span := trace.SpanFromContext(ctx)
 	span.RecordError(err)
-}
-
-// pollNodePoolOperation updates the status of a node pool operation.
-func (s *OperationsScanner) pollNodePoolOperation(ctx context.Context, op operation) {
-	logger := utils.LoggerFromContext(ctx)
-	ctx, span := startChildSpan(ctx, "pollNodePoolOperation")
-	defer span.End()
-	defer s.updateOperationMetrics(pollNodePoolOperationLabel)()
-	op.setSpanAttributes(span)
-
-	nodePoolStatus, err := s.clusterService.GetNodePoolStatus(ctx, op.doc.InternalID)
-	if err != nil {
-		var ocmError *ocmerrors.Error
-		if errors.As(err, &ocmError) && ocmError.Status() == http.StatusNotFound && op.doc.Request == database.OperationRequestDelete {
-			err = operationcontrollers.SetDeleteOperationAsCompleted(ctx, s.dbClient, op.doc, s.postAsyncNotification)
-			if err != nil {
-				s.recordOperationError(ctx, pollNodePoolOperationLabel, err)
-				logger.Error(err, "Failed to handle a completed deletion")
-			}
-		} else {
-			s.recordOperationError(ctx, pollNodePoolOperationLabel, err)
-			logger.Error(err, "Failed to get node pool status")
-		}
-
-		return
-	}
-
-	opStatus, opError, err := convertNodePoolStatus(op, nodePoolStatus)
-	if err != nil {
-		s.recordOperationError(ctx, pollNodePoolOperationLabel, err)
-		logger.Info("Node pool status conversion warning", "error", err.Error())
-		return
-	}
-
-	err = operationcontrollers.UpdateOperationStatus(ctx, s.dbClient, op.doc, opStatus, opError, s.postAsyncNotification)
-	if err != nil {
-		s.recordOperationError(ctx, pollNodePoolOperationLabel, err)
-		logger.Error(err, "Failed to update operation status")
-	}
-}
-
-// pollExternalAuthOperation updates the status of an external auth operation.
-func (s *OperationsScanner) pollExternalAuthOperation(ctx context.Context, op operation) {
-	logger := utils.LoggerFromContext(ctx)
-	ctx, span := startChildSpan(ctx, "pollExternalAuthOperation")
-	defer span.End()
-	defer s.updateOperationMetrics(pollExternalAuthOperationLabel)()
-	op.setSpanAttributes(span)
-
-	_, err := s.clusterService.GetExternalAuth(ctx, op.doc.InternalID)
-	if err != nil {
-		var ocmError *ocmerrors.Error
-		if errors.As(err, &ocmError) && ocmError.Status() == http.StatusNotFound && op.doc.Request == database.OperationRequestDelete {
-			err = operationcontrollers.SetDeleteOperationAsCompleted(ctx, s.dbClient, op.doc, s.postAsyncNotification)
-			if err != nil {
-				s.recordOperationError(ctx, pollExternalAuthOperationLabel, err)
-				logger.Error(err, "Failed to handle a completed deletion")
-			}
-		} else {
-			s.recordOperationError(ctx, pollExternalAuthOperationLabel, err)
-			logger.Error(err, "Failed to get external auth status")
-		}
-
-		return
-	}
-	err = operationcontrollers.UpdateOperationStatus(ctx, s.dbClient, op.doc, arm.ProvisioningStateSucceeded, nil, s.postAsyncNotification)
-	if err != nil {
-		s.recordOperationError(ctx, pollExternalAuthOperationLabel, err)
-		logger.Error(err, "Failed to update operation status")
-	}
 }
 
 // withSubscriptionLock holds a subscription lock while executing the given function.
@@ -600,52 +487,6 @@ func WithSubscriptionLock(ctx context.Context, lockClient database.LockClientInt
 // PostAsyncNotification submits an POST request with status payload to the given URL.
 func (s *OperationsScanner) postAsyncNotification(ctx context.Context, operation *api.Operation) error {
 	return operationcontrollers.PostAsyncNotification(ctx, s.notificationClient, operation)
-}
-
-// convertNodePoolStatus attempts to translate a NodePoolStatus object
-// from Cluster Service into an ARM provisioning state and, if necessary,
-// a structured OData error.
-func convertNodePoolStatus(op operation, nodePoolStatus *arohcpv1alpha1.NodePoolStatus) (arm.ProvisioningState, *arm.CloudErrorBody, error) {
-	var opStatus = op.doc.Status
-	var opError *arm.CloudErrorBody
-	var err error
-
-	switch state := NodePoolStateValue(nodePoolStatus.State().NodePoolStateValue()); state {
-	case NodePoolStateValidating, NodePoolStatePending, NodePoolStateValidatingUpdate, NodePoolStatePendingUpdate:
-		// These are valid node pool states for ARO-HCP but there are
-		// no unique ProvisioningState values for them. They should
-		// only occur when ProvisioningState is Accepted.
-		if opStatus != arm.ProvisioningStateAccepted {
-			err = fmt.Errorf("got NodePoolStatusValue '%s' while ProvisioningState was '%s' instead of '%s'", state, opStatus, arm.ProvisioningStateAccepted)
-		}
-	case NodePoolStateInstalling:
-		opStatus = arm.ProvisioningStateProvisioning
-	case NodePoolStateReady:
-		// Resource deletion is successful when fetching its state
-		// from Cluster Service returns a "404 Not Found" error. If
-		// we see the resource in a "Ready" state during a deletion
-		// operation, leave the current provisioning state as is.
-		if op.doc.Request != database.OperationRequestDelete {
-			opStatus = arm.ProvisioningStateSucceeded
-		}
-	case NodePoolStateUpdating:
-		opStatus = arm.ProvisioningStateUpdating
-	case NodePoolStateUninstalling:
-		opStatus = arm.ProvisioningStateDeleting
-	case NodePoolStateRecoverableError, NodePoolStateError:
-		// XXX OCM SDK offers no error code or message for failed node pool
-		//     operations so "Internal Server Error" is all we can do for now.
-		//     https://issues.redhat.com/browse/ARO-14969
-		opStatus = arm.ProvisioningStateFailed
-		opError = arm.NewInternalServerError().CloudErrorBody
-		if msg, ok := nodePoolStatus.GetMessage(); ok {
-			opError.Message = msg
-		}
-	default:
-		err = fmt.Errorf("unhandled NodePoolState '%s'", state)
-	}
-
-	return opStatus, opError, err
 }
 
 // StartRootSpan initiates a new parent trace.

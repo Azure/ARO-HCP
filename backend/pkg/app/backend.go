@@ -20,7 +20,6 @@ import (
 	"fmt"
 	"net/http"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -31,7 +30,6 @@ import (
 	"k8s.io/client-go/tools/leaderelection/resourcelock"
 	utilsclock "k8s.io/utils/clock"
 
-	"github.com/Azure/ARO-HCP/backend/oldoperationscanner"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/mismatchcontrollers"
@@ -240,9 +238,6 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 	activeOperationInformer, activeOperationLister := backendInformers.ActiveOperations()
 	clusterInformer, _ := backendInformers.Clusters()
 
-	startedLeading := atomic.Bool{}
-	operationsScanner := oldoperationscanner.NewOperationsScanner(
-		b.options.CosmosDBClient, b.options.ClustersServiceClient, b.options.AzureLocation, subscriptionLister)
 	dataDumpController := controllerutils.NewClusterWatchingController(
 		"DataDump", b.options.CosmosDBClient, clusterInformer, 1*time.Minute, controllers.NewDataDumpController(activeOperationLister, b.options.CosmosDBClient))
 	doNothingController := controllers.NewDoNothingExampleController(b.options.CosmosDBClient, subscriptionLister)
@@ -272,6 +267,72 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 	operationClusterDeleteController := operationcontrollers.NewGenericOperationController(
 		"OperationClusterDelete",
 		operationcontrollers.NewOperationClusterDeleteSynchronizer(
+			b.options.CosmosDBClient,
+			b.options.ClustersServiceClient,
+			http.DefaultClient,
+		),
+		10*time.Second,
+		activeOperationInformer,
+		b.options.CosmosDBClient,
+	)
+	operationNodePoolCreateController := operationcontrollers.NewGenericOperationController(
+		"OperationNodePoolCreate",
+		operationcontrollers.NewOperationNodePoolCreateSynchronizer(
+			b.options.CosmosDBClient,
+			b.options.ClustersServiceClient,
+			http.DefaultClient,
+		),
+		10*time.Second,
+		activeOperationInformer,
+		b.options.CosmosDBClient,
+	)
+	operationNodePoolUpdateController := operationcontrollers.NewGenericOperationController(
+		"OperationNodePoolUpdate",
+		operationcontrollers.NewOperationNodePoolUpdateSynchronizer(
+			b.options.CosmosDBClient,
+			b.options.ClustersServiceClient,
+			http.DefaultClient,
+		),
+		10*time.Second,
+		activeOperationInformer,
+		b.options.CosmosDBClient,
+	)
+	operationNodePoolDeleteController := operationcontrollers.NewGenericOperationController(
+		"OperationNodePoolDelete",
+		operationcontrollers.NewOperationNodePoolDeleteSynchronizer(
+			b.options.CosmosDBClient,
+			b.options.ClustersServiceClient,
+			http.DefaultClient,
+		),
+		10*time.Second,
+		activeOperationInformer,
+		b.options.CosmosDBClient,
+	)
+	operationExternalAuthCreateController := operationcontrollers.NewGenericOperationController(
+		"OperationExternalAuthCreate",
+		operationcontrollers.NewOperationExternalAuthCreateSynchronizer(
+			b.options.CosmosDBClient,
+			b.options.ClustersServiceClient,
+			http.DefaultClient,
+		),
+		10*time.Second,
+		activeOperationInformer,
+		b.options.CosmosDBClient,
+	)
+	operationExternalAuthUpdateController := operationcontrollers.NewGenericOperationController(
+		"OperationExternalAuthUpdate",
+		operationcontrollers.NewOperationExternalAuthUpdateSynchronizer(
+			b.options.CosmosDBClient,
+			b.options.ClustersServiceClient,
+			http.DefaultClient,
+		),
+		10*time.Second,
+		activeOperationInformer,
+		b.options.CosmosDBClient,
+	)
+	operationExternalAuthDeleteController := operationcontrollers.NewGenericOperationController(
+		"OperationExternalAuthDelete",
+		operationcontrollers.NewOperationExternalAuthDeleteSynchronizer(
 			b.options.CosmosDBClient,
 			b.options.ClustersServiceClient,
 			http.DefaultClient,
@@ -333,18 +394,20 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		RetryPeriod:   leaderElectionRetryPeriod,
 		Callbacks: leaderelection.LeaderCallbacks{
 			OnStartedLeading: func(ctx context.Context) {
-				operationsScanner.LeaderGauge.Set(1)
-				startedLeading.Store(true)
-
 				// start the SharedInformers
 				go backendInformers.RunWithContext(ctx)
 
-				go operationsScanner.Run(ctx)
 				go dataDumpController.Run(ctx, 20)
 				go doNothingController.Run(ctx, 20)
 				go operationClusterCreateController.Run(ctx, 20)
 				go operationClusterUpdateController.Run(ctx, 20)
 				go operationClusterDeleteController.Run(ctx, 20)
+				go operationNodePoolCreateController.Run(ctx, 20)
+				go operationNodePoolUpdateController.Run(ctx, 20)
+				go operationNodePoolDeleteController.Run(ctx, 20)
+				go operationExternalAuthCreateController.Run(ctx, 20)
+				go operationExternalAuthUpdateController.Run(ctx, 20)
+				go operationExternalAuthDeleteController.Run(ctx, 20)
 				go operationRequestCredentialController.Run(ctx, 20)
 				go operationRevokeCredentialsController.Run(ctx, 20)
 				go clusterServiceMatchingClusterController.Run(ctx, 20)
@@ -356,10 +419,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go triggerControlPlaneUpgradeController.Run(ctx, 20)
 			},
 			OnStoppedLeading: func() {
-				operationsScanner.LeaderGauge.Set(0)
-				if startedLeading.Load() {
-					operationsScanner.Join()
-				}
+				// This needs to be defined even though it does nothing.
 			},
 		},
 		ReleaseOnCancel: true,
