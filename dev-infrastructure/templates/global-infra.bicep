@@ -394,6 +394,14 @@ module azureFrontDoor '../modules/oidc/global/main.bicep' = if (azureFrontDoorMa
   }
 }
 
+module grafanaAfdPermissions '../modules/grafana/observability-permissions.bicep' = if (azureFrontDoorManage) {
+  name: 'grafana-afd-permissions'
+  params: {
+    grafanaPrincipalId: grafana.outputs.grafanaPrincipalId
+    frontDoorProfileId: azureFrontDoor.outputs.frontDoorProfileId
+  }
+}
+
 output globalKeyVaultUrl string = globalKV.outputs.kvUrl
 
 // G E N E V A   A C T I O N S

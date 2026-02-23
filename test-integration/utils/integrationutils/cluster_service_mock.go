@@ -36,6 +36,7 @@ import (
 
 	csarhcpv1alpha1 "github.com/openshift-online/ocm-api-model/clientapi/arohcp/v1alpha1"
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
+	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
 	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
 
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -67,7 +68,7 @@ func (s *ClusterServiceMock) setupMockClusterService(t *testing.T) {
 	internalIDToNodePool := s.GetOrCreateMockData(t.Name() + "_nodePools")
 	internalIDToAutoscaler := s.GetOrCreateMockData(t.Name() + "_autoscalers")
 
-	s.MockClusterServiceClient.EXPECT().PostCluster(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, clusterBuilder *csarhcpv1alpha1.ClusterBuilder, autoscalerBuilder *csarhcpv1alpha1.ClusterAutoscalerBuilder) (*csarhcpv1alpha1.Cluster, error) {
+	s.MockClusterServiceClient.EXPECT().PostCluster(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, clusterBuilder *arohcpv1alpha1.ClusterBuilder, autoscalerBuilder *arohcpv1alpha1.ClusterAutoscalerBuilder) (*arohcpv1alpha1.Cluster, error) {
 		justID := rand.String(10)
 		internalID := "/api/clusters_mgmt/v1/clusters/" + justID
 
@@ -232,6 +233,17 @@ func (s *ClusterServiceMock) setupMockClusterService(t *testing.T) {
 			allObjs = append(allObjs, obj)
 		}
 		return ocm.NewSimpleNodePoolListIterator(allObjs, nil)
+	}).AnyTimes()
+
+	s.MockClusterServiceClient.EXPECT().DeleteBreakGlassCredentials(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	s.MockClusterServiceClient.EXPECT().PostBreakGlassCredential(gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, clusterID ocm.InternalID) (*cmv1.BreakGlassCredential, error) {
+		justID := rand.String(10)
+		credentialInternalID := clusterID.String() + "/break_glass_credentials/" + justID
+		ret, err := cmv1.NewBreakGlassCredential().ID(justID).HREF(credentialInternalID).Build()
+		if err != nil {
+			return nil, err
+		}
+		return ret, nil
 	}).AnyTimes()
 }
 
@@ -412,6 +424,26 @@ func (s *ClusterServiceMock) GetOrCreateMockData(dataName string) map[string][]a
 	return newData
 }
 
+// GetMergedClusters returns all clusters stored in the mock, each merged from
+// its full mutation history and serialized to a JSON map. The testName should
+// be t.Name() from the test that created the mock.
+func (s *ClusterServiceMock) GetMergedClusters(testName string) ([]map[string]any, error) {
+	data := s.GetOrCreateMockData(testName + "_clusters")
+	var result []map[string]any
+	for _, history := range data {
+		mergedJSON, err := mergeClusterServiceReturn(history)
+		if err != nil {
+			return nil, fmt.Errorf("merging cluster service return: %w", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(mergedJSON, &m); err != nil {
+			return nil, fmt.Errorf("unmarshaling merged cluster JSON: %w", err)
+		}
+		result = append(result, m)
+	}
+	return result, nil
+}
+
 func mergeClusterServiceReturn(history []any) ([]byte, error) {
 	if len(history) == 0 {
 		retErr, err := ocmerrors.NewError().Status(http.StatusNotFound).Build()
@@ -431,6 +463,12 @@ func mergeClusterServiceReturn(history []any) ([]byte, error) {
 		currMap := map[string]any{}
 		if err := json.Unmarshal(clusterServiceJSON, &currMap); err != nil {
 			return nil, fmt.Errorf("failed to unmarshal cluster-service type: %w", err)
+		}
+		// mergo merges map keys additively — keys in dest absent from src are
+		// kept. Properties must be replaced wholesale so that deleted properties
+		// don't survive across mutations.
+		if _, ok := currMap["properties"]; ok {
+			delete(dest, "properties")
 		}
 		if err := mergo.Merge(&dest, currMap, mergo.WithOverride); err != nil {
 			return nil, fmt.Errorf("failed to merge cluster-service type: %w", err)

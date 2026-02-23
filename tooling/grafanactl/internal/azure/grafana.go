@@ -54,7 +54,7 @@ func (p *ManagedGrafanaClient) GetGrafanaInstance(ctx context.Context, resourceG
 }
 
 // ListPrometheusInstances returns all managed Prometheus instances in the subscription
-func (p *ManagedGrafanaClient) UpdataGrafanaIntegrations(ctx context.Context, resourceGroup, grafanaName string, integrations []string) error {
+func (p *ManagedGrafanaClient) UpdateGrafanaIntegrations(ctx context.Context, resourceGroup, grafanaName string, integrations []string) error {
 	azureMonitorWorkspaceIntegrations := make([]*armdashboard.AzureMonitorWorkspaceIntegration, 0)
 	for _, integration := range integrations {
 		azureMonitorWorkspaceIntegrations = append(azureMonitorWorkspaceIntegrations, &armdashboard.AzureMonitorWorkspaceIntegration{

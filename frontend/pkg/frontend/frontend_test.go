@@ -108,6 +108,7 @@ func TestSubscriptionsGET(t *testing.T) {
 				nil,
 				newNoopAuditClient(t),
 				api.TestLocation,
+				"", false, false,
 			)
 
 			// ArmSubscriptionGet.
@@ -276,6 +277,7 @@ func TestSubscriptionsPUT(t *testing.T) {
 				nil,
 				newNoopAuditClient(t),
 				api.TestLocation,
+				"", false, false,
 			)
 
 			body, err := json.Marshal(&test.subscription)
@@ -506,6 +508,7 @@ func TestDeploymentPreflight(t *testing.T) {
 				nil,
 				newNoopAuditClient(t),
 				api.TestLocation,
+				"", false, false,
 			)
 
 			// MiddlewareValidateSubscriptionState and MetricsMiddleware
@@ -652,6 +655,7 @@ func TestRequestAdminCredential(t *testing.T) {
 				mockCSClient,
 				newNoopAuditClient(t),
 				api.TestLocation,
+				"", false, false,
 			)
 
 			// MiddlewareValidateSubscriptionState and MetricsMiddleware
@@ -827,6 +831,7 @@ func TestRevokeCredentials(t *testing.T) {
 				mockCSClient,
 				newNoopAuditClient(t),
 				api.TestLocation,
+				"", false, false,
 			)
 
 			// MiddlewareValidateSubscriptionState and MetricsMiddleware
@@ -838,6 +843,14 @@ func TestRevokeCredentials(t *testing.T) {
 				Return(&arm.Subscription{
 					ResourceID: api.Must(arm.ToSubscriptionResourceID(api.TestSubscriptionID)),
 					State:      arm.SubscriptionStateRegistered,
+					Properties: &arm.SubscriptionProperties{
+						RegisteredFeatures: &[]arm.Feature{
+							{
+								Name:  api.Ptr(api.FeatureExperimentalReleaseFeatures),
+								State: api.Ptr("Registered"),
+							},
+						},
+					},
 				}, nil).
 				MaxTimes(2)
 			// MiddlewareLockSubscription
@@ -864,6 +877,11 @@ func TestRevokeCredentials(t *testing.T) {
 					},
 					nil)
 			if test.clusterProvisioningState.IsTerminal() {
+				// Subscription feature gate check in handler
+				mockDBClient.EXPECT().
+					Subscriptions().
+					Return(mockSubscriptionCRUD)
+
 				revokeOperations := make(map[string]*api.Operation)
 				if !test.revokeCredentialsStatus.IsTerminal() {
 					revokeOperations[uuid.New().String()] = &api.Operation{

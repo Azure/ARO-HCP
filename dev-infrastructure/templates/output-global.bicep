@@ -107,3 +107,9 @@ resource genevaActionsKV 'Microsoft.KeyVault/vaults@2024-04-01-preview' existing
 }
 
 output genevaActionKeyVaultUrl string = genevaActionsKV.properties.vaultUri
+
+//
+//   S U B S C R I P T I O N
+//
+
+output subscriptionId string = subscription().subscriptionId

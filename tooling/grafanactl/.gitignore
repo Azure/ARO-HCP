@@ -1,3 +1,7 @@
 grafanactl
 *.exe
 *.out
+
+# Bundled files for EV2 deployment (copied by `make bundle`)
+observability.yaml
+grafana-dashboards/

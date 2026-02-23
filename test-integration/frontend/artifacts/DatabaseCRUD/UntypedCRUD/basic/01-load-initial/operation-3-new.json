@@ -18,5 +18,6 @@
 		"resourceId": "/subscriptions/f52dfea2-47ee-4396-8006-4a27d47d59c5/providers/Microsoft.RedHatOpenShift/hcpOperationStatuses/37332504-70b3-4796-9af6-301a5d47d127"
 	},
 	"resourceType": "microsoft.redhatopenshift/hcpoperationstatuses",
+	"resourceID": "/subscriptions/f52dfea2-47ee-4396-8006-4a27d47d59c5/providers/Microsoft.RedHatOpenShift/hcpOperationStatuses/37332504-70b3-4796-9af6-301a5d47d127",
 	"ttl": 604800
 }

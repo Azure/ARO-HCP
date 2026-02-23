@@ -50,5 +50,6 @@
 		"resourceId": "/subscriptions/a433a095-1277-44f1-8453-8d61a4d848c2/resourceGroups/unimportantpostponement/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/monstrousprecinct/nodePools/basic",
 		"systemData": {}
 	},
-	"resourceType": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/nodePools"
+	"resourceType": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/nodePools",
+	"resourceID": "/subscriptions/a433a095-1277-44f1-8453-8d61a4d848c2/resourceGroups/unimportantpostponement/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/monstrousprecinct/nodePools/basic"
 }

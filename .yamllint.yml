@@ -5,6 +5,7 @@ yaml-files:
 ignore:
 - 'acrpull/deploy/templates/deployment.yaml'
 - 'admin/deploy/templates/ext-authz.authorizationpolicy.yaml'
+- 'admin/deploy/templates/admin.deployment.yaml'
 - 'frontend/deploy/templates/ext-authz.authorizationpolicy.yaml'
 - 'frontend/deploy/templates/allow-ingress.authorizationpolicy.yaml'
 - 'frontend/deploy/templates/frontend.deployment.yaml'

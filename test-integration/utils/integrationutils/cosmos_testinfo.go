@@ -29,8 +29,6 @@ import (
 	"testing"
 	"time"
 
-	"k8s.io/apimachinery/pkg/util/sets"
-
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
@@ -40,6 +38,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/utils"
+	"github.com/Azure/ARO-HCP/internal/utils/apihelpers"
 )
 
 type CosmosIntegrationTestInfo struct {
@@ -115,17 +114,17 @@ func LoadCosmosContent(ctx context.Context, cosmosContainer *azcosmos.ContainerC
 
 	var err error
 	switch {
-	case strings.EqualFold(contentMap["resourceType"].(string), api.OperationStatusResourceType.String()),
-		strings.EqualFold(contentMap["resourceType"].(string), api.ClusterResourceType.String()),
-		strings.EqualFold(contentMap["resourceType"].(string), api.NodePoolResourceType.String()),
-		strings.EqualFold(contentMap["resourceType"].(string), api.ExternalAuthResourceType.String()),
-		strings.EqualFold(contentMap["resourceType"].(string), api.ClusterControllerResourceType.String()),
-		strings.EqualFold(contentMap["resourceType"].(string), api.NodePoolControllerResourceType.String()),
-		strings.EqualFold(contentMap["resourceType"].(string), api.ExternalAuthControllerResourceType.String()):
+	case apihelpers.ResourceTypeStringEqual(contentMap["resourceType"].(string), api.OperationStatusResourceType),
+		apihelpers.ResourceTypeStringEqual(contentMap["resourceType"].(string), api.ClusterResourceType),
+		apihelpers.ResourceTypeStringEqual(contentMap["resourceType"].(string), api.NodePoolResourceType),
+		apihelpers.ResourceTypeStringEqual(contentMap["resourceType"].(string), api.ExternalAuthResourceType),
+		apihelpers.ResourceTypeStringEqual(contentMap["resourceType"].(string), api.ClusterControllerResourceType),
+		apihelpers.ResourceTypeStringEqual(contentMap["resourceType"].(string), api.NodePoolControllerResourceType),
+		apihelpers.ResourceTypeStringEqual(contentMap["resourceType"].(string), api.ExternalAuthControllerResourceType):
 		partitionKey := azcosmos.NewPartitionKeyString(contentMap["partitionKey"].(string))
 		_, err = cosmosContainer.CreateItem(ctx, partitionKey, content, nil)
 
-	case strings.EqualFold(contentMap["resourceType"].(string), azcorearm.SubscriptionResourceType.String()):
+	case apihelpers.ResourceTypeStringEqual(contentMap["resourceType"].(string), azcorearm.SubscriptionResourceType):
 		partitionKey := azcosmos.NewPartitionKeyString(contentMap["partitionKey"].(string))
 		_, err = cosmosContainer.CreateItem(ctx, partitionKey, content, nil)
 
@@ -280,12 +279,12 @@ func saveContainerContent(ctx context.Context, documentLister DocumentLister, ou
 				armResourceID.Name+".json",
 			)
 
-		case strings.EqualFold(resourceType.(string), azcorearm.SubscriptionResourceType.String()):
+		case apihelpers.ResourceTypeStringEqual(resourceType.(string), azcorearm.SubscriptionResourceType):
 			filename = filepath.Join(
 				"subscriptions",
 				fmt.Sprintf("subscription_%s.json", docMap["id"].(string)))
 
-		case strings.EqualFold(resourceType.(string), api.OperationStatusResourceType.String()):
+		case apihelpers.ResourceTypeStringEqual(resourceType.(string), api.OperationStatusResourceType):
 			externalID := properties["externalId"].(string)
 			if clusterResourceID, _ := azcorearm.ParseResourceID(externalID); clusterResourceID != nil {
 				clusterDir := resourceIDToDir(clusterResourceID)
@@ -307,7 +306,7 @@ func saveContainerContent(ctx context.Context, documentLister DocumentLister, ou
 				filename = filepath.Join("unknown", fmt.Sprintf("unknown_%d.json", docCount))
 			}
 		}
-		filename = filepath.Join(containerDir, filename)
+		filename = filepath.Join(containerDir, strings.ToLower(filename))
 		logger.Info("Saving document", "filename", filename)
 
 		dirName := filepath.Dir(filename)
@@ -421,20 +420,6 @@ func initializeCosmosDBForFrontend(ctx context.Context, cosmosClient *azcosmos.C
 		return nil, fmt.Errorf("failed to create database client: %w", err)
 	}
 
-	allContainers := sets.NewString()
-	allContainersQuery := cosmosDatabaseClient.NewQueryContainersPager("select * from containers c", nil)
-	for allContainersQuery.More() {
-		queryResponse, err := allContainersQuery.NextPage(context.Background())
-		if err != nil {
-			return nil, utils.TrackError(err)
-		}
-
-		for _, container := range queryResponse.Containers {
-			allContainers.Insert(container.ID)
-		}
-	}
-
-	// Create required containers
 	containers := []struct {
 		name         string
 		partitionKey string
@@ -448,10 +433,6 @@ func initializeCosmosDBForFrontend(ctx context.Context, cosmosClient *azcosmos.C
 	start := time.Now()
 	logger.Info("Create all containers")
 	for _, container := range containers {
-		if allContainers.Has(container.name) {
-			logger.Info("Container already exists", "containerName", container.name)
-			continue
-		}
 		containerProperties := azcosmos.ContainerProperties{
 			ID: container.name,
 			PartitionKeyDefinition: azcosmos.PartitionKeyDefinition{
@@ -464,10 +445,13 @@ func initializeCosmosDBForFrontend(ctx context.Context, cosmosClient *azcosmos.C
 
 		logger.Info("Creating container", "containerName", container.name)
 		_, err = cosmosDatabaseClient.CreateContainer(ctx, containerProperties, nil)
-		if err != nil && !database.IsResponseError(err, http.StatusConflict) {
+		if err != nil && database.IsResponseError(err, http.StatusConflict) {
+			logger.Info("Container already exists", "containerName", container.name)
+		} else if err != nil {
 			return nil, utils.TrackError(err)
+		} else {
+			logger.Info("Container created", "containerName", container.name)
 		}
-		logger.Info("Container created", "containerName", container.name)
 	}
 	end := time.Now()
 	logger.Info("All containers created", "duration", end.Sub(start))

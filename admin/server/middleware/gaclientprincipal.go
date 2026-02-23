@@ -14,7 +14,9 @@
 
 package middleware
 
-import "net/http"
+import (
+	"net/http"
+)
 
 const (
 	ClientPrincipalNameHeader = "X-Ms-Client-Principal-Name"

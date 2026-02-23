@@ -56,7 +56,7 @@ func NewCosmosGlobalListers(resources *azcosmos.ContainerClient) GlobalListers {
 }
 
 func (g *cosmosGlobalListers) Subscriptions() GlobalLister[arm.Subscription] {
-	return &cosmosGlobalLister[arm.Subscription, Subscription]{
+	return &cosmosGlobalLister[arm.Subscription, GenericDocument[arm.Subscription]]{
 		containerClient: g.resources,
 		resourceType:    azcorearm.SubscriptionResourceType,
 	}
@@ -91,7 +91,7 @@ func (g *cosmosGlobalListers) ServiceProviderClusters() GlobalLister[api.Service
 }
 
 func (g *cosmosGlobalListers) Operations() GlobalLister[api.Operation] {
-	return &cosmosGlobalLister[api.Operation, Operation]{
+	return &cosmosGlobalLister[api.Operation, GenericDocument[api.Operation]]{
 		containerClient: g.resources,
 		resourceType:    api.OperationStatusResourceType,
 	}
@@ -143,7 +143,7 @@ func (l *cosmosActiveOperationsGlobalLister) List(ctx context.Context, options *
 	pager := l.containerClient.NewQueryItemsPager(query, partitionKey, &queryOptions)
 
 	if options != nil && ptr.Deref(options.PageSizeHint, -1) > 0 {
-		return newQueryResourcesSinglePageIterator[api.Operation, Operation](pager), nil
+		return newQueryResourcesSinglePageIterator[api.Operation, GenericDocument[api.Operation]](pager), nil
 	}
-	return newQueryResourcesIterator[api.Operation, Operation](pager), nil
+	return newQueryResourcesIterator[api.Operation, GenericDocument[api.Operation]](pager), nil
 }

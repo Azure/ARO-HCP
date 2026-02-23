@@ -10,12 +10,6 @@ source "${SCRIPT_DIR}/_emulator_handling.sh"
 # Control whether to restart an existing emulator
 RESTART_EXISTING_EMULATOR="${RESTART_EXISTING_EMULATOR:-false}"
 
-# Number of partitions to use for the emulator
-# Increase if a lot of tests run in parallel and start failing with 503 errors
-# AI claims
-#   The default total partition count for the Azure Cosmos DB emulator is 25.  Increasing
-PARTITION_COUNT="${PARTITION_COUNT:-25}"
-
 RUNNING_CONTAINER=$(get_running_emulator_container_name)
 if [ -n "${RUNNING_CONTAINER}" ]; then
     if [ "${RESTART_EXISTING_EMULATOR}" != "true" ]; then
@@ -31,4 +25,4 @@ if [ -n "${RUNNING_CONTAINER}" ]; then
 fi
 
 CONTAINER_NAME="local-cosmos-emulator-$(shuf -i 1000-9999 -n 1)"
-start_emulator "${CONTAINER_NAME}" "${PARTITION_COUNT}"
+start_emulator "${CONTAINER_NAME}"

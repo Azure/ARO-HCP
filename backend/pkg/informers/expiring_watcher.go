@@ -15,6 +15,7 @@
 package informers
 
 import (
+	"context"
 	"net/http"
 	"time"
 
@@ -34,7 +35,7 @@ type expiringWatcher struct {
 // NewExpiringWatcher creates a watcher that terminates after the given duration
 // by sending an HTTP 410 Gone / StatusReasonExpired error, causing the
 // reflector to relist.
-func NewExpiringWatcher(expiry time.Duration) watch.Interface {
+func NewExpiringWatcher(ctx context.Context, expiry time.Duration) watch.Interface {
 	w := &expiringWatcher{
 		result: make(chan watch.Event),
 		done:   make(chan struct{}),
@@ -52,6 +53,7 @@ func NewExpiringWatcher(expiry time.Duration) watch.Interface {
 				},
 			}
 		case <-w.done:
+		case <-ctx.Done():
 		}
 		close(w.result)
 	}()
