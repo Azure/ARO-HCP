@@ -36,12 +36,19 @@ import (
 
 	"sigs.k8s.io/yaml"
 
+<<<<<<< HEAD
 	"github.com/Azure/ARO-Tools/pkg/cmdutils"
 	configtypes "github.com/Azure/ARO-Tools/pkg/config/types"
 	"github.com/Azure/ARO-Tools/pkg/graph"
 	"github.com/Azure/ARO-Tools/pkg/topology"
 	"github.com/Azure/ARO-Tools/pkg/types"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
+=======
+	configtypes "github.com/Azure/ARO-Tools/config/types"
+	"github.com/Azure/ARO-Tools/pipelines/graph"
+	"github.com/Azure/ARO-Tools/pipelines/topology"
+	"github.com/Azure/ARO-Tools/pipelines/types"
+>>>>>>> 9d6ea99b5 (*: update to ARO-Tools modules)
 
 	"github.com/Azure/ARO-HCP/tooling/templatize/bicep"
 	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/junit"

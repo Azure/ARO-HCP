@@ -33,8 +33,8 @@ import (
 
 	"sigs.k8s.io/yaml"
 
-	"github.com/Azure/ARO-Tools/pkg/config"
-	"github.com/Azure/ARO-Tools/pkg/config/ev2config"
+	"github.com/Azure/ARO-Tools/config"
+	"github.com/Azure/ARO-Tools/config/ev2config"
 
 	"github.com/Azure/ARO-HCP/tooling/templatize/cmd/configuration/render"
 	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/settings"

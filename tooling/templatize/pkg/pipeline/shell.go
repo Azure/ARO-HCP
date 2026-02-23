@@ -31,12 +31,12 @@ import (
 
 	"github.com/go-logr/logr"
 
-	"github.com/Azure/ARO-Tools/pkg/cmdutils"
-	configtypes "github.com/Azure/ARO-Tools/pkg/config/types"
-	"github.com/Azure/ARO-Tools/pkg/graph"
-	"github.com/Azure/ARO-Tools/pkg/registration"
-	"github.com/Azure/ARO-Tools/pkg/secret-sync/populate"
-	"github.com/Azure/ARO-Tools/pkg/types"
+	configtypes "github.com/Azure/ARO-Tools/config/types"
+	"github.com/Azure/ARO-Tools/pipelines/graph"
+	"github.com/Azure/ARO-Tools/pipelines/types"
+	"github.com/Azure/ARO-Tools/tools/cmdutils"
+	"github.com/Azure/ARO-Tools/tools/registration"
+	"github.com/Azure/ARO-Tools/tools/secret-sync/populate"
 
 	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/utils"
 )

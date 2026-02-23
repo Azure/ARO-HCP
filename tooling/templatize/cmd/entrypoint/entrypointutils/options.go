@@ -24,9 +24,14 @@ import (
 
 	"sigs.k8s.io/yaml"
 
+<<<<<<< HEAD
 	configtypes "github.com/Azure/ARO-Tools/pkg/config/types"
 	"github.com/Azure/ARO-Tools/pkg/topology"
 	"github.com/Azure/ARO-Tools/pkg/types"
+=======
+	"github.com/Azure/ARO-Tools/pipelines/topology"
+	"github.com/Azure/ARO-Tools/pipelines/types"
+>>>>>>> 9d6ea99b5 (*: update to ARO-Tools modules)
 
 	rollout "github.com/Azure/ARO-HCP/tooling/templatize/cmd"
 )
