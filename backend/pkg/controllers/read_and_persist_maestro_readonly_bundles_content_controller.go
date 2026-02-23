@@ -152,24 +152,17 @@ func (c *readAndPersistMaestroReadonlyBundlesContentSyncer) calculateManagementC
 		return nil, utils.TrackError(fmt.Errorf("failed to get Maestro Bundle: %w", err))
 	}
 	if k8serrors.IsNotFound(err) {
-		maestroBundleExistsCondition := c.buildMaestroBundleExistsCondition(false)
-		maestroBundleStatusFeedbackAvailableCondition := c.buildMaestroBundleStatusFeedbackAvailableCondition(false, err.Error())
-		controllerutils.SetCondition(&desired.Status.Conditions, maestroBundleExistsCondition)
-		controllerutils.SetCondition(&desired.Status.Conditions, maestroBundleStatusFeedbackAvailableCondition)
+		degradedCondition := c.buildDegradedCondition(api.ConditionTrue, "MaestroBundleNotFound", err.Error())
+		controllerutils.SetCondition(&desired.Status.Conditions, degradedCondition)
 		return desired, nil
 	}
-
-	maestroBundleExistsCondition := c.buildMaestroBundleExistsCondition(true)
-	controllerutils.SetCondition(&desired.Status.Conditions, maestroBundleExistsCondition)
 
 	rawBytes, err := c.getSingleResourceStatusFeedbackRawJSONFromMaestroBundle(existingMaestroBundle)
 	if err != nil {
-		maestroBundleStatusFeedbackAvailableCondition := c.buildMaestroBundleStatusFeedbackAvailableCondition(false, err.Error())
-		controllerutils.SetCondition(&desired.Status.Conditions, maestroBundleStatusFeedbackAvailableCondition)
+		degradedCondition := c.buildDegradedCondition(api.ConditionTrue, "MaestroBundleStatusFeedbackNotAvailable", err.Error())
+		controllerutils.SetCondition(&desired.Status.Conditions, degradedCondition)
 		return desired, nil
 	}
-	maestroBundleStatusFeedbackAvailableCondition := c.buildMaestroBundleStatusFeedbackAvailableCondition(true, "")
-	controllerutils.SetCondition(&desired.Status.Conditions, maestroBundleStatusFeedbackAvailableCondition)
 
 	kubeContentMaxSizeExceeded := len(rawBytes) > c.kubeContentMaxSizeBytes()
 	var kubeContextMaxSizeExceededConditionMessage string
@@ -192,14 +185,16 @@ func (c *readAndPersistMaestroReadonlyBundlesContentSyncer) calculateManagementC
 	if err != nil {
 		return nil, utils.TrackError(fmt.Errorf("failed to build objects from unstructured object: %w", err))
 	}
+	var degradedCondition api.Condition
 	if !kubeContentMaxSizeExceeded {
 		// TODO is ListMeta or TypeMeta required at the metav1.List level?
 		desired.KubeContent = &metav1.List{Items: objs}
+		degradedCondition = c.buildDegradedCondition(api.ConditionFalse, "", "")
 	} else {
 		kubeContextMaxSizeExceededConditionMessage = fmt.Sprintf("%s serialized size %.2f MiB exceeds Kube content max size %.2f MiB;", kind, float64(len(rawBytes))/(1024*1024), float64(c.kubeContentMaxSizeBytes())/(1024*1024))
+		degradedCondition = c.buildDegradedCondition(api.ConditionTrue, "KubeContentMaxSizeExceeded", kubeContextMaxSizeExceededConditionMessage)
 	}
-	kubeContentMaxSizeExceededCondition := c.buildKubeContentMaxSizeExceededCondition(kubeContentMaxSizeExceeded, kubeContextMaxSizeExceededConditionMessage)
-	controllerutils.SetCondition(&desired.Status.Conditions, kubeContentMaxSizeExceededCondition)
+	controllerutils.SetCondition(&desired.Status.Conditions, degradedCondition)
 
 	return desired, nil
 }
@@ -219,6 +214,15 @@ func (c *readAndPersistMaestroReadonlyBundlesContentSyncer) buildObjectsFromUnst
 	})
 
 	return objs, nil
+}
+
+func (c *readAndPersistMaestroReadonlyBundlesContentSyncer) buildDegradedCondition(conditionStatus api.ConditionStatus, conditionReason string, conditionMessage string) api.Condition {
+	return api.Condition{
+		Type:    "Degraded",
+		Status:  conditionStatus,
+		Reason:  conditionReason,
+		Message: conditionMessage,
+	}
 }
 
 // readAndPersistMaestroBundleContent reads the Maestro Bundle content from the given Maestro Bundle reference
@@ -286,64 +290,6 @@ func (c *readAndPersistMaestroReadonlyBundlesContentSyncer) readAndPersistMaestr
 // 2MB is the maximum size of a Cosmos DB item (https://learn.microsoft.com/en-us/azure/cosmos-db/concepts-limits#per-item-limits).
 func (c *readAndPersistMaestroReadonlyBundlesContentSyncer) kubeContentMaxSizeBytes() int {
 	return 1887436 // 2MB * 0.9
-}
-
-// buildKubeContentMaxSizeExceededCondition builds the KubeContentMaxSizeExceeded condition for the given boolean indicating
-// if the content size exceeds the limit (condition status True) or not (condition status False).
-// The conditionMessage is used to set the condition message.
-func (c *readAndPersistMaestroReadonlyBundlesContentSyncer) buildKubeContentMaxSizeExceededCondition(exceeded bool, conditionMessage string) api.Condition {
-	condition := api.Condition{
-		Type: "KubeContentMaxSizeExceeded",
-	}
-
-	if exceeded {
-		condition.Status = api.ConditionTrue
-		condition.Reason = "MaxSizeExceeded"
-	} else {
-		condition.Status = api.ConditionFalse
-		condition.Reason = "WithinLimit"
-	}
-	condition.Message = conditionMessage
-
-	return condition
-}
-
-// buildMaestroBundleExistsCondition builds the condition for the given boolean indicating
-// if the Maestro bundle exists (condition status True) or not (condition status False).
-func (c *readAndPersistMaestroReadonlyBundlesContentSyncer) buildMaestroBundleExistsCondition(exists bool) api.Condition {
-	condition := api.Condition{
-		Type: "MaestroBundleExists",
-	}
-
-	if exists {
-		condition.Status = api.ConditionTrue
-		condition.Reason = "Exists"
-	} else {
-		condition.Status = api.ConditionFalse
-		condition.Reason = "DoesNotExist"
-	}
-
-	return condition
-}
-
-// buildMaestroBundleStatusFeedbackAvailableCondition builds the condition for the given boolean indicating
-// if the feedback is available (condition status True) or not (condition status False).
-// The notAvailableMessage is used to set the condition message when the feedback is not available.
-func (c *readAndPersistMaestroReadonlyBundlesContentSyncer) buildMaestroBundleStatusFeedbackAvailableCondition(available bool, notAvailableMessage string) api.Condition {
-	condition := api.Condition{
-		Type: "MaestroBundleStatusFeedbackAvailable",
-	}
-
-	if available {
-		condition.Status = api.ConditionTrue
-		condition.Reason = "Available"
-	} else {
-		condition.Status = api.ConditionFalse
-		condition.Reason = "NotAvailable"
-		condition.Message = notAvailableMessage
-	}
-
-	return condition
 }
 
 // getSingleResourceStatusFeedbackRawJSONFromMaestroBundle gets the single resource status feedback raw JSON from a Maestro Bundle.
