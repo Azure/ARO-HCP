@@ -30,6 +30,9 @@ services:
       - serviceGroup: Microsoft.Azure.ARO.HCP.AdminAPI
         pipelinePath: admin/pipeline.yaml
         purpose: Deploy the Admin API.
+      - pipelinePath: ../billing/service/pipeline.yaml
+        purpose: Deploy the Billing Service.
+        serviceGroup: Microsoft.Azure.ARO.HCP.Billing.Service
       pipelinePath: dev-infrastructure/svc-pipeline.yaml
       purpose: Deploy the service cluster and supporting infrastructure.
     - serviceGroup: Microsoft.Azure.ARO.HCP.Management.Infra
@@ -63,8 +66,14 @@ services:
     - serviceGroup: Microsoft.Azure.ARO.HCP.E2E
       pipelinePath: test/e2e-pipeline.yaml
       purpose: Run the E2E tests towards a region and gate SDP progression.
+    - pipelinePath: ../billing/regional/pipeline.yaml
+      purpose: Deploy Billing Regional Infra
+      serviceGroup: Microsoft.Azure.ARO.HCP.Billing.Regional
     pipelinePath: dev-infrastructure/region-pipeline.yaml
     purpose: Deploy regional shared infrastructure.
+  - pipelinePath: ../billing/global/pipeline.yaml
+    purpose: Deploy Billing Global Infra
+    serviceGroup: Microsoft.Azure.ARO.HCP.Billing.Global
   pipelinePath: dev-infrastructure/global-pipeline.yaml
   purpose: Deploy global shared infrastructure.
 # Cleanup pipelines
