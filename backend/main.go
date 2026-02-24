@@ -474,6 +474,13 @@ func Run(cmd *cobra.Command, args []string) error {
 				dbClient,
 				subscriptionLister,
 			)
+
+			fetchDataPlaneOperatorsManagedIdentitiesInfoController = controllers.NewFetchDataPlaneOperatorsManagedIdentitiesInfoController(
+				dbClient,
+				subscriptionLister,
+				clusterServiceClient,
+				smiClientBuilderFactory,
+			)
 		)
 
 		le, err := leaderelection.NewLeaderElector(leaderelection.LeaderElectionConfig{
@@ -501,6 +508,7 @@ func Run(cmd *cobra.Command, args []string) error {
 					go alwaysSuccessClusterValidationController.Run(ctx, 20)
 					go azureRPRegistrationValidationController.Run(ctx, 20)
 					go azureClusterManagedIdentitiesExistenceValidationController.Run(ctx, 20)
+					go fetchDataPlaneOperatorsManagedIdentitiesInfoController.Run(ctx, 20)
 				},
 				OnStoppedLeading: func() {
 					operationsScanner.LeaderGauge.Set(0)

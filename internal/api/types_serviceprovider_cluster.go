@@ -43,4 +43,17 @@ type ServiceProviderCluster struct {
 	// The Condition Reason and Message are used to provide more details about the validation status.
 	// The Condition LastTransitionTime is used to track the last time the validation transitioned from one status to another.
 	Validations []Condition `json:"validations,omitempty"`
+
+	// DataPlaneOperatorsManagedIdentities is a map of data plane operator managed identities.
+	// The key is the Azure Resource ID of the managed identity
+	// TODO do we want the key to be the operator name or the Azure Resource ID?
+	// TODO do we want to store both the operator name and the Azure Resource ID?
+	DataPlaneOperatorsManagedIdentities map[string]*ServiceProviderClusterDataPlaneOperatorManagedIdentity `json:"dataPlaneOperatorsManagedIdentities,omitempty"`
+}
+
+type ServiceProviderClusterDataPlaneOperatorManagedIdentity struct {
+	OperatorName string                `json:"operatorName"`
+	ResourceID   *azcorearm.ResourceID `json:"resourceID"`
+	ClientID     string                `json:"clientID"`
+	PrincipalID  string                `json:"principalID"`
 }
