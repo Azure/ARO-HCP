@@ -90,13 +90,21 @@ yamlfmt: $(YAMLFMT) $(YAMLWRAP)
 	$(YAMLWRAP) unwrap --dir .
 .PHONY: yamlfmt
 
-tidy: $(MODULES:/...=.tidy)
+work-sync:
+	go work sync
+.PHONY: work-sync
+
+tidy: $(MODULES:/...=.tidy) work-sync
 
 %.tidy:
 	cd $(basename $@) && go mod tidy
 
+bump-aro-tools: $(MODULES:/...=.bump-aro-tools) tidy
+
+%.bump-aro-tools:
+	cd $(basename $@) && go mod edit -json | jq --raw-output '.Require[] | select(.Path | contains("github.com/Azure/ARO-Tools") ) | .Path' | xargs -I{} go get {}@main
+
 all-tidy: tidy fmt licenses
-	go work sync
 
 frontend-grant-ingress:
 	make -C dev-infrastructure frontend-grant-ingress
