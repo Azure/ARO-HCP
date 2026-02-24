@@ -232,6 +232,7 @@ func decodeDesiredClusterCreate(ctx context.Context, azureLocation string, reque
 		return nil, nameResourceIDMismatch(resourceID, newInternalCluster.Name)
 	}
 	// TrackedResource info doesn't appear to come from the external resource information
+	newInternalCluster.ResourceID = resourceID
 	conversion.CopyReadOnlyTrackedResourceValues(&newInternalCluster.TrackedResource, ptr.To(arm.NewTrackedResource(resourceID, azureLocation)))
 
 	// set fields that were not included during the conversion, because the user does not provide them or because the
@@ -819,6 +820,7 @@ func (f *Frontend) getInternalClusterFromStorage(ctx context.Context, resourceID
 		return nil, fmt.Errorf("unexpected resourceID: %s", internalCluster.ID.String())
 	}
 	internalCluster.ID = resourceID
+	internalCluster.ResourceID = resourceID
 
 	// this allows partial information to be provided by a controller.
 	completeClusterIdentity(internalCluster, nil)

@@ -58,6 +58,17 @@ func deepCopyFuzzerFor(src rand.Source) *randfill.Filler {
 			j.Name = "myCluster"
 			j.Type = "Microsoft.RedHatOpenShift/hcpOpenShiftClusters"
 		},
+		func(j *arm.CosmosMetadata, c randfill.Continue) {
+			c.Fill(j)
+
+			if j != nil {
+				j.CosmosETag = ""
+			}
+		},
+		func(j *HCPOpenShiftCluster, c randfill.Continue) {
+			c.Fill(j)
+			j.ID = j.ResourceID
+		},
 		func(j *HCPOpenShiftClusterServiceProviderProperties, c randfill.Continue) {
 			c.FillNoCustom(j)
 			if j == nil {
