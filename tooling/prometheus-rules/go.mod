@@ -1,6 +1,6 @@
 module github.com/Azure/ARO-HCP/tooling/prometheus-rules
 
-go 1.25.0
+go 1.25.5
 
 require (
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/alertsmanagement/armalertsmanagement v0.10.0
