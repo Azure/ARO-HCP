@@ -40,7 +40,7 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-02-01' exis
 
 import * as res from '../modules/resource.bicep'
 
-module csKeyVaultAccess '../modules/mgmt-kv-access.bicep' = if (res.isMsiResourceId(clusterServiceMIResourceId)) {
+module csKeyVaultAccess '../modules/mgmt-kv-access.bicep' = {
   name: 'cx-backend-kv-access'
   params: {
     managedIdentityResourceIds: [clusterServiceMIResourceId, rpBackendMIResourceId]
@@ -53,7 +53,7 @@ module csKeyVaultAccess '../modules/mgmt-kv-access.bicep' = if (res.isMsiResourc
 //   M S I   C R E D E N T I A L S   R E F R E S H E R   K V   A C C E S S
 //
 
-module msiRefresherKeyVaultAccess '../modules/mgmt-kv-access.bicep' = if (res.isMsiResourceId(msiRefresherMIResourceId)) {
+module msiRefresherKeyVaultAccess '../modules/mgmt-kv-access.bicep' = {
   name: 'msi-refresher-msi-kv-access'
   params: {
     managedIdentityResourceIds: [msiRefresherMIResourceId]
@@ -79,7 +79,7 @@ resource adminApiMSI 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-3
   name: adminApiMIRef.name
 }
 
-resource resourceGroupReaderRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (res.isMsiResourceId(adminApiMIResourceId)) {
+resource resourceGroupReaderRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   scope: resourceGroup()
   name: guid(resourceGroup().id, adminApiMIResourceId, '00000000-0000-0000-0000-000000000001')
   properties: {
