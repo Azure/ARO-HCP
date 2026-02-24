@@ -65,19 +65,17 @@ sequenceDiagram
     participant Exec as user.exec (kubeconfig)
     participant Istio as Istio Ingress
     participant MISE as MISE (ext-authz)
-    participant AuthPolicy as Session AuthorizationPolicy
-    participant SG as Sessiongate (proxy)
+    participant SG as Sessiongate
     participant HCP as HCP KAS
 
     SRE->>Exec: kubectl command
-    Exec->>Exec: Generate access token<br/>(with upn/appid claim)
+    Exec->>Exec: Generate access token<br/>(with upn/oid claim)
     Exec->>Istio: Request to /sessiongate/{sessionId}/kas/...
     Istio->>MISE: Validate access token
     MISE-->>Istio: Token valid
-    Istio->>AuthPolicy: Check session ownership
-    Note over AuthPolicy: Verify token claims match<br/>session owner claims
-    AuthPolicy-->>Istio: Authorized
-    Istio->>SG: Forward to proxy handler
+    Istio->>Istio: Extract JWT claims to headers<br/>(RequestAuthentication)
+    Istio->>SG: Forward with X-JWT-Claim-Upn/Oid headers
+    SG->>SG: Verify claim header matches<br/>session owner
     SG->>HCP: Proxy request with session credentials
     HCP-->>SG: Response
     SG-->>SRE: Response
@@ -87,5 +85,6 @@ Key points:
 
 - No Geneva Actions involvement - direct access from the SRE's SAW device to the sessiongate proxy endpoint
 - The kubeconfig's `user.exec` generates an access token with identity claims
-- Per-session Istio AuthorizationPolicy validates that token claims match the session owner
+- MISE validates the JWT; Istio's `RequestAuthentication` extracts claims (`upn`, `oid`) into request headers
+- Sessiongate's own middleware checks that the claim header matches the session owner before proxying
 - Sessiongate proxies requests to the HCP KAS using session-specific credentials
