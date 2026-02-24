@@ -977,7 +977,6 @@ clouds:
         certIssuer: Self
       # Cluster Service
       clustersService:
-        environment: "arohcpdev"
         azureOperatorsManagedIdentities:
           roleSetName: dev
         azureRuntimeConfig:
