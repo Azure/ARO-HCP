@@ -145,8 +145,8 @@ func (v verifyMustGatherLogsImpl) Verify(ctx context.Context) error {
 // VerifyMustGatherLogs creates a new must-gather logs verifier with default configuration
 func VerifyMustGatherLogs(subscriptionID, rgName string) verifyMustGatherLogsImpl {
 	config := mustGatherVerifierConfig{
-		KustoCluster:   "hcp-dev-us",
-		KustoRegion:    "westus3",
+		KustoCluster:   "hcp-dev-us-2",
+		KustoRegion:    "eastus2",
 		SubscriptionID: subscriptionID,
 		ResourceGroup:  rgName,
 		QueryTimeout:   5 * time.Minute,
