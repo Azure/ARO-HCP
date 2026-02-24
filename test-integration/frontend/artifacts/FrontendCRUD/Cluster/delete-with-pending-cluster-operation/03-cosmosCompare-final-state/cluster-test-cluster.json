@@ -5,9 +5,6 @@
 		"cosmosMetadata": {
 			"resourceID": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster"
 		},
-		"identity": {
-			"type": "UserAssigned"
-		},
 		"intermediateResourceDoc": {
 			"identity": {
 				"type": "UserAssigned"
@@ -82,14 +79,6 @@
 					"managedIdentitiesDataPlaneIdentityURL": "https://dummyhost.identity.azure.net/otherinformation?aqueryarg=somevalue"
 				}
 			}
-		},
-		"provisioningState": "Deleting",
-		"resourceId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster",
-		"systemData": {
-			"createdBy": "Unknown-ARO-HCP-frontend",
-			"createdByType": "Application",
-			"lastModifiedBy": "Unknown-ARO-HCP-frontend",
-			"lastModifiedByType": "Application"
 		}
 	},
 	"resourceType": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters"
