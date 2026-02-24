@@ -486,14 +486,24 @@ func ensureResourceGroupExists(ctx context.Context, resourceGroupClient *armreso
 			return fmt.Errorf("failed to create resource group: %w", err)
 		}
 	} else {
-		// Resource group exists - update its tags
+		// Resource group exists - only update tags if they changed
 		tags := computeResourceGroupTags(rg.Tags, persist)
-		patchResourceGroup := armresources.ResourceGroupPatchable{
-			Tags: tags,
-		}
-		_, err = resourceGroupClient.Update(ctx, rgName, patchResourceGroup, nil)
-		if err != nil {
-			return fmt.Errorf("failed to update resource group: %w", err)
+		if !maps.EqualFunc(rg.Tags, tags, func(a, b *string) bool {
+			if a == nil && b == nil {
+				return true
+			}
+			if a == nil || b == nil {
+				return false
+			}
+			return *a == *b
+		}) {
+			patchResourceGroup := armresources.ResourceGroupPatchable{
+				Tags: tags,
+			}
+			_, err = resourceGroupClient.Update(ctx, rgName, patchResourceGroup, nil)
+			if err != nil {
+				return fmt.Errorf("failed to update resource group: %w", err)
+			}
 		}
 	}
 	return nil
