@@ -4,8 +4,8 @@ filippo.io/edwards25519 v1.1.0 h1:FNf4tywRC1HmFuKW5xopWpigGjJKiJSV0Cqo0cJWDaA=
 filippo.io/edwards25519 v1.1.0/go.mod h1:BxyFTGdWcka3PhytdK4V28tE5sGfRvvvRV7EaN4VDT4=
 github.com/AdaLogics/go-fuzz-headers v0.0.0-20230811130428-ced1acdcaa24 h1:bvDV9vkmnHYOMsOr4WLk+Vo07yKIzd94sVoIqshQ4bU=
 github.com/AdaLogics/go-fuzz-headers v0.0.0-20230811130428-ced1acdcaa24/go.mod h1:8o94RPi1/7XTJvwPpRSzSUedZrtlirdB3r9Z20bi2f8=
-github.com/Azure/ARO-Tools/config v0.0.0-20260224200806-c0318c58a192 h1:jmO+9uqR+z6BJGuUupqzOxtuReznq0W88ZZXvXx2JJ0=
-github.com/Azure/ARO-Tools/config v0.0.0-20260224200806-c0318c58a192/go.mod h1:j6S5kuu6Fqu9mcqehqQDZ+BoTcCHzZoRWSL0ldDNGrY=
+github.com/Azure/ARO-Tools/config v0.0.0-20260224195034-f5e8116c18b8 h1:b3wMm7oVOJnnC+7kibq+5EkJSjtaZp48fIqSc46wMjo=
+github.com/Azure/ARO-Tools/config v0.0.0-20260224195034-f5e8116c18b8/go.mod h1:j6S5kuu6Fqu9mcqehqQDZ+BoTcCHzZoRWSL0ldDNGrY=
 github.com/Azure/ARO-Tools/pipelines v0.0.0-20260224202318-50897c5f99ec h1:ERWgE5KNajeeb40eDlI0T8TDkZrFevKHeraVVFR3yTw=
 github.com/Azure/ARO-Tools/pipelines v0.0.0-20260224202318-50897c5f99ec/go.mod h1:NU+k08tVV7MIHqAg10OqvN07wbh5ixo073sbYyWsTlc=
 github.com/Azure/ARO-Tools/testutil v0.0.0-20260224200806-c0318c58a192 h1:1chrKiIYDSdQn7Dbu/0qzc5qPM6o/LZScs+u0ASj024=
@@ -205,6 +205,7 @@ github.com/mattn/go-runewidth v0.0.16/go.mod h1:Jdepj2loyihRzMpdS35Xk/zdY8IAYHsh
 github.com/mattn/go-sqlite3 v1.14.22 h1:2gZY6PC6kBnID23Tichd1K+Z0oS6nE/XwU+Vz/5o4kU=
 github.com/mattn/go-sqlite3 v1.14.22/go.mod h1:Uh1q+B4BYcTPb+yiD3kU8Ct7aC0hY9fxUwlHK0RXw+Y=
 github.com/miekg/dns v1.1.61 h1:nLxbwF3XxhwVSm8g9Dghm9MHPaUZuqhPiGL+675ZmEs=
+github.com/miekg/dns v1.1.61/go.mod h1:mnAarhS3nWaW+NVP2wTkYVIZyHNJ098SJZUki3eykwQ=
 github.com/mitchellh/copystructure v1.2.0 h1:vpKXTN4ewci03Vljg/q9QvCGUDttBOGBIa15WveJJGw=
 github.com/mitchellh/copystructure v1.2.0/go.mod h1:qLl+cE2AmVv+CoeAwDPye/v+N2HKCj9FbZEVFJRxO9s=
 github.com/mitchellh/go-wordwrap v1.0.1 h1:TLuKupo69TCn6TQSyGxwI1EblZZEsQ0vMlAFQflz0v0=
@@ -438,6 +439,7 @@ k8s.io/apimachinery v0.34.3/go.mod h1:/GwIlEcWuTX9zKIg2mbw0LRFIsXwrfoVxn+ef0X13l
 k8s.io/apiserver v0.34.3 h1:uGH1qpDvSiYG4HVFqc6A3L4CKiX+aBWDrrsxHYK0Bdo=
 k8s.io/apiserver v0.34.3/go.mod h1:QPnnahMO5C2m3lm6fPW3+JmyQbvHZQ8uudAu/493P2w=
 k8s.io/cli-runtime v0.34.3 h1:YRyMhiwX0dT9lmG0AtZDaeG33Nkxgt9OlCTZhRXj9SI=
+k8s.io/cli-runtime v0.34.3/go.mod h1:GVwL1L5uaGEgM7eGeKjaTG2j3u134JgG4dAI6jQKhMc=
 k8s.io/client-go v0.34.3 h1:wtYtpzy/OPNYf7WyNBTj3iUA0XaBHVqhv4Iv3tbrF5A=
 k8s.io/client-go v0.34.3/go.mod h1:OxxeYagaP9Kdf78UrKLa3YZixMCfP6bgPwPwNBQBzpM=
 k8s.io/component-base v0.34.3 h1:zsEgw6ELqK0XncCQomgO9DpUIzlrYuZYA0Cgo+JWpVk=

@@ -1,4 +1,5 @@
 github.com/Azure/ARO-Tools/testutil v0.0.0-20260224200806-c0318c58a192 h1:1chrKiIYDSdQn7Dbu/0qzc5qPM6o/LZScs+u0ASj024=
+github.com/Azure/ARO-Tools/testutil v0.0.0-20260224200806-c0318c58a192/go.mod h1:6V1kLTbkz3TLTspxt7fAI8Xy4EdBdsvLR5mk0gkry7k=
 github.com/Azure/ARO-Tools/tools/yamlwrap v0.0.0-20260224200806-c0318c58a192 h1:iPEihUnEIqK5vd0To84AR45FYfB9pTfPQH/miUGiZaE=
 github.com/Azure/ARO-Tools/tools/yamlwrap v0.0.0-20260224200806-c0318c58a192/go.mod h1:oGsMamAHz4jtIOJGhKThF9ADjW+QpgSjnzN9bSmg76Q=
 github.com/cpuguy83/go-md2man/v2 v2.0.6/go.mod h1:oOW0eioCTA6cOiMLiUPZOpcVxMig6NIQQ7OS05n1F4g=
