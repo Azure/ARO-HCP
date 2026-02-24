@@ -432,6 +432,9 @@ param sessiongateServiceAccountName string
 @description('The name of the Session Gate ingress certificate')
 param sessiongateIngressCertName string
 
+@description('The issuer of the Session Gate ingress certificate')
+param sessiongateIngressCertIssuer string
+
 resource serviceKeyVault 'Microsoft.KeyVault/vaults@2024-04-01-preview' existing = {
   name: serviceKeyVaultName
   scope: resourceGroup(serviceKeyVaultResourceGroup)
@@ -1052,7 +1055,7 @@ module sessiongateCert '../modules/keyvault/key-vault-cert.bicep' = {
     dnsNames: [
       sessiongateDnsFQDN
     ]
-    issuerName: adminApiIngressCertIssuer
+    issuerName: sessiongateIngressCertIssuer
   }
 }
 
