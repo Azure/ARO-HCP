@@ -19,7 +19,9 @@ import (
 	"context"
 	"fmt"
 	"io/fs"
+	"net/url"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -126,23 +128,102 @@ func runHelmStep(id graph.Identifier, step *types.HelmStep, ctx context.Context,
 		return fmt.Errorf("failed to write file %s: %w", values, err)
 	}
 
-	// then, run the helm release
-	chartDir := filepath.Join(options.PipelineDirectory, step.ChartDir)
-	opts := helm.RawOptions{
-		NamespaceFiles:    namespaceFiles,
-		ReleaseName:       step.ReleaseName,
-		ReleaseNamespace:  step.ReleaseNamespace,
-		ChartDir:          chartDir,
-		ValuesFile:        values,
-		KustoDatabase:     step.KustoDatabase,
-		KustoTable:        step.KustoTable,
-		KustoEndpoint:     kustoEndpointString,
-		Timeout:           5 * time.Minute,
-		KubeconfigFile:    kubeconfig,
-		DryRun:            options.DryRun,
-		RollbackOnFailure: step.RollbackOnFailure,
+	// Changes to support OCI Helm Images
+	var chartDir string
+
+	// If it is an OCI URL, we must pull it manually first.
+	if strings.HasPrefix(step.ChartDir, "oci://") {
+
+		cleanURL := strings.TrimSpace(step.ChartDir)
+		cleanURL = strings.Trim(cleanURL, "\"'")
+
+		// 1. Resolve Digest to Tag
+		safeURL, err := resolveTagFromDigest(ctx, logger, cleanURL)
+		if err != nil {
+			return fmt.Errorf("failed to resolve tag: %w", err)
+		}
+
+		// 2. Split URL for explicit "--version" flag usage
+		lastColon := strings.LastIndex(safeURL, ":")
+		if lastColon == -1 {
+			return fmt.Errorf("resolved URL %q is missing a version tag separator ':'", safeURL)
+		}
+
+		repoURL := safeURL[:lastColon]      // e.g. oci://arohcpsvcdev.azurecr.io/helm/mce
+		versionTag := safeURL[lastColon+1:] // e.g. 2.10.2-370
+
+		// 3. Parse Registry Host (from the Repo URL)
+		parsedURL, err := url.Parse(repoURL)
+		if err != nil {
+			return fmt.Errorf("failed to parse OCI URL: %w", err)
+		}
+		registryHost := parsedURL.Host
+
+		logger.Info("Authenticating Helm to ACR", "registry", registryHost)
+
+		// Command: az acr login --name <host> --expose-token ...
+		getTokenCmd := exec.CommandContext(ctx, "az", "acr", "login",
+			"--name", registryHost,
+			"--expose-token",
+			"--output", "tsv",
+			"--query", "accessToken")
+
+		getTokenCmd.Env = os.Environ()
+
+		tokenOut, err := getTokenCmd.Output()
+		if err != nil {
+			return fmt.Errorf("failed to get ACR token: %w", err)
+		}
+		accessToken := strings.TrimSpace(string(tokenOut))
+
+		// Command: helm registry login ...
+		loginCmd := exec.CommandContext(ctx, "helm", "registry", "login",
+			registryHost,
+			"--username", "00000000-0000-0000-0000-000000000000",
+			"--password-stdin")
+		loginCmd.Stdin = strings.NewReader(accessToken)
+		loginCmd.Env = os.Environ()
+
+		if out, err := loginCmd.CombinedOutput(); err != nil {
+			return fmt.Errorf("failed to login to helm registry: %s: %w", string(out), err)
+		}
+
+		// 4. Pull the Chart (have to use --version because of broken helm)
+		args := []string{"pull", repoURL, "--version", versionTag, "--destination", tmpdir, "--untar"}
+
+		cmd := exec.CommandContext(ctx, "helm", args...)
+		cmd.Env = os.Environ()
+
+		logger.Info("Pulling OCI chart with explicit version flag", "repo", repoURL, "version", versionTag)
+
+		if out, err := cmd.CombinedOutput(); err != nil {
+			return fmt.Errorf("failed to pull OCI chart %q (version %s): output=%s: %w", repoURL, versionTag, string(out), err)
+		}
+
+		// Find the directory helm created
+		entries, err := os.ReadDir(tmpdir)
+		if err != nil {
+			return fmt.Errorf("failed to read temp dir: %w", err)
+		}
+
+		found := false
+		for _, e := range entries {
+			if e.IsDir() && e.Name() != "namespaces" {
+				chartDir = filepath.Join(tmpdir, e.Name())
+				found = true
+				break
+			}
+		}
+		if !found {
+			return fmt.Errorf("helm pull succeeded but could not find extracted chart directory in %s", tmpdir)
+		}
+
+	} else {
+		// Standard Local File Logic
+		chartDir = filepath.Join(options.PipelineDirectory, step.ChartDir)
 	}
 
+	// Now chartDir is always a local folder (either original or pulled)
 	chartData := map[string][]byte{}
 	if err := filepath.WalkDir(chartDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
@@ -163,6 +244,21 @@ func runHelmStep(id graph.Identifier, step *types.HelmStep, ctx context.Context,
 		return nil
 	}); err != nil {
 		return fmt.Errorf("failed to walk helm chart dir: %w", err)
+	}
+
+	opts := helm.RawOptions{
+		NamespaceFiles:    namespaceFiles,
+		ReleaseName:       step.ReleaseName,
+		ReleaseNamespace:  step.ReleaseNamespace,
+		ChartDir:          chartDir,
+		ValuesFile:        values,
+		KustoDatabase:     step.KustoDatabase,
+		KustoTable:        step.KustoTable,
+		KustoEndpoint:     kustoEndpointString,
+		Timeout:           5 * time.Minute,
+		KubeconfigFile:    kubeconfig,
+		DryRun:            options.DryRun,
+		RollbackOnFailure: step.RollbackOnFailure,
 	}
 
 	inputs := helmInputs{
@@ -197,6 +293,48 @@ func runHelmStep(id graph.Identifier, step *types.HelmStep, ctx context.Context,
 	}
 
 	return commit()
+}
+
+// function to work around helm oci:// bug
+func resolveTagFromDigest(ctx context.Context, logger logr.Logger, fullURL string) (string, error) {
+	// 1. Check if we actually have a digest
+	if !strings.Contains(fullURL, "@sha256:") {
+		return fullURL, nil // It's already a tag or simple path
+	}
+
+	imageRef := strings.TrimPrefix(fullURL, "oci://")
+
+	logger.Info("Attempting to resolve Digest to Tag via AZ CLI...", "imageRef", imageRef)
+
+	// 3. Query ACR for the Tag
+	// Command: az acr manifest show-metadata <imageRef> --query "tags[0]" -o tsv
+	cmd := exec.CommandContext(ctx, "az", "acr", "manifest", "show-metadata",
+		imageRef,
+		"--query", "tags[0]", // Just grab the first tag
+		"--output", "tsv",
+	)
+	cmd.Env = os.Environ() // Important for MSI auth
+	outBytes, err := cmd.Output()
+	if err != nil {
+		// If it fails, try to capture stderr from the error object for debugging
+		var stderrMsg string
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			stderrMsg = string(exitErr.Stderr)
+		}
+		return "", fmt.Errorf("failed to resolve tag: %w (stderr: %s)", err, stderrMsg)
+	}
+
+	tag := strings.TrimSpace(string(outBytes))
+	if tag == "" {
+		return "", fmt.Errorf("digest found but it has no tags (cannot use workaround)")
+	}
+
+	parts := strings.Split(fullURL, "@")
+	baseURL := parts[0] // oci://reg/repo
+
+	newURL := fmt.Sprintf("%s:%s", baseURL, tag)
+
+	return newURL, nil
 }
 
 type helmInputs struct {

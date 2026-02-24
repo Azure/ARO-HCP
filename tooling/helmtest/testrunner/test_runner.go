@@ -20,6 +20,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -152,19 +153,32 @@ func RunTestHelmTemplate(t *testing.T, settingsPath string) {
 
 	for _, helmStep := range helmSteps {
 		allCases := []internal.TestCase{}
-		if _, ok := chartDirsVisited[helmStep.ChartDirFromRoot(settings.TopologyDir)]; !ok {
+
+		// Resolve chart path first -- handle OCI URLs by mapping to local chart dir
+		chartPath := helmStep.ChartDirFromRoot(settings.TopologyDir)
+		if strings.HasPrefix(helmStep.HelmStep.ChartDir, "oci://") {
+			// OCI charts still have their source in the repo under deploy/helm/.
+			// Derive local chart dir from the values filename convention.
+			fullValuesPath := helmStep.ValuesFileFromRoot(settings.TopologyDir)
+			fileName := filepath.Base(fullValuesPath)
+			chartName := strings.Split(fileName, ".")[0]
+			chartPath = filepath.Join(settings.TopologyDir,
+				filepath.Dir(helmStep.PipelinePath), "deploy/helm", chartName)
+		}
+
+		if _, ok := chartDirsVisited[chartPath]; !ok {
 			// visit the chart directory only once. Some helm step definitions reference the directory, would cause duplicates.
-			customTestCases, err := getCustomTestCases(helmStep.ChartDirFromRoot(settings.TopologyDir))
+			customTestCases, err := getCustomTestCases(chartPath)
 			assert.NoError(t, err)
 			allCases = append(allCases, customTestCases...)
-			chartDirsVisited[helmStep.ChartDirFromRoot(settings.TopologyDir)] = true
+			chartDirsVisited[chartPath] = true
 		}
 
 		allCases = append(allCases, internal.TestCase{
 			Name:         fmt.Sprintf("%s-%s", helmStep.AKSCluster, helmStep.HelmStep.ReleaseName),
 			Namespace:    helmStep.HelmStep.ReleaseNamespace,
 			Values:       helmStep.ValuesFileFromRoot(settings.TopologyDir),
-			HelmChartDir: helmStep.ChartDirFromRoot(settings.TopologyDir),
+			HelmChartDir: chartPath,
 			TestData:     map[string]any{},
 			Implicit:     true,
 		})
@@ -175,7 +189,7 @@ func RunTestHelmTemplate(t *testing.T, settingsPath string) {
 				// we want to place implicit test cases by the pipelines that created them, not the chart they happened to render.
 				// n.b. a more correct implementation would keep track of *where* the custom test case came from and use that dir
 				// exactly as the output directory - an exercise left for the future
-				outputDir := filepath.Join(helmStep.ChartDirFromRoot(settings.TopologyDir), internal.TestDataFromChartDir)
+				outputDir := filepath.Join(chartPath, internal.TestDataFromChartDir)
 				if testCase.Implicit {
 					outputDir = filepath.Join(settings.TopologyDir, filepath.Dir(helmStep.PipelinePath))
 				}

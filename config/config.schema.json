@@ -1023,12 +1023,24 @@
           "required": [
             "bundle"
           ]
+        },
+        "chartCrds": {
+          "$ref": "#/definitions/containerImage"
+        },
+        "chartMce": {
+          "$ref": "#/definitions/containerImage"
+        },
+        "chartConfig": {
+          "$ref": "#/definitions/containerImage"
         }
       },
       "additionalProperties": false,
       "required": [
         "operator",
-        "mce"
+        "mce",
+        "chartCrds",
+        "chartMce",
+        "chartConfig"
       ]
     },
     "pko": {
