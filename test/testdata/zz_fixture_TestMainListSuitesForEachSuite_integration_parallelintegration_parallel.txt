@@ -21,5 +21,4 @@ HCP Nodepools GPU instances creates and deletes vm type NC6sv3 in a single clust
 Customer should be able to create an HCP cluster with Image Registry not present
 Customer should be able to create a cluster with default autoscaling and a nodepool with autoscaling enabled
 Customer should respect cluster-wide node limits with nodepool autoscaling
-Customer should be able to update nodepool replicas and autoscaling
 Customer should not be able to perform various invalid operations on cluster resources

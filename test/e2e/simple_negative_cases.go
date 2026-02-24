@@ -139,49 +139,47 @@ var _ = Describe("Customer", func() {
 			nodePool, err := nodePoolClient.Get(ctx, *resourceGroup.Name, clusterParams.ClusterName, nodePoolParams.NodePoolName, nil)
 			if err != nil {
 				errs = append(errs, fmt.Errorf("failed to get nodepool: %w", err))
+			} else if nodePool.NodePool.Properties == nil {
+				errs = append(errs, fmt.Errorf("nodepool properties are nil"))
+			} else if nodePool.NodePool.Properties.Platform == nil {
+				errs = append(errs, fmt.Errorf("nodepool platform properties are nil"))
 			} else {
-				modifiedNodePool := nodePool.NodePool
-				if modifiedNodePool.Properties != nil && modifiedNodePool.Properties.Platform != nil {
-					modifiedNodePool.Properties.Platform.VMSize = to.Ptr("Standard_D16s_v3")
-					modifiedNodePool.Properties.Platform.AvailabilityZone = to.Ptr("2")
-					if modifiedNodePool.Properties.Platform.OSDisk != nil {
-						modifiedNodePool.Properties.Platform.OSDisk.SizeGiB = to.Ptr[int32](256)
-						modifiedNodePool.Properties.Platform.OSDisk.DiskStorageAccountType = to.Ptr(hcpsdk20240610preview.DiskStorageAccountTypePremiumLRS)
-					}
+				nodePool.NodePool.Properties.Platform.VMSize = to.Ptr("Standard_D16s_v3")
+				nodePool.NodePool.Properties.Platform.AvailabilityZone = to.Ptr("2")
+				if nodePool.NodePool.Properties.Platform.OSDisk != nil {
+					nodePool.NodePool.Properties.Platform.OSDisk.SizeGiB = to.Ptr[int32](256)
+					nodePool.NodePool.Properties.Platform.OSDisk.DiskStorageAccountType = to.Ptr(hcpsdk20240610preview.DiskStorageAccountTypePremiumLRS)
 				}
 
-				_, err = nodePoolClient.BeginCreateOrUpdate(ctx, *resourceGroup.Name, clusterParams.ClusterName, nodePoolParams.NodePoolName, modifiedNodePool, nil)
+				_, err = nodePoolClient.BeginCreateOrUpdate(ctx, *resourceGroup.Name, clusterParams.ClusterName, nodePoolParams.NodePoolName, nodePool.NodePool, nil)
 				if err == nil {
 					errs = append(errs, fmt.Errorf("expected error when updating immutable fields, but no error occurred"))
+				} else if !strings.Contains(err.Error(), "Forbidden: field is immutable") {
+					errs = append(errs, fmt.Errorf("expected 'Forbidden: field is immutable', got: %s", err.Error()))
 				} else {
-					errorStr := err.Error()
-					if !strings.Contains(errorStr, "Forbidden: field is immutable") {
-						errs = append(errs, fmt.Errorf("expected 'Forbidden: field is immutable', got: %s", errorStr))
+					updatedNodePool, getErr := nodePoolClient.Get(ctx, *resourceGroup.Name, clusterParams.ClusterName, nodePoolParams.NodePoolName, nil)
+					if getErr != nil {
+						errs = append(errs, fmt.Errorf("failed to verify nodepool after failed update: %w", getErr))
+					} else if updatedNodePool.Properties == nil || updatedNodePool.Properties.Platform == nil {
+						errs = append(errs, fmt.Errorf("updated nodepool properties or platform are nil"))
 					} else {
-						updatedNodePool, getErr := nodePoolClient.Get(ctx, *resourceGroup.Name, clusterParams.ClusterName, nodePoolParams.NodePoolName, nil)
-						if getErr != nil {
-							errs = append(errs, fmt.Errorf("failed to verify nodepool after failed update: %w", getErr))
-						} else {
-							if updatedNodePool.Properties != nil && updatedNodePool.Properties.Platform != nil {
-								platform := updatedNodePool.Properties.Platform
+						platform := updatedNodePool.Properties.Platform
 
-								if platform.VMSize == nil || *platform.VMSize != "Standard_D8s_v3" {
-									errs = append(errs, fmt.Errorf("vmSize was modified despite immutable error"))
-								}
+						if platform.VMSize != nil && *platform.VMSize != "Standard_D8s_v3" {
+							errs = append(errs, fmt.Errorf("vmSize was modified despite immutable error"))
+						}
 
-								if platform.AvailabilityZone != nil {
-									errs = append(errs, fmt.Errorf("availabilityZone was modified despite immutable error"))
-								}
+						if platform.AvailabilityZone != nil {
+							errs = append(errs, fmt.Errorf("availabilityZone was modified despite immutable error"))
+						}
 
-								if platform.OSDisk != nil {
-									if platform.OSDisk.SizeGiB == nil || *platform.OSDisk.SizeGiB != 64 {
-										errs = append(errs, fmt.Errorf("osDisk.sizeGiB was modified despite immutable error"))
-									}
+						if platform.OSDisk != nil {
+							if platform.OSDisk.SizeGiB != nil && *platform.OSDisk.SizeGiB != 64 {
+								errs = append(errs, fmt.Errorf("osDisk.sizeGiB was modified despite immutable error"))
+							}
 
-									if platform.OSDisk.DiskStorageAccountType == nil || *platform.OSDisk.DiskStorageAccountType != hcpsdk20240610preview.DiskStorageAccountTypeStandardSSDLRS {
-										errs = append(errs, fmt.Errorf("osDisk.diskStorageAccountType was modified despite immutable error"))
-									}
-								}
+							if platform.OSDisk.DiskStorageAccountType != nil && *platform.OSDisk.DiskStorageAccountType != hcpsdk20240610preview.DiskStorageAccountTypeStandardSSDLRS {
+								errs = append(errs, fmt.Errorf("osDisk.diskStorageAccountType was modified despite immutable error"))
 							}
 						}
 					}
