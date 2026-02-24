@@ -27,33 +27,32 @@ const (
 	ClientAADTypeHeader       = "X-Ms-Client-Principal-Type"
 )
 
-func WithClientPrincipal(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		logger := utils.LoggerFromContext(r.Context())
+// MiddlewareClientPrincipal validates and extracts client principal information from request headers.
+func MiddlewareClientPrincipal(w http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
+	logger := utils.LoggerFromContext(r.Context())
 
-		var headers []string
-		for name, values := range r.Header {
-			if strings.HasPrefix(name, "X-Ms-Client-Principal-") {
-				headers = append(headers, fmt.Sprintf("%s=%s", name, strings.Join(values, ",")))
-			}
+	var headers []string
+	for name, values := range r.Header {
+		if strings.HasPrefix(name, "X-Ms-Client-Principal-") {
+			headers = append(headers, fmt.Sprintf("%s=%s", name, strings.Join(values, ",")))
 		}
-		logger.Info("Geneva Action client principal headers", "headers", strings.Join(headers, "; "))
+	}
+	logger.Info("Geneva Action client principal headers", "headers", strings.Join(headers, "; "))
 
-		clientPrincipalName := r.Header.Get(ClientPrincipalNameHeader)
-		if clientPrincipalName == "" {
-			http.Error(w, "client principal name not found", http.StatusUnauthorized)
-			return
-		}
-		clientPrincipalType := r.Header.Get(ClientAADTypeHeader)
-		if clientPrincipalType == "" {
-			// once GA is rolled out to provide the type, we will make it mandatory
-			// until then individual endpoints can decide if they demand it or not
-			logger.Info("client principal type not found, continuing with empty type")
-		}
-		ctx := ContextWithClientPrincipal(r.Context(), ClientPrincipalReference{
-			Name: clientPrincipalName,
-			Type: PrincipalType(clientPrincipalType),
-		})
-		next.ServeHTTP(w, r.WithContext(ctx))
+	clientPrincipalName := r.Header.Get(ClientPrincipalNameHeader)
+	if clientPrincipalName == "" {
+		http.Error(w, "client principal name not found", http.StatusUnauthorized)
+		return
+	}
+	clientPrincipalType := r.Header.Get(ClientAADTypeHeader)
+	if clientPrincipalType == "" {
+		// once GA is rolled out to provide the type, we will make it mandatory
+		// until then individual endpoints can decide if they demand it or not
+		logger.Info("client principal type not found, continuing with empty type")
+	}
+	ctx := ContextWithClientPrincipal(r.Context(), ClientPrincipalReference{
+		Name: clientPrincipalName,
+		Type: PrincipalType(clientPrincipalType),
 	})
+	next(w, r.WithContext(ctx))
 }

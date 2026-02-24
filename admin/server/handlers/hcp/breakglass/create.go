@@ -16,6 +16,7 @@ package breakglass
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
@@ -24,7 +25,10 @@ import (
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/utils/set"
 
+	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
+
 	"github.com/Azure/ARO-HCP/admin/server/middleware"
+	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -54,58 +58,42 @@ func NewHCPBreakglassSessionCreationHandler(dbClient database.DBClient, csClient
 	}
 }
 
-func (h *HCPBreakglassSessionCreationHandler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
-	logger := utils.LoggerFromContext(request.Context())
-
+func (h *HCPBreakglassSessionCreationHandler) ServeHTTP(writer http.ResponseWriter, request *http.Request) error {
 	// get the azure resource ID for this HCP
 	resourceID, err := utils.ResourceIDFromContext(request.Context())
 	if err != nil {
-		logger.Error(err, "failed to get resource ID from context")
-		http.Error(writer, "invalid resource identifier in request", http.StatusBadRequest)
-		return
+		return arm.NewCloudError(http.StatusBadRequest, arm.CloudErrorCodeInvalidRequestContent, "", "invalid resource identifier in request")
 	}
 
 	// get HCP details
 	hcp, err := h.dbClient.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).Get(request.Context(), resourceID.Name)
 	if err != nil {
-		logger.Error(err, "failed to get HCP from database")
-		http.Error(writer, "failed to retrieve cluster information", http.StatusInternalServerError)
-		return
+		return fmt.Errorf("failed to get HCP from database: %w", err)
 	}
 
 	clusterHypershiftDetails, err := h.csClient.GetClusterHypershiftDetails(request.Context(), hcp.ServiceProviderProperties.ClusterServiceID)
 	if err != nil {
-		logger.Error(err, "failed to get hypershift details from cluster service", "clusterServiceID", hcp.ServiceProviderProperties.ClusterServiceID)
-		http.Error(writer, "failed to retrieve cluster information", http.StatusInternalServerError)
-		return
+		return clusterServiceError(err, "hypershift details")
 	}
 
 	provisionShard, err := h.csClient.GetClusterProvisionShard(request.Context(), hcp.ServiceProviderProperties.ClusterServiceID)
 	if err != nil {
-		logger.Error(err, "failed to get provision shard from cluster service", "clusterServiceID", hcp.ServiceProviderProperties.ClusterServiceID)
-		http.Error(writer, "failed to retrieve cluster information", http.StatusInternalServerError)
-		return
+		return clusterServiceError(err, "provision shard")
 	}
 
 	group, ttl, err := h.validateSessionParameters(request)
 	if err != nil {
-		logger.Error(err, "failed to validate session parameters")
-		http.Error(writer, err.Error(), http.StatusBadRequest)
-		return
+		return arm.NewCloudError(http.StatusBadRequest, arm.CloudErrorCodeInvalidRequestContent, "", "%s", err.Error())
 	}
 
 	clientPrincipalReference, err := middleware.ClientPrincipalFromContext(request.Context())
 	if err != nil {
-		logger.Error(err, "failed to get client principal AAD reference from context")
-		http.Error(writer, "missing client principal AAD reference", http.StatusUnauthorized)
-		return
+		return arm.NewCloudError(http.StatusUnauthorized, "Unauthorized", "", "missing client principal AAD reference")
 	}
 
 	principalName, principalType, err := mapGenevaActionClientReference(clientPrincipalReference)
 	if err != nil {
-		logger.Error(err, "failed to map Geneva Action client reference to principal")
-		http.Error(writer, err.Error(), http.StatusBadRequest)
-		return
+		return arm.NewCloudError(http.StatusBadRequest, arm.CloudErrorCodeInvalidRequestContent, "", "%s", err.Error())
 	}
 
 	session := &sessiongateapiv1alpha1.Session{
@@ -132,15 +120,14 @@ func (h *HCPBreakglassSessionCreationHandler) ServeHTTP(writer http.ResponseWrit
 	}
 	createdSession, err := h.sessionClient.Create(request.Context(), session, metav1.CreateOptions{})
 	if err != nil {
-		logger.Error(err, "failed to create session")
-		http.Error(writer, "failed to create breakglass session", http.StatusInternalServerError)
-		return
+		return fmt.Errorf("failed to create breakglass session: %w", err)
 	}
 
 	// return 202 Accepted with location header
 	locationURL := fmt.Sprintf("%s/%s/kubeconfig", request.URL.Path, createdSession.Name)
 	writer.Header().Set("Location", locationURL)
 	writer.WriteHeader(http.StatusAccepted)
+	return nil
 }
 
 // dSTS user identities are passed down from Geneva Actions as "dstsUser" in the X-Ms-Client-Principal-Type header, the name is the user's email address.
@@ -170,7 +157,6 @@ func (h *HCPBreakglassSessionCreationHandler) validateSessionParameters(request 
 	}
 
 	var errs []error
-	var err error
 
 	// authorization level - get from group field
 	if body.Group == "" {
@@ -184,6 +170,7 @@ func (h *HCPBreakglassSessionCreationHandler) validateSessionParameters(request 
 	if body.TTL == "" {
 		errs = append(errs, fmt.Errorf("ttl field is required"))
 	} else {
+		var err error
 		ttl, err = time.ParseDuration(body.TTL)
 		if err != nil {
 			errs = append(errs, fmt.Errorf("invalid ttl field: %v", err))
@@ -197,4 +184,17 @@ func (h *HCPBreakglassSessionCreationHandler) validateSessionParameters(request 
 	}
 
 	return body.Group, ttl, utilerrors.NewAggregate(errs)
+}
+
+// clusterServiceError checks if err is an OCM not-found error and returns a
+// specific CloudError. This prevents ReportError from misinterpreting it as
+// "HCP resource not found" (the HCP was already found in the database).
+// Non-OCM errors are wrapped for ReportError to handle as internal errors.
+func clusterServiceError(err error, what string) error {
+	var ocmErr *ocmerrors.Error
+	if errors.As(err, &ocmErr) && ocmErr.Status() == http.StatusNotFound {
+		return arm.NewCloudError(http.StatusNotFound, arm.CloudErrorCodeNotFound, "",
+			"%s not found in cluster service", what)
+	}
+	return fmt.Errorf("failed to get %s from cluster service: %w", what, err)
 }

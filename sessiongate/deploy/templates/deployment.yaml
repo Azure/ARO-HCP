@@ -65,8 +65,6 @@ spec:
           requests:
             cpu: 500m
             memory: 1Gi
-          limits:
-            memory: 1Gi
         volumeMounts: []
       volumes: []
       serviceAccountName: {{ .Values.serviceAccount.name }}

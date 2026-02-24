@@ -43,6 +43,7 @@ const (
 	contextKeyUrlPathValue         = contextKey("url_path.value")
 	contextKeyHCPResourceID        = contextKey("hcp_resource_id")
 	contextKeyClientPrincipalRef   = contextKey("client_principal_reference")
+	contextKeyPattern              = contextKey("pattern")
 )
 
 func ContextWithOriginalUrlPathValue(ctx context.Context, originalUrlPathValue string) context.Context {
@@ -100,4 +101,13 @@ func ClientPrincipalFromContext(ctx context.Context) (ClientPrincipalReference, 
 		return ClientPrincipalReference{}, fmt.Errorf("client principal reference not found in context")
 	}
 	return clientPrincipalReference, nil
+}
+
+func ContextWithPattern(ctx context.Context, pattern *string) context.Context {
+	return context.WithValue(ctx, contextKeyPattern, pattern)
+}
+
+func PatternFromContext(ctx context.Context) *string {
+	pattern, _ := ctx.Value(contextKeyPattern).(*string)
+	return pattern
 }

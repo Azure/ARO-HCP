@@ -104,13 +104,13 @@ func (a *httpHTTPTestAccessor) doRequest(ctx context.Context, method, path strin
 		}
 	}()
 
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, utils.TrackError(fmt.Errorf("HTTP %d", resp.StatusCode))
-	}
-
 	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, utils.TrackError(err)
+	}
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, utils.TrackError(fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(bodyBytes)))
 	}
 
 	if len(bodyBytes) == 0 {

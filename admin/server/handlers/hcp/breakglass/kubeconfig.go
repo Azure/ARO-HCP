@@ -21,14 +21,12 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/go-logr/logr"
-
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	clientcmd "k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/clientcmd/api"
 
-	"github.com/Azure/ARO-HCP/internal/utils"
+	"github.com/Azure/ARO-HCP/internal/api/arm"
 	sessiongateapiv1alpha1 "github.com/Azure/ARO-HCP/sessiongate/pkg/apis/sessiongate/v1alpha1"
 	sessiongateclientv1alpha1 "github.com/Azure/ARO-HCP/sessiongate/pkg/generated/clientset/versioned/typed/sessiongate/v1alpha1"
 	sessiongatelisterv1alpha1 "github.com/Azure/ARO-HCP/sessiongate/pkg/generated/listers/sessiongate/v1alpha1"
@@ -54,42 +52,34 @@ func NewHCPBreakglassSessionKubeconfigHandler(sessionLister sessiongatelisterv1a
 	}
 }
 
-func (h *HCPBreakglassSessionKubeconfigHandler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
-	logger := utils.LoggerFromContext(request.Context())
-
+func (h *HCPBreakglassSessionKubeconfigHandler) ServeHTTP(writer http.ResponseWriter, request *http.Request) error {
 	sessionName := request.PathValue("sessionName")
 	if sessionName == "" {
-		http.Error(writer, "session parameter is required", http.StatusBadRequest)
-		return
+		return arm.NewCloudError(http.StatusBadRequest, arm.CloudErrorCodeInvalidRequestContent, "", "session parameter is required")
 	}
-	logger = logger.WithValues("sessionName", sessionName)
 
 	// Try to get session from lister first (cached)
 	session, err := h.getSession(request.Context(), sessionName)
 	if err != nil {
-		logger.Error(err, "failed to get session")
-		http.Error(writer, "session not found", http.StatusNotFound)
-		return
+		if apierrors.IsNotFound(err) {
+			return arm.NewCloudError(http.StatusNotFound, arm.CloudErrorCodeNotFound, "", "session %q not found", sessionName)
+		}
+		return fmt.Errorf("failed to get session %q: %w", sessionName, err)
 	}
 
 	if !session.IsReady() {
 		details := GetSessionNotReadyDetails(session)
-		h.writeRetryResponse(writer, logger, details, sessionNotReadyRetryAfterSeconds)
-		return
+		return h.writeRetryResponse(writer, details, sessionNotReadyRetryAfterSeconds)
 	}
 
 	kubeconfig, err := session.GetKubeconfig(session.Status.Endpoint)
 	if err != nil {
-		logger.Error(err, "failed to get kubeconfig from session")
-		http.Error(writer, "failed to generate kubeconfig", http.StatusInternalServerError)
-		return
+		return fmt.Errorf("failed to generate kubeconfig: %w", err)
 	}
 	if session.Status.ExpiresAt == nil {
-		logger.Error(nil, "session is ready but expiresAt is not set")
-		http.Error(writer, "unable to determine session expiration", http.StatusInternalServerError)
-		return
+		return fmt.Errorf("session is ready but expiresAt is not set")
 	}
-	h.writeKubeconfigResponse(writer, logger, sessionName, kubeconfig, session.Status.ExpiresAt.Time)
+	return h.writeKubeconfigResponse(writer, sessionName, kubeconfig, session.Status.ExpiresAt.Time)
 }
 
 func (h *HCPBreakglassSessionKubeconfigHandler) getSession(ctx context.Context, sessionName string) (*sessiongateapiv1alpha1.Session, error) {
@@ -103,39 +93,31 @@ func (h *HCPBreakglassSessionKubeconfigHandler) getSession(ctx context.Context, 
 	return session, nil
 }
 
-func (h *HCPBreakglassSessionKubeconfigHandler) writeRetryResponse(writer http.ResponseWriter, logger logr.Logger, sessionStatus map[string]any, retryAfter int) {
+func (h *HCPBreakglassSessionKubeconfigHandler) writeRetryResponse(writer http.ResponseWriter, sessionStatus map[string]any, retryAfter int) error {
+	jsonBytes, err := json.Marshal(sessionStatus)
+	if err != nil {
+		return fmt.Errorf("failed to marshal session status: %w", err)
+	}
+
 	writer.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
 	writer.Header().Set("Retry-After", fmt.Sprintf("%d", retryAfter))
 	writer.Header().Set("Content-Type", "application/json")
 	writer.WriteHeader(http.StatusAccepted)
-
-	jsonBytes, _ := json.Marshal(sessionStatus)
-
-	_, err := writer.Write(jsonBytes)
-	if err != nil {
-		logger.Error(err, "failed to write retry response")
-		http.Error(writer, "failed to generate retry response", http.StatusInternalServerError)
-		return
-	}
+	_, err = writer.Write(jsonBytes)
+	return err
 }
 
-func (h *HCPBreakglassSessionKubeconfigHandler) writeKubeconfigResponse(writer http.ResponseWriter, logger logr.Logger, sessionName string, kubeconfig api.Config, expiresAt time.Time) {
+func (h *HCPBreakglassSessionKubeconfigHandler) writeKubeconfigResponse(writer http.ResponseWriter, sessionName string, kubeconfig api.Config, expiresAt time.Time) error {
 	kubeconfigBytes, err := clientcmd.Write(kubeconfig)
 	if err != nil {
-		logger.Error(err, "failed to serialize kubeconfig")
-		http.Error(writer, "failed to generate kubeconfig", http.StatusInternalServerError)
-		return
+		return fmt.Errorf("failed to serialize kubeconfig: %w", err)
 	}
 	writer.Header().Set("Expires", expiresAt.Format(time.RFC3339))
 	writer.Header().Set("Content-Type", "application/yaml")
 	writer.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"kubeconfig-%s.yaml\"", sessionName))
 	writer.WriteHeader(http.StatusOK)
 	_, err = writer.Write(kubeconfigBytes)
-	if err != nil {
-		logger.Error(err, "failed to write kubeconfig")
-		http.Error(writer, "failed to generate kubeconfig", http.StatusInternalServerError)
-		return
-	}
+	return err
 }
 
 func GetSessionNotReadyDetails(session *sessiongateapiv1alpha1.Session) map[string]any {

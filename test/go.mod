@@ -19,7 +19,6 @@ require (
 	github.com/dusted-go/logging v1.3.0
 	github.com/go-echarts/go-echarts/v2 v2.6.7
 	github.com/golang-jwt/jwt/v5 v5.3.0
-	github.com/google/uuid v1.6.0
 	github.com/onsi/ginkgo/v2 v2.27.2
 	github.com/onsi/gomega v1.38.2
 	github.com/openshift-eng/openshift-tests-extension v0.0.0-20260127124016-0fed2b824818

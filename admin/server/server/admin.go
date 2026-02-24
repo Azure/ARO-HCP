@@ -37,6 +37,7 @@ import (
 	"github.com/Azure/ARO-HCP/admin/server/middleware"
 	"github.com/Azure/ARO-HCP/internal/audit"
 	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/errorutils"
 	"github.com/Azure/ARO-HCP/internal/fpa"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -74,22 +75,47 @@ func NewAdminAPI(
 	maxSessionTTL time.Duration,
 	allowedBreakglassGroups set.Set[string],
 ) *AdminAPI {
-	// Submux for V1 HCP endpoints
-	v1HCPMux := middleware.NewHCPResourceServerMux("/admin/v1/hcp")
-	v1HCPMux.Handle("GET", "/helloworld", hcp.HCPHelloWorld(dbClient, clustersServiceClient))
-	v1HCPMux.Handle("GET", "/hellworld/lbs", hcp.HCPDemoListLoadbalancers(dbClient, clustersServiceClient, fpaCredentialRetriever))
-	v1HCPMux.Handle("POST", "/breakglass", breakglasshandlers.NewHCPBreakglassSessionCreationHandler(dbClient, clustersServiceClient, sessionClient, allowedBreakglassGroups, minSessionTTL, maxSessionTTL))
-	v1HCPMux.Handle("GET", "/breakglass/{sessionName}/kubeconfig", breakglasshandlers.NewHCPBreakglassSessionKubeconfigHandler(sessionLister, sessionClient))
-	v1HCPMux.Handle("GET", "/cosmosdump", cosmosdump.NewCosmosDumpHandler(dbClient))
+	// Pre-mux middleware (runs on all admin routes before pattern matching)
+	middlewareMux := middleware.NewMiddlewareMux(
+		middleware.MiddlewareLogger,
+		middleware.MiddlewareLowercase,
+		middleware.NewMiddlewareAudit(auditClient).HandleRequest,
+		middleware.MiddlewareClientPrincipal,
+	)
 
-	adminMux := http.NewServeMux()
-	adminMux.Handle("/admin/v1/hcp/", middleware.WithClientPrincipal(middleware.WithLowercaseURLPathValue(middleware.WithLogger(v1HCPMux.Handler()))))
+	// HCP resource routes
+	hcpMiddleware := middleware.NewMiddleware(
+		middleware.MiddlewareHCPResourceID,
+	)
+	middlewareMux.Handle(
+		middleware.V1HCPResourcePattern("GET", "/helloworld"),
+		hcpMiddleware.HandlerFunc(errorutils.ReportError(hcp.NewHCPHelloWorldHandler(dbClient, clustersServiceClient).ServeHTTP)),
+	)
+	middlewareMux.Handle(
+		middleware.V1HCPResourcePattern("GET", "/hellworld/lbs"),
+		hcpMiddleware.HandlerFunc(errorutils.ReportError(hcp.NewHCPDemoListLoadbalancersHandler(dbClient, clustersServiceClient, fpaCredentialRetriever).ServeHTTP)),
+	)
+	middlewareMux.Handle(
+		middleware.V1HCPResourcePattern("POST", "/breakglass"),
+		hcpMiddleware.HandlerFunc(errorutils.ReportError(breakglasshandlers.NewHCPBreakglassSessionCreationHandler(dbClient, clustersServiceClient, sessionClient, allowedBreakglassGroups, minSessionTTL, maxSessionTTL).ServeHTTP)),
+	)
+	middlewareMux.Handle(
+		middleware.V1HCPResourcePattern("GET", "/breakglass/{sessionName}/kubeconfig"),
+		hcpMiddleware.HandlerFunc(errorutils.ReportError(breakglasshandlers.NewHCPBreakglassSessionKubeconfigHandler(sessionLister, sessionClient).ServeHTTP)),
+	)
+	middlewareMux.Handle(
+		middleware.V1HCPResourcePattern("GET", "/cosmosdump"),
+		hcpMiddleware.HandlerFunc(errorutils.ReportError(cosmosdump.NewCosmosDumpHandler(dbClient).ServeHTTP)),
+	)
 
+	// Non-HCP admin routes
+	middlewareMux.Handle("GET /admin/helloworld", handlers.HelloWorldHandler())
+
+	// Top-level mux (healthz bypasses all middleware)
 	apiMux := http.NewServeMux()
-	apiMux.Handle("GET /admin/helloworld", handlers.HelloWorldHandler())
-	apiMux.Handle("/admin/", middleware.WithAudit(auditClient, adminMux))
 	apiMux.HandleFunc("GET /healthz/ready", healthzReadyHandler)
 	apiMux.HandleFunc("GET /healthz/live", healthzLiveHandler)
+	apiMux.HandleFunc("/", middlewareMux.ServeHTTP)
 
 	metricsMux := http.NewServeMux()
 	metricsMux.Handle("GET /metrics", promhttp.Handler())
