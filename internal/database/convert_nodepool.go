@@ -41,7 +41,7 @@ func InternalToCosmosNodePool(internalObj *api.HCPOpenShiftClusterNodePool) (*No
 			CosmosMetadata: api.CosmosMetadata{
 				ResourceID: internalObj.ID,
 			},
-			ResourceDocument: &ResourceDocument{
+			IntermediateResourceDoc: &ResourceDocument{
 				ResourceID:        internalObj.ID,
 				InternalID:        internalObj.ServiceProviderProperties.ClusterServiceID,
 				ActiveOperationID: internalObj.ServiceProviderProperties.ActiveOperationID,
@@ -55,7 +55,6 @@ func InternalToCosmosNodePool(internalObj *api.HCPOpenShiftClusterNodePool) (*No
 			},
 		},
 	}
-	cosmosObj.IntermediateResourceDoc = cosmosObj.ResourceDocument
 
 	// some pieces of data in the internalNodePool conflict with ResourceDocument fields.  We may evolve over time, but for
 	// now avoid persisting those.
@@ -76,10 +75,7 @@ func CosmosToInternalNodePool(cosmosObj *NodePool) (*api.HCPOpenShiftClusterNode
 	if cosmosObj == nil {
 		return nil, nil
 	}
-	resourceDoc := cosmosObj.ResourceDocument
-	if resourceDoc == nil {
-		resourceDoc = cosmosObj.IntermediateResourceDoc
-	}
+	resourceDoc := cosmosObj.IntermediateResourceDoc
 	if resourceDoc == nil {
 		return nil, fmt.Errorf("resource document cannot be nil")
 	}
