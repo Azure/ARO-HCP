@@ -307,6 +307,10 @@ require (
 
 replace github.com/Azure/ARO-HCP/internal => ../internal
 
+replace github.com/Azure/ARO-HCP/tooling/templatize => ../tooling/templatize
+
+replace github.com/Azure/ARO-HCP/tooling/hcpctl => ../tooling/hcpctl
+
 replace github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp => ./sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp
 
 // this is the OCP fork of ginkgo that allows listing and inspecting the tests to be compatible with https://github.com/openshift-eng/openshift-tests-extension
