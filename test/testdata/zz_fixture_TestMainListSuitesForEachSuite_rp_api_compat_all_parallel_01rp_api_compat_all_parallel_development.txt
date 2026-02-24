@@ -6,7 +6,6 @@ Customer should be able to create an HCP cluster with custom autoscaling
 Customer should not be able to create a 4.18 HCP cluster
 Customer should be able to create a HCP cluster without CNI
 Customer should be able to create an HCP cluster and custom node pool osDisk size
-Customer should be able to create an HCP cluster then delete it by deleting the customer resource group
 Customer should be able to list HCP clusters without node pools at both subscription and resource group levels
 Customer should not be able to reuse subnets and NSGs between clusters
 Customer should be able to create an HCP cluster and manage pull secrets
