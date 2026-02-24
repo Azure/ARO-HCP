@@ -2997,6 +2997,10 @@
     "automationDryRun": {
       "type": "boolean",
       "description": "Whether automation account runs in dry-run mode"
+    },
+    "defenderEnabled": {
+      "type": "boolean",
+      "description": "Whether Microsoft Defender for Cloud is active in the environment"
     }
   },
   "additionalProperties": false,
@@ -3031,6 +3035,7 @@
     "msiCredentialsRefresher",
     "keyVaultDNSSuffix",
     "acrDNSSuffix",
-    "e2e"
+    "e2e",
+    "defenderEnabled"
   ]
 }

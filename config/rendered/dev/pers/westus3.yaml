@@ -186,6 +186,7 @@ cxKeyVault:
   softDelete: false
   tagKey: aroHCPPurpose
   tagValue: cx
+defenderEnabled: false
 dns:
   baseDnsZoneRG: global
   cxParentZoneName: hcp.osadev.cloud

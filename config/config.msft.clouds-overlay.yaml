@@ -4,6 +4,7 @@ clouds:
       int:
         # this is the MSFT INT environment
         defaults:
+          defenderEnabled: true
           # E2E
           e2e:
             regionTest:

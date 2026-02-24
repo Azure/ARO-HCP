@@ -86,7 +86,11 @@ spec:
         {{- if .Values.audit.connectSocket }}
         volumeMounts:
           - name: mdsd-asa-run-vol
+            {{- if .Values.audit.defenderEnabled }}
             mountPath: /var/run/mdsd
+            {{- else }}
+            mountPath: /var/run/mdsd/asa
+            {{- end }}
         {{- end }}
         livenessProbe:
           httpGet:
@@ -104,8 +108,12 @@ spec:
       {{- if .Values.audit.connectSocket }}
       volumes:
         - name: mdsd-asa-run-vol
-          hostPath: 
+          hostPath:
+            {{- if .Values.audit.defenderEnabled }}
             path: /var/run/mdsd
+            {{- else }}
+            path: /var/run/mdsd/asa
+            {{- end }}
             type: Directory
       {{- end }}
       restartPolicy: Always

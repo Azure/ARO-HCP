@@ -156,7 +156,7 @@ spec:
             type: RuntimeDefault
         volumeMounts:
           - name: mdsd-asa-run-vol
-            mountPath: /var/run/mdsd/asa
+            mountPath: /var/run/mdsd
         livenessProbe:
           httpGet:
             path: /healthz
@@ -173,7 +173,7 @@ spec:
       volumes:
         - name: mdsd-asa-run-vol
           hostPath:
-            path: /var/run/mdsd/asa
+            path: /var/run/mdsd
             type: Directory
       restartPolicy: Always
       terminationGracePeriodSeconds: 30

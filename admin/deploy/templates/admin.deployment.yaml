@@ -101,7 +101,11 @@ spec:
           readOnly: true
         {{- if .Values.audit.connectSocket }}
         - name: mdsd-asa-run-vol
+          {{- if .Values.audit.defenderEnabled }}
           mountPath: /var/run/mdsd
+          {{- else }}
+          mountPath: /var/run/mdsd/asa
+          {{- end }}
         {{- end }}
       volumes:
       - name: fpa-cert
@@ -113,6 +117,10 @@ spec:
       {{- if .Values.audit.connectSocket }}
       - name: mdsd-asa-run-vol
         hostPath:
+          {{- if .Values.audit.defenderEnabled }}
           path: /var/run/mdsd
+          {{- else }}
+          path: /var/run/mdsd/asa
+          {{- end }}
           type: Directory
       {{- end }}

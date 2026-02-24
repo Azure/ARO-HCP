@@ -1,8 +1,8 @@
 values: ../values.yaml
-name: frontend-connect-socket
+name: frontend-connect-socket-defender
 namespace: aro-hcp
 testData:
   frontend:
     audit:
       connectSocket: true
-  defenderEnabled: false
+  defenderEnabled: true

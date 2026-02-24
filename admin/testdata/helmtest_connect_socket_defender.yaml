@@ -1,0 +1,8 @@
+values: ../values.yaml
+name: admin-api-connect-socket-defender
+namespace: aro-hcp-admin-api
+testData:
+  adminApi:
+    audit:
+      connectSocket: true
+  defenderEnabled: true

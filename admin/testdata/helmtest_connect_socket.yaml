@@ -1,8 +1,8 @@
 values: ../values.yaml
-name: frontend-connect-socket
-namespace: aro-hcp
+name: admin-api-connect-socket
+namespace: aro-hcp-admin-api
 testData:
-  frontend:
+  adminApi:
     audit:
       connectSocket: true
   defenderEnabled: false
