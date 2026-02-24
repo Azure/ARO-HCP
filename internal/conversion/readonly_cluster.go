@@ -29,6 +29,7 @@ func CopyReadOnlyTrackedResourceValues(dest, src *arm.TrackedResource) {
 
 func CopyReadOnlyClusterValues(dest, src *api.HCPOpenShiftCluster) {
 	CopyReadOnlyTrackedResourceValues(&dest.TrackedResource, &src.TrackedResource)
+	dest.CosmosMetadata = *src.CosmosMetadata.DeepCopy()
 
 	switch {
 	case hasClusterIdentityToSet(src.Identity) && dest.Identity == nil:

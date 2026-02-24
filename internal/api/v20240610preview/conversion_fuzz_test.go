@@ -29,6 +29,7 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 )
 
@@ -39,6 +40,17 @@ func TestRoundTripInternalExternalInternal(t *testing.T) {
 	fuzzer := fuzzerFor([]interface{}{
 		func(j *azcorearm.ResourceID, c randfill.Continue) {
 			*j = *api.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/myRg"))
+		},
+		func(j *arm.CosmosMetadata, c randfill.Continue) {
+			c.Fill(j)
+
+			if j != nil {
+				j.CosmosETag = ""
+			}
+		},
+		func(j *api.HCPOpenShiftCluster, c randfill.Continue) {
+			c.Fill(j)
+			j.ID = j.ResourceID
 		},
 		func(j *api.HCPOpenShiftClusterServiceProviderProperties, c randfill.Continue) {
 			c.FillNoCustom(j)

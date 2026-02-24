@@ -147,6 +147,9 @@ func TestMockDBClient_CRUD_Cluster(t *testing.T) {
 	}
 
 	cluster := &api.HCPOpenShiftCluster{
+		CosmosMetadata: api.CosmosMetadata{
+			ResourceID: clusterResourceID,
+		},
 		TrackedResource: arm.TrackedResource{
 			Resource: arm.Resource{
 				ID:   clusterResourceID,
@@ -385,6 +388,9 @@ func TestMockDBClient_Transaction(t *testing.T) {
 	}
 
 	cluster := &api.HCPOpenShiftCluster{
+		CosmosMetadata: api.CosmosMetadata{
+			ResourceID: clusterResourceID,
+		},
 		TrackedResource: arm.TrackedResource{
 			Resource: arm.Resource{
 				ID:   clusterResourceID,
@@ -443,6 +449,9 @@ func TestMockDBClient_UntypedCRUD(t *testing.T) {
 	}
 
 	cluster := &api.HCPOpenShiftCluster{
+		CosmosMetadata: api.CosmosMetadata{
+			ResourceID: clusterResourceID,
+		},
 		TrackedResource: arm.TrackedResource{
 			Resource: arm.Resource{
 				ID:   clusterResourceID,

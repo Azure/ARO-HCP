@@ -260,6 +260,7 @@ func decodeDesiredClusterCreate(ctx context.Context, azureLocation string) (*api
 		return nil, nameResourceIDMismatch(resourceID, newInternalCluster.Name)
 	}
 	// TrackedResource info doesn't appear to come from the external resource information
+	newInternalCluster.ResourceID = resourceID
 	conversion.CopyReadOnlyTrackedResourceValues(&newInternalCluster.TrackedResource, ptr.To(arm.NewTrackedResource(resourceID, azureLocation)))
 
 	// set fields that were not included during the conversion, because the user does not provide them or because the
@@ -856,12 +857,13 @@ func mergeToInternalCluster(csCluster *arohcpv1alpha1.Cluster, internalCluster *
 }
 
 func legacyMergeToInternalCluster(csCluster *arohcpv1alpha1.Cluster, internalCluster *api.HCPOpenShiftCluster, azureLocation string) (*api.HCPOpenShiftCluster, error) {
-	clusterServiceBasedInternalCluster, err := ocm.LegacyCreateInternalClusterFromClusterService(internalCluster.ID, azureLocation, csCluster)
+	clusterServiceBasedInternalCluster, err := ocm.LegacyCreateInternalClusterFromClusterService(internalCluster.ResourceID, azureLocation, csCluster)
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}
 
 	// this does not use conversion.CopyReadOnly* because some ServiceProvider properties come from cluster-service-only or live reads
+	clusterServiceBasedInternalCluster.CosmosMetadata = *internalCluster.CosmosMetadata.DeepCopy()
 	clusterServiceBasedInternalCluster.SystemData = internalCluster.SystemData.DeepCopy()
 	clusterServiceBasedInternalCluster.Tags = maps.Clone(internalCluster.Tags)
 	clusterServiceBasedInternalCluster.ServiceProviderProperties.ExistingCosmosUID = internalCluster.ServiceProviderProperties.ExistingCosmosUID
@@ -926,6 +928,7 @@ func (f *Frontend) getInternalClusterFromStorage(ctx context.Context, resourceID
 		return nil, fmt.Errorf("unexpected resourceID: %s", internalCluster.ID.String())
 	}
 	internalCluster.ID = resourceID
+	internalCluster.ResourceID = resourceID
 
 	return f.readInternalClusterFromClusterService(ctx, internalCluster)
 }
