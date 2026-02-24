@@ -1,7 +1,7 @@
 apiVersion: security.istio.io/v1
 kind: AuthorizationPolicy
 metadata:
-  name: allow-metrics-scraping
+  name: allow-metrics-ssessiongate
   namespace: '{{ .Release.Namespace }}'
 spec:
   action: "ALLOW"
@@ -14,4 +14,3 @@ spec:
   selector:
     matchLabels:
       app.kubernetes.io/name: "sessiongate"
-      component: "session-ingress"

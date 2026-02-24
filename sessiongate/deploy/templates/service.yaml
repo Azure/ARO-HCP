@@ -5,7 +5,6 @@ metadata:
   namespace: '{{ .Release.Namespace }}'
   labels:
     app.kubernetes.io/name: "sessiongate"
-    component: "session-ingress"
 spec:
   selector:
     app.kubernetes.io/name: sessiongate

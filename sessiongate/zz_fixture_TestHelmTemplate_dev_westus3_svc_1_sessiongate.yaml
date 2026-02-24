@@ -430,7 +430,6 @@ metadata:
   namespace: 'sessiongate'
   labels:
     app.kubernetes.io/name: "sessiongate"
-    component: "session-ingress"
 spec:
   selector:
     app.kubernetes.io/name: sessiongate
@@ -506,7 +505,9 @@ spec:
         resources:
           requests:
             cpu: 500m
-            memory: 128Mi
+            memory: 1Gi
+          limits:
+            memory: 1Gi
         volumeMounts: []
       volumes: []
       serviceAccountName: sessiongate
@@ -595,7 +596,7 @@ spec:
 apiVersion: security.istio.io/v1
 kind: AuthorizationPolicy
 metadata:
-  name: allow-metrics-scraping
+  name: allow-metrics-ssessiongate
   namespace: 'sessiongate'
 spec:
   action: "ALLOW"
@@ -608,17 +609,8 @@ spec:
   selector:
     matchLabels:
       app.kubernetes.io/name: "sessiongate"
-      component: "session-ingress"
 ---
 # Source: sessiongate/templates/allow-nothing.authorizationpolicy.yaml
-apiVersion: security.istio.io/v1
-kind: AuthorizationPolicy
-metadata:
-  name: allow-nothing
-  namespace: 'sessiongate'
-spec: {}
----
-# Source: sessiongate/templates/authorizationpolicy.yaml
 apiVersion: security.istio.io/v1
 kind: AuthorizationPolicy
 metadata:
