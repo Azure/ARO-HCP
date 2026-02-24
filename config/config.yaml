@@ -906,7 +906,7 @@ clouds:
     defaults:
       cloudEnvironmentName: "AzurePublicCloud"
       kusto:
-        kustoName: "hcp-dev-us"
+        kustoName: "hcp-dev-us-new"
         manageInstance: true
         sku: "Standard_E2ads_v5"
         tier: "Standard"
