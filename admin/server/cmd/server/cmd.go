@@ -22,7 +22,7 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
 
-	"github.com/Azure/ARO-HCP/admin/server/pkg/signal"
+	"github.com/Azure/ARO-HCP/internal/signal"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 

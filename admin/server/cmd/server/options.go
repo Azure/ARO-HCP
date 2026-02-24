@@ -240,7 +240,7 @@ func (opts *Options) Run(ctx context.Context) error {
 		opts.AuditClient,
 	)
 
-	runErrCh := make(chan error)
+	runErrCh := make(chan error, 1)
 	go func() {
 		runErrCh <- adminAPI.Run(ctx)
 		logger.Info("admin api exited")
