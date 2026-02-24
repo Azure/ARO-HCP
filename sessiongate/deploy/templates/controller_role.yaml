@@ -4,7 +4,7 @@ metadata:
   labels:
     app.kubernetes.io/name: sessiongate
   name: sessiongate-controller
-  namespace: {{ .Values.namespace }}
+  namespace: {{ .Release.Namespace }}
 rules:
 - apiGroups:
   - sessiongate.aro-hcp.azure.com
