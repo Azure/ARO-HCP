@@ -5,7 +5,7 @@ go 1.25.5
 require (
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/alertsmanagement/armalertsmanagement v0.10.0
 	github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring v0.85.0
-	github.com/prometheus/common v0.66.1
+	github.com/prometheus/common v0.67.4
 	github.com/sirupsen/logrus v1.9.3
 	github.com/stretchr/testify v1.11.1
 	k8s.io/apimachinery v0.34.3
@@ -34,7 +34,7 @@ require (
 	golang.org/x/net v0.49.0 // indirect
 	golang.org/x/sys v0.40.0 // indirect
 	golang.org/x/text v0.33.0 // indirect
-	google.golang.org/protobuf v1.36.10 // indirect
+	google.golang.org/protobuf v1.36.11 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	k8s.io/api v0.34.3 // indirect
