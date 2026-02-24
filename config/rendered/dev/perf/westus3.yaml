@@ -371,7 +371,7 @@ kusto:
   autoScaleMin: 2
   enableAutoScale: false
   hostedControlPlaneLogsDatabase: HostedControlPlaneLogs
-  kustoName: hcp-dev-us-new
+  kustoName: hcp-dev-us-2
   manageInstance: true
   rg: hcp-kusto-us
   serviceLogsDatabase: ServiceLogs
