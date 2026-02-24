@@ -5,6 +5,7 @@ go 1.25.5
 require (
 	github.com/Azure/ARO-Tools/config v0.0.0-20260224195034-f5e8116c18b8
 	github.com/Azure/ARO-Tools/pipelines v0.0.0-20260224202318-50897c5f99ec
+	github.com/Azure/ARO-Tools/testutil v0.0.0-20260224202318-50897c5f99ec
 	github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20260224200806-c0318c58a192
 	github.com/Azure/ARO-Tools/tools/grafanactl v0.0.0-20260224202318-50897c5f99ec
 	github.com/Azure/ARO-Tools/tools/helm v0.0.0-20260224202318-50897c5f99ec

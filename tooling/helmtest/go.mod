@@ -13,6 +13,7 @@ require (
 
 require (
 	dario.cat/mergo v1.0.1 // indirect
+	github.com/Azure/ARO-Tools/testutil v0.0.0-20260224202318-50897c5f99ec // indirect
 	github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20260224200806-c0318c58a192 // indirect
 	github.com/Azure/ARO-Tools/tools/yamlwrap v0.0.0-20260224200806-c0318c58a192 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.21.0 // indirect

@@ -73,8 +73,8 @@ github.com/Azure/ARO-Tools/config v0.0.0-20260224195034-f5e8116c18b8 h1:b3wMm7oV
 github.com/Azure/ARO-Tools/config v0.0.0-20260224195034-f5e8116c18b8/go.mod h1:j6S5kuu6Fqu9mcqehqQDZ+BoTcCHzZoRWSL0ldDNGrY=
 github.com/Azure/ARO-Tools/pipelines v0.0.0-20260224202318-50897c5f99ec h1:ERWgE5KNajeeb40eDlI0T8TDkZrFevKHeraVVFR3yTw=
 github.com/Azure/ARO-Tools/pipelines v0.0.0-20260224202318-50897c5f99ec/go.mod h1:NU+k08tVV7MIHqAg10OqvN07wbh5ixo073sbYyWsTlc=
-github.com/Azure/ARO-Tools/testutil v0.0.0-20260224200806-c0318c58a192 h1:1chrKiIYDSdQn7Dbu/0qzc5qPM6o/LZScs+u0ASj024=
-github.com/Azure/ARO-Tools/testutil v0.0.0-20260224200806-c0318c58a192/go.mod h1:6V1kLTbkz3TLTspxt7fAI8Xy4EdBdsvLR5mk0gkry7k=
+github.com/Azure/ARO-Tools/testutil v0.0.0-20260224202318-50897c5f99ec h1:DPLGb4yntrDGEabt5I5229ENe+7BOQ523pY0GauGsBM=
+github.com/Azure/ARO-Tools/testutil v0.0.0-20260224202318-50897c5f99ec/go.mod h1:6V1kLTbkz3TLTspxt7fAI8Xy4EdBdsvLR5mk0gkry7k=
 github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20260224200806-c0318c58a192 h1:k1kNH7MTQr64V1oj5GvmPwUKJBc/wC3b+nFIuJISRUk=
 github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20260224200806-c0318c58a192/go.mod h1:bBo5YOjQf47SHTl5ohULLUin2PAEt6s5D5GQZQRgO5w=
 github.com/Azure/ARO-Tools/tools/grafanactl v0.0.0-20260224202318-50897c5f99ec h1:F3NMH6vkji9K37kXL5gJVYFEagzi3sYbAxCbybdaNK8=

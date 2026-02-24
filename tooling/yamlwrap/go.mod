@@ -10,7 +10,7 @@ require (
 )
 
 require (
-	github.com/Azure/ARO-Tools/testutil v0.0.0-20260224200806-c0318c58a192 // indirect
+	github.com/Azure/ARO-Tools/testutil v0.0.0-20260224202318-50897c5f99ec // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
 	go.yaml.in/yaml/v2 v2.4.3 // indirect
