@@ -2,11 +2,6 @@
 	"id": "|subscriptions|4fa75980-6637-4157-9726-84d878a62e83|resourcegroups|shrilleffectiveness|providers|microsoft.redhatopenshift|hcpopenshiftclusters|lavishunhappiness",
 	"partitionKey": "4fa75980-6637-4157-9726-84d878a62e83",
 	"properties": {
-		"activeOperationId": "6aeeebf8-f771-4d4e-9097-45b972cb96e4",
-		"identity": {
-			"type": "UserAssigned"
-		},
-		"internalId": "/api/clusters_mgmt/v1/clusters/1243e9e9-d150-4ef1-9735-2bbc3cabc7d0",
 		"internalState": {
 			"internalAPI": {
 				"customerProperties": {
@@ -69,9 +64,16 @@
 				}
 			}
 		},
-		"provisioningState": "Accepted",
-		"resourceId": "/subscriptions/4fa75980-6637-4157-9726-84d878a62e83/resourceGroups/shrillEffectiveness/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/lavishUnhappiness",
-		"systemData": {}
+		"intermediateResourceDoc": {
+			"resourceId": "/subscriptions/4fa75980-6637-4157-9726-84d878a62e83/resourceGroups/shrillEffectiveness/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/lavishUnhappiness",
+			"internalId": "/api/clusters_mgmt/v1/clusters/1243e9e9-d150-4ef1-9735-2bbc3cabc7d0",
+			"activeOperationId": "6aeeebf8-f771-4d4e-9097-45b972cb96e4",
+			"provisioningState": "Accepted",
+			"identity": {
+				"type": "UserAssigned"
+			},
+			"systemData": {}
+		}
 	},
 	"resourceType": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters",
 	"resourceID": "/subscriptions/4fa75980-6637-4157-9726-84d878a62e83/resourceGroups/shrillEffectiveness/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/lavishUnhappiness"

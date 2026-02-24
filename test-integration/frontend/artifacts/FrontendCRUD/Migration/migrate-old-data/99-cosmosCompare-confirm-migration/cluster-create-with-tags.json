@@ -7,12 +7,8 @@
 	"partitionKey": "6b690bec-0c16-4ecb-8f67-781caf40bba7",
 	"resourceID": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/create-with-tags",
 	"properties": {
-		"activeOperationId": "7a4ed07a-47a1-4efb-966a-93a6316522a0",
 		"cosmosMetadata": {
 			"resourceID": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/create-with-tags"
-		},
-		"identity": {
-			"type": "UserAssigned"
 		},
 		"intermediateResourceDoc": {
 			"activeOperationId": "7a4ed07a-47a1-4efb-966a-93a6316522a0",
@@ -27,7 +23,6 @@
 				"one": "apple"
 			}
 		},
-		"internalId": "/api/clusters_mgmt/v1/clusters/9p2sk955gj",
 		"internalState": {
 			"internalAPI": {
 				"customerProperties": {
@@ -87,12 +82,6 @@
 					"platform": {}
 				}
 			}
-		},
-		"provisioningState": "Succeeded",
-		"resourceId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/create-with-tags",
-		"systemData": {},
-		"tags": {
-			"one": "apple"
 		}
 	},
 	"resourceType": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters"

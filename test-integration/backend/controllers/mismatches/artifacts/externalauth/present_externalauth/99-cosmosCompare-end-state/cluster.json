@@ -1,11 +1,6 @@
 {
 	"partitionKey": "a433a095-1277-44f1-8453-8d61a4d848c2",
 	"properties": {
-		"activeOperationId": "6aeeebf8-f771-4d4e-9097-45b972cb96e4",
-		"identity": {
-			"type": "UserAssigned"
-		},
-		"internalId": "/api/clusters_mgmt/v1/clusters/1243e9e9-d150-4ef1-9735-2bbc3cabc7d0",
 		"internalState": {
 			"internalAPI": {
 				"customerProperties": {
@@ -68,9 +63,16 @@
 				}
 			}
 		},
-		"provisioningState": "Accepted",
-		"resourceId": "/subscriptions/a433a095-1277-44f1-8453-8d61a4d848c2/resourceGroups/unimportantPostponement/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/monstrousPrecinct",
-		"systemData": {}
+		"intermediateResourceDoc": {
+			"resourceId": "/subscriptions/a433a095-1277-44f1-8453-8d61a4d848c2/resourceGroups/unimportantPostponement/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/monstrousPrecinct",
+			"internalId": "/api/clusters_mgmt/v1/clusters/1243e9e9-d150-4ef1-9735-2bbc3cabc7d0",
+			"activeOperationId": "6aeeebf8-f771-4d4e-9097-45b972cb96e4",
+			"provisioningState": "Accepted",
+			"identity": {
+				"type": "UserAssigned"
+			},
+			"systemData": {}
+		}
 	},
 	"resourceType": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters",
 	"resourceID": "/subscriptions/a433a095-1277-44f1-8453-8d61a4d848c2/resourceGroups/unimportantPostponement/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/monstrousPrecinct"

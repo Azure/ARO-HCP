@@ -6,10 +6,6 @@
 	"_ts": 1768403927,
 	"partitionKey": "6b690bec-0c16-4ecb-8f67-781caf40bba7",
 	"properties": {
-		"identity": {
-			"type": "UserAssigned"
-		},
-		"internalId": "/api/clusters_mgmt/v1/clusters/m6bpjxtlqf",
 		"internalState": {
 			"internalAPI": {
 				"customerProperties": {
@@ -70,11 +66,17 @@
 				}
 			}
 		},
-		"provisioningState": "Succeeded",
-		"resourceId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/create-with-tags",
-		"systemData": {},
-		"tags": {
-			"one": "apple"
+		"intermediateResourceDoc": {
+			"resourceId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/create-with-tags",
+			"internalId": "/api/clusters_mgmt/v1/clusters/m6bpjxtlqf",
+			"provisioningState": "Succeeded",
+			"identity": {
+				"type": "UserAssigned"
+			},
+			"systemData": {},
+			"tags": {
+				"one": "apple"
+			}
 		}
 	},
 	"resourceType": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters",
