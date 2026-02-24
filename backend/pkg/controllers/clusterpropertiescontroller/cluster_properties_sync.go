@@ -21,9 +21,9 @@ import (
 	"time"
 
 	"k8s.io/apimachinery/pkg/api/equality"
-	"k8s.io/client-go/tools/cache"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
+	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -51,7 +51,7 @@ func NewClusterPropertiesSyncController(
 	cosmosClient database.DBClient,
 	clusterServiceClient ocm.ClusterServiceClientSpec,
 	activeOperationLister listers.ActiveOperationLister,
-	clusterInformer cache.SharedIndexInformer,
+	informers informers.BackendInformers,
 ) controllerutils.Controller {
 	syncer := &clusterPropertiesSyncer{
 		cooldownChecker:      controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
@@ -62,7 +62,7 @@ func NewClusterPropertiesSyncController(
 	controller := controllerutils.NewClusterWatchingController(
 		"ClusterPropertiesSync",
 		cosmosClient,
-		clusterInformer,
+		informers,
 		5*time.Minute, // Check every 5 minutes
 		syncer,
 	)

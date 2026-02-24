@@ -323,7 +323,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		b.options.CosmosDBClient,
 		b.options.ClustersServiceClient,
 		activeOperationLister,
-		clusterInformer,
+		backendInformers,
 	)
 	triggerControlPlaneUpgradeController := upgradecontrollers.NewTriggerControlPlaneUpgradeController(
 		b.options.CosmosDBClient,
@@ -335,7 +335,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		b.options.CosmosDBClient,
 		b.options.ClustersServiceClient,
 		activeOperationLister,
-		clusterInformer,
+		backendInformers,
 	)
 
 	le, err := leaderelection.NewLeaderElector(leaderelection.LeaderElectionConfig{
