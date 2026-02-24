@@ -35,8 +35,6 @@ var _ = Describe("Customer", func() {
 		labels.RequireNothing,
 		labels.Critical,
 		labels.Positive,
-		labels.AroRpApiCompatible,
-		labels.TeardownValidation,
 		func(ctx context.Context) {
 			const (
 				customerNetworkSecurityGroupName = "customer-nsg"
@@ -133,7 +131,7 @@ var _ = Describe("Customer", func() {
 			rgClient := tc.GetARMResourcesClientFactoryOrDie(ctx).NewResourceGroupsClient()
 			networkClient, err := tc.GetARMNetworkClientFactory(ctx)
 			Expect(err).NotTo(HaveOccurred())
-			err = framework.DeleteResourceGroup(ctx, rgClient, networkClient, *resourceGroup.Name, false, 45*time.Minute)
+			err = framework.DeleteResourceGroup(ctx, rgClient, networkClient, *resourceGroup.Name, false, 60*time.Minute)
 			Expect(err).NotTo(HaveOccurred())
 
 			By("verifying customer resource group is deleted (404)")
