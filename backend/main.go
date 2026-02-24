@@ -474,6 +474,12 @@ func Run(cmd *cobra.Command, args []string) error {
 				dbClient,
 				subscriptionLister,
 			)
+			fetchMSIIdentitiesInfoController = controllers.NewFetchMSIIdentitiesInfoController(
+				dbClient,
+				subscriptionLister,
+				clusterServiceClient,
+				fpaMIDataplaneClientBuilder,
+			)
 		)
 
 		le, err := leaderelection.NewLeaderElector(leaderelection.LeaderElectionConfig{
@@ -501,6 +507,7 @@ func Run(cmd *cobra.Command, args []string) error {
 					go alwaysSuccessClusterValidationController.Run(ctx, 20)
 					go azureRPRegistrationValidationController.Run(ctx, 20)
 					go azureClusterManagedIdentitiesExistenceValidationController.Run(ctx, 20)
+					go fetchMSIIdentitiesInfoController.Run(ctx, 20)
 				},
 				OnStoppedLeading: func() {
 					operationsScanner.LeaderGauge.Set(0)
