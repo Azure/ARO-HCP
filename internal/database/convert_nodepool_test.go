@@ -48,7 +48,6 @@ func TestRoundTripNodePoolInternalCosmosInternal(t *testing.T) {
 			if j == nil {
 				return
 			}
-			j.ServiceProviderProperties.ExistingCosmosUID = ""
 			j.CosmosETag = ""
 			// Canonical defaults are applied on Cosmos read, so ensure
 			// defaulted fields are never zero during round-trip testing.
