@@ -42,57 +42,14 @@ import (
 // are not necessarily Maestro bundles, so we define this type to make more explicit about the fact that it is a Maestro Client
 // based on the ManifestWorks abstraction, at both the type level and in its method signatures.
 type Client interface {
-	CreateMaestroBundle(ctx context.Context, maestroBundle *workv1.ManifestWork, opts metav1.CreateOptions) (*workv1.ManifestWork, error)
-	GetMaestroBundle(ctx context.Context, bundleMetadataName string, opts metav1.GetOptions) (*workv1.ManifestWork, error)
-	DeleteMaestroBundle(ctx context.Context, bundleMetadataName string, opts metav1.DeleteOptions) error
-	PatchMaestroBundle(ctx context.Context, bundleMetadataName string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *workv1.ManifestWork, err error)
-	ListMaestroBundles(ctx context.Context, opts metav1.ListOptions) (*workv1.ManifestWorkList, error)
+	Create(ctx context.Context, maestroBundle *workv1.ManifestWork, opts metav1.CreateOptions) (*workv1.ManifestWork, error)
+	Get(ctx context.Context, bundleMetadataName string, opts metav1.GetOptions) (*workv1.ManifestWork, error)
+	Delete(ctx context.Context, bundleMetadataName string, opts metav1.DeleteOptions) error
+	Patch(ctx context.Context, bundleMetadataName string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *workv1.ManifestWork, err error)
+	List(ctx context.Context, opts metav1.ListOptions) (*workv1.ManifestWorkList, error)
 }
 
-// client is a client that wraps the workv1client.MaestroManifestWorksInterface interface
-// and implements the Client interface, delegating the actual work to the workv1client.MaestroManifestWorksInterface interface.
-type client struct {
-	// maestroManifestWorksInterface is the interface that allows to interact with
-	// the Maestro API using Maestro Bundles. The interface targets a specific
-	// Maestro Consumer and it is configured with a specific Maestro Source ID.
-	maestroManifestWorksInterface workv1client.ManifestWorkInterface
-	// maestroSourceID is the source ID of the Maestro client. A Maestro Source ID
-	// represents the owner/producer of the Maestro Bundles.
-	// maestroManifestWorksInterface is scoped to this source ID. This means that
-	// the visibility of the Maestro bundles is limited to the Maestro bundles owned
-	// by the same source ID Multiple applications or multiple instances of the
-	// same application can use the same source ID and they will receive the same
-	// events. See https://github.com/open-cluster-management-io/enhancements/tree/main/enhancements/sig-architecture/224-event-based-manifestwork#terminology
-	// for more details.
-	maestroSourceID string
-	// maestroConsumerName is the name of the Maestro Consumer. A Maestro Consumer
-	// represents a target for resource delivery. In ARO-HCP this is a
-	// Management Cluster, where a Maestro Agent is deployed. The Maestro Agent
-	// is then configured with a Consumer Name.
-	maestroConsumerName string
-}
-
-var _ Client = &client{}
-
-func (c *client) CreateMaestroBundle(ctx context.Context, bundle *workv1.ManifestWork, opts metav1.CreateOptions) (*workv1.ManifestWork, error) {
-	return c.maestroManifestWorksInterface.Create(ctx, bundle, opts)
-}
-
-func (c *client) GetMaestroBundle(ctx context.Context, bundleMetadataName string, opts metav1.GetOptions) (*workv1.ManifestWork, error) {
-	return c.maestroManifestWorksInterface.Get(ctx, bundleMetadataName, opts)
-}
-
-func (c *client) DeleteMaestroBundle(ctx context.Context, bundleMetadataName string, opts metav1.DeleteOptions) error {
-	return c.maestroManifestWorksInterface.Delete(ctx, bundleMetadataName, opts)
-}
-
-func (c *client) PatchMaestroBundle(ctx context.Context, bundleMetadataName string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *workv1.ManifestWork, err error) {
-	return c.maestroManifestWorksInterface.Patch(ctx, bundleMetadataName, pt, data, opts, subresources...)
-}
-
-func (c *client) ListMaestroBundles(ctx context.Context, opts metav1.ListOptions) (*workv1.ManifestWorkList, error) {
-	return c.maestroManifestWorksInterface.List(ctx, opts)
-}
+var _ Client = workv1client.ManifestWorkInterface(nil)
 
 // NewClient creates a new Maestro Client that allows you to interact with Maestro using the Open Cluster Management ManifestWorks abstraction
 // It uses the provided Maestro REST and GRPC API endpoints to interact with it. Both endpoints are assumed to be pointing to the same Maestro server.
@@ -107,12 +64,7 @@ func NewClient(
 		return nil, utils.TrackError(fmt.Errorf("failed to create maestro grpc source work client: %w", err))
 	}
 
-	maestroManifestWorksInterface := newMaestroManifestWorksClient(grpcClient, maestroConsumerName)
-	return &client{
-		maestroManifestWorksInterface: maestroManifestWorksInterface,
-		maestroSourceID:               maestroSourceID,
-		maestroConsumerName:           maestroConsumerName,
-	}, nil
+	return newMaestroManifestWorksClient(grpcClient, maestroConsumerName), nil
 }
 
 // GenerateMaestroSourceID generates a Maestro Source ID of the form "<envName>-<provisionShardID>".
