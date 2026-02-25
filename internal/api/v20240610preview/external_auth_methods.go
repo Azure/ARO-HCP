@@ -75,6 +75,7 @@ func (h *ExternalAuth) ConvertToInternal() (*api.HCPOpenShiftClusterExternalAuth
 
 	if h.ID != nil {
 		out.ID = api.Must(azcorearm.ParseResourceID(strings.ToLower(*h.ID)))
+		out.ResourceID = api.Must(azcorearm.ParseResourceID(strings.ToLower(*h.ID)))
 	}
 	if h.Name != nil {
 		out.Name = *h.Name
@@ -328,8 +329,8 @@ func (v version) NewHCPOpenShiftClusterExternalAuth(from *api.HCPOpenShiftCluste
 	}
 
 	idString := ""
-	if from.ID != nil {
-		idString = from.ID.String()
+	if from.ResourceID != nil {
+		idString = from.ResourceID.String()
 	}
 
 	out := &ExternalAuth{

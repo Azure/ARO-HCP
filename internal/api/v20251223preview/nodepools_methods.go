@@ -85,6 +85,7 @@ func (h *NodePool) ConvertToInternal() (*api.HCPOpenShiftClusterNodePool, error)
 
 	if h.ID != nil {
 		out.ID = api.Must(azcorearm.ParseResourceID(strings.ToLower(*h.ID)))
+		out.ResourceID = api.Must(azcorearm.ParseResourceID(strings.ToLower(*h.ID)))
 	}
 	if h.Name != nil {
 		out.Name = *h.Name
@@ -309,8 +310,8 @@ func (v version) NewHCPOpenShiftClusterNodePool(from *api.HCPOpenShiftClusterNod
 	}
 
 	idString := ""
-	if from.ID != nil {
-		idString = from.ID.String()
+	if from.ResourceID != nil {
+		idString = from.ResourceID.String()
 	}
 
 	out := &NodePool{

@@ -807,6 +807,9 @@ func TestMockDBClient_addResource(t *testing.T) {
 	}
 
 	cluster := &api.HCPOpenShiftCluster{
+		CosmosMetadata: api.CosmosMetadata{
+			ResourceID: clusterResourceID,
+		},
 		TrackedResource: arm.TrackedResource{
 			Resource: arm.Resource{
 				ID:   clusterResourceID,
@@ -888,6 +891,9 @@ func TestNewMockDBClientWithResources(t *testing.T) {
 	}
 
 	cluster := &api.HCPOpenShiftCluster{
+		CosmosMetadata: api.CosmosMetadata{
+			ResourceID: clusterResourceID,
+		},
 		TrackedResource: arm.TrackedResource{
 			Resource: arm.Resource{
 				ID:   clusterResourceID,
@@ -910,6 +916,9 @@ func TestNewMockDBClientWithResources(t *testing.T) {
 			"/nodePools/" + nodePoolName))
 
 	nodePool := &api.HCPOpenShiftClusterNodePool{
+		CosmosMetadata: api.CosmosMetadata{
+			ResourceID: nodePoolResourceID,
+		},
 		TrackedResource: arm.TrackedResource{
 			Resource: arm.Resource{
 				ID:   nodePoolResourceID,

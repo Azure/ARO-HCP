@@ -84,6 +84,7 @@ func CosmosToInternalExternalAuth(cosmosObj *ExternalAuth) (*api.HCPOpenShiftClu
 	if internalObj.ResourceID == nil {
 		internalObj.ResourceID = cosmosObj.IntermediateResourceDoc.ResourceID
 	}
+	internalObj.ExistingCosmosUID = cosmosObj.ID
 
 	// some pieces of data are stored on the ResourceDocument, so we need to restore that data
 	internalObj.ProxyResource = arm.ProxyResource{
@@ -96,7 +97,6 @@ func CosmosToInternalExternalAuth(cosmosObj *ExternalAuth) (*api.HCPOpenShiftClu
 	}
 	internalObj.Properties.ProvisioningState = resourceDoc.ProvisioningState
 	internalObj.SystemData = resourceDoc.SystemData
-	internalObj.ServiceProviderProperties.ExistingCosmosUID = cosmosObj.ID
 	internalObj.ServiceProviderProperties.ClusterServiceID = resourceDoc.InternalID
 	internalObj.ServiceProviderProperties.ActiveOperationID = resourceDoc.ActiveOperationID
 
