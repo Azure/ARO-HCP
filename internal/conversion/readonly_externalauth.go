@@ -28,6 +28,7 @@ func CopyReadOnlyProxyResourceValues(dest, src *arm.ProxyResource) {
 
 func CopyReadOnlyExternalAuthValues(dest, src *api.HCPOpenShiftClusterExternalAuth) {
 	CopyReadOnlyProxyResourceValues(&dest.ProxyResource, &src.ProxyResource)
+	dest.CosmosMetadata = *src.CosmosMetadata.DeepCopy()
 
 	dest.Properties.ProvisioningState = src.Properties.ProvisioningState
 	dest.Properties.Condition = *src.Properties.Condition.DeepCopy()

@@ -29,19 +29,13 @@ import (
 // OpenShift clusters.
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type HCPOpenShiftClusterNodePool struct {
+	// CosmosMetadata ResourceID is nested under the nodepool so that association and cleanup work as expected
+	CosmosMetadata `json:"cosmosMetadata"`
+
 	arm.TrackedResource
 	Properties                HCPOpenShiftClusterNodePoolProperties                `json:"properties,omitempty"`
 	ServiceProviderProperties HCPOpenShiftClusterNodePoolServiceProviderProperties `json:"serviceProviderProperties,omitempty"`
 	Identity                  *arm.ManagedServiceIdentity                          `json:"identity,omitempty"`
-}
-
-var _ arm.CosmosPersistable = &HCPOpenShiftClusterNodePool{}
-
-func (o *HCPOpenShiftClusterNodePool) GetCosmosData() *arm.CosmosMetadata {
-	return &arm.CosmosMetadata{
-		ResourceID:        o.ID,
-		ExistingCosmosUID: o.ServiceProviderProperties.ExistingCosmosUID,
-	}
 }
 
 // HCPOpenShiftClusterNodePoolProperties represents the property bag of a

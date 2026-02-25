@@ -80,6 +80,11 @@ func CosmosToInternalExternalAuth(cosmosObj *ExternalAuth) (*api.HCPOpenShiftClu
 	tempInternalAPI := cosmosObj.InternalState.InternalAPI
 	internalObj := &tempInternalAPI
 
+	// handle reading old resources.
+	if internalObj.ResourceID == nil {
+		internalObj.ResourceID = cosmosObj.IntermediateResourceDoc.ResourceID
+	}
+
 	// some pieces of data are stored on the ResourceDocument, so we need to restore that data
 	internalObj.ProxyResource = arm.ProxyResource{
 		Resource: arm.Resource{

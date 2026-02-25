@@ -69,6 +69,14 @@ func deepCopyFuzzerFor(src rand.Source) *randfill.Filler {
 			c.Fill(j)
 			j.ID = j.ResourceID
 		},
+		func(j *HCPOpenShiftClusterNodePool, c randfill.Continue) {
+			c.Fill(j)
+			j.ID = j.ResourceID
+		},
+		func(j *HCPOpenShiftClusterExternalAuth, c randfill.Continue) {
+			c.Fill(j)
+			j.ID = j.ResourceID
+		},
 		func(j *HCPOpenShiftClusterServiceProviderProperties, c randfill.Continue) {
 			c.FillNoCustom(j)
 			if j == nil {
@@ -121,6 +129,19 @@ func TestDeepCopyHCPOpenShiftClusterNodePool(t *testing.T) {
 
 	for i := 0; i < 200; i++ {
 		original := &HCPOpenShiftClusterNodePool{}
+		fuzzer.Fill(original)
+		doDeepCopyTest(t, original, fuzzer)
+	}
+}
+
+func TestDeepCopyHCPOpenShiftClusterExternalAuth(t *testing.T) {
+	seed := rand.Int63()
+	t.Logf("seed: %d", seed)
+
+	fuzzer := deepCopyFuzzerFor(rand.NewSource(seed))
+
+	for i := 0; i < 200; i++ {
+		original := &HCPOpenShiftClusterExternalAuth{}
 		fuzzer.Fill(original)
 		doDeepCopyTest(t, original, fuzzer)
 	}

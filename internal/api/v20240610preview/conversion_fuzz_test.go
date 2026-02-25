@@ -52,6 +52,14 @@ func TestRoundTripInternalExternalInternal(t *testing.T) {
 			c.Fill(j)
 			j.ID = j.ResourceID
 		},
+		func(j *api.HCPOpenShiftClusterNodePool, c randfill.Continue) {
+			c.Fill(j)
+			j.ID = j.ResourceID
+		},
+		func(j *api.HCPOpenShiftClusterExternalAuth, c randfill.Continue) {
+			c.Fill(j)
+			j.ID = j.ResourceID
+		},
 		func(j *api.HCPOpenShiftClusterServiceProviderProperties, c randfill.Continue) {
 			c.FillNoCustom(j)
 			// ActiveOperationID does not roundtrip through the external type because it is purely an internal detail

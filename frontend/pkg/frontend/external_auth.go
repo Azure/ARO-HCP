@@ -235,6 +235,7 @@ func decodeDesiredExternalAuthCreate(ctx context.Context) (*api.HCPOpenShiftClus
 	if len(newInternalExternalAuth.Name) > 0 && newInternalExternalAuth.Name != resourceID.Name {
 		return nil, nameResourceIDMismatch(resourceID, newInternalExternalAuth.Name)
 	}
+	newInternalExternalAuth.ResourceID = resourceID
 
 	// ProxyResource info doesn't to come from the external resource information
 	conversion.CopyReadOnlyProxyResourceValues(&newInternalExternalAuth.ProxyResource, ptr.To(arm.NewProxyResource(resourceID)))
@@ -688,6 +689,7 @@ func mergeToInternalExternalAuth(csEternalAuth *arohcpv1alpha1.ExternalAuth, int
 	}
 
 	// this does not use conversion.CopyReadOnly* because some ServiceProvider properties come from cluster-service-only or live reads
+	mergedExternalAuth.CosmosMetadata = *internalObj.CosmosMetadata.DeepCopy()
 	mergedExternalAuth.SystemData = internalObj.SystemData.DeepCopy()
 	mergedExternalAuth.Properties.ProvisioningState = internalObj.Properties.ProvisioningState
 	mergedExternalAuth.ServiceProviderProperties = *internalObj.ServiceProviderProperties.DeepCopy()

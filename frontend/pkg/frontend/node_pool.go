@@ -238,6 +238,7 @@ func decodeDesiredNodePoolCreate(ctx context.Context, azureLocation string) (*ap
 	if len(newInternalNodePool.Name) > 0 && newInternalNodePool.Name != resourceID.Name {
 		return nil, nameResourceIDMismatch(resourceID, newInternalNodePool.Name)
 	}
+	newInternalNodePool.ResourceID = resourceID
 	conversion.CopyReadOnlyTrackedResourceValues(&newInternalNodePool.TrackedResource, ptr.To(arm.NewTrackedResource(resourceID, azureLocation)))
 
 	// set fields that were not included during the conversion, because the user does not provide them or because the
@@ -738,6 +739,7 @@ func mergeToInternalNodePool(clusterServiceNode *arohcpv1alpha1.NodePool, intern
 	}
 
 	// this does not use conversion.CopyReadOnly* because some ServiceProvider properties come from cluster-service-only or live reads
+	mergedOldClusterServiceNodePool.CosmosMetadata = *internalNodePool.CosmosMetadata.DeepCopy()
 	mergedOldClusterServiceNodePool.SystemData = internalNodePool.SystemData.DeepCopy()
 	mergedOldClusterServiceNodePool.Tags = maps.Clone(internalNodePool.Tags)
 	mergedOldClusterServiceNodePool.Properties.ProvisioningState = internalNodePool.Properties.ProvisioningState
