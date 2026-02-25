@@ -284,10 +284,10 @@ func validateClusterServiceProviderProperties(ctx context.Context, op operation.
 	return errs
 }
 
-var (
-	toVersionID    = func(oldObj *api.VersionProfile) *string { return &oldObj.ID }
-	toChannelGroup = func(oldObj *api.VersionProfile) *string { return &oldObj.ChannelGroup }
-)
+//var (
+//	toVersionID    = func(oldObj *api.VersionProfile) *string { return &oldObj.ID }
+//	toChannelGroup = func(oldObj *api.VersionProfile) *string { return &oldObj.ChannelGroup }
+//)
 
 // Version                 VersionProfile              `json:"version,omitempty"`
 func validateVersionProfile(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *api.VersionProfile) field.ErrorList {
@@ -296,17 +296,15 @@ func validateVersionProfile(ctx context.Context, op operation.Operation, fldPath
 	// Version should be immutable once is created
 	// additional validations may depend on the subscription, hence they will be done in the admission package
 	// ID           string `json:"id,omitempty"
-	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("id"), &newObj.ID, safe.Field(oldObj, toVersionID))...)
-
-	// ChannelGroup string `json:"channelGroup,omitempty"`
-	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("channelGroup"), &newObj.ChannelGroup, safe.Field(oldObj, toChannelGroup))...)
-
-	errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("channelGroup"), &newObj.ChannelGroup, nil)...)
-
-	// Version ID is required for non-stable channel groups
-	if newObj.ChannelGroup != "stable" {
+	// Version ID is required, but some records may not have had it originally, so don't fail them yet.
+	if oldObj == nil {
+		errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("id"), &newObj.ID, nil)...)
+	} else if len(oldObj.ID) > 0 {
 		errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("id"), &newObj.ID, nil)...)
 	}
+
+	// ChannelGroup string `json:"channelGroup,omitempty"`
+	errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("channelGroup"), &newObj.ChannelGroup, nil)...)
 
 	return errs
 }

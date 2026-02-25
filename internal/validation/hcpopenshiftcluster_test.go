@@ -110,6 +110,10 @@ func TestClusterRequired(t *testing.T) {
 			expectErrors: []expectedError{
 				{
 					message:   "Required value",
+					fieldPath: "customerProperties.version.id",
+				},
+				{
+					message:   "Required value",
 					fieldPath: "customerProperties.platform.subnetId",
 				},
 				{
@@ -224,11 +228,10 @@ func TestClusterValidate(t *testing.T) {
 			},
 		},
 		{
-			name: "Bad required_unless",
+			name: "Version ID is required",
 			resource: func() *api.HCPOpenShiftCluster {
 				r := api.MinimumValidClusterTestCase()
 				r.CustomerProperties.Version.ID = ""
-				r.CustomerProperties.Version.ChannelGroup = "fast"
 				return r
 			}(),
 			expectErrors: []expectedError{

@@ -42,7 +42,8 @@
 			"subnetId": "/subscriptions/32350638-2403-4bc9-a36e-4922c8c99b52/resourceGroups/bar/providers/Microsoft.Network/virtualNetworks/vnet/subnets/subnet"
 		},
 		"version": {
-			"channelGroup": "stable"
+			"channelGroup": "stable",
+			"id": "4.20"
 		}
 	},
 	"tags": {
