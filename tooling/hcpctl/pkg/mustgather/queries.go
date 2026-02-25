@@ -33,6 +33,11 @@ const (
 	QueryTypeSystemdLogs        QueryType = "systemd-logs"
 )
 
+type InfraClusterType string
+
+const InfraClusterTypeService InfraClusterType = "service"
+const InfraClusterTypeManagement InfraClusterType = "management"
+
 var servicesDatabase = "ServiceLogs"
 var hostedControlPlaneLogsDatabase = "HostedControlPlaneLogs"
 
@@ -56,12 +61,23 @@ type QueryOptions struct {
 	SubscriptionId    string
 	ResourceGroupName string
 	InfraClusterName  string
+	InfraClusterType  InfraClusterType
 	TimestampMin      time.Time
 	TimestampMax      time.Time
 	Limit             int
 }
 
-func NewQueryOptions(subscriptionID, resourceGroupName, resourceId, infraClusterName string, timestampMin, timestampMax time.Time, limit int) (*QueryOptions, error) {
+func NewInfraQueryOptions(infraClusterType InfraClusterType, infraClusterName string, timestampMin, timestampMax time.Time, limit int) (*QueryOptions, error) {
+	return &QueryOptions{
+		InfraClusterName: infraClusterName,
+		InfraClusterType: infraClusterType,
+		TimestampMin:     timestampMin,
+		TimestampMax:     timestampMax,
+		Limit:            limit,
+	}, nil
+}
+
+func NewQueryOptions(subscriptionID, resourceGroupName, resourceId string, timestampMin, timestampMax time.Time, limit int) (*QueryOptions, error) {
 	if resourceId != "" {
 		res, err := azcorearm.ParseResourceID(resourceId)
 		if err != nil {
@@ -77,7 +93,6 @@ func NewQueryOptions(subscriptionID, resourceGroupName, resourceId, infraCluster
 		TimestampMin:      timestampMin,
 		TimestampMax:      timestampMax,
 		Limit:             limit,
-		InfraClusterName:  infraClusterName,
 	}, nil
 }
 

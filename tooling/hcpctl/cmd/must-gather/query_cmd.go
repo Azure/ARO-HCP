@@ -25,7 +25,7 @@ import (
 )
 
 func newQueryCommand() (*cobra.Command, error) {
-	opts := DefaultMustGatherOptions()
+	opts := DefaultQueryOptions()
 
 	cmd := &cobra.Command{
 		Use:              "query",
@@ -43,14 +43,14 @@ func newQueryCommand() (*cobra.Command, error) {
 		},
 	}
 
-	if err := BindMustGatherOptions(opts, cmd); err != nil {
+	if err := BindQueryOptions(opts, cmd); err != nil {
 		return nil, err
 	}
 
 	return cmd, nil
 }
 
-func (opts *MustGatherOptions) Run(ctx context.Context) error {
+func (opts *CompletedQueryOptions) RunQuery(ctx context.Context) error {
 	logger := logr.FromContextOrDiscard(ctx)
 	defer func() {
 		if closeErr := opts.QueryClient.Close(); closeErr != nil {
@@ -58,7 +58,7 @@ func (opts *MustGatherOptions) Run(ctx context.Context) error {
 		}
 	}()
 
-	queryOptions, err := mustgather.NewQueryOptions(opts.SubscriptionID, opts.ResourceGroup, opts.ResourceId, opts.InfraClusterName, opts.TimestampMin, opts.TimestampMax, opts.Limit)
+	queryOptions, err := mustgather.NewQueryOptions(opts.SubscriptionID, opts.ResourceGroup, opts.ResourceId, opts.TimestampMin, opts.TimestampMax, opts.Limit)
 	if err != nil {
 		return fmt.Errorf("failed to create query options: %w", err)
 	}
@@ -66,7 +66,7 @@ func (opts *MustGatherOptions) Run(ctx context.Context) error {
 	gatherer := mustgather.NewCliGatherer(opts.QueryClient, opts.OutputPath, ServicesLogDirectory, HostedControlPlaneLogDirectory, mustgather.GathererOptions{
 		QueryOptions:               queryOptions,
 		SkipHostedControlPlaneLogs: opts.SkipHostedControlPlaneLogs,
-		GatherInfraLogs:            opts.GatherInfraLogs,
+		GatherInfraLogs:            false,
 	})
 
 	err = gatherer.GatherLogs(ctx)

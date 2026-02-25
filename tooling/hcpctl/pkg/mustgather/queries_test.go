@@ -26,19 +26,19 @@ func TestNewQueryOptions(t *testing.T) {
 	now := time.Now()
 
 	// With resource ID
-	opts, err := NewQueryOptions("", "", "/subscriptions/test-sub/resourceGroups/test-rg", "", now, now, 100)
+	opts, err := NewQueryOptions("", "", "/subscriptions/test-sub/resourceGroups/test-rg", now, now, 100)
 	require.NoError(t, err)
 	assert.Equal(t, "test-sub", opts.SubscriptionId)
 	assert.Equal(t, "test-rg", opts.ResourceGroupName)
 
 	// With subscription/resource group
-	opts, err = NewQueryOptions("sub", "rg", "", "", now, now, 100)
+	opts, err = NewQueryOptions("sub", "rg", "", now, now, 100)
 	require.NoError(t, err)
 	assert.Equal(t, "sub", opts.SubscriptionId)
 	assert.Equal(t, "rg", opts.ResourceGroupName)
 
 	// Invalid resource ID
-	_, err = NewQueryOptions("", "", "/invalid", "", now, now, 100)
+	_, err = NewQueryOptions("", "", "/invalid", now, now, 100)
 	assert.Error(t, err)
 }
 
