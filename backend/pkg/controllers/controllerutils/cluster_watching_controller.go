@@ -171,6 +171,7 @@ func (c *clusterWatchingController) processNextWorkItem(ctx context.Context) boo
 	logger = ref.AddLoggerValues(logger)
 	ctx = utils.ContextWithLogger(ctx, logger)
 
+	ReconcileTotal.WithLabelValues(c.name).Inc()
 	err := c.SyncOnce(ctx, ref)
 	if err == nil {
 		c.queue.Forget(ref)
