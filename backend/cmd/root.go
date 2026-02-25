@@ -120,6 +120,13 @@ func (f *BackendRootCmdFlags) validate() error {
 		return utils.TrackError(fmt.Errorf("--log-verbosity must be a value >= 0"))
 	}
 
+	if len(f.MaestroSourceEnvironmentIdentifier) == 0 {
+		return utils.TrackError(fmt.Errorf("--maestro-source-environment-identifier is required"))
+	}
+	if len(f.MaestroSourceEnvironmentIdentifier) > 10 {
+		return utils.TrackError(fmt.Errorf("--maestro-source-environment-identifier must be less than 10 characters"))
+	}
+
 	return nil
 }
 
