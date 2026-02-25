@@ -224,6 +224,10 @@ infra.tracing:
 	cd observability/tracing && KUBECONFIG="$$(cd ../../dev-infrastructure && make -s svc.aks.kubeconfigfile)" make
 .PHONY: infra.tracing
 
+infra.cosmos.access:
+	@cd dev-infrastructure && DEPLOY_ENV=$(DEPLOY_ENV) make cosmos.access
+.PHONY: infra.cosmos.access
+
 #
 # Services
 #
@@ -328,7 +332,7 @@ generate-kiota:
 # One-Step Personal Dev Environment
 #
 ifeq ($(DEPLOY_ENV),$(filter $(DEPLOY_ENV),pers swft))
-personal-dev-env: install-tools entrypoint/Region infra.svc.aks.kubeconfig infra.mgmt.aks.kubeconfig infra.tracing
+personal-dev-env: install-tools entrypoint/Region infra.svc.aks.kubeconfig infra.mgmt.aks.kubeconfig infra.tracing infra.cosmos.access
 else
 personal-dev-env:
 	$(error personal-dev-env: DEPLOY_ENV must be set to "pers" or "swft", not "$(DEPLOY_ENV)")
