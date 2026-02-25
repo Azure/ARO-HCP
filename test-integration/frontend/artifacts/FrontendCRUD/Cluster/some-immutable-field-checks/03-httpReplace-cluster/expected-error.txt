@@ -1,11 +1,6 @@
       {
         "code": "InvalidRequestContent",
         "message": "Forbidden: field is immutable",
-        "target": "properties.version.id"
-      }
-      {
-        "code": "InvalidRequestContent",
-        "message": "Forbidden: field is immutable",
         "target": "properties.dns.baseDomainPrefix"
       }
       {

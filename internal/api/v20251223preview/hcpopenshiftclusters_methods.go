@@ -58,9 +58,6 @@ func SetDefaultValuesCluster(obj *HcpOpenShiftCluster) {
 	if obj.Properties.Version.ChannelGroup == nil {
 		obj.Properties.Version.ChannelGroup = ptr.To("stable")
 	}
-	if obj.Properties.Version.ID == nil {
-		obj.Properties.Version.ID = ptr.To("4.20")
-	}
 	if obj.Properties.Network == nil {
 		obj.Properties.Network = &generated.NetworkProfile{}
 	}

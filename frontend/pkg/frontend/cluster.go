@@ -34,8 +34,6 @@ import (
 	"github.com/Azure/ARO-HCP/internal/admission"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/api/v20240610preview"
-	"github.com/Azure/ARO-HCP/internal/api/v20251223preview"
 	"github.com/Azure/ARO-HCP/internal/conversion"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -448,19 +446,6 @@ func decodeDesiredClusterReplace(ctx context.Context, oldInternalCluster *api.HC
 		return nil, utils.TrackError(err)
 	}
 
-	// until we ensure that all records have the version.id set, we need to store it from the external version BEFORE defaulting
-	requestVersionID := ""
-	switch cast := externalClusterFromRequest.(type) {
-	case *v20240610preview.HcpOpenShiftCluster:
-		if cast != nil && cast.Properties != nil && cast.Properties.Version != nil && cast.Properties.Version.ID != nil {
-			requestVersionID = *cast.Properties.Version.ID
-		}
-	case *v20251223preview.HcpOpenShiftCluster:
-		if cast != nil && cast.Properties != nil && cast.Properties.Version != nil && cast.Properties.Version.ID != nil {
-			requestVersionID = *cast.Properties.Version.ID
-		}
-	}
-
 	// Default values
 	if err := externalClusterFromRequest.SetDefaultValues(externalClusterFromRequest); err != nil {
 		return nil, utils.TrackError(err)
@@ -475,9 +460,6 @@ func decodeDesiredClusterReplace(ctx context.Context, oldInternalCluster *api.HC
 	}
 
 	// values a user doesn't have to provide, but are not static defaults (set dynamically during create).  Set these from old value
-	if len(requestVersionID) == 0 {
-		newInternalCluster.CustomerProperties.Version.ID = oldInternalCluster.CustomerProperties.Version.ID
-	}
 	if len(newInternalCluster.CustomerProperties.DNS.BaseDomainPrefix) == 0 {
 		newInternalCluster.CustomerProperties.DNS.BaseDomainPrefix = oldInternalCluster.CustomerProperties.DNS.BaseDomainPrefix
 	}
