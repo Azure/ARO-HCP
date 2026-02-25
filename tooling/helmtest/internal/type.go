@@ -21,7 +21,7 @@ import (
 
 	"sigs.k8s.io/yaml"
 
-	"github.com/Azure/ARO-Tools/pkg/types"
+	"github.com/Azure/ARO-Tools/pipelines/types"
 )
 
 var TestDataFromChartDir = "../testdata"

@@ -31,7 +31,7 @@ import (
 
 	"sigs.k8s.io/yaml"
 
-	"github.com/Azure/ARO-Tools/pkg/config"
+	"github.com/Azure/ARO-Tools/config"
 
 	"github.com/Azure/ARO-HCP/tooling/helmtest/internal"
 )

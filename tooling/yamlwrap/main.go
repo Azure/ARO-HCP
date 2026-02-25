@@ -25,7 +25,7 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
 
-	"github.com/Azure/ARO-Tools/pkg/yamlwrap"
+	"github.com/Azure/ARO-Tools/tools/yamlwrap"
 )
 
 func main() {

@@ -29,7 +29,7 @@ import (
 
 	"k8s.io/utils/ptr"
 
-	"github.com/Azure/ARO-Tools/pkg/graph"
+	"github.com/Azure/ARO-Tools/pipelines/graph"
 
 	"github.com/Azure/ARO-HCP/tooling/templatize/cmd/entrypoint/entrypointutils"
 )

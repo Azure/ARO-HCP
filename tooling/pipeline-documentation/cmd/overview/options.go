@@ -24,7 +24,7 @@ import (
 
 	"sigs.k8s.io/yaml"
 
-	"github.com/Azure/ARO-Tools/pkg/topology"
+	"github.com/Azure/ARO-Tools/pipelines/topology"
 
 	"github.com/Azure/ARO-HCP/tooling/pipeline-documentation/pkg/generator"
 )
