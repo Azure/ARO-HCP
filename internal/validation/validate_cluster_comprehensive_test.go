@@ -1159,7 +1159,7 @@ func TestValidateClusterUpdate(t *testing.T) {
 			},
 		},
 		{
-			name: "immutable version ID - update",
+			name: "version ID can be changed - update",
 			newCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
 				c.CustomerProperties.Version.ID = "4.15"
@@ -1170,12 +1170,10 @@ func TestValidateClusterUpdate(t *testing.T) {
 				c.CustomerProperties.Version.ID = "4.16"
 				return c
 			}(),
-			expectErrors: []expectedError{
-				{message: "field is immutable", fieldPath: "customerProperties.version.id"},
-			},
+			expectErrors: []expectedError{},
 		},
 		{
-			name: "immutable version ChannelGroup - update",
+			name: "version ChannelGroup can be changed - update",
 			newCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
 				c.CustomerProperties.Version.ChannelGroup = "fast"
@@ -1186,9 +1184,7 @@ func TestValidateClusterUpdate(t *testing.T) {
 				c.CustomerProperties.Version.ChannelGroup = "stable"
 				return c
 			}(),
-			expectErrors: []expectedError{
-				{message: "field is immutable", fieldPath: "customerProperties.version.channelGroup"},
-			},
+			expectErrors: []expectedError{},
 		},
 		{
 			name: "immutable base domain - update",
@@ -1633,12 +1629,60 @@ func TestValidateClusterUpdate(t *testing.T) {
 				c.CustomerProperties.API.Visibility = api.VisibilityPublic
 				return c
 			}(),
+			// version.id and channelGroup are now mutable, only dns.baseDomainPrefix and api.visibility remain immutable
 			expectErrors: []expectedError{
-				{message: "field is immutable", fieldPath: "customerProperties.version.id"},
-				{message: "field is immutable", fieldPath: "customerProperties.version.channelGroup"},
 				{message: "field is immutable", fieldPath: "customerProperties.dns.baseDomainPrefix"},
 				{message: "field is immutable", fieldPath: "customerProperties.api.visiblity"},
 			},
+		},
+		// Test cases for version.id requirement validation on update
+		// The new validation rules for version.id are:
+		// - On create (oldObj == nil): version.id is always required
+		// - On update with oldObj.ID set: version.id is required (cannot be cleared)
+		// - On update with oldObj.ID empty: version.id is NOT required (legacy migration support)
+		{
+			name: "update: version.id can be empty when old cluster had no version.id (legacy migration)",
+			newCluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.Version.ID = ""
+				return c
+			}(),
+			oldCluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.Version.ID = ""
+				return c
+			}(),
+			expectErrors: []expectedError{},
+		},
+		{
+			name: "update: version.id cannot be cleared when old cluster had version.id",
+			newCluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.Version.ID = ""
+				return c
+			}(),
+			oldCluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.Version.ID = "4.15"
+				return c
+			}(),
+			expectErrors: []expectedError{
+				{message: "Required value", fieldPath: "customerProperties.version.id"},
+			},
+		},
+		{
+			name: "update: version.id can be added when old cluster had no version.id",
+			newCluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.Version.ID = "4.16"
+				return c
+			}(),
+			oldCluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.Version.ID = ""
+				return c
+			}(),
+			expectErrors: []expectedError{},
 		},
 	}
 
