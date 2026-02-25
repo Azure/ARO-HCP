@@ -22,8 +22,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
-
 	"k8s.io/utils/ptr"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -609,22 +607,6 @@ func SetClusterServiceOnlyFieldsOnCluster(internalCluster *api.HCPOpenShiftClust
 	}
 }
 
-// ensureManagedResourceGroupName makes sure the ManagedResourceGroupName field is set.
-// If the field is empty a default is generated.
-func ensureManagedResourceGroupName(hcpCluster *api.HCPOpenShiftCluster) string {
-	if hcpCluster.CustomerProperties.Platform.ManagedResourceGroup != "" {
-		return hcpCluster.CustomerProperties.Platform.ManagedResourceGroup
-	}
-	var clusterName string
-	if len(hcpCluster.Name) >= 45 {
-		clusterName = (hcpCluster.Name)[:45]
-	} else {
-		clusterName = hcpCluster.Name
-	}
-
-	return "arohcp-" + clusterName + "-" + uuid.New().String()
-}
-
 func convertRpAutoscalarToCSBuilder(in *api.ClusterAutoscalingProfile) (*arohcpv1alpha1.ClusterAutoscalerBuilder, error) {
 
 	// MaxNodeProvisionTime (string) - minutes e.g - “15m”
@@ -762,7 +744,7 @@ func withImmutableAttributes(clusterBuilder *arohcpv1alpha1.ClusterBuilder, hcpC
 		SubscriptionID(strings.ToLower(subscriptionID)).
 		ResourceGroupName(strings.ToLower(resourceGroupName)).
 		ResourceName(strings.ToLower(hcpCluster.Name)).
-		ManagedResourceGroupName(ensureManagedResourceGroupName(hcpCluster)).
+		ManagedResourceGroupName(hcpCluster.CustomerProperties.Platform.ManagedResourceGroup).
 		SubnetResourceID(hcpCluster.CustomerProperties.Platform.SubnetID.String()).
 		NodesOutboundConnectivity(arohcpv1alpha1.NewAzureNodesOutboundConnectivity().
 			OutboundType(outboundType))
