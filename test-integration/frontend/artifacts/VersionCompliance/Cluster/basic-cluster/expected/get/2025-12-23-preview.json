@@ -1,0 +1,45 @@
+{
+	"id": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/vc-cluster-03",
+	"identity": {
+		"type": "UserAssigned"
+	},
+	"location": "fake-location",
+	"name": "vc-cluster-03",
+	"properties": {
+		"api": {
+			"visibility": "Public"
+		},
+		"autoscaling": {
+			"maxNodeProvisionTimeSeconds": 900,
+			"maxPodGracePeriodSeconds": 600,
+			"podPriorityThreshold": -10
+		},
+		"clusterImageRegistry": {
+			"state": "Enabled"
+		},
+		"etcd": {
+			"dataEncryption": {
+				"keyManagementMode": "PlatformManaged"
+			}
+		},
+		"network": {
+			"hostPrefix": 23,
+			"machineCidr": "10.0.0.0/16",
+			"networkType": "OVNKubernetes",
+			"podCidr": "10.128.0.0/14",
+			"serviceCidr": "172.30.0.0/16"
+		},
+		"platform": {
+			"managedResourceGroup": "managed-rg-vc-03",
+			"networkSecurityGroupId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/bar/providers/Microsoft.Network/networkSecurityGroups/nsg",
+			"outboundType": "LoadBalancer",
+			"subnetId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/bar/providers/Microsoft.Network/virtualNetworks/vnet/subnets/subnet"
+		},
+		"provisioningState": "Succeeded",
+		"version": {
+			"channelGroup": "stable",
+			"id": "4.20"
+		}
+	},
+	"type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters"
+}

@@ -106,5 +106,28 @@ func CosmosToInternalNodePool(cosmosObj *NodePool) (*api.HCPOpenShiftClusterNode
 	internalObj.ServiceProviderProperties.ClusterServiceID = resourceDoc.InternalID
 	internalObj.ServiceProviderProperties.ActiveOperationID = resourceDoc.ActiveOperationID
 
+	applyNodePoolStorageDefaults(internalObj)
+
 	return internalObj, nil
+}
+
+// applyNodePoolStorageDefaults fills in default values for fields that may be
+// absent in Cosmos documents created before the field was introduced.
+// Only fields where the zero value is never valid user input are safe
+// to default here (string enums). See the DDR at docs/api-version-defaults-and-storage.md.
+//
+// CHECKLIST FOR ADDING NEW DEFAULTED FIELDS:
+//  1. Add field to internal type (internal/api/types_nodepool.go)
+//  2. Choose type: string enum safe for omitempty, bool/int need *T or no omitempty
+//  3. Add default in NewDefaultHCPOpenShiftClusterNodePool constructor
+//  4. Add SetDefaultValues* entry in each API version (internal/api/v*/nodepools_methods.go)
+//  5. Add storage default HERE if zero value != valid input
+//  6. Add CS->RP default in internal/ocm/convert.go (must match storage default)
+//  7. Add version compliance test in test-integration/frontend/artifacts/VersionCompliance/
+//  8. Add consistency test in convert_defaults_consistency_test.go
+//  9. Update DDR at docs/api-version-defaults-and-storage.md
+func applyNodePoolStorageDefaults(np *api.HCPOpenShiftClusterNodePool) {
+	if len(np.Properties.Platform.OSDisk.DiskStorageAccountType) == 0 {
+		np.Properties.Platform.OSDisk.DiskStorageAccountType = api.DiskStorageAccountTypePremium_LRS
+	}
 }

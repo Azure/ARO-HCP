@@ -358,6 +358,11 @@ func readRawBytesInDir(dir fs.FS) ([][]byte, error) {
 	return contents, nil
 }
 
+// DefaultTestAPIVersion is the API version used by existing integration tests.
+// When a new API version becomes the default, update this constant and fix
+// any test fixture response differences.
+const DefaultTestAPIVersion = "2024-06-10-preview"
+
 type StepInput struct {
 	CosmosContainer        *azcosmos.ContainerClient
 	ContentLoader          integrationutils.ContentLoader
@@ -365,6 +370,7 @@ type StepInput struct {
 	DBClient               database.DBClient
 	FrontendURL            string
 	AdminURL               string
+	APIVersion             string
 	ClusterServiceMockInfo *integrationutils.ClusterServiceMock
 }
 
@@ -375,8 +381,11 @@ func (s StepInput) HTTPTestAccessor(key ResourceKey) HTTPTestAccessor {
 			"Content-Type":               "application/json",
 		})
 	}
-	subscriptionID := api.Must(azcorearm.ParseResourceID(key.ResourceID)).SubscriptionID
-	return NewFrontendHTTPTestAccessor(s.FrontendURL, integrationutils.Get20240610ClientFactory(s.FrontendURL, subscriptionID))
+	apiVersion := s.APIVersion
+	if len(apiVersion) == 0 {
+		apiVersion = DefaultTestAPIVersion
+	}
+	return NewVersionedHTTPTestAccessor(s.FrontendURL, apiVersion)
 }
 
 func NewCosmosStepInput(storageInfo integrationutils.StorageIntegrationTestInfo) *StepInput {

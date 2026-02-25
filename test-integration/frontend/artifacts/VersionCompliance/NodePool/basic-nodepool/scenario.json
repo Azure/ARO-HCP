@@ -1,0 +1,7 @@
+{
+	"description": "Basic nodepool created on v1, verify both versions produce valid response",
+	"createVersion": "2024-06-10-preview",
+	"resourceType": "nodePool",
+	"clusterResourceID": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/vc-cluster-01",
+	"resourceID": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/vc-cluster-01/nodePools/basic-np"
+}
