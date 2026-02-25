@@ -83,6 +83,11 @@ func CosmosToInternalNodePool(cosmosObj *NodePool) (*api.HCPOpenShiftClusterNode
 	tempInternalAPI := cosmosObj.InternalState.InternalAPI
 	internalObj := &tempInternalAPI
 
+	// handle reading old resources.
+	if internalObj.ResourceID == nil {
+		internalObj.ResourceID = cosmosObj.IntermediateResourceDoc.ResourceID
+	}
+
 	// some pieces of data are stored on the ResourceDocument, so we need to restore that data
 	internalObj.TrackedResource = arm.TrackedResource{
 		Resource: arm.Resource{
@@ -97,7 +102,11 @@ func CosmosToInternalNodePool(cosmosObj *NodePool) (*api.HCPOpenShiftClusterNode
 	// we carry over the CosmosETag from the cosmos object to the internal object into a
 	// temporary field until we have inlined and serialized CosmosMetadata in
 	// HCPOpenShiftClusterNodePool.
-	internalObj.CosmosETag = cosmosObj.CosmosETag
+	internalObj.CosmosMetadata = api.CosmosMetadata{
+		ResourceID:        cosmosObj.ResourceID,
+		ExistingCosmosUID: cosmosObj.ID,
+		CosmosETag:        cosmosObj.CosmosETag,
+	}
 	internalObj.Identity = toInternalIdentity(resourceDoc.Identity)
 	internalObj.Properties.ProvisioningState = resourceDoc.ProvisioningState
 	internalObj.SystemData = resourceDoc.SystemData

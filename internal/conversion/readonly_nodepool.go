@@ -21,6 +21,7 @@ import (
 
 func CopyReadOnlyNodePoolValues(dest, src *api.HCPOpenShiftClusterNodePool) {
 	CopyReadOnlyTrackedResourceValues(&dest.TrackedResource, &src.TrackedResource)
+	dest.CosmosMetadata = *src.CosmosMetadata.DeepCopy()
 
 	switch {
 	case hasClusterIdentityToSet(src.Identity) && dest.Identity == nil:

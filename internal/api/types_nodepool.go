@@ -20,7 +20,6 @@ import (
 
 	"k8s.io/utils/ptr"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api/arm"
@@ -30,27 +29,13 @@ import (
 // OpenShift clusters.
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type HCPOpenShiftClusterNodePool struct {
+	// CosmosMetadata ResourceID is nested under the nodepool so that association and cleanup work as expected
+	CosmosMetadata `json:"cosmosMetadata"`
+
 	arm.TrackedResource
 	Properties                HCPOpenShiftClusterNodePoolProperties                `json:"properties,omitempty"`
 	ServiceProviderProperties HCPOpenShiftClusterNodePoolServiceProviderProperties `json:"serviceProviderProperties,omitempty"`
 	Identity                  *arm.ManagedServiceIdentity                          `json:"identity,omitempty"`
-	// CosmosETag is an in-memory copy of the _etag field read from the Cosmos DB document (BaseDocument) and
-	// populated on DB read via the CosmosToInternalNodePool() conversion function.
-	// We carry it across the API boundary between NodePool (the direct cosmos db type) and HCPOpenShiftClusterNodePool (this)
-	// so we can populate the CosmosETag in GetCosmosData() so that we can do conditional replaces in cosmos.
-	// This can be removed once we have inlined and serialized CosmosMetadata in
-	// HCPOpenShiftClusterNodePool.
-	CosmosETag azcore.ETag `json:"-"`
-}
-
-var _ arm.CosmosPersistable = &HCPOpenShiftClusterNodePool{}
-
-func (o *HCPOpenShiftClusterNodePool) GetCosmosData() *arm.CosmosMetadata {
-	return &arm.CosmosMetadata{
-		CosmosETag:        o.CosmosETag,
-		ResourceID:        o.ID,
-		ExistingCosmosUID: o.ServiceProviderProperties.ExistingCosmosUID,
-	}
 }
 
 // HCPOpenShiftClusterNodePoolProperties represents the property bag of a

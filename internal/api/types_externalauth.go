@@ -17,7 +17,6 @@ package api
 import (
 	"time"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api/arm"
@@ -27,16 +26,12 @@ import (
 // OpenShift clusters.
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type HCPOpenShiftClusterExternalAuth struct {
+	// CosmosMetadata ResourceID is nested under the external auth so that association and cleanup work as expected
+	CosmosMetadata `json:"cosmosMetadata"`
+
 	arm.ProxyResource
 	Properties                HCPOpenShiftClusterExternalAuthProperties                `json:"properties"`
 	ServiceProviderProperties HCPOpenShiftClusterExternalAuthServiceProviderProperties `json:"serviceProviderProperties,omitempty"`
-	// CosmosETag is an in-memory copy of the _etag field read from the Cosmos DB document (BaseDocument) and
-	// populated on DB read via the CosmosToInternalExternalAuth() conversion function.
-	// We carry it across the API boundary between ExternalAuth (the direct cosmos db type) and HCPOpenShiftClusterExternalAuth (this)
-	// so we can populate the CosmosETag in GetCosmosData() so that we can do conditional replaces in cosmos.
-	// This can be removed once we have inlined and serialized CosmosMetadata in
-	// HCPOpenShiftClusterExternalAuth.
-	CosmosETag azcore.ETag `json:"-"`
 }
 
 // EnsureDefaults fills in default values for fields that may be absent in
@@ -50,16 +45,6 @@ type HCPOpenShiftClusterExternalAuth struct {
 func (ea *HCPOpenShiftClusterExternalAuth) EnsureDefaults() {
 	if len(ea.Properties.Claim.Mappings.Username.PrefixPolicy) == 0 {
 		ea.Properties.Claim.Mappings.Username.PrefixPolicy = UsernameClaimPrefixPolicyNone
-	}
-}
-
-var _ arm.CosmosPersistable = &HCPOpenShiftClusterExternalAuth{}
-
-func (o *HCPOpenShiftClusterExternalAuth) GetCosmosData() *arm.CosmosMetadata {
-	return &arm.CosmosMetadata{
-		CosmosETag:        o.CosmosETag,
-		ResourceID:        o.ID,
-		ExistingCosmosUID: o.ServiceProviderProperties.ExistingCosmosUID,
 	}
 }
 
