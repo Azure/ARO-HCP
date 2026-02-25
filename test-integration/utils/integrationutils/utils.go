@@ -19,10 +19,9 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"sort"
 	"sync"
 	"testing"
-
-	_ "github.com/Azure/ARO-HCP/internal/api/v20240610preview"
 
 	"github.com/go-logr/logr"
 	"github.com/go-logr/logr/testr"
@@ -34,7 +33,10 @@ import (
 	adminApiServer "github.com/Azure/ARO-HCP/admin/server/server"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/operationcontrollers"
 	"github.com/Azure/ARO-HCP/frontend/pkg/frontend"
+	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/v20240610preview"
+	"github.com/Azure/ARO-HCP/internal/api/v20251223preview"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -171,4 +173,17 @@ func (t *FakeOTELClient) Send(ctx context.Context, msg msgs.Msg, options ...base
 	logger := utils.LoggerFromContext(ctx)
 	logger.Info("Sending message", "msg", msg)
 	return nil
+}
+
+// AllAPIVersions returns a sorted list of all registered API versions.
+// IMPORTANT: When adding a new API version to frontend/pkg/frontend/frontend.go,
+// also add a RegisterVersion call here.
+func AllAPIVersions() []string {
+	registry := api.NewAPIRegistry()
+	api.Must[any](nil, v20240610preview.RegisterVersion(registry))
+	api.Must[any](nil, v20251223preview.RegisterVersion(registry))
+
+	versions := registry.ListVersions().UnsortedList()
+	sort.Strings(versions)
+	return versions
 }

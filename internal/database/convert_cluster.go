@@ -151,6 +151,8 @@ func CosmosToInternalCluster(cosmosObj *HCPCluster) (*api.HCPOpenShiftCluster, e
 	internalObj.ServiceProviderProperties.ClusterServiceID = resourceDoc.InternalID
 	internalObj.ServiceProviderProperties.ActiveOperationID = resourceDoc.ActiveOperationID
 
+	applyClusterStorageDefaults(internalObj)
+
 	// This is not the place for validation, but during such a transition we need to ensure we fail quickly and certainly
 	// This flow happens when reading both old and new data.  The old data should *always* have the internalID set
 	if len(internalObj.ServiceProviderProperties.ClusterServiceID.String()) == 0 {
@@ -158,4 +160,37 @@ func CosmosToInternalCluster(cosmosObj *HCPCluster) (*api.HCPOpenShiftCluster, e
 	}
 
 	return internalObj, nil
+}
+
+// applyClusterStorageDefaults fills in default values for fields that may be
+// absent in Cosmos documents created before the field was introduced.
+// Only fields where the zero value is never valid user input are safe
+// to default here (string enums). See the DDR at docs/api-version-defaults-and-storage.md.
+//
+// CHECKLIST FOR ADDING NEW DEFAULTED FIELDS:
+//  1. Add field to internal type (internal/api/types_cluster.go)
+//  2. Choose type: string enum safe for omitempty, bool/int need *T or no omitempty
+//  3. Add default in NewDefaultHCPOpenShiftCluster constructor
+//  4. Add SetDefaultValues* entry in each API version (internal/api/v*/clusters_methods.go)
+//  5. Add storage default HERE if zero value != valid input
+//  6. Add CS->RP default in internal/ocm/convert.go (must match storage default)
+//  7. Add version compliance test in test-integration/frontend/artifacts/VersionCompliance/
+//  8. Add consistency test in convert_defaults_consistency_test.go
+//  9. Update DDR at docs/api-version-defaults-and-storage.md
+func applyClusterStorageDefaults(cluster *api.HCPOpenShiftCluster) {
+	if len(cluster.CustomerProperties.Network.NetworkType) == 0 {
+		cluster.CustomerProperties.Network.NetworkType = api.NetworkTypeOVNKubernetes
+	}
+	if len(cluster.CustomerProperties.API.Visibility) == 0 {
+		cluster.CustomerProperties.API.Visibility = api.VisibilityPublic
+	}
+	if len(cluster.CustomerProperties.Platform.OutboundType) == 0 {
+		cluster.CustomerProperties.Platform.OutboundType = api.OutboundTypeLoadBalancer
+	}
+	if len(cluster.CustomerProperties.ClusterImageRegistry.State) == 0 {
+		cluster.CustomerProperties.ClusterImageRegistry.State = api.ClusterImageRegistryProfileStateEnabled
+	}
+	if len(cluster.CustomerProperties.Etcd.DataEncryption.KeyManagementMode) == 0 {
+		cluster.CustomerProperties.Etcd.DataEncryption.KeyManagementMode = api.EtcdDataEncryptionKeyManagementModeTypePlatformManaged
+	}
 }

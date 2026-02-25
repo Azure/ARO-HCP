@@ -1,0 +1,6 @@
+{
+	"description": "Basic cluster created on v1, verify both versions produce valid response",
+	"createVersion": "2024-06-10-preview",
+	"resourceType": "cluster",
+	"resourceID": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/vc-cluster-03"
+}

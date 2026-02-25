@@ -37,6 +37,28 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
+// Conversion Flow Architecture
+//
+// This file handles bidirectional conversion between Azure Resource Manager (ARM)
+// and OpenShift Cluster Manager (OCM/Cluster Service) representations.
+//
+// CRITICAL: Both Frontend (FE) and Backend (BE) read through CosmosToInternal*()
+// conversion functions in internal/database/convert_*.go. Any defaults applied
+// during that conversion affect both FE and BE consistently.
+//
+// FLOW PATHS:
+// 1. FE API Request -> internal API -> Cosmos (via InternalToCosmos)
+// 2. BE reads Cosmos -> internal API (via CosmosToInternal) -> CS format (via RPToCS functions here)
+// 3. CS state -> internal API (via CSToRP functions here) -> Cosmos (via InternalToCosmos)
+// 4. FE GET response: Cosmos -> internal API (via CosmosToInternal), merged with CS data (via mergeToInternal*)
+//
+// INVARIANTS:
+// - Storage defaults (in CosmosToInternal*) and CS->RP defaults (here) must match
+// - GET-then-PUT must preserve all explicit values (use Ptr, not PtrOrNil for bools)
+// - MigrateCosmosOrDie persists defaults via Get->Replace during FE deployment startup
+//
+// See docs/api-version-defaults-and-storage.md for the full design rationale.
+
 const (
 	csFlavourId        string = "osd-4" // managed cluster
 	csCloudProvider    string = "azure"

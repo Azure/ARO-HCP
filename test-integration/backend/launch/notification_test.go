@@ -17,7 +17,6 @@ package launch
 import (
 	"context"
 	"embed"
-	"encoding/json"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -38,7 +37,6 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/test-integration/utils/databasemutationhelpers"
 	"github.com/Azure/ARO-HCP/test-integration/utils/integrationutils"
-	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/v20240610preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 )
 
 //go:embed artifacts/*
@@ -98,15 +96,13 @@ func TestControllerNotifications(t *testing.T) {
 		}()
 
 		clusterResourceID := api.Must(azcorearm.ParseResourceID("/subscriptions/32350638-2403-4bc9-a36e-4922c8c99b52/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/basic"))
-		aroHCPClientFactory := integrationutils.Get20240610ClientFactory(testInfo.FrontendURL, clusterResourceID.SubscriptionID)
-		frontendClientAccessor := databasemutationhelpers.NewFrontendHTTPTestAccessor(testInfo.FrontendURL, aroHCPClientFactory)
+		frontendClientAccessor := databasemutationhelpers.NewVersionedHTTPTestAccessor(testInfo.FrontendURL, "2024-06-10-preview")
 
 		subscriptionResourceID := api.Must(arm.ToSubscriptionResourceID(clusterResourceID.SubscriptionID))
 		subscriptionJSONBytes := api.Must(artifacts.ReadFile("artifacts/subscription-32350638-2403-4bc9-a36e-4922c8c99b52.json"))
 		require.NoError(t, frontendClientAccessor.CreateOrUpdate(ctx, subscriptionResourceID.String(), subscriptionJSONBytes))
-		cluster := &hcpsdk20240610preview.HcpOpenShiftCluster{}
-		require.NoError(t, json.Unmarshal(api.Must(artifacts.ReadFile("artifacts/cluster-basic.json")), cluster))
-		_, err = aroHCPClientFactory.NewHcpOpenShiftClustersClient().BeginCreateOrUpdate(ctx, clusterResourceID.ResourceGroupName, clusterResourceID.Name, *cluster, nil)
+		clusterJSONBytes := api.Must(artifacts.ReadFile("artifacts/cluster-basic.json"))
+		err = frontendClientAccessor.CreateOrUpdate(ctx, clusterResourceID.String(), clusterJSONBytes)
 		require.NoError(t, err)
 
 		select {

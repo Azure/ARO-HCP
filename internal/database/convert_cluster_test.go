@@ -73,6 +73,23 @@ func TestRoundTripClusterInternalCosmosInternal(t *testing.T) {
 				return
 			}
 			j.ServiceProviderProperties.ExistingCosmosUID = ""
+			// Storage defaults are applied on Cosmos read, so ensure
+			// defaulted fields are never zero during round-trip testing.
+			if len(j.CustomerProperties.Network.NetworkType) == 0 {
+				j.CustomerProperties.Network.NetworkType = api.NetworkTypeOVNKubernetes
+			}
+			if len(j.CustomerProperties.API.Visibility) == 0 {
+				j.CustomerProperties.API.Visibility = api.VisibilityPublic
+			}
+			if len(j.CustomerProperties.Platform.OutboundType) == 0 {
+				j.CustomerProperties.Platform.OutboundType = api.OutboundTypeLoadBalancer
+			}
+			if len(j.CustomerProperties.ClusterImageRegistry.State) == 0 {
+				j.CustomerProperties.ClusterImageRegistry.State = api.ClusterImageRegistryProfileStateEnabled
+			}
+			if len(j.CustomerProperties.Etcd.DataEncryption.KeyManagementMode) == 0 {
+				j.CustomerProperties.Etcd.DataEncryption.KeyManagementMode = api.EtcdDataEncryptionKeyManagementModeTypePlatformManaged
+			}
 		},
 		func(j *arm.ManagedServiceIdentity, c randfill.Continue) {
 			c.FillNoCustom(j)
@@ -137,5 +154,77 @@ func roundTripInternalToCosmosToInternal[InternalAPIType, CosmosAPIType any](t *
 		t.Logf("intermediate\n%s", string(intermediateBeforeJSON))
 		t.Logf("intermediateAfter\n%s", string(intermediateAfterJSON))
 		t.Errorf("intermediate was modified: %v", cmp.Diff(intermediateBeforeJSON, intermediateAfterJSON))
+	}
+}
+
+func TestApplyClusterStorageDefaults(t *testing.T) {
+	tests := []struct {
+		name               string
+		networkType        api.NetworkType
+		visibility         api.Visibility
+		outboundType       api.OutboundType
+		imageRegistryState api.ClusterImageRegistryProfileState
+		keyManagementMode  api.EtcdDataEncryptionKeyManagementModeType
+		wantNetworkType    api.NetworkType
+		wantVisibility     api.Visibility
+		wantOutboundType   api.OutboundType
+		wantImageRegState  api.ClusterImageRegistryProfileState
+		wantKeyMgmtMode    api.EtcdDataEncryptionKeyManagementModeType
+	}{
+		{
+			name:              "zero values get defaults",
+			wantNetworkType:   api.NetworkTypeOVNKubernetes,
+			wantVisibility:    api.VisibilityPublic,
+			wantOutboundType:  api.OutboundTypeLoadBalancer,
+			wantImageRegState: api.ClusterImageRegistryProfileStateEnabled,
+			wantKeyMgmtMode:   api.EtcdDataEncryptionKeyManagementModeTypePlatformManaged,
+		},
+		{
+			name:               "explicit values preserved",
+			networkType:        api.NetworkTypeOVNKubernetes,
+			visibility:         api.VisibilityPrivate,
+			outboundType:       api.OutboundTypeLoadBalancer,
+			imageRegistryState: api.ClusterImageRegistryProfileStateDisabled,
+			keyManagementMode:  api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged,
+			wantNetworkType:    api.NetworkTypeOVNKubernetes,
+			wantVisibility:     api.VisibilityPrivate,
+			wantOutboundType:   api.OutboundTypeLoadBalancer,
+			wantImageRegState:  api.ClusterImageRegistryProfileStateDisabled,
+			wantKeyMgmtMode:    api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cluster := &api.HCPOpenShiftCluster{}
+			cluster.CustomerProperties.Network.NetworkType = tt.networkType
+			cluster.CustomerProperties.API.Visibility = tt.visibility
+			cluster.CustomerProperties.Platform.OutboundType = tt.outboundType
+			cluster.CustomerProperties.ClusterImageRegistry.State = tt.imageRegistryState
+			cluster.CustomerProperties.Etcd.DataEncryption.KeyManagementMode = tt.keyManagementMode
+
+			applyClusterStorageDefaults(cluster)
+
+			if cluster.CustomerProperties.Network.NetworkType != tt.wantNetworkType {
+				t.Errorf("NetworkType = %q, want %q",
+					cluster.CustomerProperties.Network.NetworkType, tt.wantNetworkType)
+			}
+			if cluster.CustomerProperties.API.Visibility != tt.wantVisibility {
+				t.Errorf("Visibility = %q, want %q",
+					cluster.CustomerProperties.API.Visibility, tt.wantVisibility)
+			}
+			if cluster.CustomerProperties.Platform.OutboundType != tt.wantOutboundType {
+				t.Errorf("OutboundType = %q, want %q",
+					cluster.CustomerProperties.Platform.OutboundType, tt.wantOutboundType)
+			}
+			if cluster.CustomerProperties.ClusterImageRegistry.State != tt.wantImageRegState {
+				t.Errorf("ClusterImageRegistry.State = %q, want %q",
+					cluster.CustomerProperties.ClusterImageRegistry.State, tt.wantImageRegState)
+			}
+			if cluster.CustomerProperties.Etcd.DataEncryption.KeyManagementMode != tt.wantKeyMgmtMode {
+				t.Errorf("Etcd.DataEncryption.KeyManagementMode = %q, want %q",
+					cluster.CustomerProperties.Etcd.DataEncryption.KeyManagementMode, tt.wantKeyMgmtMode)
+			}
+		})
 	}
 }

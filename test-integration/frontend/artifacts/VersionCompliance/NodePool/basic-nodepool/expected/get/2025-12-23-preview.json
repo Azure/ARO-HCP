@@ -1,0 +1,25 @@
+{
+	"id": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/vc-cluster-01/nodePools/basic-np",
+	"location": "fake-location",
+	"name": "basic-np",
+	"properties": {
+		"autoRepair": true,
+		"autoScaling": {
+			"max": 5,
+			"min": 1
+		},
+		"platform": {
+			"enableEncryptionAtHost": false,
+			"osDisk": {
+				"diskStorageAccountType": "Premium_LRS",
+				"sizeGiB": 64
+			},
+			"vmSize": "Standard_D4s_v3"
+		},
+		"provisioningState": "Succeeded",
+		"version": {
+			"channelGroup": "stable"
+		}
+	},
+	"type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/nodePools"
+}
