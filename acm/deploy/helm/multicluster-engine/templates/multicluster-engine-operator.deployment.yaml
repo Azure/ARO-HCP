@@ -56,11 +56,11 @@ spec:
             fieldRef:
               fieldPath: metadata.namespace
         - name: OPERAND_IMAGE_ADDON_MANAGER
-          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/addon-manager-rhel9@sha256:ac18e26a45085101d4004e02524b93c85e579e16ba568b580950321820804c1a'
+          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/addon-manager-rhel9@sha256:e58d59542c6cd9f2e69678aa92a18bde4fe51894d48b191985c4fecd3f35648a'
         - name: OPERAND_IMAGE_BACKPLANE_MUST_GATHER
-          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/must-gather-rhel9@sha256:16c4835a78d75e3c0530d1935fe0c189066d6f2fa054e0bf99a263bb32bf1158'
+          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/must-gather-rhel9@sha256:216fbefb4fabab219d16bd443840c4acb59ac83f3d4f9c45c72ec744089a9160'
         - name: OPERAND_IMAGE_BACKPLANE_OPERATOR
-          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/backplane-rhel9-operator@sha256:10153197dc2c5702f4ebca613dd06af24cf206f7790e4207536b80b417152be0'
+          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/backplane-rhel9-operator@sha256:04be98928e5cce7ef1d0422bb0f6904d1b748df27441e99b5e08bb2422e6980d'
         - name: OPERAND_IMAGE_CLUSTER_API_PROVIDER_AGENT
           value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/cluster-api-provider-agent-rhel9@sha256:a9f6478f32ad27d9fa18bf4f411e10d906ed57d5cd070f0a3d4b143f424e9c8c'
         - name: OPERAND_IMAGE_CLUSTER_API_PROVIDER_AWS_RHEL9
@@ -68,11 +68,11 @@ spec:
         - name: OPERAND_IMAGE_CLUSTER_API_PROVIDER_KUBEVIRT
           value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/cluster-api-provider-kubevirt-rhel9@sha256:741555de5ebde4d77fe8cdfa130b3070d9ddb1e44b9455db17d6bb48c9c4991f'
         - name: OPERAND_IMAGE_CLUSTER_API_PROVIDER_OPENSHIFT_ASSISTED_BOOTSTRAP
-          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/capoa-bootstrap-rhel9@sha256:655a5b9056f6a07e0bf170145bab91f2a870ba6225e5d3f4f16b9f933579da75'
+          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/capoa-bootstrap-rhel9@sha256:b50a438861bc085af5b612993a0a83626f5e2b50c1d40d34f7cd8ff12876980f'
         - name: OPERAND_IMAGE_CLUSTER_API_PROVIDER_OPENSHIFT_ASSISTED_CONTROL_PLANE
-          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/capoa-control-plane-rhel9@sha256:fd96094ee3ae1b12d866323f3d3b662ad45a1127db1a6db9bd6adb8c90630fdd'
+          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/capoa-control-plane-rhel9@sha256:bd5487cd5bf9449ffab3c311ac537819a17fa1ad998f0e3184b86c1a7731d4a7'
         - name: OPERAND_IMAGE_MCE_CAPI_WEBHOOK_CONFIG_RHEL9
-          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/mce-capi-webhook-config-rhel9@sha256:02c237e904c72a5ab4fb5c657685872b8232cb7203c2c8ffcd0bc0133993c2e4'
+          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/mce-capi-webhook-config-rhel9@sha256:11d6ae941c6fdec2e00b34a9587517bd51e5fda71f19b1e03480d083eb54989c'
         - name: OPERAND_IMAGE_CLUSTERCLAIMS_CONTROLLER
           value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/clusterclaims-controller-rhel9@sha256:a0c2c190a16af561f8a7c151ee3ed17b530d1097b3c79d2041a8e8604c9d14b9'
         - name: OPERAND_IMAGE_CLUSTER_CURATOR_CONTROLLER
@@ -80,25 +80,25 @@ spec:
         - name: OPERAND_IMAGE_CLUSTER_IMAGE_SET_CONTROLLER
           value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/cluster-image-set-controller-rhel9@sha256:4ac0efc0c4c9879f98f486506e3127e26897ca54566ea979259ea0ee102ad9f7'
         - name: OPERAND_IMAGE_CLUSTERLIFECYCLE_STATE_METRICS
-          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/clusterlifecycle-state-metrics-rhel9@sha256:13291d61d37e2607c0a33a0cbfb6cee396fafe92a3d6637204e381859834f6f8'
+          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/clusterlifecycle-state-metrics-rhel9@sha256:d86a38d7fb258e6cb2a85650face2bf0b91d590a1b9d6ebf0b39987832277c88'
         - name: OPERAND_IMAGE_CLUSTER_PROXY_ADDON
           value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/cluster-proxy-addon-rhel9@sha256:c78f39f3aa17af78c0849ba6b8fd263e2efabbdd283b9b9f5432f90d9dc96ca9'
         - name: OPERAND_IMAGE_CLUSTER_PROXY
-          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/cluster-proxy-rhel9@sha256:f82b85ae2bf244a8862216e21b6a6d7438adfe97e1887959c7696175342a3de1'
+          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/cluster-proxy-rhel9@sha256:76c1c7174fa31e4be0153a8912cb68f2aa89e494394430733fe719c9cd8a2ed3'
         - name: OPERAND_IMAGE_CONSOLE_MCE
-          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/console-mce-rhel9@sha256:58edaa44eede2aaba948525460a0d8cd186e798b61968591c284209e363d03c5'
+          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/console-mce-rhel9@sha256:039e0389a63ff45aba72d9e238ad285f607c7b71f3059b78eb66f99f79041dfb'
         - name: OPERAND_IMAGE_DISCOVERY_OPERATOR
-          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/discovery-rhel9@sha256:6ec1cf214c807f2bf25b679ae903cc62d7fc5a18f2413fe446b383d40d6f4df9'
+          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/discovery-rhel9@sha256:faad2d201408a25cc5a5ba90d85db9d44b67f7a3fe3059da5e0b956f67651a53'
         - name: OPERAND_IMAGE_OPENSHIFT_HIVE
-          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/hive-rhel9@sha256:914f9f2537cb61b34ab92fa41814aea2c75da5f931643d569f140d12ebbf4030'
+          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/hive-rhel9@sha256:98cd82bd3e28f5917e84e61d6641e5e4765d60eff3e541cafe590149a1e78523'
         - name: OPERAND_IMAGE_HYPERSHIFT_ADDON_OPERATOR
-          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/hypershift-addon-rhel9-operator@sha256:e8b6e5dbf9e0781325dda5bb93cb3677e5a9abac53e4e005498a1656be24a4ad'
+          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/hypershift-addon-rhel9-operator@sha256:1928f82b1ab6d41245a966b210b016417b9df1b7fda448b0d87ee73e34a2201b'
         - name: OPERAND_IMAGE_HYPERSHIFT_CLI
-          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/hypershift-cli-rhel9@sha256:8f063c526e52820e39d33dad491ce02875ea5bbe62a1f4fea33ccf647303bbe1'
+          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/hypershift-cli-rhel9@sha256:c29c7b1502dc9a2b88850fbdbca0093335efeb1ae3cde4185eeed18ff21b75d5'
         - name: OPERAND_IMAGE_HYPERSHIFT_OPERATOR
-          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/hypershift-rhel9-operator@sha256:8d98e2b21e4e29bc9b60a177aef0cb3f617cb562e7c025fed48b344dcd7aee16'
+          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/hypershift-rhel9-operator@sha256:df55caa3a5bde6234da6f5e98a4b7c29824bd39a36598e752f5ce4c4acacaedb'
         - name: OPERAND_IMAGE_IMAGE_BASED_INSTALL_OPERATOR
-          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/image-based-install-rhel9@sha256:e33a0be6d2975471c6046755d9279f518ee163575c4483631a9548dd5a83c937'
+          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/image-based-install-rhel9@sha256:86eb59879468fecab545afbaa04429ceb5be82a7e8616c4c8e5e20e631b202ec'
         - name: OPERAND_IMAGE_KUBE_RBAC_PROXY_MCE
           value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/kube-rbac-proxy-mce-rhel9@sha256:9d81968de503566b85cc53f41bb8fdb53ed99768b443790983b2431a56dc290d'
         - name: OPERAND_IMAGE_MANAGEDCLUSTER_IMPORT_CONTROLLER
@@ -110,13 +110,13 @@ spec:
         - name: OPERAND_IMAGE_PROVIDER_CREDENTIAL_CONTROLLER
           value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/provider-credential-controller-rhel9@sha256:8153eb1c06ac718f042849f1cc7f31617eb44ca38151e6a6a950ac9edbaed083'
         - name: OPERAND_IMAGE_PLACEMENT
-          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/placement-rhel9@sha256:afec3c839eeac476df565cd7c9995914c59f70c93d5abfdcee71d24ea25adbfa'
+          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/placement-rhel9@sha256:89eae0b01531af05d728f2262f2ca88735ccdb51242fe7ee2d4bac4d7f8927a2'
         - name: OPERAND_IMAGE_REGISTRATION
-          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/registration-rhel9@sha256:50f9f2447fb7771a9b8ed56a6272a2afda6239d7d475fc5427b43f6ce5453166'
+          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/registration-rhel9@sha256:ae1e6485b4d143023d34c7c12a5ab7c0e550238a5ef3fc750fcec78d7ec60b26'
         - name: OPERAND_IMAGE_REGISTRATION_OPERATOR
-          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/registration-operator-rhel9@sha256:5b0f599b1cb2cf4126bd38e7cab15b368ab3838e8b4eb31de8cbbdd3a93f2c8d'
+          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/registration-operator-rhel9@sha256:fa46c4c29298c7acc235b5e649d791089a5d69343f912ad3e45bc2dc74948127'
         - name: OPERAND_IMAGE_WORK
-          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/work-rhel9@sha256:6e580b2b9826cd2fe96710e9fb9724a58963d267996963713f7c7db320761103'
+          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/work-rhel9@sha256:7eeb52cda81b28a88e3b51dbeda67417ee96e286f9cff76fd6926cd8ded4d81e'
         - name: OPERAND_IMAGE_ASSISTED_IMAGE_SERVICE
           value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/assisted-image-service-rhel9@sha256:1ea457a6c0d24cde399606b32b6b345a6f3fec423ba6ae77d35e25547ac3f6bb'
         - name: OPERAND_IMAGE_ASSISTED_INSTALLER
@@ -137,7 +137,7 @@ spec:
           value: 2.10.2
         - name: OPERATOR_PACKAGE
           value: multicluster-engine
-        image: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/backplane-rhel9-operator@sha256:10153197dc2c5702f4ebca613dd06af24cf206f7790e4207536b80b417152be0'
+        image: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/backplane-rhel9-operator@sha256:04be98928e5cce7ef1d0422bb0f6904d1b748df27441e99b5e08bb2422e6980d'
         livenessProbe:
           httpGet:
             path: /healthz
