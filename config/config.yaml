@@ -1439,7 +1439,7 @@ clouds:
                 maxCount: 14
                 minCount: 4
                 osDiskSizeGB: 100
-                vmSize: Standard_D4s_v3
+                vmSize: Standard_D8ds_v5
               infraAgentPool:
                 vmSize: Standard_D4ds_v5
             jaeger:
