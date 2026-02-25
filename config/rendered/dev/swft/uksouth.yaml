@@ -576,6 +576,7 @@ miMockCertName: msiMockCert2
 miMockClientId: e8723db7-9b9e-46a4-9f7d-64d75c3534f0
 miMockPrincipalId: d6b62dfa-87f5-49b3-bbcb-4a687c4faa96
 mise:
+  applicationName: arohcp-mise-swft
   arm:
     applicationId: e2c2ff5c-e5b4-4e79-8c3e-1da8c48461e7
     audienceFQDN: management.azure.com
