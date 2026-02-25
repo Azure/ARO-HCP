@@ -19,7 +19,6 @@ import (
 	"math/rand"
 	"testing"
 
-	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
 
@@ -30,6 +29,7 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 )
 
@@ -66,7 +66,6 @@ func TestRoundTripInternalExternalInternal(t *testing.T) {
 			j.ActiveOperationID = ""
 			// ClusterServiceID does not roundtrip through the external type because it is purely an internal detail
 			j.ClusterServiceID = ocm.InternalID{}
-			j.ExistingCosmosUID = ""
 			// ExperimentalFeatures does not roundtrip through the external type because it is purely an internal detail
 			j.ExperimentalFeatures = api.ExperimentalFeatures{}
 		},
@@ -76,7 +75,6 @@ func TestRoundTripInternalExternalInternal(t *testing.T) {
 			j.ActiveOperationID = ""
 			// ClusterServiceID does not roundtrip through the external type because it is purely an internal detail
 			j.ClusterServiceID = ocm.InternalID{}
-			j.ExistingCosmosUID = ""
 		},
 		func(j *api.HCPOpenShiftClusterExternalAuthServiceProviderProperties, c randfill.Continue) {
 			c.FillNoCustom(j)
@@ -84,7 +82,6 @@ func TestRoundTripInternalExternalInternal(t *testing.T) {
 			j.ActiveOperationID = ""
 			// ClusterServiceID does not roundtrip through the external type because it is purely an internal detail
 			j.ClusterServiceID = ocm.InternalID{}
-			j.ExistingCosmosUID = ""
 		},
 		func(j *api.CustomerManagedEncryptionProfile, c randfill.Continue) {
 			c.FillNoCustom(j)
