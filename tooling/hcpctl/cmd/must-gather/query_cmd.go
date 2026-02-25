@@ -66,6 +66,8 @@ func (opts *CompletedQueryOptions) RunQuery(ctx context.Context) error {
 	gatherer := mustgather.NewCliGatherer(opts.QueryClient, opts.OutputPath, ServicesLogDirectory, HostedControlPlaneLogDirectory, mustgather.GathererOptions{
 		QueryOptions:               queryOptions,
 		SkipHostedControlPlaneLogs: opts.SkipHostedControlPlaneLogs,
+		SkipKubernetesEventsLogs:   opts.SkipKubernetesEventsLogs,
+		SkipSystemdLogs:            opts.SkipSystemdLogs,
 		GatherInfraLogs:            false,
 	})
 

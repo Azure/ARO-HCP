@@ -78,7 +78,6 @@ func (v verifyMustGatherLogsImpl) Verify(ctx context.Context) error {
 		v.config.SubscriptionID,
 		v.config.ResourceGroup,
 		"",                            // resourceId
-		"",                            // infraClusterName
 		time.Now().Add(-24*time.Hour), // timestampMin
 		time.Now(),                    // timestampMax
 		-1,                            // limit: -1 means no truncation
@@ -107,6 +106,8 @@ func (v verifyMustGatherLogsImpl) Verify(ctx context.Context) error {
 		mustgather.RowOutputOptions{},
 		mustgather.GathererOptions{
 			SkipHostedControlPlaneLogs: false,
+			SkipKubernetesEventsLogs:   true,
+			SkipSystemdLogs:            true,
 			QueryOptions:               queryOptions,
 		},
 	)

@@ -86,6 +86,8 @@ type NormalizedLogLine struct {
 type GathererOptions struct {
 	GatherInfraLogs            bool          // Gather all logs from the infrastructure, does NOT gather HCP logs
 	SkipHostedControlPlaneLogs bool          // Skip hosted control plane logs
+	SkipKubernetesEventsLogs   bool          // Skip Kubernetes events logs
+	SkipSystemdLogs        bool          // Skip Systemd logs
 	QueryOptions               *QueryOptions // Query options
 }
 
@@ -294,8 +296,6 @@ func cliOutputFunc(ctx context.Context, logLineChan chan *NormalizedLogLine, que
 			}
 		}
 	}
-
-	return allErrors
 }
 
 func (g *Gatherer) GatherLogs(ctx context.Context) error {
@@ -305,17 +305,23 @@ func (g *Gatherer) GatherLogs(ctx context.Context) error {
 		return g.gatherInfraLogs(ctx)
 	}
 
+	var gatherErrors error
+
 	// First, get all cluster IDs
-	clusterIds, err := g.executeClusterIdQuery(ctx, g.opts.QueryOptions.GetClusterIdQuery())
+	clusterIds := make([]string, 0)
+	allClusterIds, err := g.executeQueryAndConvert(ctx, g.opts.QueryOptions.GetClusterIdQuery(), ClusterIdRow{})
 	if err != nil {
 		return fmt.Errorf("failed to execute cluster id query: %w", err)
+	}
+	for _, row := range allClusterIds {
+		clusterIds = append(clusterIds, row.(ClusterIdRow).ClusterId)
 	}
 	logger.V(1).Info("Obtained following clusterIDs", "clusterIds", strings.Join(clusterIds, ", "))
 	g.opts.QueryOptions.ClusterIds = clusterIds
 
 	// Gather service logs
 	if err := g.queryAndWriteToFile(ctx, QueryTypeServices, g.opts.QueryOptions.GetServicesQueries()); err != nil {
-		return fmt.Errorf("failed to execute services query: %w", err)
+		gatherErrors = errors.Join(gatherErrors, fmt.Errorf("failed to execute services query: %w", err))
 	}
 
 	// Gather hosted control plane logs if not skipped
@@ -324,11 +330,53 @@ func (g *Gatherer) GatherLogs(ctx context.Context) error {
 	} else {
 		logger.V(1).Info("Executing hosted control plane logs")
 		if err := g.queryAndWriteToFile(ctx, QueryTypeHostedControlPlane, g.opts.QueryOptions.GetHostedControlPlaneLogsQuery()); err != nil {
-			return fmt.Errorf("failed to execute hosted control plane logs query: %w", err)
+			gatherErrors = errors.Join(gatherErrors, fmt.Errorf("failed to execute hosted control plane logs query: %w", err))
 		}
 	}
 
-	return nil
+	// Gather cluster names
+	if g.opts.SkipKubernetesEventsLogs && g.opts.SkipSystemdLogs {
+		logger.V(1).Info("Skipping Kubernetes events and Systemd logs")
+		return nil
+	}
+
+	clusterNames := make([]string, 0)
+	for _, nameQuery := range g.opts.QueryOptions.GetClusterNamesQueries() {
+		allClusterNames, err := g.executeQueryAndConvert(ctx, nameQuery, ClusterNameRow{})
+		if err != nil {
+			gatherErrors = errors.Join(gatherErrors, fmt.Errorf("failed to execute cluster names query: %w", err))
+		}
+		for _, row := range allClusterNames {
+			clusterNames = append(clusterNames, row.(ClusterNameRow).ClusterName)
+		}
+	}
+	logger.V(1).Info("Obtained following clusterNames", "clusterNames", strings.Join(clusterNames, ", "))
+
+	if !g.opts.SkipKubernetesEventsLogs {
+		allKubernetesEventsQueries := make([]*kusto.ConfigurableQuery, 0)
+		for _, clusterName := range clusterNames {
+			opts := *g.opts.QueryOptions
+			opts.InfraClusterName = clusterName
+			allKubernetesEventsQueries = append(allKubernetesEventsQueries, opts.GetInfraKubernetesEventsQuery()...)
+		}
+		if err := g.queryAndWriteToFile(ctx, QueryTypeKubernetesEvents, allKubernetesEventsQueries); err != nil {
+			gatherErrors = errors.Join(gatherErrors, fmt.Errorf("failed to execute kubernetes events query: %w", err))
+		}
+	}
+
+	if !g.opts.SkipSystemdLogs {
+		allSystemdLogsQueries := make([]*kusto.ConfigurableQuery, 0)
+		for _, clusterName := range clusterNames {
+			opts := *g.opts.QueryOptions
+			opts.InfraClusterName = clusterName
+			allSystemdLogsQueries = append(allSystemdLogsQueries, opts.GetInfraSystemdLogsQuery()...)
+		}
+		if err := g.queryAndWriteToFile(ctx, QueryTypeSystemdLogs, allSystemdLogsQueries); err != nil {
+			gatherErrors = errors.Join(gatherErrors, fmt.Errorf("failed to execute systemd logs query: %w", err))
+		}
+	}
+
+	return gatherErrors
 }
 
 func (g *Gatherer) gatherInfraLogs(ctx context.Context) error {
@@ -344,35 +392,45 @@ func (g *Gatherer) gatherInfraLogs(ctx context.Context) error {
 	return nil
 }
 
-func (g *Gatherer) executeClusterIdQuery(ctx context.Context, query *kusto.ConfigurableQuery) ([]string, error) {
+func (g *Gatherer) executeQueryAndConvert(ctx context.Context, query *kusto.ConfigurableQuery, targetRow any) ([]any, error) {
 	outputChannel := make(chan azkquery.Row)
-	allClusterIds := make([]string, 0)
+	allRows := make([]any, 0)
 
 	group := new(errgroup.Group)
 	group.Go(func() error {
 		for row := range outputChannel {
-			cidRow := &ClusterIdRow{}
-			if err := row.ToStruct(cidRow); err != nil {
-				return fmt.Errorf("failed to convert row to struct: %w", err)
-			}
-			if cidRow.ClusterId != "" {
-				allClusterIds = append(allClusterIds, cidRow.ClusterId)
+			switch targetRow.(type) {
+			case ClusterIdRow:
+				cidRow := targetRow.(ClusterIdRow)
+				if err := row.ToStruct(&cidRow); err != nil {
+					return fmt.Errorf("failed to convert row to struct: %w", err)
+				}
+				allRows = append(allRows, cidRow)
+			case ClusterNameRow:
+				clusterNameRow := targetRow.(ClusterNameRow)
+				if err := row.ToStruct(&clusterNameRow); err != nil {
+					return fmt.Errorf("failed to convert row to struct: %w", err)
+				}
+				allRows = append(allRows, clusterNameRow)
+			default:
+				return fmt.Errorf("unsupported target row type: %T", targetRow)
 			}
 		}
 		return nil
 	})
 
-	_, err := g.QueryClient.ExecutePreconfiguredQuery(ctx, query, outputChannel)
-	if err != nil {
-		return nil, fmt.Errorf("failed to execute query: %w", err)
-	}
+	_, queryErr := g.QueryClient.ExecutePreconfiguredQuery(ctx, query, outputChannel)
 	close(outputChannel)
 
 	if err := group.Wait(); err != nil {
-		return nil, fmt.Errorf("failed to execute query: %w", err)
+		return nil, fmt.Errorf("failed to process query results: %w", err)
 	}
 
-	return allClusterIds, nil
+	if queryErr != nil {
+		return nil, fmt.Errorf("failed to execute query: %w", queryErr)
+	}
+
+	return allRows, nil
 }
 
 func (g *Gatherer) queryAndWriteToFile(ctx context.Context, queryType QueryType, queries []*kusto.ConfigurableQuery) error {

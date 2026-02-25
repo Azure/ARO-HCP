@@ -107,12 +107,14 @@ func completeBaseGatherOptions(kustoEndpoint *url.URL, queryTimeout time.Duratio
 }
 
 // createOutputDirectories creates the output directory structure.
-func createOutputDirectories(outputPath string, skipHCPDir bool) error {
+func createOutputDirectories(outputPath string, skipHCPDir bool, skipKubernetesEventsDir bool, skipSystemdLogsDir bool) error {
 	if err := os.MkdirAll(path.Join(outputPath, ServicesLogDirectory), 0755); err != nil {
 		return fmt.Errorf("failed to create service logs directory: %w", err)
 	}
-	if err := os.MkdirAll(path.Join(outputPath, InfraLogDirectory), 0755); err != nil {
-		return fmt.Errorf("failed to create infrastructure logs directory: %w", err)
+	if !skipKubernetesEventsDir || !skipSystemdLogsDir {
+		if err := os.MkdirAll(path.Join(outputPath, InfraLogDirectory), 0755); err != nil {
+			return fmt.Errorf("failed to create infrastructure logs directory: %w", err)
+		}
 	}
 	if !skipHCPDir {
 		if err := os.MkdirAll(path.Join(outputPath, HostedControlPlaneLogDirectory), 0755); err != nil {

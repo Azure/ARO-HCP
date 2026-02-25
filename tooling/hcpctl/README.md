@@ -122,7 +122,13 @@ hcpctl hcp breakglass 12345678-1234-1234-1234-123456789abc --privileged
 
 ### Gather Managed cluster logs
 
-This is the usual use case for must-gather kust. You can gather logs for a managed cluster from Kusto. You need to be logged into Azure to access Kusto. You need to set kusto and region to point to the Kusto instance containing the desired logs.
+This is the usual use case for must-gather kusto. You can gather logs for a managed cluster from Kusto. You need to be logged into Azure to access Kusto. You need to set kusto and region to point to the Kusto instance containing the desired logs.
+
+What is gathered?
+
+- All service logs, that contain the subscription id and resourcegroup name or are in the cluster namespace (aka hcp logs)
+- All Kubernetes events from the management and service cluster
+- All Systemd logs from the management and service cluster
 
 ```bash
 hcpctl must-gather  query --kusto $kusto --region $region  --subscription-id $subscription_id --resource-group $resource_group
@@ -148,13 +154,12 @@ If you want to gather all Kusto logs for a given infra cluster (servicecluster o
 ```bash
 hcpctl must-gather  query-infra \
     --kusto aroint --region eastus \
-    --service-cluster $svc_cluster_name \
-    --mgmt-cluster $mgmt_cluster_name \
+    --infra-cluster $svc_cluster_name \
+    --infra-cluster $mgmt_cluster_name \
     --limit 10000
-
 ```
 
-You can provide multiple `service-cluster` parameters and multiple `mgmt-cluster`. Logs will be collected sequentially and stored in a single folder for all clusters provided.
+You can provide multiple `infra-cluster` parameters. Logs will be collected sequentially and stored in a single folder for all clusters provided.
 
 ## TODO
 

@@ -33,11 +33,6 @@ const (
 	QueryTypeSystemdLogs        QueryType = "systemd-logs"
 )
 
-type InfraClusterType string
-
-const InfraClusterTypeService InfraClusterType = "service"
-const InfraClusterTypeManagement InfraClusterType = "management"
-
 var servicesDatabase = "ServiceLogs"
 var hostedControlPlaneLogsDatabase = "HostedControlPlaneLogs"
 
@@ -56,21 +51,23 @@ type ClusterIdRow struct {
 	ClusterId string `kusto:"cid"`
 }
 
+type ClusterNameRow struct {
+	ClusterName string `kusto:"cluster"`
+}
+
 type QueryOptions struct {
 	ClusterIds        []string
 	SubscriptionId    string
 	ResourceGroupName string
 	InfraClusterName  string
-	InfraClusterType  InfraClusterType
 	TimestampMin      time.Time
 	TimestampMax      time.Time
 	Limit             int
 }
 
-func NewInfraQueryOptions(infraClusterType InfraClusterType, infraClusterName string, timestampMin, timestampMax time.Time, limit int) (*QueryOptions, error) {
+func NewInfraQueryOptions(infraClusterName string, timestampMin, timestampMax time.Time, limit int) (*QueryOptions, error) {
 	return &QueryOptions{
 		InfraClusterName: infraClusterName,
-		InfraClusterType: infraClusterType,
 		TimestampMin:     timestampMin,
 		TimestampMax:     timestampMax,
 		Limit:            limit,
@@ -185,4 +182,11 @@ func (opts *QueryOptions) GetHostedControlPlaneLogsQuery() []*kusto.Configurable
 
 func (opts *QueryOptions) GetClusterIdQuery() *kusto.ConfigurableQuery {
 	return kusto.NewClusterIdQuery(servicesDatabase, clustersServiceLogsTable, opts.SubscriptionId, opts.ResourceGroupName)
+}
+
+func (opts *QueryOptions) GetClusterNamesQueries() []*kusto.ConfigurableQuery {
+	return []*kusto.ConfigurableQuery{
+		kusto.NewClusterNamesQuery(servicesDatabase, containerLogsTable, opts.SubscriptionId, opts.ResourceGroupName),
+		kusto.NewClusterNamesQuery(hostedControlPlaneLogsDatabase, containerLogsTable, opts.SubscriptionId, opts.ResourceGroupName),
+	}
 }

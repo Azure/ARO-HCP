@@ -121,7 +121,7 @@ func (c *Client) ExecutePreconfiguredQuery(ctx context.Context, query *Configura
 		return nil, fmt.Errorf("primary result is nil")
 	}
 
-	columsSet := false
+	columnsSet := false
 	for row := range primaryResult.Table().Rows() {
 		logger.V(8).Info("Processing row", "rowNumber", totalRows)
 		row := row.Row()
@@ -131,9 +131,9 @@ func (c *Client) ExecutePreconfiguredQuery(ctx context.Context, query *Configura
 			}
 			continue
 		}
-		if !columsSet && row.Columns() != nil {
+		if !columnsSet && row.Columns() != nil {
 			columns = row.Columns()
-			columsSet = true
+			columnsSet = true
 		}
 		select {
 		case <-ctx.Done():

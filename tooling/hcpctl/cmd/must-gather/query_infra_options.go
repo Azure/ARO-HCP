@@ -27,8 +27,7 @@ import (
 // RawInfraQueryOptions represents the initial, unvalidated configuration for infrastructure query operations.
 type RawInfraQueryOptions struct {
 	BaseGatherOptions
-	ServiceClusters []string // Service cluster names
-	MgmtClusters    []string // Management cluster names
+	InfraClusters []string // Infrastructure cluster names
 }
 
 // DefaultInfraQueryOptions returns a new RawInfraQueryOptions struct initialized with sensible defaults.
@@ -44,8 +43,7 @@ func BindInfraQueryOptions(opts *RawInfraQueryOptions, cmd *cobra.Command) error
 		return err
 	}
 
-	cmd.Flags().StringArrayVar(&opts.ServiceClusters, "service-cluster", opts.ServiceClusters, "service cluster name (can be specified multiple times)")
-	cmd.Flags().StringArrayVar(&opts.MgmtClusters, "mgmt-cluster", opts.MgmtClusters, "management cluster name (can be specified multiple times)")
+	cmd.Flags().StringArrayVar(&opts.InfraClusters, "infra-cluster", opts.InfraClusters, "infrastructure cluster name (can be specified multiple times)")
 
 	return nil
 }
@@ -64,8 +62,8 @@ func (o *RawInfraQueryOptions) Validate(ctx context.Context) (*ValidatedInfraQue
 		return nil, err
 	}
 
-	if len(o.ServiceClusters) == 0 && len(o.MgmtClusters) == 0 {
-		return nil, fmt.Errorf("at least one --service-cluster or --mgmt-cluster is required")
+	if len(o.InfraClusters) == 0 {
+		return nil, fmt.Errorf("at least one --infra-cluster is required")
 	}
 
 	return &ValidatedInfraQueryOptions{
@@ -87,7 +85,7 @@ func (o *ValidatedInfraQueryOptions) Complete(ctx context.Context) (*CompletedIn
 		return nil, err
 	}
 
-	if err := createOutputDirectories(o.OutputPath, true); err != nil {
+	if err := createOutputDirectories(o.OutputPath, true, false, false); err != nil {
 		return nil, err
 	}
 

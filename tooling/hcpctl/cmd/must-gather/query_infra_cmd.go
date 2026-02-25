@@ -16,8 +16,8 @@ package mustgather
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"time"
 
 	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
@@ -34,7 +34,7 @@ func newQueryInfraCommand() (*cobra.Command, error) {
 		Long: `Execute preconfigured infrastructure queries against Azure Data Explorer clusters.
 Gathers kubernetes events, systemd logs, and service logs for infrastructure clusters.
 
-You can provide multiple --service-cluster and --mgmt-cluster flags.
+You can provide multiple --infra-cluster flags.
 Logs will be collected sequentially and stored in a single output folder.`,
 		Args:             cobra.NoArgs,
 		SilenceUsage:     true,
@@ -65,39 +65,27 @@ func (opts *CompletedInfraQueryOptions) RunInfra(ctx context.Context) error {
 
 	allErrors := []error{}
 
-	for _, clusterName := range opts.ServiceClusters {
-		if err := runQuery(ctx, logger, opts.QueryClient, opts.OutputPath, clusterName, mustgather.InfraClusterTypeService, opts.TimestampMin, opts.TimestampMax, opts.Limit); err != nil {
-			allErrors = append(allErrors, err)
+	for _, clusterName := range opts.InfraClusters {
+		logger.V(1).Info("Gathering infrastructure logs", "cluster", clusterName)
+
+		queryOptions, err := mustgather.NewInfraQueryOptions(clusterName, opts.TimestampMin, opts.TimestampMax, opts.Limit)
+		if err != nil {
+			allErrors = append(allErrors, fmt.Errorf("failed to create query options for cluster %s: %w", clusterName, err))
+			continue
 		}
-	}
-	for _, clusterName := range opts.MgmtClusters {
-		if err := runQuery(ctx, logger, opts.QueryClient, opts.OutputPath, clusterName, mustgather.InfraClusterTypeManagement, opts.TimestampMin, opts.TimestampMax, opts.Limit); err != nil {
-			allErrors = append(allErrors, err)
+
+		gatherer := mustgather.NewCliGatherer(opts.QueryClient, opts.OutputPath, ServicesLogDirectory, HostedControlPlaneLogDirectory, mustgather.GathererOptions{
+			QueryOptions:    queryOptions,
+			GatherInfraLogs: true,
+		})
+
+		if err := gatherer.GatherLogs(ctx); err != nil {
+			allErrors = append(allErrors, fmt.Errorf("failed to gather infrastructure logs for cluster %s: %w", clusterName, err))
 		}
 	}
 
 	if len(allErrors) > 0 {
-		return fmt.Errorf("failed to gather infrastructure logs for some clusters: %w", allErrors)
-	}
-
-	return nil
-}
-
-func runQuery(ctx context.Context, logger logr.Logger, queryClient mustgather.QueryClientInterface, outputPath string, clusterName string, clusterType mustgather.InfraClusterType, timestampMin time.Time, timestampMax time.Time, limit int) error {
-	logger.V(1).Info("Gathering infrastructure logs", "cluster", clusterName)
-
-	queryOptions, err := mustgather.NewInfraQueryOptions(clusterType, clusterName, timestampMin, timestampMax, limit)
-	if err != nil {
-		return fmt.Errorf("failed to create query options for cluster %s: %w", clusterName, err)
-	}
-
-	gatherer := mustgather.NewCliGatherer(queryClient, outputPath, ServicesLogDirectory, HostedControlPlaneLogDirectory, mustgather.GathererOptions{
-		QueryOptions:    queryOptions,
-		GatherInfraLogs: true,
-	})
-
-	if err := gatherer.GatherLogs(ctx); err != nil {
-		return fmt.Errorf("failed to gather infrastructure logs for cluster %s: %w", clusterName, err)
+		return fmt.Errorf("failed to gather infrastructure logs for some clusters: %w", errors.Join(allErrors...))
 	}
 
 	return nil
