@@ -20,6 +20,7 @@ import (
 	"testing"
 	"time"
 
+	"k8s.io/apimachinery/pkg/api/operation"
 	"k8s.io/utils/ptr"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -36,6 +37,7 @@ func TestValidateClusterCreate(t *testing.T) {
 	tests := []struct {
 		name         string
 		cluster      *api.HCPOpenShiftCluster
+		opOptions    []string
 		expectErrors []expectedError
 	}{
 		{
@@ -896,7 +898,8 @@ func TestValidateClusterCreate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			errs := ValidateClusterCreate(ctx, tt.cluster, nil)
+			op := operation.Operation{Type: operation.Create, Options: tt.opOptions}
+			errs := ValidateCluster(ctx, op, tt.cluster, nil, nil)
 			verifyErrorsMatch(t, tt.expectErrors, errs)
 		})
 	}
@@ -910,6 +913,7 @@ func TestValidateClusterUpdate(t *testing.T) {
 		name         string
 		newCluster   *api.HCPOpenShiftCluster
 		oldCluster   *api.HCPOpenShiftCluster
+		opOptions    []string
 		expectErrors []expectedError
 	}{
 		{
@@ -1071,6 +1075,7 @@ func TestValidateClusterUpdate(t *testing.T) {
 				c.CustomerProperties.Version.ID = "4.19"
 				return c
 			}(),
+			opOptions:    []string{api.FeatureExperimentalReleaseFeatures},
 			expectErrors: []expectedError{},
 		},
 		{
@@ -1530,8 +1535,9 @@ func TestValidateClusterUpdate(t *testing.T) {
 				c.CustomerProperties.API.Visibility = api.VisibilityPublic
 				return c
 			}(),
-			// version.id and channelGroup are now mutable, only dns.baseDomainPrefix and api.visibility remain immutable
+			// channelGroup is mutable, but version.id, dns.baseDomainPrefix and api.visibility are immutable without experimental flag
 			expectErrors: []expectedError{
+				{message: "field is immutable", fieldPath: "customerProperties.version.id"},
 				{message: "field is immutable", fieldPath: "customerProperties.dns.baseDomainPrefix"},
 				{message: "field is immutable", fieldPath: "customerProperties.api.visiblity"},
 			},
@@ -1564,9 +1570,10 @@ func TestValidateClusterUpdate(t *testing.T) {
 			}(),
 			oldCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.CustomerProperties.Version.ID = "4.15"
+				c.CustomerProperties.Version.ID = "4.19"
 				return c
 			}(),
+			opOptions: []string{api.FeatureExperimentalReleaseFeatures},
 			expectErrors: []expectedError{
 				{message: "Required value", fieldPath: "customerProperties.version.id"},
 			},
@@ -1583,6 +1590,7 @@ func TestValidateClusterUpdate(t *testing.T) {
 				c.CustomerProperties.Version.ID = ""
 				return c
 			}(),
+			opOptions:    []string{api.FeatureExperimentalReleaseFeatures},
 			expectErrors: []expectedError{},
 		},
 		{
@@ -1597,6 +1605,7 @@ func TestValidateClusterUpdate(t *testing.T) {
 				c.CustomerProperties.Version.ID = "4.20"
 				return c
 			}(),
+			opOptions: []string{api.FeatureExperimentalReleaseFeatures},
 			expectErrors: []expectedError{
 				{message: "may not decrease", fieldPath: "customerProperties.version.id"},
 			},
@@ -1613,6 +1622,7 @@ func TestValidateClusterUpdate(t *testing.T) {
 				c.CustomerProperties.Version.ID = "4.19"
 				return c
 			}(),
+			opOptions:    []string{api.FeatureExperimentalReleaseFeatures},
 			expectErrors: []expectedError{},
 		},
 		{
@@ -1641,6 +1651,7 @@ func TestValidateClusterUpdate(t *testing.T) {
 				c.CustomerProperties.Version.ID = "4.17"
 				return c
 			}(),
+			opOptions: []string{api.FeatureExperimentalReleaseFeatures},
 			expectErrors: []expectedError{
 				{message: "must be at least 4.19", fieldPath: "customerProperties.version.id"},
 			},
@@ -1649,7 +1660,8 @@ func TestValidateClusterUpdate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			errs := ValidateClusterUpdate(ctx, tt.newCluster, tt.oldCluster, nil)
+			op := operation.Operation{Type: operation.Update, Options: tt.opOptions}
+			errs := ValidateCluster(ctx, op, tt.newCluster, tt.oldCluster, nil)
 			verifyErrorsMatch(t, tt.expectErrors, errs)
 		})
 	}

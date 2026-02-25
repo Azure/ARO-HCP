@@ -15,10 +15,11 @@
 package api
 
 const (
+	// TOMBSTONE - intent replaced by FeatureExperimentalReleaseFeatures
 	// Feature flag FeatureAllowDevNonStableChannels is the feature in the subscription that
 	// allows the usage of non stable channels (i.e. candidate, nightly) for creation
 	// of new OpenShift clusters.
-	FeatureAllowDevNonStableChannels = "Microsoft.RedHatOpenShift/AllowDevNonStableChannels"
+	//FeatureAllowDevNonStableChannels = "Microsoft.RedHatOpenShift/AllowDevNonStableChannels"
 
 	// FeatureExperimentalReleaseFeatures is the subscription-level AFEC that gates all
 	// tag-based experimental features. When registered, per-resource tags in the
