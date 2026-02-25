@@ -26,18 +26,12 @@ import (
 // OpenShift clusters.
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type HCPOpenShiftClusterExternalAuth struct {
+	// CosmosMetadata ResourceID is nested under the external auth so that association and cleanup work as expected
+	CosmosMetadata `json:"cosmosMetadata"`
+
 	arm.ProxyResource
 	Properties                HCPOpenShiftClusterExternalAuthProperties                `json:"properties"`
 	ServiceProviderProperties HCPOpenShiftClusterExternalAuthServiceProviderProperties `json:"serviceProviderProperties,omitempty"`
-}
-
-var _ arm.CosmosPersistable = &HCPOpenShiftClusterExternalAuth{}
-
-func (o *HCPOpenShiftClusterExternalAuth) GetCosmosData() *arm.CosmosMetadata {
-	return &arm.CosmosMetadata{
-		ResourceID:        o.ID,
-		ExistingCosmosUID: o.ServiceProviderProperties.ExistingCosmosUID,
-	}
 }
 
 // HCPOpenShiftClusterNodePoolProperties represents the property bag of a
