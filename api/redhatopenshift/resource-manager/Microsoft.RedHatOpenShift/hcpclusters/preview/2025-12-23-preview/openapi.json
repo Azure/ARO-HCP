@@ -2272,9 +2272,13 @@
         "imageDigestMirrors": {
           "type": "array",
           "description": "imageDigestMirrors is a set of rules to allow pulling images from a\nmirrored registry by using digest specifications.",
+          "maxItems": 240,
           "items": {
             "$ref": "#/definitions/ImageDigestMirror"
           },
+          "x-ms-identifiers": [
+            "source"
+          ],
           "x-ms-mutability": [
             "read",
             "update",
@@ -2341,9 +2345,13 @@
         "imageDigestMirrors": {
           "type": "array",
           "description": "imageDigestMirrors is a set of rules to allow pulling images from a\nmirrored registry by using digest specifications.",
+          "maxItems": 240,
           "items": {
             "$ref": "#/definitions/ImageDigestMirror"
           },
+          "x-ms-identifiers": [
+            "source"
+          ],
           "x-ms-mutability": [
             "read",
             "update",
@@ -2513,28 +2521,29 @@
       "type": "object",
       "description": "ImageDigestMirror specifies a set of mirror registries to redirect image\npulls targeting the specified source registries.",
       "properties": {
-        "id": {
-          "type": "string",
-          "description": "The unique identifier for this image digest mirror definition"
-        },
         "source": {
-          "type": "string",
-          "description": "The source image registry to redirect image pulls from"
+          "$ref": "#/definitions/ImageRepository",
+          "description": "Source is the image repository that users refer to, e.g. in image pull specifications."
         },
         "mirrors": {
           "type": "array",
-          "description": "The set of mirror registries to redirect image pulls to",
+          "description": "Mirrors are one or more image repositories that may also contain the same images.",
           "minItems": 1,
+          "maxItems": 255,
           "items": {
-            "type": "string"
+            "$ref": "#/definitions/ImageRepository"
           }
         }
       },
       "required": [
-        "id",
         "source",
         "mirrors"
       ]
+    },
+    "ImageRepository": {
+      "type": "string",
+      "description": "ImageRepository describes a repository for container images.",
+      "maxLength": 255
     },
     "KeyVaultVisibility": {
       "type": "string",

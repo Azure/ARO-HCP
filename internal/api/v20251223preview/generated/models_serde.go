@@ -1288,7 +1288,6 @@ func (h *HcpOperatorIdentityRoleSetProperties) UnmarshalJSON(data []byte) error 
 // MarshalJSON implements the json.Marshaller interface for type ImageDigestMirror.
 func (i ImageDigestMirror) MarshalJSON() ([]byte, error) {
 	objectMap := make(map[string]any)
-	populate(objectMap, "id", i.ID)
 	populate(objectMap, "mirrors", i.Mirrors)
 	populate(objectMap, "source", i.Source)
 	return json.Marshal(objectMap)
@@ -1303,9 +1302,6 @@ func (i *ImageDigestMirror) UnmarshalJSON(data []byte) error {
 	for key, val := range rawMsg {
 		var err error
 		switch key {
-		case "id":
-			err = unpopulate(val, "ID", &i.ID)
-			delete(rawMsg, key)
 		case "mirrors":
 			err = unpopulate(val, "Mirrors", &i.Mirrors)
 			delete(rawMsg, key)
