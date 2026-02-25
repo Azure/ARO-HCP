@@ -25,6 +25,7 @@ on:
     - 'dev-infrastructure/**/*.bicep'
     - 'dev-infrastructure/**/*.bicepparam'
     - 'dev-infrastructure/configurations/*'
+    - 'dev-infrastructure/data/*'
     - 'frontend/**'
     - 'admin/**'
     - 'backend/**'
