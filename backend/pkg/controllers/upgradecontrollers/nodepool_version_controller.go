@@ -18,6 +18,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"slices"
 	"time"
 
 	"github.com/blang/semver/v4"
@@ -25,6 +26,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
+	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -107,15 +109,24 @@ func (c *nodePoolVersionSyncer) SyncOnce(ctx context.Context, key controllerutil
 	serviceProviderCosmosNodePoolClient := c.cosmosClient.ServiceProviderNodePools(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.HCPNodePoolName)
 	actualVersion := semver.MustParse(version.ID())
 
-	// check if actualVersion from node pool in clusterService is different that the one in serviceProviderNodePool
-	// if it is different update the ActualVersion in the serviceProviderNodePool
-	if existingServiceProviderNodePool.Status.NodePoolVersion.ActiveVersion == nil ||
-		!actualVersion.EQ(*existingServiceProviderNodePool.Status.NodePoolVersion.ActiveVersion) {
-		existingServiceProviderNodePool.Status.NodePoolVersion.ActiveVersion = &actualVersion
-		existingServiceProviderNodePool, err = serviceProviderCosmosNodePoolClient.Replace(ctx, existingServiceProviderNodePool, nil)
+	oldActiveVersions := existingServiceProviderNodePool.Status.NodePoolActiveVersions
+	existingServiceProviderNodePool.Status.NodePoolActiveVersions = c.prependActiveVersionIfChanged(oldActiveVersions, actualVersion)
 
+	// check if actualVersion from node pool in clusterService is different that the active versions in serviceProviderNodePool
+	// if it is different update the ActualVersion in the serviceProviderNodePool
+	// TODO: This is a simple gathering of the node pool versions. We should implement this to get the correct information.
+	// Possible ways to get this information
+	//   - In CS
+	// 	 	- nodepool.version: latest version applied. When an upgrade policy completes correctly, this is set to that version.
+	//   	- upgradepolicy.targetVersion: if the policy has started this version is applying to the nodepool
+	//   - In Hypershift
+	//		- .Status.Version: shows the latest applied version https://github.com/openshift/hypershift/blob/main/api/hypershift/v1beta1/nodepool_types.go#L246-L251
+	if !slices.Equal(oldActiveVersions, existingServiceProviderNodePool.Status.NodePoolActiveVersions) {
+		logger := utils.LoggerFromContext(ctx)
+		logger.Info("Active versions changed", "oldActiveVersions", oldActiveVersions, "newActiveVersions", existingServiceProviderNodePool.Status.NodePoolActiveVersions)
+		existingServiceProviderNodePool, err = serviceProviderCosmosNodePoolClient.Replace(ctx, existingServiceProviderNodePool, nil)
 		if err != nil {
-			return utils.TrackError(fmt.Errorf("failed to replace ServiceProviderNodePool: %w", err))
+			return utils.TrackError(fmt.Errorf("failed to replace ServiceProviderCluster: %w", err))
 		}
 	}
 
@@ -137,4 +148,22 @@ func (c *nodePoolVersionSyncer) SyncOnce(ctx context.Context, key controllerutil
 
 func (c *nodePoolVersionSyncer) CooldownChecker() controllerutils.CooldownChecker {
 	return c.cooldownChecker
+}
+
+// prependActiveVersionIfChanged takes a slice of active versions and returns an updated slice
+// with the new version prepended if it differs from the most recent version.
+// If the most recent version matches the new version, returns the original slice unchanged.
+// The returned slice is capped to the 2 most recent versions.
+func (c *nodePoolVersionSyncer) prependActiveVersionIfChanged(currentVersions []api.ServiceProviderNodePoolActiveVersions, newVersion semver.Version) []api.ServiceProviderNodePoolActiveVersions {
+	// Check if the tip (most recent version) is already the new version
+	if len(currentVersions) > 0 && currentVersions[0].Version != nil && currentVersions[0].Version.EQ(newVersion) {
+		return currentVersions
+	}
+
+	// Create new list with at most 2 versions: new version + most recent old version
+	newVersions := []api.ServiceProviderNodePoolActiveVersions{{Version: &newVersion}}
+	if len(currentVersions) > 0 {
+		newVersions = append(newVersions, currentVersions[0])
+	}
+	return newVersions
 }

@@ -64,12 +64,29 @@ type ServiceProviderNodePoolSpecVersion struct {
 
 // ServiceProviderNodePoolStatus contains the observed state of the node pool.
 type ServiceProviderNodePoolStatus struct {
-	NodePoolVersion ServiceProviderNodePoolStatusVersion `json:"nodepool_version,omitempty"`
+	// NodePoolActiveVersions contains the actual node pool versions information
+	// ServiceProviderNodePoolActiveVersions contains all versions currently active in the NodePool
+	// During an upgrade, multiple versions can be active simultaneously. Meaning, there are nodes
+	// with different versions. For example:
+	// - Simple upgrade: [vNew, vOld]
+	// - Sequential upgrades before completion: [vNewer, vNew, vOld]
+	//
+	// The list is ordered with the most recent version first.
+	//
+	// Example JSON structure:
+	// {
+	//   "nodepool_active_versions": [
+	//       {"version": "4.19.2"},
+	//       {"version": "4.19.1"}
+	//     ]
+	//   }
+	// }
+	NodePoolActiveVersions []ServiceProviderNodePoolActiveVersions `json:"nodepool_active_versions,omitempty"`
 }
 
-// ServiceProviderNodePoolStatusVersion contains the actual version information.
-type ServiceProviderNodePoolStatusVersion struct {
+// ServiceProviderNodePoolActiveVersion contains the actual version information.
+type ServiceProviderNodePoolActiveVersions struct {
 	// ActiveVersions is an array of versions currently active in the nodepool, ordered with the most recent first.
 	// During upgrades, multiple versions can be active simultaneously.
-	ActiveVersion *semver.Version `json:"active_version,omitempty"`
+	Version *semver.Version `json:"version,omitempty"`
 }

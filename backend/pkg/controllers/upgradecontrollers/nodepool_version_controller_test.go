@@ -44,7 +44,8 @@ const (
 	testNodePoolName      = "test-nodepool"
 	testCSClusterID       = "/api/aro_hcp/v1alpha1/clusters/clusterTest"
 	testCSNodePoolID      = "/api/aro_hcp/v1alpha1/clusters/clusterTest/node_pools/nodePoolTest"
-	testVersionID         = "4.19.0"
+	testVersionID         = "4.20.0"
+	testCSVersionID       = "4.19.9"
 )
 
 // alwaysAllowCooldown is a test helper that always allows sync.
@@ -123,7 +124,7 @@ func newCSNodePool(t *testing.T, withVersion bool) *arohcpv1alpha1.NodePool {
 		ID("nodePoolTest")
 
 	if withVersion {
-		builder = builder.Version(arohcpv1alpha1.NewVersion().ID(testVersionID))
+		builder = builder.Version(arohcpv1alpha1.NewVersion().ID(testCSVersionID))
 	}
 
 	csNodePool, err := builder.Build()
@@ -295,18 +296,19 @@ func TestDataPlaneVersionSyncer_PersistsVersions(t *testing.T) {
 	).Get(ctx, api.ServiceProviderNodePoolResourceName)
 	require.NoError(t, err, "ServiceProviderNodePool should exist after sync")
 
-	expectedVersion := semver.MustParse(testVersionID)
+	expectedActiveVersion := semver.MustParse(testCSVersionID)
+	expectedDesiredVersion := semver.MustParse(testVersionID)
 
 	// Verify ActiveVersion was persisted (from Cluster Service)
-	require.NotNil(t, spnp.Status.NodePoolVersion.ActiveVersion,
+	require.NotNil(t, spnp.Status.NodePoolActiveVersions,
 		"ActiveVersion should be set")
-	require.True(t, expectedVersion.EQ(*spnp.Status.NodePoolVersion.ActiveVersion),
-		"ActiveVersion should match CS version %s, got %s", testVersionID, spnp.Status.NodePoolVersion.ActiveVersion)
+	require.True(t, expectedActiveVersion.EQ(*spnp.Status.NodePoolActiveVersions[0].Version),
+		"ActiveVersion should match CS version %s, got %s", testCSVersionID, spnp.Status.NodePoolActiveVersions[0].Version)
 
 	// Verify DesiredVersion was persisted (from customer's HCPNodePool)
 	require.NotNil(t, spnp.Spec.NodePoolVersion.DesiredVersion,
 		"DesiredVersion should be set")
-	require.True(t, expectedVersion.EQ(*spnp.Spec.NodePoolVersion.DesiredVersion),
+	require.True(t, expectedDesiredVersion.EQ(*spnp.Spec.NodePoolVersion.DesiredVersion),
 		"DesiredVersion should match customer version %s, got %s", testVersionID, spnp.Spec.NodePoolVersion.DesiredVersion)
 }
 
