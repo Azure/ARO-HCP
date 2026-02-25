@@ -623,6 +623,32 @@ instances and encounter the new field. Go's standard `json.Unmarshal`
 silently discards unknown JSON fields, so old code handles this
 gracefully.
 
+## Applied Fixes
+
+### AutoRepair Response Shape Change (v20251223preview)
+
+The `AutoRepair` field used `PtrOrNil` in the internal-to-external
+conversion, which omitted `autoRepair: false` from GET responses. This
+caused GET-then-PUT data loss: a customer who explicitly set
+`autoRepair=false` would GET a response without the field, PUT the same
+body back, and `SetDefaultValues` would reset it to `true`.
+
+**Fix**: Changed `PtrOrNil` to `Ptr` in v20251223preview only.
+
+| API Version | Conversion | GET response for `autoRepair=false` |
+|-------------|-----------|-------------------------------------|
+| v20240610preview (shipped) | `PtrOrNil` | Field omitted from JSON |
+| v20251223preview (unreleased) | `Ptr` | `"autoRepair": false` present |
+
+This fix is gated behind the unreleased API version to avoid breaking
+existing customer automation on v20240610preview. Customers must use
+v20251223preview or later to get lossless PUT round-trips for
+`AutoRepair`.
+
+The codebase already has this pattern: `EnableEncryptionAtHost` uses
+`Ptr` (not `PtrOrNil`) with the comment "Use Ptr (not PtrOrNil) to
+ensure boolean is always present in JSON response, even when false."
+
 ## Future Considerations
 
 ### Append-only storage defaulting functions

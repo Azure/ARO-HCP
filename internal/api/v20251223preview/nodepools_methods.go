@@ -322,8 +322,9 @@ func (v version) NewHCPOpenShiftClusterNodePool(from *api.HCPOpenShiftClusterNod
 				ProvisioningState: api.PtrOrNil(generated.ProvisioningState(from.Properties.ProvisioningState)),
 				Platform:          api.PtrOrNil(newNodePoolPlatformProfile(&from.Properties.Platform)),
 				Version:           api.PtrOrNil(newNodePoolVersionProfile(&from.Properties.Version)),
-				// Keep PtrOrNil for AutoRepair since default is true - omitting false allows client to use default
-				AutoRepair:              api.PtrOrNil(from.Properties.AutoRepair),
+				// Use Ptr to preserve explicit false values in JSON responses (solves GET-then-PUT data loss).
+				// See docs/api-version-defaults-and-storage.md for details.
+				AutoRepair:              api.Ptr(from.Properties.AutoRepair),
 				AutoScaling:             api.PtrOrNil(newNodePoolAutoScaling(from.Properties.AutoScaling)),
 				Replicas:                api.PtrOrNil(from.Properties.Replicas),
 				NodeDrainTimeoutMinutes: from.Properties.NodeDrainTimeoutMinutes,
