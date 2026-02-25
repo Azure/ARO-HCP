@@ -22,8 +22,8 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/blang/semver/v4"
 	"github.com/google/uuid"
-	semver "github.com/hashicorp/go-version"
 
 	"k8s.io/apimachinery/pkg/api/operation"
 	"k8s.io/apimachinery/pkg/api/validate"
@@ -55,7 +55,7 @@ func OpenshiftVersionWithOptionalMicro(_ context.Context, op operation.Operation
 		return nil
 	}
 
-	_, err := semver.NewVersion(*value)
+	_, err := semver.ParseTolerant(*value)
 	if err != nil {
 		return field.ErrorList{field.Invalid(fldPath, value, err.Error())}
 	}
@@ -71,7 +71,7 @@ func OpenshiftVersionWithoutMicro(_ context.Context, op operation.Operation, fld
 		return nil
 	}
 
-	_, err := semver.NewVersion(*value)
+	_, err := semver.ParseTolerant(*value)
 	if err != nil {
 		return field.ErrorList{field.Invalid(fldPath, value, err.Error())}
 	}
