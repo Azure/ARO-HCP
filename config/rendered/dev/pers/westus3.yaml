@@ -361,7 +361,7 @@ kubeEvents:
     registry: kubernetesshared.azurecr.io
     repository: shared/kube-events
 kusto:
-  adminGroups: 6b6d3adf-8476-4727-9812-20ffdef2b85c
+  adminGroups: ""
   auditLogsEventHub:
     authRuleName: SendRule
     kustoConsumerGroupName: AuditLogsToKusto
@@ -372,7 +372,7 @@ kusto:
   enableAutoScale: false
   hostedControlPlaneLogsDatabase: HostedControlPlaneLogs
   kustoName: hcp-dev-us-2
-  manageInstance: true
+  manageInstance: false
   rg: hcp-kusto-us
   serviceLogsDatabase: ServiceLogs
   sku: Standard_E2ads_v5
