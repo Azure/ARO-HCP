@@ -531,6 +531,8 @@ resourceGroups:
     dependsOn:
     - resourceGroup: service
       step: cluster
+    - resourceGroup: service
+      step: prometheus
     inputVariables:
       msiClientId:
         resourceGroup: service
