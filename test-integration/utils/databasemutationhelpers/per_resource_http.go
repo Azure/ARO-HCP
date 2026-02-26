@@ -254,6 +254,10 @@ func (c frontendHTTPTestAccessor) CreateOrUpdate(ctx context.Context, resourceID
 	}
 }
 
+func (c frontendHTTPTestAccessor) Post(_ context.Context, _ string, _ []byte) error {
+	return utils.TrackError(fmt.Errorf("not implemented for frontend client SDK"))
+}
+
 func (c frontendHTTPTestAccessor) Patch(ctx context.Context, resourceIDString string, content []byte) error {
 	resourceID, err := azcorearm.ParseResourceID(resourceIDString)
 	if err != nil {

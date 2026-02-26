@@ -435,6 +435,20 @@ acr-svc-cfg.what-if: configurations/acr-svc.bicepparam
 .PHONY: acr-svc-cfg.what-if
 
 #
+# Cosmos Helpers
+#
+
+cosmos.access:
+    # grants "Cosmos DB Built-in Data Contributor" role to current user
+	az cosmosdb sql role assignment create \
+    --resource-group $(REGIONAL_RESOURCEGROUP) \
+    --account-name $(RP_COSMOS_DB_NAME) \
+    --role-definition-id "00000000-0000-0000-0000-000000000002" \
+    --principal-id $(PRINCIPAL_ID) \
+    --scope "/"
+.PHONY: cosmos.access
+
+#
 # Postgres Authentication Helpers
 #
 

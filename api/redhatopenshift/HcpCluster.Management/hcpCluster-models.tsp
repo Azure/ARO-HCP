@@ -6,6 +6,7 @@ import "@azure-tools/typespec-azure-resource-manager";
 import "@azure-tools/typespec-client-generator-core";
 
 using TypeSpec.Rest;
+using TypeSpec.Versioning;
 using Azure.Core;
 using Azure.ResourceManager;
 using Azure.ClientGenerator.Core;
@@ -689,6 +690,32 @@ model OsDiskProfile {
    */
   @visibility(Lifecycle.Read, Lifecycle.Create)
   encryptionSetId?: DiskEncryptionSetResourceId;
+
+  /** The type of the OS disk.
+   * - https://learn.microsoft.com/en-us/azure/virtual-machines/ephemeral-os-disks
+   */
+  @added(Versions.v2025_12_23_preview)
+  @visibility(Lifecycle.Read, Lifecycle.Create)
+  diskType?: OsDiskType = "Managed";
+}
+
+/** The type of the OS disk
+ * - https://learn.microsoft.com/en-us/azure/virtual-machines/ephemeral-os-disks
+ */
+@added(Versions.v2025_12_23_preview)
+union OsDiskType {
+  string,
+
+  /** Ephemeral OS disk - stored on local VM cache/temporary storage.
+   * Provides lower latency and faster node operations.
+   * Requires VM with sufficient cache size.
+   */
+  Ephemeral: "Ephemeral",
+
+  /** Managed OS disk - stored as an Azure managed disk (network-attached).
+   * Default behavior for VMs without sufficient cache.
+   */
+  Managed: "Managed",
 }
 
 /** Supported Azure storage account types

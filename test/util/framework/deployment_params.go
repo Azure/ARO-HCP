@@ -79,12 +79,28 @@ func DefaultOpenshiftControlPlaneVersionId() string {
 	return version
 }
 
+func DefaultOpenshiftChannelGroup() string {
+	channelGroup := os.Getenv("ARO_HCP_OPENSHIFT_CHANNEL_GROUP")
+	if channelGroup == "" {
+		return "stable"
+	}
+	return channelGroup
+}
+
 func DefaultOpenshiftNodePoolVersionId() string {
 	version := os.Getenv("ARO_HCP_OPENSHIFT_NODEPOOL_VERSION")
 	if version == "" {
 		return "4.20.8"
 	}
 	return version
+}
+
+func DefaultOpenshiftNodePoolChannelGroup() string {
+	channelGroup := os.Getenv("ARO_HCP_OPENSHIFT_NODEPOOL_CHANNEL_GROUP")
+	if channelGroup == "" {
+		return "stable"
+	}
+	return channelGroup
 }
 
 func NewDefaultClusterParams() ClusterParams {
@@ -101,7 +117,7 @@ func NewDefaultClusterParams() ClusterParams {
 		EncryptionType:              "KMS",
 		APIVisibility:               "Public",
 		ImageRegistryState:          "Enabled",
-		ChannelGroup:                "stable",
+		ChannelGroup:                DefaultOpenshiftChannelGroup(),
 		// NOTE: The E2E subscription must have the ExperimentalReleaseFeatures AFEC
 		// registered for this tag to be honored.
 		Tags: map[string]*string{
@@ -136,7 +152,7 @@ func NewDefaultNodePoolParams() NodePoolParams {
 		VMSize:                 "Standard_D8s_v3",
 		OSDiskSizeGiB:          int32(64),
 		DiskStorageAccountType: "StandardSSD_LRS",
-		ChannelGroup:           "stable",
+		ChannelGroup:           DefaultOpenshiftNodePoolChannelGroup(),
 	}
 }
 

@@ -420,6 +420,21 @@ param auditLogsEventHubName string
 @description('Resource ID of the event hub authorization rule for AKS audit logs')
 param auditLogsEventHubAuthRuleId string
 
+@description('The name of the Session Gate managed identity')
+param sessiongateMIName string
+
+@description('The namespace of the Session Gate managed identity')
+param sessiongateNamespace string
+
+@description('The service account name of the Session Gate managed identity')
+param sessiongateServiceAccountName string
+
+@description('The name of the Session Gate ingress certificate')
+param sessiongateIngressCertName string
+
+@description('The issuer of the Session Gate ingress certificate')
+param sessiongateIngressCertIssuer string
+
 resource serviceKeyVault 'Microsoft.KeyVault/vaults@2024-04-01-preview' existing = {
   name: serviceKeyVaultName
   scope: resourceGroup(serviceKeyVaultResourceGroup)
@@ -474,6 +489,11 @@ var workloadIdentities = items({
     uamiName: adminApiMIName
     namespace: adminApiNamespace
     serviceAccountName: adminApiServiceAccountName
+  }
+  sessiongate_wi: {
+    uamiName: sessiongateMIName
+    namespace: sessiongateNamespace
+    serviceAccountName: sessiongateServiceAccountName
   }
 })
 
@@ -549,20 +569,19 @@ resource svcClusterNSG 'Microsoft.Network/networkSecurityGroups@2023-11-01' = {
           sourcePortRange: '*'
         }
       }
-      // TODO: ops-ingress phase 3: add SRE ingress rule for breakglass
-      // {
-      //   name: 'sre-in-ops'
-      //   properties: {
-      //     access: 'Allow'
-      //     destinationAddressPrefix: opsIngressGatewayIPAddress.outputs.ipAddress
-      //     destinationPortRange: '443'
-      //     direction: 'Inbound'
-      //     priority: 140
-      //     protocol: 'Tcp'
-      //     sourceAddressPrefix: sreServiceTag != '' ? sreServiceTag : '*'
-      //     sourcePortRange: '*'
-      //   }
-      // }
+      {
+        name: 'sre-in-ops'
+        properties: {
+          access: 'Allow'
+          destinationAddressPrefix: opsIngressGatewayIPAddress.outputs.ipAddress
+          destinationPortRange: '443'
+          direction: 'Inbound'
+          priority: 140
+          protocol: 'Tcp'
+          sourceAddressPrefix: sreServiceTag != '' ? sreServiceTag : '*'
+          sourcePortRange: '*'
+        }
+      }
     ]
   }
 }
@@ -715,8 +734,7 @@ module rpCosmosDb '../modules/rp-cosmos.bicep' = if (deployFrontendCosmos) {
     location: location
     zoneRedundant: determineZoneRedundancy(locationAvailabilityZoneList, rpCosmosZoneRedundantMode)
     disableLocalAuth: disableLocalAuth
-    userAssignedMIs: [frontendMI, backendMI]
-    readOnlyUserAssignedMIs: [adminApiMI]
+    userAssignedMIs: [frontendMI, backendMI, adminApiMI]
     private: rpCosmosDbPrivate
     resourceContainerMaxScale: resourceContainerMaxScale
     billingContainerMaxScale: billingContainerMaxScale
@@ -724,7 +742,7 @@ module rpCosmosDb '../modules/rp-cosmos.bicep' = if (deployFrontendCosmos) {
   }
 }
 
-module rpCosmosdbPrivateEndpoint '../modules/private-endpoint.bicep' = {
+module rpCosmosdbPrivateEndpoint '../modules/private-endpoint.bicep' = if (rpCosmosDbPrivate) {
   name: 'rp-pe-${uniqueString(deployment().name)}'
   params: {
     location: location
@@ -1015,6 +1033,50 @@ module adminApiDNS '../modules/dns/a-record.bicep' = {
     zoneName: regionalSvcDNSZoneName
     recordName: adminApiDnsName
     ipAddress: istioIngressGatewayIPAddress.outputs.ipAddress
+    ttl: 300
+  }
+}
+
+//
+//   S E S S I O N G A T E
+//
+
+var sessiongateDnsName = 'sessiongate'
+var sessiongateDnsFQDN = '${sessiongateDnsName}.${regionalSvcDNSZoneName}'
+
+module sessiongateCert '../modules/keyvault/key-vault-cert.bicep' = {
+  name: 'sessiongate-cert-${uniqueString(resourceGroup().name)}'
+  scope: resourceGroup(serviceKeyVaultResourceGroup)
+  params: {
+    keyVaultName: serviceKeyVaultName
+    subjectName: 'CN=${sessiongateDnsFQDN}'
+    certName: sessiongateIngressCertName
+    keyVaultManagedIdentityId: globalMSIId
+    dnsNames: [
+      sessiongateDnsFQDN
+    ]
+    issuerName: sessiongateIngressCertIssuer
+  }
+}
+
+module sessiongateIngressCertCSIAccess '../modules/keyvault/keyvault-secret-access.bicep' = {
+  name: 'aksSPCRead-${sessiongateIngressCertName}'
+  scope: resourceGroup(serviceKeyVaultResourceGroup)
+  params: {
+    keyVaultName: serviceKeyVaultName
+    roleName: 'Key Vault Secrets User'
+    managedIdentityPrincipalIds: [svcCluster.outputs.aksClusterKeyVaultSecretsProviderPrincipalId]
+    secretName: sessiongateIngressCertName
+  }
+}
+
+module sessiongateDNS '../modules/dns/a-record.bicep' = {
+  name: 'sessiongate-dns'
+  scope: resourceGroup(regionalResourceGroup)
+  params: {
+    zoneName: regionalSvcDNSZoneName
+    recordName: sessiongateDnsName
+    ipAddress: opsIngressGatewayIPAddress.outputs.ipAddress
     ttl: 300
   }
 }

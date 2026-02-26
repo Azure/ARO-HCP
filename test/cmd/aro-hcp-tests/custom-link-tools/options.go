@@ -202,7 +202,7 @@ func createQueryURL(templatePath string, info QueryInfo) string {
 	currURL := url.URL{
 		Scheme: "https",
 		Host:   "dataexplorer.azure.com",
-		Path:   fmt.Sprintf("clusters/hcp-dev-us.westus3/databases/%s", info.Database),
+		Path:   fmt.Sprintf("clusters/hcp-dev-us-2.eastus2/databases/%s", info.Database),
 	}
 	urlQuery := currURL.Query()
 	template, err := template.New("custom-link-tools").Parse(string(mustReadArtifact(templatePath)))

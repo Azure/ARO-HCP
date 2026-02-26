@@ -13,7 +13,7 @@ require (
 	github.com/google/go-containerregistry v0.20.6
 	github.com/jedib0t/go-pretty/v6 v6.6.7
 	github.com/spf13/cobra v1.10.2
-	golang.org/x/mod v0.31.0
+	golang.org/x/mod v0.32.0
 	gopkg.in/yaml.v3 v3.0.1
 	k8s.io/apimachinery v0.34.3
 	sigs.k8s.io/yaml v1.6.0

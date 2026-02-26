@@ -21,6 +21,7 @@ import (
 	"os"
 	"sync"
 	"testing"
+	"time"
 
 	_ "github.com/Azure/ARO-HCP/internal/api/v20240610preview"
 
@@ -30,6 +31,8 @@ import (
 	"github.com/microsoft/go-otel-audit/audit/msgs"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/goleak"
+
+	"k8s.io/utils/set"
 
 	adminApiServer "github.com/Azure/ARO-HCP/admin/server/server"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/operationcontrollers"
@@ -109,6 +112,10 @@ func NewIntegrationTestInfoFromEnv(ctx context.Context, t *testing.T, withMock b
 	// cluster service setup
 	clusterServiceMockInfo := NewClusterServiceMock(t, storageIntegrationTestInfo.GetArtifactDir())
 
+	// kubernetes client sets setup
+	sessionNamespace := "aro-hcp-breakglass-sessions"
+	kubernetesClientSets := NewKubernetesClientSets(sessionNamespace)
+
 	// frontend setup
 	frontendListener, err := net.Listen("tcp4", "127.0.0.1:0")
 	if err != nil {
@@ -131,7 +138,22 @@ func NewIntegrationTestInfoFromEnv(ctx context.Context, t *testing.T, withMock b
 	if err != nil {
 		return nil, err
 	}
-	adminAPI := adminApiServer.NewAdminAPI(logger, "fake-location", adminListener, adminMetricsListener, storageIntegrationTestInfo.CosmosClient(), clusterServiceMockInfo.MockClusterServiceClient, nil, nil, fakeAuditClient)
+	adminAPI := adminApiServer.NewAdminAPI(
+		logger,
+		"fake-location",
+		adminListener,
+		adminMetricsListener,
+		storageIntegrationTestInfo.CosmosClient(),
+		clusterServiceMockInfo.MockClusterServiceClient,
+		nil,
+		nil,
+		fakeAuditClient,
+		kubernetesClientSets.SessiongateClientset.SessiongateV1alpha1().Sessions(sessionNamespace),
+		kubernetesClientSets.SessionInformerFactory.Sessiongate().V1alpha1().Sessions().Lister().Sessions(sessionNamespace),
+		10*time.Minute,
+		24*time.Hour,
+		set.New("aro-sre-pso", "aro-sre-csa"),
+	)
 
 	frontendURL := fmt.Sprintf("http://%s", frontendListener.Addr().String())
 	adminURL := fmt.Sprintf("http://%s", adminListener.Addr().String())
@@ -144,6 +166,7 @@ func NewIntegrationTestInfoFromEnv(ctx context.Context, t *testing.T, withMock b
 		AdminURL:                   adminURL,
 		AdminAPI:                   adminAPI,
 		adminAPIListener:           adminListener,
+		KubernetesClientSets:       kubernetesClientSets,
 	}
 	return testInfo, nil
 }

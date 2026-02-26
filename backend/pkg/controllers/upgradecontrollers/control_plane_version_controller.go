@@ -26,11 +26,10 @@ import (
 	"github.com/golang/groupcache/lru"
 	"github.com/google/uuid"
 
-	"k8s.io/client-go/tools/cache"
-
 	"github.com/openshift/cluster-version-operator/pkg/cincinnati"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
+	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/cincinatti"
@@ -60,7 +59,7 @@ func NewControlPlaneVersionController(
 	cosmosClient database.DBClient,
 	clusterServiceClient ocm.ClusterServiceClientSpec,
 	activeOperationLister listers.ActiveOperationLister,
-	clusterInformer cache.SharedIndexInformer,
+	informers informers.BackendInformers,
 ) controllerutils.Controller {
 
 	syncer := &controlPlaneVersionSyncer{
@@ -73,7 +72,7 @@ func NewControlPlaneVersionController(
 	controller := controllerutils.NewClusterWatchingController(
 		"ControlPlaneVersion",
 		cosmosClient,
-		clusterInformer,
+		informers,
 		5*time.Minute, // Check for upgrades every 5 minutes
 		syncer,
 	)

@@ -4,6 +4,7 @@ ARG PLATFORM
 FROM --platform=${PLATFORM} mcr.microsoft.com/oss/go/microsoft/golang:1.25-azurelinux3.0 as builder
 COPY internal/go.mod internal/go.sum internal/
 COPY test-integration/go.mod test-integration/
+COPY sessiongate/go.mod sessiongate/go.sum sessiongate/
 COPY admin/server/go.mod admin/server/go.sum admin/server/
 RUN cd admin/server && go mod download
 WORKDIR /app

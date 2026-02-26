@@ -266,7 +266,7 @@ spec:
   acr:
     environment: PublicCloud
     server: 'arohcpsvcdev.azurecr.io'
-    scope: 'repository:konveyor/velero:pull repository:konveyor/velero-plugin-for-microsoft-azure:pull repository:redhat-user-workloads/ocp-art-tenant/oadp-hypershift-oadp-plugin-main:pull'
+    scope: 'repository:oadp/oadp-velero-rhel9:pull repository:oadp/oadp-velero-plugin-for-microsoft-azure-rhel9:pull repository:oadp/oadp-hypershift-velero-plugin-rhel9:pull'
   auth:
     workloadIdentity:
       serviceAccountRef: velero
@@ -386,7 +386,7 @@ spec:
           value: "true"
       initContainers:
       - name: generate-manifest
-        image: "arohcpsvcdev.azurecr.io/konveyor/velero@sha256:1234567890"
+        image: "arohcpsvcdev.azurecr.io/oadp/oadp-velero-rhel9@sha256:1234567890"
         imagePullPolicy: IfNotPresent
         command:
         - /bin/sh
@@ -398,7 +398,7 @@ spec:
           ./velero install \
             --namespace velero \
             --provider azure \
-            --plugins arohcpsvcdev.azurecr.io/konveyor/velero-plugin-for-microsoft-azure@sha256:1234567890,arohcpsvcdev.azurecr.io/redhat-user-workloads/ocp-art-tenant/oadp-hypershift-oadp-plugin-main@sha256:1234567890 \
+            --plugins arohcpsvcdev.azurecr.io/oadp/oadp-velero-plugin-for-microsoft-azure-rhel9@sha256:1234567890,arohcpsvcdev.azurecr.io/oadp/oadp-hypershift-velero-plugin-rhel9@sha256:1234567890 \
             --bucket backups \
             --prefix velero \
             --secret-file /credentials/cloud \
@@ -409,7 +409,7 @@ spec:
             --uploader-type kopia \
             --backup-location-config useAAD="true",resourceGroup=hcp-underlay-dev-westus3-mgmt-1,storageAccount=__storageAccountName__,subscriptionId=__subscriptionId__ \
             --snapshot-location-config subscriptionId=__subscriptionId__ \
-            --image arohcpsvcdev.azurecr.io/konveyor/velero@sha256:1234567890 \
+            --image arohcpsvcdev.azurecr.io/oadp/oadp-velero-rhel9@sha256:1234567890 \
             --dry-run -o yaml > /manifest/velero.yaml
 
           echo "Manifest generated successfully."

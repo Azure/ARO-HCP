@@ -361,7 +361,7 @@ kubeEvents:
     registry: kubernetesshared.azurecr.io
     repository: shared/kube-events
 kusto:
-  adminGroups: 6b6d3adf-8476-4727-9812-20ffdef2b85c
+  adminGroups: ""
   auditLogsEventHub:
     authRuleName: SendRule
     kustoConsumerGroupName: AuditLogsToKusto
@@ -588,6 +588,10 @@ mise:
   image:
     digest: sha256:4822b1998fafa4c7ed1e0723dfed8fd0562e1525545327b821e6d9ef29573c74
     repository: mise-1p-container-image
+  sessiongate:
+    audience: 6dae42f8-4368-4678-94ff-3960e28e3630
+    authorityFQDN: sts.windows.net
+    policyLabel: Session Gate
   tracing:
     address: ""
     exporter: ""
@@ -716,8 +720,11 @@ serviceKeyVault:
   tagKey: aroHCPPurpose
   tagValue: service
 sessiongate:
+  cert:
+    issuer: Self
+    name: sessiongate-cert-dev-usw3
   image:
-    digest: ""
+    digest: sha256:0938bda90b49a09afe83cc39292a3433e8a27b4dfdf5fa79798c9bcd550b7f6e
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpsessiongate
   k8s:
@@ -856,14 +863,14 @@ svc:
 tenantId: 64dc69e4-d083-49fc-9569-ebece1dd1408
 velero:
   azurePlugin:
-    digest: sha256:b2db5f09da514e817a74c992dcca5f90b77c2ab0b2797eba947d224271d6070e
-    registry: quay.io
-    repository: konveyor/velero-plugin-for-microsoft-azure
+    digest: sha256:47a1a93a04208748c29073c17855aeca8f72ff2025d7f404b054abd375c8172e
+    registry: registry.redhat.io
+    repository: oadp/oadp-velero-plugin-for-microsoft-azure-rhel9
   hypershiftPlugin:
-    digest: sha256:51df9e40bfa8cf943d6723913e5408c6e435b4d4419c90da001310197c4c0cce
-    registry: quay.io
-    repository: redhat-user-workloads/ocp-art-tenant/oadp-hypershift-oadp-plugin-main
+    digest: sha256:f47f2f9099b6ad235ea1187556dc165aef725bcbe2b818ab62bb186ad485961e
+    registry: registry.redhat.io
+    repository: oadp/oadp-hypershift-velero-plugin-rhel9
   server:
-    digest: sha256:a23111a98c9a7e99ce7a36e2a9288614dcfe13cd5ec9ac2bcf52c849772b160a
-    registry: quay.io
-    repository: konveyor/velero
+    digest: sha256:8ee2114096549e96bce5974584d14018c85e69bb8748588a89b960fdf502f64b
+    registry: registry.redhat.io
+    repository: oadp/oadp-velero-rhel9

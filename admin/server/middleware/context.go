@@ -17,6 +17,8 @@ package middleware
 import (
 	"context"
 	"fmt"
+
+	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 // contextKey is an unexported type used to embed content in the request context, so users must acquire the value with our getters.
@@ -40,7 +42,8 @@ const (
 	contextKeyOriginalUrlPathValue = contextKey("url_path.original_value")
 	contextKeyUrlPathValue         = contextKey("url_path.value")
 	contextKeyHCPResourceID        = contextKey("hcp_resource_id")
-	contextKeyClientPrincipalName  = contextKey("client_principal_name")
+	contextKeyClientPrincipalRef   = contextKey("client_principal_reference")
+	contextKeyPattern              = contextKey("pattern")
 )
 
 func ContextWithOriginalUrlPathValue(ctx context.Context, originalUrlPathValue string) context.Context {
@@ -75,14 +78,36 @@ func UrlPathValueFromContext(ctx context.Context) (string, error) {
 	return urlPathValue, nil
 }
 
-func ContextWithClientPrincipalName(ctx context.Context, clientPrincipalName string) context.Context {
-	return context.WithValue(ctx, contextKeyClientPrincipalName, clientPrincipalName)
+type PrincipalType string
+
+const (
+	PrincipalTypeDSTSUser            PrincipalType = "dstsUser"
+	PrincipalTypeAADServicePrincipal PrincipalType = "aadServicePrincipal"
+)
+
+type ClientPrincipalReference struct {
+	Name string
+	Type PrincipalType
 }
 
-func ClientPrincipalNameFromContext(ctx context.Context) (string, error) {
-	clientPrincipalName, ok := ctx.Value(contextKeyClientPrincipalName).(string)
+func ContextWithClientPrincipal(ctx context.Context, clientPrincipalReference ClientPrincipalReference) context.Context {
+	ctx = utils.ContextWithLogger(ctx, utils.LoggerFromContext(ctx).WithValues("clientPrincipalName", clientPrincipalReference.Name))
+	return context.WithValue(ctx, contextKeyClientPrincipalRef, clientPrincipalReference)
+}
+
+func ClientPrincipalFromContext(ctx context.Context) (ClientPrincipalReference, error) {
+	clientPrincipalReference, ok := ctx.Value(contextKeyClientPrincipalRef).(ClientPrincipalReference)
 	if !ok {
-		return "", fmt.Errorf("client principal name not found in context")
+		return ClientPrincipalReference{}, fmt.Errorf("client principal reference not found in context")
 	}
-	return clientPrincipalName, nil
+	return clientPrincipalReference, nil
+}
+
+func ContextWithPattern(ctx context.Context, pattern *string) context.Context {
+	return context.WithValue(ctx, contextKeyPattern, pattern)
+}
+
+func PatternFromContext(ctx context.Context) *string {
+	pattern, _ := ctx.Value(contextKeyPattern).(*string)
+	return pattern
 }

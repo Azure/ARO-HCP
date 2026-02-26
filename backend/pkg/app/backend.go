@@ -23,6 +23,9 @@ import (
 	"sync/atomic"
 	"time"
 
+	// load all the prometheus client-go metrics
+	_ "k8s.io/component-base/metrics/prometheus/clientgo"
+
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -33,6 +36,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/oldoperationscanner"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/clusterpropertiescontroller"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/mismatchcontrollers"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/operationcontrollers"
@@ -238,13 +242,12 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 
 	_, subscriptionLister := backendInformers.Subscriptions()
 	activeOperationInformer, activeOperationLister := backendInformers.ActiveOperations()
-	clusterInformer, _ := backendInformers.Clusters()
 
 	startedLeading := atomic.Bool{}
 	operationsScanner := oldoperationscanner.NewOperationsScanner(
 		b.options.CosmosDBClient, b.options.ClustersServiceClient, b.options.AzureLocation, subscriptionLister)
 	dataDumpController := controllerutils.NewClusterWatchingController(
-		"DataDump", b.options.CosmosDBClient, clusterInformer, 1*time.Minute, controllers.NewDataDumpController(activeOperationLister, b.options.CosmosDBClient))
+		"DataDump", b.options.CosmosDBClient, backendInformers, 1*time.Minute, controllers.NewDataDumpController(activeOperationLister, b.options.CosmosDBClient))
 	doNothingController := controllers.NewDoNothingExampleController(b.options.CosmosDBClient, subscriptionLister)
 	operationClusterCreateController := operationcontrollers.NewGenericOperationController(
 		"OperationClusterCreate",
@@ -304,26 +307,38 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 	)
 	clusterServiceMatchingClusterController := mismatchcontrollers.NewClusterServiceClusterMatchingController(b.options.CosmosDBClient, subscriptionLister, b.options.ClustersServiceClient)
 	cosmosMatchingNodePoolController := controllerutils.NewClusterWatchingController(
-		"CosmosMatchingNodePools", b.options.CosmosDBClient, clusterInformer, 60*time.Minute,
+		"CosmosMatchingNodePools", b.options.CosmosDBClient, backendInformers, 60*time.Minute,
 		mismatchcontrollers.NewCosmosNodePoolMatchingController(b.options.CosmosDBClient, b.options.ClustersServiceClient))
 	cosmosMatchingExternalAuthController := controllerutils.NewClusterWatchingController(
-		"CosmosMatchingExternalAuths", b.options.CosmosDBClient, clusterInformer, 60*time.Minute,
+		"CosmosMatchingExternalAuths", b.options.CosmosDBClient, backendInformers, 60*time.Minute,
 		mismatchcontrollers.NewCosmosExternalAuthMatchingController(b.options.CosmosDBClient, b.options.ClustersServiceClient))
 	cosmosMatchingClusterController := controllerutils.NewClusterWatchingController(
-		"CosmosMatchingClusters", b.options.CosmosDBClient, clusterInformer, 60*time.Minute,
+		"CosmosMatchingClusters", b.options.CosmosDBClient, backendInformers, 60*time.Minute,
 		mismatchcontrollers.NewCosmosClusterMatchingController(utilsclock.RealClock{}, b.options.CosmosDBClient, b.options.ClustersServiceClient))
 	alwaysSuccessClusterValidationController := validationcontrollers.NewClusterValidationController(
 		validations.NewAlwaysSuccessValidation(),
 		activeOperationLister,
 		b.options.CosmosDBClient,
-		clusterInformer,
+		backendInformers,
 	)
 	deleteOrphanedCosmosResourcesController := mismatchcontrollers.NewDeleteOrphanedCosmosResourcesController(b.options.CosmosDBClient, subscriptionLister)
+	controlPlaneVersionController := upgradecontrollers.NewControlPlaneVersionController(
+		b.options.CosmosDBClient,
+		b.options.ClustersServiceClient,
+		activeOperationLister,
+		backendInformers,
+	)
 	triggerControlPlaneUpgradeController := upgradecontrollers.NewTriggerControlPlaneUpgradeController(
 		b.options.CosmosDBClient,
 		b.options.ClustersServiceClient,
 		activeOperationLister,
-		clusterInformer,
+		backendInformers,
+	)
+	clusterPropertiesSyncController := clusterpropertiescontroller.NewClusterPropertiesSyncController(
+		b.options.CosmosDBClient,
+		b.options.ClustersServiceClient,
+		activeOperationLister,
+		backendInformers,
 	)
 
 	le, err := leaderelection.NewLeaderElector(leaderelection.LeaderElectionConfig{
@@ -353,7 +368,9 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go cosmosMatchingClusterController.Run(ctx, 20)
 				go alwaysSuccessClusterValidationController.Run(ctx, 20)
 				go deleteOrphanedCosmosResourcesController.Run(ctx, 20)
+				go controlPlaneVersionController.Run(ctx, 20)
 				go triggerControlPlaneUpgradeController.Run(ctx, 20)
+				go clusterPropertiesSyncController.Run(ctx, 20)
 			},
 			OnStoppedLeading: func() {
 				operationsScanner.LeaderGauge.Set(0)

@@ -27,6 +27,10 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/cobra"
 
+	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
+	"k8s.io/utils/set"
+
 	"github.com/Azure/azure-kusto-go/kusto"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
@@ -39,37 +43,51 @@ import (
 	"github.com/Azure/ARO-HCP/internal/fpa"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
+	clientset "github.com/Azure/ARO-HCP/sessiongate/pkg/generated/clientset/versioned"
+	sessiongatev1alpha1 "github.com/Azure/ARO-HCP/sessiongate/pkg/generated/clientset/versioned/typed/sessiongate/v1alpha1"
+	informers "github.com/Azure/ARO-HCP/sessiongate/pkg/generated/informers/externalversions"
+	sessiongatelisterv1alpha1 "github.com/Azure/ARO-HCP/sessiongate/pkg/generated/listers/sessiongate/v1alpha1"
 )
 
 func DefaultOptions() *RawOptions {
 	return &RawOptions{
-		Port:               8443,
-		MetricsPort:        8444,
-		AuditLogQueueSize:  2048,
-		ClustersServiceURL: os.Getenv("CLUSTERS_SERVICE_URL"),
-		CosmosURL:          os.Getenv("COSMOS_URL"),
-		CosmosName:         os.Getenv("COSMOS_NAME"),
-		KustoEndpoint:      os.Getenv("KUSTO_ENDPOINT"),
-		FpaCertBundlePath:  os.Getenv("FPA_CERT_BUNDLE_PATH"),
-		FpaClientID:        os.Getenv("FPA_CLIENT_ID"),
-		AuditConnectSocket: os.Getenv("AUDIT_CONNECT_SOCKET") == "true",
+		Port:                    8443,
+		MetricsPort:             8444,
+		AuditLogQueueSize:       2048,
+		ClustersServiceURL:      os.Getenv("CLUSTERS_SERVICE_URL"),
+		CosmosURL:               os.Getenv("COSMOS_URL"),
+		CosmosName:              os.Getenv("COSMOS_NAME"),
+		KustoEndpoint:           os.Getenv("KUSTO_ENDPOINT"),
+		FpaCertBundlePath:       os.Getenv("FPA_CERT_BUNDLE_PATH"),
+		FpaClientID:             os.Getenv("FPA_CLIENT_ID"),
+		AuditConnectSocket:      os.Getenv("AUDIT_CONNECT_SOCKET") == "true",
+		Kubeconfig:              os.Getenv("KUBECONFIG"),
+		SessiongateNamespace:    os.Getenv("SESSIONGATE_NAMESPACE"),
+		MinSessionTTL:           getEnvDuration("MIN_SESSION_TTL", 10*time.Minute),
+		MaxSessionTTL:           getEnvDuration("MAX_SESSION_TTL", 24*time.Hour),
+		AllowedBreakglassGroups: []string{"aro-sre-pso", "aro-sre-csa"},
 	}
 }
 
 // RawOptions holds input values.
 type RawOptions struct {
-	LogVerbosity       int
-	Port               int
-	MetricsPort        int
-	Location           string
-	ClustersServiceURL string
-	CosmosURL          string
-	CosmosName         string
-	KustoEndpoint      string
-	FpaCertBundlePath  string
-	FpaClientID        string
-	AuditLogQueueSize  int
-	AuditConnectSocket bool
+	LogVerbosity            int
+	Port                    int
+	MetricsPort             int
+	Location                string
+	ClustersServiceURL      string
+	CosmosURL               string
+	CosmosName              string
+	KustoEndpoint           string
+	FpaCertBundlePath       string
+	FpaClientID             string
+	AuditLogQueueSize       int
+	AuditConnectSocket      bool
+	Kubeconfig              string
+	SessiongateNamespace    string
+	MinSessionTTL           time.Duration
+	MaxSessionTTL           time.Duration
+	AllowedBreakglassGroups []string
 }
 
 func (opts *RawOptions) BindOptions(cmd *cobra.Command) error {
@@ -84,7 +102,21 @@ func (opts *RawOptions) BindOptions(cmd *cobra.Command) error {
 	cmd.Flags().StringVar(&opts.FpaCertBundlePath, "fpa-cert-bundle-path", opts.FpaCertBundlePath, "Path to the FPA certificate bundle.")
 	cmd.Flags().IntVar(&opts.AuditLogQueueSize, "audit-log-queue-size", opts.AuditLogQueueSize, "Log queue size for audit logging client.")
 	cmd.Flags().BoolVar(&opts.AuditConnectSocket, "audit-connect-socket", opts.AuditConnectSocket, "Connect to mdsd audit socket.")
+	cmd.Flags().StringVar(&opts.Kubeconfig, "kubeconfig", opts.Kubeconfig, "Path to kubeconfig file.")
+	cmd.Flags().StringVar(&opts.SessiongateNamespace, "sessiongate-namespace", opts.SessiongateNamespace, "Namespace for Sessiongate CRs.")
+	cmd.Flags().DurationVar(&opts.MinSessionTTL, "min-session-ttl", opts.MinSessionTTL, "Minimum breakglass session TTL.")
+	cmd.Flags().DurationVar(&opts.MaxSessionTTL, "max-session-ttl", opts.MaxSessionTTL, "Maximum breakglass session TTL.")
+	cmd.Flags().StringSliceVar(&opts.AllowedBreakglassGroups, "allowed-breakglass-groups", opts.AllowedBreakglassGroups, "Allowed breakglass groups.")
 	return nil
+}
+
+func getEnvDuration(key string, defaultDuration time.Duration) time.Duration {
+	if value := os.Getenv(key); value != "" {
+		if duration, err := time.ParseDuration(value); err == nil {
+			return duration
+		}
+	}
+	return defaultDuration
 }
 
 // validatedOptions is a private wrapper that enforces a call of Validate() before Complete() can be invoked.
@@ -99,14 +131,19 @@ type ValidatedOptions struct {
 
 // completedOptions is a private wrapper that enforces a call of Complete() before config generation can be invoked.
 type completedOptions struct {
-	Port                   int
-	MetricsPort            int
-	Location               string
-	DBClient               database.DBClient
-	ClusterServiceClient   ocm.ClusterServiceClientSpec
-	KustoClient            *kusto.Client
-	FpaCredentialRetriever fpa.FirstPartyApplicationTokenCredentialRetriever
-	AuditClient            audit.Client
+	Port                    int
+	MetricsPort             int
+	Location                string
+	DBClient                database.DBClient
+	ClusterServiceClient    ocm.ClusterServiceClientSpec
+	KustoClient             *kusto.Client
+	FpaCredentialRetriever  fpa.FirstPartyApplicationTokenCredentialRetriever
+	AuditClient             audit.Client
+	SessionClient           sessiongatev1alpha1.SessionInterface
+	SessionLister           sessiongatelisterv1alpha1.SessionNamespaceLister
+	MinSessionTTL           time.Duration
+	MaxSessionTTL           time.Duration
+	AllowedBreakglassGroups set.Set[string]
 }
 
 type Options struct {
@@ -126,6 +163,15 @@ func (o *RawOptions) Validate() (*ValidatedOptions, error) {
 	}
 	if o.CosmosName == "" {
 		return nil, fmt.Errorf("cosmos-name is required")
+	}
+	if o.SessiongateNamespace == "" {
+		return nil, fmt.Errorf("sessiongate-namespace is required")
+	}
+	if o.MinSessionTTL < 1*time.Minute {
+		return nil, fmt.Errorf("min-session-ttl must be at least 1 minute")
+	}
+	if o.MaxSessionTTL < o.MinSessionTTL {
+		return nil, fmt.Errorf("max-session-ttl must be greater than min-session-ttl")
 	}
 	return &ValidatedOptions{
 		validatedOptions: &validatedOptions{
@@ -180,7 +226,6 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to create certificate reader: %w", err)
 	}
-
 	fpaCredentialRetriever, err := fpa.NewFirstPartyApplicationTokenCredentialRetriever(o.FpaClientID, certReader, azcore.ClientOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create the FPA token credentials: %w", err)
@@ -199,18 +244,62 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 		return nil, fmt.Errorf("failed to create audit client: %w", err)
 	}
 
+	// Sessiongate client and informer
+	kubeConfig, err := o.buildKubeConfig()
+	if err != nil {
+		return nil, fmt.Errorf("failed to build kubeconfig: %w", err)
+	}
+	sessiongateClientset, err := clientset.NewForConfig(kubeConfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create sessiongate clientset: %w", err)
+	}
+	sessiongateInformers := informers.NewSharedInformerFactoryWithOptions(
+		sessiongateClientset,
+		time.Second*300,
+		informers.WithNamespace(o.SessiongateNamespace),
+	)
+	sessionLister := sessiongateInformers.Sessiongate().V1alpha1().Sessions().Lister().Sessions(o.SessiongateNamespace)
+	sessiongateInformers.Start(ctx.Done())
+	sessiongateInformers.WaitForCacheSync(ctx.Done())
+
+	sessionClient := sessiongateClientset.SessiongateV1alpha1().Sessions(o.SessiongateNamespace)
+
 	return &Options{
 		completedOptions: &completedOptions{
-			Port:                   o.Port,
-			MetricsPort:            o.MetricsPort,
-			Location:               o.Location,
-			DBClient:               dbClient,
-			ClusterServiceClient:   csClient,
-			KustoClient:            kustoClient,
-			FpaCredentialRetriever: fpaCredentialRetriever,
-			AuditClient:            auditClient,
+			Port:                    o.Port,
+			MetricsPort:             o.MetricsPort,
+			Location:                o.Location,
+			DBClient:                dbClient,
+			ClusterServiceClient:    csClient,
+			KustoClient:             kustoClient,
+			FpaCredentialRetriever:  fpaCredentialRetriever,
+			AuditClient:             auditClient,
+			SessionClient:           sessionClient,
+			SessionLister:           sessionLister,
+			MinSessionTTL:           o.MinSessionTTL,
+			MaxSessionTTL:           o.MaxSessionTTL,
+			AllowedBreakglassGroups: set.New[string](o.AllowedBreakglassGroups...),
 		},
 	}, nil
+}
+
+func (o *ValidatedOptions) buildKubeConfig() (*rest.Config, error) {
+	loadingRules := clientcmd.NewDefaultClientConfigLoadingRules()
+	if o.Kubeconfig != "" {
+		loadingRules.ExplicitPath = o.Kubeconfig
+	}
+	kubeConfig := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(loadingRules, &clientcmd.ConfigOverrides{})
+	config, err := kubeConfig.ClientConfig()
+	if err == nil {
+		return config, nil
+	}
+
+	config, err = rest.InClusterConfig()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create in-cluster kubeconfig: %w", err)
+	}
+
+	return config, nil
 }
 
 func (opts *Options) Run(ctx context.Context) error {
@@ -238,6 +327,11 @@ func (opts *Options) Run(ctx context.Context) error {
 		opts.KustoClient,
 		opts.FpaCredentialRetriever,
 		opts.AuditClient,
+		opts.SessionClient,
+		opts.SessionLister,
+		opts.MinSessionTTL,
+		opts.MaxSessionTTL,
+		opts.AllowedBreakglassGroups,
 	)
 
 	runErrCh := make(chan error, 1)

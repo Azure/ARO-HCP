@@ -226,6 +226,50 @@ images:
     targets:
     - jsonPath: defaults.adminApi.image.digest
       filePath: ../../config/config.yaml
+  sessiongate:
+    source:
+      image: arohcpsvcdev.azurecr.io/arohcpsessiongate
+      useAuth: true
+    targets:
+    - jsonPath: defaults.sessiongate.image.digest
+      filePath: ../../config/config.yaml
+  # Velero images
+  velero-server:
+    source:
+      image: registry.redhat.io/oadp/oadp-velero-rhel9
+      tag: "v1.4"
+      multiArch: true
+      useAuth: true
+      keyVault:
+        url: "https://arohcpdev-global.vault.azure.net/"
+        secretName: "component-sync-pull-secret"
+    targets:
+    - jsonPath: defaults.velero.server.digest
+      filePath: ../../config/config.yaml
+  velero-azure-plugin:
+    source:
+      image: registry.redhat.io/oadp/oadp-velero-plugin-for-microsoft-azure-rhel9
+      tag: "v1.4"
+      multiArch: true
+      useAuth: true
+      keyVault:
+        url: "https://arohcpdev-global.vault.azure.net/"
+        secretName: "component-sync-pull-secret"
+    targets:
+    - jsonPath: defaults.velero.azurePlugin.digest
+      filePath: ../../config/config.yaml
+  velero-hypershift-plugin:
+    source:
+      image: registry.redhat.io/oadp/oadp-hypershift-velero-plugin-rhel9
+      tag: "v1.5"
+      multiArch: true
+      useAuth: true
+      keyVault:
+        url: "https://arohcpdev-global.vault.azure.net/"
+        secretName: "component-sync-pull-secret"
+    targets:
+    - jsonPath: defaults.velero.hypershiftPlugin.digest
+      filePath: ../../config/config.yaml
   # Kube Webhook Certgen (Ingress NGINX)
   kube-webhook-certgen:
     source:

@@ -1,0 +1,702 @@
+---
+# Source: sessiongate/templates/serviceaccount.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  labels:
+    app.kubernetes.io/name: sessiongate
+  annotations:
+    azure.workload.identity/client-id: '__sessiongateMsiClientId__'
+    azure.workload.identity/tenant-id: '__tenantId__'
+  name: sessiongate
+  namespace: sessiongate
+---
+# Source: sessiongate/templates/sessiongate.aro-hcp.azure.com_sessions.yaml
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: sessions.sessiongate.aro-hcp.azure.com
+spec:
+  group: sessiongate.aro-hcp.azure.com
+  names:
+    kind: Session
+    listKind: SessionList
+    plural: sessions
+    singular: session
+  scope: Namespaced
+  versions:
+  - name: v1alpha1
+    additionalPrinterColumns:
+    - name: Endpoint
+      type: string
+      jsonPath: .status.endpoint
+    - name: Expires
+      type: string
+      format: date-time
+      jsonPath: .status.expiresAt
+    schema:
+      openAPIV3Schema:
+        description: |-
+          Session represents a time-limited, authenticated SRE access session to a Hypershift Hosted Control Plane (HCP).
+          Sessions are created to grant temporary access to an HCP's Kubernetes API server for debugging,
+          administrative operations, or support purposes. Each session is bound to a specific owner
+          (identified by JWT claims), targets a specific HCP on a management cluster, and expires
+          after the configured TTL. The controller provisions the necessary resources (credentials,
+          authorization policies, and proxy endpoint) to enable secure access.
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: |-
+              spec defines the desired state of the Session, including the target HCP,
+              access permissions, TTL, and owner identity. This field is immutable after creation
+              to prevent privilege escalation or session hijacking.
+            properties:
+              accessLevel:
+                description: |-
+                  accessLevel defines the RBAC permissions granted to the session owner when accessing
+                  the target HCP. This determines what operations the session owner can perform.
+                properties:
+                  group:
+                    description: |-
+                      group is the name of the Kubernetes Group (rbac.authorization.k8s.io) whose permissions
+                      the session owner will inherit when accessing the HCP.
+                    type: string
+                required:
+                - group
+                type: object
+              hostedControlPlane:
+                description: |-
+                  hostedControlPlane identifies the Hypershift Hosted Control Plane that this session
+                  provides access to.
+                properties:
+                  resourceId:
+                    description: |-
+                      resourceId is the fully-qualified Azure Resource Manager (ARM) resource ID of the hosted
+                      cluster resource. This ID uniquely identifies the ARO-HCP cluster within the Azure subscription.
+                    type: string
+                    pattern: '^/subscriptions/[a-fA-F0-9-]+/resourceGroups/[^/]+/providers/[Mm]icrosoft\.[Rr]ed[Hh]at[Oo]penshift/[Hh]cp[Oo]pen[Ss]hift[Cc]lusters/[^/]+$'
+                  namespace:
+                    description: |-
+                      namespace is the Kubernetes namespace on the management cluster where the HostedControlPlane
+                      custom resource is located.
+                    type: string
+                required:
+                - resourceId
+                - namespace
+                type: object
+              managementCluster:
+                description: |-
+                  managementCluster identifies the AKS management cluster where the target HCP is running.
+                  The controller uses this to locate and communicate with the correct management cluster
+                  when provisioning session resources.
+                properties:
+                  resourceId:
+                    description: |-
+                      resourceId is the fully-qualified Azure Resource Manager (ARM) resource ID of the management
+                      cluster. This ID uniquely identifies the AKS cluster within the Azure subscription.
+                    type: string
+                    pattern: '^/subscriptions/[a-fA-F0-9-]+/resourceGroups/[^/]+/providers/[Mm]icrosoft\.[Cc]ontainer[Ss]ervice/[Mm]anaged[Cc]lusters/[^/]+$'
+                required:
+                - resourceId
+                type: object
+              ttl:
+                description: |-
+                  ttl is the time-to-live duration for the session. The session will automatically
+                  expire after this duration from its creation time. The expiration timestamp is
+                  recorded in status.expiresAt. Once expired, the session's provisioned resources
+                  (credentials, authorization policies) are cleaned up by the controller.
+                type: string
+                x-kubernetes-validations:
+                - rule: "duration(self) > duration('0s')"
+                  message: "spec.ttl must be a positive duration"
+              owner:
+                description: |-
+                  owner identifies the Azure identity that is authorized to use this session.
+                properties:
+                  type:
+                    description: |-
+                      type specifies the type of Azure identity that owns this session.
+                    type: string
+                    enum:
+                    - azureUser
+                    - azureServicePrincipal
+                  name:
+                    description: |-
+                      name is the identifier of the Azure identity that owns this session, e.g.
+                      for azureUser: the user's email address or UPN (e.g., "alice@example.com")
+                      for azureServicePrincipal: the service principal's client ID / application ID
+                    type: string
+                required:
+                - type
+                - name
+                type: object
+            required:
+            - accessLevel
+            - hostedControlPlane
+            - managementCluster
+            - owner
+            - ttl
+            type: object
+            x-kubernetes-validations:
+            - rule: "self == oldSelf"
+              message: "spec is immutable"
+          status:
+            description: |-
+              status contains the observed state of the Session, including provisioned resources,
+              the session endpoint URL, expiration time, and condition status.
+            properties:
+              conditions:
+                description: |-
+                  conditions represent the current state of the session. Known condition types are:
+                  - "Ready": True when the session is fully provisioned and accessible
+                  - "CredentialsAvailable": True when session credentials have been created
+                  - "NetworkPathAvailable": True when the network path to the HCP is established
+                  The status of each condition is one of True, False, or Unknown.
+                items:
+                  description: Condition contains details for one aspect of the current state of this API Resource.
+                  properties:
+                    lastTransitionTime:
+                      description: |-
+                        lastTransitionTime is the last time the condition transitioned from one status to another.
+                        This should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.
+                      format: date-time
+                      type: string
+                    message:
+                      description: |-
+                        message is a human readable message indicating details about the transition.
+                        This may be an empty string.
+                      maxLength: 32768
+                      type: string
+                    observedGeneration:
+                      description: |-
+                        observedGeneration represents the .metadata.generation that the condition was set based upon.
+                        For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date
+                        with respect to the current state of the instance.
+                      format: int64
+                      minimum: 0
+                      type: integer
+                    reason:
+                      description: |-
+                        reason contains a programmatic identifier indicating the reason for the condition's last transition.
+                        Producers of specific condition types may define expected values and meanings for this field,
+                        and whether the values are considered a guaranteed API.
+                        The value should be a CamelCase string.
+                        This field may not be empty.
+                      maxLength: 1024
+                      minLength: 1
+                      pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
+                      type: string
+                    status:
+                      description: status of the condition, one of True, False, Unknown.
+                      enum:
+                      - "True"
+                      - "False"
+                      - Unknown
+                      type: string
+                    type:
+                      description: type of condition in CamelCase or in foo.example.com/CamelCase.
+                      maxLength: 316
+                      pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - message
+                  - reason
+                  - status
+                  - type
+                  type: object
+                type: array
+                x-kubernetes-list-map-keys:
+                - type
+                x-kubernetes-list-type: map
+              endpoint:
+                description: |-
+                  endpoint is the URL that the session owner uses to access the HCP's Kubernetes
+                  API server. This endpoint acts as an authenticated proxy, forwarding requests to the
+                  target HCP's KAS after validating the session owner's identity.
+                type: string
+              expiresAt:
+                description: |-
+                  expiresAt is the timestamp when the session will expire and become invalid.
+                  This is calculated as the session's creation timestamp plus the TTL specified in spec.ttl.
+                  After this time, the controller will clean up session resources.
+                  This field is immutable once set.
+                format: date-time
+                type: string
+              credentialsSecretRef:
+                description: |-
+                  credentialsSecretRef is a reference to the Kubernetes Secret containing the session's
+                  authentication credentials. Format: "namespace/name".
+                type: string
+              backendKASURL:
+                description: |-
+                  backendKASURL is the internal URL used by the session proxy to communicate with the
+                  target HCP's Kubernetes API server. For public HCPs, this is the HCP's public KAS
+                  endpoint. For private HCPs, this may be a local port-forward endpoint.
+                type: string
+            type: object
+            x-kubernetes-validations:
+            - rule: "!has(oldSelf.expiresAt) || (has(self.expiresAt) && self.expiresAt == oldSelf.expiresAt)"
+              message: "expiresAt is immutable once set"
+        required:
+        - spec
+        type: object
+        x-kubernetes-validations:
+        - rule: "self.metadata.name.size() <= 63"
+          message: "session name must be 63 characters or less"
+        - rule: "self.metadata.name.matches('^[a-z0-9]([-a-z0-9]*[a-z0-9])?$')"
+          message: "session name must be a valid DNS label (lowercase alphanumeric with hyphens)"
+    served: true
+    storage: true
+    subresources:
+      status: {}
+---
+# Source: sessiongate/templates/sessionmgmt.clusterrole.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: sessiongate-session-management
+rules:
+- apiGroups:
+  - sessiongate.aro-hcp.azure.com
+  resources:
+  - sessions
+  verbs:
+  - create
+  - get
+  - list
+  - watch
+- apiGroups:
+  - sessiongate.aro-hcp.azure.com
+  resources:
+  - sessions/status
+  verbs:
+  - get
+  - list
+  - watch
+---
+# Source: sessiongate/templates/controller_role.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  labels:
+    app.kubernetes.io/name: sessiongate
+  name: sessiongate-controller
+  namespace: sessiongate
+rules:
+- apiGroups:
+  - sessiongate.aro-hcp.azure.com
+  resources:
+  - sessions
+  verbs:
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - sessiongate.aro-hcp.azure.com
+  resources:
+  - sessions/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - sessiongate.aro-hcp.azure.com
+  resources:
+  - sessions/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - ""
+  - events.k8s.io
+  resources:
+  - events
+  verbs:
+  - create
+  - patch
+  - update
+- apiGroups:
+  - ""
+  resources:
+  - secrets
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - security.istio.io
+  resources:
+  - authorizationpolicies
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+---
+# Source: sessiongate/templates/leader_election_role.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  labels:
+    app.kubernetes.io/name: sessiongate
+  name: sessiongate-controller-leader-election
+  namespace: sessiongate
+rules:
+- apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - create
+  - patch
+---
+# Source: sessiongate/templates/controller_role_binding.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  labels:
+    app.kubernetes.io/name: sessiongate
+  name: sessiongate-controller-binding
+  namespace: "sessiongate"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: sessiongate-controller
+subjects:
+- kind: ServiceAccount
+  name: sessiongate
+  namespace: sessiongate
+---
+# Source: sessiongate/templates/leader_election_role_binding.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  labels:
+    app.kubernetes.io/name: sessiongate
+  name: sessiongate-controller-leader-election-binding
+  namespace: sessiongate
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: sessiongate-controller-leader-election
+subjects:
+- kind: ServiceAccount
+  name: sessiongate
+  namespace: sessiongate
+---
+# Source: sessiongate/templates/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: sessiongate
+  namespace: 'sessiongate'
+  labels:
+    app.kubernetes.io/name: "sessiongate"
+spec:
+  selector:
+    app.kubernetes.io/name: sessiongate
+  ports:
+  - port: 8080
+    targetPort: 8080
+    protocol: TCP
+---
+# Source: sessiongate/templates/deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sessiongate
+  namespace: sessiongate
+  labels:
+    app.kubernetes.io/name: sessiongate
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: sessiongate
+  replicas: 2
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: sessiongate
+        azure.workload.identity/use: "true"
+    spec:
+      securityContext:
+        runAsNonRoot: true
+      containers:
+      - command:
+        - "/sessiongate"
+        args:
+        - controller
+        - "--bind-address=:8080"
+        - "--ingress-base-url=https://sessiongate.westus3.hcpsvc.osadev.cloud"
+        - "-v=2"
+        - "--leader-election-lease-duration=15s"
+        - "--leader-election-renew-deadline=10s"
+        - "--leader-election-retry-period=2s"
+        image: "arohcpsvcdev.azurecr.io/arohcpsessiongate@sha256:1234567890"
+        name: sessiongate-controller
+        env:
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        ports:
+        - containerPort: 8080
+          protocol: TCP
+          name: sessions
+        securityContext:
+          runAsNonRoot: true
+          seccompProfile:
+            type: RuntimeDefault
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - "ALL"
+          readOnlyRootFilesystem: true
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8080
+          initialDelaySeconds: 15
+          periodSeconds: 20
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        resources:
+          requests:
+            cpu: 500m
+            memory: 1Gi
+        volumeMounts: []
+      volumes: []
+      serviceAccountName: sessiongate
+      terminationGracePeriodSeconds: 10
+      nodeSelector:
+---
+# Source: sessiongate/templates/ingress.secret-refresher.yaml
+################################
+#
+# This keeps the certificate secret fresh because the secret is mounted from the keyVault (via the SecretProviderClass) and
+# if the certificate changes in the keyvault this will trigger a refresh of the kubernetes secret.
+#
+# Note: the istio plugin doesn't support using the SecretProviderClass directly. When it does this can be removed.
+#
+################################
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sessiongate-certificate-refresher
+  namespace: aks-istio-ingress
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: sessiongate-certificate-refresher
+  template:
+    metadata:
+      labels:
+        app: sessiongate-certificate-refresher
+    spec:
+      containers:
+      - command:
+        - "/bin/sleep"
+        - "infinity"
+        image: mcr.microsoft.com/cbl-mariner/busybox:1.35
+        name: init-container-msg-container-init
+        volumeMounts:
+        - name: secrets-store01-inline
+          mountPath: "/mnt/secrets-store"
+          readOnly: true
+      volumes:
+      - name: secrets-store01-inline
+        csi:
+          driver: secrets-store.csi.k8s.io
+          readOnly: true
+          volumeAttributes:
+            secretProviderClass: "sessiongate-scp"
+---
+# Source: sessiongate/templates/acrpullbinding.yaml
+apiVersion: acrpull.microsoft.com/v1beta2
+kind: AcrPullBinding
+metadata:
+  name: pull-binding
+  namespace: "sessiongate"
+spec:
+  acr:
+    environment: PublicCloud
+    server: 'arohcpsvcdev.azurecr.io'
+    scope: 'repository:arohcpsessiongate:pull'
+  auth:
+    workloadIdentity:
+      serviceAccountRef: 'sessiongate'
+      clientID: '__imagePullerMsiClientId__'
+      tenantID: '__tenantId__'
+  serviceAccountName: 'sessiongate'
+---
+# Source: sessiongate/templates/allow-ingress.authorizationpolicy.yaml
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-istio-ingress
+  namespace: 'sessiongate'
+spec:
+  action: ALLOW
+  rules:
+  - from:
+    - source:
+        namespaces: ["aks-istio-ingress"]
+    to:
+    - operation:
+        methods: ["GET", "PUT", "POST", "PATCH", "DELETE"]
+        ports:
+        - "8080"
+---
+# Source: sessiongate/templates/allow-metrics.authorizationpolicy.yaml
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-metrics-ssessiongate
+  namespace: 'sessiongate'
+spec:
+  action: "ALLOW"
+  rules:
+  - to:
+    - operation:
+        paths: ["/metrics"]
+        methods: ["GET"]
+        ports: ["8080"]
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: "sessiongate"
+---
+# Source: sessiongate/templates/allow-nothing.authorizationpolicy.yaml
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-nothing
+  namespace: 'sessiongate'
+spec: {}
+---
+# Source: sessiongate/templates/sessiongate.httproute.yaml
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: sessiongate
+  namespace: sessiongate
+spec:
+  parentRefs:
+  - name: ops-ingress-gateway
+    namespace: aks-istio-ingress
+    sectionName: sessiongate-https
+  hostnames:
+  - "sessiongate.westus3.hcpsvc.osadev.cloud"
+  rules:
+  - matches:
+    - path:
+        type: PathPrefix
+        value: /
+    filters:
+    - type: RequestHeaderModifier
+      requestHeaderModifier:
+        add:
+        - name: mise-inbound-policies-to-filter
+          value: "Session Gate"
+    backendRefs:
+    - name: sessiongate
+      port: 8080
+---
+# Source: sessiongate/templates/requestauthentication.yaml
+apiVersion: security.istio.io/v1beta1
+kind: RequestAuthentication
+metadata:
+  name: sessiongate-request-auth
+  namespace: 'sessiongate'
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: sessiongate
+  jwtRules:
+  - issuer: "https://sts.windows.net/64dc69e4-d083-49fc-9569-ebece1dd1408/"
+    jwksUri: "https://sts.windows.net/64dc69e4-d083-49fc-9569-ebece1dd1408/discovery/v2.0/keys"
+    audiences:
+    - "6dae42f8-4368-4678-94ff-3960e28e3630"
+    outputClaimToHeaders:
+    - header: "X-JWT-Claim-Oid"
+      claim: "oid"
+    - header: "X-JWT-Claim-Upn"
+      claim: "upn"
+---
+# Source: sessiongate/templates/ingress.secretproviderclass.yaml
+################################
+#
+# The addition of the secretObjects is to facilitate the istio plugin as it can't yet consume  the SecretProviderClass directly.
+# When it does this can be simplified and the secret.refresher removed.
+#
+################################
+apiVersion: secrets-store.csi.x-k8s.io/v1
+kind: SecretProviderClass
+metadata:
+  name: sessiongate-scp
+  namespace: aks-istio-ingress
+spec:
+  parameters:
+    usePodIdentity: "false"
+    useVMManagedIdentity: "true"
+    userAssignedIdentityID: '__csiSecretStoreClientId__'
+    keyvaultName: 'aro-hcp-dev-svc-kv'
+    objects: |-
+      array:
+        - |
+          objectName: 'sessiongate-cert-dev-usw3'
+          objectType: secret
+          objectAlias: sessiongate-cert
+    tenantId: '__tenantId__'
+  provider: azure
+  secretObjects:
+  - secretName: sessiongate-credential
+    type: kubernetes.io/tls
+    data:
+    - objectName: sessiongate-cert
+      key: tls.crt
+    - objectName: sessiongate-cert
+      key: tls.key
+
