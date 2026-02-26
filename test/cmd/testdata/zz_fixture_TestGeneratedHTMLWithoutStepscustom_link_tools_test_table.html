@@ -1,0 +1,90 @@
+<html>
+<head>
+  <title>Test specific logs</title>
+  <meta name="description" content="Contains links to test specific logs.">
+  <link rel="stylesheet" type="text/css" href="/static/style.css">
+  <link rel="stylesheet" type="text/css" href="/static/extensions/style.css">
+  <link href="https://fonts.googleapis.com/css?family=Roboto:400,700" rel="stylesheet">
+  <link rel="stylesheet" href="https://code.getmdl.io/1.3.0/material.indigo-pink.min.css">
+  <link rel="stylesheet" type="text/css" href="/static/spyglass/spyglass.css">
+  <style>
+    body {
+        background-color: #000;
+        color: #fff;
+    }
+    table {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 20px 0;
+    }
+    th, td {
+        padding: 12px 15px;
+        text-align: left;
+        border: 1px solid #333;
+    }
+    th {
+        background-color: #222;
+        font-weight: bold;
+    }
+    .status-success {
+        background-color: #1b5e20;
+    }
+    .status-failure {
+        background-color: #b71c1c;
+    }
+    .status-skipped {
+        background-color: #f57f17;
+        color: #000;
+    }
+    .status-pending {
+        background-color: #424242;
+    }
+    a {
+        display: inline-block;
+        padding: 4px 12px;
+        margin: 2px;
+        border: 1px solid #4E9AF1;
+        border-radius: 0.5em;
+        text-decoration: none;
+        color: #FFFFFF !important;
+        text-align: center;
+        transition: all 0.2s;
+        background-color: #4E9AF1;
+    }
+    a:hover {
+        border-color: #FFFFFF;
+    }
+  </style>
+</head>
+
+<body>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Testname</th>
+        <th>Status</th>
+        <th>ResourceGroupName</th>
+        <th>Links</th>
+      </tr>
+    </thead>
+    <tbody>
+      
+      <tr class="status-tbd">
+        <td>Customer should not be able to deploy cluster with invalid name</td>
+        <td>tbd</td>
+        <td>rg-cluster-name-validation-kplk68</td>
+        <td>
+          
+          <a target="_blank" href="https://dataexplorer.azure.com/clusters/hcp-dev-us-2.eastus2/databases/HostedControlPlaneLogs?query=H4sIAAAAAAAA%2F6SQMU%2FDMBBG9%2FyKU5c4EqnSUGiVqiwsDAxIdGKJrvYpNXXsyHdthdQfj1JQAh1Y2CzZ79N7diRQs2CUjW0J1mBQSGxLalIW5V0%2BK%2FPZYlPcVuW8KpZvk2yVXBDy5k9gXs2KqliMQCQOh6ipbmI4dLCGNDa5dgcWirnHlvIjOmtQbPD5vnP7%2B2X6hWprYA3KoOAWmVT6SvFoNT2HhtNsKrh1pNLvKf51mZzhtKNI0AuyYNvBluRE5EH9qJ5Oh6ARGYStgR3ydcHwjiU68qrXzOABiuQMxrJYry%2Fq2SoZzZ8CC5nH4CUG9%2BLQX0cEL2g9xf%2Fr91%2FKHWqq%2B1NfUKP%2FANUrJWfoYngnLePyDbjQJJ8BAAD%2F%2F27LXXYPAgAA" title="Hosted Control Plane Logs">Hosted Control Plane Logs</a>
+          
+          <a target="_blank" href="https://dataexplorer.azure.com/clusters/hcp-dev-us-2.eastus2/databases/ServiceLogs?query=H4sIAAAAAAAA%2F9RYXW%2FbNhe%2B9684ry5eS4uU2mm3dioMNHNXNECzZkmxAU09gyaPZS4SKZBUUvfjvw%2BkJEvyR%2BuuLtDlIhBEnnPI53nOh5yigak2RJlXPEMYASMGDc%2FQ904GJz9Gw5No%2BPDV4H588iAePHrtBY97zgQF%2B6TBg3g4iAcPGwOFWhaK4jRRsshhBH2VRDQttEEVCZJhdEtSzojhUkQ3eXrz06P%2B4969e%2FDrW6MINVDthdoRnD2FuZKZ%2FScMCgapTLQLVm1tYnIGI%2FB7AGCPS2ZEo9%2B%2FQnXLKb6Qie4Hx4bMUvT7tbPyrbP4AHcLVAj2ktqQLIcZmjtEAX4LuePjFShds%2FWLj9ax6OzOdAILoqFPFRLDRbKy71f78K27bPduWILkP%2FE27MC%2FPo1ek%2BjdIPr5TfTm%2BM29yVHghTAMwUhtFBeJn8okCKAKwLg2XFDTLLdi1XdLecYNDHvBVo5qasZXjhQotD0R5QzmHFPWIcmd30hNSUrUXhxVlrqzeFCqOHMkfIooroU0mOVmadE7pg00m%2Fitbehi94wLBiRN4ZygNkq2Ba5hLhWYBdc1XA66rNzZ1rfeV%2BBUCkO4QHU42Gz26pxQnNonh5xXHdHrijaVyZVRJd%2BN8jrOqi3WSaOQ7dI%2F6yi%2FX7%2Fm7HoUe5Mj%2F5pEcyf6yVHQd4IvnQe7iGwcb3DZLFW0%2FV6gWsIwhtOLM3hBlqjAIgoRPKvrEREMfiH0xj7rkgvdKwSXwnkv6bJ%2FVgXtIhbD6eVLeD6%2BaGqbjSJzVK4%2BtmSxEkuj0H9X5b5CB19e7UqLXMm%2F0eZJHS6ElTqdlEJbDh1rzioIN3Gr8e3CNuuivhW5OqH2hKxy%2BQ0R4wy4AH9L8wq%2BBrTeB5CKoYLZsnVMomlLxicxjKvSfU4ESTBDYWo9VysaKlycrp9LbZDVRtoQU%2BzU9oaDkqyX4%2FNVw8iaqIdT%2Be4%2B8Q2o29UvDif1LuRUCsYdTA13JQ2tJSAatL3SbLnBQtv11ULedexSfoNwekt4aqEM4SkmijBkIVwomSjUtqGHcIlUCspT7gi7KihFdLvQ0OP%2FIE1Vg6l6CrJR9TQlaeo%2F6b%2F3LFVe7LVGqslREJ2j1iRBL%2FTcePMHSQv04veeWeZ295VrdV7olT3P2f%2Fl2Sns48d%2BCGwpSMapfz0MTyZBayrLdBK0b5PdRvg2t9mXEUMXqJv2hwyMBBtPzv3KYbB5sVIgZZtuNeHK3fVgstsmK%2B%2B4zWw42cS8Hel%2FI%2FA8VzXWfLmFlqkusowo%2Fg6BqGSaceG38uWHwKq45Tdcc%2Fcl6QYj8GrdRXWX8Et%2Fdji2Y%2FgItFGUGL8T04vBW48cuMSFEcxIMs0JvfG9lk2zvfLQNd70tn%2Fdvh%2FDmZgroo0qqCkUwv%2FhpbKkmLKG1jW8mi1DeL7MUekFn5vQMXI6PofTBIXZVbzrqbSs2Zd1IZ4VgqWfbKzOPTe2BmlJObEarRNPtyOcCZoWDHXclPnyI0aKEIrcfl%2FqEBim6ALVcAHeojA6hOTyYgxUZlkhOC0Ps3fp2TIMH6jofHYohj0HY%2FjccAxStRamRCzB3%2FaF8OVTBIwqx59pTCtNVSppvSgFIu1ne7tVgJyv9TOrlt8kwwspUxhfblUImAXC%2BHLdl%2Fvu%2Fz4ZX6yQODDp34rLVT2oqDwngs9Rmz%2BlutngUDhCytmNbQzUndS%2Bs%2FYk6Q54obV17oHkeVpl7yrB54jMjt3fKbcyR7H6BasZYCN3y%2B%2BR7p0dpfdPAAAA%2F%2F%2BKoBm4BhQAAA%3D%3D" title="Service Logs">Service Logs</a>
+          
+        </td>
+      </tr>
+      
+    </tbody>
+  </table>
+
+</body>
+</html>

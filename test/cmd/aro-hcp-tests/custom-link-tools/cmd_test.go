@@ -25,7 +25,6 @@ import (
 	clocktesting "k8s.io/utils/clock/testing"
 
 	"github.com/Azure/ARO-HCP/test/util/testutil"
-	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/pipeline"
 )
 
 func TestGeneratedHTML(t *testing.T) {
@@ -37,33 +36,22 @@ func TestGeneratedHTML(t *testing.T) {
 
 	ctx := logr.NewContext(t.Context(), testr.New(t))
 	tmpdir := t.TempDir()
+
+	kusto := KustoInfo{
+		KustoName:                      "hcp-dev-us-2",
+		KustoRegion:                    "eastus2",
+		ServiceLogsDatabase:            "ServiceLogs",
+		HostedControlPlaneLogsDatabase: "HostedControlPlaneLogs",
+	}
+
 	opts := Options{
 		completedOptions: &completedOptions{
-			TimingInputDir: "../testdata/output",
-			Steps: []pipeline.NodeInfo{
-				{
-					Identifier: pipeline.Identifier{
-						ServiceGroup:  "Microsoft.Azure.ARO.HCP.Service.Infra",
-						ResourceGroup: "service",
-						Step:          "cluster",
-					},
-					Details: &pipeline.ExecutionDetails{
-						ARM: &pipeline.ARMExecutionDetails{
-							Operations: []pipeline.Operation{
-								{
-									OperationType: "Create",
-									Resource: &pipeline.Resource{
-										ResourceType:  "Microsoft.ContainerService/managedClusters",
-										Name:          "hcp-underlay-prow-usw3j688-svc-1",
-										ResourceGroup: "hcp-underlay-prow-usw3j688-svc-1",
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-			OutputDir: tmpdir,
+			TimingInputDir:  "../testdata/output",
+			OutputDir:       tmpdir,
+			SvcClusterName:  "hcp-underlay-prow-usw3j688-svc-1",
+			MgmtClusterName: "hcp-underlay-prow-usw3j688-mgmt-1",
+			Kusto:           kusto,
+			ConfigFileModTime: fakeTime,
 		},
 	}
 	err = opts.Run(ctx)
@@ -72,5 +60,42 @@ func TestGeneratedHTML(t *testing.T) {
 	}
 
 	testutil.CompareFileWithFixture(t, filepath.Join(tmpdir, "custom-link-tools.html"), testutil.WithSuffix("custom-link-tools"))
+	testutil.CompareFileWithFixture(t, filepath.Join(tmpdir, "custom-link-tools-test-table.html"), testutil.WithSuffix("custom-link-tools-test-table"))
+}
+
+func TestGeneratedHTMLWithoutSteps(t *testing.T) {
+	fakeTime, err := time.Parse(time.RFC3339, "2022-03-17T19:00:00Z")
+	if err != nil {
+		t.Fatalf("failed to parse fake time: %v", err)
+	}
+	localClock = clocktesting.NewFakePassiveClock(fakeTime)
+
+	ctx := logr.NewContext(t.Context(), testr.New(t))
+	tmpdir := t.TempDir()
+
+	kusto := KustoInfo{
+		KustoName:                      "hcp-dev-us-2",
+		KustoRegion:                    "eastus2",
+		ServiceLogsDatabase:            "ServiceLogs",
+		HostedControlPlaneLogsDatabase: "HostedControlPlaneLogs",
+	}
+
+	opts := Options{
+		completedOptions: &completedOptions{
+			TimingInputDir:  "../testdata/output",
+			OutputDir:       tmpdir,
+			Steps:           nil,
+			SvcClusterName:  "hcp-underlay-prow-usw3j688-svc-1",
+			MgmtClusterName: "hcp-underlay-prow-usw3j688-mgmt-1",
+			Kusto:           kusto,
+			ConfigFileModTime: fakeTime,
+		},
+	}
+	err = opts.Run(ctx)
+	if err != nil {
+		t.Fatalf("failed to run custom link tools: %v", err)
+	}
+
+	testutil.CompareFileWithFixture(t, filepath.Join(tmpdir, "custom-link-tools.html"), testutil.WithSuffix("custom-link-tools-no-steps"))
 	testutil.CompareFileWithFixture(t, filepath.Join(tmpdir, "custom-link-tools-test-table.html"), testutil.WithSuffix("custom-link-tools-test-table"))
 }

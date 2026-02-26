@@ -49,7 +49,7 @@ require (
 	contrib.go.opencensus.io/exporter/ocagent v0.7.1-0.20200907061046-05415f1de66d // indirect
 	contrib.go.opencensus.io/exporter/prometheus v0.4.2 // indirect
 	dario.cat/mergo v1.0.1 // indirect
-	github.com/Azure/ARO-Tools/config v0.0.0-20260224195034-f5e8116c18b8 // indirect
+	github.com/Azure/ARO-Tools/config v0.0.0-20260224195034-f5e8116c18b8
 	github.com/Azure/ARO-Tools/pipelines v0.0.0-20260224202318-50897c5f99ec // indirect
 	github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20260224200806-c0318c58a192 // indirect
 	github.com/Azure/ARO-Tools/tools/grafanactl v0.0.0-20260224202318-50897c5f99ec // indirect
