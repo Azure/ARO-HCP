@@ -378,6 +378,81 @@ func TestPreExistingDataNodePool(t *testing.T) {
 	}
 }
 
+// TestCanonicalDefaultsConsistencyCluster verifies that the internal constructor
+// defaults match the canonical api.Default* constants. This provides compile-time
+// linkage between the constants and the actual defaulting behavior.
+func TestCanonicalDefaultsConsistencyCluster(t *testing.T) {
+	resourceID := api.Must(azcorearm.ParseResourceID(
+		"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster",
+	))
+	internalDefault := api.NewDefaultHCPOpenShiftCluster(resourceID, "eastus")
+
+	// Non-enum defaults (from defaults.go)
+	if internalDefault.CustomerProperties.Version.ChannelGroup != api.DefaultVersionChannelGroup {
+		t.Errorf("ChannelGroup = %q, want %q", internalDefault.CustomerProperties.Version.ChannelGroup, api.DefaultVersionChannelGroup)
+	}
+	if internalDefault.CustomerProperties.Network.PodCIDR != api.DefaultNetworkPodCIDR {
+		t.Errorf("PodCIDR = %q, want %q", internalDefault.CustomerProperties.Network.PodCIDR, api.DefaultNetworkPodCIDR)
+	}
+	if internalDefault.CustomerProperties.Network.ServiceCIDR != api.DefaultNetworkServiceCIDR {
+		t.Errorf("ServiceCIDR = %q, want %q", internalDefault.CustomerProperties.Network.ServiceCIDR, api.DefaultNetworkServiceCIDR)
+	}
+	if internalDefault.CustomerProperties.Network.MachineCIDR != api.DefaultNetworkMachineCIDR {
+		t.Errorf("MachineCIDR = %q, want %q", internalDefault.CustomerProperties.Network.MachineCIDR, api.DefaultNetworkMachineCIDR)
+	}
+	if internalDefault.CustomerProperties.Network.HostPrefix != api.DefaultNetworkHostPrefix {
+		t.Errorf("HostPrefix = %d, want %d", internalDefault.CustomerProperties.Network.HostPrefix, api.DefaultNetworkHostPrefix)
+	}
+	if internalDefault.CustomerProperties.Autoscaling.MaxPodGracePeriodSeconds != api.DefaultMaxPodGracePeriodSeconds {
+		t.Errorf("MaxPodGracePeriodSeconds = %d, want %d", internalDefault.CustomerProperties.Autoscaling.MaxPodGracePeriodSeconds, api.DefaultMaxPodGracePeriodSeconds)
+	}
+	if internalDefault.CustomerProperties.Autoscaling.MaxNodeProvisionTimeSeconds != api.DefaultMaxNodeProvisionTimeSeconds {
+		t.Errorf("MaxNodeProvisionTimeSeconds = %d, want %d", internalDefault.CustomerProperties.Autoscaling.MaxNodeProvisionTimeSeconds, api.DefaultMaxNodeProvisionTimeSeconds)
+	}
+	if internalDefault.CustomerProperties.Autoscaling.PodPriorityThreshold != api.DefaultPodPriorityThreshold {
+		t.Errorf("PodPriorityThreshold = %d, want %d", internalDefault.CustomerProperties.Autoscaling.PodPriorityThreshold, api.DefaultPodPriorityThreshold)
+	}
+
+	// Enum defaults (from enums.go — verify compile-time linkage)
+	if internalDefault.CustomerProperties.Network.NetworkType != api.NetworkTypeOVNKubernetes {
+		t.Errorf("NetworkType = %q, want %q", internalDefault.CustomerProperties.Network.NetworkType, api.NetworkTypeOVNKubernetes)
+	}
+	if internalDefault.CustomerProperties.API.Visibility != api.VisibilityPublic {
+		t.Errorf("Visibility = %q, want %q", internalDefault.CustomerProperties.API.Visibility, api.VisibilityPublic)
+	}
+	if internalDefault.CustomerProperties.Platform.OutboundType != api.OutboundTypeLoadBalancer {
+		t.Errorf("OutboundType = %q, want %q", internalDefault.CustomerProperties.Platform.OutboundType, api.OutboundTypeLoadBalancer)
+	}
+	if internalDefault.CustomerProperties.Etcd.DataEncryption.KeyManagementMode != api.EtcdDataEncryptionKeyManagementModeTypePlatformManaged {
+		t.Errorf("KeyManagementMode = %q, want %q", internalDefault.CustomerProperties.Etcd.DataEncryption.KeyManagementMode, api.EtcdDataEncryptionKeyManagementModeTypePlatformManaged)
+	}
+	if internalDefault.CustomerProperties.ClusterImageRegistry.State != api.ClusterImageRegistryProfileStateEnabled {
+		t.Errorf("ClusterImageRegistryState = %q, want %q", internalDefault.CustomerProperties.ClusterImageRegistry.State, api.ClusterImageRegistryProfileStateEnabled)
+	}
+}
+
+// TestCanonicalDefaultsConsistencyNodePool verifies that the internal constructor
+// defaults match the canonical api.Default* constants for node pools.
+func TestCanonicalDefaultsConsistencyNodePool(t *testing.T) {
+	resourceID := api.Must(azcorearm.ParseResourceID(
+		"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster/nodePools/np",
+	))
+	internalDefault := api.NewDefaultHCPOpenShiftClusterNodePool(resourceID, "eastus")
+
+	if internalDefault.Properties.Version.ChannelGroup != api.DefaultVersionChannelGroup {
+		t.Errorf("ChannelGroup = %q, want %q", internalDefault.Properties.Version.ChannelGroup, api.DefaultVersionChannelGroup)
+	}
+	if ptr.Deref(internalDefault.Properties.Platform.OSDisk.SizeGiB, 0) != api.DefaultNodePoolOSDiskSizeGiB {
+		t.Errorf("OSDiskSizeGiB = %d, want %d", ptr.Deref(internalDefault.Properties.Platform.OSDisk.SizeGiB, 0), api.DefaultNodePoolOSDiskSizeGiB)
+	}
+	if internalDefault.Properties.AutoRepair != api.DefaultNodePoolAutoRepair {
+		t.Errorf("AutoRepair = %v, want %v", internalDefault.Properties.AutoRepair, api.DefaultNodePoolAutoRepair)
+	}
+	if internalDefault.Properties.Platform.OSDisk.DiskStorageAccountType != api.DiskStorageAccountTypePremium_LRS {
+		t.Errorf("DiskStorageAccountType = %q, want %q", internalDefault.Properties.Platform.OSDisk.DiskStorageAccountType, api.DiskStorageAccountTypePremium_LRS)
+	}
+}
+
 // stringPtrFromGenerated converts any ~string typed pointer to a *string.
 func stringPtrFromGenerated[T ~string](p *T) *string {
 	if p == nil {

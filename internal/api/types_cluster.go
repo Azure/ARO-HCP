@@ -201,14 +201,14 @@ func NewDefaultHCPOpenShiftCluster(resourceID *azcorearm.ResourceID, azureLocati
 		TrackedResource: arm.NewTrackedResource(resourceID, azureLocation),
 		CustomerProperties: HCPOpenShiftClusterCustomerProperties{
 			Version: VersionProfile{
-				ChannelGroup: "stable",
+				ChannelGroup: DefaultVersionChannelGroup,
 			},
 			Network: NetworkProfile{
 				NetworkType: NetworkTypeOVNKubernetes,
-				PodCIDR:     "10.128.0.0/14",
-				ServiceCIDR: "172.30.0.0/16",
-				MachineCIDR: "10.0.0.0/16",
-				HostPrefix:  23,
+				PodCIDR:     DefaultNetworkPodCIDR,
+				ServiceCIDR: DefaultNetworkServiceCIDR,
+				MachineCIDR: DefaultNetworkMachineCIDR,
+				HostPrefix:  DefaultNetworkHostPrefix,
 			},
 			API: CustomerAPIProfile{
 				Visibility: VisibilityPublic,
@@ -217,9 +217,9 @@ func NewDefaultHCPOpenShiftCluster(resourceID *azcorearm.ResourceID, azureLocati
 				OutboundType: OutboundTypeLoadBalancer,
 			},
 			Autoscaling: ClusterAutoscalingProfile{
-				MaxPodGracePeriodSeconds:    600,
-				MaxNodeProvisionTimeSeconds: 900,
-				PodPriorityThreshold:        -10,
+				MaxPodGracePeriodSeconds:    DefaultMaxPodGracePeriodSeconds,
+				MaxNodeProvisionTimeSeconds: DefaultMaxNodeProvisionTimeSeconds,
+				PodPriorityThreshold:        DefaultPodPriorityThreshold,
 			},
 			//Even though PlatformManaged Mode is currently not supported by CS . This is the default value .
 			Etcd: EtcdProfile{

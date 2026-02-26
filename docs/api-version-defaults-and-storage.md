@@ -490,9 +490,41 @@ solves both problems from the start. For existing fields, start by
 changing `PtrOrNil` to `Ptr` in the versioned conversion (no migration
 needed), then plan the Cosmos storage fix separately.
 
+## Canonical Defaults
+
+Non-enum default values (CIDRs, integers, booleans, plain strings) are
+defined as named constants in `internal/api/defaults.go`. This eliminates
+bare literal duplication across versioned API methods, internal constructors,
+and OCM conversions.
+
+String enum defaults (`NetworkTypeOVNKubernetes`, `VisibilityPublic`, etc.)
+are already defined as typed constants in `internal/api/enums.go` and are
+used directly by storage defaults. They are not duplicated in `defaults.go`.
+
+The separation between `defaults.go` (non-enum) and `enums.go` (enum)
+reflects a safety boundary: enum constants are safe for storage defaulting
+(zero value `""` is never valid user input), while non-enum constants
+(CIDRs, int32, bool) may have zero values that are valid, making them
+unsafe for storage defaulting.
+
+**Consistency tests** verify that:
+- `internal/api/defaults_test.go` — Go constants match the OpenAPI spec's
+  `"default"` annotations (TypeSpec source of truth).
+- `internal/database/convert_defaults_consistency_test.go` — internal
+  constructors, storage defaults, versioned defaults, and CS→RP defaults
+  all produce consistent values linked to the canonical constants.
+
 ## Adding a New Field: Checklist
 
 When adding a new field to the API across versions:
+
+### 0. Canonical default (`internal/api/defaults.go` or `enums.go`)
+
+- [ ] If the default is a string enum: add a typed constant to `enums.go`.
+- [ ] If the default is a non-enum value (CIDR, int32, bool, plain string):
+  add a named constant to `defaults.go`.
+- [ ] Follow the naming convention: `Default<Resource><Field>` (e.g.,
+  `DefaultNetworkHostPrefix`, `DefaultNodePoolOSDiskSizeGiB`).
 
 ### 1. Internal type (`internal/api/types_*.go`)
 
@@ -678,28 +710,17 @@ migrations are out of scope for this DDR.
 
 ### Default value consistency
 
-Default values are currently hardcoded as literals in multiple locations
-(`NewDefault*()` constructors, `SetDefaultValues*()` per API version,
-storage defaults in `CosmosToInternal*()`, and CS→RP conversion defaults
-in `internal/ocm/convert.go`). There is no shared constant or
-compile-time mechanism to prevent drift. Consider adding a cross-layer
-consistency test that verifies all defaulting layers produce identical
-values for each field:
+**Addressed:** Non-enum default values are now defined as named constants
+in `internal/api/defaults.go`, and string enum defaults are in
+`internal/api/enums.go`. Cross-layer consistency is enforced by tests in
+`internal/database/convert_defaults_consistency_test.go` and TypeSpec
+consistency is verified by `internal/api/defaults_test.go`. See the
+"Canonical Defaults" section above for details.
 
-1. Create an object via `NewDefault*()` constructor.
-2. Create an object via `SetDefaultValues*()` + `ConvertToInternal()`.
-3. Create an object via `CosmosToInternal*()` from a zero-valued Cosmos
-   document.
-4. Create an object via the CS→RP conversion from a CS response with
-   missing/empty values.
-5. Assert all four have identical defaults for each defaulted field.
-
-This test should account for intentional per-version differences (e.g.,
-older API versions that don't expose a field use `normalize*()` to force
-the default during conversion, not `SetDefaultValues*()`). The CS→RP
-consistency check is especially important because FE GET responses
-source most operational fields from CS while BE sources them from
-Cosmos — if these disagree, FE and BE silently diverge.
+Remaining gap: the CS→RP conversion layer in `internal/ocm/convert.go`
+uses its own CS-side string mappings. If CS introduces a new enum value,
+the CS→RP mapping must be updated manually. The
+`TestCSToRPDefaultsConsistency*` tests catch this drift at test time.
 
 ### Default value changes
 

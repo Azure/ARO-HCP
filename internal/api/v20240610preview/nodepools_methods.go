@@ -56,7 +56,7 @@ func SetDefaultValuesNodePool(obj *NodePool) {
 		obj.Properties.Version = &generated.NodePoolVersionProfile{}
 	}
 	if obj.Properties.Version.ChannelGroup == nil {
-		obj.Properties.Version.ChannelGroup = ptr.To("stable")
+		obj.Properties.Version.ChannelGroup = ptr.To(api.DefaultVersionChannelGroup)
 	}
 	if obj.Properties.Platform == nil {
 		obj.Properties.Platform = &generated.NodePoolPlatformProfile{}
@@ -65,13 +65,13 @@ func SetDefaultValuesNodePool(obj *NodePool) {
 		obj.Properties.Platform.OSDisk = &generated.OsDiskProfile{}
 	}
 	if obj.Properties.Platform.OSDisk.SizeGiB == nil {
-		obj.Properties.Platform.OSDisk.SizeGiB = ptr.To(int32(64))
+		obj.Properties.Platform.OSDisk.SizeGiB = ptr.To(api.DefaultNodePoolOSDiskSizeGiB)
 	}
 	if obj.Properties.Platform.OSDisk.DiskStorageAccountType == nil {
 		obj.Properties.Platform.OSDisk.DiskStorageAccountType = ptr.To(generated.DiskStorageAccountTypePremiumLRS)
 	}
 	if obj.Properties.AutoRepair == nil {
-		obj.Properties.AutoRepair = ptr.To(true)
+		obj.Properties.AutoRepair = ptr.To(api.DefaultNodePoolAutoRepair)
 	}
 }
 

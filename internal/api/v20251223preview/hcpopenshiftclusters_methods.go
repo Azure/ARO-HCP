@@ -56,8 +56,10 @@ func SetDefaultValuesCluster(obj *HcpOpenShiftCluster) {
 		obj.Properties.Version = &generated.VersionProfile{}
 	}
 	if obj.Properties.Version.ChannelGroup == nil {
-		obj.Properties.Version.ChannelGroup = ptr.To("stable")
+		obj.Properties.Version.ChannelGroup = ptr.To(api.DefaultVersionChannelGroup)
 	}
+	// Version ID is intentionally per-API-version (not a shared constant)
+	// because different API versions may ship with different default versions.
 	if obj.Properties.Version.ID == nil {
 		obj.Properties.Version.ID = ptr.To("4.20")
 	}
@@ -68,16 +70,16 @@ func SetDefaultValuesCluster(obj *HcpOpenShiftCluster) {
 		obj.Properties.Network.NetworkType = ptr.To(generated.NetworkTypeOVNKubernetes)
 	}
 	if obj.Properties.Network.PodCIDR == nil {
-		obj.Properties.Network.PodCIDR = ptr.To("10.128.0.0/14")
+		obj.Properties.Network.PodCIDR = ptr.To(api.DefaultNetworkPodCIDR)
 	}
 	if obj.Properties.Network.ServiceCIDR == nil {
-		obj.Properties.Network.ServiceCIDR = ptr.To("172.30.0.0/16")
+		obj.Properties.Network.ServiceCIDR = ptr.To(api.DefaultNetworkServiceCIDR)
 	}
 	if obj.Properties.Network.MachineCIDR == nil {
-		obj.Properties.Network.MachineCIDR = ptr.To("10.0.0.0/16")
+		obj.Properties.Network.MachineCIDR = ptr.To(api.DefaultNetworkMachineCIDR)
 	}
 	if obj.Properties.Network.HostPrefix == nil {
-		obj.Properties.Network.HostPrefix = ptr.To(int32(23))
+		obj.Properties.Network.HostPrefix = ptr.To(api.DefaultNetworkHostPrefix)
 	}
 	if obj.Properties.API == nil {
 		obj.Properties.API = &generated.APIProfile{}
@@ -95,13 +97,13 @@ func SetDefaultValuesCluster(obj *HcpOpenShiftCluster) {
 		obj.Properties.Autoscaling = &generated.ClusterAutoscalingProfile{}
 	}
 	if obj.Properties.Autoscaling.MaxPodGracePeriodSeconds == nil {
-		obj.Properties.Autoscaling.MaxPodGracePeriodSeconds = ptr.To(int32(600))
+		obj.Properties.Autoscaling.MaxPodGracePeriodSeconds = ptr.To(api.DefaultMaxPodGracePeriodSeconds)
 	}
 	if obj.Properties.Autoscaling.MaxNodeProvisionTimeSeconds == nil {
-		obj.Properties.Autoscaling.MaxNodeProvisionTimeSeconds = ptr.To(int32(900))
+		obj.Properties.Autoscaling.MaxNodeProvisionTimeSeconds = ptr.To(api.DefaultMaxNodeProvisionTimeSeconds)
 	}
 	if obj.Properties.Autoscaling.PodPriorityThreshold == nil {
-		obj.Properties.Autoscaling.PodPriorityThreshold = ptr.To(int32(-10))
+		obj.Properties.Autoscaling.PodPriorityThreshold = ptr.To(api.DefaultPodPriorityThreshold)
 	}
 	//Even though PlatformManaged Mode is currently not supported by CS . This is the default value .
 	// TODO cannot change the default value for this version, but why keep it in our new version?

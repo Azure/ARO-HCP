@@ -110,15 +110,15 @@ func NewDefaultHCPOpenShiftClusterNodePool(resourceID *azcorearm.ResourceID, azu
 		TrackedResource: arm.NewTrackedResource(resourceID, azureLocation),
 		Properties: HCPOpenShiftClusterNodePoolProperties{
 			Version: NodePoolVersionProfile{
-				ChannelGroup: "stable",
+				ChannelGroup: DefaultVersionChannelGroup,
 			},
 			Platform: NodePoolPlatformProfile{
 				OSDisk: OSDiskProfile{
-					SizeGiB:                ptr.To[int32](64),
+					SizeGiB:                ptr.To(DefaultNodePoolOSDiskSizeGiB),
 					DiskStorageAccountType: DiskStorageAccountTypePremium_LRS,
 				},
 			},
-			AutoRepair: true,
+			AutoRepair: DefaultNodePoolAutoRepair,
 		},
 	}
 }
