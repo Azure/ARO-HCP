@@ -1051,13 +1051,6 @@ func (in *ServiceProviderCluster) DeepCopyInto(out *ServiceProviderCluster) {
 	}
 	in.Spec.DeepCopyInto(&out.Spec)
 	in.Status.DeepCopyInto(&out.Status)
-	if in.Validations != nil {
-		in, out := &in.Validations, &out.Validations
-		*out = make([]Condition, len(*in))
-		for i := range *in {
-			(*in)[i].DeepCopyInto(&(*out)[i])
-		}
-	}
 	return
 }
 
@@ -1154,6 +1147,13 @@ func (in *ServiceProviderClusterSpecVersion) DeepCopy() *ServiceProviderClusterS
 func (in *ServiceProviderClusterStatus) DeepCopyInto(out *ServiceProviderClusterStatus) {
 	*out = *in
 	in.ControlPlaneVersion.DeepCopyInto(&out.ControlPlaneVersion)
+	if in.Validations != nil {
+		in, out := &in.Validations, &out.Validations
+		*out = make([]Condition, len(*in))
+		for i := range *in {
+			(*in)[i].DeepCopyInto(&(*out)[i])
+		}
+	}
 	return
 }
 

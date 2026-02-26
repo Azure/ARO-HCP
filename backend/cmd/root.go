@@ -28,10 +28,6 @@ import (
 
 	"k8s.io/klog/v2"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
-	"github.com/Azure/azure-sdk-for-go/sdk/tracing/azotel"
-
 	"github.com/Azure/ARO-HCP/backend/pkg/app"
 	"github.com/Azure/ARO-HCP/internal/signal"
 	"github.com/Azure/ARO-HCP/internal/tracing"
@@ -164,13 +160,20 @@ func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.C
 		return nil, utils.TrackError(fmt.Errorf("could not initialize opentelemetry sdk: %w", err))
 	}
 
+	otelTracerProvider := otel.GetTracerProvider()
+	azureConfig, err := app.NewAzureConfig(ctx, f.AzureRuntimeConfigPath, otelTracerProvider)
+	if err != nil {
+		return nil, utils.TrackError(fmt.Errorf("failed to create Azure configuration: %w", err))
+	}
+
+	fpaClientBuilder, err := app.NewFirstPartyApplicationClientBuilder(ctx, f.AzureFirstPartyApplicationCertificateBundlePath, f.AzureFirstPartyApplicationClientID, azureConfig)
+	if err != nil {
+		return nil, utils.TrackError(fmt.Errorf("failed to create FPA client builder: %w", err))
+	}
+
 	cosmosDBClient, err := app.NewCosmosDBClient(
 		ctx, f.AzureCosmosDBURL, f.AzureCosmosDBName,
-		azcore.ClientOptions{
-			// FIXME Cloud should be determined by other means.
-			Cloud:           cloud.AzurePublic,
-			TracingProvider: azotel.NewTracingProvider(otel.GetTracerProvider(), nil),
-		},
+		*azureConfig.CloudEnvironment.AZCoreClientOptions(),
 	)
 	if err != nil {
 		return nil, utils.TrackError(fmt.Errorf("failed to create cosmos db client: %w", err))
@@ -192,6 +195,7 @@ func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.C
 		HealthzServerListenAddress:         f.HealthzServerListenAddress,
 		TracerProviderShutdownFunc:         otelShutdown,
 		MaestroSourceEnvironmentIdentifier: f.MaestroSourceEnvironmentIdentifier,
+		FPAClientBuilder:                   fpaClientBuilder,
 	}
 
 	return backendOptions, nil

@@ -45,13 +45,6 @@ type ServiceProviderCluster struct {
 
 	// Status contains the observed state of the cluster.
 	Status ServiceProviderClusterStatus `json:"status,omitempty"`
-
-	// Validations is a list of conditions that tracks the status of each cluster validation.
-	// Each Condition Type represents a validation and it should be unique among all validations.
-	// A Condition Status of True means that the validation passed successfully, and a Condition Status of False means that the validation failed.
-	// The Condition Reason and Message are used to provide more details about the validation status.
-	// The Condition LastTransitionTime is used to track the last time the validation transitioned from one status to another.
-	Validations []Condition `json:"validations,omitempty"`
 }
 
 // ServiceProviderClusterSpec contains the desired state of the cluster.
@@ -96,6 +89,13 @@ type ServiceProviderClusterStatus struct {
 	//   }
 	// }
 	ControlPlaneVersion ServiceProviderClusterStatusVersion `json:"control_plane_version,omitempty"`
+
+	// Validations is a list of conditions that tracks the status of each cluster validation.
+	// Each Condition Type represents a validation and it should be unique among all validations.
+	// A Condition Status of True means that the validation passed successfully, and a Condition Status of False means that the validation failed.
+	// The Condition Reason and Message are used to provide more details about the validation status.
+	// The Condition LastTransitionTime is used to track the last time the validation transitioned from one status to another.
+	Validations []Condition `json:"validations,omitempty"`
 }
 
 // ServiceProviderClusterStatusVersion contains the actual version information.
