@@ -64,17 +64,17 @@ func TestGetCondition(t *testing.T) {
 		})
 	}
 
-	t.Run("a reference to the returned condition is returned", func(t *testing.T) {
+	t.Run("the returned reference should never point to the original item in the list", func(t *testing.T) {
 		conditions := []api.Condition{
 			{Type: "Available", Status: api.ConditionTrue, Message: "Available"},
 			{Type: "Degraded", Status: api.ConditionTrue, Reason: "NoErrors", Message: "As expected."},
 		}
-		wantCondition := &conditions[1]
+		unwantedCondition := &conditions[1]
 
 		res := GetCondition(conditions, "Degraded")
 		// We intentionally perform a pointer comparison to check that the returned condition is a reference to the found one in the list.
-		if res != wantCondition {
-			t.Errorf("returned condition is not a reference to the found one in the list")
+		if res == unwantedCondition {
+			t.Errorf("returned condition is a reference to the found one in the list")
 		}
 	})
 }
