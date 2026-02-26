@@ -2,7 +2,7 @@
   "location": "$location",
   "properties": {
     "version": {
-      "id": "4.19",
+      "id": "4.20",
       "channelGroup": "stable"
     },
     "dns": {},

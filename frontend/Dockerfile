@@ -1,8 +1,9 @@
 ARG PLATFORM
 
 # Base and builder image will need to be replaced by Fips compliant one
-FROM --platform=${PLATFORM} mcr.microsoft.com/oss/go/microsoft/golang:1.24-fips-azurelinux3.0 AS builder
+FROM --platform=${PLATFORM} mcr.microsoft.com/oss/go/microsoft/golang:1.25-azurelinux3.0 AS builder
 COPY internal/go.mod internal/go.sum internal/
+COPY test-integration/go.mod test-integration/
 COPY frontend/go.mod frontend/go.sum frontend/
 COPY test/sdk/v20240610preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp/go.mod test/sdk/v20240610preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp/
 RUN cd frontend && go mod download

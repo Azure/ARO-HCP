@@ -67,6 +67,8 @@ resourceGroups:
       errorContainsAny:
       - "is invalid as it is being provisioned with state"
       - "503 Server Error: Service Unavailable for url"
+      - "(CreateOrUpdateConflict) Operation conflict occurred for workspace"
+      - "InvalidMonitorAccountIntegration"
       maximumRetryCount: 5
       durationBetweenRetries: 2m
     variables:
@@ -98,6 +100,9 @@ resourceGroups:
     automatedRetry:
       errorContainsAny:
       - "is invalid as it is being provisioned with state"
+      - "503 Server Error: Service Unavailable for url"
+      - "(CreateOrUpdateConflict) Operation conflict occurred for workspace"
+      - "InvalidMonitorAccountIntegration"
       maximumRetryCount: 5
       durationBetweenRetries: 2m
     variables:

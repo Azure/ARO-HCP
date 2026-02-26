@@ -45,7 +45,6 @@ var _ = Describe("Customer", func() {
 				customerVnetName                 = "customer-vnet-name"
 				customerVnetSubnetName           = "customer-vnet-subnet1"
 				customerClusterName              = "disabled-image-registry-hcp-cluster"
-				openshiftVersionId               = "4.19"
 			)
 			tc := framework.NewTestContext()
 
@@ -63,7 +62,6 @@ var _ = Describe("Customer", func() {
 			clusterParams.ClusterName = customerClusterName
 			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
 			clusterParams.ManagedResourceGroupName = managedResourceGroupName
-			clusterParams.OpenshiftVersionId = openshiftVersionId
 			clusterParams.ImageRegistryState = string(hcpsdk20240610preview.ClusterImageRegistryProfileStateDisabled)
 
 			By("creating customer resources")
@@ -71,12 +69,12 @@ var _ = Describe("Customer", func() {
 				resourceGroup,
 				clusterParams,
 				map[string]interface{}{
-					"persistTagValue":        false,
 					"customerNsgName":        customerNetworkSecurityGroupName,
 					"customerVnetName":       customerVnetName,
 					"customerVnetSubnetName": customerVnetSubnetName,
 				},
 				TestArtifactsFS,
+				framework.RBACScopeResourceGroup,
 			)
 			Expect(err).NotTo(HaveOccurred())
 

@@ -1,0 +1,64 @@
+$schema: "pipeline.schema.v1"
+serviceGroup: Microsoft.Azure.ARO.HCP.Opstool.TenantQuota
+rolloutName: Tenant Quota Collector Rollout
+resourceGroups:
+- name: opstool
+  resourceGroup: '{{ .svc.rg }}'
+  subscription: '{{ .svc.subscription.key }}'
+  steps:
+  - name: output
+    action: ARM
+    template: ../../templates/output-opstool-cluster.bicep
+    parameters: ../../configurations/output-opstool-cluster.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
+  - name: deploy
+    aksCluster: '{{ .opstool.aks.name }}'
+    action: Helm
+    releaseName: 'tenant-quota'
+    releaseNamespace: 'tenant-quota'
+    namespaceFiles:
+    - deploy/namespace.yaml
+    chartDir: deploy
+    valuesFile: deploy/values.yaml
+    kustoEndpoint:
+      resourceGroup: opstool
+      step: output
+      name: kustoUri
+    kustoDatabase: ''
+    kustoTable: ''
+    inputVariables:
+      tenantQuotaUAMIClientId:
+        resourceGroup: opstool
+        step: output
+        name: tenantQuotaUAMIClientId
+      keyVaultName:
+        resourceGroup: opstool
+        step: output
+        name: workloadKVName
+    dependsOn:
+    - resourceGroup: opstool
+      step: output
+    identityFrom:
+      resourceGroup: opstool
+      step: output
+      name: tenantQuotaUAMIId
+  - name: alerting
+    action: ARM
+    template: alerting.bicep
+    parameters: ../../configurations/tenant-quota-alerting.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    variables:
+    - name: azureMonitorWorkspaceId
+      input:
+        resourceGroup: opstool
+        step: output
+        name: azureMonitorWorkspaceId
+    - name: sharedActionGroupId
+      input:
+        resourceGroup: opstool
+        step: output
+        name: sharedActionGroupId
+    dependsOn:
+    - resourceGroup: opstool
+      step: output

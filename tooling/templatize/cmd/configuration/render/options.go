@@ -19,14 +19,16 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strconv"
 
 	"github.com/spf13/cobra"
 
 	"sigs.k8s.io/yaml"
 
-	"github.com/Azure/ARO-Tools/pkg/config"
-	"github.com/Azure/ARO-Tools/pkg/config/ev2config"
+	"github.com/Azure/ARO-Tools/config"
+	"github.com/Azure/ARO-Tools/config/ev2config"
+	"github.com/Azure/ARO-Tools/config/types"
 )
 
 func DefaultOptions() *RawOptions {
@@ -38,6 +40,7 @@ func DefaultOptions() *RawOptions {
 
 func BindOptions(opts *RawOptions, cmd *cobra.Command) error {
 	cmd.Flags().StringVar(&opts.ServiceConfigFile, "service-config-file", opts.ServiceConfigFile, "Path to the service configuration file.")
+	cmd.Flags().StringVar(&opts.ConfigFileOverride, "config-file-override", opts.ConfigFileOverride, "Path to the config file overlay to merge on top of the service config.")
 	cmd.Flags().StringVar(&opts.Cloud, "cloud", opts.Cloud, "The name of the cloud to render to.")
 	cmd.Flags().StringVar(&opts.Environment, "environment", opts.Environment, "The name of the environment to render to.")
 	cmd.Flags().StringVar(&opts.Region, "region", opts.Region, "The name of the region to render to.")
@@ -45,9 +48,11 @@ func BindOptions(opts *RawOptions, cmd *cobra.Command) error {
 	cmd.Flags().StringVar(&opts.Ev2Cloud, "ev2-cloud", opts.Ev2Cloud, "Cloud to use for Ev2 configuration, useful for dev mode rendering.")
 	cmd.Flags().StringVar(&opts.RegionShortSuffix, "region-short-suffix", opts.RegionShortSuffix, "Suffix to use for region short-name, useful for dev mode rendering.")
 	cmd.Flags().IntVar(&opts.Stamp, "stamp", opts.Stamp, "Stamp value to use, useful for dev mode rendering.")
+	cmd.Flags().BoolVar(&opts.SkipSchemaValidation, "skip-schema-validation", opts.SkipSchemaValidation, "Skip JSON schema validation of the rendered config.")
 
 	for _, flag := range []string{
 		"service-config-file",
+		"config-file-override",
 	} {
 		if err := cmd.MarkFlagFilename(flag); err != nil {
 			return fmt.Errorf("failed to mark flag %q as a file: %w", flag, err)
@@ -58,14 +63,17 @@ func BindOptions(opts *RawOptions, cmd *cobra.Command) error {
 
 // RawOptions holds input values.
 type RawOptions struct {
-	ServiceConfigFile string
-	Cloud             string
-	Environment       string
-	Region            string
-	Ev2Cloud          string
-	RegionShortSuffix string
-	Stamp             int
-	Output            string
+	ServiceConfigFile    string
+	ConfigFileOverride   string
+	Cloud                string
+	Environment          string
+	Region               string
+	Ev2Cloud             string
+	RegionShortOverride  string
+	RegionShortSuffix    string
+	Stamp                int
+	Output               string
+	SkipSchemaValidation bool
 }
 
 // validatedOptions is a private wrapper that enforces a call of Validate() before Complete() can be invoked.
@@ -80,14 +88,16 @@ type ValidatedOptions struct {
 
 // completedOptions is a private wrapper that enforces a call of Complete() before config generation can be invoked.
 type completedOptions struct {
-	Config            config.ConfigProvider
-	Cloud             string
-	Environment       string
-	Region            string
-	Ev2Cloud          string
-	RegionShortSuffix string
-	Stamp             int
-	Output            io.WriteCloser
+	Config               config.ConfigProvider
+	Cloud                string
+	Environment          string
+	Region               string
+	Ev2Cloud             string
+	RegionShortOverride  string
+	RegionShortSuffix    string
+	Stamp                int
+	Output               io.WriteCloser
+	SkipSchemaValidation bool
 }
 
 type Options struct {
@@ -120,9 +130,25 @@ func (o *RawOptions) Validate() (*ValidatedOptions, error) {
 }
 
 func (o *ValidatedOptions) Complete() (*Options, error) {
-	c, err := config.NewConfigProvider(o.ServiceConfigFile)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load config file: %w", err)
+	var c config.ConfigProvider
+	var err error
+
+	if o.ConfigFileOverride != "" {
+		schemaBaseDir := filepath.Dir(o.ServiceConfigFile)
+		mergedConfigData, err := types.MergeRawConfigurationFiles(schemaBaseDir, []string{o.ServiceConfigFile, o.ConfigFileOverride})
+		if err != nil {
+			return nil, fmt.Errorf("failed to merge configuration files: %w", err)
+		}
+
+		c, err = config.NewConfigProviderFromData(mergedConfigData, schemaBaseDir)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load config provider from merged configuration: %w", err)
+		}
+	} else {
+		c, err = config.NewConfigProvider(o.ServiceConfigFile)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load config file: %w", err)
+		}
 	}
 
 	var output io.WriteCloser
@@ -138,14 +164,16 @@ func (o *ValidatedOptions) Complete() (*Options, error) {
 
 	return &Options{
 		completedOptions: &completedOptions{
-			Config:            c,
-			Cloud:             o.Cloud,
-			Environment:       o.Environment,
-			Region:            o.Region,
-			Ev2Cloud:          o.Ev2Cloud,
-			RegionShortSuffix: o.RegionShortSuffix,
-			Stamp:             o.Stamp,
-			Output:            output,
+			Config:               c,
+			Cloud:                o.Cloud,
+			Environment:          o.Environment,
+			Region:               o.Region,
+			Ev2Cloud:             o.Ev2Cloud,
+			RegionShortOverride:  o.RegionShortOverride,
+			RegionShortSuffix:    o.RegionShortSuffix,
+			Stamp:                o.Stamp,
+			Output:               output,
+			SkipSchemaValidation: o.SkipSchemaValidation,
 		},
 	}, nil
 }
@@ -179,6 +207,9 @@ func (opts *Options) RenderServiceConfig(ctx context.Context) error {
 		}
 		*into = str
 	}
+	if opts.RegionShortOverride != "" {
+		replacements.RegionShortReplacement = opts.RegionShortOverride
+	}
 	if opts.RegionShortSuffix != "" {
 		replacements.RegionShortReplacement += opts.RegionShortSuffix
 	}
@@ -193,7 +224,7 @@ func (opts *Options) RenderServiceConfig(ctx context.Context) error {
 		cfg = map[string]any{}
 	}
 
-	if len(cfg) > 0 {
+	if len(cfg) > 0 && !opts.SkipSchemaValidation {
 		if err := resolver.ValidateSchema(cfg); err != nil {
 			return fmt.Errorf("resolved region config was invalid: %w", err)
 		}

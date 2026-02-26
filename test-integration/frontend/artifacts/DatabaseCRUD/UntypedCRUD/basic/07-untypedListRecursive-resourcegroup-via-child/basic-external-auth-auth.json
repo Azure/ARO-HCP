@@ -1,0 +1,68 @@
+{
+    "_attachments": "attachments/",
+    "_etag": "\"00000000-0000-0000-6625-f5a0c80501dc\"",
+    "_rid": "QS9oAIjBpYUEAAAAAAAAAA==",
+    "_self": "dbs/QS9oAA==/colls/QS9oAIjBpYU=/docs/QS9oAIjBpYUEAAAAAAAAAA==/",
+    "_ts": 1764966613,
+    "id": "|subscriptions|f52dfea2-47ee-4396-8006-4a27d47d59c5|resourcegroups|some-resource-group|providers|microsoft.redhatopenshift|hcpopenshiftclusters|basic-external-auth|externalauths|basic-external-auth",
+    "partitionKey": "f52dfea2-47ee-4396-8006-4a27d47d59c5",
+	"resourceID": "/subscriptions/f52dfea2-47ee-4396-8006-4a27d47d59c5/resourceGroups/some-resource-group/providers/microsoft.redhatopenshift/hcpopenshiftclusters/basic-external-auth/externalauths/basic-external-auth",
+    "properties": {
+        "internalId": "/api/aro_hcp/v1alpha1/clusters/cs-basic-external-auth/external_auth_config/external_auths/2wbhxn4qwk",
+        "internalState": {
+            "internalAPI": {
+                "properties": {
+                    "claim": {
+                        "mappings": {
+                            "groups": {
+                                "claim": "groups",
+                                "prefix": ""
+                            },
+                            "username": {
+                                "claim": "sub",
+                                "prefix": "prefix-",
+                                "prefixPolicy": "Prefix"
+                            }
+                        },
+                        "validationRules": []
+                    },
+                    "clients": [
+                        {
+                            "clientId": "87654321-4321-4321-4321-abcdefghijkl",
+                            "component": {
+                                "authClientNamespace": "openshift-console",
+                                "name": "console"
+                            },
+                            "extraScopes": [],
+                            "type": "Confidential"
+                        },
+                        {
+                            "clientId": "87654321-4321-4321-4321-abcdefghijkl",
+                            "component": {
+                                "authClientNamespace": "openshift-console",
+                                "name": "cli"
+                            },
+                            "extraScopes": [],
+                            "type": "Public"
+                        }
+                    ],
+                    "issuer": {
+                        "audiences": [
+                            "87654321-4321-4321-4321-abcdefghijkl"
+                        ],
+                        "ca": "",
+                        "url": "https://login.microsoftonline.com/12345678-1234-1234-1234-123456789abc/v2.0"
+                    },
+                    "provisioningState": ""
+                },
+                "serviceProviderProperties": {
+                    "clusterServiceID": ""
+                }
+            }
+        },
+        "provisioningState": "Succeeded",
+        "resourceId": "/subscriptions/f52dfea2-47ee-4396-8006-4a27d47d59c5/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/basic-external-auth/externalAuths/basic-external-auth",
+        "systemData": {}
+    },
+    "resourceType": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/externalAuths"
+}

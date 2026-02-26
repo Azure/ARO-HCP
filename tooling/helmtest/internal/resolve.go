@@ -20,9 +20,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	configtypes "github.com/Azure/ARO-Tools/pkg/config/types"
-	"github.com/Azure/ARO-Tools/pkg/topology"
-	"github.com/Azure/ARO-Tools/pkg/types"
+	configtypes "github.com/Azure/ARO-Tools/config/types"
+	"github.com/Azure/ARO-Tools/pipelines/topology"
+	"github.com/Azure/ARO-Tools/pipelines/types"
 )
 
 func FindHelmTestFiles(pathToSearch string) ([]string, error) {
@@ -42,19 +42,19 @@ func FindHelmTestFiles(pathToSearch string) ([]string, error) {
 	return allTests, nil
 }
 
-func FindHelmSteps(configPath string) ([]HelmStepWithPath, error) {
+func FindHelmSteps(topologyDir, configPath string) ([]HelmStepWithPath, error) {
 	cfg, err := loadConfig(configPath)
 	if err != nil {
 		return nil, fmt.Errorf("error loading config: %v", err)
 	}
-	topo, err := topology.Load(filepath.Join(RepoRoot, "topology.yaml"))
+	topo, err := topology.Load(filepath.Join(topologyDir, "topology.yaml"))
 	if err != nil {
 		return nil, fmt.Errorf("error loading topology: %v", err)
 	}
 	allSteps := make([]HelmStepWithPath, 0)
 
 	for _, service := range topo.Services {
-		helmStepsWithPath, err := recursiveLoadPipelineReturnHelmSteps(service, cfg)
+		helmStepsWithPath, err := recursiveLoadPipelineReturnHelmSteps(topologyDir, service, cfg)
 		if err != nil {
 			return nil, fmt.Errorf("error loading pipeline: %v", err)
 		}
@@ -64,8 +64,8 @@ func FindHelmSteps(configPath string) ([]HelmStepWithPath, error) {
 	return allSteps, nil
 }
 
-func recursiveLoadPipelineReturnHelmSteps(service topology.Service, cfg configtypes.Configuration) ([]HelmStepWithPath, error) {
-	pipeline, err := types.NewPipelineFromFile(filepath.Join(RepoRoot, service.PipelinePath), cfg)
+func recursiveLoadPipelineReturnHelmSteps(topologyDir string, service topology.Service, cfg configtypes.Configuration) ([]HelmStepWithPath, error) {
+	pipeline, err := types.NewPipelineFromFile(filepath.Join(topologyDir, service.PipelinePath), cfg)
 	if err != nil {
 		return nil, fmt.Errorf("error loading pipeline: %v", err)
 	}
@@ -82,7 +82,7 @@ func recursiveLoadPipelineReturnHelmSteps(service topology.Service, cfg configty
 		}
 	}
 	for _, child := range service.Children {
-		helmStepsWithPath, err := recursiveLoadPipelineReturnHelmSteps(child, cfg)
+		helmStepsWithPath, err := recursiveLoadPipelineReturnHelmSteps(topologyDir, child, cfg)
 		if err != nil {
 			return nil, fmt.Errorf("error loading pipeline: %v", err)
 		}

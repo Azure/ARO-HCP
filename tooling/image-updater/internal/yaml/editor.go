@@ -18,6 +18,7 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 
@@ -30,10 +31,17 @@ type Update struct {
 	OldDigest string // Current digest value
 	NewDigest string // New digest value
 	Tag       string // Image tag (e.g., "v1.2.3")
+	Version   string // Human-friendly version from container label (if configured and available)
 	Date      string // Image creation date (e.g., "2025-11-24 14:30")
 	FilePath  string // Path to the YAML file
 	JsonPath  string // JSON path to the value in the YAML
 	Line      int    // Line number in the file
+}
+
+type EditorInterface interface {
+	GetUpdate(path string) (int, string, error)
+	GetLineWithComment(path string) (int, string, string, error)
+	ApplyUpdates(updates []Update) error
 }
 
 // Editor provides functionality to edit YAML files while preserving structure
@@ -78,6 +86,70 @@ func (e *Editor) GetUpdate(path string) (int, string, error) {
 
 	line := node.Line
 	return line, node.Value, nil
+}
+
+// GetLineWithComment retrieves the line number, value, and the full line content (including comment)
+func (e *Editor) GetLineWithComment(path string) (int, string, string, error) {
+	line, value, err := e.GetUpdate(path)
+	if err != nil {
+		return 0, "", "", err
+	}
+
+	// Read the line from the file
+	file, err := os.Open(e.filePath)
+	if err != nil {
+		return 0, "", "", fmt.Errorf("failed to open file: %w", err)
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	currentLine := 1
+	for scanner.Scan() {
+		if currentLine == line {
+			return line, value, scanner.Text(), nil
+		}
+		currentLine++
+	}
+
+	if err := scanner.Err(); err != nil {
+		return 0, "", "", fmt.Errorf("error reading file: %w", err)
+	}
+
+	return line, value, "", nil
+}
+
+// ParseVersionComment extracts tag and date from a YAML line comment
+// Expected format: "digest: sha256:abc... # v1.2.3 (2025-01-15 10:30)"
+// Returns (tag, date) where either or both may be empty if not found
+func ParseVersionComment(lineContent string) (string, string) {
+	// Find the comment marker
+	commentIdx := strings.Index(lineContent, "#")
+	if commentIdx == -1 {
+		return "", ""
+	}
+
+	// Extract the comment part
+	comment := strings.TrimSpace(lineContent[commentIdx+1:])
+	if comment == "" {
+		return "", ""
+	}
+
+	// Look for date in parentheses at the end
+	var tag, date string
+	if lastParen := strings.LastIndex(comment, "("); lastParen != -1 {
+		if closeParen := strings.Index(comment[lastParen:], ")"); closeParen != -1 {
+			date = strings.TrimSpace(comment[lastParen+1 : lastParen+closeParen])
+			tag = strings.TrimSpace(comment[:lastParen])
+		} else {
+			// No closing paren, treat entire comment as tag
+			tag = comment
+		}
+	} else {
+		// No parentheses, treat entire comment as tag
+		tag = comment
+	}
+
+	return tag, date
 }
 
 // findChild finds a child node with the specified key
@@ -129,10 +201,16 @@ func (e *Editor) ApplyUpdates(updates []Update) error {
 	}
 	defer file.Close()
 
-	tempFile, err := os.CreateTemp("/tmp", strings.Split(e.filePath, "/")[len(strings.Split(e.filePath, "/"))-1])
+	targetDir := filepath.Dir(e.filePath)
+	targetName := filepath.Base(e.filePath)
+
+	tempFile, err := os.CreateTemp(targetDir, targetName+".*")
 	if err != nil {
 		return fmt.Errorf("failed to create temp file for %s: %v", e.filePath, err)
 	}
+
+	// Ensure temp file is cleaned up if we panic or error out early
+	defer os.Remove(tempFile.Name())
 	defer tempFile.Close()
 
 	scanner := bufio.NewScanner(file)
@@ -159,8 +237,13 @@ func (e *Editor) ApplyUpdates(updates []Update) error {
 
 				// Build the new value with the digest and optional comment
 				newValue := updates[updateIndex].NewDigest
-				if updates[updateIndex].Tag != "" {
-					comment := updates[updateIndex].Tag
+				// Use Version if available, otherwise fall back to Tag
+				versionInfo := updates[updateIndex].Version
+				if versionInfo == "" {
+					versionInfo = updates[updateIndex].Tag
+				}
+				if versionInfo != "" {
+					comment := versionInfo
 					if updates[updateIndex].Date != "" {
 						comment = comment + " (" + updates[updateIndex].Date + ")"
 					}
@@ -173,9 +256,13 @@ func (e *Editor) ApplyUpdates(updates []Update) error {
 				// This shouldn't normally happen but provides a safety net
 				line = strings.Replace(line, updates[updateIndex].OldDigest, updates[updateIndex].NewDigest, 1)
 
-				// Add the tag and date comment
-				if updates[updateIndex].Tag != "" {
-					comment := updates[updateIndex].Tag
+				// Add the version/tag and date comment
+				versionInfo := updates[updateIndex].Version
+				if versionInfo == "" {
+					versionInfo = updates[updateIndex].Tag
+				}
+				if versionInfo != "" {
+					comment := versionInfo
 					if updates[updateIndex].Date != "" {
 						comment = comment + " (" + updates[updateIndex].Date + ")"
 					}

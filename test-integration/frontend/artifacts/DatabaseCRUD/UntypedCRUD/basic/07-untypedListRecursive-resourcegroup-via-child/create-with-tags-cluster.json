@@ -1,0 +1,84 @@
+{
+    "_attachments": "attachments/",
+    "_etag": "\"00000000-0000-0000-6625-ed6b640501dc\"",
+    "_rid": "KDJCAI5tVlcFAAAAAAAAAA==",
+    "_self": "dbs/KDJCAA==/colls/KDJCAI5tVlc=/docs/KDJCAI5tVlcFAAAAAAAAAA==/",
+    "_ts": 1764966599,
+    "id": "|subscriptions|f52dfea2-47ee-4396-8006-4a27d47d59c5|resourcegroups|some-resource-group|providers|microsoft.redhatopenshift|hcpopenshiftclusters|create-with-tags",
+    "partitionKey": "f52dfea2-47ee-4396-8006-4a27d47d59c5",
+	"resourceID": "/subscriptions/f52dfea2-47ee-4396-8006-4a27d47d59c5/resourceGroups/some-resource-group/providers/microsoft.redhatopenshift/hcpopenshiftclusters/create-with-tags",
+    "properties": {
+        "activeOperationId": "7c6b7caa-572f-41b6-9f18-1bb11adfba31",
+        "identity": {
+            "type": "UserAssigned"
+        },
+        "internalId": "/api/clusters_mgmt/v1/clusters/dv8blqb5g9",
+        "internalState": {
+            "internalAPI": {
+                "customerProperties": {
+                    "api": {
+                        "visibility": "Public"
+                    },
+                    "autoscaling": {
+                        "maxNodeProvisionTimeSeconds": 900,
+                        "maxPodGracePeriodSeconds": 600,
+                        "podPriorityThreshold": -10
+                    },
+                    "clusterImageRegistry": {
+                        "state": "Disabled"
+                    },
+                    "dns": {},
+                    "etcd": {
+                        "dataEncryption": {
+                            "customerManaged": {
+                                "encryptionType": "KMS",
+                                "kms": {
+                                    "activeKey": {
+                                        "name": "encryptionKeyName",
+                                        "vaultName": "keyVaultName",
+                                        "version": "2024-12-01-preview"
+                                    }
+                                }
+                            },
+                            "keyManagementMode": "CustomerManaged"
+                        }
+                    },
+                    "network": {
+                        "hostPrefix": 23,
+                        "machineCidr": "10.0.0.0/16",
+                        "networkType": "OVNKubernetes",
+                        "podCidr": "10.128.0.0/14",
+                        "serviceCidr": "172.30.0.0/16"
+                    },
+                    "platform": {
+                        "managedResourceGroup": "managed-resource-group-name",
+                        "networkSecurityGroupId": "/subscriptions/f52dfea2-47ee-4396-8006-4a27d47d59c5/resourceGroups/bar/providers/Microsoft.Network/networkSecurityGroups/nsg",
+                        "operatorsAuthentication": {
+                            "userAssignedIdentities": {}
+                        },
+                        "outboundType": "LoadBalancer",
+                        "subnetId": "/subscriptions/f52dfea2-47ee-4396-8006-4a27d47d59c5/resourceGroups/bar/providers/Microsoft.Network/virtualNetworks/vnet/subnets/subnet"
+                    },
+                    "version": {
+                        "channelGroup": "stable"
+                    }
+                },
+                "location": "fake-location",
+                "serviceProviderProperties": {
+                    "api": {},
+                    "clusterServiceID": "",
+                    "console": {},
+                    "dns": {},
+                    "platform": {}
+                }
+            }
+        },
+        "provisioningState": "Accepted",
+        "resourceId": "/subscriptions/f52dfea2-47ee-4396-8006-4a27d47d59c5/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/create-with-tags",
+        "systemData": {},
+        "tags": {
+            "one": "apple"
+        }
+    },
+    "resourceType": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters"
+}

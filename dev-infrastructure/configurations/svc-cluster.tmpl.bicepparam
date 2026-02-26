@@ -9,24 +9,28 @@ param subnetPrefix = '{{ .svc.aks.subnetPrefix }}'
 param podSubnetPrefix = '{{ .svc.aks.podSubnetPrefix }}'
 param istioIngressGatewayIPAddressName = '{{ .svc.istio.ingressGatewayIPAddressName }}'
 param istioIngressGatewayIPAddressIPTags = '{{ .svc.istio.ingressGatewayIPAddressIPTags }}'
+param opsIngressGatewayIPAddressName = '{{ .svc.opsIngress.gateway.ipAddressName }}'
+param opsIngressGatewayIPAddressTags = '{{ .svc.opsIngress.gateway.ipAddressTags }}'
 param aksClusterName = '{{ .svc.aks.name }}'
 param aksKeyVaultName = '{{ .svc.aks.etcd.name }}'
 param aksKeyVaultTagName = '{{ .svc.aks.etcd.tagKey }}'
 param aksKeyVaultTagValue = '{{ .svc.aks.etcd.tagValue }}'
 param aksEtcdKVEnableSoftDelete = {{ .svc.aks.etcd.softDelete }}
+param systemAgentPoolName = '{{ .svc.aks.systemAgentPool.name }}'
 param systemAgentMinCount = {{ .svc.aks.systemAgentPool.minCount}}
 param systemAgentMaxCount = {{ .svc.aks.systemAgentPool.maxCount }}
-param systemAgentPoolCount = {{ .svc.aks.systemAgentPool.poolCount }}
 param systemAgentPoolZones = '{{ .svc.aks.systemAgentPool.zones }}'
 param systemAgentVMSize = '{{ .svc.aks.systemAgentPool.vmSize }}'
 param systemZoneRedundantMode = '{{ .svc.aks.systemAgentPool.zoneRedundantMode }}'
 param aksSystemOsDiskSizeGB = {{ .svc.aks.systemAgentPool.osDiskSizeGB }}
+param userAgentPoolName = '{{ .svc.aks.userAgentPool.name }}'
 param userAgentMinCount = {{ .svc.aks.userAgentPool.minCount }}
 param userAgentMaxCount = {{ .svc.aks.userAgentPool.maxCount }}
 param userAgentVMSize = '{{ .svc.aks.userAgentPool.vmSize }}'
 param userAgentPoolCount = {{ .svc.aks.userAgentPool.poolCount }}
 param userAgentPoolZones = '{{ .svc.aks.userAgentPool.zones }}'
 param userZoneRedundantMode = '{{ .svc.aks.userAgentPool.zoneRedundantMode }}'
+param infraAgentPoolName = '{{ .svc.aks.infraAgentPool.name }}'
 param infraAgentMinCount = {{ .svc.aks.infraAgentPool.minCount }}
 param infraAgentMaxCount = {{ .svc.aks.infraAgentPool.maxCount }}
 param infraAgentVMSize = '{{ .svc.aks.infraAgentPool.vmSize }}'
@@ -50,6 +54,12 @@ param frontendServiceAccountName = '{{ .frontend.k8s.serviceAccountName }}'
 param backendMIName = '{{ .backend.managedIdentityName }}'
 param backendNamespace = '{{ .backend.k8s.namespace }}'
 param backendServiceAccountName = '{{ .backend.k8s.serviceAccountName }}'
+
+param sessiongateMIName = '{{ .sessiongate.managedIdentityName }}'
+param sessiongateNamespace = '{{ .sessiongate.k8s.namespace }}'
+param sessiongateServiceAccountName = '{{ .sessiongate.k8s.serviceAccountName }}'
+param sessiongateIngressCertName = '{{ .sessiongate.cert.name }}'
+param sessiongateIngressCertIssuer = '{{ .sessiongate.cert.issuer }}'
 
 param maestroMIName = '{{ .maestro.server.managedIdentityName }}'
 param maestroNamespace = '{{ .maestro.server.k8s.namespace }}'
@@ -125,6 +135,7 @@ param regionalResourceGroup = '{{ .regionRG }}'
 param frontendIngressCertName = '{{ .frontend.cert.name }}'
 param frontendIngressCertIssuer = '{{ .frontend.cert.issuer }}'
 param genevaActionsServiceTag = '{{ .geneva.actions.serviceTag }}'
+param sreServiceTag = '{{ .administration.sreServiceTag }}'
 
 param fpaCertificateName = '{{ .firstPartyAppCertificate.name }}'
 param fpaCertificateIssuer = '{{ .firstPartyAppCertificate.issuer }}'
@@ -132,10 +143,6 @@ param manageFpaCertificate = {{ .firstPartyAppCertificate.manage }}
 
 // Azure Monitor Workspace
 param azureMonitoringWorkspaceId = '__azureMonitoringWorkspaceId__'
-
-// Grafana
-param grafanaResourceId = '__grafanaResourceId__'
-param grafanaPrincipalId = '__grafanaPrincipalId__'
 
 // MDSD / Genevabits
 param logsNamespace = '{{ .logs.mdsd.namespace }}'
@@ -151,3 +158,15 @@ param genevaCertificateDomain = '{{ .geneva.logs.certificateDomain }}'
 param genevaCertificateIssuer = '{{ .geneva.logs.certificateIssuer }}'
 param genevaRpLogsName = '{{ .geneva.logs.rp.secretName }}'
 param genevaManageCertificates = {{ .geneva.logs.manageCertificates }}
+
+// Alert rules tag value
+param owningTeamTagValue = '{{ .monitoring.alertRuleOwningTeamTag }}'
+
+
+param resourceContainerMaxScale = {{ .frontend.cosmosDB.resourceContainerMaxScale }}
+param billingContainerMaxScale = {{ .frontend.cosmosDB.billingContainerMaxScale }}
+param locksContainerMaxScale = {{ .frontend.cosmosDB.locksContainerMaxScale }}
+
+// Audit Logs Event Hub
+param auditLogsEventHubName = '{{ .kusto.auditLogsEventHub.name }}'
+param auditLogsEventHubAuthRuleId = '__auditLogsEventHubAuthRuleId__'

@@ -18,12 +18,9 @@ import (
 	"context"
 	"strings"
 	"testing"
-	"time"
 
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/utils/ptr"
-
-	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
@@ -79,49 +76,6 @@ func verifyErrorsMatch(t *testing.T, expectedErrors []expectedError, errs field.
 	}
 }
 
-// Helper function to create a valid cluster for testing
-func createValidCluster() *api.HCPOpenShiftCluster {
-	cluster := api.NewDefaultHCPOpenShiftCluster(api.Must(azcorearm.ParseResourceID("/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster")))
-
-	// Set required fields
-	cluster.Location = "eastus"
-	cluster.CustomerProperties.Version.ID = "4.15"
-	cluster.CustomerProperties.Version.ChannelGroup = "stable"
-	cluster.CustomerProperties.DNS.BaseDomainPrefix = "test-cluster"
-	cluster.CustomerProperties.Platform.SubnetID = "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.Network/virtualNetworks/test-vnet/subnets/test-subnet"
-	cluster.CustomerProperties.Platform.NetworkSecurityGroupID = "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.Network/networkSecurityGroups/test-nsg"
-	cluster.CustomerProperties.Platform.ManagedResourceGroup = "managed-rg"
-
-	return cluster
-}
-
-// Helper function to create a subscription with AllowDevNonStableChannels feature flag
-func createSubscriptionWithNonStableChannels() *arm.Subscription {
-	return &arm.Subscription{
-		State:            arm.SubscriptionStateRegistered,
-		RegistrationDate: ptr.To(time.Now().Format(time.RFC1123)),
-		Properties: &arm.SubscriptionProperties{
-			RegisteredFeatures: &[]arm.Feature{
-				{
-					Name:  ptr.To(api.FeatureAllowDevNonStableChannels),
-					State: ptr.To("Registered"),
-				},
-			},
-		},
-	}
-}
-
-// Helper function to create a subscription without AllowDevNonStableChannels feature flag
-func createStandardSubscription() *arm.Subscription {
-	return &arm.Subscription{
-		State:            arm.SubscriptionStateRegistered,
-		RegistrationDate: ptr.To(time.Now().Format(time.RFC1123)),
-		Properties: &arm.SubscriptionProperties{
-			RegisteredFeatures: &[]arm.Feature{},
-		},
-	}
-}
-
 // Tests for AdmitClusterOnCreate without AllowDevNonStableChannels feature flag
 func TestAdmitClusterOnCreate(t *testing.T) {
 	ctx := context.Background()
@@ -134,25 +88,25 @@ func TestAdmitClusterOnCreate(t *testing.T) {
 	}{
 		{
 			name:         "valid cluster with stable channel group",
-			cluster:      createValidCluster(),
-			subscription: createStandardSubscription(),
+			cluster:      api.MinimumValidClusterTestCase(),
+			subscription: api.CreateTestSubscription(),
 			expectErrors: []expectedError{},
 		},
 		{
 			name:         "valid cluster with nil subscription",
-			cluster:      createValidCluster(),
+			cluster:      api.MinimumValidClusterTestCase(),
 			subscription: nil,
 			expectErrors: []expectedError{},
 		},
 		{
 			name: "invalid channel group without feature flag - candidate",
 			cluster: func() *api.HCPOpenShiftCluster {
-				c := createValidCluster()
+				c := api.MinimumValidClusterTestCase()
 				c.CustomerProperties.Version.ChannelGroup = "candidate"
 				c.CustomerProperties.Version.ID = "4.15"
 				return c
 			}(),
-			subscription: createStandardSubscription(),
+			subscription: api.CreateTestSubscription(),
 			expectErrors: []expectedError{
 				{message: "supported values: \"stable\"",
 					fieldPath: "properties.version.channelGroup",
@@ -162,12 +116,12 @@ func TestAdmitClusterOnCreate(t *testing.T) {
 		{
 			name: "invalid channel group without feature flag - fast",
 			cluster: func() *api.HCPOpenShiftCluster {
-				c := createValidCluster()
+				c := api.MinimumValidClusterTestCase()
 				c.CustomerProperties.Version.ChannelGroup = "fast"
 				c.CustomerProperties.Version.ID = "4.15"
 				return c
 			}(),
-			subscription: createStandardSubscription(),
+			subscription: api.CreateTestSubscription(),
 			expectErrors: []expectedError{
 				{message: "supported values: \"stable\"",
 					fieldPath: "properties.version.channelGroup"},
@@ -176,12 +130,12 @@ func TestAdmitClusterOnCreate(t *testing.T) {
 		{
 			name: "invalid channel group without feature flag - nightly",
 			cluster: func() *api.HCPOpenShiftCluster {
-				c := createValidCluster()
+				c := api.MinimumValidClusterTestCase()
 				c.CustomerProperties.Version.ChannelGroup = "nightly"
 				c.CustomerProperties.Version.ID = "4.15"
 				return c
 			}(),
-			subscription: createStandardSubscription(),
+			subscription: api.CreateTestSubscription(),
 			expectErrors: []expectedError{
 				{message: "supported values: \"stable\"",
 					fieldPath: "properties.version.channelGroup"},
@@ -190,7 +144,7 @@ func TestAdmitClusterOnCreate(t *testing.T) {
 		{
 			name: "invalid version with malformed version",
 			cluster: func() *api.HCPOpenShiftCluster {
-				c := createValidCluster()
+				c := api.MinimumValidClusterTestCase()
 				c.CustomerProperties.Version.ID = "invalid-version"
 				return c
 			}(),
@@ -201,11 +155,11 @@ func TestAdmitClusterOnCreate(t *testing.T) {
 		{
 			name: "invalid version format with patch version",
 			cluster: func() *api.HCPOpenShiftCluster {
-				c := createValidCluster()
+				c := api.MinimumValidClusterTestCase()
 				c.CustomerProperties.Version.ID = "4.15.1"
 				return c
 			}(),
-			subscription: createStandardSubscription(),
+			subscription: api.CreateTestSubscription(),
 			expectErrors: []expectedError{
 				{message: "must be specified as MAJOR.MINOR", fieldPath: "properties.version.id"},
 			},
@@ -213,11 +167,11 @@ func TestAdmitClusterOnCreate(t *testing.T) {
 		{
 			name: "invalid version format with prerelease",
 			cluster: func() *api.HCPOpenShiftCluster {
-				c := createValidCluster()
+				c := api.MinimumValidClusterTestCase()
 				c.CustomerProperties.Version.ID = "4.15.0-rc.1"
 				return c
 			}(),
-			subscription: createStandardSubscription(),
+			subscription: api.CreateTestSubscription(),
 			expectErrors: []expectedError{
 				{message: "must be specified as MAJOR.MINOR", fieldPath: "properties.version.id"},
 			},
@@ -226,7 +180,7 @@ func TestAdmitClusterOnCreate(t *testing.T) {
 		{
 			name: "valid cluster with fast channel group",
 			cluster: func() *api.HCPOpenShiftCluster {
-				c := createValidCluster()
+				c := api.MinimumValidClusterTestCase()
 				c.CustomerProperties.Version.ChannelGroup = "fast"
 				c.CustomerProperties.Version.ID = "4.17"
 				return c
@@ -246,7 +200,7 @@ func TestAdmitClusterOnCreate(t *testing.T) {
 // Tests for AdmitClusterOnCreate with AllowDevNonStableChannels feature flag enabled
 func TestAdmitClusterOnCreateWithNonStableChannels(t *testing.T) {
 	ctx := context.Background()
-	subscription := createSubscriptionWithNonStableChannels()
+	subscription := api.CreateTestSubscription(api.FeatureAllowDevNonStableChannels)
 
 	tests := []struct {
 		name         string
@@ -256,7 +210,7 @@ func TestAdmitClusterOnCreateWithNonStableChannels(t *testing.T) {
 		{
 			name: "valid cluster with candidate channel group and MAJOR.MINOR version",
 			cluster: func() *api.HCPOpenShiftCluster {
-				c := createValidCluster()
+				c := api.MinimumValidClusterTestCase()
 				c.CustomerProperties.Version.ChannelGroup = "candidate"
 				c.CustomerProperties.Version.ID = "4.15"
 				return c
@@ -266,7 +220,7 @@ func TestAdmitClusterOnCreateWithNonStableChannels(t *testing.T) {
 		{
 			name: "valid cluster with fast channel group and MAJOR.MINOR version",
 			cluster: func() *api.HCPOpenShiftCluster {
-				c := createValidCluster()
+				c := api.MinimumValidClusterTestCase()
 				c.CustomerProperties.Version.ChannelGroup = "fast"
 				c.CustomerProperties.Version.ID = "4.16"
 				return c
@@ -276,7 +230,7 @@ func TestAdmitClusterOnCreateWithNonStableChannels(t *testing.T) {
 		{
 			name: "valid cluster with nightly channel group and full semver",
 			cluster: func() *api.HCPOpenShiftCluster {
-				c := createValidCluster()
+				c := api.MinimumValidClusterTestCase()
 				c.CustomerProperties.Version.ChannelGroup = "nightly"
 				c.CustomerProperties.Version.ID = "4.17.0-0.nightly-2024-01-15-123456"
 				return c
@@ -286,7 +240,7 @@ func TestAdmitClusterOnCreateWithNonStableChannels(t *testing.T) {
 		{
 			name: "valid cluster with candidate channel group and prerelease version",
 			cluster: func() *api.HCPOpenShiftCluster {
-				c := createValidCluster()
+				c := api.MinimumValidClusterTestCase()
 				c.CustomerProperties.Version.ChannelGroup = "candidate"
 				c.CustomerProperties.Version.ID = "4.15.0-rc.1"
 				return c
@@ -296,7 +250,7 @@ func TestAdmitClusterOnCreateWithNonStableChannels(t *testing.T) {
 		{
 			name: "valid cluster with custom channel group",
 			cluster: func() *api.HCPOpenShiftCluster {
-				c := createValidCluster()
+				c := api.MinimumValidClusterTestCase()
 				c.CustomerProperties.Version.ChannelGroup = "custom-channel"
 				c.CustomerProperties.Version.ID = "4.15.0-custom.1"
 				return c
@@ -306,7 +260,7 @@ func TestAdmitClusterOnCreateWithNonStableChannels(t *testing.T) {
 		{
 			name: "stable channel group still requires MAJOR.MINOR version",
 			cluster: func() *api.HCPOpenShiftCluster {
-				c := createValidCluster()
+				c := api.MinimumValidClusterTestCase()
 				c.CustomerProperties.Version.ChannelGroup = "stable"
 				c.CustomerProperties.Version.ID = "4.15"
 				return c
@@ -316,7 +270,7 @@ func TestAdmitClusterOnCreateWithNonStableChannels(t *testing.T) {
 		{
 			name: "stable channel group rejects full semver",
 			cluster: func() *api.HCPOpenShiftCluster {
-				c := createValidCluster()
+				c := api.MinimumValidClusterTestCase()
 				c.CustomerProperties.Version.ChannelGroup = "stable"
 				c.CustomerProperties.Version.ID = "4.15.1"
 				return c
@@ -331,6 +285,188 @@ func TestAdmitClusterOnCreateWithNonStableChannels(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			errs := AdmitClusterOnCreate(ctx, tt.cluster, subscription)
 			verifyErrorsMatch(t, tt.expectErrors, errs)
+		})
+	}
+}
+
+func TestMutateCluster(t *testing.T) {
+	afecRegistered := &arm.Subscription{
+		Properties: &arm.SubscriptionProperties{
+			RegisteredFeatures: &[]arm.Feature{
+				{
+					Name:  ptr.To(api.FeatureExperimentalReleaseFeatures),
+					State: ptr.To("Registered"),
+				},
+			},
+		},
+	}
+	noAFEC := &arm.Subscription{
+		Properties: &arm.SubscriptionProperties{},
+	}
+
+	tests := []struct {
+		name                             string
+		subscription                     *arm.Subscription
+		tags                             map[string]string
+		expectError                      string
+		expectZeroFeatures               bool
+		expectedControlPlaneAvailability api.ControlPlaneAvailability
+		expectedControlPlanePodSizing    api.ControlPlanePodSizing
+	}{
+		{
+			name:               "nil subscription ignores all tags",
+			subscription:       nil,
+			tags:               map[string]string{api.TagClusterSingleReplica: string(api.SingleReplicaControlPlane), api.TagClusterSizeOverride: string(api.MinimalControlPlanePodSizing)},
+			expectZeroFeatures: true,
+		},
+		{
+			name:               "no AFEC registered ignores all tags",
+			subscription:       noAFEC,
+			tags:               map[string]string{api.TagClusterSingleReplica: string(api.SingleReplicaControlPlane), api.TagClusterSizeOverride: string(api.MinimalControlPlanePodSizing)},
+			expectZeroFeatures: true,
+		},
+		{
+			name:                             "AFEC registered with single-replica tag only",
+			subscription:                     afecRegistered,
+			tags:                             map[string]string{api.TagClusterSingleReplica: string(api.SingleReplicaControlPlane)},
+			expectedControlPlaneAvailability: api.SingleReplicaControlPlane,
+		},
+		{
+			name:                          "AFEC registered with size-override tag only",
+			subscription:                  afecRegistered,
+			tags:                          map[string]string{api.TagClusterSizeOverride: string(api.MinimalControlPlanePodSizing)},
+			expectedControlPlanePodSizing: api.MinimalControlPlanePodSizing,
+		},
+		{
+			name:                             "AFEC registered with both tags",
+			subscription:                     afecRegistered,
+			tags:                             map[string]string{api.TagClusterSingleReplica: string(api.SingleReplicaControlPlane), api.TagClusterSizeOverride: string(api.MinimalControlPlanePodSizing)},
+			expectedControlPlaneAvailability: api.SingleReplicaControlPlane,
+			expectedControlPlanePodSizing:    api.MinimalControlPlanePodSizing,
+		},
+		{
+			name:               "AFEC registered but no tags",
+			subscription:       afecRegistered,
+			tags:               map[string]string{},
+			expectZeroFeatures: true,
+		},
+		{
+			name:                          "AFEC registered with case insensitive tag keys - size-override",
+			subscription:                  afecRegistered,
+			tags:                          map[string]string{"ARO-HCP.Experimental.Cluster.Size-Override": string(api.MinimalControlPlanePodSizing)},
+			expectedControlPlanePodSizing: api.MinimalControlPlanePodSizing,
+		},
+		{
+			name:                             "AFEC registered with case insensitive tag keys - single-replica",
+			subscription:                     afecRegistered,
+			tags:                             map[string]string{"ARO-HCP.Experimental.Cluster.Single-Replica": string(api.SingleReplicaControlPlane)},
+			expectedControlPlaneAvailability: api.SingleReplicaControlPlane,
+		},
+		{
+			name:               "AFEC registered but tag values are empty strings",
+			subscription:       afecRegistered,
+			tags:               map[string]string{api.TagClusterSingleReplica: "", api.TagClusterSizeOverride: ""},
+			expectZeroFeatures: true,
+		},
+		{
+			name:         "AFEC registered but single-replica tag has invalid value",
+			subscription: afecRegistered,
+			tags:         map[string]string{api.TagClusterSingleReplica: "yes"},
+			expectError:  "Invalid value",
+		},
+		{
+			name:         "AFEC registered but single-replica tag rejects true",
+			subscription: afecRegistered,
+			tags:         map[string]string{api.TagClusterSingleReplica: "true"},
+			expectError:  "Invalid value",
+		},
+		{
+			name:         "AFEC registered but size-override tag has invalid value",
+			subscription: afecRegistered,
+			tags:         map[string]string{api.TagClusterSizeOverride: "1"},
+			expectError:  "Invalid value",
+		},
+		{
+			name:         "AFEC registered with unrecognized experimental tag",
+			subscription: afecRegistered,
+			tags:         map[string]string{"aro-hcp.experimental.cluster.unknown-feature": string(api.SingleReplicaControlPlane)},
+			expectError:  "unrecognized experimental tag",
+		},
+		{
+			name:                          "AFEC registered with only size-override after removing single-replica",
+			subscription:                  afecRegistered,
+			tags:                          map[string]string{api.TagClusterSizeOverride: string(api.MinimalControlPlanePodSizing)},
+			expectedControlPlanePodSizing: api.MinimalControlPlanePodSizing,
+		},
+		{
+			name:         "AFEC registered with unrecognized experimental tag in mixed case",
+			subscription: afecRegistered,
+			tags:         map[string]string{"ARO-HCP.Experimental.Cluster.Unknown-Feature": string(api.SingleReplicaControlPlane)},
+			expectError:  "unrecognized experimental tag",
+		},
+		{
+			name:               "non-experimental tags are ignored",
+			subscription:       afecRegistered,
+			tags:               map[string]string{"environment": "dev", "team": "platform"},
+			expectZeroFeatures: true,
+		},
+		{
+			name:         "valid tag alongside unrecognized experimental tag fails",
+			subscription: afecRegistered,
+			tags:         map[string]string{api.TagClusterSingleReplica: string(api.SingleReplicaControlPlane), "aro-hcp.experimental.cluster.unknown": "value"},
+			expectError:  "unrecognized experimental tag",
+		},
+		{
+			name:               "nil tags",
+			subscription:       afecRegistered,
+			tags:               nil,
+			expectZeroFeatures: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cluster := &api.HCPOpenShiftCluster{
+				TrackedResource: arm.TrackedResource{
+					Tags: tt.tags,
+				},
+			}
+			errs := MutateCluster(cluster, tt.subscription)
+
+			if len(tt.expectError) != 0 {
+				if len(errs) == 0 {
+					t.Fatalf("expected error containing %q, got none", tt.expectError)
+				}
+				found := false
+				for _, e := range errs {
+					if strings.Contains(e.Error(), tt.expectError) {
+						found = true
+						break
+					}
+				}
+				if !found {
+					t.Fatalf("expected error containing %q, got %v", tt.expectError, errs)
+				}
+				return
+			}
+			if len(errs) != 0 {
+				t.Fatalf("unexpected errors: %v", errs)
+			}
+
+			if tt.expectZeroFeatures {
+				if cluster.ServiceProviderProperties.ExperimentalFeatures != (api.ExperimentalFeatures{}) {
+					t.Errorf("expected zero ExperimentalFeatures, got %+v", cluster.ServiceProviderProperties.ExperimentalFeatures)
+				}
+				return
+			}
+			if cluster.ServiceProviderProperties.ExperimentalFeatures.ControlPlaneAvailability != tt.expectedControlPlaneAvailability {
+				t.Errorf("expected ControlPlaneAvailability %q, got %q",
+					tt.expectedControlPlaneAvailability, cluster.ServiceProviderProperties.ExperimentalFeatures.ControlPlaneAvailability)
+			}
+			if cluster.ServiceProviderProperties.ExperimentalFeatures.ControlPlanePodSizing != tt.expectedControlPlanePodSizing {
+				t.Errorf("expected ControlPlanePodSizing %q, got %q",
+					tt.expectedControlPlanePodSizing, cluster.ServiceProviderProperties.ExperimentalFeatures.ControlPlanePodSizing)
+			}
 		})
 	}
 }

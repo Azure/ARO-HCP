@@ -17,6 +17,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -434,6 +435,30 @@ images:
 			wantErr:        false,
 			wantImageNames: []string{},
 		},
+		{
+			name: "invalid config: both tag and tagPattern",
+			setupFile: func(t *testing.T) string {
+				tmpDir := t.TempDir()
+				configPath := filepath.Join(tmpDir, "invalid.yaml")
+				content := `
+images:
+  test:
+    source:
+      image: quay.io/test/app
+      tag: v1.0.0
+      tagPattern: "^v\\d+\\.\\d+\\.\\d+$"
+    targets:
+      - filePath: test.yaml
+        jsonPath: image.digest
+`
+				if err := os.WriteFile(configPath, []byte(content), 0644); err != nil {
+					t.Fatalf("failed to create config file: %v", err)
+				}
+				return configPath
+			},
+			wantErr:    true,
+			wantErrMsg: "tag and tagPattern are mutually exclusive",
+		},
 	}
 
 	for _, tt := range tests {
@@ -663,6 +688,149 @@ images:
 				}
 				if img.Source.KeyVault.SecretName != tt.wantKeyVaultName {
 					t.Errorf("Load() KeyVault.SecretName = %v, want %v", img.Source.KeyVault.SecretName, tt.wantKeyVaultName)
+				}
+			}
+		})
+	}
+}
+
+func TestSource_Validate(t *testing.T) {
+	tests := []struct {
+		name       string
+		source     Source
+		wantErr    bool
+		wantErrMsg string
+	}{
+		{
+			name: "valid: only tag specified",
+			source: Source{
+				Image: "quay.io/test/app",
+				Tag:   "v1.0.0",
+			},
+			wantErr: false,
+		},
+		{
+			name: "valid: only tagPattern specified",
+			source: Source{
+				Image:      "quay.io/test/app",
+				TagPattern: "^v\\d+\\.\\d+\\.\\d+$",
+			},
+			wantErr: false,
+		},
+		{
+			name: "valid: neither tag nor tagPattern specified",
+			source: Source{
+				Image: "quay.io/test/app",
+			},
+			wantErr: false,
+		},
+		{
+			name: "invalid: both tag and tagPattern specified",
+			source: Source{
+				Image:      "quay.io/test/app",
+				Tag:        "v1.0.0",
+				TagPattern: "^v\\d+\\.\\d+\\.\\d+$",
+			},
+			wantErr:    true,
+			wantErrMsg: "tag and tagPattern are mutually exclusive",
+		},
+		{
+			name: "invalid: architecture and multiArch both specified",
+			source: Source{
+				Image:        "quay.io/test/app",
+				Architecture: "amd64",
+				MultiArch:    true,
+			},
+			wantErr:    true,
+			wantErrMsg: "architecture and multiArch are mutually exclusive",
+		},
+		{
+			name: "valid: tag with multiArch",
+			source: Source{
+				Image:     "quay.io/test/app",
+				Tag:       "v1.0.0",
+				MultiArch: true,
+			},
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.source.Validate()
+
+			if (err != nil) != tt.wantErr {
+				t.Errorf("Validate() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+
+			if tt.wantErr && tt.wantErrMsg != "" && !strings.Contains(err.Error(), tt.wantErrMsg) {
+				t.Errorf("Validate() error = %v, should contain %v", err.Error(), tt.wantErrMsg)
+			}
+		})
+	}
+}
+
+func TestSource_GetEffectiveTagPattern(t *testing.T) {
+	tests := []struct {
+		name    string
+		source  Source
+		wantRE  string
+		wantTag string
+	}{
+		{
+			name: "tag specified - exact match pattern",
+			source: Source{
+				Tag: "v1.0.0",
+			},
+			wantRE:  "^v1\\.0\\.0$",
+			wantTag: "v1.0.0",
+		},
+		{
+			name: "tag with special regex characters",
+			source: Source{
+				Tag: "v1.0.0-rc.1",
+			},
+			wantRE:  "^v1\\.0\\.0-rc\\.1$",
+			wantTag: "v1.0.0-rc.1",
+		},
+		{
+			name: "tagPattern specified - returns as is",
+			source: Source{
+				TagPattern: "^v\\d+\\.\\d+\\.\\d+$",
+			},
+			wantRE: "^v\\d+\\.\\d+\\.\\d+$",
+		},
+		{
+			name:   "neither specified - returns empty string",
+			source: Source{},
+			wantRE: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.source.GetEffectiveTagPattern()
+
+			if got != tt.wantRE {
+				t.Errorf("GetEffectiveTagPattern() = %v, want %v", got, tt.wantRE)
+			}
+
+			// If we expect a specific tag match, verify it matches only that tag
+			if tt.wantTag != "" {
+				re, err := regexp.Compile(got)
+				if err != nil {
+					t.Fatalf("Failed to compile pattern: %v", err)
+				}
+
+				// Should match the exact tag
+				if !re.MatchString(tt.wantTag) {
+					t.Errorf("Pattern %v should match tag %v", got, tt.wantTag)
+				}
+
+				// Should not match variations
+				if re.MatchString(tt.wantTag + ".1") {
+					t.Errorf("Pattern %v should not match %v", got, tt.wantTag+".1")
 				}
 			}
 		})

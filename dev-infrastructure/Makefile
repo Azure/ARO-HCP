@@ -28,10 +28,10 @@ ROLE_ASSIGNMENTS_DEPLOYMENT_NAME ?= role-assignments${DEPLOYMENT_NAME_SUFFIX}
 DEV_TESTING_SUBSCRIPTION_ID = 1d3378d3-5a3f-4712-85a1-2485495dfc4b
 INT_TESTING_SUBSCRIPTION_ID = 64f0619f-ebc2-4156-9d91-c4c781de7e54
 STAGE_TESTING_SUBSCRIPTION_ID = b23756f7-4594-40a3-980f-10bb6168fc20
-E2E_HOSTED_CLUSTER_SUBSCRIPTION_ID = 974ebd46-8ad3-41e3-afef-7ef25fd5c371
+E2E_TESTING_SUBSCRIPTION_ID = 974ebd46-8ad3-41e3-afef-7ef25fd5c371
 
 # Environments where automation accounts are deployed
-AUTOMATION_ACCOUNT_ENVS = dev stage int
+AUTOMATION_ACCOUNT_ENVS = dev stage int e2e
 
 list:
 	@grep '^[^#[:space:]].*:' Makefile
@@ -185,13 +185,13 @@ grant-e2e-access:
 	az role assignment create \
 		--role "dev-first-party-mock" \
 		--assignee "$(shell az ad app list --display-name aro-dev-first-party2 --query '[*]'.appId -o tsv)" \
-		--scope "/subscriptions/$(E2E_HOSTED_CLUSTER_SUBSCRIPTION_ID)" \
+		--scope "/subscriptions/$(E2E_TESTING_SUBSCRIPTION_ID)" \
 		--only-show-errors
 
 	az role assignment create \
 		--role "Contributor" \
 		--assignee "$(shell az ad app list --display-name aro-dev-arm-helper2 --query '[*]'.appId -o tsv)" \
-		--scope "/subscriptions/$(E2E_HOSTED_CLUSTER_SUBSCRIPTION_ID)" \
+		--scope "/subscriptions/$(E2E_TESTING_SUBSCRIPTION_ID)" \
 		--only-show-errors
 
 	az role assignment create \
@@ -203,16 +203,19 @@ grant-e2e-access:
 	az role assignment create \
 		--role "dev-msi-mock" \
 		--assignee "$(shell az ad app list --display-name aro-dev-msi-mock2 --query '[*]'.appId -o tsv)" \
-		--scope "/subscriptions/$(E2E_HOSTED_CLUSTER_SUBSCRIPTION_ID)" \
+		--scope "/subscriptions/$(E2E_TESTING_SUBSCRIPTION_ID)" \
 		--only-show-errors
 
 	az role assignment create \
 		--role "Azure Red Hat OpenShift KMS Plugin - Dev" \
 		--assignee "$(shell az ad app list --display-name aro-dev-msi-mock2 --query '[*]'.appId -o tsv)" \
-		--scope "/subscriptions/$(E2E_HOSTED_CLUSTER_SUBSCRIPTION_ID)" \
+		--scope "/subscriptions/$(E2E_TESTING_SUBSCRIPTION_ID)" \
 		--only-show-errors
 .PHONY: grant-e2e-access
 
+frontend-grant-ingress:
+	./scripts/frontend-grant-ingress-from-ip.sh "${SVC_RESOURCEGROUP}"
+.PHONY: frontend-grant-ingress
 
 #
 # Global
@@ -432,6 +435,20 @@ acr-svc-cfg.what-if: configurations/acr-svc.bicepparam
 .PHONY: acr-svc-cfg.what-if
 
 #
+# Cosmos Helpers
+#
+
+cosmos.access:
+    # grants "Cosmos DB Built-in Data Contributor" role to current user
+	az cosmosdb sql role assignment create \
+    --resource-group $(REGIONAL_RESOURCEGROUP) \
+    --account-name $(RP_COSMOS_DB_NAME) \
+    --role-definition-id "00000000-0000-0000-0000-000000000002" \
+    --principal-id $(PRINCIPAL_ID) \
+    --scope "/"
+.PHONY: cosmos.access
+
+#
 # Postgres Authentication Helpers
 #
 
@@ -481,7 +498,7 @@ operator-roles:
 		--template-file templates/dev-operator-roles.bicep \
 		$(PROMPT_TO_CONFIRM) \
 		--parameters configurations/dev-operator-roles.bicepparam \
-		--parameters e2eTestSubscription=$(E2E_HOSTED_CLUSTER_SUBSCRIPTION_ID)
+		--parameters e2eTestSubscription=$(E2E_TESTING_SUBSCRIPTION_ID)
 .PHONY: operator-roles
 
 operator-roles.what-if:
@@ -490,7 +507,7 @@ operator-roles.what-if:
 		--name operator-roles \
 		--template-file templates/dev-operator-roles.bicep \
 		--parameters configurations/dev-operator-roles.bicepparam \
-		--parameters e2eTestSubscription=$(E2E_HOSTED_CLUSTER_SUBSCRIPTION_ID)
+		--parameters e2eTestSubscription=$(E2E_TESTING_SUBSCRIPTION_ID)
 .PHONY: operator-roles.what-if
 
 #

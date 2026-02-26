@@ -1,0 +1,36 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: ops-ingress-gateway
+  namespace: aks-istio-ingress
+spec:
+  gatewayClassName: istio
+  infrastructure:
+    annotations:
+      service.beta.kubernetes.io/azure-pip-name: "{{ .Values.opsIngress.publicIpAddress }}"
+      service.beta.kubernetes.io/azure-load-balancer-resource-group: "{{ .Values.opsIngress.publicIpResourceGroup }}"
+  listeners:
+  - name: admin-api-https
+    port: 443
+    protocol: HTTPS
+    hostname: "{{ .Values.opsIngress.adminApi.hostname }}"
+    tls:
+      mode: Terminate
+      certificateRefs:
+      - name: {{ .Values.opsIngress.adminApi.credentialName }}
+        kind: Secret
+    allowedRoutes:
+      namespaces:
+        from: All
+  - name: sessiongate-https
+    port: 443
+    protocol: HTTPS
+    hostname: "{{ .Values.opsIngress.sessiongate.hostname }}"
+    tls:
+      mode: Terminate
+      certificateRefs:
+      - name: {{ .Values.opsIngress.sessiongate.credentialName }}
+        kind: Secret
+    allowedRoutes:
+      namespaces:
+        from: All

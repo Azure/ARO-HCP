@@ -24,11 +24,10 @@ func CopyReadOnlyTrackedResourceValues(dest, src *arm.TrackedResource) {
 	dest.Name = src.Name
 	dest.Type = src.Type
 	dest.Location = src.Location
-	dest.SystemData = src.SystemData
+	dest.SystemData = src.SystemData.DeepCopy()
 }
 
 func CopyReadOnlyClusterValues(dest, src *api.HCPOpenShiftCluster) {
-	// the old code appeared to shallow copies only
 	CopyReadOnlyTrackedResourceValues(&dest.TrackedResource, &src.TrackedResource)
 
 	switch {
@@ -41,7 +40,7 @@ func CopyReadOnlyClusterValues(dest, src *api.HCPOpenShiftCluster) {
 		copyReadOnlyManagedServiceIdentityValues(dest.Identity, src.Identity)
 	}
 
-	dest.ServiceProviderProperties = src.ServiceProviderProperties
+	dest.ServiceProviderProperties = *src.ServiceProviderProperties.DeepCopy()
 }
 
 func copyReadOnlyManagedServiceIdentityValues(dest, src *arm.ManagedServiceIdentity) {
@@ -61,7 +60,7 @@ func copyReadOnlyManagedServiceIdentityValues(dest, src *arm.ManagedServiceIdent
 		if dest.UserAssignedIdentities == nil {
 			dest.UserAssignedIdentities = make(map[string]*arm.UserAssignedIdentity)
 		}
-		dest.UserAssignedIdentities[key] = srcVal
+		dest.UserAssignedIdentities[key] = srcVal.DeepCopy()
 	}
 }
 

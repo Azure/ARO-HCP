@@ -1,0 +1,164 @@
+$schema: "pipeline.schema.v1"
+serviceGroup: Microsoft.Azure.ARO.HCP.Velero
+rolloutName: Velero Rollout
+resourceGroups:
+- name: global
+  resourceGroup: '{{ .global.rg }}'
+  subscription: '{{ .global.subscription.key }}'
+  steps:
+  - name: output
+    action: ARM
+    template: templates/output-global.bicep
+    parameters: ./../dev-infrastructure/configurations/output-global.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
+  - name: mirror-velero-image
+    action: ImageMirror
+    targetACR:
+      configRef: 'acr.svc.name'
+    sourceRegistry:
+      configRef: velero.server.registry
+    repository:
+      configRef: velero.server.repository
+    digest:
+      configRef: velero.server.digest
+    pullSecretKeyVault:
+      configRef: global.keyVault.name
+    pullSecretName:
+      configRef: imageSync.ondemandSync.pullSecretName
+    shellIdentity:
+      input:
+        resourceGroup: global
+        step: output
+        name: globalMSIId
+    automatedRetry:
+      errorContainsAny:
+      - "unknown_storage_failure"
+      - "unauthorized: authentication required"
+      maximumRetryCount: 5
+      durationBetweenRetries: 1m
+  - name: mirror-azure-plugin-image
+    action: ImageMirror
+    targetACR:
+      configRef: 'acr.svc.name'
+    sourceRegistry:
+      configRef: velero.azurePlugin.registry
+    repository:
+      configRef: velero.azurePlugin.repository
+    digest:
+      configRef: velero.azurePlugin.digest
+    pullSecretKeyVault:
+      configRef: global.keyVault.name
+    pullSecretName:
+      configRef: imageSync.ondemandSync.pullSecretName
+    shellIdentity:
+      input:
+        resourceGroup: global
+        step: output
+        name: globalMSIId
+    automatedRetry:
+      errorContainsAny:
+      - "unknown_storage_failure"
+      - "unauthorized: authentication required"
+      maximumRetryCount: 5
+      durationBetweenRetries: 1m
+  - name: mirror-hypershift-plugin-image
+    action: ImageMirror
+    targetACR:
+      configRef: 'acr.svc.name'
+    sourceRegistry:
+      configRef: velero.hypershiftPlugin.registry
+    repository:
+      configRef: velero.hypershiftPlugin.repository
+    digest:
+      configRef: velero.hypershiftPlugin.digest
+    pullSecretKeyVault:
+      configRef: global.keyVault.name
+    pullSecretName:
+      configRef: imageSync.ondemandSync.pullSecretName
+    shellIdentity:
+      input:
+        resourceGroup: global
+        step: output
+        name: globalMSIId
+    automatedRetry:
+      errorContainsAny:
+      - "unknown_storage_failure"
+      - "unauthorized: authentication required"
+      maximumRetryCount: 5
+      durationBetweenRetries: 1m
+- name: kusto
+  resourceGroup: '{{ .kusto.rg }}'
+  subscription: '{{ .global.subscription.key }}'
+  steps:
+  - name: kusto-lookup
+    action: ARM
+    template: ./../dev-infrastructure/templates/kusto-lookup.bicep
+    parameters: ./../dev-infrastructure/configurations/kusto-lookup.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
+- name: management
+  resourceGroup: '{{ .mgmt.rg }}'
+  subscription: '{{ .mgmt.subscription.key }}'
+  steps:
+  - name: output
+    action: ARM
+    template: ./../dev-infrastructure/templates/output-mgmt.bicep
+    parameters: ./../dev-infrastructure/configurations/output-mgmt.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
+  - name: image-puller-lookup
+    action: ARM
+    template: ./../dev-infrastructure/templates/image-puller-lookup.bicep
+    parameters: ./../dev-infrastructure/configurations/image-puller-lookup.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
+  - name: deploy-velero
+    aksCluster: '{{ .mgmt.aks.name }}'
+    action: Helm
+    releaseName: 'velero'
+    releaseNamespace: 'velero'
+    chartDir: ./deploy
+    valuesFile: ./deploy/values.yaml
+    kustoEndpoint:
+      resourceGroup: kusto
+      step: kusto-lookup
+      name: kustoUri
+    kustoDatabase: '{{ .kusto.serviceLogsDatabase }}'
+    kustoTable: 'containerLogs'
+    inputVariables:
+      imagePullerMsiClientId:
+        resourceGroup: management
+        step: image-puller-lookup
+        name: imagePullerMsiClientId
+      imagePullerMsiTenantId:
+        resourceGroup: management
+        step: image-puller-lookup
+        name: imagePullerMsiTenantId
+      veleroMsiClientId:
+        resourceGroup: management
+        step: output
+        name: veleroMsiClientId
+      tenantId:
+        resourceGroup: management
+        step: output
+        name: tenantId
+      subscriptionId:
+        resourceGroup: management
+        step: output
+        name: subscriptionId
+      storageAccountName:
+        resourceGroup: management
+        step: output
+        name: hcpBackupsStorageAccountName
+    dependsOn:
+    - resourceGroup: global
+      step: mirror-velero-image
+    - resourceGroup: global
+      step: mirror-azure-plugin-image
+    - resourceGroup: global
+      step: mirror-hypershift-plugin-image
+    identityFrom:
+      resourceGroup: global
+      step: output
+      name: globalMSIId

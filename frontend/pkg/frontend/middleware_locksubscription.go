@@ -17,7 +17,6 @@ package frontend
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net/http"
 
 	"github.com/Azure/ARO-HCP/internal/api/arm"
@@ -64,7 +63,7 @@ func (h *middlewareLockSubscription) handleRequest(w http.ResponseWriter, r *htt
 				message += err.Error()
 				arm.WriteInternalServerError(w)
 			}
-			logger.Error(message)
+			logger.Error(err, message)
 			return
 		}
 		logger.Info("Acquired lock")
@@ -76,13 +75,23 @@ func (h *middlewareLockSubscription) handleRequest(w http.ResponseWriter, r *htt
 		defer func() {
 			lock = stop()
 			if lock != nil {
-				err = lockClient.ReleaseLock(ctx, lock)
+				// Release should work even if the work of the request is cancelled.  Prefer the standard context if it isn't
+				// cancelled. If it is cancelled, create a new context and attach a logger to it.
+				releaseContext := ctx
+				if ctx.Err() != nil {
+					var releaseCancel context.CancelFunc
+					releaseContext, releaseCancel = context.WithTimeout(context.Background(), lockClient.GetDefaultTimeToLive())
+					defer releaseCancel()
+					releaseContext = utils.ContextWithLogger(releaseContext, logger)
+				}
+
+				err = lockClient.ReleaseLock(releaseContext, lock)
 				if err == nil {
 					logger.Info("Released lock")
 				} else {
 					// Failure here is non-fatal but still log the error.
 					// The lock's TTL ensures it will be released eventually.
-					logger.Error(fmt.Sprintf("Failed to release lock: %v", err))
+					logger.Error(err, "Failed to release lock")
 				}
 			}
 		}()

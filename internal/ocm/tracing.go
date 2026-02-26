@@ -83,6 +83,20 @@ func (csc *clusterServiceClientWithTracing) GetClusterInflightChecks(ctx context
 	return csc.csc.GetClusterInflightChecks(ctx, internalID)
 }
 
+func (csc *clusterServiceClientWithTracing) GetClusterHypershiftDetails(ctx context.Context, internalID InternalID) (*cmv1.HypershiftConfig, error) {
+	ctx, span := csc.startChildSpan(ctx, "ClusterServiceClient.GetClusterHypershiftDetails")
+	defer span.End()
+
+	return csc.csc.GetClusterHypershiftDetails(ctx, internalID)
+}
+
+func (csc *clusterServiceClientWithTracing) GetClusterProvisionShard(ctx context.Context, internalID InternalID) (*arohcpv1alpha1.ProvisionShard, error) {
+	ctx, span := csc.startChildSpan(ctx, "ClusterServiceClient.GetClusterProvisionShard")
+	defer span.End()
+
+	return csc.csc.GetClusterProvisionShard(ctx, internalID)
+}
+
 func (csc *clusterServiceClientWithTracing) PostCluster(ctx context.Context, clusterBuilder *arohcpv1alpha1.ClusterBuilder, autoscalerBuilder *arohcpv1alpha1.ClusterAutoscalerBuilder) (*arohcpv1alpha1.Cluster, error) {
 	ctx, span := csc.startChildSpan(ctx, "ClusterServiceClient.PostCluster")
 	defer span.End()
@@ -334,4 +348,20 @@ func (csc *clusterServiceClientWithTracing) GetVersion(ctx context.Context, vers
 
 func (csc *clusterServiceClientWithTracing) ListVersions() *VersionsListIterator {
 	return csc.csc.ListVersions()
+}
+
+func (csc *clusterServiceClientWithTracing) ListControlPlaneUpgradePolicies(clusterInternalID InternalID, orderBy string) ControlPlaneUpgradePolicyListIterator {
+	return csc.csc.ListControlPlaneUpgradePolicies(clusterInternalID, orderBy)
+}
+
+func (csc *clusterServiceClientWithTracing) PostControlPlaneUpgradePolicy(ctx context.Context, clusterInternalID InternalID, builder *arohcpv1alpha1.ControlPlaneUpgradePolicyBuilder) (*arohcpv1alpha1.ControlPlaneUpgradePolicy, error) {
+	ctx, span := csc.startChildSpan(ctx, "ClusterServiceClient.PostControlPlaneUpgradePolicy")
+	defer span.End()
+
+	policy, err := csc.csc.PostControlPlaneUpgradePolicy(ctx, clusterInternalID, builder)
+	if err != nil {
+		span.RecordError(err)
+	}
+
+	return policy, err
 }

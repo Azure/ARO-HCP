@@ -68246,14 +68246,14 @@ spec:
     spec:
       containers:
         - name: kube-prometheus-stack
-          image: "mcr.microsoft.com/oss/v2/prometheus/prometheus-operator:v0.81.0@sha256:1234567890"
+          image: "mcr.microsoft.com/oss/v2/prometheus/prometheus-operator:v0.81.0@sha256:sha256:test123"
           imagePullPolicy: "IfNotPresent"
           args:
             - --kubelet-service=kube-system/prometheus-kubelet
             - --kubelet-endpoints=true
             - --kubelet-endpointslice=false
             - --localhost=127.0.0.1
-            - --prometheus-config-reloader=mcr.microsoft.com/oss/v2/prometheus/prometheus-config-reloader:v0.81.0@sha256:1234567890
+            - --prometheus-config-reloader=mcr.microsoft.com/oss/v2/prometheus/prometheus-config-reloader:v0.81.0@sha256:sha256:test456
             - --config-reloader-cpu-request=0
             - --config-reloader-cpu-limit=0
             - --config-reloader-memory-request=0
@@ -68439,7 +68439,7 @@ metadata:
   name: prometheus
   namespace: 'prometheus'
 spec:
-  image: 'mcr.microsoft.com/oss/v2/prometheus/prometheus@sha256:1234567890'
+  image: 'mcr.microsoft.com/oss/v2/prometheus/prometheus@sha256:sha256:testabc'
   version: '' # todo: can this be removed? we control the version via image
   resources:
     requests:
@@ -71160,7 +71160,7 @@ spec:
     spec:
       containers:
         - name: create
-          image: registry.k8s.io/ingress-nginx/kube-webhook-certgen:v1.5.2
+          image: arohcpsvcdev.azurecr.io/k8s-cache/ingress-nginx/kube-webhook-certgen:v1.5.2@sha256:7c74a715af2c94cb734785b4d3ea1357b4f02b88e1e123c622a9cb68b62f669c
           imagePullPolicy: IfNotPresent
           args:
             - create
@@ -71226,7 +71226,7 @@ spec:
     spec:
       containers:
         - name: patch
-          image: registry.k8s.io/ingress-nginx/kube-webhook-certgen:v1.5.2
+          image: arohcpsvcdev.azurecr.io/k8s-cache/ingress-nginx/kube-webhook-certgen:v1.5.2@sha256:7c74a715af2c94cb734785b4d3ea1357b4f02b88e1e123c622a9cb68b62f669c
           imagePullPolicy: IfNotPresent
           args:
             - patch

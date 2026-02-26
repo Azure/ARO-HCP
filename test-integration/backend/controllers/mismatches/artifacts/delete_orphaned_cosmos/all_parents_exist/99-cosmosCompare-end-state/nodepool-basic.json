@@ -1,0 +1,30 @@
+{
+	"id": "|subscriptions|a433a095-1277-44f1-8453-8d61a4d848c2|resourcegroups|unimportantpostponement|providers|microsoft.redhatopenshift|hcpopenshiftclusters|monstrousprecinct|nodepools|basic",
+	"partitionKey": "a433a095-1277-44f1-8453-8d61a4d848c2",
+	"properties": {
+		"activeOperationId": "a7b69c90-242b-4a85-8187-0b3bd4979155",
+		"internalId": "/api/clusters_mgmt/v1/clusters/w9xhwccbjp/node_pools/k9xp9ghzh2",
+		"internalState": {
+			"internalAPI": {
+				"location": "fake-location",
+				"properties": {
+					"autoRepair": true,
+					"platform": {
+						"vmSize": "large"
+					},
+					"version": {
+						"channelGroup": "stable"
+					}
+				},
+				"serviceProviderProperties": {
+					"clusterServiceID": ""
+				}
+			}
+		},
+		"provisioningState": "Accepted",
+		"resourceId": "/subscriptions/a433a095-1277-44f1-8453-8d61a4d848c2/resourceGroups/unimportantpostponement/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/monstrousprecinct/nodePools/basic",
+		"systemData": {}
+	},
+	"resourceType": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/nodePools",
+	"resourceID": "/subscriptions/a433a095-1277-44f1-8453-8d61a4d848c2/resourceGroups/unimportantpostponement/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/monstrousprecinct/nodePools/basic"
+}

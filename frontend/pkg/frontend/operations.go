@@ -40,7 +40,7 @@ func AddAsyncOperationHeader(writer http.ResponseWriter, request *http.Request, 
 	// MiddlewareReferer ensures Referer is present.
 	u, err := url.ParseRequestURI(request.Referer())
 	if err != nil {
-		logger.Error(err.Error())
+		logger.Error(err, "failed to parse request referer")
 		return
 	}
 
@@ -64,7 +64,7 @@ func AddLocationHeader(writer http.ResponseWriter, request *http.Request, operat
 	// MiddlewareReferer ensures Referer is present.
 	u, err := url.ParseRequestURI(request.Referer())
 	if err != nil {
-		logger.Error(err.Error())
+		logger.Error(err, "failed to parse request referer")
 		return
 	}
 
@@ -95,8 +95,7 @@ func (f *Frontend) CancelActiveOperations(ctx context.Context, transaction datab
 	subscriptionID := transaction.GetPartitionKey()
 	iterator := f.dbClient.Operations(subscriptionID).ListActiveOperations(opts)
 	for _, operation := range iterator.Items(ctx) {
-		// TODO deep copy once available
-		operationToWrite := *operation
+		operationToWrite := operation.DeepCopy()
 		operationToWrite.LastTransitionTime = now
 		operationToWrite.Status = arm.ProvisioningStateCanceled
 		operationToWrite.Error = &arm.CloudErrorBody{
@@ -104,7 +103,7 @@ func (f *Frontend) CancelActiveOperations(ctx context.Context, transaction datab
 			Message: "This operation was superseded by another",
 		}
 
-		_, err := f.dbClient.Operations(subscriptionID).AddReplaceToTransaction(ctx, transaction, &operationToWrite, nil)
+		_, err := f.dbClient.Operations(subscriptionID).AddReplaceToTransaction(ctx, transaction, operationToWrite, nil)
 		if err != nil {
 			errs = append(errs, utils.TrackError(err))
 		}

@@ -1,0 +1,36 @@
+azureCloud: AzurePublicCloud
+tenantId: "__tenantId__"
+subscriptionId: "__subscriptionId__"
+clientId: "__veleroMsiClientId__"
+resourceGroup: "{{ .mgmt.rg }}"
+bucket: "{{ .mgmt.hcpBackups.storageAccountContainerName }}"
+storageAccount: "__storageAccountName__"
+imageRegistry: "{{ .acr.svc.name }}.{{ .acrDNSSuffix }}"
+pullBinding:
+  workloadIdentityClientId: "__imagePullerMsiClientId__"
+  workloadIdentityTenantId: "__imagePullerMsiTenantId__"
+installJobImage: "{{ .aksCommandRuntime.image.registry }}/{{ .aksCommandRuntime.image.repository }}@{{ .aksCommandRuntime.image.digest }}"
+veleroServer:
+  repository: "{{ .velero.server.repository }}"
+  digest: "{{ .velero.server.digest }}"
+azurePlugin:
+  repository: "{{ .velero.azurePlugin.repository }}"
+  digest: "{{ .velero.azurePlugin.digest }}"
+hypershiftPlugin:
+  repository: "{{ .velero.hypershiftPlugin.repository }}"
+  digest: "{{ .velero.hypershiftPlugin.digest }}"
+configuration:
+  features: EnableCSI
+  uploaderType: kopia
+  deployNodeAgent: true
+  backupPrefix: velero
+nodeSelector:
+  aro-hcp.azure.com/role: infra
+tolerations:
+- key: "infra"
+  operator: "Equal"
+  value: "true"
+  effect: "NoSchedule"
+installer:
+  activeDeadlineSeconds: 1800
+  backoffLimit: 3

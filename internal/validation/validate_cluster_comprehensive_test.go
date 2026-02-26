@@ -16,6 +16,7 @@ package validation
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -163,6 +164,17 @@ func TestValidateClusterCreate(t *testing.T) {
 			},
 		},
 		{
+			name: "empty list authorized CIDR - create",
+			cluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.API.AuthorizedCIDRs = []string{}
+				return c
+			}(),
+			expectErrors: []expectedError{
+				{message: "must have at least 1 items", fieldPath: "customerProperties.api.authorizedCidrs"},
+			},
+		},
+		{
 			name: "authorized CIDR with leading whitespace - create",
 			cluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
@@ -273,10 +285,21 @@ func TestValidateClusterCreate(t *testing.T) {
 			},
 		},
 		{
+			name: "501 unique authorized CIDR blocks - create",
+			cluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.API.AuthorizedCIDRs = makeUniqueCIDRs(501)
+				return c
+			}(),
+			expectErrors: []expectedError{
+				{message: "must have at most 500 items", fieldPath: "customerProperties.api.authorizedCidrs"},
+			},
+		},
+		{
 			name: "missing subnet ID - create",
 			cluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.CustomerProperties.Platform.SubnetID = ""
+				c.CustomerProperties.Platform.SubnetID = nil
 				return c
 			}(),
 			expectErrors: []expectedError{
@@ -298,7 +321,7 @@ func TestValidateClusterCreate(t *testing.T) {
 			name: "missing network security group ID - create",
 			cluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.CustomerProperties.Platform.NetworkSecurityGroupID = ""
+				c.CustomerProperties.Platform.NetworkSecurityGroupID = nil
 				return c
 			}(),
 			expectErrors: []expectedError{
@@ -309,7 +332,7 @@ func TestValidateClusterCreate(t *testing.T) {
 			name: "wrong NSG resource type - create",
 			cluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.CustomerProperties.Platform.NetworkSecurityGroupID = "/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.Network/virtualNetworks/test-vnet"
+				c.CustomerProperties.Platform.NetworkSecurityGroupID = api.Must(azcorearm.ParseResourceID("/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.Network/virtualNetworks/test-vnet"))
 				return c
 			}(),
 			expectErrors: []expectedError{
@@ -365,8 +388,8 @@ func TestValidateClusterCreate(t *testing.T) {
 			name: "missing user assigned identity name - create",
 			cluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators = map[string]string{
-					"": "/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/test-identity",
+				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators = map[string]*azcorearm.ResourceID{
+					"": api.Must(azcorearm.ParseResourceID("/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/test-identity")),
 				}
 				return c
 			}(),
@@ -381,8 +404,8 @@ func TestValidateClusterCreate(t *testing.T) {
 			name: "invalid user assigned identity resource type - create",
 			cluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators = map[string]string{
-					"test-operator": "/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.Network/virtualNetworks/test-vnet",
+				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators = map[string]*azcorearm.ResourceID{
+					"test-operator": api.Must(azcorearm.ParseResourceID("/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.Network/virtualNetworks/test-vnet")),
 				}
 				return c
 			}(),
@@ -475,8 +498,8 @@ func TestValidateClusterCreate(t *testing.T) {
 					},
 				}
 				// Don't reference the identity in operators
-				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators = map[string]string{}
-				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity = ""
+				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators = map[string]*azcorearm.ResourceID{}
+				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity = nil
 				return c
 			}(),
 			expectErrors: []expectedError{
@@ -492,8 +515,8 @@ func TestValidateClusterCreate(t *testing.T) {
 					UserAssignedIdentities: map[string]*arm.UserAssignedIdentity{},
 				}
 				// Reference an identity that's not assigned
-				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators = map[string]string{
-					"test-operator": "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/unassigned-identity",
+				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators = map[string]*azcorearm.ResourceID{
+					"test-operator": api.Must(azcorearm.ParseResourceID("/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/unassigned-identity")),
 				}
 				return c
 			}(),
@@ -513,9 +536,10 @@ func TestValidateClusterCreate(t *testing.T) {
 					},
 				}
 				// Use the same identity in multiple places
-				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators = map[string]string{
-					"operator1": identityID,
-					"operator2": identityID,
+				identityResourceID := api.Must(azcorearm.ParseResourceID(identityID))
+				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators = map[string]*azcorearm.ResourceID{
+					"operator1": identityResourceID,
+					"operator2": identityResourceID,
 				}
 				return c
 			}(),
@@ -535,10 +559,10 @@ func TestValidateClusterCreate(t *testing.T) {
 					},
 				}
 				// Data plane operators cannot use assigned identities
-				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators = map[string]string{
-					"dataplane-operator": identityID,
+				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators = map[string]*azcorearm.ResourceID{
+					"dataplane-operator": api.Must(azcorearm.ParseResourceID(identityID)),
 				}
-				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators = map[string]string{}
+				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators = map[string]*azcorearm.ResourceID{}
 				return c
 			}(),
 			expectErrors: []expectedError{
@@ -557,8 +581,8 @@ func TestValidateClusterCreate(t *testing.T) {
 						identityID: {},
 					},
 				}
-				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators = map[string]string{}
-				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity = identityID
+				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators = map[string]*azcorearm.ResourceID{}
+				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity = api.Must(azcorearm.ParseResourceID(identityID))
 				return c
 			}(),
 			expectErrors: []expectedError{},
@@ -576,8 +600,8 @@ func TestValidateClusterCreate(t *testing.T) {
 					},
 				}
 				// Reference with different casing should work
-				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators = map[string]string{
-					"test-operator": upperCaseID,
+				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators = map[string]*azcorearm.ResourceID{
+					"test-operator": api.Must(azcorearm.ParseResourceID(upperCaseID)),
 				}
 				return c
 			}(),
@@ -604,7 +628,7 @@ func TestValidateClusterCreate(t *testing.T) {
 			cluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
 				// Subnet in different subscription should fail
-				c.CustomerProperties.Platform.SubnetID = "/subscriptions/different-sub/resourceGroups/test-rg/providers/Microsoft.Network/virtualNetworks/test-vnet/subnets/test-subnet"
+				c.CustomerProperties.Platform.SubnetID = api.Must(azcorearm.ParseResourceID("/subscriptions/different-sub/resourceGroups/test-rg/providers/Microsoft.Network/virtualNetworks/test-vnet/subnets/test-subnet"))
 				return c
 			}(),
 			expectErrors: []expectedError{
@@ -616,8 +640,8 @@ func TestValidateClusterCreate(t *testing.T) {
 			cluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
 				// Identity in different subscription
-				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators = map[string]string{
-					"test-operator": "/subscriptions/different-sub/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/test-identity",
+				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators = map[string]*azcorearm.ResourceID{
+					"test-operator": api.Must(azcorearm.ParseResourceID("/subscriptions/different-sub/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/test-identity")),
 				}
 				return c
 			}(),
@@ -632,8 +656,8 @@ func TestValidateClusterCreate(t *testing.T) {
 			cluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
 				// Data plane operator identity validation
-				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators = map[string]string{
-					"dataplane-operator": "/subscriptions/different-sub/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/dataplane-identity",
+				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators = map[string]*azcorearm.ResourceID{
+					"dataplane-operator": api.Must(azcorearm.ParseResourceID("/subscriptions/different-sub/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/dataplane-identity")),
 				}
 				return c
 			}(),
@@ -646,7 +670,7 @@ func TestValidateClusterCreate(t *testing.T) {
 			cluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
 				// Service managed identity validation
-				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity = "/subscriptions/different-sub/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/service-identity"
+				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity = api.Must(azcorearm.ParseResourceID("/subscriptions/different-sub/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/service-identity"))
 				return c
 			}(),
 			expectErrors: []expectedError{
@@ -735,6 +759,139 @@ func TestValidateClusterCreate(t *testing.T) {
 				{message: "invalid CIDR address", fieldPath: "customerProperties.network.machineCidr"},
 			},
 		},
+		// Resource naming validation tests (covering middleware_validatestatic_test.go patterns)
+		{
+			name: "invalid cluster resource name - special character",
+			cluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.ID.Name = "$"
+				c.Name = "$"
+				return c
+			}(),
+			expectErrors: []expectedError{
+				{message: "must be a valid DNS RFC 1035 label", fieldPath: "id"},
+			},
+		},
+		{
+			name: "invalid cluster resource name - starts with hyphen",
+			cluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.ID.Name = "-garbage"
+				c.Name = "-garbage"
+				return c
+			}(),
+			expectErrors: []expectedError{
+				{message: "must be a valid DNS RFC 1035 label", fieldPath: "id"},
+			},
+		},
+		{
+			name: "invalid cluster resource name - starts with number",
+			cluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.ID.Name = "1cluster"
+				c.Name = "1cluster"
+				return c
+			}(),
+			expectErrors: []expectedError{
+				{message: "must be a valid DNS RFC 1035 label", fieldPath: "id"},
+			},
+		},
+		{
+			name: "invalid cluster resource name - too long",
+			cluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				longName := "3a725v234c0Qd5bPfSYgk5okd2ps7UApyv8wtv810Y02ZvfAse0pgZemQ6dqE791QVKq6n6DAzU8bQTUOVCHwUOeq9fx92dpFebTgKEsx1Xl8Xrvs8NLehe3bj3h813B3j"
+				c.ID.Name = longName
+				c.Name = longName
+				return c
+			}(),
+			expectErrors: []expectedError{
+				{message: "Too long", fieldPath: "id"},
+				{message: "must be a valid DNS RFC 1035 label", fieldPath: "id"},
+			},
+		},
+		{
+			name: "invalid cluster resource name - too short",
+			cluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.ID.Name = "a"
+				c.Name = "a"
+				return c
+			}(),
+			expectErrors: []expectedError{
+				{message: "must be a valid DNS RFC 1035 label", fieldPath: "id"},
+			},
+		},
+		{
+			name: "valid cluster resource name - minimum length",
+			cluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.ID.Name = "abc"
+				c.Name = "abc"
+				return c
+			}(),
+			expectErrors: []expectedError{},
+		},
+		{
+			name: "valid cluster resource name - with hyphens",
+			cluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.ID.Name = "my-cluster-1"
+				c.Name = "my-cluster-1"
+				return c
+			}(),
+			expectErrors: []expectedError{},
+		},
+		{
+			name: "valid cluster resource name - mixed case",
+			cluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.ID.Name = "MyCluster"
+				c.Name = "MyCluster"
+				return c
+			}(),
+			expectErrors: []expectedError{},
+		},
+		{
+			name: "invalid cluster create - MaxNodesTotal exceeds maximum",
+			cluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.Autoscaling.MaxNodesTotal = 501 // exceeds limit of 500
+				return c
+			}(),
+			expectErrors: []expectedError{
+				{message: "must be less than or equal to 500", fieldPath: "customerProperties.autoscaling.maxNodesTotal"},
+			},
+		},
+		{
+			name: "valid cluster create - MaxNodesTotal is zero",
+			cluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.Autoscaling.MaxNodesTotal = 0 // cluster limit of 500 still enforced at nodepool level
+				return c
+			}(),
+			expectErrors: []expectedError{},
+		},
+		{
+			name: "invalid cluster create - MaxNodesTotal is negative",
+			cluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.Autoscaling.MaxNodesTotal = -1
+				return c
+			}(),
+			expectErrors: []expectedError{
+				{message: "must be greater than or equal to 0", fieldPath: "customerProperties.autoscaling.maxNodesTotal"},
+			},
+		},
+		{
+			name: "valid cluster create - MaxNodesTotal at maximum",
+			cluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.Autoscaling.MaxNodesTotal = 500 // at the limit
+				return c
+			}(),
+			expectErrors: []expectedError{},
+		},
 	}
 
 	for _, tt := range tests {
@@ -822,6 +979,21 @@ func TestValidateClusterUpdate(t *testing.T) {
 			expectErrors: []expectedError{},
 		},
 		{
+			name: "invalid cluster update - MaxNodesTotal exceeds maximum",
+			newCluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.Autoscaling.MaxNodesTotal = 501 // exceeds limit of 500
+				return c
+			}(),
+			oldCluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				return c
+			}(),
+			expectErrors: []expectedError{
+				{message: "must be less than or equal to 500", fieldPath: "customerProperties.autoscaling.maxNodesTotal"},
+			},
+		},
+		{
 			name: "valid cluster update - allow node drain timeout change",
 			newCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
@@ -846,9 +1018,9 @@ func TestValidateClusterUpdate(t *testing.T) {
 						"/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/test-identity2": {},
 					},
 				}
-				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators = map[string]string{
-					"test-operator":   "/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/test-identity",
-					"test-operator-2": "/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/test-identity2",
+				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators = map[string]*azcorearm.ResourceID{
+					"test-operator":   api.Must(azcorearm.ParseResourceID("/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/test-identity")),
+					"test-operator-2": api.Must(azcorearm.ParseResourceID("/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/test-identity2")),
 				}
 				return c
 			}(),
@@ -939,12 +1111,12 @@ func TestValidateClusterUpdate(t *testing.T) {
 			name: "immutable base domain prefix - update",
 			newCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.CustomerProperties.DNS.BaseDomainPrefix = "new-prefix"
+				c.CustomerProperties.DNS.BaseDomainPrefix = "newprefix"
 				return c
 			}(),
 			oldCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.CustomerProperties.DNS.BaseDomainPrefix = "old-prefix"
+				c.CustomerProperties.DNS.BaseDomainPrefix = "oldprefix"
 				return c
 			}(),
 			expectErrors: []expectedError{
@@ -1021,12 +1193,12 @@ func TestValidateClusterUpdate(t *testing.T) {
 			name: "immutable platform profile - update",
 			newCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.CustomerProperties.Platform.SubnetID = "/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.Network/virtualNetworks/test-vnet/subnets/new-subnet"
+				c.CustomerProperties.Platform.SubnetID = api.Must(azcorearm.ParseResourceID("/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.Network/virtualNetworks/test-vnet/subnets/new-subnet"))
 				return c
 			}(),
 			oldCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.CustomerProperties.Platform.SubnetID = "/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.Network/virtualNetworks/test-vnet/subnets/test-subnet"
+				c.CustomerProperties.Platform.SubnetID = api.Must(azcorearm.ParseResourceID("/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.Network/virtualNetworks/test-vnet/subnets/test-subnet"))
 				return c
 			}(),
 			expectErrors: []expectedError{
@@ -1124,6 +1296,18 @@ func TestValidateClusterUpdate(t *testing.T) {
 			},
 		},
 		{
+			name: "empty list authorized CIDR - create",
+			newCluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.API.AuthorizedCIDRs = []string{}
+				return c
+			}(),
+			oldCluster: createValidCluster(),
+			expectErrors: []expectedError{
+				{message: "must have at least 1 items", fieldPath: "customerProperties.api.authorizedCidrs"},
+			},
+		},
+		{
 			name: "too many authorized CIDRs on update - update",
 			newCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
@@ -1136,6 +1320,18 @@ func TestValidateClusterUpdate(t *testing.T) {
 			oldCluster: createValidCluster(),
 			expectErrors: []expectedError{
 				{message: "Too many", fieldPath: "customerProperties.api.authorizedCidrs"},
+			},
+		},
+		{
+			name: "501 unique authorized CIDR blocks on update - update",
+			newCluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.API.AuthorizedCIDRs = makeUniqueCIDRs(501)
+				return c
+			}(),
+			oldCluster: createValidCluster(),
+			expectErrors: []expectedError{
+				{message: "must have at most 500 items", fieldPath: "customerProperties.api.authorizedCidrs"},
 			},
 		},
 		{
@@ -1170,7 +1366,7 @@ func TestValidateClusterUpdate(t *testing.T) {
 			name: "clear all authorized CIDRs on update - update",
 			newCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.CustomerProperties.API.AuthorizedCIDRs = []string{}
+				c.CustomerProperties.API.AuthorizedCIDRs = nil
 				return c
 			}(),
 			oldCluster: func() *api.HCPOpenShiftCluster {
@@ -1326,7 +1522,7 @@ func TestValidateClusterUpdate(t *testing.T) {
 				c := createValidCluster()
 				c.CustomerProperties.Version.ID = "4.16"
 				c.CustomerProperties.Version.ChannelGroup = "fast"
-				c.CustomerProperties.DNS.BaseDomainPrefix = "new-prefix"
+				c.CustomerProperties.DNS.BaseDomainPrefix = "newprefix"
 				c.CustomerProperties.API.Visibility = api.VisibilityPrivate
 				return c
 			}(),
@@ -1334,7 +1530,7 @@ func TestValidateClusterUpdate(t *testing.T) {
 				c := createValidCluster()
 				c.CustomerProperties.Version.ID = "4.15"
 				c.CustomerProperties.Version.ChannelGroup = "stable"
-				c.CustomerProperties.DNS.BaseDomainPrefix = "old-prefix"
+				c.CustomerProperties.DNS.BaseDomainPrefix = "oldprefix"
 				c.CustomerProperties.API.Visibility = api.VisibilityPublic
 				return c
 			}(),
@@ -1355,23 +1551,36 @@ func TestValidateClusterUpdate(t *testing.T) {
 	}
 }
 
+func makeUniqueCIDRs(n int) []string {
+	cidrs := make([]string, n)
+	for i := range cidrs {
+		octet3 := i / 256
+		octet4 := i % 256
+		cidrs[i] = fmt.Sprintf("10.0.%d.%d", octet3, octet4)
+	}
+	return cidrs
+}
+
 // Helper function to create a valid cluster for testing
 func createValidCluster() *api.HCPOpenShiftCluster {
-	cluster := api.NewDefaultHCPOpenShiftCluster(api.Must(azcorearm.ParseResourceID("/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/noop-updat")))
+	cluster := api.NewDefaultHCPOpenShiftCluster(
+		api.Must(azcorearm.ParseResourceID("/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/noop-updat")),
+		api.TestLocation,
+	)
 
 	// Set required fields that are not in the default
 	cluster.Location = "eastus"                    // Required for TrackedResource validation
 	cluster.CustomerProperties.Version.ID = "4.15" // Use MAJOR.MINOR format
-	cluster.CustomerProperties.DNS.BaseDomainPrefix = "test-cluster"
+	cluster.CustomerProperties.DNS.BaseDomainPrefix = "testcluster"
 	// Use different resource group for subnet to ensure same subscription validation
-	cluster.CustomerProperties.Platform.SubnetID = "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.Network/virtualNetworks/test-vnet/subnets/test-subnet"
-	cluster.CustomerProperties.Platform.NetworkSecurityGroupID = "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.Network/networkSecurityGroups/test-nsg"
+	cluster.CustomerProperties.Platform.SubnetID = api.Must(azcorearm.ParseResourceID("/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.Network/virtualNetworks/test-vnet/subnets/test-subnet"))
+	cluster.CustomerProperties.Platform.NetworkSecurityGroupID = api.Must(azcorearm.ParseResourceID("/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.Network/networkSecurityGroups/test-nsg"))
 	cluster.CustomerProperties.Platform.ManagedResourceGroup = "managed-rg" // Different from cluster resource group
 
 	// Set up user assigned identities for valid testing with matching subscription and location
 	identityID := "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/test-identity"
-	cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators = map[string]string{
-		"test-operator": identityID,
+	cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators = map[string]*azcorearm.ResourceID{
+		"test-operator": api.Must(azcorearm.ParseResourceID(identityID)),
 	}
 
 	// Add the identity to the cluster's identity section so it's properly assigned

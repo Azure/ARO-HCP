@@ -15,10 +15,6 @@
 package database
 
 import (
-	"fmt"
-
-	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
-
 	"github.com/Azure/ARO-HCP/internal/api"
 )
 
@@ -28,10 +24,16 @@ type HCPCluster struct {
 	HCPClusterProperties `json:"properties"`
 }
 
-var _ ResourceProperties = &HCPCluster{}
-
 type HCPClusterProperties struct {
-	ResourceDocument `json:",inline"`
+	*ResourceDocument `json:",inline"`
+
+	// when we switch to inlining the internalObj, this will be in the right spot.  We add it now so that we can switch our
+	// queries to select on cosmosMetata.ResourceID instead of resourceId
+	CosmosMetadata api.CosmosMetadata `json:"cosmosMetadata"`
+
+	// IntermediateResourceDoc exists so that we can stop inlining the resource document so that we can directly
+	// embed the InternalAPIType which has colliding serialization fields.
+	IntermediateResourceDoc *ResourceDocument `json:"intermediateResourceDoc"`
 
 	// TODO we may need look-aside data that we want to store in the same place.  Build the nesting to allow it
 	InternalState ClusterInternalState `json:"internalState"`
@@ -41,17 +43,6 @@ type ClusterInternalState struct {
 	InternalAPI api.HCPOpenShiftCluster `json:"internalAPI"`
 }
 
-func (o *HCPCluster) ValidateResourceType() error {
-	if o.ResourceType != api.ClusterResourceType.String() {
-		return fmt.Errorf("invalid resource type: %s", o.ResourceType)
-	}
-	return nil
-}
-
 func (o *HCPCluster) GetTypedDocument() *TypedDocument {
 	return &o.TypedDocument
-}
-
-func (o *HCPCluster) SetResourceID(newResourceID *azcorearm.ResourceID) {
-	o.ResourceDocument.SetResourceID(newResourceID)
 }

@@ -67,9 +67,18 @@ Welcome to the **ARO HCP** documentation. This guide provides an overview of the
 - [Secret Syncronization](secret-sync.md)
   - documents tools/processes to sync secrets
 
+### Testing and CI
+
+- [Prow](prow.md)
+  - Overview of Prow-based CI infrastructure
+  - Presubmit and periodic jobs
+  - How to trigger and monitor tests
+  - EV2 pipeline integration
+
 ### Observability
 
 - [Grafana Dashboards](grafana-dashboards.md)
+- [Logging](logging.md)
 - [Prometheus Rules](prometheus-rules.md)
 
 ### Guides and Operations

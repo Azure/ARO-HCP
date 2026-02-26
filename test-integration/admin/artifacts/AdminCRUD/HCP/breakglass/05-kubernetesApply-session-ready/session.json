@@ -1,0 +1,21 @@
+{
+  "apiVersion": "sessiongate.aro-hcp.azure.com/v1alpha1",
+  "kind": "Session",
+  "metadata": {
+    "name": "breakglass-1",
+    "namespace": "aro-hcp-breakglass-sessions"
+  },
+  "status": {
+    "endpoint": "https://sessiongate.westus3.hcpsvc.osadev.cloud/admin/v1/breakglass/breakglass-1",
+    "expiresAt": "2025-02-04T13:00:00Z",
+    "conditions": [
+      {
+        "type": "Ready",
+        "status": "True",
+        "reason": "SessionReady",
+        "message": "Session is ready",
+        "lastTransitionTime": "2025-02-04T12:00:00Z"
+      }
+    ]
+  }
+}

@@ -9,6 +9,15 @@ param clusterName string
 @description('Managed identities to use')
 param identities object
 
+@description('When true, use the pre-created MSI pool instead of creating identities in the cluster resource group')
+param usePooledIdentities bool = false
+
+@description('ControlPlane OpenShift Version ID')
+param openshiftControlPlaneVersionId string = '4.20'
+
+@description('NodePool OpenShift Version ID')
+param openshiftNodePoolVersionId string = '4.20.8'
+
 @description('Node pool osDisk Size in GiB')
 param nodePoolOsDiskSizeGiB int = 128
 
@@ -26,12 +35,13 @@ module customerInfra 'modules/customer-infra.bicep' = {
 }
 
 module managedIdentities 'modules/managed-identities.bicep' = {
-  name: 'managedIdentities'
+  name: 'mi-${resourceGroup().name}'
   scope: subscription()
   params: {
     msiResourceGroupName: identities.resourceGroup
     clusterResourceGroupName: resourceGroup().name
     identities: identities.identities
+    useMsiPool: usePooledIdentities
     vnetName: customerInfra.outputs.vnetName
     subnetName: customerInfra.outputs.vnetSubnetName
     nsgName: customerInfra.outputs.nsgName
@@ -42,6 +52,7 @@ module managedIdentities 'modules/managed-identities.bicep' = {
 module AroHcpCluster 'modules/cluster.bicep' = {
   name: 'cluster'
   params: {
+    openshiftVersionId: openshiftControlPlaneVersionId
     clusterName: clusterName
     vnetName: customerInfra.outputs.vnetName
     subnetName: customerInfra.outputs.vnetSubnetName
@@ -56,6 +67,7 @@ module AroHcpCluster 'modules/cluster.bicep' = {
 module AroHcpNodePool 'modules/nodepool.bicep' = {
   name: 'nodepool'
   params: {
+    openshiftVersionId: openshiftNodePoolVersionId
     clusterName: AroHcpCluster.outputs.name
     nodePoolName: nodePoolName
     osDiskSizeGiB: nodePoolOsDiskSizeGiB

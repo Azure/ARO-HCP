@@ -1,0 +1,20 @@
+# Purpose: Prometheus scraping - tells Prometheus Operator to scrape metrics from the tenant-quota-collector service
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: tenant-quota-collector
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: tenant-quota-collector
+    release: arohcp-monitor
+spec:
+  selector:
+    matchLabels:
+      app: tenant-quota-collector
+  namespaceSelector:
+    matchNames:
+    - {{ .Release.Namespace }}
+  endpoints:
+  - port: metrics
+    interval: 15m
+    path: /metrics

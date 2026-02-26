@@ -20,10 +20,12 @@ import (
 
 // TODO makes these ginkgo.Labels produced by ginkgo.Label (notice the plural return) into strings and refactor the test usage.
 
-// Positivity of test cases
 var (
+	// Positivity of test cases
 	Positive = ginkgo.Label("Positivity:Positive")
 	Negative = ginkgo.Label("Positivity:Negative")
+
+	Slow = ginkgo.Label("Speed:Slow")
 )
 
 // Importance of test cases
@@ -43,8 +45,8 @@ var (
 )
 
 var (
+	DevelopmentOnly = ginkgo.Label("Development-Only")
 	IntegrationOnly = ginkgo.Label("Integration-Only")
-	StageOnly       = ginkgo.Label("Stage-Only")
 	// A test case is ARO-HCP-RP-API-Compatible if it doesn't use ARM API (eg.
 	// ARM templates) to communicate with ARO HCP RP, so that it can run
 	// against either ARO HCP RP or ARM endpoint.

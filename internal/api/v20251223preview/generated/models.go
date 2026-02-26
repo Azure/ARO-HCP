@@ -813,6 +813,10 @@ type OsDiskProfile struct {
 	// * https://learn.microsoft.com/en-us/azure/virtual-machines/disks-types
 	DiskStorageAccountType *DiskStorageAccountType
 
+	// The type of the OS disk.
+	// * https://learn.microsoft.com/en-us/azure/virtual-machines/ephemeral-os-disks
+	DiskType *OsDiskType
+
 	// The ID of the DiskEncryptionSet resource to use to encrypt the OS disks for the VMs. This needs to exist in the same subscription
 	// id listed in the Hosted Cluster,
 	// HostedCluster.Spec.Platform.Azure.SubscriptionID. DiskEncryptionSetID should also exist in a resource group under the same

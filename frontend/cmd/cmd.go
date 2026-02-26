@@ -18,12 +18,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net"
 	"net/http"
 	"os"
-	"os/signal"
-	"syscall"
 
+	"github.com/go-logr/logr"
 	"github.com/microsoft/go-otel-audit/audit/base"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/cobra"
@@ -43,6 +43,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/audit"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
+	"github.com/Azure/ARO-HCP/internal/signal"
 	"github.com/Azure/ARO-HCP/internal/tracing"
 	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/internal/version"
@@ -129,24 +130,27 @@ func CorrelationIDPolicy(req *policy.Request) (*http.Response, error) {
 }
 
 func (opts *FrontendOpts) Run() error {
-	ctx := context.Background()
+	ctx := signal.SetupSignalContext()
+	ctx, cancel := context.WithCancelCause(ctx)
+	defer cancel(fmt.Errorf("function returned"))
 
 	logger := utils.DefaultLogger()
 
 	if len(opts.location) == 0 {
 		return errors.New("location is required")
 	}
-	arm.SetAzureLocation(opts.location)
 
 	logger.Info(fmt.Sprintf(
 		"%s (%s) started in %s",
 		frontend.ProgramName,
 		version.CommitSHA,
-		arm.GetAzureLocation()))
+		opts.location))
 
+	// Create an slog logger for external dependencies that require it
+	slogLogger := slog.New(logr.ToSlogHandler(logger))
 	auditClient, err := audit.NewOtelAuditClient(
 		audit.CreateConn(opts.auditConnectSocket),
-		base.WithLogger(logger),
+		base.WithLogger(slogLogger),
 		base.WithSettings(base.Settings{
 			QueueSize: opts.auditLogQueueSize,
 		}))
@@ -162,7 +166,7 @@ func (opts *FrontendOpts) Run() error {
 	otelShutdown, err := tracing.ConfigureOpenTelemetryTracer(
 		ctx,
 		logger,
-		semconv.CloudRegion(arm.GetAzureLocation()),
+		semconv.CloudRegion(opts.location),
 		semconv.ServiceNameKey.String(frontend.ProgramName),
 		semconv.ServiceVersionKey.String(version.CommitSHA),
 	)
@@ -217,29 +221,25 @@ func (opts *FrontendOpts) Run() error {
 	}
 
 	csClient := ocm.NewClusterServiceClientWithTracing(
-		ocm.NewClusterServiceClient(
-			conn,
-			opts.clusterServiceProvisionShard,
-			opts.clusterServiceNoopDeprovision,
-			opts.clusterServiceNoopDeprovision,
-		),
+		ocm.NewClusterServiceClient(conn),
 		utils.TracerName,
 	)
 
-	f := frontend.NewFrontend(logger, listener, metricsListener, prometheus.DefaultRegisterer, dbClient, csClient, auditClient)
+	f := frontend.NewFrontend(logger, listener, metricsListener, prometheus.DefaultRegisterer, dbClient, csClient, auditClient, opts.location, opts.clusterServiceProvisionShard, opts.clusterServiceNoopProvision, opts.clusterServiceNoopDeprovision)
 
-	stop := make(chan struct{})
-	signalChannel := make(chan os.Signal, 1)
-	signal.Notify(signalChannel, syscall.SIGINT, syscall.SIGTERM)
-	go f.Run(ctx, stop)
+	runErrCh := make(chan error, 1)
+	go func() {
+		runErrCh <- f.Run(ctx)
+		cancel(fmt.Errorf("frontend exited"))
+	}()
 
-	sig := <-signalChannel
-	logger.Info(fmt.Sprintf("caught %s signal", sig))
-	close(stop)
+	<-ctx.Done()
+	logger.Info("context closed")
 
-	f.Join()
 	_ = otelShutdown(ctx)
 	logger.Info(fmt.Sprintf("%s (%s) stopped", frontend.ProgramName, version.CommitSHA))
 
-	return nil
+	logger.Info("waiting for run to finish")
+	runErr := <-runErrCh
+	return runErr
 }

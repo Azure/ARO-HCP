@@ -2,6 +2,33 @@
 
 This directory contains scripts to manage Azure AD credentials for ARO HCP E2E tests in the Test Test Azure Red Hat OpenShift tenant.
 
+## Base Image
+
+The `Dockerfile` in this directory defines the base image used in our release configurations. This image includes:
+
+- Red Hat UBI 9 base image
+- Azure CLI with Bicep extension
+- Go 1.25.7
+- kubectl and kubelogin
+- OpenShift CLI (oc)
+- Promtool
+- Required system tools (make, git, procps-ng)
+
+### Version Management
+
+Tool versions are defined in `versions.mk` and mirrored as `ARG` defaults in the `Dockerfile`. When updating a version:
+
+1. Edit `versions.mk` with the new version
+2. Update the matching `ARG` default in the `Dockerfile`
+3. Run `make verify` to check both files are in sync and Go major.minor matches `go.work`
+4. Run `make test` to build the image and smoke-test all tools
+
+### CI Build Flow
+
+We have created a Post Submit job in Release repo https://github.com/openshift/release/blob/master/ci-operator/config/Azure/ARO-HCP/Azure-ARO-HCP-main__baseimage-generator.yaml , which would build this Docker image after any PR merges.
+
+And in our Release Job(presubmit/periodic) we consume this prebuild images as build root https://github.com/openshift/release/blob/master/ci-operator/config/Azure/ARO-HCP/Azure-ARO-HCP-main.yaml#L7 .
+
 ## Scripts Overview
 
 | Script | Purpose |

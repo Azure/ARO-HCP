@@ -65,3 +65,5 @@ resource oidcMsi 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' =
   name: oidcMsiName
   location: resourceGroup().location
 }
+
+output frontDoorProfileId string = frontDoor.outputs.frontDoorProfileId

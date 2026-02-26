@@ -23,8 +23,9 @@ import (
 	"github.com/go-logr/logr/testr"
 	"github.com/stretchr/testify/assert"
 
+	"github.com/Azure/ARO-Tools/testutil"
+
 	options "github.com/Azure/ARO-HCP/tooling/templatize/cmd"
-	"github.com/Azure/ARO-HCP/tooling/templatize/internal/testutil"
 )
 
 func TestRawOptions(t *testing.T) {

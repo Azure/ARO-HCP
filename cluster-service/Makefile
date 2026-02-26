@@ -82,6 +82,7 @@ deploy:
 	  --set azureArmHelperIdentityCertName=${ARM_HELPER_CERT_NAME} \
 	  --set azureArmHelperIdentityClientId=${AZURE_ARM_HELPER_IDENTITY_CLIENT_ID} \
 	  --set azureArmHelperMockFpaPrincipalId=${AZURE_ARM_HELPER_MOCK_FPA_PRINCIPAL_ID} \
+	  --set azureCloudEnvironmentName=${AZURE_CLOUD_ENVIRONMENT_NAME} \
 	  --set pullBinding.workloadIdentityClientId="$${IMAGE_PULLER_MI_CLIENT_ID}" \
 	  --set pullBinding.workloadIdentityTenantId="$${IMAGE_PULLER_MI_TENANT_ID}" \
 	  --set pullBinding.registry=${ACR_NAME}.azurecr.io \
@@ -94,6 +95,10 @@ deploy:
 	  --set ocpVersions.defaultVersion.version=${OCP_VERSIONS_DEFAULT_VERSION_VERSION} \
 	  --set ocpVersions.channelGroups.stable.minVersion=${OCP_VERSIONS_CHANNEL_GROUPS_STABLE_MIN_VERSION} \
 	  --set ocpVersions.channelGroups.stable.maxVersion=${OCP_VERSIONS_CHANNEL_GROUPS_STABLE_MAX_VERSION} \
+	  --set ocpVersions.channelGroups.candidate.minVersion=${OCP_VERSIONS_CHANNEL_GROUPS_CANDIDATE_MIN_VERSION} \
+	  --set ocpVersions.channelGroups.candidate.maxVersion=${OCP_VERSIONS_CHANNEL_GROUPS_CANDIDATE_MAX_VERSION} \
+	  --set ocpVersions.channelGroups.nightly.minVersion=${OCP_VERSIONS_CHANNEL_GROUPS_NIGHTLY_MIN_VERSION} \
+	  --set ocpVersions.channelGroups.nightly.maxVersion=${OCP_VERSIONS_CHANNEL_GROUPS_NIGHTLY_MAX_VERSION} \
 	  --set azureOperatorsMI.roleSetName=${OPERATOR_ROLE_SET_NAME} \
 	  --set deployment.zoneCount=${AVAILABILITY_ZONE_COUNT}
 
@@ -157,7 +162,7 @@ personal-runtime-config:
 	OCP_ACR_URL=$(shell az acr show -n ${OCP_ACR_NAME} --query loginServer -o tsv) && \
 	OCP_ACR_RESOURCE_ID=$(shell az acr show -n ${OCP_ACR_NAME} --query id -o tsv) && \
 	../templatize.sh $(DEPLOY_ENV) local/azure-runtime-config.tmpl.json local/azure-runtime-config.json \
-		-e tenantId=$${TENANT_ID},ocpAcrResourceId=$${OCP_ACR_RESOURCE_ID},ocpAcrResourceUrl=$${OCP_ACR_URL},oidc_container='$$web',oidc_issuer_base_url=$${OIDC_ISSUER_BASE_ENDPOINT},oidc_service_url=$${OIDC_BLOB_SERVICE_ENDPOINT},tls_certificates_issuer=$${TLS_CERTIFICATES_ISSUER},tls_certificates_enabled=$(TLS_CERTIFICATES_ENABLED)
+		-e tenantId=$${TENANT_ID},ocpAcrResourceId=$${OCP_ACR_RESOURCE_ID},ocpAcrResourceUrl=$${OCP_ACR_URL},oidc_container='$$web',oidc_issuer_base_url=$${OIDC_ISSUER_BASE_ENDPOINT},oidc_service_url=$${OIDC_BLOB_SERVICE_ENDPOINT},tls_certificates_issuer=$${TLS_CERTIFICATES_ISSUER},tls_certificates_enabled=$(TLS_CERTIFICATES_ENABLED),azureCloudEnvironmentName=$(AZURE_CLOUD_ENVIRONMENT_NAME)
 	@cat local/azure-runtime-config.json | jq
 .PHONY: personal-runtime-config
 
@@ -172,6 +177,10 @@ local-aro-hcp-ocp-versions-config:
 	--set ocpVersions.defaultVersion.version=${OCP_VERSIONS_DEFAULT_VERSION_VERSION} \
 	--set ocpVersions.channelGroups.stable.minVersion=${OCP_VERSIONS_CHANNEL_GROUPS_STABLE_MIN_VERSION} \
 	--set ocpVersions.channelGroups.stable.maxVersion=${OCP_VERSIONS_CHANNEL_GROUPS_STABLE_MAX_VERSION} \
+	--set ocpVersions.channelGroups.candidate.minVersion=${OCP_VERSIONS_CHANNEL_GROUPS_CANDIDATE_MIN_VERSION} \
+	--set ocpVersions.channelGroups.candidate.maxVersion=${OCP_VERSIONS_CHANNEL_GROUPS_CANDIDATE_MAX_VERSION} \
+	--set ocpVersions.channelGroups.nightly.minVersion=${OCP_VERSIONS_CHANNEL_GROUPS_NIGHTLY_MIN_VERSION} \
+	--set ocpVersions.channelGroups.nightly.maxVersion=${OCP_VERSIONS_CHANNEL_GROUPS_NIGHTLY_MAX_VERSION} \
 	--set azureOperatorsMI.roleSetName=${OPERATOR_ROLE_SET_NAME} \
 	-s templates/aro-hcp-ocp-versions-config.configmap.yaml | yq '.data["aro-hcp-ocp-versions-config.yaml"]' > local/aro-hcp-ocp-versions-config.yaml
 .PHONY: local-aro-hcp-ocp-versions-config

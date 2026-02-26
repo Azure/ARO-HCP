@@ -1,4 +1,6 @@
 location: "{{ .region }}"
+audit:
+  connectSocket: {{ .adminApi.audit.connectSocket }}
 deployment:
   replicas: {{ .adminApi.k8s.replicas }}
   requests:
@@ -22,15 +24,26 @@ pullBinding:
   scope: "repository:{{ .adminApi.image.repository }}:pull"
   workloadIdentityClientId: "__imagePullerMsiClientId__"
   workloadIdentityTenantId: "__tenantId__"
-# Istio Virtual Service
+# Istio Virtual Service <- active
 virtualService:
   host: "admin.{{ .dns.regionalSubdomain }}.{{ .dns.svcParentZoneName }}"
+# HTTPRoute for ops-ingress gateway <- unused, DNS still points to istio gateway
+httpRoute:
+  host: "admin.{{ .dns.regionalSubdomain }}.{{ .dns.svcParentZoneName }}"
+  gateway:
+    name: ops-ingress-gateway
+    namespace: aks-istio-ingress
+    sectionName: admin-api-https
+service:
+  name: "admin-api"
+  port: 8443
 # TLS Credentials
 credsKeyVault:
   name: "{{ .serviceKeyVault.name }}"
   secret: "{{ .adminApi.cert.name }}"
 # Azure
 azure:
+  cloudEnvironmentName: "{{ .cloudEnvironmentName }}"
   clientId: "__csiSecretStoreClientId__"
   tenantId: "__tenantId__"
 mise:
@@ -47,3 +60,10 @@ fpa:
   keyVaultName: "{{ .serviceKeyVault.name }}"
   certName: "{{ .firstPartyAppCertificate.name }}"
   clientId: "{{ .firstPartyAppClientId }}"
+sessiongate:
+  namespace: "{{ .sessiongate.k8s.namespace }}"
+  servicePort: 8080
+  mise:
+    policyLabel: "{{ .mise.sessiongate.policyLabel }}"
+  minSessionTTL: 1m
+  maxSessionTTL: 24h

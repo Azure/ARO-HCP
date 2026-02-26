@@ -31,6 +31,12 @@ resourceGroups:
         resourceGroup: global
         step: output
         name: globalMSIId
+    automatedRetry:
+      errorContainsAny:
+      - "unknown_storage_failure"
+      - "unauthorized: authentication required"
+      maximumRetryCount: 5
+      durationBetweenRetries: 1m
 - name: management
   resourceGroup: '{{ .mgmt.rg }}'
   subscription: '{{ .mgmt.subscription.key }}'
@@ -115,6 +121,8 @@ resourceGroups:
       configRef: armHelperFPAPrincipalId
     - name: MI_MOCK_SERVICE_PRINCIPAL_CERT_NAME
       configRef: miMockCertName
+    - name: AZURE_CLOUD_ENVIRONMENT_NAME
+      configRef: cloudEnvironmentName
     - name: ARM_HELPER_CERT_NAME
       configRef: armHelperCertName
     - name: CX_PARENT_DNS_ZONE_NAME
@@ -165,6 +173,14 @@ resourceGroups:
       configRef: clustersService.ocpVersions.channelGroups.stable.minVersion
     - name: OCP_VERSIONS_CHANNEL_GROUPS_STABLE_MAX_VERSION
       configRef: clustersService.ocpVersions.channelGroups.stable.maxVersion
+    - name: OCP_VERSIONS_CHANNEL_GROUPS_CANDIDATE_MIN_VERSION
+      configRef: clustersService.ocpVersions.channelGroups.candidate.minVersion
+    - name: OCP_VERSIONS_CHANNEL_GROUPS_CANDIDATE_MAX_VERSION
+      configRef: clustersService.ocpVersions.channelGroups.candidate.maxVersion
+    - name: OCP_VERSIONS_CHANNEL_GROUPS_NIGHTLY_MIN_VERSION
+      configRef: clustersService.ocpVersions.channelGroups.nightly.minVersion
+    - name: OCP_VERSIONS_CHANNEL_GROUPS_NIGHTLY_MAX_VERSION
+      configRef: clustersService.ocpVersions.channelGroups.nightly.maxVersion
     # this is maestro consumer registration stuff
     # this goes away when we have a real registration process
     - name: CONSUMER_NAME
@@ -190,6 +206,13 @@ resourceGroups:
         resourceGroup: global
         step: output
         name: globalMSIId
+    automatedRetry:
+      errorContainsAny:
+      - "500 Internal Server Error"
+      - "Internal error occurred"
+      - "context deadline exceeded"
+      maximumRetryCount: 3
+      durationBetweenRetries: 1m
   - name: deploy-cs-debug-jobs
     aksCluster: '{{ .svc.aks.name }}'
     action: Shell

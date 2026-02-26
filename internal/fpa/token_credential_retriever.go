@@ -16,7 +16,6 @@ package fpa
 
 import (
 	"fmt"
-	"log/slog"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
@@ -30,13 +29,11 @@ type firstPartyApplicationTokenCredentialRetriever struct {
 	clientOpts azcore.ClientOptions
 	clientID   string
 	certReader CertificateReader
-	logger     *slog.Logger
 }
 
-func NewFirstPartyApplicationTokenCredentialRetriever(logger *slog.Logger, clientID string, certReader CertificateReader, clientOptions azcore.ClientOptions) (FirstPartyApplicationTokenCredentialRetriever, error) {
+func NewFirstPartyApplicationTokenCredentialRetriever(clientID string, certReader CertificateReader, clientOptions azcore.ClientOptions) (FirstPartyApplicationTokenCredentialRetriever, error) {
 	credentialRetriever := &firstPartyApplicationTokenCredentialRetriever{
 		clientID:   clientID,
-		logger:     logger,
 		certReader: certReader,
 		clientOpts: clientOptions,
 	}

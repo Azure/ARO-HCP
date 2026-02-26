@@ -14,6 +14,8 @@
 
 package database
 
+//go:generate $MOCKGEN -typed -source=crud_hcpcluster.go -destination=mock_crud_hcpcluster.go -package database OperationCRUD
+
 import (
 	"fmt"
 	"path"
@@ -42,11 +44,11 @@ type OperationCRUD interface {
 	// Note that ListActiveOperations does not perform the search, but merely prepares an iterator
 	// to do so. Hence the lack of a Context argument. The search is performed by calling Items() on
 	// the iterator in a ranged for loop.
-	ListActiveOperations(options *DBClientListActiveOperationDocsOptions) DBClientIterator[OperationDocument]
+	ListActiveOperations(options *DBClientListActiveOperationDocsOptions) DBClientIterator[api.Operation]
 }
 
 type operationCRUD struct {
-	*nestedCosmosResourceCRUD[api.Operation, Operation]
+	*nestedCosmosResourceCRUD[api.Operation, GenericDocument[api.Operation]]
 }
 
 func NewOperationCRUD(containerClient *azcosmos.ContainerClient, subscriptionID string) OperationCRUD {
@@ -57,13 +59,13 @@ func NewOperationCRUD(containerClient *azcosmos.ContainerClient, subscriptionID 
 	parentResourceID := api.Must(azcorearm.ParseResourceID(path.Join(parts...)))
 
 	return &operationCRUD{
-		nestedCosmosResourceCRUD: NewCosmosResourceCRUD[api.Operation, Operation](containerClient, parentResourceID, api.OperationStatusResourceType),
+		nestedCosmosResourceCRUD: NewCosmosResourceCRUD[api.Operation, GenericDocument[api.Operation]](containerClient, parentResourceID, api.OperationStatusResourceType),
 	}
 }
 
 var _ OperationCRUD = &operationCRUD{}
 
-func (d *operationCRUD) ListActiveOperations(options *DBClientListActiveOperationDocsOptions) DBClientIterator[OperationDocument] {
+func (d *operationCRUD) ListActiveOperations(options *DBClientListActiveOperationDocsOptions) DBClientIterator[api.Operation] {
 	var queryOptions azcosmos.QueryOptions
 
 	query := fmt.Sprintf(
@@ -102,7 +104,7 @@ func (d *operationCRUD) ListActiveOperations(options *DBClientListActiveOperatio
 	}
 
 	pager := d.containerClient.NewQueryItemsPager(query, NewPartitionKey(d.parentResourceID.SubscriptionID), &queryOptions)
-	return newQueryResourcesIterator[api.Operation, Operation](pager)
+	return newQueryResourcesIterator[api.Operation, GenericDocument[api.Operation]](pager)
 }
 
 type HCPClusterCRUD interface {
@@ -226,5 +228,5 @@ func (h *nodePoolsCRUD) Controllers(nodePoolName string) ResourceCRUD[api.Contro
 func NewControllerCRUD(
 	containerClient *azcosmos.ContainerClient, parentResourceID *azcorearm.ResourceID, resourceType azcorearm.ResourceType) ResourceCRUD[api.Controller] {
 
-	return NewCosmosResourceCRUD[api.Controller, Controller](containerClient, parentResourceID, resourceType)
+	return NewCosmosResourceCRUD[api.Controller, GenericDocument[api.Controller]](containerClient, parentResourceID, resourceType)
 }

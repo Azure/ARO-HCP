@@ -5,6 +5,7 @@ yaml-files:
 ignore:
 - 'acrpull/deploy/templates/deployment.yaml'
 - 'admin/deploy/templates/ext-authz.authorizationpolicy.yaml'
+- 'admin/deploy/templates/admin.deployment.yaml'
 - 'frontend/deploy/templates/ext-authz.authorizationpolicy.yaml'
 - 'frontend/deploy/templates/allow-ingress.authorizationpolicy.yaml'
 - 'frontend/deploy/templates/frontend.deployment.yaml'
@@ -28,7 +29,12 @@ ignore:
 - 'observability/arobit/deploy/templates/forwarder-secretprovider.yaml'
 - 'observability/kube-events/deploy/templates/deployment.yaml'
 - 'mgmt-fixes/deploy/kubelet-ds/templates/ds-kubelet-parameters.yaml'
+- 'sessiongate/deploy/templates/deployment.yaml'
+- 'sessiongate/deploy/templates/ext-authz.authorizationpolicy.yaml'
 - '**/zz_fixture_TestHelmTemplate*.yaml'
+- 'velero/deploy/templates/install-job.yaml'
+- 'maestro/server/deploy/templates/allow-cluster-service.authorizationpolicy.yaml'
+- 'maestro/server/deploy/templates/allow-backend.authorizationpolicy.yaml'
 rules:
   brackets: enable
   colons: enable

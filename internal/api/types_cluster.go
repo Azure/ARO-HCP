@@ -15,14 +15,13 @@
 package api
 
 import (
-	"strings"
-
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
 
 // HCPOpenShiftCluster represents an ARO HCP OpenShift cluster resource.
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type HCPOpenShiftCluster struct {
 	arm.TrackedResource
 
@@ -31,18 +30,13 @@ type HCPOpenShiftCluster struct {
 	Identity                  *arm.ManagedServiceIdentity                  `json:"identity,omitempty"`
 }
 
-var _ CosmosPersistable = &HCPOpenShiftCluster{}
+var _ arm.CosmosPersistable = &HCPOpenShiftCluster{}
 
-func (o *HCPOpenShiftCluster) GetCosmosData() CosmosData {
-	return CosmosData{
-		CosmosUID:    o.ServiceProviderProperties.CosmosUID,
-		PartitionKey: strings.ToLower(o.ID.SubscriptionID),
-		ItemID:       o.ID,
+func (o *HCPOpenShiftCluster) GetCosmosData() *arm.CosmosMetadata {
+	return &arm.CosmosMetadata{
+		ResourceID:        o.ID,
+		ExistingCosmosUID: o.ServiceProviderProperties.ExistingCosmosUID,
 	}
-}
-
-func (o *HCPOpenShiftCluster) SetCosmosDocumentData(cosmosUID string) {
-	o.ServiceProviderProperties.CosmosUID = cosmosUID
 }
 
 // HCPOpenShiftClusterCustomerProperties represents the property bag of a HCPOpenShiftCluster resource.
@@ -60,14 +54,18 @@ type HCPOpenShiftClusterCustomerProperties struct {
 
 // HCPOpenShiftClusterCustomerProperties represents the property bag of a HCPOpenShiftCluster resource.
 type HCPOpenShiftClusterServiceProviderProperties struct {
+	ExistingCosmosUID string                         `json:"-"`
 	ProvisioningState arm.ProvisioningState          `json:"provisioningState,omitempty"`
-	CosmosUID         string                         `json:"cosmosUID,omitempty"`
 	ClusterServiceID  InternalID                     `json:"clusterServiceID,omitempty"`
 	ActiveOperationID string                         `json:"activeOperationId,omitempty"`
 	DNS               ServiceProviderDNSProfile      `json:"dns,omitempty"`
 	Console           ServiceProviderConsoleProfile  `json:"console,omitempty"`
 	API               ServiceProviderAPIProfile      `json:"api,omitempty"`
 	Platform          ServiceProviderPlatformProfile `json:"platform,omitempty"`
+
+	// ExperimentalFeatures captures experimental feature state evaluated from
+	// AFEC and per-resource tags. Stored in Cosmos but NOT exposed via ARM API.
+	ExperimentalFeatures ExperimentalFeatures `json:"experimentalFeatures,omitzero"`
 }
 
 // VersionProfile represents the cluster control plane version.
@@ -116,9 +114,9 @@ type ServiceProviderAPIProfile struct {
 // Visibility for (almost) the entire struct is "read create".
 type CustomerPlatformProfile struct {
 	ManagedResourceGroup    string                         `json:"managedResourceGroup,omitempty"`
-	SubnetID                string                         `json:"subnetId,omitempty"`
+	SubnetID                *azcorearm.ResourceID          `json:"subnetId,omitempty"`
 	OutboundType            OutboundType                   `json:"outboundType,omitempty"`
-	NetworkSecurityGroupID  string                         `json:"networkSecurityGroupId,omitempty"`
+	NetworkSecurityGroupID  *azcorearm.ResourceID          `json:"networkSecurityGroupId,omitempty"`
 	OperatorsAuthentication OperatorsAuthenticationProfile `json:"operatorsAuthentication,omitempty"`
 }
 
@@ -183,9 +181,9 @@ type OperatorsAuthenticationProfile struct {
 // OpenShift operators using user-assigned managed identities.
 // Visibility for the entire struct is "read create".
 type UserAssignedIdentitiesProfile struct {
-	ControlPlaneOperators  map[string]string `json:"controlPlaneOperators,omitempty"`
-	DataPlaneOperators     map[string]string `json:"dataPlaneOperators,omitempty"`
-	ServiceManagedIdentity string            `json:"serviceManagedIdentity,omitempty"`
+	ControlPlaneOperators  map[string]*azcorearm.ResourceID `json:"controlPlaneOperators,omitempty"`
+	DataPlaneOperators     map[string]*azcorearm.ResourceID `json:"dataPlaneOperators,omitempty"`
+	ServiceManagedIdentity *azcorearm.ResourceID            `json:"serviceManagedIdentity,omitempty"`
 }
 
 // ClusterImageRegistryProfile - OpenShift cluster image registry
@@ -198,9 +196,9 @@ type ClusterImageRegistryProfile struct {
 }
 
 // Creates an HCPOpenShiftCluster with any non-zero default values.
-func NewDefaultHCPOpenShiftCluster(resourceID *azcorearm.ResourceID) *HCPOpenShiftCluster {
+func NewDefaultHCPOpenShiftCluster(resourceID *azcorearm.ResourceID, azureLocation string) *HCPOpenShiftCluster {
 	return &HCPOpenShiftCluster{
-		TrackedResource: arm.NewTrackedResource(resourceID),
+		TrackedResource: arm.NewTrackedResource(resourceID, azureLocation),
 		CustomerProperties: HCPOpenShiftClusterCustomerProperties{
 			Version: VersionProfile{
 				ChannelGroup: "stable",

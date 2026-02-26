@@ -1,0 +1,23 @@
+Customer should be able to list available HCP OpenShift versions and validate response content
+SRE should be able to log into a cluster via a breakglass session
+Customer should be able to test admin credentials before cluster ready, then full admin credential lifecycle
+Customer should be able to create node pools with ARM64-based VMs
+Authorized CIDRs Connectivity should allow API access only from authorized VM IP
+Customer should be able to create an HCP cluster with custom autoscaling
+Customer should not be able to create a 4.18 HCP cluster
+Customer should be able to create a HCP cluster without CNI
+Customer should be able to create an HCP cluster and custom node pool osDisk size
+Customer should be able to list HCP clusters without node pools at both subscription and resource group levels
+Customer should not be able to reuse subnets and NSGs between clusters
+Customer should be able to create an HCP cluster and manage pull secrets
+Update HCPOpenShiftCluster Positive creates a cluster and updates tags with a PATCH request
+Customer should be able to create an HCP cluster with back-level version 4.19
+Customer should be able to create several HCP clusters in their customer resource group, but not in the same managed resource group
+Customer should be able to create an HCP cluster
+Customer should be able to create a cluster with an external auth config and get the external auth config
+Customer should be able to lifecycle and confirm external auth on a cluster
+Customer should be able to create an HCP cluster with Image Registry not present
+Engineering should be able to retrieve kusto logs for a cluster and services
+Customer should be able to create a cluster with default autoscaling and a nodepool with autoscaling enabled
+Customer should respect cluster-wide node limits with nodepool autoscaling
+Customer should be able to update nodepool replicas and autoscaling

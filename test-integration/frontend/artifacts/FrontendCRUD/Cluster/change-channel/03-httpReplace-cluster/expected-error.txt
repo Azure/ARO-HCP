@@ -1,0 +1,5 @@
+{
+    "code": "InvalidRequestContent",
+    "message": "Forbidden: field is immutable",
+    "target": "properties.version.channelGroup"
+  }

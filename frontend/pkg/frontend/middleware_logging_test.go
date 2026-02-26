@@ -23,6 +23,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/go-logr/logr"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -65,7 +66,7 @@ func TestMiddlewareLoggingPostMux(t *testing.T) {
 		},
 		{
 			name:          "handles the common attributes and the attributes for the resourcegroupname path",
-			wantLogAttrs:  []slog.Attr{slog.String("resource_group", api.TestResourceGroupName)},
+			wantLogAttrs:  []slog.Attr{slog.String("resource_group", strings.ToLower(api.TestResourceGroupName))},
 			wantSpanAttrs: map[string]string{"aro.resource_group.name": api.TestResourceGroupName},
 			requestURL:    "/subscriptions/" + api.TestSubscriptionID + "/resourceGroups/" + api.TestResourceGroupName,
 			setReqPathValue: func(req *http.Request) {
@@ -76,9 +77,9 @@ func TestMiddlewareLoggingPostMux(t *testing.T) {
 			name: "handles the common attributes and the attributes for the resourcename path, and produces the correct resourceID attribute",
 			wantLogAttrs: []slog.Attr{
 				slog.String("subscription_id", api.TestSubscriptionID),
-				slog.String("resource_group", api.TestResourceGroupName),
-				slog.String("resource_name", api.TestClusterName),
-				slog.String("resource_id", api.TestClusterResourceID),
+				slog.String("resource_group", strings.ToLower(api.TestResourceGroupName)),
+				slog.String("resource_name", strings.ToLower(api.TestClusterName)),
+				slog.String("resource_id", strings.ToLower(api.TestClusterResourceID)),
 			},
 			wantSpanAttrs: map[string]string{
 				"aro.subscription.id":     api.TestSubscriptionID,
@@ -104,7 +105,7 @@ func TestMiddlewareLoggingPostMux(t *testing.T) {
 			var (
 				writer = httptest.NewRecorder()
 				buf    bytes.Buffer
-				logger = slog.New(slog.NewTextHandler(&buf, nil))
+				logger = logr.FromSlogHandler(slog.NewTextHandler(&buf, nil))
 			)
 
 			ctx := utils.ContextWithLogger(context.Background(), logger)

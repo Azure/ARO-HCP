@@ -1,6 +1,7 @@
 include ./.bingo/Variables.mk
 include ./.bingo/Symlinks.mk
 include ./tooling/templatize/Makefile
+include ./tooling/yamlwrap/Makefile
 include ./test/Makefile
 SHELL = /bin/bash
 PATH := $(GOBIN):$(PATH)
@@ -11,6 +12,10 @@ DEPLOY_ENV ?= pers
 CONFIG_FILE ?= config/config.yaml
 
 .DEFAULT_GOAL := all
+
+# There is currently no convenient way to run commands against a whole Go workspace
+# https://github.com/golang/go/issues/50745
+MODULES := $(shell go list -f '{{.Dir}}/...' -m | xargs)
 
 all: test lint
 .PHONY: all
@@ -29,19 +34,32 @@ test-compile:
 	go list -f '{{.Dir}}/...' -m |xargs go test -c -o /dev/null
 .PHONY: test-compile
 
-generate: mocks fmt record-nonlocal-e2e all-tidy
+generate: deepcopy mocks fmt record-nonlocal-e2e all-tidy
 
 verify-generate: generate
 	./hack/verify.sh generate
 .PHONY: verify-generate
 
+deepcopy: $(DEEPCOPY_GEN) $(GOIMPORTS)
+	DEEPCOPY_GEN=$(DEEPCOPY_GEN) hack/update-deepcopy.sh
+	$(GOIMPORTS) -w -local github.com/Azure/ARO-HCP internal/api/zz_generated.deepcopy.go internal/api/arm/zz_generated.deepcopy.go
+	$(MAKE) all-tidy
+.PHONY: deepcopy
+
+verify-deepcopy: deepcopy
+	./hack/verify.sh deepcopy
+.PHONY: verify-deepcopy
+
+verify: verify-deepcopy
+.PHONY: verify
+
 verify-yamlfmt: yamlfmt
 	./hack/verify.sh yamlfmt
-.PHONY: verify-generate
+.PHONY: verify-yamlfmt
 
 mocks: $(MOCKGEN) $(GOIMPORTS)
-	MOCKGEN=${MOCKGEN} go generate ./internal/mocks
-	$(GOIMPORTS) -w -local github.com/Azure/ARO-HCP ./internal/mocks
+	MOCKGEN=${MOCKGEN} go generate -run '\$$MOCKGEN\b' $(MODULES)
+	$(GOIMPORTS) -w -local github.com/Azure/ARO-HCP $$(find . -name "mock_*.go" -not -path "./.git/*" -not -path "./.bingo/*")
 .PHONY: mocks
 
 install-tools: $(BINGO) $(HELM_LINK) $(YQ_LINK) $(JQ_LINK) $(ORAS_LINK)
@@ -51,9 +69,6 @@ install-tools: $(BINGO) $(HELM_LINK) $(YQ_LINK) $(JQ_LINK) $(ORAS_LINK)
 licenses: $(ADDLICENSE)
 	$(shell find . -type f -name '*.go' | xargs -I {} $(ADDLICENSE) -c 'Microsoft Corporation' -l apache {})
 
-# There is currently no convenient way to run golangci-lint against a whole Go workspace
-# https://github.com/golang/go/issues/50745
-MODULES := $(shell go list -f '{{.Dir}}/...' -m | xargs)
 lint: $(GOLANGCI_LINT)
 	$(GOLANGCI_LINT) run -v --build-tags=$(LINT_GOTAGS) $(MODULES)
 .PHONY: lint
@@ -66,22 +81,34 @@ fmt: $(GOIMPORTS)
 	$(GOIMPORTS) -w -local github.com/Azure/ARO-HCP $(shell go list -f '{{.Dir}}' -m | xargs)
 .PHONY: fmt
 
-yamlfmt: $(YAMLFMT)
+yamlfmt: $(YAMLFMT) $(YAMLWRAP)
 	# first, wrap all templated values in quotes, so they are correct YAML
-	./yamlfmt.wrap.sh
+	$(YAMLWRAP) wrap --dir . --no-validate-result
 	# run the formatter
 	$(YAMLFMT) -dstar -exclude './api/**' '**/*.{yaml,yml}'
 	# "fix" any non-string fields we cast to strings for the formatting
-	./yamlfmt.unwrap.sh
+	$(YAMLWRAP) unwrap --dir .
 .PHONY: yamlfmt
 
-tidy: $(MODULES:/...=.tidy)
+work-sync:
+	go work sync
+.PHONY: work-sync
+
+tidy: $(MODULES:/...=.tidy) work-sync
 
 %.tidy:
 	cd $(basename $@) && go mod tidy
 
+bump-aro-tools: $(MODULES:/...=.bump-aro-tools) tidy
+
+%.bump-aro-tools:
+	cd $(basename $@) && go mod edit -json | jq --raw-output '.Require[] | select(.Path | contains("github.com/Azure/ARO-Tools") ) | .Path' | xargs -I{} go get {}@main
+
 all-tidy: tidy fmt licenses
-	go work sync
+
+frontend-grant-ingress:
+	make -C dev-infrastructure frontend-grant-ingress
+.PHONY: frontend-grant-ingress
 
 record-nonlocal-e2e: $(GOJQ)
 	go run github.com/onsi/ginkgo/v2/ginkgo run \
@@ -90,35 +117,43 @@ record-nonlocal-e2e: $(GOJQ)
 .PHONY: record-nonlocal-e2e
 
 e2e/local: e2e-local/setup
-	$(MAKE) e2e-local/run
+	$(MAKE) e2e-local/run 
 .PHONY: e2e/local
 
 e2e-local/setup:
 	@SUBSCRIPTION_ID="$$(az account show --query id --output tsv)"; \
 	TENANT_ID="$$(az account show --query tenantId --output tsv)"; \
+	ADDRESS="$${FRONTEND_ADDRESS:-http://localhost:8443}"; \
 	curl --silent --show-error --include \
+		--insecure \
 		--request PUT \
 		--header "Content-Type: application/json" \
-		--data '{"state":"Registered", "registrationDate": "now", "properties": { "tenantId": "'$${TENANT_ID}'"}}' \
-		"http://localhost:8443/subscriptions/$${SUBSCRIPTION_ID}?api-version=2.0"
+		--data '{"state":"Registered", "registrationDate": "now", "properties": { "tenantId": "'$${TENANT_ID}'", "registeredFeatures": [{"name": "Microsoft.RedHatOpenShift/ExperimentalReleaseFeatures", "state": "Registered"}]}}' \
+		"$${ADDRESS}/subscriptions/$${SUBSCRIPTION_ID}?api-version=2.0"
 .PHONY: e2e-local/setup
 
 e2e-local/run: $(ARO_HCP_TESTS)
-	export LOCATION="westus3"; \
+	export LOCATION="$${LOCATION:-westus3}"; \
 	export AROHCP_ENV="development"; \
 	export CUSTOMER_SUBSCRIPTION="$$(az account show --output tsv --query 'name')"; \
 	export ARTIFACT_DIR=$${ARTIFACT_DIR:-_artifacts}; \
 	export JUNIT_PATH=$${JUNIT_PATH:-$$ARTIFACT_DIR/junit.xml}; \
+	export HTML_PATH=$${HTML_PATH:-$$ARTIFACT_DIR/extension-test-result-summary.html}; \
+	export SKIP_CERT_VERIFICATION=$${SKIP_CERT_VERIFICATION:-false}; \
+	export FRONTEND_ADDRESS=$${FRONTEND_ADDRESS:-http://localhost:8443}; \
+	export ADMIN_API_ADDRESS=$${ADMIN_API_ADDRESS:-http://localhost:8444}; \
 	mkdir -p "$$ARTIFACT_DIR"; \
-	$(ARO_HCP_TESTS) run-suite "rp-api-compat-all/parallel" --junit-path="$$JUNIT_PATH"
+	$(ARO_HCP_TESTS) run-suite "rp-api-compat-all/parallel" --junit-path="$$JUNIT_PATH" --html-path="$$HTML_PATH" --max-concurrency 100
 .PHONY: e2e-local/run
 
+CONTAINER_RUNTIME ?= docker
+
 mega-lint:
-	docker run --rm \
-		-e FILTER_REGEX_EXCLUDE='hypershiftoperator/deploy/crds/|maestro/server/deploy/templates/allow-cluster-service.authorizationpolicy.yaml|acm/deploy/helm/multicluster-engine-config/charts/policy/charts' \
+	$(CONTAINER_RUNTIME) run --rm \
+		-e FILTER_REGEX_EXCLUDE='hypershiftoperator/deploy/crds/|acm/deploy/helm/multicluster-engine-config/charts/policy/charts|dev-infrastructure/global-pipeline.yaml|tooling/templatize/testdata/pipeline.yaml|hypershiftoperator/deploy/templates/cluster.clustersizingconfiguration.yaml' \
 		-e REPORT_OUTPUT_FOLDER=/tmp/report \
 		-v $${PWD}:/tmp/lint:Z \
-		oxsecurity/megalinter:v8
+		docker.io/oxsecurity/megalinter-ci_light:v9
 .PHONY: mega-lint
 
 #
@@ -188,6 +223,10 @@ infra.clean:
 infra.tracing:
 	cd observability/tracing && KUBECONFIG="$$(cd ../../dev-infrastructure && make -s svc.aks.kubeconfigfile)" make
 .PHONY: infra.tracing
+
+infra.cosmos.access:
+	@cd dev-infrastructure && DEPLOY_ENV=$(DEPLOY_ENV) make cosmos.access
+.PHONY: infra.cosmos.access
 
 #
 # Services
@@ -272,6 +311,7 @@ ARO-Tools:
 .PHONY: ARO-Tools
 
 update-helm-fixtures:
+	find * -name 'zz_fixture_TestHelmTemplate*' | xargs rm -rf
 	$(MAKE) -C tooling/helmtest update
 .PHONY: update-helm-fixtures
 
@@ -291,18 +331,18 @@ generate-kiota:
 #
 # One-Step Personal Dev Environment
 #
-ifeq ($(DEPLOY_ENV),pers)
-personal-dev-env: install-tools entrypoint/Region infra.svc.aks.kubeconfig infra.mgmt.aks.kubeconfig infra.tracing
+ifeq ($(DEPLOY_ENV),$(filter $(DEPLOY_ENV),pers swft))
+personal-dev-env: install-tools entrypoint/Region infra.svc.aks.kubeconfig infra.mgmt.aks.kubeconfig infra.tracing infra.cosmos.access
 else
 personal-dev-env:
-	$(error personal-dev-env: DEPLOY_ENV must be set to "pers", not "$(DEPLOY_ENV)")
+	$(error personal-dev-env: DEPLOY_ENV must be set to "pers" or "swft", not "$(DEPLOY_ENV)")
 endif
 .PHONY: personal-dev-env
 
 #
 # Local Cluster Service Development Environment
 #
-ifeq ($(DEPLOY_ENV),pers)
+ifeq ($(DEPLOY_ENV),$(filter $(DEPLOY_ENV),pers swft))
 local-pers-dev-env: personal-dev-env
 	@echo ""
 	@echo "===================================================================="
@@ -325,7 +365,7 @@ local-pers-dev-env: personal-dev-env
 	@echo "===================================================================="
 else
 local-pers-dev-env:
-	$(error local-pers-dev-env: DEPLOY_ENV must be set to "pers", not "$(DEPLOY_ENV)")
+	$(error local-pers-dev-env: DEPLOY_ENV must be set to "pers" or "swft", not "$(DEPLOY_ENV)")
 endif
 .PHONY: local-pers-dev-env
 
@@ -414,6 +454,11 @@ cleanup: $(TEMPLATIZE)
 								     --dev-environment $(DEPLOY_ENV) \
 								     $(WHAT) \
 								     --dry-run=$(CLEANUP_DRY_RUN) \
-									 --ignore=global --ignore=hcp-kusto-us \
+								     --only-regional \
 								     --wait=$(CLEANUP_WAIT) \
 								     --verbosity=$(LOG_LEVEL)
+
+# Image Updater
+image-updater:
+	@$(MAKE) -C tooling/image-updater update
+.PHONY: image-updater

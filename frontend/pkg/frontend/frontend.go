@@ -19,16 +19,16 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log/slog"
 	"net"
 	"net/http"
-	"os"
 	"strconv"
 	"strings"
+	"sync"
+	"time"
 
+	"github.com/go-logr/logr"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
-	"golang.org/x/sync/errgroup"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
@@ -56,21 +56,36 @@ type Frontend struct {
 	metricsServer        http.Server
 	dbClient             database.DBClient
 	auditClient          audit.Client
-	done                 chan struct{}
 	collector            *metrics.SubscriptionCollector
 	healthGauge          prometheus.Gauge
+	// this is the azure location for this instance of the frontend
+	azureLocation string
+
+	// clusterServiceProvisionShard pins cluster requests to a specific
+	// Cluster Service provision shard during testing.
+	clusterServiceProvisionShard string
+	// clusterServiceNoopProvision short-circuits the full provision flow
+	// during testing.
+	clusterServiceNoopProvision bool
+	// clusterServiceNoopDeprovision short-circuits the full deprovision flow
+	// during testing.
+	clusterServiceNoopDeprovision bool
 
 	apiRegistry api.APIRegistry
 }
 
 func NewFrontend(
-	logger *slog.Logger,
+	logger logr.Logger,
 	listener net.Listener,
 	metricsListener net.Listener,
 	reg prometheus.Registerer,
 	dbClient database.DBClient,
 	csClient ocm.ClusterServiceClientSpec,
 	auditClient audit.Client,
+	azureLocation string,
+	clusterServiceProvisionShard string,
+	clusterServiceNoopProvision bool,
+	clusterServiceNoopDeprovision bool,
 ) *Frontend {
 	// zero side-effect registration path
 	apiRegistry := api.NewAPIRegistry()
@@ -82,7 +97,6 @@ func NewFrontend(
 		listener:             listener,
 		metricsListener:      metricsListener,
 		server: http.Server{
-			ErrorLog: slog.NewLogLogger(logger.Handler(), slog.LevelError),
 			BaseContext: func(net.Listener) context.Context {
 				ctx := context.Background()
 				ctx = utils.ContextWithLogger(ctx, logger)
@@ -90,22 +104,24 @@ func NewFrontend(
 			},
 		},
 		metricsServer: http.Server{
-			ErrorLog: slog.NewLogLogger(logger.Handler(), slog.LevelError),
 			BaseContext: func(net.Listener) context.Context {
 				return utils.ContextWithLogger(context.Background(), logger)
 			},
 		},
-		auditClient: auditClient,
-		dbClient:    dbClient,
-		done:        make(chan struct{}),
-		collector:   metrics.NewSubscriptionCollector(reg, dbClient, arm.GetAzureLocation()),
+		auditClient:                   auditClient,
+		dbClient:                      dbClient,
+		collector:                     metrics.NewSubscriptionCollector(reg, dbClient, azureLocation),
+		clusterServiceProvisionShard:  clusterServiceProvisionShard,
+		clusterServiceNoopProvision:   clusterServiceNoopProvision,
+		clusterServiceNoopDeprovision: clusterServiceNoopDeprovision,
 		healthGauge: promauto.With(reg).NewGauge(
 			prometheus.GaugeOpts{
 				Name: healthGaugeName,
 				Help: "Reports the health status of the service (0: not healthy, 1: healthy).",
 			},
 		),
-		apiRegistry: apiRegistry,
+		azureLocation: azureLocation,
+		apiRegistry:   apiRegistry,
 	}
 
 	f.server.Handler = f.routes(reg)
@@ -114,42 +130,74 @@ func NewFrontend(
 	return f
 }
 
-func (f *Frontend) Run(ctx context.Context, stop <-chan struct{}) {
-	// This just digs up the logger passed to NewFrontend.
-	logger := utils.LoggerFromContext(f.server.BaseContext(f.listener))
+func (f *Frontend) Run(ctx context.Context) error {
+	ctx, cancel := context.WithCancelCause(ctx)
+	defer func() {
+		cancel(fmt.Errorf("run returned"))
 
-	if stop != nil {
-		go func() {
-			<-stop
-			_ = f.server.Shutdown(ctx)
-			_ = f.metricsServer.Shutdown(ctx)
-			close(f.done)
-		}()
+		// always attempt a graceful shutdown, a double ctrl+c exits the process
+		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 31*time.Second)
+		defer shutdownCancel()
+		_ = f.server.Shutdown(shutdownCtx)
+		_ = f.metricsServer.Shutdown(shutdownCtx)
+	}()
+
+	if len(f.azureLocation) == 0 {
+		panic("azureLocation must be set")
 	}
+
+	// This just digs up the logger passed to NewFrontend.
+	logger := utils.LoggerFromContext(ctx)
+
+	// before we start the http handler (this should ensure we readiness checks until this is complete), we will do a cosmos
+	// data migration to our new storage keys.
+	logger.Info("starting cosmos data migration")
+	MigrateCosmosOrDie(ctx, f.dbClient)
+	logger.Info("completed cosmos data migration")
 
 	logger.Info(fmt.Sprintf("listening on %s", f.listener.Addr().String()))
 	logger.Info(fmt.Sprintf("metrics listening on %s", f.metricsListener.Addr().String()))
 
-	errs, ctx := errgroup.WithContext(ctx)
-	errs.Go(func() error {
-		return f.server.Serve(f.listener)
-	})
-	errs.Go(func() error {
-		return f.metricsServer.Serve(f.metricsListener)
-	})
-	errs.Go(func() error {
-		f.collector.Run(logger, stop)
-		return nil
-	})
+	errCh := make(chan error, 2)
+	wg := sync.WaitGroup{}
+	wg.Add(3)
+	go func() {
+		defer wg.Done()
+		errCh <- f.server.Serve(f.listener)
+	}()
+	go func() {
+		defer wg.Done()
+		errCh <- f.metricsServer.Serve(f.metricsListener)
+	}()
+	go func() {
+		defer wg.Done()
+		f.collector.Run(ctx)
+	}()
 
-	if err := errs.Wait(); !errors.Is(err, http.ErrServerClosed) {
-		logger.Error(err.Error())
-		os.Exit(1)
+	<-ctx.Done()
+
+	// always attempt a graceful shutdown, a double ctrl+c exits the process
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 31*time.Second)
+	defer shutdownCancel()
+	if err := f.server.Shutdown(shutdownCtx); err != nil {
+		logger.Error(err, "failed to shutdown http server")
 	}
-}
+	if err := f.metricsServer.Shutdown(shutdownCtx); err != nil {
+		logger.Error(err, "failed to shutdown http server")
+	}
 
-func (f *Frontend) Join() {
-	<-f.done
+	wg.Wait()
+	close(errCh)
+	errs := []error{}
+	for err := range errCh {
+		if err != nil {
+			logger.Info("go func completed", "message", err.Error())
+		}
+		if !errors.Is(err, http.ErrServerClosed) {
+			errs = append(errs, err)
+		}
+	}
+	return errors.Join(errs...)
 }
 
 func (f *Frontend) NotFound(writer http.ResponseWriter, request *http.Request) {
@@ -168,7 +216,7 @@ func (f *Frontend) Location(writer http.ResponseWriter, request *http.Request) {
 	// This is strictly for development environments to help discover
 	// the frontend's Azure region when port forwarding with kubectl.
 	// e.g. LOCATION=$(curl http://localhost:8443/location)
-	_, _ = writer.Write([]byte(arm.GetAzureLocation()))
+	_, _ = writer.Write([]byte(f.azureLocation))
 }
 
 func dbListOptionsFromRequest(request *http.Request) *database.DBClientListResourceDocsOptions {
@@ -279,37 +327,34 @@ func (f *Frontend) ArmResourceActionRequestAdminCredential(writer http.ResponseW
 	}
 
 	// Parent resource is the hcpOpenShiftCluster.
-	resourceID = resourceID.Parent
+	clusterResourceID := resourceID.Parent
 
 	correlationData, err := CorrelationDataFromContext(ctx)
 	if err != nil {
 		return utils.TrackError(err)
 	}
 
-	_, resourceDoc, err := f.dbClient.GetResourceDoc(ctx, resourceID)
-	if database.IsResponseError(err, http.StatusNotFound) {
-		return arm.NewResourceNotFoundError(resourceID)
-	}
+	cluster, err := f.dbClient.HCPClusters(clusterResourceID.SubscriptionID, clusterResourceID.ResourceGroupName).Get(ctx, clusterResourceID.Name)
 	if err != nil {
 		return utils.TrackError(err)
 	}
 
 	// CheckForProvisioningStateConflict does not log conflict errors
 	// but does log unexpected errors like database failures.
-	if err := f.CheckForProvisioningStateConflict(ctx, operationRequest, resourceDoc); err != nil {
+	if err := checkForProvisioningStateConflict(ctx, f.dbClient, operationRequest, cluster.ID, cluster.ServiceProviderProperties.ProvisioningState); err != nil {
 		return utils.TrackError(err)
 	}
 
 	// New credential cannot be requested while credentials are being revoked.
 
-	iterator := f.dbClient.Operations(resourceID.SubscriptionID).ListActiveOperations(&database.DBClientListActiveOperationDocsOptions{
+	iterator := f.dbClient.Operations(clusterResourceID.SubscriptionID).ListActiveOperations(&database.DBClientListActiveOperationDocsOptions{
 		Request:    api.Ptr(database.OperationRequestRevokeCredentials),
-		ExternalID: resourceID,
+		ExternalID: clusterResourceID,
 	})
 
 	for range iterator.Items(ctx) {
 		writer.Header().Set("Retry-After", strconv.Itoa(10))
-		return arm.NewConflictError(resourceID, "Cannot request credential while credentials are being revoked")
+		return arm.NewConflictError(clusterResourceID, "Cannot request credential while credentials are being revoked")
 	}
 
 	err = iterator.GetError()
@@ -317,28 +362,29 @@ func (f *Frontend) ArmResourceActionRequestAdminCredential(writer http.ResponseW
 		return utils.TrackError(err)
 	}
 
-	csCredential, err := f.clusterServiceClient.PostBreakGlassCredential(ctx, resourceDoc.InternalID)
+	csCredential, err := f.clusterServiceClient.PostBreakGlassCredential(ctx, cluster.ServiceProviderProperties.ClusterServiceID)
 	if err != nil {
 		return utils.TrackError(err)
 	}
 
-	internalID, err := api.NewInternalID(csCredential.HREF())
+	csCredentialClusterServiceID, err := api.NewInternalID(csCredential.HREF())
 	if err != nil {
 		return utils.TrackError(err)
 	}
 
-	transaction := f.dbClient.NewTransaction(resourceID.SubscriptionID)
+	transaction := f.dbClient.NewTransaction(clusterResourceID.SubscriptionID)
 
-	operationDoc := database.NewOperationDocument(
+	operationDoc := database.NewOperation(
 		operationRequest,
-		resourceID,
-		internalID,
+		clusterResourceID,
+		csCredentialClusterServiceID,
+		f.azureLocation,
 		request.Header.Get(arm.HeaderNameHomeTenantID),
 		request.Header.Get(arm.HeaderNameClientObjectID),
 		request.Header.Get(arm.HeaderNameAsyncNotificationURI),
 		correlationData)
 	transaction.OnSuccess(addOperationResponseHeaders(writer, request, operationDoc.NotificationURI, operationDoc.OperationID))
-	_, err = f.dbClient.Operations(resourceID.SubscriptionID).AddCreateToTransaction(ctx, transaction, operationDoc, nil)
+	_, err = f.dbClient.Operations(clusterResourceID.SubscriptionID).AddCreateToTransaction(ctx, transaction, operationDoc, nil)
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -363,37 +409,54 @@ func (f *Frontend) ArmResourceActionRevokeCredentials(writer http.ResponseWriter
 	}
 
 	// Parent resource is the hcpOpenShiftCluster.
-	resourceID = resourceID.Parent
+	clusterResourceID := resourceID.Parent
 
 	correlationData, err := CorrelationDataFromContext(ctx)
 	if err != nil {
 		return utils.TrackError(err)
 	}
 
-	_, resourceDoc, err := f.dbClient.GetResourceDoc(ctx, resourceID)
-	if database.IsResponseError(err, http.StatusNotFound) {
-		return arm.NewResourceNotFoundError(resourceID)
-	}
+	cluster, err := f.dbClient.HCPClusters(clusterResourceID.SubscriptionID, clusterResourceID.ResourceGroupName).Get(ctx, clusterResourceID.Name)
 	if err != nil {
 		return utils.TrackError(err)
 	}
 
 	// CheckForProvisioningStateConflict does not log conflict errors
 	// but does log unexpected errors like database failures.
-	if err := f.CheckForProvisioningStateConflict(ctx, operationRequest, resourceDoc); err != nil {
+	if err := checkForProvisioningStateConflict(ctx, f.dbClient, operationRequest, cluster.ID, cluster.ServiceProviderProperties.ProvisioningState); err != nil {
 		return utils.TrackError(err)
+	}
+
+	subscription, err := f.dbClient.Subscriptions().Get(ctx, clusterResourceID.SubscriptionID)
+	if err != nil {
+		return utils.TrackError(err)
+	}
+
+	if !subscription.HasRegisteredFeature(api.FeatureExperimentalReleaseFeatures) {
+		logger := utils.LoggerFromContext(ctx)
+		logger.Info("admin credential revocation denied: AFEC feature not registered",
+			"subscriptionId", clusterResourceID.SubscriptionID,
+			"requiredFeature", api.FeatureExperimentalReleaseFeatures,
+		)
+		return utils.TrackError(
+			arm.NewCloudError(
+				http.StatusForbidden,
+				arm.CloudErrorCodeFeatureNotEnabled,
+				clusterResourceID.String(),
+				"Admin credential revocation not enabled for this subscription."),
+		)
 	}
 
 	// Credential revocation cannot be requested while another revocation is in progress.
 
-	iterator := f.dbClient.Operations(resourceID.SubscriptionID).ListActiveOperations(&database.DBClientListActiveOperationDocsOptions{
+	iterator := f.dbClient.Operations(clusterResourceID.SubscriptionID).ListActiveOperations(&database.DBClientListActiveOperationDocsOptions{
 		Request:    api.Ptr(database.OperationRequestRevokeCredentials),
-		ExternalID: resourceID,
+		ExternalID: clusterResourceID,
 	})
 
 	for range iterator.Items(ctx) {
 		writer.Header().Set("Retry-After", strconv.Itoa(10))
-		return arm.NewConflictError(resourceID, "Credentials are already being revoked")
+		return arm.NewConflictError(clusterResourceID, "Credentials are already being revoked")
 	}
 
 	err = iterator.GetError()
@@ -401,27 +464,28 @@ func (f *Frontend) ArmResourceActionRevokeCredentials(writer http.ResponseWriter
 		return utils.TrackError(err)
 	}
 
-	err = f.clusterServiceClient.DeleteBreakGlassCredentials(ctx, resourceDoc.InternalID)
+	err = f.clusterServiceClient.DeleteBreakGlassCredentials(ctx, cluster.ServiceProviderProperties.ClusterServiceID)
 	if err != nil {
 		return utils.TrackError(err)
 	}
 
-	transaction := f.dbClient.NewTransaction(resourceID.SubscriptionID)
+	transaction := f.dbClient.NewTransaction(clusterResourceID.SubscriptionID)
 
 	// Just as deleting an ARM resource cancels any other operations on the resource,
 	// revoking credentials cancels any credential requests in progress.
 	err = f.CancelActiveOperations(ctx, transaction, &database.DBClientListActiveOperationDocsOptions{
 		Request:    api.Ptr(database.OperationRequestRequestCredential),
-		ExternalID: resourceID,
+		ExternalID: clusterResourceID,
 	})
 	if err != nil {
 		return utils.TrackError(err)
 	}
 
-	operationDoc := database.NewOperationDocument(
+	operationDoc := database.NewOperation(
 		operationRequest,
-		resourceID,
-		resourceDoc.InternalID,
+		clusterResourceID,
+		cluster.ServiceProviderProperties.ClusterServiceID,
+		f.azureLocation,
 		request.Header.Get(arm.HeaderNameHomeTenantID),
 		request.Header.Get(arm.HeaderNameClientObjectID),
 		request.Header.Get(arm.HeaderNameAsyncNotificationURI),
@@ -451,7 +515,7 @@ func (f *Frontend) ArmSubscriptionGet(writer http.ResponseWriter, request *http.
 
 	subscriptionID := request.PathValue(PathSegmentSubscriptionID)
 
-	subscription, err := f.dbClient.GetSubscriptionDoc(ctx, subscriptionID)
+	subscription, err := f.dbClient.Subscriptions().Get(ctx, subscriptionID)
 	if database.IsResponseError(err, http.StatusNotFound) {
 		return arm.NewResourceNotFoundError(resourceID)
 	}
@@ -474,23 +538,28 @@ func (f *Frontend) ArmSubscriptionPut(writer http.ResponseWriter, request *http.
 	if err != nil {
 		return utils.TrackError(err)
 	}
+	subscriptionID := request.PathValue(PathSegmentSubscriptionID)
 
-	var subscription arm.Subscription
-	err = json.Unmarshal(body, &subscription)
+	var requestSubscription arm.Subscription
+	err = json.Unmarshal(body, &requestSubscription)
 	if err != nil {
 		return arm.NewInvalidRequestContentError(err)
 	}
+	requestSubscription.CosmosMetadata.ResourceID, err = arm.ToSubscriptionResourceID(subscriptionID)
+	if err != nil {
+		return utils.TrackError(err)
+	}
+	requestSubscription.ResourceID = requestSubscription.CosmosMetadata.ResourceID
 
-	validationErrs := validation.ValidateSubscriptionCreate(ctx, &subscription)
+	validationErrs := validation.ValidateSubscriptionCreate(ctx, &requestSubscription)
 	if err := arm.CloudErrorFromFieldErrors(validationErrs); err != nil {
 		return utils.TrackError(err)
 	}
 
-	subscriptionID := request.PathValue(PathSegmentSubscriptionID)
-
-	_, err = f.dbClient.GetSubscriptionDoc(ctx, subscriptionID)
+	var resultingSubscription *arm.Subscription
+	existingSubscription, err := f.dbClient.Subscriptions().Get(ctx, subscriptionID)
 	if database.IsResponseError(err, http.StatusNotFound) {
-		err = f.dbClient.CreateSubscriptionDoc(ctx, subscriptionID, &subscription)
+		resultingSubscription, err = f.dbClient.Subscriptions().Create(ctx, &requestSubscription, nil)
 		if err != nil {
 			return utils.TrackError(err)
 		}
@@ -498,32 +567,29 @@ func (f *Frontend) ArmSubscriptionPut(writer http.ResponseWriter, request *http.
 	} else if err != nil {
 		return utils.TrackError(err)
 	} else {
-		updated, err := f.dbClient.UpdateSubscriptionDoc(ctx, subscriptionID, func(updateSubscription *arm.Subscription) bool {
-			messages := getSubscriptionDifferences(updateSubscription, &subscription)
-			for _, message := range messages {
-				logger.Info(message)
-			}
-
-			*updateSubscription = subscription
-
-			return len(messages) > 0
-		})
-		if err != nil {
-			return utils.TrackError(err)
+		messages := getSubscriptionDifferences(existingSubscription, &requestSubscription)
+		for _, message := range messages {
+			logger.Info(message)
 		}
-		if updated {
+		if len(messages) > 0 {
+			resultingSubscription, err = f.dbClient.Subscriptions().Replace(ctx, &requestSubscription, nil)
+			if err != nil {
+				return utils.TrackError(err)
+			}
 			logger.Info(fmt.Sprintf("updated document for subscription %s", subscriptionID))
+		} else {
+			resultingSubscription = existingSubscription
 		}
 	}
 
 	// Clean up resources if subscription is deleted.
-	if subscription.State == arm.SubscriptionStateDeleted {
+	if resultingSubscription.State == arm.SubscriptionStateDeleted {
 		if err := f.DeleteAllResourcesInSubscription(ctx, subscriptionID); err != nil {
 			return utils.TrackError(err)
 		}
 	}
 
-	_, err = arm.WriteJSONResponse(writer, http.StatusOK, subscription)
+	_, err = arm.WriteJSONResponse(writer, http.StatusOK, resultingSubscription)
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -537,7 +603,7 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 	ctx := request.Context()
 	logger := utils.LoggerFromContext(ctx)
 
-	subscription, err := f.dbClient.GetSubscriptionDoc(ctx, subscriptionID)
+	subscription, err := f.dbClient.Subscriptions().Get(ctx, subscriptionID)
 	if err != nil {
 		return err
 	}
@@ -557,16 +623,16 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 
 	availableAROHCPVersions := f.apiRegistry.ListVersions()
 	for index, raw := range deploymentPreflight.Resources {
-		var cloudError *arm.CloudError
+		var preflightErr error
 
 		// Check the raw JSON for any Template Language Expressions (TLEs).
 		// If any are detected, skip the resource because Cluster Service
 		// does not handle TLEs in its input validation.
 		detectedTLE, err := arm.DetectTLE(raw)
 		if err != nil {
-			cloudError = arm.NewInvalidRequestContentError(err)
+			preflightErr = arm.NewInvalidRequestContentError(err)
 			// Preflight is best-effort: a malformed resource is not a validation failure.
-			logger.Warn(cloudError.Message)
+			logger.Info("preflight: malformed resource detected", "error", preflightErr.Error())
 			continue
 		}
 		if detectedTLE {
@@ -576,9 +642,9 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 		preflightResource := &arm.DeploymentPreflightResource{}
 		err = json.Unmarshal(raw, preflightResource)
 		if err != nil {
-			cloudError = arm.NewInvalidRequestContentError(err)
+			preflightErr = arm.NewInvalidRequestContentError(err)
 			// Preflight is best-effort: a malformed resource is not a validation failure.
-			logger.Warn(cloudError.Message)
+			logger.Info("preflight: failed to unmarshal resource", "error", preflightErr.Error())
 			continue
 		}
 
@@ -589,11 +655,13 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 				Message: fmt.Sprintf("Unrecognized API version '%s'", preflightResource.APIVersion),
 				Target:  "apiVersion",
 			}
-			logger.Warn(
-				fmt.Sprintf("Resource #%d failed preliminary validation (see details)", index+1),
+			logger.Info(
+				fmt.Sprintf("preflight: Resource #%d failed preliminary validation (see details)", index+1),
 				"details", validationErr)
 			continue
 		}
+
+		resourceLogger := logger.WithValues(utils.LogValues{}.AddResourceName(preflightResource.Name).AddResourceType(preflightResource.Type)...)
 
 		switch strings.ToLower(preflightResource.Type) {
 		case strings.ToLower(api.ClusterResourceType.String()):
@@ -604,15 +672,29 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 			err = preflightResource.Convert(versionedCluster)
 			if err != nil {
 				// Preflight is best effort: failure to parse a resource is not a validation failure.
-				logger.Warn(fmt.Sprintf("Failed to unmarshal %s resource named '%s': %s", preflightResource.Type, preflightResource.Name, err))
+				resourceLogger.Info("preflight: failed to unmarshal resource", "error", err.Error())
 				continue
 			}
 
-			newInternalCluster := &api.HCPOpenShiftCluster{}
-			versionedCluster.Normalize(newInternalCluster)
+			newInternalCluster, err := versionedCluster.ConvertToInternal()
+			if err != nil {
+				resourceLogger.Info("preflight: failed to convert resource", "error", err.Error())
+				continue
+			}
+			// the external type lacks sufficient data to full produce a valid resourceID.  We do that separately here.
+			parts := []string{
+				"/subscriptions", subscriptionID,
+				"resourceGroups", resourceGroup,
+				"providers", api.ClusterResourceType.String(), newInternalCluster.Name,
+			}
+			newInternalCluster.ID, err = azcorearm.ParseResourceID(strings.Join(parts, "/"))
+			if err != nil {
+				// this indicates something really strange happened, return an error for it.
+				return utils.TrackError(err)
+			}
 			validationErrs := validation.ValidateClusterCreate(ctx, newInternalCluster, api.Must(versionedInterface.ValidationPathRewriter(&api.HCPOpenShiftCluster{})))
 			validationErrs = append(validationErrs, admission.AdmitClusterOnCreate(ctx, newInternalCluster, subscription)...)
-			cloudError = arm.CloudErrorFromFieldErrors(validationErrs)
+			preflightErr = arm.CloudErrorFromFieldErrors(validationErrs)
 
 		case strings.ToLower(api.NodePoolResourceType.String()):
 			// API version is already validated by this point.
@@ -622,15 +704,30 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 			err = preflightResource.Convert(versionedNodePool)
 			if err != nil {
 				// Preflight is best effort: failure to parse a resource is not a validation failure.
-				logger.Warn(fmt.Sprintf("Failed to unmarshal %s resource named '%s': %s", preflightResource.Type, preflightResource.Name, err))
+				resourceLogger.Info("preflight: failed to unmarshal resource", "error", err.Error())
 				continue
 			}
 
 			// Perform static validation as if for a node pool creation request.
-			newInternalNodePool := &api.HCPOpenShiftClusterNodePool{}
-			versionedNodePool.Normalize(newInternalNodePool)
+			newInternalNodePool, err := versionedNodePool.ConvertToInternal()
+			if err != nil {
+				resourceLogger.Info("preflight: failed to convert resource", "error", err.Error())
+				continue
+			}
+			// the external type lacks sufficient data to full produce a valid resourceID.  We do that separately here.
+			parts := []string{
+				"/subscriptions", subscriptionID,
+				"resourceGroups", resourceGroup,
+				"providers", api.ClusterResourceType.String(), "preflight",
+				api.NodePoolResourceType.Types[len(api.NodePoolResourceType.Types)-1], newInternalNodePool.Name,
+			}
+			newInternalNodePool.ID, err = azcorearm.ParseResourceID(strings.Join(parts, "/"))
+			if err != nil {
+				// this indicates something really strange happened, return an error for it.
+				return utils.TrackError(err)
+			}
 			validationErrs := validation.ValidateNodePoolCreate(ctx, newInternalNodePool)
-			cloudError = arm.CloudErrorFromFieldErrors(validationErrs)
+			preflightErr = arm.CloudErrorFromFieldErrors(validationErrs)
 
 		case strings.ToLower(api.ExternalAuthResourceType.String()):
 			// API version is already validated by this point.
@@ -640,22 +737,38 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 			err = preflightResource.Convert(versionedExternalAuth)
 			if err != nil {
 				// Preflight is best effort: failure to parse a resource is not a validation failure.
-				logger.Warn(fmt.Sprintf("Failed to unmarshal %s resource named '%s': %s", preflightResource.Type, preflightResource.Name, err))
+				resourceLogger.Info("preflight: failed to unmarshal resource", "error", err.Error())
 				continue
 			}
 
 			// Perform static validation as if for an external auth creation request.
-			newInternalAuth := &api.HCPOpenShiftClusterExternalAuth{}
-			versionedExternalAuth.Normalize(newInternalAuth)
+			newInternalAuth, err := versionedExternalAuth.ConvertToInternal()
+			if err != nil {
+				resourceLogger.Info("preflight: failed to convert resource", "error", err.Error())
+				continue
+			}
+			// the external type lacks sufficient data to full produce a valid resourceID.  We do that separately here.
+			parts := []string{
+				"/subscriptions", subscriptionID,
+				"resourceGroups", resourceGroup,
+				"providers", api.ClusterResourceType.String(), "preflight",
+				api.ExternalAuthResourceType.Types[len(api.NodePoolResourceType.Types)-1], newInternalAuth.Name,
+			}
+			newInternalAuth.ID, err = azcorearm.ParseResourceID(strings.Join(parts, "/"))
+			if err != nil {
+				// this indicates something really strange happened, return an error for it.
+				return utils.TrackError(err)
+			}
 			validationErrs := validation.ValidateExternalAuthCreate(ctx, newInternalAuth)
-			cloudError = arm.CloudErrorFromFieldErrors(validationErrs)
+			preflightErr = arm.CloudErrorFromFieldErrors(validationErrs)
 
 		default:
 			// Disregard foreign resource types.
 			continue
 		}
 
-		if cloudError != nil {
+		var cloudError *arm.CloudError
+		if errors.As(preflightErr, &cloudError) {
 			var details []arm.CloudErrorBody
 
 			// This avoids double-nesting details when there's multiple errors.
@@ -711,13 +824,14 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 
 func (f *Frontend) OperationStatus(writer http.ResponseWriter, request *http.Request) error {
 	ctx := request.Context()
+	logger := utils.LoggerFromContext(ctx)
 
 	resourceID, err := utils.ResourceIDFromContext(ctx)
 	if err != nil {
 		return utils.TrackError(err)
 	}
 
-	operation, err := f.dbClient.Operations(resourceID.SubscriptionID).GetByID(ctx, resourceID.Name)
+	operation, err := f.dbClient.Operations(resourceID.SubscriptionID).Get(ctx, resourceID.Name)
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -725,6 +839,7 @@ func (f *Frontend) OperationStatus(writer http.ResponseWriter, request *http.Req
 	// Validate the identity retrieving the operation result is the
 	// same identity that triggered the operation. Return 404 if not.
 	if !f.OperationIsVisible(request, operation) {
+		logger.Info("operation result not visible to requester")
 		writer.WriteHeader(http.StatusNotFound)
 		return nil
 	}
@@ -796,7 +911,7 @@ func (f *Frontend) OperationResult(writer http.ResponseWriter, request *http.Req
 		return utils.TrackError(err)
 	}
 
-	operation, err := f.dbClient.Operations(resourceID.SubscriptionID).GetByID(ctx, resourceID.Name)
+	operation, err := f.dbClient.Operations(resourceID.SubscriptionID).Get(ctx, resourceID.Name)
 	if err != nil {
 		return utils.TrackError(err)
 	}

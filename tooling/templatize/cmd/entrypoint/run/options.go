@@ -43,6 +43,7 @@ func BindOptions(opts *RawOptions, cmd *cobra.Command) error {
 	cmd.Flags().BoolVar(&opts.DryRun, "dry-run", opts.DryRun, "validate the pipeline without executing it")
 	cmd.Flags().BoolVar(&opts.Persist, "persist-tag", opts.Persist, "toggle if persist tag should be set")
 	cmd.Flags().IntVar(&opts.DeploymentTimeoutSeconds, "deployment-timeout-seconds", opts.DeploymentTimeoutSeconds, "Timeout in Seconds to wait for previous deployments of the pipeline to finish")
+	cmd.Flags().BoolVar(&opts.AbortIfRegionalExist, "abort-if-regional-exist", opts.AbortIfRegionalExist, "Abort deployment if regional resource groups already exist (concurrent execution prevention)")
 
 	return nil
 }
@@ -53,6 +54,7 @@ type RawOptions struct {
 	DryRun                   bool
 	Persist                  bool
 	DeploymentTimeoutSeconds int
+	AbortIfRegionalExist     bool
 
 	TimingOutputFile string
 	JUnitOutputFile  string
@@ -76,6 +78,7 @@ type completedOptions struct {
 	DryRun                   bool
 	NoPersist                bool
 	DeploymentTimeoutSeconds int
+	AbortIfRegionalExist     bool
 
 	TimingOutputFile string
 	JUnitOutputFile  string
@@ -113,6 +116,7 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 			DryRun:                   o.DryRun,
 			NoPersist:                !o.Persist,
 			DeploymentTimeoutSeconds: o.DeploymentTimeoutSeconds,
+			AbortIfRegionalExist:     o.AbortIfRegionalExist,
 
 			TimingOutputFile: o.TimingOutputFile,
 			JUnitOutputFile:  o.JUnitOutputFile,
@@ -121,7 +125,7 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 }
 
 func (o *Options) Run(ctx context.Context) error {
-	subscriptionIdToAzureConfigDirectory, err := pipeline.GetAllRequiredAzureClients(ctx, o.Pipelines)
+	subscriptionIdToAzureConfigDirectory, err := pipeline.GetAllRequiredAzureClients(ctx, o.Pipelines, o.Subscriptions)
 	if err != nil {
 		return fmt.Errorf("failed to get all required Azure clients: %w", err)
 	}
@@ -130,6 +134,12 @@ func (o *Options) Run(ctx context.Context) error {
 			os.RemoveAll(azureConfigDir)
 		}
 	}()
+
+	// Extract target resource group names from config for precheck
+	var regionRGNames []string
+	if o.AbortIfRegionalExist {
+		regionRGNames = entrypointutils.RegionalResourceGroupNames(o.Config)
+	}
 
 	runOpts := &pipeline.PipelineRunOptions{
 		BaseRunOptions: pipeline.BaseRunOptions{
@@ -148,6 +158,8 @@ func (o *Options) Run(ctx context.Context) error {
 		Concurrency:           o.Concurrency,
 		TimingOutputFile:      o.TimingOutputFile,
 		JUnitOutputFile:       o.JUnitOutputFile,
+		AbortIfRegionalExist:  o.AbortIfRegionalExist,
+		RegionRGNames:         regionRGNames,
 	}
 
 	if o.Entrypoint != nil {

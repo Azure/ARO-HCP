@@ -22,3 +22,27 @@ clustersService:
 tracing:
   address: "{{ .backend.tracing.address }}"
   exporter: "{{ .backend.tracing.exporter }}"
+serviceKeyVault:
+  name: "{{ .serviceKeyVault.name }}"
+fpa:
+  # certName is the name of the certificate in Azure Key Vault . It can be used
+  # to reference the associated Certificate, Secret and Key objects associated
+  # to the certificate
+  certName: "{{ .firstPartyAppCertificate.name }}"
+  clientId: "{{ .firstPartyAppClientId }}"
+azure:
+  cloudEnvironmentName: "{{ .cloudEnvironmentName }}"
+  # The Azure Tenant ID where backend service is running. In values.yaml we
+  # simply set a hardcoded placeholder. Once the template is instantiated we
+  # pass the value via argument.
+  tenantId: "__tenantId__"
+  msiRpDataPlaneAudienceResource: "{{ .msiRp.dataPlaneAudienceResource }}"
+  ocpAcrResourceId: "__ocpAcrResourceId__"
+  ocpAcrHostname: "__ocpAcrHostname__"
+  oidcIssuerBlobServiceUrl: "__regionalOidcStorageAccountBlobEndpoint__"
+  oidcIssuerBaseUrl: "__regionalOidcStorageAccountWebEndpoint__"
+  tlsCertificatesConfig:
+    issuer: "{{ .backend.azureRuntimeConfig.tlsCertificatesIssuer }}"
+    certificatesGenerationSource: "AzureKeyVault"
+maestro:
+  sourceEnvironmentIdentifier: "{{ .backend.maestro.sourceEnvironmentIdentifier }}"

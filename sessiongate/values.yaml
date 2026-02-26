@@ -1,0 +1,49 @@
+image:
+  registry: "{{ .acr.svc.name }}.{{ .acrDNSSuffix }}"
+  repository: "{{ .sessiongate.image.repository }}"
+  digest: "{{ .sessiongate.image.digest }}"
+replicas: "{{ .sessiongate.k8s.replicas }}"
+logLevel: "2"
+leaderElection:
+  leaseDuration: "15s"
+  renewDeadline: "10s"
+  retryPeriod: "2s"
+nodeSelector: {}
+tolerations: []
+affinity: {}
+serviceAccount:
+  name: "{{ .sessiongate.k8s.serviceAccountName }}"
+  workloadIdentityClientId: "__sessiongateMsiClientId__"
+  workloadIdentityTenantId: "__tenantId__"
+# Pull binding configuration for ACR Pull Operator
+pullBinding:
+  registry: "{{ .acr.svc.name }}.{{ .acrDNSSuffix }}"
+  scope: "repository:{{ .sessiongate.image.repository }}:pull"
+  workloadIdentityClientId: "__imagePullerMsiClientId__"
+  workloadIdentityTenantId: "__tenantId__"
+service:
+  name: sessiongate
+  port: 8080
+# HTTPRoute for ops-ingress gateway
+httpRoute:
+  host: "sessiongate.{{ .dns.regionalSubdomain }}.{{ .dns.svcParentZoneName }}"
+  gateway:
+    name: ops-ingress-gateway
+    namespace: aks-istio-ingress
+    sectionName: sessiongate-https
+# MISE authorization
+mise:
+  policyLabel: "{{ .mise.sessiongate.policyLabel }}"
+  deploy: {{ .mise.deploy }}
+auth:
+  authority: "https://{{ .mise.sessiongate.authorityFQDN }}/{{ .tenantId }}" # iss
+  audience: "{{ .mise.sessiongate.audience }}" # aud
+# Azure
+azure:
+  cloudEnvironmentName: "{{ .cloudEnvironmentName }}"
+  clientId: "__csiSecretStoreClientId__"
+  tenantId: "__tenantId__"
+# TLS Credentials
+credsKeyVault:
+  name: "{{ .serviceKeyVault.name }}"
+  secret: "{{ .sessiongate.cert.name }}"

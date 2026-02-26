@@ -18,6 +18,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"net/http"
 	"strings"
 	"testing"
 
@@ -25,9 +26,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"k8s.io/utils/ptr"
+
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	csarhcpv1alpha1 "github.com/openshift-online/ocm-api-model/clientapi/arohcp/v1alpha1"
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 
 	"github.com/Azure/ARO-HCP/internal/api"
@@ -56,8 +58,6 @@ pAqEAuV4DNoxQKKWmhVv+J0ptMWD25Pnpxeq5sXzghfJnslJlQND
 var dummyAudiences = []string{"audience1", "audience2"}
 
 func TestConvertCStoHCPOpenShiftCluster(t *testing.T) {
-	arm.SetAzureLocation(api.TestLocation)
-
 	resourceID, err := azcorearm.ParseResourceID(api.TestClusterResourceID)
 	require.NoError(t, err)
 
@@ -207,10 +207,10 @@ func TestConvertCStoHCPOpenShiftCluster(t *testing.T) {
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			csCluster := ocmCluster(t, ocmClusterDefaults(), tc.ocmClusterTweaks)
+			csCluster := ocmCluster(t, ocmClusterDefaults(api.TestLocation), tc.ocmClusterTweaks)
 			expectHcpCluster := api.ClusterTestCase(t, tc.hcpClusterTweaks)
 
-			actualHcpCluster, err := ConvertCStoHCPOpenShiftCluster(resourceID, csCluster)
+			actualHcpCluster, err := ConvertCStoHCPOpenShiftCluster(resourceID, api.TestLocation, csCluster)
 			require.NoError(t, err)
 
 			assert.Equal(t, expectHcpCluster, actualHcpCluster)
@@ -227,7 +227,7 @@ func TestWithImmutableAttributes(t *testing.T) {
 		{
 			name:       "simple default",
 			hcpCluster: &api.HCPOpenShiftCluster{},
-			want:       ocmCluster(t, ocmClusterDefaults()),
+			want:       ocmCluster(t, ocmClusterDefaults(api.TestLocation)),
 		},
 		{
 			name: "converts stable version from RP to CS (adds patch and prefix)",
@@ -239,7 +239,7 @@ func TestWithImmutableAttributes(t *testing.T) {
 					},
 				},
 			},
-			want: ocmCluster(t, ocmClusterDefaults().
+			want: ocmCluster(t, ocmClusterDefaults(api.TestLocation).
 				Version(arohcpv1alpha1.NewVersion().
 					ID("openshift-v4.19.7").
 					ChannelGroup("stable"))),
@@ -254,7 +254,7 @@ func TestWithImmutableAttributes(t *testing.T) {
 					},
 				},
 			},
-			want: ocmCluster(t, ocmClusterDefaults().
+			want: ocmCluster(t, ocmClusterDefaults(api.TestLocation).
 				Version(arohcpv1alpha1.NewVersion().
 					ID("openshift-v4.19.19-candidate").
 					ChannelGroup("candidate"))),
@@ -269,7 +269,7 @@ func TestWithImmutableAttributes(t *testing.T) {
 					},
 				},
 			},
-			want: ocmCluster(t, ocmClusterDefaults().
+			want: ocmCluster(t, ocmClusterDefaults(api.TestLocation).
 				Version(arohcpv1alpha1.NewVersion().
 					ID("openshift-v4.19.0-0.nightly-2025-01-01-nightly").
 					ChannelGroup("nightly"))),
@@ -281,7 +281,7 @@ func TestWithImmutableAttributes(t *testing.T) {
 					Version: api.VersionProfile{ID: "4.19", ChannelGroup: "stable"},
 				},
 			},
-			want: ocmCluster(t, ocmClusterDefaults().Version(
+			want: ocmCluster(t, ocmClusterDefaults(api.TestLocation).Version(
 				arohcpv1alpha1.NewVersion().ID("openshift-v4.19.7").ChannelGroup("stable"))),
 		},
 		{
@@ -291,8 +291,8 @@ func TestWithImmutableAttributes(t *testing.T) {
 					Version: api.VersionProfile{ID: "4.20", ChannelGroup: "stable"},
 				},
 			},
-			want: ocmCluster(t, ocmClusterDefaults().Version(
-				arohcpv1alpha1.NewVersion().ID("openshift-v4.20.5").ChannelGroup("stable"))),
+			want: ocmCluster(t, ocmClusterDefaults(api.TestLocation).Version(
+				arohcpv1alpha1.NewVersion().ID("openshift-v4.20.8").ChannelGroup("stable"))),
 		},
 	}
 
@@ -302,7 +302,7 @@ func TestWithImmutableAttributes(t *testing.T) {
 			require.NoError(t, arohcpv1alpha1.MarshalCluster(tc.want, &buf))
 			want := buf.String()
 			builder, err := withImmutableAttributes(
-				ocmClusterDefaults(),
+				ocmClusterDefaults(api.TestLocation),
 				api.ClusterTestCase(t, tc.hcpCluster),
 				api.TestSubscriptionID,
 				api.TestResourceGroupName,
@@ -347,7 +347,7 @@ func ocmCluster(t *testing.T, builders ...*arohcpv1alpha1.ClusterBuilder) *arohc
 	return cluster
 }
 
-func ocmClusterDefaults() *arohcpv1alpha1.ClusterBuilder {
+func ocmClusterDefaults(azureLocation string) *arohcpv1alpha1.ClusterBuilder {
 	// This reflects how the immutable attributes get set when passed a minimally
 	// valid RP cluster, using constants from internal/api/testhelpers.go.
 	return arohcpv1alpha1.NewCluster().
@@ -363,8 +363,8 @@ func ocmClusterDefaults() *arohcpv1alpha1.ClusterBuilder {
 				OutboundType(csOutboundType)).
 			OperatorsAuthentication(arohcpv1alpha1.NewAzureOperatorsAuthentication().
 				ManagedIdentities(arohcpv1alpha1.NewAzureOperatorsAuthenticationManagedIdentities().
-					ControlPlaneOperatorsManagedIdentities(make(map[string]*csarhcpv1alpha1.AzureControlPlaneManagedIdentityBuilder)).
-					DataPlaneOperatorsManagedIdentities(make(map[string]*csarhcpv1alpha1.AzureDataPlaneManagedIdentityBuilder)).
+					ControlPlaneOperatorsManagedIdentities(make(map[string]*arohcpv1alpha1.AzureControlPlaneManagedIdentityBuilder)).
+					DataPlaneOperatorsManagedIdentities(make(map[string]*arohcpv1alpha1.AzureDataPlaneManagedIdentityBuilder)).
 					ManagedIdentitiesDataPlaneIdentityUrl(""))).
 			ResourceGroupName(strings.ToLower(api.TestResourceGroupName)).
 			ResourceName(strings.ToLower(api.TestClusterName)).
@@ -375,6 +375,7 @@ func ocmClusterDefaults() *arohcpv1alpha1.ClusterBuilder {
 		CCS(arohcpv1alpha1.NewCCS().Enabled(true)).
 		CloudProvider(arohcpv1alpha1.NewCloudProvider().
 			ID("azure")).
+		DomainPrefix("testcluster").
 		Flavour(arohcpv1alpha1.NewFlavour().
 			ID("osd-4")).
 		Hypershift(arohcpv1alpha1.NewHypershift().
@@ -393,9 +394,9 @@ func ocmClusterDefaults() *arohcpv1alpha1.ClusterBuilder {
 		Product(arohcpv1alpha1.NewProduct().
 			ID("aro")).
 		Region(arohcpv1alpha1.NewCloudRegion().
-			ID(arm.GetAzureLocation())).
+			ID(azureLocation)).
 		Version(arohcpv1alpha1.NewVersion().
-			ID("").
+			ID("openshift-v4.15.0").
 			ChannelGroup("stable")).
 		ImageRegistry(arohcpv1alpha1.NewClusterImageRegistry().
 			State(csImageRegistryStateEnabled))
@@ -403,7 +404,15 @@ func ocmClusterDefaults() *arohcpv1alpha1.ClusterBuilder {
 
 func getHCPNodePoolResource(opts ...func(*api.HCPOpenShiftClusterNodePool)) *api.HCPOpenShiftClusterNodePool {
 	nodePool := &api.HCPOpenShiftClusterNodePool{
-		Properties: api.HCPOpenShiftClusterNodePoolProperties{},
+		Properties: api.HCPOpenShiftClusterNodePoolProperties{
+			Platform: api.NodePoolPlatformProfile{
+				OSDisk: api.OSDiskProfile{
+					// SizeGiB is initialized to 64 to reflect the default value set by SetDefaultValuesNodePool
+					// in the real API flow. This ensures tests match production behavior where SizeGiB is never nil.
+					SizeGiB: ptr.To(int32(64)),
+				},
+			},
+		},
 	}
 
 	for _, opt := range opts {
@@ -412,8 +421,7 @@ func getHCPNodePoolResource(opts ...func(*api.HCPOpenShiftClusterNodePool)) *api
 	return nodePool
 }
 
-// Because we don't distinguish between unset and empty values in our JSON parsing
-// we will get the resulting CS object from an empty HCPOpenShiftClusterNodePool object.
+// Base CS nodepool builder that reflects the defaults set in getHCPNodePoolResource.
 func getBaseCSNodePoolBuilder() *arohcpv1alpha1.NodePoolBuilder {
 	return arohcpv1alpha1.NewNodePool().
 		ID("").
@@ -426,7 +434,7 @@ func getBaseCSNodePoolBuilder() *arohcpv1alpha1.NodePoolBuilder {
 					State(csEncryptionAtHostStateDisabled),
 			).
 			OsDisk(arohcpv1alpha1.NewAzureNodePoolOsDisk().
-				SizeGibibytes(0).
+				SizeGibibytes(64).
 				StorageAccountType(""),
 			),
 		).
@@ -716,6 +724,324 @@ func TestBuildCSExternalAuth(t *testing.T) {
 			generatedCSExternalAuth, err := generatedCSExternalAuthBuilder.Build()
 			require.NoError(t, err)
 			assert.Equalf(t, expected, generatedCSExternalAuth, "BuildCSExternalAuth(%v, %v)", resourceID, expected)
+		})
+	}
+}
+
+func getBaseCSClusterBuilder(updating bool) *arohcpv1alpha1.ClusterBuilder {
+	var builder *arohcpv1alpha1.ClusterBuilder
+	clusterAPIBuilder := arohcpv1alpha1.NewClusterAPI()
+
+	if updating {
+		builder = arohcpv1alpha1.NewCluster()
+	} else {
+		builder = ocmClusterDefaults(api.TestLocation)
+		clusterAPIBuilder = clusterAPIBuilder.Listening(arohcpv1alpha1.ListeningMethodExternal)
+	}
+
+	// Add common mutable fields that BuildCSCluster always sets
+	return builder.
+		NodeDrainGracePeriod(arohcpv1alpha1.NewValue().
+			Unit(csNodeDrainGracePeriodUnit).
+			Value(float64(0))).
+		Autoscaler(arohcpv1alpha1.NewClusterAutoscaler().
+			PodPriorityThreshold(-10).
+			MaxNodeProvisionTime("15m").
+			MaxPodGracePeriod(600).
+			ResourceLimits(arohcpv1alpha1.NewAutoscalerResourceLimits().
+				MaxNodesTotal(0))).
+		Properties(map[string]string{}).
+		API(clusterAPIBuilder.CIDRBlockAccess(arohcpv1alpha1.NewCIDRBlockAccess().
+			Allow(arohcpv1alpha1.NewCIDRBlockAllowAccess().
+				Mode(csCIDRBlockAllowAccessModeAllowAll))))
+}
+
+func TestBuildCSCluster(t *testing.T) {
+	testCases := []struct {
+		name                     string
+		hcpCluster               *api.HCPOpenShiftCluster
+		requiredProperties       map[string]string
+		oldClusterServiceCluster *arohcpv1alpha1.Cluster
+		expectedCSCluster        *arohcpv1alpha1.ClusterBuilder
+		expectedError            string
+	}{
+		{
+			name: "CREATE - sets CIDRBlockAccess with nil AuthorizedCIDRs",
+			hcpCluster: &api.HCPOpenShiftCluster{
+				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
+					API: api.CustomerAPIProfile{
+						AuthorizedCIDRs: nil,
+					},
+				},
+			},
+			expectedCSCluster: getBaseCSClusterBuilder(false),
+		},
+		{
+			name: "CREATE - rejects empty AuthorizedCIDRs",
+			hcpCluster: func() *api.HCPOpenShiftCluster {
+				cluster := api.MinimumValidClusterTestCase()
+				cluster.CustomerProperties.API.AuthorizedCIDRs = make([]string, 0)
+				return cluster
+			}(),
+			expectedError: "AuthorizedCIDRs cannot be an empty list",
+		},
+		{
+			name: "CREATE - sets CIDRBlockAccess with non-empty AuthorizedCIDRs",
+			hcpCluster: &api.HCPOpenShiftCluster{
+				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
+					API: api.CustomerAPIProfile{
+						Visibility:      api.VisibilityPrivate,
+						AuthorizedCIDRs: []string{"10.0.0.0/8", "192.168.0.0/16"},
+					},
+				},
+			},
+			expectedCSCluster: getBaseCSClusterBuilder(false).
+				API(arohcpv1alpha1.NewClusterAPI().
+					Listening(arohcpv1alpha1.ListeningMethodInternal).
+					CIDRBlockAccess(arohcpv1alpha1.NewCIDRBlockAccess().
+						Allow(arohcpv1alpha1.NewCIDRBlockAllowAccess().
+							Mode(csCIDRBlockAllowAccessModeAllowList).
+							Values("10.0.0.0/8", "192.168.0.0/16")))),
+		},
+		{
+			name: "UPDATE - sets CIDRBlockAccess with nil AuthorizedCIDRs",
+			oldClusterServiceCluster: func() *arohcpv1alpha1.Cluster {
+				c, err := arohcpv1alpha1.NewCluster().Build()
+				if err != nil {
+					panic(err)
+				}
+				return c
+			}(),
+			hcpCluster: &api.HCPOpenShiftCluster{
+				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
+					API: api.CustomerAPIProfile{
+						AuthorizedCIDRs: nil,
+					},
+				},
+			},
+			expectedCSCluster: getBaseCSClusterBuilder(true),
+		},
+		{
+			name: "UPDATE - rejects empty AuthorizedCIDRs",
+			oldClusterServiceCluster: func() *arohcpv1alpha1.Cluster {
+				c, err := arohcpv1alpha1.NewCluster().Build()
+				if err != nil {
+					panic(err)
+				}
+				return c
+			}(),
+			hcpCluster: func() *api.HCPOpenShiftCluster {
+				cluster := api.MinimumValidClusterTestCase()
+				cluster.CustomerProperties.API.AuthorizedCIDRs = make([]string, 0)
+				return cluster
+			}(),
+			expectedError: "AuthorizedCIDRs cannot be an empty list",
+		},
+		{
+			name: "UPDATE - sets only CIDRBlockAccess with non-empty AuthorizedCIDRs",
+			oldClusterServiceCluster: func() *arohcpv1alpha1.Cluster {
+				c, err := arohcpv1alpha1.NewCluster().Build()
+				if err != nil {
+					panic(err)
+				}
+				return c
+			}(),
+			hcpCluster: &api.HCPOpenShiftCluster{
+				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
+					API: api.CustomerAPIProfile{
+						AuthorizedCIDRs: []string{"172.16.0.0/12", "203.0.113.0/24"},
+					},
+				},
+			},
+			expectedCSCluster: getBaseCSClusterBuilder(true).
+				API(arohcpv1alpha1.NewClusterAPI().
+					CIDRBlockAccess(arohcpv1alpha1.NewCIDRBlockAccess().
+						Allow(arohcpv1alpha1.NewCIDRBlockAllowAccess().
+							Mode(csCIDRBlockAllowAccessModeAllowList).
+							Values("172.16.0.0/12", "203.0.113.0/24")))),
+		},
+		{
+			name: "CREATE - sets experimental feature properties to true",
+			hcpCluster: &api.HCPOpenShiftCluster{
+				ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
+					ExperimentalFeatures: api.ExperimentalFeatures{
+						ControlPlaneAvailability: api.SingleReplicaControlPlane,
+						ControlPlanePodSizing:    api.MinimalControlPlanePodSizing,
+					},
+				},
+			},
+			expectedCSCluster: getBaseCSClusterBuilder(false).
+				Properties(map[string]string{
+					"hosted_cluster_single_replica": "true",
+					"hosted_cluster_size_override":  "true",
+				}),
+		},
+		{
+			name: "CREATE - sets only single-replica",
+			hcpCluster: &api.HCPOpenShiftCluster{
+				ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
+					ExperimentalFeatures: api.ExperimentalFeatures{
+						ControlPlaneAvailability: api.SingleReplicaControlPlane,
+					},
+				},
+			},
+			expectedCSCluster: getBaseCSClusterBuilder(false).
+				Properties(map[string]string{
+					"hosted_cluster_single_replica": "true",
+				}),
+		},
+		{
+			name: "UPDATE - tag removal clears previously set properties",
+			oldClusterServiceCluster: func() *arohcpv1alpha1.Cluster {
+				c, err := arohcpv1alpha1.NewCluster().Properties(map[string]string{
+					"hosted_cluster_single_replica": "true",
+					"hosted_cluster_size_override":  "true",
+				}).Build()
+				if err != nil {
+					panic(err)
+				}
+				return c
+			}(),
+			hcpCluster: &api.HCPOpenShiftCluster{},
+			expectedCSCluster: getBaseCSClusterBuilder(true).
+				Properties(map[string]string{}),
+		},
+		{
+			name: "UPDATE - partial feature disablement keeps remaining feature",
+			oldClusterServiceCluster: func() *arohcpv1alpha1.Cluster {
+				c, err := arohcpv1alpha1.NewCluster().Properties(map[string]string{
+					"hosted_cluster_single_replica": "true",
+					"hosted_cluster_size_override":  "true",
+				}).Build()
+				if err != nil {
+					panic(err)
+				}
+				return c
+			}(),
+			hcpCluster: &api.HCPOpenShiftCluster{
+				ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
+					ExperimentalFeatures: api.ExperimentalFeatures{
+						ControlPlanePodSizing: api.MinimalControlPlanePodSizing,
+					},
+				},
+			},
+			expectedCSCluster: getBaseCSClusterBuilder(true).
+				Properties(map[string]string{
+					"hosted_cluster_size_override": "true",
+				}),
+		},
+		{
+			name: "UPDATE - preserves non-experimental old properties",
+			oldClusterServiceCluster: func() *arohcpv1alpha1.Cluster {
+				c, err := arohcpv1alpha1.NewCluster().Properties(map[string]string{
+					"provisioner_noop_provision":    "true",
+					"provisioner_noop_deprovision":  "true",
+					"hosted_cluster_single_replica": "true",
+				}).Build()
+				if err != nil {
+					panic(err)
+				}
+				return c
+			}(),
+			hcpCluster: &api.HCPOpenShiftCluster{
+				ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
+					ExperimentalFeatures: api.ExperimentalFeatures{
+						ControlPlaneAvailability: api.SingleReplicaControlPlane,
+					},
+				},
+			},
+			expectedCSCluster: getBaseCSClusterBuilder(true).
+				Properties(map[string]string{
+					"provisioner_noop_provision":    "true",
+					"provisioner_noop_deprovision":  "true",
+					"hosted_cluster_single_replica": "true",
+				}),
+		},
+		{
+			name: "CREATE - required properties merged with experimental features",
+			requiredProperties: map[string]string{
+				"provision_shard_id":           "test-shard",
+				"provisioner_noop_provision":   "true",
+				"provisioner_noop_deprovision": "true",
+			},
+			hcpCluster: &api.HCPOpenShiftCluster{
+				ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
+					ExperimentalFeatures: api.ExperimentalFeatures{
+						ControlPlaneAvailability: api.SingleReplicaControlPlane,
+						ControlPlanePodSizing:    api.MinimalControlPlanePodSizing,
+					},
+				},
+			},
+			expectedCSCluster: getBaseCSClusterBuilder(false).
+				Properties(map[string]string{
+					"provision_shard_id":            "test-shard",
+					"provisioner_noop_provision":    "true",
+					"provisioner_noop_deprovision":  "true",
+					"hosted_cluster_single_replica": "true",
+					"hosted_cluster_size_override":  "true",
+				}),
+		},
+		{
+			name: "CREATE - experimental features override conflicting required properties",
+			requiredProperties: map[string]string{
+				"hosted_cluster_single_replica": "false",
+				"hosted_cluster_size_override":  "false",
+			},
+			hcpCluster: &api.HCPOpenShiftCluster{
+				ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
+					ExperimentalFeatures: api.ExperimentalFeatures{
+						ControlPlaneAvailability: api.SingleReplicaControlPlane,
+						ControlPlanePodSizing:    api.MinimalControlPlanePodSizing,
+					},
+				},
+			},
+			expectedCSCluster: getBaseCSClusterBuilder(false).
+				Properties(map[string]string{
+					"hosted_cluster_single_replica": "true",
+					"hosted_cluster_size_override":  "true",
+				}),
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Create a complete minimal cluster for testing
+			// For error test cases with expected errors, use the cluster as-is to preserve empty slices
+			var hcpCluster *api.HCPOpenShiftCluster
+			if tc.expectedError != "" {
+				hcpCluster = tc.hcpCluster
+			} else {
+				hcpCluster = api.ClusterTestCase(t, tc.hcpCluster)
+			}
+
+			// Create request headers
+			requestHeader := http.Header{}
+			requestHeader.Set(arm.HeaderNameHomeTenantID, api.TestTenantID)
+			requestHeader.Set(arm.HeaderNameIdentityURL, "")
+
+			resourceID, err := azcorearm.ParseResourceID(api.TestClusterResourceID)
+			require.NoError(t, err)
+
+			// Build actual CS cluster
+			actualClusterBuilder, actualAutoscalerBuilder, err := BuildCSCluster(resourceID, requestHeader, hcpCluster, tc.requiredProperties, tc.oldClusterServiceCluster)
+
+			if tc.expectedError != "" {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tc.expectedError)
+				return
+			}
+
+			require.NoError(t, err)
+
+			// Build expected CS cluster
+			expected, err := tc.expectedCSCluster.Build()
+			require.NoError(t, err)
+
+			actual, err := actualClusterBuilder.Autoscaler(actualAutoscalerBuilder).Build()
+			require.NoError(t, err)
+
+			// Compare
+			assert.Equal(t, expected, actual)
 		})
 	}
 }

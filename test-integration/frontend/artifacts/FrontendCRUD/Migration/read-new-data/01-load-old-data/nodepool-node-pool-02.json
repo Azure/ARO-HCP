@@ -1,0 +1,55 @@
+{
+	"_attachments": "attachments/",
+	"_etag": "\"00000000-0000-0000-712b-4e012c0501dc\"",
+	"_rid": "SdEpAPzZNVkHAAAAAAAAAA==",
+	"_self": "dbs/SdEpAA==/colls/SdEpAPzZNVk=/docs/SdEpAPzZNVkHAAAAAAAAAA==/",
+	"_ts": 1766178372,
+	"id": "9b74accf-0661-53d8-9741-b3aa39f9a53c",
+	"partitionKey": "6b690bec-0c16-4ecb-8f67-781caf40bba7",
+	"properties": {
+		"activeOperationId": "4067756a-fcc1-4732-a211-d785d888203c",
+		"internalId": "/api/clusters_mgmt/v1/clusters/9p2sk955gj/node_pools/v4lx7rv2r4",
+		"internalState": {
+			"internalAPI": {
+				"location": "fake-location",
+				"properties": {
+					"autoRepair": true,
+					"autoScaling": {
+						"max": 5,
+						"min": 1
+					},
+					"labels": {
+						"label-ky": "label-value"
+					},
+					"nodeDrainTimeoutMinutes": 2,
+					"platform": {
+						"enableEncryptionAtHost": false,
+						"osDisk": {
+							"diskStorageAccountType": "Premium_LRS",
+							"sizeGiB": 64
+						},
+						"vmSize": "large"
+					},
+					"taints": [
+						{
+							"effect": "NoExecute",
+							"key": "foo.com/key",
+							"value": "valid"
+						}
+					],
+					"version": {
+						"channelGroup": "stable"
+					}
+				},
+				"serviceProviderProperties": {
+					"clusterServiceID": ""
+				}
+			}
+		},
+		"provisioningState": "Accepted",
+		"resourceId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/create-with-tags/nodePools/node-pool-02",
+		"systemData": {}
+	},
+	"resourceID": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/create-with-tags/nodePools/node-pool-02",
+	"resourceType": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/nodePools"
+}

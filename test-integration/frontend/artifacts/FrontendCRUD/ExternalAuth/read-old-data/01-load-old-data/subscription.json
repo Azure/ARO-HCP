@@ -1,0 +1,17 @@
+{
+	"_attachments": "attachments/",
+	"_etag": "\"00000000-0000-0000-8196-43e6f00501dc\"",
+	"_rid": "MFstAI+1dLsBAAAAAAAAAA==",
+	"_self": "dbs/MFstAA==/colls/MFstAI+1dLs=/docs/MFstAI+1dLsBAAAAAAAAAA==/",
+	"_ts": 1767983529,
+	"id": "|subscriptions|6b690bec-0c16-4ecb-8f67-781caf40bba7",
+	"partitionKey": "6b690bec-0c16-4ecb-8f67-781caf40bba7",
+	"properties": {
+		"properties": null,
+		"registrationDate": "2025-12-19T19:53:15+00:00",
+		"resourceId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7",
+		"state": "Registered"
+	},
+	"resourceType": "Microsoft.Resources/subscriptions",
+	"resourceID": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7"
+}

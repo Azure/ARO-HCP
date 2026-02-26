@@ -58,12 +58,20 @@ spec:
           value: "/secrets/fpa-cert/bundle"
         - name: FPA_CLIENT_ID
           value: "{{ .Values.fpa.clientId }}"
+        - name: AUDIT_CONNECT_SOCKET
+          value: "{{ .Values.audit.connectSocket }}"
+        - name: SESSIONGATE_NAMESPACE
+          value: "{{ .Values.sessiongate.namespace }}"
+        - name: MIN_SESSION_TTL
+          value: "{{ .Values.sessiongate.minSessionTTL }}"
+        - name: MAX_SESSION_TTL
+          value: "{{ .Values.sessiongate.maxSessionTTL }}"
         ports:
         - containerPort: 8443
           name: http
           protocol: TCP
         - containerPort: 8444
-          name: health
+          name: metrics
           protocol: TCP
         resources:
           requests:
@@ -82,7 +90,7 @@ spec:
             type: RuntimeDefault
         livenessProbe:
           httpGet:
-            path: /healthz
+            path: /healthz/live
             port: 8444
           initialDelaySeconds: 15
           periodSeconds: 20
@@ -97,6 +105,10 @@ spec:
         - name: fpa-cert
           mountPath: /secrets/fpa-cert
           readOnly: true
+        {{- if .Values.audit.connectSocket }}
+        - name: mdsd-asa-run-vol
+          mountPath: /var/run/mdsd
+        {{- end }}
       volumes:
       - name: fpa-cert
         csi:
@@ -104,3 +116,9 @@ spec:
           readOnly: true
           volumeAttributes:
             secretProviderClass: fpa-cert
+      {{- if .Values.audit.connectSocket }}
+      - name: mdsd-asa-run-vol
+        hostPath:
+          path: /var/run/mdsd
+          type: Directory
+      {{- end }}

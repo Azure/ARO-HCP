@@ -1,0 +1,18 @@
+{
+	"name": "missing-required-fields-auth",
+	"properties": {
+		"claim": {
+			"mappings": {
+				"groups": {}
+			}
+		},
+		"clients": [
+			{},
+			{
+				"component": {}
+			}
+		],
+		"issuer": {}
+	},
+	"type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/externalAuths"
+}

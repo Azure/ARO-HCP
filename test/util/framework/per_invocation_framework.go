@@ -16,8 +16,10 @@ package framework
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"hash/fnv"
+	"net"
 	"net/http"
 	"os"
 	"path"
@@ -28,6 +30,7 @@ import (
 	"time"
 
 	"github.com/onsi/ginkgo/v2/types"
+	"golang.org/x/net/http2"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -44,14 +47,20 @@ type perBinaryInvocationTestContext struct {
 	tenantID                 string
 	testUserClientID         string
 	location                 string
+	pullSecretPath           string
+	frontendAddress          string
+	adminAPIAddress          string
+	skipCertVerification     bool
 	isDevelopmentEnvironment bool
 	skipCleanup              bool
 	pooledIdentities         bool
+	compressTimingMetadata   bool
 
 	contextLock       sync.RWMutex
 	subscriptionID    string
 	azureCredentials  azcore.TokenCredential
 	identityPoolState *leasedIdentityPoolState
+	defaultTransport  *http.Transport
 }
 
 type CleanupFunc func(ctx context.Context) error
@@ -80,9 +89,15 @@ func invocationContext() *perBinaryInvocationTestContext {
 			tenantID:                 tenantID(),
 			testUserClientID:         testUserClientID(),
 			location:                 location(),
+			pullSecretPath:           pullSecretPath(),
+			frontendAddress:          frontendAddress(),
+			adminAPIAddress:          adminAPIAddress(),
+			skipCertVerification:     skipCertVerification(),
 			isDevelopmentEnvironment: IsDevelopmentEnvironment(),
 			skipCleanup:              skipCleanup(),
 			pooledIdentities:         pooledIdentities(),
+			compressTimingMetadata:   compressTimingMetadata(),
+			defaultTransport:         defaultHTTPTransport(),
 		}
 	})
 	return invocationContextInstance
@@ -125,24 +140,36 @@ func (tc *perBinaryInvocationTestContext) getAzureCredentials() (azcore.TokenCre
 	return tc.azureCredentials, nil
 }
 
-// armSystemDataPolicy adds ARM system data headers for localhost requests
-type armSystemDataPolicy struct{}
-
-func (p *armSystemDataPolicy) Do(req *policy.Request) (*http.Response, error) {
-	if req.Raw().URL.Host == "localhost:8443" {
-		systemData := fmt.Sprintf(`{"createdBy": "e2e-test", "createdByType": "Application", "createdAt": "%s"}`, time.Now().UTC().Format(time.RFC3339))
-		req.Raw().Header.Set("X-Ms-Arm-Resource-System-Data", systemData)
-		req.Raw().Header.Set("X-Ms-Identity-Url", "https://dummyhost.identity.azure.net")
-	}
-	return req.Next()
-}
-
 func (tc *perBinaryInvocationTestContext) getClientFactoryOptions() *azcorearm.ClientOptions {
-	return nil
+	if tc.isDevelopmentEnvironment {
+		return &azcorearm.ClientOptions{
+			ClientOptions: azcore.ClientOptions{
+				Transport: &proxiedConnectionTransporter{
+					delegate: tc.defaultTransport,
+				},
+				PerCallPolicies: []policy.Policy{
+					NewLROPollerRetryDeploymentNotFoundPolicy(),
+					&sanitizeAuthHeaderPolicy{},
+				},
+			},
+		}
+	}
+	return &azcorearm.ClientOptions{
+		ClientOptions: azcore.ClientOptions{
+			PerCallPolicies: []policy.Policy{
+				NewLROPollerRetryDeploymentNotFoundPolicy(),
+				&sanitizeAuthHeaderPolicy{},
+			},
+		},
+	}
 }
 
 func (tc *perBinaryInvocationTestContext) getHCPClientFactoryOptions() *azcorearm.ClientOptions {
 	if tc.isDevelopmentEnvironment {
+		transport := tc.defaultTransport
+		if tc.skipCertVerification {
+			transport.TLSClientConfig.InsecureSkipVerify = true
+		}
 		return &azcorearm.ClientOptions{
 			ClientOptions: azcore.ClientOptions{
 				Cloud: cloud.Configuration{
@@ -150,18 +177,67 @@ func (tc *perBinaryInvocationTestContext) getHCPClientFactoryOptions() *azcorear
 					Services: map[cloud.ServiceName]cloud.ServiceConfiguration{
 						cloud.ResourceManager: {
 							Audience: "https://management.core.windows.net/",
-							Endpoint: "http://localhost:8443",
+							Endpoint: tc.frontendAddress,
 						},
 					},
+				},
+				Transport: &proxiedConnectionTransporter{
+					delegate: transport,
 				},
 				InsecureAllowCredentialWithHTTP: true,
 				PerCallPolicies: []policy.Policy{
 					&armSystemDataPolicy{},
+					&sanitizeAuthHeaderPolicy{},
 				},
 			},
 		}
 	}
-	return nil
+	return &azcorearm.ClientOptions{
+		ClientOptions: azcore.ClientOptions{
+			PerCallPolicies: []policy.Policy{
+				&sanitizeAuthHeaderPolicy{},
+			},
+		},
+	}
+}
+
+// default transport taken judiciously from azcore library to mimick their behavior when no transporter is provided
+func defaultHTTPTransport() *http.Transport {
+	dialer := &net.Dialer{
+		Timeout:   30 * time.Second,
+		KeepAlive: 30 * time.Second,
+	}
+	defaultTransport := &http.Transport{
+		DialContext:           dialer.DialContext,
+		ForceAttemptHTTP2:     true,
+		MaxIdleConns:          100,
+		MaxIdleConnsPerHost:   10,
+		IdleConnTimeout:       90 * time.Second,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ExpectContinueTimeout: 1 * time.Second,
+		TLSClientConfig: &tls.Config{
+			MinVersion:    tls.VersionTLS12,
+			Renegotiation: tls.RenegotiateFreelyAsClient,
+		},
+	}
+	// TODO: evaluate removing this once https://github.com/golang/go/issues/59690 has been fixed
+	if http2Transport, err := http2.ConfigureTransports(defaultTransport); err == nil {
+		// if the connection has been idle for 10 seconds, send a ping frame for a health check
+		http2Transport.ReadIdleTimeout = 10 * time.Second
+		// if there's no response to the ping within the timeout, the connection will be closed
+		http2Transport.PingTimeout = 5 * time.Second
+	}
+	return defaultTransport
+}
+
+// proxiedConnectionTransporter retries connections done across the proxy path to a local RP,
+// in order to paper over transient errors in the proxied connection
+type proxiedConnectionTransporter struct {
+	delegate *http.Transport
+}
+
+func (t *proxiedConnectionTransporter) Do(req *http.Request) (*http.Response, error) {
+	return t.delegate.RoundTrip(req)
 }
 
 func (tc *perBinaryInvocationTestContext) getSubscriptionID(ctx context.Context, subscriptionClient *armsubscriptions.Client) (string, error) {
@@ -238,6 +314,11 @@ func pooledIdentities() bool {
 	return b
 }
 
+func compressTimingMetadata() bool {
+	ret, _ := strconv.ParseBool(os.Getenv("COMPRESS_TIMING_METADATA"))
+	return ret
+}
+
 // SharedDir is SHARED_DIR.  It is a spot to store *files only* that can be shared between ci-operator steps.
 // We can use this for anything, but currently we have a backup cleanup and collection scripts that use files
 // here to cleanup and debug testing resources.
@@ -270,6 +351,43 @@ func tenantID() string {
 	return os.Getenv("AZURE_TENANT_ID")
 }
 
+// pullSecretPath returns the value of ARO_HCP_QE_PULL_SECRET_PATH environment variable
+// If not set, defaults to /var/run/aro-hcp-qe-pull-secret
+func pullSecretPath() string {
+	path := os.Getenv("ARO_HCP_QE_PULL_SECRET_PATH")
+	if path == "" {
+		return "/var/run/aro-hcp-qe-pull-secret"
+	}
+	return path
+}
+
+// frontendAddress returns the value of FRONTEND_ADDRESS environment variable
+func frontendAddress() string {
+	address := os.Getenv("FRONTEND_ADDRESS")
+	if address == "" {
+		return "http://localhost:8443"
+	}
+	return address
+}
+
+// adminAPIAddress returns the value of ADMIN_API_ADDRESS environment variable
+func adminAPIAddress() string {
+	address := os.Getenv("ADMIN_API_ADDRESS")
+	if address == "" {
+		return "http://localhost:8444"
+	}
+	return address
+}
+
+// skipCertVerification returns the value of SKIP_CERT_VERIFICATION environment variable
+func skipCertVerification() bool {
+	b, err := strconv.ParseBool(strings.TrimSpace(os.Getenv("SKIP_CERT_VERIFICATION")))
+	if err != nil {
+		return false
+	}
+	return b
+}
+
 // IsDevelopmentEnvironment indicates when this environment is development.  This controls client endpoints and disables security
 // when set to development.
 func IsDevelopmentEnvironment() bool {
@@ -298,14 +416,6 @@ func SuffixName(base, suffix string, maxLen int) string {
 		name = fmt.Sprintf("%s-%s", prefix, hash(name))
 	}
 	return name
-}
-
-// min returns the lesser of its 2 inputs
-func min(a, b int) int {
-	if b < a {
-		return b
-	}
-	return a
 }
 
 // hash calculates the hexadecimal representation (8-chars)

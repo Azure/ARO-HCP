@@ -1,0 +1,90 @@
+$schema: config-opstool.schema.json
+#
+# Usage (from repo root):
+#   PROJECT_ROOT_DIR="$(pwd)" && \
+#   ./tooling/templatize/templatize pipeline run \
+#     --config-file="${PROJECT_ROOT_DIR}/config/config-opstool.yaml" \
+#     --topology-file="${PROJECT_ROOT_DIR}/topology-opstool.yaml" \
+#     --dev-settings-file="${PROJECT_ROOT_DIR}/tooling/templatize/settings.yaml" \
+#     --dev-environment opstool \
+#     --service-group Microsoft.Azure.ARO.HCP.Opstool.Infra
+#
+# Prerequisites for manual deployment:
+#   - Build templatize: make templatize
+#   - Azure login: az login
+
+clouds:
+  dev:
+    defaults:
+      svc:
+        rg: "opstool-{{ .ctx.region }}"
+        subscription:
+          key: "ARO Hosted Control Planes (EA Subscription 1)"
+        # Placeholder with empty id as was manually deployed using azure cli. Re-enable when the existing role assignment is cleaned up.
+        acr:
+          name: "arohcpsvcdev"
+          resourceGroup: "global"
+          id: ""
+      monitoring:
+        alertRuleOwningTeamTag: ""
+      dns:
+        regionalSubdomain: "{{ .ctx.regionShort }}"
+      opstool:
+        aks:
+          name: "opstool-{{ .ctx.regionShort }}"
+          vnetAddressPrefix: "10.0.0.0/16"
+          subnetPrefix: "10.0.1.0/24"
+          podSubnetPrefix: "10.0.2.0/24"
+          kubernetesVersion: 1.32.5
+          networkDataplane: "cilium"
+          networkPolicy: "cilium"
+          clusterOutboundIPAddressIPTags: ""
+          etcd:
+            name: "opstool-etcd-{{ .ctx.regionShort }}"
+            tagKey: "aroHCPPurpose"
+            tagValue: "opstool"
+            softDelete: false
+          systemAgentPool:
+            minCount: 1
+            maxCount: 3
+            vmSize: "Standard_D4s_v3"
+            osDiskSizeGB: 32
+            zones: "1"
+            zoneRedundantMode: "Disabled"
+        monitoring:
+          workspaceName: "opstool-monitor-{{ .ctx.regionShort }}"
+        prometheus:
+          kubeStateMetrics:
+            image:
+              registry: "mcr.microsoft.com/oss/v2"
+              repository: "kubernetes/kube-state-metrics"
+              digest: "sha256:4893b3f6e4d9b2d960a6afbce18ba025d47955d10d400587bf5450d5a3f9c5bc"
+          prometheusOperator:
+            image:
+              registry: "mcr.microsoft.com/oss/v2"
+              repository: "prometheus/prometheus-operator"
+              sha: "024d81f047c4b57adf38bc1ed2893ec06d468caa090ac248984e5808f37e117e"
+          prometheusConfigReloader:
+            image:
+              registry: "mcr.microsoft.com/oss/v2"
+              repository: "prometheus/prometheus-config-reloader"
+              sha: "d3787bb11a5dcce60a843d50e1b2ed6a6d79a8078884f87d07cbbb93c21f6a63"
+          prometheusSpec:
+            image:
+              registry: "mcr.microsoft.com/oss/v2"
+              repository: "prometheus/prometheus"
+              sha: "70296b2f2cc69c88d070fe8b627d347bd070e084c14babbc93e91583e03eca06"
+        keyVault:
+          name: "opstool-kv-{{ .ctx.regionShort }}"
+        alerting:
+          email: "aro-hcp-service-lifecycle-team@redhat.com"
+          enabled: true
+        tenantQuota:
+          image:
+            registry: "arohcpsvcdev.azurecr.io"
+            repository: "tenant-quota-collector"
+            tag: "latest"
+    environments:
+      opstool:
+        regions:
+          westus3: {}

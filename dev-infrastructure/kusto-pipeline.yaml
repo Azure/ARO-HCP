@@ -2,7 +2,7 @@ $schema: pipeline.schema.v1
 rolloutName: Kusto Log Infra
 serviceGroup: Microsoft.Azure.ARO.HCP.Log.Infra
 resourceGroups:
-- name: kusto
+- name: kusto-infra
   resourceGroup: '{{ .kusto.rg }}'
   subscription: '{{ .global.subscription.key }}'
   executionConstraints:
@@ -10,6 +10,12 @@ resourceGroups:
     - public
     environments:
     - int
+    regions:
+    - uksouth
+  - clouds:
+    - public
+    environments:
+    - stg
     regions:
     - uksouth
   - clouds:

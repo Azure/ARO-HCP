@@ -36,7 +36,7 @@ environments:
     cloud: dev
     ev2Cloud: public
     cxStamp: 1
-    regionShortSuffix: "j${BUILD_ID: -3}"
+    regionShortOverride: "j${BUILD_ID: -7}"
 - name: perf
   description: |
     Used for performance testing.
@@ -47,14 +47,6 @@ environments:
     ev2Cloud: public
     cxStamp: 1
     regionShortSuffix: "p${USER:0:4}"
-- name: ntly
-  description: |
-    Used for nightly infrastructure rebuilds.
-  defaults:
-    region: uksouth
-    cloud: dev
-    ev2Cloud: public
-    cxStamp: 1
 - name: swft
   description: |
     Used for personal SWIFT development and testing.
@@ -64,3 +56,11 @@ environments:
     ev2Cloud: public
     cxStamp: 1
     regionShortSuffix: "s${USER:0:4}"
+- name: opstool
+  description: |
+    AKS cluster for SRE operational tooling.
+  defaults:
+    region: westus3
+    cloud: dev
+    ev2Cloud: public
+    cxStamp: 1

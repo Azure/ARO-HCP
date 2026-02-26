@@ -31,6 +31,12 @@ resourceGroups:
         resourceGroup: global
         step: output
         name: globalMSIId
+    automatedRetry:
+      errorContainsAny:
+      - "unknown_storage_failure"
+      - "unauthorized: authentication required"
+      maximumRetryCount: 5
+      durationBetweenRetries: 1m
 - name: kusto
   resourceGroup: '{{ .kusto.rg }}'
   subscription: '{{ .global.subscription.key }}'
@@ -60,6 +66,12 @@ resourceGroups:
     valuesFile: ./values.yaml
     namespaceFiles:
     - namespace.yaml
+    kustoDatabase: '{{ .kusto.serviceLogsDatabase }}'
+    kustoTable: 'containerLogs'
+    kustoEndpoint:
+      resourceGroup: kusto
+      step: output
+      name: kustoUri
     inputVariables:
       tenantId:
         resourceGroup: service
@@ -88,6 +100,10 @@ resourceGroups:
     dependsOn:
     - resourceGroup: global
       step: mirror-image
+    externalDependsOn:
+    - serviceGroup: Microsoft.Azure.ARO.HCP.SessionGate
+      resourceGroup: service
+      step: deploy
     identityFrom:
       resourceGroup: global
       step: output

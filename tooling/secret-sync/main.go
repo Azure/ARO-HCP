@@ -25,7 +25,7 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
 
-	secretsync "github.com/Azure/ARO-Tools/pkg/secret-sync"
+	secretsync "github.com/Azure/ARO-Tools/tools/secret-sync"
 )
 
 func main() {

@@ -15,29 +15,24 @@
 package middleware
 
 import (
-	"context"
-	"log/slog"
 	"net/http"
 	"time"
+
+	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
-// WithLogger creates a middleware that attaches a logger to the request context.
-func WithLogger(logger *slog.Logger, next http.Handler) http.Handler {
-	return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		start := time.Now()
-		requestLogger := logger.With("path", request.URL.Path, "method", request.Method)
-		requestLogger.Info("Got request.")
+// MiddlewareLogger attaches a request-specific logger to the request context.
+func MiddlewareLogger(w http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
+	logger := utils.LoggerFromContext(r.Context())
+	start := time.Now()
+	requestLogger := logger.WithValues(
+		utils.LogValues{}.
+			AddPath(r.URL.Path).
+			AddMethod(r.Method)...)
+	requestLogger.Info("Got request.")
 
-		ctx := context.WithValue(request.Context(), contextKeyLogger, requestLogger)
-		next.ServeHTTP(writer, request.WithContext(ctx))
+	requestCtx := utils.ContextWithLogger(r.Context(), requestLogger)
+	next(w, r.WithContext(requestCtx))
 
-		requestLogger.Info("Completed request.", "duration", time.Since(start).String())
-	})
-}
-
-func LoggerFromContext(ctx context.Context) *slog.Logger {
-	if logger, ok := ctx.Value(contextKeyLogger).(*slog.Logger); ok {
-		return logger
-	}
-	return slog.Default()
+	requestLogger.Info("Completed request.", "duration", time.Since(start).String())
 }

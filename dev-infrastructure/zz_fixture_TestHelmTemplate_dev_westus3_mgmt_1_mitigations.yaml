@@ -1,0 +1,116 @@
+---
+# Source: ARO HCP MC Mitigations/templates/cluster-image-registry-operator-recycle.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: cluster-image-registry-operator-recycle
+  namespace: 'aro-hcp-mitigations'
+  labels:
+    app: cluster-image-registry-operator-recycle
+---
+# Source: ARO HCP MC Mitigations/templates/cluster-image-registry-operator-recycle.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: cluster-image-registry-operator-recycle
+  labels:
+    app: cluster-image-registry-operator-recycle
+rules:
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["list", "get", "delete"]
+- apiGroups: [""]
+  resources: ["namespaces"]
+  verbs: ["list"]
+---
+# Source: ARO HCP MC Mitigations/templates/cluster-image-registry-operator-recycle.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: cluster-image-registry-operator-recycle
+  labels:
+    app: cluster-image-registry-operator-recycle
+subjects:
+- kind: ServiceAccount
+  name: cluster-image-registry-operator-recycle
+  namespace: 'aro-hcp-mitigations'
+roleRef:
+  kind: ClusterRole
+  name: cluster-image-registry-operator-recycle
+  apiGroup: rbac.authorization.k8s.io
+---
+# Source: ARO HCP MC Mitigations/templates/cluster-image-registry-operator-recycle.yaml
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: cluster-image-registry-operator-recycle
+  namespace: 'aro-hcp-mitigations'
+  labels:
+    app: cluster-image-registry-operator-recycle
+spec:
+  suspend: false
+  schedule: "*/10 * * * *" # Every 10 minutes
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            app: cluster-image-registry-operator-recycle
+        spec:
+          serviceAccountName: cluster-image-registry-operator-recycle
+          restartPolicy: OnFailure
+          containers:
+          - name: recycle-operator
+            image: "mcr.microsoft.com/aks/command/runtime@sha256:1234567890"
+            command:
+            - /bin/bash
+            - -c
+            - |
+              set -euo pipefail
+
+              # This is a temporary workaround for a specific issue affecting only version 4.19.7.
+              TARGET_VERSION="4.19.7"
+              MAX_DELETIONS=5
+              DELETED_COUNT=0
+
+              echo "Searching for pods with label name=cluster-image-registry-operator (version ${TARGET_VERSION})..."
+
+              kubectl get pods --all-namespaces -l name=cluster-image-registry-operator \
+                -o jsonpath='{range .items[*]}{.metadata.namespace}{" "}{.metadata.name}{" "}{.spec.containers[0].env[?(@.name=="RELEASE_VERSION")].value}{" "}{.metadata.creationTimestamp}{"\n"}{end}' |
+              sort -k4 |
+              while read -r namespace pod version timestamp; do
+                # Check if we've hit the deletion limit
+                if [ $DELETED_COUNT -ge $MAX_DELETIONS ]; then
+                  break
+                fi
+
+                # Calculate age
+                pod_created=$(date -d "$timestamp" +%s 2>/dev/null || echo 0)
+                current_time=$(date +%s)
+                age_minutes=$(((current_time - pod_created) / 60))
+
+                if [ "$version" = "$TARGET_VERSION" ] && [ $age_minutes -gt 30 ]; then
+                  echo "Deleting pod: $pod in namespace: $namespace (release version: $version, age: ${age_minutes}m)"
+                  if kubectl delete pod -n "$namespace" "$pod" --ignore-not-found; then
+                    ((DELETED_COUNT++))
+                  else
+                    echo "Warning: Failed to delete pod $pod in namespace $namespace"
+                  fi
+                else
+                  # Display the version value that was extracted
+                  echo "Skipping pod: $pod in namespace: $namespace (release version: ${version:-<not set>}, age: ${age_minutes}m)"
+                fi
+              done
+
+              echo "Done. Deleted $DELETED_COUNT pod(s)."
+            resources:
+              requests:
+                memory: "64Mi"
+                cpu: "50m"
+              limits:
+                memory: "128Mi"
+                cpu: "100m"
+

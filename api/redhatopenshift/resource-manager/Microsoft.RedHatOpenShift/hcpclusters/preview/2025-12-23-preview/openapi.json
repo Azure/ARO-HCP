@@ -3051,6 +3051,7 @@
           "format": "int32",
           "description": "The OS disk size in GiB",
           "default": 64,
+          "minimum": 64,
           "x-ms-mutability": [
             "read",
             "create"
@@ -3094,6 +3095,35 @@
         "encryptionSetId": {
           "$ref": "#/definitions/DiskEncryptionSetResourceId",
           "description": "The ID of the DiskEncryptionSet resource to use to encrypt the OS disks for the VMs.\nThis needs to exist in the same subscription id listed in the Hosted Cluster, HostedCluster.Spec.Platform.Azure.SubscriptionID.\nDiskEncryptionSetID should also exist in a resource group under the same subscription id and the same location\nlisted in the Hosted Cluster, HostedCluster.Spec.Platform.Azure.Location.\n\nDetails on how to create a Disk Encryption Set can be found here:\nhttps://learn.microsoft.com/en-us/azure/virtual-machines/disks-enable-customer-managed-keys-portal#set-up-your-disk-encryption-set",
+          "x-ms-mutability": [
+            "read",
+            "create"
+          ]
+        },
+        "diskType": {
+          "type": "string",
+          "description": "The type of the OS disk.\n- https://learn.microsoft.com/en-us/azure/virtual-machines/ephemeral-os-disks",
+          "default": "Managed",
+          "enum": [
+            "Ephemeral",
+            "Managed"
+          ],
+          "x-ms-enum": {
+            "name": "OsDiskType",
+            "modelAsString": true,
+            "values": [
+              {
+                "name": "Ephemeral",
+                "value": "Ephemeral",
+                "description": "Ephemeral OS disk - stored on local VM cache/temporary storage.\nProvides lower latency and faster node operations.\nRequires VM with sufficient cache size."
+              },
+              {
+                "name": "Managed",
+                "value": "Managed",
+                "description": "Managed OS disk - stored as an Azure managed disk (network-attached).\nDefault behavior for VMs without sufficient cache."
+              }
+            ]
+          },
           "x-ms-mutability": [
             "read",
             "create"

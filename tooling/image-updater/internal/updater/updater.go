@@ -17,6 +17,7 @@ package updater
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/go-logr/logr"
@@ -37,12 +38,14 @@ type Updater struct {
 	DryRun          bool
 	ForceUpdate     bool
 	RegistryClients map[string]clients.RegistryClient
-	YAMLEditors     map[string]*yaml.Editor
+	YAMLEditors     map[string]yaml.EditorInterface
 	Updates         map[string][]yaml.Update
+	OutputFile      string
+	OutputFormat    string
 }
 
 // New creates a new Updater with all necessary resources pre-initialized
-func New(cfg *config.Config, dryRun bool, forceUpdate bool, registryClients map[string]clients.RegistryClient, yamlEditors map[string]*yaml.Editor) *Updater {
+func New(cfg *config.Config, dryRun bool, forceUpdate bool, registryClients map[string]clients.RegistryClient, yamlEditors map[string]yaml.EditorInterface, outputFile, outputFormat string) *Updater {
 	return &Updater{
 		Config:          cfg,
 		DryRun:          dryRun,
@@ -50,6 +53,8 @@ func New(cfg *config.Config, dryRun bool, forceUpdate bool, registryClients map[
 		RegistryClients: registryClients,
 		YAMLEditors:     yamlEditors,
 		Updates:         make(map[string][]yaml.Update),
+		OutputFile:      outputFile,
+		OutputFormat:    outputFormat,
 	}
 }
 
@@ -60,14 +65,16 @@ func (u *Updater) UpdateImages(ctx context.Context) error {
 		return fmt.Errorf("logger not found in context: %w", err)
 	}
 
-	totalImages := len(u.Config.Images)
-	logger.V(2).Info("starting image updates", "totalImages", totalImages)
-
+	logger.V(1).Info("starting image updates", "totalImages", len(u.Config.Images))
 	imageNum := 0
 	updatedCount := 0
 	for name, imageConfig := range u.Config.Images {
 		imageNum++
-		logger.V(2).Info("processing image", "name", name, "source", imageConfig.Source.Image, "tagPattern", imageConfig.Source.TagPattern)
+		tagInfo := imageConfig.Source.TagPattern
+		if imageConfig.Source.Tag != "" {
+			tagInfo = imageConfig.Source.Tag
+		}
+		logger.V(2).Info("processing image", "name", name, "source", imageConfig.Source.Image, "tag", tagInfo)
 
 		imageInfo, err := u.fetchLatestDigest(ctx, imageConfig.Source)
 		if err != nil {
@@ -98,11 +105,55 @@ func (u *Updater) UpdateImages(ctx context.Context) error {
 				return fmt.Errorf("failed to apply updates to %s: %w", filePath, err)
 			}
 		}
+	}
 
-		commitMsg := output.GenerateCommitMessage(u.Updates)
-		if commitMsg != "" {
-			fmt.Println(commitMsg)
+	// Generate and output results
+	if err := u.outputResults(ctx); err != nil {
+		return fmt.Errorf("failed to output results: %w", err)
+	}
+
+	return nil
+}
+
+// outputResults formats and writes the update results
+func (u *Updater) outputResults(ctx context.Context) error {
+	logger, err := logr.FromContext(ctx)
+	if err != nil {
+		return fmt.Errorf("logger not found in context: %w", err)
+	}
+
+	// Check if there were any updates to report
+	if len(u.Updates) == 0 {
+		logger.V(1).Info("No updates to report")
+		if u.OutputFile != "" {
+			logger.V(1).Info("Skipping output file creation - no updates", "file", u.OutputFile)
 		}
+		return nil
+	}
+
+	// Format the results
+	logger.V(2).Info("Formatting results", "format", u.OutputFormat, "updateCount", len(u.Updates))
+	formattedOutput, err := output.FormatResults(u.Updates, u.OutputFormat, u.DryRun)
+	if err != nil {
+		return fmt.Errorf("failed to format results as %s: %w", u.OutputFormat, err)
+	}
+
+	if formattedOutput == "" {
+		logger.V(1).Info("Formatted output is empty, skipping write")
+		return nil
+	}
+
+	// Write to file or stdout
+	if u.OutputFile != "" {
+		logger.V(1).Info("Writing results to file", "file", u.OutputFile, "format", u.OutputFormat, "size", len(formattedOutput))
+		if err := os.WriteFile(u.OutputFile, []byte(formattedOutput), 0644); err != nil {
+			return fmt.Errorf("failed to write output file %s: %w", u.OutputFile, err)
+		}
+		logger.Info("Results written successfully", "file", u.OutputFile, "format", u.OutputFormat)
+		fmt.Printf("Results written to %s\n", u.OutputFile)
+	} else {
+		logger.V(2).Info("Writing results to stdout", "format", u.OutputFormat)
+		fmt.Print(formattedOutput)
 	}
 
 	return nil
@@ -110,6 +161,11 @@ func (u *Updater) UpdateImages(ctx context.Context) error {
 
 // fetchLatestDigest retrieves the latest digest from the appropriate registry
 func (u *Updater) fetchLatestDigest(ctx context.Context, source config.Source) (*clients.Tag, error) {
+	logger, err := logr.FromContext(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("logger not found in context: %w", err)
+	}
+
 	registry, repository, err := source.ParseImageReference()
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse registry from image reference: %w", err)
@@ -133,7 +189,18 @@ func (u *Updater) fetchLatestDigest(ctx context.Context, source config.Source) (
 		arch = DefaultArchitecture
 	}
 
-	return client.GetArchSpecificDigest(ctx, repository, source.TagPattern, arch, source.MultiArch)
+	// Get the effective version label to use for this source
+	versionLabel := source.GetEffectiveVersionLabel()
+
+	// If a specific tag is provided, use the more efficient GetDigestForTag method
+	// Otherwise, use GetArchSpecificDigest which requires pagination
+	if source.Tag != "" {
+		logger.V(2).Info("fetching digest for specific tag (no pagination)", "tag", source.Tag, "versionLabel", versionLabel)
+		return client.GetDigestForTag(ctx, repository, source.Tag, arch, source.MultiArch, versionLabel)
+	}
+
+	logger.V(2).Info("fetching latest digest using pattern (requires pagination)", "tagPattern", source.TagPattern, "versionLabel", versionLabel)
+	return client.GetArchSpecificDigest(ctx, repository, source.GetEffectiveTagPattern(), arch, source.MultiArch, versionLabel)
 }
 
 // ProcessImageUpdates sets up the updates needed for a specific image and target
@@ -176,6 +243,25 @@ func (u *Updater) ProcessImageUpdates(ctx context.Context, name string, tag *cli
 		logger.V(2).Info("Update needed", "name", name, "from", currentDigest, "to", newDigest)
 	}
 
+	// Format the date as YYYY-MM-DD HH:MM if available
+	dateStr := ""
+	if !tag.LastModified.IsZero() {
+		dateStr = tag.LastModified.Format("2006-01-02 15:04")
+	}
+
+	// Record the update for reporting purposes (both dry-run and real runs)
+	u.Updates[target.FilePath] = append(u.Updates[target.FilePath], yaml.Update{
+		Name:      name,
+		NewDigest: newDigest,
+		OldDigest: currentDigest,
+		Tag:       tag.Name,
+		Version:   tag.Version,
+		Date:      dateStr,
+		JsonPath:  target.JsonPath,
+		FilePath:  target.FilePath,
+		Line:      line,
+	})
+
 	if u.DryRun {
 		logger.V(2).Info("DRY RUN: Would update image",
 			"name", name,
@@ -185,25 +271,7 @@ func (u *Updater) ProcessImageUpdates(ctx context.Context, name string, tag *cli
 			"from", currentDigest,
 			"to", newDigest,
 			"tag", tag.Name)
-		return true, nil
 	}
-
-	// Format the date as YYYY-MM-DD HH:MM if available
-	dateStr := ""
-	if !tag.LastModified.IsZero() {
-		dateStr = tag.LastModified.Format("2006-01-02 15:04")
-	}
-
-	u.Updates[target.FilePath] = append(u.Updates[target.FilePath], yaml.Update{
-		Name:      name,
-		NewDigest: newDigest,
-		OldDigest: currentDigest,
-		Tag:       tag.Name,
-		Date:      dateStr,
-		JsonPath:  target.JsonPath,
-		FilePath:  target.FilePath,
-		Line:      line,
-	})
 
 	return true, nil
 }

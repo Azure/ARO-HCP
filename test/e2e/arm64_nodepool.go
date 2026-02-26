@@ -44,8 +44,6 @@ var _ = Describe("Customer", func() {
 				customerVnetSubnetName           = "arm64-vm-subnet1"
 				customerClusterName              = "arm64-vm-hcp-cluster"
 				customerNodePoolName             = "arm64-vm-np-1"
-				openshiftControlPlaneVersionId   = "4.19"
-				openshiftNodeVersionId           = "4.19.7"
 			)
 			// This pattern matches a subset of the smallest (2GiB) ARM64-capable VM sizes listed in https://issues.redhat.com/browse/ARO-22443
 			vmSizePattern := regexp.MustCompile(`^Standard_D(?:2|4)pl(?:d)?s_v6$`)
@@ -66,19 +64,18 @@ var _ = Describe("Customer", func() {
 			clusterParams.ClusterName = customerClusterName
 			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
 			clusterParams.ManagedResourceGroupName = managedResourceGroupName
-			clusterParams.OpenshiftVersionId = openshiftControlPlaneVersionId
 
 			By("creating customer resources")
 			clusterParams, err = tc.CreateClusterCustomerResources(ctx,
 				resourceGroup,
 				clusterParams,
 				map[string]interface{}{
-					"persistTagValue":        false,
 					"customerNsgName":        customerNetworkSecurityGroupName,
 					"customerVnetName":       customerVnetName,
 					"customerVnetSubnetName": customerVnetSubnetName,
 				},
 				TestArtifactsFS,
+				framework.RBACScopeResourceGroup,
 			)
 			Expect(err).NotTo(HaveOccurred())
 
@@ -100,7 +97,6 @@ var _ = Describe("Customer", func() {
 			nodePoolParams := framework.NewDefaultNodePoolParams()
 			nodePoolParams.ClusterName = customerClusterName
 			nodePoolParams.NodePoolName = customerNodePoolName
-			nodePoolParams.OpenshiftVersionId = openshiftNodeVersionId
 			nodePoolParams.Replicas = int32(2)
 			nodePoolParams.VMSize = nodePoolVMSize
 

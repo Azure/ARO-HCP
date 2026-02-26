@@ -7,24 +7,31 @@ param disableLocalAuth bool = true
 param location string
 param zoneRedundant bool
 param userAssignedMIs array
-param readOnlyUserAssignedMIs array
+param readOnlyUserAssignedMIs array = []
 param private bool
+
+param resourceContainerMaxScale int
+param billingContainerMaxScale int
+param locksContainerMaxScale int
 
 var containers = [
   {
     name: 'Resources'
     defaultTtl: -1 // On, no default expiration
     partitionKeyPaths: ['/partitionKey']
+    maxThroughput: resourceContainerMaxScale
   }
   {
     name: 'Billing'
     defaultTtl: -1 // On, no default expiration
     partitionKeyPaths: ['/subscriptionId']
+    maxThroughput: billingContainerMaxScale
   }
   {
     name: 'Locks'
     defaultTtl: 10
     partitionKeyPaths: ['/id']
+    maxThroughput: locksContainerMaxScale
   }
 ]
 
@@ -96,6 +103,11 @@ resource cosmosDbContainers 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/
     parent: cosmosDb
     name: c.name
     properties: {
+      options: {
+        autoscaleSettings: {
+          maxThroughput: c.maxThroughput
+        }
+      }
       resource: {
         id: c.name
         defaultTtl: c.defaultTtl

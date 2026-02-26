@@ -70,6 +70,12 @@ investigation, and operational tasks.`, config.CommandName, strings.ToLower(conf
 	}
 	cmd.AddCommand(listCmd)
 
+	// add dump crs subcommand
+	dumpCrsCmd, err := newDumpCrsCommand(config)
+	if err != nil {
+		return nil, err
+	}
+	cmd.AddCommand(dumpCrsCmd)
 	return cmd, nil
 }
 

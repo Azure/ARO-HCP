@@ -19,18 +19,16 @@ import (
 	"strings"
 )
 
-// WithLowercaseURLPathValue lowercases the URL path and adds the original and lowercase URL path values to the context.
-func WithLowercaseURLPathValue(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		ctx := ContextWithOriginalUrlPathValue(
-			r.Context(),
-			r.URL.Path,
-		)
-		r.URL.Path = strings.ToLower(r.URL.Path)
-		ctx = ContextWithUrlPathValue(
-			ctx,
-			r.URL.Path,
-		)
-		next.ServeHTTP(w, r.WithContext(ctx))
-	})
+// MiddlewareLowercase lowercases the URL path and adds the original and lowercase URL path values to the context.
+func MiddlewareLowercase(w http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
+	ctx := ContextWithOriginalUrlPathValue(
+		r.Context(),
+		r.URL.Path,
+	)
+	r.URL.Path = strings.ToLower(r.URL.Path)
+	ctx = ContextWithUrlPathValue(
+		ctx,
+		r.URL.Path,
+	)
+	next(w, r.WithContext(ctx))
 }

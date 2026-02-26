@@ -9,6 +9,21 @@ metadata:
   name: admin-api
   namespace: 'aro-hcp-admin-api'
 ---
+# Source: ARO HCP Admin API/templates/sessiongate.rolebinding.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: admin-api-session-mgmt
+  namespace: 'sessiongate'
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: sessiongate-session-management
+subjects:
+- kind: ServiceAccount
+  name: admin-api
+  namespace: 'aro-hcp-admin-api'
+---
 # Source: ARO HCP Admin API/templates/admin.service.yaml
 apiVersion: v1
 kind: Service
@@ -50,7 +65,7 @@ spec:
         app: admin-api
         azure.workload.identity/use: "true"
       annotations:
-        checksum/fpa-spc: '2e2611d7c7e903179473feb1da88b71bdee7fbdcc4de93c3eda89486d72e6088'
+        checksum/fpa-spc: '3a8a42649d4184782a080188d109778f9fc6d3991745b5ce9858c9c0eb78e68a'
     spec:
       topologySpreadConstraints:
       - maxSkew: 1
@@ -86,12 +101,20 @@ spec:
           value: "/secrets/fpa-cert/bundle"
         - name: FPA_CLIENT_ID
           value: "b3cb2fab-15cb-4583-ad06-f91da9bfe2d1"
+        - name: AUDIT_CONNECT_SOCKET
+          value: "false"
+        - name: SESSIONGATE_NAMESPACE
+          value: "sessiongate"
+        - name: MIN_SESSION_TTL
+          value: "1m"
+        - name: MAX_SESSION_TTL
+          value: "24h"
         ports:
         - containerPort: 8443
           name: http
           protocol: TCP
         - containerPort: 8444
-          name: health
+          name: metrics
           protocol: TCP
         resources:
           requests:
@@ -110,7 +133,7 @@ spec:
             type: RuntimeDefault
         livenessProbe:
           httpGet:
-            path: /healthz
+            path: /healthz/live
             port: 8444
           initialDelaySeconds: 15
           periodSeconds: 20
@@ -209,6 +232,34 @@ spec:
         paths: ["/*"]
         notPaths: ["/metrics"]
 ---
+# Source: ARO HCP Admin API/templates/admin.httproute.yaml
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: admin-api
+  namespace: aro-hcp-admin-api
+spec:
+  parentRefs:
+  - name: ops-ingress-gateway
+    namespace: aks-istio-ingress
+    sectionName: admin-api-https
+  hostnames:
+  - "admin.westus3.hcpsvc.osadev.cloud"
+  rules:
+  - matches:
+    - path:
+        type: PathPrefix
+        value: /
+    filters:
+    - type: RequestHeaderModifier
+      requestHeaderModifier:
+        add:
+        - name: mise-inbound-policies-to-filter
+          value: "Geneva Actions"
+    backendRefs:
+    - name: admin-api
+      port: 8443
+---
 # Source: ARO HCP Admin API/templates/admin.fpa.secretproviderclass.yaml
 apiVersion: secrets-store.csi.x-k8s.io/v1
 kind: SecretProviderClass
@@ -218,7 +269,7 @@ metadata:
 spec:
   parameters:
     clientID: '__adminApiMsiClientId__'
-    cloudName: AzurePublicCloud
+    cloudName: 'AzurePublicCloud'
     keyvaultName: 'aro-hcp-dev-svc-kv'
     objects: |-
       array:

@@ -55,9 +55,10 @@
             "availabilityZone": "australiaeast-az1",
             "enableEncryptionAtHost": true,
             "osDisk": {
-              "sizeGiB": 10,
+              "sizeGiB": 64,
               "diskStorageAccountType": "Premium_LRS",
-              "encryptionSetId": "/subscriptions/FDEA43EA-0230-4A7D-BDEE-F3AFF2183B1D/resourceGroups/resourceGroupName/providers/Microsoft.Compute/diskEncryptionSets/hcp-disk-encryption-set-example"
+              "encryptionSetId": "/subscriptions/FDEA43EA-0230-4A7D-BDEE-F3AFF2183B1D/resourceGroups/resourceGroupName/providers/Microsoft.Compute/diskEncryptionSets/hcp-disk-encryption-set-example",
+              "diskType": "Managed"
             }
           },
           "replicas": 18,

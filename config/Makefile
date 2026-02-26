@@ -1,5 +1,19 @@
 SHELL = /bin/bash
-STAMP=999
+STAMP ?= 1
+
+render-partial-config:
+	$(MAKE) -C ./../tooling/templatize templatize
+	./../tooling/templatize/templatize configuration render \
+	  --service-config-file ./config.yaml \
+	  --config-file-override ./config.msft.clouds-overlay.yaml \
+	  --skip-schema-validation \
+	  --cloud "$(ARO_HCP_CLOUD)" \
+	  --environment "$(ARO_HCP_DEPLOY_ENV)" \
+	  --region "$(LOCATION)" \
+	  --stamp "$(STAMP)" \
+	  --ev2-cloud public \
+	  --output "$(CONFIG_OUTPUT)"
+.PHONY: render-partial-config
 
 materialize: render
 	$(MAKE) -C .. update-helm-fixtures
@@ -21,15 +35,14 @@ detect-change: materialize
 
 validate:
 	$(MAKE) -C ./../tooling/templatize templatize
-	USER='test' BUILD_ID='1234' ./../tooling/templatize/templatize configuration validate --service-config-file ./config.yaml \
+	USER='test' BUILD_ID='1234567890987654321' ./../tooling/templatize/templatize configuration validate --service-config-file ./config.yaml \
 	                                                                      --dev-settings-file ./../tooling/templatize/settings.yaml \
-	                                                                      --digest-file ./dev.digests.yaml \
-	                                                                      --output-dir ./rendered $(UPDATE)
+	                                                                      --output-dir ./rendered
 .PHONY: validate
 
 render:
 	rm -rf ./rendered
-	$(MAKE) validate UPDATE="--update"
+	$(MAKE) validate
 .PHONY: render
 
 rebase-and-materialize: render

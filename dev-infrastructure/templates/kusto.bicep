@@ -25,6 +25,27 @@ param viewerGroups string
 @description('Name of the Kusto cluster to create')
 param kustoName string
 
+@description('Minimum number of nodes for autoscale')
+param autoScaleMin int
+
+@description('Maximum number of nodes for autoscale')
+param autoScaleMax int
+
+@description('Toggle if autoscale should be enabled')
+param enableAutoScale bool
+
+@description('Event Hub namespace name for AKS audit logs')
+param auditLogsEventHubNamespaceName string
+
+@description('Event Hub name for AKS audit logs')
+param auditLogsEventHubName string
+
+@description('Consumer group name for Kusto data connection')
+param auditLogsKustoConsumerGroupName string
+
+@description('Diagnostic settings authorization rule name')
+param auditLogsDiagnosticSettingsRuleName string
+
 module kusto '../modules/logs/kusto/main.bicep' = if (manageInstance) {
   name: 'kusto-${location}'
   params: {
@@ -36,5 +57,12 @@ module kusto '../modules/logs/kusto/main.bicep' = if (manageInstance) {
     hostedControlPlaneLogsDatabase: hostedControlPlaneLogsDatabase
     adminGroups: adminGroups
     viewerGroups: viewerGroups
+    autoScaleMin: autoScaleMin
+    autoScaleMax: autoScaleMax
+    enableAutoScale: enableAutoScale
+    auditLogsEventHubNamespaceName: auditLogsEventHubNamespaceName
+    auditLogsEventHubName: auditLogsEventHubName
+    auditLogsKustoConsumerGroupName: auditLogsKustoConsumerGroupName
+    auditLogsDiagnosticSettingsRuleName: auditLogsDiagnosticSettingsRuleName
   }
 }

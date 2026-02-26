@@ -33,8 +33,8 @@ import (
 
 	"sigs.k8s.io/yaml"
 
-	"github.com/Azure/ARO-Tools/pkg/config"
-	"github.com/Azure/ARO-Tools/pkg/config/ev2config"
+	"github.com/Azure/ARO-Tools/config"
+	"github.com/Azure/ARO-Tools/config/ev2config"
 
 	"github.com/Azure/ARO-HCP/tooling/templatize/cmd/configuration/render"
 	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/settings"
@@ -116,9 +116,7 @@ func (o *RawOptions) Validate() (*ValidatedOptions, error) {
 		value *string
 	}{
 		{flag: "service-config-file", name: "service configuration file", value: &o.ServiceConfigFile},
-		{flag: "digest-file", name: "digest file", value: &o.DigestFile},
 		{flag: "output-dir", name: "output directory", value: &o.OutputDir},
-		{flag: "central-remote-url", name: "central git remote URL", value: &o.OutputDir},
 	} {
 		if item.value == nil || *item.value == "" {
 			return nil, fmt.Errorf("the %s must be provided with --%s", item.name, item.flag)
@@ -133,9 +131,13 @@ func (o *RawOptions) Validate() (*ValidatedOptions, error) {
 }
 
 func (o *ValidatedOptions) Complete() (*Options, error) {
-	d, err := LoadDigests(o.DigestFile)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load digests: %w", err)
+	var d *Digests
+	if o.DigestFile != "" {
+		var err error
+		d, err = LoadDigests(o.DigestFile)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load digests: %w", err)
+		}
 	}
 
 	var s *settings.Settings
@@ -220,10 +222,11 @@ func (opts *Options) ValidateServiceConfig(ctx context.Context) error {
 			}
 
 			contexts[env.Cloud][env.Environment] = append(contexts[env.Cloud][env.Environment], RegionContext{
-				Region:            env.Region,
-				Ev2Cloud:          env.Ev2Cloud,
-				RegionShortSuffix: env.RegionShortSuffix,
-				Stamp:             env.Stamp,
+				Region:              env.Region,
+				Ev2Cloud:            env.Ev2Cloud,
+				RegionShortOverride: env.RegionShortOverride,
+				RegionShortSuffix:   env.RegionShortSuffix,
+				Stamp:               env.Stamp,
 			})
 		}
 	}
@@ -241,10 +244,11 @@ func (opts *Options) ValidateServiceConfig(ctx context.Context) error {
 }
 
 type RegionContext struct {
-	Region            string
-	Ev2Cloud          string
-	RegionShortSuffix string
-	Stamp             int
+	Region              string
+	Ev2Cloud            string
+	RegionShortOverride string
+	RegionShortSuffix   string
+	Stamp               int
 }
 
 func ValidateServiceConfig(
@@ -321,6 +325,9 @@ func ValidateServiceConfig(
 					}
 					*into = str
 				}
+				if regionCtx.RegionShortOverride != "" {
+					replacements.RegionShortReplacement = regionCtx.RegionShortOverride
+				}
 				if regionCtx.RegionShortSuffix != "" {
 					replacements.RegionShortReplacement += regionCtx.RegionShortSuffix
 				}
@@ -365,6 +372,9 @@ func ValidateServiceConfig(
 				currentDigests.Clouds[cloud].Environments[environment].Regions[region] = hex.EncodeToString(hashBytes)
 			}
 		}
+	}
+	if digests == nil {
+		return nil
 	}
 	for cloud, environments := range digests.Clouds {
 		if _, ok := currentDigests.Clouds[cloud]; !ok && !update {

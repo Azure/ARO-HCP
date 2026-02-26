@@ -25,16 +25,10 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
-type AuditResponseWriter struct {
-	http.ResponseWriter
-	statusCode int
-}
-
-// WriteHeader captures the status code and delegates to the underlying ResponseWriter
-func (w *AuditResponseWriter) WriteHeader(statusCode int) {
-	w.statusCode = statusCode
-	w.ResponseWriter.WriteHeader(statusCode)
-}
+const (
+	operationCategoryDescription = "Client Resource Management via frontend"
+	operationAccessLevel         = "Azure RedHat OpenShift Contributor Role"
+)
 
 type middlewareAudit struct {
 	auditClient audit.Client
@@ -51,25 +45,21 @@ func (h *middlewareAudit) handleRequest(w http.ResponseWriter, r *http.Request, 
 	ctx := r.Context()
 	logger := utils.LoggerFromContext(ctx)
 
-	msg := audit.CreateOtelAuditMsg(logger, r)
 	correlationData := arm.NewCorrelationData(r)
-	msg.Record.CallerIdentities = getCallerIdentitesMap(correlationData)
+	callerIdentities := getCallerIdentitesMap(correlationData)
+	msg := audit.CreateOtelAuditMsg(ctx, r, operationCategoryDescription, operationAccessLevel, callerIdentities)
 
-	// Wrap the response writer to capture status code
-	auditWriter := &AuditResponseWriter{
-		ResponseWriter: w,
-	}
+	auditWriter := audit.NewResponseWriter(w)
 
 	next(auditWriter, r)
 
-	statusCode := auditWriter.statusCode
-	if statusCode >= http.StatusBadRequest {
+	if auditWriter.StatusCode() >= http.StatusBadRequest {
 		msg.Record.OperationResult = msgs.Failure
-		msg.Record.OperationResultDescription = fmt.Sprintf("Status code: %d", statusCode)
+		msg.Record.OperationResultDescription = fmt.Sprintf("Status code: %d", auditWriter.StatusCode())
 	}
 
 	if err := h.auditClient.Send(ctx, msg); err != nil {
-		logger.Error("error sending audit log", "error", err.Error())
+		logger.Error(err, "error sending audit log")
 	}
 }
 

@@ -1,0 +1,39 @@
+{
+    "_attachments": "attachments/",
+    "_etag": "\"00000000-0000-0000-6625-fca5900501dc\"",
+    "_rid": "zT0eAODBiq0HAAAAAAAAAA==",
+    "_self": "dbs/zT0eAA==/colls/zT0eAODBiq0=/docs/zT0eAODBiq0HAAAAAAAAAA==/",
+    "_ts": 1764966625,
+    "id": "|subscriptions|f52dfea2-47ee-4396-8006-4a27d47d59c5|resourcegroups|some-resource-group|providers|microsoft.redhatopenshift|hcpopenshiftclusters|immutability|nodepools|immutability-np",
+    "partitionKey": "f52dfea2-47ee-4396-8006-4a27d47d59c5",
+    "properties": {
+        "internalId": "/api/aro_hcp/v1alpha1/clusters/cs-immutability/node_pools/4nd28q7n8q",
+        "internalState": {
+            "internalAPI": {
+                "location": "fake-location",
+                "properties": {
+                    "autoRepair": true,
+                    "platform": {
+                        "enableEncryptionAtHost": false,
+                        "osDisk": {
+                            "diskStorageAccountType": "Premium_LRS",
+                            "sizeGiB": 64
+                        },
+                        "vmSize": "large"
+                    },
+                    "version": {
+                        "channelGroup": "stable"
+                    }
+                },
+                "serviceProviderProperties": {
+                    "clusterServiceID": ""
+                }
+            }
+        },
+        "provisioningState": "Succeeded",
+        "resourceId": "/subscriptions/f52dfea2-47ee-4396-8006-4a27d47d59c5/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/immutability/nodePools/immutability-np",
+        "systemData": {}
+    },
+    "resourceType": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/nodePools",
+    "resourceID": "/subscriptions/f52dfea2-47ee-4396-8006-4a27d47d59c5/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/immutability/nodePools/immutability-np"
+}

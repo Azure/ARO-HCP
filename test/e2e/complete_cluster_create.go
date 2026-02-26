@@ -35,7 +35,7 @@ var _ = Describe("Customer", func() {
 		// do nothing.  per test initialization usually ages better than shared.
 	})
 
-	It("should be able to create an HCP cluster using bicep templates",
+	It("should be able to create an HCP cluster",
 		labels.RequireNothing,
 		labels.Critical,
 		labels.Positive,
@@ -47,8 +47,6 @@ var _ = Describe("Customer", func() {
 				customerVnetSubnetName           = "customer-vnet-subnet1"
 				customerClusterName              = "basic-hcp-cluster"
 				customerNodePoolName             = "np-1"
-				openshiftControlPlaneVersionId   = "4.19"
-				openshiftNodeVersionId           = "4.19.7"
 			)
 			tc := framework.NewTestContext()
 
@@ -66,19 +64,18 @@ var _ = Describe("Customer", func() {
 			clusterParams.ClusterName = customerClusterName
 			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
 			clusterParams.ManagedResourceGroupName = managedResourceGroupName
-			clusterParams.OpenshiftVersionId = openshiftControlPlaneVersionId
 
 			By("creating customer resources")
 			clusterParams, err = tc.CreateClusterCustomerResources(ctx,
 				resourceGroup,
 				clusterParams,
 				map[string]interface{}{
-					"persistTagValue":        false,
 					"customerNsgName":        customerNetworkSecurityGroupName,
 					"customerVnetName":       customerVnetName,
 					"customerVnetSubnetName": customerVnetSubnetName,
 				},
 				TestArtifactsFS,
+				framework.RBACScopeResource,
 			)
 			Expect(err).NotTo(HaveOccurred())
 
@@ -110,7 +107,6 @@ var _ = Describe("Customer", func() {
 			nodePoolParams := framework.NewDefaultNodePoolParams()
 			nodePoolParams.ClusterName = customerClusterName
 			nodePoolParams.NodePoolName = customerNodePoolName
-			nodePoolParams.OpenshiftVersionId = openshiftNodeVersionId
 			nodePoolParams.Replicas = int32(2)
 
 			err = tc.CreateNodePoolFromParam(ctx,
@@ -120,6 +116,16 @@ var _ = Describe("Customer", func() {
 				45*time.Minute,
 			)
 			Expect(err).NotTo(HaveOccurred())
+
+			By("verifying nodepool DiskStorageAccountType matches framework default")
+			err = framework.ValidateNodePoolDiskStorageAccountType(ctx,
+				tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient(),
+				*resourceGroup.Name,
+				customerClusterName,
+				customerNodePoolName,
+			)
+			Expect(err).NotTo(HaveOccurred())
+
 			By("verifying a simple web app can run")
 			err = verifiers.VerifySimpleWebApp().Verify(ctx, adminRESTConfig)
 			Expect(err).NotTo(HaveOccurred())

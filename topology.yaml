@@ -8,14 +8,6 @@ entrypoints:
   metadata:
     name: Region
     scopeDoc: high-level-architecture.md#regional-scope
-- identifier: 'Microsoft.Azure.ARO.HCP.Service.Infra'
-  metadata:
-    name: Service Cluster
-    scopeDoc: high-level-architecture.md#service-cluster
-- identifier: 'Microsoft.Azure.ARO.HCP.Management.Infra'
-  metadata:
-    name: Management Cluster
-    scopeDoc: high-level-architecture.md#management-clusters
 services:
 - serviceGroup: Microsoft.Azure.ARO.HCP.Global
   children:
@@ -35,6 +27,9 @@ services:
       - serviceGroup: Microsoft.Azure.ARO.HCP.RP.Frontend
         pipelinePath: frontend/pipeline.yaml
         purpose: Deploy the RP Frontend.
+      - serviceGroup: Microsoft.Azure.ARO.HCP.SessionGate
+        pipelinePath: sessiongate/pipeline.yaml
+        purpose: Deploy the Session Gate.
       - serviceGroup: Microsoft.Azure.ARO.HCP.AdminAPI
         pipelinePath: admin/pipeline.yaml
         purpose: Deploy the Admin API.
@@ -42,6 +37,9 @@ services:
       purpose: Deploy the service cluster and supporting infrastructure.
     - serviceGroup: Microsoft.Azure.ARO.HCP.Management.Infra
       children:
+      - serviceGroup: Microsoft.Azure.ARO.HCP.Velero
+        pipelinePath: velero/pipeline.yaml
+        purpose: Deploy Velero for HostedCluster backup and restore.
       - serviceGroup: Microsoft.Azure.ARO.HCP.SecretSyncController
         pipelinePath: secret-sync-controller/pipeline.yaml
         purpose: Deploy the Secret Sync Controller.
@@ -62,6 +60,9 @@ services:
         purpose: Deploy the Route Monitor Operator.
       pipelinePath: dev-infrastructure/mgmt-pipeline.yaml
       purpose: Deploy a management cluster and backing infrastructure.
+    - serviceGroup: Microsoft.Azure.ARO.HCP.Log.Infra
+      pipelinePath: dev-infrastructure/kusto-pipeline.yaml
+      purpose: Deploy the kusto log infrastructure.
     - serviceGroup: Microsoft.Azure.ARO.HCP.Monitoring
       pipelinePath: dev-infrastructure/monitoring-pipeline.yaml
       purpose: Deploy the Monitoring resources
@@ -87,9 +88,9 @@ services:
   pipelinePath: observability/tracing/pipeline.yaml
   purpose: Deploy the development tracing stack.
 # Kusto Infra pipeline
-- serviceGroup: Microsoft.Azure.ARO.HCP.Log.Infra
-  pipelinePath: dev-infrastructure/kusto-pipeline.yaml
-  purpose: Deploy the kusto log infrastructure.
+- serviceGroup: Microsoft.Azure.ARO.HCP.Kusto.Delete
+  pipelinePath: dev-infrastructure/cleanup/delete.kusto.instance.pipeline.yaml
+  purpose: Delete the kusto instance.
 - serviceGroup: Microsoft.Azure.ARO.HCP.Service.Kubeconfig
   pipelinePath: dev-infrastructure/svc-kubeconfig.yaml
   purpose: Grant access to AKS SVC AKS Clusters, mainly intended for E2E test setup.

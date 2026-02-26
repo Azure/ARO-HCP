@@ -15,6 +15,15 @@ var locationAvailabilityZoneList = csvToArray(locationAvailabilityZones)
 @description('AKS cluster name')
 param aksClusterName string = 'aro-hcp-aks'
 
+@description('Name of the system agent pool')
+param systemAgentPoolName string
+
+@description('Name of the user agent pool')
+param userAgentPoolName string
+
+@description('Name of the infra agent pool')
+param infraAgentPoolName string
+
 @description('Disk size for the AKS system nodes')
 param systemOsDiskSizeGB int
 
@@ -80,9 +89,6 @@ param systemAgentMaxCount int = 3
 
 @description('VM instance type for the system nodes')
 param systemAgentVMSize string = 'Standard_D2s_v3'
-
-@description('Number of pools to create for system nodes')
-param systemAgentPoolCount int
 
 @description('Zones to use for the system nodes')
 param systemAgentPoolZones string
@@ -206,6 +212,15 @@ param pkoServiceAccountName string
 @description('The name of the Azure Storage account to create for HCP Backups')
 param hcpBackupsStorageAccountName string
 
+@description('The cluster tag value for the owning team')
+param owningTeamTagValue string
+
+@description('Event Hub name for AKS audit logs')
+param auditLogsEventHubName string
+
+@description('Resource ID of the event hub authorization rule for AKS audit logs')
+param auditLogsEventHubAuthRuleId string
+
 //
 //   M A N A G E D   I D E N T I T I E S
 //
@@ -233,13 +248,8 @@ var workloadIdentities = items({
   }
   velero_wi: {
     uamiName: 'velero'
-    namespace: 'openshift-adp'
+    namespace: 'velero'
     serviceAccountName: 'velero'
-  }
-  oadp_wi: {
-    uamiName: 'openshift-adp-controller-manager'
-    namespace: 'openshift-adp'
-    serviceAccountName: 'openshift-adp-controller-manager'
   }
 })
 
@@ -254,6 +264,11 @@ module managedIdentities '../modules/managed-identities.bicep' = {
 //
 //   A K S
 //
+
+resource aksClusterUserDefinedManagedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
+  name: '${aksClusterName}-msi'
+  location: location
+}
 
 resource mgmtClusterNSG 'Microsoft.Network/networkSecurityGroups@2023-11-01' = {
   location: location
@@ -339,16 +354,17 @@ module mgmtCluster '../modules/aks-cluster-base.bicep' = {
     aksKeyVaultTagName: aksKeyVaultTagName
     aksKeyVaultTagValue: aksKeyVaultTagValue
     pullAcrResourceIds: [ocpAcrResourceId, svcAcrResourceId]
+    systemAgentPoolName: systemAgentPoolName
     systemAgentMinCount: systemAgentMinCount
     systemAgentMaxCount: systemAgentMaxCount
     systemAgentVMSize: systemAgentVMSize
-    systemAgentPoolCount: systemAgentPoolCount
     systemAgentPoolZones: length(csvToArray(systemAgentPoolZones)) > 0
       ? csvToArray(systemAgentPoolZones)
       : locationAvailabilityZoneList
     systemOsDiskSizeGB: systemOsDiskSizeGB
     systemZoneRedundantMode: systemZoneRedundantMode
     userOsDiskSizeGB: userOsDiskSizeGB
+    userAgentPoolName: userAgentPoolName
     userAgentMinCount: userAgentMinCount
     userAgentMaxCount: userAgentMaxCount
     userAgentVMSize: userAgentVMSize
@@ -357,6 +373,7 @@ module mgmtCluster '../modules/aks-cluster-base.bicep' = {
       ? csvToArray(userAgentPoolZones)
       : locationAvailabilityZoneList
     userZoneRedundantMode: userZoneRedundantMode
+    infraAgentPoolName: infraAgentPoolName
     infraAgentMinCount: infraAgentMinCount
     infraAgentMaxCount: infraAgentMaxCount
     infraAgentVMSize: infraAgentVMSize
@@ -370,6 +387,8 @@ module mgmtCluster '../modules/aks-cluster-base.bicep' = {
     networkPolicy: aksNetworkPolicy
     deploymentMsiId: globalMSIId
     enableSwiftV2Nodepools: aksEnableSwiftNodepools
+    owningTeamTagValue: owningTeamTagValue
+    aksClusterUserDefinedManagedIdentityName: aksClusterUserDefinedManagedIdentity.name
   }
   dependsOn: [
     managedIdentities
@@ -525,9 +544,21 @@ module hcpBackupsRbac '../modules/hcp-backups/storage-rbac.bicep' = {
   params: {
     storageAccountName: hcpBackupsStorageAccountName
     veleroManagedIdentityPrincipalId: mi.getManagedIdentityByName(managedIdentities.outputs.managedIdentities, 'velero').uamiPrincipalID
-    oadpControllerManagedIdentityPrincipalId: mi.getManagedIdentityByName(
-      managedIdentities.outputs.managedIdentities,
-      'openshift-adp-controller-manager'
-    ).uamiPrincipalID
   }
 }
+
+//
+//  A K S   D I A G N O S T I C   S E T T I N G S
+//
+// jboll, needs to disable, cause stage deployment fails 
+// module diagnosticSetting '../modules/aks/diagnostic-setting.bicep' = if (auditLogsEventHubAuthRuleId != '') {
+//   name: 'aks-diagnostic-setting'
+//   dependsOn: [
+//     mgmtCluster
+//   ]
+//   params: {
+//     aksClusterName: aksClusterName
+//     auditLogsEventHubName: auditLogsEventHubName
+//     auditLogsEventHubAuthRuleId: auditLogsEventHubAuthRuleId
+//   }
+// }

@@ -1,20 +1,15 @@
 provision_shards:
 - id: '{{ .extraVars.shardId }}'
-  maestro_config: |
-    {
-      "rest_api_config": {
-        "url": "{{ .extraVars.maestroRestUrl }}"
-      },
-      "grpc_api_config": {
-        "url": "{{ .extraVars.maestroGrpUrl }}"
-      },
-      "consumer_name": "{{ .maestro.agent.consumerName }}"
-    }
+  maestro_config:
+    rest_api_config:
+      url: "{{ .extraVars.maestroRestUrl }}"
+    grpc_api_config:
+      url: "{{ .extraVars.maestroGrpUrl }}"
+    consumer_name: "{{ .maestro.agent.consumerName }}"
   status: active
-  management_cluster_id: local-cluster
   region: '{{ .region }}'
   cloud_provider: azure
-  topology: dedicated
+  topology: shared
   azure_shard:
     public_dns_zone_resource_id: "{{ .extraVars.zoneResourceId }}"
     cx_secrets_key_vault_url: "{{ .extraVars.cxSecretsKeyVaultUrl }}"

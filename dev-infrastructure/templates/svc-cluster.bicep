@@ -17,6 +17,9 @@ var locationAvailabilityZoneList = csvToArray(locationAvailabilityZones)
 @description('AKS cluster name')
 param aksClusterName string
 
+@description('Name of the system agent pool')
+param systemAgentPoolName string
+
 @description('Minimum node count for system agent pool')
 param systemAgentMinCount int
 
@@ -25,9 +28,6 @@ param systemAgentMaxCount int
 
 @description('VM instance type for the system nodes')
 param systemAgentVMSize string
-
-@description('Number of pools to create for system nodes')
-param systemAgentPoolCount int
 
 @description('Zones to use for the system nodes')
 param systemAgentPoolZones string
@@ -47,6 +47,9 @@ param aksNetworkDataplane string
 @description('Network policy plugin for the AKS cluster')
 param aksNetworkPolicy string
 
+@description('Name of the user agent pool')
+param userAgentPoolName string
+
 @description('Min replicas for the worker nodes')
 param userAgentMinCount int
 
@@ -64,6 +67,9 @@ param userAgentPoolZones string
 
 @description('Zone redundant mode for the user nodes')
 param userZoneRedundantMode string
+
+@description('Name of the infra agent pool')
+param infraAgentPoolName string
 
 @description('Min replicas for the infra worker nodes')
 param infraAgentMinCount int
@@ -131,6 +137,12 @@ param istioIngressGatewayIPAddressName string = ''
 
 @description('IPTags to be set on the Istio Ingress Gateway IP address in the format of ipTagType:tag,ipTagType:tag')
 param istioIngressGatewayIPAddressIPTags string = ''
+
+@description('Admin API Istio Ingress Gateway IP Address Name')
+param opsIngressGatewayIPAddressName string = ''
+
+@description('IPTags to be set on the Admin API Istio Ingress Gateway IP address in the format of ipTagType:tag,ipTagType:tag')
+param opsIngressGatewayIPAddressTags string = ''
 
 // TODO: When the work around workload identity for the RP is finalized, change this to true
 @description('disableLocalAuth for the ARO HCP RP CosmosDB')
@@ -324,14 +336,11 @@ param manageFpaCertificate bool
 @description('The service tag for Geneva Actions')
 param genevaActionsServiceTag string
 
+@description('The service tag for SRE access')
+param sreServiceTag string
+
 @description('The Azure Resource ID of the Azure Monitor Workspace (stores prometheus metrics)')
 param azureMonitoringWorkspaceId string
-
-@description('The Grafana resource ID')
-param grafanaResourceId string
-
-@description('The Grafana managed identity principal ID')
-param grafanaPrincipalId string
 
 @description('The name of the CS managed identity')
 param csMIName string
@@ -397,6 +406,35 @@ param adminApiIngressCertName string
 @description('The issuer of the Admin API certificate')
 param adminApiIngressCertIssuer string
 
+@description('The cluster tag value for the owning team')
+param owningTeamTagValue string
+
+@description('CoscmosDB autoscaling parameters')
+param resourceContainerMaxScale int
+param billingContainerMaxScale int
+param locksContainerMaxScale int
+
+@description('Event Hub name for AKS audit logs')
+param auditLogsEventHubName string
+
+@description('Resource ID of the event hub authorization rule for AKS audit logs')
+param auditLogsEventHubAuthRuleId string
+
+@description('The name of the Session Gate managed identity')
+param sessiongateMIName string
+
+@description('The namespace of the Session Gate managed identity')
+param sessiongateNamespace string
+
+@description('The service account name of the Session Gate managed identity')
+param sessiongateServiceAccountName string
+
+@description('The name of the Session Gate ingress certificate')
+param sessiongateIngressCertName string
+
+@description('The issuer of the Session Gate ingress certificate')
+param sessiongateIngressCertIssuer string
+
 resource serviceKeyVault 'Microsoft.KeyVault/vaults@2024-04-01-preview' existing = {
   name: serviceKeyVaultName
   scope: resourceGroup(serviceKeyVaultResourceGroup)
@@ -452,6 +490,11 @@ var workloadIdentities = items({
     namespace: adminApiNamespace
     serviceAccountName: adminApiServiceAccountName
   }
+  sessiongate_wi: {
+    uamiName: sessiongateMIName
+    namespace: sessiongateNamespace
+    serviceAccountName: sessiongateServiceAccountName
+  }
 })
 
 module managedIdentities '../modules/managed-identities.bicep' = {
@@ -466,6 +509,33 @@ module managedIdentities '../modules/managed-identities.bicep' = {
 //   A K S
 //
 
+resource aksClusterUserDefinedManagedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
+  name: '${aksClusterName}-msi'
+  location: location
+}
+
+module istioIngressGatewayIPAddress '../modules/network/publicipaddress.bicep' = {
+  name: istioIngressGatewayIPAddressName
+  scope: resourceGroup(regionalResourceGroup)
+  params: {
+    name: istioIngressGatewayIPAddressName
+    ipTags: istioIngressGatewayIPAddressIPTags
+    location: location
+    zones: locationAvailabilityZoneList
+    // Role Assignment needed for the public IP address to be used on the Load Balancer
+    roleAssignmentProperties: {
+      principalId: aksClusterUserDefinedManagedIdentity.properties.principalId
+      principalType: 'ServicePrincipal'
+      // Network Contributor Role
+      // https://www.azadvertizer.net/azrolesadvertizer/4d97b98b-1d4f-4787-a291-c67834d212e7.html
+      roleDefinitionId: subscriptionResourceId(
+        'Microsoft.Authorization/roleDefinitions/',
+        '4d97b98b-1d4f-4787-a291-c67834d212e7'
+      )
+    }
+  }
+}
+
 resource svcClusterNSG 'Microsoft.Network/networkSecurityGroups@2023-11-01' = {
   location: location
   name: 'svc-cluster-node-nsg'
@@ -475,7 +545,7 @@ resource svcClusterNSG 'Microsoft.Network/networkSecurityGroups@2023-11-01' = {
         name: 'rp-in-arm'
         properties: {
           access: 'Allow'
-          destinationAddressPrefix: '*'
+          destinationAddressPrefix: istioIngressGatewayIPAddress.outputs.ipAddress
           destinationPortRange: '443'
           direction: 'Inbound'
           priority: 120
@@ -488,12 +558,27 @@ resource svcClusterNSG 'Microsoft.Network/networkSecurityGroups@2023-11-01' = {
         name: 'admin-in-geneva'
         properties: {
           access: 'Allow'
-          destinationAddressPrefix: '*'
+          destinationAddressPrefix: istioIngressGatewayIPAddress.outputs.ipAddress
+          // TODO: ops-ingress phase 3: switch to ops IP
+          // destinationAddressPrefix: opsIngressGatewayIPAddress.outputs.ipAddress
           destinationPortRange: '443'
           direction: 'Inbound'
           priority: 130
           protocol: 'Tcp'
           sourceAddressPrefix: genevaActionsServiceTag
+          sourcePortRange: '*'
+        }
+      }
+      {
+        name: 'sre-in-ops'
+        properties: {
+          access: 'Allow'
+          destinationAddressPrefix: opsIngressGatewayIPAddress.outputs.ipAddress
+          destinationPortRange: '443'
+          direction: 'Inbound'
+          priority: 140
+          protocol: 'Tcp'
+          sourceAddressPrefix: sreServiceTag != '' ? sreServiceTag : '*'
           sourcePortRange: '*'
         }
       }
@@ -542,13 +627,12 @@ module svcCluster '../modules/aks-cluster-base.bicep' = {
     kubernetesVersion: kubernetesVersion
     deployIstio: true
     istioVersions: split(istioVersions, ',')
-    istioIngressGatewayIPAddressName: istioIngressGatewayIPAddressName
-    istioIngressGatewayIPAddressIPTags: istioIngressGatewayIPAddressIPTags
     vnetName: vnetName
     nodeSubnetId: nodeSubnetCreation.outputs.subnetId
     podSubnetPrefix: podSubnetPrefix
     clusterType: 'svc-cluster'
     userOsDiskSizeGB: userOsDiskSizeGB
+    userAgentPoolName: userAgentPoolName
     userAgentMinCount: userAgentMinCount
     userAgentMaxCount: userAgentMaxCount
     userAgentVMSize: userAgentVMSize
@@ -557,6 +641,7 @@ module svcCluster '../modules/aks-cluster-base.bicep' = {
       ? csvToArray(userAgentPoolZones)
       : locationAvailabilityZoneList
     userZoneRedundantMode: userZoneRedundantMode
+    infraAgentPoolName: infraAgentPoolName
     infraAgentMinCount: infraAgentMinCount
     infraAgentMaxCount: infraAgentMaxCount
     infraAgentVMSize: infraAgentVMSize
@@ -567,10 +652,10 @@ module svcCluster '../modules/aks-cluster-base.bicep' = {
     infraOsDiskSizeGB: infraOsDiskSizeGB
     infraZoneRedundantMode: infraZoneRedundantMode
     systemOsDiskSizeGB: aksSystemOsDiskSizeGB
+    systemAgentPoolName: systemAgentPoolName
     systemAgentMinCount: systemAgentMinCount
     systemAgentMaxCount: systemAgentMaxCount
     systemAgentVMSize: systemAgentVMSize
-    systemAgentPoolCount: systemAgentPoolCount
     systemAgentPoolZones: length(csvToArray(systemAgentPoolZones)) > 0
       ? csvToArray(systemAgentPoolZones)
       : locationAvailabilityZoneList
@@ -584,6 +669,8 @@ module svcCluster '../modules/aks-cluster-base.bicep' = {
     pullAcrResourceIds: [svcAcrResourceId]
     deploymentMsiId: globalMSIId
     enableSwiftV2Nodepools: false
+    owningTeamTagValue: owningTeamTagValue
+    aksClusterUserDefinedManagedIdentityName: aksClusterUserDefinedManagedIdentity.name
   }
   dependsOn: [
     managedIdentities
@@ -591,6 +678,32 @@ module svcCluster '../modules/aks-cluster-base.bicep' = {
 }
 
 output aksClusterName string = svcCluster.outputs.aksClusterName
+
+//
+//   O P S   I N G R E S S   P U B L I C   I P
+//
+
+module opsIngressGatewayIPAddress '../modules/network/publicipaddress.bicep' = if (!empty(opsIngressGatewayIPAddressName)) {
+  name: opsIngressGatewayIPAddressName
+  scope: resourceGroup(regionalResourceGroup)
+  params: {
+    name: opsIngressGatewayIPAddressName
+    ipTags: opsIngressGatewayIPAddressTags
+    location: location
+    zones: length(locationAvailabilityZoneList) > 0 ? locationAvailabilityZoneList : null
+    // Role Assignment needed for the public IP address to be used on the Load Balancer
+    roleAssignmentProperties: {
+      principalId: aksClusterUserDefinedManagedIdentity.properties.principalId
+      principalType: 'ServicePrincipal'
+      // Network Contributor Role - needed for the AKS managed identity to use the public IP on the LoadBalancer
+      // https://www.azadvertizer.net/azrolesadvertizer/4d97b98b-1d4f-4787-a291-c67834d212e7.html
+      roleDefinitionId: subscriptionResourceId(
+        'Microsoft.Authorization/roleDefinitions/',
+        '4d97b98b-1d4f-4787-a291-c67834d212e7'
+      )
+    }
+  }
+}
 
 //
 // M E T R I C S
@@ -621,13 +734,15 @@ module rpCosmosDb '../modules/rp-cosmos.bicep' = if (deployFrontendCosmos) {
     location: location
     zoneRedundant: determineZoneRedundancy(locationAvailabilityZoneList, rpCosmosZoneRedundantMode)
     disableLocalAuth: disableLocalAuth
-    userAssignedMIs: [frontendMI, backendMI]
-    readOnlyUserAssignedMIs: [adminApiMI]
+    userAssignedMIs: [frontendMI, backendMI, adminApiMI]
     private: rpCosmosDbPrivate
+    resourceContainerMaxScale: resourceContainerMaxScale
+    billingContainerMaxScale: billingContainerMaxScale
+    locksContainerMaxScale: locksContainerMaxScale
   }
 }
 
-module rpCosmosdbPrivateEndpoint '../modules/private-endpoint.bicep' = {
+module rpCosmosdbPrivateEndpoint '../modules/private-endpoint.bicep' = if (rpCosmosDbPrivate) {
   name: 'rp-pe-${uniqueString(deployment().name)}'
   params: {
     location: location
@@ -783,17 +898,6 @@ module acrManageTokenRole '../modules/acr/acr-permissions.bicep' = {
 
 var frontDoorRef = res.frontdoorProfileRefFromId(azureFrontDoorResourceId)
 
-// Grant Grafana permissions to query AFD metrics directly from Azure Monitor
-// This enables real-time AFD metrics visualization in Grafana dashboards
-module grafanaAfdPermissions '../modules/grafana/observability-permissions.bicep' = {
-  name: 'grafana-afd-permissions'
-  scope: resourceGroup(frontDoorRef.resourceGroup.subscriptionId, frontDoorRef.resourceGroup.name)
-  params: {
-    grafanaPrincipalId: grafanaPrincipalId
-    frontDoorProfileId: azureFrontDoorResourceId
-  }
-}
-
 module oidc '../modules/oidc/region/main.bicep' = {
   name: 'oidc-storage'
   scope: resourceGroup(regionalResourceGroup)
@@ -883,7 +987,7 @@ module frontendDNS '../modules/dns/a-record.bicep' = {
   params: {
     zoneName: regionalSvcDNSZoneName
     recordName: frontendDnsName
-    ipAddress: svcCluster.outputs.istioIngressGatewayIPAddress
+    ipAddress: istioIngressGatewayIPAddress.outputs.ipAddress
     ttl: 300
   }
 }
@@ -921,13 +1025,58 @@ module adminApiIngressCertCSIAccess '../modules/keyvault/keyvault-secret-access.
   }
 }
 
+// TODO: ops-ingress phase 3: move DNS to ops ingress when k8s gateway is deployed to prod
 module adminApiDNS '../modules/dns/a-record.bicep' = {
   name: 'admin-api-dns'
   scope: resourceGroup(regionalResourceGroup)
   params: {
     zoneName: regionalSvcDNSZoneName
     recordName: adminApiDnsName
-    ipAddress: svcCluster.outputs.istioIngressGatewayIPAddress
+    ipAddress: istioIngressGatewayIPAddress.outputs.ipAddress
+    ttl: 300
+  }
+}
+
+//
+//   S E S S I O N G A T E
+//
+
+var sessiongateDnsName = 'sessiongate'
+var sessiongateDnsFQDN = '${sessiongateDnsName}.${regionalSvcDNSZoneName}'
+
+module sessiongateCert '../modules/keyvault/key-vault-cert.bicep' = {
+  name: 'sessiongate-cert-${uniqueString(resourceGroup().name)}'
+  scope: resourceGroup(serviceKeyVaultResourceGroup)
+  params: {
+    keyVaultName: serviceKeyVaultName
+    subjectName: 'CN=${sessiongateDnsFQDN}'
+    certName: sessiongateIngressCertName
+    keyVaultManagedIdentityId: globalMSIId
+    dnsNames: [
+      sessiongateDnsFQDN
+    ]
+    issuerName: sessiongateIngressCertIssuer
+  }
+}
+
+module sessiongateIngressCertCSIAccess '../modules/keyvault/keyvault-secret-access.bicep' = {
+  name: 'aksSPCRead-${sessiongateIngressCertName}'
+  scope: resourceGroup(serviceKeyVaultResourceGroup)
+  params: {
+    keyVaultName: serviceKeyVaultName
+    roleName: 'Key Vault Secrets User'
+    managedIdentityPrincipalIds: [svcCluster.outputs.aksClusterKeyVaultSecretsProviderPrincipalId]
+    secretName: sessiongateIngressCertName
+  }
+}
+
+module sessiongateDNS '../modules/dns/a-record.bicep' = {
+  name: 'sessiongate-dns'
+  scope: resourceGroup(regionalResourceGroup)
+  params: {
+    zoneName: regionalSvcDNSZoneName
+    recordName: sessiongateDnsName
+    ipAddress: opsIngressGatewayIPAddress.outputs.ipAddress
     ttl: 300
   }
 }
@@ -1001,6 +1150,7 @@ module svcClusterNSPProfile '../modules/network/nsp-profile.bicep' = {
   }
   dependsOn: [
     svcNSP
+    rpCosmosdbPrivateEndpoint
   ]
 }
 
@@ -1023,3 +1173,20 @@ module svcKVNSPProfile '../modules/network/nsp-profile.bicep' = if (serviceKeyVa
     svcNSP
   ]
 }
+
+//
+//  A K S   D I A G N O S T I C   S E T T I N G S
+//
+
+// jboll, needs to disable, cause stage deployment fails 
+// module diagnosticSetting '../modules/aks/diagnostic-setting.bicep' = if (auditLogsEventHubAuthRuleId != '') {
+//   name: 'aks-diagnostic-setting'
+//   dependsOn: [
+//     svcCluster
+//   ]
+//   params: {
+//     aksClusterName: aksClusterName
+//     auditLogsEventHubName: auditLogsEventHubName
+//     auditLogsEventHubAuthRuleId: auditLogsEventHubAuthRuleId
+//   }
+// }

@@ -16,7 +16,6 @@ package metrics
 
 import (
 	"context"
-	"log/slog"
 	"sync"
 	"time"
 
@@ -103,23 +102,24 @@ func NewSubscriptionCollector(r prometheus.Registerer, dbClient database.DBClien
 
 // Run starts the loop which reads the subscriptions from the database at
 // periodic intervals (30s) to populate the subscription metrics.
-func (sc *SubscriptionCollector) Run(logger *slog.Logger, stop <-chan struct{}) {
-	ctx := context.Background()
+func (sc *SubscriptionCollector) Run(ctx context.Context) {
 	// Populate the internal cache.
-	sc.refresh(ctx, logger)
+	sc.refresh(ctx)
 
 	t := time.NewTicker(30 * time.Second)
 	for {
 		select {
-		case <-stop:
+		case <-ctx.Done():
 			return
 		case <-t.C:
-			sc.refresh(ctx, logger)
+			sc.refresh(ctx)
 		}
 	}
 }
 
-func (sc *SubscriptionCollector) refresh(ctx context.Context, logger *slog.Logger) {
+func (sc *SubscriptionCollector) refresh(ctx context.Context) {
+	logger := utils.LoggerFromContext(ctx)
+
 	ctx, span := otel.GetTracerProvider().
 		Tracer(utils.TracerName).
 		Start(
@@ -138,7 +138,7 @@ func (sc *SubscriptionCollector) refresh(ctx context.Context, logger *slog.Logge
 	sc.refreshCounter.Inc()
 	if err := sc.updateCache(ctx); err != nil {
 		span.RecordError(err)
-		logger.Warn("failed to update subscription collector cache", "err", err)
+		logger.Error(err, "failed to update subscription collector cache")
 		sc.lastSyncResult.Set(0)
 		sc.errCounter.Inc()
 		return
@@ -151,8 +151,12 @@ func (sc *SubscriptionCollector) refresh(ctx context.Context, logger *slog.Logge
 func (sc *SubscriptionCollector) updateCache(ctx context.Context) error {
 	subscriptions := make(map[string]subscription)
 
-	iter := sc.dbClient.ListAllSubscriptionDocs()
-	for id, sub := range iter.Items(ctx) {
+	iter, err := sc.dbClient.Subscriptions().List(ctx, nil)
+	if err != nil {
+		return utils.TrackError(err)
+	}
+	for _, sub := range iter.Items(ctx) {
+		id := sub.ResourceID.SubscriptionID
 		subscriptions[id] = subscription{
 			id:         id,
 			state:      string(sub.State),
@@ -160,7 +164,7 @@ func (sc *SubscriptionCollector) updateCache(ctx context.Context) error {
 		}
 	}
 	if err := iter.GetError(); err != nil {
-		return err
+		return utils.TrackError(err)
 	}
 
 	sc.mtx.Lock()

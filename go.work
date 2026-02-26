@@ -1,4 +1,4 @@
-go 1.24.4
+go 1.25.5
 
 use (
 	./admin/client
@@ -6,7 +6,11 @@ use (
 	./backend
 	./frontend
 	./internal
+	./sessiongate
 	./test
+	./test-integration
+	./tooling/aro-hcp-exporter
+	./tooling/grafanactl
 	./tooling/hcpctl
 	./tooling/helmtest
 	./tooling/image-updater

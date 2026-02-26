@@ -1,5 +1,6 @@
 global:
   registryOverride: "{{ .acr.svc.name }}.azurecr.io/acm-d-cache"
+finalizeMceJobImage: "{{ .aksCommandRuntime.image.registry }}/{{ .aksCommandRuntime.image.repository }}@{{ .aksCommandRuntime.image.digest }}"
 localCluster:
   kubeApiUrl: https://kubernetes.default.svc
   addonConfig:

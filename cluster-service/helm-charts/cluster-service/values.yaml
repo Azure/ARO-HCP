@@ -181,6 +181,12 @@ azureMiMockServicePrincipalCertName: ""
 azureMiMockServicePrincipalClientId: ""
 # The principal id of the mock managed identities service principal.
 azureMiMockServicePrincipalPrincipalId: ""
+# The name of the Azure cloud environment following the same naming scheme as the one expected by the Secret Store
+# CSI Provider Azure. See
+# https://github.com/Azure/secrets-store-csi-driver-provider-azure/blob/master/website/content/en/getting-started/usage/_index.md#create-your-own-secretproviderclass-object under the `cloudName` attribute.
+# Even though it follows the same naming scheme as Secret Store CSI Provider Azure its usage is not limited to that
+# component. For example, it is also passed to the Azure Runtime Config file.
+azureCloudEnvironmentName: ""
 # Details for a provisioning shard
 shard:
   Id: ""
@@ -307,6 +313,14 @@ ocpVersions:
     version: ""
   channelGroups:
     stable:
+      url: ""
+      minVersion: ""
+      maxVersion: ""
+    candidate:
+      url: ""
+      minVersion: ""
+      maxVersion: ""
+    nightly:
       url: ""
       minVersion: ""
       maxVersion: ""

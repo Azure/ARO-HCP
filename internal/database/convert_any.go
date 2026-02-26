@@ -16,6 +16,9 @@ package database
 
 import (
 	"fmt"
+	"strings"
+
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -34,20 +37,29 @@ func CosmosToInternal[InternalAPIType, CosmosAPIType any](obj *CosmosAPIType) (*
 	case *NodePool:
 		internalObj, err = CosmosToInternalNodePool(cosmosObj)
 
-	case *Controller:
-		internalObj, err = CosmosToInternalController(cosmosObj)
-
-	case *Operation:
-		internalObj, err = CosmosToInternalOperation(cosmosObj)
-
 	case *TypedDocument:
 		var expectedObj InternalAPIType
 		switch castObj := any(expectedObj).(type) {
 		case TypedDocument:
+			if cosmosObj.ResourceID != nil {
+				return any(cosmosObj).(*InternalAPIType), nil
+			}
+
+			// fill in the new ResourceID field for old data that is missing it. This means we didn't migrate something.
+			// this will happen frequently when the new backend is running against an old frontend.
+			resourceIDFromOldCosmosID, err := oldCosmosIDToResourceID(cosmosObj.ID)
+			if err != nil {
+				return nil, utils.TrackError(fmt.Errorf("expected old cosmosID and got %q", castObj.ID))
+			}
+			cosmosObj.ResourceID = resourceIDFromOldCosmosID
+
 			return any(cosmosObj).(*InternalAPIType), nil
 		default:
 			return nil, fmt.Errorf("unexpected return type: %T", castObj)
 		}
+
+	case *GenericDocument[InternalAPIType]:
+		internalObj, err = CosmosGenericToInternal[InternalAPIType](cosmosObj)
 
 	default:
 		return nil, fmt.Errorf("unknown type %T", cosmosObj)
@@ -64,6 +76,10 @@ func CosmosToInternal[InternalAPIType, CosmosAPIType any](obj *CosmosAPIType) (*
 	return castInternalObj, nil
 }
 
+func oldCosmosIDToResourceID(resourceID string) (*azcorearm.ResourceID, error) {
+	return azcorearm.ParseResourceID(strings.ReplaceAll(resourceID, "|", "/"))
+}
+
 func InternalToCosmos[InternalAPIType, CosmosAPIType any](obj *InternalAPIType) (*CosmosAPIType, error) {
 	var cosmosObj any
 	var err error
@@ -77,12 +93,6 @@ func InternalToCosmos[InternalAPIType, CosmosAPIType any](obj *InternalAPIType) 
 	case *api.HCPOpenShiftClusterNodePool:
 		cosmosObj, err = InternalToCosmosNodePool(internalObj)
 
-	case *api.Controller:
-		cosmosObj, err = InternalToCosmosController(internalObj)
-
-	case *api.Operation:
-		cosmosObj, err = InternalToCosmosOperation(internalObj)
-
 	case *TypedDocument:
 		var expectedObj CosmosAPIType
 		switch castObj := any(expectedObj).(type) {
@@ -93,7 +103,7 @@ func InternalToCosmos[InternalAPIType, CosmosAPIType any](obj *InternalAPIType) 
 		}
 
 	default:
-		return nil, fmt.Errorf("unknown type %T", internalObj)
+		cosmosObj, err = InternalToCosmosGeneric[InternalAPIType](obj)
 	}
 
 	if err != nil {

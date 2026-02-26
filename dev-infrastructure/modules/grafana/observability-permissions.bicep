@@ -15,7 +15,7 @@ var monitoringReader = '43d0d8ad-25c7-4714-9337-8ba259a9fe05'
 // Grant Grafana managed identity access to Azure Front Door metrics
 // This allows Grafana to query AFD platform metrics directly from Azure Monitor
 module frontDoorRoleAssignment './observability-role-assignment.bicep' = if (frontDoorProfileId != '') {
-  name: 'grafana-frontdoor-role'
+  name: 'grafana-afd-role-${uniqueString(frontDoorProfileId, grafanaPrincipalId, monitoringReader)}'
   scope: resourceGroup(split(frontDoorProfileId, '/')[2], split(frontDoorProfileId, '/')[4])
   params: {
     resourceId: frontDoorProfileId

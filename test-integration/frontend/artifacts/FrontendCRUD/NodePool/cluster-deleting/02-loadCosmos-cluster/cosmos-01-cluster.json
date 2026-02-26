@@ -1,0 +1,21 @@
+{
+    "id": "|subscriptions|0465bc32-c654-41b8-8d87-9815d7abe8f6|resourcegroups|some-resource-group|providers|microsoft.redhatopenshift|hcpopenshiftclusters|cluster-deleting",
+    "partitionKey": "0465bc32-c654-41b8-8d87-9815d7abe8f6",
+    "resourceType": "microsoft.redhatopenshift/hcpopenshiftclusters",
+    "resourceID": "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-deleting",
+    "properties": {
+        "resourceId": "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-deleting",
+        "internalId": "/api/aro_hcp/v1alpha1/clusters/cs-cluster-deleting",
+        "identity": {
+            "principalId": "the-principal",
+            "tenantId": "the-tenant",
+            "type": ""
+        },
+        "tags": {
+            "foo": "bar"
+        },
+        "provisioningState": "Deleting",
+        "customerDesiredState": null,
+        "serviceProviderState": null
+    }
+}

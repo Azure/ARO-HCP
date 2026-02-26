@@ -16,16 +16,25 @@ package framework
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/x509"
+	"encoding/base64"
+	"encoding/json"
+	"encoding/pem"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/go-logr/logr"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"golang.org/x/crypto/ssh"
 	"golang.org/x/sync/errgroup"
 
+	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -34,8 +43,10 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v5"
 
 	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 )
@@ -269,7 +280,7 @@ func GetHCPCluster(
 	return hcpClient.Get(ctx, resourceGroupName, hcpClusterName, nil)
 }
 
-// DeleteAllHCPClusters deletes all HCPOpenShiftClusters within a resource group and waits
+// DeleteAllHCPClusters deletes all Clusters within a resource group and waits
 func DeleteAllHCPClusters(
 	ctx context.Context,
 	hcpClient *hcpsdk20240610preview.HcpOpenShiftClustersClient,
@@ -364,6 +375,54 @@ func GetNodePool(
 	nodePoolName string,
 ) (hcpsdk20240610preview.NodePoolsClientGetResponse, error) {
 	return nodePoolsClient.Get(ctx, resourceGroupName, hcpClusterName, nodePoolName, nil)
+}
+
+// UpdateNodePoolAndWait sends a PATCH (BeginUpdate) request for a nodepool and waits for completion
+// within the provided timeout. It returns the final update response or an error.
+func UpdateNodePoolAndWait(
+	ctx context.Context,
+	nodePoolsClient *hcpsdk20240610preview.NodePoolsClient,
+	resourceGroupName string,
+	hcpClusterName string,
+	nodePoolName string,
+	update hcpsdk20240610preview.NodePoolUpdate,
+	timeout time.Duration,
+) (*hcpsdk20240610preview.NodePool, error) {
+	ctx, cancel := context.WithTimeoutCause(ctx, timeout, fmt.Errorf("timeout '%f' minutes exceeded during UpdateNodePoolAndWait for nodepool %s in cluster %s in resource group %s", timeout.Minutes(), nodePoolName, hcpClusterName, resourceGroupName))
+	defer cancel()
+
+	poller, err := nodePoolsClient.BeginUpdate(ctx, resourceGroupName, hcpClusterName, nodePoolName, update, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	operationResult, err := poller.PollUntilDone(ctx, &runtime.PollUntilDoneOptions{
+		Frequency: StandardPollInterval,
+	})
+	if err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			return nil, fmt.Errorf("failed waiting for nodepool=%q in cluster=%q resourcegroup=%q to finish updating, caused by: %w, error: %w", nodePoolName, hcpClusterName, resourceGroupName, context.Cause(ctx), err)
+		}
+		return nil, fmt.Errorf("failed waiting for nodepool=%q in cluster=%q resourcegroup=%q to finish updating: %w", nodePoolName, hcpClusterName, resourceGroupName, err)
+	}
+
+	switch m := any(operationResult).(type) {
+	case hcpsdk20240610preview.NodePoolsClientUpdateResponse:
+		expect, err := GetNodePool(ctx, nodePoolsClient, resourceGroupName, hcpClusterName, nodePoolName)
+		if err != nil {
+			if errors.Is(err, context.DeadlineExceeded) {
+				return nil, fmt.Errorf("failed getting nodepool=%q in cluster=%q resourcegroup=%q, caused by: %w, error: %w", nodePoolName, hcpClusterName, resourceGroupName, context.Cause(ctx), err)
+			}
+			return nil, err
+		}
+		err = checkOperationResult(&expect.NodePool, &m.NodePool)
+		if err != nil {
+			return nil, err
+		}
+		return &m.NodePool, nil
+	default:
+		return nil, fmt.Errorf("unknown type %T", m)
+	}
 }
 
 // CreateOrUpdateExternalAuthAndWait creates or updates an external auth on an HCP cluster and waits
@@ -511,6 +570,36 @@ func CreateClusterRoleBinding(ctx context.Context, subject string, adminRESTConf
 	return nil
 }
 
+// CreateTestDockerConfigSecret creates a Docker config secret for testing pull secret functionality
+func CreateTestDockerConfigSecret(host, username, password, email, secretName, namespace string) (*corev1.Secret, error) {
+	auth := base64.StdEncoding.EncodeToString([]byte(username + ":" + password))
+
+	dockerConfig := DockerConfigJSON{
+		Auths: map[string]RegistryAuth{
+			host: {
+				Email: email,
+				Auth:  auth,
+			},
+		},
+	}
+
+	dockerConfigJSON, err := json.Marshal(dockerConfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal docker config: %w", err)
+	}
+
+	return &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      secretName,
+			Namespace: namespace,
+		},
+		Type: corev1.SecretTypeDockerConfigJson,
+		Data: map[string][]byte{
+			corev1.DockerConfigJsonKey: dockerConfigJSON,
+		},
+	}, nil
+}
+
 func BeginCreateHCPCluster(
 	ctx context.Context,
 	logger logr.Logger,
@@ -606,6 +695,7 @@ func BuildHCPClusterFromParams(
 	return hcpsdk20240610preview.HcpOpenShiftCluster{
 		Location: to.Ptr(location),
 		Identity: parameters.Identity,
+		Tags:     parameters.Tags,
 		Properties: &hcpsdk20240610preview.HcpOpenShiftClusterProperties{
 			Version: &hcpsdk20240610preview.VersionProfile{
 				ID:           to.Ptr(parameters.OpenshiftVersionId),
@@ -626,7 +716,8 @@ func BuildHCPClusterFromParams(
 				HostPrefix:  to.Ptr(parameters.Network.HostPrefix),
 			},
 			API: &hcpsdk20240610preview.APIProfile{
-				Visibility: to.Ptr(hcpsdk20240610preview.Visibility(parameters.APIVisibility)),
+				Visibility:      to.Ptr(hcpsdk20240610preview.Visibility(parameters.APIVisibility)),
+				AuthorizedCIDRs: parameters.AuthorizedCIDRs,
 			},
 			ClusterImageRegistry: &hcpsdk20240610preview.ClusterImageRegistryProfile{
 				State: to.Ptr(hcpsdk20240610preview.ClusterImageRegistryProfileState(parameters.ImageRegistryState)),
@@ -646,6 +737,7 @@ func BuildHCPClusterFromParams(
 					},
 				},
 			},
+			Autoscaling: parameters.Autoscaling,
 		},
 	}
 }
@@ -719,4 +811,209 @@ func BuildNodePoolFromParams(
 			},
 		},
 	}
+}
+
+// Helper to run command on VM
+func RunVMCommand(ctx context.Context, tc interface {
+	SubscriptionID(ctx context.Context) (string, error)
+	AzureCredential() (azcore.TokenCredential, error)
+}, resourceGroup, vmName, command string, pollTimeout time.Duration) (string, error) {
+	subscriptionID, err := tc.SubscriptionID(ctx)
+	if err != nil {
+		return "", err
+	}
+
+	azCreds, err := tc.AzureCredential()
+	if err != nil {
+		return "", err
+	}
+
+	computeClient, err := armcompute.NewVirtualMachinesClient(subscriptionID, azCreds, nil)
+	if err != nil {
+		return "", err
+	}
+
+	runCommandInput := armcompute.RunCommandInput{
+		CommandID: to.Ptr("RunShellScript"),
+		Script: []*string{
+			to.Ptr(command),
+		},
+	}
+
+	poller, err := computeClient.BeginRunCommand(ctx, resourceGroup, vmName, runCommandInput, nil)
+	if err != nil {
+		return "", err
+	}
+
+	// Create a timeout context to avoid waiting too long on VM command failures
+	// VM commands should complete quickly (within a few minutes at most)
+	pollCtx, cancel := context.WithTimeout(ctx, pollTimeout)
+	defer cancel()
+
+	result, err := poller.PollUntilDone(pollCtx, nil)
+	if err != nil {
+		return "", err
+	}
+
+	if len(result.Value) > 0 && result.Value[0].Message != nil {
+		// Azure Run Command returns output in format:
+		// "Enable succeeded: \n[stdout]\n<actual output>\n[stderr]\n<errors>"
+		// We need to extract stdout and stderr content
+		message := *result.Value[0].Message
+
+		// Find the stdout section
+		stdoutStart := strings.Index(message, "[stdout]\n")
+		if stdoutStart == -1 {
+			// If no stdout marker, return the whole message
+			return message, nil
+		}
+
+		// Skip past the "[stdout]\n" marker
+		stdoutStart += len("[stdout]\n")
+
+		// Find where stderr starts (if present)
+		stderrStart := strings.Index(message[stdoutStart:], "\n[stderr]")
+
+		var output string
+		if stderrStart == -1 {
+			// No stderr marker, take everything after stdout
+			output = message[stdoutStart:]
+		} else {
+			// Take only the stdout section
+			output = message[stdoutStart : stdoutStart+stderrStart]
+
+			// Extract and inspect stderr
+			stderrAbsoluteStart := stdoutStart + stderrStart + len("\n[stderr]\n")
+			if stderrAbsoluteStart < len(message) {
+				stderr := strings.TrimSpace(message[stderrAbsoluteStart:])
+				if stderr != "" {
+					// Return an error if stderr is not empty
+					return "", fmt.Errorf("%s", stderr)
+				}
+			}
+		}
+
+		return strings.TrimSpace(output), nil
+	}
+
+	return "", nil
+}
+
+// Helper to generate SSH key pair
+func GenerateSSHKeyPair() (publicKey string, privateKey string, err error) {
+	// Generate RSA key pair
+	privateKeyData, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		return "", "", err
+	}
+
+	// Encode private key to PEM format
+	privateKeyPEM := &pem.Block{
+		Type:  "RSA PRIVATE KEY",
+		Bytes: x509.MarshalPKCS1PrivateKey(privateKeyData),
+	}
+	privateKeyStr := string(pem.EncodeToMemory(privateKeyPEM))
+
+	// Generate public key in SSH format
+	pub, err := ssh.NewPublicKey(&privateKeyData.PublicKey)
+	if err != nil {
+		return "", "", err
+	}
+	publicKeyStr := string(ssh.MarshalAuthorizedKey(pub))
+
+	return publicKeyStr, privateKeyStr, nil
+}
+
+// Helper to generate kubeconfig
+func GenerateKubeconfig(restConfig *rest.Config) (string, error) {
+	// Create kubeconfig using proper types
+	config := clientcmdapi.NewConfig()
+
+	// Define cluster
+	clusterName := "cluster"
+	cluster := clientcmdapi.NewCluster()
+	cluster.Server = restConfig.Host
+
+	// In development environments, CAData is cleared and Insecure is set to true
+	// We need to handle this case by adding insecure-skip-tls-verify
+	if len(restConfig.CAData) == 0 || restConfig.Insecure {
+		cluster.InsecureSkipTLSVerify = true
+	} else {
+		cluster.CertificateAuthorityData = restConfig.CAData
+	}
+	config.Clusters[clusterName] = cluster
+
+	// Define user
+	userName := "admin"
+	authInfo := clientcmdapi.NewAuthInfo()
+	// Support both certificate and token authentication
+	if restConfig.BearerToken != "" {
+		authInfo.Token = restConfig.BearerToken
+	} else {
+		authInfo.ClientCertificateData = restConfig.CertData
+		authInfo.ClientKeyData = restConfig.KeyData
+	}
+	config.AuthInfos[userName] = authInfo
+
+	// Define context
+	contextName := "admin@cluster"
+	context := clientcmdapi.NewContext()
+	context.Cluster = clusterName
+	context.AuthInfo = userName
+	config.Contexts[contextName] = context
+
+	// Set current context
+	config.CurrentContext = contextName
+
+	// Marshal to YAML
+	kubeconfigBytes, err := clientcmd.Write(*config)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal kubeconfig: %w", err)
+	}
+
+	return string(kubeconfigBytes), nil
+}
+
+// Verifies that a nodepool created using framework has DiskStorageAccountType set to the framework default "StandardSSD_LRS"
+func ValidateNodePoolDiskStorageAccountType(
+	ctx context.Context,
+	nodePoolsClient *hcpsdk20240610preview.NodePoolsClient,
+	resourceGroupName string,
+	hcpClusterName string,
+	nodePoolName string,
+) error {
+	nodePoolResp, err := GetNodePool(ctx, nodePoolsClient, resourceGroupName, hcpClusterName, nodePoolName)
+	if err != nil {
+		return fmt.Errorf("failed to get nodepool %s: %w", nodePoolName, err)
+	}
+
+	nodePool := nodePoolResp.NodePool
+
+	// Verify the nodepool exists and has the expected structure
+	if nodePool.Properties == nil {
+		return fmt.Errorf("nodepool %s has no properties", nodePoolName)
+	}
+
+	if nodePool.Properties.Platform == nil {
+		return fmt.Errorf("nodepool %s has no platform configuration", nodePoolName)
+	}
+
+	if nodePool.Properties.Platform.OSDisk == nil {
+		return fmt.Errorf("nodepool %s has no OS disk configuration", nodePoolName)
+	}
+
+	if nodePool.Properties.Platform.OSDisk.DiskStorageAccountType == nil {
+		return fmt.Errorf("nodepool %s has no DiskStorageAccountType set", nodePoolName)
+	}
+
+	// Verify the framework default (StandardSSD_LRS) overrode the API default (Premium_LRS)
+	expectedDiskType := "StandardSSD_LRS"
+	actualDiskType := string(*nodePool.Properties.Platform.OSDisk.DiskStorageAccountType)
+
+	if actualDiskType != expectedDiskType {
+		return fmt.Errorf("nodepool %s has incorrect DiskStorageAccountType: expected %s (framework default), got %s",
+			nodePoolName, expectedDiskType, actualDiskType)
+	}
+
+	return nil
 }

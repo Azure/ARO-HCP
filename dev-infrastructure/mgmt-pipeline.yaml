@@ -107,6 +107,11 @@ resourceGroups:
         resourceGroup: service
         step: output
         name: backend
+    - name: sessiongateMIResourceId
+      input:
+        resourceGroup: service
+        step: output
+        name: sessiongate
     dependsOn:
     - resourceGroup: management
       step: infra
@@ -202,6 +207,11 @@ resourceGroups:
         resourceGroup: regional
         step: output
         name: maestroEventGridNamespaceId
+    - name: auditLogsEventHubAuthRuleId
+      input:
+        resourceGroup: kusto
+        step: output
+        name: auditLogsEventHubAuthRuleId
     dependsOn:
     - resourceGroup: management
       step: cx-oncert-public-kv-issuer
@@ -211,8 +221,12 @@ resourceGroups:
       step: oncert-public-kv-issuer
     automatedRetry:
       errorContainsAny:
+      - "DeploymentScriptACIProvisioningTimeout"
+      - "InternalServerError"
       - "Internal server error"
       - "Resource is in Updating state"
+      - "There was a problem communicating with the identity service"
+      - "DeploymentScriptExceededMaxAllowedTime"
       maximumRetryCount: 3
       durationBetweenRetries: 2m
   - name: nsp
@@ -278,6 +292,12 @@ resourceGroups:
     - ../observability/prometheus/namespace.mgmt.yaml
     chartDir: ../observability/prometheus/deploy
     valuesFile: ../observability/prometheus/values-mgmt.yaml
+    kustoEndpoint:
+      resourceGroup: kusto
+      step: output
+      name: kustoUri
+    kustoDatabase: '{{ .kusto.serviceLogsDatabase }}'
+    kustoTable: 'containerLogs'
     inputVariables:
       dcrRemoteWriteUrl:
         resourceGroup: management
@@ -312,6 +332,12 @@ resourceGroups:
     releaseNamespace: acrpull
     chartDir: ./../acrpull/deploy
     valuesFile: ./../acrpull/deploy/values.yaml
+    kustoEndpoint:
+      resourceGroup: kusto
+      step: output
+      name: kustoUri
+    kustoDatabase: '{{ .kusto.serviceLogsDatabase }}'
+    kustoTable: 'containerLogs'
     dependsOn:
     - resourceGroup: management
       step: prometheus
@@ -333,6 +359,12 @@ resourceGroups:
     releaseNamespace: 'default-sc'
     chartDir: ../mgmt-fixes/deploy/default-sc
     valuesFile: ../mgmt-fixes/default-sc.values.yaml
+    kustoEndpoint:
+      resourceGroup: kusto
+      step: output
+      name: kustoUri
+    kustoDatabase: '{{ .kusto.serviceLogsDatabase }}'
+    kustoTable: 'containerLogs'
     dependsOn:
     - resourceGroup: management
       step: cluster
@@ -356,6 +388,12 @@ resourceGroups:
     valuesFile: ../mgmt-fixes/mitigations.values.yaml
     # Bump timeout to help with scaling event related issues
     timeout: 15m
+    kustoEndpoint:
+      resourceGroup: kusto
+      step: output
+      name: kustoUri
+    kustoDatabase: '{{ .kusto.serviceLogsDatabase }}'
+    kustoTable: 'containerLogs'
     dependsOn:
     - resourceGroup: management
       step: cluster
@@ -377,6 +415,12 @@ resourceGroups:
     releaseNamespace: 'kubelet-ds'
     chartDir: ../mgmt-fixes/deploy/kubelet-ds
     valuesFile: ../mgmt-fixes/kubelet-ds.values.yaml
+    kustoEndpoint:
+      resourceGroup: kusto
+      step: output
+      name: kustoUri
+    kustoDatabase: '{{ .kusto.serviceLogsDatabase }}'
+    kustoTable: 'containerLogs'
     dependsOn:
     - resourceGroup: management
       step: cluster
@@ -407,6 +451,12 @@ resourceGroups:
     releaseNamespace: 'arobit'
     chartDir: ../observability/arobit/deploy
     valuesFile: ../observability/arobit/values-mgmt.yaml
+    kustoEndpoint:
+      resourceGroup: kusto
+      step: output
+      name: kustoUri
+    kustoDatabase: '{{ .kusto.serviceLogsDatabase }}'
+    kustoTable: 'containerLogs'
     dependsOn:
     - resourceGroup: management
       step: prometheus
@@ -441,6 +491,12 @@ resourceGroups:
     releaseNamespace: monitoring
     chartDir: ./../observability/kube-events/deploy
     valuesFile: ./../observability/kube-events/values.yaml
+    kustoEndpoint:
+      resourceGroup: kusto
+      step: output
+      name: kustoUri
+    kustoDatabase: '{{ .kusto.serviceLogsDatabase }}'
+    kustoTable: 'containerLogs'
     dependsOn:
     - resourceGroup: management
       step: cluster

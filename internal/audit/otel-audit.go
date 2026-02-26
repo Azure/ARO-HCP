@@ -17,7 +17,6 @@ package audit
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"net"
 	"net/http"
 	"strings"
@@ -26,6 +25,8 @@ import (
 	"github.com/microsoft/go-otel-audit/audit/base"
 	"github.com/microsoft/go-otel-audit/audit/conn"
 	"github.com/microsoft/go-otel-audit/audit/msgs"
+
+	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 const (
@@ -82,26 +83,54 @@ func GetOperationType(method string) msgs.OperationType {
 	}
 }
 
-func CreateOtelAuditMsg(log *slog.Logger, r *http.Request) msgs.Msg {
+// ResponseWriter wraps http.ResponseWriter to capture the status code
+// for audit logging.
+type ResponseWriter struct {
+	http.ResponseWriter
+	statusCode int
+}
+
+func (w *ResponseWriter) WriteHeader(statusCode int) {
+	w.statusCode = statusCode
+	w.ResponseWriter.WriteHeader(statusCode)
+}
+
+// StatusCode returns the HTTP status code that was written.
+// Returns http.StatusOK if WriteHeader was never called.
+func (w *ResponseWriter) StatusCode() int {
+	if w.statusCode == 0 {
+		return http.StatusOK
+	}
+	return w.statusCode
+}
+
+func NewResponseWriter(w http.ResponseWriter) *ResponseWriter {
+	return &ResponseWriter{ResponseWriter: w}
+}
+
+func CreateOtelAuditMsg(ctx context.Context, r *http.Request, categoryDescription string, accessLevel string, callerIdentities map[msgs.CallerIdentityType][]msgs.CallerIdentityEntry) msgs.Msg {
+	logger := utils.LoggerFromContext(ctx)
+
 	host, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {
-		log.Error("failed to split host and port for remote request addr", r.RemoteAddr, err.Error())
+		logger.Error(err, "failed to split host and port for remote request addr", "addr", r.RemoteAddr)
 	}
 
 	addr, err := msgs.ParseAddr(host)
 	if err != nil {
-		log.Error("failed to parse address for host", host, err.Error())
+		logger.Error(err, "failed to parse address for host", "host", host)
 	}
 
 	record := msgs.Record{
 		CallerIpAddress:              addr,
 		OperationCategories:          []msgs.OperationCategory{msgs.ResourceManagement},
-		OperationCategoryDescription: "Client Resource Management via frontend",
-		OperationAccessLevel:         "Azure RedHat OpenShift Contributor Role",
+		OperationCategoryDescription: categoryDescription,
+		OperationAccessLevel:         accessLevel,
 		OperationName:                fmt.Sprintf("%s %s", r.Method, r.URL.Path),
 		CallerAgent:                  r.UserAgent(),
 		OperationType:                GetOperationType(r.Method),
 		OperationResult:              msgs.Success,
+		CallerIdentities:             callerIdentities,
 	}
 
 	msg := msgs.Msg{

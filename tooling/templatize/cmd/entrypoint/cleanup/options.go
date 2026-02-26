@@ -16,11 +16,8 @@ package cleanup
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"net/http"
 	"os"
-	"time"
 
 	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
@@ -28,11 +25,9 @@ import (
 
 	"k8s.io/apimachinery/pkg/util/sets"
 
-	"github.com/Azure/ARO-Tools/pkg/graph"
+	"github.com/Azure/ARO-Tools/pipelines/graph"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 
 	"github.com/Azure/ARO-HCP/tooling/templatize/cmd/entrypoint/entrypointutils"
 	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/pipeline"
@@ -40,8 +35,8 @@ import (
 
 func DefaultOptions() *RawOptions {
 	return &RawOptions{
-		RawOptions:           entrypointutils.DefaultOptions(),
-		IgnoreResourceGroups: []string{"global", "hcp-kusto-us"},
+		RawOptions:   entrypointutils.DefaultOptions(),
+		OnlyRegional: true,
 	}
 }
 
@@ -50,7 +45,7 @@ func BindOptions(opts *RawOptions, cmd *cobra.Command) error {
 		return err
 	}
 
-	cmd.Flags().StringArrayVar(&opts.IgnoreResourceGroups, "ignore", opts.IgnoreResourceGroups, "Ignore this resource group.")
+	cmd.Flags().BoolVar(&opts.OnlyRegional, "only-regional", opts.OnlyRegional, "Only cleanup resources from regional resource groups.")
 
 	cmd.Flags().BoolVar(&opts.DryRun, "dry-run", opts.DryRun, "Print the resource groups that would be cleaned up without deleting them.")
 	cmd.Flags().BoolVar(&opts.Wait, "wait", opts.Wait, "Wait for the resource groups to be fully cleaned up.")
@@ -61,7 +56,7 @@ func BindOptions(opts *RawOptions, cmd *cobra.Command) error {
 type RawOptions struct {
 	*entrypointutils.RawOptions
 
-	IgnoreResourceGroups []string
+	OnlyRegional bool
 
 	DryRun bool
 	Wait   bool
@@ -85,7 +80,7 @@ type completedOptions struct {
 	AzureCredential    azcore.TokenCredential
 	SubscriptionLookup pipeline.SubscriptionLookup
 
-	IgnoreResourceGroups sets.Set[string]
+	OnlyRegional bool
 
 	DryRun bool
 	Wait   bool
@@ -128,7 +123,7 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 			AzureCredential:    azCredential,
 			SubscriptionLookup: pipeline.LookupSubscriptionID(o.Subscriptions),
 
-			IgnoreResourceGroups: sets.New[string](o.IgnoreResourceGroups...),
+			OnlyRegional: o.OnlyRegional,
 
 			DryRun: o.DryRun,
 			Wait:   o.Wait,
@@ -152,16 +147,24 @@ func (o *Options) CleanUpResources(ctx context.Context) error {
 		return fmt.Errorf("failed to generate execution graph: %w", err)
 	}
 
-	group, _ := errgroup.WithContext(ctx)
-	clients := map[string]*armresources.ResourceGroupsClient{}
+	var regionalRGs sets.Set[string]
+	if o.OnlyRegional {
+		regionalRGs = sets.New[string](entrypointutils.RegionalResourceGroupNames(o.Config)...)
+	}
+
+	group, groupCtx := errgroup.WithContext(ctx)
+
 	for _, resourceGroup := range executionGraph.ResourceGroups {
 		rgLogger := logger.WithValues("resourceGroup", resourceGroup.ResourceGroup)
-		if o.IgnoreResourceGroups.Has(resourceGroup.ResourceGroup) {
-			rgLogger.Info("Ignoring resource group")
+
+		if o.OnlyRegional && !regionalRGs.Has(resourceGroup.ResourceGroup) {
+			rgLogger.Info("Skipping non-regional resource group")
 			continue
 		}
-		if o.DryRun {
-			rgLogger.Info("Would delete resource group.")
+
+		// In dry-run mode without wait, just log what would be deleted and continue
+		if o.DryRun && !o.Wait {
+			rgLogger.Info("Would delete resource group.", "resourceGroup", resourceGroup.ResourceGroup)
 			continue
 		}
 
@@ -170,44 +173,27 @@ func (o *Options) CleanUpResources(ctx context.Context) error {
 			return fmt.Errorf("failed to lookup subscription ID for %q: %w", resourceGroup.Subscription, err)
 		}
 
-		var rgClient *armresources.ResourceGroupsClient
-		if client, exists := clients[subscriptionID]; exists {
-			rgClient = client
-		} else {
-			resourceGroupClient, err := armresources.NewResourceGroupsClient(subscriptionID, o.AzureCredential, nil)
-			if err != nil {
-				return fmt.Errorf("failed to create resource group client for subscription %s: %w", subscriptionID, err)
-			}
-			rgClient = resourceGroupClient
-			clients[subscriptionID] = rgClient
+		rgLogger.Info("Deleting resource group with ordered resource cleanup")
+
+		// Create deleter for this resource group
+		deleter := &resourceGroupDeleter{
+			resourceGroupName: resourceGroup.ResourceGroup,
+			subscriptionID:    subscriptionID,
+			credential:        o.AzureCredential,
+			logger:            rgLogger,
+			wait:              o.Wait,
+			dryRun:            o.DryRun,
 		}
 
-		rgLogger.Info("Deleting resource group.")
-		poller, err := rgClient.BeginDelete(ctx, resourceGroup.ResourceGroup, nil)
-		var deleteErr *azcore.ResponseError
-		alreadyGone := errors.As(err, &deleteErr) && deleteErr.StatusCode == http.StatusNotFound
-		if alreadyGone {
-			rgLogger.Info("Resource group already deleted.")
-			continue
-		}
-		if err != nil {
-			return fmt.Errorf("failed to delete resource group %s: %w", resourceGroup.ResourceGroup, err)
-		}
-
-		if o.Wait {
-			group.Go(func() error {
-				if _, err := poller.PollUntilDone(ctx, &runtime.PollUntilDoneOptions{Frequency: 10 * time.Second}); err != nil {
-					return fmt.Errorf("failed to wait for resource group %s to be deleted: %w", resourceGroup.ResourceGroup, err)
-				}
-				rgLogger.Info("Deleted resource group.")
-				return nil
-			})
-		}
+		// Always execute in parallel via errgroup
+		group.Go(func() error {
+			return deleter.execute(groupCtx)
+		})
 	}
-	if o.Wait {
-		if err := group.Wait(); err != nil {
-			return err
-		}
+
+	// Always wait for the errgroup to ensure all deletions are started
+	if err := group.Wait(); err != nil {
+		return err
 	}
 
 	if !o.DryRun {

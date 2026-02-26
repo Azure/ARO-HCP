@@ -2,6 +2,7 @@ broker:
   host: "__brokerHost__"
   port: 8883
 azure:
+  cloudEnvironmentName: "{{ .cloudEnvironmentName }}"
   clientId: "__msiClientId__"
   tenantId: "__tenantId__"
 serviceAccountName: "{{ .maestro.agent.k8s.serviceAccountName }}"

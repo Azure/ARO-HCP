@@ -55,6 +55,10 @@
       "type": "string",
       "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
     },
+    "semVerWithPrerelease": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(-[0-9A-Za-z-]+(\\.[0-9A-Za-z-]+)*)?$"
+    },
     "k8sRollingUpdateDeploymentStrategy": {
       "type": "object",
       "description": "Spec to control the desired behavior of rolling update.",
@@ -426,6 +430,9 @@
     "aksAgentPool": {
       "type": "object",
       "properties": {
+        "name": {
+          "type": "string"
+        },
         "maxCount": {
           "type": "number"
         },
@@ -451,6 +458,7 @@
       },
       "additionalProperties": false,
       "required": [
+        "name",
         "maxCount",
         "minCount",
         "osDiskSizeGB",
@@ -623,6 +631,21 @@
         "OneCertV2-PrivateCA"
       ]
     },
+    "backendMaestroConfig": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "sourceEnvironmentIdentifier": {
+          "type": "string",
+          "maxLength": 10,
+          "pattern": "^[a-z]+$",
+          "description": "The source environment identifier must be between 1 and 10 characters and can contain only lowercase letters"
+        }
+      },
+      "required": [
+        "sourceEnvironmentIdentifier"
+      ]
+    },
     "imageArtifact": {
       "type": "object",
       "additionalProperties": false,
@@ -717,6 +740,21 @@
           "properties": {
             "image": {
               "$ref": "#/definitions/containerImage"
+            }
+          }
+        },
+        "admissionWebhook": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "patch": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "image": {
+                  "$ref": "#/definitions/containerImageSha"
+                }
+              }
             }
           }
         }
@@ -879,6 +917,17 @@
     "cloud": {
       "type": "string"
     },
+    "cloudEnvironmentName": {
+      "description": "The name of the Azure cloud environment. This conceptually represents the same cloud as the `cloud` attribute but it uses a different naming scheme. Different software in Azure expects different naming schemes representing the same cloud. For example, Secret Store CSI Provider Azure follows this naming scheme and the accepted values for that component can be found in https://github.com/Azure/secrets-store-csi-driver-provider-azure/blob/master/website/content/en/getting-started/usage/_index.md#create-your-own-secretproviderclass-object under the `cloudName` attribute",
+      "type": "string",
+      "enum": [
+        "AzurePublicCloud",
+        "AzureUSGovernmentCloud",
+        "AzureChinaCloud",
+        "AzureGermanCloud",
+        "AzureStackCloud"
+      ]
+    },
     "azureRegionAvailabilityZoneCount": {
       "type": "integer"
     },
@@ -945,7 +994,6 @@
             }
           },
           "required": [
-            "version",
             "bundle"
           ]
         },
@@ -961,7 +1009,6 @@
           },
           "additionalProperties": false,
           "required": [
-            "version",
             "bundle"
           ]
         }
@@ -1118,6 +1165,70 @@
                     "maxVersion"
                   ],
                   "additionalProperties": false
+                },
+                "candidate": {
+                  "type": "object",
+                  "properties": {
+                    "minVersion": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/definitions/semVerWithPrerelease"
+                        },
+                        {
+                          "type": "string",
+                          "pattern": "^$"
+                        }
+                      ]
+                    },
+                    "maxVersion": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/definitions/semVerWithPrerelease"
+                        },
+                        {
+                          "type": "string",
+                          "pattern": "^$"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "minVersion",
+                    "maxVersion"
+                  ],
+                  "additionalProperties": false
+                },
+                "nightly": {
+                  "type": "object",
+                  "properties": {
+                    "minVersion": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/definitions/semVerWithPrerelease"
+                        },
+                        {
+                          "type": "string",
+                          "pattern": "^$"
+                        }
+                      ]
+                    },
+                    "maxVersion": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/definitions/semVerWithPrerelease"
+                        },
+                        {
+                          "type": "string",
+                          "pattern": "^$"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "minVersion",
+                    "maxVersion"
+                  ],
+                  "additionalProperties": false
                 }
               },
               "required": [
@@ -1212,6 +1323,21 @@
         "managedIdentityName": {
           "type": "string",
           "description": "The name of the MSI that will be used by the backend to interact with Azure"
+        },
+        "azureRuntimeConfig": {
+          "type": "object",
+          "properties": {
+            "tlsCertificatesIssuer": {
+              "$ref": "#/definitions/certificateIssuer"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "tlsCertificatesIssuer"
+          ]
+        },
+        "maestro": {
+          "$ref": "#/definitions/backendMaestroConfig"
         }
       },
       "additionalProperties": false,
@@ -1219,12 +1345,57 @@
         "image",
         "tracing",
         "k8s",
-        "managedIdentityName"
+        "managedIdentityName",
+        "azureRuntimeConfig",
+        "maestro"
+      ]
+    },
+    "sessiongate": {
+      "type": "object",
+      "properties": {
+        "image": {
+          "$ref": "#/definitions/containerImage"
+        },
+        "k8s": {
+          "$ref": "#/definitions/k8sDeployment"
+        },
+        "managedIdentityName": {
+          "type": "string",
+          "description": "The name of the MSI that will be used by the sessiongate to interact with Azure"
+        },
+        "cert": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "maxLength": 127,
+              "pattern": "^[a-zA-Z0-9-]+$"
+            },
+            "issuer": {
+              "$ref": "#/definitions/certificateIssuer"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "name",
+            "issuer"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "image",
+        "k8s",
+        "managedIdentityName",
+        "cert"
       ]
     },
     "adminApi": {
       "type": "object",
       "properties": {
+        "audit": {
+          "$ref": "#/definitions/audit"
+        },
         "image": {
           "$ref": "#/definitions/containerImage"
         },
@@ -1256,6 +1427,7 @@
       },
       "additionalProperties": false,
       "required": [
+        "audit",
         "image",
         "k8s",
         "managedIdentityName",
@@ -1295,6 +1467,15 @@
             },
             "private": {
               "type": "boolean"
+            },
+            "resourceContainerMaxScale": {
+              "type": "integer"
+            },
+            "billingContainerMaxScale": {
+              "type": "integer"
+            },
+            "locksContainerMaxScale": {
+              "type": "integer"
             },
             "zoneRedundantMode": {
               "$ref": "#/definitions/zoneRedundantMode"
@@ -1669,12 +1850,49 @@
         "viewerGroups": {
           "type": "string"
         },
+        "enableAutoScale": {
+          "type": "boolean"
+        },
+        "autoScaleMin": {
+          "type": "integer"
+        },
+        "autoScaleMax": {
+          "type": "integer"
+        },
         "kustoName": {
           "type": "string",
           "description": "Name of the kusto cluster. Must begin with a letter and contain between 4 and 22 lowercase alphanumeric characters.",
           "pattern": "^[a-z][a-z0-9-]*$",
           "minLength": 4,
           "maxLength": 22
+        },
+        "auditLogsEventHub": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "description": "Name of the Event Hub for AKS audit logs"
+            },
+            "namespace": {
+              "type": "string",
+              "description": "Name of the Audit logs Event Hub namespace"
+            },
+            "authRuleName": {
+              "type": "string",
+              "description": "Name of the authorization rule for the Event Hub for use by the aks clusters"
+            },
+            "kustoConsumerGroupName": {
+              "type": "string",
+              "description": "Name of the consumer group for Kusto data connection"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "name",
+            "namespace",
+            "authRuleName",
+            "kustoConsumerGroupName"
+          ]
         },
         "resourceGroup": {
           "description": "DEPRECATED, for backward compatibility only",
@@ -1706,7 +1924,9 @@
         "hostedControlPlaneLogsDatabase",
         "adminGroups",
         "viewerGroups",
-        "kustoName"
+        "kustoName",
+        "enableAutoScale",
+        "auditLogsEventHub"
       ]
     },
     "mise": {
@@ -1771,6 +1991,28 @@
             "audienceFQDN"
           ]
         },
+        "sessiongate": {
+          "type": "object",
+          "properties": {
+            "policyLabel": {
+              "type": "string",
+              "description": "The label of the Session Gate policy."
+            },
+            "authorityFQDN": {
+              "type": "string",
+              "description": "The authority/issuer FQDN of the Session Gate applications auth tokens."
+            },
+            "audience": {
+              "type": "string",
+              "description": "The audience of the Session Gate applications auth tokens."
+            }
+          },
+          "required": [
+            "policyLabel",
+            "authorityFQDN",
+            "audience"
+          ]
+        },
         "image": {
           "$ref": "#/definitions/containerImage"
         },
@@ -1784,6 +2026,7 @@
         "image",
         "arm",
         "genevaActions",
+        "sessiongate",
         "tracing"
       ]
     },
@@ -1952,6 +2195,9 @@
             "FirstPartyUsage=/NonProd",
             ""
           ]
+        },
+        "limitClusterSizes": {
+          "type": "boolean"
         }
       },
       "additionalProperties": false,
@@ -2082,6 +2328,18 @@
       ]
     },
     "acrPull": {
+      "type": "object",
+      "properties": {
+        "image": {
+          "$ref": "#/definitions/containerImage"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "image"
+      ]
+    },
+    "aksCommandRuntime": {
       "type": "object",
       "properties": {
         "image": {
@@ -2316,6 +2574,13 @@
           "pattern": "^[a-z0-9][a-z0-9-]*[a-z0-9]$",
           "description": "The workspace name should include 4-63 letters, digits or '-'. The '-' shouldn't be the first or the last symbol. We limit the name to 44 characters so we have a future option to use NSP: https://learn.microsoft.com/en-us/azure/private-link/network-security-perimeter-concepts"
         },
+        "alertRuleOwningTeamTag": {
+          "type": "string"
+        },
+        "alertsEnabled": {
+          "type": "boolean",
+          "description": "Whether ICM alerting is enabled for this region. When false, action groups will be disabled."
+        },
         "icm": {
           "type": "object",
           "properties": {
@@ -2361,7 +2626,8 @@
         "crossTenantSecurityGroup",
         "grafanaZoneRedundantMode",
         "svcWorkspaceName",
-        "hcpWorkspaceName"
+        "hcpWorkspaceName",
+        "alertRuleOwningTeamTag"
       ]
     },
     "routeMonitorOperator": {
@@ -2378,6 +2644,27 @@
       "required": [
         "operatorImage",
         "blackboxExporterImage"
+      ]
+    },
+    "velero": {
+      "type": "object",
+      "description": "Velero configuration",
+      "properties": {
+        "server": {
+          "$ref": "#/definitions/containerImage"
+        },
+        "azurePlugin": {
+          "$ref": "#/definitions/containerImage"
+        },
+        "hypershiftPlugin": {
+          "$ref": "#/definitions/containerImage"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "server",
+        "azurePlugin",
+        "hypershiftPlugin"
       ]
     },
     "logs": {
@@ -2511,10 +2798,6 @@
     "regionRG": {
       "$ref": "#/definitions/resourceGroupName"
     },
-    "regionBuildout": {
-      "type": "boolean",
-      "description": "Indicates if the region is still in the process of being deployed. When true, various operational features are disabled to prevent issues during deployment, including: ICM alerting. This should be set to false once the region is fully operational"
-    },
     "serviceKeyVault": {
       "type": "object",
       "properties": {
@@ -2605,6 +2888,34 @@
             "ingressGatewayIPAddressName"
           ]
         },
+        "opsIngress": {
+          "type": "object",
+          "description": "Operations ingress configuration for Admin API and other ops components",
+          "properties": {
+            "gateway": {
+              "type": "object",
+              "properties": {
+                "ipAddressName": {
+                  "description": "The name of the ops ingress gateway public IP address resource",
+                  "type": "string"
+                },
+                "ipAddressTags": {
+                  "description": "IPTags to be set on the ops ingress gateway IP address",
+                  "$ref": "#/definitions/keyColonValueCSV"
+                }
+              },
+              "additionalProperties": false,
+              "required": [
+                "ipAddressName",
+                "ipAddressTags"
+              ]
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "gateway"
+          ]
+        },
         "prometheus": {
           "description": "Prometheus deployment configuration",
           "$ref": "#/definitions/prometheus"
@@ -2615,7 +2926,8 @@
         "rg",
         "subscription",
         "aks",
-        "istio"
+        "istio",
+        "opsIngress"
       ]
     },
     "acr": {
@@ -2658,12 +2970,17 @@
         },
         "releaseManagementGroupId": {
           "type": "string"
+        },
+        "sreServiceTag": {
+          "type": "string",
+          "description": "The service tag for SRE access to the service clusters operations ingress"
         }
       },
       "additionalProperties": false,
       "required": [
         "readerGroupId",
-        "releaseManagementGroupId"
+        "releaseManagementGroupId",
+        "sreServiceTag"
       ]
     },
     "keyVaultDNSSuffix": {
@@ -2716,6 +3033,7 @@
   "required": [
     "administration",
     "azureGeoShortId",
+    "cloudEnvironmentName",
     "kvCertOfficerPrincipalId",
     "backplaneAPI",
     "clustersService",
@@ -2736,8 +3054,8 @@
     "oidc",
     "region",
     "regionRG",
-    "regionBuildout",
     "serviceKeyVault",
+    "sessiongate",
     "svc",
     "msiRp",
     "msiCredentialsRefresher",

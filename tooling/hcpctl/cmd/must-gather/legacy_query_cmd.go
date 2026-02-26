@@ -28,7 +28,7 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/sync/errgroup"
 
-	"github.com/Azure/azure-kusto-go/kusto/data/table"
+	azkquery "github.com/Azure/azure-kusto-go/azkustodata/query"
 
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/kusto"
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/mustgather"
@@ -43,15 +43,13 @@ type LegacyNormalizedLogLine struct {
 	Timestamp     time.Time `kusto:"timestamp"`
 }
 
-var servicesDatabaseLegacy = "HCPServiceLogs"
-
 func newQueryCommandLegacy() (*cobra.Command, error) {
 	opts := DefaultMustGatherOptions()
 
 	cmd := &cobra.Command{
 		Use:              "legacy-query",
 		Short:            "Execute default queries against Azure Data Explorer",
-		Long:             `Execute preconfigured queries against Azure Data Explorer clusters. This command relies on the akskubesystem table.`,
+		Long:             "Execute preconfigured queries against Azure Data Explorer clusters. This command relies on the akskubesystem table.",
 		Args:             cobra.NoArgs,
 		SilenceUsage:     true,
 		SilenceErrors:    true,
@@ -68,7 +66,7 @@ func newQueryCommandLegacy() (*cobra.Command, error) {
 
 func (opts *MustGatherOptions) RunLegacy(ctx context.Context) error {
 	logger := logr.FromContextOrDiscard(ctx)
-	clusterIds, err := executeClusterIdQuery(ctx, opts, GetKubeSystemClusterIdQuery(opts.SubscriptionID, opts.ResourceGroup))
+	clusterIds, err := executeClusterIdQuery(ctx, opts, GetKubeSystemClusterIdQuery(opts))
 	if err != nil {
 		return fmt.Errorf("failed to execute cluster id query: %w", err)
 	}
@@ -83,7 +81,7 @@ func (opts *MustGatherOptions) RunLegacy(ctx context.Context) error {
 	if opts.SkipHostedControlPlaneLogs {
 		logger.V(2).Info("Skipping hosted control plane logs")
 	} else {
-		err = executeKubeSystemHostedControlPlaneLogsQuery(ctx, opts, opts.QueryOptions)
+		err = executeKubeSystemHostedControlPlaneLogsQuery(ctx, opts)
 		if err != nil {
 			return fmt.Errorf("failed to execute hosted control plane logs query: %w", err)
 		}
@@ -99,7 +97,7 @@ type kubernetesCol struct {
 
 func processKubesystemLogsRow(row *KubesystemLogsRow) error {
 	// read containername/namespace from the row
-	// handle inconsitent columns
+	// handle inconsistent columns
 
 	if row.ContainerName == "" {
 		kubernetesCol := kubernetesCol{}
@@ -115,17 +113,17 @@ func processKubesystemLogsRow(row *KubesystemLogsRow) error {
 }
 
 func executeKubeSystemQueries(ctx context.Context, opts *MustGatherOptions, queryOpts mustgather.QueryOptions) error {
-	query := GetKubeSystemQuery(opts.SubscriptionID, opts.ResourceGroup, queryOpts.ClusterIds)
+	query := GetKubeSystemQuery(opts, queryOpts.ClusterIds)
 	return castQueryAndWriteToFile(ctx, opts, ServicesLogDirectory, []*kusto.ConfigurableQuery{query})
 }
 
-func executeKubeSystemHostedControlPlaneLogsQuery(ctx context.Context, opts *MustGatherOptions, queryOpts mustgather.QueryOptions) error {
-	query := GetKubeSystemHostedControlPlaneLogsQuery(queryOpts)
+func executeKubeSystemHostedControlPlaneLogsQuery(ctx context.Context, opts *MustGatherOptions) error {
+	query := GetKubeSystemHostedControlPlaneLogsQuery(opts)
 	return castQueryAndWriteToFile(ctx, opts, HostedControlPlaneLogDirectory, query)
 }
 
 func castQueryAndWriteToFile(ctx context.Context, opts *MustGatherOptions, targetDirectory string, queries []*kusto.ConfigurableQuery) error {
-	castFunction := func(input *table.Row) (*LegacyNormalizedLogLine, error) {
+	castFunction := func(input azkquery.Row) (*LegacyNormalizedLogLine, error) {
 		// can directly cast, cause the row is already normalized
 		legacyLogLine := &KubesystemLogsRow{}
 		if err := input.ToStruct(legacyLogLine); err != nil {
@@ -155,26 +153,26 @@ type KubesystemLogsRow struct {
 	Kubernetes    string `kusto:"kubernetes"`
 }
 
-func GetKubeSystemClusterIdQuery(subscriptionId, resourceGroupName string) *kusto.ConfigurableQuery {
-	return kusto.NewClusterIdQuery(servicesDatabaseLegacy, "kubesystem", subscriptionId, resourceGroupName)
+func GetKubeSystemClusterIdQuery(opts *MustGatherOptions) *kusto.ConfigurableQuery {
+	return kusto.NewLegacyClusterIdQuery(opts.SubscriptionID, opts.ResourceGroup, opts.TimestampMin, opts.TimestampMax, opts.Limit)
 }
 
-func GetKubeSystemQuery(subscriptionId, resourceGroupName string, clusterIds []string) *kusto.ConfigurableQuery {
-	return kusto.NewKubeSystemQuery(subscriptionId, resourceGroupName, clusterIds)
+func GetKubeSystemQuery(opts *MustGatherOptions, clusterIds []string) *kusto.ConfigurableQuery {
+	return kusto.NewKubeSystemQuery(opts.SubscriptionID, opts.ResourceGroup, clusterIds, opts.TimestampMin, opts.TimestampMax, opts.Limit)
 }
 
-func GetKubeSystemHostedControlPlaneLogsQuery(opts mustgather.QueryOptions) []*kusto.ConfigurableQuery {
+func GetKubeSystemHostedControlPlaneLogsQuery(opts *MustGatherOptions) []*kusto.ConfigurableQuery {
 	queries := []*kusto.ConfigurableQuery{}
-	for _, clusterId := range opts.ClusterIds {
-		query := kusto.NewCustomerKubeSystemQuery(clusterId, opts.Limit)
+	for _, clusterId := range opts.QueryOptions.ClusterIds {
+		query := kusto.NewCustomerKubeSystemQuery(clusterId, opts.TimestampMin, opts.TimestampMax, opts.Limit)
 		queries = append(queries, query)
 	}
 	return queries
 }
 
-func queryAndWriteToFile(ctx context.Context, opts *MustGatherOptions, targetDirectory string, castFunction func(input *table.Row) (*LegacyNormalizedLogLine, error), queries []*kusto.ConfigurableQuery) error {
+func queryAndWriteToFile(ctx context.Context, opts *MustGatherOptions, targetDirectory string, castFunction func(input azkquery.Row) (*LegacyNormalizedLogLine, error), queries []*kusto.ConfigurableQuery) error {
 	// logger := logr.FromContextOrDiscard(ctx)
-	queryOutputChannel := make(chan *table.Row)
+	queryOutputChannel := make(chan azkquery.Row)
 
 	queryGroup := new(errgroup.Group)
 	queryGroup.Go(func() error {
@@ -196,7 +194,7 @@ func queryAndWriteToFile(ctx context.Context, opts *MustGatherOptions, targetDir
 	return nil
 }
 
-func writeNormalizedLogsToFile(outputChannel chan *table.Row, castFunction func(input *table.Row) (*LegacyNormalizedLogLine, error), outputPath string, directory string) error {
+func writeNormalizedLogsToFile(outputChannel chan azkquery.Row, castFunction func(input azkquery.Row) (*LegacyNormalizedLogLine, error), outputPath string, directory string) error {
 	openedFiles := make(map[string]*os.File)
 	var allErrors error
 	for row := range outputChannel {
@@ -222,7 +220,7 @@ func writeNormalizedLogsToFile(outputChannel chan *table.Row, castFunction func(
 }
 
 func executeClusterIdQuery(ctx context.Context, opts *MustGatherOptions, query *kusto.ConfigurableQuery) ([]string, error) {
-	outputChannel := make(chan *table.Row)
+	outputChannel := make(chan azkquery.Row)
 	allClusterIds := make([]string, 0)
 
 	g := new(errgroup.Group)
@@ -243,6 +241,7 @@ func executeClusterIdQuery(ctx context.Context, opts *MustGatherOptions, query *
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute query: %w", err)
 	}
+
 	close(outputChannel)
 
 	if err := g.Wait(); err != nil {

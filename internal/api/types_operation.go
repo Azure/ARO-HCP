@@ -15,6 +15,7 @@
 package api
 
 import (
+	"path"
 	"strings"
 	"time"
 
@@ -35,7 +36,10 @@ const (
 	OperationRequestRevokeCredentials OperationRequest = "RevokeCredentials"
 )
 
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type Operation struct {
+	CosmosMetadata `json:"cosmosMetadata"`
+
 	// ResourceID must be serialized exactly here for the generic CRUD to work.
 	// ResourceID here is NOT an ARM resourceID, it just parses like and one and is guarantee unique
 	ResourceID *azcorearm.ResourceID `json:"resourceId"`
@@ -72,25 +76,14 @@ type Operation struct {
 	Error *arm.CloudErrorBody `json:"error,omitempty"`
 }
 
-// GetValidTypes returns the valid resource types for an OperationDocument.
-func (doc Operation) GetValidTypes() []string {
-	return []string{OperationStatusResourceType.String()}
-}
-
-var _ CosmosPersistable = &Operation{}
-
 func (o *Operation) ComputeLogicalResourceID() *azcorearm.ResourceID {
-	return o.ResourceID
-}
-
-func (o *Operation) GetCosmosData() CosmosData {
-	return CosmosData{
-		CosmosUID:    o.OperationID.Name,
-		PartitionKey: strings.ToLower(o.ExternalID.SubscriptionID),
-		ItemID:       o.ComputeLogicalResourceID(),
-	}
-}
-
-func (o *Operation) SetCosmosDocumentData(cosmosUID string) {
-	panic("coding error: all operations must initialize with a cosmosID")
+	return Must(azcorearm.ParseResourceID(
+		strings.ToLower(
+			path.Join(
+				"/subscriptions",
+				o.OperationID.SubscriptionID,
+				"providers",
+				OperationStatusResourceType.String(),
+				o.OperationID.Name,
+			))))
 }

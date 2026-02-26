@@ -14,6 +14,7 @@ For more information about ARO HCP environments, see the [ARO HCP Environments d
 - If the test creates more than one cluster at a time, the names of the clusters must be unique.
 - Bicep deployment names must be unique within the same resource group.
 - When using your own customized bicep templates or creating resources via other means such as direct API calls be sure to follow the above rules, appending a 6 character random string to the cluster and managed resource group names is likely sufficient.
+- For new tests, remember updating test fixtures that help checking tests are executed in the right environment. To do so run `make update-go-fixtures` or `make update` in the `test` folder to trigger fixture update.
 
 ### Test cases with per-test cluster (**main focus**)
 
@@ -64,6 +65,14 @@ run tests locally, that option should be used for CI runs only):
 ```bash
 export CUSTOMER_SUBSCRIPTION=<subscriptionName>
 export LOCATION=uksouth
+```
+
+You can also redefine default OpenShift versions the E2E test cases will use
+when deploying ARO HCP hosted cluster, eg.:
+
+```bash
+$ export ARO_HCP_OPENSHIFT_CONTROLPLANE_VERSION=4.20
+$ export ARO_HCP_OPENSHIFT_NODEPOOL_VERSION=4.20.8
 ```
 
 So finally, you can run a particular test case:

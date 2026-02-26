@@ -1,0 +1,77 @@
+$schema: "pipeline.schema.v1"
+serviceGroup: Microsoft.Azure.ARO.HCP.Opstool.Infra
+rolloutName: Opstool Cluster Rollout
+resourceGroups:
+- name: opstool
+  resourceGroup: '{{ .svc.rg }}'
+  subscription: '{{ .svc.subscription.key }}'
+  steps:
+  - name: cluster
+    action: ARM
+    template: templates/opstool-cluster.bicep
+    parameters: configurations/opstool-cluster.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    automatedRetry:
+      errorContainsAny:
+      - "Internal server error"
+      - "Resource is in Updating state"
+      maximumRetryCount: 3
+      durationBetweenRetries: 2m
+  - name: cluster-output
+    action: ARM
+    template: templates/output-opstool-cluster.bicep
+    parameters: configurations/output-opstool-cluster.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
+    dependsOn:
+    - resourceGroup: opstool
+      step: cluster
+  # Placeholder kusto output for schema compatibility (opstool doesn't use kusto - a breaking fix)
+  - name: kusto-placeholder
+    action: ARM
+    template: templates/output-opstool-cluster.bicep
+    parameters: configurations/output-opstool-cluster.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
+    dependsOn:
+    - resourceGroup: opstool
+      step: cluster-output
+  - name: alerting
+    action: ARM
+    template: templates/opstool-alerting.bicep
+    parameters: configurations/opstool-alerting.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    dependsOn:
+    - resourceGroup: opstool
+      step: cluster
+  - name: prometheus
+    aksCluster: '{{ .opstool.aks.name }}'
+    action: Helm
+    releaseName: 'arohcp-monitor'
+    releaseNamespace: 'prometheus'
+    namespaceFiles:
+    - ../observability/prometheus/namespace.opstool.yaml
+    chartDir: ../observability/prometheus/deploy
+    valuesFile: ../observability/prometheus/values-opstool.yaml
+    kustoEndpoint:
+      resourceGroup: opstool
+      step: kusto-placeholder
+      name: kustoUri
+    kustoDatabase: ''
+    kustoTable: ''
+    inputVariables:
+      prometheusUAMIClientId:
+        resourceGroup: opstool
+        step: cluster-output
+        name: prometheusUAMIClientId
+      dcrRemoteWriteUrl:
+        resourceGroup: opstool
+        step: cluster-output
+        name: dcrRemoteWriteUrl
+    dependsOn:
+    - resourceGroup: opstool
+      step: kusto-placeholder
+    identityFrom:
+      resourceGroup: opstool
+      step: cluster-output
+      name: prometheusUAMIId

@@ -26,10 +26,10 @@ import (
 
 	"github.com/go-logr/logr"
 
-	"github.com/Azure/ARO-Tools/pkg/config"
-	"github.com/Azure/ARO-Tools/pkg/graph"
-	"github.com/Azure/ARO-Tools/pkg/helm"
-	"github.com/Azure/ARO-Tools/pkg/types"
+	"github.com/Azure/ARO-Tools/config"
+	"github.com/Azure/ARO-Tools/pipelines/graph"
+	"github.com/Azure/ARO-Tools/pipelines/types"
+	"github.com/Azure/ARO-Tools/tools/helm"
 
 	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/aks"
 )
@@ -70,6 +70,19 @@ func runHelmStep(id graph.Identifier, step *types.HelmStep, ctx context.Context,
 			return fmt.Errorf("input variable %s is %T, not a string", key, value)
 		}
 		replacements[key] = str
+	}
+
+	var kustoEndpointString string
+	if step.KustoEndpoint != nil {
+		kustoEndpointResolved, err := resolveInput(id.ServiceGroup, *(step.KustoEndpoint), outputs)
+		if err != nil {
+			return err
+		}
+		var ok bool
+		kustoEndpointString, ok = kustoEndpointResolved.(string)
+		if !ok {
+			return fmt.Errorf("kusto endpoint variable is not a string, value: %T", kustoEndpointResolved)
+		}
 	}
 
 	process := func(filepath string) ([]byte, error) {
@@ -121,6 +134,9 @@ func runHelmStep(id graph.Identifier, step *types.HelmStep, ctx context.Context,
 		ReleaseNamespace:  step.ReleaseNamespace,
 		ChartDir:          chartDir,
 		ValuesFile:        values,
+		KustoDatabase:     step.KustoDatabase,
+		KustoTable:        step.KustoTable,
+		KustoEndpoint:     kustoEndpointString,
 		Timeout:           5 * time.Minute,
 		KubeconfigFile:    kubeconfig,
 		DryRun:            options.DryRun,

@@ -31,14 +31,15 @@ resource prometheusWipRules 'Microsoft.AlertsManagement/prometheusRuleGroups@202
 This may indicate that the Prometheus server is down, unreachable due to network issues, or experiencing a crash loop.
 Check the status of the Prometheus pods, service endpoints, and network connectivity.
 '''
-          runbook_url: 'TBD'
-          summary: 'Prometheus is unreachable for 5 minutes.'
-          title: '''Prometheus has not been reachable for the past 5 minutes.
+          info: '''Prometheus has not been reachable for the past 5 minutes.
 This may indicate that the Prometheus server is down, unreachable due to network issues, or experiencing a crash loop.
 Check the status of the Prometheus pods, service endpoints, and network connectivity.
 '''
+          runbook_url: 'TBD'
+          summary: 'Prometheus is unreachable for 5 minutes.'
+          title: 'Prometheus is unreachable for 5 minutes.'
         }
-        expression: 'min by (job, namespace) (up{job="prometheus/prometheus",namespace="prometheus"}) == 0'
+        expression: 'group by (cluster) (up{job="kube-state-metrics"}) unless on(cluster) group by (cluster) (up{job="prometheus/prometheus",namespace="prometheus"} == 1)'
         for: 'PT5M'
         severity: 3
       }
@@ -63,14 +64,15 @@ Check the status of the Prometheus pods, service endpoints, and network connecti
 This may indicate that the Prometheus server is down, experiencing network issues, or stuck in a crash loop.
 Please check the status of the Prometheus pods, service endpoints, and network connectivity.
 '''
-          runbook_url: 'TBD'
-          summary: 'Prometheus is unreachable for 1 day.'
-          title: '''Prometheus has been unreachable for more than 5% of the time over the past 24 hours.
+          info: '''Prometheus has been unreachable for more than 5% of the time over the past 24 hours.
 This may indicate that the Prometheus server is down, experiencing network issues, or stuck in a crash loop.
 Please check the status of the Prometheus pods, service endpoints, and network connectivity.
 '''
+          runbook_url: 'TBD'
+          summary: 'Prometheus is unreachable for 1 day.'
+          title: 'Prometheus is unreachable for 1 day.'
         }
-        expression: 'avg by (job, namespace) (avg_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d])) < 0.95'
+        expression: 'avg by (job, namespace, cluster) (avg_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d])) < 0.95'
         for: 'PT10M'
         severity: 3
       }
@@ -97,14 +99,15 @@ a bottleneck or issue with the remote write endpoint, network connectivity, or P
 If this condition persists, it could lead to increased memory usage and potential data loss if the buffer overflows.
 Investigate the health and performance of the remote storage endpoint, network latency, and Prometheus resource utilization.
 '''
-          runbook_url: 'TBD'
-          summary: 'Prometheus pending sample rate is above 40%.'
-          title: '''The pending sample rate of Prometheus remote storage is above 40% for the last 15 minutes.
+          info: '''The pending sample rate of Prometheus remote storage is above 40% for the last 15 minutes.
 This means that more than 40% of samples are waiting to be sent to remote storage, which may indicate
 a bottleneck or issue with the remote write endpoint, network connectivity, or Prometheus performance.
 If this condition persists, it could lead to increased memory usage and potential data loss if the buffer overflows.
 Investigate the health and performance of the remote storage endpoint, network latency, and Prometheus resource utilization.
 '''
+          runbook_url: 'TBD'
+          summary: 'Prometheus pending sample rate is above 40%.'
+          title: 'Prometheus pending sample rate is above 40%.'
         }
         expression: '( prometheus_remote_storage_samples_pending / prometheus_remote_storage_samples_in_flight ) > 0.4'
         for: 'PT15M'
@@ -133,14 +136,15 @@ issues with the remote write endpoint, network instability, or Prometheus resour
 Persistent failures may result in increased memory usage and potential data loss if the buffer overflows.
 Please check the health and performance of the remote storage endpoint, network connectivity, and Prometheus resource utilization.
 '''
-          runbook_url: 'TBD'
-          summary: 'Prometheus failed sample rate to remote storage is above 10%.'
-          title: '''The failed sample rate for Prometheus remote storage has exceeded 10% over the past 15 minutes.
+          info: '''The failed sample rate for Prometheus remote storage has exceeded 10% over the past 15 minutes.
 This indicates that more than 10% of samples are not being successfully sent to remote storage, which could be caused by
 issues with the remote write endpoint, network instability, or Prometheus resource constraints.
 Persistent failures may result in increased memory usage and potential data loss if the buffer overflows.
 Please check the health and performance of the remote storage endpoint, network connectivity, and Prometheus resource utilization.
 '''
+          runbook_url: 'TBD'
+          summary: 'Prometheus failed sample rate to remote storage is above 10%.'
+          title: 'Prometheus failed sample rate to remote storage is above 10%.'
         }
         expression: '( rate(prometheus_remote_storage_samples_failed_total[5m]) / rate(prometheus_remote_storage_samples_total[5m]) ) > 0.1'
         for: 'PT15M'
@@ -177,9 +181,10 @@ resource prometheusRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-0
         annotations: {
           correlationId: 'PrometheusRemoteStorageFailures/{{ $labels.cluster }}/{{ $labels.namespace }}/{{ $labels.pod }}/{{ $labels.remote_name }}/{{ $labels.url }}'
           description: 'Prometheus {{$labels.namespace}}/{{$labels.pod}} failed to send {{ printf "%.1f" $value }}% of the samples to {{ $labels.remote_name}}:{{ $labels.url }}'
+          info: 'Prometheus {{$labels.namespace}}/{{$labels.pod}} failed to send {{ printf "%.1f" $value }}% of the samples to {{ $labels.remote_name}}:{{ $labels.url }}'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/prometheus/prometheusremotestoragefailures'
           summary: 'Prometheus fails to send samples to remote storage.'
-          title: 'Prometheus {{$labels.namespace}}/{{$labels.pod}} failed to send {{ printf "%.1f" $value }}% of the samples to {{ $labels.remote_name}}:{{ $labels.url }}'
+          title: 'Prometheus fails to send samples to remote storage.'
         }
         expression: '((rate(prometheus_remote_storage_failed_samples_total{job="prometheus-prometheus",namespace="prometheus"}[5m]) or rate(prometheus_remote_storage_samples_failed_total{job="prometheus-prometheus",namespace="prometheus"}[5m])) / ((rate(prometheus_remote_storage_failed_samples_total{job="prometheus-prometheus",namespace="prometheus"}[5m]) or rate(prometheus_remote_storage_samples_failed_total{job="prometheus-prometheus",namespace="prometheus"}[5m])) + (rate(prometheus_remote_storage_succeeded_samples_total{job="prometheus-prometheus",namespace="prometheus"}[5m]) or rate(prometheus_remote_storage_samples_total{job="prometheus-prometheus",namespace="prometheus"}[5m])))) * 100 > 1'
         for: 'PT15M'
@@ -203,9 +208,10 @@ resource prometheusRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-0
         annotations: {
           correlationId: 'PrometheusNotIngestingSamples/{{ $labels.cluster }}/{{ $labels.namespace }}/{{ $labels.pod }}'
           description: 'Prometheus {{$labels.namespace}}/{{$labels.pod}} is not ingesting samples.'
+          info: 'Prometheus {{$labels.namespace}}/{{$labels.pod}} is not ingesting samples.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/prometheus/prometheusnotingestingsamples'
           summary: 'Prometheus is not ingesting samples.'
-          title: 'Prometheus {{$labels.namespace}}/{{$labels.pod}} is not ingesting samples.'
+          title: 'Prometheus is not ingesting samples.'
         }
         expression: '(sum without (type) (rate(prometheus_tsdb_head_samples_appended_total{job="prometheus-prometheus",namespace="prometheus"}[5m])) <= 0 and (sum without (scrape_job) (prometheus_target_metadata_cache_entries{job="prometheus-prometheus",namespace="prometheus"}) > 0 or sum without (rule_group) (prometheus_rule_group_rules{job="prometheus-prometheus",namespace="prometheus"}) > 0))'
         for: 'PT10M'
@@ -229,9 +235,10 @@ resource prometheusRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-0
         annotations: {
           correlationId: 'PrometheusBadConfig/{{ $labels.cluster }}/{{ $labels.namespace }}/{{ $labels.pod }}'
           description: 'Prometheus {{$labels.namespace}}/{{$labels.pod}} has failed to reload its configuration.'
+          info: 'Prometheus {{$labels.namespace}}/{{$labels.pod}} has failed to reload its configuration.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/prometheus/prometheusbadconfig'
           summary: 'Failed Prometheus configuration reload.'
-          title: 'Prometheus {{$labels.namespace}}/{{$labels.pod}} has failed to reload its configuration.'
+          title: 'Failed Prometheus configuration reload.'
         }
         expression: 'max_over_time(prometheus_config_last_reload_successful{job="prometheus-prometheus",namespace="prometheus"}[5m]) == 0'
         for: 'PT10M'
@@ -255,9 +262,10 @@ resource prometheusRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-0
         annotations: {
           correlationId: 'PrometheusRuleFailures/{{ $labels.cluster }}/{{ $labels.namespace }}/{{ $labels.pod }}'
           description: 'Prometheus {{$labels.namespace}}/{{$labels.pod}} has failed to evaluate {{ printf "%.0f" $value }} rules in the last 5m.'
+          info: 'Prometheus {{$labels.namespace}}/{{$labels.pod}} has failed to evaluate {{ printf "%.0f" $value }} rules in the last 5m.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/prometheus/prometheusrulefailures'
           summary: 'Prometheus is failing rule evaluations.'
-          title: 'Prometheus {{$labels.namespace}}/{{$labels.pod}} has failed to evaluate {{ printf "%.0f" $value }} rules in the last 5m.'
+          title: 'Prometheus is failing rule evaluations.'
         }
         expression: 'increase(prometheus_rule_evaluation_failures_total{job="prometheus-prometheus",namespace="prometheus"}[5m]) > 0'
         for: 'PT15M'
@@ -281,9 +289,10 @@ resource prometheusRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-0
         annotations: {
           correlationId: 'PrometheusScrapeSampleLimitHit/{{ $labels.cluster }}/{{ $labels.namespace }}/{{ $labels.pod }}'
           description: 'Prometheus {{$labels.namespace}}/{{$labels.pod}} has failed {{ printf "%.0f" $value }} scrapes in the last 5m because some targets exceeded the configured sample_limit.'
+          info: 'Prometheus {{$labels.namespace}}/{{$labels.pod}} has failed {{ printf "%.0f" $value }} scrapes in the last 5m because some targets exceeded the configured sample_limit.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/prometheus/prometheusscrapesamplelimithit'
           summary: 'Prometheus has failed scrapes that have exceeded the configured sample limit.'
-          title: 'Prometheus {{$labels.namespace}}/{{$labels.pod}} has failed {{ printf "%.0f" $value }} scrapes in the last 5m because some targets exceeded the configured sample_limit.'
+          title: 'Prometheus has failed scrapes that have exceeded the configured sample limit.'
         }
         expression: 'increase(prometheus_target_scrapes_exceeded_sample_limit_total{job="prometheus-prometheus",namespace="prometheus"}[5m]) > 0'
         for: 'PT15M'
@@ -320,9 +329,10 @@ resource prometheusOperatorRules 'Microsoft.AlertsManagement/prometheusRuleGroup
         annotations: {
           correlationId: 'PrometheusOperatorNotReady/{{ $labels.cluster }}/{{ $labels.controller }}/{{ $labels.namespace }}'
           description: 'Prometheus operator in {{ $labels.namespace }} namespace isn\'t ready to reconcile {{ $labels.controller }} resources.'
+          info: 'Prometheus operator in {{ $labels.namespace }} namespace isn\'t ready to reconcile {{ $labels.controller }} resources.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/prometheus-operator/prometheusoperatornotready'
           summary: 'Prometheus operator not ready'
-          title: 'Prometheus operator in {{ $labels.namespace }} namespace isn\'t ready to reconcile {{ $labels.controller }} resources.'
+          title: 'Prometheus operator not ready'
         }
         expression: 'min by (cluster, controller, namespace) (max_over_time(prometheus_operator_ready{job="prometheus-operator",namespace="prometheus"}[5m])) == 0'
         for: 'PT5M'
@@ -346,9 +356,10 @@ resource prometheusOperatorRules 'Microsoft.AlertsManagement/prometheusRuleGroup
         annotations: {
           correlationId: 'PrometheusOperatorRejectedResources/{{ $labels.cluster }}/{{ $labels.controller }}/{{ $labels.namespace }}/{{ $labels.resource }}'
           description: 'Prometheus operator in {{ $labels.namespace }} namespace rejected {{ printf "%0.0f" $value }} {{ $labels.controller }}/{{ $labels.resource }} resources.'
+          info: 'Prometheus operator in {{ $labels.namespace }} namespace rejected {{ printf "%0.0f" $value }} {{ $labels.controller }}/{{ $labels.resource }} resources.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/prometheus-operator/prometheusoperatorrejectedresources'
           summary: 'Resources rejected by Prometheus operator'
-          title: 'Prometheus operator in {{ $labels.namespace }} namespace rejected {{ printf "%0.0f" $value }} {{ $labels.controller }}/{{ $labels.resource }} resources.'
+          title: 'Resources rejected by Prometheus operator'
         }
         expression: 'min_over_time(prometheus_operator_managed_resources{job="prometheus-operator",namespace="prometheus",state="rejected"}[5m]) > 0'
         for: 'PT5M'
@@ -385,11 +396,12 @@ resource mise 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
         annotations: {
           correlationId: 'MiseEnvoyScrapeDown/{{ $labels.cluster }}'
           description: 'Prometheus scrape for envoy-stats job in namespace mise is failing or missing.'
+          info: 'Prometheus scrape for envoy-stats job in namespace mise is failing or missing.'
           runbook_url: 'TBD'
           summary: 'Envoy scrape target down for namespace=mise'
-          title: 'Prometheus scrape for envoy-stats job in namespace mise is failing or missing.'
+          title: 'Envoy scrape target down for namespace=mise'
         }
-        expression: 'absent(up{endpoint="http-envoy-prom", container="istio-proxy", namespace="mise"}) or (up{endpoint="http-envoy-prom", container="istio-proxy", namespace="mise"} == 0)'
+        expression: 'group by (cluster) (up{job="kube-state-metrics", cluster=~".*-svc(-[0-9]+)?$"}) unless on(cluster) group by (cluster) (up{endpoint="http-envoy-prom", container="istio-proxy", namespace="mise"} == 1)'
         for: 'PT5M'
         severity: 4
       }
@@ -424,9 +436,10 @@ resource frontend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' =
         annotations: {
           correlationId: 'FrontendLatency/{{ $labels.cluster }}'
           description: 'The 95th percentile of frontend request latency has exceeded 5 seconds over the past hour.'
+          info: 'The 95th percentile of frontend request latency has exceeded 5 seconds over the past hour.'
           runbook_url: 'TBD'
           summary: 'Frontend latency is high: 95th percentile exceeds 5 seconds'
-          title: 'The 95th percentile of frontend request latency has exceeded 5 seconds over the past hour.'
+          title: 'Frontend latency is high: 95th percentile exceeds 5 seconds'
         }
         expression: 'histogram_quantile(0.95, rate(frontend_http_requests_duration_seconds_bucket[1h])) > 5'
         for: 'PT15M'
@@ -450,11 +463,12 @@ resource frontend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' =
         annotations: {
           correlationId: 'FrontendClusterServiceErrorRate/{{ $labels.cluster }}'
           description: 'The Frontend Cluster Service 5xx error rate is above 5% for the last hour. Current value: {{ $value | humanizePercentage }}.'
+          info: 'The Frontend Cluster Service 5xx error rate is above 5% for the last hour. Current value: {{ $value | humanizePercentage }}.'
           runbook_url: 'TBD'
           summary: 'High 4xx|5xx Error Rate on Frontend Cluster Service'
-          title: 'The Frontend Cluster Service 5xx error rate is above 5% for the last hour. Current value: {{ $value | humanizePercentage }}.'
+          title: 'High 4xx|5xx Error Rate on Frontend Cluster Service'
         }
-        expression: '(sum(max without(prometheus_replica) (rate(frontend_clusters_service_client_request_count{code=~"4..|5.."}[1h])))) / (sum(max without(prometheus_replica) (rate(frontend_clusters_service_client_request_count[1h])))) > 0.05'
+        expression: '(sum by (cluster) (max without(prometheus_replica) (rate(frontend_clusters_service_client_request_count{code=~"4..|5.."}[1h])))) / (sum by (cluster) (max without(prometheus_replica) (rate(frontend_clusters_service_client_request_count[1h])))) > 0.05'
         for: 'PT5M'
         severity: 4
       }
@@ -489,11 +503,12 @@ resource backend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = 
         annotations: {
           correlationId: 'BackendOperationErrorRate/{{ $labels.cluster }}'
           description: 'The Backend operation error rate is above 5% for the last hour. Current value: {{ $value | humanizePercentage }}.'
+          info: 'The Backend operation error rate is above 5% for the last hour. Current value: {{ $value | humanizePercentage }}.'
           runbook_url: 'TBD'
           summary: 'High Error Rate on Backend Operations'
-          title: 'The Backend operation error rate is above 5% for the last hour. Current value: {{ $value | humanizePercentage }}.'
+          title: 'High Error Rate on Backend Operations'
         }
-        expression: '(sum(rate(backend_failed_operations_total[1h]))) / (sum(rate(backend_operations_total[1h]))) > 0.05'
+        expression: '(sum by (cluster) (rate(backend_failed_operations_total[1h]))) / (sum by (cluster) (rate(backend_operations_total[1h]))) > 0.05'
         for: 'PT5M'
         severity: 4
       }
@@ -531,14 +546,15 @@ resource arobitRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01
 This may indicate that the Arobit forwarder is down, or experiencing a crash loop.
 Check the status of the Arobit forwarder pods, service endpoints, and network connectivity.
 '''
-          runbook_url: 'TBD'
-          summary: 'Arobit forwarder is unreachable for 15 minutes.'
-          title: '''Arobit forwarder has not been reachable for the past 15 minutes.
+          info: '''Arobit forwarder has not been reachable for the past 15 minutes.
 This may indicate that the Arobit forwarder is down, or experiencing a crash loop.
 Check the status of the Arobit forwarder pods, service endpoints, and network connectivity.
 '''
+          runbook_url: 'TBD'
+          summary: 'Arobit forwarder is unreachable for 15 minutes.'
+          title: 'Arobit forwarder is unreachable for 15 minutes.'
         }
-        expression: 'min by (job, namespace) (up{job="arobit-forwarder",namespace="arobit"}) == 0'
+        expression: 'group by (cluster) (up{job="kube-state-metrics"}) unless on(cluster) group by (cluster) (up{job="arobit-forwarder",namespace="arobit"} == 1)'
         for: 'PT15M'
         severity: 3
       }

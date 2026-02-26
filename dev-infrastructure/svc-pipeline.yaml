@@ -110,6 +110,60 @@ resourceGroups:
         name: svcKeyVaultUrl
     issuer:
       value: OneCertV2-PublicCA
+  - name: migrate-cosmosdb-billing
+    action: Shell
+    command: ./migrate-cosmosdb.sh
+    workingDir: ./scripts
+    variables:
+    - name: RESOURCE_GROUP
+      configRef: regionRG
+    - name: COSMOSDB_ACCOUNT_NAME
+      configRef: frontend.cosmosDB.name
+    - name: DATABASE_NAME
+      configRef: frontend.cosmosDB.name
+    - name: CONTAINER_NAME
+      value: Billing
+    shellIdentity:
+      input:
+        resourceGroup: global
+        step: output
+        name: globalMSIId
+  - name: migrate-cosmosdb-locks
+    action: Shell
+    command: ./migrate-cosmosdb.sh
+    workingDir: ./scripts
+    variables:
+    - name: RESOURCE_GROUP
+      configRef: regionRG
+    - name: COSMOSDB_ACCOUNT_NAME
+      configRef: frontend.cosmosDB.name
+    - name: DATABASE_NAME
+      configRef: frontend.cosmosDB.name
+    - name: CONTAINER_NAME
+      value: Locks
+    shellIdentity:
+      input:
+        resourceGroup: global
+        step: output
+        name: globalMSIId
+  - name: migrate-cosmosdb-resources
+    action: Shell
+    command: ./migrate-cosmosdb.sh
+    workingDir: ./scripts
+    variables:
+    - name: RESOURCE_GROUP
+      configRef: regionRG
+    - name: COSMOSDB_ACCOUNT_NAME
+      configRef: frontend.cosmosDB.name
+    - name: DATABASE_NAME
+      configRef: frontend.cosmosDB.name
+    - name: CONTAINER_NAME
+      value: Resources
+    shellIdentity:
+      input:
+        resourceGroup: global
+        step: output
+        name: globalMSIId
   # Create SVC cluster
   - name: cluster
     action: ARM
@@ -142,16 +196,11 @@ resourceGroups:
         resourceGroup: global
         step: output
         name: azureFrontDoorResourceId
-    - name: grafanaResourceId
+    - name: auditLogsEventHubAuthRuleId
       input:
-        resourceGroup: global
+        resourceGroup: kusto
         step: output
-        name: grafanaResourceId
-    - name: grafanaPrincipalId
-      input:
-        resourceGroup: global
-        step: output
-        name: grafanaPrincipalId
+        name: auditLogsEventHubAuthRuleId
     dependsOn:
     - resourceGroup: service
       step: oncert-private-kv-issuer
@@ -159,8 +208,12 @@ resourceGroups:
       step: oncert-public-kv-issuer
     automatedRetry:
       errorContainsAny:
+      - "DeploymentScriptACIProvisioningTimeout"
+      - "InternalServerError"
       - "Internal server error"
       - "Resource is in Updating state"
+      - "There was a problem communicating with the identity service"
+      - "DeploymentScriptExceededMaxAllowedTime"
       maximumRetryCount: 3
       durationBetweenRetries: 2m
   - name: cluster-output
@@ -215,6 +268,12 @@ resourceGroups:
     - ../observability/prometheus/namespace.svc.yaml
     chartDir: ../observability/prometheus/deploy
     valuesFile: ../observability/prometheus/values-svc.yaml
+    kustoEndpoint:
+      resourceGroup: kusto
+      step: output
+      name: kustoUri
+    kustoDatabase: '{{ .kusto.serviceLogsDatabase }}'
+    kustoTable: 'containerLogs'
     inputVariables:
       dcrRemoteWriteUrl:
         resourceGroup: service
@@ -251,6 +310,12 @@ resourceGroups:
     valuesFile: ../istio/values.yaml
     namespaceFiles:
     - ../istio/mise.namespace.yaml
+    kustoEndpoint:
+      resourceGroup: kusto
+      step: output
+      name: kustoUri
+    kustoDatabase: '{{ .kusto.serviceLogsDatabase }}'
+    kustoTable: 'containerLogs'
     dependsOn:
     - resourceGroup: service
       step: prometheus
@@ -307,6 +372,12 @@ resourceGroups:
     releaseNamespace: acrpull
     chartDir: ./../acrpull/deploy
     valuesFile: ./../acrpull/deploy/values.yaml
+    kustoEndpoint:
+      resourceGroup: kusto
+      step: output
+      name: kustoUri
+    kustoDatabase: '{{ .kusto.serviceLogsDatabase }}'
+    kustoTable: 'containerLogs'
     dependsOn:
     - resourceGroup: service
       step: prometheus
@@ -337,6 +408,12 @@ resourceGroups:
     releaseNamespace: 'arobit'
     chartDir: ../observability/arobit/deploy
     valuesFile: ../observability/arobit/values-svc.yaml
+    kustoEndpoint:
+      resourceGroup: kusto
+      step: output
+      name: kustoUri
+    kustoDatabase: '{{ .kusto.serviceLogsDatabase }}'
+    kustoTable: 'containerLogs'
     dependsOn:
     - resourceGroup: service
       step: prometheus
@@ -371,6 +448,12 @@ resourceGroups:
     releaseNamespace: monitoring
     chartDir: ./../observability/kube-events/deploy
     valuesFile: ./../observability/kube-events/values.yaml
+    kustoEndpoint:
+      resourceGroup: kusto
+      step: output
+      name: kustoUri
+    kustoDatabase: '{{ .kusto.serviceLogsDatabase }}'
+    kustoTable: 'containerLogs'
     dependsOn:
     - resourceGroup: service
       step: cluster

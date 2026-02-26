@@ -63,6 +63,8 @@ var _ = Describe("HCP Nodepools GPU instances", func() {
 				customerClusterName := "gpu-nodepool-cluster-" + rand.String(6)
 
 				tc := framework.NewTestContext()
+				openshiftControlPlaneVersionId := framework.DefaultOpenshiftControlPlaneVersionId()
+				openshiftNodeVersionId := framework.DefaultOpenshiftNodePoolVersionId()
 				if tc.UsePooledIdentities() {
 					err := tc.AssignIdentityContainers(ctx, 1, 60*time.Second)
 					Expect(err).NotTo(HaveOccurred())
@@ -84,9 +86,11 @@ var _ = Describe("HCP Nodepools GPU instances", func() {
 					framework.WithScope(framework.BicepDeploymentScopeResourceGroup),
 					framework.WithClusterResourceGroup(*resourceGroup.Name),
 					framework.WithParameters(map[string]interface{}{
-						"clusterName":         customerClusterName,
-						"identities":          identities,
-						"usePooledIdentities": usePooled,
+						"openshiftControlPlaneVersionId": openshiftControlPlaneVersionId,
+						"openshiftNodePoolVersionId":     openshiftNodeVersionId,
+						"clusterName":                    customerClusterName,
+						"identities":                     identities,
+						"usePooledIdentities":            usePooled,
 					}),
 					framework.WithTimeout(45*time.Minute),
 				)
@@ -112,10 +116,11 @@ var _ = Describe("HCP Nodepools GPU instances", func() {
 					framework.WithScope(framework.BicepDeploymentScopeResourceGroup),
 					framework.WithClusterResourceGroup(*resourceGroup.Name),
 					framework.WithParameters(map[string]interface{}{
-						"clusterName":  customerClusterName,
-						"nodePoolName": npName,
-						"replicas":     1,
-						"vmSize":       sku.vmSize,
+						"openshiftVersionId": openshiftNodeVersionId,
+						"clusterName":        customerClusterName,
+						"nodePoolName":       npName,
+						"replicas":           1,
+						"vmSize":             sku.vmSize,
 					}),
 					framework.WithTimeout(45*time.Minute),
 				)

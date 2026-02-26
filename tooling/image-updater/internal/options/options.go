@@ -34,6 +34,8 @@ type RawUpdateOptions struct {
 	ForceUpdate       bool
 	Components        string
 	ExcludeComponents string
+	OutputFile        string
+	OutputFormat      string
 }
 
 // ValidatedUpdateOptions contains validated configuration and inputs
@@ -48,7 +50,9 @@ type validatedUpdateOptions struct {
 
 // DefaultUpdateOptions returns a new RawUpdateOptions with defaults
 func DefaultUpdateOptions() *RawUpdateOptions {
-	return &RawUpdateOptions{}
+	return &RawUpdateOptions{
+		OutputFormat: "table",
+	}
 }
 
 // BindUpdateOptions binds command-line flags to the raw options
@@ -58,6 +62,8 @@ func BindUpdateOptions(opts *RawUpdateOptions, cmd *cobra.Command) error {
 	cmd.Flags().BoolVar(&opts.ForceUpdate, "force", false, "Force update even if digests match (useful for regenerating version tag comments)")
 	cmd.Flags().StringVar(&opts.Components, "components", "", "Update only specified components (comma-separated, e.g., 'maestro,arohcpfrontend'). If not specified, all components will be updated")
 	cmd.Flags().StringVar(&opts.ExcludeComponents, "exclude-components", "", "Exclude specified components from update (comma-separated, e.g., 'arohcpfrontend,arohcpbackend'). Ignored if --components is specified")
+	cmd.Flags().StringVar(&opts.OutputFile, "output-file", "", "Write update results to specified file instead of stdout")
+	cmd.Flags().StringVar(&opts.OutputFormat, "output-format", "table", "Output format: table, markdown, or json (default: table)")
 
 	if err := cmd.MarkFlagRequired("config"); err != nil {
 		return err
@@ -75,6 +81,24 @@ func (o *RawUpdateOptions) Validate(ctx context.Context) (*ValidatedUpdateOption
 
 	if err := validateConfig(cfg); err != nil {
 		return nil, fmt.Errorf("invalid configuration: %w", err)
+	}
+
+	// Set default output format if not specified
+	if o.OutputFormat == "" {
+		o.OutputFormat = "table"
+	}
+
+	// Validate output format
+	validFormats := []string{"table", "markdown", "json"}
+	isValidFormat := false
+	for _, format := range validFormats {
+		if o.OutputFormat == format {
+			isValidFormat = true
+			break
+		}
+	}
+	if !isValidFormat {
+		return nil, fmt.Errorf("invalid output format '%s': must be one of: %s", o.OutputFormat, strings.Join(validFormats, ", "))
 	}
 
 	// --components takes precedence over --exclude-components
@@ -158,7 +182,7 @@ func (v *ValidatedUpdateOptions) Complete(ctx context.Context) (*updater.Updater
 	}
 
 	// Initialize YAML editors for target files
-	yamlEditors := make(map[string]*yaml.Editor)
+	yamlEditors := make(map[string]yaml.EditorInterface)
 	for _, imageConfig := range v.Config.Images {
 		for _, target := range imageConfig.Targets {
 			if _, exists := yamlEditors[target.FilePath]; !exists {
@@ -171,7 +195,7 @@ func (v *ValidatedUpdateOptions) Complete(ctx context.Context) (*updater.Updater
 		}
 	}
 
-	return updater.New(v.Config, v.DryRun, v.ForceUpdate, registryClients, yamlEditors), nil
+	return updater.New(v.Config, v.DryRun, v.ForceUpdate, registryClients, yamlEditors, v.OutputFile, v.OutputFormat), nil
 }
 
 // validateConfig ensures the configuration is complete and valid

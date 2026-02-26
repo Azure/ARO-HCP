@@ -14,6 +14,8 @@
 
 package ocm
 
+//go:generate $MOCKGEN -typed -source=client.go -destination=mock_client.go -package ocm ClusterServiceClientSpec
+
 import (
 	"context"
 	"fmt"
@@ -30,7 +32,18 @@ import (
 // The patch version is managed by Red Hat.
 const (
 	OpenShift419Patch = "7"
-	OpenShift420Patch = "5"
+	OpenShift420Patch = "8"
+)
+
+// CS cluster property keys and values used in the Cluster Service API.
+const (
+	CSPropertyProvisionShardID = "provision_shard_id"
+	CSPropertyNoopProvision    = "provisioner_noop_provision"
+	CSPropertyNoopDeprovision  = "provisioner_noop_deprovision"
+	CSPropertySingleReplica    = "hosted_cluster_single_replica"
+	CSPropertySizeOverride     = "hosted_cluster_size_override"
+
+	CSPropertyEnabled = "true"
 )
 
 type ClusterServiceClientSpec interface {
@@ -40,8 +53,14 @@ type ClusterServiceClientSpec interface {
 	// GetClusterStatus sends a GET request to fetch a cluster's status from Cluster Service.
 	GetClusterStatus(ctx context.Context, internalID InternalID) (*arohcpv1alpha1.ClusterStatus, error)
 
+	// GetClusterProvisionShard sends a GET request to fetch a cluster's provision shard from Cluster Service.
+	GetClusterProvisionShard(ctx context.Context, internalID InternalID) (*arohcpv1alpha1.ProvisionShard, error)
+
 	// GetClusterInflightChecks sends a GET request to fetch a cluster's inflight checks from Cluster Service.
 	GetClusterInflightChecks(ctx context.Context, internalID InternalID) (*arohcpv1alpha1.InflightCheckList, error)
+
+	// GetClusterHypershiftDetails sends a GET request to fetch a cluster's hypershift details from Cluster Service.
+	GetClusterHypershiftDetails(ctx context.Context, internalID InternalID) (*cmv1.HypershiftConfig, error)
 
 	// PostCluster sends a POST request to create a cluster in Cluster Service.
 	PostCluster(ctx context.Context, clusterBuilder *arohcpv1alpha1.ClusterBuilder, autoscalerBuilder *arohcpv1alpha1.ClusterAutoscalerBuilder) (*arohcpv1alpha1.Cluster, error)
@@ -114,50 +133,29 @@ type ClusterServiceClientSpec interface {
 	// GetVersion sends a GET request to fetch cluster version
 	GetVersion(ctx context.Context, versionName string) (*arohcpv1alpha1.Version, error)
 
-	// ListVersions prepares a GET request. Call Items() on
-	// the returned iterator in a for/range loop to execute the request and paginate over results,
+	// ListVersions prepares a GET request.
+	// Call Items() on the returned iterator with options in a for/range loop to execute the request and paginate over results,
 	// then call GetError() to check for an iteration error.
 	ListVersions() *VersionsListIterator
+
+	// ListControlPlaneUpgradePolicies prepares a GET request to list control plane upgrade policies for a cluster.
+	// Call Items() on the returned iterator in a for/range loop to execute the request and paginate over results,
+	// then call GetError() to check for an iteration error.
+	ListControlPlaneUpgradePolicies(clusterInternalID InternalID, orderBy string) ControlPlaneUpgradePolicyListIterator
+
+	// PostControlPlaneUpgradePolicy sends a POST request to create a control plane upgrade policy in Cluster Service.
+	PostControlPlaneUpgradePolicy(ctx context.Context, clusterInternalID InternalID, builder *arohcpv1alpha1.ControlPlaneUpgradePolicyBuilder) (*arohcpv1alpha1.ControlPlaneUpgradePolicy, error)
 }
 
 type clusterServiceClient struct {
 	// Conn is an ocm-sdk-go connection to Cluster Service
 	conn *sdk.Connection
-
-	// ProvisionShardID sets the provision_shard_id property for all cluster requests to Cluster Service, which pins all
-	// cluster requests to Cluster Service to a specific shard during testing
-	provisionShardID string
-
-	// ProvisionerNoOpProvision sets the provisioner_noop_provision property for all cluster requests to Cluster
-	// Service, which short-circuits the full provision flow during testing
-	provisionerNoOpProvision bool
-
-	// ProvisionerNoOpDeprovision sets the provisioner_noop_deprovision property for all cluster requests to Cluster
-	// Service, which short-circuits the full deprovision flow during testing
-	provisionerNoOpDeprovision bool
 }
 
-func NewClusterServiceClient(conn *sdk.Connection, provisionShardID string, provisionerNoOpProvision, provisionerNoOpDeprovision bool) ClusterServiceClientSpec {
+func NewClusterServiceClient(conn *sdk.Connection) ClusterServiceClientSpec {
 	return &clusterServiceClient{
-		conn:                       conn,
-		provisionShardID:           provisionShardID,
-		provisionerNoOpProvision:   provisionerNoOpProvision,
-		provisionerNoOpDeprovision: provisionerNoOpDeprovision,
+		conn: conn,
 	}
-}
-
-func (csc *clusterServiceClient) addProperties(builder *arohcpv1alpha1.ClusterBuilder) *arohcpv1alpha1.ClusterBuilder {
-	additionalProperties := map[string]string{}
-	if csc.provisionShardID != "" {
-		additionalProperties["provision_shard_id"] = csc.provisionShardID
-	}
-	if csc.provisionerNoOpProvision {
-		additionalProperties["provisioner_noop_provision"] = "true"
-	}
-	if csc.provisionerNoOpDeprovision {
-		additionalProperties["provisioner_noop_deprovision"] = "true"
-	}
-	return builder.Properties(additionalProperties)
 }
 
 // resolveClusterLinks replaces link objects with full objects that are
@@ -240,6 +238,22 @@ func (csc *clusterServiceClient) GetClusterStatus(ctx context.Context, internalI
 	return status, nil
 }
 
+func (csc *clusterServiceClient) GetClusterProvisionShard(ctx context.Context, internalID InternalID) (*arohcpv1alpha1.ProvisionShard, error) {
+	client, ok := getAroHCPClusterClient(internalID, csc.conn)
+	if !ok {
+		return nil, fmt.Errorf("OCM path is not a cluster: %s", internalID)
+	}
+	provisionShardGetResponse, err := client.ProvisionShard().Get().SendContext(ctx)
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
+	provisionShard, ok := provisionShardGetResponse.GetBody()
+	if !ok {
+		return nil, fmt.Errorf("empty response body")
+	}
+	return provisionShard, nil
+}
+
 func (csc *clusterServiceClient) GetClusterInflightChecks(ctx context.Context, internalID InternalID) (*arohcpv1alpha1.InflightCheckList, error) {
 	client, ok := getAroHCPClusterClient(internalID, csc.conn)
 	if !ok {
@@ -256,11 +270,30 @@ func (csc *clusterServiceClient) GetClusterInflightChecks(ctx context.Context, i
 	return inflightChecks, nil
 }
 
+// At this point, there is no way to get the hypershift details of a cluster via
+// the AroHCP().V1alpha1().Clusters(), not does an equivalent endpoint for Hypershift() exist.
+// To still be able to consume the hypershift details, we make a call to the non-ARO-HCP CS endpoint.
+func (csc *clusterServiceClient) GetClusterHypershiftDetails(ctx context.Context, internalID InternalID) (*cmv1.HypershiftConfig, error) {
+	client, ok := getClusterClient(internalID, csc.conn)
+	if !ok {
+		return nil, fmt.Errorf("OCM path is not a cluster: %s", internalID)
+	}
+	hypershiftGetResponse, err := client.Hypershift().Get().SendContext(ctx)
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
+	hypershiftConfig, ok := hypershiftGetResponse.GetBody()
+	if !ok {
+		return nil, fmt.Errorf("empty response body")
+	}
+	return hypershiftConfig, nil
+}
+
 func (csc *clusterServiceClient) PostCluster(ctx context.Context, clusterBuilder *arohcpv1alpha1.ClusterBuilder, autoscalerBuilder *arohcpv1alpha1.ClusterAutoscalerBuilder) (*arohcpv1alpha1.Cluster, error) {
 	if autoscalerBuilder != nil {
 		clusterBuilder.Autoscaler(autoscalerBuilder)
 	}
-	cluster, err := csc.addProperties(clusterBuilder).Build()
+	cluster, err := clusterBuilder.Build()
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}
@@ -276,7 +309,7 @@ func (csc *clusterServiceClient) PostCluster(ctx context.Context, clusterBuilder
 }
 
 func (csc *clusterServiceClient) UpdateCluster(ctx context.Context, internalID InternalID, builder *arohcpv1alpha1.ClusterBuilder) (*arohcpv1alpha1.Cluster, error) {
-	cluster, err := csc.addProperties(builder).Build()
+	cluster, err := builder.Build()
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}
@@ -586,6 +619,38 @@ func (csc *clusterServiceClient) GetVersion(ctx context.Context, versionName str
 func (csc *clusterServiceClient) ListVersions() *VersionsListIterator {
 	versionsListRequest := csc.conn.AroHCP().V1alpha1().Versions().List()
 	return &VersionsListIterator{request: versionsListRequest}
+}
+
+func (csc *clusterServiceClient) ListControlPlaneUpgradePolicies(clusterInternalID InternalID, orderBy string) ControlPlaneUpgradePolicyListIterator {
+	client, ok := getAroHCPClusterClient(clusterInternalID, csc.conn)
+	if !ok {
+		return &controlPlaneUpgradePolicyListIterator{err: fmt.Errorf("OCM path is not a cluster: %s", clusterInternalID)}
+	}
+	policiesListRequest := client.ControlPlaneUpgradePolicies().List()
+	if orderBy != "" {
+		policiesListRequest.Parameter("order", orderBy)
+	}
+	return &controlPlaneUpgradePolicyListIterator{request: policiesListRequest}
+}
+
+func (csc *clusterServiceClient) PostControlPlaneUpgradePolicy(ctx context.Context, clusterInternalID InternalID, builder *arohcpv1alpha1.ControlPlaneUpgradePolicyBuilder) (*arohcpv1alpha1.ControlPlaneUpgradePolicy, error) {
+	client, ok := getAroHCPClusterClient(clusterInternalID, csc.conn)
+	if !ok {
+		return nil, fmt.Errorf("OCM path is not a cluster: %s", clusterInternalID)
+	}
+	policy, err := builder.Build()
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
+	policiesAddResponse, err := client.ControlPlaneUpgradePolicies().Add().Body(policy).SendContext(ctx)
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
+	policy, ok = policiesAddResponse.GetBody()
+	if !ok {
+		return nil, fmt.Errorf("empty response body")
+	}
+	return policy, nil
 }
 
 // NewOpenShiftVersionXY parses the given version, stripping off any

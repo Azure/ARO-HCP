@@ -14,6 +14,8 @@
 
 package database
 
+//go:generate $MOCKGEN -typed -source=database.go -destination=mock_database.go -package database DBClient
+
 import (
 	"context"
 	"encoding/json"
@@ -28,6 +30,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
+	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -118,43 +121,15 @@ type DBClient interface {
 	// to end users via ARM.  They must also survive the thing they are deleting, so they live under a subscription directly.
 	Operations(subscriptionID string) OperationCRUD
 
-	// GetResourceDoc queries the "Resources" container for a cluster or node pool document with a
-	// matching resourceID.
-	GetResourceDoc(ctx context.Context, resourceID *azcorearm.ResourceID) (string, *ResourceDocument, error)
+	Subscriptions() SubscriptionCRUD
 
-	// PatchResourceDoc patches a cluster or node pool document in the "Resources" container by
-	// applying a sequence of patch operations. The patch operations may include a precondition
-	// which, if not satisfied, will cause the function to return an azcore.ResponseError with
-	// a StatusCode of http.StatusPreconditionFailed. If successful, PatchResourceDoc returns
-	// the updated document.
-	PatchResourceDoc(ctx context.Context, resourceID *azcorearm.ResourceID, ops ResourceDocumentPatchOperations) (*ResourceDocument, error)
+	ServiceProviderClusters(subscriptionID, resourceGroupName, clusterName string) ServiceProviderClusterCRUD
 
-	// GetSubscriptionDoc retrieves a subscription document from the "Resources" container.
-	GetSubscriptionDoc(ctx context.Context, subscriptionID string) (*arm.Subscription, error)
+	// GlobalListers returns interfaces for listing all resources of a particular
+	// type across all partitions, intended for feeding SharedInformers.
+	GlobalListers() GlobalListers
 
-	// CreateSubscriptionDoc creates a new subscription document in the "Resources" container.
-	CreateSubscriptionDoc(ctx context.Context, subscriptionID string, subscription *arm.Subscription) error
-
-	// UpdateSubscriptionDoc updates a subscription document in the "Resources" container by first
-	// fetching the document and passing it to the provided callback for modifications to be applied.
-	// It then attempts to replace the existing document with the modified document an an "etag"
-	// precondition. Upon a precondition failure the function repeats for a limited number of times
-	// before giving up.
-	//
-	// The callback function should return true if modifications were applied, signaling to proceed
-	// with the document replacement. The boolean return value reflects this: returning true if the
-	// document was successfully replaced, or false with or without an error to indicate no change.
-	UpdateSubscriptionDoc(ctx context.Context, subscriptionID string, callback func(*arm.Subscription) bool) (bool, error)
-
-	// ListAllSubscriptionDocs() returns an iterator that searches for all subscription documents in
-	// the "Resources" container. Since the "Resources" container is partitioned by subscription ID,
-	// there will only be one subscription document per logical partition. Thus, this method enables
-	// iterating over all the logical partitions in the "Resources" container.
-	//
-	// Note that ListAllSubscriptionDocs does not perform the search, but merely prepares an iterator
-	// to do so. Hence the lack of a Context argument. The search is performed by calling Items() on
-	// the iterator in a ranged for loop.
-	ListAllSubscriptionDocs() DBClientIterator[arm.Subscription]
+	ServiceProviderNodePools(subscriptionID, resourceGroupName, clusterName, nodePoolName string) ServiceProviderNodePoolCRUD
 }
 
 var _ DBClient = &cosmosDBClient{}
@@ -295,203 +270,6 @@ func (d *cosmosDBClient) PatchBillingDoc(ctx context.Context, resourceID *azcore
 	return nil
 }
 
-func (d *cosmosDBClient) getResourceDoc(ctx context.Context, resourceID *azcorearm.ResourceID) (*TypedDocument, *ResourceDocument, error) {
-	var responseItem []byte
-
-	pk := NewPartitionKey(resourceID.SubscriptionID)
-
-	const query = "SELECT * FROM c WHERE STRINGEQUALS(c.resourceType, @resourceType, true) AND STRINGEQUALS(c.properties.resourceId, @resourceId, true)"
-	opt := azcosmos.QueryOptions{
-		QueryParameters: []azcosmos.QueryParameter{
-			{
-				Name:  "@resourceType",
-				Value: resourceID.ResourceType.String(),
-			},
-			{
-				Name:  "@resourceId",
-				Value: resourceID.String(),
-			},
-		},
-	}
-
-	queryPager := d.resources.NewQueryItemsPager(query, pk, &opt)
-
-	for queryPager.More() {
-		queryResponse, err := queryPager.NextPage(ctx)
-		if err != nil {
-			return nil, nil, fmt.Errorf("failed to advance page while querying Resources container for '%s': %w", resourceID, err)
-		}
-
-		for _, item := range queryResponse.Items {
-			// Let the pager finish to ensure we get a single result.
-			if responseItem == nil {
-				responseItem = item
-			} else {
-				return nil, nil, ErrAmbiguousResult
-			}
-		}
-	}
-
-	if responseItem == nil {
-		// Fabricate a "404 Not Found" ResponseError to wrap.
-		err := &azcore.ResponseError{StatusCode: http.StatusNotFound}
-		return nil, nil, fmt.Errorf("failed to read Resources container item for '%s': %w", resourceID, err)
-	}
-
-	typedDoc, innerDoc, err := typedDocumentUnmarshal[ResourceDocument](responseItem)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to unmarshal Resources container item for '%s': %w", resourceID, err)
-	}
-
-	return typedDoc, innerDoc, nil
-}
-
-func (d *cosmosDBClient) GetResourceDoc(ctx context.Context, resourceID *azcorearm.ResourceID) (string, *ResourceDocument, error) {
-	typedDoc, innerDoc, err := d.getResourceDoc(ctx, resourceID)
-	if err != nil {
-		return "", nil, err
-	}
-
-	// Replace the key field from Cosmos with the given resourceID,
-	// which typically comes from the URL. This helps preserve the
-	// casing of the resource group and resource name from the URL
-	// to meet RPC requirements:
-	//
-	// Put Resource | Arguments
-	//
-	// The resource group names and resource names should be matched
-	// case insensitively. ... Additionally, the Resource Provier must
-	// preserve the casing provided by the user. The service must return
-	// the most recently specified casing to the client and must not
-	// normalize or return a toupper or tolower form of the resource
-	// group or resource name. The resource group name and resource
-	// name must come from the URL and not the request body.
-	innerDoc.ResourceID = resourceID
-
-	return typedDoc.ID, innerDoc, nil
-}
-
-func (d *cosmosDBClient) PatchResourceDoc(ctx context.Context, resourceID *azcorearm.ResourceID, ops ResourceDocumentPatchOperations) (*ResourceDocument, error) {
-	typedDoc, _, err := d.getResourceDoc(ctx, resourceID)
-	if err != nil {
-		return nil, utils.TrackError(err)
-	}
-
-	options := &azcosmos.ItemOptions{EnableContentResponseOnWrite: true}
-	response, err := d.resources.PatchItem(ctx, typedDoc.getPartitionKey(), typedDoc.ID, ops.PatchOperations, options)
-	if err != nil {
-		return nil, fmt.Errorf("failed to patch Resources container item for '%s': %w", resourceID, err)
-	}
-
-	_, innerDoc, err := typedDocumentUnmarshal[ResourceDocument](response.Value)
-	if err != nil {
-		return nil, fmt.Errorf("failed to unmarshal Resources container item for '%s': %w", resourceID, err)
-	}
-
-	return innerDoc, nil
-}
-
-func (d *cosmosDBClient) getSubscriptionDoc(ctx context.Context, subscriptionID string) (*TypedDocument, *arm.Subscription, error) {
-	// Make sure lookup keys are lowercase.
-	subscriptionID = strings.ToLower(subscriptionID)
-
-	pk := NewPartitionKey(subscriptionID)
-
-	response, err := d.resources.ReadItem(ctx, pk, subscriptionID, nil)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to read Subscriptions container item for '%s': %w", subscriptionID, err)
-	}
-
-	typedDoc, innerDoc, err := typedDocumentUnmarshal[arm.Subscription](response.Value)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to unmarshal Subscriptions container item for '%s': %w", subscriptionID, err)
-	}
-
-	// Expose the "_ts" field for metics reporting.
-	innerDoc.LastUpdated = typedDoc.CosmosTimestamp
-
-	return typedDoc, innerDoc, nil
-}
-
-func (d *cosmosDBClient) GetSubscriptionDoc(ctx context.Context, subscriptionID string) (*arm.Subscription, error) {
-	_, innerDoc, err := d.getSubscriptionDoc(ctx, subscriptionID)
-	return innerDoc, err
-}
-
-func (d *cosmosDBClient) CreateSubscriptionDoc(ctx context.Context, subscriptionID string, subscription *arm.Subscription) error {
-	typedDoc := newTypedDocument(subscriptionID, azcorearm.SubscriptionResourceType)
-	typedDoc.ID = strings.ToLower(subscriptionID)
-
-	data, err := typedDocumentMarshal(typedDoc, subscription)
-	if err != nil {
-		return fmt.Errorf("failed to marshal Subscriptions container item for '%s': %w", subscriptionID, err)
-	}
-
-	_, err = d.resources.CreateItem(ctx, typedDoc.getPartitionKey(), data, nil)
-	if err != nil {
-		return fmt.Errorf("failed to create Subscriptions container item for '%s': %w", subscriptionID, err)
-	}
-
-	return nil
-}
-
-func (d *cosmosDBClient) UpdateSubscriptionDoc(ctx context.Context, subscriptionID string, callback func(*arm.Subscription) bool) (bool, error) {
-	var err error
-
-	options := &azcosmos.ItemOptions{}
-
-	for try := 0; try < 5; try++ {
-		var typedDoc *TypedDocument
-		var innerDoc *arm.Subscription
-		var data []byte
-
-		typedDoc, innerDoc, err = d.getSubscriptionDoc(ctx, subscriptionID)
-		if err != nil {
-			return false, err
-		}
-
-		if !callback(innerDoc) {
-			return false, nil
-		}
-
-		data, err = typedDocumentMarshal(typedDoc, innerDoc)
-		if err != nil {
-			return false, fmt.Errorf("failed to marshal Subscriptions container item for '%s': %w", subscriptionID, err)
-		}
-
-		options.IfMatchEtag = &typedDoc.CosmosETag
-		_, err = d.resources.ReplaceItem(ctx, typedDoc.getPartitionKey(), typedDoc.ID, data, options)
-		if err == nil {
-			return true, nil
-		}
-
-		var responseError *azcore.ResponseError
-		err = fmt.Errorf("failed to replace Subscriptions container item for '%s': %w", subscriptionID, err)
-		if !errors.As(err, &responseError) || responseError.StatusCode != http.StatusPreconditionFailed {
-			return false, err
-		}
-	}
-
-	return false, err
-}
-
-func (d *cosmosDBClient) ListAllSubscriptionDocs() DBClientIterator[arm.Subscription] {
-	const query = "SELECT * FROM c WHERE STRINGEQUALS(c.resourceType, @resourceType, true)"
-	opt := azcosmos.QueryOptions{
-		QueryParameters: []azcosmos.QueryParameter{
-			{
-				Name:  "@resourceType",
-				Value: azcorearm.SubscriptionResourceType.String(),
-			},
-		},
-	}
-
-	// Empty partition key triggers a cross-partition query.
-	pager := d.resources.NewQueryItemsPager(query, azcosmos.NewPartitionKey(), &opt)
-
-	return newQueryItemsIterator[arm.Subscription](pager)
-}
-
 func (d *cosmosDBClient) HCPClusters(subscriptionID, resourceGroupName string) HCPClusterCRUD {
 	return NewHCPClusterCRUD(d.resources, subscriptionID, resourceGroupName)
 }
@@ -500,8 +278,29 @@ func (d *cosmosDBClient) Operations(subscriptionID string) OperationCRUD {
 	return NewOperationCRUD(d.resources, subscriptionID)
 }
 
+func (d *cosmosDBClient) Subscriptions() SubscriptionCRUD {
+	return NewCosmosResourceCRUD[arm.Subscription, GenericDocument[arm.Subscription]](
+		d.resources, nil, azcorearm.SubscriptionResourceType)
+}
+
+func (d *cosmosDBClient) ServiceProviderClusters(subscriptionID, resourceGroupName, clusterName string) ServiceProviderClusterCRUD {
+	clusterResourceID := NewClusterResourceID(subscriptionID, resourceGroupName, clusterName)
+	return NewCosmosResourceCRUD[api.ServiceProviderCluster, GenericDocument[api.ServiceProviderCluster]](
+		d.resources, clusterResourceID, api.ServiceProviderClusterResourceType)
+}
+
+func (d *cosmosDBClient) ServiceProviderNodePools(subscriptionID, resourceGroupName, clusterName, nodePoolName string) ServiceProviderNodePoolCRUD {
+	nodePoolResourceID := NewNodePoolResourceID(subscriptionID, resourceGroupName, clusterName, nodePoolName)
+	return NewCosmosResourceCRUD[api.ServiceProviderNodePool, GenericDocument[api.ServiceProviderNodePool]](
+		d.resources, nodePoolResourceID, api.ServiceProviderNodePoolResourceType)
+}
+
 func (d *cosmosDBClient) UntypedCRUD(parentResourceID azcorearm.ResourceID) (UntypedResourceCRUD, error) {
 	return NewUntypedCRUD(d.resources, parentResourceID), nil
+}
+
+func (d *cosmosDBClient) GlobalListers() GlobalListers {
+	return NewCosmosGlobalListers(d.resources)
 }
 
 // NewCosmosDatabaseClient instantiates a generic Cosmos database client.

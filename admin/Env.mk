@@ -37,3 +37,6 @@ KUSTO_RG ?= {{ .kusto.rg }}
 FPA_CLIENT_ID ?= {{ .firstPartyAppClientId }}
 FPA_CERT_NAME ?= {{ .firstPartyAppCertificate.name }}
 FPA_KEY_VAULT_NAME ?= {{ .serviceKeyVault.name }}
+
+# Sessiongate
+SESSIONGATE_NAMESPACE ?= {{ .sessiongate.k8s.namespace }}

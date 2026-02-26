@@ -17,6 +17,7 @@ package hcp
 import (
 	"context"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -30,16 +31,51 @@ import (
 
 	client "sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/Azure/ARO-HCP/tooling/hcpctl/cmd/base"
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/common"
 	cluster "github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/hcp"
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/utils"
 )
 
+// HCPOptions represents shared configuration options for all hcp commands.
+type HCPOptions struct {
+	KubeconfigPath string // Path to kubeconfig file for Kubernetes access
+}
+
+// DefaultHCPOptions returns a new HCPOptions struct initialized with sensible defaults
+// for the kubeconfig path.
+func DefaultHCPOptions() *HCPOptions {
+	loadingRules := clientcmd.NewDefaultClientConfigLoadingRules()
+	kubeconfig := loadingRules.GetDefaultFilename()
+
+	return &HCPOptions{
+		KubeconfigPath: kubeconfig,
+	}
+}
+
+// BindHCPOptions configures cobra command flags for base options shared across all hcp commands.
+func BindHCPOptions(opts *HCPOptions, cmd *cobra.Command) error {
+	kubeconfigFlag := "kubeconfig"
+	cmd.Flags().StringVar(&opts.KubeconfigPath, kubeconfigFlag, opts.KubeconfigPath, "path to the kubeconfig file")
+
+	if err := cmd.MarkFlagFilename(kubeconfigFlag); err != nil {
+		return fmt.Errorf("failed to mark flag %q as a file: %w", kubeconfigFlag, err)
+	}
+	return nil
+}
+
+// Validate performs validation of base options shared across all hcp commands.
+func (o *HCPOptions) Validate() error {
+	if _, err := os.Stat(o.KubeconfigPath); err != nil {
+		return fmt.Errorf("kubeconfig not found at %s: %w", o.KubeconfigPath, err)
+	}
+
+	return nil
+}
+
 // ListHCPOptions represents options specific to listing HCP clusters
 type ListHCPOptions struct {
-	BaseOptions *base.RawBaseOptions
-	Output      string
+	HCPOptions *HCPOptions
+	Output     string
 }
 
 // ValidatedListHCPOptions represents validated configuration for HCP list operations
@@ -53,15 +89,15 @@ type ValidatedListHCPOptions struct {
 // DefaultListHCPOptions returns a new ListHCPOptions with default values
 func DefaultListHCPOptions() *ListHCPOptions {
 	return &ListHCPOptions{
-		BaseOptions: base.DefaultBaseOptions(),
-		Output:      "table",
+		HCPOptions: DefaultHCPOptions(),
+		Output:     "table",
 	}
 }
 
 // BindListHCPOptions binds command-line flags for HCP list operations
 func BindListHCPOptions(opts *ListHCPOptions, cmd *cobra.Command) error {
 	// Bind base options (kubeconfig access)
-	if err := base.BindBaseOptions(opts.BaseOptions, cmd); err != nil {
+	if err := BindHCPOptions(opts.HCPOptions, cmd); err != nil {
 		return err
 	}
 
@@ -80,7 +116,7 @@ func (o *ListHCPOptions) Validate(ctx context.Context) (*ValidatedListHCPOptions
 	}
 
 	// Load kubeconfig
-	config, err := clientcmd.BuildConfigFromFlags("", o.BaseOptions.KubeconfigPath)
+	config, err := clientcmd.BuildConfigFromFlags("", o.HCPOptions.KubeconfigPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load kubeconfig: %w", err)
 	}
@@ -107,7 +143,7 @@ func (o *ListHCPOptions) Validate(ctx context.Context) (*ValidatedListHCPOptions
 
 // RawBreakglassHCPOptions represents the initial, unvalidated configuration for HCP breakglass operations.
 type RawBreakglassHCPOptions struct {
-	BaseOptions       *base.RawBaseOptions
+	HCPOptions        *HCPOptions
 	ClusterIdentifier string        // Target HCP cluster identifier (cluster ID or Azure resource ID)
 	OutputPath        string        // Path to write generated kubeconfig
 	SessionTimeout    time.Duration // Certificate/session timeout duration
@@ -120,7 +156,7 @@ type RawBreakglassHCPOptions struct {
 // DefaultBreakglassHCPOptions returns a new RawBreakglassHCPOptions struct initialized with sensible defaults.
 func DefaultBreakglassHCPOptions() *RawBreakglassHCPOptions {
 	return &RawBreakglassHCPOptions{
-		BaseOptions:    base.DefaultBaseOptions(),
+		HCPOptions:     DefaultHCPOptions(),
 		SessionTimeout: 24 * time.Hour,
 		NoPortForward:  false,
 		NoShell:        false,
@@ -131,7 +167,7 @@ func DefaultBreakglassHCPOptions() *RawBreakglassHCPOptions {
 // BindBreakglassHCPOptions configures cobra command flags for HCP-specific options.
 func BindBreakglassHCPOptions(opts *RawBreakglassHCPOptions, cmd *cobra.Command) error {
 	// Bind base options first
-	if err := base.BindBaseOptions(opts.BaseOptions, cmd); err != nil {
+	if err := BindHCPOptions(opts.HCPOptions, cmd); err != nil {
 		return fmt.Errorf("failed to bind base options: %w", err)
 	}
 
@@ -151,7 +187,7 @@ func (o *RawBreakglassHCPOptions) Validate(ctx context.Context) (*ValidatedBreak
 	logger := logr.FromContextOrDiscard(ctx)
 
 	// Validate base options first
-	if err := base.ValidateBaseOptions(o.BaseOptions); err != nil {
+	if err := o.HCPOptions.Validate(); err != nil {
 		return nil, err
 	}
 
@@ -180,7 +216,7 @@ func (o *RawBreakglassHCPOptions) Validate(ctx context.Context) (*ValidatedBreak
 	}
 
 	// Get current user from kubernetes context (equivalent to kubectl auth whoami)
-	user, err := getCurrentUser(ctx, o.BaseOptions.KubeconfigPath)
+	user, err := getCurrentUser(ctx, o.HCPOptions.KubeconfigPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get current user: %w", err)
 	}
@@ -225,7 +261,7 @@ func (o *ValidatedBreakglassHCPOptions) Complete(ctx context.Context) (*Breakgla
 	logger := logr.FromContextOrDiscard(ctx)
 
 	// Load kubeconfig
-	config, err := clientcmd.BuildConfigFromFlags("", o.BaseOptions.KubeconfigPath)
+	config, err := clientcmd.BuildConfigFromFlags("", o.HCPOptions.KubeconfigPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load kubeconfig: %w", err)
 	}

@@ -9,3 +9,4 @@ azureKeyVaultClientId: "__csiSecretStoreClientId__"
 additionalArgs: "{{ .hypershift.additionalInstallArg }}"
 operatorEnvVars:
   sharedIngressIPTag: "{{ .hypershift.sharedIngressIPTag }}"
+limitClusterSizes: {{ .hypershift.limitClusterSizes }}

@@ -25,6 +25,8 @@ grafana-dashboards:
   - Azure Managed Prometheus
   - Azure Monitor
   - Microsoft Defender for Cloud
+  - Azure Databases
+  - High Performance Computing Clusters
   dashboardFolders:
   - name: istio
     path: ./grafana-dashboards/istio/

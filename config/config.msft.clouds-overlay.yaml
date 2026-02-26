@@ -1,6 +1,5 @@
 clouds:
   public:
-    defaults:
     environments:
       int:
         # this is the MSFT INT environment
@@ -9,97 +8,10 @@ clouds:
           e2e:
             regionTest:
               prowJobName: periodic-ci-Azure-ARO-HCP-main-periodic-integration-e2e-parallel
-          # Cluster Service
-          clustersService:
-            image:
-              digest: sha256:2f51c98788c688f92d6905977829891a4d6fc586050fbc3f7335f5c9994e6134 # 345fbe7 (2025-12-12 13:51)
-          # ACR Pull
-          acrPull:
-            image:
-              digest: sha256:0129450f2cb03f2d358ac5ac3f46af923f1384fda24cd1b6ace309bb45efc691 # v0.1.21 (2025-12-03 19:29)
-          # Secret Sync Controller
-          secretSyncController:
-            image:
-              digest: sha256:399febaa4c537111589a8a52dea7d1ec4cecce8c3d1010729e875a2e305a2f07 # v0.0.2 (2025-07-17 15:49)
-            providerImage:
-              digest: sha256:c34ca57730d55189e843ebfb8343ef6b865e73b80adc3fd43f6181227c1320a7 # v1.7.2 (2025-11-18 22:23)
-          # Backplane API
-          backplaneAPI:
-            image:
-              digest: sha256:6c6c20dfaf63d02243bc08a0aab913bc659ed1d7a9cddcb85bd3e675dcbee924 # 288511c (2025-12-09 05:08)
-          # PKO
-          pko:
-            imagePackage:
-              digest: sha256:6dc4ef7c2ac37438636fd18cda973f53440478c91f580fa5e15c6377f41d60c6 # v1.18.3 (2025-12-03 16:28)
-            imageManager:
-              digest: sha256:e9f66a19bc9dcfcf2a9e6ba14f61395806b65813a89385a2f943fe5148b29142 # v1.18.3 (2025-12-03 16:28)
-            remotePhaseManager:
-              digest: sha256:0298985d8a02c983be382d351e9243c45edd035b11aa23a6ed077b3d6df7aa45 # v1.18.3 (2025-12-03 16:28)
-          # SVC cluster settings
-          svc:
-            prometheus:
-              prometheusOperator:
-                image:
-                  sha: 5c3fd99a70fb43aa5ea4672ccaf04c68ac60d7adb7e205d2bf75d1b46395455c # v0.87.0-1 (2025-11-21 17:21)
-              prometheusSpec:
-                image:
-                  sha: 70296b2f2cc69c88d070fe8b627d347bd070e084c14babbc93e91583e03eca06 # v3.8.0-1 (2025-12-02 17:33)
-              prometheusConfigReloader:
-                image:
-                  sha: 807993bae8544ca5dba1a088507c39adce29fef1afd2fb7492247b09e0cfa2a9 # v0.87.0 (2025-11-21 17:07)
-              kubeStateMetrics:
-                image:
-                  digest: sha256:377bd55d97824dfee27b3c577869bc793fc3970623433627c7f0ee1b1b74e725 # v2.17.0 (2025-11-20 19:25)
-          # MC cluster settings
-          mgmt:
-            prometheus:
-              prometheusOperator:
-                image:
-                  sha: 5c3fd99a70fb43aa5ea4672ccaf04c68ac60d7adb7e205d2bf75d1b46395455c # v0.87.0-1 (2025-11-21 17:21)
-              prometheusSpec:
-                image:
-                  sha: 70296b2f2cc69c88d070fe8b627d347bd070e084c14babbc93e91583e03eca06 # v3.8.0-1 (2025-12-02 17:33)
-              prometheusConfigReloader:
-                image:
-                  sha: 807993bae8544ca5dba1a088507c39adce29fef1afd2fb7492247b09e0cfa2a9 # v0.87.0 (2025-11-21 17:07)
-              kubeStateMetrics:
-                image:
-                  digest: sha256:377bd55d97824dfee27b3c577869bc793fc3970623433627c7f0ee1b1b74e725 # v2.17.0 (2025-11-20 19:25)
           # RP Frontend
           frontend:
-            image:
-              digest: sha256:9cdc146bd1d45ef50abc52f8343a2b46823d50a30462190672ecee621fc449aa # bd9c84d (2025-12-12 17:32)
             audit:
               connectSocket: true
-          # RP Backend
-          backend:
-            image:
-              digest: sha256:42dd00d80a5df2c9a564fe939d7aec52b5519439f8a85ae226dbfba383f575f8 # bd9c84d (2025-12-12 17:33)
-          # Admin API
-          adminApi:
-            image:
-              digest: sha256:4ba6e83afc921f6c7fc5a977e9034def6e664eb65192b83279b1e9c3d86e62c7 # bd9c84d (2025-12-12 17:32)
-          # Hypershift
-          hypershift:
-            image:
-              digest: sha256:2b33a38c788fd8cbc16c1f353d417bee4646140dbfbfaa847b4d81941c601c36 # 046886e (2025-12-04 03:04)
-          # Maestro
-          maestro:
-            image:
-              digest: sha256:8bfd08bbafec5e4d4de8ae15c6a2d5cd8b11067136a9b88f800566a992a6a010 # d9322b950e7edf34c29479cf40648252197d563e (2025-12-12 06:37)
-            agent:
-              sidecar:
-                image:
-                  digest: sha256:c9932f5875ba5e0be70d174dc96f45d5474e77df8fe57ed6327b8d8208ee1635 # 1.25.4-6-azl3.0.20251106 (2025-11-07 03:08)
-          # OCP image sync
-          imageSync:
-            ocMirror:
-              image:
-                digest: sha256:84a371ce715e1aa6d7f8ca7bfb99a2d7b41dc2bb3af42d887aa64cc1432a3519 # bd9c84d (2025-12-12 17:32)
-          # Mise
-          mise:
-            image:
-              digest: sha256:4822b1998fafa4c7ed1e0723dfed8fd0562e1525545327b821e6d9ef29573c74 # 1.39.0-azurelinux3.0-distroless
       stg:
         # this is the MSFT STAGE environment
         defaults:
@@ -110,95 +22,10 @@ clouds:
           # Cluster Service
           clustersService:
             deployDebugJobs: true
-            image:
-              digest: sha256:2f51c98788c688f92d6905977829891a4d6fc586050fbc3f7335f5c9994e6134
-          # ACR Pull
-          acrPull:
-            image:
-              digest: sha256:0129450f2cb03f2d358ac5ac3f46af923f1384fda24cd1b6ace309bb45efc691 #v0.1.20
-          # Secret Sync Controller
-          secretSyncController:
-            image:
-              digest: sha256:399febaa4c537111589a8a52dea7d1ec4cecce8c3d1010729e875a2e305a2f07 #v0.0.2
-            providerImage:
-              digest: sha256:c34ca57730d55189e843ebfb8343ef6b865e73b80adc3fd43f6181227c1320a7 # v1.7.2 (2025-11-18)
-          # Backplane API
-          backplaneAPI:
-            image:
-              digest: sha256:6c6c20dfaf63d02243bc08a0aab913bc659ed1d7a9cddcb85bd3e675dcbee924
-          # PKO
-          pko:
-            imagePackage:
-              digest: sha256:6dc4ef7c2ac37438636fd18cda973f53440478c91f580fa5e15c6377f41d60c6
-            imageManager:
-              digest: sha256:e9f66a19bc9dcfcf2a9e6ba14f61395806b65813a89385a2f943fe5148b29142
-            remotePhaseManager:
-              digest: sha256:0298985d8a02c983be382d351e9243c45edd035b11aa23a6ed077b3d6df7aa45
-          # SVC cluster settings
-          svc:
-            prometheus:
-              prometheusOperator:
-                image:
-                  sha: 5c3fd99a70fb43aa5ea4672ccaf04c68ac60d7adb7e205d2bf75d1b46395455c
-              prometheusSpec:
-                image:
-                  sha: 70296b2f2cc69c88d070fe8b627d347bd070e084c14babbc93e91583e03eca06
-              prometheusConfigReloader:
-                image:
-                  sha: 807993bae8544ca5dba1a088507c39adce29fef1afd2fb7492247b09e0cfa2a9
-              kubeStateMetrics:
-                image:
-                  digest: sha256:377bd55d97824dfee27b3c577869bc793fc3970623433627c7f0ee1b1b74e725 # v2.15.0-7
-          # MC cluster settings
-          mgmt:
-            prometheus:
-              prometheusOperator:
-                image:
-                  sha: 5c3fd99a70fb43aa5ea4672ccaf04c68ac60d7adb7e205d2bf75d1b46395455c
-              prometheusSpec:
-                image:
-                  sha: 70296b2f2cc69c88d070fe8b627d347bd070e084c14babbc93e91583e03eca06
-              prometheusConfigReloader:
-                image:
-                  sha: 807993bae8544ca5dba1a088507c39adce29fef1afd2fb7492247b09e0cfa2a9
-              kubeStateMetrics:
-                image:
-                  digest: sha256:377bd55d97824dfee27b3c577869bc793fc3970623433627c7f0ee1b1b74e725 # v2.15.0-7
           # RP Frontend
           frontend:
-            image:
-              digest: sha256:9cdc146bd1d45ef50abc52f8343a2b46823d50a30462190672ecee621fc449aa # 8289751
             audit:
               connectSocket: true
-          # RP Backend
-          backend:
-            image:
-              digest: sha256:42dd00d80a5df2c9a564fe939d7aec52b5519439f8a85ae226dbfba383f575f8 # 8289751
-          # Admin API
-          adminApi:
-            image:
-              digest: "sha256:4ba6e83afc921f6c7fc5a977e9034def6e664eb65192b83279b1e9c3d86e62c7"
-          # Hypershift
-          hypershift:
-            image:
-              digest: sha256:2b33a38c788fd8cbc16c1f353d417bee4646140dbfbfaa847b4d81941c601c36
-          # Maestro
-          maestro:
-            image:
-              digest: sha256:8bfd08bbafec5e4d4de8ae15c6a2d5cd8b11067136a9b88f800566a992a6a010
-            agent:
-              sidecar:
-                image:
-                  digest: sha256:c9932f5875ba5e0be70d174dc96f45d5474e77df8fe57ed6327b8d8208ee1635
-          # OCP image sync
-          imageSync:
-            ocMirror:
-              image:
-                digest: sha256:84a371ce715e1aa6d7f8ca7bfb99a2d7b41dc2bb3af42d887aa64cc1432a3519
-          # Mise
-          mise:
-            image:
-              digest: sha256:4822b1998fafa4c7ed1e0723dfed8fd0562e1525545327b821e6d9ef29573c74
       prod:
         # this is the MSFT PRODUCTION environment
         defaults:
@@ -209,92 +36,7 @@ clouds:
           # Cluster Service
           clustersService:
             deployDebugJobs: true
-            image:
-              digest: sha256:2f51c98788c688f92d6905977829891a4d6fc586050fbc3f7335f5c9994e6134
-          # ACR Pull
-          acrPull:
-            image:
-              digest: sha256:0129450f2cb03f2d358ac5ac3f46af923f1384fda24cd1b6ace309bb45efc691 #v0.1.20
-          # Secret Sync Controller
-          secretSyncController:
-            image:
-              digest: sha256:399febaa4c537111589a8a52dea7d1ec4cecce8c3d1010729e875a2e305a2f07 #v0.0.2
-            providerImage:
-              digest: sha256:c34ca57730d55189e843ebfb8343ef6b865e73b80adc3fd43f6181227c1320a7 # v1.7.2 (2025-11-18)
-          # Backplane API
-          backplaneAPI:
-            image:
-              digest: sha256:6c6c20dfaf63d02243bc08a0aab913bc659ed1d7a9cddcb85bd3e675dcbee924
-          # PKO
-          pko:
-            imagePackage:
-              digest: sha256:6dc4ef7c2ac37438636fd18cda973f53440478c91f580fa5e15c6377f41d60c6
-            imageManager:
-              digest: sha256:e9f66a19bc9dcfcf2a9e6ba14f61395806b65813a89385a2f943fe5148b29142
-            remotePhaseManager:
-              digest: sha256:0298985d8a02c983be382d351e9243c45edd035b11aa23a6ed077b3d6df7aa45
-          # SVC cluster settings
-          svc:
-            prometheus:
-              prometheusOperator:
-                image:
-                  sha: 5c3fd99a70fb43aa5ea4672ccaf04c68ac60d7adb7e205d2bf75d1b46395455c
-              prometheusSpec:
-                image:
-                  sha: 70296b2f2cc69c88d070fe8b627d347bd070e084c14babbc93e91583e03eca06
-              prometheusConfigReloader:
-                image:
-                  sha: 807993bae8544ca5dba1a088507c39adce29fef1afd2fb7492247b09e0cfa2a9
-              kubeStateMetrics:
-                image:
-                  digest: sha256:377bd55d97824dfee27b3c577869bc793fc3970623433627c7f0ee1b1b74e725 # v2.15.0-7
-          # MC cluster settings
-          mgmt:
-            prometheus:
-              prometheusOperator:
-                image:
-                  sha: 5c3fd99a70fb43aa5ea4672ccaf04c68ac60d7adb7e205d2bf75d1b46395455c
-              prometheusSpec:
-                image:
-                  sha: 70296b2f2cc69c88d070fe8b627d347bd070e084c14babbc93e91583e03eca06
-              prometheusConfigReloader:
-                image:
-                  sha: 807993bae8544ca5dba1a088507c39adce29fef1afd2fb7492247b09e0cfa2a9
-              kubeStateMetrics:
-                image:
-                  digest: sha256:377bd55d97824dfee27b3c577869bc793fc3970623433627c7f0ee1b1b74e725 # v2.15.0-7
           # RP Frontend
           frontend:
-            image:
-              digest: sha256:9cdc146bd1d45ef50abc52f8343a2b46823d50a30462190672ecee621fc449aa # 8289751
             audit:
               connectSocket: true
-          # RP Backend
-          backend:
-            image:
-              digest: sha256:42dd00d80a5df2c9a564fe939d7aec52b5519439f8a85ae226dbfba383f575f8 # 8289751
-          # Admin API
-          adminApi:
-            image:
-              digest: "sha256:4ba6e83afc921f6c7fc5a977e9034def6e664eb65192b83279b1e9c3d86e62c7"
-          # Hypershift
-          hypershift:
-            image:
-              digest: sha256:2b33a38c788fd8cbc16c1f353d417bee4646140dbfbfaa847b4d81941c601c36
-          # Maestro
-          maestro:
-            image:
-              digest: sha256:8bfd08bbafec5e4d4de8ae15c6a2d5cd8b11067136a9b88f800566a992a6a010
-            agent:
-              sidecar:
-                image:
-                  digest: sha256:c9932f5875ba5e0be70d174dc96f45d5474e77df8fe57ed6327b8d8208ee1635
-          # OCP image sync
-          imageSync:
-            ocMirror:
-              image:
-                digest: sha256:84a371ce715e1aa6d7f8ca7bfb99a2d7b41dc2bb3af42d887aa64cc1432a3519
-          # Mise
-          mise:
-            image:
-              digest: sha256:4822b1998fafa4c7ed1e0723dfed8fd0562e1525545327b821e6d9ef29573c74

@@ -1,0 +1,8 @@
+{
+	"resourceID": "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/some-hcp-cluster",
+	"internalClusterID": "/api/aro_hcp/v1alpha1/clusters/fixed-value",
+	"clientPrincipalName": "test-user@example.com",
+	"tenantID": "fake-tenant-id",
+	"managedResourceGroup": "fake-mrg-name",
+	"hcpName": "some-hcp-cluster"
+}

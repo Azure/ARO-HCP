@@ -26,10 +26,10 @@ import (
 
 	"github.com/go-logr/logr"
 
-	"github.com/Azure/ARO-Tools/pkg/cmdutils"
-	configtypes "github.com/Azure/ARO-Tools/pkg/config/types"
-	"github.com/Azure/ARO-Tools/pkg/graph"
-	"github.com/Azure/ARO-Tools/pkg/types"
+	configtypes "github.com/Azure/ARO-Tools/config/types"
+	"github.com/Azure/ARO-Tools/pipelines/graph"
+	"github.com/Azure/ARO-Tools/pipelines/types"
+	"github.com/Azure/ARO-Tools/tools/cmdutils"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
@@ -88,7 +88,7 @@ func (a *armClient) runArmStep(ctx context.Context, options *StepRunOptions, rgN
 	}
 
 	if !options.DryRun || (options.DryRun && step.OutputOnly) {
-		return doWaitForDeployment(ctx, a.bicepClient, a.deploymentClient, a.operationsClient, id.ServiceGroup, rgName, step, options.PipelineDirectory, options.StepCacheDir, options.Configuration, options.DeploymentTimeoutSeconds, state)
+		return doWaitForDeployment(ctx, a.bicepClient, a.deploymentClient, a.operationsClient, id.ServiceGroup, rgName, step, options.PipelineDirectory, options.StepCacheDir, options.Configuration, options.DeploymentTimeoutSeconds, options.RetryAttempt, state)
 	}
 
 	return doDryRun(ctx, a.bicepClient, a.deploymentClient, id.ServiceGroup, rgName, step, options.PipelineDirectory, options.StepCacheDir, options.Configuration, state)
@@ -282,7 +282,7 @@ func armOutputFromOutputs(outputs any) ArmOutput {
 	return nil
 }
 
-func doWaitForDeployment(ctx context.Context, bicepClient *bicep.LSPClient, client *armresources.DeploymentsClient, operationsClient *armresources.DeploymentOperationsClient, sgName, rgName string, step *types.ARMStep, pipelineWorkingDir, stepCacheDir string, cfg configtypes.Configuration, timeoutSeconds int, state *ExecutionState) (Output, DetailsProducer, error) {
+func doWaitForDeployment(ctx context.Context, bicepClient *bicep.LSPClient, client *armresources.DeploymentsClient, operationsClient *armresources.DeploymentOperationsClient, sgName, rgName string, step *types.ARMStep, pipelineWorkingDir, stepCacheDir string, cfg configtypes.Configuration, timeoutSeconds int, retryAttempt int, state *ExecutionState) (Output, DetailsProducer, error) {
 	logger := logr.FromContextOrDiscard(ctx)
 
 	state.RLock()
@@ -310,6 +310,7 @@ func doWaitForDeployment(ctx context.Context, bicepClient *bicep.LSPClient, clie
 		Properties:      deploymentProperties,
 		ResourceGroup:   rgName,
 		DeploymentLevel: step.DeploymentLevel,
+		RetryAttempt:    retryAttempt,
 	}
 
 	digest, skip, commit, err := checkCachedOutput[ArmOutput](logger, inputs, stepCacheDir)
@@ -432,6 +433,7 @@ type deploymentInputs struct {
 	Properties      *armresources.DeploymentProperties
 	ResourceGroup   string
 	DeploymentLevel string
+	RetryAttempt    int
 }
 
 // computeResourceGroupTags determines the final tags for a resource group based on existing tags and persist settings.
@@ -484,14 +486,24 @@ func ensureResourceGroupExists(ctx context.Context, resourceGroupClient *armreso
 			return fmt.Errorf("failed to create resource group: %w", err)
 		}
 	} else {
-		// Resource group exists - update its tags
+		// Resource group exists - only update tags if they changed
 		tags := computeResourceGroupTags(rg.Tags, persist)
-		patchResourceGroup := armresources.ResourceGroupPatchable{
-			Tags: tags,
-		}
-		_, err = resourceGroupClient.Update(ctx, rgName, patchResourceGroup, nil)
-		if err != nil {
-			return fmt.Errorf("failed to update resource group: %w", err)
+		if !maps.EqualFunc(rg.Tags, tags, func(a, b *string) bool {
+			if a == nil && b == nil {
+				return true
+			}
+			if a == nil || b == nil {
+				return false
+			}
+			return *a == *b
+		}) {
+			patchResourceGroup := armresources.ResourceGroupPatchable{
+				Tags: tags,
+			}
+			_, err = resourceGroupClient.Update(ctx, rgName, patchResourceGroup, nil)
+			if err != nil {
+				return fmt.Errorf("failed to update resource group: %w", err)
+			}
 		}
 	}
 	return nil

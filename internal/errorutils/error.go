@@ -17,7 +17,6 @@ package errorutils
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net/http"
 
 	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
@@ -53,10 +52,16 @@ func ReportError(delegate ErroringHTTPHandlerFunc) http.HandlerFunc {
 // errors that are not cloud errors are assumed to be internal errors.
 // The return value is always nil.  This allows direct usage in an http handler to local context
 // and allows the same handler function to return an error
-func writeError(ctx context.Context, w http.ResponseWriter, err error, args ...interface{}) error {
+func writeError(ctx context.Context, w http.ResponseWriter, err error) error {
 	logger := utils.LoggerFromContext(ctx)
 
-	logger.Error(fmt.Sprintf("%v", err), args...) // fmt used to handle nil
+	predictedResponseStatus := predictedResponseStatus(err)
+	switch {
+	case predictedResponseStatus >= 400 && predictedResponseStatus < 500:
+		logger.Info("caller request error", "err", err)
+	default:
+		logger.Error(err, "server request error")
+	}
 
 	var ocmError *ocmerrors.Error
 	if errors.As(err, &ocmError) {
@@ -86,4 +91,26 @@ func writeError(ctx context.Context, w http.ResponseWriter, err error, args ...i
 
 	arm.WriteInternalServerError(w)
 	return nil
+}
+
+// predictedResponseStatus needs to be mostly right, but not perfect.  We use it to control the log level of the error we print.
+func predictedResponseStatus(err error) int {
+	var ocmError *ocmerrors.Error
+	if errors.As(err, &ocmError) {
+		cloudErr := ocm.CSErrorToCloudError(err, nil)
+		return cloudErr.StatusCode
+	}
+
+	var cloudErr *arm.CloudError
+	if err != nil && errors.As(err, &cloudErr) {
+		if cloudErr != nil { // difference between interface is nil and the content is nil
+			return cloudErr.StatusCode
+		}
+	}
+
+	if database.IsResponseError(err, http.StatusNotFound) {
+		return http.StatusNotFound
+	}
+
+	return http.StatusInternalServerError
 }

@@ -14,9 +14,9 @@ spec:
     rules:
     - alert: BackendOperationErrorRate
       expr: |
-        (sum(rate(backend_failed_operations_total[1h])))
+        (sum by (cluster) (rate(backend_failed_operations_total[1h])))
         /
-        (sum(rate(backend_operations_total[1h])))
+        (sum by (cluster) (rate(backend_operations_total[1h])))
         > 0.05
       for: 5m
       labels:

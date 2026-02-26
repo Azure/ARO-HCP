@@ -1,0 +1,12 @@
+entrypoints:
+- identifier: 'Microsoft.Azure.ARO.HCP.Opstool.Infra'
+  metadata:
+    name: Opstool Infrastructure
+services:
+- serviceGroup: Microsoft.Azure.ARO.HCP.Opstool.Infra
+  pipelinePath: dev-infrastructure/opstool-pipeline.yaml
+  purpose: Deploy the opstool AKS cluster and Prometheus monitoring stack.
+  children:
+  - serviceGroup: Microsoft.Azure.ARO.HCP.Opstool.TenantQuota
+    pipelinePath: dev-infrastructure/ops-tools/tenant-quota/pipeline.yaml
+    purpose: Deploy the tenant-quota-collector.

@@ -23,7 +23,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"syscall"
+	"sync"
 	"time"
 
 	"github.com/onsi/ginkgo/v2"
@@ -32,9 +32,10 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	armauthorization "github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v3"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/msi/armmsi"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 
-	"github.com/Azure/ARO-HCP/test/util/log"
+	"github.com/Azure/ARO-HCP/test/pkg/filelock"
 )
 
 const (
@@ -84,6 +85,24 @@ type Identities struct {
 	ServiceManagedIdentityName   string `json:"serviceManagedIdentityName"`
 }
 
+func (i Identities) ToSlice() []string {
+	return []string{
+		i.ClusterApiAzureMiName,
+		i.ControlPlaneMiName,
+		i.CloudControllerManagerMiName,
+		i.IngressMiName,
+		i.DiskCsiDriverMiName,
+		i.FileCsiDriverMiName,
+		i.ImageRegistryMiName,
+		i.CloudNetworkConfigMiName,
+		i.KmsMiName,
+		i.DpDiskCsiDriverMiName,
+		i.DpFileCsiDriverMiName,
+		i.DpImageRegistryMiName,
+		i.ServiceManagedIdentityName,
+	}
+}
+
 func NewDefaultIdentities() Identities {
 	return Identities{
 		ClusterApiAzureMiName:        ClusterApiAzureMiName,
@@ -99,6 +118,24 @@ func NewDefaultIdentities() Identities {
 		DpFileCsiDriverMiName:        DpFileCsiDriverMiName,
 		DpImageRegistryMiName:        DpImageRegistryMiName,
 		ServiceManagedIdentityName:   ServiceManagedIdentityName,
+	}
+}
+
+func NewDefaultIdentitiesWithSuffix(suffix string) Identities {
+	return Identities{
+		ClusterApiAzureMiName:        fmt.Sprintf("%s-%s", ClusterApiAzureMiName, suffix),
+		ControlPlaneMiName:           fmt.Sprintf("%s-%s", ControlPlaneMiName, suffix),
+		CloudControllerManagerMiName: fmt.Sprintf("%s-%s", CloudControllerManagerMiName, suffix),
+		IngressMiName:                fmt.Sprintf("%s-%s", IngressMiName, suffix),
+		DiskCsiDriverMiName:          fmt.Sprintf("%s-%s", DiskCsiDriverMiName, suffix),
+		FileCsiDriverMiName:          fmt.Sprintf("%s-%s", FileCsiDriverMiName, suffix),
+		ImageRegistryMiName:          fmt.Sprintf("%s-%s", ImageRegistryMiName, suffix),
+		CloudNetworkConfigMiName:     fmt.Sprintf("%s-%s", CloudNetworkConfigMiName, suffix),
+		KmsMiName:                    fmt.Sprintf("%s-%s", KmsMiName, suffix),
+		DpDiskCsiDriverMiName:        fmt.Sprintf("%s-%s", DpDiskCsiDriverMiName, suffix),
+		DpFileCsiDriverMiName:        fmt.Sprintf("%s-%s", DpFileCsiDriverMiName, suffix),
+		DpImageRegistryMiName:        fmt.Sprintf("%s-%s", DpImageRegistryMiName, suffix),
+		ServiceManagedIdentityName:   fmt.Sprintf("%s-%s", ServiceManagedIdentityName, suffix),
 	}
 }
 
@@ -143,6 +180,8 @@ func (tc *perItOrDescribeTestContext) ResolveIdentitiesForTemplate(resourceGroup
 // identities object and usePooledIdentities flag for their parameters.
 func (tc *perItOrDescribeTestContext) DeployManagedIdentities(
 	ctx context.Context,
+	clusterName string,
+	rbacScope RBACScope,
 	opts ...BicepDeploymentOption,
 ) (*armresources.DeploymentExtended, error) {
 
@@ -165,7 +204,7 @@ func (tc *perItOrDescribeTestContext) DeployManagedIdentities(
 
 	usePooled := tc.UsePooledIdentities()
 	msiRGName := cfg.resourceGroup
-	identities := NewDefaultIdentities()
+	var identities Identities
 
 	if usePooled {
 		msiPool, err := tc.getLeasedIdentities()
@@ -174,6 +213,8 @@ func (tc *perItOrDescribeTestContext) DeployManagedIdentities(
 		}
 		msiRGName = msiPool.ResourceGroupName
 		identities = msiPool.Identities
+	} else {
+		identities = NewDefaultIdentitiesWithSuffix(clusterName)
 	}
 
 	parameters := map[string]interface{}{
@@ -185,6 +226,8 @@ func (tc *perItOrDescribeTestContext) DeployManagedIdentities(
 		"clusterResourceGroupName": cfg.resourceGroup,
 		"msiResourceGroupName":     msiRGName,
 		"identities":               identities,
+		"rbacScope":                rbacScope,
+		"clusterName":              clusterName,
 	}
 
 	deploymentResult, err := tc.CreateBicepTemplateAndWait(ctx,
@@ -205,6 +248,12 @@ func (tc *perItOrDescribeTestContext) DeployManagedIdentities(
 // AssignIdentityContainers attempts to assign n free identity containers to the caller by marking
 // them as "assigned". It retries if there are fewer than n free entries until the context is done.
 func (tc *perItOrDescribeTestContext) AssignIdentityContainers(ctx context.Context, count uint8, waitBetweenRetries time.Duration) error {
+	startTime := time.Now()
+	defer func() {
+		finishTime := time.Now()
+		tc.RecordTestStep(fmt.Sprintf("Assign %d identity containers", count), startTime, finishTime)
+	}()
+
 	state, err := tc.perBinaryInvocationTestContext.getLeasedIdentityPoolState()
 	if err != nil {
 		return fmt.Errorf("failed to open managed identities pool state file: %w", err)
@@ -230,6 +279,11 @@ func (tc *perItOrDescribeTestContext) AssignIdentityContainers(ctx context.Conte
 // getLeasedIdentities returns the leased identities and container resource group by using one
 // of the leases assigned to the calling test spec.
 func (tc *perItOrDescribeTestContext) getLeasedIdentities() (LeasedIdentityPool, error) {
+	startTime := time.Now()
+	defer func() {
+		finishTime := time.Now()
+		tc.RecordTestStep("Lease identity container", startTime, finishTime)
+	}()
 
 	state, err := tc.perBinaryInvocationTestContext.getLeasedIdentityPoolState()
 	if err != nil {
@@ -269,6 +323,12 @@ func (tc *perItOrDescribeTestContext) leasedIdentityContainers() ([]string, erro
 // releaseLeasedIdentities releases all the identity containers leased to the calling test spec.
 // To be used only in the cleanup phase of the test.
 func (tc *perItOrDescribeTestContext) releaseLeasedIdentities(ctx context.Context) error {
+	startTime := time.Now()
+	defer func() {
+		finishTime := time.Now()
+		tc.RecordTestStep("Release leased identities", startTime, finishTime)
+	}()
+
 	if !tc.UsePooledIdentities() {
 		return nil
 	}
@@ -300,25 +360,93 @@ func (tc *perItOrDescribeTestContext) releaseLeasedIdentities(ctx context.Contex
 		return err
 	}
 
+	msiClientFactory, err := armmsi.NewClientFactory(subscriptionID, creds, nil)
+	if err != nil {
+		return err
+	}
+	ficsClient := msiClientFactory.NewFederatedIdentityCredentialsClient()
+
 	var errs []error
 	for _, resourceGroup := range leasedContainers {
-		err := state.releaseByContainerName(resourceGroup, func() error {
-			return tc.cleanupLeasedIdentityContainer(ctx, client, resourceGroup)
-		})
+		err := state.releaseByContainerName(resourceGroup,
+			func() error {
+				return tc.cleanupLeasedIdentityContainerFICs(ctx, ficsClient, resourceGroup)
+			},
+			func() error {
+				return tc.cleanupLeasedIdentityContainerRoleAssignments(ctx, client, resourceGroup)
+			},
+		)
 		if err != nil {
 			errs = append(errs, fmt.Errorf("failed to release identity container %s: %w", resourceGroup, err))
 		}
 	}
-
 	if len(errs) > 0 {
 		return fmt.Errorf("failed cleanup operations: %w", errors.Join(errs...))
 	}
 	return nil
 }
 
-// cleanupLeasedIdentityContainer cleans up the identity container by deleting all the role assignments
+// cleanupLeasedIdentityContainerFICs deletes all federated identity credentials contained in the identity container
+// resource group.
+func (tc *perItOrDescribeTestContext) cleanupLeasedIdentityContainerFICs(
+	ctx context.Context,
+	ficsClient *armmsi.FederatedIdentityCredentialsClient,
+	resourceGroup string,
+) error {
+
+	identities := NewDefaultIdentities().ToSlice()
+
+	wg := sync.WaitGroup{}
+	errCh := make(chan error, len(identities))
+	for _, identityName := range identities {
+		wg.Add(1)
+		go func(ctx context.Context, identityName string) {
+			defer wg.Done()
+
+			var errs []error
+
+			pager := ficsClient.NewListPager(resourceGroup, identityName, nil)
+			for pager.More() {
+				page, err := pager.NextPage(ctx)
+				if err != nil {
+					errs = append(errs, fmt.Errorf("failed to list FICs for identity %q in resource group %q: %w", identityName, resourceGroup, err))
+					break
+				}
+
+				for _, fic := range page.Value {
+					_, err := ficsClient.Delete(ctx, resourceGroup, identityName, *fic.Name, nil)
+					if err != nil {
+						var respErr *azcore.ResponseError
+						if errors.As(err, &respErr) && respErr.StatusCode == http.StatusNotFound {
+							continue
+						}
+						errs = append(errs, fmt.Errorf("failed to delete FIC %q in resource group %q: %w", *fic.Name, resourceGroup, err))
+					}
+				}
+			}
+
+			if len(errs) > 0 {
+				errCh <- fmt.Errorf("failed to cleanup FICs for identity: %w", errors.Join(errs...))
+			}
+		}(ctx, identityName)
+	}
+
+	wg.Wait()
+	close(errCh)
+
+	var errs []error
+	for err := range errCh {
+		errs = append(errs, err)
+	}
+	if len(errs) > 0 {
+		return fmt.Errorf("failed cleanup operations: %w", errors.Join(errs...))
+	}
+	return nil
+}
+
+// cleanupLeasedIdentityContainerRoleAssignments cleans up the identity container by deleting all the role assignments
 // that were created within it.
-func (tc *perItOrDescribeTestContext) cleanupLeasedIdentityContainer(ctx context.Context,
+func (tc *perItOrDescribeTestContext) cleanupLeasedIdentityContainerRoleAssignments(ctx context.Context,
 	client *armauthorization.RoleAssignmentsClient, resourceGroup string) error {
 
 	subscriptionID, err := tc.getSubscriptionIDUnlocked(ctx)
@@ -328,7 +456,7 @@ func (tc *perItOrDescribeTestContext) cleanupLeasedIdentityContainer(ctx context
 
 	scope := fmt.Sprintf("/subscriptions/%s/resourceGroups/%s", subscriptionID, resourceGroup)
 
-	var errs []error
+	var toDelete []*armauthorization.RoleAssignment
 	pager := client.NewListForResourceGroupPager(resourceGroup, nil)
 	for pager.More() {
 		page, err := pager.NextPage(ctx)
@@ -339,16 +467,39 @@ func (tc *perItOrDescribeTestContext) cleanupLeasedIdentityContainer(ctx context
 			if !strings.HasPrefix(strings.ToLower(*ra.Properties.Scope), strings.ToLower(scope)) {
 				continue
 			}
+			toDelete = append(toDelete, ra)
+		}
+	}
+
+	if len(toDelete) == 0 {
+		return nil
+	}
+
+	wg := sync.WaitGroup{}
+	errCh := make(chan error, len(toDelete))
+
+	for _, ra := range toDelete {
+		wg.Add(1)
+		go func(ctx context.Context, ra *armauthorization.RoleAssignment) {
+			defer wg.Done()
 
 			_, err := client.Delete(ctx, *ra.Properties.Scope, *ra.Name, nil)
 			if err != nil {
 				var respErr *azcore.ResponseError
 				if errors.As(err, &respErr) && respErr.StatusCode == http.StatusNotFound {
-					continue
+					return
 				}
-				errs = append(errs, fmt.Errorf("failed to delete role assignment %s: %w", *ra.ID, err))
+				errCh <- fmt.Errorf("failed to delete role assignment %s: %w", *ra.ID, err)
 			}
-		}
+		}(ctx, ra)
+	}
+
+	wg.Wait()
+	close(errCh)
+
+	var errs []error
+	for err := range errCh {
+		errs = append(errs, err)
 	}
 	if len(errs) > 0 {
 		return fmt.Errorf("failed cleanup operations: %w", errors.Join(errs...))
@@ -411,7 +562,7 @@ func (e *leasedIdentityPoolEntry) use(me string) error {
 	return nil
 }
 
-func (e *leasedIdentityPoolEntry) release(cleanup func() error) error {
+func (e *leasedIdentityPoolEntry) release(cleanups ...func() error) error {
 	if e.Current.State == leaseStateFree {
 		return nil
 	}
@@ -420,13 +571,28 @@ func (e *leasedIdentityPoolEntry) release(cleanup func() error) error {
 	e.Current.LeasedBy = ""
 	e.Current.TransitionedAt = time.Now().UTC().Format(time.RFC3339)
 
-	return cleanup()
+	errs := []error{}
+	for _, cleanup := range cleanups {
+		if err := cleanup(); err != nil {
+			errs = append(errs, fmt.Errorf("failed to cleanup: %w", err))
+		}
+	}
+	if len(errs) > 0 {
+		return fmt.Errorf("failed cleanup operations: %w", errors.Join(errs...))
+	}
+	return nil
 }
 
 type leasedIdentityPoolState struct {
-	lockFile  *os.File
+	// lockFile ensures single process access to the state file.
+	lockFile *os.File
+	// mu ensures single thread access to the state file to avoid
+	// intra-test parallelism issues.
+	mu sync.Mutex
+	// statePath is the path to the state file.
 	statePath string
-	entries   []leasedIdentityPoolEntry
+	// entries is the list of leased identity pool entries.
+	entries []leasedIdentityPoolEntry
 }
 
 // newLeasedIdentityPoolState creates a new leased identity pool state.
@@ -446,7 +612,7 @@ func newLeasedIdentityPoolState(path string) (*leasedIdentityPoolState, error) {
 	}
 	defer func() {
 		if err := state.unlock(); err != nil {
-			log.Logger.WithError(err).Warn("failed to release managed identities pool state file lock")
+			ginkgo.GinkgoLogr.Info("WARN: failed to release managed identities pool state file lock", "error", err)
 		}
 	}()
 
@@ -466,7 +632,7 @@ func newLeasedIdentityPoolState(path string) (*leasedIdentityPoolState, error) {
 	if err := state.initializeUnlocked(leasedRGs); err != nil {
 		return &leasedIdentityPoolState{}, fmt.Errorf("failed to initialize managed identities pool state: %w", err)
 	}
-	log.Logger.Infof("initialized managed identities pool state with %d entries", len(state.entries))
+	ginkgo.GinkgoLogr.Info("initialized managed identities pool state", "entries", len(state.entries))
 
 	return &state, nil
 }
@@ -478,7 +644,7 @@ func (state *leasedIdentityPoolState) useNextAssigned(me string) (string, error)
 	}
 	defer func() {
 		if err := state.unlock(); err != nil {
-			log.Logger.WithError(err).Warn("failed to release managed identities pool state file lock")
+			ginkgo.GinkgoLogr.Info("WARN: failed to release managed identities pool state file lock", "error", err)
 		}
 	}()
 
@@ -519,7 +685,7 @@ func (state *leasedIdentityPoolState) assignNTo(me string, n uint8) error {
 	}
 	defer func() {
 		if err := state.unlock(); err != nil {
-			log.Logger.WithError(err).Warn("failed to release managed identities pool state file lock")
+			ginkgo.GinkgoLogr.Info("WARN: failed to release managed identities pool state file lock", "error", err)
 		}
 	}()
 
@@ -551,13 +717,13 @@ func (state *leasedIdentityPoolState) assignNTo(me string, n uint8) error {
 }
 
 // releaseByContainerName releases the identity container by the given name.
-func (state *leasedIdentityPoolState) releaseByContainerName(resourceGroup string, cleanupFn func() error) error {
+func (state *leasedIdentityPoolState) releaseByContainerName(resourceGroup string, cleanupFn ...func() error) error {
 	if err := state.lock(); err != nil {
 		return fmt.Errorf("failed to acquire managed identities pool state file lock: %w", err)
 	}
 	defer func() {
 		if err := state.unlock(); err != nil {
-			log.Logger.WithError(err).Warn("failed to release managed identities pool state file lock")
+			ginkgo.GinkgoLogr.Info("WARN: failed to release managed identities pool state file lock", "error", err)
 		}
 	}()
 
@@ -567,9 +733,9 @@ func (state *leasedIdentityPoolState) releaseByContainerName(resourceGroup strin
 	}
 	for i := range state.entries {
 		if state.entries[i].ResourceGroup == resourceGroup {
-			if err := state.entries[i].release(cleanupFn); err != nil {
+			if err := state.entries[i].release(cleanupFn...); err != nil {
 				// cleanup is best effort, just log errors and continue
-				log.Logger.WithError(err).Warnf("failed to release managed identities resource group %s", resourceGroup)
+				ginkgo.GinkgoLogr.Info("WARN: failed to release managed identities resource group", "resourceGroup", resourceGroup, "error", err)
 			}
 			if err := state.writeUnlocked(); err != nil {
 				return fmt.Errorf("failed to write managed identities pool state file: %w", err)
@@ -589,7 +755,7 @@ func (state *leasedIdentityPoolState) getLeasedIdentityContainers(me string) ([]
 	}
 	defer func() {
 		if err := state.unlock(); err != nil {
-			log.Logger.WithError(err).Warn("failed to release managed identities pool state file lock")
+			ginkgo.GinkgoLogr.Info("WARN: failed to release managed identities pool state file lock", "error", err)
 		}
 	}()
 
@@ -606,20 +772,6 @@ func (state *leasedIdentityPoolState) getLeasedIdentityContainers(me string) ([]
 	return resourceGroups, nil
 }
 
-func (state *leasedIdentityPoolState) lock() error {
-	if err := syscall.Flock(int(state.lockFile.Fd()), syscall.LOCK_EX); err != nil {
-		return fmt.Errorf("failed to acquire state file lock: %w", err)
-	}
-	return nil
-}
-
-func (state *leasedIdentityPoolState) unlock() error {
-	if err := syscall.Flock(int(state.lockFile.Fd()), syscall.LOCK_UN); err != nil {
-		return fmt.Errorf("failed to release managed identities pool state file lock: %w", err)
-	}
-	return nil
-}
-
 func (state *leasedIdentityPoolState) readUnlocked() error {
 
 	f, err := os.OpenFile(state.statePath, os.O_RDWR|os.O_CREATE, 0666)
@@ -628,7 +780,7 @@ func (state *leasedIdentityPoolState) readUnlocked() error {
 	}
 	defer func() {
 		if err := f.Close(); err != nil {
-			log.Logger.WithError(err).Warn("failed to close managed identities pool state file after read")
+			ginkgo.GinkgoLogr.Info("WARN: failed to close managed identities pool state file after read", "error", err)
 		}
 	}()
 
@@ -663,7 +815,7 @@ func (state *leasedIdentityPoolState) writeUnlocked() error {
 
 	cleanupTemp := func() {
 		if err := os.Remove(tmp.Name()); err != nil && !os.IsNotExist(err) {
-			log.Logger.WithError(err).Warn("failed to remove temporary managed identities pool state file")
+			ginkgo.GinkgoLogr.Info("WARN: failed to remove temporary managed identities pool state file", "error", err)
 		}
 	}
 
@@ -715,4 +867,15 @@ func (state *leasedIdentityPoolState) initializeUnlocked(leasedRGs []string) err
 
 func specID() string {
 	return fmt.Sprintf("%s|pid:%d", strings.Join(strings.Fields(ginkgo.CurrentSpecReport().FullText()), "-"), os.Getpid())
+}
+
+func (state *leasedIdentityPoolState) lock() error {
+	state.mu.Lock()
+	return filelock.Lock(state.lockFile.Fd())
+}
+
+func (state *leasedIdentityPoolState) unlock() error {
+	err := filelock.Unlock(state.lockFile.Fd())
+	state.mu.Unlock()
+	return err
 }

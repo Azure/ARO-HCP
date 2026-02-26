@@ -1,0 +1,7 @@
+{
+	"id": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/providers/Microsoft.RedHatOpenShift/locations/fake-location/hcpOperationStatuses/ab5d298a-2267-432a-ad71-313bbdae0349",
+	"name": "ab5d298a-2267-432a-ad71-313bbdae0349",
+	"status": "Succeeded",
+	"startTime": "2026-01-05T18:29:58.181047849Z",
+	"endTime": "2026-01-07T10:52:29.33868076-05:00"
+}

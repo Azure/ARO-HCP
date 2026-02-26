@@ -23,16 +23,16 @@ import (
 
 	"github.com/go-logr/logr"
 
-	"github.com/Azure/azure-kusto-go/kusto/data/table"
+	azkquery "github.com/Azure/azure-kusto-go/azkustodata/query"
 
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/kusto"
 )
 
 // QueryClientInterface defines the interface for querying data
 type QueryClientInterface interface {
-	ConcurrentQueries(ctx context.Context, queries []*kusto.ConfigurableQuery, outputChannel chan *table.Row) error
+	ConcurrentQueries(ctx context.Context, queries []*kusto.ConfigurableQuery, outputChannel chan<- azkquery.Row) error
 	Close() error
-	ExecutePreconfiguredQuery(ctx context.Context, query *kusto.ConfigurableQuery, outputChannel chan *table.Row) (*kusto.QueryResult, error)
+	ExecutePreconfiguredQuery(ctx context.Context, query *kusto.ConfigurableQuery, outputChannel chan<- azkquery.Row) (*kusto.QueryResult, error)
 }
 
 type QueryClient struct {
@@ -52,7 +52,17 @@ func NewQueryClient(client kusto.KustoClient, queryTimeout time.Duration, output
 	}
 }
 
-func (q *QueryClient) ConcurrentQueries(ctx context.Context, queries []*kusto.ConfigurableQuery, outputChannel chan *table.Row) error {
+// NewQueryClient creates a new QueryClient with default dependencies
+func NewQueryClientWithFileWriter(client kusto.KustoClient, queryTimeout time.Duration, outputPath string, fileWriter FileWriter) *QueryClient {
+	return &QueryClient{
+		Client:       client,
+		QueryTimeout: queryTimeout,
+		OutputPath:   outputPath,
+		FileWriter:   fileWriter,
+	}
+}
+
+func (q *QueryClient) ConcurrentQueries(ctx context.Context, queries []*kusto.ConfigurableQuery, outputChannel chan<- azkquery.Row) error {
 	logger := logr.FromContextOrDiscard(ctx)
 	wg := sync.WaitGroup{}
 	wg.Add(len(queries))
@@ -68,9 +78,11 @@ func (q *QueryClient) ConcurrentQueries(ctx context.Context, queries []*kusto.Co
 				errorCh <- fmt.Errorf("failed to execute query: %w", err)
 				return
 			}
-			err = q.FileWriter.WriteFile(q.OutputPath, fmt.Sprintf("%s.json", query.Name), result)
-			if err != nil {
-				errorCh <- fmt.Errorf("failed to write query result to file: %w", err)
+			if q.FileWriter != nil {
+				err = q.FileWriter.WriteFile(q.OutputPath, fmt.Sprintf("%s.json", query.Name), result)
+				if err != nil {
+					errorCh <- fmt.Errorf("failed to write query result to file: %w", err)
+				}
 			}
 		}(query, i)
 	}
@@ -93,6 +105,6 @@ func (q *QueryClient) Close() error {
 	return q.Client.Close()
 }
 
-func (q *QueryClient) ExecutePreconfiguredQuery(ctx context.Context, query *kusto.ConfigurableQuery, outputChannel chan *table.Row) (*kusto.QueryResult, error) {
+func (q *QueryClient) ExecutePreconfiguredQuery(ctx context.Context, query *kusto.ConfigurableQuery, outputChannel chan<- azkquery.Row) (*kusto.QueryResult, error) {
 	return q.Client.ExecutePreconfiguredQuery(ctx, query, outputChannel)
 }

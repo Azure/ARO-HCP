@@ -1,0 +1,551 @@
+---
+# Source: arobit/templates/serviceaccount.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: 'arobit-forwarder'
+  namespace: 'arobit'
+  labels:
+    app.kubernetes.io/name: 'arobit-forwarder'
+    app.kubernetes.io/instance: 'dev-westus3-mgmt-1-arobit'
+  annotations:
+    azure.workload.identity/client-id: '__msiClientId__'
+---
+# Source: arobit/templates/forwarder-configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: arobit-forwarder
+  namespace: 'arobit'
+  labels:
+    app.kubernetes.io/name: arobit-forwarder
+    app.kubernetes.io/instance: 'dev-westus3-mgmt-1-arobit'
+data:
+  fluent-bit.conf: |
+    @INCLUDE /forwarder/etc/service.conf
+
+    @INCLUDE /forwarder/etc/input.conf
+
+    @INCLUDE /forwarder/etc/filter.conf
+    @INCLUDE /forwarder/etc/output.conf
+  service.conf: |
+    [SERVICE]
+        Flush                     1
+        Log_Level                 info
+        Parsers_File              /fluent-bit/etc/parsers.conf
+        Parsers_File              /forwarder/etc/parsers_custom.conf
+        Plugins_File              /fluent-bit/etc/plugins.conf
+        HTTP_Server               On
+        storage.path              /var/fluent-bit/flb-storage
+        # If the input plugin has enabled filesystem storage type, this property sets the maximum number of Chunks that can be up in memory.
+        # (default: 128)
+        storage.max_chunks_up     256
+        # This option configure a hint of maximum value of memory to use when processing the backlog data.
+        # (default: 5M)
+        storage.backlog.mem_limit 256M
+        storage.metrics           on
+        # Based on the HC_Period, if the error number > HC_Errors_Count or the retry failure > HC_Retry_Failure_Count, fluent bit is considered as unhealthy.
+        Health_Check              On
+        HC_Errors_Count           5
+        HC_Retry_Failure_Count    5
+        HC_Period                 60
+  parsers_custom.conf: |
+    # Previously, docker parser would parse the container log as record["log"].
+    # With the default cri parser, the container log will be parsed as record["message"].
+    # For backward compat with docker implementation, use the following parser.
+    [PARSER]
+        Name        cri-o
+        Format      regex
+        Regex       ^(?<time>[^ ]+) (?<stream>stdout|stderr) (?<logtag>[^ ]*) (?<log>.*)$
+        Time_Key    time
+        Time_Format %Y-%m-%dT%H:%M:%S.%L%z
+        Time_Keep   On
+    
+    [PARSER]
+        Name        containerlogs
+        Format      json
+        Time_Key    time
+        Time_Format %Y-%m-%dT%H:%M:%S.%L
+        Time_Keep   On
+    
+  input.conf: |
+    [INPUT]
+        Name              tail
+        Alias             tail.container
+        Tag               kubernetes.*
+        Path              /var/log/containers/*.log
+        Exclude_Path      /var/log/containers/*log-tailer*,/var/log/containers/*geneva-logger*,/var/log/containers/*arobit*
+        Parser            cri-o
+        # Docker_Mode       On
+        # Parser            none
+        DB                /var/log/flb-tail.db
+        DB.sync           normal
+        DB.locking        true
+        # The interval of refreshing the list of watched files in seconds.
+        # (default: 60)
+        Refresh_Interval  15
+        # For new discovered files on start (without a database offset/position), read the content from the head of the file.
+        # (default: off)
+        Read_from_Head    On
+        # Set the initial buffer size to read files data. This value is used to increase buffer size.
+        # (default: 32K)
+        Buffer_Chunk_Size 1M
+        # Set the limit of the buffer size per monitored file. When a buffer needs to be increased (e.g: very long lines),
+        # this value is used to restrict how much the memory buffer can grow.
+        # (default: Buffer_Chunk_Size)
+        Buffer_Max_Size   4M
+        # When a monitored file reach it buffer capacity due to a very long line (Buffer_Max_Size), the default behavior is to stop monitoring that file.
+        # Skip_Long_Lines alter that behavior and instruct Fluent Bit to skip long lines and continue processing other lines that fits into the buffer size.
+        # (default: Off)
+        Skip_Long_Lines   On
+        # Set a limit of memory that Tail plugin can use when appending data to the Engine.
+        # If the limit is reach, it will be paused; when the data is flushed it resumes.
+        Mem_Buf_Limit     512M
+        storage.type      filesystem
+        # The new threaded mechanism allows input plugins to run in a separate thread which helps to desaturate the main pipeline
+        Threaded          On
+
+    [INPUT]
+        Name              forward
+        Alias             input.forward
+        Listen            0.0.0.0
+        Port              24224
+        # By default, the buffer to store the incoming Forward messages, do not allocate the maximum memory allowed,
+        # instead it allocate memory when is required. The rounds of allocations are set by Buffer_Chunk_Size.
+        # (default: 32KB)
+        Buffer_Chunk_Size 1M
+        # Specify the maximum buffer memory size used to receive a Forward message.
+        # (default: Buffer_Chunk_Size)
+        Buffer_Max_Size   16M
+        Mem_Buf_Limit     512M
+
+    [INPUT]
+        Name            fluentbit_metrics
+        Alias           metrics.fluentbit
+        Tag             metrics.fluentbit
+        scrape_interval 15
+
+    [INPUT]
+        Name   opentelemetry
+        Alias  otlp
+        Listen 0.0.0.0
+        Port   4318
+
+    [INPUT]
+        Name            systemd
+        Alias           systemd
+        Tag             systemd.*
+        Systemd_Filter  _SYSTEMD_UNIT=containerd.service
+        Systemd_Filter  _SYSTEMD_UNIT=kubelet.service
+        Read_From_Tail  On
+        Strip_Underscores On
+        DB              /var/fluent-bit/flb-storage/flb-systemdb.db
+  filter.conf: |
+    [FILTER]
+        Name   lua
+        Alias  lua.reassemble_cri
+        Match  kubernetes.var.log.containers.*
+        script /forwarder/etc/reassemble_cri.lua
+        call   reassemble_cri
+    
+    [FILTER]
+        Name modify
+        Match systemd.*
+        Add environment dev
+        Add region westus3
+        Add cluster dev-westus3-mgmt-1
+
+    [FILTER]
+        Name modify
+        Match kubernetes.var.log.containers.*
+        Add environment dev
+        Add region westus3
+        Add cluster dev-westus3-mgmt-1
+
+    [FILTER]
+        Name                kubernetes
+        Alias               filter.kubernetes
+        Match               kubernetes.var.log.containers.*
+        Kube_Tag_Prefix     kubernetes.var.log.containers.
+        Annotations         Off
+        K8S-Logging.Exclude On
+        Buffer_Size         64k
+
+    [FILTER]
+        Name            rewrite_tag
+        Alias           filter.namespace_router
+        Match           kubernetes.var.log.containers.*
+        Rule            $kubernetes['namespace_name'] ^ocm-.* ocm.logs false
+        Rule            $kubernetes['namespace_name'] ^(?!ocm-).* other.logs false
+        Emitter_Name    re_emitted_namespace_router
+
+    [FILTER]
+        # Other logs are keept, because want to send them to mdsd as well
+        Name            rewrite_tag
+        Alias           filter.container_name_router
+        Match           other.logs
+        Rule            $kubernetes['container_name'] ^aro-hcp-frontend* aro-hcp-frontend.logs true
+        Rule            $kubernetes['container_name'] ^aro-hcp-backend* aro-hcp-backend.logs true
+        Rule            $kubernetes['container_name'] ^clusters-service* clusters-service.logs true
+        Rule            $kubernetes['container_name'] ^kube-events* kube-events.logs true
+        Emitter_Name    re_emitted_container_name_router
+
+    [FILTER]
+        # Parse the log key and make it a json object again under $
+        Name Parser
+        Match_regex (aro-hcp-(frontend|backend)|kube-events|clusters-service)\.logs
+        Key_Name log
+        Parser containerlogs
+        Preserve_Key On
+        Reserve_Data On
+  output.conf: |
+    [OUTPUT]
+        Name  prometheus_exporter
+        Alias exporter.fluentbit
+        Match metrics.fluentbit
+        Host  0.0.0.0
+        Port  9090
+    [OUTPUT]
+        Match ocm.logs
+        Name azure_kusto
+        auth_type workload_identity
+        tenant_id __tenantId__
+        client_id __msiClientId__
+        workload_identity_token_file ${AZURE_FEDERATED_TOKEN_FILE}
+        Ingestion_Endpoint __kustoDataIngestionUri__
+        Database_Name HostedControlPlaneLogs
+        Table_Name containerLogs
+        ingestion_mapping_reference ingestionMapping
+        buffer_dir /var/fluent-bit/kusto
+    [OUTPUT]
+        Match other.logs
+        Name azure_kusto
+        auth_type workload_identity
+        tenant_id __tenantId__
+        client_id __msiClientId__
+        workload_identity_token_file ${AZURE_FEDERATED_TOKEN_FILE}
+        Ingestion_Endpoint __kustoDataIngestionUri__
+        Database_Name ServiceLogs
+        Table_Name containerLogs
+        ingestion_mapping_reference ingestionMapping
+        buffer_dir /var/fluent-bit/kusto
+
+    [OUTPUT]
+        Match kube-events.logs
+        Name azure_kusto
+        auth_type workload_identity
+        tenant_id __tenantId__
+        client_id __msiClientId__
+        workload_identity_token_file ${AZURE_FEDERATED_TOKEN_FILE}
+        Ingestion_Endpoint __kustoDataIngestionUri__
+        Database_Name ServiceLogs
+        Table_Name kubernetesEvents
+        ingestion_mapping_reference ingestionMapping
+        buffer_dir /var/fluent-bit/kusto
+
+    [OUTPUT]
+        Match systemd.*
+        Name azure_kusto
+        auth_type workload_identity
+        tenant_id __tenantId__
+        client_id __msiClientId__
+        workload_identity_token_file ${AZURE_FEDERATED_TOKEN_FILE}
+        Ingestion_Endpoint __kustoDataIngestionUri__
+        Database_Name ServiceLogs
+        Table_Name systemdLogs
+        ingestion_mapping_reference ingestionMapping
+        buffer_dir /var/fluent-bit/kusto
+
+  output-mdsd.conf: |
+    # Forward logs to mdsd instance (default port)
+    [OUTPUT]
+        Name  forward
+        Alias forward.mdsd.other
+        Match mdsd-other.logs
+        Host  127.0.0.1
+        Port  5001
+        Tag   akskubesystem
+
+    [OUTPUT]
+        Name  prometheus_exporter
+        Alias exporter.fluentbit
+        Match metrics.fluentbit
+        Host  0.0.0.0
+        Port  9090
+  output-mdsd-ocm.conf: |
+    # Forward OCM namespace logs (ocm-.* pattern) to another mdsd instance
+    [OUTPUT]
+        Name  forward
+        Alias forward.mdsd.ocm
+        Match mdsd-ocm.logs
+        Host  127.0.0.1
+        Port  5002
+        Tag   akskubesystem
+  reassemble_cri.lua: |
+    local reassemble_state = {}
+    function reassemble_cri(tag, timestamp, record)
+      local reassemble_key = tag
+      -- if partial line, accumulate
+      if record.logtag == 'P' then
+        reassemble_state[reassemble_key] = (reassemble_state[reassemble_key] or "") .. (record.log or "")
+        return -1, 0, 0
+      end
+      -- otherwise, it's a full line, concatenate with accumulated partial lines if any
+      record.log = (reassemble_state[reassemble_key] or "") .. (record.log or "")
+      reassemble_state[reassemble_key] = nil
+      return 1, timestamp, record
+    end
+---
+# Source: arobit/templates/forwarder-clusterrole.yaml
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: arobit-forwarder
+  labels:
+    app.kubernetes.io/name: arobit-forwarder
+    app.kubernetes.io/instance: 'dev-westus3-mgmt-1-arobit'
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - "namespaces"
+  - "services"
+  - "pods"
+  verbs:
+  - "get"
+  - "watch"
+  - "list"
+---
+# Source: arobit/templates/forwarder-clusterrolebinding.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: arobit-forwarder
+  labels:
+    app.kubernetes.io/name: arobit-forwarder
+    app.kubernetes.io/instance: 'dev-westus3-mgmt-1-arobit'
+roleRef:
+  kind: ClusterRole
+  apiGroup: rbac.authorization.k8s.io
+  name: arobit-forwarder
+subjects:
+- kind: ServiceAccount
+  name: 'arobit-forwarder'
+  namespace: 'arobit'
+---
+# Source: arobit/templates/forwarder-service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: arobit-forwarder
+  namespace: 'arobit'
+  labels:
+    app.kubernetes.io/name: arobit-forwarder
+    app.kubernetes.io/instance: 'dev-westus3-mgmt-1-arobit'
+    app: arobit-forwarder
+spec:
+  type: ClusterIP
+  ports:
+  - name: otlp-http
+    port: 4318
+    targetPort: otlp-http
+    protocol: TCP
+  - name: forward
+    port: 24224
+    targetPort: forward
+    protocol: TCP
+  - name: metrics
+    port: 9090
+    targetPort: 9090
+    protocol: TCP
+  selector:
+    app.kubernetes.io/name: arobit-forwarder
+    app.kubernetes.io/instance: 'dev-westus3-mgmt-1-arobit'
+---
+# Source: arobit/templates/forwarder-daemonset.yaml
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: arobit-forwarder
+  namespace: 'arobit'
+  labels:
+    app.kubernetes.io/name: arobit-forwarder
+    app.kubernetes.io/instance: 'dev-westus3-mgmt-1-arobit'
+    ## Istio Labels: https://istio.io/docs/ops/deployment/requirements/
+    app: arobit-forwarder
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: arobit-forwarder
+      app.kubernetes.io/instance: 'dev-westus3-mgmt-1-arobit'
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 100%
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: arobit-forwarder
+        app.kubernetes.io/instance: 'dev-westus3-mgmt-1-arobit'
+        app: arobit-forwarder
+        azure.workload.identity/use: "true"
+      annotations:
+        checksum/configmap: 4df671a094f6e786e1e58e554629dc634aa363eb875234f880bd1be486d019ce
+    spec:
+      serviceAccountName: 'arobit-forwarder'
+      shareProcessNamespace: true
+      containers:
+        - name: fluentbit
+          image: mcr.microsoft.com/oss/v2/fluent/fluent-bit@sha256:1234567890
+          imagePullPolicy: 'IfNotPresent'
+          command:
+            - /fluent-bit/bin/fluent-bit
+          args:
+            - -c
+            - /forwarder/etc/fluent-bit.conf
+          ports:
+            - name: http
+              containerPort: 2020
+              protocol: TCP
+            - name: otlp-http
+              containerPort: 4318
+              protocol: TCP
+            - name: forward
+              containerPort: 24224
+              protocol: TCP
+            - name: metrics
+              containerPort: 9090
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /api/v1/health
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 6
+            successThreshold: 1
+          readinessProbe:
+            httpGet:
+              path: /api/v1/health
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 6
+            successThreshold: 1
+          securityContext: 
+            privileged: false
+            allowPrivilegeEscalation: false
+            runAsUser: 0
+            runAsGroup: 0
+            capabilities:
+              drop: ['ALL']
+          volumeMounts:
+            - name: varlog
+              mountPath: /var/log
+            - name: machine-id
+              mountPath: /etc/machine-id
+              readOnly: true
+            - name: flb-storage
+              mountPath: /var/fluent-bit/flb-storage
+            - name: varlibdockercontainers
+              mountPath: /var/lib/docker/containers
+              readOnly: true
+            - name: flb-config
+              mountPath: /forwarder/etc
+              readOnly: true
+            - name: kusto
+              mountPath: /var/fluent-bit/kusto
+      volumes:
+        - name: kusto
+          emptyDir: {}
+        - name: sp-host
+          hostPath:
+            type: Directory
+            path: /etc/kubernetes/
+        - name: flb-storage
+          emptyDir: {}
+        - name: machine-id
+          hostPath:
+            path: /etc/machine-id
+        - name: varlog
+          hostPath:
+            path: /var/log
+        - name: varlibdockercontainers
+          hostPath:
+            path: /var/lib/docker/containers
+        - name: cacrt-host
+          hostPath:
+            type: File
+            path: /etc/ssl/certs/ca-certificates.crt
+        - name: mdsd-run
+          emptyDir: {}
+        - name: mdsd-run-clusterlogs
+          emptyDir: {}
+        - name: flb-config
+          configMap:
+            name: arobit-forwarder
+            defaultMode: 0755
+---
+# Source: arobit/templates/forwarder-secretprovider.yaml
+apiVersion: secrets-store.csi.x-k8s.io/v1
+kind: SecretProviderClass
+metadata:
+  name: arobit-secretprovider
+  namespace: 'arobit'
+spec:
+  provider: azure
+  parameters:
+    clientID: '__msiClientId__'
+    cloudName: 'AzurePublicCloud'
+    keyvaultName: "ah-dev-mg-usw3-1"
+    objects: |
+      array:
+        - |
+          objectName: "rplogs"
+          objectAlias: "gcscert.pem"
+          objectType: secret
+    tenantId: "__tenantId__"
+    usePodIdentity: "false"
+---
+# Source: arobit/templates/forwarder-secretprovider.yaml
+apiVersion: secrets-store.csi.x-k8s.io/v1
+kind: SecretProviderClass
+metadata:
+  name: arobit-secretprovider-clusterlogs
+  namespace: 'arobit'
+spec:
+  provider: azure
+  parameters:
+    clientID: '__msiClientId__'
+    cloudName: 'AzurePublicCloud'
+    keyvaultName: "ah-dev-mg-usw3-1"
+    objects: |
+      array:
+        - |
+          objectName: "clusterlogs"
+          objectAlias: "gcscert.pem"
+          objectType: secret
+    tenantId: "__tenantId__"
+    usePodIdentity: "false"
+---
+# Source: arobit/templates/forwarder-servicemonitor.yaml
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: arobit-forwarder
+  namespace: 'arobit'
+spec:
+  endpoints:
+  - interval: 30s
+    path: /metrics
+    port: metrics
+    scheme: http
+  namespaceSelector:
+    matchNames:
+    - 'arobit'
+  selector:
+    matchLabels:
+      app: arobit-forwarder
+

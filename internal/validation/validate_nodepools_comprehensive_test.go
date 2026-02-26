@@ -109,7 +109,7 @@ func TestValidateNodePoolCreate(t *testing.T) {
 			name: "valid nodepool with encryption set ID - create",
 			nodePool: func() *api.HCPOpenShiftClusterNodePool {
 				np := createValidNodePool()
-				np.Properties.Platform.OSDisk.EncryptionSetID = "/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.Compute/diskEncryptionSets/test-des"
+				np.Properties.Platform.OSDisk.EncryptionSetID = api.Must(azcorearm.ParseResourceID("/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.Compute/diskEncryptionSets/test-des"))
 				return np
 			}(),
 			expectErrors: []expectedError{},
@@ -118,7 +118,7 @@ func TestValidateNodePoolCreate(t *testing.T) {
 			name: "valid nodepool with custom OS disk size - create",
 			nodePool: func() *api.HCPOpenShiftClusterNodePool {
 				np := createValidNodePool()
-				np.Properties.Platform.OSDisk.SizeGiB = 128
+				np.Properties.Platform.OSDisk.SizeGiB = ptr.To[int32](64)
 				return np
 			}(),
 			expectErrors: []expectedError{},
@@ -195,21 +195,20 @@ func TestValidateNodePoolCreate(t *testing.T) {
 			},
 		},
 		{
-			name: "invalid subnet ID - create",
+			name: "nil subnet ID - valid - create",
 			nodePool: func() *api.HCPOpenShiftClusterNodePool {
 				np := createValidNodePool()
-				np.Properties.Platform.SubnetID = "invalid-resource-id"
+				// SubnetID is optional for nodepools
+				np.Properties.Platform.SubnetID = nil
 				return np
 			}(),
-			expectErrors: []expectedError{
-				{message: "invalid resource ID", fieldPath: "properties.platform.subnetId"},
-			},
+			expectErrors: []expectedError{},
 		},
 		{
 			name: "wrong subnet resource type - create",
 			nodePool: func() *api.HCPOpenShiftClusterNodePool {
 				np := createValidNodePool()
-				np.Properties.Platform.SubnetID = "/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.Network/virtualNetworks/test-vnet"
+				np.Properties.Platform.SubnetID = api.Must(azcorearm.ParseResourceID("/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.Network/virtualNetworks/test-vnet"))
 				return np
 			}(),
 			expectErrors: []expectedError{
@@ -231,11 +230,11 @@ func TestValidateNodePoolCreate(t *testing.T) {
 			name: "OS disk size too small - create",
 			nodePool: func() *api.HCPOpenShiftClusterNodePool {
 				np := createValidNodePool()
-				np.Properties.Platform.OSDisk.SizeGiB = 0
+				np.Properties.Platform.OSDisk.SizeGiB = ptr.To[int32](63)
 				return np
 			}(),
 			expectErrors: []expectedError{
-				{message: "must be greater than or equal to 1", fieldPath: "properties.platform.osDisk.sizeGiB"},
+				{message: "must be greater than or equal to 64", fieldPath: "properties.platform.osDisk.sizeGiB"},
 			},
 		},
 		{
@@ -250,21 +249,10 @@ func TestValidateNodePoolCreate(t *testing.T) {
 			},
 		},
 		{
-			name: "invalid encryption set ID - create",
-			nodePool: func() *api.HCPOpenShiftClusterNodePool {
-				np := createValidNodePool()
-				np.Properties.Platform.OSDisk.EncryptionSetID = "invalid-resource-id"
-				return np
-			}(),
-			expectErrors: []expectedError{
-				{message: "invalid resource ID", fieldPath: "properties.platform.osDisk.encryptionSetId"},
-			},
-		},
-		{
 			name: "wrong encryption set resource type - create",
 			nodePool: func() *api.HCPOpenShiftClusterNodePool {
 				np := createValidNodePool()
-				np.Properties.Platform.OSDisk.EncryptionSetID = "/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.Network/virtualNetworks/test-vnet"
+				np.Properties.Platform.OSDisk.EncryptionSetID = api.Must(azcorearm.ParseResourceID("/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.Network/virtualNetworks/test-vnet"))
 				return np
 			}(),
 			expectErrors: []expectedError{
@@ -314,7 +302,7 @@ func TestValidateNodePoolCreate(t *testing.T) {
 				return np
 			}(),
 			expectErrors: []expectedError{
-				{message: "must be equal to 0", fieldPath: "properties.replicas"},
+				{message: "cannot specify replicas when autoScaling is enabled", fieldPath: "properties.replicas"},
 			},
 		},
 		{
@@ -522,14 +510,14 @@ func TestValidateNodePoolCreate(t *testing.T) {
 				np := createValidNodePool()
 				np.Properties.Version.ID = "invalid-version"
 				np.Properties.Platform.VMSize = ""
-				np.Properties.Platform.OSDisk.SizeGiB = 0
+				np.Properties.Platform.OSDisk.SizeGiB = ptr.To[int32](0)
 				np.Properties.Replicas = -1
 				return np
 			}(),
 			expectErrors: []expectedError{
 				{message: "Malformed version", fieldPath: "properties.version.id"},
 				{message: "Required value", fieldPath: "properties.platform.vmSize"},
-				{message: "must be greater than or equal to 1", fieldPath: "properties.platform.osDisk.sizeGiB"},
+				{message: "must be greater than or equal to 64", fieldPath: "properties.platform.osDisk.sizeGiB"},
 				{message: "must be greater than or equal to 0", fieldPath: "properties.replicas"},
 			},
 		},
@@ -578,9 +566,9 @@ func TestValidateNodePoolCreate(t *testing.T) {
 			name: "valid empty optional fields - create",
 			nodePool: func() *api.HCPOpenShiftClusterNodePool {
 				np := createValidNodePool()
-				np.Properties.Platform.SubnetID = ""
+				np.Properties.Platform.SubnetID = nil
 				np.Properties.Platform.AvailabilityZone = ""
-				np.Properties.Platform.OSDisk.EncryptionSetID = ""
+				np.Properties.Platform.OSDisk.EncryptionSetID = nil
 				np.Properties.Labels = nil
 				np.Properties.Taints = nil
 				np.Properties.NodeDrainTimeoutMinutes = nil
@@ -619,6 +607,92 @@ func TestValidateNodePoolCreate(t *testing.T) {
 					Min: 300,
 					Max: 1000,
 				}
+				return np
+			}(),
+			expectErrors: []expectedError{},
+		},
+		// Node pool resource naming validation tests (covering middleware_validatestatic_test.go patterns)
+		{
+			name: "invalid nodepool resource name - special character",
+			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.ID.Name = "$"
+				return np
+			}(),
+			expectErrors: []expectedError{
+				{message: "must be a valid DNS RFC 1035 label", fieldPath: "id"},
+			},
+		},
+		{
+			name: "invalid nodepool resource name - starts with hyphen",
+			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.ID.Name = "-abcde"
+				return np
+			}(),
+			expectErrors: []expectedError{
+				{message: "must be a valid DNS RFC 1035 label", fieldPath: "id"},
+			},
+		},
+		{
+			name: "invalid nodepool resource name - starts with number",
+			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.ID.Name = "1nodepool"
+				return np
+			}(),
+			expectErrors: []expectedError{
+				{message: "must be a valid DNS RFC 1035 label", fieldPath: "id"},
+			},
+		},
+		{
+			name: "invalid nodepool resource name - too long",
+			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.ID.Name = "07B4gc00vjA2C8KL3Ns4No9fi" // Too long for node pool name
+				return np
+			}(),
+			expectErrors: []expectedError{
+				{message: "must be a valid DNS RFC 1035 label", fieldPath: "id"},
+			},
+		},
+		{
+			name: "invalid nodepool resource name - too short",
+			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.ID.Name = "a"
+				return np
+			}(),
+			expectErrors: []expectedError{
+				{message: "must be a valid DNS RFC 1035 label", fieldPath: "id"},
+			},
+		},
+		{
+			name: "valid nodepool resource name - minimum length",
+			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.ID.Name = "abc"
+				np.Name = "abc"
+				return np
+			}(),
+			expectErrors: []expectedError{},
+		},
+		{
+			name: "valid nodepool resource name - with hyphens",
+			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.ID.Name = "my-pool-1"
+				np.Name = "my-pool-1"
+				return np
+			}(),
+			expectErrors: []expectedError{},
+		},
+		{
+			name: "valid nodepool resource name - maximum length",
+			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.ID.Name = "myNodePool12345" // 15 chars total - at max length
+				np.Name = "myNodePool12345"
 				return np
 			}(),
 			expectErrors: []expectedError{},
@@ -823,6 +897,22 @@ func TestValidateNodePoolUpdate(t *testing.T) {
 			},
 		},
 		{
+			name: "immutable OS disk size - update",
+			newNodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.Platform.OSDisk.SizeGiB = ptr.To[int32](64)
+				return np
+			}(),
+			oldNodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.Platform.OSDisk.SizeGiB = ptr.To[int32](128)
+				return np
+			}(),
+			expectErrors: []expectedError{
+				{message: "field is immutable", fieldPath: "properties.platform"},
+			},
+		},
+		{
 			name: "immutable auto repair - update",
 			newNodePool: func() *api.HCPOpenShiftClusterNodePool {
 				np := createValidNodePool()
@@ -907,6 +997,22 @@ func TestValidateNodePoolUpdate(t *testing.T) {
 				return np
 			}(),
 			expectErrors: []expectedError{},
+		},
+		{
+			name: "non-zero replicas with autoscaling - update",
+			newNodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.Replicas = 3
+				np.Properties.AutoScaling = &api.NodePoolAutoScaling{
+					Min: 1,
+					Max: 5,
+				}
+				return np
+			}(),
+			oldNodePool: createValidNodePool(),
+			expectErrors: []expectedError{
+				{message: "cannot specify replicas when autoScaling is enabled", fieldPath: "properties.replicas"},
+			},
 		},
 		{
 			name: "invalid autoscaling on update - update",
@@ -1173,13 +1279,16 @@ func TestValidateNodePoolUpdate(t *testing.T) {
 
 // Helper function to create a valid nodepool for testing
 func createValidNodePool() *api.HCPOpenShiftClusterNodePool {
-	nodePool := api.NewDefaultHCPOpenShiftClusterNodePool(api.Must(azcorearm.ParseResourceID("/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster/nodePools/test-nodepool")))
+	nodePool := api.NewDefaultHCPOpenShiftClusterNodePool(
+		api.Must(azcorearm.ParseResourceID("/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster/nodePools/test-nodepool")),
+		api.TestLocation,
+	)
 
 	// Set required fields that are not in the default
 	nodePool.Location = "eastus" // Required for TrackedResource validation
 	nodePool.Properties.Version.ID = "4.15"
 	nodePool.Properties.Version.ChannelGroup = "stable"
-	nodePool.Properties.Platform.SubnetID = "/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.Network/virtualNetworks/test-vnet/subnets/test-subnet"
+	nodePool.Properties.Platform.SubnetID = api.Must(azcorearm.ParseResourceID("/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.Network/virtualNetworks/test-vnet/subnets/test-subnet"))
 	nodePool.Properties.Platform.VMSize = "Standard_D2s_v3"
 	nodePool.Properties.Replicas = 3
 

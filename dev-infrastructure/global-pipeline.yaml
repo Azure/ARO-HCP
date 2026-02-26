@@ -10,10 +10,35 @@
 $schema: "pipeline.schema.v1"
 serviceGroup: Microsoft.Azure.ARO.HCP.Global
 rolloutName: Global Resource Rollout
+buildStep:
+  command: make
+  args:
+  - -C
+  - ../tooling/grafanactl
+  - bundle
 resourceGroups:
-- name: global
+- name: singleton
   resourceGroup: '{{ .global.rg }}'
   subscription: '{{ .global.subscription.key }}'
+  executionConstraints:
+  - clouds:
+    - public
+    environments:
+    - int
+    regions:
+    - uksouth
+  - clouds:
+    - public
+    environments:
+    - stg
+    regions:
+    - uksouth
+  - clouds:
+    - public
+    environments:
+    - prod
+    regions:
+    - eastus2euap
   steps:
   - name: infra
     action: ARM
@@ -27,7 +52,7 @@ resourceGroups:
     deploymentLevel: ResourceGroup
     outputOnly: true
     dependsOn:
-    - resourceGroup: global
+    - resourceGroup: singleton
       step: infra
   - name: global-kv-private-issuer
     action: SetCertificateIssuer
@@ -39,7 +64,7 @@ resourceGroups:
       configRef: ev2.assistedId.applicationId
     vaultBaseUrl:
       input:
-        resourceGroup: global
+        resourceGroup: singleton
         step: output
         name: globalKeyVaultUrl
     issuer:
@@ -54,7 +79,7 @@ resourceGroups:
       configRef: ev2.assistedId.applicationId
     vaultBaseUrl:
       input:
-        resourceGroup: global
+        resourceGroup: singleton
         step: output
         name: genevaActionKeyVaultUrl
     issuer:
@@ -65,9 +90,9 @@ resourceGroups:
     parameters: configurations/geneva-identities.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     dependsOn:
-    - resourceGroup: global
+    - resourceGroup: singleton
       step: global-kv-private-issuer
-    - resourceGroup: global
+    - resourceGroup: singleton
       step: geneva-kv-private-issuer
   - name: housekeeping
     action: Shell
@@ -82,34 +107,37 @@ resourceGroups:
       configRef: global.rg
     shellIdentity:
       input:
-        resourceGroup: global
+        resourceGroup: singleton
         step: output
         name: globalMSIId
     dependsOn:
-    - resourceGroup: global
+    - resourceGroup: singleton
       step: infra
   - name: grafana-dashboards
     action: Shell
     omitFromServiceGroupCompletion: true
-    command: make grafana
-    workingDir: ./../observability/
+    command: ./grafanactl sync dashboards --subscription=${SUBSCRIPTION_ID} --resource-group=${GLOBAL_RESOURCEGROUP} --grafana-name=${GRAFANA_NAME} --config-file=./observability.yaml
+    workingDir: ../tooling/grafanactl
     dependsOn:
-    - resourceGroup: global
+    - resourceGroup: singleton
       step: housekeeping
-    - resourceGroup: global
-      step: infra
+    - resourceGroup: singleton
+      step: output
     dryRun:
-      variables:
-      - name: DRY_RUN
-        value: "true"
+      command: ./grafanactl sync dashboards --subscription=${SUBSCRIPTION_ID} --resource-group=${GLOBAL_RESOURCEGROUP} --grafana-name=${GRAFANA_NAME} --config-file=./observability.yaml --dry-run
     variables:
     - name: GRAFANA_NAME
       configRef: monitoring.grafanaName
     - name: GLOBAL_RESOURCEGROUP
       configRef: global.rg
+    - name: SUBSCRIPTION_ID
+      input:
+        resourceGroup: singleton
+        step: output
+        name: subscriptionId
     shellIdentity:
       input:
-        resourceGroup: global
+        resourceGroup: singleton
         step: output
         name: globalMSIId
   # creates DNS delegation for the ARO HCP global SVC zone
@@ -126,7 +154,7 @@ resourceGroups:
     dstsHost:
       configRef: ev2.assistedId.dstsHost
     dependsOn:
-    - resourceGroup: global
+    - resourceGroup: singleton
       step: infra
   # creates DNS delegation for the ARO HCP global CX zone
   - name: cxChildZone
@@ -142,7 +170,7 @@ resourceGroups:
     dstsHost:
       configRef: ev2.assistedId.dstsHost
     dependsOn:
-    - resourceGroup: global
+    - resourceGroup: singleton
       step: infra
   # create global ARO HCP ACRs for OCP and SVC images
   - name: acrs
@@ -151,7 +179,7 @@ resourceGroups:
     parameters: configurations/global-acr.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     dependsOn:
-    - resourceGroup: global
+    - resourceGroup: singleton
       step: infra
   # ingests secrets into the global KV
   - name: decrypt-and-ingest-secrets
@@ -160,10 +188,10 @@ resourceGroups:
     configurationFile: 'data/encryptedsecrets.yaml'
     encryptionKey: 'secretSyncKey'
     dependsOn:
-    - resourceGroup: global
+    - resourceGroup: singleton
       step: infra
     identityFrom:
-      resourceGroup: global
+      resourceGroup: singleton
       step: output
       name: globalMSIId
   # mirror oc-mirror image
@@ -182,15 +210,21 @@ resourceGroups:
     pullSecretName:
       configRef: imageSync.ondemandSync.pullSecretName
     dependsOn:
-    - resourceGroup: global
+    - resourceGroup: singleton
       step: acrs
-    - resourceGroup: global
+    - resourceGroup: singleton
       step: decrypt-and-ingest-secrets
     shellIdentity:
       input:
-        resourceGroup: global
+        resourceGroup: singleton
         step: output
         name: globalMSIId
+    automatedRetry:
+      errorContainsAny:
+      - "unknown_storage_failure"
+      - "unauthorized: authentication required"
+      maximumRetryCount: 5
+      durationBetweenRetries: 1m
   # deploys the image mirror for the ACRs
   - name: imagemirror
     action: ARM
@@ -198,5 +232,5 @@ resourceGroups:
     parameters: configurations/global-image-sync.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     dependsOn:
-    - resourceGroup: global
+    - resourceGroup: singleton
       step: mirror-oc-mirror-image

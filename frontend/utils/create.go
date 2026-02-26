@@ -20,6 +20,10 @@ import (
 	"fmt"
 	"os"
 
+	"k8s.io/utils/ptr"
+
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
@@ -76,8 +80,8 @@ func CreateJSONFile() error {
 			},
 			Platform: api.CustomerPlatformProfile{
 				ManagedResourceGroup:   "dev-test-mrg",
-				NetworkSecurityGroupID: "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/dev-test-rg/providers/Microsoft.Network/networkSecurityGroups/xyz",
-				SubnetID:               "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/dev-test-rg/providers/Microsoft.Network/virtualNetworks/xyz/subnets/xyz",
+				NetworkSecurityGroupID: api.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/dev-test-rg/providers/Microsoft.Network/networkSecurityGroups/xyz")),
+				SubnetID:               api.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/dev-test-rg/providers/Microsoft.Network/virtualNetworks/xyz/subnets/xyz")),
 				OutboundType:           api.OutboundType("LoadBalancer"),
 			},
 		},
@@ -110,9 +114,9 @@ func CreateNodePool() error {
 				ChannelGroup: "stable",
 			},
 			Platform: api.NodePoolPlatformProfile{
-				SubnetID: "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/dev-test-rg/providers/Microsoft.Network/virtualNetworks/xyz/subnets/xyz",
+				SubnetID: api.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/dev-test-rg/providers/Microsoft.Network/virtualNetworks/xyz/subnets/xyz")),
 				OSDisk: api.OSDiskProfile{
-					SizeGiB:                30,
+					SizeGiB:                ptr.To[int32](64),
 					DiskStorageAccountType: "StandardSSD_LRS",
 				},
 

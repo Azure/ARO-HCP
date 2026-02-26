@@ -1,0 +1,26 @@
+{
+  "apiVersion": "sessiongate.aro-hcp.azure.com/v1alpha1",
+  "kind": "Session",
+  "metadata": {
+    "name": "breakglass-1",
+    "generateName": "breakglass-",
+    "namespace": "aro-hcp-breakglass-sessions"
+  },
+  "spec": {
+    "ttl": "1h0m0s",
+    "managementCluster": {
+      "resourceId": "/subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/mgmt-foo/providers/Microsoft.ContainerService/managedClusters/mgmt-cluster"
+    },
+    "hostedControlPlane": {
+      "resourceId": "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/microsoft.redhatopenshift/hcpopenshiftclusters/some-hcp-cluster",
+      "namespace": "ocm-arohcpdev-fixed-ns-value"
+    },
+    "accessLevel": {
+      "group": "aro-sre-csa"
+    },
+    "owner": {
+      "name": "test-user@example.com",
+      "type": "azureUser"
+    }
+  }
+}

@@ -1,0 +1,78 @@
+---
+# Source: kube-events/templates/serviceaccount.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ke-serviceaccount
+  namespace: 'monitoring'
+---
+# Source: kube-events/templates/clusterrole.yaml
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: ke-clusterrole
+rules:
+- apiGroups: ['']
+  resources: [events]
+  verbs: [get, watch, list]
+---
+# Source: kube-events/templates/clusterrolebinding.yaml
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: ke-binding
+subjects:
+- kind: ServiceAccount
+  name: ke-serviceaccount
+  namespace: 'monitoring'
+roleRef:
+  kind: ClusterRole
+  name: ke-clusterrole
+  apiGroup: rbac.authorization.k8s.io
+---
+# Source: kube-events/templates/deployment.yaml
+kind: Deployment
+apiVersion: apps/v1
+metadata:
+  labels:
+    app: kube-events
+  name: kube-events
+  namespace: 'monitoring'
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kube-events
+  strategy:
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: kube-events
+    spec:
+      serviceAccountName: ke-serviceaccount
+      containers:
+      - image: 'kubernetesshared.azurecr.io/shared/kube-events@sha256:1234567890'
+        name: kube-events
+        imagePullPolicy: IfNotPresent
+        livenessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: /healthz/liveness
+            port: 8080
+            scheme: HTTP
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          successThreshold: 1
+          timeoutSeconds: 1
+        resources:
+          limits:
+            cpu: 200m
+            memory: 512Mi
+          requests:
+            cpu: 200m
+            memory: 512Mi
+

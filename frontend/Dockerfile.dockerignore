@@ -1,6 +1,7 @@
 **
 !image-environment
 !internal/
+!test-integration/
 !test/sdk/
 !frontend/
 

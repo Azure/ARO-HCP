@@ -16,7 +16,9 @@ package arm
 
 import (
 	"iter"
+	"path"
 	"slices"
+	"strings"
 
 	"k8s.io/apimachinery/pkg/util/sets"
 
@@ -26,7 +28,21 @@ import (
 // SubscriptionAPIVersion is the system API version for the subscription endpoint.
 const SubscriptionAPIVersion = "2.0"
 
+func ToSubscriptionResourceID(subscriptionName string) (*azcorearm.ResourceID, error) {
+	return azcorearm.ParseResourceID(ToSubscriptionResourceIDString(subscriptionName))
+}
+
+func ToSubscriptionResourceIDString(subscriptionName string) string {
+	return strings.ToLower(path.Join("/subscriptions", subscriptionName))
+}
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type Subscription struct {
+	CosmosMetadata `json:"cosmosMetadata"`
+
+	// kept so untyped client can function
+	ResourceID *azcorearm.ResourceID `json:"resourceId,omitempty"`
+
 	// The resource provider contract gives an example RegistrationDate
 	// in RFC1123 format but does not explicitly state a required format
 	// so we leave it a plain string.
@@ -37,11 +53,6 @@ type Subscription struct {
 	// LastUpdated is a copy of the Cosmos DB system generated
 	// "_ts" last updated timestamp field for metrics reporting.
 	LastUpdated int `json:"-"`
-}
-
-// GetValidTypes returns the valid resource types for a Subscription.
-func (s Subscription) GetValidTypes() []string {
-	return []string{azcorearm.SubscriptionResourceType.String()}
 }
 
 type SubscriptionProperties struct {

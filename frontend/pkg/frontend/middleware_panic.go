@@ -30,7 +30,8 @@ func MiddlewarePanic(w http.ResponseWriter, r *http.Request, next http.HandlerFu
 		defer func() {
 			if e := recover(); e != nil {
 				logger := utils.LoggerFromContext(r.Context())
-				logger.Error(fmt.Sprintf("panic: %#v\n%s\n", e, string(debug.Stack())))
+				panicErr := fmt.Errorf("panic: %#v", e)
+				logger.Error(panicErr, "panic recovered", "stack", string(debug.Stack()))
 				arm.WriteInternalServerError(w)
 			}
 		}()

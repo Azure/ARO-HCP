@@ -1,0 +1,78 @@
+{
+	"id": "|subscriptions|4fa75980-6637-4157-9726-84d878a62e83|resourcegroups|shrilleffectiveness|providers|microsoft.redhatopenShift|hcpopenshiftclusters|lavishunhappiness",
+	"partitionKey": "4fa75980-6637-4157-9726-84d878a62e83",
+	"properties": {
+		"activeOperationId": "6aeeebf8-f771-4d4e-9097-45b972cb96e4",
+		"identity": {
+			"type": "UserAssigned"
+		},
+		"internalId": "/api/clusters_mgmt/v1/clusters/1243e9e9-d150-4ef1-9735-2bbc3cabc7d0",
+		"internalState": {
+			"internalAPI": {
+				"customerProperties": {
+					"api": {
+						"visibility": "Public"
+					},
+					"autoscaling": {
+						"maxNodeProvisionTimeSeconds": 900,
+						"maxPodGracePeriodSeconds": 600,
+						"podPriorityThreshold": -10
+					},
+					"clusterImageRegistry": {
+						"state": "Disabled"
+					},
+					"dns": {},
+					"etcd": {
+						"dataEncryption": {
+							"customerManaged": {
+								"encryptionType": "KMS",
+								"kms": {
+									"activeKey": {
+										"name": "encryptionKeyName",
+										"vaultName": "keyVaultName",
+										"version": "2024-12-01-preview"
+									}
+								}
+							},
+							"keyManagementMode": "CustomerManaged"
+						}
+					},
+					"network": {
+						"hostPrefix": 23,
+						"machineCidr": "10.0.0.0/16",
+						"networkType": "OVNKubernetes",
+						"podCidr": "10.128.0.0/14",
+						"serviceCidr": "172.30.0.0/16"
+					},
+					"platform": {
+						"managedResourceGroup": "uprightPairing",
+						"networkSecurityGroupId": "/subscriptions/4fa75980-6637-4157-9726-84d878a62e83/resourceGroups/shrillEffectiveness/providers/Microsoft.Network/networkSecurityGroups/nsg",
+						"operatorsAuthentication": {
+							"userAssignedIdentities": {
+								"serviceManagedIdentity": "/subscriptions/4fa75980-6637-4157-9726-84d878a62e83/resourceGroups/different-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/service-managed-identity"
+							}
+						},
+						"outboundType": "LoadBalancer",
+						"subnetId": "/subscriptions/4fa75980-6637-4157-9726-84d878a62e83/resourceGroups/different-resource-group/providers/Microsoft.Network/virtualNetworks/vnet/subnets/subnet"
+					},
+					"version": {
+						"channelGroup": "stable"
+					}
+				},
+				"location": "fake-location",
+				"serviceProviderProperties": {
+					"api": {},
+					"clusterServiceID": "",
+					"console": {},
+					"dns": {},
+					"platform": {}
+				}
+			}
+		},
+		"provisioningState": "Accepted",
+		"resourceId": "/subscriptions/4fa75980-6637-4157-9726-84d878a62e83/resourceGroups/shrillEffectiveness/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/lavishUnhappiness",
+		"systemData": {}
+	},
+	"resourceType": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters",
+	"resourceID": "/subscriptions/4fa75980-6637-4157-9726-84d878a62e83/resourceGroups/shrillEffectiveness/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/lavishUnhappiness"
+}

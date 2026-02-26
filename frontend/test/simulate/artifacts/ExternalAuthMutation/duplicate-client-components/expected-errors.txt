@@ -1,1 +1,0 @@
-InvalidRequestContent: properties.clients[1]: Duplicate value: {"component":{"name":"duplicate-component","authClientNamespace":"openshift-console"},"clientId":"client-2","extraScopes":[],"type":"Public"}

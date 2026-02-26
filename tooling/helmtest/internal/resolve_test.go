@@ -19,8 +19,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/Azure/ARO-Tools/pkg/config/types"
-	"github.com/Azure/ARO-Tools/pkg/topology"
+	"github.com/Azure/ARO-Tools/config/types"
+	"github.com/Azure/ARO-Tools/pipelines/topology"
 )
 
 func TestRecursiveLoadPipelineReturnHelmSteps(t *testing.T) {
@@ -67,7 +67,7 @@ func TestRecursiveLoadPipelineReturnHelmSteps(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			hs, err := recursiveLoadPipelineReturnHelmSteps(tc.services, types.Configuration{})
+			hs, err := recursiveLoadPipelineReturnHelmSteps("../..", tc.services, types.Configuration{})
 			if tc.expectError {
 				assert.ErrorContains(t, err, tc.errorMessage)
 			} else {

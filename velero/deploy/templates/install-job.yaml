@@ -1,0 +1,107 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: velero-install
+  namespace: '{{ .Release.Namespace }}'
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "1"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  activeDeadlineSeconds: {{ .Values.installer.activeDeadlineSeconds }}
+  backoffLimit: {{ .Values.installer.backoffLimit }}
+  template:
+    metadata:
+      labels:
+        azure.workload.identity/use: "true"
+    spec:
+      serviceAccountName: velero-installer
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      initContainers:
+      - name: generate-manifest
+        image: "{{ .Values.imageRegistry }}/{{ .Values.veleroServer.repository }}@{{ .Values.veleroServer.digest }}"
+        imagePullPolicy: IfNotPresent
+        command:
+        - /bin/sh
+        - -c
+        - |
+          set -e
+          echo "Generating Velero manifest..."
+
+          ./velero install \
+            --namespace {{ .Release.Namespace }} \
+            --provider azure \
+            --plugins {{ .Values.imageRegistry }}/{{ .Values.azurePlugin.repository }}@{{ .Values.azurePlugin.digest }},{{ .Values.imageRegistry }}/{{ .Values.hypershiftPlugin.repository }}@{{ .Values.hypershiftPlugin.digest }} \
+            --bucket {{ .Values.bucket }} \
+            --prefix {{ .Values.configuration.backupPrefix }} \
+            --secret-file /credentials/cloud \
+            --service-account-name velero \
+            --pod-labels azure.workload.identity/use=true \
+            --use-node-agent \
+            --features {{ .Values.configuration.features }} \
+            --uploader-type {{ .Values.configuration.uploaderType }} \
+            --backup-location-config useAAD="true",resourceGroup={{ .Values.resourceGroup }},storageAccount={{ .Values.storageAccount }},subscriptionId={{ .Values.subscriptionId }} \
+            --snapshot-location-config subscriptionId={{ .Values.subscriptionId }} \
+            --image {{ .Values.imageRegistry }}/{{ .Values.veleroServer.repository }}@{{ .Values.veleroServer.digest }} \
+            --dry-run -o yaml > /manifest/velero.yaml
+
+          echo "Manifest generated successfully."
+          cat /manifest/velero.yaml
+        volumeMounts:
+        - name: credentials
+          mountPath: /credentials
+          readOnly: true
+        - name: manifest
+          mountPath: /manifest
+      containers:
+      - name: apply-manifest
+        image: "{{ .Values.installJobImage }}"
+        imagePullPolicy: IfNotPresent
+        command:
+        - /bin/bash
+        - -c
+        - |
+          set -e
+          echo "Setting up kustomize overlay..."
+          cp /kustomize/kustomization.yaml /tmp/
+          cp /kustomize/scheduling-patch.yaml /tmp/
+
+          echo "Patching long container names in manifest..."
+          manifest=$(cat /manifest/velero.yaml)
+          manifest="${manifest//redhat-user-workloads-ocp-art-tenant-oadp-hypershift-oadp-plugin-main/oadp-hypershift-plugin}"
+          echo "$manifest" > /tmp/velero.yaml
+
+          echo "Applying Velero manifest with kustomize..."
+          kubectl kustomize /tmp | kubectl apply -f -
+
+          echo "Velero manifest applied. Verifying deployment..."
+          kubectl rollout status deployment/velero -n {{ .Release.Namespace }} --timeout=300s
+
+          echo "Verifying node-agent daemonset..."
+          kubectl rollout status daemonset/node-agent -n {{ .Release.Namespace }} --timeout=300s
+
+          echo "Velero installation verified successfully."
+        volumeMounts:
+        - name: manifest
+          mountPath: /manifest
+          readOnly: true
+        - name: kustomize
+          mountPath: /kustomize
+          readOnly: true
+      volumes:
+      - name: credentials
+        secret:
+          secretName: cloud-credentials-azure
+      - name: manifest
+        emptyDir: {}
+      - name: kustomize
+        configMap:
+          name: velero-kustomize-patch
+      restartPolicy: Never

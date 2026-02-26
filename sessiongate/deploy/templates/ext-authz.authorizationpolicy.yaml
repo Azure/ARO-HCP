@@ -1,0 +1,16 @@
+{{- if eq .Values.mise.deploy true }}
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: ext-authz
+  namespace: '{{ .Release.Namespace }}'
+spec:
+  action: CUSTOM
+  provider:
+    name: ext-authz
+  rules:
+  - to:
+    - operation:
+        paths: ["/*"]
+        notPaths: ["/metrics", "/healthz", "/readyz"]
+{{- end }}

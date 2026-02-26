@@ -15,6 +15,7 @@
 package database
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/Azure/ARO-HCP/internal/api"
@@ -30,13 +31,17 @@ func InternalToCosmosCluster(internalObj *api.HCPOpenShiftCluster) (*HCPCluster,
 	cosmosObj := &HCPCluster{
 		TypedDocument: TypedDocument{
 			BaseDocument: BaseDocument{
-				ID: internalObj.ServiceProviderProperties.CosmosUID,
+				ID: internalObj.GetCosmosData().GetCosmosUID(),
 			},
 			PartitionKey: strings.ToLower(internalObj.ID.SubscriptionID),
+			ResourceID:   internalObj.ID,
 			ResourceType: internalObj.ID.ResourceType.String(),
 		},
 		HCPClusterProperties: HCPClusterProperties{
-			ResourceDocument: ResourceDocument{
+			CosmosMetadata: api.CosmosMetadata{
+				ResourceID: internalObj.ID,
+			},
+			ResourceDocument: &ResourceDocument{
 				ResourceID:        internalObj.ID,
 				InternalID:        internalObj.ServiceProviderProperties.ClusterServiceID,
 				ActiveOperationID: internalObj.ServiceProviderProperties.ActiveOperationID,
@@ -50,6 +55,7 @@ func InternalToCosmosCluster(internalObj *api.HCPOpenShiftCluster) (*HCPCluster,
 			},
 		},
 	}
+	cosmosObj.IntermediateResourceDoc = cosmosObj.ResourceDocument
 
 	// some pieces of data in the internalCluster conflict with ResourceDocument fields.  We may evolve over time, but for
 	// now avoid persisting those.
@@ -60,7 +66,6 @@ func InternalToCosmosCluster(internalObj *api.HCPOpenShiftCluster) (*HCPCluster,
 	cosmosObj.InternalState.InternalAPI.SystemData = nil
 	cosmosObj.InternalState.InternalAPI.Tags = nil
 	cosmosObj.InternalState.InternalAPI.ServiceProviderProperties.ProvisioningState = ""
-	cosmosObj.InternalState.InternalAPI.ServiceProviderProperties.CosmosUID = ""
 	cosmosObj.InternalState.InternalAPI.ServiceProviderProperties.ClusterServiceID = ocm.InternalID{}
 	cosmosObj.InternalState.InternalAPI.ServiceProviderProperties.ActiveOperationID = ""
 
@@ -116,6 +121,13 @@ func CosmosToInternalCluster(cosmosObj *HCPCluster) (*api.HCPOpenShiftCluster, e
 	if cosmosObj == nil {
 		return nil, nil
 	}
+	resourceDoc := cosmosObj.ResourceDocument
+	if resourceDoc == nil {
+		resourceDoc = cosmosObj.IntermediateResourceDoc
+	}
+	if resourceDoc == nil {
+		return nil, fmt.Errorf("resource document cannot be nil")
+	}
 
 	tempInternalAPI := cosmosObj.InternalState.InternalAPI
 	internalObj := &tempInternalAPI
@@ -123,21 +135,21 @@ func CosmosToInternalCluster(cosmosObj *HCPCluster) (*api.HCPOpenShiftCluster, e
 	// some pieces of data are stored on the ResourceDocument, so we need to restore that data
 	internalObj.TrackedResource = arm.TrackedResource{
 		Resource: arm.Resource{
-			ID:         cosmosObj.ResourceID,
-			Name:       cosmosObj.ResourceID.Name,
-			Type:       cosmosObj.ResourceID.ResourceType.String(),
-			SystemData: cosmosObj.SystemData,
+			ID:         resourceDoc.ResourceID,
+			Name:       resourceDoc.ResourceID.Name,
+			Type:       resourceDoc.ResourceID.ResourceType.String(),
+			SystemData: resourceDoc.SystemData,
 		},
 		Location: cosmosObj.InternalState.InternalAPI.Location,
-		Tags:     cosmosObj.Tags,
+		Tags:     resourceDoc.Tags,
 	}
-	internalObj.Identity = toInternalIdentity(cosmosObj.Identity)
-	internalObj.SystemData = cosmosObj.SystemData
-	internalObj.Tags = copyTags(cosmosObj.Tags)
-	internalObj.ServiceProviderProperties.ProvisioningState = cosmosObj.ProvisioningState
-	internalObj.ServiceProviderProperties.CosmosUID = cosmosObj.ID
-	internalObj.ServiceProviderProperties.ClusterServiceID = cosmosObj.InternalID
-	internalObj.ServiceProviderProperties.ActiveOperationID = cosmosObj.ActiveOperationID
+	internalObj.Identity = toInternalIdentity(resourceDoc.Identity)
+	internalObj.SystemData = resourceDoc.SystemData
+	internalObj.Tags = copyTags(resourceDoc.Tags)
+	internalObj.ServiceProviderProperties.ExistingCosmosUID = cosmosObj.ID
+	internalObj.ServiceProviderProperties.ProvisioningState = resourceDoc.ProvisioningState
+	internalObj.ServiceProviderProperties.ClusterServiceID = resourceDoc.InternalID
+	internalObj.ServiceProviderProperties.ActiveOperationID = resourceDoc.ActiveOperationID
 
 	// This is not the place for validation, but during such a transition we need to ensure we fail quickly and certainly
 	// This flow happens when reading both old and new data.  The old data should *always* have the internalID set
