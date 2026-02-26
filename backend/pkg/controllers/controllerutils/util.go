@@ -201,7 +201,7 @@ func SetCondition(conditions *[]api.Condition, toSet api.Condition) {
 	existingCondition.Message = toSet.Message
 }
 
-// GetCondition returns the condition with the given type from the list of conditions.
+// GetCondition returns a reference to the condition with the given type from the list of conditions.
 // If the list of conditions is nil, returns nil.
 // If the condition with condition type conditionType is not found, returns nil.
 // If there are multiple conditions with condition type conditionType the first
@@ -210,12 +210,11 @@ func GetCondition(conditions []api.Condition, conditionType string) *api.Conditi
 	if conditions == nil {
 		return nil
 	}
-	for _, currentCondition := range conditions {
-		if currentCondition.Type == conditionType {
-			return &currentCondition
+	for i := range conditions {
+		if conditions[i].Type == conditionType {
+			return &conditions[i]
 		}
 	}
-
 	return nil
 }
 
