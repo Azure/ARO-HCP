@@ -5,7 +5,7 @@ go 1.25.5
 require (
 	dario.cat/mergo v1.0.1
 	github.com/Azure/ARO-HCP/admin/server v0.0.0-00010101000000-000000000000
-	github.com/Azure/ARO-HCP/backend v0.0.0-00010101000000-000000000000
+	github.com/Azure/ARO-HCP/backend v0.0.0-20260311085015-c7296038bf8f
 	github.com/Azure/ARO-HCP/frontend v0.0.0-00010101000000-000000000000
 	github.com/Azure/ARO-HCP/internal v0.0.0-00010101000000-000000000000
 	github.com/Azure/ARO-HCP/sessiongate v0.0.0-00010101000000-000000000000
