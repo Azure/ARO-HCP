@@ -486,7 +486,9 @@ func validateCustomerPlatformProfile(ctx context.Context, op operation.Operation
 	errs := field.ErrorList{}
 
 	//ManagedResourceGroup    string                         `json:"managedResourceGroup,omitempty"`
+	errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("managedResourceGroup"), &newObj.ManagedResourceGroup, nil)...)
 	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("managedResourceGroup"), &newObj.ManagedResourceGroup, safe.Field(oldObj, toPlatformManagedResourceGroup))...)
+	errs = append(errs, MatchesRegex(ctx, op, fldPath.Child("managedResourceGroup"), &newObj.ManagedResourceGroup, nil, resourceGroupNameRegex, resourceGroupNameErrorString)...)
 
 	//SubnetID                string                         `json:"subnetId,omitempty"`
 	errs = append(errs, validate.RequiredPointer(ctx, op, fldPath.Child("subnetId"), newObj.SubnetID, safe.Field(oldObj, toPlatformSubnetID))...)
