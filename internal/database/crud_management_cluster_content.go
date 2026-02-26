@@ -1,4 +1,4 @@
-// Copyright 2026 Microsoft Corporation
+// Copyright 2025 Microsoft Corporation
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,16 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package maestro
+package database
 
 import (
-	hsv1beta1 "github.com/openshift/hypershift/api/hypershift/v1beta1"
+	"github.com/Azure/ARO-HCP/internal/api"
 )
 
-// Temporary reference to the Hypershift API types. Allows us to have
-// the library imported until we introduce code that leverages it.
-//
-//nolint:unused
-func tmpHypershiftRef() {
-	_ = hsv1beta1.HostedCluster{}
+type ManagementClusterContentCRUD interface {
+	ResourceCRUD[api.ManagementClusterContent]
 }

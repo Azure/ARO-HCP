@@ -331,6 +331,44 @@ func (c *MockDBClientHCPClustersCall) DoAndReturn(f func(string, string) HCPClus
 	return c
 }
 
+// ManagementClusterContents mocks base method.
+func (m *MockDBClient) ManagementClusterContents(subscriptionID, resourceGroupName, clusterName string) ManagementClusterContentCRUD {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ManagementClusterContents", subscriptionID, resourceGroupName, clusterName)
+	ret0, _ := ret[0].(ManagementClusterContentCRUD)
+	return ret0
+}
+
+// ManagementClusterContents indicates an expected call of ManagementClusterContents.
+func (mr *MockDBClientMockRecorder) ManagementClusterContents(subscriptionID, resourceGroupName, clusterName any) *MockDBClientManagementClusterContentsCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ManagementClusterContents", reflect.TypeOf((*MockDBClient)(nil).ManagementClusterContents), subscriptionID, resourceGroupName, clusterName)
+	return &MockDBClientManagementClusterContentsCall{Call: call}
+}
+
+// MockDBClientManagementClusterContentsCall wrap *gomock.Call
+type MockDBClientManagementClusterContentsCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockDBClientManagementClusterContentsCall) Return(arg0 ManagementClusterContentCRUD) *MockDBClientManagementClusterContentsCall {
+	c.Call = c.Call.Return(arg0)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockDBClientManagementClusterContentsCall) Do(f func(string, string, string) ManagementClusterContentCRUD) *MockDBClientManagementClusterContentsCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockDBClientManagementClusterContentsCall) DoAndReturn(f func(string, string, string) ManagementClusterContentCRUD) *MockDBClientManagementClusterContentsCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
 // NewTransaction mocks base method.
 func (m *MockDBClient) NewTransaction(pk string) DBTransaction {
 	m.ctrl.T.Helper()

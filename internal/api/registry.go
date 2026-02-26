@@ -63,36 +63,38 @@ func init() {
 }
 
 const (
-	ProviderNamespace                       = "Microsoft.RedHatOpenShift"
-	ProviderNamespaceDisplay                = "Azure Red Hat OpenShift"
-	ClusterResourceTypeName                 = "hcpOpenShiftClusters"
-	ServiceProviderClusterResourceTypeName  = "serviceProviderClusters"
-	ServiceProviderNodePoolResourceTypeName = "serviceProviderNodePools"
-	VersionResourceTypeName                 = "hcpOpenShiftVersions"
-	NodePoolResourceTypeName                = "nodePools"
-	ExternalAuthResourceTypeName            = "externalAuths"
-	OperationResultResourceTypeName         = "hcpOperationResults"
-	OperationStatusResourceTypeName         = "hcpOperationStatuses"
-	ControllerResourceTypeName              = "hcpOpenShiftControllers"
-	RequestAdminCredentialActionTypeName    = "requestadmincredential"
-	RevokeAdminCredentialsActionTypeName    = "revokecredentials"
-	ResourceTypeDisplay                     = "Hosted Control Plane (HCP) OpenShift Clusters"
+	ProviderNamespace                        = "Microsoft.RedHatOpenShift"
+	ProviderNamespaceDisplay                 = "Azure Red Hat OpenShift"
+	ClusterResourceTypeName                  = "hcpOpenShiftClusters"
+	ServiceProviderClusterResourceTypeName   = "serviceProviderClusters"
+	ServiceProviderNodePoolResourceTypeName  = "serviceProviderNodePools"
+	VersionResourceTypeName                  = "hcpOpenShiftVersions"
+	NodePoolResourceTypeName                 = "nodePools"
+	ExternalAuthResourceTypeName             = "externalAuths"
+	OperationResultResourceTypeName          = "hcpOperationResults"
+	OperationStatusResourceTypeName          = "hcpOperationStatuses"
+	ControllerResourceTypeName               = "hcpOpenShiftControllers"
+	RequestAdminCredentialActionTypeName     = "requestadmincredential"
+	RevokeAdminCredentialsActionTypeName     = "revokecredentials"
+	ManagementClusterContentResourceTypeName = "managementClusterContents"
+	ResourceTypeDisplay                      = "Hosted Control Plane (HCP) OpenShift Clusters"
 )
 
 var (
-	OperationStatusResourceType         = azcorearm.NewResourceType(ProviderNamespace, OperationStatusResourceTypeName)
-	ClusterResourceType                 = azcorearm.NewResourceType(ProviderNamespace, ClusterResourceTypeName)
-	ServiceProviderClusterResourceType  = azcorearm.NewResourceType(ProviderNamespace, ClusterResourceTypeName+"/"+ServiceProviderClusterResourceTypeName)
-	NodePoolResourceType                = azcorearm.NewResourceType(ProviderNamespace, ClusterResourceTypeName+"/"+NodePoolResourceTypeName)
-	ServiceProviderNodePoolResourceType = azcorearm.NewResourceType(ProviderNamespace, filepath.Join(ClusterResourceTypeName, NodePoolResourceTypeName, ServiceProviderNodePoolResourceTypeName))
-	ExternalAuthResourceType            = azcorearm.NewResourceType(ProviderNamespace, ClusterResourceTypeName+"/"+ExternalAuthResourceTypeName)
-	PreflightResourceType               = azcorearm.NewResourceType(ProviderNamespace, "deployments/preflight")
-	VersionResourceType                 = azcorearm.NewResourceType(ProviderNamespace, "locations/"+VersionResourceTypeName)
-	ClusterControllerResourceType       = azcorearm.NewResourceType(ProviderNamespace, filepath.Join(ClusterResourceTypeName, ControllerResourceTypeName))
-	NodePoolControllerResourceType      = azcorearm.NewResourceType(ProviderNamespace, filepath.Join(ClusterResourceTypeName, NodePoolResourceTypeName, ControllerResourceTypeName))
-	ExternalAuthControllerResourceType  = azcorearm.NewResourceType(ProviderNamespace, filepath.Join(ClusterResourceTypeName, ExternalAuthResourceTypeName, ControllerResourceTypeName))
-	RequestAdminCredentialActionType    = azcorearm.NewResourceType(ProviderNamespace, filepath.Join(ClusterResourceTypeName, RequestAdminCredentialActionTypeName))
-	RevokeAdminCredentialsActionType    = azcorearm.NewResourceType(ProviderNamespace, filepath.Join(ClusterResourceTypeName, RevokeAdminCredentialsActionTypeName))
+	OperationStatusResourceType          = azcorearm.NewResourceType(ProviderNamespace, OperationStatusResourceTypeName)
+	ClusterResourceType                  = azcorearm.NewResourceType(ProviderNamespace, ClusterResourceTypeName)
+	ServiceProviderClusterResourceType   = azcorearm.NewResourceType(ProviderNamespace, ClusterResourceTypeName+"/"+ServiceProviderClusterResourceTypeName)
+	NodePoolResourceType                 = azcorearm.NewResourceType(ProviderNamespace, ClusterResourceTypeName+"/"+NodePoolResourceTypeName)
+	ServiceProviderNodePoolResourceType  = azcorearm.NewResourceType(ProviderNamespace, filepath.Join(ClusterResourceTypeName, NodePoolResourceTypeName, ServiceProviderNodePoolResourceTypeName))
+	ExternalAuthResourceType             = azcorearm.NewResourceType(ProviderNamespace, ClusterResourceTypeName+"/"+ExternalAuthResourceTypeName)
+	PreflightResourceType                = azcorearm.NewResourceType(ProviderNamespace, "deployments/preflight")
+	VersionResourceType                  = azcorearm.NewResourceType(ProviderNamespace, "locations/"+VersionResourceTypeName)
+	ClusterControllerResourceType        = azcorearm.NewResourceType(ProviderNamespace, filepath.Join(ClusterResourceTypeName, ControllerResourceTypeName))
+	NodePoolControllerResourceType       = azcorearm.NewResourceType(ProviderNamespace, filepath.Join(ClusterResourceTypeName, NodePoolResourceTypeName, ControllerResourceTypeName))
+	ExternalAuthControllerResourceType   = azcorearm.NewResourceType(ProviderNamespace, filepath.Join(ClusterResourceTypeName, ExternalAuthResourceTypeName, ControllerResourceTypeName))
+	RequestAdminCredentialActionType     = azcorearm.NewResourceType(ProviderNamespace, filepath.Join(ClusterResourceTypeName, RequestAdminCredentialActionTypeName))
+	RevokeAdminCredentialsActionType     = azcorearm.NewResourceType(ProviderNamespace, filepath.Join(ClusterResourceTypeName, RevokeAdminCredentialsActionTypeName))
+	ManagementClusterContentResourceType = azcorearm.NewResourceType(ProviderNamespace, filepath.Join(ClusterResourceTypeName, ManagementClusterContentResourceTypeName))
 )
 
 type VersionedResource interface {
