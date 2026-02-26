@@ -242,6 +242,38 @@ func TestClusterValidate(t *testing.T) {
 			},
 		},
 		{
+			name: "Version must be at least 4.19 - version 4.18 rejected",
+			resource: func() *api.HCPOpenShiftCluster {
+				r := api.MinimumValidClusterTestCase()
+				r.CustomerProperties.Version.ID = "4.18"
+				return r
+			}(),
+			expectErrors: []expectedError{
+				{
+					message:   "must be at least 4.19",
+					fieldPath: "customerProperties.version.id",
+				},
+			},
+		},
+		{
+			name: "Version must be at least 4.19 - version 4.19 accepted",
+			resource: func() *api.HCPOpenShiftCluster {
+				r := api.MinimumValidClusterTestCase()
+				r.CustomerProperties.Version.ID = "4.19"
+				return r
+			}(),
+			expectErrors: []expectedError{},
+		},
+		{
+			name: "Version must be at least 4.19 - version 4.20 accepted",
+			resource: func() *api.HCPOpenShiftCluster {
+				r := api.MinimumValidClusterTestCase()
+				r.CustomerProperties.Version.ID = "4.20"
+				return r
+			}(),
+			expectErrors: []expectedError{},
+		},
+		{
 			name: "Bad enum_visibility",
 			tweaks: &api.HCPOpenShiftCluster{
 				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{

@@ -47,6 +47,60 @@ func NoExtraWhitespace(_ context.Context, _ operation.Operation, fldPath *field.
 	return nil
 }
 
+func VersionMustBeAtLeast(_ context.Context, op operation.Operation, fldPath *field.Path, value, _ *string, minimumVersion string) field.ErrorList {
+	if value == nil {
+		return nil
+	}
+	if len(*value) == 0 {
+		return nil
+	}
+
+	newVersion, err := semver.ParseTolerant(*value)
+	if err != nil {
+		return field.ErrorList{field.Invalid(fldPath, value, err.Error())}
+	}
+	minVersion, err := semver.ParseTolerant(minimumVersion)
+	if err != nil {
+		return field.ErrorList{field.Invalid(fldPath, value, err.Error())}
+	}
+
+	if newVersion.LT(minVersion) {
+		return field.ErrorList{field.Invalid(fldPath, value, fmt.Sprintf("must be at least %s", minimumVersion))}
+	}
+
+	return nil
+}
+
+func VersionMayNotDecrease(_ context.Context, op operation.Operation, fldPath *field.Path, value, oldValue *string) field.ErrorList {
+	if value == nil {
+		return nil
+	}
+	if len(*value) == 0 {
+		return nil
+	}
+	if oldValue == nil {
+		return nil
+	}
+	if len(*oldValue) == 0 {
+		return nil
+	}
+
+	newVersion, err := semver.ParseTolerant(*value)
+	if err != nil {
+		return field.ErrorList{field.Invalid(fldPath, value, err.Error())}
+	}
+	oldVersion, err := semver.ParseTolerant(*oldValue)
+	if err != nil {
+		return field.ErrorList{field.Invalid(fldPath, value, err.Error())}
+	}
+
+	if newVersion.LT(oldVersion) {
+		return field.ErrorList{field.Invalid(fldPath, value, fmt.Sprintf("may not decrease from %s", *oldValue))}
+	}
+
+	return nil
+}
+
 func OpenshiftVersionWithOptionalMicro(_ context.Context, op operation.Operation, fldPath *field.Path, value, _ *string) field.ErrorList {
 	if value == nil {
 		return nil
