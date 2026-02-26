@@ -6,7 +6,7 @@ COMPONENTS ?=
 EXCLUDE_COMPONENTS ?=
 VERBOSITY ?= 0
 OUTPUT_FILE ?=
-OUTPUT_FORMAT ?=
+OUTPUT_FORMAT ?= markdown
 VERBOSITY_FLAGS := $(if $(VERBOSITY),--verbosity $(VERBOSITY))
 COMPONENT_FLAGS := $(if $(COMPONENTS),--components $(COMPONENTS))
 EXCLUDE_FLAGS := $(if $(EXCLUDE_COMPONENTS),--exclude-components $(EXCLUDE_COMPONENTS))
@@ -17,7 +17,7 @@ OUTPUT_FLAGS := $(if $(OUTPUT_FILE),--output-file $(OUTPUT_FILE)) $(if $(OUTPUT_
 build: test
 	@go build -o $(BINARY_NAME) .
 
-update:
+update: build
 	@./$(BINARY_NAME) update --config $(CONFIG_FILE) $(COMPONENT_FLAGS) $(EXCLUDE_FLAGS) $(VERBOSITY_FLAGS) $(OUTPUT_FLAGS)
 
 test:
