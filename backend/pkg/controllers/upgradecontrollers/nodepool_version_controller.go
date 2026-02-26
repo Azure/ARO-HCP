@@ -57,7 +57,7 @@ func NewNodePoolVersionController(
 	}
 
 	controller := controllerutils.NewNodePoolWatchingController(
-		"NodePoolVersions",
+		"NodePoolVersion",
 		cosmosClient,
 		informers,
 		5*time.Minute, // Check for upgrades every 5 minutes
@@ -107,10 +107,10 @@ func (c *nodePoolVersionSyncer) SyncOnce(ctx context.Context, key controllerutil
 	}
 
 	serviceProviderCosmosNodePoolClient := c.cosmosClient.ServiceProviderNodePools(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.HCPNodePoolName)
-	actualVersion := semver.MustParse(version.ID())
+	actualVersion := semver.MustParse(version.RawID())
 
-	oldActiveVersions := existingServiceProviderNodePool.Status.NodePoolActiveVersions
-	existingServiceProviderNodePool.Status.NodePoolActiveVersions = c.prependActiveVersionIfChanged(oldActiveVersions, actualVersion)
+	oldActiveVersions := existingServiceProviderNodePool.Status.NodePoolVersion.ActiveVersions
+	existingServiceProviderNodePool.Status.NodePoolVersion.ActiveVersions = c.prependActiveVersionIfChanged(oldActiveVersions, actualVersion)
 
 	// check if actualVersion from node pool in clusterService is different that the active versions in serviceProviderNodePool
 	// if it is different update the ActualVersion in the serviceProviderNodePool
@@ -121,9 +121,9 @@ func (c *nodePoolVersionSyncer) SyncOnce(ctx context.Context, key controllerutil
 	//   	- upgradepolicy.targetVersion: if the policy has started this version is applying to the nodepool
 	//   - In Hypershift
 	//		- .Status.Version: shows the latest applied version https://github.com/openshift/hypershift/blob/main/api/hypershift/v1beta1/nodepool_types.go#L246-L251
-	if !slices.Equal(oldActiveVersions, existingServiceProviderNodePool.Status.NodePoolActiveVersions) {
+	if !slices.Equal(oldActiveVersions, existingServiceProviderNodePool.Status.NodePoolVersion.ActiveVersions) {
 		logger := utils.LoggerFromContext(ctx)
-		logger.Info("Active versions changed", "oldActiveVersions", oldActiveVersions, "newActiveVersions", existingServiceProviderNodePool.Status.NodePoolActiveVersions)
+		logger.Info("Active versions changed", "oldActiveVersions", oldActiveVersions, "newActiveVersions", existingServiceProviderNodePool.Status.NodePoolVersion.ActiveVersions)
 		existingServiceProviderNodePool, err = serviceProviderCosmosNodePoolClient.Replace(ctx, existingServiceProviderNodePool, nil)
 		if err != nil {
 			return utils.TrackError(fmt.Errorf("failed to replace ServiceProviderCluster: %w", err))
@@ -154,14 +154,14 @@ func (c *nodePoolVersionSyncer) CooldownChecker() controllerutils.CooldownChecke
 // with the new version prepended if it differs from the most recent version.
 // If the most recent version matches the new version, returns the original slice unchanged.
 // The returned slice is capped to the 2 most recent versions.
-func (c *nodePoolVersionSyncer) prependActiveVersionIfChanged(currentVersions []api.ServiceProviderNodePoolActiveVersions, newVersion semver.Version) []api.ServiceProviderNodePoolActiveVersions {
+func (c *nodePoolVersionSyncer) prependActiveVersionIfChanged(currentVersions []api.HCPNodePoolActiveVersion, newVersion semver.Version) []api.HCPNodePoolActiveVersion {
 	// Check if the tip (most recent version) is already the new version
 	if len(currentVersions) > 0 && currentVersions[0].Version != nil && currentVersions[0].Version.EQ(newVersion) {
 		return currentVersions
 	}
 
 	// Create new list with at most 2 versions: new version + most recent old version
-	newVersions := []api.ServiceProviderNodePoolActiveVersions{{Version: &newVersion}}
+	newVersions := []api.HCPNodePoolActiveVersion{{Version: &newVersion}}
 	if len(currentVersions) > 0 {
 		newVersions = append(newVersions, currentVersions[0])
 	}

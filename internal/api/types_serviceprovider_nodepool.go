@@ -53,7 +53,7 @@ type ServiceProviderNodePoolSpec struct {
 	//     "desired_version": "4.19.2"
 	//   }
 	// }
-	NodePoolVersion ServiceProviderNodePoolSpecVersion `json:"control_plane_version,omitempty"`
+	NodePoolVersion ServiceProviderNodePoolSpecVersion `json:"nodepool_version,omitempty"`
 }
 
 // ServiceProviderNodePoolSpecVersion contains the desired version information.
@@ -75,18 +75,25 @@ type ServiceProviderNodePoolStatus struct {
 	//
 	// Example JSON structure:
 	// {
-	//   "nodepool_active_versions": [
+	//   "nodepool_version":{
+	//		"active_versions": [
 	//       {"version": "4.19.2"},
 	//       {"version": "4.19.1"}
 	//     ]
 	//   }
 	// }
-	NodePoolActiveVersions []ServiceProviderNodePoolActiveVersions `json:"nodepool_active_versions,omitempty"`
+	NodePoolVersion ServiceProviderNodePoolStatusVersion `json:"nodepool_version,omitempty"`
 }
 
-// ServiceProviderNodePoolActiveVersion contains the actual version information.
-type ServiceProviderNodePoolActiveVersions struct {
+// ServiceProviderNodePoolStatusVersion contains the actual version information.
+type ServiceProviderNodePoolStatusVersion struct {
 	// ActiveVersions is an array of versions currently active in the nodepool, ordered with the most recent first.
 	// During upgrades, multiple versions can be active simultaneously.
+	ActiveVersions []HCPNodePoolActiveVersion `json:"active_versions,omitempty"`
+}
+
+// HCPNodePoolActiveVersion represents a single version active in the nodepool.
+type HCPNodePoolActiveVersion struct {
+	// Version is the full version in x.y.z format (e.g., "4.19.2")
 	Version *semver.Version `json:"version,omitempty"`
 }
