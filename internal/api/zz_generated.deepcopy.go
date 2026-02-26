@@ -22,6 +22,7 @@ package api
 import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	v4 "github.com/blang/semver/v4"
+	v1beta1 "github.com/openshift/hypershift/api/hypershift/v1beta1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 
 	arm "github.com/Azure/ARO-HCP/internal/api/arm"
@@ -1116,6 +1117,11 @@ func (in *ServiceProviderClusterList) DeepCopyObject() runtime.Object {
 func (in *ServiceProviderClusterSpec) DeepCopyInto(out *ServiceProviderClusterSpec) {
 	*out = *in
 	in.ControlPlaneVersion.DeepCopyInto(&out.ControlPlaneVersion)
+	if in.DesiredHostedCluster != nil {
+		in, out := &in.DesiredHostedCluster, &out.DesiredHostedCluster
+		*out = new(v1beta1.HostedCluster)
+		(*in).DeepCopyInto(*out)
+	}
 	return
 }
 

@@ -18,6 +18,7 @@ import (
 	"github.com/blang/semver/v4"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+
 	"github.com/openshift/hypershift/api/hypershift/v1beta1"
 )
 
