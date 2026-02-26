@@ -90,15 +90,10 @@ func (q *ConfigurableQuery) WithResourceIdHasResourceGroup(resourceGroup string)
 	return q
 }
 
-func (q *ConfigurableQuery) WithEventNamespaceHasAny(clusterIds []string) *ConfigurableQuery {
-	q.Query.AddLiteral("\n| where eventNamespace has_any (clusterIds)")
+func (q *ConfigurableQuery) WithEventNamespaceFiltering(clusterIds []string, hcpNamespacePrefix string) *ConfigurableQuery {
+	q.Query.AddLiteral("\n| where eventNamespace !hasprefix hcpNamespacePrefix or eventNamespace has_any (clusterIds)")
 	q.Parameters.AddString("clusterIds", strings.Join(clusterIds, ","))
-	return q
-}
-
-func (q *ConfigurableQuery) WithEventNamespaceExcluding(clusterIds []string) *ConfigurableQuery {
-	q.Query.AddLiteral("\n| where not(eventNamespace has_any (clusterIds))")
-	q.Parameters.AddString("clusterIds", strings.Join(clusterIds, ","))
+	q.Parameters.AddString("hcpNamespacePrefix", hcpNamespacePrefix)
 	return q
 }
 

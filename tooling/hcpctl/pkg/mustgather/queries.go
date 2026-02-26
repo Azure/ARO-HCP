@@ -111,7 +111,7 @@ func (opts *QueryOptions) GetInfraKubernetesEventsQuery() []*kusto.ConfigurableQ
 	return []*kusto.ConfigurableQuery{query}
 }
 
-func (opts *QueryOptions) GetKubernetesEventsExcludingHCPQuery() []*kusto.ConfigurableQuery {
+func (opts *QueryOptions) GetKubernetesEventsSvc() []*kusto.ConfigurableQuery {
 	query := kusto.NewConfigurableQuery("kubernetesEvents", servicesDatabase)
 	if opts.Limit < 0 {
 		query.WithNoTruncation()
@@ -119,7 +119,6 @@ func (opts *QueryOptions) GetKubernetesEventsExcludingHCPQuery() []*kusto.Config
 	query.WithTable("kubernetesEvents")
 	query.WithTimestampMinAndMax(opts.TimestampMin, opts.TimestampMax)
 	query.WithCluster(opts.InfraClusterName)
-	query.WithEventNamespaceExcluding([]string{hcpNamespacePrefix})
 	if opts.Limit > 0 {
 		query.WithLimit(opts.Limit)
 	}
@@ -128,7 +127,7 @@ func (opts *QueryOptions) GetKubernetesEventsExcludingHCPQuery() []*kusto.Config
 	return []*kusto.ConfigurableQuery{query}
 }
 
-func (opts *QueryOptions) GetKubernetesEventsHCPQuery() []*kusto.ConfigurableQuery {
+func (opts *QueryOptions) GetKubernetesEventsMgmt() []*kusto.ConfigurableQuery {
 	if len(opts.ClusterIds) == 0 {
 		return nil
 	}
@@ -139,7 +138,7 @@ func (opts *QueryOptions) GetKubernetesEventsHCPQuery() []*kusto.ConfigurableQue
 	query.WithTable("kubernetesEvents")
 	query.WithTimestampMinAndMax(opts.TimestampMin, opts.TimestampMax)
 	query.WithCluster(opts.InfraClusterName)
-	query.WithEventNamespaceHasAny(opts.ClusterIds)
+	query.WithEventNamespaceFiltering(opts.ClusterIds, hcpNamespacePrefix)
 	if opts.Limit > 0 {
 		query.WithLimit(opts.Limit)
 	}

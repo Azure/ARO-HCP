@@ -357,12 +357,12 @@ func (g *Gatherer) GatherLogs(ctx context.Context) error {
 		for _, clusterName := range clusterNames {
 			opts := *g.opts.QueryOptions
 			opts.InfraClusterName = clusterName
-			// All clusters: events excluding HCP namespaces
-			allKubernetesEventsQueries = append(allKubernetesEventsQueries, opts.GetKubernetesEventsExcludingHCPQuery()...)
-			// Mgmt clusters only: also get events within HCP namespaces
 			if strings.Contains(clusterName, "mgmt") {
-				allKubernetesEventsQueries = append(allKubernetesEventsQueries, opts.GetKubernetesEventsHCPQuery()...)
+				allKubernetesEventsQueries = append(allKubernetesEventsQueries, opts.GetKubernetesEventsMgmt()...)
+			} else {
+				allKubernetesEventsQueries = append(allKubernetesEventsQueries, opts.GetKubernetesEventsSvc()...)
 			}
+
 		}
 		if err := g.queryAndWriteToFile(ctx, QueryTypeKubernetesEvents, allKubernetesEventsQueries); err != nil {
 			gatherErrors = errors.Join(gatherErrors, fmt.Errorf("failed to execute kubernetes events query: %w", err))
