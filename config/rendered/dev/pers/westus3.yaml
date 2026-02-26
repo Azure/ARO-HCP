@@ -330,6 +330,15 @@ global:
         - name: AllowBringYourOwnPublicIpAddress
           poll: true
         poll: true
+hcpRecovery:
+  image:
+    digest: ""
+    registry: arohcpsvcdev.azurecr.io
+    repository: arohcprecovery
+  k8s:
+    namespace: hcp-recovery
+    replicas: 2
+    serviceAccountName: hcp-recovery
 hypershift:
   additionalInstallArg: --enable-cpo-overrides
   image:

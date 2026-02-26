@@ -584,6 +584,16 @@ defaults:
       serviceAccountName: sessiongate
     cert:
       name: sessiongate-cert-{{ .ctx.environment }}-{{ .ctx.regionShort }}
+  # HCP Recovery
+  hcpRecovery:
+    image:
+      registry: arohcpsvcdev.azurecr.io
+      repository: arohcprecovery
+      digest: ""
+    k8s:
+      replicas: 2
+      namespace: hcp-recovery
+      serviceAccountName: hcp-recovery
   # Frontend
   frontend:
     audit:
