@@ -1,4 +1,16 @@
 acm:
+  chartConfig:
+    digest: sha256:fda197863752ff99c8644550dd3d7c6f4514717cf9ca43d861ae04a398c968e2
+    registry: arohcpsvcdev.azurecr.io
+    repository: helm/multicluster-engine-local-cluster
+  chartCrds:
+    digest: sha256:19b07b1bb68bfac0c077db0609af5491cd47e115414e2efd153d36e8b12c6bb5
+    registry: arohcpsvcdev.azurecr.io
+    repository: helm/multicluster-engine-crds
+  chartMce:
+    digest: sha256:ec29b6c20f83fb7cf65c0a571169635dad611ee1aa3e497e5ebe7e7fa4962cc0
+    registry: arohcpsvcdev.azurecr.io
+    repository: helm/multicluster-engine
   mce:
     bundle:
       digest: sha256:1af282009050da6e6247d841d5ebb116dc68dcd61cfe13423422657c31ab53d7

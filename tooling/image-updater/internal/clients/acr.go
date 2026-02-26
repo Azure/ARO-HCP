@@ -194,6 +194,17 @@ func (c *ACRClient) GetArchSpecificDigest(ctx context.Context, repository string
 			continue
 		}
 
+		// 1. OCI Artifact Bypass (e.g., Helm Charts)
+		// Blueprints/Data do not have an OS or CPU Architecture.
+		// If BOTH are nil, we can safely assume it is a generic OCI artifact.
+		if manifest.Architecture == nil && manifest.OperatingSystem == nil {
+			logger.V(2).Info("manifest has no architecture or OS, treating as generic OCI artifact", "tag", tag.Name)
+			tag.Version = extractVersionLabel(ctx, c.registryURL, repository, tag.Name, versionLabel, c.useAuth)
+			return &tag, nil
+		}
+
+		// 2. Strict check for runnable images
+		// If only one is missing, it is likely a malformed container image, so we skip.
 		if manifest.Architecture == nil || manifest.OperatingSystem == nil {
 			logger.V(2).Info("manifest missing architecture or OS info, skipping", "tag", tag.Name)
 			continue
