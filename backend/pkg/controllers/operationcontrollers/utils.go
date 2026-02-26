@@ -44,6 +44,23 @@ var localClock clock.Clock = clock.RealClock{}
 
 type PostAsyncNotificationFunc func(ctx context.Context, operation *api.Operation) error
 
+// Copied from uhc-clusters-service, because the
+// OCM SDK does not define this for some reason.
+type NodePoolStateValue string
+
+const (
+	NodePoolStateValidating       NodePoolStateValue = "validating"
+	NodePoolStatePending          NodePoolStateValue = "pending"
+	NodePoolStateInstalling       NodePoolStateValue = "installing"
+	NodePoolStateReady            NodePoolStateValue = "ready"
+	NodePoolStateUpdating         NodePoolStateValue = "updating"
+	NodePoolStateValidatingUpdate NodePoolStateValue = "validating_update"
+	NodePoolStatePendingUpdate    NodePoolStateValue = "pending_update"
+	NodePoolStateUninstalling     NodePoolStateValue = "uninstalling"
+	NodePoolStateRecoverableError NodePoolStateValue = "recoverable_error"
+	NodePoolStateError            NodePoolStateValue = "error"
+)
+
 // UpdateOperationStatus updates Cosmos DB to reflect an updated resource status.
 func UpdateOperationStatus(ctx context.Context, cosmosClient database.DBClient, existingOperation *api.Operation, newOperationStatus arm.ProvisioningState, newOperationError *arm.CloudErrorBody, postAsyncNotificationFn PostAsyncNotificationFunc) error {
 	logger := utils.LoggerFromContext(ctx)
@@ -339,6 +356,121 @@ func convertClusterStatus(ctx context.Context, clusterServiceClient ocm.ClusterS
 	}
 
 	return newOperationStatus, opError, err
+}
+
+// pollNodePoolStatus converts a node pool status from Cluster
+// Service to info for an Azure async operation status endpoint.
+func pollNodePoolStatus(
+	ctx context.Context,
+	cosmosClient database.DBClient,
+	clusterServiceClient ocm.ClusterServiceClientSpec,
+	operation *api.Operation,
+	notificationClient *http.Client) error {
+	// XXX This is currently called by the operationNodePoolCreate and
+	//     operationNodePoolUpdate controllers because the logic flows
+	//     are identical. If the logic flows ever diverge, then this
+	//     function should be split up and the pieces moved back to
+	//     their respective controllers.
+
+	logger := utils.LoggerFromContext(ctx)
+
+	nodePoolStatus, err := clusterServiceClient.GetNodePoolStatus(ctx, operation.InternalID)
+	if err != nil {
+		return utils.TrackError(err)
+	}
+
+	newOperationStatus, newOperationError, err := convertNodePoolStatus(operation, nodePoolStatus)
+	if err != nil {
+		return utils.TrackError(err)
+	}
+	logger.Info("new status", "newStatus", newOperationStatus)
+
+	logger.Info("updating status")
+	err = UpdateOperationStatus(ctx, cosmosClient, operation, newOperationStatus, newOperationError, postAsyncNotificationFn(notificationClient))
+	if err != nil {
+		return utils.TrackError(err)
+	}
+
+	return nil
+}
+
+// convertNodePoolStatus attempts to translate a NodePoolStatus object
+// from Cluster Service into an ARM provisioning state and, if necessary,
+// a structured OData error.
+func convertNodePoolStatus(operation *api.Operation, nodePoolStatus *arohcpv1alpha1.NodePoolStatus) (arm.ProvisioningState, *arm.CloudErrorBody, error) {
+	var newOperationStatus = operation.Status
+	var opError *arm.CloudErrorBody
+	var err error
+
+	switch state := NodePoolStateValue(nodePoolStatus.State().NodePoolStateValue()); state {
+	case NodePoolStateValidating, NodePoolStatePending, NodePoolStateValidatingUpdate, NodePoolStatePendingUpdate:
+		// These are valid node pool states for ARO-HCP but there are
+		// no unique ProvisioningState values for them. They should
+		// only occur when ProvisioningState is Accepted.
+		if operation.Status != arm.ProvisioningStateAccepted {
+			err = fmt.Errorf("got NodePoolStatusValue '%s' while ProvisioningState was '%s' instead of '%s'", state, operation.Status, arm.ProvisioningStateAccepted)
+		}
+	case NodePoolStateInstalling:
+		newOperationStatus = arm.ProvisioningStateProvisioning
+	case NodePoolStateReady:
+		// Resource deletion is successful when fetching its state
+		// from Cluster Service returns a "404 Not Found" error. If
+		// we see the resource in a "Ready" state during a deletion
+		// operation, leave the current provisioning state as is.
+		if operation.Request != database.OperationRequestDelete {
+			newOperationStatus = arm.ProvisioningStateSucceeded
+		}
+	case NodePoolStateUpdating:
+		newOperationStatus = arm.ProvisioningStateUpdating
+	case NodePoolStateUninstalling:
+		newOperationStatus = arm.ProvisioningStateDeleting
+	case NodePoolStateRecoverableError, NodePoolStateError:
+		// XXX OCM SDK offers no error code or message for failed node pool
+		//     operations so "Internal Server Error" is all we can do for now.
+		//     https://issues.redhat.com/browse/ARO-14969
+		newOperationStatus = arm.ProvisioningStateFailed
+		opError = arm.NewInternalServerError().CloudErrorBody
+		if msg, ok := nodePoolStatus.GetMessage(); ok {
+			opError.Message = msg
+		}
+	default:
+		err = fmt.Errorf("unhandled NodePoolState '%s'", state)
+	}
+
+	return newOperationStatus, opError, err
+}
+
+// pollExternalAuthStatus converts an external auth status from Cluster
+// Service to info for an Azure async operation status endpoint.
+func pollExternalAuthStatus(
+	ctx context.Context,
+	cosmosClient database.DBClient,
+	clusterServiceClient ocm.ClusterServiceClientSpec,
+	operation *api.Operation,
+	notificationClient *http.Client) error {
+	// XXX This is currently called by the operationExternalAuthCreate and
+	//     operationExternalAuthUpdate controllers because the logic flows
+	//     are identical. If the logic flows ever diverge, then this
+	//     function should be split up and the pieces moved back to
+	//     their respective controllers.
+
+	logger := utils.LoggerFromContext(ctx)
+
+	_, err := clusterServiceClient.GetExternalAuth(ctx, operation.InternalID)
+	if err != nil {
+		return utils.TrackError(err)
+	}
+
+	newOperationStatus := arm.ProvisioningStateSucceeded
+	logger.Info("new status", "newStatus", newOperationStatus)
+
+	logger.Info("updating status")
+	err = UpdateOperationStatus(ctx, cosmosClient, operation, newOperationStatus, nil, postAsyncNotificationFn(notificationClient))
+	if err != nil {
+		return utils.TrackError(err)
+	}
+
+	return nil
 }
 
 // convertInflightChecks gets a cluster internal ID, fetches inflight check errors from CS endpoint, and converts them
