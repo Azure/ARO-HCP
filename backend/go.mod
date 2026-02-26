@@ -16,7 +16,7 @@ require (
 	github.com/openshift-online/ocm-sdk-go v0.1.494
 	github.com/openshift/api v0.0.0-20260130140113-71e91db96ffc
 	github.com/openshift/cluster-version-operator v1.0.1-0.20260202115537-557510ea0603
-	github.com/openshift/hypershift/api v0.0.0-20260225065515-6968c170a989
+	github.com/openshift/hypershift/api v0.0.0-20260226113135-8ab86680f975
 	github.com/prometheus/client_golang v1.23.2
 	github.com/spf13/cobra v1.10.2
 	github.com/stretchr/testify v1.11.1

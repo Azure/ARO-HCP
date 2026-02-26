@@ -54,6 +54,8 @@ require (
 	github.com/mailru/easyjson v0.9.0 // indirect
 	github.com/mattn/go-runewidth v0.0.16 // indirect
 	github.com/openshift-online/ocm-api-model/model v0.0.449 // indirect
+	github.com/openshift/api v0.0.0-20260130140113-71e91db96ffc // indirect
+	github.com/openshift/hypershift/api v0.0.0-20260226113135-8ab86680f975 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/prometheus/otlptranslator v1.0.0 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
