@@ -27,6 +27,9 @@ services:
       - serviceGroup: Microsoft.Azure.ARO.HCP.RP.Frontend
         pipelinePath: frontend/pipeline.yaml
         purpose: Deploy the RP Frontend.
+      - serviceGroup: Microsoft.Azure.ARO.HCP.SessionGate
+        pipelinePath: sessiongate/pipeline.yaml
+        purpose: Deploy the Session Gate.
       - serviceGroup: Microsoft.Azure.ARO.HCP.AdminAPI
         pipelinePath: admin/pipeline.yaml
         purpose: Deploy the Admin API.

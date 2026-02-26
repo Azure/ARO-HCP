@@ -590,6 +590,10 @@ mise:
   image:
     digest: sha256:4822b1998fafa4c7ed1e0723dfed8fd0562e1525545327b821e6d9ef29573c74
     repository: mise-1p-container-image
+  sessiongate:
+    audience: 6dae42f8-4368-4678-94ff-3960e28e3630
+    authorityFQDN: sts.windows.net
+    policyLabel: Session Gate
   tracing:
     address: ""
     exporter: ""
@@ -718,8 +722,11 @@ serviceKeyVault:
   tagKey: aroHCPPurpose
   tagValue: service
 sessiongate:
+  cert:
+    issuer: Self
+    name: sessiongate-cert-pers-usw3test
   image:
-    digest: ""
+    digest: sha256:0938bda90b49a09afe83cc39292a3433e8a27b4dfdf5fa79798c9bcd550b7f6e
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpsessiongate
   k8s:

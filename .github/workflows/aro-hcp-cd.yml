@@ -29,6 +29,7 @@ on:
     - 'frontend/**'
     - 'admin/**'
     - 'backend/**'
+    - 'sessiongate/**'
     - 'cluster-service/**'
     - 'internal/**'
     - 'maestro/**'

@@ -576,12 +576,14 @@ defaults:
     image:
       registry: arohcpsvcdev.azurecr.io
       repository: arohcpsessiongate
-      digest: ""
+      digest: sha256:0938bda90b49a09afe83cc39292a3433e8a27b4dfdf5fa79798c9bcd550b7f6e # 801ed53 (2026-02-22 16:13)
     managedIdentityName: sessiongate
     k8s:
       replicas: 2
       namespace: sessiongate
       serviceAccountName: sessiongate
+    cert:
+      name: sessiongate-cert-{{ .ctx.environment }}-{{ .ctx.regionShort }}
   # Frontend
   frontend:
     audit:
@@ -650,6 +652,10 @@ defaults:
       policyLabel: "Geneva Actions"
       authorityFQDN: "{{ .ev2.entra.fqdn.sts }}"
       audienceFQDN: "{{ .ev2.arm.endpoint }}"
+    sessiongate:
+      policyLabel: "Session Gate"
+      authorityFQDN: "{{ .ev2.entra.fqdn.sts }}"
+      audience: "6dae42f8-4368-4678-94ff-3960e28e3630"
     image:
       repository: "mise-1p-container-image"
       digest: ""
@@ -986,6 +992,10 @@ clouds:
         limitClusterSizes: true
       # Admin API
       adminApi:
+        cert:
+          issuer: Self
+      # Sessiongate
+      sessiongate:
         cert:
           issuer: Self
       # Frontend

@@ -107,6 +107,11 @@ resourceGroups:
         resourceGroup: service
         step: output
         name: backend
+    - name: sessiongateMIResourceId
+      input:
+        resourceGroup: service
+        step: output
+        name: sessiongate
     dependsOn:
     - resourceGroup: management
       step: infra

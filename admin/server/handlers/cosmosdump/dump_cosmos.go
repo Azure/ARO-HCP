@@ -17,8 +17,8 @@ package cosmosdump
 import (
 	"net/http"
 
+	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
-	"github.com/Azure/ARO-HCP/internal/errorutils"
 	"github.com/Azure/ARO-HCP/internal/serverutils"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -27,15 +27,11 @@ type CosmosDumpHandler struct {
 	cosmosClient database.DBClient
 }
 
-func NewCosmosDumpHandler(cosmosClient database.DBClient) http.Handler {
+func NewCosmosDumpHandler(cosmosClient database.DBClient) *CosmosDumpHandler {
 	return &CosmosDumpHandler{cosmosClient: cosmosClient}
 }
 
-func (h *CosmosDumpHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	errorutils.ReportError(h.serveHTTP)
-}
-
-func (h *CosmosDumpHandler) serveHTTP(w http.ResponseWriter, request *http.Request) error {
+func (h *CosmosDumpHandler) ServeHTTP(w http.ResponseWriter, request *http.Request) error {
 	ctx := request.Context()
 
 	// get the azure resource ID for this HCP
@@ -44,5 +40,10 @@ func (h *CosmosDumpHandler) serveHTTP(w http.ResponseWriter, request *http.Reque
 		return utils.TrackError(err)
 	}
 
-	return serverutils.DumpDataToLogger(ctx, h.cosmosClient, resourceID)
+	if err := serverutils.DumpDataToLogger(ctx, h.cosmosClient, resourceID); err != nil {
+		return utils.TrackError(err)
+	}
+
+	_, err = arm.WriteJSONResponse(w, http.StatusOK, map[string]any{})
+	return err
 }

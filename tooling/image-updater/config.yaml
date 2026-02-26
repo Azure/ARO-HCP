@@ -226,6 +226,13 @@ images:
     targets:
     - jsonPath: defaults.adminApi.image.digest
       filePath: ../../config/config.yaml
+  sessiongate:
+    source:
+      image: arohcpsvcdev.azurecr.io/arohcpsessiongate
+      useAuth: true
+    targets:
+    - jsonPath: defaults.sessiongate.image.digest
+      filePath: ../../config/config.yaml
   # Velero images
   velero-server:
     source:

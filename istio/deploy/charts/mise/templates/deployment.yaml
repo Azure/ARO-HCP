@@ -72,6 +72,14 @@ spec:
           value: '{{ .Values.genevaActionsPolicy.audience }}'
         - name: AzureAd__InboundPolicies__1__ValidApplicationIds__0
           value: "{{ .Values.genevaActionsPolicy.applicationId }}"
+        - name: AzureAd__InboundPolicies__2__Label
+          value: "{{ .Values.sessiongatePolicy.label }}"
+        - name: AzureAd__InboundPolicies__2__Authority
+          value: "{{ .Values.sessiongatePolicy.authority }}"
+        - name: AzureAd__InboundPolicies__2__AuthenticationSchemes__0
+          value: "Bearer"
+        - name: AzureAd__InboundPolicies__2__ValidAudiences__0
+          value: '{{ .Values.sessiongatePolicy.audience }}'
         - name: AllowedHosts
           value: "*"
         - name: Kestrel__Endpoints__Http__Url
