@@ -33,7 +33,7 @@ type RawQueryOptions struct {
 	ResourceId                 string // Resource ID
 	SkipHostedControlPlaneLogs bool   // Skip hosted control plane logs
 	SkipKubernetesEventsLogs   bool   // Skip Kubernetes events logs
-	SkipSystemdLogs        bool   // Skip Systemd logs
+	CollectSystemdLogs         bool   // Collect Systemd logs
 }
 
 // DefaultQueryOptions returns a new RawQueryOptions struct initialized with sensible defaults.
@@ -54,7 +54,7 @@ func BindQueryOptions(opts *RawQueryOptions, cmd *cobra.Command) error {
 	cmd.Flags().StringVar(&opts.ResourceId, "resource-id", opts.ResourceId, "resource ID")
 	cmd.Flags().BoolVar(&opts.SkipHostedControlPlaneLogs, "skip-hcp-logs", opts.SkipHostedControlPlaneLogs, "Do not gather customer (ocm namespaces) logs")
 	cmd.Flags().BoolVar(&opts.SkipKubernetesEventsLogs, "skip-kubernetes-events-logs", opts.SkipKubernetesEventsLogs, "Do not gather Kubernetes events logs")
-	cmd.Flags().BoolVar(&opts.SkipSystemdLogs, "skip-systemd-logs", opts.SkipSystemdLogs, "Do not gather Systemd logs")
+	cmd.Flags().BoolVar(&opts.CollectSystemdLogs, "collect-systemd-logs", opts.CollectSystemdLogs, "Collect Systemd logs")
 
 	cmd.MarkFlagsMutuallyExclusive("subscription-id", "resource-id")
 	cmd.MarkFlagsMutuallyExclusive("resource-group", "resource-id")
@@ -117,7 +117,7 @@ func (o *ValidatedQueryOptions) Complete(ctx context.Context) (*CompletedQueryOp
 		return nil, err
 	}
 
-	if err := createOutputDirectories(o.OutputPath, o.SkipHostedControlPlaneLogs, o.SkipKubernetesEventsLogs, o.SkipSystemdLogs); err != nil {
+	if err := createOutputDirectories(o.OutputPath, o.SkipHostedControlPlaneLogs, o.SkipKubernetesEventsLogs, o.CollectSystemdLogs); err != nil {
 		return nil, err
 	}
 

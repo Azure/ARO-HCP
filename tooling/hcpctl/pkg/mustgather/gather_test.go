@@ -94,7 +94,6 @@ func TestGatherer_GatherLogs(t *testing.T) {
 		QueryClient: mockQueryClient,
 		opts: GathererOptions{
 			SkipKubernetesEventsLogs: true,
-			SkipSystemdLogs:          true,
 			QueryOptions: &QueryOptions{
 				SubscriptionId:    "test-sub",
 				ResourceGroupName: "test-rg",
@@ -126,7 +125,7 @@ func TestGatherer_GatherLogs_WithKubernetesEventsAndSystemdLogs(t *testing.T) {
 		QueryClient: mockQueryClient,
 		opts: GathererOptions{
 			SkipKubernetesEventsLogs: false,
-			SkipSystemdLogs:          false,
+			CollectSystemdLogs:       true,
 			QueryOptions: &QueryOptions{
 				SubscriptionId:    "test-sub",
 				ResourceGroupName: "test-rg",
@@ -154,7 +153,6 @@ func TestGatherer_GatherLogs_SkipOnlySystemdLogs(t *testing.T) {
 		QueryClient: mockQueryClient,
 		opts: GathererOptions{
 			SkipKubernetesEventsLogs: false,
-			SkipSystemdLogs:          true,
 			QueryOptions: &QueryOptions{
 				SubscriptionId:    "test-sub",
 				ResourceGroupName: "test-rg",
@@ -233,7 +231,6 @@ func TestGatherer_GatherLogs_ContextCancellation(t *testing.T) {
 		QueryClient: mockQueryClient,
 		opts: GathererOptions{
 			SkipKubernetesEventsLogs: true,
-			SkipSystemdLogs:          true,
 			QueryOptions: &QueryOptions{
 				SubscriptionId:    "test-sub",
 				ResourceGroupName: "test-rg",

@@ -43,6 +43,8 @@ var servicesTables = []string{
 	"backendLogs",
 }
 
+var hcpNamespacePrefix = "ocm-arohcp"
+
 var containerLogsTable = servicesTables[0]
 var clustersServiceLogsTable = servicesTables[1]
 
@@ -98,11 +100,50 @@ func (opts *QueryOptions) GetInfraKubernetesEventsQuery() []*kusto.ConfigurableQ
 	if opts.Limit < 0 {
 		query.WithNoTruncation()
 	}
-	query.WithTable("kubernetesEvents").WithInfraFields()
+	query.WithTable("kubernetesEvents")
+	query.WithTimestampMinAndMax(opts.TimestampMin, opts.TimestampMax)
 	query.WithCluster(opts.InfraClusterName)
 	if opts.Limit > 0 {
 		query.WithLimit(opts.Limit)
 	}
+	query.WithInfraFields()
+	query.WithOrderByTimestampAsc()
+	return []*kusto.ConfigurableQuery{query}
+}
+
+func (opts *QueryOptions) GetKubernetesEventsExcludingHCPQuery() []*kusto.ConfigurableQuery {
+	query := kusto.NewConfigurableQuery("kubernetesEvents", servicesDatabase)
+	if opts.Limit < 0 {
+		query.WithNoTruncation()
+	}
+	query.WithTable("kubernetesEvents")
+	query.WithTimestampMinAndMax(opts.TimestampMin, opts.TimestampMax)
+	query.WithCluster(opts.InfraClusterName)
+	query.WithEventNamespaceExcluding([]string{hcpNamespacePrefix})
+	if opts.Limit > 0 {
+		query.WithLimit(opts.Limit)
+	}
+	query.WithInfraFields()
+	query.WithOrderByTimestampAsc()
+	return []*kusto.ConfigurableQuery{query}
+}
+
+func (opts *QueryOptions) GetKubernetesEventsHCPQuery() []*kusto.ConfigurableQuery {
+	if len(opts.ClusterIds) == 0 {
+		return nil
+	}
+	query := kusto.NewConfigurableQuery("kubernetesEvents", servicesDatabase)
+	if opts.Limit < 0 {
+		query.WithNoTruncation()
+	}
+	query.WithTable("kubernetesEvents")
+	query.WithTimestampMinAndMax(opts.TimestampMin, opts.TimestampMax)
+	query.WithCluster(opts.InfraClusterName)
+	query.WithEventNamespaceHasAny(opts.ClusterIds)
+	if opts.Limit > 0 {
+		query.WithLimit(opts.Limit)
+	}
+	query.WithInfraFields()
 	query.WithOrderByTimestampAsc()
 	return []*kusto.ConfigurableQuery{query}
 }
@@ -114,6 +155,7 @@ func (opts *QueryOptions) GetInfraSystemdLogsQuery() []*kusto.ConfigurableQuery 
 	}
 	query.WithTable("systemdLogs").WithInfraFields()
 	query.WithCluster(opts.InfraClusterName)
+	query.WithTimestampMinAndMax(opts.TimestampMin, opts.TimestampMax)
 	if opts.Limit > 0 {
 		query.WithLimit(opts.Limit)
 	}
@@ -148,7 +190,6 @@ func (opts *QueryOptions) GetServicesQueries() []*kusto.ConfigurableQuery {
 			query.WithNoTruncation()
 		}
 		query.WithTable(table).WithDefaultFields()
-
 		query.WithTimestampMinAndMax(opts.TimestampMin, opts.TimestampMax)
 		query.WithClusterIdOrSubscriptionAndResourceGroup(opts.ClusterIds, opts.SubscriptionId, opts.ResourceGroupName)
 		if opts.Limit > 0 {

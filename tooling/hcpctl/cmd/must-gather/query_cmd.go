@@ -67,7 +67,7 @@ func (opts *CompletedQueryOptions) RunQuery(ctx context.Context) error {
 		QueryOptions:               queryOptions,
 		SkipHostedControlPlaneLogs: opts.SkipHostedControlPlaneLogs,
 		SkipKubernetesEventsLogs:   opts.SkipKubernetesEventsLogs,
-		SkipSystemdLogs:            opts.SkipSystemdLogs,
+		CollectSystemdLogs:         opts.CollectSystemdLogs,
 		GatherInfraLogs:            false,
 	})
 

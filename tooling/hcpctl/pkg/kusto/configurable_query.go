@@ -90,6 +90,18 @@ func (q *ConfigurableQuery) WithResourceIdHasResourceGroup(resourceGroup string)
 	return q
 }
 
+func (q *ConfigurableQuery) WithEventNamespaceHasAny(clusterIds []string) *ConfigurableQuery {
+	q.Query.AddLiteral("\n| where eventNamespace has_any (clusterIds)")
+	q.Parameters.AddString("clusterIds", strings.Join(clusterIds, ","))
+	return q
+}
+
+func (q *ConfigurableQuery) WithEventNamespaceExcluding(clusterIds []string) *ConfigurableQuery {
+	q.Query.AddLiteral("\n| where not(eventNamespace has_any (clusterIds))")
+	q.Parameters.AddString("clusterIds", strings.Join(clusterIds, ","))
+	return q
+}
+
 func (q *ConfigurableQuery) WithClusterIdOrSubscriptionAndResourceGroup(clusterIds []string, subscriptionId string, resourceGroup string) *ConfigurableQuery {
 	if len(clusterIds) != 0 {
 		q.Query.AddLiteral("\n| where log has subResourceGroupId or log has_any (clusterId)")

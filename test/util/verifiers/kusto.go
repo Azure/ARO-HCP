@@ -107,7 +107,6 @@ func (v verifyMustGatherLogsImpl) Verify(ctx context.Context) error {
 		mustgather.GathererOptions{
 			SkipHostedControlPlaneLogs: false,
 			SkipKubernetesEventsLogs:   true,
-			SkipSystemdLogs:            true,
 			QueryOptions:               queryOptions,
 		},
 	)

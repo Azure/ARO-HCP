@@ -87,7 +87,7 @@ type GathererOptions struct {
 	GatherInfraLogs            bool          // Gather all logs from the infrastructure, does NOT gather HCP logs
 	SkipHostedControlPlaneLogs bool          // Skip hosted control plane logs
 	SkipKubernetesEventsLogs   bool          // Skip Kubernetes events logs
-	SkipSystemdLogs        bool          // Skip Systemd logs
+	CollectSystemdLogs         bool          // Collect Systemd logs
 	QueryOptions               *QueryOptions // Query options
 }
 
@@ -335,7 +335,7 @@ func (g *Gatherer) GatherLogs(ctx context.Context) error {
 	}
 
 	// Gather cluster names
-	if g.opts.SkipKubernetesEventsLogs && g.opts.SkipSystemdLogs {
+	if g.opts.SkipKubernetesEventsLogs && !g.opts.CollectSystemdLogs {
 		logger.V(1).Info("Skipping Kubernetes events and Systemd logs")
 		return nil
 	}
@@ -357,14 +357,19 @@ func (g *Gatherer) GatherLogs(ctx context.Context) error {
 		for _, clusterName := range clusterNames {
 			opts := *g.opts.QueryOptions
 			opts.InfraClusterName = clusterName
-			allKubernetesEventsQueries = append(allKubernetesEventsQueries, opts.GetInfraKubernetesEventsQuery()...)
+			// All clusters: events excluding HCP namespaces
+			allKubernetesEventsQueries = append(allKubernetesEventsQueries, opts.GetKubernetesEventsExcludingHCPQuery()...)
+			// Mgmt clusters only: also get events within HCP namespaces
+			if strings.Contains(clusterName, "mgmt") {
+				allKubernetesEventsQueries = append(allKubernetesEventsQueries, opts.GetKubernetesEventsHCPQuery()...)
+			}
 		}
 		if err := g.queryAndWriteToFile(ctx, QueryTypeKubernetesEvents, allKubernetesEventsQueries); err != nil {
 			gatherErrors = errors.Join(gatherErrors, fmt.Errorf("failed to execute kubernetes events query: %w", err))
 		}
 	}
 
-	if !g.opts.SkipSystemdLogs {
+	if g.opts.CollectSystemdLogs {
 		allSystemdLogsQueries := make([]*kusto.ConfigurableQuery, 0)
 		for _, clusterName := range clusterNames {
 			opts := *g.opts.QueryOptions
@@ -399,15 +404,15 @@ func (g *Gatherer) executeQueryAndConvert(ctx context.Context, query *kusto.Conf
 	group := new(errgroup.Group)
 	group.Go(func() error {
 		for row := range outputChannel {
-			switch targetRow.(type) {
+			switch targetRow := targetRow.(type) {
 			case ClusterIdRow:
-				cidRow := targetRow.(ClusterIdRow)
+				cidRow := targetRow
 				if err := row.ToStruct(&cidRow); err != nil {
 					return fmt.Errorf("failed to convert row to struct: %w", err)
 				}
 				allRows = append(allRows, cidRow)
 			case ClusterNameRow:
-				clusterNameRow := targetRow.(ClusterNameRow)
+				clusterNameRow := targetRow
 				if err := row.ToStruct(&clusterNameRow); err != nil {
 					return fmt.Errorf("failed to convert row to struct: %w", err)
 				}

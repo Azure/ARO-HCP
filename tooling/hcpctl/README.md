@@ -127,8 +127,9 @@ This is the usual use case for must-gather kusto. You can gather logs for a mana
 What is gathered?
 
 - All service logs, that contain the subscription id and resourcegroup name or are in the cluster namespace (aka hcp logs)
-- All Kubernetes events from the management and service cluster
-- All Systemd logs from the management and service cluster
+- All Kubernetes events from the mgmt and service cluster (excluding HCP)
+- All Kubernetes events from the mgmt cluster withing the HCP namespace
+- Optionally: Systemd logs from the management and service cluster (turn on using --collect-systemd-logs)
 
 ```bash
 hcpctl must-gather  query --kusto $kusto --region $region  --subscription-id $subscription_id --resource-group $resource_group
@@ -160,6 +161,24 @@ hcpctl must-gather  query-infra \
 ```
 
 You can provide multiple `infra-cluster` parameters. Logs will be collected sequentially and stored in a single folder for all clusters provided.
+
+### Limit flag
+
+The --limit flag controls how many log records are returned from each query executed during a must-gather collection. It accepts an integer value and has three distinct behaviors.
+
+#### Default behavior (no --limit specified, or --limit -1)
+
+When you do not specify --limit, it defaults to -1, which means no limit. In this mode, the tool explicitly requests that Azure Data Explorer return all matching results without truncation. This can result in large result sets and longer query times. It can also result in errors on the Kusto side.
+
+#### Positive value
+
+When you specify a positive number, each individual query is capped at that many rows. This is useful when you want a quick sample of logs or when you know the full result set would be impractically large.
+
+The limit applies per query, not to the total output. The must-gather tool internally runs several queries in parallel — for example, one query per log source table (container logs, cluster service logs, frontend logs, backend logs), etc... Each of these queries independently returns up to the specified number of rows. *Important*, results are sorted by timestamp ASC.
+
+#### Interaction with timestamp limitation
+
+`--timestamp-min` and  `--timestamp-max` can be used to limit the result set by filtering the timestamp. The time range filter is always applied first. The limit then caps how many rows are returned from within that time window. You can use this together with limit to iterate over large timeframes.
 
 ## TODO
 
