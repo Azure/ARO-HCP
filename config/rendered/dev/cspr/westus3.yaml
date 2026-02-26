@@ -1,12 +1,12 @@
 acm:
   mce:
     bundle:
-      digest: sha256:1af282009050da6e6247d841d5ebb116dc68dcd61cfe13423422657c31ab53d7
+      digest: sha256:4dc420bd46f49a691fba8907a332264fb6e0babb6867870c975201f52db59663
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-210
   operator:
     bundle:
-      digest: sha256:5e6ecb1845f892667ec9c2d052ffb6c2ddbe36aa03ce059883fadbccd4fb805e
+      digest: sha256:79ce3e98141f8b6394108e74966de9db68d06170ad0ff2308636e7b237d98fb5
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-215
 acr:
@@ -35,7 +35,7 @@ adminApi:
     issuer: Self
     name: admin-api-cert-cspr-usw3
   image:
-    digest: sha256:1a96733e5622a58229ed86f34e40ca8d6df2bf4f4619061f297b5a38bf39604d
+    digest: sha256:3dd890f4b87ae43359d39e60722675ec3fc7aa7653e3584abd8aca4d40a686a8
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpadminapi
   k8s:
@@ -77,7 +77,7 @@ backend:
   azureRuntimeConfig:
     tlsCertificatesIssuer: Self
   image:
-    digest: sha256:797bb5834485b886c5649c1c908915ece693e409d4c0faf25ba80e2a59912e16
+    digest: sha256:df9c85429af1cf1d4247af2faec03971569225fd45014860b0cc3e36547b3787
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpbackend
   k8s:
@@ -136,7 +136,7 @@ clustersService:
   deployDebugJobs: false
   environment: arohcpcspr
   image:
-    digest: sha256:877909c7b876e7cb8dd1d0cdb6485b92e9eb0bdd1494df44a308363b7a44b63b
+    digest: sha256:135921b7c949f73eb31cdc61a01f53beede9126b5cb70c1bf9ebd482a22083c4
     registry: quay.io
     repository: app-sre/aro-hcp-clusters-service
   k8s:
@@ -228,7 +228,7 @@ frontend:
     resourceContainerMaxScale: 4000
     zoneRedundantMode: Disabled
   image:
-    digest: sha256:9a61ea6a68fb93fbe977373c4cfc32424a475f5ce01952b25fe0b3b46d074723
+    digest: sha256:ee8a77a3314896aabcc5a126d6badf979a21689be91c5916d2aaadfcb12db202
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpfrontend
   k8s:
@@ -333,7 +333,7 @@ global:
 hypershift:
   additionalInstallArg: --enable-cpo-overrides
   image:
-    digest: sha256:8ef071025ea25ca968d76e6478e20589f7a43cbc6a15a077ddb2ec05361b197d
+    digest: sha256:95aa40a5ec272183721b2238aa91663deb30d5ec60b8db84e8af0ee1af66203f
     registry: quay.io
     repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
   limitClusterSizes: true
@@ -344,7 +344,7 @@ imageSync:
   ocMirror:
     enabled: true
     image:
-      digest: sha256:6cf543fa917493b00e9fd95c66733f54ef9f1f758194ced9f81674605180067d
+      digest: sha256:0bf6faa49908158e175471f9fa0b96459d42a2e4672ca14c23c9a87e9dab1c7b
       registry: arohcpsvcdev.azurecr.io
       repository: image-sync/oc-mirror
     jobNamePrefix: ""
@@ -357,7 +357,7 @@ keyVaultDNSSuffix: vault.azure.net
 kubeEvents:
   enabled: true
   image:
-    digest: sha256:6cf65c67321d5fc18e878715049a6ac8a8aea1ac2c63b096fbe18fade52f4be5
+    digest: sha256:e75e6b4254977e8d3ca3a728c2d1b60cfcbd13392ea02fcc535286a672f8d547
     registry: kubernetesshared.azurecr.io
     repository: shared/kube-events
 kusto:
@@ -412,7 +412,7 @@ maestro:
     name: arohcp-cspr-maestro-usw3
     private: false
   image:
-    digest: sha256:8d336b3025d6557ed1cbd98f9979593e3693ab2f9a21bc7bfc183c6f2b5bc382
+    digest: sha256:144f3abdc7e843bf8a59b3b45c9892528e22de6068567fb6cfd26630f33f621e
     registry: quay.io
     repository: redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro
   postgres:
@@ -506,7 +506,7 @@ mgmt:
           sha: 7c74a715af2c94cb734785b4d3ea1357b4f02b88e1e123c622a9cb68b62f669c
     kubeStateMetrics:
       image:
-        digest: sha256:c3621782e405e59b40e1b64e8b8722855f5c348a9b6fe3ac58c54ad1a34afbb9
+        digest: sha256:17fc37d9fe70a0efa4fdaf609bd03299013faa0fee16b77815469eb37a879e7c
         registry: mcr.microsoft.com/oss/v2
         repository: kubernetes/kube-state-metrics
     namespace: prometheus
@@ -515,12 +515,12 @@ mgmt:
       image:
         registry: mcr.microsoft.com/oss/v2
         repository: prometheus/prometheus-config-reloader
-        sha: f9a0f85d9a348f7f83e4b1fcd602eb12fcee0c83b0f7e4eb77d205f6af4311c9
+        sha: 9f029892d072c33a88f7120170c900a3f2e6b9758f16477c5dec60c3ae7504e6
     prometheusOperator:
       image:
         registry: mcr.microsoft.com/oss/v2
         repository: prometheus/prometheus-operator
-        sha: f97255b7629052f03e21d16171923e7095a9608526196af59e2989a1eb01af9c
+        sha: b53be343389b63fa880639565d6067ba933f3f009642cd2e2c02bcdc189a63de
       version: ""
     prometheusSpec:
       image:
@@ -703,7 +703,7 @@ secretSyncController:
     registry: registry.k8s.io
     repository: secrets-store-sync/controller
   providerImage:
-    digest: sha256:9b69995622c137ddbdcc2d4e41beb25b0f0712ff1e75200a2a763e9185bc0a28
+    digest: sha256:490c3b795cb12bd9e5a3680bb7dabd7ea02799c30b14ed960611517c5d808e6b
     registry: mcr.microsoft.com
     repository: oss/v2/azure/secrets-store/provider-azure
 serviceKeyVault:
@@ -791,7 +791,7 @@ svc:
           sha: 7c74a715af2c94cb734785b4d3ea1357b4f02b88e1e123c622a9cb68b62f669c
     kubeStateMetrics:
       image:
-        digest: sha256:c3621782e405e59b40e1b64e8b8722855f5c348a9b6fe3ac58c54ad1a34afbb9
+        digest: sha256:17fc37d9fe70a0efa4fdaf609bd03299013faa0fee16b77815469eb37a879e7c
         registry: mcr.microsoft.com/oss/v2
         repository: kubernetes/kube-state-metrics
     namespace: prometheus
@@ -800,12 +800,12 @@ svc:
       image:
         registry: mcr.microsoft.com/oss/v2
         repository: prometheus/prometheus-config-reloader
-        sha: f9a0f85d9a348f7f83e4b1fcd602eb12fcee0c83b0f7e4eb77d205f6af4311c9
+        sha: 9f029892d072c33a88f7120170c900a3f2e6b9758f16477c5dec60c3ae7504e6
     prometheusOperator:
       image:
         registry: mcr.microsoft.com/oss/v2
         repository: prometheus/prometheus-operator
-        sha: f97255b7629052f03e21d16171923e7095a9608526196af59e2989a1eb01af9c
+        sha: b53be343389b63fa880639565d6067ba933f3f009642cd2e2c02bcdc189a63de
       version: ""
     prometheusSpec:
       image:
