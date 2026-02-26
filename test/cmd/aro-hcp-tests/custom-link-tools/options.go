@@ -37,6 +37,8 @@ import (
 
 	"sigs.k8s.io/yaml"
 
+	configtypes "github.com/Azure/ARO-Tools/config/types"
+
 	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/test/util/timing"
 	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/pipeline"
@@ -46,14 +48,6 @@ import (
 var templatesFS embed.FS
 
 var endGracePeriodDuration = 45 * time.Minute
-
-var (
-	serviceClusterStepID = pipeline.Identifier{
-		ServiceGroup:  "Microsoft.Azure.ARO.HCP.Service.Infra",
-		ResourceGroup: "service",
-		Step:          "cluster",
-	}
-)
 
 func mustReadArtifact(name string) []byte {
 	ret, err := templatesFS.ReadFile("artifacts/" + name)
@@ -71,6 +65,7 @@ func DefaultOptions() *RawOptions {
 func BindOptions(opts *RawOptions, cmd *cobra.Command) error {
 	cmd.Flags().StringVar(&opts.TimingInputDir, "timing-input", opts.TimingInputDir, "Path to the directory holding timing outputs from an end-to-end test run.")
 	cmd.Flags().StringVar(&opts.OutputDir, "output", opts.OutputDir, "Path to the directory where html will be written.")
+	cmd.Flags().StringVar(&opts.RenderedConfig, "rendered-config", opts.RenderedConfig, "Path to the rendered configuration YAML file.")
 
 	return nil
 }
@@ -78,6 +73,7 @@ func BindOptions(opts *RawOptions, cmd *cobra.Command) error {
 type RawOptions struct {
 	TimingInputDir string
 	OutputDir      string
+	RenderedConfig string
 }
 
 // validatedOptions is a private wrapper that enforces a call of Validate() before Complete() can be invoked.
@@ -90,11 +86,24 @@ type ValidatedOptions struct {
 	*validatedOptions
 }
 
+// KustoInfo holds the Kusto cluster connection details derived from configuration.
+type KustoInfo struct {
+	KustoName                      string
+	KustoRegion                    string
+	ServiceLogsDatabase            string
+	HostedControlPlaneLogsDatabase string
+}
+
 // completedOptions is a private wrapper that enforces a call of Complete() before config generation can be invoked.
 type completedOptions struct {
-	TimingInputDir string
-	OutputDir      string
-	Steps          []pipeline.NodeInfo
+	TimingInputDir   string
+	OutputDir        string
+	RenderedConfig   string
+	Steps            []pipeline.NodeInfo
+	SvcClusterName   string
+	MgmtClusterName  string
+	Kusto            KustoInfo
+	ConfigFileModTime time.Time
 }
 
 type Options struct {
@@ -110,6 +119,7 @@ func (o *RawOptions) Validate() (*ValidatedOptions, error) {
 	}{
 		{flag: "timing-input", name: "timing input dir", value: &o.TimingInputDir},
 		{flag: "output", name: "output dir", value: &o.OutputDir},
+		{flag: "rendered-config", name: "rendered config", value: &o.RenderedConfig},
 	} {
 		if item.value == nil || *item.value == "" {
 			return nil, fmt.Errorf("the %s must be provided with --%s", item.name, item.flag)
@@ -123,15 +133,97 @@ func (o *RawOptions) Validate() (*ValidatedOptions, error) {
 	}, nil
 }
 
-func (o *ValidatedOptions) Complete(logger logr.Logger) (*Options, error) {
-	// we consume steps.yaml (output of templatize and stored for us by the visualization) to determine the cluster name
-	// Try to read compressed file first, then fall back to uncompressed
-	var stepsYamlBytes []byte
+// kustoGeoToRegion maps the geoShortId segment from a kusto cluster name
+// (format: hcp-<env>-<geoShortId>) to the Azure region it resides in.
+// Derived from ARO-Tools/pkg/config/ev2config/config.yaml geoShortId→region mapping.
+var kustoGeoToRegion = map[string]string{
+	"au": "australiaeast",
+	"br": "brazilsouth",
+	"ca": "canadacentral",
+	"ch": "switzerlandnorth",
+	"eu": "westeurope",
+	"in": "centralindia",
+	"uk": "uksouth",
+	"us": "eastus2",
+}
 
+// resolveKustoRegion determines the Azure region for a given kusto cluster name.
+// Dev environments (hcp-dev-*) all reside in eastus2.
+// Public cloud names follow the format hcp-<env>-<geoShortId> and are looked up in kustoGeoToRegion.
+func resolveKustoRegion(kustoName string) (string, error) {
+	if strings.HasPrefix(kustoName, "hcp-dev-") {
+		return "eastus2", nil
+	}
+	// format: hcp-<env>-<geoShortId>, e.g. hcp-int-us, hcp-prod-eu
+	parts := strings.SplitN(kustoName, "-", 3)
+	if len(parts) == 3 {
+		if region, ok := kustoGeoToRegion[parts[2]]; ok {
+			return region, nil
+		}
+	}
+	return "", fmt.Errorf("cannot resolve kusto region for %q", kustoName)
+}
+
+func configGetString(cfg configtypes.Configuration, path string) (string, error) {
+	val, err := cfg.GetByPath(path)
+	if err != nil {
+		return "", err
+	}
+	s, ok := val.(string)
+	if !ok {
+		return "", fmt.Errorf("config value at %q is %T, not string", path, val)
+	}
+	return s, nil
+}
+
+func (o *ValidatedOptions) Complete(logger logr.Logger) (*Options, error) {
+	// Load rendered config
+	rawCfg, err := os.ReadFile(o.RenderedConfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read rendered config %s: %w", o.RenderedConfig, err)
+	}
+	var cfg configtypes.Configuration
+	if err := yaml.Unmarshal(rawCfg, &cfg); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal rendered config: %w", err)
+	}
+
+	svcClusterName, err := configGetString(cfg, "svc.aks.name")
+	if err != nil {
+		return nil, fmt.Errorf("failed to get svc cluster name from config: %w", err)
+	}
+	mgmtClusterName, err := configGetString(cfg, "mgmt.aks.name")
+	if err != nil {
+		return nil, fmt.Errorf("failed to get mgmt cluster name from config: %w", err)
+	}
+	kustoName, err := configGetString(cfg, "kusto.kustoName")
+	if err != nil {
+		return nil, fmt.Errorf("failed to get kusto name from config: %w", err)
+	}
+	serviceLogsDB, err := configGetString(cfg, "kusto.serviceLogsDatabase")
+	if err != nil {
+		return nil, fmt.Errorf("failed to get service logs database from config: %w", err)
+	}
+	hcpLogsDB, err := configGetString(cfg, "kusto.hostedControlPlaneLogsDatabase")
+	if err != nil {
+		return nil, fmt.Errorf("failed to get hosted control plane logs database from config: %w", err)
+	}
+
+	kustoRegion, err := resolveKustoRegion(kustoName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve kusto region: %w", err)
+	}
+
+	// Get config file modification time for use as fallback start time
+	configStat, err := os.Stat(o.RenderedConfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to stat rendered config %s: %w", o.RenderedConfig, err)
+	}
+
+	// Try loading steps.yaml (optional — used for start time derivation)
+	var steps []pipeline.NodeInfo
 	compressedPath := path.Join(o.TimingInputDir, "steps.yaml.gz")
 	uncompressedPath := path.Join(o.TimingInputDir, "steps.yaml")
 
-	// Try compressed file first
 	compressedData, err := os.ReadFile(compressedPath)
 	if err == nil {
 		gzipReader, err := gzip.NewReader(bytes.NewReader(compressedData))
@@ -140,27 +232,39 @@ func (o *ValidatedOptions) Complete(logger logr.Logger) (*Options, error) {
 		}
 		defer gzipReader.Close()
 
-		stepsYamlBytes, err = io.ReadAll(gzipReader)
+		stepsYamlBytes, err := io.ReadAll(gzipReader)
 		if err != nil {
 			return nil, fmt.Errorf("failed to decompress %s: %w", compressedPath, err)
 		}
+		if err := yaml.Unmarshal(stepsYamlBytes, &steps); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal steps file: %w", err)
+		}
 	} else {
-		// Fall back to uncompressed file
-		stepsYamlBytes, err = os.ReadFile(uncompressedPath)
+		plainData, err := os.ReadFile(uncompressedPath)
 		if err != nil {
-			return nil, utils.TrackError(err)
+			logger.Info("steps.yaml not found, service log links will use fallback start time", "compressed", compressedPath, "uncompressed", uncompressedPath)
+		} else {
+			if err := yaml.Unmarshal(plainData, &steps); err != nil {
+				return nil, fmt.Errorf("failed to unmarshal steps file: %w", err)
+			}
 		}
 	}
 
-	var steps []pipeline.NodeInfo
-	if err := yaml.Unmarshal(stepsYamlBytes, &steps); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal timing input file: %w", err)
-	}
 	return &Options{
 		completedOptions: &completedOptions{
-			Steps:          steps,
-			OutputDir:      o.OutputDir,
-			TimingInputDir: o.TimingInputDir,
+			Steps:             steps,
+			OutputDir:         o.OutputDir,
+			TimingInputDir:    o.TimingInputDir,
+			RenderedConfig:    o.RenderedConfig,
+			SvcClusterName:    svcClusterName,
+			MgmtClusterName:   mgmtClusterName,
+			ConfigFileModTime: configStat.ModTime(),
+			Kusto: KustoInfo{
+				KustoName:                      kustoName,
+				KustoRegion:                    kustoRegion,
+				ServiceLogsDatabase:            serviceLogsDB,
+				HostedControlPlaneLogsDatabase: hcpLogsDB,
+			},
 		},
 	}, nil
 }
@@ -198,11 +302,11 @@ type QueryTemplate struct {
 	OutputFileName string
 }
 
-func createQueryURL(templatePath string, info QueryInfo) string {
+func createQueryURL(templatePath string, info QueryInfo, kusto KustoInfo) string {
 	currURL := url.URL{
 		Scheme: "https",
 		Host:   "dataexplorer.azure.com",
-		Path:   fmt.Sprintf("clusters/hcp-dev-us-2.eastus2/databases/%s", info.Database),
+		Path:   fmt.Sprintf("clusters/%s.%s/databases/%s", kusto.KustoName, kusto.KustoRegion, info.Database),
 	}
 	urlQuery := currURL.Query()
 	template, err := template.New("custom-link-tools").Parse(string(mustReadArtifact(templatePath)))
@@ -218,10 +322,10 @@ func createQueryURL(templatePath string, info QueryInfo) string {
 	return currURL.String()
 }
 
-func createLinkForTest(displayName, templatePath string, info QueryInfo) LinkDetails {
+func createLinkForTest(displayName, templatePath string, info QueryInfo, kusto KustoInfo) LinkDetails {
 	return LinkDetails{
 		DisplayName: displayName,
-		URL:         createQueryURL(templatePath, info),
+		URL:         createQueryURL(templatePath, info, kusto),
 	}
 }
 
@@ -264,18 +368,18 @@ func (o Options) Run(ctx context.Context) error {
 				Links: []LinkDetails{
 					createLinkForTest("Hosted Control Plane Logs", "hosted-controlplane.kql.tmpl", QueryInfo{
 						ResourceGroupName: rg,
-						Database:          "HostedControlPlaneLogs",
+						Database:          o.Kusto.HostedControlPlaneLogsDatabase,
 						StartTime:         timing.StartTime.Format(time.RFC3339),
 						EndTime:           timing.EndTime.Format(time.RFC3339),
-					}),
+					}, o.Kusto),
 					createLinkForTest("Service Logs", "service-logs.kql.tmpl", QueryInfo{
 						ResourceGroupName: rg,
-						Database:          "ServiceLogs",
+						Database:          o.Kusto.ServiceLogsDatabase,
 						StartTime:         timing.StartTime.Format(time.RFC3339),
 						EndTime:           timing.EndTime.Format(time.RFC3339),
-					}),
+					}, o.Kusto),
 				},
-				Database: "HostedControlPlaneLogs",
+				Database: o.Kusto.HostedControlPlaneLogsDatabase,
 				Status:   "tbd",
 			})
 		}
@@ -296,7 +400,7 @@ func (o Options) Run(ctx context.Context) error {
 		return utils.TrackError(err)
 	}
 
-	serviceLogLinks, err := getServiceLogLinks(o.Steps)
+	serviceLogLinks, err := getServiceLogLinks(o.Steps, o.SvcClusterName, o.MgmtClusterName, o.Kusto, o.ConfigFileModTime)
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -413,11 +517,12 @@ func loadAllTestTimingInfo(timingInputDir string) (map[string]TimingInfo, error)
 
 var localClock clock.PassiveClock = clock.RealClock{}
 
-func getServiceLogLinks(steps []pipeline.NodeInfo) ([]LinkDetails, error) {
+func getServiceLogLinks(steps []pipeline.NodeInfo, svcClusterName, mgmtClusterName string,
+	kusto KustoInfo, configFileModTime time.Time) ([]LinkDetails, error) {
 	allLinks := []LinkDetails{}
 
+	// Determine earliest start time from steps, falling back to config file modification time
 	earliestStartTime := time.Time{}
-	allClusterNames := []string{}
 	for _, step := range steps {
 		if len(step.Info.StartedAt) > 0 {
 			startTime, err := time.Parse(time.RFC3339, step.Info.StartedAt)
@@ -428,29 +533,19 @@ func getServiceLogLinks(steps []pipeline.NodeInfo) ([]LinkDetails, error) {
 				earliestStartTime = startTime
 			}
 		}
-
-		// we're looking for the service cluster's step to make a query for backend and frontend
-		// forming like this so that we can easily add more steps (like the management cluster) that we want queries for
-		if step.Identifier == serviceClusterStepID {
-			if step.Details != nil && step.Details.ARM != nil {
-				for _, operation := range step.Details.ARM.Operations {
-					allClusterNames = append(allClusterNames, locateAllServiceClusters(operation)...)
-				}
-			}
-		}
 	}
 	if earliestStartTime.IsZero() {
-		earliestStartTime = localClock.Now().Add(-6 * time.Hour) // lots longer than default timeouts, but still shorter than forever
+		if !configFileModTime.IsZero() {
+			earliestStartTime = configFileModTime
+		} else {
+			earliestStartTime = localClock.Now().Add(-6 * time.Hour)
+		}
 	}
 
-	if len(allClusterNames) != 1 {
-		return nil, fmt.Errorf("expecting only one service cluster, found %d: %s", len(allClusterNames), strings.Join(allClusterNames, ", "))
-	}
+	endTime := localClock.Now().Add(1 * time.Hour)
 
-	endTime := localClock.Now().Add(1 * time.Hour) // we need to include all cleanup, this is a good bet.
-
-	// Define all components and their log query templates
-	components := []struct {
+	// Service cluster components
+	svcComponents := []struct {
 		component string
 		template  string
 	}{
@@ -458,39 +553,36 @@ func getServiceLogLinks(steps []pipeline.NodeInfo) ([]LinkDetails, error) {
 		{"Frontend Logs", "frontend-logs.kql.tmpl"},
 		{"Clusters Service Logs", "clusters-service-logs.kql.tmpl"},
 		{"Maestro Logs", "maestro-logs.kql.tmpl"},
+	}
+
+	for _, comp := range svcComponents {
+		allLinks = append(allLinks, createLinkForTest(comp.component, comp.template, QueryInfo{
+			ResourceGroupName: svcClusterName,
+			Database:          kusto.ServiceLogsDatabase,
+			ClusterName:       svcClusterName,
+			StartTime:         earliestStartTime.Format(time.RFC3339),
+			EndTime:           endTime.Format(time.RFC3339),
+		}, kusto))
+	}
+
+	// Management cluster components
+	mgmtComponents := []struct {
+		component string
+		template  string
+	}{
 		{"Hypershift Logs", "hypershift-logs.kql.tmpl"},
 		{"ACM Logs", "acm-logs.kql.tmpl"},
 	}
 
-	// Generate links for each component and cluster
-	for _, clusterName := range allClusterNames {
-		for _, comp := range components {
-			allLinks = append(allLinks, createLinkForTest(comp.component, comp.template, QueryInfo{
-				ResourceGroupName: clusterName,
-				Database:          "ServiceLogs",
-				ClusterName:       clusterName,
-				StartTime:         earliestStartTime.Format(time.RFC3339),
-				EndTime:           endTime.Format(time.RFC3339),
-			}))
-		}
+	for _, comp := range mgmtComponents {
+		allLinks = append(allLinks, createLinkForTest(comp.component, comp.template, QueryInfo{
+			ResourceGroupName: mgmtClusterName,
+			Database:          kusto.ServiceLogsDatabase,
+			ClusterName:       mgmtClusterName,
+			StartTime:         earliestStartTime.Format(time.RFC3339),
+			EndTime:           endTime.Format(time.RFC3339),
+		}, kusto))
 	}
 
 	return allLinks, nil
-}
-
-func locateAllServiceClusters(operation pipeline.Operation) []string {
-	allClusterNames := []string{}
-	for _, currChild := range operation.Children {
-		currClusterNames := locateAllServiceClusters(currChild)
-		if len(currClusterNames) > 0 {
-			allClusterNames = append(allClusterNames, currClusterNames...)
-		}
-	}
-	if operation.Resource == nil {
-		return allClusterNames
-	}
-	if operation.OperationType == "Create" && operation.Resource.ResourceType == "Microsoft.ContainerService/managedClusters" {
-		allClusterNames = append(allClusterNames, operation.Resource.Name)
-	}
-	return allClusterNames
 }
