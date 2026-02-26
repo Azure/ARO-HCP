@@ -46,6 +46,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/validationcontrollers"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/validationcontrollers/validations"
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
+	"github.com/Azure/ARO-HCP/backend/pkg/maestro"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -255,6 +256,8 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 	_, subscriptionLister := backendInformers.Subscriptions()
 	activeOperationInformer, activeOperationLister := backendInformers.ActiveOperations()
 
+	maestroClientBuilder := maestro.NewMaestroClientBuilder()
+
 	startedLeading := atomic.Bool{}
 	operationsScanner := oldoperationscanner.NewOperationsScanner(
 		b.options.CosmosDBClient, b.options.ClustersServiceClient, b.options.AzureLocation, subscriptionLister)
@@ -364,6 +367,14 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		activeOperationLister,
 		backendInformers,
 	)
+	maestroCreateReadonlyBundlesController := controllers.NewCreateMaestroReadonlyBundlesController(
+		activeOperationLister, b.options.CosmosDBClient, b.options.ClustersServiceClient,
+		backendInformers, b.options.MaestroSourceEnvironmentIdentifier, maestroClientBuilder,
+	)
+	maestroReadAndPersistReadonlyBundlesContentController := controllers.NewReadAndPersistMaestroReadonlyBundlesContentController(
+		activeOperationLister, b.options.CosmosDBClient, b.options.ClustersServiceClient,
+		backendInformers, b.options.MaestroSourceEnvironmentIdentifier, maestroClientBuilder,
+	)
 
 	azureRPRegistrationValidationController := validationcontrollers.NewClusterValidationController(
 		validations.NewAzureResourceProvidersRegistrationValidation(b.options.FPAClientBuilder),
@@ -421,6 +432,8 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go azureRPRegistrationValidationController.Run(ctx, 20)
 				go azureClusterResourceGroupExistenceValidationController.Run(ctx, 20)
 				go nodePoolVersionController.Run(ctx, 20)
+				go maestroCreateReadonlyBundlesController.Run(ctx, 20)
+				go maestroReadAndPersistReadonlyBundlesContentController.Run(ctx, 20)
 			},
 			OnStoppedLeading: func() {
 				operationsScanner.LeaderGauge.Set(0)
