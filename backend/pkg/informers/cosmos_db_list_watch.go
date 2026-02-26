@@ -22,8 +22,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/google/uuid"
-
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -53,10 +51,16 @@ func toKey(resourceID *azcorearm.ResourceID) string {
 // for a ListWatch instance. The duration of a watch is limited by an
 // embedded ExpiringWatcher.
 type watcher struct {
-	id       string
+	mutex    sync.Mutex
 	expiry   time.Duration
 	expiring watch.Interface
 	result   chan watch.Event
+
+	// backlog holds events that occur between a relist and the
+	// beginning of a watch. When a new watch begins, any events
+	// in the backlog are immediately flushed to the new result
+	// channel, in FIFO order.
+	backlog []watch.Event
 
 	// knownKeys allows us to track whether a change feed event
 	// is a new or an updated document, since at the moment we're
@@ -68,16 +72,9 @@ type watcher struct {
 
 func newWatcher(expiry time.Duration) *watcher {
 	return &watcher{
-		id:        uuid.New().String(),
 		expiry:    expiry,
 		knownKeys: sets.New[string](),
 	}
-}
-
-// reset prepares the watcher for a new watch.
-func (w *watcher) reset(ctx context.Context) {
-	w.expiring = NewExpiringWatcher(ctx, w.expiry)
-	w.result = make(chan watch.Event)
 }
 
 // run waits for the embedded ExpiringWatcher to terminate and propagates
@@ -86,6 +83,38 @@ func (w *watcher) run() {
 	if event, ok := <-w.expiring.ResultChan(); ok {
 		w.result <- event
 	}
+
+	w.mutex.Lock()
+	defer w.mutex.Unlock()
+
+	// Close the result channel with the mutex locked so we
+	// don't race with change feed events being written to it.
+	close(w.result)
+	w.result = nil
+}
+
+// onWatch allows change feed events to be published until watcher's
+// embedded ExpiringWatcher expires.
+func (w *watcher) onWatch(ctx context.Context, options metav1.ListOptions) (watch.Interface, error) {
+	w.mutex.Lock()
+	defer w.mutex.Unlock()
+
+	w.expiring = NewExpiringWatcher(ctx, w.expiry)
+
+	// Create the result channel with a buffer large enough to hold
+	// all the backlogged events, so they can be sent to the channel
+	// immediately without blocking while the mutex is locked.
+	w.result = make(chan watch.Event, len(w.backlog))
+
+	// Flush the backlog before accepting any new events.
+	for _, event := range w.backlog {
+		w.result <- event
+	}
+	w.backlog = nil
+
+	go w.run()
+
+	return w, nil
 }
 
 // newEvent creates a watch event for the given object. The event type
@@ -100,52 +129,51 @@ func (w *watcher) newEvent(key string, object runtime.Object) watch.Event {
 	return watch.Event{Type: watch.Added, Object: object}
 }
 
+// submitEvent submits the given event to the result channel, if
+// it has been created (meaning a watch is underway). If the result
+// channel is nil, the event is appended to a backlog until the next
+// watch begins.
+func (w *watcher) submitEvent(event watch.Event) {
+	w.mutex.Lock()
+	defer w.mutex.Unlock()
+
+	if w.result != nil {
+		w.result <- event
+	} else {
+		w.backlog = append(w.backlog, event)
+	}
+}
+
 func (w *watcher) Stop() {
 	w.expiring.Stop()
 }
 
 func (w *watcher) ResultChan() <-chan watch.Event {
+	w.mutex.Lock()
+	defer w.mutex.Unlock()
+
 	return w.result
 }
 
 // watcherSet holds a set of watchers for a particular resource type.
 type watcherSet struct {
-	mutex sync.Mutex
-	// The map key is watcher.id, which itself is a UUID. The key
-	// value is meaningless, just needs to be unique and comparable.
-	watchers map[string]*watcher
+	mutex    sync.Mutex
+	watchers []*watcher
 }
 
 func newWatcherSet() *watcherSet {
-	return &watcherSet{
-		watchers: make(map[string]*watcher),
-	}
+	return &watcherSet{}
 }
 
-// runWatcher allows the given watcher to publish change feed events
-// until its embedded ExpiringWatcher expires.
-func (c *watcherSet) runWatcher(ctx context.Context, watcher *watcher) {
-	c.mutex.Lock()
-	defer c.mutex.Unlock()
+// addWatcher adds a new watcher to watcherSet and returns it.
+func (s *watcherSet) addWatcher(expiry time.Duration) *watcher {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
 
-	watcher.reset(ctx)
+	watcher := newWatcher(expiry)
+	s.watchers = append(s.watchers, watcher)
 
-	// Subscribe to change feed events.
-	c.watchers[watcher.id] = watcher
-
-	go func() {
-		watcher.run()
-
-		c.mutex.Lock()
-		defer c.mutex.Unlock()
-
-		// Close the result channel with the mutex locked so we
-		// don't race with change feed events being written to it.
-		close(watcher.result)
-
-		// Unsubscribe from change feed events.
-		delete(c.watchers, watcher.id)
-	}()
+	return watcher
 }
 
 type CosmosDBListWatch struct {
@@ -197,7 +225,7 @@ func NewCosmosDBListWatch(cosmosClient database.DBClient) *CosmosDBListWatch {
 }
 
 func (c *CosmosDBListWatch) NewSubscriptionInformer(relistDuration time.Duration, informerOptions cache.SharedIndexInformerOptions) cache.SharedIndexInformer {
-	watcher := newWatcher(relistDuration)
+	watcher := c.subscriptions.addWatcher(relistDuration)
 
 	lw := &cache.ListWatch{
 		ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
@@ -210,6 +238,10 @@ func (c *CosmosDBListWatch) NewSubscriptionInformer(relistDuration time.Duration
 				return nil, err
 			}
 
+			watcher.mutex.Lock()
+			defer watcher.mutex.Unlock()
+
+			watcher.backlog = nil
 			watcher.knownKeys.Clear()
 
 			list := &arm.SubscriptionList{}
@@ -224,10 +256,7 @@ func (c *CosmosDBListWatch) NewSubscriptionInformer(relistDuration time.Duration
 
 			return list, nil
 		},
-		WatchFuncWithContext: func(ctx context.Context, options metav1.ListOptions) (watch.Interface, error) {
-			c.subscriptions.runWatcher(ctx, watcher)
-			return watcher, nil
-		},
+		WatchFuncWithContext: watcher.onWatch,
 	}
 
 	return cache.NewSharedIndexInformerWithOptions(
@@ -238,7 +267,7 @@ func (c *CosmosDBListWatch) NewSubscriptionInformer(relistDuration time.Duration
 }
 
 func (c *CosmosDBListWatch) NewClusterInformer(relistDuration time.Duration, informerOptions cache.SharedIndexInformerOptions) cache.SharedIndexInformer {
-	watcher := newWatcher(relistDuration)
+	watcher := c.clusters.addWatcher(relistDuration)
 
 	lw := &cache.ListWatch{
 		ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
@@ -251,6 +280,10 @@ func (c *CosmosDBListWatch) NewClusterInformer(relistDuration time.Duration, inf
 				return nil, err
 			}
 
+			watcher.mutex.Lock()
+			defer watcher.mutex.Unlock()
+
+			watcher.backlog = nil
 			watcher.knownKeys.Clear()
 
 			list := &api.HCPOpenShiftClusterList{}
@@ -265,10 +298,7 @@ func (c *CosmosDBListWatch) NewClusterInformer(relistDuration time.Duration, inf
 
 			return list, nil
 		},
-		WatchFuncWithContext: func(ctx context.Context, options metav1.ListOptions) (watch.Interface, error) {
-			c.clusters.runWatcher(ctx, watcher)
-			return watcher, nil
-		},
+		WatchFuncWithContext: watcher.onWatch,
 	}
 
 	return cache.NewSharedIndexInformerWithOptions(
@@ -279,7 +309,7 @@ func (c *CosmosDBListWatch) NewClusterInformer(relistDuration time.Duration, inf
 }
 
 func (c *CosmosDBListWatch) NewNodePoolInformer(relistDuration time.Duration, informerOptions cache.SharedIndexInformerOptions) cache.SharedIndexInformer {
-	watcher := newWatcher(relistDuration)
+	watcher := c.nodePools.addWatcher(relistDuration)
 
 	lw := &cache.ListWatch{
 		ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
@@ -292,6 +322,10 @@ func (c *CosmosDBListWatch) NewNodePoolInformer(relistDuration time.Duration, in
 				return nil, err
 			}
 
+			watcher.mutex.Lock()
+			defer watcher.mutex.Unlock()
+
+			watcher.backlog = nil
 			watcher.knownKeys.Clear()
 
 			list := &api.HCPOpenShiftClusterNodePoolList{}
@@ -306,10 +340,7 @@ func (c *CosmosDBListWatch) NewNodePoolInformer(relistDuration time.Duration, in
 
 			return list, nil
 		},
-		WatchFuncWithContext: func(ctx context.Context, options metav1.ListOptions) (watch.Interface, error) {
-			c.nodePools.runWatcher(ctx, watcher)
-			return watcher, nil
-		},
+		WatchFuncWithContext: watcher.onWatch,
 	}
 
 	return cache.NewSharedIndexInformerWithOptions(
@@ -320,7 +351,7 @@ func (c *CosmosDBListWatch) NewNodePoolInformer(relistDuration time.Duration, in
 }
 
 func (c *CosmosDBListWatch) NewExternalAuthInformer(relistDuration time.Duration, informerOptions cache.SharedIndexInformerOptions) cache.SharedIndexInformer {
-	watcher := newWatcher(relistDuration)
+	watcher := c.externalAuths.addWatcher(relistDuration)
 
 	lw := &cache.ListWatch{
 		ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
@@ -333,6 +364,10 @@ func (c *CosmosDBListWatch) NewExternalAuthInformer(relistDuration time.Duration
 				return nil, err
 			}
 
+			watcher.mutex.Lock()
+			defer watcher.mutex.Unlock()
+
+			watcher.backlog = nil
 			watcher.knownKeys.Clear()
 
 			list := &api.HCPOpenShiftClusterExternalAuthList{}
@@ -347,10 +382,7 @@ func (c *CosmosDBListWatch) NewExternalAuthInformer(relistDuration time.Duration
 
 			return list, nil
 		},
-		WatchFuncWithContext: func(ctx context.Context, options metav1.ListOptions) (watch.Interface, error) {
-			c.externalAuths.runWatcher(ctx, watcher)
-			return watcher, nil
-		},
+		WatchFuncWithContext: watcher.onWatch,
 	}
 
 	return cache.NewSharedIndexInformerWithOptions(
@@ -361,7 +393,7 @@ func (c *CosmosDBListWatch) NewExternalAuthInformer(relistDuration time.Duration
 }
 
 func (c *CosmosDBListWatch) NewServiceProviderClusterInformer(relistDuration time.Duration, informerOptions cache.SharedIndexInformerOptions) cache.SharedIndexInformer {
-	watcher := newWatcher(relistDuration)
+	watcher := c.serviceProviderClusters.addWatcher(relistDuration)
 
 	lw := &cache.ListWatch{
 		ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
@@ -374,6 +406,10 @@ func (c *CosmosDBListWatch) NewServiceProviderClusterInformer(relistDuration tim
 				return nil, err
 			}
 
+			watcher.mutex.Lock()
+			defer watcher.mutex.Unlock()
+
+			watcher.backlog = nil
 			watcher.knownKeys.Clear()
 
 			list := &api.ServiceProviderClusterList{}
@@ -388,10 +424,7 @@ func (c *CosmosDBListWatch) NewServiceProviderClusterInformer(relistDuration tim
 
 			return list, nil
 		},
-		WatchFuncWithContext: func(ctx context.Context, options metav1.ListOptions) (watch.Interface, error) {
-			c.serviceProviderClusters.runWatcher(ctx, watcher)
-			return watcher, nil
-		},
+		WatchFuncWithContext: watcher.onWatch,
 	}
 
 	return cache.NewSharedIndexInformerWithOptions(
@@ -402,7 +435,7 @@ func (c *CosmosDBListWatch) NewServiceProviderClusterInformer(relistDuration tim
 }
 
 func (c *CosmosDBListWatch) NewActiveOperationInformer(relistDuration time.Duration, informerOptions cache.SharedIndexInformerOptions) cache.SharedIndexInformer {
-	watcher := newWatcher(relistDuration)
+	watcher := c.operations.addWatcher(relistDuration)
 
 	lw := &cache.ListWatch{
 		ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
@@ -415,6 +448,10 @@ func (c *CosmosDBListWatch) NewActiveOperationInformer(relistDuration time.Durat
 				return nil, err
 			}
 
+			watcher.mutex.Lock()
+			defer watcher.mutex.Unlock()
+
+			watcher.backlog = nil
 			watcher.knownKeys.Clear()
 
 			list := &api.OperationList{}
@@ -429,10 +466,7 @@ func (c *CosmosDBListWatch) NewActiveOperationInformer(relistDuration time.Durat
 
 			return list, nil
 		},
-		WatchFuncWithContext: func(ctx context.Context, options metav1.ListOptions) (watch.Interface, error) {
-			c.operations.runWatcher(ctx, watcher)
-			return watcher, nil
-		},
+		WatchFuncWithContext: watcher.onWatch,
 	}
 
 	return cache.NewSharedIndexInformerWithOptions(
@@ -465,7 +499,7 @@ func (c *CosmosDBListWatch) processSubscriptionDocument(ctx context.Context, doc
 		for _, watcher := range c.subscriptions.watchers {
 			event := watcher.newEvent(key, subscription)
 			logger.Info(string(event.Type))
-			watcher.result <- event
+			watcher.submitEvent(event)
 		}
 	} else {
 		logger.Info("dropped change feed event")
@@ -503,7 +537,7 @@ func (c *CosmosDBListWatch) processClusterDocument(ctx context.Context, document
 		for _, watcher := range c.clusters.watchers {
 			event := watcher.newEvent(key, cluster)
 			logger.Info(string(event.Type))
-			watcher.result <- event
+			watcher.submitEvent(event)
 		}
 	} else {
 		logger.Info("dropped change feed event")
@@ -541,7 +575,7 @@ func (c *CosmosDBListWatch) processNodePoolDocument(ctx context.Context, documen
 		for _, watcher := range c.nodePools.watchers {
 			event := watcher.newEvent(key, nodePool)
 			logger.Info(string(event.Type))
-			watcher.result <- event
+			watcher.submitEvent(event)
 		}
 	} else {
 		logger.Info("dropped change feed event")
@@ -579,7 +613,7 @@ func (c *CosmosDBListWatch) processExternalAuthDocument(ctx context.Context, doc
 		for _, watcher := range c.externalAuths.watchers {
 			event := watcher.newEvent(key, externalAuth)
 			logger.Info(string(event.Type))
-			watcher.result <- event
+			watcher.submitEvent(event)
 		}
 	} else {
 		logger.Info("dropped change feed event")
@@ -617,7 +651,7 @@ func (c *CosmosDBListWatch) processServiceProviderClusterDocument(ctx context.Co
 		for _, watcher := range c.serviceProviderClusters.watchers {
 			event := watcher.newEvent(key, serviceProviderCluster)
 			logger.Info(string(event.Type))
-			watcher.result <- event
+			watcher.submitEvent(event)
 		}
 	} else {
 		logger.Info("dropped change feed event")
@@ -671,7 +705,7 @@ func (c *CosmosDBListWatch) processOperationDocument(ctx context.Context, docume
 		for _, watcher := range c.operations.watchers {
 			event := watcher.newEvent(key, operation)
 			logger.Info(string(event.Type))
-			watcher.result <- event
+			watcher.submitEvent(event)
 		}
 	} else {
 		logger.Info("dropped change feed event")
