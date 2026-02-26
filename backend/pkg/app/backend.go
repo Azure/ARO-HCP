@@ -23,6 +23,9 @@ import (
 	"sync/atomic"
 	"time"
 
+	// load all the prometheus client-go metrics
+	_ "k8s.io/component-base/metrics/prometheus/clientgo"
+
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/promhttp"

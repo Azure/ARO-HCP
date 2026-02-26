@@ -151,6 +151,7 @@ func (c *genericOperation) processNextWorkItem(ctx context.Context) bool {
 	logger = ref.AddLoggerValues(logger)
 	ctx = utils.ContextWithLogger(ctx, logger)
 
+	controllerutils.ReconcileTotal.WithLabelValues(c.name).Inc()
 	err := c.SyncOnce(ctx, ref)
 	if err == nil {
 		c.queue.Forget(ref)
