@@ -309,8 +309,8 @@ func (v version) NewHCPOpenShiftCluster(from *api.HCPOpenShiftCluster) api.Versi
 	}
 
 	idString := ""
-	if from.ID != nil {
-		idString = from.ID.String()
+	if from.ResourceID != nil {
+		idString = from.ResourceID.String()
 	}
 
 	out := &HcpOpenShiftCluster{
@@ -351,6 +351,7 @@ func (c *HcpOpenShiftCluster) ConvertToInternal() (*api.HCPOpenShiftCluster, err
 
 	if c.ID != nil {
 		out.ID = api.Must(azcorearm.ParseResourceID(strings.ToLower(*c.ID)))
+		out.ResourceID = api.Must(azcorearm.ParseResourceID(strings.ToLower(*c.ID)))
 	}
 	if c.Name != nil {
 		out.Name = *c.Name

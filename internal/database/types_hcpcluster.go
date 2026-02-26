@@ -25,8 +25,6 @@ type HCPCluster struct {
 }
 
 type HCPClusterProperties struct {
-	*ResourceDocument `json:",inline"`
-
 	// when we switch to inlining the internalObj, this will be in the right spot.  We add it now so that we can switch our
 	// queries to select on cosmosMetata.ResourceID instead of resourceId
 	CosmosMetadata api.CosmosMetadata `json:"cosmosMetadata"`

@@ -41,7 +41,7 @@ func InternalToCosmosNodePool(internalObj *api.HCPOpenShiftClusterNodePool) (*No
 			CosmosMetadata: api.CosmosMetadata{
 				ResourceID: internalObj.ID,
 			},
-			ResourceDocument: &ResourceDocument{
+			IntermediateResourceDoc: &ResourceDocument{
 				ResourceID:        internalObj.ID,
 				InternalID:        internalObj.ServiceProviderProperties.ClusterServiceID,
 				ActiveOperationID: internalObj.ServiceProviderProperties.ActiveOperationID,
@@ -55,7 +55,6 @@ func InternalToCosmosNodePool(internalObj *api.HCPOpenShiftClusterNodePool) (*No
 			},
 		},
 	}
-	cosmosObj.IntermediateResourceDoc = cosmosObj.ResourceDocument
 
 	// some pieces of data in the internalNodePool conflict with ResourceDocument fields.  We may evolve over time, but for
 	// now avoid persisting those.
@@ -76,16 +75,19 @@ func CosmosToInternalNodePool(cosmosObj *NodePool) (*api.HCPOpenShiftClusterNode
 	if cosmosObj == nil {
 		return nil, nil
 	}
-	resourceDoc := cosmosObj.ResourceDocument
-	if resourceDoc == nil {
-		resourceDoc = cosmosObj.IntermediateResourceDoc
-	}
+	resourceDoc := cosmosObj.IntermediateResourceDoc
 	if resourceDoc == nil {
 		return nil, fmt.Errorf("resource document cannot be nil")
 	}
 
 	tempInternalAPI := cosmosObj.InternalState.InternalAPI
 	internalObj := &tempInternalAPI
+
+	// handle reading old resources.
+	if internalObj.ResourceID == nil {
+		internalObj.ResourceID = cosmosObj.IntermediateResourceDoc.ResourceID
+	}
+	internalObj.ExistingCosmosUID = cosmosObj.ID
 
 	// some pieces of data are stored on the ResourceDocument, so we need to restore that data
 	internalObj.TrackedResource = arm.TrackedResource{
@@ -102,7 +104,6 @@ func CosmosToInternalNodePool(cosmosObj *NodePool) (*api.HCPOpenShiftClusterNode
 	internalObj.Properties.ProvisioningState = resourceDoc.ProvisioningState
 	internalObj.SystemData = resourceDoc.SystemData
 	internalObj.Tags = copyTags(resourceDoc.Tags)
-	internalObj.ServiceProviderProperties.ExistingCosmosUID = cosmosObj.ID
 	internalObj.ServiceProviderProperties.ClusterServiceID = resourceDoc.InternalID
 	internalObj.ServiceProviderProperties.ActiveOperationID = resourceDoc.ActiveOperationID
 

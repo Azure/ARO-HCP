@@ -23,20 +23,15 @@ import (
 // HCPOpenShiftCluster represents an ARO HCP OpenShift cluster resource.
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type HCPOpenShiftCluster struct {
+	// CosmosMetadata ResourceID is nested under the cluster so that association and cleanup work as expected
+	// it will be the ServiceProviderCluster type and the name default
+	CosmosMetadata `json:"cosmosMetadata"`
+
 	arm.TrackedResource
 
 	CustomerProperties        HCPOpenShiftClusterCustomerProperties        `json:"customerProperties,omitempty"`
 	ServiceProviderProperties HCPOpenShiftClusterServiceProviderProperties `json:"serviceProviderProperties,omitempty"`
 	Identity                  *arm.ManagedServiceIdentity                  `json:"identity,omitempty"`
-}
-
-var _ arm.CosmosPersistable = &HCPOpenShiftCluster{}
-
-func (o *HCPOpenShiftCluster) GetCosmosData() *arm.CosmosMetadata {
-	return &arm.CosmosMetadata{
-		ResourceID:        o.ID,
-		ExistingCosmosUID: o.ServiceProviderProperties.ExistingCosmosUID,
-	}
 }
 
 // HCPOpenShiftClusterCustomerProperties represents the property bag of a HCPOpenShiftCluster resource.
@@ -54,7 +49,6 @@ type HCPOpenShiftClusterCustomerProperties struct {
 
 // HCPOpenShiftClusterCustomerProperties represents the property bag of a HCPOpenShiftCluster resource.
 type HCPOpenShiftClusterServiceProviderProperties struct {
-	ExistingCosmosUID string                         `json:"-"`
 	ProvisioningState arm.ProvisioningState          `json:"provisioningState,omitempty"`
 	ClusterServiceID  InternalID                     `json:"clusterServiceID,omitempty"`
 	ActiveOperationID string                         `json:"activeOperationId,omitempty"`

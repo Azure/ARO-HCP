@@ -7,12 +7,8 @@
 	"partitionKey": "6b690bec-0c16-4ecb-8f67-781caf40bba7",
 	"resourceID": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/create-with-tags",
 	"properties": {
-		"activeOperationId": "c01d4815-566a-4f10-ad8c-de1667682c5b",
 		"cosmosMetadata": {
 			"resourceID": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/create-with-tags"
-		},
-		"identity": {
-			"type": "UserAssigned"
 		},
 		"intermediateResourceDoc": {
 			"activeOperationId": "c01d4815-566a-4f10-ad8c-de1667682c5b",
@@ -28,9 +24,11 @@
 				"two": "banana"
 			}
 		},
-		"internalId": "/api/clusters_mgmt/v1/clusters/9p2sk955gj",
 		"internalState": {
 			"internalAPI": {
+				"cosmosMetadata": {
+					"resourceID": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/create-with-tags"
+				},
 				"customerProperties": {
 					"api": {
 						"visibility": "Public"
@@ -88,13 +86,6 @@
 					"platform": {}
 				}
 			}
-		},
-		"provisioningState": "Accepted",
-		"resourceId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/create-with-tags",
-		"systemData": {},
-		"tags": {
-			"one": "apple",
-			"two": "banana"
 		}
 	},
 	"resourceType": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters"

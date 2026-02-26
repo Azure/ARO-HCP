@@ -72,7 +72,7 @@ func TestRoundTripClusterInternalCosmosInternal(t *testing.T) {
 			if j == nil {
 				return
 			}
-			j.ServiceProviderProperties.ExistingCosmosUID = ""
+			j.ExistingCosmosUID = ""
 		},
 		func(j *arm.ManagedServiceIdentity, c randfill.Continue) {
 			c.FillNoCustom(j)
@@ -107,11 +107,11 @@ func roundTripInternalToCosmosToInternal[InternalAPIType, CosmosAPIType any](t *
 	// this value is set during conversion, so we need clear for comparison
 	switch cast := any(final).(type) {
 	case *api.HCPOpenShiftCluster:
-		cast.ServiceProviderProperties.ExistingCosmosUID = ""
+		cast.ExistingCosmosUID = ""
 	case *api.HCPOpenShiftClusterNodePool:
-		cast.ServiceProviderProperties.ExistingCosmosUID = ""
+		cast.ExistingCosmosUID = ""
 	case *api.HCPOpenShiftClusterExternalAuth:
-		cast.ServiceProviderProperties.ExistingCosmosUID = ""
+		cast.ExistingCosmosUID = ""
 	}
 	//finalJSON, _ := json.MarshalIndent(final, "", "    ")
 

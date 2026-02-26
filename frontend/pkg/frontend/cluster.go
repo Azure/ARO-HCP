@@ -261,6 +261,7 @@ func decodeDesiredClusterCreate(ctx context.Context, azureLocation string) (*api
 		return nil, nameResourceIDMismatch(resourceID, newInternalCluster.Name)
 	}
 	// TrackedResource info doesn't appear to come from the external resource information
+	newInternalCluster.ResourceID = resourceID
 	conversion.CopyReadOnlyTrackedResourceValues(&newInternalCluster.TrackedResource, ptr.To(arm.NewTrackedResource(resourceID, azureLocation)))
 
 	// set fields that were not included during the conversion, because the user does not provide them or because the
@@ -853,15 +854,15 @@ func (f *Frontend) addDeleteClusterToTransaction(ctx context.Context, writer htt
 // TODO this overwrite will transformed into a "set" function as we transition fields to ownership in cosmos
 // TODO remove the azure location once we have migrated every record to store the location
 func mergeToInternalCluster(csCluster *arohcpv1alpha1.Cluster, internalCluster *api.HCPOpenShiftCluster, azureLocation string) (*api.HCPOpenShiftCluster, error) {
-	clusterServiceBasedInternalCluster, err := ocm.ConvertCStoHCPOpenShiftCluster(internalCluster.ID, azureLocation, csCluster)
+	clusterServiceBasedInternalCluster, err := ocm.ConvertCStoHCPOpenShiftCluster(internalCluster.ResourceID, azureLocation, csCluster)
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}
 
 	// this does not use conversion.CopyReadOnly* because some ServiceProvider properties come from cluster-service-only or live reads
+	clusterServiceBasedInternalCluster.CosmosMetadata = *internalCluster.CosmosMetadata.DeepCopy()
 	clusterServiceBasedInternalCluster.SystemData = internalCluster.SystemData.DeepCopy()
 	clusterServiceBasedInternalCluster.Tags = maps.Clone(internalCluster.Tags)
-	clusterServiceBasedInternalCluster.ServiceProviderProperties.ExistingCosmosUID = internalCluster.ServiceProviderProperties.ExistingCosmosUID
 	clusterServiceBasedInternalCluster.ServiceProviderProperties.ProvisioningState = internalCluster.ServiceProviderProperties.ProvisioningState
 	clusterServiceBasedInternalCluster.ServiceProviderProperties.ActiveOperationID = internalCluster.ServiceProviderProperties.ActiveOperationID
 	clusterServiceBasedInternalCluster.ServiceProviderProperties.ClusterServiceID = internalCluster.ServiceProviderProperties.ClusterServiceID
@@ -923,6 +924,7 @@ func (f *Frontend) getInternalClusterFromStorage(ctx context.Context, resourceID
 		return nil, fmt.Errorf("unexpected resourceID: %s", internalCluster.ID.String())
 	}
 	internalCluster.ID = resourceID
+	internalCluster.ResourceID = resourceID
 
 	return f.readInternalClusterFromClusterService(ctx, internalCluster)
 }

@@ -341,6 +341,9 @@ func clusterInformerTestCase() informerTestCase {
 		internalID, err := api.NewInternalID("/api/clusters_mgmt/v1/clusters/" + name)
 		require.NoError(t, err)
 		return &api.HCPOpenShiftCluster{
+			CosmosMetadata: arm.CosmosMetadata{
+				ResourceID: clusterResourceID,
+			},
 			TrackedResource: arm.TrackedResource{
 				Resource: arm.Resource{
 					ID:   clusterResourceID,
@@ -446,6 +449,9 @@ func nodePoolInformerTestCase() informerTestCase {
 		internalID, err := api.NewInternalID("/api/clusters_mgmt/v1/clusters/" + clusterName)
 		require.NoError(t, err)
 		return &api.HCPOpenShiftClusterNodePool{
+			CosmosMetadata: arm.CosmosMetadata{
+				ResourceID: npResourceID,
+			},
 			TrackedResource: arm.TrackedResource{
 				Resource: arm.Resource{
 					ID:   npResourceID,
@@ -476,6 +482,9 @@ func nodePoolInformerTestCase() informerTestCase {
 			internalID, err := api.NewInternalID("/api/clusters_mgmt/v1/clusters/" + clusterName)
 			require.NoError(t, err)
 			cluster := &api.HCPOpenShiftCluster{
+				CosmosMetadata: arm.CosmosMetadata{
+					ResourceID: clusterResourceID,
+				},
 				TrackedResource: arm.TrackedResource{
 					Resource: arm.Resource{
 						ID:   clusterResourceID,

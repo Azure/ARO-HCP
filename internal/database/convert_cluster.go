@@ -41,7 +41,7 @@ func InternalToCosmosCluster(internalObj *api.HCPOpenShiftCluster) (*HCPCluster,
 			CosmosMetadata: api.CosmosMetadata{
 				ResourceID: internalObj.ID,
 			},
-			ResourceDocument: &ResourceDocument{
+			IntermediateResourceDoc: &ResourceDocument{
 				ResourceID:        internalObj.ID,
 				InternalID:        internalObj.ServiceProviderProperties.ClusterServiceID,
 				ActiveOperationID: internalObj.ServiceProviderProperties.ActiveOperationID,
@@ -55,7 +55,6 @@ func InternalToCosmosCluster(internalObj *api.HCPOpenShiftCluster) (*HCPCluster,
 			},
 		},
 	}
-	cosmosObj.IntermediateResourceDoc = cosmosObj.ResourceDocument
 
 	// some pieces of data in the internalCluster conflict with ResourceDocument fields.  We may evolve over time, but for
 	// now avoid persisting those.
@@ -68,12 +67,6 @@ func InternalToCosmosCluster(internalObj *api.HCPOpenShiftCluster) (*HCPCluster,
 	cosmosObj.InternalState.InternalAPI.ServiceProviderProperties.ProvisioningState = ""
 	cosmosObj.InternalState.InternalAPI.ServiceProviderProperties.ClusterServiceID = ocm.InternalID{}
 	cosmosObj.InternalState.InternalAPI.ServiceProviderProperties.ActiveOperationID = ""
-
-	// This is not the place for validation, but during such a transition we need to ensure we fail quickly and certainly
-	// This flow will eventually be called when we replace the write path and we must always have a value.
-	if len(cosmosObj.InternalID.String()) == 0 {
-		panic("Developer Error: InternalID is required")
-	}
 
 	return cosmosObj, nil
 }
@@ -121,16 +114,19 @@ func CosmosToInternalCluster(cosmosObj *HCPCluster) (*api.HCPOpenShiftCluster, e
 	if cosmosObj == nil {
 		return nil, nil
 	}
-	resourceDoc := cosmosObj.ResourceDocument
-	if resourceDoc == nil {
-		resourceDoc = cosmosObj.IntermediateResourceDoc
-	}
+	resourceDoc := cosmosObj.IntermediateResourceDoc
 	if resourceDoc == nil {
 		return nil, fmt.Errorf("resource document cannot be nil")
 	}
 
 	tempInternalAPI := cosmosObj.InternalState.InternalAPI
 	internalObj := &tempInternalAPI
+
+	// handle reading old resources.
+	if internalObj.ResourceID == nil {
+		internalObj.ResourceID = cosmosObj.IntermediateResourceDoc.ResourceID
+	}
+	internalObj.ExistingCosmosUID = cosmosObj.ID
 
 	// some pieces of data are stored on the ResourceDocument, so we need to restore that data
 	internalObj.TrackedResource = arm.TrackedResource{
@@ -146,7 +142,6 @@ func CosmosToInternalCluster(cosmosObj *HCPCluster) (*api.HCPOpenShiftCluster, e
 	internalObj.Identity = toInternalIdentity(resourceDoc.Identity)
 	internalObj.SystemData = resourceDoc.SystemData
 	internalObj.Tags = copyTags(resourceDoc.Tags)
-	internalObj.ServiceProviderProperties.ExistingCosmosUID = cosmosObj.ID
 	internalObj.ServiceProviderProperties.ProvisioningState = resourceDoc.ProvisioningState
 	internalObj.ServiceProviderProperties.ClusterServiceID = resourceDoc.InternalID
 	internalObj.ServiceProviderProperties.ActiveOperationID = resourceDoc.ActiveOperationID
