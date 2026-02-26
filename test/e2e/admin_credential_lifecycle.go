@@ -190,7 +190,7 @@ var _ = Describe("Customer", func() {
 			}
 
 			By("revoking all cluster admin credentials via ARO HCP RP API")
-			err = framework.RevokeCredentialsAndWait(ctx, clusterClient, *resourceGroup.Name, clusterName, 10*time.Minute)
+			err = tc.RevokeCredentialsAndWait(ctx, clusterClient, *resourceGroup.Name, clusterName, 10*time.Minute)
 			Expect(err).NotTo(HaveOccurred())
 
 			By("validating all admin credentials now fail after revocation")

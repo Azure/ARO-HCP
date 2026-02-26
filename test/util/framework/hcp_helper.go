@@ -81,18 +81,41 @@ func (tc *perItOrDescribeTestContext) GetAdminRESTConfigForHCPCluster(
 	hcpClusterName string,
 	timeout time.Duration, // this is a POST request, so keep the timeout as it's async
 ) (*rest.Config, error) {
+	ctx, cancel := context.WithTimeoutCause(ctx, timeout, fmt.Errorf("timeout '%f' minutes exceeded during GetAdminRESTConfigForHCPCluster for cluster %s in resource group %s", timeout.Minutes(), hcpClusterName, resourceGroupName))
+	defer cancel()
+
 	startTime := time.Now()
 	defer func() {
 		finishTime := time.Now()
 		tc.RecordTestStep("Collect admin credentials for cluster", startTime, finishTime)
 	}()
 
-	credentialResponse, err := RequestAdminCredentialAndWait(ctx, hcpClient, resourceGroupName, hcpClusterName, timeout)
+	adminCredentialRequestPoller, err := hcpClient.BeginRequestAdminCredential(
+		ctx,
+		resourceGroupName,
+		hcpClusterName,
+		nil,
+	)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to start credential request: %w", err)
 	}
 
-	return readStaticRESTConfig(credentialResponse.Kubeconfig)
+	operationResult, err := adminCredentialRequestPoller.PollUntilDone(ctx, &runtime.PollUntilDoneOptions{
+		Frequency: StandardPollInterval,
+	})
+	if err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			return nil, fmt.Errorf("failed waiting for hcpCluster=%q in resourcegroup=%q to finish getting creds, caused by: %w, error: %w", hcpClusterName, resourceGroupName, context.Cause(ctx), err)
+		}
+		return nil, fmt.Errorf("failed waiting for hcpCluster=%q in resourcegroup=%q to finish getting creds: %w", hcpClusterName, resourceGroupName, err)
+	}
+
+	switch m := any(operationResult).(type) {
+	case hcpsdk20240610preview.HcpOpenShiftClustersClientRequestAdminCredentialResponse:
+		return readStaticRESTConfig(m.Kubeconfig)
+	default:
+		return nil, fmt.Errorf("unknown type %T", m)
+	}
 }
 
 func readStaticRESTConfig(kubeconfigContent *string) (*rest.Config, error) {
@@ -116,40 +139,7 @@ func readStaticRESTConfig(kubeconfigContent *string) (*rest.Config, error) {
 	return ret, nil
 }
 
-func RequestAdminCredentialAndWait(
-	ctx context.Context,
-	hcpClient *hcpsdk20240610preview.HcpOpenShiftClustersClient,
-	resourceGroupName string,
-	hcpClusterName string,
-	timeout time.Duration,
-) (*hcpsdk20240610preview.HcpOpenShiftClustersClientRequestAdminCredentialResponse, error) {
-	ctx, cancel := context.WithTimeoutCause(ctx, timeout, fmt.Errorf("timeout '%f' minutes exceeded during RequestAdminCredentialAndWait for cluster %s in resource group %s", timeout.Minutes(), hcpClusterName, resourceGroupName))
-	defer cancel()
-
-	poller, err := hcpClient.BeginRequestAdminCredential(ctx, resourceGroupName, hcpClusterName, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to start credential request for hcpCluster=%q in resourcegroup=%q: %w", hcpClusterName, resourceGroupName, err)
-	}
-
-	operationResult, err := poller.PollUntilDone(ctx, &runtime.PollUntilDoneOptions{
-		Frequency: StandardPollInterval,
-	})
-	if err != nil {
-		if errors.Is(err, context.DeadlineExceeded) {
-			return nil, fmt.Errorf("failed waiting for hcpCluster=%q in resourcegroup=%q to finish getting creds, caused by: %w, error: %w", hcpClusterName, resourceGroupName, context.Cause(ctx), err)
-		}
-		return nil, fmt.Errorf("failed waiting for hcpCluster=%q in resourcegroup=%q to finish getting creds: %w", hcpClusterName, resourceGroupName, err)
-	}
-
-	switch m := any(operationResult).(type) {
-	case hcpsdk20240610preview.HcpOpenShiftClustersClientRequestAdminCredentialResponse:
-		return &m, nil
-	default:
-		return nil, fmt.Errorf("unknown type %T", m)
-	}
-}
-
-func RevokeCredentialsAndWait(
+func (tc *perItOrDescribeTestContext) RevokeCredentialsAndWait(
 	ctx context.Context,
 	hcpClient *hcpsdk20240610preview.HcpOpenShiftClustersClient,
 	resourceGroupName string,
@@ -158,6 +148,12 @@ func RevokeCredentialsAndWait(
 ) error {
 	ctx, cancel := context.WithTimeoutCause(ctx, timeout, fmt.Errorf("timeout '%f' minutes exceeded during RevokeCredentialsAndWait for cluster %s in resource group %s", timeout.Minutes(), hcpClusterName, resourceGroupName))
 	defer cancel()
+
+	startTime := time.Now()
+	defer func() {
+		finishTime := time.Now()
+		tc.RecordTestStep("Collect revoke admin credentials for cluster", startTime, finishTime)
+	}()
 
 	poller, err := hcpClient.BeginRevokeCredentials(ctx, resourceGroupName, hcpClusterName, nil)
 	if err != nil {
