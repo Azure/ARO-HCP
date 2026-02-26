@@ -4,10 +4,6 @@
 $schema: "pipeline.schema.v1"
 serviceGroup: Microsoft.Azure.ARO.HCP.E2E
 rolloutName: E2E Tests
-buildStep:
-  command: 'make'
-  args:
-  - prow-job-executor
 resourceGroups:
 - name: global
   resourceGroup: '{{ .global.rg }}'
@@ -25,31 +21,18 @@ resourceGroups:
   steps: []
   validationSteps:
   - name: regionalGating
-    action: Shell
-    command: ./execute-prow-job.sh
+    action: ProwJob
     validation:
     - GA
     dryRun:
       variables:
       - name: DRY_RUN
         value: "true"
-    variables:
-    - name: PROW_TOKEN_KEYVAULT
-      configRef: global.keyVault.name
-    - name: PROW_TOKEN_SECRET
-      configRef: e2e.prow.globalKeyVaultTokenSecret
-    - name: PROW_JOB_NAME
-      configRef: e2e.regionTest.prowJobName
-    - name: GATE_PROMOTION
-      configRef: e2e.regionTest.gatePromotion
-    - name: REGION
-      configRef: region
-    - name: KEY_VAULT_DNSSUFFIX
-      configRef: keyVaultDNSSuffix
-    - name: PROW_JOB_EXECUTOR
-      value: './prow-job-executor'
-    shellIdentity:
-      input:
-        resourceGroup: global
-        step: output
-        name: globalMSIId
+    tokenKeyvault: "{{ .global.keyVault.name }}.vault.azure.net"
+    tokenSecret: "{{ .e2e.prow.globalKeyVaultTokenSecret }}"
+    jobName: "{{ .e2e.regionTest.prowJobName }}"
+    gatePromotion: {{ .e2e.regionTest.gatePromotion }}
+    identityFrom:
+      resourceGroup: global
+      step: output
+      name: globalMSIId
