@@ -284,10 +284,10 @@ func validateClusterServiceProviderProperties(ctx context.Context, op operation.
 	return errs
 }
 
-//var (
-//	toVersionID    = func(oldObj *api.VersionProfile) *string { return &oldObj.ID }
-//	toChannelGroup = func(oldObj *api.VersionProfile) *string { return &oldObj.ChannelGroup }
-//)
+var (
+	toVersionID = func(oldObj *api.VersionProfile) *string { return &oldObj.ID }
+	//	toChannelGroup = func(oldObj *api.VersionProfile) *string { return &oldObj.ChannelGroup }
+)
 
 // Version                 VersionProfile              `json:"version,omitempty"`
 func validateVersionProfile(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *api.VersionProfile) field.ErrorList {
@@ -297,10 +297,10 @@ func validateVersionProfile(ctx context.Context, op operation.Operation, fldPath
 	// additional validations may depend on the subscription, hence they will be done in the admission package
 	// ID           string `json:"id,omitempty"
 	// Version ID is required, but some records may not have had it originally, so don't fail them yet.
-	if oldObj == nil {
+	if oldObj == nil || len(oldObj.ID) > 0 {
 		errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("id"), &newObj.ID, nil)...)
-	} else if len(oldObj.ID) > 0 {
-		errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("id"), &newObj.ID, nil)...)
+		errs = append(errs, VersionMustBeAtLeast(ctx, op, fldPath.Child("id"), &newObj.ID, safe.Field(oldObj, toVersionID), "4.19")...)
+		errs = append(errs, VersionMayNotDecrease(ctx, op, fldPath.Child("id"), &newObj.ID, safe.Field(oldObj, toVersionID))...)
 	}
 
 	// ChannelGroup string `json:"channelGroup,omitempty"`

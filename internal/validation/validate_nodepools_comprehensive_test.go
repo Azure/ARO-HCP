@@ -168,7 +168,7 @@ func TestValidateNodePoolCreate(t *testing.T) {
 				return np
 			}(),
 			expectErrors: []expectedError{
-				{message: "Malformed version", fieldPath: "properties.version.id"},
+				{message: "Short version cannot contain PreRelease/Build meta data", fieldPath: "properties.version.id"},
 			},
 		},
 		{
@@ -515,7 +515,7 @@ func TestValidateNodePoolCreate(t *testing.T) {
 				return np
 			}(),
 			expectErrors: []expectedError{
-				{message: "Malformed version", fieldPath: "properties.version.id"},
+				{message: "Short version cannot contain PreRelease/Build meta data", fieldPath: "properties.version.id"},
 				{message: "Required value", fieldPath: "properties.platform.vmSize"},
 				{message: "must be greater than or equal to 64", fieldPath: "properties.platform.osDisk.sizeGiB"},
 				{message: "must be greater than or equal to 0", fieldPath: "properties.replicas"},
@@ -1088,7 +1088,7 @@ func TestValidateNodePoolUpdate(t *testing.T) {
 			}(),
 			oldNodePool: createValidNodePool(),
 			expectErrors: []expectedError{
-				{message: "Malformed version", fieldPath: "properties.version.id"},
+				{message: "Short version cannot contain PreRelease/Build meta data", fieldPath: "properties.version.id"},
 			},
 		},
 		{

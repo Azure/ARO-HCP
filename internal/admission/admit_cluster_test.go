@@ -149,7 +149,7 @@ func TestAdmitClusterOnCreate(t *testing.T) {
 				return c
 			}(),
 			expectErrors: []expectedError{
-				{message: "Malformed version", fieldPath: "properties.version.id"},
+				{message: "Short version cannot contain PreRelease/Build meta data", fieldPath: "properties.version.id"},
 			},
 		},
 		{
