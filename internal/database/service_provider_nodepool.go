@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package controllerutils
+package database
 
 import (
 	"context"
@@ -22,7 +22,6 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/internal/utils/apihelpers"
 )
@@ -45,7 +44,7 @@ func newInitialServiceProviderNodePool(npResourceID *azcorearm.ResourceID) *api.
 // instance named `default` for the given node pool resource ID.
 // If it doesn't exist, it creates a new one.
 func GetOrCreateServiceProviderNodePool(
-	ctx context.Context, dbClient database.DBClient, nodePoolResourceID *azcorearm.ResourceID,
+	ctx context.Context, dbClient DBClient, nodePoolResourceID *azcorearm.ResourceID,
 ) (*api.ServiceProviderNodePool, error) {
 	if !apihelpers.ResourceTypeEqual(nodePoolResourceID.ResourceType, api.NodePoolResourceType) {
 		return nil, utils.TrackError(fmt.Errorf("expected resource type %s, got %s", api.NodePoolResourceType, nodePoolResourceID.ResourceType))
@@ -63,7 +62,7 @@ func GetOrCreateServiceProviderNodePool(
 		return existingServiceProviderNodePool, nil
 	}
 
-	if !database.IsResponseError(err, http.StatusNotFound) {
+	if !IsResponseError(err, http.StatusNotFound) {
 		return nil, utils.TrackError(fmt.Errorf("failed to get ServiceProviderNodePool: %w", err))
 	}
 
@@ -77,7 +76,7 @@ func GetOrCreateServiceProviderNodePool(
 	// to get again one last time.
 	// According to the Cosmos DB API documentation, a HTTP 409 Conflict error
 	// is returned when the item already exists: https://learn.microsoft.com/en-us/rest/api/cosmos-db/create-a-document#status-codes
-	if !database.IsResponseError(err, http.StatusConflict) {
+	if !IsResponseError(err, http.StatusConflict) {
 		return nil, utils.TrackError(fmt.Errorf("failed to create ServiceProviderNodePool: %w", err))
 	}
 
