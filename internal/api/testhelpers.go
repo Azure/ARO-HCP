@@ -73,7 +73,7 @@ func NewTestUserAssignedIdentity(name string) *azcorearm.ResourceID {
 
 func MinimumValidClusterTestCase() *HCPOpenShiftCluster {
 	resource := NewDefaultHCPOpenShiftCluster(Must(azcorearm.ParseResourceID(TestClusterResourceID)), TestLocation)
-	resource.CustomerProperties.Version.ID = "4.15"
+	resource.CustomerProperties.Version.ID = "4.19"
 	resource.CustomerProperties.DNS.BaseDomainPrefix = "testcluster"
 	resource.CustomerProperties.Platform.ManagedResourceGroup = TestManagedResourceGroupName
 	resource.CustomerProperties.Platform.SubnetID = Must(azcorearm.ParseResourceID(TestSubnetResourceID))

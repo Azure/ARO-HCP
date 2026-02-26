@@ -113,14 +113,14 @@ func TestOpenshiftVersion(t *testing.T) {
 			name:  "invalid version - invalid",
 			value: ptr.To("not-a-version"),
 			expectErrors: []expectedError{
-				{fieldPath: "version", message: "Malformed version"},
+				{fieldPath: "version", message: "Short version cannot contain PreRelease/Build meta data"},
 			},
 		},
 		{
 			name:  "invalid format - invalid",
 			value: ptr.To("invalid.version.format"),
 			expectErrors: []expectedError{
-				{fieldPath: "version", message: "Malformed version"},
+				{fieldPath: "version", message: "Invalid character(s) found in major number"},
 			},
 		},
 	}
