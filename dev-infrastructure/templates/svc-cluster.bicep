@@ -1116,15 +1116,14 @@ module svcKVNSPProfile '../modules/network/nsp-profile.bicep' = if (serviceKeyVa
 //  A K S   D I A G N O S T I C   S E T T I N G S
 //
 
-// jboll, needs to disable, cause stage deployment fails 
-// module diagnosticSetting '../modules/aks/diagnostic-setting.bicep' = if (auditLogsEventHubAuthRuleId != '') {
-//   name: 'aks-diagnostic-setting'
-//   dependsOn: [
-//     svcCluster
-//   ]
-//   params: {
-//     aksClusterName: aksClusterName
-//     auditLogsEventHubName: auditLogsEventHubName
-//     auditLogsEventHubAuthRuleId: auditLogsEventHubAuthRuleId
-//   }
-// }
+module diagnosticSetting '../modules/aks/diagnostic-setting.bicep' = if (auditLogsEventHubAuthRuleId != '') {
+  name: 'aks-diagnostic-setting'
+  dependsOn: [
+    svcCluster
+  ]
+  params: {
+    aksClusterName: aksClusterName
+    auditLogsEventHubName: auditLogsEventHubName
+    auditLogsEventHubAuthRuleId: auditLogsEventHubAuthRuleId
+  }
+}
