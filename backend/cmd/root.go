@@ -23,6 +23,7 @@ import (
 
 	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 	"go.opentelemetry.io/otel"
 	semconv "go.opentelemetry.io/otel/semconv/v1.17.0"
 
@@ -145,7 +146,10 @@ func (f *BackendRootCmdFlags) AddFlags(cmd *cobra.Command) {
 	cmd.MarkFlagsRequiredTogether("cosmos-name", "cosmos-url")
 }
 
-func (f *BackendRootCmdFlags) validate() error {
+// validate validates BackendRootCmdFlags. flagSet is assumed to be the
+// command's FlagSet that was used to set the attributes in BackendRootCmdFlags
+// when the command'sflags were parsed.
+func (f *BackendRootCmdFlags) validate(cmdFlagSet *pflag.FlagSet) error {
 	if len(f.AzureLocation) == 0 {
 		return utils.TrackError(fmt.Errorf("--location is required"))
 	}
@@ -177,16 +181,30 @@ func (f *BackendRootCmdFlags) validate() error {
 		return utils.TrackError(fmt.Errorf("--maestro-source-environment-identifier must be less than 10 characters"))
 	}
 
+	// If any of the MI mock flags was provided, they all must be non empty. We are guaranteed to have them either all or none
+	// provided because of the MarkFlagsRequiredTogether call in the AddFlags function, but this ensures that when they are
+	// provided they are all non empty.
+	if cmdFlagSet.Changed("azure-mi-mock-certificate-bundle-path") || cmdFlagSet.Changed("azure-mi-mock-client-id") ||
+		cmdFlagSet.Changed("azure-mi-mock-service-principal-id") || cmdFlagSet.Changed("azure-mi-mock-tenant-id") {
+		if len(f.AzureMIMockCertificateBundlePath) == 0 {
+			return utils.TrackError(fmt.Errorf("--azure-mi-mock-certificate-bundle-path cannot be empty when set"))
+		}
+		if len(f.AzureMIMockClientID) == 0 {
+			return utils.TrackError(fmt.Errorf("--azure-mi-mock-client-id cannot be empty when set"))
+		}
+		if len(f.AzureMIMockPrincipalID) == 0 {
+			return utils.TrackError(fmt.Errorf("--azure-mi-mock-service-principal-id cannot be empty when set"))
+		}
+		if len(f.AzureMIMockTenantID) == 0 {
+			return utils.TrackError(fmt.Errorf("--azure-mi-mock-tenant-id cannot be empty when set"))
+		}
+	}
+
 	return nil
 }
 
 func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.Command) (*app.BackendOptions, error) {
 	logger := utils.LoggerFromContext(ctx)
-
-	err := f.validate()
-	if err != nil {
-		return nil, utils.TrackError(fmt.Errorf("failed to validate flags: %w", err))
-	}
 
 	kubeconfig, err := app.NewKubeconfig(f.Kubeconfig)
 	if err != nil {
@@ -314,7 +332,7 @@ func NewCmdRoot() *cobra.Command {
 }
 
 func RunRootCmd(cmd *cobra.Command, flags *BackendRootCmdFlags) error {
-	err := flags.validate()
+	err := flags.validate(cmd.Flags())
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("flags validation failed: %w", err))
 	}

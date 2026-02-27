@@ -19,6 +19,7 @@ require (
 	github.com/openshift/hypershift/api v0.0.0-20260226113135-8ab86680f975
 	github.com/prometheus/client_golang v1.23.2
 	github.com/spf13/cobra v1.10.2
+	github.com/spf13/pflag v1.0.10
 	github.com/stretchr/testify v1.11.1
 	github.com/tj/assert v0.0.3
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.63.0
@@ -90,7 +91,6 @@ require (
 	github.com/prometheus/procfs v0.19.2 // indirect
 	github.com/segmentio/ksuid v1.0.4 // indirect
 	github.com/skratchdot/open-golang v0.0.0-20200116055534-eef842397966 // indirect
-	github.com/spf13/pflag v1.0.10 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/contrib/bridges/prometheus v0.64.0 // indirect
