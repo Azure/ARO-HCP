@@ -129,6 +129,27 @@ resourceGroups:
         resourceGroup: global
         step: output
         name: globalMSIId
+- name: kusto
+  resourceGroup: '{{ .kusto.rg }}'
+  subscription: '{{ .global.subscription.key }}'
+  steps:
+  - name: output
+    action: ARM
+    template: templates/kusto-lookup.bicep
+    parameters: configurations/kusto-lookup.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
+  - name: kustoDataConnection
+    action: ARM
+    template: templates/audit-logs-data-connection.bicep
+    parameters: configurations/audit-logs-data-connection.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    variables:
+    - name: auditLogsEventHubId
+      input:
+        resourceGroup: regional
+        step: auditLogsEventHub
+        name: auditLogsEventHubId
 - name: regional
   resourceGroup: '{{ .regionRG }}'
   subscription: '{{ .svc.subscription.key }}'
@@ -174,6 +195,17 @@ resourceGroups:
     dependsOn:
     - resourceGroup: regional
       step: rpRegistration
+  - name: auditLogsEventHub
+    action: ARM
+    template: templates/audit-logs-eventhub.bicep
+    parameters: configurations/audit-logs-eventhub.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    variables:
+    - name: kustoPrincipalId
+      input:
+        resourceGroup: kusto
+        step: output
+        name: kustoPrincipalId
   - name: housekeeping
     action: Shell
     command: ./regional-housekeeping.sh

@@ -168,5 +168,5 @@ param billingContainerMaxScale = {{ .frontend.cosmosDB.billingContainerMaxScale 
 param locksContainerMaxScale = {{ .frontend.cosmosDB.locksContainerMaxScale }}
 
 // Audit Logs Event Hub
-param auditLogsEventHubName = '{{ .kusto.auditLogsEventHub.name }}'
+param auditLogsEventHubName = '{{ .auditLogsEventHub.name }}'
 param auditLogsEventHubAuthRuleId = '__auditLogsEventHubAuthRuleId__'

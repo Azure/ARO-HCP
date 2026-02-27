@@ -1866,34 +1866,6 @@
           "minLength": 4,
           "maxLength": 22
         },
-        "auditLogsEventHub": {
-          "type": "object",
-          "properties": {
-            "name": {
-              "type": "string",
-              "description": "Name of the Event Hub for AKS audit logs"
-            },
-            "namespace": {
-              "type": "string",
-              "description": "Name of the Audit logs Event Hub namespace"
-            },
-            "authRuleName": {
-              "type": "string",
-              "description": "Name of the authorization rule for the Event Hub for use by the aks clusters"
-            },
-            "kustoConsumerGroupName": {
-              "type": "string",
-              "description": "Name of the consumer group for Kusto data connection"
-            }
-          },
-          "additionalProperties": false,
-          "required": [
-            "name",
-            "namespace",
-            "authRuleName",
-            "kustoConsumerGroupName"
-          ]
-        },
         "resourceGroup": {
           "description": "DEPRECATED, for backward compatibility only",
           "type": "string"
@@ -1925,8 +1897,40 @@
         "adminGroups",
         "viewerGroups",
         "kustoName",
-        "enableAutoScale",
-        "auditLogsEventHub"
+        "enableAutoScale"
+      ]
+    },
+    "auditLogsEventHub": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Name of the Event Hub for AKS audit logs"
+        },
+        "namespace": {
+          "type": "string",
+          "description": "Name of the Audit logs Event Hub namespace"
+        },
+        "authRuleName": {
+          "type": "string",
+          "description": "Name of the authorization rule for the Event Hub for use by the aks clusters"
+        },
+        "kustoConsumerGroupName": {
+          "type": "string",
+          "description": "Name of the consumer group for Kusto data connection"
+        },
+        "kustoDataConnectionName": {
+          "type": "string",
+          "description": "Name of the Kusto data connection for AKS audit logs"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "namespace",
+        "authRuleName",
+        "kustoConsumerGroupName",
+        "kustoDataConnectionName"
       ]
     },
     "mise": {

@@ -7,6 +7,18 @@ param hcpAzureMonitorWorkspaceName string
 @description('The name of the eventgrid namespace for Maestro.')
 param maestroEventGridNamespacesName string
 
+@description('Toggle if instance is expected to exist')
+param kustoEnabled bool
+
+@description('Event Hub name for AKS audit logs')
+param auditLogsEventHubName string
+
+@description('Event Hub namespace for AKS audit logs')
+param auditLogsEventHubNamespaceName string
+
+@description('Name of the event hub authorization rule for AKS audit logs')
+param auditLogsEventHubAuthRuleName string
+
 //
 //   A Z U R E   M O N I T O R
 //
@@ -35,3 +47,18 @@ resource maestroEventGridNamespace 'Microsoft.EventGrid/namespaces@2024-06-01-pr
 
 output maestroEventGridNamespaceId string = maestroEventGridNamespace.id
 output maestroEventGridNamespacesHostname string = maestroEventGridNamespace.properties.topicSpacesConfiguration.hostname
+
+//
+// AUDIT LOGS EVENT HUB
+//
+resource auditLogsEventHubNamespace 'Microsoft.EventHub/namespaces@2024-01-01' existing = if (kustoEnabled) {
+  name: auditLogsEventHubNamespaceName
+
+  resource diagnosticSettingsAuthRule 'authorizationRules@2024-01-01' existing = {
+    name: auditLogsEventHubAuthRuleName
+  }
+}
+
+output auditLogsEventHubAuthRuleId string = kustoEnabled
+  ? auditLogsEventHubNamespace::diagnosticSettingsAuthRule.id
+  : ''
