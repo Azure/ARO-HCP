@@ -23,6 +23,7 @@ import (
 	"net/http"
 	"strings"
 
+	"k8s.io/apimachinery/pkg/api/operation"
 	"k8s.io/utils/ptr"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -34,8 +35,6 @@ import (
 	"github.com/Azure/ARO-HCP/internal/admission"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/api/v20240610preview"
-	"github.com/Azure/ARO-HCP/internal/api/v20251223preview"
 	"github.com/Azure/ARO-HCP/internal/conversion"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -320,7 +319,11 @@ func (f *Frontend) createHCPCluster(writer http.ResponseWriter, request *http.Re
 	if mutationErrs := admission.MutateCluster(newInternalCluster, subscription); len(mutationErrs) > 0 {
 		return utils.TrackError(arm.CloudErrorFromFieldErrors(mutationErrs))
 	}
-	validationErrs := validation.ValidateClusterCreate(ctx, newInternalCluster, api.Must(versionedInterface.ValidationPathRewriter(&api.HCPOpenShiftCluster{})))
+	validationOp := operation.Operation{
+		Type:    operation.Create,
+		Options: validation.AFECsToValidationOptions(subscription.GetRegisteredFeatures()),
+	}
+	validationErrs := validation.ValidateCluster(ctx, validationOp, newInternalCluster, nil, api.Must(versionedInterface.ValidationPathRewriter(&api.HCPOpenShiftCluster{})))
 	validationErrs = append(validationErrs, admission.AdmitClusterOnCreate(ctx, newInternalCluster, subscription)...)
 	if err := arm.CloudErrorFromFieldErrors(validationErrs); err != nil {
 		return utils.TrackError(err)
@@ -448,19 +451,6 @@ func decodeDesiredClusterReplace(ctx context.Context, oldInternalCluster *api.HC
 		return nil, utils.TrackError(err)
 	}
 
-	// until we ensure that all records have the version.id set, we need to store it from the external version BEFORE defaulting
-	requestVersionID := ""
-	switch cast := externalClusterFromRequest.(type) {
-	case *v20240610preview.HcpOpenShiftCluster:
-		if cast != nil && cast.Properties != nil && cast.Properties.Version != nil && cast.Properties.Version.ID != nil {
-			requestVersionID = *cast.Properties.Version.ID
-		}
-	case *v20251223preview.HcpOpenShiftCluster:
-		if cast != nil && cast.Properties != nil && cast.Properties.Version != nil && cast.Properties.Version.ID != nil {
-			requestVersionID = *cast.Properties.Version.ID
-		}
-	}
-
 	// Default values
 	if err := externalClusterFromRequest.SetDefaultValues(externalClusterFromRequest); err != nil {
 		return nil, utils.TrackError(err)
@@ -475,9 +465,6 @@ func decodeDesiredClusterReplace(ctx context.Context, oldInternalCluster *api.HC
 	}
 
 	// values a user doesn't have to provide, but are not static defaults (set dynamically during create).  Set these from old value
-	if len(requestVersionID) == 0 {
-		newInternalCluster.CustomerProperties.Version.ID = oldInternalCluster.CustomerProperties.Version.ID
-	}
 	if len(newInternalCluster.CustomerProperties.DNS.BaseDomainPrefix) == 0 {
 		newInternalCluster.CustomerProperties.DNS.BaseDomainPrefix = oldInternalCluster.CustomerProperties.DNS.BaseDomainPrefix
 	}
@@ -619,7 +606,11 @@ func (f *Frontend) updateHCPClusterInCosmos(ctx context.Context, writer http.Res
 	if mutationErrs := admission.MutateCluster(newInternalCluster, subscription); len(mutationErrs) > 0 {
 		return utils.TrackError(arm.CloudErrorFromFieldErrors(mutationErrs))
 	}
-	validationErrs := validation.ValidateClusterUpdate(ctx, newInternalCluster, oldInternalCluster, api.Must(versionedInterface.ValidationPathRewriter(&api.HCPOpenShiftCluster{})))
+	validationOp := operation.Operation{
+		Type:    operation.Update,
+		Options: validation.AFECsToValidationOptions(subscription.GetRegisteredFeatures()),
+	}
+	validationErrs := validation.ValidateCluster(ctx, validationOp, newInternalCluster, oldInternalCluster, api.Must(versionedInterface.ValidationPathRewriter(&api.HCPOpenShiftCluster{})))
 	if err := arm.CloudErrorFromFieldErrors(validationErrs); err != nil {
 		return utils.TrackError(err)
 	}

@@ -386,7 +386,7 @@ func TestDeploymentPreflight(t *testing.T) {
 				"apiVersion": api.TestAPIVersion,
 				"properties": map[string]any{
 					"version": map[string]any{
-						"id":           "4.0",
+						"id":           "4.19",
 						"channelGroup": "stable",
 					},
 					"api": map[string]any{
@@ -427,6 +427,7 @@ func TestDeploymentPreflight(t *testing.T) {
 			},
 			expectStatus: arm.DeploymentPreflightStatusFailed,
 			expectErrors: []expectedPreflightError{
+				{message: "Required value", target: "properties.version.id"},
 				{message: "Invalid value: \"invalidCidr\": invalid CIDR address: invalidCidr", target: "properties.network.podCidr"},
 				{message: "Unsupported value: \"invisible\": supported values: \"Private\", \"Public\"", target: "properties.api.visiblity"},
 				{message: "Required value", target: "properties.platform.subnetId"},

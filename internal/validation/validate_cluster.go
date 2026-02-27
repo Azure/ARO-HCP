@@ -23,6 +23,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/operation"
 	"k8s.io/apimachinery/pkg/api/safe"
 	"k8s.io/apimachinery/pkg/api/validate"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -30,16 +31,6 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
-
-func ValidateClusterCreate(ctx context.Context, newCluster *api.HCPOpenShiftCluster, validationPathMapper api.ValidationPathMapperFunc) field.ErrorList {
-	op := operation.Operation{Type: operation.Create}
-	return validateCluster(ctx, op, newCluster, nil, validationPathMapper)
-}
-
-func ValidateClusterUpdate(ctx context.Context, newCluster, oldCluster *api.HCPOpenShiftCluster, validationPathMapper api.ValidationPathMapperFunc) field.ErrorList {
-	op := operation.Operation{Type: operation.Update}
-	return validateCluster(ctx, op, newCluster, oldCluster, validationPathMapper)
-}
 
 var (
 	toTrackedResource           = func(oldObj *api.HCPOpenShiftCluster) *arm.TrackedResource { return &oldObj.TrackedResource }
@@ -52,7 +43,7 @@ var (
 	toClusterIdentity = func(oldObj *api.HCPOpenShiftCluster) *arm.ManagedServiceIdentity { return oldObj.Identity }
 )
 
-func validateCluster(ctx context.Context, op operation.Operation, newCluster, oldCluster *api.HCPOpenShiftCluster, validationPathMapper api.ValidationPathMapperFunc) field.ErrorList {
+func ValidateCluster(ctx context.Context, op operation.Operation, newCluster, oldCluster *api.HCPOpenShiftCluster, validationPathMapper api.ValidationPathMapperFunc) field.ErrorList {
 	errs := field.ErrorList{}
 
 	//arm.TrackedResource
@@ -285,8 +276,8 @@ func validateClusterServiceProviderProperties(ctx context.Context, op operation.
 }
 
 var (
-	toVersionID    = func(oldObj *api.VersionProfile) *string { return &oldObj.ID }
-	toChannelGroup = func(oldObj *api.VersionProfile) *string { return &oldObj.ChannelGroup }
+	toVersionID = func(oldObj *api.VersionProfile) *string { return &oldObj.ID }
+	//	toChannelGroup = func(oldObj *api.VersionProfile) *string { return &oldObj.ChannelGroup }
 )
 
 // Version                 VersionProfile              `json:"version,omitempty"`
@@ -296,16 +287,31 @@ func validateVersionProfile(ctx context.Context, op operation.Operation, fldPath
 	// Version should be immutable once is created
 	// additional validations may depend on the subscription, hence they will be done in the admission package
 	// ID           string `json:"id,omitempty"
-	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("id"), &newObj.ID, safe.Field(oldObj, toVersionID))...)
+	// Version ID is required, but some records may not have had it originally, so don't fail them yet.
+	if oldObj == nil || len(oldObj.ID) > 0 {
+		errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("id"), &newObj.ID, nil)...)
+		errs = append(errs, VersionMustBeAtLeast(ctx, op, fldPath.Child("id"), &newObj.ID, safe.Field(oldObj, toVersionID), "4.19")...)
+		errs = append(errs, VersionMayNotDecrease(ctx, op, fldPath.Child("id"), &newObj.ID, safe.Field(oldObj, toVersionID))...)
+	}
+	if !op.HasOption(api.FeatureExperimentalReleaseFeatures) {
+		// only allow our subscription to change versions for now until we add validation protecting the change
+		errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("id"), &newObj.ID, safe.Field(oldObj, toVersionID))...)
+		// we never allow micro to any cluster that might live longer than a couple days.  We cannot allow it because it might install naughty things
+		errs = append(errs, OpenshiftVersionWithoutMicro(ctx, op, fldPath.Child("id"), &newObj.ID, nil)...)
+	} else {
+		// For our CI clusters, let us install anything: allow full semver format (X.Y.Z-prerelease)
+		errs = append(errs, OpenshiftVersionWithOptionalMicro(ctx, op, fldPath.Child("id"), &newObj.ID, nil)...)
+	}
 
 	// ChannelGroup string `json:"channelGroup,omitempty"`
-	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("channelGroup"), &newObj.ChannelGroup, safe.Field(oldObj, toChannelGroup))...)
-
 	errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("channelGroup"), &newObj.ChannelGroup, nil)...)
 
-	// Version ID is required for non-stable channel groups
-	if newObj.ChannelGroup != "stable" {
-		errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("id"), &newObj.ID, nil)...)
+	if !op.HasOption(api.FeatureExperimentalReleaseFeatures) {
+		// Without feature flag: "candidate" and "nightly" aren't allowed.
+		errs = append(errs, validate.Enum(ctx, op, fldPath.Child("channelGroup"), &newObj.ChannelGroup, nil, sets.New("stable", "fast"))...)
+	} else {
+		// TODO I think everyone should be able to do this, but we'll need to notify first
+		errs = append(errs, validate.Enum(ctx, op, fldPath.Child("channelGroup"), &newObj.ChannelGroup, nil, sets.New("stable", "fast", "candidate", "nightly"))...)
 	}
 
 	return errs

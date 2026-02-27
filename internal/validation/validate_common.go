@@ -21,11 +21,28 @@ import (
 	"k8s.io/apimachinery/pkg/api/safe"
 	"k8s.io/apimachinery/pkg/api/validate"
 	"k8s.io/apimachinery/pkg/util/validation/field"
+	"k8s.io/utils/ptr"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
+
+// AFECsToValidationOptions converts the API logic into validation compatible options.
+func AFECsToValidationOptions(features []arm.Feature) []string {
+	ret := []string{}
+
+	for _, curr := range features {
+		if curr.Name == nil || len(*curr.Name) == 0 {
+			continue
+		}
+		if ptr.Deref(curr.State, "") == "Registered" {
+			ret = append(ret, *curr.Name)
+		}
+	}
+
+	return ret
+}
 
 var (
 	toTrackedResourceResource = func(oldObj *arm.TrackedResource) *arm.Resource { return &oldObj.Resource }
