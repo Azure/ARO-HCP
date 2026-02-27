@@ -474,7 +474,7 @@ mgmt:
       name: system
       osDiskSizeGB: 32
       poolCount: 1
-      vmSize: Standard_D2s_v3
+      vmSize: Standard_D4ds_v5
       zoneRedundantMode: Auto
       zones: ""
     userAgentPool:
@@ -773,7 +773,7 @@ svc:
       name: user
       osDiskSizeGB: 32
       poolCount: 3
-      vmSize: Standard_D2s_v3
+      vmSize: Standard_D4ds_v5
       zoneRedundantMode: Auto
       zones: ""
     vnetAddressPrefix: 10.128.0.0/14

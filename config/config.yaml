@@ -1444,7 +1444,7 @@ clouds:
               systemAgentPool:
                 maxCount: 4
                 osDiskSizeGB: 32
-                vmSize: Standard_D2s_v3
+                vmSize: Standard_D4ds_v5
               userAgentPool:
                 maxCount: 14
                 minCount: 4
@@ -1460,6 +1460,8 @@ clouds:
             rg: "hcp-underlay-{{ .ctx.environment }}-{{ .ctx.regionShort }}-svc"
             aks:
               name: "{{ .ctx.environment }}-{{ .ctx.regionShort }}-svc"
+              userAgentPool:
+                vmSize: Standard_D4ds_v5
               infraAgentPool:
                 vmSize: Standard_D4ds_v5
             jaeger:

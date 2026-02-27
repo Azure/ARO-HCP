@@ -9,7 +9,7 @@ spec:
   selector:
     matchLabels:
       app.kubernetes.io/name: sessiongate
-  replicas: {{ .Values.replicas }}
+  replicas: {{ .Values.deployment.replicas }}
   template:
     metadata:
       labels:
@@ -63,8 +63,8 @@ spec:
           periodSeconds: 10
         resources:
           requests:
-            cpu: 500m
-            memory: 1Gi
+            cpu: {{ .Values.deployment.requests.cpu }}
+            memory: {{ .Values.deployment.requests.memory }}
         volumeMounts: []
       volumes: []
       serviceAccountName: {{ .Values.serviceAccount.name }}
