@@ -1465,5 +1465,12 @@ clouds:
             jaeger:
               deploy: true
         regions:
+          eastus:
+            mgmt:
+              aks:
+                userAgentPool:
+                  maxCount: 14
+                  minCount: 6
+                  vmSize: Standard_D4s_v3
           monitoring:
             alertsEnabled: true
