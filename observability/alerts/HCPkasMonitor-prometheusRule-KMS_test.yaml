@@ -13,7 +13,6 @@ tests:
   - eval_time: 4500m
     alertname: hostedcluster-KubeAPIServer-ErrorBudgetBurn
     exp_alerts: []
-
 # Test 2: Fast burn - KubeAPIServer complete failure triggers 30m/1h alert (for: 2m)
 - interval: 30s # Generate data every 30 seconds to meet sample count requirements
   name: "Test 2: KubeAPIServer fast burn - complete failure triggers 30m/1h alert"
@@ -42,7 +41,6 @@ tests:
       exp_annotations:
         summary: "High KubeAPIServer error budget burn for HostedCluster test-cluster"
         description: "HostedCluster test-cluster (ID: abc-123) KubeAPIServer availability is below SLO (current value: 1)"
-
 # Test 3: Medium burn - KubeAPIServer failure triggers 30m/6h alert (for: 15m)
 - interval: 30s
   name: "Test 3: KubeAPIServer medium burn - triggers 30m/6h alert"
@@ -113,7 +111,6 @@ tests:
       exp_annotations:
         summary: "High KubeAPIServer error budget burn for HostedCluster test-cluster"
         description: "HostedCluster test-cluster (ID: abc-123) KubeAPIServer availability is below SLO (current value: 1)"
-
 # Test 4: All four KubeAPIServer alerts fire simultaneously after prolonged failure
 - interval: 30s
   name: "Test 4: KubeAPIServer all alerts fire after prolonged failure"
@@ -169,7 +166,6 @@ tests:
       exp_annotations:
         summary: "High KubeAPIServer error budget burn for HostedCluster test-cluster"
         description: "HostedCluster test-cluster (ID: abc-123) KubeAPIServer availability is below SLO (current value: 1)"
-
 # Test 5: Partial failure - below error budget threshold, no alert
 - interval: 30s
   name: "Test 5: Partial failure below threshold - no alert fires"

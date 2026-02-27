@@ -33,7 +33,6 @@ tests:
     exp_samples:
     - labels: '{__name__="kube_customresource_kubeapiserver_available:ratio_avg_3d", status="True", name="test-cluster-1", namespace="clusters", _id="abc-123", cluster="mgmt-cluster"}'
       value: 1
-
 # Test 2: 50% Availability (Intermittent Failures)
 - interval: 1m
   input_series:
@@ -64,7 +63,6 @@ tests:
     exp_samples:
     - labels: '{__name__="kube_customresource_kubeapiserver_available:ratio_avg_3d", status="True", name="test-cluster-2", namespace="clusters", _id="def-456", cluster="mgmt-cluster"}'
       value: 0.5
-
 # Test 3: 0% Availability (Complete Failure)
 - interval: 1m
   input_series:

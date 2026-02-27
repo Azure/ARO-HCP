@@ -75,9 +75,9 @@ kube-prometheus-stack:
       sha: "{{ .mgmt.prometheus.kubeStateMetrics.image.digest }}"
     rbac:
       extraRules:
-        - apiGroups: ["hypershift.openshift.io"]
-          resources: ["hostedclusters"]
-          verbs: ["list", "watch"]
+      - apiGroups: ["hypershift.openshift.io"]
+        resources: ["hostedclusters"]
+        verbs: ["list", "watch"]
     customResourceState:
       enabled: true
       create: true
@@ -86,41 +86,41 @@ kube-prometheus-stack:
       config:
         spec:
           resources:
-            - groupVersionKind:
-                group: hypershift.openshift.io
-                kind: "HostedCluster"
-                version: "v1beta1"
-              metricNamePrefix: hostedClusterAPI
-              labelsFromPath:
-                name: [metadata, name]
-                namespace: [metadata, namespace]
-                api_url: [spec, services, "[service=APIServer]", servicePublishingStrategy, route, hostname]
-                _id: [spec, clusterID]
-              metrics:
-               - name: "kubeapiserver_available"
-                 help: "KubeAPIServer availability condition"
-                 each:
-                   type: StateSet
-                   stateSet:
-                     path: [status, conditions, "[type=KubeAPIServerAvailable]", status]
-                     labelName: status
-                     list: ["True", "False", "Unknown"]
-               - name: "available"
-                 help: "Cluster availability condition"
-                 each:
-                   type: StateSet
-                   stateSet:
-                     path: [status, conditions, "[type=Available]", status]
-                     labelName: status
-                     list: ["True", "False", "Unknown"]
-               - name: "progressing"
-                 help: "Cluster progressing condition"
-                 each:
-                   type: StateSet
-                   stateSet:
-                     path: [status, conditions, "[type=Progressing]", status]
-                     labelName: status
-                     list: ["True", "False", "Unknown"]
+          - groupVersionKind:
+              group: hypershift.openshift.io
+              kind: "HostedCluster"
+              version: "v1beta1"
+            metricNamePrefix: hostedClusterAPI
+            labelsFromPath:
+              name: [metadata, name]
+              namespace: [metadata, namespace]
+              api_url: [spec, services, "[service=APIServer]", servicePublishingStrategy, route, hostname]
+              _id: [spec, clusterID]
+            metrics:
+            - name: "kubeapiserver_available"
+              help: "KubeAPIServer availability condition"
+              each:
+                type: StateSet
+                stateSet:
+                  path: [status, conditions, "[type=KubeAPIServerAvailable]", status]
+                  labelName: status
+                  list: ["True", "False", "Unknown"]
+            - name: "available"
+              help: "Cluster availability condition"
+              each:
+                type: StateSet
+                stateSet:
+                  path: [status, conditions, "[type=Available]", status]
+                  labelName: status
+                  list: ["True", "False", "Unknown"]
+            - name: "progressing"
+              help: "Cluster progressing condition"
+              each:
+                type: StateSet
+                stateSet:
+                  path: [status, conditions, "[type=Progressing]", status]
+                  labelName: status
+                  list: ["True", "False", "Unknown"]
 # this is our own config for the files in templates/
 prometheusSpec:
   image:
