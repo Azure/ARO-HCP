@@ -67616,6 +67616,94 @@ metadata:
   annotations:
     azure.workload.identity/client-id: '__prometheusUAMIClientId__'
 ---
+# Source: hcp-prometheus/charts/kube-prometheus-stack/charts/kube-state-metrics/templates/crs-configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: helmtest-mgmt-resources-kube-state-metrics-customresourcestate-config
+  namespace: prometheus
+  labels:    
+    helm.sh/chart: kube-state-metrics-5.31.0
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/component: metrics
+    app.kubernetes.io/part-of: kube-state-metrics
+    app.kubernetes.io/name: kube-state-metrics
+    app.kubernetes.io/instance: helmtest-mgmt-resources
+    app.kubernetes.io/version: "2.15.0"
+    release: helmtest-mgmt-resources
+data:
+  config.yaml: |
+    spec:
+      resources:
+      - groupVersionKind:
+          group: hypershift.openshift.io
+          kind: HostedCluster
+          version: v1beta1
+        labelsFromPath:
+          _id:
+          - spec
+          - clusterID
+          api_url:
+          - spec
+          - services
+          - '[service=APIServer]'
+          - servicePublishingStrategy
+          - route
+          - hostname
+          name:
+          - metadata
+          - name
+          namespace:
+          - metadata
+          - namespace
+        metricNamePrefix: hostedClusterAPI
+        metrics:
+        - each:
+            stateSet:
+              labelName: status
+              list:
+              - "True"
+              - "False"
+              - Unknown
+              path:
+              - status
+              - conditions
+              - '[type=KubeAPIServerAvailable]'
+              - status
+            type: StateSet
+          help: KubeAPIServer availability condition
+          name: kubeapiserver_available
+        - each:
+            stateSet:
+              labelName: status
+              list:
+              - "True"
+              - "False"
+              - Unknown
+              path:
+              - status
+              - conditions
+              - '[type=Available]'
+              - status
+            type: StateSet
+          help: Cluster availability condition
+          name: available
+        - each:
+            stateSet:
+              labelName: status
+              list:
+              - "True"
+              - "False"
+              - Unknown
+              path:
+              - status
+              - conditions
+              - '[type=Progressing]'
+              - status
+            type: StateSet
+          help: Cluster progressing condition
+          name: progressing
+---
 # Source: hcp-prometheus/templates/ama-metrics-settings-configmap.yaml
 kind: ConfigMap
 apiVersion: v1
@@ -67848,6 +67936,19 @@ rules:
   resources:
     - volumeattachments
   verbs: ["list", "watch"]
+
+- apiGroups: ["apiextensions.k8s.io"]
+  resources:
+    - customresourcedefinitions
+  verbs: ["list", "watch"]
+
+- apiGroups:
+  - hypershift.openshift.io
+  resources:
+  - hostedclusters
+  verbs:
+  - list
+  - watch
 ---
 # Source: hcp-prometheus/charts/kube-prometheus-stack/templates/prometheus-operator/clusterrole.yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -68168,6 +68269,11 @@ spec:
         args:
         - --port=8080
         - --resources=certificatesigningrequests,configmaps,cronjobs,daemonsets,deployments,endpoints,horizontalpodautoscalers,ingresses,jobs,leases,limitranges,mutatingwebhookconfigurations,namespaces,networkpolicies,nodes,persistentvolumeclaims,persistentvolumes,poddisruptionbudgets,pods,replicasets,replicationcontrollers,resourcequotas,secrets,services,statefulsets,storageclasses,validatingwebhookconfigurations,volumeattachments
+        - --custom-resource-state-config-file=/etc/customresourcestate/config.yaml
+        volumeMounts:
+        - name: customresourcestate-config
+          mountPath: /etc/customresourcestate
+          readOnly: true
         imagePullPolicy: IfNotPresent
         image: mcr.microsoft.com/oss/v2/kubernetes/kube-state-metrics:v2.15.0@sha256:1234567890
         ports:
@@ -68203,6 +68309,10 @@ spec:
             drop:
             - ALL
           readOnlyRootFilesystem: true
+      volumes:
+        - name: customresourcestate-config
+          configMap:
+            name: helmtest-mgmt-resources-kube-state-metrics-customresourcestate-config
 ---
 # Source: hcp-prometheus/charts/kube-prometheus-stack/templates/prometheus-operator/deployment.yaml
 apiVersion: apps/v1
