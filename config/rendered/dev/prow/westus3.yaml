@@ -35,7 +35,7 @@ adminApi:
     issuer: Self
     name: admin-api-cert-prow-j7654321
   image:
-    digest: sha256:1a96733e5622a58229ed86f34e40ca8d6df2bf4f4619061f297b5a38bf39604d
+    digest: sha256:a4773be035f3e63e9aa26b9f12212edef3da89f856cedf7992729cf34a496271
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpadminapi
   k8s:
@@ -77,7 +77,7 @@ backend:
   azureRuntimeConfig:
     tlsCertificatesIssuer: Self
   image:
-    digest: sha256:797bb5834485b886c5649c1c908915ece693e409d4c0faf25ba80e2a59912e16
+    digest: sha256:8d74afb44d31ab82b0357afd700c5df79379a66783e2a479062f60734f57af3e
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpbackend
   k8s:
@@ -228,7 +228,7 @@ frontend:
     resourceContainerMaxScale: 4000
     zoneRedundantMode: Disabled
   image:
-    digest: sha256:9a61ea6a68fb93fbe977373c4cfc32424a475f5ce01952b25fe0b3b46d074723
+    digest: sha256:30231b4f86fda19d0cc316e264d6a1bf9cde08bf7f2cfeb4b5a86ff959f768bb
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpfrontend
   k8s:
@@ -726,7 +726,7 @@ sessiongate:
     issuer: Self
     name: sessiongate-cert-prow-j7654321
   image:
-    digest: sha256:0938bda90b49a09afe83cc39292a3433e8a27b4dfdf5fa79798c9bcd550b7f6e
+    digest: sha256:93dbd914e67d57ab6727b53139d83abdec91b88c6eb644977d99a8cef75e7690
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpsessiongate
   k8s:
