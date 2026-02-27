@@ -13,19 +13,24 @@ on:
         description: 'Push to the registry'
         required: true
         type: boolean
+      cancel-in-progress:
+        description: 'Cancel in-progress runs'
+        required: false
+        type: boolean
+        default: false
     secrets:
       AZURE_CLIENT_ID:
         description: 'Azure Client ID'
-        required: true
+        required: false
       AZURE_TENANT_ID:
         description: 'Azure Tenant ID'
-        required: true
+        required: false
       AZURE_SUBSCRIPTION_ID:
         description: 'Azure Subscription ID'
-        required: true
+        required: false
 concurrency:
   group: ${{ github.workflow }}-service-ci
-  cancel-in-progress: false
+  cancel-in-progress: ${{ inputs.cancel-in-progress }}
 jobs:
   build_push_frontend:
     permissions:
