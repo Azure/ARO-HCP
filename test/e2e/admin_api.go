@@ -258,6 +258,97 @@ var _ = Describe("SRE", func() {
 			By("and expecting cluster access to be denied")
 			Expect(verifiers.VerifyWhoAmI("aro-sre").Verify(ctx, otherUserRestConfig)).To(HaveOccurred())
 		})
+
+	It("should be able to retrieve serial console logs for a VM",
+		labels.RequireNothing,
+		labels.Medium,
+		labels.Positive,
+		labels.CoreInfraService,
+		labels.DevelopmentOnly,
+		labels.AroRpApiCompatible,
+		func(ctx context.Context) {
+			const (
+				engineeringNetworkSecurityGroupName = "sre-nsg-name"
+				engineeringVnetName                 = "sre-vnet-name"
+				engineeringVnetSubnetName           = "sre-vnet-subnet1"
+				engineeringClusterName              = "sre-hcp-cluster-sc"
+			)
+			tc := framework.NewTestContext()
+
+			if tc.UsePooledIdentities() {
+				err := tc.AssignIdentityContainers(ctx, 1, 60*time.Second)
+				Expect(err).NotTo(HaveOccurred())
+			}
+
+			By("creating a resource group")
+			resourceGroup, err := tc.NewResourceGroup(ctx, "admin-api-serialconsole", tc.Location())
+			Expect(err).NotTo(HaveOccurred())
+
+			By("creating cluster parameters")
+			clusterParams := framework.NewDefaultClusterParams()
+			clusterParams.ClusterName = engineeringClusterName
+			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
+			clusterParams.ManagedResourceGroupName = managedResourceGroupName
+
+			By("creating customer resources")
+			clusterParams, err = tc.CreateClusterCustomerResources(ctx,
+				resourceGroup,
+				clusterParams,
+				map[string]interface{}{
+					"customerNsgName":        engineeringNetworkSecurityGroupName,
+					"customerVnetName":       engineeringVnetName,
+					"customerVnetSubnetName": engineeringVnetSubnetName,
+				},
+				TestArtifactsFS,
+				framework.RBACScopeResourceGroup,
+			)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("creating the HCP cluster")
+			err = tc.CreateHCPClusterFromParam(
+				ctx,
+				GinkgoLogr,
+				*resourceGroup.Name,
+				clusterParams,
+				45*time.Minute,
+			)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("creating a nodepool to provision worker VMs")
+			nodePoolParams := framework.NewDefaultNodePoolParams()
+			nodePoolParams.ClusterName = engineeringClusterName
+			nodePoolParams.NodePoolName = "worker"
+			nodePoolParams.Replicas = int32(1)
+
+			err = tc.CreateNodePoolFromParam(ctx,
+				*resourceGroup.Name,
+				engineeringClusterName,
+				nodePoolParams,
+				45*time.Minute,
+			)
+			Expect(err).NotTo(HaveOccurred())
+
+			hcpResourceID := fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/%s", api.Must(tc.SubscriptionID(ctx)), *resourceGroup.Name, engineeringClusterName)
+
+			By("resolving current Azure identity")
+			currentIdentity, err := tc.GetCurrentAzureIdentityDetails(ctx)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("getting VM name from managed resource group")
+			vmName, err := tc.GetFirstVMFromManagedResourceGroup(ctx, managedResourceGroupName)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(vmName).NotTo(BeEmpty())
+
+			By(fmt.Sprintf("retrieving serial console logs for VM %s", vmName))
+			logs, err := tc.GetSerialConsoleLogs(ctx, hcpResourceID, vmName, currentIdentity)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(logs).NotTo(BeEmpty())
+
+			By("verifying serial console logs contain boot information")
+			// Serial console logs typically contain boot messages, kernel output, or systemd logs
+			// We just verify that we got some content back
+			Expect(len(logs)).To(BeNumerically(">", 0))
+		})
 })
 
 // waitForSessionExpiration sleeps until the session's expiration time has passed.

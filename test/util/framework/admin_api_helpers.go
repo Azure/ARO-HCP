@@ -34,6 +34,7 @@ import (
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v5"
 )
 
 const (
@@ -310,4 +311,90 @@ func (tc *perItOrDescribeTestContext) CreateSREBreakglassCredentials(ctx context
 		restConfig.Insecure = true
 	}
 	return restConfig, expiresAt, nil
+}
+
+// GetFirstVMFromManagedResourceGroup retrieves the name of the first VM found in the managed resource group.
+// Returns an error if no VMs are found or if the Azure API calls fail.
+func (tc *perItOrDescribeTestContext) GetFirstVMFromManagedResourceGroup(ctx context.Context, managedResourceGroupName string) (string, error) {
+	cred, err := tc.perBinaryInvocationTestContext.getAzureCredentials()
+	if err != nil {
+		return "", fmt.Errorf("failed to get Azure credentials: %w", err)
+	}
+
+	subscriptionID, err := tc.SubscriptionID(ctx)
+	if err != nil {
+		return "", fmt.Errorf("failed to get subscription ID: %w", err)
+	}
+
+	computeClient, err := armcompute.NewVirtualMachinesClient(subscriptionID, cred, nil)
+	if err != nil {
+		return "", fmt.Errorf("failed to create compute client: %w", err)
+	}
+
+	pager := computeClient.NewListPager(managedResourceGroupName, nil)
+	for pager.More() {
+		page, err := pager.NextPage(ctx)
+		if err != nil {
+			return "", fmt.Errorf("failed to list VMs: %w", err)
+		}
+		if len(page.Value) > 0 {
+			if page.Value[0].Name != nil {
+				return *page.Value[0].Name, nil
+			}
+		}
+	}
+
+	return "", fmt.Errorf("no VMs found in managed resource group %s", managedResourceGroupName)
+}
+
+// GetSerialConsoleLogs retrieves serial console logs for a VM in an HCP cluster's managed resource group
+func (tc *perItOrDescribeTestContext) GetSerialConsoleLogs(ctx context.Context, resourceID string, vmName string, identityDetails *AzureIdentityDetails) (string, error) {
+	tlsConfig := &tls.Config{}
+	if IsDevelopmentEnvironment() {
+		tlsConfig.InsecureSkipVerify = true
+	}
+	httpClient := &http.Client{
+		Transport: &clientPrincipalTransport{
+			base: &http.Transport{
+				TLSClientConfig: tlsConfig,
+			},
+			identityDetails: identityDetails,
+		},
+		Timeout: adminAPIRequestTimeout,
+	}
+
+	adminAPIEndpoint := tc.perBinaryInvocationTestContext.adminAPIAddress
+
+	serialConsoleEndpoint := fmt.Sprintf("%s/admin/v1/hcp%s/serialconsole?vmName=%s",
+		adminAPIEndpoint,
+		resourceID,
+		vmName,
+	)
+
+	By(fmt.Sprintf("reaching out to the admin API to retrieve serial console logs for VM %s: %s", vmName, serialConsoleEndpoint))
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, serialConsoleEndpoint, nil)
+	if err != nil {
+		return "", fmt.Errorf("failed to create request: %w", err)
+	}
+
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("failed to send request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, readErr := io.ReadAll(resp.Body)
+		if readErr != nil {
+			return "", fmt.Errorf("expected status 200 OK, got %d (failed to read body: %w)", resp.StatusCode, readErr)
+		}
+		return "", fmt.Errorf("expected status 200 OK, got %d: %s", resp.StatusCode, string(body))
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	return string(body), nil
 }
