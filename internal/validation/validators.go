@@ -161,6 +161,7 @@ var (
 	nodePoolResourceNameRegex       = regexp.MustCompile(nodePoolResourceName)
 	nodePoolResourceNameErrorString = `(must be a valid DNS RFC 1035 label)`
 
+	// resourceGroupName See https://learn.microsoft.com/en-gb/azure/azure-resource-manager/management/resource-name-rules#microsoftresources
 	resourceGroupName            = `^[\p{L}\p{N}_\-.()]{0,89}[\p{L}\p{N}_\-()]$`
 	resourceGroupNameRegex       = regexp.MustCompile(resourceGroupName)
 	resourceGroupNameErrorString = `it must be max 90 characters and only letters, digits, underscores (_), hyphens (-), periods (.), and parentheses (( )) are allowed, and it cannot end with a period '.'.`
