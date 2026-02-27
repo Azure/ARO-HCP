@@ -166,6 +166,16 @@ spec:
         - "--maestro-source-environment-identifier"
         - "arohcpdev"
         - "--exit-on-panic=true"
+        # MI Mock flags. They should only be set in ARO-HCP environments where Microsoft's Managed Identities Dataplane service is not available.
+        - "--insecure-ignore-user-azure-managed-identities-that-need-managed-identities-dataplane-available-and-use-mock"
+        - "--insecure-azure-managed-identity-mock-certificate-bundle-path"
+        - "/secrets/backend-service-key-vault/mi-mock-cert-bundle"
+        - "--insecure-azure-managed-identity-mock-client-id"
+        - "e8723db7-9b9e-46a4-9f7d-64d75c3534f0"
+        - "--insecure-azure-managed-identity-mock-principal-id"
+        - "d6b62dfa-87f5-49b3-bbcb-4a687c4faa96"
+        - "--insecure-azure-managed-identity-mock-tenant-id"
+        - "64dc69e4-d083-49fc-9569-ebece1dd1408"
         env:
         - name: DB_NAME
           valueFrom:
