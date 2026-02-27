@@ -51,12 +51,13 @@ type KustoLogsCurrentCollector struct {
 	kustoCluster string
 	cache        *cache.MetricsCache
 	lastRun      time.Time
+	errorCounter prometheus.Counter
 }
 
 var _ CachingCollector = &KustoLogsCurrentCollector{}
 
 // NewKustoLogsCurrentCollector creates a new KustoLogsCurrentCollector
-func NewKustoLogsCurrentCollector(kustoCluster, kustoRegion string, clusterNames []string, cacheTTL time.Duration) (*KustoLogsCurrentCollector, error) {
+func NewKustoLogsCurrentCollector(kustoCluster, kustoRegion string, clusterNames []string, cacheTTL time.Duration, errorCounter prometheus.Counter) (*KustoLogsCurrentCollector, error) {
 
 	endpoint, err := kusto.KustoEndpoint(kustoCluster, kustoRegion)
 	if err != nil {
@@ -73,6 +74,7 @@ func NewKustoLogsCurrentCollector(kustoCluster, kustoRegion string, clusterNames
 		kustoClient:  kustoClient,
 		clusterNames: clusterNames,
 		cache:        cache.NewMetricsCache(cacheTTL),
+		errorCounter: errorCounter,
 	}, nil
 }
 
@@ -109,6 +111,7 @@ func (c *KustoLogsCurrentCollector) CollectMetricValues(ctx context.Context) {
 			-1,
 		)
 		if err != nil {
+			c.errorCounter.Inc()
 			logger.Error(err, "Failed to create query options", "cluster", clusterName)
 			continue
 		}
@@ -139,6 +142,7 @@ func (c *KustoLogsCurrentCollector) CollectMetricValues(ctx context.Context) {
 		)
 
 		if err := gatherer.GatherLogs(ctx); err != nil {
+			c.errorCounter.Inc()
 			logger.Error(err, "Failed to gather logs", "cluster", clusterName)
 			continue
 		}
