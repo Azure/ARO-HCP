@@ -709,7 +709,7 @@ secretSyncController:
     registry: registry.k8s.io
     repository: secrets-store-sync/controller
   providerImage:
-    digest: sha256:9b69995622c137ddbdcc2d4e41beb25b0f0712ff1e75200a2a763e9185bc0a28
+    digest: sha256:490c3b795cb12bd9e5a3680bb7dabd7ea02799c30b14ed960611517c5d808e6b
     registry: mcr.microsoft.com
     repository: oss/v2/azure/secrets-store/provider-azure
 serviceKeyVault:
