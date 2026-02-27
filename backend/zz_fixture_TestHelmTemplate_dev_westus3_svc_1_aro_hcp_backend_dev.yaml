@@ -123,7 +123,7 @@ spec:
         app: aro-hcp-backend
         azure.workload.identity/use: "true"
       annotations:
-        checksum/backendservicekeyvault: '67b31416c594e3f1f3e7754fc18a9da8bf47bfa45d09f9ed568db2d0d14a2544'
+        checksum/backendservicekeyvault: 'd76b8f7a5cfa15bb0951ea1e9fd6cac34015808f8c7816410ae96b0c19a9d375'
         checksum/azureruntimeconfig: '40e0cf247edb3f1d1eb59cd97663f8ab2cf029da7a96716ee8916d38ac9fb0e5'
     spec:
       topologySpreadConstraints:
@@ -290,6 +290,10 @@ spec:
           objectName: 'firstPartyCert2'
           objectType: secret
           objectAlias: fpa-cert-bundle
+        - |
+          objectName: 'msiMockCert2'
+          objectType: secret
+          objectAlias: mi-mock-cert-bundle
     tenantId: '__tenantId__'
     usePodIdentity: "false"
   provider: azure
