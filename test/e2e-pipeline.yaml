@@ -28,7 +28,7 @@ resourceGroups:
       variables:
       - name: DRY_RUN
         value: "true"
-    tokenKeyvault: "{{ .global.keyVault.name }}.vault.azure.net"
+    tokenKeyvault: "{{ .global.keyVault.name }}"
     tokenSecret: "{{ .e2e.prow.globalKeyVaultTokenSecret }}"
     jobName: "{{ .e2e.regionTest.prowJobName }}"
     gatePromotion: "{{ .e2e.regionTest.gatePromotion }}"
