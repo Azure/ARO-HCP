@@ -1,6 +1,7 @@
 images:
   # Maestro image
   maestro:
+    group: hypershift-stack
     source:
       image: quay.io/redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro
       tagPattern: "^[a-f0-9]{40}$"
@@ -9,6 +10,7 @@ images:
       filePath: ../../config/config.yaml
   # Maestro Agent Sidecar image
   maestro-agent-sidecar:
+    group: hypershift-stack
     source:
       image: mcr.microsoft.com/azurelinux/base/nginx
       tagPattern: "^\\d+\\.\\d+\\.\\d+-\\d+-azl\\d+\\.\\d+\\.\\d+$"
@@ -18,6 +20,7 @@ images:
       filePath: ../../config/config.yaml
   # Hypershift image
   hypershift:
+    group: hypershift-stack
     source:
       image: quay.io/redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
       tag: "latest"
@@ -31,6 +34,7 @@ images:
       filePath: ../../config/config.yaml
   # PKO imagess
   pko-package:
+    group: pko
     source:
       image: quay.io/package-operator/package-operator-package
       # tagPattern: "^v\\d+\\.\\d+\\.\\d+$"
@@ -39,6 +43,7 @@ images:
     - jsonPath: defaults.pko.imagePackage.digest
       filePath: ../../config/config.yaml
   pko-manager:
+    group: pko
     source:
       image: quay.io/package-operator/package-operator-manager
       # tagPattern: "^v\\d+\\.\\d+\\.\\d+$"
@@ -47,6 +52,7 @@ images:
     - jsonPath: defaults.pko.imageManager.digest
       filePath: ../../config/config.yaml
   pko-remote-phase-manager:
+    group: pko
     source:
       image: quay.io/package-operator/remote-phase-manager
       # tagPattern: "^v\\d+\\.\\d+\\.\\d+$"
@@ -56,6 +62,7 @@ images:
       filePath: ../../config/config.yaml
   # Clusters Service image
   clusters-service:
+    group: cs
     source:
       image: quay.io/app-sre/aro-hcp-clusters-service
       tag: "latest"
@@ -69,6 +76,7 @@ images:
       filePath: ../../config/config.yaml
   # Frontend and Backend images
   arohcpfrontend:
+    group: aro-rp
     source:
       image: arohcpsvcdev.azurecr.io/arohcpfrontend
       useAuth: true
@@ -76,6 +84,7 @@ images:
     - jsonPath: defaults.frontend.image.digest
       filePath: ../../config/config.yaml
   arohcpbackend:
+    group: aro-rp
     source:
       image: arohcpsvcdev.azurecr.io/arohcpbackend
       useAuth: true
@@ -84,6 +93,7 @@ images:
       filePath: ../../config/config.yaml
   # backplaneAPI
   backplaneAPI:
+    group: aro-deps
     source:
       image: quay.io/app-sre/backplane-api
       tagPattern: "^[a-f0-9]{7}$"
@@ -96,6 +106,7 @@ images:
       filePath: ../../config/config.yaml
   # Kube Events image
   kubeEvents:
+    group: obs-agents
     source:
       image: kubernetesshared.azurecr.io/shared/kube-events
       tagPattern: "^\\d+\\.\\d+$"
@@ -104,6 +115,7 @@ images:
       filePath: ../../config/config.yaml
   # ACM images
   acm-operator:
+    group: hypershift-stack
     source:
       image: quay.io/redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-215
       tagPattern: "^v\\d+\\.\\d+\\.\\d+-\\d+$"
@@ -111,6 +123,7 @@ images:
     - jsonPath: defaults.acm.operator.bundle.digest
       filePath: ../../config/config.yaml
   acm-mce:
+    group: hypershift-stack
     source:
       image: quay.io/redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-210
       tagPattern: "^v\\d+\\.\\d+\\.\\d+-\\d+$"
@@ -119,6 +132,7 @@ images:
       filePath: ../../config/config.yaml
   # AKS Runtime Image
   aksCommandRuntime:
+    group: platform-utils
     source:
       image: mcr.microsoft.com/aks/command/runtime
       tagPattern: "^master\\.\\d+\\.\\d+$"
@@ -128,6 +142,7 @@ images:
       filePath: ../../config/config.yaml
   # MSI-Acrpull image
   acrPull:
+    group: platform-utils
     source:
       image: mcr.microsoft.com/aks/msi-acrpull
       tagPattern: "^v\\d+\\.\\d+\\.\\d+$"
@@ -136,6 +151,7 @@ images:
       filePath: ../../config/config.yaml
   # Arobit images
   arobit-forwarder:
+    group: obs-agents
     source:
       image: mcr.microsoft.com/oss/v2/fluent/fluent-bit
       tagPattern: "^v\\d+\\.\\d+\\.\\d+(-\\d+)?$"
@@ -144,6 +160,7 @@ images:
     - jsonPath: defaults.arobit.forwarder.image.digest
       filePath: ../../config/config.yaml
   arobit-mdsd:
+    group: obs-agents
     source:
       image: mcr.microsoft.com/geneva/distroless/mdsd
       tagPattern: "^\\d+\\.\\d+\\.\\d+-\\d+-\\d+$"
@@ -153,6 +170,7 @@ images:
       filePath: ../../config/config.yaml
   # Secret Sync Controller image
   secretSyncController:
+    group: platform-utils
     source:
       image: registry.k8s.io/secrets-store-sync/controller
       tagPattern: "^v\\d+\\.\\d+\\.\\d+$"
@@ -162,6 +180,7 @@ images:
       filePath: ../../config/config.yaml
   # Secret Sync Azure Provider
   secretSyncProvider:
+    group: platform-utils
     source:
       image: mcr.microsoft.com/oss/v2/azure/secrets-store/provider-azure
       tagPattern: "^v\\d+\\.\\d+\\.\\d+(-\\d+)?$"
@@ -171,6 +190,7 @@ images:
       filePath: ../../config/config.yaml
   # Image Sync
   imageSync:
+    group: aro-deps
     source:
       image: arohcpsvcdev.azurecr.io/image-sync/oc-mirror
       tagPattern: "^[a-f0-9]{7}$"
@@ -180,6 +200,7 @@ images:
       filePath: ../../config/config.yaml
   # Prometheus images
   prometheus-operator:
+    group: prom-stack
     source:
       image: mcr.microsoft.com/oss/v2/prometheus/prometheus-operator
       tagPattern: "^v\\d+\\.\\d+\\.\\d+-?\\d?$"
@@ -190,6 +211,7 @@ images:
     - jsonPath: defaults.mgmt.prometheus.prometheusOperator.image.sha
       filePath: ../../config/config.yaml
   prometheus:
+    group: prom-stack
     source:
       image: mcr.microsoft.com/oss/v2/prometheus/prometheus
       tagPattern: "^v\\d+\\.\\d+\\.\\d+-?\\d?$"
@@ -200,6 +222,7 @@ images:
     - jsonPath: defaults.mgmt.prometheus.prometheusSpec.image.sha
       filePath: ../../config/config.yaml
   prometheus-config-reloader:
+    group: prom-stack
     source:
       image: mcr.microsoft.com/oss/v2/prometheus/prometheus-config-reloader
       tagPattern: "^v\\d+\\.\\d+\\.\\d+-?\\d?$"
@@ -210,6 +233,7 @@ images:
     - jsonPath: defaults.mgmt.prometheus.prometheusConfigReloader.image.sha
       filePath: ../../config/config.yaml
   kube-state-metrics:
+    group: prom-stack
     source:
       image: mcr.microsoft.com/oss/v2/kubernetes/kube-state-metrics
       tagPattern: "^v\\d+\\.\\d+\\.\\d+(-\\d+)?$"
@@ -220,6 +244,7 @@ images:
     - jsonPath: defaults.mgmt.prometheus.kubeStateMetrics.image.digest
       filePath: ../../config/config.yaml
   admin-api:
+    group: aro-rp
     source:
       image: arohcpsvcdev.azurecr.io/arohcpadminapi
       useAuth: true
@@ -227,6 +252,7 @@ images:
     - jsonPath: defaults.adminApi.image.digest
       filePath: ../../config/config.yaml
   sessiongate:
+    group: aro-rp
     source:
       image: arohcpsvcdev.azurecr.io/arohcpsessiongate
       useAuth: true
@@ -235,6 +261,7 @@ images:
       filePath: ../../config/config.yaml
   # Velero images
   velero-server:
+    group: velero
     source:
       image: registry.redhat.io/oadp/oadp-velero-rhel9
       tag: "v1.4"
@@ -247,6 +274,7 @@ images:
     - jsonPath: defaults.velero.server.digest
       filePath: ../../config/config.yaml
   velero-azure-plugin:
+    group: velero
     source:
       image: registry.redhat.io/oadp/oadp-velero-plugin-for-microsoft-azure-rhel9
       tag: "v1.4"
@@ -259,6 +287,7 @@ images:
     - jsonPath: defaults.velero.azurePlugin.digest
       filePath: ../../config/config.yaml
   velero-hypershift-plugin:
+    group: velero
     source:
       image: registry.redhat.io/oadp/oadp-hypershift-velero-plugin-rhel9
       tag: "v1.5"
@@ -272,6 +301,7 @@ images:
       filePath: ../../config/config.yaml
   # Kube Webhook Certgen (Ingress NGINX)
   kube-webhook-certgen:
+    group: prom-stack
     source:
       image: registry.k8s.io/ingress-nginx/kube-webhook-certgen
       tagPattern: "^v\\d+\\.\\d+\\.\\d+$"

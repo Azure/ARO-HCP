@@ -10,6 +10,7 @@ A tool that automatically fetches the latest container image digests from regist
 - [Key Features](#key-features)
 - [Common Usage Patterns](#common-usage-patterns)
   - [Development Workflow](#development-workflow)
+  - [Groups](#groups)
   - [Output to File](#output-to-file)
   - [Debugging](#debugging)
 - [Configuration](#configuration)
@@ -51,6 +52,9 @@ make update
 
 # Update specific components only
 ./image-updater update --config config.yaml --components maestro,hypershift
+
+# Update all images in a group
+./image-updater update --config config.yaml --groups hypershift-stack
 
 # Save output to file
 ./image-updater update --config config.yaml --output-file results.md --output-format markdown
@@ -115,7 +119,7 @@ All registries support anonymous access by default for public images. Private re
 
 - **Architecture-Aware**: Filters by architecture (amd64, arm64, etc.) or multi-arch manifests
 - **Flexible Tag Selection**: Exact tag or regex pattern matching
-- **Component Filtering**: Update specific components or exclude certain ones
+- **Component Filtering**: Update specific components, groups, or exclude certain ones
 - **Multiple Output Formats**: Table, Markdown, or JSON to file or stdout
 - **Digest Format Support**: Both `.digest` (sha256:...) and `.sha` (hash only) fields
 
@@ -136,6 +140,30 @@ All registries support anonymous access by default for public images. Private re
 # Exclude certain components
 ./image-updater update --config config.yaml --exclude-components arohcpfrontend
 ```
+
+### Groups
+
+Each image belongs to a `group`, allowing you to update logically related images together:
+
+```bash
+# Update all images in the hypershift-stack group
+./image-updater update --config config.yaml --groups hypershift-stack
+
+# Update multiple groups at once
+./image-updater update --config config.yaml --groups hypershift-stack,velero
+
+# Combine groups with individual components (union)
+./image-updater update --config config.yaml --components maestro --groups hypershift-stack
+
+# Update a group but exclude specific components
+./image-updater update --config config.yaml --groups hypershift-stack --exclude-components maestro-agent-sidecar
+
+# Using Makefile
+make update GROUPS=hypershift-stack,velero
+make update GROUPS=hypershift-stack EXCLUDE_COMPONENTS=maestro-agent-sidecar
+```
+
+Available groups: `aro-rp`, `cs`, `aro-deps`, `hypershift-stack`, `pko`, `prom-stack`, `obs-agents`, `velero`, `platform-utils`.
 
 ### Output to File
 
@@ -536,7 +564,8 @@ Write results to file in different formats:
 | `--config` | string | - | Path to configuration file (required) |
 | `--dry-run` | bool | false | Preview changes without modifying files |
 | `--components` | string | - | Comma-separated list of components to update |
-| `--exclude-components` | string | - | Comma-separated list of components to exclude |
+| `--groups` | string | - | Comma-separated list of groups to update (can be combined with `--components`) |
+| `--exclude-components` | string | - | Comma-separated list of components to exclude (applied after `--components`/`--groups`) |
 | `--output-file` | string | - | Write results to file instead of stdout |
 | `--output-format` | string | table | Output format: `table`, `markdown`, or `json` |
 | `-v, --verbosity` | int | 0 | Log verbosity: 0=clean, 1=summary, 2+=debug |
@@ -558,6 +587,14 @@ Write results to file in different formats:
 Use `-v=2` for debugging auth issues, tag filtering, or network failures.
 
 ## Configuration Reference
+
+### Image Fields
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `group` | string | Yes | Logical group name for batch updates (e.g., `hypershift-stack`, `velero`, `prom-stack`) |
+| `source` | object | Yes | Image source configuration (see below) |
+| `targets` | list | Yes | Target files to update (see below) |
 
 ### Source Fields
 

@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"sort"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -37,6 +38,7 @@ type Config struct {
 
 // ImageConfig defines a single image's source and target configuration
 type ImageConfig struct {
+	Group   string   `yaml:"group"`
 	Source  Source   `yaml:"source"`
 	Targets []Target `yaml:"targets"`
 }
@@ -144,8 +146,11 @@ func Load(configPath string) (*Config, error) {
 		return nil, fmt.Errorf("failed to parse config file %s: %w", configPath, err)
 	}
 
-	// Validate each image source configuration
+	// Validate each image configuration
 	for name, imageConfig := range cfg.Images {
+		if imageConfig.Group == "" {
+			return nil, fmt.Errorf("image %q: group is required", name)
+		}
 		if err := imageConfig.Source.Validate(); err != nil {
 			return nil, fmt.Errorf("invalid configuration for image %q: %w", name, err)
 		}
@@ -190,6 +195,47 @@ func (c *Config) FilterByComponents(componentNames []string) (*Config, error) {
 	return &Config{
 		Images: filteredImages,
 	}, nil
+}
+
+// FilterByGroups returns a new Config containing only images matching the given groups
+func (c *Config) FilterByGroups(groupNames []string) (*Config, error) {
+	if len(groupNames) == 0 {
+		return c, nil
+	}
+
+	requestedGroups := sets.NewString(groupNames...)
+
+	filteredImages := make(map[string]ImageConfig)
+	matchedGroups := sets.NewString()
+	for name, imageConfig := range c.Images {
+		if requestedGroups.Has(imageConfig.Group) {
+			filteredImages[name] = imageConfig
+			matchedGroups.Insert(imageConfig.Group)
+		}
+	}
+
+	// Check that all requested groups matched at least one image
+	unmatchedGroups := requestedGroups.Difference(matchedGroups)
+	if unmatchedGroups.Len() > 0 {
+		return nil, fmt.Errorf("group %q not found in configuration", unmatchedGroups.List()[0])
+	}
+
+	return &Config{
+		Images: filteredImages,
+	}, nil
+}
+
+// Groups returns a sorted list of distinct group names from all images
+func (c *Config) Groups() []string {
+	groupSet := sets.NewString()
+	for _, imageConfig := range c.Images {
+		if imageConfig.Group != "" {
+			groupSet.Insert(imageConfig.Group)
+		}
+	}
+	groups := groupSet.List()
+	sort.Strings(groups)
+	return groups
 }
 
 // FilterExcludingComponents returns a new Config excluding the specified components
