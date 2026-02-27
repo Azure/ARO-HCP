@@ -9,7 +9,7 @@
   "Successfully lists clusters filtered by resource group name",
   "Successfully lists clusters filtered by subscription ID",
   "creates a cluster and fails to update its name with a PATCH request",
-  "creates and deletes vm type NC6sv3 in a single cluster",
+  "creates and deletes vm type NC4asT4v3 in a single cluster",
   "should confirm the HCP cluster is deleted (not found)",
   "should create an HCP cluster and validate TLS certificates"
 ]

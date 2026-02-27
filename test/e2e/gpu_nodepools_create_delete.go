@@ -37,9 +37,8 @@ var _ = Describe("HCP Nodepools GPU instances", func() {
 		vmSize  string
 	}
 	gpuSkus := []gpuSKU{
-		{display: "NC6sv3", vmSize: "Standard_NC6s_v3"},
-		/*{display: "NC4asT4v3", vmSize: "Standard_NC4as_T4_v3"},
-		{display: "NC8asT4v3", vmSize: "Standard_NC8as_T4_v3"},
+		{display: "NC4asT4v3", vmSize: "Standard_NC4as_T4_v3"},
+		/*{display: "NC8asT4v3", vmSize: "Standard_NC8as_T4_v3"},
 		{display: "NC12sv3", vmSize: "Standard_NC12s_v3"},
 		{display: "NC16asT4v3", vmSize: "Standard_NC16as_T4_v3"},
 		{display: "NC24sv3", vmSize: "Standard_NC24s_v3"},
