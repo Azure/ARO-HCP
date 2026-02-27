@@ -3,7 +3,7 @@ module github.com/Azure/ARO-HCP/tooling/hcpctl
 go 1.25.5
 
 require (
-	github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20260226214441-12d6fad60000
+	github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20260227032723-11f678744bf9
 	github.com/Azure/azure-kusto-go/azkustodata v1.2.0
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.21.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice v1.0.0
