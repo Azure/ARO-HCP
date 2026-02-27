@@ -159,6 +159,9 @@ func (v *ValidatedUpdateOptions) Complete(ctx context.Context) (*updater.Updater
 	// Key format: "registry:useAuth" (e.g., "quay.io:true", "quay.io:false")
 	registryClients := make(map[string]clients.RegistryClient)
 	for _, imageConfig := range v.Config.Images {
+		if imageConfig.Source.GitHubLatestRelease != "" {
+			continue
+		}
 		registry, _, err := imageConfig.Source.ParseImageReference()
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse image reference: %w", err)
@@ -205,8 +208,8 @@ func validateConfig(cfg *config.Config) error {
 	}
 
 	for name, img := range cfg.Images {
-		if img.Source.Image == "" {
-			return fmt.Errorf("image %s: source image is required", name)
+		if img.Source.Image == "" && img.Source.GitHubLatestRelease == "" {
+			return fmt.Errorf("image %s: source image or githubLatestRelease is required", name)
 		}
 
 		if len(img.Targets) == 0 {

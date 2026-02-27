@@ -70,15 +70,11 @@ func (u *Updater) UpdateImages(ctx context.Context) error {
 	updatedCount := 0
 	for name, imageConfig := range u.Config.Images {
 		imageNum++
-		tagInfo := imageConfig.Source.TagPattern
-		if imageConfig.Source.Tag != "" {
-			tagInfo = imageConfig.Source.Tag
-		}
-		logger.V(2).Info("processing image", "name", name, "source", imageConfig.Source.Image, "tag", tagInfo)
+		logger.V(2).Info("processing image", "name", name, "source", imageConfig.Source.SourceDescription(), "tag", imageConfig.Source.TagInfo())
 
-		imageInfo, err := u.fetchLatestDigest(ctx, imageConfig.Source)
+		imageInfo, err := u.fetchLatestValue(ctx, imageConfig.Source)
 		if err != nil {
-			return fmt.Errorf("failed to fetch latest digest for %s: %w", name, err)
+			return fmt.Errorf("failed to fetch latest value for %s: %w", name, err)
 		}
 
 		logger.V(2).Info("found latest tag", "name", name, "tag", imageInfo.Name, "digest", imageInfo.Digest)
@@ -159,13 +155,23 @@ func (u *Updater) outputResults(ctx context.Context) error {
 	return nil
 }
 
-// fetchLatestDigest retrieves the latest digest from the appropriate registry
-func (u *Updater) fetchLatestDigest(ctx context.Context, source config.Source) (*clients.Tag, error) {
+// fetchLatestValue retrieves the latest value from the source (registry digest or tag/version, or GitHub latest release).
+func (u *Updater) fetchLatestValue(ctx context.Context, source config.Source) (*clients.Tag, error) {
 	logger, err := logr.FromContext(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("logger not found in context: %w", err)
 	}
 
+	if source.GitHubLatestRelease != "" {
+		logger.V(2).Info("fetching latest release from GitHub", "repo", source.GitHubLatestRelease)
+		version, err := clients.GetLatestReleaseTag(ctx, source.GitHubLatestRelease)
+		if err != nil {
+			return nil, fmt.Errorf("github latest release %s: %w", source.GitHubLatestRelease, err)
+		}
+		return &clients.Tag{Name: version, Version: version}, nil
+	}
+
+	// Registry path: parse image reference and use existing client
 	registry, repository, err := source.ParseImageReference()
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse registry from image reference: %w", err)
@@ -211,7 +217,7 @@ func (u *Updater) ProcessImageUpdates(ctx context.Context, name string, tag *cli
 		return false, fmt.Errorf("logger not found in context: %w", err)
 	}
 
-	logger.V(2).Info("Processing image", "name", name, "latestDigest", tag.Digest, "tag", tag.Name)
+	logger.V(2).Info("Processing image", "name", name, "tag", tag.Name, "digest", tag.Digest, "version", tag.Version)
 
 	editor, exists := u.YAMLEditors[target.FilePath]
 	if !exists {
@@ -225,11 +231,16 @@ func (u *Updater) ProcessImageUpdates(ctx context.Context, name string, tag *cli
 
 	logger.V(2).Info("Current digest", "name", name, "currentDigest", currentDigest)
 
-	// If the target path ends with .sha, we need to strip the sha256: prefix
-	// from the digest since sha fields only contain the hash value
+	// .sha paths store hash only; .digest and others keep full value or use tag/version
 	newDigest := tag.Digest
 	if strings.HasSuffix(target.JsonPath, ".sha") {
 		newDigest = strings.TrimPrefix(tag.Digest, "sha256:")
+	} else if !strings.HasSuffix(target.JsonPath, ".digest") {
+		if tag.Version != "" {
+			newDigest = tag.Version
+		} else {
+			newDigest = tag.Name
+		}
 	}
 
 	if currentDigest == newDigest && !u.ForceUpdate {

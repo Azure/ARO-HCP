@@ -223,7 +223,7 @@ func TestValidateConfig(t *testing.T) {
 				},
 			},
 			wantErr:    true,
-			wantErrMsg: "source image is required",
+			wantErrMsg: "source image or githubLatestRelease is required",
 		},
 		{
 			name: "no targets configured",
@@ -398,6 +398,27 @@ func TestRawUpdateOptions_Validate_InvalidConfig(t *testing.T) {
 			t.Errorf("Validate() error = %v, should contain 'invalid configuration'", err.Error())
 		}
 	})
+}
+
+// TestRealConfigValid_Regression ensures the in-repo config.yaml validates and includes the istio-istioctl entry (githubLatestRelease).
+// Run from repo root: go test ./tooling/image-updater/internal/options/ -run TestRealConfigValid
+func TestRealConfigValid_Regression(t *testing.T) {
+	configPath := filepath.Join("..", "..", "config.yaml")
+	if _, err := os.Stat(configPath); os.IsNotExist(err) {
+		t.Skip("in-repo config.yaml not found (run from tooling/image-updater or repo root)")
+	}
+	opts := &RawUpdateOptions{ConfigPath: configPath, DryRun: true}
+	validated, err := opts.Validate(context.Background())
+	if err != nil {
+		t.Fatalf("real config Validate() failed: %v", err)
+	}
+	img, ok := validated.Config.Images["istio-istioctl"]
+	if !ok {
+		t.Fatal("real config should have istio-istioctl entry")
+	}
+	if img.Source.GitHubLatestRelease != "istio/istio" {
+		t.Errorf("istio-istioctl should have githubLatestRelease istio/istio, got %q", img.Source.GitHubLatestRelease)
+	}
 }
 
 func TestComplete_AuthenticationRequirements(t *testing.T) {

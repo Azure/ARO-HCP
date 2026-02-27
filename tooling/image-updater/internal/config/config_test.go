@@ -753,6 +753,48 @@ func TestSource_Validate(t *testing.T) {
 			},
 			wantErr: false,
 		},
+		{
+			name: "valid: githubLatestRelease only",
+			source: Source{
+				GitHubLatestRelease: "istio/istio",
+			},
+			wantErr: false,
+		},
+		{
+			name: "invalid: githubLatestRelease bad format",
+			source: Source{
+				GitHubLatestRelease: "istio",
+			},
+			wantErr:    true,
+			wantErrMsg: "owner/repo",
+		},
+		{
+			name: "invalid: githubLatestRelease with image",
+			source: Source{
+				GitHubLatestRelease: "istio/istio",
+				Image:               "quay.io/something",
+			},
+			wantErr:    true,
+			wantErrMsg: "image must not be set",
+		},
+		{
+			name: "invalid: githubLatestRelease with tag",
+			source: Source{
+				GitHubLatestRelease: "istio/istio",
+				Tag:                 "v1.0.0",
+			},
+			wantErr:    true,
+			wantErrMsg: "tag/tagPattern must not be set",
+		},
+		{
+			name: "invalid: githubLatestRelease with multiArch",
+			source: Source{
+				GitHubLatestRelease: "istio/istio",
+				MultiArch:           true,
+			},
+			wantErr:    true,
+			wantErrMsg: "architecture/multiArch must not be set",
+		},
 	}
 
 	for _, tt := range tests {
