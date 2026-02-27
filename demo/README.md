@@ -8,6 +8,22 @@
 * (optional but useful) port-forward Maestro running on SC: `kubectl port-forward -n maestro svc/maestro 8002:8000`
 * ensure that the environment variable `$LOCATION` is either unset or set to the integrated dev environment's region
 
+## Environment Detection
+
+The demo scripts automatically detect the target environment (in [env_vars](./env_vars)) using the following logic:
+
+### Development Mode (`RP_MODE=development`)
+When `RP_MODE=development` is set, the demo scripts will:
+- Use `http://localhost:8443` as the frontend host rather than routing to ARM
+- Set `DEMO_ENV_NAME` to the value of `DEPLOY_ENV` (defaults to `pers`)
+
+### Other Environments
+When `RP_MODE` is NOT set to `development`, all requests will route to ARM, and the scripts will check Azure Feature Exposure Control (AFEC) flags on the current subscription to determine the environment:
+
+- **INT Environment**: Detected by registered `Microsoft.RedHatOpenShift/INT-APPROVED` AFEC flag on the subscription
+- **STG Environment**: Detected by registered `Microsoft.RedHatOpenShift/STAGING-APPROVED` AFEC flag on the subscription
+- **PROD Environment**: Default (if the other AFEC flags are not present)
+
 ## Register the subscription with the RP
 
 The RP needs to know the subscription in order to be able to create clusters in it.
