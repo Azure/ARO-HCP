@@ -37,23 +37,10 @@ func runGrafanaDashboardsStep(id graph.Identifier, step *types.GrafanaDashboards
 		return err
 	}
 
-	state.RLock()
-	outputs := state.Outputs
-	state.RUnlock()
-
-	value, err := resolveInput(id.ServiceGroup, step.GrafanaName, outputs)
-	if err != nil {
-		return fmt.Errorf("could not resolve grafana name: %w", err)
-	}
-	grafanaName, ok := value.(string)
-	if !ok {
-		return fmt.Errorf("grafana name is %T, not a string", value)
-	}
-
 	observabilityPath := filepath.Join(options.PipelineDirectory, step.ObservabilityConfig)
 
 	opts := sync.DefaultSyncDashboardsOptions()
-	opts.GrafanaName = grafanaName
+	opts.GrafanaName = step.GrafanaName
 	opts.SubscriptionID = executionTarget.GetSubscriptionID()
 	opts.ResourceGroup = executionTarget.GetResourceGroup()
 	opts.DryRun = options.DryRun

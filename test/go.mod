@@ -7,7 +7,7 @@ require (
 	github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp v0.0.0-00010101000000-000000000000
 	github.com/Azure/ARO-HCP/tooling/hcpctl v0.0.0-20260113131010-8f869ff652e6
 	github.com/Azure/ARO-HCP/tooling/templatize v0.0.0-00010101000000-000000000000
-	github.com/Azure/ARO-Tools/tools/prow-job-executor v0.0.0-20260225184422-833e19daa754
+	github.com/Azure/ARO-Tools/tools/prow-job-executor v0.0.0-20260226214441-12d6fad60000
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v3 v3.0.0-beta.2
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v5 v5.7.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/kusto/armkusto/v2 v2.3.0
@@ -50,14 +50,14 @@ require (
 	contrib.go.opencensus.io/exporter/ocagent v0.7.1-0.20200907061046-05415f1de66d // indirect
 	contrib.go.opencensus.io/exporter/prometheus v0.4.2 // indirect
 	dario.cat/mergo v1.0.1 // indirect
-	github.com/Azure/ARO-Tools/config v0.0.0-20260225184422-833e19daa754 // indirect
-	github.com/Azure/ARO-Tools/pipelines v0.0.0-20260225184422-833e19daa754 // indirect
-	github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20260225184422-833e19daa754 // indirect
-	github.com/Azure/ARO-Tools/tools/grafanactl v0.0.0-20260225184422-833e19daa754 // indirect
-	github.com/Azure/ARO-Tools/tools/helm v0.0.0-20260225184422-833e19daa754 // indirect
-	github.com/Azure/ARO-Tools/tools/registration v0.0.0-20260225184422-833e19daa754 // indirect
-	github.com/Azure/ARO-Tools/tools/secret-sync v0.0.0-20260225184422-833e19daa754 // indirect
-	github.com/Azure/ARO-Tools/tools/yamlwrap v0.0.0-20260225184422-833e19daa754 // indirect
+	github.com/Azure/ARO-Tools/config v0.0.0-20260226214441-12d6fad60000 // indirect
+	github.com/Azure/ARO-Tools/pipelines v0.0.0-20260226214441-12d6fad60000 // indirect
+	github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20260226214441-12d6fad60000 // indirect
+	github.com/Azure/ARO-Tools/tools/grafanactl v0.0.0-20260226214441-12d6fad60000 // indirect
+	github.com/Azure/ARO-Tools/tools/helm v0.0.0-20260226214441-12d6fad60000 // indirect
+	github.com/Azure/ARO-Tools/tools/registration v0.0.0-20260226214441-12d6fad60000 // indirect
+	github.com/Azure/ARO-Tools/tools/secret-sync v0.0.0-20260226214441-12d6fad60000 // indirect
+	github.com/Azure/ARO-Tools/tools/yamlwrap v0.0.0-20260226214441-12d6fad60000 // indirect
 	github.com/Azure/azure-kusto-go/azkustodata v1.2.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice v1.0.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/dashboard/armdashboard v1.2.0 // indirect

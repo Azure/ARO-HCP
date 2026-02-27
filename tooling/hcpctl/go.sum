@@ -1,5 +1,5 @@
-github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20260225184422-833e19daa754 h1:BK1rb/NVXcLaHAwpnS6SoZ5SbOswnvIqrtRRAce0kmg=
-github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20260225184422-833e19daa754/go.mod h1:bBo5YOjQf47SHTl5ohULLUin2PAEt6s5D5GQZQRgO5w=
+github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20260226214441-12d6fad60000 h1:dYb727vJkc6UYTvQT6TCqHEEPm+8hJu563byJ1viU8c=
+github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20260226214441-12d6fad60000/go.mod h1:bBo5YOjQf47SHTl5ohULLUin2PAEt6s5D5GQZQRgO5w=
 github.com/Azure/azure-kusto-go/azkustodata v1.2.0 h1:Py3f/vVz6F+bX//wPmlSJNVftprKHgsnJQ8G2R6IKaM=
 github.com/Azure/azure-kusto-go/azkustodata v1.2.0/go.mod h1:pYbM6A7z4XDU+3S0+OgoyUOuCOWPUe/hyEfnOCT6Gok=
 github.com/Azure/azure-sdk-for-go/sdk/azcore v1.21.0 h1:fou+2+WFTib47nS+nz/ozhEBnvU96bKHy6LjRsY4E28=
