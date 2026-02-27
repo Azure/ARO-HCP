@@ -107,6 +107,10 @@ func NewAdminAPI(
 		middleware.V1HCPResourcePattern("GET", "/cosmosdump"),
 		hcpMiddleware.HandlerFunc(errorutils.ReportError(cosmosdump.NewCosmosDumpHandler(dbClient).ServeHTTP)),
 	)
+	middlewareMux.Handle(
+		middleware.V1HCPResourcePattern("GET", "/serialconsole"),
+		hcpMiddleware.HandlerFunc(errorutils.ReportError(hcp.NewHCPSerialConsoleHandler(dbClient, clustersServiceClient, fpaCredentialRetriever).ServeHTTP)),
+	)
 
 	// Non-HCP admin routes
 	middlewareMux.Handle("GET /admin/helloworld", handlers.HelloWorldHandler())
