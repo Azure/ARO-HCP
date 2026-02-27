@@ -93,10 +93,6 @@ func NewGenericOperationController(
 }
 
 func (c *genericOperation) SyncOnce(ctx context.Context, keyObj any) error {
-	logger := utils.LoggerFromContext(ctx)
-	logger.Info("start sync")
-	defer logger.Info("end sync")
-
 	key := keyObj.(controllerutils.OperationKey)
 
 	syncErr := c.synchronizer.SynchronizeOperation(ctx, key)
