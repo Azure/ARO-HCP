@@ -46,8 +46,9 @@ var (
 
 // ServiceTagUsageCollector is a Prometheus collector that gathers public IP metrics from Azure
 type ServiceTagUsageCollector struct {
-	client *graphquery.ResourceGraphClient
-	cache  *cache.MetricsCache
+	client       *graphquery.ResourceGraphClient
+	cache        *cache.MetricsCache
+	errorCounter prometheus.Counter
 }
 
 var _ CachingCollector = &ServiceTagUsageCollector{}
@@ -71,8 +72,9 @@ func NewServiceTagUsageCollector(ctx context.Context, subscriptionNames []string
 	}
 
 	return &ServiceTagUsageCollector{
-		client: resourceGraphClient,
-		cache:  cache.NewMetricsCache(cacheTTL),
+		client:       resourceGraphClient,
+		cache:        cache.NewMetricsCache(cacheTTL),
+		errorCounter: errorCounter,
 	}, nil
 }
 
@@ -133,6 +135,7 @@ func (c *ServiceTagUsageCollector) CollectMetricValues(ctx context.Context) {
 		Output: &publicIPs,
 	})
 	if err != nil {
+		c.errorCounter.Inc()
 		logger.Error(err, "error collecting public IP addresses")
 		return
 	}
@@ -142,6 +145,7 @@ func (c *ServiceTagUsageCollector) CollectMetricValues(ctx context.Context) {
 		if publicIP.IpTagsString != "[]" {
 			ipTags, err = parseIPTags(publicIP.IpTagsString)
 			if err != nil {
+				c.errorCounter.Inc()
 				logger.Error(err, "error parsing IP tags")
 				continue
 			}
@@ -164,6 +168,7 @@ func (c *ServiceTagUsageCollector) CollectMetricValues(ctx context.Context) {
 				ipTag.ServiceTagValue,
 			))
 			if err != nil {
+				c.errorCounter.Inc()
 				logger.Error(err, "error adding metric to cache")
 				continue
 			}

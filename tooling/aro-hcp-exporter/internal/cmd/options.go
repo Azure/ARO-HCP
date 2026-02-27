@@ -188,13 +188,16 @@ func (o *ValidatedOptions) CreateEnabledCollectors(ctx context.Context, creds az
 	for _, collector := range o.EnabledCollectors {
 		switch collector {
 		case metrics.ServiceTagUsageCollectorName:
+			errorCounter := collectorErrorsTotal.WithLabelValues(metrics.ServiceTagUsageCollectorName)
 			publicIPCollector, err := metrics.NewServiceTagUsageCollector(ctx, o.SubscriptionNames, creds, o.CacheTTL)
+
 			if err != nil {
 				return nil, fmt.Errorf("failed to create public IP collector: %w", err)
 			}
 			collectors = append(collectors, publicIPCollector)
 		case metrics.KustoLogsCurrentCollectorName:
-			kustoCollector, err := metrics.NewKustoLogsCurrentCollector(o.KustoCluster, o.KustoRegion, o.ClusterNames, o.CacheTTL)
+			errorCounter := collectorErrorsTotal.WithLabelValues(metrics.KustoLogsCurrentCollectorName)
+			kustoCollector, err := metrics.NewKustoLogsCurrentCollector(o.KustoCluster, o.KustoRegion, o.ClusterNames, o.CacheTTL, errorCounter)
 			if err != nil {
 				return nil, fmt.Errorf("failed to create Kusto logs collector: %w", err)
 			}
