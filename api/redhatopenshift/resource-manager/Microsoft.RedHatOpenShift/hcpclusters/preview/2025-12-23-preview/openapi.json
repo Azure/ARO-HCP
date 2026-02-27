@@ -2269,6 +2269,18 @@
             "create"
           ]
         },
+        "imageDigestMirrors": {
+          "type": "array",
+          "description": "imageDigestMirrors is a set of rules to allow pulling images from a\nmirrored registry by using digest specifications.",
+          "items": {
+            "$ref": "#/definitions/ImageDigestMirror"
+          },
+          "x-ms-mutability": [
+            "read",
+            "update",
+            "create"
+          ]
+        },
         "nodeDrainTimeoutMinutes": {
           "type": "integer",
           "format": "int32",
@@ -2291,6 +2303,7 @@
         }
       },
       "required": [
+        "version",
         "platform"
       ]
     },
@@ -2299,7 +2312,7 @@
       "description": "HCP cluster properties",
       "properties": {
         "version": {
-          "$ref": "#/definitions/VersionProfile",
+          "$ref": "#/definitions/VersionProfileUpdate",
           "description": "Version of the control plane components",
           "x-ms-mutability": [
             "read",
@@ -2319,6 +2332,18 @@
         "autoscaling": {
           "$ref": "#/definitions/ClusterAutoscalingProfile",
           "description": "Configure ClusterAutoscaling .",
+          "x-ms-mutability": [
+            "read",
+            "update",
+            "create"
+          ]
+        },
+        "imageDigestMirrors": {
+          "type": "array",
+          "description": "imageDigestMirrors is a set of rules to allow pulling images from a\nmirrored registry by using digest specifications.",
+          "items": {
+            "$ref": "#/definitions/ImageDigestMirror"
+          },
           "x-ms-mutability": [
             "read",
             "update",
@@ -2484,6 +2509,57 @@
         "dataPlaneOperators"
       ]
     },
+    "ImageDigestMirror": {
+      "type": "object",
+      "description": "ImageDigestMirror specifies a set of mirror registries to redirect image\npulls targeting the specified source registries.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "The unique identifier for this image digest mirror definition"
+        },
+        "source": {
+          "type": "string",
+          "description": "The source image registry to redirect image pulls from"
+        },
+        "mirrors": {
+          "type": "array",
+          "description": "The set of mirror registries to redirect image pulls to",
+          "minItems": 1,
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "source",
+        "mirrors"
+      ]
+    },
+    "KeyVaultVisibility": {
+      "type": "string",
+      "description": "The internet visibility of a keyvault resource",
+      "enum": [
+        "Public",
+        "Private"
+      ],
+      "x-ms-enum": {
+        "name": "KeyVaultVisibility",
+        "modelAsString": true,
+        "values": [
+          {
+            "name": "Public",
+            "value": "Public",
+            "description": "The keyvault is visible from the internet."
+          },
+          {
+            "name": "Private",
+            "value": "Private",
+            "description": "The keyvault is not visible from the internet."
+          }
+        ]
+      }
+    },
     "KmsEncryptionProfile": {
       "type": "object",
       "description": "Configure etcd encryption Key Management Service (KMS) key.\nYour Microsoft Entra application used to create the cluster must be authorized to access this keyvault,\ne.g using the AzureCLI: `az keyvault set-policy -n $KEYVAULT_NAME --key-permissions decrypt encrypt --spn (YOUR APPLICATION CLIENT ID)`",
@@ -2517,6 +2593,10 @@
           "minLength": 1,
           "maxLength": 255
         },
+        "visibility": {
+          "$ref": "#/definitions/KeyVaultVisibility",
+          "description": "visibility of the keyvault that contains the secret."
+        },
         "version": {
           "type": "string",
           "description": "version contains the version of the key to use.",
@@ -2527,6 +2607,7 @@
       "required": [
         "vaultName",
         "name",
+        "visibility",
         "version"
       ]
     },
@@ -2850,7 +2931,7 @@
       "description": "Represents the node pool properties",
       "properties": {
         "version": {
-          "$ref": "#/definitions/NodePoolVersionProfile",
+          "$ref": "#/definitions/NodePoolVersionProfileUpdate",
           "description": "OpenShift version for the nodepool",
           "x-ms-mutability": [
             "read",
@@ -2943,6 +3024,33 @@
       ]
     },
     "NodePoolVersionProfile": {
+      "type": "object",
+      "description": "Versions represents an OpenShift version.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "ID is the unique identifier of the version.",
+          "x-ms-mutability": [
+            "read",
+            "update",
+            "create"
+          ]
+        },
+        "channelGroup": {
+          "type": "string",
+          "description": "ChannelGroup is the name of the set to which this version belongs.\nEach version belongs to only a single set.\n\nIf not specified, the default value is 'stable'.\n\nNote: The default value is not declared in the API specification because\nof a TypeSpec bug with updatable fields. The default value will be\ndeclared in a future API version once the TypeSpec bug is fixed.\nhttps://github.com/Azure/typespec-azure/issues/1586",
+          "x-ms-mutability": [
+            "read",
+            "update",
+            "create"
+          ]
+        }
+      },
+      "required": [
+        "id"
+      ]
+    },
+    "NodePoolVersionProfileUpdate": {
       "type": "object",
       "description": "Versions represents an OpenShift version.",
       "properties": {
@@ -3105,22 +3213,22 @@
           "description": "The type of the OS disk.\n- https://learn.microsoft.com/en-us/azure/virtual-machines/ephemeral-os-disks",
           "default": "Managed",
           "enum": [
-            "Ephemeral",
-            "Managed"
+            "Managed",
+            "Ephemeral"
           ],
           "x-ms-enum": {
             "name": "OsDiskType",
             "modelAsString": true,
             "values": [
               {
-                "name": "Ephemeral",
-                "value": "Ephemeral",
-                "description": "Ephemeral OS disk - stored on local VM cache/temporary storage.\nProvides lower latency and faster node operations.\nRequires VM with sufficient cache size."
-              },
-              {
                 "name": "Managed",
                 "value": "Managed",
                 "description": "Managed OS disk - stored as an Azure managed disk (network-attached).\nDefault behavior for VMs without sufficient cache."
+              },
+              {
+                "name": "Ephemeral",
+                "value": "Ephemeral",
+                "description": "Ephemeral OS disk - stored on local VM cache/temporary storage.\nProvides lower latency and faster node operations.\nRequires VM with sufficient cache size."
               }
             ]
           },
@@ -3146,6 +3254,14 @@
         "subnetId": {
           "$ref": "#/definitions/SubnetResourceId",
           "description": "The Azure resource ID of the worker subnet\nNote that a subnet cannot be reused between ARO-HCP Clusters.",
+          "x-ms-mutability": [
+            "read",
+            "create"
+          ]
+        },
+        "vnetIntegrationSubnetId": {
+          "$ref": "#/definitions/SubnetResourceId",
+          "description": "The Azure resource ID of a subnet that enables direct,\nprivate network connectivity between the hosted control plane\nand your cluster's nodes. This subnet must be dedicated to ARO HCP\nand cannot be shared with the cluster subnet or any node pool subnets.",
           "x-ms-mutability": [
             "read",
             "create"
@@ -3200,6 +3316,7 @@
       },
       "required": [
         "subnetId",
+        "vnetIntegrationSubnetId",
         "networkSecurityGroupId",
         "operatorsAuthentication",
         "issuerUrl"
@@ -3683,9 +3800,37 @@
       "properties": {
         "id": {
           "type": "string",
-          "description": "ID is the unique identifier of the version.",
+          "description": "ID is the desired X.Y version of the cluster control plane.",
           "x-ms-mutability": [
             "read",
+            "update",
+            "create"
+          ]
+        },
+        "channelGroup": {
+          "type": "string",
+          "description": "ChannelGroup is the name of the set to which this version belongs.\nEach version belongs to only a single set.\n\nIf not specified, the default value is 'stable'.\n\nNote: The default value is not declared in the API specification because\nof a TypeSpec bug with updatable fields. The default value will be\ndeclared in a future API version once the TypeSpec bug is fixed.\nhttps://github.com/Azure/typespec-azure/issues/1586",
+          "x-ms-mutability": [
+            "read",
+            "update",
+            "create"
+          ]
+        }
+      },
+      "required": [
+        "id"
+      ]
+    },
+    "VersionProfileUpdate": {
+      "type": "object",
+      "description": "Versions represents an OpenShift version.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "ID is the desired X.Y version of the cluster control plane.",
+          "x-ms-mutability": [
+            "read",
+            "update",
             "create"
           ]
         },

@@ -326,6 +326,9 @@ type HcpOpenShiftClusterProperties struct {
 	// REQUIRED; Azure platform configuration
 	Platform *PlatformProfile
 
+	// REQUIRED; Version of the control plane components
+	Version *VersionProfile
+
 	// Shows the cluster API server profile
 	API *APIProfile
 
@@ -341,6 +344,9 @@ type HcpOpenShiftClusterProperties struct {
 	// Configure ETCD.
 	Etcd *EtcdProfile
 
+	// imageDigestMirrors is a set of rules to allow pulling images from a mirrored registry by using digest specifications.
+	ImageDigestMirrors []*ImageDigestMirror
+
 	// Cluster network configuration
 	Network *NetworkProfile
 
@@ -354,9 +360,6 @@ type HcpOpenShiftClusterProperties struct {
 	// given NodePool
 	NodeDrainTimeoutMinutes *int32
 
-	// Version of the control plane components
-	Version *VersionProfile
-
 	// READ-ONLY; Shows the cluster web console information
 	Console *ConsoleProfile
 
@@ -368,6 +371,9 @@ type HcpOpenShiftClusterProperties struct {
 type HcpOpenShiftClusterPropertiesUpdate struct {
 	// Configure ClusterAutoscaling .
 	Autoscaling *ClusterAutoscalingProfile
+
+	// imageDigestMirrors is a set of rules to allow pulling images from a mirrored registry by using digest specifications.
+	ImageDigestMirrors []*ImageDigestMirror
 
 	// nodeDrainTimeoutMinutes is the grace period for how long Pod Disruption Budget-protected workloads will be respected during
 	// any node draining operation. After this grace period, any workloads
@@ -383,7 +389,7 @@ type HcpOpenShiftClusterPropertiesUpdate struct {
 	Platform *PlatformProfileUpdate
 
 	// Version of the control plane components
-	Version *VersionProfile
+	Version *VersionProfileUpdate
 }
 
 // HcpOpenShiftClusterUpdate - HCP cluster resource
@@ -486,6 +492,18 @@ type HcpOperatorIdentityRoleSetProperties struct {
 	DataPlaneOperators []*OperatorIdentityRoles
 }
 
+// ImageDigestMirror specifies a set of mirror registries to redirect image pulls targeting the specified source registries.
+type ImageDigestMirror struct {
+	// REQUIRED; The unique identifier for this image digest mirror definition
+	ID *string
+
+	// REQUIRED; The set of mirror registries to redirect image pulls to
+	Mirrors []*string
+
+	// REQUIRED; The source image registry to redirect image pulls from
+	Source *string
+}
+
 // KmsEncryptionProfile - Configure etcd encryption Key Management Service (KMS) key. Your Microsoft Entra application used
 // to create the cluster must be authorized to access this keyvault, e.g using the AzureCLI: az keyvault
 // set-policy -n $KEYVAULT_NAME --key-permissions decrypt encrypt --spn (YOUR APPLICATION CLIENT ID)
@@ -504,6 +522,9 @@ type KmsKey struct {
 
 	// REQUIRED; version contains the version of the key to use.
 	Version *string
+
+	// REQUIRED; visibility of the keyvault that contains the secret.
+	Visibility *KeyVaultVisibility
 }
 
 // Label represents the Kubernetes label
@@ -692,7 +713,7 @@ type NodePoolPropertiesUpdate struct {
 	Taints []*Taint
 
 	// OpenShift version for the nodepool
-	Version *NodePoolVersionProfile
+	Version *NodePoolVersionProfileUpdate
 }
 
 // NodePoolUpdate - Concrete tracked resource types can be created by aliasing this type using a specific property type.
@@ -721,6 +742,19 @@ type NodePoolUpdate struct {
 
 // NodePoolVersionProfile - Versions represents an OpenShift version.
 type NodePoolVersionProfile struct {
+	// REQUIRED; ID is the unique identifier of the version.
+	ID *string
+
+	// ChannelGroup is the name of the set to which this version belongs. Each version belongs to only a single set.
+	// If not specified, the default value is 'stable'.
+	// Note: The default value is not declared in the API specification because of a TypeSpec bug with updatable fields. The default
+	// value will be declared in a future API version once the TypeSpec bug is
+	// fixed. https://github.com/Azure/typespec-azure/issues/1586
+	ChannelGroup *string
+}
+
+// NodePoolVersionProfileUpdate - Versions represents an OpenShift version.
+type NodePoolVersionProfileUpdate struct {
 	// ChannelGroup is the name of the set to which this version belongs. Each version belongs to only a single set.
 	// If not specified, the default value is 'stable'.
 	// Note: The default value is not declared in the API specification because of a TypeSpec bug with updatable fields. The default
@@ -840,6 +874,11 @@ type PlatformProfile struct {
 
 	// REQUIRED; The Azure resource ID of the worker subnet Note that a subnet cannot be reused between ARO-HCP Clusters.
 	SubnetID *string
+
+	// REQUIRED; The Azure resource ID of a subnet that enables direct, private network connectivity between the hosted control
+	// plane and your cluster's nodes. This subnet must be dedicated to ARO HCP and cannot be
+	// shared with the cluster subnet or any node pool subnets.
+	VnetIntegrationSubnetID *string
 
 	// Resource group name to put cluster resources
 	// If not specified then a unique name is generated from the following pattern
@@ -1070,6 +1109,19 @@ type UsernameClaimProfileUpdate struct {
 
 // VersionProfile - Versions represents an OpenShift version.
 type VersionProfile struct {
+	// REQUIRED; ID is the desired X.Y version of the cluster control plane.
+	ID *string
+
+	// ChannelGroup is the name of the set to which this version belongs. Each version belongs to only a single set.
+	// If not specified, the default value is 'stable'.
+	// Note: The default value is not declared in the API specification because of a TypeSpec bug with updatable fields. The default
+	// value will be declared in a future API version once the TypeSpec bug is
+	// fixed. https://github.com/Azure/typespec-azure/issues/1586
+	ChannelGroup *string
+}
+
+// VersionProfileUpdate - Versions represents an OpenShift version.
+type VersionProfileUpdate struct {
 	// ChannelGroup is the name of the set to which this version belongs. Each version belongs to only a single set.
 	// If not specified, the default value is 'stable'.
 	// Note: The default value is not declared in the API specification because of a TypeSpec bug with updatable fields. The default
@@ -1077,6 +1129,6 @@ type VersionProfile struct {
 	// fixed. https://github.com/Azure/typespec-azure/issues/1586
 	ChannelGroup *string
 
-	// ID is the unique identifier of the version.
+	// ID is the desired X.Y version of the cluster control plane.
 	ID *string
 }
