@@ -50,6 +50,10 @@ type BackendRootCmdFlags struct {
 	AzureFirstPartyApplicationClientID              string
 	LogVerbosity                                    int
 	MaestroSourceEnvironmentIdentifier              string
+	AzureMIMockCertificateBundlePath                string
+	AzureMIMockClientID                             string
+	AzureMIMockPrincipalID                          string
+	AzureMIMockTenantID                             string
 }
 
 func (f *BackendRootCmdFlags) AddFlags(cmd *cobra.Command) {
@@ -86,6 +90,56 @@ func (f *BackendRootCmdFlags) AddFlags(cmd *cobra.Command) {
 			"It must be between 1 and 10 characters and can contain only lowercase letters. Example value: arohcpdev."+
 			"Changing the value causes the Maestro Source IDs generated to change which impacts visibility of previously existing resources. It is "+
 			"therefore a must to first understand and plan the impact changing the value would have, including any potential migration plan before changing it.",
+	)
+
+	cmd.Flags().StringVar(
+		&f.AzureMIMockCertificateBundlePath,
+		"azure-mi-mock-certificate-bundle-path",
+		"",
+		"Path to a file containing an X.509 Certificate based client certificate, consisting of a private key and "+
+			"certificate chain, in a PEM or PKCS#12 format for authenticating clients with the msi mock identity, which is "+
+			"a common Azure Service Principal identity. This flag should only be set in environments where "+
+			"Microsoft's MI Dataplane service is not available. "+
+			"When set, it must be set in combination with the '--azure-mi-mock-client-id' and "+
+			"'--azure-mi-mock-service-principal-id' and '--azure-mi-mock-tenant-id' flags.",
+	)
+
+	cmd.Flags().StringVar(
+		&f.AzureMIMockClientID,
+		"azure-mi-mock-client-id",
+		"",
+		"The client id of the ARO-HCP Clusters Managed Identities (MI) mock identity, which is a common Azure Service Principal identity. "+
+			"This flag should only be set in environments where Microsoft's MI Dataplane service is not available. "+
+			"When set, it must be set in combination with the '--azure-mi-mock-certificate-bundle-path' and "+
+			"'--azure-mi-mock-service-principal-id' and '--azure-mi-mock-tenant-id' flags.",
+	)
+
+	cmd.Flags().StringVar(
+		&f.AzureMIMockPrincipalID,
+		"azure-mi-mock-service-principal-id",
+		"",
+		"The principal id of the ARO-HCP Clusters Managed Identities (MI) mock identity, which is a common Azure Service Principal identity. "+
+			"This flag should only be set in environments where Microsoft's MI Dataplane service is not available. "+
+			"When set, it must be set in combination with the '--azure-mi-mock-certificate-bundle-path' and "+
+			"'--azure-mi-mock-principal-client-id' and '--azure-mi-mock-tenant-id' flags.",
+	)
+
+	cmd.Flags().StringVar(
+		&f.AzureMIMockTenantID,
+		"azure-mi-mock-tenant-id",
+		"",
+		"The tenant id of the ARO-HCP Clusters Managed Identities (MI) mock identity, which is a common Azure Service Principal identity. "+
+			"This flag should only be set in environments where Microsoft's MI Dataplane service is not available. "+
+			"When set, it must be set in combination with the '--azure-mi-mock-certificate-bundle-path', "+
+			"'--azure-mi-mock-client-id' and '--azure-mi-mock-service-principal-id' flags.",
+	)
+
+	// We require that if one of the mi mock service principal flags is set, all of them must be set together.
+	cmd.MarkFlagsRequiredTogether(
+		"azure-mi-mock-certificate-bundle-path",
+		"azure-mi-mock-client-id",
+		"azure-mi-mock-principal-id",
+		"azure-mi-mock-tenant-id",
 	)
 
 	cmd.MarkFlagsRequiredTogether("cosmos-name", "cosmos-url")
