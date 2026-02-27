@@ -54,7 +54,7 @@ type AzureADClaims struct {
 
 // GetCertificateCredential downloads a certificate from Azure Key Vault and creates a credential
 func GetCertificateCredential(ctx context.Context, config CertificateAuthConfig) (azcore.TokenCredential, error) {
-	creds, err := azidentity.NewDefaultAzureCredential(nil)
+	creds, err := azidentity.NewDefaultAzureCredential(&azidentity.DefaultAzureCredentialOptions{RequireAzureTokenCredentials: true})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Key Vault credential: %w", err)
 	}

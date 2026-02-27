@@ -189,6 +189,8 @@ spec:
           value: ""
         - name: OTEL_TRACES_EXPORTER
           value: ""
+        - name: AZURE_TOKEN_CREDENTIALS
+          value: "WorkloadIdentityCredential"
         ports:
         - containerPort: 8081
           protocol: TCP
