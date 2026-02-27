@@ -21,11 +21,13 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/go-logr/logr/testr"
+	"go.uber.org/mock/gomock"
+
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
-	"github.com/go-logr/logr/testr"
+
 	sdk "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
-	"go.uber.org/mock/gomock"
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/database"
