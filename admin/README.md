@@ -18,6 +18,7 @@ This prefix is abbreviated as `{resourceId}` below.
 |--------|------|-------------|
 | `PUT` | `/admin/v1/hcp{resourceId}/breakglass?group=...&ttl=...` | Create a breakglass session ([details](breakglass.md)) |
 | `GET` | `/admin/v1/hcp{resourceId}/breakglass/{sessionName}/kubeconfig` | Get kubeconfig for a breakglass session ([details](breakglass.md)) |
+| `GET` | `/admin/v1/hcp{resourceId}/serialconsole?vmName=...` | Retrieve serial console logs for a VM ([details](serialconsole.md)) |
 | `GET` | `/admin/v1/hcp{resourceId}/cosmosdump` | Cosmos DB dump for a cluster |
 | `GET` | `/admin/v1/hcp{resourceId}/helloworld` | HCP hello world (dev/test) |
 | `GET` | `/admin/helloworld` | Hello world (dev/test) |
