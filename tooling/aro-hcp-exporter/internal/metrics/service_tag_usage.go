@@ -76,7 +76,6 @@ func (c *ServiceTagUsageCollector) Describe(ch chan<- *prometheus.Desc) {
 }
 
 func (c *ServiceTagUsageCollector) Collect(ch chan<- prometheus.Metric) {
-	c.cache.GetAllMetrics()
 	for _, metric := range c.cache.GetAllMetrics() {
 		ch <- metric
 	}

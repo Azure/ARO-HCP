@@ -36,7 +36,7 @@ type MockKustoClient struct {
 	mock.Mock
 }
 
-func (m *MockKustoClient) ExecutePreconfiguredQuery(ctx context.Context, query *kusto.ConfigurableQuery, outputChannel chan<- azkquery.Row) (*kusto.QueryResult, error) {
+func (m *MockKustoClient) ExecutePreconfiguredQuery(ctx context.Context, query *kusto.ConfigurableQuery, outputChannel chan<- kusto.TaggedRow) (*kusto.QueryResult, error) {
 	args := m.Called(ctx, query, outputChannel)
 	return args.Get(0).(*kusto.QueryResult), args.Error(1)
 }
@@ -119,7 +119,7 @@ func TestQueryClient_ConcurrentQueries_Success(t *testing.T) {
 	mockFileWriter := &MockFileWriter{}
 
 	ctx := context.Background()
-	outputChannel := make(chan azkquery.Row, 10)
+	outputChannel := make(chan kusto.TaggedRow, 10)
 	defer close(outputChannel)
 
 	// Create test queries
@@ -162,7 +162,7 @@ func TestQueryClient_ConcurrentQueries_QueryExecutionError(t *testing.T) {
 	mockFileWriter := &MockFileWriter{}
 
 	ctx := context.Background()
-	outputChannel := make(chan azkquery.Row, 10)
+	outputChannel := make(chan kusto.TaggedRow, 10)
 	defer close(outputChannel)
 
 	query := &kusto.ConfigurableQuery{Name: "failing_query"}
@@ -190,7 +190,7 @@ func TestQueryClient_ConcurrentQueries_FileWriteError(t *testing.T) {
 	mockFileWriter := &MockFileWriter{}
 
 	ctx := context.Background()
-	outputChannel := make(chan azkquery.Row, 10)
+	outputChannel := make(chan kusto.TaggedRow, 10)
 	defer close(outputChannel)
 
 	query := &kusto.ConfigurableQuery{Name: "query_with_write_error"}
@@ -224,7 +224,7 @@ func TestQueryClient_ConcurrentQueries_EmptyQueries(t *testing.T) {
 	mockFileWriter := &MockFileWriter{}
 
 	ctx := context.Background()
-	outputChannel := make(chan azkquery.Row, 10)
+	outputChannel := make(chan kusto.TaggedRow, 10)
 	defer close(outputChannel)
 
 	queries := []*kusto.ConfigurableQuery{}
@@ -247,7 +247,7 @@ func TestQueryClient_ConcurrentQueries_Concurrency(t *testing.T) {
 	mockFileWriter := &MockFileWriter{}
 
 	ctx := context.Background()
-	outputChannel := make(chan azkquery.Row, 10)
+	outputChannel := make(chan kusto.TaggedRow, 10)
 	defer close(outputChannel)
 
 	// Create multiple test queries
