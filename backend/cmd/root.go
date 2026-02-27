@@ -36,20 +36,25 @@ import (
 )
 
 type BackendRootCmdFlags struct {
-	Kubeconfig                                      string
-	K8sNamespace                                    string
-	AzureLocation                                   string
-	AzureCosmosDBName                               string
-	AzureCosmosDBURL                                string
-	ClustersServiceURL                              string
-	ClustersServiceTLSInsecure                      bool
-	MetricsServerListenAddress                      string
-	HealthzServerListenAddress                      string
-	AzureRuntimeConfigPath                          string
-	AzureFirstPartyApplicationCertificateBundlePath string
-	AzureFirstPartyApplicationClientID              string
-	LogVerbosity                                    int
-	MaestroSourceEnvironmentIdentifier              string
+	Kubeconfig                                                                                    string
+	K8sNamespace                                                                                  string
+	AzureLocation                                                                                 string
+	AzureCosmosDBName                                                                             string
+	AzureCosmosDBURL                                                                              string
+	ClustersServiceURL                                                                            string
+	ClustersServiceTLSInsecure                                                                    bool
+	MetricsServerListenAddress                                                                    string
+	HealthzServerListenAddress                                                                    string
+	AzureRuntimeConfigPath                                                                        string
+	AzureFirstPartyApplicationCertificateBundlePath                                               string
+	AzureFirstPartyApplicationClientID                                                            string
+	LogVerbosity                                                                                  int
+	MaestroSourceEnvironmentIdentifier                                                            string
+	InsecureAzureManagedIdentityMockCertificateBundlePath                                         string
+	InsecureAzureManagedIdentityMockClientID                                                      string
+	InsecureAzureManagedIdentityMockServicePrincipalID                                            string
+	InsecureAzureManagedIdentityMockTenantID                                                      string
+	InsecureIgnoreUserAzureManagedIdentitiesThatNeedManagedIdentitiesDataplaneAvailableAndUseMock bool
 }
 
 func (f *BackendRootCmdFlags) AddFlags(cmd *cobra.Command) {
@@ -88,6 +93,58 @@ func (f *BackendRootCmdFlags) AddFlags(cmd *cobra.Command) {
 			"therefore a must to first understand and plan the impact changing the value would have, including any potential migration plan before changing it.",
 	)
 
+	cmd.Flags().BoolVar(
+		&f.InsecureIgnoreUserAzureManagedIdentitiesThatNeedManagedIdentitiesDataplaneAvailableAndUseMock,
+		"insecure-ignore-user-azure-managed-identities-that-need-managed-identities-dataplane-available-and-use-mock",
+		f.InsecureIgnoreUserAzureManagedIdentitiesThatNeedManagedIdentitiesDataplaneAvailableAndUseMock,
+		"If set, the cluster-scoped user-provided Managed Identities that need the Managed Identities Dataplane service to be available are not used "+
+			"and the managed identity mock identity (MI Mock) will be used instead. The identities that need the Managed Identities Dataplane service are the "+
+			"Cluster's Control Plane Operators identities and the Cluster's Service Managed Identity. Even though when this is set there's no authentication "+
+			"as them against Azure, the backend still leverages them to perform some permissions validation checks",
+	)
+
+	cmd.Flags().StringVar(
+		&f.InsecureAzureManagedIdentityMockCertificateBundlePath,
+		"insecure-azure-managed-identity-mock-certificate-bundle-path",
+		"",
+		"Path to a file containing an X.509 Certificate based client certificate, consisting of a private key and "+
+			"certificate chain, in a PEM or PKCS#12 format for authenticating clients with the msi mock identity, which is "+
+			"a common Azure Service Principal identity. This flag should only be set in environments where "+
+			"Microsoft's MI Dataplane service is not available. "+
+			"When set, it must be set in combination with the '--insecure-azure-managed-identity-mock-client-id' and "+
+			"'--insecure-azure-managed-identity-mock-principal-id' and '--insecure-azure-managed-identity-mock-tenant-id' flags.",
+	)
+
+	cmd.Flags().StringVar(
+		&f.InsecureAzureManagedIdentityMockClientID,
+		"insecure-azure-managed-identity-mock-client-id",
+		"",
+		"The client id of the ARO-HCP Clusters Managed Identities (MI) mock identity, which is a common Azure Service Principal identity. "+
+			"This flag should only be set in environments where Microsoft's MI Dataplane service is not available. "+
+			"When set, it must be set in combination with the '--insecure-azure-managed-identity-mock-certificate-bundle-path' and "+
+			"'--insecure-azure-managed-identity-mock-principal-id' and '--insecure-azure-managed-identity-mock-tenant-id' flags.",
+	)
+
+	cmd.Flags().StringVar(
+		&f.InsecureAzureManagedIdentityMockServicePrincipalID,
+		"insecure-azure-managed-identity-mock-principal-id",
+		"",
+		"The principal id of the ARO-HCP Clusters Managed Identities (MI) mock identity, which is a common Azure Service Principal identity. "+
+			"This flag should only be set in environments where Microsoft's MI Dataplane service is not available. "+
+			"When set, it must be set in combination with the '--insecure-azure-managed-identity-mock-certificate-bundle-path' and "+
+			"'--azure-mi-mock-principal-client-id' and '--insecure-azure-managed-identity-mock-tenant-id' flags.",
+	)
+
+	cmd.Flags().StringVar(
+		&f.InsecureAzureManagedIdentityMockTenantID,
+		"insecure-azure-managed-identity-mock-tenant-id",
+		"",
+		"The tenant id of the ARO-HCP Clusters Managed Identities (MI) mock identity, which is a common Azure Service Principal identity. "+
+			"This flag should only be set in environments where Microsoft's MI Dataplane service is not available. "+
+			"When set, it must be set in combination with the '--insecure-azure-managed-identity-mock-certificate-bundle-path', "+
+			"'--insecure-azure-managed-identity-mock-client-id' and '--insecure-azure-managed-identity-mock-principal-id' flags.",
+	)
+
 	cmd.MarkFlagsRequiredTogether("cosmos-name", "cosmos-url")
 }
 
@@ -123,16 +180,41 @@ func (f *BackendRootCmdFlags) validate() error {
 		return utils.TrackError(fmt.Errorf("--maestro-source-environment-identifier must be less than 10 characters"))
 	}
 
+	// If InsecureIgnoreUserAzureManagedIdentitiesThatNeedManagedIdentitiesDataplaneAvailableAndUseMock is set,
+	// we need to ensure that all the azure managed identity mock identity related flags are
+	if f.InsecureIgnoreUserAzureManagedIdentitiesThatNeedManagedIdentitiesDataplaneAvailableAndUseMock {
+		if len(f.InsecureAzureManagedIdentityMockCertificateBundlePath) == 0 {
+			return utils.TrackError(fmt.Errorf("--insecure-azure-managed-identity-mock-certificate-bundle-path must be set"))
+		}
+		if len(f.InsecureAzureManagedIdentityMockClientID) == 0 {
+			return utils.TrackError(fmt.Errorf("--insecure-azure-managed-identity-mock-client-id must be set"))
+		}
+		if len(f.InsecureAzureManagedIdentityMockServicePrincipalID) == 0 {
+			return utils.TrackError(fmt.Errorf("--insecure-azure-managed-identity-mock-principal-id must be set"))
+		}
+		if len(f.InsecureAzureManagedIdentityMockTenantID) == 0 {
+			return utils.TrackError(fmt.Errorf("--insecure-azure-managed-identity-mock-tenant-id must be set"))
+		}
+	} else { // Otherwise we also validate that none of the azure managed identity mock identity related flags are set in that case.
+		if len(f.InsecureAzureManagedIdentityMockCertificateBundlePath) != 0 {
+			return utils.TrackError(fmt.Errorf("--insecure-azure-managed-identity-mock-certificate-bundle-path must not be set"))
+		}
+		if len(f.InsecureAzureManagedIdentityMockClientID) != 0 {
+			return utils.TrackError(fmt.Errorf("--insecure-azure-managed-identity-mock-client-id must not be set"))
+		}
+		if len(f.InsecureAzureManagedIdentityMockServicePrincipalID) != 0 {
+			return utils.TrackError(fmt.Errorf("--insecure-azure-managed-identity-mock-principal-id must not be set"))
+		}
+		if len(f.InsecureAzureManagedIdentityMockTenantID) != 0 {
+			return utils.TrackError(fmt.Errorf("--insecure-azure-managed-identity-mock-tenant-id must not be set"))
+		}
+	}
+
 	return nil
 }
 
 func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.Command) (*app.BackendOptions, error) {
 	logger := utils.LoggerFromContext(ctx)
-
-	err := f.validate()
-	if err != nil {
-		return nil, utils.TrackError(fmt.Errorf("failed to validate flags: %w", err))
-	}
 
 	kubeconfig, err := app.NewKubeconfig(f.Kubeconfig)
 	if err != nil {
