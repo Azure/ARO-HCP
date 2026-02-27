@@ -16,7 +16,7 @@ var randomSuffix = toLower(uniqueString(resourceGroup().id))
 var customerKeyVaultName string = 'cust-kv-${randomSuffix}'
 
 var addressPrefix = '10.0.0.0/16'
-var subnetPrefix = '10.0.0.0/24'
+var subnetPrefix = '10.0.0.0/23'
 
 resource customerNsg 'Microsoft.Network/networkSecurityGroups@2023-05-01' = {
   name: customerNsgName
