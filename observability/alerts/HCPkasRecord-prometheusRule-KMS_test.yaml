@@ -1,0 +1,97 @@
+rule_files:
+- HCPkasRecord-prometheusRule-KMS.yaml
+evaluation_interval: 1m
+tests:
+# Test 1: 100% Availability (Perfect Success)
+- interval: 1m
+  input_series:
+  - series: 'kube_customresource_kubeapiserver_available{status="True", name="test-cluster-1", namespace="clusters", _id="abc-123", cluster="mgmt-cluster"}'
+    # Generate 10 data points with a value of 1, over 10 minutes.
+    values: "1+0x9"
+  promql_expr_test:
+  # Test the 30d rule
+  - expr: kube_customresource_kubeapiserver_available:ratio_avg_30d{name="test-cluster-1", namespace="clusters"}
+    eval_time: 10m
+    exp_samples:
+    - labels: '{__name__="kube_customresource_kubeapiserver_available:ratio_avg_30d", status="True", name="test-cluster-1", namespace="clusters", _id="abc-123", cluster="mgmt-cluster"}'
+      value: 1
+  # Test the 7d rule
+  - expr: kube_customresource_kubeapiserver_available:ratio_avg_7d{name="test-cluster-1", namespace="clusters"}
+    eval_time: 10m
+    exp_samples:
+    - labels: '{__name__="kube_customresource_kubeapiserver_available:ratio_avg_7d", status="True", name="test-cluster-1", namespace="clusters", _id="abc-123", cluster="mgmt-cluster"}'
+      value: 1
+  # Test the 1d rule
+  - expr: kube_customresource_kubeapiserver_available:ratio_avg_1d{name="test-cluster-1", namespace="clusters"}
+    eval_time: 10m
+    exp_samples:
+    - labels: '{__name__="kube_customresource_kubeapiserver_available:ratio_avg_1d", status="True", name="test-cluster-1", namespace="clusters", _id="abc-123", cluster="mgmt-cluster"}'
+      value: 1
+  # Test the 3d rule
+  - expr: kube_customresource_kubeapiserver_available:ratio_avg_3d{name="test-cluster-1", namespace="clusters"}
+    eval_time: 10m
+    exp_samples:
+    - labels: '{__name__="kube_customresource_kubeapiserver_available:ratio_avg_3d", status="True", name="test-cluster-1", namespace="clusters", _id="abc-123", cluster="mgmt-cluster"}'
+      value: 1
+
+# Test 2: 50% Availability (Intermittent Failures)
+- interval: 1m
+  input_series:
+  - series: 'kube_customresource_kubeapiserver_available{status="True", name="test-cluster-2", namespace="clusters", _id="def-456", cluster="mgmt-cluster"}'
+    values: "1 0 1 0 1 0 1 0 1 0"
+  promql_expr_test:
+  # Test the 30d rule
+  - expr: kube_customresource_kubeapiserver_available:ratio_avg_30d{name="test-cluster-2", namespace="clusters"}
+    eval_time: 10m
+    exp_samples:
+    - labels: '{__name__="kube_customresource_kubeapiserver_available:ratio_avg_30d", status="True", name="test-cluster-2", namespace="clusters", _id="def-456", cluster="mgmt-cluster"}'
+      value: 0.5
+  # Test the 7d rule
+  - expr: kube_customresource_kubeapiserver_available:ratio_avg_7d{name="test-cluster-2", namespace="clusters"}
+    eval_time: 10m
+    exp_samples:
+    - labels: '{__name__="kube_customresource_kubeapiserver_available:ratio_avg_7d", status="True", name="test-cluster-2", namespace="clusters", _id="def-456", cluster="mgmt-cluster"}'
+      value: 0.5
+  # Test the 1d rule
+  - expr: kube_customresource_kubeapiserver_available:ratio_avg_1d{name="test-cluster-2", namespace="clusters"}
+    eval_time: 10m
+    exp_samples:
+    - labels: '{__name__="kube_customresource_kubeapiserver_available:ratio_avg_1d", status="True", name="test-cluster-2", namespace="clusters", _id="def-456", cluster="mgmt-cluster"}'
+      value: 0.5
+  # Test the 3d rule
+  - expr: kube_customresource_kubeapiserver_available:ratio_avg_3d{name="test-cluster-2", namespace="clusters"}
+    eval_time: 10m
+    exp_samples:
+    - labels: '{__name__="kube_customresource_kubeapiserver_available:ratio_avg_3d", status="True", name="test-cluster-2", namespace="clusters", _id="def-456", cluster="mgmt-cluster"}'
+      value: 0.5
+
+# Test 3: 0% Availability (Complete Failure)
+- interval: 1m
+  input_series:
+  - series: 'kube_customresource_kubeapiserver_available{status="True", name="test-cluster-3", namespace="clusters", _id="ghi-789", cluster="mgmt-cluster"}'
+    values: "0+0x9"
+  promql_expr_test:
+  # Test the 30d rule
+  - expr: kube_customresource_kubeapiserver_available:ratio_avg_30d{name="test-cluster-3", namespace="clusters"}
+    eval_time: 10m
+    exp_samples:
+    - labels: '{__name__="kube_customresource_kubeapiserver_available:ratio_avg_30d", status="True", name="test-cluster-3", namespace="clusters", _id="ghi-789", cluster="mgmt-cluster"}'
+      value: 0
+  # Test the 7d rule
+  - expr: kube_customresource_kubeapiserver_available:ratio_avg_7d{name="test-cluster-3", namespace="clusters"}
+    eval_time: 10m
+    exp_samples:
+    - labels: '{__name__="kube_customresource_kubeapiserver_available:ratio_avg_7d", status="True", name="test-cluster-3", namespace="clusters", _id="ghi-789", cluster="mgmt-cluster"}'
+      value: 0
+  # Test the 1d rule
+  - expr: kube_customresource_kubeapiserver_available:ratio_avg_1d{name="test-cluster-3", namespace="clusters"}
+    eval_time: 10m
+    exp_samples:
+    - labels: '{__name__="kube_customresource_kubeapiserver_available:ratio_avg_1d", status="True", name="test-cluster-3", namespace="clusters", _id="ghi-789", cluster="mgmt-cluster"}'
+      value: 0
+  # Test the 3d rule
+  - expr: kube_customresource_kubeapiserver_available:ratio_avg_3d{name="test-cluster-3", namespace="clusters"}
+    eval_time: 10m
+    exp_samples:
+    - labels: '{__name__="kube_customresource_kubeapiserver_available:ratio_avg_3d", status="True", name="test-cluster-3", namespace="clusters", _id="ghi-789", cluster="mgmt-cluster"}'
+      value: 0
