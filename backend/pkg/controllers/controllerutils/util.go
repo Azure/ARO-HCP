@@ -18,7 +18,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"slices"
 
 	"github.com/go-logr/logr"
 
@@ -149,10 +148,7 @@ func WriteController(ctx context.Context, controllerCRUD database.ResourceCRUD[a
 	if existingController == nil { // fill in for conveniently avoiding NPEs
 		desiredController = initialControllerFn(controllerName)
 	} else {
-		// TODO we'd prefer a DeepCopy, but we don't have one yet.
-		temp := *existingController
-		desiredController = &temp
-		desiredController.Status.Conditions = slices.Clone(existingController.Status.Conditions)
+		desiredController = existingController.DeepCopy()
 	}
 	for _, mutationFn := range mutationFns {
 		mutationFn(desiredController)
