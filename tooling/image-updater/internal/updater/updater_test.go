@@ -142,7 +142,7 @@ func TestUpdater_UpdateImages(t *testing.T) {
 			registryDigest: "",
 			registryError:  fmt.Errorf("registry unavailable"),
 			wantErr:        true,
-			wantErrMsg:     "failed to fetch latest digest",
+			wantErrMsg:     "failed to fetch latest value",
 		},
 		{
 			name: "no update when digest is same",

@@ -43,16 +43,17 @@ type ImageConfig struct {
 	Targets []Target `yaml:"targets"`
 }
 
-// Source defines where to fetch the latest image digest from
+// Source defines where to fetch the latest image digest (or version string) from
 type Source struct {
-	Image        string          `yaml:"image"`
-	Tag          string          `yaml:"tag,omitempty"`          // Exact tag to use (mutually exclusive with TagPattern)
-	TagPattern   string          `yaml:"tagPattern,omitempty"`   // Regex pattern to filter tags (mutually exclusive with Tag)
-	VersionLabel string          `yaml:"versionLabel,omitempty"` // Container label to fetch for human-friendly version (defaults to "org.opencontainers.image.revision" when tag is used, empty when tagPattern is used)
-	Architecture string          `yaml:"architecture,omitempty"` // Specific architecture to use (e.g., "amd64", "arm64"). Mutually exclusive with MultiArch.
-	MultiArch    bool            `yaml:"multiArch,omitempty"`    // If true, fetch the multi-arch manifest list digest instead of a specific architecture
-	UseAuth      *bool           `yaml:"useAuth,omitempty"`      // true = use auth, nil/false = anonymous (default)
-	KeyVault     *KeyVaultConfig `yaml:"keyVault,omitempty"`     // Optional: Azure Key Vault config for fetching pull secrets
+	Image               string          `yaml:"image"`
+	GitHubLatestRelease string          `yaml:"githubLatestRelease,omitempty"` // If set, fetch latest release tag from GitHub (e.g. "istio/istio"); used for version-only targets, ignores Image for fetch
+	Tag                 string          `yaml:"tag,omitempty"`                 // Exact tag to use (mutually exclusive with TagPattern)
+	TagPattern          string          `yaml:"tagPattern,omitempty"`          // Regex pattern to filter tags (mutually exclusive with Tag)
+	VersionLabel        string          `yaml:"versionLabel,omitempty"`        // Container label to fetch for human-friendly version (defaults to "org.opencontainers.image.revision" when tag is used, empty when tagPattern is used)
+	Architecture        string          `yaml:"architecture,omitempty"`        // Specific architecture to use (e.g., "amd64", "arm64"). Mutually exclusive with MultiArch.
+	MultiArch           bool            `yaml:"multiArch,omitempty"`           // If true, fetch the multi-arch manifest list digest instead of a specific architecture
+	UseAuth             *bool           `yaml:"useAuth,omitempty"`             // true = use auth, nil/false = anonymous (default)
+	KeyVault            *KeyVaultConfig `yaml:"keyVault,omitempty"`            // Optional: Azure Key Vault config for fetching pull secrets
 }
 
 // KeyVaultConfig holds Azure Key Vault configuration for fetching pull secrets
@@ -69,16 +70,33 @@ type Target struct {
 
 // Validate checks if the Source configuration is valid
 func (s *Source) Validate() error {
-	// Tag and TagPattern are mutually exclusive
+	if s.GitHubLatestRelease != "" {
+		// GitHub latest release: require "owner/repo" format
+		if !strings.Contains(s.GitHubLatestRelease, "/") || strings.Count(s.GitHubLatestRelease, "/") != 1 {
+			return fmt.Errorf("githubLatestRelease must be in format owner/repo (e.g. istio/istio)")
+		}
+		// Registry-specific fields are not allowed with githubLatestRelease
+		if s.Image != "" {
+			return fmt.Errorf("image must not be set when githubLatestRelease is used")
+		}
+		if s.Tag != "" || s.TagPattern != "" {
+			return fmt.Errorf("tag/tagPattern must not be set when githubLatestRelease is used")
+		}
+		if s.Architecture != "" || s.MultiArch {
+			return fmt.Errorf("architecture/multiArch must not be set when githubLatestRelease is used")
+		}
+		return nil
+	}
+
+	if s.Image == "" {
+		return fmt.Errorf("image is required when githubLatestRelease is not set")
+	}
 	if s.Tag != "" && s.TagPattern != "" {
 		return fmt.Errorf("tag and tagPattern are mutually exclusive, only one can be specified")
 	}
-
-	// Architecture and MultiArch are mutually exclusive
 	if s.Architecture != "" && s.MultiArch {
 		return fmt.Errorf("architecture and multiArch are mutually exclusive")
 	}
-
 	return nil
 }
 
@@ -107,6 +125,22 @@ func (s *Source) GetEffectiveVersionLabel() string {
 		return DefaultVersionLabel
 	}
 	return ""
+}
+
+// SourceDescription returns a short, opaque description of the source for logging (image ref or GitHub repo).
+func (s *Source) SourceDescription() string {
+	if s.GitHubLatestRelease != "" {
+		return "github.com/" + s.GitHubLatestRelease
+	}
+	return s.Image
+}
+
+// TagInfo returns the tag or tag pattern for logging (exact tag or tagPattern).
+func (s *Source) TagInfo() string {
+	if s.Tag != "" {
+		return s.Tag
+	}
+	return s.TagPattern
 }
 
 // ParseImageReference splits an image reference into registry and repository parts
