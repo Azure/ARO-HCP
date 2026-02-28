@@ -107,7 +107,7 @@ defaults:
       image:
         registry: mcr.microsoft.com
         repository: oss/v2/fluent/fluent-bit
-        digest: sha256:eca5fdd2a205c5e2a78155ca9d16b453334c5aefd6cafc48465c86ed9c016b64 # v4.2.3 (2026-02-19 21:05)
+        digest: sha256:2dd901545bab3c9e216681b34fab33835c392fb5ba54149cc9a8a008df2f97af # v4.2.3 (2026-02-26 16:33)
     kusto:
       enabled: false
       environmentName: "{{ .ctx.environment }}"
@@ -123,7 +123,7 @@ defaults:
     image:
       registry: kubernetesshared.azurecr.io
       repository: shared/kube-events
-      digest: sha256:6cf65c67321d5fc18e878715049a6ac8a8aea1ac2c63b096fbe18fade52f4be5 # 20260215.1 (2026-02-15 03:24)
+      digest: sha256:e75e6b4254977e8d3ca3a728c2d1b60cfcbd13392ea02fcc535286a672f8d547 # 20260225.1 (2026-02-25 11:29)
   # Secret Sync Controller
   secretSyncController:
     image:
