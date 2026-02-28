@@ -344,7 +344,7 @@ imageSync:
   ocMirror:
     enabled: true
     image:
-      digest: sha256:6cf543fa917493b00e9fd95c66733f54ef9f1f758194ced9f81674605180067d
+      digest: sha256:bf23e1de328a0be1a5b47b6ee0cf9dde7b1b68eebee804973f93b9f12ddaf109
       registry: arohcpsvcdev.azurecr.io
       repository: image-sync/oc-mirror
     jobNamePrefix: ""
