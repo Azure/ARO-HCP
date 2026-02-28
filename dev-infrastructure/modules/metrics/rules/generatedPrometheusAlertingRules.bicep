@@ -564,3 +564,47 @@ Check the status of the Arobit forwarder pods, service endpoints, and network co
     ]
   }
 }
+
+resource hcpDeletionRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'hcp-deletion-rules'
+  location: resourceGroup().location
+  properties: {
+    interval: 'PT1M'
+    rules: [
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'HCPClusterStuckDeleting'
+        enabled: true
+        labels: {
+          severity: 'warning'
+        }
+        annotations: {
+          correlationId: 'HCPClusterStuckDeleting/{{ $labels.cluster }}/{{ $labels.exported_namespace }}'
+          description: '''Cluster {{ $labels.exported_namespace }} has been in a deleting state for more than 2 hours. 
+This may indicate that finalizers are stuck or resources are failing to cleanup.
+'''
+          info: '''Cluster {{ $labels.exported_namespace }} has been in a deleting state for more than 2 hours. 
+This may indicate that finalizers are stuck or resources are failing to cleanup.
+'''
+          runbook_url: 'TBD'
+          summary: 'Cluster {{ $labels.exported_namespace }} stuck deleting'
+          title: 'Cluster {{ $labels.exported_namespace }} stuck deleting'
+        }
+        expression: 'sum by (exported_namespace, name) (hypershift_cluster_deleting_duration_seconds) > 7200'
+        for: 'PT5M'
+        severity: 3
+      }
+    ]
+    scopes: [
+      azureMonitoring
+    ]
+  }
+}

@@ -1,0 +1,19 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: hcp-stuck-deletion
+  namespace: monitoring
+spec:
+  groups:
+  - name: hcp-deletion-rules
+    rules:
+    - alert: HCPClusterStuckDeleting
+      # Trigger if deletion duration > 2 hours (7200 seconds)
+      expr: sum by (exported_namespace, name) (hypershift_cluster_deleting_duration_seconds) > 7200
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Cluster {{ $labels.exported_namespace }} stuck deleting"
+        description: "Cluster {{ $labels.exported_namespace }} has been in a deleting state for more than 2 hours. \nThis may indicate that finalizers are stuck or resources are failing to cleanup.\n"
+        runbook_url: TBD
