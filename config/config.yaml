@@ -643,6 +643,7 @@ defaults:
   # Mise
   mise:
     deploy: true
+    applicationName: "arohcp-mise-{{ .ctx.environment }}"
     arm:
       policyLabel: "ARM Policy"
       tenantId: "{{ .ev2.entra.tenants.azure.tenantid }}"

@@ -88,6 +88,11 @@ resourceGroups:
       step: global-kv-private-issuer
     - resourceGroup: singleton
       step: geneva-kv-private-issuer
+  - name: mise-identity
+    action: ARM
+    template: templates/mise-identity.bicep
+    parameters: configurations/mise-identity.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
   - name: housekeeping
     action: Shell
     command: ./global-housekeeping.sh
