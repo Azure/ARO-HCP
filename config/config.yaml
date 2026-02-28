@@ -222,7 +222,7 @@ defaults:
     image:
       registry: quay.io
       repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
-      digest: sha256:8ef071025ea25ca968d76e6478e20589f7a43cbc6a15a077ddb2ec05361b197d # 3e0034d72bf0c58f40d43b31288a572e60413d63 (2026-02-20 06:35)
+      digest: sha256:9914b4865407f3ef6f05000cb47ee8723c8bd66cf3891dffdf0655e4f27fb6ef # 40d6470d5bb49a7932bcca40f6790030be48dfe3 (2026-02-27 12:57)
     namespace: hypershift
     additionalInstallArg: '--enable-cpo-overrides'
     # By default we set it to empty as this tag is only required for msft environments. We override
@@ -737,7 +737,7 @@ defaults:
     image:
       registry: quay.io
       repository: redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro
-      digest: sha256:8d336b3025d6557ed1cbd98f9979593e3693ab2f9a21bc7bfc183c6f2b5bc382 # 081c1f6df17b8fb8ac97752ee1a2521e71fcb09c (2026-02-13 01:45)
+      digest: sha256:144f3abdc7e843bf8a59b3b45c9892528e22de6068567fb6cfd26630f33f621e # 1d60cf7d53afa97bfffb028fb8a2f1b3bac13322 (2026-02-26 06:54)
   # PKO
   pko:
     managedIdentityName: package-operator
@@ -762,12 +762,12 @@ defaults:
       bundle:
         registry: quay.io
         repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-215
-        digest: sha256:5e6ecb1845f892667ec9c2d052ffb6c2ddbe36aa03ce059883fadbccd4fb805e # v2.15.2-389 (2026-02-20 05:29)
+        digest: sha256:292520a3d3b9d0d7af4388d2ab0717ace9b5652ed433492bb99c7df02bc3c486 # v2.15.2-401 (2026-02-26 17:23)
     mce:
       bundle:
         registry: quay.io
         repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-210
-        digest: sha256:1af282009050da6e6247d841d5ebb116dc68dcd61cfe13423422657c31ab53d7 # v2.10.2-400 (2026-02-20 05:31)
+        digest: sha256:c29f9b5009bc075e8a84abe265a5feb0608392b9a317c21706557e3dbaeffa30 # v2.10.2-415 (2026-02-27 11:16)
   # Cluster Service
   clustersService:
     image:
