@@ -312,9 +312,7 @@ func newManagedServiceIdentity(from *arm.ManagedServiceIdentity) *generated.Mana
 
 func (v version) NewHCPOpenShiftCluster(from *api.HCPOpenShiftCluster) api.VersionedHCPOpenShiftCluster {
 	if from == nil {
-		ret := &HcpOpenShiftCluster{}
-		SetDefaultValuesCluster(ret)
-		return ret
+		return nil
 	}
 
 	idString := ""

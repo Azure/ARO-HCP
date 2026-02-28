@@ -121,7 +121,7 @@ type Version interface {
 	ValidationPathRewriter(obj any) (ValidationPathMapperFunc, error)
 
 	// Resource Types
-	// Passing a nil pointer creates a resource with default values.
+	// Passing a nil returns a nil
 	NewHCPOpenShiftCluster(*HCPOpenShiftCluster) VersionedHCPOpenShiftCluster
 	NewHCPOpenShiftClusterNodePool(*HCPOpenShiftClusterNodePool) VersionedHCPOpenShiftClusterNodePool
 	NewHCPOpenShiftClusterExternalAuth(*HCPOpenShiftClusterExternalAuth) VersionedHCPOpenShiftClusterExternalAuth
