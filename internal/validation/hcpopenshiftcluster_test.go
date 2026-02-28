@@ -60,12 +60,36 @@ func TestClusterRequired(t *testing.T) {
 					fieldPath: "customerProperties.version.id",
 				},
 				{
+					message:   "Required value",
+					fieldPath: "customerProperties.network.networkType",
+				},
+				{
 					message:   "Unsupported value",
 					fieldPath: "customerProperties.network.networkType",
 				},
 				{
+					message:   "Required value",
+					fieldPath: "customerProperties.network.podCidr",
+				},
+				{
+					message:   "Required value",
+					fieldPath: "customerProperties.network.serviceCidr",
+				},
+				{
+					message:   "Required value",
+					fieldPath: "customerProperties.network.machineCidr",
+				},
+				{
+					message:   "Required value",
+					fieldPath: "customerProperties.network.hostPrefix",
+				},
+				{
 					message:   "must be greater than or equal to 23",
 					fieldPath: "customerProperties.network.hostPrefix",
+				},
+				{
+					message:   "Required value",
+					fieldPath: "customerProperties.api.visiblity",
 				},
 				{
 					message:   "Unsupported value",
@@ -73,7 +97,15 @@ func TestClusterRequired(t *testing.T) {
 				},
 				{
 					message:   "Required value",
+					fieldPath: "customerProperties.platform.managedResourceGroup",
+				},
+				{
+					message:   "Required value",
 					fieldPath: "customerProperties.platform.subnetId",
+				},
+				{
+					message:   "Required value",
+					fieldPath: "customerProperties.platform.outboundType",
 				},
 				{
 					message:   "Unsupported value",
@@ -84,20 +116,40 @@ func TestClusterRequired(t *testing.T) {
 					fieldPath: "customerProperties.platform.networkSecurityGroupId",
 				},
 				{
-					message:   "Unsupported value",
-					fieldPath: "customerProperties.etcd.dataEncryption.keyManagementMode",
-				},
-				{
-					message:   "Unsupported value",
-					fieldPath: "customerProperties.clusterImageRegistry.state",
+					message:   "Required value",
+					fieldPath: "customerProperties.autoscaling.maxPodGracePeriodSeconds",
 				},
 				{
 					message:   "Invalid value: 0: must be greater than or equal to 1",
 					fieldPath: "customerProperties.autoscaling.maxPodGracePeriodSeconds",
 				},
 				{
+					message:   "Required value",
+					fieldPath: "customerProperties.autoscaling.maxNodeProvisionTimeSeconds",
+				},
+				{
 					message:   "Invalid value: 0: must be greater than or equal to 1",
 					fieldPath: "customerProperties.autoscaling.maxNodeProvisionTimeSeconds",
+				},
+				{
+					message:   "Required value",
+					fieldPath: "customerProperties.autoscaling.podPriorityThreshold",
+				},
+				{
+					message:   "Required value",
+					fieldPath: "customerProperties.etcd.dataEncryption.keyManagementMode",
+				},
+				{
+					message:   "Unsupported value",
+					fieldPath: "customerProperties.etcd.dataEncryption.keyManagementMode",
+				},
+				{
+					message:   "Required value",
+					fieldPath: "customerProperties.clusterImageRegistry.state",
+				},
+				{
+					message:   "Unsupported value",
+					fieldPath: "customerProperties.clusterImageRegistry.state",
 				},
 			},
 		},
@@ -108,6 +160,10 @@ func TestClusterRequired(t *testing.T) {
 				api.TestLocation,
 			),
 			expectErrors: []expectedError{
+				{
+					message:   "Required value",
+					fieldPath: "customerProperties.platform.managedResourceGroup",
+				},
 				{
 					message:   "Required value",
 					fieldPath: "customerProperties.platform.subnetId",
@@ -703,6 +759,80 @@ func TestClusterValidate(t *testing.T) {
 					fieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.dataPlaneOperators[operatorX]",
 				},
 			},
+		},
+		// Managed resource group name validation
+		{
+			name: "Managed resource group name is missing",
+			resource: func() *api.HCPOpenShiftCluster {
+				r := api.MinimumValidClusterTestCase()
+				r.CustomerProperties.Platform.ManagedResourceGroup = ""
+				return r
+			}(),
+			expectErrors: []expectedError{
+				{
+					message:   "Required value",
+					fieldPath: "customerProperties.platform.managedResourceGroup",
+				},
+			},
+		},
+		{
+			name: "Managed resource group name ends with period",
+			tweaks: &api.HCPOpenShiftCluster{
+				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
+					Platform: api.CustomerPlatformProfile{
+						ManagedResourceGroup: "invalid-name.",
+					},
+				},
+			},
+			expectErrors: []expectedError{
+				{
+					message:   "max 90 characters",
+					fieldPath: "customerProperties.platform.managedResourceGroup",
+				},
+			},
+		},
+		{
+			name: "Managed resource group name with invalid characters",
+			tweaks: &api.HCPOpenShiftCluster{
+				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
+					Platform: api.CustomerPlatformProfile{
+						ManagedResourceGroup: "invalid$name",
+					},
+				},
+			},
+			expectErrors: []expectedError{
+				{
+					message:   "max 90 characters",
+					fieldPath: "customerProperties.platform.managedResourceGroup",
+				},
+			},
+		},
+		{
+			name: "Managed resource group name too long",
+			tweaks: &api.HCPOpenShiftCluster{
+				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
+					Platform: api.CustomerPlatformProfile{
+						ManagedResourceGroup: "a123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890",
+					},
+				},
+			},
+			expectErrors: []expectedError{
+				{
+					message:   "max 90 characters",
+					fieldPath: "customerProperties.platform.managedResourceGroup",
+				},
+			},
+		},
+		{
+			name: "Valid managed resource group name with periods and parentheses",
+			tweaks: &api.HCPOpenShiftCluster{
+				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
+					Platform: api.CustomerPlatformProfile{
+						ManagedResourceGroup: "valid.name(test)",
+					},
+				},
+			},
+			expectErrors: []expectedError{},
 		},
 	}
 
