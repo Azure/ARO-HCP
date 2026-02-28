@@ -388,7 +388,7 @@ defaults:
         image:
           registry: mcr.microsoft.com/oss/v2
           repository: prometheus/prometheus-operator
-          sha: f97255b7629052f03e21d16171923e7095a9608526196af59e2989a1eb01af9c # v0.88.1 (2026-02-10 21:28)
+          sha: b53be343389b63fa880639565d6067ba933f3f009642cd2e2c02bcdc189a63de # v0.89.0 (2026-02-24 20:34)
         version: ""
       prometheusSpec:
         image:
@@ -409,12 +409,12 @@ defaults:
         image:
           registry: mcr.microsoft.com/oss/v2
           repository: prometheus/prometheus-config-reloader
-          sha: f9a0f85d9a348f7f83e4b1fcd602eb12fcee0c83b0f7e4eb77d205f6af4311c9 # v0.88.1 (2026-02-10 21:28)
+          sha: 9f029892d072c33a88f7120170c900a3f2e6b9758f16477c5dec60c3ae7504e6 # v0.89.0 (2026-02-24 20:33)
       kubeStateMetrics:
         image:
           registry: mcr.microsoft.com/oss/v2
           repository: kubernetes/kube-state-metrics
-          digest: sha256:c3621782e405e59b40e1b64e8b8722855f5c348a9b6fe3ac58c54ad1a34afbb9 # v2.17.0 (2026-02-12 23:09)
+          digest: sha256:17fc37d9fe70a0efa4fdaf609bd03299013faa0fee16b77815469eb37a879e7c # v2.18.0 (2026-02-24 20:14)
       admissionWebhook:
         patch:
           image:
@@ -506,7 +506,7 @@ defaults:
         image:
           registry: mcr.microsoft.com/oss/v2
           repository: prometheus/prometheus-operator
-          sha: f97255b7629052f03e21d16171923e7095a9608526196af59e2989a1eb01af9c # v0.88.1 (2026-02-10 21:28)
+          sha: b53be343389b63fa880639565d6067ba933f3f009642cd2e2c02bcdc189a63de # v0.89.0 (2026-02-24 20:34)
         version: ""
       prometheusSpec:
         image:
@@ -526,12 +526,12 @@ defaults:
         image:
           registry: mcr.microsoft.com/oss/v2
           repository: prometheus/prometheus-config-reloader
-          sha: f9a0f85d9a348f7f83e4b1fcd602eb12fcee0c83b0f7e4eb77d205f6af4311c9 # v0.88.1 (2026-02-10 21:28)
+          sha: 9f029892d072c33a88f7120170c900a3f2e6b9758f16477c5dec60c3ae7504e6 # v0.89.0 (2026-02-24 20:33)
       kubeStateMetrics:
         image:
           registry: mcr.microsoft.com/oss/v2
           repository: kubernetes/kube-state-metrics
-          digest: sha256:c3621782e405e59b40e1b64e8b8722855f5c348a9b6fe3ac58c54ad1a34afbb9 # v2.17.0 (2026-02-12 23:09)
+          digest: sha256:17fc37d9fe70a0efa4fdaf609bd03299013faa0fee16b77815469eb37a879e7c # v2.18.0 (2026-02-24 20:14)
       admissionWebhook:
         patch:
           image:

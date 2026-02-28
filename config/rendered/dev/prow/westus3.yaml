@@ -508,7 +508,7 @@ mgmt:
           sha: 7c74a715af2c94cb734785b4d3ea1357b4f02b88e1e123c622a9cb68b62f669c
     kubeStateMetrics:
       image:
-        digest: sha256:c3621782e405e59b40e1b64e8b8722855f5c348a9b6fe3ac58c54ad1a34afbb9
+        digest: sha256:17fc37d9fe70a0efa4fdaf609bd03299013faa0fee16b77815469eb37a879e7c
         registry: mcr.microsoft.com/oss/v2
         repository: kubernetes/kube-state-metrics
     namespace: prometheus
@@ -517,12 +517,12 @@ mgmt:
       image:
         registry: mcr.microsoft.com/oss/v2
         repository: prometheus/prometheus-config-reloader
-        sha: f9a0f85d9a348f7f83e4b1fcd602eb12fcee0c83b0f7e4eb77d205f6af4311c9
+        sha: 9f029892d072c33a88f7120170c900a3f2e6b9758f16477c5dec60c3ae7504e6
     prometheusOperator:
       image:
         registry: mcr.microsoft.com/oss/v2
         repository: prometheus/prometheus-operator
-        sha: f97255b7629052f03e21d16171923e7095a9608526196af59e2989a1eb01af9c
+        sha: b53be343389b63fa880639565d6067ba933f3f009642cd2e2c02bcdc189a63de
       version: ""
     prometheusSpec:
       image:
@@ -802,7 +802,7 @@ svc:
           sha: 7c74a715af2c94cb734785b4d3ea1357b4f02b88e1e123c622a9cb68b62f669c
     kubeStateMetrics:
       image:
-        digest: sha256:c3621782e405e59b40e1b64e8b8722855f5c348a9b6fe3ac58c54ad1a34afbb9
+        digest: sha256:17fc37d9fe70a0efa4fdaf609bd03299013faa0fee16b77815469eb37a879e7c
         registry: mcr.microsoft.com/oss/v2
         repository: kubernetes/kube-state-metrics
     namespace: prometheus
@@ -811,12 +811,12 @@ svc:
       image:
         registry: mcr.microsoft.com/oss/v2
         repository: prometheus/prometheus-config-reloader
-        sha: f9a0f85d9a348f7f83e4b1fcd602eb12fcee0c83b0f7e4eb77d205f6af4311c9
+        sha: 9f029892d072c33a88f7120170c900a3f2e6b9758f16477c5dec60c3ae7504e6
     prometheusOperator:
       image:
         registry: mcr.microsoft.com/oss/v2
         repository: prometheus/prometheus-operator
-        sha: f97255b7629052f03e21d16171923e7095a9608526196af59e2989a1eb01af9c
+        sha: b53be343389b63fa880639565d6067ba933f3f009642cd2e2c02bcdc189a63de
       version: ""
     prometheusSpec:
       image:
