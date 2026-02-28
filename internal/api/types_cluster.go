@@ -66,6 +66,7 @@ type HCPOpenShiftClusterServiceProviderProperties struct {
 	// ExperimentalFeatures captures experimental feature state evaluated from
 	// AFEC and per-resource tags. Stored in Cosmos but NOT exposed via ARM API.
 	ExperimentalFeatures ExperimentalFeatures `json:"experimentalFeatures,omitzero"`
+	BillingDocID      string                         `json:"billingDocId,omitempty"`
 }
 
 // VersionProfile represents the cluster control plane version.

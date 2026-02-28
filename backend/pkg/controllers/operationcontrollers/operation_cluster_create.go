@@ -109,6 +109,7 @@ func (c *operationClusterCreate) SynchronizeOperation(ctx context.Context, key c
 		logger.Info("creating billing, interestingly not based on now")
 		err = c.createBillingDocument(
 			ctx,
+			cluster.ServiceProviderProperties.BillingDocID,
 			operation.ExternalID.ResourceGroupName,
 			ptr.Deref(cluster.SystemData.CreatedAt, time.Time{}),
 			operation)
@@ -129,14 +130,14 @@ func (c *operationClusterCreate) SynchronizeOperation(ctx context.Context, key c
 
 // createBillingDocument creates a Cosmos DB document in the Billing
 // container for a newly-created cluster.
-func (c *operationClusterCreate) createBillingDocument(ctx context.Context, resourceGroupName string, clusterCreationTime time.Time, op *api.Operation) error {
+func (c *operationClusterCreate) createBillingDocument(ctx context.Context, id, resourceGroupName string, clusterCreationTime time.Time, op *api.Operation) error {
 	logger := utils.LoggerFromContext(ctx)
 
 	if clusterCreationTime.IsZero() {
 		return fmt.Errorf("cluster creation time is zero")
 	}
 
-	doc := database.NewBillingDocument(op.ExternalID)
+	doc := database.NewBillingDocument(id, op.ExternalID)
 	doc.CreationTime = clusterCreationTime
 	doc.Location = c.azureLocation
 	doc.TenantID = op.TenantID

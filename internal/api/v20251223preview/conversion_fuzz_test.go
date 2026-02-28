@@ -49,6 +49,8 @@ func TestRoundTripInternalExternalInternal(t *testing.T) {
 			j.ExistingCosmosUID = ""
 			// ExperimentalFeatures does not roundtrip through the external type because it is purely an internal detail
 			j.ExperimentalFeatures = api.ExperimentalFeatures{}
+			// BillingDocID does not roundtrip through the external type because it is purely an internal detail
+			j.BillingDocID = ""
 		},
 		func(j *api.HCPOpenShiftClusterNodePoolServiceProviderProperties, c randfill.Continue) {
 			c.FillNoCustom(j)
