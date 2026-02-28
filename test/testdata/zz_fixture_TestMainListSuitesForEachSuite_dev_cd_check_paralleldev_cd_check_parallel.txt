@@ -1,5 +1,6 @@
 Customer should be able to list available HCP OpenShift versions and validate response content
 SRE should be able to log into a cluster via a breakglass session
+SRE should be able to retrieve serial console logs for a VM
 Customer should be able to test admin credentials before cluster ready, then full admin credential lifecycle
 Customer should be able to create node pools with ARM64-based VMs
 Authorized CIDRs Connectivity should allow API access only from authorized VM IP
