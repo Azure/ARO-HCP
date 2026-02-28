@@ -1,13 +1,13 @@
 rule_files:
-- HCPkasRecord-prometheusRule-KMS.yaml
-- HCPkasMonitor-prometheusRule-KMS.yaml
+- HCPkasRecord-prometheusRule-KSM.yaml
+- HCPkasMonitor-prometheusRule-KSM.yaml
 evaluation_interval: 1m
 tests:
 # Test 1: Normal operation - KubeAPIServer always available, no alerts should fire
 - interval: 1m
   name: "Test 1: Normal operation - perfect availability, no alerts"
   input_series:
-  - series: 'kube_customresource_kubeapiserver_available{status="True", name="test-cluster", namespace="clusters", _id="abc-123", cluster="mgmt-cluster"}'
+  - series: 'hostedClusterAPI_kubeapiserver_available{status="True", name="test-cluster", namespace="clusters", _id="abc-123", cluster="mgmt-cluster"}'
     values: "1+0x4500" # Perfect availability for 75 hours (3+ days)
   alert_rule_test:
   - eval_time: 4500m
@@ -17,7 +17,7 @@ tests:
 - interval: 30s # Generate data every 30 seconds to meet sample count requirements
   name: "Test 2: KubeAPIServer fast burn - complete failure triggers 30m/1h alert"
   input_series:
-  - series: 'kube_customresource_kubeapiserver_available{status="True", name="test-cluster", namespace="clusters", _id="abc-123", cluster="mgmt-cluster"}'
+  - series: 'hostedClusterAPI_kubeapiserver_available{status="True", name="test-cluster", namespace="clusters", _id="abc-123", cluster="mgmt-cluster"}'
     # Complete failure: 0% availability
     # With 30s interval: 30m window has 60 samples (>5 ✓), 1h window has 120 samples (>60 ✓)
     # Alert condition: 1 - (0/60) > 0.0072 AND 1 - (0/120) > 0.0072 = TRUE
@@ -45,7 +45,7 @@ tests:
 - interval: 30s
   name: "Test 3: KubeAPIServer medium burn - triggers 30m/6h alert"
   input_series:
-  - series: 'kube_customresource_kubeapiserver_available{status="True", name="test-cluster", namespace="clusters", _id="abc-123", cluster="mgmt-cluster"}'
+  - series: 'hostedClusterAPI_kubeapiserver_available{status="True", name="test-cluster", namespace="clusters", _id="abc-123", cluster="mgmt-cluster"}'
     # Complete failure for sufficient duration
     # With 30s interval: 30m window has 60 samples (>30 ✓), 6h window has 720 samples (>360 ✓)
     values: "0+0x800" # Complete failure for 400+ minutes (800 * 30s = 400m)
@@ -64,18 +64,8 @@ tests:
       exp_annotations:
         summary: "High KubeAPIServer error budget burn for HostedCluster test-cluster"
         description: "HostedCluster test-cluster (ID: abc-123) KubeAPIServer availability is below SLO (current value: 1)"
-    - exp_labels:
-        severity: info
-        long_window: 1d
-        short_window: 2h
-        name: test-cluster
-        namespace: clusters
-        _id: abc-123
-        cluster: mgmt-cluster
-      exp_annotations:
-        summary: "High KubeAPIServer error budget burn for HostedCluster test-cluster"
-        description: "HostedCluster test-cluster (ID: abc-123) KubeAPIServer availability is below SLO (current value: 1)"
-  - eval_time: 195m # After 6h alert 'for: 15m' satisfied (180m + 15m)
+    # Note: 1d/2h alert does NOT fire - insufficient samples (need 1440, have ~360)
+  - eval_time: 210m # 6h alert fires: condition true at ~181m (>360 samples) + for:15m = 196m, check at 210m for safety
     alertname: hostedcluster-KubeAPIServer-ErrorBudgetBurn
     exp_alerts:
     - exp_labels:
@@ -100,22 +90,13 @@ tests:
       exp_annotations:
         summary: "High KubeAPIServer error budget burn for HostedCluster test-cluster"
         description: "HostedCluster test-cluster (ID: abc-123) KubeAPIServer availability is below SLO (current value: 1)"
-    - exp_labels:
-        severity: info
-        long_window: 1d
-        short_window: 2h
-        name: test-cluster
-        namespace: clusters
-        _id: abc-123
-        cluster: mgmt-cluster
-      exp_annotations:
-        summary: "High KubeAPIServer error budget burn for HostedCluster test-cluster"
-        description: "HostedCluster test-cluster (ID: abc-123) KubeAPIServer availability is below SLO (current value: 1)"
+    # Note: 1d/2h alert does NOT fire - insufficient samples (need >1440, have ~420)
+
 # Test 4: All four KubeAPIServer alerts fire simultaneously after prolonged failure
 - interval: 30s
   name: "Test 4: KubeAPIServer all alerts fire after prolonged failure"
   input_series:
-  - series: 'kube_customresource_kubeapiserver_available{status="True", name="test-cluster", namespace="clusters", _id="abc-123", cluster="mgmt-cluster"}'
+  - series: 'hostedClusterAPI_kubeapiserver_available{status="True", name="test-cluster", namespace="clusters", _id="abc-123", cluster="mgmt-cluster"}'
     # Complete failure for 3+ days to satisfy all four alert time windows
     values: "0+0x9000" # 4500 minutes = 75 hours = 3+ days of failure
   alert_rule_test:
@@ -170,7 +151,7 @@ tests:
 - interval: 30s
   name: "Test 5: Partial failure below threshold - no alert fires"
   input_series:
-  - series: 'kube_customresource_kubeapiserver_available{status="True", name="test-cluster", namespace="clusters", _id="abc-123", cluster="mgmt-cluster"}'
+  - series: 'hostedClusterAPI_kubeapiserver_available{status="True", name="test-cluster", namespace="clusters", _id="abc-123", cluster="mgmt-cluster"}'
     # Simulate 99.96% availability (0.04% error rate, below 0.5% threshold)
     # Pattern: mostly available with very occasional failures
     values: "1+0x10 0 1+0x2500" # One brief failure in 2500+ samples

@@ -1890,7 +1890,7 @@ resource hcpHostedclusterMonitorRules 'Microsoft.AlertsManagement/prometheusRule
           summary: 'High KubeAPIServer error budget burn for HostedCluster {{ $labels.name }}'
           title: 'High KubeAPIServer error budget burn for HostedCluster {{ $labels.name }}'
         }
-        expression: '1 - (sum by (name, namespace, _id, cluster) (sum_over_time(kube_customresource_kubeapiserver_available{status="True"}[30m])) / sum by (name, namespace, _id, cluster) (count_over_time(kube_customresource_kubeapiserver_available{status="True"}[30m]))) > (14.4 * (1 - 0.9995)) and sum by (name, namespace, _id, cluster) (count_over_time(kube_customresource_kubeapiserver_available{status="True"}[30m])) > 5 and 1 - (sum by (name, namespace, _id,cluster) (sum_over_time(kube_customresource_kubeapiserver_available{status="True"}[1h])) / sum by (name, namespace, _id, cluster)(count_over_time(kube_customresource_kubeapiserver_available{status="True"}[1h]))) > (14.4 * (1 - 0.9995)) and sum by (name, namespace, _id, cluster)(count_over_time(kube_customresource_kubeapiserver_available{status="True"}[1h])) > 60'
+        expression: '1 - (hostedClusterAPI_kubeapiserver_available:sum_over_time_30m / hostedClusterAPI_kubeapiserver_available:count_over_time_30m) > (14.4 * (1 - 0.9995)) and hostedClusterAPI_kubeapiserver_available:count_over_time_30m > 5 and 1 - (hostedClusterAPI_kubeapiserver_available:sum_over_time_1h / hostedClusterAPI_kubeapiserver_available:count_over_time_1h) > (14.4 * (1 - 0.9995)) and hostedClusterAPI_kubeapiserver_available:count_over_time_1h > 60'
         for: 'PT2M'
         severity: 4
       }
@@ -1918,7 +1918,7 @@ resource hcpHostedclusterMonitorRules 'Microsoft.AlertsManagement/prometheusRule
           summary: 'High KubeAPIServer error budget burn for HostedCluster {{ $labels.name }}'
           title: 'High KubeAPIServer error budget burn for HostedCluster {{ $labels.name }}'
         }
-        expression: '1 - (sum by (name, namespace, _id, cluster) (sum_over_time(kube_customresource_kubeapiserver_available{status="True"}[30m])) / sum by (name,namespace, _id, cluster) (count_over_time(kube_customresource_kubeapiserver_available{status="True"}[30m]))) > (6 * (1 - 0.9995)) and sum by (name,namespace, _id, cluster) (count_over_time(kube_customresource_kubeapiserver_available{status="True"}[30m])) > 30 and 1 - (sum by (name, namespace, _id,cluster) (sum_over_time(kube_customresource_kubeapiserver_available{status="True"}[6h])) / sum by (name, namespace, _id, cluster)(count_over_time(kube_customresource_kubeapiserver_available{status="True"}[6h]))) > (6 * (1 - 0.9995)) and sum by (name, namespace, _id, cluster)(count_over_time(kube_customresource_kubeapiserver_available{status="True"}[6h])) > 360'
+        expression: '1 - (hostedClusterAPI_kubeapiserver_available:sum_over_time_30m / hostedClusterAPI_kubeapiserver_available:count_over_time_30m) > (6 * (1 - 0.9995)) and hostedClusterAPI_kubeapiserver_available:count_over_time_30m > 30 and 1 - (hostedClusterAPI_kubeapiserver_available:sum_over_time_6h / hostedClusterAPI_kubeapiserver_available:count_over_time_6h) > (6 * (1 - 0.9995)) and hostedClusterAPI_kubeapiserver_available:count_over_time_6h > 360'
         for: 'PT15M'
         severity: 4
       }
@@ -1946,7 +1946,7 @@ resource hcpHostedclusterMonitorRules 'Microsoft.AlertsManagement/prometheusRule
           summary: 'High KubeAPIServer error budget burn for HostedCluster {{ $labels.name }}'
           title: 'High KubeAPIServer error budget burn for HostedCluster {{ $labels.name }}'
         }
-        expression: '1 - (sum by (name, namespace, _id, cluster) (sum_over_time(kube_customresource_kubeapiserver_available{status="True"}[2h])) / sum by (name,namespace, _id, cluster) (count_over_time(kube_customresource_kubeapiserver_available{status="True"}[2h]))) > (3 * (1 - 0.9995)) and sum by (name,namespace, _id, cluster) (count_over_time(kube_customresource_kubeapiserver_available{status="True"}[2h])) > 120 and 1 - sum by (name, namespace, _id, cluster) (kube_customresource_kubeapiserver_available:ratio_avg_1d) > (3 * (1 - 0.9995))'
+        expression: '1 - (hostedClusterAPI_kubeapiserver_available:sum_over_time_2h / hostedClusterAPI_kubeapiserver_available:count_over_time_2h) > (3 * (1 - 0.9995)) and hostedClusterAPI_kubeapiserver_available:count_over_time_2h > 120 and 1 - sum by (name, namespace, _id, cluster) (hostedClusterAPI_kubeapiserver_available:ratio_avg_1d) > (3 * (1 - 0.9995)) and hostedClusterAPI_kubeapiserver_available:count_over_time_1d > 1440'
         for: 'PT1H'
         severity: 4
       }
@@ -1974,7 +1974,7 @@ resource hcpHostedclusterMonitorRules 'Microsoft.AlertsManagement/prometheusRule
           summary: 'High KubeAPIServer error budget burn for HostedCluster {{ $labels.name }}'
           title: 'High KubeAPIServer error budget burn for HostedCluster {{ $labels.name }}'
         }
-        expression: '1 - (sum by (name, namespace, _id, cluster) (sum_over_time(kube_customresource_kubeapiserver_available{status="True"}[6h])) / sum by (name,namespace, _id, cluster) (count_over_time(kube_customresource_kubeapiserver_available{status="True"}[6h]))) > (1 * (1 - 0.9995)) and sum by (name,namespace, _id, cluster) (count_over_time(kube_customresource_kubeapiserver_available{status="True"}[6h])) > 360 and 1 - sum by (name, namespace, _id, cluster) (kube_customresource_kubeapiserver_available:ratio_avg_3d) > (1 * (1 - 0.9995))'
+        expression: '1 - (hostedClusterAPI_kubeapiserver_available:sum_over_time_6h / hostedClusterAPI_kubeapiserver_available:count_over_time_6h) > (1 * (1 - 0.9995)) and hostedClusterAPI_kubeapiserver_available:count_over_time_6h > 360 and 1 - sum by (name, namespace, _id, cluster) (hostedClusterAPI_kubeapiserver_available:ratio_avg_3d) > (1 * (1 - 0.9995)) and hostedClusterAPI_kubeapiserver_available:count_over_time_3d > 4320'
         for: 'PT3H'
         severity: 4
       }
