@@ -33,7 +33,7 @@ var _ = Describe("Customer", func() {
 		// do nothing. per test initialization usually ages better than shared.
 	})
 
-	It("should be able to create a cluster with default autoscaling and a nodepool with autoscaling enabled",
+	It("should be able to create a cluster with default autoscaling and a nodepool with autoscaling enabled up to 500 replicas",
 		labels.RequireNothing,
 		labels.Medium,
 		labels.Positive,
@@ -44,8 +44,9 @@ var _ = Describe("Customer", func() {
 				customerNodePoolName = "autoscale-np"
 
 				// Autoscaling configuration
-				autoscalingMin int32 = 1
-				autoscalingMax int32 = 5
+				autoscalingMin   int32 = 1
+				autoscalingMax   int32 = 500
+				availabilityZone       = "1"
 			)
 			tc := framework.NewTestContext()
 
@@ -67,7 +68,7 @@ var _ = Describe("Customer", func() {
 			clusterParams, err = tc.CreateClusterCustomerResources(ctx,
 				resourceGroup,
 				clusterParams,
-				map[string]interface{}{},
+				map[string]any{},
 				TestArtifactsFS,
 				framework.RBACScopeResourceGroup,
 			)
@@ -91,6 +92,7 @@ var _ = Describe("Customer", func() {
 				Min: autoscalingMin,
 				Max: autoscalingMax,
 			}
+			nodePoolParams.AvailabilityZone = availabilityZone
 
 			By("creating the autoscaling nodepool")
 			err = tc.CreateNodePoolFromParam(ctx,
@@ -116,6 +118,18 @@ var _ = Describe("Customer", func() {
 			Expect(clusterResp.Properties.Autoscaling.PodPriorityThreshold).To(Equal(to.Ptr(int32(-10))), "Expected default PodPriorityThreshold to be -10")
 			// MaxNodesTotal should be nil (no maximum limit) when not explicitly set
 			Expect(clusterResp.Properties.Autoscaling.MaxNodesTotal).To(BeNil(), "Expected MaxNodesTotal to be nil when not explicitly set")
+
+			By("verifying the nodepool has the correct number of minReplicas and maxReplicas for autoscaling")
+			nodePoolResp, err := framework.GetNodePool(ctx,
+				tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient(),
+				*resourceGroup.Name,
+				customerClusterName,
+				customerNodePoolName)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(nodePoolResp.Properties).NotTo(BeNil())
+			Expect(nodePoolResp.Properties.AutoScaling).NotTo(BeNil(), "Expected nodepool to have autoscaling configuration")
+			Expect(nodePoolResp.Properties.AutoScaling.Min).To(Equal(to.Ptr(autoscalingMin)))
+			Expect(nodePoolResp.Properties.AutoScaling.Max).To(Equal(to.Ptr(autoscalingMax)))
 
 		})
 
@@ -151,7 +165,7 @@ var _ = Describe("Customer", func() {
 			clusterParams, err = tc.CreateClusterCustomerResources(ctx,
 				resourceGroup,
 				clusterParams,
-				map[string]interface{}{},
+				map[string]any{},
 				TestArtifactsFS,
 				framework.RBACScopeResourceGroup,
 			)

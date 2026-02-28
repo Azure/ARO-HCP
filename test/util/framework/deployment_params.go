@@ -136,7 +136,8 @@ type NodePoolParams struct {
 	DiskStorageAccountType string
 	ChannelGroup           string
 	// AutoScaling enables nodepool autoscaling. When set, Replicas is ignored.
-	AutoScaling *NodePoolAutoScalingParams
+	AutoScaling      *NodePoolAutoScalingParams
+	AvailabilityZone string
 }
 
 // NodePoolAutoScalingParams contains min/max node counts for nodepool autoscaling

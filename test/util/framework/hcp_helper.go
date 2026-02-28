@@ -790,23 +790,34 @@ func BuildNodePoolFromParams(
 	location string,
 ) hcpsdk20240610preview.NodePool {
 
-	return hcpsdk20240610preview.NodePool{
+	nodePool := hcpsdk20240610preview.NodePool{
 		Location: to.Ptr(location),
 		Properties: &hcpsdk20240610preview.NodePoolProperties{
 			Version: &hcpsdk20240610preview.NodePoolVersionProfile{
 				ID:           to.Ptr(parameters.OpenshiftVersionId),
 				ChannelGroup: to.Ptr(parameters.ChannelGroup),
 			},
-			Replicas: to.Ptr(parameters.Replicas),
 			Platform: &hcpsdk20240610preview.NodePoolPlatformProfile{
 				VMSize: to.Ptr(parameters.VMSize),
 				OSDisk: &hcpsdk20240610preview.OsDiskProfile{
 					SizeGiB:                to.Ptr(parameters.OSDiskSizeGiB),
 					DiskStorageAccountType: to.Ptr(hcpsdk20240610preview.DiskStorageAccountType(parameters.DiskStorageAccountType)),
 				},
+				AvailabilityZone: to.Ptr(parameters.AvailabilityZone),
 			},
 		},
 	}
+
+	if parameters.AutoScaling != nil {
+		nodePool.Properties.AutoScaling = &hcpsdk20240610preview.NodePoolAutoScaling{
+			Min: to.Ptr(parameters.AutoScaling.Min),
+			Max: to.Ptr(parameters.AutoScaling.Max),
+		}
+	} else {
+		nodePool.Properties.Replicas = to.Ptr(parameters.Replicas)
+	}
+
+	return nodePool
 }
 
 // Helper to run command on VM
