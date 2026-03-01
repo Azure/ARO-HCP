@@ -30,3 +30,34 @@ tests:
   - eval_time: 10m # At this point, the condition has held for 10 minutes
     alertname: BackendOperationErrorRate
     exp_alerts: []
+# Test: BackendControllerDegraded above 5%
+- interval: 1m
+  input_series:
+  - series: 'backend_controller_status_conditions{cluster="test-cluster", resource_type="hcpOpenShiftClusters", controller_name="cluster-validation", condition="Degraded", status="True"}'
+    values: "2+0x10" # Constant 2 degraded
+  - series: 'backend_controller_status_conditions{cluster="test-cluster", resource_type="hcpOpenShiftClusters", controller_name="cluster-validation", condition="Degraded", status="False"}'
+    values: "18+0x10" # Constant 18 not degraded → 2/20 = 10%
+  alert_rule_test:
+  - eval_time: 5m
+    alertname: BackendControllerDegraded
+    exp_alerts:
+    - exp_labels:
+        severity: warning
+        cluster: test-cluster
+        resource_type: hcpOpenShiftClusters
+        controller_name: cluster-validation
+      exp_annotations:
+        description: 'Controller cluster-validation is degraded for more than 5% of hcpOpenShiftClusters resources. Current degradation rate: 10%.'
+        runbook_url: 'TBD'
+        summary: 'Controller cluster-validation degradation detected'
+# Test: BackendControllerDegraded below 5%
+- interval: 1m
+  input_series:
+  - series: 'backend_controller_status_conditions{cluster="test-cluster", resource_type="hcpOpenShiftClusters", controller_name="cluster-validation", condition="Degraded", status="True"}'
+    values: "4+0x10" # Constant 4 degraded
+  - series: 'backend_controller_status_conditions{cluster="test-cluster", resource_type="hcpOpenShiftClusters", controller_name="cluster-validation", condition="Degraded", status="False"}'
+    values: "96+0x10" # Constant 96 not degraded → 4/100 = 4%
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: BackendControllerDegraded
+    exp_alerts: []

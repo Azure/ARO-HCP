@@ -45,6 +45,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/validationcontrollers"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/validationcontrollers/validations"
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
+	"github.com/Azure/ARO-HCP/backend/pkg/metrics"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -248,6 +249,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 	startedLeading := atomic.Bool{}
 	operationsScanner := oldoperationscanner.NewOperationsScanner(
 		b.options.CosmosDBClient, b.options.ClustersServiceClient, b.options.AzureLocation, subscriptionLister)
+	cosmosCollector := metrics.NewCosmosMetricsCollector(backendInformers, utils.LoggerFromContext(ctx))
 	dataDumpController := controllerutils.NewClusterWatchingController(
 		"DataDump", b.options.CosmosDBClient, backendInformers, 1*time.Minute, controllers.NewDataDumpController(activeOperationLister, b.options.CosmosDBClient))
 	doNothingController := controllers.NewDoNothingExampleController(b.options.CosmosDBClient, subscriptionLister)
@@ -362,6 +364,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 
 				// start the SharedInformers
 				go backendInformers.RunWithContext(ctx)
+				prometheus.MustRegister(cosmosCollector)
 
 				go operationsScanner.Run(ctx)
 				go dataDumpController.Run(ctx, 20)
@@ -384,6 +387,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 			},
 			OnStoppedLeading: func() {
 				operationsScanner.LeaderGauge.Set(0)
+				prometheus.Unregister(cosmosCollector)
 				if startedLeading.Load() {
 					operationsScanner.Join()
 				}

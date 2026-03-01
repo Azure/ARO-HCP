@@ -181,3 +181,34 @@ var _ runtime.Object = &OperationList{}
 func (l *OperationList) GetObjectKind() schema.ObjectKind {
 	return &l.TypeMeta
 }
+
+var (
+	_ runtime.Object            = &Controller{}
+	_ metav1.ObjectMetaAccessor = &Controller{}
+)
+
+func (o *Controller) GetObjectKind() schema.ObjectKind {
+	return schema.EmptyObjectKind
+}
+
+func (o *Controller) GetObjectMeta() metav1.Object {
+	om := &metav1.ObjectMeta{}
+	if o.ResourceID != nil {
+		om.Name = strings.ToLower(o.ResourceID.String())
+	}
+	return om
+}
+
+// ControllerList is a list of Controller resources.
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+type ControllerList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata,omitempty"`
+	Items           []Controller `json:"items"`
+}
+
+var _ runtime.Object = &ControllerList{}
+
+func (l *ControllerList) GetObjectKind() schema.ObjectKind {
+	return &l.TypeMeta
+}

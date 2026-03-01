@@ -42,6 +42,7 @@ const (
 	NodePoolRelistDuration               = 30 * time.Second
 	ExternalAuthRelistDuration           = 30 * time.Second
 	ServiceProviderClusterRelistDuration = 30 * time.Second
+	ControllerRelistDuration             = 30 * time.Second
 	ActiveOperationsRelistDuration       = 10 * time.Second
 )
 
@@ -280,6 +281,51 @@ func NewServiceProviderClusterInformerWithRelistDuration(lister database.GlobalL
 			Indexers: cache.Indexers{
 				listers.ByCluster: clusterResourceIDIndexFunc,
 			},
+		},
+	)
+}
+
+// NewControllerInformer creates an unstarted SharedIndexInformer for controllers
+// using the default relist duration.
+func NewControllerInformer(lister database.GlobalLister[api.Controller]) cache.SharedIndexInformer {
+	return NewControllerInformerWithRelistDuration(lister, ControllerRelistDuration)
+}
+
+// NewControllerInformerWithRelistDuration creates an unstarted SharedIndexInformer for controllers
+// with a configurable relist duration.
+func NewControllerInformerWithRelistDuration(lister database.GlobalLister[api.Controller], relistDuration time.Duration) cache.SharedIndexInformer {
+	lw := &cache.ListWatch{
+		ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
+			logger := utils.LoggerFromContext(ctx)
+			logger.Info("listing controllers")
+			defer logger.Info("finished listing controllers")
+
+			iter, err := lister.List(ctx, nil)
+			if err != nil {
+				return nil, err
+			}
+
+			list := &api.ControllerList{}
+			list.ResourceVersion = "0"
+			for _, controller := range iter.Items(ctx) {
+				list.Items = append(list.Items, *controller)
+			}
+			if err := iter.GetError(); err != nil {
+				return nil, err
+			}
+
+			return list, nil
+		},
+		WatchFuncWithContext: func(ctx context.Context, options metav1.ListOptions) (watch.Interface, error) {
+			return NewExpiringWatcher(ctx, relistDuration), nil
+		},
+	}
+
+	return cache.NewSharedIndexInformerWithOptions(
+		lw,
+		&api.Controller{},
+		cache.SharedIndexInformerOptions{
+			ResyncPeriod: 1 * time.Hour,
 		},
 	)
 }
