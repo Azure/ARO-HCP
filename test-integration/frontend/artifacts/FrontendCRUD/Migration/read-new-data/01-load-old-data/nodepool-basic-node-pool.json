@@ -7,8 +7,6 @@
 	"id": "2b834a28-7e5b-50e2-9fb9-b6679cdd6a1b",
 	"partitionKey": "6b690bec-0c16-4ecb-8f67-781caf40bba7",
 	"properties": {
-		"activeOperationId": "cdfb496e-6e70-4022-9f8d-b0dacf6d2ff5",
-		"internalId": "/api/clusters_mgmt/v1/clusters/9p2sk955gj/node_pools/59mkgdzg9s",
 		"internalState": {
 			"internalAPI": {
 				"location": "fake-location",
@@ -46,9 +44,13 @@
 				}
 			}
 		},
-		"provisioningState": "Accepted",
-		"resourceId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/create-with-tags/nodePools/basic-node-pool",
-		"systemData": {}
+		"intermediateResourceDoc": {
+			"resourceId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/create-with-tags/nodePools/basic-node-pool",
+			"internalId": "/api/clusters_mgmt/v1/clusters/9p2sk955gj/node_pools/59mkgdzg9s",
+			"activeOperationId": "cdfb496e-6e70-4022-9f8d-b0dacf6d2ff5",
+			"provisioningState": "Accepted",
+			"systemData": {}
+		}
 	},
 	"resourceID": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/create-with-tags/nodePools/basic-node-pool",
 	"resourceType": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/nodePools"

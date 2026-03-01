@@ -4,7 +4,6 @@
 	"resourceID": "/subscriptions/f52dfea2-47ee-4396-8006-4a27d47d59c5/resourceGroups/some-resource-group/providers/microsoft.redhatopenshift/hcpopenshiftclusters/immutability/nodepools/immutability-np",
 	"resourceType": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/nodePools",
 	"properties": {
-		"internalId": "/api/aro_hcp/v1alpha1/clusters/cs-immutability/node_pools/4nd28q7n8q",
 		"internalState": {
 			"internalAPI": {
 				"location": "fake-location",
@@ -27,8 +26,11 @@
 				}
 			}
 		},
-		"provisioningState": "Succeeded",
-		"resourceId": "/subscriptions/f52dfea2-47ee-4396-8006-4a27d47d59c5/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/immutability/nodePools/immutability-np",
-		"systemData": {}
+		"intermediateResourceDoc": {
+			"resourceId": "/subscriptions/f52dfea2-47ee-4396-8006-4a27d47d59c5/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/immutability/nodePools/immutability-np",
+			"internalId": "/api/aro_hcp/v1alpha1/clusters/cs-immutability/node_pools/4nd28q7n8q",
+			"provisioningState": "Succeeded",
+			"systemData": {}
+		}
 	}
 }
