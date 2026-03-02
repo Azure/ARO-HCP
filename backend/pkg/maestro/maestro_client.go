@@ -16,7 +16,6 @@ package maestro
 
 import (
 	"context"
-	"crypto/tls"
 	"fmt"
 	"net/http"
 	"time"
@@ -98,6 +97,7 @@ func GenerateMaestroSourceID(envName string, provisionShardID string) string {
 // newRESTClient creates a REST client for the Maestro API. The Maestro REST client
 // allows to perform a subset (but not all) of actions against the Maestro API.
 func newRESTClient(endpoint string) *maestroopenapi.APIClient {
+	httpClientTransport := http.DefaultTransport.(*http.Transport).Clone()
 	maestroRESTClientConfig := &maestroopenapi.Configuration{
 		DefaultHeader: map[string]string{},
 		UserAgent:     "ARO-HCP-Backend",
@@ -107,12 +107,8 @@ func newRESTClient(endpoint string) *maestroopenapi.APIClient {
 		}},
 		OperationServers: map[string]maestroopenapi.ServerConfigurations{},
 		HTTPClient: &http.Client{
-			Transport: &http.Transport{
-				TLSClientConfig: &tls.Config{
-					//nolint:gosec
-					InsecureSkipVerify: true, // TODO pass TLS certs from config
-				}},
-			Timeout: 30 * time.Second,
+			Transport: httpClientTransport,
+			Timeout:   30 * time.Second,
 		},
 	}
 
