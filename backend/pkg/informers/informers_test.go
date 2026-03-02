@@ -252,7 +252,7 @@ func subscriptionInformerTestCase() informerTestCase {
 			require.NoError(t, err)
 		},
 		createInformer: func(mockDB *databasetesting.MockDBClient) cache.SharedIndexInformer {
-			return NewSubscriptionInformerWithRelistDuration(mockDB.GlobalListers().Subscriptions(), 1*time.Second)
+			return NewSubscriptionInformerWithRelistDuration(NewCosmosDBListWatch(mockDB), 1*time.Second)
 		},
 		expectedInitialAdds: 2,
 		mutateDB: func(t *testing.T, ctx context.Context, mockDB *databasetesting.MockDBClient) {
@@ -367,7 +367,7 @@ func clusterInformerTestCase() informerTestCase {
 			require.NoError(t, err)
 		},
 		createInformer: func(mockDB *databasetesting.MockDBClient) cache.SharedIndexInformer {
-			return NewClusterInformerWithRelistDuration(mockDB.GlobalListers().Clusters(), 1*time.Second)
+			return NewClusterInformerWithRelistDuration(NewCosmosDBListWatch(mockDB), 1*time.Second)
 		},
 		expectedInitialAdds: 2,
 		mutateDB: func(t *testing.T, ctx context.Context, mockDB *databasetesting.MockDBClient) {
@@ -499,7 +499,7 @@ func nodePoolInformerTestCase() informerTestCase {
 			require.NoError(t, err)
 		},
 		createInformer: func(mockDB *databasetesting.MockDBClient) cache.SharedIndexInformer {
-			return NewNodePoolInformerWithRelistDuration(mockDB.GlobalListers().NodePools(), 1*time.Second)
+			return NewNodePoolInformerWithRelistDuration(NewCosmosDBListWatch(mockDB), 1*time.Second)
 		},
 		expectedInitialAdds: 2,
 		mutateDB: func(t *testing.T, ctx context.Context, mockDB *databasetesting.MockDBClient) {
@@ -601,7 +601,7 @@ func activeOperationInformerTestCase() informerTestCase {
 			require.NoError(t, err)
 		},
 		createInformer: func(mockDB *databasetesting.MockDBClient) cache.SharedIndexInformer {
-			return NewActiveOperationInformerWithRelistDuration(mockDB.GlobalListers().ActiveOperations(), 1*time.Second)
+			return NewActiveOperationInformerWithRelistDuration(NewCosmosDBListWatch(mockDB), 1*time.Second)
 		},
 		expectedInitialAdds: 2,
 		mutateDB: func(t *testing.T, ctx context.Context, mockDB *databasetesting.MockDBClient) {

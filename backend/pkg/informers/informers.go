@@ -15,14 +15,10 @@
 package informers
 
 import (
-	"context"
 	"fmt"
 	"strings"
 	"time"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/tools/cache"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -30,7 +26,6 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -47,43 +42,15 @@ const (
 
 // NewSubscriptionInformer creates an unstarted SharedIndexInformer for subscriptions
 // using the default relist duration.
-func NewSubscriptionInformer(lister database.GlobalLister[arm.Subscription]) cache.SharedIndexInformer {
-	return NewSubscriptionInformerWithRelistDuration(lister, SubscriptionRelistDuration)
+func NewSubscriptionInformer(cosmosDBListWatch *CosmosDBListWatch) cache.SharedIndexInformer {
+	return NewSubscriptionInformerWithRelistDuration(cosmosDBListWatch, SubscriptionRelistDuration)
 }
 
 // NewSubscriptionInformerWithRelistDuration creates an unstarted SharedIndexInformer for subscriptions
 // with a configurable relist duration.
-func NewSubscriptionInformerWithRelistDuration(lister database.GlobalLister[arm.Subscription], relistDuration time.Duration) cache.SharedIndexInformer {
-	lw := &cache.ListWatch{
-		ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
-			logger := utils.LoggerFromContext(ctx)
-			logger.Info("listing subscriptions")
-			defer logger.Info("finished listing subscriptions")
-
-			iter, err := lister.List(ctx, nil)
-			if err != nil {
-				return nil, err
-			}
-
-			list := &arm.SubscriptionList{}
-			list.ResourceVersion = "0"
-			for _, sub := range iter.Items(ctx) {
-				list.Items = append(list.Items, *sub)
-			}
-			if err := iter.GetError(); err != nil {
-				return nil, err
-			}
-
-			return list, nil
-		},
-		WatchFuncWithContext: func(ctx context.Context, options metav1.ListOptions) (watch.Interface, error) {
-			return NewExpiringWatcher(ctx, relistDuration), nil
-		},
-	}
-
-	return cache.NewSharedIndexInformerWithOptions(
-		lw,
-		&arm.Subscription{},
+func NewSubscriptionInformerWithRelistDuration(cosmosDBListWatch *CosmosDBListWatch, relistDuration time.Duration) cache.SharedIndexInformer {
+	return cosmosDBListWatch.NewSubscriptionInformer(
+		relistDuration,
 		cache.SharedIndexInformerOptions{
 			ResyncPeriod: 1 * time.Hour, // this is only a default.  Shorter resyncs can be added when registering handlers.
 		},
@@ -92,43 +59,15 @@ func NewSubscriptionInformerWithRelistDuration(lister database.GlobalLister[arm.
 
 // NewClusterInformer creates an unstarted SharedIndexInformer for clusters
 // with a resource group index using the default relist duration.
-func NewClusterInformer(lister database.GlobalLister[api.HCPOpenShiftCluster]) cache.SharedIndexInformer {
-	return NewClusterInformerWithRelistDuration(lister, ClusterRelistDuration)
+func NewClusterInformer(cosmosDBListWatch *CosmosDBListWatch) cache.SharedIndexInformer {
+	return NewClusterInformerWithRelistDuration(cosmosDBListWatch, ClusterRelistDuration)
 }
 
 // NewClusterInformerWithRelistDuration creates an unstarted SharedIndexInformer for clusters
 // with a resource group index and a configurable relist duration.
-func NewClusterInformerWithRelistDuration(lister database.GlobalLister[api.HCPOpenShiftCluster], relistDuration time.Duration) cache.SharedIndexInformer {
-	lw := &cache.ListWatch{
-		ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
-			logger := utils.LoggerFromContext(ctx)
-			logger.Info("listing clusters")
-			defer logger.Info("finished listing clusters")
-
-			iter, err := lister.List(ctx, nil)
-			if err != nil {
-				return nil, err
-			}
-
-			list := &api.HCPOpenShiftClusterList{}
-			list.ResourceVersion = "0"
-			for _, cluster := range iter.Items(ctx) {
-				list.Items = append(list.Items, *cluster)
-			}
-			if err := iter.GetError(); err != nil {
-				return nil, err
-			}
-
-			return list, nil
-		},
-		WatchFuncWithContext: func(ctx context.Context, options metav1.ListOptions) (watch.Interface, error) {
-			return NewExpiringWatcher(ctx, relistDuration), nil
-		},
-	}
-
-	return cache.NewSharedIndexInformerWithOptions(
-		lw,
-		&api.HCPOpenShiftCluster{},
+func NewClusterInformerWithRelistDuration(cosmosDBListWatch *CosmosDBListWatch, relistDuration time.Duration) cache.SharedIndexInformer {
+	return cosmosDBListWatch.NewClusterInformer(
+		relistDuration,
 		cache.SharedIndexInformerOptions{
 			ResyncPeriod: 1 * time.Hour, // this is only a default.  Shorter resyncs can be added when registering handlers.
 			Indexers: cache.Indexers{
@@ -140,43 +79,15 @@ func NewClusterInformerWithRelistDuration(lister database.GlobalLister[api.HCPOp
 
 // NewNodePoolInformer creates an unstarted SharedIndexInformer for node pools
 // with resource group and cluster indexes using the default relist duration.
-func NewNodePoolInformer(lister database.GlobalLister[api.HCPOpenShiftClusterNodePool]) cache.SharedIndexInformer {
-	return NewNodePoolInformerWithRelistDuration(lister, NodePoolRelistDuration)
+func NewNodePoolInformer(cosmosDBListWatch *CosmosDBListWatch) cache.SharedIndexInformer {
+	return NewNodePoolInformerWithRelistDuration(cosmosDBListWatch, NodePoolRelistDuration)
 }
 
 // NewNodePoolInformerWithRelistDuration creates an unstarted SharedIndexInformer for node pools
 // with resource group and cluster indexes and a configurable relist duration.
-func NewNodePoolInformerWithRelistDuration(lister database.GlobalLister[api.HCPOpenShiftClusterNodePool], relistDuration time.Duration) cache.SharedIndexInformer {
-	lw := &cache.ListWatch{
-		ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
-			logger := utils.LoggerFromContext(ctx)
-			logger.Info("listing node pools")
-			defer logger.Info("finished listing node pools")
-
-			iter, err := lister.List(ctx, nil)
-			if err != nil {
-				return nil, err
-			}
-
-			list := &api.HCPOpenShiftClusterNodePoolList{}
-			list.ResourceVersion = "0"
-			for _, np := range iter.Items(ctx) {
-				list.Items = append(list.Items, *np)
-			}
-			if err := iter.GetError(); err != nil {
-				return nil, err
-			}
-
-			return list, nil
-		},
-		WatchFuncWithContext: func(ctx context.Context, options metav1.ListOptions) (watch.Interface, error) {
-			return NewExpiringWatcher(ctx, relistDuration), nil
-		},
-	}
-
-	return cache.NewSharedIndexInformerWithOptions(
-		lw,
-		&api.HCPOpenShiftClusterNodePool{},
+func NewNodePoolInformerWithRelistDuration(cosmosDBListWatch *CosmosDBListWatch, relistDuration time.Duration) cache.SharedIndexInformer {
+	return cosmosDBListWatch.NewNodePoolInformer(
+		relistDuration,
 		cache.SharedIndexInformerOptions{
 			ResyncPeriod: 1 * time.Hour, // this is only a default.  Shorter resyncs can be added when registering handlers.
 			Indexers: cache.Indexers{
@@ -189,43 +100,15 @@ func NewNodePoolInformerWithRelistDuration(lister database.GlobalLister[api.HCPO
 
 // NewExternalAuthInformer creates an unstarted SharedIndexInformer for external auths
 // with resource group and cluster indexes using the default relist duration.
-func NewExternalAuthInformer(lister database.GlobalLister[api.HCPOpenShiftClusterExternalAuth]) cache.SharedIndexInformer {
-	return NewExternalAuthInformerWithRelistDuration(lister, ExternalAuthRelistDuration)
+func NewExternalAuthInformer(cosmosDBListWatch *CosmosDBListWatch) cache.SharedIndexInformer {
+	return NewExternalAuthInformerWithRelistDuration(cosmosDBListWatch, ExternalAuthRelistDuration)
 }
 
 // NewExternalAuthInformerWithRelistDuration creates an unstarted SharedIndexInformer for external auths
 // with resource group and cluster indexes and a configurable relist duration.
-func NewExternalAuthInformerWithRelistDuration(lister database.GlobalLister[api.HCPOpenShiftClusterExternalAuth], relistDuration time.Duration) cache.SharedIndexInformer {
-	lw := &cache.ListWatch{
-		ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
-			logger := utils.LoggerFromContext(ctx)
-			logger.Info("listing external auths")
-			defer logger.Info("finished listing external auths")
-
-			iter, err := lister.List(ctx, nil)
-			if err != nil {
-				return nil, err
-			}
-
-			list := &api.HCPOpenShiftClusterExternalAuthList{}
-			list.ResourceVersion = "0"
-			for _, ea := range iter.Items(ctx) {
-				list.Items = append(list.Items, *ea)
-			}
-			if err := iter.GetError(); err != nil {
-				return nil, err
-			}
-
-			return list, nil
-		},
-		WatchFuncWithContext: func(ctx context.Context, options metav1.ListOptions) (watch.Interface, error) {
-			return NewExpiringWatcher(ctx, relistDuration), nil
-		},
-	}
-
-	return cache.NewSharedIndexInformerWithOptions(
-		lw,
-		&api.HCPOpenShiftClusterExternalAuth{},
+func NewExternalAuthInformerWithRelistDuration(cosmosDBListWatch *CosmosDBListWatch, relistDuration time.Duration) cache.SharedIndexInformer {
+	return cosmosDBListWatch.NewExternalAuthInformer(
+		relistDuration,
 		cache.SharedIndexInformerOptions{
 			ResyncPeriod: 1 * time.Hour, // this is only a default.  Shorter resyncs can be added when registering handlers.
 			Indexers: cache.Indexers{
@@ -238,43 +121,15 @@ func NewExternalAuthInformerWithRelistDuration(lister database.GlobalLister[api.
 
 // NewServiceProviderClusterInformer creates an unstarted SharedIndexInformer for service provider clusters
 // with a cluster index using the default relist duration.
-func NewServiceProviderClusterInformer(lister database.GlobalLister[api.ServiceProviderCluster]) cache.SharedIndexInformer {
-	return NewServiceProviderClusterInformerWithRelistDuration(lister, ServiceProviderClusterRelistDuration)
+func NewServiceProviderClusterInformer(cosmosDBListWatch *CosmosDBListWatch) cache.SharedIndexInformer {
+	return NewServiceProviderClusterInformerWithRelistDuration(cosmosDBListWatch, ServiceProviderClusterRelistDuration)
 }
 
 // NewServiceProviderClusterInformerWithRelistDuration creates an unstarted SharedIndexInformer for service provider clusters
 // with a cluster index and a configurable relist duration.
-func NewServiceProviderClusterInformerWithRelistDuration(lister database.GlobalLister[api.ServiceProviderCluster], relistDuration time.Duration) cache.SharedIndexInformer {
-	lw := &cache.ListWatch{
-		ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
-			logger := utils.LoggerFromContext(ctx)
-			logger.Info("listing service provider clusters")
-			defer logger.Info("finished listing service provider clusters")
-
-			iter, err := lister.List(ctx, nil)
-			if err != nil {
-				return nil, err
-			}
-
-			list := &api.ServiceProviderClusterList{}
-			list.ResourceVersion = "0"
-			for _, spc := range iter.Items(ctx) {
-				list.Items = append(list.Items, *spc)
-			}
-			if err := iter.GetError(); err != nil {
-				return nil, err
-			}
-
-			return list, nil
-		},
-		WatchFuncWithContext: func(ctx context.Context, options metav1.ListOptions) (watch.Interface, error) {
-			return NewExpiringWatcher(ctx, relistDuration), nil
-		},
-	}
-
-	return cache.NewSharedIndexInformerWithOptions(
-		lw,
-		&api.ServiceProviderCluster{},
+func NewServiceProviderClusterInformerWithRelistDuration(cosmosDBListWatch *CosmosDBListWatch, relistDuration time.Duration) cache.SharedIndexInformer {
+	return cosmosDBListWatch.NewServiceProviderClusterInformer(
+		relistDuration,
 		cache.SharedIndexInformerOptions{
 			ResyncPeriod: 1 * time.Hour, // this is only a default.  Shorter resyncs can be added when registering handlers.
 			Indexers: cache.Indexers{
@@ -287,44 +142,16 @@ func NewServiceProviderClusterInformerWithRelistDuration(lister database.GlobalL
 // NewActiveOperationInformer creates an unstarted SharedIndexInformer for
 // active (non-terminal) operations with resource group and cluster indexes
 // using the default relist duration.
-func NewActiveOperationInformer(lister database.GlobalLister[api.Operation]) cache.SharedIndexInformer {
-	return NewActiveOperationInformerWithRelistDuration(lister, ActiveOperationsRelistDuration)
+func NewActiveOperationInformer(cosmosDBListWatch *CosmosDBListWatch) cache.SharedIndexInformer {
+	return NewActiveOperationInformerWithRelistDuration(cosmosDBListWatch, ActiveOperationsRelistDuration)
 }
 
 // NewActiveOperationInformerWithRelistDuration creates an unstarted SharedIndexInformer for
 // active (non-terminal) operations with resource group and cluster indexes
 // and a configurable relist duration.
-func NewActiveOperationInformerWithRelistDuration(lister database.GlobalLister[api.Operation], relistDuration time.Duration) cache.SharedIndexInformer {
-	lw := &cache.ListWatch{
-		ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
-			logger := utils.LoggerFromContext(ctx)
-			logger.Info("listing active operations")
-			defer logger.Info("finished listing active operations")
-
-			iter, err := lister.List(ctx, nil)
-			if err != nil {
-				return nil, err
-			}
-
-			list := &api.OperationList{}
-			list.ResourceVersion = "0"
-			for _, op := range iter.Items(ctx) {
-				list.Items = append(list.Items, *op)
-			}
-			if err := iter.GetError(); err != nil {
-				return nil, err
-			}
-
-			return list, nil
-		},
-		WatchFuncWithContext: func(ctx context.Context, options metav1.ListOptions) (watch.Interface, error) {
-			return NewExpiringWatcher(ctx, relistDuration), nil
-		},
-	}
-
-	return cache.NewSharedIndexInformerWithOptions(
-		lw,
-		&api.Operation{},
+func NewActiveOperationInformerWithRelistDuration(cosmosDBListWatch *CosmosDBListWatch, relistDuration time.Duration) cache.SharedIndexInformer {
+	return cosmosDBListWatch.NewActiveOperationInformer(
+		relistDuration,
 		cache.SharedIndexInformerOptions{
 			ResyncPeriod: 1 * time.Hour, // this is only a default.  Shorter resyncs can be added when registering handlers.
 			Indexers: cache.Indexers{

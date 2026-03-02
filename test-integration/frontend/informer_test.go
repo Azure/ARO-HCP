@@ -276,7 +276,7 @@ func subscriptionInformerIntegrationTestCase() informerIntegrationTestCase {
 			require.NoError(t, err)
 		},
 		createInformer: func(dbClient database.DBClient) cache.SharedIndexInformer {
-			return informers.NewSubscriptionInformerWithRelistDuration(dbClient.GlobalListers().Subscriptions(), 5*time.Second)
+			return informers.NewSubscriptionInformerWithRelistDuration(informers.NewCosmosDBListWatch(dbClient), 5*time.Second)
 		},
 		expectedInitialAdds: 2,
 		mutateDB: func(t *testing.T, ctx context.Context, dbClient database.DBClient) {
@@ -385,7 +385,7 @@ func clusterInformerIntegrationTestCase() informerIntegrationTestCase {
 			require.NoError(t, err)
 		},
 		createInformer: func(dbClient database.DBClient) cache.SharedIndexInformer {
-			return informers.NewClusterInformerWithRelistDuration(dbClient.GlobalListers().Clusters(), 5*time.Second)
+			return informers.NewClusterInformerWithRelistDuration(informers.NewCosmosDBListWatch(dbClient), 5*time.Second)
 		},
 		expectedInitialAdds: 2,
 		mutateDB: func(t *testing.T, ctx context.Context, dbClient database.DBClient) {
@@ -510,7 +510,7 @@ func nodePoolInformerIntegrationTestCase() informerIntegrationTestCase {
 			require.NoError(t, err)
 		},
 		createInformer: func(dbClient database.DBClient) cache.SharedIndexInformer {
-			return informers.NewNodePoolInformerWithRelistDuration(dbClient.GlobalListers().NodePools(), 5*time.Second)
+			return informers.NewNodePoolInformerWithRelistDuration(informers.NewCosmosDBListWatch(dbClient), 5*time.Second)
 		},
 		expectedInitialAdds: 2,
 		mutateDB: func(t *testing.T, ctx context.Context, dbClient database.DBClient) {
@@ -606,7 +606,7 @@ func activeOperationInformerIntegrationTestCase() informerIntegrationTestCase {
 			require.NoError(t, err)
 		},
 		createInformer: func(dbClient database.DBClient) cache.SharedIndexInformer {
-			return informers.NewActiveOperationInformerWithRelistDuration(dbClient.GlobalListers().ActiveOperations(), 5*time.Second)
+			return informers.NewActiveOperationInformerWithRelistDuration(informers.NewCosmosDBListWatch(dbClient), 5*time.Second)
 		},
 		expectedInitialAdds: 2,
 		mutateDB: func(t *testing.T, ctx context.Context, dbClient database.DBClient) {

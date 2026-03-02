@@ -14,6 +14,7 @@ import (
 	reflect "reflect"
 
 	arm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	azcosmos "github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 	gomock "go.uber.org/mock/gomock"
 )
 
@@ -251,6 +252,83 @@ func (c *MockDBClientGetLockClientCall) Do(f func() LockClientInterface) *MockDB
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
 func (c *MockDBClientGetLockClientCall) DoAndReturn(f func() LockClientInterface) *MockDBClientGetLockClientCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
+// GetResourcesChangeFeed mocks base method.
+func (m *MockDBClient) GetResourcesChangeFeed(ctx context.Context, options *azcosmos.ChangeFeedOptions) (azcosmos.ChangeFeedResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetResourcesChangeFeed", ctx, options)
+	ret0, _ := ret[0].(azcosmos.ChangeFeedResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetResourcesChangeFeed indicates an expected call of GetResourcesChangeFeed.
+func (mr *MockDBClientMockRecorder) GetResourcesChangeFeed(ctx, options any) *MockDBClientGetResourcesChangeFeedCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetResourcesChangeFeed", reflect.TypeOf((*MockDBClient)(nil).GetResourcesChangeFeed), ctx, options)
+	return &MockDBClientGetResourcesChangeFeedCall{Call: call}
+}
+
+// MockDBClientGetResourcesChangeFeedCall wrap *gomock.Call
+type MockDBClientGetResourcesChangeFeedCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockDBClientGetResourcesChangeFeedCall) Return(arg0 azcosmos.ChangeFeedResponse, arg1 error) *MockDBClientGetResourcesChangeFeedCall {
+	c.Call = c.Call.Return(arg0, arg1)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockDBClientGetResourcesChangeFeedCall) Do(f func(context.Context, *azcosmos.ChangeFeedOptions) (azcosmos.ChangeFeedResponse, error)) *MockDBClientGetResourcesChangeFeedCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockDBClientGetResourcesChangeFeedCall) DoAndReturn(f func(context.Context, *azcosmos.ChangeFeedOptions) (azcosmos.ChangeFeedResponse, error)) *MockDBClientGetResourcesChangeFeedCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
+// GetResourcesFeedRanges mocks base method.
+func (m *MockDBClient) GetResourcesFeedRanges() []azcosmos.FeedRange {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetResourcesFeedRanges")
+	ret0, _ := ret[0].([]azcosmos.FeedRange)
+	return ret0
+}
+
+// GetResourcesFeedRanges indicates an expected call of GetResourcesFeedRanges.
+func (mr *MockDBClientMockRecorder) GetResourcesFeedRanges() *MockDBClientGetResourcesFeedRangesCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetResourcesFeedRanges", reflect.TypeOf((*MockDBClient)(nil).GetResourcesFeedRanges))
+	return &MockDBClientGetResourcesFeedRangesCall{Call: call}
+}
+
+// MockDBClientGetResourcesFeedRangesCall wrap *gomock.Call
+type MockDBClientGetResourcesFeedRangesCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockDBClientGetResourcesFeedRangesCall) Return(arg0 []azcosmos.FeedRange) *MockDBClientGetResourcesFeedRangesCall {
+	c.Call = c.Call.Return(arg0)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockDBClientGetResourcesFeedRangesCall) Do(f func() []azcosmos.FeedRange) *MockDBClientGetResourcesFeedRangesCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockDBClientGetResourcesFeedRangesCall) DoAndReturn(f func() []azcosmos.FeedRange) *MockDBClientGetResourcesFeedRangesCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
