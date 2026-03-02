@@ -170,6 +170,17 @@ func (m *MockDBClient) ServiceProviderNodePools(subscriptionID, resourceGroupNam
 	return newMockServiceProviderNodePoolCRUD(m, nodePoolResourceID)
 }
 
+// GetResourcesChangeFeed retrieves a single page of the change feed for the
+// "Resources" container using the provided options.
+func (m *MockDBClient) GetResourcesChangeFeed(ctx context.Context, options *azcosmos.ChangeFeedOptions) (azcosmos.ChangeFeedResponse, error) {
+	return azcosmos.ChangeFeedResponse{}, fmt.Errorf("GetResourcesChangeFeed is not implemented")
+}
+
+// GetResourcesFeedRanges returns all the feed ranges for the "Resources" container.
+func (m *MockDBClient) GetResourcesFeedRanges() []azcosmos.FeedRange {
+	return []azcosmos.FeedRange{}
+}
+
 // LoadFromDirectory loads cosmos-record context data from a directory.
 // It reads all JSON files that match the pattern for "load" directories.
 func (m *MockDBClient) LoadFromDirectory(dirPath string) error {

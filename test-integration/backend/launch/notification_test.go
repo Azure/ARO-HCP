@@ -80,7 +80,7 @@ func TestControllerNotifications(t *testing.T) {
 		}()
 
 		cosmosClient := testInfo.CosmosClient()
-		backendInformers := informers.NewBackendInformersWithRelistDuration(ctx, cosmosClient.GlobalListers(), ptr.To(100*time.Millisecond))
+		backendInformers := informers.NewBackendInformersWithRelistDuration(ctx, cosmosClient, ptr.To(100*time.Millisecond))
 
 		_, activeOperationLister := backendInformers.ActiveOperations()
 		testSyncer := newTestController(activeOperationLister)

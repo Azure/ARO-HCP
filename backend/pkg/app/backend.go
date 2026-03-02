@@ -240,7 +240,7 @@ func (b *Backend) shutdownHTTPServer(ctx context.Context, server *http.Server, n
 // runBackendControllersUnderLeaderElection runs the backen controllers under
 // a leader election loop.
 func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, electionChecker *leaderelection.HealthzAdaptor) error {
-	backendInformers := informers.NewBackendInformers(ctx, b.options.CosmosDBClient.GlobalListers())
+	backendInformers := informers.NewBackendInformers(ctx, b.options.CosmosDBClient)
 
 	_, subscriptionLister := backendInformers.Subscriptions()
 	activeOperationInformer, activeOperationLister := backendInformers.ActiveOperations()

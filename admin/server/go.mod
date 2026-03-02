@@ -21,9 +21,8 @@ require (
 
 require (
 	dario.cat/mergo v1.0.1 // indirect
-	github.com/Azure/azure-sdk-for-go v68.0.0+incompatible // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.13.1 // indirect
-	github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos v1.4.1 // indirect
+	github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos v1.5.0-beta.4 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/internal v1.11.2 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/internal/v3 v3.1.1 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources/v3 v3.0.1 // indirect
