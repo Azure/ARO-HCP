@@ -16,7 +16,6 @@ spec:
       expr: avg_over_time(hostedClusterAPI_kubeapiserver_available{status="True"}[1d])
     - record: hostedClusterAPI_kubeapiserver_available:ratio_avg_3d
       expr: avg_over_time(hostedClusterAPI_kubeapiserver_available{status="True"}[3d])
-
     # Short-window sum_over_time for burn-rate calculations
     - record: hostedClusterAPI_kubeapiserver_available:sum_over_time_30m
       expr: sum by (name, namespace, _id, cluster) (sum_over_time(hostedClusterAPI_kubeapiserver_available{status="True"}[30m]))
@@ -26,7 +25,6 @@ spec:
       expr: sum by (name, namespace, _id, cluster) (sum_over_time(hostedClusterAPI_kubeapiserver_available{status="True"}[2h]))
     - record: hostedClusterAPI_kubeapiserver_available:sum_over_time_6h
       expr: sum by (name, namespace, _id, cluster) (sum_over_time(hostedClusterAPI_kubeapiserver_available{status="True"}[6h]))
-
     # Short-window count_over_time for burn-rate calculations
     - record: hostedClusterAPI_kubeapiserver_available:count_over_time_30m
       expr: sum by (name, namespace, _id, cluster) (count_over_time(hostedClusterAPI_kubeapiserver_available{status="True"}[30m]))
@@ -36,7 +34,6 @@ spec:
       expr: sum by (name, namespace, _id, cluster) (count_over_time(hostedClusterAPI_kubeapiserver_available{status="True"}[2h]))
     - record: hostedClusterAPI_kubeapiserver_available:count_over_time_6h
       expr: sum by (name, namespace, _id, cluster) (count_over_time(hostedClusterAPI_kubeapiserver_available{status="True"}[6h]))
-
     # Long-window count_over_time for sample-count guards
     - record: hostedClusterAPI_kubeapiserver_available:count_over_time_1d
       expr: sum by (name, namespace, _id, cluster) (count_over_time(hostedClusterAPI_kubeapiserver_available{status="True"}[1d]))

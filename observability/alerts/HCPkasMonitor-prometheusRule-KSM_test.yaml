@@ -64,7 +64,7 @@ tests:
       exp_annotations:
         summary: "High KubeAPIServer error budget burn for HostedCluster test-cluster"
         description: "HostedCluster test-cluster (ID: abc-123) KubeAPIServer availability is below SLO (current value: 1)"
-    # Note: 1d/2h alert does NOT fire - insufficient samples (need 1440, have ~360)
+        # Note: 1d/2h alert does NOT fire - insufficient samples (need 1440, have ~360)
   - eval_time: 210m # 6h alert fires: condition true at ~181m (>360 samples) + for:15m = 196m, check at 210m for safety
     alertname: hostedcluster-KubeAPIServer-ErrorBudgetBurn
     exp_alerts:
@@ -90,8 +90,7 @@ tests:
       exp_annotations:
         summary: "High KubeAPIServer error budget burn for HostedCluster test-cluster"
         description: "HostedCluster test-cluster (ID: abc-123) KubeAPIServer availability is below SLO (current value: 1)"
-    # Note: 1d/2h alert does NOT fire - insufficient samples (need >1440, have ~420)
-
+        # Note: 1d/2h alert does NOT fire - insufficient samples (need >1440, have ~420)
 # Test 4: All four KubeAPIServer alerts fire simultaneously after prolonged failure
 - interval: 30s
   name: "Test 4: KubeAPIServer all alerts fire after prolonged failure"

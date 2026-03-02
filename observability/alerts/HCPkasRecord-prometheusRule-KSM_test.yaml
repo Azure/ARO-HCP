@@ -93,7 +93,6 @@ tests:
     exp_samples:
     - labels: '{__name__="hostedClusterAPI_kubeapiserver_available:ratio_avg_3d", status="True", name="test-cluster-3", namespace="clusters", _id="ghi-789", cluster="mgmt-cluster"}'
       value: 0
-
 # Test 4: Burn-rate recording rules (sum_over_time and count_over_time)
 - interval: 1m
   name: "Test 4: Burn-rate recording rules - all successes"
