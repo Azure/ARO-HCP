@@ -32,8 +32,19 @@ resourceGroups:
     - switzerlandnorth
     - uksouth
   steps:
+  - name: kusto-sku-verification
+    action: Shell
+    command: ./scripts/kusto-check-sku.sh
+    variables:
+    - name: SKU
+      configRef: kusto.sku
+    - name: LOCATION
+      configRef: region
   - name: deploy
     action: ARM
     template: templates/kusto.bicep
     parameters: configurations/kusto.tmpl.bicepparam
     deploymentLevel: ResourceGroup
+    dependsOn:
+    - resourceGroup: kusto-infra
+      step: kusto-sku-verification
