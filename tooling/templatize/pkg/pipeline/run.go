@@ -796,7 +796,7 @@ func RunStep(id graph.Identifier, s types.Step, ctx context.Context, executionTa
 		}
 		return nil, nil, nil
 	case *types.ProwJobStep:
-		if err := runProwJobStep(step, ctx, options); err != nil {
+		if err := runProwJobStep(step, ctx, options, executionTarget); err != nil {
 			return nil, nil, fmt.Errorf("error running Prow Job Step, %v", err)
 		}
 		return nil, nil, nil
