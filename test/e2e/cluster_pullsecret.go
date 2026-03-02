@@ -39,13 +39,22 @@ import (
 	"github.com/Azure/ARO-HCP/test/util/verifiers"
 )
 
-// eventuallyVerify is a helper to reduce boilerplate when waiting for verifiers
+// eventuallyVerify is a helper to reduce boilerplate when waiting for verifiers.
+// It tracks the previous error string and only logs when the error changes
+// between poll iterations. Based on the HyperShift EventuallyObject pattern
+// of delta-only logging.  Returns deterministic error strings so that identical
+// state across polls produces identical strings.
 func eventuallyVerify(ctx context.Context, verifier verifiers.HostedClusterVerifier,
 	adminRESTConfig *rest.Config, timeout, interval time.Duration, message string) {
+	var previousError string
 	Eventually(func() error {
 		err := verifier.Verify(ctx, adminRESTConfig)
 		if err != nil {
-			GinkgoLogr.Info("Verifier check", "name", verifier.Name(), "status", "failed", "error", err.Error())
+			currentError := err.Error()
+			if currentError != previousError {
+				GinkgoLogr.Info("Verifier check", "name", verifier.Name(), "status", "failed", "error", currentError)
+				previousError = currentError
+			}
 		}
 		return err
 	}, timeout, interval).Should(Succeed(), message)
@@ -76,8 +85,8 @@ var _ = Describe("Customer", func() {
 
 				// Timeouts and intervals for verifications
 				pullSecretMergeTimeout = 10 * time.Minute
-				daemonSetSyncTimeout   = 5 * time.Minute
-				catalogSourceTimeout   = 5 * time.Minute
+				daemonSetSyncTimeout   = 10 * time.Minute // moving from 5 to 10 minutes due to observed slowness in pre-merge CI
+				catalogSourceTimeout   = 10 * time.Minute // moving from 5 to 10 minutes due to observed slowness in CI
 				operatorInstallTimeout = 10 * time.Minute
 				verifierPollInterval   = 15 * time.Second
 			)

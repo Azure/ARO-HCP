@@ -114,7 +114,7 @@ func (v verifyImagePulled) Verify(ctx context.Context, adminRESTConfig *rest.Con
 					"image", containerStatus.Image)
 
 				// Track image pull errors specifically
-				if imagePullErrorReasons[reason] {
+				if imagePullErrorReasons.Has(reason) {
 					imagePullErrors = append(imagePullErrors, fmt.Sprintf("pod %s container %s: %s - %s",
 						pod.Name, containerStatus.Name, reason, message))
 				}

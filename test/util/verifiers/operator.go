@@ -17,12 +17,14 @@ package verifiers
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -30,18 +32,18 @@ import (
 
 // imagePullErrorReasons lists all container waiting reasons that indicate an
 // image pull problem.  Values come from k8s.io/kubernetes/pkg/kubelet/images/types.go.
-var imagePullErrorReasons = map[string]bool{
-	"ImagePullBackOff":  true,
-	"ErrImagePull":      true,
-	"ImageInspectError": true,
-	"ErrImageNeverPull": true,
-	"InvalidImageName":  true,
-}
+var imagePullErrorReasons = sets.New(
+	"ImagePullBackOff",
+	"ErrImagePull",
+	"ImageInspectError",
+	"ErrImageNeverPull",
+	"InvalidImageName",
+)
 
 // checkPodImagePullErrors checks if a pod has image pull errors in any container
 func checkPodImagePullErrors(pod corev1.Pod, contextName string) error {
 	for _, cs := range append(pod.Status.ContainerStatuses, pod.Status.InitContainerStatuses...) {
-		if cs.State.Waiting != nil && imagePullErrorReasons[cs.State.Waiting.Reason] {
+		if cs.State.Waiting != nil && imagePullErrorReasons.Has(cs.State.Waiting.Reason) {
 			return fmt.Errorf("%s %s, container %s: %s (%s)",
 				contextName, pod.Name, cs.Name, cs.State.Waiting.Reason, cs.State.Waiting.Message)
 		}
@@ -160,25 +162,32 @@ func (v verifyOperatorInstalled) Verify(ctx context.Context, adminRESTConfig *re
 		return fmt.Errorf("failed to get subscription state: %w", err)
 	}
 
-	// When state is not ready, check for actual errors before returning a generic message
+	// When state is not ready, enumerate all error conditions, sort them
+	// deterministically, and report the full set.  Deterministic sorting means
+	// repeated polls that observe the same errors produce an identical error
+	// string, letting the caller's delta-tracking skip duplicate log lines.
 	if !found || state != "AtLatestKnown" {
-		// Check for image pull errors in operator namespace
-		if imagePullErr := v.checkImagePullErrors(ctx, kubeClient); imagePullErr != nil {
-			return imagePullErr
+		var allErrors []string
+
+		// Collect ALL pod error conditions (not just image-pull)
+		allErrors = append(allErrors, collectPodErrors(ctx, kubeClient, v.namespace)...)
+
+		// Collect catalog source errors
+		allErrors = append(allErrors, v.collectCatalogSourceErrors(ctx, subscription, kubeClient, dynamicClient)...)
+
+		// Collect subscription condition errors
+		allErrors = append(allErrors, collectResourceConditionErrors(subscription.Object, "subscription", v.namespace, v.subscriptionName)...)
+
+		sort.Strings(allErrors)
+
+		if len(allErrors) > 0 {
+			return fmt.Errorf("subscription %s/%s not ready (state=%q):\n  - %s",
+				v.namespace, v.subscriptionName, state,
+				strings.Join(allErrors, "\n  - "))
 		}
 
-		// Check catalog source health
-		if catalogErr := v.checkCatalogSourceHealth(ctx, subscription, kubeClient, dynamicClient); catalogErr != nil {
-			return catalogErr
-		}
-
-		// Check subscription conditions for specific errors
-		if condErr := v.checkSubscriptionConditions(subscription); condErr != nil {
-			return condErr
-		}
-
-		// No actual errors detected - OLM is likely still processing
-		return fmt.Errorf("subscription not ready (OLM still processing)")
+		return fmt.Errorf("subscription %s/%s not ready, state=%q (OLM still processing, no errors detected)",
+			v.namespace, v.subscriptionName, state)
 	}
 
 	// Get InstallPlan reference
@@ -219,40 +228,81 @@ func (v verifyOperatorInstalled) Verify(ctx context.Context, adminRESTConfig *re
 	return nil
 }
 
-// checkImagePullErrors checks for image pull failures in the operator namespace.
-// This is a best-effort diagnostic: if pods cannot be listed, the error is
-// intentionally suppressed so that the caller falls through to other checks.
-func (v verifyOperatorInstalled) checkImagePullErrors(ctx context.Context, kubeClient kubernetes.Interface) error {
-	pods, err := kubeClient.CoreV1().Pods(v.namespace).List(ctx, metav1.ListOptions{})
+// normalWaitingReasons lists container waiting reasons that are expected during
+// normal startup and should not be reported as errors.
+var normalWaitingReasons = sets.New(
+	"ContainerCreating",
+	"PodInitializing",
+)
+
+// collectPodErrors enumerates ALL error conditions from pods in a namespace.
+// This includes image-pull errors, crash loops, OOM kills, container config
+// errors, and any other non-normal waiting/terminated state.  The returned
+// list is suitable for deterministic sorting by the caller.
+func collectPodErrors(ctx context.Context, kubeClient kubernetes.Interface, namespace string) []string {
+	pods, err := kubeClient.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{})
 	if err != nil {
+		return nil // best-effort: if pods can't be listed, return nothing
+	}
+
+	var errs []string
+	for _, pod := range pods.Items {
+		for _, cs := range append(pod.Status.ContainerStatuses, pod.Status.InitContainerStatuses...) {
+			if cs.State.Waiting != nil && cs.State.Waiting.Reason != "" && !normalWaitingReasons.Has(cs.State.Waiting.Reason) {
+				errs = append(errs, fmt.Sprintf("pod %s container %s: %s (%s)",
+					pod.Name, cs.Name, cs.State.Waiting.Reason, cs.State.Waiting.Message))
+			}
+			if cs.State.Terminated != nil && cs.State.Terminated.ExitCode != 0 {
+				errs = append(errs, fmt.Sprintf("pod %s container %s: terminated with exit code %d, reason=%s (%s)",
+					pod.Name, cs.Name, cs.State.Terminated.ExitCode, cs.State.Terminated.Reason, cs.State.Terminated.Message))
+			}
+		}
+	}
+	return errs
+}
+
+// collectResourceConditionErrors returns all error conditions from an
+// unstructured resource's status.conditions.  Unlike checkResourceConditions
+// (which returns the first error), this collects every matching condition.
+func collectResourceConditionErrors(obj map[string]any, resourceType, namespace, name string) []string {
+	conditions, found, err := unstructured.NestedSlice(obj, "status", "conditions")
+	if err != nil || !found {
 		return nil
 	}
 
-	var pullErrors []string
-	for _, pod := range pods.Items {
-		if err := checkPodImagePullErrors(pod, "operator pod"); err != nil {
-			pullErrors = append(pullErrors, fmt.Sprintf("  - %s", err.Error()))
+	var errs []string
+	for _, cond := range conditions {
+		condMap, ok := cond.(map[string]any)
+		if !ok {
+			continue
+		}
+		condType, _ := condMap["type"].(string)
+		status, _ := condMap["status"].(string)
+		reason, _ := condMap["reason"].(string)
+		message, _ := condMap["message"].(string)
+
+		if strings.ToLower(status) == "false" &&
+			(strings.Contains(strings.ToLower(reason), "error") ||
+				strings.Contains(strings.ToLower(reason), "fail")) {
+			errs = append(errs, fmt.Sprintf("%s %s/%s condition %s: reason=%s, message=%s",
+				resourceType, namespace, name, condType, reason, message))
 		}
 	}
-
-	if len(pullErrors) > 0 {
-		return fmt.Errorf("operator installation blocked by image pull errors (check pull secret configuration):\n%s",
-			strings.Join(pullErrors, "\n"))
-	}
-	return nil
+	return errs
 }
 
-// checkCatalogSourceHealth verifies the catalog source is healthy
-func (v verifyOperatorInstalled) checkCatalogSourceHealth(ctx context.Context, subscription *unstructured.Unstructured,
-	kubeClient kubernetes.Interface, dynamicClient dynamic.Interface) error {
+// collectCatalogSourceErrors gathers error information from the catalog source
+// referenced by the subscription.
+func (v verifyOperatorInstalled) collectCatalogSourceErrors(ctx context.Context, subscription *unstructured.Unstructured,
+	kubeClient kubernetes.Interface, dynamicClient dynamic.Interface) []string {
 
 	catalogSource, _, err := unstructured.NestedString(subscription.Object, "spec", "source")
 	if err != nil {
-		return fmt.Errorf("failed to read spec.source from subscription: %w", err)
+		return []string{fmt.Sprintf("failed to read spec.source from subscription: %s", err)}
 	}
 	catalogSourceNS, _, err := unstructured.NestedString(subscription.Object, "spec", "sourceNamespace")
 	if err != nil {
-		return fmt.Errorf("failed to read spec.sourceNamespace from subscription: %w", err)
+		return []string{fmt.Sprintf("failed to read spec.sourceNamespace from subscription: %s", err)}
 	}
 
 	if catalogSource == "" || catalogSourceNS == "" {
@@ -267,15 +317,25 @@ func (v verifyOperatorInstalled) checkCatalogSourceHealth(ctx context.Context, s
 
 	cs, err := dynamicClient.Resource(catalogSourceGVR).Namespace(catalogSourceNS).Get(ctx, catalogSource, metav1.GetOptions{})
 	if err != nil {
-		return fmt.Errorf("failed to get catalog source %s/%s: %w", catalogSourceNS, catalogSource, err)
+		return []string{fmt.Sprintf("failed to get catalog source %s/%s: %s", catalogSourceNS, catalogSource, err)}
 	}
 
-	return catalogSourceHealthCheck(ctx, cs, catalogSourceNS, catalogSource, kubeClient, false)
-}
+	var errs []string
+	errs = append(errs, collectResourceConditionErrors(cs.Object, "catalog source", catalogSourceNS, catalogSource)...)
 
-// checkSubscriptionConditions examines subscription conditions for errors
-func (v verifyOperatorInstalled) checkSubscriptionConditions(subscription *unstructured.Unstructured) error {
-	return checkResourceConditions(subscription.Object, "subscription", v.namespace, v.subscriptionName)
+	// Check catalog source pods for errors
+	pods, listErr := kubeClient.CoreV1().Pods(catalogSourceNS).List(ctx, metav1.ListOptions{})
+	if listErr == nil {
+		for _, pod := range pods.Items {
+			if strings.Contains(pod.Name, catalogSource) {
+				if pullErr := checkPodImagePullErrors(pod, "catalog source pod"); pullErr != nil {
+					errs = append(errs, pullErr.Error())
+				}
+			}
+		}
+	}
+
+	return errs
 }
 
 // formatInstallPlanConditions formats InstallPlan conditions for error messages
