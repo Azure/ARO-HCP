@@ -35,6 +35,7 @@ import (
 //   - ServiceProviderProperties.Console.URL
 //   - ServiceProviderProperties.DNS.BaseDomain
 //   - ServiceProviderProperties.ManagedIdentitiesDataPlaneIdentityURL
+//   - ServiceProviderProperties.API.URL
 //   - CustomerProperties.DNS.BaseDomainPrefix
 type clusterPropertiesSyncer struct {
 	cooldownChecker      controllerutils.CooldownChecker
@@ -100,10 +101,11 @@ func (c *clusterPropertiesSyncer) SyncOnce(ctx context.Context, key controllerut
 	// Check if any of the properties need to be synced
 	needsConsoleURL := len(existingCluster.ServiceProviderProperties.Console.URL) == 0
 	needsBaseDomain := len(existingCluster.ServiceProviderProperties.DNS.BaseDomain) == 0
+	needsAPIURL := len(existingCluster.ServiceProviderProperties.API.URL) == 0
 	needsManagedIdentitiesDataPlaneIdentityURL := len(existingCluster.ServiceProviderProperties.ManagedIdentitiesDataPlaneIdentityURL) == 0
 	needsBaseDomainPrefix := len(existingCluster.CustomerProperties.DNS.BaseDomainPrefix) == 0
 
-	if !needsConsoleURL && !needsBaseDomain && !needsBaseDomainPrefix && !needsManagedIdentitiesDataPlaneIdentityURL {
+	if !needsConsoleURL && !needsBaseDomain && !needsBaseDomainPrefix && !needsManagedIdentitiesDataPlaneIdentityURL && !needsAPIURL {
 		return nil
 	}
 
@@ -129,6 +131,9 @@ func (c *clusterPropertiesSyncer) SyncOnce(ctx context.Context, key controllerut
 				existingCluster.ServiceProviderProperties.ManagedIdentitiesDataPlaneIdentityURL = mi.ManagedIdentitiesDataPlaneIdentityUrl()
 			}
 		}
+	}
+	if needsAPIURL {
+		existingCluster.ServiceProviderProperties.API.URL = csCluster.API().URL()
 	}
 	if needsBaseDomainPrefix {
 		existingCluster.CustomerProperties.DNS.BaseDomainPrefix = csCluster.DomainPrefix()
