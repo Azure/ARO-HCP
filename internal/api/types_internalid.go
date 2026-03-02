@@ -25,10 +25,11 @@ import (
 
 // Resource Keys
 const (
-	clusterKey              = "clusters"
-	nodePoolKey             = "node_pools"
-	externalAuthKey         = "external_auth_config/external_auths"
-	breakGlassCredentialKey = "break_glass_credentials"
+	clusterKey               = "clusters"
+	nodePoolKey              = "node_pools"
+	externalAuthKey          = "external_auth_config/external_auths"
+	breakGlassCredentialKey  = "break_glass_credentials"
+	clusterProvisionShardKey = "provision_shard"
 )
 
 var (
@@ -38,10 +39,11 @@ var (
 	v1ExternalAuthPattern         = path.Join(v1ClusterPattern, externalAuthKey, "*")
 	v1BreakGlassCredentialPattern = path.Join(v1ClusterPattern, breakGlassCredentialKey, "*")
 
-	aroHcpV1Alpha1Pattern             = "/api/aro_hcp/v1alpha1"
-	aroHcpV1Alpha1ClusterPattern      = path.Join(aroHcpV1Alpha1Pattern, clusterKey, "*")
-	aroHcpV1Alpha1NodePoolPattern     = path.Join(aroHcpV1Alpha1ClusterPattern, nodePoolKey, "*")
-	aroHcpV1Alpha1ExternalAuthPattern = path.Join(aroHcpV1Alpha1ClusterPattern, externalAuthKey, "*")
+	aroHcpV1Alpha1Pattern                      = "/api/aro_hcp/v1alpha1"
+	aroHcpV1Alpha1ClusterPattern               = path.Join(aroHcpV1Alpha1Pattern, clusterKey, "*")
+	aroHcpV1Alpha1NodePoolPattern              = path.Join(aroHcpV1Alpha1ClusterPattern, nodePoolKey, "*")
+	aroHcpV1Alpha1ExternalAuthPattern          = path.Join(aroHcpV1Alpha1ClusterPattern, externalAuthKey, "*")
+	aroHcpV1Alpha1ClusterProvisionShardPattern = path.Join(aroHcpV1Alpha1ClusterPattern, clusterProvisionShardKey) + "$"
 )
 
 // InternalID represents a Cluster Service resource.
@@ -91,6 +93,11 @@ func (id *InternalID) validate() error {
 
 	if match, _ = path.Match(aroHcpV1Alpha1ExternalAuthPattern, id.path); match {
 		id.kind = arohcpv1alpha1.ExternalAuthKind
+		return nil
+	}
+
+	if match, _ = path.Match(aroHcpV1Alpha1ClusterProvisionShardPattern, id.path); match {
+		id.kind = arohcpv1alpha1.ProvisionShardKind
 		return nil
 	}
 

@@ -679,6 +679,20 @@ func newMockServiceProviderNodePoolCRUD(client *MockDBClient, parentResourceID *
 
 var _ database.ServiceProviderNodePoolCRUD = &mockServiceProviderNodePoolCRUD{}
 
+// mockManagementClusterContentCRUD implements database.ManagementClusterContentCRUD.
+type mockManagementClusterContentCRUD struct {
+	*mockResourceCRUD[api.ManagementClusterContent, database.GenericDocument[api.ManagementClusterContent]]
+}
+
+func newMockManagementClusterContentCRUD(client *MockDBClient, parentResourceID *azcorearm.ResourceID) *mockManagementClusterContentCRUD {
+	return &mockManagementClusterContentCRUD{
+		mockResourceCRUD: newMockResourceCRUD[api.ManagementClusterContent, database.GenericDocument[api.ManagementClusterContent]](
+			client, parentResourceID, api.ManagementClusterContentResourceType),
+	}
+}
+
+var _ database.ManagementClusterContentCRUD = &mockManagementClusterContentCRUD{}
+
 // mockUntypedCRUD implements database.UntypedResourceCRUD.
 type mockUntypedCRUD struct {
 	client           *MockDBClient

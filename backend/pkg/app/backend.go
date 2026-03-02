@@ -342,6 +342,14 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		activeOperationLister,
 		backendInformers,
 	)
+	maestroCreateReadonlyBundlesController := controllers.NewCreateMaestroReadonlyBundlesController(
+		activeOperationLister, b.options.CosmosDBClient, b.options.ClustersServiceClient,
+		backendInformers, b.options.MaestroSourceEnvironmentIdentifier,
+	)
+	maestroReadAndPersistReadonlyBundlesContentController := controllers.NewReadAndPersistMaestroReadonlyBundlesContentController(
+		activeOperationLister, b.options.CosmosDBClient, b.options.ClustersServiceClient,
+		backendInformers, b.options.MaestroSourceEnvironmentIdentifier,
+	)
 
 	azureRPRegistrationValidationController := validationcontrollers.NewClusterValidationController(
 		validations.NewAzureResourceProvidersRegistrationValidation(b.options.FPAClientBuilder),
@@ -381,6 +389,8 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go triggerControlPlaneUpgradeController.Run(ctx, 20)
 				go clusterPropertiesSyncController.Run(ctx, 20)
 				go azureRPRegistrationValidationController.Run(ctx, 20)
+				go maestroCreateReadonlyBundlesController.Run(ctx, 20)
+				go maestroReadAndPersistReadonlyBundlesContentController.Run(ctx, 20)
 			},
 			OnStoppedLeading: func() {
 				operationsScanner.LeaderGauge.Set(0)
