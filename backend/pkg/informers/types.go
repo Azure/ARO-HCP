@@ -33,6 +33,7 @@ type BackendInformers interface {
 	NodePools() (cache.SharedIndexInformer, listers.NodePoolLister)
 	ExternalAuths() (cache.SharedIndexInformer, listers.ExternalAuthLister)
 	ServiceProviderClusters() (cache.SharedIndexInformer, listers.ServiceProviderClusterLister)
+	DNSReservations() (cache.SharedIndexInformer, listers.DNSReservationLister)
 
 	RunWithContext(ctx context.Context)
 }
@@ -55,6 +56,9 @@ type backendInformers struct {
 
 	serviceProviderClusterInformer cache.SharedIndexInformer
 	serviceProviderClusterLister   listers.ServiceProviderClusterLister
+
+	dnsReservationInformer cache.SharedIndexInformer
+	dnsReservationLister   listers.DNSReservationLister
 }
 
 func (b *backendInformers) Subscriptions() (cache.SharedIndexInformer, listers.SubscriptionLister) {
@@ -79,6 +83,10 @@ func (b *backendInformers) ExternalAuths() (cache.SharedIndexInformer, listers.E
 
 func (b *backendInformers) ServiceProviderClusters() (cache.SharedIndexInformer, listers.ServiceProviderClusterLister) {
 	return b.serviceProviderClusterInformer, b.serviceProviderClusterLister
+}
+
+func (b *backendInformers) DNSReservations() (cache.SharedIndexInformer, listers.DNSReservationLister) {
+	return b.dnsReservationInformer, b.dnsReservationLister
 }
 
 func NewBackendInformers(ctx context.Context, globalListers database.GlobalListers) BackendInformers {
@@ -115,6 +123,9 @@ func NewBackendInformersWithRelistDuration(ctx context.Context, globalListers da
 	ret.nodePoolLister = listers.NewNodePoolLister(ret.nodePoolInformer.GetIndexer())
 	ret.externalAuthLister = listers.NewExternalAuthLister(ret.externalAuthInformer.GetIndexer())
 	ret.serviceProviderClusterLister = listers.NewServiceProviderClusterLister(ret.serviceProviderClusterInformer.GetIndexer())
+
+	ret.dnsReservationInformer = NewDNSReservationInformer(globalListers.DNSReservations())
+	ret.dnsReservationLister = listers.NewDNSReservationLister(ret.dnsReservationInformer.GetIndexer())
 
 	return ret
 }
@@ -155,6 +166,11 @@ func (b *backendInformers) RunWithContext(ctx context.Context) {
 	go func() {
 		defer wg.Done()
 		b.serviceProviderClusterInformer.RunWithContext(ctx)
+	}()
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		b.dnsReservationInformer.RunWithContext(ctx)
 	}()
 
 	<-ctx.Done()

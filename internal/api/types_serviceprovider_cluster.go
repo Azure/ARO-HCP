@@ -103,6 +103,9 @@ type ServiceProviderClusterStatus struct {
 	// The Condition Reason and Message are used to provide more details about the validation status.
 	// The Condition LastTransitionTime is used to track the last time the validation transitioned from one status to another.
 	Validations []Condition `json:"validations,omitempty"`
+
+	// KubeAPIServerDNSReservation points to the bound DNSReservation for this cluster
+	KubeAPIServerDNSReservation *azcorearm.ResourceID `json:"kubeAPIServerDNSReservation,omitempty"`
 }
 
 // ServiceProviderClusterStatusVersion contains the actual version information.
