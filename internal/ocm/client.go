@@ -800,16 +800,11 @@ func NewOpenShiftVersionXYZ(v, cg string) string {
 			parts = append(parts, "0")
 		}
 
-		// If no patch version provided (X.Y format), append default patch version
-		// Otherwise preserve the provided patch version (X.Y.Z format)
+		// If no patch version provided (X.Y format), default to .0.
+		// Callers that need a specific Z-stream should resolve via Cincinnati
+		// before calling this function and pass X.Y.Z directly.
 		if len(parts) == 2 {
-			// Patch version is managed by Red Hat. This will be computed automatically to the latest
-			// as part of https://github.com/Azure/ARO-HCP/pull/4477
-			if patch, ok := map[string]string{"4.19": "25", "4.20": "16", "4.21": "5"}[v]; ok {
-				parts = append(parts, patch)
-			} else {
-				parts = append(parts, "0")
-			}
+			parts = append(parts, "0")
 		}
 
 		csVersion = api.OpenShiftVersionPrefix + strings.Join(parts, ".") + prereleasePart
