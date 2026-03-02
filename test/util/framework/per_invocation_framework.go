@@ -131,7 +131,7 @@ func (tc *perBinaryInvocationTestContext) getAzureCredentials() (azcore.TokenCre
 	// if we find a desire to use the zero-dep e2e testing everywhere, we can extend this credential creation to include
 	// other options for non-Azure endpoints.  It's worth remembering that the value-add using the same library isn't in the
 	// ten lines of creation, it's in using a common credential library for golang compatibility.
-	azureCredentials, err := azidentity.NewDefaultAzureCredential(nil)
+	azureCredentials, err := azidentity.NewDefaultAzureCredential(&azidentity.DefaultAzureCredentialOptions{RequireAzureTokenCredentials: true})
 	if err != nil {
 		return nil, fmt.Errorf("failed building environment credential: %w", err)
 	}

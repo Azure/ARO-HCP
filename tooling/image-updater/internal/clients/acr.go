@@ -45,7 +45,7 @@ func NewACRClient(registryURL string, useAuth bool) (*ACRClient, error) {
 	var err error
 
 	if useAuth {
-		cred, err := azidentity.NewDefaultAzureCredential(nil)
+		cred, err := azidentity.NewDefaultAzureCredential(&azidentity.DefaultAzureCredentialOptions{RequireAzureTokenCredentials: true})
 		if err != nil {
 			return nil, fmt.Errorf("failed to create Azure credential: %w", err)
 		}

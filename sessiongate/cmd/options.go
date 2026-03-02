@@ -131,7 +131,7 @@ func (o *RawControllerOptions) Validate(ctx context.Context) (*ValidatedControll
 func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerOptions, error) {
 	logger := klog.FromContext(ctx)
 
-	azureCredential, err := azidentity.NewDefaultAzureCredential(nil)
+	azureCredential, err := azidentity.NewDefaultAzureCredential(&azidentity.DefaultAzureCredentialOptions{RequireAzureTokenCredentials: true})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Azure credential: %w", err)
 	}
