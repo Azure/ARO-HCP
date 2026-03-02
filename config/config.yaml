@@ -1106,7 +1106,7 @@ clouds:
           application:
             useSNI: false
             name: "arohcp-ga-dev" # [tenant-unique]
-            ownerIds: "d8837611-f550-4f0a-af48-575a7178adfb,16ea1e12-7ef3-4613-bea4-3d4a20cbc38c,770ce6b0-5afe-472d-ac0d-1fae72acc4e4" # aro-github-actions-identity, bvesel, goberlec
+            ownerIds: "d8837611-f550-4f0a-af48-575a7178adfb,c209f8df-52ae-48fb-98ea-380f58b04652,16ea1e12-7ef3-4613-bea4-3d4a20cbc38c,770ce6b0-5afe-472d-ac0d-1fae72acc4e4" # aro-github-actions-identity, openshift-release-bot, bvesel, goberlec
           keyVault:
             name: "arohcpdev-geneva-kv" # [globally-unique]
           certificate:
