@@ -191,6 +191,10 @@ func (in *CustomerPlatformProfile) DeepCopyInto(out *CustomerPlatformProfile) {
 		in, out := &in.SubnetID, &out.SubnetID
 		*out = arm.DeepCopyResourceID(*in)
 	}
+	if in.VnetIntegrationSubnetID != nil {
+		in, out := &in.VnetIntegrationSubnetID, &out.VnetIntegrationSubnetID
+		*out = arm.DeepCopyResourceID(*in)
+	}
 	if in.NetworkSecurityGroupID != nil {
 		in, out := &in.NetworkSecurityGroupID, &out.NetworkSecurityGroupID
 		*out = arm.DeepCopyResourceID(*in)
