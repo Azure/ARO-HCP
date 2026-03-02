@@ -426,12 +426,6 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		activeOperationLister,
 		backendInformers,
 	)
-	clusterServiceMigrationController := clusterpropertiescontroller.NewClusterCustomerPropertiesMigrationController(
-		b.options.CosmosDBClient,
-		b.options.ClustersServiceClient,
-		activeOperationLister,
-		backendInformers,
-	)
 	identityMigrationController := clusterpropertiescontroller.NewIdentityMigrationController(
 		b.options.CosmosDBClient,
 		b.options.ClustersServiceClient,
@@ -526,7 +520,6 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go controlPlaneDesiredVersionController.Run(ctx, 20)
 				go triggerControlPlaneUpgradeController.Run(ctx, 20)
 				go clusterPropertiesSyncController.Run(ctx, 20)
-				go clusterServiceMigrationController.Run(ctx, 20)
 				go identityMigrationController.Run(ctx, 20)
 				go azureRPRegistrationValidationController.Run(ctx, 20)
 				go azureClusterResourceGroupExistenceValidationController.Run(ctx, 20)
