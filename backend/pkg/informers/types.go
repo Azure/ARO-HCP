@@ -33,6 +33,7 @@ type BackendInformers interface {
 	NodePools() (cache.SharedIndexInformer, listers.NodePoolLister)
 	ExternalAuths() (cache.SharedIndexInformer, listers.ExternalAuthLister)
 	ServiceProviderClusters() (cache.SharedIndexInformer, listers.ServiceProviderClusterLister)
+	ServiceProviderNodePools() (cache.SharedIndexInformer, listers.ServiceProviderNodePoolLister)
 
 	RunWithContext(ctx context.Context)
 }
@@ -55,6 +56,9 @@ type backendInformers struct {
 
 	serviceProviderClusterInformer cache.SharedIndexInformer
 	serviceProviderClusterLister   listers.ServiceProviderClusterLister
+
+	serviceProviderNodePoolInformer cache.SharedIndexInformer
+	serviceProviderNodePoolLister   listers.ServiceProviderNodePoolLister
 }
 
 func (b *backendInformers) Subscriptions() (cache.SharedIndexInformer, listers.SubscriptionLister) {
@@ -79,6 +83,10 @@ func (b *backendInformers) ExternalAuths() (cache.SharedIndexInformer, listers.E
 
 func (b *backendInformers) ServiceProviderClusters() (cache.SharedIndexInformer, listers.ServiceProviderClusterLister) {
 	return b.serviceProviderClusterInformer, b.serviceProviderClusterLister
+}
+
+func (b *backendInformers) ServiceProviderNodePools() (cache.SharedIndexInformer, listers.ServiceProviderNodePoolLister) {
+	return b.serviceProviderNodePoolInformer, b.serviceProviderNodePoolLister
 }
 
 func NewBackendInformers(ctx context.Context, globalListers database.GlobalListers) BackendInformers {
