@@ -35,6 +35,7 @@ ignore:
 - 'velero/deploy/templates/install-job.yaml'
 - 'maestro/server/deploy/templates/allow-cluster-service.authorizationpolicy.yaml'
 - 'maestro/server/deploy/templates/allow-backend.authorizationpolicy.yaml'
+- 'backend/deploy/templates/backend.deployment.yaml'
 rules:
   brackets: enable
   colons: enable

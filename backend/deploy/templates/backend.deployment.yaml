@@ -65,6 +65,18 @@ spec:
         - "{{ .Values.fpa.clientId }}"
         - "--maestro-source-environment-identifier"
         - "{{ .Values.maestro.sourceEnvironmentIdentifier }}"
+       {{- if and .Values.miMock.certName .Values.miMock.clientId .Values.miMock.principalId .Values.miMock.tenantId }}
+        # MI Mock flags. They should only be set in ARO-HCP environments where Microsoft's Managed Identities Dataplane service is not available.
+        - "--insecure-ignore-user-azure-managed-identities-that-need-managed-identities-dataplane-available-and-use-mock"
+        - "--insecure-azure-managed-identity-mock-certificate-bundle-path"
+        - "/secrets/backend-service-key-vault/mi-mock-cert-bundle"
+        - "--insecure-azure-managed-identity-mock-client-id"
+        - "{{ .Values.miMock.clientId }}"
+        - "--insecure-azure-managed-identity-mock-principal-id"
+        - "{{ .Values.miMock.principalId }}"
+        - "--insecure-azure-managed-identity-mock-tenant-id"
+        - "{{ .Values.miMock.tenantId }}"
+        {{- end }}
         env:
         - name: DB_NAME
           valueFrom:
