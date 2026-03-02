@@ -857,6 +857,7 @@ defaults:
   # Mock Managed Identities - not relevant for most MSFT envs
   miMockClientId: ""
   miMockPrincipalId: ""
+  miMockTenantId: ""
   miMockCertName: ""
   armHelperClientId: ""
   armHelperFPAPrincipalId: ""
@@ -975,6 +976,7 @@ clouds:
       # Mock Managed Identities Service Princiapl
       miMockClientId: e8723db7-9b9e-46a4-9f7d-64d75c3534f0
       miMockPrincipalId: d6b62dfa-87f5-49b3-bbcb-4a687c4faa96
+      miMockTenantId: 64dc69e4-d083-49fc-9569-ebece1dd1408
       miMockCertName: msiMockCert2
       # ARM Helper
       armHelperClientId: 3331e670-0804-48e8-a086-6241671ddc93

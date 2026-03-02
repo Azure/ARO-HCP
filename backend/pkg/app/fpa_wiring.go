@@ -16,7 +16,9 @@ package app
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
+	"os"
 	"time"
 
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
@@ -24,10 +26,10 @@ import (
 	"github.com/Azure/ARO-HCP/internal/fpa"
 )
 
-func NewFirstPartyApplicationClientBuilder(
-	ctx context.Context, fpaCertBundlePath string, fpaClientID string,
-	azureConfig *azureconfig.AzureConfig,
-) (azureclient.FirstPartyApplicationClientBuilder, error) {
+func NewFirstPartyApplicationTokenCredentialRetriever(
+	ctx context.Context, fpaCertBundlePath string,
+	fpaClientID string, azureConfig *azureconfig.AzureConfig,
+) (fpa.FirstPartyApplicationTokenCredentialRetriever, error) {
 	if len(fpaCertBundlePath) == 0 || len(fpaClientID) == 0 {
 		return nil, nil
 	}
@@ -42,10 +44,6 @@ func NewFirstPartyApplicationClientBuilder(
 		return nil, fmt.Errorf("failed to create certificate reader: %w", err)
 	}
 
-	// We create the FPA token credential retriever here. Then we pass it to the cluster inflights controller,
-	// which then is used to instantiate a validation that uses the FPA token credential retriever. And then the
-	// validations uses the retriever to retrieve a token credential based on the information associated to the
-	// cluster(the tenant of the cluster, the subscription id, ...)
 	fpaTokenCredRetriever, err := fpa.NewFirstPartyApplicationTokenCredentialRetriever(
 		fpaClientID,
 		certReader,
@@ -55,9 +53,61 @@ func NewFirstPartyApplicationClientBuilder(
 		return nil, fmt.Errorf("failed to create FPA token credential retriever: %w", err)
 	}
 
+	return fpaTokenCredRetriever, nil
+}
+
+func NewFirstPartyApplicationClientBuilder(fpaTokenCredRetriever fpa.FirstPartyApplicationTokenCredentialRetriever, azureConfig *azureconfig.AzureConfig) (azureclient.FirstPartyApplicationClientBuilder, error) {
 	fpaClientBuilder := azureclient.NewFirstPartyApplicationClientBuilder(
 		fpaTokenCredRetriever, azureConfig.CloudEnvironment.ARMClientOptions(),
 	)
 
 	return fpaClientBuilder, nil
+}
+
+func NewFirstPartyApplicationManagedIdentitiesDataplaneClientBuilder(
+	fpaTokenCredRetriever fpa.FirstPartyApplicationTokenCredentialRetriever,
+	azureMIMockCertBundlePath string, azureMIMockClientID string, azureMIMockPrincipalID string, azureMIMockTenantID string,
+	azureConfig *azureconfig.AzureConfig,
+) (azureclient.FPAMIDataplaneClientBuilder, error) {
+	if len(azureMIMockCertBundlePath) == 0 || len(azureMIMockClientID) == 0 || len(azureMIMockPrincipalID) == 0 || len(azureMIMockTenantID) == 0 {
+		// TODO this can be improved at some point to support detecting when
+		// the cert bundle path content changes. We could use a file watcher similar
+		// to the one used in the fpa token credential retriever, and pass the retriever
+		// to the client builder.
+		bundle, err := os.ReadFile(azureMIMockCertBundlePath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read bundle file: %w", err)
+		}
+		bundleBase64Encoded := base64.StdEncoding.EncodeToString(bundle)
+		hardcodedIdentity := &azureclient.HardcodedIdentity{
+			ClientID:     azureMIMockClientID,
+			ClientSecret: bundleBase64Encoded,
+			PrincipalID:  azureMIMockPrincipalID,
+			TenantID:     azureMIMockTenantID,
+		}
+		hardcodedIdentityFPAMIDataplaneClientBuilder := azureclient.NewHardcodedIdentityFPAMIDataplaneClientBuilder(
+			azureConfig.CloudEnvironment.CloudConfiguration(),
+			hardcodedIdentity,
+		)
+		return hardcodedIdentityFPAMIDataplaneClientBuilder, nil
+	}
+
+	fpaMIdataplaneClientBuilder := azureclient.NewFPAMIDataplaneClientBuilder(
+		azureConfig.AzureRuntimeConfig.ServiceTenantID,
+		fpaTokenCredRetriever,
+		azureConfig.AzureRuntimeConfig.ManagedIdentitiesDataPlaneAudienceResource,
+		azureConfig.CloudEnvironment.AZCoreClientOptions(),
+	)
+
+	return fpaMIdataplaneClientBuilder, nil
+}
+
+func NewServiceManagedIdentityClientBuilderFactory(
+	fpaMIdataplaneClientBuilder azureclient.FPAMIDataplaneClientBuilder,
+	azureConfig *azureconfig.AzureConfig,
+) azureclient.ServiceManagedIdentityClientBuilderFactory {
+	return azureclient.NewServiceManagedIdentityClientBuilderFactory(
+		fpaMIdataplaneClientBuilder,
+		azureConfig.CloudEnvironment.ARMClientOptions(),
+	)
 }
