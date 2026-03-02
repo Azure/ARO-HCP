@@ -212,11 +212,12 @@ defaults:
     viewerGroups: ""
     sku: ""
     tier: ""
-    auditLogsEventHub:
-      name: "aks-auditlogs"
-      namespace: "hcp-{{ .ctx.environment }}-{{ .ev2.geoShortId }}-eh"
-      authRuleName: "SendRule"
-      kustoConsumerGroupName: "AuditLogsToKusto"
+  auditLogsEventHub:
+    name: "aks-auditlogs"
+    namespace: "hcp-{{ .ctx.environment }}-{{ .ctx.region }}-auditlogs-eh"
+    authRuleName: "SendRule"
+    kustoConsumerGroupName: "AuditLogsToKusto"
+    kustoDataConnectionName: "{{ .ctx.environment }}-{{ .ctx.region }}-auditlogs"
   # Hypershift
   hypershift:
     image:
@@ -326,6 +327,8 @@ defaults:
           - name: ManagedGatewayAPIPreview
             poll: true
         'Microsoft.DbForPostgreSQL':
+          poll: true
+        'Microsoft.Kusto':
           poll: true
     rg: "hcp-underlay-{{ .ctx.environment }}-{{ .ctx.region }}-svc"
     nsp:
@@ -920,11 +923,6 @@ clouds:
         adminGroups: ""
         viewerGroups: "64dc69e4-d083-49fc-9569-ebece1dd1408/6b6d3adf-8476-4727-9812-20ffdef2b85c"
         rg: "hcp-kusto-us"
-        auditLogsEventHub:
-          name: "aks-auditlogs"
-          namespace: "hcp-dev-us-eh"
-          authRuleName: "SendRule"
-          kustoConsumerGroupName: "AuditLogsToKusto"
       tenantId: "64dc69e4-d083-49fc-9569-ebece1dd1408"
       automationDryRun: false
       arobit:

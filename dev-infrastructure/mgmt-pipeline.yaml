@@ -209,7 +209,7 @@ resourceGroups:
         name: maestroEventGridNamespaceId
     - name: auditLogsEventHubAuthRuleId
       input:
-        resourceGroup: kusto
+        resourceGroup: regional
         step: output
         name: auditLogsEventHubAuthRuleId
     dependsOn:
