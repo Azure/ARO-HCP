@@ -74,9 +74,18 @@ func (v verifyGlobalPullSecretSyncer) Verify(ctx context.Context, adminRESTConfi
 		return fmt.Errorf("failed to create kubernetes client: %w", err)
 	}
 
-	_, err = kubeClient.AppsV1().DaemonSets("kube-system").Get(ctx, "global-pull-secret-syncer", metav1.GetOptions{})
+	ds, err := kubeClient.AppsV1().DaemonSets("kube-system").Get(ctx, "global-pull-secret-syncer", metav1.GetOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to get global-pull-secret-syncer DaemonSet: %w", err)
+	}
+
+	// Verify the DaemonSet is ready - all desired pods are available
+	if ds.Status.DesiredNumberScheduled == 0 {
+		return fmt.Errorf("global-pull-secret-syncer has no desired pods scheduled")
+	}
+	if ds.Status.NumberReady != ds.Status.DesiredNumberScheduled {
+		return fmt.Errorf("global-pull-secret-syncer not ready: %d/%d pods ready",
+			ds.Status.NumberReady, ds.Status.DesiredNumberScheduled)
 	}
 
 	return nil
