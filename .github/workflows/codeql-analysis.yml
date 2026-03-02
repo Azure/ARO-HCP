@@ -32,14 +32,13 @@ jobs:
 
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v4
+      uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
 
     - name: Set up Go
       if: matrix.language == 'go'
-      uses: actions/setup-go@v5
+      uses: actions/setup-go@v6
       with:
         go-version-file: 'go.work'
-        cache: true
 
     # Initializes the CodeQL tools for scanning
     - name: Initialize CodeQL
