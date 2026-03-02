@@ -442,6 +442,7 @@ func TestDeploymentPreflight(t *testing.T) {
 				"apiVersion": api.TestAPIVersion,
 				"properties": map[string]any{
 					"version": map[string]any{
+						"id":           "4.20.1",
 						"channelGroup": "stable",
 					},
 					"platform": map[string]any{
@@ -460,6 +461,7 @@ func TestDeploymentPreflight(t *testing.T) {
 				"apiVersion": api.TestAPIVersion,
 				"properties": map[string]any{
 					"version": map[string]any{
+						// 1 missing required field
 						"channelGroup": "stable",
 					},
 					"platform": map[string]any{
@@ -480,6 +482,7 @@ func TestDeploymentPreflight(t *testing.T) {
 			},
 			expectStatus: arm.DeploymentPreflightStatusFailed,
 			expectErrors: []expectedPreflightError{
+				{message: "Required value", target: "properties.version.id"},
 				{message: "Required value", target: "properties.platform.vmSize"},
 				{message: "Invalid value: 1: must be greater than or equal to 3", target: "properties.autoScaling.max"},
 				{message: "Unsupported value: \"NoTouchy\": supported values: \"NoExecute\", \"NoSchedule\", \"PreferNoSchedule\"", target: "properties.taints[0].effect"},

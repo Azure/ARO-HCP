@@ -169,9 +169,7 @@ func validateNodePoolVersionProfile(ctx context.Context, op operation.Operation,
 	errs := field.ErrorList{}
 
 	//ID           string `json:"id,omitempty"`
-	if newObj.ChannelGroup != "stable" {
-		errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("id"), &newObj.ID, safe.Field(oldObj, toNodePoolVersionProfileID))...)
-	}
+	errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("id"), &newObj.ID, safe.Field(oldObj, toNodePoolVersionProfileID))...)
 	errs = append(errs, OpenshiftVersionWithOptionalMicro(ctx, op, fldPath.Child("id"), &newObj.ID, safe.Field(oldObj, toNodePoolVersionProfileID))...)
 
 	//ChannelGroup string `json:"channelGroup,omitempty"`
