@@ -183,7 +183,12 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 		if err := checkForProvisioningStateConflict(ctx, f.dbClient, database.OperationRequestUpdate, oldInternalNodePool.ID, oldInternalNodePool.Properties.ProvisioningState); err != nil {
 			return utils.TrackError(err)
 		}
-
+		// If the update happens in the version field change the version in the cosmosInternalNodePool
+		// That will trigger the upgrade through the backend controllers
+		// Then change here the version so when it checks if there is an update on that field it doesn't count it
+		// With this we want to, split the update of the version from the update of a node pool. So it isn't an async operation, but an operation
+		// that happens in the background. This operation will not block any other operation.
+		// Upgrade operation is trigger through the backend controllers whereas update operation is currently trigger in the frontend.
 		switch request.Method {
 		case http.MethodPut:
 			return f.updateNodePool(writer, request, oldInternalNodePool)
@@ -410,6 +415,8 @@ func decodeDesiredNodePoolReplace(ctx context.Context, oldInternalNodePool *api.
 	}
 
 	// values a user doesn't have to provide, but are not static defaults (set dynamically during create).  Set these from old value
+	// For upgrades, version change is handled in the controllers, so always set this to the CS version.
+	// This way the update will not fail if there are other changes that the version.
 	if len(newInternalNodePool.Properties.Version.ID) == 0 {
 		newInternalNodePool.Properties.Version.ID = oldInternalNodePool.Properties.Version.ID
 	}
@@ -541,10 +548,17 @@ func (f *Frontend) updateNodePoolInCosmos(ctx context.Context, writer http.Respo
 
 	validationErrs := validation.ValidateNodePoolUpdate(ctx, newInternalNodePool, oldInternalNodePool)
 	// in addition to static validation, we have validation based on the state of the hcp cluster
+	// TODO: add validations for upgrade
+	// 		newInternal.version > oldInternal.version
+	// 		newInternal.version <= cluster.version
+	//		newInternal.version >= cluster.version <X.Y-2>
 	validationErrs = append(validationErrs, admission.AdmitNodePool(newInternalNodePool, cluster)...)
 	if err := arm.CloudErrorFromFieldErrors(validationErrs); err != nil {
 		return utils.TrackError(err)
 	}
+	// this method is call from PATCH and PUT calculate here the version change
+	// change the version of the BuildCSNodePool newInternalNodePool to be the same as the one in CS
+	// The CS call will not change that field
 
 	csNodePoolBuilder, err := ocm.BuildCSNodePool(ctx, newInternalNodePool, true)
 	if err != nil {
@@ -556,6 +570,9 @@ func (f *Frontend) updateNodePoolInCosmos(ctx context.Context, writer http.Respo
 	if err != nil {
 		return utils.TrackError(err)
 	}
+
+	// store in the cosmos representation the new desired version
+	// The controllers will take care of handle the upgrade
 
 	transaction := f.dbClient.NewTransaction(oldInternalNodePool.ID.SubscriptionID)
 
