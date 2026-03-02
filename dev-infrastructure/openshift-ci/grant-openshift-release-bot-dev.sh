@@ -8,6 +8,7 @@ SUBSCRIPTIONS=(
     "ARO HCP E2E Management Clusters (EA Subscription)"
     "ARO Hosted Control Planes (EA Subscription 1)"
 )
+GLOBAL_SUBSCRIPTION_NAME="ARO Hosted Control Planes (EA Subscription 1)"
 
 # Role assignment condition to prevent assigning privileged administrator roles
 UAA_CONDITION="(
@@ -108,7 +109,34 @@ for SUBSCRIPTION_NAME in "${SUBSCRIPTIONS[@]}"; do
         --condition "${UAA_CONDITION}" \
         --condition-version "2.0" \
         --description "Allow user to assign all roles except privileged administrator roles Owner, UAA, RBAC (Recommended)" 2>/dev/null || echo "    (already assigned)"
+
+    if [[ "${SUBSCRIPTION_NAME}" == "${GLOBAL_SUBSCRIPTION_NAME}" ]]; then
+        GLOBAL_SUBSCRIPTION_ID="${SUBSCRIPTION_ID}"
+    fi
 done
+
+if [[ -z "${GLOBAL_SUBSCRIPTION_ID:-}" ]]; then
+    echo "ERROR: Could not determine global subscription ID for '${GLOBAL_SUBSCRIPTION_NAME}'"
+    exit 1
+fi
+
+header "Assigning global data-plane roles"
+
+# Global pipeline runs local templatize steps under this principal in CI.
+# These steps call Key Vault and Grafana data planes directly.
+echo "  Assigning Key Vault Administrator role..."
+az role assignment create \
+    --assignee "${APP_ID}" \
+    --role "Key Vault Administrator" \
+    --scope "/subscriptions/${GLOBAL_SUBSCRIPTION_ID}" 2>/dev/null || echo "    (already assigned)"
+
+# Scope Grafana role assignment at the whole subscription so access remains valid
+# even if Grafana is recreated in a different resource group or with a new name.
+echo "  Assigning Grafana Admin role..."
+az role assignment create \
+    --assignee "${APP_ID}" \
+    --role "Grafana Admin" \
+    --scope "/subscriptions/${GLOBAL_SUBSCRIPTION_ID}" 2>/dev/null || echo "    (already assigned)"
 
 header "Grant API Permissions"
 
@@ -117,6 +145,3 @@ grant_api_permission "${APP_ID}" "e1fe6dd8-ba31-4d61-89e7-88639da4683d" "Scope"
 
 echo "Grant API Permissions - application permission: Application.ReadWrite.OwnedBy"
 grant_api_permission "${APP_ID}" "18a4783c-866b-4cc7-a460-3d5e5662c884" "Role"
-
-# echo "Grant admin consent to the application"
-# az ad app permission admin-consent --id "${APP_ID}"
