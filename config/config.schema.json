@@ -1296,6 +1296,9 @@
     "miMockPrincipalId": {
       "type": "string"
     },
+    "miMockTenantId": {
+      "type": "string"
+    },
     "miMockCertName": {
       "type": "string"
     },

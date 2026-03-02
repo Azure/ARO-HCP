@@ -30,6 +30,19 @@ fpa:
   # to the certificate
   certName: "{{ .firstPartyAppCertificate.name }}"
   clientId: "{{ .firstPartyAppClientId }}"
+# MI Mock, also known as Mock MSI or Mock MSI Identity. It is a common Azure Service Principal identity.
+# It is used in the ARO-HCP environments where Microsoft's Managed Identities Dataplane service is not available. In
+# those environments, the MI Mock Identity is leveraged by the Control Plane operators and the Service Managed Identity
+# associated to the ARO-HCP Clusters to interact with Azure.
+miMock:
+  # certName is the name of the certificate in Azure Key Vault. It can be used
+  # to reference the associated Certificate, Secret and Key objects associated
+  # to the certificate
+  certName: "{{ .miMockCertName }}"
+  clientId: "{{ .miMockClientId }}"
+  principalId: "{{ .miMockPrincipalId }}"
+  # The Azure Tenant ID where the MI Mock Identity is registered.
+  tenantId: "{{ .miMockTenantId }}"
 azure:
   cloudEnvironmentName: "{{ .cloudEnvironmentName }}"
   # The Azure Tenant ID where backend service is running. In values.yaml we
