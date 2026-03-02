@@ -584,9 +584,15 @@ func (e *leasedIdentityPoolEntry) release(cleanups ...func() error) error {
 }
 
 type leasedIdentityPoolState struct {
-	lockFile  *os.File
+	// lockFile ensures single process access to the state file.
+	lockFile *os.File
+	// mu ensures single thread access to the state file to avoid
+	// intra-test parallelism issues.
+	mu sync.Mutex
+	// statePath is the path to the state file.
 	statePath string
-	entries   []leasedIdentityPoolEntry
+	// entries is the list of leased identity pool entries.
+	entries []leasedIdentityPoolEntry
 }
 
 // newLeasedIdentityPoolState creates a new leased identity pool state.
@@ -864,9 +870,12 @@ func specID() string {
 }
 
 func (state *leasedIdentityPoolState) lock() error {
+	state.mu.Lock()
 	return filelock.Lock(state.lockFile.Fd())
 }
 
 func (state *leasedIdentityPoolState) unlock() error {
-	return filelock.Unlock(state.lockFile.Fd())
+	err := filelock.Unlock(state.lockFile.Fd())
+	state.mu.Unlock()
+	return err
 }

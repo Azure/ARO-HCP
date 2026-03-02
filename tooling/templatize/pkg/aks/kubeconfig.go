@@ -20,7 +20,7 @@ import (
 	"os"
 	"os/exec"
 
-	"github.com/Azure/ARO-Tools/pkg/cmdutils"
+	"github.com/Azure/ARO-Tools/tools/cmdutils"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice"
 )
 

@@ -89,7 +89,7 @@ func (v verifyMustGatherLogsImpl) Verify(ctx context.Context) error {
 	foundLogSources := make(map[string]bool)
 	var foundMutex sync.Mutex
 
-	outputFunc := func(logLineChan chan *mustgather.NormalizedLogLine, queryType mustgather.QueryType, options mustgather.RowOutputOptions) error {
+	outputFunc := func(ctx context.Context, logLineChan chan *mustgather.NormalizedLogLine, queryType mustgather.QueryType, options mustgather.RowOutputOptions) error {
 		for logLine := range logLineChan {
 			// Create a key for namespace/container combination
 			key := fmt.Sprintf("%s/%s", logLine.Namespace, logLine.ContainerName)
@@ -106,6 +106,7 @@ func (v verifyMustGatherLogsImpl) Verify(ctx context.Context) error {
 		mustgather.RowOutputOptions{},
 		mustgather.GathererOptions{
 			SkipHostedControlPlaneLogs: false,
+			SkipKubernetesEventsLogs:   true,
 			QueryOptions:               queryOptions,
 		},
 	)
@@ -145,8 +146,8 @@ func (v verifyMustGatherLogsImpl) Verify(ctx context.Context) error {
 // VerifyMustGatherLogs creates a new must-gather logs verifier with default configuration
 func VerifyMustGatherLogs(subscriptionID, rgName string) verifyMustGatherLogsImpl {
 	config := mustGatherVerifierConfig{
-		KustoCluster:   "hcp-dev-us",
-		KustoRegion:    "westus3",
+		KustoCluster:   "hcp-dev-us-2",
+		KustoRegion:    "eastus2",
 		SubscriptionID: subscriptionID,
 		ResourceGroup:  rgName,
 		QueryTimeout:   5 * time.Minute,
@@ -167,7 +168,7 @@ func VerifyMustGatherLogs(subscriptionID, rgName string) verifyMustGatherLogsImp
 				Database:      "ServiceLogs",
 			},
 			{
-				NamespacePrefix: "ocm-arohcpdev-",
+				NamespacePrefix: "ocm-arohcp",
 				Database:        "HostedControlPlaneLogs",
 				ContainerName:   "kube-apiserver",
 			},

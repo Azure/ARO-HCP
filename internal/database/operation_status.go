@@ -194,7 +194,11 @@ func PatchOperationDocument(ctx context.Context, dbClient DBClient, oldOperation
 	}
 
 	if newOperationError != nil {
-		logger.WithValues("cloud_error_code", newOperationError.Code, "cloud_error_message", newOperationError.Message).Error(nil, message)
+		logger.WithValues(
+			utils.LogValues{}.
+				AddCloudErrorCode(newOperationError.Code).
+				AddCloudErrorMessage(newOperationError.Message)...).
+			Error(nil, message)
 	} else {
 		logger.Info(message)
 	}

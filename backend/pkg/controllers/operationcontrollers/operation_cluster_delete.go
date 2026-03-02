@@ -25,7 +25,6 @@ import (
 
 	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
 
-	"github.com/Azure/ARO-HCP/backend/oldoperationscanner"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/database"
@@ -98,7 +97,7 @@ func (c *operationClusterDelete) SynchronizeOperation(ctx context.Context, key c
 			return utils.TrackError(err)
 		}
 
-		err = oldoperationscanner.SetDeleteOperationAsCompleted(ctx, c.cosmosClient, operation, PostAsyncNotification(c.notificationClient))
+		err = SetDeleteOperationAsCompleted(ctx, c.cosmosClient, operation, postAsyncNotificationFn(c.notificationClient))
 		if err != nil {
 			logger.Error(err, "Failed to handle a completed deletion")
 		}
@@ -107,12 +106,12 @@ func (c *operationClusterDelete) SynchronizeOperation(ctx context.Context, key c
 		return utils.TrackError(err)
 	}
 
-	newOperationStatus, newOperationError, err := oldoperationscanner.ConvertClusterStatus(ctx, c.clusterServiceClient, operation, clusterStatus)
+	newOperationStatus, newOperationError, err := convertClusterStatus(ctx, c.clusterServiceClient, operation, clusterStatus)
 	if err != nil {
 		return utils.TrackError(err)
 	}
 
-	err = database.UpdateOperationStatus(ctx, c.cosmosClient, operation, newOperationStatus, newOperationError, PostAsyncNotification(c.notificationClient))
+	err = UpdateOperationStatus(ctx, c.cosmosClient, operation, newOperationStatus, newOperationError, postAsyncNotificationFn(c.notificationClient))
 	if err != nil {
 		return utils.TrackError(err)
 	}

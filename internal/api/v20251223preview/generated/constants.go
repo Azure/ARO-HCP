@@ -212,6 +212,24 @@ func PossibleExternalAuthProvisioningStateValues() []ExternalAuthProvisioningSta
 	}
 }
 
+// KeyVaultVisibility - The internet visibility of a keyvault resource
+type KeyVaultVisibility string
+
+const (
+	// KeyVaultVisibilityPrivate - The keyvault is not visible from the internet.
+	KeyVaultVisibilityPrivate KeyVaultVisibility = "Private"
+	// KeyVaultVisibilityPublic - The keyvault is visible from the internet.
+	KeyVaultVisibilityPublic KeyVaultVisibility = "Public"
+)
+
+// PossibleKeyVaultVisibilityValues returns the possible values for the KeyVaultVisibility const type.
+func PossibleKeyVaultVisibilityValues() []KeyVaultVisibility {
+	return []KeyVaultVisibility{
+		KeyVaultVisibilityPrivate,
+		KeyVaultVisibilityPublic,
+	}
+}
+
 // ManagedServiceIdentityType - Type of managed service identity (where both SystemAssigned and UserAssigned types are allowed).
 type ManagedServiceIdentityType string
 
@@ -285,6 +303,28 @@ func PossibleOriginValues() []Origin {
 		OriginSystem,
 		OriginUser,
 		OriginUserSystem,
+	}
+}
+
+// OsDiskType - The type of the OS disk.
+// * https://learn.microsoft.com/en-us/azure/virtual-machines/ephemeral-os-disks
+type OsDiskType string
+
+const (
+	// OsDiskTypeEphemeral - Ephemeral OS disk - stored on local VM cache/temporary storage.
+	// Provides lower latency and faster node operations.
+	// Requires VM with sufficient cache size.
+	OsDiskTypeEphemeral OsDiskType = "Ephemeral"
+	// OsDiskTypeManaged - Managed OS disk - stored as an Azure managed disk (network-attached).
+	// Default behavior for VMs without sufficient cache.
+	OsDiskTypeManaged OsDiskType = "Managed"
+)
+
+// PossibleOsDiskTypeValues returns the possible values for the OsDiskType const type.
+func PossibleOsDiskTypeValues() []OsDiskType {
+	return []OsDiskType{
+		OsDiskTypeEphemeral,
+		OsDiskTypeManaged,
 	}
 }
 

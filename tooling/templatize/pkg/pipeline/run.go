@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strconv"
@@ -35,10 +36,12 @@ import (
 
 	"sigs.k8s.io/yaml"
 
-	configtypes "github.com/Azure/ARO-Tools/pkg/config/types"
-	"github.com/Azure/ARO-Tools/pkg/graph"
-	"github.com/Azure/ARO-Tools/pkg/topology"
-	"github.com/Azure/ARO-Tools/pkg/types"
+	configtypes "github.com/Azure/ARO-Tools/config/types"
+	"github.com/Azure/ARO-Tools/pipelines/graph"
+	"github.com/Azure/ARO-Tools/pipelines/topology"
+	"github.com/Azure/ARO-Tools/pipelines/types"
+	"github.com/Azure/ARO-Tools/tools/cmdutils"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 
 	"github.com/Azure/ARO-HCP/tooling/templatize/bicep"
 	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/junit"
@@ -63,6 +66,9 @@ type PipelineRunOptions struct {
 
 	TimingOutputFile string
 	JUnitOutputFile  string
+
+	AbortIfRegionalExist bool
+	RegionRGNames        []string // Specific RG names to check for concurrent execution prevention
 }
 
 type BaseRunOptions struct {
@@ -166,16 +172,89 @@ func (i Identifier) String() string {
 	return fmt.Sprintf("%s/%s/%s", i.ServiceGroup, i.ResourceGroup, i.Step)
 }
 
+// precheckResourceGroups checks if any target resource groups already exist.
+// If abortOnExisting is true and any target RG exists, returns an error.
+// This is used to prevent concurrent executions from interfering with each other.
+func precheckResourceGroups(ctx context.Context, logger logr.Logger, executionGraph *graph.Graph, subscriptionLookup SubscriptionLookup, abortOnExisting bool, regionRGNames []string) error {
+	if !abortOnExisting || len(regionRGNames) == 0 {
+		return nil
+	}
+
+	logger.Info("Running resource group existence precheck", "targetRGs", regionRGNames)
+
+	cred, err := cmdutils.GetAzureTokenCredentials()
+	if err != nil {
+		return fmt.Errorf("failed to get credentials for precheck: %w", err)
+	}
+
+	// Build a set of target RG names for quick lookup
+	targetRGs := sets.New[string](regionRGNames...)
+
+	existingRGs := []string{}
+
+	for rgName, resourceGroup := range executionGraph.ResourceGroups {
+		// Only check resource groups that are in our target list
+		if !targetRGs.Has(resourceGroup.ResourceGroup) {
+			logger.V(4).Info("Skipping resource group precheck (not a target RG)",
+				"logicalName", rgName,
+				"resourceGroup", resourceGroup.ResourceGroup)
+			continue
+		}
+
+		subscriptionID, err := subscriptionLookup(ctx, resourceGroup.Subscription)
+		if err != nil {
+			return fmt.Errorf("failed to lookup subscription ID for %q: %w",
+				resourceGroup.Subscription, err)
+		}
+
+		rgClient, err := armresources.NewResourceGroupsClient(subscriptionID, cred, nil)
+		if err != nil {
+			return fmt.Errorf("failed to create resource group client: %w", err)
+		}
+
+		_, err = rgClient.Get(ctx, resourceGroup.ResourceGroup, nil)
+		if err == nil {
+			logger.Info("Detected existing resource group",
+				"logicalName", rgName,
+				"resourceGroup", resourceGroup.ResourceGroup,
+				"subscription", resourceGroup.Subscription)
+			existingRGs = append(existingRGs, resourceGroup.ResourceGroup)
+		}
+	}
+
+	if len(existingRGs) > 0 {
+		return fmt.Errorf("aborting deployment: detected %d existing resource group(s) "+
+			"(possible concurrent execution): %v", len(existingRGs), existingRGs)
+	}
+
+	logger.Info("Resource group precheck passed: no existing resource groups detected")
+	return nil
+}
+
 func RunPipeline(service *topology.Service, pipeline *types.Pipeline, ctx context.Context, options *PipelineRunOptions, executor Executor) (Outputs, error) {
 	logger, err := logr.FromContext(ctx)
 	if err != nil {
 		return nil, err
 	}
 
+	// Execute build step if defined
+	if pipeline.BuildStep != nil {
+		pipelineDir := filepath.Join(options.TopologyDir, filepath.Dir(service.PipelinePath))
+		logger.Info("Running build step.", "serviceGroup", service.ServiceGroup, "directory", pipelineDir)
+		if err := runBuildStep(ctx, *pipeline.BuildStep, service.ServiceGroup, pipelineDir); err != nil {
+			return nil, fmt.Errorf("build step execution failed for %s: %w", service.ServiceGroup, err)
+		}
+	}
+
 	logger.Info("Generating execution graph.")
 	executionGraph, err := graph.ForPipeline(service, pipeline)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate execution graph: %w", err)
+	}
+
+	if err := precheckResourceGroups(ctx, logger, executionGraph,
+		options.SubsciptionLookupFunc, options.AbortIfRegionalExist, options.RegionRGNames); err != nil {
+		return nil, err
 	}
 
 	return runGraph(ctx, logger, executionGraph, options, executor)
@@ -187,13 +266,63 @@ func RunEntrypoint(topo *topology.Topology, entrypoint *topology.Entrypoint, pip
 		return nil, err
 	}
 
+	// Execute build steps for all pipelines in the service tree
+	service, err := topo.Lookup(entrypoint.Identifier)
+	if err != nil {
+		return nil, fmt.Errorf("failed to lookup service group %s: %w", entrypoint.Identifier, err)
+	}
+	if err := runBuildStepsForService(ctx, service, options.TopologyDir, pipelines); err != nil {
+		return nil, err
+	}
+
 	logger.Info("Generating execution graph.")
 	executionGraph, err := graph.ForEntrypoint(topo, entrypoint, pipelines)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate execution graph: %w", err)
 	}
 
+	if err := precheckResourceGroups(ctx, logger, executionGraph,
+		options.SubsciptionLookupFunc, options.AbortIfRegionalExist, options.RegionRGNames); err != nil {
+		return nil, err
+	}
+
 	return runGraph(ctx, logger, executionGraph, options, executor)
+}
+
+// runBuildStepsForService recursively executes build steps for all pipelines in the service tree.
+func runBuildStepsForService(ctx context.Context, service *topology.Service, topologyDir string, pipelines map[string]*types.Pipeline) error {
+	logger := logr.FromContextOrDiscard(ctx)
+	pipe, ok := pipelines[service.ServiceGroup]
+	if ok && pipe.BuildStep != nil {
+		pipelineDir := filepath.Join(topologyDir, filepath.Dir(service.PipelinePath))
+		logger.Info("Running build step.", "serviceGroup", service.ServiceGroup, "directory", pipelineDir)
+		if err := runBuildStep(ctx, *pipe.BuildStep, service.ServiceGroup, pipelineDir); err != nil {
+			return fmt.Errorf("build step execution failed for %s: %w", service.ServiceGroup, err)
+		}
+	}
+
+	for _, child := range service.Children {
+		if err := runBuildStepsForService(ctx, &child, topologyDir, pipelines); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// runBuildStep executes a single build step command.
+func runBuildStep(ctx context.Context, buildStep types.BuildStep, serviceGroup, workingDirectory string) error {
+	var stdout, stderr bytes.Buffer
+	cmd := exec.CommandContext(ctx, buildStep.Command, buildStep.Args...)
+	cmd.Dir = workingDirectory
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to execute build step '%s %s' for %s in directory '%s': %w\nstdout: %s\nstderr: %s",
+			buildStep.Command, strings.Join(buildStep.Args, " "), serviceGroup, workingDirectory, err, stdout.String(), stderr.String())
+	}
+
+	return nil
 }
 
 func runGraph(ctx context.Context, logger logr.Logger, executionGraph *graph.Graph, options *PipelineRunOptions, executor Executor) (Outputs, error) {
@@ -664,6 +793,16 @@ func RunStep(id graph.Identifier, s types.Step, ctx context.Context, executionTa
 	case *types.HelmStep:
 		if err := runHelmStep(id, step, ctx, options, executionTarget, state); err != nil {
 			return nil, nil, fmt.Errorf("error running Helm release deployment Step, %v", err)
+		}
+		return nil, nil, nil
+	case *types.ProwJobStep:
+		if err := runProwJobStep(step, ctx, options); err != nil {
+			return nil, nil, fmt.Errorf("error running Prow Job Step, %v", err)
+		}
+		return nil, nil, nil
+	case *types.GrafanaDashboardsStep:
+		if err := runGrafanaDashboardsStep(id, step, ctx, options, executionTarget, state); err != nil {
+			return nil, nil, fmt.Errorf("error running Grafana Dashboard Upsert Step, %v", err)
 		}
 		return nil, nil, nil
 	case *types.ARMStep:

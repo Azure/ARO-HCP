@@ -109,23 +109,44 @@ func (c *Client) ExecutePreconfiguredQuery(ctx context.Context, query *Configura
 	startTime := time.Now()
 
 	// Process the first table (primary result)
+	logger.V(6).Info("Processing primary result")
 	primaryResult := <-dataset.Tables()
 
-	columsSet := false
+	err = primaryResult.Err()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get primary result: %w", err)
+	}
+
+	if primaryResult.Table() == nil {
+		return nil, fmt.Errorf("primary result is nil")
+	}
+
+	columnsSet := false
 	for row := range primaryResult.Table().Rows() {
+		logger.V(8).Info("Processing row", "rowNumber", totalRows)
 		row := row.Row()
-		if !columsSet {
-			columns = row.Columns()
-			columsSet = true
+		if row == nil {
+			if query.Unlimited {
+				logger.Error(fmt.Errorf("query is unlimited and result is nil, most likely a serverside error occured. Try rerunning the query with limits"), "error while getting result")
+			}
+			continue
 		}
-		outputChannel <- row
+		if !columnsSet && row.Columns() != nil {
+			columns = row.Columns()
+			columnsSet = true
+		}
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case outputChannel <- row:
+		}
 		totalRows++
 		dataSize += int64(len(fmt.Sprintf("%v", row)))
 	}
 
 	executionTime := time.Since(startTime)
 
-	logger.V(1).Info("Query competed", "query", query.Name, "rows", totalRows, "KiloBytes", dataSize/1024, "executionTime", executionTime)
+	logger.V(1).Info("Query completed", "query", query.Name, "rows", totalRows, "KiloBytes", dataSize/1024, "executionTime", executionTime)
 
 	return &QueryResult{
 		Columns: columns,

@@ -1,0 +1,35 @@
+{
+    "_cluster_href" :"/api/aro_hcp/v1alpha1/clusters/fixed-value",
+    "azure_shard": {
+      "aks_management_cluster_resource_id": "/subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/mgmt-foo/providers/Microsoft.ContainerService/managedClusters/mgmt-cluster",
+      "cx_managed_identities_key_vault_url": "https://mi-keyvault-foo.vault.azure.net/",
+      "cx_secrets_key_vault_managed_identity_client_id": "c2bde1aa-d904-48cd-a728-9de33e3ddca9",
+      "cx_secrets_key_vault_url": "https://cx-keyvault-foo.vault.azure.net/",
+      "public_dns_zone_resource_id": "/subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/foo/providers/Microsoft.Network/dnszones/zone"
+    },
+    "cloud_provider": {
+      "href": "/api/clusters_mgmt/v1/cloud_providers/azure",
+      "id": "azure",
+      "kind": "CloudProvider"
+    },
+    "creation_timestamp": "2026-02-02T10:21:43.084787Z",
+    "href": "/api/aro_hcp/v1alpha1/provision_shards/fixed-shard-value",
+    "id": "fixed-shard-value",
+    "kind": "ProvisionShard",
+    "maestro_config": {
+      "consumer_name": "hcp-underlay-usw3gobe-mgmt-1",
+      "grpc_api_config": {
+        "url": "maestro-grpc.maestro.svc.cluster.local:8090"
+      },
+      "rest_api_config": {
+        "url": "http://maestro.maestro.svc.cluster.local:8000"
+      }
+    },
+    "region": {
+      "href": "/api/clusters_mgmt/v1/cloud_providers/azure/regions/westus3",
+      "id": "westus3",
+      "kind": "CloudRegion"
+    },
+    "status": "active",
+    "topology": "shared"
+  }

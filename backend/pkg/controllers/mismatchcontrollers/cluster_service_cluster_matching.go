@@ -157,7 +157,7 @@ func (c *clusterServiceClusterMatching) Run(ctx context.Context, threadiness int
 	defer c.queue.ShutDown()
 
 	logger := utils.LoggerFromContext(ctx)
-	logger = logger.WithValues("controller_name", c.name)
+	logger = logger.WithValues(utils.LogValues{}.AddControllerName(c.name)...)
 	ctx = utils.ContextWithLogger(ctx, logger)
 	logger.Info("Starting")
 
@@ -196,6 +196,7 @@ func (c *clusterServiceClusterMatching) processNextWorkItem(ctx context.Context)
 	logger := utils.LoggerFromContext(ctx)
 	ctx = utils.ContextWithLogger(ctx, logger)
 
+	controllerutils.ReconcileTotal.WithLabelValues(c.name).Inc()
 	err := c.SyncOnce(ctx, ref)
 	if err == nil {
 		c.queue.Forget(ref)

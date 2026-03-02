@@ -34,13 +34,13 @@ func MiddlewareCorrelationData(w http.ResponseWriter, r *http.Request, next http
 	correlationData := arm.NewCorrelationData(r)
 	ctx = ContextWithCorrelationData(ctx, correlationData)
 
-	logger = logger.WithValues("request_id", correlationData.RequestID.String())
+	logger = logger.WithValues(utils.LogValues{}.AddRequestID(correlationData.RequestID.String())...)
 	if correlationData.ClientRequestID != "" {
-		logger = logger.WithValues("client_request_id", correlationData.ClientRequestID)
+		logger = logger.WithValues(utils.LogValues{}.AddClientRequestID(correlationData.ClientRequestID)...)
 	}
 
 	if correlationData.CorrelationRequestID != "" {
-		logger = logger.WithValues("correlation_request_id", correlationData.CorrelationRequestID)
+		logger = logger.WithValues(utils.LogValues{}.AddCorrelationRequestID(correlationData.CorrelationRequestID)...)
 	}
 	ctx = utils.ContextWithLogger(ctx, logger)
 	r = r.WithContext(ctx)

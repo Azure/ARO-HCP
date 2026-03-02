@@ -66,7 +66,7 @@ func (g *mockGlobalListers) ServiceProviderClusters() database.GlobalLister[api.
 }
 
 func (g *mockGlobalListers) Operations() database.GlobalLister[api.Operation] {
-	return &mockTypedGlobalLister[api.Operation, database.Operation]{
+	return &mockTypedGlobalLister[api.Operation, database.GenericDocument[api.Operation]]{
 		client:       g.client,
 		resourceType: api.OperationStatusResourceType,
 	}
@@ -88,12 +88,12 @@ func (l *mockSubscriptionGlobalLister) List(ctx context.Context, options *databa
 	var items []*arm.Subscription
 
 	for _, data := range documents {
-		var cosmosObj database.Subscription
+		var cosmosObj database.GenericDocument[arm.Subscription]
 		if err := json.Unmarshal(data, &cosmosObj); err != nil {
 			continue
 		}
 
-		internalObj, err := database.CosmosToInternalSubscription(&cosmosObj)
+		internalObj, err := database.CosmosGenericToInternal(&cosmosObj)
 		if err != nil {
 			continue
 		}
@@ -163,20 +163,20 @@ func (l *mockActiveOperationsGlobalLister) List(ctx context.Context, options *da
 			continue
 		}
 
-		var cosmosObj database.Operation
+		var cosmosObj database.GenericDocument[api.Operation]
 		if err := json.Unmarshal(data, &cosmosObj); err != nil {
 			continue
 		}
 
 		// Filter out terminal states.
-		status := cosmosObj.OperationProperties.Status
+		status := cosmosObj.Content.Status
 		if status == arm.ProvisioningStateSucceeded ||
 			status == arm.ProvisioningStateFailed ||
 			status == arm.ProvisioningStateCanceled {
 			continue
 		}
 
-		internalObj, err := database.CosmosToInternalOperation(&cosmosObj)
+		internalObj, err := database.CosmosGenericToInternal(&cosmosObj)
 		if err != nil {
 			continue
 		}

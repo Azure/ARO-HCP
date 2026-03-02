@@ -16,6 +16,7 @@ package controllerutils
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -57,7 +58,7 @@ func DeleteRecursively(ctx context.Context, cosmosClient database.DBClient, root
 	}
 	for _, nestedContent := range nestedContentIterator.Items(ctx) {
 		if err := untypedClient.Delete(ctx, nestedContent.ResourceID); err != nil {
-			return utils.TrackError(err)
+			return utils.TrackError(fmt.Errorf("failed to delete resourceID %q: %w", nestedContent.ResourceID, err))
 		}
 	}
 	if err := untypedClient.Delete(ctx, rootResourceID); err != nil {

@@ -34,6 +34,7 @@ resourceGroups:
     automatedRetry:
       errorContainsAny:
       - "unknown_storage_failure"
+      - "unauthorized: authentication required"
       maximumRetryCount: 5
       durationBetweenRetries: 1m
   - name: mirror-blackbox-image
@@ -58,6 +59,7 @@ resourceGroups:
     automatedRetry:
       errorContainsAny:
       - "unknown_storage_failure"
+      - "unauthorized: authentication required"
       maximumRetryCount: 5
       durationBetweenRetries: 1m
 - name: kusto

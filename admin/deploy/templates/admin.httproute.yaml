@@ -1,0 +1,26 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: admin-api
+  namespace: {{ .Release.Namespace }}
+spec:
+  parentRefs:
+  - name: {{ .Values.httpRoute.gateway.name }}
+    namespace: {{ .Values.httpRoute.gateway.namespace }}
+    sectionName: {{ .Values.httpRoute.gateway.sectionName }}
+  hostnames:
+  - "{{ .Values.httpRoute.host }}"
+  rules:
+  - matches:
+    - path:
+        type: PathPrefix
+        value: /
+    filters:
+    - type: RequestHeaderModifier
+      requestHeaderModifier:
+        add:
+        - name: mise-inbound-policies-to-filter
+          value: "{{ .Values.mise.policyLabel }}"
+    backendRefs:
+    - name: {{ .Values.service.name }}
+      port: {{ .Values.service.port }}

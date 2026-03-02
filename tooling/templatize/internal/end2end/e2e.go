@@ -23,9 +23,9 @@ import (
 
 	"sigs.k8s.io/yaml"
 
-	"github.com/Azure/ARO-Tools/pkg/cmdutils"
-	"github.com/Azure/ARO-Tools/pkg/topology"
-	"github.com/Azure/ARO-Tools/pkg/types"
+	"github.com/Azure/ARO-Tools/pipelines/topology"
+	"github.com/Azure/ARO-Tools/pipelines/types"
+	"github.com/Azure/ARO-Tools/tools/cmdutils"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 
 	cmdopts "github.com/Azure/ARO-HCP/tooling/templatize/cmd"

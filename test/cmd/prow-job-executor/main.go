@@ -23,6 +23,8 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
 
+	prowjobexecutor "github.com/Azure/ARO-Tools/tools/prow-job-executor"
+
 	"github.com/Azure/ARO-HCP/test/pkg/logger"
 )
 
@@ -50,8 +52,8 @@ func main() {
 
 	// Add subcommands
 	subcommands := []func() (*cobra.Command, error){
-		NewExecuteCommand,
-		NewMonitorCommand,
+		prowjobexecutor.NewExecuteCommand,
+		prowjobexecutor.NewMonitorCommand,
 	}
 
 	for _, newCmd := range subcommands {
@@ -67,84 +69,4 @@ func main() {
 		setupLog.Error(err, "command failed")
 		os.Exit(1)
 	}
-}
-
-func NewExecuteCommand() (*cobra.Command, error) {
-	opts := DefaultExecuteOptions()
-	cmd := &cobra.Command{
-		Use:           "execute",
-		Short:         "Execute a Prow job and monitor its completion",
-		SilenceErrors: true,
-		SilenceUsage:  true,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return runExecute(cmd.Context(), opts)
-		},
-	}
-
-	if err := opts.BindFlags(cmd); err != nil {
-		return nil, err
-	}
-
-	return cmd, nil
-}
-
-func runExecute(ctx context.Context, opts *RawExecuteOptions) error {
-	logger, err := logr.FromContext(ctx)
-	if err != nil {
-		return err
-	}
-
-	validated, err := opts.Validate(ctx)
-	if err != nil {
-		return err
-	}
-
-	completed, err := validated.Complete(ctx)
-	if err != nil {
-		return err
-	}
-
-	logger.Info("Starting Prow job execution", "jobName", completed.ProwJobName, "region", completed.Region)
-
-	return completed.Execute(ctx)
-}
-
-func NewMonitorCommand() (*cobra.Command, error) {
-	opts := DefaultMonitorOptions()
-	cmd := &cobra.Command{
-		Use:           "monitor",
-		Short:         "Monitor an existing Prow job by execution ID",
-		SilenceErrors: true,
-		SilenceUsage:  true,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return runMonitor(cmd.Context(), opts)
-		},
-	}
-
-	if err := opts.BindFlags(cmd); err != nil {
-		return nil, err
-	}
-
-	return cmd, nil
-}
-
-func runMonitor(ctx context.Context, opts *RawMonitorOptions) error {
-	logger, err := logr.FromContext(ctx)
-	if err != nil {
-		return err
-	}
-
-	validated, err := opts.Validate(ctx)
-	if err != nil {
-		return err
-	}
-
-	completed, err := validated.Complete(ctx)
-	if err != nil {
-		return err
-	}
-
-	logger.Info("Starting Prow job monitoring", "jobExecutionID", completed.JobExecutionID)
-
-	return completed.Monitor(ctx, logger)
 }

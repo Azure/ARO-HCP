@@ -22,8 +22,8 @@ import (
 
 	"github.com/go-logr/logr"
 
-	"github.com/Azure/ARO-Tools/pkg/graph"
-	"github.com/Azure/ARO-Tools/pkg/types"
+	"github.com/Azure/ARO-Tools/pipelines/graph"
+	"github.com/Azure/ARO-Tools/pipelines/types"
 )
 
 func runImageMirrorStep(id graph.Identifier, ctx context.Context, step *types.ImageMirrorStep, options *StepRunOptions, state *ExecutionState, outputWriter io.Writer) error {

@@ -79,5 +79,6 @@
             "one": "apple"
         }
     },
-    "resourceType": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters"
+    "resourceType": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters",
+    "resourceID": "/subscriptions/f52dfea2-47ee-4396-8006-4a27d47d59c5/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/create-with-tags"
 }

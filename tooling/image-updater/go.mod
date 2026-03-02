@@ -1,6 +1,6 @@
 module github.com/Azure/ARO-HCP/tooling/image-updater
 
-go 1.25.0
+go 1.25.5
 
 require (
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.13.1
@@ -13,14 +13,14 @@ require (
 	github.com/google/go-containerregistry v0.20.6
 	github.com/jedib0t/go-pretty/v6 v6.6.7
 	github.com/spf13/cobra v1.10.2
-	golang.org/x/mod v0.30.0
+	golang.org/x/mod v0.32.0
 	gopkg.in/yaml.v3 v3.0.1
 	k8s.io/apimachinery v0.34.3
 	sigs.k8s.io/yaml v1.6.0
 )
 
 require (
-	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.20.0 // indirect
+	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.21.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/internal v1.11.2 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/internal v1.2.0 // indirect
 	github.com/AzureAD/microsoft-authentication-library-for-go v1.6.0 // indirect
@@ -46,11 +46,11 @@ require (
 	github.com/sirupsen/logrus v1.9.3 // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
 	github.com/vbatts/tar-split v0.12.2 // indirect
-	go.yaml.in/yaml/v2 v2.4.2 // indirect
-	golang.org/x/crypto v0.46.0 // indirect
-	golang.org/x/net v0.47.0 // indirect
+	go.yaml.in/yaml/v2 v2.4.3 // indirect
+	golang.org/x/crypto v0.47.0 // indirect
+	golang.org/x/net v0.49.0 // indirect
 	golang.org/x/sync v0.19.0 // indirect
-	golang.org/x/sys v0.39.0 // indirect
-	golang.org/x/text v0.32.0 // indirect
+	golang.org/x/sys v0.40.0 // indirect
+	golang.org/x/text v0.33.0 // indirect
 	gotest.tools/v3 v3.5.2 // indirect
 )

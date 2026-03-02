@@ -55,6 +55,10 @@ resourceGroups:
     parameters: configurations/kusto-lookup.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     outputOnly: true
+    externalDependsOn:
+    - serviceGroup: Microsoft.Azure.ARO.HCP.Log.Infra
+      resourceGroup: kusto-infra
+      step: deploy
 - name: management
   resourceGroup: '{{ .mgmt.rg }}'
   subscription: '{{ .mgmt.subscription.key }}'
@@ -107,6 +111,11 @@ resourceGroups:
         resourceGroup: service
         step: output
         name: backend
+    - name: sessiongateMIResourceId
+      input:
+        resourceGroup: service
+        step: output
+        name: sessiongate
     dependsOn:
     - resourceGroup: management
       step: infra
@@ -252,6 +261,17 @@ resourceGroups:
       step: output
     - resourceGroup: management
       step: cluster
+  - name: exporter-permissions
+    action: ARM
+    template: templates/exporter-permissions.bicep
+    parameters: configurations/exporter-permissions.tmpl.bicepparam
+    deploymentLevel: Subscription
+    variables:
+    - name: exporterPrincipalId
+      input:
+        resourceGroup: service
+        step: output
+        name: exporterPrincipalId
   - name: kusto-grant-ingest
     action: ARM
     template: templates/kusto-grant-ingest.bicep

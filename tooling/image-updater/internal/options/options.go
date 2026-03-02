@@ -33,6 +33,7 @@ type RawUpdateOptions struct {
 	DryRun            bool
 	ForceUpdate       bool
 	Components        string
+	Groups            string
 	ExcludeComponents string
 	OutputFile        string
 	OutputFormat      string
@@ -61,7 +62,8 @@ func BindUpdateOptions(opts *RawUpdateOptions, cmd *cobra.Command) error {
 	cmd.Flags().BoolVar(&opts.DryRun, "dry-run", false, "Show what would be updated without making changes")
 	cmd.Flags().BoolVar(&opts.ForceUpdate, "force", false, "Force update even if digests match (useful for regenerating version tag comments)")
 	cmd.Flags().StringVar(&opts.Components, "components", "", "Update only specified components (comma-separated, e.g., 'maestro,arohcpfrontend'). If not specified, all components will be updated")
-	cmd.Flags().StringVar(&opts.ExcludeComponents, "exclude-components", "", "Exclude specified components from update (comma-separated, e.g., 'arohcpfrontend,arohcpbackend'). Ignored if --components is specified")
+	cmd.Flags().StringVar(&opts.Groups, "groups", "", "Update only components in specified groups (comma-separated, e.g., 'hypershift-stack,velero'). Can be combined with --components (union)")
+	cmd.Flags().StringVar(&opts.ExcludeComponents, "exclude-components", "", "Exclude specified components from update (comma-separated, e.g., 'arohcpfrontend,arohcpbackend'). Applied after --components/--groups filtering")
 	cmd.Flags().StringVar(&opts.OutputFile, "output-file", "", "Write update results to specified file instead of stdout")
 	cmd.Flags().StringVar(&opts.OutputFormat, "output-format", "table", "Output format: table, markdown, or json (default: table)")
 
@@ -101,15 +103,52 @@ func (o *RawUpdateOptions) Validate(ctx context.Context) (*ValidatedUpdateOption
 		return nil, fmt.Errorf("invalid output format '%s': must be one of: %s", o.OutputFormat, strings.Join(validFormats, ", "))
 	}
 
-	// --components takes precedence over --exclude-components
-	if o.Components != "" {
-		components := strings.Split(o.Components, ",")
-		for i := range components {
-			components[i] = strings.TrimSpace(components[i])
+	// Build inclusion set from --components and --groups (union), then apply --exclude-components
+	if o.Components != "" || o.Groups != "" {
+		included := make(map[string]config.ImageConfig)
+
+		// Add explicitly listed components
+		if o.Components != "" {
+			components := strings.Split(o.Components, ",")
+			for i := range components {
+				components[i] = strings.TrimSpace(components[i])
+			}
+			componentCfg, err := cfg.FilterByComponents(components)
+			if err != nil {
+				return nil, fmt.Errorf("failed to filter config by components: %w", err)
+			}
+			for name, img := range componentCfg.Images {
+				included[name] = img
+			}
 		}
-		cfg, err = cfg.FilterByComponents(components)
-		if err != nil {
-			return nil, fmt.Errorf("failed to filter config by components: %w", err)
+
+		// Add components from specified groups
+		if o.Groups != "" {
+			groups := strings.Split(o.Groups, ",")
+			for i := range groups {
+				groups[i] = strings.TrimSpace(groups[i])
+			}
+			groupCfg, err := cfg.FilterByGroups(groups)
+			if err != nil {
+				return nil, fmt.Errorf("failed to filter config by groups: %w", err)
+			}
+			for name, img := range groupCfg.Images {
+				included[name] = img
+			}
+		}
+
+		cfg = &config.Config{Images: included}
+
+		// Apply exclusions on the filtered set
+		if o.ExcludeComponents != "" {
+			excludeComponents := strings.Split(o.ExcludeComponents, ",")
+			for i := range excludeComponents {
+				excludeComponents[i] = strings.TrimSpace(excludeComponents[i])
+			}
+			cfg, err = cfg.FilterExcludingComponents(excludeComponents)
+			if err != nil {
+				return nil, fmt.Errorf("failed to filter config excluding components: %w", err)
+			}
 		}
 	} else if o.ExcludeComponents != "" {
 		excludeComponents := strings.Split(o.ExcludeComponents, ",")

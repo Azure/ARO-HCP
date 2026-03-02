@@ -25,6 +25,7 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
 
+	datadumptogit "github.com/Azure/ARO-HCP/tooling/hcpctl/cmd/datadump-to-git"
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/cmd/hcp"
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/cmd/kubelogin"
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/cmd/mc"
@@ -85,6 +86,7 @@ and hosted control plane services for operational and emergency scenarios.`,
 		sc.NewCommand,
 		hcp.NewCommand,
 		mustgather.NewCommand,
+		datadumptogit.NewCommand,
 	}
 	for _, newCmd := range mainCommands {
 		c, err := newCmd(mainGroupID)

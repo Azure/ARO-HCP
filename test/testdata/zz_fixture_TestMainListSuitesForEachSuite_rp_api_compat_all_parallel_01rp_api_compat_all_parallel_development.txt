@@ -1,4 +1,5 @@
 Customer should be able to list available HCP OpenShift versions and validate response content
+SRE should be able to log into a cluster via a breakglass session
 Customer should be able to test admin credentials before cluster ready, then full admin credential lifecycle
 Customer should be able to create node pools with ARM64-based VMs
 Authorized CIDRs Connectivity should allow API access only from authorized VM IP
@@ -13,6 +14,7 @@ Update HCPOpenShiftCluster Positive creates a cluster and updates tags with a PA
 Customer should be able to create an HCP cluster with back-level version 4.19
 Customer should be able to create several HCP clusters in their customer resource group, but not in the same managed resource group
 Customer should be able to create an HCP cluster
+Engineering should be able to retrieve expected metrics from the /metrics endpoint
 Customer should be able to create a cluster with an external auth config and get the external auth config
 Customer should be able to lifecycle and confirm external auth on a cluster
 Customer should be able to create an HCP cluster with Image Registry not present

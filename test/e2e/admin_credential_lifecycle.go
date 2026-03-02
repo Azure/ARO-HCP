@@ -190,11 +190,7 @@ var _ = Describe("Customer", func() {
 			}
 
 			By("revoking all cluster admin credentials via ARO HCP RP API")
-			poller, err := clusterClient.BeginRevokeCredentials(ctx, *resourceGroup.Name, clusterName, nil)
-			Expect(err).NotTo(HaveOccurred())
-
-			By("waiting for revocation operation to complete")
-			_, err = poller.PollUntilDone(ctx, nil)
+			err = tc.RevokeCredentialsAndWait(ctx, clusterClient, *resourceGroup.Name, clusterName, 15*time.Minute)
 			if err != nil && os.Getenv("ARO_HCP_SUITE_NAME") == "integration/parallel" && time.Now().Before(time.Date(2026, 3, 11, 0, 0, 0, 0, time.UTC)) {
 				By("skipping in integration/parallel suite")
 			} else {

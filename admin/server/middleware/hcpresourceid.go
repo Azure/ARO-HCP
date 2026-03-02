@@ -42,59 +42,45 @@ var patternPrefix = strings.ToLower(
 	),
 )
 
-type HCPResourceServerMux struct {
-	mux *http.ServeMux
+// HCPResourcePattern returns a mux pattern for an HCP resource endpoint.
+// It combines the method, the /admin/v1/hcp prefix, the standard Azure
+// resource path segments, and the given suffix pattern.
+func V1HCPResourcePattern(method string, pattern string) string {
+	return fmt.Sprintf("%s /admin/v1/hcp%s%s", method, patternPrefix, pattern)
 }
 
-func (m *HCPResourceServerMux) Handler() http.Handler {
-	return m.mux
-}
+// MiddlewareHCPResourceID extracts and validates the HCP resource ID from
+// the request path and stores it in the request context.
+func MiddlewareHCPResourceID(w http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
+	subscriptionID := r.PathValue(pathSegmentSubscriptionID)
+	resourceGroupName := r.PathValue(pathSegmentResourceGroupName)
+	resourceName := r.PathValue(pathSegmentResourceName)
 
-func (m *HCPResourceServerMux) Handle(method string, pattern string, handler http.Handler) {
-	m.mux.Handle(fmt.Sprintf("%s %s%s", method, patternPrefix, pattern), withHCPResourceID(handler))
-}
-
-func NewHCPResourceServerMux() *HCPResourceServerMux {
-	return &HCPResourceServerMux{
-		mux: http.NewServeMux(),
+	// Validate that path values were extracted correctly
+	if subscriptionID == "" || resourceGroupName == "" || resourceName == "" {
+		http.Error(w, fmt.Sprintf("failed to extract resource ID from path: subscriptionID=%q, resourceGroupName=%q, resourceName=%q, path=%q", subscriptionID, resourceGroupName, resourceName, r.URL.Path), http.StatusInternalServerError)
+		return
 	}
-}
 
-func withHCPResourceID(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		subscriptionID := r.PathValue(pathSegmentSubscriptionID)
-		resourceGroupName := r.PathValue(pathSegmentResourceGroupName)
-		resourceName := r.PathValue(pathSegmentResourceName)
+	resourceIDPath := strings.ToLower(
+		fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/%s/%s/%s",
+			subscriptionID,
+			resourceGroupName,
+			api.ProviderNamespace,
+			api.ClusterResourceTypeName,
+			resourceName,
+		),
+	)
 
-		// Validate that path values were extracted correctly
-		if subscriptionID == "" || resourceGroupName == "" || resourceName == "" {
-			http.Error(w, fmt.Sprintf("failed to extract resource ID from path: subscriptionID=%q, resourceGroupName=%q, resourceName=%q, path=%q", subscriptionID, resourceGroupName, resourceName, r.URL.Path), http.StatusInternalServerError)
-			return
-		}
+	resourceID, err := azcorearm.ParseResourceID(resourceIDPath)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("failed to parse resource ID: %v", err), http.StatusInternalServerError)
+		return
+	}
 
-		resourceIDPath := strings.ToLower(
-			fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/%s/%s/%s",
-				subscriptionID,
-				resourceGroupName,
-				api.ProviderNamespace,
-				api.ClusterResourceTypeName,
-				resourceName,
-			),
-		)
+	// using the general utils allows usage with the error wrapping and reporting which is handy.
+	ctx := utils.ContextWithResourceID(r.Context(), resourceID)
 
-		resourceID, err := azcorearm.ParseResourceID(resourceIDPath)
-		if err != nil {
-			http.Error(w, fmt.Sprintf("failed to parse resource ID: %v", err), http.StatusInternalServerError)
-			return
-		}
-
-		// using the general utils allows usage with the error wrapping and reporting which is handy.
-		ctx := utils.ContextWithResourceID(r.Context(), resourceID)
-
-		// Strip the static prefix and the resource ID path from the URL path
-		strippedRequest := r.Clone(ctx)
-		strippedRequest.URL.Path = strings.TrimPrefix(strippedRequest.URL.Path, resourceIDPath)
-
-		next.ServeHTTP(w, strippedRequest)
-	})
+	ctx = utils.ContextWithLogger(ctx, utils.LoggerFromContext(ctx).WithValues("resourceID", resourceID.String()))
+	next(w, r.WithContext(ctx))
 }

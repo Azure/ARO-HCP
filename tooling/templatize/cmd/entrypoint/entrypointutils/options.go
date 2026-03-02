@@ -24,11 +24,27 @@ import (
 
 	"sigs.k8s.io/yaml"
 
-	"github.com/Azure/ARO-Tools/pkg/topology"
-	"github.com/Azure/ARO-Tools/pkg/types"
+	configtypes "github.com/Azure/ARO-Tools/config/types"
+	"github.com/Azure/ARO-Tools/pipelines/topology"
+	"github.com/Azure/ARO-Tools/pipelines/types"
 
 	rollout "github.com/Azure/ARO-HCP/tooling/templatize/cmd"
 )
+
+// RegionalResourceGroupNames extracts the regional resource group names from the configuration.
+// These are the RGs that correspond to region-scoped infrastructure (as opposed to global resources).
+func RegionalResourceGroupNames(cfg configtypes.Configuration) []string {
+	rgPaths := []string{"regionRG", "svc.rg", "mgmt.rg"}
+	var names []string
+	for _, path := range rgPaths {
+		if rg, err := cfg.GetByPath(path); err == nil {
+			if rgStr, ok := rg.(string); ok {
+				names = append(names, rgStr)
+			}
+		}
+	}
+	return names
+}
 
 func DefaultOptions() *RawOptions {
 	return &RawOptions{

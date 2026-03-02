@@ -16,8 +16,8 @@ package serverutils
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -38,24 +38,22 @@ func DumpDataToLogger(ctx context.Context, cosmosClient database.DBClient, resou
 	if err != nil {
 		return utils.TrackError(err)
 	}
+	logger.Info(fmt.Sprintf("dumping resourceID %v", startingCosmosRecord.ResourceID),
+		"currentResourceID", startingCosmosRecord.ResourceID.String(),
+		"content", startingCosmosRecord,
+	)
+
 	allCosmosRecords, err := cosmosCRUD.ListRecursive(ctx, nil)
 	if err != nil {
 		return utils.TrackError(err)
 	}
 
 	errs := []error{}
-	content, err := json.Marshal(startingCosmosRecord)
-	if err != nil {
-		errs = append(errs, err)
-	}
-	logger.Info(string(content))
-
 	for _, typedDocument := range allCosmosRecords.Items(ctx) {
-		content, err := json.Marshal(typedDocument)
-		if err != nil {
-			errs = append(errs, err)
-		}
-		logger.Info(string(content))
+		logger.Info(fmt.Sprintf("dumping resourceID %v", typedDocument.ResourceID),
+			"currentResourceID", typedDocument.ResourceID.String(),
+			"content", typedDocument,
+		)
 	}
 	if err := allCosmosRecords.GetError(); err != nil {
 		errs = append(errs, err)
@@ -70,12 +68,10 @@ func DumpDataToLogger(ctx context.Context, cosmosClient database.DBClient, resou
 	for _, operation := range allOperationsForSubscription.Items(ctx) {
 		currOperationTarget := strings.ToLower(operation.ExternalID.String())
 		if strings.HasPrefix(currOperationTarget, resourceIDString) {
-			currBytes, err := json.Marshal(operation)
-			if err != nil {
-				errs = append(errs, err)
-				continue
-			}
-			logger.Info(string(currBytes))
+			logger.Info(fmt.Sprintf("dumping resourceID %v", operation.ResourceID),
+				"currentResourceID", operation.ResourceID.String(),
+				"content", operation,
+			)
 		}
 	}
 	if err := allOperationsForSubscription.GetError(); err != nil {

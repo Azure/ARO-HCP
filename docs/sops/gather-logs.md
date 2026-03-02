@@ -10,54 +10,17 @@ The must-gather commands are designed to collect and process diagnostic data fro
 
 ### 0. query
 
-The `query` command is supported in the Kusto instances owned by SLSRE, currently this can be used with dev and int clusters. Prod is work in progress. The difference is simply to use `must-gather query` instead of `must-gather legacy-query`, all the rest works the same.
+The `query` command is supported in the Kusto instances owned by SLSRE. See this Link for an up to date list of clusters and URLs:  [hcp/components-and-architecture/kusto](https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/components-and-architecture/kusto)
 
-### 1. legacy-query
+### 1. query
 
-The `legacy-query` command executes preconfigured queries against Azure Data Explorer clusters using the `akskubesystem` table. This is legacy, cause it uses the ARO Classic table schema and is planned to replace with HCP specific schema/cli in the future.
-
-*Important:*, when you want to gather data for integrated dev, use the `must-gather query` command instead.
-
-#### Purpose
-- Execute default queries against Azure Data Explorer (Kusto)
-- Collect service logs for ARO-HCP services and hosted control planes
-- Generate structured output for analysis
-
-#### Required Parameters
-- `--kusto`: Azure Data Explorer cluster name, [database list](https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/doc/monitoring/kusto/kusto-database-list)
-- `--region`: Azure Data Explorer cluster region  
-- `--subscription-id`: Azure subscription ID
-- `--resource-group`: Azure resource group name
-
-#### Optional Parameters
-- `--output-path`: Path to write output files (default: auto-generated timestamp-based directory)
-- `--query-timeout`: Query execution timeout (default: 5 minutes, range: 30 seconds to 30 minutes)
-- `--skip-hcp-logs`: Skip hosted control plane logs collection
-- `--timestamp-min`: Minimum timestamp for data collection (default: 24 hours ago)
-- `--timestamp-max`: Maximum timestamp for data collection (default: current time)
-- `--limit`: Limit number of results returned
-
-
-#### Authentication Requirements
-
-The commands use standard Azure authentication. Users must authenticate using the Azure CLI before running the commands:
-
-```bash
-# Authenticate with Azure
-az login
-
-# Verify authentication
-az account show
-
-# Set the correct subscription if needed
-az account set --subscription "your-subscription-id"
-```
+Use query to fetch data for a specific HCP.
 
 #### Usage Examples
 
 **Basic usage with required parameters:**
 ```bash
-hcpctl must-gather legacy-query \
+hcpctl must-gather query \
   --kusto my-kusto-cluster \
   --region eastus \
   --subscription-id 12345678-1234-1234-1234-123456789012 \
@@ -66,7 +29,7 @@ hcpctl must-gather legacy-query \
 
 **With custom output path and time range:**
 ```bash
-hcpctl must-gather legacy-query \
+hcpctl must-gather query \
   --kusto my-kusto-cluster \
   --region eastus \
   --subscription-id 12345678-1234-1234-1234-123456789012 \
@@ -78,7 +41,7 @@ hcpctl must-gather legacy-query \
 
 **Skip hosted control plane logs:**
 ```bash
-hcpctl must-gather legacy-query \
+hcpctl must-gather query \
   --kusto my-kusto-cluster \
   --region eastus \
   --subscription-id 12345678-1234-1234-1234-123456789012 \
@@ -88,26 +51,13 @@ hcpctl must-gather legacy-query \
 
 **With custom timeout and result limit:**
 ```bash
-hcpctl must-gather legacy-query \
+hcpctl must-gather query \
   --kusto my-kusto-cluster \
   --region eastus \
   --subscription-id 12345678-1234-1234-1234-123456789012 \
   --resource-group my-resource-group \
   --query-timeout 10m \
   --limit 1000
-```
-
-#### Output Structure
-The command creates the following directory structure:
-```
-<output-path>/
-├── service/                    # Service logs directory
-│   ├── containerLogs.json
-│   ├── frontendContainerLogs.json
-│   └── backendContainerLogs.json
-├── host-control-plane/        # Hosted control plane logs (if not skipped)
-│   └── customerLogs.json
-└── options.json              # Query options used
 ```
 
 #### Handling large data
@@ -125,15 +75,6 @@ The `clean` command processes must-gather data to remove sensitive information u
 #### must-gather-clean Binary Installation
 
 The `must-gather-clean` binary is available from the [openshift/must-gather-clean releases](https://github.com/openshift/must-gather-clean/releases) page.
-
-#### Required Parameters
-- `--path-to-clean`: Path to the must-gather data to clean
-- `--service-config-path`: Path to ARO-HCP Service Configuration file (points to `config` directory containing `config.yaml`)
-- `--must-gather-clean-binary`: Path to the must-gather-clean binary
-- `--cleaned-output-path`: Path where cleaned output will be written
-
-#### Optional Parameters
-- `--clean-config-path`: Path to custom must-gather-clean configuration file
 
 #### Usage Examples
 
@@ -156,17 +97,16 @@ hcpctl must-gather clean \
   --clean-config-path ./custom-clean-config.json
 ```
 
-#### Default Clean Configuration
-When no custom configuration is provided, the default config can be found here [default_config.json](https://github.com/Azure/ARO-HCP/blob/main/tooling/hcpctl/cmd/must-gather/default_config.json)
+### 3. query-infra
 
+This command fetches all service logs for a given cluster. This can produce quite a lot of data and usually you should use the above `query` command instead.
 
-#### Process Flow
-1. **Configuration Loading**: Loads default or custom must-gather-clean configuration
-2. **Pattern Discovery**: Scans service configuration files for UUIDs and other sensitive patterns
-3. **Configuration Extension**: Adds discovered patterns to the clean configuration
-4. **Configuration Persistence**: Saves the final configuration to a temporary file
-5. **Clean Execution**: Runs the must-gather-clean binary with the generated configuration
-6. **Output Generation**: Creates cleaned output in the specified directory
+#### Usage Examples
 
-
-
+```
+hcpctl must-gather query-infra \
+  --kusto hcp-dev-us-2 \
+  --region eastus2 \
+  --infra-cluster prow-j1231233-mgmt-1 \
+  --infra-cluster prow-j3453453-svc 
+```

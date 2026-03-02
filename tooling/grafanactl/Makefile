@@ -25,6 +25,13 @@ SOURCES = $(shell find . -name '*.go' -o -name 'go.mod' -o -name 'go.sum')
 build: $(BINARY)
 .PHONY: build
 
+# Bundle grafanactl with observability files for EV2 deployment
+# Copies dashboards and config into the working directory so EV2 can access them
+bundle: $(BINARY)
+	cp ../../observability/observability.yaml .
+	cp -r ../../observability/grafana-dashboards .
+.PHONY: bundle
+
 $(BINARY): $(SOURCES) $(MAKEFILE_LIST)
 	go build $(LDFLAGS) -o $(BINARY) .
 
@@ -49,6 +56,8 @@ clean:
 	rm -f $(BINARY)
 	rm -f $(BINARY)-*.exe
 	rm -f coverage.out coverage.html
+	rm -f observability.yaml
+	rm -rf grafana-dashboards
 .PHONY: clean
 
 # Help target

@@ -16,15 +16,14 @@ package options
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 
 	"github.com/spf13/cobra"
 
 	"k8s.io/apimachinery/pkg/util/sets"
 
-	"github.com/Azure/ARO-Tools/pkg/config"
-	"github.com/Azure/ARO-Tools/pkg/config/types"
+	"github.com/Azure/ARO-Tools/config"
+	"github.com/Azure/ARO-Tools/config/types"
 )
 
 func DefaultOptions() *RawOptions {
@@ -79,13 +78,7 @@ func (o *ValidatedOptions) Complete() (*Options, error) {
 	var err error
 
 	if o.ConfigFileOverride != "" {
-		mergedConfigFile, err := os.CreateTemp("", "merged-config-*.yaml")
-		if err != nil {
-			return nil, fmt.Errorf("failed to create temporary file for merged configuration: %w", err)
-		}
-		mergedConfigFilePath := mergedConfigFile.Name()
-
-		schemaBaseDir := filepath.Dir(mergedConfigFilePath)
+		schemaBaseDir := filepath.Dir(o.ConfigFile)
 		mergedConfigData, err := types.MergeRawConfigurationFiles(schemaBaseDir, []string{o.ConfigFile, o.ConfigFileOverride})
 		if err != nil {
 			return nil, fmt.Errorf("failed to merge configuration files: %w", err)
@@ -93,7 +86,7 @@ func (o *ValidatedOptions) Complete() (*Options, error) {
 
 		configProvider, err = config.NewConfigProviderFromData(mergedConfigData, schemaBaseDir)
 		if err != nil {
-			return nil, fmt.Errorf("failed to load config provider from merged configuration %s: %w", mergedConfigFilePath, err)
+			return nil, fmt.Errorf("failed to load config provider from merged configuration: %w", err)
 		}
 	} else {
 		configProvider, err = config.NewConfigProvider(o.ConfigFile)

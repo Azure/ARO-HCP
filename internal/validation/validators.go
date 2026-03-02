@@ -160,6 +160,10 @@ var (
 	nodePoolResourceName            = `^[a-zA-Z][-a-zA-Z0-9]{1,13}[a-z-A-Z0-9]$`
 	nodePoolResourceNameRegex       = regexp.MustCompile(nodePoolResourceName)
 	nodePoolResourceNameErrorString = `(must be a valid DNS RFC 1035 label)`
+
+	resourceGroupName            = `^[\p{L}\p{N}_\-.()]{0,89}[\p{L}\p{N}_\-()]$`
+	resourceGroupNameRegex       = regexp.MustCompile(resourceGroupName)
+	resourceGroupNameErrorString = `it must be max 90 characters and only letters, digits, underscores (_), hyphens (-), periods (.), and parentheses (( )) are allowed, and it cannot end with a period '.'.`
 )
 
 func MatchesRegex(_ context.Context, _ operation.Operation, fldPath *field.Path, value, _ *string, regex *regexp.Regexp, errorString string) field.ErrorList {

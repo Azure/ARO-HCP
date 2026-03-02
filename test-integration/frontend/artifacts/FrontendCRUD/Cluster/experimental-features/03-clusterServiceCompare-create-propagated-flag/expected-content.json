@@ -1,0 +1,6 @@
+{
+	"properties": {
+		"hosted_cluster_single_replica": "true",
+		"hosted_cluster_size_override": "true"
+	}
+}

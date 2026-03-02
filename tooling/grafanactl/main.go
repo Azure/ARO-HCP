@@ -25,8 +25,9 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
 
-	"github.com/Azure/ARO-HCP/tooling/grafanactl/cmd/clean"
-	"github.com/Azure/ARO-HCP/tooling/grafanactl/cmd/list"
+	"github.com/Azure/ARO-Tools/tools/grafanactl/cmd/clean"
+	"github.com/Azure/ARO-Tools/tools/grafanactl/cmd/list"
+	"github.com/Azure/ARO-Tools/tools/grafanactl/cmd/sync"
 )
 
 const (
@@ -76,6 +77,7 @@ and other operational tasks.`,
 	mainCommands := []func(string) (*cobra.Command, error){
 		clean.NewCleanCommand,
 		list.NewListCommand,
+		sync.NewSyncCommand,
 	}
 	for _, newCmd := range mainCommands {
 		c, err := newCmd(mainGroupID)
