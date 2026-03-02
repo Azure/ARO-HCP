@@ -1,21 +1,18 @@
 name: "CodeQL Analysis"
-
 on:
   pull_request:
     branches:
-      - main
+    - main
   push:
     branches:
-      - main
+    - main
   schedule:
-    # Run at 2:00 AM UTC every day
-    - cron: '0 2 * * *'
+  # Run at 2:00 AM UTC every day
+  - cron: '0 2 * * *'
   workflow_dispatch:
-
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
-
 jobs:
   analyze:
     name: Analyze (${{ matrix.language }})
@@ -24,22 +21,18 @@ jobs:
       actions: read
       contents: read
       security-events: write
-
     strategy:
       fail-fast: false
       matrix:
         language: ['go', 'python']
-
     steps:
     - name: Checkout repository
       uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
-
     - name: Set up Go
       if: matrix.language == 'go'
       uses: actions/setup-go@v6
       with:
         go-version-file: 'go.work'
-
     # Initializes the CodeQL tools for scanning
     - name: Initialize CodeQL
       uses: github/codeql-action/init@v3
@@ -47,11 +40,9 @@ jobs:
         languages: ${{ matrix.language }}
         # Use default CodeQL query packs
         # For custom queries, add: queries: security-and-quality
-
     # Autobuild attempts to build any compiled languages (Go, C/C++, C#, Java, etc.)
     - name: Autobuild
       uses: github/codeql-action/autobuild@v3
-
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@v3
       with:
