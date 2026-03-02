@@ -2311,6 +2311,27 @@
         }
       }
     },
+    "customExporter": {
+      "type": "object",
+      "properties": {
+        "image": {
+          "$ref": "#/definitions/containerImage"
+        },
+        "managedIdentityName": {
+          "type": "string",
+          "description": "The name of the MSI that will be used by the exporter"
+        },
+        "k8s": {
+          "$ref": "#/definitions/k8sDeployment"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "image",
+        "managedIdentityName",
+        "k8s"
+      ]
+    },
     "kubeEvents": {
       "type": "object",
       "properties": {

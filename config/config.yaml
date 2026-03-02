@@ -124,6 +124,16 @@ defaults:
       registry: kubernetesshared.azurecr.io
       repository: shared/kube-events
       digest: sha256:e75e6b4254977e8d3ca3a728c2d1b60cfcbd13392ea02fcc535286a672f8d547 # 20260225.1 (2026-02-25 11:29)
+  # ARO HCP Metrics Exporter
+  customExporter:
+    managedIdentityName: "aro-hcp-exporter"
+    k8s:
+      namespace: aro-hcp-exporter
+      serviceAccountName: aro-hcp-exporter
+    image:
+      registry: arohcpsvcdev.azurecr.io
+      repository: arohcpmetrics
+      digest: sha256:b138301009f792415bbd9283194d5142126db46886f3dd7ecd6f6ba855e53c18
   # Secret Sync Controller
   secretSyncController:
     image:

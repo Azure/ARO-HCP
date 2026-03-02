@@ -1,0 +1,126 @@
+---
+# Source: aro-hcp-exporter/templates/serviceaccount.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: 'aro-hcp-exporter'
+  namespace: 'aro-hcp-exporter'
+  labels:
+    app.kubernetes.io/name: 'aro-hcp-exporter'
+    app.kubernetes.io/instance: 'dev-westus3-svc-1-aro-hcp-exporter'
+  annotations:
+    azure.workload.identity/client-id: '__msiClientId__'
+---
+# Source: aro-hcp-exporter/templates/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: 'aro-hcp-exporter'
+  namespace: 'aro-hcp-exporter'
+  labels:
+    app.kubernetes.io/name: 'aro-hcp-exporter'
+    app.kubernetes.io/instance: 'dev-westus3-svc-1-aro-hcp-exporter'
+    app: 'aro-hcp-exporter'
+spec:
+  type: ClusterIP
+  ports:
+  - name: metrics
+    port: 8080
+    targetPort: metrics
+    protocol: TCP
+  selector:
+    app.kubernetes.io/name: 'aro-hcp-exporter'
+    app.kubernetes.io/instance: 'dev-westus3-svc-1-aro-hcp-exporter'
+---
+# Source: aro-hcp-exporter/templates/deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: 'aro-hcp-exporter'
+  namespace: 'aro-hcp-exporter'
+  labels:
+    app.kubernetes.io/name: 'aro-hcp-exporter'
+    app.kubernetes.io/instance: 'dev-westus3-svc-1-aro-hcp-exporter'
+    app: 'aro-hcp-exporter'
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: 'aro-hcp-exporter'
+      app.kubernetes.io/instance: 'dev-westus3-svc-1-aro-hcp-exporter'
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: 'aro-hcp-exporter'
+        app.kubernetes.io/instance: 'dev-westus3-svc-1-aro-hcp-exporter'
+        app: 'aro-hcp-exporter'
+        azure.workload.identity/use: "true"
+    spec:
+      serviceAccountName: 'aro-hcp-exporter'
+      containers:
+      - name: aro-hcp-exporter
+        image: 'arohcpsvcdev.azurecr.io/arohcpmetrics@sha256:1234567890'
+        imagePullPolicy: IfNotPresent
+        args:
+        - serve
+        - --subscription-names="ARO Hosted Control Planes (EA Subscription 1),ARO Hosted Control Planes (EA Subscription 1)"
+        - --listen-address=:8080
+        - --cache-ttl=60m
+        - --collection-interval=2m
+        - --enabled-collectors="service-tag-usage"
+        ports:
+        - name: metrics
+          containerPort: 8080
+          protocol: TCP
+        livenessProbe:
+          httpGet:
+            path: /metrics
+            port: metrics
+          initialDelaySeconds: 15
+          periodSeconds: 15
+          timeoutSeconds: 5
+          failureThreshold: 6
+          successThreshold: 1
+        readinessProbe:
+          httpGet:
+            path: /metrics
+            port: metrics
+          initialDelaySeconds: 15
+          periodSeconds: 15
+          timeoutSeconds: 5
+          failureThreshold: 6
+          successThreshold: 1
+        securityContext:
+          privileged: false
+          allowPrivilegeEscalation: false
+          runAsNonRoot: true
+          seccompProfile:
+            type: RuntimeDefault
+          capabilities:
+            drop: ['ALL']
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            memory: 512Mi
+---
+# Source: aro-hcp-exporter/templates/servicemonitor.yaml
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: 'aro-hcp-exporter'
+  namespace: 'aro-hcp-exporter'
+spec:
+  endpoints:
+  - interval: 30s
+    path: /metrics
+    port: metrics
+    scheme: http
+  namespaceSelector:
+    matchNames:
+    - 'aro-hcp-exporter'
+  selector:
+    matchLabels:
+      app: 'aro-hcp-exporter'
+

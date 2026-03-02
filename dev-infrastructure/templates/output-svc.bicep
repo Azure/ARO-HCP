@@ -13,6 +13,9 @@ param backendMIName string
 @description('The name of the Session Gate managed identity')
 param sessiongateMIName string
 
+@description('The name of the Exporter managed identity')
+param exporterMIName string
+
 // CS MI resource ID
 resource csMSI 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
   name: csMIName
@@ -47,5 +50,11 @@ resource sessiongateMSI 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-0
 }
 
 output sessiongate string = sessiongateMSI.id
+// Exporter MI resource ID
+resource exporterMSI 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
+  name: exporterMIName
+}
+
+output exporterPrincipalId string = exporterMSI.properties.principalId
 
 output subscriptionId string = subscription().id
