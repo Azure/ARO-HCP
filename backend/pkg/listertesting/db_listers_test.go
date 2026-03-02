@@ -273,6 +273,88 @@ func TestDBServiceProviderClusterLister(t *testing.T) {
 	})
 }
 
+func TestDBControllerLister(t *testing.T) {
+	ctx := context.Background()
+
+	// Create parent resources
+	cluster1 := newTestCluster(testSubscriptionID, testResourceGroupName, testClusterName)
+	cluster2 := newTestCluster(testSubscriptionID, testResourceGroupName, testClusterName2)
+	np := newTestNodePool(testSubscriptionID, testResourceGroupName, testClusterName, testNodePoolName)
+	ea := newTestExternalAuth(testSubscriptionID, testResourceGroupName, testClusterName, testExternalAuthName)
+
+	// Create controllers under different parents
+	clusterCtrl1 := newTestClusterController(testSubscriptionID, testResourceGroupName, testClusterName, "ctrl-cluster-1")
+	clusterCtrl2 := newTestClusterController(testSubscriptionID, testResourceGroupName, testClusterName2, "ctrl-cluster-2")
+	npCtrl := newTestNodePoolController(testSubscriptionID, testResourceGroupName, testClusterName, testNodePoolName, "ctrl-np")
+	eaCtrl := newTestExternalAuthController(testSubscriptionID, testResourceGroupName, testClusterName, testExternalAuthName, "ctrl-ea")
+
+	mockDB, err := databasetesting.NewMockDBClientWithResources(ctx, []any{
+		cluster1, cluster2, np, ea,
+		clusterCtrl1, clusterCtrl2, npCtrl, eaCtrl,
+	})
+	require.NoError(t, err)
+
+	lister := &DBControllerLister{DBClient: mockDB}
+
+	t.Run("List returns all controllers", func(t *testing.T) {
+		result, err := lister.List(ctx)
+		require.NoError(t, err)
+		assert.Len(t, result, 4)
+	})
+
+	t.Run("ListForResourceGroup returns all controllers in resource group", func(t *testing.T) {
+		result, err := lister.ListForResourceGroup(ctx, testSubscriptionID, testResourceGroupName)
+		require.NoError(t, err)
+		assert.Len(t, result, 4)
+	})
+
+	t.Run("ListForCluster returns controllers under cluster1", func(t *testing.T) {
+		result, err := lister.ListForCluster(ctx, testSubscriptionID, testResourceGroupName, testClusterName)
+		require.NoError(t, err)
+		// cluster1 has: clusterCtrl1, npCtrl, eaCtrl (all nested under cluster1)
+		assert.Len(t, result, 3)
+	})
+
+	t.Run("ListForCluster returns controllers under cluster2", func(t *testing.T) {
+		result, err := lister.ListForCluster(ctx, testSubscriptionID, testResourceGroupName, testClusterName2)
+		require.NoError(t, err)
+		// cluster2 has: clusterCtrl2
+		assert.Len(t, result, 1)
+	})
+
+	t.Run("ListForNodePool returns controllers under nodepool", func(t *testing.T) {
+		result, err := lister.ListForNodePool(ctx, testSubscriptionID, testResourceGroupName, testClusterName, testNodePoolName)
+		require.NoError(t, err)
+		assert.Len(t, result, 1)
+		assert.Equal(t, "ctrl-np", result[0].ResourceID.Name)
+	})
+
+	t.Run("ListForExternalAuth returns controllers under externalauth", func(t *testing.T) {
+		result, err := lister.ListForExternalAuth(ctx, testSubscriptionID, testResourceGroupName, testClusterName, testExternalAuthName)
+		require.NoError(t, err)
+		assert.Len(t, result, 1)
+		assert.Equal(t, "ctrl-ea", result[0].ResourceID.Name)
+	})
+
+	t.Run("ListForNodePool returns empty for non-existent nodepool", func(t *testing.T) {
+		result, err := lister.ListForNodePool(ctx, testSubscriptionID, testResourceGroupName, testClusterName, "non-existent")
+		require.NoError(t, err)
+		assert.Empty(t, result)
+	})
+
+	t.Run("ListForExternalAuth returns empty for non-existent externalauth", func(t *testing.T) {
+		result, err := lister.ListForExternalAuth(ctx, testSubscriptionID, testResourceGroupName, testClusterName, "non-existent")
+		require.NoError(t, err)
+		assert.Empty(t, result)
+	})
+
+	t.Run("ListForResourceGroup returns empty for different subscription", func(t *testing.T) {
+		result, err := lister.ListForResourceGroup(ctx, testSubscriptionID2, testResourceGroupName)
+		require.NoError(t, err)
+		assert.Empty(t, result)
+	})
+}
+
 func TestDBClusterListerWithEmptyDB(t *testing.T) {
 	ctx := context.Background()
 	mockDB := databasetesting.NewMockDBClient()

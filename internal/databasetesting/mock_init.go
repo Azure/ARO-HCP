@@ -20,6 +20,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/utils/apihelpers"
 )
 
 // NewMockDBClientWithResources creates a new MockDBClient and populates it with the given resources.
@@ -30,6 +31,7 @@ import (
 //   - *api.HCPOpenShiftClusterExternalAuth
 //   - *api.ServiceProviderCluster
 //   - *arm.Subscription
+//   - *api.Controller
 //
 // Returns an error if any resource cannot be created or if an unsupported type is encountered.
 func NewMockDBClientWithResources(ctx context.Context, resources []any) (*MockDBClient, error) {
@@ -59,6 +61,8 @@ func (m *MockDBClient) addResource(ctx context.Context, resource any) error {
 		return m.addServiceProviderCluster(ctx, r)
 	case *arm.Subscription:
 		return m.addSubscription(ctx, r)
+	case *api.Controller:
+		return m.addController(ctx, r)
 	default:
 		return fmt.Errorf("unsupported resource type: %T", resource)
 	}
@@ -130,4 +134,41 @@ func (m *MockDBClient) addSubscription(ctx context.Context, subscription *arm.Su
 	subCRUD := m.Subscriptions()
 	_, err := subCRUD.Create(ctx, subscription, nil)
 	return err
+}
+
+func (m *MockDBClient) addController(ctx context.Context, controller *api.Controller) error {
+	resourceID := controller.GetResourceID()
+	if resourceID == nil {
+		return fmt.Errorf("controller is missing resource ID")
+	}
+	if resourceID.Parent == nil {
+		return fmt.Errorf("controller is missing parent cluster ID")
+	}
+	parentType := resourceID.Parent.ResourceType
+	switch {
+	case apihelpers.ResourceTypeEqual(parentType, api.ClusterResourceType):
+		clusterName := resourceID.Parent.Name
+		controllerCRUD := m.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).Controllers(clusterName)
+		_, err := controllerCRUD.Create(ctx, controller, nil)
+		return err
+	case apihelpers.ResourceTypeEqual(parentType, api.NodePoolResourceType):
+		if resourceID.Parent.Parent == nil {
+			return fmt.Errorf("nodepool controller is missing grandparent cluster ID")
+		}
+		clusterName := resourceID.Parent.Parent.Name
+		nodePoolName := resourceID.Parent.Name
+		controllerCRUD := m.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).NodePools(clusterName).Controllers(nodePoolName)
+		_, err := controllerCRUD.Create(ctx, controller, nil)
+		return err
+	case apihelpers.ResourceTypeEqual(parentType, api.ExternalAuthResourceType):
+		if resourceID.Parent.Parent == nil {
+			return fmt.Errorf("externalauth controller is missing grandparent cluster ID")
+		}
+		clusterName := resourceID.Parent.Parent.Name
+		externalAuthName := resourceID.Parent.Name
+		controllerCRUD := m.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).ExternalAuth(clusterName).Controllers(externalAuthName)
+		_, err := controllerCRUD.Create(ctx, controller, nil)
+		return err
+	}
+	return fmt.Errorf("unsupported parent resource type: %s", parentType)
 }

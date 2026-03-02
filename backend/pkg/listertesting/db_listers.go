@@ -199,6 +199,55 @@ func (l *DBServiceProviderClusterLister) ListForCluster(ctx context.Context, sub
 	return collectFromIterator(ctx, iter)
 }
 
+// DBControllerLister implements listers.ControllerLister backed by a database.DBClient.
+type DBControllerLister struct {
+	DBClient database.DBClient
+}
+
+var _ listers.ControllerLister = &DBControllerLister{}
+
+func (l *DBControllerLister) List(ctx context.Context) ([]*api.Controller, error) {
+	iter, err := l.DBClient.GlobalListers().Controllers().List(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	return collectFromIterator(ctx, iter)
+}
+
+func (l *DBControllerLister) ListForResourceGroup(ctx context.Context, subscriptionID, resourceGroupName string) ([]*api.Controller, error) {
+	prefix := api.ToResourceGroupResourceIDString(subscriptionID, resourceGroupName)
+	return l.listWithPrefix(ctx, prefix)
+}
+
+func (l *DBControllerLister) ListForCluster(ctx context.Context, subscriptionID, resourceGroupName, clusterName string) ([]*api.Controller, error) {
+	prefix := api.ToClusterResourceIDString(subscriptionID, resourceGroupName, clusterName)
+	return l.listWithPrefix(ctx, prefix)
+}
+
+func (l *DBControllerLister) ListForNodePool(ctx context.Context, subscriptionID, resourceGroupName, clusterName, nodePoolName string) ([]*api.Controller, error) {
+	prefix := api.ToNodePoolResourceIDString(subscriptionID, resourceGroupName, clusterName, nodePoolName)
+	return l.listWithPrefix(ctx, prefix)
+}
+
+func (l *DBControllerLister) ListForExternalAuth(ctx context.Context, subscriptionID, resourceGroupName, clusterName, externalAuthName string) ([]*api.Controller, error) {
+	prefix := api.ToExternalAuthResourceIDString(subscriptionID, resourceGroupName, clusterName, externalAuthName)
+	return l.listWithPrefix(ctx, prefix)
+}
+
+func (l *DBControllerLister) listWithPrefix(ctx context.Context, prefix string) ([]*api.Controller, error) {
+	all, err := l.List(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var result []*api.Controller
+	for _, c := range all {
+		if c.ResourceID != nil && strings.HasPrefix(strings.ToLower(c.ResourceID.String()), strings.ToLower(prefix)) {
+			result = append(result, c)
+		}
+	}
+	return result, nil
+}
+
 // DBSubscriptionLister implements listers.SubscriptionLister backed by a database.DBClient.
 type DBSubscriptionLister struct {
 	DBClient database.DBClient
