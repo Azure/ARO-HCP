@@ -25,3 +25,17 @@ spec:
         description: 'The Backend operation error rate is above 5% for the last hour. Current value: {{ $value | humanizePercentage }}.'
         runbook_url: 'TBD'
         summary: 'High Error Rate on Backend Operations'
+    - alert: BackendControllerDegraded
+      expr: |
+        (
+          sum by (cluster, resource_type, controller_name) (backend_controller_status_conditions{condition="Degraded", status="True"})
+          /
+          sum by (cluster, resource_type, controller_name) (backend_controller_status_conditions{condition="Degraded"})
+        ) > 0.05
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        description: 'Controller {{ $labels.controller_name }} is degraded for more than 5% of {{ $labels.resource_type }} resources. Current degradation rate: {{ $value | humanizePercentage }}.'
+        runbook_url: 'TBD'
+        summary: 'Controller {{ $labels.controller_name }} degradation detected'
