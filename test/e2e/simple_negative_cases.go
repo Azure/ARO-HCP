@@ -139,16 +139,16 @@ var _ = Describe("Customer", func() {
 			nodePool, err := nodePoolClient.Get(ctx, *resourceGroup.Name, clusterParams.ClusterName, nodePoolParams.NodePoolName, nil)
 			if err != nil {
 				errs = append(errs, fmt.Errorf("failed to get nodepool: %w", err))
-			} else if nodePool.NodePool.Properties == nil {
+			} else if nodePool.Properties == nil {
 				errs = append(errs, fmt.Errorf("nodepool properties are nil"))
-			} else if nodePool.NodePool.Properties.Platform == nil {
+			} else if nodePool.Properties.Platform == nil {
 				errs = append(errs, fmt.Errorf("nodepool platform properties are nil"))
 			} else {
-				nodePool.NodePool.Properties.Platform.VMSize = to.Ptr("Standard_D16s_v3")
-				nodePool.NodePool.Properties.Platform.AvailabilityZone = to.Ptr("2")
-				if nodePool.NodePool.Properties.Platform.OSDisk != nil {
-					nodePool.NodePool.Properties.Platform.OSDisk.SizeGiB = to.Ptr[int32](256)
-					nodePool.NodePool.Properties.Platform.OSDisk.DiskStorageAccountType = to.Ptr(hcpsdk20240610preview.DiskStorageAccountTypePremiumLRS)
+				nodePool.Properties.Platform.VMSize = to.Ptr("Standard_D16s_v3")
+				nodePool.Properties.Platform.AvailabilityZone = to.Ptr("2")
+				if nodePool.Properties.Platform.OSDisk != nil {
+					nodePool.Properties.Platform.OSDisk.SizeGiB = to.Ptr[int32](256)
+					nodePool.Properties.Platform.OSDisk.DiskStorageAccountType = to.Ptr(hcpsdk20240610preview.DiskStorageAccountTypePremiumLRS)
 				}
 
 				_, err = nodePoolClient.BeginCreateOrUpdate(ctx, *resourceGroup.Name, clusterParams.ClusterName, nodePoolParams.NodePoolName, nodePool.NodePool, nil)
