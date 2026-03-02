@@ -20,4 +20,5 @@ Customer should be able to create an HCP cluster with Image Registry not present
 Engineering should be able to retrieve kusto logs for a cluster and services
 Customer should be able to create a cluster with default autoscaling and a nodepool with autoscaling enabled
 Customer should respect cluster-wide node limits with nodepool autoscaling
+Customer should be able to update node pool labels and taints
 Customer should be able to update nodepool replicas and autoscaling
