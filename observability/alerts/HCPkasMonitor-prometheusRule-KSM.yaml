@@ -1,0 +1,50 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: hcp-hostedcluster-monitor-alerts
+  namespace: prometheus
+spec:
+  groups:
+  - name: hcp-hostedcluster-monitor-rules
+    rules:
+    - alert: hostedcluster-KubeAPIServer-ErrorBudgetBurn
+      expr: |
+        1 - (hostedClusterAPI_kubeapiserver_available:sum_over_time_30m / hostedClusterAPI_kubeapiserver_available:count_over_time_30m) > (14.4 * (1 - 0.9995)) and hostedClusterAPI_kubeapiserver_available:count_over_time_30m > 5 and 1 - (hostedClusterAPI_kubeapiserver_available:sum_over_time_1h / hostedClusterAPI_kubeapiserver_available:count_over_time_1h) > (14.4 * (1 - 0.9995)) and hostedClusterAPI_kubeapiserver_available:count_over_time_1h > 60
+      for: 2m
+      labels:
+        long_window: 1h
+        severity: info
+        short_window: 30m
+      annotations:
+        summary: "High KubeAPIServer error budget burn for HostedCluster {{ $labels.name }}"
+        description: "HostedCluster {{ $labels.name }} (ID: {{ $labels._id }}) KubeAPIServer availability is below SLO (current value: {{ $value }})"
+    - alert: hostedcluster-KubeAPIServer-ErrorBudgetBurn
+      expr: 1 - (hostedClusterAPI_kubeapiserver_available:sum_over_time_30m / hostedClusterAPI_kubeapiserver_available:count_over_time_30m) > (6 * (1 - 0.9995)) and hostedClusterAPI_kubeapiserver_available:count_over_time_30m > 30 and 1 - (hostedClusterAPI_kubeapiserver_available:sum_over_time_6h / hostedClusterAPI_kubeapiserver_available:count_over_time_6h) > (6 * (1 - 0.9995)) and hostedClusterAPI_kubeapiserver_available:count_over_time_6h > 360
+      for: 15m
+      labels:
+        long_window: 6h
+        severity: info
+        short_window: 30m
+      annotations:
+        summary: "High KubeAPIServer error budget burn for HostedCluster {{ $labels.name }}"
+        description: "HostedCluster {{ $labels.name }} (ID: {{ $labels._id }}) KubeAPIServer availability is below SLO (current value: {{ $value }})"
+    - alert: hostedcluster-KubeAPIServer-ErrorBudgetBurn
+      expr: 1 - (hostedClusterAPI_kubeapiserver_available:sum_over_time_2h / hostedClusterAPI_kubeapiserver_available:count_over_time_2h) > (3 * (1 - 0.9995)) and hostedClusterAPI_kubeapiserver_available:count_over_time_2h > 120 and 1 - sum by (name, namespace, _id, cluster) (hostedClusterAPI_kubeapiserver_available:ratio_avg_1d) > (3 * (1 - 0.9995)) and hostedClusterAPI_kubeapiserver_available:count_over_time_1d > 1440
+      for: 1h
+      labels:
+        long_window: 1d
+        severity: info
+        short_window: 2h
+      annotations:
+        summary: "High KubeAPIServer error budget burn for HostedCluster {{ $labels.name }}"
+        description: "HostedCluster {{ $labels.name }} (ID: {{ $labels._id }}) KubeAPIServer availability is below SLO (current value: {{ $value }})"
+    - alert: hostedcluster-KubeAPIServer-ErrorBudgetBurn
+      expr: 1 - (hostedClusterAPI_kubeapiserver_available:sum_over_time_6h / hostedClusterAPI_kubeapiserver_available:count_over_time_6h) > (1 * (1 - 0.9995)) and hostedClusterAPI_kubeapiserver_available:count_over_time_6h > 360 and 1 - sum by (name, namespace, _id, cluster) (hostedClusterAPI_kubeapiserver_available:ratio_avg_3d) > (1 * (1 - 0.9995)) and hostedClusterAPI_kubeapiserver_available:count_over_time_3d > 4320
+      for: 3h
+      labels:
+        long_window: 3d
+        severity: info
+        short_window: 6h
+      annotations:
+        summary: "High KubeAPIServer error budget burn for HostedCluster {{ $labels.name }}"
+        description: "HostedCluster {{ $labels.name }} (ID: {{ $labels._id }}) KubeAPIServer availability is below SLO (current value: {{ $value }})"
