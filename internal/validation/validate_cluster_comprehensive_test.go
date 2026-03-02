@@ -1747,7 +1747,7 @@ func TestValidateClusterUpdate(t *testing.T) {
 			}(),
 			oldCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.CustomerProperties.Version.ID = "4.17"
+				c.CustomerProperties.Version.ID = "4.18"
 				return c
 			}(),
 			opOptions: []string{api.FeatureExperimentalReleaseFeatures},
