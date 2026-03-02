@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/cobra"
 
@@ -29,6 +30,24 @@ import (
 
 const (
 	metricsPath = "/metrics"
+)
+
+var (
+	collectorErrorsTotal = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "exporter_collector_errors_total",
+			Help: "Total number of errors encountered during metric collection",
+		},
+		[]string{"collector"},
+	)
+	collectorDurationSeconds = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "exporter_collector_duration_seconds",
+			Help:    "Duration of metric collection in seconds",
+			Buckets: prometheus.DefBuckets,
+		},
+		[]string{"collector"},
+	)
 )
 
 // NewServeCommand creates the serve command
@@ -55,6 +74,8 @@ The server will listen on the specified address and expose metrics at the metric
 
 func (o *CompletedOptions) Run(ctx context.Context) error {
 	logger := logr.FromContextOrDiscard(ctx)
+
+	o.Registry.MustRegister(collectorErrorsTotal, collectorDurationSeconds)
 
 	handler := promhttp.HandlerFor(o.Registry, promhttp.HandlerOpts{
 		EnableOpenMetrics: true,
@@ -115,6 +136,7 @@ func collectLoop(ctx context.Context, collector metrics.CachingCollector, collec
 			logger.Info("Collecting metrics", "name", collector.Name())
 			collector.CollectMetricValues(ctx)
 			duration := time.Since(start)
+			collectorDurationSeconds.WithLabelValues(collector.Name()).Observe(duration.Seconds())
 			logger.V(2).Info("collected metrics", "name", collector.Name(), "collector_runtime_seconds", duration.Seconds())
 			sleepDuration := collectionInterval - duration
 			if sleepDuration > 0 {
