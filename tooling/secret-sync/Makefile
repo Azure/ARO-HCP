@@ -14,4 +14,8 @@ $(BINARY): $(SOURCES) $(MAKEFILE_LIST) go.mod go.sum
 clean:
 	rm -f $(BINARY)
 
-.PHONY: clean
+# Validates the correctness of encrypted secrets (requires az login to dev tenant)
+test-decrypt:
+	go test -tags decrypttest -v -timeout 5m .
+
+.PHONY: clean test-decrypt
