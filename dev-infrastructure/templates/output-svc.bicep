@@ -50,11 +50,12 @@ resource sessiongateMSI 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-0
 }
 
 output sessiongate string = sessiongateMSI.id
-// Exporter MI resource ID
-resource exporterMSI 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
-  name: exporterMIName
-}
 
-output exporterPrincipalId string = exporterMSI.properties.principalId
+// // Exporter MI resource ID
+// resource exporterMSI 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
+//   name: exporterMIName
+// }
+
+// output exporterPrincipalId string = exporterMSI.properties.principalId
 
 output subscriptionId string = subscription().id
