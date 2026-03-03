@@ -128,7 +128,7 @@ func (s *Subscription) HasRegisteredFeature(featureName string) bool {
 	}
 
 	for _, feature := range *s.Properties.RegisteredFeatures {
-		if feature.Name != nil && *feature.Name == featureName {
+		if feature.Name != nil && strings.EqualFold(*feature.Name, featureName) {
 			if feature.State != nil && *feature.State == "Registered" {
 				return true
 			}
