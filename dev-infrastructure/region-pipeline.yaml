@@ -150,6 +150,13 @@ resourceGroups:
     template: templates/region.bicep
     parameters: configurations/region.tmpl.bicepparam
     deploymentLevel: ResourceGroup
+    automatedRetry:
+      errorContainsAny:
+      - "providers/Microsoft.Resources/deployments/svc-monitor"
+      - "providers/Microsoft.Resources/deployments/hcp-monitor"
+      - "providers/Microsoft.Resources/deployments/maestro-infra-deployment"
+      maximumRetryCount: 3
+      durationBetweenRetries: 2m
     variables:
     - name: globalMSIId
       input:
