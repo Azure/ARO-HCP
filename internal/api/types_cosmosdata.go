@@ -72,9 +72,20 @@ func ToServiceProviderClusterResourceIDString(subscriptionName, resourceGroupNam
 	))
 }
 
+func ToDNSReservationResourceIDString(subscriptionName, dnsReservationName string) string {
+	return strings.ToLower(path.Join(
+		"/subscriptions", subscriptionName,
+		"providers", DNSReservationResourceType.String(), dnsReservationName,
+	))
+}
+
 func ToOperationResourceIDString(subscriptionName, operationName string) string {
 	return strings.ToLower(path.Join(
 		"/subscriptions", subscriptionName,
 		"providers", OperationStatusResourceType.String(), operationName,
 	))
+}
+
+func ToDNSReservationResourceID(subscriptionName, dnsReservationName string) (*azcorearm.ResourceID, error) {
+	return azcorearm.ParseResourceID(ToDNSReservationResourceIDString(subscriptionName, dnsReservationName))
 }

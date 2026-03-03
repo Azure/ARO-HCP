@@ -34,6 +34,11 @@ import (
 	"github.com/Azure/ARO-HCP/internal/database"
 )
 
+// ReplaceInterceptor is a function that can intercept Replace operations.
+// It receives the resource type and resource name, and returns an error if the operation should fail.
+// If it returns nil, the Replace operation proceeds normally.
+type ReplaceInterceptor func(resourceType, resourceName string) error
+
 // MockDBClient implements the database.DBClient interface for unit testing.
 // It stores documents in memory and supports loading from cosmos-record context directories.
 type MockDBClient struct {
@@ -47,6 +52,9 @@ type MockDBClient struct {
 
 	// lockClient is an optional mock lock client
 	lockClient database.LockClientInterface
+
+	// replaceInterceptor can be set to inject errors on Replace operations
+	replaceInterceptor ReplaceInterceptor
 }
 
 // NewMockDBClient creates a new mock DBClient with empty storage.
@@ -63,6 +71,21 @@ func NewMockDBClient() *MockDBClient {
 // SetLockClient sets a mock lock client for testing.
 func (m *MockDBClient) SetLockClient(lockClient database.LockClientInterface) {
 	m.lockClient = lockClient
+}
+
+// SetReplaceInterceptor sets an interceptor function for Replace operations.
+// The interceptor receives the resource type and resource name, and can return an error to fail the operation.
+func (m *MockDBClient) SetReplaceInterceptor(interceptor ReplaceInterceptor) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.replaceInterceptor = interceptor
+}
+
+// GetReplaceInterceptor returns the currently set replace interceptor.
+func (m *MockDBClient) GetReplaceInterceptor() ReplaceInterceptor {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.replaceInterceptor
 }
 
 // GetLockClient returns the mock lock client, or nil if not set.
@@ -156,6 +179,17 @@ func (m *MockDBClient) Subscriptions() database.SubscriptionCRUD {
 // type across all partitions.
 func (m *MockDBClient) GlobalListers() database.GlobalListers {
 	return &mockGlobalListers{client: m}
+}
+
+// DNSReservations returns a CRUD interface for DNS reservation resources.
+func (m *MockDBClient) DNSReservations(subscriptionID string) database.ResourceCRUD[api.DNSReservation] {
+	parts := []string{
+		"/subscriptions",
+		strings.ToLower(subscriptionID),
+	}
+	parentResourceID := api.Must(azcorearm.ParseResourceID(path.Join(parts...)))
+
+	return newMockResourceCRUD[api.DNSReservation, database.GenericDocument[api.DNSReservation]](m, parentResourceID, api.DNSReservationResourceType)
 }
 
 // ServiceProviderClusters returns a CRUD interface for service provider cluster resources.

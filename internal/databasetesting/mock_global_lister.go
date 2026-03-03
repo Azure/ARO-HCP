@@ -65,6 +65,13 @@ func (g *mockGlobalListers) ServiceProviderClusters() database.GlobalLister[api.
 	}
 }
 
+func (g *mockGlobalListers) DNSReservations() database.GlobalLister[api.DNSReservation] {
+	return &mockTypedGlobalLister[api.DNSReservation, database.GenericDocument[api.DNSReservation]]{
+		client:       g.client,
+		resourceType: api.DNSReservationResourceType,
+	}
+}
+
 func (g *mockGlobalListers) Operations() database.GlobalLister[api.Operation] {
 	return &mockTypedGlobalLister[api.Operation, database.GenericDocument[api.Operation]]{
 		client:       g.client,

@@ -286,6 +286,17 @@ func (m *mockResourceCRUD[InternalAPIType, CosmosAPIType]) Create(ctx context.Co
 }
 
 func (m *mockResourceCRUD[InternalAPIType, CosmosAPIType]) Replace(ctx context.Context, newObj *InternalAPIType, options *azcosmos.ItemOptions) (*InternalAPIType, error) {
+	// Check for replace interceptor first
+	if interceptor := m.client.GetReplaceInterceptor(); interceptor != nil {
+		if cp, ok := any(newObj).(arm.CosmosPersistable); ok {
+			if resourceID := cp.GetCosmosData().GetResourceID(); resourceID != nil {
+				if err := interceptor(resourceID.ResourceType.String(), resourceID.Name); err != nil {
+					return nil, err
+				}
+			}
+		}
+	}
+
 	cosmosObj, err := database.InternalToCosmos[InternalAPIType, CosmosAPIType](newObj)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert to cosmos type: %w", err)

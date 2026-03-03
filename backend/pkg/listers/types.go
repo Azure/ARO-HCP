@@ -31,6 +31,7 @@ type BackendListers struct {
 	HCPOpenShiftClusterNodePoolLister     NodePoolLister
 	HCPOpenShiftClusterExternalAuthLister ExternalAuthLister
 	ServiceProviderClusterLister          ServiceProviderClusterLister
+	DNSReservationLister                  DNSReservationLister
 }
 
 const ByResourceGroup = "byResourceGroup"

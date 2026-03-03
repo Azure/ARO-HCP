@@ -80,6 +80,7 @@ const (
 )
 
 var (
+	DNSReservationResourceType          = azcorearm.NewResourceType(ProviderNamespace, "dnsReservations")
 	OperationStatusResourceType         = azcorearm.NewResourceType(ProviderNamespace, OperationStatusResourceTypeName)
 	ClusterResourceType                 = azcorearm.NewResourceType(ProviderNamespace, ClusterResourceTypeName)
 	ServiceProviderClusterResourceType  = azcorearm.NewResourceType(ProviderNamespace, ClusterResourceTypeName+"/"+ServiceProviderClusterResourceTypeName)

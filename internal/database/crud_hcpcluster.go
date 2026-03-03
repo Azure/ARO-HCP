@@ -47,6 +47,16 @@ type OperationCRUD interface {
 	ListActiveOperations(options *DBClientListActiveOperationDocsOptions) DBClientIterator[api.Operation]
 }
 
+func NewDNSReservationCRUD(containerClient *azcosmos.ContainerClient, subscriptionID string) ResourceCRUD[api.DNSReservation] {
+	parts := []string{
+		"/subscriptions",
+		strings.ToLower(subscriptionID),
+	}
+	parentResourceID := api.Must(azcorearm.ParseResourceID(path.Join(parts...)))
+
+	return NewCosmosResourceCRUD[api.DNSReservation, GenericDocument[api.DNSReservation]](containerClient, parentResourceID, api.OperationStatusResourceType)
+}
+
 type operationCRUD struct {
 	*nestedCosmosResourceCRUD[api.Operation, GenericDocument[api.Operation]]
 }
