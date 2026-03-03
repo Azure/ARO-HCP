@@ -23,6 +23,8 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 	"github.com/go-logr/logr"
 
 	"k8s.io/utils/clock"
@@ -45,112 +47,172 @@ var localClock clock.Clock = clock.RealClock{}
 type PostAsyncNotificationFunc func(ctx context.Context, operation *api.Operation) error
 
 // UpdateOperationStatus updates Cosmos DB to reflect an updated resource status.
+// If the operation has an associated resource, both documents are updated
+// atomically using a transactional batch to prevent a window where the
+// operation shows a terminal status but the resource still reflects the
+// previous provisioning state.
+//
+// The resource update is skipped (but the operation is still updated) when:
+//   - the operation has no ExternalID (no associated resource)
+//   - the resource document was deleted (404 not found)
+//   - a different operation now owns the resource (ActiveOperationID mismatch)
+//   - the resource is already at the target non-terminal provisioning state
+//
+// In all of these cases the operation document is still persisted and ARM is
+// notified, so the operation reaches its terminal state and does not get stuck.
 func UpdateOperationStatus(ctx context.Context, cosmosClient database.DBClient, existingOperation *api.Operation, newOperationStatus arm.ProvisioningState, newOperationError *arm.CloudErrorBody, postAsyncNotificationFn PostAsyncNotificationFunc) error {
 	logger := utils.LoggerFromContext(ctx)
 	if existingOperation == nil {
 		return nil
 	}
 
-	err := patchOperation(ctx, cosmosClient, existingOperation, newOperationStatus, newOperationError, postAsyncNotificationFn)
-	if err != nil {
+	if !needToPatchOperation(existingOperation, newOperationStatus, newOperationError) {
+		return nil
+	}
+
+	// Prepare the updated operation document.
+	updatedOperation := existingOperation.DeepCopy()
+	updatedOperation.LastTransitionTime = localClock.Now()
+	updatedOperation.Status = newOperationStatus
+	if newOperationError != nil {
+		updatedOperation.Error = newOperationError
+	}
+
+	// Create a transaction to atomically update operation and resource documents.
+	// All documents in the transaction must share the same partition key. Both
+	// operation and resource documents are partitioned by subscription ID. If the
+	// partition key scheme changes the transaction creation here must be updated accordingly.
+	transaction := cosmosClient.NewTransaction(updatedOperation.OperationID.SubscriptionID)
+
+	// Add the operation document replace to the transaction.
+	if _, err := cosmosClient.Operations(updatedOperation.OperationID.SubscriptionID).AddReplaceToTransaction(ctx, transaction, updatedOperation, nil); err != nil {
 		return utils.TrackError(err)
 	}
 
 	// TODO make this an etag based replace to avoid conflict
+	//
+	// Conditionally add a resource document update to the transaction.
+	// The resource update is skipped in several edge cases
+	// but the operation document is always updated via the transaction below.
 	logger.Info("Updating external ID", "externalID", existingOperation.ExternalID)
 	switch {
 	case existingOperation.ExternalID == nil:
+		// No associated resource document to update.
 		logger.Info("No external ID, skipping update")
-		return nil
 
 	case strings.EqualFold(existingOperation.ExternalID.ResourceType.String(), api.ClusterResourceType.String()):
 		dbClient := cosmosClient.HCPClusters(existingOperation.ExternalID.SubscriptionID, existingOperation.ExternalID.ResourceGroupName)
 		curr, err := dbClient.Get(ctx, existingOperation.ExternalID.Name)
 		if err != nil {
-			return utils.TrackError(err)
-		}
-		if existingOperation.OperationID == nil {
+			var responseErr *azcore.ResponseError
+			if errors.As(err, &responseErr) && responseErr.StatusCode == http.StatusNotFound {
+				// Resource was deleted; skip the resource update so the
+				// operation can still reach a terminal state.
+				logger.Info("Resource not found, skipping resource update")
+			} else {
+				return utils.TrackError(err)
+			}
+		} else if existingOperation.OperationID == nil {
 			return utils.TrackError(fmt.Errorf("missing operation ID"))
-		}
-		oldCosmosOperationMatches := curr.ServiceProviderProperties.ActiveOperationID == existingOperation.OperationID.Name
-		if !oldCosmosOperationMatches {
-			return utils.TrackError(fmt.Errorf("precondition failed"))
-		}
-		if curr.ServiceProviderProperties.ProvisioningState == newOperationStatus && !newOperationStatus.IsTerminal() {
+		} else if curr.ServiceProviderProperties.ActiveOperationID != existingOperation.OperationID.Name {
+			// Another operation has taken ownership of this resource.
+			// Skip the resource update so this operation's lifecycle
+			// can complete without interfering with the new owner.
+			logger.Info("Resource has a different active operation, skipping resource update",
+				"resourceActiveOperationID", curr.ServiceProviderProperties.ActiveOperationID,
+				"thisOperationID", existingOperation.OperationID.Name)
+		} else if curr.ServiceProviderProperties.ProvisioningState == newOperationStatus && !newOperationStatus.IsTerminal() {
+			// Resource is already at the target state; no update needed.
+			// Terminal states always update to clear ActiveOperationID.
 			logger.Info("No update needed", "activeOperationID", curr.ServiceProviderProperties.ActiveOperationID, "oldStatus", curr.ServiceProviderProperties.ProvisioningState, "newStatus", newOperationStatus)
-			return nil
-		}
-		curr.ServiceProviderProperties.ProvisioningState = newOperationStatus
-		if newOperationStatus.IsTerminal() {
-			curr.ServiceProviderProperties.ActiveOperationID = ""
-		}
+		} else {
+			updatedResource := curr.DeepCopy()
+			updatedResource.ServiceProviderProperties.ProvisioningState = newOperationStatus
+			if newOperationStatus.IsTerminal() {
+				updatedResource.ServiceProviderProperties.ActiveOperationID = ""
+			}
 
-		logger.Info("Updating resource", "activeOperationID", curr.ServiceProviderProperties.ActiveOperationID, "newStatus", newOperationStatus)
-		if _, err := dbClient.Replace(ctx, curr, nil); err != nil {
-			return utils.TrackError(err)
+			logger.Info("Updating resource", "activeOperationID", updatedResource.ServiceProviderProperties.ActiveOperationID, "newStatus", newOperationStatus)
+			if _, err := dbClient.AddReplaceToTransaction(ctx, transaction, updatedResource, nil); err != nil {
+				return utils.TrackError(err)
+			}
 		}
-		return nil
 
 	case strings.EqualFold(existingOperation.ExternalID.ResourceType.String(), api.NodePoolResourceType.String()):
 		dbClient := cosmosClient.HCPClusters(existingOperation.ExternalID.SubscriptionID, existingOperation.ExternalID.ResourceGroupName).NodePools(existingOperation.ExternalID.Parent.Name)
 		curr, err := dbClient.Get(ctx, existingOperation.ExternalID.Name)
 		if err != nil {
-			return utils.TrackError(err)
-		}
-		if existingOperation.OperationID == nil {
+			var responseErr *azcore.ResponseError
+			if errors.As(err, &responseErr) && responseErr.StatusCode == http.StatusNotFound {
+				logger.Info("Resource not found, skipping resource update")
+			} else {
+				return utils.TrackError(err)
+			}
+		} else if existingOperation.OperationID == nil {
 			return utils.TrackError(fmt.Errorf("missing operation ID"))
-		}
-		oldCosmosOperationMatches := curr.ServiceProviderProperties.ActiveOperationID == existingOperation.OperationID.Name
-		if !oldCosmosOperationMatches {
-			return utils.TrackError(fmt.Errorf("precondition failed"))
-		}
-		if curr.Properties.ProvisioningState == newOperationStatus && !newOperationStatus.IsTerminal() {
+		} else if curr.ServiceProviderProperties.ActiveOperationID != existingOperation.OperationID.Name {
+			logger.Info("Resource has a different active operation, skipping resource update",
+				"resourceActiveOperationID", curr.ServiceProviderProperties.ActiveOperationID,
+				"thisOperationID", existingOperation.OperationID.Name)
+		} else if curr.Properties.ProvisioningState == newOperationStatus && !newOperationStatus.IsTerminal() {
 			logger.Info("No update needed", "activeOperationID", curr.ServiceProviderProperties.ActiveOperationID, "oldStatus", curr.Properties.ProvisioningState, "newStatus", newOperationStatus)
-			return nil
-		}
-		curr.Properties.ProvisioningState = newOperationStatus
-		if newOperationStatus.IsTerminal() {
-			curr.ServiceProviderProperties.ActiveOperationID = ""
-		}
+		} else {
+			updatedResource := curr.DeepCopy()
+			updatedResource.Properties.ProvisioningState = newOperationStatus
+			if newOperationStatus.IsTerminal() {
+				updatedResource.ServiceProviderProperties.ActiveOperationID = ""
+			}
 
-		logger.Info("Updating resource", "activeOperationID", curr.ServiceProviderProperties.ActiveOperationID, "newStatus", newOperationStatus)
-		if _, err := dbClient.Replace(ctx, curr, nil); err != nil {
-			return utils.TrackError(err)
+			logger.Info("Updating resource", "activeOperationID", updatedResource.ServiceProviderProperties.ActiveOperationID, "newStatus", newOperationStatus)
+			if _, err := dbClient.AddReplaceToTransaction(ctx, transaction, updatedResource, nil); err != nil {
+				return utils.TrackError(err)
+			}
 		}
-		return nil
 
 	case strings.EqualFold(existingOperation.ExternalID.ResourceType.String(), api.ExternalAuthResourceType.String()):
 		dbClient := cosmosClient.HCPClusters(existingOperation.ExternalID.SubscriptionID, existingOperation.ExternalID.ResourceGroupName).ExternalAuth(existingOperation.ExternalID.Parent.Name)
 		curr, err := dbClient.Get(ctx, existingOperation.ExternalID.Name)
 		if err != nil {
-			return utils.TrackError(err)
-		}
-		if existingOperation.OperationID == nil {
+			var responseErr *azcore.ResponseError
+			if errors.As(err, &responseErr) && responseErr.StatusCode == http.StatusNotFound {
+				logger.Info("Resource not found, skipping resource update")
+			} else {
+				return utils.TrackError(err)
+			}
+		} else if existingOperation.OperationID == nil {
 			return utils.TrackError(fmt.Errorf("missing operation ID"))
-		}
-		oldCosmosOperationMatches := curr.ServiceProviderProperties.ActiveOperationID == existingOperation.OperationID.Name
-		if !oldCosmosOperationMatches {
-			return utils.TrackError(fmt.Errorf("precondition failed"))
-		}
-		if curr.Properties.ProvisioningState == newOperationStatus && !newOperationStatus.IsTerminal() {
+		} else if curr.ServiceProviderProperties.ActiveOperationID != existingOperation.OperationID.Name {
+			logger.Info("Resource has a different active operation, skipping resource update",
+				"resourceActiveOperationID", curr.ServiceProviderProperties.ActiveOperationID,
+				"thisOperationID", existingOperation.OperationID.Name)
+		} else if curr.Properties.ProvisioningState == newOperationStatus && !newOperationStatus.IsTerminal() {
 			logger.Info("No update needed", "activeOperationID", curr.ServiceProviderProperties.ActiveOperationID, "oldStatus", curr.Properties.ProvisioningState, "newStatus", newOperationStatus)
-			return nil
-		}
-		curr.Properties.ProvisioningState = newOperationStatus
-		if newOperationStatus.IsTerminal() {
-			curr.ServiceProviderProperties.ActiveOperationID = ""
-		}
+		} else {
+			updatedResource := curr.DeepCopy()
+			updatedResource.Properties.ProvisioningState = newOperationStatus
+			if newOperationStatus.IsTerminal() {
+				updatedResource.ServiceProviderProperties.ActiveOperationID = ""
+			}
 
-		logger.Info("Updating resource", "activeOperationID", curr.ServiceProviderProperties.ActiveOperationID, "newStatus", newOperationStatus)
-		if _, err := dbClient.Replace(ctx, curr, nil); err != nil {
-			return utils.TrackError(err)
+			logger.Info("Updating resource", "activeOperationID", updatedResource.ServiceProviderProperties.ActiveOperationID, "newStatus", newOperationStatus)
+			if _, err := dbClient.AddReplaceToTransaction(ctx, transaction, updatedResource, nil); err != nil {
+				return utils.TrackError(err)
+			}
 		}
-		return nil
 
 	default:
 		return utils.TrackError(fmt.Errorf("unknown resource type: %s", existingOperation.ExternalID.ResourceType.String()))
 	}
 
+	// Execute the transaction atomically.
+	logger.Info("Updating operation status", "oldStatus", existingOperation.Status, "newStatus", newOperationStatus, "operationError", newOperationError)
+	if _, err := transaction.Execute(ctx, &azcosmos.TransactionalBatchOptions{}); err != nil {
+		return utils.TrackError(err)
+	}
+
+	logAndNotify(ctx, cosmosClient, updatedOperation, postAsyncNotificationFn)
+
+	return nil
 }
 
 func needToPatchOperation(oldOperation *api.Operation, newOperationStatus arm.ProvisioningState, newOperationError *arm.CloudErrorBody) bool {
@@ -189,10 +251,27 @@ func patchOperation(ctx context.Context, dbClient database.DBClient, oldOperatio
 		return utils.TrackError(err)
 	}
 
-	message := fmt.Sprintf("Updated status to '%s'", newOperationStatus)
-	switch newOperationStatus {
+	logAndNotify(ctx, dbClient, latestOperation, postAsyncNotificationFn)
+
+	return nil
+}
+
+// logAndNotify logs the operation result and, if applicable, sends an async
+// notification to ARM and clears the notification URI.
+//
+// The notification URI is cleared in a separate write after the notification is
+// sent successfully. If the process crashes between sending the notification and
+// clearing the URI, the notification may be sent again on the next reconcile.
+// This is intentional: duplicate notifications are preferable to missing ones.
+// If the notification send itself fails, the URI is left in place so the
+// controller retries on the next reconcile.
+func logAndNotify(ctx context.Context, cosmosClient database.DBClient, operation *api.Operation, postAsyncNotificationFn PostAsyncNotificationFunc) {
+	logger := utils.LoggerFromContext(ctx)
+
+	message := fmt.Sprintf("Updated status to '%s'", operation.Status)
+	switch operation.Status {
 	case arm.ProvisioningStateSucceeded:
-		switch latestOperation.Request {
+		switch operation.Request {
 		case database.OperationRequestCreate:
 			message = "Resource creation succeeded"
 		case database.OperationRequestUpdate:
@@ -205,7 +284,7 @@ func patchOperation(ctx context.Context, dbClient database.DBClient, oldOperatio
 			message = "Credential revocation succeeded"
 		}
 	case arm.ProvisioningStateFailed:
-		switch latestOperation.Request {
+		switch operation.Request {
 		case database.OperationRequestCreate:
 			message = "Resource creation failed"
 		case database.OperationRequestUpdate:
@@ -218,26 +297,26 @@ func patchOperation(ctx context.Context, dbClient database.DBClient, oldOperatio
 			message = "Credential revocation failed"
 		}
 	}
-	if newOperationError != nil {
+	if operation.Error != nil {
 		logger.WithValues(
 			utils.LogValues{}.
-				AddCloudErrorCode(newOperationError.Code).
-				AddCloudErrorMessage(newOperationError.Message)...).
+				AddCloudErrorCode(operation.Error.Code).
+				AddCloudErrorMessage(operation.Error.Message)...).
 			Error(nil, message)
 	} else {
 		logger.Info(message)
 	}
 
-	if postAsyncNotificationFn != nil && newOperationStatus.IsTerminal() && len(latestOperation.NotificationURI) > 0 {
-		err = postAsyncNotificationFn(ctx, latestOperation)
+	if postAsyncNotificationFn != nil && operation.Status.IsTerminal() && len(operation.NotificationURI) > 0 {
+		err := postAsyncNotificationFn(ctx, operation)
 		if err == nil {
 			logger.Info("Posted async notification")
 
 			// Remove the notification URI from the document
 			// so the ARM notification is only sent once.
-			operationWithoutNotificationURI := *latestOperation
+			operationWithoutNotificationURI := *operation
 			operationWithoutNotificationURI.NotificationURI = ""
-			_, err = dbClient.Operations(operationToWrite.OperationID.SubscriptionID).Replace(ctx, &operationWithoutNotificationURI, nil)
+			_, err = cosmosClient.Operations(operation.OperationID.SubscriptionID).Replace(ctx, &operationWithoutNotificationURI, nil)
 			if err != nil {
 				logger.Error(err, "Failed to clear notification URI")
 			}
@@ -245,8 +324,6 @@ func patchOperation(ctx context.Context, dbClient database.DBClient, oldOperatio
 			logger.Error(err, "Failed to post async notification")
 		}
 	}
-
-	return nil
 }
 
 // PostAsyncNotification submits an POST request with status payload to the given URL.
