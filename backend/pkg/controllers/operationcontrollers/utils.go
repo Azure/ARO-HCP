@@ -23,11 +23,12 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
-	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 	"github.com/go-logr/logr"
 
 	"k8s.io/utils/clock"
+
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 
@@ -70,8 +71,18 @@ func UpdateOperationStatus(ctx context.Context, cosmosClient database.DBClient, 
 		return nil
 	}
 
-	// Prepare the updated operation document.
-	updatedOperation := existingOperation.DeepCopy()
+	// Re-read the operation document to ensure any pending Cosmos ID
+	// migration is applied (old pipe-separated ID to new UUID-based ID)
+	// and to obtain a fresh ETag. This is ugly but necessary because callers like
+	// the old operation scanner read via ListActiveOperations (a query
+	// that does not trigger migration), while AddReplaceToTransaction
+	// expects the document to already have the new UUID-based ID.
+	operationsCRUD := cosmosClient.Operations(existingOperation.OperationID.SubscriptionID)
+	updatedOperation, err := operationsCRUD.Get(ctx, existingOperation.OperationID.Name)
+	if err != nil {
+		return utils.TrackError(err)
+	}
+
 	updatedOperation.LastTransitionTime = localClock.Now()
 	updatedOperation.Status = newOperationStatus
 	if newOperationError != nil {
@@ -85,12 +96,10 @@ func UpdateOperationStatus(ctx context.Context, cosmosClient database.DBClient, 
 	transaction := cosmosClient.NewTransaction(updatedOperation.OperationID.SubscriptionID)
 
 	// Add the operation document replace to the transaction.
-	if _, err := cosmosClient.Operations(updatedOperation.OperationID.SubscriptionID).AddReplaceToTransaction(ctx, transaction, updatedOperation, nil); err != nil {
+	if _, err := operationsCRUD.AddReplaceToTransaction(ctx, transaction, updatedOperation, nil); err != nil {
 		return utils.TrackError(err)
 	}
 
-	// TODO make this an etag based replace to avoid conflict
-	//
 	// Conditionally add a resource document update to the transaction.
 	// The resource update is skipped in several edge cases
 	// but the operation document is always updated via the transaction below.
@@ -262,9 +271,6 @@ func patchOperation(ctx context.Context, dbClient database.DBClient, oldOperatio
 // The notification URI is cleared in a separate write after the notification is
 // sent successfully. If the process crashes between sending the notification and
 // clearing the URI, the notification may be sent again on the next reconcile.
-// This is intentional: duplicate notifications are preferable to missing ones.
-// If the notification send itself fails, the URI is left in place so the
-// controller retries on the next reconcile.
 func logAndNotify(ctx context.Context, cosmosClient database.DBClient, operation *api.Operation, postAsyncNotificationFn PostAsyncNotificationFunc) {
 	logger := utils.LoggerFromContext(ctx)
 
@@ -314,11 +320,19 @@ func logAndNotify(ctx context.Context, cosmosClient database.DBClient, operation
 
 			// Remove the notification URI from the document
 			// so the ARM notification is only sent once.
-			operationWithoutNotificationURI := *operation
-			operationWithoutNotificationURI.NotificationURI = ""
-			_, err = cosmosClient.Operations(operation.OperationID.SubscriptionID).Replace(ctx, &operationWithoutNotificationURI, nil)
+			// Re-read the operation to get the current ETag,
+			// since the in-memory copy may have a stale ETag
+			// from before a transactional batch commit.
+			operationsCRUD := cosmosClient.Operations(operation.OperationID.SubscriptionID)
+			currentOperation, err := operationsCRUD.Get(ctx, operation.OperationID.Name)
 			if err != nil {
-				logger.Error(err, "Failed to clear notification URI")
+				logger.Error(err, "Failed to re-read operation to clear notification URI")
+			} else {
+				currentOperation.NotificationURI = ""
+				_, err = operationsCRUD.Replace(ctx, currentOperation, nil)
+				if err != nil {
+					logger.Error(err, "Failed to clear notification URI")
+				}
 			}
 		} else {
 			logger.Error(err, "Failed to post async notification")

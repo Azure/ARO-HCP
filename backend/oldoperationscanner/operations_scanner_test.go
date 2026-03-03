@@ -167,6 +167,9 @@ func TestSetDeleteOperationAsCompleted(t *testing.T) {
 						return mockOperationCRUD
 					})
 				mockOperationCRUD.EXPECT().
+					Get(gomock.Any(), operationDoc.OperationID.Name).
+					Return(operationDoc, nil)
+				mockOperationCRUD.EXPECT().
 					Replace(gomock.Any(), gomock.Any(), nil).
 					DoAndReturn(func(ctx context.Context, a *api.Operation, options *azcosmos.ItemOptions) (*api.Operation, error) {
 						operationDoc.NotificationURI = ""
@@ -334,14 +337,18 @@ func TestUpdateOperationStatus(t *testing.T) {
 			mockTransaction := database.NewMockDBTransaction(ctrl)
 			mockTransactionResult := database.NewMockDBTransactionResult(ctrl)
 
-			mockDBClient.EXPECT().
-				NewTransaction(operationDoc.OperationID.SubscriptionID).
-				Return(mockTransaction)
+			// Re-read the operation to trigger ID migration and get a fresh ETag.
 			mockDBClient.EXPECT().
 				Operations(operationDoc.OperationID.SubscriptionID).
 				DoAndReturn(func(s string) database.OperationCRUD {
 					return mockOperationCRUD
 				})
+			mockOperationCRUD.EXPECT().
+				Get(gomock.Any(), operationDoc.OperationID.Name).
+				Return(operationDoc, nil)
+			mockDBClient.EXPECT().
+				NewTransaction(operationDoc.OperationID.SubscriptionID).
+				Return(mockTransaction)
 			mockOperationCRUD.EXPECT().
 				AddReplaceToTransaction(gomock.Any(), mockTransaction, gomock.Any(), nil).
 				DoAndReturn(func(ctx context.Context, transaction database.DBTransaction, a *api.Operation, opts *azcosmos.TransactionalBatchItemOptions) (string, error) {
@@ -381,6 +388,9 @@ func TestUpdateOperationStatus(t *testing.T) {
 					DoAndReturn(func(s string) database.OperationCRUD {
 						return mockOperationCRUD
 					})
+				mockOperationCRUD.EXPECT().
+					Get(gomock.Any(), operationDoc.OperationID.Name).
+					Return(operationDoc, nil)
 				mockOperationCRUD.EXPECT().
 					Replace(gomock.Any(), gomock.Any(), nil).
 					DoAndReturn(func(ctx context.Context, a *api.Operation, options *azcosmos.ItemOptions) (*api.Operation, error) {
