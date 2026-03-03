@@ -77,7 +77,7 @@ func (c *cosmosClusterMatching) synchronizeClusters(ctx context.Context, keyObj 
 
 	// we need to cleanup the cosmosCluster, finalizing billing first
 	if err := controllerutils.MarkBillingDocumentDeleted(ctx, c.cosmosClient, cosmosCluster.ID, c.clock.Now()); err != nil {
-		return utils.TrackError(err)
+		logger.Error(err, "failed to mark billing document as deleted")
 	}
 
 	if err := controllerutils.DeleteRecursively(ctx, c.cosmosClient, cosmosCluster.ID); err != nil {
