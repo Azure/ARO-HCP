@@ -65,8 +65,8 @@ start_emulator() {
 
     echo "Starting Cosmos DB emulator with container name: ${container_name}"
     ${CONTAINER_RUNTIME} run \
-      --publish 8081:8081 \
-      --publish 10250-10255:10250-10255 \
+      --publish 127.0.0.1:8081:8081 \
+      --publish 127.0.0.1:10250-10255:10250-10255 \
       -e AZURE_COSMOS_EMULATOR_IP_ADDRESS_OVERRIDE=127.0.0.1 \
       -e PROTOCOL=https \
       --name "${container_name}" \
