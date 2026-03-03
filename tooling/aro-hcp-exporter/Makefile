@@ -1,5 +1,4 @@
 -include ../../setup-templatize-env.mk
--include ../../.bingo/Variables.mk
 
 SHELL = /bin/bash
 
@@ -44,8 +43,12 @@ image: Dockerfile Makefile
 	docker build . --file Dockerfile \
 		--build-arg PLATFORM=linux/amd64 \
 		--tag ${ARO_HCP_EXPORTER_TAGGED_IMAGE}
+.PHONY: image
 
-build-and-push: image $(ORAS)
+push:
 	az acr login --name ${ARO_HCP_IMAGE_ACR}
 	docker push ${ARO_HCP_EXPORTER_TAGGED_IMAGE}
+.PHONY: push
+
+build-and-push: image push
 .PHONY: build-and-push
