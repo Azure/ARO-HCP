@@ -494,13 +494,10 @@ type HcpOperatorIdentityRoleSetProperties struct {
 
 // ImageDigestMirror specifies a set of mirror registries to redirect image pulls targeting the specified source registries.
 type ImageDigestMirror struct {
-	// REQUIRED; The unique identifier for this image digest mirror definition
-	ID *string
-
-	// REQUIRED; The set of mirror registries to redirect image pulls to
+	// REQUIRED; Mirrors are one or more image repositories that may also contain the same images.
 	Mirrors []*string
 
-	// REQUIRED; The source image registry to redirect image pulls from
+	// REQUIRED; Source is the image repository that users refer to, e.g. in image pull specifications.
 	Source *string
 }
 
@@ -510,6 +507,9 @@ type ImageDigestMirror struct {
 type KmsEncryptionProfile struct {
 	// REQUIRED; The details of the active key.
 	ActiveKey *KmsKey
+
+	// REQUIRED; visibility of the keyvault that contains the secret.
+	Visibility *KeyVaultVisibility
 }
 
 // KmsKey - A representation of a KeyVault Secret.
@@ -522,9 +522,6 @@ type KmsKey struct {
 
 	// REQUIRED; version contains the version of the key to use.
 	Version *string
-
-	// REQUIRED; visibility of the keyvault that contains the secret.
-	Visibility *KeyVaultVisibility
 }
 
 // Label represents the Kubernetes label
