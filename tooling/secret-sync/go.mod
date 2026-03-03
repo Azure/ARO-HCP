@@ -19,8 +19,6 @@ require (
 	github.com/Azure/ARO-Tools/testutil v0.0.0-20260302234042-3298871a1fc3 // indirect
 	github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20260302234042-3298871a1fc3 // indirect
 	github.com/Azure/ARO-Tools/tools/yamlwrap v0.0.0-20260302234042-3298871a1fc3 // indirect
-	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.21.0 // indirect
-	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.13.1 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/internal v1.11.2 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azsecrets v1.4.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/internal v1.2.0 // indirect

@@ -22,7 +22,9 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"os"
+	"slices"
 	"strings"
 	"testing"
 
@@ -96,14 +98,6 @@ func envOrDefault(key, defaultVal string) string {
 	return defaultVal
 }
 
-func keysOf[V any](m map[string]V) []string {
-	keys := make([]string, 0, len(m))
-	for k := range m {
-		keys = append(keys, k)
-	}
-	return keys
-}
-
 func TestDecryptAndValidateSecrets(t *testing.T) {
 	keyVaultURI := envOrDefault("KEY_VAULT_URI", "https://arohcpdev-global.vault.azure.net")
 	keyEncryptionKeyName := envOrDefault("KEY_ENCRYPTION_KEY_NAME", "secretSyncKey")
@@ -121,7 +115,7 @@ func TestDecryptAndValidateSecrets(t *testing.T) {
 
 	kv, ok := cfg.KeyVaults[keyVaultURI]
 	if !ok {
-		t.Fatalf("Key vault %s not found in config. Available vaults: %v", keyVaultURI, keysOf(cfg.KeyVaults))
+		t.Fatalf("Key vault %s not found in config. Available vaults: %v", keyVaultURI, slices.Collect(maps.Keys(cfg.KeyVaults)))
 	}
 
 	if len(kv.EncryptedSecrets) == 0 {
