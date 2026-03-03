@@ -32,8 +32,6 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/portforward"
 	"k8s.io/client-go/transport/spdy"
-
-	"github.com/Azure/ARO-HCP/test/util/labels"
 )
 
 const (
@@ -45,11 +43,11 @@ const (
 
 var _ = Describe("Engineering", func() {
 	It("should be able to retrieve expected metrics from the /metrics endpoint",
-		labels.RequireNothing,
-		labels.Medium,
-		labels.Positive,
-		labels.DevelopmentOnly,
-		labels.AroRpApiCompatible,
+		// labels.RequireNothing,
+		// labels.Medium,
+		// labels.Positive,
+		// labels.DevelopmentOnly,
+		// labels.AroRpApiCompatible,
 		func(ctx context.Context) {
 			cancelCtx, cancel := context.WithCancel(ctx)
 			defer cancel()
