@@ -20,33 +20,73 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"encoding/base64"
+	"encoding/json"
+	"fmt"
 	"os"
-	"regexp"
+	"strings"
 	"testing"
 
 	"github.com/Azure/ARO-Tools/tools/secret-sync/config"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azkeys"
+	"github.com/golang-jwt/jwt/v5"
+	"sigs.k8s.io/yaml"
 )
 
-var secretValidationPatterns = map[string]*regexp.Regexp{
-	"acm-d-password":             regexp.MustCompile(`.+`),
-	"acm-d-username":             regexp.MustCompile(`.+`),
-	"component-sync-pull-secret": regexp.MustCompile(`(?s)\{.*"auths"\s*:\s*\{.*\}\s*\}`),
-	"ocmirror-pull-secret":       regexp.MustCompile(`(?s)\{.*"auths"\s*:\s*\{.*\}\s*\}`),
-	"prow-token":                 regexp.MustCompile(`.+`),
-	"quay-io-bearer":             regexp.MustCompile(`.+`),
-	"quay-password":              regexp.MustCompile(`.+`),
-	"quay-username":              regexp.MustCompile(`.+`),
+// registryAuth represents authentication credentials for a single registry.
+type registryAuth struct {
+	Username string `json:"username,omitempty"`
+	Email    string `json:"email,omitempty"`
+	Auth     string `json:"auth"`
 }
 
-// base64EncodedSecrets lists secrets whose decrypted plaintext is itself
-// base64-encoded (e.g. Docker auth config JSON stored as base64).
-// These are decoded an extra time before validation.
-var base64EncodedSecrets = map[string]bool{
-	"component-sync-pull-secret": true,
-	"ocmirror-pull-secret":       true,
+// dockerConfigJSON represents a Docker auth config (pull secrets).
+type dockerConfigJSON struct {
+	Auths map[string]registryAuth `json:"auths"`
+}
+
+// secretValidator holds a validation function and whether the secret is base64-encoded.
+type secretValidator struct {
+	validate      func([]byte) error
+	base64Encoded bool
+}
+
+var secretValidators = map[string]secretValidator{
+	"acm-d-password":             {validate: validateNonEmptyString},
+	"acm-d-username":             {validate: validateNonEmptyString},
+	"component-sync-pull-secret": {validate: validatePullSecret, base64Encoded: true},
+	"ocmirror-pull-secret":       {validate: validatePullSecret, base64Encoded: true},
+	"prow-token":                 {validate: validateJWT},
+	"quay-io-bearer":             {validate: validateNonEmptyString},
+	"quay-password":              {validate: validateNonEmptyString},
+	"quay-username":              {validate: validateNonEmptyString},
+}
+
+func validatePullSecret(data []byte) error {
+	var cfg dockerConfigJSON
+	if err := json.Unmarshal(data, &cfg); err != nil {
+		return fmt.Errorf("failed to unmarshal as Docker config JSON: %w", err)
+	}
+	if len(cfg.Auths) == 0 {
+		return fmt.Errorf("Docker config has no auths entries")
+	}
+	return nil
+}
+
+func validateJWT(data []byte) error {
+	_, _, err := jwt.NewParser().ParseUnverified(strings.TrimSpace(string(data)), jwt.MapClaims{})
+	if err != nil {
+		return fmt.Errorf("failed to parse as JWT: %w", err)
+	}
+	return nil
+}
+
+func validateNonEmptyString(data []byte) error {
+	if len(strings.TrimSpace(string(data))) == 0 {
+		return fmt.Errorf("expected non-empty string")
+	}
+	return nil
 }
 
 func envOrDefault(key, defaultVal string) string {
@@ -65,13 +105,18 @@ func keysOf[V any](m map[string]V) []string {
 }
 
 func TestDecryptAndValidateSecrets(t *testing.T) {
-	configFile := envOrDefault("ENCRYPTED_SECRETS_FILE", "../../dev-infrastructure/data/encryptedsecrets.yaml")
 	keyVaultURI := envOrDefault("KEY_VAULT_URI", "https://arohcpdev-global.vault.azure.net")
 	keyEncryptionKeyName := envOrDefault("KEY_ENCRYPTION_KEY_NAME", "secretSyncKey")
 
-	cfg, err := config.Load(configFile)
-	if err != nil {
-		t.Fatalf("Failed to load config from %s: %v", configFile, err)
+	// ENCRYPTED_SECRETS_CONFIG holds the YAML content directly.
+	content := os.Getenv("ENCRYPTED_SECRETS_CONFIG")
+	if content == "" {
+		t.Fatal("ENCRYPTED_SECRETS_CONFIG environment variable is not set")
+	}
+
+	var cfg config.SecretSync
+	if err := yaml.Unmarshal([]byte(content), &cfg); err != nil {
+		t.Fatalf("Failed to parse ENCRYPTED_SECRETS_CONFIG: %v", err)
 	}
 
 	kv, ok := cfg.KeyVaults[keyVaultURI]
@@ -138,10 +183,17 @@ func TestDecryptAndValidateSecrets(t *testing.T) {
 				t.Fatal("Decrypted secret is empty")
 			}
 
+			// Look up the validator for this secret
+			validator, ok := secretValidators[name]
+			if !ok {
+				t.Errorf("No validator defined for secret %q — add an entry to secretValidators", name)
+				return
+			}
+
 			// Some secrets store base64-encoded content (e.g. Docker auth config JSON).
 			// Decode them before validation.
 			valueToValidate := plaintext
-			if base64EncodedSecrets[name] {
+			if validator.base64Encoded {
 				decoded, err := base64.StdEncoding.DecodeString(string(plaintext))
 				if err != nil {
 					t.Fatalf("Secret is expected to be base64-encoded but decoding failed: %v", err)
@@ -152,19 +204,8 @@ func TestDecryptAndValidateSecrets(t *testing.T) {
 				valueToValidate = decoded
 			}
 
-			// Validate against expected pattern
-			pattern, ok := secretValidationPatterns[name]
-			if !ok {
-				t.Errorf("No validation pattern defined for secret %q — add an entry to secretValidationPatterns", name)
-				return
-			}
-
-			if !pattern.MatchString(string(valueToValidate)) {
-				preview := string(valueToValidate)
-				if len(preview) > 5 {
-					preview = preview[:5] + "..."
-				}
-				t.Errorf("Decrypted secret does not match expected pattern %q; preview: %q", pattern.String(), preview)
+			if err := validator.validate(valueToValidate); err != nil {
+				t.Errorf("Validation failed for secret %q: %v", name, err)
 			}
 		})
 	}
