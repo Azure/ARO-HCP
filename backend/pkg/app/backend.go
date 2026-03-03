@@ -36,6 +36,7 @@ import (
 
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/billingcontrollers"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/clusterpropertiescontroller"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/mismatchcontrollers"
@@ -404,6 +405,9 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 	backfillBillingDocIDController := controllerutils.NewClusterWatchingController(
 		"BackfillBillingDocID", b.options.CosmosDBClient, backendInformers, 60*time.Minute,
 		mismatchcontrollers.NewBackfillBillingDocIDController(utilsclock.RealClock{}, b.options.CosmosDBClient))
+	orphanedBillingCleanupController := controllerutils.NewClusterWatchingController(
+		"OrphanedBillingCleanup", b.options.CosmosDBClient, backendInformers, 60*time.Minute,
+		billingcontrollers.NewOrphanedBillingCleanupController(utilsclock.RealClock{}, b.options.CosmosDBClient))
 	controlPlaneActiveVersionController := upgradecontrollers.NewControlPlaneActiveVersionController(
 		b.options.CosmosDBClient,
 		activeOperationLister,
@@ -517,6 +521,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go alwaysSuccessClusterValidationController.Run(ctx, 20)
 				go deleteOrphanedCosmosResourcesController.Run(ctx, 20)
 				go backfillBillingDocIDController.Run(ctx, 20)
+				go orphanedBillingCleanupController.Run(ctx, 20)
 				go controlPlaneActiveVersionController.Run(ctx, 20)
 				go controlPlaneDesiredVersionController.Run(ctx, 20)
 				go triggerControlPlaneUpgradeController.Run(ctx, 20)
