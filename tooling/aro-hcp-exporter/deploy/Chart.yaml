@@ -1,0 +1,5 @@
+apiVersion: v2
+description: Prometheus resource exporter for ARO HCP
+name: aro-hcp-exporter
+type: application
+version: 0.0.1

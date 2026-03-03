@@ -77,24 +77,49 @@ func getByItemID[InternalAPIType, CosmosAPIType any](ctx context.Context, contai
 }
 
 func get[InternalAPIType, CosmosAPIType any](ctx context.Context, containerClient *azcosmos.ContainerClient, partitionKeyString string, completeResourceID *azcorearm.ResourceID) (*InternalAPIType, error) {
-	// try the ID format first because it'll be more often correct.
-	oldExactCosmosID, err := OldResourceIDToCosmosID(completeResourceID)
-	if err != nil {
-		return nil, utils.TrackError(err)
-	}
-	ret, err := getByItemID[InternalAPIType, CosmosAPIType](ctx, containerClient, partitionKeyString, oldExactCosmosID)
-	if err == nil {
-		return ret, nil
-	}
-	if !IsResponseError(err, http.StatusNotFound) {
-		return nil, utils.TrackError(err)
-	}
-
-	// now try the new format in case we've started migrating or rolled back.
+	// try to see if the cosmosID we've passed is also the exact resource ID.  If so, then return the value we got.
 	newExactCosmosID, err := arm.ResourceIDToCosmosID(completeResourceID)
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}
+	ret, newCosmosIDErr := getByItemID[InternalAPIType, CosmosAPIType](ctx, containerClient, partitionKeyString, newExactCosmosID)
+	if newCosmosIDErr == nil {
+		return ret, nil
+	}
+	if !IsResponseError(newCosmosIDErr, http.StatusNotFound) {
+		return nil, utils.TrackError(newCosmosIDErr)
+	}
+
+	partitionKey := azcosmos.NewPartitionKeyString(partitionKeyString)
+	oldExactCosmosID, err := OldResourceIDToCosmosID(completeResourceID)
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
+	responseItem, err := containerClient.ReadItem(ctx, partitionKey, oldExactCosmosID, nil)
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
+
+	objAsMap := map[string]any{}
+	if err := json.Unmarshal(responseItem.Value, &objAsMap); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal Resources container item for '%s': %w", completeResourceID, err)
+	}
+	originalCosmosID := objAsMap["id"].(string)
+	objAsMap["id"] = newExactCosmosID
+	newBytes, err := json.Marshal(objAsMap)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal Cosmos DB item for '%s': %w", completeResourceID, err)
+	}
+
+	logger := utils.LoggerFromContext(ctx)
+	logger.Info("migrating item", "newCosmosID", newExactCosmosID, "oldCosmosID", originalCosmosID)
+	if _, err := containerClient.CreateItem(ctx, partitionKey, newBytes, nil); err != nil {
+		return nil, utils.TrackError(err)
+	}
+	if _, err = containerClient.DeleteItem(ctx, partitionKey, originalCosmosID, nil); err != nil {
+		return nil, utils.TrackError(err)
+	}
+
 	return getByItemID[InternalAPIType, CosmosAPIType](ctx, containerClient, partitionKeyString, newExactCosmosID)
 }
 
@@ -113,7 +138,7 @@ func list[InternalAPIType, CosmosAPIType any](ctx context.Context, containerClie
 	if prefix == nil {
 		query = "SELECT * FROM c"
 	} else {
-		query = "SELECT * FROM c WHERE STARTSWITH(c.properties.resourceId, @prefix, true)"
+		query = "SELECT * FROM c WHERE STARTSWITH(c.resourceID, @prefix, true)"
 		queryOptions = azcosmos.QueryOptions{
 			PageSizeHint: -1,
 			QueryParameters: []azcosmos.QueryParameter{
@@ -148,7 +173,7 @@ func list[InternalAPIType, CosmosAPIType any](ctx context.Context, containerClie
 		}
 
 		// no sql injection risk because it's an int we control
-		query += fmt.Sprintf(" AND (LENGTH(c.properties.resourceId) - LENGTH(REPLACE(c.properties.resourceId, '/', ''))) = %d", requiredNumSlashes)
+		query += fmt.Sprintf(" AND (LENGTH(c.resourceID) - LENGTH(REPLACE(c.resourceID, '/', ''))) = %d", requiredNumSlashes)
 	}
 
 	if options != nil {
@@ -311,6 +336,16 @@ func create[InternalAPIType, CosmosAPIType any](ctx context.Context, containerCl
 }
 
 func replace[InternalAPIType, CosmosAPIType any](ctx context.Context, containerClient *azcosmos.ContainerClient, partitionKeyString string, newObj *InternalAPIType, opts *azcosmos.ItemOptions) (*InternalAPIType, error) {
+	cosmosPersistable, ok := any(newObj).(arm.CosmosPersistable)
+	if !ok {
+		return nil, fmt.Errorf("type %T does not implement CosmosPersistable interface", newObj)
+	}
+	// do a get first to ensure the ID is migrated
+	_, err := get[InternalAPIType, CosmosAPIType](ctx, containerClient, partitionKeyString, cosmosPersistable.GetCosmosData().GetResourceID())
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
+
 	if strings.ToLower(partitionKeyString) != partitionKeyString {
 		return nil, fmt.Errorf("partitionKeyString must be lowercase, not: %q", partitionKeyString)
 	}

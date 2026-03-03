@@ -19,7 +19,6 @@ import (
 	"fmt"
 	"net/http"
 	"slices"
-	"strings"
 
 	"github.com/go-logr/logr"
 
@@ -50,25 +49,10 @@ func (k *OperationKey) GetParentResourceID() *azcorearm.ResourceID {
 }
 
 func (k *OperationKey) AddLoggerValues(logger logr.Logger) logr.Logger {
-	parentResourceID := k.GetParentResourceID()
-	hcpClusterName := ""
-	switch {
-	case strings.EqualFold(parentResourceID.ResourceType.String(), api.ClusterResourceType.String()):
-		hcpClusterName = parentResourceID.Name
-	case strings.EqualFold(parentResourceID.ResourceType.String(), api.NodePoolResourceType.String()):
-		hcpClusterName = parentResourceID.Parent.Name
-	case strings.EqualFold(parentResourceID.ResourceType.String(), api.ExternalAuthResourceType.String()):
-		hcpClusterName = parentResourceID.Name
-	}
-
 	return logger.WithValues(
-		"subscription_id", k.SubscriptionID,
-		"resource_group", parentResourceID.ResourceGroupName,
-		"resource_name", parentResourceID.Name,
-		"resource_id", k.ParentResourceID,
-		"operation_id", k.OperationName,
-		"hcp_cluster_name", hcpClusterName,
-	)
+		utils.LogValues{}.
+			AddLogValuesForResourceID(k.GetParentResourceID()).
+			AddOperationID(k.OperationName)...)
 }
 
 func (k *OperationKey) InitialController(controllerName string) *api.Controller {
@@ -100,12 +84,8 @@ func (k *HCPClusterKey) GetResourceID() *azcorearm.ResourceID {
 
 func (k *HCPClusterKey) AddLoggerValues(logger logr.Logger) logr.Logger {
 	return logger.WithValues(
-		"subscription_id", k.SubscriptionID,
-		"resource_group", k.ResourceGroupName,
-		"resource_name", k.HCPClusterName,
-		"resource_id", k.GetResourceID().String(),
-		"hcp_cluster_name", k.HCPClusterName, // provides standard location for resources like nodes
-	)
+		utils.LogValues{}.
+			AddLogValuesForResourceID(k.GetResourceID())...)
 }
 
 func (k *HCPClusterKey) InitialController(controllerName string) *api.Controller {
@@ -213,15 +193,25 @@ func SetCondition(conditions *[]api.Condition, toSet api.Condition) {
 		return
 	}
 
-	if existingCondition.Status != toSet.Status {
-		existingCondition.LastTransitionTime = clock.Now()
+	newCondition := existingCondition.DeepCopy()
+	if newCondition.Status != toSet.Status {
+		newCondition.LastTransitionTime = clock.Now()
 	}
-	existingCondition.Status = toSet.Status
-	existingCondition.Reason = toSet.Reason
-	existingCondition.Message = toSet.Message
+	newCondition.Status = toSet.Status
+	newCondition.Reason = toSet.Reason
+	newCondition.Message = toSet.Message
+
+	for i := range *conditions {
+		if (*conditions)[i].Type == toSet.Type {
+			(*conditions)[i] = *newCondition
+			return
+		}
+	}
 }
 
-// GetCondition returns the condition with the given type from the list of conditions.
+// GetCondition returns a copy to the condition with the given type from the list of conditions.
+// It returns a pointer for a clear indication of "not found", it doesn't return a reference intended for mutation
+// of the original list.
 // If the list of conditions is nil, returns nil.
 // If the condition with condition type conditionType is not found, returns nil.
 // If there are multiple conditions with condition type conditionType the first
@@ -235,7 +225,6 @@ func GetCondition(conditions []api.Condition, conditionType string) *api.Conditi
 			return &currentCondition
 		}
 	}
-
 	return nil
 }
 

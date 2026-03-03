@@ -1,0 +1,7 @@
+{
+    "error": {
+        "code": "ResourceNotFound",
+        "message": "The resource 'hcpopenshiftclusters/nonexistent-cluster' under resource group 'some-resource-group' was not found.",
+        "target": "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/microsoft.redhatopenshift/hcpopenshiftclusters/nonexistent-cluster"
+    }
+}

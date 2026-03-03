@@ -317,6 +317,9 @@ func (f *Frontend) createHCPCluster(writer http.ResponseWriter, request *http.Re
 		return utils.TrackError(err)
 	}
 
+	if mutationErrs := admission.MutateCluster(newInternalCluster, subscription); len(mutationErrs) > 0 {
+		return utils.TrackError(arm.CloudErrorFromFieldErrors(mutationErrs))
+	}
 	validationErrs := validation.ValidateClusterCreate(ctx, newInternalCluster, api.Must(versionedInterface.ValidationPathRewriter(&api.HCPOpenShiftCluster{})))
 	validationErrs = append(validationErrs, admission.AdmitClusterOnCreate(ctx, newInternalCluster, subscription)...)
 	if err := arm.CloudErrorFromFieldErrors(validationErrs); err != nil {
@@ -327,7 +330,17 @@ func (f *Frontend) createHCPCluster(writer http.ResponseWriter, request *http.Re
 	// TODO this is bad, see above TODOs. We want to validate what we store.
 	newInternalCluster.Identity.UserAssignedIdentities = nil
 
-	newClusterServiceClusterBuilder, newClusterServiceAutoscalerBuilder, err := ocm.BuildCSCluster(newInternalCluster.ID, request.Header, newInternalCluster, false)
+	initialClusterProperties := map[string]string{}
+	if len(f.clusterServiceProvisionShard) != 0 {
+		initialClusterProperties[ocm.CSPropertyProvisionShardID] = f.clusterServiceProvisionShard
+	}
+	if f.clusterServiceNoopProvision {
+		initialClusterProperties[ocm.CSPropertyNoopProvision] = ocm.CSPropertyEnabled
+	}
+	if f.clusterServiceNoopDeprovision {
+		initialClusterProperties[ocm.CSPropertyNoopDeprovision] = ocm.CSPropertyEnabled
+	}
+	newClusterServiceClusterBuilder, newClusterServiceAutoscalerBuilder, err := ocm.BuildCSCluster(newInternalCluster.ID, request.Header, newInternalCluster, initialClusterProperties, nil)
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -589,6 +602,11 @@ func (f *Frontend) patchHCPCluster(writer http.ResponseWriter, request *http.Req
 func (f *Frontend) updateHCPClusterInCosmos(ctx context.Context, writer http.ResponseWriter, request *http.Request, httpStatusCode int, newInternalCluster, oldInternalCluster *api.HCPOpenShiftCluster) error {
 	logger := utils.LoggerFromContext(ctx)
 
+	subscription, err := f.dbClient.Subscriptions().Get(ctx, oldInternalCluster.ID.SubscriptionID)
+	if err != nil {
+		return utils.TrackError(err)
+	}
+
 	versionedInterface, err := VersionFromContext(ctx)
 	if err != nil {
 		return utils.TrackError(err)
@@ -598,6 +616,9 @@ func (f *Frontend) updateHCPClusterInCosmos(ctx context.Context, writer http.Res
 		return utils.TrackError(err)
 	}
 
+	if mutationErrs := admission.MutateCluster(newInternalCluster, subscription); len(mutationErrs) > 0 {
+		return utils.TrackError(arm.CloudErrorFromFieldErrors(mutationErrs))
+	}
 	validationErrs := validation.ValidateClusterUpdate(ctx, newInternalCluster, oldInternalCluster, api.Must(versionedInterface.ValidationPathRewriter(&api.HCPOpenShiftCluster{})))
 	if err := arm.CloudErrorFromFieldErrors(validationErrs); err != nil {
 		return utils.TrackError(err)
@@ -607,7 +628,11 @@ func (f *Frontend) updateHCPClusterInCosmos(ctx context.Context, writer http.Res
 	// TODO this is bad, see above TODOs. We want to validate what we store.
 	newInternalCluster.Identity.UserAssignedIdentities = nil
 
-	newClusterServiceClusterBuilder, newClusterServiceAutoscalerBuilder, err := ocm.BuildCSCluster(oldInternalCluster.ID, request.Header, newInternalCluster, true)
+	oldClusterServiceCluster, err := f.clusterServiceClient.GetCluster(ctx, oldInternalCluster.ServiceProviderProperties.ClusterServiceID)
+	if err != nil {
+		return utils.TrackError(err)
+	}
+	newClusterServiceClusterBuilder, newClusterServiceAutoscalerBuilder, err := ocm.BuildCSCluster(oldInternalCluster.ID, request.Header, newInternalCluster, nil, oldClusterServiceCluster)
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -828,7 +853,19 @@ func (f *Frontend) addDeleteClusterToTransaction(ctx context.Context, writer htt
 // TODO this overwrite will transformed into a "set" function as we transition fields to ownership in cosmos
 // TODO remove the azure location once we have migrated every record to store the location
 func mergeToInternalCluster(csCluster *arohcpv1alpha1.Cluster, internalCluster *api.HCPOpenShiftCluster, azureLocation string) (*api.HCPOpenShiftCluster, error) {
-	clusterServiceBasedInternalCluster, err := ocm.ConvertCStoHCPOpenShiftCluster(internalCluster.ID, azureLocation, csCluster)
+	if len(internalCluster.CustomerProperties.Version.ChannelGroup) == 0 {
+		// if we hit this branch, then we have old data that exists from before we stored all the content of the requested cluster
+		return legacyMergeToInternalCluster(csCluster, internalCluster, azureLocation)
+	}
+
+	// otherwise use as much from cosmos as possible, so we have a clear list of what remains in cluster-service
+	ocm.SetClusterServiceOnlyFieldsOnCluster(internalCluster, csCluster)
+
+	return internalCluster, nil
+}
+
+func legacyMergeToInternalCluster(csCluster *arohcpv1alpha1.Cluster, internalCluster *api.HCPOpenShiftCluster, azureLocation string) (*api.HCPOpenShiftCluster, error) {
+	clusterServiceBasedInternalCluster, err := ocm.LegacyCreateInternalClusterFromClusterService(internalCluster.ID, azureLocation, csCluster)
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}

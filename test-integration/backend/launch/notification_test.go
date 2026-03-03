@@ -83,10 +83,9 @@ func TestControllerNotifications(t *testing.T) {
 		backendInformers := informers.NewBackendInformersWithRelistDuration(ctx, cosmosClient.GlobalListers(), ptr.To(100*time.Millisecond))
 
 		_, activeOperationLister := backendInformers.ActiveOperations()
-		clusterInformer, _ := backendInformers.Clusters()
 		testSyncer := newTestController(activeOperationLister)
 		testingController := controllerutils.NewClusterWatchingController(
-			"TestingController", cosmosClient, clusterInformer, 1*time.Minute, testSyncer)
+			"TestingController", cosmosClient, backendInformers, 1*time.Minute, testSyncer)
 
 		go func() {
 			backendStarted.Store(true)
@@ -116,7 +115,7 @@ func TestControllerNotifications(t *testing.T) {
 		case <-ctx.Done():
 		}
 
-		require.Equal(t, testSyncer.count.Load(), int32(1), "missing sync")
+		require.Equal(t, int32(1), testSyncer.count.Load(), "missing sync")
 
 		testSyncer.observedKeys.Range(func(key, value interface{}) bool {
 			t.Log(key)

@@ -35,3 +35,19 @@ func NewClusterIdQuery(database, clusterServiceLogsTable, subscriptionId, resour
 		Parameters: parameters,
 	}
 }
+
+func NewClusterNamesQuery(database, containerLogsTable, subscriptionId, resourceGroup string) *ConfigurableQuery {
+	builder := kql.New("").AddTable(containerLogsTable)
+	builder.AddLiteral("\n| where log has subResourceGroupId")
+	builder.AddLiteral("\n| distinct cluster")
+
+	parameters := kql.NewParameters()
+	parameters.AddString("subResourceGroupId", fmt.Sprintf("/subscriptions/%s/resourceGroups/%s", subscriptionId, resourceGroup))
+
+	return &ConfigurableQuery{
+		Name:       "Cluster Names",
+		Database:   database,
+		Query:      builder,
+		Parameters: parameters,
+	}
+}

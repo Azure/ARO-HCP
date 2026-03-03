@@ -117,3 +117,4 @@ resource securityPolicy 'Microsoft.Cdn/profiles/securityPolicies@2023-05-01' = {
 }
 
 output frontDoorPrincipalId string = frontDoorProfile.identity.principalId
+output frontDoorProfileId string = frontDoorProfile.id

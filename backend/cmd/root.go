@@ -28,11 +28,8 @@ import (
 
 	"k8s.io/klog/v2"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
-	"github.com/Azure/azure-sdk-for-go/sdk/tracing/azotel"
-
 	"github.com/Azure/ARO-HCP/backend/pkg/app"
+	"github.com/Azure/ARO-HCP/internal/signal"
 	"github.com/Azure/ARO-HCP/internal/tracing"
 	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/internal/version"
@@ -52,6 +49,7 @@ type BackendRootCmdFlags struct {
 	AzureFirstPartyApplicationCertificateBundlePath string
 	AzureFirstPartyApplicationClientID              string
 	LogVerbosity                                    int
+	MaestroSourceEnvironmentIdentifier              string
 }
 
 func (f *BackendRootCmdFlags) AddFlags(cmd *cobra.Command) {
@@ -83,6 +81,13 @@ func (f *BackendRootCmdFlags) AddFlags(cmd *cobra.Command) {
 	)
 	cmd.Flags().IntVar(&f.LogVerbosity, "log-verbosity", f.LogVerbosity, "Log verbosity. 0 is the default verbosity level, equivalent to INFO. It must be a value >= 0, where a higher value means more verbose output.")
 
+	cmd.Flags().StringVar(&f.MaestroSourceEnvironmentIdentifier, "maestro-source-environment-identifier", f.MaestroSourceEnvironmentIdentifier,
+		"The environment name part used when generating Maestro Source IDs using the backend/pkg/maestro.GenerateMaestroSourceID function. "+
+			"It must be between 1 and 10 characters and can contain only lowercase letters. Example value: arohcpdev."+
+			"Changing the value causes the Maestro Source IDs generated to change which impacts visibility of previously existing resources. It is "+
+			"therefore a must to first understand and plan the impact changing the value would have, including any potential migration plan before changing it.",
+	)
+
 	cmd.MarkFlagsRequiredTogether("cosmos-name", "cosmos-url")
 }
 
@@ -109,6 +114,13 @@ func (f *BackendRootCmdFlags) validate() error {
 
 	if f.LogVerbosity < 0 {
 		return utils.TrackError(fmt.Errorf("--log-verbosity must be a value >= 0"))
+	}
+
+	if len(f.MaestroSourceEnvironmentIdentifier) == 0 {
+		return utils.TrackError(fmt.Errorf("--maestro-source-environment-identifier is required"))
+	}
+	if len(f.MaestroSourceEnvironmentIdentifier) > 10 {
+		return utils.TrackError(fmt.Errorf("--maestro-source-environment-identifier must be less than 10 characters"))
 	}
 
 	return nil
@@ -148,13 +160,20 @@ func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.C
 		return nil, utils.TrackError(fmt.Errorf("could not initialize opentelemetry sdk: %w", err))
 	}
 
+	otelTracerProvider := otel.GetTracerProvider()
+	azureConfig, err := app.NewAzureConfig(ctx, f.AzureRuntimeConfigPath, otelTracerProvider)
+	if err != nil {
+		return nil, utils.TrackError(fmt.Errorf("failed to create Azure configuration: %w", err))
+	}
+
+	fpaClientBuilder, err := app.NewFirstPartyApplicationClientBuilder(ctx, f.AzureFirstPartyApplicationCertificateBundlePath, f.AzureFirstPartyApplicationClientID, azureConfig)
+	if err != nil {
+		return nil, utils.TrackError(fmt.Errorf("failed to create FPA client builder: %w", err))
+	}
+
 	cosmosDBClient, err := app.NewCosmosDBClient(
 		ctx, f.AzureCosmosDBURL, f.AzureCosmosDBName,
-		azcore.ClientOptions{
-			// FIXME Cloud should be determined by other means.
-			Cloud:           cloud.AzurePublic,
-			TracingProvider: azotel.NewTracingProvider(otel.GetTracerProvider(), nil),
-		},
+		*azureConfig.CloudEnvironment.AZCoreClientOptions(),
 	)
 	if err != nil {
 		return nil, utils.TrackError(fmt.Errorf("failed to create cosmos db client: %w", err))
@@ -166,15 +185,17 @@ func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.C
 	}
 
 	backendOptions := &app.BackendOptions{
-		AppShortDescriptionName:    cmd.Short,
-		AppVersion:                 cmd.Version,
-		AzureLocation:              f.AzureLocation,
-		LeaderElectionLock:         leaderElectionLock,
-		CosmosDBClient:             cosmosDBClient,
-		ClustersServiceClient:      clustersServiceClient,
-		MetricsServerListenAddress: f.MetricsServerListenAddress,
-		HealthzServerListenAddress: f.HealthzServerListenAddress,
-		TracerProviderShutdownFunc: otelShutdown,
+		AppShortDescriptionName:            cmd.Short,
+		AppVersion:                         cmd.Version,
+		AzureLocation:                      f.AzureLocation,
+		LeaderElectionLock:                 leaderElectionLock,
+		CosmosDBClient:                     cosmosDBClient,
+		ClustersServiceClient:              clustersServiceClient,
+		MetricsServerListenAddress:         f.MetricsServerListenAddress,
+		HealthzServerListenAddress:         f.HealthzServerListenAddress,
+		TracerProviderShutdownFunc:         otelShutdown,
+		MaestroSourceEnvironmentIdentifier: f.MaestroSourceEnvironmentIdentifier,
+		FPAClientBuilder:                   fpaClientBuilder,
 	}
 
 	return backendOptions, nil
@@ -195,6 +216,7 @@ func NewBackendRootCmdFlags() *BackendRootCmdFlags {
 		AzureFirstPartyApplicationCertificateBundlePath: "",
 		AzureFirstPartyApplicationClientID:              "",
 		LogVerbosity:                                    0,
+		MaestroSourceEnvironmentIdentifier:              "",
 	}
 
 	return flags
@@ -242,6 +264,11 @@ func RunRootCmd(cmd *cobra.Command, flags *BackendRootCmdFlags) error {
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("flags validation failed: %w", err))
 	}
+
+	// Setup signal context allowing for both graceful and forceful shutdown
+	// through linux signals (SIGINT and SIGTERM).
+	ctx := signal.SetupSignalContext()
+
 	// Create a logr.Logger and add it to context for use throughout the application.
 	// We use slog.Level(flags.LogVerbosity * -1) to convert the verbosity level to a slog.Level.
 	// A value of 0 is equivalent to INFO. Higher values mean more verbose output.
@@ -249,10 +276,6 @@ func RunRootCmd(cmd *cobra.Command, flags *BackendRootCmdFlags) error {
 	// Temporary hardcode the log level to -4 to see increased klog logging
 	// verbosity.
 	handlerOptions.Level = slog.Level(-4)
-
-	// TODO move signal-aware context creation from backend/pkg/app/backend.go here,
-	// and redo context handling similar to frontend/cmd/cmd.go.
-	ctx := context.Background()
 	slogJSONHandler := slog.NewJSONHandler(os.Stdout, handlerOptions)
 	logger := logr.FromSlogHandler(slogJSONHandler)
 	ctx = utils.ContextWithLogger(ctx, logger)

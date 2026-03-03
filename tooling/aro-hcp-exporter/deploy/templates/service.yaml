@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: '{{ .Values.service.name }}'
+  namespace: '{{ .Release.Namespace }}'
+  labels:
+    app.kubernetes.io/name: '{{ .Values.service.name }}'
+    app.kubernetes.io/instance: '{{ .Release.Name }}'
+    app: '{{ .Values.deployment.name }}'
+spec:
+  type: ClusterIP
+  ports:
+  - name: metrics
+    port: 8080
+    targetPort: metrics
+    protocol: TCP
+  selector:
+    app.kubernetes.io/name: '{{ .Values.deployment.name }}'
+    app.kubernetes.io/instance: '{{ .Release.Name }}'

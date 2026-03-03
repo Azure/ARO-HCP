@@ -93,3 +93,4 @@ resource grafanaRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-
 ]
 
 output grafanaId string = grafana.id
+output grafanaPrincipalId string = grafana.identity.principalId

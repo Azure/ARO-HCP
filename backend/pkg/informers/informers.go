@@ -77,7 +77,7 @@ func NewSubscriptionInformerWithRelistDuration(lister database.GlobalLister[arm.
 			return list, nil
 		},
 		WatchFuncWithContext: func(ctx context.Context, options metav1.ListOptions) (watch.Interface, error) {
-			return NewExpiringWatcher(relistDuration), nil
+			return NewExpiringWatcher(ctx, relistDuration), nil
 		},
 	}
 
@@ -122,7 +122,7 @@ func NewClusterInformerWithRelistDuration(lister database.GlobalLister[api.HCPOp
 			return list, nil
 		},
 		WatchFuncWithContext: func(ctx context.Context, options metav1.ListOptions) (watch.Interface, error) {
-			return NewExpiringWatcher(relistDuration), nil
+			return NewExpiringWatcher(ctx, relistDuration), nil
 		},
 	}
 
@@ -170,7 +170,7 @@ func NewNodePoolInformerWithRelistDuration(lister database.GlobalLister[api.HCPO
 			return list, nil
 		},
 		WatchFuncWithContext: func(ctx context.Context, options metav1.ListOptions) (watch.Interface, error) {
-			return NewExpiringWatcher(relistDuration), nil
+			return NewExpiringWatcher(ctx, relistDuration), nil
 		},
 	}
 
@@ -219,7 +219,7 @@ func NewExternalAuthInformerWithRelistDuration(lister database.GlobalLister[api.
 			return list, nil
 		},
 		WatchFuncWithContext: func(ctx context.Context, options metav1.ListOptions) (watch.Interface, error) {
-			return NewExpiringWatcher(relistDuration), nil
+			return NewExpiringWatcher(ctx, relistDuration), nil
 		},
 	}
 
@@ -268,7 +268,7 @@ func NewServiceProviderClusterInformerWithRelistDuration(lister database.GlobalL
 			return list, nil
 		},
 		WatchFuncWithContext: func(ctx context.Context, options metav1.ListOptions) (watch.Interface, error) {
-			return NewExpiringWatcher(relistDuration), nil
+			return NewExpiringWatcher(ctx, relistDuration), nil
 		},
 	}
 
@@ -318,7 +318,7 @@ func NewActiveOperationInformerWithRelistDuration(lister database.GlobalLister[a
 			return list, nil
 		},
 		WatchFuncWithContext: func(ctx context.Context, options metav1.ListOptions) (watch.Interface, error) {
-			return NewExpiringWatcher(relistDuration), nil
+			return NewExpiringWatcher(ctx, relistDuration), nil
 		},
 	}
 

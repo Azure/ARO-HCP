@@ -161,7 +161,7 @@ func (c *doNothingExample) Run(ctx context.Context, threadiness int) {
 	defer c.queue.ShutDown()
 
 	logger := utils.LoggerFromContext(ctx)
-	logger = logger.WithValues("controller_name", c.name)
+	logger = logger.WithValues(utils.LogValues{}.AddControllerName(c.name)...)
 	ctx = utils.ContextWithLogger(ctx, logger)
 	logger.Info("Starting")
 
@@ -209,6 +209,7 @@ func (c *doNothingExample) processNextWorkItem(ctx context.Context) bool {
 	ctx = utils.ContextWithLogger(ctx, logger)
 
 	// Process the object reference.  This method will contains your "do stuff" logic
+	controllerutils.ReconcileTotal.WithLabelValues(c.name).Inc()
 	err := c.SyncOnce(ctx, ref)
 	if err == nil {
 		// if you had no error, tell the queue to stop tracking history for your

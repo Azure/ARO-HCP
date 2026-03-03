@@ -150,3 +150,24 @@ func (p *lroPollerRetryDeploymentNotFoundPolicy) backoff(attempt int) time.Durat
 	jitter := time.Duration(rand.Int63n(int64(max(p.BaseBackoff/2, time.Millisecond))))
 	return sleep + jitter
 }
+
+// sanitizeAuthHeaderPolicy is a pipeline policy that redacts the Authorization
+// header in the *http.Request stored on the *http.Response after each call.
+//
+// The Azure SDK attaches the original request (including credentials) to every
+// response via resp.Request. When an API call fails, the resulting
+// *azcore.ResponseError embeds that response. If the error is later formatted
+// by a deep struct dumper (e.g. Gomega's failure output), the bearer token in
+// the Authorization header is printed in full to stdout/CI logs.
+//
+// By redacting the header from the stored request, we prevent token leakage
+// regardless of how the error is subsequently logged or displayed.
+type sanitizeAuthHeaderPolicy struct{}
+
+func (p *sanitizeAuthHeaderPolicy) Do(req *policy.Request) (*http.Response, error) {
+	resp, err := req.Next()
+	if resp != nil && resp.Request != nil {
+		resp.Request.Header["Authorization"] = []string{"redacted"}
+	}
+	return resp, err
+}

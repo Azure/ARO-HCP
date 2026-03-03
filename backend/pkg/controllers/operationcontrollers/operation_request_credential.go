@@ -61,44 +61,47 @@ func (opsync *operationRequestCredential) SynchronizeOperation(ctx context.Conte
 	logger := utils.LoggerFromContext(ctx)
 	logger.Info("checking operation")
 
-	operation, err := opsync.cosmosClient.Operations(key.SubscriptionID).Get(ctx, key.OperationName)
+	oldOperation, err := opsync.cosmosClient.Operations(key.SubscriptionID).Get(ctx, key.OperationName)
 	if database.IsResponseError(err, http.StatusNotFound) {
 		return nil // no work to do
 	}
 	if err != nil {
 		return fmt.Errorf("failed to get active operation: %w", err)
 	}
-	if !opsync.ShouldProcess(ctx, operation) {
+	if !opsync.ShouldProcess(ctx, oldOperation) {
 		return nil // no work to do
 	}
 
-	breakGlassCredential, err := opsync.clusterServiceClient.GetBreakGlassCredential(ctx, operation.InternalID)
+	breakGlassCredential, err := opsync.clusterServiceClient.GetBreakGlassCredential(ctx, oldOperation.InternalID)
 	if err != nil {
 		return utils.TrackError(err)
 	}
 
-	var opStatus arm.ProvisioningState
-	var opError *arm.CloudErrorBody
+	var newOperationStatus arm.ProvisioningState
+	var newOperationError *arm.CloudErrorBody
 
 	switch status := breakGlassCredential.Status(); status {
 	case cmv1.BreakGlassCredentialStatusCreated:
-		opStatus = arm.ProvisioningStateProvisioning
+		newOperationStatus = arm.ProvisioningStateProvisioning
 	case cmv1.BreakGlassCredentialStatusFailed:
 		// XXX Cluster Service does not provide a reason for the failure,
 		//     so we have no choice but to use a generic error message.
-		opStatus = arm.ProvisioningStateFailed
-		opError = &arm.CloudErrorBody{
+		newOperationStatus = arm.ProvisioningStateFailed
+		newOperationError = &arm.CloudErrorBody{
 			Code:    arm.CloudErrorCodeInternalServerError,
 			Message: "Failed to provision cluster credential",
 		}
 	case cmv1.BreakGlassCredentialStatusIssued:
-		opStatus = arm.ProvisioningStateSucceeded
+		newOperationStatus = arm.ProvisioningStateSucceeded
 	default:
 		return fmt.Errorf("unhandled BreakGlassCredentialStatus '%s'", status)
 	}
 
-	logger.Info("updating status")
-	err = database.PatchOperationDocument(ctx, opsync.cosmosClient, operation, opStatus, opError, PostAsyncNotification(opsync.notificationClient))
+	if !needToPatchOperation(oldOperation, newOperationStatus, newOperationError) {
+		return nil
+	}
+
+	err = patchOperation(ctx, opsync.cosmosClient, oldOperation, newOperationStatus, newOperationError, postAsyncNotificationFn(opsync.notificationClient))
 	if err != nil {
 		return utils.TrackError(err)
 	}

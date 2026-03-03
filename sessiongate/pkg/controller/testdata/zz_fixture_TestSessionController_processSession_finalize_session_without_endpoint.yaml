@@ -1,0 +1,47 @@
+CSR: null
+CSRApproval: null
+DeleteCSR: false
+DeleteSession: false
+Event:
+  Args:
+  - test-namespace
+  - test-session
+  MessageFmt: Finalizing session %s/%s with endpoint and backend URL.
+  Reason: SessionFinalization
+Secret: null
+Session:
+  apiVersion: sessiongate.aro-hcp.azure.com/v1alpha1
+  kind: Session
+  metadata:
+    name: test-session
+    namespace: test-namespace
+  status:
+    backendKASURL: https://api.test-hcp.example.com
+    conditions:
+    - lastTransitionTime: "2025-01-07T12:00:00Z"
+      message: Session is ready
+      observedGeneration: 0
+      reason: Ready
+      status: "True"
+      type: Ready
+    - lastTransitionTime: "2025-01-07T12:00:00Z"
+      message: HostedControlPlane is available and ready
+      observedGeneration: 0
+      reason: HostedControlPlaneAvailable
+      status: "True"
+      type: HostedControlPlaneAvailable
+    - lastTransitionTime: "2025-01-07T12:00:00Z"
+      message: Credentials available
+      observedGeneration: 0
+      reason: CredentialsAvailable
+      status: "True"
+      type: CredentialsAvailable
+    - lastTransitionTime: "2025-01-07T12:00:00Z"
+      message: Network path available via public endpoint
+      observedGeneration: 0
+      reason: NetworkPathAvailable
+      status: "True"
+      type: NetworkPathAvailable
+    credentialsSecretRef: sessiongate-9b1f64c3
+    endpoint: https://localhost:8080/sessiongate/test-session/kas
+    expiresAt: "2025-01-08T12:00:00Z"

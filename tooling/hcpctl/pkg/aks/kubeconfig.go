@@ -29,23 +29,17 @@ import (
 )
 
 // GetAKSKubeconfig retrieves and configures a kubeconfig for an AKS cluster
-func GetAKSKubeconfig(ctx context.Context, subscriptionID, resourceGroup, clusterName string, credential azcore.TokenCredential, kubeconfigPath string) error {
-	// Create AKS client
-	client, err := armcontainerservice.NewManagedClustersClient(subscriptionID, credential, nil)
+func GetAKSKubeconfig(
+	ctx context.Context,
+	subscriptionID,
+	resourceGroup,
+	clusterName string,
+	credential azcore.TokenCredential,
+	kubeconfigPath string) error {
+	kubeconfigContent, err := GetAKSKubeConfigContent(ctx, subscriptionID, resourceGroup, clusterName, credential)
 	if err != nil {
-		return fmt.Errorf("failed to create AKS client: %w", err)
+		return fmt.Errorf("failed to get kubeconfig content: %w", err)
 	}
-
-	// Get the cluster access credentials
-	resp, err := client.ListClusterUserCredentials(ctx, resourceGroup, clusterName, nil)
-	if err != nil {
-		return fmt.Errorf("failed to get cluster access credentials: %w", err)
-	}
-	if len(resp.Kubeconfigs) == 0 {
-		return fmt.Errorf("no kubeconfig found")
-	}
-	kubeconfigContent := resp.Kubeconfigs[0].Value
-
 	// Open the kubeconfig file for writing (create or truncate)
 	file, err := os.OpenFile(kubeconfigPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0600)
 	if err != nil {
@@ -77,6 +71,30 @@ func GetAKSKubeconfig(ctx context.Context, subscriptionID, resourceGroup, cluste
 	}
 
 	return nil
+}
+
+func GetAKSKubeConfigContent(
+	ctx context.Context,
+	subscriptionID,
+	resourceGroup,
+	clusterName string,
+	credential azcore.TokenCredential) ([]byte, error) {
+	// Create AKS client
+	client, err := armcontainerservice.NewManagedClustersClient(subscriptionID, credential, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create AKS client: %w", err)
+	}
+
+	// Get the cluster access credentials
+	resp, err := client.ListClusterUserCredentials(ctx, resourceGroup, clusterName, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get cluster access credentials: %w", err)
+	}
+	if len(resp.Kubeconfigs) == 0 {
+		return nil, fmt.Errorf("no kubeconfig found")
+	}
+	kubeconfigContent := resp.Kubeconfigs[0].Value
+	return kubeconfigContent, nil
 }
 
 // kubeloginifyKubeconfig updates the kubeconfig to use our binary with kubelogin subcommand

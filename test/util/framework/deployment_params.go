@@ -24,8 +24,10 @@ import (
 
 	"k8s.io/apimachinery/pkg/util/rand"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 
+	"github.com/Azure/ARO-HCP/internal/api"
 	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 )
 
@@ -58,6 +60,7 @@ type ClusterParams struct {
 	ChannelGroup                  string
 	AuthorizedCIDRs               []*string
 	Autoscaling                   *hcpsdk20240610preview.ClusterAutoscalingProfile
+	Tags                          map[string]*string
 }
 
 type NetworkConfig struct {
@@ -76,12 +79,28 @@ func DefaultOpenshiftControlPlaneVersionId() string {
 	return version
 }
 
+func DefaultOpenshiftChannelGroup() string {
+	channelGroup := os.Getenv("ARO_HCP_OPENSHIFT_CHANNEL_GROUP")
+	if channelGroup == "" {
+		return "stable"
+	}
+	return channelGroup
+}
+
 func DefaultOpenshiftNodePoolVersionId() string {
 	version := os.Getenv("ARO_HCP_OPENSHIFT_NODEPOOL_VERSION")
 	if version == "" {
 		return "4.20.8"
 	}
 	return version
+}
+
+func DefaultOpenshiftNodePoolChannelGroup() string {
+	channelGroup := os.Getenv("ARO_HCP_OPENSHIFT_NODEPOOL_CHANNEL_GROUP")
+	if channelGroup == "" {
+		return "stable"
+	}
+	return channelGroup
 }
 
 func NewDefaultClusterParams() ClusterParams {
@@ -98,7 +117,12 @@ func NewDefaultClusterParams() ClusterParams {
 		EncryptionType:              "KMS",
 		APIVisibility:               "Public",
 		ImageRegistryState:          "Enabled",
-		ChannelGroup:                "stable",
+		ChannelGroup:                DefaultOpenshiftChannelGroup(),
+		// NOTE: The E2E subscription must have the ExperimentalReleaseFeatures AFEC
+		// registered for this tag to be honored.
+		Tags: map[string]*string{
+			api.TagClusterSizeOverride: to.Ptr(string(api.MinimalControlPlanePodSizing)),
+		},
 	}
 }
 
@@ -128,7 +152,7 @@ func NewDefaultNodePoolParams() NodePoolParams {
 		VMSize:                 "Standard_D8s_v3",
 		OSDiskSizeGiB:          int32(64),
 		DiskStorageAccountType: "StandardSSD_LRS",
-		ChannelGroup:           "stable",
+		ChannelGroup:           DefaultOpenshiftNodePoolChannelGroup(),
 	}
 }
 

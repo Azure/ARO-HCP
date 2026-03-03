@@ -18,3 +18,4 @@ OIDC_STORAGE_ACCOUNT ?= {{ .oidc.storageAccount.name }}
 CX_KV_NAME ?= {{ .cxKeyVault.name }}
 MSI_KV_NAME ?= {{ .msiKeyVault.name }}
 MGMT_KV_NAME ?= {{ .mgmtKeyVault.name }}
+RP_COSMOS_DB_NAME ?= {{ .frontend.cosmosDB.name }}

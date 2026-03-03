@@ -23,7 +23,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/Azure/ARO-Tools/pkg/config/types"
+	"github.com/Azure/ARO-Tools/config/types"
 
 	options "github.com/Azure/ARO-HCP/tooling/templatize/cmd"
 )

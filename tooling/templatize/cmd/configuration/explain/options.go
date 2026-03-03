@@ -21,8 +21,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/Azure/ARO-Tools/pkg/config"
-	"github.com/Azure/ARO-Tools/pkg/config/ev2config"
+	"github.com/Azure/ARO-Tools/config"
+	"github.com/Azure/ARO-Tools/config/ev2config"
 )
 
 func DefaultOptions() *RawOptions {

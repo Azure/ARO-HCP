@@ -1,5 +1,4 @@
 {
-	"id": "|subscriptions|a433a095-1277-44f1-8453-8d61a4d848c2|resourcegroups|unimportantpostponement|providers|microsoft.redhatopenshift|hcpopenshiftclusters|monstrousprecinct",
 	"partitionKey": "a433a095-1277-44f1-8453-8d61a4d848c2",
 	"properties": {
 		"activeOperationId": "6aeeebf8-f771-4d4e-9097-45b972cb96e4",
@@ -73,5 +72,6 @@
 		"resourceId": "/subscriptions/a433a095-1277-44f1-8453-8d61a4d848c2/resourceGroups/unimportantPostponement/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/monstrousPrecinct",
 		"systemData": {}
 	},
-	"resourceType": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters"
+	"resourceType": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters",
+	"resourceID": "/subscriptions/a433a095-1277-44f1-8453-8d61a4d848c2/resourceGroups/unimportantPostponement/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/monstrousPrecinct"
 }

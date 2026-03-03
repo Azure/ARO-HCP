@@ -61,6 +61,16 @@ type Frontend struct {
 	// this is the azure location for this instance of the frontend
 	azureLocation string
 
+	// clusterServiceProvisionShard pins cluster requests to a specific
+	// Cluster Service provision shard during testing.
+	clusterServiceProvisionShard string
+	// clusterServiceNoopProvision short-circuits the full provision flow
+	// during testing.
+	clusterServiceNoopProvision bool
+	// clusterServiceNoopDeprovision short-circuits the full deprovision flow
+	// during testing.
+	clusterServiceNoopDeprovision bool
+
 	apiRegistry api.APIRegistry
 }
 
@@ -73,6 +83,9 @@ func NewFrontend(
 	csClient ocm.ClusterServiceClientSpec,
 	auditClient audit.Client,
 	azureLocation string,
+	clusterServiceProvisionShard string,
+	clusterServiceNoopProvision bool,
+	clusterServiceNoopDeprovision bool,
 ) *Frontend {
 	// zero side-effect registration path
 	apiRegistry := api.NewAPIRegistry()
@@ -95,9 +108,12 @@ func NewFrontend(
 				return utils.ContextWithLogger(context.Background(), logger)
 			},
 		},
-		auditClient: auditClient,
-		dbClient:    dbClient,
-		collector:   metrics.NewSubscriptionCollector(reg, dbClient, azureLocation),
+		auditClient:                   auditClient,
+		dbClient:                      dbClient,
+		collector:                     metrics.NewSubscriptionCollector(reg, dbClient, azureLocation),
+		clusterServiceProvisionShard:  clusterServiceProvisionShard,
+		clusterServiceNoopProvision:   clusterServiceNoopProvision,
+		clusterServiceNoopDeprovision: clusterServiceNoopDeprovision,
 		healthGauge: promauto.With(reg).NewGauge(
 			prometheus.GaugeOpts{
 				Name: healthGaugeName,
@@ -411,6 +427,26 @@ func (f *Frontend) ArmResourceActionRevokeCredentials(writer http.ResponseWriter
 		return utils.TrackError(err)
 	}
 
+	subscription, err := f.dbClient.Subscriptions().Get(ctx, clusterResourceID.SubscriptionID)
+	if err != nil {
+		return utils.TrackError(err)
+	}
+
+	if !subscription.HasRegisteredFeature(api.FeatureExperimentalReleaseFeatures) {
+		logger := utils.LoggerFromContext(ctx)
+		logger.Info("admin credential revocation denied: AFEC feature not registered",
+			"subscriptionId", clusterResourceID.SubscriptionID,
+			"requiredFeature", api.FeatureExperimentalReleaseFeatures,
+		)
+		return utils.TrackError(
+			arm.NewCloudError(
+				http.StatusForbidden,
+				arm.CloudErrorCodeFeatureNotEnabled,
+				clusterResourceID.String(),
+				"Admin credential revocation not enabled for this subscription."),
+		)
+	}
+
 	// Credential revocation cannot be requested while another revocation is in progress.
 
 	iterator := f.dbClient.Operations(clusterResourceID.SubscriptionID).ListActiveOperations(&database.DBClientListActiveOperationDocsOptions{
@@ -625,7 +661,7 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 			continue
 		}
 
-		resourceLogger := logger.WithValues("resourceType", preflightResource.Type, "resourceName", preflightResource.Name)
+		resourceLogger := logger.WithValues(utils.LogValues{}.AddResourceName(preflightResource.Name).AddResourceType(preflightResource.Type)...)
 
 		switch strings.ToLower(preflightResource.Type) {
 		case strings.ToLower(api.ClusterResourceType.String()):

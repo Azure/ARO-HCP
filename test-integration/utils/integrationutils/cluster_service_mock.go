@@ -36,6 +36,7 @@ import (
 
 	csarhcpv1alpha1 "github.com/openshift-online/ocm-api-model/clientapi/arohcp/v1alpha1"
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
+	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
 	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
 
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -66,8 +67,10 @@ func (s *ClusterServiceMock) setupMockClusterService(t *testing.T) {
 	internalIDToExternalAuth := s.GetOrCreateMockData(t.Name() + "_externalAuths")
 	internalIDToNodePool := s.GetOrCreateMockData(t.Name() + "_nodePools")
 	internalIDToAutoscaler := s.GetOrCreateMockData(t.Name() + "_autoscalers")
+	internalIDToProvisionShard := s.GetOrCreateMockData(t.Name() + "_provisionShards")
+	internalIDToHypershiftDetails := s.GetOrCreateMockData(t.Name() + "_hypershiftDetails")
 
-	s.MockClusterServiceClient.EXPECT().PostCluster(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, clusterBuilder *csarhcpv1alpha1.ClusterBuilder, autoscalerBuilder *csarhcpv1alpha1.ClusterAutoscalerBuilder) (*csarhcpv1alpha1.Cluster, error) {
+	s.MockClusterServiceClient.EXPECT().PostCluster(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, clusterBuilder *arohcpv1alpha1.ClusterBuilder, autoscalerBuilder *arohcpv1alpha1.ClusterAutoscalerBuilder) (*arohcpv1alpha1.Cluster, error) {
 		justID := rand.String(10)
 		internalID := "/api/clusters_mgmt/v1/clusters/" + justID
 
@@ -233,6 +236,32 @@ func (s *ClusterServiceMock) setupMockClusterService(t *testing.T) {
 		}
 		return ocm.NewSimpleNodePoolListIterator(allObjs, nil)
 	}).AnyTimes()
+
+	s.MockClusterServiceClient.EXPECT().DeleteBreakGlassCredentials(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	s.MockClusterServiceClient.EXPECT().PostBreakGlassCredential(gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, clusterID ocm.InternalID) (*cmv1.BreakGlassCredential, error) {
+		justID := rand.String(10)
+		credentialInternalID := clusterID.String() + "/break_glass_credentials/" + justID
+		ret, err := cmv1.NewBreakGlassCredential().ID(justID).HREF(credentialInternalID).Build()
+		if err != nil {
+			return nil, err
+		}
+		return ret, nil
+	}).AnyTimes()
+
+	s.MockClusterServiceClient.EXPECT().GetClusterProvisionShard(gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, id ocm.InternalID) (*csarhcpv1alpha1.ProvisionShard, error) {
+		ret, err := mergeClusterServiceInstance[csarhcpv1alpha1.ProvisionShard](internalIDToProvisionShard[id.String()])
+		if err != nil {
+			return nil, fmt.Errorf("failed to merge provision shard id %q: %w", id.String(), err)
+		}
+		return ret, nil
+	}).AnyTimes()
+	s.MockClusterServiceClient.EXPECT().GetClusterHypershiftDetails(gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, id ocm.InternalID) (*cmv1.HypershiftConfig, error) {
+		ret, err := mergeClusterServiceInstance[cmv1.HypershiftConfig](internalIDToHypershiftDetails[id.String()])
+		if err != nil {
+			return nil, fmt.Errorf("failed to merge hypershift details id %q: %w", id.String(), err)
+		}
+		return ret, nil
+	}).AnyTimes()
 }
 
 func (s *ClusterServiceMock) AddContent(t *testing.T, initialDataDir fs.FS) error {
@@ -240,6 +269,8 @@ func (s *ClusterServiceMock) AddContent(t *testing.T, initialDataDir fs.FS) erro
 	internalIDToExternalAuth := s.GetOrCreateMockData(t.Name() + "_externalAuths")
 	internalIDToNodePool := s.GetOrCreateMockData(t.Name() + "_nodePools")
 	internalIDToAutoscaler := s.GetOrCreateMockData(t.Name() + "_autoscalers")
+	internalIDToProvisionShard := s.GetOrCreateMockData(t.Name() + "_provisionShards")
+	internalIDToHypershiftDetails := s.GetOrCreateMockData(t.Name() + "_hypershiftDetails")
 
 	dirContent, err := fs.ReadDir(initialDataDir, ".")
 	if err != nil {
@@ -300,12 +331,48 @@ func (s *ClusterServiceMock) AddContent(t *testing.T, initialDataDir fs.FS) erro
 			}
 			internalIDToAutoscaler[obj.HREF()] = []any{obj}
 
+		case strings.HasSuffix(dirEntry.Name(), "-provisionshard.json"):
+			href, err := clusterHrefFromClusterServiceSubResource(fileContent)
+			if err != nil {
+				return fmt.Errorf("failed to get _cluster_href from provision shard file %s: %w", dirEntry.Name(), err)
+			}
+			obj, err := arohcpv1alpha1.UnmarshalProvisionShard(fileContent)
+			if err != nil {
+				return fmt.Errorf("failed to unmarshal provision shard: %w", err)
+			}
+			if _, exists := internalIDToProvisionShard[href]; exists {
+				return fmt.Errorf("duplicate provision shard for cluster: %s", href)
+			}
+			internalIDToProvisionShard[href] = []any{obj}
+
+		case strings.HasSuffix(dirEntry.Name(), "-hypershiftdetails.json"):
+			href, err := clusterHrefFromClusterServiceSubResource(fileContent)
+			if err != nil {
+				return fmt.Errorf("failed to get _cluster_href from hypershift details file %s: %w", dirEntry.Name(), err)
+			}
+			obj, err := cmv1.UnmarshalHypershiftConfig(fileContent)
+			if err != nil {
+				return fmt.Errorf("failed to unmarshal hypershift details: %w", err)
+			}
+			if _, exists := internalIDToHypershiftDetails[href]; exists {
+				return fmt.Errorf("duplicate hypershift details for cluster: %s", href)
+			}
+			internalIDToHypershiftDetails[href] = []any{obj}
+
 		default:
 			return fmt.Errorf("unknown file %s", dirEntry.Name())
 		}
 	}
 
 	return nil
+}
+
+func clusterHrefFromClusterServiceSubResource(fileContent []byte) (string, error) {
+	content := map[string]any{}
+	if err := json.Unmarshal(fileContent, &content); err != nil {
+		return "", fmt.Errorf("failed to unmarshal cluster-service type: %w", err)
+	}
+	return content["_cluster_href"].(string), nil
 }
 
 func addFakeAzureIdentityData(clusterServiceCluster any) (*csarhcpv1alpha1.Cluster, error) {
@@ -412,6 +479,26 @@ func (s *ClusterServiceMock) GetOrCreateMockData(dataName string) map[string][]a
 	return newData
 }
 
+// GetMergedClusters returns all clusters stored in the mock, each merged from
+// its full mutation history and serialized to a JSON map. The testName should
+// be t.Name() from the test that created the mock.
+func (s *ClusterServiceMock) GetMergedClusters(testName string) ([]map[string]any, error) {
+	data := s.GetOrCreateMockData(testName + "_clusters")
+	var result []map[string]any
+	for _, history := range data {
+		mergedJSON, err := mergeClusterServiceReturn(history)
+		if err != nil {
+			return nil, fmt.Errorf("merging cluster service return: %w", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(mergedJSON, &m); err != nil {
+			return nil, fmt.Errorf("unmarshaling merged cluster JSON: %w", err)
+		}
+		result = append(result, m)
+	}
+	return result, nil
+}
+
 func mergeClusterServiceReturn(history []any) ([]byte, error) {
 	if len(history) == 0 {
 		retErr, err := ocmerrors.NewError().Status(http.StatusNotFound).Build()
@@ -431,6 +518,12 @@ func mergeClusterServiceReturn(history []any) ([]byte, error) {
 		currMap := map[string]any{}
 		if err := json.Unmarshal(clusterServiceJSON, &currMap); err != nil {
 			return nil, fmt.Errorf("failed to unmarshal cluster-service type: %w", err)
+		}
+		// mergo merges map keys additively — keys in dest absent from src are
+		// kept. Properties must be replaced wholesale so that deleted properties
+		// don't survive across mutations.
+		if _, ok := currMap["properties"]; ok {
+			delete(dest, "properties")
 		}
 		if err := mergo.Merge(&dest, currMap, mergo.WithOverride); err != nil {
 			return nil, fmt.Errorf("failed to merge cluster-service type: %w", err)
@@ -495,6 +588,18 @@ func unmarshalClusterServiceAny[T any](mergedJSON []byte) (*T, error) {
 			return nil, err
 		}
 		return any(ret).(*T), err
+	case *csarhcpv1alpha1.ProvisionShard:
+		ret, err := csarhcpv1alpha1.UnmarshalProvisionShard(mergedJSON)
+		if err != nil {
+			return nil, err
+		}
+		return any(ret).(*T), err
+	case *cmv1.HypershiftConfig:
+		ret, err := cmv1.UnmarshalHypershiftConfig(mergedJSON)
+		if err != nil {
+			return nil, err
+		}
+		return any(ret).(*T), err
 	default:
 		return nil, fmt.Errorf("unknown type: %T", &obj)
 	}
@@ -524,6 +629,18 @@ func marshalClusterServiceAny(clusterServiceData any) ([]byte, error) {
 	case *csarhcpv1alpha1.NodePool:
 		buf := &bytes.Buffer{}
 		if err := csarhcpv1alpha1.MarshalNodePool(castObj, buf); err != nil {
+			return nil, err
+		}
+		return buf.Bytes(), nil
+	case *csarhcpv1alpha1.ProvisionShard:
+		buf := &bytes.Buffer{}
+		if err := csarhcpv1alpha1.MarshalProvisionShard(castObj, buf); err != nil {
+			return nil, err
+		}
+		return buf.Bytes(), nil
+	case *cmv1.HypershiftConfig:
+		buf := &bytes.Buffer{}
+		if err := cmv1.MarshalHypershiftConfig(castObj, buf); err != nil {
 			return nil, err
 		}
 		return buf.Bytes(), nil

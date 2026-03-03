@@ -20,7 +20,6 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/Azure/ARO-HCP/backend/oldoperationscanner"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/database"
@@ -82,12 +81,12 @@ func (c *operationClusterUpdate) SynchronizeOperation(ctx context.Context, key c
 		return utils.TrackError(err)
 	}
 
-	newOperationStatus, opError, err := oldoperationscanner.ConvertClusterStatus(ctx, c.clusterServiceClient, operation, clusterStatus)
+	newOperationStatus, opError, err := convertClusterStatus(ctx, c.clusterServiceClient, operation, clusterStatus)
 	if err != nil {
 		return utils.TrackError(err)
 	}
 
-	err = database.UpdateOperationStatus(ctx, c.cosmosClient, operation, newOperationStatus, opError, PostAsyncNotification(c.notificationClient))
+	err = UpdateOperationStatus(ctx, c.cosmosClient, operation, newOperationStatus, opError, postAsyncNotificationFn(c.notificationClient))
 	if err != nil {
 		return utils.TrackError(err)
 	}

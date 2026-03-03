@@ -892,6 +892,105 @@ func TestValidateClusterCreate(t *testing.T) {
 			}(),
 			expectErrors: []expectedError{},
 		},
+		// Managed resource group name validation tests
+		{
+			name: "invalid cluster - managed resource group name is missing",
+			cluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.Platform.ManagedResourceGroup = ""
+				return c
+			}(),
+			expectErrors: []expectedError{
+				{message: "Required value", fieldPath: "customerProperties.platform.managedResourceGroup"},
+			},
+		},
+		{
+			name: "valid managed resource group name - alphanumeric",
+			cluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.Platform.ManagedResourceGroup = "myResourceGroup123"
+				return c
+			}(),
+			expectErrors: []expectedError{},
+		},
+		{
+			name: "valid managed resource group name - with hyphens and underscores",
+			cluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.Platform.ManagedResourceGroup = "my-resource_group"
+				return c
+			}(),
+			expectErrors: []expectedError{},
+		},
+		{
+			name: "valid managed resource group name - with parentheses",
+			cluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.Platform.ManagedResourceGroup = "my-resource-group(test)"
+				return c
+			}(),
+			expectErrors: []expectedError{},
+		},
+		{
+			name: "valid managed resource group name - with periods in middle",
+			cluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.Platform.ManagedResourceGroup = "my.resource.group"
+				return c
+			}(),
+			expectErrors: []expectedError{},
+		},
+		{
+			name: "invalid managed resource group name - ends with period",
+			cluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.Platform.ManagedResourceGroup = "my-resource-group."
+				return c
+			}(),
+			expectErrors: []expectedError{
+				{message: "max 90 characters", fieldPath: "customerProperties.platform.managedResourceGroup"},
+			},
+		},
+		{
+			name: "invalid managed resource group name - too long (91 chars)",
+			cluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.Platform.ManagedResourceGroup = "a123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890"
+				return c
+			}(),
+			expectErrors: []expectedError{
+				{message: "max 90 characters", fieldPath: "customerProperties.platform.managedResourceGroup"},
+			},
+		},
+		{
+			name: "invalid managed resource group name - invalid characters",
+			cluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.Platform.ManagedResourceGroup = "my-resource-group$invalid"
+				return c
+			}(),
+			expectErrors: []expectedError{
+				{message: "max 90 characters", fieldPath: "customerProperties.platform.managedResourceGroup"},
+			},
+		},
+		{
+			name: "valid managed resource group name - exactly 90 chars",
+			cluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.Platform.ManagedResourceGroup = "a12345678901234567890123456789012345678901234567890123456789012345678901234567890123456789"
+				return c
+			}(),
+			expectErrors: []expectedError{},
+		},
+		{
+			name: "valid managed resource group name - unicode letters",
+			cluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.Platform.ManagedResourceGroup = "myRésourceGröup"
+				return c
+			}(),
+			expectErrors: []expectedError{},
+		},
 	}
 
 	for _, tt := range tests {

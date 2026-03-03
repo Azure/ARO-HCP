@@ -19,7 +19,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/Azure/ARO-Tools/pkg/topology"
+	"github.com/Azure/ARO-Tools/pipelines/topology"
 )
 
 func Markdown(topo topology.Topology, into io.WriteCloser) error {

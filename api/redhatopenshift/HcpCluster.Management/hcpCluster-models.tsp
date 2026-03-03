@@ -1,4 +1,5 @@
 import "@typespec/rest";
+import "@typespec/versioning";
 import "@typespec/http";
 import "@typespec/versioning";
 import "@azure-tools/typespec-azure-core";
@@ -6,6 +7,7 @@ import "@azure-tools/typespec-azure-resource-manager";
 import "@azure-tools/typespec-client-generator-core";
 
 using TypeSpec.Rest;
+using TypeSpec.Versioning;
 using Azure.Core;
 using Azure.ResourceManager;
 using Azure.ClientGenerator.Core;
@@ -59,7 +61,8 @@ model HcpOpenShiftClusterProperties {
 
   /** Version of the control plane components */
   @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
-  version?: VersionProfile;
+  @madeRequired(Versions.v2025_12_23_preview)
+  version: VersionProfile;
 
   /** Cluster DNS configuration */
   @visibility(Lifecycle.Read, Lifecycle.Create)
@@ -88,6 +91,13 @@ model HcpOpenShiftClusterProperties {
   /** Configure ETCD. */
   @visibility(Lifecycle.Read, Lifecycle.Create)
   etcd?: EtcdProfile;
+
+  /** imageDigestMirrors is a set of rules to allow pulling images from a
+   * mirrored registry by using digest specifications.
+   */
+  @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
+  @added(Versions.v2025_12_23_preview)
+  imageDigestMirrors?: ImageDigestMirror[];
 
   /** nodeDrainTimeoutMinutes is the grace period for how long Pod Disruption Budget-protected workloads will be
    * respected during any node draining operation. After this grace period, any workloads protected by Pod Disruption
@@ -146,7 +156,15 @@ union ExternalAuthProvisioningState {
 model VersionProfile {
   /** ID is the unique identifier of the version. */
   @visibility(Lifecycle.Read, Lifecycle.Create)
-  id?: string;
+  @removed(Versions.v2025_12_23_preview)
+  @renamedFrom(Versions.v2025_12_23_preview, "id")
+  idNoUpdate?: string;
+
+  /** ID is the desired X.Y version of the cluster control plane. */
+  @added(Versions.v2025_12_23_preview)
+  @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
+  @madeRequired(Versions.v2025_12_23_preview)
+  id: string;
 
   /** ChannelGroup is the name of the set to which this version belongs.
    *  Each version belongs to only a single set.
@@ -274,6 +292,15 @@ model PlatformProfile {
   @visibility(Lifecycle.Read, Lifecycle.Create)
   subnetId: SubnetResourceId;
 
+  /** The Azure resource ID of a subnet that enables direct,
+   * private network connectivity between the hosted control plane
+   * and your cluster's nodes. This subnet must be dedicated to ARO HCP
+   * and cannot be shared with the cluster subnet or any node pool subnets.
+   */
+  @visibility(Lifecycle.Read, Lifecycle.Create)
+  @added(Versions.v2025_12_23_preview)
+  vnetIntegrationSubnetId: SubnetResourceId;
+
   /** The core outgoing configuration */
   @visibility(Lifecycle.Read, Lifecycle.Create)
   outboundType?: OutboundType = OutboundType.LoadBalancer;
@@ -337,6 +364,21 @@ model ClusterAutoscalingProfile {
    *        https://github.com/Azure/typespec-azure/issues/1586
    */
   podPriorityThreshold?: int32;
+}
+
+/** ImageDigestMirror specifies a set of mirror registries to redirect image
+ * pulls targeting the specified source registries.
+ */
+model ImageDigestMirror {
+  /** The unique identifier for this image digest mirror definition */
+  id: string;
+
+  /** The source image registry to redirect image pulls from */
+  source: string;
+
+  /** The set of mirror registries to redirect image pulls to */
+  @minItems(1)
+  mirrors: string[];
 }
 
 /** OpenShift cluster image registry */
@@ -421,10 +463,25 @@ model KmsKey {
   @minLength(1)
   name: string;
 
+  /** visibility of the keyvault that contains the secret. */
+  @added(Versions.v2025_12_23_preview)
+  visibility: KeyVaultVisibility;
+
   /** version contains the version of the key to use. */
   @maxLength(255)
   @minLength(1)
   version: string;
+}
+
+/** The internet visibility of a keyvault resource */
+union KeyVaultVisibility {
+  string,
+
+  /** The keyvault is visible from the internet. */
+  Public: "Public",
+
+  /** The keyvault is not visible from the internet. */
+  Private: "Private",
 }
 
 /** The ETCD settings and configuration options. */
@@ -618,7 +675,8 @@ model Label {
 model NodePoolVersionProfile {
   /** ID is the unique identifier of the version. */
   @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
-  id?: string;
+  @madeRequired(Versions.v2025_12_23_preview)
+  id: string;
 
   /** ChannelGroup is the name of the set to which this version belongs.
    *  Each version belongs to only a single set.
@@ -677,7 +735,7 @@ model OsDiskProfile {
    * - https://learn.microsoft.com/en-us/azure/virtual-machines/disks-types
    */
   @visibility(Lifecycle.Read, Lifecycle.Create)
-  diskStorageAccountType?: DiskStorageAccountType = "Premium_LRS";
+  diskStorageAccountType?: DiskStorageAccountType = DiskStorageAccountType.Premium_LRS;
 
   /** The ID of the DiskEncryptionSet resource to use to encrypt the OS disks for the VMs.
    * This needs to exist in the same subscription id listed in the Hosted Cluster, HostedCluster.Spec.Platform.Azure.SubscriptionID.
@@ -689,6 +747,32 @@ model OsDiskProfile {
    */
   @visibility(Lifecycle.Read, Lifecycle.Create)
   encryptionSetId?: DiskEncryptionSetResourceId;
+
+  /** The type of the OS disk.
+   * - https://learn.microsoft.com/en-us/azure/virtual-machines/ephemeral-os-disks
+   */
+  @added(Versions.v2025_12_23_preview)
+  @visibility(Lifecycle.Read, Lifecycle.Create)
+  diskType?: OsDiskType = OsDiskType.Managed;
+}
+
+/** The type of the OS disk
+ * - https://learn.microsoft.com/en-us/azure/virtual-machines/ephemeral-os-disks
+ */
+@added(Versions.v2025_12_23_preview)
+union OsDiskType {
+  string,
+
+  /** Managed OS disk - stored as an Azure managed disk (network-attached).
+   * Default behavior for VMs without sufficient cache.
+   */
+  Managed: "Managed",
+
+  /** Ephemeral OS disk - stored on local VM cache/temporary storage.
+   * Provides lower latency and faster node operations.
+   * Requires VM with sufficient cache size.
+   */
+  Ephemeral: "Ephemeral",
 }
 
 /** Supported Azure storage account types

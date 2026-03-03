@@ -34,6 +34,8 @@ resourceGroups:
     automatedRetry:
       errorContainsAny:
       - "unknown_storage_failure"
+      - "unexpected EOF"
+      - "unauthorized: authentication required"
       maximumRetryCount: 5
       durationBetweenRetries: 1m
 - name: kusto

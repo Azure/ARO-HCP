@@ -17,7 +17,6 @@ package operationcontrollers
 import (
 	"context"
 	"errors"
-	"net/http"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -28,7 +27,6 @@ import (
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/utils/ptr"
 
-	"github.com/Azure/ARO-HCP/backend/oldoperationscanner"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/database"
@@ -94,18 +92,7 @@ func NewGenericOperationController(
 	return c
 }
 
-// PostAsyncNotification submits an POST request with status payload to the given URL.
-func PostAsyncNotification(notificationClient *http.Client) database.PostAsyncNotificationFunc {
-	return func(ctx context.Context, operation *api.Operation) error {
-		return oldoperationscanner.PostAsyncNotification(ctx, notificationClient, operation)
-	}
-}
-
 func (c *genericOperation) SyncOnce(ctx context.Context, keyObj any) error {
-	logger := utils.LoggerFromContext(ctx)
-	logger.Info("start sync")
-	defer logger.Info("end sync")
-
 	key := keyObj.(controllerutils.OperationKey)
 
 	syncErr := c.synchronizer.SynchronizeOperation(ctx, key)
@@ -128,7 +115,7 @@ func (c *genericOperation) Run(ctx context.Context, threadiness int) {
 	defer c.queue.ShutDown()
 
 	logger := utils.LoggerFromContext(ctx)
-	logger = logger.WithValues("controller_name", c.name)
+	logger = logger.WithValues(utils.LogValues{}.AddControllerName(c.name)...)
 	ctx = utils.ContextWithLogger(ctx, logger)
 	logger.Info("Starting")
 
@@ -160,6 +147,7 @@ func (c *genericOperation) processNextWorkItem(ctx context.Context) bool {
 	logger = ref.AddLoggerValues(logger)
 	ctx = utils.ContextWithLogger(ctx, logger)
 
+	controllerutils.ReconcileTotal.WithLabelValues(c.name).Inc()
 	err := c.SyncOnce(ctx, ref)
 	if err == nil {
 		c.queue.Forget(ref)
@@ -174,7 +162,7 @@ func (c *genericOperation) processNextWorkItem(ctx context.Context) bool {
 
 func (c *genericOperation) enqueueAdd(newObj interface{}) {
 	logger := utils.DefaultLogger()
-	logger = logger.WithValues("controller_name", c.name)
+	logger = logger.WithValues(utils.LogValues{}.AddControllerName(c.name)...)
 	ctx := logr.NewContext(context.TODO(), logger)
 
 	castObj := newObj.(*api.Operation)

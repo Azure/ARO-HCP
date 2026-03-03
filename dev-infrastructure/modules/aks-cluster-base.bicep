@@ -426,14 +426,13 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2025-07-02-previ
           }
         }
       : null
-    // TODO: ops-ingress phase 2: enable k8s gateway api
-    // ingressProfile: deployIstio
-    //   ? {
-    //       gatewayAPI: {
-    //         installation: 'Standard'
-    //       }
-    //     }
-    //   : null
+    ingressProfile: deployIstio
+      ? {
+          gatewayAPI: {
+            installation: 'Standard'
+          }
+        }
+      : null
     storageProfile: {
       diskCSIDriver: {
         enabled: true

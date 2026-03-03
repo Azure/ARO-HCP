@@ -27,7 +27,7 @@ module certificateOfficerAccess 'keyvault-secret-access.bicep' = {
 }
 
 resource newCertwithRotationKV 'Microsoft.Resources/deploymentScripts@2023-08-01' = {
-  name: 'newCertwithRotationKV-${certName}'
+  name: 'newCert-${certName}'
   identity: {
     type: 'UserAssigned'
     userAssignedIdentities: {
@@ -37,7 +37,7 @@ resource newCertwithRotationKV 'Microsoft.Resources/deploymentScripts@2023-08-01
   location: location
   kind: 'AzurePowerShell'
   properties: {
-    azPowerShellVersion: '12.0.0'
+    azPowerShellVersion: '15.1.0'
     arguments: ' -VaultName ${keyVaultName} -ValidityInMonths ${validityInMonths} -RenewAtPercentageLifetime ${renewAtPercentageLifetime} -IssuerName ${issuerName} -CertName ${certName} -SubjectName ${subjectName} -DnsNames ${join(dnsNames,'_')} -Force ${boolstring}'
     scriptContent: loadTextContent('../../scripts/key-vault-cert.ps1')
     forceUpdateTag: now

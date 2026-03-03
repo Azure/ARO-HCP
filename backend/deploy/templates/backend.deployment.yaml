@@ -63,6 +63,8 @@ spec:
         - "/secrets/backend-service-key-vault/fpa-cert-bundle"
         - "--azure-first-party-application-client-id"
         - "{{ .Values.fpa.clientId }}"
+        - "--maestro-source-environment-identifier"
+        - "{{ .Values.maestro.sourceEnvironmentIdentifier }}"
         env:
         - name: DB_NAME
           valueFrom:

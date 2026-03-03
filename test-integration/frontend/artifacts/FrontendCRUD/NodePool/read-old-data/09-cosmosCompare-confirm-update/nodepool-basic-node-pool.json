@@ -4,7 +4,6 @@
 	"_rid": "NNYoALQEciYCAAAAAAAAAA==",
 	"_self": "dbs/NNYoAA==/colls/NNYoALQEciY=/docs/NNYoALQEciYCAAAAAAAAAA==/",
 	"_ts": 1767902972,
-	"id": "|subscriptions|6b690bec-0c16-4ecb-8f67-781caf40bba7|resourcegroups|resourcegroupname|providers|microsoft.redhatopenshift|hcpopenshiftclusters|create-with-tags|nodepools|basic-node-pool",
 	"partitionKey": "6b690bec-0c16-4ecb-8f67-781caf40bba7",
 	"resourceID": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/create-with-tags/nodePools/basic-node-pool",
 	"properties": {

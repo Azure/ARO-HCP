@@ -1,0 +1,26 @@
+.create-merge table systemdLogs (
+  timestamp: datetime,
+  cluster: string,
+  hostname: string,
+  region: string,
+  environment: string,
+  log: dynamic,
+  systemd_unit: string,
+  message: string,
+  tag: string
+)
+
+.create-or-alter table systemdLogs ingestion json mapping 'ingestionMapping'
+```
+[
+  {"column":"timestamp","Properties":{"path":"$.timestamp"}},
+  {"column":"cluster","Properties":{"path":"$.log.cluster"}},
+  {"column":"region","Properties":{"path":"$.log.region"}},
+  {"column":"environment","Properties":{"path":"$.log.environment"}},
+  {"column":"hostname","Properties":{"path":"$.log.HOSTNAME"}},
+  {"column":"log","Properties":{"path":"$.log"}},
+  {"column":"systemd_unit","Properties":{"path":"$.log.SYSTEMD_UNIT"}},
+  {"column":"message","Properties":{"path":"$.log.MESSAGE"}},
+  {"column":"tag","Properties":{"path":"$.tag"}}
+]
+```
