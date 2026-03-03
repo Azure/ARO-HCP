@@ -20,7 +20,6 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
 
 	"k8s.io/apimachinery/pkg/util/rand"
@@ -38,23 +37,37 @@ func NewCommand(centralRemoteUrl string) (*cobra.Command, error) {
 		Short:         "Validate rendered configurations for all clouds, environments, and regions.",
 		SilenceErrors: true,
 		SilenceUsage:  true,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			logger, err := logr.FromContext(cmd.Context())
-			if err != nil {
-				return err
-			}
-			defer func() {
-				if err := os.RemoveAll(scratchDir); err != nil {
-					logger.Error(err, "Failed to remove scratch directory")
-				}
-			}()
+	}
 
+	configCmd := &cobra.Command{
+		Use:           "config",
+		Short:         "Validate configurations for all clouds, environments, and regions.",
+		SilenceErrors: true,
+		SilenceUsage:  true,
+		RunE: func(cmd *cobra.Command, args []string) error {
 			return runValidate(cmd.Context(), opts)
 		},
 	}
-	if err := BindOptions(opts, cmd); err != nil {
+
+	kustoSkuCmd := &cobra.Command{
+		Use:           "kusto-sku",
+		Short:         "Validate Kusto SKU for all clouds, environments, and regions.",
+		SilenceErrors: true,
+		SilenceUsage:  true,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runValidateSku(cmd.Context(), opts)
+		},
+	}
+
+	if err := BindOptions(opts, configCmd); err != nil {
 		return nil, err
 	}
+	if err := BindOptions(opts, kustoSkuCmd); err != nil {
+		return nil, err
+	}
+
+	cmd.AddCommand(configCmd)
+	cmd.AddCommand(kustoSkuCmd)
 	return cmd, nil
 }
 
@@ -68,4 +81,16 @@ func runValidate(ctx context.Context, opts *RawOptions) error {
 		return err
 	}
 	return completed.ValidateServiceConfig(ctx)
+}
+
+func runValidateSku(ctx context.Context, opts *RawOptions) error {
+	validated, err := opts.Validate()
+	if err != nil {
+		return err
+	}
+	completed, err := validated.Complete()
+	if err != nil {
+		return err
+	}
+	return completed.ValidateKustoSku(ctx)
 }

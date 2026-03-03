@@ -23,9 +23,14 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/kusto/armkusto/v2"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armsubscriptions"
 	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
 
@@ -168,19 +173,19 @@ func (o *ValidatedOptions) Complete() (*Options, error) {
 	}, nil
 }
 
-func (opts *Options) ValidateServiceConfig(ctx context.Context) error {
+func (opts *Options) createContexts(ctx context.Context) (map[string]map[string][]RegionContext, error) {
 	logger, err := logr.FromContext(ctx)
 	if err != nil {
-		return err
+		return nil, err
 	}
+
 	contexts := map[string]map[string][]RegionContext{}
 	if opts.DevSettings == nil {
 		// if we're validating production environments, we would like to validate all possible regions
 		ev2Contexts, err := ev2config.AllContexts()
 		if err != nil {
-			return fmt.Errorf("failed to load ev2 contexts: %w", err)
+			return nil, fmt.Errorf("failed to load ev2 contexts: %w", err)
 		}
-
 		allContexts := opts.ServiceConfig.AllContexts()
 		for cloud := range allContexts {
 			contexts[cloud] = map[string][]RegionContext{}
@@ -211,7 +216,7 @@ func (opts *Options) ValidateServiceConfig(ctx context.Context) error {
 
 			env, err := settings.Resolve(ctx, environment)
 			if err != nil {
-				return fmt.Errorf("failed to resolve region context: %w", err)
+				return nil, fmt.Errorf("failed to resolve region context: %w", err)
 			}
 
 			if _, ok := contexts[env.Cloud]; !ok {
@@ -229,6 +234,189 @@ func (opts *Options) ValidateServiceConfig(ctx context.Context) error {
 				Stamp:               env.Stamp,
 			})
 		}
+	}
+	return contexts, nil
+}
+
+func (opts *Options) ValidateKustoSku(ctx context.Context) error {
+	contexts, err := opts.createContexts(ctx)
+	if err != nil {
+		return err
+	}
+
+	cred, err := azidentity.NewDefaultAzureCredential(nil)
+	if err != nil {
+		return fmt.Errorf("failed to create Azure credential: %w", err)
+	}
+
+	subscriptionID, err := getSubscriptionID(ctx, cred)
+	if err != nil {
+		return fmt.Errorf("failed to get subscription ID: %w", err)
+	}
+
+	clustersClient, err := armkusto.NewClustersClient(subscriptionID, cred, nil)
+	if err != nil {
+		return fmt.Errorf("failed to create Kusto clusters client: %w", err)
+	}
+
+	skusByRegion, err := fetchAvailableKustoSKUs(ctx, clustersClient)
+	if err != nil {
+		return fmt.Errorf("failed to fetch available Kusto SKUs: %w", err)
+	}
+
+	return ValidateKustoSku(
+		ctx,
+		contexts,
+		opts.ServiceConfig,
+		skusByRegion,
+	)
+}
+
+func ValidateKustoSku(
+	ctx context.Context,
+	contexts map[string]map[string][]RegionContext,
+	serviceConfig config.ConfigProvider,
+	skusByRegion map[string]map[string]bool,
+) error {
+	var validationErrors []error
+
+	for cloud, environments := range contexts {
+		for environment, regions := range environments {
+			for _, regionCtx := range regions {
+				region := regionCtx.Region
+				prefix := fmt.Sprintf("config[%s][%s][%s]:", cloud, environment, region)
+
+				ev2Cloud := cloud
+				if regionCtx.Ev2Cloud != "" {
+					ev2Cloud = regionCtx.Ev2Cloud
+				}
+				ev2Cfg, err := ev2config.ResolveConfig(ev2Cloud, region)
+				if err != nil {
+					return fmt.Errorf("%s failed to resolve ev2 config: %w", prefix, err)
+				}
+
+				replacements := &config.ConfigReplacements{
+					RegionReplacement:      region,
+					CloudReplacement:       cloud,
+					EnvironmentReplacement: environment,
+					StampReplacement:       strconv.Itoa(regionCtx.Stamp),
+					Ev2Config:              ev2Cfg,
+				}
+
+				value, err := ev2Cfg.GetByPath("regionShortName")
+				if err != nil {
+					return fmt.Errorf("%s \"regionShortName\" not found in ev2 config: %w", prefix, err)
+				}
+				str, ok := value.(string)
+				if !ok {
+					return fmt.Errorf("%s \"regionShortName\" is not a string", prefix)
+				}
+				replacements.RegionShortReplacement = str
+				if regionCtx.RegionShortOverride != "" {
+					replacements.RegionShortReplacement = regionCtx.RegionShortOverride
+				}
+				if regionCtx.RegionShortSuffix != "" {
+					replacements.RegionShortReplacement += regionCtx.RegionShortSuffix
+				}
+
+				resolver, err := serviceConfig.GetResolver(replacements)
+				if err != nil {
+					return fmt.Errorf("%s failed to get resolver: %w", prefix, err)
+				}
+
+				cfg, err := resolver.GetRegionConfiguration(region)
+				if err != nil {
+					return fmt.Errorf("%s failed to get region config: %w", prefix, err)
+				}
+
+				// Check if kusto instance is managed
+				manageVal, err := cfg.GetByPath("kusto.manageInstance")
+				if err != nil {
+					continue
+				}
+				managed, ok := manageVal.(bool)
+				if !ok || !managed {
+					continue
+				}
+
+				// Get the configured SKU
+				skuVal, err := cfg.GetByPath("kusto.sku")
+				if err != nil {
+					continue
+				}
+				skuStr, ok := skuVal.(string)
+				if !ok || skuStr == "" {
+					continue
+				}
+
+				regionSKUs := skusByRegion[region]
+				if !regionSKUs[skuStr] {
+					availableNames := make([]string, 0, len(regionSKUs))
+					for name := range regionSKUs {
+						availableNames = append(availableNames, name)
+					}
+					sort.Strings(availableNames)
+					validationErrors = append(validationErrors, fmt.Errorf("%s Kusto SKU %q is not available in region %s; available SKUs: %v", prefix, skuStr, region, availableNames))
+				}
+			}
+		}
+	}
+
+	return errors.Join(validationErrors...)
+}
+
+func getSubscriptionID(ctx context.Context, cred azcore.TokenCredential) (string, error) {
+	client, err := armsubscriptions.NewClient(cred, nil)
+	if err != nil {
+		return "", fmt.Errorf("failed to create subscriptions client: %w", err)
+	}
+
+	pager := client.NewListPager(nil)
+	for pager.More() {
+		page, err := pager.NextPage(ctx)
+		if err != nil {
+			return "", fmt.Errorf("failed to list subscriptions: %w", err)
+		}
+		for _, sub := range page.Value {
+			if sub.SubscriptionID != nil && *sub.SubscriptionID != "" {
+				return *sub.SubscriptionID, nil
+			}
+		}
+	}
+	return "", fmt.Errorf("no subscriptions found")
+}
+
+func fetchAvailableKustoSKUs(ctx context.Context, client *armkusto.ClustersClient) (map[string]map[string]bool, error) {
+	skusByRegion := map[string]map[string]bool{}
+	pager := client.NewListSKUsPager(nil)
+	for pager.More() {
+		page, err := pager.NextPage(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to list Kusto SKUs: %w", err)
+		}
+		for _, sku := range page.Value {
+			if sku.Name == nil {
+				continue
+			}
+			for _, loc := range sku.Locations {
+				if loc == nil {
+					continue
+				}
+				region := strings.ToLower(*loc)
+				if skusByRegion[region] == nil {
+					skusByRegion[region] = map[string]bool{}
+				}
+				skusByRegion[region][*sku.Name] = true
+			}
+		}
+	}
+	return skusByRegion, nil
+}
+
+func (opts *Options) ValidateServiceConfig(ctx context.Context) error {
+	contexts, err := opts.createContexts(ctx)
+	if err != nil {
+		return err
 	}
 	return ValidateServiceConfig(
 		ctx,

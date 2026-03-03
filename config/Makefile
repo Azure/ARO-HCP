@@ -35,7 +35,9 @@ detect-change: materialize
 
 validate:
 	$(MAKE) -C ./../tooling/templatize templatize
-	USER='test' BUILD_ID='1234567890987654321' ./../tooling/templatize/templatize configuration validate --service-config-file ./config.yaml \
+	USER='test' BUILD_ID='1234567890987654321' ./../tooling/templatize/templatize configuration validate kusto-sku --service-config-file ./config.yaml \
+																	--dev-settings-file ./../tooling/templatize/settings.yaml && \
+	USER='test' BUILD_ID='1234567890987654321' ./../tooling/templatize/templatize configuration validate config --service-config-file ./config.yaml \
 	                                                                      --dev-settings-file ./../tooling/templatize/settings.yaml \
 	                                                                      --output-dir ./rendered
 .PHONY: validate
