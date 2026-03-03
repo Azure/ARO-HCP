@@ -115,6 +115,28 @@ func (m *MockDBClient) PatchBillingDoc(ctx context.Context, resourceID *azcorear
 	return nil
 }
 
+// GetBillingDocsForCluster retrieves all billing documents for a given cluster resource ID.
+func (m *MockDBClient) GetBillingDocsForCluster(ctx context.Context, resourceID *azcorearm.ResourceID, creationTime *time.Time) ([]*database.BillingDocument, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	var docs []*database.BillingDocument
+	for _, doc := range m.billing {
+		if strings.EqualFold(doc.ResourceID.String(), resourceID.String()) && doc.DeletionTime == nil {
+			if creationTime != nil {
+				// Match creation time if provided
+				if doc.CreationTime.Equal(*creationTime) {
+					docs = append(docs, doc)
+				}
+			} else {
+				docs = append(docs, doc)
+			}
+		}
+	}
+
+	return docs, nil
+}
+
 // UntypedCRUD provides access to untyped resource operations.
 func (m *MockDBClient) UntypedCRUD(parentResourceID azcorearm.ResourceID) (database.UntypedResourceCRUD, error) {
 	return newMockUntypedCRUD(m, parentResourceID), nil

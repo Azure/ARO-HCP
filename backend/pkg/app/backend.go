@@ -401,6 +401,9 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		backendInformers,
 	)
 	deleteOrphanedCosmosResourcesController := mismatchcontrollers.NewDeleteOrphanedCosmosResourcesController(b.options.CosmosDBClient, subscriptionLister)
+	backfillBillingDocIDController := controllerutils.NewClusterWatchingController(
+		"BackfillBillingDocID", b.options.CosmosDBClient, backendInformers, 60*time.Minute,
+		mismatchcontrollers.NewBackfillBillingDocIDController(utilsclock.RealClock{}, b.options.CosmosDBClient))
 	controlPlaneActiveVersionController := upgradecontrollers.NewControlPlaneActiveVersionController(
 		b.options.CosmosDBClient,
 		activeOperationLister,
@@ -513,6 +516,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go cosmosMatchingClusterController.Run(ctx, 20)
 				go alwaysSuccessClusterValidationController.Run(ctx, 20)
 				go deleteOrphanedCosmosResourcesController.Run(ctx, 20)
+				go backfillBillingDocIDController.Run(ctx, 20)
 				go controlPlaneActiveVersionController.Run(ctx, 20)
 				go controlPlaneDesiredVersionController.Run(ctx, 20)
 				go triggerControlPlaneUpgradeController.Run(ctx, 20)

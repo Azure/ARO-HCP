@@ -24,6 +24,7 @@ import (
 	"iter"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -110,6 +111,11 @@ type DBClient interface {
 	// satisfied, will cause the function to return an azcore.ResponseError with a StatusCode
 	// of http.StatusPreconditionFailed.
 	PatchBillingDoc(ctx context.Context, resourceID *azcorearm.ResourceID, ops BillingDocumentPatchOperations) error
+
+	// GetBillingDocsForCluster retrieves all billing documents for a given cluster resource ID
+	// that do not have a deletion timestamp. If creationTime is provided, only documents
+	// matching that creation time are returned.
+	GetBillingDocsForCluster(ctx context.Context, resourceID *azcorearm.ResourceID, creationTime *time.Time) ([]*BillingDocument, error)
 
 	// UntypedCRUD provides access documents in the subscription
 	UntypedCRUD(parentResourceID azcorearm.ResourceID) (UntypedResourceCRUD, error)
@@ -274,6 +280,63 @@ func (d *cosmosDBClient) PatchBillingDoc(ctx context.Context, resourceID *azcore
 	}
 
 	return nil
+}
+
+func (d *cosmosDBClient) GetBillingDocsForCluster(ctx context.Context, resourceID *azcorearm.ResourceID, creationTime *time.Time) ([]*BillingDocument, error) {
+	pk := NewPartitionKey(resourceID.SubscriptionID)
+
+	// Query for billing documents matching the resource ID without a deletion timestamp
+	var query string
+	var queryParams []azcosmos.QueryParameter
+
+	if creationTime != nil {
+		// Match both resource ID and creation time for more precise matching
+		query = "SELECT * FROM c WHERE STRINGEQUALS(c.resourceId, @resourceId, true) AND c.creationTime = @creationTime"
+		queryParams = []azcosmos.QueryParameter{
+			{
+				Name:  "@resourceId",
+				Value: resourceID.String(),
+			},
+			{
+				Name:  "@creationTime",
+				Value: *creationTime,
+			},
+		}
+	} else {
+		// Match only resource ID
+		query = "SELECT * FROM c WHERE STRINGEQUALS(c.resourceId, @resourceId, true) AND NOT IS_DEFINED(c.deletionTime)"
+		queryParams = []azcosmos.QueryParameter{
+			{
+				Name:  "@resourceId",
+				Value: resourceID.String(),
+			},
+		}
+	}
+
+	opt := azcosmos.QueryOptions{
+		QueryParameters: queryParams,
+	}
+
+	queryPager := d.billing.NewQueryItemsPager(query, pk, &opt)
+
+	var billingDocs []*BillingDocument
+	for queryPager.More() {
+		queryResponse, err := queryPager.NextPage(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to advance page while querying Billing container for '%s': %w", resourceID, err)
+		}
+
+		for _, item := range queryResponse.Items {
+			var doc BillingDocument
+			err = json.Unmarshal(item, &doc)
+			if err != nil {
+				return nil, fmt.Errorf("failed to unmarshal Billing container item for '%s': %w", resourceID, err)
+			}
+			billingDocs = append(billingDocs, &doc)
+		}
+	}
+
+	return billingDocs, nil
 }
 
 func (d *cosmosDBClient) HCPClusters(subscriptionID, resourceGroupName string) HCPClusterCRUD {
