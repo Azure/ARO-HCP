@@ -45,7 +45,7 @@ type BillingDocument struct {
 
 func NewBillingDocument(id string, resourceID *azcorearm.ResourceID) *BillingDocument {
 	return &BillingDocument{
-		BaseDocument:  BaseDocument{
+		BaseDocument: BaseDocument{
 			ID: id,
 		},
 		SubscriptionID: resourceID.SubscriptionID,

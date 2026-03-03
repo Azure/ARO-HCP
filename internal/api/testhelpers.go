@@ -80,6 +80,7 @@ func MinimumValidClusterTestCase() *HCPOpenShiftCluster {
 	resource.CustomerProperties.Platform.SubnetID = Must(azcorearm.ParseResourceID(TestSubnetResourceID))
 	resource.CustomerProperties.Platform.NetworkSecurityGroupID = Must(azcorearm.ParseResourceID(TestNetworkSecurityGroupResourceID))
 	resource.ServiceProviderProperties.ManagedIdentitiesDataPlaneIdentityURL = TestManagedIdentitiesDataPlaneIdentityURL
+<<<<<<< HEAD
 	// Add required systemData fields
 	createdAt := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
 	resource.SystemData = &arm.SystemData{
@@ -87,6 +88,9 @@ func MinimumValidClusterTestCase() *HCPOpenShiftCluster {
 		CreatedByType: arm.CreatedByTypeUser,
 		CreatedAt:     &createdAt,
 	}
+=======
+	resource.ServiceProviderProperties.BillingDocID = "00000000-0000-0000-0000-000000000000"
+>>>>>>> move billing ID generation under admission pkg
 	return resource
 }
 

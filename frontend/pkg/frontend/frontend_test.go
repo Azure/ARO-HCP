@@ -401,6 +401,7 @@ func TestDeploymentPreflight(t *testing.T) {
 						"subnetId":               api.TestSubnetResourceID,
 						"networkSecurityGroupId": api.TestNetworkSecurityGroupResourceID,
 					},
+					"billingDocId": "00000000-0000-0000-0000-000000000000",
 				},
 			},
 			expectStatus: arm.DeploymentPreflightStatusSucceeded,
@@ -442,6 +443,7 @@ func TestDeploymentPreflight(t *testing.T) {
 				{message: "Unsupported value: \"invisible\": supported values: \"Private\", \"Public\"", target: "properties.api.visiblity"},
 				{message: "Required value", target: "properties.platform.subnetId"},
 				{message: "Required value", target: "properties.platform.networkSecurityGroupId"},
+				{message: "Required value", target: "properties.billingDocId"},
 			},
 		},
 		{
