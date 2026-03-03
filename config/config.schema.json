@@ -1761,6 +1761,9 @@
           "additionalProperties": false,
           "required": [
             "serviceTag",
+            "targetRegion",
+            "endpointName",
+            "endpointUrl",
             "keyVault",
             "certificate",
             "allowedAcisExtensions",
@@ -1771,6 +1774,18 @@
             "serviceTag": {
               "type": "string",
               "description": "The Service Tag used by Geneva Actions for their egress traffic."
+            },
+            "targetRegion": {
+              "type": "string",
+              "description": "The targetRegion in the Geneva Actions xml config."
+            },
+            "endpointName": {
+              "type": "string",
+              "description": "The endpoint name in the Geneva Actions xml config."
+            },
+            "endpointUrl": {
+              "type": "string",
+              "description": "The endpoint URL in the Geneva Actions xml config."
             },
             "keyVault": {
               "$ref": "#/definitions/keyVault",

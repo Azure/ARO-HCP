@@ -192,6 +192,9 @@ defaults:
         configVersion: "1"
     actions:
       serviceTag: GenevaActions
+      targetRegion: "{{ .ev2.regionFriendlyName }}"
+      endpointName: "{{ .ctx.region }}"
+      endpointUrl: "" # set per-cloud
       keyVault:
         name: "arohcp{{ .ctx.environment }}-geneva-kv" # [globally-unique]
         private: false
