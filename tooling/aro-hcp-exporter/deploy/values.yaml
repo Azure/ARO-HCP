@@ -1,5 +1,5 @@
 image:
-  registry: '{{ .customExporter.image.registry }}'
+  registry: '{{ .acr.svc.name }}.azurecr.io'
   repository: '{{ .customExporter.image.repository }}'
   digest: '{{ .customExporter.image.digest }}'
 serviceAccount:
