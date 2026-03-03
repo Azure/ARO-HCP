@@ -135,6 +135,8 @@ spec:
           value: ""
         - name: AUDIT_CONNECT_SOCKET
           value: "true"
+        - name: AZURE_TOKEN_CREDENTIALS
+          value: "WorkloadIdentityCredential"
         ports:
         - containerPort: 8443
           protocol: TCP

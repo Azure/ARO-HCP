@@ -109,6 +109,8 @@ spec:
           value: "1m"
         - name: MAX_SESSION_TTL
           value: "24h"
+        - name: AZURE_TOKEN_CREDENTIALS
+          value: "WorkloadIdentityCredential"
         ports:
         - containerPort: 8443
           name: http

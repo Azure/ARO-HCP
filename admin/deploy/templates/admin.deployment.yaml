@@ -66,6 +66,8 @@ spec:
           value: "{{ .Values.sessiongate.minSessionTTL }}"
         - name: MAX_SESSION_TTL
           value: "{{ .Values.sessiongate.maxSessionTTL }}"
+        - name: AZURE_TOKEN_CREDENTIALS
+          value: "WorkloadIdentityCredential"
         ports:
         - containerPort: 8443
           name: http
