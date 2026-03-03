@@ -194,6 +194,44 @@ func (c *MockClusterServiceClientSpecDeleteNodePoolCall) DoAndReturn(f func(cont
 	return c
 }
 
+// DeleteProvisionShard mocks base method.
+func (m *MockClusterServiceClientSpec) DeleteProvisionShard(ctx context.Context, internalID InternalID) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteProvisionShard", ctx, internalID)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteProvisionShard indicates an expected call of DeleteProvisionShard.
+func (mr *MockClusterServiceClientSpecMockRecorder) DeleteProvisionShard(ctx, internalID any) *MockClusterServiceClientSpecDeleteProvisionShardCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteProvisionShard", reflect.TypeOf((*MockClusterServiceClientSpec)(nil).DeleteProvisionShard), ctx, internalID)
+	return &MockClusterServiceClientSpecDeleteProvisionShardCall{Call: call}
+}
+
+// MockClusterServiceClientSpecDeleteProvisionShardCall wrap *gomock.Call
+type MockClusterServiceClientSpecDeleteProvisionShardCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockClusterServiceClientSpecDeleteProvisionShardCall) Return(arg0 error) *MockClusterServiceClientSpecDeleteProvisionShardCall {
+	c.Call = c.Call.Return(arg0)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockClusterServiceClientSpecDeleteProvisionShardCall) Do(f func(context.Context, InternalID) error) *MockClusterServiceClientSpecDeleteProvisionShardCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockClusterServiceClientSpecDeleteProvisionShardCall) DoAndReturn(f func(context.Context, InternalID) error) *MockClusterServiceClientSpecDeleteProvisionShardCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
 // GetBreakGlassCredential mocks base method.
 func (m *MockClusterServiceClientSpec) GetBreakGlassCredential(ctx context.Context, internalID InternalID) (*v1.BreakGlassCredential, error) {
 	m.ctrl.T.Helper()
@@ -545,6 +583,45 @@ func (c *MockClusterServiceClientSpecGetNodePoolStatusCall) DoAndReturn(f func(c
 	return c
 }
 
+// GetProvisionShard mocks base method.
+func (m *MockClusterServiceClientSpec) GetProvisionShard(ctx context.Context, internalID InternalID) (*v1alpha1.ProvisionShard, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetProvisionShard", ctx, internalID)
+	ret0, _ := ret[0].(*v1alpha1.ProvisionShard)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetProvisionShard indicates an expected call of GetProvisionShard.
+func (mr *MockClusterServiceClientSpecMockRecorder) GetProvisionShard(ctx, internalID any) *MockClusterServiceClientSpecGetProvisionShardCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetProvisionShard", reflect.TypeOf((*MockClusterServiceClientSpec)(nil).GetProvisionShard), ctx, internalID)
+	return &MockClusterServiceClientSpecGetProvisionShardCall{Call: call}
+}
+
+// MockClusterServiceClientSpecGetProvisionShardCall wrap *gomock.Call
+type MockClusterServiceClientSpecGetProvisionShardCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockClusterServiceClientSpecGetProvisionShardCall) Return(arg0 *v1alpha1.ProvisionShard, arg1 error) *MockClusterServiceClientSpecGetProvisionShardCall {
+	c.Call = c.Call.Return(arg0, arg1)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockClusterServiceClientSpecGetProvisionShardCall) Do(f func(context.Context, InternalID) (*v1alpha1.ProvisionShard, error)) *MockClusterServiceClientSpecGetProvisionShardCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockClusterServiceClientSpecGetProvisionShardCall) DoAndReturn(f func(context.Context, InternalID) (*v1alpha1.ProvisionShard, error)) *MockClusterServiceClientSpecGetProvisionShardCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
 // GetVersion mocks base method.
 func (m *MockClusterServiceClientSpec) GetVersion(ctx context.Context, versionName string) (*v1alpha1.Version, error) {
 	m.ctrl.T.Helper()
@@ -770,6 +847,44 @@ func (c *MockClusterServiceClientSpecListNodePoolsCall) Do(f func(InternalID, st
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
 func (c *MockClusterServiceClientSpecListNodePoolsCall) DoAndReturn(f func(InternalID, string) NodePoolListIterator) *MockClusterServiceClientSpecListNodePoolsCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
+// ListProvisionShards mocks base method.
+func (m *MockClusterServiceClientSpec) ListProvisionShards() ProvisionShardListIterator {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListProvisionShards")
+	ret0, _ := ret[0].(ProvisionShardListIterator)
+	return ret0
+}
+
+// ListProvisionShards indicates an expected call of ListProvisionShards.
+func (mr *MockClusterServiceClientSpecMockRecorder) ListProvisionShards() *MockClusterServiceClientSpecListProvisionShardsCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListProvisionShards", reflect.TypeOf((*MockClusterServiceClientSpec)(nil).ListProvisionShards))
+	return &MockClusterServiceClientSpecListProvisionShardsCall{Call: call}
+}
+
+// MockClusterServiceClientSpecListProvisionShardsCall wrap *gomock.Call
+type MockClusterServiceClientSpecListProvisionShardsCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockClusterServiceClientSpecListProvisionShardsCall) Return(arg0 ProvisionShardListIterator) *MockClusterServiceClientSpecListProvisionShardsCall {
+	c.Call = c.Call.Return(arg0)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockClusterServiceClientSpecListProvisionShardsCall) Do(f func() ProvisionShardListIterator) *MockClusterServiceClientSpecListProvisionShardsCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockClusterServiceClientSpecListProvisionShardsCall) DoAndReturn(f func() ProvisionShardListIterator) *MockClusterServiceClientSpecListProvisionShardsCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -1007,6 +1122,45 @@ func (c *MockClusterServiceClientSpecPostNodePoolCall) DoAndReturn(f func(contex
 	return c
 }
 
+// PostProvisionShard mocks base method.
+func (m *MockClusterServiceClientSpec) PostProvisionShard(ctx context.Context, builder *v1alpha1.ProvisionShardBuilder) (*v1alpha1.ProvisionShard, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "PostProvisionShard", ctx, builder)
+	ret0, _ := ret[0].(*v1alpha1.ProvisionShard)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// PostProvisionShard indicates an expected call of PostProvisionShard.
+func (mr *MockClusterServiceClientSpecMockRecorder) PostProvisionShard(ctx, builder any) *MockClusterServiceClientSpecPostProvisionShardCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PostProvisionShard", reflect.TypeOf((*MockClusterServiceClientSpec)(nil).PostProvisionShard), ctx, builder)
+	return &MockClusterServiceClientSpecPostProvisionShardCall{Call: call}
+}
+
+// MockClusterServiceClientSpecPostProvisionShardCall wrap *gomock.Call
+type MockClusterServiceClientSpecPostProvisionShardCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockClusterServiceClientSpecPostProvisionShardCall) Return(arg0 *v1alpha1.ProvisionShard, arg1 error) *MockClusterServiceClientSpecPostProvisionShardCall {
+	c.Call = c.Call.Return(arg0, arg1)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockClusterServiceClientSpecPostProvisionShardCall) Do(f func(context.Context, *v1alpha1.ProvisionShardBuilder) (*v1alpha1.ProvisionShard, error)) *MockClusterServiceClientSpecPostProvisionShardCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockClusterServiceClientSpecPostProvisionShardCall) DoAndReturn(f func(context.Context, *v1alpha1.ProvisionShardBuilder) (*v1alpha1.ProvisionShard, error)) *MockClusterServiceClientSpecPostProvisionShardCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
 // UpdateCluster mocks base method.
 func (m *MockClusterServiceClientSpec) UpdateCluster(ctx context.Context, internalID InternalID, builder *v1alpha1.ClusterBuilder) (*v1alpha1.Cluster, error) {
 	m.ctrl.T.Helper()
@@ -1159,6 +1313,45 @@ func (c *MockClusterServiceClientSpecUpdateNodePoolCall) Do(f func(context.Conte
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
 func (c *MockClusterServiceClientSpecUpdateNodePoolCall) DoAndReturn(f func(context.Context, InternalID, *v1alpha1.NodePoolBuilder) (*v1alpha1.NodePool, error)) *MockClusterServiceClientSpecUpdateNodePoolCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
+// UpdateProvisionShard mocks base method.
+func (m *MockClusterServiceClientSpec) UpdateProvisionShard(ctx context.Context, internalID InternalID, builder *v1alpha1.ProvisionShardBuilder) (*v1alpha1.ProvisionShard, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateProvisionShard", ctx, internalID, builder)
+	ret0, _ := ret[0].(*v1alpha1.ProvisionShard)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateProvisionShard indicates an expected call of UpdateProvisionShard.
+func (mr *MockClusterServiceClientSpecMockRecorder) UpdateProvisionShard(ctx, internalID, builder any) *MockClusterServiceClientSpecUpdateProvisionShardCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateProvisionShard", reflect.TypeOf((*MockClusterServiceClientSpec)(nil).UpdateProvisionShard), ctx, internalID, builder)
+	return &MockClusterServiceClientSpecUpdateProvisionShardCall{Call: call}
+}
+
+// MockClusterServiceClientSpecUpdateProvisionShardCall wrap *gomock.Call
+type MockClusterServiceClientSpecUpdateProvisionShardCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockClusterServiceClientSpecUpdateProvisionShardCall) Return(arg0 *v1alpha1.ProvisionShard, arg1 error) *MockClusterServiceClientSpecUpdateProvisionShardCall {
+	c.Call = c.Call.Return(arg0, arg1)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockClusterServiceClientSpecUpdateProvisionShardCall) Do(f func(context.Context, InternalID, *v1alpha1.ProvisionShardBuilder) (*v1alpha1.ProvisionShard, error)) *MockClusterServiceClientSpecUpdateProvisionShardCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockClusterServiceClientSpecUpdateProvisionShardCall) DoAndReturn(f func(context.Context, InternalID, *v1alpha1.ProvisionShardBuilder) (*v1alpha1.ProvisionShard, error)) *MockClusterServiceClientSpecUpdateProvisionShardCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
