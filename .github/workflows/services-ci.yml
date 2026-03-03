@@ -59,7 +59,7 @@ jobs:
       if: inputs.push == true
       run: |
         cd tooling/aro-hcp-exporter/
-        make build-and-push
+        make push
   build_push_frontend:
     permissions:
       id-token: 'write'
