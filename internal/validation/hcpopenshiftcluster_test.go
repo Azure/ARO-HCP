@@ -166,6 +166,10 @@ func TestClusterRequired(t *testing.T) {
 					message:   "Required value",
 					fieldPath: "serviceProviderProperties.managedIdentitiesDataPlaneIdentityURL",
 				},
+				{
+					message:   "Required value",
+					fieldPath: "serviceProviderProperties.billingDocId",
+				},
 			},
 		},
 		{
@@ -198,6 +202,10 @@ func TestClusterRequired(t *testing.T) {
 				{
 					message:   "Required value",
 					fieldPath: "serviceProviderProperties.managedIdentitiesDataPlaneIdentityURL",
+				},
+				{
+					message:   "Required value",
+					fieldPath: "serviceProviderProperties.billingDocId",
 				},
 			},
 		},

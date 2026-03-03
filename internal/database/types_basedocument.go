@@ -15,8 +15,6 @@
 package database
 
 import (
-	"github.com/google/uuid"
-
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 )
 
@@ -33,9 +31,4 @@ type BaseDocument struct {
 	CosmosETag        azcore.ETag `json:"_etag,omitempty"`
 	CosmosAttachments string      `json:"_attachments,omitempty"`
 	CosmosTimestamp   int         `json:"_ts,omitempty"`
-}
-
-// newBaseDocument returns a BaseDocument with a unique ID.
-func newBaseDocument() BaseDocument {
-	return BaseDocument{ID: uuid.New().String()}
 }
