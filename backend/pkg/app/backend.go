@@ -189,7 +189,10 @@ func (b *Backend) Run(ctx context.Context) error {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		errCh <- b.runBackendControllersUnderLeaderElection(ctx, electionChecker)
+		err := b.runBackendControllersUnderLeaderElection(ctx, electionChecker)
+		// When leader election exits (e.g. lost lease), cancel so Run() unblocks and performs shutdown.
+		cancel(fmt.Errorf("backend controllers leader election exited"))
+		errCh <- err
 	}()
 
 	<-ctx.Done()
