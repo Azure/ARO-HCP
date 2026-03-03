@@ -375,6 +375,12 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		activeOperationLister, b.options.CosmosDBClient, b.options.ClustersServiceClient,
 		backendInformers, b.options.MaestroSourceEnvironmentIdentifier, maestroClientBuilder,
 	)
+	maestroDeleteOrphanedReadonlyBundlesController := controllers.NewDeleteOrphanedMaestroReadonlyBundlesController(
+		b.options.CosmosDBClient,
+		b.options.ClustersServiceClient,
+		maestroClientBuilder,
+		b.options.MaestroSourceEnvironmentIdentifier,
+	)
 
 	azureRPRegistrationValidationController := validationcontrollers.NewClusterValidationController(
 		validations.NewAzureResourceProvidersRegistrationValidation(b.options.FPAClientBuilder),
@@ -434,6 +440,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go nodePoolVersionController.Run(ctx, 20)
 				go maestroCreateReadonlyBundlesController.Run(ctx, 20)
 				go maestroReadAndPersistReadonlyBundlesContentController.Run(ctx, 20)
+				go maestroDeleteOrphanedReadonlyBundlesController.Run(ctx, 20)
 			},
 			OnStoppedLeading: func() {
 				operationsScanner.LeaderGauge.Set(0)

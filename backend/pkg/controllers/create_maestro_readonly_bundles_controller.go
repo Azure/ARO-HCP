@@ -160,6 +160,10 @@ func (c *createMaestroReadonlyBundlesSyncer) SyncOnce(ctx context.Context, key c
 		return utils.TrackError(fmt.Errorf("failed to get Cluster Provision Shard from Cluster Service: %w", err))
 	}
 
+	// We create a new context with a cancel function so we can cancel the Maestro client when the sync is done.
+	// This is important to avoid leaking resources when the sync is done.
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
 	maestroClient, err := c.createMaestroClientFromProvisionShard(ctx, clusterProvisionShard)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to create Maestro client: %w", err))
@@ -335,6 +339,9 @@ func (c *createMaestroReadonlyBundlesSyncer) buildInitialReadonlyMaestroBundle(m
 		Name:            maestroBundleNamespacedName.Name,
 		Namespace:       maestroBundleNamespacedName.Namespace,
 		ResourceVersion: "0", // TODO is this needed when creating a maestro bundle?
+		Annotations: map[string]string{
+			"aro-hcp.azure.com/readonly-bundle-managed-by": "create-maestro-readonly-bundles-controller", // TODO maybe as annotation as it's fixed size and Maestro might accept filter on list?
+		},
 	}
 
 	// We build the Maestro Bundle that will contain the resource specified in obj.
