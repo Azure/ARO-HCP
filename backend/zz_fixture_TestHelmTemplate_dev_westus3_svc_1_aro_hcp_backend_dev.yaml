@@ -165,6 +165,7 @@ spec:
         - "b3cb2fab-15cb-4583-ad06-f91da9bfe2d1"
         - "--maestro-source-environment-identifier"
         - "arohcpdev"
+        - "--exit-on-panic=true"
         env:
         - name: DB_NAME
           valueFrom:
