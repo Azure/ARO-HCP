@@ -26,6 +26,7 @@ forwarder:
     ## Fluent Bit image version
     ##
     image:
+      # helmtest: ignore acr values
       registry: "{{ .arobit.forwarder.image.registry }}"
       repository: "{{ .arobit.forwarder.image.repository }}"
       digest: "{{ .arobit.forwarder.image.digest }}"

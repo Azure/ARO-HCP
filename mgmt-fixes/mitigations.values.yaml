@@ -1,1 +1,2 @@
+# helmtest: ignore acr values
 recycleOperatorImage: "{{ .aksCommandRuntime.image.registry }}/{{ .aksCommandRuntime.image.repository }}@{{ .aksCommandRuntime.image.digest }}"

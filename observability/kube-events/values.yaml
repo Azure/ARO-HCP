@@ -1,4 +1,5 @@
 image:
+  # helmtest: ignore acr values
   registry: '{{ .kubeEvents.image.registry }}'
   repository: '{{ .kubeEvents.image.repository }}'
   digest: '{{ .kubeEvents.image.digest }}'

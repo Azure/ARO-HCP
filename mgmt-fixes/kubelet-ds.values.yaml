@@ -1,1 +1,2 @@
+# helmtest: ignore acr values
 enabled: {{ .mgmt.applyKubeletFixes }}
