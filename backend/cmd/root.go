@@ -253,6 +253,11 @@ func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.C
 		return nil, utils.TrackError(fmt.Errorf("failed to create FPA client builder: %w", err))
 	}
 
+	backendIdentityAzureClients, err := app.NewBackendIdentityAzureClients(ctx, azureConfig)
+	if err != nil {
+		return nil, utils.TrackError(fmt.Errorf("failed to create backend identity azure clients: %w", err))
+	}
+
 	cosmosDBClient, err := app.NewCosmosDBClient(
 		ctx, f.AzureCosmosDBURL, f.AzureCosmosDBName,
 		*azureConfig.CloudEnvironment.AZCoreClientOptions(),
@@ -278,6 +283,7 @@ func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.C
 		TracerProviderShutdownFunc:         otelShutdown,
 		MaestroSourceEnvironmentIdentifier: f.MaestroSourceEnvironmentIdentifier,
 		FPAClientBuilder:                   fpaClientBuilder,
+		BackendIdentityAzureClients:        backendIdentityAzureClients,
 	}
 
 	return backendOptions, nil
