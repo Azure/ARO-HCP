@@ -104,6 +104,7 @@ var _ = Describe("Customer", func() {
 			nodePoolParams.ClusterName = customerClusterName
 			nodePoolParams.NodePoolName = customerNodePoolName
 			nodePoolParams.Replicas = int32(2)
+			initialReplicas := nodePoolParams.Replicas
 
 			// using a smaller VM size for faster provisioning, experimental - needs more testing
 			nodePoolParams.VMSize = "Standard_D4s_v3"
@@ -148,11 +149,12 @@ var _ = Describe("Customer", func() {
 			err = k8sClient.List(ctx, &nodeList)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(nodeList.Items).NotTo(BeEmpty())
+			Expect(len(nodeList.Items)).To(Equal(int(initialReplicas)), "expected exactly %d initial nodes but found %d", int(initialReplicas), len(nodeList.Items))
 
-			Expect(framework.HasNodeLabel(nodeList.Items, "key1", "value1", int(nodePoolParams.Replicas))).To(BeTrue(), "expected all nodes to have label 'key1=value1'")
+			Expect(framework.HasNodeLabel(nodeList.Items, "key1", "value1", int(initialReplicas))).To(BeTrue(), "expected all nodes to have label 'key1=value1'")
 
 			By("verifying initial taints are present on nodes")
-			Expect(framework.HasNodeTaint(nodeList.Items, "key1", "value1", corev1.TaintEffectNoSchedule, int(nodePoolParams.Replicas))).To(BeTrue(), "expected all nodes to have taint 'key1=value1:NoSchedule'")
+			Expect(framework.HasNodeTaint(nodeList.Items, "key1", "value1", corev1.TaintEffectNoSchedule, int(initialReplicas))).To(BeTrue(), "expected all nodes to have taint 'key1=value1:NoSchedule'")
 
 			By("updating nodepool with a new label and scaling up")
 			update := hcpsdk20240610preview.NodePoolUpdate{
@@ -226,8 +228,8 @@ var _ = Describe("Customer", func() {
 			err = k8sClient.List(ctx, &finalNodeList)
 			Expect(err).NotTo(HaveOccurred())
 
-			Expect(framework.HasNodeLabel(finalNodeList.Items, "key1", "value1")).To(BeTrue(), "original label key1=value1 should still be present")
-			Expect(framework.HasNodeTaint(finalNodeList.Items, "key1", "value1", corev1.TaintEffectNoSchedule)).To(BeTrue(), "original taint key1=value1:NoSchedule should still be present")
+			Expect(framework.HasNodeLabel(finalNodeList.Items, "key1", "value1", int(initialReplicas))).To(BeTrue(), "expected %d nodes to still have original label key1=value1", int(initialReplicas))
+			Expect(framework.HasNodeTaint(finalNodeList.Items, "key1", "value1", corev1.TaintEffectNoSchedule, int(initialReplicas))).To(BeTrue(), "expected %d nodes to still have original taint key1=value1:NoSchedule", int(initialReplicas))
 
 		})
 })
