@@ -783,7 +783,7 @@ defaults:
     image:
       registry: quay.io
       repository: app-sre/aro-hcp-clusters-service
-      digest: sha256:877909c7b876e7cb8dd1d0cdb6485b92e9eb0bdd1494df44a308363b7a44b63b # 1beaf19ada70e27bdc20f22a51302c1e907f3a74 (2026-02-19 14:17)
+      digest: sha256:9424c9ea504939ad2167fe1face3fa47d8d15cf71d4d952a82bb1996aa75ad4f # 71051c36313c120fe0bb62e5e212d9be3a2ec17d (2026-03-09 19:11)
     # controls how many HCPs can be placed on an MC, sadly not configurable per MC
     provisionShardClusterLimit: 100
     # batch processes

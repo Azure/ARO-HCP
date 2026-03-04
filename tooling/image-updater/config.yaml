@@ -65,7 +65,7 @@ images:
     group: cs
     source:
       image: quay.io/app-sre/aro-hcp-clusters-service
-      tag: "1beaf19"
+      tag: "latest"
       versionLabel: "vcs-ref"
       useAuth: true
       keyVault:
