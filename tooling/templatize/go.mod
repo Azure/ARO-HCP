@@ -3,15 +3,15 @@ module github.com/Azure/ARO-HCP/tooling/templatize
 go 1.25.5
 
 require (
-	github.com/Azure/ARO-Tools/config v0.0.0-20260227032723-11f678744bf9
-	github.com/Azure/ARO-Tools/pipelines v0.0.0-20260227032723-11f678744bf9
-	github.com/Azure/ARO-Tools/testutil v0.0.0-20260227032723-11f678744bf9
-	github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20260227032723-11f678744bf9
-	github.com/Azure/ARO-Tools/tools/grafanactl v0.0.0-20260227032723-11f678744bf9
-	github.com/Azure/ARO-Tools/tools/helm v0.0.0-20260227032723-11f678744bf9
-	github.com/Azure/ARO-Tools/tools/prow-job-executor v0.0.0-20260227032723-11f678744bf9
-	github.com/Azure/ARO-Tools/tools/registration v0.0.0-20260227032723-11f678744bf9
-	github.com/Azure/ARO-Tools/tools/secret-sync v0.0.0-20260227032723-11f678744bf9
+	github.com/Azure/ARO-Tools/config v0.0.0-20260227173620-72c349d23388
+	github.com/Azure/ARO-Tools/pipelines v0.0.0-20260227173620-72c349d23388
+	github.com/Azure/ARO-Tools/testutil v0.0.0-20260227173620-72c349d23388
+	github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20260227173620-72c349d23388
+	github.com/Azure/ARO-Tools/tools/grafanactl v0.0.0-20260227173620-72c349d23388
+	github.com/Azure/ARO-Tools/tools/helm v0.0.0-20260227173620-72c349d23388
+	github.com/Azure/ARO-Tools/tools/prow-job-executor v0.0.0-20260227173620-72c349d23388
+	github.com/Azure/ARO-Tools/tools/registration v0.0.0-20260227173620-72c349d23388
+	github.com/Azure/ARO-Tools/tools/secret-sync v0.0.0-20260227173620-72c349d23388
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.21.0
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.13.1
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v3 v3.0.0-beta.2
@@ -54,7 +54,7 @@ require (
 	contrib.go.opencensus.io/exporter/ocagent v0.7.1-0.20200907061046-05415f1de66d // indirect
 	contrib.go.opencensus.io/exporter/prometheus v0.4.2 // indirect
 	dario.cat/mergo v1.0.1 // indirect
-	github.com/Azure/ARO-Tools/tools/yamlwrap v0.0.0-20260227032723-11f678744bf9 // indirect
+	github.com/Azure/ARO-Tools/tools/yamlwrap v0.0.0-20260227173620-72c349d23388 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/internal v1.11.2 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/dashboard/armdashboard v1.2.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/managementgroups/armmanagementgroups v1.2.0 // indirect
@@ -110,7 +110,7 @@ require (
 	github.com/cjwagner/httpcache v0.0.0-20230907212505-d4841bbad466 // indirect
 	github.com/clarketm/json v1.17.1 // indirect
 	github.com/cloudevents/sdk-go/v2 v2.16.2 // indirect
-	github.com/cloudflare/circl v1.6.1 // indirect
+	github.com/cloudflare/circl v1.6.3 // indirect
 	github.com/cncf/xds/go v0.0.0-20251022180443-0feb69152e9f // indirect
 	github.com/coreos/go-systemd/v22 v22.6.0 // indirect
 	github.com/cyphar/filepath-securejoin v0.5.0 // indirect

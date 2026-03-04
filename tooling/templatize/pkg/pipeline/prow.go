@@ -21,11 +21,12 @@ import (
 
 	"github.com/go-logr/logr"
 
+	"github.com/Azure/ARO-Tools/config/ev2config"
 	"github.com/Azure/ARO-Tools/pipelines/types"
 	prowjobexecutor "github.com/Azure/ARO-Tools/tools/prow-job-executor"
 )
 
-func runProwJobStep(step *types.ProwJobStep, ctx context.Context, options *StepRunOptions) error {
+func runProwJobStep(step *types.ProwJobStep, ctx context.Context, options *StepRunOptions, executionTarget ExecutionTarget) error {
 	logger, err := logr.FromContext(ctx)
 	if err != nil {
 		return err
@@ -35,6 +36,20 @@ func runProwJobStep(step *types.ProwJobStep, ctx context.Context, options *StepR
 		return nil
 	}
 
+	ev2cfg, err := ev2config.ResolveConfig(options.Cloud, executionTarget.GetRegion())
+	if err != nil {
+		return fmt.Errorf("cannot resolve config for %s/%s: %v", err, options.Cloud, executionTarget.GetRegion())
+	}
+	rawKeyVaultDNSSuffix, err := ev2cfg.GetByPath("keyVault.domainNameSuffix")
+	if err != nil {
+		return fmt.Errorf("cannot get Ev2 config value keyVault.domainNameSuffix: %v", err)
+	}
+	keyVaultDNSSuffix, ok := rawKeyVaultDNSSuffix.(string)
+	if !ok {
+		return fmt.Errorf("keyVaultDNSSuffix is %T, not a string", rawKeyVaultDNSSuffix)
+	}
+	keyVaultURI := "https://" + step.TokenKeyvault + "." + keyVaultDNSSuffix
+
 	gate, err := strconv.ParseBool(step.GatePromotion)
 	if err != nil {
 		return fmt.Errorf("could not parse gate promotion flag: %w", err)
@@ -42,12 +57,12 @@ func runProwJobStep(step *types.ProwJobStep, ctx context.Context, options *StepR
 
 	opts := prowjobexecutor.DefaultExecuteOptions()
 	opts.Secret = step.TokenSecret
-	opts.KeyVaultURI = step.TokenKeyvault
+	opts.KeyVaultURI = keyVaultURI
 	opts.ProwJobName = step.JobName
 	opts.GatePromotion = gate
 
 	inputs := prowInputs{
-		KeyVault: step.TokenKeyvault,
+		KeyVault: keyVaultURI,
 		Secret:   step.TokenSecret,
 		JobName:  step.JobName,
 	}
