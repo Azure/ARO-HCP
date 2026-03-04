@@ -191,21 +191,7 @@ var _ = Describe("Customer", func() {
 			// TEST CASE: https://issues.redhat.com/browse/ARO-22570 to be implemented here
 
 			// TEST CASE: https://issues.redhat.com/browse/ARO-22571 to be implemented here
-
-			// TEMPORARY: Test error reporting with invalid VM size (should fail fast)
-			By("attempting to update nodepool with invalid VM size")
-			testNodePool, err := nodePoolClient.Get(ctx, *resourceGroup.Name, clusterParams.ClusterName, nodePoolParams.NodePoolName, nil)
-			if err == nil && testNodePool.Properties != nil && testNodePool.Properties.Platform != nil {
-				testNodePool.Properties.Platform.VMSize = to.Ptr("Invalid_VM_Size_That_Does_Not_Exist")
-				_, err = nodePoolClient.BeginCreateOrUpdate(ctx, *resourceGroup.Name, clusterParams.ClusterName, nodePoolParams.NodePoolName, testNodePool.NodePool, nil)
-				if err == nil {
-					errs = append(errs, fmt.Errorf("expected error when using invalid VM size, but no error occurred"))
-				} else {
-					// Add the actual error to test error reporting formatting
-					errs = append(errs, fmt.Errorf("invalid VM size test error: %w", err))
-				}
-			}
-
+			
 			if len(errs) > 0 {
 				Expect(errors.Join(errs...)).NotTo(HaveOccurred())
 			}
