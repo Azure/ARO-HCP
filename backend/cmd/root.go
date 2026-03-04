@@ -55,6 +55,7 @@ type BackendRootCmdFlags struct {
 	InsecureAzureManagedIdentityMockServicePrincipalID                                            string
 	InsecureAzureManagedIdentityMockTenantID                                                      string
 	InsecureIgnoreUserAzureManagedIdentitiesThatNeedManagedIdentitiesDataplaneAvailableAndUseMock bool
+	ExitOnPanic                                                                                   bool
 }
 
 func (f *BackendRootCmdFlags) AddFlags(cmd *cobra.Command) {
@@ -143,6 +144,10 @@ func (f *BackendRootCmdFlags) AddFlags(cmd *cobra.Command) {
 			"This flag should only be set in environments where Microsoft's MI Dataplane service is not available. "+
 			"When set, it must be set in combination with the '--insecure-azure-managed-identity-mock-certificate-bundle-path', "+
 			"'--insecure-azure-managed-identity-mock-client-id' and '--insecure-azure-managed-identity-mock-principal-id' flags.",
+	)
+
+	cmd.Flags().BoolVar(&f.ExitOnPanic, "exit-on-panic", f.ExitOnPanic,
+		"If set, backend will exit the process if a panic occurs. As of now it only controls the setting of k8s.io/apimachinery/pkg/util/runtime.ReallyCrash",
 	)
 
 	cmd.MarkFlagsRequiredTogether("cosmos-name", "cosmos-url")
@@ -284,6 +289,7 @@ func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.C
 		MaestroSourceEnvironmentIdentifier: f.MaestroSourceEnvironmentIdentifier,
 		FPAClientBuilder:                   fpaClientBuilder,
 		BackendIdentityAzureClients:        backendIdentityAzureClients,
+		ExitOnPanic:                        f.ExitOnPanic,
 	}
 
 	return backendOptions, nil
@@ -305,6 +311,7 @@ func NewBackendRootCmdFlags() *BackendRootCmdFlags {
 		AzureFirstPartyApplicationClientID:              "",
 		LogVerbosity:                                    0,
 		MaestroSourceEnvironmentIdentifier:              "",
+		ExitOnPanic:                                     true,
 	}
 
 	return flags

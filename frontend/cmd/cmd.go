@@ -65,10 +65,12 @@ type FrontendOpts struct {
 
 	cosmosName string
 	cosmosURL  string
+
+	exitOnPanic bool
 }
 
 func NewRootCmd() *cobra.Command {
-	opts := &FrontendOpts{}
+	opts := NewFrontendOpts()
 	rootCmd := &cobra.Command{
 		Use:     "aro-hcp-frontend",
 		Version: version.CommitSHA,
@@ -102,9 +104,18 @@ func NewRootCmd() *cobra.Command {
 	rootCmd.Flags().BoolVar(&opts.clusterServiceNoopProvision, "cluster-service-noop-provision", false, "Skip cluster service provisioning steps for development purposes")
 	rootCmd.Flags().BoolVar(&opts.clusterServiceNoopDeprovision, "cluster-service-noop-deprovision", false, "Skip cluster service deprovisioning steps for development purposes")
 
+	rootCmd.Flags().BoolVar(&opts.exitOnPanic, "exit-on-panic", opts.exitOnPanic,
+		"If set, frontend will exit the process if a panic occurs. As of now it only controls the setting of k8s.io/apimachinery/pkg/util/runtime.ReallyCrash",
+	)
 	rootCmd.MarkFlagsRequiredTogether("cosmos-name", "cosmos-url")
 
 	return rootCmd
+}
+
+func NewFrontendOpts() *FrontendOpts {
+	return &FrontendOpts{
+		exitOnPanic: true,
+	}
 }
 
 type PolicyFunc func(*policy.Request) (*http.Response, error)
@@ -225,7 +236,10 @@ func (opts *FrontendOpts) Run() error {
 		utils.TracerName,
 	)
 
-	f := frontend.NewFrontend(logger, listener, metricsListener, prometheus.DefaultRegisterer, dbClient, csClient, auditClient, opts.location, opts.clusterServiceProvisionShard, opts.clusterServiceNoopProvision, opts.clusterServiceNoopDeprovision)
+	f := frontend.NewFrontend(
+		logger, listener, metricsListener, prometheus.DefaultRegisterer, dbClient, csClient, auditClient, opts.location, opts.clusterServiceProvisionShard,
+		opts.clusterServiceNoopProvision, opts.clusterServiceNoopDeprovision, opts.exitOnPanic,
+	)
 
 	runErrCh := make(chan error, 1)
 	go func() {

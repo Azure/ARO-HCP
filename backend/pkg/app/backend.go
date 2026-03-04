@@ -30,6 +30,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
+	k8sutilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/tools/leaderelection"
 	"k8s.io/client-go/tools/leaderelection/resourcelock"
 	utilsclock "k8s.io/utils/clock"
@@ -67,6 +68,7 @@ type BackendOptions struct {
 	MaestroSourceEnvironmentIdentifier string
 	FPAClientBuilder                   azureclient.FirstPartyApplicationClientBuilder
 	BackendIdentityAzureClients        *azureclient.BackendIdentityAzureClients
+	ExitOnPanic                        bool
 }
 
 func (o *BackendOptions) RunBackend(ctx context.Context) error {
@@ -131,6 +133,10 @@ func (b *Backend) Run(ctx context.Context) error {
 			logger.Info("tracer provider shut down completed")
 		}
 	}()
+
+	// We set k8s.io/apimachinery/pkg/util/runtime.ReallyCrash to the value of the ExitOnPanic option to
+	// control the behavior of k8s.io/apimachinery/pkg/util/runtime.HandleCrash* methods
+	k8sutilruntime.ReallyCrash = b.options.ExitOnPanic
 
 	// Create HealthzAdaptor for leader election
 	electionChecker := leaderelection.NewLeaderHealthzAdaptor(time.Second * 20)
