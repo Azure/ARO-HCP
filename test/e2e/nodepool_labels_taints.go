@@ -103,6 +103,7 @@ var _ = Describe("Customer", func() {
 			nodePoolParams := framework.NewDefaultNodePoolParams()
 			nodePoolParams.ClusterName = customerClusterName
 			nodePoolParams.NodePoolName = customerNodePoolName
+			nodePoolParams.Replicas = int32(2)
 
 			// using a smaller VM size for faster provisioning, experimental - needs more testing
 			nodePoolParams.VMSize = "Standard_D4s_v3"
@@ -148,10 +149,10 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred())
 			Expect(nodeList.Items).NotTo(BeEmpty())
 
-			Expect(framework.HasNodeLabel(nodeList.Items, "key1", "value1")).To(BeTrue(), "expected to find at least one node with label 'key1=value1'")
+			Expect(framework.HasNodeLabel(nodeList.Items, "key1", "value1", int(nodePoolParams.Replicas))).To(BeTrue(), "expected all nodes to have label 'key1=value1'")
 
 			By("verifying initial taints are present on nodes")
-			Expect(framework.HasNodeTaint(nodeList.Items, "key1", "value1", corev1.TaintEffectNoSchedule)).To(BeTrue(), "expected to find at least one node with taint 'key1=value1:NoSchedule'")
+			Expect(framework.HasNodeTaint(nodeList.Items, "key1", "value1", corev1.TaintEffectNoSchedule, int(nodePoolParams.Replicas))).To(BeTrue(), "expected all nodes to have taint 'key1=value1:NoSchedule'")
 
 			By("updating nodepool with a new label and scaling up")
 			update := hcpsdk20240610preview.NodePoolUpdate{

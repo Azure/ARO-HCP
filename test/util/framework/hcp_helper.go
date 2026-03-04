@@ -975,22 +975,35 @@ func ValidateNodePoolDiskStorageAccountType(
 	return nil
 }
 
-func HasNodeLabel(nodes []corev1.Node, key, value string) bool {
+func HasNodeLabel(nodes []corev1.Node, key, value string, expectedCount ...int) bool {
+	count := 0
 	for _, node := range nodes {
 		if node.Labels[key] == value {
-			return true
+			count++
 		}
 	}
-	return false
+	
+	if len(expectedCount) == 0 {
+		return count > 0
+	}
+	
+	return count == expectedCount[0]
 }
 
-func HasNodeTaint(nodes []corev1.Node, key, value string, effect corev1.TaintEffect) bool {
+func HasNodeTaint(nodes []corev1.Node, key, value string, effect corev1.TaintEffect, expectedCount ...int) bool {
+	count := 0
 	for _, node := range nodes {
 		for _, taint := range node.Spec.Taints {
 			if taint.Key == key && taint.Value == value && taint.Effect == effect {
-				return true
+				count++
+				break
 			}
 		}
 	}
-	return false
+	
+	if len(expectedCount) == 0 {
+		return count > 0
+	}
+	
+	return count == expectedCount[0]
 }
