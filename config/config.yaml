@@ -232,7 +232,7 @@ defaults:
     image:
       registry: quay.io
       repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
-      digest: sha256:3c15422f38d4a74bbb292fbf9da3768e5c9833ff98faf4a28177c2d9ec62df42 # 913aaded6c1cdc2b9683ffe20260fe95fbc6d43d (2026-03-02 17:02)
+      digest: sha256:23f7bff429429cb556a24631f555674dcf7199cdc453b54960a8934aa4751d3a # 8b3a73457397663a1b8ef809db5739a2b5bf8731 (2026-03-04 14:44)
     namespace: hypershift
     additionalInstallArg: '--enable-cpo-overrides'
     # By default we set it to empty as this tag is only required for msft environments. We override
@@ -553,7 +553,7 @@ defaults:
     image:
       registry: arohcpsvcdev.azurecr.io
       repository: arohcpbackend
-      digest: sha256:f4dfa102999b5a068ee992941d670224213d5467307349360ae8a64ab53147a6 # 3de0bdd (2026-03-03 14:51)
+      digest: sha256:c1a47ae0a58873de144b6a4d94a04436b85a40bc36bd50606d224a55a3e068ec # 65fb1c2 (2026-03-04 19:57)
     tracing:
       address: ""
       exporter: ""
@@ -574,7 +574,7 @@ defaults:
     image:
       registry: arohcpsvcdev.azurecr.io
       repository: arohcpadminapi
-      digest: sha256:307822ccfff78617c9c764e84d65383fe44cebe02a2827c1bc1a3083d22c81ea # 3de0bdd (2026-03-03 14:51)
+      digest: sha256:e36c1b576665cf78bd547a4fa0422508c495f8d0163093cf2084fc430cc08a39 # 65fb1c2 (2026-03-04 19:57)
     managedIdentityName: admin-api
     k8s:
       replicas: 2
@@ -587,7 +587,7 @@ defaults:
     image:
       registry: arohcpsvcdev.azurecr.io
       repository: arohcpsessiongate
-      digest: sha256:19e789bee3ada11a91fa1e4e644326dd7dc41141c7659ef61d3d647075c73f2c # 3de0bdd (2026-03-03 14:50)
+      digest: sha256:2f7d40d64377d42b5f3db15e3b88ab53941334806eb0e57286ca0a6f13fc6b4c # 65fb1c2 (2026-03-04 19:57)
     managedIdentityName: sessiongate
     k8s:
       replicas: 2
@@ -602,7 +602,7 @@ defaults:
     image:
       registry: arohcpsvcdev.azurecr.io
       repository: arohcpfrontend
-      digest: sha256:bbd51abe758e70965a0a8cbf70f2ca266544e746aad13d94ef17afb426f04d73 # 3de0bdd (2026-03-03 14:50)
+      digest: sha256:d94b1fc79c55c4451e2bd62c68e678dbd79baeb0ca7f00131d711310b2a63b6a # 65fb1c2 (2026-03-04 19:56)
     tracing:
       address: ""
       exporter: ""
@@ -749,7 +749,7 @@ defaults:
     image:
       registry: quay.io
       repository: redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro
-      digest: sha256:144f3abdc7e843bf8a59b3b45c9892528e22de6068567fb6cfd26630f33f621e # 1d60cf7d53afa97bfffb028fb8a2f1b3bac13322 (2026-02-26 06:54)
+      digest: sha256:4c83904750f8d432432c41fde1803fedae6b7bfca0d9cb96b06332d7707d3881 # bba0d0981b81ad57ada51b9877f625c8e6049297 (2026-03-04 03:08)
   # PKO
   pko:
     managedIdentityName: package-operator
@@ -774,12 +774,12 @@ defaults:
       bundle:
         registry: quay.io
         repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-215
-        digest: sha256:bd4eb5bb5132ccc603a9759848517af88826c6ce5e6f060f240a04819792915a # v2.15.2-406 (2026-03-03 17:16)
+        digest: sha256:d071d2154d8371411b0f503ee74242a2eff43ba679a0b139b4cbccf9f49d72db # v2.15.2-407 (2026-03-04 05:21)
     mce:
       bundle:
         registry: quay.io
         repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-210
-        digest: sha256:6489e5b38ae5861538e4afd31719633c444aab61414f15d055cf8f646459e6b1 # v2.10.2-421 (2026-03-03 05:29)
+        digest: sha256:e5d3a63189d600f03e368b2f7e49278d6bc1cae08a5931c617081020d633b26c # v2.10.2-423 (2026-03-04 05:25)
   # Cluster Service
   clustersService:
     image:
@@ -851,7 +851,7 @@ defaults:
       image:
         registry: arohcpsvcdev.azurecr.io
         repository: image-sync/oc-mirror
-        digest: sha256:4d8eb5db90c7a3d4bc0ce5610c6ef07aeb0a1a298c118f6e3be56b4fce7828cb # 3de0bdd (2026-03-03 14:51)
+        digest: sha256:971bf730d5ab7c5942ae30244f9772a7e4d1bea02e15c75b8a96a6d4cf130fff # 65fb1c2 (2026-03-04 19:56)
       pullSecretName: ocmirror-pull-secret
       operatorVersionsToMirror: "4.18,4.19,4.20"
   # Automation Account
