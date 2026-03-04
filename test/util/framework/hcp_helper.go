@@ -982,11 +982,11 @@ func HasNodeLabel(nodes []corev1.Node, key, value string, expectedCount ...int) 
 			count++
 		}
 	}
-	
+
 	if len(expectedCount) == 0 {
 		return count > 0
 	}
-	
+
 	return count == expectedCount[0]
 }
 
@@ -1000,10 +1000,10 @@ func HasNodeTaint(nodes []corev1.Node, key, value string, effect corev1.TaintEff
 			}
 		}
 	}
-	
+
 	if len(expectedCount) == 0 {
 		return count > 0
 	}
-	
+
 	return count == expectedCount[0]
 }
