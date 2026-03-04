@@ -191,7 +191,6 @@ var _ = Describe("Customer", func() {
 			// TEST CASE: https://issues.redhat.com/browse/ARO-22570 to be implemented here
 
 			// TEST CASE: https://issues.redhat.com/browse/ARO-22571 to be implemented here
-			
 			if len(errs) > 0 {
 				Expect(errors.Join(errs...)).NotTo(HaveOccurred())
 			}
