@@ -142,9 +142,9 @@ jobs:
     - name: 'Deploy ACM'
       run: |
         make acm.deploy_pipeline
-    - name: 'Deploy PKO'
-      run: |
-        make pko.deploy_pipeline
+    # - name: 'Deploy PKO'
+    #   run: |
+    #     make pko.deploy_pipeline
     - name: 'Deploy Maestro Agent'
       run: |
         make maestro.agent.deploy_pipeline
