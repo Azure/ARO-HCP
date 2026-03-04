@@ -566,6 +566,7 @@ defaults:
       tlsCertificatesIssuer: OneCertV2-PublicCA
     maestro:
       sourceEnvironmentIdentifier: "arohcp{{ .ctx.environment }}"
+    exitOnPanic: true
   # Admin API
   adminApi:
     audit:
@@ -621,6 +622,7 @@ defaults:
       locksContainerMaxScale: 4000
     cert:
       name: frontend-cert-{{ .ctx.environment }}-{{ .ctx.regionShort }}
+    exitOnPanic: true
   # Billing
   billing:
     rg: "placeholder"

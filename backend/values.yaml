@@ -46,3 +46,4 @@ azure:
     certificatesGenerationSource: "AzureKeyVault"
 maestro:
   sourceEnvironmentIdentifier: "{{ .backend.maestro.sourceEnvironmentIdentifier }}"
+exitOnPanic: {{ .backend.exitOnPanic }}
