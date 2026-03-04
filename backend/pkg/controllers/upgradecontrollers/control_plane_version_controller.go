@@ -230,6 +230,7 @@ func (c *controlPlaneVersionSyncer) getCincinnatiClient(key controllerutils.HCPC
 // - Case 2: Z-stream managed upgrade (customer desired minor == actual minor)
 // - Case 3: Next Y-stream user-initiated upgrade (customer desired minor == actual minor + 1)
 //
+// customerDesiredMinor and channelGroup are required. If they are not specified, no version is returned.
 // Returns nil if no upgrade is needed.
 func (c *controlPlaneVersionSyncer) desiredControlPlaneZVersion(
 	ctx context.Context, cincinnatiClient cincinatti.Client,
@@ -237,6 +238,15 @@ func (c *controlPlaneVersionSyncer) desiredControlPlaneZVersion(
 	activeVersions []api.HCPClusterActiveVersion,
 ) (*semver.Version, error) {
 	logger := utils.LoggerFromContext(ctx)
+
+	if len(customerDesiredMinor) == 0 {
+		logger.Info("No desired minor version specified. Terminating version resolution.")
+		return nil, nil
+	}
+	if len(channelGroup) == 0 {
+		logger.Info("No channel group specified. Terminating version resolution.")
+		return nil, nil
+	}
 
 	if len(activeVersions) == 0 {
 		logger.Info("Resolving initial desired version", "customerDesiredMinor", customerDesiredMinor, "channelGroup", channelGroup)
@@ -271,6 +281,11 @@ func (c *controlPlaneVersionSyncer) desiredControlPlaneZVersion(
 
 	// ParseTolerant handles both "4.19" and "4.19.0" formats (validated at API level, should never fail)
 	desiredMinorVersion := api.Must(semver.ParseTolerant(customerDesiredMinor))
+
+	if len(channelGroup) == 0 {
+		logger.Info("No channel group specified. Terminating upgrade resolution.")
+		return nil, nil
+	}
 
 	if desiredMinorVersion.LT(actualMinorVersion) {
 		return nil, utils.TrackError(fmt.Errorf(
