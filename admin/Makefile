@@ -5,6 +5,7 @@ ADMIN_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 -include ../.bingo/Variables.mk
 
 ARO_HCP_REVISION ?= $(shell git rev-parse HEAD)
+ARO_HCP_COMMIT_TIME := $(shell TZ=UTC git show -s --format=%cd --date=iso-strict-local ${ARO_HCP_REVISION})
 ARO_HCP_IMAGE_REGISTRY ?= ${ARO_HCP_IMAGE_ACR}.azurecr.io
 ADMIN_API_IMAGE_TAG ?= $(shell DETECT_DIRTY_GIT_WORKTREE=${DETECT_DIRTY_GIT_WORKTREE} DEPLOY_ENV=${DEPLOY_ENV} ../generate-tag.sh)
 ADMIN_API_GENERATED_IMAGE_REPOSITORY = $(shell DEPLOY_ENV=${DEPLOY_ENV} BASELINE_REPO=${ADMIN_API_IMAGE_REPOSITORY} ../generate-repo.sh)
@@ -67,6 +68,7 @@ image: Dockerfile $(ADMIN_API_SOURCES) Makefile
 	docker build . --file admin/Dockerfile \
 		--build-arg PLATFORM=linux/amd64 \
 		--build-arg ARO_HCP_REVISION=${ARO_HCP_REVISION} \
+		--build-arg ARO_HCP_COMMIT_TIME=${ARO_HCP_COMMIT_TIME} \
 		--build-arg ARO_HCP_IMAGE_TAG=${ADMIN_API_IMAGE_TAG} \
 		--tag ${ADMIN_API_TAGGED_IMAGE}
 
