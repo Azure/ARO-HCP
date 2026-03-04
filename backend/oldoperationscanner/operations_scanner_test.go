@@ -343,9 +343,6 @@ func TestUpdateOperationStatus(t *testing.T) {
 				DoAndReturn(func(s string) database.OperationCRUD {
 					return mockOperationCRUD
 				})
-			mockOperationCRUD.EXPECT().
-				Get(gomock.Any(), operationDoc.OperationID.Name).
-				Return(operationDoc, nil)
 			mockDBClient.EXPECT().
 				NewTransaction(operationDoc.OperationID.SubscriptionID).
 				Return(mockTransaction)

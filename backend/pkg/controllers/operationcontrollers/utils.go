@@ -71,18 +71,7 @@ func UpdateOperationStatus(ctx context.Context, cosmosClient database.DBClient, 
 		return nil
 	}
 
-	// Re-read the operation document to ensure any pending Cosmos ID
-	// migration is applied (old pipe-separated ID to new UUID-based ID)
-	// and to obtain a fresh ETag. This is ugly but necessary because callers like
-	// the old operation scanner read via ListActiveOperations (a query
-	// that does not trigger migration), while AddReplaceToTransaction
-	// expects the document to already have the new UUID-based ID.
-	operationsCRUD := cosmosClient.Operations(existingOperation.OperationID.SubscriptionID)
-	updatedOperation, err := operationsCRUD.Get(ctx, existingOperation.OperationID.Name)
-	if err != nil {
-		return utils.TrackError(err)
-	}
-
+	updatedOperation := existingOperation.DeepCopy()
 	updatedOperation.LastTransitionTime = localClock.Now()
 	updatedOperation.Status = newOperationStatus
 	if newOperationError != nil {
@@ -96,7 +85,7 @@ func UpdateOperationStatus(ctx context.Context, cosmosClient database.DBClient, 
 	transaction := cosmosClient.NewTransaction(updatedOperation.OperationID.SubscriptionID)
 
 	// Add the operation document replace to the transaction.
-	if _, err := operationsCRUD.AddReplaceToTransaction(ctx, transaction, updatedOperation, nil); err != nil {
+	if _, err := cosmosClient.Operations(updatedOperation.OperationID.SubscriptionID).AddReplaceToTransaction(ctx, transaction, updatedOperation, nil); err != nil {
 		return utils.TrackError(err)
 	}
 
@@ -111,100 +100,39 @@ func UpdateOperationStatus(ctx context.Context, cosmosClient database.DBClient, 
 
 	case strings.EqualFold(existingOperation.ExternalID.ResourceType.String(), api.ClusterResourceType.String()):
 		dbClient := cosmosClient.HCPClusters(existingOperation.ExternalID.SubscriptionID, existingOperation.ExternalID.ResourceGroupName)
-		curr, err := dbClient.Get(ctx, existingOperation.ExternalID.Name)
+		updated, err := getClusterForUpdate(ctx, logger, dbClient, existingOperation, newOperationStatus)
 		if err != nil {
-			var responseErr *azcore.ResponseError
-			if errors.As(err, &responseErr) && responseErr.StatusCode == http.StatusNotFound {
-				// Resource was deleted; skip the resource update so the
-				// operation can still reach a terminal state.
-				logger.Info("Resource not found, skipping resource update")
-			} else {
-				return utils.TrackError(err)
-			}
-		} else if existingOperation.OperationID == nil {
-			return utils.TrackError(fmt.Errorf("missing operation ID"))
-		} else if curr.ServiceProviderProperties.ActiveOperationID != existingOperation.OperationID.Name {
-			// Another operation has taken ownership of this resource.
-			// Skip the resource update so this operation's lifecycle
-			// can complete without interfering with the new owner.
-			logger.Info("Resource has a different active operation, skipping resource update",
-				"resourceActiveOperationID", curr.ServiceProviderProperties.ActiveOperationID,
-				"thisOperationID", existingOperation.OperationID.Name)
-		} else if curr.ServiceProviderProperties.ProvisioningState == newOperationStatus && !newOperationStatus.IsTerminal() {
-			// Resource is already at the target state; no update needed.
-			// Terminal states always update to clear ActiveOperationID.
-			logger.Info("No update needed", "activeOperationID", curr.ServiceProviderProperties.ActiveOperationID, "oldStatus", curr.ServiceProviderProperties.ProvisioningState, "newStatus", newOperationStatus)
-		} else {
-			updatedResource := curr.DeepCopy()
-			updatedResource.ServiceProviderProperties.ProvisioningState = newOperationStatus
-			if newOperationStatus.IsTerminal() {
-				updatedResource.ServiceProviderProperties.ActiveOperationID = ""
-			}
-
-			logger.Info("Updating resource", "activeOperationID", updatedResource.ServiceProviderProperties.ActiveOperationID, "newStatus", newOperationStatus)
-			if _, err := dbClient.AddReplaceToTransaction(ctx, transaction, updatedResource, nil); err != nil {
+			return err
+		}
+		if updated != nil {
+			logger.Info("Updating resource", "activeOperationID", updated.ServiceProviderProperties.ActiveOperationID, "newStatus", newOperationStatus)
+			if _, err := dbClient.AddReplaceToTransaction(ctx, transaction, updated, nil); err != nil {
 				return utils.TrackError(err)
 			}
 		}
 
 	case strings.EqualFold(existingOperation.ExternalID.ResourceType.String(), api.NodePoolResourceType.String()):
 		dbClient := cosmosClient.HCPClusters(existingOperation.ExternalID.SubscriptionID, existingOperation.ExternalID.ResourceGroupName).NodePools(existingOperation.ExternalID.Parent.Name)
-		curr, err := dbClient.Get(ctx, existingOperation.ExternalID.Name)
+		updated, err := getNodePoolForUpdate(ctx, logger, dbClient, existingOperation, newOperationStatus)
 		if err != nil {
-			var responseErr *azcore.ResponseError
-			if errors.As(err, &responseErr) && responseErr.StatusCode == http.StatusNotFound {
-				logger.Info("Resource not found, skipping resource update")
-			} else {
-				return utils.TrackError(err)
-			}
-		} else if existingOperation.OperationID == nil {
-			return utils.TrackError(fmt.Errorf("missing operation ID"))
-		} else if curr.ServiceProviderProperties.ActiveOperationID != existingOperation.OperationID.Name {
-			logger.Info("Resource has a different active operation, skipping resource update",
-				"resourceActiveOperationID", curr.ServiceProviderProperties.ActiveOperationID,
-				"thisOperationID", existingOperation.OperationID.Name)
-		} else if curr.Properties.ProvisioningState == newOperationStatus && !newOperationStatus.IsTerminal() {
-			logger.Info("No update needed", "activeOperationID", curr.ServiceProviderProperties.ActiveOperationID, "oldStatus", curr.Properties.ProvisioningState, "newStatus", newOperationStatus)
-		} else {
-			updatedResource := curr.DeepCopy()
-			updatedResource.Properties.ProvisioningState = newOperationStatus
-			if newOperationStatus.IsTerminal() {
-				updatedResource.ServiceProviderProperties.ActiveOperationID = ""
-			}
-
-			logger.Info("Updating resource", "activeOperationID", updatedResource.ServiceProviderProperties.ActiveOperationID, "newStatus", newOperationStatus)
-			if _, err := dbClient.AddReplaceToTransaction(ctx, transaction, updatedResource, nil); err != nil {
+			return err
+		}
+		if updated != nil {
+			logger.Info("Updating resource", "activeOperationID", updated.ServiceProviderProperties.ActiveOperationID, "newStatus", newOperationStatus)
+			if _, err := dbClient.AddReplaceToTransaction(ctx, transaction, updated, nil); err != nil {
 				return utils.TrackError(err)
 			}
 		}
 
 	case strings.EqualFold(existingOperation.ExternalID.ResourceType.String(), api.ExternalAuthResourceType.String()):
 		dbClient := cosmosClient.HCPClusters(existingOperation.ExternalID.SubscriptionID, existingOperation.ExternalID.ResourceGroupName).ExternalAuth(existingOperation.ExternalID.Parent.Name)
-		curr, err := dbClient.Get(ctx, existingOperation.ExternalID.Name)
+		updated, err := getExternalAuthForUpdate(ctx, logger, dbClient, existingOperation, newOperationStatus)
 		if err != nil {
-			var responseErr *azcore.ResponseError
-			if errors.As(err, &responseErr) && responseErr.StatusCode == http.StatusNotFound {
-				logger.Info("Resource not found, skipping resource update")
-			} else {
-				return utils.TrackError(err)
-			}
-		} else if existingOperation.OperationID == nil {
-			return utils.TrackError(fmt.Errorf("missing operation ID"))
-		} else if curr.ServiceProviderProperties.ActiveOperationID != existingOperation.OperationID.Name {
-			logger.Info("Resource has a different active operation, skipping resource update",
-				"resourceActiveOperationID", curr.ServiceProviderProperties.ActiveOperationID,
-				"thisOperationID", existingOperation.OperationID.Name)
-		} else if curr.Properties.ProvisioningState == newOperationStatus && !newOperationStatus.IsTerminal() {
-			logger.Info("No update needed", "activeOperationID", curr.ServiceProviderProperties.ActiveOperationID, "oldStatus", curr.Properties.ProvisioningState, "newStatus", newOperationStatus)
-		} else {
-			updatedResource := curr.DeepCopy()
-			updatedResource.Properties.ProvisioningState = newOperationStatus
-			if newOperationStatus.IsTerminal() {
-				updatedResource.ServiceProviderProperties.ActiveOperationID = ""
-			}
-
-			logger.Info("Updating resource", "activeOperationID", updatedResource.ServiceProviderProperties.ActiveOperationID, "newStatus", newOperationStatus)
-			if _, err := dbClient.AddReplaceToTransaction(ctx, transaction, updatedResource, nil); err != nil {
+			return err
+		}
+		if updated != nil {
+			logger.Info("Updating resource", "activeOperationID", updated.ServiceProviderProperties.ActiveOperationID, "newStatus", newOperationStatus)
+			if _, err := dbClient.AddReplaceToTransaction(ctx, transaction, updated, nil); err != nil {
 				return utils.TrackError(err)
 			}
 		}
@@ -214,14 +142,117 @@ func UpdateOperationStatus(ctx context.Context, cosmosClient database.DBClient, 
 	}
 
 	// Execute the transaction atomically.
+
 	logger.Info("Updating operation status", "oldStatus", existingOperation.Status, "newStatus", newOperationStatus, "operationError", newOperationError)
 	if _, err := transaction.Execute(ctx, &azcosmos.TransactionalBatchOptions{}); err != nil {
 		return utils.TrackError(err)
 	}
 
-	logAndNotify(ctx, cosmosClient, updatedOperation, postAsyncNotificationFn)
+	notifyOperationOwner(ctx, cosmosClient, updatedOperation, postAsyncNotificationFn)
 
 	return nil
+}
+
+// getClusterForUpdate returns a deep copy of the cluster with updated provisioning
+// state, or nil if the resource update should be skipped.
+func getClusterForUpdate(ctx context.Context, logger logr.Logger, dbClient database.HCPClusterCRUD, existingOperation *api.Operation, newOperationStatus arm.ProvisioningState) (*api.HCPOpenShiftCluster, error) {
+	curr, err := dbClient.Get(ctx, existingOperation.ExternalID.Name)
+	var responseErr *azcore.ResponseError
+	if errors.As(err, &responseErr) && responseErr.StatusCode == http.StatusNotFound {
+		logger.Info("Resource not found, skipping resource update")
+		return nil, nil
+	}
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
+	if existingOperation.OperationID == nil {
+		return nil, utils.TrackError(fmt.Errorf("missing operation ID"))
+	}
+	if curr.ServiceProviderProperties.ActiveOperationID != existingOperation.OperationID.Name {
+		logger.Info("Resource has a different active operation, skipping resource update",
+			"resourceActiveOperationID", curr.ServiceProviderProperties.ActiveOperationID,
+			"thisOperationID", existingOperation.OperationID.Name)
+		return nil, nil
+	}
+	if curr.ServiceProviderProperties.ProvisioningState == newOperationStatus && !newOperationStatus.IsTerminal() {
+		logger.Info("No update needed", "activeOperationID", curr.ServiceProviderProperties.ActiveOperationID, "oldStatus", curr.ServiceProviderProperties.ProvisioningState, "newStatus", newOperationStatus)
+		return nil, nil
+	}
+
+	updated := curr.DeepCopy()
+	updated.ServiceProviderProperties.ProvisioningState = newOperationStatus
+	if newOperationStatus.IsTerminal() {
+		updated.ServiceProviderProperties.ActiveOperationID = ""
+	}
+	return updated, nil
+}
+
+// getNodePoolForUpdate returns a deep copy of the node pool with updated provisioning
+// state, or nil if the resource update should be skipped.
+func getNodePoolForUpdate(ctx context.Context, logger logr.Logger, dbClient database.NodePoolsCRUD, existingOperation *api.Operation, newOperationStatus arm.ProvisioningState) (*api.HCPOpenShiftClusterNodePool, error) {
+	curr, err := dbClient.Get(ctx, existingOperation.ExternalID.Name)
+	var responseErr *azcore.ResponseError
+	if errors.As(err, &responseErr) && responseErr.StatusCode == http.StatusNotFound {
+		logger.Info("Resource not found, skipping resource update")
+		return nil, nil
+	}
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
+	if existingOperation.OperationID == nil {
+		return nil, utils.TrackError(fmt.Errorf("missing operation ID"))
+	}
+	if curr.ServiceProviderProperties.ActiveOperationID != existingOperation.OperationID.Name {
+		logger.Info("Resource has a different active operation, skipping resource update",
+			"resourceActiveOperationID", curr.ServiceProviderProperties.ActiveOperationID,
+			"thisOperationID", existingOperation.OperationID.Name)
+		return nil, nil
+	}
+	if curr.Properties.ProvisioningState == newOperationStatus && !newOperationStatus.IsTerminal() {
+		logger.Info("No update needed", "activeOperationID", curr.ServiceProviderProperties.ActiveOperationID, "oldStatus", curr.Properties.ProvisioningState, "newStatus", newOperationStatus)
+		return nil, nil
+	}
+
+	updated := curr.DeepCopy()
+	updated.Properties.ProvisioningState = newOperationStatus
+	if newOperationStatus.IsTerminal() {
+		updated.ServiceProviderProperties.ActiveOperationID = ""
+	}
+	return updated, nil
+}
+
+// getExternalAuthForUpdate returns a deep copy of the external auth with updated
+// provisioning state, or nil if the resource update should be skipped.
+func getExternalAuthForUpdate(ctx context.Context, logger logr.Logger, dbClient database.ExternalAuthsCRUD, existingOperation *api.Operation, newOperationStatus arm.ProvisioningState) (*api.HCPOpenShiftClusterExternalAuth, error) {
+	curr, err := dbClient.Get(ctx, existingOperation.ExternalID.Name)
+	var responseErr *azcore.ResponseError
+	if errors.As(err, &responseErr) && responseErr.StatusCode == http.StatusNotFound {
+		logger.Info("Resource not found, skipping resource update")
+		return nil, nil
+	}
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
+	if existingOperation.OperationID == nil {
+		return nil, utils.TrackError(fmt.Errorf("missing operation ID"))
+	}
+	if curr.ServiceProviderProperties.ActiveOperationID != existingOperation.OperationID.Name {
+		logger.Info("Resource has a different active operation, skipping resource update",
+			"resourceActiveOperationID", curr.ServiceProviderProperties.ActiveOperationID,
+			"thisOperationID", existingOperation.OperationID.Name)
+		return nil, nil
+	}
+	if curr.Properties.ProvisioningState == newOperationStatus && !newOperationStatus.IsTerminal() {
+		logger.Info("No update needed", "activeOperationID", curr.ServiceProviderProperties.ActiveOperationID, "oldStatus", curr.Properties.ProvisioningState, "newStatus", newOperationStatus)
+		return nil, nil
+	}
+
+	updated := curr.DeepCopy()
+	updated.Properties.ProvisioningState = newOperationStatus
+	if newOperationStatus.IsTerminal() {
+		updated.ServiceProviderProperties.ActiveOperationID = ""
+	}
+	return updated, nil
 }
 
 func needToPatchOperation(oldOperation *api.Operation, newOperationStatus arm.ProvisioningState, newOperationError *arm.CloudErrorBody) bool {
@@ -260,18 +291,18 @@ func patchOperation(ctx context.Context, dbClient database.DBClient, oldOperatio
 		return utils.TrackError(err)
 	}
 
-	logAndNotify(ctx, dbClient, latestOperation, postAsyncNotificationFn)
+	notifyOperationOwner(ctx, dbClient, latestOperation, postAsyncNotificationFn)
 
 	return nil
 }
 
-// logAndNotify logs the operation result and, if applicable, sends an async
+// notifyOperationOwner logs the operation result and, if applicable, sends an async
 // notification to ARM and clears the notification URI.
 //
 // The notification URI is cleared in a separate write after the notification is
 // sent successfully. If the process crashes between sending the notification and
 // clearing the URI, the notification may be sent again on the next reconcile.
-func logAndNotify(ctx context.Context, cosmosClient database.DBClient, operation *api.Operation, postAsyncNotificationFn PostAsyncNotificationFunc) {
+func notifyOperationOwner(ctx context.Context, cosmosClient database.DBClient, operation *api.Operation, postAsyncNotificationFn PostAsyncNotificationFunc) {
 	logger := utils.LoggerFromContext(ctx)
 
 	message := fmt.Sprintf("Updated status to '%s'", operation.Status)
