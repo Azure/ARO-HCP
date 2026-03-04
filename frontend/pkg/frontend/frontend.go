@@ -30,6 +30,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 
+	k8sutilruntime "k8s.io/apimachinery/pkg/util/runtime"
+
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
@@ -72,6 +74,8 @@ type Frontend struct {
 	clusterServiceNoopDeprovision bool
 
 	apiRegistry api.APIRegistry
+
+	exitOnPanic bool
 }
 
 func NewFrontend(
@@ -86,6 +90,7 @@ func NewFrontend(
 	clusterServiceProvisionShard string,
 	clusterServiceNoopProvision bool,
 	clusterServiceNoopDeprovision bool,
+	exitOnPanic bool,
 ) *Frontend {
 	// zero side-effect registration path
 	apiRegistry := api.NewAPIRegistry()
@@ -122,6 +127,7 @@ func NewFrontend(
 		),
 		azureLocation: azureLocation,
 		apiRegistry:   apiRegistry,
+		exitOnPanic:   exitOnPanic,
 	}
 
 	f.server.Handler = f.routes(reg)
@@ -145,6 +151,10 @@ func (f *Frontend) Run(ctx context.Context) error {
 	if len(f.azureLocation) == 0 {
 		panic("azureLocation must be set")
 	}
+
+	// We set k8s.io/apimachinery/pkg/util/runtime.ReallyCrash to the value of the ExitOnPanic option to
+	// control the behavior of k8s.io/apimachinery/pkg/util/runtime.HandleCrash* methods
+	k8sutilruntime.ReallyCrash = f.exitOnPanic
 
 	// This just digs up the logger passed to NewFrontend.
 	logger := utils.LoggerFromContext(ctx)
