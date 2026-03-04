@@ -18,6 +18,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -43,6 +44,8 @@ var _ = Describe("Customer", func() {
 				customerNetworkSecurityGroupName = "customer-nsg-name"
 				customerVnetName                 = "customer-vnet-name"
 				customerVnetSubnetName           = "customer-vnet-subnet"
+				customerClusterName              = "negative-tests-cluster"
+				customerNodePoolName             = "np-1"
 			)
 			tc := framework.NewTestContext()
 
@@ -57,7 +60,7 @@ var _ = Describe("Customer", func() {
 
 			By("creating cluster parameters")
 			clusterParams := framework.NewDefaultClusterParams()
-			clusterParams.ClusterName = "negative-tests-cluster"
+			clusterParams.ClusterName = customerClusterName
 			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
 			clusterParams.ManagedResourceGroupName = managedResourceGroupName
 
@@ -88,7 +91,7 @@ var _ = Describe("Customer", func() {
 			By("creating a nodepool")
 			nodePoolParams := framework.NewDefaultNodePoolParams()
 			nodePoolParams.ClusterName = clusterParams.ClusterName
-			nodePoolParams.NodePoolName = "test-nodepool"
+			nodePoolParams.NodePoolName = customerNodePoolName
 
 			err = tc.CreateNodePoolFromParam(ctx,
 				*resourceGroup.Name,
@@ -103,8 +106,7 @@ var _ = Describe("Customer", func() {
 			var errs []error
 
 			// TEST CASE: Invalid version update should be rejected
-			// blocked by https://issues.redhat.com/browse/ARO-24542
-			/*
+			if false { // blocked by https://issues.redhat.com/browse/ARO-24542
 				By("attempting to update nodepool version to higher than cluster version")
 				clusterVersion := clusterParams.OpenshiftVersionId
 				parts := strings.Split(clusterVersion, ".")
@@ -131,8 +133,7 @@ var _ = Describe("Customer", func() {
 				} else if !strings.Contains(strings.ToLower(err.Error()), "version") {
 					errs = append(errs, fmt.Errorf("version validation: expected error to contain 'version', got: %s", err.Error()))
 				}
-
-			*/
+			}
 
 			// TEST CASE: Immutable field updates should be rejected
 			By("attempting to update immutable platform profile fields")
@@ -190,6 +191,20 @@ var _ = Describe("Customer", func() {
 			// TEST CASE: https://issues.redhat.com/browse/ARO-22570 to be implemented here
 
 			// TEST CASE: https://issues.redhat.com/browse/ARO-22571 to be implemented here
+
+			// TEMPORARY: Test error reporting with invalid VM size (should fail fast)
+			By("attempting to update nodepool with invalid VM size")
+			testNodePool, err := nodePoolClient.Get(ctx, *resourceGroup.Name, clusterParams.ClusterName, nodePoolParams.NodePoolName, nil)
+			if err == nil && testNodePool.Properties != nil && testNodePool.Properties.Platform != nil {
+				testNodePool.Properties.Platform.VMSize = to.Ptr("Invalid_VM_Size_That_Does_Not_Exist")
+				_, err = nodePoolClient.BeginCreateOrUpdate(ctx, *resourceGroup.Name, clusterParams.ClusterName, nodePoolParams.NodePoolName, testNodePool.NodePool, nil)
+				if err == nil {
+					errs = append(errs, fmt.Errorf("expected error when using invalid VM size, but no error occurred"))
+				} else {
+					// Add the actual error to test error reporting formatting
+					errs = append(errs, fmt.Errorf("invalid VM size test error: %w", err))
+				}
+			}
 
 			if len(errs) > 0 {
 				Expect(errors.Join(errs...)).NotTo(HaveOccurred())
