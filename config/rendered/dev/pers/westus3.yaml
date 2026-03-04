@@ -262,6 +262,8 @@ geneva:
       issuer: Self
       manage: true
       name: genevaAction
+    endpointName: westus3
+    endpointUrl: ""
     genevaActionsPrincipalId: ""
     keyVault:
       name: arohcpdev-geneva-kv
@@ -270,6 +272,7 @@ geneva:
       tagKey: aroHCPPurpose
       tagValue: geneva-actions
     serviceTag: GenevaActions
+    targetRegion: West US 3
   logs:
     adminCertName: geneva-logs-admin
     adminCertificateDomain: geneva.keyvault.aro-hcp-global.azure.com
