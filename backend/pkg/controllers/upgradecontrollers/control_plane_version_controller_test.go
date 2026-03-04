@@ -189,6 +189,24 @@ func TestDesiredControlPlaneZVersion_ZStreamManagedUpgrade(t *testing.T) {
 			expectedError:         true,
 			expectedErrorContains: "example error message",
 		},
+		{
+			name:                 "Z-stream upgrade - no desired minor version specified",
+			activeVersions:       []api.HCPClusterActiveVersion{{Version: ptr.To(semver.MustParse("4.19.15"))}},
+			customerDesiredMinor: "",
+			channelGroup:         "stable",
+			mockSetup:            func(mc *cincinatti.MockClient) {},
+			expectedVersion:      nil,
+			expectedError:        false,
+		},
+		{
+			name:                 "Z-stream upgrade - no channel group specified",
+			activeVersions:       []api.HCPClusterActiveVersion{{Version: ptr.To(semver.MustParse("4.19.15"))}},
+			customerDesiredMinor: "4.19",
+			channelGroup:         "",
+			mockSetup:            func(mc *cincinatti.MockClient) {},
+			expectedVersion:      nil,
+			expectedError:        false,
+		},
 	}
 
 	for _, tt := range tests {
