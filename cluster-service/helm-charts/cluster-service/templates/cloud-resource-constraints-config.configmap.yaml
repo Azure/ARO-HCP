@@ -417,6 +417,105 @@ data:
     - id: Standard_E96pds_v6
       ccs_only: true
       enabled: true
+    - id: Standard_D2s_v6
+      ccs_only: true
+      enabled: true
+    - id: Standard_D4s_v6
+      ccs_only: true
+      enabled: true
+    - id: Standard_D8s_v6
+      ccs_only: true
+      enabled: true
+    - id: Standard_D16s_v6
+      ccs_only: true
+      enabled: true
+    - id: Standard_D32s_v6
+      ccs_only: true
+      enabled: true
+    - id: Standard_D48s_v6
+      ccs_only: true
+      enabled: true
+    - id: Standard_D64s_v6
+      ccs_only: true
+      enabled: true
+    - id: Standard_D96s_v6
+      ccs_only: true
+      enabled: true
+    - id: Standard_D128s_v6
+      ccs_only: true
+      enabled: true
+    - id: Standard_D192s_v6
+      ccs_only: true
+      enabled: true
+    - id: Standard_L2s_v4
+      ccs_only: true
+      enabled: true
+    - id: Standard_L4s_v4
+      ccs_only: true
+      enabled: true
+    - id: Standard_L8s_v4
+      ccs_only: true
+      enabled: true
+    - id: Standard_L16s_v4
+      ccs_only: true
+      enabled: true
+    - id: Standard_L32s_v4
+      ccs_only: true
+      enabled: true
+    - id: Standard_L48s_v4
+      ccs_only: true
+      enabled: true
+    - id: Standard_L64s_v4
+      ccs_only: true
+      enabled: true
+    - id: Standard_L80s_v4
+      ccs_only: true
+      enabled: true
+    - id: Standard_L96s_v4
+      ccs_only: true
+      enabled: true
+    - id: Standard_E2s_v6
+      ccs_only: true
+      enabled: true
+    - id: Standard_E4s_v6
+      ccs_only: true
+      enabled: true
+    - id: Standard_E8s_v6
+      ccs_only: true
+      enabled: true
+    - id: Standard_E16s_v6
+      ccs_only: true
+      enabled: true
+    - id: Standard_E20s_v6
+      ccs_only: true
+      enabled: true
+    - id: Standard_E32s_v6
+      ccs_only: true
+      enabled: true
+    - id: Standard_E48s_v6
+      ccs_only: true
+      enabled: true
+    - id: Standard_E64s_v6
+      ccs_only: true
+      enabled: true
+    - id: Standard_E96s_v6
+      ccs_only: true
+      enabled: true
+    - id: Standard_E128s_v6
+      ccs_only: true
+      enabled: true
+    - id: Standard_E192is_v6
+      ccs_only: true
+      enabled: true
+    - id: Standard_NC40ads_H100_v5
+      ccs_only: true
+      enabled: true
+    - id: Standard_NC80adis_H100_v5
+      ccs_only: true
+      enabled: true
+    - id: Standard_ND96isr_H200_v5
+      ccs_only: true
+      enabled: true
 kind: ConfigMap
 metadata:
   name: cloud-resource-constraints-config

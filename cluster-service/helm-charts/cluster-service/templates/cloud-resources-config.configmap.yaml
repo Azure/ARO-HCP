@@ -8,25 +8,6 @@ data:
         supports_multi_az: true
   instance-types.yaml: |
     instance_types:
-    # DEMO INSTANCE TYPES
-    - id: Standard_D8s_v3
-      name: Standard_D8s_v3 - General purpose
-      cloud_provider_id: azure
-      cpu_cores: 8
-      memory: 34359738368
-      category: general_purpose
-      size: d8s_v3
-      generic_name: standard-d8s_v3
-    - id: Standard_D8ps_v6
-      name: D8ps_v6 - General purpose
-      cloud_provider_id: azure
-      cpu_cores: 8
-      memory: 34359738368
-      category: general_purpose
-      size: d8ps_v6
-      generic_name: standard-d8ps_v6
-      architecture: arm64
-    # GENERATED INSTANCE TYPES
     - category: gpu_workload
       cloud_provider_id: azure
       cpu_cores: 4
@@ -939,6 +920,13 @@ data:
       name: Standard_D4s_v3
     - category: general_purpose
       cloud_provider_id: azure
+      cpu_cores: 8
+      generic_name: standard_d8s_v3
+      id: Standard_D8s_v3
+      memory: 34359738368
+      name: Standard_D8s_v3
+    - category: general_purpose
+      cloud_provider_id: azure
       cpu_cores: 16
       generic_name: standard_d16s_v3
       id: Standard_D16s_v3
@@ -1196,6 +1184,909 @@ data:
       id: Standard_F72s_v2
       memory: 154618822656
       name: Standard_F72s_v2
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 2
+      generic_name: standard_d2as_v5
+      id: Standard_D2as_v5
+      memory: 8589934592
+      name: Standard_D2as_v5
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 4
+      generic_name: standard_d4as_v5
+      id: Standard_D4as_v5
+      memory: 17179869184
+      name: Standard_D4as_v5
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 8
+      generic_name: standard_d8as_v5
+      id: Standard_D8as_v5
+      memory: 34359738368
+      name: Standard_D8as_v5
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 16
+      generic_name: standard_d16as_v5
+      id: Standard_D16as_v5
+      memory: 68719476736
+      name: Standard_D16as_v5
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 32
+      generic_name: standard_d32as_v5
+      id: Standard_D32as_v5
+      memory: 137438953472
+      name: Standard_D32as_v5
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 48
+      generic_name: standard_d48as_v5
+      id: Standard_D48as_v5
+      memory: 206158430208
+      name: Standard_D48as_v5
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 64
+      generic_name: standard_d64as_v5
+      id: Standard_D64as_v5
+      memory: 274877906944
+      name: Standard_D64as_v5
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 96
+      generic_name: standard_d96as_v5
+      id: Standard_D96as_v5
+      memory: 412316860416
+      name: Standard_D96as_v5
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 2
+      generic_name: standard_e2as_v5
+      id: Standard_E2as_v5
+      memory: 17179869184
+      name: Standard_E2as_v5
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 4
+      generic_name: standard_e4-2as_v5
+      id: Standard_E4-2as_v5
+      memory: 34359738368
+      name: Standard_E4-2as_v5
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 4
+      generic_name: standard_e4as_v5
+      id: Standard_E4as_v5
+      memory: 34359738368
+      name: Standard_E4as_v5
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 8
+      generic_name: standard_e8-2as_v5
+      id: Standard_E8-2as_v5
+      memory: 68719476736
+      name: Standard_E8-2as_v5
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 8
+      generic_name: standard_e8-4as_v5
+      id: Standard_E8-4as_v5
+      memory: 68719476736
+      name: Standard_E8-4as_v5
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 8
+      generic_name: standard_e8as_v5
+      id: Standard_E8as_v5
+      memory: 68719476736
+      name: Standard_E8as_v5
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 16
+      generic_name: standard_e16-4as_v5
+      id: Standard_E16-4as_v5
+      memory: 137438953472
+      name: Standard_E16-4as_v5
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 16
+      generic_name: standard_e16-8as_v5
+      id: Standard_E16-8as_v5
+      memory: 137438953472
+      name: Standard_E16-8as_v5
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 16
+      generic_name: standard_e16as_v5
+      id: Standard_E16as_v5
+      memory: 137438953472
+      name: Standard_E16as_v5
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 20
+      generic_name: standard_e20as_v5
+      id: Standard_E20as_v5
+      memory: 171798691840
+      name: Standard_E20as_v5
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 32
+      generic_name: standard_e32-8as_v5
+      id: Standard_E32-8as_v5
+      memory: 274877906944
+      name: Standard_E32-8as_v5
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 32
+      generic_name: standard_e32-16as_v5
+      id: Standard_E32-16as_v5
+      memory: 274877906944
+      name: Standard_E32-16as_v5
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 32
+      generic_name: standard_e32as_v5
+      id: Standard_E32as_v5
+      memory: 274877906944
+      name: Standard_E32as_v5
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 48
+      generic_name: standard_e48as_v5
+      id: Standard_E48as_v5
+      memory: 412316860416
+      name: Standard_E48as_v5
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 64
+      generic_name: standard_e64-16as_v5
+      id: Standard_E64-16as_v5
+      memory: 549755813888
+      name: Standard_E64-16as_v5
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 64
+      generic_name: standard_e64-32as_v5
+      id: Standard_E64-32as_v5
+      memory: 549755813888
+      name: Standard_E64-32as_v5
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 64
+      generic_name: standard_e64as_v5
+      id: Standard_E64as_v5
+      memory: 549755813888
+      name: Standard_E64as_v5
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 96
+      generic_name: standard_e96-24as_v5
+      id: Standard_E96-24as_v5
+      memory: 721554505728
+      name: Standard_E96-24as_v5
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 96
+      generic_name: standard_e96-48as_v5
+      id: Standard_E96-48as_v5
+      memory: 721554505728
+      name: Standard_E96-48as_v5
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 96
+      generic_name: standard_e96as_v5
+      id: Standard_E96as_v5
+      memory: 721554505728
+      name: Standard_E96as_v5
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 2
+      generic_name: standard_d2ads_v5
+      id: Standard_D2ads_v5
+      memory: 8589934592
+      name: Standard_D2ads_v5
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 4
+      generic_name: standard_d4ads_v5
+      id: Standard_D4ads_v5
+      memory: 17179869184
+      name: Standard_D4ads_v5
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 8
+      generic_name: standard_d8ads_v5
+      id: Standard_D8ads_v5
+      memory: 34359738368
+      name: Standard_D8ads_v5
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 16
+      generic_name: standard_d16ads_v5
+      id: Standard_D16ads_v5
+      memory: 68719476736
+      name: Standard_D16ads_v5
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 32
+      generic_name: standard_d32ads_v5
+      id: Standard_D32ads_v5
+      memory: 137438953472
+      name: Standard_D32ads_v5
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 48
+      generic_name: standard_d48ads_v5
+      id: Standard_D48ads_v5
+      memory: 206158430208
+      name: Standard_D48ads_v5
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 64
+      generic_name: standard_d64ads_v5
+      id: Standard_D64ads_v5
+      memory: 274877906944
+      name: Standard_D64ads_v5
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 96
+      generic_name: standard_d96ads_v5
+      id: Standard_D96ads_v5
+      memory: 412316860416
+      name: Standard_D96ads_v5
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 2
+      generic_name: standard_e2ads_v5
+      id: Standard_E2ads_v5
+      memory: 17179869184
+      name: Standard_E2ads_v5
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 4
+      generic_name: standard_e4-2ads_v5
+      id: Standard_E4-2ads_v5
+      memory: 34359738368
+      name: Standard_E4-2ads_v5
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 4
+      generic_name: standard_e4ads_v5
+      id: Standard_E4ads_v5
+      memory: 34359738368
+      name: Standard_E4ads_v5
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 8
+      generic_name: standard_e8-2ads_v5
+      id: Standard_E8-2ads_v5
+      memory: 68719476736
+      name: Standard_E8-2ads_v5
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 8
+      generic_name: standard_e8-4ads_v5
+      id: Standard_E8-4ads_v5
+      memory: 68719476736
+      name: Standard_E8-4ads_v5
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 8
+      generic_name: standard_e8ads_v5
+      id: Standard_E8ads_v5
+      memory: 68719476736
+      name: Standard_E8ads_v5
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 16
+      generic_name: standard_e16-4ads_v5
+      id: Standard_E16-4ads_v5
+      memory: 137438953472
+      name: Standard_E16-4ads_v5
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 16
+      generic_name: standard_e16-8ads_v5
+      id: Standard_E16-8ads_v5
+      memory: 137438953472
+      name: Standard_E16-8ads_v5
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 16
+      generic_name: standard_e16ads_v5
+      id: Standard_E16ads_v5
+      memory: 137438953472
+      name: Standard_E16ads_v5
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 20
+      generic_name: standard_e20ads_v5
+      id: Standard_E20ads_v5
+      memory: 171798691840
+      name: Standard_E20ads_v5
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 32
+      generic_name: standard_e32-8ads_v5
+      id: Standard_E32-8ads_v5
+      memory: 274877906944
+      name: Standard_E32-8ads_v5
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 32
+      generic_name: standard_e32-16ads_v5
+      id: Standard_E32-16ads_v5
+      memory: 274877906944
+      name: Standard_E32-16ads_v5
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 32
+      generic_name: standard_e32ads_v5
+      id: Standard_E32ads_v5
+      memory: 274877906944
+      name: Standard_E32ads_v5
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 48
+      generic_name: standard_e48ads_v5
+      id: Standard_E48ads_v5
+      memory: 412316860416
+      name: Standard_E48ads_v5
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 64
+      generic_name: standard_e64-16ads_v5
+      id: Standard_E64-16ads_v5
+      memory: 549755813888
+      name: Standard_E64-16ads_v5
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 64
+      generic_name: standard_e64-32ads_v5
+      id: Standard_E64-32ads_v5
+      memory: 549755813888
+      name: Standard_E64-32ads_v5
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 64
+      generic_name: standard_e64ads_v5
+      id: Standard_E64ads_v5
+      memory: 549755813888
+      name: Standard_E64ads_v5
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 96
+      generic_name: standard_e96-24ads_v5
+      id: Standard_E96-24ads_v5
+      memory: 721554505728
+      name: Standard_E96-24ads_v5
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 96
+      generic_name: standard_e96-48ads_v5
+      id: Standard_E96-48ads_v5
+      memory: 721554505728
+      name: Standard_E96-48ads_v5
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 96
+      generic_name: standard_e96ads_v5
+      id: Standard_E96ads_v5
+      memory: 721554505728
+      name: Standard_E96ads_v5
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 2
+      generic_name: standard_d2as_v6
+      id: Standard_D2as_v6
+      memory: 8589934592
+      name: Standard_D2as_v6
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 4
+      generic_name: standard_d4as_v6
+      id: Standard_D4as_v6
+      memory: 17179869184
+      name: Standard_D4as_v6
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 8
+      generic_name: standard_d8as_v6
+      id: Standard_D8as_v6
+      memory: 34359738368
+      name: Standard_D8as_v6
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 16
+      generic_name: standard_d16as_v6
+      id: Standard_D16as_v6
+      memory: 68719476736
+      name: Standard_D16as_v6
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 32
+      generic_name: standard_d32as_v6
+      id: Standard_D32as_v6
+      memory: 137438953472
+      name: Standard_D32as_v6
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 48
+      generic_name: standard_d48as_v6
+      id: Standard_D48as_v6
+      memory: 206158430208
+      name: Standard_D48as_v6
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 64
+      generic_name: standard_d64as_v6
+      id: Standard_D64as_v6
+      memory: 274877906944
+      name: Standard_D64as_v6
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 96
+      generic_name: standard_d96as_v6
+      id: Standard_D96as_v6
+      memory: 412316860416
+      name: Standard_D96as_v6
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 2
+      generic_name: standard_e2as_v6
+      id: Standard_E2as_v6
+      memory: 17179869184
+      name: Standard_E2as_v6
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 4
+      generic_name: standard_e4as_v6
+      id: Standard_E4as_v6
+      memory: 34359738368
+      name: Standard_E4as_v6
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 8
+      generic_name: standard_e8as_v6
+      id: Standard_E8as_v6
+      memory: 68719476736
+      name: Standard_E8as_v6
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 16
+      generic_name: standard_e16as_v6
+      id: Standard_E16as_v6
+      memory: 137438953472
+      name: Standard_E16as_v6
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 20
+      generic_name: standard_e20as_v6
+      id: Standard_E20as_v6
+      memory: 171798691840
+      name: Standard_E20as_v6
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 32
+      generic_name: standard_e32as_v6
+      id: Standard_E32as_v6
+      memory: 274877906944
+      name: Standard_E32as_v6
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 48
+      generic_name: standard_e48as_v6
+      id: Standard_E48as_v6
+      memory: 412316860416
+      name: Standard_E48as_v6
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 64
+      generic_name: standard_e64as_v6
+      id: Standard_E64as_v6
+      memory: 549755813888
+      name: Standard_E64as_v6
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 96
+      generic_name: standard_e96as_v6
+      id: Standard_E96as_v6
+      memory: 721554505728
+      name: Standard_E96as_v6
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 2
+      generic_name: standard_d2ads_v6
+      id: Standard_D2ads_v6
+      memory: 8589934592
+      name: Standard_D2ads_v6
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 4
+      generic_name: standard_d4ads_v6
+      id: Standard_D4ads_v6
+      memory: 17179869184
+      name: Standard_D4ads_v6
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 8
+      generic_name: standard_d8ads_v6
+      id: Standard_D8ads_v6
+      memory: 34359738368
+      name: Standard_D8ads_v6
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 16
+      generic_name: standard_d16ads_v6
+      id: Standard_D16ads_v6
+      memory: 68719476736
+      name: Standard_D16ads_v6
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 32
+      generic_name: standard_d32ads_v6
+      id: Standard_D32ads_v6
+      memory: 137438953472
+      name: Standard_D32ads_v6
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 48
+      generic_name: standard_d48ads_v6
+      id: Standard_D48ads_v6
+      memory: 206158430208
+      name: Standard_D48ads_v6
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 64
+      generic_name: standard_d64ads_v6
+      id: Standard_D64ads_v6
+      memory: 274877906944
+      name: Standard_D64ads_v6
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 96
+      generic_name: standard_d96ads_v6
+      id: Standard_D96ads_v6
+      memory: 412316860416
+      name: Standard_D96ads_v6
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 2
+      generic_name: standard_d2als_v6
+      id: Standard_D2als_v6
+      memory: 4294967296
+      name: Standard_D2als_v6
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 4
+      generic_name: standard_d4als_v6
+      id: Standard_D4als_v6
+      memory: 8589934592
+      name: Standard_D4als_v6
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 8
+      generic_name: standard_d8als_v6
+      id: Standard_D8als_v6
+      memory: 17179869184
+      name: Standard_D8als_v6
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 16
+      generic_name: standard_d16als_v6
+      id: Standard_D16als_v6
+      memory: 34359738368
+      name: Standard_D16als_v6
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 32
+      generic_name: standard_d32als_v6
+      id: Standard_D32als_v6
+      memory: 68719476736
+      name: Standard_D32als_v6
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 48
+      generic_name: standard_d48als_v6
+      id: Standard_D48als_v6
+      memory: 103079215104
+      name: Standard_D48als_v6
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 64
+      generic_name: standard_d64als_v6
+      id: Standard_D64als_v6
+      memory: 137438953472
+      name: Standard_D64als_v6
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 96
+      generic_name: standard_d96als_v6
+      id: Standard_D96als_v6
+      memory: 206158430208
+      name: Standard_D96als_v6
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 2
+      generic_name: standard_d2alds_v6
+      id: Standard_D2alds_v6
+      memory: 4294967296
+      name: Standard_D2alds_v6
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 4
+      generic_name: standard_d4alds_v6
+      id: Standard_D4alds_v6
+      memory: 8589934592
+      name: Standard_D4alds_v6
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 8
+      generic_name: standard_d8alds_v6
+      id: Standard_D8alds_v6
+      memory: 17179869184
+      name: Standard_D8alds_v6
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 16
+      generic_name: standard_d16alds_v6
+      id: Standard_D16alds_v6
+      memory: 34359738368
+      name: Standard_D16alds_v6
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 32
+      generic_name: standard_d32alds_v6
+      id: Standard_D32alds_v6
+      memory: 68719476736
+      name: Standard_D32alds_v6
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 48
+      generic_name: standard_d48alds_v6
+      id: Standard_D48alds_v6
+      memory: 103079215104
+      name: Standard_D48alds_v6
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 64
+      generic_name: standard_d64alds_v6
+      id: Standard_D64alds_v6
+      memory: 137438953472
+      name: Standard_D64alds_v6
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 96
+      generic_name: standard_d96alds_v6
+      id: Standard_D96alds_v6
+      memory: 206158430208
+      name: Standard_D96alds_v6
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 2
+      generic_name: standard_e2ads_v6
+      id: Standard_E2ads_v6
+      memory: 17179869184
+      name: Standard_E2ads_v6
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 4
+      generic_name: standard_e4ads_v6
+      id: Standard_E4ads_v6
+      memory: 34359738368
+      name: Standard_E4ads_v6
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 8
+      generic_name: standard_e8ads_v6
+      id: Standard_E8ads_v6
+      memory: 68719476736
+      name: Standard_E8ads_v6
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 16
+      generic_name: standard_e16ads_v6
+      id: Standard_E16ads_v6
+      memory: 137438953472
+      name: Standard_E16ads_v6
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 20
+      generic_name: standard_e20ads_v6
+      id: Standard_E20ads_v6
+      memory: 171798691840
+      name: Standard_E20ads_v6
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 32
+      generic_name: standard_e32ads_v6
+      id: Standard_E32ads_v6
+      memory: 274877906944
+      name: Standard_E32ads_v6
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 48
+      generic_name: standard_e48ads_v6
+      id: Standard_E48ads_v6
+      memory: 412316860416
+      name: Standard_E48ads_v6
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 64
+      generic_name: standard_e64ads_v6
+      id: Standard_E64ads_v6
+      memory: 549755813888
+      name: Standard_E64ads_v6
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 96
+      generic_name: standard_e96-24ads_v6
+      id: Standard_E96-24ads_v6
+      memory: 721554505728
+      name: Standard_E96-24ads_v6
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 96
+      generic_name: standard_e96-48ads_v6
+      id: Standard_E96-48ads_v6
+      memory: 721554505728
+      name: Standard_E96-48ads_v6
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 96
+      generic_name: standard_e96ads_v6
+      id: Standard_E96ads_v6
+      memory: 721554505728
+      name: Standard_E96ads_v6
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 2
+      generic_name: standard_f2as_v6
+      id: Standard_F2as_v6
+      memory: 8589934592
+      name: Standard_F2as_v6
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 4
+      generic_name: standard_f4as_v6
+      id: Standard_F4as_v6
+      memory: 17179869184
+      name: Standard_F4as_v6
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 8
+      generic_name: standard_f8as_v6
+      id: Standard_F8as_v6
+      memory: 34359738368
+      name: Standard_F8as_v6
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 16
+      generic_name: standard_f16as_v6
+      id: Standard_F16as_v6
+      memory: 68719476736
+      name: Standard_F16as_v6
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 32
+      generic_name: standard_f32as_v6
+      id: Standard_F32as_v6
+      memory: 137438953472
+      name: Standard_F32as_v6
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 48
+      generic_name: standard_f48as_v6
+      id: Standard_F48as_v6
+      memory: 206158430208
+      name: Standard_F48as_v6
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 64
+      generic_name: standard_f64as_v6
+      id: Standard_F64as_v6
+      memory: 274877906944
+      name: Standard_F64as_v6
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 2
+      generic_name: standard_f2als_v6
+      id: Standard_F2als_v6
+      memory: 4294967296
+      name: Standard_F2als_v6
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 4
+      generic_name: standard_f4als_v6
+      id: Standard_F4als_v6
+      memory: 8589934592
+      name: Standard_F4als_v6
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 8
+      generic_name: standard_f8als_v6
+      id: Standard_F8als_v6
+      memory: 17179869184
+      name: Standard_F8als_v6
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 16
+      generic_name: standard_f16als_v6
+      id: Standard_F16als_v6
+      memory: 34359738368
+      name: Standard_F16als_v6
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 32
+      generic_name: standard_f32als_v6
+      id: Standard_F32als_v6
+      memory: 68719476736
+      name: Standard_F32als_v6
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 48
+      generic_name: standard_f48als_v6
+      id: Standard_F48als_v6
+      memory: 103079215104
+      name: Standard_F48als_v6
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 64
+      generic_name: standard_f64als_v6
+      id: Standard_F64als_v6
+      memory: 137438953472
+      name: Standard_F64als_v6
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 2
+      generic_name: standard_f2ams_v6
+      id: Standard_F2ams_v6
+      memory: 17179869184
+      name: Standard_F2ams_v6
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 4
+      generic_name: standard_f4ams_v6
+      id: Standard_F4ams_v6
+      memory: 34359738368
+      name: Standard_F4ams_v6
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 8
+      generic_name: standard_f8ams_v6
+      id: Standard_F8ams_v6
+      memory: 68719476736
+      name: Standard_F8ams_v6
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 16
+      generic_name: standard_f16ams_v6
+      id: Standard_F16ams_v6
+      memory: 137438953472
+      name: Standard_F16ams_v6
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 32
+      generic_name: standard_f32ams_v6
+      id: Standard_F32ams_v6
+      memory: 274877906944
+      name: Standard_F32ams_v6
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 48
+      generic_name: standard_f48ams_v6
+      id: Standard_F48ams_v6
+      memory: 412316860416
+      name: Standard_F48ams_v6
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 64
+      generic_name: standard_f64ams_v6
+      id: Standard_F64ams_v6
+      memory: 549755813888
+      name: Standard_F64ams_v6
     - category: general_purpose
       cloud_provider_id: azure
       cpu_cores: 2
@@ -2113,6 +3004,566 @@ data:
       id: Standard_NC32ads_A10_v4
       memory: 429496729600
       name: Standard_NC32ads_A10_v4
+    - category: gpu_workload
+      cloud_provider_id: azure
+      cpu_cores: 40
+      generic_name: standard_nc40ads_h100_v5
+      id: Standard_NC40ads_H100_v5
+      memory: 343597383680
+      name: Standard_NC40ads_H100_v5
+    - category: gpu_workload
+      cloud_provider_id: azure
+      cpu_cores: 80
+      generic_name: standard_nc80adis_h100_v5
+      id: Standard_NC80adis_H100_v5
+      memory: 687194767360
+      name: Standard_NC80adis_H100_v5
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 2
+      generic_name: standard_d2ls_v6
+      id: Standard_D2ls_v6
+      memory: 4294967296
+      name: Standard_D2ls_v6
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 4
+      generic_name: standard_d4ls_v6
+      id: Standard_D4ls_v6
+      memory: 8589934592
+      name: Standard_D4ls_v6
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 8
+      generic_name: standard_d8ls_v6
+      id: Standard_D8ls_v6
+      memory: 17179869184
+      name: Standard_D8ls_v6
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 16
+      generic_name: standard_d16ls_v6
+      id: Standard_D16ls_v6
+      memory: 34359738368
+      name: Standard_D16ls_v6
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 32
+      generic_name: standard_d32ls_v6
+      id: Standard_D32ls_v6
+      memory: 68719476736
+      name: Standard_D32ls_v6
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 48
+      generic_name: standard_d48ls_v6
+      id: Standard_D48ls_v6
+      memory: 103079215104
+      name: Standard_D48ls_v6
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 64
+      generic_name: standard_d64ls_v6
+      id: Standard_D64ls_v6
+      memory: 137438953472
+      name: Standard_D64ls_v6
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 96
+      generic_name: standard_d96ls_v6
+      id: Standard_D96ls_v6
+      memory: 206158430208
+      name: Standard_D96ls_v6
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 128
+      generic_name: standard_d128ls_v6
+      id: Standard_D128ls_v6
+      memory: 274877906944
+      name: Standard_D128ls_v6
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 2
+      generic_name: standard_d2lds_v6
+      id: Standard_D2lds_v6
+      memory: 4294967296
+      name: Standard_D2lds_v6
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 4
+      generic_name: standard_d4lds_v6
+      id: Standard_D4lds_v6
+      memory: 8589934592
+      name: Standard_D4lds_v6
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 8
+      generic_name: standard_d8lds_v6
+      id: Standard_D8lds_v6
+      memory: 17179869184
+      name: Standard_D8lds_v6
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 16
+      generic_name: standard_d16lds_v6
+      id: Standard_D16lds_v6
+      memory: 34359738368
+      name: Standard_D16lds_v6
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 32
+      generic_name: standard_d32lds_v6
+      id: Standard_D32lds_v6
+      memory: 68719476736
+      name: Standard_D32lds_v6
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 48
+      generic_name: standard_d48lds_v6
+      id: Standard_D48lds_v6
+      memory: 103079215104
+      name: Standard_D48lds_v6
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 64
+      generic_name: standard_d64lds_v6
+      id: Standard_D64lds_v6
+      memory: 137438953472
+      name: Standard_D64lds_v6
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 96
+      generic_name: standard_d96lds_v6
+      id: Standard_D96lds_v6
+      memory: 206158430208
+      name: Standard_D96lds_v6
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 128
+      generic_name: standard_d128lds_v6
+      id: Standard_D128lds_v6
+      memory: 274877906944
+      name: Standard_D128lds_v6
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 2
+      generic_name: standard_d2s_v6
+      id: Standard_D2s_v6
+      memory: 8589934592
+      name: Standard_D2s_v6
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 4
+      generic_name: standard_d4s_v6
+      id: Standard_D4s_v6
+      memory: 17179869184
+      name: Standard_D4s_v6
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 8
+      generic_name: standard_d8s_v6
+      id: Standard_D8s_v6
+      memory: 34359738368
+      name: Standard_D8s_v6
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 16
+      generic_name: standard_d16s_v6
+      id: Standard_D16s_v6
+      memory: 68719476736
+      name: Standard_D16s_v6
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 32
+      generic_name: standard_d32s_v6
+      id: Standard_D32s_v6
+      memory: 137438953472
+      name: Standard_D32s_v6
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 48
+      generic_name: standard_d48s_v6
+      id: Standard_D48s_v6
+      memory: 206158430208
+      name: Standard_D48s_v6
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 64
+      generic_name: standard_d64s_v6
+      id: Standard_D64s_v6
+      memory: 274877906944
+      name: Standard_D64s_v6
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 96
+      generic_name: standard_d96s_v6
+      id: Standard_D96s_v6
+      memory: 412316860416
+      name: Standard_D96s_v6
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 128
+      generic_name: standard_d128s_v6
+      id: Standard_D128s_v6
+      memory: 549755813888
+      name: Standard_D128s_v6
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 192
+      generic_name: standard_d192s_v6
+      id: Standard_D192s_v6
+      memory: 824633720832
+      name: Standard_D192s_v6
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 2
+      generic_name: standard_d2ds_v6
+      id: Standard_D2ds_v6
+      memory: 8589934592
+      name: Standard_D2ds_v6
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 4
+      generic_name: standard_d4ds_v6
+      id: Standard_D4ds_v6
+      memory: 17179869184
+      name: Standard_D4ds_v6
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 8
+      generic_name: standard_d8ds_v6
+      id: Standard_D8ds_v6
+      memory: 34359738368
+      name: Standard_D8ds_v6
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 16
+      generic_name: standard_d16ds_v6
+      id: Standard_D16ds_v6
+      memory: 68719476736
+      name: Standard_D16ds_v6
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 32
+      generic_name: standard_d32ds_v6
+      id: Standard_D32ds_v6
+      memory: 137438953472
+      name: Standard_D32ds_v6
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 48
+      generic_name: standard_d48ds_v6
+      id: Standard_D48ds_v6
+      memory: 206158430208
+      name: Standard_D48ds_v6
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 64
+      generic_name: standard_d64ds_v6
+      id: Standard_D64ds_v6
+      memory: 274877906944
+      name: Standard_D64ds_v6
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 96
+      generic_name: standard_d96ds_v6
+      id: Standard_D96ds_v6
+      memory: 412316860416
+      name: Standard_D96ds_v6
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 128
+      generic_name: standard_d128ds_v6
+      id: Standard_D128ds_v6
+      memory: 549755813888
+      name: Standard_D128ds_v6
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 192
+      generic_name: standard_d192ds_v6
+      id: Standard_D192ds_v6
+      memory: 824633720832
+      name: Standard_D192ds_v6
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 2
+      generic_name: standard_e2s_v6
+      id: Standard_E2s_v6
+      memory: 17179869184
+      name: Standard_E2s_v6
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 4
+      generic_name: standard_e4-2s_v6
+      id: Standard_E4-2s_v6
+      memory: 34359738368
+      name: Standard_E4-2s_v6
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 4
+      generic_name: standard_e4s_v6
+      id: Standard_E4s_v6
+      memory: 34359738368
+      name: Standard_E4s_v6
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 8
+      generic_name: standard_e8-2s_v6
+      id: Standard_E8-2s_v6
+      memory: 68719476736
+      name: Standard_E8-2s_v6
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 8
+      generic_name: standard_e8-4s_v6
+      id: Standard_E8-4s_v6
+      memory: 68719476736
+      name: Standard_E8-4s_v6
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 8
+      generic_name: standard_e8s_v6
+      id: Standard_E8s_v6
+      memory: 68719476736
+      name: Standard_E8s_v6
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 16
+      generic_name: standard_e16-4s_v6
+      id: Standard_E16-4s_v6
+      memory: 137438953472
+      name: Standard_E16-4s_v6
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 16
+      generic_name: standard_e16-8s_v6
+      id: Standard_E16-8s_v6
+      memory: 137438953472
+      name: Standard_E16-8s_v6
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 16
+      generic_name: standard_e16s_v6
+      id: Standard_E16s_v6
+      memory: 137438953472
+      name: Standard_E16s_v6
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 20
+      generic_name: standard_e20s_v6
+      id: Standard_E20s_v6
+      memory: 171798691840
+      name: Standard_E20s_v6
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 32
+      generic_name: standard_e32-8s_v6
+      id: Standard_E32-8s_v6
+      memory: 274877906944
+      name: Standard_E32-8s_v6
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 32
+      generic_name: standard_e32-16s_v6
+      id: Standard_E32-16s_v6
+      memory: 274877906944
+      name: Standard_E32-16s_v6
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 32
+      generic_name: standard_e32s_v6
+      id: Standard_E32s_v6
+      memory: 274877906944
+      name: Standard_E32s_v6
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 48
+      generic_name: standard_e48s_v6
+      id: Standard_E48s_v6
+      memory: 412316860416
+      name: Standard_E48s_v6
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 64
+      generic_name: standard_e64-16s_v6
+      id: Standard_E64-16s_v6
+      memory: 549755813888
+      name: Standard_E64-16s_v6
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 64
+      generic_name: standard_e64-32s_v6
+      id: Standard_E64-32s_v6
+      memory: 549755813888
+      name: Standard_E64-32s_v6
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 64
+      generic_name: standard_e64s_v6
+      id: Standard_E64s_v6
+      memory: 549755813888
+      name: Standard_E64s_v6
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 96
+      generic_name: standard_e96-24s_v6
+      id: Standard_E96-24s_v6
+      memory: 824633720832
+      name: Standard_E96-24s_v6
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 96
+      generic_name: standard_e96-48s_v6
+      id: Standard_E96-48s_v6
+      memory: 824633720832
+      name: Standard_E96-48s_v6
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 96
+      generic_name: standard_e96s_v6
+      id: Standard_E96s_v6
+      memory: 824633720832
+      name: Standard_E96s_v6
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 2
+      generic_name: standard_e2ds_v6
+      id: Standard_E2ds_v6
+      memory: 17179869184
+      name: Standard_E2ds_v6
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 4
+      generic_name: standard_e4-2ds_v6
+      id: Standard_E4-2ds_v6
+      memory: 34359738368
+      name: Standard_E4-2ds_v6
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 4
+      generic_name: standard_e4ds_v6
+      id: Standard_E4ds_v6
+      memory: 34359738368
+      name: Standard_E4ds_v6
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 8
+      generic_name: standard_e8-2ds_v6
+      id: Standard_E8-2ds_v6
+      memory: 68719476736
+      name: Standard_E8-2ds_v6
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 8
+      generic_name: standard_e8-4ds_v6
+      id: Standard_E8-4ds_v6
+      memory: 68719476736
+      name: Standard_E8-4ds_v6
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 8
+      generic_name: standard_e8ds_v6
+      id: Standard_E8ds_v6
+      memory: 68719476736
+      name: Standard_E8ds_v6
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 16
+      generic_name: standard_e16-4ds_v6
+      id: Standard_E16-4ds_v6
+      memory: 137438953472
+      name: Standard_E16-4ds_v6
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 16
+      generic_name: standard_e16-8ds_v6
+      id: Standard_E16-8ds_v6
+      memory: 137438953472
+      name: Standard_E16-8ds_v6
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 16
+      generic_name: standard_e16ds_v6
+      id: Standard_E16ds_v6
+      memory: 137438953472
+      name: Standard_E16ds_v6
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 20
+      generic_name: standard_e20ds_v6
+      id: Standard_E20ds_v6
+      memory: 171798691840
+      name: Standard_E20ds_v6
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 32
+      generic_name: standard_e32-8ds_v6
+      id: Standard_E32-8ds_v6
+      memory: 274877906944
+      name: Standard_E32-8ds_v6
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 32
+      generic_name: standard_e32-16ds_v6
+      id: Standard_E32-16ds_v6
+      memory: 274877906944
+      name: Standard_E32-16ds_v6
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 32
+      generic_name: standard_e32ds_v6
+      id: Standard_E32ds_v6
+      memory: 274877906944
+      name: Standard_E32ds_v6
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 48
+      generic_name: standard_e48ds_v6
+      id: Standard_E48ds_v6
+      memory: 412316860416
+      name: Standard_E48ds_v6
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 64
+      generic_name: standard_e64-16ds_v6
+      id: Standard_E64-16ds_v6
+      memory: 549755813888
+      name: Standard_E64-16ds_v6
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 64
+      generic_name: standard_e64-32ds_v6
+      id: Standard_E64-32ds_v6
+      memory: 549755813888
+      name: Standard_E64-32ds_v6
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 64
+      generic_name: standard_e64ds_v6
+      id: Standard_E64ds_v6
+      memory: 549755813888
+      name: Standard_E64ds_v6
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 96
+      generic_name: standard_e96-24ds_v6
+      id: Standard_E96-24ds_v6
+      memory: 824633720832
+      name: Standard_E96-24ds_v6
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 96
+      generic_name: standard_e96-48ds_v6
+      id: Standard_E96-48ds_v6
+      memory: 824633720832
+      name: Standard_E96-48ds_v6
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 96
+      generic_name: standard_e96ds_v6
+      id: Standard_E96ds_v6
+      memory: 824633720832
+      name: Standard_E96ds_v6
     - category: storage_optimized
       cloud_provider_id: azure
       cpu_cores: 8
@@ -2470,398 +3921,160 @@ data:
       id: Standard_E96as_v4
       memory: 721554505728
       name: Standard_E96as_v4
-    - category: general_purpose
-      cloud_provider_id: azure
-      cpu_cores: 2
-      generic_name: standard_d2as_v5
-      id: Standard_D2as_v5
-      memory: 8589934592
-      name: Standard_D2as_v5
-    - category: general_purpose
-      cloud_provider_id: azure
-      cpu_cores: 4
-      generic_name: standard_d4as_v5
-      id: Standard_D4as_v5
-      memory: 17179869184
-      name: Standard_D4as_v5
-    - category: general_purpose
+    - category: storage_optimized
       cloud_provider_id: azure
       cpu_cores: 8
-      generic_name: standard_d8as_v5
-      id: Standard_D8as_v5
-      memory: 34359738368
-      name: Standard_D8as_v5
-    - category: general_purpose
+      generic_name: standard_l8s_v3
+      id: Standard_L8s_v3
+      memory: 68719476736
+      name: Standard_L8s_v3
+    - category: storage_optimized
       cloud_provider_id: azure
       cpu_cores: 16
-      generic_name: standard_d16as_v5
-      id: Standard_D16as_v5
-      memory: 68719476736
-      name: Standard_D16as_v5
-    - category: general_purpose
+      generic_name: standard_l16s_v3
+      id: Standard_L16s_v3
+      memory: 137438953472
+      name: Standard_L16s_v3
+    - category: storage_optimized
       cloud_provider_id: azure
       cpu_cores: 32
-      generic_name: standard_d32as_v5
-      id: Standard_D32as_v5
-      memory: 137438953472
-      name: Standard_D32as_v5
-    - category: general_purpose
+      generic_name: standard_l32s_v3
+      id: Standard_L32s_v3
+      memory: 274877906944
+      name: Standard_L32s_v3
+    - category: storage_optimized
       cloud_provider_id: azure
       cpu_cores: 48
-      generic_name: standard_d48as_v5
-      id: Standard_D48as_v5
+      generic_name: standard_l48s_v3
+      id: Standard_L48s_v3
+      memory: 412316860416
+      name: Standard_L48s_v3
+    - category: storage_optimized
+      cloud_provider_id: azure
+      cpu_cores: 64
+      generic_name: standard_l64s_v3
+      id: Standard_L64s_v3
+      memory: 549755813888
+      name: Standard_L64s_v3
+    - category: storage_optimized
+      cloud_provider_id: azure
+      cpu_cores: 80
+      generic_name: standard_l80s_v3
+      id: Standard_L80s_v3
+      memory: 687194767360
+      name: Standard_L80s_v3
+    - category: storage_optimized
+      cloud_provider_id: azure
+      cpu_cores: 2
+      generic_name: standard_l2aos_v4
+      id: Standard_L2aos_v4
+      memory: 17179869184
+      name: Standard_L2aos_v4
+    - category: storage_optimized
+      cloud_provider_id: azure
+      cpu_cores: 4
+      generic_name: standard_l4aos_v4
+      id: Standard_L4aos_v4
+      memory: 34359738368
+      name: Standard_L4aos_v4
+    - category: storage_optimized
+      cloud_provider_id: azure
+      cpu_cores: 8
+      generic_name: standard_l8aos_v4
+      id: Standard_L8aos_v4
+      memory: 68719476736
+      name: Standard_L8aos_v4
+    - category: storage_optimized
+      cloud_provider_id: azure
+      cpu_cores: 12
+      generic_name: standard_l12aos_v4
+      id: Standard_L12aos_v4
+      memory: 103079215104
+      name: Standard_L12aos_v4
+    - category: storage_optimized
+      cloud_provider_id: azure
+      cpu_cores: 16
+      generic_name: standard_l16aos_v4
+      id: Standard_L16aos_v4
+      memory: 137438953472
+      name: Standard_L16aos_v4
+    - category: storage_optimized
+      cloud_provider_id: azure
+      cpu_cores: 24
+      generic_name: standard_l24aos_v4
+      id: Standard_L24aos_v4
       memory: 206158430208
-      name: Standard_D48as_v5
-    - category: general_purpose
+      name: Standard_L24aos_v4
+    - category: storage_optimized
       cloud_provider_id: azure
-      cpu_cores: 64
-      generic_name: standard_d64as_v5
-      id: Standard_D64as_v5
+      cpu_cores: 32
+      generic_name: standard_l32aos_v4
+      id: Standard_L32aos_v4
       memory: 274877906944
-      name: Standard_D64as_v5
-    - category: general_purpose
-      cloud_provider_id: azure
-      cpu_cores: 96
-      generic_name: standard_d96as_v5
-      id: Standard_D96as_v5
-      memory: 412316860416
-      name: Standard_D96as_v5
-    - category: memory_optimized
+      name: Standard_L32aos_v4
+    - category: storage_optimized
       cloud_provider_id: azure
       cpu_cores: 2
-      generic_name: standard_e2as_v5
-      id: Standard_E2as_v5
+      generic_name: standard_l2as_v4
+      id: Standard_L2as_v4
       memory: 17179869184
-      name: Standard_E2as_v5
-    - category: memory_optimized
+      name: Standard_L2as_v4
+    - category: storage_optimized
       cloud_provider_id: azure
       cpu_cores: 4
-      generic_name: standard_e4-2as_v5
-      id: Standard_E4-2as_v5
+      generic_name: standard_l4as_v4
+      id: Standard_L4as_v4
       memory: 34359738368
-      name: Standard_E4-2as_v5
-    - category: memory_optimized
-      cloud_provider_id: azure
-      cpu_cores: 4
-      generic_name: standard_e4as_v5
-      id: Standard_E4as_v5
-      memory: 34359738368
-      name: Standard_E4as_v5
-    - category: memory_optimized
+      name: Standard_L4as_v4
+    - category: storage_optimized
       cloud_provider_id: azure
       cpu_cores: 8
-      generic_name: standard_e8-2as_v5
-      id: Standard_E8-2as_v5
+      generic_name: standard_l8as_v4
+      id: Standard_L8as_v4
       memory: 68719476736
-      name: Standard_E8-2as_v5
-    - category: memory_optimized
-      cloud_provider_id: azure
-      cpu_cores: 8
-      generic_name: standard_e8-4as_v5
-      id: Standard_E8-4as_v5
-      memory: 68719476736
-      name: Standard_E8-4as_v5
-    - category: memory_optimized
-      cloud_provider_id: azure
-      cpu_cores: 8
-      generic_name: standard_e8as_v5
-      id: Standard_E8as_v5
-      memory: 68719476736
-      name: Standard_E8as_v5
-    - category: memory_optimized
+      name: Standard_L8as_v4
+    - category: storage_optimized
       cloud_provider_id: azure
       cpu_cores: 16
-      generic_name: standard_e16-4as_v5
-      id: Standard_E16-4as_v5
+      generic_name: standard_l16as_v4
+      id: Standard_L16as_v4
       memory: 137438953472
-      name: Standard_E16-4as_v5
-    - category: memory_optimized
-      cloud_provider_id: azure
-      cpu_cores: 16
-      generic_name: standard_e16-8as_v5
-      id: Standard_E16-8as_v5
-      memory: 137438953472
-      name: Standard_E16-8as_v5
-    - category: memory_optimized
-      cloud_provider_id: azure
-      cpu_cores: 16
-      generic_name: standard_e16as_v5
-      id: Standard_E16as_v5
-      memory: 137438953472
-      name: Standard_E16as_v5
-    - category: memory_optimized
-      cloud_provider_id: azure
-      cpu_cores: 20
-      generic_name: standard_e20as_v5
-      id: Standard_E20as_v5
-      memory: 171798691840
-      name: Standard_E20as_v5
-    - category: memory_optimized
+      name: Standard_L16as_v4
+    - category: storage_optimized
       cloud_provider_id: azure
       cpu_cores: 32
-      generic_name: standard_e32-8as_v5
-      id: Standard_E32-8as_v5
+      generic_name: standard_l32as_v4
+      id: Standard_L32as_v4
       memory: 274877906944
-      name: Standard_E32-8as_v5
-    - category: memory_optimized
-      cloud_provider_id: azure
-      cpu_cores: 32
-      generic_name: standard_e32-16as_v5
-      id: Standard_E32-16as_v5
-      memory: 274877906944
-      name: Standard_E32-16as_v5
-    - category: memory_optimized
-      cloud_provider_id: azure
-      cpu_cores: 32
-      generic_name: standard_e32as_v5
-      id: Standard_E32as_v5
-      memory: 274877906944
-      name: Standard_E32as_v5
-    - category: memory_optimized
+      name: Standard_L32as_v4
+    - category: storage_optimized
       cloud_provider_id: azure
       cpu_cores: 48
-      generic_name: standard_e48as_v5
-      id: Standard_E48as_v5
+      generic_name: standard_l48as_v4
+      id: Standard_L48as_v4
       memory: 412316860416
-      name: Standard_E48as_v5
-    - category: memory_optimized
+      name: Standard_L48as_v4
+    - category: storage_optimized
       cloud_provider_id: azure
       cpu_cores: 64
-      generic_name: standard_e64-16as_v5
-      id: Standard_E64-16as_v5
+      generic_name: standard_l64as_v4
+      id: Standard_L64as_v4
       memory: 549755813888
-      name: Standard_E64-16as_v5
-    - category: memory_optimized
+      name: Standard_L64as_v4
+    - category: storage_optimized
       cloud_provider_id: azure
-      cpu_cores: 64
-      generic_name: standard_e64-32as_v5
-      id: Standard_E64-32as_v5
-      memory: 549755813888
-      name: Standard_E64-32as_v5
-    - category: memory_optimized
-      cloud_provider_id: azure
-      cpu_cores: 64
-      generic_name: standard_e64as_v5
-      id: Standard_E64as_v5
-      memory: 549755813888
-      name: Standard_E64as_v5
-    - category: memory_optimized
+      cpu_cores: 80
+      generic_name: standard_l80as_v4
+      id: Standard_L80as_v4
+      memory: 687194767360
+      name: Standard_L80as_v4
+    - category: storage_optimized
       cloud_provider_id: azure
       cpu_cores: 96
-      generic_name: standard_e96-24as_v5
-      id: Standard_E96-24as_v5
-      memory: 721554505728
-      name: Standard_E96-24as_v5
-    - category: memory_optimized
-      cloud_provider_id: azure
-      cpu_cores: 96
-      generic_name: standard_e96-48as_v5
-      id: Standard_E96-48as_v5
-      memory: 721554505728
-      name: Standard_E96-48as_v5
-    - category: memory_optimized
-      cloud_provider_id: azure
-      cpu_cores: 96
-      generic_name: standard_e96as_v5
-      id: Standard_E96as_v5
-      memory: 721554505728
-      name: Standard_E96as_v5
-    - category: general_purpose
-      cloud_provider_id: azure
-      cpu_cores: 2
-      generic_name: standard_d2ads_v5
-      id: Standard_D2ads_v5
-      memory: 8589934592
-      name: Standard_D2ads_v5
-    - category: general_purpose
-      cloud_provider_id: azure
-      cpu_cores: 4
-      generic_name: standard_d4ads_v5
-      id: Standard_D4ads_v5
-      memory: 17179869184
-      name: Standard_D4ads_v5
-    - category: general_purpose
-      cloud_provider_id: azure
-      cpu_cores: 8
-      generic_name: standard_d8ads_v5
-      id: Standard_D8ads_v5
-      memory: 34359738368
-      name: Standard_D8ads_v5
-    - category: general_purpose
-      cloud_provider_id: azure
-      cpu_cores: 16
-      generic_name: standard_d16ads_v5
-      id: Standard_D16ads_v5
-      memory: 68719476736
-      name: Standard_D16ads_v5
-    - category: general_purpose
-      cloud_provider_id: azure
-      cpu_cores: 32
-      generic_name: standard_d32ads_v5
-      id: Standard_D32ads_v5
-      memory: 137438953472
-      name: Standard_D32ads_v5
-    - category: general_purpose
-      cloud_provider_id: azure
-      cpu_cores: 48
-      generic_name: standard_d48ads_v5
-      id: Standard_D48ads_v5
-      memory: 206158430208
-      name: Standard_D48ads_v5
-    - category: general_purpose
-      cloud_provider_id: azure
-      cpu_cores: 64
-      generic_name: standard_d64ads_v5
-      id: Standard_D64ads_v5
-      memory: 274877906944
-      name: Standard_D64ads_v5
-    - category: general_purpose
-      cloud_provider_id: azure
-      cpu_cores: 96
-      generic_name: standard_d96ads_v5
-      id: Standard_D96ads_v5
-      memory: 412316860416
-      name: Standard_D96ads_v5
-    - category: memory_optimized
-      cloud_provider_id: azure
-      cpu_cores: 2
-      generic_name: standard_e2ads_v5
-      id: Standard_E2ads_v5
-      memory: 17179869184
-      name: Standard_E2ads_v5
-    - category: memory_optimized
-      cloud_provider_id: azure
-      cpu_cores: 4
-      generic_name: standard_e4-2ads_v5
-      id: Standard_E4-2ads_v5
-      memory: 34359738368
-      name: Standard_E4-2ads_v5
-    - category: memory_optimized
-      cloud_provider_id: azure
-      cpu_cores: 4
-      generic_name: standard_e4ads_v5
-      id: Standard_E4ads_v5
-      memory: 34359738368
-      name: Standard_E4ads_v5
-    - category: memory_optimized
-      cloud_provider_id: azure
-      cpu_cores: 8
-      generic_name: standard_e8-2ads_v5
-      id: Standard_E8-2ads_v5
-      memory: 68719476736
-      name: Standard_E8-2ads_v5
-    - category: memory_optimized
-      cloud_provider_id: azure
-      cpu_cores: 8
-      generic_name: standard_e8-4ads_v5
-      id: Standard_E8-4ads_v5
-      memory: 68719476736
-      name: Standard_E8-4ads_v5
-    - category: memory_optimized
-      cloud_provider_id: azure
-      cpu_cores: 8
-      generic_name: standard_e8ads_v5
-      id: Standard_E8ads_v5
-      memory: 68719476736
-      name: Standard_E8ads_v5
-    - category: memory_optimized
-      cloud_provider_id: azure
-      cpu_cores: 16
-      generic_name: standard_e16-4ads_v5
-      id: Standard_E16-4ads_v5
-      memory: 137438953472
-      name: Standard_E16-4ads_v5
-    - category: memory_optimized
-      cloud_provider_id: azure
-      cpu_cores: 16
-      generic_name: standard_e16-8ads_v5
-      id: Standard_E16-8ads_v5
-      memory: 137438953472
-      name: Standard_E16-8ads_v5
-    - category: memory_optimized
-      cloud_provider_id: azure
-      cpu_cores: 16
-      generic_name: standard_e16ads_v5
-      id: Standard_E16ads_v5
-      memory: 137438953472
-      name: Standard_E16ads_v5
-    - category: memory_optimized
-      cloud_provider_id: azure
-      cpu_cores: 20
-      generic_name: standard_e20ads_v5
-      id: Standard_E20ads_v5
-      memory: 171798691840
-      name: Standard_E20ads_v5
-    - category: memory_optimized
-      cloud_provider_id: azure
-      cpu_cores: 32
-      generic_name: standard_e32-8ads_v5
-      id: Standard_E32-8ads_v5
-      memory: 274877906944
-      name: Standard_E32-8ads_v5
-    - category: memory_optimized
-      cloud_provider_id: azure
-      cpu_cores: 32
-      generic_name: standard_e32-16ads_v5
-      id: Standard_E32-16ads_v5
-      memory: 274877906944
-      name: Standard_E32-16ads_v5
-    - category: memory_optimized
-      cloud_provider_id: azure
-      cpu_cores: 32
-      generic_name: standard_e32ads_v5
-      id: Standard_E32ads_v5
-      memory: 274877906944
-      name: Standard_E32ads_v5
-    - category: memory_optimized
-      cloud_provider_id: azure
-      cpu_cores: 48
-      generic_name: standard_e48ads_v5
-      id: Standard_E48ads_v5
-      memory: 412316860416
-      name: Standard_E48ads_v5
-    - category: memory_optimized
-      cloud_provider_id: azure
-      cpu_cores: 64
-      generic_name: standard_e64-16ads_v5
-      id: Standard_E64-16ads_v5
-      memory: 549755813888
-      name: Standard_E64-16ads_v5
-    - category: memory_optimized
-      cloud_provider_id: azure
-      cpu_cores: 64
-      generic_name: standard_e64-32ads_v5
-      id: Standard_E64-32ads_v5
-      memory: 549755813888
-      name: Standard_E64-32ads_v5
-    - category: memory_optimized
-      cloud_provider_id: azure
-      cpu_cores: 64
-      generic_name: standard_e64ads_v5
-      id: Standard_E64ads_v5
-      memory: 549755813888
-      name: Standard_E64ads_v5
-    - category: memory_optimized
-      cloud_provider_id: azure
-      cpu_cores: 96
-      generic_name: standard_e96-24ads_v5
-      id: Standard_E96-24ads_v5
-      memory: 721554505728
-      name: Standard_E96-24ads_v5
-    - category: memory_optimized
-      cloud_provider_id: azure
-      cpu_cores: 96
-      generic_name: standard_e96-48ads_v5
-      id: Standard_E96-48ads_v5
-      memory: 721554505728
-      name: Standard_E96-48ads_v5
-    - category: memory_optimized
-      cloud_provider_id: azure
-      cpu_cores: 96
-      generic_name: standard_e96ads_v5
-      id: Standard_E96ads_v5
-      memory: 721554505728
-      name: Standard_E96ads_v5
+      generic_name: standard_l96as_v4
+      id: Standard_L96as_v4
+      memory: 824633720832
+      name: Standard_L96as_v4
     - architecture: arm64
       category: general_purpose
       cloud_provider_id: azure
@@ -3182,6 +4395,489 @@ data:
       id: Standard_E32ps_v5
       memory: 223338299392
       name: Standard_E32ps_v5
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 128
+      generic_name: standard_e128-32s_v6
+      id: Standard_E128-32s_v6
+      memory: 1099511627776
+      name: Standard_E128-32s_v6
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 128
+      generic_name: standard_e128-64s_v6
+      id: Standard_E128-64s_v6
+      memory: 1099511627776
+      name: Standard_E128-64s_v6
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 128
+      generic_name: standard_e128s_v6
+      id: Standard_E128s_v6
+      memory: 1099511627776
+      name: Standard_E128s_v6
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 192
+      generic_name: standard_e192is_v6
+      id: Standard_E192is_v6
+      memory: 1967095021568
+      name: Standard_E192is_v6
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 128
+      generic_name: standard_e128-32ds_v6
+      id: Standard_E128-32ds_v6
+      memory: 1099511627776
+      name: Standard_E128-32ds_v6
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 128
+      generic_name: standard_e128-64ds_v6
+      id: Standard_E128-64ds_v6
+      memory: 1099511627776
+      name: Standard_E128-64ds_v6
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 128
+      generic_name: standard_e128ds_v6
+      id: Standard_E128ds_v6
+      memory: 1099511627776
+      name: Standard_E128ds_v6
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 192
+      generic_name: standard_e192ids_v6
+      id: Standard_E192ids_v6
+      memory: 1967095021568
+      name: Standard_E192ids_v6
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 2
+      generic_name: standard_fx2ms_v2
+      id: Standard_FX2ms_v2
+      memory: 45097156608
+      name: Standard_FX2ms_v2
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 4
+      generic_name: standard_fx4-2ms_v2
+      id: Standard_FX4-2ms_v2
+      memory: 90194313216
+      name: Standard_FX4-2ms_v2
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 4
+      generic_name: standard_fx4ms_v2
+      id: Standard_FX4ms_v2
+      memory: 90194313216
+      name: Standard_FX4ms_v2
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 8
+      generic_name: standard_fx8-2ms_v2
+      id: Standard_FX8-2ms_v2
+      memory: 180388626432
+      name: Standard_FX8-2ms_v2
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 8
+      generic_name: standard_fx8-4ms_v2
+      id: Standard_FX8-4ms_v2
+      memory: 180388626432
+      name: Standard_FX8-4ms_v2
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 8
+      generic_name: standard_fx8ms_v2
+      id: Standard_FX8ms_v2
+      memory: 180388626432
+      name: Standard_FX8ms_v2
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 12
+      generic_name: standard_fx12-6ms_v2
+      id: Standard_FX12-6ms_v2
+      memory: 270582939648
+      name: Standard_FX12-6ms_v2
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 12
+      generic_name: standard_fx12ms_v2
+      id: Standard_FX12ms_v2
+      memory: 270582939648
+      name: Standard_FX12ms_v2
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 16
+      generic_name: standard_fx16-4ms_v2
+      id: Standard_FX16-4ms_v2
+      memory: 360777252864
+      name: Standard_FX16-4ms_v2
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 16
+      generic_name: standard_fx16-8ms_v2
+      id: Standard_FX16-8ms_v2
+      memory: 360777252864
+      name: Standard_FX16-8ms_v2
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 16
+      generic_name: standard_fx16ms_v2
+      id: Standard_FX16ms_v2
+      memory: 360777252864
+      name: Standard_FX16ms_v2
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 24
+      generic_name: standard_fx24-6ms_v2
+      id: Standard_FX24-6ms_v2
+      memory: 541165879296
+      name: Standard_FX24-6ms_v2
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 24
+      generic_name: standard_fx24-12ms_v2
+      id: Standard_FX24-12ms_v2
+      memory: 541165879296
+      name: Standard_FX24-12ms_v2
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 24
+      generic_name: standard_fx24ms_v2
+      id: Standard_FX24ms_v2
+      memory: 541165879296
+      name: Standard_FX24ms_v2
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 32
+      generic_name: standard_fx32-8ms_v2
+      id: Standard_FX32-8ms_v2
+      memory: 721554505728
+      name: Standard_FX32-8ms_v2
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 32
+      generic_name: standard_fx32-16ms_v2
+      id: Standard_FX32-16ms_v2
+      memory: 721554505728
+      name: Standard_FX32-16ms_v2
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 32
+      generic_name: standard_fx32ms_v2
+      id: Standard_FX32ms_v2
+      memory: 721554505728
+      name: Standard_FX32ms_v2
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 48
+      generic_name: standard_fx48-12ms_v2
+      id: Standard_FX48-12ms_v2
+      memory: 1082331758592
+      name: Standard_FX48-12ms_v2
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 48
+      generic_name: standard_fx48-24ms_v2
+      id: Standard_FX48-24ms_v2
+      memory: 1082331758592
+      name: Standard_FX48-24ms_v2
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 48
+      generic_name: standard_fx48ms_v2
+      id: Standard_FX48ms_v2
+      memory: 1082331758592
+      name: Standard_FX48ms_v2
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 64
+      generic_name: standard_fx64-16ms_v2
+      id: Standard_FX64-16ms_v2
+      memory: 1443109011456
+      name: Standard_FX64-16ms_v2
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 64
+      generic_name: standard_fx64-32ms_v2
+      id: Standard_FX64-32ms_v2
+      memory: 1443109011456
+      name: Standard_FX64-32ms_v2
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 64
+      generic_name: standard_fx64ms_v2
+      id: Standard_FX64ms_v2
+      memory: 1443109011456
+      name: Standard_FX64ms_v2
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 96
+      generic_name: standard_fx96-24ms_v2
+      id: Standard_FX96-24ms_v2
+      memory: 1967095021568
+      name: Standard_FX96-24ms_v2
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 96
+      generic_name: standard_fx96-48ms_v2
+      id: Standard_FX96-48ms_v2
+      memory: 1967095021568
+      name: Standard_FX96-48ms_v2
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 96
+      generic_name: standard_fx96ms_v2
+      id: Standard_FX96ms_v2
+      memory: 1967095021568
+      name: Standard_FX96ms_v2
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 2
+      generic_name: standard_fx2mds_v2
+      id: Standard_FX2mds_v2
+      memory: 45097156608
+      name: Standard_FX2mds_v2
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 4
+      generic_name: standard_fx4-2mds_v2
+      id: Standard_FX4-2mds_v2
+      memory: 90194313216
+      name: Standard_FX4-2mds_v2
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 4
+      generic_name: standard_fx4mds_v2
+      id: Standard_FX4mds_v2
+      memory: 90194313216
+      name: Standard_FX4mds_v2
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 8
+      generic_name: standard_fx8-2mds_v2
+      id: Standard_FX8-2mds_v2
+      memory: 180388626432
+      name: Standard_FX8-2mds_v2
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 8
+      generic_name: standard_fx8-4mds_v2
+      id: Standard_FX8-4mds_v2
+      memory: 180388626432
+      name: Standard_FX8-4mds_v2
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 8
+      generic_name: standard_fx8mds_v2
+      id: Standard_FX8mds_v2
+      memory: 180388626432
+      name: Standard_FX8mds_v2
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 12
+      generic_name: standard_fx12-6mds_v2
+      id: Standard_FX12-6mds_v2
+      memory: 270582939648
+      name: Standard_FX12-6mds_v2
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 12
+      generic_name: standard_fx12mds_v2
+      id: Standard_FX12mds_v2
+      memory: 270582939648
+      name: Standard_FX12mds_v2
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 16
+      generic_name: standard_fx16-4mds_v2
+      id: Standard_FX16-4mds_v2
+      memory: 360777252864
+      name: Standard_FX16-4mds_v2
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 16
+      generic_name: standard_fx16-8mds_v2
+      id: Standard_FX16-8mds_v2
+      memory: 360777252864
+      name: Standard_FX16-8mds_v2
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 16
+      generic_name: standard_fx16mds_v2
+      id: Standard_FX16mds_v2
+      memory: 360777252864
+      name: Standard_FX16mds_v2
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 24
+      generic_name: standard_fx24-6mds_v2
+      id: Standard_FX24-6mds_v2
+      memory: 541165879296
+      name: Standard_FX24-6mds_v2
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 24
+      generic_name: standard_fx24-12mds_v2
+      id: Standard_FX24-12mds_v2
+      memory: 541165879296
+      name: Standard_FX24-12mds_v2
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 24
+      generic_name: standard_fx24mds_v2
+      id: Standard_FX24mds_v2
+      memory: 541165879296
+      name: Standard_FX24mds_v2
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 32
+      generic_name: standard_fx32-8mds_v2
+      id: Standard_FX32-8mds_v2
+      memory: 721554505728
+      name: Standard_FX32-8mds_v2
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 32
+      generic_name: standard_fx32-16mds_v2
+      id: Standard_FX32-16mds_v2
+      memory: 721554505728
+      name: Standard_FX32-16mds_v2
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 32
+      generic_name: standard_fx32mds_v2
+      id: Standard_FX32mds_v2
+      memory: 721554505728
+      name: Standard_FX32mds_v2
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 48
+      generic_name: standard_fx48-12mds_v2
+      id: Standard_FX48-12mds_v2
+      memory: 1082331758592
+      name: Standard_FX48-12mds_v2
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 48
+      generic_name: standard_fx48-24mds_v2
+      id: Standard_FX48-24mds_v2
+      memory: 1082331758592
+      name: Standard_FX48-24mds_v2
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 48
+      generic_name: standard_fx48mds_v2
+      id: Standard_FX48mds_v2
+      memory: 1082331758592
+      name: Standard_FX48mds_v2
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 64
+      generic_name: standard_fx64-16mds_v2
+      id: Standard_FX64-16mds_v2
+      memory: 1443109011456
+      name: Standard_FX64-16mds_v2
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 64
+      generic_name: standard_fx64-32mds_v2
+      id: Standard_FX64-32mds_v2
+      memory: 1443109011456
+      name: Standard_FX64-32mds_v2
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 64
+      generic_name: standard_fx64mds_v2
+      id: Standard_FX64mds_v2
+      memory: 1443109011456
+      name: Standard_FX64mds_v2
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 96
+      generic_name: standard_fx96-24mds_v2
+      id: Standard_FX96-24mds_v2
+      memory: 1967095021568
+      name: Standard_FX96-24mds_v2
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 96
+      generic_name: standard_fx96-48mds_v2
+      id: Standard_FX96-48mds_v2
+      memory: 1967095021568
+      name: Standard_FX96-48mds_v2
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 96
+      generic_name: standard_fx96mds_v2
+      id: Standard_FX96mds_v2
+      memory: 1967095021568
+      name: Standard_FX96mds_v2
+    - category: storage_optimized
+      cloud_provider_id: azure
+      cpu_cores: 2
+      generic_name: standard_l2s_v4
+      id: Standard_L2s_v4
+      memory: 17179869184
+      name: Standard_L2s_v4
+    - category: storage_optimized
+      cloud_provider_id: azure
+      cpu_cores: 4
+      generic_name: standard_l4s_v4
+      id: Standard_L4s_v4
+      memory: 34359738368
+      name: Standard_L4s_v4
+    - category: storage_optimized
+      cloud_provider_id: azure
+      cpu_cores: 8
+      generic_name: standard_l8s_v4
+      id: Standard_L8s_v4
+      memory: 68719476736
+      name: Standard_L8s_v4
+    - category: storage_optimized
+      cloud_provider_id: azure
+      cpu_cores: 16
+      generic_name: standard_l16s_v4
+      id: Standard_L16s_v4
+      memory: 137438953472
+      name: Standard_L16s_v4
+    - category: storage_optimized
+      cloud_provider_id: azure
+      cpu_cores: 32
+      generic_name: standard_l32s_v4
+      id: Standard_L32s_v4
+      memory: 274877906944
+      name: Standard_L32s_v4
+    - category: storage_optimized
+      cloud_provider_id: azure
+      cpu_cores: 48
+      generic_name: standard_l48s_v4
+      id: Standard_L48s_v4
+      memory: 412316860416
+      name: Standard_L48s_v4
+    - category: storage_optimized
+      cloud_provider_id: azure
+      cpu_cores: 64
+      generic_name: standard_l64s_v4
+      id: Standard_L64s_v4
+      memory: 549755813888
+      name: Standard_L64s_v4
+    - category: storage_optimized
+      cloud_provider_id: azure
+      cpu_cores: 80
+      generic_name: standard_l80s_v4
+      id: Standard_L80s_v4
+      memory: 687194767360
+      name: Standard_L80s_v4
+    - category: storage_optimized
+      cloud_provider_id: azure
+      cpu_cores: 96
+      generic_name: standard_l96s_v4
+      id: Standard_L96s_v4
+      memory: 824633720832
+      name: Standard_L96s_v4
     - category: gpu_workload
       cloud_provider_id: azure
       cpu_cores: 6
@@ -3273,223 +4969,6 @@ data:
       id: Standard_FX48mds
       memory: 1082331758592
       name: Standard_FX48mds
-    - category: gpu_workload
-      cloud_provider_id: azure
-      cpu_cores: 24
-      generic_name: standard_nc24ads_a100_v4
-      id: Standard_NC24ads_A100_v4
-      memory: 236223201280
-      name: Standard_NC24ads_A100_v4
-    - category: gpu_workload
-      cloud_provider_id: azure
-      cpu_cores: 48
-      generic_name: standard_nc48ads_a100_v4
-      id: Standard_NC48ads_A100_v4
-      memory: 472446402560
-      name: Standard_NC48ads_A100_v4
-    - category: gpu_workload
-      cloud_provider_id: azure
-      cpu_cores: 96
-      generic_name: standard_nc96ads_a100_v4
-      id: Standard_NC96ads_A100_v4
-      memory: 944892805120
-      name: Standard_NC96ads_A100_v4
-    - category: memory_optimized
-      cloud_provider_id: azure
-      cpu_cores: 2
-      generic_name: standard_e2ds_v6
-      id: Standard_E2ds_v6
-      memory: 17179869184
-      name: Standard_E2ds_v6
-    - category: memory_optimized
-      cloud_provider_id: azure
-      cpu_cores: 4
-      generic_name: standard_e4ds_v6
-      id: Standard_E4ds_v6
-      memory: 34359738368
-      name: Standard_E4ds_v6
-    - category: memory_optimized
-      cloud_provider_id: azure
-      cpu_cores: 8
-      generic_name: standard_e8-2ds_v6
-      id: Standard_E8-2ds_v6
-      memory: 68719476736
-      name: Standard_E8-2ds_v6
-    - category: memory_optimized
-      cloud_provider_id: azure
-      cpu_cores: 8
-      generic_name: standard_e8-4ds_v6
-      id: Standard_E8-4ds_v6
-      memory: 68719476736
-      name: Standard_E8-4ds_v6
-    - category: memory_optimized
-      cloud_provider_id: azure
-      cpu_cores: 8
-      generic_name: standard_e8ds_v6
-      id: Standard_E8ds_v6
-      memory: 68719476736
-      name: Standard_E8ds_v6
-    - category: memory_optimized
-      cloud_provider_id: azure
-      cpu_cores: 16
-      generic_name: standard_e16-4ds_v6
-      id: Standard_E16-4ds_v6
-      memory: 137438953472
-      name: Standard_E16-4ds_v6
-    - category: memory_optimized
-      cloud_provider_id: azure
-      cpu_cores: 16
-      generic_name: standard_e16-8ds_v6
-      id: Standard_E16-8ds_v6
-      memory: 137438953472
-      name: Standard_E16-8ds_v6
-    - category: memory_optimized
-      cloud_provider_id: azure
-      cpu_cores: 16
-      generic_name: standard_e16ds_v6
-      id: Standard_E16ds_v6
-      memory: 137438953472
-      name: Standard_E16ds_v6
-    - category: memory_optimized
-      cloud_provider_id: azure
-      cpu_cores: 20
-      generic_name: standard_e20ds_v6
-      id: Standard_E20ds_v6
-      memory: 171798691840
-      name: Standard_E20ds_v6
-    - category: memory_optimized
-      cloud_provider_id: azure
-      cpu_cores: 32
-      generic_name: standard_e32-8ds_v6
-      id: Standard_E32-8ds_v6
-      memory: 274877906944
-      name: Standard_E32-8ds_v6
-    - category: memory_optimized
-      cloud_provider_id: azure
-      cpu_cores: 32
-      generic_name: standard_e32-16ds_v6
-      id: Standard_E32-16ds_v6
-      memory: 274877906944
-      name: Standard_E32-16ds_v6
-    - category: memory_optimized
-      cloud_provider_id: azure
-      cpu_cores: 32
-      generic_name: standard_e32ds_v6
-      id: Standard_E32ds_v6
-      memory: 274877906944
-      name: Standard_E32ds_v6
-    - category: memory_optimized
-      cloud_provider_id: azure
-      cpu_cores: 48
-      generic_name: standard_e48ds_v6
-      id: Standard_E48ds_v6
-      memory: 412316860416
-      name: Standard_E48ds_v6
-    - category: memory_optimized
-      cloud_provider_id: azure
-      cpu_cores: 64
-      generic_name: standard_e64-16ds_v6
-      id: Standard_E64-16ds_v6
-      memory: 549755813888
-      name: Standard_E64-16ds_v6
-    - category: memory_optimized
-      cloud_provider_id: azure
-      cpu_cores: 64
-      generic_name: standard_e64-32ds_v6
-      id: Standard_E64-32ds_v6
-      memory: 549755813888
-      name: Standard_E64-32ds_v6
-    - category: memory_optimized
-      cloud_provider_id: azure
-      cpu_cores: 64
-      generic_name: standard_e64ds_v6
-      id: Standard_E64ds_v6
-      memory: 549755813888
-      name: Standard_E64ds_v6
-    - category: memory_optimized
-      cloud_provider_id: azure
-      cpu_cores: 96
-      generic_name: standard_e96-24ds_v6
-      id: Standard_E96-24ds_v6
-      memory: 824633720832
-      name: Standard_E96-24ds_v6
-    - category: memory_optimized
-      cloud_provider_id: azure
-      cpu_cores: 96
-      generic_name: standard_e96-48ds_v6
-      id: Standard_E96-48ds_v6
-      memory: 824633720832
-      name: Standard_E96-48ds_v6
-    - category: memory_optimized
-      cloud_provider_id: azure
-      cpu_cores: 96
-      generic_name: standard_e96ds_v6
-      id: Standard_E96ds_v6
-      memory: 824633720832
-      name: Standard_E96ds_v6
-    - category: storage_optimized
-      cloud_provider_id: azure
-      cpu_cores: 8
-      generic_name: standard_l8s_v3
-      id: Standard_L8s_v3
-      memory: 68719476736
-      name: Standard_L8s_v3
-    - category: storage_optimized
-      cloud_provider_id: azure
-      cpu_cores: 16
-      generic_name: standard_l16s_v3
-      id: Standard_L16s_v3
-      memory: 137438953472
-      name: Standard_L16s_v3
-    - category: storage_optimized
-      cloud_provider_id: azure
-      cpu_cores: 32
-      generic_name: standard_l32s_v3
-      id: Standard_L32s_v3
-      memory: 274877906944
-      name: Standard_L32s_v3
-    - category: storage_optimized
-      cloud_provider_id: azure
-      cpu_cores: 48
-      generic_name: standard_l48s_v3
-      id: Standard_L48s_v3
-      memory: 412316860416
-      name: Standard_L48s_v3
-    - category: storage_optimized
-      cloud_provider_id: azure
-      cpu_cores: 64
-      generic_name: standard_l64s_v3
-      id: Standard_L64s_v3
-      memory: 549755813888
-      name: Standard_L64s_v3
-    - category: storage_optimized
-      cloud_provider_id: azure
-      cpu_cores: 80
-      generic_name: standard_l80s_v3
-      id: Standard_L80s_v3
-      memory: 687194767360
-      name: Standard_L80s_v3
-    - category: memory_optimized
-      cloud_provider_id: azure
-      cpu_cores: 96
-      generic_name: standard_e96ias_v4
-      id: Standard_E96ias_v4
-      memory: 721554505728
-      name: Standard_E96ias_v4
-    - category: gpu_workload
-      cloud_provider_id: azure
-      cpu_cores: 40
-      generic_name: standard_nc40ads_h100_v5
-      id: Standard_NC40ads_H100_v5
-      memory: 343597383680
-      name: Standard_NC40ads_H100_v5
-    - category: gpu_workload
-      cloud_provider_id: azure
-      cpu_cores: 80
-      generic_name: standard_nc80adis_h100_v5
-      id: Standard_NC80adis_H100_v5
-      memory: 687194767360
-      name: Standard_NC80adis_H100_v5
     - architecture: arm64
       category: general_purpose
       cloud_provider_id: azure
@@ -3701,6 +5180,14 @@ data:
     - architecture: arm64
       category: general_purpose
       cloud_provider_id: azure
+      cpu_cores: 8
+      generic_name: standard_d8ps_v6
+      id: Standard_D8ps_v6
+      memory: 34359738368
+      name: Standard_D8ps_v6
+    - architecture: arm64
+      category: general_purpose
+      cloud_provider_id: azure
       cpu_cores: 16
       generic_name: standard_d16ps_v6
       id: Standard_D16ps_v6
@@ -3868,6 +5355,1385 @@ data:
       name: Standard_E96pds_v6
     - category: gpu_workload
       cloud_provider_id: azure
+      cpu_cores: 24
+      generic_name: standard_nc24ads_a100_v4
+      id: Standard_NC24ads_A100_v4
+      memory: 236223201280
+      name: Standard_NC24ads_A100_v4
+    - category: gpu_workload
+      cloud_provider_id: azure
+      cpu_cores: 48
+      generic_name: standard_nc48ads_a100_v4
+      id: Standard_NC48ads_A100_v4
+      memory: 472446402560
+      name: Standard_NC48ads_A100_v4
+    - category: gpu_workload
+      cloud_provider_id: azure
+      cpu_cores: 96
+      generic_name: standard_nc96ads_a100_v4
+      id: Standard_NC96ads_A100_v4
+      memory: 944892805120
+      name: Standard_NC96ads_A100_v4
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 2
+      generic_name: standard_dc2as_v6
+      id: Standard_DC2as_v6
+      memory: 8589934592
+      name: Standard_DC2as_v6
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 4
+      generic_name: standard_dc4as_v6
+      id: Standard_DC4as_v6
+      memory: 17179869184
+      name: Standard_DC4as_v6
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 8
+      generic_name: standard_dc8as_v6
+      id: Standard_DC8as_v6
+      memory: 34359738368
+      name: Standard_DC8as_v6
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 16
+      generic_name: standard_dc16as_v6
+      id: Standard_DC16as_v6
+      memory: 68719476736
+      name: Standard_DC16as_v6
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 32
+      generic_name: standard_dc32as_v6
+      id: Standard_DC32as_v6
+      memory: 137438953472
+      name: Standard_DC32as_v6
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 48
+      generic_name: standard_dc48as_v6
+      id: Standard_DC48as_v6
+      memory: 206158430208
+      name: Standard_DC48as_v6
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 64
+      generic_name: standard_dc64as_v6
+      id: Standard_DC64as_v6
+      memory: 274877906944
+      name: Standard_DC64as_v6
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 96
+      generic_name: standard_dc96as_v6
+      id: Standard_DC96as_v6
+      memory: 412316860416
+      name: Standard_DC96as_v6
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 2
+      generic_name: standard_dc2ads_v6
+      id: Standard_DC2ads_v6
+      memory: 8589934592
+      name: Standard_DC2ads_v6
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 4
+      generic_name: standard_dc4ads_v6
+      id: Standard_DC4ads_v6
+      memory: 17179869184
+      name: Standard_DC4ads_v6
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 8
+      generic_name: standard_dc8ads_v6
+      id: Standard_DC8ads_v6
+      memory: 34359738368
+      name: Standard_DC8ads_v6
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 16
+      generic_name: standard_dc16ads_v6
+      id: Standard_DC16ads_v6
+      memory: 68719476736
+      name: Standard_DC16ads_v6
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 32
+      generic_name: standard_dc32ads_v6
+      id: Standard_DC32ads_v6
+      memory: 137438953472
+      name: Standard_DC32ads_v6
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 48
+      generic_name: standard_dc48ads_v6
+      id: Standard_DC48ads_v6
+      memory: 206158430208
+      name: Standard_DC48ads_v6
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 64
+      generic_name: standard_dc64ads_v6
+      id: Standard_DC64ads_v6
+      memory: 274877906944
+      name: Standard_DC64ads_v6
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 96
+      generic_name: standard_dc96ads_v6
+      id: Standard_DC96ads_v6
+      memory: 412316860416
+      name: Standard_DC96ads_v6
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 2
+      generic_name: standard_ec2as_v6
+      id: Standard_EC2as_v6
+      memory: 17179869184
+      name: Standard_EC2as_v6
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 4
+      generic_name: standard_ec4as_v6
+      id: Standard_EC4as_v6
+      memory: 34359738368
+      name: Standard_EC4as_v6
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 8
+      generic_name: standard_ec8as_v6
+      id: Standard_EC8as_v6
+      memory: 68719476736
+      name: Standard_EC8as_v6
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 16
+      generic_name: standard_ec16as_v6
+      id: Standard_EC16as_v6
+      memory: 137438953472
+      name: Standard_EC16as_v6
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 32
+      generic_name: standard_ec32as_v6
+      id: Standard_EC32as_v6
+      memory: 274877906944
+      name: Standard_EC32as_v6
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 48
+      generic_name: standard_ec48as_v6
+      id: Standard_EC48as_v6
+      memory: 412316860416
+      name: Standard_EC48as_v6
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 64
+      generic_name: standard_ec64as_v6
+      id: Standard_EC64as_v6
+      memory: 549755813888
+      name: Standard_EC64as_v6
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 96
+      generic_name: standard_ec96as_v6
+      id: Standard_EC96as_v6
+      memory: 721554505728
+      name: Standard_EC96as_v6
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 2
+      generic_name: standard_ec2ads_v6
+      id: Standard_EC2ads_v6
+      memory: 17179869184
+      name: Standard_EC2ads_v6
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 4
+      generic_name: standard_ec4ads_v6
+      id: Standard_EC4ads_v6
+      memory: 34359738368
+      name: Standard_EC4ads_v6
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 8
+      generic_name: standard_ec8ads_v6
+      id: Standard_EC8ads_v6
+      memory: 68719476736
+      name: Standard_EC8ads_v6
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 16
+      generic_name: standard_ec16ads_v6
+      id: Standard_EC16ads_v6
+      memory: 137438953472
+      name: Standard_EC16ads_v6
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 32
+      generic_name: standard_ec32ads_v6
+      id: Standard_EC32ads_v6
+      memory: 274877906944
+      name: Standard_EC32ads_v6
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 48
+      generic_name: standard_ec48ads_v6
+      id: Standard_EC48ads_v6
+      memory: 412316860416
+      name: Standard_EC48ads_v6
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 64
+      generic_name: standard_ec64ads_v6
+      id: Standard_EC64ads_v6
+      memory: 549755813888
+      name: Standard_EC64ads_v6
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 96
+      generic_name: standard_ec96ads_v6
+      id: Standard_EC96ads_v6
+      memory: 721554505728
+      name: Standard_EC96ads_v6
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 2
+      generic_name: standard_d2als_v7
+      id: Standard_D2als_v7
+      memory: 4294967296
+      name: Standard_D2als_v7
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 4
+      generic_name: standard_d4als_v7
+      id: Standard_D4als_v7
+      memory: 8589934592
+      name: Standard_D4als_v7
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 8
+      generic_name: standard_d8als_v7
+      id: Standard_D8als_v7
+      memory: 17179869184
+      name: Standard_D8als_v7
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 16
+      generic_name: standard_d16als_v7
+      id: Standard_D16als_v7
+      memory: 34359738368
+      name: Standard_D16als_v7
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 32
+      generic_name: standard_d32als_v7
+      id: Standard_D32als_v7
+      memory: 68719476736
+      name: Standard_D32als_v7
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 48
+      generic_name: standard_d48als_v7
+      id: Standard_D48als_v7
+      memory: 103079215104
+      name: Standard_D48als_v7
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 64
+      generic_name: standard_d64als_v7
+      id: Standard_D64als_v7
+      memory: 137438953472
+      name: Standard_D64als_v7
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 96
+      generic_name: standard_d96als_v7
+      id: Standard_D96als_v7
+      memory: 206158430208
+      name: Standard_D96als_v7
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 128
+      generic_name: standard_d128als_v7
+      id: Standard_D128als_v7
+      memory: 274877906944
+      name: Standard_D128als_v7
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 160
+      generic_name: standard_d160als_v7
+      id: Standard_D160als_v7
+      memory: 343597383680
+      name: Standard_D160als_v7
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 2
+      generic_name: standard_d2alds_v7
+      id: Standard_D2alds_v7
+      memory: 4294967296
+      name: Standard_D2alds_v7
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 4
+      generic_name: standard_d4alds_v7
+      id: Standard_D4alds_v7
+      memory: 8589934592
+      name: Standard_D4alds_v7
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 8
+      generic_name: standard_d8alds_v7
+      id: Standard_D8alds_v7
+      memory: 17179869184
+      name: Standard_D8alds_v7
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 16
+      generic_name: standard_d16alds_v7
+      id: Standard_D16alds_v7
+      memory: 34359738368
+      name: Standard_D16alds_v7
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 32
+      generic_name: standard_d32alds_v7
+      id: Standard_D32alds_v7
+      memory: 68719476736
+      name: Standard_D32alds_v7
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 48
+      generic_name: standard_d48alds_v7
+      id: Standard_D48alds_v7
+      memory: 103079215104
+      name: Standard_D48alds_v7
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 64
+      generic_name: standard_d64alds_v7
+      id: Standard_D64alds_v7
+      memory: 137438953472
+      name: Standard_D64alds_v7
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 96
+      generic_name: standard_d96alds_v7
+      id: Standard_D96alds_v7
+      memory: 206158430208
+      name: Standard_D96alds_v7
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 128
+      generic_name: standard_d128alds_v7
+      id: Standard_D128alds_v7
+      memory: 274877906944
+      name: Standard_D128alds_v7
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 160
+      generic_name: standard_d160alds_v7
+      id: Standard_D160alds_v7
+      memory: 343597383680
+      name: Standard_D160alds_v7
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 2
+      generic_name: standard_d2as_v7
+      id: Standard_D2as_v7
+      memory: 8589934592
+      name: Standard_D2as_v7
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 4
+      generic_name: standard_d4as_v7
+      id: Standard_D4as_v7
+      memory: 17179869184
+      name: Standard_D4as_v7
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 8
+      generic_name: standard_d8as_v7
+      id: Standard_D8as_v7
+      memory: 34359738368
+      name: Standard_D8as_v7
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 16
+      generic_name: standard_d16as_v7
+      id: Standard_D16as_v7
+      memory: 68719476736
+      name: Standard_D16as_v7
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 32
+      generic_name: standard_d32as_v7
+      id: Standard_D32as_v7
+      memory: 137438953472
+      name: Standard_D32as_v7
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 48
+      generic_name: standard_d48as_v7
+      id: Standard_D48as_v7
+      memory: 206158430208
+      name: Standard_D48as_v7
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 64
+      generic_name: standard_d64as_v7
+      id: Standard_D64as_v7
+      memory: 274877906944
+      name: Standard_D64as_v7
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 96
+      generic_name: standard_d96as_v7
+      id: Standard_D96as_v7
+      memory: 412316860416
+      name: Standard_D96as_v7
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 128
+      generic_name: standard_d128as_v7
+      id: Standard_D128as_v7
+      memory: 549755813888
+      name: Standard_D128as_v7
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 160
+      generic_name: standard_d160as_v7
+      id: Standard_D160as_v7
+      memory: 687194767360
+      name: Standard_D160as_v7
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 2
+      generic_name: standard_d2ads_v7
+      id: Standard_D2ads_v7
+      memory: 8589934592
+      name: Standard_D2ads_v7
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 4
+      generic_name: standard_d4ads_v7
+      id: Standard_D4ads_v7
+      memory: 17179869184
+      name: Standard_D4ads_v7
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 8
+      generic_name: standard_d8ads_v7
+      id: Standard_D8ads_v7
+      memory: 34359738368
+      name: Standard_D8ads_v7
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 16
+      generic_name: standard_d16ads_v7
+      id: Standard_D16ads_v7
+      memory: 68719476736
+      name: Standard_D16ads_v7
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 32
+      generic_name: standard_d32ads_v7
+      id: Standard_D32ads_v7
+      memory: 137438953472
+      name: Standard_D32ads_v7
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 48
+      generic_name: standard_d48ads_v7
+      id: Standard_D48ads_v7
+      memory: 206158430208
+      name: Standard_D48ads_v7
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 64
+      generic_name: standard_d64ads_v7
+      id: Standard_D64ads_v7
+      memory: 274877906944
+      name: Standard_D64ads_v7
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 96
+      generic_name: standard_d96ads_v7
+      id: Standard_D96ads_v7
+      memory: 412316860416
+      name: Standard_D96ads_v7
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 128
+      generic_name: standard_d128ads_v7
+      id: Standard_D128ads_v7
+      memory: 549755813888
+      name: Standard_D128ads_v7
+    - category: general_purpose
+      cloud_provider_id: azure
+      cpu_cores: 160
+      generic_name: standard_d160ads_v7
+      id: Standard_D160ads_v7
+      memory: 687194767360
+      name: Standard_D160ads_v7
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 2
+      generic_name: standard_e2as_v7
+      id: Standard_E2as_v7
+      memory: 17179869184
+      name: Standard_E2as_v7
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 4
+      generic_name: standard_e4-2as_v7
+      id: Standard_E4-2as_v7
+      memory: 34359738368
+      name: Standard_E4-2as_v7
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 4
+      generic_name: standard_e4as_v7
+      id: Standard_E4as_v7
+      memory: 34359738368
+      name: Standard_E4as_v7
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 8
+      generic_name: standard_e8-2as_v7
+      id: Standard_E8-2as_v7
+      memory: 68719476736
+      name: Standard_E8-2as_v7
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 8
+      generic_name: standard_e8-4as_v7
+      id: Standard_E8-4as_v7
+      memory: 68719476736
+      name: Standard_E8-4as_v7
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 8
+      generic_name: standard_e8as_v7
+      id: Standard_E8as_v7
+      memory: 68719476736
+      name: Standard_E8as_v7
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 16
+      generic_name: standard_e16-4as_v7
+      id: Standard_E16-4as_v7
+      memory: 137438953472
+      name: Standard_E16-4as_v7
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 16
+      generic_name: standard_e16-8as_v7
+      id: Standard_E16-8as_v7
+      memory: 137438953472
+      name: Standard_E16-8as_v7
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 16
+      generic_name: standard_e16as_v7
+      id: Standard_E16as_v7
+      memory: 137438953472
+      name: Standard_E16as_v7
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 32
+      generic_name: standard_e32-8as_v7
+      id: Standard_E32-8as_v7
+      memory: 274877906944
+      name: Standard_E32-8as_v7
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 32
+      generic_name: standard_e32-16as_v7
+      id: Standard_E32-16as_v7
+      memory: 274877906944
+      name: Standard_E32-16as_v7
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 32
+      generic_name: standard_e32as_v7
+      id: Standard_E32as_v7
+      memory: 274877906944
+      name: Standard_E32as_v7
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 48
+      generic_name: standard_e48as_v7
+      id: Standard_E48as_v7
+      memory: 412316860416
+      name: Standard_E48as_v7
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 64
+      generic_name: standard_e64-16as_v7
+      id: Standard_E64-16as_v7
+      memory: 549755813888
+      name: Standard_E64-16as_v7
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 64
+      generic_name: standard_e64-32as_v7
+      id: Standard_E64-32as_v7
+      memory: 549755813888
+      name: Standard_E64-32as_v7
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 64
+      generic_name: standard_e64as_v7
+      id: Standard_E64as_v7
+      memory: 549755813888
+      name: Standard_E64as_v7
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 96
+      generic_name: standard_e96-24as_v7
+      id: Standard_E96-24as_v7
+      memory: 824633720832
+      name: Standard_E96-24as_v7
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 96
+      generic_name: standard_e96-48as_v7
+      id: Standard_E96-48as_v7
+      memory: 824633720832
+      name: Standard_E96-48as_v7
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 96
+      generic_name: standard_e96as_v7
+      id: Standard_E96as_v7
+      memory: 824633720832
+      name: Standard_E96as_v7
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 128
+      generic_name: standard_e128-32as_v7
+      id: Standard_E128-32as_v7
+      memory: 1099511627776
+      name: Standard_E128-32as_v7
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 128
+      generic_name: standard_e128-64as_v7
+      id: Standard_E128-64as_v7
+      memory: 1099511627776
+      name: Standard_E128-64as_v7
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 128
+      generic_name: standard_e128as_v7
+      id: Standard_E128as_v7
+      memory: 1099511627776
+      name: Standard_E128as_v7
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 2
+      generic_name: standard_e2ads_v7
+      id: Standard_E2ads_v7
+      memory: 17179869184
+      name: Standard_E2ads_v7
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 4
+      generic_name: standard_e4-2ads_v7
+      id: Standard_E4-2ads_v7
+      memory: 34359738368
+      name: Standard_E4-2ads_v7
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 4
+      generic_name: standard_e4ads_v7
+      id: Standard_E4ads_v7
+      memory: 34359738368
+      name: Standard_E4ads_v7
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 8
+      generic_name: standard_e8-2ads_v7
+      id: Standard_E8-2ads_v7
+      memory: 68719476736
+      name: Standard_E8-2ads_v7
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 8
+      generic_name: standard_e8-4ads_v7
+      id: Standard_E8-4ads_v7
+      memory: 68719476736
+      name: Standard_E8-4ads_v7
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 8
+      generic_name: standard_e8ads_v7
+      id: Standard_E8ads_v7
+      memory: 68719476736
+      name: Standard_E8ads_v7
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 16
+      generic_name: standard_e16-4ads_v7
+      id: Standard_E16-4ads_v7
+      memory: 137438953472
+      name: Standard_E16-4ads_v7
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 16
+      generic_name: standard_e16-8ads_v7
+      id: Standard_E16-8ads_v7
+      memory: 137438953472
+      name: Standard_E16-8ads_v7
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 16
+      generic_name: standard_e16ads_v7
+      id: Standard_E16ads_v7
+      memory: 137438953472
+      name: Standard_E16ads_v7
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 32
+      generic_name: standard_e32-8ads_v7
+      id: Standard_E32-8ads_v7
+      memory: 274877906944
+      name: Standard_E32-8ads_v7
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 32
+      generic_name: standard_e32-16ads_v7
+      id: Standard_E32-16ads_v7
+      memory: 274877906944
+      name: Standard_E32-16ads_v7
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 32
+      generic_name: standard_e32ads_v7
+      id: Standard_E32ads_v7
+      memory: 274877906944
+      name: Standard_E32ads_v7
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 48
+      generic_name: standard_e48ads_v7
+      id: Standard_E48ads_v7
+      memory: 412316860416
+      name: Standard_E48ads_v7
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 64
+      generic_name: standard_e64-16ads_v7
+      id: Standard_E64-16ads_v7
+      memory: 549755813888
+      name: Standard_E64-16ads_v7
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 64
+      generic_name: standard_e64-32ads_v7
+      id: Standard_E64-32ads_v7
+      memory: 549755813888
+      name: Standard_E64-32ads_v7
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 64
+      generic_name: standard_e64ads_v7
+      id: Standard_E64ads_v7
+      memory: 549755813888
+      name: Standard_E64ads_v7
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 96
+      generic_name: standard_e96-24ads_v7
+      id: Standard_E96-24ads_v7
+      memory: 824633720832
+      name: Standard_E96-24ads_v7
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 96
+      generic_name: standard_e96-48ads_v7
+      id: Standard_E96-48ads_v7
+      memory: 824633720832
+      name: Standard_E96-48ads_v7
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 96
+      generic_name: standard_e96ads_v7
+      id: Standard_E96ads_v7
+      memory: 824633720832
+      name: Standard_E96ads_v7
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 128
+      generic_name: standard_e128-32ads_v7
+      id: Standard_E128-32ads_v7
+      memory: 1099511627776
+      name: Standard_E128-32ads_v7
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 128
+      generic_name: standard_e128-64ads_v7
+      id: Standard_E128-64ads_v7
+      memory: 1099511627776
+      name: Standard_E128-64ads_v7
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 128
+      generic_name: standard_e128ads_v7
+      id: Standard_E128ads_v7
+      memory: 1099511627776
+      name: Standard_E128ads_v7
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 1
+      generic_name: standard_f1als_v7
+      id: Standard_F1als_v7
+      memory: 2147483648
+      name: Standard_F1als_v7
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 2
+      generic_name: standard_f2als_v7
+      id: Standard_F2als_v7
+      memory: 4294967296
+      name: Standard_F2als_v7
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 4
+      generic_name: standard_f4als_v7
+      id: Standard_F4als_v7
+      memory: 8589934592
+      name: Standard_F4als_v7
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 8
+      generic_name: standard_f8als_v7
+      id: Standard_F8als_v7
+      memory: 17179869184
+      name: Standard_F8als_v7
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 16
+      generic_name: standard_f16als_v7
+      id: Standard_F16als_v7
+      memory: 34359738368
+      name: Standard_F16als_v7
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 32
+      generic_name: standard_f32als_v7
+      id: Standard_F32als_v7
+      memory: 68719476736
+      name: Standard_F32als_v7
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 48
+      generic_name: standard_f48als_v7
+      id: Standard_F48als_v7
+      memory: 103079215104
+      name: Standard_F48als_v7
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 64
+      generic_name: standard_f64als_v7
+      id: Standard_F64als_v7
+      memory: 137438953472
+      name: Standard_F64als_v7
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 80
+      generic_name: standard_f80als_v7
+      id: Standard_F80als_v7
+      memory: 171798691840
+      name: Standard_F80als_v7
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 1
+      generic_name: standard_f1alds_v7
+      id: Standard_F1alds_v7
+      memory: 2147483648
+      name: Standard_F1alds_v7
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 2
+      generic_name: standard_f2alds_v7
+      id: Standard_F2alds_v7
+      memory: 4294967296
+      name: Standard_F2alds_v7
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 4
+      generic_name: standard_f4alds_v7
+      id: Standard_F4alds_v7
+      memory: 8589934592
+      name: Standard_F4alds_v7
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 8
+      generic_name: standard_f8alds_v7
+      id: Standard_F8alds_v7
+      memory: 17179869184
+      name: Standard_F8alds_v7
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 16
+      generic_name: standard_f16alds_v7
+      id: Standard_F16alds_v7
+      memory: 34359738368
+      name: Standard_F16alds_v7
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 32
+      generic_name: standard_f32alds_v7
+      id: Standard_F32alds_v7
+      memory: 68719476736
+      name: Standard_F32alds_v7
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 48
+      generic_name: standard_f48alds_v7
+      id: Standard_F48alds_v7
+      memory: 103079215104
+      name: Standard_F48alds_v7
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 64
+      generic_name: standard_f64alds_v7
+      id: Standard_F64alds_v7
+      memory: 137438953472
+      name: Standard_F64alds_v7
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 80
+      generic_name: standard_f80alds_v7
+      id: Standard_F80alds_v7
+      memory: 171798691840
+      name: Standard_F80alds_v7
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 1
+      generic_name: standard_f1as_v7
+      id: Standard_F1as_v7
+      memory: 4294967296
+      name: Standard_F1as_v7
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 2
+      generic_name: standard_f2as_v7
+      id: Standard_F2as_v7
+      memory: 8589934592
+      name: Standard_F2as_v7
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 4
+      generic_name: standard_f4as_v7
+      id: Standard_F4as_v7
+      memory: 17179869184
+      name: Standard_F4as_v7
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 8
+      generic_name: standard_f8as_v7
+      id: Standard_F8as_v7
+      memory: 34359738368
+      name: Standard_F8as_v7
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 16
+      generic_name: standard_f16as_v7
+      id: Standard_F16as_v7
+      memory: 68719476736
+      name: Standard_F16as_v7
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 32
+      generic_name: standard_f32as_v7
+      id: Standard_F32as_v7
+      memory: 137438953472
+      name: Standard_F32as_v7
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 48
+      generic_name: standard_f48as_v7
+      id: Standard_F48as_v7
+      memory: 206158430208
+      name: Standard_F48as_v7
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 64
+      generic_name: standard_f64as_v7
+      id: Standard_F64as_v7
+      memory: 274877906944
+      name: Standard_F64as_v7
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 80
+      generic_name: standard_f80as_v7
+      id: Standard_F80as_v7
+      memory: 343597383680
+      name: Standard_F80as_v7
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 1
+      generic_name: standard_f1ads_v7
+      id: Standard_F1ads_v7
+      memory: 4294967296
+      name: Standard_F1ads_v7
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 2
+      generic_name: standard_f2ads_v7
+      id: Standard_F2ads_v7
+      memory: 8589934592
+      name: Standard_F2ads_v7
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 4
+      generic_name: standard_f4ads_v7
+      id: Standard_F4ads_v7
+      memory: 17179869184
+      name: Standard_F4ads_v7
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 8
+      generic_name: standard_f8ads_v7
+      id: Standard_F8ads_v7
+      memory: 34359738368
+      name: Standard_F8ads_v7
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 16
+      generic_name: standard_f16ads_v7
+      id: Standard_F16ads_v7
+      memory: 68719476736
+      name: Standard_F16ads_v7
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 32
+      generic_name: standard_f32ads_v7
+      id: Standard_F32ads_v7
+      memory: 137438953472
+      name: Standard_F32ads_v7
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 48
+      generic_name: standard_f48ads_v7
+      id: Standard_F48ads_v7
+      memory: 206158430208
+      name: Standard_F48ads_v7
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 64
+      generic_name: standard_f64ads_v7
+      id: Standard_F64ads_v7
+      memory: 274877906944
+      name: Standard_F64ads_v7
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 80
+      generic_name: standard_f80ads_v7
+      id: Standard_F80ads_v7
+      memory: 343597383680
+      name: Standard_F80ads_v7
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 1
+      generic_name: standard_f1ams_v7
+      id: Standard_F1ams_v7
+      memory: 8589934592
+      name: Standard_F1ams_v7
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 2
+      generic_name: standard_f2-1ams_v7
+      id: Standard_F2-1ams_v7
+      memory: 17179869184
+      name: Standard_F2-1ams_v7
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 2
+      generic_name: standard_f2ams_v7
+      id: Standard_F2ams_v7
+      memory: 17179869184
+      name: Standard_F2ams_v7
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 4
+      generic_name: standard_f4-1ams_v7
+      id: Standard_F4-1ams_v7
+      memory: 34359738368
+      name: Standard_F4-1ams_v7
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 4
+      generic_name: standard_f4-2ams_v7
+      id: Standard_F4-2ams_v7
+      memory: 34359738368
+      name: Standard_F4-2ams_v7
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 4
+      generic_name: standard_f4ams_v7
+      id: Standard_F4ams_v7
+      memory: 34359738368
+      name: Standard_F4ams_v7
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 8
+      generic_name: standard_f8-2ams_v7
+      id: Standard_F8-2ams_v7
+      memory: 68719476736
+      name: Standard_F8-2ams_v7
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 8
+      generic_name: standard_f8-4ams_v7
+      id: Standard_F8-4ams_v7
+      memory: 68719476736
+      name: Standard_F8-4ams_v7
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 8
+      generic_name: standard_f8ams_v7
+      id: Standard_F8ams_v7
+      memory: 68719476736
+      name: Standard_F8ams_v7
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 16
+      generic_name: standard_f16-4ams_v7
+      id: Standard_F16-4ams_v7
+      memory: 137438953472
+      name: Standard_F16-4ams_v7
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 16
+      generic_name: standard_f16-8ams_v7
+      id: Standard_F16-8ams_v7
+      memory: 137438953472
+      name: Standard_F16-8ams_v7
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 16
+      generic_name: standard_f16ams_v7
+      id: Standard_F16ams_v7
+      memory: 137438953472
+      name: Standard_F16ams_v7
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 32
+      generic_name: standard_f32-8ams_v7
+      id: Standard_F32-8ams_v7
+      memory: 274877906944
+      name: Standard_F32-8ams_v7
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 32
+      generic_name: standard_f32-16ams_v7
+      id: Standard_F32-16ams_v7
+      memory: 274877906944
+      name: Standard_F32-16ams_v7
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 32
+      generic_name: standard_f32ams_v7
+      id: Standard_F32ams_v7
+      memory: 274877906944
+      name: Standard_F32ams_v7
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 48
+      generic_name: standard_f48ams_v7
+      id: Standard_F48ams_v7
+      memory: 412316860416
+      name: Standard_F48ams_v7
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 80
+      generic_name: standard_f64-16ams_v7
+      id: Standard_F64-16ams_v7
+      memory: 549755813888
+      name: Standard_F64-16ams_v7
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 64
+      generic_name: standard_f64-32ams_v7
+      id: Standard_F64-32ams_v7
+      memory: 549755813888
+      name: Standard_F64-32ams_v7
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 64
+      generic_name: standard_f64ams_v7
+      id: Standard_F64ams_v7
+      memory: 549755813888
+      name: Standard_F64ams_v7
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 80
+      generic_name: standard_f80ams_v7
+      id: Standard_F80ams_v7
+      memory: 687194767360
+      name: Standard_F80ams_v7
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 1
+      generic_name: standard_f1amds_v7
+      id: Standard_F1amds_v7
+      memory: 8589934592
+      name: Standard_F1amds_v7
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 2
+      generic_name: standard_f2-1amds_v7
+      id: Standard_F2-1amds_v7
+      memory: 17179869184
+      name: Standard_F2-1amds_v7
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 2
+      generic_name: standard_f2amds_v7
+      id: Standard_F2amds_v7
+      memory: 17179869184
+      name: Standard_F2amds_v7
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 4
+      generic_name: standard_f4-1amds_v7
+      id: Standard_F4-1amds_v7
+      memory: 34359738368
+      name: Standard_F4-1amds_v7
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 4
+      generic_name: standard_f4-2amds_v7
+      id: Standard_F4-2amds_v7
+      memory: 34359738368
+      name: Standard_F4-2amds_v7
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 4
+      generic_name: standard_f4amds_v7
+      id: Standard_F4amds_v7
+      memory: 34359738368
+      name: Standard_F4amds_v7
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 8
+      generic_name: standard_f8-2amds_v7
+      id: Standard_F8-2amds_v7
+      memory: 68719476736
+      name: Standard_F8-2amds_v7
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 8
+      generic_name: standard_f8-4amds_v7
+      id: Standard_F8-4amds_v7
+      memory: 68719476736
+      name: Standard_F8-4amds_v7
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 8
+      generic_name: standard_f8amds_v7
+      id: Standard_F8amds_v7
+      memory: 68719476736
+      name: Standard_F8amds_v7
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 16
+      generic_name: standard_f16-4amds_v7
+      id: Standard_F16-4amds_v7
+      memory: 137438953472
+      name: Standard_F16-4amds_v7
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 16
+      generic_name: standard_f16-8amds_v7
+      id: Standard_F16-8amds_v7
+      memory: 137438953472
+      name: Standard_F16-8amds_v7
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 16
+      generic_name: standard_f16amds_v7
+      id: Standard_F16amds_v7
+      memory: 137438953472
+      name: Standard_F16amds_v7
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 32
+      generic_name: standard_f32-8amds_v7
+      id: Standard_F32-8amds_v7
+      memory: 274877906944
+      name: Standard_F32-8amds_v7
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 32
+      generic_name: standard_f32-16amds_v7
+      id: Standard_F32-16amds_v7
+      memory: 274877906944
+      name: Standard_F32-16amds_v7
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 32
+      generic_name: standard_f32amds_v7
+      id: Standard_F32amds_v7
+      memory: 274877906944
+      name: Standard_F32amds_v7
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 48
+      generic_name: standard_f48amds_v7
+      id: Standard_F48amds_v7
+      memory: 412316860416
+      name: Standard_F48amds_v7
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 64
+      generic_name: standard_f64-16amds_v7
+      id: Standard_F64-16amds_v7
+      memory: 549755813888
+      name: Standard_F64-16amds_v7
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 64
+      generic_name: standard_f64-32amds_v7
+      id: Standard_F64-32amds_v7
+      memory: 549755813888
+      name: Standard_F64-32amds_v7
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 64
+      generic_name: standard_f64amds_v7
+      id: Standard_F64amds_v7
+      memory: 549755813888
+      name: Standard_F64amds_v7
+    - category: compute_optimized
+      cloud_provider_id: azure
+      cpu_cores: 80
+      generic_name: standard_f80amds_v7
+      id: Standard_F80amds_v7
+      memory: 687194767360
+      name: Standard_F80amds_v7
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 96
+      generic_name: standard_e96ias_v4
+      id: Standard_E96ias_v4
+      memory: 721554505728
+      name: Standard_E96ias_v4
+    - category: gpu_workload
+      cloud_provider_id: azure
+      cpu_cores: 96
+      generic_name: standard_nd96isr_h200_v5
+      id: Standard_ND96isr_H200_v5
+      memory: 1986422374400
+      name: Standard_ND96isr_H200_v5
+    - category: gpu_workload
+      cloud_provider_id: azure
       cpu_cores: 4
       generic_name: standard_nv4as_v4
       id: Standard_NV4as_v4
@@ -3894,405 +6760,20 @@ data:
       id: Standard_NV32as_v4
       memory: 120259084288
       name: Standard_NV32as_v4
-    - category: general_purpose
-      cloud_provider_id: azure
-      cpu_cores: 2
-      generic_name: standard_d2ls_v6
-      id: Standard_D2ls_v6
-      memory: 4294967296
-      name: Standard_D2ls_v6
-    - category: general_purpose
-      cloud_provider_id: azure
-      cpu_cores: 4
-      generic_name: standard_d4ls_v6
-      id: Standard_D4ls_v6
-      memory: 8589934592
-      name: Standard_D4ls_v6
-    - category: general_purpose
-      cloud_provider_id: azure
-      cpu_cores: 8
-      generic_name: standard_d8ls_v6
-      id: Standard_D8ls_v6
-      memory: 17179869184
-      name: Standard_D8ls_v6
-    - category: general_purpose
-      cloud_provider_id: azure
-      cpu_cores: 16
-      generic_name: standard_d16ls_v6
-      id: Standard_D16ls_v6
-      memory: 34359738368
-      name: Standard_D16ls_v6
-    - category: general_purpose
-      cloud_provider_id: azure
-      cpu_cores: 32
-      generic_name: standard_d32ls_v6
-      id: Standard_D32ls_v6
-      memory: 68719476736
-      name: Standard_D32ls_v6
-    - category: general_purpose
-      cloud_provider_id: azure
-      cpu_cores: 48
-      generic_name: standard_d48ls_v6
-      id: Standard_D48ls_v6
-      memory: 103079215104
-      name: Standard_D48ls_v6
-    - category: general_purpose
-      cloud_provider_id: azure
-      cpu_cores: 64
-      generic_name: standard_d64ls_v6
-      id: Standard_D64ls_v6
-      memory: 137438953472
-      name: Standard_D64ls_v6
-    - category: general_purpose
-      cloud_provider_id: azure
-      cpu_cores: 96
-      generic_name: standard_d96ls_v6
-      id: Standard_D96ls_v6
-      memory: 206158430208
-      name: Standard_D96ls_v6
-    - category: general_purpose
-      cloud_provider_id: azure
-      cpu_cores: 128
-      generic_name: standard_d128ls_v6
-      id: Standard_D128ls_v6
-      memory: 274877906944
-      name: Standard_D128ls_v6
-    - category: general_purpose
-      cloud_provider_id: azure
-      cpu_cores: 2
-      generic_name: standard_d2lds_v6
-      id: Standard_D2lds_v6
-      memory: 4294967296
-      name: Standard_D2lds_v6
-    - category: general_purpose
-      cloud_provider_id: azure
-      cpu_cores: 4
-      generic_name: standard_d4lds_v6
-      id: Standard_D4lds_v6
-      memory: 8589934592
-      name: Standard_D4lds_v6
-    - category: general_purpose
-      cloud_provider_id: azure
-      cpu_cores: 8
-      generic_name: standard_d8lds_v6
-      id: Standard_D8lds_v6
-      memory: 17179869184
-      name: Standard_D8lds_v6
-    - category: general_purpose
-      cloud_provider_id: azure
-      cpu_cores: 16
-      generic_name: standard_d16lds_v6
-      id: Standard_D16lds_v6
-      memory: 34359738368
-      name: Standard_D16lds_v6
-    - category: general_purpose
-      cloud_provider_id: azure
-      cpu_cores: 32
-      generic_name: standard_d32lds_v6
-      id: Standard_D32lds_v6
-      memory: 68719476736
-      name: Standard_D32lds_v6
-    - category: general_purpose
-      cloud_provider_id: azure
-      cpu_cores: 48
-      generic_name: standard_d48lds_v6
-      id: Standard_D48lds_v6
-      memory: 103079215104
-      name: Standard_D48lds_v6
-    - category: general_purpose
-      cloud_provider_id: azure
-      cpu_cores: 64
-      generic_name: standard_d64lds_v6
-      id: Standard_D64lds_v6
-      memory: 137438953472
-      name: Standard_D64lds_v6
-    - category: general_purpose
-      cloud_provider_id: azure
-      cpu_cores: 96
-      generic_name: standard_d96lds_v6
-      id: Standard_D96lds_v6
-      memory: 206158430208
-      name: Standard_D96lds_v6
-    - category: general_purpose
-      cloud_provider_id: azure
-      cpu_cores: 128
-      generic_name: standard_d128lds_v6
-      id: Standard_D128lds_v6
-      memory: 274877906944
-      name: Standard_D128lds_v6
-    - category: general_purpose
-      cloud_provider_id: azure
-      cpu_cores: 2
-      generic_name: standard_d2s_v6
-      id: Standard_D2s_v6
-      memory: 8589934592
-      name: Standard_D2s_v6
-    - category: general_purpose
-      cloud_provider_id: azure
-      cpu_cores: 4
-      generic_name: standard_d4s_v6
-      id: Standard_D4s_v6
-      memory: 17179869184
-      name: Standard_D4s_v6
-    - category: general_purpose
-      cloud_provider_id: azure
-      cpu_cores: 8
-      generic_name: standard_d8s_v6
-      id: Standard_D8s_v6
-      memory: 34359738368
-      name: Standard_D8s_v6
-    - category: general_purpose
-      cloud_provider_id: azure
-      cpu_cores: 16
-      generic_name: standard_d16s_v6
-      id: Standard_D16s_v6
-      memory: 68719476736
-      name: Standard_D16s_v6
-    - category: general_purpose
-      cloud_provider_id: azure
-      cpu_cores: 32
-      generic_name: standard_d32s_v6
-      id: Standard_D32s_v6
-      memory: 137438953472
-      name: Standard_D32s_v6
-    - category: general_purpose
-      cloud_provider_id: azure
-      cpu_cores: 48
-      generic_name: standard_d48s_v6
-      id: Standard_D48s_v6
-      memory: 206158430208
-      name: Standard_D48s_v6
-    - category: general_purpose
-      cloud_provider_id: azure
-      cpu_cores: 64
-      generic_name: standard_d64s_v6
-      id: Standard_D64s_v6
-      memory: 274877906944
-      name: Standard_D64s_v6
-    - category: general_purpose
-      cloud_provider_id: azure
-      cpu_cores: 96
-      generic_name: standard_d96s_v6
-      id: Standard_D96s_v6
-      memory: 412316860416
-      name: Standard_D96s_v6
-    - category: general_purpose
-      cloud_provider_id: azure
-      cpu_cores: 128
-      generic_name: standard_d128s_v6
-      id: Standard_D128s_v6
-      memory: 549755813888
-      name: Standard_D128s_v6
-    - category: general_purpose
-      cloud_provider_id: azure
-      cpu_cores: 2
-      generic_name: standard_d2ds_v6
-      id: Standard_D2ds_v6
-      memory: 8589934592
-      name: Standard_D2ds_v6
-    - category: general_purpose
-      cloud_provider_id: azure
-      cpu_cores: 4
-      generic_name: standard_d4ds_v6
-      id: Standard_D4ds_v6
-      memory: 17179869184
-      name: Standard_D4ds_v6
-    - category: general_purpose
-      cloud_provider_id: azure
-      cpu_cores: 8
-      generic_name: standard_d8ds_v6
-      id: Standard_D8ds_v6
-      memory: 34359738368
-      name: Standard_D8ds_v6
-    - category: general_purpose
-      cloud_provider_id: azure
-      cpu_cores: 16
-      generic_name: standard_d16ds_v6
-      id: Standard_D16ds_v6
-      memory: 68719476736
-      name: Standard_D16ds_v6
-    - category: general_purpose
-      cloud_provider_id: azure
-      cpu_cores: 32
-      generic_name: standard_d32ds_v6
-      id: Standard_D32ds_v6
-      memory: 137438953472
-      name: Standard_D32ds_v6
-    - category: general_purpose
-      cloud_provider_id: azure
-      cpu_cores: 48
-      generic_name: standard_d48ds_v6
-      id: Standard_D48ds_v6
-      memory: 206158430208
-      name: Standard_D48ds_v6
-    - category: general_purpose
-      cloud_provider_id: azure
-      cpu_cores: 64
-      generic_name: standard_d64ds_v6
-      id: Standard_D64ds_v6
-      memory: 274877906944
-      name: Standard_D64ds_v6
-    - category: general_purpose
-      cloud_provider_id: azure
-      cpu_cores: 96
-      generic_name: standard_d96ds_v6
-      id: Standard_D96ds_v6
-      memory: 412316860416
-      name: Standard_D96ds_v6
-    - category: general_purpose
-      cloud_provider_id: azure
-      cpu_cores: 128
-      generic_name: standard_d128ds_v6
-      id: Standard_D128ds_v6
-      memory: 549755813888
-      name: Standard_D128ds_v6
-    - category: general_purpose
-      cloud_provider_id: azure
-      cpu_cores: 192
-      generic_name: standard_d192ds_v6
-      id: Standard_D192ds_v6
-      memory: 824633720832
-      name: Standard_D192ds_v6
     - category: memory_optimized
       cloud_provider_id: azure
-      cpu_cores: 2
-      generic_name: standard_e2s_v6
-      id: Standard_E2s_v6
-      memory: 17179869184
-      name: Standard_E2s_v6
+      cpu_cores: 160
+      generic_name: standard_e160as_v7
+      id: Standard_E160as_v7
+      memory: 1374389534720
+      name: Standard_E160as_v7
     - category: memory_optimized
       cloud_provider_id: azure
-      cpu_cores: 4
-      generic_name: standard_e4-2s_v6
-      id: Standard_E4-2s_v6
-      memory: 34359738368
-      name: Standard_E4-2s_v6
-    - category: memory_optimized
-      cloud_provider_id: azure
-      cpu_cores: 4
-      generic_name: standard_e4s_v6
-      id: Standard_E4s_v6
-      memory: 34359738368
-      name: Standard_E4s_v6
-    - category: memory_optimized
-      cloud_provider_id: azure
-      cpu_cores: 8
-      generic_name: standard_e8-2s_v6
-      id: Standard_E8-2s_v6
-      memory: 68719476736
-      name: Standard_E8-2s_v6
-    - category: memory_optimized
-      cloud_provider_id: azure
-      cpu_cores: 8
-      generic_name: standard_e8-4s_v6
-      id: Standard_E8-4s_v6
-      memory: 68719476736
-      name: Standard_E8-4s_v6
-    - category: memory_optimized
-      cloud_provider_id: azure
-      cpu_cores: 8
-      generic_name: standard_e8s_v6
-      id: Standard_E8s_v6
-      memory: 68719476736
-      name: Standard_E8s_v6
-    - category: memory_optimized
-      cloud_provider_id: azure
-      cpu_cores: 16
-      generic_name: standard_e16-4s_v6
-      id: Standard_E16-4s_v6
-      memory: 137438953472
-      name: Standard_E16-4s_v6
-    - category: memory_optimized
-      cloud_provider_id: azure
-      cpu_cores: 16
-      generic_name: standard_e16-8s_v6
-      id: Standard_E16-8s_v6
-      memory: 137438953472
-      name: Standard_E16-8s_v6
-    - category: memory_optimized
-      cloud_provider_id: azure
-      cpu_cores: 16
-      generic_name: standard_e16s_v6
-      id: Standard_E16s_v6
-      memory: 137438953472
-      name: Standard_E16s_v6
-    - category: memory_optimized
-      cloud_provider_id: azure
-      cpu_cores: 20
-      generic_name: standard_e20s_v6
-      id: Standard_E20s_v6
-      memory: 171798691840
-      name: Standard_E20s_v6
-    - category: memory_optimized
-      cloud_provider_id: azure
-      cpu_cores: 32
-      generic_name: standard_e32-8s_v6
-      id: Standard_E32-8s_v6
-      memory: 274877906944
-      name: Standard_E32-8s_v6
-    - category: memory_optimized
-      cloud_provider_id: azure
-      cpu_cores: 32
-      generic_name: standard_e32-16s_v6
-      id: Standard_E32-16s_v6
-      memory: 274877906944
-      name: Standard_E32-16s_v6
-    - category: memory_optimized
-      cloud_provider_id: azure
-      cpu_cores: 32
-      generic_name: standard_e32s_v6
-      id: Standard_E32s_v6
-      memory: 274877906944
-      name: Standard_E32s_v6
-    - category: memory_optimized
-      cloud_provider_id: azure
-      cpu_cores: 48
-      generic_name: standard_e48s_v6
-      id: Standard_E48s_v6
-      memory: 412316860416
-      name: Standard_E48s_v6
-    - category: memory_optimized
-      cloud_provider_id: azure
-      cpu_cores: 64
-      generic_name: standard_e64-16s_v6
-      id: Standard_E64-16s_v6
-      memory: 549755813888
-      name: Standard_E64-16s_v6
-    - category: memory_optimized
-      cloud_provider_id: azure
-      cpu_cores: 64
-      generic_name: standard_e64-32s_v6
-      id: Standard_E64-32s_v6
-      memory: 549755813888
-      name: Standard_E64-32s_v6
-    - category: memory_optimized
-      cloud_provider_id: azure
-      cpu_cores: 64
-      generic_name: standard_e64s_v6
-      id: Standard_E64s_v6
-      memory: 549755813888
-      name: Standard_E64s_v6
-    - category: memory_optimized
-      cloud_provider_id: azure
-      cpu_cores: 96
-      generic_name: standard_e96-24s_v6
-      id: Standard_E96-24s_v6
-      memory: 824633720832
-      name: Standard_E96-24s_v6
-    - category: memory_optimized
-      cloud_provider_id: azure
-      cpu_cores: 96
-      generic_name: standard_e96-48s_v6
-      id: Standard_E96-48s_v6
-      memory: 824633720832
-      name: Standard_E96-48s_v6
-    - category: memory_optimized
-      cloud_provider_id: azure
-      cpu_cores: 96
-      generic_name: standard_e96s_v6
-      id: Standard_E96s_v6
-      memory: 824633720832
-      name: Standard_E96s_v6
+      cpu_cores: 160
+      generic_name: standard_e160ads_v7
+      id: Standard_E160ads_v7
+      memory: 1374389534720
+      name: Standard_E160ads_v7
     - category: gpu_workload
       cloud_provider_id: azure
       cpu_cores: 6
@@ -4324,493 +6805,227 @@ data:
     - category: general_purpose
       cloud_provider_id: azure
       cpu_cores: 2
-      generic_name: standard_d2as_v6
-      id: Standard_D2as_v6
+      generic_name: standard_dc2es_v6
+      id: Standard_DC2es_v6
       memory: 8589934592
-      name: Standard_D2as_v6
+      name: Standard_DC2es_v6
     - category: general_purpose
       cloud_provider_id: azure
       cpu_cores: 4
-      generic_name: standard_d4as_v6
-      id: Standard_D4as_v6
+      generic_name: standard_dc4es_v6
+      id: Standard_DC4es_v6
       memory: 17179869184
-      name: Standard_D4as_v6
+      name: Standard_DC4es_v6
     - category: general_purpose
       cloud_provider_id: azure
       cpu_cores: 8
-      generic_name: standard_d8as_v6
-      id: Standard_D8as_v6
+      generic_name: standard_dc8es_v6
+      id: Standard_DC8es_v6
       memory: 34359738368
-      name: Standard_D8as_v6
+      name: Standard_DC8es_v6
     - category: general_purpose
       cloud_provider_id: azure
       cpu_cores: 16
-      generic_name: standard_d16as_v6
-      id: Standard_D16as_v6
+      generic_name: standard_dc16es_v6
+      id: Standard_DC16es_v6
       memory: 68719476736
-      name: Standard_D16as_v6
+      name: Standard_DC16es_v6
     - category: general_purpose
       cloud_provider_id: azure
       cpu_cores: 32
-      generic_name: standard_d32as_v6
-      id: Standard_D32as_v6
+      generic_name: standard_dc32es_v6
+      id: Standard_DC32es_v6
       memory: 137438953472
-      name: Standard_D32as_v6
+      name: Standard_DC32es_v6
     - category: general_purpose
       cloud_provider_id: azure
       cpu_cores: 48
-      generic_name: standard_d48as_v6
-      id: Standard_D48as_v6
+      generic_name: standard_dc48es_v6
+      id: Standard_DC48es_v6
       memory: 206158430208
-      name: Standard_D48as_v6
+      name: Standard_DC48es_v6
     - category: general_purpose
       cloud_provider_id: azure
       cpu_cores: 64
-      generic_name: standard_d64as_v6
-      id: Standard_D64as_v6
+      generic_name: standard_dc64es_v6
+      id: Standard_DC64es_v6
       memory: 274877906944
-      name: Standard_D64as_v6
+      name: Standard_DC64es_v6
     - category: general_purpose
       cloud_provider_id: azure
       cpu_cores: 96
-      generic_name: standard_d96as_v6
-      id: Standard_D96as_v6
+      generic_name: standard_dc96es_v6
+      id: Standard_DC96es_v6
       memory: 412316860416
-      name: Standard_D96as_v6
-    - category: memory_optimized
+      name: Standard_DC96es_v6
+    - category: general_purpose
       cloud_provider_id: azure
-      cpu_cores: 2
-      generic_name: standard_e2as_v6
-      id: Standard_E2as_v6
-      memory: 17179869184
-      name: Standard_E2as_v6
-    - category: memory_optimized
-      cloud_provider_id: azure
-      cpu_cores: 4
-      generic_name: standard_e4as_v6
-      id: Standard_E4as_v6
-      memory: 34359738368
-      name: Standard_E4as_v6
-    - category: memory_optimized
-      cloud_provider_id: azure
-      cpu_cores: 8
-      generic_name: standard_e8as_v6
-      id: Standard_E8as_v6
-      memory: 68719476736
-      name: Standard_E8as_v6
-    - category: memory_optimized
-      cloud_provider_id: azure
-      cpu_cores: 16
-      generic_name: standard_e16as_v6
-      id: Standard_E16as_v6
-      memory: 137438953472
-      name: Standard_E16as_v6
-    - category: memory_optimized
-      cloud_provider_id: azure
-      cpu_cores: 20
-      generic_name: standard_e20as_v6
-      id: Standard_E20as_v6
-      memory: 171798691840
-      name: Standard_E20as_v6
-    - category: memory_optimized
-      cloud_provider_id: azure
-      cpu_cores: 32
-      generic_name: standard_e32as_v6
-      id: Standard_E32as_v6
-      memory: 274877906944
-      name: Standard_E32as_v6
-    - category: memory_optimized
-      cloud_provider_id: azure
-      cpu_cores: 48
-      generic_name: standard_e48as_v6
-      id: Standard_E48as_v6
-      memory: 412316860416
-      name: Standard_E48as_v6
-    - category: memory_optimized
-      cloud_provider_id: azure
-      cpu_cores: 64
-      generic_name: standard_e64as_v6
-      id: Standard_E64as_v6
+      cpu_cores: 128
+      generic_name: standard_dc128es_v6
+      id: Standard_DC128es_v6
       memory: 549755813888
-      name: Standard_E64as_v6
-    - category: memory_optimized
-      cloud_provider_id: azure
-      cpu_cores: 96
-      generic_name: standard_e96as_v6
-      id: Standard_E96as_v6
-      memory: 721554505728
-      name: Standard_E96as_v6
+      name: Standard_DC128es_v6
     - category: general_purpose
       cloud_provider_id: azure
       cpu_cores: 2
-      generic_name: standard_d2ads_v6
-      id: Standard_D2ads_v6
+      generic_name: standard_dc2eds_v6
+      id: Standard_DC2eds_v6
       memory: 8589934592
-      name: Standard_D2ads_v6
+      name: Standard_DC2eds_v6
     - category: general_purpose
       cloud_provider_id: azure
       cpu_cores: 4
-      generic_name: standard_d4ads_v6
-      id: Standard_D4ads_v6
+      generic_name: standard_dc4eds_v6
+      id: Standard_DC4eds_v6
       memory: 17179869184
-      name: Standard_D4ads_v6
+      name: Standard_DC4eds_v6
     - category: general_purpose
       cloud_provider_id: azure
       cpu_cores: 8
-      generic_name: standard_d8ads_v6
-      id: Standard_D8ads_v6
+      generic_name: standard_dc8eds_v6
+      id: Standard_DC8eds_v6
       memory: 34359738368
-      name: Standard_D8ads_v6
+      name: Standard_DC8eds_v6
     - category: general_purpose
       cloud_provider_id: azure
       cpu_cores: 16
-      generic_name: standard_d16ads_v6
-      id: Standard_D16ads_v6
+      generic_name: standard_dc16eds_v6
+      id: Standard_DC16eds_v6
       memory: 68719476736
-      name: Standard_D16ads_v6
+      name: Standard_DC16eds_v6
     - category: general_purpose
       cloud_provider_id: azure
       cpu_cores: 32
-      generic_name: standard_d32ads_v6
-      id: Standard_D32ads_v6
+      generic_name: standard_dc32eds_v6
+      id: Standard_DC32eds_v6
       memory: 137438953472
-      name: Standard_D32ads_v6
+      name: Standard_DC32eds_v6
     - category: general_purpose
       cloud_provider_id: azure
       cpu_cores: 48
-      generic_name: standard_d48ads_v6
-      id: Standard_D48ads_v6
+      generic_name: standard_dc48eds_v6
+      id: Standard_DC48eds_v6
       memory: 206158430208
-      name: Standard_D48ads_v6
+      name: Standard_DC48eds_v6
     - category: general_purpose
       cloud_provider_id: azure
       cpu_cores: 64
-      generic_name: standard_d64ads_v6
-      id: Standard_D64ads_v6
+      generic_name: standard_dc64eds_v6
+      id: Standard_DC64eds_v6
       memory: 274877906944
-      name: Standard_D64ads_v6
+      name: Standard_DC64eds_v6
     - category: general_purpose
       cloud_provider_id: azure
       cpu_cores: 96
-      generic_name: standard_d96ads_v6
-      id: Standard_D96ads_v6
+      generic_name: standard_dc96eds_v6
+      id: Standard_DC96eds_v6
       memory: 412316860416
-      name: Standard_D96ads_v6
+      name: Standard_DC96eds_v6
     - category: general_purpose
       cloud_provider_id: azure
-      cpu_cores: 2
-      generic_name: standard_d2als_v6
-      id: Standard_D2als_v6
-      memory: 4294967296
-      name: Standard_D2als_v6
-    - category: general_purpose
-      cloud_provider_id: azure
-      cpu_cores: 4
-      generic_name: standard_d4als_v6
-      id: Standard_D4als_v6
-      memory: 8589934592
-      name: Standard_D4als_v6
-    - category: general_purpose
-      cloud_provider_id: azure
-      cpu_cores: 8
-      generic_name: standard_d8als_v6
-      id: Standard_D8als_v6
-      memory: 17179869184
-      name: Standard_D8als_v6
-    - category: general_purpose
-      cloud_provider_id: azure
-      cpu_cores: 16
-      generic_name: standard_d16als_v6
-      id: Standard_D16als_v6
-      memory: 34359738368
-      name: Standard_D16als_v6
-    - category: general_purpose
-      cloud_provider_id: azure
-      cpu_cores: 32
-      generic_name: standard_d32als_v6
-      id: Standard_D32als_v6
-      memory: 68719476736
-      name: Standard_D32als_v6
-    - category: general_purpose
-      cloud_provider_id: azure
-      cpu_cores: 48
-      generic_name: standard_d48als_v6
-      id: Standard_D48als_v6
-      memory: 103079215104
-      name: Standard_D48als_v6
-    - category: general_purpose
-      cloud_provider_id: azure
-      cpu_cores: 64
-      generic_name: standard_d64als_v6
-      id: Standard_D64als_v6
-      memory: 137438953472
-      name: Standard_D64als_v6
-    - category: general_purpose
-      cloud_provider_id: azure
-      cpu_cores: 96
-      generic_name: standard_d96als_v6
-      id: Standard_D96als_v6
-      memory: 206158430208
-      name: Standard_D96als_v6
-    - category: general_purpose
-      cloud_provider_id: azure
-      cpu_cores: 2
-      generic_name: standard_d2alds_v6
-      id: Standard_D2alds_v6
-      memory: 4294967296
-      name: Standard_D2alds_v6
-    - category: general_purpose
-      cloud_provider_id: azure
-      cpu_cores: 4
-      generic_name: standard_d4alds_v6
-      id: Standard_D4alds_v6
-      memory: 8589934592
-      name: Standard_D4alds_v6
-    - category: general_purpose
-      cloud_provider_id: azure
-      cpu_cores: 8
-      generic_name: standard_d8alds_v6
-      id: Standard_D8alds_v6
-      memory: 17179869184
-      name: Standard_D8alds_v6
-    - category: general_purpose
-      cloud_provider_id: azure
-      cpu_cores: 16
-      generic_name: standard_d16alds_v6
-      id: Standard_D16alds_v6
-      memory: 34359738368
-      name: Standard_D16alds_v6
-    - category: general_purpose
-      cloud_provider_id: azure
-      cpu_cores: 32
-      generic_name: standard_d32alds_v6
-      id: Standard_D32alds_v6
-      memory: 68719476736
-      name: Standard_D32alds_v6
-    - category: general_purpose
-      cloud_provider_id: azure
-      cpu_cores: 48
-      generic_name: standard_d48alds_v6
-      id: Standard_D48alds_v6
-      memory: 103079215104
-      name: Standard_D48alds_v6
-    - category: general_purpose
-      cloud_provider_id: azure
-      cpu_cores: 64
-      generic_name: standard_d64alds_v6
-      id: Standard_D64alds_v6
-      memory: 137438953472
-      name: Standard_D64alds_v6
-    - category: general_purpose
-      cloud_provider_id: azure
-      cpu_cores: 96
-      generic_name: standard_d96alds_v6
-      id: Standard_D96alds_v6
-      memory: 206158430208
-      name: Standard_D96alds_v6
-    - category: memory_optimized
-      cloud_provider_id: azure
-      cpu_cores: 2
-      generic_name: standard_e2ads_v6
-      id: Standard_E2ads_v6
-      memory: 17179869184
-      name: Standard_E2ads_v6
-    - category: memory_optimized
-      cloud_provider_id: azure
-      cpu_cores: 4
-      generic_name: standard_e4ads_v6
-      id: Standard_E4ads_v6
-      memory: 34359738368
-      name: Standard_E4ads_v6
-    - category: memory_optimized
-      cloud_provider_id: azure
-      cpu_cores: 8
-      generic_name: standard_e8ads_v6
-      id: Standard_E8ads_v6
-      memory: 68719476736
-      name: Standard_E8ads_v6
-    - category: memory_optimized
-      cloud_provider_id: azure
-      cpu_cores: 16
-      generic_name: standard_e16ads_v6
-      id: Standard_E16ads_v6
-      memory: 137438953472
-      name: Standard_E16ads_v6
-    - category: memory_optimized
-      cloud_provider_id: azure
-      cpu_cores: 20
-      generic_name: standard_e20ads_v6
-      id: Standard_E20ads_v6
-      memory: 171798691840
-      name: Standard_E20ads_v6
-    - category: memory_optimized
-      cloud_provider_id: azure
-      cpu_cores: 32
-      generic_name: standard_e32ads_v6
-      id: Standard_E32ads_v6
-      memory: 274877906944
-      name: Standard_E32ads_v6
-    - category: memory_optimized
-      cloud_provider_id: azure
-      cpu_cores: 48
-      generic_name: standard_e48ads_v6
-      id: Standard_E48ads_v6
-      memory: 412316860416
-      name: Standard_E48ads_v6
-    - category: memory_optimized
-      cloud_provider_id: azure
-      cpu_cores: 64
-      generic_name: standard_e64ads_v6
-      id: Standard_E64ads_v6
+      cpu_cores: 128
+      generic_name: standard_dc128eds_v6
+      id: Standard_DC128eds_v6
       memory: 549755813888
-      name: Standard_E64ads_v6
+      name: Standard_DC128eds_v6
     - category: memory_optimized
       cloud_provider_id: azure
-      cpu_cores: 96
-      generic_name: standard_e96ads_v6
-      id: Standard_E96ads_v6
-      memory: 721554505728
-      name: Standard_E96ads_v6
-    - category: compute_optimized
-      cloud_provider_id: azure
       cpu_cores: 2
-      generic_name: standard_f2as_v6
-      id: Standard_F2as_v6
-      memory: 8589934592
-      name: Standard_F2as_v6
-    - category: compute_optimized
+      generic_name: standard_ec2es_v6
+      id: Standard_EC2es_v6
+      memory: 17179869184
+      name: Standard_EC2es_v6
+    - category: memory_optimized
       cloud_provider_id: azure
       cpu_cores: 4
-      generic_name: standard_f4as_v6
-      id: Standard_F4as_v6
-      memory: 17179869184
-      name: Standard_F4as_v6
-    - category: compute_optimized
+      generic_name: standard_ec4es_v6
+      id: Standard_EC4es_v6
+      memory: 34359738368
+      name: Standard_EC4es_v6
+    - category: memory_optimized
       cloud_provider_id: azure
       cpu_cores: 8
-      generic_name: standard_f8as_v6
-      id: Standard_F8as_v6
-      memory: 34359738368
-      name: Standard_F8as_v6
-    - category: compute_optimized
+      generic_name: standard_ec8es_v6
+      id: Standard_EC8es_v6
+      memory: 68719476736
+      name: Standard_EC8es_v6
+    - category: memory_optimized
       cloud_provider_id: azure
       cpu_cores: 16
-      generic_name: standard_f16as_v6
-      id: Standard_F16as_v6
-      memory: 68719476736
-      name: Standard_F16as_v6
-    - category: compute_optimized
+      generic_name: standard_ec16es_v6
+      id: Standard_EC16es_v6
+      memory: 137438953472
+      name: Standard_EC16es_v6
+    - category: memory_optimized
       cloud_provider_id: azure
       cpu_cores: 32
-      generic_name: standard_f32as_v6
-      id: Standard_F32as_v6
-      memory: 137438953472
-      name: Standard_F32as_v6
-    - category: compute_optimized
-      cloud_provider_id: azure
-      cpu_cores: 48
-      generic_name: standard_f48as_v6
-      id: Standard_F48as_v6
-      memory: 206158430208
-      name: Standard_F48as_v6
-    - category: compute_optimized
-      cloud_provider_id: azure
-      cpu_cores: 64
-      generic_name: standard_f64as_v6
-      id: Standard_F64as_v6
+      generic_name: standard_ec32es_v6
+      id: Standard_EC32es_v6
       memory: 274877906944
-      name: Standard_F64as_v6
-    - category: compute_optimized
-      cloud_provider_id: azure
-      cpu_cores: 2
-      generic_name: standard_f2als_v6
-      id: Standard_F2als_v6
-      memory: 4294967296
-      name: Standard_F2als_v6
-    - category: compute_optimized
-      cloud_provider_id: azure
-      cpu_cores: 16
-      generic_name: standard_f16als_v6
-      id: Standard_F16als_v6
-      memory: 34359738368
-      name: Standard_F16als_v6
-    - category: compute_optimized
-      cloud_provider_id: azure
-      cpu_cores: 32
-      generic_name: standard_f32als_v6
-      id: Standard_F32als_v6
-      memory: 68719476736
-      name: Standard_F32als_v6
-    - category: compute_optimized
+      name: Standard_EC32es_v6
+    - category: memory_optimized
       cloud_provider_id: azure
       cpu_cores: 48
-      generic_name: standard_f48als_v6
-      id: Standard_F48als_v6
-      memory: 103079215104
-      name: Standard_F48als_v6
-    - category: compute_optimized
-      cloud_provider_id: azure
-      cpu_cores: 64
-      generic_name: standard_f64als_v6
-      id: Standard_F64als_v6
-      memory: 137438953472
-      name: Standard_F64als_v6
-    - category: compute_optimized
-      cloud_provider_id: azure
-      cpu_cores: 2
-      generic_name: standard_f2ams_v6
-      id: Standard_F2ams_v6
-      memory: 17179869184
-      name: Standard_F2ams_v6
-    - category: compute_optimized
-      cloud_provider_id: azure
-      cpu_cores: 4
-      generic_name: standard_f4ams_v6
-      id: Standard_F4ams_v6
-      memory: 34359738368
-      name: Standard_F4ams_v6
-    - category: compute_optimized
-      cloud_provider_id: azure
-      cpu_cores: 8
-      generic_name: standard_f8ams_v6
-      id: Standard_F8ams_v6
-      memory: 68719476736
-      name: Standard_F8ams_v6
-    - category: compute_optimized
-      cloud_provider_id: azure
-      cpu_cores: 16
-      generic_name: standard_f16ams_v6
-      id: Standard_F16ams_v6
-      memory: 137438953472
-      name: Standard_F16ams_v6
-    - category: compute_optimized
-      cloud_provider_id: azure
-      cpu_cores: 32
-      generic_name: standard_f32ams_v6
-      id: Standard_F32ams_v6
-      memory: 274877906944
-      name: Standard_F32ams_v6
-    - category: compute_optimized
-      cloud_provider_id: azure
-      cpu_cores: 48
-      generic_name: standard_f48ams_v6
-      id: Standard_F48ams_v6
+      generic_name: standard_ec48es_v6
+      id: Standard_EC48es_v6
       memory: 412316860416
-      name: Standard_F48ams_v6
-    - category: compute_optimized
+      name: Standard_EC48es_v6
+    - category: memory_optimized
       cloud_provider_id: azure
       cpu_cores: 64
-      generic_name: standard_f64ams_v6
-      id: Standard_F64ams_v6
+      generic_name: standard_ec64es_v6
+      id: Standard_EC64es_v6
       memory: 549755813888
-      name: Standard_F64ams_v6
-    - category: gpu_workload
+      name: Standard_EC64es_v6
+    - category: memory_optimized
       cloud_provider_id: azure
-      cpu_cores: 96
-      generic_name: standard_nd96isr_h200_v5
-      id: Standard_ND96isr_H200_v5
-      memory: 1986422374400
-      name: Standard_ND96isr_H200_v5
+      cpu_cores: 2
+      generic_name: standard_ec2eds_v6
+      id: Standard_EC2eds_v6
+      memory: 17179869184
+      name: Standard_EC2eds_v6
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 4
+      generic_name: standard_ec4eds_v6
+      id: Standard_EC4eds_v6
+      memory: 34359738368
+      name: Standard_EC4eds_v6
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 8
+      generic_name: standard_ec8eds_v6
+      id: Standard_EC8eds_v6
+      memory: 68719476736
+      name: Standard_EC8eds_v6
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 16
+      generic_name: standard_ec16eds_v6
+      id: Standard_EC16eds_v6
+      memory: 137438953472
+      name: Standard_EC16eds_v6
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 32
+      generic_name: standard_ec32eds_v6
+      id: Standard_EC32eds_v6
+      memory: 274877906944
+      name: Standard_EC32eds_v6
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 48
+      generic_name: standard_ec48eds_v6
+      id: Standard_EC48eds_v6
+      memory: 412316860416
+      name: Standard_EC48eds_v6
+    - category: memory_optimized
+      cloud_provider_id: azure
+      cpu_cores: 64
+      generic_name: standard_ec64eds_v6
+      id: Standard_EC64eds_v6
+      memory: 549755813888
+      name: Standard_EC64eds_v6
 kind: ConfigMap
 metadata:
   name: cloud-resources-config

@@ -18,9 +18,9 @@ from yaml.resolver import BaseResolver
 parser = argparse.ArgumentParser(description='Generates a list of available instance types in the given region. '
                                              'Requires an active az session to run "az vm list-sizes" on the shell.')
 parser.add_argument('--region', default="westus3", help='the azure region, by default westus3')
-parser.add_argument('--input', default="deploy/templates/cloud-resources-config.configmap.yaml",
+parser.add_argument('--input', default="helm-charts/cluster-service/templates/cloud-resources-config.configmap.yaml",
                     help='the input configmap, by default the cloud resources-config in the helm template directory')
-parser.add_argument('--output', default="deploy/templates/cloud-resources-config.configmap.yaml",
+parser.add_argument('--output', default="helm-charts/cluster-service/templates/cloud-resources-config.configmap.yaml",
                     help='the output configmap, by default the cloud resources-config in the helm template directory')
 args = parser.parse_args()
 
