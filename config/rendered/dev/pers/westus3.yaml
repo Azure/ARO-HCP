@@ -76,6 +76,7 @@ azureRegionAvailabilityZoneCount: 4
 backend:
   azureRuntimeConfig:
     tlsCertificatesIssuer: Self
+  exitOnPanic: true
   image:
     digest: sha256:f4dfa102999b5a068ee992941d670224213d5467307349360ae8a64ab53147a6
     registry: arohcpsvcdev.azurecr.io
@@ -236,6 +237,7 @@ frontend:
     private: false
     resourceContainerMaxScale: 4000
     zoneRedundantMode: Disabled
+  exitOnPanic: true
   image:
     digest: sha256:bbd51abe758e70965a0a8cbf70f2ca266544e746aad13d94ef17afb426f04d73
     registry: arohcpsvcdev.azurecr.io
