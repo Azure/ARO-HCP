@@ -40,7 +40,10 @@ Kusto region resolution -- hardcoded mapping derived from:
 
 Dev environments: all use hcp-dev-us-2 in eastus2. Detect via strings.HasPrefix(kustoName, "hcp-dev-").
 
-Public cloud: extract geoShortId from kusto name (format: hcp-<env>-<geoShortId>) and look up in map:
+Public cloud: kusto names follow the format hcp-<env>-<geoShortId>[optional-suffix] where the suffix
+may be digits appended directly (e.g. hcp-prod-ch2) or hyphen-separated text (e.g. hcp-stg-br-5,
+hcp-stg-br-second-ateempt-7). Extract geoShortId as the first 2 characters after hcp-<env>- and
+look up in map:
   au -> australiaeast
   br -> brazilsouth
   ca -> canadacentral
@@ -121,3 +124,6 @@ Implementation completed as planned with adjustments:
   the fallback start time path works (uses now() - 4h)
 - ConfigFileModTime was removed from the struct -- not needed since fallback is now() - 4h
 - The configtypes import alias matches the pattern used in tooling/helmtest/internal/config.go
+- resolveKustoRegion updated to handle kusto names with optional suffixes (e.g. hcp-prod-ch2,
+  hcp-stg-br-5, hcp-stg-br-second-ateempt-7) by extracting only the first 2 characters of the
+  geoShortId segment via parts[2][:2] instead of using the full parts[2]

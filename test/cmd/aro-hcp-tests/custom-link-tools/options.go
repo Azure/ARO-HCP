@@ -148,15 +148,16 @@ var kustoGeoToRegion = map[string]string{
 
 // resolveKustoRegion determines the Azure region for a given kusto cluster name.
 // Dev environments (hcp-dev-*) all reside in eastus2.
-// Public cloud names follow the format hcp-<env>-<geoShortId> and are looked up in kustoGeoToRegion.
+// Public cloud names follow the format hcp-<env>-<geoShortId>[optional-suffix] and are looked up
+// in kustoGeoToRegion. The geoShortId is always 2 characters; any trailing content
+// (e.g. hcp-prod-ch2, hcp-stg-br-5) is ignored.
 func resolveKustoRegion(kustoName string) (string, error) {
 	if strings.HasPrefix(kustoName, "hcp-dev-") {
 		return "eastus2", nil
 	}
-	// format: hcp-<env>-<geoShortId>, e.g. hcp-int-us, hcp-prod-eu
 	parts := strings.SplitN(kustoName, "-", 3)
-	if len(parts) == 3 {
-		if region, ok := kustoGeoToRegion[parts[2]]; ok {
+	if len(parts) == 3 && len(parts[2]) >= 2 {
+		if region, ok := kustoGeoToRegion[parts[2][:2]]; ok {
 			return region, nil
 		}
 	}
