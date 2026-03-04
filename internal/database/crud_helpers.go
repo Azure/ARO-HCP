@@ -263,8 +263,17 @@ func addCreateToTransaction[InternalAPIType, CosmosAPIType any](ctx context.Cont
 	return cosmosMetadata.GetCosmosUID(), nil
 }
 
-func addReplaceToTransaction[InternalAPIType, CosmosAPIType any](ctx context.Context, transaction DBTransaction, newObj *InternalAPIType, opts *azcosmos.TransactionalBatchItemOptions) (string, error) {
+func addReplaceToTransaction[InternalAPIType, CosmosAPIType any](ctx context.Context, containerClient *azcosmos.ContainerClient, transaction DBTransaction, newObj *InternalAPIType, opts *azcosmos.TransactionalBatchItemOptions) (string, error) {
 	partitionKeyString := transaction.GetPartitionKey()
+
+	// do a get first to ensure the ID is migrated
+	cosmosPersistable, ok := any(newObj).(arm.CosmosPersistable)
+	if !ok {
+		return "", fmt.Errorf("type %T does not implement CosmosPersistable interface", newObj)
+	}
+	if _, err := get[InternalAPIType, CosmosAPIType](ctx, containerClient, partitionKeyString, cosmosPersistable.GetCosmosData().GetResourceID()); err != nil {
+		return "", utils.TrackError(err)
+	}
 	if strings.ToLower(partitionKeyString) != partitionKeyString {
 		return "", fmt.Errorf("partitionKeyString must be lowercase, not: %q", partitionKeyString)
 	}
