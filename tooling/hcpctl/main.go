@@ -41,7 +41,9 @@ const (
 )
 
 func main() {
-	os.Setenv("AZURE_TOKEN_CREDENTIALS", "dev")
+	if os.Getenv("AZURE_TOKEN_CREDENTIALS") == "" {
+		os.Setenv("AZURE_TOKEN_CREDENTIALS", "dev")
+	}
 	logger := createLogger(0)
 
 	// Create a root context with the logger and signal handling
