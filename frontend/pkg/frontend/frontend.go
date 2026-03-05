@@ -30,6 +30,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 
+	"k8s.io/apimachinery/pkg/api/operation"
 	k8sutilruntime "k8s.io/apimachinery/pkg/util/runtime"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -702,7 +703,8 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 				// this indicates something really strange happened, return an error for it.
 				return utils.TrackError(err)
 			}
-			validationErrs := validation.ValidateClusterCreate(ctx, newInternalCluster, api.Must(versionedInterface.ValidationPathRewriter(&api.HCPOpenShiftCluster{})))
+			op := operation.Operation{Type: operation.Create}
+			validationErrs := validation.ValidateCluster(ctx, op, newInternalCluster, nil, api.Must(versionedInterface.ValidationPathRewriter(&api.HCPOpenShiftCluster{})))
 			validationErrs = append(validationErrs, admission.AdmitClusterOnCreate(ctx, newInternalCluster, subscription)...)
 			preflightErr = arm.CloudErrorFromFieldErrors(validationErrs)
 
