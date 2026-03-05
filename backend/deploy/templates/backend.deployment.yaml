@@ -65,6 +65,7 @@ spec:
         - "{{ .Values.fpa.clientId }}"
         - "--maestro-source-environment-identifier"
         - "{{ .Values.maestro.sourceEnvironmentIdentifier }}"
+        - "--exit-on-panic={{ .Values.exitOnPanic }}"
         env:
         - name: DB_NAME
           valueFrom:
