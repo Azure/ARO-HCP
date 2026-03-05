@@ -322,6 +322,18 @@ func (m *MockDBClient) GetAllDocuments() map[string]json.RawMessage {
 	return result
 }
 
+// GetBillingDocuments returns a copy of all billing documents (for testing purposes).
+func (m *MockDBClient) GetBillingDocuments() map[string]*database.BillingDocument {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	result := make(map[string]*database.BillingDocument, len(m.billing))
+	for k, v := range m.billing {
+		result[k] = v
+	}
+	return result
+}
+
 var _ database.DBClient = &MockDBClient{}
 
 // mockTransaction implements database.DBTransaction for the mock client.
