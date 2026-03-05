@@ -54,5 +54,11 @@
 	"tags": {
 		"one": "apple"
 	},
-	"type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters"
+	"type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters",
+	"systemData": {
+		"createdBy": "Unknown-ARO-HCP-frontend",
+		"createdByType": "Application",
+		"lastModifiedBy": "Unknown-ARO-HCP-frontend",
+		"lastModifiedByType": "Application"
+	}
 }

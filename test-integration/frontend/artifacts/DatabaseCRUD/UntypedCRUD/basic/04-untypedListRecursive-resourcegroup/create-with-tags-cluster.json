@@ -75,7 +75,7 @@
         },
         "provisioningState": "Accepted",
         "resourceId": "/subscriptions/f52dfea2-47ee-4396-8006-4a27d47d59c5/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/create-with-tags",
-        "systemData": {},
+        "systemData": {"createdBy": "Unknown-ARO-HCP-frontend", "createdByType": "Application", "lastModifiedBy": "Unknown-ARO-HCP-frontend", "lastModifiedByType": "Application"},
         "tags": {
             "one": "apple"
         }

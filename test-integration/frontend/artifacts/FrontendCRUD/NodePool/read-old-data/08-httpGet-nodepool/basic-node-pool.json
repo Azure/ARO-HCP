@@ -35,5 +35,11 @@
 			"channelGroup": "stable"
 		}
 	},
-	"type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/nodePools"
+	"type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/nodePools",
+	"systemData": {
+		"createdBy": "Unknown-ARO-HCP-frontend",
+		"createdByType": "Application",
+		"lastModifiedBy": "Unknown-ARO-HCP-frontend",
+		"lastModifiedByType": "Application"
+	}
 }
