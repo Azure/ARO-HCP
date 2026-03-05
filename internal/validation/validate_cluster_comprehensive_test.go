@@ -21,7 +21,6 @@ import (
 	"time"
 
 	"k8s.io/apimachinery/pkg/api/operation"
-	"k8s.io/utils/ptr"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
@@ -1025,15 +1024,25 @@ func TestValidateClusterUpdate(t *testing.T) {
 			name: "valid cluster update - systemData",
 			newCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
+				createdAt := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+				now := time.Now()
 				c.SystemData = &arm.SystemData{
-					LastModifiedAt: ptr.To(time.Now()),
+					CreatedBy:      "test-user",
+					CreatedByType:  arm.CreatedByTypeUser,
+					CreatedAt:      &createdAt,
+					LastModifiedAt: &now,
 				}
 				return c
 			}(),
 			oldCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
+				createdAt := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+				earlier := time.Now().Add(-1 * time.Hour)
 				c.SystemData = &arm.SystemData{
-					LastModifiedAt: ptr.To(time.Now().Add(-1 * time.Hour)),
+					CreatedBy:      "test-user",
+					CreatedByType:  arm.CreatedByTypeUser,
+					CreatedAt:      &createdAt,
+					LastModifiedAt: &earlier,
 				}
 				return c
 			}(),
@@ -1804,6 +1813,14 @@ func createValidCluster() *api.HCPOpenShiftCluster {
 		UserAssignedIdentities: map[string]*arm.UserAssignedIdentity{
 			identityID: {},
 		},
+	}
+
+	// Add required systemData fields
+	createdAt := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+	cluster.SystemData = &arm.SystemData{
+		CreatedBy:     "test-user",
+		CreatedByType: arm.CreatedByTypeUser,
+		CreatedAt:     &createdAt,
 	}
 
 	return cluster

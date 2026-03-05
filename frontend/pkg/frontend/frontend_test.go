@@ -384,6 +384,11 @@ func TestDeploymentPreflight(t *testing.T) {
 				"type":       api.ClusterResourceType.String(),
 				"location":   "eastus",
 				"apiVersion": api.TestAPIVersion,
+				"systemData": map[string]any{
+					"createdBy":     "test-user",
+					"createdByType": "User",
+					"createdAt":     "2025-01-01T00:00:00Z",
+				},
 				"properties": map[string]any{
 					"version": map[string]any{
 						"id":           "4.19",
@@ -407,6 +412,11 @@ func TestDeploymentPreflight(t *testing.T) {
 				"type":       api.ClusterResourceType.String(),
 				"location":   "eastus",
 				"apiVersion": api.TestAPIVersion,
+				"systemData": map[string]any{
+					"createdBy":     "test-user",
+					"createdByType": "User",
+					"createdAt":     "2025-01-01T00:00:00Z",
+				},
 				"properties": map[string]any{
 					"version": map[string]any{
 						// missing ID
@@ -441,6 +451,11 @@ func TestDeploymentPreflight(t *testing.T) {
 				"type":       api.NodePoolResourceType.String(),
 				"location":   "eastus",
 				"apiVersion": api.TestAPIVersion,
+				"systemData": map[string]any{
+					"createdBy":     "test-user",
+					"createdByType": "User",
+					"createdAt":     "2025-01-01T00:00:00Z",
+				},
 				"properties": map[string]any{
 					"version": map[string]any{
 						"channelGroup": "stable",
@@ -459,6 +474,11 @@ func TestDeploymentPreflight(t *testing.T) {
 				"type":       api.NodePoolResourceType.String(),
 				"location":   "eastus",
 				"apiVersion": api.TestAPIVersion,
+				"systemData": map[string]any{
+					"createdBy":     "test-user",
+					"createdByType": "User",
+					"createdAt":     "2025-01-01T00:00:00Z",
+				},
 				"properties": map[string]any{
 					"version": map[string]any{
 						"channelGroup": "stable",

@@ -52,6 +52,10 @@ func TestClusterRequired(t *testing.T) {
 				},
 				{
 					message:   "Required value",
+					fieldPath: "trackedResource.resource.systemData",
+				},
+				{
+					message:   "Required value",
 					fieldPath: "trackedResource.location",
 				},
 				{
@@ -167,6 +171,10 @@ func TestClusterRequired(t *testing.T) {
 				api.TestLocation,
 			),
 			expectErrors: []expectedError{
+				{
+					message:   "Required value",
+					fieldPath: "trackedResource.resource.systemData",
+				},
 				{
 					message:   "Required value",
 					fieldPath: "customerProperties.platform.managedResourceGroup",
