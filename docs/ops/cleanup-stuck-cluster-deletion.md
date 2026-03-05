@@ -120,19 +120,19 @@ export MANIFESTWORK="manifest-work-name"
 kubectl get manifestwork ${MANIFESTWORK} -n local-cluster -o yaml
 
 # Check specific finalizer
-kubectl get manifestwork <manifestwork-name> -n local-cluster \
+kubectl get manifestwork ${MANIFESTWORK} -n local-cluster \
   -o jsonpath='{.metadata.finalizers}' | grep manifest-work-cleanup
 
 # Check ManifestWork status conditions
-kubectl get manifestwork <manifestwork-name> -n local-cluster \
+kubectl get manifestwork ${MANIFESTWORK} -n local-cluster \
   -o jsonpath='{.status.conditions}' | jq .
 
 # Check resource status feedback from management cluster
-kubectl get manifestwork <manifestwork-name> -n local-cluster \
+kubectl get manifestwork ${MANIFESTWORK} -n local-cluster \
   -o jsonpath='{.status.resourceStatus}' | jq .
 
 # Check AppliedManifestWork (tracks what was applied)
-kubectl get appliedmanifestwork <manifestwork-name>
+kubectl get appliedmanifestwork ${MANIFESTWORK}
 
 # Check ManagedCluster
 kubectl get managedcluster | grep ${CLUSTER_ID}
