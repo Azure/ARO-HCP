@@ -2272,9 +2272,13 @@
         "imageDigestMirrors": {
           "type": "array",
           "description": "imageDigestMirrors is a set of rules to allow pulling images from a\nmirrored registry by using digest specifications.",
+          "maxItems": 240,
           "items": {
             "$ref": "#/definitions/ImageDigestMirror"
           },
+          "x-ms-identifiers": [
+            "source"
+          ],
           "x-ms-mutability": [
             "read",
             "update",
@@ -2341,9 +2345,13 @@
         "imageDigestMirrors": {
           "type": "array",
           "description": "imageDigestMirrors is a set of rules to allow pulling images from a\nmirrored registry by using digest specifications.",
+          "maxItems": 240,
           "items": {
             "$ref": "#/definitions/ImageDigestMirror"
           },
+          "x-ms-identifiers": [
+            "source"
+          ],
           "x-ms-mutability": [
             "read",
             "update",
@@ -2513,28 +2521,29 @@
       "type": "object",
       "description": "ImageDigestMirror specifies a set of mirror registries to redirect image\npulls targeting the specified source registries.",
       "properties": {
-        "id": {
-          "type": "string",
-          "description": "The unique identifier for this image digest mirror definition"
-        },
         "source": {
-          "type": "string",
-          "description": "The source image registry to redirect image pulls from"
+          "$ref": "#/definitions/ImageRepository",
+          "description": "Source is the image repository that users refer to, e.g. in image pull specifications."
         },
         "mirrors": {
           "type": "array",
-          "description": "The set of mirror registries to redirect image pulls to",
+          "description": "Mirrors are one or more image repositories that may also contain the same images.",
           "minItems": 1,
+          "maxItems": 255,
           "items": {
-            "type": "string"
+            "$ref": "#/definitions/ImageRepository"
           }
         }
       },
       "required": [
-        "id",
         "source",
         "mirrors"
       ]
+    },
+    "ImageRepository": {
+      "type": "string",
+      "description": "ImageRepository describes a repository for container images.",
+      "maxLength": 255
     },
     "KeyVaultVisibility": {
       "type": "string",
@@ -2564,6 +2573,14 @@
       "type": "object",
       "description": "Configure etcd encryption Key Management Service (KMS) key.\nYour Microsoft Entra application used to create the cluster must be authorized to access this keyvault,\ne.g using the AzureCLI: `az keyvault set-policy -n $KEYVAULT_NAME --key-permissions decrypt encrypt --spn (YOUR APPLICATION CLIENT ID)`",
       "properties": {
+        "visibility": {
+          "$ref": "#/definitions/KeyVaultVisibility",
+          "description": "visibility of the keyvault that contains the secret.",
+          "x-ms-mutability": [
+            "read",
+            "create"
+          ]
+        },
         "activeKey": {
           "$ref": "#/definitions/KmsKey",
           "description": "The details of the active key.",
@@ -2574,6 +2591,7 @@
         }
       },
       "required": [
+        "visibility",
         "activeKey"
       ]
     },
@@ -2593,10 +2611,6 @@
           "minLength": 1,
           "maxLength": 255
         },
-        "visibility": {
-          "$ref": "#/definitions/KeyVaultVisibility",
-          "description": "visibility of the keyvault that contains the secret."
-        },
         "version": {
           "type": "string",
           "description": "version contains the version of the key to use.",
@@ -2607,7 +2621,6 @@
       "required": [
         "vaultName",
         "name",
-        "visibility",
         "version"
       ]
     },

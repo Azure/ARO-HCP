@@ -97,6 +97,8 @@ model HcpOpenShiftClusterProperties {
    */
   @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
   @added(Versions.v2025_12_23_preview)
+  @identifiers(#["source"])
+  @maxItems(240)
   imageDigestMirrors?: ImageDigestMirror[];
 
   /** nodeDrainTimeoutMinutes is the grace period for how long Pod Disruption Budget-protected workloads will be
@@ -370,16 +372,20 @@ model ClusterAutoscalingProfile {
  * pulls targeting the specified source registries.
  */
 model ImageDigestMirror {
-  /** The unique identifier for this image digest mirror definition */
-  id: string;
+  /** Source is the image repository that users refer to, e.g. in image pull specifications. */
+  source: ImageRepository;
 
-  /** The source image registry to redirect image pulls from */
-  source: string;
-
-  /** The set of mirror registries to redirect image pulls to */
+  /** Mirrors are one or more image repositories that may also contain the same images. */
   @minItems(1)
-  mirrors: string[];
+  @maxItems(255)
+  mirrors: ImageRepository[];
 }
+
+/** ImageRepository describes a repository for container images.
+ * @example quay.io/openshift-release-dev/ocp-release
+ */
+@maxLength(255)
+scalar ImageRepository extends string;
 
 /** OpenShift cluster image registry */
 model ClusterImageRegistryProfile {
@@ -463,10 +469,6 @@ model KmsKey {
   @minLength(1)
   name: string;
 
-  /** visibility of the keyvault that contains the secret. */
-  @added(Versions.v2025_12_23_preview)
-  visibility: KeyVaultVisibility;
-
   /** version contains the version of the key to use. */
   @maxLength(255)
   @minLength(1)
@@ -529,6 +531,11 @@ model CustomerManagedEncryptionProfile {
  * e.g using the AzureCLI: `az keyvault set-policy -n $KEYVAULT_NAME --key-permissions decrypt encrypt --spn (YOUR APPLICATION CLIENT ID)`
  */
 model KmsEncryptionProfile {
+  /** visibility of the keyvault that contains the secret. */
+  @visibility(Lifecycle.Read, Lifecycle.Create)
+  @added(Versions.v2025_12_23_preview)
+  visibility: KeyVaultVisibility;
+
   /** The details of the active key. */
   @visibility(Lifecycle.Read, Lifecycle.Create)
   activeKey: KmsKey;
