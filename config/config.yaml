@@ -149,7 +149,7 @@ defaults:
     image:
       registry: quay.io
       repository: app-sre/backplane-api
-      digest: sha256:02dd4de1a3462f679a880b75bd87c09f78ca3a8f06c126b075f5718481e7a730 # 1a9e41e (2026-02-16 01:49)
+      digest: sha256:187a2241f4d8afd050bd762f4501eab4f7ceed9a433918ee6d7fecef1418eda4 # 1b763b1 (2026-03-05 00:34)
   tenantId: ""
   ev2:
     assistedId:
@@ -235,7 +235,7 @@ defaults:
     image:
       registry: quay.io
       repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
-      digest: sha256:fe220f8f386e887c0fef8605d22116135dfab9889ff6ce33e3884e648233aa57 # 11b52dac18213e6ebb05b478744b2d409fbfbaf8 (2026-03-04 23:24)
+      digest: sha256:ecc21769f1b7983dcff807922b88d8a20604858a24b2392f080a99f643789c93 # a90899320e46db1b664e2e5559b875116259792c (2026-03-05 11:34)
     namespace: hypershift
     additionalInstallArg: '--enable-cpo-overrides'
     # By default we set it to empty as this tag is only required for msft environments. We override
@@ -407,7 +407,7 @@ defaults:
         image:
           registry: mcr.microsoft.com/oss/v2
           repository: prometheus/prometheus
-          sha: 375d727bf8137d574b5aad4f94881fade0a57556ddf52a3f98322e5d561286af # v3.9.1 (2026-02-13 18:44)
+          sha: dca4b35f73046dc4803c0160c2e6be5a1736a716b26ef35590864d36dfdf950a # v3.9.1 (2026-03-05 00:48)
         version: ""
         resources:
           requests:
@@ -525,7 +525,7 @@ defaults:
         image:
           registry: mcr.microsoft.com/oss/v2
           repository: prometheus/prometheus
-          sha: 375d727bf8137d574b5aad4f94881fade0a57556ddf52a3f98322e5d561286af # v3.9.1 (2026-02-13 18:44)
+          sha: dca4b35f73046dc4803c0160c2e6be5a1736a716b26ef35590864d36dfdf950a # v3.9.1 (2026-03-05 00:48)
         resources:
           requests:
             cpu: NONE
@@ -556,7 +556,7 @@ defaults:
     image:
       registry: arohcpsvcdev.azurecr.io
       repository: arohcpbackend
-      digest: sha256:f3ccf69aa47ccba1119825d40b0d575916df775d9a692288cf8cdd04eec84a69 # 0076f38 (2026-03-04 22:32)
+      digest: sha256:11a0d2a64199e618ed46c24bafddf9a33a7b44c4e0178ceacb9b1a42464ca0d4 # 848db0c (2026-03-05 12:12)
     tracing:
       address: ""
       exporter: ""
@@ -577,7 +577,7 @@ defaults:
     image:
       registry: arohcpsvcdev.azurecr.io
       repository: arohcpadminapi
-      digest: sha256:73072dd6e6dc5e9f4d2a84ac79b6d86960d39f7a5d5d38dea26806a3e6f685f3 # 0076f38 (2026-03-04 22:32)
+      digest: sha256:5e487cfa02ab16d70cdc5d5a002422752c46a79482e7d46a02669e43add19549 # 848db0c (2026-03-05 12:12)
     managedIdentityName: admin-api
     k8s:
       replicas: 2
@@ -590,7 +590,7 @@ defaults:
     image:
       registry: arohcpsvcdev.azurecr.io
       repository: arohcpsessiongate
-      digest: sha256:54946d0d91b3bb40d211afde0aeea123ee52e525336e108437ab6f961045118c # 0076f38 (2026-03-04 22:32)
+      digest: sha256:92681ca4b8c6c66d7a55806d8199c053a34767ab47a9459dfee7a8b86f75fb5f # 848db0c (2026-03-05 12:12)
     managedIdentityName: sessiongate
     k8s:
       replicas: 2
@@ -605,7 +605,7 @@ defaults:
     image:
       registry: arohcpsvcdev.azurecr.io
       repository: arohcpfrontend
-      digest: sha256:6ee78e886f25024afedde2f913408a8dcf363da1ae588f364b1b895091845757 # 0076f38 (2026-03-04 22:32)
+      digest: sha256:5e7c7e1e5065b311689dba7aa0f812d2988c3320f7c63bec310e559148919ad8 # 848db0c (2026-03-05 12:12)
     tracing:
       address: ""
       exporter: ""
@@ -752,7 +752,7 @@ defaults:
     image:
       registry: quay.io
       repository: redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro
-      digest: sha256:4c83904750f8d432432c41fde1803fedae6b7bfca0d9cb96b06332d7707d3881 # bba0d0981b81ad57ada51b9877f625c8e6049297 (2026-03-04 03:08)
+      digest: sha256:f5467d1ea5fec7d56e1480525d442f381b743dcf3fd05004b7c37f52a85cfe93 # ea2873ffa4d7c3176626daea3c99b4ef4f197097 (2026-03-05 07:05)
   # PKO
   pko:
     managedIdentityName: package-operator
@@ -782,7 +782,7 @@ defaults:
       bundle:
         registry: quay.io
         repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-210
-        digest: sha256:e5d3a63189d600f03e368b2f7e49278d6bc1cae08a5931c617081020d633b26c # v2.10.2-423 (2026-03-04 05:25)
+        digest: sha256:d47e2b4657108979f639b0f11d2e4f0cecb9962362446fdb9a61cbded715709b # v2.10.2-425 (2026-03-05 11:18)
   # Cluster Service
   clustersService:
     image:
@@ -854,7 +854,7 @@ defaults:
       image:
         registry: arohcpsvcdev.azurecr.io
         repository: image-sync/oc-mirror
-        digest: sha256:16f09d45d235df481cddd4e5a3fd3ef34c1548c96d4d0de1160414d195f2c83f # 0076f38 (2026-03-04 22:31)
+        digest: sha256:f63a4387a1247f1eb2aef6bf6d58fcc1a4bf2395136d1f06a08f0c5ec6eb1241 # 848db0c (2026-03-05 12:11)
       pullSecretName: ocmirror-pull-secret
       operatorVersionsToMirror: "4.18,4.19,4.20"
   # Automation Account
