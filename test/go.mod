@@ -7,6 +7,7 @@ require (
 	github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp v0.0.0-00010101000000-000000000000
 	github.com/Azure/ARO-HCP/tooling/hcpctl v0.0.0-20260113131010-8f869ff652e6
 	github.com/Azure/ARO-HCP/tooling/templatize v0.0.0-00010101000000-000000000000
+	github.com/Azure/ARO-Tools/config v0.0.0-20260302234042-3298871a1fc3
 	github.com/Azure/ARO-Tools/tools/prow-job-executor v0.0.0-20260302234042-3298871a1fc3
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v3 v3.0.0-beta.2
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v5 v5.7.0
@@ -50,7 +51,6 @@ require (
 	contrib.go.opencensus.io/exporter/ocagent v0.7.1-0.20200907061046-05415f1de66d // indirect
 	contrib.go.opencensus.io/exporter/prometheus v0.4.2 // indirect
 	dario.cat/mergo v1.0.1 // indirect
-	github.com/Azure/ARO-Tools/config v0.0.0-20260302234042-3298871a1fc3 // indirect
 	github.com/Azure/ARO-Tools/pipelines v0.0.0-20260302234042-3298871a1fc3 // indirect
 	github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20260302234042-3298871a1fc3 // indirect
 	github.com/Azure/ARO-Tools/tools/grafanactl v0.0.0-20260302234042-3298871a1fc3 // indirect

@@ -1,0 +1,129 @@
+# Custom-Link-Tools: Config-Driven Environment Info
+
+## Context
+
+The custom-link-tools generates HTML pages with Kusto Data Explorer links for prow CI test runs. Currently it:
+- Requires steps.yaml to derive the service cluster name (by parsing ARM operations) and earliest start time -- if the file is missing, the tool fails
+- Hardcodes the Kusto Data Explorer URL to hcp-dev-us-2.eastus2
+- Uses the service cluster name for all queries, including Hypershift and ACM which actually run on management clusters
+
+This change makes the tool config-driven, more resilient, and correct.
+
+## Files to Modify
+
+1. test/cmd/aro-hcp-tests/custom-link-tools/options.go -- core logic changes
+2. test/cmd/aro-hcp-tests/custom-link-tools/cmd_test.go -- update test
+3. test/go.mod / test/go.sum -- promote ARO-Tools/config to direct dep
+
+## Implementation Steps
+
+### 1. Add --rendered-config required flag
+
+In options.go:
+- Add RenderedConfig string to RawOptions
+- Bind --rendered-config flag in BindOptions()
+- Add to required flags validation in Validate()
+
+### 2. Add config loading, kusto region logic, and new option fields
+
+Config loading -- reuse pattern from tooling/helmtest/internal/config.go:26-39:
+  import configtypes "github.com/Azure/ARO-Tools/config/types"
+Load with yaml.Unmarshal into configtypes.Configuration, access values via cfg.GetByPath().
+
+New struct: KustoInfo with KustoName, KustoRegion, ServiceLogsDatabase, HostedControlPlaneLogsDatabase
+
+New fields in completedOptions: SvcClusterName, MgmtClusterName, Kusto KustoInfo
+
+Kusto region resolution -- hardcoded mapping derived from:
+- dev-infrastructure/kusto-pipeline.yaml execution constraints
+- ARO-Tools/pkg/config/ev2config/config.yaml geoShortId->region mapping
+
+Dev environments: all use hcp-dev-us-2 in eastus2. Detect via strings.HasPrefix(kustoName, "hcp-dev-").
+
+Public cloud: kusto names follow the format hcp-<env>-<geoShortId>[optional-suffix] where the suffix
+may be digits appended directly (e.g. hcp-prod-ch2) or hyphen-separated text (e.g. hcp-stg-br-5,
+hcp-stg-br-second-ateempt-7). Extract geoShortId as the first 2 characters after hcp-<env>- and
+look up in map:
+  au -> australiaeast
+  br -> brazilsouth
+  ca -> canadacentral
+  ch -> switzerlandnorth
+  eu -> westeurope
+  in -> centralindia
+  uk -> uksouth
+  us -> eastus2
+
+### 3. Rewrite Complete() -- use config, make steps.yaml optional
+
+Load rendered config, extract:
+  svc.aks.name -> service cluster name
+  mgmt.aks.name -> management cluster name
+  kusto.kustoName -> kusto cluster name
+  kusto.serviceLogsDatabase -> ServiceLogs
+  kusto.hostedControlPlaneLogsDatabase -> HostedControlPlaneLogs
+  environmentName -> for kusto region resolution
+
+Resolve kusto region from kustoName + environmentName using the hardcoded map.
+
+Try loading steps.yaml (compressed then plain) -- if both missing, log warning and set Steps to nil.
+
+### 4. Make createQueryURL / createLinkForTest config-driven
+
+Add kusto KustoInfo parameter to both functions.
+Replace hardcoded clusters/hcp-dev-us-2.eastus2/databases/%s with dynamic values from KustoInfo.
+Update all call sites in Run() and getServiceLogLinks().
+
+### 5. Refactor getServiceLogLinks() -- config-driven cluster names, svc/mgmt split
+
+New signature includes svcClusterName, mgmtClusterName, kusto KustoInfo.
+
+Changes:
+- Cluster names from config, not from steps ARM operations
+- Split components:
+  - Svc cluster (svcClusterName): Backend, Frontend, Clusters Service, Maestro
+  - Mgmt cluster (mgmtClusterName): Hypershift, ACM
+- Start time fallback: steps Info.StartedAt -> now() - 4h
+- Remove len(allClusterNames) != 1 error check
+
+### 6. Update Run()
+
+Use o.Kusto for database names in test-table links.
+Call getServiceLogLinks() with config-derived args.
+
+### 7. Remove dead code
+
+Delete serviceClusterStepID variable (lines 51-56).
+Delete locateAllServiceClusters() function (lines 481-496).
+
+### 8. Update test and fixtures
+
+In cmd_test.go: add SvcClusterName, MgmtClusterName, Kusto fields.
+Consider adding a test case with Steps: nil.
+Regenerate fixtures: cd test && UPDATE=true go test ./cmd/aro-hcp-tests/custom-link-tools/...
+
+### 9. Update go.mod
+
+Promote github.com/Azure/ARO-Tools/config from indirect to direct in test/go.mod.
+Run: cd test && go mod tidy
+
+## Verification
+
+1. cd test && go test ./cmd/aro-hcp-tests/custom-link-tools/... -- tests pass
+2. Inspect fixture HTML: Hypershift/ACM use mgmt cluster, kusto URLs use config values
+
+## Execution Notes
+
+Implementation completed as planned with adjustments:
+
+- Steps 1-9 all implemented as described
+- configGetString() helper added as a small utility for typed config access
+- The test was simplified: instead of constructing a full pipeline.NodeInfo with ARM details
+  (which was only needed for locateAllServiceClusters), the test now just sets SvcClusterName
+  and MgmtClusterName directly, matching how the real code now gets them from config
+- A second test case (TestGeneratedHTMLWithoutSteps) was added with Steps: nil to verify
+  the fallback start time path works (uses now() - 4h)
+- ConfigFileModTime was removed from the struct -- not needed since fallback is now() - 4h
+- The configtypes import alias matches the pattern used in tooling/helmtest/internal/config.go
+- resolveKustoRegion updated to handle kusto names with optional suffixes (e.g. hcp-prod-ch2,
+  hcp-stg-br-5, hcp-stg-br-second-ateempt-7) by extracting only the first 2 characters of the
+  geoShortId segment via parts[2][:2] instead of using the full parts[2]
