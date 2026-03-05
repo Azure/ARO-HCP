@@ -15,10 +15,11 @@
 package client
 
 import (
-	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 
+	azureconfig "github.com/Azure/ARO-HCP/backend/pkg/azure/config"
 	"github.com/Azure/ARO-HCP/internal/fpa"
+	checkaccess "github.com/Azure/checkaccess-v2-go-sdk/client"
 )
 
 // FirstPartyApplicationClientBuilderType is a type that represents the type of the FPAClientBuilder
@@ -46,7 +47,8 @@ type FirstPartyApplicationClientBuilder interface {
 
 type firstPartyApplicationClientBuilder struct {
 	fpaTokenCredRetriever fpa.FirstPartyApplicationTokenCredentialRetriever
-	options               *azcorearm.ClientOptions
+	azureConfig           *azureconfig.AzureConfig
+	azureLocation         string
 }
 
 var _ FirstPartyApplicationClientBuilder = (*firstPartyApplicationClientBuilder)(nil)
@@ -54,11 +56,13 @@ var _ FirstPartyApplicationClientBuilder = (*firstPartyApplicationClientBuilder)
 // NewFirstPartyApplicationClientBuilder instantiates a FPAClientBuilder. When clients are instantiated with it the FPA token credential
 // retriever is leveraged to get a FPA Token Credential, and the provided ARM client options.
 func NewFirstPartyApplicationClientBuilder(
-	tokenCredRetriever fpa.FirstPartyApplicationTokenCredentialRetriever, options *azcorearm.ClientOptions,
+	tokenCredRetriever fpa.FirstPartyApplicationTokenCredentialRetriever, azureConfig *azureconfig.AzureConfig,
+	azureLocation string,
 ) FirstPartyApplicationClientBuilder {
 	return &firstPartyApplicationClientBuilder{
 		fpaTokenCredRetriever: tokenCredRetriever,
-		options:               options,
+		azureConfig:           azureConfig,
+		azureLocation:         azureLocation,
 	}
 }
 
@@ -68,7 +72,7 @@ func (b *firstPartyApplicationClientBuilder) ResourceGroupsClient(tenantID strin
 		return nil, err
 	}
 
-	return armresources.NewResourceGroupsClient(subscriptionID, creds, b.options)
+	return armresources.NewResourceGroupsClient(subscriptionID, creds, b.azureConfig.CloudEnvironment.ARMClientOptions())
 }
 
 func (b *firstPartyApplicationClientBuilder) ResourceProvidersClient(tenantID string, subscriptionID string) (ResourceProvidersClient, error) {
@@ -77,7 +81,26 @@ func (b *firstPartyApplicationClientBuilder) ResourceProvidersClient(tenantID st
 		return nil, err
 	}
 
-	return armresources.NewProvidersClient(subscriptionID, creds, b.options)
+	return armresources.NewProvidersClient(subscriptionID, creds, b.azureConfig.CloudEnvironment.ARMClientOptions())
+}
+
+func (b *firstPartyApplicationClientBuilder) CheckAccessv2Client(tenantID string, subscriptionID string) (CheckAccessv2Client, error) {
+	creds, err := b.fpaTokenCredRetriever.RetrieveCredential(tenantID)
+	if err != nil {
+		return nil, err
+	}
+
+	client, err := checkaccess.NewRemotePDPClient(
+		b.azureConfig.CloudEnvironment.CheckAccessV2Endpoint(b.azureLocation),
+		b.azureConfig.CloudEnvironment.CheckAccessV2Scope(),
+		creds,
+		nil,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return client, nil
+
 }
 
 func (b *firstPartyApplicationClientBuilder) BuilderType() FirstPartyApplicationClientBuilderType {

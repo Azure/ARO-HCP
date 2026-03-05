@@ -26,6 +26,8 @@ github.com/Azure/azure-sdk-for-go/sdk/storage/azblob v1.6.4 h1:jWQK1GI+LeGGUKBAD
 github.com/Azure/azure-sdk-for-go/sdk/storage/azblob v1.6.4/go.mod h1:8mwH4klAm9DUgR2EEHyEEAQlRDvLPyg5fQry3y+cDew=
 github.com/Azure/azure-sdk-for-go/sdk/tracing/azotel v0.4.0 h1:RTTsXUJWn0jumeX62Mb153wYXykqnrzYBYDeHp0kiuk=
 github.com/Azure/azure-sdk-for-go/sdk/tracing/azotel v0.4.0/go.mod h1:k4MMjrPHIEK+umaMGk1GNLgjEybJZ9mHSRDZ+sDFv3Y=
+github.com/Azure/checkaccess-v2-go-sdk v0.0.3 h1:c0RL1qvQV/YvM4XVuHkJr1dVI2m5T9cZxtyUeFSQWeU=
+github.com/Azure/checkaccess-v2-go-sdk v0.0.3/go.mod h1:rpcmeUsB980fGSfoxhGdU9e52mHzNyRgWftOm93Tkio=
 github.com/AzureAD/microsoft-authentication-extensions-for-go/cache v0.1.1 h1:WJTmL004Abzc5wDB5VtZG2PJk5ndYDgVacGqfirKxjM=
 github.com/AzureAD/microsoft-authentication-extensions-for-go/cache v0.1.1/go.mod h1:tCcJZ0uHAmvjsVYzEFivsRTN00oz5BEsRgQHu5JZ9WE=
 github.com/AzureAD/microsoft-authentication-library-for-go v1.6.0 h1:XRzhVemXdgvJqCH0sFfrBUTnUJSBrBf7++ypk+twtRs=

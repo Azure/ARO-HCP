@@ -253,7 +253,7 @@ func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.C
 		return nil, utils.TrackError(fmt.Errorf("failed to create Azure configuration: %w", err))
 	}
 
-	fpaClientBuilder, err := app.NewFirstPartyApplicationClientBuilder(ctx, f.AzureFirstPartyApplicationCertificateBundlePath, f.AzureFirstPartyApplicationClientID, azureConfig)
+	fpaClientBuilder, err := app.NewFirstPartyApplicationClientBuilder(ctx, f.AzureFirstPartyApplicationCertificateBundlePath, f.AzureFirstPartyApplicationClientID, azureConfig, f.AzureLocation)
 	if err != nil {
 		return nil, utils.TrackError(fmt.Errorf("failed to create FPA client builder: %w", err))
 	}

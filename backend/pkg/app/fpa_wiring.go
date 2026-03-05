@@ -27,6 +27,7 @@ import (
 func NewFirstPartyApplicationClientBuilder(
 	ctx context.Context, fpaCertBundlePath string, fpaClientID string,
 	azureConfig *azureconfig.AzureConfig,
+	azureLocation string,
 ) (azureclient.FirstPartyApplicationClientBuilder, error) {
 	if len(fpaCertBundlePath) == 0 || len(fpaClientID) == 0 {
 		return nil, nil
@@ -56,7 +57,7 @@ func NewFirstPartyApplicationClientBuilder(
 	}
 
 	fpaClientBuilder := azureclient.NewFirstPartyApplicationClientBuilder(
-		fpaTokenCredRetriever, azureConfig.CloudEnvironment.ARMClientOptions(),
+		fpaTokenCredRetriever, azureConfig, azureLocation,
 	)
 
 	return fpaClientBuilder, nil

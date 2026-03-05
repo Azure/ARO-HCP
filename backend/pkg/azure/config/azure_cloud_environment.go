@@ -133,3 +133,13 @@ func (a AzureCloudEnvironment) ARMClientOptions() *azcorearm.ClientOptions {
 		ClientOptions: *a.clientOptions,
 	}
 }
+
+func (a AzureCloudEnvironment) CheckAccessV2Scope() string {
+	return a.checkAccessV2Environment.scope
+}
+
+func (a AzureCloudEnvironment) CheckAccessV2Endpoint(region string) string {
+	return fmt.Sprintf(
+		"https://%s.authorization.%s/providers/Microsoft.Authorization/checkAccess?api-version=2023-05-01",
+		region, a.checkAccessV2Environment.domainSuffix)
+}
