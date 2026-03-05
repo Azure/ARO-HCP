@@ -11,7 +11,7 @@ RENDERED_CONFIG ?= ../../config/rendered/dev/dev/westus3.yaml
 KEY_VAULT_NAME ?= $(shell yq '.global.keyVault.name' < $(RENDERED_CONFIG))
 KEY_VAULT_DNS_SUFFIX ?= $(shell yq '.keyVaultDNSSuffix' < $(RENDERED_CONFIG))
 KEY_VAULT_URI ?= https://$(KEY_VAULT_NAME).$(KEY_VAULT_DNS_SUFFIX)
-KEY_ENCRYPTION_KEY_NAME ?= secretSyncKey
+KEY_ENCRYPTION_KEY_NAME ?= $(shell yq '.global.keyVault.encryptionKeyName' < $(RENDERED_CONFIG))
 
 # Build the binary
 $(BINARY): $(SOURCES) $(MAKEFILE_LIST) go.mod go.sum

@@ -21,6 +21,9 @@ param keyVaultTagKey string
 @description('Tag value for the keyvault')
 param keyVaultTagValue string
 
+@description('Name of the encryption key in the keyvault for secret sync')
+param keyVaultEncryptionKeyName string
+
 @description('The cxParentZone Domain')
 param cxParentZoneName string
 
@@ -167,10 +170,10 @@ module ev2CertAccess '../modules/keyvault/keyvault-secret-access.bicep' = if (kv
 }
 
 module encryptionKey '../modules/keyvault/key-vault-key.bicep' = {
-  name: 'imagesync-secretSyncKey'
+  name: 'imagesync-${keyVaultEncryptionKeyName}'
   params: {
     keyVaultName: globalKV.outputs.kvName
-    keyName: 'secretSyncKey'
+    keyName: keyVaultEncryptionKeyName
   }
 }
 

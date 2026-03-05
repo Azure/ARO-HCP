@@ -75,6 +75,7 @@ defaults:
       softDelete: true
       tagKey: aroHCPPurpose
       tagValue: global
+      encryptionKeyName: secretSyncKey
   # ACR
   acr:
     svc:
