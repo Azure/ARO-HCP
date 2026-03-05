@@ -20,7 +20,12 @@
 			"internalId": "/api/clusters_mgmt/v1/clusters/tqqtpctbpj",
 			"provisioningState": "Succeeded",
 			"resourceId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/create-with-tags",
-			"systemData": {"createdBy": "Unknown-ARO-HCP-frontend", "createdByType": "Application", "lastModifiedBy": "Unknown-ARO-HCP-frontend", "lastModifiedByType": "Application"},
+			"systemData": {
+				"createdBy": "Unknown-ARO-HCP-frontend",
+				"createdByType": "Application",
+				"lastModifiedBy": "Unknown-ARO-HCP-frontend",
+				"lastModifiedByType": "Application"
+			},
 			"tags": {
 				"one": "apple"
 			}
@@ -89,7 +94,12 @@
 		},
 		"provisioningState": "Succeeded",
 		"resourceId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/create-with-tags",
-		"systemData": {"createdBy": "Unknown-ARO-HCP-frontend", "createdByType": "Application", "lastModifiedBy": "Unknown-ARO-HCP-frontend", "lastModifiedByType": "Application"},
+		"systemData": {
+			"createdBy": "Unknown-ARO-HCP-frontend",
+			"createdByType": "Application",
+			"lastModifiedBy": "Unknown-ARO-HCP-frontend",
+			"lastModifiedByType": "Application"
+		},
 		"tags": {
 			"one": "apple"
 		}
