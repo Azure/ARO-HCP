@@ -539,8 +539,10 @@ func getServiceLogLinks(steps []pipeline.NodeInfo, svcClusterName, mgmtClusterNa
 		template  string
 	}{
 		{"Backend Logs", "backend-logs.kql.tmpl"},
+		{"Backend Controller Conditions", "backend-controller-conditions.kql.tmpl"},
 		{"Frontend Logs", "frontend-logs.kql.tmpl"},
 		{"Clusters Service Logs", "clusters-service-logs.kql.tmpl"},
+		{"Clusters Service Phases", "clusters-service-phases.kql.tmpl"},
 		{"Maestro Logs", "maestro-logs.kql.tmpl"},
 	}
 
