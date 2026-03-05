@@ -41,14 +41,15 @@ const (
 )
 
 func main() {
+	logger := createLogger(0)
+
 	if os.Getenv("AZURE_TOKEN_CREDENTIALS") == "" {
 		if err := os.Setenv("AZURE_TOKEN_CREDENTIALS", "dev"); err != nil {
-			slog.Error("failed to set default AZURE_TOKEN_CREDENTIALS", "error", err)
+			logger.Error(err, "failed to set default AZURE_TOKEN_CREDENTIALS")
 			os.Exit(1)
 		}
 	}
-	logger := createLogger(0)
-
+	
 	// Create a root context with the logger and signal handling
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
