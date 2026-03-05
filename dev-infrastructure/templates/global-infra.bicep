@@ -170,7 +170,7 @@ module ev2CertAccess '../modules/keyvault/keyvault-secret-access.bicep' = if (kv
 }
 
 module encryptionKey '../modules/keyvault/key-vault-key.bicep' = {
-  name: 'imagesync-${keyVaultEncryptionKeyName}'
+  name: 'imagesync-secretSyncKey'
   params: {
     keyVaultName: globalKV.outputs.kvName
     keyName: keyVaultEncryptionKeyName
