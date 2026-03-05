@@ -16,6 +16,7 @@ package validation
 
 import (
 	"context"
+	"time"
 
 	"k8s.io/apimachinery/pkg/api/operation"
 	"k8s.io/apimachinery/pkg/api/safe"
@@ -65,10 +66,11 @@ func validateTrackedResource(ctx context.Context, op operation.Operation, fldPat
 }
 
 var (
-	toResourceID         = func(oldObj *arm.Resource) *azcorearm.ResourceID { return oldObj.ID }
-	toResourceName       = func(oldObj *arm.Resource) *string { return &oldObj.Name }
-	toResourceType       = func(oldObj *arm.Resource) *string { return &oldObj.Type }
-	toResourceSystemData = func(oldObj *arm.Resource) *arm.SystemData { return oldObj.SystemData }
+	toResourceID                  = func(oldObj *arm.Resource) *azcorearm.ResourceID { return oldObj.ID }
+	toResourceName                = func(oldObj *arm.Resource) *string { return &oldObj.Name }
+	toResourceType                = func(oldObj *arm.Resource) *string { return &oldObj.Type }
+	toResourceSystemData          = func(oldObj *arm.Resource) *arm.SystemData { return oldObj.SystemData }
+	toResourceSystemDataCreatedAt = func(oldObj *arm.SystemData) *time.Time { return oldObj.CreatedAt }
 )
 
 // Version                 VersionProfile              `json:"version,omitempty"`
@@ -101,6 +103,11 @@ func validateResource(ctx context.Context, op operation.Operation, fldPath *fiel
 // Version                 VersionProfile              `json:"version,omitempty"`
 func validateSystemData(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *arm.SystemData) field.ErrorList {
 	errs := field.ErrorList{}
+
+	errs = append(errs, validate.RequiredPointer(ctx, op, fldPath.Child("createdAt"), newObj.CreatedAt, safe.Field(oldObj, toResourceSystemDataCreatedAt))...)
+	errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("createdAt"), newObj.CreatedAt, safe.Field(oldObj, toResourceSystemDataCreatedAt))...)
+	errs = append(errs, validate.ImmutableByReflect(ctx, op, fldPath.Child("createdAt"), newObj.CreatedAt, safe.Field(oldObj, toResourceSystemDataCreatedAt))...)
+
 
 	//CreatedBy string `json:"createdBy,omitempty"`
 	//CreatedByType CreatedByType `json:"createdByType,omitempty"`
