@@ -42,7 +42,10 @@ const (
 
 func main() {
 	if os.Getenv("AZURE_TOKEN_CREDENTIALS") == "" {
-		os.Setenv("AZURE_TOKEN_CREDENTIALS", "dev")
+		if err := os.Setenv("AZURE_TOKEN_CREDENTIALS", "dev"); err != nil {
+			slog.Error("failed to set default AZURE_TOKEN_CREDENTIALS", "error", err)
+			os.Exit(1)
+		}
 	}
 	logger := createLogger(0)
 
