@@ -33,6 +33,7 @@ resourceGroups:
     - prod
     regions:
     - eastus2euap
+    - uksouth
   steps:
   - name: infra
     action: ARM
