@@ -20,8 +20,10 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strings"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 	"helm.sh/helm/v4/pkg/action"
 	"helm.sh/helm/v4/pkg/chart/common"
@@ -32,6 +34,7 @@ import (
 	"sigs.k8s.io/yaml"
 
 	"github.com/Azure/ARO-Tools/config"
+	"github.com/Azure/ARO-Tools/config/types"
 
 	"github.com/Azure/ARO-HCP/tooling/helmtest/internal"
 )
@@ -184,4 +187,64 @@ func RunTestHelmTemplate(t *testing.T, settingsPath string) {
 		}
 	}
 
+}
+
+func RunTestACRValues(t *testing.T, settingsPath string) {
+	settings, err := internal.LoadSettings(settingsPath)
+	assert.NoError(t, err)
+	assert.NotNil(t, settings)
+
+	helmSteps, err := internal.FindHelmSteps(settings.TopologyDir, settings.ConfigPath)
+	assert.NoError(t, err)
+	assert.NotNil(t, helmSteps)
+
+	acrOverride := map[string]any{
+		"acr": map[string]any{
+			"svc": map[string]any{
+				"name": "acrtest",
+			},
+		},
+	}
+
+	valuesVisited := make(map[string]bool)
+	cfgYaml, err := internal.LoadConfig(settings.ConfigPath)
+	assert.NoError(t, err)
+
+	cfgYaml = internal.ReplaceImageDigest(cfgYaml)
+	cfgWithOverride := types.MergeConfiguration(cfgYaml, acrOverride)
+
+	for _, helmStep := range helmSteps {
+
+		if len(helmStep.MirrorImageSteps) == 0 {
+			continue
+		}
+
+		valuesFile := helmStep.ValuesFileFromRoot(settings.TopologyDir)
+		if valuesVisited[valuesFile] {
+			continue
+		}
+		valuesVisited[valuesFile] = true
+
+		fmt.Println(valuesFile)
+
+		valuesFileContent, err := os.ReadFile(valuesFile)
+		assert.NoError(t, err)
+
+		if strings.Contains(string(valuesFileContent), "helmtest: ignore acr values") {
+			continue
+		}
+
+		testName := fmt.Sprintf("%s-%s", helmStep.AKSCluster, helmStep.HelmStep.ReleaseName)
+		t.Run(testName, func(t *testing.T) {
+			values, err := config.PreprocessFile(valuesFile, cfgYaml)
+			assert.NoError(t, err)
+
+			valuesWithOverride, err := config.PreprocessFile(valuesFile, cfgWithOverride)
+			assert.NoError(t, err)
+
+			if diff := cmp.Diff(string(values), string(valuesWithOverride)); diff == "" {
+				t.Errorf("%s: Check ACR value for values file %s\n if this is expected, add `helmtest: ignore acr values` to the values file.", testName, valuesFile)
+			}
+		})
+	}
 }

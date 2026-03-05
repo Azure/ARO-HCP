@@ -38,6 +38,14 @@ func loadConfig(configPath string) (types.Configuration, error) {
 	return cfgYaml, nil
 }
 
+func LoadConfig(configPath string) (types.Configuration, error) {
+	cfg, err := loadConfig(configPath)
+	if err != nil {
+		return nil, fmt.Errorf("error loading config: %v", err)
+	}
+	return cfg, nil
+}
+
 func LoadConfigAndMerge(configPath string, configOverride map[string]any) (map[string]any, error) {
 	cfg, err := loadConfig(configPath)
 	if err != nil {
