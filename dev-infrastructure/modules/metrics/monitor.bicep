@@ -7,6 +7,9 @@ param monitorName string
 @description('Purpose of the monitor')
 param purpose string
 
+@description('Auto-generated GUID for role assignment name')
+param roleAssignmentName string = newGuid()
+
 import * as res from '../resource.bicep'
 
 var grafanaRef = res.grafanaRefFromId(grafanaResourceId)
@@ -28,7 +31,7 @@ resource grafana 'Microsoft.Dashboard/grafana@2023-09-01' existing = {
 }
 
 resource roleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(monitor.id, grafana.id, dataReader)
+  name: roleAssignmentName
   scope: monitor
   properties: {
     principalId: grafana.identity.principalId
