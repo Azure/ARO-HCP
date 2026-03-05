@@ -269,7 +269,7 @@ func decodeDesiredClusterCreate(ctx context.Context, azureLocation string) (*api
 
 	// set fields that were not included during the conversion, because the user does not provide them or because the
 	// data is determined live on read.
-	newInternalCluster.SystemData = systemData
+	newInternalCluster.SystemData = ensureSystemData(systemData, nil)
 	// Clear the user-assigned identities map since that is reconstructed from Cluster Service data.
 	// TODO we'd like to have the instance complete when we go to validate it.  Right now validation fails if we clear this.
 	// TODO we probably update validation to require this field is cleared.
@@ -485,7 +485,7 @@ func decodeDesiredClusterReplace(ctx context.Context, oldInternalCluster *api.HC
 	//    We do this because if a user has read a value, then modified it, then replaces it, we don't want to produce
 	//    validation errors on status fields that the user isn't trying to modify.
 	conversion.CopyReadOnlyClusterValues(newInternalCluster, oldInternalCluster)
-	newInternalCluster.SystemData = systemData
+	newInternalCluster.SystemData = ensureSystemData(systemData, oldInternalCluster.SystemData)
 
 	// Here the difference between a nil map and an empty map is significant.
 	// If the Tags map is nil, that means it was omitted from the request body,
@@ -560,7 +560,7 @@ func decodeDesiredClusterPatch(ctx context.Context, oldInternalCluster *api.HCPO
 	//    We do this because if a user has read a value, then modified it, then replaces it, we don't want to produce
 	//    validation errors on status fields that the user isn't trying to modify.
 	conversion.CopyReadOnlyClusterValues(newInternalCluster, oldInternalCluster)
-	newInternalCluster.SystemData = systemData
+	newInternalCluster.SystemData = ensureSystemData(systemData, oldInternalCluster.SystemData)
 	// Clear the user-assigned identities map since that is reconstructed from Cluster Service data.
 	// TODO we'd like to have the instance complete when we go to validate it.  Right now validation fails if we clear this.
 	// TODO we probably update validation to require this field is cleared.
@@ -933,4 +933,42 @@ func (f *Frontend) getInternalClusterFromStorage(ctx context.Context, resourceID
 	internalCluster.ID = resourceID
 
 	return f.readInternalClusterFromClusterService(ctx, internalCluster)
+}
+
+// ensureSystemData tries to use the src systemData
+func ensureSystemData(newObj, oldObj *arm.SystemData) *arm.SystemData {
+	var ret *arm.SystemData
+	if newObj != nil {
+		ret = newObj.DeepCopy()
+	} else {
+		ret = &arm.SystemData{}
+	}
+	if oldObj != nil {
+		ret.CreatedAt = oldObj.CreatedAt
+		ret.CreatedBy = oldObj.CreatedBy
+		ret.CreatedByType = oldObj.CreatedByType
+	}
+
+	if ret.CreatedAt == nil || ret.CreatedAt.IsZero() {
+		ret.CreatedAt = ptr.To(time.Now())
+	}
+	if len(ret.CreatedBy) == 0 {
+		ret.CreatedBy = "Unknown-ARO-HCP-frontend"
+	}
+	if len(ret.CreatedByType) == 0 {
+		ret.CreatedByType = arm.CreatedByTypeApplication
+	}
+
+	if ret.LastModifiedAt == nil || ret.LastModifiedAt.IsZero() {
+		ret.LastModifiedAt = ptr.To(time.Now())
+	}
+	if len(ret.LastModifiedBy) == 0 {
+		ret.LastModifiedBy = "Unknown-ARO-HCP-frontend"
+	}
+	if len(ret.LastModifiedByType) == 0 {
+		ret.LastModifiedByType = arm.CreatedByTypeApplication
+	}
+
+	return ret
+
 }
