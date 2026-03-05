@@ -94,6 +94,7 @@ func validateResource(ctx context.Context, op operation.Operation, fldPath *fiel
 	}
 
 	//SystemData *SystemData `json:"systemData,omitempty"`
+	errs = append(errs, validate.RequiredPointer(ctx, op, fldPath.Child("systemData"), newObj.SystemData, safe.Field(oldObj, toResourceSystemData))...)
 	errs = append(errs, validateSystemData(ctx, op, fldPath.Child("systemData"), newObj.SystemData, safe.Field(oldObj, toResourceSystemData))...)
 
 	return errs
@@ -106,6 +107,10 @@ var (
 )
 
 func validateSystemData(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *arm.SystemData) field.ErrorList {
+	if newObj == nil {
+		return nil
+	}
+
 	errs := field.ErrorList{}
 
 	//CreatedBy string `json:"createdBy,omitempty"`
