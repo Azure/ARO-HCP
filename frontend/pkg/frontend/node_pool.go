@@ -269,6 +269,11 @@ func (f *Frontend) createNodePool(writer http.ResponseWriter, request *http.Requ
 		return utils.TrackError(err)
 	}
 
+	subscription, err := f.dbClient.Subscriptions().Get(ctx, resourceID.SubscriptionID)
+	if err != nil {
+		return err
+	}
+
 	// Node pool validation checks some fields against the parent cluster
 	// so we have to request the cluster from Cluster Service.
 	cluster, err := f.getInternalClusterFromStorage(ctx, resourceID.Parent)
@@ -278,7 +283,7 @@ func (f *Frontend) createNodePool(writer http.ResponseWriter, request *http.Requ
 
 	validationErrs := validation.ValidateNodePoolCreate(ctx, newInternalNodePool)
 	// in addition to static validation, we have validation based on the state of the hcp cluster
-	validationErrs = append(validationErrs, admission.AdmitNodePool(newInternalNodePool, cluster)...)
+	validationErrs = append(validationErrs, admission.AdmitNodePool(ctx, newInternalNodePool, cluster, subscription)...)
 	if err := arm.CloudErrorFromFieldErrors(validationErrs); err != nil {
 		return utils.TrackError(err)
 	}
@@ -531,7 +536,14 @@ func (f *Frontend) updateNodePoolInCosmos(ctx context.Context, writer http.Respo
 	if err != nil {
 		return utils.TrackError(err)
 	}
-
+	resourceID, err := utils.ResourceIDFromContext(ctx)
+	if err != nil {
+		return utils.TrackError(err)
+	}
+	subscription, err := f.dbClient.Subscriptions().Get(ctx, resourceID.SubscriptionID)
+	if err != nil {
+		return err
+	}
 	// Node pool validation checks some fields against the parent cluster
 	// so we have to request the cluster from Cluster Service.
 	cluster, err := f.getInternalClusterFromStorage(ctx, oldInternalNodePool.ID.Parent)
@@ -541,7 +553,7 @@ func (f *Frontend) updateNodePoolInCosmos(ctx context.Context, writer http.Respo
 
 	validationErrs := validation.ValidateNodePoolUpdate(ctx, newInternalNodePool, oldInternalNodePool)
 	// in addition to static validation, we have validation based on the state of the hcp cluster
-	validationErrs = append(validationErrs, admission.AdmitNodePool(newInternalNodePool, cluster)...)
+	validationErrs = append(validationErrs, admission.AdmitNodePool(ctx, newInternalNodePool, cluster, subscription)...)
 	if err := arm.CloudErrorFromFieldErrors(validationErrs); err != nil {
 		return utils.TrackError(err)
 	}
