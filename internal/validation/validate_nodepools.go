@@ -33,13 +33,7 @@ const (
 	MaxNodePoolNodes = 200
 )
 
-func ValidateNodePoolCreate(ctx context.Context, newObj *api.HCPOpenShiftClusterNodePool) field.ErrorList {
-	op := operation.Operation{Type: operation.Create}
-	return validateNodePool(ctx, op, newObj, nil)
-}
-
-func ValidateNodePoolUpdate(ctx context.Context, newObj, oldObj *api.HCPOpenShiftClusterNodePool) field.ErrorList {
-	op := operation.Operation{Type: operation.Update}
+func ValidateNodePool(ctx context.Context, op operation.Operation, newObj, oldObj *api.HCPOpenShiftClusterNodePool) field.ErrorList {
 	return validateNodePool(ctx, op, newObj, oldObj)
 }
 
@@ -170,7 +164,13 @@ func validateNodePoolVersionProfile(ctx context.Context, op operation.Operation,
 
 	//ID           string `json:"id,omitempty"`
 	errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("id"), &newObj.ID, safe.Field(oldObj, toNodePoolVersionProfileID))...)
-	errs = append(errs, OpenshiftVersionWithOptionalMicro(ctx, op, fldPath.Child("id"), &newObj.ID, safe.Field(oldObj, toNodePoolVersionProfileID))...)
+	// For non-stable channels with experimental features: allow X.Y or X.Y.Z-prerelease format
+	// Otherwise: require strict X.Y.Z format
+	if op.HasOption(api.FeatureExperimentalReleaseFeatures) && newObj.ChannelGroup != "stable" {
+		errs = append(errs, OpenshiftVersionWithOptionalMicro(ctx, op, fldPath.Child("id"), &newObj.ID, safe.Field(oldObj, toNodePoolVersionProfileID))...)
+	} else {
+		errs = append(errs, OpenShiftVersionWithXYZ(ctx, op, fldPath.Child("id"), &newObj.ID, safe.Field(oldObj, toNodePoolVersionProfileID))...)
+	}
 
 	//ChannelGroup string `json:"channelGroup,omitempty"`
 	// this is required and is later checked for matching the control plane.
