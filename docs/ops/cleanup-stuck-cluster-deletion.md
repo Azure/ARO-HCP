@@ -114,9 +114,10 @@ Start at the top of the hierarchy and work your way down:
 ```bash
 # Check ManifestWork in local-cluster namespace
 kubectl get manifestwork -n local-cluster | grep ${CLUSTER_ID}
+export MANIFESTWORK="manifest-work-name"
 
 # Check ManifestWork status and finalizers
-kubectl get manifestwork <manifestwork-name> -n local-cluster -o yaml
+kubectl get manifestwork ${MANIFESTWORK} -n local-cluster -o yaml
 
 # Check specific finalizer
 kubectl get manifestwork <manifestwork-name> -n local-cluster \
@@ -135,19 +136,21 @@ kubectl get appliedmanifestwork <manifestwork-name>
 
 # Check ManagedCluster
 kubectl get managedcluster | grep ${CLUSTER_ID}
-kubectl describe managedcluster <managedcluster-name>
+export ${CLUSTER_NAME}="cluster-name"
+
+kubectl describe managedcluster ${CLUSTER_NAME}
 
 # Check ManagedCluster finalizers
-kubectl get managedcluster <managedcluster-name> \
+kubectl get managedcluster ${CLUSTER_NAME} \
   -o jsonpath='{.metadata.finalizers}'
 
 # Check HostedCluster
 kubectl get hostedcluster -n ocm-${CLUSTER_PREFIX}-${CLUSTER_ID}
-kubectl describe hostedcluster <cluster-name> -n ocm-${CLUSTER_PREFIX}-${CLUSTER_ID}
+kubectl describe hostedcluster ${CLUSTER_NAME} -n ocm-${CLUSTER_PREFIX}-${CLUSTER_ID}
 
 # Check HostedControlPlane
 kubectl get hostedcontrolplane -n ocm-${CLUSTER_PREFIX}-${CLUSTER_ID}
-kubectl describe hostedcontrolplane <cluster-name> -n ocm-${CLUSTER_PREFIX}-${CLUSTER_ID}
+kubectl describe hostedcontrolplane ${CLUSTER_NAME} -n ocm-${CLUSTER_PREFIX}-${CLUSTER_ID}
 ```
 
 #### Step 3: Identify Resources with DeletionTimestamp
