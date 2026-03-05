@@ -22,6 +22,7 @@ import (
 	"maps"
 	"net/http"
 	"strings"
+	"time"
 
 	"k8s.io/utils/ptr"
 
@@ -243,6 +244,10 @@ func decodeDesiredClusterCreate(ctx context.Context, azureLocation string) (*api
 	systemData, err := SystemDataFromContext(ctx)
 	if err != nil {
 		return nil, utils.TrackError(err)
+	}
+	// If for some reason systemData.CreatedAt is not set, we set it to the current time in UTC.
+	if systemData.CreatedAt == nil {
+		systemData.CreatedAt = ptr.To(time.Now().UTC())
 	}
 
 	externalClusterFromRequest := versionedInterface.NewHCPOpenShiftCluster(&api.HCPOpenShiftCluster{})

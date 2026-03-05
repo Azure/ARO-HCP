@@ -22,6 +22,7 @@ import (
 	"maps"
 	"net/http"
 	"strings"
+	"time"
 
 	"k8s.io/utils/ptr"
 
@@ -220,6 +221,10 @@ func decodeDesiredNodePoolCreate(ctx context.Context, azureLocation string) (*ap
 	systemData, err := SystemDataFromContext(ctx)
 	if err != nil {
 		return nil, utils.TrackError(err)
+	}
+	// If for some reason systemData.CreatedAt is not set, we set it to the current time in UTC.
+	if systemData.CreatedAt == nil {
+		systemData.CreatedAt = ptr.To(time.Now().UTC())
 	}
 
 	externalNodePoolFromRequest := versionedInterface.NewHCPOpenShiftClusterNodePool(&api.HCPOpenShiftClusterNodePool{})
