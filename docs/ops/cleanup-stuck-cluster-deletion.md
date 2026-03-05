@@ -40,7 +40,7 @@ Management Cluster (MGMT)
 │       ├── Finalizer: cluster.open-cluster-management.io/api-resource-cleanup
 │       └── References the HostedCluster
 │
-├── Namespace: ocm-xxx-${CLUSTER_ID} (HostedCluster namespace)
+├── Namespace: ocm-${CLUSTER_PREFIX}-${CLUSTER_ID} (HostedCluster namespace)
 │   ├── HostedCluster (Primary HCP resource)
 │   │   └── Finalizer: hypershift.openshift.io/finalizer
 │   ├── HostedControlPlane (Control plane configuration)
@@ -48,7 +48,7 @@ Management Cluster (MGMT)
 │   ├── ConfigMaps (configuration data)
 │   └── Other Hypershift-managed resources
 │
-└── Namespace: ocm-xxx-${CLUSTER_ID}-${CLUSTER_NAME} (Control Plane namespace)
+└── Namespace: ocm-${CLUSTER_PREFIX}-${CLUSTER_ID}-${CLUSTER_NAME} (Control Plane namespace)
     ├── Deployments (kube-apiserver, etcd, controllers)
     ├── StatefulSets (etcd, control plane components)
     ├── Services (API server endpoints, internal services)
@@ -58,7 +58,7 @@ Management Cluster (MGMT)
     └── PersistentVolumeClaims (etcd storage, if applicable)
 ```
 
-**Note**: The `ocm-xxx-${CLUSTER_ID}` pattern is the standard namespace naming for HostedCluster resources, where `xxx` is a fixed prefix and `CLUSTER_ID` is your cluster's unique identifier.
+**Note**: The `ocm-${CLUSTER_PREFIX}-${CLUSTER_ID}` pattern is the standard namespace naming for HostedCluster resources, where `${CLUSTER_PREFIX}` is a fixed prefix and `CLUSTER_ID` is your cluster's unique identifier.
 
 ### Deletion Chain Dependencies
 
@@ -91,16 +91,20 @@ The deletion process follows this dependency order to prevent resources from bei
 First, identify the cluster's namespaces on the management cluster:
 
 ```bash
+# Find the HostedCluster prefix
+kubectl get namespaces | grep ocm-
+export CLUSTER_PREFIX="your-env-prefix"  # arohcpprod, arohcpstg,...
+
 # Find the HostedCluster namespace
-kubectl get namespaces | grep ocm-xxx-
+kubectl get namespaces | grep ocm-${CLUSTER_PREFIX}-
 
 # Or if you know the cluster ID
-CLUSTER_ID="your-cluster-id"
-kubectl get namespace ocm-xxx-${CLUSTER_ID}
+export CLUSTER_ID="your-cluster-id"
+kubectl get namespace ocm-${CLUSTER_PREFIX}-${CLUSTER_ID}
 
 # Find the control plane namespace
-CLUSTER_NAME="your-cluster-name"
-kubectl get namespace ocm-xxx-${CLUSTER_ID}-${CLUSTER_NAME}
+export CLUSTER_NAME="your-cluster-name"
+kubectl get namespace ocm-${CLUSTER_PREFIX}-${CLUSTER_ID}-${CLUSTER_NAME}
 ```
 
 #### Step 2: Check Top-Level Resources for Deletion Timestamps
@@ -138,12 +142,12 @@ kubectl get managedcluster <managedcluster-name> \
   -o jsonpath='{.metadata.finalizers}'
 
 # Check HostedCluster
-kubectl get hostedcluster -n ocm-xxx-${CLUSTER_ID}
-kubectl describe hostedcluster <cluster-name> -n ocm-xxx-${CLUSTER_ID}
+kubectl get hostedcluster -n ocm-${CLUSTER_PREFIX}-${CLUSTER_ID}
+kubectl describe hostedcluster <cluster-name> -n ocm-${CLUSTER_PREFIX}-${CLUSTER_ID}
 
 # Check HostedControlPlane
-kubectl get hostedcontrolplane -n ocm-xxx-${CLUSTER_ID}
-kubectl describe hostedcontrolplane <cluster-name> -n ocm-xxx-${CLUSTER_ID}
+kubectl get hostedcontrolplane -n ocm-${CLUSTER_PREFIX}-${CLUSTER_ID}
+kubectl describe hostedcontrolplane <cluster-name> -n ocm-${CLUSTER_PREFIX}-${CLUSTER_ID}
 ```
 
 #### Step 3: Identify Resources with DeletionTimestamp
@@ -152,19 +156,18 @@ Look for resources that have a `deletionTimestamp` but are not completing deleti
 
 ```bash
 # In the HostedCluster namespace
-kubectl get all,secrets,configmaps -n ocm-xxx-${CLUSTER_ID} -o json | \
-  kubectl get -o json | \
+kubectl get all,secrets,configmaps -n ocm-${CLUSTER_PREFIX}-${CLUSTER_ID} -o json | \
   jq '.items[] | select(.metadata.deletionTimestamp != null) | {kind: .kind, name: .metadata.name, deletionTimestamp: .metadata.deletionTimestamp, finalizers: .metadata.finalizers}'
 
 # In the control plane namespace
-kubectl get all,secrets,configmaps,pvc -n ocm-xxx-${CLUSTER_ID}-${CLUSTER_NAME} -o json | \
+kubectl get all,secrets,configmaps,pvc -n ocm-${CLUSTER_PREFIX}-${CLUSTER_ID}-${CLUSTER_NAME} -o json | \
   jq '.items[] | select(.metadata.deletionTimestamp != null) | {kind: .kind, name: .metadata.name, deletionTimestamp: .metadata.deletionTimestamp, finalizers: .metadata.finalizers}'
 ```
 
 **Note**: If `jq` is not available on your SAW device, check resources individually:
 
 ```bash
-kubectl get hostedcluster <cluster-name> -n ocm-xxx-${CLUSTER_ID} -o jsonpath='{.metadata.deletionTimestamp}{"\n"}{.metadata.finalizers}'
+kubectl get hostedcluster <cluster-name> -n ocm-${CLUSTER_PREFIX}-${CLUSTER_ID} -o jsonpath='{.metadata.deletionTimestamp}{"\n"}{.metadata.finalizers}'
 ```
 
 ### Phase 2: Follow the Deletion Chain
@@ -212,10 +215,10 @@ kubectl logs -n maestro deployment/maestro-agent -c maestro-agent | grep ${CLUST
 kubectl logs -n open-cluster-management-agent deployment/klusterlet-work-agent
 
 # Check events for the resource
-kubectl get events -n ocm-xxx-${CLUSTER_ID} --sort-by='.lastTimestamp' | grep ${CLUSTER_NAME}
+kubectl get events -n ocm-${CLUSTER_PREFIX}-${CLUSTER_ID} --sort-by='.lastTimestamp' | grep ${CLUSTER_NAME}
 
 # Check the resource's status conditions
-kubectl get hostedcluster <cluster-name> -n ocm-xxx-${CLUSTER_ID} -o jsonpath='{.status.conditions}' | jq .
+kubectl get hostedcluster <cluster-name> -n ocm-${CLUSTER_PREFIX}-${CLUSTER_ID} -o jsonpath='{.status.conditions}' | jq .
 
 # Check ManifestWork applied status
 kubectl get manifestwork <name> -n local-cluster -o jsonpath='{.status.conditions[?(@.type=="Applied")]}' | jq .
@@ -235,10 +238,10 @@ Sometimes controllers are slow or retrying failed operations:
 
 ```bash
 # Watch the resource for changes
-kubectl get hostedcluster <cluster-name> -n ocm-xxx-${CLUSTER_ID} -w
+kubectl get hostedcluster <cluster-name> -n ocm-${CLUSTER_PREFIX}-${CLUSTER_ID} -w
 
 # Monitor finalizers
-kubectl get hostedcluster <cluster-name> -n ocm-xxx-${CLUSTER_ID} -o jsonpath='{.metadata.finalizers}' -w
+kubectl get hostedcluster <cluster-name> -n ocm-${CLUSTER_PREFIX}-${CLUSTER_ID} -o jsonpath='{.metadata.finalizers}' -w
 ```
 
 Give the controllers at least 10-15 minutes to complete, especially if dealing with external resources (Azure, DNS).
@@ -261,7 +264,7 @@ If a namespace won't delete because of remaining resources:
 ```bash
 # List all resources in the namespace
 kubectl api-resources --verbs=list --namespaced -o name | \
-  xargs -n 1 kubectl get -n ocm-xxx-${CLUSTER_ID}-${CLUSTER_NAME}
+  xargs -n 1 kubectl get -n ocm-${CLUSTER_PREFIX}-${CLUSTER_ID}-${CLUSTER_NAME}
 
 # Identify resources with deletionTimestamp
 # Delete them individually if needed
@@ -280,11 +283,11 @@ Only remove finalizers when:
 
 ```bash
 # Remove a finalizer from a resource
-kubectl patch hostedcluster <cluster-name> -n ocm-xxx-${CLUSTER_ID} \
+kubectl patch hostedcluster <cluster-name> -n ocm-${CLUSTER_PREFIX}-${CLUSTER_ID} \
   --type=json -p='[{"op": "remove", "path": "/metadata/finalizers/0"}]'
 
 # Or edit directly (opens editor)
-kubectl edit hostedcluster <cluster-name> -n ocm-xxx-${CLUSTER_ID}
+kubectl edit hostedcluster <cluster-name> -n ocm-${CLUSTER_PREFIX}-${CLUSTER_ID}
 # Remove the finalizer from the list and save
 ```
 
@@ -298,10 +301,10 @@ After taking action, verify that resources are being deleted:
 
 ```bash
 # Check that the control plane namespace is gone
-kubectl get namespace ocm-xxx-${CLUSTER_ID}-${CLUSTER_NAME}
+kubectl get namespace ocm-${CLUSTER_PREFIX}-${CLUSTER_ID}-${CLUSTER_NAME}
 
 # Check that the HostedCluster namespace is gone
-kubectl get namespace ocm-xxx-${CLUSTER_ID}
+kubectl get namespace ocm-${CLUSTER_PREFIX}-${CLUSTER_ID}
 
 # Check that ManifestWork is gone
 kubectl get manifestwork -n local-cluster | grep ${CLUSTER_ID}
@@ -398,15 +401,15 @@ kubectl get all,managedclusteraddon,manifestwork -n <cluster-name>
 
 ```bash
 # Check HostedCluster finalizer
-kubectl get hostedcluster <name> -n ocm-xxx-${CLUSTER_ID} \
+kubectl get hostedcluster <name> -n ocm-${CLUSTER_PREFIX}-${CLUSTER_ID} \
   -o jsonpath='{.metadata.finalizers}'
 
 # Check HostedCluster status
-kubectl get hostedcluster <name> -n ocm-xxx-${CLUSTER_ID} \
+kubectl get hostedcluster <name> -n ocm-${CLUSTER_PREFIX}-${CLUSTER_ID} \
   -o jsonpath='{.status.conditions}' | jq .
 
 # Check what resources HostedCluster created
-kubectl get all -n ocm-xxx-${CLUSTER_ID}-${CLUSTER_NAME}
+kubectl get all -n ocm-${CLUSTER_PREFIX}-${CLUSTER_ID}-${CLUSTER_NAME}
 ```
 
 ### Controller Logs
