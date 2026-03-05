@@ -114,6 +114,5 @@ resourceGroups:
     automatedRetry:
       errorContainsAny:
       - "Internal error occurred"
-      - "context deadline exceeded"
       maximumRetryCount: 3
       durationBetweenRetries: 2m

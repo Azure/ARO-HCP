@@ -302,7 +302,6 @@ resourceGroups:
       errorContainsAny:
       - "500 Internal Server Error"
       - "Internal error occurred"
-      - "context deadline exceeded"
       maximumRetryCount: 3
       durationBetweenRetries: 1m
   - name: istio-config
@@ -340,7 +339,6 @@ resourceGroups:
       errorContainsAny:
       - "500 Internal Server Error"
       - "Internal error occurred"
-      - "context deadline exceeded"
       maximumRetryCount: 3
       durationBetweenRetries: 1m
   - name: istio-upgrade
@@ -393,7 +391,6 @@ resourceGroups:
       errorContainsAny:
       - "500 Internal Server Error"
       - "Internal error occurred"
-      - "context deadline exceeded"
       maximumRetryCount: 3
       durationBetweenRetries: 1m
   - name: arobit-output
@@ -442,7 +439,6 @@ resourceGroups:
       errorContainsAny:
       - "500 Internal Server Error"
       - "Internal error occurred"
-      - "context deadline exceeded"
       maximumRetryCount: 3
       durationBetweenRetries: 1m
   - name: kube-events
@@ -469,7 +465,6 @@ resourceGroups:
       errorContainsAny:
       - "500 Internal Server Error"
       - "Internal error occurred"
-      - "context deadline exceeded"
       maximumRetryCount: 3
       durationBetweenRetries: 1m
   - name: mirror-image
