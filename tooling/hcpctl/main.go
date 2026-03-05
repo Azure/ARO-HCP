@@ -49,7 +49,7 @@ func main() {
 			os.Exit(1)
 		}
 	}
-	
+
 	// Create a root context with the logger and signal handling
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
