@@ -301,6 +301,125 @@ func URL(_ context.Context, _ operation.Operation, fldPath *field.Path, value, _
 	return nil
 }
 
+// isIpAddress checks if the host is a valid IP address (IPv4 or IPv6)
+func isIpAddress(host string) bool {
+	// Trim brackets for IPv6 addresses
+	cleanHost := strings.Trim(host, "[]")
+	return net.ParseIP(cleanHost) != nil
+}
+
+// hasProtocolPrefix checks if the registry contains http/https protocol prefix
+func hasProtocolPrefix(registry string) bool {
+	return strings.HasPrefix(registry, "http://") || strings.HasPrefix(registry, "https://")
+}
+
+// hasUppercaseLetters checks if the registry contains uppercase letters
+func hasUppercaseLetters(registry string) bool {
+	return registry != strings.ToLower(registry)
+}
+
+// hasWhitespaceCharacters checks if the registry contains whitespace characters
+func hasWhitespaceCharacters(registry string) bool {
+	return strings.ContainsAny(registry, " \t\n\r\f\v")
+}
+
+// extractHostFromPath extracts the host part from a registry path
+func extractHostFromPath(registry string) string {
+	// Extract host from registry (first part before any path)
+	parts := strings.Split(registry, "/")
+	return parts[0]
+}
+
+// removeWildcardPrefix removes wildcard prefix from host if present
+func removeWildcardPrefix(host string) string {
+	return strings.TrimPrefix(host, "*.")
+}
+
+func ImageRegistry(_ context.Context, _ operation.Operation, fldPath *field.Path, value, _ *string) field.ErrorList {
+	// This and supporting functions are heavily based on Cluster
+	// Service validation in validation_helpers_image_mirrors.go.
+	if value == nil {
+		return nil
+	}
+
+	if len(*value) == 0 {
+		return field.ErrorList{field.Required(fldPath, *value)}
+	}
+
+	const maxLen = 255
+	if len(*value) > maxLen {
+		return field.ErrorList{field.TooLong(fldPath, *value, maxLen)}
+	}
+
+	// Basic format validation
+	// Supported patterns:
+	// host[:port], host[:port]/namespace[/namespace…], host[:port]/namespace[/namespace…]/repo, [*.]host
+	//
+	// Character restrictions:
+	// No protocol prefixes (http/https), uppercase letters, spaces, or special characters
+	// except hyphens, dots, colons, slashes
+
+	// Check for protocol prefixes
+	if hasProtocolPrefix(*value) {
+		return field.ErrorList{field.Invalid(fldPath, *value, "cannot contain protocol prefix (http/https)")}
+	}
+
+	// Check for uppercase letters
+	if hasUppercaseLetters(*value) {
+		return field.ErrorList{field.Invalid(fldPath, *value, "must be lowercase")}
+	}
+
+	// Check for whitespace characters.
+	if hasWhitespaceCharacters(*value) {
+		return field.ErrorList{field.Invalid(fldPath, *value, "cannot contain whitespace characters")}
+	}
+
+	// Extract host[:port] from registry path.
+	hostPort := extractHostFromPath(*value)
+
+	// Remove wildcardprefix if present.
+	hostPort = removeWildcardPrefix(hostPort)
+
+	var host = hostPort
+
+	// Detect and validate a host:port combination.
+	if strings.Contains(hostPort, ":") {
+		var port string
+		var err error
+
+		host, port, err = net.SplitHostPort(hostPort)
+		if err != nil {
+			// Accept a valid IPv4 or IPv6 address without a port.
+			if isIpAddress(hostPort) {
+				return nil
+			}
+			return field.ErrorList{field.Invalid(fldPath, *value, fmt.Sprintf("invalid host:port format: %s", err))}
+		}
+
+		// Validate port is not empty.
+		if port == "" {
+			return field.ErrorList{field.Invalid(fldPath, *value, "empty port")}
+		}
+	}
+
+	// Accept a valid IPv4 or IPv6 address.
+	if isIpAddress(host) {
+		return nil
+	}
+
+	// Host must be a valid DNS subdomain.
+	errMsgs := k8svalidation.IsDNS1123Subdomain(host)
+	if len(errMsgs) > 0 {
+		errs := field.ErrorList{}
+		for _, msg := range errMsgs {
+			errs = append(errs, field.Invalid(fldPath, *value, msg))
+		}
+		return errs
+	}
+
+	return nil
+}
+
 func ValidateUserAssignedIdentityLocation(ctx context.Context, op operation.Operation, fldPath *field.Path, value, _ *azcorearm.ResourceID, clusterSubscriptionID, managedResourceGroupName string) field.ErrorList {
 	if value == nil {
 		return nil
