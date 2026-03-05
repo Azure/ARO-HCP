@@ -402,7 +402,9 @@ func ocmClusterDefaults(azureLocation string) *arohcpv1alpha1.ClusterBuilder {
 			ID("openshift-v4.19.7").
 			ChannelGroup("stable")).
 		ImageRegistry(arohcpv1alpha1.NewClusterImageRegistry().
-			State(csImageRegistryStateEnabled))
+			State(csImageRegistryStateEnabled)).
+		RegistryConfig(arohcpv1alpha1.NewClusterRegistryConfig().
+			ImageDigestMirrors())
 }
 
 func getHCPNodePoolResource(opts ...func(*api.HCPOpenShiftClusterNodePool)) *api.HCPOpenShiftClusterNodePool {
@@ -756,7 +758,8 @@ func getBaseCSClusterBuilder(updating bool) *arohcpv1alpha1.ClusterBuilder {
 		Properties(map[string]string{}).
 		API(clusterAPIBuilder.CIDRBlockAccess(arohcpv1alpha1.NewCIDRBlockAccess().
 			Allow(arohcpv1alpha1.NewCIDRBlockAllowAccess().
-				Mode(csCIDRBlockAllowAccessModeAllowAll))))
+				Mode(csCIDRBlockAllowAccessModeAllowAll)))).
+		RegistryConfig(arohcpv1alpha1.NewClusterRegistryConfig().ImageDigestMirrors())
 }
 
 func TestBuildCSCluster(t *testing.T) {
@@ -1003,6 +1006,56 @@ func TestBuildCSCluster(t *testing.T) {
 					"hosted_cluster_single_replica": "true",
 					"hosted_cluster_size_override":  "true",
 				}),
+		},
+		{
+			name: "CREATE - sets some image digest mirrors",
+			hcpCluster: &api.HCPOpenShiftCluster{
+				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
+					ImageDigestMirrors: []api.ImageDigestMirror{
+						{
+							Source:  "sourceRegistry1",
+							Mirrors: []string{"mirrorRegistry1a", "mirrorRegistry1b"},
+						},
+						{
+							Source:  "sourceRegistry2",
+							Mirrors: []string{"mirrorRegistry2a", "mirrorRegistry2b"},
+						},
+					},
+				},
+			},
+			expectedCSCluster: getBaseCSClusterBuilder(false).
+				RegistryConfig(arohcpv1alpha1.NewClusterRegistryConfig().
+					ImageDigestMirrors(
+						arohcpv1alpha1.NewImageMirror().
+							Source("sourceRegistry1").
+							Mirrors("mirrorRegistry1a", "mirrorRegistry1b"),
+						arohcpv1alpha1.NewImageMirror().
+							Source("sourceRegistry2").
+							Mirrors("mirrorRegistry2a", "mirrorRegistry2b"),
+					),
+				),
+		},
+		{
+			name:       "UPDATE - clears all image digest mirrors",
+			hcpCluster: &api.HCPOpenShiftCluster{},
+			oldClusterServiceCluster: func() *arohcpv1alpha1.Cluster {
+				c, err := getBaseCSClusterBuilder(false).
+					RegistryConfig(arohcpv1alpha1.NewClusterRegistryConfig().
+						ImageDigestMirrors(
+							arohcpv1alpha1.NewImageMirror().
+								Source("sourceRegistry1").
+								Mirrors("mirrorRegistry1a", "mirrorRegistry1b"),
+							arohcpv1alpha1.NewImageMirror().
+								Source("sourceRegistry2").
+								Mirrors("mirrorRegistry2a", "mirrorRegistry2b"),
+						),
+					).Build()
+				if err != nil {
+					panic(err)
+				}
+				return c
+			}(),
+			expectedCSCluster: getBaseCSClusterBuilder(true),
 		},
 	}
 

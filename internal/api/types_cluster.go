@@ -59,6 +59,7 @@ type HCPOpenShiftClusterCustomerProperties struct {
 	NodeDrainTimeoutMinutes int32                       `json:"nodeDrainTimeoutMinutes,omitempty"`
 	Etcd                    EtcdProfile                 `json:"etcd,omitempty"`
 	ClusterImageRegistry    ClusterImageRegistryProfile `json:"clusterImageRegistry,omitempty"`
+	ImageDigestMirrors      []ImageDigestMirror         `json:"imageDigestMirror,omitempty"`
 }
 
 // HCPOpenShiftClusterCustomerProperties represents the property bag of a HCPOpenShiftCluster resource.
@@ -211,6 +212,13 @@ type ClusterImageRegistryProfile struct {
 	// ImageStream-backed image registry will be run as pods on worker nodes in the cluster. Disabled means the ImageStream-backed
 	// image registry will not be present in the cluster. The default is Enabled.
 	State ClusterImageRegistryProfileState `json:"state,omitempty"`
+}
+
+// ImageDigestMirror specifies image mirrors that can be used by cluster nodes
+// to pull content.
+type ImageDigestMirror struct {
+	Source  string   `json:"source,omitempty"`
+	Mirrors []string `json:"mirrors,omitempty"`
 }
 
 // Creates an HCPOpenShiftCluster with any non-zero default values.
