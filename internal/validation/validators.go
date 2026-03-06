@@ -117,6 +117,26 @@ func OpenshiftVersionWithOptionalMicro(_ context.Context, op operation.Operation
 	return nil
 }
 
+func OpenShiftVersionWithXYZ(_ context.Context, op operation.Operation, fldPath *field.Path, value, _ *string) field.ErrorList {
+	if value == nil {
+		return nil
+	}
+	if len(*value) == 0 {
+		return nil
+	}
+
+	_, err := semver.NewVersion(*value)
+	if err != nil {
+		return field.ErrorList{field.Invalid(fldPath, value, err.Error())}
+	}
+
+	// The version ID has already passed syntax validation so we know it's a valid semantic version.
+	if len(strings.SplitN(*value, ".", 3)) != 3 {
+		return field.ErrorList{field.Invalid(fldPath, value, "must be specified as MAJOR.MINOR.PATCH")}
+	}
+	return nil
+}
+
 func OpenshiftVersionWithoutMicro(_ context.Context, op operation.Operation, fldPath *field.Path, value, _ *string) field.ErrorList {
 	if value == nil {
 		return nil

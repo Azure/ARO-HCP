@@ -15,17 +15,21 @@
 package admission
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
+	"k8s.io/apimachinery/pkg/api/operation"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 
 	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/validation"
 )
 
 // AdmitNodePool performs non-static checks of nodepool.  Checks that require more information than is contained inside of
 // of the nodepool instance itself.
-func AdmitNodePool(nodePool *api.HCPOpenShiftClusterNodePool, cluster *api.HCPOpenShiftCluster) field.ErrorList {
+func AdmitNodePool(ctx context.Context, nodePool *api.HCPOpenShiftClusterNodePool, cluster *api.HCPOpenShiftCluster, subscription *arm.Subscription) field.ErrorList {
 	errs := field.ErrorList{}
 
 	if nodePool.Properties.Version.ChannelGroup != cluster.CustomerProperties.Version.ChannelGroup {
@@ -35,6 +39,8 @@ func AdmitNodePool(nodePool *api.HCPOpenShiftClusterNodePool, cluster *api.HCPOp
 			fmt.Sprintf("must be the same as control plane channel group '%s'", cluster.CustomerProperties.Version.ChannelGroup),
 		))
 	}
+
+	errs = append(errs, admitVersionProfile(ctx, &nodePool.Properties.Version, subscription)...)
 
 	if nodePool.Properties.Platform.SubnetID != nil && cluster.CustomerProperties.Platform.SubnetID != nil {
 		clusterVNet := cluster.CustomerProperties.Platform.SubnetID.Parent.String()
@@ -49,4 +55,20 @@ func AdmitNodePool(nodePool *api.HCPOpenShiftClusterNodePool, cluster *api.HCPOp
 	}
 
 	return errs
+}
+
+func admitVersionProfile(ctx context.Context, newVersion *api.NodePoolVersionProfile, subscription *arm.Subscription) field.ErrorList {
+	errs := field.ErrorList{}
+	fldPath := field.NewPath("properties", "version")
+	// Check if AllowDevNonStableChannels feature is enabled
+	allowNonStableChannels := subscription != nil && subscription.HasRegisteredFeature(api.FeatureAllowDevNonStableChannels)
+
+	// For non-stable channels with feature flag: allow full semver format (X.Y.Z-prerelease)
+	if allowNonStableChannels && newVersion.ChannelGroup != "stable" {
+		errs = append(errs, validation.OpenshiftVersionWithOptionalMicro(ctx, operation.Operation{}, fldPath.Child("id"), &newVersion.ID, nil)...)
+	} else {
+		errs = append(errs, validation.OpenShiftVersionWithXYZ(ctx, operation.Operation{}, fldPath.Child("id"), &newVersion.ID, nil)...)
+	}
+	return errs
+
 }
