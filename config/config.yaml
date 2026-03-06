@@ -49,6 +49,11 @@ defaults:
           features:
           - name: AllowBringYourOwnPublicIpAddress
             poll: true
+        'Microsoft.Insights':
+          poll: true
+          features:
+          - name: testinproduction
+            poll: true
         'Microsoft.Compute':
           poll: true
           features:
@@ -449,6 +454,9 @@ defaults:
       providers:
         'Microsoft.Insights':
           poll: true
+          features:
+          - name: testinproduction
+            poll: true
         'Microsoft.Storage':
           poll: true
         'Microsoft.Network':
