@@ -48,20 +48,7 @@ func oldResourceIDStringToCosmosID(resourceID string) (string, error) {
 	return strings.ReplaceAll(strings.ToLower(resourceID), "/", "|"), nil
 }
 
-// TODO this will eventually be the standard GET, but until we rewrite all records with new `id` values, it must remain separate and specifically called.
-func getByItemID[InternalAPIType, CosmosAPIType any](ctx context.Context, containerClient *azcosmos.ContainerClient, partitionKeyString string, cosmosID string) (*InternalAPIType, error) {
-	if strings.ToLower(partitionKeyString) != partitionKeyString {
-		return nil, fmt.Errorf("partitionKeyString must be lowercase, not: %q", partitionKeyString)
-	}
-	if strings.ToLower(cosmosID) != cosmosID {
-		return nil, fmt.Errorf("cosmosID must be lowercase, not: %q", cosmosID)
-	}
-
-	responseItem, err := containerClient.ReadItem(ctx, azcosmos.NewPartitionKeyString(partitionKeyString), cosmosID, nil)
-	if err != nil {
-		return nil, utils.TrackError(err)
-	}
-
+func responseItemToInternalObj[InternalAPIType, CosmosAPIType any](ctx context.Context, cosmosID string, responseItem azcosmos.ItemResponse) (*InternalAPIType, error) {
 	var obj CosmosAPIType
 	if err := json.Unmarshal(responseItem.Value, &obj); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal Resources container item for '%s': %w", cosmosID, err)
@@ -76,57 +63,29 @@ func getByItemID[InternalAPIType, CosmosAPIType any](ctx context.Context, contai
 	return internalObj, nil
 }
 
-func get[InternalAPIType, CosmosAPIType any](ctx context.Context, containerClient *azcosmos.ContainerClient, partitionKeyString string, completeResourceID *azcorearm.ResourceID) (*InternalAPIType, error) {
-	logger := utils.LoggerFromContext(ctx)
+// TODO this will eventually be the standard GET, but until we rewrite all records with new `id` values, it must remain separate and specifically called.
+func getByItemID[InternalAPIType, CosmosAPIType any](ctx context.Context, containerClient *azcosmos.ContainerClient, partitionKeyString string, cosmosID string) (*InternalAPIType, error) {
+	if strings.ToLower(partitionKeyString) != partitionKeyString {
+		return nil, fmt.Errorf("partitionKeyString must be lowercase, not: %q", partitionKeyString)
+	}
+	if strings.ToLower(cosmosID) != cosmosID {
+		return nil, fmt.Errorf("cosmosID must be lowercase, not: %q", cosmosID)
+	}
 
+	responseItem, err := containerClient.ReadItem(ctx, azcosmos.NewPartitionKeyString(partitionKeyString), cosmosID, nil)
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
+
+	return responseItemToInternalObj[InternalAPIType, CosmosAPIType](ctx, cosmosID, responseItem)
+}
+
+func get[InternalAPIType, CosmosAPIType any](ctx context.Context, containerClient *azcosmos.ContainerClient, partitionKeyString string, completeResourceID *azcorearm.ResourceID) (*InternalAPIType, error) {
 	// try to see if the cosmosID we've passed is also the exact resource ID.  If so, then return the value we got.
 	newExactCosmosID, err := arm.ResourceIDToCosmosID(completeResourceID)
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}
-	ret, newCosmosIDErr := getByItemID[InternalAPIType, CosmosAPIType](ctx, containerClient, partitionKeyString, newExactCosmosID)
-	if newCosmosIDErr == nil {
-		return ret, nil
-	}
-	if !IsResponseError(newCosmosIDErr, http.StatusNotFound) {
-		return nil, utils.TrackError(newCosmosIDErr)
-	}
-
-	partitionKey := azcosmos.NewPartitionKeyString(partitionKeyString)
-	oldExactCosmosID, err := OldResourceIDToCosmosID(completeResourceID)
-	if err != nil {
-		return nil, utils.TrackError(err)
-	}
-	responseItem, err := containerClient.ReadItem(ctx, partitionKey, oldExactCosmosID, nil)
-	if IsResponseError(err, http.StatusBadRequest) && strings.Contains(err.Error(), "The request URL is invalid") {
-		// this happens when we're using the old key and the URL is too long.  This only seems to happen in some regions, but when it happens
-		// it is a record we'll never recover.  Every known case is for a controller status, so recreating them isn't a big deal.
-		logger.Error(err, "failed to get item", "oldExactCosmosID", oldExactCosmosID)
-		return nil, NewNotFoundError()
-	}
-	if err != nil {
-		return nil, utils.TrackError(err)
-	}
-
-	objAsMap := map[string]any{}
-	if err := json.Unmarshal(responseItem.Value, &objAsMap); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal Resources container item for '%s': %w", completeResourceID, err)
-	}
-	originalCosmosID := objAsMap["id"].(string)
-	objAsMap["id"] = newExactCosmosID
-	newBytes, err := json.Marshal(objAsMap)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal Cosmos DB item for '%s': %w", completeResourceID, err)
-	}
-
-	logger.Info("migrating item", "newCosmosID", newExactCosmosID, "oldCosmosID", originalCosmosID)
-	if _, err := containerClient.CreateItem(ctx, partitionKey, newBytes, nil); err != nil {
-		return nil, utils.TrackError(err)
-	}
-	if _, err = containerClient.DeleteItem(ctx, partitionKey, originalCosmosID, nil); err != nil {
-		return nil, utils.TrackError(err)
-	}
-
 	return getByItemID[InternalAPIType, CosmosAPIType](ctx, containerClient, partitionKeyString, newExactCosmosID)
 }
 
@@ -270,17 +229,8 @@ func addCreateToTransaction[InternalAPIType, CosmosAPIType any](ctx context.Cont
 	return cosmosMetadata.GetCosmosUID(), nil
 }
 
-func addReplaceToTransaction[InternalAPIType, CosmosAPIType any](ctx context.Context, containerClient *azcosmos.ContainerClient, transaction DBTransaction, newObj *InternalAPIType, opts *azcosmos.TransactionalBatchItemOptions) (string, error) {
+func addReplaceToTransaction[InternalAPIType, CosmosAPIType any](ctx context.Context, transaction DBTransaction, newObj *InternalAPIType, opts *azcosmos.TransactionalBatchItemOptions) (string, error) {
 	partitionKeyString := transaction.GetPartitionKey()
-
-	// do a get first to ensure the ID is migrated
-	cosmosPersistable, ok := any(newObj).(arm.CosmosPersistable)
-	if !ok {
-		return "", fmt.Errorf("type %T does not implement CosmosPersistable interface", newObj)
-	}
-	if _, err := get[InternalAPIType, CosmosAPIType](ctx, containerClient, partitionKeyString, cosmosPersistable.GetCosmosData().GetResourceID()); err != nil {
-		return "", utils.TrackError(err)
-	}
 	if strings.ToLower(partitionKeyString) != partitionKeyString {
 		return "", fmt.Errorf("partitionKeyString must be lowercase, not: %q", partitionKeyString)
 	}
@@ -340,29 +290,10 @@ func create[InternalAPIType, CosmosAPIType any](ctx context.Context, containerCl
 		return nil, err
 	}
 
-	var obj CosmosAPIType
-	if err := json.Unmarshal(responseItem.Value, &obj); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal Cosmos DB item for '%s': %w", cosmosMetadata.ResourceID, err)
-	}
-	internalObj, err := CosmosToInternal[InternalAPIType, CosmosAPIType](&obj)
-	if err != nil {
-		return nil, fmt.Errorf("failed to convert Cosmos object to internal type: %w", err)
-	}
-
-	return internalObj, nil
+	return responseItemToInternalObj[InternalAPIType, CosmosAPIType](ctx, cosmosMetadata.GetCosmosUID(), responseItem)
 }
 
 func replace[InternalAPIType, CosmosAPIType any](ctx context.Context, containerClient *azcosmos.ContainerClient, partitionKeyString string, newObj *InternalAPIType, opts *azcosmos.ItemOptions) (*InternalAPIType, error) {
-	cosmosPersistable, ok := any(newObj).(arm.CosmosPersistable)
-	if !ok {
-		return nil, fmt.Errorf("type %T does not implement CosmosPersistable interface", newObj)
-	}
-	// do a get first to ensure the ID is migrated
-	_, err := get[InternalAPIType, CosmosAPIType](ctx, containerClient, partitionKeyString, cosmosPersistable.GetCosmosData().GetResourceID())
-	if err != nil {
-		return nil, utils.TrackError(err)
-	}
-
 	if strings.ToLower(partitionKeyString) != partitionKeyString {
 		return nil, fmt.Errorf("partitionKeyString must be lowercase, not: %q", partitionKeyString)
 	}
@@ -387,28 +318,19 @@ func replace[InternalAPIType, CosmosAPIType any](ctx context.Context, containerC
 		return nil, err
 	}
 
-	var obj CosmosAPIType
-	if err := json.Unmarshal(responseItem.Value, &obj); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal Cosmos DB item for '%s': %w", cosmosMetadata.ResourceID, err)
-	}
-	internalObj, err := CosmosToInternal[InternalAPIType, CosmosAPIType](&obj)
-	if err != nil {
-		return nil, fmt.Errorf("failed to convert Cosmos object to internal type: %w", err)
-	}
-
-	return internalObj, nil
+	return responseItemToInternalObj[InternalAPIType, CosmosAPIType](ctx, cosmosMetadata.GetCosmosUID(), responseItem)
 }
 
 func deleteResource(ctx context.Context, containerClient *azcosmos.ContainerClient, partitionKeyString string, resourceID *azcorearm.ResourceID) error {
-	typedObj, err := get[TypedDocument, TypedDocument](ctx, containerClient, partitionKeyString, resourceID)
-	if IsResponseError(err, http.StatusNotFound) {
-		return nil
-	}
+	cosmosID, err := arm.ResourceIDToCosmosID(resourceID)
 	if err != nil {
 		return utils.TrackError(err)
 	}
 
-	_, err = containerClient.DeleteItem(ctx, azcosmos.NewPartitionKeyString(partitionKeyString), typedObj.ID, nil)
+	_, err = containerClient.DeleteItem(ctx, azcosmos.NewPartitionKeyString(partitionKeyString), cosmosID, nil)
+	if IsResponseError(err, http.StatusNotFound) {
+		return nil
+	}
 	if err != nil {
 		return utils.TrackError(err)
 	}
