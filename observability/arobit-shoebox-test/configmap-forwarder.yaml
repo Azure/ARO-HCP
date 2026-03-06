@@ -1,0 +1,260 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: arobit-shoebox-forwarder
+  namespace: arobit-shoebox-test
+  labels:
+    app.kubernetes.io/name: arobit-shoebox-forwarder
+    app.kubernetes.io/component: shoebox-testing
+data:
+  fluent-bit.conf: |
+    @INCLUDE /forwarder/etc/service.conf
+    @INCLUDE /forwarder/etc/input.conf
+    @INCLUDE /forwarder/etc/filter.conf
+    @INCLUDE /forwarder/etc/filter-shoebox.conf
+    @INCLUDE /forwarder/etc/output-shoebox.conf
+
+  service.conf: |
+    [SERVICE]
+        Flush                     1
+        Log_Level                 info
+        Parsers_File              /fluent-bit/etc/parsers.conf
+        Parsers_File              /forwarder/etc/parsers_custom.conf
+        HTTP_Server               On
+        HTTP_Listen               0.0.0.0
+        HTTP_Port                 2020
+        storage.path              /var/fluent-bit/flb-storage
+        storage.max_chunks_up     256
+        storage.backlog.mem_limit 256M
+        storage.metrics           on
+        Health_Check              On
+        HC_Errors_Count           5
+        HC_Retry_Failure_Count    5
+        HC_Period                 60
+
+  parsers_custom.conf: |
+    [PARSER]
+        Name        cri-o
+        Format      regex
+        Regex       ^(?<time>[^ ]+) (?<stream>stdout|stderr) (?<logtag>[^ ]*) (?<log>.*)$
+        Time_Key    time
+        Time_Format %Y-%m-%dT%H:%M:%S.%L%z
+        Time_Keep   On
+
+  input.conf: |
+    [INPUT]
+        Name              tail
+        Alias             tail.container
+        Tag               kubernetes.*
+        Path              /var/log/containers/*.log
+        Exclude_Path      /var/log/containers/*arobit-shoebox*
+        Parser            cri-o
+        DB                /var/log/flb-tail-shoebox.db
+        DB.sync           normal
+        DB.locking        true
+        Refresh_Interval  15
+        Read_from_Head    On
+        Buffer_Chunk_Size 1M
+        Buffer_Max_Size   4M
+        Skip_Long_Lines   On
+        Mem_Buf_Limit     512M
+        storage.type      filesystem
+        Threaded          On
+
+  filter.conf: |
+    [FILTER]
+        Name   lua
+        Alias  lua.reassemble_cri
+        Match  kubernetes.var.log.containers.*
+        script /forwarder/etc/reassemble_cri.lua
+        call   reassemble_cri
+
+    # Add metadata - UPDATE THESE VALUES FOR YOUR ENVIRONMENT
+    [FILTER]
+        Name modify
+        Match kubernetes.var.log.containers.*
+        Add environment int
+        Add region uksouth
+        Add cluster int-uksouth-mgmt-1
+
+    [FILTER]
+        Name                kubernetes
+        Alias               filter.kubernetes
+        Match               kubernetes.var.log.containers.*
+        Kube_Tag_Prefix     kubernetes.var.log.containers.
+        Annotations         Off
+        K8S-Logging.Exclude On
+        Buffer_Size         64k
+
+    # Route OCM namespace logs
+    [FILTER]
+        Name            rewrite_tag
+        Alias           filter.namespace_router
+        Match           kubernetes.var.log.containers.*
+        Rule            $kubernetes['namespace_name'] ^ocm-.* ocm.logs false
+        Emitter_Name    re_emitted_namespace_router
+
+  filter-shoebox.conf: |
+    # Route control plane logs from OCM namespaces for Shoebox transformation
+    [FILTER]
+        Name            rewrite_tag
+        Alias           filter.shoebox_router
+        Match           ocm.logs
+        Rule            $kubernetes['container_name'] ^(audit-logs|kube-apiserver|kube-controller-manager|kube-scheduler|cloud-controller-manager|csi-driver|snapshot-controller)$ shoebox.logs true
+        Emitter_Name    re_emitted_shoebox
+
+    # Transform to Shoebox format using Lua script
+    [FILTER]
+        Name            lua
+        Alias           lua.transform_shoebox
+        Match           shoebox.logs
+        script          /forwarder/etc/transform-shoebox.lua
+        call            transform_to_shoebox
+
+  output-shoebox.conf: |
+    # Forward to MDSD-clusterlogs sidecar (port 5002)
+    [OUTPUT]
+        Name            forward
+        Alias           forward.shoebox
+        Match           shoebox.logs
+        Host            127.0.0.1
+        Port            5002
+        Tag             shoebox.logs
+
+  reassemble_cri.lua: |
+    local reassemble_state = {}
+    function reassemble_cri(tag, timestamp, record)
+      local reassemble_key = tag
+      if record.logtag == 'P' then
+        reassemble_state[reassemble_key] = (reassemble_state[reassemble_key] or "") .. (record.log or "")
+        return -1, 0, 0
+      end
+      record.log = (reassemble_state[reassemble_key] or "") .. (record.log or "")
+      reassemble_state[reassemble_key] = nil
+      return 1, timestamp, record
+    end
+
+  transform-shoebox.lua: |
+    -- Lua script for transforming Kubernetes control plane logs to Shoebox format.
+    -- Supports all 9 log categories defined in the Shoebox manifest.
+
+    -- Cache for resourceId lookups (namespace -> resourceId)
+    -- ResourceIds are immutable per cluster, so we cache forever
+    local resourceid_cache = {}
+
+    -- Container name to category mapping
+    local container_category_map = {
+        ["audit-logs"] = "kube-audit",
+        ["kube-apiserver"] = "kube-apiserver",
+        ["kube-controller-manager"] = "kube-controller-manager",
+        ["kube-scheduler"] = "kube-scheduler",
+        ["cloud-controller-manager"] = "cloud-controller-manager",
+        ["snapshot-controller"] = "csi-snapshot-controller"
+    }
+
+    -- Get resourceId for a namespace by reading the corresponding file
+    local function get_resource_id(namespace)
+        local cached = resourceid_cache[namespace]
+        if cached then
+            return cached
+        end
+
+        local filepath = "/shoebox-config/" .. namespace
+        local file = io.open(filepath, "r")
+        if file then
+            local resourceId = file:read("*all")
+            file:close()
+            resourceId = resourceId:match("^%s*(.-)%s*$")
+            resourceid_cache[namespace] = resourceId
+            return resourceId
+        end
+
+        return nil
+    end
+
+    -- Determine category based on container name and pod name
+    local function get_category(container_name, pod_name, log_data)
+        if container_name == "audit-logs" then
+            -- log_data.raw is a JSON string, use pattern matching to check audit level
+            local raw = log_data and log_data.raw
+            if raw and raw:match('"level"%s*:%s*"RequestResponse"') then
+                return "kube-audit-admin"
+            else
+                return "kube-audit"
+            end
+        end
+
+        if container_name == "csi-driver" then
+            if pod_name and pod_name:match("azure%-disk%-csi%-driver") then
+                return "csi-azuredisk-controller"
+            elseif pod_name and pod_name:match("azure%-file%-csi%-driver") then
+                return "csi-azurefile-controller"
+            end
+        end
+
+        return container_category_map[container_name] or "unknown"
+    end
+
+    -- Build operationName based on category
+    local function get_operation_name(category)
+        if category == "kube-audit" or category == "kube-audit-admin" then
+            return "Microsoft.RedHatOpenshift/hcpOpenShiftClusters/kube-apiserver/audit"
+        end
+        return "Microsoft.RedHatOpenshift/hcpOpenShiftClusters/" .. category
+    end
+
+    -- Transform Kubernetes control plane log to Shoebox format
+    function transform_to_shoebox(tag, timestamp, record)
+        local namespace = ""
+        local container_name = ""
+        local pod_name = ""
+
+        if record["kubernetes"] then
+            if record["kubernetes"]["namespace_name"] then
+                namespace = record["kubernetes"]["namespace_name"]
+            end
+            if record["kubernetes"]["container_name"] then
+                container_name = record["kubernetes"]["container_name"]
+            end
+            if record["kubernetes"]["pod_name"] then
+                pod_name = record["kubernetes"]["pod_name"]
+            end
+        end
+
+        local resourceId = get_resource_id(namespace)
+
+        if not resourceId then
+            return -1, 0, 0
+        end
+
+        local log_data = record["log"]
+        if type(log_data) ~= "table" then
+            log_data = { raw = tostring(log_data) }
+        end
+
+        local category = get_category(container_name, pod_name, log_data)
+
+        if category == "unknown" then
+            return -1, 0, 0
+        end
+
+        local log_time = record["time"]
+        if not log_time then
+            log_time = os.date("!%Y-%m-%dT%H:%M:%S.000Z")
+        end
+
+        local location = record["region"] or "unknown"
+
+        local shoebox = {
+            time = log_time,
+            resourceId = resourceId,
+            location = location,
+            operationName = get_operation_name(category),
+            category = category,
+            level = "Informational",
+            properties = log_data
+        }
+
+        return 1, timestamp, shoebox
+    end
