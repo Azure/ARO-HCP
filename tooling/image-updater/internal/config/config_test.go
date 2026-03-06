@@ -27,18 +27,21 @@ func TestFilterByComponent(t *testing.T) {
 	cfg := &Config{
 		Images: map[string]ImageConfig{
 			"frontend": {
+				Group:  "web",
 				Source: Source{Image: "quay.io/test/frontend"},
 				Targets: []Target{
 					{FilePath: "frontend.yaml", JsonPath: "image.digest"},
 				},
 			},
 			"backend": {
+				Group:  "web",
 				Source: Source{Image: "quay.io/test/backend"},
 				Targets: []Target{
 					{FilePath: "backend.yaml", JsonPath: "image.digest"},
 				},
 			},
 			"database": {
+				Group:  "storage",
 				Source: Source{Image: "quay.io/test/database"},
 				Targets: []Target{
 					{FilePath: "db.yaml", JsonPath: "image.digest"},
@@ -121,24 +124,28 @@ func TestFilterByComponents(t *testing.T) {
 	cfg := &Config{
 		Images: map[string]ImageConfig{
 			"frontend": {
+				Group:  "web",
 				Source: Source{Image: "quay.io/test/frontend"},
 				Targets: []Target{
 					{FilePath: "frontend.yaml", JsonPath: "image.digest"},
 				},
 			},
 			"backend": {
+				Group:  "web",
 				Source: Source{Image: "quay.io/test/backend"},
 				Targets: []Target{
 					{FilePath: "backend.yaml", JsonPath: "image.digest"},
 				},
 			},
 			"database": {
+				Group:  "storage",
 				Source: Source{Image: "quay.io/test/database"},
 				Targets: []Target{
 					{FilePath: "db.yaml", JsonPath: "image.digest"},
 				},
 			},
 			"cache": {
+				Group:  "storage",
 				Source: Source{Image: "quay.io/test/cache"},
 				Targets: []Target{
 					{FilePath: "cache.yaml", JsonPath: "image.digest"},
@@ -240,24 +247,28 @@ func TestFilterExcludingComponents(t *testing.T) {
 	cfg := &Config{
 		Images: map[string]ImageConfig{
 			"frontend": {
+				Group:  "web",
 				Source: Source{Image: "quay.io/test/frontend"},
 				Targets: []Target{
 					{FilePath: "frontend.yaml", JsonPath: "image.digest"},
 				},
 			},
 			"backend": {
+				Group:  "web",
 				Source: Source{Image: "quay.io/test/backend"},
 				Targets: []Target{
 					{FilePath: "backend.yaml", JsonPath: "image.digest"},
 				},
 			},
 			"database": {
+				Group:  "storage",
 				Source: Source{Image: "quay.io/test/database"},
 				Targets: []Target{
 					{FilePath: "db.yaml", JsonPath: "image.digest"},
 				},
 			},
 			"cache": {
+				Group:  "storage",
 				Source: Source{Image: "quay.io/test/cache"},
 				Targets: []Target{
 					{FilePath: "cache.yaml", JsonPath: "image.digest"},
@@ -364,6 +375,181 @@ func TestFilterExcludingComponents(t *testing.T) {
 	}
 }
 
+func TestFilterByGroups(t *testing.T) {
+	cfg := &Config{
+		Images: map[string]ImageConfig{
+			"frontend": {
+				Group:  "web",
+				Source: Source{Image: "quay.io/test/frontend"},
+				Targets: []Target{
+					{FilePath: "frontend.yaml", JsonPath: "image.digest"},
+				},
+			},
+			"backend": {
+				Group:  "web",
+				Source: Source{Image: "quay.io/test/backend"},
+				Targets: []Target{
+					{FilePath: "backend.yaml", JsonPath: "image.digest"},
+				},
+			},
+			"database": {
+				Group:  "storage",
+				Source: Source{Image: "quay.io/test/database"},
+				Targets: []Target{
+					{FilePath: "db.yaml", JsonPath: "image.digest"},
+				},
+			},
+			"cache": {
+				Group:  "storage",
+				Source: Source{Image: "quay.io/test/cache"},
+				Targets: []Target{
+					{FilePath: "cache.yaml", JsonPath: "image.digest"},
+				},
+			},
+			"monitor": {
+				Group:  "observability",
+				Source: Source{Image: "quay.io/test/monitor"},
+				Targets: []Target{
+					{FilePath: "monitor.yaml", JsonPath: "image.digest"},
+				},
+			},
+		},
+	}
+
+	tests := []struct {
+		name           string
+		groupNames     []string
+		wantComponents []string
+		wantErr        bool
+		wantErrMsg     string
+	}{
+		{
+			name:           "filter single group",
+			groupNames:     []string{"web"},
+			wantComponents: []string{"frontend", "backend"},
+			wantErr:        false,
+		},
+		{
+			name:           "filter multiple groups",
+			groupNames:     []string{"web", "storage"},
+			wantComponents: []string{"frontend", "backend", "database", "cache"},
+			wantErr:        false,
+		},
+		{
+			name:           "filter all groups",
+			groupNames:     []string{"web", "storage", "observability"},
+			wantComponents: []string{"frontend", "backend", "database", "cache", "monitor"},
+			wantErr:        false,
+		},
+		{
+			name:           "empty group list returns all",
+			groupNames:     []string{},
+			wantComponents: []string{"frontend", "backend", "database", "cache", "monitor"},
+			wantErr:        false,
+		},
+		{
+			name:           "nil group list returns all",
+			groupNames:     nil,
+			wantComponents: []string{"frontend", "backend", "database", "cache", "monitor"},
+			wantErr:        false,
+		},
+		{
+			name:       "non-existent group returns error",
+			groupNames: []string{"nonexistent"},
+			wantErr:    true,
+			wantErrMsg: "group \"nonexistent\" not found in configuration",
+		},
+		{
+			name:       "one valid and one invalid group",
+			groupNames: []string{"web", "nonexistent"},
+			wantErr:    true,
+			wantErrMsg: "group \"nonexistent\" not found in configuration",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := cfg.FilterByGroups(tt.groupNames)
+
+			if (err != nil) != tt.wantErr {
+				t.Errorf("FilterByGroups() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+
+			if tt.wantErr {
+				if tt.wantErrMsg != "" && !strings.Contains(err.Error(), tt.wantErrMsg) {
+					t.Errorf("FilterByGroups() error = %v, should contain %v", err.Error(), tt.wantErrMsg)
+				}
+				return
+			}
+
+			var gotComponents []string
+			for name := range got.Images {
+				gotComponents = append(gotComponents, name)
+			}
+			slices.Sort(gotComponents)
+
+			wantComponents := make([]string, len(tt.wantComponents))
+			copy(wantComponents, tt.wantComponents)
+			slices.Sort(wantComponents)
+
+			if !slices.Equal(gotComponents, wantComponents) {
+				t.Errorf("FilterByGroups() = %v, want %v", gotComponents, wantComponents)
+			}
+		})
+	}
+}
+
+func TestGroups(t *testing.T) {
+	tests := []struct {
+		name       string
+		cfg        *Config
+		wantGroups []string
+	}{
+		{
+			name: "multiple groups sorted",
+			cfg: &Config{
+				Images: map[string]ImageConfig{
+					"frontend": {Group: "web"},
+					"backend":  {Group: "web"},
+					"database": {Group: "storage"},
+					"monitor":  {Group: "observability"},
+				},
+			},
+			wantGroups: []string{"observability", "storage", "web"},
+		},
+		{
+			name: "single group",
+			cfg: &Config{
+				Images: map[string]ImageConfig{
+					"frontend": {Group: "web"},
+					"backend":  {Group: "web"},
+				},
+			},
+			wantGroups: []string{"web"},
+		},
+		{
+			name: "no images",
+			cfg: &Config{
+				Images: map[string]ImageConfig{},
+			},
+			wantGroups: []string{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.cfg.Groups()
+			if len(got) == 0 && len(tt.wantGroups) == 0 {
+				return
+			}
+			if !slices.Equal(got, tt.wantGroups) {
+				t.Errorf("Groups() = %v, want %v", got, tt.wantGroups)
+			}
+		})
+	}
+}
+
 func TestConfigLoad(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -380,12 +566,14 @@ func TestConfigLoad(t *testing.T) {
 				content := `
 images:
   frontend:
+    group: web
     source:
       image: quay.io/test/frontend
     targets:
       - filePath: frontend.yaml
         jsonPath: image.digest
   backend:
+    group: web
     source:
       image: quay.io/test/backend
     targets:
@@ -436,6 +624,28 @@ images:
 			wantImageNames: []string{},
 		},
 		{
+			name: "invalid config: missing group",
+			setupFile: func(t *testing.T) string {
+				tmpDir := t.TempDir()
+				configPath := filepath.Join(tmpDir, "nogroup.yaml")
+				content := `
+images:
+  test:
+    source:
+      image: quay.io/test/app
+    targets:
+      - filePath: test.yaml
+        jsonPath: image.digest
+`
+				if err := os.WriteFile(configPath, []byte(content), 0644); err != nil {
+					t.Fatalf("failed to create config file: %v", err)
+				}
+				return configPath
+			},
+			wantErr:    true,
+			wantErrMsg: "group is required",
+		},
+		{
 			name: "invalid config: both tag and tagPattern",
 			setupFile: func(t *testing.T) string {
 				tmpDir := t.TempDir()
@@ -443,6 +653,7 @@ images:
 				content := `
 images:
   test:
+    group: test-group
     source:
       image: quay.io/test/app
       tag: v1.0.0
@@ -511,6 +722,7 @@ func TestConfigLoad_WithUseAuth(t *testing.T) {
 			configContent: `
 images:
   test:
+    group: test-group
     source:
       image: registry.azurecr.io/test/app
       useAuth: false
@@ -526,6 +738,7 @@ images:
 			configContent: `
 images:
   test:
+    group: test-group
     source:
       image: registry.azurecr.io/test/app
       useAuth: true
@@ -541,6 +754,7 @@ images:
 			configContent: `
 images:
   test:
+    group: test-group
     source:
       image: registry.azurecr.io/test/app
     targets:
@@ -604,6 +818,7 @@ func TestConfigLoad_WithKeyVault(t *testing.T) {
 			configContent: `
 images:
   clusters-service:
+    group: test-group
     source:
       image: quay.io/app-sre/aro-hcp-clusters-service
       useAuth: true
@@ -624,6 +839,7 @@ images:
 			configContent: `
 images:
   maestro:
+    group: test-group
     source:
       image: quay.io/maestro/maestro
       useAuth: false
@@ -639,6 +855,7 @@ images:
 			configContent: `
 images:
   test:
+    group: test-group
     source:
       image: quay.io/test/app
       keyVault:

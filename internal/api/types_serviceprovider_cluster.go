@@ -18,6 +18,8 @@ import (
 	"github.com/blang/semver/v4"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+
+	"github.com/openshift/hypershift/api/hypershift/v1beta1"
 )
 
 const (
@@ -40,18 +42,10 @@ type ServiceProviderCluster struct {
 
 	LoadBalancerResourceID *azcorearm.ResourceID `json:"loadBalancerResourceID,omitempty"`
 
-	// Spec contains the desired state of the cluster.
-	Spec ServiceProviderClusterSpec `json:"spec,omitempty"`
+	Spec ServiceProviderClusterSpec `json:"spec"`
 
 	// Status contains the observed state of the cluster.
 	Status ServiceProviderClusterStatus `json:"status,omitempty"`
-
-	// Validations is a list of conditions that tracks the status of each cluster validation.
-	// Each Condition Type represents a validation and it should be unique among all validations.
-	// A Condition Status of True means that the validation passed successfully, and a Condition Status of False means that the validation failed.
-	// The Condition Reason and Message are used to provide more details about the validation status.
-	// The Condition LastTransitionTime is used to track the last time the validation transitioned from one status to another.
-	Validations []Condition `json:"validations,omitempty"`
 }
 
 // ServiceProviderClusterSpec contains the desired state of the cluster.
@@ -64,6 +58,12 @@ type ServiceProviderClusterSpec struct {
 	//   }
 	// }
 	ControlPlaneVersion ServiceProviderClusterSpecVersion `json:"control_plane_version,omitempty"`
+
+	// DesiredHostedCluster is the HostedCluster that we want to exist on the management cluster.
+	// We will only explicitly set the fields we care about, but serialization may store additional empty fields.
+	// Once this contains the critical values, we will create it on management clusters.
+	// We may or may not choose to store the actual state in status.  We may choose to store the actual state independently.
+	DesiredHostedCluster *v1beta1.HostedCluster `json:"desiredHostedCluster,omitempty"`
 }
 
 // ServiceProviderClusterSpecVersion contains the desired version information.
@@ -96,6 +96,13 @@ type ServiceProviderClusterStatus struct {
 	//   }
 	// }
 	ControlPlaneVersion ServiceProviderClusterStatusVersion `json:"control_plane_version,omitempty"`
+
+	// Validations is a list of conditions that tracks the status of each cluster validation.
+	// Each Condition Type represents a validation and it should be unique among all validations.
+	// A Condition Status of True means that the validation passed successfully, and a Condition Status of False means that the validation failed.
+	// The Condition Reason and Message are used to provide more details about the validation status.
+	// The Condition LastTransitionTime is used to track the last time the validation transitioned from one status to another.
+	Validations []Condition `json:"validations,omitempty"`
 }
 
 // ServiceProviderClusterStatusVersion contains the actual version information.

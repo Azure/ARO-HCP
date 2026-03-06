@@ -10,6 +10,7 @@ LINT_GOTAGS?='E2Etests'
 TOOLS_BIN_DIR := tooling/bin
 DEPLOY_ENV ?= pers
 CONFIG_FILE ?= config/config.yaml
+export AZURE_TOKEN_CREDENTIALS ?= dev
 
 .DEFAULT_GOAL := all
 
@@ -391,6 +392,7 @@ DRY_RUN ?= "false"
 PERSIST ?= "false"
 TIMING_OUTPUT ?= timing/steps.yaml
 ENTRYPOINT_JUNIT_OUTPUT ?= _artifacts/junit_entrypoint.xml
+CONFIG_OUTPUT ?= _artifacts/config.yaml
 
 local-run: $(TEMPLATIZE)
 	$(TEMPLATIZE) entrypoint run --config-file "${CONFIG_FILE}" \
@@ -402,7 +404,8 @@ local-run: $(TEMPLATIZE)
 	                                 --dry-run=$(DRY_RUN) \
 	                                 --verbosity=$(LOG_LEVEL) \
 	                                 --timing-output=$(TIMING_OUTPUT) \
-	                                 --junit-output=$(ENTRYPOINT_JUNIT_OUTPUT)
+	                                 --junit-output=$(ENTRYPOINT_JUNIT_OUTPUT) \
+	                                 --config-output=$(CONFIG_OUTPUT)
 
 
 ifeq ($(wildcard $(YQ)),$(YQ))

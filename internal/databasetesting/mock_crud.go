@@ -39,19 +39,35 @@ type mockResourceCRUD[InternalAPIType, CosmosAPIType any] struct {
 	client           *MockDBClient
 	parentResourceID *azcorearm.ResourceID
 	resourceType     azcorearm.ResourceType
+	// makeResourceIDPath constructs the full resource ID path from a resource name.
+	// This is customizable to support different resource ID construction patterns.
+	makeResourceIDPath func(resourceID string) (*azcorearm.ResourceID, error)
+	// getListPrefix returns the prefix string for listing resources.
+	// This is customizable to support different listing patterns.
+	getListPrefix func() (string, error)
 }
 
 func newMockResourceCRUD[InternalAPIType, CosmosAPIType any](
 	client *MockDBClient, parentResourceID *azcorearm.ResourceID, resourceType azcorearm.ResourceType) *mockResourceCRUD[InternalAPIType, CosmosAPIType] {
 
-	return &mockResourceCRUD[InternalAPIType, CosmosAPIType]{
+	m := &mockResourceCRUD[InternalAPIType, CosmosAPIType]{
 		client:           client,
 		parentResourceID: parentResourceID,
 		resourceType:     resourceType,
 	}
+	// Set default implementations
+	m.makeResourceIDPath = m.defaultMakeResourceIDPath
+	m.getListPrefix = func() (string, error) {
+		prefix, err := m.defaultMakeResourceIDPath("")
+		if err != nil {
+			return "", err
+		}
+		return prefix.String() + "/", nil
+	}
+	return m
 }
 
-func (m *mockResourceCRUD[InternalAPIType, CosmosAPIType]) makeResourceIDPath(resourceID string) (*azcorearm.ResourceID, error) {
+func (m *mockResourceCRUD[InternalAPIType, CosmosAPIType]) defaultMakeResourceIDPath(resourceID string) (*azcorearm.ResourceID, error) {
 	if len(m.parentResourceID.SubscriptionID) == 0 {
 		return nil, fmt.Errorf("subscriptionID is required")
 	}
@@ -199,12 +215,12 @@ func (m *mockResourceCRUD[InternalAPIType, CosmosAPIType]) Get(ctx context.Conte
 }
 
 func (m *mockResourceCRUD[InternalAPIType, CosmosAPIType]) List(ctx context.Context, opts *database.DBClientListResourceDocsOptions) (database.DBClientIterator[InternalAPIType], error) {
-	prefix, err := m.makeResourceIDPath("")
+	prefix, err := m.getListPrefix()
 	if err != nil {
-		return nil, fmt.Errorf("failed to make ResourceID path: %w", err)
+		return nil, fmt.Errorf("failed to get list prefix: %w", err)
 	}
 
-	documents := m.client.ListDocuments(&m.resourceType, prefix.String()+"/")
+	documents := m.client.ListDocuments(&m.resourceType, prefix)
 
 	var ids []string
 	var items []*InternalAPIType
@@ -608,266 +624,29 @@ func (m *mockOperationCRUD) ListActiveOperations(options *database.DBClientListA
 var _ database.OperationCRUD = &mockOperationCRUD{}
 
 // mockSubscriptionCRUD implements database.SubscriptionCRUD.
+// It embeds mockResourceCRUD with customized makeResourceIDPath and getListPrefix
+// functions for subscription-specific resource ID construction.
 type mockSubscriptionCRUD struct {
-	client *MockDBClient
+	*mockResourceCRUD[arm.Subscription, database.GenericDocument[arm.Subscription]]
 }
 
 func newMockSubscriptionCRUD(client *MockDBClient) *mockSubscriptionCRUD {
-	return &mockSubscriptionCRUD{client: client}
-}
+	base := newMockResourceCRUD[arm.Subscription, database.GenericDocument[arm.Subscription]](
+		client, nil, azcorearm.SubscriptionResourceType)
 
-func (m *mockSubscriptionCRUD) GetByID(ctx context.Context, cosmosID string) (*arm.Subscription, error) {
-	if strings.ToLower(cosmosID) != cosmosID {
-		return nil, fmt.Errorf("cosmosID must be lowercase, not: %q", cosmosID)
+	// Override makeResourceIDPath for subscription-specific resource ID construction
+	base.makeResourceIDPath = func(resourceID string) (*azcorearm.ResourceID, error) {
+		return arm.ToSubscriptionResourceID(resourceID)
 	}
 
-	data, ok := m.client.GetDocument(cosmosID)
-	if !ok {
-		return nil, database.NewNotFoundError()
+	// Override getListPrefix for subscription-specific listing (no parent prefix)
+	base.getListPrefix = func() (string, error) {
+		return "/subscriptions/", nil
 	}
 
-	var cosmosObj database.GenericDocument[arm.Subscription]
-	if err := json.Unmarshal(data, &cosmosObj); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal document: %w", err)
+	return &mockSubscriptionCRUD{
+		mockResourceCRUD: base,
 	}
-
-	return database.CosmosGenericToInternal(&cosmosObj)
-}
-
-func (m *mockSubscriptionCRUD) Get(ctx context.Context, resourceName string) (*arm.Subscription, error) {
-	completeResourceID, err := arm.ToSubscriptionResourceID(resourceName)
-	if err != nil {
-		return nil, fmt.Errorf("failed to make ResourceID path for '%s': %w", resourceName, err)
-	}
-
-	newCosmosID, err := arm.ResourceIDToCosmosID(completeResourceID)
-	if err != nil {
-		return nil, err
-	}
-
-	// Try new cosmos ID first.
-	result, err := m.GetByID(ctx, newCosmosID)
-	if err == nil {
-		return result, nil
-	}
-	if !database.IsResponseError(err, http.StatusNotFound) {
-		return nil, err
-	}
-
-	// Not found under new ID, try the old cosmos ID format and migrate if found.
-	oldCosmosID, err := database.OldResourceIDToCosmosID(completeResourceID)
-	if err != nil {
-		return nil, err
-	}
-
-	data, ok := m.client.GetDocument(oldCosmosID)
-	if !ok {
-		return nil, database.NewNotFoundError()
-	}
-
-	// Migrate: update the id field, store under new ID, delete old ID.
-	var objAsMap map[string]any
-	if err := json.Unmarshal(data, &objAsMap); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal document for migration: %w", err)
-	}
-	objAsMap["id"] = newCosmosID
-	newData, err := json.Marshal(objAsMap)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal document for migration: %w", err)
-	}
-	m.client.StoreDocument(newCosmosID, newData)
-	m.client.DeleteDocument(oldCosmosID)
-
-	return m.GetByID(ctx, newCosmosID)
-}
-
-func (m *mockSubscriptionCRUD) List(ctx context.Context, options *database.DBClientListResourceDocsOptions) (database.DBClientIterator[arm.Subscription], error) {
-	documents := m.client.ListDocuments(&azcorearm.SubscriptionResourceType, "")
-
-	var ids []string
-	var items []*arm.Subscription
-
-	for _, data := range documents {
-		var cosmosObj database.GenericDocument[arm.Subscription]
-		if err := json.Unmarshal(data, &cosmosObj); err != nil {
-			continue
-		}
-
-		internalObj, err := database.CosmosGenericToInternal(&cosmosObj)
-		if err != nil {
-			continue
-		}
-
-		ids = append(ids, cosmosObj.ID)
-		items = append(items, internalObj)
-	}
-
-	return newMockIterator(ids, items), nil
-}
-
-func (m *mockSubscriptionCRUD) Create(ctx context.Context, newObj *arm.Subscription, options *azcosmos.ItemOptions) (*arm.Subscription, error) {
-	cosmosObj, err := database.InternalToCosmosGeneric(newObj)
-	if err != nil {
-		return nil, fmt.Errorf("failed to convert to cosmos type: %w", err)
-	}
-
-	data, err := json.Marshal(cosmosObj)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal cosmos object: %w", err)
-	}
-
-	cosmosData := newObj.GetCosmosData()
-	cosmosID := cosmosData.GetCosmosUID()
-
-	if _, exists := m.client.GetDocument(cosmosID); exists {
-		return nil, &azcore.ResponseError{StatusCode: http.StatusConflict}
-	}
-
-	// Inject a new etag and store
-	dataWithETag, _, err := injectETag(data)
-	if err != nil {
-		return nil, fmt.Errorf("failed to inject etag: %w", err)
-	}
-	m.client.StoreDocument(cosmosID, dataWithETag)
-	return m.GetByID(ctx, cosmosID)
-}
-
-func (m *mockSubscriptionCRUD) Replace(ctx context.Context, newObj *arm.Subscription, options *azcosmos.ItemOptions) (*arm.Subscription, error) {
-	cosmosObj, err := database.InternalToCosmosGeneric(newObj)
-	if err != nil {
-		return nil, fmt.Errorf("failed to convert to cosmos type: %w", err)
-	}
-
-	cosmosData := newObj.GetCosmosData()
-
-	existingData, err := m.Get(ctx, cosmosData.GetResourceID().Name)
-	if err != nil {
-		return nil, err
-	}
-
-	// Check etag if one is provided
-	if len(cosmosData.CosmosETag) > 0 {
-		storedETag := existingData.GetCosmosData().CosmosETag
-		if storedETag != cosmosData.CosmosETag {
-			return nil, NewPreconditionFailedError()
-		}
-	}
-
-	// Inject a new etag and store
-	cosmosObj.ID = existingData.GetCosmosUID()
-	cosmosObj.CosmosETag = generateETag()
-	cosmosObj.Content.ExistingCosmosUID = existingData.GetCosmosUID()
-	data, err := json.Marshal(cosmosObj)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal cosmos object: %w", err)
-	}
-
-	m.client.StoreDocument(cosmosObj.ID, data)
-	return m.Get(ctx, cosmosData.GetResourceID().Name)
-}
-
-func (m *mockSubscriptionCRUD) Delete(ctx context.Context, resourceName string) error {
-	existing, err := m.Get(ctx, resourceName)
-	if err != nil {
-		return utils.TrackError(err)
-	}
-
-	m.client.DeleteDocument(existing.GetCosmosUID())
-	return nil
-}
-
-func (m *mockSubscriptionCRUD) AddCreateToTransaction(ctx context.Context, transaction database.DBTransaction, newObj *arm.Subscription, opts *azcosmos.TransactionalBatchItemOptions) (string, error) {
-	cosmosObj, err := database.InternalToCosmosGeneric(newObj)
-	if err != nil {
-		return "", fmt.Errorf("failed to convert to cosmos type: %w", err)
-	}
-
-	data, err := json.Marshal(cosmosObj)
-	if err != nil {
-		return "", fmt.Errorf("failed to marshal cosmos object: %w", err)
-	}
-
-	cosmosData := newObj.GetCosmosData()
-	cosmosID := cosmosData.GetCosmosUID()
-
-	mockTx, ok := transaction.(*mockTransaction)
-	if !ok {
-		return "", fmt.Errorf("expected mockTransaction, got %T", transaction)
-	}
-
-	transactionDetails := database.CosmosDBTransactionStepDetails{
-		ActionType: "Create",
-		GoType:     fmt.Sprintf("%T", newObj),
-		CosmosID:   cosmosID,
-	}
-
-	mockTx.steps = append(mockTx.steps, mockTransactionStep{
-		details: transactionDetails,
-		execute: func() (string, json.RawMessage, error) {
-			// Inject a new etag and store
-			dataWithETag, _, err := injectETag(data)
-			if err != nil {
-				return "", nil, fmt.Errorf("failed to inject etag: %w", err)
-			}
-			m.client.StoreDocument(cosmosID, dataWithETag)
-			return cosmosID, dataWithETag, nil
-		},
-	})
-
-	return cosmosID, nil
-}
-
-func (m *mockSubscriptionCRUD) AddReplaceToTransaction(ctx context.Context, transaction database.DBTransaction, newObj *arm.Subscription, opts *azcosmos.TransactionalBatchItemOptions) (string, error) {
-	cosmosObj, err := database.InternalToCosmosGeneric(newObj)
-	if err != nil {
-		return "", fmt.Errorf("failed to convert to cosmos type: %w", err)
-	}
-
-	data, err := json.Marshal(cosmosObj)
-	if err != nil {
-		return "", fmt.Errorf("failed to marshal cosmos object: %w", err)
-	}
-
-	cosmosData := newObj.GetCosmosData()
-	cosmosID := cosmosData.GetCosmosUID()
-	expectedETag := cosmosData.CosmosETag
-
-	mockTx, ok := transaction.(*mockTransaction)
-	if !ok {
-		return "", fmt.Errorf("expected mockTransaction, got %T", transaction)
-	}
-
-	transactionDetails := database.CosmosDBTransactionStepDetails{
-		ActionType: "Replace",
-		GoType:     fmt.Sprintf("%T", newObj),
-		CosmosID:   cosmosID,
-	}
-
-	mockTx.steps = append(mockTx.steps, mockTransactionStep{
-		details: transactionDetails,
-		execute: func() (string, json.RawMessage, error) {
-			// Check etag if one is provided
-			if len(expectedETag) > 0 {
-				existingData, exists := m.client.GetDocument(cosmosID)
-				if !exists {
-					return "", nil, database.NewNotFoundError()
-				}
-				storedETag := getStoredETag(existingData)
-				if storedETag != expectedETag {
-					return "", nil, NewPreconditionFailedError()
-				}
-			}
-			// Inject a new etag and store
-			dataWithETag, _, err := injectETag(data)
-			if err != nil {
-				return "", nil, fmt.Errorf("failed to inject etag: %w", err)
-			}
-			m.client.StoreDocument(cosmosID, dataWithETag)
-			return cosmosID, dataWithETag, nil
-		},
-	})
-
-	return cosmosID, nil
 }
 
 var _ database.SubscriptionCRUD = &mockSubscriptionCRUD{}

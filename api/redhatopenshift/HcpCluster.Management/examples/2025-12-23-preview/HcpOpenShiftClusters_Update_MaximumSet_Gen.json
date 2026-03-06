@@ -48,6 +48,7 @@
           "platform": {
             "managedResourceGroup": "nhyhywrxupo",
             "subnetId": "/subscriptions/FDEA43EA-0230-4A7D-BDEE-F3AFF2183B1D/resourceGroups/resourceGroupName/providers/Microsoft.Network/virtualNetworks/hcp-network-example/subnets/example-subnet",
+            "vnetIntegrationSubnetId": "/subscriptions/FDEA43EA-0230-4A7D-BDEE-F3AFF2183B1D/resourceGroups/resourceGroupName/providers/Microsoft.Network/virtualNetworks/hcp-network-example/subnets/vnet-integration-subnet",
             "outboundType": "LoadBalancer",
             "networkSecurityGroupId": "/subscriptions/FDEA43EA-0230-4A7D-BDEE-F3AFF2183B1D/resourceGroups/resourceGroupName/providers/Microsoft.Network/networkSecurityGroups/nsg-example",
             "operatorsAuthentication": {
@@ -75,6 +76,7 @@
               "customerManaged": {
                 "encryptionType": "KMS",
                 "kms": {
+                  "visibility": "Public",
                   "activeKey": {
                     "vaultName": "my-cool-vault",
                     "name": "my-cool-key",
@@ -84,6 +86,21 @@
               }
             }
           },
+          "imageDigestMirrors": [
+            {
+              "source": "registry.example.com/image1",
+              "mirrors": [
+                "mirror1.example.com/image1",
+                "mirror2.example.com/image1"
+              ]
+            },
+            {
+              "source": "registry.example.com/image2",
+              "mirrors": [
+                "mirror1.example.com/image2"
+              ]
+            }
+          ],
           "nodeDrainTimeoutMinutes": 20,
           "clusterImageRegistry": {
             "state": "Enabled"

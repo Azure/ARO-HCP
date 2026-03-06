@@ -58,7 +58,7 @@ func FetchAndMergeKeyVaultPullSecret(ctx context.Context, kvConfig KeyVaultConfi
 
 	// Create Azure credential using DefaultAzureCredential
 	// This supports Azure CLI, managed identity, environment variables, etc.
-	cred, err := azidentity.NewDefaultAzureCredential(nil)
+	cred, err := azidentity.NewDefaultAzureCredential(&azidentity.DefaultAzureCredentialOptions{RequireAzureTokenCredentials: true})
 	if err != nil {
 		return fmt.Errorf("failed to create Azure credential: %w", err)
 	}

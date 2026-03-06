@@ -112,7 +112,7 @@ spec:
       - name: aro-hcp-frontend
         image: 'arohcpsvcdev.azurecr.io/arohcpfrontend@sha256:1234567890'
         imagePullPolicy: Always
-        args: ["--clusters-service-url", "http://clusters-service.clusters-service.svc.cluster.local:8000"]
+        args: ["--clusters-service-url", "http://clusters-service.clusters-service.svc.cluster.local:8000", "--exit-on-panic=true"]
         env:
         - name: DB_NAME
           valueFrom:
@@ -135,6 +135,8 @@ spec:
           value: ""
         - name: AUDIT_CONNECT_SOCKET
           value: "true"
+        - name: AZURE_TOKEN_CREDENTIALS
+          value: "WorkloadIdentityCredential"
         ports:
         - containerPort: 8443
           protocol: TCP

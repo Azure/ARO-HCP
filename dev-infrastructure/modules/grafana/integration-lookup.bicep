@@ -34,7 +34,7 @@ resource grafanaIntegrationsLookup 'Microsoft.Resources/deploymentScripts@2020-1
   }
   kind: 'AzurePowerShell'
   properties: {
-    azPowerShellVersion: '12.0.0'
+    azPowerShellVersion: '15.1.0'
     timeout: 'PT10M'
     retentionInterval: 'P1D'
     cleanupPreference: 'Always'

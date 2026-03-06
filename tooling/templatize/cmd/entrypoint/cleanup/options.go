@@ -111,7 +111,7 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 		return nil, err
 	}
 
-	azCredential, err := azidentity.NewDefaultAzureCredential(nil)
+	azCredential, err := azidentity.NewDefaultAzureCredential(&azidentity.DefaultAzureCredentialOptions{RequireAzureTokenCredentials: true})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Azure credential: %w", err)
 	}

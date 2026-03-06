@@ -52,15 +52,16 @@ const (
 )
 
 var (
-	TestSubscriptionResourceID         = path.Join("/subscriptions", TestSubscriptionID)
-	TestResourceGroupResourceID        = path.Join(TestSubscriptionResourceID, "resourceGroups", TestResourceGroupName)
-	TestClusterResourceID              = path.Join(TestResourceGroupResourceID, "providers", ProviderNamespace, ClusterResourceTypeName, TestClusterName)
-	TestNodePoolResourceID             = path.Join(TestClusterResourceID, NodePoolResourceTypeName, TestNodePoolName)
-	TestExternalAuthResourceID         = path.Join(TestClusterResourceID, ExternalAuthResourceTypeName, TestExternalAuthName)
-	TestDeploymentResourceID           = path.Join(TestResourceGroupResourceID, "providers", ProviderNamespace, "deployments", TestDeploymentName)
-	TestNetworkSecurityGroupResourceID = path.Join(TestResourceGroupResourceID, "providers", "Microsoft.Network", "networkSecurityGroups", TestNetworkSecurityGroupName)
-	TestVirtualNetworkResourceID       = path.Join(TestResourceGroupResourceID, "providers", "Microsoft.Network", "virtualNetworks", TestVirtualNetworkName)
-	TestSubnetResourceID               = path.Join(TestVirtualNetworkResourceID, "subnets", TestSubnetName)
+	TestSubscriptionResourceID                = path.Join("/subscriptions", TestSubscriptionID)
+	TestResourceGroupResourceID               = path.Join(TestSubscriptionResourceID, "resourceGroups", TestResourceGroupName)
+	TestClusterResourceID                     = path.Join(TestResourceGroupResourceID, "providers", ProviderNamespace, ClusterResourceTypeName, TestClusterName)
+	TestNodePoolResourceID                    = path.Join(TestClusterResourceID, NodePoolResourceTypeName, TestNodePoolName)
+	TestExternalAuthResourceID                = path.Join(TestClusterResourceID, ExternalAuthResourceTypeName, TestExternalAuthName)
+	TestDeploymentResourceID                  = path.Join(TestResourceGroupResourceID, "providers", ProviderNamespace, "deployments", TestDeploymentName)
+	TestNetworkSecurityGroupResourceID        = path.Join(TestResourceGroupResourceID, "providers", "Microsoft.Network", "networkSecurityGroups", TestNetworkSecurityGroupName)
+	TestVirtualNetworkResourceID              = path.Join(TestResourceGroupResourceID, "providers", "Microsoft.Network", "virtualNetworks", TestVirtualNetworkName)
+	TestSubnetResourceID                      = path.Join(TestVirtualNetworkResourceID, "subnets", TestSubnetName)
+	TestManagedIdentitiesDataPlaneIdentityURL = "https://dummyhost.identity.azure.net/otherinformation?aqueryarg=somevalue"
 )
 
 func NewTestLogger() *slog.Logger {
@@ -73,11 +74,12 @@ func NewTestUserAssignedIdentity(name string) *azcorearm.ResourceID {
 
 func MinimumValidClusterTestCase() *HCPOpenShiftCluster {
 	resource := NewDefaultHCPOpenShiftCluster(Must(azcorearm.ParseResourceID(TestClusterResourceID)), TestLocation)
-	resource.CustomerProperties.Version.ID = "4.15"
+	resource.CustomerProperties.Version.ID = "4.19"
 	resource.CustomerProperties.DNS.BaseDomainPrefix = "testcluster"
 	resource.CustomerProperties.Platform.ManagedResourceGroup = TestManagedResourceGroupName
 	resource.CustomerProperties.Platform.SubnetID = Must(azcorearm.ParseResourceID(TestSubnetResourceID))
 	resource.CustomerProperties.Platform.NetworkSecurityGroupID = Must(azcorearm.ParseResourceID(TestNetworkSecurityGroupResourceID))
+	resource.ServiceProviderProperties.ManagedIdentitiesDataPlaneIdentityURL = TestManagedIdentitiesDataPlaneIdentityURL
 	return resource
 }
 

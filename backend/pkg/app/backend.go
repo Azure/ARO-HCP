@@ -30,11 +30,13 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
+	k8sutilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/tools/leaderelection"
 	"k8s.io/client-go/tools/leaderelection/resourcelock"
 	utilsclock "k8s.io/utils/clock"
 
 	"github.com/Azure/ARO-HCP/backend/oldoperationscanner"
+	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/clusterpropertiescontroller"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
@@ -64,6 +66,9 @@ type BackendOptions struct {
 	HealthzServerListenAddress         string
 	TracerProviderShutdownFunc         func(context.Context) error
 	MaestroSourceEnvironmentIdentifier string
+	FPAClientBuilder                   azureclient.FirstPartyApplicationClientBuilder
+	BackendIdentityAzureClients        *azureclient.BackendIdentityAzureClients
+	ExitOnPanic                        bool
 }
 
 func (o *BackendOptions) RunBackend(ctx context.Context) error {
@@ -129,6 +134,10 @@ func (b *Backend) Run(ctx context.Context) error {
 		}
 	}()
 
+	// We set k8s.io/apimachinery/pkg/util/runtime.ReallyCrash to the value of the ExitOnPanic option to
+	// control the behavior of k8s.io/apimachinery/pkg/util/runtime.HandleCrash* methods
+	k8sutilruntime.ReallyCrash = b.options.ExitOnPanic
+
 	// Create HealthzAdaptor for leader election
 	electionChecker := leaderelection.NewLeaderHealthzAdaptor(time.Second * 20)
 
@@ -187,7 +196,10 @@ func (b *Backend) Run(ctx context.Context) error {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		errCh <- b.runBackendControllersUnderLeaderElection(ctx, electionChecker)
+		err := b.runBackendControllersUnderLeaderElection(ctx, electionChecker)
+		// When leader election exits (e.g. lost lease), cancel so Run() unblocks and performs shutdown.
+		cancel(fmt.Errorf("backend controllers leader election exited"))
+		errCh <- err
 	}()
 
 	<-ctx.Done()
@@ -341,6 +353,20 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		backendInformers,
 	)
 
+	azureRPRegistrationValidationController := validationcontrollers.NewClusterValidationController(
+		validations.NewAzureResourceProvidersRegistrationValidation(b.options.FPAClientBuilder),
+		activeOperationLister,
+		b.options.CosmosDBClient,
+		backendInformers,
+	)
+
+	azureClusterResourceGroupExistenceValidationController := validationcontrollers.NewClusterValidationController(
+		validations.NewAzureClusterResourceGroupExistenceValidation(b.options.FPAClientBuilder),
+		activeOperationLister,
+		b.options.CosmosDBClient,
+		backendInformers,
+	)
+
 	le, err := leaderelection.NewLeaderElector(leaderelection.LeaderElectionConfig{
 		Lock:          b.options.LeaderElectionLock,
 		LeaseDuration: leaderElectionLeaseDuration,
@@ -371,6 +397,8 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go controlPlaneVersionController.Run(ctx, 20)
 				go triggerControlPlaneUpgradeController.Run(ctx, 20)
 				go clusterPropertiesSyncController.Run(ctx, 20)
+				go azureRPRegistrationValidationController.Run(ctx, 20)
+				go azureClusterResourceGroupExistenceValidationController.Run(ctx, 20)
 			},
 			OnStoppedLeading: func() {
 				operationsScanner.LeaderGauge.Set(0)

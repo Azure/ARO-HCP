@@ -29,7 +29,16 @@ These are the global settings for the ContainerServices API.
 
 ``` yaml
 openapi-type: arm
-tag: package-2024-06-10-preview
+tag: package-2025-12-23-preview
+```
+
+### Tag: package-2025-12-23-preview
+
+These settings apply only when `--tag=package-2025-12-23-preview` is specified on the command line.
+
+``` yaml $(tag) == 'package-2025-12-23-preview'
+input-file:
+  - 2025-12-23-preview/openapi.json
 ```
 
 ### Tag: package-2024-06-10-preview
@@ -61,42 +70,42 @@ swagger-to-sdk:
 <!-- ### AutoRest v3 Suppressions -->
 ``` yaml
 suppressions:
-    - code: AvoidAnonymousTypes
-      from: openapi.json
-      where: $.definitions["Azure.ResourceManager.CommonTypes.ManagedServiceIdentityUpdate"].properties.userAssignedIdentities.additionalProperties
-      reason: This is an incorrect failure due to a bug in the tool
-      # https://github.com/Azure/typespec-azure/issues/1163
-    - code: AvoidAdditionalProperties
-      from: openapi.json
-      where: $.definitions.UserAssignedIdentitiesProfile.properties.controlPlaneOperators
-      reason: This is a Record<UserAssignedIdentityResourceId> where the string keys are control plane operator names. The intention is to pair a control plane operator with a user-assigned managed identity resource ID. The set of valid control plane operator names varies by OpenShift version, and will be discoverable through a forthcoming proxy resource that models a supported OpenShift version.
-    - code: AvoidAdditionalProperties
-      from: openapi.json
-      where: $.definitions.UserAssignedIdentitiesProfileUpdate.properties.controlPlaneOperators
-      reason: This is a Record<UserAssignedIdentityResourceId> where the string keys are control plane operator names. The intention is to pair a control plane operator with a user-assigned managed identity resource ID. The set of valid control plane operator names varies by OpenShift version, and will be discoverable through a forthcoming proxy resource that models a supported OpenShift version.
-    - code: AvoidAdditionalProperties
-      from: openapi.json
-      where: $.definitions.UserAssignedIdentitiesProfile.properties.dataPlaneOperators
-      reason: This is a Record<UserAssignedIdentityResourceId> where the string keys are data plane operator names. The intention is to pair a data plane operator with a user-assigned managed identity resource ID. The set of valid data plane operator names varies by OpenShift version, and will be discoverable through a forthcoming proxy resource that models a supported OpenShift version.
-    - code: AvoidAdditionalProperties
-      from: openapi.json
-      where: $.definitions.UserAssignedIdentitiesProfileUpdate.properties.dataPlaneOperators
-      reason: This is a Record<UserAssignedIdentityResourceId> where the string keys are data plane operator names. The intention is to pair a data plane operator with a user-assigned managed identity resource ID. The set of valid data plane operator names varies by OpenShift version, and will be discoverable through a forthcoming proxy resource that models a supported OpenShift version.
-    - code: EnumInsteadOfBoolean
-      from: openapi.json
-      where: $.definitions.NodePoolProperties.properties.autoRepair
-      reason: Evaluated and decided to stay with a boolean.
-    - code: EnumInsteadOfBoolean
-      from: openapi.json
-      where: $.definitions.NodePoolPlatformProfile.properties.enableEncryptionAtHost
-      reason: Evaluated and decided to stay with a boolean.
-    - code: EnumInsteadOfBoolean
-      from: openapi.json
-      where: $.definitions.HcpOpenShiftVersionProperties.properties.enabled
-      reason: Evaluated and decided to stay with a boolean.
-    - code: PreviewVersionOverOneYear
-      from: openapi.json
-      reason: API version will be deprecated when 2025-12-23-preview is deployed to Azure regions.
+  - code: AvoidAnonymousTypes
+    from: openapi.json
+    where: $.definitions["Azure.ResourceManager.CommonTypes.ManagedServiceIdentityUpdate"].properties.userAssignedIdentities.additionalProperties
+    reason: This is an incorrect failure due to a bug in the tool
+    # https://github.com/Azure/typespec-azure/issues/1163
+  - code: AvoidAdditionalProperties
+    from: openapi.json
+    where: $.definitions.UserAssignedIdentitiesProfile.properties.controlPlaneOperators
+    reason: This is a Record<UserAssignedIdentityResourceId> where the string keys are control plane operator names. The intention is to pair a control plane operator with a user-assigned managed identity resource ID. The set of valid control plane operator names varies by OpenShift version, and will be discoverable through a forthcoming proxy resource that models a supported OpenShift version.
+  - code: AvoidAdditionalProperties
+    from: openapi.json
+    where: $.definitions.UserAssignedIdentitiesProfileUpdate.properties.controlPlaneOperators
+    reason: This is a Record<UserAssignedIdentityResourceId> where the string keys are control plane operator names. The intention is to pair a control plane operator with a user-assigned managed identity resource ID. The set of valid control plane operator names varies by OpenShift version, and will be discoverable through a forthcoming proxy resource that models a supported OpenShift version.
+  - code: AvoidAdditionalProperties
+    from: openapi.json
+    where: $.definitions.UserAssignedIdentitiesProfile.properties.dataPlaneOperators
+    reason: This is a Record<UserAssignedIdentityResourceId> where the string keys are data plane operator names. The intention is to pair a data plane operator with a user-assigned managed identity resource ID. The set of valid data plane operator names varies by OpenShift version, and will be discoverable through a forthcoming proxy resource that models a supported OpenShift version.
+  - code: AvoidAdditionalProperties
+    from: openapi.json
+    where: $.definitions.UserAssignedIdentitiesProfileUpdate.properties.dataPlaneOperators
+    reason: This is a Record<UserAssignedIdentityResourceId> where the string keys are data plane operator names. The intention is to pair a data plane operator with a user-assigned managed identity resource ID. The set of valid data plane operator names varies by OpenShift version, and will be discoverable through a forthcoming proxy resource that models a supported OpenShift version.
+  - code: EnumInsteadOfBoolean
+    from: openapi.json
+    where: $.definitions.NodePoolProperties.properties.autoRepair
+    reason: Evaluated and decided to stay with a boolean.
+  - code: EnumInsteadOfBoolean
+    from: openapi.json
+    where: $.definitions.NodePoolPlatformProfile.properties.enableEncryptionAtHost
+    reason: Evaluated and decided to stay with a boolean.
+  - code: EnumInsteadOfBoolean
+    from: openapi.json
+    where: $.definitions.HcpOpenShiftVersionProperties.properties.enabled
+    reason: Evaluated and decided to stay with a boolean.
+  - code: PreviewVersionOverOneYear
+    from: openapi.json
+    reason: API version will be deprecated when 2025-12-23-preview is deployed to Azure regions.
 ```
 
 

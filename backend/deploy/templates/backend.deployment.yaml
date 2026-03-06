@@ -65,6 +65,7 @@ spec:
         - "{{ .Values.fpa.clientId }}"
         - "--maestro-source-environment-identifier"
         - "{{ .Values.maestro.sourceEnvironmentIdentifier }}"
+        - "--exit-on-panic={{ .Values.exitOnPanic }}"
         env:
         - name: DB_NAME
           valueFrom:
@@ -89,6 +90,8 @@ spec:
           value: "{{ .Values.tracing.address }}"
         - name: OTEL_TRACES_EXPORTER
           value: "{{ .Values.tracing.exporter }}"
+        - name: AZURE_TOKEN_CREDENTIALS
+          value: "WorkloadIdentityCredential"
         ports:
         - containerPort: 8081
           protocol: TCP

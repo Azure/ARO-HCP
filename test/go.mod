@@ -7,7 +7,8 @@ require (
 	github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp v0.0.0-00010101000000-000000000000
 	github.com/Azure/ARO-HCP/tooling/hcpctl v0.0.0-20260113131010-8f869ff652e6
 	github.com/Azure/ARO-HCP/tooling/templatize v0.0.0-00010101000000-000000000000
-	github.com/Azure/ARO-Tools/tools/prow-job-executor v0.0.0-20260224202318-50897c5f99ec
+	github.com/Azure/ARO-Tools/config v0.0.0-20260302234042-3298871a1fc3
+	github.com/Azure/ARO-Tools/tools/prow-job-executor v0.0.0-20260302234042-3298871a1fc3
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v3 v3.0.0-beta.2
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v5 v5.7.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/kusto/armkusto/v2 v2.3.0
@@ -51,14 +52,13 @@ require (
 	contrib.go.opencensus.io/exporter/ocagent v0.7.1-0.20200907061046-05415f1de66d // indirect
 	contrib.go.opencensus.io/exporter/prometheus v0.4.2 // indirect
 	dario.cat/mergo v1.0.1 // indirect
-	github.com/Azure/ARO-Tools/config v0.0.0-20260224195034-f5e8116c18b8 // indirect
-	github.com/Azure/ARO-Tools/pipelines v0.0.0-20260224202318-50897c5f99ec // indirect
-	github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20260224200806-c0318c58a192 // indirect
-	github.com/Azure/ARO-Tools/tools/grafanactl v0.0.0-20260224202318-50897c5f99ec // indirect
-	github.com/Azure/ARO-Tools/tools/helm v0.0.0-20260224202318-50897c5f99ec // indirect
-	github.com/Azure/ARO-Tools/tools/registration v0.0.0-20260224202318-50897c5f99ec // indirect
-	github.com/Azure/ARO-Tools/tools/secret-sync v0.0.0-20260224202318-50897c5f99ec // indirect
-	github.com/Azure/ARO-Tools/tools/yamlwrap v0.0.0-20260224200806-c0318c58a192 // indirect
+	github.com/Azure/ARO-Tools/pipelines v0.0.0-20260302234042-3298871a1fc3 // indirect
+	github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20260302234042-3298871a1fc3 // indirect
+	github.com/Azure/ARO-Tools/tools/grafanactl v0.0.0-20260302234042-3298871a1fc3 // indirect
+	github.com/Azure/ARO-Tools/tools/helm v0.0.0-20260302234042-3298871a1fc3 // indirect
+	github.com/Azure/ARO-Tools/tools/registration v0.0.0-20260302234042-3298871a1fc3 // indirect
+	github.com/Azure/ARO-Tools/tools/secret-sync v0.0.0-20260302234042-3298871a1fc3 // indirect
+	github.com/Azure/ARO-Tools/tools/yamlwrap v0.0.0-20260302234042-3298871a1fc3 // indirect
 	github.com/Azure/azure-kusto-go/azkustodata v1.2.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice v1.0.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/dashboard/armdashboard v1.2.0 // indirect
@@ -115,7 +115,7 @@ require (
 	github.com/chai2010/gettext-go v1.0.3 // indirect
 	github.com/cjwagner/httpcache v0.0.0-20230907212505-d4841bbad466 // indirect
 	github.com/clarketm/json v1.17.1 // indirect
-	github.com/cloudflare/circl v1.6.1 // indirect
+	github.com/cloudflare/circl v1.6.3 // indirect
 	github.com/cncf/xds/go v0.0.0-20251022180443-0feb69152e9f // indirect
 	github.com/cyphar/filepath-securejoin v0.5.0 // indirect
 	github.com/danwakefield/fnmatch v0.0.0-20160403171240-cbb64ac3d964 // indirect
@@ -211,6 +211,7 @@ require (
 	github.com/opencontainers/image-spec v1.1.1 // indirect
 	github.com/openshift-online/ocm-api-model/clientapi v0.0.449 // indirect
 	github.com/openshift-online/ocm-sdk-go v0.1.494 // indirect
+	github.com/openshift/hypershift/api v0.0.0-20260226113135-8ab86680f975 // indirect
 	github.com/peterbourgon/diskv v2.0.1+incompatible // indirect
 	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c // indirect
 	github.com/pkg/errors v0.9.1 // indirect

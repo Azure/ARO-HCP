@@ -210,7 +210,7 @@ func TestConvertCStoHCPOpenShiftCluster(t *testing.T) {
 			csCluster := ocmCluster(t, ocmClusterDefaults(api.TestLocation), tc.ocmClusterTweaks)
 			expectHcpCluster := api.ClusterTestCase(t, tc.hcpClusterTweaks)
 
-			actualHcpCluster, err := ConvertCStoHCPOpenShiftCluster(resourceID, api.TestLocation, csCluster)
+			actualHcpCluster, err := LegacyCreateInternalClusterFromClusterService(resourceID, api.TestLocation, csCluster)
 			require.NoError(t, err)
 
 			assert.Equal(t, expectHcpCluster, actualHcpCluster)
@@ -307,7 +307,8 @@ func TestWithImmutableAttributes(t *testing.T) {
 				api.TestSubscriptionID,
 				api.TestResourceGroupName,
 				api.TestTenantID,
-				"")
+				api.TestManagedIdentitiesDataPlaneIdentityURL,
+			)
 			require.NoError(t, err)
 			result, err := builder.Build()
 			require.NoError(t, err)
@@ -365,7 +366,7 @@ func ocmClusterDefaults(azureLocation string) *arohcpv1alpha1.ClusterBuilder {
 				ManagedIdentities(arohcpv1alpha1.NewAzureOperatorsAuthenticationManagedIdentities().
 					ControlPlaneOperatorsManagedIdentities(make(map[string]*arohcpv1alpha1.AzureControlPlaneManagedIdentityBuilder)).
 					DataPlaneOperatorsManagedIdentities(make(map[string]*arohcpv1alpha1.AzureDataPlaneManagedIdentityBuilder)).
-					ManagedIdentitiesDataPlaneIdentityUrl(""))).
+					ManagedIdentitiesDataPlaneIdentityUrl(api.TestManagedIdentitiesDataPlaneIdentityURL))).
 			ResourceGroupName(strings.ToLower(api.TestResourceGroupName)).
 			ResourceName(strings.ToLower(api.TestClusterName)).
 			SubnetResourceID(api.TestSubnetResourceID).
@@ -396,7 +397,7 @@ func ocmClusterDefaults(azureLocation string) *arohcpv1alpha1.ClusterBuilder {
 		Region(arohcpv1alpha1.NewCloudRegion().
 			ID(azureLocation)).
 		Version(arohcpv1alpha1.NewVersion().
-			ID("openshift-v4.15.0").
+			ID("openshift-v4.19.7").
 			ChannelGroup("stable")).
 		ImageRegistry(arohcpv1alpha1.NewClusterImageRegistry().
 			State(csImageRegistryStateEnabled))
@@ -1017,7 +1018,7 @@ func TestBuildCSCluster(t *testing.T) {
 			// Create request headers
 			requestHeader := http.Header{}
 			requestHeader.Set(arm.HeaderNameHomeTenantID, api.TestTenantID)
-			requestHeader.Set(arm.HeaderNameIdentityURL, "")
+			requestHeader.Set(arm.HeaderNameIdentityURL, api.TestManagedIdentitiesDataPlaneIdentityURL)
 
 			resourceID, err := azcorearm.ParseResourceID(api.TestClusterResourceID)
 			require.NoError(t, err)

@@ -108,10 +108,6 @@ func NewClusterWatchingController(
 }
 
 func (c *clusterWatchingController) SyncOnce(ctx context.Context, keyObj any) error {
-	logger := utils.LoggerFromContext(ctx)
-	logger.Info("start sync")
-	defer logger.Info("end sync")
-
 	key := keyObj.(HCPClusterKey)
 
 	syncErr := c.syncer.SyncOnce(ctx, key) // we'll handle this is a moment.

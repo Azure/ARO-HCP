@@ -18,6 +18,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/google/uuid"
+
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/utils/ptr"
 
@@ -58,9 +60,6 @@ func SetDefaultValuesCluster(obj *HcpOpenShiftCluster) {
 	if obj.Properties.Version.ChannelGroup == nil {
 		obj.Properties.Version.ChannelGroup = ptr.To("stable")
 	}
-	if obj.Properties.Version.ID == nil {
-		obj.Properties.Version.ID = ptr.To("4.20")
-	}
 	if obj.Properties.Network == nil {
 		obj.Properties.Network = &generated.NetworkProfile{}
 	}
@@ -90,6 +89,13 @@ func SetDefaultValuesCluster(obj *HcpOpenShiftCluster) {
 	}
 	if obj.Properties.Platform.OutboundType == nil {
 		obj.Properties.Platform.OutboundType = ptr.To(generated.OutboundTypeLoadBalancer)
+	}
+	if obj.Properties.Platform.ManagedResourceGroup == nil || len(*obj.Properties.Platform.ManagedResourceGroup) == 0 {
+		clusterName := ptr.Deref(obj.Name, "")
+		if len(clusterName) >= 45 {
+			clusterName = clusterName[:45]
+		}
+		obj.Properties.Platform.ManagedResourceGroup = ptr.To("arohcp-" + clusterName + "-" + uuid.New().String())
 	}
 	if obj.Properties.Autoscaling == nil {
 		obj.Properties.Autoscaling = &generated.ClusterAutoscalingProfile{}

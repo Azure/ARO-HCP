@@ -3,7 +3,7 @@ module github.com/Azure/ARO-HCP/tooling/hcpctl
 go 1.25.5
 
 require (
-	github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20260224200806-c0318c58a192
+	github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20260302234042-3298871a1fc3
 	github.com/Azure/azure-kusto-go/azkustodata v1.2.0
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.21.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice v1.0.0
@@ -13,7 +13,7 @@ require (
 	github.com/go-logr/logr v1.4.3
 	github.com/google/go-cmp v0.7.0
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510
-	github.com/openshift/hypershift/api v0.0.0-20260225065515-6968c170a989
+	github.com/openshift/hypershift/api v0.0.0-20260226113135-8ab86680f975
 	github.com/spf13/cobra v1.10.2
 	github.com/stretchr/testify v1.11.1
 	golang.org/x/sync v0.19.0

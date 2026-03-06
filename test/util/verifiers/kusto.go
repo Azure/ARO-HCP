@@ -89,7 +89,7 @@ func (v verifyMustGatherLogsImpl) Verify(ctx context.Context) error {
 	foundLogSources := make(map[string]bool)
 	var foundMutex sync.Mutex
 
-	outputFunc := func(logLineChan chan *mustgather.NormalizedLogLine, queryType mustgather.QueryType, options mustgather.RowOutputOptions) error {
+	outputFunc := func(ctx context.Context, logLineChan chan *mustgather.NormalizedLogLine, queryType mustgather.QueryType, options mustgather.RowOutputOptions) error {
 		for logLine := range logLineChan {
 			// Create a key for namespace/container combination
 			key := fmt.Sprintf("%s/%s", logLine.Namespace, logLine.ContainerName)
@@ -106,6 +106,7 @@ func (v verifyMustGatherLogsImpl) Verify(ctx context.Context) error {
 		mustgather.RowOutputOptions{},
 		mustgather.GathererOptions{
 			SkipHostedControlPlaneLogs: false,
+			SkipKubernetesEventsLogs:   true,
 			QueryOptions:               queryOptions,
 		},
 	)

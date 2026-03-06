@@ -20,5 +20,8 @@ USER 65532:65532
 WORKDIR /
 COPY --from=builder /app/backend/aro-hcp-backend .
 ARG ARO_HCP_REVISION
+ARG ARO_HCP_COMMIT_TIME
 LABEL vcs-ref="${ARO_HCP_REVISION}"
+LABEL vcs-ref-time="${ARO_HCP_COMMIT_TIME}"
+LABEL vcs-url="https://github.com/Azure/ARO-HCP"
 ENTRYPOINT ["/aro-hcp-backend"]

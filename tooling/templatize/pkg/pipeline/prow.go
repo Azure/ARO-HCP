@@ -16,6 +16,8 @@ package pipeline
 
 import (
 	"context"
+	"fmt"
+	"strconv"
 
 	"github.com/go-logr/logr"
 
@@ -33,11 +35,16 @@ func runProwJobStep(step *types.ProwJobStep, ctx context.Context, options *StepR
 		return nil
 	}
 
+	gate, err := strconv.ParseBool(step.GatePromotion)
+	if err != nil {
+		return fmt.Errorf("could not parse gate promotion flag: %w", err)
+	}
+
 	opts := prowjobexecutor.DefaultExecuteOptions()
 	opts.Secret = step.TokenSecret
 	opts.KeyVaultURI = step.TokenKeyvault
 	opts.ProwJobName = step.JobName
-	opts.GatePromotion = step.GatePromotion
+	opts.GatePromotion = gate
 
 	inputs := prowInputs{
 		KeyVault: step.TokenKeyvault,

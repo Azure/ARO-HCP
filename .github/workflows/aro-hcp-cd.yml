@@ -13,7 +13,7 @@ on:
       push:
         type: boolean
         description: Enable push to registry for services built in this workflow
-  pull_request:
+  push:
     branches:
     - main
     paths:
@@ -39,8 +39,6 @@ on:
     - 'image-sync/**/'
     - 'tooling/templatize/**'
     - 'config/*'
-    types:
-    - closed
 concurrency:
   group: ${{ github.workflow }}
   cancel-in-progress: false
@@ -58,7 +56,6 @@ jobs:
           fi
   deploy_global_rg:
     name: 'Deploy global resources'
-    if: github.event.pull_request.merged == true || github.event_name == 'workflow_dispatch'
     permissions:
       id-token: 'write'
       contents: 'read'
@@ -106,10 +103,9 @@ jobs:
     secrets: inherit
     uses: ./.github/workflows/services-ci.yml
     with:
-      push: ${{ inputs.push || github.event.pull_request.merged == true }}
+      push: ${{ inputs.push || github.event_name == 'push' }}
   deploy_dev_environment_infra:
     name: 'Deploy integrated DEV infrastructure'
-    if: github.event.pull_request.merged == true || github.event_name == 'workflow_dispatch'
     needs:
     - deploy_global_rg
     permissions:
@@ -121,7 +117,6 @@ jobs:
       deploy_env: dev
   deploy_dev_environment_services:
     name: 'Deploy services to integrated DEV'
-    if: github.event.pull_request.merged == true || github.event_name == 'workflow_dispatch'
     needs:
     - service_ci
     - deploy_dev_environment_infra
@@ -135,7 +130,6 @@ jobs:
   # CS PR env deployment disabled during testing
   deploy_cs_pr_environment_infra:
     name: 'Deploy CS PR infrastructure'
-    if: github.event.pull_request.merged == true || github.event_name == 'workflow_dispatch'
     needs:
     - deploy_global_rg
     permissions:
@@ -148,7 +142,6 @@ jobs:
       deploy_cs_pr_check_deps: true
   deploy_cs_pr_environment_services:
     name: 'Deploy services to CS PR'
-    if: github.event.pull_request.merged == true || github.event_name == 'workflow_dispatch'
     needs:
     - service_ci
     - deploy_cs_pr_environment_infra

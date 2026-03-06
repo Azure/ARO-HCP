@@ -53,10 +53,19 @@ type ServiceTagUsageCollector struct {
 var _ CachingCollector = &ServiceTagUsageCollector{}
 
 // NewServiceTagUsageCollector creates a new ServiceTagUsageCollector
-func NewServiceTagUsageCollector(subscriptionID string, credential azcore.TokenCredential, cacheTTL time.Duration) (*ServiceTagUsageCollector, error) {
+func NewServiceTagUsageCollector(ctx context.Context, subscriptionNames []string, credential azcore.TokenCredential, cacheTTL time.Duration) (*ServiceTagUsageCollector, error) {
 	var resourceGraphClient *graphquery.ResourceGraphClient
 	var err error
-	resourceGraphClient, err = graphquery.NewResourceGraphClient(credential, []*string{to.Ptr(subscriptionID)})
+
+	subscriptionIDs, err := getSubscriptionIDs(ctx, credential, subscriptionNames)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get subscription IDs: %w", err)
+	}
+	subscriptionIDsPtrs := make([]*string, len(subscriptionIDs))
+	for i, subscriptionID := range subscriptionIDs {
+		subscriptionIDsPtrs[i] = to.Ptr(subscriptionID)
+	}
+	resourceGraphClient, err = graphquery.NewResourceGraphClient(credential, subscriptionIDsPtrs)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Resource Graph client: %w", err)
 	}

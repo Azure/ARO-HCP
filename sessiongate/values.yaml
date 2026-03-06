@@ -2,7 +2,11 @@ image:
   registry: "{{ .acr.svc.name }}.{{ .acrDNSSuffix }}"
   repository: "{{ .sessiongate.image.repository }}"
   digest: "{{ .sessiongate.image.digest }}"
-replicas: "{{ .sessiongate.k8s.replicas }}"
+deployment:
+  replicas: "{{ .sessiongate.k8s.replicas }}"
+  requests:
+    cpu: 250m
+    memory: 512Mi
 logLevel: "2"
 leaderElection:
   leaseDuration: "15s"

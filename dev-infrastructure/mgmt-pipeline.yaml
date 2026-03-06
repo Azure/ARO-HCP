@@ -55,6 +55,10 @@ resourceGroups:
     parameters: configurations/kusto-lookup.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     outputOnly: true
+    externalDependsOn:
+    - serviceGroup: Microsoft.Azure.ARO.HCP.Log.Infra
+      resourceGroup: kusto-infra
+      step: deploy
 - name: management
   resourceGroup: '{{ .mgmt.rg }}'
   subscription: '{{ .mgmt.subscription.key }}'
@@ -257,6 +261,17 @@ resourceGroups:
       step: output
     - resourceGroup: management
       step: cluster
+  # - name: exporter-permissions
+  #   action: ARM
+  #   template: templates/exporter-permissions.bicep
+  #   parameters: configurations/exporter-permissions.tmpl.bicepparam
+  #   deploymentLevel: Subscription
+  #   variables:
+  #   - name: exporterPrincipalId
+  #     input:
+  #       resourceGroup: service
+  #       step: output
+  #       name: exporterPrincipalId
   - name: kusto-grant-ingest
     action: ARM
     template: templates/kusto-grant-ingest.bicep
@@ -322,7 +337,6 @@ resourceGroups:
       errorContainsAny:
       - "500 Internal Server Error"
       - "Internal error occurred"
-      - "context deadline exceeded"
       maximumRetryCount: 3
       durationBetweenRetries: 1m
   - name: acrpull
@@ -349,7 +363,6 @@ resourceGroups:
       errorContainsAny:
       - "500 Internal Server Error"
       - "Internal error occurred"
-      - "context deadline exceeded"
       maximumRetryCount: 3
       durationBetweenRetries: 1m
   - name: storageclass
@@ -376,7 +389,6 @@ resourceGroups:
       errorContainsAny:
       - "500 Internal Server Error"
       - "Internal error occurred"
-      - "context deadline exceeded"
       maximumRetryCount: 3
       durationBetweenRetries: 1m
   - name: mitigations
@@ -405,7 +417,6 @@ resourceGroups:
       errorContainsAny:
       - "500 Internal Server Error"
       - "Internal error occurred"
-      - "context deadline exceeded"
       maximumRetryCount: 3
       durationBetweenRetries: 1m
   - name: kubelet-ds
@@ -432,7 +443,6 @@ resourceGroups:
       errorContainsAny:
       - "500 Internal Server Error"
       - "Internal error occurred"
-      - "context deadline exceeded"
       maximumRetryCount: 3
       durationBetweenRetries: 1m
   - name: arobit-output
@@ -481,7 +491,6 @@ resourceGroups:
       errorContainsAny:
       - "500 Internal Server Error"
       - "Internal error occurred"
-      - "context deadline exceeded"
       maximumRetryCount: 3
       durationBetweenRetries: 1m
   - name: kube-events
@@ -508,6 +517,5 @@ resourceGroups:
       errorContainsAny:
       - "500 Internal Server Error"
       - "Internal error occurred"
-      - "context deadline exceeded"
       maximumRetryCount: 3
       durationBetweenRetries: 1m
