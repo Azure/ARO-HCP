@@ -37,12 +37,13 @@ import (
 const (
 	// These durations indicate the maximum time it will take for us to notice a new instance of a particular type.
 	// Remember that these will not fire in order, so it's entirely possible to get an operation for subscription we have no observed.
-	SubscriptionRelistDuration           = 30 * time.Second
-	ClusterRelistDuration                = 30 * time.Second
-	NodePoolRelistDuration               = 30 * time.Second
-	ExternalAuthRelistDuration           = 30 * time.Second
-	ServiceProviderClusterRelistDuration = 30 * time.Second
-	ActiveOperationsRelistDuration       = 10 * time.Second
+	SubscriptionRelistDuration            = 30 * time.Second
+	ClusterRelistDuration                 = 30 * time.Second
+	NodePoolRelistDuration                = 30 * time.Second
+	ExternalAuthRelistDuration            = 30 * time.Second
+	ServiceProviderClusterRelistDuration  = 30 * time.Second
+	ServiceProviderNodePoolRelistDuration = 30 * time.Second
+	ActiveOperationsRelistDuration        = 10 * time.Second
 )
 
 // NewSubscriptionInformer creates an unstarted SharedIndexInformer for subscriptions
@@ -284,6 +285,54 @@ func NewServiceProviderClusterInformerWithRelistDuration(lister database.GlobalL
 	)
 }
 
+// NewServiceProviderNodePoolInformer creates an unstarted SharedIndexInformer for service provider node pools
+// with a node pool index using the default relist duration.
+func NewServiceProviderNodePoolInformer(lister database.GlobalLister[api.ServiceProviderNodePool]) cache.SharedIndexInformer {
+	return NewServiceProviderNodePoolInformerWithRelistDuration(lister, ServiceProviderNodePoolRelistDuration)
+}
+
+// NewServiceProviderNodePoolInformerWithRelistDuration creates an unstarted SharedIndexInformer for service provider node pools
+// with a node pool index and a configurable relist duration.
+func NewServiceProviderNodePoolInformerWithRelistDuration(lister database.GlobalLister[api.ServiceProviderNodePool], relistDuration time.Duration) cache.SharedIndexInformer {
+	lw := &cache.ListWatch{
+		ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
+			logger := utils.LoggerFromContext(ctx)
+			logger.Info("listing service provider node pools")
+			defer logger.Info("finished listing service provider node pools")
+
+			iter, err := lister.List(ctx, nil)
+			if err != nil {
+				return nil, err
+			}
+
+			list := &api.ServiceProviderNodePoolList{}
+			list.ResourceVersion = "0"
+			for _, spnp := range iter.Items(ctx) {
+				list.Items = append(list.Items, *spnp)
+			}
+			if err := iter.GetError(); err != nil {
+				return nil, err
+			}
+
+			return list, nil
+		},
+		WatchFuncWithContext: func(ctx context.Context, options metav1.ListOptions) (watch.Interface, error) {
+			return NewExpiringWatcher(ctx, relistDuration), nil
+		},
+	}
+
+	return cache.NewSharedIndexInformerWithOptions(
+		lw,
+		&api.ServiceProviderNodePool{},
+		cache.SharedIndexInformerOptions{
+			ResyncPeriod: 1 * time.Hour, // this is only a default.  Shorter resyncs can be added when registering handlers.
+			Indexers: cache.Indexers{
+				listers.ByNodePool: nodePoolResourceIDIndexFunc,
+			},
+		},
+	)
+}
+
 // NewActiveOperationInformer creates an unstarted SharedIndexInformer for
 // active (non-terminal) operations with resource group and cluster indexes
 // using the default relist duration.
@@ -410,4 +459,35 @@ func activeOperationClusterIndexFunc(obj interface{}) ([]string, error) {
 	}
 
 	return clusterResourceIDFromResourceID(op.ExternalID)
+}
+
+// nodePoolResourceIDIndexFunc indexes service provider node pools by their parent node pool
+// resource ID, derived from the embedded CosmosMetadata.
+func nodePoolResourceIDIndexFunc(obj interface{}) ([]string, error) {
+	switch castObj := obj.(type) {
+	case arm.CosmosMetadataAccessor:
+		return nodePoolResourceIDFromResourceID(castObj.GetResourceID())
+	case arm.CosmosPersistable:
+		return nodePoolResourceIDFromResourceID(castObj.GetCosmosData().ResourceID)
+	default:
+		return nil, utils.TrackError(fmt.Errorf("unexpected type %T, expected arm.CosmosMetadataAccessor or arm.CosmosPersistable", obj))
+	}
+}
+
+func nodePoolResourceIDFromResourceID(resourceID *azcorearm.ResourceID) ([]string, error) {
+	switch {
+	case resourceID == nil:
+		return nil, nil
+
+	case strings.EqualFold(resourceID.ResourceType.String(), api.NodePoolResourceType.String()):
+		return []string{strings.ToLower(resourceID.String())}, nil
+
+	case resourceID.Parent == nil:
+		return nil, nil
+	case strings.EqualFold(resourceID.Parent.ResourceType.String(), api.NodePoolResourceType.String()):
+		return []string{strings.ToLower(resourceID.Parent.String())}, nil
+
+	default:
+		return nil, nil
+	}
 }

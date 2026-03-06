@@ -15,6 +15,8 @@
 package api
 
 import (
+	"github.com/blang/semver/v4"
+
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 )
 
@@ -26,6 +28,7 @@ const (
 )
 
 // ServiceProviderNodePool is used internally by controllers to track and pass information between them.
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type ServiceProviderNodePool struct {
 	// CosmosMetadata ResourceID is nested under the cluster so that association and cleanup work as expected
 	// it will be the ServiceProviderNodePool type and the name default
@@ -34,4 +37,64 @@ type ServiceProviderNodePool struct {
 	// resourceID exists to match cosmosMetadata.resourceID until we're able to transition all types to use cosmosMetadata,
 	// at which point we will stop using properties.resourceId in our queries. That will be about a month from now.
 	ResourceID azcorearm.ResourceID `json:"resourceId"`
+
+	// Spec contains the desired state of the nodepool
+	Spec ServiceProviderNodePoolSpec `json:"spec,omitempty"`
+
+	// Status contains the observed state of the nodepool
+	Status ServiceProviderNodePoolStatus `json:"status,omitempty"`
+}
+
+// ServiceProviderNodePoolSpec contains the desired state of the nodepool.
+type ServiceProviderNodePoolSpec struct {
+	// NodePoolVersion contains the desired node pool version information.
+	// Example JSON structure:
+	// {
+	//   "nodePoolVersion": {
+	//     "desiredVersion": "4.19.2"
+	//   }
+	// }
+	NodePoolVersion ServiceProviderNodePoolSpecVersion `json:"nodePoolVersion,omitempty"`
+}
+
+// ServiceProviderNodePoolSpecVersion contains the desired version information.
+type ServiceProviderNodePoolSpecVersion struct {
+	// DesiredVersion is the full version the controller wants to upgrade to (format: x.y.z)
+	DesiredVersion *semver.Version `json:"desiredVersion,omitempty"`
+}
+
+// ServiceProviderNodePoolStatus contains the observed state of the node pool.
+type ServiceProviderNodePoolStatus struct {
+	// NodePoolActiveVersions contains the actual node pool versions information
+	// ServiceProviderNodePoolActiveVersions contains all versions currently active in the NodePool
+	// During an upgrade, multiple versions can be active simultaneously. Meaning, there are nodes
+	// with different versions. For example:
+	// - Simple upgrade: [vNew, vOld]
+	// - Sequential upgrades before completion: [vNewer, vNew, vOld]
+	//
+	// The list is ordered with the most recent version first.
+	//
+	// Example JSON structure:
+	// {
+	//   "nodePoolVersion":{
+	//		"activeVersions": [
+	//       {"version": "4.19.2"},
+	//       {"version": "4.19.1"}
+	//     ]
+	//   }
+	// }
+	NodePoolVersion ServiceProviderNodePoolStatusVersion `json:"nodePoolVersion,omitempty"`
+}
+
+// ServiceProviderNodePoolStatusVersion contains the actual version information.
+type ServiceProviderNodePoolStatusVersion struct {
+	// ActiveVersions is an array of versions currently active in the nodepool, ordered with the most recent first.
+	// During upgrades, multiple versions can be active simultaneously.
+	ActiveVersions []HCPNodePoolActiveVersion `json:"activeVersions,omitempty"`
+}
+
+// HCPNodePoolActiveVersion represents a single version active in the nodepool.
+type HCPNodePoolActiveVersion struct {
+	// Version is the full version in x.y.z format (e.g., "4.19.2")
+	Version *semver.Version `json:"version,omitempty"`
 }
