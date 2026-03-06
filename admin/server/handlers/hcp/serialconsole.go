@@ -26,6 +26,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/fpa"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
+	"github.com/Azure/ARO-HCP/internal/validation"
 )
 
 // HCPSerialConsoleHandler handles requests to retrieve VM serial console logs
@@ -76,6 +77,15 @@ func (h *HCPSerialConsoleHandler) ServeHTTP(writer http.ResponseWriter, request 
 		)
 	}
 
+	if !validation.IsValidAzureVMName(vmName) {
+		return arm.NewCloudError(
+			http.StatusBadRequest,
+			arm.CloudErrorCodeInvalidRequestContent,
+			"",
+			"vmName contains invalid characters or format",
+		)
+	}
+
 	// get HCP details
 	hcp, err := h.dbClient.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).Get(request.Context(), resourceID.Name)
 	if err != nil {
@@ -85,19 +95,19 @@ func (h *HCPSerialConsoleHandler) ServeHTTP(writer http.ResponseWriter, request 
 	// get CS cluster data to retrieve tenant ID
 	csCluster, err := h.csClient.GetCluster(request.Context(), hcp.ServiceProviderProperties.ClusterServiceID)
 	if err != nil {
-		return fmt.Errorf("failed to get CS cluster data: %w", err)
+		return ClusterServiceError(err, "cluster data")
 	}
 
 	// get FPA credentials for customer tenant
 	tokenCredential, err := h.fpaCredentialRetriever.RetrieveCredential(csCluster.Azure().TenantID())
 	if err != nil {
-		return fmt.Errorf("failed to get FPA token credentials: %w", err)
+		return fmt.Errorf("failed to retrieve Azure credentials: %w", err)
 	}
 
 	// Create Azure Compute client for customer subscription
 	computeClient, err := armcompute.NewVirtualMachinesClient(hcp.ID.SubscriptionID, tokenCredential, nil)
 	if err != nil {
-		return fmt.Errorf("failed to create compute client: %w", err)
+		return fmt.Errorf("failed to create Azure compute client: %w", err)
 	}
 
 	// Retrieve boot diagnostics data containing serial console blob URI
@@ -109,7 +119,25 @@ func (h *HCPSerialConsoleHandler) ServeHTTP(writer http.ResponseWriter, request 
 		nil,
 	)
 	if err != nil {
-		return fmt.Errorf("failed to retrieve boot diagnostics data: %w", err)
+		// Azure returns 404 when VM or resource group doesn't exist
+		if database.IsResponseError(err, http.StatusNotFound) {
+			return arm.NewCloudError(
+				http.StatusNotFound,
+				arm.CloudErrorCodeNotFound,
+				"",
+				"VM %s not found in resource group %s", vmName, managedResourceGroup,
+			)
+		}
+		// Azure returns 409 when boot diagnostics is disabled
+		if database.IsResponseError(err, http.StatusConflict) {
+			return arm.NewCloudError(
+				http.StatusConflict,
+				arm.CloudErrorCodeConflict,
+				"",
+				"Diagnostics might be disabled for VM %s", vmName,
+			)
+		}
+		return fmt.Errorf("failed to retrieve boot diagnostics data for VM %s: %w", vmName, err)
 	}
 
 	// verify serial console log blob URI is available
