@@ -24,6 +24,9 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"net"
+	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -51,6 +54,12 @@ import (
 	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 )
 
+const (
+	maxTransientLROPollRetries = 5
+	initialLROPollRetryBackoff = 2 * time.Second
+	maxLROPollRetryBackoff     = 30 * time.Second
+)
+
 // checkOperationResult ensures the result model returned by a runtime.Poller
 // matches the resource model returned from a GET request.
 func checkOperationResult(expectModel, resultModel any) error {
@@ -72,6 +81,135 @@ func checkOperationResult(expectModel, resultModel any) error {
 	}
 
 	return nil
+}
+
+func pollUntilDoneWithTransientRetry[T any](ctx context.Context, poller *runtime.Poller[T], opts *runtime.PollUntilDoneOptions) (T, error) {
+	var zero T
+	backoff := initialLROPollRetryBackoff
+
+	for attempt := 0; ; attempt++ {
+		result, err := poller.PollUntilDone(ctx, opts)
+		if err == nil {
+			return result, nil
+		}
+		if !isRetryableLROPollError(err) || attempt >= maxTransientLROPollRetries {
+			return zero, err
+		}
+
+		if err := sleepForRetryOrCancel(ctx, backoff); err != nil {
+			return zero, err
+		}
+
+		backoff = min(backoff*2, maxLROPollRetryBackoff)
+	}
+}
+
+func pollWithTransientRetry[T any](ctx context.Context, poller *runtime.Poller[T]) (*http.Response, error) {
+	backoff := initialLROPollRetryBackoff
+	for attempt := 0; ; attempt++ {
+		resp, err := poller.Poll(ctx)
+		if err == nil {
+			return resp, nil
+		}
+		if !isRetryableLROPollError(err) || attempt >= maxTransientLROPollRetries {
+			return nil, err
+		}
+		if err := sleepForRetryOrCancel(ctx, backoff); err != nil {
+			return nil, err
+		}
+		backoff = min(backoff*2, maxLROPollRetryBackoff)
+	}
+}
+
+func resultWithTransientRetry[T any](ctx context.Context, poller *runtime.Poller[T]) (T, error) {
+	var zero T
+	backoff := initialLROPollRetryBackoff
+	for attempt := 0; ; attempt++ {
+		result, err := poller.Result(ctx)
+		if err == nil {
+			return result, nil
+		}
+		if !isRetryableLROPollError(err) || attempt >= maxTransientLROPollRetries {
+			return zero, err
+		}
+		if err := sleepForRetryOrCancel(ctx, backoff); err != nil {
+			return zero, err
+		}
+		backoff = min(backoff*2, maxLROPollRetryBackoff)
+	}
+}
+
+func waitForPollerDoneWithEarlyExit[T any](
+	ctx context.Context,
+	poller *runtime.Poller[T],
+	frequency time.Duration,
+	earlyExit func(context.Context) error,
+) (T, error) {
+	var zero T
+	for {
+		_, err := pollWithTransientRetry(ctx, poller)
+		if err != nil {
+			return zero, err
+		}
+
+		if poller.Done() {
+			return resultWithTransientRetry(ctx, poller)
+		}
+
+		if earlyExit != nil {
+			if err := earlyExit(ctx); err != nil {
+				return zero, err
+			}
+		}
+
+		if err := sleepForRetryOrCancel(ctx, frequency); err != nil {
+			return zero, err
+		}
+	}
+}
+
+func sleepForRetryOrCancel(ctx context.Context, delay time.Duration) error {
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-time.After(delay):
+		return nil
+	}
+}
+
+func isRetryableLROPollError(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
+		return false
+	}
+
+	var responseError *azcore.ResponseError
+	if errors.As(err, &responseError) {
+		switch responseError.StatusCode {
+		case http.StatusRequestTimeout, http.StatusTooManyRequests, http.StatusInternalServerError, http.StatusBadGateway, http.StatusServiceUnavailable, http.StatusGatewayTimeout:
+			return true
+		default:
+			return false
+		}
+	}
+
+	var urlErr *url.Error
+	if errors.As(err, &urlErr) {
+		return true
+	}
+
+	var netErr net.Error
+	return errors.As(err, &netErr) && netErr.Timeout()
+}
+
+func isTerminalCreateFailure(state *hcpsdk20240610preview.ProvisioningState) bool {
+	if state == nil {
+		return false
+	}
+	return strings.EqualFold(string(*state), string(hcpsdk20240610preview.ProvisioningStateFailed)) ||
+		strings.EqualFold(string(*state), string(hcpsdk20240610preview.ProvisioningStateCanceled))
 }
 
 func (tc *perItOrDescribeTestContext) GetAdminRESTConfigForHCPCluster(
@@ -100,7 +238,7 @@ func (tc *perItOrDescribeTestContext) GetAdminRESTConfigForHCPCluster(
 		return nil, fmt.Errorf("failed to start credential request: %w", err)
 	}
 
-	operationResult, err := adminCredentialRequestPoller.PollUntilDone(ctx, &runtime.PollUntilDoneOptions{
+	operationResult, err := pollUntilDoneWithTransientRetry(ctx, adminCredentialRequestPoller, &runtime.PollUntilDoneOptions{
 		Frequency: StandardPollInterval,
 	})
 	if err != nil {
@@ -638,8 +776,20 @@ func CreateHCPClusterAndWait(
 	}
 
 	if timeout > 0*time.Second {
-		operationResult, err := poller.PollUntilDone(ctx, &runtime.PollUntilDoneOptions{
-			Frequency: StandardPollInterval,
+		operationResult, err := waitForPollerDoneWithEarlyExit(ctx, poller, StandardPollInterval, func(pollCtx context.Context) error {
+			clusterResp, getErr := GetHCPCluster(pollCtx, hcpClient, resourceGroupName, hcpClusterName)
+			if getErr != nil || clusterResp.Properties == nil {
+				return nil
+			}
+			if isTerminalCreateFailure(clusterResp.Properties.ProvisioningState) {
+				return fmt.Errorf(
+					"cluster=%q in resourcegroup=%q reached terminal provisioning state %q before create operation completed",
+					hcpClusterName,
+					resourceGroupName,
+					*clusterResp.Properties.ProvisioningState,
+				)
+			}
+			return nil
 		})
 		if err != nil {
 			if errors.Is(err, context.DeadlineExceeded) {
@@ -754,8 +904,21 @@ func CreateNodePoolAndWait(
 		return nil, fmt.Errorf("failed starting nodepool creation %q for cluster %q in resourcegroup=%q: %w", nodePoolName, hcpClusterName, resourceGroupName, err)
 	}
 
-	operationResult, err := poller.PollUntilDone(ctx, &runtime.PollUntilDoneOptions{
-		Frequency: StandardPollInterval,
+	operationResult, err := waitForPollerDoneWithEarlyExit(ctx, poller, StandardPollInterval, func(pollCtx context.Context) error {
+		nodePoolResp, getErr := GetNodePool(pollCtx, nodePoolsClient, resourceGroupName, hcpClusterName, nodePoolName)
+		if getErr != nil || nodePoolResp.Properties == nil {
+			return nil
+		}
+		if isTerminalCreateFailure(nodePoolResp.Properties.ProvisioningState) {
+			return fmt.Errorf(
+				"nodepool=%q for cluster=%q in resourcegroup=%q reached terminal provisioning state %q before create operation completed",
+				nodePoolName,
+				hcpClusterName,
+				resourceGroupName,
+				*nodePoolResp.Properties.ProvisioningState,
+			)
+		}
+		return nil
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed waiting for nodepool=%q for cluster %q in resourcegroup=%q to finish creating: %w", nodePoolName, hcpClusterName, resourceGroupName, err)
