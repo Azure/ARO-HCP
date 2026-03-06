@@ -142,7 +142,7 @@ func (d *nestedCosmosResourceCRUD[InternalAPIType, CosmosAPIType]) AddCreateToTr
 }
 
 func (d *nestedCosmosResourceCRUD[InternalAPIType, CosmosAPIType]) AddReplaceToTransaction(ctx context.Context, transaction DBTransaction, newObj *InternalAPIType, opts *azcosmos.TransactionalBatchItemOptions) (string, error) {
-	return addReplaceToTransaction[InternalAPIType, CosmosAPIType](ctx, transaction, newObj, opts)
+	return addReplaceToTransaction[InternalAPIType, CosmosAPIType](ctx, d.containerClient, transaction, newObj, opts)
 }
 
 func (d *nestedCosmosResourceCRUD[InternalAPIType, CosmosAPIType]) Create(ctx context.Context, newObj *InternalAPIType, options *azcosmos.ItemOptions) (*InternalAPIType, error) {
