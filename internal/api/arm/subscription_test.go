@@ -21,8 +21,8 @@ import (
 func TestHasRegisteredFeature(t *testing.T) {
 	registeredState := "Registered"
 	notRegisteredState := "NotRegistered"
-	featureName := "Microsoft.Resources/PlatformSubscription"
-	featureNameLower := "microsoft.resources/platformsubscription"
+	featureName := "Microsoft.RedHatOpenShift/PlatformSubscription"
+	featureNameLower := "microsoft.Redhatopenshift/platformsubscription"
 
 	tests := []struct {
 		name        string
@@ -104,7 +104,7 @@ func TestHasRegisteredFeature(t *testing.T) {
 			name: "feature found and registered - mixed case",
 			sub: &Subscription{Properties: &SubscriptionProperties{
 				RegisteredFeatures: &[]Feature{
-					{Name: ptr("MICROSOFT.RESOURCES/PLATFORMSUBSCRIPTION"), State: &registeredState},
+					{Name: ptr("MICROSOFT.REDHATOPENSHIFT/PLATFORMSUBSCRIPTION"), State: &registeredState},
 				},
 			}},
 			featureName: featureName,
