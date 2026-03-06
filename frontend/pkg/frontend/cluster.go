@@ -950,7 +950,7 @@ func ensureSystemData(newObj, oldObj *arm.SystemData) *arm.SystemData {
 	}
 
 	if ret.CreatedAt == nil || ret.CreatedAt.IsZero() {
-		ret.CreatedAt = ptr.To(time.Now())
+		ret.CreatedAt = ptr.To(time.Now().UTC())
 	}
 	if len(ret.CreatedBy) == 0 {
 		ret.CreatedBy = "Unknown-ARO-HCP-frontend"
