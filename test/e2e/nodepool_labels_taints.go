@@ -106,7 +106,7 @@ var _ = Describe("Customer", func() {
 			nodePoolParams.Replicas = int32(2)
 			initialReplicas := nodePoolParams.Replicas
 
-			// using a smaller VM size for faster provisioning, experimental - needs more testing
+			// using a smaller VM size for faster provisioning
 			nodePoolParams.VMSize = "Standard_D4s_v3"
 
 			nodePool := framework.BuildNodePoolFromParams(nodePoolParams, tc.Location())
@@ -124,6 +124,7 @@ var _ = Describe("Customer", func() {
 					Effect: to.Ptr(hcpsdk20240610preview.EffectNoSchedule),
 				},
 			}
+			nodePool.Properties.NodeDrainTimeoutMinutes = to.Ptr(int32(1)) // Force drain timeout to prevent stuck rollouts
 
 			_, err = framework.CreateNodePoolAndWait(
 				ctx,
@@ -156,10 +157,51 @@ var _ = Describe("Customer", func() {
 			By("verifying initial taints are present on nodes")
 			Expect(framework.HasNodeTaint(nodeList.Items, "key1", "value1", corev1.TaintEffectNoSchedule, int(initialReplicas))).To(BeTrue(), "expected all nodes to have taint 'key1=value1:NoSchedule'")
 
+			By("updating nodepool with new taints and scaling up")
+			taintReplicas := int32(3)
+			updateTaints := hcpsdk20240610preview.NodePoolUpdate{
+				Properties: &hcpsdk20240610preview.NodePoolPropertiesUpdate{
+					Replicas: to.Ptr(taintReplicas),
+					Taints: []*hcpsdk20240610preview.Taint{
+						{
+							Key:    to.Ptr("key2"),
+							Value:  to.Ptr("value2"),
+							Effect: to.Ptr(hcpsdk20240610preview.EffectPreferNoSchedule),
+						},
+					},
+				},
+			}
+
+			_, err = framework.UpdateNodePoolAndWait(ctx,
+				tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient(),
+				*resourceGroup.Name,
+				customerClusterName,
+				customerNodePoolName,
+				updateTaints,
+				45*time.Minute,
+			)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("verifying all nodes eventually have the new taint")
+			Eventually(func(ctx context.Context) bool {
+				var nodeList corev1.NodeList
+				err := k8sClient.List(ctx, &nodeList)
+				if err != nil {
+					return false
+				}
+
+				if len(nodeList.Items) != int(taintReplicas) {
+					return false
+				}
+
+				return framework.HasNodeTaint(nodeList.Items, "key2", "value2", corev1.TaintEffectPreferNoSchedule, int(taintReplicas))
+			}).WithContext(ctx).WithTimeout(45*time.Minute).Should(BeTrue(), "expected all nodes to have the updated taint")
+
 			By("updating nodepool with a new label and scaling up")
+			finalReplicas := int32(4)
 			update := hcpsdk20240610preview.NodePoolUpdate{
 				Properties: &hcpsdk20240610preview.NodePoolPropertiesUpdate{
-					Replicas: to.Ptr(int32(3)),
+					Replicas: to.Ptr(finalReplicas),
 					Labels: []*hcpsdk20240610preview.Label{
 						{
 							Key:   to.Ptr("key2"),
@@ -189,47 +231,10 @@ var _ = Describe("Customer", func() {
 				return framework.HasNodeLabel(nodeList.Items, "key2", "value2")
 			}).WithContext(ctx).WithTimeout(15 * time.Minute).Should(BeTrue())
 
-			By("updating nodepool with new taints and scaling up again")
-			updateTaints := hcpsdk20240610preview.NodePoolUpdate{
-				Properties: &hcpsdk20240610preview.NodePoolPropertiesUpdate{
-					Replicas: to.Ptr(int32(4)),
-					Taints: []*hcpsdk20240610preview.Taint{
-						{
-							Key:    to.Ptr("key2"),
-							Value:  to.Ptr("value2"),
-							Effect: to.Ptr(hcpsdk20240610preview.EffectPreferNoSchedule),
-						},
-					},
-				},
-			}
-
-			_, err = framework.UpdateNodePoolAndWait(ctx,
-				tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient(),
-				*resourceGroup.Name,
-				customerClusterName,
-				customerNodePoolName,
-				updateTaints,
-				45*time.Minute,
-			)
-			Expect(err).NotTo(HaveOccurred())
-
-			By("verifying new taint is present on newly created node")
-			Eventually(func(ctx context.Context) bool {
-				var nodeList corev1.NodeList
-				err := k8sClient.List(ctx, &nodeList)
-				if err != nil {
-					return false
-				}
-				return framework.HasNodeTaint(nodeList.Items, "key2", "value2", corev1.TaintEffectPreferNoSchedule)
-			}).WithContext(ctx).WithTimeout(15 * time.Minute).Should(BeTrue())
-
-			By("verifying initial labels and taints are still present")
+			By("verifying original labels persist on original nodes")
 			var finalNodeList corev1.NodeList
 			err = k8sClient.List(ctx, &finalNodeList)
 			Expect(err).NotTo(HaveOccurred())
-
-			Expect(framework.HasNodeLabel(finalNodeList.Items, "key1", "value1", int(initialReplicas))).To(BeTrue(), "expected %d nodes to still have original label key1=value1", int(initialReplicas))
-			Expect(framework.HasNodeTaint(finalNodeList.Items, "key1", "value1", corev1.TaintEffectNoSchedule, int(initialReplicas))).To(BeTrue(), "expected %d nodes to still have original taint key1=value1:NoSchedule", int(initialReplicas))
-
+			Expect(framework.HasNodeLabel(finalNodeList.Items, "key1", "value1", int(initialReplicas))).To(BeTrue(), "expected %d nodes to still have original label key1=value1", int(taintReplicas))
 		})
 })
