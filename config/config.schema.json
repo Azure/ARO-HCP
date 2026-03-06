@@ -416,6 +416,9 @@
         },
         "tagValue": {
           "type": "string"
+        },
+        "encryptionKeyName": {
+          "type": "string"
         }
       },
       "additionalProperties": false,

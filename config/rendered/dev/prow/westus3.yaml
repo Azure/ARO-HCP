@@ -310,6 +310,7 @@ global:
     rg: placeholder
   globalMSIName: global-rollout-identity
   keyVault:
+    encryptionKeyName: secretSyncKey
     name: arohcpdev-global
     private: false
     softDelete: true
