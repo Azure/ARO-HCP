@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
 	"github.com/Azure/ARO-HCP/internal/api"
@@ -146,10 +147,11 @@ type CosmosDBTransactionDetails struct {
 }
 
 type CosmosDBTransactionStepDetails struct {
-	ActionType string `json:"actionType"`
-	CosmosID   string `json:"cosmosID"`
-	ResourceID string `json:"resourceID"`
-	GoType     string `json:"goType"`
+	ActionType string      `json:"actionType"`
+	CosmosID   string      `json:"cosmosID"`
+	ResourceID string      `json:"resourceID"`
+	GoType     string      `json:"goType"`
+	Etag       azcore.ETag `json:"etag"`
 }
 
 func (t *cosmosDBTransaction) String() string {
