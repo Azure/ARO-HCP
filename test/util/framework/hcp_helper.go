@@ -212,6 +212,87 @@ func isTerminalCreateFailure(state *hcpsdk20240610preview.ProvisioningState) boo
 		strings.EqualFold(string(*state), string(hcpsdk20240610preview.ProvisioningStateCanceled))
 }
 
+func isProvisioningStateSucceeded(state *hcpsdk20240610preview.ProvisioningState) bool {
+	if state == nil {
+		return false
+	}
+	return strings.EqualFold(string(*state), string(hcpsdk20240610preview.ProvisioningStateSucceeded))
+}
+
+func getHCPClusterWithTransientRetry(
+	ctx context.Context,
+	hcpClient *hcpsdk20240610preview.HcpOpenShiftClustersClient,
+	resourceGroupName string,
+	hcpClusterName string,
+) (hcpsdk20240610preview.HcpOpenShiftClustersClientGetResponse, error) {
+	var zero hcpsdk20240610preview.HcpOpenShiftClustersClientGetResponse
+	backoff := initialLROPollRetryBackoff
+
+	for attempt := 0; ; attempt++ {
+		clusterResp, err := GetHCPCluster(ctx, hcpClient, resourceGroupName, hcpClusterName)
+		if err == nil {
+			return clusterResp, nil
+		}
+		if !isRetryableLROPollError(err) || attempt >= maxTransientLROPollRetries {
+			return zero, err
+		}
+		if err := sleepForRetryOrCancel(ctx, backoff); err != nil {
+			return zero, err
+		}
+		backoff = min(backoff*2, maxLROPollRetryBackoff)
+	}
+}
+
+func waitForClusterProvisioningStateSucceeded(
+	ctx context.Context,
+	hcpClient *hcpsdk20240610preview.HcpOpenShiftClustersClient,
+	resourceGroupName string,
+	hcpClusterName string,
+	initial *hcpsdk20240610preview.HcpOpenShiftCluster,
+) (*hcpsdk20240610preview.HcpOpenShiftCluster, error) {
+	current := initial
+
+	for {
+		if current != nil && current.Properties != nil {
+			if isProvisioningStateSucceeded(current.Properties.ProvisioningState) {
+				return current, nil
+			}
+			if isTerminalCreateFailure(current.Properties.ProvisioningState) {
+				return nil, fmt.Errorf(
+					"cluster=%q in resourcegroup=%q reached terminal provisioning state %q while waiting for Succeeded",
+					hcpClusterName,
+					resourceGroupName,
+					*current.Properties.ProvisioningState,
+				)
+			}
+		}
+
+		clusterResp, err := getHCPClusterWithTransientRetry(ctx, hcpClient, resourceGroupName, hcpClusterName)
+		if err != nil {
+			return nil, err
+		}
+		current = &clusterResp.HcpOpenShiftCluster
+
+		if current.Properties != nil {
+			if isProvisioningStateSucceeded(current.Properties.ProvisioningState) {
+				return current, nil
+			}
+			if isTerminalCreateFailure(current.Properties.ProvisioningState) {
+				return nil, fmt.Errorf(
+					"cluster=%q in resourcegroup=%q reached terminal provisioning state %q while waiting for Succeeded",
+					hcpClusterName,
+					resourceGroupName,
+					*current.Properties.ProvisioningState,
+				)
+			}
+		}
+
+		if err := sleepForRetryOrCancel(ctx, StandardPollInterval); err != nil {
+			return nil, err
+		}
+	}
+}
+
 func (tc *perItOrDescribeTestContext) GetAdminRESTConfigForHCPCluster(
 	ctx context.Context,
 	hcpClient *hcpsdk20240610preview.HcpOpenShiftClustersClient,
@@ -815,7 +896,21 @@ func CreateHCPClusterAndWait(
 			if err != nil {
 				return nil, err
 			}
-			return &m.HcpOpenShiftCluster, nil
+
+			stable, err := waitForClusterProvisioningStateSucceeded(
+				ctx,
+				hcpClient,
+				resourceGroupName,
+				hcpClusterName,
+				&expect.HcpOpenShiftCluster,
+			)
+			if err != nil {
+				if errors.Is(err, context.DeadlineExceeded) {
+					return nil, fmt.Errorf("failed waiting for cluster=%q in resourcegroup=%q to report provisioning state Succeeded, caused by: %w, error: %w", hcpClusterName, resourceGroupName, context.Cause(ctx), err)
+				}
+				return nil, fmt.Errorf("failed waiting for cluster=%q in resourcegroup=%q to report provisioning state Succeeded: %w", hcpClusterName, resourceGroupName, err)
+			}
+			return stable, nil
 		default:
 			fmt.Printf("unknown type %T: content=%v", m, spew.Sdump(m))
 			return nil, fmt.Errorf("unknown type %T", m)
