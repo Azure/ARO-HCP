@@ -15,6 +15,9 @@ clouds:
       stg:
         # this is the MSFT STAGE environment
         defaults:
+          # This must be defined here, so our ci jobs can know this
+          kusto:
+            kustoName: "hcp-stg-uk-2"
           # E2E
           e2e:
             regionTest:
