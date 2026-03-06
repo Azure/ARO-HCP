@@ -151,5 +151,7 @@ func CosmosToInternalCluster(cosmosObj *HCPCluster) (*api.HCPOpenShiftCluster, e
 	internalObj.ServiceProviderProperties.ClusterServiceID = resourceDoc.InternalID
 	internalObj.ServiceProviderProperties.ActiveOperationID = resourceDoc.ActiveOperationID
 
+	api.SetClusterDefaultValues(internalObj)
+	
 	return internalObj, nil
 }
