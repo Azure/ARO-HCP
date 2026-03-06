@@ -13,8 +13,9 @@ RUN dnf install -y https://packages.microsoft.com/config/rhel/9.0/packages-micro
 RUN mkdir -p /etc/yum.repos.art/ci/ && ln -s /etc/yum.repos.d/microsoft-prod.repo /etc/yum.repos.art/ci/
 RUN dnf install -y azure-cli libicu make git procps-ng
 # Install Go
-RUN curl -fsSL -o /tmp/go.tar.gz \
-        "https://dl.google.com/go/go${GO_INSTALL_VERSION}.linux-amd64.tar.gz" && \
+RUN ARCH=$([ "$(uname -m)" = "aarch64" ] && echo "arm64" || echo "amd64") && \
+    curl -fsSL -o /tmp/go.tar.gz \
+        "https://dl.google.com/go/go${GO_INSTALL_VERSION}.linux-${ARCH}.tar.gz" && \
     tar -xzf /tmp/go.tar.gz -C /usr/local && \
     rm /tmp/go.tar.gz && \
     ln -s /usr/local/go/bin/go /usr/local/bin/go && \
@@ -31,11 +32,14 @@ RUN ARCH=$([ "$(uname -m)" = "aarch64" ] && echo "arm64" || echo "amd64") && \
     mv /tmp/kubelogin/bin/linux_${ARCH}/kubelogin /usr/local/bin/kubelogin && \
     rm -rf /tmp/kubelogin.zip /tmp/kubelogin && \
     chmod +x /usr/local/bin/kubelogin
-RUN curl -fsSLO "https://mirror.openshift.com/pub/openshift-v4/clients/ocp/stable/openshift-client-linux.tar.gz" && \
-    tar -xzf openshift-client-linux.tar.gz -C /usr/local/bin oc && \
-    rm openshift-client-linux.tar.gz && \
+RUN ARCH=$([ "$(uname -m)" = "aarch64" ] && echo "arm64" || echo "amd64") && \
+    SUFFIX=$([ "$ARCH" = "arm64" ] && echo "-arm64" || echo "") && \
+    curl -fsSLO "https://mirror.openshift.com/pub/openshift-v4/clients/ocp/stable/openshift-client-linux${SUFFIX}.tar.gz" && \
+    tar -xzf openshift-client-linux${SUFFIX}.tar.gz -C /usr/local/bin oc && \
+    rm openshift-client-linux${SUFFIX}.tar.gz && \
     chmod +x /usr/local/bin/oc
-RUN curl -fsSL -o - https://github.com/prometheus/prometheus/releases/download/v${PROMTOOL_VERSION}/prometheus-${PROMTOOL_VERSION}.linux-amd64.tar.gz | tar xzf - && \
-    mv prometheus-${PROMTOOL_VERSION}.linux-amd64/promtool /usr/local/bin/promtool && \
+RUN ARCH=$([ "$(uname -m)" = "aarch64" ] && echo "arm64" || echo "amd64") && \
+    curl -fsSL -o - https://github.com/prometheus/prometheus/releases/download/v${PROMTOOL_VERSION}/prometheus-${PROMTOOL_VERSION}.linux-${ARCH}.tar.gz | tar xzf - && \
+    mv prometheus-${PROMTOOL_VERSION}.linux-${ARCH}/promtool /usr/local/bin/promtool && \
     chmod +x /usr/local/bin/promtool && \
-    rm -rf prometheus-${PROMTOOL_VERSION}.linux-amd64
+    rm -rf prometheus-${PROMTOOL_VERSION}.linux-${ARCH}
