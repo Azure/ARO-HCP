@@ -1,7 +1,7 @@
 acm:
   mce:
     bundle:
-      digest: sha256:d47e2b4657108979f639b0f11d2e4f0cecb9962362446fdb9a61cbded715709b
+      digest: sha256:77ea366939a2a8e700da036ceceb6eb214491133b1f7765f1f6bf79496653117
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-210
   operator:
@@ -35,7 +35,7 @@ adminApi:
     issuer: Self
     name: admin-api-cert-cspr-usw3
   image:
-    digest: sha256:dd5758d6e0744346040194e0283198ed8aa707224a86b72fe18ec373852c9f26
+    digest: sha256:53e05368a2b1f2b4e6434ca7d15a4b324fb2346b777d5cdb2d62816835722585
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpadminapi
   k8s:
@@ -78,7 +78,7 @@ backend:
     tlsCertificatesIssuer: Self
   exitOnPanic: true
   image:
-    digest: sha256:b00199a4aef6194e6ead98d9928cd2ff56b935776782c2832713d2f8b410968e
+    digest: sha256:7141c1a8a83f85871f3dd8838d0f38a8c5334c8c534d2e8ad0cdab5fd6655826
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpbackend
   k8s:
@@ -239,7 +239,7 @@ frontend:
     zoneRedundantMode: Disabled
   exitOnPanic: true
   image:
-    digest: sha256:aa3a81bca414a4e5a921a0ccb4c569dbf62eae273c0bb6ec641066571f507bc7
+    digest: sha256:0ba0da95ac6c605d08ef1ed27308d3d95ceef8e6cbb170c107be1b07c78b71c1
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpfrontend
   k8s:
@@ -358,7 +358,7 @@ imageSync:
   ocMirror:
     enabled: true
     image:
-      digest: sha256:3571ad2735c5a37bc7a8fb0bb97509d5a1ab572b21a29765c7f69614f2797dbd
+      digest: sha256:f084ee349c3988e6c8b4c29a5e2dc4b77407a72b303548bbed8f724e3a28d9d4
       registry: arohcpsvcdev.azurecr.io
       repository: image-sync/oc-mirror
     jobNamePrefix: ""
@@ -426,7 +426,7 @@ maestro:
     name: arohcp-cspr-maestro-usw3
     private: false
   image:
-    digest: sha256:f5467d1ea5fec7d56e1480525d442f381b743dcf3fd05004b7c37f52a85cfe93
+    digest: sha256:391b002a10ffd994fa4f47e4d1096bac91e512769c0073df782f3cd8d8fe43e7
     registry: quay.io
     repository: redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro
   postgres:
@@ -738,7 +738,7 @@ sessiongate:
     issuer: Self
     name: sessiongate-cert-cspr-usw3
   image:
-    digest: sha256:2aac40b01d08707d02ed2290f6db10f3fd9ab26bd8779a29ad66ef573c93e2b7
+    digest: sha256:5266555f6b794fa84da0f58148d0d7b5222902e0b45f019d0374cf82da5ff325
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpsessiongate
   k8s:
