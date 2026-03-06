@@ -34,6 +34,7 @@ import (
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v5"
 )
 
@@ -265,12 +266,14 @@ func (tc *perItOrDescribeTestContext) GetCurrentAzureIdentityDetails(ctx context
 	return tc.perBinaryInvocationTestContext.GetCurrentAzureIdentityDetails(ctx)
 }
 
-func (tc *perItOrDescribeTestContext) CreateSREBreakglassCredentials(ctx context.Context, resourceID string, ttl time.Duration, accessLevel string, identityDetails *AzureIdentityDetails) (*rest.Config, time.Time, error) {
+// createAdminAPIHTTPClient creates an HTTP client configured for Admin API calls with
+// client principal authentication and TLS settings appropriate for the environment.
+func createAdminAPIHTTPClient(identityDetails *AzureIdentityDetails) *http.Client {
 	tlsConfig := &tls.Config{}
 	if IsDevelopmentEnvironment() {
 		tlsConfig.InsecureSkipVerify = true
 	}
-	httpClient := &http.Client{
+	return &http.Client{
 		Transport: &clientPrincipalTransport{
 			base: &http.Transport{
 				TLSClientConfig: tlsConfig,
@@ -279,6 +282,10 @@ func (tc *perItOrDescribeTestContext) CreateSREBreakglassCredentials(ctx context
 		},
 		Timeout: adminAPIRequestTimeout,
 	}
+}
+
+func (tc *perItOrDescribeTestContext) CreateSREBreakglassCredentials(ctx context.Context, resourceID string, ttl time.Duration, accessLevel string, identityDetails *AzureIdentityDetails) (*rest.Config, time.Time, error) {
+	httpClient := createAdminAPIHTTPClient(identityDetails)
 
 	adminAPIEndpoint := tc.perBinaryInvocationTestContext.adminAPIAddress
 
@@ -347,21 +354,58 @@ func (tc *perItOrDescribeTestContext) GetFirstVMFromManagedResourceGroup(ctx con
 	return "", fmt.Errorf("no VMs found in managed resource group %s", managedResourceGroupName)
 }
 
+func (tc *perItOrDescribeTestContext) DisableVMBootDiagnostics(ctx context.Context, managedResourceGroupName string, vmName string) error {
+	cred, err := tc.perBinaryInvocationTestContext.getAzureCredentials()
+	if err != nil {
+		return fmt.Errorf("failed to get Azure credentials: %w", err)
+	}
+
+	subscriptionID, err := tc.SubscriptionID(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get subscription ID: %w", err)
+	}
+
+	computeClient, err := armcompute.NewVirtualMachinesClient(subscriptionID, cred, nil)
+	if err != nil {
+		return fmt.Errorf("failed to create compute client: %w", err)
+	}
+
+	By(fmt.Sprintf("disabling boot diagnostics for VM %s", vmName))
+
+	// Get current VM
+	vm, err := computeClient.Get(ctx, managedResourceGroupName, vmName, nil)
+	if err != nil {
+		return fmt.Errorf("failed to get VM: %w", err)
+	}
+
+	// Disable boot diagnostics
+	if vm.Properties == nil {
+		vm.Properties = &armcompute.VirtualMachineProperties{}
+	}
+	if vm.Properties.DiagnosticsProfile == nil {
+		vm.Properties.DiagnosticsProfile = &armcompute.DiagnosticsProfile{}
+	}
+	vm.Properties.DiagnosticsProfile.BootDiagnostics = &armcompute.BootDiagnostics{
+		Enabled: to.Ptr(false),
+	}
+
+	// Update VM
+	poller, err := computeClient.BeginCreateOrUpdate(ctx, managedResourceGroupName, vmName, vm.VirtualMachine, nil)
+	if err != nil {
+		return fmt.Errorf("failed to begin VM update: %w", err)
+	}
+
+	_, err = poller.PollUntilDone(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("failed to disable boot diagnostics: %w", err)
+	}
+
+	return nil
+}
+
 // GetSerialConsoleLogs retrieves serial console logs for a VM in an HCP cluster's managed resource group
 func (tc *perItOrDescribeTestContext) GetSerialConsoleLogs(ctx context.Context, resourceID string, vmName string, identityDetails *AzureIdentityDetails) (string, error) {
-	tlsConfig := &tls.Config{}
-	if IsDevelopmentEnvironment() {
-		tlsConfig.InsecureSkipVerify = true
-	}
-	httpClient := &http.Client{
-		Transport: &clientPrincipalTransport{
-			base: &http.Transport{
-				TLSClientConfig: tlsConfig,
-			},
-			identityDetails: identityDetails,
-		},
-		Timeout: adminAPIRequestTimeout,
-	}
+	httpClient := createAdminAPIHTTPClient(identityDetails)
 
 	adminAPIEndpoint := tc.perBinaryInvocationTestContext.adminAPIAddress
 

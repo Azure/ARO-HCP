@@ -348,6 +348,114 @@ var _ = Describe("SRE", func() {
 			// Serial console logs typically contain boot messages, kernel output, or systemd logs
 			// We just verify that we got some content back
 			Expect(len(logs)).To(BeNumerically(">", 0))
+
+			By("testing error case: non-existent VM name")
+			_, err = tc.GetSerialConsoleLogs(ctx, hcpResourceID, "non-existent-vm-12345", currentIdentity)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("404"))
+
+			By("testing error case: invalid VM name format")
+			_, err = tc.GetSerialConsoleLogs(ctx, hcpResourceID, "-invalid-vm-name", currentIdentity)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("400"))
+
+			By("testing error case: empty VM name")
+			_, err = tc.GetSerialConsoleLogs(ctx, hcpResourceID, "", currentIdentity)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("400"))
+		})
+
+	It("should return 409 when boot diagnostics is disabled on a VM",
+		labels.RequireNothing,
+		labels.Medium,
+		labels.Negative,
+		labels.CoreInfraService,
+		labels.DevelopmentOnly,
+		labels.IntegrationOnly,
+		labels.AroRpApiCompatible,
+		func(ctx context.Context) {
+			const (
+				engineeringNetworkSecurityGroupName = "sre-nsg-name"
+				engineeringVnetName                 = "sre-vnet-name"
+				engineeringVnetSubnetName           = "sre-vnet-subnet1"
+				engineeringClusterName              = "sre-hcp-cluster-bootdiag"
+			)
+			tc := framework.NewTestContext()
+
+			if tc.UsePooledIdentities() {
+				err := tc.AssignIdentityContainers(ctx, 1, 60*time.Second)
+				Expect(err).NotTo(HaveOccurred())
+			}
+
+			By("creating a resource group")
+			resourceGroup, err := tc.NewResourceGroup(ctx, "admin-api-serialconsole-bootdiag", tc.Location())
+			Expect(err).NotTo(HaveOccurred())
+
+			By("creating cluster parameters")
+			clusterParams := framework.NewDefaultClusterParams()
+			clusterParams.ClusterName = engineeringClusterName
+			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
+			clusterParams.ManagedResourceGroupName = managedResourceGroupName
+
+			By("creating customer resources")
+			clusterParams, err = tc.CreateClusterCustomerResources(ctx,
+				resourceGroup,
+				clusterParams,
+				map[string]interface{}{
+					"customerNsgName":        engineeringNetworkSecurityGroupName,
+					"customerVnetName":       engineeringVnetName,
+					"customerVnetSubnetName": engineeringVnetSubnetName,
+				},
+				TestArtifactsFS,
+				framework.RBACScopeResourceGroup,
+			)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("creating the HCP cluster")
+			err = tc.CreateHCPClusterFromParam(
+				ctx,
+				GinkgoLogr,
+				*resourceGroup.Name,
+				clusterParams,
+				45*time.Minute,
+			)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("creating a nodepool to provision worker VMs")
+			nodePoolParams := framework.NewDefaultNodePoolParams()
+			nodePoolParams.ClusterName = engineeringClusterName
+			nodePoolParams.NodePoolName = "worker"
+			nodePoolParams.Replicas = int32(1)
+
+			err = tc.CreateNodePoolFromParam(ctx,
+				*resourceGroup.Name,
+				engineeringClusterName,
+				nodePoolParams,
+				45*time.Minute,
+			)
+			Expect(err).NotTo(HaveOccurred())
+
+			hcpResourceID := fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/%s", api.Must(tc.SubscriptionID(ctx)), *resourceGroup.Name, engineeringClusterName)
+
+			By("resolving current Azure identity")
+			currentIdentity, err := tc.GetCurrentAzureIdentityDetails(ctx)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("getting VM name from managed resource group")
+			vmName, err := tc.GetFirstVMFromManagedResourceGroup(ctx, managedResourceGroupName)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(vmName).NotTo(BeEmpty())
+
+			By("testing error case: boot diagnostics disabled")
+			err = tc.DisableVMBootDiagnostics(ctx, managedResourceGroupName, vmName)
+			Expect(err).NotTo(HaveOccurred())
+
+			_, err = tc.GetSerialConsoleLogs(ctx, hcpResourceID, vmName, currentIdentity)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("409"))
+			Expect(err.Error()).To(ContainSubstring("Conflict"))
+			Expect(err.Error()).To(ContainSubstring("Diagnostics might be disabled"))
+			Expect(err.Error()).To(ContainSubstring(vmName))
 		})
 })
 

@@ -16,6 +16,7 @@ package hcp
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -28,8 +29,10 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	sdk "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
+	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
 
 	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -65,7 +68,17 @@ func TestSerialConsoleHandler(t *testing.T) {
 			expectedError:      "vmName query parameter is required",
 		},
 		{
-			name:       "HCP cluster not found in database",
+			name:       "invalid vmName format",
+			resourceID: api.TestClusterResourceID,
+			vmName:     "-invalid-vm-name",
+			setupMocks: func(ctrl *gomock.Controller) (database.DBClient, ocm.ClusterServiceClientSpec, *mockFPACredentialRetriever) {
+				return database.NewMockDBClient(ctrl), ocm.NewMockClusterServiceClientSpec(ctrl), &mockFPACredentialRetriever{}
+			},
+			expectedStatusCode: http.StatusBadRequest,
+			expectedError:      "vmName contains invalid characters or format",
+		},
+		{
+			name:       "HCP cluster not found in database (generic error)",
 			resourceID: api.TestClusterResourceID,
 			vmName:     "test-vm",
 			setupMocks: func(ctrl *gomock.Controller) (database.DBClient, ocm.ClusterServiceClientSpec, *mockFPACredentialRetriever) {
@@ -78,15 +91,73 @@ func TestSerialConsoleHandler(t *testing.T) {
 					Return(mockCRUD)
 				mockCRUD.EXPECT().
 					Get(gomock.Any(), resourceID.Name).
-					Return(nil, fmt.Errorf("cluster not found"))
+					Return(nil, fmt.Errorf("failed to get HCP from database: cluster not found"))
 
 				return mockDB, ocm.NewMockClusterServiceClientSpec(ctrl), &mockFPACredentialRetriever{}
 			},
 			expectedStatusCode: http.StatusInternalServerError,
-			expectedError:      "cluster not found",
+			expectedError:      "failed to get HCP from database",
 		},
 		{
-			name:       "CS cluster retrieval fails",
+			name:       "HCP cluster not found in database (404 ResponseError)",
+			resourceID: api.TestClusterResourceID,
+			vmName:     "test-vm",
+			setupMocks: func(ctrl *gomock.Controller) (database.DBClient, ocm.ClusterServiceClientSpec, *mockFPACredentialRetriever) {
+				mockDB := database.NewMockDBClient(ctrl)
+				mockCRUD := database.NewMockHCPClusterCRUD(ctrl)
+
+				resourceID, _ := azcorearm.ParseResourceID(api.TestClusterResourceID)
+				mockDB.EXPECT().
+					HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).
+					Return(mockCRUD)
+				mockCRUD.EXPECT().
+					Get(gomock.Any(), resourceID.Name).
+					Return(nil, &azcore.ResponseError{StatusCode: http.StatusNotFound})
+
+				return mockDB, ocm.NewMockClusterServiceClientSpec(ctrl), &mockFPACredentialRetriever{}
+			},
+			expectedStatusCode: http.StatusInternalServerError,
+			expectedError:      "failed to get HCP from database", // Wrapped error, ReportError converts to 404 ResourceNotFoundError
+		},
+		{
+			name:       "CS cluster not found (OCM 404)",
+			resourceID: api.TestClusterResourceID,
+			vmName:     "test-vm",
+			setupMocks: func(ctrl *gomock.Controller) (database.DBClient, ocm.ClusterServiceClientSpec, *mockFPACredentialRetriever) {
+				mockDB := database.NewMockDBClient(ctrl)
+				mockCRUD := database.NewMockHCPClusterCRUD(ctrl)
+
+				resourceID, _ := azcorearm.ParseResourceID(api.TestClusterResourceID)
+				clusterServiceID, _ := api.NewInternalID("/api/clusters_mgmt/v1/clusters/test-cs-id")
+
+				hcp := &api.HCPOpenShiftCluster{
+					ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
+						ClusterServiceID: clusterServiceID,
+					},
+				}
+
+				mockDB.EXPECT().
+					HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).
+					Return(mockCRUD)
+				mockCRUD.EXPECT().
+					Get(gomock.Any(), resourceID.Name).
+					Return(hcp, nil)
+
+				// Create OCM 404 error
+				ocmErr, _ := ocmerrors.NewError().Status(http.StatusNotFound).Build()
+
+				mockCS := ocm.NewMockClusterServiceClientSpec(ctrl)
+				mockCS.EXPECT().
+					GetCluster(gomock.Any(), clusterServiceID).
+					Return(nil, ocmErr)
+
+				return mockDB, mockCS, &mockFPACredentialRetriever{}
+			},
+			expectedStatusCode: http.StatusNotFound,
+			expectedError:      "cluster data not found in cluster service",
+		},
+		{
+			name:       "CS cluster retrieval fails (generic error)",
 			resourceID: api.TestClusterResourceID,
 			vmName:     "test-vm",
 			setupMocks: func(ctrl *gomock.Controller) (database.DBClient, ocm.ClusterServiceClientSpec, *mockFPACredentialRetriever) {
@@ -117,7 +188,7 @@ func TestSerialConsoleHandler(t *testing.T) {
 				return mockDB, mockCS, &mockFPACredentialRetriever{}
 			},
 			expectedStatusCode: http.StatusInternalServerError,
-			expectedError:      "CS cluster not found",
+			expectedError:      "failed to get cluster data from cluster service",
 		},
 		{
 			name:       "FPA credential retrieval fails",
@@ -161,7 +232,7 @@ func TestSerialConsoleHandler(t *testing.T) {
 				return mockDB, mockCS, mockFPA
 			},
 			expectedStatusCode: http.StatusInternalServerError,
-			expectedError:      "failed to get FPA credentials",
+			expectedError:      "failed to retrieve Azure credentials",
 		},
 	}
 
@@ -200,7 +271,23 @@ func TestSerialConsoleHandler(t *testing.T) {
 			if tt.expectedStatusCode >= 400 {
 				if err == nil {
 					t.Errorf("Expected error but got none")
-				} else if tt.expectedError != "" {
+					return
+				}
+
+				// Check if it's a CloudError when status is 400 or 404
+				if tt.expectedStatusCode == http.StatusBadRequest || tt.expectedStatusCode == http.StatusNotFound {
+					var cloudErr *arm.CloudError
+					if !errors.As(err, &cloudErr) {
+						t.Errorf("Expected CloudError but got %T: %v", err, err)
+						return
+					}
+					if cloudErr.StatusCode != tt.expectedStatusCode {
+						t.Errorf("Expected status code %d but got %d", tt.expectedStatusCode, cloudErr.StatusCode)
+					}
+				}
+
+				// Check error message
+				if tt.expectedError != "" {
 					if !containsError(err, tt.expectedError) {
 						t.Errorf("Expected error containing %q but got %q", tt.expectedError, err.Error())
 					}
@@ -234,7 +321,21 @@ func TestSerialConsoleHandler_InvalidResourceID(t *testing.T) {
 
 	if err == nil {
 		t.Error("Expected error for missing resource ID but got none")
-	} else if !containsError(err, "invalid resource identifier") {
+		return
+	}
+
+	// Should be a CloudError with 400 status
+	var cloudErr *arm.CloudError
+	if !errors.As(err, &cloudErr) {
+		t.Errorf("Expected CloudError but got %T: %v", err, err)
+		return
+	}
+
+	if cloudErr.StatusCode != http.StatusBadRequest {
+		t.Errorf("Expected status code %d but got %d", http.StatusBadRequest, cloudErr.StatusCode)
+	}
+
+	if !containsError(err, "invalid resource identifier") {
 		t.Errorf("Expected error containing 'invalid resource identifier' but got %q", err.Error())
 	}
 }
