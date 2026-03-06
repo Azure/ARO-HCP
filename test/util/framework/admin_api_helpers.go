@@ -409,17 +409,21 @@ func (tc *perItOrDescribeTestContext) GetSerialConsoleLogs(ctx context.Context, 
 
 	adminAPIEndpoint := tc.perBinaryInvocationTestContext.adminAPIAddress
 
-	serialConsoleEndpoint := fmt.Sprintf("%s/admin/v1/hcp%s/serialconsole?vmName=%s",
+	serialConsoleEndpoint := fmt.Sprintf("%s/admin/v1/hcp%s/serialconsole",
 		adminAPIEndpoint,
 		resourceID,
-		vmName,
 	)
 
-	By(fmt.Sprintf("reaching out to the admin API to retrieve serial console logs for VM %s: %s", vmName, serialConsoleEndpoint))
+	By(fmt.Sprintf("reaching out to the admin API to retrieve serial console logs for VM %s", vmName))
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, serialConsoleEndpoint, nil)
 	if err != nil {
 		return "", fmt.Errorf("failed to create request: %w", err)
 	}
+
+	// Add query parameter with proper encoding
+	q := req.URL.Query()
+	q.Add("vmName", vmName)
+	req.URL.RawQuery = q.Encode()
 
 	resp, err := httpClient.Do(req)
 	if err != nil {

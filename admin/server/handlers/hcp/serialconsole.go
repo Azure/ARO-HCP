@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v5"
 
@@ -158,8 +159,10 @@ func (h *HCPSerialConsoleHandler) ServeHTTP(writer http.ResponseWriter, request 
 		return fmt.Errorf("failed to create blob request: %w", err)
 	}
 
-	// download blob content
-	httpClient := &http.Client{}
+	// download blob content with timeout to avoid stuck handlers on slow blob endpoints
+	httpClient := &http.Client{
+		Timeout: 30 * time.Second,
+	}
 	blobResp, err := httpClient.Do(blobReq)
 	if err != nil {
 		return fmt.Errorf("failed to download serial console log: %w", err)
@@ -170,13 +173,19 @@ func (h *HCPSerialConsoleHandler) ServeHTTP(writer http.ResponseWriter, request 
 		return fmt.Errorf("failed to download serial console log: unexpected status %d", blobResp.StatusCode)
 	}
 
-	// stream response as text/plain
+	// stream response as text/plain and prevent caching of potentially sensitive console output
 	writer.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	writer.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+	writer.Header().Set("Pragma", "no-cache")
+	writer.Header().Set("Expires", "0")
 	writer.WriteHeader(http.StatusOK)
 	_, err = io.Copy(writer, blobResp.Body)
 	if err != nil {
-		// If we fail during streaming, log it
-		return fmt.Errorf("failed to stream serial console log: %w", err)
+		// After headers are sent, we cannot return an error response
+		// Log the error and return nil to avoid panic
+		logger := utils.LoggerFromContext(request.Context())
+		logger.Error(err, "failed to stream serial console log", "vmName", vmName)
+		return nil
 	}
 
 	return nil
