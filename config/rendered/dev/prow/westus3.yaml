@@ -35,7 +35,7 @@ adminApi:
     issuer: Self
     name: admin-api-cert-prow-j7654321
   image:
-    digest: sha256:53e05368a2b1f2b4e6434ca7d15a4b324fb2346b777d5cdb2d62816835722585
+    digest: sha256:f81fd9bf3358088c4c8542c6d30edbdd390db49694117d7b716f7a39dd83c5c0
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpadminapi
   k8s:
@@ -78,7 +78,7 @@ backend:
     tlsCertificatesIssuer: Self
   exitOnPanic: true
   image:
-    digest: sha256:7141c1a8a83f85871f3dd8838d0f38a8c5334c8c534d2e8ad0cdab5fd6655826
+    digest: sha256:08d48802e0d6955284a49f9d3ab2d6984728055ac4be53a5dc45a73e98859461
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpbackend
   k8s:
@@ -239,7 +239,7 @@ frontend:
     zoneRedundantMode: Disabled
   exitOnPanic: true
   image:
-    digest: sha256:0ba0da95ac6c605d08ef1ed27308d3d95ceef8e6cbb170c107be1b07c78b71c1
+    digest: sha256:d73a976a5bc4bd1c86b57577a1e884e83a233a8f32e72a61e56a7d9a8c0f7980
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpfrontend
   k8s:
@@ -347,7 +347,7 @@ global:
 hypershift:
   additionalInstallArg: --enable-cpo-overrides
   image:
-    digest: sha256:fb1693189055953bd6c4d3ff2a720026196b14f735f200b2efd15a121eb66d15
+    digest: sha256:a3df968af7cc9da0e1c85b5ae29721b59479399c74ae997306278e7a2e808858
     registry: quay.io
     repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
   limitClusterSizes: true
@@ -358,7 +358,7 @@ imageSync:
   ocMirror:
     enabled: true
     image:
-      digest: sha256:f084ee349c3988e6c8b4c29a5e2dc4b77407a72b303548bbed8f724e3a28d9d4
+      digest: sha256:4db9f7c96d9f44065a6daa9b190adc6e6022a911e68b0f6037490fcd122171fd
       registry: arohcpsvcdev.azurecr.io
       repository: image-sync/oc-mirror
     jobNamePrefix: ""
@@ -741,7 +741,7 @@ sessiongate:
     issuer: Self
     name: sessiongate-cert-prow-j7654321
   image:
-    digest: sha256:5266555f6b794fa84da0f58148d0d7b5222902e0b45f019d0374cf82da5ff325
+    digest: sha256:c9a112675e405a907352130e4555c21a6e3e1bc79daf3ac512c34c6998e5f5a3
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpsessiongate
   k8s:
