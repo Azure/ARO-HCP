@@ -90,7 +90,7 @@ func (t *cosmosDBTransaction) OnSuccess(callback DBTransactionCallback) {
 
 func (t *cosmosDBTransaction) Execute(ctx context.Context, o *azcosmos.TransactionalBatchOptions) (DBTransactionResult, error) {
 	logger := utils.LoggerFromContext(ctx)
-	logger.Info("Executing transaction", "transaction", t)
+	logger.Info("Executing transaction", "transaction", t.ToJSONStructRendering())
 
 	result := newCosmosDBTransactionResult()
 
@@ -153,15 +153,19 @@ type CosmosDBTransactionStepDetails struct {
 }
 
 func (t *cosmosDBTransaction) String() string {
-	details := CosmosDBTransactionDetails{
-		PartitionKey: t.pk,
-		Steps:        t.stepsDetails,
-	}
-	ret, err := json.Marshal(details)
+	ret, err := json.Marshal(t.ToJSONStructRendering())
 	if err != nil {
 		return "failed to marshal transaction details: " + err.Error()
 	}
 	return string(ret)
+}
+
+// ToJSONStructRendering is useful for logging.
+func (t *cosmosDBTransaction) ToJSONStructRendering() CosmosDBTransactionDetails {
+	return CosmosDBTransactionDetails{
+		PartitionKey: t.pk,
+		Steps:        t.stepsDetails,
+	}
 }
 
 var _ DBTransactionResult = &cosmosDBTransactionResult{}
