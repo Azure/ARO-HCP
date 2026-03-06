@@ -1,6 +1,6 @@
 $schema: "pipeline.schema.v1"
-serviceGroup: Microsoft.Azure.ARO.HCP.RouteMonitorOperator
-rolloutName: Route Monitor Operator Rollout
+serviceGroup: Microsoft.Azure.ARO.HCP.RouteMonitorOperator.Delete
+rolloutName: Delete Route Monitor Operator
 resourceGroups:
 - name: global
   resourceGroup: '{{ .global.rg }}'
@@ -12,113 +12,55 @@ resourceGroups:
     parameters: ./../dev-infrastructure/configurations/output-global.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     outputOnly: true
-  - name: mirror-operator-image
-    action: ImageMirror
-    targetACR:
-      configRef: 'acr.svc.name'
-    sourceRegistry:
-      configRef: routeMonitorOperator.operatorImage.registry
-    repository:
-      configRef: routeMonitorOperator.operatorImage.repository
-    digest:
-      configRef: routeMonitorOperator.operatorImage.digest
-    pullSecretKeyVault:
-      configRef: global.keyVault.name
-    pullSecretName:
-      configRef: imageSync.ondemandSync.pullSecretName
-    shellIdentity:
-      input:
-        resourceGroup: global
-        step: output
-        name: globalMSIId
-    automatedRetry:
-      errorContainsAny:
-      - "unknown_storage_failure"
-      - "unexpected EOF"
-      - "unauthorized: authentication required"
-      maximumRetryCount: 5
-      durationBetweenRetries: 1m
-  - name: mirror-blackbox-image
-    action: ImageMirror
-    targetACR:
-      configRef: 'acr.svc.name'
-    sourceRegistry:
-      configRef: routeMonitorOperator.blackboxExporterImage.registry
-    repository:
-      configRef: routeMonitorOperator.blackboxExporterImage.repository
-    digest:
-      configRef: routeMonitorOperator.blackboxExporterImage.digest
-    pullSecretKeyVault:
-      configRef: global.keyVault.name
-    pullSecretName:
-      configRef: imageSync.ondemandSync.pullSecretName
-    shellIdentity:
-      input:
-        resourceGroup: global
-        step: output
-        name: globalMSIId
-    automatedRetry:
-      errorContainsAny:
-      - "unknown_storage_failure"
-      - "unexpected EOF"
-      - "unauthorized: authentication required"
-      maximumRetryCount: 5
-      durationBetweenRetries: 1m
-- name: kusto
-  resourceGroup: '{{ .kusto.rg }}'
-  subscription: '{{ .global.subscription.key }}'
-  steps:
-  - name: kusto-lookup
-    action: ARM
-    template: ../dev-infrastructure/templates/kusto-lookup.bicep
-    parameters: ../dev-infrastructure/configurations/kusto-lookup.tmpl.bicepparam
-    deploymentLevel: ResourceGroup
-    outputOnly: true
 - name: management
   resourceGroup: '{{ .mgmt.rg }}'
   subscription: '{{ .mgmt.subscription.key }}'
   steps:
-  - name: default-ingresscontroller-hack
+  - name: delete-rmo-custom-resources
     aksCluster: '{{ .mgmt.aks.name }}'
     action: Shell
-    command: make default-ingresscontroller-hack
+    command: make delete-custom-resources
     workingDir: ./
     shellIdentity:
       input:
         resourceGroup: global
         step: output
         name: globalMSIId
-  - name: deploy
+    dryRun:
+      variables:
+      - name: DRY_RUN
+        value: "true"
+  - name: delete-helm-release
     aksCluster: '{{ .mgmt.aks.name }}'
-    action: Helm
-    releaseName: route-monitor-operator
-    releaseNamespace: openshift-route-monitor-operator
-    chartDir: ./deploy/helm/route-monitor-operator
-    valuesFile: ./deploy/helm/values.yaml
-    kustoEndpoint:
-      resourceGroup: kusto
-      step: kusto-lookup
-      name: kustoUri
-    kustoDatabase: '{{ .kusto.serviceLogsDatabase }}'
-    kustoTable: 'containerLogs'
+    action: Shell
+    command: make delete-helm-release
+    workingDir: ./
+    shellIdentity:
+      input:
+        resourceGroup: global
+        step: output
+        name: globalMSIId
+    dryRun:
+      variables:
+      - name: DRY_RUN
+        value: "true"
     dependsOn:
-    - resourceGroup: global
-      step: mirror-operator-image
-    - resourceGroup: global
-      step: mirror-blackbox-image
     - resourceGroup: management
-      step: default-ingresscontroller-hack
-    externalDependsOn:
-    - serviceGroup: Microsoft.Azure.ARO.HCP.ACM
-      resourceGroup: management
-      step: deploy-mce-config
-    identityFrom:
-      resourceGroup: global
-      step: output
-      name: globalMSIId
-    automatedRetry:
-      errorContainsAny:
-      - "500 Internal Server Error"
-      - "Internal error occurred"
-      maximumRetryCount: 3
-      durationBetweenRetries: 1m
+      step: delete-rmo-custom-resources
+  - name: delete-ingresscontroller-hack
+    aksCluster: '{{ .mgmt.aks.name }}'
+    action: Shell
+    command: make delete-ingresscontroller-hack
+    workingDir: ./
+    shellIdentity:
+      input:
+        resourceGroup: global
+        step: output
+        name: globalMSIId
+    dryRun:
+      variables:
+      - name: DRY_RUN
+        value: "true"
+    dependsOn:
+    - resourceGroup: management
+      step: delete-helm-release
