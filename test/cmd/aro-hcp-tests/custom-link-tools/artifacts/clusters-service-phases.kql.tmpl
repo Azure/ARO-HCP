@@ -1,0 +1,8 @@
+let _startTime = datetime("{{.StartTime}}");
+let _endTime = datetime("{{.EndTime}}");
+database('ServiceLogs').table('containerLogs')
+| where timestamp between (_startTime .. _endTime)
+| where cluster == '{{.ClusterName}}'
+| where container_name == 'clusters-service-server'
+| where log has 'state to' or log has 'now in'
+| project timestamp, log
