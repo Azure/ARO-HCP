@@ -43,5 +43,11 @@
 		},
 		"provisioningState": "Accepted"
 	},
-	"type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/externalAuths"
+	"type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/externalAuths",
+	"systemData": {
+		"createdBy": "Unknown-ARO-HCP-frontend",
+		"createdByType": "Application",
+		"lastModifiedBy": "Unknown-ARO-HCP-frontend",
+		"lastModifiedByType": "Application"
+	}
 }

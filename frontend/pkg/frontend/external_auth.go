@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"k8s.io/utils/ptr"
 
@@ -219,6 +220,10 @@ func decodeDesiredExternalAuthCreate(ctx context.Context) (*api.HCPOpenShiftClus
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}
+	// If for some reason systemData.CreatedAt is not set, we set it to the current time in UTC.
+	if systemData.CreatedAt == nil {
+		systemData.CreatedAt = ptr.To(time.Now().UTC())
+	}
 
 	externalExternalAuthFromRequest := versionedInterface.NewHCPOpenShiftClusterExternalAuth(&api.HCPOpenShiftClusterExternalAuth{})
 	if err := json.Unmarshal(body, &externalExternalAuthFromRequest); err != nil {
@@ -241,7 +246,7 @@ func decodeDesiredExternalAuthCreate(ctx context.Context) (*api.HCPOpenShiftClus
 
 	// set fields that were not included during the conversion, because the user does not provide them or because the
 	// data is determined live on read.
-	newInternalExternalAuth.SystemData = systemData
+	newInternalExternalAuth.SystemData = ensureSystemData(systemData, nil)
 
 	return newInternalExternalAuth, nil
 }
@@ -412,7 +417,7 @@ func decodeDesiredExternalAuthReplace(ctx context.Context, oldInternalExternalAu
 	//    We do this because if a user has read a value, then modified it, then replaces it, we don't want to produce
 	//    validation errors on status fields that the user isn't trying to modify.
 	conversion.CopyReadOnlyExternalAuthValues(newInternalExternalAuth, oldInternalExternalAuth)
-	newInternalExternalAuth.SystemData = systemData
+	newInternalExternalAuth.SystemData = ensureSystemData(systemData, oldInternalExternalAuth.SystemData)
 
 	return newInternalExternalAuth, nil
 }
@@ -461,7 +466,7 @@ func decodeDesiredExternalAuthPatch(ctx context.Context, oldInternalExternalAuth
 	}
 
 	conversion.CopyReadOnlyExternalAuthValues(newInternalExternalAuth, oldInternalExternalAuth)
-	newInternalExternalAuth.SystemData = systemData
+	newInternalExternalAuth.SystemData = ensureSystemData(systemData, oldInternalExternalAuth.SystemData)
 
 	return newInternalExternalAuth, nil
 }

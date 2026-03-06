@@ -80,6 +80,13 @@ func MinimumValidClusterTestCase() *HCPOpenShiftCluster {
 	resource.CustomerProperties.Platform.SubnetID = Must(azcorearm.ParseResourceID(TestSubnetResourceID))
 	resource.CustomerProperties.Platform.NetworkSecurityGroupID = Must(azcorearm.ParseResourceID(TestNetworkSecurityGroupResourceID))
 	resource.ServiceProviderProperties.ManagedIdentitiesDataPlaneIdentityURL = TestManagedIdentitiesDataPlaneIdentityURL
+	// Add required systemData fields
+	createdAt := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+	resource.SystemData = &arm.SystemData{
+		CreatedBy:     "test-user",
+		CreatedByType: arm.CreatedByTypeUser,
+		CreatedAt:     &createdAt,
+	}
 	return resource
 }
 
@@ -94,6 +101,13 @@ func MinimumValidExternalAuthTestCase() *HCPOpenShiftClusterExternalAuth {
 	resource.Properties.Issuer.URL = "https://www.redhat.com"
 	resource.Properties.Issuer.Audiences = []string{"audience1"}
 	resource.Properties.Claim.Mappings.Username.Claim = "my-cool-claim"
+	// Add required systemData fields
+	createdAt := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+	resource.SystemData = &arm.SystemData{
+		CreatedBy:     "test-user",
+		CreatedByType: arm.CreatedByTypeUser,
+		CreatedAt:     &createdAt,
+	}
 	return resource
 }
 

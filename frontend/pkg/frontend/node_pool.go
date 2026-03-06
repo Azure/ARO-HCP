@@ -22,6 +22,7 @@ import (
 	"maps"
 	"net/http"
 	"strings"
+	"time"
 
 	"k8s.io/utils/ptr"
 
@@ -221,6 +222,10 @@ func decodeDesiredNodePoolCreate(ctx context.Context, azureLocation string) (*ap
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}
+	// If for some reason systemData.CreatedAt is not set, we set it to the current time in UTC.
+	if systemData.CreatedAt == nil {
+		systemData.CreatedAt = ptr.To(time.Now().UTC())
+	}
 
 	externalNodePoolFromRequest := versionedInterface.NewHCPOpenShiftClusterNodePool(&api.HCPOpenShiftClusterNodePool{})
 	if err := json.Unmarshal(body, &externalNodePoolFromRequest); err != nil {
@@ -242,7 +247,7 @@ func decodeDesiredNodePoolCreate(ctx context.Context, azureLocation string) (*ap
 
 	// set fields that were not included during the conversion, because the user does not provide them or because the
 	// data is determined live on read.
-	newInternalNodePool.SystemData = systemData
+	newInternalNodePool.SystemData = ensureSystemData(systemData, nil)
 
 	return newInternalNodePool, nil
 }
@@ -425,7 +430,7 @@ func decodeDesiredNodePoolReplace(ctx context.Context, oldInternalNodePool *api.
 	//    We do this because if a user has read a value, then modified it, then replaces it, we don't want to produce
 	//    validation errors on status fields that the user isn't trying to modify.
 	conversion.CopyReadOnlyNodePoolValues(newInternalNodePool, oldInternalNodePool)
-	newInternalNodePool.SystemData = systemData
+	newInternalNodePool.SystemData = ensureSystemData(systemData, oldInternalNodePool.SystemData)
 
 	// Here the difference between a nil map and an empty map is significant.
 	// If the Tags map is nil, that means it was omitted from the request body,
@@ -488,7 +493,7 @@ func decodeDesiredNodePoolPatch(ctx context.Context, oldInternalNodePool *api.HC
 	}
 
 	conversion.CopyReadOnlyNodePoolValues(newInternalNodePool, oldInternalNodePool)
-	newInternalNodePool.SystemData = systemData
+	newInternalNodePool.SystemData = ensureSystemData(systemData, oldInternalNodePool.SystemData)
 
 	// Here the difference between a nil map and an empty map is significant.
 	// If the Tags map is nil, that means it was omitted from the request body,

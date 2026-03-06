@@ -692,6 +692,7 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 				resourceLogger.Info("preflight: failed to convert resource", "error", err.Error())
 				continue
 			}
+			newInternalCluster.SystemData = ensureSystemData(newInternalCluster.SystemData, nil)
 			// the external type lacks sufficient data to full produce a valid resourceID.  We do that separately here.
 			parts := []string{
 				"/subscriptions", subscriptionID,
@@ -738,6 +739,8 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 				// this indicates something really strange happened, return an error for it.
 				return utils.TrackError(err)
 			}
+			newInternalNodePool.SystemData = ensureSystemData(newInternalNodePool.SystemData, nil)
+
 			validationErrs := validation.ValidateNodePoolCreate(ctx, newInternalNodePool)
 			preflightErr = arm.CloudErrorFromFieldErrors(validationErrs)
 
@@ -759,6 +762,7 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 				resourceLogger.Info("preflight: failed to convert resource", "error", err.Error())
 				continue
 			}
+			newInternalAuth.SystemData = ensureSystemData(newInternalAuth.SystemData, nil)
 			// the external type lacks sufficient data to full produce a valid resourceID.  We do that separately here.
 			parts := []string{
 				"/subscriptions", subscriptionID,
