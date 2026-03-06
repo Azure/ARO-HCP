@@ -94,9 +94,9 @@ spec:
         - name: OPERAND_IMAGE_HYPERSHIFT_ADDON_OPERATOR
           value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/hypershift-addon-rhel9-operator@sha256:c55f0b8899ab9cb9c4997e4d4c1d9ad91de9ae98d86812c6405aab0782302133'
         - name: OPERAND_IMAGE_HYPERSHIFT_CLI
-          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/hypershift-cli-rhel9@sha256:0be365f2dc0fbf5f7c766668711dc600f1834fa317f8f8a2f8f97881bd5884f6'
+          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/hypershift-cli-rhel9@sha256:20b652d5e5ad36995a1f527646aa782d8d5cbdd042c3a4aad9200d1a5ffa7f29'
         - name: OPERAND_IMAGE_HYPERSHIFT_OPERATOR
-          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/hypershift-rhel9-operator@sha256:8f7d34e7e65864bfdce976f5440b5535fc0f5277330a0d23aec957f34c74cc20'
+          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/hypershift-rhel9-operator@sha256:fc23352c7786dda8ce5c09cbf9d9867e61fd0e78c815ca7da9b807d499ed2035'
         - name: OPERAND_IMAGE_IMAGE_BASED_INSTALL_OPERATOR
           value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/image-based-install-rhel9@sha256:4f2b4b9dde09c886462f553694c2e9c175d17c4820980a93c1c21acfe0c205f8'
         - name: OPERAND_IMAGE_KUBE_RBAC_PROXY_MCE
