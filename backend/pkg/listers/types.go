@@ -32,6 +32,7 @@ type BackendListers struct {
 	HCPOpenShiftClusterExternalAuthLister ExternalAuthLister
 	ServiceProviderClusterLister          ServiceProviderClusterLister
 	ServiceProviderNodePoolLister         ServiceProviderNodePoolLister
+	ControllerLister                      ControllerLister
 }
 
 const (
