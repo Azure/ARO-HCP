@@ -34,6 +34,7 @@ type BackendInformers interface {
 	ExternalAuths() (cache.SharedIndexInformer, listers.ExternalAuthLister)
 	ServiceProviderClusters() (cache.SharedIndexInformer, listers.ServiceProviderClusterLister)
 	ServiceProviderNodePools() (cache.SharedIndexInformer, listers.ServiceProviderNodePoolLister)
+	Controllers() (cache.SharedIndexInformer, listers.ControllerLister)
 
 	RunWithContext(ctx context.Context)
 }
@@ -59,6 +60,9 @@ type backendInformers struct {
 
 	serviceProviderNodePoolInformer cache.SharedIndexInformer
 	serviceProviderNodePoolLister   listers.ServiceProviderNodePoolLister
+
+	controllerInformer cache.SharedIndexInformer
+	controllerLister   listers.ControllerLister
 }
 
 func (b *backendInformers) Subscriptions() (cache.SharedIndexInformer, listers.SubscriptionLister) {
@@ -89,6 +93,10 @@ func (b *backendInformers) ServiceProviderNodePools() (cache.SharedIndexInformer
 	return b.serviceProviderNodePoolInformer, b.serviceProviderNodePoolLister
 }
 
+func (b *backendInformers) Controllers() (cache.SharedIndexInformer, listers.ControllerLister) {
+	return b.controllerInformer, b.controllerLister
+}
+
 func NewBackendInformers(ctx context.Context, globalListers database.GlobalListers) BackendInformers {
 	return NewBackendInformersWithRelistDuration(ctx, globalListers, nil)
 }
@@ -100,6 +108,7 @@ func NewBackendInformersWithRelistDuration(ctx context.Context, globalListers da
 	externalAuthRelistDuration := ExternalAuthRelistDuration
 	serviceProviderClusterRelistDuration := ServiceProviderClusterRelistDuration
 	serviceProviderNodePoolRelistDuration := ServiceProviderNodePoolRelistDuration
+	controllerRelistDuration := ControllerRelistDuration
 	activeOperationsRelistDuration := ActiveOperationsRelistDuration
 	if relistDuration != nil {
 		subscriptionRelistDuration = *relistDuration
@@ -108,6 +117,7 @@ func NewBackendInformersWithRelistDuration(ctx context.Context, globalListers da
 		externalAuthRelistDuration = *relistDuration
 		serviceProviderClusterRelistDuration = *relistDuration
 		serviceProviderNodePoolRelistDuration = *relistDuration
+		controllerRelistDuration = *relistDuration
 		activeOperationsRelistDuration = *relistDuration
 	}
 
@@ -119,6 +129,7 @@ func NewBackendInformersWithRelistDuration(ctx context.Context, globalListers da
 	ret.externalAuthInformer = NewExternalAuthInformerWithRelistDuration(globalListers.ExternalAuths(), externalAuthRelistDuration)
 	ret.serviceProviderClusterInformer = NewServiceProviderClusterInformerWithRelistDuration(globalListers.ServiceProviderClusters(), serviceProviderClusterRelistDuration)
 	ret.serviceProviderNodePoolInformer = NewServiceProviderNodePoolInformerWithRelistDuration(globalListers.ServiceProviderNodePools(), serviceProviderNodePoolRelistDuration)
+	ret.controllerInformer = NewControllerInformerWithRelistDuration(globalListers.Controllers(), controllerRelistDuration)
 
 	ret.subscriptionLister = listers.NewSubscriptionLister(ret.subscriptionInformer.GetIndexer())
 	ret.activeOperationLister = listers.NewActiveOperationLister(ret.activeOperationInformer.GetIndexer())
@@ -127,6 +138,7 @@ func NewBackendInformersWithRelistDuration(ctx context.Context, globalListers da
 	ret.externalAuthLister = listers.NewExternalAuthLister(ret.externalAuthInformer.GetIndexer())
 	ret.serviceProviderClusterLister = listers.NewServiceProviderClusterLister(ret.serviceProviderClusterInformer.GetIndexer())
 	ret.serviceProviderNodePoolLister = listers.NewServiceProviderNodePoolLister(ret.serviceProviderNodePoolInformer.GetIndexer())
+	ret.controllerLister = listers.NewControllerLister(ret.controllerInformer.GetIndexer())
 
 	return ret
 }
@@ -172,6 +184,7 @@ func (b *backendInformers) RunWithContext(ctx context.Context) {
 	go func() {
 		defer wg.Done()
 		b.serviceProviderNodePoolInformer.RunWithContext(ctx)
+		b.controllerInformer.RunWithContext(ctx)
 	}()
 
 	<-ctx.Done()

@@ -127,6 +127,7 @@ func TestSharedInformerEvents(t *testing.T) {
 		clusterInformerTestCase(),
 		nodePoolInformerTestCase(),
 		activeOperationInformerTestCase(),
+		controllerInformerTestCase(),
 	}
 
 	for _, tc := range testCases {
@@ -175,6 +176,7 @@ func TestSharedInformerResync(t *testing.T) {
 		clusterInformerTestCase(),
 		nodePoolInformerTestCase(),
 		activeOperationInformerTestCase(),
+		controllerInformerTestCase(),
 	}
 
 	for _, tc := range testCases {
@@ -637,6 +639,199 @@ func activeOperationInformerTestCase() informerTestCase {
 				}
 				return false
 			}, 5*time.Second, 100*time.Millisecond, "expected add event for op-3")
+		},
+	}
+}
+
+// ---- Controller informer test case ----
+
+func controllerInformerTestCase() informerTestCase {
+	const (
+		subscriptionID    = "00000000-0000-0000-0000-000000000004"
+		resourceGroupName = "test-rg"
+		clusterName       = "parent-cluster"
+		nodePoolName      = "test-nodepool"
+		externalAuthName  = "test-externalauth"
+	)
+
+	newClusterController := func(t *testing.T, name string) *api.Controller {
+		t.Helper()
+		controllerResourceID := mustParseResourceID(t,
+			"/subscriptions/"+subscriptionID+
+				"/resourceGroups/"+resourceGroupName+
+				"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/"+clusterName+
+				"/hcpOpenShiftControllers/"+name)
+		return &api.Controller{
+			CosmosMetadata: api.CosmosMetadata{
+				ResourceID: controllerResourceID,
+			},
+			ResourceID: controllerResourceID,
+		}
+	}
+
+	newNodePoolController := func(t *testing.T, name string) *api.Controller {
+		t.Helper()
+		controllerResourceID := mustParseResourceID(t,
+			"/subscriptions/"+subscriptionID+
+				"/resourceGroups/"+resourceGroupName+
+				"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/"+clusterName+
+				"/nodePools/"+nodePoolName+
+				"/hcpOpenShiftControllers/"+name)
+		return &api.Controller{
+			CosmosMetadata: api.CosmosMetadata{
+				ResourceID: controllerResourceID,
+			},
+			ResourceID: controllerResourceID,
+		}
+	}
+
+	newExternalAuthController := func(t *testing.T, name string) *api.Controller {
+		t.Helper()
+		controllerResourceID := mustParseResourceID(t,
+			"/subscriptions/"+subscriptionID+
+				"/resourceGroups/"+resourceGroupName+
+				"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/"+clusterName+
+				"/externalAuths/"+externalAuthName+
+				"/hcpOpenShiftControllers/"+name)
+		return &api.Controller{
+			CosmosMetadata: api.CosmosMetadata{
+				ResourceID: controllerResourceID,
+			},
+			ResourceID: controllerResourceID,
+		}
+	}
+
+	return informerTestCase{
+		name: "controller",
+		seedDB: func(t *testing.T, ctx context.Context, mockDB *databasetesting.MockDBClient) {
+			t.Helper()
+			// Create the parent cluster.
+			clusterResourceID := mustParseResourceID(t,
+				"/subscriptions/"+subscriptionID+
+					"/resourceGroups/"+resourceGroupName+
+					"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/"+clusterName)
+			internalID, err := api.NewInternalID("/api/clusters_mgmt/v1/clusters/" + clusterName)
+			require.NoError(t, err)
+			cluster := &api.HCPOpenShiftCluster{
+				TrackedResource: arm.TrackedResource{
+					Resource: arm.Resource{
+						ID:   clusterResourceID,
+						Name: clusterName,
+						Type: api.ClusterResourceType.String(),
+					},
+					Location: "eastus",
+				},
+				ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
+					ProvisioningState: arm.ProvisioningStateSucceeded,
+					ClusterServiceID:  internalID,
+				},
+			}
+			_, err = mockDB.HCPClusters(subscriptionID, resourceGroupName).Create(ctx, cluster, nil)
+			require.NoError(t, err)
+
+			// Create a nodepool under the cluster.
+			npResourceID := mustParseResourceID(t,
+				"/subscriptions/"+subscriptionID+
+					"/resourceGroups/"+resourceGroupName+
+					"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/"+clusterName+
+					"/nodePools/"+nodePoolName)
+			np := &api.HCPOpenShiftClusterNodePool{
+				TrackedResource: arm.TrackedResource{
+					Resource: arm.Resource{
+						ID:   npResourceID,
+						Name: nodePoolName,
+						Type: npResourceID.ResourceType.String(),
+					},
+				},
+			}
+			_, err = mockDB.HCPClusters(subscriptionID, resourceGroupName).NodePools(clusterName).Create(ctx, np, nil)
+			require.NoError(t, err)
+
+			// Create an externalauth under the cluster.
+			eaResourceID := mustParseResourceID(t,
+				"/subscriptions/"+subscriptionID+
+					"/resourceGroups/"+resourceGroupName+
+					"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/"+clusterName+
+					"/externalAuths/"+externalAuthName)
+			ea := &api.HCPOpenShiftClusterExternalAuth{
+				ProxyResource: arm.NewProxyResource(eaResourceID),
+			}
+			_, err = mockDB.HCPClusters(subscriptionID, resourceGroupName).ExternalAuth(clusterName).Create(ctx, ea, nil)
+			require.NoError(t, err)
+
+			// Create controllers under the cluster, nodepool, and externalauth.
+			clusterCtrlCRUD := mockDB.HCPClusters(subscriptionID, resourceGroupName).Controllers(clusterName)
+			_, err = clusterCtrlCRUD.Create(ctx, newClusterController(t, "ctrl-cluster-1"), nil)
+			require.NoError(t, err)
+			_, err = clusterCtrlCRUD.Create(ctx, newClusterController(t, "ctrl-cluster-2"), nil)
+			require.NoError(t, err)
+
+			npCtrlCRUD := mockDB.HCPClusters(subscriptionID, resourceGroupName).NodePools(clusterName).Controllers(nodePoolName)
+			_, err = npCtrlCRUD.Create(ctx, newNodePoolController(t, "ctrl-np"), nil)
+			require.NoError(t, err)
+
+			eaCtrlCRUD := mockDB.HCPClusters(subscriptionID, resourceGroupName).ExternalAuth(clusterName).Controllers(externalAuthName)
+			_, err = eaCtrlCRUD.Create(ctx, newExternalAuthController(t, "ctrl-ea"), nil)
+			require.NoError(t, err)
+		},
+		createInformer: func(mockDB *databasetesting.MockDBClient) cache.SharedIndexInformer {
+			return NewControllerInformerWithRelistDuration(mockDB.GlobalListers().Controllers(), 1*time.Second)
+		},
+		expectedInitialAdds: 4,
+		mutateDB: func(t *testing.T, ctx context.Context, mockDB *databasetesting.MockDBClient) {
+			t.Helper()
+			clusterCtrlCRUD := mockDB.HCPClusters(subscriptionID, resourceGroupName).Controllers(clusterName)
+
+			// Add a new cluster controller.
+			_, err := clusterCtrlCRUD.Create(ctx, newClusterController(t, "ctrl-cluster-3"), nil)
+			require.NoError(t, err)
+
+			// Delete a cluster controller.
+			err = clusterCtrlCRUD.Delete(ctx, "ctrl-cluster-2")
+			require.NoError(t, err)
+
+			// Delete the nodepool controller.
+			npCtrlCRUD := mockDB.HCPClusters(subscriptionID, resourceGroupName).NodePools(clusterName).Controllers(nodePoolName)
+			err = npCtrlCRUD.Delete(ctx, "ctrl-np")
+			require.NoError(t, err)
+		},
+		verifyMutationEvents: func(t *testing.T, tracker *objectEventTracker) {
+			t.Helper()
+			// Expect an add for ctrl-cluster-3.
+			require.Eventually(t, func() bool {
+				for _, obj := range tracker.getAdded() {
+					if c, ok := obj.(*api.Controller); ok {
+						if c.ResourceID != nil && c.ResourceID.Name == "ctrl-cluster-3" {
+							return true
+						}
+					}
+				}
+				return false
+			}, 5*time.Second, 100*time.Millisecond, "expected add event for ctrl-cluster-3")
+
+			// Expect a delete for ctrl-cluster-2.
+			require.Eventually(t, func() bool {
+				for _, obj := range tracker.getDeleted() {
+					if c, ok := obj.(*api.Controller); ok {
+						if c.ResourceID != nil && c.ResourceID.Name == "ctrl-cluster-2" {
+							return true
+						}
+					}
+				}
+				return false
+			}, 5*time.Second, 100*time.Millisecond, "expected delete event for ctrl-cluster-2")
+
+			// Expect a delete for ctrl-np.
+			require.Eventually(t, func() bool {
+				for _, obj := range tracker.getDeleted() {
+					if c, ok := obj.(*api.Controller); ok {
+						if c.ResourceID != nil && c.ResourceID.Name == "ctrl-np" {
+							return true
+						}
+					}
+				}
+				return false
+			}, 5*time.Second, 100*time.Millisecond, "expected delete event for ctrl-np")
 		},
 	}
 }

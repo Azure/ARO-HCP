@@ -38,6 +38,7 @@ const (
 	ByResourceGroup = "byResourceGroup"
 	ByCluster       = "byCluster"
 	ByNodePool      = "byNodePool"
+	ByExternalAuth  = "byExternalAuth"
 )
 
 // listAll retrieves all items from a store, casting each to *T.

@@ -32,6 +32,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/utils"
+	"github.com/Azure/ARO-HCP/internal/utils/apihelpers"
 )
 
 const (
@@ -43,6 +44,7 @@ const (
 	ExternalAuthRelistDuration            = 30 * time.Second
 	ServiceProviderClusterRelistDuration  = 30 * time.Second
 	ServiceProviderNodePoolRelistDuration = 30 * time.Second
+	ControllerRelistDuration              = 30 * time.Second
 	ActiveOperationsRelistDuration        = 10 * time.Second
 )
 
@@ -333,6 +335,57 @@ func NewServiceProviderNodePoolInformerWithRelistDuration(lister database.Global
 	)
 }
 
+// NewControllerInformer creates an unstarted SharedIndexInformer for controllers
+// using the default relist duration.
+func NewControllerInformer(lister database.GlobalLister[api.Controller]) cache.SharedIndexInformer {
+	return NewControllerInformerWithRelistDuration(lister, ControllerRelistDuration)
+}
+
+// NewControllerInformerWithRelistDuration creates an unstarted SharedIndexInformer for controllers
+// with a configurable relist duration.
+func NewControllerInformerWithRelistDuration(lister database.GlobalLister[api.Controller], relistDuration time.Duration) cache.SharedIndexInformer {
+	lw := &cache.ListWatch{
+		ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
+			logger := utils.LoggerFromContext(ctx)
+			logger.Info("listing controllers")
+			defer logger.Info("finished listing controllers")
+
+			iter, err := lister.List(ctx, nil)
+			if err != nil {
+				return nil, err
+			}
+
+			list := &api.ControllerList{}
+			list.ResourceVersion = "0"
+			for _, controller := range iter.Items(ctx) {
+				list.Items = append(list.Items, *controller)
+			}
+			if err := iter.GetError(); err != nil {
+				return nil, err
+			}
+
+			return list, nil
+		},
+		WatchFuncWithContext: func(ctx context.Context, options metav1.ListOptions) (watch.Interface, error) {
+			return NewExpiringWatcher(ctx, relistDuration), nil
+		},
+	}
+
+	return cache.NewSharedIndexInformerWithOptions(
+		lw,
+		&api.Controller{},
+		cache.SharedIndexInformerOptions{
+			ResyncPeriod: 1 * time.Hour,
+			Indexers: cache.Indexers{
+				listers.ByResourceGroup: resourceGroupIndexFunc,
+				listers.ByCluster:       clusterResourceIDIndexFunc,
+				listers.ByNodePool:      nodePoolResourceIDIndexFunc,
+				listers.ByExternalAuth:  externalAuthResourceIDIndexFunc,
+			},
+		},
+	)
+}
+
 // NewActiveOperationInformer creates an unstarted SharedIndexInformer for
 // active (non-terminal) operations with resource group and cluster indexes
 // using the default relist duration.
@@ -395,6 +448,22 @@ func resourceGroupIndexFunc(obj interface{}) ([]string, error) {
 	}
 }
 
+// findAncestorResourceID walks up the resource ID parent chain looking for
+// a resource matching the given type. Returns the lowercased string form
+// of the first match, or nil if no match is found.
+func findAncestorResourceID(resourceType azcorearm.ResourceType, resourceID *azcorearm.ResourceID) ([]string, error) {
+	if resourceID == nil {
+		return nil, nil
+	}
+	if apihelpers.ResourceTypeEqual(resourceID.ResourceType, resourceType) {
+		return []string{strings.ToLower(resourceID.String())}, nil
+	}
+	if resourceID.Parent == nil {
+		return nil, nil
+	}
+	return findAncestorResourceID(resourceType, resourceID.Parent)
+}
+
 func clusterResourceIDIndexFunc(obj interface{}) ([]string, error) {
 	switch castObj := obj.(type) {
 	case arm.CosmosMetadataAccessor:
@@ -407,31 +476,22 @@ func clusterResourceIDIndexFunc(obj interface{}) ([]string, error) {
 }
 
 func clusterResourceIDFromResourceID(resourceID *azcorearm.ResourceID) ([]string, error) {
-	switch {
-	case resourceID == nil:
-		return nil, nil
+	return findAncestorResourceID(api.ClusterResourceType, resourceID)
+}
 
-	case strings.EqualFold(resourceID.ResourceType.String(), api.ClusterResourceType.String()):
-		return []string{strings.ToLower(resourceID.String())}, nil
-
-	case resourceID.Parent == nil:
-		return nil, nil
-	case strings.EqualFold(resourceID.Parent.ResourceType.String(), api.ClusterResourceType.String()):
-		return []string{strings.ToLower(resourceID.Parent.String())}, nil
-
-	case resourceID.Parent.Parent == nil:
-		return nil, nil
-	case strings.EqualFold(resourceID.Parent.Parent.ResourceType.String(), api.ClusterResourceType.String()):
-		return []string{strings.ToLower(resourceID.Parent.Parent.String())}, nil
-
-	case resourceID.Parent.Parent.Parent == nil:
-		return nil, nil
-	case strings.EqualFold(resourceID.Parent.Parent.Parent.ResourceType.String(), api.ClusterResourceType.String()):
-		return []string{strings.ToLower(resourceID.Parent.Parent.Parent.String())}, nil
-
+func externalAuthResourceIDIndexFunc(obj interface{}) ([]string, error) {
+	switch castObj := obj.(type) {
+	case arm.CosmosMetadataAccessor:
+		return externalAuthResourceIDFromResourceID(castObj.GetResourceID())
+	case arm.CosmosPersistable:
+		return externalAuthResourceIDFromResourceID(castObj.GetCosmosData().ResourceID)
 	default:
-		return nil, nil
+		return nil, utils.TrackError(fmt.Errorf("unexpected type %T, expected api.CosmosMetadataAccessor or api.CosmosPersistable", obj))
 	}
+}
+
+func externalAuthResourceIDFromResourceID(resourceID *azcorearm.ResourceID) ([]string, error) {
+	return findAncestorResourceID(api.ExternalAuthResourceType, resourceID)
 }
 
 // activeOperationResourceGroupIndexFunc indexes operations by the resource group
@@ -475,19 +535,5 @@ func nodePoolResourceIDIndexFunc(obj interface{}) ([]string, error) {
 }
 
 func nodePoolResourceIDFromResourceID(resourceID *azcorearm.ResourceID) ([]string, error) {
-	switch {
-	case resourceID == nil:
-		return nil, nil
-
-	case strings.EqualFold(resourceID.ResourceType.String(), api.NodePoolResourceType.String()):
-		return []string{strings.ToLower(resourceID.String())}, nil
-
-	case resourceID.Parent == nil:
-		return nil, nil
-	case strings.EqualFold(resourceID.Parent.ResourceType.String(), api.NodePoolResourceType.String()):
-		return []string{strings.ToLower(resourceID.Parent.String())}, nil
-
-	default:
-		return nil, nil
-	}
+	return findAncestorResourceID(api.NodePoolResourceType, resourceID)
 }

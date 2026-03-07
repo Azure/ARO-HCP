@@ -17,6 +17,7 @@ package database
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"k8s.io/utils/ptr"
 
@@ -41,6 +42,7 @@ type GlobalListers interface {
 	ExternalAuths() GlobalLister[api.HCPOpenShiftClusterExternalAuth]
 	ServiceProviderClusters() GlobalLister[api.ServiceProviderCluster]
 	ServiceProviderNodePools() GlobalLister[api.ServiceProviderNodePool]
+	Controllers() GlobalLister[api.Controller]
 	Operations() GlobalLister[api.Operation]
 	ActiveOperations() GlobalLister[api.Operation]
 }
@@ -95,6 +97,17 @@ func (g *cosmosGlobalListers) ServiceProviderNodePools() GlobalLister[api.Servic
 	return &cosmosGlobalLister[api.ServiceProviderNodePool, GenericDocument[api.ServiceProviderNodePool]]{
 		containerClient: g.resources,
 		resourceType:    api.ServiceProviderNodePoolResourceType,
+	}
+}
+
+func (g *cosmosGlobalListers) Controllers() GlobalLister[api.Controller] {
+	return &cosmosControllerGlobalLister{
+		containerClient: g.resources,
+		controllerResourceTypes: []azcorearm.ResourceType{
+			api.ClusterControllerResourceType,
+			api.NodePoolControllerResourceType,
+			api.ExternalAuthControllerResourceType,
+		},
 	}
 }
 
@@ -154,4 +167,37 @@ func (l *cosmosActiveOperationsGlobalLister) List(ctx context.Context, options *
 		return newQueryResourcesSinglePageIterator[api.Operation, GenericDocument[api.Operation]](pager), nil
 	}
 	return newQueryResourcesIterator[api.Operation, GenericDocument[api.Operation]](pager), nil
+}
+
+// cosmosControllerGlobalLister lists all controllers of specified resource types across all partitions.
+type cosmosControllerGlobalLister struct {
+	containerClient         *azcosmos.ContainerClient
+	controllerResourceTypes []azcorearm.ResourceType
+}
+
+func (l *cosmosControllerGlobalLister) List(ctx context.Context, options *DBClientListResourceDocsOptions) (DBClientIterator[api.Controller], error) {
+	var resourceTypeConditions []string
+	for _, resourceType := range l.controllerResourceTypes {
+		resourceTypeConditions = append(resourceTypeConditions, fmt.Sprintf("STRINGEQUALS(c.resourceType, %q, true)", resourceType.String()))
+	}
+	whereClause := strings.Join(resourceTypeConditions, " OR ")
+	query := fmt.Sprintf("SELECT * FROM c WHERE %s", whereClause)
+
+	queryOptions := azcosmos.QueryOptions{
+		PageSizeHint: -1,
+	}
+	if options != nil {
+		if options.PageSizeHint != nil {
+			queryOptions.PageSizeHint = max(*options.PageSizeHint, -1)
+		}
+		queryOptions.ContinuationToken = options.ContinuationToken
+	}
+
+	partitionKey := azcosmos.NewPartitionKey()
+	pager := l.containerClient.NewQueryItemsPager(query, partitionKey, &queryOptions)
+
+	if options != nil && ptr.Deref(options.PageSizeHint, -1) > 0 {
+		return newQueryResourcesSinglePageIterator[api.Controller, GenericDocument[api.Controller]](pager), nil
+	}
+	return newQueryResourcesIterator[api.Controller, GenericDocument[api.Controller]](pager), nil
 }
