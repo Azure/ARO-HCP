@@ -77,8 +77,8 @@ func testDeleteOrphanedCosmosResourcesController(t *testing.T, withMock bool) {
 				require.NoError(t, err)
 
 				for _, item := range allItems.Items(ctx) {
-					if item.ID == "|subscriptions|a433a095-1277-44f1-8453-8d61a4d848c2" ||
-						item.ID == "|subscriptions|a433a095-1277-44f1-8453-8d61a4d848c2|resourcegroups|unimportantpostponement|providers|microsoft.redhatopenshift|hcpopenshiftclusters|monstrousprecinct" {
+					if item.ID == "a0a404a5-15e9-6b00-5d5d-58460bad8c18" ||
+						item.ID == "20f9e877-5cce-d888-07d9-78a5e19f06ee" {
 						continue
 					}
 					t.Errorf("unexpected resource found: %v", item.ID)
@@ -110,9 +110,9 @@ func testDeleteOrphanedCosmosResourcesController(t *testing.T, withMock bool) {
 				require.NoError(t, err)
 
 				for _, item := range allItems.Items(ctx) {
-					if item.ID == "|subscriptions|a433a095-1277-44f1-8453-8d61a4d848c2" ||
-						item.ID == "|subscriptions|a433a095-1277-44f1-8453-8d61a4d848c2|resourcegroups|unimportantpostponement|providers|microsoft.redhatopenshift|hcpopenshiftclusters|monstrousprecinct" ||
-						item.ID == "|subscriptions|a433a095-1277-44f1-8453-8d61a4d848c2|resourcegroups|unimportantpostponement|providers|microsoft.redhatopenshift|hcpopenshiftclusters|monstrousprecinct|hcpopenshiftcontrollers|clustercontroller" {
+					if item.ID == "a0a404a5-15e9-6b00-5d5d-58460bad8c18" ||
+						item.ID == "20f9e877-5cce-d888-07d9-78a5e19f06ee" ||
+						item.ID == "32c0e44d-2fd5-7875-ac85-5c31efd03b79" {
 						continue
 					}
 					t.Errorf("unexpected resource found: %v", item.ID)
@@ -144,7 +144,7 @@ func testDeleteOrphanedCosmosResourcesController(t *testing.T, withMock bool) {
 
 				for _, item := range allItems.Items(ctx) {
 					// No resources other than this subscription should exist
-					if item.ID != "|subscriptions|a433a095-1277-44f1-8453-8d61a4d848c2" {
+					if item.ID != "a0a404a5-15e9-6b00-5d5d-58460bad8c18" {
 						t.Errorf("resource under missing cluster should have been deleted: %s", item.ID)
 					}
 				}
