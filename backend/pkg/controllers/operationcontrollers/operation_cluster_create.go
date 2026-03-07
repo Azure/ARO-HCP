@@ -109,7 +109,7 @@ func (c *operationClusterCreate) SynchronizeOperation(ctx context.Context, key c
 			return utils.TrackError(err)
 		}
 
-		// we use fallback time when the createdAt time is missing.  it never overcharges, but let's use release an unexpected record.
+		// we use fallback time when the createdAt time is missing.  it never overcharges, but it's not always accurate.
 		fallbackTime := c.clock.Now()
 		logger.Info("creating billing")
 		err = c.createBillingDocument(
