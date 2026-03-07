@@ -296,6 +296,7 @@ func addReplaceToTransaction[InternalAPIType, CosmosAPIType any](ctx context.Con
 		GoType:     fmt.Sprintf("%T", newObj),
 		CosmosID:   cosmosMetadata.GetCosmosUID(),
 		ResourceID: cosmosMetadata.ResourceID.String(),
+		Etag:       cosmosMetadata.CosmosETag,
 	}
 
 	if opts == nil {

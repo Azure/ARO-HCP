@@ -782,8 +782,12 @@ func (f *Frontend) addDeleteClusterToTransaction(ctx context.Context, writer htt
 	// on the resource or child resources, but we need to do some database
 	// bookkeeping to reflect that.
 	err = f.CancelActiveOperations(ctx, transaction, &database.DBClientListActiveOperationDocsOptions{
-		ExternalID:             cluster.ID,
-		IncludeNestedResources: true,
+		ExternalID: cluster.ID,
+		// We don't include operations for resources below clusters (eg. nodepools) because, as part of the deletion flow,
+		// we will process each nested resource directly, delete it and cancel its operations then. If we handle resources
+		// multiple times, then we end up in a situation where the first operation to cancel operations has a matching etag
+		// and the subsequent operations do not have a matching etag, meaning we fail the transaction.
+		IncludeNestedResources: false,
 	})
 	if err != nil {
 		return utils.TrackError(err)
