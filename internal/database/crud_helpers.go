@@ -77,6 +77,8 @@ func getByItemID[InternalAPIType, CosmosAPIType any](ctx context.Context, contai
 }
 
 func get[InternalAPIType, CosmosAPIType any](ctx context.Context, containerClient *azcosmos.ContainerClient, partitionKeyString string, completeResourceID *azcorearm.ResourceID) (*InternalAPIType, error) {
+	logger := utils.LoggerFromContext(ctx)
+
 	// try to see if the cosmosID we've passed is also the exact resource ID.  If so, then return the value we got.
 	newExactCosmosID, err := arm.ResourceIDToCosmosID(completeResourceID)
 	if err != nil {
@@ -96,6 +98,12 @@ func get[InternalAPIType, CosmosAPIType any](ctx context.Context, containerClien
 		return nil, utils.TrackError(err)
 	}
 	responseItem, err := containerClient.ReadItem(ctx, partitionKey, oldExactCosmosID, nil)
+	if IsResponseError(err, http.StatusBadRequest) && strings.Contains(err.Error(), "The request URL is invalid") {
+		// this happens when we're using the old key and the URL is too long.  This only seems to happen in some regions, but when it happens
+		// it is a record we'll never recover.  Every known case is for a controller status, so recreating them isn't a big deal.
+		logger.Error(err, "failed to get item", "oldExactCosmosID", oldExactCosmosID)
+		return nil, NewNotFoundError()
+	}
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}
@@ -111,7 +119,6 @@ func get[InternalAPIType, CosmosAPIType any](ctx context.Context, containerClien
 		return nil, fmt.Errorf("failed to marshal Cosmos DB item for '%s': %w", completeResourceID, err)
 	}
 
-	logger := utils.LoggerFromContext(ctx)
 	logger.Info("migrating item", "newCosmosID", newExactCosmosID, "oldCosmosID", originalCosmosID)
 	if _, err := containerClient.CreateItem(ctx, partitionKey, newBytes, nil); err != nil {
 		return nil, utils.TrackError(err)
