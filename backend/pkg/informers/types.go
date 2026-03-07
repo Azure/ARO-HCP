@@ -184,6 +184,10 @@ func (b *backendInformers) RunWithContext(ctx context.Context) {
 	go func() {
 		defer wg.Done()
 		b.serviceProviderNodePoolInformer.RunWithContext(ctx)
+	}()
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
 		b.controllerInformer.RunWithContext(ctx)
 	}()
 

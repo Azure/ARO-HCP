@@ -206,8 +206,7 @@ func (l *mockActiveOperationsGlobalLister) List(ctx context.Context, options *da
 	return newMockIterator(ids, items), nil
 }
 
-// mockControllerGlobalLister lists controllers with non-terminal status
-// across all partitions.
+// mockControllerGlobalLister lists controllers across all partitions.
 type mockControllerGlobalLister struct {
 	client        *MockDBClient
 	resourceTypes []azcorearm.ResourceType
@@ -225,7 +224,7 @@ func (l *mockControllerGlobalLister) List(ctx context.Context, options *database
 			continue
 		}
 
-		// check if any of the resourceTypes matche the one from the doc
+		// check if any of the resourceTypes match the one from the doc
 		resourceTypeMatches := false
 		for _, resourceType := range l.resourceTypes {
 			if strings.EqualFold(typedDoc.ResourceType, resourceType.String()) {
