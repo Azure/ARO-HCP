@@ -87,7 +87,7 @@ func (c *doNothingExample) synchronizeHCPCluster(ctx context.Context, key contro
 	} else {
 		logger.Info("starting work for item",
 			"provisioning_state", cosmosHCPCluster.ServiceProviderProperties.ProvisioningState,
-			"controller_degraded", controllerutils.GetCondition(existingController.Status.Conditions, "Degraded"),
+			"controller_degraded", controllerutils.GetCondition(existingController.Status.Conditions, controllerutils.ConditionTypeDegraded),
 		)
 	}
 

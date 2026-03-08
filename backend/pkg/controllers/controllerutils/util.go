@@ -136,6 +136,9 @@ func (k *HCPNodePoolKey) InitialController(controllerName string) *api.Controlle
 // clock is used by helper functions for setting last transition time.  It is injectable for unit testing.
 var clock utilsclock.Clock = utilsclock.RealClock{}
 
+// ConditionTypeDegraded is the condition type used to report controller degradation.
+const ConditionTypeDegraded = "Degraded"
+
 // controllerMutationFunc is called when trying to write a controller. It gives a spot for computation of a value.
 // It should only perform short calls, not long lookups.  It must not fail. Think of it as a way to write information
 // that you have already precomputed.
@@ -145,7 +148,7 @@ func ReportSyncError(syncErr error) controllerMutationFunc {
 	return func(controller *api.Controller) {
 		if syncErr == nil {
 			SetCondition(&controller.Status.Conditions, api.Condition{
-				Type:    "Degraded",
+				Type:    ConditionTypeDegraded,
 				Status:  api.ConditionFalse,
 				Reason:  "NoErrors",
 				Message: "As expected.",
@@ -154,7 +157,7 @@ func ReportSyncError(syncErr error) controllerMutationFunc {
 		}
 
 		SetCondition(&controller.Status.Conditions, api.Condition{
-			Type:    "Degraded",
+			Type:    ConditionTypeDegraded,
 			Status:  api.ConditionTrue,
 			Reason:  "Failed",
 			Message: fmt.Sprintf("Had an error while syncing: %s", syncErr.Error()),
