@@ -472,6 +472,60 @@ resource frontend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' =
         for: 'PT5M'
         severity: 4
       }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'FrontendHighAuditLogErrorRate'
+        enabled: true
+        labels: {
+          severity: 'info'
+        }
+        annotations: {
+          correlationId: 'FrontendHighAuditLogErrorRate/{{ $labels.cluster }}'
+          description: 'Audit log error rate is above 5% for the last hour. Current value: {{ $value | humanizePercentage }}.'
+          info: 'Audit log error rate is above 5% for the last hour. Current value: {{ $value | humanizePercentage }}.'
+          runbook_url: 'TBD'
+          summary: 'High Frontend audit log error rate.'
+          title: 'High Frontend audit log error rate.'
+        }
+        expression: '( sum by (cluster) (rate(otel_audit_log_send_errors_total{job="aro-hcp-frontend-metrics"}[1h])) / sum by (cluster) (rate(otel_audit_log_records_total{job="aro-hcp-frontend-metrics"}[1h])) ) > 0.05'
+        for: 'PT5M'
+        severity: 4
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'FrontendAuditLogConnectionDegraded'
+        enabled: true
+        labels: {
+          severity: 'info'
+        }
+        annotations: {
+          correlationId: 'FrontendAuditLogConnectionDegraded/{{ $labels.cluster }}'
+          description: 'The frontend failed to connect to the audit server and is running with a no-op audit client. No audit logs are being sent.'
+          info: 'The frontend failed to connect to the audit server and is running with a no-op audit client. No audit logs are being sent.'
+          runbook_url: 'TBD'
+          summary: 'Frontend audit log connection is degraded.'
+          title: 'Frontend audit log connection is degraded.'
+        }
+        expression: 'otel_audit_log_connection_degraded{job="aro-hcp-frontend-metrics"} == 1'
+        for: 'PT5M'
+        severity: 4
+      }
     ]
     scopes: [
       azureMonitoring
@@ -509,6 +563,73 @@ resource backend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = 
           title: 'High Error Rate on Backend Operations'
         }
         expression: '(sum by (cluster) (rate(backend_failed_operations_total[1h]))) / (sum by (cluster) (rate(backend_operations_total[1h]))) > 0.05'
+        for: 'PT5M'
+        severity: 4
+      }
+    ]
+    scopes: [
+      azureMonitoring
+    ]
+  }
+}
+
+resource adminApi 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'admin-api'
+  location: resourceGroup().location
+  properties: {
+    interval: 'PT1M'
+    rules: [
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'AdminHighAuditLogErrorRate'
+        enabled: true
+        labels: {
+          severity: 'info'
+        }
+        annotations: {
+          correlationId: 'AdminHighAuditLogErrorRate/{{ $labels.cluster }}'
+          description: 'Audit log error rate is above 5% for the last hour. Current value: {{ $value | humanizePercentage }}.'
+          info: 'Audit log error rate is above 5% for the last hour. Current value: {{ $value | humanizePercentage }}.'
+          runbook_url: 'TBD'
+          summary: 'High Admin API audit log error rate.'
+          title: 'High Admin API audit log error rate.'
+        }
+        expression: '( sum by (cluster) (rate(otel_audit_log_send_errors_total{job="aro-hcp-admin-api-metrics"}[1h])) / sum by (cluster) (rate(otel_audit_log_records_total{job="aro-hcp-admin-api-metrics"}[1h])) ) > 0.05'
+        for: 'PT5M'
+        severity: 4
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'AdminAuditLogConnectionDegraded'
+        enabled: true
+        labels: {
+          severity: 'info'
+        }
+        annotations: {
+          correlationId: 'AdminAuditLogConnectionDegraded/{{ $labels.cluster }}'
+          description: 'The admin API failed to connect to the audit server and is running with a no-op audit client. No audit logs are being sent.'
+          info: 'The admin API failed to connect to the audit server and is running with a no-op audit client. No audit logs are being sent.'
+          runbook_url: 'TBD'
+          summary: 'Admin API audit log connection is degraded.'
+          title: 'Admin API audit log connection is degraded.'
+        }
+        expression: 'otel_audit_log_connection_degraded{job="aro-hcp-admin-api-metrics"} == 1'
         for: 'PT5M'
         severity: 4
       }

@@ -83,7 +83,7 @@ func NewFrontend(
 	logger logr.Logger,
 	listener net.Listener,
 	metricsListener net.Listener,
-	reg prometheus.Registerer,
+	registry *prometheus.Registry,
 	dbClient database.DBClient,
 	csClient ocm.ClusterServiceClientSpec,
 	auditClient audit.Client,
@@ -116,11 +116,11 @@ func NewFrontend(
 		},
 		auditClient:                   auditClient,
 		dbClient:                      dbClient,
-		collector:                     metrics.NewSubscriptionCollector(reg, dbClient, azureLocation),
+		collector:                     metrics.NewSubscriptionCollector(registry, dbClient, azureLocation),
 		clusterServiceProvisionShard:  clusterServiceProvisionShard,
 		clusterServiceNoopProvision:   clusterServiceNoopProvision,
 		clusterServiceNoopDeprovision: clusterServiceNoopDeprovision,
-		healthGauge: promauto.With(reg).NewGauge(
+		healthGauge: promauto.With(registry).NewGauge(
 			prometheus.GaugeOpts{
 				Name: healthGaugeName,
 				Help: "Reports the health status of the service (0: not healthy, 1: healthy).",
@@ -131,8 +131,8 @@ func NewFrontend(
 		exitOnPanic:   exitOnPanic,
 	}
 
-	f.server.Handler = f.routes(reg)
-	f.metricsServer.Handler = f.metricsRoutes()
+	f.server.Handler = f.routes(registry)
+	f.metricsServer.Handler = f.metricsRoutes(registry)
 
 	return f
 }
