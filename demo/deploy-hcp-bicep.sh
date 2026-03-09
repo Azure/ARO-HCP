@@ -7,6 +7,8 @@ set -o pipefail
 source env_vars
 # The ONLY supported region for ARO-HCP in INT is uksouth
 LOCATION=${LOCATION:-uksouth}
+CLUSTER_VERSION=${CLUSTER_VERSION:-4.20}
+NODEPOOL_VERSION=${NODEPOOL_VERSION:-4.20.8}
 SUBSCRIPTION=$(az account show --query 'name' -o tsv)
 
 PROVIDER_JSON=$(az provider show --namespace Microsoft.RedHatOpenShift -o json)
@@ -66,7 +68,8 @@ az deployment group create \
     nsgName="${CUSTOMER_NSG}" \
     clusterName="${CLUSTER_NAME}" \
     managedResourceGroupName="${MANAGED_RESOURCE_GROUP}" \
-    keyVaultName="${KEYVAULT_NAME}"
+    keyVaultName="${KEYVAULT_NAME}" \
+    openshiftVersion="${CLUSTER_VERSION}"
 
 az deployment group create \
   --name 'node-pool' \
@@ -75,4 +78,5 @@ az deployment group create \
   --template-file bicep/nodepool.bicep \
   --parameters \
     clusterName="${CLUSTER_NAME}" \
-    nodePoolName="${NP_NAME}"
+    nodePoolName="${NP_NAME}" \
+    openshiftVersion="${NODEPOOL_VERSION}"

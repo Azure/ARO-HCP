@@ -16,6 +16,12 @@ param subnetName string
 @description('The KeyVault name that contains the encryption key')
 param keyVaultName string
 
+@description('The OpenShift version to use for the cluster (e.g. 4.20)')
+param openshiftVersion string
+
+@description('The channel group for the OpenShift version')
+param channelGroup string = 'stable'
+
 var etcdEncryptionKeyName = 'etcd-data-kms-encryption-key'
 var randomSuffix = toLower(uniqueString(clusterName))
 
@@ -565,6 +571,10 @@ resource hcp 'Microsoft.RedHatOpenShift/hcpOpenShiftClusters@2024-06-10-preview'
           serviceManagedIdentity: serviceManagedIdentity.id
         }
       }
+    }
+    version: {
+      id: openshiftVersion
+      channelGroup: channelGroup
     }
   }
   identity: {

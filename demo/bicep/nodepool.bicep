@@ -4,6 +4,12 @@ param clusterName string
 @description('The name of the node pool')
 param nodePoolName string
 
+@description('The OpenShift version to use for the node pool (e.g. 4.20.8)')
+param openshiftVersion string
+
+@description('The channel group for the OpenShift version')
+param channelGroup string = 'stable'
+
 resource hcp 'Microsoft.RedHatOpenShift/hcpOpenShiftClusters@2024-06-10-preview' existing = {
   name: clusterName
 }
@@ -22,5 +28,9 @@ resource nodepool 'Microsoft.RedHatOpenShift/hcpOpenShiftClusters/nodePools@2024
       }
     }
     replicas: 2
+    version: {
+      id: openshiftVersion
+      channelGroup: channelGroup
+    }
   }
 }
