@@ -70,35 +70,25 @@ func (c *backfillBillingDocID) synchronizeCluster(ctx context.Context, keyObj co
 		"clusterServiceID", cluster.ServiceProviderProperties.ClusterServiceID,
 	)
 
-	// Query for existing billing documents for this cluster matching the creation time
-	billingDocs, err := c.getBillingDocumentsForCluster(ctx, cluster.ID, cluster.SystemData.CreatedAt)
+	// Query for an existing billing document for this cluster matching the creation time
+	billingDoc, err := c.getBillingDocumentForClusterByCreationTime(ctx, cluster.ID, cluster.SystemData.CreatedAt)
 	if err != nil {
 		return utils.TrackError(err)
 	}
 
 	var billingDocID string
-	if len(billingDocs) == 0 {
-		// No billing documents found matching creation time, generate a new UUID
-		logger.Info("no existing billing documents found matching creation time, generating new BillingDocID",
+	if billingDoc == nil {
+		// No billing document found matching creation time, generate a new UUID
+		logger.Info("no existing billing document found matching creation time, generating new BillingDocID",
 			"clusterCreationTime", cluster.SystemData.CreatedAt,
 		)
 		billingDocID = uuid.New().String()
-	} else if len(billingDocs) == 1 {
-		// Single billing document found, use its ID
-		billingDocID = billingDocs[0].ID
+	} else {
+		// Billing document found, use its ID
+		billingDocID = billingDoc.ID
 		logger.Info("found billing document matching creation time, using its ID",
 			"billingDocID", billingDocID,
-			"billingCreationTime", billingDocs[0].CreationTime,
-		)
-	} else {
-		// Multiple billing documents found with same creation time (unexpected but handle it)
-		logger.Info("found multiple billing documents with same creation time, using first match",
-			"count", len(billingDocs),
-			"clusterCreationTime", cluster.SystemData.CreatedAt,
-		)
-		billingDocID = billingDocs[0].ID
-		logger.Info("using first billing document",
-			"billingDocID", billingDocID,
+			"billingCreationTime", billingDoc.CreationTime,
 		)
 	}
 
@@ -125,10 +115,13 @@ func (c *backfillBillingDocID) synchronizeCluster(ctx context.Context, keyObj co
 	return nil
 }
 
-// getBillingDocumentsForCluster queries the billing container for all billing documents
+// getBillingDocumentForClusterByCreationTime queries the billing container for a billing document
 // matching the given cluster resource ID and creation time (without a deletion timestamp).
-func (c *backfillBillingDocID) getBillingDocumentsForCluster(ctx context.Context, resourceID *azcorearm.ResourceID, creationTime *time.Time) ([]*database.BillingDocument, error) {
-	return c.cosmosClient.GetBillingDocsForCluster(ctx, resourceID, creationTime)
+func (c *backfillBillingDocID) getBillingDocumentForClusterByCreationTime(ctx context.Context, resourceID *azcorearm.ResourceID, creationTime *time.Time) (*database.BillingDocument, error) {
+	if creationTime == nil {
+		return nil, nil
+	}
+	return c.cosmosClient.GetBillingDocForClusterByCreationTime(ctx, resourceID, *creationTime)
 }
 
 func (c *backfillBillingDocID) SyncOnce(ctx context.Context, keyObj controllerutils.HCPClusterKey) error {

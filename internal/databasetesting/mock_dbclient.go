@@ -115,26 +115,59 @@ func (m *MockDBClient) PatchBillingDoc(ctx context.Context, resourceID *azcorear
 	return nil
 }
 
-// GetBillingDocsForCluster retrieves all billing documents for a given cluster resource ID.
-func (m *MockDBClient) GetBillingDocsForCluster(ctx context.Context, resourceID *azcorearm.ResourceID, creationTime *time.Time) ([]*database.BillingDocument, error) {
+// GetBillingDocForClusterByCreationTime retrieves a billing document for a cluster
+// that exactly matches the provided creation time.
+func (m *MockDBClient) GetBillingDocForClusterByCreationTime(ctx context.Context, resourceID *azcorearm.ResourceID, creationTime time.Time) (*database.BillingDocument, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	for _, doc := range m.billing {
+		if strings.EqualFold(doc.ResourceID.String(), resourceID.String()) && doc.DeletionTime == nil {
+			if doc.CreationTime.Equal(creationTime) {
+				return doc, nil
+			}
+		}
+	}
+
+	return nil, nil
+}
+
+// GetActiveBillingDocsForCluster retrieves all active billing documents for a cluster.
+func (m *MockDBClient) GetActiveBillingDocsForCluster(ctx context.Context, resourceID *azcorearm.ResourceID) ([]*database.BillingDocument, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
 	var docs []*database.BillingDocument
 	for _, doc := range m.billing {
 		if strings.EqualFold(doc.ResourceID.String(), resourceID.String()) && doc.DeletionTime == nil {
-			if creationTime != nil {
-				// Match creation time if provided
-				if doc.CreationTime.Equal(*creationTime) {
-					docs = append(docs, doc)
-				}
-			} else {
-				docs = append(docs, doc)
-			}
+			docs = append(docs, doc)
 		}
 	}
 
 	return docs, nil
+}
+
+// PatchBillingDocByID patches a billing document by its ID.
+func (m *MockDBClient) PatchBillingDocByID(ctx context.Context, subscriptionID, billingDocID string, ops database.BillingDocumentPatchOperations) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	// Find the billing document by ID and subscriptionID
+	var foundID string
+	for _, doc := range m.billing {
+		if doc.ID == billingDocID && doc.SubscriptionID == subscriptionID {
+			foundID = doc.ID
+			break
+		}
+	}
+
+	if len(foundID) == 0 {
+		return &azcore.ResponseError{StatusCode: http.StatusNotFound}
+	}
+
+	// Apply patch operations would be implemented here
+	// For now, just acknowledge the operation
+	return nil
 }
 
 // UntypedCRUD provides access to untyped resource operations.
