@@ -112,12 +112,6 @@ defaults:
     kusto:
       enabled: false
       environmentName: "{{ .ctx.environment }}"
-    mdsd:
-      enabled: true
-      image:
-        registry: mcr.microsoft.com
-        repository: geneva/distroless/mdsd
-        digest: sha256:18d5476700adcd40e9ee2bc1cb62a1150ac1b5e696d7bad6adeea4da88c615db # 1.40.2-20260218-1 (2026-02-18 21:01)
   # Kube Events
   kubeEvents:
     enabled: true
@@ -945,8 +939,6 @@ clouds:
       tenantId: "64dc69e4-d083-49fc-9569-ebece1dd1408"
       automationDryRun: false
       arobit:
-        mdsd:
-          enabled: false
         kusto:
           enabled: true
           environmentName: "dev"

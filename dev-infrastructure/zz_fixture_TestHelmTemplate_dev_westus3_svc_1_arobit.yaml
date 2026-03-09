@@ -282,31 +282,6 @@ data:
         ingestion_mapping_reference ingestionMapping
         buffer_dir /var/fluent-bit/kusto
 
-  output-mdsd.conf: |
-    # Forward logs to mdsd instance (default port)
-    [OUTPUT]
-        Name  forward
-        Alias forward.mdsd.other
-        Match mdsd-other.logs
-        Host  127.0.0.1
-        Port  5001
-        Tag   akskubesystem
-
-    [OUTPUT]
-        Name  prometheus_exporter
-        Alias exporter.fluentbit
-        Match metrics.fluentbit
-        Host  0.0.0.0
-        Port  9090
-  output-mdsd-ocm.conf: |
-    # Forward OCM namespace logs (ocm-.* pattern) to another mdsd instance
-    [OUTPUT]
-        Name  forward
-        Alias forward.mdsd.ocm
-        Match mdsd-ocm.logs
-        Host  127.0.0.1
-        Port  5002
-        Tag   akskubesystem
   reassemble_cri.lua: |
     local reassemble_state = {}
     function reassemble_cri(tag, timestamp, record)
@@ -416,7 +391,7 @@ spec:
         app: arobit-forwarder
         azure.workload.identity/use: "true"
       annotations:
-        checksum/configmap: 68599d89c7e2d6de6d9eee9cf0c5b138e704d6fe9aa0e326a0499ca65ebe2bda
+        checksum/configmap: c6eb70b438bdbfff305dd2aba3c531107312ee131e4a9c4c45edfa74929c3f99
     spec:
       serviceAccountName: 'arobit-forwarder'
       shareProcessNamespace: true
@@ -505,33 +480,10 @@ spec:
           hostPath:
             type: File
             path: /etc/ssl/certs/ca-certificates.crt
-        - name: mdsd-run
-          emptyDir: {}
         - name: flb-config
           configMap:
             name: arobit-forwarder
             defaultMode: 0755
----
-# Source: arobit/templates/forwarder-secretprovider.yaml
-apiVersion: secrets-store.csi.x-k8s.io/v1
-kind: SecretProviderClass
-metadata:
-  name: arobit-secretprovider
-  namespace: 'arobit'
-spec:
-  provider: azure
-  parameters:
-    clientID: '__msiClientId__'
-    cloudName: 'AzurePublicCloud'
-    keyvaultName: "aro-hcp-dev-svc-kv"
-    objects: |
-      array:
-        - |
-          objectName: "rplogs"
-          objectAlias: "gcscert.pem"
-          objectType: secret
-    tenantId: "__tenantId__"
-    usePodIdentity: "false"
 ---
 # Source: arobit/templates/forwarder-servicemonitor.yaml
 apiVersion: monitoring.coreos.com/v1

@@ -256,31 +256,6 @@ data:
         ingestion_mapping_reference ingestionMapping
         buffer_dir /var/fluent-bit/kusto
 
-  output-mdsd.conf: |
-    # Forward logs to mdsd instance (default port)
-    [OUTPUT]
-        Name  forward
-        Alias forward.mdsd.other
-        Match mdsd-other.logs
-        Host  127.0.0.1
-        Port  5001
-        Tag   akskubesystem
-
-    [OUTPUT]
-        Name  prometheus_exporter
-        Alias exporter.fluentbit
-        Match metrics.fluentbit
-        Host  0.0.0.0
-        Port  9090
-  output-mdsd-ocm.conf: |
-    # Forward OCM namespace logs (ocm-.* pattern) to another mdsd instance
-    [OUTPUT]
-        Name  forward
-        Alias forward.mdsd.ocm
-        Match mdsd-ocm.logs
-        Host  127.0.0.1
-        Port  5002
-        Tag   akskubesystem
   reassemble_cri.lua: |
     local reassemble_state = {}
     function reassemble_cri(tag, timestamp, record)
@@ -390,7 +365,7 @@ spec:
         app: arobit-forwarder
         azure.workload.identity/use: "true"
       annotations:
-        checksum/configmap: 4df671a094f6e786e1e58e554629dc634aa363eb875234f880bd1be486d019ce
+        checksum/configmap: a71cce056504e3098005dcc2781335218b80a1f98b0c6c234284119f4b880380
     spec:
       serviceAccountName: 'arobit-forwarder'
       shareProcessNamespace: true
@@ -479,56 +454,10 @@ spec:
           hostPath:
             type: File
             path: /etc/ssl/certs/ca-certificates.crt
-        - name: mdsd-run
-          emptyDir: {}
-        - name: mdsd-run-clusterlogs
-          emptyDir: {}
         - name: flb-config
           configMap:
             name: arobit-forwarder
             defaultMode: 0755
----
-# Source: arobit/templates/forwarder-secretprovider.yaml
-apiVersion: secrets-store.csi.x-k8s.io/v1
-kind: SecretProviderClass
-metadata:
-  name: arobit-secretprovider
-  namespace: 'arobit'
-spec:
-  provider: azure
-  parameters:
-    clientID: '__msiClientId__'
-    cloudName: 'AzurePublicCloud'
-    keyvaultName: "ah-dev-mg-usw3-1"
-    objects: |
-      array:
-        - |
-          objectName: "rplogs"
-          objectAlias: "gcscert.pem"
-          objectType: secret
-    tenantId: "__tenantId__"
-    usePodIdentity: "false"
----
-# Source: arobit/templates/forwarder-secretprovider.yaml
-apiVersion: secrets-store.csi.x-k8s.io/v1
-kind: SecretProviderClass
-metadata:
-  name: arobit-secretprovider-clusterlogs
-  namespace: 'arobit'
-spec:
-  provider: azure
-  parameters:
-    clientID: '__msiClientId__'
-    cloudName: 'AzurePublicCloud'
-    keyvaultName: "ah-dev-mg-usw3-1"
-    objects: |
-      array:
-        - |
-          objectName: "clusterlogs"
-          objectAlias: "gcscert.pem"
-          objectType: secret
-    tenantId: "__tenantId__"
-    usePodIdentity: "false"
 ---
 # Source: arobit/templates/forwarder-servicemonitor.yaml
 apiVersion: monitoring.coreos.com/v1

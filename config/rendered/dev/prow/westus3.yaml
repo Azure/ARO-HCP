@@ -64,12 +64,6 @@ arobit:
   kusto:
     enabled: true
     environmentName: dev
-  mdsd:
-    enabled: false
-    image:
-      digest: sha256:18d5476700adcd40e9ee2bc1cb62a1150ac1b5e696d7bad6adeea4da88c615db
-      registry: mcr.microsoft.com
-      repository: geneva/distroless/mdsd
 automationDryRun: false
 azureGeoShortId: us
 azureRegionAvailabilityZoneCount: 4

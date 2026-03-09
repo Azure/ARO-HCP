@@ -15,13 +15,6 @@ data:
 
     @INCLUDE /forwarder/etc/filter.conf
 
-{{- if .Values.forwarder.mdsd.enabled }}
-    @INCLUDE /forwarder/etc/output-mdsd.conf
-    
-    {{- if .Values.forwarder.clusterType | eq "mgmt" }}
-    @INCLUDE /forwarder/etc/output-mdsd-ocm.conf
-    {{- end }}
-{{- end }}
 {{- if .Values.forwarder.kusto.enabled }}
     @INCLUDE /forwarder/etc/output.conf
 {{- end }}
@@ -168,28 +161,6 @@ data:
         K8S-Logging.Exclude On
         Buffer_Size         64k
 
-{{- if .Values.forwarder.mdsd.enabled }}
-    [FILTER]
-        Name            rewrite_tag
-        Alias           filter.namespace_router
-        Match           kubernetes.var.log.containers.*
-        Rule            $kubernetes['namespace_name'] ^ocm-.* mdsd-ocm.logs true
-        Rule            $kubernetes['namespace_name'] ^(?!ocm-).* mdsd-other.logs true
-        Emitter_Name    re_emitted_namespace_router_mdsd
-
-    [FILTER]
-        Name          nest
-        Match         mdsd-ocm.logs
-        Operation     lift
-        Nested_under  kubernetes
-
-    [FILTER]
-        Name          nest
-        Match         mdsd-other.logs
-        Operation     lift
-        Nested_under  kubernetes
-{{- end }}
-
     [FILTER]
         Name            rewrite_tag
         Alias           filter.namespace_router
@@ -316,31 +287,6 @@ data:
         ingestion_mapping_reference ingestionMapping
         buffer_dir /var/fluent-bit/kusto
 
-  output-mdsd.conf: |
-    # Forward logs to mdsd instance (default port)
-    [OUTPUT]
-        Name  forward
-        Alias forward.mdsd.other
-        Match mdsd-other.logs
-        Host  127.0.0.1
-        Port  5001
-        Tag   akskubesystem
-
-    [OUTPUT]
-        Name  prometheus_exporter
-        Alias exporter.fluentbit
-        Match metrics.fluentbit
-        Host  0.0.0.0
-        Port  9090
-  output-mdsd-ocm.conf: |
-    # Forward OCM namespace logs (ocm-.* pattern) to another mdsd instance
-    [OUTPUT]
-        Name  forward
-        Alias forward.mdsd.ocm
-        Match mdsd-ocm.logs
-        Host  127.0.0.1
-        Port  5002
-        Tag   akskubesystem
   reassemble_cri.lua: |
     local reassemble_state = {}
     function reassemble_cri(tag, timestamp, record)

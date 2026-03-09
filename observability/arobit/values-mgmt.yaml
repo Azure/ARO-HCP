@@ -30,30 +30,6 @@ forwarder:
       repository: "{{ .arobit.forwarder.image.repository }}"
       digest: "{{ .arobit.forwarder.image.digest }}"
       pullPolicy: IfNotPresent
-  mdsd:
-    # Geneva Config
-    geneva:
-      role: "{{ .mgmt.rg }}"
-      rpAccountName: "{{ .geneva.logs.rp.accountName }}"
-      rpSecretName: "{{ .geneva.logs.rp.secretName }}"
-      rpSan: "{{ .geneva.logs.rp.san }}"
-      rpNamespace: "{{ .geneva.logs.rp.namespace }}"
-      clusterLogsAccountName: "{{ .geneva.logs.cluster.accountName }}"
-      clusterLogsSecretName: "{{ .geneva.logs.cluster.secretName }}"
-      clusterLogsSan: "{{ .geneva.logs.cluster.san }}"
-      clusterLogsNamespace: "{{ .geneva.logs.cluster.namespace }}"
-      configVersion: 1
-      environment: "{{ .geneva.logs.environment }}"
-      region: "{{ .region }}"
-    ## Specifies whether mdsd should enabled
-    enabled: {{ .arobit.mdsd.enabled }}
-    ## mdsd image version
-    ##
-    image:
-      registry: "{{ .arobit.mdsd.image.registry }}"
-      repository: "{{ .arobit.mdsd.image.repository }}"
-      digest: "{{ .arobit.mdsd.image.digest }}"
-      pullPolicy: IfNotPresent
   kusto:
     serviceLogsDatabase: {{ .kusto.serviceLogsDatabase }}
     hostedControlPlaneLogsDatabase: {{ .kusto.hostedControlPlaneLogsDatabase }}

@@ -27,8 +27,6 @@ data:
     @INCLUDE /forwarder/etc/input.conf
 
     @INCLUDE /forwarder/etc/filter.conf
-    @INCLUDE /forwarder/etc/output-mdsd.conf
-    @INCLUDE /forwarder/etc/output-mdsd-ocm.conf
     @INCLUDE /forwarder/etc/output.conf
   service.conf: |
     [SERVICE]
@@ -172,25 +170,6 @@ data:
         Annotations         Off
         K8S-Logging.Exclude On
         Buffer_Size         64k
-    [FILTER]
-        Name            rewrite_tag
-        Alias           filter.namespace_router
-        Match           kubernetes.var.log.containers.*
-        Rule            $kubernetes['namespace_name'] ^ocm-.* mdsd-ocm.logs true
-        Rule            $kubernetes['namespace_name'] ^(?!ocm-).* mdsd-other.logs true
-        Emitter_Name    re_emitted_namespace_router_mdsd
-
-    [FILTER]
-        Name          nest
-        Match         mdsd-ocm.logs
-        Operation     lift
-        Nested_under  kubernetes
-
-    [FILTER]
-        Name          nest
-        Match         mdsd-other.logs
-        Operation     lift
-        Nested_under  kubernetes
 
     [FILTER]
         Name            rewrite_tag
@@ -277,31 +256,6 @@ data:
         ingestion_mapping_reference ingestionMapping
         buffer_dir /var/fluent-bit/kusto
 
-  output-mdsd.conf: |
-    # Forward logs to mdsd instance (default port)
-    [OUTPUT]
-        Name  forward
-        Alias forward.mdsd.other
-        Match mdsd-other.logs
-        Host  127.0.0.1
-        Port  5001
-        Tag   akskubesystem
-
-    [OUTPUT]
-        Name  prometheus_exporter
-        Alias exporter.fluentbit
-        Match metrics.fluentbit
-        Host  0.0.0.0
-        Port  9090
-  output-mdsd-ocm.conf: |
-    # Forward OCM namespace logs (ocm-.* pattern) to another mdsd instance
-    [OUTPUT]
-        Name  forward
-        Alias forward.mdsd.ocm
-        Match mdsd-ocm.logs
-        Host  127.0.0.1
-        Port  5002
-        Tag   akskubesystem
   reassemble_cri.lua: |
     local reassemble_state = {}
     function reassemble_cri(tag, timestamp, record)
@@ -411,7 +365,7 @@ spec:
         app: arobit-forwarder
         azure.workload.identity/use: "true"
       annotations:
-        checksum/configmap: 0aae7c16d8d27b82d9c2dde41cac7f1a15ad7e17a9296b0ce96df8593c942260
+        checksum/configmap: 543aca407d76be6b3427576b7647a763fddbd01c48dd464ad42f139d32a4b55e
     spec:
       serviceAccountName: 'arobit-forwarder'
       shareProcessNamespace: true
@@ -478,184 +432,6 @@ spec:
               readOnly: true
             - name: kusto
               mountPath: /var/fluent-bit/kusto
-        - name: mdsd
-          image: mcr.microsoft.com/geneva/distroless/mdsd@sha256:1234567890
-          imagePullPolicy: 'IfNotPresent'
-          command:
-              - /start_mdsd.sh
-          env:
-            - name: MONITORING_GCS_AUTH_ID
-              value: ''
-            - name: MONITORING_GCS_AUTH_ID_TYPE
-              value: AuthKeyVault
-            - name: MDSD_AKV_CERTIFICATE_STORE_PATH
-              value: /geneva/geneva_auth
-            - name: MONITORING_CONFIG_VERSION
-              value: '1'
-            - name: MONITORING_GCS_ACCOUNT
-              value: 'placeholder'
-            - name: MONITORING_GCS_ENVIRONMENT
-              value: 'Test'
-            - name: MONITORING_GCS_NAMESPACE
-              value: ''
-            - name: MONITORING_GCS_REGION
-              value: 'westus3'
-            - name: DOCKER_LOGGING
-              value: 'true'
-            - name: FLUENTD_PORT
-              value: '5001'
-            - name: GCS_AUTOMATIC_CONFIGURATION
-              value: '1'
-            - name: GCS_AUTOMATIC_CONFIG_RUNTIME
-              value: '-A'
-            - name: MDSD_BACKPRESSURE_MONITOR_FREQ_SEC
-              value: '5'
-            - name: MDSD_BACKPRESSURE_MONITOR_MEMORY_THRESHOLD_IN_MB
-              value: '1000'
-            - name: MDSD_COMPRESSION_ALGORITHM
-              value: 'lz4'
-            - name: MDSD_COMPRESSION_LEVEL
-              value: '4'
-            - name: MDSD_DAEMON_TEMPORARY_ELEVATION_DISABLED
-              value: 'true'
-            - name: MDSD_DEBUG_LOG_FLAGS
-              value: '-T 0x00'
-            - name: MDSD_LOG_OPTIONS
-              value: '-D'
-            - name: MDSD_MSGPACK_ARRAY_SIZE_ITEMS
-              value: '10480000'
-            - name: MDSD_MSGPACK_MAP_SIZE_ITEMS
-              value: '10480000'
-            - name: MDSD_MSGPACK_NESTING_LEVEL
-              value: '10'
-            - name: MDSD_MSGPACK_SEND_ACK
-              value: '0'
-            - name: MDSD_MSGPACK_SORT_COLUMNS
-              value: '1'
-            - name: MDSD_PORT
-              value: '0'
-            - name: MDSD_TCMALLOC_RELEASE_FREQ_SEC
-              value: '1'
-            - name: MDSD_USE_LOCAL_PERSISTENCY
-              value: 'false'
-            - name: MONITORING_MAX_EVENT_RATE
-              value: '100000'
-            - name: MONITORING_ROLE
-              value: 'hcp-underlay-dev-westus3-mgmt-1'
-            - name: MONITORING_TENANT
-              value: 'westus3'
-          lifecycle: 
-            preStop:
-              exec:
-                command:
-                - "/bin/sleep"
-                - "60"
-          securityContext: 
-            privileged: false
-            allowPrivilegeEscalation: false
-            runAsUser: 0
-            runAsGroup: 0
-            capabilities:
-              add: []
-              drop: []
-          volumeMounts:
-            - name: mdsd-run
-              mountPath: /var/run/mdsd/
-            - name: cacrt-host
-              mountPath: /etc/ssl/certs/ca-certificates.crt
-              readOnly: true
-            - mountPath: /geneva/geneva_auth/
-              name: geneva-certs
-              readOnly: true
-        - name: mdsd-clusterlogs
-          image: mcr.microsoft.com/geneva/distroless/mdsd@sha256:1234567890
-          imagePullPolicy: 'IfNotPresent'
-          command:
-              - /start_mdsd.sh
-          env:
-            - name: MONITORING_GCS_AUTH_ID
-              value: ''
-            - name: MONITORING_GCS_AUTH_ID_TYPE
-              value: AuthKeyVault
-            - name: MDSD_AKV_CERTIFICATE_STORE_PATH
-              value: /geneva/geneva_auth
-            - name: MONITORING_CONFIG_VERSION
-              value: '1'
-            - name: MONITORING_GCS_ACCOUNT
-              value: 'placeholder'
-            - name: MONITORING_GCS_ENVIRONMENT
-              value: 'Test'
-            - name: MONITORING_GCS_NAMESPACE
-              value: ''
-            - name: MONITORING_GCS_REGION
-              value: 'westus3'
-            - name: DOCKER_LOGGING
-              value: 'true'
-            - name: FLUENTD_PORT
-              value: '5002'
-            - name: GCS_AUTOMATIC_CONFIGURATION
-              value: '1'
-            - name: GCS_AUTOMATIC_CONFIG_RUNTIME
-              value: '-A'
-            - name: MDSD_BACKPRESSURE_MONITOR_FREQ_SEC
-              value: '5'
-            - name: MDSD_BACKPRESSURE_MONITOR_MEMORY_THRESHOLD_IN_MB
-              value: '1000'
-            - name: MDSD_COMPRESSION_ALGORITHM
-              value: 'lz4'
-            - name: MDSD_COMPRESSION_LEVEL
-              value: '4'
-            - name: MDSD_DAEMON_TEMPORARY_ELEVATION_DISABLED
-              value: 'true'
-            - name: MDSD_DEBUG_LOG_FLAGS
-              value: '-T 0x00'
-            - name: MDSD_LOG_OPTIONS
-              value: '-D'
-            - name: MDSD_MSGPACK_ARRAY_SIZE_ITEMS
-              value: '10480000'
-            - name: MDSD_MSGPACK_MAP_SIZE_ITEMS
-              value: '10480000'
-            - name: MDSD_MSGPACK_NESTING_LEVEL
-              value: '10'
-            - name: MDSD_MSGPACK_SEND_ACK
-              value: '0'
-            - name: MDSD_MSGPACK_SORT_COLUMNS
-              value: '1'
-            - name: MDSD_PORT
-              value: '0'
-            - name: MDSD_TCMALLOC_RELEASE_FREQ_SEC
-              value: '1'
-            - name: MDSD_USE_LOCAL_PERSISTENCY
-              value: 'false'
-            - name: MONITORING_MAX_EVENT_RATE
-              value: '100000'
-            - name: MONITORING_ROLE
-              value: 'hcp-underlay-dev-westus3-mgmt-1'
-            - name: MONITORING_TENANT
-              value: 'westus3'
-          lifecycle: 
-            preStop:
-              exec:
-                command:
-                - "/bin/sleep"
-                - "60"
-          securityContext: 
-            privileged: false
-            allowPrivilegeEscalation: false
-            runAsUser: 0
-            runAsGroup: 0
-            capabilities:
-              add: []
-              drop: []
-          volumeMounts:
-            - name: mdsd-run-clusterlogs
-              mountPath: /var/run/mdsd/
-            - name: cacrt-host
-              mountPath: /etc/ssl/certs/ca-certificates.crt
-              readOnly: true
-            - mountPath: /geneva/geneva_auth/
-              name: geneva-certs-clusterlogs
-              readOnly: true
       volumes:
         - name: kusto
           emptyDir: {}
@@ -678,68 +454,10 @@ spec:
           hostPath:
             type: File
             path: /etc/ssl/certs/ca-certificates.crt
-        - name: mdsd-run
-          emptyDir: {}
-        - name: mdsd-run-clusterlogs
-          emptyDir: {}
         - name: flb-config
           configMap:
             name: arobit-forwarder
             defaultMode: 0755
-        - name: geneva-certs
-          csi:
-            driver: secrets-store.csi.k8s.io
-            readOnly: true
-            volumeAttributes:
-              secretProviderClass: arobit-secretprovider
-        - name: geneva-certs-clusterlogs
-          csi:
-            driver: secrets-store.csi.k8s.io
-            readOnly: true
-            volumeAttributes:
-              secretProviderClass: arobit-secretprovider-clusterlogs
----
-# Source: arobit/templates/forwarder-secretprovider.yaml
-apiVersion: secrets-store.csi.x-k8s.io/v1
-kind: SecretProviderClass
-metadata:
-  name: arobit-secretprovider
-  namespace: 'arobit'
-spec:
-  provider: azure
-  parameters:
-    clientID: '__msiClientId__'
-    cloudName: 'AzurePublicCloud'
-    keyvaultName: "ah-dev-mg-usw3-1"
-    objects: |
-      array:
-        - |
-          objectName: "rplogs"
-          objectAlias: "gcscert.pem"
-          objectType: secret
-    tenantId: "__tenantId__"
-    usePodIdentity: "false"
----
-# Source: arobit/templates/forwarder-secretprovider.yaml
-apiVersion: secrets-store.csi.x-k8s.io/v1
-kind: SecretProviderClass
-metadata:
-  name: arobit-secretprovider-clusterlogs
-  namespace: 'arobit'
-spec:
-  provider: azure
-  parameters:
-    clientID: '__msiClientId__'
-    cloudName: 'AzurePublicCloud'
-    keyvaultName: "ah-dev-mg-usw3-1"
-    objects: |
-      array:
-        - |
-          objectName: "clusterlogs"
-          objectAlias: "gcscert.pem"
-          objectType: secret
-    tenantId: "__tenantId__"
-    usePodIdentity: "false"
 ---
 # Source: arobit/templates/forwarder-servicemonitor.yaml
 apiVersion: monitoring.coreos.com/v1

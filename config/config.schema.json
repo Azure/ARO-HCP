@@ -2324,21 +2324,6 @@
             "enabled",
             "environmentName"
           ]
-        },
-        "mdsd": {
-          "type": "object",
-          "properties": {
-            "enabled": {
-              "type": "boolean"
-            },
-            "image": {
-              "$ref": "#/definitions/containerImage"
-            }
-          },
-          "additionalProperties": false,
-          "required": [
-            "image"
-          ]
         }
       }
     },
