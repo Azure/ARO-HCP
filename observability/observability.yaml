@@ -36,6 +36,8 @@ grafana-dashboards:
     path: ./grafana-dashboards/frontend/
   - name: Backend
     path: ./grafana-dashboards/backend/
+  - name: Billing
+    path: ./grafana-dashboards/billing/
   - name: Clusters Service
     path: ./grafana-dashboards/clusters-service
   - name: Maestro
