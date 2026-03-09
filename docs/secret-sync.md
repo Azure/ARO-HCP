@@ -83,3 +83,23 @@ In order to rotate a secret, repeat the process described in [Register a Secret]
 ## Rotate a Public Key
 
 In case the encryption key for a key vault needs to be rotated, [retrieve the new public key](#public-key-retrieval) and [register all secrets again](#register-a-secret).
+
+## Encrypted Secrets
+
+The file [`dev-infrastructure/data/encryptedsecrets.yaml`](../dev-infrastructure/data/encryptedsecrets.yaml) stores all secrets that are populated into Key Vaults during deployment. Each secret is encrypted with the target Key Vault's RSA public key and can only be decrypted by that Key Vault.
+
+## Creating a Registry Service Account
+
+The `component-sync-pull-secret` contains credentials for `registry.redhat.io`, obtained via a Red Hat registry service account. To create or rotate one:
+
+1. Log in to the [Red Hat Customer Portal](https://access.redhat.com) with a Red Hat account.
+2. Navigate to the [Registry Service Account management page](https://access.redhat.com/terms-based-registry/).
+3. Click **New Service Account**, provide a name and description.
+4. After creation, go to the **Docker Configuration** tab and download the JSON.
+5. Base64-encode the Docker config JSON and [register it as a secret](#register-a-secret) under the name `component-sync-pull-secret`.
+
+For the full guide, see [Creating Registry Service Accounts](https://access.redhat.com/articles/RegistryAuthentication#creating-registry-service-accounts-6) in the Red Hat documentation.
+
+## Validating Encrypted Secrets
+
+See [`tooling/secret-sync/README.md`](../tooling/secret-sync/README.md#validating-encrypted-secrets) for how to run `make test-decrypt` to validate encrypted secrets.
