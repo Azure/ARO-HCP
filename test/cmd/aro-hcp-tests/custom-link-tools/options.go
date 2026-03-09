@@ -406,7 +406,8 @@ func (o Options) Run(ctx context.Context) error {
 		return utils.TrackError(err)
 	}
 
-	serviceLogLinks, err := getServiceLogLinks(o.Steps, timingInfo, o.StartTimeFallback, o.SvcClusterName, o.MgmtClusterName, o.Kusto)
+	logger, _ := logr.FromContext(ctx)
+	serviceLogLinks, err := getServiceLogLinks(logger, o.Steps, timingInfo, o.StartTimeFallback, o.SvcClusterName, o.MgmtClusterName, o.Kusto)
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -523,13 +524,14 @@ func loadAllTestTimingInfo(timingInputDir string) (map[string]TimingInfo, error)
 
 var localClock clock.PassiveClock = clock.RealClock{}
 
-func getServiceLogLinks(steps []pipeline.NodeInfo, testTimingInfo map[string]TimingInfo,
+func getServiceLogLinks(logger logr.Logger, steps []pipeline.NodeInfo, testTimingInfo map[string]TimingInfo,
 	startTimeFallback *time.Time, svcClusterName, mgmtClusterName string,
 	kusto KustoInfo) ([]LinkDetails, error) {
 	allLinks := []LinkDetails{}
 
 	// Determine earliest start time from steps
 	earliestStartTime := time.Time{}
+	startSource := ""
 	for _, step := range steps {
 		if len(step.Info.StartedAt) > 0 {
 			startTime, err := time.Parse(time.RFC3339, step.Info.StartedAt)
@@ -538,6 +540,7 @@ func getServiceLogLinks(steps []pipeline.NodeInfo, testTimingInfo map[string]Tim
 			}
 			if earliestStartTime.IsZero() || startTime.Before(earliestStartTime) {
 				earliestStartTime = startTime
+				startSource = "steps"
 			}
 		}
 	}
@@ -546,20 +549,24 @@ func getServiceLogLinks(steps []pipeline.NodeInfo, testTimingInfo map[string]Tim
 		for _, ti := range testTimingInfo {
 			if earliestStartTime.IsZero() || ti.StartTime.Before(earliestStartTime) {
 				earliestStartTime = ti.StartTime
+				startSource = "test timing"
 			}
 		}
 	}
 	// Fallback: CLI-provided start time
 	if earliestStartTime.IsZero() && startTimeFallback != nil {
 		earliestStartTime = *startTimeFallback
+		startSource = "CLI fallback"
 	}
 	// Final fallback: now - 3h
 	if earliestStartTime.IsZero() {
 		earliestStartTime = localClock.Now().Add(-3 * time.Hour)
+		startSource = "clock (now-3h)"
 	}
 
 	// Determine end time from latest step FinishedAt + grace period
 	endTime := time.Time{}
+	endSource := ""
 	for _, step := range steps {
 		if len(step.Info.FinishedAt) > 0 {
 			finishedTime, err := time.Parse(time.RFC3339, step.Info.FinishedAt)
@@ -569,6 +576,7 @@ func getServiceLogLinks(steps []pipeline.NodeInfo, testTimingInfo map[string]Tim
 			finishedWithGrace := finishedTime.Add(endGracePeriodDuration)
 			if endTime.IsZero() || finishedWithGrace.After(endTime) {
 				endTime = finishedWithGrace
+				endSource = "steps (+45m grace)"
 			}
 		}
 	}
@@ -577,13 +585,19 @@ func getServiceLogLinks(steps []pipeline.NodeInfo, testTimingInfo map[string]Tim
 		for _, ti := range testTimingInfo {
 			if endTime.IsZero() || ti.EndTime.After(endTime) {
 				endTime = ti.EndTime
+				endSource = "test timing"
 			}
 		}
 	}
 	// Final fallback: now + 30min
 	if endTime.IsZero() {
 		endTime = localClock.Now().Add(30 * time.Minute)
+		endSource = "clock (now+30m)"
 	}
+
+	logger.Info("service log query time window",
+		"start", earliestStartTime.Format(time.RFC3339), "startSource", startSource,
+		"end", endTime.Format(time.RFC3339), "endSource", endSource)
 
 	// Service cluster components
 	svcComponents := []struct {

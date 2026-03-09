@@ -142,3 +142,11 @@ Addressed review feedback that fallback branches were not fully exercised by tes
 - Added a `setFakeClock()` test helper in `cmd_test.go` that registers `t.Cleanup()` to restore `localClock` back to `clock.RealClock{}` after each test. This prevents global clock state leaking between tests.
 - Renamed `TestGeneratedHTMLWithoutSteps` to `TestGeneratedHTMLWithoutStepsUsesTimingFallback` to match what the test actually validates (`steps=nil` with timing metadata present).
 - Added `TestCompleteFailsWithInvalidStartTimeFallback` to verify `Complete()` returns a parse error when `--start-time-fallback` is not valid RFC3339.
+
+## Follow-up: Add logging for chosen start/end time sources
+
+- Added a `logr.Logger` parameter to `getServiceLogLinks()` and source-tracking string variables alongside the existing fallback chain.
+- After both start and end times are resolved, a single `logger.Info("service log query time window", ...)` line logs the chosen times and their sources (e.g. `"steps"`, `"test timing"`, `"CLI fallback"`, `"clock (now-3h)"` for start; `"steps (+45m grace)"`, `"test timing"`, `"clock (now+30m)"` for end).
+- Updated `Run()` to extract logger via `logr.FromContext(ctx)` and pass it through.
+- Updated direct test callers to pass `testr.New(t)`.
+- No fixture changes needed — logging goes to the logger, not to HTML output.

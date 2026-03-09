@@ -182,7 +182,7 @@ func TestGetServiceLogLinksUsesClockFallbackWhenNoStepsAndNoTiming(t *testing.T)
 		HostedControlPlaneLogsDatabase: "HostedControlPlaneLogs",
 	}
 
-	links, err := getServiceLogLinks(nil, nil, nil, "svc-cluster", "mgmt-cluster", kusto)
+	links, err := getServiceLogLinks(testr.New(t), nil, nil, nil, "svc-cluster", "mgmt-cluster", kusto)
 	if err != nil {
 		t.Fatalf("failed to get service log links: %v", err)
 	}
@@ -205,7 +205,7 @@ func TestGetServiceLogLinksUsesCLIStartFallbackWhenStepsAndTimingUnavailable(t *
 		HostedControlPlaneLogsDatabase: "HostedControlPlaneLogs",
 	}
 
-	links, err := getServiceLogLinks(nil, nil, &startTimeFallback, "svc-cluster", "mgmt-cluster", kusto)
+	links, err := getServiceLogLinks(testr.New(t), nil, nil, &startTimeFallback, "svc-cluster", "mgmt-cluster", kusto)
 	if err != nil {
 		t.Fatalf("failed to get service log links: %v", err)
 	}
