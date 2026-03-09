@@ -46,3 +46,5 @@ grafana-dashboards:
     path: ./grafana-dashboards/perfscale-dashboards
   - name: HCP Kube API Server
     path: ./grafana-dashboards/kas-monitor
+  - name: HCP Kube API Server KSM
+    path: ./grafana-dashboards/kas-ksm-monitor
