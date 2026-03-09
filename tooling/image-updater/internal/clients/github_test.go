@@ -21,7 +21,7 @@ import (
 	"testing"
 )
 
-func TestGetLatestReleaseTag(t *testing.T) {
+func TestGetLatestRelease(t *testing.T) {
 	tests := []struct {
 		name       string
 		response   string
@@ -91,7 +91,7 @@ func TestGetLatestReleaseTag(t *testing.T) {
 			defer func() { setGitHubAPIBase(origBase) }()
 			setGitHubAPIBase(srv.URL)
 
-			tag, err := GetLatestReleaseTag(context.Background(), "istio/istio")
+			release, err := GetLatestRelease(context.Background(), "istio/istio")
 			if tt.wantErr {
 				if err == nil {
 					t.Fatal("expected error, got nil")
@@ -106,14 +106,14 @@ func TestGetLatestReleaseTag(t *testing.T) {
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
-			if tag != tt.wantTag {
-				t.Errorf("got tag %q, want %q", tag, tt.wantTag)
+			if release.Version != tt.wantTag {
+				t.Errorf("got tag %q, want %q", release.Version, tt.wantTag)
 			}
 		})
 	}
 }
 
-func TestGetLatestReleaseTag_AuthHeader(t *testing.T) {
+func TestGetLatestRelease_AuthHeader(t *testing.T) {
 	var gotAuth string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		gotAuth = r.Header.Get("Authorization")
@@ -128,7 +128,7 @@ func TestGetLatestReleaseTag_AuthHeader(t *testing.T) {
 
 	t.Run("with GITHUB_TOKEN", func(t *testing.T) {
 		t.Setenv("GITHUB_TOKEN", "test-token-123")
-		_, err := GetLatestReleaseTag(context.Background(), "owner/repo")
+		_, err := GetLatestRelease(context.Background(), "owner/repo")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -139,7 +139,7 @@ func TestGetLatestReleaseTag_AuthHeader(t *testing.T) {
 
 	t.Run("without GITHUB_TOKEN", func(t *testing.T) {
 		t.Setenv("GITHUB_TOKEN", "")
-		_, err := GetLatestReleaseTag(context.Background(), "owner/repo")
+		_, err := GetLatestRelease(context.Background(), "owner/repo")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}

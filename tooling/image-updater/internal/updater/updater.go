@@ -164,11 +164,11 @@ func (u *Updater) fetchLatestValue(ctx context.Context, source config.Source) (*
 
 	if source.GitHubLatestRelease != "" {
 		logger.V(2).Info("fetching latest release from GitHub", "repo", source.GitHubLatestRelease)
-		version, err := clients.GetLatestReleaseTag(ctx, source.GitHubLatestRelease)
+		release, err := clients.GetLatestRelease(ctx, source.GitHubLatestRelease)
 		if err != nil {
 			return nil, fmt.Errorf("github latest release %s: %w", source.GitHubLatestRelease, err)
 		}
-		return &clients.Tag{Name: version, Version: version}, nil
+		return &clients.Tag{Name: release.Version, Version: release.Version, LastModified: release.PublishedAt}, nil
 	}
 
 	// Registry path: parse image reference and use existing client

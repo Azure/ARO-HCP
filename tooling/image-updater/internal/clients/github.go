@@ -29,17 +29,25 @@ var githubAPIBaseURL = "https://api.github.com"
 func setGitHubAPIBase(url string) { githubAPIBaseURL = url }
 
 type githubLatestReleaseResponse struct {
-	TagName string `json:"tag_name"`
+	TagName     string    `json:"tag_name"`
+	PublishedAt time.Time `json:"published_at"`
 }
 
-// GetLatestReleaseTag fetches the latest release tag from a GitHub repository.
+// GitHubRelease holds the tag version and publish date of a GitHub release.
+type GitHubRelease struct {
+	Version     string
+	PublishedAt time.Time
+}
+
+// GetLatestRelease fetches the latest release from a GitHub repository,
+// returning the version tag and the publish date.
 // It uses the GITHUB_TOKEN environment variable for authentication if available,
 // which increases the API rate limit from 60 to 5,000 requests per hour.
-func GetLatestReleaseTag(ctx context.Context, ownerRepo string) (string, error) {
+func GetLatestRelease(ctx context.Context, ownerRepo string) (*GitHubRelease, error) {
 	url := githubAPIBaseURL + "/repos/" + ownerRepo + "/releases/latest"
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		return "", fmt.Errorf("github latest release: %w", err)
+		return nil, fmt.Errorf("github latest release: %w", err)
 	}
 	req.Header.Set("Accept", "application/vnd.github.v3+json")
 	req.Header.Set("User-Agent", "ARO-HCP-image-updater")
@@ -49,19 +57,19 @@ func GetLatestReleaseTag(ctx context.Context, ownerRepo string) (string, error) 
 	client := &http.Client{Timeout: 15 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("github latest release: %w", err)
+		return nil, fmt.Errorf("github latest release: %w", err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("github latest release: %s returned %d", url, resp.StatusCode)
+		return nil, fmt.Errorf("github latest release: %s returned %d", url, resp.StatusCode)
 	}
 	var r githubLatestReleaseResponse
 	if err := json.NewDecoder(resp.Body).Decode(&r); err != nil {
-		return "", fmt.Errorf("github latest release: decode: %w", err)
+		return nil, fmt.Errorf("github latest release: decode: %w", err)
 	}
 	if r.TagName == "" {
-		return "", fmt.Errorf("github latest release: empty tag_name for %s", ownerRepo)
+		return nil, fmt.Errorf("github latest release: empty tag_name for %s", ownerRepo)
 	}
 	version := strings.TrimPrefix(r.TagName, "v")
-	return version, nil
+	return &GitHubRelease{Version: version, PublishedAt: r.PublishedAt}, nil
 }
