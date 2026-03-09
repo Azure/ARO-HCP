@@ -67,6 +67,7 @@ func BindOptions(opts *RawOptions, cmd *cobra.Command) error {
 	cmd.Flags().StringVar(&opts.OutputDir, "output", opts.OutputDir, "Path to the directory where html will be written.")
 	cmd.Flags().StringVar(&opts.RenderedConfig, "rendered-config", opts.RenderedConfig, "Path to the rendered configuration YAML file.")
 	cmd.Flags().StringVar(&opts.StartTimeFallback, "start-time-fallback", opts.StartTimeFallback, "Optional RFC3339 time to use as start time fallback when steps and test timing are unavailable.")
+	cmd.Flags().StringVar(&opts.SubscriptionID, "subscription-id", opts.SubscriptionID, "Optional Azure subscription ID to include in must-gather query commands.")
 
 	return nil
 }
@@ -76,6 +77,7 @@ type RawOptions struct {
 	OutputDir         string
 	RenderedConfig    string
 	StartTimeFallback string
+	SubscriptionID    string
 }
 
 // validatedOptions is a private wrapper that enforces a call of Validate() before Complete() can be invoked.
@@ -106,6 +108,7 @@ type completedOptions struct {
 	MgmtClusterName   string
 	Kusto             KustoInfo
 	StartTimeFallback *time.Time
+	SubscriptionID    string
 }
 
 type Options struct {
@@ -265,6 +268,7 @@ func (o *ValidatedOptions) Complete(logger logr.Logger) (*Options, error) {
 			SvcClusterName:    svcClusterName,
 			MgmtClusterName:   mgmtClusterName,
 			StartTimeFallback: startTimeFallback,
+			SubscriptionID:    o.SubscriptionID,
 			Kusto: KustoInfo{
 				KustoName:                      kustoName,
 				KustoRegion:                    kustoRegion,
@@ -407,10 +411,12 @@ func (o Options) Run(ctx context.Context) error {
 	}
 
 	logger, _ := logr.FromContext(ctx)
-	serviceLogLinks, err := getServiceLogLinks(logger, o.Steps, timingInfo, o.StartTimeFallback, o.SvcClusterName, o.MgmtClusterName, o.Kusto)
+	tw, err := computeTimeWindow(logger, o.Steps, timingInfo, o.StartTimeFallback)
 	if err != nil {
 		return utils.TrackError(err)
 	}
+
+	serviceLogLinks := getServiceLogLinks(logger, tw, o.SvcClusterName, o.MgmtClusterName, o.Kusto)
 
 	err = renderTemplate(QueryTemplate{
 		TemplateName:   "custom-link-tools",
@@ -424,6 +430,22 @@ func (o Options) Run(ctx context.Context) error {
 	if err != nil {
 		return utils.TrackError(err)
 	}
+
+	commands := getMustGatherCommands(tw, o.SvcClusterName, o.MgmtClusterName, o.SubscriptionID, o.Kusto)
+
+	err = renderTemplate(QueryTemplate{
+		TemplateName:   "custom-link-tools-commands",
+		TemplatePath:   "custom-link-tools-commands.html.tmpl",
+		OutputFileName: path.Join(o.OutputDir, "custom-link-tools-commands.html"),
+	}, struct {
+		Commands []CommandInfo
+	}{
+		Commands: commands,
+	})
+	if err != nil {
+		return utils.TrackError(err)
+	}
+
 	return nil
 }
 
@@ -524,11 +546,12 @@ func loadAllTestTimingInfo(timingInputDir string) (map[string]TimingInfo, error)
 
 var localClock clock.PassiveClock = clock.RealClock{}
 
-func getServiceLogLinks(logger logr.Logger, steps []pipeline.NodeInfo, testTimingInfo map[string]TimingInfo,
-	startTimeFallback *time.Time, svcClusterName, mgmtClusterName string,
-	kusto KustoInfo) ([]LinkDetails, error) {
-	allLinks := []LinkDetails{}
+type TimeWindow struct {
+	Start time.Time
+	End   time.Time
+}
 
+func computeTimeWindow(logger logr.Logger, steps []pipeline.NodeInfo, testTimingInfo map[string]TimingInfo, startTimeFallback *time.Time) (TimeWindow, error) {
 	// Determine earliest start time from steps
 	earliestStartTime := time.Time{}
 	startSource := ""
@@ -536,7 +559,7 @@ func getServiceLogLinks(logger logr.Logger, steps []pipeline.NodeInfo, testTimin
 		if len(step.Info.StartedAt) > 0 {
 			startTime, err := time.Parse(time.RFC3339, step.Info.StartedAt)
 			if err != nil {
-				return nil, fmt.Errorf("failed to parse started at: %w", err)
+				return TimeWindow{}, fmt.Errorf("failed to parse started at: %w", err)
 			}
 			if earliestStartTime.IsZero() || startTime.Before(earliestStartTime) {
 				earliestStartTime = startTime
@@ -571,7 +594,7 @@ func getServiceLogLinks(logger logr.Logger, steps []pipeline.NodeInfo, testTimin
 		if len(step.Info.FinishedAt) > 0 {
 			finishedTime, err := time.Parse(time.RFC3339, step.Info.FinishedAt)
 			if err != nil {
-				return nil, fmt.Errorf("failed to parse finished at: %w", err)
+				return TimeWindow{}, fmt.Errorf("failed to parse finished at: %w", err)
 			}
 			finishedWithGrace := finishedTime.Add(endGracePeriodDuration)
 			if endTime.IsZero() || finishedWithGrace.After(endTime) {
@@ -599,6 +622,40 @@ func getServiceLogLinks(logger logr.Logger, steps []pipeline.NodeInfo, testTimin
 		"start", earliestStartTime.Format(time.RFC3339), "startSource", startSource,
 		"end", endTime.Format(time.RFC3339), "endSource", endSource)
 
+	return TimeWindow{Start: earliestStartTime, End: endTime}, nil
+}
+
+type CommandInfo struct {
+	Label   string
+	Command string
+}
+
+func getMustGatherCommands(tw TimeWindow, svcClusterName, mgmtClusterName, subscriptionID string, kusto KustoInfo) []CommandInfo {
+	startStr := tw.Start.Format(time.DateTime)
+	endStr := tw.End.Format(time.DateTime)
+
+	queryCmd := fmt.Sprintf(`hcpctl must-gather query --kusto %s --region %s --timestamp-min "%s" --timestamp-max "%s" --subscription-id %s`, kusto.KustoName, kusto.KustoRegion, startStr, endStr, subscriptionID)
+
+	return []CommandInfo{
+		{
+			Label:   "must-gather query-infra (SVC cluster)",
+			Command: fmt.Sprintf(`hcpctl must-gather query-infra --kusto %s --region %s --infra-cluster %s --timestamp-min "%s" --timestamp-max "%s"`, kusto.KustoName, kusto.KustoRegion, svcClusterName, startStr, endStr),
+		},
+		{
+			Label:   "must-gather query-infra (MGMT cluster)",
+			Command: fmt.Sprintf(`hcpctl must-gather query-infra --kusto %s --region %s --infra-cluster %s --timestamp-min "%s" --timestamp-max "%s"`, kusto.KustoName, kusto.KustoRegion, mgmtClusterName, startStr, endStr),
+		},
+		{
+			Label:   "must-gather query (HCP logs)",
+			Command: queryCmd,
+		},
+	}
+}
+
+func getServiceLogLinks(logger logr.Logger, tw TimeWindow, svcClusterName, mgmtClusterName string,
+	kusto KustoInfo) []LinkDetails {
+	allLinks := []LinkDetails{}
+
 	// Service cluster components
 	svcComponents := []struct {
 		component string
@@ -617,8 +674,8 @@ func getServiceLogLinks(logger logr.Logger, steps []pipeline.NodeInfo, testTimin
 			ResourceGroupName: svcClusterName,
 			Database:          kusto.ServiceLogsDatabase,
 			ClusterName:       svcClusterName,
-			StartTime:         earliestStartTime.Format(time.RFC3339),
-			EndTime:           endTime.Format(time.RFC3339),
+			StartTime:         tw.Start.Format(time.RFC3339),
+			EndTime:           tw.End.Format(time.RFC3339),
 		}, kusto))
 	}
 
@@ -636,10 +693,10 @@ func getServiceLogLinks(logger logr.Logger, steps []pipeline.NodeInfo, testTimin
 			ResourceGroupName: mgmtClusterName,
 			Database:          kusto.ServiceLogsDatabase,
 			ClusterName:       mgmtClusterName,
-			StartTime:         earliestStartTime.Format(time.RFC3339),
-			EndTime:           endTime.Format(time.RFC3339),
+			StartTime:         tw.Start.Format(time.RFC3339),
+			EndTime:           tw.End.Format(time.RFC3339),
 		}, kusto))
 	}
 
-	return allLinks, nil
+	return allLinks
 }
