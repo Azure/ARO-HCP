@@ -41,6 +41,13 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
+const (
+	// readonlyBundleManagedByK8sLabelKey is the key of the K8s label that is used to identify the controller that manages the readonly Maestro bundle.
+	readonlyBundleManagedByK8sLabelKey = "aro-hcp.azure.com/readonly-bundle-managed-by"
+	// readonlyBundleManagedByK8sLabelValue is the value of the K8s label that is used to identify the controller that manages the readonly Maestro bundle.
+	readonlyBundleManagedByK8sLabelValue = "create-maestro-readonly-bundles-controller"
+)
+
 // createMaestroReadonlyBundlesSyncer is a controller that creates Maestro readonly bundles for the clusters.
 // It is responsible for creating the Maestro readonly bundles and storing a reference to them in Cosmos. It does
 // not persist the content of the Maestro bundles themselves. That is the responsibility of the
@@ -339,8 +346,11 @@ func (c *createMaestroReadonlyBundlesSyncer) buildInitialReadonlyMaestroBundle(m
 		Name:            maestroBundleNamespacedName.Name,
 		Namespace:       maestroBundleNamespacedName.Namespace,
 		ResourceVersion: "0", // TODO is this needed when creating a maestro bundle?
-		Annotations: map[string]string{
-			"aro-hcp.azure.com/readonly-bundle-managed-by": "create-maestro-readonly-bundles-controller", // TODO maybe as annotation as it's fixed size and Maestro might accept filter on list?
+		Labels: map[string]string{
+			// We define it as a K8s label because Maestro supports server-side filtering based on K8s labels.
+			// We can define it as a K8s label because for this specific use case we can comply with
+			// K8s labels length and charset restrictions https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#syntax-and-character-set.
+			readonlyBundleManagedByK8sLabelKey: readonlyBundleManagedByK8sLabelValue,
 		},
 	}
 

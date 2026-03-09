@@ -40,8 +40,6 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
-const readonlyBundleManagedByAnnotation = "aro-hcp.azure.com/readonly-bundle-managed-by"
-
 func TestDeleteOrphanedMaestroReadonlyBundles_getAllServiceProviderClusters(t *testing.T) {
 	ctx := context.Background()
 	clusterResourceID := api.Must(azcorearm.ParseResourceID("/subscriptions/sub/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster"))
@@ -585,15 +583,15 @@ func TestDeleteOrphanedMaestroReadonlyBundles_ensureOrphanedMaestroReadonlyBundl
 			errSubstr: "failed to list Maestro Bundles",
 		},
 		{
-			name: "skips bundle without readonly managed-by annotation",
+			name: "skips bundle without readonly managed-by label",
 			setupMock: func(m *maestro.MockClient) map[string]*provisionShardServiceProviderClusters {
 				bundleList := &workv1.ManifestWorkList{
 					Items: []workv1.ManifestWork{
 						{
 							ObjectMeta: metav1.ObjectMeta{
-								Name:        "other-bundle",
-								Namespace:   "consumer",
-								Annotations: map[string]string{"other": "value"},
+								Name:      "other-bundle",
+								Namespace: "consumer",
+								Labels:    map[string]string{readonlyBundleManagedByK8sLabelKey: "other-value"},
 							},
 						},
 					},
@@ -619,9 +617,9 @@ func TestDeleteOrphanedMaestroReadonlyBundles_ensureOrphanedMaestroReadonlyBundl
 					Items: []workv1.ManifestWork{
 						{
 							ObjectMeta: metav1.ObjectMeta{
-								Name:        "referenced-bundle",
-								Namespace:   "consumer",
-								Annotations: map[string]string{readonlyBundleManagedByAnnotation: "create-maestro-readonly-bundles-controller"},
+								Name:      "referenced-bundle",
+								Namespace: "consumer",
+								Labels:    map[string]string{readonlyBundleManagedByK8sLabelKey: readonlyBundleManagedByK8sLabelValue},
 							},
 						},
 					},
@@ -647,9 +645,9 @@ func TestDeleteOrphanedMaestroReadonlyBundles_ensureOrphanedMaestroReadonlyBundl
 					Items: []workv1.ManifestWork{
 						{
 							ObjectMeta: metav1.ObjectMeta{
-								Name:        "orphaned-bundle",
-								Namespace:   "consumer",
-								Annotations: map[string]string{readonlyBundleManagedByAnnotation: "create-maestro-readonly-bundles-controller"},
+								Name:      "orphaned-bundle",
+								Namespace: "consumer",
+								Labels:    map[string]string{readonlyBundleManagedByK8sLabelKey: readonlyBundleManagedByK8sLabelValue},
 							},
 						},
 					},
@@ -668,9 +666,9 @@ func TestDeleteOrphanedMaestroReadonlyBundles_ensureOrphanedMaestroReadonlyBundl
 					Items: []workv1.ManifestWork{
 						{
 							ObjectMeta: metav1.ObjectMeta{
-								Name:        "orphaned-bundle",
-								Namespace:   "consumer",
-								Annotations: map[string]string{readonlyBundleManagedByAnnotation: "create-maestro-readonly-bundles-controller"},
+								Name:      "orphaned-bundle",
+								Namespace: "consumer",
+								Labels:    map[string]string{readonlyBundleManagedByK8sLabelKey: readonlyBundleManagedByK8sLabelValue},
 							},
 						},
 					},
@@ -692,17 +690,18 @@ func TestDeleteOrphanedMaestroReadonlyBundles_ensureOrphanedMaestroReadonlyBundl
 					Items: []workv1.ManifestWork{
 						{
 							ObjectMeta: metav1.ObjectMeta{
-								Name:        "orphan-page1",
-								Namespace:   "consumer",
-								Annotations: map[string]string{readonlyBundleManagedByAnnotation: "create-maestro-readonly-bundles-controller"},
+								Name:      "orphan-page1",
+								Namespace: "consumer",
+								Labels:    map[string]string{readonlyBundleManagedByK8sLabelKey: readonlyBundleManagedByK8sLabelValue},
 							},
 						},
 					},
 				}
 				page2 := &workv1.ManifestWorkList{Items: []workv1.ManifestWork{}}
-				m.EXPECT().List(gomock.Any(), metav1.ListOptions{Limit: 400, Continue: ""}).Return(page1, nil)
+				labelSelector := fmt.Sprintf("%s=%s", readonlyBundleManagedByK8sLabelKey, readonlyBundleManagedByK8sLabelValue)
+				m.EXPECT().List(gomock.Any(), metav1.ListOptions{Limit: 400, Continue: "", LabelSelector: labelSelector}).Return(page1, nil)
 				m.EXPECT().Delete(gomock.Any(), "orphan-page1", gomock.Any()).Return(nil)
-				m.EXPECT().List(gomock.Any(), metav1.ListOptions{Limit: 400, Continue: "token"}).Return(page2, nil)
+				m.EXPECT().List(gomock.Any(), metav1.ListOptions{Limit: 400, Continue: "token", LabelSelector: labelSelector}).Return(page2, nil)
 				return map[string]*provisionShardServiceProviderClusters{
 					"shard-1": {maestroClient: m, maestroClientCancelFunc: func() {}, serviceProviderClusters: []*api.ServiceProviderCluster{}},
 				}
@@ -758,9 +757,9 @@ func TestDeleteOrphanedMaestroReadonlyBundles_ensureOrphanedMaestroReadonlyBundl
 		Items: []workv1.ManifestWork{
 			{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:        "bundle-X",
-					Namespace:   "consumer2",
-					Annotations: map[string]string{readonlyBundleManagedByAnnotation: "create-maestro-readonly-bundles-controller"},
+					Name:      "bundle-X",
+					Namespace: "consumer2",
+					Labels:    map[string]string{readonlyBundleManagedByK8sLabelKey: readonlyBundleManagedByK8sLabelValue},
 				},
 			},
 		},
@@ -819,16 +818,16 @@ func TestDeleteOrphanedMaestroReadonlyBundles_SyncOnce_FullFlow_DeletesOrphanedB
 		Items: []workv1.ManifestWork{
 			{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:        "kept-bundle",
-					Namespace:   "consumer",
-					Annotations: map[string]string{readonlyBundleManagedByAnnotation: "create-maestro-readonly-bundles-controller"},
+					Name:      "kept-bundle",
+					Namespace: "consumer",
+					Labels:    map[string]string{readonlyBundleManagedByK8sLabelKey: readonlyBundleManagedByK8sLabelValue},
 				},
 			},
 			{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:        "orphaned-bundle",
-					Namespace:   "consumer",
-					Annotations: map[string]string{readonlyBundleManagedByAnnotation: "create-maestro-readonly-bundles-controller"},
+					Name:      "orphaned-bundle",
+					Namespace: "consumer",
+					Labels:    map[string]string{readonlyBundleManagedByK8sLabelKey: readonlyBundleManagedByK8sLabelValue},
 				},
 			},
 		},

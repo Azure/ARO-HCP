@@ -252,7 +252,8 @@ func (c *deleteOrphanedMaestroReadonlyBundles) ensureOrphanedMaestroReadonlyBund
 		maestroClient := shardToSPCs.maestroClient
 		// We list all the Maestro Bundles in chunks of 400 to avoid putting
 		// too much pressure on the Maestro API.
-		listOptions := metav1.ListOptions{Limit: 400, Continue: ""}
+		// We filter the Maestro Bundles by the K8s label that indicates that the Maestro Bundle is managed by the maestro create readonly bundles controller.
+		listOptions := metav1.ListOptions{Limit: 400, Continue: "", LabelSelector: fmt.Sprintf("%s=%s", readonlyBundleManagedByK8sLabelKey, readonlyBundleManagedByK8sLabelValue)}
 		for {
 			maestroBundles, err := maestroClient.List(ctx, listOptions)
 			if err != nil {
@@ -264,11 +265,8 @@ func (c *deleteOrphanedMaestroReadonlyBundles) ensureOrphanedMaestroReadonlyBund
 			// allocated to that shard by checking the MaestroBundleReferences in the ServiceProviderCluster status and checking if the
 			// Maestro API Maestro Bundle Name matches. If it matches, we leave it alone. If it does not match, we delete it.
 			for _, maestroBundle := range maestroBundles.Items {
-				// TODO Maestro might allow filtering with LabelSelector. If it's supported, do we want to change to
-				// create our Maestro Readonly bundles to use a K8s Label instead of a K8s annotation? Labels are more restrictive
-				// regarding length and charset restrictions but in this specific case it seems we have fixed length and charsets
-				// so it should be possible from that side.
-				if maestroBundle.Annotations["aro-hcp.azure.com/readonly-bundle-managed-by"] != "create-maestro-readonly-bundles-controller" {
+				// Even though Maestro should filter by the K8s label we specified we double check it here to be sure
+				if maestroBundle.Labels[readonlyBundleManagedByK8sLabelKey] != readonlyBundleManagedByK8sLabelValue {
 					continue
 				}
 
