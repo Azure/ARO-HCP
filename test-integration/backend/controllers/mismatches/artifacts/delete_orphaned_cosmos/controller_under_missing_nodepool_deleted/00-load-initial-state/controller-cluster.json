@@ -1,24 +1,24 @@
 {
-  "id": "32c0e44d-2fd5-7875-ac85-5c31efd03b79",
-  "partitionKey": "a433a095-1277-44f1-8453-8d61a4d848c2",
-  "properties": {
-    "cosmosMetadata": {
-      "resourceID": "/subscriptions/a433a095-1277-44f1-8453-8d61a4d848c2/resourceGroups/unimportantpostponement/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/monstrousprecinct/hcpOpenShiftControllers/clustercontroller"
-    },
-    "externalId": "/subscriptions/a433a095-1277-44f1-8453-8d61a4d848c2/resourceGroups/unimportantpostponement/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/monstrousprecinct",
-    "resourceId": "/subscriptions/a433a095-1277-44f1-8453-8d61a4d848c2/resourceGroups/unimportantpostponement/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/monstrousprecinct/hcpOpenShiftControllers/clustercontroller",
-    "status": {
-      "conditions": [
-        {
-          "lastTransitionTime": "2026-01-08T17:43:39.420609489-05:00",
-          "message": "As expected.",
-          "reason": "NoErrors",
-          "status": "False",
-          "type": "Degraded"
-        }
-      ]
-    }
-  },
-  "resourceID": "/subscriptions/a433a095-1277-44f1-8453-8d61a4d848c2/resourceGroups/unimportantpostponement/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/monstrousprecinct/hcpOpenShiftControllers/clustercontroller",
-  "resourceType": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/hcpOpenShiftControllers"
+	"id": "464bdca5-4108-5ef3-ab4a-15c13eddcf8e",
+	"partitionKey": "a433a095-1277-44f1-8453-8d61a4d848c2",
+	"properties": {
+		"cosmosMetadata": {
+			"resourceID": "/subscriptions/a433a095-1277-44f1-8453-8d61a4d848c2/resourceGroups/unimportantpostponement/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/monstrousprecinct/hcpOpenShiftControllers/clustercontroller"
+		},
+		"externalId": "/subscriptions/a433a095-1277-44f1-8453-8d61a4d848c2/resourceGroups/unimportantpostponement/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/monstrousprecinct",
+		"resourceId": "/subscriptions/a433a095-1277-44f1-8453-8d61a4d848c2/resourceGroups/unimportantpostponement/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/monstrousprecinct/hcpOpenShiftControllers/clustercontroller",
+		"status": {
+			"conditions": [
+				{
+					"lastTransitionTime": "2026-01-08T17:43:39.420609489-05:00",
+					"message": "As expected.",
+					"reason": "NoErrors",
+					"status": "False",
+					"type": "Degraded"
+				}
+			]
+		}
+	},
+	"resourceID": "/subscriptions/a433a095-1277-44f1-8453-8d61a4d848c2/resourceGroups/unimportantpostponement/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/monstrousprecinct/hcpOpenShiftControllers/clustercontroller",
+	"resourceType": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/hcpOpenShiftControllers"
 }

@@ -4,8 +4,8 @@
 	"_rid": "xP0UAJicPgMFAAAAAAAAAA==",
 	"_self": "dbs/xP0UAA==/colls/xP0UAJicPgM=/docs/xP0UAJicPgMFAAAAAAAAAA==/",
 	"_ts": 1768346733,
+	"id": "2b834a28-7e5b-50e2-9fb9-b6679cdd6a1b",
 	"partitionKey": "6b690bec-0c16-4ecb-8f67-781caf40bba7",
-	"resourceID": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/create-with-tags/nodePools/basic-node-pool",
 	"properties": {
 		"activeOperationId": "bf643e76-55fe-48a0-a752-f5c5a2db72ad",
 		"cosmosMetadata": {
@@ -70,5 +70,6 @@
 			"lastModifiedByType": "Application"
 		}
 	},
+	"resourceID": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/create-with-tags/nodePools/basic-node-pool",
 	"resourceType": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/nodePools"
 }

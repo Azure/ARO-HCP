@@ -4,8 +4,8 @@
 	"_rid": "M4dGAP57SmwFAAAAAAAAAA==",
 	"_self": "dbs/M4dGAA==/colls/M4dGAP57Smw=/docs/M4dGAP57SmwFAAAAAAAAAA==/",
 	"_ts": 1767983403,
+	"id": "85dada74-03ca-5abf-9adc-218fbd0090c7",
 	"partitionKey": "6b690bec-0c16-4ecb-8f67-781caf40bba7",
-	"resourceID": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/create-with-tags/externalAuths/default",
 	"properties": {
 		"activeOperationId": "60df392c-42ba-4384-95b4-5e4601df2f3e",
 		"cosmosMetadata": {
@@ -84,5 +84,6 @@
 			"lastModifiedByType": "Application"
 		}
 	},
+	"resourceID": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/create-with-tags/externalAuths/default",
 	"resourceType": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/externalAuths"
 }

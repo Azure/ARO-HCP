@@ -4,8 +4,8 @@
 	"_rid": "WZlNALYurecDAAAAAAAAAA==",
 	"_self": "dbs/WZlNAA==/colls/WZlNALYurec=/docs/WZlNALYurecDAAAAAAAAAA==/",
 	"_ts": 1766174370,
+	"id": "96b154eb-638c-5dae-ba08-9b2df5cd8f61",
 	"partitionKey": "6b690bec-0c16-4ecb-8f67-781caf40bba7",
-	"resourceID": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/create-with-tags",
 	"properties": {
 		"activeOperationId": "c01d4815-566a-4f10-ad8c-de1667682c5b",
 		"cosmosMetadata": {
@@ -90,8 +90,7 @@
 					"clusterServiceID": "",
 					"console": {},
 					"dns": {},
-					"platform": {},
-					"managedIdentitiesDataPlaneIdentityURL": "https://dummyhost.identity.azure.net/otherinformation?aqueryarg=somevalue"
+					"platform": {}
 				}
 			}
 		},
@@ -108,5 +107,6 @@
 			"two": "banana"
 		}
 	},
+	"resourceID": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/create-with-tags",
 	"resourceType": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters"
 }

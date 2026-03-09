@@ -1,28 +1,29 @@
 {
+	"_attachments": "attachments/",
+	"_etag": "\"00000000-0000-0000-80ed-5174940501dc\"",
 	"_rid": "sIMIAKLq4TwCAAAAAAAAAA==",
 	"_self": "dbs/sIMIAA==/colls/sIMIAKLq4Tw=/docs/sIMIAKLq4TwCAAAAAAAAAA==/",
-	"_etag": "\"00000000-0000-0000-80ed-5174940501dc\"",
-	"_attachments": "attachments/",
 	"_ts": 1767910967,
+	"id": "e0464b60-8841-527f-b26c-3515a4208adb",
 	"partitionKey": "subscriptionid",
-	"resourceID": "/subscriptions/subscriptionID/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/parentCluster/hcpOpenShiftControllers/second-controller",
-	"resourceType": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/hcpOpenShiftControllers",
 	"properties": {
 		"cosmosMetadata": {
 			"resourceID": "/subscriptions/subscriptionID/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/parentCluster/hcpOpenShiftControllers/second-controller"
 		},
-		"resourceId": "/subscriptions/subscriptionID/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/parentCluster/hcpOpenShiftControllers/second-controller",
 		"externalId": "/subscriptions/subscriptionID/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/parentCluster",
+		"resourceId": "/subscriptions/subscriptionID/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/parentCluster/hcpOpenShiftControllers/second-controller",
 		"status": {
 			"conditions": [
 				{
-					"type": "Degraded",
-					"status": "False",
 					"lastTransitionTime": "2025-12-04T08:01:57.129283149-05:00",
+					"message": "Updated",
 					"reason": "SomeAction",
-					"message": "Updated"
+					"status": "False",
+					"type": "Degraded"
 				}
 			]
 		}
-	}
+	},
+	"resourceID": "/subscriptions/subscriptionID/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/parentCluster/hcpOpenShiftControllers/second-controller",
+	"resourceType": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/hcpOpenShiftControllers"
 }

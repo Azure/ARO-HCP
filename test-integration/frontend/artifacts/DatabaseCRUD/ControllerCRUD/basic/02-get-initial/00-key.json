@@ -1,3 +1,4 @@
 {
+	"id": "c5d38d4a-5b4a-5d49-a7d8-5ad8771156ad",
 	"resourceID": "/subscriptions/subscriptionID/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/parentCluster/hcpOpenShiftControllers/test-controller"
 }

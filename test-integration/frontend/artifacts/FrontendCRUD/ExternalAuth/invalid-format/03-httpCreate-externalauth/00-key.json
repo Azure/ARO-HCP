@@ -1,3 +1,4 @@
 {
+	"id": "3897f32e-eaaa-594d-a90f-e3c3876b7312",
 	"resourceID": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/invalid-format/externalAuths/basic-external-auth"
 }

@@ -77,8 +77,8 @@ func testDeleteOrphanedCosmosResourcesController(t *testing.T, withMock bool) {
 				require.NoError(t, err)
 
 				for _, item := range allItems.Items(ctx) {
-					if item.ID == "a0a404a5-15e9-6b00-5d5d-58460bad8c18" ||
-						item.ID == "20f9e877-5cce-d888-07d9-78a5e19f06ee" {
+					if item.ID == "718f75e1-6967-5ce1-ab3c-4f991504b7eb" ||
+						item.ID == "f7583c84-ae03-56f3-b91d-55bbb849164d" {
 						continue
 					}
 					t.Errorf("unexpected resource found: %v", item.ID)
@@ -110,9 +110,9 @@ func testDeleteOrphanedCosmosResourcesController(t *testing.T, withMock bool) {
 				require.NoError(t, err)
 
 				for _, item := range allItems.Items(ctx) {
-					if item.ID == "a0a404a5-15e9-6b00-5d5d-58460bad8c18" ||
-						item.ID == "20f9e877-5cce-d888-07d9-78a5e19f06ee" ||
-						item.ID == "32c0e44d-2fd5-7875-ac85-5c31efd03b79" {
+					if item.ID == "718f75e1-6967-5ce1-ab3c-4f991504b7eb" ||
+						item.ID == "f7583c84-ae03-56f3-b91d-55bbb849164d" ||
+						item.ID == "464bdca5-4108-5ef3-ab4a-15c13eddcf8e" {
 						continue
 					}
 					t.Errorf("unexpected resource found: %v", item.ID)
@@ -144,7 +144,7 @@ func testDeleteOrphanedCosmosResourcesController(t *testing.T, withMock bool) {
 
 				for _, item := range allItems.Items(ctx) {
 					// No resources other than this subscription should exist
-					if item.ID != "a0a404a5-15e9-6b00-5d5d-58460bad8c18" {
+					if item.ID != "718f75e1-6967-5ce1-ab3c-4f991504b7eb" {
 						t.Errorf("resource under missing cluster should have been deleted: %s", item.ID)
 					}
 				}

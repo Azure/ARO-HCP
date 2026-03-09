@@ -4,8 +4,8 @@
 	"_rid": "WZlNALYurecDAAAAAAAAAA==",
 	"_self": "dbs/WZlNAA==/colls/WZlNALYurec=/docs/WZlNALYurecDAAAAAAAAAA==/",
 	"_ts": 1766174370,
+	"id": "96b154eb-638c-5dae-ba08-9b2df5cd8f61",
 	"partitionKey": "6b690bec-0c16-4ecb-8f67-781caf40bba7",
-	"resourceID": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/create-with-tags",
 	"properties": {
 		"activeOperationId": "bb83a448-9eb0-431c-9fd3-9cec8699ea5f",
 		"cosmosMetadata": {
@@ -107,5 +107,6 @@
 			"one": "apple"
 		}
 	},
+	"resourceID": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/create-with-tags",
 	"resourceType": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters"
 }

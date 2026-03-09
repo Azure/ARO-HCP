@@ -1,12 +1,12 @@
 {
-  "id": "a0a404a5-15e9-6b00-5d5d-58460bad8c18",
-  "partitionKey": "a433a095-1277-44f1-8453-8d61a4d848c2",
-  "properties": {
-    "properties": null,
-    "registrationDate": "2025-12-19T19:53:15+00:00",
-    "resourceId": "/subscriptions/a433a095-1277-44f1-8453-8d61a4d848c2",
-    "state": "Registered"
-  },
-  "resourceID": "/subscriptions/a433a095-1277-44f1-8453-8d61a4d848c2",
-  "resourceType": "microsoft.resources/subscriptions"
+	"id": "718f75e1-6967-5ce1-ab3c-4f991504b7eb",
+	"partitionKey": "a433a095-1277-44f1-8453-8d61a4d848c2",
+	"properties": {
+		"properties": null,
+		"registrationDate": "2025-12-19T19:53:15+00:00",
+		"resourceId": "/subscriptions/a433a095-1277-44f1-8453-8d61a4d848c2",
+		"state": "Registered"
+	},
+	"resourceID": "/subscriptions/a433a095-1277-44f1-8453-8d61a4d848c2",
+	"resourceType": "microsoft.resources/subscriptions"
 }

@@ -4,6 +4,7 @@
 	"_rid": "tKR1ALL7Gp0EAAAAAAAAAA==",
 	"_self": "dbs/tKR1AA==/colls/tKR1ALL7Gp0=/docs/tKR1ALL7Gp0EAAAAAAAAAA==/",
 	"_ts": 1767984259,
+	"id": "31fce829-acf3-5a87-b055-41d1b889100e",
 	"partitionKey": "6b690bec-0c16-4ecb-8f67-781caf40bba7",
 	"properties": {
 		"externalId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/create-with-tags/externalAuths/default",
@@ -16,7 +17,7 @@
 		"status": "Succeeded",
 		"tenantId": "00000000-0000-0000-0000-000000000000"
 	},
-	"resourceType": "Microsoft.RedHatOpenShift/hcpOperationStatuses",
 	"resourceID": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/providers/Microsoft.RedHatOpenShift/hcpOperationStatuses/5dce3cac-e09b-4ef5-803c-cb8f17b3a552",
+	"resourceType": "Microsoft.RedHatOpenShift/hcpOperationStatuses",
 	"ttl": 604800
 }

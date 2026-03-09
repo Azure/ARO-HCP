@@ -1,3 +1,4 @@
 {
+	"id": "dc7c71cd-b3ac-57d0-8f0a-23a19333d71d",
 	"resourceID": "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-deleting/nodePools/np1"
 }

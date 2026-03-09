@@ -4,7 +4,7 @@
 	"_rid": "NNYoALQEciYIAAAAAAAAAA==",
 	"_self": "dbs/NNYoAA==/colls/NNYoALQEciY=/docs/NNYoALQEciYIAAAAAAAAAA==/",
 	"_ts": 1767902972,
-	"id": "50c1a0ba-3bc4-48fb-857e-eb0974df1e1c",
+	"id": "3899122d-bdea-5f6c-af28-e7a6ebda2160",
 	"partitionKey": "6b690bec-0c16-4ecb-8f67-781caf40bba7",
 	"properties": {
 		"externalId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/create-with-tags/nodePools/basic-node-pool",
@@ -17,7 +17,7 @@
 		"status": "Accepted",
 		"tenantId": "00000000-0000-0000-0000-000000000000"
 	},
-	"resourceType": "Microsoft.RedHatOpenShift/hcpOperationStatuses",
 	"resourceID": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/providers/Microsoft.RedHatOpenShift/hcpOperationStatuses/50c1a0ba-3bc4-48fb-857e-eb0974df1e1c",
+	"resourceType": "Microsoft.RedHatOpenShift/hcpOperationStatuses",
 	"ttl": 604800
 }

@@ -1,3 +1,4 @@
 {
+	"id": "07ea4b1d-82b2-522c-b0d7-877343c99abb",
 	"resourceID": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/missing-required-fields/nodePools/minimal-np"
 }

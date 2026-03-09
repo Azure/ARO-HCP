@@ -1,3 +1,4 @@
 {
+	"id": "57515981-8f8b-591e-86bd-834af142e514",
 	"resourceID": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/foo/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/missing-non-leaf-required-fields"
 }

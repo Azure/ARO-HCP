@@ -1,3 +1,4 @@
 {
+	"id": "e0464b60-8841-527f-b26c-3515a4208adb",
 	"resourceID": "/subscriptions/subscriptionID/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/parentCluster/hcpOpenShiftControllers/second-controller"
 }

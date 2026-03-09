@@ -1,3 +1,4 @@
 {
+	"id": "a4de79e0-f98a-52eb-9898-32cb0aaaf583",
 	"resourceID": "/subscriptions/b2c3d4e5-0000-0000-0000-afec00000001/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/bad-tag-test"
 }

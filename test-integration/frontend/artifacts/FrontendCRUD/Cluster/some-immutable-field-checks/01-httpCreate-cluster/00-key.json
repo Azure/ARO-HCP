@@ -1,3 +1,4 @@
 {
+	"id": "75c2f3e6-0b1c-5a71-97e9-e6b96b940215",
 	"resourceID": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/some-immutable-field-checks"
 }

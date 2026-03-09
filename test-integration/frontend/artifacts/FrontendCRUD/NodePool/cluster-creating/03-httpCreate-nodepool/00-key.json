@@ -1,3 +1,4 @@
 {
+	"id": "906e5949-bc64-5c0d-868b-61b045eb1942",
 	"resourceID": "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-creating/nodePools/np1"
 }

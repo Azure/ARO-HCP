@@ -1,3 +1,4 @@
 {
+	"id": "9b74accf-0661-53d8-9741-b3aa39f9a53c",
 	"resourceID": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/create-with-tags/nodePools/node-pool-02"
 }

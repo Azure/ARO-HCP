@@ -4,6 +4,7 @@
 	"_rid": "qt1+AP1vXOAGAAAAAAAAAA==",
 	"_self": "dbs/qt1+AA==/colls/qt1+AP1vXOA=/docs/qt1+AP1vXOAGAAAAAAAAAA==/",
 	"_ts": 1768403927,
+	"id": "96b154eb-638c-5dae-ba08-9b2df5cd8f61",
 	"partitionKey": "6b690bec-0c16-4ecb-8f67-781caf40bba7",
 	"properties": {
 		"identity": {
@@ -66,23 +67,17 @@
 					"clusterServiceID": "",
 					"console": {},
 					"dns": {},
-					"platform": {},
-					"managedIdentitiesDataPlaneIdentityURL": "https://dummyhost.identity.azure.net/otherinformation?aqueryarg=somevalue"
+					"platform": {}
 				}
 			}
 		},
 		"provisioningState": "Succeeded",
 		"resourceId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/create-with-tags",
-		"systemData": {
-			"createdBy": "Unknown-ARO-HCP-frontend",
-			"createdByType": "Application",
-			"lastModifiedBy": "Unknown-ARO-HCP-frontend",
-			"lastModifiedByType": "Application"
-		},
+		"systemData": {},
 		"tags": {
 			"one": "apple"
 		}
 	},
-	"resourceType": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters",
-	"resourceID": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/create-with-tags"
+	"resourceID": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/create-with-tags",
+	"resourceType": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters"
 }

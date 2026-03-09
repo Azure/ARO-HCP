@@ -1,3 +1,4 @@
 {
+	"id": "4d495076-bd8f-50d3-8821-d06b520a8bb7",
 	"resourceID": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/noop-update/nodePools/noop-update-np"
 }

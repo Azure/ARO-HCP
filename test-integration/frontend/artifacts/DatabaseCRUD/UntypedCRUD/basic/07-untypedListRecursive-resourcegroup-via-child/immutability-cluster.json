@@ -4,8 +4,8 @@
 	"_rid": "zT0eAODBiq0FAAAAAAAAAA==",
 	"_self": "dbs/zT0eAA==/colls/zT0eAODBiq0=/docs/zT0eAODBiq0FAAAAAAAAAA==/",
 	"_ts": 1764966624,
+	"id": "3124522e-4a40-5976-ba57-21b61b634f23",
 	"partitionKey": "f52dfea2-47ee-4396-8006-4a27d47d59c5",
-	"resourceID": "/subscriptions/f52dfea2-47ee-4396-8006-4a27d47d59c5/resourceGroups/some-resource-group/providers/microsoft.redhatopenshift/hcpopenshiftclusters/immutability",
 	"properties": {
 		"customerDesiredState": null,
 		"identity": {
@@ -21,5 +21,6 @@
 			"foo": "bar"
 		}
 	},
+	"resourceID": "/subscriptions/f52dfea2-47ee-4396-8006-4a27d47d59c5/resourceGroups/some-resource-group/providers/microsoft.redhatopenshift/hcpopenshiftclusters/immutability",
 	"resourceType": "microsoft.redhatopenshift/hcpopenshiftclusters"
 }

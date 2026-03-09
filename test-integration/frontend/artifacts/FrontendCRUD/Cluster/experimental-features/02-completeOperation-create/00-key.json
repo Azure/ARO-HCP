@@ -1,3 +1,4 @@
 {
+	"id": "d189de99-ebfa-5c9f-846c-6656f3718661",
 	"resourceID": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/feature-flag-test"
 }

@@ -1,3 +1,4 @@
 {
+	"id": "b407fda7-341b-50b8-8f08-0171b0fcd487",
 	"resourceID": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/update-np-to-illegal-value/nodePools/illegal-np"
 }

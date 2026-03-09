@@ -4,7 +4,7 @@
 	"_rid": "NNYoALQEciYEAAAAAAAAAA==",
 	"_self": "dbs/NNYoAA==/colls/NNYoALQEciY=/docs/NNYoALQEciYEAAAAAAAAAA==/",
 	"_ts": 1767902971,
-	"id": "7a4ed07a-47a1-4efb-966a-93a6316522a0",
+	"id": "e69a6250-74d8-5b1f-b279-6628cd77ecae",
 	"partitionKey": "6b690bec-0c16-4ecb-8f67-781caf40bba7",
 	"properties": {
 		"externalId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/create-with-tags",
@@ -17,7 +17,7 @@
 		"status": "Succeeded",
 		"tenantId": "00000000-0000-0000-0000-000000000000"
 	},
-	"resourceType": "Microsoft.RedHatOpenShift/hcpOperationStatuses",
 	"resourceID": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/providers/Microsoft.RedHatOpenShift/hcpOperationStatuses/7a4ed07a-47a1-4efb-966a-93a6316522a0",
+	"resourceType": "Microsoft.RedHatOpenShift/hcpOperationStatuses",
 	"ttl": 604800
 }

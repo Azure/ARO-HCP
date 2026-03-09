@@ -1,3 +1,4 @@
 {
+	"id": "797557a1-bc7e-5520-a35f-d07fc9dd0669",
 	"resourceID": "/subscriptions/ca3b7be4-6ac8-4784-b2b5-0e398a60269a/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/parentCluster/serviceProviderClusters/default"
 }

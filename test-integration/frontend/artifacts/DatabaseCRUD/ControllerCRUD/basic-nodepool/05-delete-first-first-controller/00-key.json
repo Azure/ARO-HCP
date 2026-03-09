@@ -1,3 +1,4 @@
 {
+	"id": "9fb33bc8-0007-5f3a-a4c4-fe74c822ef71",
 	"resourceID": "/subscriptions/subscriptionID/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/basic/nodePools/first-node-pool/hcpOpenShiftControllers/first-controller"
 }

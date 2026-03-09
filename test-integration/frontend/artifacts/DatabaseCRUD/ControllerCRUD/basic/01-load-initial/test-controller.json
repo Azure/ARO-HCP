@@ -1,29 +1,29 @@
 {
-  "_attachments": "attachments/",
-  "_etag": "\"00000000-0000-0000-65e7-5625080501dc\"",
-  "_rid": "vWhbAJ1AYhMBAAAAAAAAAA==",
-  "_self": "dbs/vWhbAA==/colls/vWhbAJ1AYhM=/docs/vWhbAJ1AYhMBAAAAAAAAAA==/",
-  "_ts": 1764939717,
-  "id": "0e923a7f-9c87-54af-d245-185d436e2252",
-  "partitionKey": "subscriptionid",
-  "properties": {
-    "cosmosMetadata": {
-      "resourceID": "/subscriptions/subscriptionID/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/parentCluster/hcpOpenShiftControllers/test-controller"
-    },
-    "externalId": "/subscriptions/subscriptionID/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/parentCluster",
-    "resourceId": "/subscriptions/subscriptionID/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/parentCluster/hcpOpenShiftControllers/test-controller",
-    "status": {
-      "conditions": [
-        {
-          "lastTransitionTime": "2025-12-05T08:01:57.129283149-05:00",
-          "message": "Updating cosmos failed for some reason.",
-          "reason": "UpdateFailed",
-          "status": "True",
-          "type": "Degraded"
-        }
-      ]
-    }
-  },
-  "resourceID": "/subscriptions/subscriptionID/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/parentCluster/hcpOpenShiftControllers/test-controller",
-  "resourceType": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/hcpOpenShiftControllers"
+	"_attachments": "attachments/",
+	"_etag": "\"00000000-0000-0000-65e7-5625080501dc\"",
+	"_rid": "vWhbAJ1AYhMBAAAAAAAAAA==",
+	"_self": "dbs/vWhbAA==/colls/vWhbAJ1AYhM=/docs/vWhbAJ1AYhMBAAAAAAAAAA==/",
+	"_ts": 1764939717,
+	"id": "c5d38d4a-5b4a-5d49-a7d8-5ad8771156ad",
+	"partitionKey": "subscriptionid",
+	"properties": {
+		"cosmosMetadata": {
+			"resourceID": "/subscriptions/subscriptionID/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/parentCluster/hcpOpenShiftControllers/test-controller"
+		},
+		"externalId": "/subscriptions/subscriptionID/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/parentCluster",
+		"resourceId": "/subscriptions/subscriptionID/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/parentCluster/hcpOpenShiftControllers/test-controller",
+		"status": {
+			"conditions": [
+				{
+					"lastTransitionTime": "2025-12-05T08:01:57.129283149-05:00",
+					"message": "Updating cosmos failed for some reason.",
+					"reason": "UpdateFailed",
+					"status": "True",
+					"type": "Degraded"
+				}
+			]
+		}
+	},
+	"resourceID": "/subscriptions/subscriptionID/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/parentCluster/hcpOpenShiftControllers/test-controller",
+	"resourceType": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/hcpOpenShiftControllers"
 }
