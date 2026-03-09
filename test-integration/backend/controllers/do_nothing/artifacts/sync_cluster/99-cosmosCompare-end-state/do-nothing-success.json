@@ -1,29 +1,29 @@
 {
-  "_attachments": "attachments/",
-  "_etag": "\"00000000-0000-0000-80f0-3b91cc0501dc\"",
-  "_rid": "jM8FAIO4OYgCAAAAAAAAAA==",
-  "_self": "dbs/jM8FAA==/colls/jM8FAIO4OYg=/docs/jM8FAIO4OYgCAAAAAAAAAA==/",
-  "_ts": 1767912219,
-  "id": "ada5614e-2bf9-5ba0-859f-82066953dc7d",
-  "partitionKey": "4fa75980-6637-4157-9726-84d878a62e83",
-  "properties": {
-    "cosmosMetadata": {
-      "resourceID": "/subscriptions/4fa75980-6637-4157-9726-84d878a62e83/resourceGroups/shrilleffectiveness/providers/microsoft.redhatopenshift/hcpopenshiftclusters/lavishunhappiness/hcpOpenShiftControllers/DoNothingExample"
-    },
-    "externalId": "/subscriptions/4fa75980-6637-4157-9726-84d878a62e83/resourceGroups/shrilleffectiveness/providers/microsoft.redhatopenshift/hcpopenshiftclusters/lavishunhappiness",
-    "resourceId": "/subscriptions/4fa75980-6637-4157-9726-84d878a62e83/resourceGroups/shrilleffectiveness/providers/microsoft.redhatopenshift/hcpopenshiftclusters/lavishunhappiness/hcpOpenShiftControllers/DoNothingExample",
-    "status": {
-      "conditions": [
-        {
-          "lastTransitionTime": "2026-01-08T17:43:39.420609489-05:00",
-          "message": "As expected.",
-          "reason": "NoErrors",
-          "status": "False",
-          "type": "Degraded"
-        }
-      ]
-    }
-  },
-  "resourceID": "/subscriptions/4fa75980-6637-4157-9726-84d878a62e83/resourceGroups/shrillEffectiveness/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/lavishUnhappiness/hcpOpenShiftControllers/DoNothingExample",
-  "resourceType": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/hcpOpenShiftControllers"
+	"_attachments": "attachments/",
+	"_etag": "\"00000000-0000-0000-80f0-3b91cc0501dc\"",
+	"_rid": "jM8FAIO4OYgCAAAAAAAAAA==",
+	"_self": "dbs/jM8FAA==/colls/jM8FAIO4OYg=/docs/jM8FAIO4OYgCAAAAAAAAAA==/",
+	"_ts": 1767912219,
+	"id": "ada5614e-2bf9-5ba0-859f-82066953dc7d",
+	"partitionKey": "4fa75980-6637-4157-9726-84d878a62e83",
+	"properties": {
+		"cosmosMetadata": {
+			"resourceID": "/subscriptions/4fa75980-6637-4157-9726-84d878a62e83/resourceGroups/shrilleffectiveness/providers/microsoft.redhatopenshift/hcpopenshiftclusters/lavishunhappiness/hcpOpenShiftControllers/DoNothingExample"
+		},
+		"externalId": "/subscriptions/4fa75980-6637-4157-9726-84d878a62e83/resourceGroups/shrilleffectiveness/providers/microsoft.redhatopenshift/hcpopenshiftclusters/lavishunhappiness",
+		"resourceId": "/subscriptions/4fa75980-6637-4157-9726-84d878a62e83/resourceGroups/shrilleffectiveness/providers/microsoft.redhatopenshift/hcpopenshiftclusters/lavishunhappiness/hcpOpenShiftControllers/DoNothingExample",
+		"status": {
+			"conditions": [
+				{
+					"lastTransitionTime": "2026-01-08T17:43:39.420609489-05:00",
+					"message": "As expected.",
+					"reason": "NoErrors",
+					"status": "False",
+					"type": "Degraded"
+				}
+			]
+		}
+	},
+	"resourceID": "/subscriptions/4fa75980-6637-4157-9726-84d878a62e83/resourceGroups/shrillEffectiveness/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/lavishUnhappiness/hcpOpenShiftControllers/DoNothingExample",
+	"resourceType": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/hcpOpenShiftControllers"
 }
