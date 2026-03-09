@@ -322,6 +322,7 @@ images:
       filePath: ../../config/config.yaml
   # Istio istioctl version from GitHub latest release (istio/istio).
   istio-istioctl:
+    group: istio
     source:
       githubLatestRelease: "istio/istio"
     targets:
