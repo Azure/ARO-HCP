@@ -426,7 +426,7 @@ func (o *Options) Visualize(ctx context.Context) error {
 	waterfall := charts.NewBar()
 	waterfall.SetGlobalOptions(
 		charts.WithInitializationOpts(opts.Initialization{
-			PageTitle: "Timing Analysis",
+			PageTitle: "Test Timing Analysis",
 			Renderer:  "svg",
 			Height:    "1024px",
 		}),
