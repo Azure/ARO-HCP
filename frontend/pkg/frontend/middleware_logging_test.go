@@ -144,3 +144,28 @@ func TestMiddlewareLoggingPostMux(t *testing.T) {
 		})
 	}
 }
+
+func TestMiddlewareLoggingLogsMethodAndPathKeys(t *testing.T) {
+	var (
+		writer = httptest.NewRecorder()
+		buf    bytes.Buffer
+		logger = logr.FromSlogHandler(slog.NewTextHandler(&buf, nil))
+	)
+
+	ctx := utils.ContextWithLogger(context.Background(), logger)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "http://example.com/My/Path", nil)
+	require.NoError(t, err)
+
+	MiddlewareLogging(writer, req, func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	lines := strings.Split(strings.TrimSuffix(buf.String(), "\n"), "\n")
+	require.GreaterOrEqual(t, len(lines), 1)
+
+	requestLogLine := lines[0]
+	assert.Contains(t, requestLogLine, slog.String("method", "post").String())
+	assert.Contains(t, requestLogLine, slog.String("path", "/my/path").String())
+	assert.NotContains(t, requestLogLine, "request_method=")
+	assert.NotContains(t, requestLogLine, "request_path=")
+}
