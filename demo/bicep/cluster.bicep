@@ -566,6 +566,10 @@ resource hcp 'Microsoft.RedHatOpenShift/hcpOpenShiftClusters@2024-06-10-preview'
         }
       }
     }
+    version: {
+      id: '4.20'
+      channelGroup: 'stable'
+    }
   }
   identity: {
     type: 'UserAssigned'
