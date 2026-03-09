@@ -43,7 +43,7 @@ func FindHelmTestFiles(pathToSearch string) ([]string, error) {
 }
 
 func FindHelmSteps(topologyDir, configPath string) ([]HelmStepWithPath, error) {
-	cfg, err := loadConfig(configPath)
+	cfg, err := LoadConfig(configPath)
 	if err != nil {
 		return nil, fmt.Errorf("error loading config: %v", err)
 	}

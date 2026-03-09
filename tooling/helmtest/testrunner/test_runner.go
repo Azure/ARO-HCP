@@ -225,8 +225,6 @@ func RunTestACRValues(t *testing.T, settingsPath string) {
 		}
 		valuesVisited[valuesFile] = true
 
-		fmt.Println(valuesFile)
-
 		valuesFileContent, err := os.ReadFile(valuesFile)
 		assert.NoError(t, err)
 
