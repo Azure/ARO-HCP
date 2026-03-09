@@ -4,7 +4,7 @@
   "_rid": "QS9oAIjBpYUDAAAAAAAAAA==",
   "_self": "dbs/QS9oAA==/colls/QS9oAIjBpYU=/docs/QS9oAIjBpYUDAAAAAAAAAA==/",
   "_ts": 1764966613,
-  "id": "36338c76-f725-4ced-1522-8cb0cd27e700",
+  "id": "489d7b40-e91a-56b2-8443-8d42c51d7f71",
   "partitionKey": "f52dfea2-47ee-4396-8006-4a27d47d59c5",
   "properties": {
     "externalId": "/subscriptions/f52dfea2-47ee-4396-8006-4a27d47d59c5/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/basic-external-auth/externalAuths/basic-external-auth",

@@ -4,7 +4,7 @@
   "_rid": "KDJCAI5tVlcEAAAAAAAAAA==",
   "_self": "dbs/KDJCAA==/colls/KDJCAI5tVlc=/docs/KDJCAI5tVlcEAAAAAAAAAA==/",
   "_ts": 1764966599,
-  "id": "c0ba587a-b6ed-cab6-ac42-960afe33edea",
+  "id": "06bf47f6-9e52-51b5-a2ab-95bf5115c1bb",
   "partitionKey": "f52dfea2-47ee-4396-8006-4a27d47d59c5",
   "properties": {
     "externalId": "/subscriptions/f52dfea2-47ee-4396-8006-4a27d47d59c5/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/create-with-tags",

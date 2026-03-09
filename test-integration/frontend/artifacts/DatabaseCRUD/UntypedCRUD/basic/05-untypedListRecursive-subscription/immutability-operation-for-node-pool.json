@@ -4,7 +4,7 @@
   "_rid": "zT0eAODBiq0GAAAAAAAAAA==",
   "_self": "dbs/zT0eAA==/colls/zT0eAODBiq0=/docs/zT0eAODBiq0GAAAAAAAAAA==/",
   "_ts": 1764966625,
-  "id": "e5ff7423-9934-fa05-aaae-9278f1a4ce34",
+  "id": "cc9a69a6-7b41-5ab1-9619-0355879445dc",
   "partitionKey": "f52dfea2-47ee-4396-8006-4a27d47d59c5",
   "properties": {
     "externalId": "/subscriptions/f52dfea2-47ee-4396-8006-4a27d47d59c5/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/immutability/nodePools/immutability-np",
