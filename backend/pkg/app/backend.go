@@ -69,6 +69,8 @@ type BackendOptions struct {
 	FPAClientBuilder                   azureclient.FirstPartyApplicationClientBuilder
 	BackendIdentityAzureClients        *azureclient.BackendIdentityAzureClients
 	ExitOnPanic                        bool
+	FPAMIDataplaneClientBuilder        azureclient.FPAMIDataplaneClientBuilder
+	SMIClientBuilderFactory            azureclient.ServiceManagedIdentityClientBuilderFactory
 }
 
 func (o *BackendOptions) RunBackend(ctx context.Context) error {
@@ -371,9 +373,14 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		b.options.CosmosDBClient,
 		backendInformers,
 	)
-
 	azureClusterResourceGroupExistenceValidationController := validationcontrollers.NewClusterValidationController(
 		validations.NewAzureClusterResourceGroupExistenceValidation(b.options.FPAClientBuilder),
+		activeOperationLister,
+		b.options.CosmosDBClient,
+		backendInformers,
+	)
+	azureClusterManagedIdentitiesExistenceValidationController := validationcontrollers.NewClusterValidationController(
+		validations.NewAzureClusterManagedIdentitiesExistenceValidation(b.options.SMIClientBuilderFactory),
 		activeOperationLister,
 		b.options.CosmosDBClient,
 		backendInformers,
@@ -420,6 +427,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go identityMigrationController.Run(ctx, 20)
 				go azureRPRegistrationValidationController.Run(ctx, 20)
 				go azureClusterResourceGroupExistenceValidationController.Run(ctx, 20)
+				go azureClusterManagedIdentitiesExistenceValidationController.Run(ctx, 20)
 				go nodePoolVersionController.Run(ctx, 20)
 			},
 			OnStoppedLeading: func() {

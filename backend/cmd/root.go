@@ -253,7 +253,12 @@ func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.C
 		return nil, utils.TrackError(fmt.Errorf("failed to create Azure configuration: %w", err))
 	}
 
-	fpaClientBuilder, err := app.NewFirstPartyApplicationClientBuilder(ctx, f.AzureFirstPartyApplicationCertificateBundlePath, f.AzureFirstPartyApplicationClientID, azureConfig)
+	fpaTokenCredRetriever, err := app.NewFirstPartyApplicationTokenCredentialRetriever(ctx, f.AzureFirstPartyApplicationCertificateBundlePath, f.AzureFirstPartyApplicationClientID, azureConfig)
+	if err != nil {
+		return nil, utils.TrackError(fmt.Errorf("failed to create FPA token credential retriever: %w", err))
+	}
+
+	fpaClientBuilder, err := app.NewFirstPartyApplicationClientBuilder(fpaTokenCredRetriever, azureConfig)
 	if err != nil {
 		return nil, utils.TrackError(fmt.Errorf("failed to create FPA client builder: %w", err))
 	}
@@ -262,6 +267,16 @@ func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.C
 	if err != nil {
 		return nil, utils.TrackError(fmt.Errorf("failed to create backend identity azure clients: %w", err))
 	}
+
+	fpaMIDataplaneClientBuilder, err := app.NewFirstPartyApplicationManagedIdentitiesDataplaneClientBuilder(
+		fpaTokenCredRetriever,
+		f.InsecureAzureManagedIdentityMockCertificateBundlePath, f.InsecureAzureManagedIdentityMockClientID, f.InsecureAzureManagedIdentityMockServicePrincipalID, f.InsecureAzureManagedIdentityMockTenantID,
+		azureConfig,
+	)
+	if err != nil {
+		return nil, utils.TrackError(fmt.Errorf("error getting FPA MI dataplane client builder: %w", err))
+	}
+	smiClientBuilderFactory := app.NewServiceManagedIdentityClientBuilderFactory(fpaMIDataplaneClientBuilder, azureConfig)
 
 	cosmosDBClient, err := app.NewCosmosDBClient(
 		ctx, f.AzureCosmosDBURL, f.AzureCosmosDBName,
@@ -290,6 +305,8 @@ func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.C
 		FPAClientBuilder:                   fpaClientBuilder,
 		BackendIdentityAzureClients:        backendIdentityAzureClients,
 		ExitOnPanic:                        f.ExitOnPanic,
+		FPAMIDataplaneClientBuilder:        fpaMIDataplaneClientBuilder,
+		SMIClientBuilderFactory:            smiClientBuilderFactory,
 	}
 
 	return backendOptions, nil
