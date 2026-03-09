@@ -213,6 +213,38 @@ grant-e2e-access:
 		--only-show-errors
 .PHONY: grant-e2e-access
 
+grant-int-e2e-access:
+	az role assignment create \
+		--role "int-first-party" \
+		--assignee "$(shell az ad app list --display-name aro-hcp-int-fp --query '[*]'.appId -o tsv)" \
+		--scope "/subscriptions/$(INT_TESTING_SUBSCRIPTION_ID)" \
+		--only-show-errors
+
+	az role assignment create \
+		--role "Contributor" \
+		--assignee "$(shell az ad app list --display-name aro-hcp-int-arm-helper --query '[*]'.appId -o tsv)" \
+		--scope "/subscriptions/$(INT_TESTING_SUBSCRIPTION_ID)" \
+		--only-show-errors
+
+	az role assignment create \
+		--role "Role Based Access Control Administrator" \
+		--assignee "$(shell az ad app list --display-name aro-hcp-int-arm-helper --query '[*]'.appId -o tsv)" \
+		--scope "/subscriptions/$(INT_TESTING_SUBSCRIPTION_ID)" \
+		--only-show-errors
+
+	az role assignment create \
+		--role "int-msi-mock" \
+		--assignee "$(shell az ad app list --display-name aro-hcp-int-msi-mock --query '[*]'.appId -o tsv)" \
+		--scope "/subscriptions/$(INT_TESTING_SUBSCRIPTION_ID)" \
+		--only-show-errors
+
+	az role assignment create \
+		--role "Key Vault Crypto User" \
+		--assignee "$(shell az ad app list --display-name aro-hcp-int-msi-mock --query '[*]'.appId -o tsv)" \
+		--scope "/subscriptions/$(INT_TESTING_SUBSCRIPTION_ID)" \
+		--only-show-errors
+.PHONY: grant-int-e2e-access
+
 frontend-grant-ingress:
 	./scripts/frontend-grant-ingress-from-ip.sh "${SVC_RESOURCEGROUP}"
 .PHONY: frontend-grant-ingress
