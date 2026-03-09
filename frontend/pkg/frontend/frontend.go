@@ -707,6 +707,8 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 				// this indicates something really strange happened, return an error for it.
 				return utils.TrackError(err)
 			}
+			// Apply the same mutations that real cluster creation applies
+			admission.MutateClusterCreate(newInternalCluster)
 			op := operation.Operation{
 				Type:    operation.Create,
 				Options: []string{validation.ManagedIdentitiesDataPlaneIdentityURLOptionalOperationOption},

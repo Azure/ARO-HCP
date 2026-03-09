@@ -297,13 +297,13 @@ func validateClusterServiceProviderProperties(ctx context.Context, op operation.
 	// We can validate URL unconditionally because the URL validator accepts an empty string as the URL
 	errs = append(errs, URL(ctx, op, fldPath.Child("managedIdentitiesDataPlaneIdentityURL"), &newObj.ManagedIdentitiesDataPlaneIdentityURL, nil)...)
 
-
 	// BillingDocID      string                         `json:"billingDocId,omitempty"`
-	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("billingDocId"), &newObj.BillingDocID, safe.Field(oldObj, toServiceProviderBillingDocID))...)
-	// we perform this check only for new clusters because existing clusters may not have BillingDocID backfilled yet, and we don't want to block updates to them.
+	// BillingDocID is always generated server-side by admission.MutateClusterCreate().
+	// Both preflight and real cluster creation call admission before validation.
 	if op.Type == operation.Create {
 		errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("billingDocId"), &newObj.BillingDocID, nil)...)
 	}
+	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("billingDocId"), &newObj.BillingDocID, safe.Field(oldObj, toServiceProviderBillingDocID))...)
 
 	return errs
 }

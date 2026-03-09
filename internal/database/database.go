@@ -112,10 +112,17 @@ type DBClient interface {
 	// of http.StatusPreconditionFailed.
 	PatchBillingDoc(ctx context.Context, resourceID *azcorearm.ResourceID, ops BillingDocumentPatchOperations) error
 
-	// GetBillingDocsForCluster retrieves all billing documents for a given cluster resource ID
-	// that do not have a deletion timestamp. If creationTime is provided, only documents
-	// matching that creation time are returned.
-	GetBillingDocsForCluster(ctx context.Context, resourceID *azcorearm.ResourceID, creationTime *time.Time) ([]*BillingDocument, error)
+	// PatchBillingDocByID patches a billing document directly by its ID in the "Billing" container.
+	// This is more efficient when you already have the document ID and subscription ID.
+	PatchBillingDocByID(ctx context.Context, subscriptionID, billingDocID string, ops BillingDocumentPatchOperations) error
+
+	// GetBillingDocForClusterByCreationTime retrieves a billing document for a cluster
+	// that exactly matches the provided creation time. Returns nil if no match is found.
+	GetBillingDocForClusterByCreationTime(ctx context.Context, resourceID *azcorearm.ResourceID, creationTime time.Time) (*BillingDocument, error)
+
+	// GetActiveBillingDocsForCluster retrieves all active billing documents for a given
+	// cluster resource ID (documents without a deletion timestamp).
+	GetActiveBillingDocsForCluster(ctx context.Context, resourceID *azcorearm.ResourceID) ([]*BillingDocument, error)
 
 	// UntypedCRUD provides access documents in the subscription
 	UntypedCRUD(parentResourceID azcorearm.ResourceID) (UntypedResourceCRUD, error)
@@ -282,35 +289,70 @@ func (d *cosmosDBClient) PatchBillingDoc(ctx context.Context, resourceID *azcore
 	return nil
 }
 
-func (d *cosmosDBClient) GetBillingDocsForCluster(ctx context.Context, resourceID *azcorearm.ResourceID, creationTime *time.Time) ([]*BillingDocument, error) {
+func (d *cosmosDBClient) PatchBillingDocByID(ctx context.Context, subscriptionID, billingDocID string, ops BillingDocumentPatchOperations) error {
+	pk := NewPartitionKey(subscriptionID)
+
+	_, err := d.billing.PatchItem(ctx, pk, billingDocID, ops.PatchOperations, nil)
+	if err != nil {
+		return fmt.Errorf("failed to patch Billing container item with ID '%s': %w", billingDocID, err)
+	}
+
+	return nil
+}
+
+func (d *cosmosDBClient) GetBillingDocForClusterByCreationTime(ctx context.Context, resourceID *azcorearm.ResourceID, creationTime time.Time) (*BillingDocument, error) {
+	pk := NewPartitionKey(resourceID.SubscriptionID)
+
+	// Query for a billing document matching both resource ID and creation time (excluding deleted docs)
+	query := "SELECT * FROM c WHERE STRINGEQUALS(c.resourceId, @resourceId, true) AND c.creationTime = @creationTime"
+	queryParams := []azcosmos.QueryParameter{
+		{
+			Name:  "@resourceId",
+			Value: resourceID.String(),
+		},
+		{
+			Name:  "@creationTime",
+			Value: creationTime,
+		},
+	}
+
+	opt := azcosmos.QueryOptions{
+		QueryParameters: queryParams,
+	}
+
+	queryPager := d.billing.NewQueryItemsPager(query, pk, &opt)
+
+	for queryPager.More() {
+		queryResponse, err := queryPager.NextPage(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to advance page while querying Billing container for '%s': %w", resourceID, err)
+		}
+
+		for _, item := range queryResponse.Items {
+			var doc BillingDocument
+			err = json.Unmarshal(item, &doc)
+			if err != nil {
+				return nil, fmt.Errorf("failed to unmarshal Billing container item for '%s': %w", resourceID, err)
+			}
+			// Return the first match (there should only be one)
+			return &doc, nil
+		}
+	}
+
+	// No matching billing document found
+	return nil, nil
+}
+
+func (d *cosmosDBClient) GetActiveBillingDocsForCluster(ctx context.Context, resourceID *azcorearm.ResourceID) ([]*BillingDocument, error) {
 	pk := NewPartitionKey(resourceID.SubscriptionID)
 
 	// Query for billing documents matching the resource ID without a deletion timestamp
-	var query string
-	var queryParams []azcosmos.QueryParameter
-
-	if creationTime != nil {
-		// Match both resource ID and creation time for more precise matching
-		query = "SELECT * FROM c WHERE STRINGEQUALS(c.resourceId, @resourceId, true) AND c.creationTime = @creationTime"
-		queryParams = []azcosmos.QueryParameter{
-			{
-				Name:  "@resourceId",
-				Value: resourceID.String(),
-			},
-			{
-				Name:  "@creationTime",
-				Value: *creationTime,
-			},
-		}
-	} else {
-		// Match only resource ID
-		query = "SELECT * FROM c WHERE STRINGEQUALS(c.resourceId, @resourceId, true) AND NOT IS_DEFINED(c.deletionTime)"
-		queryParams = []azcosmos.QueryParameter{
-			{
-				Name:  "@resourceId",
-				Value: resourceID.String(),
-			},
-		}
+	query := "SELECT * FROM c WHERE STRINGEQUALS(c.resourceId, @resourceId, true) AND NOT IS_DEFINED(c.deletionTime)"
+	queryParams := []azcosmos.QueryParameter{
+		{
+			Name:  "@resourceId",
+			Value: resourceID.String(),
+		},
 	}
 
 	opt := azcosmos.QueryOptions{

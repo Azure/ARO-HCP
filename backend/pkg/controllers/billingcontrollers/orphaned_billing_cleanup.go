@@ -70,8 +70,8 @@ func (c *orphanedBillingCleanup) synchronizeCluster(ctx context.Context, keyObj 
 	// Reconstruct the cluster resource ID
 	clusterResourceID := database.NewClusterResourceID(keyObj.SubscriptionID, keyObj.ResourceGroupName, keyObj.HCPClusterName)
 
-	// Query for billing documents for this cluster (without deletionTime)
-	billingDocs, err := c.cosmosClient.GetBillingDocsForCluster(ctx, clusterResourceID, nil)
+	// Query for active billing documents for this cluster (without deletionTime)
+	billingDocs, err := c.cosmosClient.GetActiveBillingDocsForCluster(ctx, clusterResourceID)
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -101,7 +101,7 @@ func (c *orphanedBillingCleanup) synchronizeCluster(ctx context.Context, keyObj 
 
 		var patchOperations database.BillingDocumentPatchOperations
 		patchOperations.SetDeletionTime(deletionTime)
-		err := c.cosmosClient.PatchBillingDoc(ctx, clusterResourceID, patchOperations)
+		err := c.cosmosClient.PatchBillingDocByID(ctx, doc.SubscriptionID, doc.ID, patchOperations)
 		if err != nil {
 			logger.Error(err, "failed to mark billing document as deleted",
 				"billingDocID", doc.ID,
