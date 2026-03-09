@@ -7,8 +7,8 @@ require (
 	github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp v0.0.0-00010101000000-000000000000
 	github.com/Azure/ARO-HCP/tooling/hcpctl v0.0.0-20260113131010-8f869ff652e6
 	github.com/Azure/ARO-HCP/tooling/templatize v0.0.0-00010101000000-000000000000
-	github.com/Azure/ARO-Tools/config v0.0.0-20260302234042-3298871a1fc3
-	github.com/Azure/ARO-Tools/tools/prow-job-executor v0.0.0-20260302234042-3298871a1fc3
+	github.com/Azure/ARO-Tools/config v0.0.0-20260309172949-8176eed3f66a
+	github.com/Azure/ARO-Tools/tools/prow-job-executor v0.0.0-20260309172949-8176eed3f66a
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v3 v3.0.0-beta.2
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v5 v5.7.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/kusto/armkusto/v2 v2.3.0
@@ -51,13 +51,13 @@ require (
 	contrib.go.opencensus.io/exporter/ocagent v0.7.1-0.20200907061046-05415f1de66d // indirect
 	contrib.go.opencensus.io/exporter/prometheus v0.4.2 // indirect
 	dario.cat/mergo v1.0.1 // indirect
-	github.com/Azure/ARO-Tools/pipelines v0.0.0-20260302234042-3298871a1fc3 // indirect
-	github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20260302234042-3298871a1fc3 // indirect
-	github.com/Azure/ARO-Tools/tools/grafanactl v0.0.0-20260302234042-3298871a1fc3 // indirect
-	github.com/Azure/ARO-Tools/tools/helm v0.0.0-20260302234042-3298871a1fc3 // indirect
-	github.com/Azure/ARO-Tools/tools/registration v0.0.0-20260302234042-3298871a1fc3 // indirect
-	github.com/Azure/ARO-Tools/tools/secret-sync v0.0.0-20260302234042-3298871a1fc3 // indirect
-	github.com/Azure/ARO-Tools/tools/yamlwrap v0.0.0-20260302234042-3298871a1fc3 // indirect
+	github.com/Azure/ARO-Tools/pipelines v0.0.0-20260309172949-8176eed3f66a // indirect
+	github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20260309172949-8176eed3f66a // indirect
+	github.com/Azure/ARO-Tools/tools/grafanactl v0.0.0-20260309172949-8176eed3f66a // indirect
+	github.com/Azure/ARO-Tools/tools/helm v0.0.0-20260309172949-8176eed3f66a // indirect
+	github.com/Azure/ARO-Tools/tools/registration v0.0.0-20260309172949-8176eed3f66a // indirect
+	github.com/Azure/ARO-Tools/tools/secret-sync v0.0.0-20260309172949-8176eed3f66a // indirect
+	github.com/Azure/ARO-Tools/tools/yamlwrap v0.0.0-20260309172949-8176eed3f66a // indirect
 	github.com/Azure/azure-kusto-go/azkustodata v1.2.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice v1.0.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/dashboard/armdashboard v1.2.0 // indirect
@@ -253,11 +253,11 @@ require (
 	go.opentelemetry.io/contrib/detectors/gcp v1.38.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.61.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.63.0 // indirect
-	go.opentelemetry.io/otel v1.39.0 // indirect
-	go.opentelemetry.io/otel/metric v1.39.0 // indirect
-	go.opentelemetry.io/otel/sdk v1.39.0 // indirect
-	go.opentelemetry.io/otel/sdk/metric v1.39.0 // indirect
-	go.opentelemetry.io/otel/trace v1.39.0 // indirect
+	go.opentelemetry.io/otel v1.40.0 // indirect
+	go.opentelemetry.io/otel/metric v1.40.0 // indirect
+	go.opentelemetry.io/otel/sdk v1.40.0 // indirect
+	go.opentelemetry.io/otel/sdk/metric v1.40.0 // indirect
+	go.opentelemetry.io/otel/trace v1.40.0 // indirect
 	go.opentelemetry.io/proto/otlp v1.9.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.1 // indirect
