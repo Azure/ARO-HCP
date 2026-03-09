@@ -162,6 +162,10 @@ func TestClusterRequired(t *testing.T) {
 					message:   "Unsupported value",
 					fieldPath: "customerProperties.clusterImageRegistry.state",
 				},
+				{
+					message:   "Required value",
+					fieldPath: "serviceProviderProperties.managedIdentitiesDataPlaneIdentityURL",
+				},
 			},
 		},
 		{
@@ -190,6 +194,10 @@ func TestClusterRequired(t *testing.T) {
 				{
 					message:   "Required value",
 					fieldPath: "customerProperties.platform.networkSecurityGroupId",
+				},
+				{
+					message:   "Required value",
+					fieldPath: "serviceProviderProperties.managedIdentitiesDataPlaneIdentityURL",
 				},
 			},
 		},

@@ -704,7 +704,10 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 				// this indicates something really strange happened, return an error for it.
 				return utils.TrackError(err)
 			}
-			op := operation.Operation{Type: operation.Create}
+			op := operation.Operation{
+				Type:    operation.Create,
+				Options: []string{validation.ManagedIdentitiesDataPlaneIdentityURLOptionalOperationOption},
+			}
 			validationErrs := validation.ValidateCluster(ctx, op, newInternalCluster, nil, api.Must(versionedInterface.ValidationPathRewriter(&api.HCPOpenShiftCluster{})))
 			validationErrs = append(validationErrs, admission.AdmitClusterOnCreate(ctx, newInternalCluster, subscription)...)
 			preflightErr = arm.CloudErrorFromFieldErrors(validationErrs)

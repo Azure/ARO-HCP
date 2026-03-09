@@ -88,7 +88,8 @@
 					"clusterServiceID": "",
 					"console": {},
 					"dns": {},
-					"platform": {}
+					"platform": {},
+					"managedIdentitiesDataPlaneIdentityURL": "https://dummyhost.identity.azure.net/otherinformation?aqueryarg=somevalue"
 				}
 			}
 		},
