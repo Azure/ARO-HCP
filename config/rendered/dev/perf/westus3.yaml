@@ -6,7 +6,7 @@ acm:
       repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-210
   operator:
     bundle:
-      digest: sha256:791d4965ccde2b32a39c9db7945a7f1b9fe3415414e6df58c9187f79fa9c386e
+      digest: sha256:7f14955f2f5fa35ebb3e1bd0529a9f99064de4e441fafafc0cb214949adcf14c
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-215
 acr:
@@ -35,7 +35,7 @@ adminApi:
     issuer: Self
     name: admin-api-cert-perf-usw3ptest
   image:
-    digest: sha256:32a12cccc914b2d28854a15a9e4bcc18138420049dcbd7ffd270e0b85c9fe663
+    digest: sha256:975782b419324dcfcf59494e6b8c2f6a51be67054a48c415a2bf96877edf6b61
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpadminapi
   k8s:
@@ -78,7 +78,7 @@ backend:
     tlsCertificatesIssuer: Self
   exitOnPanic: true
   image:
-    digest: sha256:14c6fc2bd98ad62f74e2cbc1f328ddd0f75323e1cd5721211880e9a651ada7e2
+    digest: sha256:879a6fa17fe2bf76696c92f58cf8cbedd9d1b8918140f1e98000903c1c10b0fa
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpbackend
   k8s:
@@ -239,7 +239,7 @@ frontend:
     zoneRedundantMode: Auto
   exitOnPanic: true
   image:
-    digest: sha256:637aac6088415ac46ffda27171a1606304f40839a30674ce4506f3daedf62b72
+    digest: sha256:f48377e96c8498c0b8611c9ecd028c29f87fd9f9bbf6f9b0e998eb4e003a14f1
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpfrontend
   k8s:
@@ -348,7 +348,7 @@ global:
 hypershift:
   additionalInstallArg: --enable-cpo-overrides
   image:
-    digest: sha256:29dbb06e86aa30d8ac17c999cc23e7180217512050528a78682ef4b366337328
+    digest: sha256:c9d9668b14c0e12f4e7b97051d74ca9b8fc5d793d5808e087a2ae6587785459f
     registry: quay.io
     repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
   limitClusterSizes: true
@@ -359,7 +359,7 @@ imageSync:
   ocMirror:
     enabled: true
     image:
-      digest: sha256:69506adda8a5ce2ed1e57f264d931ef31645c3c0641785732dfafb41e278c690
+      digest: sha256:f13d8239745e439b8fb5ff5f4865a551acf65aa9c05bb74012079f53d7c9c6d4
       registry: arohcpsvcdev.azurecr.io
       repository: image-sync/oc-mirror
     jobNamePrefix: ""
@@ -518,7 +518,7 @@ mgmt:
         image:
           registry: arohcpsvcdev.azurecr.io
           repository: k8s-cache/ingress-nginx/kube-webhook-certgen
-          sha: 7c74a715af2c94cb734785b4d3ea1357b4f02b88e1e123c622a9cb68b62f669c
+          sha: d7e8257f8d8bce64b6df55f81fba92011a6a77269b3350f8b997b152af348dba
     kubeStateMetrics:
       image:
         digest: sha256:17fc37d9fe70a0efa4fdaf609bd03299013faa0fee16b77815469eb37a879e7c
@@ -740,7 +740,7 @@ sessiongate:
     issuer: Self
     name: sessiongate-cert-perf-usw3ptest
   image:
-    digest: sha256:bab39ab32e7220b380ec04f3f8c8aace39dac7d8203cd8cb681919c16e64aea2
+    digest: sha256:443e3ed1a9ae366ded6ef4f078f7ea37207f712ba4ff94551d16ef36bd261c6a
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpsessiongate
   k8s:
@@ -811,7 +811,7 @@ svc:
         image:
           registry: arohcpsvcdev.azurecr.io
           repository: k8s-cache/ingress-nginx/kube-webhook-certgen
-          sha: 7c74a715af2c94cb734785b4d3ea1357b4f02b88e1e123c622a9cb68b62f669c
+          sha: d7e8257f8d8bce64b6df55f81fba92011a6a77269b3350f8b997b152af348dba
     kubeStateMetrics:
       image:
         digest: sha256:17fc37d9fe70a0efa4fdaf609bd03299013faa0fee16b77815469eb37a879e7c
