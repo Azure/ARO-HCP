@@ -302,7 +302,12 @@ func (m *mockResourceCRUD[InternalAPIType, CosmosAPIType]) Replace(ctx context.C
 }
 
 func (m *mockResourceCRUD[InternalAPIType, CosmosAPIType]) Delete(ctx context.Context, resourceID string) error {
-	cosmosUID, err := arm.ResourceIDStringToCosmosID(resourceID)
+	completeResourceID, err := m.makeResourceIDPath(resourceID)
+	if err != nil {
+		return fmt.Errorf("failed to make ResourceID path for '%s': %w", resourceID, err)
+	}
+
+	cosmosUID, err := arm.ResourceIDToCosmosID(completeResourceID)
 	if err != nil {
 		return err
 	}
