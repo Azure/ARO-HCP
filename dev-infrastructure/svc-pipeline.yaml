@@ -467,7 +467,7 @@ resourceGroups:
       - "Internal error occurred"
       maximumRetryCount: 3
       durationBetweenRetries: 1m
-  - name: mirror-image
+  - name: mirror-exporter-image
     action: ImageMirror
     targetACR:
       configRef: 'acr.svc.name'
@@ -489,56 +489,59 @@ resourceGroups:
     automatedRetry:
       errorContainsAny:
       - "unknown_storage_failure"
+      - "unexpected EOF"
+      - "unauthorized: authentication required"
       maximumRetryCount: 5
       durationBetweenRetries: 1m
-  # jboll, disable for now
-  # - name: exporter-output
-  #   action: ARM
-  #   template: templates/exporter-lookup.bicep
-  #   parameters: configurations/exporter-lookup.tmpl.bicepparam
-  #   deploymentLevel: ResourceGroup
-  #   outputOnly: true
-  #   dependsOn:
-  #   - resourceGroup: service
-  #     step: cluster
-  # - name: exporter-permissions
-  #   action: ARM
-  #   template: templates/exporter-permissions.bicep
-  #   parameters: configurations/exporter-permissions.tmpl.bicepparam
-  #   deploymentLevel: Subscription
-  #   variables:
-  #   - name: exporterPrincipalId
-  #     input:
-  #       resourceGroup: service
-  #       step: exporter-output
-  #       name: exporterPrincipalId
-  #   dependsOn:
-  #   - resourceGroup: service
-  #     step: exporter-output
-  # - name: aro-hcp-exporter
-  #   aksCluster: '{{ .svc.aks.name }}'
-  #   action: Helm
-  #   releaseName: aro-hcp-exporter
-  #   releaseNamespace: aro-hcp-exporter
-  #   chartDir: ./../tooling/aro-hcp-exporter/deploy
-  #   valuesFile: ./../tooling/aro-hcp-exporter/deploy/values.yaml
-  #   kustoEndpoint:
-  #     resourceGroup: kusto
-  #     step: output
-  #     name: kustoUri
-  #   kustoDatabase: '{{ .kusto.serviceLogsDatabase }}'
-  #   kustoTable: 'containerLogs'
-  #   dependsOn:
-  #   - resourceGroup: service
-  #     step: cluster
-  #   - resourceGroup: service
-  #     step: prometheus
-  #   inputVariables:
-  #     msiClientId:
-  #       resourceGroup: service
-  #       step: exporter-output
-  #       name: msiClientId
-  #   identityFrom:
-  #     resourceGroup: global
-  #     step: output
-  #     name: globalMSIId
+  - name: exporter-output
+    action: ARM
+    template: templates/exporter-lookup.bicep
+    parameters: configurations/exporter-lookup.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
+    dependsOn:
+    - resourceGroup: service
+      step: cluster
+  - name: exporter-permissions
+    action: ARM
+    template: templates/exporter-permissions.bicep
+    parameters: configurations/exporter-permissions.tmpl.bicepparam
+    deploymentLevel: Subscription
+    variables:
+    - name: exporterPrincipalId
+      input:
+        resourceGroup: service
+        step: exporter-output
+        name: exporterPrincipalId
+    dependsOn:
+    - resourceGroup: service
+      step: exporter-output
+  - name: aro-hcp-exporter
+    aksCluster: '{{ .svc.aks.name }}'
+    action: Helm
+    releaseName: aro-hcp-exporter
+    releaseNamespace: aro-hcp-exporter
+    chartDir: ./../tooling/aro-hcp-exporter/deploy
+    valuesFile: ./../tooling/aro-hcp-exporter/deploy/values.yaml
+    kustoEndpoint:
+      resourceGroup: kusto
+      step: output
+      name: kustoUri
+    kustoDatabase: '{{ .kusto.serviceLogsDatabase }}'
+    kustoTable: 'containerLogs'
+    dependsOn:
+    - resourceGroup: service
+      step: cluster
+    - resourceGroup: service
+      step: prometheus
+    - resourceGroup: service
+      step: mirror-exporter-image
+    inputVariables:
+      msiClientId:
+        resourceGroup: service
+        step: exporter-output
+        name: msiClientId
+    identityFrom:
+      resourceGroup: global
+      step: output
+      name: globalMSIId

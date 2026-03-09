@@ -1,7 +1,7 @@
 image:
-  registry: '{{ .customExporter.image.registry }}'
-  repository: '{{ .customExporter.image.repository }}'
-  digest: '{{ .customExporter.image.digest }}'
+  registry: "{{ .acr.svc.name }}.azurecr.io"
+  repository: "{{ .customExporter.image.repository }}"
+  digest: "{{ .customExporter.image.digest }}"
 serviceAccount:
   create: true
   name: "aro-hcp-exporter"
