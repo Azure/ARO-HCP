@@ -384,6 +384,13 @@ func (o Options) Run(ctx context.Context) error {
 						StartTime:         timing.StartTime.Format(time.RFC3339),
 						EndTime:           timing.EndTime.Format(time.RFC3339),
 					}, o.Kusto),
+					createLinkForTest("Debug Queries", "debug-queries.kql.tmpl", QueryInfo{
+						ResourceGroupName: rg,
+						Database:          o.Kusto.ServiceLogsDatabase,
+						StartTime:         timing.StartTime.Format(time.RFC3339),
+						EndTime:           timing.EndTime.Format(time.RFC3339),
+						ClusterName:       o.SvcClusterName,
+					}, o.Kusto),
 				},
 				Database: o.Kusto.HostedControlPlaneLogsDatabase,
 				Status:   "tbd",
