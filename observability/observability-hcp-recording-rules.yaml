@@ -1,5 +1,6 @@
 prometheusRules:
   rulesFolders:
   - ../observability/alerts/HCPkasRecord-prometheusRule.yaml
+  - ../observability/alerts/HCPkasRecord-prometheusRule-KSM.yaml
   untestedRules: []
   outputBicep: ../dev-infrastructure/modules/metrics/rules/generatedHCPRecordingRules.bicep
