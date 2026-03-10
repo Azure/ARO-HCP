@@ -4,43 +4,26 @@ include versions.mk
 
 IMAGE_NAME      ?= aro-hcp-ci-test
 CONTAINER_ENGINE ?= $(shell command -v podman 2>/dev/null || echo docker)
+PLATFORM ?= "linux/amd64"
 
-GO_WORK_VERSION := $(shell sed -n 's/^go //p' ../../go.work)
-
-# All versioned ARGs that must stay in sync between versions.mk and the Dockerfile.
-VERSION_ARGS = GO_INSTALL_VERSION KUBECTL_VERSION KUBELOGIN_VERSION PROMTOOL_VERSION
+VERSION_ARGS = BUILDER_IMAGE_TAG PROMTOOL_VERSION
 
 .PHONY: verify build test
 
 ##@ Verification
 
-verify: ## Check versions.mk ↔ Dockerfile sync and Go major.minor constraint
-	@fail=0; \
-	for pair in $(foreach v,$(VERSION_ARGS),"$(v)=$($(v))"); do \
-		name=$${pair%%=*}; expected=$${pair#*=}; \
-		actual=$$(grep -oP "ARG $${name}=\K.*" Dockerfile); \
-		if [ "$$actual" != "$$expected" ]; then \
-			echo "ERROR: Dockerfile ARG $${name}=$$actual ≠ versions.mk $$expected"; \
-			fail=1; \
-		fi; \
-	done; \
-	mk_mm=$$(echo $(GO_INSTALL_VERSION) | cut -d. -f1,2); \
-	gw_mm=$$(echo $(GO_WORK_VERSION) | cut -d. -f1,2); \
-	if [ "$$mk_mm" != "$$gw_mm" ]; then \
-		echo "ERROR: Go $(GO_INSTALL_VERSION) ($$mk_mm) ≠ go.work $(GO_WORK_VERSION) ($$gw_mm)"; \
-		fail=1; \
-	fi; \
-	if [ $$fail -ne 0 ]; then exit 1; fi
-	@echo "  Go         $(GO_INSTALL_VERSION) (go.work $(GO_WORK_VERSION)) OK"
-	@echo "  kubectl    $(KUBECTL_VERSION)"
-	@echo "  kubelogin  $(KUBELOGIN_VERSION)"
-	@echo "  promtool   $(PROMTOOL_VERSION)"
-	@echo "All checks passed."
+verify: ## Check PROMTOOL_VERSION in versions.mk matches the Dockerfile ARG default
+	@actual=$$(grep -oP 'ARG PROMTOOL_VERSION=\K.*' Dockerfile); \
+	if [ "$$actual" != "$(PROMTOOL_VERSION)" ]; then \
+		echo "ERROR: Dockerfile ARG PROMTOOL_VERSION=$$actual ≠ versions.mk $(PROMTOOL_VERSION)"; \
+		exit 1; \
+	fi
+	@echo "  promtool   $(PROMTOOL_VERSION) OK"
 
 ##@ Build
 
 build: verify ## Build the CI image
-	$(CONTAINER_ENGINE) build \
+	$(CONTAINER_ENGINE) build --platform=$(PLATFORM) \
 		$(foreach v,$(VERSION_ARGS),--build-arg $(v)=$($(v))) \
 		-t $(IMAGE_NAME) .
 

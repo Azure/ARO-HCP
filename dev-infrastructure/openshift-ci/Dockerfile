@@ -1,33 +1,24 @@
-FROM registry.access.redhat.com/ubi9/ubi:latest
+ARG BUILDER_IMAGE_TAG
+FROM registry.ci.openshift.org/ocp/builder:${BUILDER_IMAGE_TAG}
 
 # Tool versions - defaults here must be kept in sync with /versions.mk
-ARG GO_INSTALL_VERSION=1.25.7
-ARG KUBECTL_VERSION=v1.35.0
-ARG KUBELOGIN_VERSION=v0.2.14
 ARG PROMTOOL_VERSION=3.2.1
 
 USER root
 RUN cat /etc/dnf/dnf.conf || true
 RUN rpm --import https://packages.microsoft.com/keys/microsoft.asc
 RUN dnf install -y https://packages.microsoft.com/config/rhel/9.0/packages-microsoft-prod.rpm
-RUN mkdir -p /etc/yum.repos.art/ci/ && ln -s /etc/yum.repos.d/microsoft-prod.repo /etc/yum.repos.art/ci/
+RUN mkdir -p /etc/yum.repos.art/ci/ /etc/yum.repos.art/localdev/ && \
+    ln -s /etc/yum.repos.d/microsoft-prod.repo /etc/yum.repos.art/ci/ && \
+    ln -s /etc/yum.repos.d/microsoft-prod.repo /etc/yum.repos.art/localdev/
 RUN dnf install -y azure-cli libicu make git procps-ng
-# Install Go
-RUN ARCH=$([ "$(uname -m)" = "aarch64" ] && echo "arm64" || echo "amd64") && \
-    curl -fsSL -o /tmp/go.tar.gz \
-        "https://dl.google.com/go/go${GO_INSTALL_VERSION}.linux-${ARCH}.tar.gz" && \
-    tar -xzf /tmp/go.tar.gz -C /usr/local && \
-    rm /tmp/go.tar.gz && \
-    ln -s /usr/local/go/bin/go /usr/local/bin/go && \
-    ln -s /usr/local/go/bin/gofmt /usr/local/bin/gofmt
-RUN mkdir -p /usr/local/bin
-ENV PATH="/usr/local/bin:/usr/bin:$PATH"
 RUN az bicep install && mv /root/.azure/bin/bicep /usr/local/bin
 # Install kubectl and kubelogin
 RUN ARCH=$([ "$(uname -m)" = "aarch64" ] && echo "arm64" || echo "amd64") && \
-    curl -fsSL -o /usr/local/bin/kubectl "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/${ARCH}/kubectl" && \
+    KUBECTL_VER=$(curl -fsSL --retry 3 https://dl.k8s.io/release/stable.txt) && \
+    curl -fsSL -o /usr/local/bin/kubectl "https://dl.k8s.io/release/${KUBECTL_VER}/bin/linux/${ARCH}/kubectl" && \
     chmod +x /usr/local/bin/kubectl && \
-    curl -fsSL -o /tmp/kubelogin.zip "https://github.com/Azure/kubelogin/releases/download/${KUBELOGIN_VERSION}/kubelogin-linux-${ARCH}.zip" && \
+    curl -fsSL -o /tmp/kubelogin.zip "https://github.com/Azure/kubelogin/releases/latest/download/kubelogin-linux-${ARCH}.zip" && \
     python3 -m zipfile -e /tmp/kubelogin.zip /tmp/kubelogin && \
     mv /tmp/kubelogin/bin/linux_${ARCH}/kubelogin /usr/local/bin/kubelogin && \
     rm -rf /tmp/kubelogin.zip /tmp/kubelogin && \
