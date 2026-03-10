@@ -66,14 +66,16 @@ func BindOptions(opts *RawOptions, cmd *cobra.Command) error {
 	cmd.Flags().StringVar(&opts.TimingInputDir, "timing-input", opts.TimingInputDir, "Path to the directory holding timing outputs from an end-to-end test run.")
 	cmd.Flags().StringVar(&opts.OutputDir, "output", opts.OutputDir, "Path to the directory where html will be written.")
 	cmd.Flags().StringVar(&opts.RenderedConfig, "rendered-config", opts.RenderedConfig, "Path to the rendered configuration YAML file.")
+	cmd.Flags().StringVar(&opts.StartTimeFallback, "start-time-fallback", opts.StartTimeFallback, "Optional RFC3339 time to use as start time fallback when steps and test timing are unavailable.")
 
 	return nil
 }
 
 type RawOptions struct {
-	TimingInputDir string
-	OutputDir      string
-	RenderedConfig string
+	TimingInputDir    string
+	OutputDir         string
+	RenderedConfig    string
+	StartTimeFallback string
 }
 
 // validatedOptions is a private wrapper that enforces a call of Validate() before Complete() can be invoked.
@@ -96,13 +98,14 @@ type KustoInfo struct {
 
 // completedOptions is a private wrapper that enforces a call of Complete() before config generation can be invoked.
 type completedOptions struct {
-	TimingInputDir  string
-	OutputDir       string
-	RenderedConfig  string
-	Steps           []pipeline.NodeInfo
-	SvcClusterName  string
-	MgmtClusterName string
-	Kusto           KustoInfo
+	TimingInputDir    string
+	OutputDir         string
+	RenderedConfig    string
+	Steps             []pipeline.NodeInfo
+	SvcClusterName    string
+	MgmtClusterName   string
+	Kusto             KustoInfo
+	StartTimeFallback *time.Time
 }
 
 type Options struct {
@@ -244,14 +247,24 @@ func (o *ValidatedOptions) Complete(logger logr.Logger) (*Options, error) {
 		}
 	}
 
+	var startTimeFallback *time.Time
+	if o.StartTimeFallback != "" {
+		t, err := time.Parse(time.RFC3339, o.StartTimeFallback)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse --start-time-fallback %q: %w", o.StartTimeFallback, err)
+		}
+		startTimeFallback = &t
+	}
+
 	return &Options{
 		completedOptions: &completedOptions{
-			Steps:           steps,
-			OutputDir:       o.OutputDir,
-			TimingInputDir:  o.TimingInputDir,
-			RenderedConfig:  o.RenderedConfig,
-			SvcClusterName:  svcClusterName,
-			MgmtClusterName: mgmtClusterName,
+			Steps:             steps,
+			OutputDir:         o.OutputDir,
+			TimingInputDir:    o.TimingInputDir,
+			RenderedConfig:    o.RenderedConfig,
+			SvcClusterName:    svcClusterName,
+			MgmtClusterName:   mgmtClusterName,
+			StartTimeFallback: startTimeFallback,
 			Kusto: KustoInfo{
 				KustoName:                      kustoName,
 				KustoRegion:                    kustoRegion,
@@ -393,7 +406,8 @@ func (o Options) Run(ctx context.Context) error {
 		return utils.TrackError(err)
 	}
 
-	serviceLogLinks, err := getServiceLogLinks(o.Steps, o.SvcClusterName, o.MgmtClusterName, o.Kusto)
+	logger, _ := logr.FromContext(ctx)
+	serviceLogLinks, err := getServiceLogLinks(logger, o.Steps, timingInfo, o.StartTimeFallback, o.SvcClusterName, o.MgmtClusterName, o.Kusto)
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -510,12 +524,14 @@ func loadAllTestTimingInfo(timingInputDir string) (map[string]TimingInfo, error)
 
 var localClock clock.PassiveClock = clock.RealClock{}
 
-func getServiceLogLinks(steps []pipeline.NodeInfo, svcClusterName, mgmtClusterName string,
+func getServiceLogLinks(logger logr.Logger, steps []pipeline.NodeInfo, testTimingInfo map[string]TimingInfo,
+	startTimeFallback *time.Time, svcClusterName, mgmtClusterName string,
 	kusto KustoInfo) ([]LinkDetails, error) {
 	allLinks := []LinkDetails{}
 
-	// Determine earliest start time from steps, falling back to now() - 4h
+	// Determine earliest start time from steps
 	earliestStartTime := time.Time{}
+	startSource := ""
 	for _, step := range steps {
 		if len(step.Info.StartedAt) > 0 {
 			startTime, err := time.Parse(time.RFC3339, step.Info.StartedAt)
@@ -524,14 +540,64 @@ func getServiceLogLinks(steps []pipeline.NodeInfo, svcClusterName, mgmtClusterNa
 			}
 			if earliestStartTime.IsZero() || startTime.Before(earliestStartTime) {
 				earliestStartTime = startTime
+				startSource = "steps"
 			}
 		}
 	}
+	// Fallback: earliest test start time
 	if earliestStartTime.IsZero() {
-		earliestStartTime = localClock.Now().Add(-4 * time.Hour)
+		for _, ti := range testTimingInfo {
+			if earliestStartTime.IsZero() || ti.StartTime.Before(earliestStartTime) {
+				earliestStartTime = ti.StartTime
+				startSource = "test timing"
+			}
+		}
+	}
+	// Fallback: CLI-provided start time
+	if earliestStartTime.IsZero() && startTimeFallback != nil {
+		earliestStartTime = *startTimeFallback
+		startSource = "CLI fallback"
+	}
+	// Final fallback: now - 3h
+	if earliestStartTime.IsZero() {
+		earliestStartTime = localClock.Now().Add(-3 * time.Hour)
+		startSource = "clock (now-3h)"
 	}
 
-	endTime := localClock.Now().Add(1 * time.Hour)
+	// Determine end time from latest step FinishedAt + grace period
+	endTime := time.Time{}
+	endSource := ""
+	for _, step := range steps {
+		if len(step.Info.FinishedAt) > 0 {
+			finishedTime, err := time.Parse(time.RFC3339, step.Info.FinishedAt)
+			if err != nil {
+				return nil, fmt.Errorf("failed to parse finished at: %w", err)
+			}
+			finishedWithGrace := finishedTime.Add(endGracePeriodDuration)
+			if endTime.IsZero() || finishedWithGrace.After(endTime) {
+				endTime = finishedWithGrace
+				endSource = "steps (+45m grace)"
+			}
+		}
+	}
+	// Fallback: latest test end time (already includes grace period)
+	if endTime.IsZero() {
+		for _, ti := range testTimingInfo {
+			if endTime.IsZero() || ti.EndTime.After(endTime) {
+				endTime = ti.EndTime
+				endSource = "test timing"
+			}
+		}
+	}
+	// Final fallback: now + 30min
+	if endTime.IsZero() {
+		endTime = localClock.Now().Add(30 * time.Minute)
+		endSource = "clock (now+30m)"
+	}
+
+	logger.Info("service log query time window",
+		"start", earliestStartTime.Format(time.RFC3339), "startSource", startSource,
+		"end", endTime.Format(time.RFC3339), "endSource", endSource)
 
 	// Service cluster components
 	svcComponents := []struct {
