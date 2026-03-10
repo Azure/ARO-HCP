@@ -1,0 +1,219 @@
+rule_files:
+- service-tag-public-ip-usage.yaml
+evaluation_interval: 1m
+tests:
+# Test all alerts fire when above 80% threshold
+- interval: 1m
+  input_series:
+  - series: 'public_ip_count_by_region_service_tag{region="eastus",service_tag_type="FirstPartyUsage",service_tag_value="/aro-hcp-nonprod-inbound-customerapi",subscription_id="test-sub",cluster="test"}'
+    values: "26+0x20"
+  - series: 'public_ip_count_by_region_service_tag{region="eastus",service_tag_type="FirstPartyUsage",service_tag_value="/aro-hcp-nonprod-inbound-svc",subscription_id="test-sub",cluster="test"}'
+    values: "15+0x20"
+  - series: 'public_ip_count_by_region_service_tag{region="eastus",service_tag_type="FirstPartyUsage",service_tag_value="/aro-hcp-nonprod-outbound-cx",subscription_id="test-sub",cluster="test"}'
+    values: "7+0x20"
+  - series: 'public_ip_count_by_region_service_tag{region="eastus",service_tag_type="FirstPartyUsage",service_tag_value="/aro-hcp-nonprod-outbound-svc",subscription_id="test-sub",cluster="test"}'
+    values: "15+0x20"
+  - series: 'public_ip_count_by_region_service_tag{region="eastus",service_tag_type="FirstPartyUsage",service_tag_value="/aro-hcp-prod-inbound-customerapi",subscription_id="test-sub",cluster="test"}'
+    values: "52+0x20"
+  - series: 'public_ip_count_by_region_service_tag{region="uswest2",service_tag_type="FirstPartyUsage",service_tag_value="/aro-hcp-prod-inbound-customerapi",subscription_id="test-sub",cluster="test"}'
+    values: "103+0x20"
+  - series: 'public_ip_count_by_region_service_tag{region="eastus",service_tag_type="FirstPartyUsage",service_tag_value="/aro-hcp-prod-inbound-cx",subscription_id="test-sub",cluster="test"}'
+    values: "26+0x20"
+  - series: 'public_ip_count_by_region_service_tag{region="eastus",service_tag_type="FirstPartyUsage",service_tag_value="/aro-hcp-prod-inbound-svc",subscription_id="test-sub",cluster="test"}'
+    values: "26+0x20"
+  - series: 'public_ip_count_by_region_service_tag{region="eastus",service_tag_type="FirstPartyUsage",service_tag_value="/aro-hcp-prod-outbound-cx",subscription_id="test-sub",cluster="test"}'
+    values: "26+0x20"
+  - series: 'public_ip_count_by_region_service_tag{region="eastus",service_tag_type="FirstPartyUsage",service_tag_value="/aro-hcp-prod-outbound-svc",subscription_id="test-sub",cluster="test"}'
+    values: "26+0x20"
+  alert_rule_test:
+  - eval_time: 15m
+    alertname: AroHcpNonprodInboundCustomerapiCapacity
+    exp_alerts:
+    - exp_labels:
+        severity: info
+        team: hcp-sl
+        region: eastus
+        service_tag_type: FirstPartyUsage
+        service_tag_value: /aro-hcp-nonprod-inbound-customerapi
+        subscription_id: test-sub
+        cluster: test
+      exp_annotations:
+        description: Service Tag IP Usage test is at 81.25% of its capacity. Current count exceeds warning threshold of 80%.
+        runbook_url: https://aka.ms/arohcp-runbook/mgmt-cluster-capacity
+        summary: Service Tag IP Usage is reaching 80%
+        owning_team: hcp-sl
+  - eval_time: 15m
+    alertname: AroHcpNonprodInboundSvcCapacity
+    exp_alerts:
+    - exp_labels:
+        severity: info
+        team: hcp-sl
+        region: eastus
+        service_tag_type: FirstPartyUsage
+        service_tag_value: /aro-hcp-nonprod-inbound-svc
+        subscription_id: test-sub
+        cluster: test
+      exp_annotations:
+        description: Service Tag IP Usage test is at 83.33% of its capacity. Current count exceeds warning threshold of 80%.
+        runbook_url: https://aka.ms/arohcp-runbook/mgmt-cluster-capacity
+        summary: Service Tag IP Usage is reaching 80%
+        owning_team: hcp-sl
+  - eval_time: 15m
+    alertname: AroHcpNonprodOutboundCxCapacity
+    exp_alerts:
+    - exp_labels:
+        severity: info
+        team: hcp-sl
+        region: eastus
+        service_tag_type: FirstPartyUsage
+        service_tag_value: /aro-hcp-nonprod-outbound-cx
+        subscription_id: test-sub
+        cluster: test
+      exp_annotations:
+        description: Service Tag IP Usage test is at 87.5% of its capacity. Current count exceeds warning threshold of 80%.
+        runbook_url: https://aka.ms/arohcp-runbook/mgmt-cluster-capacity
+        summary: Service Tag IP Usage is reaching 80%
+        owning_team: hcp-sl
+  - eval_time: 15m
+    alertname: AroHcpNonprodOutboundSvcCapacity
+    exp_alerts:
+    - exp_labels:
+        severity: info
+        team: hcp-sl
+        region: eastus
+        service_tag_type: FirstPartyUsage
+        service_tag_value: /aro-hcp-nonprod-outbound-svc
+        subscription_id: test-sub
+        cluster: test
+      exp_annotations:
+        description: Service Tag IP Usage test is at 83.33% of its capacity. Current count exceeds warning threshold of 80%.
+        runbook_url: https://aka.ms/arohcp-runbook/mgmt-cluster-capacity
+        summary: Service Tag IP Usage is reaching 80%
+        owning_team: hcp-sl
+  - eval_time: 15m
+    alertname: AroHcpProdInboundCustomerapiCapacity
+    exp_alerts:
+    - exp_labels:
+        severity: info
+        team: hcp-sl
+        region: eastus
+        service_tag_type: FirstPartyUsage
+        service_tag_value: /aro-hcp-prod-inbound-customerapi
+        subscription_id: test-sub
+        cluster: test
+      exp_annotations:
+        description: Service Tag IP Usage test is at 81.25% of its capacity. Current count exceeds warning threshold of 80%.
+        runbook_url: https://aka.ms/arohcp-runbook/mgmt-cluster-capacity
+        summary: Service Tag IP Usage is reaching 80%
+        owning_team: hcp-sl
+  - eval_time: 15m
+    alertname: AroHcpProdInboundCustomerapiUswest2Capacity
+    exp_alerts:
+    - exp_labels:
+        severity: info
+        team: hcp-sl
+        region: uswest2
+        service_tag_type: FirstPartyUsage
+        service_tag_value: /aro-hcp-prod-inbound-customerapi
+        subscription_id: test-sub
+        cluster: test
+      exp_annotations:
+        description: Service Tag IP Usage test is at 80.47% of its capacity. Current count exceeds warning threshold of 80%.
+        runbook_url: https://aka.ms/arohcp-runbook/mgmt-cluster-capacity
+        summary: Service Tag IP Usage is reaching 80%
+        owning_team: hcp-sl
+  - eval_time: 15m
+    alertname: AroHcpProdInboundCxCapacity
+    exp_alerts:
+    - exp_labels:
+        severity: info
+        team: hcp-sl
+        region: eastus
+        service_tag_type: FirstPartyUsage
+        service_tag_value: /aro-hcp-prod-inbound-cx
+        subscription_id: test-sub
+        cluster: test
+      exp_annotations:
+        description: Service Tag IP Usage test is at 81.25% of its capacity. Current count exceeds warning threshold of 80%.
+        runbook_url: https://aka.ms/arohcp-runbook/mgmt-cluster-capacity
+        summary: Service Tag IP Usage is reaching 80%
+        owning_team: hcp-sl
+  - eval_time: 15m
+    alertname: AroHcpProdInboundSvcCapacity
+    exp_alerts:
+    - exp_labels:
+        severity: info
+        team: hcp-sl
+        region: eastus
+        service_tag_type: FirstPartyUsage
+        service_tag_value: /aro-hcp-prod-inbound-svc
+        subscription_id: test-sub
+        cluster: test
+      exp_annotations:
+        description: Service Tag IP Usage test is at 81.25% of its capacity. Current count exceeds warning threshold of 80%.
+        runbook_url: https://aka.ms/arohcp-runbook/mgmt-cluster-capacity
+        summary: Service Tag IP Usage is reaching 80%
+        owning_team: hcp-sl
+  - eval_time: 15m
+    alertname: AroHcpProdOutboundCxCapacity
+    exp_alerts:
+    - exp_labels:
+        severity: info
+        team: hcp-sl
+        region: eastus
+        service_tag_type: FirstPartyUsage
+        service_tag_value: /aro-hcp-prod-outbound-cx
+        subscription_id: test-sub
+        cluster: test
+      exp_annotations:
+        description: Service Tag IP Usage test is at 81.25% of its capacity. Current count exceeds warning threshold of 80%.
+        runbook_url: https://aka.ms/arohcp-runbook/mgmt-cluster-capacity
+        summary: Service Tag IP Usage is reaching 80%
+        owning_team: hcp-sl
+  - eval_time: 15m
+    alertname: AroHcpProdOutboundSvcCapacity
+    exp_alerts:
+    - exp_labels:
+        severity: info
+        team: hcp-sl
+        region: eastus
+        service_tag_type: FirstPartyUsage
+        service_tag_value: /aro-hcp-prod-outbound-svc
+        subscription_id: test-sub
+        cluster: test
+      exp_annotations:
+        description: Service Tag IP Usage test is at 81.25% of its capacity. Current count exceeds warning threshold of 80%.
+        runbook_url: https://aka.ms/arohcp-runbook/mgmt-cluster-capacity
+        summary: Service Tag IP Usage is reaching 80%
+        owning_team: hcp-sl
+# Test no alerts fire when below 80% threshold
+- interval: 1m
+  input_series:
+  - series: 'public_ip_count_by_region_service_tag{region="eastus",service_tag_type="FirstPartyUsage",service_tag_value="/aro-hcp-nonprod-inbound-customerapi",subscription_id="test-sub",cluster="test"}'
+    values: "25+0x20"
+  - series: 'public_ip_count_by_region_service_tag{region="eastus",service_tag_type="FirstPartyUsage",service_tag_value="/aro-hcp-prod-outbound-svc",subscription_id="test-sub",cluster="test"}'
+    values: "25+0x20"
+  - series: 'public_ip_count_by_region_service_tag{region="eastus",service_tag_type="FirstPartyUsage",service_tag_value="/aro-hcp-nonprod-outbound-cx",subscription_id="test-sub",cluster="test"}'
+    values: "6+0x20"
+  alert_rule_test:
+  - eval_time: 20m
+    alertname: AroHcpNonprodInboundCustomerapiCapacity
+    exp_alerts: []
+  - eval_time: 20m
+    alertname: AroHcpProdOutboundSvcCapacity
+    exp_alerts: []
+  - eval_time: 20m
+    alertname: AroHcpNonprodOutboundCxCapacity
+    exp_alerts: []
+# Test region filtering - uswest2 value above 64*0.8 but below 128*0.8 should not fire either alert
+- interval: 1m
+  input_series:
+  - series: 'public_ip_count_by_region_service_tag{region="uswest2",service_tag_type="FirstPartyUsage",service_tag_value="/aro-hcp-prod-inbound-customerapi",subscription_id="test-sub",cluster="test"}'
+    values: "60+0x20"
+  alert_rule_test:
+  - eval_time: 20m
+    alertname: AroHcpProdInboundCustomerapiCapacity
+    exp_alerts: []
+  - eval_time: 20m
+    alertname: AroHcpProdInboundCustomerapiUswest2Capacity
+    exp_alerts: []
