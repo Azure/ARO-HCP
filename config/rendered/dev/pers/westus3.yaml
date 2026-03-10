@@ -1,12 +1,12 @@
 acm:
   mce:
     bundle:
-      digest: sha256:99fefce347f145ed29ab5e078fac69614d1bc52282e7b04ff9cc70a97eca4a89
+      digest: sha256:cd20e31820088e7e10b5ea7f77e2ba2f070d61bcbc579b7a7098666e83541da0
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-210
   operator:
     bundle:
-      digest: sha256:7f14955f2f5fa35ebb3e1bd0529a9f99064de4e441fafafc0cb214949adcf14c
+      digest: sha256:b0200a96f4c929ee54faf95829bd492209a939f26d6af442062a22b46414d53d
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-215
 acr:
@@ -35,7 +35,7 @@ adminApi:
     issuer: Self
     name: admin-api-cert-pers-usw3test
   image:
-    digest: sha256:975782b419324dcfcf59494e6b8c2f6a51be67054a48c415a2bf96877edf6b61
+    digest: sha256:b75657d328ed93a2665a641d6044221de710e5a3424946a7cc7d79b53be4235a
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpadminapi
   k8s:
@@ -78,7 +78,7 @@ backend:
     tlsCertificatesIssuer: Self
   exitOnPanic: true
   image:
-    digest: sha256:879a6fa17fe2bf76696c92f58cf8cbedd9d1b8918140f1e98000903c1c10b0fa
+    digest: sha256:04b6427087400df5c29faa330de9b7eb57ec8bdfc9df2235d27c56efd9fd5446
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpbackend
   k8s:
@@ -239,7 +239,7 @@ frontend:
     zoneRedundantMode: Disabled
   exitOnPanic: true
   image:
-    digest: sha256:f48377e96c8498c0b8611c9ecd028c29f87fd9f9bbf6f9b0e998eb4e003a14f1
+    digest: sha256:7e7ff19375aac5848d436d891b5d0594851744370a48f549102454c8c0b2da2e
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpfrontend
   k8s:
@@ -359,7 +359,7 @@ imageSync:
   ocMirror:
     enabled: true
     image:
-      digest: sha256:f13d8239745e439b8fb5ff5f4865a551acf65aa9c05bb74012079f53d7c9c6d4
+      digest: sha256:cd09f6cd136712d1bacf74b76f10d1c08b13795444001c3db793bc4ec96d7230
       registry: arohcpsvcdev.azurecr.io
       repository: image-sync/oc-mirror
     jobNamePrefix: ""
@@ -742,7 +742,7 @@ sessiongate:
     issuer: Self
     name: sessiongate-cert-pers-usw3test
   image:
-    digest: sha256:443e3ed1a9ae366ded6ef4f078f7ea37207f712ba4ff94551d16ef36bd261c6a
+    digest: sha256:db058a99f22cee34e8b2e21990cbea2b548a1eb30310908efbb0480fda125e4e
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpsessiongate
   k8s:
