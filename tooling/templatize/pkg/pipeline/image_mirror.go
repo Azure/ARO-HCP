@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"os"
 	"os/exec"
 	"strings"
 	"time"
@@ -76,14 +77,21 @@ func runImageMirrorStep(id graph.Identifier, ctx context.Context, step *types.Im
 		return nil
 	}
 
-	// fetch pull secret from Key Vault for source registry auth (optional - some registries allow anonymous pulls)
+	// determine source registry credentials
 	var sourceCredential auth.Credential
-	if pullSecretKV != "" && pullSecretName != "" {
+	if isCIRegistry(sourceRegistry) {
+		// CI registries (e.g. registry.build02.ci.openshift.org) use oc registry login
+		logger.Info("Source registry is a CI registry, using oc registry login", "registry", sourceRegistry)
+		fmt.Fprintf(outputWriter, "Setting up registry authentication for CI source registry %s.\n", sourceRegistry)
+		sourceCredential, err = getOCRegistryCredential(ctx, sourceRegistry)
+		if err != nil {
+			return fmt.Errorf("failed to get CI registry credentials via oc: %w", err)
+		}
+	} else if pullSecretKV != "" && pullSecretName != "" {
 		logger.Info("Fetching pull secret from Key Vault", "vault", pullSecretKV, "secret", pullSecretName)
 		sourceCredential, err = fetchPullSecretCredential(ctx, pullSecretKV, pullSecretName, sourceRegistry)
 		if err != nil {
-			logger.Info("Failed to fetch pull secret, will try anonymous access", "error", err)
-			sourceCredential = auth.EmptyCredential
+			return fmt.Errorf("failed to fetch pull secret: %w", err)
 		}
 	} else {
 		logger.Info("No pull secret configured, using anonymous access for source registry")
@@ -320,4 +328,69 @@ func getACRDomainSuffix(ctx context.Context) (string, error) {
 		return "", fmt.Errorf("failed to get ACR domain suffix: %w", err)
 	}
 	return strings.TrimSpace(string(output)), nil
+}
+
+// isCIRegistry checks if the source registry is a CI registry that requires
+// oc registry login. This is determined by the USE_OC_LOGIN_REGISTRIES env var,
+// which is set by the CI provisioning step (aro-hcp-provision-environment).
+func isCIRegistry(sourceRegistry string) bool {
+	ocLoginRegistries := os.Getenv("USE_OC_LOGIN_REGISTRIES")
+	if ocLoginRegistries == "" {
+		return false
+	}
+	for _, registry := range strings.Fields(ocLoginRegistries) {
+		if sourceRegistry == registry {
+			return true
+		}
+	}
+	return false
+}
+
+// getOCRegistryCredential runs "oc registry login" and parses the resulting
+// Docker config JSON to extract credentials for the given registry.
+func getOCRegistryCredential(ctx context.Context, registry string) (auth.Credential, error) {
+	tmpFile, err := os.CreateTemp("", "oc-auth-*.json")
+	if err != nil {
+		return auth.EmptyCredential, fmt.Errorf("failed to create temp file for oc auth: %w", err)
+	}
+	tmpFile.Close()
+	defer os.Remove(tmpFile.Name())
+
+	cmd := exec.CommandContext(ctx, "oc", "registry", "login", "--to", tmpFile.Name())
+	if output, err := cmd.CombinedOutput(); err != nil {
+		return auth.EmptyCredential, fmt.Errorf("oc registry login failed: %s: %w", string(output), err)
+	}
+
+	data, err := os.ReadFile(tmpFile.Name())
+	if err != nil {
+		return auth.EmptyCredential, fmt.Errorf("failed to read oc auth file: %w", err)
+	}
+
+	var dockerConfig struct {
+		Auths map[string]struct {
+			Auth string `json:"auth"`
+		} `json:"auths"`
+	}
+	if err := json.Unmarshal(data, &dockerConfig); err != nil {
+		return auth.EmptyCredential, fmt.Errorf("failed to parse oc auth config: %w", err)
+	}
+
+	for registryHost, regAuth := range dockerConfig.Auths {
+		if strings.Contains(registry, registryHost) || strings.Contains(registryHost, registry) {
+			authDecoded, err := base64.StdEncoding.DecodeString(regAuth.Auth)
+			if err != nil {
+				return auth.EmptyCredential, fmt.Errorf("failed to decode auth for %s: %w", registryHost, err)
+			}
+			parts := strings.SplitN(string(authDecoded), ":", 2)
+			if len(parts) != 2 {
+				return auth.EmptyCredential, fmt.Errorf("invalid auth format for %s", registryHost)
+			}
+			return auth.Credential{
+				Username: parts[0],
+				Password: parts[1],
+			}, nil
+		}
+	}
+
+	return auth.EmptyCredential, fmt.Errorf("oc registry login succeeded but no credentials found for %s", registry)
 }
