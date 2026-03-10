@@ -2669,6 +2669,14 @@
             "sre",
             "sl"
           ]
+        },
+        "maxActiveTimeSeries": {
+          "type": "integer",
+          "description": "Maximum active time series limit for Azure Monitor Workspace (10M supports ~100 HCPs per region)"
+        },
+        "maxEventsPerMinute": {
+          "type": "integer",
+          "description": "Maximum events per minute limit for Azure Monitor Workspace (10M supports ~100 HCPs per region)"
         }
       },
       "additionalProperties": false,

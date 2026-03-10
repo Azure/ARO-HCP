@@ -2,13 +2,9 @@
 param azureMonitorWorkspaceName string
 
 @description('Maximum active time series limit (10M for 100 HCPs, max 20M via API)')
-@minValue(1000000)
-@maxValue(20000000)
 param maxActiveTimeSeries int = 10000000
 
 @description('Maximum events per minute limit (10M for 100 HCPs, max 20M via API)')
-@minValue(1000000)
-@maxValue(20000000)
 param maxEventsPerMinute int = 10000000
 
 // Existing Azure Monitor Workspace (parent resource for metrics container)
