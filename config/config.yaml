@@ -497,6 +497,16 @@ defaults:
         poolCount: 3
         zones: ""
         zoneRedundantMode: "Auto"
+        secondaryNicCount: 0
+      userSwiftAgentPool:
+        name: 'uswft'
+        vmSize: 'Standard_E32ds_v6'
+        osDiskSizeGB: 512
+        minCount: 1
+        poolCount: 3
+        zones: ""
+        zoneRedundantMode: "Auto"
+        secondaryNicCount: 7
       infraAgentPool:
         name: 'infra'
         minCount: 1
@@ -1069,6 +1079,11 @@ clouds:
             maxCount: 14
             vmSize: 'Standard_D4s_v3'
             osDiskSizeGB: 100
+          userSwiftAgentPool:
+            maxCount: 14
+            vmSize: 'Standard_D4s_v3'
+            osDiskSizeGB: 128
+            secondaryNicCount: 7
           infraAgentPool:
             poolCount: 2
             vmSize: 'Standard_D2s_v3'
@@ -1385,6 +1400,11 @@ clouds:
                 maxCount: 3
                 vmSize: 'Standard_D16s_v3'
                 osDiskSizeGB: 128
+              userSwiftAgentPool:
+                maxCount: 3
+                vmSize: 'Standard_D16s_v3'
+                osDiskSizeGB: 128
+                secondaryNicCount: 3
               enableSwiftV2Vnet: true
               enableSwiftV2Nodepools: true
             jaeger:

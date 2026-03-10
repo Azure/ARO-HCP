@@ -7,6 +7,7 @@ param zoneRedundantMode string
 
 param poolRole string
 param enableSwiftV2 bool
+param secondaryNicCount int
 
 param vmSize string
 param minCount int
@@ -68,10 +69,17 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-10-01' exis
   name: aksClusterName
 }
 
+
+// User node pool - conditionally add secondary-count tag based on secondaryNicCount
 var swiftNodepoolTags = enableSwiftV2
-  ? {
-      'aks-nic-enable-multi-tenancy': 'true'
-    }
+  ? (secondaryNicCount > 0
+      ? {
+          'aks-nic-enable-multi-tenancy': 'true'
+          'aks-nic-secondary-count': string(secondaryNicCount)
+        }
+      : {
+          'aks-nic-enable-multi-tenancy': 'true'
+        })
   : null
 
 resource userAgentPools 'Microsoft.ContainerService/managedClusters/agentPools@2024-10-01' = [
