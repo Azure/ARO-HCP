@@ -93,6 +93,10 @@ func runImageMirrorStep(id graph.Identifier, ctx context.Context, step *types.Im
 		if err != nil {
 			return fmt.Errorf("failed to fetch pull secret: %w", err)
 		}
+		if sourceCredential == auth.EmptyCredential {
+			logger.Info("No credentials found in pull secret for source registry, using anonymous access", "registry", sourceRegistry)
+			fmt.Fprintf(outputWriter, "No credentials found for %s in pull secret. Using anonymous access.\n", sourceRegistry)
+		}
 	} else {
 		logger.Info("No pull secret configured, using anonymous access for source registry")
 	}
@@ -299,7 +303,8 @@ func fetchPullSecretCredential(ctx context.Context, vaultName, secretName, regis
 		}
 	}
 
-	return auth.EmptyCredential, fmt.Errorf("no credentials found for registry %s in pull secret", registry)
+	// no credentials found for this registry - return empty credential (anonymous access)
+	return auth.EmptyCredential, nil
 }
 
 // getACRCredential gets an auth credential for an Azure Container Registry
