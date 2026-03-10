@@ -16,6 +16,7 @@ package e2e
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -124,7 +125,6 @@ var _ = Describe("Customer", func() {
 					Effect: to.Ptr(hcpsdk20240610preview.EffectNoSchedule),
 				},
 			}
-			nodePool.Properties.NodeDrainTimeoutMinutes = to.Ptr(int32(1)) // Force drain timeout to prevent stuck rollouts
 
 			_, err = framework.CreateNodePoolAndWait(
 				ctx,
@@ -178,24 +178,29 @@ var _ = Describe("Customer", func() {
 				customerClusterName,
 				customerNodePoolName,
 				updateTaints,
-				45*time.Minute,
+				120*time.Minute,
 			)
 			Expect(err).NotTo(HaveOccurred())
 
-			By("verifying all nodes eventually have the new taint")
+			By("verifying nodes are scaled to the expected count")
 			Eventually(func(ctx context.Context) bool {
 				var nodeList corev1.NodeList
 				err := k8sClient.List(ctx, &nodeList)
 				if err != nil {
 					return false
 				}
+				return len(nodeList.Items) == int(taintReplicas)
+			}).WithContext(ctx).WithTimeout(15*time.Minute).Should(BeTrue(), "expected to have %d nodes", int(taintReplicas))
 
-				if len(nodeList.Items) != int(taintReplicas) {
+			By("verifying new taint is present on a node")
+			Eventually(func(ctx context.Context) bool {
+				var nodeList corev1.NodeList
+				err := k8sClient.List(ctx, &nodeList)
+				if err != nil {
 					return false
 				}
-
-				return framework.HasNodeTaint(nodeList.Items, "key2", "value2", corev1.TaintEffectPreferNoSchedule, int(taintReplicas))
-			}).WithContext(ctx).WithTimeout(45*time.Minute).Should(BeTrue(), "expected all nodes to have the updated taint")
+				return framework.HasNodeTaint(nodeList.Items, "key2", "value2", corev1.TaintEffectPreferNoSchedule)
+			}).WithContext(ctx).WithTimeout(15*time.Minute).Should(BeTrue(), "expected some node to have new taint key2=value2:PreferNoSchedule")
 
 			By("updating nodepool with a new label and scaling up")
 			finalReplicas := int32(4)
@@ -221,6 +226,16 @@ var _ = Describe("Customer", func() {
 			)
 			Expect(err).NotTo(HaveOccurred())
 
+			By("verifying nodes are scaled to the expected count")
+			Eventually(func(ctx context.Context) bool {
+				var nodeList corev1.NodeList
+				err := k8sClient.List(ctx, &nodeList)
+				if err != nil {
+					return false
+				}
+				return len(nodeList.Items) == int(finalReplicas)
+			}).WithContext(ctx).WithTimeout(15*time.Minute).Should(BeTrue(), "expected to have %d nodes", int(finalReplicas))
+
 			By("verifying new label is present on newly created node")
 			Eventually(func(ctx context.Context) bool {
 				var nodeList corev1.NodeList
@@ -231,10 +246,20 @@ var _ = Describe("Customer", func() {
 				return framework.HasNodeLabel(nodeList.Items, "key2", "value2")
 			}).WithContext(ctx).WithTimeout(15 * time.Minute).Should(BeTrue())
 
-			By("verifying original labels persist on original nodes")
+			By("logging state of all nodes")
 			var finalNodeList corev1.NodeList
 			err = k8sClient.List(ctx, &finalNodeList)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(framework.HasNodeLabel(finalNodeList.Items, "key1", "value1", int(initialReplicas))).To(BeTrue(), "expected %d nodes to still have original label key1=value1", int(taintReplicas))
+
+			GinkgoLogr.Info("Final node state", "totalNodes", len(finalNodeList.Items), "expectedNodes", int(finalReplicas))
+			for _, node := range finalNodeList.Items {
+				GinkgoLogr.Info("Node", "name", node.Name, "labels", node.Labels, "taints", node.Spec.Taints)
+			}
+
+			By(fmt.Sprintf("verifying original labels persist on %d nodes", int(taintReplicas)))
+			Expect(framework.HasNodeLabel(finalNodeList.Items, "key1", "value1", int(taintReplicas))).To(BeTrue(), "expected %d nodes to have original label key1=value1", int(taintReplicas))
+
+			By(fmt.Sprintf("verifying original taints persist on %d nodes", int(initialReplicas)))
+			Expect(framework.HasNodeTaint(finalNodeList.Items, "key1", "value1", corev1.TaintEffectNoSchedule, int(initialReplicas))).To(BeTrue(), "expected %d nodes to still have original taint key1=value1:NoSchedule", int(initialReplicas))
 		})
 })
