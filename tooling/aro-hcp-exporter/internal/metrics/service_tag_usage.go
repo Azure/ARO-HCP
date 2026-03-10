@@ -92,8 +92,8 @@ func (c *ServiceTagUsageCollector) Collect(ch chan<- prometheus.Metric) {
 }
 
 type IPTag struct {
-	ServiceTagType  string
-	ServiceTagValue string
+	ServiceTagType  string `json:"ipTagType"`
+	ServiceTagValue string `json:"tag"`
 }
 
 type PublicIPAddress struct {
