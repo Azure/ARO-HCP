@@ -94,10 +94,15 @@ func NewGenericOperationController(
 
 func (c *genericOperation) SyncOnce(ctx context.Context, keyObj any) error {
 	key := keyObj.(controllerutils.OperationKey)
+	parentResourceID := key.GetParentResourceID()
+	defer utilruntime.HandleCrash(controllerutils.DegradedControllerPanicHandler(
+		ctx,
+		c.cosmosClient.HCPClusters(key.SubscriptionID, parentResourceID.ResourceGroupName).Controllers(parentResourceID.Name),
+		c.name,
+		key.InitialController))
 
 	syncErr := c.synchronizer.SynchronizeOperation(ctx, key)
 
-	parentResourceID := key.GetParentResourceID()
 	controllerWriteErr := controllerutils.WriteController(
 		ctx,
 		c.cosmosClient.HCPClusters(key.SubscriptionID, parentResourceID.ResourceGroupName).Controllers(parentResourceID.Name),

@@ -110,6 +110,11 @@ func NewNodePoolWatchingController(
 
 func (c *nodePoolWatchingController) SyncOnce(ctx context.Context, keyObj any) error {
 	key := keyObj.(HCPNodePoolKey)
+	defer utilruntime.HandleCrash(DegradedControllerPanicHandler(
+		ctx,
+		c.cosmosClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).NodePools(key.HCPClusterName).Controllers(key.HCPNodePoolName),
+		c.name,
+		key.InitialController))
 
 	syncErr := c.syncer.SyncOnce(ctx, key) // we'll handle this is a moment.
 
