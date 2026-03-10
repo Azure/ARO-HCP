@@ -29,6 +29,7 @@ import (
 type BackendInformers interface {
 	Subscriptions() (cache.SharedIndexInformer, listers.SubscriptionLister)
 	ActiveOperations() (cache.SharedIndexInformer, listers.ActiveOperationLister)
+	AllOperations() (cache.SharedIndexInformer, listers.OperationLister)
 	Clusters() (cache.SharedIndexInformer, listers.ClusterLister)
 	NodePools() (cache.SharedIndexInformer, listers.NodePoolLister)
 	ExternalAuths() (cache.SharedIndexInformer, listers.ExternalAuthLister)
@@ -44,6 +45,9 @@ type backendInformers struct {
 
 	activeOperationInformer cache.SharedIndexInformer
 	activeOperationLister   listers.ActiveOperationLister
+
+	allOperationInformer cache.SharedIndexInformer
+	allOperationLister   listers.OperationLister
 
 	clusterInformer cache.SharedIndexInformer
 	clusterLister   listers.ClusterLister
@@ -67,6 +71,10 @@ func (b *backendInformers) Subscriptions() (cache.SharedIndexInformer, listers.S
 
 func (b *backendInformers) ActiveOperations() (cache.SharedIndexInformer, listers.ActiveOperationLister) {
 	return b.activeOperationInformer, b.activeOperationLister
+}
+
+func (b *backendInformers) AllOperations() (cache.SharedIndexInformer, listers.OperationLister) {
+	return b.allOperationInformer, b.allOperationLister
 }
 
 func (b *backendInformers) Clusters() (cache.SharedIndexInformer, listers.ClusterLister) {
@@ -101,6 +109,7 @@ func NewBackendInformersWithRelistDuration(ctx context.Context, globalListers da
 	serviceProviderClusterRelistDuration := ServiceProviderClusterRelistDuration
 	serviceProviderNodePoolRelistDuration := ServiceProviderNodePoolRelistDuration
 	activeOperationsRelistDuration := ActiveOperationsRelistDuration
+	allOperationsRelistDuration := AllOperationsRelistDuration
 	if relistDuration != nil {
 		subscriptionRelistDuration = *relistDuration
 		clusterRelistDuration = *relistDuration
@@ -109,11 +118,16 @@ func NewBackendInformersWithRelistDuration(ctx context.Context, globalListers da
 		serviceProviderClusterRelistDuration = *relistDuration
 		serviceProviderNodePoolRelistDuration = *relistDuration
 		activeOperationsRelistDuration = *relistDuration
+		allOperationsRelistDuration = *relistDuration
 	}
 
 	ret := &backendInformers{}
 	ret.subscriptionInformer = NewSubscriptionInformerWithRelistDuration(globalListers.Subscriptions(), subscriptionRelistDuration)
 	ret.activeOperationInformer = NewActiveOperationInformerWithRelistDuration(globalListers.ActiveOperations(), activeOperationsRelistDuration)
+	// NewActiveOperationInformerWithRelistDuration is generic despite its name —
+	// it accepts any GlobalLister[api.Operation]. We pass Operations() (unfiltered)
+	// to include terminal operations for KSM-style phase metrics.
+	ret.allOperationInformer = NewActiveOperationInformerWithRelistDuration(globalListers.Operations(), allOperationsRelistDuration)
 	ret.clusterInformer = NewClusterInformerWithRelistDuration(globalListers.Clusters(), clusterRelistDuration)
 	ret.nodePoolInformer = NewNodePoolInformerWithRelistDuration(globalListers.NodePools(), nodePoolRelistDuration)
 	ret.externalAuthInformer = NewExternalAuthInformerWithRelistDuration(globalListers.ExternalAuths(), externalAuthRelistDuration)
@@ -122,6 +136,7 @@ func NewBackendInformersWithRelistDuration(ctx context.Context, globalListers da
 
 	ret.subscriptionLister = listers.NewSubscriptionLister(ret.subscriptionInformer.GetIndexer())
 	ret.activeOperationLister = listers.NewActiveOperationLister(ret.activeOperationInformer.GetIndexer())
+	ret.allOperationLister = listers.NewOperationLister(ret.allOperationInformer.GetIndexer())
 	ret.clusterLister = listers.NewClusterLister(ret.clusterInformer.GetIndexer())
 	ret.nodePoolLister = listers.NewNodePoolLister(ret.nodePoolInformer.GetIndexer())
 	ret.externalAuthLister = listers.NewExternalAuthLister(ret.externalAuthInformer.GetIndexer())
@@ -147,6 +162,11 @@ func (b *backendInformers) RunWithContext(ctx context.Context) {
 	go func() {
 		defer wg.Done()
 		b.activeOperationInformer.RunWithContext(ctx)
+	}()
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		b.allOperationInformer.RunWithContext(ctx)
 	}()
 	wg.Add(1)
 	go func() {

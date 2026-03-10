@@ -252,6 +252,10 @@ func (b *Backend) shutdownHTTPServer(ctx context.Context, server *http.Server, n
 func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, electionChecker *leaderelection.HealthzAdaptor) error {
 	backendInformers := informers.NewBackendInformers(ctx, b.options.CosmosDBClient.GlobalListers())
 
+	// Register operation phase metrics collector.
+	_, allOperationLister := backendInformers.AllOperations()
+	controllerutils.NewOperationPhaseCollector(prometheus.DefaultRegisterer, allOperationLister, utils.LoggerFromContext(ctx))
+
 	_, subscriptionLister := backendInformers.Subscriptions()
 	activeOperationInformer, activeOperationLister := backendInformers.ActiveOperations()
 

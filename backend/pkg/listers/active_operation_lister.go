@@ -22,16 +22,28 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api"
 )
 
-// ActiveOperationLister lists and gets active (non-terminal) operations from an informer's indexer.
-type ActiveOperationLister interface {
+// OperationLister lists and gets operations from an informer's indexer.
+type OperationLister interface {
 	List(ctx context.Context) ([]*api.Operation, error)
 	Get(ctx context.Context, subscriptionID, name string) (*api.Operation, error)
+}
+
+// ActiveOperationLister lists and gets active (non-terminal) operations from an informer's indexer.
+type ActiveOperationLister interface {
+	OperationLister
 	ListActiveOperationsForCluster(ctx context.Context, subscriptionName, resourceGroupName, clusterName string) ([]*api.Operation, error)
 }
 
 // activeOperationLister implements ActiveOperationLister backed by a SharedIndexInformer.
 type activeOperationLister struct {
 	indexer cache.Indexer
+}
+
+// NewOperationLister creates an OperationLister from a SharedIndexInformer's indexer.
+func NewOperationLister(indexer cache.Indexer) OperationLister {
+	return &activeOperationLister{
+		indexer: indexer,
+	}
 }
 
 // NewActiveOperationLister creates an ActiveOperationLister from a SharedIndexInformer's indexer.
