@@ -75,10 +75,5 @@ func (c *operationExternalAuthUpdate) SynchronizeOperation(ctx context.Context, 
 		return nil // no work to do
 	}
 
-	_, err = c.clusterServiceClient.GetExternalAuth(ctx, operation.InternalID)
-	if err != nil {
-		return utils.TrackError(err)
-	}
-
 	return pollExternalAuthStatus(ctx, c.cosmosClient, c.clusterServiceClient, operation, c.notificationClient)
 }

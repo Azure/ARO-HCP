@@ -79,21 +79,22 @@ func (c *operationNodePoolDelete) SynchronizeOperation(ctx context.Context, key 
 		return nil // no work to do
 	}
 
-	clusterStatus, err := c.clusterServiceClient.GetNodePoolStatus(ctx, operation.InternalID)
+	nodePoolStatus, err := c.clusterServiceClient.GetNodePoolStatus(ctx, operation.InternalID)
 	var ocmGetNodePoolError *ocmerrors.Error
 	if err != nil && errors.As(err, &ocmGetNodePoolError) && ocmGetNodePoolError.Status() == http.StatusNotFound {
 		logger.Info("node pool was deleted")
 
 		err = SetDeleteOperationAsCompleted(ctx, c.cosmosClient, operation, postAsyncNotificationFn(c.notificationClient))
 		if err != nil {
-			logger.Error(err, "Failed to handle a completed deletion")
+			return utils.TrackError(err)
 		}
+		return nil
 	}
 	if err != nil {
 		return utils.TrackError(err)
 	}
 
-	newOperationStatus, newOperationError, err := convertNodePoolStatus(operation, clusterStatus)
+	newOperationStatus, newOperationError, err := convertNodePoolStatus(operation, nodePoolStatus)
 	if err != nil {
 		return utils.TrackError(err)
 	}

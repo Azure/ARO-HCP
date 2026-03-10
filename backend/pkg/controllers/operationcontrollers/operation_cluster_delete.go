@@ -99,9 +99,8 @@ func (c *operationClusterDelete) SynchronizeOperation(ctx context.Context, key c
 
 		err = SetDeleteOperationAsCompleted(ctx, c.cosmosClient, operation, postAsyncNotificationFn(c.notificationClient))
 		if err != nil {
-			logger.Error(err, "Failed to handle a completed deletion")
+			return utils.TrackError(err)
 		}
-
 		// without cluster-status, there is nothing remaining to do.  the orphan controller will cleanup any remaining cosmos bits.
 		return nil
 	}

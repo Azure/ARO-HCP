@@ -82,12 +82,13 @@ func (c *operationExternalAuthDelete) SynchronizeOperation(ctx context.Context, 
 	_, err = c.clusterServiceClient.GetExternalAuth(ctx, operation.InternalID)
 	var ocmGetExternalAuthError *ocmerrors.Error
 	if err != nil && errors.As(err, &ocmGetExternalAuthError) && ocmGetExternalAuthError.Status() == http.StatusNotFound {
-		logger.Info("node pool was deleted")
+		logger.Info("external auth was deleted")
 
 		err = SetDeleteOperationAsCompleted(ctx, c.cosmosClient, operation, postAsyncNotificationFn(c.notificationClient))
 		if err != nil {
-			logger.Error(err, "Failed to handle a completed deletion")
+			return utils.TrackError(err)
 		}
+		return nil
 	}
 	if err != nil {
 		return utils.TrackError(err)
