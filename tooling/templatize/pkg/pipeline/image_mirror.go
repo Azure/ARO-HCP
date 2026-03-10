@@ -358,6 +358,11 @@ func getOCRegistryCredential(ctx context.Context, registry string) (auth.Credent
 	if err != nil {
 		return auth.EmptyCredential, fmt.Errorf("failed to create temp file for oc auth: %w", err)
 	}
+	// oc registry login expects valid JSON in the target file
+	if _, err := tmpFile.Write([]byte(`{"auths":{}}`)); err != nil {
+		tmpFile.Close()
+		return auth.EmptyCredential, fmt.Errorf("failed to initialize oc auth file: %w", err)
+	}
 	tmpFile.Close()
 	defer os.Remove(tmpFile.Name())
 
