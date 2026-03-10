@@ -74,6 +74,15 @@ images:
     targets:
     - jsonPath: defaults.clustersService.image.digest
       filePath: ../../config/config.yaml
+  # Custom Exporter image
+  aro-hcp-exporter:
+    group: aro-hcp-exporter
+    source:
+      image: arohcpsvcdev.azurecr.io/arohcpmetrics
+      useAuth: true
+    targets:
+    - jsonPath: defaults.customExporter.image.digest
+      filePath: ../../config/config.yaml
   # Frontend and Backend images
   arohcpfrontend:
     group: aro-rp

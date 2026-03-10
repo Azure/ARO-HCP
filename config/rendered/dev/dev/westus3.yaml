@@ -183,7 +183,7 @@ clustersService:
     exporter: ""
 customExporter:
   image:
-    digest: sha256:b138301009f792415bbd9283194d5142126db46886f3dd7ecd6f6ba855e53c18
+    digest: sha256:2a64b8900486cd886d2c44023788f95891a3012ad790f85272432a30685e2a34
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpmetrics
   k8s:
