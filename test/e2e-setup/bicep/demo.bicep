@@ -18,6 +18,9 @@ param openshiftControlPlaneVersionId string = '4.20'
 @description('NodePool OpenShift Version ID')
 param openshiftNodePoolVersionId string = '4.20.8'
 
+@description('Tags that should be added to the ARO HCP cluster')
+param tags object = {}
+
 module customerInfra 'modules/customer-infra.bicep' = {
   name: 'customerInfra'
   params: {
@@ -52,6 +55,7 @@ module AroHcpCluster 'modules/cluster.bicep' = {
     identityValue: managedIdentities.outputs.identityValue
     keyVaultName: customerInfra.outputs.keyVaultName
     etcdEncryptionKeyName: customerInfra.outputs.etcdEncryptionKeyName
+    tags: tags
   }
 }
 
