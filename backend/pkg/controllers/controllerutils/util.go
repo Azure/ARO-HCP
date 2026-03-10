@@ -18,6 +18,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"runtime/debug"
 	"slices"
 
 	"github.com/go-logr/logr"
@@ -163,6 +164,17 @@ func ReportSyncError(syncErr error) controllerMutationFunc {
 }
 
 type initialControllerFunc func(controllerName string) *api.Controller
+
+func DegradedControllerPanicHandler(ctx context.Context, controllerCRUD database.ResourceCRUD[api.Controller], controllerName string, initialControllerFn initialControllerFunc) func(interface{}) {
+	return func(panicVal interface{}) {
+		stack := debug.Stack()
+		err := WriteController(ctx, controllerCRUD, controllerName, initialControllerFn, ReportSyncError(fmt.Errorf("panic caught:\n%v\n\n%s", panicVal, stack)))
+		if err != nil {
+			logger := utils.LoggerFromContext(ctx)
+			logger.Error(err, "failed to write controller after panic")
+		}
+	}
+}
 
 // WriteController will read the existing value, call the mutations in order, then write the result.  It only tries *once*.
 // If it fails, then the an error is returned.  This detail is important, it doesn't even retry conflicts.  This is so that

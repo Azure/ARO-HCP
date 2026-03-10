@@ -109,6 +109,11 @@ func NewClusterWatchingController(
 
 func (c *clusterWatchingController) SyncOnce(ctx context.Context, keyObj any) error {
 	key := keyObj.(HCPClusterKey)
+	defer utilruntime.HandleCrash(DegradedControllerPanicHandler(
+		ctx,
+		c.cosmosClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Controllers(key.HCPClusterName),
+		c.name,
+		key.InitialController))
 
 	syncErr := c.syncer.SyncOnce(ctx, key) // we'll handle this is a moment.
 
