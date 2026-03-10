@@ -40,6 +40,9 @@ param etcdEncryptionKeyName string
 @description('List of authorized IP ranges for API server access')
 param authorizedCidrs array?
 
+@description('Tags that should be added to the ARO HCP cluster')
+param tags object = {}
+
 //
 // E X I S T I N G   R E S O U R C E S
 //
@@ -73,6 +76,7 @@ resource etcdEncryptionKey 'Microsoft.KeyVault/vaults/keys@2024-12-01-preview' e
 resource hcp 'Microsoft.RedHatOpenShift/hcpOpenShiftClusters@2024-06-10-preview' = {
   name: clusterName
   location: resourceGroup().location
+  tags: tags
   properties: {
     version: {
       id: openshiftVersionId
