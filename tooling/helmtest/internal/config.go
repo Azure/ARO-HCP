@@ -23,7 +23,7 @@ import (
 	"github.com/Azure/ARO-Tools/config/types"
 )
 
-func loadConfig(configPath string) (types.Configuration, error) {
+func LoadConfig(configPath string) (types.Configuration, error) {
 	rawCfg, err := os.ReadFile(configPath)
 	if err != nil {
 		return nil, fmt.Errorf("error reading config, %v", err)
@@ -39,7 +39,7 @@ func loadConfig(configPath string) (types.Configuration, error) {
 }
 
 func LoadConfigAndMerge(configPath string, configOverride map[string]any) (map[string]any, error) {
-	cfg, err := loadConfig(configPath)
+	cfg, err := LoadConfig(configPath)
 	if err != nil {
 		return nil, fmt.Errorf("error loading config: %v", err)
 	}

@@ -39,9 +39,10 @@ type TestCase struct {
 }
 
 type HelmStepWithPath struct {
-	HelmStep     *types.HelmStep
-	PipelinePath string
-	AKSCluster   string
+	HelmStep         *types.HelmStep
+	MirrorImageSteps []*types.ImageMirrorStep
+	PipelinePath     string
+	AKSCluster       string
 }
 
 func (h *HelmStepWithPath) ValuesFileFromRoot(topologyDir string) string {
