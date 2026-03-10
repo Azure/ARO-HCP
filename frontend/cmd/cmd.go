@@ -26,6 +26,7 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/microsoft/go-otel-audit/audit/base"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/spf13/cobra"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel"
@@ -146,6 +147,11 @@ func (opts *FrontendOpts) Run() error {
 	defer cancel(fmt.Errorf("function returned"))
 
 	logger := utils.DefaultLogger()
+	ctx = utils.ContextWithLogger(ctx, logger)
+
+	registry := prometheus.NewRegistry()
+	registry.MustRegister(collectors.NewGoCollector())
+	registry.MustRegister(collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
 
 	if len(opts.location) == 0 {
 		return errors.New("location is required")
@@ -159,18 +165,19 @@ func (opts *FrontendOpts) Run() error {
 
 	// Create an slog logger for external dependencies that require it
 	slogLogger := slog.New(logr.ToSlogHandler(logger))
+
+	// Create audit log client.
 	auditClient, err := audit.NewOtelAuditClient(
+		ctx,
 		audit.CreateConn(opts.auditConnectSocket),
+		registry,
 		base.WithLogger(slogLogger),
 		base.WithSettings(base.Settings{
 			QueueSize: opts.auditLogQueueSize,
-		}))
+		}),
+	)
 	if err != nil {
-		return fmt.Errorf("could not initialize Otel Audit Client: %w", err)
-	}
-
-	if opts.auditConnectSocket {
-		logger.Info("audit logging to default_fluent.socket")
+		return fmt.Errorf("failed to create audit client: %w", err)
 	}
 
 	// Initialize the global OpenTelemetry tracer.
@@ -225,7 +232,7 @@ func (opts *FrontendOpts) Run() error {
 		URL(opts.clustersServiceURL).
 		Insecure(opts.insecure).
 		MetricsSubsystem("frontend_clusters_service_client").
-		MetricsRegisterer(prometheus.DefaultRegisterer).
+		MetricsRegisterer(registry).
 		Build()
 	if err != nil {
 		return err
@@ -237,7 +244,7 @@ func (opts *FrontendOpts) Run() error {
 	)
 
 	f := frontend.NewFrontend(
-		logger, listener, metricsListener, prometheus.DefaultRegisterer, dbClient, csClient, auditClient, opts.location, opts.clusterServiceProvisionShard,
+		logger, listener, metricsListener, registry, dbClient, csClient, auditClient, opts.location, opts.clusterServiceProvisionShard,
 		opts.clusterServiceNoopProvision, opts.clusterServiceNoopDeprovision, opts.exitOnPanic,
 	)
 

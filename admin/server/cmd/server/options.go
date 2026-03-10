@@ -25,6 +25,7 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/microsoft/go-otel-audit/audit/base"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/spf13/cobra"
 
 	"k8s.io/client-go/rest"
@@ -144,6 +145,7 @@ type completedOptions struct {
 	MinSessionTTL           time.Duration
 	MaxSessionTTL           time.Duration
 	AllowedBreakglassGroups set.Set[string]
+	Registry                *prometheus.Registry
 }
 
 type Options struct {
@@ -181,12 +183,16 @@ func (o *RawOptions) Validate() (*ValidatedOptions, error) {
 }
 
 func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
+	registry := prometheus.NewRegistry()
+	registry.MustRegister(collectors.NewGoCollector())
+	registry.MustRegister(collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
+
 	// Create CS client
 	csConnection, err := sdk.NewUnauthenticatedConnectionBuilder().
 		URL(o.ClustersServiceURL).
 		Insecure(true).
 		MetricsSubsystem("adminapi_clusters_service_client").
-		MetricsRegisterer(prometheus.DefaultRegisterer).
+		MetricsRegisterer(registry).
 		Build()
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Clusters Service client: %w", err)
@@ -231,15 +237,18 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 		return nil, fmt.Errorf("failed to create the FPA token credentials: %w", err)
 	}
 
-	// Create audit client
+	// Create audit log client.
 	logger := utils.LoggerFromContext(ctx)
 	slogLogger := slog.New(logr.ToSlogHandler(logger))
 	auditClient, err := audit.NewOtelAuditClient(
+		ctx,
 		audit.CreateConn(o.AuditConnectSocket),
+		registry,
 		base.WithLogger(slogLogger),
 		base.WithSettings(base.Settings{
 			QueueSize: o.AuditLogQueueSize,
-		}))
+		}),
+	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create audit client: %w", err)
 	}
@@ -279,6 +288,7 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 			MinSessionTTL:           o.MinSessionTTL,
 			MaxSessionTTL:           o.MaxSessionTTL,
 			AllowedBreakglassGroups: set.New[string](o.AllowedBreakglassGroups...),
+			Registry:                registry,
 		},
 	}, nil
 }
@@ -332,6 +342,7 @@ func (opts *Options) Run(ctx context.Context) error {
 		opts.MinSessionTTL,
 		opts.MaxSessionTTL,
 		opts.AllowedBreakglassGroups,
+		opts.Registry,
 	)
 
 	runErrCh := make(chan error, 1)

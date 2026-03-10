@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"k8s.io/utils/set"
@@ -74,6 +75,7 @@ func NewAdminAPI(
 	minSessionTTL time.Duration,
 	maxSessionTTL time.Duration,
 	allowedBreakglassGroups set.Set[string],
+	gatherer prometheus.Gatherer,
 ) *AdminAPI {
 	// Pre-mux middleware (runs on all admin routes before pattern matching)
 	middlewareMux := middleware.NewMiddlewareMux(
@@ -118,7 +120,7 @@ func NewAdminAPI(
 	apiMux.HandleFunc("/", middlewareMux.ServeHTTP)
 
 	metricsMux := http.NewServeMux()
-	metricsMux.Handle("GET /metrics", promhttp.Handler())
+	metricsMux.Handle("GET /metrics", promhttp.HandlerFor(gatherer, promhttp.HandlerOpts{}))
 	// keeping these handlers on the metrics mux/listener during the migration to the api mux/listener
 	// remove once we can shift the deployment health checks to the other port
 	metricsMux.HandleFunc("GET /healthz/ready", healthzReadyHandler)

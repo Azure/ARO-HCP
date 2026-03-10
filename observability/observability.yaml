@@ -5,6 +5,7 @@ prometheusRules:
   - ../frontend/alerts/frontend-prometheusRule.yaml
   #- ../cluster-service/alerts/cluster-service-slo-rules.yaml
   - ../backend/alerts/backend-prometheusRule.yaml
+  - ../admin/alerts/admin-prometheusRule.yaml
   - ../observability/alerts/arobit-prometheusRule.yaml
   untestedRules: []
   outputBicep: ../dev-infrastructure/modules/metrics/rules/generatedPrometheusAlertingRules.bicep

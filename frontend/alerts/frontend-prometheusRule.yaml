@@ -35,3 +35,27 @@ spec:
         description: 'The Frontend Cluster Service 5xx error rate is above 5% for the last hour. Current value: {{ $value | humanizePercentage }}.'
         runbook_url: 'TBD'
         summary: 'High 4xx|5xx Error Rate on Frontend Cluster Service'
+    - alert: FrontendHighAuditLogErrorRate
+      expr: |
+        (
+          sum by (cluster) (rate(otel_audit_log_send_errors_total{job="aro-hcp-frontend-metrics"}[1h]))
+          /
+          sum by (cluster) (rate(otel_audit_log_records_total{job="aro-hcp-frontend-metrics"}[1h]))
+        ) > 0.05
+      for: 5m
+      labels:
+        severity: info
+      annotations:
+        summary: "High Frontend audit log error rate."
+        runbook_url: 'TBD'
+        description: "Audit log error rate is above 5% for the last hour. Current value: {{ $value | humanizePercentage }}."
+    - alert: FrontendAuditLogConnectionDegraded
+      expr: |
+        otel_audit_log_connection_degraded{job="aro-hcp-frontend-metrics"} == 1
+      for: 5m
+      labels:
+        severity: info
+      annotations:
+        summary: "Frontend audit log connection is degraded."
+        runbook_url: 'TBD'
+        description: "The frontend failed to connect to the audit server and is running with a no-op audit client. No audit logs are being sent."
