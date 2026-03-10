@@ -266,6 +266,10 @@ defaults:
     crossTenantSecurityGroup: ""
     svcWorkspaceName: 'services-{{ .ctx.region }}'
     hcpWorkspaceName: 'hcps-{{ .ctx.region }}'
+    # Azure Monitor Workspace ingestion limits
+    # 10M supports ~100 HCPs per region, increase when adding more mgmt clusters
+    maxActiveTimeSeries: 10000000
+    maxEventsPerMinute: 10000000
     alertRuleOwningTeamTag: ""
     alertsEnabled: false
     icm:
