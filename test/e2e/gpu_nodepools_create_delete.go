@@ -24,6 +24,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/util/rand"
 
+	"github.com/Azure/ARO-HCP/internal/api"
 	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
@@ -90,6 +91,9 @@ var _ = Describe("HCP Nodepools GPU instances", func() {
 						"clusterName":                    customerClusterName,
 						"identities":                     identities,
 						"usePooledIdentities":            usePooled,
+						"tags": map[string]string{
+							api.TagClusterSizeOverride: string(api.MinimalControlPlanePodSizing),
+						},
 					}),
 					framework.WithTimeout(45*time.Minute),
 				)

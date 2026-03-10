@@ -48,6 +48,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v5"
 
+	"github.com/Azure/ARO-HCP/internal/api"
 	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 )
 
@@ -286,6 +287,7 @@ func DeleteAllHCPClusters(
 	ctx, cancel := context.WithTimeoutCause(ctx, timeout, fmt.Errorf("timeout '%f' minutes exceeded during DeleteAllHCPClusters for resource group %s", timeout.Minutes(), resourceGroupName))
 	defer cancel()
 
+	var hcpClustersWithoutSizeTag []string
 	hcpClusterNames := []string{}
 	hcpClusterPager := hcpClient.NewListByResourceGroupPager(resourceGroupName, nil)
 	for hcpClusterPager.More() {
@@ -298,6 +300,9 @@ func DeleteAllHCPClusters(
 		}
 		for _, cluster := range page.Value {
 			hcpClusterNames = append(hcpClusterNames, *cluster.Name)
+			if value, set := cluster.Tags[api.TagClusterSizeOverride]; !set || value == nil || *value != string(api.MinimalControlPlanePodSizing) {
+				hcpClustersWithoutSizeTag = append(hcpClustersWithoutSizeTag, *cluster.Name)
+			}
 		}
 	}
 
@@ -319,7 +324,19 @@ func DeleteAllHCPClusters(
 		return fmt.Errorf("at least one hcp cluster failed to delete: %w", err)
 	}
 
+	if len(hcpClustersWithoutSizeTag) > 0 {
+		return &NonConformingClustersError{clusters: hcpClustersWithoutSizeTag}
+	}
+
 	return nil
+}
+
+type NonConformingClustersError struct {
+	clusters []string
+}
+
+func (e *NonConformingClustersError) Error() string {
+	return fmt.Sprintf("the following clusters did not have tags[%s]=%s: %v; we require end-to-end tests to opt into this tag to ensure that the control planes we provision during automated test runs have minimal footprints on our production infrastructure", api.TagClusterSizeOverride, api.MinimalControlPlanePodSizing, e.clusters)
 }
 
 // DeleteNodePool deletes a nodepool and waits for the operation to complete
