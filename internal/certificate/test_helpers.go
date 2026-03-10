@@ -14,7 +14,7 @@
 
 //go:build !release
 
-package fpa
+package certificate
 
 import (
 	"crypto/rand"
@@ -32,8 +32,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// generateTestCertificate generates a self-signed certificate for testing
-func generateTestCertificate(t *testing.T, serialNumber int64) (certPEM, keyPEM []byte, err error) {
+// GenerateTestCertificate generates a self-signed certificate for testing
+func GenerateTestCertificate(t *testing.T, serialNumber int64) (certPEM, keyPEM []byte, err error) {
 	t.Helper()
 
 	notBefore := time.Now().Add(-1 * time.Hour)
@@ -87,7 +87,7 @@ func generateTestCertificate(t *testing.T, serialNumber int64) (certPEM, keyPEM 
 func atomicUpdateCert(t *testing.T, dir, filename string, serialNumber int64) {
 	t.Helper()
 
-	certPEM, keyPEM, err := generateTestCertificate(t, serialNumber)
+	certPEM, keyPEM, err := GenerateTestCertificate(t, serialNumber)
 	require.NoError(t, err)
 	content := append(keyPEM, certPEM...)
 

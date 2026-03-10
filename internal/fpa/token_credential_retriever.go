@@ -19,6 +19,8 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+
+	"github.com/Azure/ARO-HCP/internal/certificate"
 )
 
 type FirstPartyApplicationTokenCredentialRetriever interface {
@@ -28,10 +30,10 @@ type FirstPartyApplicationTokenCredentialRetriever interface {
 type firstPartyApplicationTokenCredentialRetriever struct {
 	clientOpts azcore.ClientOptions
 	clientID   string
-	certReader CertificateReader
+	certReader certificate.Reader
 }
 
-func NewFirstPartyApplicationTokenCredentialRetriever(clientID string, certReader CertificateReader, clientOptions azcore.ClientOptions) (FirstPartyApplicationTokenCredentialRetriever, error) {
+func NewFirstPartyApplicationTokenCredentialRetriever(clientID string, certReader certificate.Reader, clientOptions azcore.ClientOptions) (FirstPartyApplicationTokenCredentialRetriever, error) {
 	credentialRetriever := &firstPartyApplicationTokenCredentialRetriever{
 		clientID:   clientID,
 		certReader: certReader,

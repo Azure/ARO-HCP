@@ -1,4 +1,4 @@
-// Copyright 2025 Microsoft Corporation
+// Copyright 2026 Microsoft Corporation
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,15 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package fpa
+package certificate
 
 import (
 	"crypto"
 	"crypto/x509"
 )
 
-// CertificateReader represents a source that can read and parse certificate data.
-type CertificateReader interface {
-	// ReadCertificate reads and parses the certificate and private key.
-	ReadCertificate() ([]*x509.Certificate, crypto.PrivateKey, error)
+// MockReader is a simple mock for testing FirstPartyApplicationTokenCredentialRetriever
+type MockReader struct {
+	Certs []*x509.Certificate
+	Key   crypto.PrivateKey
+	Err   error
+}
+
+func (m *MockReader) ReadCertificate() ([]*x509.Certificate, crypto.PrivateKey, error) {
+	return m.Certs, m.Key, m.Err
 }
