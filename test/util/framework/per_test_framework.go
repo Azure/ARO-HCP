@@ -428,9 +428,14 @@ func (tc *perItOrDescribeTestContext) cleanupResourceGroup(ctx context.Context, 
 		return err
 	}
 
+	var nonConformantErr error
 	ginkgo.GinkgoLogr.Info("deleting all hcp clusters in resource group", "resourceGroup", resourceGroupName)
 	if err := DeleteAllHCPClusters(ctx, hcpClientFactory.NewHcpOpenShiftClustersClient(), resourceGroupName, timeout); err != nil {
-		return fmt.Errorf("failed to cleanup resource group: %w", err)
+		if errors.Is(err, &NonConformingClustersError{}) {
+			nonConformantErr = err
+		} else {
+			return fmt.Errorf("failed to cleanup resource group: %w", err)
+		}
 	}
 
 	managedResourceGroups, err := tc.findManagedResourceGroups(ctx, resourceGroupName)
@@ -449,7 +454,8 @@ func (tc *perItOrDescribeTestContext) cleanupResourceGroup(ctx context.Context, 
 		return fmt.Errorf("failed to cleanup resource group: %w", err)
 	}
 
-	return nil
+	// we want non-conformant clusters to be visible at the end, without impeding our ability to clean up the resource group
+	return nonConformantErr
 }
 
 // cleanupResourceGroupNoRP performs cleanup when the resource provider is not available.
