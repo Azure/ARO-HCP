@@ -1,3 +1,5 @@
+{{- if eq .Values.forwarder.clusterType "mgmt" }}
+---
 apiVersion: policy.open-cluster-management.io/v1
 kind: Policy
 metadata:
@@ -6,7 +8,7 @@ metadata:
     policy.open-cluster-management.io/controls: CM-2 Baseline Configuration
     policy.open-cluster-management.io/standards: NIST SP 800-53
   name: namespace-resourceid-mapping
-  namespace: prometheus
+  namespace: '{{ .Release.Namespace }}'
 spec:
   disabled: false
   policy-templates:
@@ -29,10 +31,11 @@ spec:
               kind: ConfigMap
               metadata:
                 name: namespace-resourceid-mapping
-                namespace: prometheus
+                namespace: '{{ .Release.Namespace }}'
               data:
                 {{ `{{- range (lookup "hypershift.openshift.io/v1beta1" "HostedCluster" "" "").items }}` }}
                 {{ `{{- if index .metadata.annotations "azure.microsoft.com/hcp-cluster-azure-resource-id" }}` }}
                 {{ `'{{ .metadata.namespace }}'` }}: {{ `'{{ index .metadata.annotations "azure.microsoft.com/hcp-cluster-azure-resource-id" }}'` }}
                 {{ `{{- end }}` }}
                 {{ `{{- end }}` }}
+{{- end }}

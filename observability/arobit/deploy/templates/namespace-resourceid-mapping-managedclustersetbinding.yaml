@@ -1,0 +1,10 @@
+{{- if eq .Values.forwarder.clusterType "mgmt" }}
+---
+apiVersion: cluster.open-cluster-management.io/v1beta2
+kind: ManagedClusterSetBinding
+metadata:
+  name: default
+  namespace: '{{ .Release.Namespace }}'
+spec:
+  clusterSet: default
+{{- end }}
