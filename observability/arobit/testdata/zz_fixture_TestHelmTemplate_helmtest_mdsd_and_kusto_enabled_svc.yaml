@@ -592,6 +592,11 @@ spec:
             - mountPath: /geneva/geneva_auth/
               name: geneva-certs
               readOnly: true
+      tolerations:
+      - effect: NoSchedule
+        key: infra
+        operator: "Equal"
+        value: "true"
       volumes:
         - name: kusto
           emptyDir: {}
