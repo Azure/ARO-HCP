@@ -100,7 +100,7 @@ spec:
         - name: OPERAND_IMAGE_IMAGE_BASED_INSTALL_OPERATOR
           value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/image-based-install-rhel9@sha256:4f2b4b9dde09c886462f553694c2e9c175d17c4820980a93c1c21acfe0c205f8'
         - name: OPERAND_IMAGE_KUBE_RBAC_PROXY_MCE
-          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/kube-rbac-proxy-mce-rhel9@sha256:5c075616e3259ff29e5f26d6082053b7f505bfefe969b9eb4370bfb2e03b580d'
+          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/kube-rbac-proxy-mce-rhel9@sha256:3dc8311988962f2c21808ca0c55981758927a3e574055933f7a9934af7ac2ac3'
         - name: OPERAND_IMAGE_MANAGEDCLUSTER_IMPORT_CONTROLLER
           value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/managedcluster-import-controller-rhel9@sha256:1413dc3a3d02ce7e4f54ea6300a95752e2e5775e85ed05e6a1d0511bef6cbcc8'
         - name: OPERAND_IMAGE_MANAGED_SERVICEACCOUNT
@@ -116,7 +116,7 @@ spec:
         - name: OPERAND_IMAGE_REGISTRATION_OPERATOR
           value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/registration-operator-rhel9@sha256:09d1f15674cc0bea5d2d3a2998648b6920a14f260992e1ba7e7338349ac11bb5'
         - name: OPERAND_IMAGE_WORK
-          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/work-rhel9@sha256:a8b54672372124b22be09617b60f1cd564a6f5faf59fb39bf554be94ebea59fc'
+          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/work-rhel9@sha256:6001ff5543b9b55631ba61ab6a6225a89f63d4c9fe6d5be9b0b8e0659f0d0ff1'
         - name: OPERAND_IMAGE_ASSISTED_IMAGE_SERVICE
           value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/assisted-image-service-rhel9@sha256:2c307bb5a3caecf5e4f5e3eb4aff17ce327095e392462fb73915f3c0cec9ae6d'
         - name: OPERAND_IMAGE_ASSISTED_INSTALLER
