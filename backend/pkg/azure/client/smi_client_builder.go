@@ -43,12 +43,10 @@ const (
 type ServiceManagedIdentityClientBuilder interface {
 	BuilderType() ServiceManagedIdentityClientBuilderType
 	// UserAssignedIdentitiesClient returns a new User Assigned Identities client.
-	UserAssignedIdentitiesClient(ctx context.Context, subscriptionID string) (UserAssignedIdentitiesClient, error)
+	UserAssignedIdentitiesClient(ctx context.Context, clusterIdentityURL string, smiResourceID *azcorearm.ResourceID, subscriptionID string) (UserAssignedIdentitiesClient, error)
 }
 
 type serviceManagedIdentityClientBuilder struct {
-	clusterIdentityURL          string
-	smiResourceID               *azcorearm.ResourceID
 	fpaMIdataplaneClientBuilder FPAMIDataplaneClientBuilder
 	azCoreARMClientOptions      *azcorearm.ClientOptions
 }
@@ -59,9 +57,9 @@ func (b *serviceManagedIdentityClientBuilder) BuilderType() ServiceManagedIdenti
 	return ServiceManagedIdentityClientBuilderTypeValue
 }
 
-func (b *serviceManagedIdentityClientBuilder) UserAssignedIdentitiesClient(ctx context.Context, subscriptionID string) (UserAssignedIdentitiesClient, error) {
+func (b *serviceManagedIdentityClientBuilder) UserAssignedIdentitiesClient(ctx context.Context, clusterIdentityURL string, smiResourceID *azcorearm.ResourceID, subscriptionID string) (UserAssignedIdentitiesClient, error) {
 	// We obtain the Managed Identity Data Plane client using the Cluster's Identity URL.
-	miDataplaneClient, err := b.fpaMIdataplaneClientBuilder.ManagedIdentitiesDataplane(b.clusterIdentityURL)
+	miDataplaneClient, err := b.fpaMIdataplaneClientBuilder.ManagedIdentitiesDataplane(clusterIdentityURL)
 	if err != nil {
 		return nil, err
 	}
@@ -69,7 +67,7 @@ func (b *serviceManagedIdentityClientBuilder) UserAssignedIdentitiesClient(ctx c
 	// We then use the Managed Identity Data Plane client to get
 	// credentials associated to the Cluster's Service Managed Identity.
 	dataplaneRequest := dataplane.UserAssignedIdentitiesRequest{
-		IdentityIDs: []string{b.smiResourceID.String()},
+		IdentityIDs: []string{smiResourceID.String()},
 	}
 	resp, err := miDataplaneClient.GetUserAssignedIdentitiesCredentials(ctx, dataplaneRequest)
 	if err != nil {
@@ -77,7 +75,7 @@ func (b *serviceManagedIdentityClientBuilder) UserAssignedIdentitiesClient(ctx c
 	}
 	if len(resp.ExplicitIdentities) == 0 {
 		return nil,
-			utils.TrackError(fmt.Errorf("managed identities data plane returned no credentials for the cluster's service managed identity '%s", b.smiResourceID.String()))
+			utils.TrackError(fmt.Errorf("managed identities data plane returned no credentials for the cluster's service managed identity '%s", smiResourceID.String()))
 	}
 
 	// We convert the received UserAssignedIdentityCredentials result into
@@ -94,37 +92,9 @@ func (b *serviceManagedIdentityClientBuilder) UserAssignedIdentitiesClient(ctx c
 	return armmsi.NewUserAssignedIdentitiesClient(subscriptionID, creds, b.azCoreARMClientOptions)
 }
 
-// ServiceManagedIdentityClientBuilderFactory offers the ability to create ServiceManagedIdentityClientBuilder instances.
-type ServiceManagedIdentityClientBuilderFactory interface {
-	// NewServiceManagedIdentityClientBuilder creates a new ServiceManagedIdentityClientBuilder instance where
-	// all the clients returned from it will use the Cluster's Service
-	// Managed Identity represented by smiResourceID. The credentials associated
-	// to the cluster's Service Managed Identity are retrieved from the Managed
-	// Identities Data Plane Service using the Cluster's Identity URL clusterIdentityURL.
-	NewServiceManagedIdentityClientBuilder(clusterIdentityURL string, smiResourceID *azcorearm.ResourceID) ServiceManagedIdentityClientBuilder
-}
-
-type serviceManagedIdentityClientBuilderFactory struct {
-	fpaMIdataplaneClientBuilder FPAMIDataplaneClientBuilder
-	options                     *azcorearm.ClientOptions
-}
-
-var _ ServiceManagedIdentityClientBuilderFactory = (*serviceManagedIdentityClientBuilderFactory)(nil)
-
-func (f *serviceManagedIdentityClientBuilderFactory) NewServiceManagedIdentityClientBuilder(clusterIdentityURL string, smiResourceID *azcorearm.ResourceID) ServiceManagedIdentityClientBuilder {
+func NewServiceManagedIdentityClientBuilder(fpaMIdataplaneClientBuilder FPAMIDataplaneClientBuilder, options *azcorearm.ClientOptions) ServiceManagedIdentityClientBuilder {
 	return &serviceManagedIdentityClientBuilder{
-		clusterIdentityURL:          clusterIdentityURL,
-		smiResourceID:               smiResourceID,
-		fpaMIdataplaneClientBuilder: f.fpaMIdataplaneClientBuilder,
-		azCoreARMClientOptions:      f.options,
-	}
-}
-
-// NewServiceManagedIdentityClientBuilderFactory instantiates a ServiceManagedIdentityClientBuilderFactory,
-// which allows to create ServiceManagedIdentityClientBuilder instances.
-func NewServiceManagedIdentityClientBuilderFactory(fpaMIdataplaneClientBuilder FPAMIDataplaneClientBuilder, options *azcorearm.ClientOptions) ServiceManagedIdentityClientBuilderFactory {
-	return &serviceManagedIdentityClientBuilderFactory{
 		fpaMIdataplaneClientBuilder: fpaMIdataplaneClientBuilder,
-		options:                     options,
+		azCoreARMClientOptions:      options,
 	}
 }

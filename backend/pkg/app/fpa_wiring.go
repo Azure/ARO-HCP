@@ -102,11 +102,8 @@ func NewFirstPartyApplicationManagedIdentitiesDataplaneClientBuilder(
 	return fpaMIdataplaneClientBuilder, nil
 }
 
-func NewServiceManagedIdentityClientBuilderFactory(
-	fpaMIdataplaneClientBuilder azureclient.FPAMIDataplaneClientBuilder,
-	azureConfig *azureconfig.AzureConfig,
-) azureclient.ServiceManagedIdentityClientBuilderFactory {
-	return azureclient.NewServiceManagedIdentityClientBuilderFactory(
+func NewServiceManagedIdentityClientBuilder(fpaMIdataplaneClientBuilder azureclient.FPAMIDataplaneClientBuilder, azureConfig *azureconfig.AzureConfig) azureclient.ServiceManagedIdentityClientBuilder {
+	return azureclient.NewServiceManagedIdentityClientBuilder(
 		fpaMIdataplaneClientBuilder,
 		azureConfig.CloudEnvironment.ARMClientOptions(),
 	)

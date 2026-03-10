@@ -70,7 +70,7 @@ type BackendOptions struct {
 	BackendIdentityAzureClients        *azureclient.BackendIdentityAzureClients
 	ExitOnPanic                        bool
 	FPAMIDataplaneClientBuilder        azureclient.FPAMIDataplaneClientBuilder
-	SMIClientBuilderFactory            azureclient.ServiceManagedIdentityClientBuilderFactory
+	SMIClientBuilder                   azureclient.ServiceManagedIdentityClientBuilder
 }
 
 func (o *BackendOptions) RunBackend(ctx context.Context) error {
@@ -380,7 +380,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		backendInformers,
 	)
 	azureClusterManagedIdentitiesExistenceValidationController := validationcontrollers.NewClusterValidationController(
-		validations.NewAzureClusterManagedIdentitiesExistenceValidation(b.options.SMIClientBuilderFactory),
+		validations.NewAzureClusterManagedIdentitiesExistenceValidation(b.options.SMIClientBuilder),
 		activeOperationLister,
 		b.options.CosmosDBClient,
 		backendInformers,

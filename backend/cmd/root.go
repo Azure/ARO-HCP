@@ -276,7 +276,7 @@ func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.C
 	if err != nil {
 		return nil, utils.TrackError(fmt.Errorf("error getting FPA MI dataplane client builder: %w", err))
 	}
-	smiClientBuilderFactory := app.NewServiceManagedIdentityClientBuilderFactory(fpaMIDataplaneClientBuilder, azureConfig)
+	smiClientBuilder := app.NewServiceManagedIdentityClientBuilder(fpaMIDataplaneClientBuilder, azureConfig)
 
 	cosmosDBClient, err := app.NewCosmosDBClient(
 		ctx, f.AzureCosmosDBURL, f.AzureCosmosDBName,
@@ -306,7 +306,7 @@ func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.C
 		BackendIdentityAzureClients:        backendIdentityAzureClients,
 		ExitOnPanic:                        f.ExitOnPanic,
 		FPAMIDataplaneClientBuilder:        fpaMIDataplaneClientBuilder,
-		SMIClientBuilderFactory:            smiClientBuilderFactory,
+		SMIClientBuilder:                   smiClientBuilder,
 	}
 
 	return backendOptions, nil

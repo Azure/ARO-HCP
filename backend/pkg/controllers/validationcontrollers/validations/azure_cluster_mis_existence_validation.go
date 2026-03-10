@@ -30,14 +30,14 @@ import (
 // AzureClusterManagedIdentitiesExistenceValidation validates the existence of all managed identities defined in the cluster.
 // It assumes all identities present are for recognized operators.
 type AzureClusterManagedIdentitiesExistenceValidation struct {
-	smiClientBuilderFactory azureclient.ServiceManagedIdentityClientBuilderFactory
+	smiClientBuilder azureclient.ServiceManagedIdentityClientBuilder
 }
 
 func NewAzureClusterManagedIdentitiesExistenceValidation(
-	smiClientBuilderFactory azureclient.ServiceManagedIdentityClientBuilderFactory,
+	smiClientBuilder azureclient.ServiceManagedIdentityClientBuilder,
 ) *AzureClusterManagedIdentitiesExistenceValidation {
 	return &AzureClusterManagedIdentitiesExistenceValidation{
-		smiClientBuilderFactory: smiClientBuilderFactory,
+		smiClientBuilder: smiClientBuilder,
 	}
 }
 
@@ -48,13 +48,12 @@ func (v *AzureClusterManagedIdentitiesExistenceValidation) Name() string {
 func (v *AzureClusterManagedIdentitiesExistenceValidation) Validate(ctx context.Context, clusterSubscription *arm.Subscription, cluster *api.HCPOpenShiftCluster) error {
 	smiResourceID := cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity
 	clusterIdentityURL := cluster.ServiceProviderProperties.ManagedIdentitiesDataPlaneIdentityURL
-	smiClientBuilder := v.smiClientBuilderFactory.NewServiceManagedIdentityClientBuilder(clusterIdentityURL, smiResourceID)
 	// We check the existence of the Cluster's Service Managed Identity by
 	// attempting to retrieve the user assigned identities client using the
 	// service managed identity's identity credentials, which we obtain by
 	// requesting them via the Managed Identities Data Plane Service. If the
 	// service managed identity does not exist the request will fail.
-	uaisClient, err := smiClientBuilder.UserAssignedIdentitiesClient(ctx, cluster.ID.SubscriptionID)
+	uaisClient, err := v.smiClientBuilder.UserAssignedIdentitiesClient(ctx, clusterIdentityURL, smiResourceID, cluster.ID.SubscriptionID)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get user assigned identities client: %w", err))
 	}
