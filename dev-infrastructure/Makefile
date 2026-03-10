@@ -415,7 +415,7 @@ mgmt.dev.permissions: mgmt.kv.permission
 # Monitoring
 #
 kusto: configurations/kusto.bicepparam
-	make -C .. pipeline/Log.Infra DEPLOY_ENV=$(DEPLOY_ENV) EXTRA_ARGS="--region eastus2"
+	make -C .. pipeline/HCP.Geography DEPLOY_ENV=$(DEPLOY_ENV) EXTRA_ARGS="--region eastus2"
 	az tag create --resource-id /subscriptions/$(DEV_TESTING_SUBSCRIPTION_ID)/resourceGroups/hcp-kusto-us --tags persist=true
 .PHONY: kusto
 
