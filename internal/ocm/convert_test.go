@@ -145,6 +145,20 @@ func TestConvertCStoHCPOpenShiftCluster(t *testing.T) {
 				},
 			},
 		},
+		// TODO: uncomment once ocm-sdk-go is updated with OidcIssuerUrl()
+		// {
+		// 	name: "converts OIDC issuer URL from CS Azure",
+		// 	ocmClusterTweaks: arohcpv1alpha1.NewCluster().
+		// 		Azure(arohcpv1alpha1.NewAzure().
+		// 			OidcIssuerUrl("https://storage.z1.web.core.windows.net/tenant-id/cluster-id")),
+		// 	hcpClusterTweaks: &api.HCPOpenShiftCluster{
+		// 		ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
+		// 			Platform: api.ServiceProviderPlatformProfile{
+		// 				IssuerURL: "https://storage.z1.web.core.windows.net/tenant-id/cluster-id",
+		// 			},
+		// 		},
+		// 	},
+		// },
 		{
 			name: "converts CS ClusterImageRegistry to ClusterImageRegistryProfile",
 			ocmClusterTweaks: arohcpv1alpha1.NewCluster().
@@ -219,6 +233,60 @@ func TestConvertCStoHCPOpenShiftCluster(t *testing.T) {
 		})
 	}
 }
+
+// TODO: uncomment once ocm-sdk-go is updated with OidcIssuerUrl()
+// func TestSetClusterServiceOnlyFieldsOnCluster(t *testing.T) {
+// 	testCases := []struct {
+// 		name           string
+// 		csCluster      *arohcpv1alpha1.ClusterBuilder
+// 		initialCluster *api.HCPOpenShiftCluster
+// 		expectCluster  func(*api.HCPOpenShiftCluster)
+// 	}{
+// 		{
+// 			name: "populates OIDC issuer URL",
+// 			csCluster: arohcpv1alpha1.NewCluster().
+// 				Azure(arohcpv1alpha1.NewAzure().
+// 					OidcIssuerUrl("https://storage.z1.web.core.windows.net/tenant-id/cluster-id")),
+// 			initialCluster: &api.HCPOpenShiftCluster{},
+// 			expectCluster: func(c *api.HCPOpenShiftCluster) {
+// 				assert.Equal(t, "https://storage.z1.web.core.windows.net/tenant-id/cluster-id", c.ServiceProviderProperties.Platform.IssuerURL)
+// 			},
+// 		},
+// 		{
+// 			name: "populates DNS, Console, API, and OIDC issuer URL",
+// 			csCluster: arohcpv1alpha1.NewCluster().
+// 				DNS(arohcpv1alpha1.NewDNS().BaseDomain("example.com")).
+// 				Console(arohcpv1alpha1.NewClusterConsole().URL("https://console.example.com")).
+// 				API(arohcpv1alpha1.NewClusterAPI().URL("https://api.example.com")).
+// 				Azure(arohcpv1alpha1.NewAzure().
+// 					OidcIssuerUrl("https://oidc.example.com/tenant/cluster")),
+// 			initialCluster: &api.HCPOpenShiftCluster{},
+// 			expectCluster: func(c *api.HCPOpenShiftCluster) {
+// 				assert.Equal(t, "example.com", c.ServiceProviderProperties.DNS.BaseDomain)
+// 				assert.Equal(t, "https://console.example.com", c.ServiceProviderProperties.Console.URL)
+// 				assert.Equal(t, "https://api.example.com", c.ServiceProviderProperties.API.URL)
+// 				assert.Equal(t, "https://oidc.example.com/tenant/cluster", c.ServiceProviderProperties.Platform.IssuerURL)
+// 			},
+// 		},
+// 		{
+// 			name:           "empty OIDC issuer URL when not set in CS",
+// 			csCluster:      arohcpv1alpha1.NewCluster(),
+// 			initialCluster: &api.HCPOpenShiftCluster{},
+// 			expectCluster: func(c *api.HCPOpenShiftCluster) {
+// 				assert.Empty(t, c.ServiceProviderProperties.Platform.IssuerURL)
+// 			},
+// 		},
+// 	}
+// 	for _, tc := range testCases {
+// 		t.Run(tc.name, func(t *testing.T) {
+// 			csCluster, err := tc.csCluster.Build()
+// 			require.NoError(t, err)
+//
+// 			SetClusterServiceOnlyFieldsOnCluster(tc.initialCluster, csCluster)
+// 			tc.expectCluster(tc.initialCluster)
+// 		})
+// 	}
+// }
 
 func TestWithImmutableAttributes(t *testing.T) {
 	testCases := []struct {

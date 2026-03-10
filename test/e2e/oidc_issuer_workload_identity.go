@@ -1,0 +1,248 @@
+// Copyright 2025 Microsoft Corporation
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package e2e
+
+import (
+	"context"
+	"fmt"
+	"time"
+
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
+
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/msi/armmsi"
+
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
+
+	"github.com/Azure/ARO-HCP/test/util/framework"
+	"github.com/Azure/ARO-HCP/test/util/labels"
+	"github.com/Azure/ARO-HCP/test/util/verifiers"
+)
+
+var _ = Describe("Customer", func() {
+	It("should be able to use workload identity via the cluster OIDC issuer URL",
+		labels.RequireNothing,
+		labels.Medium,
+		labels.Positive,
+		labels.Slow,
+		func(ctx context.Context) {
+			const (
+				customerClusterName  = "oidc-wi-cluster"
+				customerNodePoolName = "oidc-wi-np"
+				testNamespace        = "e2e-oidc-wi"
+				testServiceAccount   = "wi-test-sa"
+				testManagedIdentity  = "e2e-oidc-wi-test"
+			)
+			tc := framework.NewTestContext()
+
+			if tc.UsePooledIdentities() {
+				err := tc.AssignIdentityContainers(ctx, 1, 60*time.Second)
+				Expect(err).NotTo(HaveOccurred())
+			}
+
+			By("creating a resource group")
+			resourceGroup, err := tc.NewResourceGroup(ctx, "oidc-wi", tc.Location())
+			Expect(err).NotTo(HaveOccurred())
+
+			By("creating cluster parameters")
+			clusterParams := framework.NewDefaultClusterParams()
+			clusterParams.ClusterName = customerClusterName
+			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
+			clusterParams.ManagedResourceGroupName = managedResourceGroupName
+
+			By("creating customer resources (infrastructure and managed identities) for cluster")
+			clusterParams, err = tc.CreateClusterCustomerResources(ctx,
+				resourceGroup,
+				clusterParams,
+				map[string]any{},
+				TestArtifactsFS,
+				framework.RBACScopeResourceGroup,
+			)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("creating the HCP cluster")
+			err = tc.CreateHCPClusterFromParam(ctx,
+				GinkgoLogr,
+				*resourceGroup.Name,
+				clusterParams,
+				45*time.Minute,
+			)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("getting the cluster's OIDC issuer URL")
+			hcpClient := tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient()
+			clusterResp, err := hcpClient.Get(ctx, *resourceGroup.Name, customerClusterName, nil)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(clusterResp.Properties).NotTo(BeNil())
+			Expect(clusterResp.Properties.Platform).NotTo(BeNil())
+			Expect(clusterResp.Properties.Platform.IssuerURL).NotTo(BeNil())
+			oidcIssuerURL := *clusterResp.Properties.Platform.IssuerURL
+			Expect(oidcIssuerURL).NotTo(BeEmpty())
+			GinkgoWriter.Printf("Cluster OIDC issuer URL: %s\n", oidcIssuerURL)
+
+			By("getting admin credentials")
+			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster(
+				ctx,
+				hcpClient,
+				*resourceGroup.Name,
+				customerClusterName,
+				10*time.Minute,
+			)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("ensuring the cluster is viable")
+			err = verifiers.VerifyHCPCluster(ctx, adminRESTConfig)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("creating the node pool")
+			nodePoolParams := framework.NewDefaultNodePoolParams()
+			nodePoolParams.ClusterName = customerClusterName
+			nodePoolParams.NodePoolName = customerNodePoolName
+
+			err = tc.CreateNodePoolFromParam(ctx,
+				*resourceGroup.Name,
+				customerClusterName,
+				nodePoolParams,
+				45*time.Minute,
+			)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("creating a user-assigned managed identity for the test")
+			subscriptionID, err := tc.SubscriptionID(ctx)
+			Expect(err).NotTo(HaveOccurred())
+
+			cred, err := tc.AzureCredential()
+			Expect(err).NotTo(HaveOccurred())
+
+			msiClient, err := armmsi.NewUserAssignedIdentitiesClient(subscriptionID, cred, nil)
+			Expect(err).NotTo(HaveOccurred())
+
+			msiResp, err := msiClient.CreateOrUpdate(ctx, *resourceGroup.Name, testManagedIdentity, armmsi.Identity{
+				Location: resourceGroup.Location,
+			}, nil)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(msiResp.Properties).NotTo(BeNil())
+			Expect(msiResp.Properties.ClientID).NotTo(BeNil())
+			clientID := *msiResp.Properties.ClientID
+			GinkgoWriter.Printf("Created managed identity with client ID: %s\n", clientID)
+
+			By("creating a federated identity credential for the service account")
+			ficClient, err := armmsi.NewFederatedIdentityCredentialsClient(subscriptionID, cred, nil)
+			Expect(err).NotTo(HaveOccurred())
+
+			subject := fmt.Sprintf("system:serviceaccount:%s:%s", testNamespace, testServiceAccount)
+			_, err = ficClient.CreateOrUpdate(ctx, *resourceGroup.Name, testManagedIdentity, "e2e-wi-fic", armmsi.FederatedIdentityCredential{
+				Properties: &armmsi.FederatedIdentityCredentialProperties{
+					Issuer:    to.Ptr(oidcIssuerURL),
+					Subject:   to.Ptr(subject),
+					Audiences: []*string{to.Ptr("api://AzureADTokenExchange")},
+				},
+			}, nil)
+			Expect(err).NotTo(HaveOccurred())
+			GinkgoWriter.Printf("Created federated identity credential with issuer: %s, subject: %s\n", oidcIssuerURL, subject)
+
+			By("creating the test namespace and service account in the cluster")
+			adminClient, err := kubernetes.NewForConfig(adminRESTConfig)
+			Expect(err).NotTo(HaveOccurred())
+
+			ns := &corev1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: testNamespace,
+				},
+			}
+			_, err = adminClient.CoreV1().Namespaces().Create(ctx, ns, metav1.CreateOptions{})
+			Expect(err).NotTo(HaveOccurred())
+
+			sa := &corev1.ServiceAccount{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      testServiceAccount,
+					Namespace: testNamespace,
+					Annotations: map[string]string{
+						"azure.workload.identity/client-id": clientID,
+					},
+					// TODO: use pod label for pod identity webhook. Readjust
+					Labels: map[string]string{
+						"azure.workload.identity/use": "true",
+					},
+				},
+			}
+			_, err = adminClient.CoreV1().ServiceAccounts(testNamespace).Create(ctx, sa, metav1.CreateOptions{})
+			Expect(err).NotTo(HaveOccurred())
+
+			By("creating a pod that authenticates to Azure using federated workload identity credentials")
+			pod := &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "wi-test-pod",
+					Namespace: testNamespace,
+					// TODO: use pod label for pod identity webhook. Readjust
+					Labels: map[string]string{
+						"azure.workload.identity/use": "true",
+					},
+				},
+				Spec: corev1.PodSpec{
+					ServiceAccountName: testServiceAccount,
+					RestartPolicy:      corev1.RestartPolicyNever,
+					Containers: []corev1.Container{
+						{
+							Name:  "azure-cli",
+							Image: "mcr.microsoft.com/azure-cli:latest",
+							Command: []string{"/bin/sh", "-c", `
+								az login --federated-token "$(cat $AZURE_FEDERATED_TOKEN_FILE)" \
+									--service-principal \
+									-u "$AZURE_CLIENT_ID" \
+									-t "$AZURE_TENANT_ID" && \
+								az account show -o json
+							`},
+						},
+					},
+				},
+			}
+			_, err = adminClient.CoreV1().Pods(testNamespace).Create(ctx, pod, metav1.CreateOptions{})
+			Expect(err).NotTo(HaveOccurred())
+
+			By("waiting for the pod to complete successfully")
+			Eventually(func() (corev1.PodPhase, error) {
+				p, err := adminClient.CoreV1().Pods(testNamespace).Get(ctx, pod.Name, metav1.GetOptions{})
+				if err != nil {
+					return "", err
+				}
+				if p.Status.Phase == corev1.PodFailed {
+					// Log container status for debugging
+					for _, cs := range p.Status.ContainerStatuses {
+						if cs.State.Terminated != nil {
+							GinkgoWriter.Printf("Container %s terminated with exit code %d, reason: %s, message: %s\n",
+								cs.Name, cs.State.Terminated.ExitCode, cs.State.Terminated.Reason, cs.State.Terminated.Message)
+						}
+					}
+					// Fetch pod logs for diagnostics
+					logs, logErr := adminClient.CoreV1().Pods(testNamespace).GetLogs(pod.Name, &corev1.PodLogOptions{}).Do(ctx).Raw()
+					if logErr == nil {
+						GinkgoWriter.Printf("Pod logs:\n%s\n", string(logs))
+					}
+					return corev1.PodFailed, fmt.Errorf("pod failed")
+				}
+				return p.Status.Phase, nil
+			}, 5*time.Minute, 10*time.Second).Should(Equal(corev1.PodSucceeded))
+
+			By("verifying the pod logs confirm successful Azure authentication")
+			logs, err := adminClient.CoreV1().Pods(testNamespace).GetLogs(pod.Name, &corev1.PodLogOptions{}).Do(ctx).Raw()
+			Expect(err).NotTo(HaveOccurred())
+			Expect(string(logs)).To(ContainSubstring("tenantId"))
+			GinkgoWriter.Printf("Workload identity authentication succeeded. Pod logs:\n%s\n", string(logs))
+		})
+})
