@@ -10,7 +10,7 @@ spec:
     - alert: AroHcpNonprodInboundCustomerapiCapacity
       annotations:
         description: Service Tag IP Usage {{ $labels.cluster }} is at {{ $value | humanizePercentage }} of its capacity. Current count exceeds warning threshold of 80%.
-        runbook_url: https://aka.ms/arohcp-runbook/mgmt-cluster-capacity
+        runbook_url: https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/serviceiptagusage
         summary: Service Tag IP Usage is reaching 80%
         owning_team: hcp-sl
       expr: |
@@ -22,7 +22,7 @@ spec:
     - alert: AroHcpNonprodInboundSvcCapacity
       annotations:
         description: Service Tag IP Usage {{ $labels.cluster }} is at {{ $value | humanizePercentage }} of its capacity. Current count exceeds warning threshold of 80%.
-        runbook_url: https://aka.ms/arohcp-runbook/mgmt-cluster-capacity
+        runbook_url: https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/serviceiptagusage
         summary: Service Tag IP Usage is reaching 80%
         owning_team: hcp-sl
       expr: |
@@ -34,7 +34,7 @@ spec:
     - alert: AroHcpNonprodOutboundCxCapacity
       annotations:
         description: Service Tag IP Usage {{ $labels.cluster }} is at {{ $value | humanizePercentage }} of its capacity. Current count exceeds warning threshold of 80%.
-        runbook_url: https://aka.ms/arohcp-runbook/mgmt-cluster-capacity
+        runbook_url: https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/serviceiptagusage
         summary: Service Tag IP Usage is reaching 80%
         owning_team: hcp-sl
       expr: |
@@ -46,7 +46,7 @@ spec:
     - alert: AroHcpNonprodOutboundSvcCapacity
       annotations:
         description: Service Tag IP Usage {{ $labels.cluster }} is at {{ $value | humanizePercentage }} of its capacity. Current count exceeds warning threshold of 80%.
-        runbook_url: https://aka.ms/arohcp-runbook/mgmt-cluster-capacity
+        runbook_url: https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/serviceiptagusage
         summary: Service Tag IP Usage is reaching 80%
         owning_team: hcp-sl
       expr: |
@@ -58,7 +58,7 @@ spec:
     - alert: AroHcpProdInboundCustomerapiCapacity
       annotations:
         description: Service Tag IP Usage {{ $labels.cluster }} is at {{ $value | humanizePercentage }} of its capacity. Current count exceeds warning threshold of 80%.
-        runbook_url: https://aka.ms/arohcp-runbook/mgmt-cluster-capacity
+        runbook_url: https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/serviceiptagusage
         summary: Service Tag IP Usage is reaching 80%
         owning_team: hcp-sl
       expr: |
@@ -70,7 +70,7 @@ spec:
     - alert: AroHcpProdInboundCustomerapiUswest2Capacity
       annotations:
         description: Service Tag IP Usage {{ $labels.cluster }} is at {{ $value | humanizePercentage }} of its capacity. Current count exceeds warning threshold of 80%.
-        runbook_url: https://aka.ms/arohcp-runbook/mgmt-cluster-capacity
+        runbook_url: https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/serviceiptagusage
         summary: Service Tag IP Usage is reaching 80%
         owning_team: hcp-sl
       expr: |
@@ -82,7 +82,7 @@ spec:
     - alert: AroHcpProdInboundCxCapacity
       annotations:
         description: Service Tag IP Usage {{ $labels.cluster }} is at {{ $value | humanizePercentage }} of its capacity. Current count exceeds warning threshold of 80%.
-        runbook_url: https://aka.ms/arohcp-runbook/mgmt-cluster-capacity
+        runbook_url: https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/serviceiptagusage
         summary: Service Tag IP Usage is reaching 80%
         owning_team: hcp-sl
       expr: |
@@ -94,7 +94,7 @@ spec:
     - alert: AroHcpProdInboundSvcCapacity
       annotations:
         description: Service Tag IP Usage {{ $labels.cluster }} is at {{ $value | humanizePercentage }} of its capacity. Current count exceeds warning threshold of 80%.
-        runbook_url: https://aka.ms/arohcp-runbook/mgmt-cluster-capacity
+        runbook_url: https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/serviceiptagusage
         summary: Service Tag IP Usage is reaching 80%
         owning_team: hcp-sl
       expr: |
@@ -106,7 +106,7 @@ spec:
     - alert: AroHcpProdOutboundCxCapacity
       annotations:
         description: Service Tag IP Usage {{ $labels.cluster }} is at {{ $value | humanizePercentage }} of its capacity. Current count exceeds warning threshold of 80%.
-        runbook_url: https://aka.ms/arohcp-runbook/mgmt-cluster-capacity
+        runbook_url: https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/serviceiptagusage
         summary: Service Tag IP Usage is reaching 80%
         owning_team: hcp-sl
       expr: |
@@ -118,7 +118,7 @@ spec:
     - alert: AroHcpProdOutboundSvcCapacity
       annotations:
         description: Service Tag IP Usage {{ $labels.cluster }} is at {{ $value | humanizePercentage }} of its capacity. Current count exceeds warning threshold of 80%.
-        runbook_url: https://aka.ms/arohcp-runbook/mgmt-cluster-capacity
+        runbook_url: https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/serviceiptagusage
         summary: Service Tag IP Usage is reaching 80%
         owning_team: hcp-sl
       expr: |
