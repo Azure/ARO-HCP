@@ -365,7 +365,8 @@ func nodePoolCreatePayload(nodePoolName string) []byte {
 				"availabilityZone": "1",
 				"osDisk": {
 					"sizeGiB": 128,
-					"diskStorageAccountType": "Premium_LRS"
+					"diskStorageAccountType": "Premium_LRS",
+					"diskType": "Managed"
 				},
 				"subnetId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/bar/providers/Microsoft.Network/virtualNetworks/vnet/subnets/subnet"
 			},

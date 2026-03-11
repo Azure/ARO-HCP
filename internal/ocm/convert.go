@@ -79,6 +79,8 @@ const (
 	csUsernameClaimPrefixPolicyPrefix   string = "Prefix"
 	csCIDRBlockAllowAccessModeAllowAll  string = "allow_all"
 	csCIDRBlockAllowAccessModeAllowList string = "allow_list"
+	csOsDiskPersistencePersistent       string = "persistent"
+	csOsDiskPersistenceEphemeral        string = "ephemeral"
 )
 
 // Sentinel error for use with errors.Is
@@ -173,6 +175,34 @@ func convertDiskStorageAccountTypeRPToCS(storageAccountTypeRP api.DiskStorageAcc
 		// values before this function is called on the write path.
 		// An empty value here indicates a bug in the defaults pipeline.
 		return "", conversionError[string](storageAccountTypeRP)
+	}
+}
+
+// convertDiskTypeCSToRP maps Cluster Service persistence strings to RP
+// OsDiskType enum values. An empty string from CS (pre-existing resources that
+// predate the field) is mapped to the default. Must match the storage default in
+// applyNodePoolStorageDefaults. See docs/api-version-defaults-and-storage.md.
+func convertDiskTypeCSToRP(persistence string) (api.OsDiskType, error) {
+	switch persistence {
+	case csOsDiskPersistencePersistent, "":
+		return api.OsDiskTypeManaged, nil
+	case csOsDiskPersistenceEphemeral:
+		return api.OsDiskTypeEphemeral, nil
+	default:
+		return "", conversionError[api.OsDiskType](persistence)
+	}
+}
+
+func convertDiskTypeRPToCS(diskType api.OsDiskType) (string, error) {
+	switch diskType {
+	case api.OsDiskTypeManaged:
+		return csOsDiskPersistencePersistent, nil
+	case api.OsDiskTypeEphemeral:
+		return csOsDiskPersistenceEphemeral, nil
+	default:
+		// Do not add a "" case here. Storage defaults and constructor defaults
+		// guarantee DiskType is never empty when this function is called.
+		return "", conversionError[string](diskType)
 	}
 }
 
@@ -872,6 +902,11 @@ func ConvertCStoNodePool(resourceID *azcorearm.ResourceID, azureLocation string,
 		return nil, utils.TrackError(err)
 	}
 
+	diskType, err := convertDiskTypeCSToRP(np.AzureNodePool().OsDisk().Persistence())
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
+
 	nodePool := &api.HCPOpenShiftClusterNodePool{
 		TrackedResource: arm.TrackedResource{
 			Resource: arm.Resource{
@@ -893,6 +928,7 @@ func ConvertCStoNodePool(resourceID *azcorearm.ResourceID, azureLocation string,
 				OSDisk: api.OSDiskProfile{
 					SizeGiB:                ptr.To(int32(np.AzureNodePool().OsDisk().SizeGibibytes())),
 					DiskStorageAccountType: diskStorageAccountType,
+					DiskType:               diskType,
 				},
 				AvailabilityZone: np.AvailabilityZone(),
 			},
@@ -947,6 +983,10 @@ func BuildCSNodePool(ctx context.Context, nodePool *api.HCPOpenShiftClusterNodeP
 		if err != nil {
 			return nil, utils.TrackError(err)
 		}
+		csPersistence, err := convertDiskTypeRPToCS(nodePool.Properties.Platform.OSDisk.DiskType)
+		if err != nil {
+			return nil, utils.TrackError(err)
+		}
 		nodePoolBuilder.
 			ID(strings.ToLower(nodePool.Name)).
 			Version(arohcpv1alpha1.NewVersion().
@@ -959,7 +999,8 @@ func BuildCSNodePool(ctx context.Context, nodePool *api.HCPOpenShiftClusterNodeP
 				EncryptionAtHost(convertEnableEncryptionAtHostToCSBuilder(nodePool.Properties.Platform)).
 				OsDisk(arohcpv1alpha1.NewAzureNodePoolOsDisk().
 					SizeGibibytes(int(*nodePool.Properties.Platform.OSDisk.SizeGiB)).
-					StorageAccountType(csDiskStorageAccountType))).
+					StorageAccountType(csDiskStorageAccountType).
+					Persistence(csPersistence))).
 			AvailabilityZone(nodePool.Properties.Platform.AvailabilityZone).
 			AutoRepair(nodePool.Properties.AutoRepair)
 	}

@@ -35,6 +35,7 @@
 						"enableEncryptionAtHost": false,
 						"osDisk": {
 							"diskStorageAccountType": "Premium_LRS",
+							"diskType": "Managed",
 							"sizeGiB": 64
 						},
 						"vmSize": "large"

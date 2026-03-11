@@ -106,6 +106,7 @@ func TestSetDefaultValuesNodePool(t *testing.T) {
 							OSDisk: &generated.OsDiskProfile{
 								SizeGiB:                ptr.To(int32(64)),
 								DiskStorageAccountType: ptr.To(generated.DiskStorageAccountTypePremiumLRS),
+								DiskType:               ptr.To(generated.OsDiskTypeManaged),
 							},
 						},
 						AutoRepair: ptr.To(true),
@@ -136,6 +137,7 @@ func TestSetDefaultValuesNodePool(t *testing.T) {
 							OSDisk: &generated.OsDiskProfile{
 								SizeGiB:                ptr.To(int32(128)),
 								DiskStorageAccountType: ptr.To(generated.DiskStorageAccountTypePremiumLRS),
+								DiskType:               ptr.To(generated.OsDiskTypeManaged),
 							},
 						},
 						AutoRepair: ptr.To(true),
@@ -164,6 +166,7 @@ func TestSetDefaultValuesNodePool(t *testing.T) {
 							OSDisk: &generated.OsDiskProfile{
 								SizeGiB:                ptr.To(int32(64)),
 								DiskStorageAccountType: ptr.To(generated.DiskStorageAccountTypePremiumLRS),
+								DiskType:               ptr.To(generated.OsDiskTypeManaged),
 							},
 						},
 						AutoRepair: ptr.To(true),
@@ -184,6 +187,7 @@ func TestSetDefaultValuesNodePool(t *testing.T) {
 							OSDisk: &generated.OsDiskProfile{
 								SizeGiB:                ptr.To(int32(64)),
 								DiskStorageAccountType: ptr.To(generated.DiskStorageAccountTypePremiumLRS),
+								DiskType:               ptr.To(generated.OsDiskTypeManaged),
 							},
 						},
 						AutoRepair: ptr.To(true),
@@ -286,17 +290,47 @@ func TestNormalizeOSDiskProfile(t *testing.T) {
 	}
 }
 
-func TestNormalizeOSDiskProfile_DiskTypeNotImplemented(t *testing.T) {
-	input := &generated.OsDiskProfile{
-		DiskType: ptr.To(generated.OsDiskTypeEphemeral),
+func TestNormalizeOSDiskProfile_DiskType(t *testing.T) {
+	tests := []struct {
+		name         string
+		input        *generated.OsDiskProfile
+		existing     *api.OSDiskProfile
+		expectedType api.OsDiskType
+	}{
+		{
+			name: "Ephemeral input maps to OsDiskTypeEphemeral",
+			input: &generated.OsDiskProfile{
+				DiskType: ptr.To(generated.OsDiskTypeEphemeral),
+			},
+			existing:     &api.OSDiskProfile{},
+			expectedType: api.OsDiskTypeEphemeral,
+		},
+		{
+			name: "Managed input maps to OsDiskTypeManaged",
+			input: &generated.OsDiskProfile{
+				DiskType: ptr.To(generated.OsDiskTypeManaged),
+			},
+			existing:     &api.OSDiskProfile{},
+			expectedType: api.OsDiskTypeManaged,
+		},
+		{
+			name: "nil DiskType writes zero value (SetDefaultValuesNodePool guarantees non-nil on write path)",
+			input: &generated.OsDiskProfile{
+				DiskType: nil,
+			},
+			existing:     &api.OSDiskProfile{DiskType: api.OsDiskTypeEphemeral},
+			expectedType: "",
+		},
 	}
-	existing := &api.OSDiskProfile{}
 
-	errs := normalizeOSDiskProfile(field.NewPath("platform", "osDisk"), input, existing)
-
-	require.Len(t, errs, 1)
-	require.Contains(t, errs[0].Error(), "diskType is not yet implemented")
-	require.Equal(t, "platform.osDisk.diskType", errs[0].Field)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := *tt.existing
+			errs := normalizeOSDiskProfile(field.NewPath("platform", "osDisk"), tt.input, &result)
+			require.Len(t, errs, 0)
+			require.Equal(t, tt.expectedType, result.DiskType)
+		})
+	}
 }
 
 func TestNewOSDiskProfile(t *testing.T) {
@@ -310,11 +344,13 @@ func TestNewOSDiskProfile(t *testing.T) {
 			input: &api.OSDiskProfile{
 				SizeGiB:                nil,
 				DiskStorageAccountType: api.DiskStorageAccountTypePremium_LRS,
+				DiskType:               api.OsDiskTypeManaged,
 				EncryptionSetID:        api.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.Compute/diskEncryptionSets/test-encryption")),
 			},
 			expected: generated.OsDiskProfile{
 				SizeGiB:                nil,
 				DiskStorageAccountType: ptr.To(generated.DiskStorageAccountTypePremiumLRS),
+				DiskType:               ptr.To(generated.OsDiskTypeManaged),
 				EncryptionSetID:        ptr.To("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.Compute/diskEncryptionSets/test-encryption"),
 			},
 		},
@@ -323,11 +359,13 @@ func TestNewOSDiskProfile(t *testing.T) {
 			input: &api.OSDiskProfile{
 				SizeGiB:                ptr.To(int32(128)),
 				DiskStorageAccountType: api.DiskStorageAccountTypeStandardSSD_LRS,
+				DiskType:               api.OsDiskTypeEphemeral,
 				EncryptionSetID:        nil,
 			},
 			expected: generated.OsDiskProfile{
 				SizeGiB:                ptr.To(int32(128)),
 				DiskStorageAccountType: ptr.To(generated.DiskStorageAccountTypeStandardSSDLRS),
+				DiskType:               ptr.To(generated.OsDiskTypeEphemeral),
 				EncryptionSetID:        nil,
 			},
 		},

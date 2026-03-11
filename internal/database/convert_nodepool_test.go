@@ -55,6 +55,9 @@ func TestRoundTripNodePoolInternalCosmosInternal(t *testing.T) {
 			if len(j.Properties.Platform.OSDisk.DiskStorageAccountType) == 0 {
 				j.Properties.Platform.OSDisk.DiskStorageAccountType = api.DiskStorageAccountTypePremium_LRS
 			}
+			if len(j.Properties.Platform.OSDisk.DiskType) == 0 {
+				j.Properties.Platform.OSDisk.DiskType = api.OsDiskTypeManaged
+			}
 		},
 		func(j *arm.ManagedServiceIdentity, c randfill.Continue) {
 			c.FillNoCustom(j)
@@ -103,26 +106,36 @@ func TestNodePoolEnsureDefaults(t *testing.T) {
 		name                       string
 		diskStorageAccountType     api.DiskStorageAccountType
 		wantDiskStorageAccountType api.DiskStorageAccountType
+		diskType                   api.OsDiskType
+		wantDiskType               api.OsDiskType
 	}{
 		{
-			name:                       "zero value gets default",
+			name:                       "zero values get defaults",
 			diskStorageAccountType:     "",
 			wantDiskStorageAccountType: api.DiskStorageAccountTypePremium_LRS,
+			diskType:                   "",
+			wantDiskType:               api.OsDiskTypeManaged,
 		},
 		{
 			name:                       "explicit Premium_LRS preserved",
 			diskStorageAccountType:     api.DiskStorageAccountTypePremium_LRS,
 			wantDiskStorageAccountType: api.DiskStorageAccountTypePremium_LRS,
+			diskType:                   api.OsDiskTypeManaged,
+			wantDiskType:               api.OsDiskTypeManaged,
 		},
 		{
 			name:                       "explicit StandardSSD_LRS preserved",
 			diskStorageAccountType:     api.DiskStorageAccountTypeStandardSSD_LRS,
 			wantDiskStorageAccountType: api.DiskStorageAccountTypeStandardSSD_LRS,
+			diskType:                   api.OsDiskTypeEphemeral,
+			wantDiskType:               api.OsDiskTypeEphemeral,
 		},
 		{
 			name:                       "explicit Standard_LRS preserved",
 			diskStorageAccountType:     api.DiskStorageAccountTypeStandard_LRS,
 			wantDiskStorageAccountType: api.DiskStorageAccountTypeStandard_LRS,
+			diskType:                   api.OsDiskTypeManaged,
+			wantDiskType:               api.OsDiskTypeManaged,
 		},
 	}
 
@@ -130,6 +143,7 @@ func TestNodePoolEnsureDefaults(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			np := &api.HCPOpenShiftClusterNodePool{}
 			np.Properties.Platform.OSDisk.DiskStorageAccountType = tt.diskStorageAccountType
+			np.Properties.Platform.OSDisk.DiskType = tt.diskType
 
 			np.EnsureDefaults()
 
@@ -137,6 +151,11 @@ func TestNodePoolEnsureDefaults(t *testing.T) {
 				t.Errorf("DiskStorageAccountType = %q, want %q",
 					np.Properties.Platform.OSDisk.DiskStorageAccountType,
 					tt.wantDiskStorageAccountType)
+			}
+			if np.Properties.Platform.OSDisk.DiskType != tt.wantDiskType {
+				t.Errorf("DiskType = %q, want %q",
+					np.Properties.Platform.OSDisk.DiskType,
+					tt.wantDiskType)
 			}
 		})
 	}
