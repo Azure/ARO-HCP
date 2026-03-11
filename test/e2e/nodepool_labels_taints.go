@@ -23,8 +23,8 @@ import (
 	. "github.com/onsi/gomega"
 
 	corev1 "k8s.io/api/core/v1"
-
-	"sigs.k8s.io/controller-runtime/pkg/client"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 
@@ -143,19 +143,19 @@ var _ = Describe("Customer", func() {
 			}).WithContext(ctx).WithTimeout(10 * time.Minute).Should(Succeed())
 
 			By("verifying initial labels are present on nodes")
-			k8sClient, err := client.New(adminRESTConfig, client.Options{})
+			k8sClient, err := kubernetes.NewForConfig(adminRESTConfig)
 			Expect(err).NotTo(HaveOccurred())
 
-			var nodeList corev1.NodeList
-			err = k8sClient.List(ctx, &nodeList)
+			nodes, err := k8sClient.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
 			Expect(err).NotTo(HaveOccurred())
-			Expect(nodeList.Items).NotTo(BeEmpty())
-			Expect(len(nodeList.Items)).To(Equal(int(initialReplicas)), "expected exactly %d initial nodes but found %d", int(initialReplicas), len(nodeList.Items))
+			nodeList := nodes.Items
+			Expect(nodeList).NotTo(BeEmpty())
+			Expect(len(nodeList)).To(Equal(int(initialReplicas)), "expected exactly %d initial nodes but found %d", int(initialReplicas), len(nodeList))
 
-			Expect(framework.HasNodeLabel(nodeList.Items, "key1", "value1", int(initialReplicas))).To(BeTrue(), "expected all nodes to have label 'key1=value1'")
+			Expect(framework.HasNodeLabel(nodeList, "key1", "value1", int(initialReplicas))).To(BeTrue(), "expected all nodes to have label 'key1=value1'")
 
 			By("verifying initial taints are present on nodes")
-			Expect(framework.HasNodeTaint(nodeList.Items, "key1", "value1", corev1.TaintEffectNoSchedule, int(initialReplicas))).To(BeTrue(), "expected all nodes to have taint 'key1=value1:NoSchedule'")
+			Expect(framework.HasNodeTaint(nodeList, "key1", "value1", corev1.TaintEffectNoSchedule, int(initialReplicas))).To(BeTrue(), "expected all nodes to have taint 'key1=value1:NoSchedule'")
 
 			By("updating nodepool with new taints and scaling up")
 			taintReplicas := int32(3)
@@ -184,22 +184,20 @@ var _ = Describe("Customer", func() {
 
 			By("verifying nodes are scaled to the expected count")
 			Eventually(func(ctx context.Context) bool {
-				var nodeList corev1.NodeList
-				err := k8sClient.List(ctx, &nodeList)
+				nodes, err := k8sClient.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
 				if err != nil {
 					return false
 				}
-				return len(nodeList.Items) == int(taintReplicas)
+				return len(nodes.Items) == int(taintReplicas)
 			}).WithContext(ctx).WithTimeout(15*time.Minute).Should(BeTrue(), "expected to have %d nodes", int(taintReplicas))
 
 			By("verifying new taint is present on a node")
 			Eventually(func(ctx context.Context) bool {
-				var nodeList corev1.NodeList
-				err := k8sClient.List(ctx, &nodeList)
+				nodes, err := k8sClient.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
 				if err != nil {
 					return false
 				}
-				return framework.HasNodeTaint(nodeList.Items, "key2", "value2", corev1.TaintEffectPreferNoSchedule)
+				return framework.HasNodeTaint(nodes.Items, "key2", "value2", corev1.TaintEffectPreferNoSchedule)
 			}).WithContext(ctx).WithTimeout(15*time.Minute).Should(BeTrue(), "expected some node to have new taint key2=value2:PreferNoSchedule")
 
 			By("updating nodepool with a new label and scaling up")
@@ -228,38 +226,36 @@ var _ = Describe("Customer", func() {
 
 			By("verifying nodes are scaled to the expected count")
 			Eventually(func(ctx context.Context) bool {
-				var nodeList corev1.NodeList
-				err := k8sClient.List(ctx, &nodeList)
+				nodes, err := k8sClient.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
 				if err != nil {
 					return false
 				}
-				return len(nodeList.Items) == int(finalReplicas)
+				return len(nodes.Items) == int(finalReplicas)
 			}).WithContext(ctx).WithTimeout(15*time.Minute).Should(BeTrue(), "expected to have %d nodes", int(finalReplicas))
 
 			By("verifying new label is present on newly created node")
 			Eventually(func(ctx context.Context) bool {
-				var nodeList corev1.NodeList
-				err := k8sClient.List(ctx, &nodeList)
+				nodes, err := k8sClient.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
 				if err != nil {
 					return false
 				}
-				return framework.HasNodeLabel(nodeList.Items, "key2", "value2")
+				return framework.HasNodeLabel(nodes.Items, "key2", "value2")
 			}).WithContext(ctx).WithTimeout(15 * time.Minute).Should(BeTrue())
 
 			By("logging state of all nodes")
-			var finalNodeList corev1.NodeList
-			err = k8sClient.List(ctx, &finalNodeList)
+			finalNodes, err := k8sClient.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
 			Expect(err).NotTo(HaveOccurred())
+			finalNodeList := finalNodes.Items
 
-			GinkgoLogr.Info("Final node state", "totalNodes", len(finalNodeList.Items), "expectedNodes", int(finalReplicas))
-			for _, node := range finalNodeList.Items {
+			GinkgoLogr.Info("Final node state", "totalNodes", len(finalNodeList), "expectedNodes", int(finalReplicas))
+			for _, node := range finalNodeList {
 				GinkgoLogr.Info("Node", "name", node.Name, "labels", node.Labels, "taints", node.Spec.Taints)
 			}
 
 			By(fmt.Sprintf("verifying original labels persist on %d nodes", int(taintReplicas)))
-			Expect(framework.HasNodeLabel(finalNodeList.Items, "key1", "value1", int(taintReplicas))).To(BeTrue(), "expected %d nodes to have original label key1=value1", int(taintReplicas))
+			Expect(framework.HasNodeLabel(finalNodeList, "key1", "value1", int(taintReplicas))).To(BeTrue(), "expected %d nodes to have original label key1=value1", int(taintReplicas))
 
 			By(fmt.Sprintf("verifying original taints persist on %d nodes", int(initialReplicas)))
-			Expect(framework.HasNodeTaint(finalNodeList.Items, "key1", "value1", corev1.TaintEffectNoSchedule, int(initialReplicas))).To(BeTrue(), "expected %d nodes to still have original taint key1=value1:NoSchedule", int(initialReplicas))
+			Expect(framework.HasNodeTaint(finalNodeList, "key1", "value1", corev1.TaintEffectNoSchedule, int(initialReplicas))).To(BeTrue(), "expected %d nodes to still have original taint key1=value1:NoSchedule", int(initialReplicas))
 		})
 })
