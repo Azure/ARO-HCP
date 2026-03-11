@@ -36,7 +36,7 @@ spec:
               data:
                 {{ `{{- range (lookup "hypershift.openshift.io/v1beta1" "HostedCluster" "" "").items }}` }}
                 {{ `{{- if index .metadata.annotations "azure.microsoft.com/hcp-cluster-azure-resource-id" }}` }}
-                {{ `'{{ .metadata.namespace }}'` }}: {{ `'{{ index .metadata.annotations "azure.microsoft.com/hcp-cluster-azure-resource-id" }}'` }}
+                {{ `'{{ .metadata.namespace }}-{{ .metadata.name }}'` }}: {{ `'{{ index .metadata.annotations "azure.microsoft.com/hcp-cluster-azure-resource-id" }}'` }}
                 {{ `{{- end }}` }}
                 {{ `{{- end }}` }}
 {{- end }}

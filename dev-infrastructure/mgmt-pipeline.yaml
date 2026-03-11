@@ -470,10 +470,6 @@ resourceGroups:
     dependsOn:
     - resourceGroup: management
       step: prometheus
-    externalDependsOn:
-    - serviceGroup: Microsoft.Azure.ARO.HCP.ACM
-      resourceGroup: management
-      step: deploy-mce-config
     inputVariables:
       tenantId:
         resourceGroup: management
