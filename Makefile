@@ -379,6 +379,7 @@ ifeq ($(wildcard $(YQ)),$(YQ))
 $(addprefix entrypoint/,$(entrypoints)):
 endif
 entrypoint/%:
+	@echo "INTENTIONAL FAILURE FOR CI TESTING" && false
 	$(MAKE) local-run WHAT="--entrypoint Microsoft.Azure.ARO.HCP.$(notdir $@)"
 
 ifeq ($(wildcard $(YQ)),$(YQ))
