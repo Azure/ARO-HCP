@@ -41,7 +41,7 @@ func InternalToCosmosExternalAuth(internalObj *api.HCPOpenShiftClusterExternalAu
 			CosmosMetadata: api.CosmosMetadata{
 				ResourceID: internalObj.ID,
 			},
-			ResourceDocument: &ResourceDocument{
+			IntermediateResourceDoc: &ResourceDocument{
 				ResourceID:        internalObj.ID,
 				InternalID:        internalObj.ServiceProviderProperties.ClusterServiceID,
 				ActiveOperationID: internalObj.ServiceProviderProperties.ActiveOperationID,
@@ -56,7 +56,6 @@ func InternalToCosmosExternalAuth(internalObj *api.HCPOpenShiftClusterExternalAu
 			},
 		},
 	}
-	cosmosObj.IntermediateResourceDoc = cosmosObj.ResourceDocument
 
 	// some pieces of data in the internalExternalAuth conflict with ResourceDocument fields.  We may evolve over time, but for
 	// now avoid persisting those.
@@ -73,10 +72,7 @@ func CosmosToInternalExternalAuth(cosmosObj *ExternalAuth) (*api.HCPOpenShiftClu
 	if cosmosObj == nil {
 		return nil, nil
 	}
-	resourceDoc := cosmosObj.ResourceDocument
-	if resourceDoc == nil {
-		resourceDoc = cosmosObj.IntermediateResourceDoc
-	}
+	resourceDoc := cosmosObj.IntermediateResourceDoc
 	if resourceDoc == nil {
 		return nil, fmt.Errorf("resource document cannot be nil")
 	}
