@@ -210,7 +210,7 @@ func NewClusterMetricsHandler(r prometheus.Registerer) (func(context.Context, *a
 	}
 
 	deleteFunc := func(key string) {
-		hash := ResourceIDHash(key)
+		hash := ResourceIDHash(strings.ToLower(key))
 		partialMatch := prometheus.Labels{"resource_id_hash": hash}
 		provisionState.DeletePartialMatch(partialMatch)
 		createdTime.DeletePartialMatch(partialMatch)
@@ -261,7 +261,7 @@ func NewNodePoolMetricsHandler(r prometheus.Registerer) (func(context.Context, *
 	}
 
 	deleteFunc := func(key string) {
-		hash := ResourceIDHash(key)
+		hash := ResourceIDHash(strings.ToLower(key))
 		partialMatch := prometheus.Labels{"resource_id_hash": hash}
 		provisionState.DeletePartialMatch(partialMatch)
 		createdTime.DeletePartialMatch(partialMatch)
@@ -312,7 +312,7 @@ func NewExternalAuthMetricsHandler(r prometheus.Registerer) (func(context.Contex
 	}
 
 	deleteFunc := func(key string) {
-		hash := ResourceIDHash(key)
+		hash := ResourceIDHash(strings.ToLower(key))
 		partialMatch := prometheus.Labels{"resource_id_hash": hash}
 		provisionState.DeletePartialMatch(partialMatch)
 		createdTime.DeletePartialMatch(partialMatch)
