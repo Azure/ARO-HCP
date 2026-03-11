@@ -178,7 +178,7 @@ var _ = Describe("Customer", func() {
 				customerClusterName,
 				customerNodePoolName,
 				updateTaints,
-				120*time.Minute,
+				20*time.Minute,
 			)
 			Expect(err).NotTo(HaveOccurred())
 
