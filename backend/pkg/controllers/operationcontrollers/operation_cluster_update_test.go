@@ -17,14 +17,11 @@ package operationcontrollers
 import (
 	"context"
 	"testing"
-	"time"
 
 	"github.com/go-logr/logr/testr"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
-
-	clocktesting "k8s.io/utils/clock/testing"
 
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 
@@ -35,73 +32,70 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
-func TestOperationClusterCreate_SynchronizeOperation(t *testing.T) {
-	fixedTime := mustParseTime("2025-01-20T10:30:00Z")
-	createdAt := mustParseTime("2025-01-15T10:30:00Z")
-
+func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 	tests := []struct {
 		name         string
 		clusterState arohcpv1alpha1.ClusterState
-		createdAt    *time.Time
 		expectError  bool
 		verify       func(t *testing.T, ctx context.Context, db *databasetesting.MockDBClient, fixture *clusterTestFixture)
 	}{
 		{
-			name:         "succeeds with valid CreatedAt time",
+			name:         "cluster ready transitions to succeeded",
 			clusterState: arohcpv1alpha1.ClusterStateReady,
-			createdAt:    &createdAt,
 			expectError:  false,
 			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockDBClient, fixture *clusterTestFixture) {
-				// Verify operation status
 				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateSucceeded, op.Status)
 
-				// Verify billing document was created
-				billingDocs := db.GetBillingDocuments()
-				require.Len(t, billingDocs, 1, "expected one billing document to be created")
-				for _, doc := range billingDocs {
-					assert.Equal(t, testTenantID, doc.TenantID)
-					assert.Equal(t, testAzureLocation, doc.Location)
-					assert.Equal(t, createdAt, doc.CreationTime)
-				}
+				// Verify cluster provisioning state was also updated
+				cluster, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, testClusterName)
+				require.NoError(t, err)
+				assert.Equal(t, arm.ProvisioningStateSucceeded, cluster.ServiceProviderProperties.ProvisioningState)
+				assert.Empty(t, cluster.ServiceProviderProperties.ActiveOperationID)
 			},
 		},
 		{
-			name:         "succeeds with nil CreatedAt using fallback time",
-			clusterState: arohcpv1alpha1.ClusterStateReady,
-			createdAt:    nil,
+			name:         "cluster updating transitions to updating",
+			clusterState: arohcpv1alpha1.ClusterStateUpdating,
 			expectError:  false,
 			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockDBClient, fixture *clusterTestFixture) {
-				// Verify operation status
 				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateSucceeded, op.Status)
+				assert.Equal(t, arm.ProvisioningStateUpdating, op.Status)
 
-				// Verify billing document was created with fallback time
-				billingDocs := db.GetBillingDocuments()
-				require.Len(t, billingDocs, 1, "expected one billing document to be created")
-				for _, doc := range billingDocs {
-					assert.Equal(t, testTenantID, doc.TenantID)
-					assert.Equal(t, testAzureLocation, doc.Location)
-					assert.Equal(t, fixedTime, doc.CreationTime, "should use fallback time when CreatedAt is nil")
-				}
+				// Verify cluster still has active operation
+				cluster, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, testClusterName)
+				require.NoError(t, err)
+				assert.Equal(t, arm.ProvisioningStateUpdating, cluster.ServiceProviderProperties.ProvisioningState)
+				assert.Equal(t, testOperationName, cluster.ServiceProviderProperties.ActiveOperationID)
 			},
 		},
 		{
-			name:         "non-terminal cluster state updates to provisioning without billing",
-			clusterState: arohcpv1alpha1.ClusterStateInstalling,
-			createdAt:    nil,
+			name:         "cluster error transitions to failed",
+			clusterState: arohcpv1alpha1.ClusterStateError,
 			expectError:  false,
 			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockDBClient, fixture *clusterTestFixture) {
-				// Verify operation status
 				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateProvisioning, op.Status)
+				assert.Equal(t, arm.ProvisioningStateFailed, op.Status)
+				assert.NotNil(t, op.Error)
 
-				// Verify no billing document was created
-				billingDocs := db.GetBillingDocuments()
-				assert.Empty(t, billingDocs, "no billing document should be created for non-terminal state")
+				// Verify cluster also shows failed
+				cluster, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, testClusterName)
+				require.NoError(t, err)
+				assert.Equal(t, arm.ProvisioningStateFailed, cluster.ServiceProviderProperties.ProvisioningState)
+				assert.Empty(t, cluster.ServiceProviderProperties.ActiveOperationID)
+			},
+		},
+		{
+			name:         "cluster pending stays accepted",
+			clusterState: arohcpv1alpha1.ClusterStatePending,
+			expectError:  false,
+			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockDBClient, fixture *clusterTestFixture) {
+				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
+				require.NoError(t, err)
+				assert.Equal(t, arm.ProvisioningStateAccepted, op.Status)
 			},
 		},
 	}
@@ -114,8 +108,8 @@ func TestOperationClusterCreate_SynchronizeOperation(t *testing.T) {
 			defer ctrl.Finish()
 
 			fixture := newClusterTestFixture()
-			cluster := fixture.newCluster(tt.createdAt)
-			operation := fixture.newOperation(database.OperationRequestCreate)
+			cluster := fixture.newCluster(nil)
+			operation := fixture.newOperation(database.OperationRequestUpdate)
 
 			mockDB, err := databasetesting.NewMockDBClientWithResources(ctx, []any{cluster, operation})
 			require.NoError(t, err)
@@ -130,9 +124,7 @@ func TestOperationClusterCreate_SynchronizeOperation(t *testing.T) {
 				GetClusterStatus(gomock.Any(), fixture.clusterInternalID).
 				Return(clusterStatus, nil)
 
-			controller := &operationClusterCreate{
-				clock:                clocktesting.NewFakePassiveClock(fixedTime),
-				azureLocation:        testAzureLocation,
+			controller := &operationClusterUpdate{
 				cosmosClient:         mockDB,
 				clusterServiceClient: mockCSClient,
 				notificationClient:   nil,
