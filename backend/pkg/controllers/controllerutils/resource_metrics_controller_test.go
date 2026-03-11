@@ -23,7 +23,6 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"k8s.io/client-go/tools/cache"
@@ -63,12 +62,19 @@ func TestClusterMetricsHandler_SetsProvisionStateAndCreatedTime(t *testing.T) {
 
 	resourceID := strings.ToLower(cluster.ID.String())
 	hash := ResourceIDHash(resourceID)
-	expected := fmt.Sprintf(`# HELP backend_cluster_provision_state Current provisioning state of the cluster (value is always 1).
+
+	expectedState := fmt.Sprintf(`# HELP backend_cluster_provision_state Current provisioning state of the cluster (value is always 1).
 # TYPE backend_cluster_provision_state gauge
 backend_cluster_provision_state{phase="provisioning",resource_id_hash="%s"} 1
 `, hash)
+	err := testutil.GatherAndCompare(reg, strings.NewReader(expectedState), "backend_cluster_provision_state")
+	require.NoError(t, err)
 
-	err := testutil.GatherAndCompare(reg, strings.NewReader(expected), "backend_cluster_provision_state")
+	expectedTime := fmt.Sprintf(`# HELP backend_cluster_created_time_seconds Unix timestamp when the cluster was created.
+# TYPE backend_cluster_created_time_seconds gauge
+backend_cluster_created_time_seconds{resource_id_hash="%s"} %v
+`, hash, float64(now.Unix()))
+	err = testutil.GatherAndCompare(reg, strings.NewReader(expectedTime), "backend_cluster_created_time_seconds")
 	require.NoError(t, err)
 }
 
@@ -101,13 +107,23 @@ func TestClusterMetricsHandler_NilCreatedAt(t *testing.T) {
 	cluster := newTestCluster(t, "cluster-1", arm.ProvisioningStateAccepted, nil)
 	syncFunc(context.Background(), cluster)
 
-	// provisionState should exist, createdTime should not.
-	metrics, err := reg.Gather()
+	resourceID := strings.ToLower(cluster.ID.String())
+	hash := ResourceIDHash(resourceID)
+
+	// provisionState should exist.
+	expectedState := fmt.Sprintf(`# HELP backend_cluster_provision_state Current provisioning state of the cluster (value is always 1).
+# TYPE backend_cluster_provision_state gauge
+backend_cluster_provision_state{phase="accepted",resource_id_hash="%s"} 1
+`, hash)
+	err := testutil.GatherAndCompare(reg, strings.NewReader(expectedState), "backend_cluster_provision_state")
 	require.NoError(t, err)
-	for _, mf := range metrics {
-		assert.NotEqual(t, "backend_cluster_created_time_seconds", mf.GetName(),
-			"should not emit created_time when CreatedAt is nil")
-	}
+
+	// createdTime should have no samples.
+	require.Equal(t, 0, testutil.CollectAndCount(prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "nonexistent_metric",
+	}, []string{"x"})), "sanity check")
+	err = testutil.GatherAndCompare(reg, strings.NewReader(""), "backend_cluster_created_time_seconds")
+	require.NoError(t, err, "should not emit created_time when CreatedAt is nil")
 }
 
 func TestClusterMetricsHandler_DeleteCleansUpAllGauges(t *testing.T) {
@@ -121,11 +137,8 @@ func TestClusterMetricsHandler_DeleteCleansUpAllGauges(t *testing.T) {
 	resourceID := strings.ToLower(cluster.ID.String())
 	deleteFunc(resourceID)
 
-	metrics, err := reg.Gather()
-	require.NoError(t, err)
-	for _, mf := range metrics {
-		assert.Empty(t, mf.GetMetric(), "expected no metrics after delete for %s", mf.GetName())
-	}
+	err := testutil.GatherAndCompare(reg, strings.NewReader(""), "backend_cluster_provision_state", "backend_cluster_created_time_seconds")
+	require.NoError(t, err, "expected no samples after delete")
 }
 
 func TestNodePoolMetricsHandler_SetsMetrics(t *testing.T) {
@@ -147,9 +160,14 @@ func TestNodePoolMetricsHandler_SetsMetrics(t *testing.T) {
 
 	syncFunc(context.Background(), np)
 
-	metrics, err := reg.Gather()
+	resourceID := strings.ToLower(np.ID.String())
+	hash := ResourceIDHash(resourceID)
+	expected := fmt.Sprintf(`# HELP backend_nodepool_provision_state Current provisioning state of the node pool (value is always 1).
+# TYPE backend_nodepool_provision_state gauge
+backend_nodepool_provision_state{phase="succeeded",resource_id_hash="%s"} 1
+`, hash)
+	err := testutil.GatherAndCompare(reg, strings.NewReader(expected), "backend_nodepool_provision_state")
 	require.NoError(t, err)
-	assert.GreaterOrEqual(t, len(metrics), 1, "expected at least 1 metric family")
 }
 
 func TestExternalAuthMetricsHandler_SetsMetrics(t *testing.T) {
@@ -171,9 +189,14 @@ func TestExternalAuthMetricsHandler_SetsMetrics(t *testing.T) {
 
 	syncFunc(context.Background(), ea)
 
-	metrics, err := reg.Gather()
+	resourceID := strings.ToLower(ea.ID.String())
+	hash := ResourceIDHash(resourceID)
+	expected := fmt.Sprintf(`# HELP backend_externalauth_provision_state Current provisioning state of the external auth (value is always 1).
+# TYPE backend_externalauth_provision_state gauge
+backend_externalauth_provision_state{phase="accepted",resource_id_hash="%s"} 1
+`, hash)
+	err := testutil.GatherAndCompare(reg, strings.NewReader(expected), "backend_externalauth_provision_state")
 	require.NoError(t, err)
-	assert.GreaterOrEqual(t, len(metrics), 1, "expected at least 1 metric family")
 }
 
 func TestSyncResource_SetsMetricsFromIndexer(t *testing.T) {
@@ -197,11 +220,16 @@ func TestSyncResource_SetsMetricsFromIndexer(t *testing.T) {
 	require.NoError(t, err)
 
 	err = c.syncResource(context.Background(), key)
-	assert.NoError(t, err)
-
-	metrics, err := reg.Gather()
 	require.NoError(t, err)
-	assert.GreaterOrEqual(t, len(metrics), 1)
+
+	resourceID := strings.ToLower(cluster.ID.String())
+	hash := ResourceIDHash(resourceID)
+	expected := fmt.Sprintf(`# HELP backend_cluster_provision_state Current provisioning state of the cluster (value is always 1).
+# TYPE backend_cluster_provision_state gauge
+backend_cluster_provision_state{phase="succeeded",resource_id_hash="%s"} 1
+`, hash)
+	err = testutil.GatherAndCompare(reg, strings.NewReader(expected), "backend_cluster_provision_state")
+	require.NoError(t, err)
 }
 
 func TestSyncResource_DeletesMetricsWhenResourceRemoved(t *testing.T) {
@@ -224,20 +252,14 @@ func TestSyncResource_DeletesMetricsWhenResourceRemoved(t *testing.T) {
 	key, err := cache.MetaNamespaceKeyFunc(cluster)
 	require.NoError(t, err)
 
-	// First sync: metrics are set.
 	err = c.syncResource(context.Background(), key)
 	require.NoError(t, err)
 
-	// Remove from indexer.
 	require.NoError(t, indexer.Delete(cluster))
 
-	// Second sync: metrics are cleaned up.
 	err = c.syncResource(context.Background(), key)
-	assert.NoError(t, err)
-
-	metrics, err := reg.Gather()
 	require.NoError(t, err)
-	for _, mf := range metrics {
-		assert.Empty(t, mf.GetMetric(), "expected no metrics after deletion for %s", mf.GetName())
-	}
+
+	err = testutil.GatherAndCompare(reg, strings.NewReader(""), "backend_cluster_provision_state", "backend_cluster_created_time_seconds")
+	require.NoError(t, err, "expected no samples after deletion")
 }

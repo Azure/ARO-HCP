@@ -16,7 +16,6 @@ package controllerutils
 
 import (
 	"context"
-	"fmt"
 	"strings"
 	"time"
 
@@ -167,7 +166,8 @@ func (c *OperationPhaseMetricsController) syncOperation(ctx context.Context, key
 
 	op, ok := obj.(*api.Operation)
 	if !ok {
-		return fmt.Errorf("expected *api.Operation, got %T", obj)
+		c.deleteMetricsByKey(key)
+		return nil
 	}
 
 	if op.OperationID == nil {
