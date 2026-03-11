@@ -150,6 +150,7 @@ module svcMonitorIngestionLimits '../modules/metrics/amw-ingestion-limits.bicep'
   name: 'svc-monitor-ingestion-limits'
   params: {
     azureMonitorWorkspaceName: svcMonitorName
+    location: location
     maxActiveTimeSeries: amwMaxActiveTimeSeries
     maxEventsPerMinute: amwMaxEventsPerMinute
   }
@@ -160,6 +161,7 @@ module hcpMonitorIngestionLimits '../modules/metrics/amw-ingestion-limits.bicep'
   name: 'hcp-monitor-ingestion-limits'
   params: {
     azureMonitorWorkspaceName: hcpMonitorName
+    location: location
     maxActiveTimeSeries: amwMaxActiveTimeSeries
     maxEventsPerMinute: amwMaxEventsPerMinute
   }

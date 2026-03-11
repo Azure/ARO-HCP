@@ -230,6 +230,7 @@ module amwIngestionLimits '../modules/metrics/amw-ingestion-limits.bicep' = {
   name: 'amw-ingestion-limits'
   params: {
     azureMonitorWorkspaceName: azureMonitorWorkspaceName
+    location: location
     maxActiveTimeSeries: amwMaxActiveTimeSeries
     maxEventsPerMinute: amwMaxEventsPerMinute
   }
