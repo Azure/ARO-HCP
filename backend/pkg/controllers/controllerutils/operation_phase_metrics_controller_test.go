@@ -194,7 +194,6 @@ func newTestController(t *testing.T) *OperationPhaseMetricsController {
 		phaseInfo:          pi,
 		startTime:          st,
 		lastTransitionTime: ltt,
-		known:              make(map[string]operationMetricLabels),
 	}
 }
 
@@ -207,7 +206,7 @@ func TestSetMetrics_SetsAllThreeMetrics(t *testing.T) {
 		now, now)
 
 	c := newTestController(t)
-	c.setMetrics(context.Background(), "key-1", op)
+	c.setMetrics(context.Background(), op)
 
 	assert.Equal(t, 1, testutil.CollectAndCount(c.phaseInfo))
 	assert.Equal(t, 1, testutil.CollectAndCount(c.startTime))
@@ -310,7 +309,7 @@ func TestSetMetrics_SkipsZeroTimestamps(t *testing.T) {
 		time.Time{}, time.Time{})
 
 	c := newTestController(t)
-	c.setMetrics(context.Background(), "key-1", op)
+	c.setMetrics(context.Background(), op)
 
 	assert.Equal(t, 1, testutil.CollectAndCount(c.phaseInfo), "expected only phase_info metric when timestamps are zero")
 	assert.Equal(t, 0, testutil.CollectAndCount(c.startTime))
@@ -331,8 +330,8 @@ func TestSetMetrics_MultipleOperations(t *testing.T) {
 		now, now)
 
 	c := newTestController(t)
-	c.setMetrics(context.Background(), "key-1", op1)
-	c.setMetrics(context.Background(), "key-2", op2)
+	c.setMetrics(context.Background(), op1)
+	c.setMetrics(context.Background(), op2)
 
 	assert.Equal(t, 2, testutil.CollectAndCount(c.phaseInfo), "expected 2 phase_info metrics")
 	assert.Equal(t, 2, testutil.CollectAndCount(c.startTime), "expected 2 start_time metrics")
@@ -349,7 +348,7 @@ func TestSetMetrics_VerifiesLabelValues(t *testing.T) {
 		now, now)
 
 	c := newTestController(t)
-	c.setMetrics(context.Background(), "key-1", op)
+	c.setMetrics(context.Background(), op)
 
 	expected := fmt.Sprintf(`# HELP backend_resource_operation_phase_info Current phase of each operation (value is always 1).
 # TYPE backend_resource_operation_phase_info gauge
@@ -370,7 +369,7 @@ func TestSetMetrics_NilExternalIDUsesUnknownResourceType(t *testing.T) {
 		now, now)
 
 	c := newTestController(t)
-	c.setMetrics(context.Background(), "key-1", op)
+	c.setMetrics(context.Background(), op)
 
 	expected := fmt.Sprintf(`# HELP backend_resource_operation_phase_info Current phase of each operation (value is always 1).
 # TYPE backend_resource_operation_phase_info gauge
@@ -379,31 +378,6 @@ backend_resource_operation_phase_info{operation_id_hash="%s",operation_type="cre
 
 	err := testutil.CollectAndCompare(c.phaseInfo, strings.NewReader(expected), "backend_resource_operation_phase_info")
 	require.NoError(t, err)
-}
-
-func TestDeleteMetrics_CleansUpAllGauges(t *testing.T) {
-	now := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
-	op := newTestOperation(t, "op-1",
-		api.OperationRequestCreate,
-		arm.ProvisioningStateAccepted,
-		"/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1",
-		now, now)
-
-	c := newTestController(t)
-
-	// Set metrics.
-	c.setMetrics(context.Background(), "key-1", op)
-	assert.Equal(t, 1, testutil.CollectAndCount(c.phaseInfo))
-
-	// Delete metrics.
-	c.deleteMetrics("key-1")
-	assert.Equal(t, 0, testutil.CollectAndCount(c.phaseInfo))
-	assert.Equal(t, 0, testutil.CollectAndCount(c.startTime))
-	assert.Equal(t, 0, testutil.CollectAndCount(c.lastTransitionTime))
-
-	c.mu.Lock()
-	assert.Len(t, c.known, 0, "expected 0 known operations after delete")
-	c.mu.Unlock()
 }
 
 func TestSetMetrics_PhaseTransitionDeletesOldSeries(t *testing.T) {
@@ -417,14 +391,14 @@ func TestSetMetrics_PhaseTransitionDeletesOldSeries(t *testing.T) {
 	c := newTestController(t)
 
 	// Initial set with "accepted" phase.
-	c.setMetrics(context.Background(), "key-1", op)
+	c.setMetrics(context.Background(), op)
 	assert.Equal(t, 1, testutil.CollectAndCount(c.phaseInfo))
 
 	// Phase transition to "provisioning".
 	op.Status = arm.ProvisioningStateProvisioning
-	c.setMetrics(context.Background(), "key-1", op)
+	c.setMetrics(context.Background(), op)
 
-	// Should still be exactly 1 metric (old "accepted" deleted, new "provisioning" set).
+	// Should still be exactly 1 metric (old "accepted" deleted via DeletePartialMatch, new "provisioning" set).
 	assert.Equal(t, 1, testutil.CollectAndCount(c.phaseInfo))
 
 	hash := OperationIDHash("op-1")
@@ -434,4 +408,40 @@ backend_resource_operation_phase_info{operation_id_hash="%s",operation_type="cre
 `, hash)
 	err := testutil.CollectAndCompare(c.phaseInfo, strings.NewReader(expected))
 	require.NoError(t, err)
+}
+
+func TestDeleteMetricsByKey_CleansUpAllGauges(t *testing.T) {
+	now := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+	op := newTestOperation(t, "op-1",
+		api.OperationRequestCreate,
+		arm.ProvisioningStateAccepted,
+		"/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1",
+		now, now)
+
+	c := newTestController(t)
+	c.setMetrics(context.Background(), op)
+	assert.Equal(t, 1, testutil.CollectAndCount(c.phaseInfo))
+
+	// The store key ends with the operation name (last path segment is used to compute hash).
+	c.deleteMetricsByKey("/subscriptions/sub-1/providers/microsoft.redhatopenshift/hcpoperationstatuses/op-1")
+	assert.Equal(t, 0, testutil.CollectAndCount(c.phaseInfo))
+	assert.Equal(t, 0, testutil.CollectAndCount(c.startTime))
+	assert.Equal(t, 0, testutil.CollectAndCount(c.lastTransitionTime))
+}
+
+func TestLastPathSegment(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{"/subscriptions/sub-1/providers/microsoft.redhatopenshift/hcpoperationstatuses/op-1", "op-1"},
+		{"op-1", "op-1"},
+		{"/trailing/slash/", ""},
+		{"", ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			assert.Equal(t, tt.expected, lastPathSegment(tt.input))
+		})
+	}
 }

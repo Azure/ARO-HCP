@@ -19,7 +19,6 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -38,25 +37,10 @@ import (
 
 var labelNames = []string{"operation_id_hash", "resource_type", "operation_type", "phase"}
 
-type operationMetricLabels struct {
-	Hash          string
-	ResourceType  string
-	OperationType string
-	Phase         string
-}
-
-func (l operationMetricLabels) prometheusLabels() prometheus.Labels {
-	return prometheus.Labels{
-		"operation_id_hash": l.Hash,
-		"resource_type":     l.ResourceType,
-		"operation_type":    l.OperationType,
-		"phase":             l.Phase,
-	}
-}
-
 // OperationPhaseMetricsController reacts to informer events and maintains
-// per-operation Prometheus gauge metrics. It follows the workqueue pattern
-// used by other controllers in this codebase.
+// per-operation Prometheus gauge metrics using a level-driven approach.
+// On each sync it reads the current state of the operation and sets metrics
+// accordingly, with no in-memory state tracking beyond the informer cache.
 type OperationPhaseMetricsController struct {
 	name    string
 	indexer cache.Indexer
@@ -65,9 +49,6 @@ type OperationPhaseMetricsController struct {
 	phaseInfo          *prometheus.GaugeVec
 	startTime          *prometheus.GaugeVec
 	lastTransitionTime *prometheus.GaugeVec
-
-	mu    sync.Mutex
-	known map[string]operationMetricLabels
 }
 
 // NewOperationPhaseMetricsController creates an OperationPhaseMetricsController
@@ -97,7 +78,6 @@ func NewOperationPhaseMetricsController(
 		phaseInfo:          phaseInfo,
 		startTime:          startTime,
 		lastTransitionTime: lastTransitionTime,
-		known:              make(map[string]operationMetricLabels),
 		queue: workqueue.NewTypedRateLimitingQueueWithConfig(
 			workqueue.DefaultTypedControllerRateLimiter[string](),
 			workqueue.TypedRateLimitingQueueConfig[string]{
@@ -172,8 +152,9 @@ func (c *OperationPhaseMetricsController) processNextWorkItem(ctx context.Contex
 	return true
 }
 
-// syncOperation processes a single operation key: sets metrics if the operation
-// exists, or deletes metrics if it has been removed from the store.
+// syncOperation processes a single operation key: reads current state from the
+// informer cache and sets metrics accordingly (level-driven). If the operation
+// has been removed, all its metric series are deleted.
 func (c *OperationPhaseMetricsController) syncOperation(ctx context.Context, key string) error {
 	obj, exists, err := c.indexer.GetByKey(key)
 	if err != nil {
@@ -181,7 +162,7 @@ func (c *OperationPhaseMetricsController) syncOperation(ctx context.Context, key
 	}
 
 	if !exists {
-		c.deleteMetrics(key)
+		c.deleteMetricsByKey(key)
 		return nil
 	}
 
@@ -191,34 +172,35 @@ func (c *OperationPhaseMetricsController) syncOperation(ctx context.Context, key
 	}
 
 	if op.OperationID == nil {
-		c.deleteMetrics(key)
+		c.deleteMetricsByKey(key)
 		return nil
 	}
 
-	c.setMetrics(ctx, key, op)
+	c.setMetrics(ctx, op)
 	return nil
 }
 
-func (c *OperationPhaseMetricsController) setMetrics(ctx context.Context, key string, op *api.Operation) {
-	labels := operationMetricLabels{
-		Hash:          OperationIDHash(op.OperationID.Name),
-		ResourceType:  ResourceTypeFromExternalID(op.ExternalID),
-		OperationType: OperationTypeLabel(op.Request),
-		Phase:         PhaseLabel(op.Status),
+// setMetrics is level-driven: it deletes any existing series for this operation
+// and sets new ones reflecting the current state. No in-memory tracking is needed.
+func (c *OperationPhaseMetricsController) setMetrics(ctx context.Context, op *api.Operation) {
+	hash := OperationIDHash(op.OperationID.Name)
+	resourceType := ResourceTypeFromExternalID(op.ExternalID)
+	operationType := OperationTypeLabel(op.Request)
+	phase := PhaseLabel(op.Status)
+
+	// Delete any existing series for this operation (handles phase transitions).
+	partialMatch := prometheus.Labels{"operation_id_hash": hash}
+	c.phaseInfo.DeletePartialMatch(partialMatch)
+	c.startTime.DeletePartialMatch(partialMatch)
+	c.lastTransitionTime.DeletePartialMatch(partialMatch)
+
+	// Set current state.
+	promLabels := prometheus.Labels{
+		"operation_id_hash": hash,
+		"resource_type":     resourceType,
+		"operation_type":    operationType,
+		"phase":             phase,
 	}
-
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	old, hadOld := c.known[key]
-	c.known[key] = labels
-
-	// If labels changed (e.g. phase transition), delete old metric series.
-	if hadOld && old != labels {
-		c.deleteGaugeValues(old)
-	}
-
-	promLabels := labels.prometheusLabels()
 	c.phaseInfo.With(promLabels).Set(1.0)
 
 	if !op.StartTime.IsZero() {
@@ -228,32 +210,38 @@ func (c *OperationPhaseMetricsController) setMetrics(ctx context.Context, key st
 		c.lastTransitionTime.With(promLabels).Set(float64(op.LastTransitionTime.Unix()))
 	}
 
-	if !hadOld {
-		logger := utils.LoggerFromContext(ctx)
-		logger.Info("Operation tracked",
-			utils.LogValues{}.
-				AddOperationID(op.OperationID.Name).
-				AddResourceID(externalIDString(op.ExternalID)).
-				AddCorrelationRequestID(op.CorrelationRequestID)...)
-	}
+	logger := utils.LoggerFromContext(ctx)
+	logger.V(1).Info("Operation metrics synced",
+		utils.LogValues{}.
+			AddOperationID(op.OperationID.Name).
+			AddResourceID(externalIDString(op.ExternalID)).
+			AddCorrelationRequestID(op.CorrelationRequestID)...)
 }
 
-func (c *OperationPhaseMetricsController) deleteMetrics(key string) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	old, ok := c.known[key]
-	if ok {
-		delete(c.known, key)
-		c.deleteGaugeValues(old)
+// deleteMetricsByKey removes all metric series for the operation identified by
+// the given store key. It looks up the operation hash from the key to perform
+// a partial match deletion.
+func (c *OperationPhaseMetricsController) deleteMetricsByKey(key string) {
+	// Extract the operation name from the store key to compute the hash.
+	// The store key is the lowercased ResourceID string, and the operation
+	// name is the last path segment.
+	name := lastPathSegment(key)
+	if name == "" {
+		return
 	}
+	hash := OperationIDHash(name)
+	partialMatch := prometheus.Labels{"operation_id_hash": hash}
+	c.phaseInfo.DeletePartialMatch(partialMatch)
+	c.startTime.DeletePartialMatch(partialMatch)
+	c.lastTransitionTime.DeletePartialMatch(partialMatch)
 }
 
-func (c *OperationPhaseMetricsController) deleteGaugeValues(labels operationMetricLabels) {
-	promLabels := labels.prometheusLabels()
-	c.phaseInfo.Delete(promLabels)
-	c.startTime.Delete(promLabels)
-	c.lastTransitionTime.Delete(promLabels)
+func lastPathSegment(path string) string {
+	idx := strings.LastIndex(path, "/")
+	if idx < 0 {
+		return path
+	}
+	return path[idx+1:]
 }
 
 func externalIDString(id *azcorearm.ResourceID) string {
