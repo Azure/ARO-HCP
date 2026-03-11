@@ -28,6 +28,7 @@ import (
 
 	"sigs.k8s.io/randfill"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api"
@@ -139,4 +140,26 @@ func roundTripInternalToCosmosToInternal[InternalAPIType, CosmosAPIType any](t *
 		t.Logf("intermediateAfter\n%s", string(intermediateAfterJSON))
 		t.Errorf("intermediate was modified: %v", cmp.Diff(intermediateBeforeJSON, intermediateAfterJSON))
 	}
+}
+
+func TestCosmosToInternalClusterPreservesETag(t *testing.T) {
+	expectedETag := azcore.ETag("test-etag-value-12345")
+	resourceID := api.Must(azcorearm.ParseResourceID("/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/my-cluster"))
+
+	cosmosObj := &HCPCluster{
+		TypedDocument: TypedDocument{
+			BaseDocument: BaseDocument{
+				CosmosETag: expectedETag,
+			},
+		},
+		HCPClusterProperties: HCPClusterProperties{
+			ResourceDocument: &ResourceDocument{
+				ResourceID: resourceID,
+			},
+		},
+	}
+
+	internalObj, err := CosmosToInternalCluster(cosmosObj)
+	require.NoError(t, err)
+	require.Equal(t, expectedETag, internalObj.GetCosmosData().CosmosETag)
 }
