@@ -2,7 +2,7 @@
 // be dispatched to the user without errors. Anomalous requests or errors in this log are a bug in the frontend,
 // if there are no anomalies here, check the backend logs for why our RP failed to correctly provision a cluster.
 database('ServiceLogs').table('frontendLogs')
-| where timestamp between (datetime("{{.StartTime}}") .. datetime("{{.EndTime}}"))
+| where timestamp between (datetime(<<.TimestampMin>>) .. datetime(<<.TimestampMax>>))
 | where resource_group == '{{.ResourceGroupName}}'
 | where msg == 'request received' or msg == 'response complete'
 | project timestamp, msg, request_method, request_path, request_query, response_status_code;
@@ -13,7 +13,7 @@ database('ServiceLogs').table('frontendLogs')
 // if no controllers in the backend are having issues, check the clusters-service logs to see if there's an issue
 // at a deeper layer of the stack.
 database('ServiceLogs').table('backendLogs')
-| where timestamp between (datetime("{{.StartTime}}") .. datetime("{{.EndTime}}"))
+| where timestamp between (datetime(<<.TimestampMin>>) .. datetime(<<.TimestampMax>>))
 | where cluster == '{{.ClusterName}}'
 | where container_name == 'aro-hcp-backend'
 | where resource_id has '{{.ResourceGroupName}}'
@@ -30,14 +30,14 @@ database('ServiceLogs').table('backendLogs')
 // reconciliation.
 let _cs_cluster_id = toscalar(
     database('ServiceLogs').table('clustersServiceLogs')
-    | where timestamp between (datetime("{{.StartTime}}") .. datetime("{{.EndTime}}"))
+    | where timestamp between (datetime(<<.TimestampMin>>) .. datetime(<<.TimestampMax>>))
     | where resource_id has '{{.ResourceGroupName}}'
     | where isnotempty(cid)
     | distinct tostring(cid)
     | limit 1
 );
 database('ServiceLogs').table('clustersServiceLogs')
-| where timestamp between (datetime("{{.StartTime}}") .. datetime("{{.EndTime}}"))
+| where timestamp between (datetime(<<.TimestampMin>>) .. datetime(<<.TimestampMax>>))
 | where cid == _cs_cluster_id
 | where log has 'state to' or log has 'now in' or log has 'provision step'
 | project timestamp, log.msg;
@@ -53,14 +53,14 @@ database('ServiceLogs').table('clustersServiceLogs')
 // events for the Pods that make up the HostedCluster.
 let _cs_cluster_id = toscalar(
     database('ServiceLogs').table('clustersServiceLogs')
-    | where timestamp between (datetime("{{.StartTime}}") .. datetime("{{.EndTime}}"))
+    | where timestamp between (datetime(<<.TimestampMin>>) .. datetime(<<.TimestampMax>>))
     | where resource_id has '{{.ResourceGroupName}}'
     | where isnotempty(cid)
     | distinct tostring(cid)
     | limit 1
 );
 database('ServiceLogs').table('clustersServiceLogs')
-| where timestamp between (datetime("{{.StartTime}}") .. datetime("{{.EndTime}}"))
+| where timestamp between (datetime(<<.TimestampMin>>) .. datetime(<<.TimestampMax>>))
 | where resource_id has '{{.ResourceGroupName}}'
 | where msg has 'ManifestWork for cluster'
 | extend manifest_work = parse_json(replace_string(tostring(msg), strcat("ManifestWork for cluster '",_cs_cluster_id, "': "), ""))
@@ -77,13 +77,13 @@ database('ServiceLogs').table('clustersServiceLogs')
 // control plane of the ARO HCP cluster.
 let _cs_cluster_id = toscalar(
     database('ServiceLogs').table('clustersServiceLogs')
-    | where timestamp between (datetime("{{.StartTime}}") .. datetime("{{.EndTime}}"))
+    | where timestamp between (datetime(<<.TimestampMin>>) .. datetime(<<.TimestampMax>>))
     | where resource_id has '{{.ResourceGroupName}}'
     | where isnotempty(cid)
     | distinct tostring(cid)
     | limit 1
 );
 database('ServiceLogs').table('kubernetesEvents')
-| where timestamp between (datetime("{{.StartTime}}") .. datetime("{{.EndTime}}"))
+| where timestamp between (datetime(<<.TimestampMin>>) .. datetime(<<.TimestampMax>>))
 | where eventNamespace has _cs_cluster_id
 | project timestamp, objectKind, objectName, reason, message, firstSeen, lastSeen;

@@ -54,13 +54,6 @@ and collecting diagnostic data for troubleshooting and analysis.`,
 	}
 	cmd.AddCommand(queryInfraCmd)
 
-	// Add legacy-query subcommand
-	queryCmdLegacy, err := newQueryCommandLegacy()
-	if err != nil {
-		return nil, err
-	}
-	cmd.AddCommand(queryCmdLegacy)
-
 	cleanCommand, err := newCleanCommand()
 	if err != nil {
 		return nil, err

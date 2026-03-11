@@ -36,7 +36,7 @@ type MockQueryClient struct {
 	mock.Mock
 }
 
-func (m *MockQueryClient) ConcurrentQueries(ctx context.Context, queries []*kusto.ConfigurableQuery, outputChannel chan<- azkquery.Row) error {
+func (m *MockQueryClient) ConcurrentQueries(ctx context.Context, queries []kusto.Query, outputChannel chan<- azkquery.Row) error {
 	args := m.Called(ctx, queries, outputChannel)
 	return args.Error(0)
 }
@@ -46,7 +46,7 @@ func (m *MockQueryClient) Close() error {
 	return args.Error(0)
 }
 
-func (m *MockQueryClient) ExecutePreconfiguredQuery(ctx context.Context, query *kusto.ConfigurableQuery, outputChannel chan<- azkquery.Row) (*kusto.QueryResult, error) {
+func (m *MockQueryClient) ExecutePreconfiguredQuery(ctx context.Context, query kusto.Query, outputChannel chan<- azkquery.Row) (*kusto.QueryResult, error) {
 	args := m.Called(ctx, query, outputChannel)
 	result := args.Get(0)
 	if result == nil {
@@ -65,14 +65,14 @@ func mockOutputFunc(ctx context.Context, logLineChan chan *NormalizedLogLine, qu
 func TestNewGatherer(t *testing.T) {
 	mockQueryClient := &MockQueryClient{}
 	opts := GathererOptions{
-		QueryOptions: &QueryOptions{
+		QueryOptions: &kusto.QueryOptions{
 			SubscriptionId:    "test-sub",
 			ResourceGroupName: "test-rg",
 		},
 	}
 
 	// Test CLI gatherer
-	gatherer := NewCliGatherer(mockQueryClient, "/test/output", "services", "hcp", opts)
+	gatherer := NewCliGatherer(mockQueryClient, "/test/output", "services", "hcp", opts, false)
 	assert.NotNil(t, gatherer)
 	assert.Equal(t, mockQueryClient, gatherer.QueryClient)
 
@@ -94,7 +94,7 @@ func TestGatherer_GatherLogs(t *testing.T) {
 		QueryClient: mockQueryClient,
 		opts: GathererOptions{
 			SkipKubernetesEventsLogs: true,
-			QueryOptions: &QueryOptions{
+			QueryOptions: &kusto.QueryOptions{
 				SubscriptionId:    "test-sub",
 				ResourceGroupName: "test-rg",
 			},
@@ -104,14 +104,14 @@ func TestGatherer_GatherLogs(t *testing.T) {
 	}
 
 	// Success case: cluster ID query + services + HCP queries
-	mockQueryClient.On("ExecutePreconfiguredQuery", mock.AnythingOfType("*context.cancelCtx"), mock.AnythingOfType("*kusto.ConfigurableQuery"), mock.Anything).Return(&kusto.QueryResult{}, nil).Once()
-	mockQueryClient.On("ConcurrentQueries", mock.AnythingOfType("*context.cancelCtx"), mock.AnythingOfType("[]*kusto.ConfigurableQuery"), mock.Anything).Return(nil).Twice()
+	mockQueryClient.On("ExecutePreconfiguredQuery", mock.Anything, mock.Anything, mock.Anything).Return(&kusto.QueryResult{}, nil).Once()
+	mockQueryClient.On("ConcurrentQueries", mock.Anything, mock.Anything, mock.Anything).Return(nil).Twice()
 
 	err := gatherer.GatherLogs(t.Context())
 	assert.NoError(t, err)
 
 	// Error case: cluster ID query fails
-	mockQueryClient.On("ExecutePreconfiguredQuery", mock.AnythingOfType("*context.cancelCtx"), mock.AnythingOfType("*kusto.ConfigurableQuery"), mock.Anything).Return(nil, errors.New("query failed"))
+	mockQueryClient.On("ExecutePreconfiguredQuery", mock.Anything, mock.Anything, mock.Anything).Return(nil, errors.New("query failed"))
 
 	err = gatherer.GatherLogs(t.Context())
 	assert.Error(t, err)
@@ -126,7 +126,7 @@ func TestGatherer_GatherLogs_WithKubernetesEventsAndSystemdLogs(t *testing.T) {
 		opts: GathererOptions{
 			SkipKubernetesEventsLogs: false,
 			CollectSystemdLogs:       true,
-			QueryOptions: &QueryOptions{
+			QueryOptions: &kusto.QueryOptions{
 				SubscriptionId:    "test-sub",
 				ResourceGroupName: "test-rg",
 			},
@@ -135,11 +135,10 @@ func TestGatherer_GatherLogs_WithKubernetesEventsAndSystemdLogs(t *testing.T) {
 		outputOptions: RowOutputOptions{"outputPath": "/test"},
 	}
 
-	// 1x ExecutePreconfiguredQuery for cluster IDs
-	mockQueryClient.On("ExecutePreconfiguredQuery", mock.AnythingOfType("*context.cancelCtx"), mock.AnythingOfType("*kusto.ConfigurableQuery"), mock.Anything).Return(&kusto.QueryResult{}, nil)
-	// 2x ConcurrentQueries for services + HCP,
-	// 2x ConcurrentQueries for kubernetes events + systemd logs (empty queries since no cluster names)
-	mockQueryClient.On("ConcurrentQueries", mock.AnythingOfType("*context.cancelCtx"), mock.AnythingOfType("[]*kusto.ConfigurableQuery"), mock.Anything).Return(nil)
+	// ExecutePreconfiguredQuery for cluster IDs + cluster names
+	mockQueryClient.On("ExecutePreconfiguredQuery", mock.Anything, mock.Anything, mock.Anything).Return(&kusto.QueryResult{}, nil)
+	// ConcurrentQueries for services + HCP + kubernetes events + systemd logs
+	mockQueryClient.On("ConcurrentQueries", mock.Anything, mock.Anything, mock.Anything).Return(nil)
 
 	err := gatherer.GatherLogs(t.Context())
 	assert.NoError(t, err)
@@ -153,7 +152,7 @@ func TestGatherer_GatherLogs_SkipOnlySystemdLogs(t *testing.T) {
 		QueryClient: mockQueryClient,
 		opts: GathererOptions{
 			SkipKubernetesEventsLogs: false,
-			QueryOptions: &QueryOptions{
+			QueryOptions: &kusto.QueryOptions{
 				SubscriptionId:    "test-sub",
 				ResourceGroupName: "test-rg",
 			},
@@ -163,9 +162,9 @@ func TestGatherer_GatherLogs_SkipOnlySystemdLogs(t *testing.T) {
 	}
 
 	// Cluster ID + cluster name queries
-	mockQueryClient.On("ExecutePreconfiguredQuery", mock.AnythingOfType("*context.cancelCtx"), mock.AnythingOfType("*kusto.ConfigurableQuery"), mock.Anything).Return(&kusto.QueryResult{}, nil)
+	mockQueryClient.On("ExecutePreconfiguredQuery", mock.Anything, mock.Anything, mock.Anything).Return(&kusto.QueryResult{}, nil)
 	// Services + HCP + kubernetes events (no systemd)
-	mockQueryClient.On("ConcurrentQueries", mock.AnythingOfType("*context.cancelCtx"), mock.AnythingOfType("[]*kusto.ConfigurableQuery"), mock.Anything).Return(nil)
+	mockQueryClient.On("ConcurrentQueries", mock.Anything, mock.Anything, mock.Anything).Return(nil)
 
 	err := gatherer.GatherLogs(t.Context())
 	assert.NoError(t, err)
@@ -180,7 +179,7 @@ func TestGatherer_GatherInfraLogs(t *testing.T) {
 		QueryClient: mockQueryClient,
 		opts: GathererOptions{
 			GatherInfraLogs: true,
-			QueryOptions: &QueryOptions{
+			QueryOptions: &kusto.QueryOptions{
 				InfraClusterName: "test-infra-cluster",
 			},
 		},
@@ -190,7 +189,7 @@ func TestGatherer_GatherInfraLogs(t *testing.T) {
 	}
 
 	// 3x ConcurrentQueries: kubernetes events + systemd logs + services
-	mockQueryClient.On("ConcurrentQueries", mock.AnythingOfType("*context.cancelCtx"), mock.AnythingOfType("[]*kusto.ConfigurableQuery"), mock.Anything).Return(nil).Times(3)
+	mockQueryClient.On("ConcurrentQueries", mock.Anything, mock.Anything, mock.Anything).Return(nil).Times(3)
 
 	err := gatherer.GatherLogs(t.Context())
 	assert.NoError(t, err)
@@ -204,7 +203,7 @@ func TestGatherer_GatherInfraLogs_Error(t *testing.T) {
 		QueryClient: mockQueryClient,
 		opts: GathererOptions{
 			GatherInfraLogs: true,
-			QueryOptions: &QueryOptions{
+			QueryOptions: &kusto.QueryOptions{
 				InfraClusterName: "test-infra-cluster",
 			},
 		},
@@ -214,7 +213,7 @@ func TestGatherer_GatherInfraLogs_Error(t *testing.T) {
 	}
 
 	// First ConcurrentQueries (kubernetes events) fails
-	mockQueryClient.On("ConcurrentQueries", mock.AnythingOfType("*context.cancelCtx"), mock.AnythingOfType("[]*kusto.ConfigurableQuery"), mock.Anything).Return(errors.New("query failed")).Once()
+	mockQueryClient.On("ConcurrentQueries", mock.Anything, mock.Anything, mock.Anything).Return(errors.New("query failed")).Once()
 
 	err := gatherer.GatherLogs(t.Context())
 	assert.Error(t, err)
@@ -231,7 +230,7 @@ func TestGatherer_GatherLogs_ContextCancellation(t *testing.T) {
 		QueryClient: mockQueryClient,
 		opts: GathererOptions{
 			SkipKubernetesEventsLogs: true,
-			QueryOptions: &QueryOptions{
+			QueryOptions: &kusto.QueryOptions{
 				SubscriptionId:    "test-sub",
 				ResourceGroupName: "test-rg",
 			},
@@ -241,7 +240,7 @@ func TestGatherer_GatherLogs_ContextCancellation(t *testing.T) {
 	}
 
 	// Cancel context before the query can complete
-	mockQueryClient.On("ExecutePreconfiguredQuery", mock.Anything, mock.AnythingOfType("*kusto.ConfigurableQuery"), mock.Anything).Run(func(args mock.Arguments) {
+	mockQueryClient.On("ExecutePreconfiguredQuery", mock.Anything, mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
 		cancel()
 	}).Return(nil, context.Canceled).Once()
 

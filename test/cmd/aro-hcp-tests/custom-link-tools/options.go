@@ -41,10 +41,11 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/test/util/timing"
+	"github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/kusto"
 	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/pipeline"
 )
 
-//go:embed artifacts/*.tmpl
+//go:embed artifacts/*.html.tmpl
 var templatesFS embed.FS
 
 var endGracePeriodDuration = 45 * time.Minute
@@ -288,14 +289,6 @@ type LinkDetails struct {
 	URL         string
 }
 
-type QueryInfo struct {
-	ResourceGroupName string
-	StartTime         string
-	EndTime           string
-	ClusterName       string
-	Database          string
-}
-
 type TimingInfo struct {
 	StartTime          time.Time
 	EndTime            time.Time
@@ -308,30 +301,22 @@ type QueryTemplate struct {
 	OutputFileName string
 }
 
-func createQueryURL(templatePath string, info QueryInfo, kusto KustoInfo) string {
+func createQueryURL(query kusto.Query, kustoInfo KustoInfo) string {
 	currURL := url.URL{
 		Scheme: "https",
 		Host:   "dataexplorer.azure.com",
-		Path:   fmt.Sprintf("clusters/%s.%s/databases/%s", kusto.KustoName, kusto.KustoRegion, info.Database),
+		Path:   fmt.Sprintf("clusters/%s.%s/databases/%s", kustoInfo.KustoName, kustoInfo.KustoRegion, query.GetDatabase()),
 	}
 	urlQuery := currURL.Query()
-	template, err := template.New("custom-link-tools").Parse(string(mustReadArtifact(templatePath)))
-	if err != nil {
-		return ""
-	}
-	var buf bytes.Buffer
-	if err := template.Execute(&buf, info); err != nil {
-		return ""
-	}
-	urlQuery.Add("query", encodeKustoQuery(buf.String()))
+	urlQuery.Add("query", encodeKustoQuery(query.GetQuery().String()))
 	currURL.RawQuery = urlQuery.Encode()
 	return currURL.String()
 }
 
-func createLinkForTest(displayName, templatePath string, info QueryInfo, kusto KustoInfo) LinkDetails {
+func createLink(displayName string, query kusto.Query, kustoInfo KustoInfo) LinkDetails {
 	return LinkDetails{
 		DisplayName: displayName,
-		URL:         createQueryURL(templatePath, info, kusto),
+		URL:         createQueryURL(query, kustoInfo),
 	}
 }
 
@@ -368,35 +353,38 @@ func (o Options) Run(ctx context.Context) error {
 
 	for testName, timing := range timingInfo {
 		for _, rg := range timing.ResourceGroupNames {
+			testFactory := kusto.NewQueryFactory(&kusto.QueryOptions{
+				ResourceGroupName: rg,
+				TimestampMin:      timing.StartTime,
+				TimestampMax:      timing.EndTime,
+				Limit:             -1,
+			}, true)
+
+			hcpQ, err := testFactory.HostedControlPlane()
+			if err != nil {
+				return utils.TrackError(fmt.Errorf("failed to build hosted control plane query: %w", err))
+			}
+			svcQ, err := testFactory.DetailedServiceLogs()
+			if err != nil {
+				return utils.TrackError(fmt.Errorf("failed to build detailed service logs query: %w", err))
+			}
+			debugQ, err := testFactory.DebugQueries()
+			if err != nil {
+				return utils.TrackError(fmt.Errorf("failed to build debug queries query: %w", err))
+			}
+
 			allTestRows = append(allTestRows, TestRow{
 				TestName:          testName,
 				ResourceGroupName: rg,
 				Links: []LinkDetails{
-					createLinkForTest("Hosted Control Plane Logs", "hosted-controlplane.kql.tmpl", QueryInfo{
-						ResourceGroupName: rg,
-						Database:          o.Kusto.HostedControlPlaneLogsDatabase,
-						StartTime:         timing.StartTime.Format(time.RFC3339),
-						EndTime:           timing.EndTime.Format(time.RFC3339),
-					}, o.Kusto),
-					createLinkForTest("Service Logs", "service-logs.kql.tmpl", QueryInfo{
-						ResourceGroupName: rg,
-						Database:          o.Kusto.ServiceLogsDatabase,
-						StartTime:         timing.StartTime.Format(time.RFC3339),
-						EndTime:           timing.EndTime.Format(time.RFC3339),
-					}, o.Kusto),
-					createLinkForTest("Debug Queries", "debug-queries.kql.tmpl", QueryInfo{
-						ResourceGroupName: rg,
-						Database:          o.Kusto.ServiceLogsDatabase,
-						StartTime:         timing.StartTime.Format(time.RFC3339),
-						EndTime:           timing.EndTime.Format(time.RFC3339),
-						ClusterName:       o.SvcClusterName,
-					}, o.Kusto),
+					createLink("Hosted Control Plane Logs", hcpQ, o.Kusto),
+					createLink("Service Logs", svcQ, o.Kusto),
+					createLink("Debug Queries", debugQ, o.Kusto),
 				},
 				Database: o.Kusto.HostedControlPlaneLogsDatabase,
 				Status:   "tbd",
 			})
 		}
-
 	}
 
 	err = renderTemplate(QueryTemplate{
@@ -532,8 +520,7 @@ func loadAllTestTimingInfo(timingInputDir string) (map[string]TimingInfo, error)
 var localClock clock.PassiveClock = clock.RealClock{}
 
 func getServiceLogLinks(logger logr.Logger, steps []pipeline.NodeInfo, testTimingInfo map[string]TimingInfo,
-	startTimeFallback *time.Time, svcClusterName, mgmtClusterName string,
-	kusto KustoInfo) ([]LinkDetails, error) {
+	startTimeFallback *time.Time, svcClusterName, mgmtClusterName string, kustoInfo KustoInfo) ([]LinkDetails, error) {
 	allLinks := []LinkDetails{}
 
 	// Determine earliest start time from steps
@@ -606,46 +593,53 @@ func getServiceLogLinks(logger logr.Logger, steps []pipeline.NodeInfo, testTimin
 		"start", earliestStartTime.Format(time.RFC3339), "startSource", startSource,
 		"end", endTime.Format(time.RFC3339), "endSource", endSource)
 
-	// Service cluster components
-	svcComponents := []struct {
-		component string
-		template  string
-	}{
-		{"Backend Logs", "backend-logs.kql.tmpl"},
-		{"Backend Controller Conditions", "backend-controller-conditions.kql.tmpl"},
-		{"Frontend Logs", "frontend-logs.kql.tmpl"},
-		{"Clusters Service Logs", "clusters-service-logs.kql.tmpl"},
-		{"Clusters Service Phases", "clusters-service-phases.kql.tmpl"},
-		{"Maestro Logs", "maestro-logs.kql.tmpl"},
+	svcFactory := kusto.NewQueryFactory(&kusto.QueryOptions{
+		InfraClusterName: svcClusterName,
+		TimestampMin:     earliestStartTime,
+		TimestampMax:     endTime,
+		Limit:            -1,
+	}, true)
+
+	type namedQuery struct {
+		name string
+		def  kusto.QueryDefinition
 	}
 
-	for _, comp := range svcComponents {
-		allLinks = append(allLinks, createLinkForTest(comp.component, comp.template, QueryInfo{
-			ResourceGroupName: svcClusterName,
-			Database:          kusto.ServiceLogsDatabase,
-			ClusterName:       svcClusterName,
-			StartTime:         earliestStartTime.Format(time.RFC3339),
-			EndTime:           endTime.Format(time.RFC3339),
-		}, kusto))
+	svcQueries := []namedQuery{
+		{"Backend Logs", kusto.BackendLogsQuery},
+		{"Backend Controller Conditions", kusto.BackendControllerConditionsQuery},
+		{"Frontend Logs", kusto.FrontendLogsQuery},
+		{"Clusters Service Logs", kusto.ClustersServiceLogsQuery},
+		{"Clusters Service Phases", kusto.ClustersServicePhasesQuery},
+		{"Maestro Logs", kusto.MaestroLogsQuery},
 	}
 
-	// Management cluster components
-	mgmtComponents := []struct {
-		component string
-		template  string
-	}{
-		{"Hypershift Logs", "hypershift-logs.kql.tmpl"},
-		{"ACM Logs", "acm-logs.kql.tmpl"},
+	for _, sq := range svcQueries {
+		q, err := svcFactory.Build(sq.def)
+		if err != nil {
+			return nil, fmt.Errorf("failed to build %s query: %w", sq.name, err)
+		}
+		allLinks = append(allLinks, createLink(sq.name, q, kustoInfo))
 	}
 
-	for _, comp := range mgmtComponents {
-		allLinks = append(allLinks, createLinkForTest(comp.component, comp.template, QueryInfo{
-			ResourceGroupName: mgmtClusterName,
-			Database:          kusto.ServiceLogsDatabase,
-			ClusterName:       mgmtClusterName,
-			StartTime:         earliestStartTime.Format(time.RFC3339),
-			EndTime:           endTime.Format(time.RFC3339),
-		}, kusto))
+	mgmtFactory := kusto.NewQueryFactory(&kusto.QueryOptions{
+		InfraClusterName: mgmtClusterName,
+		TimestampMin:     earliestStartTime,
+		TimestampMax:     endTime,
+		Limit:            -1,
+	}, true)
+
+	mgmtQueries := []namedQuery{
+		{"Hypershift Logs", kusto.HypershiftLogsQuery},
+		{"ACM Logs", kusto.ACMLogsQuery},
+	}
+
+	for _, mq := range mgmtQueries {
+		q, err := mgmtFactory.Build(mq.def)
+		if err != nil {
+			return nil, fmt.Errorf("failed to build %s query: %w", mq.name, err)
+		}
+		allLinks = append(allLinks, createLink(mq.name, q, kustoInfo))
 	}
 
 	return allLinks, nil
