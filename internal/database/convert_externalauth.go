@@ -93,6 +93,10 @@ func CosmosToInternalExternalAuth(cosmosObj *ExternalAuth) (*api.HCPOpenShiftClu
 			SystemData: resourceDoc.SystemData,
 		},
 	}
+	// we carry over the CosmosETag from the cosmos object to the internal object into a
+	// temporary field until we have inlined and serialized CosmosMetadata in
+	// HCPOpenShiftClusterExternalAuth.
+	internalObj.CosmosETag = cosmosObj.CosmosETag
 	internalObj.Properties.ProvisioningState = resourceDoc.ProvisioningState
 	internalObj.SystemData = resourceDoc.SystemData
 	internalObj.ServiceProviderProperties.ExistingCosmosUID = cosmosObj.ID

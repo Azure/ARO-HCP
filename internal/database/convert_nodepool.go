@@ -98,6 +98,10 @@ func CosmosToInternalNodePool(cosmosObj *NodePool) (*api.HCPOpenShiftClusterNode
 		Location: cosmosObj.InternalState.InternalAPI.Location,
 		Tags:     resourceDoc.Tags,
 	}
+	// we carry over the CosmosETag from the cosmos object to the internal object into a
+	// temporary field until we have inlined and serialized CosmosMetadata in
+	// HCPOpenShiftClusterNodePool.
+	internalObj.CosmosETag = cosmosObj.CosmosETag
 	internalObj.Identity = toInternalIdentity(resourceDoc.Identity)
 	internalObj.Properties.ProvisioningState = resourceDoc.ProvisioningState
 	internalObj.SystemData = resourceDoc.SystemData
