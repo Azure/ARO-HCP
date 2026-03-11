@@ -139,7 +139,7 @@ type OperationsScanner struct {
 	subscriptionsByState   *prometheus.GaugeVec
 }
 
-func NewOperationsScanner(dbClient database.DBClient, clustersServiceClient ocm.ClusterServiceClientSpec, azureLocation string, subscriptionLister listers.SubscriptionLister) *OperationsScanner {
+func NewOperationsScanner(dbClient database.DBClient, clustersServiceClient ocm.ClusterServiceClientSpec, azureLocation string, subscriptionLister listers.SubscriptionLister, registerer prometheus.Registerer) *OperationsScanner {
 	s := &OperationsScanner{
 		dbClient:            dbClient,
 		lockClient:          dbClient.GetLockClient(),
@@ -151,33 +151,33 @@ func NewOperationsScanner(dbClient database.DBClient, clustersServiceClient ocm.
 
 		newTimestamp: func() time.Time { return time.Now().UTC() },
 
-		LeaderGauge: promauto.With(prometheus.DefaultRegisterer).NewGauge(
+		LeaderGauge: promauto.With(registerer).NewGauge(
 			prometheus.GaugeOpts{
 				Name: "backend_leader_election_state",
 				Help: "Leader election state (1 when leader).",
 			},
 		),
-		workerGauge: promauto.With(prometheus.DefaultRegisterer).NewGauge(
+		workerGauge: promauto.With(registerer).NewGauge(
 			prometheus.GaugeOpts{
 				Name: "backend_workers",
 				Help: "Number of concurrent workers.",
 			},
 		),
-		operationsCount: promauto.With(prometheus.DefaultRegisterer).NewCounterVec(
+		operationsCount: promauto.With(registerer).NewCounterVec(
 			prometheus.CounterOpts{
 				Name: "backend_operations_total",
 				Help: "Total count of operations.",
 			},
 			[]string{"type"},
 		),
-		operationsFailedCount: promauto.With(prometheus.DefaultRegisterer).NewCounterVec(
+		operationsFailedCount: promauto.With(registerer).NewCounterVec(
 			prometheus.CounterOpts{
 				Name: "backend_failed_operations_total",
 				Help: "Total count of failed operations.",
 			},
 			[]string{"type"},
 		),
-		operationsDuration: promauto.With(prometheus.DefaultRegisterer).NewHistogramVec(
+		operationsDuration: promauto.With(registerer).NewHistogramVec(
 			prometheus.HistogramOpts{
 				Name:                            "backend_operations_duration_seconds",
 				Help:                            "Histogram of operation latencies.",
@@ -188,14 +188,14 @@ func NewOperationsScanner(dbClient database.DBClient, clustersServiceClient ocm.
 			},
 			[]string{"type"},
 		),
-		lastOperationTimestamp: promauto.With(prometheus.DefaultRegisterer).NewGaugeVec(
+		lastOperationTimestamp: promauto.With(registerer).NewGaugeVec(
 			prometheus.GaugeOpts{
 				Name: "backend_last_operation_timestamp_seconds",
 				Help: "Timestamp of the last operation.",
 			},
 			[]string{"type"},
 		),
-		subscriptionsByState: promauto.With(prometheus.DefaultRegisterer).NewGaugeVec(
+		subscriptionsByState: promauto.With(registerer).NewGaugeVec(
 			prometheus.GaugeOpts{
 				Name: "backend_subscriptions",
 				Help: "Number of subscriptions by state.",

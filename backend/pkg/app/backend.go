@@ -23,7 +23,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	// load all the prometheus client-go metrics
 	_ "k8s.io/component-base/metrics/prometheus/clientgo"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -33,6 +32,7 @@ import (
 	k8sutilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/tools/leaderelection"
 	"k8s.io/client-go/tools/leaderelection/resourcelock"
+	"k8s.io/component-base/metrics/legacyregistry"
 	utilsclock "k8s.io/utils/clock"
 
 	"github.com/Azure/ARO-HCP/backend/oldoperationscanner"
@@ -46,6 +46,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/validationcontrollers"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/validationcontrollers/validations"
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
+	"github.com/Azure/ARO-HCP/backend/pkg/informers/metrics"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -106,6 +107,9 @@ func (b *Backend) Run(ctx context.Context) error {
 	logger := utils.LoggerFromContext(ctx)
 	logger.Info("Running backend")
 
+	registerer := legacyregistry.Registerer()
+	controllerutils.RegisterControllerMetrics(registerer)
+
 	logger.Info(fmt.Sprintf(
 		"%s (%s) started in %s",
 		b.options.AppShortDescriptionName,
@@ -151,7 +155,7 @@ func (b *Backend) Run(ctx context.Context) error {
 
 	// Handle requests directly for /healthz endpoint
 	if b.options.HealthzServerListenAddress != "" {
-		backendHealthGauge := promauto.With(prometheus.DefaultRegisterer).NewGauge(prometheus.GaugeOpts{Name: "backend_health", Help: "backend_health is 1 when healthy"})
+		backendHealthGauge := promauto.With(registerer).NewGauge(prometheus.GaugeOpts{Name: "backend_health", Help: "backend_health is 1 when healthy"})
 
 		http.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
 
@@ -176,9 +180,9 @@ func (b *Backend) Run(ctx context.Context) error {
 
 	if b.options.MetricsServerListenAddress != "" {
 		http.Handle("/metrics", promhttp.InstrumentMetricHandler(
-			prometheus.DefaultRegisterer,
+			registerer,
 			promhttp.HandlerFor(
-				prometheus.DefaultGatherer,
+				prometheus.Gatherers{legacyregistry.DefaultGatherer},
 				promhttp.HandlerOpts{},
 			),
 		))
@@ -196,7 +200,7 @@ func (b *Backend) Run(ctx context.Context) error {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		err := b.runBackendControllersUnderLeaderElection(ctx, electionChecker)
+		err := b.runBackendControllersUnderLeaderElection(ctx, electionChecker, registerer)
 		// When leader election exits (e.g. lost lease), cancel so Run() unblocks and performs shutdown.
 		cancel(fmt.Errorf("backend controllers leader election exited"))
 		errCh <- err
@@ -249,7 +253,7 @@ func (b *Backend) shutdownHTTPServer(ctx context.Context, server *http.Server, n
 
 // runBackendControllersUnderLeaderElection runs the backen controllers under
 // a leader election loop.
-func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, electionChecker *leaderelection.HealthzAdaptor) error {
+func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, electionChecker *leaderelection.HealthzAdaptor, registerer prometheus.Registerer) error {
 	backendInformers := informers.NewBackendInformers(ctx, b.options.CosmosDBClient.GlobalListers())
 
 	_, subscriptionLister := backendInformers.Subscriptions()
@@ -257,7 +261,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 
 	startedLeading := atomic.Bool{}
 	operationsScanner := oldoperationscanner.NewOperationsScanner(
-		b.options.CosmosDBClient, b.options.ClustersServiceClient, b.options.AzureLocation, subscriptionLister)
+		b.options.CosmosDBClient, b.options.ClustersServiceClient, b.options.AzureLocation, subscriptionLister, registerer)
 	dataDumpController := controllerutils.NewClusterWatchingController(
 		"DataDump", b.options.CosmosDBClient, backendInformers, 1*time.Minute, controllers.NewDataDumpController(activeOperationLister, b.options.CosmosDBClient))
 	doNothingController := controllers.NewDoNothingExampleController(b.options.CosmosDBClient, subscriptionLister)
@@ -380,6 +384,11 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		backendInformers,
 	)
 
+	storageMetricsObserver := metrics.NewStorageMetricsObserver(
+		registerer,
+		backendInformers,
+	)
+
 	le, err := leaderelection.NewLeaderElector(leaderelection.LeaderElectionConfig{
 		Lock:          b.options.LeaderElectionLock,
 		LeaseDuration: leaderElectionLeaseDuration,
@@ -392,6 +401,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 
 				// start the SharedInformers
 				go backendInformers.RunWithContext(ctx)
+				go storageMetricsObserver.Run(ctx)
 
 				go operationsScanner.Run(ctx)
 				go dataDumpController.Run(ctx, 20)

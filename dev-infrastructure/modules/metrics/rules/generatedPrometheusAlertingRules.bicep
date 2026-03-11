@@ -566,6 +566,33 @@ resource backend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = 
         for: 'PT5M'
         severity: 4
       }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'BackendControllerDegraded'
+        enabled: true
+        labels: {
+          severity: 'warning'
+        }
+        annotations: {
+          correlationId: 'BackendControllerDegraded/{{ $labels.cluster }}/{{ $labels.controller_name }}'
+          description: 'Controller {{ $labels.controller_name }} is degraded for more than 5% of resources. Current degradation rate: {{ $value | humanizePercentage }}.'
+          info: 'Controller {{ $labels.controller_name }} is degraded for more than 5% of resources. Current degradation rate: {{ $value | humanizePercentage }}.'
+          runbook_url: 'TBD'
+          summary: 'Controller {{ $labels.controller_name }} degradation detected'
+          title: 'Controller {{ $labels.controller_name }} degradation detected'
+        }
+        expression: '( sum by (cluster, controller_name) (backend_controller_status_conditions{condition="Degraded", status="True"}) / sum by (cluster, controller_name) (backend_controller_status_conditions{condition="Degraded"}) ) > 0.05'
+        for: 'PT5M'
+        severity: 3
+      }
     ]
     scopes: [
       azureMonitoring

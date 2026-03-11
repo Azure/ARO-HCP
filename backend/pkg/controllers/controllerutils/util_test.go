@@ -39,19 +39,19 @@ func TestGetCondition(t *testing.T) {
 		{
 			name:          "returns nil for nil slice",
 			conditions:    nil,
-			conditionType: "Degraded",
+			conditionType: ConditionTypeDegraded,
 			wantFound:     false,
 		},
 		{
 			name:          "returns nil when type not found",
 			conditions:    []api.Condition{{Type: "Available", Status: api.ConditionTrue, Message: "Available"}},
-			conditionType: "Degraded",
+			conditionType: ConditionTypeDegraded,
 			wantFound:     false,
 		},
 		{
 			name:          "returns first match when multiple have same type",
-			conditions:    []api.Condition{{Type: "Degraded", Status: api.ConditionTrue, Message: "first"}, {Type: "Degraded", Status: api.ConditionFalse, Message: "second"}},
-			conditionType: "Degraded",
+			conditions:    []api.Condition{{Type: ConditionTypeDegraded, Status: api.ConditionTrue, Message: "first"}, {Type: ConditionTypeDegraded, Status: api.ConditionFalse, Message: "second"}},
+			conditionType: ConditionTypeDegraded,
 			wantFound:     true,
 			wantMessage:   "first",
 		},
@@ -73,11 +73,11 @@ func TestGetCondition(t *testing.T) {
 	t.Run("the returned reference should never point to the original item in the list", func(t *testing.T) {
 		conditions := []api.Condition{
 			{Type: "Available", Status: api.ConditionTrue, Message: "Available"},
-			{Type: "Degraded", Status: api.ConditionTrue, Reason: "NoErrors", Message: "As expected."},
+			{Type: ConditionTypeDegraded, Status: api.ConditionTrue, Reason: "NoErrors", Message: "As expected."},
 		}
 		unwantedCondition := &conditions[1]
 
-		res := GetCondition(conditions, "Degraded")
+		res := GetCondition(conditions, ConditionTypeDegraded)
 		// We intentionally perform a pointer comparison to check that the returned condition is a reference to the found one in the list.
 		if res == unwantedCondition {
 			t.Errorf("returned condition is a reference to the found one in the list")
@@ -96,21 +96,21 @@ func TestSetCondition(t *testing.T) {
 		{
 			name:                 "adds condition when slice is nil",
 			conditions:           nil,
-			toSet:                api.Condition{Type: "Degraded", Status: api.ConditionFalse, Reason: "NoErrors", Message: "As expected."},
+			toSet:                api.Condition{Type: ConditionTypeDegraded, Status: api.ConditionFalse, Reason: "NoErrors", Message: "As expected."},
 			wantLen:              1,
 			wantConditionMessage: "As expected.",
 		},
 		{
 			name:                 "adds condition when type not found",
 			conditions:           []api.Condition{{Type: "Available", Status: api.ConditionTrue}},
-			toSet:                api.Condition{Type: "Degraded", Status: api.ConditionFalse, Reason: "NoErrors", Message: "As expected."},
+			toSet:                api.Condition{Type: ConditionTypeDegraded, Status: api.ConditionFalse, Reason: "NoErrors", Message: "As expected."},
 			wantLen:              2,
 			wantConditionMessage: "As expected.",
 		},
 		{
 			name:                 "modifies existing condition when found",
-			conditions:           []api.Condition{{Type: "Degraded", Status: api.ConditionTrue, Reason: "Failed", Message: "Had an error"}},
-			toSet:                api.Condition{Type: "Degraded", Status: api.ConditionFalse, Reason: "NoErrors", Message: "As expected."},
+			conditions:           []api.Condition{{Type: ConditionTypeDegraded, Status: api.ConditionTrue, Reason: "Failed", Message: "Had an error"}},
+			toSet:                api.Condition{Type: ConditionTypeDegraded, Status: api.ConditionFalse, Reason: "NoErrors", Message: "As expected."},
 			wantLen:              1,
 			wantConditionMessage: "As expected.",
 		},
@@ -134,23 +134,23 @@ func TestIsConditionTrue(t *testing.T) {
 		conditionType string
 		want          bool
 	}{
-		{"returns false for nil conditions", nil, "Degraded", false},
+		{"returns false for nil conditions", nil, ConditionTypeDegraded, false},
 		{
 			name:          "returns false when condition not found",
 			conditions:    []api.Condition{{Type: "Available", Status: api.ConditionTrue}},
-			conditionType: "Degraded",
+			conditionType: ConditionTypeDegraded,
 			want:          false,
 		},
 		{
 			name:          "returns false when condition found and its status is False",
-			conditions:    []api.Condition{{Type: "Degraded", Status: api.ConditionFalse}},
-			conditionType: "Degraded",
+			conditions:    []api.Condition{{Type: ConditionTypeDegraded, Status: api.ConditionFalse}},
+			conditionType: ConditionTypeDegraded,
 			want:          false,
 		},
 		{
 			name:          "returns true when condition found and status is True",
-			conditions:    []api.Condition{{Type: "Degraded", Status: api.ConditionTrue}},
-			conditionType: "Degraded",
+			conditions:    []api.Condition{{Type: ConditionTypeDegraded, Status: api.ConditionTrue}},
+			conditionType: ConditionTypeDegraded,
 			want:          true,
 		},
 	}

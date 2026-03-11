@@ -16,12 +16,11 @@ package controllerutils
 
 import (
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
 )
 
 var (
 	// ReconcileTotal counts the total number of reconciliations per controller.
-	ReconcileTotal = promauto.NewCounterVec(
+	ReconcileTotal = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "backend_controller_reconcile_total",
 			Help: "Total number of reconciliations per controller.",
@@ -29,3 +28,8 @@ var (
 		[]string{"controller"},
 	)
 )
+
+// RegisterControllerMetrics registers controller-level metrics with the given registerer.
+func RegisterControllerMetrics(registerer prometheus.Registerer) {
+	registerer.MustRegister(ReconcileTotal)
+}
