@@ -17,6 +17,7 @@ package api
 import (
 	"time"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api/arm"
@@ -29,12 +30,20 @@ type HCPOpenShiftClusterExternalAuth struct {
 	arm.ProxyResource
 	Properties                HCPOpenShiftClusterExternalAuthProperties                `json:"properties"`
 	ServiceProviderProperties HCPOpenShiftClusterExternalAuthServiceProviderProperties `json:"serviceProviderProperties,omitempty"`
+	// CosmosETag is an in-memory copy of the _etag field read from the Cosmos DB document (BaseDocument) and
+	// populated on DB read via the CosmosToInternalExternalAuth() conversion function.
+	// We carry it across the API boundary between ExternalAuth (the direct cosmos db type) and HCPOpenShiftClusterExternalAuth (this)
+	// so we can populate the CosmosETag in GetCosmosData() so that we can do conditional replaces in cosmos.
+	// This can be removed once we have inlined and serialized CosmosMetadata in
+	// HCPOpenShiftClusterExternalAuth.
+	CosmosETag azcore.ETag `json:"-"`
 }
 
 var _ arm.CosmosPersistable = &HCPOpenShiftClusterExternalAuth{}
 
 func (o *HCPOpenShiftClusterExternalAuth) GetCosmosData() *arm.CosmosMetadata {
 	return &arm.CosmosMetadata{
+		CosmosETag:        o.CosmosETag,
 		ResourceID:        o.ID,
 		ExistingCosmosUID: o.ServiceProviderProperties.ExistingCosmosUID,
 	}

@@ -46,6 +46,7 @@ func TestRoundTripExternalAuthInternalCosmosInternal(t *testing.T) {
 				return
 			}
 			j.ServiceProviderProperties.ExistingCosmosUID = ""
+			j.CosmosETag = ""
 		},
 		func(j *arm.ManagedServiceIdentity, c randfill.Continue) {
 			c.FillNoCustom(j)

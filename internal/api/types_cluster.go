@@ -15,6 +15,7 @@
 package api
 
 import (
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api/arm"
@@ -28,12 +29,20 @@ type HCPOpenShiftCluster struct {
 	CustomerProperties        HCPOpenShiftClusterCustomerProperties        `json:"customerProperties,omitempty"`
 	ServiceProviderProperties HCPOpenShiftClusterServiceProviderProperties `json:"serviceProviderProperties,omitempty"`
 	Identity                  *arm.ManagedServiceIdentity                  `json:"identity,omitempty"`
+	// CosmosETag is an in-memory copy of the _etag field read from the Cosmos DB document (BaseDocument) and
+	// populated on DB read via the CosmosToInternalCluster() conversion function.
+	// We carry it across the API boundary between HCPCluster (the direct cosmos db type) and HCPOpenShiftCluster (this)
+	// so we can populate the CosmosETag in GetCosmosData() so that we can do conditional replaces in cosmos.
+	// This can be removed once we have inlined and serialized CosmosMetadata in
+	// HCPOpenShiftCluster.
+	CosmosETag azcore.ETag `json:"-"`
 }
 
 var _ arm.CosmosPersistable = &HCPOpenShiftCluster{}
 
 func (o *HCPOpenShiftCluster) GetCosmosData() *arm.CosmosMetadata {
 	return &arm.CosmosMetadata{
+		CosmosETag:        o.CosmosETag,
 		ResourceID:        o.ID,
 		ExistingCosmosUID: o.ServiceProviderProperties.ExistingCosmosUID,
 	}
