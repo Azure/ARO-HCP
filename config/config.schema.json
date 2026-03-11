@@ -515,9 +515,6 @@
         "userAgentPool": {
           "$ref": "#/definitions/aksAgentPool"
         },
-        "userSwiftAgentPool": {
-          "$ref": "#/definitions/aksAgentPool"
-        },
         "systemAgentPool": {
           "$ref": "#/definitions/aksAgentPool"
         },

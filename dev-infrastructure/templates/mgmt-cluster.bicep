@@ -63,30 +63,6 @@ param userZoneRedundantMode string
 @description('Secondary NIC count for the user nodes')
 param userSecondaryNicCount int
 
-@description('Name of the user swift agent pool')
-param userSwiftAgentPoolName string
-
-@description('Min replicas for the user swift worker nodes')
-param userSwiftAgentMinCount int = 1
-
-@description('Max replicas for the user swift worker nodes')
-param userSwiftAgentMaxCount int = 3
-
-@description('VM instance type for the user swift worker nodes')
-param userSwiftAgentVMSize string = 'Standard_D2s_v3'
-
-@description('Number of pools to create for user swift nodes')
-param userSwiftAgentPoolCount int
-
-@description('Zones to use for the user swift nodes')
-param userSwiftAgentPoolZones string
-
-@description('Zone redundant mode for the user swift nodes')
-param userSwiftZoneRedundantMode string
-
-@description('Secondary NIC count for the user swift nodes')
-param userSwiftSecondaryNicCount int
-
 @description('Min replicas for the infra worker nodes')
 param infraAgentMinCount int
 
@@ -401,16 +377,6 @@ module mgmtCluster '../modules/aks-cluster-base.bicep' = {
       : locationAvailabilityZoneList
     userZoneRedundantMode: userZoneRedundantMode
     userSecondaryNicCount: userSecondaryNicCount
-    userSwiftAgentPoolName: userSwiftAgentPoolName
-    userSwiftAgentMinCount: userSwiftAgentMinCount
-    userSwiftAgentMaxCount: userSwiftAgentMaxCount
-    userSwiftAgentVMSize: userSwiftAgentVMSize
-    userSwiftAgentPoolCount: userSwiftAgentPoolCount
-    userSwiftAgentPoolZones: length(csvToArray(userSwiftAgentPoolZones)) > 0
-      ? csvToArray(userSwiftAgentPoolZones)
-      : locationAvailabilityZoneList
-    userSwiftZoneRedundantMode: userSwiftZoneRedundantMode
-    userSwiftSecondaryNicCount: userSwiftSecondaryNicCount
     infraAgentPoolName: infraAgentPoolName
     infraAgentMinCount: infraAgentMinCount
     infraAgentMaxCount: infraAgentMaxCount
