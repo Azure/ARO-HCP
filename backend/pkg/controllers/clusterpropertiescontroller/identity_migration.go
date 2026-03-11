@@ -46,7 +46,7 @@ var _ controllerutils.ClusterSyncer = (*identityMigrationSyncer)(nil)
 // NewIdentityMigrationController creates a new controller that migrates identity information
 // from Cluster Service to Cosmos DB.
 // It periodically checks each cluster and populates the Identity.UserAssignedIdentities
-// field if it is not set, using SetClusterServiceOnlyFieldsOnCluster to extract the identity data.
+// field if it is not set, using GetClusterServiceUserAssignedIdentities to extract the identity data.
 func NewIdentityMigrationController(
 	cosmosClient database.DBClient,
 	clusterServiceClient ocm.ClusterServiceClientSpec,
@@ -99,7 +99,7 @@ func (c *identityMigrationSyncer) NeedsWork(ctx context.Context, existingCluster
 // SyncOnce performs a single reconciliation of cluster identity information.
 // It checks if the Identity.UserAssignedIdentities field is unset,
 // and if so, fetches the values from Cluster Service using
-// SetClusterServiceOnlyFieldsOnCluster and updates Cosmos with
+// GetClusterServiceUserAssignedIdentities and updates Cosmos with
 // the Identity.UserAssignedIdentities only.
 func (c *identityMigrationSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
 	logger := utils.LoggerFromContext(ctx)
@@ -139,12 +139,10 @@ func (c *identityMigrationSyncer) SyncOnce(ctx context.Context, key controllerut
 		return utils.TrackError(fmt.Errorf("failed to get cluster from Cluster Service: %w", err))
 	}
 
-	// Use SetClusterServiceOnlyFieldsOnCluster on a deep copy to extract identity data
-	clusterCopy := existingCluster.DeepCopy()
-	ocm.SetClusterServiceOnlyFieldsOnCluster(clusterCopy, csCluster)
-
-	// nothing to set
-	if clusterCopy.Identity == nil || len(clusterCopy.Identity.UserAssignedIdentities) == 0 {
+	// Use GetClusterServiceUserAssignedIdentities on a deep copy to extract identity data
+	userAssignedIdentities := ocm.GetClusterServiceUserAssignedIdentities(csCluster)
+	if len(userAssignedIdentities) == 0 {
+		// nothing to set
 		return nil
 	}
 
@@ -152,7 +150,7 @@ func (c *identityMigrationSyncer) SyncOnce(ctx context.Context, key controllerut
 	if existingCluster.Identity == nil {
 		existingCluster.Identity = &arm.ManagedServiceIdentity{}
 	}
-	existingCluster.Identity.UserAssignedIdentities = clusterCopy.Identity.UserAssignedIdentities
+	existingCluster.Identity.UserAssignedIdentities = userAssignedIdentities
 
 	// Write the updated cluster back to Cosmos
 	if _, err := clusterCRUD.Replace(ctx, existingCluster, nil); err != nil {

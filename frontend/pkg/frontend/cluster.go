@@ -30,7 +30,6 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
-	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
 
 	"github.com/Azure/ARO-HCP/internal/admission"
@@ -78,7 +77,6 @@ func (f *Frontend) GetHCPCluster(writer http.ResponseWriter, request *http.Reque
 
 func (f *Frontend) ArmResourceListClusters(writer http.ResponseWriter, request *http.Request) error {
 	ctx := request.Context()
-	logger := utils.LoggerFromContext(ctx)
 
 	versionedInterface, err := VersionFromContext(ctx)
 	if err != nil {
@@ -99,9 +97,13 @@ func (f *Frontend) ArmResourceListClusters(writer http.ResponseWriter, request *
 	if err != nil {
 		return utils.TrackError(err)
 	}
-	clustersByClusterServiceID := make(map[string]*api.HCPOpenShiftCluster)
 	for _, internalCluster := range internalClusterIterator.Items(ctx) {
-		clustersByClusterServiceID[internalCluster.ServiceProviderProperties.ClusterServiceID.ID()] = internalCluster
+		resultingExternalCluster := versionedInterface.NewHCPOpenShiftCluster(internalCluster)
+		jsonBytes, err := arm.MarshalJSON(resultingExternalCluster)
+		if err != nil {
+			return utils.TrackError(err)
+		}
+		pagedResponse.AddValue(jsonBytes)
 	}
 	err = internalClusterIterator.GetError()
 	if err != nil {
@@ -110,37 +112,6 @@ func (f *Frontend) ArmResourceListClusters(writer http.ResponseWriter, request *
 	// MiddlewareReferer ensures Referer is present.
 	err = pagedResponse.SetNextLink(request.Referer(), internalClusterIterator.GetContinuationToken())
 	if err != nil {
-		return utils.TrackError(err)
-	}
-
-	// Build a Cluster Service query that looks for
-	// the specific IDs returned by the Cosmos query.
-	queryIDs := make([]string, 0, len(clustersByClusterServiceID))
-	for key := range clustersByClusterServiceID {
-		queryIDs = append(queryIDs, "'"+key+"'")
-	}
-	query := fmt.Sprintf("id in (%s)", strings.Join(queryIDs, ", "))
-	logger.Info(fmt.Sprintf("Searching Cluster Service for %q", query))
-
-	csIterator := f.clusterServiceClient.ListClusters(query)
-
-	for csCluster := range csIterator.Items(ctx) {
-		if internalCluster, ok := clustersByClusterServiceID[csCluster.ID()]; ok {
-			// TODO this overwrite will transformed into a "set" function as we transition fields to ownership in cosmos
-			internalCluster, err = mergeToInternalCluster(csCluster, internalCluster, f.azureLocation)
-			if err != nil {
-				return utils.TrackError(err)
-			}
-			resultingExternalCluster := versionedInterface.NewHCPOpenShiftCluster(internalCluster)
-			jsonBytes, err := arm.MarshalJSON(resultingExternalCluster)
-			if err != nil {
-				return utils.TrackError(err)
-			}
-			pagedResponse.AddValue(jsonBytes)
-		}
-	}
-	// Check for iteration error.
-	if err := csIterator.GetError(); err != nil {
 		return utils.TrackError(err)
 	}
 
@@ -196,11 +167,6 @@ func (f *Frontend) CreateOrUpdateHCPCluster(writer http.ResponseWriter, request 
 
 	updating := oldInternalCluster != nil
 	if updating {
-		// re-write oldInternalCluster for as long as cluster-service needs to be consulted for pre-existing state.
-		oldInternalCluster, err = f.readInternalClusterFromClusterService(ctx, oldInternalCluster)
-		if err != nil {
-			return utils.TrackError(err)
-		}
 		// CheckForProvisioningStateConflict does not log conflict errors
 		// but does log unexpected errors like database failures.
 		if err := checkForProvisioningStateConflict(ctx, f.dbClient, database.OperationRequestUpdate, oldInternalCluster.ID, oldInternalCluster.ServiceProviderProperties.ProvisioningState); err != nil {
@@ -413,11 +379,6 @@ func (f *Frontend) createHCPCluster(writer http.ResponseWriter, request *http.Re
 		return fmt.Errorf("unexpected type %T", resultingUncastInternalCluster)
 	}
 
-	// TODO this overwrite will transformed into a "set" function as we transition fields to ownership in cosmos
-	resultingInternalCluster, err = mergeToInternalCluster(resultingClusterServiceCluster, resultingInternalCluster, f.azureLocation)
-	if err != nil {
-		return utils.TrackError(err)
-	}
 	responseBytes, err := arm.MarshalJSON(versionedInterface.NewHCPOpenShiftCluster(resultingInternalCluster))
 	if err != nil {
 		return utils.TrackError(err)
@@ -639,20 +600,11 @@ func (f *Frontend) updateHCPClusterInCosmos(ctx context.Context, writer http.Res
 	}
 
 	logger.Info(fmt.Sprintf("updating resource %s", oldInternalCluster.ID))
-	resultingClusterServiceAutoscaler, err := f.clusterServiceClient.UpdateClusterAutoscaler(ctx, oldInternalCluster.ServiceProviderProperties.ClusterServiceID, newClusterServiceAutoscalerBuilder)
+	_, err = f.clusterServiceClient.UpdateClusterAutoscaler(ctx, oldInternalCluster.ServiceProviderProperties.ClusterServiceID, newClusterServiceAutoscalerBuilder)
 	if err != nil {
 		return utils.TrackError(err)
 	}
-	resultingClusterServiceCluster, err := f.clusterServiceClient.UpdateCluster(ctx, oldInternalCluster.ServiceProviderProperties.ClusterServiceID, newClusterServiceClusterBuilder)
-	if err != nil {
-		return utils.TrackError(err)
-	}
-
-	// Merge the autoscaler model into the cluster model.
-	resultingClusterServiceCluster, err = arohcpv1alpha1.NewCluster().
-		Copy(resultingClusterServiceCluster).
-		Autoscaler(arohcpv1alpha1.NewClusterAutoscaler().Copy(resultingClusterServiceAutoscaler)).
-		Build()
+	_, err = f.clusterServiceClient.UpdateCluster(ctx, oldInternalCluster.ServiceProviderProperties.ClusterServiceID, newClusterServiceClusterBuilder)
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -697,11 +649,6 @@ func (f *Frontend) updateHCPClusterInCosmos(ctx context.Context, writer http.Res
 	}
 	resultingInternalCluster := resultingUncastObj.(*api.HCPOpenShiftCluster)
 
-	// TODO this overwrite will transformed into a "set" function as we transition fields to ownership in cosmos
-	resultingInternalCluster, err = mergeToInternalCluster(resultingClusterServiceCluster, resultingInternalCluster, f.azureLocation)
-	if err != nil {
-		return utils.TrackError(err)
-	}
 	responseBytes, err := arm.MarshalJSON(versionedInterface.NewHCPOpenShiftCluster(resultingInternalCluster))
 	if err != nil {
 		return utils.TrackError(err)
@@ -853,66 +800,6 @@ func (f *Frontend) addDeleteClusterToTransaction(ctx context.Context, writer htt
 	return nil
 }
 
-// mergeToInternalCluster renders a CS Cluster object in JSON format, applying
-// the necessary conversions for the API version of the request.
-// TODO this overwrite will transformed into a "set" function as we transition fields to ownership in cosmos
-// TODO remove the azure location once we have migrated every record to store the location
-func mergeToInternalCluster(csCluster *arohcpv1alpha1.Cluster, internalCluster *api.HCPOpenShiftCluster, azureLocation string) (*api.HCPOpenShiftCluster, error) {
-	if len(internalCluster.CustomerProperties.Version.ChannelGroup) == 0 {
-		// if we hit this branch, then we have old data that exists from before we stored all the content of the requested cluster
-		return legacyMergeToInternalCluster(csCluster, internalCluster, azureLocation)
-	}
-
-	// otherwise use as much from cosmos as possible, so we have a clear list of what remains in cluster-service
-	ocm.SetClusterServiceOnlyFieldsOnCluster(internalCluster, csCluster)
-
-	return internalCluster, nil
-}
-
-func legacyMergeToInternalCluster(csCluster *arohcpv1alpha1.Cluster, internalCluster *api.HCPOpenShiftCluster, azureLocation string) (*api.HCPOpenShiftCluster, error) {
-	clusterServiceBasedInternalCluster, err := ocm.LegacyCreateInternalClusterFromClusterService(internalCluster.ID, azureLocation, csCluster)
-	if err != nil {
-		return nil, utils.TrackError(err)
-	}
-
-	// this does not use conversion.CopyReadOnly* because some ServiceProvider properties come from cluster-service-only or live reads
-	clusterServiceBasedInternalCluster.SystemData = internalCluster.SystemData.DeepCopy()
-	clusterServiceBasedInternalCluster.Tags = maps.Clone(internalCluster.Tags)
-	clusterServiceBasedInternalCluster.ServiceProviderProperties.ExistingCosmosUID = internalCluster.ServiceProviderProperties.ExistingCosmosUID
-	clusterServiceBasedInternalCluster.ServiceProviderProperties.ProvisioningState = internalCluster.ServiceProviderProperties.ProvisioningState
-	clusterServiceBasedInternalCluster.ServiceProviderProperties.ActiveOperationID = internalCluster.ServiceProviderProperties.ActiveOperationID
-	clusterServiceBasedInternalCluster.ServiceProviderProperties.ClusterServiceID = internalCluster.ServiceProviderProperties.ClusterServiceID
-	if clusterServiceBasedInternalCluster.Identity == nil {
-		clusterServiceBasedInternalCluster.Identity = &arm.ManagedServiceIdentity{}
-	}
-
-	if internalCluster.Identity != nil {
-		clusterServiceBasedInternalCluster.Identity.PrincipalID = internalCluster.Identity.PrincipalID
-		clusterServiceBasedInternalCluster.Identity.TenantID = internalCluster.Identity.TenantID
-		clusterServiceBasedInternalCluster.Identity.Type = internalCluster.Identity.Type
-	}
-
-	return clusterServiceBasedInternalCluster, nil
-}
-
-// readInternalClusterFromClusterService takes an internal Cluster read from cosmos, retrieves the corresponding cluster-service data,
-// merges the states together, and returns the internal representation.
-// TODO remove the header it takes and collapse that to some general error handling.
-func (f *Frontend) readInternalClusterFromClusterService(ctx context.Context, oldInternalCluster *api.HCPOpenShiftCluster) (*api.HCPOpenShiftCluster, error) {
-	oldClusterServiceCluster, err := f.clusterServiceClient.GetCluster(ctx, oldInternalCluster.ServiceProviderProperties.ClusterServiceID)
-	if err != nil {
-		return nil, utils.TrackError(err)
-	}
-
-	// TODO this overwrite will transformed into a "set" function as we transition fields to ownership in cosmos
-	oldInternalCluster, err = mergeToInternalCluster(oldClusterServiceCluster, oldInternalCluster, f.azureLocation)
-	if err != nil {
-		return nil, utils.TrackError(err)
-	}
-
-	return oldInternalCluster, nil
-}
-
 func (f *Frontend) getInternalClusterFromStorage(ctx context.Context, resourceID *azcorearm.ResourceID) (*api.HCPOpenShiftCluster, error) {
 	internalCluster, err := f.dbClient.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).Get(ctx, resourceID.Name)
 	if database.IsResponseError(err, http.StatusNotFound) {
@@ -941,7 +828,7 @@ func (f *Frontend) getInternalClusterFromStorage(ctx context.Context, resourceID
 	}
 	internalCluster.ID = resourceID
 
-	return f.readInternalClusterFromClusterService(ctx, internalCluster)
+	return internalCluster, nil
 }
 
 // ensureSystemData tries to use the src systemData
