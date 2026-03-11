@@ -64,8 +64,11 @@ mocks: $(MOCKGEN) $(GOIMPORTS)
 .PHONY: mocks
 
 install-tools: $(BINGO) $(HELM_LINK) $(YQ_LINK) $(JQ_LINK) $(ORAS_LINK)
-	$(BINGO) get
 .PHONY: install-tools
+
+install-tools-all: $(BINGO) $(HELM_LINK) $(YQ_LINK) $(JQ_LINK) $(ORAS_LINK)
+	$(BINGO) get
+.PHONY: install-tools-all
 
 licenses: $(ADDLICENSE)
 	$(shell find . -type f -name '*.go' | xargs -I {} $(ADDLICENSE) -c 'Microsoft Corporation' -l apache {})
