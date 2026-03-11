@@ -53,8 +53,16 @@ func NewBackendIdentityAzureClients(ctx context.Context, azureConfig *azureconfi
 		return nil, utils.TrackError(fmt.Errorf("failed to create dataplane identities OIDC configuration blob storage client: %w", err))
 	}
 
+	roleDefinitionsClient, err := azureclient.NewRoleDefinitionsClient(
+		utils.DefaultLogger(), defaultAzureCredential, azureConfig.CloudEnvironment.ARMClientOptions(),
+	)
+	if err != nil {
+		return nil, utils.TrackError(fmt.Errorf("failed to create role definitions client: %w", err))
+	}
+
 	clients := &azureclient.BackendIdentityAzureClients{
 		DataplaneIdentitiesOIDCConfigurationBlobStorageClient: blobStorageClient,
+		RoleDefinitionsClient: roleDefinitionsClient,
 	}
 
 	return clients, nil
