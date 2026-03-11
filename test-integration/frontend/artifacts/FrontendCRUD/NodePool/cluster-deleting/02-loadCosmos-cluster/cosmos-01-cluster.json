@@ -16,15 +16,6 @@
         },
         "provisioningState": "Deleting",
         "customerDesiredState": null,
-        "serviceProviderState": null,
-        "internalState": {
-            "internalAPI": {
-                "customerProperties": {
-                    "version": {
-                        "channelGroup": "stable"
-                    }
-                }
-            }
-        }
+        "serviceProviderState": null
     }
 }

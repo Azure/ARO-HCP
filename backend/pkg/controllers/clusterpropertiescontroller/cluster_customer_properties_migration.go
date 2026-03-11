@@ -24,16 +24,15 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
-// identityMigrationSyncer is a Cluster syncer that migrates cluster identity information
-// from Cluster Service to Cosmos DB. It ensures that the Identity.UserAssignedIdentities
-// field is populated for clusters that were created before all identity state was held in Cosmos.
-type identityMigrationSyncer struct {
+// clusterCustomerPropertiesMigrationController is a Cluster controller that migrates customerProperties from cluster-service
+// to cosmos DB. It uses the Version.ID and Version.ChannelGroup fields to know that customerProperties are missing.
+// Old records will lack those fields and once we read from cluster-service, we'll have the information we need.
+type clusterCustomerPropertiesMigrationController struct {
 	cooldownChecker controllerutils.CooldownChecker
 
 	clusterLister        listers.ClusterLister
@@ -41,13 +40,9 @@ type identityMigrationSyncer struct {
 	clusterServiceClient ocm.ClusterServiceClientSpec
 }
 
-var _ controllerutils.ClusterSyncer = (*identityMigrationSyncer)(nil)
+var _ controllerutils.ClusterSyncer = (*clusterCustomerPropertiesMigrationController)(nil)
 
-// NewIdentityMigrationController creates a new controller that migrates identity information
-// from Cluster Service to Cosmos DB.
-// It periodically checks each cluster and populates the Identity.UserAssignedIdentities
-// field if it is not set, using SetClusterServiceOnlyFieldsOnCluster to extract the identity data.
-func NewIdentityMigrationController(
+func NewClusterCustomerPropertiesMigrationController(
 	cosmosClient database.DBClient,
 	clusterServiceClient ocm.ClusterServiceClientSpec,
 	activeOperationLister listers.ActiveOperationLister,
@@ -55,7 +50,7 @@ func NewIdentityMigrationController(
 ) controllerutils.Controller {
 	_, clusterLister := informers.Clusters()
 
-	syncer := &identityMigrationSyncer{
+	syncer := &clusterCustomerPropertiesMigrationController{
 		cooldownChecker:      controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
 		clusterLister:        clusterLister,
 		cosmosClient:         cosmosClient,
@@ -63,7 +58,7 @@ func NewIdentityMigrationController(
 	}
 
 	controller := controllerutils.NewClusterWatchingController(
-		"IdentityMigration",
+		"ClusterServiceMigration",
 		cosmosClient,
 		informers,
 		60*time.Minute, // Check every 60 minutes
@@ -73,35 +68,30 @@ func NewIdentityMigrationController(
 	return controller
 }
 
-func (c *identityMigrationSyncer) CooldownChecker() controllerutils.CooldownChecker {
+func (c *clusterCustomerPropertiesMigrationController) CooldownChecker() controllerutils.CooldownChecker {
 	return c.cooldownChecker
 }
 
-func (c *identityMigrationSyncer) NeedsWork(ctx context.Context, existingCluster *api.HCPOpenShiftCluster) bool {
-	// Check if we have a cluster service ID to query
+func (c *clusterCustomerPropertiesMigrationController) NeedsWork(ctx context.Context, existingCluster *api.HCPOpenShiftCluster) bool {
+	// Check if we have a cluster service ID to query. We will lack this information for newly created records when we
+	// transition to async cluster-service creation.
 	if len(existingCluster.ServiceProviderProperties.ClusterServiceID.String()) == 0 {
 		return false
 	}
 
-	// Check if identity information needs to be migrated
-	// Records that have UserAssignedIdentities already have all the identity info stored in cosmos
+	// Check if version information needs to be migrated
+	// Records that have this information already, then we have all the other info stored in cosmos, so we don't need to do anything with them
 	// Records that don't have this information need to be migrated
-	if existingCluster.Identity == nil {
-		return true
-	}
-	if len(existingCluster.Identity.UserAssignedIdentities) == 0 {
-		return true
+	needsVersionID := len(existingCluster.CustomerProperties.Version.ID) == 0
+	needsChannelGroup := len(existingCluster.CustomerProperties.Version.ChannelGroup) == 0
+	if !needsVersionID && !needsChannelGroup {
+		return false
 	}
 
-	return false
+	return true
 }
 
-// SyncOnce performs a single reconciliation of cluster identity information.
-// It checks if the Identity.UserAssignedIdentities field is unset,
-// and if so, fetches the values from Cluster Service using
-// SetClusterServiceOnlyFieldsOnCluster and updates Cosmos with
-// the Identity.UserAssignedIdentities only.
-func (c *identityMigrationSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
+func (c *clusterCustomerPropertiesMigrationController) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
 	logger := utils.LoggerFromContext(ctx)
 
 	// do the super cheap cache check first
@@ -128,7 +118,7 @@ func (c *identityMigrationSyncer) SyncOnce(ctx context.Context, key controllerut
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get Cluster: %w", err))
 	}
-	// check if we need to do work again. Sometimes the live data is ahead of the cache and obviates the need to do any work
+	// check if we need to do work again. Sometimes the live data is more fresh than the cache and obviates the need to any work
 	if !c.NeedsWork(ctx, existingCluster) {
 		return nil
 	}
@@ -139,26 +129,24 @@ func (c *identityMigrationSyncer) SyncOnce(ctx context.Context, key controllerut
 		return utils.TrackError(fmt.Errorf("failed to get cluster from Cluster Service: %w", err))
 	}
 
-	// Use SetClusterServiceOnlyFieldsOnCluster on a deep copy to extract identity data
-	clusterCopy := existingCluster.DeepCopy()
-	ocm.SetClusterServiceOnlyFieldsOnCluster(clusterCopy, csCluster)
-
-	// nothing to set
-	if clusterCopy.Identity == nil || len(clusterCopy.Identity.UserAssignedIdentities) == 0 {
-		return nil
+	// Use LegacyCreateInternalClusterFromClusterService to convert the cluster and extract the CustomerProperties
+	convertedCluster, err := ocm.LegacyCreateInternalClusterFromClusterService(
+		existingCluster.ID,
+		existingCluster.Location,
+		csCluster,
+	)
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to convert cluster from Cluster Service: %w", err))
 	}
 
-	// Only assign the Identity.UserAssignedIdentities from the converted cluster
-	if existingCluster.Identity == nil {
-		existingCluster.Identity = &arm.ManagedServiceIdentity{}
-	}
-	existingCluster.Identity.UserAssignedIdentities = clusterCopy.Identity.UserAssignedIdentities
+	// Update only the CustomerProperties from the converted cluster
+	existingCluster.CustomerProperties = convertedCluster.CustomerProperties
 
 	// Write the updated cluster back to Cosmos
 	if _, err := clusterCRUD.Replace(ctx, existingCluster, nil); err != nil {
 		return utils.TrackError(fmt.Errorf("failed to replace Cluster: %w", err))
 	}
 
-	logger.Info("migrated identity information from Cluster Service")
+	logger.Info("migrated customer properties from Cluster Service")
 	return nil
 }
