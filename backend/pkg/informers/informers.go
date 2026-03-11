@@ -44,7 +44,6 @@ const (
 	ServiceProviderClusterRelistDuration  = 30 * time.Second
 	ServiceProviderNodePoolRelistDuration = 30 * time.Second
 	ActiveOperationsRelistDuration        = 10 * time.Second
-	AllOperationsRelistDuration           = 30 * time.Second
 )
 
 // NewSubscriptionInformer creates an unstarted SharedIndexInformer for subscriptions
