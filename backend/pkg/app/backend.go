@@ -258,6 +258,24 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 	operationPhaseMetricsController := controllerutils.NewOperationPhaseMetricsController(
 		prometheus.DefaultRegisterer, activeOperationInformer)
 
+	clusterInformer, _ := backendInformers.Clusters()
+	clusterMetricsController := controllerutils.NewResourceMetricsController(
+		"ClusterMetrics", "backend_cluster",
+		prometheus.DefaultRegisterer, clusterInformer,
+		&controllerutils.ClusterMetricsExtractor{})
+
+	nodePoolInformer, _ := backendInformers.NodePools()
+	nodePoolMetricsController := controllerutils.NewResourceMetricsController(
+		"NodePoolMetrics", "backend_nodepool",
+		prometheus.DefaultRegisterer, nodePoolInformer,
+		&controllerutils.NodePoolMetricsExtractor{})
+
+	externalAuthInformer, _ := backendInformers.ExternalAuths()
+	externalAuthMetricsController := controllerutils.NewResourceMetricsController(
+		"ExternalAuthMetrics", "backend_externalauth",
+		prometheus.DefaultRegisterer, externalAuthInformer,
+		&controllerutils.ExternalAuthMetricsExtractor{})
+
 	startedLeading := atomic.Bool{}
 	operationsScanner := oldoperationscanner.NewOperationsScanner(
 		b.options.CosmosDBClient, b.options.ClustersServiceClient, b.options.AzureLocation, subscriptionLister)
@@ -411,6 +429,9 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go azureClusterResourceGroupExistenceValidationController.Run(ctx, 20)
 				go nodePoolVersionController.Run(ctx, 20)
 				go operationPhaseMetricsController.Run(ctx, 1)
+				go clusterMetricsController.Run(ctx, 1)
+				go nodePoolMetricsController.Run(ctx, 1)
+				go externalAuthMetricsController.Run(ctx, 1)
 			},
 			OnStoppedLeading: func() {
 				operationsScanner.LeaderGauge.Set(0)

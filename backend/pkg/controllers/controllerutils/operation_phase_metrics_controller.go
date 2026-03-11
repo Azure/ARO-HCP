@@ -16,7 +16,6 @@ package controllerutils
 
 import (
 	"context"
-	"crypto/sha256"
 	"fmt"
 	"strings"
 	"time"
@@ -211,11 +210,13 @@ func (c *OperationPhaseMetricsController) setMetrics(ctx context.Context, op *ap
 	}
 
 	logger := utils.LoggerFromContext(ctx)
-	logger.V(1).Info("Operation metrics synced",
+	logValues := append(
+		utils.LogValues{"operation_id_hash", hash},
 		utils.LogValues{}.
 			AddOperationID(op.OperationID.Name).
-			AddResourceID(externalIDString(op.ExternalID)).
+			AddLogValuesForResourceID(op.ExternalID).
 			AddCorrelationRequestID(op.CorrelationRequestID)...)
+	logger.V(1).Info("Operation metrics synced", logValues...)
 }
 
 // deleteMetricsByKey removes all metric series for the operation identified by
@@ -244,17 +245,9 @@ func lastPathSegment(path string) string {
 	return path[idx+1:]
 }
 
-func externalIDString(id *azcorearm.ResourceID) string {
-	if id == nil {
-		return ""
-	}
-	return id.String()
-}
-
-// OperationIDHash returns the first 16 hex characters of the SHA-256 hash of name.
+// OperationIDHash returns a truncated SHA-256 hash of the operation name.
 func OperationIDHash(name string) string {
-	h := sha256.Sum256([]byte(name))
-	return fmt.Sprintf("%x", h[:8])
+	return ResourceIDHash(name)
 }
 
 // PhaseLabel returns the lowercased provisioning state string for use as a metric label.
