@@ -22,7 +22,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/go-logr/logr"
 	"github.com/prometheus/client_golang/prometheus"
 
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -59,7 +58,7 @@ func (l operationMetricLabels) prometheusLabels() prometheus.Labels {
 // per-operation Prometheus gauge metrics. It follows the workqueue pattern
 // used by other controllers in this codebase.
 type OperationPhaseMetricsController struct {
-	logger  logr.Logger
+	name    string
 	indexer cache.Indexer
 	queue   workqueue.TypedRateLimitingInterface[string]
 
@@ -77,7 +76,6 @@ type OperationPhaseMetricsController struct {
 func NewOperationPhaseMetricsController(
 	r prometheus.Registerer,
 	informer cache.SharedIndexInformer,
-	logger logr.Logger,
 ) *OperationPhaseMetricsController {
 	phaseInfo := prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "backend_resource_operation_phase_info",
@@ -94,7 +92,7 @@ func NewOperationPhaseMetricsController(
 	r.MustRegister(phaseInfo, startTime, lastTransitionTime)
 
 	c := &OperationPhaseMetricsController{
-		logger:             logger.WithName("OperationPhaseMetrics"),
+		name:               "OperationPhaseMetrics",
 		indexer:            informer.GetIndexer(),
 		phaseInfo:          phaseInfo,
 		startTime:          startTime,
@@ -123,7 +121,9 @@ func NewOperationPhaseMetricsController(
 func (c *OperationPhaseMetricsController) enqueue(obj interface{}) {
 	key, err := cache.DeletionHandlingMetaNamespaceKeyFunc(obj)
 	if err != nil {
-		c.logger.Error(err, "failed to compute key")
+		logger := utils.DefaultLogger()
+		logger = logger.WithValues(utils.LogValues{}.AddControllerName(c.name)...)
+		logger.Error(err, "failed to compute key")
 		return
 	}
 	c.queue.Add(key)
@@ -135,7 +135,7 @@ func (c *OperationPhaseMetricsController) Run(ctx context.Context, threadiness i
 	defer c.queue.ShutDown()
 
 	logger := utils.LoggerFromContext(ctx)
-	logger = logger.WithValues(utils.LogValues{}.AddControllerName("OperationPhaseMetrics")...)
+	logger = logger.WithValues(utils.LogValues{}.AddControllerName(c.name)...)
 	ctx = utils.ContextWithLogger(ctx, logger)
 	logger.Info("Starting")
 
@@ -160,7 +160,7 @@ func (c *OperationPhaseMetricsController) processNextWorkItem(ctx context.Contex
 	}
 	defer c.queue.Done(key)
 
-	ReconcileTotal.WithLabelValues("OperationPhaseMetrics").Inc()
+	ReconcileTotal.WithLabelValues(c.name).Inc()
 	err := c.syncOperation(ctx, key)
 	if err == nil {
 		c.queue.Forget(key)
@@ -194,11 +194,11 @@ func (c *OperationPhaseMetricsController) syncOperation(ctx context.Context, key
 		return nil
 	}
 
-	c.setMetrics(key, op)
+	c.setMetrics(ctx, key, op)
 	return nil
 }
 
-func (c *OperationPhaseMetricsController) setMetrics(key string, op *api.Operation) {
+func (c *OperationPhaseMetricsController) setMetrics(ctx context.Context, key string, op *api.Operation) {
 	labels := operationMetricLabels{
 		Hash:          OperationIDHash(op.OperationID.Name),
 		ResourceType:  ResourceTypeFromExternalID(op.ExternalID),
@@ -228,14 +228,12 @@ func (c *OperationPhaseMetricsController) setMetrics(key string, op *api.Operati
 	}
 
 	if !hadOld {
-		c.logger.Info("Operation tracked",
-			"operationIDHash", labels.Hash,
-			"operationID", op.OperationID.Name,
-			"resourceID", externalIDString(op.ExternalID),
-			"correlationID", op.CorrelationRequestID,
-			"operationType", string(op.Request),
-			"phase", string(op.Status),
-		)
+		logger := utils.LoggerFromContext(ctx)
+		logger.Info("Operation tracked",
+			utils.LogValues{}.
+				AddOperationID(op.OperationID.Name).
+				AddResourceID(externalIDString(op.ExternalID)).
+				AddCorrelationRequestID(op.CorrelationRequestID)...)
 	}
 }
 

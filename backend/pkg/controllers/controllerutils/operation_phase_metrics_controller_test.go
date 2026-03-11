@@ -21,7 +21,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-logr/logr"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
@@ -191,7 +190,7 @@ func newTestController(t *testing.T) *OperationPhaseMetricsController {
 	reg.MustRegister(pi, st, ltt)
 
 	return &OperationPhaseMetricsController{
-		logger:             logr.Discard(),
+		name:               "OperationPhaseMetrics",
 		phaseInfo:          pi,
 		startTime:          st,
 		lastTransitionTime: ltt,
@@ -208,7 +207,7 @@ func TestSetMetrics_SetsAllThreeMetrics(t *testing.T) {
 		now, now)
 
 	c := newTestController(t)
-	c.setMetrics("key-1", op)
+	c.setMetrics(context.Background(), "key-1", op)
 
 	assert.Equal(t, 1, testutil.CollectAndCount(c.phaseInfo))
 	assert.Equal(t, 1, testutil.CollectAndCount(c.startTime))
@@ -311,7 +310,7 @@ func TestSetMetrics_SkipsZeroTimestamps(t *testing.T) {
 		time.Time{}, time.Time{})
 
 	c := newTestController(t)
-	c.setMetrics("key-1", op)
+	c.setMetrics(context.Background(), "key-1", op)
 
 	assert.Equal(t, 1, testutil.CollectAndCount(c.phaseInfo), "expected only phase_info metric when timestamps are zero")
 	assert.Equal(t, 0, testutil.CollectAndCount(c.startTime))
@@ -332,8 +331,8 @@ func TestSetMetrics_MultipleOperations(t *testing.T) {
 		now, now)
 
 	c := newTestController(t)
-	c.setMetrics("key-1", op1)
-	c.setMetrics("key-2", op2)
+	c.setMetrics(context.Background(), "key-1", op1)
+	c.setMetrics(context.Background(), "key-2", op2)
 
 	assert.Equal(t, 2, testutil.CollectAndCount(c.phaseInfo), "expected 2 phase_info metrics")
 	assert.Equal(t, 2, testutil.CollectAndCount(c.startTime), "expected 2 start_time metrics")
@@ -350,7 +349,7 @@ func TestSetMetrics_VerifiesLabelValues(t *testing.T) {
 		now, now)
 
 	c := newTestController(t)
-	c.setMetrics("key-1", op)
+	c.setMetrics(context.Background(), "key-1", op)
 
 	expected := fmt.Sprintf(`# HELP backend_resource_operation_phase_info Current phase of each operation (value is always 1).
 # TYPE backend_resource_operation_phase_info gauge
@@ -371,7 +370,7 @@ func TestSetMetrics_NilExternalIDUsesUnknownResourceType(t *testing.T) {
 		now, now)
 
 	c := newTestController(t)
-	c.setMetrics("key-1", op)
+	c.setMetrics(context.Background(), "key-1", op)
 
 	expected := fmt.Sprintf(`# HELP backend_resource_operation_phase_info Current phase of each operation (value is always 1).
 # TYPE backend_resource_operation_phase_info gauge
@@ -393,7 +392,7 @@ func TestDeleteMetrics_CleansUpAllGauges(t *testing.T) {
 	c := newTestController(t)
 
 	// Set metrics.
-	c.setMetrics("key-1", op)
+	c.setMetrics(context.Background(), "key-1", op)
 	assert.Equal(t, 1, testutil.CollectAndCount(c.phaseInfo))
 
 	// Delete metrics.
@@ -418,12 +417,12 @@ func TestSetMetrics_PhaseTransitionDeletesOldSeries(t *testing.T) {
 	c := newTestController(t)
 
 	// Initial set with "accepted" phase.
-	c.setMetrics("key-1", op)
+	c.setMetrics(context.Background(), "key-1", op)
 	assert.Equal(t, 1, testutil.CollectAndCount(c.phaseInfo))
 
 	// Phase transition to "provisioning".
 	op.Status = arm.ProvisioningStateProvisioning
-	c.setMetrics("key-1", op)
+	c.setMetrics(context.Background(), "key-1", op)
 
 	// Should still be exactly 1 metric (old "accepted" deleted, new "provisioning" set).
 	assert.Equal(t, 1, testutil.CollectAndCount(c.phaseInfo))

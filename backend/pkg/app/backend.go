@@ -256,7 +256,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 	activeOperationInformer, activeOperationLister := backendInformers.ActiveOperations()
 
 	operationPhaseMetricsController := controllerutils.NewOperationPhaseMetricsController(
-		prometheus.DefaultRegisterer, activeOperationInformer, utils.LoggerFromContext(ctx))
+		prometheus.DefaultRegisterer, activeOperationInformer)
 
 	startedLeading := atomic.Bool{}
 	operationsScanner := oldoperationscanner.NewOperationsScanner(
