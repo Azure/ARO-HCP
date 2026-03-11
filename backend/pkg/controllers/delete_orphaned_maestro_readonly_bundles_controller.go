@@ -87,7 +87,7 @@ func NewDeleteOrphanedMaestroReadonlyBundlesController(cosmosClient database.DBC
 //     matches we leave it alone
 //
 // We considered using the Maestro API Maestro UID which is globally unique but it's possible that there's a scenario
-// where the maestro readonly bundles controller creates a bundle reference in the ServiceProviderClass, created the bundle
+// where the cluster scoped maestro readonly bundles controller creates a bundle reference in the ServiceProviderClass, created the bundle
 // using the Maestro API but failed to persist it in the database for some reason and the cluster ended up being deleted.
 // In that scenario we would not have the Maestro UID to identify the Maestro Bundle and we would not be able to delete it. Furthermore
 // we should not use the fact of the UID being empty as the trigger to delete because it could be that it's being created
@@ -239,7 +239,7 @@ func (c *deleteOrphanedMaestroReadonlyBundles) buildProvisionShardToServiceProvi
 
 // ensureOrphanedMaestroReadonlyBundlesAreDeleted ensures that all the Maestro Readonly Bundles that are not referenced by any
 // of the ServiceProviderClusters allocated to a Provision Shard (Management Cluster) are deleted.
-// Only Maestro Readonly Bundles that are managed by the maestro create readonly bundles controller are considered.
+// Only Maestro Readonly Bundles that are managed by the cluster scoped maestro readonly bundles controller are considered.
 func (c *deleteOrphanedMaestroReadonlyBundles) ensureOrphanedMaestroReadonlyBundlesAreDeleted(ctx context.Context, provisionShardsToServiceProviderClustersIndex map[string]*provisionShardServiceProviderClusters) error {
 	logger := utils.LoggerFromContext(ctx)
 	var syncErrors []error
@@ -252,21 +252,21 @@ func (c *deleteOrphanedMaestroReadonlyBundles) ensureOrphanedMaestroReadonlyBund
 		maestroClient := shardToSPCs.maestroClient
 		// We list all the Maestro Bundles in chunks of 400 to avoid putting
 		// too much pressure on the Maestro API.
-		// We filter the Maestro Bundles by the K8s label that indicates that the Maestro Bundle is managed by the maestro create readonly bundles controller.
-		listOptions := metav1.ListOptions{Limit: 400, Continue: "", LabelSelector: fmt.Sprintf("%s=%s", readonlyBundleManagedByK8sLabelKey, readonlyBundleManagedByK8sLabelValue)}
+		// We filter the Maestro Bundles by the K8s label that indicates that the Maestro Bundle is managed by the cluster scoped maestro readonly bundles controller.
+		listOptions := metav1.ListOptions{Limit: 400, Continue: "", LabelSelector: fmt.Sprintf("%s=%s", readonlyBundleManagedByK8sLabelKey, readonlyBundleManagedByK8sLabelValueClusterScoped)}
 		for {
 			maestroBundles, err := maestroClient.List(ctx, listOptions)
 			if err != nil {
 				return utils.TrackError(fmt.Errorf("failed to list Maestro Bundles for shard %s: %w", csShardID, err))
 			}
 			// For each Maestro Bundle retrieved from the Maestro API we check if the Maestro Bundle has the K8s annotation
-			// that indicates that the Maestro Bundle is managed by the maestro create readonly bundles controller. If it
+			// that indicates that the Maestro Bundle is managed by the cluster scoped maestro readonly bundles controller. If it
 			// does not we filter it out. If it is then we check if the Maestro Bundle is referenced by any of the ServiceProviderClusters
 			// allocated to that shard by checking the MaestroBundleReferences in the ServiceProviderCluster status and checking if the
 			// Maestro API Maestro Bundle Name matches. If it matches, we leave it alone. If it does not match, we delete it.
 			for _, maestroBundle := range maestroBundles.Items {
 				// Even though Maestro should filter by the K8s label we specified we double check it here to be sure
-				if maestroBundle.Labels[readonlyBundleManagedByK8sLabelKey] != readonlyBundleManagedByK8sLabelValue {
+				if maestroBundle.Labels[readonlyBundleManagedByK8sLabelKey] != readonlyBundleManagedByK8sLabelValueClusterScoped {
 					continue
 				}
 

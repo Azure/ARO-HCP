@@ -44,17 +44,19 @@ import (
 const (
 	// readonlyBundleManagedByK8sLabelKey is the key of the K8s label that is used to identify the controller that manages the readonly Maestro bundle.
 	readonlyBundleManagedByK8sLabelKey = "aro-hcp.azure.com/readonly-bundle-managed-by"
-	// readonlyBundleManagedByK8sLabelValue is the value of the K8s label that is used to identify the controller that manages the readonly Maestro bundle.
-	readonlyBundleManagedByK8sLabelValue = "create-maestro-readonly-bundles-controller"
+	// readonlyBundleManagedByK8sLabelValueClusterScoped is the K8s label associated to the readonlyBundleManagedByK8sLabelKey
+	// key that indicates that the readonly Maestro bundle is managed by the create
+	// cluster scoped maestro readonly bundles controller.
+	readonlyBundleManagedByK8sLabelValueClusterScoped = "create-cluster-scoped-maestro-readonly-bundles-controller"
 )
 
-// createMaestroReadonlyBundlesSyncer is a controller that creates Maestro readonly bundles for the clusters.
+// createClusterScopedMaestroReadonlyBundlesSyncer is a controller that creates Maestro readonly bundles for the clusters.
 // It is responsible for creating the Maestro readonly bundles and storing a reference to them in Cosmos. It does
 // not persist the content of the Maestro bundles themselves. That is the responsibility of the
 // readAndPersistMaestroReadonlyBundlesContentSyncer controller.
 // As of now we support the creation of a Maestro readonly bundle for the Hypershift's HostedCluster CR associated to
 // the Cluster.
-type createMaestroReadonlyBundlesSyncer struct {
+type createClusterScopedMaestroReadonlyBundlesSyncer struct {
 	cooldownChecker controllerutils.CooldownChecker
 
 	activeOperationLister listers.ActiveOperationLister
@@ -73,9 +75,9 @@ type createMaestroReadonlyBundlesSyncer struct {
 	uuidV4Generator func() (uuid.UUID, error)
 }
 
-var _ controllerutils.ClusterSyncer = (*createMaestroReadonlyBundlesSyncer)(nil)
+var _ controllerutils.ClusterSyncer = (*createClusterScopedMaestroReadonlyBundlesSyncer)(nil)
 
-func NewCreateMaestroReadonlyBundlesController(
+func NewCreateClusterScopedMaestroReadonlyBundlesController(
 	activeOperationLister listers.ActiveOperationLister,
 	cosmosClient database.DBClient,
 	clusterServiceClient ocm.ClusterServiceClientSpec,
@@ -84,7 +86,7 @@ func NewCreateMaestroReadonlyBundlesController(
 	maestroClientBuilder maestro.MaestroClientBuilder,
 ) controllerutils.Controller {
 
-	syncer := &createMaestroReadonlyBundlesSyncer{
+	syncer := &createClusterScopedMaestroReadonlyBundlesSyncer{
 		cooldownChecker:                    controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
 		cosmosClient:                       cosmosClient,
 		clusterServiceClient:               clusterServiceClient,
@@ -95,7 +97,7 @@ func NewCreateMaestroReadonlyBundlesController(
 	}
 
 	controller := controllerutils.NewClusterWatchingController(
-		"CreateMaestroReadonlyBundles",
+		"CreateClusterScopedMaestroReadonlyBundles",
 		cosmosClient,
 		informers,
 		1*time.Minute,
@@ -105,7 +107,7 @@ func NewCreateMaestroReadonlyBundlesController(
 	return controller
 }
 
-func (c *createMaestroReadonlyBundlesSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
+func (c *createClusterScopedMaestroReadonlyBundlesSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
 	existingCluster, err := c.cosmosClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Get(ctx, key.HCPClusterName)
 	if database.IsResponseError(err, http.StatusNotFound) {
 		return nil // cluster doesn't exist, no work to do
@@ -206,7 +208,7 @@ func (c *createMaestroReadonlyBundlesSyncer) SyncOnce(ctx context.Context, key c
 // It returns the updated ServiceProviderCluster (after any Replace calls) so the caller can pass it into the next sync.
 // On error, the first return value is always the lastest persisted ServiceProviderClass SPC, so the
 // caller can keep in-memory state in sync and subsequent bundle syncs in the same run never see stale data.
-func (c *createMaestroReadonlyBundlesSyncer) syncMaestroBundle(
+func (c *createClusterScopedMaestroReadonlyBundlesSyncer) syncMaestroBundle(
 	ctx context.Context,
 	maestroBundleInternalName api.MaestroBundleInternalName,
 	existingServiceProviderCluster *api.ServiceProviderCluster,
@@ -290,7 +292,7 @@ func (c *createMaestroReadonlyBundlesSyncer) syncMaestroBundle(
 // buildClusterEmptyHostedCluster returns an empty hosted cluster representing the Cluster's Hypershift HostedCluster resource.
 // It strictly contains the type information and the object meta information necessary to identify the resource in the management cluster.
 // It can be used to provide as the input of a Maestro resource bundle.
-func (c *createMaestroReadonlyBundlesSyncer) buildClusterEmptyHostedCluster(csClusterID string, csClusterDomainPrefix string) *hsv1beta1.HostedCluster {
+func (c *createClusterScopedMaestroReadonlyBundlesSyncer) buildClusterEmptyHostedCluster(csClusterID string, csClusterDomainPrefix string) *hsv1beta1.HostedCluster {
 	// TODO To calculate the HostedCluster namespace we pass the maestro source ID because it turns out to have the same
 	// value as the envName in CS. This is not accurate but it is good enough.
 	// I would decouple what is the maestro source ID envname part from the envname. The reason being that they are
@@ -325,7 +327,7 @@ func (c *createMaestroReadonlyBundlesSyncer) buildClusterEmptyHostedCluster(csCl
 
 // buildInitialReadonlyMaestroBundleForHostedCluster builds an initial readonly Maestro Bundle for the Cluster's Hypershift HostedCluster.
 // Used to create the readonly Maestro bundle associated to it.
-func (c *createMaestroReadonlyBundlesSyncer) buildInitialReadonlyMaestroBundleForHostedCluster(cluster *api.HCPOpenShiftCluster, csClusterDomainPrefix string, maestroBundleNamespacedName types.NamespacedName) *workv1.ManifestWork {
+func (c *createClusterScopedMaestroReadonlyBundlesSyncer) buildInitialReadonlyMaestroBundleForHostedCluster(cluster *api.HCPOpenShiftCluster, csClusterDomainPrefix string, maestroBundleNamespacedName types.NamespacedName) *workv1.ManifestWork {
 	hostedCluster := c.buildClusterEmptyHostedCluster(cluster.ServiceProviderProperties.ClusterServiceID.ID(), csClusterDomainPrefix)
 	maestroBundleResourceIdentifier := workv1.ResourceIdentifier{
 		Group:     hsv1beta1.SchemeGroupVersion.Group,
@@ -341,7 +343,7 @@ func (c *createMaestroReadonlyBundlesSyncer) buildInitialReadonlyMaestroBundleFo
 // objResourceIdentifier is the resource identifier of the resource specified in obj.
 // maestroBundleNamespacedName is the namespaced name of the Maestro Bundle.
 // Used to create the readonly Maestro bundle associated to the resource specified in obj.
-func (c *createMaestroReadonlyBundlesSyncer) buildInitialReadonlyMaestroBundle(maestroBundleNamespacedName types.NamespacedName, objResourceIdentifier workv1.ResourceIdentifier, obj runtime.Object) *workv1.ManifestWork {
+func (c *createClusterScopedMaestroReadonlyBundlesSyncer) buildInitialReadonlyMaestroBundle(maestroBundleNamespacedName types.NamespacedName, objResourceIdentifier workv1.ResourceIdentifier, obj runtime.Object) *workv1.ManifestWork {
 	maestroBundleObjMeta := metav1.ObjectMeta{
 		Name:            maestroBundleNamespacedName.Name,
 		Namespace:       maestroBundleNamespacedName.Namespace,
@@ -350,7 +352,7 @@ func (c *createMaestroReadonlyBundlesSyncer) buildInitialReadonlyMaestroBundle(m
 			// We define it as a K8s label because Maestro supports server-side filtering based on K8s labels.
 			// We can define it as a K8s label because for this specific use case we can comply with
 			// K8s labels length and charset restrictions https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#syntax-and-character-set.
-			readonlyBundleManagedByK8sLabelKey: readonlyBundleManagedByK8sLabelValue,
+			readonlyBundleManagedByK8sLabelKey: readonlyBundleManagedByK8sLabelValueClusterScoped,
 		},
 	}
 
@@ -416,7 +418,7 @@ func (c *createMaestroReadonlyBundlesSyncer) buildInitialReadonlyMaestroBundle(m
 }
 
 // buildInitialMaestroBundleReference builds an initial Maestro Bundle reference for a given maestro bundle internal name.
-func (c *createMaestroReadonlyBundlesSyncer) buildInitialMaestroBundleReference(internalName api.MaestroBundleInternalName) (*api.MaestroBundleReference, error) {
+func (c *createClusterScopedMaestroReadonlyBundlesSyncer) buildInitialMaestroBundleReference(internalName api.MaestroBundleInternalName) (*api.MaestroBundleReference, error) {
 	maestroAPIMaestroBundleName, err := c.generateNewMaestroAPIMaestroBundleName()
 	if err != nil {
 		return nil, utils.TrackError(fmt.Errorf("failed to generate Maestro API Maestro Bundle name: %w", err))
@@ -433,7 +435,7 @@ func (c *createMaestroReadonlyBundlesSyncer) buildInitialMaestroBundleReference(
 // generateNewMaestroAPIMaestroBundleName generates a new Maestro API Maestro Bundle name.
 // Used to generate a new Maestro API Maestro Bundle name for a new Maestro Bundle reference.
 // The generated name is a UUIDv4.
-func (c *createMaestroReadonlyBundlesSyncer) generateNewMaestroAPIMaestroBundleName() (string, error) {
+func (c *createClusterScopedMaestroReadonlyBundlesSyncer) generateNewMaestroAPIMaestroBundleName() (string, error) {
 	newUUIDForMaestroAPIMaestroBundleName, err := c.uuidV4Generator()
 	if err != nil {
 		return "", utils.TrackError(fmt.Errorf("failed to generate UUIDv4 for Maestro API Maestro Bundle name: %w", err))
@@ -446,12 +448,12 @@ func (c *createMaestroReadonlyBundlesSyncer) generateNewMaestroAPIMaestroBundleN
 // ID is 11111111111111111111111111111111.
 // The namespace is of the format ocm-<envName>-<csClusterID>. This is how CS calculates Hypershift's HostedCluster namespace.
 // Internally in CS this is the "CDNamespace" attribute associated to the cluster.
-func (c *createMaestroReadonlyBundlesSyncer) getHostedClusterNamespace(envName string, csClusterID string) string {
+func (c *createClusterScopedMaestroReadonlyBundlesSyncer) getHostedClusterNamespace(envName string, csClusterID string) string {
 	return fmt.Sprintf("ocm-%s-%s", envName, csClusterID)
 }
 
 // getOrCreateMaestroBundle gets (or creates if it does not exist) a Maestro Bundle for a given Maestro Bundle namespaced name.
-func (c *createMaestroReadonlyBundlesSyncer) getOrCreateMaestroBundle(ctx context.Context, maestroClient maestro.Client, maestroBundle *workv1.ManifestWork) (*workv1.ManifestWork, error) {
+func (c *createClusterScopedMaestroReadonlyBundlesSyncer) getOrCreateMaestroBundle(ctx context.Context, maestroClient maestro.Client, maestroBundle *workv1.ManifestWork) (*workv1.ManifestWork, error) {
 	logger := utils.LoggerFromContext(ctx)
 	existingMaestroBundle, err := maestroClient.Get(ctx, maestroBundle.Name, metav1.GetOptions{})
 	if err == nil {
@@ -478,7 +480,7 @@ func (c *createMaestroReadonlyBundlesSyncer) getOrCreateMaestroBundle(ctx contex
 	return existingMaestroBundle, err
 }
 
-func (c *createMaestroReadonlyBundlesSyncer) CooldownChecker() controllerutils.CooldownChecker {
+func (c *createClusterScopedMaestroReadonlyBundlesSyncer) CooldownChecker() controllerutils.CooldownChecker {
 	return c.cooldownChecker
 }
 
@@ -486,7 +488,7 @@ func (c *createMaestroReadonlyBundlesSyncer) CooldownChecker() controllerutils.C
 // The client is scoped to the Maestro Consumer associated to the provision shard, as well
 // as to the the Maestro Source ID associated to the provision shard which is calculated from the provision shard ID and the
 // environment specified in c.maestroSourceEnvironmentIdentifier.
-func (c *createMaestroReadonlyBundlesSyncer) createMaestroClientFromProvisionShard(
+func (c *createClusterScopedMaestroReadonlyBundlesSyncer) createMaestroClientFromProvisionShard(
 	ctx context.Context, provisionShard *arohcpv1alpha1.ProvisionShard,
 ) (maestro.Client, error) {
 	provisionShardMaestroConsumerName := provisionShard.MaestroConfig().ConsumerName()

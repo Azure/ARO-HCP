@@ -619,7 +619,7 @@ func TestDeleteOrphanedMaestroReadonlyBundles_ensureOrphanedMaestroReadonlyBundl
 							ObjectMeta: metav1.ObjectMeta{
 								Name:      "referenced-bundle",
 								Namespace: "consumer",
-								Labels:    map[string]string{readonlyBundleManagedByK8sLabelKey: readonlyBundleManagedByK8sLabelValue},
+								Labels:    map[string]string{readonlyBundleManagedByK8sLabelKey: readonlyBundleManagedByK8sLabelValueClusterScoped},
 							},
 						},
 					},
@@ -647,7 +647,7 @@ func TestDeleteOrphanedMaestroReadonlyBundles_ensureOrphanedMaestroReadonlyBundl
 							ObjectMeta: metav1.ObjectMeta{
 								Name:      "orphaned-bundle",
 								Namespace: "consumer",
-								Labels:    map[string]string{readonlyBundleManagedByK8sLabelKey: readonlyBundleManagedByK8sLabelValue},
+								Labels:    map[string]string{readonlyBundleManagedByK8sLabelKey: readonlyBundleManagedByK8sLabelValueClusterScoped},
 							},
 						},
 					},
@@ -668,7 +668,7 @@ func TestDeleteOrphanedMaestroReadonlyBundles_ensureOrphanedMaestroReadonlyBundl
 							ObjectMeta: metav1.ObjectMeta{
 								Name:      "orphaned-bundle",
 								Namespace: "consumer",
-								Labels:    map[string]string{readonlyBundleManagedByK8sLabelKey: readonlyBundleManagedByK8sLabelValue},
+								Labels:    map[string]string{readonlyBundleManagedByK8sLabelKey: readonlyBundleManagedByK8sLabelValueClusterScoped},
 							},
 						},
 					},
@@ -692,13 +692,13 @@ func TestDeleteOrphanedMaestroReadonlyBundles_ensureOrphanedMaestroReadonlyBundl
 							ObjectMeta: metav1.ObjectMeta{
 								Name:      "orphan-page1",
 								Namespace: "consumer",
-								Labels:    map[string]string{readonlyBundleManagedByK8sLabelKey: readonlyBundleManagedByK8sLabelValue},
+								Labels:    map[string]string{readonlyBundleManagedByK8sLabelKey: readonlyBundleManagedByK8sLabelValueClusterScoped},
 							},
 						},
 					},
 				}
 				page2 := &workv1.ManifestWorkList{Items: []workv1.ManifestWork{}}
-				labelSelector := fmt.Sprintf("%s=%s", readonlyBundleManagedByK8sLabelKey, readonlyBundleManagedByK8sLabelValue)
+				labelSelector := fmt.Sprintf("%s=%s", readonlyBundleManagedByK8sLabelKey, readonlyBundleManagedByK8sLabelValueClusterScoped)
 				m.EXPECT().List(gomock.Any(), metav1.ListOptions{Limit: 400, Continue: "", LabelSelector: labelSelector}).Return(page1, nil)
 				m.EXPECT().Delete(gomock.Any(), "orphan-page1", gomock.Any()).Return(nil)
 				m.EXPECT().List(gomock.Any(), metav1.ListOptions{Limit: 400, Continue: "token", LabelSelector: labelSelector}).Return(page2, nil)
@@ -759,7 +759,7 @@ func TestDeleteOrphanedMaestroReadonlyBundles_ensureOrphanedMaestroReadonlyBundl
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "bundle-X",
 					Namespace: "consumer2",
-					Labels:    map[string]string{readonlyBundleManagedByK8sLabelKey: readonlyBundleManagedByK8sLabelValue},
+					Labels:    map[string]string{readonlyBundleManagedByK8sLabelKey: readonlyBundleManagedByK8sLabelValueClusterScoped},
 				},
 			},
 		},
@@ -820,14 +820,14 @@ func TestDeleteOrphanedMaestroReadonlyBundles_SyncOnce_FullFlow_DeletesOrphanedB
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "kept-bundle",
 					Namespace: "consumer",
-					Labels:    map[string]string{readonlyBundleManagedByK8sLabelKey: readonlyBundleManagedByK8sLabelValue},
+					Labels:    map[string]string{readonlyBundleManagedByK8sLabelKey: readonlyBundleManagedByK8sLabelValueClusterScoped},
 				},
 			},
 			{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "orphaned-bundle",
 					Namespace: "consumer",
-					Labels:    map[string]string{readonlyBundleManagedByK8sLabelKey: readonlyBundleManagedByK8sLabelValue},
+					Labels:    map[string]string{readonlyBundleManagedByK8sLabelKey: readonlyBundleManagedByK8sLabelValueClusterScoped},
 				},
 			},
 		},

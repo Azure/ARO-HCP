@@ -45,8 +45,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/ocm"
 )
 
-func TestReadAndPersistMaestroReadonlyBundlesContentSyncer_buildDegradedCondition(t *testing.T) {
-	syncer := &readAndPersistMaestroReadonlyBundlesContentSyncer{}
+func TestReadAndPersistClusterScopedMaestroReadonlyBundlesContentSyncer_buildDegradedCondition(t *testing.T) {
+	syncer := &readAndPersistClusterScopedMaestroReadonlyBundlesContentSyncer{}
 
 	cond := syncer.buildDegradedCondition(api.ConditionTrue, "MaestroBundleNotFound", "bundle not found")
 	assert.Equal(t, "Degraded", cond.Type)
@@ -60,8 +60,8 @@ func TestReadAndPersistMaestroReadonlyBundlesContentSyncer_buildDegradedConditio
 	assert.Empty(t, condFalse.Message)
 }
 
-func TestReadAndPersistMaestroReadonlyBundlesContentSyncer_buildObjectsFromUnstructuredObj(t *testing.T) {
-	syncer := &readAndPersistMaestroReadonlyBundlesContentSyncer{}
+func TestReadAndPersistClusterScopedMaestroReadonlyBundlesContentSyncer_buildObjectsFromUnstructuredObj(t *testing.T) {
+	syncer := &readAndPersistClusterScopedMaestroReadonlyBundlesContentSyncer{}
 
 	t.Run("single object returns one item", func(t *testing.T) {
 		obj := &unstructured.Unstructured{}
@@ -141,8 +141,8 @@ func buildTestMaestroBundleWithStatusFeedback(name, namespace, rawJSON string) *
 	}
 }
 
-func TestReadAndPersistMaestroReadonlyBundlesContentSyncer_getSingleResourceStatusFeedbackRawJSONFromMaestroBundle(t *testing.T) {
-	syncer := &readAndPersistMaestroReadonlyBundlesContentSyncer{}
+func TestReadAndPersistClusterScopedMaestroReadonlyBundlesContentSyncer_getSingleResourceStatusFeedbackRawJSONFromMaestroBundle(t *testing.T) {
+	syncer := &readAndPersistClusterScopedMaestroReadonlyBundlesContentSyncer{}
 	validJSON := `{"apiVersion":"v1","kind":"ConfigMap","metadata":{"name":"test"}}`
 
 	tests := []struct {
@@ -247,8 +247,8 @@ func TestReadAndPersistMaestroReadonlyBundlesContentSyncer_getSingleResourceStat
 	}
 }
 
-func TestReadAndPersistMaestroReadonlyBundlesContentSyncer_managementClusterContentResourceIDFromClusterResourceID(t *testing.T) {
-	syncer := &readAndPersistMaestroReadonlyBundlesContentSyncer{}
+func TestReadAndPersistClusterScopedMaestroReadonlyBundlesContentSyncer_managementClusterContentResourceIDFromClusterResourceID(t *testing.T) {
+	syncer := &readAndPersistClusterScopedMaestroReadonlyBundlesContentSyncer{}
 	clusterRID := api.Must(azcorearm.ParseResourceID("/subscriptions/sub/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/mycluster"))
 
 	got := syncer.managementClusterContentResourceIDFromClusterResourceID(clusterRID, api.MaestroBundleInternalNameReadonlyHypershiftHostedCluster)
@@ -258,7 +258,7 @@ func TestReadAndPersistMaestroReadonlyBundlesContentSyncer_managementClusterCont
 	assert.Equal(t, got.Name, string(api.MaestroBundleInternalNameReadonlyHypershiftHostedCluster))
 }
 
-func TestReadAndPersistMaestroReadonlyBundlesContentSyncer_calculateManagementClusterContentFromMaestroBundle(t *testing.T) {
+func TestReadAndPersistClusterScopedMaestroReadonlyBundlesContentSyncer_calculateManagementClusterContentFromMaestroBundle(t *testing.T) {
 	clusterResourceID := api.Must(azcorearm.ParseResourceID("/subscriptions/sub/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster"))
 	cluster := &api.HCPOpenShiftCluster{
 		TrackedResource: arm.TrackedResource{Resource: arm.Resource{ID: clusterResourceID}},
@@ -331,7 +331,7 @@ func TestReadAndPersistMaestroReadonlyBundlesContentSyncer_calculateManagementCl
 			mockMaestro := maestro.NewMockClient(ctrl)
 			tt.maestroGet(mockMaestro)
 
-			syncer := &readAndPersistMaestroReadonlyBundlesContentSyncer{}
+			syncer := &readAndPersistClusterScopedMaestroReadonlyBundlesContentSyncer{}
 			got, err := syncer.calculateManagementClusterContentFromMaestroBundle(context.Background(), cluster, ref, mockMaestro)
 			if tt.wantErr {
 				require.Error(t, err)
@@ -347,7 +347,7 @@ func TestReadAndPersistMaestroReadonlyBundlesContentSyncer_calculateManagementCl
 	}
 }
 
-func TestReadAndPersistMaestroReadonlyBundlesContentSyncer_readAndPersistMaestroBundleContent(t *testing.T) {
+func TestReadAndPersistClusterScopedMaestroReadonlyBundlesContentSyncer_readAndPersistMaestroBundleContent(t *testing.T) {
 	ctx := context.Background()
 	clusterResourceID := api.Must(azcorearm.ParseResourceID("/subscriptions/sub/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster"))
 	cluster := &api.HCPOpenShiftCluster{
@@ -371,7 +371,7 @@ func TestReadAndPersistMaestroReadonlyBundlesContentSyncer_readAndPersistMaestro
 		mockDB := databasetesting.NewMockDBClient()
 		mccCRUD := mockDB.ManagementClusterContents("sub", "rg", "cluster")
 
-		syncer := &readAndPersistMaestroReadonlyBundlesContentSyncer{cosmosClient: mockDB}
+		syncer := &readAndPersistClusterScopedMaestroReadonlyBundlesContentSyncer{cosmosClient: mockDB}
 		err := syncer.readAndPersistMaestroBundleContent(ctx, cluster, ref, mockMaestro)
 		require.NoError(t, err)
 
@@ -401,7 +401,7 @@ func TestReadAndPersistMaestroReadonlyBundlesContentSyncer_readAndPersistMaestro
 		_, err := mccCRUD.Create(ctx, existing, nil)
 		require.NoError(t, err)
 
-		syncer := &readAndPersistMaestroReadonlyBundlesContentSyncer{cosmosClient: mockDB}
+		syncer := &readAndPersistClusterScopedMaestroReadonlyBundlesContentSyncer{cosmosClient: mockDB}
 		err = syncer.readAndPersistMaestroBundleContent(ctx, cluster, ref, mockMaestro)
 		require.NoError(t, err)
 
@@ -438,7 +438,7 @@ func TestReadAndPersistMaestroReadonlyBundlesContentSyncer_readAndPersistMaestro
 		_, err := mccCRUD.Create(ctx, existing, nil)
 		require.NoError(t, err)
 
-		syncer := &readAndPersistMaestroReadonlyBundlesContentSyncer{cosmosClient: mockDB}
+		syncer := &readAndPersistClusterScopedMaestroReadonlyBundlesContentSyncer{cosmosClient: mockDB}
 		err = syncer.readAndPersistMaestroBundleContent(ctx, cluster, ref, mockMaestro)
 		require.NoError(t, err)
 
@@ -461,7 +461,7 @@ func TestReadAndPersistMaestroReadonlyBundlesContentSyncer_readAndPersistMaestro
 		existingRID := api.Must(azcorearm.ParseResourceID("/subscriptions/sub/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster/managementClusterContents/readonlyHypershiftHostedCluster"))
 		// Pre-create content that matches exactly what the syncer would compute (same KubeContent and Degraded=False condition)
 		// so that DeepEqual(existing, desired) is true and Replace is not called.
-		syncer := &readAndPersistMaestroReadonlyBundlesContentSyncer{cosmosClient: mockDB}
+		syncer := &readAndPersistClusterScopedMaestroReadonlyBundlesContentSyncer{cosmosClient: mockDB}
 		desired, err := syncer.calculateManagementClusterContentFromMaestroBundle(ctx, cluster, ref, mockMaestro)
 		require.NoError(t, err)
 		require.NotNil(t, desired)
@@ -503,7 +503,7 @@ func TestReadAndPersistMaestroReadonlyBundlesContentSyncer_readAndPersistMaestro
 		mockDB := database.NewMockDBClient(ctrl)
 		mockDB.EXPECT().ManagementClusterContents("sub", "rg", "cluster").Return(mockMCC)
 
-		syncer := &readAndPersistMaestroReadonlyBundlesContentSyncer{cosmosClient: mockDB}
+		syncer := &readAndPersistClusterScopedMaestroReadonlyBundlesContentSyncer{cosmosClient: mockDB}
 		err := syncer.readAndPersistMaestroBundleContent(ctx, cluster, ref, mockMaestro)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to replace ManagementClusterContent")
@@ -523,7 +523,7 @@ func TestReadAndPersistMaestroReadonlyBundlesContentSyncer_readAndPersistMaestro
 		mockDB := database.NewMockDBClient(ctrl)
 		mockDB.EXPECT().ManagementClusterContents("sub", "rg", "cluster").Return(mockMCC)
 
-		syncer := &readAndPersistMaestroReadonlyBundlesContentSyncer{cosmosClient: mockDB}
+		syncer := &readAndPersistClusterScopedMaestroReadonlyBundlesContentSyncer{cosmosClient: mockDB}
 		err := syncer.readAndPersistMaestroBundleContent(ctx, cluster, ref, mockMaestro)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to get ManagementClusterContent")
@@ -531,9 +531,9 @@ func TestReadAndPersistMaestroReadonlyBundlesContentSyncer_readAndPersistMaestro
 	})
 }
 
-func TestReadAndPersistMaestroReadonlyBundlesContentSyncer_SyncOnce_ClusterNotFound(t *testing.T) {
+func TestReadAndPersistClusterScopedMaestroReadonlyBundlesContentSyncer_SyncOnce_ClusterNotFound(t *testing.T) {
 	mockDBClient := databasetesting.NewMockDBClient()
-	syncer := &readAndPersistMaestroReadonlyBundlesContentSyncer{
+	syncer := &readAndPersistClusterScopedMaestroReadonlyBundlesContentSyncer{
 		cooldownChecker: &alwaysSyncCooldownChecker{},
 		cosmosClient:    mockDBClient,
 	}
@@ -548,14 +548,14 @@ func TestReadAndPersistMaestroReadonlyBundlesContentSyncer_SyncOnce_ClusterNotFo
 	assert.NoError(t, err)
 }
 
-func TestReadAndPersistMaestroReadonlyBundlesContentSyncer_SyncOnce_GetServiceProviderClusterError(t *testing.T) {
+func TestReadAndPersistClusterScopedMaestroReadonlyBundlesContentSyncer_SyncOnce_GetServiceProviderClusterError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
 	mockDBClient := database.NewMockDBClient(ctrl)
 	mockClusters := database.NewMockHCPClusterCRUD(ctrl)
 	mockSPCs := database.NewMockServiceProviderClusterCRUD(ctrl)
 
-	syncer := &readAndPersistMaestroReadonlyBundlesContentSyncer{
+	syncer := &readAndPersistClusterScopedMaestroReadonlyBundlesContentSyncer{
 		cooldownChecker: &alwaysSyncCooldownChecker{},
 		cosmosClient:    mockDBClient,
 	}
@@ -583,10 +583,10 @@ func TestReadAndPersistMaestroReadonlyBundlesContentSyncer_SyncOnce_GetServicePr
 	assert.Contains(t, err.Error(), "failed to get or create ServiceProviderCluster")
 }
 
-func TestReadAndPersistMaestroReadonlyBundlesContentSyncer_SyncOnce_NoMaestroReadonlyBundlesRefs(t *testing.T) {
+func TestReadAndPersistClusterScopedMaestroReadonlyBundlesContentSyncer_SyncOnce_NoMaestroReadonlyBundlesRefs(t *testing.T) {
 	ctx := context.Background()
 	mockDBClient := databasetesting.NewMockDBClient()
-	syncer := &readAndPersistMaestroReadonlyBundlesContentSyncer{
+	syncer := &readAndPersistClusterScopedMaestroReadonlyBundlesContentSyncer{
 		cooldownChecker: &alwaysSyncCooldownChecker{},
 		cosmosClient:    mockDBClient,
 	}
@@ -621,14 +621,14 @@ func TestReadAndPersistMaestroReadonlyBundlesContentSyncer_SyncOnce_NoMaestroRea
 	assert.NoError(t, err)
 }
 
-func TestReadAndPersistMaestroReadonlyBundlesContentSyncer_SyncOnce_GetProvisionShardError(t *testing.T) {
+func TestReadAndPersistClusterScopedMaestroReadonlyBundlesContentSyncer_SyncOnce_GetProvisionShardError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	ctx := context.Background()
 
 	mockDBClient := databasetesting.NewMockDBClient()
 	mockClusterService := ocm.NewMockClusterServiceClientSpec(ctrl)
 
-	syncer := &readAndPersistMaestroReadonlyBundlesContentSyncer{
+	syncer := &readAndPersistClusterScopedMaestroReadonlyBundlesContentSyncer{
 		cooldownChecker:      &alwaysSyncCooldownChecker{},
 		cosmosClient:         mockDBClient,
 		clusterServiceClient: mockClusterService,
@@ -674,7 +674,7 @@ func TestReadAndPersistMaestroReadonlyBundlesContentSyncer_SyncOnce_GetProvision
 	assert.Contains(t, err.Error(), "failed to get Cluster Provision Shard")
 }
 
-func TestReadAndPersistMaestroReadonlyBundlesContentSyncer_SyncOnce_ReadAndPersistFlow(t *testing.T) {
+func TestReadAndPersistClusterScopedMaestroReadonlyBundlesContentSyncer_SyncOnce_ReadAndPersistFlow(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	ctx := context.Background()
 
@@ -683,7 +683,7 @@ func TestReadAndPersistMaestroReadonlyBundlesContentSyncer_SyncOnce_ReadAndPersi
 	mockMaestroBuilder := maestro.NewMockMaestroClientBuilder(ctrl)
 	mockMaestroClient := maestro.NewMockClient(ctrl)
 
-	syncer := &readAndPersistMaestroReadonlyBundlesContentSyncer{
+	syncer := &readAndPersistClusterScopedMaestroReadonlyBundlesContentSyncer{
 		cooldownChecker:                    &alwaysSyncCooldownChecker{},
 		cosmosClient:                       mockDBClient,
 		clusterServiceClient:               mockClusterService,

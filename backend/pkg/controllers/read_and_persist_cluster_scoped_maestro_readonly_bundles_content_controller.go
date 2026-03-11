@@ -43,7 +43,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
-// readAndPersistMaestroReadonlyBundlesContentSyncer is a controller that reads the Maestro readonly bundles
+// readAndPersistClusterScopedMaestroReadonlyBundlesContentSyncer is a controller that reads the Maestro readonly bundles
 // references stored in the ServiceProviderCluster resource, retrieves the Maestro readonly bundles using those
 // references, extracts the content of the Maestro readonly bundles and persists them in Cosmos.
 // It is not responsible for creating the Maestro readonly bundles themselves. That is the responsibility of
@@ -51,7 +51,7 @@ import (
 // As of now we support reading the content of the Maestro readonly bundle of the Hypershift's HostedCluster associated
 // to the Cluster.
 // This controller assumes that it has full ownership of the ManagementClusterContent resource.
-type readAndPersistMaestroReadonlyBundlesContentSyncer struct {
+type readAndPersistClusterScopedMaestroReadonlyBundlesContentSyncer struct {
 	cooldownChecker controllerutils.CooldownChecker
 
 	activeOperationLister listers.ActiveOperationLister
@@ -64,9 +64,9 @@ type readAndPersistMaestroReadonlyBundlesContentSyncer struct {
 	maestroClientBuilder               maestro.MaestroClientBuilder
 }
 
-var _ controllerutils.ClusterSyncer = (*readAndPersistMaestroReadonlyBundlesContentSyncer)(nil)
+var _ controllerutils.ClusterSyncer = (*readAndPersistClusterScopedMaestroReadonlyBundlesContentSyncer)(nil)
 
-func NewReadAndPersistMaestroReadonlyBundlesContentController(
+func NewReadAndPersistClusterScopedMaestroReadonlyBundlesContentController(
 	activeOperationLister listers.ActiveOperationLister,
 	cosmosClient database.DBClient,
 	clusterServiceClient ocm.ClusterServiceClientSpec,
@@ -75,7 +75,7 @@ func NewReadAndPersistMaestroReadonlyBundlesContentController(
 	maestroClientBuilder maestro.MaestroClientBuilder,
 ) controllerutils.Controller {
 
-	syncer := &readAndPersistMaestroReadonlyBundlesContentSyncer{
+	syncer := &readAndPersistClusterScopedMaestroReadonlyBundlesContentSyncer{
 		cooldownChecker:                    controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
 		cosmosClient:                       cosmosClient,
 		clusterServiceClient:               clusterServiceClient,
@@ -85,7 +85,7 @@ func NewReadAndPersistMaestroReadonlyBundlesContentController(
 	}
 
 	controller := controllerutils.NewClusterWatchingController(
-		"ReadAndPersistMaestroReadonlyBundlesContent",
+		"ReadAndPersistClusterScopedMaestroReadonlyBundlesContent",
 		cosmosClient,
 		informers,
 		1*time.Minute,
@@ -95,7 +95,7 @@ func NewReadAndPersistMaestroReadonlyBundlesContentController(
 	return controller
 }
 
-func (c *readAndPersistMaestroReadonlyBundlesContentSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
+func (c *readAndPersistClusterScopedMaestroReadonlyBundlesContentSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
 	existingCluster, err := c.cosmosClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Get(ctx, key.HCPClusterName)
 	if database.IsResponseError(err, http.StatusNotFound) {
 		return nil // cluster doesn't exist, no work to do
@@ -146,7 +146,7 @@ func (c *readAndPersistMaestroReadonlyBundlesContentSyncer) SyncOnce(ctx context
 
 // calculateManagementClusterContentFromMaestroBundle calculates the desired ManagementClusterContent from the given Maestro Bundle reference.
 // It returns the desired ManagementClusterContent or an error if the calculation fails.
-func (c *readAndPersistMaestroReadonlyBundlesContentSyncer) calculateManagementClusterContentFromMaestroBundle(
+func (c *readAndPersistClusterScopedMaestroReadonlyBundlesContentSyncer) calculateManagementClusterContentFromMaestroBundle(
 	ctx context.Context, cluster *api.HCPOpenShiftCluster, hostedClusterMaestroBundleReference *api.MaestroBundleReference,
 	maestroClient maestro.Client,
 ) (*api.ManagementClusterContent, error) {
@@ -207,7 +207,7 @@ func (c *readAndPersistMaestroReadonlyBundlesContentSyncer) calculateManagementC
 // buildObjectsFromUnstructuredObj builds the list of objects from the given unstructured object.
 // If the unstructured object is a list, it flattens the list of objects from the list of items. Nested lists are not flattened.
 // If the unstructured object is not a list, it returns a list with a single item being the single object.
-func (c *readAndPersistMaestroReadonlyBundlesContentSyncer) buildObjectsFromUnstructuredObj(unstructuredObj *unstructured.Unstructured) ([]runtime.RawExtension, error) {
+func (c *readAndPersistClusterScopedMaestroReadonlyBundlesContentSyncer) buildObjectsFromUnstructuredObj(unstructuredObj *unstructured.Unstructured) ([]runtime.RawExtension, error) {
 	if !unstructuredObj.IsList() {
 		return []runtime.RawExtension{{Object: unstructuredObj}}, nil
 	}
@@ -224,7 +224,7 @@ func (c *readAndPersistMaestroReadonlyBundlesContentSyncer) buildObjectsFromUnst
 	return objs, nil
 }
 
-func (c *readAndPersistMaestroReadonlyBundlesContentSyncer) buildDegradedCondition(conditionStatus api.ConditionStatus, conditionReason string, conditionMessage string) api.Condition {
+func (c *readAndPersistClusterScopedMaestroReadonlyBundlesContentSyncer) buildDegradedCondition(conditionStatus api.ConditionStatus, conditionReason string, conditionMessage string) api.Condition {
 	return api.Condition{
 		Type:    "Degraded",
 		Status:  conditionStatus,
@@ -238,7 +238,7 @@ func (c *readAndPersistMaestroReadonlyBundlesContentSyncer) buildDegradedConditi
 // To achieve that, it gets the Maestro readonly bundle pointing to the Cluster's HostedCluster, it extracts the
 // returned content by Maestro by taking it from the Maestro bundles's status feedback rule that contains the whole object and then it persists it
 // in Cosmos.
-func (c *readAndPersistMaestroReadonlyBundlesContentSyncer) readAndPersistMaestroBundleContent(
+func (c *readAndPersistClusterScopedMaestroReadonlyBundlesContentSyncer) readAndPersistMaestroBundleContent(
 	ctx context.Context, cluster *api.HCPOpenShiftCluster, hostedClusterMaestroBundleReference *api.MaestroBundleReference,
 	maestroClient maestro.Client,
 ) error {
@@ -290,7 +290,7 @@ func (c *readAndPersistMaestroReadonlyBundlesContentSyncer) readAndPersistMaestr
 
 // kubeContentMaxSizeBytes returns the maximum size of a Cosmos DB item in bytes.
 // 2MB is the maximum size of a Cosmos DB item (https://learn.microsoft.com/en-us/azure/cosmos-db/concepts-limits#per-item-limits).
-func (c *readAndPersistMaestroReadonlyBundlesContentSyncer) kubeContentMaxSizeBytes() int {
+func (c *readAndPersistClusterScopedMaestroReadonlyBundlesContentSyncer) kubeContentMaxSizeBytes() int {
 	return 1887436 // 2MB * 0.9
 }
 
@@ -298,7 +298,7 @@ func (c *readAndPersistMaestroReadonlyBundlesContentSyncer) kubeContentMaxSizeBy
 // Used to extract the content of the resource from the Maestro Bundle.
 // An error is returned if the Maestro Bundle does not contain a single resource or if the resource does not contain a single status feedback value
 // with its name being "resource" and its type being JsonRaw.
-func (c *readAndPersistMaestroReadonlyBundlesContentSyncer) getSingleResourceStatusFeedbackRawJSONFromMaestroBundle(maestroBundle *workv1.ManifestWork) (json.RawMessage, error) {
+func (c *readAndPersistClusterScopedMaestroReadonlyBundlesContentSyncer) getSingleResourceStatusFeedbackRawJSONFromMaestroBundle(maestroBundle *workv1.ManifestWork) (json.RawMessage, error) {
 	resourceStatusManifests := maestroBundle.Status.ResourceStatus.Manifests
 	if len(resourceStatusManifests) != 1 {
 		return nil, utils.TrackError(fmt.Errorf("expected exactly one resource within the Maestro Bundle, got %d", len(resourceStatusManifests)))
@@ -325,7 +325,7 @@ func (c *readAndPersistMaestroReadonlyBundlesContentSyncer) getSingleResourceSta
 	return []byte(*statusFeedbackValue.Value.JsonRaw), nil
 }
 
-func (c *readAndPersistMaestroReadonlyBundlesContentSyncer) CooldownChecker() controllerutils.CooldownChecker {
+func (c *readAndPersistClusterScopedMaestroReadonlyBundlesContentSyncer) CooldownChecker() controllerutils.CooldownChecker {
 	return c.cooldownChecker
 }
 
@@ -334,7 +334,7 @@ func (c *readAndPersistMaestroReadonlyBundlesContentSyncer) CooldownChecker() co
 // the source ID associated to the provision shard and the environment specified
 // in c.maestroSourceEnvironmentIdentifier, which is a configuration parameter at
 // deployment time.
-func (c *readAndPersistMaestroReadonlyBundlesContentSyncer) createMaestroClientFromProvisionShard(
+func (c *readAndPersistClusterScopedMaestroReadonlyBundlesContentSyncer) createMaestroClientFromProvisionShard(
 	ctx context.Context, clusterProvisionShard *arohcpv1alpha1.ProvisionShard,
 ) (maestro.Client, error) {
 	provisionShardMaestroConsumerName := clusterProvisionShard.MaestroConfig().ConsumerName()
@@ -354,7 +354,7 @@ func (c *readAndPersistMaestroReadonlyBundlesContentSyncer) createMaestroClientF
 // the given resource ID as its parent. The resource ID is assumed to be a
 // cluster resource ID.
 // The returned value can be used to consistently initialize a new ManagementClusterContent
-func (c *readAndPersistMaestroReadonlyBundlesContentSyncer) newInitialManagementClusterContent(managementClusterContentResourceID *azcorearm.ResourceID) *api.ManagementClusterContent {
+func (c *readAndPersistClusterScopedMaestroReadonlyBundlesContentSyncer) newInitialManagementClusterContent(managementClusterContentResourceID *azcorearm.ResourceID) *api.ManagementClusterContent {
 	return &api.ManagementClusterContent{
 		CosmosMetadata: api.CosmosMetadata{
 			ResourceID: managementClusterContentResourceID,
@@ -365,6 +365,6 @@ func (c *readAndPersistMaestroReadonlyBundlesContentSyncer) newInitialManagement
 
 // managementClusterContentResourceIDFromClusterResourceID returns the resource ID for the
 // ManagementClusterContent associated to the given cluster resource ID and maestro bundle internal name.
-func (c *readAndPersistMaestroReadonlyBundlesContentSyncer) managementClusterContentResourceIDFromClusterResourceID(clusterResourceID *azcorearm.ResourceID, maestroBundleInternalName api.MaestroBundleInternalName) *azcorearm.ResourceID {
+func (c *readAndPersistClusterScopedMaestroReadonlyBundlesContentSyncer) managementClusterContentResourceIDFromClusterResourceID(clusterResourceID *azcorearm.ResourceID, maestroBundleInternalName api.MaestroBundleInternalName) *azcorearm.ResourceID {
 	return api.Must(azcorearm.ParseResourceID(fmt.Sprintf("%s/%s/%s", clusterResourceID.String(), api.ManagementClusterContentResourceTypeName, maestroBundleInternalName)))
 }
