@@ -634,7 +634,8 @@ func getMustGatherCommands(tw TimeWindow, svcClusterName, mgmtClusterName, subsc
 	startStr := tw.Start.Format(time.DateTime)
 	endStr := tw.End.Format(time.DateTime)
 
-	queryCmd := fmt.Sprintf(`hcpctl must-gather query --kusto %s --region %s --timestamp-min "%s" --timestamp-max "%s" --subscription-id %s`, kusto.KustoName, kusto.KustoRegion, startStr, endStr, subscriptionID)
+	// TODO: do this better
+	// queryCmd := fmt.Sprintf(`hcpctl must-gather query --kusto %s --region %s --timestamp-min "%s" --timestamp-max "%s" --subscription-id %s`, kusto.KustoName, kusto.KustoRegion, startStr, endStr, subscriptionID)
 
 	return []CommandInfo{
 		{
@@ -645,10 +646,11 @@ func getMustGatherCommands(tw TimeWindow, svcClusterName, mgmtClusterName, subsc
 			Label:   "must-gather query-infra (MGMT cluster)",
 			Command: fmt.Sprintf(`hcpctl must-gather query-infra --kusto %s --region %s --infra-cluster %s --timestamp-min "%s" --timestamp-max "%s"`, kusto.KustoName, kusto.KustoRegion, mgmtClusterName, startStr, endStr),
 		},
-		{
-			Label:   "must-gather query (HCP logs)",
-			Command: queryCmd,
-		},
+		// TODO: do this better
+		// {
+		// 	Label:   "must-gather query (HCP logs)",
+		// 	Command: queryCmd,
+		// },
 	}
 }
 

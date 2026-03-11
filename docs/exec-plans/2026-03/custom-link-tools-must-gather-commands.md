@@ -109,3 +109,10 @@ All steps were executed as planned with no deviations.
    - `test/cmd/testdata/zz_fixture_TestGeneratedHTMLWithoutStepsUsesTimingFallbackcustom_link_tools_commands_no_steps.html`
 
 All 5 tests pass.
+
+## Addendum: Post-commit tweaks
+
+Follow-up tweak applied after the initial commit:
+
+### Commented out `must-gather query` command
+The `hcpctl must-gather query` command presentation isn't useful like this. Commented out the `queryCmd` variable and the third `CommandInfo` entry in `getMustGatherCommands()` in `options.go`. The `subscriptionID` parameter, CLI flags, and struct fields are kept in place for the follow-up.
