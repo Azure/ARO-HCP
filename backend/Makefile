@@ -1,4 +1,5 @@
 BACKEND_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
+CONTAINER_ENGINE ?= $(shell command -v podman 2>/dev/null || echo docker)
 
 -include ../setup-templatize-env.mk
 -include ../.bingo/Variables.mk
@@ -45,7 +46,7 @@ clean:
 
 image: Dockerfile $(BACKEND_SOURCES) Makefile
 	cd $(BACKEND_DIR)/.. && \
-	docker build . --file backend/Dockerfile \
+	$(CONTAINER_ENGINE) build . --file backend/Dockerfile \
 		--build-arg PLATFORM=linux/amd64 \
 		--build-arg ARO_HCP_REVISION=${ARO_HCP_REVISION} \
 		--build-arg ARO_HCP_COMMIT_TIME=${ARO_HCP_COMMIT_TIME} \
@@ -54,7 +55,7 @@ image: Dockerfile $(BACKEND_SOURCES) Makefile
 
 build-and-push: image $(ORAS)
 	az acr login --name ${ARO_HCP_IMAGE_ACR}
-	docker push ${BACKEND_TAGGED_IMAGE}
+	$(CONTAINER_ENGINE) push ${BACKEND_TAGGED_IMAGE}
 .PHONY: build-and-push
 
 OVERRIDE_CONFIG_FILE ?= /tmp/backend-override-config-$(date +%s).yaml

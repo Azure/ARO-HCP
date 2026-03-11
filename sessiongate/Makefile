@@ -14,7 +14,7 @@ SESSION_GATE_GENERATED_IMAGE_REPOSITORY = $(shell DEPLOY_ENV=${DEPLOY_ENV} BASEL
 SESSION_GATE_TAGGED_IMAGE ?= $(ARO_HCP_IMAGE_REGISTRY)/$(SESSION_GATE_GENERATED_IMAGE_REPOSITORY):$(SESSION_GATE_IMAGE_TAG)
 
 HELMCHART_DIR = deploy
-CONTAINER_TOOL ?= docker
+CONTAINER_ENGINE ?= $(shell command -v podman 2>/dev/null || echo docker)
 BINARY = bin/sessiongate
 SESSION_GATE_SOURCES = $(shell find . -name '*.go' -o -name 'go.mod' -o -name 'go.sum')
 LDFLAGS = -ldflags ""
@@ -47,7 +47,7 @@ run:
 image: Dockerfile $(SESSION_GATE_SOURCES)
 	rm -f $(BINARY)
 	cd $(SESSIONGATE_DIR)/.. && \
-	$(CONTAINER_TOOL) build . --file sessiongate/Dockerfile \
+	$(CONTAINER_ENGINE) build . --file sessiongate/Dockerfile \
 		--build-arg PLATFORM=linux/amd64 \
 		--build-arg ARO_HCP_REVISION=${ARO_HCP_REVISION} \
 		--build-arg ARO_HCP_COMMIT_TIME=${ARO_HCP_COMMIT_TIME} \
@@ -57,7 +57,7 @@ image: Dockerfile $(SESSION_GATE_SOURCES)
 
 build-and-push: image
 	az acr login --name ${ARO_HCP_IMAGE_ACR}
-	$(CONTAINER_TOOL) push ${SESSION_GATE_TAGGED_IMAGE}
+	$(CONTAINER_ENGINE) push ${SESSION_GATE_TAGGED_IMAGE}
 .PHONY: build-and-push
 
 OVERRIDE_CONFIG_FILE ?= /tmp/sessiongate-override-config-$(date +%s).yaml
