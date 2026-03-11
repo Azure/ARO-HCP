@@ -191,6 +191,7 @@ func (c *OperationPhaseMetricsController) syncOperation(ctx context.Context, key
 	}
 
 	if op.OperationID == nil {
+		c.deleteMetrics(key)
 		return nil
 	}
 
