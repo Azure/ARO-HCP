@@ -1,4 +1,5 @@
 ADMIN_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
+CONTAINER_ENGINE ?= $(shell command -v podman 2>/dev/null || echo docker)
 
 -include ../setup-templatize-env.mk
 -include ../tooling/hcpctl/Variables.mk
@@ -65,7 +66,7 @@ clean:
 image: Dockerfile $(ADMIN_API_SOURCES) Makefile
 	@rm -f $(BINARY)
 	cd $(ADMIN_DIR)/.. && \
-	docker build . --file admin/Dockerfile \
+	$(CONTAINER_ENGINE) build . --file admin/Dockerfile \
 		--build-arg PLATFORM=linux/amd64 \
 		--build-arg ARO_HCP_REVISION=${ARO_HCP_REVISION} \
 		--build-arg ARO_HCP_COMMIT_TIME=${ARO_HCP_COMMIT_TIME} \
@@ -74,7 +75,7 @@ image: Dockerfile $(ADMIN_API_SOURCES) Makefile
 
 build-and-push: image $(ORAS)
 	az acr login --name ${ARO_HCP_IMAGE_ACR}
-	docker push ${ADMIN_API_TAGGED_IMAGE}
+	$(CONTAINER_ENGINE) push ${ADMIN_API_TAGGED_IMAGE}
 .PHONY: build-and-push
 
 OVERRIDE_CONFIG_FILE ?= /tmp/amin-api-override-config-$(date +%s).yaml

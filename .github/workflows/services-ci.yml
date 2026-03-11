@@ -59,7 +59,7 @@ jobs:
       if: inputs.push == true
       run: |
         cd tooling/aro-hcp-exporter/
-        make push
+        make build-and-push
   build_push_frontend:
     permissions:
       id-token: 'write'
@@ -213,4 +213,4 @@ jobs:
       if: inputs.push == true
       run: |
         cd image-sync/oc-mirror
-        make push
+        make build-and-push
