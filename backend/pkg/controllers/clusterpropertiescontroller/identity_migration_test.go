@@ -37,7 +37,6 @@ const (
 	testIdentityResourceID = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/test-identity"
 	testClientID           = "client-id-123"
 	testPrincipalID        = "principal-id-456"
-	testLocation           = "test-location"
 )
 
 func TestIdentityMigrationSyncer_SyncOnce(t *testing.T) {

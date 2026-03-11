@@ -1,7 +1,13 @@
 {
 	"id": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/patch-tags",
 	"identity": {
-		"type": "UserAssigned"
+		"type": "UserAssigned",
+		"userAssignedIdentities": {
+			"/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/bar/providers/Microsoft.ManagedIdentity/userAssignedIdentities/service-managed-identity": {
+				"clientId": "service-managed-identity_fake-client-id",
+				"principalId": "service-managed-identity_fake-principal-id"
+			}
+		}
 	},
 	"location": "fake-location",
 	"name": "patch-tags",
@@ -42,6 +48,11 @@
 		"platform": {
 			"managedResourceGroup": "managed-resource-group-name",
 			"networkSecurityGroupId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/bar/providers/Microsoft.Network/networkSecurityGroups/nsg",
+			"operatorsAuthentication": {
+				"userAssignedIdentities": {
+					"serviceManagedIdentity": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/bar/providers/Microsoft.ManagedIdentity/userAssignedIdentities/service-managed-identity"
+				}
+			},
 			"outboundType": "LoadBalancer",
 			"subnetId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/bar/providers/Microsoft.Network/virtualNetworks/vnet/subnets/subnet"
 		},

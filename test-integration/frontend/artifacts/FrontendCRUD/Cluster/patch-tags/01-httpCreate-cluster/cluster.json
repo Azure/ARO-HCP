@@ -1,6 +1,12 @@
 {
 	"identity": {
-		"type": "UserAssigned"
+		"type": "UserAssigned",
+		"userAssignedIdentities": {
+			"/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/bar/providers/Microsoft.ManagedIdentity/userAssignedIdentities/service-managed-identity": {
+				"clientId": "the-service-managed-client",
+				"principalId": "the-service-managed-principal"
+			}
+		}
 	},
 	"name": "patch-tags",
 	"properties": {
@@ -38,7 +44,12 @@
 			"managedResourceGroup": "managed-resource-group-name",
 			"networkSecurityGroupId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/bar/providers/Microsoft.Network/networkSecurityGroups/nsg",
 			"outboundType": "LoadBalancer",
-			"subnetId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/bar/providers/Microsoft.Network/virtualNetworks/vnet/subnets/subnet"
+			"subnetId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/bar/providers/Microsoft.Network/virtualNetworks/vnet/subnets/subnet",
+			"operatorsAuthentication": {
+				"userAssignedIdentities": {
+					"serviceManagedIdentity": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/bar/providers/Microsoft.ManagedIdentity/userAssignedIdentities/service-managed-identity"
+				}
+			}
 		},
 		"version": {
 			"channelGroup": "stable",
