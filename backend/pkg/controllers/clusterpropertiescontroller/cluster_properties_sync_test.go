@@ -44,6 +44,7 @@ const (
 	testBaseDomainPrefix   = "my-cluster"
 	testManagedIdentityURL = "https://dummyhost.identity.azure.net/otherinformation?aqueryarg=somevalue"
 	testAPIURL             = "https://api.example.com:6443"
+	testIssuerURL          = "https://storage.z1.web.core.windows.net/tenant-id/cluster-id"
 )
 
 func TestClusterPropertiesSyncer_SyncOnce(t *testing.T) {
@@ -58,6 +59,7 @@ func TestClusterPropertiesSyncer_SyncOnce(t *testing.T) {
 		expectedBaseDomainPrefix   string
 		expectedManagedIdentityURL string
 		expectedAPIURL             string
+		expectedIssuerURL          string
 	}{
 		{
 			name: "short-circuit when all properties already set",
@@ -66,6 +68,7 @@ func TestClusterPropertiesSyncer_SyncOnce(t *testing.T) {
 				c.ServiceProviderProperties.DNS.BaseDomain = testBaseDomain
 				c.ServiceProviderProperties.API.URL = testAPIURL
 				c.ServiceProviderProperties.ManagedIdentitiesDataPlaneIdentityURL = testManagedIdentityURL
+				c.ServiceProviderProperties.Platform.IssuerURL = testIssuerURL
 				c.CustomerProperties.DNS.BaseDomainPrefix = testBaseDomainPrefix
 			}),
 			expectCSCall:               false,
@@ -75,6 +78,7 @@ func TestClusterPropertiesSyncer_SyncOnce(t *testing.T) {
 			expectedBaseDomainPrefix:   testBaseDomainPrefix,
 			expectedManagedIdentityURL: testManagedIdentityURL,
 			expectedAPIURL:             testAPIURL,
+			expectedIssuerURL:          testIssuerURL,
 		},
 		{
 			name:            "sync all properties from CS when all are missing",
@@ -85,6 +89,7 @@ func TestClusterPropertiesSyncer_SyncOnce(t *testing.T) {
 				testAPIURL,
 				testBaseDomainPrefix,
 				testManagedIdentityURL,
+				testIssuerURL,
 			),
 			expectCSCall:               true,
 			expectCosmosUpdate:         true,
@@ -93,6 +98,7 @@ func TestClusterPropertiesSyncer_SyncOnce(t *testing.T) {
 			expectedBaseDomainPrefix:   testBaseDomainPrefix,
 			expectedManagedIdentityURL: testManagedIdentityURL,
 			expectedAPIURL:             testAPIURL,
+			expectedIssuerURL:          testIssuerURL,
 		},
 		{
 			name: "sync only missing Console.URL",
@@ -100,6 +106,7 @@ func TestClusterPropertiesSyncer_SyncOnce(t *testing.T) {
 				c.ServiceProviderProperties.DNS.BaseDomain = testBaseDomain
 				c.ServiceProviderProperties.API.URL = testAPIURL
 				c.ServiceProviderProperties.ManagedIdentitiesDataPlaneIdentityURL = testManagedIdentityURL
+				c.ServiceProviderProperties.Platform.IssuerURL = testIssuerURL
 				c.CustomerProperties.DNS.BaseDomainPrefix = testBaseDomainPrefix
 			}),
 			csCluster: buildCSCluster(
@@ -108,6 +115,7 @@ func TestClusterPropertiesSyncer_SyncOnce(t *testing.T) {
 				testAPIURL,
 				testBaseDomainPrefix,
 				testManagedIdentityURL,
+				testIssuerURL,
 			),
 			expectCSCall:               true,
 			expectCosmosUpdate:         true,
@@ -116,6 +124,7 @@ func TestClusterPropertiesSyncer_SyncOnce(t *testing.T) {
 			expectedBaseDomainPrefix:   testBaseDomainPrefix,
 			expectedManagedIdentityURL: testManagedIdentityURL,
 			expectedAPIURL:             testAPIURL,
+			expectedIssuerURL:          testIssuerURL,
 		},
 		{
 			name: "sync only missing DNS.BaseDomain",
@@ -123,6 +132,7 @@ func TestClusterPropertiesSyncer_SyncOnce(t *testing.T) {
 				c.ServiceProviderProperties.Console.URL = testConsoleURL
 				c.ServiceProviderProperties.API.URL = testAPIURL
 				c.ServiceProviderProperties.ManagedIdentitiesDataPlaneIdentityURL = testManagedIdentityURL
+				c.ServiceProviderProperties.Platform.IssuerURL = testIssuerURL
 				c.CustomerProperties.DNS.BaseDomainPrefix = testBaseDomainPrefix
 			}),
 			csCluster: buildCSCluster(
@@ -131,6 +141,7 @@ func TestClusterPropertiesSyncer_SyncOnce(t *testing.T) {
 				testAPIURL,
 				testBaseDomainPrefix,
 				testManagedIdentityURL,
+				testIssuerURL,
 			),
 			expectCSCall:               true,
 			expectCosmosUpdate:         true,
@@ -139,6 +150,7 @@ func TestClusterPropertiesSyncer_SyncOnce(t *testing.T) {
 			expectedBaseDomainPrefix:   testBaseDomainPrefix,
 			expectedManagedIdentityURL: testManagedIdentityURL,
 			expectedAPIURL:             testAPIURL,
+			expectedIssuerURL:          testIssuerURL,
 		},
 		{
 			name: "sync only missing API.URL",
@@ -146,6 +158,7 @@ func TestClusterPropertiesSyncer_SyncOnce(t *testing.T) {
 				c.ServiceProviderProperties.Console.URL = testConsoleURL
 				c.ServiceProviderProperties.DNS.BaseDomain = testBaseDomain
 				c.ServiceProviderProperties.ManagedIdentitiesDataPlaneIdentityURL = testManagedIdentityURL
+				c.ServiceProviderProperties.Platform.IssuerURL = testIssuerURL
 				c.CustomerProperties.DNS.BaseDomainPrefix = testBaseDomainPrefix
 			}),
 			csCluster: buildCSCluster(
@@ -154,6 +167,7 @@ func TestClusterPropertiesSyncer_SyncOnce(t *testing.T) {
 				testAPIURL,
 				testBaseDomainPrefix,
 				testManagedIdentityURL,
+				testIssuerURL,
 			),
 			expectCSCall:               true,
 			expectCosmosUpdate:         true,
@@ -162,6 +176,7 @@ func TestClusterPropertiesSyncer_SyncOnce(t *testing.T) {
 			expectedBaseDomainPrefix:   testBaseDomainPrefix,
 			expectedManagedIdentityURL: testManagedIdentityURL,
 			expectedAPIURL:             testAPIURL,
+			expectedIssuerURL:          testIssuerURL,
 		},
 		{
 			name: "sync only missing DNS.BaseDomainPrefix",
@@ -170,6 +185,7 @@ func TestClusterPropertiesSyncer_SyncOnce(t *testing.T) {
 				c.ServiceProviderProperties.DNS.BaseDomain = testBaseDomain
 				c.ServiceProviderProperties.API.URL = testAPIURL
 				c.ServiceProviderProperties.ManagedIdentitiesDataPlaneIdentityURL = testManagedIdentityURL
+				c.ServiceProviderProperties.Platform.IssuerURL = testIssuerURL
 			}),
 			csCluster: buildCSCluster(
 				testConsoleURL,
@@ -177,6 +193,7 @@ func TestClusterPropertiesSyncer_SyncOnce(t *testing.T) {
 				testAPIURL,
 				testBaseDomainPrefix,
 				testManagedIdentityURL,
+				testIssuerURL,
 			),
 			expectCSCall:               true,
 			expectCosmosUpdate:         true,
@@ -185,11 +202,12 @@ func TestClusterPropertiesSyncer_SyncOnce(t *testing.T) {
 			expectedBaseDomainPrefix:   testBaseDomainPrefix,
 			expectedManagedIdentityURL: testManagedIdentityURL,
 			expectedAPIURL:             testAPIURL,
+			expectedIssuerURL:          testIssuerURL,
 		},
 		{
 			name:                       "no update when CS returns empty values",
 			existingCluster:            newTestCluster(),
-			csCluster:                  buildCSCluster("", "", "", "", ""),
+			csCluster:                  buildCSCluster("", "", "", "", "", ""),
 			expectCSCall:               true,
 			expectCosmosUpdate:         false,
 			expectedConsoleURL:         "",
@@ -197,6 +215,7 @@ func TestClusterPropertiesSyncer_SyncOnce(t *testing.T) {
 			expectedBaseDomainPrefix:   "",
 			expectedManagedIdentityURL: "",
 			expectedAPIURL:             "",
+			expectedIssuerURL:          "",
 		},
 		{
 			name: "sync only missing ManagedIdentitiesDataPlaneIdentityURL",
@@ -204,6 +223,7 @@ func TestClusterPropertiesSyncer_SyncOnce(t *testing.T) {
 				c.ServiceProviderProperties.Console.URL = testConsoleURL
 				c.ServiceProviderProperties.DNS.BaseDomain = testBaseDomain
 				c.ServiceProviderProperties.API.URL = testAPIURL
+				c.ServiceProviderProperties.Platform.IssuerURL = testIssuerURL
 				c.CustomerProperties.DNS.BaseDomainPrefix = testBaseDomainPrefix
 			}),
 			csCluster: buildCSCluster(
@@ -212,6 +232,7 @@ func TestClusterPropertiesSyncer_SyncOnce(t *testing.T) {
 				testAPIURL,
 				testBaseDomainPrefix,
 				testManagedIdentityURL,
+				testIssuerURL,
 			),
 			expectCSCall:               true,
 			expectCosmosUpdate:         true,
@@ -220,6 +241,33 @@ func TestClusterPropertiesSyncer_SyncOnce(t *testing.T) {
 			expectedBaseDomainPrefix:   testBaseDomainPrefix,
 			expectedManagedIdentityURL: testManagedIdentityURL,
 			expectedAPIURL:             testAPIURL,
+			expectedIssuerURL:          testIssuerURL,
+		},
+		{
+			name: "sync only missing Platform.IssuerURL",
+			existingCluster: newTestCluster(func(c *api.HCPOpenShiftCluster) {
+				c.ServiceProviderProperties.Console.URL = testConsoleURL
+				c.ServiceProviderProperties.DNS.BaseDomain = testBaseDomain
+				c.ServiceProviderProperties.API.URL = testAPIURL
+				c.ServiceProviderProperties.ManagedIdentitiesDataPlaneIdentityURL = testManagedIdentityURL
+				c.CustomerProperties.DNS.BaseDomainPrefix = testBaseDomainPrefix
+			}),
+			csCluster: buildCSCluster(
+				testConsoleURL,
+				testBaseDomain,
+				testAPIURL,
+				testBaseDomainPrefix,
+				testManagedIdentityURL,
+				testIssuerURL,
+			),
+			expectCSCall:               true,
+			expectCosmosUpdate:         true,
+			expectedConsoleURL:         testConsoleURL,
+			expectedBaseDomain:         testBaseDomain,
+			expectedBaseDomainPrefix:   testBaseDomainPrefix,
+			expectedManagedIdentityURL: testManagedIdentityURL,
+			expectedAPIURL:             testAPIURL,
+			expectedIssuerURL:          testIssuerURL,
 		},
 	}
 
@@ -267,6 +315,7 @@ func TestClusterPropertiesSyncer_SyncOnce(t *testing.T) {
 			assert.Equal(t, tc.expectedAPIURL, updatedCluster.ServiceProviderProperties.API.URL)
 			assert.Equal(t, tc.expectedBaseDomainPrefix, updatedCluster.CustomerProperties.DNS.BaseDomainPrefix)
 			assert.Equal(t, tc.expectedManagedIdentityURL, updatedCluster.ServiceProviderProperties.ManagedIdentitiesDataPlaneIdentityURL)
+			assert.Equal(t, tc.expectedIssuerURL, updatedCluster.ServiceProviderProperties.Platform.IssuerURL)
 		})
 	}
 }
@@ -301,20 +350,31 @@ func newTestCluster(opts ...func(*api.HCPOpenShiftCluster)) *api.HCPOpenShiftClu
 }
 
 // buildCSCluster creates a mock Cluster Service cluster with the given values.
-func buildCSCluster(consoleURL, baseDomain, apiURL, domainPrefix, managedIdentityURL string) *arohcpv1alpha1.Cluster {
+func buildCSCluster(consoleURL, baseDomain, apiURL, domainPrefix, managedIdentityURL, issuerURL string) *arohcpv1alpha1.Cluster {
 	builder := arohcpv1alpha1.NewCluster().
 		Console(arohcpv1alpha1.NewClusterConsole().URL(consoleURL)).
 		DNS(arohcpv1alpha1.NewDNS().BaseDomain(baseDomain)).
 		API(arohcpv1alpha1.NewClusterAPI().URL(apiURL)).
 		DomainPrefix(domainPrefix)
 
+	azureBuilder := arohcpv1alpha1.NewAzure()
+	needsAzure := false
+
 	if managedIdentityURL != "" {
-		builder = builder.Azure(arohcpv1alpha1.NewAzure().
+		azureBuilder = azureBuilder.
 			OperatorsAuthentication(arohcpv1alpha1.NewAzureOperatorsAuthentication().
 				ManagedIdentities(arohcpv1alpha1.NewAzureOperatorsAuthenticationManagedIdentities().
 					ControlPlaneOperatorsManagedIdentities(make(map[string]*arohcpv1alpha1.AzureControlPlaneManagedIdentityBuilder)).
 					DataPlaneOperatorsManagedIdentities(make(map[string]*arohcpv1alpha1.AzureDataPlaneManagedIdentityBuilder)).
-					ManagedIdentitiesDataPlaneIdentityUrl(managedIdentityURL))))
+					ManagedIdentitiesDataPlaneIdentityUrl(managedIdentityURL)))
+		needsAzure = true
+	}
+	if issuerURL != "" {
+		azureBuilder = azureBuilder.OidcIssuerUrl(issuerURL)
+		needsAzure = true
+	}
+	if needsAzure {
+		builder = builder.Azure(azureBuilder)
 	}
 
 	cluster, err := builder.Build()

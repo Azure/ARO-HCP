@@ -460,7 +460,7 @@ func LegacyCreateInternalClusterFromClusterService(resourceID *azcorearm.Resourc
 				URL: cluster.API().URL(),
 			},
 			Platform: api.ServiceProviderPlatformProfile{
-				IssuerURL: "",
+				IssuerURL: cluster.Azure().OidcIssuerUrl(),
 			},
 		},
 	}
@@ -572,6 +572,7 @@ func SetClusterServiceOnlyFieldsOnCluster(internalCluster *api.HCPOpenShiftClust
 	internalCluster.ServiceProviderProperties.DNS.BaseDomain = clusterServiceCluster.DNS().BaseDomain()
 	internalCluster.ServiceProviderProperties.Console.URL = clusterServiceCluster.Console().URL()
 	internalCluster.ServiceProviderProperties.API.URL = clusterServiceCluster.API().URL()
+	internalCluster.ServiceProviderProperties.Platform.IssuerURL = clusterServiceCluster.Azure().OidcIssuerUrl()
 
 	// the clientID and principalID are currently only known to cluster-service. We'll need to determine them somewhere else.
 	if clusterServiceCluster.Azure().OperatorsAuthentication() != nil {
