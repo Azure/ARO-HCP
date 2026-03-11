@@ -34,41 +34,6 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
 
-func testParseResourceID(t *testing.T, id string) *azcorearm.ResourceID {
-	t.Helper()
-	rid, err := azcorearm.ParseResourceID(id)
-	require.NoError(t, err)
-	return rid
-}
-
-func TestOperationIDHash(t *testing.T) {
-	t.Run("returns 16 hex characters", func(t *testing.T) {
-		h := OperationIDHash("test-operation")
-		assert.Len(t, h, 16)
-		for _, c := range h {
-			assert.True(t, (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f'),
-				"expected hex character, got %c", c)
-		}
-	})
-
-	t.Run("is deterministic", func(t *testing.T) {
-		h1 := OperationIDHash("same-input")
-		h2 := OperationIDHash("same-input")
-		assert.Equal(t, h1, h2)
-	})
-
-	t.Run("different inputs produce different hashes", func(t *testing.T) {
-		h1 := OperationIDHash("input-a")
-		h2 := OperationIDHash("input-b")
-		assert.NotEqual(t, h1, h2)
-	})
-
-	t.Run("handles empty string", func(t *testing.T) {
-		h := OperationIDHash("")
-		assert.Len(t, h, 16)
-	})
-}
-
 func TestPhaseLabel(t *testing.T) {
 	tests := []struct {
 		input    arm.ProvisioningState
@@ -103,22 +68,22 @@ func TestResourceTypeFromExternalID(t *testing.T) {
 		},
 		{
 			name:       "cluster resource type",
-			externalID: testParseResourceID(t, "/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1"),
+			externalID: api.Must(azcorearm.ParseResourceID("/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1")),
 			expected:   "cluster",
 		},
 		{
 			name:       "nodepool resource type",
-			externalID: testParseResourceID(t, "/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1/nodePools/np-1"),
+			externalID: api.Must(azcorearm.ParseResourceID("/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1/nodePools/np-1")),
 			expected:   "nodepool",
 		},
 		{
 			name:       "externalauth resource type",
-			externalID: testParseResourceID(t, "/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1/externalAuths/ea-1"),
+			externalID: api.Must(azcorearm.ParseResourceID("/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1/externalAuths/ea-1")),
 			expected:   "externalauth",
 		},
 		{
 			name:       "unknown resource type",
-			externalID: testParseResourceID(t, "/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.SomeOther/someResource/foo"),
+			externalID: api.Must(azcorearm.ParseResourceID("/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.SomeOther/someResource/foo")),
 			expected:   "unknown",
 		},
 	}
@@ -149,10 +114,10 @@ func TestOperationTypeLabel(t *testing.T) {
 
 func newTestOperation(t *testing.T, opName string, request api.OperationRequest, status arm.ProvisioningState, externalID string, startTime, lastTransition time.Time) *api.Operation {
 	t.Helper()
-	operationID := testParseResourceID(t,
-		"/subscriptions/sub-1/providers/Microsoft.RedHatOpenShift/hcpOperationStatuses/"+opName)
-	resourceID := testParseResourceID(t,
-		"/subscriptions/sub-1/providers/Microsoft.RedHatOpenShift/hcpOperationStatuses/"+opName)
+	operationID := api.Must(azcorearm.ParseResourceID(
+		"/subscriptions/sub-1/providers/Microsoft.RedHatOpenShift/hcpOperationStatuses/" + opName))
+	resourceID := api.Must(azcorearm.ParseResourceID(
+		"/subscriptions/sub-1/providers/Microsoft.RedHatOpenShift/hcpOperationStatuses/" + opName))
 	op := &api.Operation{
 		CosmosMetadata: api.CosmosMetadata{
 			ResourceID: resourceID,
@@ -165,7 +130,7 @@ func newTestOperation(t *testing.T, opName string, request api.OperationRequest,
 		LastTransitionTime: lastTransition,
 	}
 	if externalID != "" {
-		op.ExternalID = testParseResourceID(t, externalID)
+		op.ExternalID = api.Must(azcorearm.ParseResourceID(externalID))
 	}
 	return op
 }
@@ -272,15 +237,15 @@ func TestSyncOperation_DeletesMetricsWhenOperationRemoved(t *testing.T) {
 
 func TestSyncOperation_SkipsNilOperationID(t *testing.T) {
 	now := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
-	resourceID := testParseResourceID(t,
-		"/subscriptions/sub-1/providers/Microsoft.RedHatOpenShift/hcpOperationStatuses/op-nil-id")
+	resourceID := api.Must(azcorearm.ParseResourceID(
+		"/subscriptions/sub-1/providers/Microsoft.RedHatOpenShift/hcpOperationStatuses/op-nil-id"))
 	op := &api.Operation{
 		CosmosMetadata: api.CosmosMetadata{
 			ResourceID: resourceID,
 		},
 		ResourceID:         resourceID,
 		OperationID:        nil,
-		ExternalID:         testParseResourceID(t, "/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1"),
+		ExternalID:         api.Must(azcorearm.ParseResourceID("/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1")),
 		Request:            api.OperationRequestCreate,
 		Status:             arm.ProvisioningStateAccepted,
 		StartTime:          now,

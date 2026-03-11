@@ -29,7 +29,6 @@ import (
 	"k8s.io/client-go/util/workqueue"
 
 	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -41,76 +40,37 @@ func ResourceIDHash(resourceID string) string {
 	return fmt.Sprintf("%x", h[:8])
 }
 
-// ResourceMetricsExtractor extracts metric-relevant fields from a resource
-// stored in the informer cache. Each resource type (cluster, nodepool,
-// externalauth) implements this to map its fields to a common representation.
-type ResourceMetricsExtractor interface {
-	Extract(obj interface{}) (*ResourceMetrics, bool)
-}
-
-// ResourceMetrics holds the fields needed to emit metrics for a resource.
-type ResourceMetrics struct {
-	// ResourceID is the lowercased ARM resource ID string, used for
-	// hash computation and logging. Not exposed directly in metric labels.
-	ResourceID string
-	// ProvisioningState is the current provisioning state of the resource.
-	ProvisioningState arm.ProvisioningState
-	// CreatedAt is the ARM SystemData creation timestamp. May be nil.
-	CreatedAt *time.Time
-}
-
-// ResourceMetricsController reacts to informer events and maintains
+// ResourceMetricsController[T] reacts to informer events and maintains
 // per-resource Prometheus gauge metrics using a level-driven approach.
-// On each sync it reads the current state of the resource and sets metrics
-// accordingly, with no in-memory state tracking beyond the informer cache.
+// On each sync it reads the current state of the resource and passes the
+// typed object to the provided handler functions. The controller handles
+// workqueue boilerplate and type-safe object extraction via generics.
 //
-// Metrics emitted per resource:
-//   - {prefix}_provision_state{resource_id_hash, phase} = 1
-//   - {prefix}_created_time_seconds{resource_id_hash} = unix timestamp
-//
-// The resource_id_hash label is a truncated SHA-256 hash of the ARM resource
-// ID, anonymizing customer identifiers while remaining deterministic. The
-// hash-to-ID mapping is logged at V(1) for correlation.
-//
-// Note: per-phase timestamp metrics (e.g. {prefix}_provisioned_time) are not
-// currently possible because the resource objects in CosmosDB do not store
-// per-phase transition timestamps. See ARO-25109 for tracking.
-type ResourceMetricsController struct {
-	name      string
-	indexer   cache.Indexer
-	extractor ResourceMetricsExtractor
-	queue     workqueue.TypedRateLimitingInterface[string]
-
-	provisionState *prometheus.GaugeVec
-	createdTime    *prometheus.GaugeVec
+// T is the concrete resource type stored in the informer (e.g.
+// *api.HCPOpenShiftCluster, *api.HCPOpenShiftClusterNodePool).
+type ResourceMetricsController[T any] struct {
+	name          string
+	indexer       cache.Indexer
+	queue         workqueue.TypedRateLimitingInterface[string]
+	syncMetrics   func(ctx context.Context, obj T)
+	deleteMetrics func(key string)
 }
 
-// NewResourceMetricsController creates a ResourceMetricsController that watches
-// the given informer and emits metrics with the given prefix (e.g. "backend_cluster",
-// "backend_nodepool", "backend_externalauth").
-func NewResourceMetricsController(
+// NewResourceMetricsController creates a generic, type-safe metrics controller.
+// The syncMetrics function is called with the typed resource object on each sync.
+// The deleteMetrics function is called with the store key when the resource is
+// removed from the informer cache.
+func NewResourceMetricsController[T any](
 	name string,
-	prefix string,
-	r prometheus.Registerer,
 	informer cache.SharedIndexInformer,
-	extractor ResourceMetricsExtractor,
-) *ResourceMetricsController {
-	provisionState := prometheus.NewGaugeVec(prometheus.GaugeOpts{
-		Name: prefix + "_provision_state",
-		Help: "Current provisioning state of the resource (value is always 1).",
-	}, []string{"resource_id_hash", "phase"})
-	createdTime := prometheus.NewGaugeVec(prometheus.GaugeOpts{
-		Name: prefix + "_created_time_seconds",
-		Help: "Unix timestamp when the resource was created.",
-	}, []string{"resource_id_hash"})
-	r.MustRegister(provisionState, createdTime)
-
-	c := &ResourceMetricsController{
-		name:           name,
-		indexer:        informer.GetIndexer(),
-		extractor:      extractor,
-		provisionState: provisionState,
-		createdTime:    createdTime,
+	syncMetrics func(ctx context.Context, obj T),
+	deleteMetrics func(key string),
+) *ResourceMetricsController[T] {
+	c := &ResourceMetricsController[T]{
+		name:          name,
+		indexer:       informer.GetIndexer(),
+		syncMetrics:   syncMetrics,
+		deleteMetrics: deleteMetrics,
 		queue: workqueue.NewTypedRateLimitingQueueWithConfig(
 			workqueue.DefaultTypedControllerRateLimiter[string](),
 			workqueue.TypedRateLimitingQueueConfig[string]{
@@ -131,7 +91,7 @@ func NewResourceMetricsController(
 	return c
 }
 
-func (c *ResourceMetricsController) enqueue(obj interface{}) {
+func (c *ResourceMetricsController[T]) enqueue(obj interface{}) {
 	key, err := cache.DeletionHandlingMetaNamespaceKeyFunc(obj)
 	if err != nil {
 		logger := utils.DefaultLogger()
@@ -143,7 +103,7 @@ func (c *ResourceMetricsController) enqueue(obj interface{}) {
 }
 
 // Run starts the controller workers and blocks until ctx is cancelled.
-func (c *ResourceMetricsController) Run(ctx context.Context, threadiness int) {
+func (c *ResourceMetricsController[T]) Run(ctx context.Context, threadiness int) {
 	defer utilruntime.HandleCrash()
 	defer c.queue.ShutDown()
 
@@ -161,12 +121,12 @@ func (c *ResourceMetricsController) Run(ctx context.Context, threadiness int) {
 	logger.Info("Shutting down")
 }
 
-func (c *ResourceMetricsController) runWorker(ctx context.Context) {
+func (c *ResourceMetricsController[T]) runWorker(ctx context.Context) {
 	for c.processNextWorkItem(ctx) {
 	}
 }
 
-func (c *ResourceMetricsController) processNextWorkItem(ctx context.Context) bool {
+func (c *ResourceMetricsController[T]) processNextWorkItem(ctx context.Context) bool {
 	key, shutdown := c.queue.Get()
 	if shutdown {
 		return false
@@ -186,8 +146,8 @@ func (c *ResourceMetricsController) processNextWorkItem(ctx context.Context) boo
 }
 
 // syncResource reads the current state of the resource from the informer cache
-// and sets metrics accordingly (level-driven).
-func (c *ResourceMetricsController) syncResource(ctx context.Context, key string) error {
+// and calls the typed handler function (level-driven).
+func (c *ResourceMetricsController[T]) syncResource(ctx context.Context, key string) error {
 	obj, exists, err := c.indexer.GetByKey(key)
 	if err != nil {
 		return err
@@ -198,112 +158,165 @@ func (c *ResourceMetricsController) syncResource(ctx context.Context, key string
 		return nil
 	}
 
-	metrics, ok := c.extractor.Extract(obj)
+	typed, ok := obj.(T)
 	if !ok {
 		c.deleteMetrics(key)
 		return nil
 	}
 
-	c.setMetrics(ctx, metrics)
+	c.syncMetrics(ctx, typed)
 	return nil
 }
 
-func (c *ResourceMetricsController) setMetrics(ctx context.Context, m *ResourceMetrics) {
-	hash := ResourceIDHash(m.ResourceID)
-	phase := PhaseLabel(m.ProvisioningState)
+// NewClusterMetricsHandler creates sync and delete functions for cluster metrics.
+func NewClusterMetricsHandler(r prometheus.Registerer) (func(context.Context, *api.HCPOpenShiftCluster), func(string)) {
+	provisionState := prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "backend_cluster_provision_state",
+		Help: "Current provisioning state of the cluster (value is always 1).",
+	}, []string{"resource_id_hash", "phase"})
+	createdTime := prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "backend_cluster_created_time_seconds",
+		Help: "Unix timestamp when the cluster was created.",
+	}, []string{"resource_id_hash"})
+	r.MustRegister(provisionState, createdTime)
 
-	// Level-driven: delete existing series, then set current state.
-	partialMatch := prometheus.Labels{"resource_id_hash": hash}
-	c.provisionState.DeletePartialMatch(partialMatch)
+	syncFunc := func(ctx context.Context, cluster *api.HCPOpenShiftCluster) {
+		if cluster.ID == nil {
+			return
+		}
+		resourceID := strings.ToLower(cluster.ID.String())
+		hash := ResourceIDHash(resourceID)
+		phase := PhaseLabel(cluster.ServiceProviderProperties.ProvisioningState)
 
-	c.provisionState.With(prometheus.Labels{
-		"resource_id_hash": hash,
-		"phase":            phase,
-	}).Set(1.0)
+		partialMatch := prometheus.Labels{"resource_id_hash": hash}
+		provisionState.DeletePartialMatch(partialMatch)
+		provisionState.With(prometheus.Labels{
+			"resource_id_hash": hash,
+			"phase":            phase,
+		}).Set(1.0)
 
-	createdTimeLabels := prometheus.Labels{"resource_id_hash": hash}
-	if m.CreatedAt != nil && !m.CreatedAt.IsZero() {
-		c.createdTime.With(createdTimeLabels).Set(float64(m.CreatedAt.Unix()))
-	} else {
-		c.createdTime.Delete(createdTimeLabels)
+		createdTimeLabels := prometheus.Labels{"resource_id_hash": hash}
+		if cluster.SystemData != nil && cluster.SystemData.CreatedAt != nil && !cluster.SystemData.CreatedAt.IsZero() {
+			createdTime.With(createdTimeLabels).Set(float64(cluster.SystemData.CreatedAt.Unix()))
+		} else {
+			createdTime.Delete(createdTimeLabels)
+		}
+
+		logger := utils.LoggerFromContext(ctx)
+		logValues := append(
+			utils.LogValues{"resource_id_hash", hash},
+			utils.LogValues{}.AddLogValuesForResourceID(cluster.ID)...)
+		logger.V(1).Info("Cluster metrics synced", logValues...)
 	}
 
-	logger := utils.LoggerFromContext(ctx)
-	logValues := append(
-		utils.LogValues{"resource_id_hash", hash},
-		utils.LogValues{}.AddLogValuesForResourceIDString(m.ResourceID)...)
-	logger.V(1).Info("Resource metrics synced", logValues...)
+	deleteFunc := func(key string) {
+		hash := ResourceIDHash(key)
+		partialMatch := prometheus.Labels{"resource_id_hash": hash}
+		provisionState.DeletePartialMatch(partialMatch)
+		createdTime.DeletePartialMatch(partialMatch)
+	}
+
+	return syncFunc, deleteFunc
 }
 
-// deleteMetrics removes all metric series for the resource identified by the
-// given store key. The store key is the lowercased resource ID string (from
-// GetObjectMeta().Name), which is hashed to match the resource_id_hash label.
-func (c *ResourceMetricsController) deleteMetrics(key string) {
-	hash := ResourceIDHash(key)
-	partialMatch := prometheus.Labels{"resource_id_hash": hash}
-	c.provisionState.DeletePartialMatch(partialMatch)
-	c.createdTime.DeletePartialMatch(partialMatch)
+// NewNodePoolMetricsHandler creates sync and delete functions for nodepool metrics.
+func NewNodePoolMetricsHandler(r prometheus.Registerer) (func(context.Context, *api.HCPOpenShiftClusterNodePool), func(string)) {
+	provisionState := prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "backend_nodepool_provision_state",
+		Help: "Current provisioning state of the node pool (value is always 1).",
+	}, []string{"resource_id_hash", "phase"})
+	createdTime := prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "backend_nodepool_created_time_seconds",
+		Help: "Unix timestamp when the node pool was created.",
+	}, []string{"resource_id_hash"})
+	r.MustRegister(provisionState, createdTime)
+
+	syncFunc := func(ctx context.Context, np *api.HCPOpenShiftClusterNodePool) {
+		if np.ID == nil {
+			return
+		}
+		resourceID := strings.ToLower(np.ID.String())
+		hash := ResourceIDHash(resourceID)
+		phase := PhaseLabel(np.Properties.ProvisioningState)
+
+		partialMatch := prometheus.Labels{"resource_id_hash": hash}
+		provisionState.DeletePartialMatch(partialMatch)
+		provisionState.With(prometheus.Labels{
+			"resource_id_hash": hash,
+			"phase":            phase,
+		}).Set(1.0)
+
+		createdTimeLabels := prometheus.Labels{"resource_id_hash": hash}
+		if np.SystemData != nil && np.SystemData.CreatedAt != nil && !np.SystemData.CreatedAt.IsZero() {
+			createdTime.With(createdTimeLabels).Set(float64(np.SystemData.CreatedAt.Unix()))
+		} else {
+			createdTime.Delete(createdTimeLabels)
+		}
+
+		logger := utils.LoggerFromContext(ctx)
+		logValues := append(
+			utils.LogValues{"resource_id_hash", hash},
+			utils.LogValues{}.AddLogValuesForResourceID(np.ID)...)
+		logger.V(1).Info("NodePool metrics synced", logValues...)
+	}
+
+	deleteFunc := func(key string) {
+		hash := ResourceIDHash(key)
+		partialMatch := prometheus.Labels{"resource_id_hash": hash}
+		provisionState.DeletePartialMatch(partialMatch)
+		createdTime.DeletePartialMatch(partialMatch)
+	}
+
+	return syncFunc, deleteFunc
 }
 
-// ClusterMetricsExtractor extracts metrics from HCPOpenShiftCluster resources.
-type ClusterMetricsExtractor struct{}
+// NewExternalAuthMetricsHandler creates sync and delete functions for externalauth metrics.
+func NewExternalAuthMetricsHandler(r prometheus.Registerer) (func(context.Context, *api.HCPOpenShiftClusterExternalAuth), func(string)) {
+	provisionState := prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "backend_externalauth_provision_state",
+		Help: "Current provisioning state of the external auth (value is always 1).",
+	}, []string{"resource_id_hash", "phase"})
+	createdTime := prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "backend_externalauth_created_time_seconds",
+		Help: "Unix timestamp when the external auth was created.",
+	}, []string{"resource_id_hash"})
+	r.MustRegister(provisionState, createdTime)
 
-func (e *ClusterMetricsExtractor) Extract(obj interface{}) (*ResourceMetrics, bool) {
-	cluster, ok := obj.(*api.HCPOpenShiftCluster)
-	if !ok {
-		return nil, false
-	}
-	if cluster.ID == nil {
-		return nil, false
-	}
-	m := &ResourceMetrics{
-		ResourceID:        strings.ToLower(cluster.ID.String()),
-		ProvisioningState: cluster.ServiceProviderProperties.ProvisioningState,
-	}
-	if cluster.SystemData != nil {
-		m.CreatedAt = cluster.SystemData.CreatedAt
-	}
-	return m, true
-}
+	syncFunc := func(ctx context.Context, ea *api.HCPOpenShiftClusterExternalAuth) {
+		if ea.ID == nil {
+			return
+		}
+		resourceID := strings.ToLower(ea.ID.String())
+		hash := ResourceIDHash(resourceID)
+		phase := PhaseLabel(ea.Properties.ProvisioningState)
 
-// NodePoolMetricsExtractor extracts metrics from HCPOpenShiftClusterNodePool resources.
-type NodePoolMetricsExtractor struct{}
+		partialMatch := prometheus.Labels{"resource_id_hash": hash}
+		provisionState.DeletePartialMatch(partialMatch)
+		provisionState.With(prometheus.Labels{
+			"resource_id_hash": hash,
+			"phase":            phase,
+		}).Set(1.0)
 
-func (e *NodePoolMetricsExtractor) Extract(obj interface{}) (*ResourceMetrics, bool) {
-	np, ok := obj.(*api.HCPOpenShiftClusterNodePool)
-	if !ok {
-		return nil, false
-	}
-	if np.ID == nil {
-		return nil, false
-	}
-	m := &ResourceMetrics{
-		ResourceID:        strings.ToLower(np.ID.String()),
-		ProvisioningState: np.Properties.ProvisioningState,
-	}
-	if np.SystemData != nil {
-		m.CreatedAt = np.SystemData.CreatedAt
-	}
-	return m, true
-}
+		createdTimeLabels := prometheus.Labels{"resource_id_hash": hash}
+		if ea.SystemData != nil && ea.SystemData.CreatedAt != nil && !ea.SystemData.CreatedAt.IsZero() {
+			createdTime.With(createdTimeLabels).Set(float64(ea.SystemData.CreatedAt.Unix()))
+		} else {
+			createdTime.Delete(createdTimeLabels)
+		}
 
-// ExternalAuthMetricsExtractor extracts metrics from HCPOpenShiftClusterExternalAuth resources.
-type ExternalAuthMetricsExtractor struct{}
+		logger := utils.LoggerFromContext(ctx)
+		logValues := append(
+			utils.LogValues{"resource_id_hash", hash},
+			utils.LogValues{}.AddLogValuesForResourceID(ea.ID)...)
+		logger.V(1).Info("ExternalAuth metrics synced", logValues...)
+	}
 
-func (e *ExternalAuthMetricsExtractor) Extract(obj interface{}) (*ResourceMetrics, bool) {
-	ea, ok := obj.(*api.HCPOpenShiftClusterExternalAuth)
-	if !ok {
-		return nil, false
+	deleteFunc := func(key string) {
+		hash := ResourceIDHash(key)
+		partialMatch := prometheus.Labels{"resource_id_hash": hash}
+		provisionState.DeletePartialMatch(partialMatch)
+		createdTime.DeletePartialMatch(partialMatch)
 	}
-	if ea.ID == nil {
-		return nil, false
-	}
-	m := &ResourceMetrics{
-		ResourceID:        strings.ToLower(ea.ID.String()),
-		ProvisioningState: ea.Properties.ProvisioningState,
-	}
-	if ea.SystemData != nil {
-		m.CreatedAt = ea.SystemData.CreatedAt
-	}
-	return m, true
+
+	return syncFunc, deleteFunc
 }

@@ -259,22 +259,19 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		prometheus.DefaultRegisterer, activeOperationInformer)
 
 	clusterInformer, _ := backendInformers.Clusters()
+	clusterSync, clusterDelete := controllerutils.NewClusterMetricsHandler(prometheus.DefaultRegisterer)
 	clusterMetricsController := controllerutils.NewResourceMetricsController(
-		"ClusterMetrics", "backend_cluster",
-		prometheus.DefaultRegisterer, clusterInformer,
-		&controllerutils.ClusterMetricsExtractor{})
+		"ClusterMetrics", clusterInformer, clusterSync, clusterDelete)
 
 	nodePoolInformer, _ := backendInformers.NodePools()
+	nodePoolSync, nodePoolDelete := controllerutils.NewNodePoolMetricsHandler(prometheus.DefaultRegisterer)
 	nodePoolMetricsController := controllerutils.NewResourceMetricsController(
-		"NodePoolMetrics", "backend_nodepool",
-		prometheus.DefaultRegisterer, nodePoolInformer,
-		&controllerutils.NodePoolMetricsExtractor{})
+		"NodePoolMetrics", nodePoolInformer, nodePoolSync, nodePoolDelete)
 
 	externalAuthInformer, _ := backendInformers.ExternalAuths()
+	externalAuthSync, externalAuthDelete := controllerutils.NewExternalAuthMetricsHandler(prometheus.DefaultRegisterer)
 	externalAuthMetricsController := controllerutils.NewResourceMetricsController(
-		"ExternalAuthMetrics", "backend_externalauth",
-		prometheus.DefaultRegisterer, externalAuthInformer,
-		&controllerutils.ExternalAuthMetricsExtractor{})
+		"ExternalAuthMetrics", externalAuthInformer, externalAuthSync, externalAuthDelete)
 
 	startedLeading := atomic.Bool{}
 	operationsScanner := oldoperationscanner.NewOperationsScanner(
