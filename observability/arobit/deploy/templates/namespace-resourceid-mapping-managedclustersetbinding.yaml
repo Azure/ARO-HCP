@@ -1,3 +1,4 @@
+# yamllint disable rule:line-length rule:syntax
 {{- if eq .Values.forwarder.clusterType "mgmt" }}
 ---
 apiVersion: cluster.open-cluster-management.io/v1beta2
