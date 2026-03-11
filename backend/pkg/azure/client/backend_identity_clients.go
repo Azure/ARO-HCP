@@ -23,4 +23,7 @@ type BackendIdentityAzureClients struct {
 	// OIDC configuration associated to the ARO-HCP Clusters' Data Plane Operators
 	// Azure Identities
 	DataplaneIdentitiesOIDCConfigurationBlobStorageClient BlobStorageClient
+	// RoleDefinitionsClient is the client used to get Azure RBAC role definitions
+	// (e.g. for resolving role definition IDs to allowed actions).
+	RoleDefinitionsClient RoleDefinitionsClient
 }
