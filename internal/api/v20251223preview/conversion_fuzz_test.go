@@ -84,18 +84,24 @@ func TestRoundTripInternalExternalInternal(t *testing.T) {
 	for i := 0; i < 200; i++ {
 		original := &api.HCPOpenShiftCluster{}
 		fuzzer.Fill(original)
+		// CosmosETag does not roundtrip through the external type because it is purely a database concern
+		original.CosmosETag = ""
 		roundTripHCPCluster(t, original)
 	}
 
 	for i := 0; i < 200; i++ {
 		original := &api.HCPOpenShiftClusterNodePool{}
 		fuzzer.Fill(original)
+		// CosmosETag does not roundtrip through the external type because it is purely a database concern
+		original.CosmosETag = ""
 		roundTripNodePool(t, original)
 	}
 
 	for i := 0; i < 200; i++ {
 		original := &api.HCPOpenShiftClusterExternalAuth{}
 		fuzzer.Fill(original)
+		// CosmosETag does not roundtrip through the external type because it is purely a database concern
+		original.CosmosETag = ""
 		roundTripExternalAuth(t, original)
 	}
 }
