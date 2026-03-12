@@ -122,6 +122,7 @@ func TestGeneratedHTML(t *testing.T) {
 			OutputDir:       tmpdir,
 			SvcClusterName:  "hcp-underlay-prow-usw3j688-svc-1",
 			MgmtClusterName: "hcp-underlay-prow-usw3j688-mgmt-1",
+			SubscriptionID:  "00000000-0000-0000-0000-000000000000",
 			Kusto:           kusto,
 			Steps: []pipeline.NodeInfo{
 				{Info: pipeline.ExecutionInfo{
@@ -138,6 +139,7 @@ func TestGeneratedHTML(t *testing.T) {
 
 	testutil.CompareFileWithFixture(t, filepath.Join(tmpdir, "custom-link-tools.html"), testutil.WithSuffix("custom-link-tools"))
 	testutil.CompareFileWithFixture(t, filepath.Join(tmpdir, "custom-link-tools-test-table.html"), testutil.WithSuffix("custom-link-tools-test-table"))
+	testutil.CompareFileWithFixture(t, filepath.Join(tmpdir, "custom-link-tools-commands.html"), testutil.WithSuffix("custom-link-tools-commands"))
 }
 
 func TestGeneratedHTMLWithoutStepsUsesTimingFallback(t *testing.T) {
@@ -170,6 +172,7 @@ func TestGeneratedHTMLWithoutStepsUsesTimingFallback(t *testing.T) {
 
 	testutil.CompareFileWithFixture(t, filepath.Join(tmpdir, "custom-link-tools.html"), testutil.WithSuffix("custom-link-tools-no-steps"))
 	testutil.CompareFileWithFixture(t, filepath.Join(tmpdir, "custom-link-tools-test-table.html"), testutil.WithSuffix("custom-link-tools-test-table"))
+	testutil.CompareFileWithFixture(t, filepath.Join(tmpdir, "custom-link-tools-commands.html"), testutil.WithSuffix("custom-link-tools-commands-no-steps"))
 }
 
 func TestGetServiceLogLinksUsesClockFallbackWhenNoStepsAndNoTiming(t *testing.T) {
@@ -182,10 +185,12 @@ func TestGetServiceLogLinksUsesClockFallbackWhenNoStepsAndNoTiming(t *testing.T)
 		HostedControlPlaneLogsDatabase: "HostedControlPlaneLogs",
 	}
 
-	links, err := getServiceLogLinks(testr.New(t), nil, nil, nil, "svc-cluster", "mgmt-cluster", kusto)
+	tw, err := computeTimeWindow(testr.New(t), nil, nil, nil)
 	if err != nil {
-		t.Fatalf("failed to get service log links: %v", err)
+		t.Fatalf("failed to compute time window: %v", err)
 	}
+
+	links := getServiceLogLinks(testr.New(t), tw, "svc-cluster", "mgmt-cluster", kusto)
 
 	assertAllServiceLinkQueriesContainTimeWindow(t, links, "2022-03-17T16:00:00Z", "2022-03-17T19:30:00Z")
 }
@@ -205,10 +210,12 @@ func TestGetServiceLogLinksUsesCLIStartFallbackWhenStepsAndTimingUnavailable(t *
 		HostedControlPlaneLogsDatabase: "HostedControlPlaneLogs",
 	}
 
-	links, err := getServiceLogLinks(testr.New(t), nil, nil, &startTimeFallback, "svc-cluster", "mgmt-cluster", kusto)
+	tw, err := computeTimeWindow(testr.New(t), nil, nil, &startTimeFallback)
 	if err != nil {
-		t.Fatalf("failed to get service log links: %v", err)
+		t.Fatalf("failed to compute time window: %v", err)
 	}
+
+	links := getServiceLogLinks(testr.New(t), tw, "svc-cluster", "mgmt-cluster", kusto)
 
 	assertAllServiceLinkQueriesContainTimeWindow(t, links, "2022-03-17T17:00:00Z", "2022-03-17T19:30:00Z")
 }

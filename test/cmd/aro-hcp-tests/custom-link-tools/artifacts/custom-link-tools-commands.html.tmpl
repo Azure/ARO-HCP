@@ -1,0 +1,44 @@
+<html>
+<head>
+  <title>Commands (must-gather, etc.)</title>
+  <meta name="description" content="Contains ready-to-use CLI commands for must-gather and other tools.">
+  <link rel="stylesheet" type="text/css" href="/static/style.css">
+  <link rel="stylesheet" type="text/css" href="/static/extensions/style.css">
+  <link href="https://fonts.googleapis.com/css?family=Roboto:400,700" rel="stylesheet">
+  <link rel="stylesheet" href="https://code.getmdl.io/1.3.0/material.indigo-pink.min.css">
+  <link rel="stylesheet" type="text/css" href="/static/spyglass/spyglass.css">
+  <style>
+    body {
+        background-color: #000;
+        color: #fff;
+    }
+    h3 {
+        margin: 20px 10px 5px 10px;
+        color: #4E9AF1;
+    }
+    pre {
+        background-color: #1a1a1a;
+        border: 1px solid #333;
+        border-radius: 4px;
+        padding: 12px 15px;
+        margin: 5px 10px 15px 10px;
+        overflow-x: auto;
+        font-size: 14px;
+        line-height: 1.4;
+        white-space: pre-wrap;
+        word-break: break-all;
+    }
+  </style>
+</head>
+
+<body>
+
+  {{range .Commands}}
+  <h3>{{ .Label }}</h3>
+  <pre>{{ .Command }}</pre>
+  {{end}}
+
+  <!-- workaround for spyglass cutting off page bottoms -->
+  <div style="height: 20px;"></div>
+</body>
+</html>
