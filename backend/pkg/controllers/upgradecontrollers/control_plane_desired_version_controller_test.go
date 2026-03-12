@@ -271,7 +271,7 @@ func TestDesiredControlPlaneZVersion_ZStreamManagedUpgrade(t *testing.T) {
 			mockCincinnatiClient := cincinatti.NewMockClient(ctrl)
 			tt.mockSetup(mockCincinnatiClient)
 
-			syncer := &controlPlaneVersionSyncer{}
+			syncer := &controlPlaneDesiredVersionSyncer{}
 
 			ctx := context.Background()
 			result, err := syncer.desiredControlPlaneZVersion(ctx, mockCincinnatiClient, tt.customerDesiredMinor, tt.channelGroup, tt.activeVersions)
@@ -450,7 +450,7 @@ func TestDesiredControlPlaneZVersion_NextYStreamUpgrade(t *testing.T) {
 			mockCincinnatiClient := cincinatti.NewMockClient(ctrl)
 			tt.mockSetup(mockCincinnatiClient)
 
-			syncer := &controlPlaneVersionSyncer{}
+			syncer := &controlPlaneDesiredVersionSyncer{}
 
 			ctx := context.Background()
 			result, err := syncer.desiredControlPlaneZVersion(ctx, mockCincinnatiClient, tt.customerDesiredMinor, tt.channelGroup, tt.activeVersions)
@@ -520,7 +520,7 @@ func TestDesiredControlPlaneZVersion_Validations(t *testing.T) {
 			mockCincinnatiClient := cincinatti.NewMockClient(ctrl)
 			tt.mockSetup(mockCincinnatiClient)
 
-			syncer := &controlPlaneVersionSyncer{}
+			syncer := &controlPlaneDesiredVersionSyncer{}
 
 			ctx := context.Background()
 			result, err := syncer.desiredControlPlaneZVersion(ctx, mockCincinnatiClient, tt.customerDesiredMinor, tt.channelGroup, tt.activeVersions)
@@ -661,7 +661,7 @@ func TestDesiredControlPlaneZVersion_InitialVersionSelection(t *testing.T) {
 			mockCincinnatiClient := cincinatti.NewMockClient(ctrl)
 			tt.mockSetup(mockCincinnatiClient)
 
-			syncer := &controlPlaneVersionSyncer{}
+			syncer := &controlPlaneDesiredVersionSyncer{}
 
 			// Empty active versions - simulating a new cluster
 			activeVersions := []api.HCPClusterActiveVersion{}
