@@ -279,18 +279,15 @@ func (c *controlPlaneVersionSyncer) desiredControlPlaneZVersion(
 
 	actualMinorVersion := semver.MustParse(fmt.Sprintf("%d.%d.0", actualLatestVersion.Major, actualLatestVersion.Minor))
 
-	// ParseTolerant handles both "4.19" and "4.19.0" formats (validated at API level, should never fail)
-	desiredMinorVersion := api.Must(semver.ParseTolerant(customerDesiredMinor))
-
-	if len(channelGroup) == 0 {
-		logger.Info("No channel group specified. Terminating upgrade resolution.")
-		return nil, nil
-	}
+	// ParseTolerant handles both "4.19", "4.19.0" and full versions like "4.20.15". Normalize to major.minor.0
+	// so that same-minor z-stream (e.g. 4.20.0 -> 4.20.15) is not mistaken for a y-stream upgrade.
+	parsedDesired := api.Must(semver.ParseTolerant(customerDesiredMinor))
+	desiredMinorVersion := semver.MustParse(fmt.Sprintf("%d.%d.0", parsedDesired.Major, parsedDesired.Minor))
 
 	if desiredMinorVersion.LT(actualMinorVersion) {
 		return nil, utils.TrackError(fmt.Errorf(
 			"invalid next y-stream upgrade path from %s to %s: only upgrades to the next minor version are allowed, no downgrades",
-			actualMinorVersion.String(), customerDesiredMinor,
+			actualMinorVersion.String(), desiredMinorVersion.String(),
 		))
 	}
 
@@ -299,13 +296,13 @@ func (c *controlPlaneVersionSyncer) desiredControlPlaneZVersion(
 		if desiredMinorVersion.Major != actualMinorVersion.Major {
 			return nil, utils.TrackError(fmt.Errorf(
 				"invalid next y-stream upgrade path from %s to %s: major version changes are not supported",
-				actualMinorVersion.String(), customerDesiredMinor,
+				actualMinorVersion.String(), desiredMinorVersion.String(),
 			))
 		}
 		if desiredMinorVersion.Minor != actualMinorVersion.Minor+1 {
 			return nil, utils.TrackError(fmt.Errorf(
 				"invalid next y-stream upgrade path from %s to %s: only upgrades to the next minor version are allowed, no skipping minor versions",
-				actualMinorVersion.String(), customerDesiredMinor,
+				actualMinorVersion.String(), desiredMinorVersion.String(),
 			))
 		}
 	}
@@ -319,7 +316,7 @@ func (c *controlPlaneVersionSyncer) desiredControlPlaneZVersion(
 
 	if desiredMinorVersion.Minor == actualMinorVersion.Minor+1 {
 		logger.Info("Resolving next Y-stream upgrade", "actualMinor", actualMinorVersion.String(), "activeVersions", activeVersions, "channelGroup", channelGroup,
-			"targetMinor", customerDesiredMinor)
+			"targetMinor", desiredMinorVersion.String())
 
 		latestVersion, err := c.findLatestVersionInMinor(ctx, cincinnatiClient, channelGroup, desiredMinorVersion, activeVersionList)
 		if err != nil {

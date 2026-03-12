@@ -207,6 +207,61 @@ func TestDesiredControlPlaneZVersion_ZStreamManagedUpgrade(t *testing.T) {
 			expectedVersion:      nil,
 			expectedError:        false,
 		},
+		{
+			name:                 "Z-stream upgrade - candidate channel, customer desired full version (4.20.15) normalized to same minor",
+			activeVersions:       []api.HCPClusterActiveVersion{{Version: ptr.To(semver.MustParse("4.20.10"))}},
+			customerDesiredMinor: "4.20.15",
+			channelGroup:         "candidate",
+			mockSetup: func(mc *cincinatti.MockClient) {
+				mc.EXPECT().GetUpdates(gomock.AssignableToTypeOf(context.Background()), api.Must(cincinatti.GetCincinnatiURI("candidate")), "multi", "multi", "candidate-4.20", semver.MustParse("4.20.10")).Return(
+					configv1.Release{Version: "4.20.10"},
+					[]configv1.Release{{Version: "4.20.15"}, {Version: "4.20.12"}},
+					[]configv1.ConditionalUpdate{},
+					nil,
+				)
+				// Check if next minor (4.21) exists using latest candidate (4.20.15)
+				mc.EXPECT().GetUpdates(gomock.AssignableToTypeOf(context.Background()), api.Must(cincinatti.GetCincinnatiURI("candidate")), "multi", "multi", "candidate-4.21", semver.MustParse("4.20.15")).Return(
+					configv1.Release{Version: "4.20.15"},
+					[]configv1.Release{{Version: "4.21.0"}},
+					[]configv1.ConditionalUpdate{},
+					nil,
+				)
+				// isGatewayToNextMinor(4.20.15) - has path to 4.21, so 4.20.15 is selected
+				mc.EXPECT().GetUpdates(gomock.AssignableToTypeOf(context.Background()), api.Must(cincinatti.GetCincinnatiURI("candidate")), "multi", "multi", "candidate-4.21", semver.MustParse("4.20.15")).Return(
+					configv1.Release{Version: "4.20.15"},
+					[]configv1.Release{{Version: "4.21.0"}},
+					[]configv1.ConditionalUpdate{},
+					nil,
+				)
+			},
+			expectedVersion: ptr.To(semver.MustParse("4.20.15")),
+			expectedError:   false,
+		},
+		{
+			name:                 "Z-stream upgrade - nightly channel, customer desired full version (4.19.0-0.nightly-multi-...) normalized to same minor",
+			activeVersions:       []api.HCPClusterActiveVersion{{Version: ptr.To(api.Must(semver.ParseTolerant("4.19.0-0.nightly-multi-2026-01-10-204154")))}},
+			customerDesiredMinor: "4.19.0-0.nightly-multi-2026-01-12-061259",
+			channelGroup:         "nightly",
+			mockSetup: func(mc *cincinatti.MockClient) {
+				activeVer := api.Must(semver.ParseTolerant("4.19.0-0.nightly-multi-2026-01-10-204154"))
+				latestVer := api.Must(semver.ParseTolerant("4.19.0-0.nightly-multi-2026-01-12-061259"))
+				mc.EXPECT().GetUpdates(gomock.AssignableToTypeOf(context.Background()), api.Must(cincinatti.GetCincinnatiURI("nightly")), "multi", "multi", "nightly-4.19", activeVer).Return(
+					configv1.Release{Version: "4.19.0-0.nightly-multi-2026-01-10-204154"},
+					[]configv1.Release{{Version: "4.19.0-0.nightly-multi-2026-01-12-061259"}},
+					[]configv1.ConditionalUpdate{},
+					nil,
+				)
+				// Check if next minor (4.20) exists using latest candidate - it doesn't; return latest
+				mc.EXPECT().GetUpdates(gomock.AssignableToTypeOf(context.Background()), api.Must(cincinatti.GetCincinnatiURI("nightly")), "multi", "multi", "nightly-4.20", latestVer).Return(
+					configv1.Release{},
+					nil,
+					nil,
+					&cincinnati.Error{Reason: "VersionNotFound"},
+				)
+			},
+			expectedVersion: ptr.To(api.Must(semver.ParseTolerant("4.19.0-0.nightly-multi-2026-01-12-061259"))),
+			expectedError:   false,
+		},
 	}
 
 	for _, tt := range tests {
