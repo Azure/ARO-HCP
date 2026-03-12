@@ -348,12 +348,7 @@ func (c *HcpOpenShiftCluster) GetVersion() api.Version {
 }
 
 func (c *HcpOpenShiftCluster) ConvertToInternal(existing *api.HCPOpenShiftCluster) (*api.HCPOpenShiftCluster, error) {
-	var out *api.HCPOpenShiftCluster
-	if existing != nil {
-		out = existing.DeepCopy()
-	} else {
-		out = &api.HCPOpenShiftCluster{}
-	}
+	out := &api.HCPOpenShiftCluster{}
 	errs := field.ErrorList{}
 
 	// Reject null on required fields. On the PATCH path, JSON merge-patch
@@ -421,56 +416,45 @@ func (c *HcpOpenShiftCluster) ConvertToInternal(existing *api.HCPOpenShiftCluste
 		}
 		if c.Properties.Version != nil {
 			normalizeVersion(c.Properties.Version, &out.CustomerProperties.Version)
-		} else {
-			out.CustomerProperties.Version = api.VersionProfile{}
 		}
 		if c.Properties.DNS != nil {
 			normalizeDNS(c.Properties.DNS, &out.CustomerProperties.DNS, &out.ServiceProviderProperties.DNS)
-		} else {
-			out.CustomerProperties.DNS = api.CustomerDNSProfile{}
-			out.ServiceProviderProperties.DNS = api.ServiceProviderDNSProfile{}
 		}
 		if c.Properties.Network != nil {
 			normalizeNetwork(c.Properties.Network, &out.CustomerProperties.Network)
-		} else {
-			out.CustomerProperties.Network = api.NetworkProfile{}
 		}
 		if c.Properties.Console != nil {
 			normalizeConsole(c.Properties.Console, &out.ServiceProviderProperties.Console)
-		} else {
-			out.ServiceProviderProperties.Console = api.ServiceProviderConsoleProfile{}
 		}
 		if c.Properties.API != nil {
 			normalizeAPI(c.Properties.API, &out.CustomerProperties.API, &out.ServiceProviderProperties.API)
-		} else {
-			out.CustomerProperties.API = api.CustomerAPIProfile{}
-			out.ServiceProviderProperties.API = api.ServiceProviderAPIProfile{}
 		}
 		if c.Properties.Platform != nil {
 			errs = append(errs, normalizePlatform(field.NewPath("properties", "platform"), c.Properties.Platform, &out.CustomerProperties.Platform, &out.ServiceProviderProperties.Platform)...)
-		} else {
-			out.CustomerProperties.Platform = api.CustomerPlatformProfile{}
-			out.ServiceProviderProperties.Platform = api.ServiceProviderPlatformProfile{}
 		}
 		if c.Properties.Autoscaling != nil {
 			normalizeAutoscaling(c.Properties.Autoscaling, &out.CustomerProperties.Autoscaling)
-		} else {
-			out.CustomerProperties.Autoscaling = api.ClusterAutoscalingProfile{}
 		}
 		out.CustomerProperties.NodeDrainTimeoutMinutes = api.Deref(c.Properties.NodeDrainTimeoutMinutes)
 		if c.Properties.ClusterImageRegistry != nil {
 			normalizeClusterImageRegistry(c.Properties.ClusterImageRegistry, &out.CustomerProperties.ClusterImageRegistry)
-		} else {
-			out.CustomerProperties.ClusterImageRegistry = api.ClusterImageRegistryProfile{}
 		}
 		if c.Properties.Etcd != nil {
 			normalizeEtcd(c.Properties.Etcd, &out.CustomerProperties.Etcd)
-		} else {
-			out.CustomerProperties.Etcd = api.EtcdProfile{}
 		}
 	}
 
+	if existing != nil {
+		preserveUnknownClusterFields(existing, out)
+	}
+
 	return out, arm.CloudErrorFromFieldErrors(errs)
+}
+
+// preserveUnknownClusterFields copies customer-facing fields from existing that
+// this API version doesn't know about. Currently empty — no cross-version
+// customer fields exist yet between v20240610preview and v20251223preview.
+func preserveUnknownClusterFields(from, to *api.HCPOpenShiftCluster) {
 }
 
 func normalizeManagedIdentity(identity *generated.ManagedServiceIdentity) *arm.ManagedServiceIdentity {

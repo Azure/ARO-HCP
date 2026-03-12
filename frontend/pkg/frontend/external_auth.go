@@ -411,6 +411,7 @@ func decodeDesiredExternalAuthReplace(ctx context.Context, oldInternalExternalAu
 	//    We do this because if a user has read a value, then modified it, then replaces it, we don't want to produce
 	//    validation errors on status fields that the user isn't trying to modify.
 	conversion.CopyReadOnlyExternalAuthValues(newInternalExternalAuth, oldInternalExternalAuth)
+	newInternalExternalAuth.CosmosETag = oldInternalExternalAuth.CosmosETag
 	newInternalExternalAuth.SystemData = ensureSystemData(systemData, oldInternalExternalAuth.SystemData)
 
 	return newInternalExternalAuth, nil
@@ -460,6 +461,7 @@ func decodeDesiredExternalAuthPatch(ctx context.Context, oldInternalExternalAuth
 	}
 
 	conversion.CopyReadOnlyExternalAuthValues(newInternalExternalAuth, oldInternalExternalAuth)
+	newInternalExternalAuth.CosmosETag = oldInternalExternalAuth.CosmosETag
 	newInternalExternalAuth.SystemData = ensureSystemData(systemData, oldInternalExternalAuth.SystemData)
 
 	return newInternalExternalAuth, nil

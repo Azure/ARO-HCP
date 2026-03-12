@@ -60,12 +60,7 @@ func (h *ExternalAuth) GetVersion() api.Version {
 }
 
 func (h *ExternalAuth) ConvertToInternal(existing *api.HCPOpenShiftClusterExternalAuth) (*api.HCPOpenShiftClusterExternalAuth, error) {
-	var out *api.HCPOpenShiftClusterExternalAuth
-	if existing != nil {
-		out = existing.DeepCopy()
-	} else {
-		out = &api.HCPOpenShiftClusterExternalAuth{}
-	}
+	out := &api.HCPOpenShiftClusterExternalAuth{}
 
 	if h.ID != nil {
 		out.ID = api.Must(azcorearm.ParseResourceID(strings.ToLower(*h.ID)))
@@ -123,7 +118,17 @@ func (h *ExternalAuth) ConvertToInternal(existing *api.HCPOpenShiftClusterExtern
 		}
 	}
 
+	if existing != nil {
+		preserveUnknownExternalAuthFields(existing, out)
+	}
+
 	return out, nil
+}
+
+// preserveUnknownExternalAuthFields copies customer-facing fields from existing that
+// this API version doesn't know about. Currently empty — no cross-version
+// customer fields exist yet between v20240610preview and v20251223preview.
+func preserveUnknownExternalAuthFields(from, to *api.HCPOpenShiftClusterExternalAuth) {
 }
 
 func normalizeExternalAuthClientProfile(p *generated.ExternalAuthClientProfile, out *api.ExternalAuthClientProfile) {
@@ -136,7 +141,7 @@ func normalizeExternalAuthClientProfile(p *generated.ExternalAuthClientProfile, 
 	}
 	out.ExtraScopes = make([]string, len(p.ExtraScopes))
 	for i := range p.ExtraScopes {
-		if p.ExtraScopes != nil {
+		if p.ExtraScopes[i] != nil {
 			out.ExtraScopes[i] = *p.ExtraScopes[i]
 		}
 	}

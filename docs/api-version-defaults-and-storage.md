@@ -79,8 +79,10 @@ sequenceDiagram
     Ctor-->>FE: externalObj with defaults
     FE->>FE: json.Unmarshal(body, &externalObj)
     FE->>CI: ConvertToInternal(existing=oldInternal)
-    Note over CI: Start from existing.DeepCopy().<br/>Mapped fields overwritten.<br/>Unknown-to-version fields preserved.
+    Note over CI: Start fresh (no DeepCopy).<br/>Normalize populates all mapped fields.<br/>preserveUnknownFields copies back<br/>cross-version customer fields.
     CI-->>FE: internalObj
+    FE->>FE: CopyReadOnlyClusterValues(new, old)<br/>Restores read-only/service-provider fields.
+    FE->>FE: new.CosmosETag = old.CosmosETag
     FE->>Cosmos: InternalToCosmos(internalObj)
     Note over Cosmos: Fields unknown to this<br/>API version survive the PUT.
 ```
@@ -132,8 +134,10 @@ sequenceDiagram
     FE->>FE: JSON Merge Patch (RFC 7396)
     FE->>FE: json.Unmarshal → patched external
     Note over FE: Defaults NOT re-applied<br/>(base from existing resource).<br/>nil = customer sent null.
-    FE->>Conv: ConvertToInternal(patched, existing=oldInternal)<br/>Start from existing.DeepCopy().<br/>Rejects null on required<br/>fields → 400 BadRequest.
+    FE->>Conv: ConvertToInternal(patched, existing=oldInternal)<br/>Start fresh. Normalize populates mapped fields.<br/>preserveUnknownFields copies back<br/>cross-version customer fields.<br/>Rejects null on required fields → 400.
     Conv-->>FE: internal obj
+    FE->>FE: CopyReadOnlyClusterValues(new, old)<br/>Restores read-only/service-provider fields.
+    FE->>FE: new.CosmosETag = old.CosmosETag
     FE->>Cosmos: InternalToCosmos(internal)
 ```
 
@@ -144,8 +148,9 @@ ARM-compliant (Azure guidelines: "If field cannot be deleted, return
 400-BadRequest").
 
 `ConvertToInternal` receives `existing` (the old internal object) so that
-fields unknown to the requesting API version are preserved via DeepCopy.
-Only fields mapped by the version's normalize functions are overwritten.
+cross-version customer fields can be preserved via `preserveUnknownFields`.
+Service-provider fields and CosmosETag are restored separately by
+`CopyReadOnlyClusterValues` and direct assignment in the frontend handler.
 
 ## Cross-Version Field Preservation
 
@@ -153,21 +158,37 @@ When a newer API version adds a field, an older API version's PUT or PATCH
 must not silently zero that field. `ConvertToInternal(existing)` handles
 this on the **write path** (complementing canonical defaults on the read path).
 
-`ConvertToInternal` follows the Classic ARO `ToInternal(ext, out)` pattern:
+`ConvertToInternal` uses a **start-fresh + explicit copy-back** pattern:
 
 - **CREATE** (`existing == nil`): start from a fresh internal struct.
-- **UPDATE** (`existing != nil`): start from `existing.DeepCopy()`.
-  Normalize functions overwrite all fields mapped by that API version.
-  Fields unknown to the version are never touched, so they survive.
+- **UPDATE** (`existing != nil`): still start fresh. Normalize functions
+  populate all fields mapped by that API version. Then
+  `preserveUnknownFields(existing, out)` explicitly copies back any
+  customer-facing fields that this version doesn't know about.
+
+Each API version declares exactly which cross-version fields it preserves
+in its `preserveUnknown*Fields` function. Add fields to this function when
+a newer API version introduces customer-facing fields that this version
+doesn't map.
+
+Field restoration on UPDATE uses three layers, each with a distinct
+responsibility:
+
+| Layer | What it restores | Where | When to modify |
+|-------|-----------------|-------|----------------|
+| `preserveUnknown*Fields` | Cross-version customer fields | Inside `ConvertToInternal` | When a newer API version adds customer-facing fields |
+| `CopyReadOnly*Values` | Service-provider properties, ARM identity, tracked resource metadata | Frontend handler, after `ConvertToInternal` | When new read-only/service-provider fields are added |
+| Direct assignment in frontend handler | `CosmosETag`, `SystemData` | Frontend handler, after `CopyReadOnly*Values` | Rarely — these are database/ARM bookkeeping |
 
 ```mermaid
 flowchart LR
     subgraph "Older API PUT on a resource with newer fields"
-        A["Cosmos doc<br/>(has field X=42<br/>from newer API)"] -->|DeepCopy| B["internal copy<br/>(X=42)"]
-        B -->|"normalize<br/>(no mapping for X)"| C["internal result<br/>(X=42 preserved)"]
+        A["Cosmos doc<br/>(has field X=42<br/>from newer API)"] -->|"start fresh"| B["internal<br/>(X=0)"]
+        B -->|"normalize<br/>(no mapping for X)"| C["internal<br/>(X still 0)"]
+        C -->|"preserveUnknownFields<br/>(copies X from existing)"| D["internal result<br/>(X=42 preserved)"]
     end
 
-    style C fill:#c8e6c9
+    style D fill:#c8e6c9
 ```
 
 ### Normalize function conventions
@@ -180,7 +201,8 @@ prevention and section-level null clearing (RFC 7396).
 
 When adding a new API version, follow the unconditional write pattern. This
 ensures PATCH explicit null correctly clears optional fields (ARM-compliant
-RFC 7396 behavior) while DeepCopy preserves fields unknown to the version.
+RFC 7396 behavior) while `preserveUnknownFields` preserves cross-version
+customer fields unknown to the version.
 
 ## Frozen Defaults
 
@@ -233,14 +255,16 @@ flowchart TD
     F --> G["4. Add versioned conversion<br/>(v*/methods.go)"]
     F2 --> G
 
-    G --> H["5. Add CS→RP conversion<br/>(ocm/convert.go)"]
-    H --> I["6. Add validation<br/>(validation/)"]
-    I --> J["7. Add tests"]
+    G --> G2["5. Add to preserveUnknown*Fields<br/>in older API versions"]
+    G2 --> H["6. Add CS→RP conversion<br/>(ocm/convert.go)"]
+    H --> I["7. Add validation<br/>(validation/)"]
+    I --> J["8. Add tests"]
 
     style D fill:#c8e6c9
     style E fill:#ffcdd2
     style F fill:#c8e6c9
     style F2 fill:#fff9c4
+    style G2 fill:#bbdefb
 ```
 
 ### Checklist
@@ -260,7 +284,8 @@ flowchart TD
 - [ ] `ConvertToInternal`: normalize + null rejection for required fields
 - [ ] `NewHCPOpenShiftCluster*()`: internal→external mapping. Use `Ptr()` (not
   `PtrOrNil()`) for fields where zero is valid user input.
-- [ ] Older API versions that don't expose the field: force default in normalize.
+- [ ] Older API versions that don't expose the field: add to their
+  `preserveUnknown*Fields` function so it survives PUT/PATCH via that version.
 
 **3. Canonical defaults** (`internal/api/types_*.go`)
 - [ ] Add to the `EnsureDefaults()` method on the internal type
@@ -334,8 +359,8 @@ This shipped API version does not use the unconditional `api.Deref()` write
 pattern. PATCH with explicit null on nested structs (e.g.,
 `{"properties": {"dns": null}}`) does not clear the section per RFC 7396 —
 the existing value is preserved instead. v20251223preview fixes this with
-unconditional writes and `else` branches. We cannot change v2024 behavior
-post-ship. When adding new API versions, follow the v2025 pattern.
+unconditional writes. We cannot change v2024 behavior post-ship. When
+adding new API versions, follow the v2025 pattern.
 
 **`omitempty` on value types in the internal type.** Fields like `AutoRepair
 bool` and `Replicas int32` with `omitempty` drop their zero values (`false`,
@@ -353,6 +378,8 @@ pointer types or remove `omitempty` to avoid this. See existing precedent:
 |-------|---------|----------|--------------|------|
 | Constructor defaults | `SetDefaultValuesCluster()` | `SetDefaultValuesNodePool()` | `SetDefaultValuesExternalAuth()` | `v*/methods.go` |
 | Canonical defaults | `HCPOpenShiftCluster.EnsureDefaults()` | `HCPOpenShiftClusterNodePool.EnsureDefaults()` | `HCPOpenShiftClusterExternalAuth.EnsureDefaults()` | `internal/api/types_*.go` |
+| Cross-version preservation | `preserveUnknownClusterFields()` | `preserveUnknownNodePoolFields()` | `preserveUnknownExternalAuthFields()` | `v*/methods.go` |
+| Read-only field restoration | `CopyReadOnlyClusterValues()` | `CopyReadOnlyNodePoolValues()` | `CopyReadOnlyExternalAuthValues()` | `internal/conversion/readonly_*.go` |
 | CS→RP defaults | `convertVersionIDCSToRP()` | `convertDiskStorageAccountTypeCSToRP()` | — | `internal/ocm/convert.go` |
 | Internal constructors | `NewDefaultHCPOpenShiftCluster()` | `NewDefaultHCPOpenShiftClusterNodePool()` | — | `internal/api/types_*.go` |
 | Canonical constants | `DefaultClusterVersionID`, etc. | `DiskStorageAccountTypePremium_LRS`, etc. | `UsernameClaimPrefixPolicyNone` | `internal/api/defaults.go`, `enums.go` |

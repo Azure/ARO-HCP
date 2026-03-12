@@ -60,12 +60,7 @@ func (h *ExternalAuth) GetVersion() api.Version {
 }
 
 func (h *ExternalAuth) ConvertToInternal(existing *api.HCPOpenShiftClusterExternalAuth) (*api.HCPOpenShiftClusterExternalAuth, error) {
-	var out *api.HCPOpenShiftClusterExternalAuth
-	if existing != nil {
-		out = existing.DeepCopy()
-	} else {
-		out = &api.HCPOpenShiftClusterExternalAuth{}
-	}
+	out := &api.HCPOpenShiftClusterExternalAuth{}
 
 	if h.ID != nil {
 		out.ID = api.Must(azcorearm.ParseResourceID(strings.ToLower(*h.ID)))
@@ -108,19 +103,13 @@ func (h *ExternalAuth) ConvertToInternal(existing *api.HCPOpenShiftClusterExtern
 				Reason:             ptr.Deref(h.Properties.Condition.Reason, ""),
 				Message:            ptr.Deref(h.Properties.Condition.Message, ""),
 			}
-		} else {
-			out.Properties.Condition = api.ExternalAuthCondition{}
 		}
 
 		if h.Properties.Issuer != nil {
 			normalizeTokenIssuerProfile(h.Properties.Issuer, &out.Properties.Issuer)
-		} else {
-			out.Properties.Issuer = api.TokenIssuerProfile{}
 		}
 		if h.Properties.Claim != nil {
 			normalizeExternalAuthClaimProfile(h.Properties.Claim, &out.Properties.Claim)
-		} else {
-			out.Properties.Claim = api.ExternalAuthClaimProfile{}
 		}
 
 		out.Properties.Clients = make([]api.ExternalAuthClientProfile, len(h.Properties.Clients))
@@ -129,7 +118,17 @@ func (h *ExternalAuth) ConvertToInternal(existing *api.HCPOpenShiftClusterExtern
 		}
 	}
 
+	if existing != nil {
+		preserveUnknownExternalAuthFields(existing, out)
+	}
+
 	return out, nil
+}
+
+// preserveUnknownExternalAuthFields copies customer-facing fields from existing that
+// this API version doesn't know about. Currently empty — no cross-version
+// customer fields exist yet between v20240610preview and v20251223preview.
+func preserveUnknownExternalAuthFields(from, to *api.HCPOpenShiftClusterExternalAuth) {
 }
 
 func normalizeExternalAuthClientProfile(p *generated.ExternalAuthClientProfile, out *api.ExternalAuthClientProfile) {
