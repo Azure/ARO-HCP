@@ -50,3 +50,8 @@ build-and-push: image
 	az acr login --name ${ARO_HCP_IMAGE_ACR}
 	$(CONTAINER_ENGINE) push ${ARO_HCP_EXPORTER_TAGGED_IMAGE}
 .PHONY: build-and-push
+
+acr-push:
+	az acr login --name ${ARO_HCP_IMAGE_ACR}
+	oc image mirror $(SOURCE_IMAGE) ${ARO_HCP_EXPORTER_TAGGED_IMAGE}
+.PHONY: acr-push
