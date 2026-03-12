@@ -227,18 +227,17 @@ func decodeDesiredNodePoolCreate(ctx context.Context, azureLocation string) (*ap
 		systemData.CreatedAt = ptr.To(time.Now().UTC())
 	}
 
-	externalNodePoolFromRequest := versionedInterface.NewHCPOpenShiftClusterNodePool(&api.HCPOpenShiftClusterNodePool{})
+	externalNodePoolFromRequest := versionedInterface.NewHCPOpenShiftClusterNodePool(nil)
 	if err := json.Unmarshal(body, &externalNodePoolFromRequest); err != nil {
 		return nil, utils.TrackError(err)
 	}
-	if err := externalNodePoolFromRequest.SetDefaultValues(externalNodePoolFromRequest); err != nil {
-		return nil, utils.TrackError(err)
-	}
-
-	newInternalNodePool, err := externalNodePoolFromRequest.ConvertToInternal()
+	newInternalNodePool, err := externalNodePoolFromRequest.ConvertToInternal(nil)
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}
+	// Backstop for fields unknown to this API version's SetDefaultValues*.
+	// See docs/api-version-defaults-and-storage.md.
+	newInternalNodePool.EnsureDefaults()
 	// TrackedResource info doesn't appear to come from the external resource information
 	if len(newInternalNodePool.Name) > 0 && newInternalNodePool.Name != resourceID.Name {
 		return nil, nameResourceIDMismatch(resourceID, newInternalNodePool.Name)
@@ -396,17 +395,12 @@ func decodeDesiredNodePoolReplace(ctx context.Context, oldInternalNodePool *api.
 	// Initialize versionedRequestNodePool to include both
 	// non-zero default values and current read-only values.
 	// Exact user request
-	externalNodePoolFromRequest := versionedInterface.NewHCPOpenShiftClusterNodePool(&api.HCPOpenShiftClusterNodePool{})
+	externalNodePoolFromRequest := versionedInterface.NewHCPOpenShiftClusterNodePool(nil)
 	if err := json.Unmarshal(body, &externalNodePoolFromRequest); err != nil {
 		return nil, utils.TrackError(err)
 	}
 
-	// Default values
-	if err := externalNodePoolFromRequest.SetDefaultValues(externalNodePoolFromRequest); err != nil {
-		return nil, utils.TrackError(err)
-	}
-
-	newInternalNodePool, err := externalNodePoolFromRequest.ConvertToInternal()
+	newInternalNodePool, err := externalNodePoolFromRequest.ConvertToInternal(oldInternalNodePool)
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}
@@ -484,7 +478,7 @@ func decodeDesiredNodePoolPatch(ctx context.Context, oldInternalNodePool *api.HC
 	if err := api.ApplyRequestBody(http.MethodPatch, body, newExternalNodePool); err != nil {
 		return nil, utils.TrackError(err)
 	}
-	newInternalNodePool, err := newExternalNodePool.ConvertToInternal()
+	newInternalNodePool, err := newExternalNodePool.ConvertToInternal(oldInternalNodePool)
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}

@@ -419,7 +419,6 @@ func TestDeploymentPreflight(t *testing.T) {
 				},
 				"properties": map[string]any{
 					"version": map[string]any{
-						// missing ID
 						"channelGroup": "stable",
 					},
 					"network": map[string]any{

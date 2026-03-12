@@ -140,17 +140,12 @@ func (m *ExternalTestResource) NewExternal() any {
 	panic("implement me")
 }
 
-func (m *ExternalTestResource) SetDefaultValues(a any) error {
-	//TODO implement me
-	panic("implement me")
-}
-
 func (m *ExternalTestResource) GetVersion() Version {
 	// FIXME Implement if there's a need for it in tests.
 	return nil
 }
 
-func (m *ExternalTestResource) ConvertToInternal() (*InternalTestResource, error) {
+func (m *ExternalTestResource) ConvertToInternal(_ *InternalTestResource) (*InternalTestResource, error) {
 	// FIXME Implement if there's a need for it in tests.
 	return nil, nil
 }
