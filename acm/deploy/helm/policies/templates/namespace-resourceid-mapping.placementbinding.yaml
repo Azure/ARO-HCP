@@ -1,5 +1,4 @@
 # yamllint disable rule:line-length rule:syntax
-{{- if eq .Values.forwarder.clusterType "mgmt" }}
 ---
 apiVersion: policy.open-cluster-management.io/v1
 kind: PlacementBinding
@@ -14,4 +13,3 @@ subjects:
 - apiGroup: policy.open-cluster-management.io
   kind: Policy
   name: namespace-resourceid-mapping
-{{- end }}

@@ -1,5 +1,4 @@
 # yamllint disable rule:line-length rule:syntax
-{{- if eq .Values.forwarder.clusterType "mgmt" }}
 ---
 apiVersion: policy.open-cluster-management.io/v1
 kind: Policy
@@ -32,11 +31,10 @@ spec:
               kind: ConfigMap
               metadata:
                 name: namespace-resourceid-mapping
-                namespace: '{{ .Release.Namespace }}'
+                namespace: arobit
               data:
                 {{ `{{- range (lookup "hypershift.openshift.io/v1beta1" "HostedCluster" "" "").items }}` }}
                 {{ `{{- if index .metadata.annotations "azure.microsoft.com/hcp-cluster-azure-resource-id" }}` }}
                 {{ `'{{ .metadata.namespace }}-{{ .metadata.name }}'` }}: {{ `'{{ index .metadata.annotations "azure.microsoft.com/hcp-cluster-azure-resource-id" }}'` }}
                 {{ `{{- end }}` }}
                 {{ `{{- end }}` }}
-{{- end }}
