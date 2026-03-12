@@ -100,16 +100,16 @@ var _ = Describe("Customer", func() {
 			Expect(clusterResp.Properties).NotTo(BeNil())
 			Expect(clusterResp.Properties.Platform).NotTo(BeNil())
 
-			// issuerURLEmpty := clusterResp.Properties.Platform.IssuerURL == nil || *clusterResp.Properties.Platform.IssuerURL == ""
-			// if issuerURLEmpty {
-			// 	timebomb := time.Date(2026, time.April, 1, 0, 0, 0, 0, time.UTC)
-			// 	if time.Now().Before(timebomb) {
-			// 		Skip("OIDC issuer URL is not yet populated on the cluster response; skipping until it is available")
-			// 	}
-			// 	Fail("OIDC issuer URL is still not populated on the cluster response as of the April 1st 2026 deadline")
-			// }
+			issuerURLEmpty := clusterResp.Properties.Platform.IssuerURL == nil || *clusterResp.Properties.Platform.IssuerURL == ""
+			if issuerURLEmpty {
+				timebomb := time.Date(2026, time.April, 1, 0, 0, 0, 0, time.UTC)
+				if time.Now().Before(timebomb) {
+					Skip("OIDC issuer URL is not yet populated on the cluster response; skipping until it is available")
+				}
+				Fail("OIDC issuer URL is still not populated on the cluster response as of the April 1st 2026 deadline")
+			}
 
-			oidcIssuerURL := "https://uksouth.oic.aro-hcp.azure.com/64dc69e4-d083-49fc-9569-ebece1dd1408/2ovmgm33i9njj78rsb3ibee16u0r7d25"
+			oidcIssuerURL := *clusterResp.Properties.Platform.IssuerURL
 			GinkgoWriter.Printf("Cluster OIDC issuer URL: %s\n", oidcIssuerURL)
 
 			By("getting admin credentials")
