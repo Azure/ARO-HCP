@@ -21,6 +21,7 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
+	configv1 "github.com/openshift/api/config/v1"
 	"github.com/openshift/hypershift/api/hypershift/v1beta1"
 
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -81,8 +82,6 @@ type ServiceProviderClusterSpecVersion struct {
 type ServiceProviderClusterStatus struct {
 	// ControlPlaneVersion contains the actual control plane version information.
 	// ActiveVersions contains all versions currently active in the control plane.
-	// Currently, we maintain up to two versions, but this is designed to hold all active versions
-	// and will be expanded to track the complete set when we start reading from Maestro.
 	//
 	// During an upgrade, multiple versions can be active simultaneously. For example:
 	// - Simple upgrade: [vNew, vOld]
@@ -90,12 +89,12 @@ type ServiceProviderClusterStatus struct {
 	//
 	// The list is ordered with the most recent version first.
 	//
-	// Example JSON structure:
+	// Example JSON structure (state is "Completed" or "Partial"):
 	// {
 	//   "control_plane_version": {
 	//     "active_versions": [
-	//       {"version": "4.19.2"},
-	//       {"version": "4.19.1"}
+	//       {"version": "4.19.2", "state": "Partial"},
+	//       {"version": "4.19.1", "state": "Completed"}
 	//     ]
 	//   }
 	// }
@@ -125,6 +124,8 @@ type ServiceProviderClusterStatusVersion struct {
 type HCPClusterActiveVersion struct {
 	// Version is the full version in x.y.z format (e.g., "4.19.2")
 	Version *semver.Version `json:"version,omitempty"`
+	// State is the update state from OpenShift (e.g. configv1.CompletedUpdate or configv1.PartialUpdate).
+	State configv1.UpdateState `json:"state,omitempty"`
 }
 
 type MaestroBundleReference struct {

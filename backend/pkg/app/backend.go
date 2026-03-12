@@ -403,7 +403,6 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 	deleteOrphanedCosmosResourcesController := mismatchcontrollers.NewDeleteOrphanedCosmosResourcesController(b.options.CosmosDBClient, subscriptionLister)
 	controlPlaneActiveVersionController := upgradecontrollers.NewControlPlaneActiveVersionController(
 		b.options.CosmosDBClient,
-		b.options.ClustersServiceClient,
 		activeOperationLister,
 		backendInformers,
 	)
