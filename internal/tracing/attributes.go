@@ -138,6 +138,12 @@ const (
 	// BreakGlassCredentialExpirationTimestampKey is the attribute key for the
 	// break-glass credential's expiration timetstamp .
 	BreakGlassCredentialExpirationTimestampKey attribute.Key = "cs.break_glass_credential.expiration_time"
+
+	// ProvisionShardIDKey is the attribute key for the provision shard identifier.
+	ProvisionShardIDKey attribute.Key = "cs.provision_shard.id"
+
+	// ProvisionShardStatusKey is the attribute key for the provision shard status.
+	ProvisionShardStatusKey attribute.Key = "cs.provision_shard.status"
 )
 
 // SetClusterAttributes sets attributes on the span to identify the cluster.
@@ -205,4 +211,12 @@ func addAttributeIfPresent(span trace.Span, key attribute.Key, getter func() (st
 	if present {
 		span.SetAttributes(key.String(v))
 	}
+}
+
+func SetProvisionShardAttributes(span trace.Span, provisionShard *arohcpv1alpha1.ProvisionShard) {
+	addAttributeIfPresent(span, ProvisionShardIDKey, provisionShard.GetID)
+	addAttributeIfPresent(span, ProvisionShardStatusKey, func() (string, bool) {
+		v, present := provisionShard.GetStatus()
+		return string(v), present
+	})
 }

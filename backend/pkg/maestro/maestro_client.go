@@ -14,6 +14,8 @@
 
 package maestro
 
+//go:generate $MOCKGEN -typed -source=maestro_client.go -destination=mock_maestro_client.go -package maestro Client
+
 import (
 	"context"
 	"fmt"
@@ -77,6 +79,23 @@ func NewClient(
 
 	maestroManifestWorksInterface := newMaestroManifestWorksClient(grpcClient, maestroConsumerName)
 	return maestroManifestWorksInterface, nil
+}
+
+// MaestroClientBuilder is an interface that allows to build a Maestro Client.
+type MaestroClientBuilder interface {
+	NewClient(ctx context.Context, maestroRESTAPIEndpoint string, maestroGRPCAPIEndpoint string, maestroConsumerName string, maestroSourceID string) (Client, error)
+}
+
+var _ MaestroClientBuilder = (*maestroClientBuilder)(nil)
+
+type maestroClientBuilder struct{}
+
+func (b *maestroClientBuilder) NewClient(ctx context.Context, maestroRESTAPIEndpoint string, maestroGRPCAPIEndpoint string, maestroConsumerName string, maestroSourceID string) (Client, error) {
+	return NewClient(ctx, maestroRESTAPIEndpoint, maestroGRPCAPIEndpoint, maestroConsumerName, maestroSourceID)
+}
+
+func NewMaestroClientBuilder() MaestroClientBuilder {
+	return &maestroClientBuilder{}
 }
 
 // GenerateMaestroSourceID generates a Maestro Source ID of the form "<envName>-<provisionShardID>".
