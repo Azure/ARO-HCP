@@ -69,7 +69,6 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-10-01' exis
   name: aksClusterName
 }
 
-
 // User node pool - conditionally add secondary-count tag based on secondaryNicCount
 var swiftNodepoolTags = enableSwiftV2
   ? (secondaryNicCount > 0

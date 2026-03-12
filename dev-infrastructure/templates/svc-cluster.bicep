@@ -985,7 +985,7 @@ module frontendIngressCert '../modules/keyvault/key-vault-cert.bicep' = {
 }
 
 module frontendIngressCertCSIAccess '../modules/keyvault/keyvault-secret-access.bicep' = {
-  name: 'aksClusterKeyVaultSecretsProviderMI-${frontendIngressCertName}'
+  name: 'aks-svc-kv-access-${frontendIngressCertName}'
   scope: resourceGroup(serviceKeyVaultResourceGroup)
   params: {
     keyVaultName: serviceKeyVaultName
@@ -1029,7 +1029,7 @@ module adminApiCert '../modules/keyvault/key-vault-cert.bicep' = {
 }
 
 module adminApiIngressCertCSIAccess '../modules/keyvault/keyvault-secret-access.bicep' = {
-  name: 'aksClusterKeyVaultSecretsProviderMI-${adminApiIngressCertName}'
+  name: 'aks-svc-kv-access-${adminApiIngressCertName}'
   scope: resourceGroup(serviceKeyVaultResourceGroup)
   params: {
     keyVaultName: serviceKeyVaultName
