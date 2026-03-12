@@ -69,12 +69,7 @@ func (h *NodePool) GetVersion() api.Version {
 }
 
 func (h *NodePool) ConvertToInternal(existing *api.HCPOpenShiftClusterNodePool) (*api.HCPOpenShiftClusterNodePool, error) {
-	var out *api.HCPOpenShiftClusterNodePool
-	if existing != nil {
-		out = existing.DeepCopy()
-	} else {
-		out = &api.HCPOpenShiftClusterNodePool{}
-	}
+	out := &api.HCPOpenShiftClusterNodePool{}
 	errs := field.ErrorList{}
 
 	// Reject null on required fields. On the PATCH path, JSON merge-patch
@@ -133,21 +128,15 @@ func (h *NodePool) ConvertToInternal(existing *api.HCPOpenShiftClusterNodePool) 
 		out.Properties.NodeDrainTimeoutMinutes = h.Properties.NodeDrainTimeoutMinutes
 		if h.Properties.Version != nil {
 			normalizeNodePoolVersion(h.Properties.Version, &out.Properties.Version)
-		} else {
-			out.Properties.Version = api.NodePoolVersionProfile{}
 		}
 		if h.Properties.Platform != nil {
 			errs = append(errs, normalizeNodePoolPlatform(field.NewPath("properties", "platform"), h.Properties.Platform, &out.Properties.Platform)...)
-		} else {
-			out.Properties.Platform = api.NodePoolPlatformProfile{}
 		}
 		if h.Properties.AutoScaling != nil {
 			out.Properties.AutoScaling = &api.NodePoolAutoScaling{
 				Max: api.Deref(h.Properties.AutoScaling.Max),
 				Min: api.Deref(h.Properties.AutoScaling.Min),
 			}
-		} else {
-			out.Properties.AutoScaling = nil
 		}
 		if h.Properties.Labels != nil {
 			out.Properties.Labels = make(map[string]string)
@@ -167,8 +156,6 @@ func (h *NodePool) ConvertToInternal(existing *api.HCPOpenShiftClusterNodePool) 
 				key := ptr.Deref(v.Key, "")
 				out.Properties.Labels[key] = value
 			}
-		} else {
-			out.Properties.Labels = nil
 		}
 		if h.Properties.Taints != nil {
 			out.Properties.Taints = make([]api.Taint, len(h.Properties.Taints))
@@ -177,14 +164,22 @@ func (h *NodePool) ConvertToInternal(existing *api.HCPOpenShiftClusterNodePool) 
 				out.Properties.Taints[i].Key = api.Deref(h.Properties.Taints[i].Key)
 				out.Properties.Taints[i].Value = api.Deref(h.Properties.Taints[i].Value)
 			}
-		} else {
-			out.Properties.Taints = nil
 		}
 	}
 
 	out.Identity = normalizeManagedIdentity(h.Identity)
 
+	if existing != nil {
+		preserveUnknownNodePoolFields(existing, out)
+	}
+
 	return out, arm.CloudErrorFromFieldErrors(errs)
+}
+
+// preserveUnknownNodePoolFields copies customer-facing fields from existing that
+// this API version doesn't know about. Currently empty — no cross-version
+// customer fields exist yet between v20240610preview and v20251223preview.
+func preserveUnknownNodePoolFields(from, to *api.HCPOpenShiftClusterNodePool) {
 }
 
 func normalizeNodePoolVersion(p *generated.NodePoolVersionProfile, out *api.NodePoolVersionProfile) {

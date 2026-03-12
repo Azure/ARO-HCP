@@ -69,12 +69,7 @@ func (h *NodePool) GetVersion() api.Version {
 }
 
 func (h *NodePool) ConvertToInternal(existing *api.HCPOpenShiftClusterNodePool) (*api.HCPOpenShiftClusterNodePool, error) {
-	var out *api.HCPOpenShiftClusterNodePool
-	if existing != nil {
-		out = existing.DeepCopy()
-	} else {
-		out = &api.HCPOpenShiftClusterNodePool{}
-	}
+	out := &api.HCPOpenShiftClusterNodePool{}
 	errs := field.ErrorList{}
 
 	if h.ID != nil {
@@ -178,7 +173,17 @@ func (h *NodePool) ConvertToInternal(existing *api.HCPOpenShiftClusterNodePool) 
 
 	out.Identity = normalizeManagedIdentity(h.Identity)
 
+	if existing != nil {
+		preserveUnknownNodePoolFields(existing, out)
+	}
+
 	return out, arm.CloudErrorFromFieldErrors(errs)
+}
+
+// preserveUnknownNodePoolFields copies customer-facing fields from existing that
+// this API version doesn't know about. Currently empty — no cross-version
+// customer fields exist yet between v20240610preview and v20251223preview.
+func preserveUnknownNodePoolFields(from, to *api.HCPOpenShiftClusterNodePool) {
 }
 
 func normalizeNodePoolVersion(p *generated.NodePoolVersionProfile, out *api.NodePoolVersionProfile) {
