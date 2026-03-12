@@ -103,15 +103,20 @@ func runImageMirrorStep(id graph.Identifier, ctx context.Context, step *types.Im
 	// get target ACR credentials
 	logger.Info("Logging into target ACR", "acr", targetACR)
 	targetLoginServer := targetACR + acrSuffix
-	targetCredential, err := getACRCredential(ctx, targetACR, targetLoginServer)
+	targetCredential, err := getACRCredential(ctx, targetACR)
 	if err != nil {
 		return fmt.Errorf("failed to get ACR credentials: %w", err)
 	}
 
+	// validate and parse digest format (expected: "algorithm:hex")
+	digestParts := strings.SplitN(digest, ":", 2)
+	if len(digestParts) != 2 || digestParts[1] == "" {
+		return fmt.Errorf("invalid digest format %q: expected algorithm:hex (e.g. sha256:abc123)", digest)
+	}
+
 	// build source and target references
 	srcRef := fmt.Sprintf("%s/%s@%s", sourceRegistry, repository, digest)
-	digestNoPrefix := strings.TrimPrefix(digest, "sha256:")
-	targetRef := fmt.Sprintf("%s/%s:%s", targetLoginServer, repository, digestNoPrefix)
+	targetRef := fmt.Sprintf("%s/%s:%s", targetLoginServer, repository, digestParts[1])
 
 	logger.Info("Mirroring image", "source", srcRef, "target", targetRef)
 	fmt.Fprintf(outputWriter, "Mirroring image %s to %s.\n", srcRef, targetRef)
@@ -234,11 +239,9 @@ func copyImage(ctx context.Context, srcRef, dstRef string, srcCredential, dstCre
 	}
 
 	// copy the image
-	desc, err := oras.Copy(ctx, srcRepo, srcReference, dstRepo, dstTag, oras.DefaultCopyOptions)
-	if err != nil {
+	if _, err := oras.Copy(ctx, srcRepo, srcReference, dstRepo, dstTag, oras.DefaultCopyOptions); err != nil {
 		return fmt.Errorf("failed to copy image: %w", err)
 	}
-	_ = desc
 
 	return nil
 }
@@ -308,7 +311,7 @@ func fetchPullSecretCredential(ctx context.Context, vaultName, secretName, regis
 
 // getACRCredential gets an auth credential for an Azure Container Registry
 // using the az CLI to get an access token.
-func getACRCredential(ctx context.Context, acrName, loginServer string) (auth.Credential, error) {
+func getACRCredential(ctx context.Context, acrName string) (auth.Credential, error) {
 	cmd := exec.CommandContext(ctx, "az", "acr", "login", "--name", acrName,
 		"--expose-token", "--output", "tsv", "--query", "accessToken")
 	output, err := cmd.CombinedOutput()
