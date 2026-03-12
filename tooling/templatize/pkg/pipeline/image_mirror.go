@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/url"
 	"os"
 	"os/exec"
 	"strings"
@@ -285,9 +286,9 @@ func fetchPullSecretCredential(ctx context.Context, vaultName, secretName, regis
 		return auth.EmptyCredential, fmt.Errorf("failed to parse Docker config from secret: %w", err)
 	}
 
-	// find auth for the source registry
+	// find auth for the source registry using exact host matching
 	for registryHost, regAuth := range dockerConfig.Auths {
-		if strings.Contains(registry, registryHost) || strings.Contains(registryHost, registry) {
+		if registryHostMatches(registry, registryHost) {
 			authDecoded, err := base64.StdEncoding.DecodeString(regAuth.Auth)
 			if err != nil {
 				return auth.EmptyCredential, fmt.Errorf("failed to decode auth for %s: %w", registryHost, err)
@@ -312,9 +313,9 @@ func fetchPullSecretCredential(ctx context.Context, vaultName, secretName, regis
 func getACRCredential(ctx context.Context, acrName, loginServer string) (auth.Credential, error) {
 	cmd := exec.CommandContext(ctx, "az", "acr", "login", "--name", acrName,
 		"--expose-token", "--output", "tsv", "--query", "accessToken")
-	output, err := cmd.Output()
+	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return auth.EmptyCredential, fmt.Errorf("failed to get ACR access token for %s: %w", acrName, err)
+		return auth.EmptyCredential, fmt.Errorf("failed to get ACR access token for %s: %s: %w", acrName, string(output), err)
 	}
 
 	return auth.Credential{
@@ -328,9 +329,9 @@ func getACRCredential(ctx context.Context, acrName, loginServer string) (auth.Cr
 func getACRDomainSuffix(ctx context.Context) (string, error) {
 	cmd := exec.CommandContext(ctx, "az", "cloud", "show",
 		"--query", "suffixes.acrLoginServerEndpoint", "--output", "tsv")
-	output, err := cmd.Output()
+	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return "", fmt.Errorf("failed to get ACR domain suffix: %w", err)
+		return "", fmt.Errorf("failed to get ACR domain suffix: %s: %w", string(output), err)
 	}
 	return strings.TrimSpace(string(output)), nil
 }
@@ -360,10 +361,12 @@ func getOCRegistryCredential(ctx context.Context, registry string) (auth.Credent
 	}
 	// oc registry login expects valid JSON in the target file
 	if _, err := tmpFile.Write([]byte(`{"auths":{}}`)); err != nil {
-		tmpFile.Close()
+		_ = tmpFile.Close()
 		return auth.EmptyCredential, fmt.Errorf("failed to initialize oc auth file: %w", err)
 	}
-	tmpFile.Close()
+	if err := tmpFile.Close(); err != nil {
+		return auth.EmptyCredential, fmt.Errorf("failed to close oc auth file: %w", err)
+	}
 	defer os.Remove(tmpFile.Name())
 
 	cmd := exec.CommandContext(ctx, "oc", "registry", "login", "--to", tmpFile.Name())
@@ -386,7 +389,7 @@ func getOCRegistryCredential(ctx context.Context, registry string) (auth.Credent
 	}
 
 	for registryHost, regAuth := range dockerConfig.Auths {
-		if strings.Contains(registry, registryHost) || strings.Contains(registryHost, registry) {
+		if registryHostMatches(registry, registryHost) {
 			authDecoded, err := base64.StdEncoding.DecodeString(regAuth.Auth)
 			if err != nil {
 				return auth.EmptyCredential, fmt.Errorf("failed to decode auth for %s: %w", registryHost, err)
@@ -403,4 +406,27 @@ func getOCRegistryCredential(ctx context.Context, registry string) (auth.Credent
 	}
 
 	return auth.EmptyCredential, fmt.Errorf("oc registry login succeeded but no credentials found for %s", registry)
+}
+
+// registryHostMatches compares a registry hostname against a Docker config key,
+// normalizing both to host[:port] for exact matching. Docker config keys may
+// include schemes (https://quay.io) or paths (https://index.docker.io/v1/).
+func registryHostMatches(registry, configKey string) bool {
+	return normalizeRegistryHost(registry) == normalizeRegistryHost(configKey)
+}
+
+// normalizeRegistryHost extracts the host[:port] from a registry reference,
+// stripping any scheme or path components.
+func normalizeRegistryHost(registry string) string {
+	// if it looks like a URL with a scheme, parse it
+	if strings.Contains(registry, "://") {
+		if u, err := url.Parse(registry); err == nil {
+			return u.Host
+		}
+	}
+	// strip any path component (e.g. "registry.example.com/v1/" -> "registry.example.com")
+	if idx := strings.Index(registry, "/"); idx != -1 {
+		registry = registry[:idx]
+	}
+	return registry
 }
