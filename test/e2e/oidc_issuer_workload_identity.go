@@ -132,6 +132,10 @@ var _ = Describe("Customer", func() {
 			)
 			Expect(err).NotTo(HaveOccurred())
 
+			By("verifying nodes are ready")
+			Expect(verifiers.VerifyNodeCount(int(nodePoolParams.Replicas)).Verify(ctx, adminRESTConfig)).To(Succeed())
+			Expect(verifiers.VerifyNodesReady().Verify(ctx, adminRESTConfig)).To(Succeed())
+
 			By("creating a user-assigned managed identity for the test")
 			subscriptionID, err := tc.SubscriptionID(ctx)
 			Expect(err).NotTo(HaveOccurred())
