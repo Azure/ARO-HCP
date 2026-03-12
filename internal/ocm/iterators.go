@@ -504,3 +504,51 @@ func (iter *provisionShardListIterator) Items(ctx context.Context) iter.Seq[*aro
 func (iter provisionShardListIterator) GetError() error {
 	return iter.err
 }
+
+type nodePoolUpgradePolicyListIterator struct {
+	request *arohcpv1alpha1.NodePoolUpgradePoliciesListRequest
+	err     error
+}
+
+// Items returns a push iterator that can be used directly in for/range loops.
+// If an error occurs during paging, iteration stops and the error is recorded.
+func (iter *nodePoolUpgradePolicyListIterator) Items(ctx context.Context) iter.Seq[*arohcpv1alpha1.NodePoolUpgradePolicy] {
+	return func(yield func(*arohcpv1alpha1.NodePoolUpgradePolicy) bool) {
+		// Request can be nil to allow for mocking.
+		if iter.request != nil {
+			var page = 0
+			var count = 0
+			var total = math.MaxInt
+
+			for count < total {
+				page++
+				result, err := iter.request.Page(page).SendContext(ctx)
+				if err != nil {
+					iter.err = err
+					return
+				}
+
+				total = result.Total()
+				items := result.Items()
+
+				// Safety check to prevent an infinite loop in case
+				// the result is somehow empty before count = total.
+				if items == nil || items.Empty() {
+					return
+				}
+
+				count += items.Len()
+
+				items.Each(func(item *arohcpv1alpha1.NodePoolUpgradePolicy) bool {
+					return yield(item)
+				})
+			}
+		}
+	}
+}
+
+// GetError returns any error that occurred during iteration. Call this after the
+// for/range loop that calls Items() to check if iteration completed successfully.
+func (iter nodePoolUpgradePolicyListIterator) GetError() error {
+	return iter.err
+}
