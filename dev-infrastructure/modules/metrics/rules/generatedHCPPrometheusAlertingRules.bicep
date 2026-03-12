@@ -4,9 +4,12 @@ param azureMonitoring string
 #disable-next-line no-unused-params
 param actionGroups array
 
+#disable-next-line no-unused-params
+param location string = resourceGroup().location
+
 resource kubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
   name: 'kubernetes-apps'
-  location: resourceGroup().location
+  location: location
   properties: {
     interval: 'PT1M'
     rules: [
@@ -450,7 +453,7 @@ resource kubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03
 
 resource kubernetesResources 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
   name: 'kubernetes-resources'
-  location: resourceGroup().location
+  location: location
   properties: {
     interval: 'PT1M'
     rules: [
@@ -679,7 +682,7 @@ resource kubernetesResources 'Microsoft.AlertsManagement/prometheusRuleGroups@20
 
 resource kubernetesStorage 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
   name: 'kubernetes-storage'
-  location: resourceGroup().location
+  location: location
   properties: {
     interval: 'PT1M'
     rules: [
@@ -827,7 +830,7 @@ resource kubernetesStorage 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
 
 resource kubernetesSystem 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
   name: 'kubernetes-system'
-  location: resourceGroup().location
+  location: location
   properties: {
     interval: 'PT1M'
     rules: [
@@ -894,7 +897,7 @@ resource kubernetesSystem 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-
 
 resource kubeApiserverSlos 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
   name: 'kube-apiserver-slos'
-  location: resourceGroup().location
+  location: location
   properties: {
     interval: 'PT1M'
     rules: [
@@ -1023,7 +1026,7 @@ resource kubeApiserverSlos 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
 
 resource kubernetesSystemApiserver 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
   name: 'kubernetes-system-apiserver'
-  location: resourceGroup().location
+  location: location
   properties: {
     interval: 'PT1M'
     rules: [
@@ -1197,7 +1200,7 @@ resource kubernetesSystemApiserver 'Microsoft.AlertsManagement/prometheusRuleGro
 
 resource kubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
   name: 'kubernetes-system-kubelet'
-  location: resourceGroup().location
+  location: location
   properties: {
     interval: 'PT1M'
     rules: [
@@ -1557,7 +1560,7 @@ resource kubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleGroup
 
 resource kubernetesSystemScheduler 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
   name: 'kubernetes-system-scheduler'
-  location: resourceGroup().location
+  location: location
   properties: {
     interval: 'PT1M'
     rules: [
@@ -1597,7 +1600,7 @@ resource kubernetesSystemScheduler 'Microsoft.AlertsManagement/prometheusRuleGro
 
 resource kubernetesSystemControllerManager 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
   name: 'kubernetes-system-controller-manager'
-  location: resourceGroup().location
+  location: location
   properties: {
     interval: 'PT1M'
     rules: [
@@ -1637,7 +1640,7 @@ resource kubernetesSystemControllerManager 'Microsoft.AlertsManagement/prometheu
 
 resource kasMonitorRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
   name: 'kas-monitor-rules'
-  location: resourceGroup().location
+  location: location
   properties: {
     interval: 'PT1M'
     rules: [
@@ -1791,7 +1794,7 @@ resource kasMonitorRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-0
 
 resource mgmtCapacityRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
   name: 'mgmt-capacity-rules'
-  location: resourceGroup().location
+  location: location
   properties: {
     interval: 'PT1M'
     rules: [
@@ -1862,7 +1865,7 @@ resource mgmtCapacityRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
 
 resource hcpHostedclusterMonitorRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
   name: 'hcp-hostedcluster-monitor-rules'
-  location: resourceGroup().location
+  location: location
   properties: {
     interval: 'PT1M'
     rules: [

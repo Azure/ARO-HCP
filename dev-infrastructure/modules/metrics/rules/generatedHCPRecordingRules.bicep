@@ -1,8 +1,10 @@
 param azureMonitoring string
 
+param location string = resourceGroup().location
+
 resource kasMonitorRecordingRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
   name: 'kas-monitor-recording-rules'
-  location: resourceGroup().location
+  location: location
   properties: {
     scopes: [
       azureMonitoring
@@ -24,7 +26,7 @@ resource kasMonitorRecordingRules 'Microsoft.AlertsManagement/prometheusRuleGrou
 
 resource hcpKmsRecordingRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
   name: 'hcp-kms-recording-rules'
-  location: resourceGroup().location
+  location: location
   properties: {
     scopes: [
       azureMonitoring

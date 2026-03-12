@@ -4,9 +4,12 @@ param azureMonitoring string
 #disable-next-line no-unused-params
 param actionGroups array
 
+#disable-next-line no-unused-params
+param location string = resourceGroup().location
+
 resource InstancesDownV1 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
   name: 'InstancesDownV1'
-  location: resourceGroup().location
+  location: location
   properties: {
     interval: 'PT1M'
     rules: [

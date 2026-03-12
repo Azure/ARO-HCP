@@ -274,12 +274,17 @@ param azureMonitoring string
 
 #disable-next-line no-unused-params
 param actionGroups array
+
+#disable-next-line no-unused-params
+param location string = resourceGroup().location
 `)); err != nil {
 			return err
 		}
 	} else {
 		if _, err := output.Write([]byte(`
 param azureMonitoring string
+
+param location string = resourceGroup().location
 `)); err != nil {
 			return err
 		}
@@ -438,7 +443,7 @@ func writeAlertGroups(groups armalertsmanagement.PrometheusRuleGroupResource, in
 	).Parse(`
 resource {{.name}} 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
   name: '{{.groups.Name}}'
-  location: resourceGroup().location
+  location: location
   properties: {
     interval: '{{.groups.Properties.Interval}}'
     rules: [
@@ -499,7 +504,7 @@ func writeRecordingGroups(groups armalertsmanagement.PrometheusRuleGroupResource
 	tmpl, err := template.New("prometheusRecordingRuleGroup").Parse(`
 resource {{.name}} 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
   name: '{{.groups.Name}}'
-  location: resourceGroup().location
+  location: location
   properties: {
 {{- if .groups.Properties.Description }}
     description: '{{.groups.Properties.Description}}'
