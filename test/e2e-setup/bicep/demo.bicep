@@ -16,7 +16,7 @@ param usePooledIdentities bool = false
 param openshiftControlPlaneVersionId string = '4.20'
 
 @description('NodePool OpenShift Version ID')
-param openshiftNodePoolVersionId string = '4.20.8'
+param openshiftNodePoolVersionId string = '4.20.15'
 
 @description('Tags that should be added to the ARO HCP cluster')
 param tags object = {}
