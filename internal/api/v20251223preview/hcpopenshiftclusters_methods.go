@@ -239,6 +239,7 @@ func newKmsEncryptionProfile(from *api.KmsEncryptionProfile) generated.KmsEncryp
 	}
 	return generated.KmsEncryptionProfile{
 		ActiveKey: api.PtrOrNil(newKmsKey(&from.ActiveKey)),
+		VaultName: api.PtrOrNil(from.ActiveKey.VaultName),
 	}
 }
 func newKmsKey(from *api.KmsKey) generated.KmsKey {
@@ -246,9 +247,8 @@ func newKmsKey(from *api.KmsKey) generated.KmsKey {
 		return generated.KmsKey{}
 	}
 	return generated.KmsKey{
-		Name:      api.PtrOrNil(from.Name),
-		VaultName: api.PtrOrNil(from.VaultName),
-		Version:   api.PtrOrNil(from.Version),
+		Name:    api.PtrOrNil(from.Name),
+		Version: api.PtrOrNil(from.Version),
 	}
 }
 
@@ -578,20 +578,22 @@ func normalizeCustomerManaged(p *generated.CustomerManagedEncryptionProfile, out
 	if p.EncryptionType != nil {
 		out.EncryptionType = api.CustomerManagedEncryptionType(*p.EncryptionType)
 	}
-	if p.Kms != nil && p.Kms.ActiveKey != nil {
+	if p.Kms != nil {
 		if out.Kms == nil {
 			out.Kms = &api.KmsEncryptionProfile{}
 		}
-		normalizeActiveKey(p.Kms.ActiveKey, &out.Kms.ActiveKey)
+		if p.Kms.ActiveKey != nil {
+			normalizeActiveKey(p.Kms.ActiveKey, &out.Kms.ActiveKey)
+		}
+		if p.Kms.VaultName != nil {
+			out.Kms.ActiveKey.VaultName = *p.Kms.VaultName
+		}
 	}
 }
 
 func normalizeActiveKey(p *generated.KmsKey, out *api.KmsKey) {
 	if p.Name != nil {
 		out.Name = *p.Name
-	}
-	if p.VaultName != nil {
-		out.VaultName = *p.VaultName
 	}
 	if p.Version != nil {
 		out.Version = *p.Version

@@ -355,7 +355,7 @@ model ClusterAutoscalingProfile {
   @minValue(0)
   maxNodeProvisionTimeSeconds?: int32;
 
-  /** podPriorityThreshold enables users to schedule “best-effort” pods, which shouldn’t trigger autoscaler actions,
+  /** podPriorityThreshold enables users to schedule "best-effort" pods, which shouldn't trigger autoscaler actions,
    * but only run when there are spare resources available. The default is -10.
    * See the following for more details:
    * https://github.com/kubernetes/autoscaler/blob/master/cluster-autoscaler/FAQ.md#how-does-cluster-autoscaler-work-with-pod-priority-and-preemption
@@ -462,6 +462,7 @@ model KmsKey {
   /** vaultName is the name of the keyvault that contains the secret. */
   @maxLength(255)
   @minLength(1)
+  @removed(Versions.v2025_12_23_preview)
   vaultName: string;
 
   /** name is the name of the keyvault key used for encryption/decryption. */
@@ -531,6 +532,13 @@ model CustomerManagedEncryptionProfile {
  * e.g using the AzureCLI: `az keyvault set-policy -n $KEYVAULT_NAME --key-permissions decrypt encrypt --spn (YOUR APPLICATION CLIENT ID)`
  */
 model KmsEncryptionProfile {
+  /** vaultName is the name of the keyvault that contains the secret. */
+  @visibility(Lifecycle.Read, Lifecycle.Create)
+  @maxLength(255)
+  @minLength(1)
+  @added(Versions.v2025_12_23_preview)
+  vaultName: string;
+
   /** visibility of the keyvault that contains the secret. */
   @visibility(Lifecycle.Read, Lifecycle.Create)
   @added(Versions.v2025_12_23_preview)
