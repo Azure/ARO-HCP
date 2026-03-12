@@ -22,6 +22,7 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
 
+	"github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/kusto"
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/mustgather"
 )
 
@@ -69,7 +70,7 @@ type ValidatedQueryOptions struct {
 	*RawQueryOptions
 
 	KustoEndpoint *url.URL
-	QueryOptions  mustgather.QueryOptions
+	QueryOptions  kusto.QueryOptions
 }
 
 // Validate performs comprehensive validation of all query input parameters.
@@ -94,7 +95,7 @@ func (o *RawQueryOptions) Validate(ctx context.Context) (*ValidatedQueryOptions,
 	return &ValidatedQueryOptions{
 		RawQueryOptions: o,
 		KustoEndpoint:   kustoEndpoint,
-		QueryOptions: mustgather.QueryOptions{
+		QueryOptions: kusto.QueryOptions{
 			SubscriptionId:    o.SubscriptionID,
 			ResourceGroupName: o.ResourceGroup,
 			TimestampMin:      o.TimestampMin,
@@ -127,7 +128,7 @@ func (o *ValidatedQueryOptions) Complete(ctx context.Context) (*CompletedQueryOp
 	}, nil
 }
 
-func (opts *RawQueryOptions) Run(ctx context.Context, runLegacy bool) error {
+func (opts *RawQueryOptions) Run(ctx context.Context) error {
 	validated, err := opts.Validate(ctx)
 	if err != nil {
 		return err
@@ -136,10 +137,6 @@ func (opts *RawQueryOptions) Run(ctx context.Context, runLegacy bool) error {
 	completed, err := validated.Complete(ctx)
 	if err != nil {
 		return err
-	}
-
-	if runLegacy {
-		return completed.RunLegacy(ctx)
 	}
 
 	return completed.RunQuery(ctx)

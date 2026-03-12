@@ -74,14 +74,14 @@ func (v verifyMustGatherLogsImpl) Verify(ctx context.Context) error {
 
 	queryClient := mustgather.NewQueryClientWithFileWriter(kustoClient, v.config.QueryTimeout, "", nil)
 
-	queryOptions, err := mustgather.NewQueryOptions(
-		v.config.SubscriptionID,
-		v.config.ResourceGroup,
-		"",                            // resourceId
-		time.Now().Add(-24*time.Hour), // timestampMin
-		time.Now(),                    // timestampMax
-		-1,                            // limit: -1 means no truncation
-	)
+	queryOptions := &kusto.QueryOptions{
+		SubscriptionId:    v.config.SubscriptionID,
+		ResourceGroupName: v.config.ResourceGroup,
+		InfraClusterName:  "",                              // resourceId
+		TimestampMin:      time.Now().Add(-24 * time.Hour), // timestampMin
+		TimestampMax:      time.Now(),                      // timestampMax
+		Limit:             -1,                              // limit: -1 means no truncation
+	}
 	if err != nil {
 		return fmt.Errorf("failed to create query options: %w", err)
 	}

@@ -1,6 +1,6 @@
-let _startTime = datetime("{{.StartTime}}");
-let _endTime = datetime("{{.EndTime}}");
-let _resource_group = '{{.ResourceGroupName}}';
+let _startTime = <<.TimestampMin>>;
+let _endTime = <<.TimestampMax>>;
+let _resource_group = '<<.ResourceGroupName>>';
 let cid = (database('ServiceLogs').table('clustersServiceLogs')
 | where timestamp between (_startTime .. _endTime)
 | where resource_id has _resource_group
@@ -9,4 +9,4 @@ let cid = (database('ServiceLogs').table('clustersServiceLogs')
 database('HostedControlPlaneLogs').table('containerLogs')
 | where timestamp between (_startTime .. _endTime)
 | where namespace_name has_any (cid)
-| project timestamp, log
+| project {{.ProjectFields}}

@@ -84,11 +84,11 @@ type NormalizedLogLine struct {
 // These options are used to configure the Gatherer and are passed to the Gatherer constructor
 // They are used to generate the queries as well
 type GathererOptions struct {
-	GatherInfraLogs            bool          // Gather all logs from the infrastructure, does NOT gather HCP logs
-	SkipHostedControlPlaneLogs bool          // Skip hosted control plane logs
-	SkipKubernetesEventsLogs   bool          // Skip Kubernetes events logs
-	CollectSystemdLogs         bool          // Collect Systemd logs
-	QueryOptions               *QueryOptions // Query options
+	GatherInfraLogs            bool                // Gather all logs from the infrastructure, does NOT gather HCP logs
+	SkipHostedControlPlaneLogs bool                // Skip hosted control plane logs
+	SkipKubernetesEventsLogs   bool                // Skip Kubernetes events logs
+	CollectSystemdLogs         bool                // Collect Systemd logs
+	QueryOptions               *kusto.QueryOptions // Query options
 }
 
 // Gatherer coordinates the collection and processing of log data from Azure resources.
@@ -216,7 +216,7 @@ type Gatherer struct {
 //		RowOutputOptions{"outputPath": "/tmp/logs", "format": "json"},
 //		GathererOptions{SubscriptionID: "sub-123", ResourceGroup: "rg-test"},
 //	)
-func NewGatherer(queryClient QueryClientInterface, outputFunc RowOutputFunc, outputOptions RowOutputOptions, opts GathererOptions) *Gatherer {
+func NewGatherer(queryClient QueryClientInterface, outputFunc RowOutputFunc, outputOptions map[string]any, opts GathererOptions) *Gatherer {
 	return &Gatherer{
 		QueryClient:   queryClient,
 		outputFunc:    outputFunc,
@@ -231,7 +231,7 @@ func NewGatherer(queryClient QueryClientInterface, outputFunc RowOutputFunc, out
 // with the default file-based output function.
 //
 // For custom output handling, use NewGatherer() instead.
-func NewCliGatherer(queryClient QueryClientInterface, outputPath, serviceLogsDirectory, hostedControlPlaneLogsDirectory string, opts GathererOptions) *Gatherer {
+func NewCliGatherer(queryClient QueryClientInterface, outputPath, serviceLogsDirectory, hostedControlPlaneLogsDirectory string, opts GathererOptions, infraLogsOnly bool) *Gatherer {
 	outputOptions := map[string]any{
 		"outputPath":                        outputPath,
 		string(QueryTypeServices):           serviceLogsDirectory,
@@ -243,7 +243,7 @@ func NewCliGatherer(queryClient QueryClientInterface, outputPath, serviceLogsDir
 		outputFunc:    cliOutputFunc,
 		outputOptions: outputOptions,
 		opts:          opts,
-		infraLogsOnly: opts.GatherInfraLogs,
+		infraLogsOnly: infraLogsOnly,
 	}
 }
 
@@ -307,9 +307,15 @@ func (g *Gatherer) GatherLogs(ctx context.Context) error {
 
 	var gatherErrors error
 
+	queryFactory := kusto.NewQueryFactory(g.opts.QueryOptions, false)
+
 	// First, get all cluster IDs
 	clusterIds := make([]string, 0)
-	allClusterIds, err := g.executeQueryAndConvert(ctx, g.opts.QueryOptions.GetClusterIdQuery(), ClusterIdRow{})
+	clusterIdQuery, err := queryFactory.ClusterIdQuery()
+	if err != nil {
+		return fmt.Errorf("failed to build cluster id query: %w", err)
+	}
+	allClusterIds, err := g.executeQueryAndConvert(ctx, clusterIdQuery, ClusterIdRow{})
 	if err != nil {
 		return fmt.Errorf("failed to execute cluster id query: %w", err)
 	}
@@ -317,10 +323,14 @@ func (g *Gatherer) GatherLogs(ctx context.Context) error {
 		clusterIds = append(clusterIds, row.(ClusterIdRow).ClusterId)
 	}
 	logger.V(1).Info("Obtained following clusterIDs", "clusterIds", strings.Join(clusterIds, ", "))
-	g.opts.QueryOptions.ClusterIds = clusterIds
+	queryFactory.SetClusterIds(clusterIds)
 
 	// Gather service logs
-	if err := g.queryAndWriteToFile(ctx, QueryTypeServices, g.opts.QueryOptions.GetServicesQueries()); err != nil {
+	servicesQueries, err := queryFactory.ServiceLogs()
+	if err != nil {
+		return fmt.Errorf("failed to build services queries: %w", err)
+	}
+	if err := g.queryAndWriteToFile(ctx, QueryTypeServices, servicesQueries); err != nil {
 		gatherErrors = errors.Join(gatherErrors, fmt.Errorf("failed to execute services query: %w", err))
 	}
 
@@ -329,7 +339,11 @@ func (g *Gatherer) GatherLogs(ctx context.Context) error {
 		logger.V(2).Info("Skipping hosted control plane logs")
 	} else {
 		logger.V(1).Info("Executing hosted control plane logs")
-		if err := g.queryAndWriteToFile(ctx, QueryTypeHostedControlPlane, g.opts.QueryOptions.GetHostedControlPlaneLogsQuery()); err != nil {
+		hcpQueries, err := queryFactory.HostedControlPlaneLogs()
+		if err != nil {
+			return fmt.Errorf("failed to build hosted control plane logs query: %w", err)
+		}
+		if err := g.queryAndWriteToFile(ctx, QueryTypeHostedControlPlane, hcpQueries); err != nil {
 			gatherErrors = errors.Join(gatherErrors, fmt.Errorf("failed to execute hosted control plane logs query: %w", err))
 		}
 	}
@@ -340,8 +354,12 @@ func (g *Gatherer) GatherLogs(ctx context.Context) error {
 		return nil
 	}
 
+	clusterNamesQueries, err := queryFactory.ClusterNamesQueries()
+	if err != nil {
+		return fmt.Errorf("failed to build cluster names queries: %w", err)
+	}
 	clusterNames := make([]string, 0)
-	for _, nameQuery := range g.opts.QueryOptions.GetClusterNamesQueries() {
+	for _, nameQuery := range clusterNamesQueries {
 		allClusterNames, err := g.executeQueryAndConvert(ctx, nameQuery, ClusterNameRow{})
 		if err != nil {
 			gatherErrors = errors.Join(gatherErrors, fmt.Errorf("failed to execute cluster names query: %w", err))
@@ -353,16 +371,22 @@ func (g *Gatherer) GatherLogs(ctx context.Context) error {
 	logger.V(1).Info("Obtained following clusterNames", "clusterNames", strings.Join(clusterNames, ", "))
 
 	if !g.opts.SkipKubernetesEventsLogs {
-		allKubernetesEventsQueries := make([]*kusto.ConfigurableQuery, 0)
+		allKubernetesEventsQueries := make([]kusto.Query, 0)
 		for _, clusterName := range clusterNames {
-			opts := *g.opts.QueryOptions
-			opts.InfraClusterName = clusterName
+			queryFactory.SetInfraClusterName(clusterName)
 			if strings.Contains(clusterName, "mgmt") {
-				allKubernetesEventsQueries = append(allKubernetesEventsQueries, opts.GetKubernetesEventsMgmt()...)
+				queries, err := queryFactory.KubernetesEventsMgmt()
+				if err != nil {
+					return fmt.Errorf("failed to build kubernetes events mgmt query: %w", err)
+				}
+				allKubernetesEventsQueries = append(allKubernetesEventsQueries, queries...)
 			} else {
-				allKubernetesEventsQueries = append(allKubernetesEventsQueries, opts.GetKubernetesEventsSvc()...)
+				queries, err := queryFactory.KubernetesEventsSvc()
+				if err != nil {
+					return fmt.Errorf("failed to build kubernetes events svc query: %w", err)
+				}
+				allKubernetesEventsQueries = append(allKubernetesEventsQueries, queries...)
 			}
-
 		}
 		if err := g.queryAndWriteToFile(ctx, QueryTypeKubernetesEvents, allKubernetesEventsQueries); err != nil {
 			gatherErrors = errors.Join(gatherErrors, fmt.Errorf("failed to execute kubernetes events query: %w", err))
@@ -370,11 +394,14 @@ func (g *Gatherer) GatherLogs(ctx context.Context) error {
 	}
 
 	if g.opts.CollectSystemdLogs {
-		allSystemdLogsQueries := make([]*kusto.ConfigurableQuery, 0)
+		allSystemdLogsQueries := make([]kusto.Query, 0)
 		for _, clusterName := range clusterNames {
-			opts := *g.opts.QueryOptions
-			opts.InfraClusterName = clusterName
-			allSystemdLogsQueries = append(allSystemdLogsQueries, opts.GetInfraSystemdLogsQuery()...)
+			queryFactory.SetInfraClusterName(clusterName)
+			queries, err := queryFactory.InfraSystemdLogs()
+			if err != nil {
+				return fmt.Errorf("failed to build systemd logs query: %w", err)
+			}
+			allSystemdLogsQueries = append(allSystemdLogsQueries, queries...)
 		}
 		if err := g.queryAndWriteToFile(ctx, QueryTypeSystemdLogs, allSystemdLogsQueries); err != nil {
 			gatherErrors = errors.Join(gatherErrors, fmt.Errorf("failed to execute systemd logs query: %w", err))
@@ -385,19 +412,32 @@ func (g *Gatherer) GatherLogs(ctx context.Context) error {
 }
 
 func (g *Gatherer) gatherInfraLogs(ctx context.Context) error {
-	if err := g.queryAndWriteToFile(ctx, QueryTypeKubernetesEvents, g.opts.QueryOptions.GetInfraKubernetesEventsQuery()); err != nil {
+	queryFactory := kusto.NewQueryFactory(g.opts.QueryOptions, false)
+	k8sEventsQueries, err := queryFactory.InfraKubernetesEvents()
+	if err != nil {
+		return fmt.Errorf("failed to build kubernetes events query: %w", err)
+	}
+	if err := g.queryAndWriteToFile(ctx, QueryTypeKubernetesEvents, k8sEventsQueries); err != nil {
 		return fmt.Errorf("failed to execute kubernetes events query: %w", err)
 	}
-	if err := g.queryAndWriteToFile(ctx, QueryTypeSystemdLogs, g.opts.QueryOptions.GetInfraSystemdLogsQuery()); err != nil {
+	systemdQueries, err := queryFactory.InfraSystemdLogs()
+	if err != nil {
+		return fmt.Errorf("failed to build systemd logs query: %w", err)
+	}
+	if err := g.queryAndWriteToFile(ctx, QueryTypeSystemdLogs, systemdQueries); err != nil {
 		return fmt.Errorf("failed to execute systemd logs query: %w", err)
 	}
-	if err := g.queryAndWriteToFile(ctx, QueryTypeServices, g.opts.QueryOptions.GetInfraServicesQueries()); err != nil {
+	servicesQueries, err := queryFactory.InfraServiceLogs()
+	if err != nil {
+		return fmt.Errorf("failed to build services queries: %w", err)
+	}
+	if err := g.queryAndWriteToFile(ctx, QueryTypeServices, servicesQueries); err != nil {
 		return fmt.Errorf("failed to execute services query: %w", err)
 	}
 	return nil
 }
 
-func (g *Gatherer) executeQueryAndConvert(ctx context.Context, query *kusto.ConfigurableQuery, targetRow any) ([]any, error) {
+func (g *Gatherer) executeQueryAndConvert(ctx context.Context, query kusto.Query, targetRow any) ([]any, error) {
 	outputChannel := make(chan azkquery.Row)
 	allRows := make([]any, 0)
 
@@ -438,7 +478,7 @@ func (g *Gatherer) executeQueryAndConvert(ctx context.Context, query *kusto.Conf
 	return allRows, nil
 }
 
-func (g *Gatherer) queryAndWriteToFile(ctx context.Context, queryType QueryType, queries []*kusto.ConfigurableQuery) error {
+func (g *Gatherer) queryAndWriteToFile(ctx context.Context, queryType QueryType, queries []kusto.Query) error {
 	logger := logr.FromContextOrDiscard(ctx)
 	queryOutputChannel := make(chan azkquery.Row)
 	logLineChan := make(chan *NormalizedLogLine)

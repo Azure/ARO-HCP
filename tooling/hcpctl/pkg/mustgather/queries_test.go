@@ -16,64 +16,49 @@ package mustgather
 
 import (
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/kusto"
 )
 
-func TestNewQueryOptions(t *testing.T) {
-	now := time.Now()
-
-	// With resource ID
-	opts, err := NewQueryOptions("", "", "/subscriptions/test-sub/resourceGroups/test-rg", now, now, 100)
-	require.NoError(t, err)
-	assert.Equal(t, "test-sub", opts.SubscriptionId)
-	assert.Equal(t, "test-rg", opts.ResourceGroupName)
-
-	// With subscription/resource group
-	opts, err = NewQueryOptions("sub", "rg", "", now, now, 100)
-	require.NoError(t, err)
-	assert.Equal(t, "sub", opts.SubscriptionId)
-	assert.Equal(t, "rg", opts.ResourceGroupName)
-
-	// Invalid resource ID
-	_, err = NewQueryOptions("", "", "/invalid", now, now, 100)
-	assert.Error(t, err)
-}
-
-func TestQueryOptions_GetServicesQueries(t *testing.T) {
-	opts := &QueryOptions{
+func TestGetServicesQueries(t *testing.T) {
+	opts := &kusto.QueryOptions{
 		SubscriptionId:    "test-sub",
 		ResourceGroupName: "test-rg",
 	}
 
-	queries := opts.GetServicesQueries()
-	assert.Len(t, queries, 4) // Should match servicesTables length
+	queries, err := kusto.NewQueryFactory(opts, true).ServiceLogs()
+	require.NoError(t, err)
+	assert.Len(t, queries, 4)
 	for _, query := range queries {
 		assert.NotNil(t, query)
-		assert.Equal(t, servicesDatabase, query.Database)
+		assert.Equal(t, kusto.ServicesDatabase, query.GetDatabase())
 	}
 }
 
-func TestQueryOptions_GetHostedControlPlaneLogsQuery(t *testing.T) {
+func TestGetHostedControlPlaneLogsQuery(t *testing.T) {
 	// With cluster IDs
-	opts := &QueryOptions{ClusterIds: []string{"cluster1", "cluster2"}}
-	queries := opts.GetHostedControlPlaneLogsQuery()
+	opts := &kusto.QueryOptions{ClusterIds: []string{"cluster1", "cluster2"}}
+	queries, err := kusto.NewQueryFactory(opts, true).HostedControlPlaneLogs()
+	require.NoError(t, err)
 	assert.Len(t, queries, 2)
 
 	// Empty cluster IDs
-	opts = &QueryOptions{ClusterIds: []string{}}
-	queries = opts.GetHostedControlPlaneLogsQuery()
+	opts = &kusto.QueryOptions{ClusterIds: []string{}}
+	queries, err = kusto.NewQueryFactory(opts, true).HostedControlPlaneLogs()
+	require.NoError(t, err)
 	assert.Len(t, queries, 0)
 }
 
-func TestQueryOptions_GetClusterIdQuery(t *testing.T) {
-	opts := &QueryOptions{
+func TestGetClusterIdQuery(t *testing.T) {
+	opts := &kusto.QueryOptions{
 		SubscriptionId:    "test-sub",
 		ResourceGroupName: "test-rg",
 	}
 
-	query := opts.GetClusterIdQuery()
+	query, err := kusto.NewQueryFactory(opts, true).ClusterIdQuery()
+	require.NoError(t, err)
 	assert.NotNil(t, query)
 }

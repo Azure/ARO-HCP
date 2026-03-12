@@ -1,6 +1,6 @@
 # Must-Gather Commands Documentation
 
-This document provides comprehensive documentation for the `hcpctl must-gather` commands, specifically the `legacy-query` and `clean` subcommands.
+This document provides comprehensive documentation for the `hcpctl must-gather` commands, specifically the `query` and `clean` subcommands.
 
 ## Overview
 
