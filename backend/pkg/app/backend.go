@@ -410,6 +410,13 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		backendInformers,
 	)
 
+	triggerNodePoolUpgradeController := upgradecontrollers.NewTriggerNodePoolUpgradeController(
+		b.options.CosmosDBClient,
+		b.options.ClustersServiceClient,
+		activeOperationLister,
+		backendInformers,
+	)
+
 	le, err := leaderelection.NewLeaderElector(leaderelection.LeaderElectionConfig{
 		Lock:          b.options.LeaderElectionLock,
 		LeaseDuration: leaderElectionLeaseDuration,
@@ -449,6 +456,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go maestroCreateReadonlyBundlesController.Run(ctx, 20)
 				go maestroReadAndPersistReadonlyBundlesContentController.Run(ctx, 20)
 				go maestroDeleteOrphanedReadonlyBundlesController.Run(ctx, 20)
+				go triggerNodePoolUpgradeController.Run(ctx, 20)
 			},
 			OnStoppedLeading: func() {
 				operationsScanner.LeaderGauge.Set(0)

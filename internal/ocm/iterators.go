@@ -54,6 +54,11 @@ type ProvisionShardListIterator interface {
 	GetError() error
 }
 
+type NodePoolUpgradePolicyListIterator interface {
+	Items(ctx context.Context) iter.Seq[*arohcpv1alpha1.NodePoolUpgradePolicy]
+	GetError() error
+}
+
 type simpleListIterator[T any] struct {
 	clusters []*T
 	err      error
@@ -89,6 +94,13 @@ func NewSimpleControlPlaneUpgradePolicyListIterator(objs []*arohcpv1alpha1.Contr
 
 func NewSimpleProvisionShardListIterator(objs []*arohcpv1alpha1.ProvisionShard, err error) ProvisionShardListIterator {
 	return &simpleListIterator[arohcpv1alpha1.ProvisionShard]{
+		clusters: objs,
+		err:      err,
+	}
+}
+
+func NewSimpleNodePoolUpgradePolicyListIterator(objs []*arohcpv1alpha1.NodePoolUpgradePolicy, err error) NodePoolUpgradePolicyListIterator {
+	return &simpleListIterator[arohcpv1alpha1.NodePoolUpgradePolicy]{
 		clusters: objs,
 		err:      err,
 	}
