@@ -17,12 +17,15 @@ package databasemutationhelpers
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 
 	"sigs.k8s.io/yaml"
 
+	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -36,8 +39,9 @@ type HTTPTestAccessor interface {
 }
 
 type httpHTTPTestAccessor struct {
-	url     string
-	headers map[string]string
+	url        string
+	headers    map[string]string
+	apiVersion string
 }
 
 func newHTTPTestAccessor(url string, headers map[string]string) *httpHTTPTestAccessor {
@@ -47,14 +51,53 @@ func newHTTPTestAccessor(url string, headers map[string]string) *httpHTTPTestAcc
 	}
 }
 
+// NewVersionedHTTPTestAccessor creates an HTTP test accessor that sends requests
+// with the given api-version query parameter and the required ARM headers.
+func NewVersionedHTTPTestAccessor(url, apiVersion string) *httpHTTPTestAccessor {
+	return &httpHTTPTestAccessor{
+		url:        url,
+		apiVersion: apiVersion,
+		headers: map[string]string{
+			"X-Ms-Arm-Resource-System-Data": "{}",
+			"X-Ms-Home-Tenant-Id":           api.TestTenantID,
+			"X-Ms-Identity-Url":             api.TestManagedIdentitiesDataPlaneIdentityURL,
+			"Content-Type":                  "application/json",
+		},
+	}
+}
+
 var _ HTTPTestAccessor = &httpHTTPTestAccessor{}
 
 func (a *httpHTTPTestAccessor) Get(ctx context.Context, resourceIDString string) (any, error) {
 	return a.doRequest(ctx, http.MethodGet, resourceIDString, nil)
 }
 
-func (a *httpHTTPTestAccessor) List(ctx context.Context, parentResourceIDString string) ([]any, error) {
-	return nil, utils.TrackError(fmt.Errorf("not implemented yet"))
+func (a *httpHTTPTestAccessor) List(ctx context.Context, exemplarResourceIDString string) ([]any, error) {
+	// The exemplar resource ID includes a dummy name (e.g., ".../nodePools/dummy").
+	// Strip the last path segment to get the collection URL (e.g., ".../nodePools").
+	lastSlash := strings.LastIndex(exemplarResourceIDString, "/")
+	if lastSlash <= 0 {
+		return nil, utils.TrackError(fmt.Errorf("invalid exemplar resource ID for listing: %s", exemplarResourceIDString))
+	}
+	collectionPath := exemplarResourceIDString[:lastSlash]
+
+	result, err := a.doRequest(ctx, http.MethodGet, collectionPath, nil)
+	if err != nil {
+		return nil, err
+	}
+	resultMap, ok := result.(map[string]any)
+	if !ok {
+		return nil, utils.TrackError(fmt.Errorf("unexpected response type: %T", result))
+	}
+	valueRaw, ok := resultMap["value"]
+	if !ok {
+		return nil, utils.TrackError(fmt.Errorf("response missing 'value' field"))
+	}
+	valueSlice, ok := valueRaw.([]any)
+	if !ok {
+		return nil, utils.TrackError(fmt.Errorf("'value' field is not an array: %T", valueRaw))
+	}
+	return valueSlice, nil
 }
 
 func (a *httpHTTPTestAccessor) CreateOrUpdate(ctx context.Context, resourceIDString string, content []byte) error {
@@ -77,6 +120,11 @@ func (a *httpHTTPTestAccessor) Delete(ctx context.Context, resourceIDString stri
 	return err
 }
 
+// operationStatusLocation is the location used in integration tests.
+// Operation status resources require a location segment in the URL that
+// is not present in the stored resource ID.
+const operationStatusLocation = "fake-location"
+
 func (a *httpHTTPTestAccessor) doRequest(ctx context.Context, method, path string, body []byte) (any, error) {
 	logger := utils.LoggerFromContext(ctx)
 
@@ -85,7 +133,31 @@ func (a *httpHTTPTestAccessor) doRequest(ctx context.Context, method, path strin
 		reqBody = bytes.NewReader(body)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, method, a.url+path, reqBody)
+	// apiVersion is non-empty only for ARM-style (versioned) accessors.
+	// The legacy newHTTPTestAccessor (used for admin endpoints) leaves it
+	// empty. This guard prevents ARM-specific URL rewriting and api-version
+	// query parameter appending for admin requests.
+	//
+	// Operation status resources require a location segment in the URL.
+	// The stored resource ID is .../providers/Microsoft.RedHatOpenShift/hcpOperationStatuses/{id}
+	// but the API route expects .../providers/Microsoft.RedHatOpenShift/locations/{location}/hcpOperationStatuses/{id}
+	if len(a.apiVersion) != 0 {
+		opStatusSegment := "/" + api.OperationStatusResourceTypeName + "/"
+		if idx := strings.Index(strings.ToLower(path), strings.ToLower(opStatusSegment)); idx >= 0 {
+			path = path[:idx] + "/locations/" + operationStatusLocation + path[idx:]
+		}
+	}
+
+	fullURL := a.url + path
+	if len(a.apiVersion) != 0 {
+		sep := "?"
+		if strings.Contains(fullURL, "?") {
+			sep = "&"
+		}
+		fullURL = fullURL + sep + "api-version=" + a.apiVersion
+	}
+
+	req, err := http.NewRequestWithContext(ctx, method, fullURL, reqBody)
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}
@@ -110,6 +182,14 @@ func (a *httpHTTPTestAccessor) doRequest(ctx context.Context, method, path strin
 	}
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		// Re-indent the response body with 2-space indent to match the
+		// format produced by the Azure SDK's ResponseError.Error(). This
+		// ensures expected-error.txt fixtures (written as substrings of
+		// that format) continue to match via ErrorContains.
+		var indented bytes.Buffer
+		if err := json.Indent(&indented, bodyBytes, "", "  "); err == nil {
+			bodyBytes = indented.Bytes()
+		}
 		return nil, utils.TrackError(fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(bodyBytes)))
 	}
 

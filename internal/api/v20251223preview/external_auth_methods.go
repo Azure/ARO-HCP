@@ -15,7 +15,6 @@
 package v20251223preview
 
 import (
-	"fmt"
 	"strings"
 	"time"
 
@@ -36,16 +35,6 @@ var _ api.VersionedCreatableResource[api.HCPOpenShiftClusterExternalAuth] = &Ext
 
 func (h *ExternalAuth) NewExternal() any {
 	return &ExternalAuth{}
-}
-
-func (h *ExternalAuth) SetDefaultValues(uncast any) error {
-	obj, ok := uncast.(*ExternalAuth)
-	if !ok {
-		return fmt.Errorf("unexpected type %T", uncast)
-	}
-
-	SetDefaultValuesExternalAuth(obj)
-	return nil
 }
 
 func SetDefaultValuesExternalAuth(obj *ExternalAuth) {
@@ -70,8 +59,13 @@ func (h *ExternalAuth) GetVersion() api.Version {
 	return versionedInterface
 }
 
-func (h *ExternalAuth) ConvertToInternal() (*api.HCPOpenShiftClusterExternalAuth, error) {
-	out := &api.HCPOpenShiftClusterExternalAuth{}
+func (h *ExternalAuth) ConvertToInternal(existing *api.HCPOpenShiftClusterExternalAuth) (*api.HCPOpenShiftClusterExternalAuth, error) {
+	var out *api.HCPOpenShiftClusterExternalAuth
+	if existing != nil {
+		out = existing.DeepCopy()
+	} else {
+		out = &api.HCPOpenShiftClusterExternalAuth{}
+	}
 
 	if h.ID != nil {
 		out.ID = api.Must(azcorearm.ParseResourceID(strings.ToLower(*h.ID)))
@@ -114,13 +108,19 @@ func (h *ExternalAuth) ConvertToInternal() (*api.HCPOpenShiftClusterExternalAuth
 				Reason:             ptr.Deref(h.Properties.Condition.Reason, ""),
 				Message:            ptr.Deref(h.Properties.Condition.Message, ""),
 			}
+		} else {
+			out.Properties.Condition = api.ExternalAuthCondition{}
 		}
 
 		if h.Properties.Issuer != nil {
 			normalizeTokenIssuerProfile(h.Properties.Issuer, &out.Properties.Issuer)
+		} else {
+			out.Properties.Issuer = api.TokenIssuerProfile{}
 		}
 		if h.Properties.Claim != nil {
 			normalizeExternalAuthClaimProfile(h.Properties.Claim, &out.Properties.Claim)
+		} else {
+			out.Properties.Claim = api.ExternalAuthClaimProfile{}
 		}
 
 		out.Properties.Clients = make([]api.ExternalAuthClientProfile, len(h.Properties.Clients))
@@ -136,25 +136,21 @@ func normalizeExternalAuthClientProfile(p *generated.ExternalAuthClientProfile, 
 	if p.Component != nil {
 		out.Component.Name = ptr.Deref(p.Component.Name, "")
 		out.Component.AuthClientNamespace = ptr.Deref(p.Component.AuthClientNamespace, "")
+	} else {
+		out.Component = api.ExternalAuthClientComponentProfile{}
 	}
-	if p.ClientID != nil {
-		out.ClientID = *p.ClientID
-	}
+	out.ClientID = api.Deref(p.ClientID)
 	out.ExtraScopes = make([]string, len(p.ExtraScopes))
 	for i := range p.ExtraScopes {
-		if p.ExtraScopes != nil {
+		if p.ExtraScopes[i] != nil {
 			out.ExtraScopes[i] = *p.ExtraScopes[i]
 		}
 	}
-	if p.Type != nil {
-		out.Type = api.ExternalAuthClientType(*p.Type)
-	}
+	out.Type = api.ExternalAuthClientType(api.Deref(p.Type))
 }
 
 func normalizeTokenIssuerProfile(p *generated.TokenIssuerProfile, out *api.TokenIssuerProfile) {
-	if p.URL != nil {
-		out.URL = *p.URL
-	}
+	out.URL = api.Deref(p.URL)
 	if p.Audiences != nil {
 		out.Audiences = make([]string, len(p.Audiences))
 		for i := range p.Audiences {
@@ -162,15 +158,17 @@ func normalizeTokenIssuerProfile(p *generated.TokenIssuerProfile, out *api.Token
 				out.Audiences[i] = *p.Audiences[i]
 			}
 		}
+	} else {
+		out.Audiences = nil
 	}
-	if p.CA != nil {
-		out.CA = *p.CA
-	}
+	out.CA = api.Deref(p.CA)
 }
 
 func normalizeExternalAuthClaimProfile(p *generated.ExternalAuthClaimProfile, out *api.ExternalAuthClaimProfile) {
 	if p.Mappings != nil {
 		normalizeTokenClaimMappingsProfile(p.Mappings, &out.Mappings)
+	} else {
+		out.Mappings = api.TokenClaimMappingsProfile{}
 	}
 
 	out.ValidationRules = make([]api.TokenClaimValidationRule, len(p.ValidationRules))
@@ -181,39 +179,29 @@ func normalizeExternalAuthClaimProfile(p *generated.ExternalAuthClaimProfile, ou
 
 func normalizeTokenClaimMappingsProfile(p *generated.TokenClaimMappingsProfile, out *api.TokenClaimMappingsProfile) {
 	if p.Username != nil {
-
-		if p.Username.Claim != nil {
-			out.Username.Claim = *p.Username.Claim
-		}
-		if p.Username.Prefix != nil {
-			out.Username.Prefix = *p.Username.Prefix
-		}
-		if p.Username.PrefixPolicy != nil {
-			out.Username.PrefixPolicy = api.UsernameClaimPrefixPolicy(*p.Username.PrefixPolicy)
-		}
+		out.Username.Claim = api.Deref(p.Username.Claim)
+		out.Username.Prefix = api.Deref(p.Username.Prefix)
+		out.Username.PrefixPolicy = api.UsernameClaimPrefixPolicy(api.Deref(p.Username.PrefixPolicy))
+	} else {
+		out.Username = api.UsernameClaimProfile{}
 	}
 	if p.Groups != nil {
-		out.Groups = &api.GroupClaimProfile{}
-		if p.Groups.Claim != nil {
-			out.Groups.Claim = *p.Groups.Claim
+		out.Groups = &api.GroupClaimProfile{
+			Claim:  api.Deref(p.Groups.Claim),
+			Prefix: api.Deref(p.Groups.Prefix),
 		}
-		if p.Groups.Prefix != nil {
-			out.Groups.Prefix = *p.Groups.Prefix
-		}
+	} else {
+		out.Groups = nil
 	}
 }
 
 func normalizeTokenClaimValidationRule(p *generated.TokenClaimValidationRule, out *api.TokenClaimValidationRule) {
-	if p.Type != nil {
-		out.Type = api.TokenValidationRuleType(*p.Type)
-	}
+	out.Type = api.TokenValidationRuleType(api.Deref(p.Type))
 	if p.RequiredClaim != nil {
-		if p.RequiredClaim.Claim != nil {
-			out.RequiredClaim.Claim = *p.RequiredClaim.Claim
-		}
-		if p.RequiredClaim.RequiredValue != nil {
-			out.RequiredClaim.RequiredValue = *p.RequiredClaim.RequiredValue
-		}
+		out.RequiredClaim.Claim = api.Deref(p.RequiredClaim.Claim)
+		out.RequiredClaim.RequiredValue = api.Deref(p.RequiredClaim.RequiredValue)
+	} else {
+		out.RequiredClaim = api.TokenRequiredClaim{}
 	}
 }
 

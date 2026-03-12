@@ -478,7 +478,8 @@ func getHCPNodePoolResource(opts ...func(*api.HCPOpenShiftClusterNodePool)) *api
 				OSDisk: api.OSDiskProfile{
 					// SizeGiB is initialized to 64 to reflect the default value set by SetDefaultValuesNodePool
 					// in the real API flow. This ensures tests match production behavior where SizeGiB is never nil.
-					SizeGiB: ptr.To(int32(64)),
+					SizeGiB:                ptr.To(int32(64)),
+					DiskStorageAccountType: api.DiskStorageAccountTypePremium_LRS,
 				},
 			},
 		},
@@ -504,7 +505,7 @@ func getBaseCSNodePoolBuilder() *arohcpv1alpha1.NodePoolBuilder {
 			).
 			OsDisk(arohcpv1alpha1.NewAzureNodePoolOsDisk().
 				SizeGibibytes(64).
-				StorageAccountType(""),
+				StorageAccountType(string(api.DiskStorageAccountTypePremium_LRS)),
 			),
 		).
 		Subnet("").
