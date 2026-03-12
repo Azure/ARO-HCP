@@ -171,7 +171,7 @@ var _ = Describe("Customer", func() {
 					10*time.Minute,
 				)
 				Expect(err).NotTo(HaveOccurred())
-				Expect(adminRESTConfig).NotTo(BeNil())
+				Expect(adminRESTConfig).NotTo(BeNil(), "adminRESTConfig was nil for credential %d", i+1)
 				credentials = append(credentials, adminRESTConfig)
 
 				By(fmt.Sprintf("validating admin credential %d works", i+1))
@@ -233,7 +233,7 @@ var _ = Describe("Customer", func() {
 				10*time.Minute,
 			)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(newAdminRESTConfig).NotTo(BeNil())
+			Expect(newAdminRESTConfig).NotTo(BeNil(), "newAdminRESTConfig was nil after revocation")
 
 			By("verifying new admin credentials work after revocation")
 			Expect(verifiers.VerifyHCPCluster(ctx, newAdminRESTConfig)).To(Succeed(), "New admin credentials should work after revocation")

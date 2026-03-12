@@ -90,8 +90,8 @@ var _ = Describe("Customer", func() {
 
 			actualHCPCluster, err := tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient().Get(ctx, *resourceGroup.Name, customerClusterName, nil)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(actualHCPCluster.Properties.ClusterImageRegistry).NotTo(BeNil())
-			Expect(actualHCPCluster.Properties.ClusterImageRegistry.State).NotTo(BeNil())
+			Expect(actualHCPCluster.Properties.ClusterImageRegistry).NotTo(BeNil(), "cluster Properties.ClusterImageRegistry was nil")
+			Expect(actualHCPCluster.Properties.ClusterImageRegistry.State).NotTo(BeNil(), "cluster Properties.ClusterImageRegistry.State was nil")
 			Expect(ptr.Deref(actualHCPCluster.Properties.ClusterImageRegistry.State, "")).To(Equal(hcpsdk20240610preview.ClusterImageRegistryProfileStateDisabled))
 
 			By("getting credentials")

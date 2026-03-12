@@ -86,9 +86,9 @@ var _ = Describe("Customer", func() {
 			clusterResp, err := tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient().Get(ctx, *resourceGroup.Name, customerClusterName, nil)
 			Expect(err).NotTo(HaveOccurred())
 
-			Expect(clusterResp.Properties).NotTo(BeNil())
-			Expect(clusterResp.Properties.API).NotTo(BeNil())
-			Expect(clusterResp.Properties.API.URL).NotTo(BeNil())
+			Expect(clusterResp.Properties).NotTo(BeNil(), "cluster response Properties was nil")
+			Expect(clusterResp.Properties.API).NotTo(BeNil(), "cluster Properties.API was nil")
+			Expect(clusterResp.Properties.API.URL).NotTo(BeNil(), "cluster Properties.API.URL was nil")
 
 			apiServerURL := clusterResp.Properties.API.URL
 			actualAPICert, err := tlsCertFromURL(ctx, *apiServerURL)

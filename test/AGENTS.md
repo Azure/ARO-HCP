@@ -32,6 +32,14 @@
 
 # Best Practices for Writing E2E Test Cases
 
+## Assertion Messages
+
+* **Descriptive nil checks:** Every `Expect(x).NotTo(BeNil())` or `Expect(x).ToNot(BeNil())` call **must** include an annotation string describing which property is being checked. Bare `BeNil()` assertions produce unhelpful failure messages like `Expected <*string | 0x0>: nil not to be nil` that require mapping back to source code to diagnose. Use Gomega's annotation argument to add context:
+  * `Expect(resp.Properties).NotTo(BeNil(), "cluster response Properties was nil")`
+  * `Expect(resp.Properties.API.URL).NotTo(BeNil(), "cluster Properties.API.URL was nil")`
+  * Format strings are supported: `Expect(x).NotTo(BeNil(), "property %s was nil for cluster %s", propName, clusterName)`
+* **General assertion clarity:** For any assertion where the failure message would be ambiguous (e.g. checking pointer values, map entries, or deeply nested fields), include an annotation string that identifies the value being checked and the expected condition.
+
 ## Logging
 
 * **Log message structure:** Ensure log messages are direct, including the actual error message if an error occurs.  
