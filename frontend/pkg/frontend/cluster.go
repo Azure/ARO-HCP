@@ -484,6 +484,7 @@ func decodeDesiredClusterReplace(ctx context.Context, oldInternalCluster *api.HC
 	//    We do this because if a user has read a value, then modified it, then replaces it, we don't want to produce
 	//    validation errors on status fields that the user isn't trying to modify.
 	conversion.CopyReadOnlyClusterValues(newInternalCluster, oldInternalCluster)
+	newInternalCluster.CosmosETag = oldInternalCluster.CosmosETag
 	newInternalCluster.SystemData = ensureSystemData(systemData, oldInternalCluster.SystemData)
 
 	// Here the difference between a nil map and an empty map is significant.
@@ -559,6 +560,7 @@ func decodeDesiredClusterPatch(ctx context.Context, oldInternalCluster *api.HCPO
 	//    We do this because if a user has read a value, then modified it, then replaces it, we don't want to produce
 	//    validation errors on status fields that the user isn't trying to modify.
 	conversion.CopyReadOnlyClusterValues(newInternalCluster, oldInternalCluster)
+	newInternalCluster.CosmosETag = oldInternalCluster.CosmosETag
 	newInternalCluster.SystemData = ensureSystemData(systemData, oldInternalCluster.SystemData)
 	// Clear the user-assigned identities map since that is reconstructed from Cluster Service data.
 	// TODO we'd like to have the instance complete when we go to validate it.  Right now validation fails if we clear this.

@@ -344,12 +344,7 @@ func (c *HcpOpenShiftCluster) GetVersion() api.Version {
 }
 
 func (c *HcpOpenShiftCluster) ConvertToInternal(existing *api.HCPOpenShiftCluster) (*api.HCPOpenShiftCluster, error) {
-	var out *api.HCPOpenShiftCluster
-	if existing != nil {
-		out = existing.DeepCopy()
-	} else {
-		out = &api.HCPOpenShiftCluster{}
-	}
+	out := &api.HCPOpenShiftCluster{}
 	errs := field.ErrorList{}
 
 	if c.ID != nil {
@@ -426,7 +421,17 @@ func (c *HcpOpenShiftCluster) ConvertToInternal(existing *api.HCPOpenShiftCluste
 		}
 	}
 
+	if existing != nil {
+		preserveUnknownClusterFields(existing, out)
+	}
+
 	return out, arm.CloudErrorFromFieldErrors(errs)
+}
+
+// preserveUnknownClusterFields copies customer-facing fields from existing that
+// this API version doesn't know about. Currently empty — no cross-version
+// customer fields exist yet between v20240610preview and v20251223preview.
+func preserveUnknownClusterFields(from, to *api.HCPOpenShiftCluster) {
 }
 
 func normalizeManagedIdentity(identity *generated.ManagedServiceIdentity) *arm.ManagedServiceIdentity {

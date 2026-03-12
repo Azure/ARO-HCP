@@ -423,6 +423,7 @@ func decodeDesiredNodePoolReplace(ctx context.Context, oldInternalNodePool *api.
 	//    We do this because if a user has read a value, then modified it, then replaces it, we don't want to produce
 	//    validation errors on status fields that the user isn't trying to modify.
 	conversion.CopyReadOnlyNodePoolValues(newInternalNodePool, oldInternalNodePool)
+	newInternalNodePool.CosmosETag = oldInternalNodePool.CosmosETag
 	newInternalNodePool.SystemData = ensureSystemData(systemData, oldInternalNodePool.SystemData)
 
 	// Here the difference between a nil map and an empty map is significant.
@@ -486,6 +487,7 @@ func decodeDesiredNodePoolPatch(ctx context.Context, oldInternalNodePool *api.HC
 	}
 
 	conversion.CopyReadOnlyNodePoolValues(newInternalNodePool, oldInternalNodePool)
+	newInternalNodePool.CosmosETag = oldInternalNodePool.CosmosETag
 	newInternalNodePool.SystemData = ensureSystemData(systemData, oldInternalNodePool.SystemData)
 
 	// Here the difference between a nil map and an empty map is significant.
