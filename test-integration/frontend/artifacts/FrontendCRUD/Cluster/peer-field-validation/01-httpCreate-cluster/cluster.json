@@ -12,7 +12,6 @@
 			"visibility": "Public"
 		},
 		"clusterImageRegistry": {
-			"id": "4.20",
 			"state": "Disabled"
 		},
 		"console": {},
@@ -48,7 +47,8 @@
 			"subnetId": "/subscriptions/different-sub/resourceGroups/some-resource-group/providers/Microsoft.Network/virtualNetworks/test-vnet/subnets/test-subnet"
 		},
 		"version": {
-			"channelGroup": "stable"
+			"channelGroup": "stable",
+			"id": "4.20"
 		}
 	},
 	"type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters"

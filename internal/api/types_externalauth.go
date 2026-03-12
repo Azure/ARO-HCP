@@ -39,6 +39,20 @@ type HCPOpenShiftClusterExternalAuth struct {
 	CosmosETag azcore.ETag `json:"-"`
 }
 
+// EnsureDefaults fills in default values for fields that may be absent in
+// Cosmos documents created before the field was introduced, or on the create
+// and preflight paths where the internal type is constructed from external input.
+// Only fields where the zero value is never valid user input are safe to default
+// here (string enums). See the DDR at docs/api-version-defaults-and-storage.md.
+//
+// This method should be treated as append-only. Avoid removing defaulting
+// rules until all Cosmos documents have been verified to contain the field.
+func (ea *HCPOpenShiftClusterExternalAuth) EnsureDefaults() {
+	if len(ea.Properties.Claim.Mappings.Username.PrefixPolicy) == 0 {
+		ea.Properties.Claim.Mappings.Username.PrefixPolicy = UsernameClaimPrefixPolicyNone
+	}
+}
+
 var _ arm.CosmosPersistable = &HCPOpenShiftClusterExternalAuth{}
 
 func (o *HCPOpenShiftClusterExternalAuth) GetCosmosData() *arm.CosmosMetadata {

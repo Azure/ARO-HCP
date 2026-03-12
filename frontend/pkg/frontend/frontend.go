@@ -687,11 +687,14 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 				continue
 			}
 
-			newInternalCluster, err := versionedCluster.ConvertToInternal()
+			newInternalCluster, err := versionedCluster.ConvertToInternal(nil)
 			if err != nil {
 				resourceLogger.Info("preflight: failed to convert resource", "error", err.Error())
 				continue
 			}
+			// Backstop for fields unknown to this API version's SetDefaultValues*.
+			// See docs/api-version-defaults-and-storage.md.
+			newInternalCluster.EnsureDefaults()
 			newInternalCluster.SystemData = ensureSystemData(newInternalCluster.SystemData, nil)
 			// the external type lacks sufficient data to full produce a valid resourceID.  We do that separately here.
 			parts := []string{
@@ -725,11 +728,14 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 			}
 
 			// Perform static validation as if for a node pool creation request.
-			newInternalNodePool, err := versionedNodePool.ConvertToInternal()
+			newInternalNodePool, err := versionedNodePool.ConvertToInternal(nil)
 			if err != nil {
 				resourceLogger.Info("preflight: failed to convert resource", "error", err.Error())
 				continue
 			}
+			// Backstop for fields unknown to this API version's SetDefaultValues*.
+			// See docs/api-version-defaults-and-storage.md.
+			newInternalNodePool.EnsureDefaults()
 			// the external type lacks sufficient data to full produce a valid resourceID.  We do that separately here.
 			parts := []string{
 				"/subscriptions", subscriptionID,
@@ -760,11 +766,14 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 			}
 
 			// Perform static validation as if for an external auth creation request.
-			newInternalAuth, err := versionedExternalAuth.ConvertToInternal()
+			newInternalAuth, err := versionedExternalAuth.ConvertToInternal(nil)
 			if err != nil {
 				resourceLogger.Info("preflight: failed to convert resource", "error", err.Error())
 				continue
 			}
+			// Backstop for fields unknown to this API version's SetDefaultValues*.
+			// See docs/api-version-defaults-and-storage.md.
+			newInternalAuth.EnsureDefaults()
 			newInternalAuth.SystemData = ensureSystemData(newInternalAuth.SystemData, nil)
 			// the external type lacks sufficient data to full produce a valid resourceID.  We do that separately here.
 			parts := []string{

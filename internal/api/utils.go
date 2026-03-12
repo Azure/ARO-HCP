@@ -43,6 +43,15 @@ func Ptr[T any](p T) *T {
 	return &p
 }
 
+// Deref returns the value pointed to by p, or the zero value if p is nil.
+func Deref[T any](p *T) T {
+	if p == nil {
+		var zero T
+		return zero
+	}
+	return *p
+}
+
 // Copied from Go's src/encoding/json/encode.go
 func isEmptyValue(v reflect.Value) bool {
 	switch v.Kind() {

@@ -50,6 +50,11 @@ func TestRoundTripExternalAuthInternalCosmosInternal(t *testing.T) {
 			}
 			j.ServiceProviderProperties.ExistingCosmosUID = ""
 			j.CosmosETag = ""
+			// Canonical defaults are applied on Cosmos read, so ensure
+			// defaulted fields are never zero during round-trip testing.
+			if len(j.Properties.Claim.Mappings.Username.PrefixPolicy) == 0 {
+				j.Properties.Claim.Mappings.Username.PrefixPolicy = api.UsernameClaimPrefixPolicyNone
+			}
 		},
 		func(j *arm.ManagedServiceIdentity, c randfill.Continue) {
 			c.FillNoCustom(j)

@@ -15,7 +15,6 @@
 package v20240610preview
 
 import (
-	"fmt"
 	"strings"
 	"time"
 
@@ -36,16 +35,6 @@ var _ api.VersionedCreatableResource[api.HCPOpenShiftClusterExternalAuth] = &Ext
 
 func (h *ExternalAuth) NewExternal() any {
 	return &ExternalAuth{}
-}
-
-func (h *ExternalAuth) SetDefaultValues(uncast any) error {
-	obj, ok := uncast.(*ExternalAuth)
-	if !ok {
-		return fmt.Errorf("unexpected type %T", uncast)
-	}
-
-	SetDefaultValuesExternalAuth(obj)
-	return nil
 }
 
 func SetDefaultValuesExternalAuth(obj *ExternalAuth) {
@@ -70,8 +59,13 @@ func (h *ExternalAuth) GetVersion() api.Version {
 	return versionedInterface
 }
 
-func (h *ExternalAuth) ConvertToInternal() (*api.HCPOpenShiftClusterExternalAuth, error) {
-	out := &api.HCPOpenShiftClusterExternalAuth{}
+func (h *ExternalAuth) ConvertToInternal(existing *api.HCPOpenShiftClusterExternalAuth) (*api.HCPOpenShiftClusterExternalAuth, error) {
+	var out *api.HCPOpenShiftClusterExternalAuth
+	if existing != nil {
+		out = existing.DeepCopy()
+	} else {
+		out = &api.HCPOpenShiftClusterExternalAuth{}
+	}
 
 	if h.ID != nil {
 		out.ID = api.Must(azcorearm.ParseResourceID(strings.ToLower(*h.ID)))

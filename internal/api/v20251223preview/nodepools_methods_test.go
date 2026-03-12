@@ -211,7 +211,7 @@ func TestNormalizeOSDiskProfile(t *testing.T) {
 		expected *api.OSDiskProfile
 	}{
 		{
-			name: "nil SizeGiB should not overwrite existing value",
+			name: "nil SizeGiB writes nil (unconditional write)",
 			input: &generated.OsDiskProfile{
 				SizeGiB:                nil,
 				DiskStorageAccountType: ptr.To(generated.DiskStorageAccountTypeStandardSSDLRS),
@@ -221,7 +221,7 @@ func TestNormalizeOSDiskProfile(t *testing.T) {
 				DiskStorageAccountType: api.DiskStorageAccountTypePremium_LRS,
 			},
 			expected: &api.OSDiskProfile{
-				SizeGiB:                ptr.To(int32(128)),
+				SizeGiB:                nil,
 				DiskStorageAccountType: api.DiskStorageAccountTypeStandardSSD_LRS,
 			},
 		},
@@ -256,7 +256,7 @@ func TestNormalizeOSDiskProfile(t *testing.T) {
 			},
 		},
 		{
-			name: "all nil input should preserve existing values",
+			name: "all nil input writes zero values (unconditional write)",
 			input: &generated.OsDiskProfile{
 				SizeGiB:                nil,
 				DiskStorageAccountType: nil,
@@ -268,9 +268,9 @@ func TestNormalizeOSDiskProfile(t *testing.T) {
 				EncryptionSetID:        api.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.Compute/diskEncryptionSets/test-encryption")),
 			},
 			expected: &api.OSDiskProfile{
-				SizeGiB:                ptr.To(int32(100)),
-				DiskStorageAccountType: api.DiskStorageAccountTypePremium_LRS,
-				EncryptionSetID:        api.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.Compute/diskEncryptionSets/test-encryption")),
+				SizeGiB:                nil,
+				DiskStorageAccountType: "",
+				EncryptionSetID:        nil,
 			},
 		},
 	}
@@ -354,7 +354,7 @@ func TestNewOSDiskProfile(t *testing.T) {
 
 func roundTripInternalNodePool(t *testing.T, original *api.HCPOpenShiftClusterNodePool) {
 	v := version{}
-	roundTrippedObj, err := v.NewHCPOpenShiftClusterNodePool(original).ConvertToInternal()
+	roundTrippedObj, err := v.NewHCPOpenShiftClusterNodePool(original).ConvertToInternal(nil)
 	require.NoError(t, err)
 
 	// we compare using DeepEqual here because many of these types have private fields that cannot be introspected

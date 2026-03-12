@@ -120,7 +120,7 @@ func roundTripHCPCluster(t *testing.T, original *api.HCPOpenShiftCluster) {
 	v := version{}
 	externalObj := v.NewHCPOpenShiftCluster(original)
 
-	roundTrippedObj, err := externalObj.ConvertToInternal()
+	roundTrippedObj, err := externalObj.ConvertToInternal(nil)
 	require.NoError(t, err)
 
 	// we compare the JSON here because many of these types have private fields that cannot be introspected
@@ -138,7 +138,7 @@ func roundTripNodePool(t *testing.T, original *api.HCPOpenShiftClusterNodePool) 
 	v := version{}
 	externalObj := v.NewHCPOpenShiftClusterNodePool(original)
 
-	roundTrippedObj, err := externalObj.ConvertToInternal()
+	roundTrippedObj, err := externalObj.ConvertToInternal(nil)
 	require.NoError(t, err)
 
 	// we compare the JSON here because many of these types have private fields that cannot be introspected
@@ -156,7 +156,7 @@ func roundTripExternalAuth(t *testing.T, original *api.HCPOpenShiftClusterExtern
 	v := version{}
 	externalObj := v.NewHCPOpenShiftClusterExternalAuth(original)
 
-	roundTrippedObj, err := externalObj.ConvertToInternal()
+	roundTrippedObj, err := externalObj.ConvertToInternal(nil)
 	require.NoError(t, err)
 
 	// we compare the JSON here because many of these types have private fields that cannot be introspected

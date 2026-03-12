@@ -15,7 +15,6 @@
 package v20240610preview
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/google/uuid"
@@ -40,16 +39,6 @@ func (h *HcpOpenShiftCluster) NewExternal() any {
 	return &HcpOpenShiftCluster{}
 }
 
-func (h *HcpOpenShiftCluster) SetDefaultValues(uncast any) error {
-	obj, ok := uncast.(*HcpOpenShiftCluster)
-	if !ok {
-		return fmt.Errorf("unexpected type %T", uncast)
-	}
-
-	SetDefaultValuesCluster(obj)
-	return nil
-}
-
 func SetDefaultValuesCluster(obj *HcpOpenShiftCluster) {
 	if obj.Properties == nil {
 		obj.Properties = &generated.HcpOpenShiftClusterProperties{}
@@ -58,7 +47,7 @@ func SetDefaultValuesCluster(obj *HcpOpenShiftCluster) {
 		obj.Properties.Version = &generated.VersionProfile{}
 	}
 	if obj.Properties.Version.ChannelGroup == nil {
-		obj.Properties.Version.ChannelGroup = ptr.To("stable")
+		obj.Properties.Version.ChannelGroup = ptr.To(api.DefaultClusterVersionChannelGroup)
 	}
 	if obj.Properties.Network == nil {
 		obj.Properties.Network = &generated.NetworkProfile{}
@@ -67,16 +56,16 @@ func SetDefaultValuesCluster(obj *HcpOpenShiftCluster) {
 		obj.Properties.Network.NetworkType = ptr.To(generated.NetworkTypeOVNKubernetes)
 	}
 	if obj.Properties.Network.PodCIDR == nil {
-		obj.Properties.Network.PodCIDR = ptr.To("10.128.0.0/14")
+		obj.Properties.Network.PodCIDR = ptr.To(api.DefaultClusterNetworkPodCIDR)
 	}
 	if obj.Properties.Network.ServiceCIDR == nil {
-		obj.Properties.Network.ServiceCIDR = ptr.To("172.30.0.0/16")
+		obj.Properties.Network.ServiceCIDR = ptr.To(api.DefaultClusterNetworkServiceCIDR)
 	}
 	if obj.Properties.Network.MachineCIDR == nil {
-		obj.Properties.Network.MachineCIDR = ptr.To("10.0.0.0/16")
+		obj.Properties.Network.MachineCIDR = ptr.To(api.DefaultClusterNetworkMachineCIDR)
 	}
 	if obj.Properties.Network.HostPrefix == nil {
-		obj.Properties.Network.HostPrefix = ptr.To(int32(23))
+		obj.Properties.Network.HostPrefix = ptr.To(api.DefaultClusterNetworkHostPrefix)
 	}
 	if obj.Properties.API == nil {
 		obj.Properties.API = &generated.APIProfile{}
@@ -101,13 +90,13 @@ func SetDefaultValuesCluster(obj *HcpOpenShiftCluster) {
 		obj.Properties.Autoscaling = &generated.ClusterAutoscalingProfile{}
 	}
 	if obj.Properties.Autoscaling.MaxPodGracePeriodSeconds == nil {
-		obj.Properties.Autoscaling.MaxPodGracePeriodSeconds = ptr.To(int32(600))
+		obj.Properties.Autoscaling.MaxPodGracePeriodSeconds = ptr.To(api.DefaultClusterMaxPodGracePeriodSeconds)
 	}
 	if obj.Properties.Autoscaling.MaxNodeProvisionTimeSeconds == nil {
-		obj.Properties.Autoscaling.MaxNodeProvisionTimeSeconds = ptr.To(int32(900))
+		obj.Properties.Autoscaling.MaxNodeProvisionTimeSeconds = ptr.To(api.DefaultClusterMaxNodeProvisionTimeSeconds)
 	}
 	if obj.Properties.Autoscaling.PodPriorityThreshold == nil {
-		obj.Properties.Autoscaling.PodPriorityThreshold = ptr.To(int32(-10))
+		obj.Properties.Autoscaling.PodPriorityThreshold = ptr.To(api.DefaultClusterPodPriorityThreshold)
 	}
 	//Even though PlatformManaged Mode is currently not supported by CS . This is the default value .
 	// TODO cannot change the default value for this version, but why keep it in our new version?
@@ -307,6 +296,9 @@ func newManagedServiceIdentity(from *arm.ManagedServiceIdentity) *generated.Mana
 	}
 }
 
+// NewHCPOpenShiftCluster converts an internal representation to this API version.
+// If from is nil, returns a defaulted external object for use on the write path
+// where defaults are applied before unmarshaling the request body.
 func (v version) NewHCPOpenShiftCluster(from *api.HCPOpenShiftCluster) api.VersionedHCPOpenShiftCluster {
 	if from == nil {
 		ret := &HcpOpenShiftCluster{}
@@ -351,8 +343,13 @@ func (c *HcpOpenShiftCluster) GetVersion() api.Version {
 	return versionedInterface
 }
 
-func (c *HcpOpenShiftCluster) ConvertToInternal() (*api.HCPOpenShiftCluster, error) {
-	out := &api.HCPOpenShiftCluster{}
+func (c *HcpOpenShiftCluster) ConvertToInternal(existing *api.HCPOpenShiftCluster) (*api.HCPOpenShiftCluster, error) {
+	var out *api.HCPOpenShiftCluster
+	if existing != nil {
+		out = existing.DeepCopy()
+	} else {
+		out = &api.HCPOpenShiftCluster{}
+	}
 	errs := field.ErrorList{}
 
 	if c.ID != nil {
@@ -397,37 +394,35 @@ func (c *HcpOpenShiftCluster) ConvertToInternal() (*api.HCPOpenShiftCluster, err
 		if c.Properties.ProvisioningState != nil {
 			out.ServiceProviderProperties.ProvisioningState = arm.ProvisioningState(*c.Properties.ProvisioningState)
 		}
-		if c.Properties != nil {
-			if c.Properties.Version != nil {
-				normalizeVersion(c.Properties.Version, &out.CustomerProperties.Version)
-			}
-			if c.Properties.DNS != nil {
-				normalizeDNS(c.Properties.DNS, &out.CustomerProperties.DNS, &out.ServiceProviderProperties.DNS)
-			}
-			if c.Properties.Network != nil {
-				normalizeNetwork(c.Properties.Network, &out.CustomerProperties.Network)
-			}
-			if c.Properties.Console != nil {
-				normalizeConsole(c.Properties.Console, &out.ServiceProviderProperties.Console)
-			}
-			if c.Properties.API != nil {
-				normalizeAPI(c.Properties.API, &out.CustomerProperties.API, &out.ServiceProviderProperties.API)
-			}
-			if c.Properties.Platform != nil {
-				errs = append(errs, normalizePlatform(field.NewPath("properties", "platform"), c.Properties.Platform, &out.CustomerProperties.Platform, &out.ServiceProviderProperties.Platform)...)
-			}
-			if c.Properties.Autoscaling != nil {
-				normalizeAutoscaling(c.Properties.Autoscaling, &out.CustomerProperties.Autoscaling)
-			}
-			if c.Properties.NodeDrainTimeoutMinutes != nil {
-				out.CustomerProperties.NodeDrainTimeoutMinutes = *c.Properties.NodeDrainTimeoutMinutes
-			}
-			if c.Properties.ClusterImageRegistry != nil {
-				normalizeClusterImageRegistry(c.Properties.ClusterImageRegistry, &out.CustomerProperties.ClusterImageRegistry)
-			}
-			if c.Properties.Etcd != nil {
-				normalizeEtcd(c.Properties.Etcd, &out.CustomerProperties.Etcd)
-			}
+		if c.Properties.Version != nil {
+			normalizeVersion(c.Properties.Version, &out.CustomerProperties.Version)
+		}
+		if c.Properties.DNS != nil {
+			normalizeDNS(c.Properties.DNS, &out.CustomerProperties.DNS, &out.ServiceProviderProperties.DNS)
+		}
+		if c.Properties.Network != nil {
+			normalizeNetwork(c.Properties.Network, &out.CustomerProperties.Network)
+		}
+		if c.Properties.Console != nil {
+			normalizeConsole(c.Properties.Console, &out.ServiceProviderProperties.Console)
+		}
+		if c.Properties.API != nil {
+			normalizeAPI(c.Properties.API, &out.CustomerProperties.API, &out.ServiceProviderProperties.API)
+		}
+		if c.Properties.Platform != nil {
+			errs = append(errs, normalizePlatform(field.NewPath("properties", "platform"), c.Properties.Platform, &out.CustomerProperties.Platform, &out.ServiceProviderProperties.Platform)...)
+		}
+		if c.Properties.Autoscaling != nil {
+			normalizeAutoscaling(c.Properties.Autoscaling, &out.CustomerProperties.Autoscaling)
+		}
+		if c.Properties.NodeDrainTimeoutMinutes != nil {
+			out.CustomerProperties.NodeDrainTimeoutMinutes = *c.Properties.NodeDrainTimeoutMinutes
+		}
+		if c.Properties.ClusterImageRegistry != nil {
+			normalizeClusterImageRegistry(c.Properties.ClusterImageRegistry, &out.CustomerProperties.ClusterImageRegistry)
+		}
+		if c.Properties.Etcd != nil {
+			normalizeEtcd(c.Properties.Etcd, &out.CustomerProperties.Etcd)
 		}
 	}
 

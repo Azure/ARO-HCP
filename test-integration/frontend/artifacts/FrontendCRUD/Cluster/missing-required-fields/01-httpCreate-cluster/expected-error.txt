@@ -1,6 +1,11 @@
       {
         "code": "InvalidRequestContent",
         "message": "Required value",
+        "target": "properties.version.id"
+      }
+      {
+        "code": "InvalidRequestContent",
+        "message": "Required value",
         "target": "properties.platform.subnetId"
       }
       {

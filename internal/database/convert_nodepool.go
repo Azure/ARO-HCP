@@ -110,5 +110,7 @@ func CosmosToInternalNodePool(cosmosObj *NodePool) (*api.HCPOpenShiftClusterNode
 	internalObj.ServiceProviderProperties.ClusterServiceID = resourceDoc.InternalID
 	internalObj.ServiceProviderProperties.ActiveOperationID = resourceDoc.ActiveOperationID
 
+	internalObj.EnsureDefaults()
+
 	return internalObj, nil
 }
