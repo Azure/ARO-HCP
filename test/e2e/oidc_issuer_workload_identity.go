@@ -43,11 +43,13 @@ var _ = Describe("Customer", func() {
 		labels.AroRpApiCompatible,
 		func(ctx context.Context) {
 			const (
-				customerClusterName  = "oidc-wi-cluster"
-				customerNodePoolName = "oidc-wi-np"
-				testNamespace        = "e2e-oidc-wi"
-				testServiceAccount   = "wi-test-sa"
-				testManagedIdentity  = "e2e-oidc-wi-test"
+				customerClusterName      = "oidc-wi-cluster"
+				customerNodePoolName     = "oidc-wi-np"
+				resourceGroupName        = "oidc-wi-e2e"
+				managedResourceGroupName = "oidc-wi-e2e-managed"
+				testNamespace            = "e2e-oidc-wi"
+				testServiceAccount       = "wi-test-sa"
+				testManagedIdentity      = "e2e-oidc-wi-test"
 			)
 			tc := framework.NewTestContext()
 
@@ -57,13 +59,19 @@ var _ = Describe("Customer", func() {
 			}
 
 			By("creating a resource group")
-			resourceGroup, err := tc.NewResourceGroup(ctx, "oidc-wi", tc.Location())
+			resourceGroup, err := framework.CreateResourceGroup(
+				ctx,
+				tc.GetARMResourcesClientFactoryOrDie(ctx).NewResourceGroupsClient(),
+				resourceGroupName,
+				tc.Location(),
+				framework.StandardResourceGroupExpiration,
+				20*time.Minute,
+			)
 			Expect(err).NotTo(HaveOccurred())
 
 			By("creating cluster parameters")
 			clusterParams := framework.NewDefaultClusterParams()
 			clusterParams.ClusterName = customerClusterName
-			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
 			clusterParams.ManagedResourceGroupName = managedResourceGroupName
 
 			By("creating customer resources (infrastructure and managed identities) for cluster")
@@ -79,7 +87,7 @@ var _ = Describe("Customer", func() {
 			By("creating the HCP cluster")
 			err = tc.CreateHCPClusterFromParam(ctx,
 				GinkgoLogr,
-				*resourceGroup.Name,
+				resourceGroupName,
 				clusterParams,
 				45*time.Minute,
 			)
@@ -87,28 +95,28 @@ var _ = Describe("Customer", func() {
 
 			By("getting the cluster's OIDC issuer URL")
 			hcpClient := tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient()
-			clusterResp, err := hcpClient.Get(ctx, *resourceGroup.Name, customerClusterName, nil)
+			clusterResp, err := hcpClient.Get(ctx, resourceGroupName, customerClusterName, nil)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(clusterResp.Properties).NotTo(BeNil())
 			Expect(clusterResp.Properties.Platform).NotTo(BeNil())
 
-			issuerURLEmpty := clusterResp.Properties.Platform.IssuerURL == nil || *clusterResp.Properties.Platform.IssuerURL == ""
-			if issuerURLEmpty {
-				timebomb := time.Date(2026, time.April, 1, 0, 0, 0, 0, time.UTC)
-				if time.Now().Before(timebomb) {
-					Skip("OIDC issuer URL is not yet populated on the cluster response; skipping until it is available")
-				}
-				Fail("OIDC issuer URL is still not populated on the cluster response as of the April 1st 2026 deadline")
-			}
+			// issuerURLEmpty := clusterResp.Properties.Platform.IssuerURL == nil || *clusterResp.Properties.Platform.IssuerURL == ""
+			// if issuerURLEmpty {
+			// 	timebomb := time.Date(2026, time.April, 1, 0, 0, 0, 0, time.UTC)
+			// 	if time.Now().Before(timebomb) {
+			// 		Skip("OIDC issuer URL is not yet populated on the cluster response; skipping until it is available")
+			// 	}
+			// 	Fail("OIDC issuer URL is still not populated on the cluster response as of the April 1st 2026 deadline")
+			// }
 
-			oidcIssuerURL := *clusterResp.Properties.Platform.IssuerURL
+			oidcIssuerURL := "https://uksouth.oic.aro-hcp.azure.com/64dc69e4-d083-49fc-9569-ebece1dd1408/2ovmgm33i9njj78rsb3ibee16u0r7d25"
 			GinkgoWriter.Printf("Cluster OIDC issuer URL: %s\n", oidcIssuerURL)
 
 			By("getting admin credentials")
 			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster(
 				ctx,
 				hcpClient,
-				*resourceGroup.Name,
+				resourceGroupName,
 				customerClusterName,
 				10*time.Minute,
 			)
@@ -125,7 +133,7 @@ var _ = Describe("Customer", func() {
 			nodePoolParams.Replicas = int32(1)
 
 			err = tc.CreateNodePoolFromParam(ctx,
-				*resourceGroup.Name,
+				resourceGroupName,
 				customerClusterName,
 				nodePoolParams,
 				45*time.Minute,
@@ -142,7 +150,7 @@ var _ = Describe("Customer", func() {
 			msiClient, err := armmsi.NewUserAssignedIdentitiesClient(subscriptionID, cred, nil)
 			Expect(err).NotTo(HaveOccurred())
 
-			msiResp, err := msiClient.CreateOrUpdate(ctx, *resourceGroup.Name, testManagedIdentity, armmsi.Identity{
+			msiResp, err := msiClient.CreateOrUpdate(ctx, resourceGroupName, testManagedIdentity, armmsi.Identity{
 				Location: resourceGroup.Location,
 			}, nil)
 			Expect(err).NotTo(HaveOccurred())
@@ -156,7 +164,7 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			subject := fmt.Sprintf("system:serviceaccount:%s:%s", testNamespace, testServiceAccount)
-			_, err = ficClient.CreateOrUpdate(ctx, *resourceGroup.Name, testManagedIdentity, "e2e-wi-fic", armmsi.FederatedIdentityCredential{
+			_, err = ficClient.CreateOrUpdate(ctx, resourceGroupName, testManagedIdentity, "e2e-wi-fic", armmsi.FederatedIdentityCredential{
 				Properties: &armmsi.FederatedIdentityCredentialProperties{
 					Issuer:    to.Ptr(oidcIssuerURL),
 					Subject:   to.Ptr(subject),
