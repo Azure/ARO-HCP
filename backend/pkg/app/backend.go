@@ -159,6 +159,7 @@ func (b *Backend) Run(ctx context.Context) error {
 		http.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
 
 			if err := electionChecker.Check(r); err != nil {
+				logger.Error(err, "Readiness probe failed")
 				http.Error(w, "lease not renewed", http.StatusServiceUnavailable)
 				backendHealthGauge.Set(0.0)
 				return
