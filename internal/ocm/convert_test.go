@@ -211,6 +211,8 @@ func TestConvertCStoHCPOpenShiftCluster(t *testing.T) {
 			expectHcpCluster := api.ClusterTestCase(t, tc.hcpClusterTweaks)
 			// SystemData is not set by OCM conversion (it comes from ARM), so clear it from the expected result
 			expectHcpCluster.SystemData = nil
+			// Legacy conversion from CS doesn't set BillingDocID (RP-only field)
+			expectHcpCluster.ServiceProviderProperties.BillingDocID = ""
 
 			actualHcpCluster, err := LegacyCreateInternalClusterFromClusterService(resourceID, api.TestLocation, csCluster)
 			require.NoError(t, err)

@@ -19,6 +19,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/google/uuid"
+
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 
@@ -94,6 +96,15 @@ func lookupTag(tags map[string]string, key string) string {
 		}
 	}
 	return ""
+}
+
+// MutateClusterCreate sets fields that are generated on cluster creation.
+// Must be called after decoding and before validation on CREATE operations only.
+func MutateClusterCreate(cluster *api.HCPOpenShiftCluster) {
+	// Generate a unique billing document ID for this cluster
+	if cluster.ServiceProviderProperties.BillingDocID == "" {
+		cluster.ServiceProviderProperties.BillingDocID = uuid.New().String()
+	}
 }
 
 // AdmitClusterOnCreate performs non-static checks of cluster. Checks that
