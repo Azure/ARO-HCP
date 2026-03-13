@@ -31,6 +31,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/internal/utils/apihelpers"
@@ -81,8 +82,8 @@ func NewClusterWatchingController(
 		clusterInformer, _ := informers.Clusters()
 		_, err := clusterInformer.AddEventHandlerWithOptions(
 			cache.ResourceEventHandlerFuncs{
-				AddFunc:    c.enqueueClusterAdd,
-				UpdateFunc: c.enqueueClusterUpdate,
+				AddFunc:    c.EnqueueCosmosAdd,
+				UpdateFunc: c.EnqueueCosmosUpdate,
 			},
 			cache.HandlerOptions{
 				ResyncPeriod: ptr.To(resyncDuration),
@@ -93,8 +94,8 @@ func NewClusterWatchingController(
 		serviceProviderInformer, _ := informers.ServiceProviderClusters()
 		_, err = serviceProviderInformer.AddEventHandlerWithOptions(
 			cache.ResourceEventHandlerFuncs{
-				AddFunc:    c.enqueueServiceProviderClusterAdd,
-				UpdateFunc: c.enqueueServiceProviderClusterUpdate,
+				AddFunc:    c.EnqueueCosmosAdd,
+				UpdateFunc: c.EnqueueCosmosUpdate,
 			},
 			cache.HandlerOptions{
 				ResyncPeriod: ptr.To(resyncDuration),
@@ -105,8 +106,8 @@ func NewClusterWatchingController(
 		managementClusterContentInformer, _ := informers.ManagementClusterContents()
 		_, err = managementClusterContentInformer.AddEventHandlerWithOptions(
 			cache.ResourceEventHandlerFuncs{
-				AddFunc:    c.enqueueManagementClusterContentAdd,
-				UpdateFunc: c.enqueueManagementClusterContentUpdate,
+				AddFunc:    c.EnqueueCosmosAdd,
+				UpdateFunc: c.EnqueueCosmosUpdate,
 			},
 			cache.HandlerOptions{
 				ResyncPeriod: ptr.To(resyncDuration),
@@ -199,12 +200,12 @@ func (c *clusterWatchingController) processNextWorkItem(ctx context.Context) boo
 
 // EnqueueResourceIDAdd traverses to find a resourceID that is an hcpcluster and adds it if found.
 // It is exposed so that individual controllers can add other items to requeue based on easily.
-func (c *clusterWatchingController) EnqueueResourceIDAdd(resourceID *azcorearm.ResourceID) {
+func (c *clusterWatchingController) EnqueueResourceIDAdd(resourceID *azcorearm.ResourceID, changed bool) {
 	if resourceID == nil {
 		return
 	}
 	if !apihelpers.ResourceTypeEqual(resourceID.ResourceType, api.ClusterResourceType) {
-		c.EnqueueResourceIDAdd(resourceID.Parent)
+		c.EnqueueResourceIDAdd(resourceID.Parent, changed)
 		return
 	}
 
@@ -216,9 +217,14 @@ func (c *clusterWatchingController) EnqueueResourceIDAdd(resourceID *azcorearm.R
 
 	logger := utils.DefaultLogger()
 	logger = logger.WithValues(utils.LogValues{}.AddControllerName(c.name)...)
-	ctx := logr.NewContext(context.TODO(), logger)
 	logger = key.AddLoggerValues(logger)
-	ctx = logr.NewContext(ctx, logger)
+	ctx := logr.NewContext(context.TODO(), logger)
+
+	if changed {
+		// when state has changed, fire immediately
+		c.queue.Add(key)
+		return
+	}
 
 	if !c.syncer.CooldownChecker().CanSync(ctx, key) {
 		return
@@ -227,27 +233,12 @@ func (c *clusterWatchingController) EnqueueResourceIDAdd(resourceID *azcorearm.R
 	c.queue.Add(key)
 }
 
-// TODO once these share common metadata, recollapse
-func (c *clusterWatchingController) enqueueClusterAdd(newObj interface{}) {
-	c.EnqueueResourceIDAdd(newObj.(*api.HCPOpenShiftCluster).ID)
+func (c *clusterWatchingController) EnqueueCosmosAdd(newObj any) {
+
+	c.EnqueueResourceIDAdd(newObj.(arm.CosmosMetadataAccessor).GetResourceID(), true)
 }
 
-func (c *clusterWatchingController) enqueueClusterUpdate(_ interface{}, newObj interface{}) {
-	c.EnqueueResourceIDAdd(newObj.(*api.HCPOpenShiftCluster).ID)
-}
-
-func (c *clusterWatchingController) enqueueServiceProviderClusterAdd(newObj interface{}) {
-	c.EnqueueResourceIDAdd(newObj.(*api.ServiceProviderCluster).GetResourceID())
-}
-
-func (c *clusterWatchingController) enqueueServiceProviderClusterUpdate(_ interface{}, newObj interface{}) {
-	c.EnqueueResourceIDAdd(newObj.(*api.ServiceProviderCluster).GetResourceID())
-}
-
-func (c *clusterWatchingController) enqueueManagementClusterContentAdd(newObj interface{}) {
-	c.EnqueueResourceIDAdd(newObj.(*api.ManagementClusterContent).GetResourceID())
-}
-
-func (c *clusterWatchingController) enqueueManagementClusterContentUpdate(_ interface{}, newObj interface{}) {
-	c.EnqueueResourceIDAdd(newObj.(*api.ManagementClusterContent).GetResourceID())
+func (c *clusterWatchingController) EnqueueCosmosUpdate(oldObj, newObj any) {
+	changed := oldObj.(arm.CosmosMetadataAccessor).GetEtag() != newObj.(arm.CosmosMetadataAccessor).GetEtag()
+	c.EnqueueResourceIDAdd(newObj.(arm.CosmosMetadataAccessor).GetResourceID(), changed)
 }
