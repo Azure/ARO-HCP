@@ -331,27 +331,27 @@ func (g *Gatherer) GatherLogs(ctx context.Context) error {
 	logger.V(1).Info("Obtained following clusterIDs", "clusterIds", strings.Join(clusterIds, ", "))
 
 	// Gather service logs
-	// servicesQueries, err := serviceLogs(queryFactory, g.GetQueryOptions(), clusterIds)
-	// if err != nil {
-	// 	return fmt.Errorf("failed to build services queries: %w", err)
-	// }
-	// if err := g.queryAndWriteToFile(ctx, QueryTypeServices, servicesQueries); err != nil {
-	// 	gatherErrors = errors.Join(gatherErrors, fmt.Errorf("failed to execute services query: %w", err))
-	// }
+	servicesQueries, err := serviceLogs(queryFactory, g.GetQueryOptions(), clusterIds)
+	if err != nil {
+		return fmt.Errorf("failed to build services queries: %w", err)
+	}
+	if err := g.queryAndWriteToFile(ctx, QueryTypeServices, servicesQueries); err != nil {
+		gatherErrors = errors.Join(gatherErrors, fmt.Errorf("failed to execute services query: %w", err))
+	}
 
-	// // Gather hosted control plane logs if not skipped
-	// if g.opts.SkipHostedControlPlaneLogs {
-	// 	logger.V(2).Info("Skipping hosted control plane logs")
-	// } else {
-	// 	logger.V(1).Info("Executing hosted control plane logs")
-	// 	hcpQueries, err := hostedControlPlaneLogs(queryFactory, g.GetQueryOptions(), clusterIds)
-	// 	if err != nil {
-	// 		return fmt.Errorf("failed to build hosted control plane logs query: %w", err)
-	// 	}
-	// 	if err := g.queryAndWriteToFile(ctx, QueryTypeHostedControlPlane, hcpQueries); err != nil {
-	// 		gatherErrors = errors.Join(gatherErrors, fmt.Errorf("failed to execute hosted control plane logs query: %w", err))
-	// 	}
-	// }
+	// Gather hosted control plane logs if not skipped
+	if g.opts.SkipHostedControlPlaneLogs {
+		logger.V(2).Info("Skipping hosted control plane logs")
+	} else {
+		logger.V(1).Info("Executing hosted control plane logs")
+		hcpQueries, err := hostedControlPlaneLogs(queryFactory, g.GetQueryOptions(), clusterIds)
+		if err != nil {
+			return fmt.Errorf("failed to build hosted control plane logs query: %w", err)
+		}
+		if err := g.queryAndWriteToFile(ctx, QueryTypeHostedControlPlane, hcpQueries); err != nil {
+			gatherErrors = errors.Join(gatherErrors, fmt.Errorf("failed to execute hosted control plane logs query: %w", err))
+		}
+	}
 
 	// Gather cluster names
 

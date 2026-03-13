@@ -2,9 +2,9 @@ let _startTime = <<.TimestampMin>>;
 let _endTime = <<.TimestampMax>>;
 database('ServiceLogs').table('backendLogs')
 | where timestamp between (_startTime .. _endTime)
-| where cluster has_any <<.ClusterNames>>
+| where cluster has_any (<<.ClusterNames>>)
 | where container_name == 'aro-hcp-backend'
 | where log.msg has 'dumping resourceID' and log.msg has 'hcpOpenShiftControllers'
 | extend controller_name = extract("/hcpOpenShiftControllers/([^\\/]+)", 1, tostring(log.currentResourceID))
 | mv-expand condition = log.content.properties.status.conditions
-| project condition.lastTransitionTime, controller_name, condition.type, condition.status, condition.reason, condition.message;
+| project timestamp, log, cluster, condition.lastTransitionTime, controller_name, condition.type, condition.status, condition.reason, condition.message;

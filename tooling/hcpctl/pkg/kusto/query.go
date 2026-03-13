@@ -16,7 +16,6 @@ package kusto
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
 	"reflect"
 	"strings"
@@ -198,11 +197,7 @@ func SetNonEmptyString(kqlParameters *kql.Parameters, fieldName string, value st
 }
 
 func SetNonEmptyStringArray(kqlParameters *kql.Parameters, fieldName string, value []string) {
-	data, err := json.Marshal(value)
-	if err != nil {
-		panic(fmt.Errorf("failed to marshal string array: %w", err))
-	}
-	kqlParameters.AddSerializedDynamic(fieldName, data)
+	kqlParameters.AddDynamic(fieldName, value)
 }
 
 func (d *TemplateData) CreateKQLParameters() *kql.Parameters {
