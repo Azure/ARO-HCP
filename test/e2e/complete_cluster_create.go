@@ -75,6 +75,12 @@ var _ = Describe("Customer", func() {
 					"customerVnetSubnetName": customerVnetSubnetName,
 				},
 				TestArtifactsFS,
+				// This test case uses framework.RBACScopeResource on purpose,
+				// so that we verify that using roles on a less-priviledge per
+				// resource scope works. Most of other E2E test cases use
+				// framework.RBACScopeResourceGroup reducing the number
+				// of role assignments necessary as well as it's test scope.
+				// See c91b97d3e6ef676fce011a9e60645565dabd2a44 for details.
 				framework.RBACScopeResource,
 			)
 			Expect(err).NotTo(HaveOccurred())
