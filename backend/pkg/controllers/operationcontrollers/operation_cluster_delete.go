@@ -93,7 +93,10 @@ func (c *operationClusterDelete) SynchronizeOperation(ctx context.Context, key c
 		// case of error the backend will retry by virtue of the operation
 		// document still having a non-terminal status.
 		err = controllerutils.MarkBillingDocumentDeleted(ctx, c.cosmosClient, operation.ExternalID, c.clock.Now())
-		if err != nil {
+		if errors.Is(err, database.ErrAmbiguousResult) {
+			// TODO: Remove when we enforce there's a single billing document per cluster.
+			logger.Error(err, "Failed to mark CosmosDB billing record for deletion")
+		} else if err != nil {
 			return utils.TrackError(err)
 		}
 
