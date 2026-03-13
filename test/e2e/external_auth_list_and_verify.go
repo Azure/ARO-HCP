@@ -167,7 +167,7 @@ var _ = Describe("Customer", func() {
 
 			// Compare prefix (handle nil case for NoPrefix policy)
 			if expectedExternalAuth.Properties.Claim.Mappings.Username.Prefix != nil {
-				Expect(actual.Properties.Claim.Mappings.Username.Prefix).NotTo(BeNil())
+				Expect(actual.Properties.Claim.Mappings.Username.Prefix).NotTo(BeNil(), "external auth Properties.Claim.Mappings.Username.Prefix was nil")
 				Expect(*actual.Properties.Claim.Mappings.Username.Prefix).To(Equal(*expectedExternalAuth.Properties.Claim.Mappings.Username.Prefix))
 			} else {
 				// Accept either nil or empty string for NoPrefix policy

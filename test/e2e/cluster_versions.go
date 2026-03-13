@@ -44,9 +44,9 @@ var _ = Describe("Customer", func() {
 
 			By("validating version response structure and content")
 			for _, version := range versions.Value {
-				Expect(version.ID).NotTo(BeNil())
-				Expect(version.Name).NotTo(BeNil())
-				Expect(version.Properties).NotTo(BeNil())
+				Expect(version.ID).NotTo(BeNil(), "version ID was nil")
+				Expect(version.Name).NotTo(BeNil(), "version Name was nil")
+				Expect(version.Properties).NotTo(BeNil(), "version Properties was nil")
 
 				// Validate version name format (should be semantic version)
 				Expect(*version.Name).To(MatchRegexp(`^\d+\.\d+\.\d+`), "Version should follow semantic versioning")

@@ -140,13 +140,13 @@ var _ = Describe("Authorized CIDRs", func() {
 					clusterName,
 				)
 				Expect(err).NotTo(HaveOccurred())
-				Expect(clusterResponse.Properties).ToNot(BeNil())
-				Expect(clusterResponse.Properties.API).ToNot(BeNil())
-				Expect(clusterResponse.Properties.API.URL).ToNot(BeNil())
+				Expect(clusterResponse.Properties).ToNot(BeNil(), "cluster response Properties was nil")
+				Expect(clusterResponse.Properties.API).ToNot(BeNil(), "cluster Properties.API was nil")
+				Expect(clusterResponse.Properties.API.URL).ToNot(BeNil(), "cluster Properties.API.URL was nil")
 				apiURL := *clusterResponse.Properties.API.URL
 
 				By("verifying authorized CIDRs contains VM IP")
-				Expect(clusterResponse.Properties.API.AuthorizedCIDRs).ToNot(BeNil())
+				Expect(clusterResponse.Properties.API.AuthorizedCIDRs).ToNot(BeNil(), "cluster Properties.API.AuthorizedCIDRs was nil")
 				Expect(clusterResponse.Properties.API.AuthorizedCIDRs).To(HaveLen(1))
 				Expect(*clusterResponse.Properties.API.AuthorizedCIDRs[0]).To(Equal(fmt.Sprintf("%s/32", vmPublicIP)))
 

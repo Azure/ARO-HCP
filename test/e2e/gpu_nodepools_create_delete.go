@@ -151,11 +151,11 @@ var _ = Describe("HCP Nodepools GPU instances", func() {
 					gpuNodePoolName,
 				)
 				Expect(err).NotTo(HaveOccurred())
-				Expect(created.Properties).ToNot(BeNil())
-				Expect(created.Properties.ProvisioningState).ToNot(BeNil())
+				Expect(created.Properties).ToNot(BeNil(), "GPU nodepool Properties was nil")
+				Expect(created.Properties.ProvisioningState).ToNot(BeNil(), "GPU nodepool Properties.ProvisioningState was nil")
 				Expect(*created.Properties.ProvisioningState).To(Equal(hcpsdk20240610preview.ProvisioningStateSucceeded))
-				Expect(created.Properties.Platform).ToNot(BeNil())
-				Expect(created.Properties.Platform.VMSize).ToNot(BeNil())
+				Expect(created.Properties.Platform).ToNot(BeNil(), "GPU nodepool Properties.Platform was nil")
+				Expect(created.Properties.Platform.VMSize).ToNot(BeNil(), "GPU nodepool Properties.Platform.VMSize was nil")
 				Expect(*created.Properties.Platform.VMSize).To(Equal(sku.vmSize))
 
 				By("deleting GPU nodepool")
