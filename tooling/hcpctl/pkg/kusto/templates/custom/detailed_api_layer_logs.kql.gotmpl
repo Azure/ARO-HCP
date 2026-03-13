@@ -1,0 +1,30 @@
+let _startTime = <<.TimestampMin>>;
+let _endTime = <<.TimestampMax>>;
+let _resource_group = '<<.ResourceGroupName>>';
+// Extract cluster resource ID from frontend logs
+let cluster_resource_id = (
+    database('ServiceLogs').table('frontendLogs')
+    | where timestamp between (_startTime .. _endTime)
+    | where resource_group == _resource_group
+    | where msg has 'creating resource'
+    | extend resource_id = extract(@"creating resource ([A-Za-z0-9\-\.\/]+)", 1, tostring(log))
+    | distinct tostring(resource_id)
+    | limit 1
+);
+// API Layer Logs - Frontend and Backend services
+union
+    (
+        // Frontend logs: ARO HCP frontend API operations for this resource group
+        database('ServiceLogs').table('frontendLogs')
+        | where timestamp between (_startTime .. _endTime)
+        | where resource_group == _resource_group
+        | project timestamp, container_name, msg, log
+    ),
+    (
+        // Backend logs: ARO HCP backend service operations for this cluster
+        database('ServiceLogs').table('backendLogs')
+        | where timestamp between (_startTime .. _endTime)
+        | where resource_id in (cluster_resource_id)
+        | project timestamp, container_name, msg, log
+    )
+| order by timestamp asc

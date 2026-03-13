@@ -1,0 +1,56 @@
+let _startTime = <<.TimestampMin>>;
+let _endTime = <<.TimestampMax>>;
+let _resource_group = '<<.ResourceGroupName>>';
+// Extract cluster ID from CS logs using cid field
+let cluster_id = toscalar(
+    database('ServiceLogs').table('clustersServiceLogs')
+    | where timestamp between (_startTime .. _endTime)
+    | where resource_id has _resource_group
+    | where isnotempty(log.cid)
+    | distinct tostring(log.cid)
+    | limit 1
+);
+// Find all Maestro resource IDs for this cluster
+let maestro_resource_ids = (
+    database('ServiceLogs').table('containerLogs')
+    | where timestamp between (_startTime .. _endTime)
+    | where namespace_name has "maestro"
+    | extend logStr = tostring(log)
+    | where logStr has cluster_id
+    | extend resourceId = extract(@'resourceid[=:"]+([a-f0-9\-]+)', 1, logStr)
+    | where isnotempty(resourceId)
+    | distinct resourceId
+);
+// Infrastructure & Orchestration Logs - Maestro, Hypershift, and ACM Agent
+union
+    (
+        // Maestro logs: Resource bundle operations for this cluster and its associated resources
+        // Includes: resource creation, updates, deletions, status events, gRPC communications
+        database('ServiceLogs').table('containerLogs')
+        | where timestamp between (_startTime .. _endTime)
+        | where namespace_name has "maestro"
+        | extend logStr = tostring(log)
+        | where logStr has cluster_id or logStr has_any (maestro_resource_ids)
+        | project timestamp, container_name, msg = logStr, log
+    ),
+    (
+        // Hypershift logs: Hypershift operator reconciliation of HostedCluster and NodePool CRs
+        // Includes the CR reconciliation logs
+        database('ServiceLogs').table('containerLogs')
+        | where timestamp between (_startTime .. _endTime)
+        | where namespace_name has "hypershift"
+        | extend logStr = tostring(log)
+        | where logStr has cluster_id
+        | project timestamp, container_name, msg = logStr, log
+    ),
+    (
+        // ACM Agent logs: ManifestWork reconciliation on the managed cluster
+        // Includes: work agent operations, manifest application, status feedback
+        database('ServiceLogs').table('containerLogs')
+        | where timestamp between (_startTime .. _endTime)
+        | where namespace_name has "open-cluster-management-agent"
+        | extend logStr = tostring(log)
+        | where logStr has cluster_id
+        | project timestamp, container_name, msg = logStr, log
+    )
+| order by timestamp asc

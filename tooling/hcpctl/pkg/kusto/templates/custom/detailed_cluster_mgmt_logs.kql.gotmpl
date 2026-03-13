@@ -1,0 +1,27 @@
+let _startTime = <<.TimestampMin>>;
+let _endTime = <<.TimestampMax>>;
+let _resource_group = '<<.ResourceGroupName>>';
+// Cluster Management Logs - Clusters Service and HostedCluster status
+union
+    (
+        // Clusters Service logs: OCM cluster management operations for this resource group
+        database('ServiceLogs').table('clustersServiceLogs')
+        | where timestamp between (_startTime .. _endTime)
+        | where resource_id has _resource_group
+        | project timestamp, container_name, msg, log
+    ),
+    (
+        // HostedCluster conditions: Cluster status conditions as seen by Clusters Service
+        // Shows conditions like Available, Degraded, Progressing, ReconciliationSucceeded, etc.
+        database('ServiceLogs').table('clustersServiceLogs')
+        | where timestamp between (_startTime .. _endTime)
+        | where resource_id has _resource_group
+        | extend extracted=extract_all(@'{"name":"([A-Za-z0-9]+)-Message","fieldValue":{"type":"String","string":"([^"]+)"}}', dynamic([1,2]), tostring(msg))
+        | mv-expand matches = extracted to typeof(dynamic)
+        | extend status_name = tostring(matches[0])
+        | extend status_message = tostring(matches[1])
+        | where status_name != "" and status_message != ""
+        | summarize arg_min(timestamp, *) by status_name, status_message
+        | project timestamp, container_name = "clusters-service (status)", msg = strcat(status_name, ": ", status_message), log = bag_pack("status_name", status_name, "status_message", status_message)
+    )
+| order by timestamp asc

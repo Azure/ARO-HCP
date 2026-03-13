@@ -1,0 +1,8 @@
+// RP Frontend: this component serves customer requests as proxied from ARM, we should see requests come in and
+// be dispatched to the user without errors. Anomalous requests or errors in this log are a bug in the frontend,
+// if there are no anomalies here, check the backend logs for why our RP failed to correctly provision a cluster.
+database('ServiceLogs').table('frontendLogs')
+| where timestamp between (datetime(<<.TimestampMin>>) .. datetime(<<.TimestampMax>>))
+| where resource_group == '{{.ResourceGroupName}}'
+| where msg == 'request received' or msg == 'response complete'
+| project timestamp, msg, request_method, request_path, request_query, response_status_code

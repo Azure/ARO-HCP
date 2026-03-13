@@ -1,9 +1,22 @@
 - name: backendControllerConditions
   database: ServiceLogs
-  templatePath: templates/custom/backend_controller_conditions.kql.gotmpl
-- name: clustersServicePhases
-  database: ServiceLogs
-  templatePath: templates/custom/clusters_service_phases.kql.gotmpl
-- name: debugQueries
-  database: ServiceLogs
-  templatePath: templates/custom/debug_queries.kql.gotmpl
+  templatePaths:
+    - templates/custom/backend_controller_conditions.kql.gotmpl
+# - name: clustersServicePhases
+#   database: ServiceLogs
+#   templatePaths:
+#     - templates/custom/clusters_service_phases.kql.gotmpl
+# - name: debugQueries
+#   database: ServiceLogs
+#   templatePaths:
+#     - templates/custom/debug_frontend_logs.kql.gotmpl
+#     - templates/custom/debug_backend_conditions.kql.gotmpl
+#     - templates/custom/debug_cs_phases.kql.gotmpl
+#     - templates/custom/debug_hypershift_conditions.kql.gotmpl
+#     - templates/custom/debug_control_plane_events.kql.gotmpl
+# - name: detailedServiceLogs
+#   database: ServiceLogs
+#   templatePaths:
+#     - templates/custom/detailed_api_layer_logs.kql.gotmpl
+#     - templates/custom/detailed_cluster_mgmt_logs.kql.gotmpl
+#     - templates/custom/detailed_infra_orchestration_logs.kql.gotmpl

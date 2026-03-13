@@ -1,0 +1,19 @@
+// Clusters-Service: this component provisions Azure infrastructure and creates the HyperShift HostedCluster
+// record, passes it using Maestro to the management cluster, and waits for Maestro to back-channel status.
+// Check to see that provision steps (for Azure infra) succeeded, and that the cluster has progressed to
+// 'installing' state. If steps fail or the cluster doesn't end up in 'installing', there's a clusters-service
+// bug. Clusters stuck in 'installing' could either be due to a bug in Maestro signalling, or HyperShift
+// reconciliation.
+let _cs_cluster_id = toscalar(
+    database('ServiceLogs').table('clustersServiceLogs')
+    | where timestamp between (datetime(<<.TimestampMin>>) .. datetime(<<.TimestampMax>>))
+    | where resource_id has '{{.ResourceGroupName}}'
+    | where isnotempty(cid)
+    | distinct tostring(cid)
+    | limit 1
+);
+database('ServiceLogs').table('clustersServiceLogs')
+| where timestamp between (datetime(<<.TimestampMin>>) .. datetime(<<.TimestampMax>>))
+| where cid == _cs_cluster_id
+| where log has 'state to' or log has 'now in' or log has 'provision step'
+| project timestamp, log.msg

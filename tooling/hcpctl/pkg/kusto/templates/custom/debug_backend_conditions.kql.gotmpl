@@ -1,0 +1,14 @@
+// RP Backend: this component ensures the cluster is provisioned and running for the customer. Controllers
+// each enforce some subset of the state we care about - if any are having issues, they will post unhappy status
+// and should be investigated. Today, some of the provisioning for the clusters is done by clusters-service, so
+// if no controllers in the backend are having issues, check the clusters-service logs to see if there's an issue
+// at a deeper layer of the stack.
+database('ServiceLogs').table('backendLogs')
+| where timestamp between (datetime(<<.TimestampMin>>) .. datetime(<<.TimestampMax>>))
+| where cluster == '{{.ClusterName}}'
+| where container_name == 'aro-hcp-backend'
+| where resource_id has '{{.ResourceGroupName}}'
+| where log.msg has 'dumping resourceID' and log.msg has 'hcpOpenShiftControllers'
+| extend controller_name = extract("/hcpOpenShiftControllers/([^\\/]+)", 1, tostring(log.currentResourceID))
+| mv-expand condition = log.content.properties.status.conditions
+| project condition.lastTransitionTime, controller_name, condition.type, condition.status, condition.reason, condition.message

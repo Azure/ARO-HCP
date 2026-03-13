@@ -41,6 +41,7 @@ const (
 	QueryTypeClusterId          QueryType = "cluster-id"
 	QueryTypeKubernetesEvents   QueryType = "kubernetes-events"
 	QueryTypeSystemdLogs        QueryType = "systemd-logs"
+	QueryTypeCustomLogs         QueryType = "custom-logs"
 )
 
 // ClusterIdRow represents a row in the query result with a cluster id
@@ -60,7 +61,7 @@ func serviceLogs(f *kusto.QueryFactory, options kusto.QueryOptions, clusterIds [
 		if err != nil {
 			return nil, err
 		}
-		queries = append(queries, q)
+		queries = append(queries, q...)
 	}
 	return queries, nil
 }
@@ -75,7 +76,7 @@ func clusterNamesQueries(f *kusto.QueryFactory, options kusto.QueryOptions) ([]k
 		if err != nil {
 			return nil, err
 		}
-		queries = append(queries, q)
+		queries = append(queries, q...)
 	}
 	return queries, nil
 }
@@ -88,7 +89,7 @@ func hostedControlPlaneLogs(f *kusto.QueryFactory, options kusto.QueryOptions, c
 		if err != nil {
 			return nil, err
 		}
-		queries = append(queries, q)
+		queries = append(queries, q...)
 	}
 	return queries, nil
 }

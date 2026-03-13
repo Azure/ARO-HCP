@@ -16,6 +16,7 @@ package kusto
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"reflect"
 	"strings"
@@ -89,6 +90,7 @@ type TemplateData struct {
 	TimestampMin       time.Time `kqlParameter:"timestampMin"`
 	TimestampMax       time.Time `kqlParameter:"timestampMax"`
 	ClusterName        string    `kqlParameter:"clusterName"`
+	ClusterNames       []string  `kqlParameter:"clusterNames"`
 	SubResourceGroupId string    `kqlParameter:"subResourceGroupId"`
 	ResourceGroupName  string    `kqlParameter:"resourceGroupName"`
 	ClusterId          string    `kqlParameter:"clusterId"`
@@ -120,6 +122,18 @@ func WithClusterIds(clusterIds []string) TemplateDataOptions {
 func WithHCPNamespacePrefix(hcpNamespacePrefix string) TemplateDataOptions {
 	return func(d *TemplateData) {
 		d.HCPNamespacePrefix = hcpNamespacePrefix
+	}
+}
+
+func WithClusterName(clusterName string) TemplateDataOptions {
+	return func(d *TemplateData) {
+		d.ClusterName = clusterName
+	}
+}
+
+func WithClusterNames(clusterNames []string) TemplateDataOptions {
+	return func(d *TemplateData) {
+		d.ClusterNames = clusterNames
 	}
 }
 
@@ -183,10 +197,19 @@ func SetNonEmptyString(kqlParameters *kql.Parameters, fieldName string, value st
 	}
 }
 
+func SetNonEmptyStringArray(kqlParameters *kql.Parameters, fieldName string, value []string) {
+	data, err := json.Marshal(value)
+	if err != nil {
+		panic(fmt.Errorf("failed to marshal string array: %w", err))
+	}
+	kqlParameters.AddSerializedDynamic(fieldName, data)
+}
+
 func (d *TemplateData) CreateKQLParameters() *kql.Parameters {
 	kqlParameters := kql.NewParameters()
 	SetNonEmptyString(kqlParameters, "table", d.Table)
 	SetNonEmptyString(kqlParameters, "clusterName", d.ClusterName)
+	SetNonEmptyStringArray(kqlParameters, "clusterNames", d.ClusterNames)
 	SetNonEmptyString(kqlParameters, "subResourceGroupId", d.SubResourceGroupId)
 	SetNonEmptyString(kqlParameters, "resourceGroupName", d.ResourceGroupName)
 	SetNonEmptyString(kqlParameters, "hcpNamespacePrefix", d.HCPNamespacePrefix)
@@ -219,31 +242,18 @@ func NewQueryFactory(unsafeTemplating bool) *QueryFactory {
 	}
 }
 
-// Build constructs a Query from a QueryDefinition, applying template data and project fields.
-func (f *QueryFactory) Build(def QueryDefinition, templateData TemplateData) (Query, error) {
-	return f.buildQuery(def.Name, def.Database, def.TemplatePath, templateData, templateData.Limit < 0)
-}
-
-func (f *QueryFactory) projectFields(baseFields []string) string {
-	return mergeProjectFields(baseFields, f.MergeStandardProject)
-}
-
-func mergeProjectFields(baseFields []string, mergeStandard bool) string {
-	if !mergeStandard {
-		return strings.Join(baseFields, ", ")
-	}
-	merged := make([]string, len(StandardProjectFields))
-	copy(merged, StandardProjectFields)
-	seen := make(map[string]bool)
-	for _, f := range StandardProjectFields {
-		seen[f] = true
-	}
-	for _, f := range baseFields {
-		if !seen[f] {
-			merged = append(merged, f)
+// Build constructs Queries from a QueryDefinition, applying template data and project fields.
+// Each template path in the definition produces one Query.
+func (f *QueryFactory) Build(def QueryDefinition, templateData TemplateData) ([]Query, error) {
+	var queries []Query
+	for _, tmplPath := range def.TemplatePaths {
+		q, err := f.buildQuery(def.Name, def.Database, tmplPath, templateData, templateData.Limit < 0)
+		if err != nil {
+			return nil, err
 		}
+		queries = append(queries, q)
 	}
-	return strings.Join(merged, ", ")
+	return queries, nil
 }
 
 // buildQuery builds a query from a template, binding parameters at creation time.
@@ -292,8 +302,8 @@ func (f *QueryFactory) buildQuery(name, database, templateName string, data Temp
 	}, nil
 }
 
-// LoadCustomQuery loads a single custom query by name, returning the built templateQuery.
-func (f *QueryFactory) LoadCustomQuery(name string, templateData TemplateData) (Query, error) {
+// LoadCustomQuery loads a single custom query group by name, returning the built queries.
+func (f *QueryFactory) LoadCustomQuery(name string, templateData TemplateData) ([]Query, error) {
 	for _, def := range f.CustomQueryDefinitions {
 		if def.Name == name {
 			return f.Build(def, templateData)
@@ -302,15 +312,15 @@ func (f *QueryFactory) LoadCustomQuery(name string, templateData TemplateData) (
 	return nil, fmt.Errorf("custom query %q not found", name)
 }
 
-// LoadAllCustomQueries loads all custom queries, returning a slice of built templateQueries.
+// LoadAllCustomQueries loads all custom queries, returning a flat slice of built queries.
 func (f *QueryFactory) LoadAllCustomQueries(templateData TemplateData) ([]Query, error) {
 	var queries []Query
 	for _, def := range f.CustomQueryDefinitions {
-		q, err := f.Build(def, templateData)
+		qs, err := f.Build(def, templateData)
 		if err != nil {
 			return nil, fmt.Errorf("failed to build custom query %q: %w", def.Name, err)
 		}
-		queries = append(queries, q)
+		queries = append(queries, qs...)
 	}
 	return queries, nil
 }
