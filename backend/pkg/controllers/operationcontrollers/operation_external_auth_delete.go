@@ -21,8 +21,6 @@ import (
 	"net/http"
 	"strings"
 
-	utilsclock "k8s.io/utils/clock"
-
 	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
@@ -32,21 +30,19 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
-type operationClusterDelete struct {
-	clock                utilsclock.PassiveClock
+type operationExternalAuthDelete struct {
 	cosmosClient         database.DBClient
 	clusterServiceClient ocm.ClusterServiceClientSpec
 	notificationClient   *http.Client
 }
 
-// NewOperationClusterDeleteSynchronizer periodically lists all clusters and for each out when the cluster was deleted and its state.
-func NewOperationClusterDeleteSynchronizer(
+// NewOperationExternalAuthDeleteSynchronizer periodically lists all clusters and for each out when the cluster was deleted and its state.
+func NewOperationExternalAuthDeleteSynchronizer(
 	cosmosClient database.DBClient,
 	clusterServiceClient ocm.ClusterServiceClientSpec,
 	notificationClient *http.Client,
 ) OperationSynchronizer {
-	c := &operationClusterDelete{
-		clock:                utilsclock.RealClock{},
+	c := &operationExternalAuthDelete{
 		cosmosClient:         cosmosClient,
 		clusterServiceClient: clusterServiceClient,
 		notificationClient:   notificationClient,
@@ -55,20 +51,20 @@ func NewOperationClusterDeleteSynchronizer(
 	return c
 }
 
-func (c *operationClusterDelete) ShouldProcess(ctx context.Context, operation *api.Operation) bool {
+func (c *operationExternalAuthDelete) ShouldProcess(ctx context.Context, operation *api.Operation) bool {
 	if operation.Status.IsTerminal() {
 		return false
 	}
 	if operation.Request != database.OperationRequestDelete {
 		return false
 	}
-	if operation.ExternalID == nil || !strings.EqualFold(operation.ExternalID.ResourceType.String(), api.ClusterResourceType.String()) {
+	if operation.ExternalID == nil || !strings.EqualFold(operation.ExternalID.ResourceType.String(), api.ExternalAuthResourceType.String()) {
 		return false
 	}
 	return true
 }
 
-func (c *operationClusterDelete) SynchronizeOperation(ctx context.Context, key controllerutils.OperationKey) error {
+func (c *operationExternalAuthDelete) SynchronizeOperation(ctx context.Context, key controllerutils.OperationKey) error {
 	logger := utils.LoggerFromContext(ctx)
 	logger.Info("checking operation")
 
@@ -83,40 +79,17 @@ func (c *operationClusterDelete) SynchronizeOperation(ctx context.Context, key c
 		return nil // no work to do
 	}
 
-	clusterStatus, err := c.clusterServiceClient.GetClusterStatus(ctx, operation.InternalID)
-	var ocmGetClusterError *ocmerrors.Error
-	if err != nil && errors.As(err, &ocmGetClusterError) && ocmGetClusterError.Status() == http.StatusNotFound {
-		logger.Info("cluster was deleted")
-
-		// Update the Cosmos DB billing document with a deletion timestamp.
-		// Do this before calling setDeleteOperationAsCompleted so that in
-		// case of error the backend will retry by virtue of the operation
-		// document still having a non-terminal status.
-		err = controllerutils.MarkBillingDocumentDeleted(ctx, c.cosmosClient, operation.ExternalID, c.clock.Now())
-		if errors.Is(err, database.ErrAmbiguousResult) {
-			// TODO: Remove when we enforce there's a single billing document per cluster.
-			logger.Error(err, "Failed to mark CosmosDB billing record for deletion")
-		} else if err != nil {
-			return utils.TrackError(err)
-		}
+	_, err = c.clusterServiceClient.GetExternalAuth(ctx, operation.InternalID)
+	var ocmGetExternalAuthError *ocmerrors.Error
+	if err != nil && errors.As(err, &ocmGetExternalAuthError) && ocmGetExternalAuthError.Status() == http.StatusNotFound {
+		logger.Info("external auth was deleted")
 
 		err = SetDeleteOperationAsCompleted(ctx, c.cosmosClient, operation, postAsyncNotificationFn(c.notificationClient))
 		if err != nil {
 			return utils.TrackError(err)
 		}
-		// without cluster-status, there is nothing remaining to do.  the orphan controller will cleanup any remaining cosmos bits.
 		return nil
 	}
-	if err != nil {
-		return utils.TrackError(err)
-	}
-
-	newOperationStatus, newOperationError, err := convertClusterStatus(ctx, c.clusterServiceClient, operation, clusterStatus)
-	if err != nil {
-		return utils.TrackError(err)
-	}
-
-	err = UpdateOperationStatus(ctx, c.cosmosClient, operation, newOperationStatus, newOperationError, postAsyncNotificationFn(c.notificationClient))
 	if err != nil {
 		return utils.TrackError(err)
 	}
