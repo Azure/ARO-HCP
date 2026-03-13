@@ -17,6 +17,7 @@ package frontend
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"sync/atomic"
 	"testing"
@@ -159,59 +160,108 @@ func testCrossVersionRoundTrip(t *testing.T, withMock bool) {
 	}
 }
 
-// clusterCreatePayload returns a comprehensive v2025 cluster creation body
-// with all fields set to non-default values where possible. When new
-// v2025-only fields are added, add them here so the cross-version tests
-// exercise them.
-func clusterCreatePayload(clusterName string) []byte {
-	return []byte(`{
-		"identity": {
-			"type": "UserAssigned",
-			"userAssignedIdentities": {}
-		},
-		"name": "` + clusterName + `",
-		"properties": {
-			"api": {
-				"visibility": "Public"
-			},
-			"autoscaling": {
-				"maxNodeProvisionTimeSeconds": 1200,
-				"maxNodesTotal": 50,
-				"maxPodGracePeriodSeconds": 300,
-				"podPriorityThreshold": -5
-			},
-			"clusterImageRegistry": {
-				"state": "Disabled"
-			},
-			"etcd": {
-				"dataEncryption": {
-					"keyManagementMode": "PlatformManaged"
-				}
-			},
-			"nodeDrainTimeoutMinutes": 15,
-			"network": {
-				"hostPrefix": 23,
-				"machineCidr": "10.0.0.0/16",
-				"networkType": "OVNKubernetes",
-				"podCidr": "10.128.0.0/14",
-				"serviceCidr": "172.30.0.0/16"
-			},
-			"platform": {
-				"managedResourceGroup": "managed-rg-xvrt",
-				"networkSecurityGroupId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/bar/providers/Microsoft.Network/networkSecurityGroups/nsg",
-				"outboundType": "LoadBalancer",
-				"subnetId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/bar/providers/Microsoft.Network/virtualNetworks/vnet/subnets/subnet"
-			},
-			"version": {
-				"channelGroup": "stable",
-				"id": "4.20"
-			}
-		},
-		"tags": {
-			"env": "test"
-		},
-		"type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters"
-	}`)
+func clusterCreatePayload(clusterName, apiVersion string) []byte {
+	subscriptionID := "6b690bec-0c16-4ecb-8f67-781caf40bba7"
+
+	switch apiVersion {
+	case v2024:
+		// v2024 payload WITHOUT v2025-exclusive fields (no autoscaling, no nodeDrainTimeoutMinutes)
+		return []byte(fmt.Sprintf(`{
+  "identity": {
+    "type": "UserAssigned",
+    "userAssignedIdentities": {}
+  },
+  "name": "%s",
+  "properties": {
+    "api": {
+      "visibility": "Public"
+    },
+    "clusterImageRegistry": {
+      "state": "Disabled"
+    },
+    "etcd": {
+      "dataEncryption": {
+        "keyManagementMode": "PlatformManaged"
+      }
+    },
+    "network": {
+      "hostPrefix": 23,
+      "machineCidr": "10.0.0.0/16",
+      "networkType": "OVNKubernetes",
+      "podCidr": "10.128.0.0/14",
+      "serviceCidr": "172.30.0.0/16"
+    },
+    "platform": {
+      "managedResourceGroup": "managed-rg-xvrt",
+      "networkSecurityGroupId": "/subscriptions/%s/resourceGroups/bar/providers/Microsoft.Network/networkSecurityGroups/nsg",
+      "outboundType": "LoadBalancer",
+      "subnetId": "/subscriptions/%s/resourceGroups/bar/providers/Microsoft.Network/virtualNetworks/vnet/subnets/subnet"
+    },
+    "version": {
+      "channelGroup": "stable",
+      "id": "4.20"
+    }
+  },
+  "tags": {
+    "env": "test"
+  },
+  "type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters"
+}`, clusterName, subscriptionID, subscriptionID))
+
+	case v2025:
+		// v2025 payload WITH v2025-exclusive fields (autoscaling, nodeDrainTimeoutMinutes)
+		return []byte(fmt.Sprintf(`{
+  "identity": {
+    "type": "UserAssigned",
+    "userAssignedIdentities": {}
+  },
+  "name": "%s",
+  "properties": {
+    "api": {
+      "visibility": "Public"
+    },
+    "autoscaling": {
+      "maxNodeProvisionTimeSeconds": 1200,
+      "maxNodesTotal": 50,
+      "maxPodGracePeriodSeconds": 300,
+      "podPriorityThreshold": -5
+    },
+    "clusterImageRegistry": {
+      "state": "Disabled"
+    },
+    "etcd": {
+      "dataEncryption": {
+        "keyManagementMode": "PlatformManaged"
+      }
+    },
+    "nodeDrainTimeoutMinutes": 15,
+    "network": {
+      "hostPrefix": 23,
+      "machineCidr": "10.0.0.0/16",
+      "networkType": "OVNKubernetes",
+      "podCidr": "10.128.0.0/14",
+      "serviceCidr": "172.30.0.0/16"
+    },
+    "platform": {
+      "managedResourceGroup": "managed-rg-xvrt",
+      "networkSecurityGroupId": "/subscriptions/%s/resourceGroups/bar/providers/Microsoft.Network/networkSecurityGroups/nsg",
+      "outboundType": "LoadBalancer",
+      "subnetId": "/subscriptions/%s/resourceGroups/bar/providers/Microsoft.Network/virtualNetworks/vnet/subnets/subnet"
+    },
+    "version": {
+      "channelGroup": "stable",
+      "id": "4.20"
+    }
+  },
+  "tags": {
+    "env": "test"
+  },
+  "type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters"
+}`, clusterName, subscriptionID, subscriptionID))
+
+	default:
+		panic(fmt.Sprintf("unsupported apiVersion: %s", apiVersion))
+	}
 }
 
 func clusterResourceID(clusterName string) string {
@@ -230,7 +280,7 @@ func createClusterAndComplete(
 
 	resourceID := clusterResourceID(clusterName)
 	accessor := databasemutationhelpers.NewVersionedHTTPTestAccessor(testInfo.FrontendURL, apiVersion)
-	require.NoError(t, accessor.CreateOrUpdate(ctx, resourceID, clusterCreatePayload(clusterName)))
+	require.NoError(t, accessor.CreateOrUpdate(ctx, resourceID, clusterCreatePayload(clusterName, apiVersion)))
 
 	parsedID := api.Must(azcorearm.ParseResourceID(resourceID))
 	require.NoError(t, integrationutils.MarkOperationsCompleteForName(ctx, testInfo.CosmosClient(), subscriptionID, parsedID.Name))
@@ -342,47 +392,90 @@ func testSameVersionClusterPUT(t *testing.T, testInfo *integrationutils.Integrat
 	}
 }
 
-// nodePoolCreatePayload returns a comprehensive v2025 nodepool creation body
-// with all fields set to non-default values where possible.
-func nodePoolCreatePayload(nodePoolName string) []byte {
-	return []byte(`{
-		"name": "` + nodePoolName + `",
-		"properties": {
-			"autoRepair": true,
-			"autoScaling": {
-				"min": 1,
-				"max": 5
-			},
-			"labels": [
-				{
-					"key": "env",
-					"value": "test"
-				}
-			],
-			"nodeDrainTimeoutMinutes": 15,
-			"platform": {
-				"vmSize": "Standard_D4s_v3",
-				"availabilityZone": "1",
-				"osDisk": {
-					"sizeGiB": 128,
-					"diskStorageAccountType": "Premium_LRS"
-				},
-				"subnetId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/bar/providers/Microsoft.Network/virtualNetworks/vnet/subnets/subnet"
-			},
-			"taints": [
-				{
-					"effect": "NoExecute",
-					"key": "dedicated",
-					"value": "gpu"
-				}
-			],
-			"version": {
-				"channelGroup": "stable",
-				"id": "4.20"
-			}
-		},
-		"type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/nodePools"
-	}`)
+func nodePoolCreatePayload(nodePoolName, apiVersion string) []byte {
+	subscriptionID := "6b690bec-0c16-4ecb-8f67-781caf40bba7"
+
+	switch apiVersion {
+	case v2024:
+		// v2024 payload WITHOUT v2025-exclusive fields (no osDisk.diskStorageAccountType, no nodeDrainTimeoutMinutes)
+		return []byte(fmt.Sprintf(`{
+  "name": "%s",
+  "properties": {
+    "autoRepair": true,
+    "autoScaling": {
+      "min": 1,
+      "max": 5
+    },
+    "labels": [
+      {
+        "key": "env",
+        "value": "test"
+      }
+    ],
+    "platform": {
+      "vmSize": "Standard_D4s_v3",
+      "availabilityZone": "1",
+      "subnetId": "/subscriptions/%s/resourceGroups/bar/providers/Microsoft.Network/virtualNetworks/vnet/subnets/subnet"
+    },
+    "taints": [
+      {
+        "effect": "NoExecute",
+        "key": "dedicated",
+        "value": "gpu"
+      }
+    ],
+    "version": {
+      "channelGroup": "stable",
+      "id": "4.20"
+    }
+  },
+  "type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/nodePools"
+}`, nodePoolName, subscriptionID))
+
+	case v2025:
+		// v2025 payload WITH v2025-exclusive fields (osDisk.diskStorageAccountType, nodeDrainTimeoutMinutes)
+		return []byte(fmt.Sprintf(`{
+  "name": "%s",
+  "properties": {
+    "autoRepair": true,
+    "autoScaling": {
+      "min": 1,
+      "max": 5
+    },
+    "labels": [
+      {
+        "key": "env",
+        "value": "test"
+      }
+    ],
+    "nodeDrainTimeoutMinutes": 15,
+    "platform": {
+      "vmSize": "Standard_D4s_v3",
+      "availabilityZone": "1",
+      "osDisk": {
+        "sizeGiB": 128,
+        "diskStorageAccountType": "Premium_LRS"
+      },
+      "subnetId": "/subscriptions/%s/resourceGroups/bar/providers/Microsoft.Network/virtualNetworks/vnet/subnets/subnet"
+    },
+    "taints": [
+      {
+        "effect": "NoExecute",
+        "key": "dedicated",
+        "value": "gpu"
+      }
+    ],
+    "version": {
+      "channelGroup": "stable",
+      "id": "4.20"
+    }
+  },
+  "type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/nodePools"
+}`, nodePoolName, subscriptionID))
+
+	default:
+		panic(fmt.Sprintf("unsupported apiVersion: %s", apiVersion))
+	}
 }
 
 func nodePoolResourceID(clusterName, nodePoolName string) string {
@@ -400,15 +493,17 @@ func createNodePoolAndComplete(
 
 	resourceID := nodePoolResourceID(clusterName, nodePoolName)
 	accessor := databasemutationhelpers.NewVersionedHTTPTestAccessor(testInfo.FrontendURL, apiVersion)
-	require.NoError(t, accessor.CreateOrUpdate(ctx, resourceID, nodePoolCreatePayload(nodePoolName)))
+	require.NoError(t, accessor.CreateOrUpdate(ctx, resourceID, nodePoolCreatePayload(nodePoolName, apiVersion)))
 
 	parsedID := api.Must(azcorearm.ParseResourceID(resourceID))
 	require.NoError(t, integrationutils.MarkOperationsCompleteForName(ctx, testInfo.CosmosClient(), subscriptionID, parsedID.Name))
 }
 
-// externalAuthCreatePayload returns a comprehensive v2025 external auth body.
-func externalAuthCreatePayload() []byte {
-	return []byte(`{
+func externalAuthCreatePayload(apiVersion string) []byte {
+	switch apiVersion {
+	case v2024:
+		// v2024 payload - identical to v2025 (no version-specific fields yet)
+		return []byte(`{
 		"name": "default",
 		"properties": {
 			"claim": {
@@ -442,6 +537,47 @@ func externalAuthCreatePayload() []byte {
 		},
 		"type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/externalAuths"
 	}`)
+
+	case v2025:
+		// v2025 payload - identical to v2024 (no version-specific fields yet)
+		return []byte(`{
+		"name": "default",
+		"properties": {
+			"claim": {
+				"mappings": {
+					"groups": {
+						"claim": "groups"
+					},
+					"username": {
+						"claim": "sub",
+						"prefix": "prefix-",
+						"prefixPolicy": "Prefix"
+					}
+				}
+			},
+			"clients": [
+				{
+					"clientId": "87654321-4321-4321-4321-abcdefghijkl",
+					"component": {
+						"authClientNamespace": "openshift-console",
+						"name": "console"
+					},
+					"type": "Confidential"
+				}
+			],
+			"issuer": {
+				"audiences": [
+					"87654321-4321-4321-4321-abcdefghijkl"
+				],
+				"url": "https://login.microsoftonline.com/12345678-1234-1234-1234-123456789abc/v2.0"
+			}
+		},
+		"type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/externalAuths"
+	}`)
+
+	default:
+		panic(fmt.Sprintf("unsupported apiVersion: %s", apiVersion))
+	}
 }
 
 func externalAuthResourceID(clusterName, authName string) string {
@@ -459,7 +595,7 @@ func createExternalAuthAndComplete(
 
 	resourceID := externalAuthResourceID(clusterName, authName)
 	accessor := databasemutationhelpers.NewVersionedHTTPTestAccessor(testInfo.FrontendURL, apiVersion)
-	require.NoError(t, accessor.CreateOrUpdate(ctx, resourceID, externalAuthCreatePayload()))
+	require.NoError(t, accessor.CreateOrUpdate(ctx, resourceID, externalAuthCreatePayload(apiVersion)))
 
 	parsedID := api.Must(azcorearm.ParseResourceID(resourceID))
 	require.NoError(t, integrationutils.MarkOperationsCompleteForName(ctx, testInfo.CosmosClient(), subscriptionID, parsedID.Name))
