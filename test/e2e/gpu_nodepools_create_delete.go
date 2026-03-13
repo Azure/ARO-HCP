@@ -22,9 +22,6 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"k8s.io/apimachinery/pkg/util/rand"
-
-	"github.com/Azure/ARO-HCP/internal/api"
 	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
@@ -60,42 +57,43 @@ var _ = Describe("HCP Nodepools GPU instances", func() {
 			labels.Positive,
 			labels.IntegrationOnly,
 			func(ctx context.Context) {
-				customerClusterName := "gpu-nodepool-cluster-" + rand.String(6)
+				const (
+					customerClusterName = "cluster-gpu-np"
+					defaultNodePoolName = "np-1"
+					gpuNodePoolName     = "gpu-np-1"
+				)
 
 				tc := framework.NewTestContext()
-				openshiftControlPlaneVersionId := framework.DefaultOpenshiftControlPlaneVersionId()
-				openshiftNodeVersionId := framework.DefaultOpenshiftNodePoolVersionId()
+
 				if tc.UsePooledIdentities() {
 					err := tc.AssignIdentityContainers(ctx, 1, 60*time.Second)
 					Expect(err).NotTo(HaveOccurred())
 				}
-				location := tc.Location()
 
 				By("creating a resource group")
-				resourceGroup, err := tc.NewResourceGroup(ctx, "gpu-nodepools-"+sku.display, location)
+				resourceGroup, err := tc.NewResourceGroup(ctx, "rg-gpu-nodepool-"+sku.display, tc.Location())
 				Expect(err).NotTo(HaveOccurred())
 
-				By("deploying demo template (single-step infra + identities + cluster)")
+				clusterParams := framework.NewDefaultClusterParams()
+				clusterParams.ClusterName = customerClusterName
+				clusterParams.ManagedResourceGroupName = framework.SuffixName(*resourceGroup.Name, "-managed", 64)
 
-				identities, usePooled, err := tc.ResolveIdentitiesForTemplate(*resourceGroup.Name)
+				By("creating customer resources (infrastructure and managed identities) for cluster")
+				clusterParams, err = tc.CreateClusterCustomerResources(ctx,
+					resourceGroup,
+					clusterParams,
+					map[string]interface{}{},
+					TestArtifactsFS,
+					framework.RBACScopeResourceGroup,
+				)
 				Expect(err).NotTo(HaveOccurred())
 
-				_, err = tc.CreateBicepTemplateAndWait(ctx,
-					framework.WithTemplateFromFS(TestArtifactsFS, "test-artifacts/generated-test-artifacts/demo.json"),
-					framework.WithDeploymentName("aro-hcp-demo"),
-					framework.WithScope(framework.BicepDeploymentScopeResourceGroup),
-					framework.WithClusterResourceGroup(*resourceGroup.Name),
-					framework.WithParameters(map[string]interface{}{
-						"openshiftControlPlaneVersionId": openshiftControlPlaneVersionId,
-						"openshiftNodePoolVersionId":     openshiftNodeVersionId,
-						"clusterName":                    customerClusterName,
-						"identities":                     identities,
-						"usePooledIdentities":            usePooled,
-						"tags": map[string]string{
-							api.TagClusterSizeOverride: string(api.MinimalControlPlanePodSizing),
-						},
-					}),
-					framework.WithTimeout(45*time.Minute),
+				By("creating the HCP cluster")
+				err = tc.CreateHCPClusterFromParam(ctx,
+					GinkgoLogr,
+					*resourceGroup.Name,
+					clusterParams,
+					45*time.Minute,
 				)
 				Expect(err).NotTo(HaveOccurred())
 
@@ -110,31 +108,47 @@ var _ = Describe("HCP Nodepools GPU instances", func() {
 				Expect(err).NotTo(HaveOccurred())
 				Expect(verifiers.VerifyHCPCluster(ctx, adminRESTConfig)).To(Succeed())
 
-				// Use Bicep template to create a nodepool with the specified parameters
-				npName := "np-1" // node pools have very restrictive naming rules
-				By(fmt.Sprintf("creating GPU nodepool %q with VM size %q using Bicep template", npName, sku.vmSize))
-				_, err = tc.CreateBicepTemplateAndWait(ctx,
-					framework.WithTemplateFromFS(TestArtifactsFS, "test-artifacts/generated-test-artifacts/modules/nodepool.json"),
-					framework.WithDeploymentName("aro-hcp-gpu-nodepool-"+sku.display),
-					framework.WithScope(framework.BicepDeploymentScopeResourceGroup),
-					framework.WithClusterResourceGroup(*resourceGroup.Name),
-					framework.WithParameters(map[string]interface{}{
-						"openshiftVersionId": openshiftNodeVersionId,
-						"clusterName":        customerClusterName,
-						"nodePoolName":       npName,
-						"replicas":           1,
-						"vmSize":             sku.vmSize,
-					}),
-					framework.WithTimeout(45*time.Minute),
+				// this test deletes gpu node pool later. if we only create gpu node pool and then delete it,
+				// we will get an error: "The last node pool can not be deleted from a cluster."
+				// that's why firstly we create a default node pool (which by the way is cheaper than gpu node pool)
+				// so that gpu node pool can be deleted later without any error.
+				// we create a default node pool with two replicas instead of one,
+				// because in the latter case we will get this error: "A hosted cluster requires at least 2 replicas"
+				By("creating default nodepool")
+				defaultNodePoolParams := framework.NewDefaultNodePoolParams()
+				defaultNodePoolParams.ClusterName = customerClusterName
+				defaultNodePoolParams.NodePoolName = defaultNodePoolName
+				defaultNodePoolParams.Replicas = int32(2)
+
+				err = tc.CreateNodePoolFromParam(ctx,
+					*resourceGroup.Name,
+					customerClusterName,
+					defaultNodePoolParams,
+					45*time.Minute,
 				)
 				Expect(err).NotTo(HaveOccurred())
 
-				// Verify provisioning succeeded and VM size matches what we requested
+				By(fmt.Sprintf("creating GPU nodepool with VM size %q", sku.vmSize))
+				gpuNodePoolParams := framework.NewDefaultNodePoolParams()
+				gpuNodePoolParams.ClusterName = customerClusterName
+				gpuNodePoolParams.NodePoolName = gpuNodePoolName
+				gpuNodePoolParams.Replicas = int32(1)
+				gpuNodePoolParams.VMSize = sku.vmSize
+
+				err = tc.CreateNodePoolFromParam(ctx,
+					*resourceGroup.Name,
+					customerClusterName,
+					gpuNodePoolParams,
+					45*time.Minute,
+				)
+				Expect(err).NotTo(HaveOccurred())
+
+				By("verifying GPU nodepool provisioning succeeded with correct VM size")
 				created, err := framework.GetNodePool(ctx,
 					tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient(),
 					*resourceGroup.Name,
 					customerClusterName,
-					npName,
+					gpuNodePoolName,
 				)
 				Expect(err).NotTo(HaveOccurred())
 				Expect(created.Properties).ToNot(BeNil())
@@ -144,23 +158,22 @@ var _ = Describe("HCP Nodepools GPU instances", func() {
 				Expect(created.Properties.Platform.VMSize).ToNot(BeNil())
 				Expect(*created.Properties.Platform.VMSize).To(Equal(sku.vmSize))
 
-				// Delete
-				By(fmt.Sprintf("deleting GPU nodepool %qd", npName))
+				By("deleting GPU nodepool")
 				Expect(framework.DeleteNodePool(
 					ctx,
 					tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient(),
 					*resourceGroup.Name,
 					customerClusterName,
-					npName,
+					gpuNodePoolName,
 					25*time.Minute,
 				)).To(Succeed())
 
-				// Confirm it's gone
+				By("confirming GPU nodepool has been deleted")
 				_, getErr := framework.GetNodePool(ctx,
 					tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient(),
 					*resourceGroup.Name,
 					customerClusterName,
-					npName,
+					gpuNodePoolName,
 				)
 				Expect(getErr).To(HaveOccurred())
 			},
