@@ -1,5 +1,4 @@
 # yamllint disable rule:line-length rule:syntax
----
 apiVersion: policy.open-cluster-management.io/v1
 kind: Policy
 metadata:
