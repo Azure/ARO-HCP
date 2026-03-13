@@ -56,6 +56,7 @@ type BackendRootCmdFlags struct {
 	InsecureAzureManagedIdentityMockTenantID                                                      string
 	InsecureIgnoreUserAzureManagedIdentitiesThatNeedManagedIdentitiesDataplaneAvailableAndUseMock bool
 	ExitOnPanic                                                                                   bool
+	OperatorsManagedIdentitiesConfigPath                                                          string
 }
 
 func (f *BackendRootCmdFlags) AddFlags(cmd *cobra.Command) {
@@ -148,6 +149,14 @@ func (f *BackendRootCmdFlags) AddFlags(cmd *cobra.Command) {
 
 	cmd.Flags().BoolVar(&f.ExitOnPanic, "exit-on-panic", f.ExitOnPanic,
 		"If set, backend will exit the process if a panic occurs. As of now it only controls the setting of k8s.io/apimachinery/pkg/util/runtime.ReallyCrash",
+	)
+
+	cmd.Flags().StringVar(
+		&f.OperatorsManagedIdentitiesConfigPath,
+		"operators-managed-identities-config-path",
+		f.OperatorsManagedIdentitiesConfigPath,
+		"Path to a file containing the operators managed identities configuration in JSON or YAML format following the schema defined "+
+			"in apis/config/v1.OperatorsManagedIdentitiesConfig",
 	)
 
 	cmd.MarkFlagsRequiredTogether("cosmos-name", "cosmos-url")
@@ -291,6 +300,11 @@ func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.C
 		return nil, utils.TrackError(fmt.Errorf("failed to create clusters service client: %w", err))
 	}
 
+	operatorsManagedIdentitiesConfig, err := app.NewOperatorsManagedIdentitiesConfig(ctx, f.OperatorsManagedIdentitiesConfigPath)
+	if err != nil {
+		return nil, utils.TrackError(fmt.Errorf("failed to create operators managed identities config: %w", err))
+	}
+
 	backendOptions := &app.BackendOptions{
 		AppShortDescriptionName:            cmd.Short,
 		AppVersion:                         cmd.Version,
@@ -307,6 +321,7 @@ func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.C
 		ExitOnPanic:                        f.ExitOnPanic,
 		FPAMIDataplaneClientBuilder:        fpaMIDataplaneClientBuilder,
 		SMIClientBuilder:                   smiClientBuilder,
+		OperatorsManagedIdentitiesConfig:   operatorsManagedIdentitiesConfig,
 	}
 
 	return backendOptions, nil
