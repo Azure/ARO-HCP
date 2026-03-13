@@ -6,13 +6,22 @@ IMAGE_NAME      ?= aro-hcp-ci-test
 CONTAINER_ENGINE ?= $(shell command -v podman 2>/dev/null || echo docker)
 PLATFORM ?= "linux/amd64"
 
+GO_WORK_VERSION := $(shell sed -n 's/^go //p' ../../go.work)
+
 VERSION_ARGS = BUILDER_IMAGE_TAG PROMTOOL_VERSION
 
 .PHONY: verify build test
 
 ##@ Verification
 
-verify: ## Check PROMTOOL_VERSION in versions.mk matches the Dockerfile ARG default
+verify: ## Verify versions are consistent across config files
+	@GO_WORK_MINOR=$$(echo "$(GO_WORK_VERSION)" | cut -d. -f1,2); \
+	BUILDER_GO=$$(echo "$(BUILDER_IMAGE_TAG)" | grep -oP 'golang-\K[0-9]+\.[0-9]+'); \
+	if [ "$$GO_WORK_MINOR" != "$$BUILDER_GO" ]; then \
+		echo "ERROR: go.work Go version $$GO_WORK_MINOR ≠ builder image Go version $$BUILDER_GO"; \
+		exit 1; \
+	fi; \
+	echo "  go version $$GO_WORK_MINOR OK"
 	@actual=$$(grep -oP 'ARG PROMTOOL_VERSION=\K.*' Dockerfile); \
 	if [ "$$actual" != "$(PROMTOOL_VERSION)" ]; then \
 		echo "ERROR: Dockerfile ARG PROMTOOL_VERSION=$$actual ≠ versions.mk $(PROMTOOL_VERSION)"; \
