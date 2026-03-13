@@ -120,7 +120,9 @@ func LoadCosmosContent(ctx context.Context, cosmosContainer *azcosmos.ContainerC
 		apihelpers.ResourceTypeStringEqual(contentMap["resourceType"].(string), api.ExternalAuthResourceType),
 		apihelpers.ResourceTypeStringEqual(contentMap["resourceType"].(string), api.ClusterControllerResourceType),
 		apihelpers.ResourceTypeStringEqual(contentMap["resourceType"].(string), api.NodePoolControllerResourceType),
-		apihelpers.ResourceTypeStringEqual(contentMap["resourceType"].(string), api.ExternalAuthControllerResourceType):
+		apihelpers.ResourceTypeStringEqual(contentMap["resourceType"].(string), api.ExternalAuthControllerResourceType),
+		apihelpers.ResourceTypeStringEqual(contentMap["resourceType"].(string), api.ServiceProviderClusterResourceType),
+		apihelpers.ResourceTypeStringEqual(contentMap["resourceType"].(string), api.ServiceProviderNodePoolResourceType):
 		partitionKey := azcosmos.NewPartitionKeyString(contentMap["partitionKey"].(string))
 		_, err = cosmosContainer.CreateItem(ctx, partitionKey, content, nil)
 
