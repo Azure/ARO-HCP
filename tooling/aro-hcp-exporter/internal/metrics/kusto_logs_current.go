@@ -46,7 +46,6 @@ var (
 // KustoLogsCurrentCollector is a Prometheus collector that gathers metrics from Kusto
 type KustoLogsCurrentCollector struct {
 	kustoClient  *kusto.Client
-	database     string
 	clusterNames []string
 	kustoCluster string
 	cache        *cache.MetricsCache
@@ -151,7 +150,7 @@ func (c *KustoLogsCurrentCollector) CollectMetricValues(ctx context.Context) {
 
 		for logSource := range foundLogSources {
 			logger.V(1).Info("Found log source", "logSource", logSource)
-			c.cache.AddMetric(
+			err := c.cache.AddMetric(
 				prometheus.MustNewConstMetric(
 					KustoLogsAgeInSecondsDesc,
 					prometheus.GaugeValue,
@@ -160,6 +159,11 @@ func (c *KustoLogsCurrentCollector) CollectMetricValues(ctx context.Context) {
 					clusterName,
 					logSource,
 				))
+			if err != nil {
+				c.errorCounter.Inc()
+				logger.Error(err, "Failed to add metric", "cluster", clusterName, "logSource", logSource)
+				continue
+			}
 		}
 	}
 	c.lastRun = time.Now()

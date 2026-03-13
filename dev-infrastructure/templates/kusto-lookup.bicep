@@ -36,4 +36,3 @@ output auditLogsEventHubAuthRuleId string = kustoEnabled
   ? auditLogsEventHubNamespace::diagnosticSettingsAuthRule.id
   : ''
 output kustoRegion string = kustoEnabled ? kusto.location : ''
-
