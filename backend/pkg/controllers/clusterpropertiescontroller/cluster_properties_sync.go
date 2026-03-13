@@ -138,9 +138,7 @@ func (c *clusterPropertiesSyncer) SyncOnce(ctx context.Context, key controllerut
 		existingCluster.ServiceProviderProperties.API.URL = csCluster.API().URL()
 	}
 	if needsIssuerURL {
-		if csCluster.Azure() != nil {
-			existingCluster.ServiceProviderProperties.Platform.IssuerURL = csCluster.Azure().OidcIssuerUrl()
-		}
+		existingCluster.ServiceProviderProperties.Platform.IssuerURL = csCluster.Azure().OidcIssuerUrl()
 	}
 	if needsBaseDomainPrefix {
 		existingCluster.CustomerProperties.DNS.BaseDomainPrefix = csCluster.DomainPrefix()
