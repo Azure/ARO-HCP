@@ -261,6 +261,20 @@ func newClusterImageRegistryProfile(from *api.ClusterImageRegistryProfile) gener
 	}
 }
 
+func newImageDigestMirrors(from []api.ImageDigestMirror) []*generated.ImageDigestMirror {
+	if from == nil {
+		return []*generated.ImageDigestMirror{}
+	}
+	out := make([]*generated.ImageDigestMirror, 0, len(from))
+	for _, item := range from {
+		out = append(out, &generated.ImageDigestMirror{
+			Source:  api.PtrOrNil(item.Source),
+			Mirrors: api.StringSliceToStringPtrSlice(item.Mirrors),
+		})
+	}
+	return out
+}
+
 func newOperatorsAuthenticationProfile(from *api.OperatorsAuthenticationProfile) generated.OperatorsAuthenticationProfile {
 	if from == nil {
 		return generated.OperatorsAuthenticationProfile{}
@@ -339,6 +353,7 @@ func (v version) NewHCPOpenShiftCluster(from *api.HCPOpenShiftCluster) api.Versi
 				NodeDrainTimeoutMinutes: api.PtrOrNil(from.CustomerProperties.NodeDrainTimeoutMinutes),
 				ClusterImageRegistry:    api.PtrOrNil(newClusterImageRegistryProfile(&from.CustomerProperties.ClusterImageRegistry)),
 				Etcd:                    api.PtrOrNil(newEtcdProfile(&from.CustomerProperties.Etcd)),
+				ImageDigestMirrors:      newImageDigestMirrors(from.CustomerProperties.ImageDigestMirrors),
 			},
 			Identity: newManagedServiceIdentity(from.Identity),
 		},
@@ -427,6 +442,9 @@ func (c *HcpOpenShiftCluster) ConvertToInternal() (*api.HCPOpenShiftCluster, err
 			}
 			if c.Properties.Etcd != nil {
 				normalizeEtcd(c.Properties.Etcd, &out.CustomerProperties.Etcd)
+			}
+			if len(c.Properties.ImageDigestMirrors) > 0 {
+				normalizeImageDigestMirrors(c.Properties.ImageDigestMirrors, &out.CustomerProperties.ImageDigestMirrors)
 			}
 		}
 	}
@@ -602,6 +620,23 @@ func normalizeClusterImageRegistry(p *generated.ClusterImageRegistryProfile, out
 	if p.State != nil {
 		out.State = api.ClusterImageRegistryProfileState(*p.State)
 	}
+}
+
+func normalizeImageDigestMirror(p *generated.ImageDigestMirror, out *api.ImageDigestMirror) {
+	if p.Source != nil {
+		out.Source = *p.Source
+	}
+	out.Mirrors = api.StringPtrSliceToStringSlice(p.Mirrors)
+}
+
+func normalizeImageDigestMirrors(p []*generated.ImageDigestMirror, out *[]api.ImageDigestMirror) {
+	slice := make([]api.ImageDigestMirror, len(p))
+	for i := range p {
+		if p[i] != nil {
+			normalizeImageDigestMirror(p[i], &slice[i])
+		}
+	}
+	*out = slice
 }
 
 func normalizeOperatorsAuthentication(fldPath *field.Path, p *generated.OperatorsAuthenticationProfile, out *api.OperatorsAuthenticationProfile) field.ErrorList {

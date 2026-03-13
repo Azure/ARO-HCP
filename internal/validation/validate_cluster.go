@@ -195,6 +195,9 @@ var (
 	toClusterImageRegistry    = func(oldObj *api.HCPOpenShiftClusterCustomerProperties) *api.ClusterImageRegistryProfile {
 		return &oldObj.ClusterImageRegistry
 	}
+	toImageDigestMirrors = func(oldObj *api.HCPOpenShiftClusterCustomerProperties) []api.ImageDigestMirror {
+		return oldObj.ImageDigestMirrors
+	}
 )
 
 func validateClusterCustomerProperties(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *api.HCPOpenShiftClusterCustomerProperties) field.ErrorList {
@@ -231,6 +234,15 @@ func validateClusterCustomerProperties(ctx context.Context, op operation.Operati
 	//ClusterImageRegistry    ClusterImageRegistryProfile `json:"clusterImageRegistry,omitempty"`
 	errs = append(errs, validate.ImmutableByReflect(ctx, op, fldPath.Child("clusterImageRegistry"), &newObj.ClusterImageRegistry, safe.Field(oldObj, toClusterImageRegistry))...)
 	errs = append(errs, validateClusterImageRegistryProfile(ctx, op, fldPath.Child("clusterImageRegistry"), &newObj.ClusterImageRegistry, safe.Field(oldObj, toClusterImageRegistry))...)
+
+	//ImageDigestMirrors  []ImageDigestMirror `json:"imageDigestMirror,omitempty"`
+	errs = append(errs, MaxItems(ctx, op, fldPath.Child("imageDigestMirrors"), newObj.ImageDigestMirrors, safe.Field(oldObj, toImageDigestMirrors), 240)...)
+	errs = append(errs, validate.EachSliceVal(
+		ctx, op, fldPath.Child("imageDigestMirrors"),
+		newObj.ImageDigestMirrors, safe.Field(oldObj, toImageDigestMirrors),
+		nil, nil,
+		validateImageDigestMirror,
+	)...)
 
 	return errs
 }
@@ -805,6 +817,31 @@ func validateClusterImageRegistryProfile(ctx context.Context, op operation.Opera
 	errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("state"), &newObj.State, safe.Field(oldObj, toPlatformClusterImageRegistryState))...)
 	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("state"), &newObj.State, safe.Field(oldObj, toPlatformClusterImageRegistryState))...)
 	errs = append(errs, validate.Enum(ctx, op, fldPath.Child("state"), &newObj.State, safe.Field(oldObj, toPlatformClusterImageRegistryState), api.ValidClusterImageRegistryProfileStates)...)
+
+	return errs
+}
+
+var (
+	toImageDigestMirrorSource  = func(oldObj *api.ImageDigestMirror) *string { return &oldObj.Source }
+	toImageDigestMirrorMirrors = func(oldObj *api.ImageDigestMirror) []string { return oldObj.Mirrors }
+)
+
+func validateImageDigestMirror(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *api.ImageDigestMirror) field.ErrorList {
+	errs := field.ErrorList{}
+
+	//Source string `json:"source,omitempty"`
+	errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("source"), &newObj.Source, safe.Field(oldObj, toImageDigestMirrorSource))...)
+	errs = append(errs, ImageRegistry(ctx, op, fldPath.Child("source"), &newObj.Source, safe.Field(oldObj, toImageDigestMirrorSource))...)
+
+	//Mirrors []string `json:"mirrors,omitempty"`
+	errs = append(errs, MinItems(ctx, op, fldPath.Child("mirrors"), newObj.Mirrors, safe.Field(oldObj, toImageDigestMirrorMirrors), 1)...)
+	errs = append(errs, MaxItems(ctx, op, fldPath.Child("mirrors"), newObj.Mirrors, safe.Field(oldObj, toImageDigestMirrorMirrors), 255)...)
+	errs = append(errs, validate.EachSliceVal(
+		ctx, op, fldPath.Child("mirrors"),
+		newObj.Mirrors, safe.Field(oldObj, toImageDigestMirrorMirrors),
+		nil, nil,
+		ImageRegistry,
+	)...)
 
 	return errs
 }
