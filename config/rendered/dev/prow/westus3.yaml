@@ -493,8 +493,8 @@ mgmt:
       zoneRedundantMode: Auto
       zones: ""
     userAgentPool:
-      maxCount: 14
-      minCount: 4
+      maxCount: 17
+      minCount: 14
       name: user
       osDiskSizeGB: 100
       poolCount: 3

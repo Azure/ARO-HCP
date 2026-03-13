@@ -1464,8 +1464,8 @@ clouds:
                 osDiskSizeGB: 32
                 vmSize: Standard_D4ds_v5
               userAgentPool:
-                maxCount: 14
-                minCount: 4
+                maxCount: 17
+                minCount: 14
                 osDiskSizeGB: 100
                 vmSize: Standard_D8ds_v5
               infraAgentPool:
