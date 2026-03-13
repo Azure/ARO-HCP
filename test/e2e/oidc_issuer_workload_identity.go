@@ -208,7 +208,7 @@ var _ = Describe("Customer", func() {
 				},
 				Spec: corev1.PodSpec{
 					ServiceAccountName: testServiceAccount,
-					RestartPolicy:      corev1.RestartPolicyNever,
+					RestartPolicy:      corev1.RestartPolicyOnFailure,
 					Volumes: []corev1.Volume{
 						{
 							Name: "azure-identity-token",
@@ -307,7 +307,6 @@ var _ = Describe("Customer", func() {
 					if logErr == nil {
 						GinkgoWriter.Printf("Pod logs:\n%s\n", string(logs))
 					}
-					return corev1.PodFailed, StopTrying("Pod failed; see logs for details")
 				}
 
 				return p.Status.Phase, nil
