@@ -33,6 +33,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
 	hsv1beta1 "github.com/openshift/hypershift/api/hypershift/v1beta1"
 
@@ -44,6 +45,98 @@ import (
 	"github.com/Azure/ARO-HCP/internal/databasetesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 )
+
+// errorInjectingMCCCRUD wraps ManagementClusterContentCRUD to allow error injection for testing.
+type errorInjectingMCCCRUD struct {
+	database.ManagementClusterContentCRUD
+	getResult  *api.ManagementClusterContent
+	getErr     error
+	replaceErr error
+}
+
+func (e *errorInjectingMCCCRUD) Get(ctx context.Context, resourceID string) (*api.ManagementClusterContent, error) {
+	if e.getErr != nil {
+		return nil, e.getErr
+	}
+	if e.getResult != nil {
+		return e.getResult, nil
+	}
+	return e.ManagementClusterContentCRUD.Get(ctx, resourceID)
+}
+
+func (e *errorInjectingMCCCRUD) Replace(ctx context.Context, obj *api.ManagementClusterContent, opts *azcosmos.ItemOptions) (*api.ManagementClusterContent, error) {
+	if e.replaceErr != nil {
+		return nil, e.replaceErr
+	}
+	return e.ManagementClusterContentCRUD.Replace(ctx, obj, opts)
+}
+
+var _ database.ManagementClusterContentCRUD = &errorInjectingMCCCRUD{}
+
+// errorInjectingDBClient wraps MockDBClient to return error-injecting CRUDs.
+type errorInjectingDBClient struct {
+	*databasetesting.MockDBClient
+	mccCRUD      database.ManagementClusterContentCRUD
+	clustersCRUD database.HCPClusterCRUD
+	spcCRUD      database.ServiceProviderClusterCRUD
+}
+
+func (e *errorInjectingDBClient) ManagementClusterContents(subscriptionID, resourceGroupName, clusterName string) database.ManagementClusterContentCRUD {
+	if e.mccCRUD != nil {
+		return e.mccCRUD
+	}
+	return e.MockDBClient.ManagementClusterContents(subscriptionID, resourceGroupName, clusterName)
+}
+
+func (e *errorInjectingDBClient) HCPClusters(subscriptionID, resourceGroupName string) database.HCPClusterCRUD {
+	if e.clustersCRUD != nil {
+		return e.clustersCRUD
+	}
+	return e.MockDBClient.HCPClusters(subscriptionID, resourceGroupName)
+}
+
+func (e *errorInjectingDBClient) ServiceProviderClusters(subscriptionID, resourceGroupName, clusterName string) database.ServiceProviderClusterCRUD {
+	if e.spcCRUD != nil {
+		return e.spcCRUD
+	}
+	return e.MockDBClient.ServiceProviderClusters(subscriptionID, resourceGroupName, clusterName)
+}
+
+var _ database.DBClient = &errorInjectingDBClient{}
+
+// errorInjectingHCPClusterCRUD wraps HCPClusterCRUD to allow error injection.
+type errorInjectingHCPClusterCRUD struct {
+	database.HCPClusterCRUD
+	getResult *api.HCPOpenShiftCluster
+	getErr    error
+}
+
+func (e *errorInjectingHCPClusterCRUD) Get(ctx context.Context, resourceID string) (*api.HCPOpenShiftCluster, error) {
+	if e.getErr != nil {
+		return nil, e.getErr
+	}
+	if e.getResult != nil {
+		return e.getResult, nil
+	}
+	return e.HCPClusterCRUD.Get(ctx, resourceID)
+}
+
+var _ database.HCPClusterCRUD = &errorInjectingHCPClusterCRUD{}
+
+// errorInjectingSPCCRUD wraps ServiceProviderClusterCRUD to allow error injection.
+type errorInjectingSPCCRUD struct {
+	database.ServiceProviderClusterCRUD
+	getErr error
+}
+
+func (e *errorInjectingSPCCRUD) Get(ctx context.Context, resourceID string) (*api.ServiceProviderCluster, error) {
+	if e.getErr != nil {
+		return nil, e.getErr
+	}
+	return e.ServiceProviderClusterCRUD.Get(ctx, resourceID)
+}
+
+var _ database.ServiceProviderClusterCRUD = &errorInjectingSPCCRUD{}
 
 func TestReadAndPersistClusterScopedMaestroReadonlyBundlesContentSyncer_buildDegradedCondition(t *testing.T) {
 	syncer := &readAndPersistClusterScopedMaestroReadonlyBundlesContentSyncer{}
@@ -496,12 +589,14 @@ func TestReadAndPersistClusterScopedMaestroReadonlyBundlesContentSyncer_readAndP
 			Status:         api.ManagementClusterContentStatus{KubeContent: &metav1.List{Items: []runtime.RawExtension{{Raw: []byte(validHCJSON)}}}},
 		}
 
-		mockMCC := database.NewMockManagementClusterContentCRUD(ctrl)
-		mockMCC.EXPECT().Get(gomock.Any(), string(api.MaestroBundleInternalNameReadonlyHypershiftHostedCluster)).Return(existingDoc, nil)
-		mockMCC.EXPECT().Replace(gomock.Any(), gomock.Any(), nil).Return(nil, databasetesting.NewPreconditionFailedError())
-
-		mockDB := database.NewMockDBClient(ctrl)
-		mockDB.EXPECT().ManagementClusterContents("sub", "rg", "cluster").Return(mockMCC)
+		// Use error-injecting wrapper to simulate 412 Precondition Failed on Replace
+		mockDB := &errorInjectingDBClient{
+			MockDBClient: databasetesting.NewMockDBClient(),
+			mccCRUD: &errorInjectingMCCCRUD{
+				getResult:  existingDoc,
+				replaceErr: databasetesting.NewPreconditionFailedError(),
+			},
+		}
 
 		syncer := &readAndPersistClusterScopedMaestroReadonlyBundlesContentSyncer{cosmosClient: mockDB}
 		err := syncer.readAndPersistMaestroBundleContent(ctx, cluster, ref, mockMaestro)
@@ -517,11 +612,13 @@ func TestReadAndPersistClusterScopedMaestroReadonlyBundlesContentSyncer_readAndP
 		mockMaestro.EXPECT().Get(gomock.Any(), "bundle-name", gomock.Any()).Return(b, nil)
 
 		getErr := fmt.Errorf("cosmos connection error")
-		mockMCC := database.NewMockManagementClusterContentCRUD(ctrl)
-		mockMCC.EXPECT().Get(gomock.Any(), string(api.MaestroBundleInternalNameReadonlyHypershiftHostedCluster)).Return(nil, getErr)
-
-		mockDB := database.NewMockDBClient(ctrl)
-		mockDB.EXPECT().ManagementClusterContents("sub", "rg", "cluster").Return(mockMCC)
+		// Use error-injecting wrapper to simulate Get error
+		mockDB := &errorInjectingDBClient{
+			MockDBClient: databasetesting.NewMockDBClient(),
+			mccCRUD: &errorInjectingMCCCRUD{
+				getErr: getErr,
+			},
+		}
 
 		syncer := &readAndPersistClusterScopedMaestroReadonlyBundlesContentSyncer{cosmosClient: mockDB}
 		err := syncer.readAndPersistMaestroBundleContent(ctx, cluster, ref, mockMaestro)
@@ -549,16 +646,9 @@ func TestReadAndPersistClusterScopedMaestroReadonlyBundlesContentSyncer_SyncOnce
 }
 
 func TestReadAndPersistClusterScopedMaestroReadonlyBundlesContentSyncer_SyncOnce_GetServiceProviderClusterError(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctx := context.Background()
 
-	mockDBClient := database.NewMockDBClient(ctrl)
-	mockClusters := database.NewMockHCPClusterCRUD(ctrl)
-	mockSPCs := database.NewMockServiceProviderClusterCRUD(ctrl)
-
-	syncer := &readAndPersistClusterScopedMaestroReadonlyBundlesContentSyncer{
-		cooldownChecker: &alwaysSyncCooldownChecker{},
-		cosmosClient:    mockDBClient,
-	}
+	baseMockDB := databasetesting.NewMockDBClient()
 
 	key := controllerutils.HCPClusterKey{
 		SubscriptionID:    "test-sub",
@@ -566,19 +656,34 @@ func TestReadAndPersistClusterScopedMaestroReadonlyBundlesContentSyncer_SyncOnce
 		HCPClusterName:    "test-cluster",
 	}
 
+	clusterResourceID := api.Must(azcorearm.ParseResourceID("/subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster"))
 	cluster := &api.HCPOpenShiftCluster{
+		TrackedResource: arm.TrackedResource{Resource: arm.Resource{ID: clusterResourceID}},
 		ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
 			ClusterServiceID: api.Must(api.NewInternalID("/api/aro_hcp/v1alpha1/clusters/11111111111111111111111111111111")),
 		},
 	}
 
-	mockDBClient.EXPECT().HCPClusters(key.SubscriptionID, key.ResourceGroupName).Return(mockClusters)
-	mockClusters.EXPECT().Get(gomock.Any(), key.HCPClusterName).Return(cluster, nil)
-	mockDBClient.EXPECT().ServiceProviderClusters(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName).Return(mockSPCs)
-	expectedError := fmt.Errorf("database error")
-	mockSPCs.EXPECT().Get(gomock.Any(), gomock.Any()).Return(nil, expectedError)
+	// Add the cluster to the database
+	clustersCRUD := baseMockDB.HCPClusters(key.SubscriptionID, key.ResourceGroupName)
+	_, err := clustersCRUD.Create(ctx, cluster, nil)
+	require.NoError(t, err)
 
-	err := syncer.SyncOnce(context.Background(), key)
+	// Use error-injecting wrapper to simulate SPC Get error
+	expectedError := fmt.Errorf("database error")
+	mockDBClient := &errorInjectingDBClient{
+		MockDBClient: baseMockDB,
+		spcCRUD: &errorInjectingSPCCRUD{
+			getErr: expectedError,
+		},
+	}
+
+	syncer := &readAndPersistClusterScopedMaestroReadonlyBundlesContentSyncer{
+		cooldownChecker: &alwaysSyncCooldownChecker{},
+		cosmosClient:    mockDBClient,
+	}
+
+	err = syncer.SyncOnce(ctx, key)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to get or create ServiceProviderCluster")
 }

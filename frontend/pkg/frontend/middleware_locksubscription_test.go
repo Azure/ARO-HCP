@@ -22,14 +22,50 @@ import (
 	"testing"
 	"time"
 
-	"go.uber.org/mock/gomock"
-
-	"k8s.io/utils/ptr"
-
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
 	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/databasetesting"
 )
+
+// trackingLockClient is a test double that tracks whether stop was called.
+type trackingLockClient struct {
+	stopWasCalled *bool
+	defaultTTL    time.Duration
+}
+
+func (c *trackingLockClient) GetDefaultTimeToLive() time.Duration {
+	return c.defaultTTL
+}
+
+func (c *trackingLockClient) SetRetryAfterHeader(header http.Header) {
+	header.Set("Retry-After", fmt.Sprintf("%d", int(c.defaultTTL.Seconds())))
+}
+
+func (c *trackingLockClient) AcquireLock(ctx context.Context, id string, timeout *time.Duration) (*azcosmos.ItemResponse, error) {
+	return &azcosmos.ItemResponse{}, nil
+}
+
+func (c *trackingLockClient) TryAcquireLock(ctx context.Context, id string) (*azcosmos.ItemResponse, error) {
+	return &azcosmos.ItemResponse{}, nil
+}
+
+func (c *trackingLockClient) HoldLock(ctx context.Context, item *azcosmos.ItemResponse) (context.Context, database.StopHoldLock) {
+	return ctx, func() *azcosmos.ItemResponse {
+		*c.stopWasCalled = true
+		return nil
+	}
+}
+
+func (c *trackingLockClient) RenewLock(ctx context.Context, item *azcosmos.ItemResponse) (*azcosmos.ItemResponse, error) {
+	return item, nil
+}
+
+func (c *trackingLockClient) ReleaseLock(ctx context.Context, item *azcosmos.ItemResponse) error {
+	return nil
+}
+
+var _ database.LockClientInterface = &trackingLockClient{}
 
 func TestMiddlewareLockSubscription(t *testing.T) {
 	panicingHandler := func(writer http.ResponseWriter, request *http.Request) {
@@ -37,21 +73,12 @@ func TestMiddlewareLockSubscription(t *testing.T) {
 	}
 
 	stopWasCalled := false
-	stopCalledFn := func() *azcosmos.ItemResponse {
-		stopWasCalled = true
-		return nil
-	}
-	lockCancelCtx := context.Background()
-
 	ctx := context.Background()
-	mockController := gomock.NewController(t)
-	mockDBClient := database.NewMockDBClient(mockController)
-	mockLockClient := database.NewMockLockClientInterface(mockController)
-	mockLockClient.EXPECT().GetDefaultTimeToLive().Return(10 * time.Second)
-	lockResponse := &azcosmos.ItemResponse{}
-	mockLockClient.EXPECT().AcquireLock(gomock.Not(gomock.Nil()), "TheSubscriptionID", ptr.To(10*time.Second)).Return(lockResponse, nil)
-	mockLockClient.EXPECT().HoldLock(gomock.Not(gomock.Nil()), gomock.Not(gomock.Nil())).Return(lockCancelCtx, stopCalledFn)
-	mockDBClient.EXPECT().GetLockClient().Return(mockLockClient)
+	mockDBClient := databasetesting.NewMockDBClient()
+	mockDBClient.SetLockClient(&trackingLockClient{
+		stopWasCalled: &stopWasCalled,
+		defaultTTL:    10 * time.Second,
+	})
 
 	request := httptest.NewRequestWithContext(ctx, "PUT", "http://example.com", nil)
 	request.SetPathValue(PathSegmentSubscriptionID, "TheSubscriptionID")

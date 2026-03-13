@@ -22,13 +22,14 @@ import (
 
 	"github.com/go-logr/logr/testr"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/mock/gomock"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/databasetesting"
+	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -108,9 +109,7 @@ func TestCheckForProvisioningStateConflict(t *testing.T) {
 			name = fmt.Sprintf("%s (provisioningState=%s)", tt.name, provisioningState)
 			t.Run(name, func(t *testing.T) {
 				ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
-				ctrl := gomock.NewController(t)
-				mockDBClient := database.NewMockDBClient(ctrl)
-				mockClusterCRUD := database.NewMockHCPClusterCRUD(ctrl)
+				mockDBClient := databasetesting.NewMockDBClient()
 
 				frontend := &Frontend{
 					dbClient: mockDBClient,
@@ -119,26 +118,23 @@ func TestCheckForProvisioningStateConflict(t *testing.T) {
 				doc := database.NewResourceDocument(resourceID)
 				doc.ProvisioningState = provisioningState
 
-				parentResourceID := resourceID.Parent
-				mockDBClient.EXPECT().
-					HCPClusters(parentResourceID.SubscriptionID, parentResourceID.ResourceGroupName).
-					Return(mockClusterCRUD).
-					MaxTimes(1)
-				mockClusterCRUD.EXPECT().
-					Get(gomock.Any(), parentResourceID.Name).
-					Return(
-						&api.HCPOpenShiftCluster{
-							TrackedResource: arm.TrackedResource{
-								Resource: arm.Resource{
-									ID: parentResourceID,
-								},
-							},
-							ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
-								ProvisioningState: arm.ProvisioningStateSucceeded,
+				// Pre-populate the parent cluster in the database for nested resources (node pool, external auth)
+				if tt.parentConflict != nil {
+					parentResourceID := resourceID.Parent
+					clusterInternalID := api.Must(api.NewInternalID(ocm.GenerateClusterHREF("testCluster")))
+					parentCluster := &api.HCPOpenShiftCluster{
+						TrackedResource: arm.TrackedResource{
+							Resource: arm.Resource{
+								ID: parentResourceID,
 							},
 						},
-						nil).
-					MaxTimes(1)
+						ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
+							ProvisioningState: arm.ProvisioningStateSucceeded,
+							ClusterServiceID:  clusterInternalID,
+						},
+					}
+					_, _ = mockDBClient.HCPClusters(parentResourceID.SubscriptionID, parentResourceID.ResourceGroupName).Create(ctx, parentCluster, nil)
+				}
 
 				cloudError := checkForProvisioningStateConflict(ctx, frontend.dbClient, tt.operationRequest, doc.ResourceID, doc.ProvisioningState)
 
@@ -159,9 +155,7 @@ func TestCheckForProvisioningStateConflict(t *testing.T) {
 				name = fmt.Sprintf("%s (parent provisioningState=%s)", tt.name, provisioningState)
 				t.Run(name, func(t *testing.T) {
 					ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
-					ctrl := gomock.NewController(t)
-					mockDBClient := database.NewMockDBClient(ctrl)
-					mockClusterCRUD := database.NewMockHCPClusterCRUD(ctrl)
+					mockDBClient := databasetesting.NewMockDBClient()
 
 					frontend := &Frontend{
 						dbClient: mockDBClient,
@@ -173,27 +167,20 @@ func TestCheckForProvisioningStateConflict(t *testing.T) {
 
 					parentResourceID := resourceID.Parent
 					if parentResourceID.ResourceType.Namespace == resourceID.ResourceType.Namespace {
-						parentDoc := database.NewResourceDocument(parentResourceID)
-						parentDoc.ProvisioningState = provisioningState
-
-						mockDBClient.EXPECT().
-							HCPClusters(parentResourceID.SubscriptionID, parentResourceID.ResourceGroupName).
-							Return(mockClusterCRUD)
-						mockClusterCRUD.EXPECT().
-							Get(gomock.Any(), parentResourceID.Name).
-							Return(
-								&api.HCPOpenShiftCluster{
-									TrackedResource: arm.TrackedResource{
-										Resource: arm.Resource{
-											ID: parentResourceID,
-										},
-									},
-									ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
-										ProvisioningState: provisioningState,
-									},
+						// Pre-populate the parent cluster with the test provisioning state
+						clusterInternalID := api.Must(api.NewInternalID(ocm.GenerateClusterHREF("testCluster")))
+						parentCluster := &api.HCPOpenShiftCluster{
+							TrackedResource: arm.TrackedResource{
+								Resource: arm.Resource{
+									ID: parentResourceID,
 								},
-								nil)
-
+							},
+							ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
+								ProvisioningState: provisioningState,
+								ClusterServiceID:  clusterInternalID,
+							},
+						}
+						_, _ = mockDBClient.HCPClusters(parentResourceID.SubscriptionID, parentResourceID.ResourceGroupName).Create(ctx, parentCluster, nil)
 					} else {
 						t.Fatalf("Parent resource type namespace (%s) differs from child namespace (%s)",
 							parentResourceID.ResourceType.Namespace,

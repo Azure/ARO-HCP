@@ -14,8 +14,6 @@
 
 package database
 
-//go:generate $MOCKGEN -typed -source=crud_serviceprovider_types.go -destination=mock_crud_serviceprovidercluster.go -package database ServiceProviderClusterCRUD
-
 import (
 	"path"
 	"strings"
