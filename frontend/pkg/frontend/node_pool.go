@@ -324,6 +324,7 @@ func (f *Frontend) createNodePool(writer http.ResponseWriter, request *http.Requ
 	// TODO once we we have separate creation/validation of operation documents, this can be done ahead of time.
 	newInternalNodePool.ServiceProviderProperties.ActiveOperationID = createNodePoolOperation.ResourceID.Name
 	newInternalNodePool.Properties.ProvisioningState = createNodePoolOperation.Status
+	api.SetProvisioningCondition(&newInternalNodePool.ServiceProviderProperties.ProvisioningConditions, createNodePoolOperation.Status, createNodePoolOperation.CorrelationRequestID)
 
 	nodePoolCosmosClient := f.dbClient.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).NodePools(resourceID.Parent.Name)
 	cosmosUID, err := nodePoolCosmosClient.AddCreateToTransaction(ctx, transaction, newInternalNodePool, nil)
@@ -598,6 +599,7 @@ func (f *Frontend) updateNodePoolInCosmos(ctx context.Context, writer http.Respo
 	// TODO once we we have separate creation/validation of operation documents, this can be done ahead of time.
 	newInternalNodePool.ServiceProviderProperties.ActiveOperationID = nodePoolUpdateOperation.ResourceID.Name
 	newInternalNodePool.Properties.ProvisioningState = nodePoolUpdateOperation.Status
+	api.SetProvisioningCondition(&newInternalNodePool.ServiceProviderProperties.ProvisioningConditions, nodePoolUpdateOperation.Status, nodePoolUpdateOperation.CorrelationRequestID)
 
 	_, err = f.dbClient.HCPClusters(newInternalNodePool.ID.SubscriptionID, newInternalNodePool.ID.ResourceGroupName).
 		NodePools(newInternalNodePool.ID.Parent.Name).
@@ -740,6 +742,7 @@ func (f *Frontend) addDeleteNodePoolToTransaction(ctx context.Context, writer ht
 
 	nodePool.ServiceProviderProperties.ActiveOperationID = operationDoc.ResourceID.Name
 	nodePool.Properties.ProvisioningState = operationDoc.Status
+	api.SetProvisioningCondition(&nodePool.ServiceProviderProperties.ProvisioningConditions, operationDoc.Status, operationDoc.CorrelationRequestID)
 	_, err = f.dbClient.HCPClusters(nodePool.ID.SubscriptionID, nodePool.ID.ResourceGroupName).NodePools(nodePool.ID.Parent.Name).
 		AddReplaceToTransaction(ctx, transaction, nodePool, nil)
 	if err != nil {

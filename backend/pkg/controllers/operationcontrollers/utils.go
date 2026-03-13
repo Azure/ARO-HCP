@@ -198,6 +198,7 @@ func getClusterForUpdate(ctx context.Context, logger logr.Logger, dbClient datab
 
 	updated := curr.DeepCopy()
 	updated.ServiceProviderProperties.ProvisioningState = newOperationStatus
+	api.SetProvisioningCondition(&updated.ServiceProviderProperties.ProvisioningConditions, newOperationStatus, existingOperation.CorrelationRequestID)
 	if newOperationStatus.IsTerminal() {
 		updated.ServiceProviderProperties.ActiveOperationID = ""
 	}
@@ -232,6 +233,7 @@ func getNodePoolForUpdate(ctx context.Context, logger logr.Logger, dbClient data
 
 	updated := curr.DeepCopy()
 	updated.Properties.ProvisioningState = newOperationStatus
+	api.SetProvisioningCondition(&updated.ServiceProviderProperties.ProvisioningConditions, newOperationStatus, existingOperation.CorrelationRequestID)
 	if newOperationStatus.IsTerminal() {
 		updated.ServiceProviderProperties.ActiveOperationID = ""
 	}
@@ -266,6 +268,7 @@ func getExternalAuthForUpdate(ctx context.Context, logger logr.Logger, dbClient 
 
 	updated := curr.DeepCopy()
 	updated.Properties.ProvisioningState = newOperationStatus
+	api.SetProvisioningCondition(&updated.ServiceProviderProperties.ProvisioningConditions, newOperationStatus, existingOperation.CorrelationRequestID)
 	if newOperationStatus.IsTerminal() {
 		updated.ServiceProviderProperties.ActiveOperationID = ""
 	}

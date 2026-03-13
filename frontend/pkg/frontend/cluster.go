@@ -389,6 +389,7 @@ func (f *Frontend) createHCPCluster(writer http.ResponseWriter, request *http.Re
 	// TODO once we we have separate creation/validation of operation documents, this can be done ahead of time.
 	newInternalCluster.ServiceProviderProperties.ActiveOperationID = clusterCreateOperation.ResourceID.Name
 	newInternalCluster.ServiceProviderProperties.ProvisioningState = clusterCreateOperation.Status
+	api.SetProvisioningCondition(&newInternalCluster.ServiceProviderProperties.ProvisioningConditions, clusterCreateOperation.Status, clusterCreateOperation.CorrelationRequestID)
 
 	cosmosUID, err := f.dbClient.HCPClusters(newInternalCluster.ID.SubscriptionID, newInternalCluster.ID.ResourceGroupName).AddCreateToTransaction(ctx, transaction, newInternalCluster, nil)
 	if err != nil {
@@ -671,6 +672,7 @@ func (f *Frontend) updateHCPClusterInCosmos(ctx context.Context, writer http.Res
 	// TODO once we we have separate creation/validation of operation documents, this can be done ahead of time.
 	newInternalCluster.ServiceProviderProperties.ActiveOperationID = clusterUpdateOperation.ResourceID.Name
 	newInternalCluster.ServiceProviderProperties.ProvisioningState = clusterUpdateOperation.Status
+	api.SetProvisioningCondition(&newInternalCluster.ServiceProviderProperties.ProvisioningConditions, clusterUpdateOperation.Status, clusterUpdateOperation.CorrelationRequestID)
 
 	_, err = f.dbClient.HCPClusters(newInternalCluster.ID.SubscriptionID, newInternalCluster.ID.ResourceGroupName).AddReplaceToTransaction(ctx, transaction, newInternalCluster, nil)
 	if err != nil {
@@ -816,6 +818,7 @@ func (f *Frontend) addDeleteClusterToTransaction(ctx context.Context, writer htt
 
 	cluster.ServiceProviderProperties.ActiveOperationID = operationDoc.ResourceID.Name
 	cluster.ServiceProviderProperties.ProvisioningState = operationDoc.Status
+	api.SetProvisioningCondition(&cluster.ServiceProviderProperties.ProvisioningConditions, operationDoc.Status, operationDoc.CorrelationRequestID)
 	_, err = f.dbClient.HCPClusters(cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName).
 		AddReplaceToTransaction(ctx, transaction, cluster, nil)
 	if err != nil {
@@ -876,6 +879,7 @@ func legacyMergeToInternalCluster(csCluster *arohcpv1alpha1.Cluster, internalClu
 	clusterServiceBasedInternalCluster.ServiceProviderProperties.ProvisioningState = internalCluster.ServiceProviderProperties.ProvisioningState
 	clusterServiceBasedInternalCluster.ServiceProviderProperties.ActiveOperationID = internalCluster.ServiceProviderProperties.ActiveOperationID
 	clusterServiceBasedInternalCluster.ServiceProviderProperties.ClusterServiceID = internalCluster.ServiceProviderProperties.ClusterServiceID
+	clusterServiceBasedInternalCluster.ServiceProviderProperties.ProvisioningConditions = internalCluster.ServiceProviderProperties.ProvisioningConditions
 	if clusterServiceBasedInternalCluster.Identity == nil {
 		clusterServiceBasedInternalCluster.Identity = &arm.ManagedServiceIdentity{}
 	}
