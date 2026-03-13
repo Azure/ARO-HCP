@@ -30,7 +30,6 @@ spec:
   - hypershift-management-clusters
 ---
 # Source: AcmPolicies/templates/namespace-resourceid-mapping.placement.yaml
-# yamllint disable rule:line-length rule:syntax
 apiVersion: cluster.open-cluster-management.io/v1beta1
 kind: Placement
 metadata:
@@ -80,7 +79,6 @@ subjects:
   name: ingress-controller-check
 ---
 # Source: AcmPolicies/templates/namespace-resourceid-mapping.placementbinding.yaml
-# yamllint disable rule:line-length rule:syntax
 apiVersion: policy.open-cluster-management.io/v1
 kind: PlacementBinding
 metadata:
@@ -231,7 +229,6 @@ spec:
         severity: low
 ---
 # Source: AcmPolicies/templates/namespace-resourceid-mapping.policy.yaml
-# yamllint disable rule:line-length rule:syntax
 apiVersion: policy.open-cluster-management.io/v1
 kind: Policy
 metadata:
