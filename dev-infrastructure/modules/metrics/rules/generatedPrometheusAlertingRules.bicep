@@ -691,7 +691,7 @@ Check the status of the Arobit forwarder pods, service endpoints, and network co
 
 resource serviceTagCapacityRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
   name: 'service-tag-capacity-rules'
-  location: resourceGroup().location
+  location: location
   properties: {
     interval: 'PT1M'
     rules: [
