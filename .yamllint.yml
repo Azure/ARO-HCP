@@ -37,6 +37,7 @@ ignore:
 - 'maestro/server/deploy/templates/allow-backend.authorizationpolicy.yaml'
 - 'backend/deploy/templates/backend.service-key-vault.secretproviderclass.yaml'
 - 'backend/deploy/templates/backend.deployment.yaml'
+- 'backend/deploy/templates/backend.operators-managed-identities-config.configmap.yaml'
 rules:
   brackets: enable
   colons: enable

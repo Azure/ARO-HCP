@@ -45,6 +45,106 @@ data:
   CURRENT_VERSION: ''
   LOCATION: 'westus3'
 ---
+# Source: backend/templates/backend.operators-managed-identities-config.configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backend-operators-managed-identities-config
+  namespace: 'aro-hcp'
+data:
+  config.yaml: |
+    controlPlaneOperatorsIdentities:
+      cluster-api-azure:
+        minOpenShiftVersion: '4.19'
+        roleDefinitions:
+          - resourceId: '/providers/Microsoft.Authorization/roleDefinitions/66a367ff-d3c0-5788-a79c-7033bff12c11'
+            name: 'Azure Red Hat OpenShift Cluster API Role - Dev'
+        requirement: 'always'
+      control-plane:
+        minOpenShiftVersion: '4.19'
+        roleDefinitions:
+          - resourceId: '/providers/Microsoft.Authorization/roleDefinitions/666e75a4-7ac9-5be2-949a-1e088ee1f1c1'
+            name: 'Azure Red Hat OpenShift Control Plane Operator Role - Dev'
+        requirement: 'always'
+      cloud-controller-manager:
+        minOpenShiftVersion: '4.19'
+        roleDefinitions:
+          - resourceId: '/providers/Microsoft.Authorization/roleDefinitions/ebe170ec-1247-536a-86d9-74c829dd9844'
+            name: 'Azure Red Hat OpenShift Cloud Controller Manager - Dev'
+        requirement: 'always'
+      ingress:
+        minOpenShiftVersion: '4.19'
+        roleDefinitions:
+          - resourceId: '/providers/Microsoft.Authorization/roleDefinitions/589ca160-4fac-501e-ad6c-006a19583727'
+            name: 'Azure Red Hat OpenShift Cluster Ingress Operator - Dev'
+        requirement: 'always'
+      disk-csi-driver:
+        minOpenShiftVersion: '4.19'
+        roleDefinitions:
+          - resourceId: '/providers/Microsoft.Authorization/roleDefinitions/4367fe74-0b43-5033-b629-15d9f28415ac'
+            name: 'Azure Red Hat OpenShift Disk Storage Operator - Dev'
+        requirement: 'always'
+      file-csi-driver:
+        minOpenShiftVersion: '4.19'
+        roleDefinitions:
+          - resourceId: '/providers/Microsoft.Authorization/roleDefinitions/fdc0aaaa-1c3e-548e-ad27-0321e5fab18b'
+            name: 'Azure Red Hat OpenShift File Storage Operator - Dev'
+        requirement: 'always'
+      image-registry:
+        minOpenShiftVersion: '4.19'
+        roleDefinitions:
+          - resourceId: '/providers/Microsoft.Authorization/roleDefinitions/357b9263-656f-5d45-9d7a-ccb825f0683f'
+            name: 'Azure Red Hat OpenShift Image Registry Operator - Dev'
+        requirement: 'always'
+      cloud-network-config:
+        minOpenShiftVersion: '4.19'
+        roleDefinitions:
+          - resourceId: '/providers/Microsoft.Authorization/roleDefinitions/4e4f23fe-3fab-568b-a001-10b233b0f840'
+            name: 'Azure Red Hat OpenShift Network Operator - Dev'
+        requirement: 'always'
+      kms:
+        minOpenShiftVersion: '4.19'
+        roleDefinitions:
+          - resourceId: '/providers/Microsoft.Authorization/roleDefinitions/db156713-c34d-53de-ae4b-3e85d24e1783'
+            name: 'Azure Red Hat OpenShift KMS Plugin - Dev'
+        requirement: 'onEnablement'
+    dataPlaneOperatorsIdentities:
+      disk-csi-driver:
+        minOpenShiftVersion: '4.19'
+        roleDefinitions:
+          - resourceId: '/providers/Microsoft.Authorization/roleDefinitions/4367fe74-0b43-5033-b629-15d9f28415ac'
+            name: 'Azure Red Hat OpenShift Disk Storage Operator - Dev'
+        k8sServiceAccounts:
+          - name: 'azure-disk-csi-driver-operator'
+            namespace: 'openshift-cluster-csi-drivers'
+          - name: 'azure-disk-csi-driver-controller-sa'
+            namespace: 'openshift-cluster-csi-drivers'
+        requirement: 'always'
+      image-registry:
+        minOpenShiftVersion: '4.19'
+        roleDefinitions:
+          - resourceId: '/providers/Microsoft.Authorization/roleDefinitions/357b9263-656f-5d45-9d7a-ccb825f0683f'
+            name: 'Azure Red Hat OpenShift Image Registry Operator - Dev'
+        k8sServiceAccounts:
+          - name: 'cluster-image-registry-operator'
+            namespace: 'openshift-image-registry'
+          - name: 'registry'
+            namespace: 'openshift-image-registry'
+        requirement: 'always'
+      file-csi-driver:
+        minOpenShiftVersion: '4.19'
+        roleDefinitions:
+          - resourceId: '/providers/Microsoft.Authorization/roleDefinitions/fdc0aaaa-1c3e-548e-ad27-0321e5fab18b'
+            name: 'Azure Red Hat OpenShift File Storage Operator - Dev'
+        k8sServiceAccounts:
+          - name: 'azure-file-csi-driver-operator'
+            namespace: 'openshift-cluster-csi-drivers'
+          - name: 'azure-file-csi-driver-controller-sa'
+            namespace: 'openshift-cluster-csi-drivers'
+          - name: 'azure-file-csi-driver-node-sa'
+            namespace: 'openshift-cluster-csi-drivers'
+        requirement: 'always'
+---
 # Source: backend/templates/leader-election.role.yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
@@ -125,6 +225,7 @@ spec:
       annotations:
         checksum/backendservicekeyvault: 'd76b8f7a5cfa15bb0951ea1e9fd6cac34015808f8c7816410ae96b0c19a9d375'
         checksum/azureruntimeconfig: '40e0cf247edb3f1d1eb59cd97663f8ab2cf029da7a96716ee8916d38ac9fb0e5'
+        checksum/operatorsmanagedidentitiesconfig: 'f27cfce0998e1678bdcebd4bf6aa3118d69bdf79775bd2824bc7a267d2ae92cf'
     spec:
       topologySpreadConstraints:
       - maxSkew: 1
@@ -150,6 +251,9 @@ spec:
       - name: azure-runtime-config
         configMap:
           name: backend-azure-runtime-config
+      - name: operators-managed-identities-config
+        configMap:
+          name: backend-operators-managed-identities-config
       containers:
       - name: aro-hcp-backend
         image: 'arohcpsvcdev.azurecr.io/arohcpbackend@sha256:1234567890'
@@ -176,6 +280,8 @@ spec:
         - "d6b62dfa-87f5-49b3-bbcb-4a687c4faa96"
         - "--insecure-azure-managed-identity-mock-tenant-id"
         - "64dc69e4-d083-49fc-9569-ebece1dd1408"
+        - "--operators-managed-identities-config-path"
+        - "/configs/operators-managed-identities-config/config.yaml"
         env:
         - name: DB_NAME
           valueFrom:
@@ -232,6 +338,9 @@ spec:
           mountPath: "/secrets/backend-service-key-vault"
         - name: azure-runtime-config
           mountPath: /configs/azure-runtime-config
+          readOnly: true
+        - name: operators-managed-identities-config
+          mountPath: /configs/operators-managed-identities-config
           readOnly: true
       restartPolicy: Always
       terminationGracePeriodSeconds: 30
