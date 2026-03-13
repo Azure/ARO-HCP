@@ -52,7 +52,7 @@ build-and-push: image
 .PHONY: build-and-push
 
 print-image-vars:
-	@echo "ARO_HCP_IMAGE_ACR=${ARO_HCP_IMAGE_ACR}"
-	@echo "ARO_HCP_EXPORTER_TAGGED_IMAGE=${ARO_HCP_EXPORTER_TAGGED_IMAGE}"
+	@echo "ARO_HCP_IMAGE_ACR=${ARO_HCP_IMAGE_ACR}" > $(OUTPUT_FILE)
+	@echo "ARO_HCP_EXPORTER_TAGGED_IMAGE=${ARO_HCP_EXPORTER_TAGGED_IMAGE}" >> $(OUTPUT_FILE)
 .PHONY: print-image-vars
 
