@@ -47,16 +47,20 @@ func TestSetProvisioningCondition_Transition(t *testing.T) {
 
 	require.Len(t, conditions, 2)
 
+	byType := make(map[string]ProvisioningCondition)
 	for _, c := range conditions {
-		if c.Type == string(arm.ProvisioningStateAccepted) {
-			assert.Equal(t, ConditionFalse, c.Status)
-			assert.Equal(t, "corr-1", c.CorrelationRequestID, "correlation ID should be preserved")
-		}
-		if c.Type == string(arm.ProvisioningStateProvisioning) {
-			assert.Equal(t, ConditionTrue, c.Status)
-			assert.Equal(t, "corr-2", c.CorrelationRequestID)
-		}
+		byType[c.Type] = c
 	}
+
+	accepted, ok := byType[string(arm.ProvisioningStateAccepted)]
+	require.True(t, ok, "expected Accepted condition")
+	assert.Equal(t, ConditionFalse, accepted.Status)
+	assert.Equal(t, "corr-1", accepted.CorrelationRequestID, "correlation ID should be preserved")
+
+	provisioning, ok := byType[string(arm.ProvisioningStateProvisioning)]
+	require.True(t, ok, "expected Provisioning condition")
+	assert.Equal(t, ConditionTrue, provisioning.Status)
+	assert.Equal(t, "corr-2", provisioning.CorrelationRequestID)
 }
 
 func TestSetProvisioningCondition_FullLifecycle(t *testing.T) {
