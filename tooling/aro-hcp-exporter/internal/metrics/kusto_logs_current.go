@@ -106,7 +106,7 @@ func (c *KustoLogsCurrentCollector) CollectMetricValues(ctx context.Context) {
 
 		queryOptions, err := mustgather.NewInfraQueryOptions(
 			clusterName,
-			time.Now().Add(-10*time.Minute),
+			time.Now().Add(-120*time.Minute),
 			time.Now(),
 			-1,
 		)
@@ -131,14 +131,16 @@ func (c *KustoLogsCurrentCollector) CollectMetricValues(ctx context.Context) {
 			return nil
 		}
 
+		gathererOptions := mustgather.GathererOptions{
+			GatherInfraLogs: true,
+			QueryOptions:    queryOptions,
+		}
+
 		gatherer := mustgather.NewGatherer(
 			queryClient,
 			outputFunc,
 			mustgather.RowOutputOptions{},
-			mustgather.GathererOptions{
-				GatherInfraLogs: true,
-				QueryOptions:    queryOptions,
-			},
+			gathererOptions,
 		)
 
 		if err := gatherer.GatherLogs(ctx); err != nil {

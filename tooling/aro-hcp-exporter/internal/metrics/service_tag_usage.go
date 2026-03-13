@@ -54,7 +54,7 @@ type ServiceTagUsageCollector struct {
 var _ CachingCollector = &ServiceTagUsageCollector{}
 
 // NewServiceTagUsageCollector creates a new ServiceTagUsageCollector
-func NewServiceTagUsageCollector(ctx context.Context, subscriptionNames []string, credential azcore.TokenCredential, cacheTTL time.Duration) (*ServiceTagUsageCollector, error) {
+func NewServiceTagUsageCollector(ctx context.Context, subscriptionNames []string, credential azcore.TokenCredential, cacheTTL time.Duration, errorCounter prometheus.Counter) (*ServiceTagUsageCollector, error) {
 	var resourceGraphClient *graphquery.ResourceGraphClient
 	var err error
 

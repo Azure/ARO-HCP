@@ -137,7 +137,7 @@ func collectLoop(ctx context.Context, collector metrics.CachingCollector, collec
 			collector.CollectMetricValues(ctx)
 			duration := time.Since(start)
 			collectorDurationSeconds.WithLabelValues(collector.Name()).Observe(duration.Seconds())
-			logger.V(2).Info("collected metrics", "name", collector.Name(), "collector_runtime_seconds", duration.Seconds())
+			logger.V(1).Info("collected metrics", "name", collector.Name(), "collector_runtime_seconds", duration.Seconds())
 			sleepDuration := collectionInterval - duration
 			if sleepDuration > 0 {
 				time.Sleep(sleepDuration)

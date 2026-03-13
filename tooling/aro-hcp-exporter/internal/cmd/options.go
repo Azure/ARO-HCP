@@ -127,7 +127,7 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*CompletedOptions, err
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Azure credential: %w", err)
 	}
-	collectors, err := metrics.CreateEnabledCollectors(ctx, o.SubscriptionNames, cred, o.CacheTTL, o.EnabledCollectors)
+	collectors, err := o.CreateEnabledCollectors(ctx, cred)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create collectors: %w", err)
 	}
@@ -189,7 +189,7 @@ func (o *ValidatedOptions) CreateEnabledCollectors(ctx context.Context, creds az
 		switch collector {
 		case metrics.ServiceTagUsageCollectorName:
 			errorCounter := collectorErrorsTotal.WithLabelValues(metrics.ServiceTagUsageCollectorName)
-			publicIPCollector, err := metrics.NewServiceTagUsageCollector(ctx, o.SubscriptionNames, creds, o.CacheTTL)
+			publicIPCollector, err := metrics.NewServiceTagUsageCollector(ctx, o.SubscriptionNames, creds, o.CacheTTL, errorCounter)
 
 			if err != nil {
 				return nil, fmt.Errorf("failed to create public IP collector: %w", err)
