@@ -180,6 +180,10 @@ type Gatherer struct {
 	infraLogsOnly bool
 }
 
+func (g *Gatherer) GetQueryOptions() kusto.QueryOptions {
+	return *g.opts.QueryOptions
+}
+
 // NewGatherer creates a new Gatherer with custom output function and options.
 // This constructor provides full control over how log data is processed and output.
 //
@@ -307,11 +311,13 @@ func (g *Gatherer) GatherLogs(ctx context.Context) error {
 
 	var gatherErrors error
 
-	queryFactory := kusto.NewQueryFactory(g.opts.QueryOptions, false)
+	queryFactory := kusto.NewQueryFactory(false)
+
+	logger.V(1).Info("Query options", "queryOptions", g.GetQueryOptions())
 
 	// First, get all cluster IDs
 	clusterIds := make([]string, 0)
-	clusterIdQuery, err := queryFactory.ClusterIdQuery()
+	clusterIdQuery, err := queryFactory.Build(kusto.ClusterIdQueryDef, kusto.NewTemplateDataFromOptions(g.GetQueryOptions()))
 	if err != nil {
 		return fmt.Errorf("failed to build cluster id query: %w", err)
 	}
@@ -323,10 +329,9 @@ func (g *Gatherer) GatherLogs(ctx context.Context) error {
 		clusterIds = append(clusterIds, row.(ClusterIdRow).ClusterId)
 	}
 	logger.V(1).Info("Obtained following clusterIDs", "clusterIds", strings.Join(clusterIds, ", "))
-	queryFactory.SetClusterIds(clusterIds)
 
 	// Gather service logs
-	servicesQueries, err := queryFactory.ServiceLogs()
+	servicesQueries, err := serviceLogs(queryFactory, g.GetQueryOptions())
 	if err != nil {
 		return fmt.Errorf("failed to build services queries: %w", err)
 	}
@@ -339,7 +344,7 @@ func (g *Gatherer) GatherLogs(ctx context.Context) error {
 		logger.V(2).Info("Skipping hosted control plane logs")
 	} else {
 		logger.V(1).Info("Executing hosted control plane logs")
-		hcpQueries, err := queryFactory.HostedControlPlaneLogs()
+		hcpQueries, err := hostedControlPlaneLogs(queryFactory, g.GetQueryOptions(), clusterIds)
 		if err != nil {
 			return fmt.Errorf("failed to build hosted control plane logs query: %w", err)
 		}
@@ -354,7 +359,7 @@ func (g *Gatherer) GatherLogs(ctx context.Context) error {
 		return nil
 	}
 
-	clusterNamesQueries, err := queryFactory.ClusterNamesQueries()
+	clusterNamesQueries, err := clusterNamesQueries(queryFactory, g.GetQueryOptions())
 	if err != nil {
 		return fmt.Errorf("failed to build cluster names queries: %w", err)
 	}
@@ -373,19 +378,19 @@ func (g *Gatherer) GatherLogs(ctx context.Context) error {
 	if !g.opts.SkipKubernetesEventsLogs {
 		allKubernetesEventsQueries := make([]kusto.Query, 0)
 		for _, clusterName := range clusterNames {
-			queryFactory.SetInfraClusterName(clusterName)
+			g.opts.QueryOptions.InfraClusterName = clusterName
 			if strings.Contains(clusterName, "mgmt") {
-				queries, err := queryFactory.KubernetesEventsMgmt()
+				query, err := queryFactory.Build(kusto.KubernetesEventsMgmtQuery, kusto.NewTemplateDataFromOptions(g.GetQueryOptions(), kusto.WithHCPNamespacePrefix(HCPNamespacePrefix), kusto.WithClusterIds(clusterIds)))
 				if err != nil {
 					return fmt.Errorf("failed to build kubernetes events mgmt query: %w", err)
 				}
-				allKubernetesEventsQueries = append(allKubernetesEventsQueries, queries...)
+				allKubernetesEventsQueries = append(allKubernetesEventsQueries, query)
 			} else {
-				queries, err := queryFactory.KubernetesEventsSvc()
+				query, err := queryFactory.Build(kusto.KubernetesEventsSvcQuery, kusto.NewTemplateDataFromOptions(g.GetQueryOptions(), kusto.WithClusterIds(clusterIds)))
 				if err != nil {
 					return fmt.Errorf("failed to build kubernetes events svc query: %w", err)
 				}
-				allKubernetesEventsQueries = append(allKubernetesEventsQueries, queries...)
+				allKubernetesEventsQueries = append(allKubernetesEventsQueries, query)
 			}
 		}
 		if err := g.queryAndWriteToFile(ctx, QueryTypeKubernetesEvents, allKubernetesEventsQueries); err != nil {
@@ -396,12 +401,12 @@ func (g *Gatherer) GatherLogs(ctx context.Context) error {
 	if g.opts.CollectSystemdLogs {
 		allSystemdLogsQueries := make([]kusto.Query, 0)
 		for _, clusterName := range clusterNames {
-			queryFactory.SetInfraClusterName(clusterName)
-			queries, err := queryFactory.InfraSystemdLogs()
+			g.opts.QueryOptions.InfraClusterName = clusterName
+			query, err := queryFactory.Build(kusto.InfraSystemdLogsQuery, kusto.NewTemplateDataFromOptions(g.GetQueryOptions()))
 			if err != nil {
 				return fmt.Errorf("failed to build systemd logs query: %w", err)
 			}
-			allSystemdLogsQueries = append(allSystemdLogsQueries, queries...)
+			allSystemdLogsQueries = append(allSystemdLogsQueries, query)
 		}
 		if err := g.queryAndWriteToFile(ctx, QueryTypeSystemdLogs, allSystemdLogsQueries); err != nil {
 			gatherErrors = errors.Join(gatherErrors, fmt.Errorf("failed to execute systemd logs query: %w", err))
@@ -412,26 +417,26 @@ func (g *Gatherer) GatherLogs(ctx context.Context) error {
 }
 
 func (g *Gatherer) gatherInfraLogs(ctx context.Context) error {
-	queryFactory := kusto.NewQueryFactory(g.opts.QueryOptions, false)
-	k8sEventsQueries, err := queryFactory.InfraKubernetesEvents()
+	queryFactory := kusto.NewQueryFactory(false)
+	query, err := queryFactory.Build(kusto.InfraKubernetesEventsQuery, kusto.NewTemplateDataFromOptions(g.GetQueryOptions()))
 	if err != nil {
 		return fmt.Errorf("failed to build kubernetes events query: %w", err)
 	}
-	if err := g.queryAndWriteToFile(ctx, QueryTypeKubernetesEvents, k8sEventsQueries); err != nil {
+	if err := g.queryAndWriteToFile(ctx, QueryTypeKubernetesEvents, []kusto.Query{query}); err != nil {
 		return fmt.Errorf("failed to execute kubernetes events query: %w", err)
 	}
-	systemdQueries, err := queryFactory.InfraSystemdLogs()
+	query, err = queryFactory.Build(kusto.InfraSystemdLogsQuery, kusto.NewTemplateDataFromOptions(g.GetQueryOptions()))
 	if err != nil {
 		return fmt.Errorf("failed to build systemd logs query: %w", err)
 	}
-	if err := g.queryAndWriteToFile(ctx, QueryTypeSystemdLogs, systemdQueries); err != nil {
+	if err := g.queryAndWriteToFile(ctx, QueryTypeSystemdLogs, []kusto.Query{query}); err != nil {
 		return fmt.Errorf("failed to execute systemd logs query: %w", err)
 	}
-	servicesQueries, err := queryFactory.InfraServiceLogs()
+	query, err = queryFactory.Build(kusto.InfraServiceLogsQuery, kusto.NewTemplateDataFromOptions(g.GetQueryOptions()))
 	if err != nil {
 		return fmt.Errorf("failed to build services queries: %w", err)
 	}
-	if err := g.queryAndWriteToFile(ctx, QueryTypeServices, servicesQueries); err != nil {
+	if err := g.queryAndWriteToFile(ctx, QueryTypeServices, []kusto.Query{query}); err != nil {
 		return fmt.Errorf("failed to execute services query: %w", err)
 	}
 	return nil

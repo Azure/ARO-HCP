@@ -3,7 +3,7 @@
 kubernetesEvents
 | project timestamp, log, cluster
 | where timestamp between(<<.TimestampMin>> .. <<.TimestampMax>>)
-| where cluster == '<<.ClusterName>>'
+| where cluster == <<.ClusterName>>
 {{- if gt .Limit 0}}
 | limit {{.Limit}}
 {{- end}}

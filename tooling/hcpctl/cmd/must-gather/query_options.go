@@ -24,6 +24,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/kusto"
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/mustgather"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 )
 
 // RawQueryOptions represents the initial, unvalidated configuration for query operations.
@@ -92,12 +93,24 @@ func (o *RawQueryOptions) Validate(ctx context.Context) (*ValidatedQueryOptions,
 		logger.Info("warning: both resource-id and resource-group/subscription-id are provided, will use resource-id to gather cluster ID")
 	}
 
+	subscriptionID := o.SubscriptionID
+	resourceGroupName := o.ResourceGroup
+
+	if o.ResourceId != "" {
+		res, err := arm.ParseResourceID(o.ResourceId)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse resourceID: %w", err)
+		}
+		subscriptionID = res.SubscriptionID
+		resourceGroupName = res.ResourceGroupName
+	}
+
 	return &ValidatedQueryOptions{
 		RawQueryOptions: o,
 		KustoEndpoint:   kustoEndpoint,
 		QueryOptions: kusto.QueryOptions{
-			SubscriptionId:    o.SubscriptionID,
-			ResourceGroupName: o.ResourceGroup,
+			SubscriptionId:    subscriptionID,
+			ResourceGroupName: resourceGroupName,
 			TimestampMin:      o.TimestampMin,
 			TimestampMax:      o.TimestampMax,
 			Limit:             o.Limit,

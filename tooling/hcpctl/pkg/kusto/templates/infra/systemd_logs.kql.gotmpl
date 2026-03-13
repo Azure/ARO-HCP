@@ -2,7 +2,7 @@
 {{end -}}
 systemdLogs
 | project timestamp, log, cluster
-| where cluster == '<<.ClusterName>>'
+| where cluster == <<.ClusterName>>
 | where timestamp between(<<.TimestampMin>> .. <<.TimestampMax>>)
 {{- if gt .Limit 0}}
 | limit {{.Limit}}

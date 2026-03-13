@@ -25,24 +25,8 @@ import (
 	"github.com/Azure/azure-kusto-go/azkustodata/kql"
 )
 
-var ServicesDatabase = "ServiceLogs"
-var HostedControlPlaneLogsDatabase = "HostedControlPlaneLogs"
-
-var ServicesTables = []string{
-	"containerLogs",
-	"clustersServiceLogs",
-	"frontendLogs",
-	"backendLogs",
-}
-
-var HCPNamespacePrefix = "ocm-arohcp"
-
-var ContainerLogsTable = ServicesTables[0]
-var ClustersServiceLogsTable = ServicesTables[1]
-
 // QueryOptions contains the parameters needed to construct queries.
 type QueryOptions struct {
-	ClusterIds        []string
 	SubscriptionId    string
 	ResourceGroupName string
 	InfraClusterName  string
@@ -102,7 +86,6 @@ type TemplateData struct {
 	Table              string    `kqlParameter:"table"`
 	NoTruncation       bool      `kqlParameter:"noTruncation"`
 	Limit              int       `kqlParameter:"limit"`
-	HasClusterIds      bool      `kqlParameter:"hasClusterIds"`
 	TimestampMin       time.Time `kqlParameter:"timestampMin"`
 	TimestampMax       time.Time `kqlParameter:"timestampMax"`
 	ClusterName        string    `kqlParameter:"clusterName"`
@@ -112,6 +95,48 @@ type TemplateData struct {
 	ClusterIds         string    `kqlParameter:"clusterIds"`
 	HCPNamespacePrefix string    `kqlParameter:"hcpNamespacePrefix"`
 	ProjectFields      string    `kqlParameter:"projectFields"`
+}
+
+type TemplateDataOptions func(*TemplateData)
+
+func WithTable(table string) TemplateDataOptions {
+	return func(d *TemplateData) {
+		d.Table = table
+	}
+}
+
+func WithClusterId(clusterId string) TemplateDataOptions {
+	return func(d *TemplateData) {
+		d.ClusterId = clusterId
+	}
+}
+
+func WithClusterIds(clusterIds []string) TemplateDataOptions {
+	return func(d *TemplateData) {
+		d.ClusterIds = formatKQLStringArray(clusterIds)
+	}
+}
+
+func WithHCPNamespacePrefix(hcpNamespacePrefix string) TemplateDataOptions {
+	return func(d *TemplateData) {
+		d.HCPNamespacePrefix = hcpNamespacePrefix
+	}
+}
+
+func NewTemplateDataFromOptions(queryOptions QueryOptions, options ...TemplateDataOptions) TemplateData {
+	templateData := TemplateData{
+		NoTruncation:       queryOptions.Limit < 0,
+		Limit:              max(queryOptions.Limit, 0),
+		TimestampMin:       queryOptions.TimestampMin,
+		TimestampMax:       queryOptions.TimestampMax,
+		ClusterName:        queryOptions.InfraClusterName,
+		SubResourceGroupId: fmt.Sprintf("/subscriptions/%s/resourceGroups/%s", queryOptions.SubscriptionId, queryOptions.ResourceGroupName),
+		ResourceGroupName:  queryOptions.ResourceGroupName,
+	}
+	for _, option := range options {
+		option(&templateData)
+	}
+	return templateData
 }
 
 func (d *TemplateData) PreprocessParameterBindings(useTags bool) map[string]any {
@@ -152,84 +177,44 @@ func (d *TemplateData) PreprocessParameterBindings(useTags bool) map[string]any 
 	return result
 }
 
+func SetNonEmptyString(kqlParameters *kql.Parameters, fieldName string, value string) {
+	if value != "" {
+		kqlParameters.AddString(fieldName, value)
+	}
+}
+
 func (d *TemplateData) CreateKQLParameters() *kql.Parameters {
 	kqlParameters := kql.NewParameters()
-	kqlParameters.AddString("table", d.Table)
+	SetNonEmptyString(kqlParameters, "table", d.Table)
+	SetNonEmptyString(kqlParameters, "clusterName", d.ClusterName)
+	SetNonEmptyString(kqlParameters, "subResourceGroupId", d.SubResourceGroupId)
+	SetNonEmptyString(kqlParameters, "resourceGroupName", d.ResourceGroupName)
+	SetNonEmptyString(kqlParameters, "hcpNamespacePrefix", d.HCPNamespacePrefix)
+	SetNonEmptyString(kqlParameters, "clusterId", d.ClusterId)
+	SetNonEmptyString(kqlParameters, "clusterIds", d.ClusterIds)
 	kqlParameters.AddBool("noTruncation", d.NoTruncation)
 	kqlParameters.AddInt("limit", int32(d.Limit))
-	kqlParameters.AddBool("hasClusterIds", d.HasClusterIds)
 	kqlParameters.AddDateTime("timestampMin", d.TimestampMin)
 	kqlParameters.AddDateTime("timestampMax", d.TimestampMax)
-	kqlParameters.AddString("clusterName", d.ClusterName)
-	kqlParameters.AddString("subResourceGroupId", d.SubResourceGroupId)
-	kqlParameters.AddString("resourceGroupName", d.ResourceGroupName)
-	kqlParameters.AddString("clusterId", d.ClusterId)
 	return kqlParameters
 }
 
 // QueryFactory creates Query instances from templates, binding parameters at creation time.
 type QueryFactory struct {
-	queryOptions         *QueryOptions
 	UnsafeTemplating     bool
 	MergeStandardProject bool
 }
 
 // NewQueryFactory creates a factory with all the shared query parameters.
-func NewQueryFactory(opts *QueryOptions, unsafeTemplating bool) *QueryFactory {
+func NewQueryFactory(unsafeTemplating bool) *QueryFactory {
 	return &QueryFactory{
-		queryOptions:     opts,
 		UnsafeTemplating: unsafeTemplating,
 	}
 }
 
 // Build constructs a Query from a QueryDefinition, applying template data and project fields.
-func (f *QueryFactory) Build(def QueryDefinition) (Query, error) {
-	data := f.templateData(def.Table)
-	if def.ProjectFields != nil {
-		data.ProjectFields = f.projectFields(def.ProjectFields)
-	}
-	return f.buildQuery(def.Name, def.Database, def.TemplatePath, data, f.queryOptions.Limit < 0)
-}
-
-// buildForTables builds one query per table using the given definition as a base,
-// overriding Name and Table for each entry.
-func (f *QueryFactory) buildForTables(tables []string, base QueryDefinition) ([]Query, error) {
-	queries := make([]Query, 0, len(tables))
-	for _, table := range tables {
-		def := base
-		def.Name = table
-		def.Table = table
-		q, err := f.Build(def)
-		if err != nil {
-			return nil, err
-		}
-		queries = append(queries, q)
-	}
-	return queries, nil
-}
-
-func (f *QueryFactory) SetClusterIds(clusterIds []string) {
-	f.queryOptions.ClusterIds = clusterIds
-}
-
-func (f *QueryFactory) SetInfraClusterName(name string) {
-	f.queryOptions.InfraClusterName = name
-}
-
-func (f *QueryFactory) templateData(table string) TemplateData {
-	return TemplateData{
-		Table:              table,
-		NoTruncation:       f.queryOptions.Limit < 0,
-		Limit:              max(f.queryOptions.Limit, 0),
-		HasClusterIds:      len(f.queryOptions.ClusterIds) != 0,
-		TimestampMin:       f.queryOptions.TimestampMin,
-		TimestampMax:       f.queryOptions.TimestampMax,
-		ClusterName:        f.queryOptions.InfraClusterName,
-		SubResourceGroupId: f.subResourceGroupId(),
-		ResourceGroupName:  f.queryOptions.ResourceGroupName,
-		HCPNamespacePrefix: HCPNamespacePrefix,
-		ClusterIds:         formatKQLStringArray(f.queryOptions.ClusterIds),
-	}
+func (f *QueryFactory) Build(def QueryDefinition, templateData TemplateData) (Query, error) {
+	return f.buildQuery(def.Name, def.Database, def.TemplatePath, templateData, templateData.Limit < 0)
 }
 
 func (f *QueryFactory) projectFields(baseFields []string) string {
@@ -252,10 +237,6 @@ func mergeProjectFields(baseFields []string, mergeStandard bool) string {
 		}
 	}
 	return strings.Join(merged, ", ")
-}
-
-func (f *QueryFactory) subResourceGroupId() string {
-	return fmt.Sprintf("/subscriptions/%s/resourceGroups/%s", f.queryOptions.SubscriptionId, f.queryOptions.ResourceGroupName)
 }
 
 func formatKQLStringArray(values []string) string {
@@ -310,129 +291,4 @@ func (f *QueryFactory) buildQuery(name, database, templateName string, data Temp
 		parameters: parametersKQL,
 		unlimited:  unlimited,
 	}, nil
-}
-
-func (f *QueryFactory) InfraKubernetesEvents() ([]Query, error) {
-	q, err := f.Build(InfraKubernetesEventsQuery)
-	if err != nil {
-		return nil, err
-	}
-	return []Query{q}, nil
-}
-
-func (f *QueryFactory) KubernetesEventsSvc() ([]Query, error) {
-	q, err := f.Build(KubernetesEventsSvcQuery)
-	if err != nil {
-		return nil, err
-	}
-	return []Query{q}, nil
-}
-
-func (f *QueryFactory) KubernetesEventsMgmt() ([]Query, error) {
-	if len(f.queryOptions.ClusterIds) == 0 {
-		return nil, nil
-	}
-	q, err := f.Build(KubernetesEventsMgmtQuery)
-	if err != nil {
-		return nil, err
-	}
-	return []Query{q}, nil
-}
-
-func (f *QueryFactory) InfraSystemdLogs() ([]Query, error) {
-	q, err := f.Build(InfraSystemdLogsQuery)
-	if err != nil {
-		return nil, err
-	}
-	return []Query{q}, nil
-}
-
-func (f *QueryFactory) InfraServiceLogs() ([]Query, error) {
-	return f.buildForTables(ServicesTables, InfraServiceLogsQuery)
-}
-
-func (f *QueryFactory) ServiceLogs() ([]Query, error) {
-	return f.buildForTables(ServicesTables, ServiceLogsQueryDef)
-}
-
-func (f *QueryFactory) HostedControlPlaneLogs() ([]Query, error) {
-	queries := make([]Query, 0, len(f.queryOptions.ClusterIds))
-	for _, clusterId := range f.queryOptions.ClusterIds {
-		def := HostedControlPlaneLogsQuery
-		def.Table = ContainerLogsTable
-		data := f.templateData(def.Table)
-		data.ClusterId = clusterId
-		if def.ProjectFields != nil {
-			data.ProjectFields = f.projectFields(def.ProjectFields)
-		}
-		q, err := f.buildQuery(def.Name, def.Database, def.TemplatePath, data, f.queryOptions.Limit < 0)
-		if err != nil {
-			return nil, err
-		}
-		queries = append(queries, q)
-	}
-	return queries, nil
-}
-
-func (f *QueryFactory) ClusterIdQuery() (Query, error) {
-	return f.Build(ClusterIdQueryDef)
-}
-
-func (f *QueryFactory) ClusterNamesQueries() ([]Query, error) {
-	databases := []string{ServicesDatabase, HostedControlPlaneLogsDatabase}
-	queries := make([]Query, 0, len(databases))
-	for _, db := range databases {
-		def := ClusterNamesQueryDef
-		def.Database = db
-		q, err := f.Build(def)
-		if err != nil {
-			return nil, err
-		}
-		queries = append(queries, q)
-	}
-	return queries, nil
-}
-
-func (f *QueryFactory) BackendLogs() (Query, error) {
-	return f.Build(BackendLogsQuery)
-}
-
-func (f *QueryFactory) BackendControllerConditions() (Query, error) {
-	return f.Build(BackendControllerConditionsQuery)
-}
-
-func (f *QueryFactory) FrontendLogs() (Query, error) {
-	return f.Build(FrontendLogsQuery)
-}
-
-func (f *QueryFactory) ClustersServiceLogs() (Query, error) {
-	return f.Build(ClustersServiceLogsQuery)
-}
-
-func (f *QueryFactory) ClustersServicePhases() (Query, error) {
-	return f.Build(ClustersServicePhasesQuery)
-}
-
-func (f *QueryFactory) MaestroLogs() (Query, error) {
-	return f.Build(MaestroLogsQuery)
-}
-
-func (f *QueryFactory) HypershiftLogs() (Query, error) {
-	return f.Build(HypershiftLogsQuery)
-}
-
-func (f *QueryFactory) ACMLogs() (Query, error) {
-	return f.Build(ACMLogsQuery)
-}
-
-func (f *QueryFactory) HostedControlPlane() (Query, error) {
-	return f.Build(HostedControlPlaneQuery)
-}
-
-func (f *QueryFactory) DetailedServiceLogs() (Query, error) {
-	return f.Build(DetailedServiceLogsQuery)
-}
-
-func (f *QueryFactory) DebugQueries() (Query, error) {
-	return f.Build(DebugQueriesQuery)
 }

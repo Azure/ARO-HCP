@@ -14,7 +14,26 @@
 
 package mustgather
 
+import (
+	"github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/kusto"
+)
+
 type QueryType string
+
+var ServicesDatabase = "ServiceLogs"
+var HostedControlPlaneLogsDatabase = "HostedControlPlaneLogs"
+
+var ServicesTables = []string{
+	"containerLogs",
+	"clustersServiceLogs",
+	"frontendLogs",
+	"backendLogs",
+}
+
+var HCPNamespacePrefix = "ocm-arohcp"
+
+var ContainerLogsTable = ServicesTables[0]
+var ClustersServiceLogsTable = ServicesTables[1]
 
 const (
 	QueryTypeServices           QueryType = "services"
@@ -31,4 +50,45 @@ type ClusterIdRow struct {
 
 type ClusterNameRow struct {
 	ClusterName string `kusto:"cluster"`
+}
+
+func serviceLogs(f *kusto.QueryFactory, options kusto.QueryOptions) ([]kusto.Query, error) {
+	queries := make([]kusto.Query, 0, len(ServicesTables))
+	for _, table := range ServicesTables {
+		def := kusto.ServiceLogsQueryDef
+		q, err := f.Build(def, kusto.NewTemplateDataFromOptions(options, kusto.WithTable(table)))
+		if err != nil {
+			return nil, err
+		}
+		queries = append(queries, q)
+	}
+	return queries, nil
+}
+
+func clusterNamesQueries(f *kusto.QueryFactory, options kusto.QueryOptions) ([]kusto.Query, error) {
+	databases := []string{ServicesDatabase, HostedControlPlaneLogsDatabase}
+	queries := make([]kusto.Query, 0, len(databases))
+	for _, db := range databases {
+		def := kusto.ClusterNamesQueryDef
+		def.Database = db
+		q, err := f.Build(def, kusto.NewTemplateDataFromOptions(options))
+		if err != nil {
+			return nil, err
+		}
+		queries = append(queries, q)
+	}
+	return queries, nil
+}
+
+func hostedControlPlaneLogs(f *kusto.QueryFactory, options kusto.QueryOptions, clusterIds []string) ([]kusto.Query, error) {
+	queries := make([]kusto.Query, 0, len(clusterIds))
+	for _, clusterId := range clusterIds {
+		def := kusto.HostedControlPlaneLogsQuery
+		q, err := f.Build(def, kusto.NewTemplateDataFromOptions(options, kusto.WithClusterId(clusterId)))
+		if err != nil {
+			return nil, err
+		}
+		queries = append(queries, q)
+	}
+	return queries, nil
 }
