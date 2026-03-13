@@ -122,7 +122,7 @@ var _ = Describe("Customer", func() {
 			nodePoolParams := framework.NewDefaultNodePoolParams()
 			nodePoolParams.ClusterName = customerClusterName
 			nodePoolParams.NodePoolName = customerNodePoolName
-			nodePoolParams.Replicas = int32(1)
+			nodePoolParams.Replicas = int32(2)
 
 			err = tc.CreateNodePoolFromParam(ctx,
 				*resourceGroup.Name,
