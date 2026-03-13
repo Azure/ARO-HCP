@@ -209,6 +209,12 @@ var _ = Describe("Customer", func() {
 				Spec: corev1.PodSpec{
 					ServiceAccountName: testServiceAccount,
 					RestartPolicy:      corev1.RestartPolicyOnFailure,
+					// Use external DNS to avoid dependency on openshift-dns pods,
+					// which may not be ready yet when this pod starts on a new node.
+					DNSPolicy: corev1.DNSNone,
+					DNSConfig: &corev1.PodDNSConfig{
+						Nameservers: []string{"8.8.8.8", "1.1.1.1"},
+					},
 					Volumes: []corev1.Volume{
 						{
 							Name: "azure-identity-token",
