@@ -486,7 +486,7 @@ func (o *Options) Visualize(ctx context.Context) error {
 	}()
 	rendered := waterfall.RenderContent()
 	// workaround for spyglass cutting off page bottoms: inject spacer before </body>
-	rendered = bytes.Replace(rendered, []byte("</body>"), []byte(`<div style="height: 20px;"></div>`+"\n"+"</body>"), 1)
+	rendered = bytes.Replace(rendered, []byte("</body>"), []byte(`<div style="height: 30px;"></div>`+"\n"+"</body>"), 1)
 	if _, err := output.Write(rendered); err != nil {
 		return fmt.Errorf("failed to write output: %w", err)
 	}
