@@ -20,9 +20,9 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
 
-// ProvisioningCondition extends the Kubernetes Condition type with a
-// CorrelationRequestID to track which API request triggered the state
-// transition.
+// ProvisioningCondition extends the Kubernetes Condition type with an
+// optional CorrelationRequestID for correlating state transitions with
+// originating API requests.
 type ProvisioningCondition struct {
 	Condition
 	// CorrelationRequestID is the optional ARM correlation request ID

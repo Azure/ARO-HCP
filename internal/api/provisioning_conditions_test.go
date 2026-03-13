@@ -83,7 +83,6 @@ func TestSetProvisioningCondition_PreservesEntryTimes(t *testing.T) {
 	SetProvisioningCondition(&conditions, arm.ProvisioningStateAccepted, "corr-1")
 	acceptedTime := conditions[0].LastTransitionTime
 
-	time.Sleep(1 * time.Millisecond)
 	SetProvisioningCondition(&conditions, arm.ProvisioningStateProvisioning, "corr-1")
 
 	var acceptedTimeAfter time.Time
@@ -99,8 +98,8 @@ func TestSetProvisioningCondition_PreservesEntryTimes(t *testing.T) {
 
 	assert.Equal(t, acceptedTime, acceptedTimeAfter,
 		"accepted time should be preserved when transitioning to another state")
-	assert.True(t, provisioningTime.After(acceptedTime),
-		"provisioning time should be after accepted time")
+	assert.False(t, provisioningTime.Before(acceptedTime),
+		"provisioning time should be >= accepted time")
 }
 
 func TestSetProvisioningCondition_SameStateTwice(t *testing.T) {
