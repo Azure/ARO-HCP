@@ -294,7 +294,7 @@ func TestWithImmutableAttributes(t *testing.T) {
 				},
 			},
 			want: ocmCluster(t, ocmClusterDefaults(api.TestLocation).Version(
-				arohcpv1alpha1.NewVersion().ID("openshift-v4.20.15").ChannelGroup("stable"))),
+				arohcpv1alpha1.NewVersion().ID("openshift-v4.20.8").ChannelGroup("stable"))),
 		},
 	}
 
