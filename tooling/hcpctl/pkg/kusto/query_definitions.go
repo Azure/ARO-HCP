@@ -2,10 +2,9 @@ package kusto
 
 // QueryDefinition declaratively describes a single KQL query.
 type QueryDefinition struct {
-	Name          string
-	Database      string
-	TemplatePath  string
-	ProjectFields []string // nil = no project field substitution
+	Name         string `yaml:"name"`
+	Database     string `yaml:"database"`
+	TemplatePath string `yaml:"templatePath"`
 }
 
 var ServicesDatabase = "ServiceLogs"

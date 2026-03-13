@@ -1,7 +1,0 @@
-let _startTime = <<.TimestampMin>>;
-let _endTime = <<.TimestampMax>>;
-database('ServiceLogs').table('frontendLogs')
-| where timestamp between (_startTime .. _endTime)
-| where cluster == '<<.ClusterName>>'
-| where container_name == 'aro-hcp-frontend'
-| project {{.ProjectFields}}

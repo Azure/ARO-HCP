@@ -1,8 +1,0 @@
-let _startTime = <<.TimestampMin>>;
-let _endTime = <<.TimestampMax>>;
-database('ServiceLogs').table('containerLogs')
-| where timestamp between (_startTime .. _endTime)
-| where cluster == '<<.ClusterName>>'
-| where container_name == 'clusters-service-server'
-| where log has 'state to' or log has 'now in'
-| project {{.ProjectFields}}

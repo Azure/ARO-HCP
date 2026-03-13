@@ -20,6 +20,8 @@ import (
 	"io/fs"
 	"path/filepath"
 	"strings"
+
+	"gopkg.in/yaml.v3"
 )
 
 //go:embed templates
@@ -47,4 +49,16 @@ func ListTemplatePaths() ([]string, error) {
 		return nil
 	})
 	return paths, err
+}
+
+func LoadCustomQueryDefinitions() ([]QueryDefinition, error) {
+	data, err := templateFS.ReadFile("templates/custom/queries.yaml")
+	if err != nil {
+		return nil, fmt.Errorf("failed to read custom queries definition: %w", err)
+	}
+	var defs []QueryDefinition
+	if err := yaml.Unmarshal(data, &defs); err != nil {
+		return nil, fmt.Errorf("failed to parse custom queries definition: %w", err)
+	}
+	return defs, nil
 }

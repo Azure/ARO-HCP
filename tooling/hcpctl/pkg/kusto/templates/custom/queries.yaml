@@ -1,0 +1,9 @@
+- name: backendControllerConditions
+  database: ServiceLogs
+  templatePath: templates/custom/backend_controller_conditions.kql.gotmpl
+- name: clustersServicePhases
+  database: ServiceLogs
+  templatePath: templates/custom/clusters_service_phases.kql.gotmpl
+- name: debugQueries
+  database: ServiceLogs
+  templatePath: templates/custom/debug_queries.kql.gotmpl
