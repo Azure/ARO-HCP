@@ -3,8 +3,8 @@
 {{.Table}}
 | project timestamp, log, cluster, namespace_name, container_name
 | where timestamp between(<<.TimestampMin>> .. <<.TimestampMax>>)
-{{- if .ClusterId}}
-| where log has <<.SubResourceGroupId>> or log has_any (<<.ClusterId>>)
+{{- if .ClusterIds }}
+| where log has <<.SubResourceGroupId>> or log has_any (<<.ClusterIds>>)
 {{- else}}
 | where log has <<.SubResourceGroupId>>
 {{- end}}

@@ -28,17 +28,17 @@ var (
 		TemplatePath: "templates/infra/service_logs.kql.gotmpl",
 	}
 	KubernetesEventsSvcQuery = QueryDefinition{
-		Name:         "kubernetesEvents",
+		Name:         "kubernetesEventsSvc",
 		Database:     ServicesDatabase,
 		TemplatePath: "templates/kubernetes-events/svc.kql.gotmpl",
 	}
 	KubernetesEventsMgmtQuery = QueryDefinition{
-		Name:         "kubernetesEvents",
+		Name:         "kubernetesEventsMgmt",
 		Database:     ServicesDatabase,
 		TemplatePath: "templates/kubernetes-events/mgmt.kql.gotmpl",
 	}
 	ServiceLogsQueryDef = QueryDefinition{
-		Name:         "", // set per-table in loop
+		Name:         "serviceLogs",
 		Database:     ServicesDatabase,
 		TemplatePath: "templates/services/service_logs.kql.gotmpl",
 	}
@@ -48,12 +48,12 @@ var (
 		TemplatePath: "templates/hcp/hcp_logs.kql.gotmpl",
 	}
 	ClusterIdQueryDef = QueryDefinition{
-		Name:         "Cluster ID",
+		Name:         "clusterId",
 		Database:     ServicesDatabase,
 		TemplatePath: "templates/discovery/cluster_id.kql.gotmpl",
 	}
 	ClusterNamesQueryDef = QueryDefinition{
-		Name:         "Cluster Names",
+		Name:         "clusterNames",
 		Database:     ServicesDatabase,
 		TemplatePath: "templates/discovery/cluster_names.kql.gotmpl",
 	}

@@ -113,7 +113,7 @@ func WithClusterId(clusterId string) TemplateDataOptions {
 
 func WithClusterIds(clusterIds []string) TemplateDataOptions {
 	return func(d *TemplateData) {
-		d.ClusterIds = formatKQLStringArray(clusterIds)
+		d.ClusterIds = strings.Join(clusterIds, ", ")
 	}
 }
 
@@ -237,14 +237,6 @@ func mergeProjectFields(baseFields []string, mergeStandard bool) string {
 		}
 	}
 	return strings.Join(merged, ", ")
-}
-
-func formatKQLStringArray(values []string) string {
-	quoted := make([]string, len(values))
-	for i, v := range values {
-		quoted[i] = "'" + v + "'"
-	}
-	return strings.Join(quoted, ", ")
 }
 
 // buildQuery builds a query from a template, binding parameters at creation time.

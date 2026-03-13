@@ -331,7 +331,7 @@ func (g *Gatherer) GatherLogs(ctx context.Context) error {
 	logger.V(1).Info("Obtained following clusterIDs", "clusterIds", strings.Join(clusterIds, ", "))
 
 	// Gather service logs
-	servicesQueries, err := serviceLogs(queryFactory, g.GetQueryOptions())
+	servicesQueries, err := serviceLogs(queryFactory, g.GetQueryOptions(), clusterIds)
 	if err != nil {
 		return fmt.Errorf("failed to build services queries: %w", err)
 	}

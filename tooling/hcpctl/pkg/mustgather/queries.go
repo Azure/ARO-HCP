@@ -52,11 +52,11 @@ type ClusterNameRow struct {
 	ClusterName string `kusto:"cluster"`
 }
 
-func serviceLogs(f *kusto.QueryFactory, options kusto.QueryOptions) ([]kusto.Query, error) {
+func serviceLogs(f *kusto.QueryFactory, options kusto.QueryOptions, clusterIds []string) ([]kusto.Query, error) {
 	queries := make([]kusto.Query, 0, len(ServicesTables))
 	for _, table := range ServicesTables {
 		def := kusto.ServiceLogsQueryDef
-		q, err := f.Build(def, kusto.NewTemplateDataFromOptions(options, kusto.WithTable(table)))
+		q, err := f.Build(def, kusto.NewTemplateDataFromOptions(options, kusto.WithTable(table), kusto.WithClusterIds(clusterIds)))
 		if err != nil {
 			return nil, err
 		}
