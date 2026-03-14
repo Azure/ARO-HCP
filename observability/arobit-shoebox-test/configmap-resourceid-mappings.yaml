@@ -1,0 +1,13 @@
+---
+# ResourceId mappings for Shoebox transformation
+# Each key is an OCM namespace name, value is the UPPERCASE ARM resourceId
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: shoebox-resourceid-mappings
+  namespace: arobit-shoebox-test
+  labels:
+    app.kubernetes.io/name: shoebox-resourceid-mappings
+    app.kubernetes.io/component: shoebox-testing
+data:
+  placeholder-namespace: "/SUBSCRIPTIONS/00000000-0000-0000-0000-000000000000/RESOURCEGROUPS/PLACEHOLDER-RG/PROVIDERS/MICROSOFT.REDHATOPENSHIFT/HCPOPENSHIFTCLUSTERS/PLACEHOLDER"
