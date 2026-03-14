@@ -495,9 +495,10 @@ mgmt:
     userAgentPool:
       maxCount: 6
       minCount: 1
-      name: user
+      name: userswft
       osDiskSizeGB: 100
       poolCount: 3
+      secondaryNicCount: 1
       vmSize: Standard_D4s_v3
       zoneRedundantMode: Auto
       zones: ""
