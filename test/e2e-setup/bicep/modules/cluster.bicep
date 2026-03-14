@@ -43,6 +43,11 @@ param tags object = {}
 @description('List of authorized IP ranges for API server access')
 param authorizedCidrs array?
 
+@description('Tags that should be added to the ARO HCP cluster')
+param tags object = {
+  'aro-hcp.experimental.cluster.size-override': 'Minimal'
+}
+
 //
 // E X I S T I N G   R E S O U R C E S
 //
