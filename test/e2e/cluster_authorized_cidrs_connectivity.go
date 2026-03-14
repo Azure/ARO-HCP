@@ -404,6 +404,11 @@ var _ = Describe("Authorized CIDRs", func() {
 					to.Ptr("192.0.2.0/24"), // Use TEST-NET-1 (reserved for documentation)
 				}
 
+				// corrupt the way I think we failed
+				if currentCluster.Identity != nil && currentCluster.Identity.UserAssignedIdentities != nil {
+					currentCluster.Identity.UserAssignedIdentities = nil
+				}
+
 				// Use CreateOrUpdate (PUT) to apply the change
 				poller, err := tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient().BeginCreateOrUpdate(
 					ctx,
