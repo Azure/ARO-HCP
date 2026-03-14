@@ -1322,6 +1322,7 @@ func (i *ImageDigestMirror) UnmarshalJSON(data []byte) error {
 func (k KmsEncryptionProfile) MarshalJSON() ([]byte, error) {
 	objectMap := make(map[string]any)
 	populate(objectMap, "activeKey", k.ActiveKey)
+	populate(objectMap, "vaultName", k.VaultName)
 	populate(objectMap, "visibility", k.Visibility)
 	return json.Marshal(objectMap)
 }
@@ -1337,6 +1338,9 @@ func (k *KmsEncryptionProfile) UnmarshalJSON(data []byte) error {
 		switch key {
 		case "activeKey":
 			err = unpopulate(val, "ActiveKey", &k.ActiveKey)
+			delete(rawMsg, key)
+		case "vaultName":
+			err = unpopulate(val, "VaultName", &k.VaultName)
 			delete(rawMsg, key)
 		case "visibility":
 			err = unpopulate(val, "Visibility", &k.Visibility)
@@ -1355,7 +1359,6 @@ func (k *KmsEncryptionProfile) UnmarshalJSON(data []byte) error {
 func (k KmsKey) MarshalJSON() ([]byte, error) {
 	objectMap := make(map[string]any)
 	populate(objectMap, "name", k.Name)
-	populate(objectMap, "vaultName", k.VaultName)
 	populate(objectMap, "version", k.Version)
 	return json.Marshal(objectMap)
 }
@@ -1371,9 +1374,6 @@ func (k *KmsKey) UnmarshalJSON(data []byte) error {
 		switch key {
 		case "name":
 			err = unpopulate(val, "Name", &k.Name)
-			delete(rawMsg, key)
-		case "vaultName":
-			err = unpopulate(val, "VaultName", &k.VaultName)
 			delete(rawMsg, key)
 		case "version":
 			err = unpopulate(val, "Version", &k.Version)

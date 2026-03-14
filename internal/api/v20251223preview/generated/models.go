@@ -50,7 +50,7 @@ type ClusterAutoscalingProfile struct {
 	// fixed. https://github.com/Azure/typespec-azure/issues/1586
 	MaxPodGracePeriodSeconds *int32
 
-	// podPriorityThreshold enables users to schedule “best-effort” pods, which shouldn’t trigger autoscaler actions, but only
+	// podPriorityThreshold enables users to schedule "best-effort" pods, which shouldn't trigger autoscaler actions, but only
 	// run when there are spare resources available. The default is -10. See the
 	// following for more details: https://github.com/kubernetes/autoscaler/blob/master/cluster-autoscaler/FAQ.md#how-does-cluster-autoscaler-work-with-pod-priority-and-preemption
 	// Note: The default value is not declared in the API specification because of a TypeSpec bug with updatable fields. The default
@@ -508,6 +508,9 @@ type KmsEncryptionProfile struct {
 	// REQUIRED; The details of the active key.
 	ActiveKey *KmsKey
 
+	// REQUIRED; vaultName is the name of the keyvault that contains the secret.
+	VaultName *string
+
 	// REQUIRED; visibility of the keyvault that contains the secret.
 	Visibility *KeyVaultVisibility
 }
@@ -516,9 +519,6 @@ type KmsEncryptionProfile struct {
 type KmsKey struct {
 	// REQUIRED; name is the name of the keyvault key used for encryption/decryption.
 	Name *string
-
-	// REQUIRED; vaultName is the name of the keyvault that contains the secret.
-	VaultName *string
 
 	// REQUIRED; version contains the version of the key to use.
 	Version *string
