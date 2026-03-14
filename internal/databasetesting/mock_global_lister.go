@@ -83,6 +83,13 @@ func (g *mockGlobalListers) Controllers() database.GlobalLister[api.Controller] 
 	}
 }
 
+func (g *mockGlobalListers) ManagementClusterContents() database.GlobalLister[api.ManagementClusterContent] {
+	return &mockTypedGlobalLister[api.ManagementClusterContent, database.GenericDocument[api.ManagementClusterContent]]{
+		client:       g.client,
+		resourceType: api.ManagementClusterContentResourceType,
+	}
+}
+
 func (g *mockGlobalListers) Operations() database.GlobalLister[api.Operation] {
 	return &mockTypedGlobalLister[api.Operation, database.GenericDocument[api.Operation]]{
 		client:       g.client,
