@@ -36,7 +36,6 @@ import (
 )
 
 const (
-	csFlavourId        string = "osd-4" // managed cluster
 	csCloudProvider    string = "azure"
 	csProductId        string = "aro"
 	csHypershifEnabled bool   = true
@@ -721,8 +720,6 @@ func withImmutableAttributes(clusterBuilder *arohcpv1alpha1.ClusterBuilder, hcpC
 
 	clusterBuilder.
 		Name(strings.ToLower(hcpCluster.Name)).
-		Flavour(arohcpv1alpha1.NewFlavour().
-			ID(csFlavourId)).
 		Region(arohcpv1alpha1.NewCloudRegion().
 			ID(hcpCluster.Location)).
 		CloudProvider(arohcpv1alpha1.NewCloudProvider().
