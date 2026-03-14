@@ -250,6 +250,39 @@ func TestValidateNodePoolCreate(t *testing.T) {
 			},
 		},
 		{
+			name: "invalid disk type - create",
+			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.Platform.OSDisk.DiskType = "InvalidType"
+				return np
+			}(),
+			expectErrors: []expectedError{
+				{message: "Unsupported value", fieldPath: "properties.platform.osDisk.diskType"},
+			},
+		},
+		{
+			name: "ephemeral disk requires autoRepair true - create",
+			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.Platform.OSDisk.DiskType = api.OsDiskTypeEphemeral
+				np.Properties.AutoRepair = false
+				return np
+			}(),
+			expectErrors: []expectedError{
+				{message: "must be true when platform.osDisk.diskType is Ephemeral", fieldPath: "properties.autoRepair"},
+			},
+		},
+		{
+			name: "ephemeral disk with autoRepair true - valid - create",
+			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.Platform.OSDisk.DiskType = api.OsDiskTypeEphemeral
+				np.Properties.AutoRepair = true
+				return np
+			}(),
+			expectErrors: []expectedError{},
+		},
+		{
 			name: "wrong encryption set resource type - create",
 			nodePool: func() *api.HCPOpenShiftClusterNodePool {
 				np := createValidNodePool()

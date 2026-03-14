@@ -35,6 +35,21 @@ var (
 	)
 )
 
+// OsDiskType represents the type of OS disk.
+type OsDiskType string
+
+const (
+	OsDiskTypeManaged   OsDiskType = "Managed"
+	OsDiskTypeEphemeral OsDiskType = "Ephemeral"
+)
+
+var (
+	ValidOsDiskTypes = sets.New[OsDiskType](
+		OsDiskTypeManaged,
+		OsDiskTypeEphemeral,
+	)
+)
+
 // NetworkType represents an OpenShift cluster network plugin.
 type NetworkType string
 

@@ -117,6 +117,16 @@ func validateNodePoolProperties(ctx context.Context, op operation.Operation, fld
 	//AutoRepair              bool                    `json:"autoRepair,omitempty"`
 	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("autoRepair"), &newObj.AutoRepair, safe.Field(oldObj, toNodePoolPropertiesAutoRepair))...)
 
+	// Ephemeral OS disks require autoRepair=true. Both fields are immutable,
+	// so this constraint only fires on CREATE (harmless on UPDATE due to immutability).
+	if newObj.Platform.OSDisk.DiskType == api.OsDiskTypeEphemeral && !newObj.AutoRepair {
+		errs = append(errs, field.Invalid(
+			fldPath.Child("autoRepair"),
+			newObj.AutoRepair,
+			"must be true when platform.osDisk.diskType is Ephemeral (nodes with ephemeral disks lose data on host events)",
+		))
+	}
+
 	//AutoScaling             *NodePoolAutoScaling    `json:"autoScaling,omitempty"`
 	errs = append(errs, validateNodePoolAutoScaling(ctx, op, fldPath.Child("autoScaling"), newObj.AutoScaling, safe.Field(oldObj, toNodePoolPropertiesAutoScaling), newObj.Platform.AvailabilityZone)...)
 
@@ -218,6 +228,7 @@ var (
 	toOSDiskProfileSizeGiB                = func(oldObj *api.OSDiskProfile) *int32 { return oldObj.SizeGiB }
 	toOSDiskProfileDiskStorageAccountType = func(oldObj *api.OSDiskProfile) *api.DiskStorageAccountType { return &oldObj.DiskStorageAccountType }
 	toOSDiskProfileEncryptionSetID        = func(oldObj *api.OSDiskProfile) *azcorearm.ResourceID { return oldObj.EncryptionSetID }
+	toOSDiskProfileDiskType               = func(oldObj *api.OSDiskProfile) *api.OsDiskType { return &oldObj.DiskType }
 )
 
 func validateOSDiskProfile(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *api.OSDiskProfile) field.ErrorList {
@@ -228,6 +239,9 @@ func validateOSDiskProfile(ctx context.Context, op operation.Operation, fldPath 
 
 	//DiskStorageAccountType DiskStorageAccountType `json:"diskStorageAccountType,omitempty"`
 	errs = append(errs, validate.Enum(ctx, op, fldPath.Child("diskStorageAccountType"), &newObj.DiskStorageAccountType, safe.Field(oldObj, toOSDiskProfileDiskStorageAccountType), api.ValidDiskStorageAccountTypes)...)
+
+	//DiskType               OsDiskType             `json:"diskType"`
+	errs = append(errs, validate.Enum(ctx, op, fldPath.Child("diskType"), &newObj.DiskType, safe.Field(oldObj, toOSDiskProfileDiskType), api.ValidOsDiskTypes)...)
 
 	//EncryptionSetID        string                 `json:"encryptionSetId,omitempty"`
 	errs = append(errs, RestrictedResourceIDWithResourceGroup(ctx, op, fldPath.Child("encryptionSetId"), newObj.EncryptionSetID, safe.Field(oldObj, toOSDiskProfileEncryptionSetID), "Microsoft.Compute/diskEncryptionSets")...)

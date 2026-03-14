@@ -35,6 +35,28 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
+// Conversion Flow Architecture
+//
+// This file handles bidirectional conversion between Azure Resource Manager (ARM)
+// and OpenShift Cluster Manager (OCM/Cluster Service) representations.
+//
+// CRITICAL: Both Frontend (FE) and Backend (BE) read through CosmosToInternal*()
+// conversion functions in internal/database/convert_*.go. Any defaults applied
+// during that conversion affect both FE and BE consistently.
+//
+// FLOW PATHS:
+// 1. FE API Request -> internal API -> Cosmos (via InternalToCosmos)
+// 2. BE reads Cosmos -> internal API (via CosmosToInternal) -> CS format (via RPToCS functions here)
+// 3. CS state -> internal API (via CSToRP functions here) -> Cosmos (via InternalToCosmos)
+// 4. FE GET response: Cosmos -> internal API (via CosmosToInternal), merged with CS data (via mergeToInternal*)
+//
+// INVARIANTS:
+// - Canonical defaults (in EnsureDefaults) and CS->RP defaults (here) must match
+// - GET-then-PUT must preserve all explicit values (use Ptr, not PtrOrNil for bools)
+// - MigrateCosmosOrDie persists defaults via Get->Replace during FE deployment startup
+//
+// See docs/api-version-defaults-and-storage.md for the full design rationale.
+
 const (
 	csFlavourId        string = "osd-4" // managed cluster
 	csCloudProvider    string = "azure"
@@ -57,6 +79,8 @@ const (
 	csUsernameClaimPrefixPolicyPrefix   string = "Prefix"
 	csCIDRBlockAllowAccessModeAllowAll  string = "allow_all"
 	csCIDRBlockAllowAccessModeAllowList string = "allow_list"
+	csOsDiskPersistencePersistent       string = "persistent"
+	csOsDiskPersistenceEphemeral        string = "ephemeral"
 )
 
 // Sentinel error for use with errors.Is
@@ -115,6 +139,70 @@ func convertOutboundTypeRPToCS(outboundTypeRP api.OutboundType) (string, error) 
 		return csOutboundType, nil
 	default:
 		return "", conversionError[string](outboundTypeRP)
+	}
+}
+
+// convertDiskStorageAccountTypeCSToRP maps Cluster Service DiskStorageAccountType
+// strings to RP enum values. An empty string from CS (pre-existing resources that
+// predate the field) is mapped to the default. Must match the canonical default in
+// HCPOpenShiftClusterNodePool.EnsureDefaults(). See docs/api-version-defaults-and-storage.md.
+func convertDiskStorageAccountTypeCSToRP(storageAccountTypeCS string) (api.DiskStorageAccountType, error) {
+	switch storageAccountTypeCS {
+	case string(api.DiskStorageAccountTypePremium_LRS):
+		return api.DiskStorageAccountTypePremium_LRS, nil
+	case string(api.DiskStorageAccountTypeStandardSSD_LRS):
+		return api.DiskStorageAccountTypeStandardSSD_LRS, nil
+	case string(api.DiskStorageAccountTypeStandard_LRS):
+		return api.DiskStorageAccountTypeStandard_LRS, nil
+	case "":
+		return api.DiskStorageAccountTypePremium_LRS, nil
+	default:
+		return "", conversionError[api.DiskStorageAccountType](storageAccountTypeCS)
+	}
+}
+
+func convertDiskStorageAccountTypeRPToCS(storageAccountTypeRP api.DiskStorageAccountType) (string, error) {
+	switch storageAccountTypeRP {
+	case api.DiskStorageAccountTypePremium_LRS:
+		return string(api.DiskStorageAccountTypePremium_LRS), nil
+	case api.DiskStorageAccountTypeStandardSSD_LRS:
+		return string(api.DiskStorageAccountTypeStandardSSD_LRS), nil
+	case api.DiskStorageAccountTypeStandard_LRS:
+		return string(api.DiskStorageAccountTypeStandard_LRS), nil
+	default:
+		// Do not add a "" case here. Canonical defaults in EnsureDefaults()
+		// and API-version defaults in SetDefaultValues*() guarantee non-empty
+		// values before this function is called on the write path.
+		// An empty value here indicates a bug in the defaults pipeline.
+		return "", conversionError[string](storageAccountTypeRP)
+	}
+}
+
+// convertDiskTypeCSToRP maps Cluster Service persistence strings to RP
+// OsDiskType enum values. An empty string from CS (pre-existing resources that
+// predate the field) is mapped to the default. Must match the storage default in
+// applyNodePoolStorageDefaults. See docs/api-version-defaults-and-storage.md.
+func convertDiskTypeCSToRP(persistence string) (api.OsDiskType, error) {
+	switch persistence {
+	case csOsDiskPersistencePersistent, "":
+		return api.OsDiskTypeManaged, nil
+	case csOsDiskPersistenceEphemeral:
+		return api.OsDiskTypeEphemeral, nil
+	default:
+		return "", conversionError[api.OsDiskType](persistence)
+	}
+}
+
+func convertDiskTypeRPToCS(diskType api.OsDiskType) (string, error) {
+	switch diskType {
+	case api.OsDiskTypeManaged:
+		return csOsDiskPersistencePersistent, nil
+	case api.OsDiskTypeEphemeral:
+		return csOsDiskPersistenceEphemeral, nil
+	default:
+		// Do not add a "" case here. Storage defaults and constructor defaults
+		// guarantee DiskType is never empty when this function is called.
+		return "", conversionError[string](diskType)
 	}
 }
 
@@ -810,6 +898,16 @@ func ConvertCStoNodePool(resourceID *azcorearm.ResourceID, azureLocation string,
 		}
 	}
 
+	diskStorageAccountType, err := convertDiskStorageAccountTypeCSToRP(np.AzureNodePool().OsDisk().StorageAccountType())
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
+
+	diskType, err := convertDiskTypeCSToRP(np.AzureNodePool().OsDisk().Persistence())
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
+
 	nodePool := &api.HCPOpenShiftClusterNodePool{
 		TrackedResource: arm.TrackedResource{
 			Resource: arm.Resource{
@@ -830,7 +928,8 @@ func ConvertCStoNodePool(resourceID *azcorearm.ResourceID, azureLocation string,
 				EnableEncryptionAtHost: np.AzureNodePool().EncryptionAtHost().State() == csEncryptionAtHostStateEnabled,
 				OSDisk: api.OSDiskProfile{
 					SizeGiB:                ptr.To(int32(np.AzureNodePool().OsDisk().SizeGibibytes())),
-					DiskStorageAccountType: api.DiskStorageAccountType(np.AzureNodePool().OsDisk().StorageAccountType()),
+					DiskStorageAccountType: diskStorageAccountType,
+					DiskType:               diskType,
 				},
 				AvailabilityZone: np.AvailabilityZone(),
 			},
@@ -881,6 +980,14 @@ func BuildCSNodePool(ctx context.Context, nodePool *api.HCPOpenShiftClusterNodeP
 		if nodePool.Properties.Platform.SubnetID != nil {
 			subnetResourceIDString = nodePool.Properties.Platform.SubnetID.String()
 		}
+		csDiskStorageAccountType, err := convertDiskStorageAccountTypeRPToCS(nodePool.Properties.Platform.OSDisk.DiskStorageAccountType)
+		if err != nil {
+			return nil, utils.TrackError(err)
+		}
+		csPersistence, err := convertDiskTypeRPToCS(nodePool.Properties.Platform.OSDisk.DiskType)
+		if err != nil {
+			return nil, utils.TrackError(err)
+		}
 		nodePoolBuilder.
 			ID(strings.ToLower(nodePool.Name)).
 			Version(arohcpv1alpha1.NewVersion().
@@ -893,7 +1000,8 @@ func BuildCSNodePool(ctx context.Context, nodePool *api.HCPOpenShiftClusterNodeP
 				EncryptionAtHost(convertEnableEncryptionAtHostToCSBuilder(nodePool.Properties.Platform)).
 				OsDisk(arohcpv1alpha1.NewAzureNodePoolOsDisk().
 					SizeGibibytes(int(*nodePool.Properties.Platform.OSDisk.SizeGiB)).
-					StorageAccountType(string(nodePool.Properties.Platform.OSDisk.DiskStorageAccountType)))).
+					StorageAccountType(csDiskStorageAccountType).
+					Persistence(csPersistence))).
 			AvailabilityZone(nodePool.Properties.Platform.AvailabilityZone).
 			AutoRepair(nodePool.Properties.AutoRepair)
 	}

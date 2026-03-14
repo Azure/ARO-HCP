@@ -62,6 +62,13 @@ func TestRoundTripInternalExternalInternal(t *testing.T) {
 			j.ClusterServiceID = ocm.InternalID{}
 			j.ExistingCosmosUID = ""
 		},
+		func(j *api.OSDiskProfile, c randfill.Continue) {
+			c.FillNoCustom(j)
+			// DiskType is a v20251223preview field that does not exist in v20240610preview.
+			// It cannot roundtrip through this version's external type.
+			// Cross-version preservation is handled by preserveUnknownNodePoolFields.
+			j.DiskType = ""
+		},
 		func(j *api.HCPOpenShiftClusterExternalAuthServiceProviderProperties, c randfill.Continue) {
 			c.FillNoCustom(j)
 			// ActiveOperationID does not roundtrip through the external type because it is purely an internal detail
@@ -120,7 +127,7 @@ func roundTripHCPCluster(t *testing.T, original *api.HCPOpenShiftCluster) {
 	v := version{}
 	externalObj := v.NewHCPOpenShiftCluster(original)
 
-	roundTrippedObj, err := externalObj.ConvertToInternal()
+	roundTrippedObj, err := externalObj.ConvertToInternal(nil)
 	require.NoError(t, err)
 
 	// we compare the JSON here because many of these types have private fields that cannot be introspected
@@ -138,7 +145,7 @@ func roundTripNodePool(t *testing.T, original *api.HCPOpenShiftClusterNodePool) 
 	v := version{}
 	externalObj := v.NewHCPOpenShiftClusterNodePool(original)
 
-	roundTrippedObj, err := externalObj.ConvertToInternal()
+	roundTrippedObj, err := externalObj.ConvertToInternal(nil)
 	require.NoError(t, err)
 
 	// we compare the JSON here because many of these types have private fields that cannot be introspected
@@ -156,7 +163,7 @@ func roundTripExternalAuth(t *testing.T, original *api.HCPOpenShiftClusterExtern
 	v := version{}
 	externalObj := v.NewHCPOpenShiftClusterExternalAuth(original)
 
-	roundTrippedObj, err := externalObj.ConvertToInternal()
+	roundTrippedObj, err := externalObj.ConvertToInternal(nil)
 	require.NoError(t, err)
 
 	// we compare the JSON here because many of these types have private fields that cannot be introspected
