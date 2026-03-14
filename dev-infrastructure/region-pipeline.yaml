@@ -129,6 +129,44 @@ resourceGroups:
         resourceGroup: global
         step: output
         name: globalMSIId
+- name: kusto
+  resourceGroup: '{{ .kusto.rg }}'
+  subscription: '{{ .global.subscription.key }}'
+  steps:
+  - name: output
+    action: ARM
+    template: templates/kusto-lookup.bicep
+    parameters: configurations/kusto-lookup.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
+  - name: kustoDataConnection
+    action: ARM
+    template: templates/audit-logs-data-connection.bicep
+    parameters: configurations/audit-logs-data-connection.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    variables:
+    - name: auditLogsEventHubId
+      input:
+        resourceGroup: auditLogs
+        step: auditLogsEventHub
+        name: auditLogsEventHubId
+- name: auditLogs
+  # In most regions this will be the same as the regional RG,
+  # but in dev, we want to deploy the event hub to the shared RG
+  resourceGroup: '{{ .auditLogsEventHub.rg }}'
+  subscription: '{{ .svc.subscription.key }}'
+  steps:
+  - name: auditLogsEventHub
+    action: ARM
+    template: templates/audit-logs-eventhub.bicep
+    parameters: configurations/audit-logs-eventhub.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    variables:
+    - name: kustoPrincipalId
+      input:
+        resourceGroup: kusto
+        step: output
+        name: kustoPrincipalId
 - name: regional
   resourceGroup: '{{ .regionRG }}'
   subscription: '{{ .svc.subscription.key }}'

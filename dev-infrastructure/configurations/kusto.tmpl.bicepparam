@@ -21,11 +21,3 @@ param autoScaleMin = {{ .kusto.autoScaleMin }}
 param autoScaleMax = {{ .kusto.autoScaleMax }}
 
 param enableAutoScale = {{ .kusto.enableAutoScale }}
-
-param auditLogsEventHubNamespaceName = '{{ .kusto.auditLogsEventHub.namespace }}'
-
-param auditLogsEventHubName = '{{ .kusto.auditLogsEventHub.name }}'
-
-param auditLogsKustoConsumerGroupName = '{{ .kusto.auditLogsEventHub.kustoConsumerGroupName }}'
-
-param auditLogsDiagnosticSettingsRuleName = '{{ .kusto.auditLogsEventHub.authRuleName }}'
