@@ -1,9 +1,10 @@
 {
 	"_attachments": "attachments/",
-	"_etag": "\"00000000-0000-0000-84ed-82c4b40501dc\"",
-	"_rid": "ZWxVAJMOK1EOAAAAAAAAAA==",
-	"_self": "dbs/ZWxVAA==/colls/ZWxVAJMOK1E=/docs/ZWxVAJMOK1EOAAAAAAAAAA==/",
-	"_ts": 1768350855,
+	"_etag": "\"00000000-0000-0000-8196-447c8c0501dc\"",
+	"_rid": "MFstAI+1dLsFAAAAAAAAAA==",
+	"_self": "dbs/MFstAA==/colls/MFstAI+1dLs=/docs/MFstAI+1dLsFAAAAAAAAAA==/",
+	"_ts": 1767983530,
+	"id": "85dada74-03ca-5abf-9adc-218fbd0090c7",
 	"partitionKey": "6b690bec-0c16-4ecb-8f67-781caf40bba7",
 	"resourceID": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/create-with-tags/externalAuths/default",
 	"properties": {

@@ -40,10 +40,6 @@ const (
 type Operation struct {
 	CosmosMetadata `json:"cosmosMetadata"`
 
-	// ResourceID must be serialized exactly here for the generic CRUD to work.
-	// ResourceID here is NOT an ARM resourceID, it just parses like and one and is guarantee unique
-	ResourceID *azcorearm.ResourceID `json:"resourceId"`
-
 	// TenantID is the tenant ID of the client that requested the operation
 	TenantID string `json:"tenantId,omitempty"`
 	// ClientID is the object ID of the client that requested the operation
