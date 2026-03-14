@@ -614,7 +614,7 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 	ctx := request.Context()
 	logger := utils.LoggerFromContext(ctx)
 
-	subscription, err := f.dbClient.Subscriptions().Get(ctx, subscriptionID)
+	subscription, err := SubscriptionFromContext(ctx)
 	if err != nil {
 		return err
 	}
