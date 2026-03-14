@@ -133,7 +133,7 @@ func (c *controlPlaneActiveVersionSyncer) getControlPlaneActiveVersionsFromManag
 	if hostedCluster == nil {
 		return nil, utils.TrackError(fmt.Errorf("no HostedCluster found in KubeContent"))
 	}
-	versions, err := c.getHostedClusterActiveVersions(hostedCluster)
+	versions, err := c.getHostedClusterActiveVersions(ctx, hostedCluster)
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}
@@ -147,14 +147,16 @@ func (c *controlPlaneActiveVersionSyncer) getControlPlaneActiveVersionsFromManag
 //
 // TODO: Once Hypershift exposes HostedCluster.Status.controlPlaneVersion (ControlPlaneVersionStatus) from
 // https://github.com/openshift/enhancements/pull/1950, derive active versions from that instead of status.version.history.
-func (c *controlPlaneActiveVersionSyncer) getHostedClusterActiveVersions(hostedCluster *hsv1beta1.HostedCluster) ([]api.HCPClusterActiveVersion, error) {
+func (c *controlPlaneActiveVersionSyncer) getHostedClusterActiveVersions(ctx context.Context, hostedCluster *hsv1beta1.HostedCluster) ([]api.HCPClusterActiveVersion, error) {
 	if hostedCluster == nil || hostedCluster.Status.Version == nil {
 		return nil, nil
 	}
+	logger := utils.LoggerFromContext(ctx)
 	var activeVersions []api.HCPClusterActiveVersion
 	for _, historyEntry := range hostedCluster.Status.Version.History {
 		parsedVersion, err := semver.Parse(historyEntry.Version)
 		if err != nil {
+			logger.Info("Skipping HostedCluster version history entry with unparseable version", "history", historyEntry)
 			continue
 		}
 		activeVersions = append(activeVersions, api.HCPClusterActiveVersion{Version: &parsedVersion, State: historyEntry.State})
