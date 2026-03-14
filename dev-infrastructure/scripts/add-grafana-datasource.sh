@@ -26,7 +26,7 @@ then
     exit 0
 fi
 
-if [ "${SKIP_GRAFANA_DATASOURCE}" = "true" ]; then
+if [ "${SKIP_GRAFANA_DATASOURCE:-false}" = "true" ]; then
     echo "Skipping Grafana datasource setup (SKIP_GRAFANA_DATASOURCE=true)"
     exit 0
 fi
