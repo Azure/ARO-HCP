@@ -47,6 +47,9 @@ type MockDBClient struct {
 
 	// lockClient is an optional mock lock client
 	lockClient database.LockClientInterface
+
+	// globalListers is an optional custom global listers implementation for testing
+	globalListers database.GlobalListers
 }
 
 // NewMockDBClient creates a new mock DBClient with empty storage.
@@ -63,6 +66,12 @@ func NewMockDBClient() *MockDBClient {
 // SetLockClient sets a mock lock client for testing.
 func (m *MockDBClient) SetLockClient(lockClient database.LockClientInterface) {
 	m.lockClient = lockClient
+}
+
+// SetGlobalListers sets a custom global listers implementation for testing.
+// This allows tests to provide custom GlobalListers that return errors or paginate.
+func (m *MockDBClient) SetGlobalListers(globalListers database.GlobalListers) {
+	m.globalListers = globalListers
 }
 
 // GetLockClient returns the mock lock client, or nil if not set.
@@ -153,8 +162,12 @@ func (m *MockDBClient) Subscriptions() database.SubscriptionCRUD {
 }
 
 // GlobalListers returns interfaces for listing all resources of a particular
-// type across all partitions.
+// type across all partitions. If a custom GlobalListers was set via SetGlobalListers,
+// that is returned instead.
 func (m *MockDBClient) GlobalListers() database.GlobalListers {
+	if m.globalListers != nil {
+		return m.globalListers
+	}
 	return &mockGlobalListers{client: m}
 }
 

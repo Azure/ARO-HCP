@@ -44,6 +44,36 @@ import (
 	"github.com/Azure/ARO-HCP/internal/ocm"
 )
 
+// errorInjectingDBClientForCreate wraps MockDBClient to return error-injecting CRUDs.
+type errorInjectingDBClientForCreate struct {
+	*databasetesting.MockDBClient
+	spcCRUD database.ServiceProviderClusterCRUD
+}
+
+func (e *errorInjectingDBClientForCreate) ServiceProviderClusters(subscriptionID, resourceGroupName, clusterName string) database.ServiceProviderClusterCRUD {
+	if e.spcCRUD != nil {
+		return e.spcCRUD
+	}
+	return e.MockDBClient.ServiceProviderClusters(subscriptionID, resourceGroupName, clusterName)
+}
+
+var _ database.DBClient = &errorInjectingDBClientForCreate{}
+
+// errorInjectingSPCCRUDForCreate wraps ServiceProviderClusterCRUD to allow error injection.
+type errorInjectingSPCCRUDForCreate struct {
+	database.ServiceProviderClusterCRUD
+	getErr error
+}
+
+func (e *errorInjectingSPCCRUDForCreate) Get(ctx context.Context, resourceID string) (*api.ServiceProviderCluster, error) {
+	if e.getErr != nil {
+		return nil, e.getErr
+	}
+	return e.ServiceProviderClusterCRUD.Get(ctx, resourceID)
+}
+
+var _ database.ServiceProviderClusterCRUD = &errorInjectingSPCCRUDForCreate{}
+
 func TestCreateClusterScopedMaestroReadonlyBundlesSyncer_buildClusterEmptyHostedCluster(t *testing.T) {
 	syncer := &createClusterScopedMaestroReadonlyBundlesSyncer{
 		maestroSourceEnvironmentIdentifier: "testenv",
@@ -631,14 +661,40 @@ func TestCreateClusterScopedMaestroReadonlyBundlesSyncer_SyncOnce_ClusterNotFoun
 	assert.NoError(t, err)
 }
 
-// TestCreateMaestroReadonlyBundlesSyncer_SyncOnce_GetServiceProviderClusterError uses database mocks (not databasetesting) because we need to
-// inject an error from ServiceProviderClusters().Get(); the in-memory databasetesting mock does not support error injection.
+// TestCreateMaestroReadonlyBundlesSyncer_SyncOnce_GetServiceProviderClusterError uses error-injecting wrappers
+// to inject an error from ServiceProviderClusters().Get().
 func TestCreateClusterScopedMaestroReadonlyBundlesSyncer_SyncOnce_GetServiceProviderClusterError(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctx := context.Background()
 
-	mockDBClient := database.NewMockDBClient(ctrl)
-	mockClusters := database.NewMockHCPClusterCRUD(ctrl)
-	mockSPCs := database.NewMockServiceProviderClusterCRUD(ctrl)
+	baseMockDB := databasetesting.NewMockDBClient()
+
+	key := controllerutils.HCPClusterKey{
+		SubscriptionID:    "test-sub",
+		ResourceGroupName: "test-rg",
+		HCPClusterName:    "test-cluster",
+	}
+
+	clusterResourceID := api.Must(azcorearm.ParseResourceID("/subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster"))
+	cluster := &api.HCPOpenShiftCluster{
+		TrackedResource: arm.TrackedResource{Resource: arm.Resource{ID: clusterResourceID}},
+		ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
+			ClusterServiceID: api.Must(api.NewInternalID("/api/aro_hcp/v1alpha1/clusters/11111111111111111111111111111111")),
+		},
+	}
+
+	// Add the cluster to the database
+	clustersCRUD := baseMockDB.HCPClusters(key.SubscriptionID, key.ResourceGroupName)
+	_, err := clustersCRUD.Create(ctx, cluster, nil)
+	require.NoError(t, err)
+
+	// Use error-injecting wrapper to simulate SPC Get error
+	expectedError := fmt.Errorf("database error")
+	mockDBClient := &errorInjectingDBClientForCreate{
+		MockDBClient: baseMockDB,
+		spcCRUD: &errorInjectingSPCCRUDForCreate{
+			getErr: expectedError,
+		},
+	}
 
 	syncer := &createClusterScopedMaestroReadonlyBundlesSyncer{
 		cooldownChecker:                    &alwaysSyncCooldownChecker{},
@@ -647,26 +703,7 @@ func TestCreateClusterScopedMaestroReadonlyBundlesSyncer_SyncOnce_GetServiceProv
 		uuidV4Generator:                    uuid.NewRandom,
 	}
 
-	key := controllerutils.HCPClusterKey{
-		SubscriptionID:    "test-sub",
-		ResourceGroupName: "test-rg",
-		HCPClusterName:    "test-cluster",
-	}
-
-	cluster := &api.HCPOpenShiftCluster{
-		ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
-			ClusterServiceID: api.Must(api.NewInternalID("/api/aro_hcp/v1alpha1/clusters/11111111111111111111111111111111")),
-		},
-	}
-
-	mockDBClient.EXPECT().HCPClusters(key.SubscriptionID, key.ResourceGroupName).Return(mockClusters)
-	mockClusters.EXPECT().Get(gomock.Any(), key.HCPClusterName).Return(cluster, nil)
-
-	mockDBClient.EXPECT().ServiceProviderClusters(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName).Return(mockSPCs)
-	expectedError := fmt.Errorf("database error")
-	mockSPCs.EXPECT().Get(gomock.Any(), gomock.Any()).Return(nil, expectedError)
-
-	err := syncer.SyncOnce(context.Background(), key)
+	err = syncer.SyncOnce(ctx, key)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to get or create ServiceProviderCluster")
 }

@@ -14,8 +14,6 @@
 
 package database
 
-//go:generate $MOCKGEN -typed -source=crud_management_cluster_content.go -destination=mock_crud_management_cluster_content.go -package database ManagementClusterContentCRUD
-
 import (
 	"github.com/Azure/ARO-HCP/internal/api"
 )
