@@ -28,6 +28,17 @@ param userAgentVMSize string
 param userAgentPoolZones array
 param userAgentPoolCount int
 param userZoneRedundantMode string
+param userSecondaryNicCount int = 0
+
+// User agentpool spec Swift (Worker - New)
+param userSwiftAgentPoolName string = 'uswft'
+param userSwiftAgentMinCount int = 1
+param userSwiftAgentMaxCount int = 3
+param userSwiftAgentVMSize string = 'Standard_D2s_v3'
+param userSwiftAgentPoolZones array = []
+param userSwiftAgentPoolCount int = 0
+param userSwiftZoneRedundantMode string = 'Auto'
+param userSwiftSecondaryNicCount int = 0
 
 // User agentpool spec (Infra)
 param infraAgentPoolName string
@@ -499,6 +510,7 @@ module userAgentPools '../modules/aks/pool.bicep' = {
     poolCount: userAgentPoolCount
     poolRole: 'worker'
     enableSwiftV2: enableSwiftV2Nodepools
+    secondaryNicCount: userSecondaryNicCount
     minCount: userAgentMinCount
     maxCount: userAgentMaxCount
     vmSize: userAgentVMSize
@@ -506,6 +518,27 @@ module userAgentPools '../modules/aks/pool.bicep' = {
     vnetSubnetId: nodeSubnetId
     podSubnetId: aksPodSubnet.id
     zoneRedundantMode: userZoneRedundantMode
+    maxPods: 225
+  }
+}
+
+module userSwiftAgentPools '../modules/aks/pool.bicep' = {
+  name: 'user-swift-agent-pools'
+  params: {
+    aksClusterName: aksCluster.name
+    poolBaseName: userSwiftAgentPoolName
+    poolZones: userSwiftAgentPoolZones
+    poolCount: userSwiftAgentPoolCount
+    poolRole: 'worker'
+    enableSwiftV2: enableSwiftV2Nodepools
+    secondaryNicCount: userSwiftSecondaryNicCount
+    minCount: userSwiftAgentMinCount
+    maxCount: userSwiftAgentMaxCount
+    vmSize: userSwiftAgentVMSize
+    osDiskSizeGB: userOsDiskSizeGB
+    vnetSubnetId: nodeSubnetId
+    podSubnetId: aksPodSubnet.id
+    zoneRedundantMode: userSwiftZoneRedundantMode
     maxPods: 225
   }
 }
@@ -519,6 +552,7 @@ module infraAgentPools '../modules/aks/pool.bicep' = {
     poolCount: infraAgentPoolCount
     poolRole: 'infra'
     enableSwiftV2: false
+    secondaryNicCount: 0
     minCount: infraAgentMinCount
     maxCount: infraAgentMaxCount
     vmSize: infraAgentVMSize
