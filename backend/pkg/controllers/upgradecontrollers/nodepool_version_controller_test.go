@@ -401,7 +401,7 @@ func TestNodePoolVersionSyncer_ValidateDesiredNodePoolVersion(t *testing.T) {
 			var cpActiveVersions []api.HCPClusterActiveVersion
 			for _, v := range tt.controlPlaneVersions {
 				version := semver.MustParse(v)
-				cpActiveVersions = append(cpActiveVersions, api.HCPClusterActiveVersion{Version: &version})
+				cpActiveVersions = append(cpActiveVersions, api.HCPClusterActiveVersion{Version: &version, State: configv1.CompletedUpdate})
 			}
 			spCluster := &api.ServiceProviderCluster{
 				Status: api.ServiceProviderClusterStatus{
@@ -524,7 +524,7 @@ func createServiceProviderClusterWithVersion(t *testing.T, ctx context.Context, 
 		Status: api.ServiceProviderClusterStatus{
 			ControlPlaneVersion: api.ServiceProviderClusterStatusVersion{
 				ActiveVersions: []api.HCPClusterActiveVersion{
-					{Version: &cpVersion},
+					{Version: &cpVersion, State: configv1.CompletedUpdate},
 				},
 			},
 		},

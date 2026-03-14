@@ -38,10 +38,10 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
-// controlPlaneVersionSyncer is a Cluster syncer that manages control plane version upgrades.
+// controlPlaneDesiredVersionSyncer is a Cluster syncer that manages control plane desired version.
 // It handles automated (managed) z-stream (patch) upgrades and assists with y-stream (minor)
 // version upgrades by selecting the appropriate z-stream within the user-desired minor version.
-type controlPlaneVersionSyncer struct {
+type controlPlaneDesiredVersionSyncer struct {
 	cooldownChecker      controllerutils.CooldownChecker
 	cosmosClient         database.DBClient
 	clusterServiceClient ocm.ClusterServiceClientSpec
@@ -50,19 +50,20 @@ type controlPlaneVersionSyncer struct {
 	clusterToCincinnatiClient *lru.Cache
 }
 
-var _ controllerutils.ClusterSyncer = (*controlPlaneVersionSyncer)(nil)
+var _ controllerutils.ClusterSyncer = (*controlPlaneDesiredVersionSyncer)(nil)
 
-// NewControlPlaneVersionController creates a new controller that manages control plane versions.
-// It periodically checks each cluster to track active versions and determine the desired version
+// NewControlPlaneDesiredVersionController creates a new controller that manages the desired
+// control plane version. It periodically checks each cluster and sets the desired version
 // based on the OCPVersion logic documented in the ServiceProviderCluster type.
-func NewControlPlaneVersionController(
+// The controller name remains "ControlPlaneVersion" for compatibility.
+func NewControlPlaneDesiredVersionController(
 	cosmosClient database.DBClient,
 	clusterServiceClient ocm.ClusterServiceClientSpec,
 	activeOperationLister listers.ActiveOperationLister,
 	informers informers.BackendInformers,
 ) controllerutils.Controller {
 
-	syncer := &controlPlaneVersionSyncer{
+	syncer := &controlPlaneDesiredVersionSyncer{
 		cooldownChecker:           controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
 		cosmosClient:              cosmosClient,
 		clusterToCincinnatiClient: lru.New(100000),
@@ -70,7 +71,7 @@ func NewControlPlaneVersionController(
 	}
 
 	controller := controllerutils.NewClusterWatchingController(
-		"ControlPlaneVersion",
+		"ControlPlaneDesiredVersion",
 		cosmosClient,
 		informers,
 		5*time.Minute, // Check for upgrades every 5 minutes
@@ -80,22 +81,20 @@ func NewControlPlaneVersionController(
 	return controller
 }
 
-func (c *controlPlaneVersionSyncer) CooldownChecker() controllerutils.CooldownChecker {
+func (c *controlPlaneDesiredVersionSyncer) CooldownChecker() controllerutils.CooldownChecker {
 	return c.cooldownChecker
 }
 
-// SyncOnce performs a single reconciliation of the control plane upgrade for a given cluster.
+// SyncOnce performs a single reconciliation of the desired control plane version for a given cluster.
 //
 // High-level flow:
 //  1. Fetch the customer's desired cluster configuration and service provider state
-//  2. Update the active versions array by querying version service to get current cluster version(s)
+//  2. (Active versions are updated by the control plane active version controller.)
 //  3. Compute the desired z-stream version based on upgrade logic (initial/z-stream/y-stream)
 //  4. If the computed desired version differs from the previously stored desired version:
 //     - Update the DesiredVersion field
 //  5. Save the updated service provider cluster state
-//
-// Get the customer's desired cluster configuration
-func (c *controlPlaneVersionSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
+func (c *controlPlaneDesiredVersionSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
 	existingCluster, err := c.cosmosClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Get(ctx, key.HCPClusterName)
 	if database.IsResponseError(err, http.StatusNotFound) {
 		return nil // cluster doesn't exist, no work to do
@@ -113,26 +112,6 @@ func (c *controlPlaneVersionSyncer) SyncOnce(ctx context.Context, key controller
 	clusterServiceCluster, err := c.clusterServiceClient.GetCluster(ctx, existingCluster.ServiceProviderProperties.ClusterServiceID)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get cluster from Cluster Service: %w", err))
-	}
-
-	version, ok := clusterServiceCluster.GetVersion()
-	if !ok {
-		return utils.TrackError(fmt.Errorf("cluster version not found in Cluster Service response"))
-	}
-
-	actualVersion := semver.MustParse(version.RawID())
-
-	oldActiveVersions := existingServiceProviderCluster.Status.ControlPlaneVersion.ActiveVersions
-	existingServiceProviderCluster.Status.ControlPlaneVersion.ActiveVersions = c.prependActiveVersionIfChanged(oldActiveVersions, actualVersion)
-
-	serviceProviderClustersCosmosClient := c.cosmosClient.ServiceProviderClusters(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
-	if !slices.Equal(oldActiveVersions, existingServiceProviderCluster.Status.ControlPlaneVersion.ActiveVersions) {
-		logger := utils.LoggerFromContext(ctx)
-		logger.Info("Active versions changed", "oldActiveVersions", oldActiveVersions, "newActiveVersions", existingServiceProviderCluster.Status.ControlPlaneVersion.ActiveVersions)
-		existingServiceProviderCluster, err = serviceProviderClustersCosmosClient.Replace(ctx, existingServiceProviderCluster, nil)
-		if err != nil {
-			return utils.TrackError(fmt.Errorf("failed to replace ServiceProviderCluster: %w", err))
-		}
 	}
 
 	// Create Cincinnati client with cluster UUID from Cluster Service
@@ -163,9 +142,8 @@ func (c *controlPlaneVersionSyncer) SyncOnce(ctx context.Context, key controller
 
 	logger := utils.LoggerFromContext(ctx)
 	logger.Info("Selected desired version", "desiredVersion", desiredVersion, "previousDesiredVersion", previousDesiredVersion)
-
 	existingServiceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion = desiredVersion
-
+	serviceProviderClustersCosmosClient := c.cosmosClient.ServiceProviderClusters(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	_, err = serviceProviderClustersCosmosClient.Replace(ctx, existingServiceProviderCluster, nil)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to replace ServiceProviderCluster: %w", err))
@@ -174,27 +152,9 @@ func (c *controlPlaneVersionSyncer) SyncOnce(ctx context.Context, key controller
 	return nil
 }
 
-// prependActiveVersionIfChanged takes a slice of active versions and returns an updated slice
-// with the new version prepended if it differs from the most recent version.
-// If the most recent version matches the new version, returns the original slice unchanged.
-// The returned slice is capped to the 2 most recent versions.
-func (c *controlPlaneVersionSyncer) prependActiveVersionIfChanged(currentVersions []api.HCPClusterActiveVersion, newVersion semver.Version) []api.HCPClusterActiveVersion {
-	// Check if the tip (most recent version) is already the new version
-	if len(currentVersions) > 0 && currentVersions[0].Version != nil && currentVersions[0].Version.EQ(newVersion) {
-		return currentVersions
-	}
-
-	// Create new list with at most 2 versions: new version + most recent old version
-	newVersions := []api.HCPClusterActiveVersion{{Version: &newVersion}}
-	if len(currentVersions) > 0 {
-		newVersions = append(newVersions, currentVersions[0])
-	}
-	return newVersions
-}
-
 // getCincinnatiClient provides a point for unit testing.
 // Likely need to provide transport injection for integration testing.
-func (c *controlPlaneVersionSyncer) getCincinnatiClient(key controllerutils.HCPClusterKey, clusterID uuid.UUID) cincinatti.Client {
+func (c *controlPlaneDesiredVersionSyncer) getCincinnatiClient(key controllerutils.HCPClusterKey, clusterID uuid.UUID) cincinatti.Client {
 	// Fast path: check cache with read lock
 	c.cincinnatiClientLock.RLock()
 	client, ok := c.clusterToCincinnatiClient.Get(key)
@@ -232,7 +192,7 @@ func (c *controlPlaneVersionSyncer) getCincinnatiClient(key controllerutils.HCPC
 //
 // customerDesiredMinor and channelGroup are required. If they are not specified, no version is returned.
 // Returns nil if no upgrade is needed.
-func (c *controlPlaneVersionSyncer) desiredControlPlaneZVersion(
+func (c *controlPlaneDesiredVersionSyncer) desiredControlPlaneZVersion(
 	ctx context.Context, cincinnatiClient cincinatti.Client,
 	customerDesiredMinor string, channelGroup string,
 	activeVersions []api.HCPClusterActiveVersion,
@@ -361,7 +321,7 @@ func (c *controlPlaneVersionSyncer) desiredControlPlaneZVersion(
 // is reachable from ALL active versions by intersecting the upgrade paths.
 //
 // Returns nil if no suitable version is found.
-func (c *controlPlaneVersionSyncer) findLatestVersionInMinor(
+func (c *controlPlaneDesiredVersionSyncer) findLatestVersionInMinor(
 	ctx context.Context,
 	cincinnatiClient cincinatti.Client,
 	channelGroup string,
@@ -427,7 +387,7 @@ func (c *controlPlaneVersionSyncer) findLatestVersionInMinor(
 //  5. If no gateway found: return nil
 //
 // Returns nil if no suitable version is found.
-func (c *controlPlaneVersionSyncer) selectBestVersionFromCandidates(
+func (c *controlPlaneDesiredVersionSyncer) selectBestVersionFromCandidates(
 	ctx context.Context,
 	cincinnatiClient cincinatti.Client,
 	channelGroup string,

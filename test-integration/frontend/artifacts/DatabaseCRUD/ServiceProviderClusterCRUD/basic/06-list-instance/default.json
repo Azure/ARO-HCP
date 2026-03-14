@@ -12,8 +12,8 @@
 	"status": {
 		"control_plane_version": {
 			"active_versions": [
-				{"version": "4.20.5"},
-				{"version": "4.19.22"}
+				{"version": "4.20.5", "state": "Partial"},
+				{"version": "4.19.22", "state": "Completed"}
 			]
 		}
 	}
