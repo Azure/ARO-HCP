@@ -1,0 +1,123 @@
+{{- $operatorsMIsConfig := get .Values.operatorsManagedIdentitiesConfig .Values.operatorsManagedIdentitiesConfig.roleSetName -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backend-operators-managed-identities-config
+  namespace: '{{ .Release.Namespace }}'
+data:
+  config.yaml: |
+    controlPlaneOperatorsIdentities:
+      cluster-api-azure:
+        minOpenShiftVersion: '4.19'
+        roleDefinitions:
+        {{- range $operatorsMIsConfig.clusterApiAzure.roleDefinitions }}
+          - resourceId: '/providers/Microsoft.Authorization/roleDefinitions/{{ .id }}'
+            name: '{{ .name }}'
+        {{- end }}
+        requirement: 'always'
+      control-plane:
+        minOpenShiftVersion: '4.19'
+        roleDefinitions:
+        {{- range $operatorsMIsConfig.controlPlane.roleDefinitions }}
+          - resourceId: '/providers/Microsoft.Authorization/roleDefinitions/{{ .id }}'
+            name: '{{ .name }}'
+        {{- end }}
+        requirement: 'always'
+      cloud-controller-manager:
+        minOpenShiftVersion: '4.19'
+        roleDefinitions:
+        {{- range $operatorsMIsConfig.cloudControllerManager.roleDefinitions }}
+          - resourceId: '/providers/Microsoft.Authorization/roleDefinitions/{{ .id }}'
+            name: '{{ .name }}'
+        {{- end }}
+        requirement: 'always'
+      ingress:
+        minOpenShiftVersion: '4.19'
+        roleDefinitions:
+        {{- range $operatorsMIsConfig.ingress.roleDefinitions }}
+          - resourceId: '/providers/Microsoft.Authorization/roleDefinitions/{{ .id }}'
+            name: '{{ .name }}'
+        {{- end }}
+        requirement: 'always'
+      disk-csi-driver:
+        minOpenShiftVersion: '4.19'
+        roleDefinitions:
+        {{- range $operatorsMIsConfig.diskCsiDriver.roleDefinitions }}
+          - resourceId: '/providers/Microsoft.Authorization/roleDefinitions/{{ .id }}'
+            name: '{{ .name }}'
+        {{- end }}
+        requirement: 'always'
+      file-csi-driver:
+        minOpenShiftVersion: '4.19'
+        roleDefinitions:
+        {{- range $operatorsMIsConfig.fileCsiDriver.roleDefinitions }}
+          - resourceId: '/providers/Microsoft.Authorization/roleDefinitions/{{ .id }}'
+            name: '{{ .name }}'
+        {{- end }}
+        requirement: 'always'
+      image-registry:
+        minOpenShiftVersion: '4.19'
+        roleDefinitions:
+        {{- range $operatorsMIsConfig.imageRegistry.roleDefinitions }}
+          - resourceId: '/providers/Microsoft.Authorization/roleDefinitions/{{ .id }}'
+            name: '{{ .name }}'
+        {{- end }}
+        requirement: 'always'
+      cloud-network-config:
+        minOpenShiftVersion: '4.19'
+        roleDefinitions:
+        {{- range $operatorsMIsConfig.cloudNetworkConfig.roleDefinitions }}
+          - resourceId: '/providers/Microsoft.Authorization/roleDefinitions/{{ .id }}'
+            name: '{{ .name }}'
+        {{- end }}
+        requirement: 'always'
+      kms:
+        minOpenShiftVersion: '4.19'
+        roleDefinitions:
+        {{- range $operatorsMIsConfig.kms.roleDefinitions }}
+          - resourceId: '/providers/Microsoft.Authorization/roleDefinitions/{{ .id }}'
+            name: '{{ .name }}'
+        {{- end }}
+        requirement: 'onEnablement'
+    dataPlaneOperatorsIdentities:
+      disk-csi-driver:
+        minOpenShiftVersion: '4.19'
+        roleDefinitions:
+        {{- range $operatorsMIsConfig.diskCsiDriver.roleDefinitions }}
+          - resourceId: '/providers/Microsoft.Authorization/roleDefinitions/{{ .id }}'
+            name: '{{ .name }}'
+        {{- end }}
+        k8sServiceAccounts:
+          - name: 'azure-disk-csi-driver-operator'
+            namespace: 'openshift-cluster-csi-drivers'
+          - name: 'azure-disk-csi-driver-controller-sa'
+            namespace: 'openshift-cluster-csi-drivers'
+        requirement: 'always'
+      image-registry:
+        minOpenShiftVersion: '4.19'
+        roleDefinitions:
+        {{- range $operatorsMIsConfig.imageRegistry.roleDefinitions }}
+          - resourceId: '/providers/Microsoft.Authorization/roleDefinitions/{{ .id }}'
+            name: '{{ .name }}'
+        {{- end }}
+        k8sServiceAccounts:
+          - name: 'cluster-image-registry-operator'
+            namespace: 'openshift-image-registry'
+          - name: 'registry'
+            namespace: 'openshift-image-registry'
+        requirement: 'always'
+      file-csi-driver:
+        minOpenShiftVersion: '4.19'
+        roleDefinitions:
+        {{- range $operatorsMIsConfig.fileCsiDriver.roleDefinitions }}
+          - resourceId: '/providers/Microsoft.Authorization/roleDefinitions/{{ .id }}'
+            name: '{{ .name }}'
+        {{- end }}
+        k8sServiceAccounts:
+          - name: 'azure-file-csi-driver-operator'
+            namespace: 'openshift-cluster-csi-drivers'
+          - name: 'azure-file-csi-driver-controller-sa'
+            namespace: 'openshift-cluster-csi-drivers'
+          - name: 'azure-file-csi-driver-node-sa'
+            namespace: 'openshift-cluster-csi-drivers'
+        requirement: 'always'

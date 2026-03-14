@@ -25,6 +25,7 @@ spec:
       annotations:
         checksum/backendservicekeyvault: '{{ include (print $.Template.BasePath "/backend.service-key-vault.secretproviderclass.yaml") . | sha256sum }}'
         checksum/azureruntimeconfig: '{{ include (print $.Template.BasePath "/backend.azure-runtime-config.configmap.yaml") . | sha256sum }}'
+        checksum/operatorsmanagedidentitiesconfig: '{{ include (print $.Template.BasePath "/backend.operators-managed-identities-config.configmap.yaml") . | sha256sum }}'
     spec:
       topologySpreadConstraints:
       - maxSkew: 1
@@ -50,6 +51,9 @@ spec:
       - name: azure-runtime-config
         configMap:
           name: backend-azure-runtime-config
+      - name: operators-managed-identities-config
+        configMap:
+          name: backend-operators-managed-identities-config
       containers:
       - name: aro-hcp-backend
         image: '{{ .Values.deployment.imageName }}'
@@ -78,6 +82,8 @@ spec:
         - "--insecure-azure-managed-identity-mock-tenant-id"
         - "{{ .Values.miMock.tenantId }}"
         {{- end }}
+        - "--operators-managed-identities-config-path"
+        - "/configs/operators-managed-identities-config/config.yaml"
         env:
         - name: DB_NAME
           valueFrom:
@@ -134,6 +140,9 @@ spec:
           mountPath: "/secrets/backend-service-key-vault"
         - name: azure-runtime-config
           mountPath: /configs/azure-runtime-config
+          readOnly: true
+        - name: operators-managed-identities-config
+          mountPath: /configs/operators-managed-identities-config
           readOnly: true
       restartPolicy: Always
       terminationGracePeriodSeconds: 30

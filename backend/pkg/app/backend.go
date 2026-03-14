@@ -45,6 +45,8 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/validationcontrollers/validations"
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/maestro"
+	"github.com/Azure/ARO-HCP/backend/pkg/operatorsmis"
+	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -70,6 +72,23 @@ type BackendOptions struct {
 	ExitOnPanic                        bool
 	FPAMIDataplaneClientBuilder        azureclient.FPAMIDataplaneClientBuilder
 	SMIClientBuilder                   azureclient.ServiceManagedIdentityClientBuilder
+	// TODO OperatorsManagedIdentitiesConfig is the configuration for the operators managed identities.
+	// At the moment of writing this (2025-03-10) in CS the information contained in this configuration is used for:
+	// * Performing static validations of the cluster's managed identities that depend on this configuration. In CS that
+	//   is performed during the synchronous create/patch api requests:
+	//   * Validate unknown and unsupported operators managed identies. The set of supported operators depends on this configuration
+	//     and the OpenShift version of the cluster being created/updated
+	//   * Validate the set of required managed identities depending on the cluster's configuration
+	// * Perform asynchronous validations of the cluster's managed identities that depend on this configuration. For example,
+	//   the validation of the permissions associated to the identities, which requires knowing the role definitions that
+	//   are to be used by the operators. The role definitions information is included in this configuration.
+	// * The information about what role definitions are needed by each operator identity is exposed as an ARM API endpoint.
+	//   The logic of the endpoint leverages this configuration to construct the api response
+	// * To perform OIDC federation (and cleanup of the OIDC federation) of the Cluster's Data Plane Operators identities. The information about
+	//   the Kubernetes Service Accounts that are to be used for the federation is included in this configuration.
+	// * To create the azure role assignments for the Cluster's Data Plane Operators identities over the Managed Resource Group of the Cluster
+	// * To create the azure role assignments for the Cluster's Control Plane Operators identities over the Managed Resource Group of the Cluster.
+	OperatorsManagedIdentitiesConfig *operatorsmis.Config
 }
 
 func (o *BackendOptions) RunBackend(ctx context.Context) error {
@@ -252,6 +271,16 @@ func (b *Backend) shutdownHTTPServer(ctx context.Context, server *http.Server, n
 // runBackendControllersUnderLeaderElection runs the backen controllers under
 // a leader election loop.
 func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, electionChecker *leaderelection.HealthzAdaptor) error {
+
+	// TODO remove this. Only added for showcasing purposes. This doesn't work
+	// as this would be executed in the context of a cluster. Unclear as of now
+	// where. In CS is done during the synchronous create/patch api requests, which
+	// in the RP equivalent might end up being frontend.
+	err := validateUnknownAndUnsupportedManagedIdentities(&api.HCPOpenShiftCluster{}, b.options.OperatorsManagedIdentitiesConfig)
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("cluster's managed identities validation error: %w", err))
+	}
+
 	backendInformers := informers.NewBackendInformers(ctx, b.options.CosmosDBClient.GlobalListers())
 
 	_, subscriptionLister := backendInformers.Subscriptions()

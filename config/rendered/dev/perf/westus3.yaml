@@ -88,6 +88,8 @@ backend:
   maestro:
     sourceEnvironmentIdentifier: arohcpperf
   managedIdentityName: backend
+  operatorsManagedIdentitiesConfig:
+    roleSetName: dev
   tracing:
     address: ""
     exporter: ""

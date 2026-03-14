@@ -1348,6 +1348,24 @@
         "exitOnPanic": {
           "type": "boolean",
           "description": "If true, backend will exit the process if a panic occurs. As of now it only controls the setting of k8s.io/apimachinery/pkg/util/runtime.ReallyCrash"
+        },
+        "operatorsManagedIdentitiesConfig": {
+          "type": "object",
+          "properties": {
+            "roleSetName": {
+              "type": "string",
+              "enum": [
+                "dev",
+                "public",
+                "ff"
+              ],
+              "description": "The role set name refers to a particular cloud specific set of operator role definitions, found in the backend's values.yaml file"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "roleSetName"
+          ]
         }
       },
       "additionalProperties": false,
@@ -1358,7 +1376,8 @@
         "managedIdentityName",
         "azureRuntimeConfig",
         "maestro",
-        "exitOnPanic"
+        "exitOnPanic",
+        "operatorsManagedIdentitiesConfig"
       ]
     },
     "sessiongate": {
