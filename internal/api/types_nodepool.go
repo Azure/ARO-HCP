@@ -71,6 +71,10 @@ type HCPOpenShiftClusterNodePoolServiceProviderProperties struct {
 	ExistingCosmosUID string     `json:"-"`
 	ClusterServiceID  InternalID `json:"clusterServiceID,omitempty"`
 	ActiveOperationID string     `json:"activeOperationId,omitempty"`
+
+	// ProvisioningConditions tracks provisioning state transitions using the
+	// Kubernetes conditions pattern. Stored in CosmosDB but NOT exposed via the ARM API.
+	ProvisioningConditions []ProvisioningCondition `json:"provisioningConditions,omitempty"`
 }
 
 // NodePoolVersionProfile represents the worker node pool version.
