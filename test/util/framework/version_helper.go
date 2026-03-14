@@ -32,16 +32,16 @@ import (
 )
 
 // GetInstallVersionForZStreamUpgrade returns the version to install the cluster with when testing
-// a z-stream upgrade. It uses the default configured control plane version and queries Cincinnati
-// for the given channelGroup (e.g. "candidate", "stable") to determine an install version that
-// has an upgrade path in the same major.minor. If nothing is found (no candidates, or only the
-// configured version in the same major.minor), it returns "" and nil.
-func GetInstallVersionForZStreamUpgrade(ctx context.Context, channelGroup string) (installVersion string, err error) {
-	configuredVersion := api.Must(semver.ParseTolerant(DefaultOpenshiftControlPlaneVersionId()))
+// a z-stream upgrade, and whether that version has an available z-stream upgrade path. It uses
+// configuredVersionID and queries Cincinnati for the given channelGroup (e.g. "candidate", "stable").
+// When no version with an upgrade path is found, it still returns the configured version so the
+// caller can install and optionally skip upgrade assertions.
+func GetInstallVersionForZStreamUpgrade(ctx context.Context, channelGroup string, configuredVersionID string) (installVersion string, hasUpgradePath bool, err error) {
+	configuredVersion := api.Must(semver.ParseTolerant(configuredVersionID))
 
 	cincinnatiURI, err := cincinatti.GetCincinnatiURI(channelGroup)
 	if err != nil {
-		return "", fmt.Errorf("get Cincinnati URI: %w", err)
+		return "", false, fmt.Errorf("get Cincinnati URI: %w", err)
 	}
 
 	transport, _ := http.DefaultTransport.(*http.Transport)
@@ -53,11 +53,7 @@ func GetInstallVersionForZStreamUpgrade(ctx context.Context, channelGroup string
 
 	_, possibleUpgradeCandidates, _, err := client.GetUpdates(ctx, cincinnatiURI, "multi", "multi", channel, configuredVersion)
 	if err != nil {
-		return "", fmt.Errorf("get Cincinnati updates for %s in %s: %w", configuredVersion.String(), channel, err)
-	}
-
-	if len(possibleUpgradeCandidates) == 0 {
-		return "", nil
+		return "", false, fmt.Errorf("get Cincinnati updates for %s in %s: %w", configuredVersion.String(), channel, err)
 	}
 
 	// Restrict to versions in the same major.minor (z-stream only).
@@ -75,7 +71,7 @@ func GetInstallVersionForZStreamUpgrade(ctx context.Context, channelGroup string
 	})
 
 	if len(candidates) == 1 {
-		return "", nil
+		return configuredVersion.String(), false, nil
 	}
 
 	return pickInstallVersionWithNextMinorPreference(ctx, client, cincinnatiURI, channelGroup, configuredVersion, candidates)
@@ -83,29 +79,31 @@ func GetInstallVersionForZStreamUpgrade(ctx context.Context, channelGroup string
 
 // pickInstallVersionWithNextMinorPreference chooses an install version from versionsInSameMinor (sorted descending, latest first).
 // When the next minor exists, it prefers a version whose upgrade target has an upgrade path to the next minor; otherwise it returns the version just before latest.
-func pickInstallVersionWithNextMinorPreference(ctx context.Context, client cincinatti.Client, cincinnatiURI *url.URL, channelGroup string, configuredVersion semver.Version, versionsInSameMinor []semver.Version) (string, error) {
+// The second return value is true only when an install version with an upgrade path was found.
+func pickInstallVersionWithNextMinorPreference(ctx context.Context, client cincinatti.Client, cincinnatiURI *url.URL, channelGroup string, configuredVersion semver.Version, versionsInSameMinor []semver.Version) (string, bool, error) {
 	installTarget := versionsInSameMinor[1] // latest is first, so second is the default install (upgrade to latest)
 	nextMinorStr := fmt.Sprintf("%d.%d", configuredVersion.Major, configuredVersion.Minor+1)
 	nextMinorChannel := fmt.Sprintf("%s-%s", channelGroup, nextMinorStr)
 	_, _, _, nextMinorErr := client.GetUpdates(ctx, cincinnatiURI, "multi", "multi", nextMinorChannel, installTarget)
 	if nextMinorErr != nil && !cincinatti.IsCincinnatiVersionNotFoundError(nextMinorErr) {
-		return "", fmt.Errorf("checking next minor %s: %w", nextMinorStr, nextMinorErr)
+		return "", false, fmt.Errorf("checking next minor %s: %w", nextMinorStr, nextMinorErr)
 	}
 	if nextMinorErr != nil {
-		// Next minor not available; use default (version just before latest).
-		return installTarget.String(), nil
+		// Next minor not available; use default (version just before latest). Upgrade path exists (z-stream to latest).
+		return installTarget.String(), true, nil
 	}
 	// Find the latest upgrade target that has path to next minor; install is the version next to it (one step older).
 	for i := 0; i < len(versionsInSameMinor)-1; i++ {
 		hasPath, err := hasUpgradePathToNextMinor(ctx, client, cincinnatiURI, nextMinorChannel, nextMinorStr, versionsInSameMinor[i])
 		if err != nil {
-			return "", err
+			return "", false, err
 		}
 		if hasPath {
-			return versionsInSameMinor[i+1].String(), nil
+			return versionsInSameMinor[i+1].String(), true, nil
 		}
 	}
-	return "", nil
+	// No version has path to next minor; install the latest in same minor (no upgrade path to verify).
+	return versionsInSameMinor[0].String(), false, nil
 }
 
 // hasUpgradePathToNextMinor returns true if the given version has an upgrade path to the next minor.
