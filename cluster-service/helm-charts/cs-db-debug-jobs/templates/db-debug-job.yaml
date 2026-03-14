@@ -1,0 +1,84 @@
+{{- if .Values.deployDbDebugJobs }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: cs-db-debug-job-{{ randAlphaNum 5 | lower }}
+  namespace: '{{ .Release.Namespace }}'
+spec:
+  ttlSecondsAfterFinished: 300
+  # Limit the job's maximum execution time to 30 minutes.
+  activeDeadlineSeconds: 1800
+  # Retries use exponential backoff (starting at 10s, then 20s, 40s, etc.), with a maximum wait time of six minutes between each retry.
+  # The job will be retried up to 50 times if it fails.
+  backoffLimit: 50
+  template:
+    spec:
+      serviceAccountName: cs-db-debug-executor
+      restartPolicy: Never
+      volumes:
+      - name: scripts
+        configMap:
+          name: cs-db-debug-scripts
+          defaultMode: 0755
+      containers:
+      - name: cs-db-debug-executor
+        image: 'mcr.microsoft.com/azurelinux/base/core:3.0'
+        command: ["/bin/sh", "-c"]
+        args:
+        - |
+
+          # Install required tools
+          echo "Setting up tools..."
+          tdnf update -y
+          echo "Installing postgresql client..."
+          tdnf install -y postgresql
+          echo "Installing jq..."
+          tdnf install -y jq
+
+          # Set database connection variables from secrets
+          export PGHOST="${DB_HOST}"
+          export PGPORT="${DB_PORT}"
+          export PGDATABASE="${DB_NAME}"
+          export PGUSER="${DB_USER}"
+          export PGPASSWORD="${DB_PASSWORD}"
+
+          # Run database debug commands
+          echo "Running database debug commands..."
+          /bin/bash /scripts/db-commands.sh
+          DB_COMMANDS_EXIT_CODE="$?"
+          if [ "${DB_COMMANDS_EXIT_CODE}" -ne 0 ]; then
+            echo "Error: Database commands execution finished with non zero exit code: ${DB_COMMANDS_EXIT_CODE}"
+            exit 1
+          fi
+
+          echo "Execution completed successfully"
+        env:
+        - name: DB_HOST
+          valueFrom:
+            secretKeyRef:
+              name: '{{ .Values.databaseK8sSecretName }}'
+              key: db.host
+        - name: DB_PORT
+          valueFrom:
+            secretKeyRef:
+              name: '{{ .Values.databaseK8sSecretName }}'
+              key: db.port
+        - name: DB_NAME
+          valueFrom:
+            secretKeyRef:
+              name: '{{ .Values.databaseK8sSecretName }}'
+              key: db.name
+        - name: DB_USER
+          valueFrom:
+            secretKeyRef:
+              name: '{{ .Values.databaseK8sSecretName }}'
+              key: db.user
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: '{{ .Values.databaseK8sSecretName }}'
+              key: db.password
+        volumeMounts:
+        - name: scripts
+          mountPath: /scripts
+{{- end }}
