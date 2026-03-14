@@ -88,13 +88,13 @@ istioctl tag set "$TAG" --revision "${NEWVERSION}" --istioNamespace ${ISTIO_NAME
 for namespace in $(kubectl get namespaces --selector=istio.io/rev="$TAG" -o jsonpath='{.items[*].metadata.name}'); do
     echo "in namespace $namespace"
     # bare pods
-    for pod in $(kubectl get pods --namespace "${namespace}" -o json | jq -r --arg NEWVERSION "${NEWVERSION}" '.items[] | select(.metadata.annotations["sidecar.istio.io/status"] | fromjson.revision != $NEWVERSION) | select(.metadata.ownerReferences | length == 0) | .metadata.name'); do
+    for pod in $(kubectl get pods --namespace "${namespace}" --field-selector=status.phase=Running -o json | jq -r --arg NEWVERSION "${NEWVERSION}" '.items[] | select(.metadata.annotations["sidecar.istio.io/status"] != null) | select(.metadata.annotations["sidecar.istio.io/status"] | fromjson.revision != $NEWVERSION) | select(.metadata.ownerReferences | length == 0) | .metadata.name'); do
         echo "recycle pod $pod"
         kubectl delete pod "$pod" -n "$namespace"
     done
     # pods with owners
     currentDeloyment=""
-    for owner in $(kubectl get pods --namespace "${namespace}" -o json | jq -r --arg NEWVERSION "${NEWVERSION}" '.items[] | select(.metadata.annotations["sidecar.istio.io/status"] | fromjson.revision != $NEWVERSION) | select(.metadata.ownerReferences) | "\(.metadata.ownerReferences[0].kind)/\(.metadata.ownerReferences[0].name)"' | sort | uniq); do
+    for owner in $(kubectl get pods --namespace "${namespace}" --field-selector=status.phase=Running -o json | jq -r --arg NEWVERSION "${NEWVERSION}" '.items[] | select(.metadata.annotations["sidecar.istio.io/status"] != null) | select(.metadata.annotations["sidecar.istio.io/status"] | fromjson.revision != $NEWVERSION) | select(.metadata.ownerReferences | length > 0) | "\(.metadata.ownerReferences[0].kind)/\(.metadata.ownerReferences[0].name)"' | sort | uniq); do
         echo "process pod owner ${owner}"
         case "$owner" in
             "ReplicaSet"*)
@@ -105,8 +105,7 @@ for namespace in $(kubectl get namespaces --selector=istio.io/rev="$TAG" -o json
                     kubectl rollout restart deployment "$deployment" -n "$namespace"
                     kubectl rollout status deployment "${deployment}" -n "$namespace"  
                 else
-                    echo "in ReplicaSet delete pod $owner"
-                    kubectl delete pod "$owner" -n "$namespace"
+                    echo "skipping ${owner} in namespace ${namespace} (orphaned ReplicaSet or already-processed deployment)"
                 fi
             ;;
             "StatefulSet"*)
