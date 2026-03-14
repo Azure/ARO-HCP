@@ -249,18 +249,17 @@ func decodeDesiredClusterCreate(ctx context.Context, azureLocation string, reque
 		systemData.CreatedAt = ptr.To(time.Now().UTC())
 	}
 
-	externalClusterFromRequest := versionedInterface.NewHCPOpenShiftCluster(&api.HCPOpenShiftCluster{})
+	externalClusterFromRequest := versionedInterface.NewHCPOpenShiftCluster(nil)
 	if err := json.Unmarshal(body, &externalClusterFromRequest); err != nil {
 		return nil, utils.TrackError(err)
 	}
-	if err := externalClusterFromRequest.SetDefaultValues(externalClusterFromRequest); err != nil {
-		return nil, utils.TrackError(err)
-	}
-
-	newInternalCluster, err := externalClusterFromRequest.ConvertToInternal()
+	newInternalCluster, err := externalClusterFromRequest.ConvertToInternal(nil)
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}
+	// Backstop for fields unknown to this API version's SetDefaultValues*.
+	// See docs/api-version-defaults-and-storage.md.
+	newInternalCluster.EnsureDefaults()
 	if len(newInternalCluster.Name) > 0 && newInternalCluster.Name != resourceID.Name {
 		return nil, nameResourceIDMismatch(resourceID, newInternalCluster.Name)
 	}
@@ -456,17 +455,12 @@ func decodeDesiredClusterReplace(ctx context.Context, oldInternalCluster *api.HC
 		return nil, utils.TrackError(err)
 	}
 	// Exact user request
-	externalClusterFromRequest := versionedInterface.NewHCPOpenShiftCluster(&api.HCPOpenShiftCluster{})
+	externalClusterFromRequest := versionedInterface.NewHCPOpenShiftCluster(nil)
 	if err := json.Unmarshal(body, &externalClusterFromRequest); err != nil {
 		return nil, utils.TrackError(err)
 	}
 
-	// Default values
-	if err := externalClusterFromRequest.SetDefaultValues(externalClusterFromRequest); err != nil {
-		return nil, utils.TrackError(err)
-	}
-
-	newInternalCluster, err := externalClusterFromRequest.ConvertToInternal()
+	newInternalCluster, err := externalClusterFromRequest.ConvertToInternal(oldInternalCluster)
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}
@@ -490,6 +484,7 @@ func decodeDesiredClusterReplace(ctx context.Context, oldInternalCluster *api.HC
 	//    We do this because if a user has read a value, then modified it, then replaces it, we don't want to produce
 	//    validation errors on status fields that the user isn't trying to modify.
 	conversion.CopyReadOnlyClusterValues(newInternalCluster, oldInternalCluster)
+	newInternalCluster.CosmosETag = oldInternalCluster.CosmosETag
 	newInternalCluster.SystemData = ensureSystemData(systemData, oldInternalCluster.SystemData)
 
 	// Here the difference between a nil map and an empty map is significant.
@@ -549,7 +544,7 @@ func decodeDesiredClusterPatch(ctx context.Context, oldInternalCluster *api.HCPO
 	if err := api.ApplyRequestBody(http.MethodPatch, body, newExternalCluster); err != nil {
 		return nil, utils.TrackError(err)
 	}
-	newInternalCluster, err := newExternalCluster.ConvertToInternal()
+	newInternalCluster, err := newExternalCluster.ConvertToInternal(oldInternalCluster)
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}
@@ -565,6 +560,7 @@ func decodeDesiredClusterPatch(ctx context.Context, oldInternalCluster *api.HCPO
 	//    We do this because if a user has read a value, then modified it, then replaces it, we don't want to produce
 	//    validation errors on status fields that the user isn't trying to modify.
 	conversion.CopyReadOnlyClusterValues(newInternalCluster, oldInternalCluster)
+	newInternalCluster.CosmosETag = oldInternalCluster.CosmosETag
 	newInternalCluster.SystemData = ensureSystemData(systemData, oldInternalCluster.SystemData)
 	// Clear the user-assigned identities map since that is reconstructed from Cluster Service data.
 	// TODO we'd like to have the instance complete when we go to validate it.  Right now validation fails if we clear this.

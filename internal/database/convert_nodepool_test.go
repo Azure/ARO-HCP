@@ -50,6 +50,11 @@ func TestRoundTripNodePoolInternalCosmosInternal(t *testing.T) {
 			}
 			j.ServiceProviderProperties.ExistingCosmosUID = ""
 			j.CosmosETag = ""
+			// Canonical defaults are applied on Cosmos read, so ensure
+			// defaulted fields are never zero during round-trip testing.
+			if len(j.Properties.Platform.OSDisk.DiskStorageAccountType) == 0 {
+				j.Properties.Platform.OSDisk.DiskStorageAccountType = api.DiskStorageAccountTypePremium_LRS
+			}
 		},
 		func(j *arm.ManagedServiceIdentity, c randfill.Continue) {
 			c.FillNoCustom(j)
@@ -91,4 +96,48 @@ func TestCosmosToInternalNodePoolPreservesETag(t *testing.T) {
 	internalObj, err := CosmosToInternalNodePool(cosmosObj)
 	require.NoError(t, err)
 	require.Equal(t, expectedETag, internalObj.GetCosmosData().CosmosETag)
+}
+
+func TestNodePoolEnsureDefaults(t *testing.T) {
+	tests := []struct {
+		name                       string
+		diskStorageAccountType     api.DiskStorageAccountType
+		wantDiskStorageAccountType api.DiskStorageAccountType
+	}{
+		{
+			name:                       "zero value gets default",
+			diskStorageAccountType:     "",
+			wantDiskStorageAccountType: api.DiskStorageAccountTypePremium_LRS,
+		},
+		{
+			name:                       "explicit Premium_LRS preserved",
+			diskStorageAccountType:     api.DiskStorageAccountTypePremium_LRS,
+			wantDiskStorageAccountType: api.DiskStorageAccountTypePremium_LRS,
+		},
+		{
+			name:                       "explicit StandardSSD_LRS preserved",
+			diskStorageAccountType:     api.DiskStorageAccountTypeStandardSSD_LRS,
+			wantDiskStorageAccountType: api.DiskStorageAccountTypeStandardSSD_LRS,
+		},
+		{
+			name:                       "explicit Standard_LRS preserved",
+			diskStorageAccountType:     api.DiskStorageAccountTypeStandard_LRS,
+			wantDiskStorageAccountType: api.DiskStorageAccountTypeStandard_LRS,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			np := &api.HCPOpenShiftClusterNodePool{}
+			np.Properties.Platform.OSDisk.DiskStorageAccountType = tt.diskStorageAccountType
+
+			np.EnsureDefaults()
+
+			if np.Properties.Platform.OSDisk.DiskStorageAccountType != tt.wantDiskStorageAccountType {
+				t.Errorf("DiskStorageAccountType = %q, want %q",
+					np.Properties.Platform.OSDisk.DiskStorageAccountType,
+					tt.wantDiskStorageAccountType)
+			}
+		})
+	}
 }

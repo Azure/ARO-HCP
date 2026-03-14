@@ -119,16 +119,30 @@ func NewDefaultHCPOpenShiftClusterNodePool(resourceID *azcorearm.ResourceID, azu
 		TrackedResource: arm.NewTrackedResource(resourceID, azureLocation),
 		Properties: HCPOpenShiftClusterNodePoolProperties{
 			Version: NodePoolVersionProfile{
-				ChannelGroup: "stable",
+				ChannelGroup: DefaultNodePoolVersionChannelGroup,
 			},
 			Platform: NodePoolPlatformProfile{
 				OSDisk: OSDiskProfile{
-					SizeGiB:                ptr.To[int32](64),
+					SizeGiB:                ptr.To(DefaultNodePoolOSDiskSizeGiB),
 					DiskStorageAccountType: DiskStorageAccountTypePremium_LRS,
 				},
 			},
 			AutoRepair: true,
 		},
+	}
+}
+
+// EnsureDefaults fills in default values for fields that may be absent in
+// Cosmos documents created before the field was introduced, or on the create
+// and preflight paths where the internal type is constructed from external input.
+// Only fields where the zero value is never valid user input are safe to default
+// here (string enums). See the DDR at docs/api-version-defaults-and-storage.md.
+//
+// This method should be treated as append-only. Avoid removing defaulting
+// rules until all Cosmos documents have been verified to contain the field.
+func (np *HCPOpenShiftClusterNodePool) EnsureDefaults() {
+	if len(np.Properties.Platform.OSDisk.DiskStorageAccountType) == 0 {
+		np.Properties.Platform.OSDisk.DiskStorageAccountType = DiskStorageAccountTypePremium_LRS
 	}
 }
 
