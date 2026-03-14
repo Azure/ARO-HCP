@@ -314,9 +314,13 @@ func fetchPullSecretCredential(ctx context.Context, vaultName, secretName, regis
 func getACRCredential(ctx context.Context, acrName string) (auth.Credential, error) {
 	cmd := exec.CommandContext(ctx, "az", "acr", "login", "--name", acrName,
 		"--expose-token", "--output", "tsv", "--query", "accessToken")
-	output, err := cmd.CombinedOutput()
+	output, err := cmd.Output()
 	if err != nil {
-		return auth.EmptyCredential, fmt.Errorf("failed to get ACR access token for %s: %s: %w", acrName, string(output), err)
+		var stderr string
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			stderr = string(exitErr.Stderr)
+		}
+		return auth.EmptyCredential, fmt.Errorf("failed to get ACR access token for %s: %s: %w", acrName, stderr, err)
 	}
 
 	return auth.Credential{
@@ -330,8 +334,12 @@ func getACRCredential(ctx context.Context, acrName string) (auth.Credential, err
 func getACRDomainSuffix(ctx context.Context) (string, error) {
 	cmd := exec.CommandContext(ctx, "az", "cloud", "show",
 		"--query", "suffixes.acrLoginServerEndpoint", "--output", "tsv")
-	output, err := cmd.CombinedOutput()
+	output, err := cmd.Output()
 	if err != nil {
+		var stderr string
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			stderr = string(exitErr.Stderr)
+		}
 		return "", fmt.Errorf("failed to get ACR domain suffix: %s: %w", string(output), err)
 	}
 	return strings.TrimSpace(string(output)), nil
