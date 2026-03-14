@@ -257,6 +257,24 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 	_, subscriptionLister := backendInformers.Subscriptions()
 	activeOperationInformer, activeOperationLister := backendInformers.ActiveOperations()
 
+	operationPhaseMetricsController := controllerutils.NewOperationPhaseMetricsController(
+		prometheus.DefaultRegisterer, activeOperationInformer)
+
+	clusterInformer, _ := backendInformers.Clusters()
+	clusterSync, clusterDelete := controllerutils.NewClusterMetricsHandler(prometheus.DefaultRegisterer)
+	clusterMetricsController := controllerutils.NewResourceMetricsController(
+		"ClusterMetrics", clusterInformer, clusterSync, clusterDelete)
+
+	nodePoolInformer, _ := backendInformers.NodePools()
+	nodePoolSync, nodePoolDelete := controllerutils.NewNodePoolMetricsHandler(prometheus.DefaultRegisterer)
+	nodePoolMetricsController := controllerutils.NewResourceMetricsController(
+		"NodePoolMetrics", nodePoolInformer, nodePoolSync, nodePoolDelete)
+
+	externalAuthInformer, _ := backendInformers.ExternalAuths()
+	externalAuthSync, externalAuthDelete := controllerutils.NewExternalAuthMetricsHandler(prometheus.DefaultRegisterer)
+	externalAuthMetricsController := controllerutils.NewResourceMetricsController(
+		"ExternalAuthMetrics", externalAuthInformer, externalAuthSync, externalAuthDelete)
+
 	maestroClientBuilder := maestro.NewMaestroClientBuilder()
 
 	dataDumpController := controllerutils.NewClusterWatchingController(
@@ -519,6 +537,10 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go maestroCreateReadonlyBundlesController.Run(ctx, 20)
 				go maestroReadAndPersistReadonlyBundlesContentController.Run(ctx, 20)
 				go maestroDeleteOrphanedReadonlyBundlesController.Run(ctx, 20)
+				go operationPhaseMetricsController.Run(ctx, 1)
+				go clusterMetricsController.Run(ctx, 1)
+				go nodePoolMetricsController.Run(ctx, 1)
+				go externalAuthMetricsController.Run(ctx, 1)
 			},
 			OnStoppedLeading: func() {
 				// This needs to be defined even though it does nothing.
