@@ -33,6 +33,12 @@ resourceGroups:
     parameters: configurations/geneva-identities-lookup.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     outputOnly: true
+  - name: mise-output
+    action: ARM
+    template: templates/mise-identity-lookup.bicep
+    parameters: configurations/mise-identity-lookup.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
 # Query parameters from regional deployment, e.g. Azure Monitor workspace ID
 - name: regional
   resourceGroup: '{{ .regionRG }}'
