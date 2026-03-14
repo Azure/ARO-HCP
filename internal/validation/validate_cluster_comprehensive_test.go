@@ -21,12 +21,26 @@ import (
 	"time"
 
 	"k8s.io/apimachinery/pkg/api/operation"
+	"k8s.io/utils/ptr"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
+
+// testFeatureOptions creates validation options from feature names,
+// matching production behavior by normalizing to lowercase.
+func testFeatureOptions(names ...string) []string {
+	features := make([]arm.Feature, len(names))
+	for i, name := range names {
+		features[i] = arm.Feature{
+			Name:  ptr.To(name),
+			State: ptr.To("Registered"),
+		}
+	}
+	return AFECsToValidationOptions(features)
+}
 
 // Comprehensive tests for ValidateClusterCreate
 // using a subscription without AllowNonStableChannel flags
@@ -1216,7 +1230,7 @@ func TestValidateClusterUpdate(t *testing.T) {
 				c.CustomerProperties.Version.ID = "4.19"
 				return c
 			}(),
-			opOptions:    []string{api.FeatureExperimentalReleaseFeatures},
+			opOptions:    testFeatureOptions(api.FeatureExperimentalReleaseFeatures),
 			expectErrors: []expectedError{},
 		},
 		{
@@ -1717,7 +1731,7 @@ func TestValidateClusterUpdate(t *testing.T) {
 				c.CustomerProperties.Version.ID = "4.19"
 				return c
 			}(),
-			opOptions: []string{api.FeatureExperimentalReleaseFeatures},
+			opOptions: testFeatureOptions(api.FeatureExperimentalReleaseFeatures),
 			expectErrors: []expectedError{
 				{message: "Required value", fieldPath: "customerProperties.version.id"},
 			},
@@ -1734,7 +1748,7 @@ func TestValidateClusterUpdate(t *testing.T) {
 				c.CustomerProperties.Version.ID = ""
 				return c
 			}(),
-			opOptions:    []string{api.FeatureExperimentalReleaseFeatures},
+			opOptions:    testFeatureOptions(api.FeatureExperimentalReleaseFeatures),
 			expectErrors: []expectedError{},
 		},
 		{
@@ -1749,13 +1763,13 @@ func TestValidateClusterUpdate(t *testing.T) {
 				c.CustomerProperties.Version.ID = "4.20"
 				return c
 			}(),
-			opOptions: []string{api.FeatureExperimentalReleaseFeatures},
+			opOptions: testFeatureOptions(api.FeatureExperimentalReleaseFeatures),
 			expectErrors: []expectedError{
 				{message: "may not decrease", fieldPath: "customerProperties.version.id"},
 			},
 		},
 		{
-			name: "update: version can increase from 4.19 to 4.20",
+			name: "update: version can increase from 4.19 to 4.20 using a case insensitive AFEC",
 			newCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
 				c.CustomerProperties.Version.ID = "4.20"
@@ -1766,7 +1780,7 @@ func TestValidateClusterUpdate(t *testing.T) {
 				c.CustomerProperties.Version.ID = "4.19"
 				return c
 			}(),
-			opOptions:    []string{api.FeatureExperimentalReleaseFeatures},
+			opOptions:    testFeatureOptions("Microsoft.Redhatopenshift/ExperimentalReleaseFeatures"),
 			expectErrors: []expectedError{},
 		},
 		{
@@ -1795,7 +1809,7 @@ func TestValidateClusterUpdate(t *testing.T) {
 				c.CustomerProperties.Version.ID = "4.18"
 				return c
 			}(),
-			opOptions: []string{api.FeatureExperimentalReleaseFeatures},
+			opOptions: testFeatureOptions(api.FeatureExperimentalReleaseFeatures),
 			expectErrors: []expectedError{
 				{message: "must be at least 4.19", fieldPath: "customerProperties.version.id"},
 			},

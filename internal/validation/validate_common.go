@@ -16,6 +16,7 @@ package validation
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"k8s.io/apimachinery/pkg/api/operation"
@@ -30,6 +31,7 @@ import (
 )
 
 // AFECsToValidationOptions converts the API logic into validation compatible options.
+// Feature names are normalized to lowercase for case-insensitive comparison.
 func AFECsToValidationOptions(features []arm.Feature) []string {
 	ret := []string{}
 
@@ -38,7 +40,7 @@ func AFECsToValidationOptions(features []arm.Feature) []string {
 			continue
 		}
 		if ptr.Deref(curr.State, "") == "Registered" {
-			ret = append(ret, *curr.Name)
+			ret = append(ret, strings.ToLower(*curr.Name))
 		}
 	}
 

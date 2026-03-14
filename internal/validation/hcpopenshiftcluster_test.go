@@ -343,7 +343,7 @@ func TestClusterValidate(t *testing.T) {
 				r.CustomerProperties.Version.ID = "4.19.3"
 				return r
 			}(),
-			opOptions:    []string{api.FeatureExperimentalReleaseFeatures},
+			opOptions:    testFeatureOptions(api.FeatureExperimentalReleaseFeatures),
 			expectErrors: []expectedError{},
 		},
 		{
@@ -367,7 +367,7 @@ func TestClusterValidate(t *testing.T) {
 				r.CustomerProperties.Version.ChannelGroup = "candidate"
 				return r
 			}(),
-			opOptions:    []string{api.FeatureExperimentalReleaseFeatures},
+			opOptions:    testFeatureOptions(api.FeatureExperimentalReleaseFeatures),
 			expectErrors: []expectedError{},
 		},
 		{
@@ -391,7 +391,7 @@ func TestClusterValidate(t *testing.T) {
 				r.CustomerProperties.Version.ID = "4.20.0-rc.1"
 				return r
 			}(),
-			opOptions:    []string{api.FeatureExperimentalReleaseFeatures},
+			opOptions:    testFeatureOptions(api.FeatureExperimentalReleaseFeatures),
 			expectErrors: []expectedError{},
 		},
 		{
@@ -402,7 +402,7 @@ func TestClusterValidate(t *testing.T) {
 				r.CustomerProperties.Version.ID = "4.20.0-0.nightly-2024-01-15-123456"
 				return r
 			}(),
-			opOptions:    []string{api.FeatureExperimentalReleaseFeatures},
+			opOptions:    testFeatureOptions(api.FeatureExperimentalReleaseFeatures),
 			expectErrors: []expectedError{},
 		},
 		{
@@ -444,7 +444,7 @@ func TestClusterValidate(t *testing.T) {
 				r.CustomerProperties.Version.ChannelGroup = "nightly"
 				return r
 			}(),
-			opOptions:    []string{api.FeatureExperimentalReleaseFeatures},
+			opOptions:    testFeatureOptions(api.FeatureExperimentalReleaseFeatures),
 			expectErrors: []expectedError{},
 		},
 		{
@@ -454,7 +454,7 @@ func TestClusterValidate(t *testing.T) {
 				r.CustomerProperties.Version.ChannelGroup = "blah"
 				return r
 			}(),
-			opOptions: []string{api.FeatureExperimentalReleaseFeatures},
+			opOptions: testFeatureOptions(api.FeatureExperimentalReleaseFeatures),
 			expectErrors: []expectedError{
 				{
 					message:   "supported values: \"candidate\", \"fast\", \"nightly\", \"stable\"",
