@@ -5,12 +5,8 @@
 # validate, then `make test` to confirm the image builds correctly.
 #
 # Upstream release pages:
-#   Go:        https://go.dev/dl/
-#   kubectl:   https://dl.k8s.io/release/stable.txt
-#   kubelogin: https://github.com/Azure/kubelogin/releases
+#   Builder:   .ci-operator.yaml (build_root_image.tag)
 #   promtool:  https://github.com/prometheus/prometheus/releases
 
-GO_INSTALL_VERSION ?= 1.25.7
-KUBECTL_VERSION   ?= v1.35.0
-KUBELOGIN_VERSION ?= v0.2.14
+BUILDER_IMAGE_TAG ?= $(shell yq '.build_root_image.tag' ../../.ci-operator.yaml)
 PROMTOOL_VERSION  ?= 3.2.1

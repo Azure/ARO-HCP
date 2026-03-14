@@ -4,28 +4,31 @@ This directory contains scripts to manage Azure AD credentials for ARO HCP E2E t
 
 ## Base Image
 
-The `Dockerfile` in this directory defines the base image used in our release configurations. This image includes:
+The `Dockerfile` in this directory defines the base image used in our release configurations. It extends the OCP builder image with additional tools:
 
-- Red Hat UBI 9 base image
+- OCP builder image (`registry.ci.openshift.org/ocp/builder`) as a base, which includes Go and runs on RHEL9
 - Azure CLI with Bicep extension
-- Go 1.25.7
-- kubectl and kubelogin
-- OpenShift CLI (oc)
-- Promtool
+- kubectl (latest stable) and kubelogin (latest release)
+- OpenShift CLI (oc, latest stable)
+- Promtool (pinned version)
 - Required system tools (make, git, procps-ng)
 
 ### Version Management
 
-Tool versions are defined in `versions.mk` and mirrored as `ARG` defaults in the `Dockerfile`. When updating a version:
+- **Go / builder image**: Defined in `.ci-operator.yaml` at the repo root. The `build_root_image.tag` field specifies the OCP builder image tag (e.g., `rhel-9-golang-1.25-openshift-4.21`). This is the single source of truth for both CI (ci-operator reads it directly) and local builds (`versions.mk` extracts it via `yq`).
+- **Promtool**: Pinned in `versions.mk` and as an `ARG` default in the `Dockerfile`.
+- **kubectl, kubelogin, oc**: Always download the latest stable version — no pinning required.
 
-1. Edit `versions.mk` with the new version
-2. Update the matching `ARG` default in the `Dockerfile`
-3. Run `make verify` to check both files are in sync and Go major.minor matches `go.work`
-4. Run `make test` to build the image and smoke-test all tools
+When updating versions:
+
+1. **Go bump**: Update `.ci-operator.yaml` first (the base-ci image must have the new Go version before `go.work` is updated). Then update `go.work` in a follow-up PR.
+2. **Promtool bump**: Edit `versions.mk` and update the `ARG` default in the `Dockerfile`.
+3. Run `make verify` to check that Go minor version in `go.work` matches the builder image tag, and that the promtool version is in sync.
+4. Run `make test` to build the image and smoke-test all tools.
 
 ### CI Build Flow
 
-We have created a Post Submit job in Release repo https://github.com/openshift/release/blob/master/ci-operator/config/Azure/ARO-HCP/Azure-ARO-HCP-main__baseimage-generator.yaml , which would build this Docker image after any PR merges.
+The builder image tag is defined in `.ci-operator.yaml` at the repo root. ci-operator uses this as inrepo config to resolve the build root image for the base image build, replacing the previously centrally-defined configuration in https://github.com/openshift/release/blob/master/ci-operator/config/Azure/ARO-HCP/Azure-ARO-HCP-main__baseimage-generator.yaml. A Post Submit job builds this Docker image from the Dockerfile after any PR merges.
 
 And in our Release Job(presubmit/periodic) we consume this prebuild images as build root https://github.com/openshift/release/blob/master/ci-operator/config/Azure/ARO-HCP/Azure-ARO-HCP-main.yaml#L7 .
 
