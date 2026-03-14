@@ -642,6 +642,8 @@ monitoring:
       actionGroupShortName: ""
       automitigationEnabled: ""
       routingId: ""
+  maxActiveTimeSeries: 10000000
+  maxEventsPerMinute: 10000000
   svcWorkspaceName: services-j7654321
 msiCredentialsRefresher:
   certificate:

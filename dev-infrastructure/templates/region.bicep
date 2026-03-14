@@ -39,6 +39,12 @@ param svcMonitorName string
 @description('Name of the Azure Monitor Workspace for hosted control planes')
 param hcpMonitorName string
 
+@description('Maximum active time series limit for Azure Monitor Workspaces')
+param amwMaxActiveTimeSeries int = 10000000
+
+@description('Maximum events per minute limit for Azure Monitor Workspaces')
+param amwMaxEventsPerMinute int = 10000000
+
 import * as res from '../modules/resource.bicep'
 
 // Reader role
@@ -136,4 +142,28 @@ module hcpMonitor '../modules/metrics/monitor.bicep' = {
     monitorName: hcpMonitorName
     purpose: 'hcps'
   }
+}
+
+// Configure ingestion limits for Azure Monitor Workspaces
+// 10M supports ~100 HCPs per region. Increase when adding more mgmt clusters.
+module svcMonitorIngestionLimits '../modules/metrics/amw-ingestion-limits.bicep' = {
+  name: 'svc-monitor-ingestion-limits'
+  params: {
+    azureMonitorWorkspaceName: svcMonitorName
+    location: location
+    maxActiveTimeSeries: amwMaxActiveTimeSeries
+    maxEventsPerMinute: amwMaxEventsPerMinute
+  }
+  dependsOn: [svcMonitor]
+}
+
+module hcpMonitorIngestionLimits '../modules/metrics/amw-ingestion-limits.bicep' = {
+  name: 'hcp-monitor-ingestion-limits'
+  params: {
+    azureMonitorWorkspaceName: hcpMonitorName
+    location: location
+    maxActiveTimeSeries: amwMaxActiveTimeSeries
+    maxEventsPerMinute: amwMaxEventsPerMinute
+  }
+  dependsOn: [hcpMonitor]
 }

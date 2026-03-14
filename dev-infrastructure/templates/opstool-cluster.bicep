@@ -59,6 +59,12 @@ param aksClusterOutboundIPAddressIPTags string = ''
 @description('Azure Monitor Workspace name for Prometheus remote write')
 param azureMonitorWorkspaceName string
 
+@description('Maximum active time series limit for Azure Monitor Workspace (10M for 100 HCPs, max 20M via API)')
+param amwMaxActiveTimeSeries int = 10000000
+
+@description('Maximum events per minute limit for Azure Monitor Workspace (10M for 100 HCPs, max 20M via API)')
+param amwMaxEventsPerMinute int = 10000000
+
 @description('Owning team tag value')
 param owningTeamTagValue string = 'ARO-HCP-SRE'
 
@@ -218,6 +224,19 @@ resource azureMonitorWorkspace 'Microsoft.Monitor/accounts@2023-04-03' = {
     owningTeam: owningTeamTagValue
     purpose: 'opstool-prometheus-metrics'
   }
+}
+
+module amwIngestionLimits '../modules/metrics/amw-ingestion-limits.bicep' = {
+  name: 'amw-ingestion-limits'
+  params: {
+    azureMonitorWorkspaceName: azureMonitorWorkspaceName
+    location: location
+    maxActiveTimeSeries: amwMaxActiveTimeSeries
+    maxEventsPerMinute: amwMaxEventsPerMinute
+  }
+  dependsOn: [
+    azureMonitorWorkspace
+  ]
 }
 
 module dataCollection '../modules/metrics/datacollection.bicep' = {
