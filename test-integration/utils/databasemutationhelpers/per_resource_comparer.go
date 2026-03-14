@@ -60,7 +60,6 @@ func ResourceInstanceEquals(t *testing.T, expected, actual any) (string, bool) {
 		unstructured.RemoveNestedField(currMap, "systemData", "createdAt")
 		// lastModifiedAt also varies on every run
 		unstructured.RemoveNestedField(currMap, "systemData", "lastModifiedAt")
-
 		// these are case insensitive
 		if value, ok := currMap["resourceID"].(string); ok && len(value) > 0 {
 			currMap["resourceID"] = strings.ToLower(value)
@@ -133,6 +132,12 @@ func ResourceInstanceEquals(t *testing.T, expected, actual any) (string, bool) {
 					}
 				}
 			}
+
+			// provisioningConditions contain dynamic lastTransitionTime, remove at all nesting levels
+			for _, nestedPossiblePrepend := range []string{"", "intermediateResourceDoc"} {
+				unstructured.RemoveNestedField(currMap, prepend(possiblePrepend, prepend(nestedPossiblePrepend, "serviceProviderProperties", "provisioningConditions")...)...)
+			}
+			unstructured.RemoveNestedField(currMap, prepend(possiblePrepend, "internalState", "internalAPI", "serviceProviderProperties", "provisioningConditions")...)
 
 			switch {
 			case strings.EqualFold(resourceType, api.OperationStatusResourceType.String()):
