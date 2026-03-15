@@ -787,6 +787,8 @@ github.com/russross/blackfriday/v2 v2.1.0/go.mod h1:+Rmxgy9KzJVeS9/2gXHxylqXiyQD
 github.com/rwcarlsen/goexif v0.0.0-20190401172101-9e8deecbddbd/go.mod h1:hPqNNc0+uJM6H+SuU8sEs5K5IQeKccPqeSjfgcKGgPk=
 github.com/santhosh-tekuri/jsonschema/v6 v6.0.2 h1:KRzFb2m7YtdldCEkzs6KqmJw4nqEVZGK7IN2kJkjTuQ=
 github.com/santhosh-tekuri/jsonschema/v6 v6.0.2/go.mod h1:JXeL+ps8p7/KNMjDQk3TCwPpBy0wYklyWTfbkIzdIFU=
+github.com/sclarkso/ARO-Tools/tools/imagemirror v0.0.0-20260315190844-336e698d96f0 h1:nWqwFbytj1GorAN48Rqaa8zhBsdHXPlSRBnGA9Fl2LM=
+github.com/sclarkso/ARO-Tools/tools/imagemirror v0.0.0-20260315190844-336e698d96f0/go.mod h1:7XpGYRGwebONhKzQbxc/QWvQGzPKohueG8y3LRfUFKc=
 github.com/segmentio/asm v1.1.3 h1:WM03sfUOENvvKexOLp+pCqgb/WDjsi7EK8gIsICtzhc=
 github.com/segmentio/asm v1.1.3/go.mod h1:Ld3L4ZXGNcSLRg4JBsZ3//1+f/TjYl0Mzen/DQy1EJg=
 github.com/segmentio/encoding v0.3.4 h1:WM4IBnxH8B9TakiM2QD5LyNl9JSndh88QbHqVC+Pauc=
