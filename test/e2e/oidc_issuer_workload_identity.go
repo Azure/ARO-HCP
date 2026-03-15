@@ -39,7 +39,6 @@ var _ = Describe("Customer", func() {
 		labels.RequireNothing,
 		labels.Medium,
 		labels.Positive,
-		labels.Slow,
 		labels.AroRpApiCompatible,
 		func(ctx context.Context) {
 			const (
