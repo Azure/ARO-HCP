@@ -688,3 +688,306 @@ Check the status of the Arobit forwarder pods, service endpoints, and network co
     ]
   }
 }
+
+resource serviceTagCapacityRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'service-tag-capacity-rules'
+  location: location
+  properties: {
+    interval: 'PT1M'
+    rules: [
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'AroHcpNonprodInboundCustomerapiCapacity'
+        enabled: true
+        labels: {
+          severity: 'info'
+          team: 'hcp-sl'
+        }
+        annotations: {
+          correlationId: 'AroHcpNonprodInboundCustomerapiCapacity/{{ $labels.cluster }}'
+          description: 'Service Tag IP Usage {{ $labels.cluster }} is at {{ $value | humanizePercentage }} of its capacity. Current count exceeds warning threshold of 80%.'
+          info: 'Service Tag IP Usage {{ $labels.cluster }} is at {{ $value | humanizePercentage }} of its capacity. Current count exceeds warning threshold of 80%.'
+          owning_team: 'hcp-sl'
+          runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/serviceiptagusage'
+          summary: 'Service Tag IP Usage is reaching 80%'
+          title: 'Service Tag IP Usage is reaching 80%'
+        }
+        expression: 'public_ip_count_by_region_service_tag{service_tag_type="FirstPartyUsage",service_tag_value="/aro-hcp-nonprod-inbound-customerapi"} / 32 > 0.8'
+        for: 'PT15M'
+        severity: 4
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'AroHcpNonprodInboundSvcCapacity'
+        enabled: true
+        labels: {
+          severity: 'info'
+          team: 'hcp-sl'
+        }
+        annotations: {
+          correlationId: 'AroHcpNonprodInboundSvcCapacity/{{ $labels.cluster }}'
+          description: 'Service Tag IP Usage {{ $labels.cluster }} is at {{ $value | humanizePercentage }} of its capacity. Current count exceeds warning threshold of 80%.'
+          info: 'Service Tag IP Usage {{ $labels.cluster }} is at {{ $value | humanizePercentage }} of its capacity. Current count exceeds warning threshold of 80%.'
+          owning_team: 'hcp-sl'
+          runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/serviceiptagusage'
+          summary: 'Service Tag IP Usage is reaching 80%'
+          title: 'Service Tag IP Usage is reaching 80%'
+        }
+        expression: 'public_ip_count_by_region_service_tag{service_tag_type="FirstPartyUsage",service_tag_value="/aro-hcp-nonprod-inbound-svc"} / 18 > 0.8'
+        for: 'PT15M'
+        severity: 4
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'AroHcpNonprodOutboundCxCapacity'
+        enabled: true
+        labels: {
+          severity: 'info'
+          team: 'hcp-sl'
+        }
+        annotations: {
+          correlationId: 'AroHcpNonprodOutboundCxCapacity/{{ $labels.cluster }}'
+          description: 'Service Tag IP Usage {{ $labels.cluster }} is at {{ $value | humanizePercentage }} of its capacity. Current count exceeds warning threshold of 80%.'
+          info: 'Service Tag IP Usage {{ $labels.cluster }} is at {{ $value | humanizePercentage }} of its capacity. Current count exceeds warning threshold of 80%.'
+          owning_team: 'hcp-sl'
+          runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/serviceiptagusage'
+          summary: 'Service Tag IP Usage is reaching 80%'
+          title: 'Service Tag IP Usage is reaching 80%'
+        }
+        expression: 'public_ip_count_by_region_service_tag{service_tag_type="FirstPartyUsage",service_tag_value="/aro-hcp-nonprod-outbound-cx"} / 8 > 0.8'
+        for: 'PT15M'
+        severity: 4
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'AroHcpNonprodOutboundSvcCapacity'
+        enabled: true
+        labels: {
+          severity: 'info'
+          team: 'hcp-sl'
+        }
+        annotations: {
+          correlationId: 'AroHcpNonprodOutboundSvcCapacity/{{ $labels.cluster }}'
+          description: 'Service Tag IP Usage {{ $labels.cluster }} is at {{ $value | humanizePercentage }} of its capacity. Current count exceeds warning threshold of 80%.'
+          info: 'Service Tag IP Usage {{ $labels.cluster }} is at {{ $value | humanizePercentage }} of its capacity. Current count exceeds warning threshold of 80%.'
+          owning_team: 'hcp-sl'
+          runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/serviceiptagusage'
+          summary: 'Service Tag IP Usage is reaching 80%'
+          title: 'Service Tag IP Usage is reaching 80%'
+        }
+        expression: 'public_ip_count_by_region_service_tag{service_tag_type="FirstPartyUsage",service_tag_value="/aro-hcp-nonprod-outbound-svc"} / 18 > 0.8'
+        for: 'PT15M'
+        severity: 4
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'AroHcpProdInboundCustomerapiCapacity'
+        enabled: true
+        labels: {
+          severity: 'info'
+          team: 'hcp-sl'
+        }
+        annotations: {
+          correlationId: 'AroHcpProdInboundCustomerapiCapacity/{{ $labels.cluster }}'
+          description: 'Service Tag IP Usage {{ $labels.cluster }} is at {{ $value | humanizePercentage }} of its capacity. Current count exceeds warning threshold of 80%.'
+          info: 'Service Tag IP Usage {{ $labels.cluster }} is at {{ $value | humanizePercentage }} of its capacity. Current count exceeds warning threshold of 80%.'
+          owning_team: 'hcp-sl'
+          runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/serviceiptagusage'
+          summary: 'Service Tag IP Usage is reaching 80%'
+          title: 'Service Tag IP Usage is reaching 80%'
+        }
+        expression: 'public_ip_count_by_region_service_tag{service_tag_type="FirstPartyUsage",service_tag_value="/aro-hcp-prod-inbound-customerapi",region!="uswest2"} / 64 > 0.8'
+        for: 'PT15M'
+        severity: 4
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'AroHcpProdInboundCustomerapiUswest2Capacity'
+        enabled: true
+        labels: {
+          severity: 'info'
+          team: 'hcp-sl'
+        }
+        annotations: {
+          correlationId: 'AroHcpProdInboundCustomerapiUswest2Capacity/{{ $labels.cluster }}'
+          description: 'Service Tag IP Usage {{ $labels.cluster }} is at {{ $value | humanizePercentage }} of its capacity. Current count exceeds warning threshold of 80%.'
+          info: 'Service Tag IP Usage {{ $labels.cluster }} is at {{ $value | humanizePercentage }} of its capacity. Current count exceeds warning threshold of 80%.'
+          owning_team: 'hcp-sl'
+          runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/serviceiptagusage'
+          summary: 'Service Tag IP Usage is reaching 80%'
+          title: 'Service Tag IP Usage is reaching 80%'
+        }
+        expression: 'public_ip_count_by_region_service_tag{service_tag_type="FirstPartyUsage",service_tag_value="/aro-hcp-prod-inbound-customerapi",region="uswest2"} / 128 > 0.8'
+        for: 'PT15M'
+        severity: 4
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'AroHcpProdInboundCxCapacity'
+        enabled: true
+        labels: {
+          severity: 'info'
+          team: 'hcp-sl'
+        }
+        annotations: {
+          correlationId: 'AroHcpProdInboundCxCapacity/{{ $labels.cluster }}'
+          description: 'Service Tag IP Usage {{ $labels.cluster }} is at {{ $value | humanizePercentage }} of its capacity. Current count exceeds warning threshold of 80%.'
+          info: 'Service Tag IP Usage {{ $labels.cluster }} is at {{ $value | humanizePercentage }} of its capacity. Current count exceeds warning threshold of 80%.'
+          owning_team: 'hcp-sl'
+          runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/serviceiptagusage'
+          summary: 'Service Tag IP Usage is reaching 80%'
+          title: 'Service Tag IP Usage is reaching 80%'
+        }
+        expression: 'public_ip_count_by_region_service_tag{service_tag_type="FirstPartyUsage",service_tag_value="/aro-hcp-prod-inbound-cx"} / 32 > 0.8'
+        for: 'PT15M'
+        severity: 4
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'AroHcpProdInboundSvcCapacity'
+        enabled: true
+        labels: {
+          severity: 'info'
+          team: 'hcp-sl'
+        }
+        annotations: {
+          correlationId: 'AroHcpProdInboundSvcCapacity/{{ $labels.cluster }}'
+          description: 'Service Tag IP Usage {{ $labels.cluster }} is at {{ $value | humanizePercentage }} of its capacity. Current count exceeds warning threshold of 80%.'
+          info: 'Service Tag IP Usage {{ $labels.cluster }} is at {{ $value | humanizePercentage }} of its capacity. Current count exceeds warning threshold of 80%.'
+          owning_team: 'hcp-sl'
+          runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/serviceiptagusage'
+          summary: 'Service Tag IP Usage is reaching 80%'
+          title: 'Service Tag IP Usage is reaching 80%'
+        }
+        expression: 'public_ip_count_by_region_service_tag{service_tag_type="FirstPartyUsage",service_tag_value="/aro-hcp-prod-inbound-svc"} / 32 > 0.8'
+        for: 'PT15M'
+        severity: 4
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'AroHcpProdOutboundCxCapacity'
+        enabled: true
+        labels: {
+          severity: 'info'
+          team: 'hcp-sl'
+        }
+        annotations: {
+          correlationId: 'AroHcpProdOutboundCxCapacity/{{ $labels.cluster }}'
+          description: 'Service Tag IP Usage {{ $labels.cluster }} is at {{ $value | humanizePercentage }} of its capacity. Current count exceeds warning threshold of 80%.'
+          info: 'Service Tag IP Usage {{ $labels.cluster }} is at {{ $value | humanizePercentage }} of its capacity. Current count exceeds warning threshold of 80%.'
+          owning_team: 'hcp-sl'
+          runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/serviceiptagusage'
+          summary: 'Service Tag IP Usage is reaching 80%'
+          title: 'Service Tag IP Usage is reaching 80%'
+        }
+        expression: 'public_ip_count_by_region_service_tag{service_tag_type="FirstPartyUsage",service_tag_value="/aro-hcp-prod-outbound-cx"} / 32 > 0.8'
+        for: 'PT15M'
+        severity: 4
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'AroHcpProdOutboundSvcCapacity'
+        enabled: true
+        labels: {
+          severity: 'info'
+          team: 'hcp-sl'
+        }
+        annotations: {
+          correlationId: 'AroHcpProdOutboundSvcCapacity/{{ $labels.cluster }}'
+          description: 'Service Tag IP Usage {{ $labels.cluster }} is at {{ $value | humanizePercentage }} of its capacity. Current count exceeds warning threshold of 80%.'
+          info: 'Service Tag IP Usage {{ $labels.cluster }} is at {{ $value | humanizePercentage }} of its capacity. Current count exceeds warning threshold of 80%.'
+          owning_team: 'hcp-sl'
+          runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/serviceiptagusage'
+          summary: 'Service Tag IP Usage is reaching 80%'
+          title: 'Service Tag IP Usage is reaching 80%'
+        }
+        expression: 'public_ip_count_by_region_service_tag{service_tag_type="FirstPartyUsage",service_tag_value="/aro-hcp-prod-outbound-svc"} / 32 > 0.8'
+        for: 'PT15M'
+        severity: 4
+      }
+    ]
+    scopes: [
+      azureMonitoring
+    ]
+  }
+}
