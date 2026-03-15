@@ -35,6 +35,16 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils/apihelpers"
 )
 
+// noWatchListLW wraps a cache.ListWatch and opts out of the WatchListClient
+// feature (enabled by default in client-go v0.35+). Our custom informers use
+// an expiringWatcher that does not implement watch-list bookmark semantics,
+// so the reflector must fall back to the traditional list-then-watch pattern.
+type noWatchListLW struct {
+	*cache.ListWatch
+}
+
+func (noWatchListLW) IsWatchListSemanticsUnSupported() bool { return true }
+
 const (
 	// These durations indicate the maximum time it will take for us to notice a new instance of a particular type.
 	// Remember that these will not fire in order, so it's entirely possible to get an operation for subscription we have no observed.
@@ -85,7 +95,7 @@ func NewSubscriptionInformerWithRelistDuration(lister database.GlobalLister[arm.
 	}
 
 	return cache.NewSharedIndexInformerWithOptions(
-		lw,
+		noWatchListLW{lw},
 		&arm.Subscription{},
 		cache.SharedIndexInformerOptions{
 			ResyncPeriod: 1 * time.Hour, // this is only a default.  Shorter resyncs can be added when registering handlers.
@@ -130,7 +140,7 @@ func NewClusterInformerWithRelistDuration(lister database.GlobalLister[api.HCPOp
 	}
 
 	return cache.NewSharedIndexInformerWithOptions(
-		lw,
+		noWatchListLW{lw},
 		&api.HCPOpenShiftCluster{},
 		cache.SharedIndexInformerOptions{
 			ResyncPeriod: 1 * time.Hour, // this is only a default.  Shorter resyncs can be added when registering handlers.
@@ -178,7 +188,7 @@ func NewNodePoolInformerWithRelistDuration(lister database.GlobalLister[api.HCPO
 	}
 
 	return cache.NewSharedIndexInformerWithOptions(
-		lw,
+		noWatchListLW{lw},
 		&api.HCPOpenShiftClusterNodePool{},
 		cache.SharedIndexInformerOptions{
 			ResyncPeriod: 1 * time.Hour, // this is only a default.  Shorter resyncs can be added when registering handlers.
@@ -227,7 +237,7 @@ func NewExternalAuthInformerWithRelistDuration(lister database.GlobalLister[api.
 	}
 
 	return cache.NewSharedIndexInformerWithOptions(
-		lw,
+		noWatchListLW{lw},
 		&api.HCPOpenShiftClusterExternalAuth{},
 		cache.SharedIndexInformerOptions{
 			ResyncPeriod: 1 * time.Hour, // this is only a default.  Shorter resyncs can be added when registering handlers.
@@ -276,7 +286,7 @@ func NewServiceProviderClusterInformerWithRelistDuration(lister database.GlobalL
 	}
 
 	return cache.NewSharedIndexInformerWithOptions(
-		lw,
+		noWatchListLW{lw},
 		&api.ServiceProviderCluster{},
 		cache.SharedIndexInformerOptions{
 			ResyncPeriod: 1 * time.Hour, // this is only a default.  Shorter resyncs can be added when registering handlers.
@@ -324,7 +334,7 @@ func NewServiceProviderNodePoolInformerWithRelistDuration(lister database.Global
 	}
 
 	return cache.NewSharedIndexInformerWithOptions(
-		lw,
+		noWatchListLW{lw},
 		&api.ServiceProviderNodePool{},
 		cache.SharedIndexInformerOptions{
 			ResyncPeriod: 1 * time.Hour, // this is only a default.  Shorter resyncs can be added when registering handlers.
@@ -372,7 +382,7 @@ func NewControllerInformerWithRelistDuration(lister database.GlobalLister[api.Co
 	}
 
 	return cache.NewSharedIndexInformerWithOptions(
-		lw,
+		noWatchListLW{lw},
 		&api.Controller{},
 		cache.SharedIndexInformerOptions{
 			ResyncPeriod: 1 * time.Hour,
@@ -425,7 +435,7 @@ func NewActiveOperationInformerWithRelistDuration(lister database.GlobalLister[a
 	}
 
 	return cache.NewSharedIndexInformerWithOptions(
-		lw,
+		noWatchListLW{lw},
 		&api.Operation{},
 		cache.SharedIndexInformerOptions{
 			ResyncPeriod: 1 * time.Hour, // this is only a default.  Shorter resyncs can be added when registering handlers.

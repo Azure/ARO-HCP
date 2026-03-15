@@ -81,10 +81,10 @@ func NewKubernetesClientSets(sessionNamespace string) *KubernetesClientSets {
 	decoder := codecs.UniversalDeserializer()
 
 	// Standard kubernetes fake client
-	fc := fake.NewSimpleClientset()
+	fc := fake.NewClientset()
 
 	// Sessiongate fake client
-	sf := sessiongatefake.NewSimpleClientset()
+	sf := sessiongatefake.NewClientset()
 	stopCh := make(chan struct{})
 
 	// Build routing map by API group. To add a new client, add it here.
