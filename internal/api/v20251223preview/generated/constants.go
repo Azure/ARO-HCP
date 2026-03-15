@@ -25,8 +25,10 @@ func PossibleActionTypeValues() []ActionType {
 type ClusterImageRegistryProfileState string
 
 const (
+	// ClusterImageRegistryProfileStateDisabled - The ImageStream-backed image registry will not be present in the cluster
 	ClusterImageRegistryProfileStateDisabled ClusterImageRegistryProfileState = "Disabled"
-	ClusterImageRegistryProfileStateEnabled  ClusterImageRegistryProfileState = "Enabled"
+	// ClusterImageRegistryProfileStateEnabled - The ImageStream-backed image registry will be run as pods on worker nodes
+	ClusterImageRegistryProfileStateEnabled ClusterImageRegistryProfileState = "Enabled"
 )
 
 // PossibleClusterImageRegistryProfileStateValues returns the possible values for the ClusterImageRegistryProfileState const type.
