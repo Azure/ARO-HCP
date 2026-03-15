@@ -18,50 +18,57 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"os"
-
-	"github.com/go-logr/logr"
 
 	"github.com/Azure/ARO-Tools/pipelines/graph"
 	"github.com/Azure/ARO-Tools/pipelines/types"
+	imagemirrorcmd "github.com/Azure/ARO-Tools/tools/imagemirror/cmd"
 )
 
-func runImageMirrorStep(id graph.Identifier, ctx context.Context, step *types.ImageMirrorStep, options *StepRunOptions, state *ExecutionState, outputWriter io.Writer) error {
-	logger := logr.FromContextOrDiscard(ctx)
-
-	tmpFile, err := os.CreateTemp("", "")
+func runImageMirrorStep(id graph.Identifier, ctx context.Context, step *types.ImageMirrorStep, options *StepRunOptions, state *ExecutionState, _ io.Writer) error {
+	// resolve step variables using the same mechanism as shell steps
+	resolvedVars, err := resolveImageMirrorVariables(id, step, options, state)
 	if err != nil {
-		return fmt.Errorf("error creating script temp file %w", err)
+		return fmt.Errorf("failed to resolve image mirror variables: %w", err)
 	}
 
-	if err := os.Chmod(tmpFile.Name(), 0755); err != nil {
-		return fmt.Errorf("error make script temp file executable %w", err)
+	opts := &imagemirrorcmd.RawMirrorOptions{
+		TargetACR:      resolvedVars["TARGET_ACR"],
+		SourceRegistry: resolvedVars["SOURCE_REGISTRY"],
+		Repository:     resolvedVars["REPOSITORY"],
+		Digest:         resolvedVars["DIGEST"],
+		PullSecretKV:   resolvedVars["PULL_SECRET_KV"],
+		PullSecretName: resolvedVars["PULL_SECRET"],
+		DryRun:         options.DryRun,
 	}
 
-	defer func() {
-		if err := os.Remove(tmpFile.Name()); err != nil {
-			logger.Info("error removing tempfile", "error", err.Error())
+	return opts.Run(ctx)
+}
+
+// resolveImageMirrorVariables resolves the step's variable references (configRef, input)
+// to concrete string values, using the same mechanism as shell steps.
+func resolveImageMirrorVariables(id graph.Identifier, step *types.ImageMirrorStep, options *StepRunOptions, state *ExecutionState) (map[string]string, error) {
+	variables := []types.Variable{
+		{Name: "TARGET_ACR", Value: step.TargetACR},
+		{Name: "SOURCE_REGISTRY", Value: step.SourceRegistry},
+		{Name: "REPOSITORY", Value: step.Repository},
+		{Name: "DIGEST", Value: step.Digest},
+		{Name: "PULL_SECRET_KV", Value: step.PullSecretKeyVault},
+		{Name: "PULL_SECRET", Value: step.PullSecretName},
+	}
+
+	state.RLock()
+	resolved, err := mapStepVariables(id.ServiceGroup, variables, options.Configuration, state.Outputs)
+	state.RUnlock()
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve variables: %w", err)
+	}
+
+	// validate required variables (pull secret vars are optional for anonymous registries)
+	for _, name := range []string{"TARGET_ACR", "SOURCE_REGISTRY", "REPOSITORY", "DIGEST"} {
+		if resolved[name] == "" {
+			return nil, fmt.Errorf("required variable %s is not set", name)
 		}
-	}()
-
-	_, err = tmpFile.Write(types.OnDemandSyncScript)
-	if err != nil {
-		// close file handle in error case
-		if err := tmpFile.Close(); err != nil {
-			logger.Info("error closing tempfile", "error", err.Error())
-		}
-		return fmt.Errorf("error writing script to temp file %w", err)
 	}
 
-	// must close before using or shell bash will raise errors, do not defer
-	if err := tmpFile.Close(); err != nil {
-		return fmt.Errorf("error closing write to script file %w", err)
-	}
-
-	tmpShellStep, err := types.ResolveImageMirrorStep(*step, tmpFile.Name())
-	if err != nil {
-		return fmt.Errorf("error resolving image mirror step %w", err)
-	}
-
-	return runShellStep(id, tmpShellStep, ctx, "", "", options, state, outputWriter)
+	return resolved, nil
 }
