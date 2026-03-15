@@ -26,6 +26,11 @@ then
     exit 0
 fi
 
+if [ "${SKIP_GRAFANA_DATASOURCE:-false}" = "true" ]; then
+    echo "Skipping Grafana datasource setup (SKIP_GRAFANA_DATASOURCE=true)"
+    exit 0
+fi
+
 # parse resource IDs
 IFS='/'
 read -ra ADDR <<< "$GRAFANA_RESOURCE_ID"
