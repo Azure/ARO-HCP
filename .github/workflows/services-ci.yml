@@ -43,39 +43,27 @@ jobs:
         include:
         - name: aro-hcp-exporter
           dir: tooling/aro-hcp-exporter
-          push_target: push
           setup_go: false
-          skip_build_on_push: false
           acr_image: arohcpmetrics
         - name: frontend
           dir: frontend
-          push_target: build-and-push
           setup_go: true
-          skip_build_on_push: false
           acr_image: arohcpfrontend
         - name: backend
           dir: backend
-          push_target: build-and-push
           setup_go: true
-          skip_build_on_push: false
           acr_image: arohcpbackend
         - name: admin-api
           dir: admin
-          push_target: build-and-push
           setup_go: true
-          skip_build_on_push: true
           acr_image: arohcpadminapi
         - name: sessiongate
           dir: sessiongate
-          push_target: build-and-push
           setup_go: true
-          skip_build_on_push: true
           acr_image: arohcpsessiongate
         - name: oc-mirror
           dir: image-sync/oc-mirror
-          push_target: push
           setup_go: false
-          skip_build_on_push: false
           acr_image: image-sync/oc-mirror
     steps:
     - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
@@ -86,7 +74,7 @@ jobs:
       with:
         go-version-file: 'go.work'
     - name: Build ${{ matrix.name }} container image
-      if: ${{ !matrix.skip_build_on_push || inputs.push == false }}
+      if: inputs.push == false
       run: |
         cd ${{ matrix.dir }}
         make image
@@ -100,13 +88,13 @@ jobs:
         client-id: ${{ secrets.AZURE_CLIENT_ID }}
         tenant-id: ${{ secrets.AZURE_TENANT_ID }}
         subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-    - name: Push ${{ matrix.name }} container image
+    - name: Build and push ${{ matrix.name }} container image
       if: inputs.push == true
       run: |
         cd ${{ matrix.dir }}
         for attempt in 1 2 3; do
           echo "Push attempt ${attempt}/3"
-          if make ${{ matrix.push_target }}; then
+          if make build-and-push; then
             exit 0
           fi
           echo "Attempt ${attempt} failed, retrying in 30s..."
