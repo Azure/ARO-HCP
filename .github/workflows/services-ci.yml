@@ -111,7 +111,6 @@ jobs:
         echo "Verifying ${{ matrix.acr_image }}:${TAG} in ${ACR_NAME}"
         az acr manifest show \
           --registry "${ACR_NAME}" \
-          --name "${{ matrix.acr_image }}" \
-          --tag "${TAG}" \
+          --name "${{ matrix.acr_image }}:${TAG}" \
           --output none
         echo "Verified ${{ matrix.acr_image }}:${TAG}"
