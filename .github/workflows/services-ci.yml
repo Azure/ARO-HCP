@@ -32,80 +32,57 @@ concurrency:
   group: ${{ github.workflow }}-service-ci
   cancel-in-progress: ${{ inputs.cancel-in-progress }}
 jobs:
-  build_push_aro_hcp_exporter:
+  build_push:
     permissions:
       id-token: 'write'
       contents: 'read'
     runs-on: 'ubuntu-latest'
-    steps:
-    - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
-      with:
-        fetch-depth: 1
-    - name: Build aro-hcp-exporter container image
-      run: |
-        cd tooling/aro-hcp-exporter/
-        make image
-    - name: "install azure-cli"
-      if: inputs.push == true
-      uses: "Azure/ARO-HCP@main"
-    - name: 'Az CLI login'
-      if: inputs.push == true
-      uses: azure/login@v2
-      with:
-        client-id: ${{ secrets.AZURE_CLIENT_ID }}
-        tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-        subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-    - name: Push aro-hcp-exporter container image
-      if: inputs.push == true
-      run: |
-        cd tooling/aro-hcp-exporter/
-        make build-and-push
-  build_push_frontend:
-    permissions:
-      id-token: 'write'
-      contents: 'read'
-    runs-on: 'ubuntu-latest'
-    steps:
-    - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
-      with:
-        fetch-depth: 1
-    - uses: actions/setup-go@v6
-      with:
-        go-version-file: 'go.work'
-    - name: Build frontend container image
-      run: |
-        cd frontend/
-        make image
-    - name: "install azure-cli"
-      if: inputs.push == true
-      uses: "Azure/ARO-HCP@main"
-    - name: 'Az CLI login'
-      if: inputs.push == true
-      uses: azure/login@v2
-      with:
-        client-id: ${{ secrets.AZURE_CLIENT_ID }}
-        tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-        subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-    - name: Push frontend container image
-      if: inputs.push == true
-      run: |
-        cd frontend/
-        make build-and-push
-  build_push_backend:
-    permissions:
-      id-token: 'write'
-      contents: 'read'
-    runs-on: 'ubuntu-latest'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+        - name: aro-hcp-exporter
+          dir: tooling/aro-hcp-exporter
+          push_target: push
+          setup_go: false
+          skip_build_on_push: false
+        - name: frontend
+          dir: frontend
+          push_target: build-and-push
+          setup_go: true
+          skip_build_on_push: false
+        - name: backend
+          dir: backend
+          push_target: build-and-push
+          setup_go: true
+          skip_build_on_push: false
+        - name: admin-api
+          dir: admin
+          push_target: build-and-push
+          setup_go: true
+          skip_build_on_push: true
+        - name: sessiongate
+          dir: sessiongate
+          push_target: build-and-push
+          setup_go: true
+          skip_build_on_push: true
+        - name: oc-mirror
+          dir: image-sync/oc-mirror
+          push_target: push
+          setup_go: false
+          skip_build_on_push: false
     steps:
     - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
       with:
         fetch-depth: 1
     - uses: actions/setup-go@v6
+      if: matrix.setup_go
       with:
         go-version-file: 'go.work'
-    - name: Build backend container image
+    - name: Build ${{ matrix.name }} container image
+      if: ${{ !matrix.skip_build_on_push || inputs.push == false }}
       run: |
-        cd backend/
+        cd ${{ matrix.dir }}
         make image
     - name: "install azure-cli"
       if: inputs.push == true
@@ -117,12 +94,24 @@ jobs:
         client-id: ${{ secrets.AZURE_CLIENT_ID }}
         tenant-id: ${{ secrets.AZURE_TENANT_ID }}
         subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-    - name: Push backend container image
+    - name: Push ${{ matrix.name }} container image
       if: inputs.push == true
       run: |
-        cd backend/
-        make build-and-push
-  build_push_admin_api:
+        cd ${{ matrix.dir }}
+        for attempt in 1 2 3; do
+          echo "Push attempt ${attempt}/3"
+          if make ${{ matrix.push_target }}; then
+            exit 0
+          fi
+          echo "Attempt ${attempt} failed, retrying in 30s..."
+          sleep 30
+        done
+        echo "All push attempts failed"
+        exit 1
+  verify_images:
+    if: inputs.push == true
+    needs:
+    - build_push
     permissions:
       id-token: 'write'
       contents: 'read'
@@ -131,86 +120,65 @@ jobs:
     - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
       with:
         fetch-depth: 1
-    - uses: actions/setup-go@v6
-      with:
-        go-version-file: 'go.work'
-    - name: Build admin api container image
-      if: inputs.push == false
-      run: |
-        cd admin/
-        make image
     - name: "install azure-cli"
-      if: inputs.push == true
       uses: "Azure/ARO-HCP@main"
     - name: 'Az CLI login'
-      if: inputs.push == true
-      uses: azure/login@v2
+      uses: azure/login@a65d910e8af852a8061c627c456678983e180302 # v2.2.0
       with:
         client-id: ${{ secrets.AZURE_CLIENT_ID }}
         tenant-id: ${{ secrets.AZURE_TENANT_ID }}
         subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-    - name: Push admin api container image
-      if: inputs.push == true
+    - name: Verify all images are available
+      env:
+        ACR_NAME: arohcpsvcdev
+        MAX_RETRIES: "5"
+        RETRY_DELAY: "60"
       run: |
-        cd admin/
-        make build-and-push
-  build_push_sessiongate:
-    permissions:
-      id-token: 'write'
-      contents: 'read'
-    runs-on: 'ubuntu-latest'
-    steps:
-    - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
-      with:
-        fetch-depth: 1
-    - uses: actions/setup-go@v6
-      with:
-        go-version-file: 'go.work'
-    - name: Build sessiongate container image
-      if: inputs.push == false
-      run: |
-        cd sessiongate/
-        make image
-    - name: "install azure-cli"
-      if: inputs.push == true
-      uses: "Azure/ARO-HCP@main"
-    - name: 'Az CLI login'
-      if: inputs.push == true
-      uses: azure/login@v2
-      with:
-        client-id: ${{ secrets.AZURE_CLIENT_ID }}
-        tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-        subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-    - name: Push sessiongate container image
-      if: inputs.push == true
-      run: |
-        cd sessiongate/
-        make build-and-push
-  build_push_ocmirror:
-    permissions:
-      id-token: 'write'
-      contents: 'read'
-    runs-on: 'ubuntu-latest'
-    steps:
-    - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
-      with:
-        fetch-depth: 1
-    - name: Build oc-mirror container image
-      run: |
-        cd image-sync/oc-mirror
-        make image
-    - name: "install azure-cli"
-      if: inputs.push == true
-      uses: "Azure/ARO-HCP@main"
-    - name: 'Az CLI login'
-      if: inputs.push == true
-      uses: azure/login@v2
-      with:
-        client-id: ${{ secrets.AZURE_CLIENT_ID }}
-        tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-        subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-    - name: Push oc-mirror container image
-      if: inputs.push == true
-      run: |
-        cd image-sync/oc-mirror
-        make build-and-push
+        set -euo pipefail
+
+        TAG=$(./generate-tag.sh)
+        COMMIT=$(git rev-parse --short=7 HEAD)
+        echo "Verifying images for tag=${TAG} commit=${COMMIT}"
+
+        az acr login --name "${ACR_NAME}"
+
+        IMAGES=(
+          "arohcpfrontend"
+          "arohcpbackend"
+          "arohcpadminapi"
+          "arohcpsessiongate"
+          "arohcpmetrics"
+          "image-sync/oc-mirror"
+        )
+        REGISTRY="${ACR_NAME}.azurecr.io"
+
+        failed=()
+        for image in "${IMAGES[@]}"; do
+          echo "---"
+          echo "Checking ${REGISTRY}/${image}:${TAG}"
+
+          found=false
+          for attempt in $(seq 1 "${MAX_RETRIES}"); do
+            if docker manifest inspect "${REGISTRY}/${image}:${TAG}" > /dev/null 2>&1; then
+              echo "Found ${image}:${TAG} (attempt ${attempt}/${MAX_RETRIES})"
+              found=true
+              break
+            fi
+
+            if [ "${attempt}" -eq "${MAX_RETRIES}" ]; then
+              echo "FAILED: ${image}:${TAG} not found after ${MAX_RETRIES} attempts"
+              failed+=("${image}")
+            else
+              echo "  Attempt ${attempt}/${MAX_RETRIES}: not found yet, retrying in ${RETRY_DELAY}s..."
+              sleep "${RETRY_DELAY}"
+            fi
+          done
+        done
+
+        echo "---"
+        if [ ${#failed[@]} -gt 0 ]; then
+          echo "FAILED: The following images were not found:"
+          printf '  - %s\n' "${failed[@]}"
+          exit 1
+        fi
+        echo "All images verified for commit ${COMMIT} (tag ${TAG})"
