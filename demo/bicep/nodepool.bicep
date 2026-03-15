@@ -22,5 +22,9 @@ resource nodepool 'Microsoft.RedHatOpenShift/hcpOpenShiftClusters/nodePools@2024
       }
     }
     replicas: 2
+    version: {
+      id: '4.20.8'
+      channelGroup: 'stable'
+    }
   }
 }
