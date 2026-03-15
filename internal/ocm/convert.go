@@ -136,6 +136,24 @@ func convertCustomerManagedEncryptionTypeRPToCS(encryptionTypeRP api.CustomerMan
 	}
 }
 
+func convertKeyVaultVisibilityCSToRP(visibilityCS arohcpv1alpha1.AzureKmsEncryptionVisibility) api.Visibility {
+	switch visibilityCS {
+	case arohcpv1alpha1.AzureKmsEncryptionVisibilityPrivate:
+		return api.VisibilityPrivate
+	default:
+		return api.VisibilityPublic
+	}
+}
+
+func convertKeyVaultVisibilityRPToCS(visibilityRP api.Visibility) arohcpv1alpha1.AzureKmsEncryptionVisibility {
+	switch visibilityRP {
+	case api.VisibilityPrivate:
+		return arohcpv1alpha1.AzureKmsEncryptionVisibilityPrivate
+	default:
+		return arohcpv1alpha1.AzureKmsEncryptionVisibilityPublic
+	}
+}
+
 func convertUsernameClaimPrefixPolicyCSToRP(prefixPolicyCS string) (api.UsernameClaimPrefixPolicy, error) {
 	switch prefixPolicyCS {
 	case csUsernameClaimPrefixPolicyPrefix:
@@ -291,6 +309,7 @@ func convertKmsEncryptionCSToRP(in *arohcpv1alpha1.AzureEtcdDataEncryptionCustom
 					VaultName: activeKey.KeyVaultName(),
 					Version:   activeKey.KeyVersion(),
 				},
+				KeyVaultVisibility: convertKeyVaultVisibilityCSToRP(kms.Visibility()),
 			}
 		}
 	}
@@ -342,7 +361,8 @@ func convertEtcdRPToCS(in api.EtcdProfile) (*arohcpv1alpha1.AzureEtcdEncryptionB
 			KeyName(in.DataEncryption.CustomerManaged.Kms.ActiveKey.Name).
 			KeyVaultName(in.DataEncryption.CustomerManaged.Kms.ActiveKey.VaultName).
 			KeyVersion(in.DataEncryption.CustomerManaged.Kms.ActiveKey.Version)
-		azureKmsEncryptionBuilder := arohcpv1alpha1.NewAzureKmsEncryption().ActiveKey(azureKmsKeyBuilder)
+		azureKmsEncryptionBuilder := arohcpv1alpha1.NewAzureKmsEncryption().ActiveKey(azureKmsKeyBuilder).
+			Visibility(convertKeyVaultVisibilityRPToCS(in.DataEncryption.CustomerManaged.Kms.KeyVaultVisibility))
 		azureEtcdDataEncryptionCustomerManagedBuilder.Kms(azureKmsEncryptionBuilder)
 		azureEtcdDataEncryptionBuilder.CustomerManaged(azureEtcdDataEncryptionCustomerManagedBuilder)
 	}

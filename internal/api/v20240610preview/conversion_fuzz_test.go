@@ -72,10 +72,13 @@ func TestRoundTripInternalExternalInternal(t *testing.T) {
 		},
 		func(j *api.CustomerManagedEncryptionProfile, c randfill.Continue) {
 			c.FillNoCustom(j)
-			// we cannot properly roundtrip a zero value here, so nil when that happens
-			zeroValueKMS := api.KmsEncryptionProfile{}
-			if j.Kms != nil && *j.Kms == zeroValueKMS {
-				j.Kms = nil
+			if j.Kms != nil {
+				// KeyVaultVisibility does not roundtrip through v20240610preview because it was added in v20251223preview
+				j.Kms.KeyVaultVisibility = ""
+				// we cannot properly roundtrip a zero value here, so nil when that happens
+				if *j.Kms == (api.KmsEncryptionProfile{}) {
+					j.Kms = nil
+				}
 			}
 		},
 	}, rand.NewSource(seed))

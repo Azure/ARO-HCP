@@ -177,7 +177,8 @@ type CustomerManagedEncryptionProfile struct {
 // customer-managed Key Management Service (KMS) keys.
 // Visibility for the entire struct is "read create".
 type KmsEncryptionProfile struct {
-	ActiveKey KmsKey `json:"activeKey,omitempty"`
+	ActiveKey          KmsKey     `json:"activeKey,omitempty"`
+	KeyVaultVisibility Visibility `json:"keyVaultVisibility,omitempty"`
 }
 
 // KmsKey represents an Azure KeyVault secret.
