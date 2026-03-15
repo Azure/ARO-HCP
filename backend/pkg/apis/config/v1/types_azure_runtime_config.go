@@ -120,7 +120,7 @@ var (
 )
 
 func (c CloudEnvironmentName) Validate(ctx context.Context, op operation.Operation, fldPath *field.Path) field.ErrorList {
-	return validate.Enum(ctx, op, fldPath, &c, nil, validCloudEnvironmentNames)
+	return validate.Enum(ctx, op, fldPath, &c, nil, validCloudEnvironmentNames, nil)
 }
 
 type DataPlaneIdentitiesOIDCConfiguration struct {

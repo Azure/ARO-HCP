@@ -36,7 +36,7 @@ func validateSubscription(ctx context.Context, op operation.Operation, newObj, o
 
 	// these are the only two validated fields
 	//State            SubscriptionState       `json:"state"`
-	errs = append(errs, validate.Enum(ctx, op, field.NewPath("required"), &newObj.State, nil, arm.ValidSubscriptionStates)...)
+	errs = append(errs, validate.Enum(ctx, op, field.NewPath("required"), &newObj.State, nil, arm.ValidSubscriptionStates, nil)...)
 	errs = append(errs, validate.RequiredPointer(ctx, op, field.NewPath("id"), newObj.ResourceID, nil)...)
 	errs = append(errs, RestrictedResourceIDWithoutResourceGroup(ctx, op, field.NewPath("id"), newObj.ResourceID, nil, azcorearm.SubscriptionResourceType.String())...)
 	if newObj.ResourceID != nil {
