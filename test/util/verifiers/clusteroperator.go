@@ -47,7 +47,9 @@ func (v verifyAllClusterOperatorsAvailableImpl) Verify(ctx context.Context, admi
 	verifyErr := wait.PollUntilContextTimeout(ctx, 20*time.Second, 30*time.Minute, true, func(ctx context.Context) (done bool, err error) {
 		clusterOperators, err := configClient.ClusterOperators().List(ctx, metav1.ListOptions{})
 		if err != nil {
-			return false, fmt.Errorf("failed to list ClusterOperators: %w", err)
+			lastErr = fmt.Errorf("failed to list ClusterOperators: %w", err)
+			ginkgo.GinkgoLogr.Info("Failed to list ClusterOperators, retrying.", "error", err)
+			return false, nil
 		}
 
 		if len(clusterOperators.Items) == 0 {
@@ -80,11 +82,8 @@ func (v verifyAllClusterOperatorsAvailableImpl) Verify(ctx context.Context, admi
 	if verifyErr == nil {
 		return nil
 	}
-	if lastErr != nil {
-		return lastErr
-	}
 
-	return verifyErr
+	return errors.Join(verifyErr, lastErr)
 }
 
 func getClusterOperatorCondition(conditions []configv1.ClusterOperatorStatusCondition, conditionType configv1.ClusterStatusConditionType) *configv1.ClusterOperatorStatusCondition {
