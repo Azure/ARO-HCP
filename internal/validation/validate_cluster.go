@@ -748,7 +748,8 @@ func validateCustomerManagedEncryptionProfile(ctx context.Context, op operation.
 }
 
 var (
-	toKmsEncryptionProfileActiveKey = func(oldObj *api.KmsEncryptionProfile) *api.KmsKey { return &oldObj.ActiveKey }
+	toKmsEncryptionProfileActiveKey          = func(oldObj *api.KmsEncryptionProfile) *api.KmsKey { return &oldObj.ActiveKey }
+	toKmsEncryptionProfileKeyVaultVisibility = func(oldObj *api.KmsEncryptionProfile) *api.Visibility { return &oldObj.KeyVaultVisibility }
 )
 
 func validateKmsEncryptionProfile(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *api.KmsEncryptionProfile) field.ErrorList {
@@ -761,6 +762,12 @@ func validateKmsEncryptionProfile(ctx context.Context, op operation.Operation, f
 	//ActiveKey KmsKey `json:"activeKey,omitempty"`
 	errs = append(errs, validate.ImmutableByReflect(ctx, op, fldPath.Child("activeKey"), &newObj.ActiveKey, safe.Field(oldObj, toKmsEncryptionProfileActiveKey))...)
 	errs = append(errs, validateKmsKey(ctx, op, fldPath.Child("activeKey"), &newObj.ActiveKey, safe.Field(oldObj, toKmsEncryptionProfileActiveKey))...)
+
+	//KeyVaultVisibility Visibility `json:"keyVaultVisibility,omitempty"`
+	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("keyVaultVisibility"), &newObj.KeyVaultVisibility, safe.Field(oldObj, toKmsEncryptionProfileKeyVaultVisibility))...)
+	if newObj.KeyVaultVisibility != "" {
+		errs = append(errs, validate.Enum(ctx, op, fldPath.Child("keyVaultVisibility"), &newObj.KeyVaultVisibility, nil, api.ValidVisibility)...)
+	}
 
 	return errs
 }

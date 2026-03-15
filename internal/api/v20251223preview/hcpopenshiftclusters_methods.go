@@ -238,8 +238,9 @@ func newKmsEncryptionProfile(from *api.KmsEncryptionProfile) generated.KmsEncryp
 		return generated.KmsEncryptionProfile{}
 	}
 	return generated.KmsEncryptionProfile{
-		ActiveKey: api.PtrOrNil(newKmsKey(&from.ActiveKey)),
-		VaultName: api.PtrOrNil(from.ActiveKey.VaultName),
+		ActiveKey:  api.PtrOrNil(newKmsKey(&from.ActiveKey)),
+		VaultName:  api.PtrOrNil(from.ActiveKey.VaultName),
+		Visibility: api.PtrOrNil(generated.KeyVaultVisibility(from.KeyVaultVisibility)),
 	}
 }
 func newKmsKey(from *api.KmsKey) generated.KmsKey {
@@ -587,6 +588,9 @@ func normalizeCustomerManaged(p *generated.CustomerManagedEncryptionProfile, out
 		}
 		if p.Kms.VaultName != nil {
 			out.Kms.ActiveKey.VaultName = *p.Kms.VaultName
+		}
+		if p.Kms.Visibility != nil {
+			out.Kms.KeyVaultVisibility = api.Visibility(*p.Kms.Visibility)
 		}
 	}
 }

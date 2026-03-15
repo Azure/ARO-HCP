@@ -137,6 +137,49 @@ func TestConvertCStoHCPOpenShiftCluster(t *testing.T) {
 										VaultName: "test",
 										Version:   "test-version",
 									},
+									KeyVaultVisibility: api.VisibilityPublic,
+								},
+							},
+							KeyManagementMode: api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged,
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "converts EtcdEncryption for CustomerManaged with private visibility",
+			ocmClusterTweaks: arohcpv1alpha1.NewCluster().
+				Azure(arohcpv1alpha1.NewAzure().
+					EtcdEncryption(arohcpv1alpha1.NewAzureEtcdEncryption().
+						DataEncryption(arohcpv1alpha1.NewAzureEtcdDataEncryption().
+							KeyManagementMode(csKeyManagementModeCustomerManaged).
+							CustomerManaged(arohcpv1alpha1.NewAzureEtcdDataEncryptionCustomerManaged().
+								EncryptionType("kms").
+								Kms(arohcpv1alpha1.NewAzureKmsEncryption().
+									ActiveKey(arohcpv1alpha1.NewAzureKmsKey().
+										KeyName("test").
+										KeyVaultName("test").
+										KeyVersion("test-version"),
+									).
+									Visibility(arohcpv1alpha1.AzureKmsEncryptionVisibilityPrivate),
+								),
+							),
+						),
+					),
+				),
+			hcpClusterTweaks: &api.HCPOpenShiftCluster{
+				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
+					Etcd: api.EtcdProfile{
+						DataEncryption: api.EtcdDataEncryptionProfile{
+							CustomerManaged: &api.CustomerManagedEncryptionProfile{
+								EncryptionType: "KMS",
+								Kms: &api.KmsEncryptionProfile{
+									ActiveKey: api.KmsKey{
+										Name:      "test",
+										VaultName: "test",
+										Version:   "test-version",
+									},
+									KeyVaultVisibility: api.VisibilityPrivate,
 								},
 							},
 							KeyManagementMode: api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged,
@@ -341,6 +384,49 @@ func TestWithImmutableAttributes(t *testing.T) {
 				Version(arohcpv1alpha1.NewVersion().
 					ID("openshift-v4.19.0-0.nightly-2025-01-01-nightly").
 					ChannelGroup("nightly"))),
+		},
+		{
+			name: "converts CustomerManaged etcd with private key vault visibility",
+			hcpCluster: &api.HCPOpenShiftCluster{
+				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
+					Etcd: api.EtcdProfile{
+						DataEncryption: api.EtcdDataEncryptionProfile{
+							KeyManagementMode: api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged,
+							CustomerManaged: &api.CustomerManagedEncryptionProfile{
+								EncryptionType: api.CustomerManagedEncryptionTypeKMS,
+								Kms: &api.KmsEncryptionProfile{
+									ActiveKey: api.KmsKey{
+										Name:      "my-key",
+										VaultName: "my-vault",
+										Version:   "v1",
+									},
+									KeyVaultVisibility: api.VisibilityPrivate,
+								},
+							},
+						},
+					},
+				},
+			},
+			want: ocmCluster(t, ocmClusterDefaults(api.TestLocation),
+				arohcpv1alpha1.NewCluster().
+					Azure(arohcpv1alpha1.NewAzure().
+						EtcdEncryption(arohcpv1alpha1.NewAzureEtcdEncryption().
+							DataEncryption(arohcpv1alpha1.NewAzureEtcdDataEncryption().
+								KeyManagementMode(csKeyManagementModeCustomerManaged).
+								CustomerManaged(arohcpv1alpha1.NewAzureEtcdDataEncryptionCustomerManaged().
+									EncryptionType("kms").
+									Kms(arohcpv1alpha1.NewAzureKmsEncryption().
+										ActiveKey(arohcpv1alpha1.NewAzureKmsKey().
+											KeyName("my-key").
+											KeyVaultName("my-vault").
+											KeyVersion("v1"),
+										).
+										Visibility(arohcpv1alpha1.AzureKmsEncryptionVisibilityPrivate),
+									),
+								),
+							),
+						),
+					)),
 		},
 		{
 			name: "with version 4.19",
