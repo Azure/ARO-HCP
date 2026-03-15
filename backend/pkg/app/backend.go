@@ -70,6 +70,7 @@ type BackendOptions struct {
 	ExitOnPanic                        bool
 	FPAMIDataplaneClientBuilder        azureclient.FPAMIDataplaneClientBuilder
 	SMIClientBuilder                   azureclient.ServiceManagedIdentityClientBuilder
+	CheckAccessV2ClientBuilder         azureclient.CheckAccessV2ClientBuilder
 }
 
 func (o *BackendOptions) RunBackend(ctx context.Context) error {

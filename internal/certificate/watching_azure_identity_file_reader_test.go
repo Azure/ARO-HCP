@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package fpa
+package certificate
 
 import (
 	"context"
@@ -37,7 +37,7 @@ func TestWatchingFileCertificateReaderLoadsInitialCertificate(t *testing.T) {
 	atomicUpdateCert(t, dir, bundleFileName, serialNumber)
 
 	ctx := utils.ContextWithLogger(t.Context(), testr.New(t))
-	reader, err := NewWatchingFileCertificateReader(ctx, certFile, 50*time.Millisecond)
+	reader, err := NewWatchingAzureIdentityFileReader(ctx, certFile, 50*time.Millisecond)
 	require.NoError(t, err)
 
 	certs, key, err := reader.ReadCertificate()
@@ -57,7 +57,7 @@ func TestWatchingFileCertificateReaderReloadsOnFileChange(t *testing.T) {
 	atomicUpdateCert(t, dir, bundleFileName, serialNumber)
 
 	ctx := utils.ContextWithLogger(t.Context(), testr.New(t))
-	reader, err := NewWatchingFileCertificateReader(ctx, bundlePath, 50*time.Millisecond)
+	reader, err := NewWatchingAzureIdentityFileReader(ctx, bundlePath, 50*time.Millisecond)
 	require.NoError(t, err)
 
 	certs1, _, err := reader.ReadCertificate()
@@ -84,7 +84,7 @@ func TestWatchingFileCertificateReaderCachesCertificate(t *testing.T) {
 	atomicUpdateCert(t, dir, bundleFileName, 20)
 
 	ctx := utils.ContextWithLogger(t.Context(), testr.New(t))
-	reader, err := NewWatchingFileCertificateReader(ctx, certFile, 50*time.Millisecond)
+	reader, err := NewWatchingAzureIdentityFileReader(ctx, certFile, 50*time.Millisecond)
 	require.NoError(t, err)
 
 	certs1, key1, err1 := reader.ReadCertificate()
@@ -109,7 +109,7 @@ func TestWatchingFileCertificateReaderStopsWatchingOnContextCancel(t *testing.T)
 	defer cancel()
 	ctx = utils.ContextWithLogger(ctx, testr.New(t))
 
-	reader, err := NewWatchingFileCertificateReader(ctx, certFile, 50*time.Millisecond)
+	reader, err := NewWatchingAzureIdentityFileReader(ctx, certFile, 50*time.Millisecond)
 	require.NoError(t, err)
 
 	certs1, _, err := reader.ReadCertificate()

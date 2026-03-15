@@ -48,6 +48,7 @@ type BackendRootCmdFlags struct {
 	AzureRuntimeConfigPath                                                                        string
 	AzureFirstPartyApplicationCertificateBundlePath                                               string
 	AzureFirstPartyApplicationClientID                                                            string
+	AzureFirstPartyApplicationPrincipalID                                                         string
 	LogVerbosity                                                                                  int
 	MaestroSourceEnvironmentIdentifier                                                            string
 	InsecureAzureManagedIdentityMockCertificateBundlePath                                         string
@@ -56,6 +57,9 @@ type BackendRootCmdFlags struct {
 	InsecureAzureManagedIdentityMockTenantID                                                      string
 	InsecureIgnoreUserAzureManagedIdentitiesThatNeedManagedIdentitiesDataplaneAvailableAndUseMock bool
 	ExitOnPanic                                                                                   bool
+	AzureARMHelperIdentityCertificateBundlePath                                                   string
+	AzureARMHelperIdentityClientID                                                                string
+	AzureARMHelperIdentityTenantID                                                                string
 }
 
 func (f *BackendRootCmdFlags) AddFlags(cmd *cobra.Command) {
@@ -85,6 +89,14 @@ func (f *BackendRootCmdFlags) AddFlags(cmd *cobra.Command) {
 		f.AzureFirstPartyApplicationClientID,
 		"The client id of the first party application identity",
 	)
+
+	cmd.Flags().StringVar(
+		&f.AzureFirstPartyApplicationPrincipalID,
+		"azure-first-party-application-principal-id",
+		f.AzureFirstPartyApplicationPrincipalID,
+		"The principal id of the first party application identity",
+	)
+
 	cmd.Flags().IntVar(&f.LogVerbosity, "log-verbosity", f.LogVerbosity, "Log verbosity. 0 is the default verbosity level, equivalent to INFO. It must be a value >= 0, where a higher value means more verbose output.")
 
 	cmd.Flags().StringVar(&f.MaestroSourceEnvironmentIdentifier, "maestro-source-environment-identifier", f.MaestroSourceEnvironmentIdentifier,
@@ -150,7 +162,36 @@ func (f *BackendRootCmdFlags) AddFlags(cmd *cobra.Command) {
 		"If set, backend will exit the process if a panic occurs. As of now it only controls the setting of k8s.io/apimachinery/pkg/util/runtime.ReallyCrash",
 	)
 
+	cmd.Flags().StringVar(
+		&f.AzureARMHelperIdentityCertificateBundlePath,
+		"azure-arm-helper-identity-certificate-bundle-path",
+		f.AzureARMHelperIdentityCertificateBundlePath,
+		"Path to a file containing an X.509 Certificate based client certificate, consisting of a private key and "+
+			"certificate chain, in a PEM or PKCS#12 format for authenticating clients with the ARM Helper identity. "+
+			"When set, it must be set in combination with the '--azure-arm-helper-identity-client-id', "+
+			"'--azure-arm-helper-identity-tenant-id' and '--azure-first-party-application-principal-id' flags.",
+	)
+
+	cmd.Flags().StringVar(
+		&f.AzureARMHelperIdentityClientID,
+		"azure-arm-helper-identity-client-id",
+		f.AzureARMHelperIdentityClientID,
+		"The client id of the ARM Helper identity. When set, it must be set in combination with the '--azure-arm-helper-identity-certificate-bundle-path', "+
+			"'--azure-arm-helper-identity-tenant-id' and '--azure-first-party-application-principal-id' flags.",
+	)
+
+	cmd.Flags().StringVar(
+		&f.AzureARMHelperIdentityTenantID,
+		"azure-arm-helper-identity-tenant-id",
+		f.AzureARMHelperIdentityTenantID,
+		"The tenant id of the ARM Helper identity. When set, it must be set in combination with the '--azure-arm-helper-identity-certificate-bundle-path', "+
+			"'--azure-arm-helper-identity-client-id' and '--azure-first-party-application-principal-id' flags.",
+	)
+
 	cmd.MarkFlagsRequiredTogether("cosmos-name", "cosmos-url")
+
+	// When ARM Helper is used the ARM Helper cli flags plus the FPA principal id, which is a mock FPA, are required
+	cmd.MarkFlagsRequiredTogether("azure-arm-helper-identity-certificate-bundle-path", "azure-arm-helper-identity-client-id", "azure-arm-helper-identity-tenant-id", "azure-first-party-application-principal-id")
 }
 
 func (f *BackendRootCmdFlags) validate() error {
@@ -278,6 +319,12 @@ func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.C
 	}
 	smiClientBuilder := app.NewServiceManagedIdentityClientBuilder(fpaMIDataplaneClientBuilder, azureConfig)
 
+	armHelperIdentityTokenCredentialRetriever, err := app.NewARMHelperIdentityTokenCredentialRetriever(ctx, f.AzureARMHelperIdentityTenantID, f.AzureARMHelperIdentityClientID, f.AzureARMHelperIdentityCertificateBundlePath, azureConfig)
+	if err != nil {
+		return nil, utils.TrackError(fmt.Errorf("failed to create ARM Helper identity token credential retriever: %w", err))
+	}
+	checkAccessV2ClientBuilder := app.NewCheckAccessV2ClientBuilder(ctx, armHelperIdentityTokenCredentialRetriever, fpaTokenCredRetriever, azureConfig, f.AzureLocation)
+
 	cosmosDBClient, err := app.NewCosmosDBClient(
 		ctx, f.AzureCosmosDBURL, f.AzureCosmosDBName,
 		*azureConfig.CloudEnvironment.AZCoreClientOptions(),
@@ -307,6 +354,7 @@ func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.C
 		ExitOnPanic:                        f.ExitOnPanic,
 		FPAMIDataplaneClientBuilder:        fpaMIDataplaneClientBuilder,
 		SMIClientBuilder:                   smiClientBuilder,
+		CheckAccessV2ClientBuilder:         checkAccessV2ClientBuilder,
 	}
 
 	return backendOptions, nil

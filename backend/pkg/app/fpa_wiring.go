@@ -23,6 +23,7 @@ import (
 
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
 	azureconfig "github.com/Azure/ARO-HCP/backend/pkg/azure/config"
+	"github.com/Azure/ARO-HCP/internal/certificate"
 	"github.com/Azure/ARO-HCP/internal/fpa"
 )
 
@@ -35,7 +36,7 @@ func NewFirstPartyApplicationTokenCredentialRetriever(
 	}
 
 	// Create FPA TokenCredentials with watching
-	certReader, err := fpa.NewWatchingFileCertificateReader(
+	certReader, err := certificate.NewWatchingAzureIdentityFileReader(
 		ctx,
 		fpaCertBundlePath,
 		1*time.Minute,
