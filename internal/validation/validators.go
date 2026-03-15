@@ -220,6 +220,9 @@ var (
 	resourceGroupName            = `^[\p{L}\p{N}_\-.()]{0,89}[\p{L}\p{N}_\-()]$`
 	resourceGroupNameRegex       = regexp.MustCompile(resourceGroupName)
 	resourceGroupNameErrorString = `it must be max 90 characters and only letters, digits, underscores (_), hyphens (-), periods (.), and parentheses (( )) are allowed, and it cannot end with a period '.'.`
+
+	azureVMName      = `^[a-zA-Z0-9]([a-zA-Z0-9._-]{0,62}[a-zA-Z0-9_])?$`
+	azureVMNameRegex = regexp.MustCompile(azureVMName)
 )
 
 func MatchesRegex(_ context.Context, _ operation.Operation, fldPath *field.Path, value, _ *string, regex *regexp.Regexp, errorString string) field.ErrorList {
@@ -246,6 +249,10 @@ func ValidateUUID(_ context.Context, _ operation.Operation, fldPath *field.Path,
 		return field.ErrorList{field.Invalid(fldPath, *value, err.Error())}
 	}
 	return nil
+}
+
+func IsValidAzureVMName(name string) bool {
+	return azureVMNameRegex.MatchString(name)
 }
 
 func CIDRv4(_ context.Context, _ operation.Operation, fldPath *field.Path, value, _ *string) field.ErrorList {
