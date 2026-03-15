@@ -46,31 +46,37 @@ jobs:
           push_target: push
           setup_go: false
           skip_build_on_push: false
+          acr_image: arohcpmetrics
         - name: frontend
           dir: frontend
           push_target: build-and-push
           setup_go: true
           skip_build_on_push: false
+          acr_image: arohcpfrontend
         - name: backend
           dir: backend
           push_target: build-and-push
           setup_go: true
           skip_build_on_push: false
+          acr_image: arohcpbackend
         - name: admin-api
           dir: admin
           push_target: build-and-push
           setup_go: true
           skip_build_on_push: true
+          acr_image: arohcpadminapi
         - name: sessiongate
           dir: sessiongate
           push_target: build-and-push
           setup_go: true
           skip_build_on_push: true
+          acr_image: arohcpsessiongate
         - name: oc-mirror
           dir: image-sync/oc-mirror
           push_target: push
           setup_go: false
           skip_build_on_push: false
+          acr_image: image-sync/oc-mirror
     steps:
     - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
       with:
@@ -108,77 +114,16 @@ jobs:
         done
         echo "All push attempts failed"
         exit 1
-  verify_images:
-    if: inputs.push == true
-    needs:
-    - build_push
-    permissions:
-      id-token: 'write'
-      contents: 'read'
-    runs-on: 'ubuntu-latest'
-    steps:
-    - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
-      with:
-        fetch-depth: 1
-    - name: "install azure-cli"
-      uses: "Azure/ARO-HCP@main"
-    - name: 'Az CLI login'
-      uses: azure/login@a65d910e8af852a8061c627c456678983e180302 # v2.2.0
-      with:
-        client-id: ${{ secrets.AZURE_CLIENT_ID }}
-        tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-        subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-    - name: Verify all images are available
+    - name: Verify ${{ matrix.name }} image in ACR
+      if: inputs.push == true
       env:
         ACR_NAME: arohcpsvcdev
-        MAX_RETRIES: "5"
-        RETRY_DELAY: "60"
       run: |
-        set -euo pipefail
-
         TAG=$(./generate-tag.sh)
-        COMMIT=$(git rev-parse --short=7 HEAD)
-        echo "Verifying images for tag=${TAG} commit=${COMMIT}"
-
-        az acr login --name "${ACR_NAME}"
-
-        IMAGES=(
-          "arohcpfrontend"
-          "arohcpbackend"
-          "arohcpadminapi"
-          "arohcpsessiongate"
-          "arohcpmetrics"
-          "image-sync/oc-mirror"
-        )
-        REGISTRY="${ACR_NAME}.azurecr.io"
-
-        failed=()
-        for image in "${IMAGES[@]}"; do
-          echo "---"
-          echo "Checking ${REGISTRY}/${image}:${TAG}"
-
-          found=false
-          for attempt in $(seq 1 "${MAX_RETRIES}"); do
-            if docker manifest inspect "${REGISTRY}/${image}:${TAG}" > /dev/null 2>&1; then
-              echo "Found ${image}:${TAG} (attempt ${attempt}/${MAX_RETRIES})"
-              found=true
-              break
-            fi
-
-            if [ "${attempt}" -eq "${MAX_RETRIES}" ]; then
-              echo "FAILED: ${image}:${TAG} not found after ${MAX_RETRIES} attempts"
-              failed+=("${image}")
-            else
-              echo "  Attempt ${attempt}/${MAX_RETRIES}: not found yet, retrying in ${RETRY_DELAY}s..."
-              sleep "${RETRY_DELAY}"
-            fi
-          done
-        done
-
-        echo "---"
-        if [ ${#failed[@]} -gt 0 ]; then
-          echo "FAILED: The following images were not found:"
-          printf '  - %s\n' "${failed[@]}"
-          exit 1
-        fi
-        echo "All images verified for commit ${COMMIT} (tag ${TAG})"
+        echo "Verifying ${{ matrix.acr_image }}:${TAG} in ${ACR_NAME}"
+        az acr manifest show \
+          --registry "${ACR_NAME}" \
+          --name "${{ matrix.acr_image }}" \
+          --tag "${TAG}" \
+          --output none
+        echo "Verified ${{ matrix.acr_image }}:${TAG}"
