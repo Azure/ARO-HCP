@@ -1,4 +1,4 @@
-name: Ensure Service Images
+name: Publish Service Images
 on:
   push:
     branches:
@@ -18,7 +18,7 @@ concurrency:
 
 jobs:
   build_push:
-    name: 'Build and push service images'
+    name: 'Publish service images'
     permissions:
       id-token: 'write'
       contents: 'read'
