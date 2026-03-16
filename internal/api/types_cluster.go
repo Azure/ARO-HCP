@@ -215,43 +215,55 @@ type ClusterImageRegistryProfile struct {
 
 // Creates an HCPOpenShiftCluster with any non-zero default values.
 func NewDefaultHCPOpenShiftCluster(resourceID *azcorearm.ResourceID, azureLocation string) *HCPOpenShiftCluster {
-	return &HCPOpenShiftCluster{
+	ret := &HCPOpenShiftCluster{
 		TrackedResource: arm.NewTrackedResource(resourceID, azureLocation),
-		CustomerProperties: HCPOpenShiftClusterCustomerProperties{
-			Version: VersionProfile{
-				ChannelGroup: "stable",
-			},
-			Network: NetworkProfile{
-				NetworkType: NetworkTypeOVNKubernetes,
-				PodCIDR:     "10.128.0.0/14",
-				ServiceCIDR: "172.30.0.0/16",
-				MachineCIDR: "10.0.0.0/16",
-				HostPrefix:  23,
-			},
-			API: CustomerAPIProfile{
-				Visibility: VisibilityPublic,
-			},
-			Platform: CustomerPlatformProfile{
-				OutboundType: OutboundTypeLoadBalancer,
-			},
-			Autoscaling: ClusterAutoscalingProfile{
-				MaxPodGracePeriodSeconds:    600,
-				MaxNodeProvisionTimeSeconds: 900,
-				PodPriorityThreshold:        -10,
-			},
-			//Even though PlatformManaged Mode is currently not supported by CS . This is the default value .
-			Etcd: EtcdProfile{
-				DataEncryption: EtcdDataEncryptionProfile{
-					KeyManagementMode: EtcdDataEncryptionKeyManagementModeTypePlatformManaged,
-				},
-			},
-			ClusterImageRegistry: ClusterImageRegistryProfile{
-				State: ClusterImageRegistryProfileStateEnabled,
-			},
-		},
 	}
+	SetClusterDefaultValues(ret)
+	return ret
 }
 
 func (o *HCPOpenShiftCluster) Validate() []arm.CloudErrorBody {
 	return nil
+}
+
+func SetClusterDefaultValues(cluster *HCPOpenShiftCluster) {
+	if len(cluster.CustomerProperties.Version.ChannelGroup) == 0 {
+		cluster.CustomerProperties.Version.ChannelGroup = "stable"
+	}
+	if len(cluster.CustomerProperties.Network.NetworkType) == 0 {
+		cluster.CustomerProperties.Network.NetworkType = NetworkTypeOVNKubernetes
+	}
+	if len(cluster.CustomerProperties.Network.PodCIDR) == 0 {
+		cluster.CustomerProperties.Network.PodCIDR = "10.128.0.0/14"
+	}
+	if len(cluster.CustomerProperties.Network.ServiceCIDR) == 0 {
+		cluster.CustomerProperties.Network.ServiceCIDR = "172.30.0.0/16"
+	}
+	if len(cluster.CustomerProperties.Network.MachineCIDR) == 0 {
+		cluster.CustomerProperties.Network.MachineCIDR = "10.0.0.0/16"
+	}
+	if cluster.CustomerProperties.Network.HostPrefix == 0 {
+		cluster.CustomerProperties.Network.HostPrefix = 23
+	}
+	if len(cluster.CustomerProperties.API.Visibility) == 0 {
+		cluster.CustomerProperties.API.Visibility = VisibilityPublic
+	}
+	if len(cluster.CustomerProperties.Platform.OutboundType) == 0 {
+		cluster.CustomerProperties.Platform.OutboundType = OutboundTypeLoadBalancer
+	}
+	if cluster.CustomerProperties.Autoscaling.MaxPodGracePeriodSeconds == 0 {
+		cluster.CustomerProperties.Autoscaling.MaxPodGracePeriodSeconds = 600
+	}
+	if cluster.CustomerProperties.Autoscaling.MaxNodeProvisionTimeSeconds == 0 {
+		cluster.CustomerProperties.Autoscaling.MaxNodeProvisionTimeSeconds = 900
+	}
+	if cluster.CustomerProperties.Autoscaling.PodPriorityThreshold == 0 {
+		cluster.CustomerProperties.Autoscaling.PodPriorityThreshold = -10
+	}
+	if len(cluster.CustomerProperties.Etcd.DataEncryption.KeyManagementMode) == 0 {
+		cluster.CustomerProperties.Etcd.DataEncryption.KeyManagementMode = EtcdDataEncryptionKeyManagementModeTypePlatformManaged
+	}
+	if len(cluster.CustomerProperties.ClusterImageRegistry.State) == 0 {
+		cluster.CustomerProperties.ClusterImageRegistry.State = ClusterImageRegistryProfileStateEnabled
+	}
 }
