@@ -694,6 +694,14 @@ func TestClusterValidate(t *testing.T) {
 				},
 				{
 					message:   "Required value",
+					fieldPath: "customerProperties.etcd.dataEncryption.customerManaged.kms.visibility",
+				},
+				{
+					message:   "supported values: \"Private\", \"Public\"",
+					fieldPath: "customerProperties.etcd.dataEncryption.customerManaged.kms.visibility",
+				},
+				{
+					message:   "Required value",
 					fieldPath: "customerProperties.etcd.dataEncryption.customerManaged.kms.activeKey.name",
 				},
 				{
@@ -769,7 +777,8 @@ func TestClusterValidate(t *testing.T) {
 					Platform: api.CustomerPlatformProfile{
 						ManagedResourceGroup: api.TestResourceGroupName,
 						// Use a different resource group name to avoid a subnet ID error.
-						SubnetID: api.Must(azcorearm.ParseResourceID(path.Join("/subscriptions", api.TestSubscriptionID, "resourceGroups", "anotherResourceGroup", "providers", "Microsoft.Network", "virtualNetworks", api.TestVirtualNetworkName, "subnets", api.TestSubnetName))),
+						SubnetID:                    api.Must(azcorearm.ParseResourceID(path.Join("/subscriptions", api.TestSubscriptionID, "resourceGroups", "anotherResourceGroup", "providers", "Microsoft.Network", "virtualNetworks", api.TestVirtualNetworkName, "subnets", api.TestSubnetName))),
+						VnetIntegrationSubnetID:     api.Must(azcorearm.ParseResourceID(path.Join("/subscriptions", api.TestSubscriptionID, "resourceGroups", "anotherResourceGroup", "providers", "Microsoft.Network", "virtualNetworks", api.TestVirtualNetworkName, "subnets", api.TestVnetIntegrationSubnetName))),
 					},
 				},
 			},
@@ -785,8 +794,9 @@ func TestClusterValidate(t *testing.T) {
 			tweaks: &api.HCPOpenShiftCluster{
 				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
 					Platform: api.CustomerPlatformProfile{
-						ManagedResourceGroup: "MRG",
-						SubnetID:             api.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/MRG/providers/Microsoft.Network/virtualNetworks/testVirtualNetwork/subnets/testSubnet")),
+						ManagedResourceGroup:    "MRG",
+						SubnetID:                api.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/MRG/providers/Microsoft.Network/virtualNetworks/testVirtualNetwork/subnets/testSubnet")),
+						VnetIntegrationSubnetID: api.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/anotherResourceGroup/providers/Microsoft.Network/virtualNetworks/testVirtualNetwork/subnets/testVnetIntegrationSubnet")),
 					},
 				},
 			},
