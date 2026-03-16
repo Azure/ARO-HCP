@@ -76,6 +76,10 @@ func MutateCluster(cluster *api.HCPOpenShiftCluster, subscription *arm.Subscript
 		))
 	}
 
+	// AllowMajorUpgrades is enabled for all clusters when AFEC is registered.
+	// Unlike other experimental features, this doesn't require a per-cluster tag.
+	experimentalFeatures.AllowMajorUpgrades = true
+
 	if len(errs) > 0 {
 		return errs
 	}

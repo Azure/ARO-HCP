@@ -69,7 +69,7 @@ func AdmitNodePoolUpdate(newNodePool, oldNodePool *api.HCPOpenShiftClusterNodePo
 	errs = append(errs, AdmitNodePool(newNodePool, oldNodePool, cluster)...)
 
 	// Add update-specific version upgrade validation
-	errs = append(errs, validateNodePoolVersionUpgrade(newNodePool, oldNodePool, spNodePool, spCluster)...)
+	errs = append(errs, validateNodePoolVersionUpgrade(newNodePool, oldNodePool, spNodePool, spCluster, cluster.ServiceProviderProperties.ExperimentalFeatures)...)
 
 	return errs
 }
@@ -77,10 +77,10 @@ func AdmitNodePoolUpdate(newNodePool, oldNodePool *api.HCPOpenShiftClusterNodePo
 // validateNodePoolVersionUpgrade validates that a node pool version change is a valid upgrade.
 // It checks:
 //   - No downgrade: new version >= old version
-//   - No major version change: new major == old major
+//   - No major version change: new major == old major (unless AllowMajorUpgrades is enabled)
 //   - No skipping minor versions: new minor <= old minor + 1
 //   - Cannot exceed cluster version: new version <= cluster version
-func validateNodePoolVersionUpgrade(newNodePool, oldNodePool *api.HCPOpenShiftClusterNodePool, spNodePool *api.ServiceProviderNodePool, spCluster *api.ServiceProviderCluster) field.ErrorList {
+func validateNodePoolVersionUpgrade(newNodePool, oldNodePool *api.HCPOpenShiftClusterNodePool, spNodePool *api.ServiceProviderNodePool, spCluster *api.ServiceProviderCluster, experimentalFeatures api.ExperimentalFeatures) field.ErrorList {
 
 	// Skip validation if no version is specified or version didn't change
 	if len(newNodePool.Properties.Version.ID) == 0 || newNodePool.Properties.Version.ID == oldNodePool.Properties.Version.ID {
@@ -137,15 +137,37 @@ func validateNodePoolVersionUpgrade(newNodePool, oldNodePool *api.HCPOpenShiftCl
 				fmt.Sprintf("cannot downgrade from version %s to %s", spNodePool.Spec.NodePoolVersion.DesiredVersion.String(), newVersion.String()),
 			))
 		}
-		// No major version change
-		// TODO: Add support for major version upgrades (e.g., 4.20 → 5.0) when needed
+		// No major version change unless AllowMajorUpgrades experimental feature is enabled
 		if newVersion.Major != lowestActive.Major {
-			errs = append(errs, field.Invalid(
-				fldPath,
-				newNodePool.Properties.Version.ID,
-				fmt.Sprintf("invalid upgrade path from %s to %s: major version changes are not supported",
-					lowestActive.String(), newVersion.String()),
-			))
+			if !experimentalFeatures.AllowMajorUpgrades {
+				errs = append(errs, field.Invalid(
+					fldPath,
+					newNodePool.Properties.Version.ID,
+					fmt.Sprintf("invalid upgrade path from %s to %s: major version changes are not supported",
+						lowestActive.String(), newVersion.String()),
+				))
+			} else if lowestActive.Major == 4 && lowestActive.Minor == 22 && (newVersion.Major != 5 || newVersion.Minor != 0) {
+				errs = append(errs, field.Invalid(
+					fldPath,
+					newNodePool.Properties.Version.ID,
+					fmt.Sprintf("invalid upgrade path from %s to %s: 4.22 can only upgrade to 5.0",
+						lowestActive.String(), newVersion.String()),
+				))
+			} else if lowestActive.Major == 4 && lowestActive.Minor == 23 && (newVersion.Major != 5 || newVersion.Minor != 1) {
+				errs = append(errs, field.Invalid(
+					fldPath,
+					newNodePool.Properties.Version.ID,
+					fmt.Sprintf("invalid upgrade path from %s to %s: 4.23 can only upgrade to 5.1",
+						lowestActive.String(), newVersion.String()),
+				))
+			} else if lowestActive.Major != 4 || (lowestActive.Minor != 22 && lowestActive.Minor != 23) {
+				errs = append(errs, field.Invalid(
+					fldPath,
+					newNodePool.Properties.Version.ID,
+					fmt.Sprintf("invalid upgrade path from %s to %s: only 4.22 and 4.23 support major version upgrades",
+						lowestActive.String(), newVersion.String()),
+				))
+			}
 		}
 		//Don't skip minor
 		// TODO: We will relax this constraint in the future to allow skipping minor versions

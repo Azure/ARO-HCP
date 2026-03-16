@@ -201,7 +201,7 @@ func (c *nodePoolVersionSyncer) SyncOnce(ctx context.Context, key controllerutil
 	}
 
 	// Validate the customer's desired version before setting it
-	if err := c.validateDesiredNodePoolVersion(ctx, &customerDesiredVersion, existingServiceProviderNodePool, existingServiceProviderCluster, nodePool.Properties.Version.ChannelGroup, clusterKey, clusterUUID); err != nil {
+	if err := c.validateDesiredNodePoolVersion(ctx, &customerDesiredVersion, existingServiceProviderNodePool, existingServiceProviderCluster, cluster.ServiceProviderProperties.ExperimentalFeatures, nodePool.Properties.Version.ChannelGroup, clusterKey, clusterUUID); err != nil {
 		return utils.TrackError(fmt.Errorf("invalid desired version: %w", err))
 	}
 
@@ -241,6 +241,7 @@ func prependActiveVersionIfChanged(currentVersions []api.HCPNodePoolActiveVersio
 // It validates:
 //   - The desired version is not less than the highest active node pool version (no downgrades)
 //   - The desired version is not greater than the lowest control plane version
+//   - No major version changes (unless AllowMajorUpgrades experimental feature is enabled)
 //   - No minor versions are skipped
 //   - An upgrade path exists from the current version (all the activeVersions) to the desired version (via Cincinnati)
 //
@@ -250,6 +251,7 @@ func (c *nodePoolVersionSyncer) validateDesiredNodePoolVersion(
 	desiredVersion *semver.Version,
 	spNodePool *api.ServiceProviderNodePool,
 	spCluster *api.ServiceProviderCluster,
+	experimentalFeatures api.ExperimentalFeatures,
 	channelGroup string,
 	clusterKey controllerutils.HCPClusterKey,
 	clusterUUID uuid.UUID,
@@ -291,13 +293,29 @@ func (c *nodePoolVersionSyncer) validateDesiredNodePoolVersion(
 	}
 
 	if lowestNodePoolVersion != nil {
-		// TODO: Add support for major version upgrades (e.g., 4.20 → 5.0) when needed
-		// No major version upgrades implemented
+		// No major version upgrades unless AllowMajorUpgrades experimental feature is enabled
 		if desiredVersion.Major != lowestNodePoolVersion.Major {
-			return fmt.Errorf(
-				"invalid upgrade path from %s to %s: major version changes are not supported",
-				lowestNodePoolVersion.String(), desiredVersion.String(),
-			)
+			if !experimentalFeatures.AllowMajorUpgrades {
+				return fmt.Errorf(
+					"invalid upgrade path from %s to %s: major version changes are not supported",
+					lowestNodePoolVersion.String(), desiredVersion.String(),
+				)
+			} else if lowestNodePoolVersion.Major == 4 && lowestNodePoolVersion.Minor == 22 && (desiredVersion.Major != 5 || desiredVersion.Minor != 0) {
+				return fmt.Errorf(
+					"invalid upgrade path from %s to %s: 4.22 can only upgrade to 5.0",
+					lowestNodePoolVersion.String(), desiredVersion.String(),
+				)
+			} else if lowestNodePoolVersion.Major == 4 && lowestNodePoolVersion.Minor == 23 && (desiredVersion.Major != 5 || desiredVersion.Minor != 1) {
+				return fmt.Errorf(
+					"invalid upgrade path from %s to %s: 4.23 can only upgrade to 5.1",
+					lowestNodePoolVersion.String(), desiredVersion.String(),
+				)
+			} else if lowestNodePoolVersion.Major != 4 || (lowestNodePoolVersion.Minor != 22 && lowestNodePoolVersion.Minor != 23) {
+				return fmt.Errorf(
+					"invalid upgrade path from %s to %s: only 4.22 and 4.23 support major version upgrades",
+					lowestNodePoolVersion.String(), desiredVersion.String(),
+				)
+			}
 		}
 		// Allow same minor (z-stream upgrade) or next minor (y-stream upgrade)
 		// Cannot skip minor versions (check against lowest node pool version)

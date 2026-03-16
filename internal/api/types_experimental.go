@@ -27,6 +27,11 @@ type ExperimentalFeatures struct {
 	// control plane components. When set to Minimal, CS sets the
 	// ClusterSizeOverride annotation for reduced resource requests.
 	ControlPlanePodSizing ControlPlanePodSizing `json:"sizeOverride,omitempty"`
+
+	// AllowMajorUpgrades permits major version upgrades for node pools
+	// (e.g., 4.x → 5.x). When false (default), major version changes are
+	// rejected during node pool updates.
+	AllowMajorUpgrades bool `json:"allowMajorUpgrades,omitempty"`
 }
 
 // ControlPlaneAvailability controls the AvailabilityPolicy for control plane components.

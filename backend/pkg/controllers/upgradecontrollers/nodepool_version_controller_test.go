@@ -278,6 +278,7 @@ func TestNodePoolVersionSyncer_ValidateDesiredNodePoolVersion(t *testing.T) {
 		desiredVersion       string
 		activeVersions       []string
 		controlPlaneVersions []string
+		allowMajorUpgrades   bool
 		expectError          bool
 		errorContains        string
 	}{
@@ -336,12 +337,55 @@ func TestNodePoolVersionSyncer_ValidateDesiredNodePoolVersion(t *testing.T) {
 			errorContains:        "skipping minor versions is not allowed",
 		},
 		{
-			name:                 "major version change - fail",
-			desiredVersion:       "5.19.10",
-			activeVersions:       []string{"4.19.10"},
-			controlPlaneVersions: []string{"5.19.10"},
+			name:                 "major version change - fail by default",
+			desiredVersion:       "5.0.0",
+			activeVersions:       []string{"4.22.0"},
+			controlPlaneVersions: []string{"5.0.0"},
 			expectError:          true,
 			errorContains:        "major version changes are not supported",
+		},
+		{
+			name:                 "valid major upgrade 4.22 to 5.0",
+			desiredVersion:       "5.0.0",
+			activeVersions:       []string{"4.22.0"},
+			controlPlaneVersions: []string{"5.0.0"},
+			allowMajorUpgrades:   true,
+			expectError:          false,
+		},
+		{
+			name:                 "valid major upgrade 4.23 to 5.1",
+			desiredVersion:       "5.1.0",
+			activeVersions:       []string{"4.23.0"},
+			controlPlaneVersions: []string{"5.1.0"},
+			allowMajorUpgrades:   true,
+			expectError:          false,
+		},
+		{
+			name:                 "invalid major upgrade 4.22 to 5.1",
+			desiredVersion:       "5.1.0",
+			activeVersions:       []string{"4.22.0"},
+			controlPlaneVersions: []string{"5.1.0"},
+			allowMajorUpgrades:   true,
+			expectError:          true,
+			errorContains:        "4.22 can only upgrade to 5.0",
+		},
+		{
+			name:                 "invalid major upgrade 4.23 to 5.0",
+			desiredVersion:       "5.0.0",
+			activeVersions:       []string{"4.23.0"},
+			controlPlaneVersions: []string{"5.0.0"},
+			allowMajorUpgrades:   true,
+			expectError:          true,
+			errorContains:        "4.23 can only upgrade to 5.1",
+		},
+		{
+			name:                 "invalid major upgrade 4.20 not supported",
+			desiredVersion:       "5.0.0",
+			activeVersions:       []string{"4.20.0"},
+			controlPlaneVersions: []string{"5.0.0"},
+			allowMajorUpgrades:   true,
+			expectError:          true,
+			errorContains:        "only 4.22 and 4.23 support major version upgrades",
 		},
 		// Downgrade tests
 		{
@@ -432,11 +476,16 @@ func TestNodePoolVersionSyncer_ValidateDesiredNodePoolVersion(t *testing.T) {
 			}
 			syncer.clusterToCincinnatiClient.Add(clusterKey, mockCincinnatiClient)
 
+			experimentalFeatures := api.ExperimentalFeatures{
+				AllowMajorUpgrades: tt.allowMajorUpgrades,
+			}
+
 			err := syncer.validateDesiredNodePoolVersion(
 				ctx,
 				&desiredVersion,
 				spNodePool,
 				spCluster,
+				experimentalFeatures,
 				"stable",
 				clusterKey,
 				[16]byte{}, // dummy UUID

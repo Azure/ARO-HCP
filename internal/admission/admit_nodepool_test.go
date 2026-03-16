@@ -25,13 +25,14 @@ import (
 
 func TestAdmitNodePoolUpdate_VersionValidation(t *testing.T) {
 	tests := []struct {
-		name             string
-		newVersion       string
-		activeVersions   []string // current active versions in ServiceProviderNodePool (first is highest)
-		clusterVersions  []string // active versions in ServiceProviderCluster (first is highest)
-		desiredVersion   string   // desired version in ServiceProviderNodePool.Spec
-		expectError      string
-		expectErrorCount int
+		name               string
+		newVersion         string
+		activeVersions     []string // current active versions in ServiceProviderNodePool (first is highest)
+		clusterVersions    []string // active versions in ServiceProviderCluster (first is highest)
+		desiredVersion     string   // desired version in ServiceProviderNodePool.Spec
+		allowMajorUpgrades bool     // experimental feature flag
+		expectError        string
+		expectErrorCount   int
 	}{
 		{
 			name:            "valid z-stream upgrade",
@@ -63,12 +64,55 @@ func TestAdmitNodePoolUpdate_VersionValidation(t *testing.T) {
 			expectError:     "cannot downgrade",
 		},
 		{
-			name:            "major version change not allowed",
-			activeVersions:  []string{"4.17.0"},
+			name:            "major version change not allowed by default",
+			activeVersions:  []string{"4.22.0"},
 			newVersion:      "5.0.0",
 			clusterVersions: []string{"5.0.0"},
-			desiredVersion:  "4.17.0",
+			desiredVersion:  "4.22.0",
 			expectError:     "major version changes are not supported",
+		},
+		{
+			name:               "valid major upgrade 4.22 to 5.0",
+			activeVersions:     []string{"4.22.0"},
+			newVersion:         "5.0.0",
+			clusterVersions:    []string{"5.0.0"},
+			desiredVersion:     "4.22.0",
+			allowMajorUpgrades: true,
+		},
+		{
+			name:               "valid major upgrade 4.23 to 5.1",
+			activeVersions:     []string{"4.23.0"},
+			newVersion:         "5.1.0",
+			clusterVersions:    []string{"5.1.0"},
+			desiredVersion:     "4.23.0",
+			allowMajorUpgrades: true,
+		},
+		{
+			name:               "invalid major upgrade 4.22 to 5.1",
+			activeVersions:     []string{"4.22.0"},
+			newVersion:         "5.1.0",
+			clusterVersions:    []string{"5.1.0"},
+			desiredVersion:     "4.22.0",
+			allowMajorUpgrades: true,
+			expectError:        "4.22 can only upgrade to 5.0",
+		},
+		{
+			name:               "invalid major upgrade 4.23 to 5.0",
+			activeVersions:     []string{"4.23.0"},
+			newVersion:         "5.0.0",
+			clusterVersions:    []string{"5.0.0"},
+			desiredVersion:     "4.23.0",
+			allowMajorUpgrades: true,
+			expectError:        "4.23 can only upgrade to 5.1",
+		},
+		{
+			name:               "invalid major upgrade 4.20 not supported",
+			activeVersions:     []string{"4.20.0"},
+			newVersion:         "5.0.0",
+			clusterVersions:    []string{"5.0.0"},
+			desiredVersion:     "4.20.0",
+			allowMajorUpgrades: true,
+			expectError:        "only 4.22 and 4.23 support major version upgrades",
 		},
 		{
 			name:            "skipping minor versions not allowed",
@@ -154,6 +198,11 @@ func TestAdmitNodePoolUpdate_VersionValidation(t *testing.T) {
 					Version: api.VersionProfile{
 						ID:           "4.18",
 						ChannelGroup: "stable",
+					},
+				},
+				ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
+					ExperimentalFeatures: api.ExperimentalFeatures{
+						AllowMajorUpgrades: tt.allowMajorUpgrades,
 					},
 				},
 			}

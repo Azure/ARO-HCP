@@ -80,10 +80,9 @@ func TestMutateCluster(t *testing.T) {
 			expectedControlPlanePodSizing:    api.MinimalControlPlanePodSizing,
 		},
 		{
-			name:               "AFEC registered but no tags",
-			subscription:       afecRegistered,
-			tags:               map[string]string{},
-			expectZeroFeatures: true,
+			name:         "AFEC registered but no tags",
+			subscription: afecRegistered,
+			tags:         map[string]string{},
 		},
 		{
 			name:                          "AFEC registered with case insensitive tag keys - size-override",
@@ -98,10 +97,9 @@ func TestMutateCluster(t *testing.T) {
 			expectedControlPlaneAvailability: api.SingleReplicaControlPlane,
 		},
 		{
-			name:               "AFEC registered but tag values are empty strings",
-			subscription:       afecRegistered,
-			tags:               map[string]string{api.TagClusterSingleReplica: "", api.TagClusterSizeOverride: ""},
-			expectZeroFeatures: true,
+			name:         "AFEC registered but tag values are empty strings",
+			subscription: afecRegistered,
+			tags:         map[string]string{api.TagClusterSingleReplica: "", api.TagClusterSizeOverride: ""},
 		},
 		{
 			name:         "AFEC registered but single-replica tag has invalid value",
@@ -140,10 +138,9 @@ func TestMutateCluster(t *testing.T) {
 			expectError:  "unrecognized experimental tag",
 		},
 		{
-			name:               "non-experimental tags are ignored",
-			subscription:       afecRegistered,
-			tags:               map[string]string{"environment": "dev", "team": "platform"},
-			expectZeroFeatures: true,
+			name:         "non-experimental tags are ignored",
+			subscription: afecRegistered,
+			tags:         map[string]string{"environment": "dev", "team": "platform"},
 		},
 		{
 			name:         "valid tag alongside unrecognized experimental tag fails",
@@ -152,10 +149,14 @@ func TestMutateCluster(t *testing.T) {
 			expectError:  "unrecognized experimental tag",
 		},
 		{
-			name:               "nil tags",
-			subscription:       afecRegistered,
-			tags:               nil,
-			expectZeroFeatures: true,
+			name:         "nil tags",
+			subscription: afecRegistered,
+			tags:         nil,
+		},
+		{
+			name:         "AFEC registered enables major upgrades automatically",
+			subscription: afecRegistered,
+			tags:         map[string]string{},
 		},
 	}
 

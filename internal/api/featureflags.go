@@ -48,4 +48,9 @@ const (
 	// ClusterSizeOverride annotation for reduced resource requests when the
 	// ExperimentalReleaseFeatures AFEC is registered on the subscription.
 	TagClusterSizeOverride = ExperimentalClusterTagPrefix + "size-override"
+
+	// TagClusterAllowMajorUpgrades is the ARM resource tag that permits
+	// major version upgrades for node pools (e.g., 4.x → 5.x) when the
+	// ExperimentalReleaseFeatures AFEC is registered on the subscription.
+	TagClusterAllowMajorUpgrades = ExperimentalClusterTagPrefix + "allow-major-upgrades"
 )
