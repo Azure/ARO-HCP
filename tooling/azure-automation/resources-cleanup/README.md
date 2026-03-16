@@ -118,7 +118,7 @@ Regarding the code, we simply use a [ResourceManagementClient class](https://lea
 ## Python packages 
 These are the [packages](https://portal.azure.com/#@redhat0.onmicrosoft.com/resource/subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/HCP-automation-rg/providers/Microsoft.Automation/automationAccounts/HCP-automation-account/python2packages) needed for the Python Runbook to work properly (we need to manually Install them in the _Python packages_ section in the Azure Automation account):
 - azure_common 1.1.28
-- azure_core 1.29.7
+- azure_core 1.38.0
 - azure_identity 1.15.0
 - azure_mgmt_core 1.4.0
 - azure_mgmt_resource 23.0.1
