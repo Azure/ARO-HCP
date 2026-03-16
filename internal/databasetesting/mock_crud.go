@@ -250,6 +250,8 @@ func (m *mockResourceCRUD[InternalAPIType, CosmosAPIType]) List(ctx context.Cont
 }
 
 func (m *mockResourceCRUD[InternalAPIType, CosmosAPIType]) Create(ctx context.Context, newObj *InternalAPIType, options *azcosmos.ItemOptions) (*InternalAPIType, error) {
+	logger := utils.LoggerFromContext(ctx)
+
 	cosmosObj, err := database.InternalToCosmos[InternalAPIType, CosmosAPIType](newObj)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert to cosmos type: %w", err)
@@ -282,10 +284,22 @@ func (m *mockResourceCRUD[InternalAPIType, CosmosAPIType]) Create(ctx context.Co
 	m.client.StoreDocument(cosmosID, dataWithETag)
 
 	// Read back the stored object
-	return m.GetByID(ctx, cosmosID)
+	result, err := m.GetByID(ctx, cosmosID)
+	if err != nil {
+		return nil, err
+	}
+
+	logger.Info("db mutation: create",
+		"resourceID", cosmosData.ResourceID.String(),
+		"content", result,
+	)
+
+	return result, nil
 }
 
 func (m *mockResourceCRUD[InternalAPIType, CosmosAPIType]) Replace(ctx context.Context, newObj *InternalAPIType, options *azcosmos.ItemOptions) (*InternalAPIType, error) {
+	logger := utils.LoggerFromContext(ctx)
+
 	cosmosObj, err := database.InternalToCosmos[InternalAPIType, CosmosAPIType](newObj)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert to cosmos type: %w", err)
@@ -330,21 +344,42 @@ func (m *mockResourceCRUD[InternalAPIType, CosmosAPIType]) Replace(ctx context.C
 	m.client.StoreDocument(existingCosmosID, dataWithETag)
 
 	// Read back the stored object
-	return m.Get(ctx, cosmosPersistable.GetCosmosData().GetResourceID().Name)
+	result, err := m.Get(ctx, cosmosPersistable.GetCosmosData().GetResourceID().Name)
+	if err != nil {
+		return nil, err
+	}
+
+	logger.Info("db mutation: replace",
+		"resourceID", cosmosData.ResourceID.String(),
+		"content", result,
+	)
+
+	return result, nil
 }
 
 func (m *mockResourceCRUD[InternalAPIType, CosmosAPIType]) Delete(ctx context.Context, resourceID string) error {
+	logger := utils.LoggerFromContext(ctx)
+
 	curr, err := m.Get(ctx, resourceID)
 	if err != nil {
 		return err
 	}
 
-	cosmosUID := any(curr).(arm.CosmosPersistable).GetCosmosData().GetCosmosUID()
+	cosmosData := any(curr).(arm.CosmosPersistable).GetCosmosData()
+	cosmosUID := cosmosData.GetCosmosUID()
+
+	logger.Info("db mutation: delete",
+		"resourceID", cosmosData.ResourceID.String(),
+		"content", curr,
+	)
+
 	m.client.DeleteDocument(cosmosUID)
 	return nil
 }
 
 func (m *mockResourceCRUD[InternalAPIType, CosmosAPIType]) AddCreateToTransaction(ctx context.Context, transaction database.DBTransaction, newObj *InternalAPIType, opts *azcosmos.TransactionalBatchItemOptions) (string, error) {
+	logger := utils.LoggerFromContext(ctx)
+
 	cosmosObj, err := database.InternalToCosmos[InternalAPIType, CosmosAPIType](newObj)
 	if err != nil {
 		return "", fmt.Errorf("failed to convert to cosmos type: %w", err)
@@ -374,6 +409,11 @@ func (m *mockResourceCRUD[InternalAPIType, CosmosAPIType]) AddCreateToTransactio
 		CosmosID:   cosmosID,
 	}
 
+	logger.Info("db mutation: transaction create",
+		"resourceID", cosmosData.ResourceID.String(),
+		"content", newObj,
+	)
+
 	mockTx.steps = append(mockTx.steps, mockTransactionStep{
 		details: transactionDetails,
 		execute: func() (string, json.RawMessage, error) {
@@ -391,6 +431,8 @@ func (m *mockResourceCRUD[InternalAPIType, CosmosAPIType]) AddCreateToTransactio
 }
 
 func (m *mockResourceCRUD[InternalAPIType, CosmosAPIType]) AddReplaceToTransaction(ctx context.Context, transaction database.DBTransaction, newObj *InternalAPIType, opts *azcosmos.TransactionalBatchItemOptions) (string, error) {
+	logger := utils.LoggerFromContext(ctx)
+
 	cosmosPersistable, ok := any(newObj).(arm.CosmosPersistable)
 	if !ok {
 		return "", fmt.Errorf("type %T does not implement CosmosPersistable", newObj)
@@ -425,6 +467,11 @@ func (m *mockResourceCRUD[InternalAPIType, CosmosAPIType]) AddReplaceToTransacti
 		GoType:     fmt.Sprintf("%T", newObj),
 		CosmosID:   cosmosID,
 	}
+
+	logger.Info("db mutation: transaction replace",
+		"resourceID", cosmosData.ResourceID.String(),
+		"content", newObj,
+	)
 
 	mockTx.steps = append(mockTx.steps, mockTransactionStep{
 		details: transactionDetails,
@@ -819,10 +866,17 @@ func (m *mockUntypedCRUD) listInternal(ctx context.Context, opts *database.DBCli
 }
 
 func (m *mockUntypedCRUD) Delete(ctx context.Context, resourceID *azcorearm.ResourceID) error {
+	logger := utils.LoggerFromContext(ctx)
+
 	curr, err := m.Get(ctx, resourceID)
 	if err != nil {
 		return err
 	}
+
+	logger.Info("db mutation: delete",
+		"resourceID", resourceID.String(),
+		"content", curr,
+	)
 
 	cosmosUID := curr.ID
 	m.client.DeleteDocument(cosmosUID)
@@ -830,6 +884,12 @@ func (m *mockUntypedCRUD) Delete(ctx context.Context, resourceID *azcorearm.Reso
 }
 
 func (m *mockUntypedCRUD) DeleteByCosmosID(ctx context.Context, partitionKey, cosmosID string) error {
+	logger := utils.LoggerFromContext(ctx)
+
+	logger.Info("db mutation: delete",
+		"cosmosID", cosmosID,
+	)
+
 	m.client.DeleteDocument(cosmosID)
 	return nil
 }

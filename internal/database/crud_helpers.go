@@ -241,6 +241,8 @@ func serializeItem[InternalAPIType, CosmosAPIType any](newObj *InternalAPIType) 
 }
 
 func addCreateToTransaction[InternalAPIType, CosmosAPIType any](ctx context.Context, transaction DBTransaction, newObj *InternalAPIType, opts *azcosmos.TransactionalBatchItemOptions) (string, error) {
+	logger := utils.LoggerFromContext(ctx)
+
 	partitionKeyString := transaction.GetPartitionKey()
 	if strings.ToLower(partitionKeyString) != partitionKeyString {
 		return "", fmt.Errorf("partitionKeyString must be lowercase, not: %q", partitionKeyString)
@@ -259,6 +261,11 @@ func addCreateToTransaction[InternalAPIType, CosmosAPIType any](ctx context.Cont
 		ResourceID: cosmosMetadata.ResourceID.String(),
 	}
 
+	logger.Info("db mutation: transaction create",
+		"resourceID", cosmosMetadata.ResourceID.String(),
+		"content", newObj,
+	)
+
 	transaction.AddStep(
 		transactionDetails,
 		func(b *azcosmos.TransactionalBatch) (string, error) {
@@ -271,6 +278,8 @@ func addCreateToTransaction[InternalAPIType, CosmosAPIType any](ctx context.Cont
 }
 
 func addReplaceToTransaction[InternalAPIType, CosmosAPIType any](ctx context.Context, containerClient *azcosmos.ContainerClient, transaction DBTransaction, newObj *InternalAPIType, opts *azcosmos.TransactionalBatchItemOptions) (string, error) {
+	logger := utils.LoggerFromContext(ctx)
+
 	partitionKeyString := transaction.GetPartitionKey()
 
 	// do a get first to ensure the ID is migrated
@@ -299,6 +308,11 @@ func addReplaceToTransaction[InternalAPIType, CosmosAPIType any](ctx context.Con
 		Etag:       cosmosMetadata.CosmosETag,
 	}
 
+	logger.Info("db mutation: transaction replace",
+		"resourceID", cosmosMetadata.ResourceID.String(),
+		"content", newObj,
+	)
+
 	if opts == nil {
 		opts = &azcosmos.TransactionalBatchItemOptions{}
 	}
@@ -319,6 +333,8 @@ func addReplaceToTransaction[InternalAPIType, CosmosAPIType any](ctx context.Con
 }
 
 func create[InternalAPIType, CosmosAPIType any](ctx context.Context, containerClient *azcosmos.ContainerClient, partitionKeyString string, newObj *InternalAPIType, opts *azcosmos.ItemOptions) (*InternalAPIType, error) {
+	logger := utils.LoggerFromContext(ctx)
+
 	if strings.ToLower(partitionKeyString) != partitionKeyString {
 		return nil, fmt.Errorf("partitionKeyString must be lowercase, not: %q", partitionKeyString)
 	}
@@ -349,10 +365,17 @@ func create[InternalAPIType, CosmosAPIType any](ctx context.Context, containerCl
 		return nil, fmt.Errorf("failed to convert Cosmos object to internal type: %w", err)
 	}
 
+	logger.Info("db mutation: create",
+		"resourceID", cosmosMetadata.ResourceID.String(),
+		"content", internalObj,
+	)
+
 	return internalObj, nil
 }
 
 func replace[InternalAPIType, CosmosAPIType any](ctx context.Context, containerClient *azcosmos.ContainerClient, partitionKeyString string, newObj *InternalAPIType, opts *azcosmos.ItemOptions) (*InternalAPIType, error) {
+	logger := utils.LoggerFromContext(ctx)
+
 	cosmosPersistable, ok := any(newObj).(arm.CosmosPersistable)
 	if !ok {
 		return nil, fmt.Errorf("type %T does not implement CosmosPersistable interface", newObj)
@@ -396,10 +419,17 @@ func replace[InternalAPIType, CosmosAPIType any](ctx context.Context, containerC
 		return nil, fmt.Errorf("failed to convert Cosmos object to internal type: %w", err)
 	}
 
+	logger.Info("db mutation: replace",
+		"resourceID", cosmosMetadata.ResourceID.String(),
+		"content", internalObj,
+	)
+
 	return internalObj, nil
 }
 
 func deleteResource(ctx context.Context, containerClient *azcosmos.ContainerClient, partitionKeyString string, resourceID *azcorearm.ResourceID) error {
+	logger := utils.LoggerFromContext(ctx)
+
 	typedObj, err := get[TypedDocument, TypedDocument](ctx, containerClient, partitionKeyString, resourceID)
 	if IsResponseError(err, http.StatusNotFound) {
 		return nil
@@ -407,6 +437,11 @@ func deleteResource(ctx context.Context, containerClient *azcosmos.ContainerClie
 	if err != nil {
 		return utils.TrackError(err)
 	}
+
+	logger.Info("db mutation: delete",
+		"resourceID", resourceID.String(),
+		"content", typedObj,
+	)
 
 	_, err = containerClient.DeleteItem(ctx, azcosmos.NewPartitionKeyString(partitionKeyString), typedObj.ID, nil)
 	if err != nil {
@@ -416,6 +451,12 @@ func deleteResource(ctx context.Context, containerClient *azcosmos.ContainerClie
 }
 
 func deleteByCosmosID(ctx context.Context, containerClient *azcosmos.ContainerClient, partitionKeyString, cosmosID string) error {
+	logger := utils.LoggerFromContext(ctx)
+
+	logger.Info("db mutation: delete",
+		"cosmosID", cosmosID,
+	)
+
 	_, err := containerClient.DeleteItem(ctx, azcosmos.NewPartitionKeyString(partitionKeyString), cosmosID, nil)
 	if err != nil {
 		return utils.TrackError(err)
