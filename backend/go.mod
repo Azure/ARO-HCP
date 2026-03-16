@@ -23,7 +23,6 @@ require (
 	github.com/openshift/api v0.0.0-20260130140113-71e91db96ffc
 	github.com/openshift/cluster-version-operator v1.0.1-0.20260202115537-557510ea0603
 	github.com/openshift/hypershift/api v0.0.0-20260226113135-8ab86680f975
-	github.com/orcaman/concurrent-map/v2 v2.0.1
 	github.com/prometheus/client_golang v1.23.2
 	github.com/spf13/cobra v1.10.2
 	github.com/stretchr/testify v1.11.1
@@ -32,7 +31,7 @@ require (
 	go.opentelemetry.io/otel v1.43.0
 	go.opentelemetry.io/otel/trace v1.43.0
 	go.uber.org/mock v0.6.0
-	golang.org/x/sync v0.19.0
+	golang.org/x/sync v0.20.0
 	k8s.io/apimachinery v0.34.3
 	k8s.io/client-go v0.34.3
 	k8s.io/component-base v0.34.3
