@@ -26,6 +26,9 @@ param autoScaleMax int
 @description('Toggle if autoscale should be enabled')
 param enableAutoScale bool
 
+@description('List of allowed FQDNs for cross-cluster callout policy (e.g. for entity group queries)')
+param allowedFqdnList array = []
+
 type Permission = {
   tenantId: string
   groupId: string
@@ -65,6 +68,8 @@ resource kusto 'Microsoft.Kusto/clusters@2024-04-13' = {
       maximum: autoScaleMax
     }
     enableAutoStop: false
+    restrictOutboundNetworkAccess: !empty(allowedFqdnList) ? 'Enabled' : 'Disabled'
+    allowedFqdnList: allowedFqdnList
   }
 
   // Cluster level permissions

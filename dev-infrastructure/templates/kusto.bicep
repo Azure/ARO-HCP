@@ -34,6 +34,9 @@ param autoScaleMax int
 @description('Toggle if autoscale should be enabled')
 param enableAutoScale bool
 
+@description('List of allowed FQDNs for cross-cluster callout policy (e.g. for entity group queries)')
+param allowedFqdnList array = []
+
 @description('Event Hub namespace name for AKS audit logs')
 param auditLogsEventHubNamespaceName string
 
@@ -60,6 +63,7 @@ module kusto '../modules/logs/kusto/main.bicep' = if (manageInstance) {
     autoScaleMin: autoScaleMin
     autoScaleMax: autoScaleMax
     enableAutoScale: enableAutoScale
+    allowedFqdnList: allowedFqdnList
     auditLogsEventHubNamespaceName: auditLogsEventHubNamespaceName
     auditLogsEventHubName: auditLogsEventHubName
     auditLogsKustoConsumerGroupName: auditLogsKustoConsumerGroupName
