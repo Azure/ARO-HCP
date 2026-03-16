@@ -389,13 +389,14 @@ func TestValidateClusterCreate(t *testing.T) {
 			},
 		},
 		{
-			name: "missing kms encryption visibility - create",
+			name: "missing kms encryption visibility is allowed for backwards compatibility - create",
 			cluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
 				c.CustomerProperties.Etcd.DataEncryption.KeyManagementMode = api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged
 				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged = &api.CustomerManagedEncryptionProfile{
 					EncryptionType: api.CustomerManagedEncryptionTypeKMS,
 					Kms: &api.KmsEncryptionProfile{
+						// Visibility is omitted (empty string) for backwards compatibility with older API versions
 						ActiveKey: api.KmsKey{
 							Name:      "test-key",
 							VaultName: "test-vault",
@@ -406,8 +407,7 @@ func TestValidateClusterCreate(t *testing.T) {
 				return c
 			}(),
 			expectErrors: []expectedError{
-				{message: "Required value", fieldPath: "customerProperties.etcd.dataEncryption.customerManaged.kms.visibility"},
-				{message: "supported values: \"Private\", \"Public\"", fieldPath: "customerProperties.etcd.dataEncryption.customerManaged.kms.visibility"},
+				// No errors expected - visibility is optional for backwards compatibility
 			},
 		},
 		{
@@ -730,7 +730,6 @@ func TestValidateClusterCreate(t *testing.T) {
 				return c
 			}(),
 			expectErrors: []expectedError{
-				{message: "must be in the same Azure subscription", fieldPath: "customerProperties.platform.vnetIntegrationSubnetId"},
 				{message: "must be in the same Azure subscription", fieldPath: "customerProperties.platform.subnetId"},
 			},
 		},
@@ -1489,6 +1488,7 @@ func TestValidateClusterUpdate(t *testing.T) {
 				{message: "field is immutable", fieldPath: "customerProperties.platform"},
 				{message: "field is immutable", fieldPath: "customerProperties.platform.subnetId"},
 				{message: "must be in the same Azure subscription", fieldPath: "customerProperties.platform.subnetId"},
+				{message: "must be in the same Azure subscription", fieldPath: "customerProperties.platform.vnetIntegrationSubnetId"},
 			},
 		},
 		{
