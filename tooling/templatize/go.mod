@@ -42,6 +42,8 @@ require (
 	sigs.k8s.io/yaml v1.6.0
 )
 
+require github.com/Azure/azure-sdk-for-go/sdk/containers/azcontainerregistry v0.2.3 // indirect
+
 require (
 	cel.dev/expr v0.24.0 // indirect
 	cloud.google.com/go v0.121.6 // indirect
@@ -310,4 +312,4 @@ replace helm.sh/helm/v4 => github.com/geoberle/helm/v4 v4.0.0-20251102095138-e64
 
 replace github.com/go-echarts/go-echarts/v2 => github.com/stevekuznetsov/go-echarts/v2 v2.0.0-20251106144453-30c025b42a65
 
-replace github.com/Azure/ARO-Tools/tools/imagemirror => github.com/sclarkso/ARO-Tools/tools/imagemirror v0.0.0-20260315190844-336e698d96f0
+replace github.com/Azure/ARO-Tools/tools/imagemirror => github.com/sclarkso/ARO-Tools/tools/imagemirror v0.0.0-20260316011400-278c21a990cb
