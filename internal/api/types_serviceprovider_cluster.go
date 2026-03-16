@@ -199,3 +199,15 @@ const (
 	// the Cluster's Hypershift's HostedCluster K8s resource.
 	MaestroBundleInternalNameReadonlyHypershiftHostedCluster MaestroBundleInternalName = "readonlyHypershiftHostedCluster"
 )
+
+// FindLowestClusterVersion returns the lowest version from the list of control plane active versions.
+// ActiveVersions can be in any order, so we iterate to find the actual minimum.
+func FindLowestClusterVersion(activeVersions []HCPClusterActiveVersion) *semver.Version {
+	var lowest *semver.Version
+	for _, av := range activeVersions {
+		if lowest == nil || av.Version.LT(*lowest) {
+			lowest = av.Version
+		}
+	}
+	return lowest
+}
