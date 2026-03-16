@@ -17,6 +17,7 @@ package controllerutils
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -29,28 +30,29 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/informers"
-	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/internal/utils/apihelpers"
 )
 
-type ClusterSyncer interface {
-	SyncOnce(ctx context.Context, keyObj HCPClusterKey) error
+type GenericSyncer[T comparable] interface {
+	SyncOnce(ctx context.Context, keyObj T) error
 	CooldownChecker() CooldownChecker
+	MakeKey(resourceID *azcorearm.ResourceID) T
 }
 
-type clusterWatchingController struct {
-	name   string
-	syncer ClusterSyncer
+type Notifier interface {
+	AddEventHandlerWithOptions(handler cache.ResourceEventHandler, options cache.HandlerOptions) (cache.ResourceEventHandlerRegistration, error)
+}
 
-	cosmosClient database.DBClient
+type genericWatchingController[T comparable] struct {
+	name         string
+	resourceType azcorearm.ResourceType
+	syncer       GenericSyncer[T]
 
 	// queue is where incoming work is placed to de-dup and to allow "easy"
 	// rate limited requeues on errors
-	queue workqueue.TypedRateLimitingInterface[HCPClusterKey]
+	queue workqueue.TypedRateLimitingInterface[T]
 }
 
 // NewClusterWatchingController periodically looks up all clusters and queues them
@@ -58,78 +60,32 @@ type clusterWatchingController struct {
 // Since our detection of change is coarse, we are being triggered every few second without new information.
 // Until we get a changefeed, the cooldownDuration value is effectively the min resync time.
 // This does NOT prevent us from re-executing on errors, so errors will continue to trigger fast checks as expected.
-func NewClusterWatchingController(
-	name string,
-	cosmosClient database.DBClient,
-	informers informers.BackendInformers,
-	resyncDuration time.Duration,
-	syncer ClusterSyncer,
-) Controller {
-	c := &clusterWatchingController{
+func newGenericWatchingController[T comparable](name string, resourceType azcorearm.ResourceType, syncer GenericSyncer[T]) *genericWatchingController[T] {
+	c := &genericWatchingController[T]{
 		name:         name,
-		cosmosClient: cosmosClient,
+		resourceType: resourceType,
 		syncer:       syncer,
 		queue: workqueue.NewTypedRateLimitingQueueWithConfig(
-			workqueue.DefaultTypedControllerRateLimiter[HCPClusterKey](),
-			workqueue.TypedRateLimitingQueueConfig[HCPClusterKey]{
+			workqueue.DefaultTypedControllerRateLimiter[T](),
+			workqueue.TypedRateLimitingQueueConfig[T]{
 				Name: name,
 			},
 		),
 	}
 
-	// this happens when unit tests don't want triggering.  This isn't beautiful, but fails to do nothing which is pretty safe.
-	if informers != nil {
-		clusterInformer, _ := informers.Clusters()
-		_, err := clusterInformer.AddEventHandlerWithOptions(
-			cache.ResourceEventHandlerFuncs{
-				AddFunc:    c.EnqueueCosmosAdd,
-				UpdateFunc: c.EnqueueCosmosUpdate,
-			},
-			cache.HandlerOptions{
-				ResyncPeriod: ptr.To(resyncDuration),
-			})
-		if err != nil {
-			panic(err) // coding error
-		}
-		serviceProviderInformer, _ := informers.ServiceProviderClusters()
-		_, err = serviceProviderInformer.AddEventHandlerWithOptions(
-			cache.ResourceEventHandlerFuncs{
-				AddFunc:    c.EnqueueCosmosAdd,
-				UpdateFunc: c.EnqueueCosmosUpdate,
-			},
-			cache.HandlerOptions{
-				ResyncPeriod: ptr.To(resyncDuration),
-			})
-		if err != nil {
-			panic(err) // coding error
-		}
-	}
-
 	return c
 }
 
-func (c *clusterWatchingController) SyncOnce(ctx context.Context, keyObj any) error {
-	key := keyObj.(HCPClusterKey)
-	defer utilruntime.HandleCrash(DegradedControllerPanicHandler(
-		ctx,
-		c.cosmosClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Controllers(key.HCPClusterName),
-		c.name,
-		key.InitialController))
+func (c *genericWatchingController[T]) SyncOnce(ctx context.Context, keyObj any) error {
+	key, ok := keyObj.(T)
+	if !ok {
+		return fmt.Errorf("invalid key type %T", keyObj)
+	}
 
-	syncErr := c.syncer.SyncOnce(ctx, key) // we'll handle this is a moment.
-
-	controllerWriteErr := WriteController(
-		ctx,
-		c.cosmosClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Controllers(key.HCPClusterName),
-		c.name,
-		key.InitialController,
-		ReportSyncError(syncErr),
-	)
-
-	return errors.Join(syncErr, controllerWriteErr)
+	return c.syncer.SyncOnce(ctx, key)
 }
 
-func (c *clusterWatchingController) Run(ctx context.Context, threadiness int) {
+func (c *genericWatchingController[T]) Run(ctx context.Context, threadiness int) {
 	// don't let panics crash the process
 	defer utilruntime.HandleCrash()
 	// make sure the work queue is shutdown which will trigger workers to end
@@ -155,14 +111,14 @@ func (c *clusterWatchingController) Run(ctx context.Context, threadiness int) {
 	logger.Info("Shutting down")
 }
 
-func (c *clusterWatchingController) runWorker(ctx context.Context) {
+func (c *genericWatchingController[T]) runWorker(ctx context.Context) {
 	for c.processNextWorkItem(ctx) {
 	}
 }
 
 // processNextWorkItem deals with one item off the queue.  It returns false
 // when it's time to quit.
-func (c *clusterWatchingController) processNextWorkItem(ctx context.Context) bool {
+func (c *genericWatchingController[T]) processNextWorkItem(ctx context.Context) bool {
 	ref, shutdown := c.queue.Get()
 	if shutdown {
 		return false
@@ -170,7 +126,7 @@ func (c *clusterWatchingController) processNextWorkItem(ctx context.Context) boo
 	defer c.queue.Done(ref)
 
 	logger := utils.LoggerFromContext(ctx)
-	logger = ref.AddLoggerValues(logger)
+	logger = AddLoggerValues(logger, ref)
 	ctx = utils.ContextWithLogger(ctx, logger)
 
 	ReconcileTotal.WithLabelValues(c.name).Inc()
@@ -186,26 +142,38 @@ func (c *clusterWatchingController) processNextWorkItem(ctx context.Context) boo
 	return true
 }
 
+func (c *genericWatchingController[T]) QueueForInformers(resyncDuration time.Duration, notifiers ...Notifier) error {
+	errs := []error{}
+	for _, notifier := range notifiers {
+		_, err := notifier.AddEventHandlerWithOptions(
+			cache.ResourceEventHandlerFuncs{
+				AddFunc:    c.EnqueueCosmosAdd,
+				UpdateFunc: c.EnqueueCosmosUpdate,
+			},
+			cache.HandlerOptions{
+				ResyncPeriod: ptr.To(resyncDuration),
+			})
+		errs = append(errs, err)
+	}
+	return errors.Join(errs...)
+}
+
 // EnqueueResourceIDAdd traverses to find a resourceID that is an hcpcluster and adds it if found.
 // It is exposed so that individual controllers can add other items to requeue based on easily.
-func (c *clusterWatchingController) EnqueueResourceIDAdd(resourceID *azcorearm.ResourceID, changed bool) {
+func (c *genericWatchingController[T]) EnqueueResourceIDAdd(resourceID *azcorearm.ResourceID, changed bool) {
 	if resourceID == nil {
 		return
 	}
-	if !apihelpers.ResourceTypeEqual(resourceID.ResourceType, api.ClusterResourceType) {
+	if !apihelpers.ResourceTypeEqual(resourceID.ResourceType, c.resourceType) {
 		c.EnqueueResourceIDAdd(resourceID.Parent, changed)
 		return
 	}
 
-	key := HCPClusterKey{
-		SubscriptionID:    resourceID.SubscriptionID,
-		ResourceGroupName: resourceID.ResourceGroupName,
-		HCPClusterName:    resourceID.Name,
-	}
+	key := c.syncer.MakeKey(resourceID)
 
 	logger := utils.DefaultLogger()
 	logger = logger.WithValues(utils.LogValues{}.AddControllerName(c.name)...)
-	logger = key.AddLoggerValues(logger)
+	logger = AddLoggerValues(logger, key)
 	ctx := logr.NewContext(context.TODO(), logger)
 
 	if changed {
@@ -221,12 +189,11 @@ func (c *clusterWatchingController) EnqueueResourceIDAdd(resourceID *azcorearm.R
 	c.queue.Add(key)
 }
 
-func (c *clusterWatchingController) EnqueueCosmosAdd(newObj any) {
-
-	c.EnqueueResourceIDAdd(newObj.(arm.CosmosMetadataAccessor).GetResourceID(), true)
+func (c *genericWatchingController[T]) EnqueueCosmosAdd(newObj any) {
+	c.EnqueueResourceIDAdd(newObj.(arm.CosmosPersistable).GetCosmosData().GetResourceID(), true)
 }
 
-func (c *clusterWatchingController) EnqueueCosmosUpdate(oldObj, newObj any) {
-	changed := oldObj.(arm.CosmosMetadataAccessor).GetEtag() != newObj.(arm.CosmosMetadataAccessor).GetEtag()
-	c.EnqueueResourceIDAdd(newObj.(arm.CosmosMetadataAccessor).GetResourceID(), changed)
+func (c *genericWatchingController[T]) EnqueueCosmosUpdate(oldObj, newObj any) {
+	changed := oldObj.(arm.CosmosPersistable).GetCosmosData().GetEtag() != newObj.(arm.CosmosPersistable).GetCosmosData().GetEtag()
+	c.EnqueueResourceIDAdd(newObj.(arm.CosmosPersistable).GetCosmosData().GetResourceID(), changed)
 }

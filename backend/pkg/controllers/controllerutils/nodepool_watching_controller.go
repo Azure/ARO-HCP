@@ -19,21 +19,14 @@ import (
 	"errors"
 	"time"
 
-	"github.com/go-logr/logr"
-
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
-	"k8s.io/apimachinery/pkg/util/wait"
-	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
-	"k8s.io/utils/ptr"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/database"
-	"github.com/Azure/ARO-HCP/internal/utils"
-	"github.com/Azure/ARO-HCP/internal/utils/apihelpers"
 )
 
 type NodePoolSyncer interface {
@@ -64,7 +57,7 @@ func NewNodePoolWatchingController(
 	resyncDuration time.Duration,
 	syncer NodePoolSyncer,
 ) Controller {
-	c := &nodePoolWatchingController{
+	nodePoolSyncer := &nodePoolWatchingController{
 		name:         name,
 		cosmosClient: cosmosClient,
 		syncer:       syncer,
@@ -75,41 +68,22 @@ func NewNodePoolWatchingController(
 			},
 		),
 	}
+	nodePoolController := newGenericWatchingController(name, api.NodePoolResourceType, nodePoolSyncer)
 
 	// this happens when unit tests don't want triggering.  This isn't beautiful, but fails to do nothing which is pretty safe.
 	if informers != nil {
 		nodePoolInformer, _ := informers.NodePools()
-		_, err := nodePoolInformer.AddEventHandlerWithOptions(
-			cache.ResourceEventHandlerFuncs{
-				AddFunc:    c.enqueueNodePoolAdd,
-				UpdateFunc: c.enqueueNodePoolUpdate,
-			},
-			cache.HandlerOptions{
-				ResyncPeriod: ptr.To(resyncDuration),
-			})
+		serviceProviderInformer, _ := informers.ServiceProviderClusters()
+		err := nodePoolController.QueueForInformers(resyncDuration, nodePoolInformer, serviceProviderInformer)
 		if err != nil {
 			panic(err) // coding error
 		}
-		serviceProviderInformer, _ := informers.ServiceProviderNodePools()
-		_, err = serviceProviderInformer.AddEventHandlerWithOptions(
-			cache.ResourceEventHandlerFuncs{
-				AddFunc:    c.enqueueServiceProviderNodePoolAdd,
-				UpdateFunc: c.enqueueServiceProviderNodePoolUpdate,
-			},
-			cache.HandlerOptions{
-				ResyncPeriod: ptr.To(resyncDuration),
-			})
-		if err != nil {
-			panic(err)
-		}
-
 	}
 
-	return c
+	return nodePoolController
 }
 
-func (c *nodePoolWatchingController) SyncOnce(ctx context.Context, keyObj any) error {
-	key := keyObj.(HCPNodePoolKey)
+func (c *nodePoolWatchingController) SyncOnce(ctx context.Context, key HCPNodePoolKey) error {
 	defer utilruntime.HandleCrash(DegradedControllerPanicHandler(
 		ctx,
 		c.cosmosClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).NodePools(key.HCPClusterName).Controllers(key.HCPNodePoolName),
@@ -129,107 +103,15 @@ func (c *nodePoolWatchingController) SyncOnce(ctx context.Context, keyObj any) e
 	return errors.Join(syncErr, controllerWriteErr)
 }
 
-func (c *nodePoolWatchingController) Run(ctx context.Context, threadiness int) {
-	// don't let panics crash the process
-	defer utilruntime.HandleCrash()
-	// make sure the work queue is shutdown which will trigger workers to end
-	defer c.queue.ShutDown()
-
-	logger := utils.LoggerFromContext(ctx)
-	logger = logger.WithValues(
-		utils.LogValues{}.AddControllerName(c.name)...)
-	ctx = utils.ContextWithLogger(ctx, logger)
-	logger.Info("Starting")
-
-	// start up your worker threads based on threadiness.  Some controllers
-	// have multiple kinds of workers
-	for i := 0; i < threadiness; i++ {
-		// runWorker will loop until "something bad" happens.  The .Until will
-		// then rekick the worker after one second
-		go wait.UntilWithContext(ctx, c.runWorker, time.Second)
-	}
-
-	logger.Info("Started workers")
-
-	// wait until we're told to stop
-	<-ctx.Done()
-	logger.Info("Shutting down")
+func (c *nodePoolWatchingController) CooldownChecker() CooldownChecker {
+	return c.syncer.CooldownChecker()
 }
 
-func (c *nodePoolWatchingController) runWorker(ctx context.Context) {
-	for c.processNextWorkItem(ctx) {
-	}
-}
-
-// processNextWorkItem deals with one item off the queue.  It returns false
-// when it's time to quit.
-func (c *nodePoolWatchingController) processNextWorkItem(ctx context.Context) bool {
-	ref, shutdown := c.queue.Get()
-	if shutdown {
-		return false
-	}
-	defer c.queue.Done(ref)
-
-	logger := utils.LoggerFromContext(ctx)
-	logger = ref.AddLoggerValues(logger)
-	ctx = utils.ContextWithLogger(ctx, logger)
-
-	err := c.SyncOnce(ctx, ref)
-	if err == nil {
-		c.queue.Forget(ref)
-		return true
-	}
-
-	utilruntime.HandleErrorWithContext(ctx, err, "Error syncing; requeuing for later retry", "objectReference", ref)
-	c.queue.AddRateLimited(ref)
-
-	return true
-}
-
-// EnqueueResourceIDAdd traverses to find a resourceID that is an hcpNodePool and adds it if found.
-// It is exposed so that individual controllers can add other items to requeue based on easily.
-func (c *nodePoolWatchingController) EnqueueResourceIDAdd(resourceID *azcorearm.ResourceID) {
-	if resourceID == nil {
-		return
-	}
-
-	if !apihelpers.ResourceTypeEqual(resourceID.ResourceType, api.NodePoolResourceType) {
-		c.EnqueueResourceIDAdd(resourceID.Parent)
-		return
-	}
-
-	key := HCPNodePoolKey{
+func (c *nodePoolWatchingController) MakeKey(resourceID *azcorearm.ResourceID) HCPNodePoolKey {
+	return HCPNodePoolKey{
 		SubscriptionID:    resourceID.SubscriptionID,
 		ResourceGroupName: resourceID.ResourceGroupName,
 		HCPClusterName:    resourceID.Parent.Name,
 		HCPNodePoolName:   resourceID.Name,
 	}
-	logger := utils.DefaultLogger()
-	logger = logger.WithValues(utils.LogValues{}.AddControllerName(c.name)...)
-	ctx := logr.NewContext(context.TODO(), logger)
-	logger = key.AddLoggerValues(logger)
-	ctx = logr.NewContext(ctx, logger)
-
-	if !c.syncer.CooldownChecker().CanSync(ctx, key) {
-		return
-	}
-
-	c.queue.Add(key)
-}
-
-// TODO once these share common metadata, recollapse
-func (c *nodePoolWatchingController) enqueueNodePoolAdd(newObj interface{}) {
-	c.EnqueueResourceIDAdd(newObj.(*api.HCPOpenShiftClusterNodePool).ID)
-}
-
-func (c *nodePoolWatchingController) enqueueNodePoolUpdate(_ interface{}, newObj interface{}) {
-	c.EnqueueResourceIDAdd(newObj.(*api.HCPOpenShiftClusterNodePool).ID)
-}
-
-func (c *nodePoolWatchingController) enqueueServiceProviderNodePoolAdd(newObj interface{}) {
-	c.EnqueueResourceIDAdd(newObj.(*api.ServiceProviderNodePool).CosmosMetadata.ResourceID)
-}
-
-func (c *nodePoolWatchingController) enqueueServiceProviderNodePoolUpdate(_ interface{}, newObj interface{}) {
-	c.EnqueueResourceIDAdd(newObj.(*api.ServiceProviderNodePool).CosmosMetadata.ResourceID)
 }
