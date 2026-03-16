@@ -162,7 +162,7 @@ func validateResourceIDsAgainstClusterID(ctx context.Context, op operation.Opera
 	errs = append(errs, DifferentResourceGroupName(ctx, op, field.NewPath("customerProperties", "platform", "managedResourceGroup"), &newCluster.CustomerProperties.Platform.ManagedResourceGroup, nil, newCluster.ID.ResourceGroupName)...)
 	errs = append(errs, SameSubscription(ctx, op, field.NewPath("customerProperties", "platform", "subnetId"), newCluster.CustomerProperties.Platform.SubnetID, nil, newCluster.ID.SubscriptionID)...)
 	errs = append(errs, DifferentResourceGroupNameFromResourceID(ctx, op, field.NewPath("customerProperties", "platform", "subnetId"), newCluster.CustomerProperties.Platform.SubnetID, nil, newCluster.CustomerProperties.Platform.ManagedResourceGroup)...)
-	// vnetIntegrationSubnetId is validated in validateCustomerPlatformProfile if present
+	errs = append(errs, SameSubscription(ctx, op, field.NewPath("customerProperties", "platform", "vnetIntegrationSubnetId"), newCluster.CustomerProperties.Platform.VnetIntegrationSubnetID, nil, newCluster.ID.SubscriptionID)...)
 
 	for operatorName, operatorIdentity := range newCluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators {
 		fldPath := field.NewPath("customerProperties", "platform", "operatorsAuthentication", "userAssignedIdentities", "controlPlaneOperators").Key(operatorName)
@@ -543,10 +543,7 @@ func validateCustomerPlatformProfile(ctx context.Context, op operation.Operation
 	if newObj.VnetIntegrationSubnetID != nil {
 		errs = append(errs, validate.ImmutableByReflect(ctx, op, fldPath.Child("vnetIntegrationSubnetId"), newObj.VnetIntegrationSubnetID, safe.Field(oldObj, toPlatformVnetIntegrationSubnetID))...)
 		errs = append(errs, DifferentResourceGroupNameFromResourceID(ctx, op, fldPath.Child("vnetIntegrationSubnetId"), newObj.VnetIntegrationSubnetID, nil, newObj.ManagedResourceGroup)...)
-		// SameSubscription requires dereferencing SubnetID, so guard on both pointers
-		if newObj.SubnetID != nil {
-			errs = append(errs, SameSubscription(ctx, op, fldPath.Child("vnetIntegrationSubnetId"), newObj.VnetIntegrationSubnetID, nil, newObj.SubnetID.SubscriptionID)...)
-		}
+		// SameSubscription is validated in validateResourceIDsAgainstClusterID against cluster subscription
 	}
 
 	//OutboundType            OutboundType                   `json:"outboundType,omitempty"`
@@ -784,10 +781,13 @@ func validateKmsEncryptionProfile(ctx context.Context, op operation.Operation, f
 
 	errs := field.ErrorList{}
 
-	//Visibility KeyVaultVisibility `json:"visibility,omitempty"`
-	errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("visibility"), &newObj.Visibility, safe.Field(oldObj, toKmsEncryptionProfileVisibility))...)
+	// Visibility KeyVaultVisibility `json:"visibility,omitempty"`
+	// visibility was added in v2025_12_23_preview, so it's optional for backwards compatibility
 	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("visibility"), &newObj.Visibility, safe.Field(oldObj, toKmsEncryptionProfileVisibility))...)
-	errs = append(errs, validate.Enum(ctx, op, fldPath.Child("visibility"), &newObj.Visibility, safe.Field(oldObj, toKmsEncryptionProfileVisibility), api.ValidKeyVaultVisibility)...)
+	// Only validate enum if visibility is not empty (allow empty for backwards compatibility)
+	if newObj.Visibility != "" {
+		errs = append(errs, validate.Enum(ctx, op, fldPath.Child("visibility"), &newObj.Visibility, safe.Field(oldObj, toKmsEncryptionProfileVisibility), api.ValidKeyVaultVisibility)...)
+	}
 
 	//ActiveKey KmsKey `json:"activeKey,omitempty"`
 	errs = append(errs, validate.ImmutableByReflect(ctx, op, fldPath.Child("activeKey"), &newObj.ActiveKey, safe.Field(oldObj, toKmsEncryptionProfileActiveKey))...)

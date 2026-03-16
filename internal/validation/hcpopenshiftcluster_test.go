@@ -694,14 +694,6 @@ func TestClusterValidate(t *testing.T) {
 				},
 				{
 					message:   "Required value",
-					fieldPath: "customerProperties.etcd.dataEncryption.customerManaged.kms.visibility",
-				},
-				{
-					message:   "supported values: \"Private\", \"Public\"",
-					fieldPath: "customerProperties.etcd.dataEncryption.customerManaged.kms.visibility",
-				},
-				{
-					message:   "Required value",
 					fieldPath: "customerProperties.etcd.dataEncryption.customerManaged.kms.activeKey.name",
 				},
 				{
@@ -777,8 +769,8 @@ func TestClusterValidate(t *testing.T) {
 					Platform: api.CustomerPlatformProfile{
 						ManagedResourceGroup: api.TestResourceGroupName,
 						// Use a different resource group name to avoid a subnet ID error.
-						SubnetID:                    api.Must(azcorearm.ParseResourceID(path.Join("/subscriptions", api.TestSubscriptionID, "resourceGroups", "anotherResourceGroup", "providers", "Microsoft.Network", "virtualNetworks", api.TestVirtualNetworkName, "subnets", api.TestSubnetName))),
-						VnetIntegrationSubnetID:     api.Must(azcorearm.ParseResourceID(path.Join("/subscriptions", api.TestSubscriptionID, "resourceGroups", "anotherResourceGroup", "providers", "Microsoft.Network", "virtualNetworks", api.TestVirtualNetworkName, "subnets", api.TestVnetIntegrationSubnetName))),
+						SubnetID:                api.Must(azcorearm.ParseResourceID(path.Join("/subscriptions", api.TestSubscriptionID, "resourceGroups", "anotherResourceGroup", "providers", "Microsoft.Network", "virtualNetworks", api.TestVirtualNetworkName, "subnets", api.TestSubnetName))),
+						VnetIntegrationSubnetID: api.Must(azcorearm.ParseResourceID(path.Join("/subscriptions", api.TestSubscriptionID, "resourceGroups", "anotherResourceGroup", "providers", "Microsoft.Network", "virtualNetworks", api.TestVirtualNetworkName, "subnets", api.TestVnetIntegrationSubnetName))),
 					},
 				},
 			},
@@ -808,6 +800,10 @@ func TestClusterValidate(t *testing.T) {
 				{
 					message:   "must be in the same Azure subscription: \"11111111-1111-1111-1111-111111111111\"",
 					fieldPath: "customerProperties.platform.subnetId",
+				},
+				{
+					message:   "must be in the same Azure subscription: \"11111111-1111-1111-1111-111111111111\"",
+					fieldPath: "customerProperties.platform.vnetIntegrationSubnetId",
 				},
 				{
 					message:   "must not be the same resource group name: \"MRG\"",

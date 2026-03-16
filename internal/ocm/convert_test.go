@@ -340,7 +340,7 @@ func TestConvertCStoHCPOpenShiftCluster_ErrorCases(t *testing.T) {
 						),
 					),
 				),
-			expectedError: "Cluster Service reported customer-managed encryption type KMS but did not provide KMS configuration",
+			expectedError: "cluster Service reported customer-managed encryption type KMS but did not provide KMS configuration",
 		},
 		{
 			name: "error when KMS has unknown visibility value",
