@@ -19,11 +19,14 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v2"
 	cmap "github.com/orcaman/concurrent-map/v2"
 	"golang.org/x/sync/singleflight"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/azure/client"
+	"k8s.io/utils/set"
+
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v2"
+
+	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
 )
 
 // roleDefinitionResourceIdCacheKeyTtl defines how long a cached role definition is considered valid.
@@ -44,7 +47,7 @@ type cachedRoleDefinition struct {
 
 // CachedRoleDefinitionsGetter provides lazy, cached access to Azure role definitions.
 type CachedRoleDefinitionsGetter struct {
-	roleDefinitionsClient client.RoleDefinitionsClient
+	roleDefinitionsClient azureclient.RoleDefinitionsClient
 	// roleDefinitionsCache is an in-memory, thread-safe cache that maps
 	// Azure Role Definition Resource IDs to their corresponding role definition data.
 	//
@@ -60,7 +63,7 @@ type CachedRoleDefinitionsGetter struct {
 }
 
 // NewCachedRoleDefinitionsGetter creates a new CachedRoleDefinitionsGetter.
-func NewCachedRoleDefinitionsGetter(roleDefinitionsClient client.RoleDefinitionsClient) *CachedRoleDefinitionsGetter {
+func NewCachedRoleDefinitionsGetter(roleDefinitionsClient azureclient.RoleDefinitionsClient) *CachedRoleDefinitionsGetter {
 	roleDefinitionsCache := cmap.New[cachedRoleDefinition]()
 
 	return &CachedRoleDefinitionsGetter{
@@ -79,30 +82,78 @@ func NewCachedRoleDefinitionsGetter(roleDefinitionsClient client.RoleDefinitions
 // deduplicated using single flight, ensuring that only one fetch is in flight
 // per roleDefinitionResourceId.
 func (s *CachedRoleDefinitionsGetter) GetActions(ctx context.Context, roleDefinitionResourceId string) ([]string, error) {
+	if err := s.ensureCached(ctx, roleDefinitionResourceId); err != nil {
+		return nil, err
+	}
+	value, _ := s.roleDefinitionsCache.Get(roleDefinitionResourceId)
+	return s.extractRoleDefinitionActions(value.roleDefinition)
+}
+
+// GetDataActions returns the list of allowed data actions for the given roleDefinitionResourceId.
+//
+// Data actions are data-plane operations (e.g. reading blob storage). The role definition
+// is served from cache when present and not stale; otherwise it is fetched from Azure.
+func (s *CachedRoleDefinitionsGetter) GetDataActions(ctx context.Context, roleDefinitionResourceId string) ([]string, error) {
+	if err := s.ensureCached(ctx, roleDefinitionResourceId); err != nil {
+		return nil, err
+	}
+	value, _ := s.roleDefinitionsCache.Get(roleDefinitionResourceId)
+	return s.extractRoleDefinitionDataActions(value.roleDefinition)
+}
+
+// ensureCached fetches the role definition from Azure and stores it in the cache when
+// it is missing or stale. Concurrent calls for the same ID are deduplicated via singleflight.
+func (s *CachedRoleDefinitionsGetter) ensureCached(ctx context.Context, roleDefinitionResourceId string) error {
 	value, exists := s.roleDefinitionsCache.Get(roleDefinitionResourceId)
-	if !exists || s.isStale(value) {
-		// Use single flight to avoid duplicate requests
-		result, err, _ := s.sfGroup.Do(roleDefinitionResourceId, func() (interface{}, error) {
-			roleDefinition, err := s.fetchRoleDefinition(ctx, roleDefinitionResourceId)
-			if err != nil {
-				return nil, err
-			}
-
-			s.roleDefinitionsCache.Set(roleDefinitionResourceId, cachedRoleDefinition{
-				roleDefinition: roleDefinition,
-				lastUpdate:     time.Now().UTC(),
-			})
-
-			return s.extractRoleDefinitionActions(roleDefinition)
-		})
-
+	if exists && !s.isStale(value) {
+		return nil
+	}
+	_, err, _ := s.sfGroup.Do(roleDefinitionResourceId, func() (interface{}, error) {
+		roleDefinition, err := s.fetchRoleDefinition(ctx, roleDefinitionResourceId)
 		if err != nil {
 			return nil, err
 		}
-		return result.([]string), nil
+		s.roleDefinitionsCache.Set(roleDefinitionResourceId, cachedRoleDefinition{
+			roleDefinition: roleDefinition,
+			lastUpdate:     time.Now().UTC(),
+		})
+		return nil, nil
+	})
+	return err
+}
+
+// GetActionsMultipleIds returns a union of the allowed actions for the given roleDefinitionResourceIds.
+//
+// The union takes only the actions into consideration regardless of the role definition scope.
+func (s *CachedRoleDefinitionsGetter) GetActionsMultipleIds(ctx context.Context, roleDefinitionResourceIds []string) ([]string, error) {
+	actionsUnion := set.Set[string]{}
+
+	for _, roleDefinitionResourceId := range roleDefinitionResourceIds {
+		actions, err := s.GetActions(ctx, roleDefinitionResourceId)
+		if err != nil {
+			return nil, err
+		}
+		actionsUnion.Insert(actions...)
 	}
 
-	return s.extractRoleDefinitionActions(value.roleDefinition)
+	return actionsUnion.UnsortedList(), nil
+}
+
+// GetDataActionsMultipleIds returns a union of the allowed data actions for the given roleDefinitionResourceIds.
+//
+// The union takes only the data actions into consideration regardless of the role definition scope.
+func (s *CachedRoleDefinitionsGetter) GetDataActionsMultipleIds(ctx context.Context, roleDefinitionResourceIds []string) ([]string, error) {
+	dataActionsUnion := set.Set[string]{}
+
+	for _, roleDefinitionResourceId := range roleDefinitionResourceIds {
+		dataActions, err := s.GetDataActions(ctx, roleDefinitionResourceId)
+		if err != nil {
+			return nil, err
+		}
+		dataActionsUnion.Insert(dataActions...)
+	}
+
+	return dataActionsUnion.UnsortedList(), nil
 }
 
 func (s *CachedRoleDefinitionsGetter) isStale(roleDefinition cachedRoleDefinition) bool {
@@ -122,6 +173,21 @@ func (s *CachedRoleDefinitionsGetter) extractRoleDefinitionActions(roleDefinitio
 	}
 
 	return actions, nil
+}
+
+func (s *CachedRoleDefinitionsGetter) extractRoleDefinitionDataActions(roleDefinition armauthorization.RoleDefinition) ([]string, error) {
+	if roleDefinition.Properties == nil || roleDefinition.Properties.Permissions == nil {
+		return nil, fmt.Errorf("role definition '%s' doesn't contain permissions", stringValue(roleDefinition.ID))
+	}
+
+	var dataActions []string
+	for _, permission := range roleDefinition.Properties.Permissions {
+		for _, dataAction := range permission.DataActions {
+			dataActions = append(dataActions, stringValue(dataAction))
+		}
+	}
+
+	return dataActions, nil
 }
 
 func (s *CachedRoleDefinitionsGetter) fetchRoleDefinition(ctx context.Context, roleDefinitionResourceId string) (armauthorization.RoleDefinition, error) {
@@ -146,6 +212,21 @@ type RoleDefinitionsGetter interface {
 	//
 	// Returns an error if the role definition cannot be fetched or is missing required permissions.
 	GetActions(ctx context.Context, roleDefinitionResourceId string) ([]string, error)
+
+	// GetDataActions returns the list of allowed data actions for the given roleDefinitionResourceId.
+	//
+	// Returns an error if the role definition cannot be fetched or is missing required permissions.
+	GetDataActions(ctx context.Context, roleDefinitionResourceId string) ([]string, error)
+
+	// GetActionsMultipleIds returns a union of the allowed actions for the given roleDefinitionResourceIds.
+	//
+	// The union takes only the actions into consideration regardless of the role definition scope.
+	GetActionsMultipleIds(ctx context.Context, roleDefinitionResourceIds []string) ([]string, error)
+
+	// GetDataActionsMultipleIds returns a union of the allowed data actions for the given roleDefinitionResourceIds.
+	//
+	// The union takes only the data actions into consideration regardless of the role definition scope.
+	GetDataActionsMultipleIds(ctx context.Context, roleDefinitionResourceIds []string) ([]string, error)
 }
 
 var _ RoleDefinitionsGetter = (*CachedRoleDefinitionsGetter)(nil)

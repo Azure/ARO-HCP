@@ -17,62 +17,20 @@ package client
 import (
 	"context"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v2"
-	"github.com/go-logr/logr"
 )
 
-type azureRoleDefinitionsAPIClient interface {
-	GetByID(ctx context.Context, roleID string, options *armauthorization.RoleDefinitionsClientGetByIDOptions) (armauthorization.RoleDefinitionsClientGetByIDResponse, error)
-}
-
-var _ azureRoleDefinitionsAPIClient = (*armauthorization.RoleDefinitionsClient)(nil)
-
-// RoleDefinitionsClient contains the GetByID method for the RoleDefinitions group.
-//
-//go:generate $MOCKGEN -source=role_definitions_client.go -package=client -destination=mock_role_definitions_client.go
+// RoleDefinitionsClient is an interface that defines the methods that we want to use
+// from the RoleDefinitionsClient type in the Azure Go SDK
+// (https://github.com/Azure/azure-sdk-for-go/tree/main/sdk/resourcemanager/authorization/armauthorization/v2).
+// If you need to use a method provided by the Azure Go SDK RoleDefinitionsClient
+// but it is not defined in this interface then it has to be added here.
 type RoleDefinitionsClient interface {
 	// GetByID gets a role definition by role definition resource ID.
-	// If the operation fails it returns an *azcore.ResponseError type.
-	//
-	//   - roleDefinitionResourceId - The fully qualified role definition resource ID. Use the format
-	//     /providers/Microsoft.Authorization/roleDefinitions/{roleDefinitionId} for tenant level role definitions.
-	//   - options - RoleDefinitionsClientGetByIDOptions contains the optional parameters for the
-	//     RoleDefinitionsClient.GetByID method.
+	// Use the format /providers/Microsoft.Authorization/roleDefinitions/{roleDefinitionId} for tenant level role definitions.
 	GetByID(ctx context.Context, roleDefinitionResourceId string,
 		options *armauthorization.RoleDefinitionsClientGetByIDOptions,
 	) (armauthorization.RoleDefinitionsClientGetByIDResponse, error)
 }
 
-type roleDefinitionsClient struct {
-	client azureRoleDefinitionsAPIClient
-	logger logr.Logger
-}
-
-// NewRoleDefinitionsClient creates a new RoleDefinitionsClient.
-func NewRoleDefinitionsClient(logger logr.Logger, credential azcore.TokenCredential,
-	options *arm.ClientOptions) (RoleDefinitionsClient, error) {
-	client, err := armauthorization.NewRoleDefinitionsClient(credential, options)
-	if err != nil {
-		return nil, err
-	}
-
-	return &roleDefinitionsClient{
-		client: client,
-		logger: logger,
-	}, nil
-}
-
-func (c *roleDefinitionsClient) GetByID(ctx context.Context, roleDefinitionResourceId string,
-	options *armauthorization.RoleDefinitionsClientGetByIDOptions) (armauthorization.RoleDefinitionsClientGetByIDResponse, error) {
-	if c.logger.GetSink() != nil {
-		c.logger.Info("Getting role definition", "roleDefinitionResourceId", roleDefinitionResourceId)
-	}
-	response, err := c.client.GetByID(ctx, roleDefinitionResourceId, options)
-	if err != nil {
-		return armauthorization.RoleDefinitionsClientGetByIDResponse{}, err
-	}
-
-	return response, nil
-}
+var _ RoleDefinitionsClient = (*armauthorization.RoleDefinitionsClient)(nil)
