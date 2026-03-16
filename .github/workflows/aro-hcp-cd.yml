@@ -9,10 +9,6 @@ env:
   PRINCIPAL_ID: ${{ secrets.GHA_PRINCIPAL_ID }}
 on:
   workflow_dispatch:
-    inputs:
-      push:
-        type: boolean
-        description: Enable push to registry for services built in this workflow
   push:
     branches:
     - main
@@ -20,7 +16,6 @@ on:
     - '.github/workflows/aro-hcp-cd.yml'
     - '.github/workflows/environment-infra-cd.yml'
     - '.github/workflows/services-cd.yml'
-    - '.github/workflows/services-ci.yml'
     - 'config/config.yaml'
     - 'dev-infrastructure/**/*.bicep'
     - 'dev-infrastructure/**/*.bicepparam'
@@ -54,15 +49,6 @@ jobs:
           else
             echo "not a re-run"
           fi
-  service_ci:
-    name: 'Build service images'
-    permissions:
-      id-token: 'write'
-      contents: 'read'
-    secrets: inherit
-    uses: ./.github/workflows/services-ci.yml
-    with:
-      push: ${{ inputs.push || github.event_name == 'push' }}
   deploy_dev_environment_infra:
     name: 'Deploy integrated DEV infrastructure'
     needs:
@@ -77,7 +63,6 @@ jobs:
   deploy_dev_environment_services:
     name: 'Deploy services to integrated DEV'
     needs:
-    - service_ci
     - deploy_dev_environment_infra
     permissions:
       id-token: 'write'
@@ -102,7 +87,6 @@ jobs:
   deploy_cs_pr_environment_services:
     name: 'Deploy services to CS PR'
     needs:
-    - service_ci
     - deploy_cs_pr_environment_infra
     permissions:
       id-token: 'write'
