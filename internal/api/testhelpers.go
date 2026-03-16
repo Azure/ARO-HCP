@@ -35,21 +35,21 @@ import (
 // The definitions in this file are meant for unit tests.
 
 const (
-	TestLocation                     = "westus3"
-	TestAPIVersion                   = "2024-06-10-preview"
-	TestTenantID                     = "00000000-0000-0000-0000-000000000000"
-	TestSubscriptionID               = "11111111-1111-1111-1111-111111111111"
-	TestAltSubscriptionID            = "22222222-2222-2222-2222-222222222222"
-	TestResourceGroupName            = "testResourceGroup"
-	TestClusterName                  = "testCluster"
-	TestNodePoolName                 = "testNodePool"
-	TestExternalAuthName             = "testExternalAuth"
-	TestDeploymentName               = "testDeployment"
-	TestManagedResourceGroupName     = "testManagedResourceGroup"
-	TestNetworkSecurityGroupName     = "testNetworkSecurityGroup"
-	TestVirtualNetworkName           = "testVirtualNetwork"
-	TestSubnetName                   = "testSubnet"
-	TestVnetIntegrationSubnetName    = "testVnetIntegrationSubnet"
+	TestLocation                  = "westus3"
+	TestAPIVersion                = "2024-06-10-preview"
+	TestTenantID                  = "00000000-0000-0000-0000-000000000000"
+	TestSubscriptionID            = "11111111-1111-1111-1111-111111111111"
+	TestAltSubscriptionID         = "22222222-2222-2222-2222-222222222222"
+	TestResourceGroupName         = "testResourceGroup"
+	TestClusterName               = "testCluster"
+	TestNodePoolName              = "testNodePool"
+	TestExternalAuthName          = "testExternalAuth"
+	TestDeploymentName            = "testDeployment"
+	TestManagedResourceGroupName  = "testManagedResourceGroup"
+	TestNetworkSecurityGroupName  = "testNetworkSecurityGroup"
+	TestVirtualNetworkName        = "testVirtualNetwork"
+	TestSubnetName                = "testSubnet"
+	TestVnetIntegrationSubnetName = "testVnetIntegrationSubnet"
 )
 
 var (

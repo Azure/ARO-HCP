@@ -379,7 +379,7 @@ func convertCustomerManagedEncryptionCSToRP(in *arohcpv1alpha1.AzureEtcdDataEncr
 
 		// Validate discriminated union: when encryptionType is KMS, Kms field must be present
 		if encryptionType == api.CustomerManagedEncryptionTypeKMS && kms == nil {
-			return nil, fmt.Errorf("Cluster Service reported customer-managed encryption type KMS but did not provide KMS configuration")
+			return nil, fmt.Errorf("cluster Service reported customer-managed encryption type KMS but did not provide KMS configuration")
 		}
 
 		return &api.CustomerManagedEncryptionProfile{
