@@ -197,8 +197,8 @@ var _ = Describe("Customer", func() {
 				if err != nil {
 					return false
 				}
-				return framework.HasNodeTaint(nodes.Items, "key2", "value2", corev1.TaintEffectPreferNoSchedule)
-			}).WithContext(ctx).WithTimeout(15*time.Minute).Should(BeTrue(), "expected some node to have new taint key2=value2:PreferNoSchedule")
+				return framework.HasNodeTaint(nodes.Items, "key2", "value2", corev1.TaintEffectPreferNoSchedule, 1)
+			}).WithContext(ctx).WithTimeout(15*time.Minute).Should(BeTrue(), "expected new node to have new taint")
 
 			By("updating nodepool with a new label and scaling up")
 			finalReplicas := int32(4)
@@ -239,8 +239,8 @@ var _ = Describe("Customer", func() {
 				if err != nil {
 					return false
 				}
-				return framework.HasNodeLabel(nodes.Items, "key2", "value2")
-			}).WithContext(ctx).WithTimeout(15 * time.Minute).Should(BeTrue())
+				return framework.HasNodeLabel(nodes.Items, "key2", "value2", 1)
+			}).WithContext(ctx).WithTimeout(15*time.Minute).Should(BeTrue(), "expected new node to have new label")
 
 			By("logging state of all nodes")
 			finalNodes, err := k8sClient.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
