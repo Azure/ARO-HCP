@@ -81,8 +81,7 @@ sequenceDiagram
     FE->>CI: ConvertToInternal(existing=oldInternal)
     Note over CI: Start fresh (no DeepCopy).<br/>Normalize populates all mapped fields.<br/>preserveUnknownFields copies back<br/>cross-version customer fields.
     CI-->>FE: internalObj
-    FE->>FE: CopyReadOnlyClusterValues(new, old)<br/>Restores read-only/service-provider fields.
-    FE->>FE: new.CosmosETag = old.CosmosETag
+    FE->>FE: CopyReadOnlyClusterValues(new, old)<br/>Restores read-only/service-provider fields<br/>and CosmosETag.
     FE->>Cosmos: InternalToCosmos(internalObj)
     Note over Cosmos: Fields unknown to this<br/>API version survive the PUT.
 ```
@@ -136,8 +135,7 @@ sequenceDiagram
     Note over FE: Defaults NOT re-applied<br/>(base from existing resource).<br/>nil = customer sent null.
     FE->>Conv: ConvertToInternal(patched, existing=oldInternal)<br/>Start fresh. Normalize populates mapped fields.<br/>preserveUnknownFields copies back<br/>cross-version customer fields.<br/>Rejects null on required fields → 400.
     Conv-->>FE: internal obj
-    FE->>FE: CopyReadOnlyClusterValues(new, old)<br/>Restores read-only/service-provider fields.
-    FE->>FE: new.CosmosETag = old.CosmosETag
+    FE->>FE: CopyReadOnlyClusterValues(new, old)<br/>Restores read-only/service-provider fields<br/>and CosmosETag.
     FE->>Cosmos: InternalToCosmos(internal)
 ```
 
@@ -149,8 +147,8 @@ ARM-compliant (Azure guidelines: "If field cannot be deleted, return
 
 `ConvertToInternal` receives `existing` (the old internal object) so that
 cross-version customer fields can be preserved via `preserveUnknownFields`.
-Service-provider fields and CosmosETag are restored separately by
-`CopyReadOnlyClusterValues` and direct assignment in the frontend handler.
+Service-provider fields, CosmosETag, and SystemData are restored by
+`CopyReadOnlyClusterValues` in the frontend handler.
 
 ## Cross-Version Field Preservation
 
@@ -177,8 +175,7 @@ responsibility:
 | Layer | What it restores | Where | When to modify |
 |-------|-----------------|-------|----------------|
 | `preserveUnknown*Fields` | Cross-version customer fields | Inside `ConvertToInternal` | When a newer API version adds customer-facing fields |
-| `CopyReadOnly*Values` | Service-provider properties, ARM identity, tracked resource metadata | Frontend handler, after `ConvertToInternal` | When new read-only/service-provider fields are added |
-| Direct assignment in frontend handler | `CosmosETag`, `SystemData` | Frontend handler, after `CopyReadOnly*Values` | Rarely — these are database/ARM bookkeeping |
+| `CopyReadOnly*Values` | Service-provider properties, ARM identity, tracked resource metadata, `CosmosETag`, `SystemData` | Frontend handler, after `ConvertToInternal` | When new read-only/service-provider fields are added |
 
 ```mermaid
 flowchart LR
