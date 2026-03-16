@@ -72,9 +72,10 @@ func TestRoundTripInternalExternalInternal(t *testing.T) {
 		},
 		func(j *api.CustomerManagedEncryptionProfile, c randfill.Continue) {
 			c.FillNoCustom(j)
-			// we cannot properly roundtrip a zero value here, so nil when that happens
-			zeroValueKMS := api.KmsEncryptionProfile{}
-			if j.Kms != nil && *j.Kms == zeroValueKMS {
+			// Kms cannot roundtrip if ActiveKey has neither Name nor Version,
+			// because normalizeCustomerManaged correctly skips creating a Kms
+			// entry when there is no key identifier.
+			if j.Kms != nil && j.Kms.ActiveKey.Name == "" && j.Kms.ActiveKey.Version == "" {
 				j.Kms = nil
 			}
 		},
