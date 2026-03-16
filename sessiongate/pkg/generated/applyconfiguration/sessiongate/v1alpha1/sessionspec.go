@@ -21,12 +21,36 @@ import (
 
 // SessionSpecApplyConfiguration represents a declarative configuration of the SessionSpec type for use
 // with apply.
+//
+// SessionSpec defines the desired state of a Session. All fields are immutable after creation
+// to ensure that all interactions remain auditable and to prevent privilege escalation.
+// The spec identifies the target HCP, the management cluster hosting it, the access level
+// granted, and the owner's identity.
 type SessionSpecApplyConfiguration struct {
-	TTL                *v1.Duration                          `json:"ttl,omitempty"`
-	ManagementCluster  *ManagementClusterApplyConfiguration  `json:"managementCluster,omitempty"`
+	// ttl is the time-to-live duration for the session. The session will automatically
+	// expire after this duration from its creation time. The expiration timestamp is
+	// recorded in status.expiresAt. Once expired, the session's provisioned resources
+	// are cleaned up by the controller.
+	TTL *v1.Duration `json:"ttl,omitempty"`
+	// managementCluster identifies the AKS management cluster where the target HCP is running.
+	// The controller uses this to locate and communicate with the correct management cluster
+	// when provisioning session resources.
+	ManagementCluster *ManagementClusterApplyConfiguration `json:"managementCluster,omitempty"`
+	// hostedControlPlane identifies the Hypershift Hosted Control Plane that this session
+	// provides access to.
 	HostedControlPlane *HostedControlPlaneApplyConfiguration `json:"hostedControlPlane,omitempty"`
-	AccessLevel        *AccessLevelApplyConfiguration        `json:"accessLevel,omitempty"`
-	Owner              *PrincipalApplyConfiguration          `json:"owner,omitempty"`
+	// accessLevel defines the RBAC permissions granted to the session owner when accessing
+	// the target HCP. This determines what operations the session owner can perform on the
+	// HCP's Kubernetes API server.
+	AccessLevel *AccessLevelApplyConfiguration `json:"accessLevel,omitempty"`
+	// owner identifies the authenticated principal (user or service principal) that is authorized
+	// to use this session. The owner's identity is cryptographically verified by matching JWT
+	// claims against tokens presented during authentication.
+	//
+	// Security: The claims specified here form the sole basis for authentication. Only the entity
+	// whose JWT token contains ALL matching claims can access the HCP through this session.
+	// The identityName field is informational only and is NOT used for authentication decisions.
+	Owner *PrincipalApplyConfiguration `json:"owner,omitempty"`
 }
 
 // SessionSpecApplyConfiguration constructs a declarative configuration of the SessionSpec type for use with

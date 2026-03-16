@@ -20,7 +20,7 @@ SESSION_GATE_SOURCES = $(shell find . -name '*.go' -o -name 'go.mod' -o -name 'g
 LDFLAGS = -ldflags ""
 
 # K8S Codegen
-KUBE_CODEGEN_TAG=v0.34.3
+KUBE_CODEGEN_TAG=v0.35.2
 KUBE_CODEGEN_SH=hack/kube-codegen.sh
 
 # Default target
@@ -30,7 +30,7 @@ $(KUBE_CODEGEN_SH):
 	curl -o "$@" https://raw.githubusercontent.com/kubernetes/code-generator/refs/tags/${KUBE_CODEGEN_TAG}/kube_codegen.sh
 
 update-codegen: $(KUBE_CODEGEN_SH) $(INFORMER_GEN) $(CLIENT_GEN) $(LISTER_GEN) $(INFORMER_GEN) $(APPLYCONFIGURATION_GEN)
-	KUBE_CODEGEN_SH=$(KUBE_CODEGEN_SH) ./hack/update-codegen.sh
+	KUBE_CODEGEN_TAG=$(KUBE_CODEGEN_TAG) KUBE_CODEGEN_SH=$(KUBE_CODEGEN_SH) ./hack/update-codegen.sh
 	make -C .. fmt
 .PHONY: update-codegen
 

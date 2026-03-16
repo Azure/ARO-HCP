@@ -22,12 +22,37 @@ import (
 
 // SessionStatusApplyConfiguration represents a declarative configuration of the SessionStatus type for use
 // with apply.
+//
+// SessionStatus reports the observed state of the Session, including the provisioned resources,
+// the session endpoint URL for accessing the HCP, and the session's expiration time. The status
+// is updated by the controller as it provisions and manages session resources.
 type SessionStatusApplyConfiguration struct {
-	Conditions           []v1.ConditionApplyConfiguration `json:"conditions,omitempty"`
-	ExpiresAt            *metav1.Time                     `json:"expiresAt,omitempty"`
-	Endpoint             *string                          `json:"endpoint,omitempty"`
-	CredentialsSecretRef *string                          `json:"credentialsSecretRef,omitempty"`
-	BackendKASURL        *string                          `json:"backendKASURL,omitempty"`
+	// conditions represent the current state of the session. Known condition types are:
+	// - "Ready": True when the session is fully provisioned and accessible
+	// - "CredentialsAvailable": True when session credentials have been created
+	// - "NetworkPathAvailable": True when the network path to the HCP is established
+	// The status of each condition is one of True, False, or Unknown.
+	Conditions []v1.ConditionApplyConfiguration `json:"conditions,omitempty"`
+	// expiresAt is the timestamp when the session will expire and become invalid.
+	// This is calculated as the session's creation timestamp plus the TTL specified in spec.ttl.
+	// After this time, the controller will clean up session resources and the session
+	// endpoint will no longer accept connections. This field is immutable once set.
+	ExpiresAt *metav1.Time `json:"expiresAt,omitempty"`
+	// endpoint is the URL that the session owner uses to access the HCP's Kubernetes
+	// API server. This endpoint acts as an authenticated proxy, forwarding requests to the
+	// target HCP's KAS after validating the session owner's identity. The endpoint is
+	// provisioned by the controller and becomes available when the session is ready.
+	Endpoint *string `json:"endpoint,omitempty"`
+	// credentialsSecretRef is a reference to the Kubernetes Secret containing the session's
+	// authentication credentials. These credentials are used by the session proxy to
+	// authenticate requests and by clients to establish secure connections.
+	CredentialsSecretRef *string `json:"credentialsSecretRef,omitempty"`
+	// backendKASURL is the internal URL used by the session proxy to communicate with the
+	// target HCP's Kubernetes API server. For public HCPs, this is the HCP's public KAS
+	// endpoint. For private HCPs that are not directly accessible, this may be a local
+	// port-forward endpoint or internal service URL. This field is set by the controller
+	// based on the HCP's network configuration.
+	BackendKASURL *string `json:"backendKASURL,omitempty"`
 }
 
 // SessionStatusApplyConfiguration constructs a declarative configuration of the SessionStatus type for use with

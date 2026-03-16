@@ -17,7 +17,14 @@ package v1alpha1
 
 // AccessLevelApplyConfiguration represents a declarative configuration of the AccessLevel type for use
 // with apply.
+//
+// AccessLevel defines the RBAC permissions that the session owner is granted when accessing
+// the target Hosted Control Plane. The permissions are defined by referencing a Kubernetes
+// Group, which maps to a set of ClusterRoles or Roles via RoleBindings on the target HCP.
 type AccessLevelApplyConfiguration struct {
+	// group is the name of the Kubernetes Group (rbac.authorization.k8s.io) whose permissions
+	// the session owner will inherit when accessing the HCP. The group must exist on the
+	// target HCP and have appropriate RoleBindings or ClusterRoleBindings configured.
 	Group *string `json:"group,omitempty"`
 }
 

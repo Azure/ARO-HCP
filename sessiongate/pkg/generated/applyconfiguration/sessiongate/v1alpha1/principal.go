@@ -21,9 +21,19 @@ import (
 
 // PrincipalApplyConfiguration represents a declarative configuration of the Principal type for use
 // with apply.
+//
+// Principal identifies the authenticated Azure identity that owns this session.
+// based on the identity type and name.
 type PrincipalApplyConfiguration struct {
+	// type specifies the type of Azure identity that owns this session.
+	// Valid values are:
+	// - "azureUser": An Azure AD user identity (e.g., an SRE accessing the system)
+	// - "azureServicePrincipal": An Azure service principal identity (e.g., automation accounts)
 	Type *sessiongatev1alpha1.PrincipalType `json:"type,omitempty"`
-	Name *string                            `json:"name,omitempty"`
+	// name is the identifier of the Azure identity that owns this session, e.g.
+	// for azureUser: the user's email address or UPN (e.g., "alice@example.com")
+	// for azureServicePrincipal: the service principal's client ID / application ID
+	Name *string `json:"name,omitempty"`
 }
 
 // PrincipalApplyConfiguration constructs a declarative configuration of the Principal type for use with

@@ -29,11 +29,11 @@ $(ADDLICENSE): $(BINGO_DIR)/addlicense.mod
 	@echo "(re)installing $(GOBIN)/addlicense-v1.1.1"
 	@cd $(BINGO_DIR) && GOWORK=off GOOS=$(GOHOSTOS) GOARCH=$(GOHOSTARCH) GOARM=$(GOHOSTARM) $(GO) build -mod=mod -modfile=addlicense.mod -o=$(GOBIN)/addlicense-v1.1.1 "github.com/google/addlicense"
 
-APPLYCONFIGURATION_GEN := $(GOBIN)/applyconfiguration-gen-v0.34.3
+APPLYCONFIGURATION_GEN := $(GOBIN)/applyconfiguration-gen-v0.35.2
 $(APPLYCONFIGURATION_GEN): $(BINGO_DIR)/applyconfiguration-gen.mod
 	@# Install binary/ries using Go 1.14+ build command. This is using bwplotka/bingo-controlled, separate go module with pinned dependencies.
-	@echo "(re)installing $(GOBIN)/applyconfiguration-gen-v0.34.3"
-	@cd $(BINGO_DIR) && GOWORK=off GOOS=$(GOHOSTOS) GOARCH=$(GOHOSTARCH) GOARM=$(GOHOSTARM) $(GO) build -mod=mod -modfile=applyconfiguration-gen.mod -o=$(GOBIN)/applyconfiguration-gen-v0.34.3 "k8s.io/code-generator/cmd/applyconfiguration-gen"
+	@echo "(re)installing $(GOBIN)/applyconfiguration-gen-v0.35.2"
+	@cd $(BINGO_DIR) && GOWORK=off GOOS=$(GOHOSTOS) GOARCH=$(GOHOSTARCH) GOARM=$(GOHOSTARM) $(GO) build -mod=mod -modfile=applyconfiguration-gen.mod -o=$(GOBIN)/applyconfiguration-gen-v0.35.2 "k8s.io/code-generator/cmd/applyconfiguration-gen"
 
 BINGO := $(GOBIN)/bingo-v0.10.0
 $(BINGO): $(BINGO_DIR)/bingo.mod
@@ -41,17 +41,17 @@ $(BINGO): $(BINGO_DIR)/bingo.mod
 	@echo "(re)installing $(GOBIN)/bingo-v0.10.0"
 	@cd $(BINGO_DIR) && GOWORK=off GOOS=$(GOHOSTOS) GOARCH=$(GOHOSTARCH) GOARM=$(GOHOSTARM) $(GO) build -mod=mod -modfile=bingo.mod -o=$(GOBIN)/bingo-v0.10.0 "github.com/bwplotka/bingo"
 
-CLIENT_GEN := $(GOBIN)/client-gen-v0.34.3
+CLIENT_GEN := $(GOBIN)/client-gen-v0.35.2
 $(CLIENT_GEN): $(BINGO_DIR)/client-gen.mod
 	@# Install binary/ries using Go 1.14+ build command. This is using bwplotka/bingo-controlled, separate go module with pinned dependencies.
-	@echo "(re)installing $(GOBIN)/client-gen-v0.34.3"
-	@cd $(BINGO_DIR) && GOWORK=off GOOS=$(GOHOSTOS) GOARCH=$(GOHOSTARCH) GOARM=$(GOHOSTARM) $(GO) build -mod=mod -modfile=client-gen.mod -o=$(GOBIN)/client-gen-v0.34.3 "k8s.io/code-generator/cmd/client-gen"
+	@echo "(re)installing $(GOBIN)/client-gen-v0.35.2"
+	@cd $(BINGO_DIR) && GOWORK=off GOOS=$(GOHOSTOS) GOARCH=$(GOHOSTARCH) GOARM=$(GOHOSTARM) $(GO) build -mod=mod -modfile=client-gen.mod -o=$(GOBIN)/client-gen-v0.35.2 "k8s.io/code-generator/cmd/client-gen"
 
-DEEPCOPY_GEN := $(GOBIN)/deepcopy-gen-v0.34.3
+DEEPCOPY_GEN := $(GOBIN)/deepcopy-gen-v0.35.2
 $(DEEPCOPY_GEN): $(BINGO_DIR)/deepcopy-gen.mod
 	@# Install binary/ries using Go 1.14+ build command. This is using bwplotka/bingo-controlled, separate go module with pinned dependencies.
-	@echo "(re)installing $(GOBIN)/deepcopy-gen-v0.34.3"
-	@cd $(BINGO_DIR) && GOWORK=off GOOS=$(GOHOSTOS) GOARCH=$(GOHOSTARCH) GOARM=$(GOHOSTARM) $(GO) build -mod=mod -modfile=deepcopy-gen.mod -o=$(GOBIN)/deepcopy-gen-v0.34.3 "k8s.io/code-generator/cmd/deepcopy-gen"
+	@echo "(re)installing $(GOBIN)/deepcopy-gen-v0.35.2"
+	@cd $(BINGO_DIR) && GOWORK=off GOOS=$(GOHOSTOS) GOARCH=$(GOHOSTARCH) GOARM=$(GOHOSTARM) $(GO) build -mod=mod -modfile=deepcopy-gen.mod -o=$(GOBIN)/deepcopy-gen-v0.35.2 "k8s.io/code-generator/cmd/deepcopy-gen"
 
 GOIMPORTS := $(GOBIN)/goimports-v0.26.0
 $(GOIMPORTS): $(BINGO_DIR)/goimports.mod
@@ -77,17 +77,17 @@ $(HELM): $(BINGO_DIR)/helm.mod
 	@echo "(re)installing $(GOBIN)/helm-v3.16.3"
 	@cd $(BINGO_DIR) && GOWORK=off GOOS=$(GOHOSTOS) GOARCH=$(GOHOSTARCH) GOARM=$(GOHOSTARM) $(GO) build -mod=mod -modfile=helm.mod -o=$(GOBIN)/helm-v3.16.3 "helm.sh/helm/v3/cmd/helm"
 
-INFORMER_GEN := $(GOBIN)/informer-gen-v0.34.3
+INFORMER_GEN := $(GOBIN)/informer-gen-v0.35.2
 $(INFORMER_GEN): $(BINGO_DIR)/informer-gen.mod
 	@# Install binary/ries using Go 1.14+ build command. This is using bwplotka/bingo-controlled, separate go module with pinned dependencies.
-	@echo "(re)installing $(GOBIN)/informer-gen-v0.34.3"
-	@cd $(BINGO_DIR) && GOWORK=off GOOS=$(GOHOSTOS) GOARCH=$(GOHOSTARCH) GOARM=$(GOHOSTARM) $(GO) build -mod=mod -modfile=informer-gen.mod -o=$(GOBIN)/informer-gen-v0.34.3 "k8s.io/code-generator/cmd/informer-gen"
+	@echo "(re)installing $(GOBIN)/informer-gen-v0.35.2"
+	@cd $(BINGO_DIR) && GOWORK=off GOOS=$(GOHOSTOS) GOARCH=$(GOHOSTARCH) GOARM=$(GOHOSTARM) $(GO) build -mod=mod -modfile=informer-gen.mod -o=$(GOBIN)/informer-gen-v0.35.2 "k8s.io/code-generator/cmd/informer-gen"
 
-LISTER_GEN := $(GOBIN)/lister-gen-v0.34.3
+LISTER_GEN := $(GOBIN)/lister-gen-v0.35.2
 $(LISTER_GEN): $(BINGO_DIR)/lister-gen.mod
 	@# Install binary/ries using Go 1.14+ build command. This is using bwplotka/bingo-controlled, separate go module with pinned dependencies.
-	@echo "(re)installing $(GOBIN)/lister-gen-v0.34.3"
-	@cd $(BINGO_DIR) && GOWORK=off GOOS=$(GOHOSTOS) GOARCH=$(GOHOSTARCH) GOARM=$(GOHOSTARM) $(GO) build -mod=mod -modfile=lister-gen.mod -o=$(GOBIN)/lister-gen-v0.34.3 "k8s.io/code-generator/cmd/lister-gen"
+	@echo "(re)installing $(GOBIN)/lister-gen-v0.35.2"
+	@cd $(BINGO_DIR) && GOWORK=off GOOS=$(GOHOSTOS) GOARCH=$(GOHOSTARCH) GOARM=$(GOHOSTARM) $(GO) build -mod=mod -modfile=lister-gen.mod -o=$(GOBIN)/lister-gen-v0.35.2 "k8s.io/code-generator/cmd/lister-gen"
 
 MOCKGEN := $(GOBIN)/mockgen-v0.6.0
 $(MOCKGEN): $(BINGO_DIR)/mockgen.mod
