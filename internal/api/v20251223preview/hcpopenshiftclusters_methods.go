@@ -569,7 +569,7 @@ func normalizeEtcdDataEncryptionProfile(p *generated.EtcdDataEncryptionProfile, 
 
 func normalizeCustomerManaged(p *generated.CustomerManagedEncryptionProfile, out *api.CustomerManagedEncryptionProfile) {
 	out.EncryptionType = api.CustomerManagedEncryptionType(api.Deref(p.EncryptionType))
-	if p.Kms != nil && p.Kms.ActiveKey != nil {
+	if p.Kms != nil && p.Kms.ActiveKey != nil && (p.Kms.ActiveKey.Name != nil || p.Kms.ActiveKey.Version != nil) {
 		if out.Kms == nil {
 			out.Kms = &api.KmsEncryptionProfile{}
 		}
