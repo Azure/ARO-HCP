@@ -178,6 +178,7 @@ func newPlatformProfile(from *api.CustomerPlatformProfile, from2 *api.ServicePro
 	return generated.PlatformProfile{
 		ManagedResourceGroup:    api.PtrOrNil(from.ManagedResourceGroup),
 		SubnetID:                api.ResourceIDToStringPtr(from.SubnetID),
+		VnetIntegrationSubnetID: api.ResourceIDToStringPtr(from.VnetIntegrationSubnetID),
 		OutboundType:            api.PtrOrNil(generated.OutboundType(from.OutboundType)),
 		NetworkSecurityGroupID:  api.ResourceIDToStringPtr(from.NetworkSecurityGroupID),
 		OperatorsAuthentication: api.PtrOrNil(newOperatorsAuthenticationProfile(&from.OperatorsAuthentication)),
@@ -230,8 +231,9 @@ func newKmsEncryptionProfile(from *api.KmsEncryptionProfile) generated.KmsEncryp
 		return generated.KmsEncryptionProfile{}
 	}
 	return generated.KmsEncryptionProfile{
-		ActiveKey: api.PtrOrNil(newKmsKey(&from.ActiveKey)),
-		VaultName: api.PtrOrNil(from.ActiveKey.VaultName),
+		ActiveKey:  api.PtrOrNil(newKmsKey(&from.ActiveKey)),
+		VaultName:  api.PtrOrNil(from.ActiveKey.VaultName),
+		Visibility: api.PtrOrNil(generated.KeyVaultVisibility(from.Visibility)),
 	}
 }
 func newKmsKey(from *api.KmsKey) generated.KmsKey {
@@ -539,6 +541,13 @@ func normalizePlatform(fldPath *field.Path, p *generated.PlatformProfile, out *a
 		out.SubnetID = nil
 	}
 	out.OutboundType = api.OutboundType(api.Deref(p.OutboundType))
+	if p.VnetIntegrationSubnetID != nil && len(*p.VnetIntegrationSubnetID) > 0 {
+		if resourceID, err := azcorearm.ParseResourceID(*p.VnetIntegrationSubnetID); err != nil {
+			errs = append(errs, field.Invalid(fldPath.Child("vnetIntegrationSubnetId"), *p.VnetIntegrationSubnetID, err.Error()))
+		} else {
+			out.VnetIntegrationSubnetID = resourceID
+		}
+	}
 	if p.NetworkSecurityGroupID != nil && len(*p.NetworkSecurityGroupID) > 0 {
 		if resourceID, err := azcorearm.ParseResourceID(*p.NetworkSecurityGroupID); err != nil {
 			errs = append(errs, field.Invalid(fldPath.Child("networkSecurityGroupID"), *p.NetworkSecurityGroupID, err.Error()))
@@ -591,8 +600,13 @@ func normalizeCustomerManaged(p *generated.CustomerManagedEncryptionProfile, out
 		if out.Kms == nil {
 			out.Kms = &api.KmsEncryptionProfile{}
 		}
+
 		normalizeActiveKey(p.Kms.ActiveKey, &out.Kms.ActiveKey)
 		out.Kms.ActiveKey.VaultName = api.Deref(p.Kms.VaultName)
+
+		if p.Kms.Visibility != nil {
+			out.Kms.Visibility = api.KeyVaultVisibility(*p.Kms.Visibility)
+		}
 	} else {
 		out.Kms = nil
 	}

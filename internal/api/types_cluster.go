@@ -134,6 +134,7 @@ type ServiceProviderAPIProfile struct {
 type CustomerPlatformProfile struct {
 	ManagedResourceGroup    string                         `json:"managedResourceGroup,omitempty"`
 	SubnetID                *azcorearm.ResourceID          `json:"subnetId,omitempty"`
+	VnetIntegrationSubnetID *azcorearm.ResourceID          `json:"vnetIntegrationSubnetId,omitempty"`
 	OutboundType            OutboundType                   `json:"outboundType,omitempty"`
 	NetworkSecurityGroupID  *azcorearm.ResourceID          `json:"networkSecurityGroupId,omitempty"`
 	OperatorsAuthentication OperatorsAuthenticationProfile `json:"operatorsAuthentication,omitempty"`
@@ -178,7 +179,8 @@ type CustomerManagedEncryptionProfile struct {
 // customer-managed Key Management Service (KMS) keys.
 // Visibility for the entire struct is "read create".
 type KmsEncryptionProfile struct {
-	ActiveKey KmsKey `json:"activeKey,omitempty"`
+	Visibility KeyVaultVisibility `json:"visibility,omitempty"`
+	ActiveKey  KmsKey             `json:"activeKey,omitempty"`
 }
 
 // KmsKey represents an Azure KeyVault secret.

@@ -118,6 +118,17 @@ func convertVisibilityToListening(visibility api.Visibility) (arohcpv1alpha1.Lis
 	}
 }
 
+func convertKeyVaultVisibilityRPToCS(visibility api.KeyVaultVisibility) (arohcpv1alpha1.AzureKmsEncryptionVisibility, error) {
+	switch visibility {
+	case api.KeyVaultVisibilityPublic:
+		return arohcpv1alpha1.AzureKmsEncryptionVisibilityPublic, nil
+	case api.KeyVaultVisibilityPrivate:
+		return arohcpv1alpha1.AzureKmsEncryptionVisibilityPrivate, nil
+	default:
+		return "", conversionError[arohcpv1alpha1.AzureKmsEncryptionVisibility](visibility)
+	}
+}
+
 func convertOutboundTypeCSToRP(outboundTypeCS string) (api.OutboundType, error) {
 	switch outboundTypeCS {
 	case "":
@@ -361,28 +372,54 @@ func convertCustomerManagedEncryptionCSToRP(in *arohcpv1alpha1.AzureEtcdDataEncr
 			return nil, err
 		}
 
+		kms, err := convertKmsEncryptionCSToRP(in.CustomerManaged())
+		if err != nil {
+			return nil, err
+		}
+
+		// Validate discriminated union: when encryptionType is KMS, Kms field must be present
+		if encryptionType == api.CustomerManagedEncryptionTypeKMS && kms == nil {
+			return nil, fmt.Errorf("Cluster Service reported customer-managed encryption type KMS but did not provide KMS configuration")
+		}
+
 		return &api.CustomerManagedEncryptionProfile{
 			EncryptionType: encryptionType,
-			Kms:            convertKmsEncryptionCSToRP(in.CustomerManaged()),
+			Kms:            kms,
 		}, nil
 	}
 
 	return nil, nil
 }
 
-func convertKmsEncryptionCSToRP(in *arohcpv1alpha1.AzureEtcdDataEncryptionCustomerManaged) *api.KmsEncryptionProfile {
+func convertKmsEncryptionCSToRP(in *arohcpv1alpha1.AzureEtcdDataEncryptionCustomerManaged) (*api.KmsEncryptionProfile, error) {
 	if kms, ok := in.GetKms(); ok {
+		// Only return a KmsEncryptionProfile if we have an activeKey
+		// to avoid creating invalid profiles with empty key fields
 		if activeKey, ok := kms.GetActiveKey(); ok {
-			return &api.KmsEncryptionProfile{
+			kmsProfile := &api.KmsEncryptionProfile{
 				ActiveKey: api.KmsKey{
 					Name:      activeKey.KeyName(),
 					VaultName: activeKey.KeyVaultName(),
 					Version:   activeKey.KeyVersion(),
 				},
 			}
+
+			// Parse visibility if present
+			if visibility, ok := kms.GetVisibility(); ok {
+				switch visibility {
+				case arohcpv1alpha1.AzureKmsEncryptionVisibilityPublic:
+					kmsProfile.Visibility = api.KeyVaultVisibilityPublic
+				case arohcpv1alpha1.AzureKmsEncryptionVisibilityPrivate:
+					kmsProfile.Visibility = api.KeyVaultVisibilityPrivate
+				default:
+					return nil, fmt.Errorf("unknown KMS visibility value from Cluster Service: %q", visibility)
+				}
+			}
+
+			return kmsProfile, nil
 		}
 	}
-	return nil
+	return nil, nil
 }
 
 func convertAutoscalarCSToRP(in *arohcpv1alpha1.ClusterAutoscaler) (api.ClusterAutoscalingProfile, error) {
@@ -431,6 +468,16 @@ func convertEtcdRPToCS(in api.EtcdProfile) (*arohcpv1alpha1.AzureEtcdEncryptionB
 			KeyVaultName(in.DataEncryption.CustomerManaged.Kms.ActiveKey.VaultName).
 			KeyVersion(in.DataEncryption.CustomerManaged.Kms.ActiveKey.Version)
 		azureKmsEncryptionBuilder := arohcpv1alpha1.NewAzureKmsEncryption().ActiveKey(azureKmsKeyBuilder)
+
+		// Add KeyVault visibility if specified
+		if in.DataEncryption.CustomerManaged.Kms.Visibility != "" {
+			visibility, err := convertKeyVaultVisibilityRPToCS(in.DataEncryption.CustomerManaged.Kms.Visibility)
+			if err != nil {
+				return nil, err
+			}
+			azureKmsEncryptionBuilder.Visibility(visibility)
+		}
+
 		azureEtcdDataEncryptionCustomerManagedBuilder.Kms(azureKmsEncryptionBuilder)
 		azureEtcdDataEncryptionBuilder.CustomerManaged(azureEtcdDataEncryptionCustomerManagedBuilder)
 	}
@@ -495,6 +542,13 @@ func LegacyCreateInternalClusterFromClusterService(resourceID *azcorearm.Resourc
 			return nil, utils.TrackError(err)
 		}
 	}
+	var vnetIntegrationSubnetID *azcorearm.ResourceID
+	if len(cluster.Azure().VnetIntegrationSubnetResourceID()) > 0 {
+		vnetIntegrationSubnetID, err = azcorearm.ParseResourceID(cluster.Azure().VnetIntegrationSubnetResourceID())
+		if err != nil {
+			return nil, utils.TrackError(err)
+		}
+	}
 
 	hcpcluster := &api.HCPOpenShiftCluster{
 		TrackedResource: arm.TrackedResource{
@@ -526,10 +580,11 @@ func LegacyCreateInternalClusterFromClusterService(resourceID *azcorearm.Resourc
 				AuthorizedCIDRs: convertAuthorizedCidrs(cluster.API()),
 			},
 			Platform: api.CustomerPlatformProfile{
-				ManagedResourceGroup:   cluster.Azure().ManagedResourceGroupName(),
-				SubnetID:               subnetResourceID,
-				OutboundType:           outboundType,
-				NetworkSecurityGroupID: networkSecurityGroupID,
+				ManagedResourceGroup:    cluster.Azure().ManagedResourceGroupName(),
+				SubnetID:                subnetResourceID,
+				VnetIntegrationSubnetID: vnetIntegrationSubnetID,
+				OutboundType:            outboundType,
+				NetworkSecurityGroupID:  networkSecurityGroupID,
 			},
 			Autoscaling:             clusterAutoscaler,
 			NodeDrainTimeoutMinutes: convertNodeDrainTimeoutCSToRP(cluster),
@@ -872,6 +927,11 @@ func withImmutableAttributes(clusterBuilder *arohcpv1alpha1.ClusterBuilder, hcpC
 	// Cluster Service rejects an empty NetworkSecurityGroupResourceID string.
 	if hcpCluster.CustomerProperties.Platform.NetworkSecurityGroupID != nil {
 		azureBuilder.NetworkSecurityGroupResourceID(hcpCluster.CustomerProperties.Platform.NetworkSecurityGroupID.String())
+	}
+
+	// Cluster Service rejects an empty VnetIntegrationSubnetResourceID string.
+	if hcpCluster.CustomerProperties.Platform.VnetIntegrationSubnetID != nil {
+		azureBuilder.VnetIntegrationSubnetResourceID(hcpCluster.CustomerProperties.Platform.VnetIntegrationSubnetID.String())
 	}
 
 	controlPlaneOperators := make(map[string]*arohcpv1alpha1.AzureControlPlaneManagedIdentityBuilder)
