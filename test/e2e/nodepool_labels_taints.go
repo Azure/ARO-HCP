@@ -191,7 +191,7 @@ var _ = Describe("Customer", func() {
 				return len(nodes.Items) == int(taintReplicas)
 			}).WithContext(ctx).WithTimeout(15*time.Minute).Should(BeTrue(), "expected to have %d nodes", int(taintReplicas))
 
-			By("verifying new taint is present on a node")
+			By("verifying new taint is present on newly created node")
 			Eventually(func(ctx context.Context) bool {
 				nodes, err := k8sClient.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
 				if err != nil {
