@@ -152,7 +152,7 @@ func (opts *QueryOptions) GetInfraSystemdLogsQuery() []*kusto.ConfigurableQuery 
 	if opts.Limit < 0 {
 		query.WithNoTruncation()
 	}
-	query.WithTable("systemdLogs").WithInfraFields()
+	query.WithTable("systemdLogs").WithSystemdFields()
 	query.WithCluster(opts.InfraClusterName)
 	query.WithTimestampMinAndMax(opts.TimestampMin, opts.TimestampMax)
 	if opts.Limit > 0 {

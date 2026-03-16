@@ -45,6 +45,12 @@ func (q *ConfigurableQuery) WithTable(tableName string) *ConfigurableQuery {
 	return q
 }
 
+func (q *ConfigurableQuery) WithSystemdFields() *ConfigurableQuery {
+	q.Query.AddLiteral("\n| extend log=bag_pack_columns(systemd_unit,message)")
+	q.Query.AddLiteral("\n| project timestamp, log, cluster")
+	return q
+}
+
 func (q *ConfigurableQuery) WithInfraFields() *ConfigurableQuery {
 	q.Query.AddLiteral("\n| project timestamp, log, cluster")
 	return q
