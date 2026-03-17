@@ -494,7 +494,7 @@ defaults:
         zones: ""
         zoneRedundantMode: "Auto"
       userAgentPool:
-        name: 'user'
+        name: 'userswft'
         vmSize: 'Standard_E32ds_v6'
         osDiskSizeGB: 512
         minCount: 1

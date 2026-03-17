@@ -60,6 +60,9 @@ param userAgentPoolZones string
 @description('Zone redundant mode for the user nodes')
 param userZoneRedundantMode string
 
+@description('Secondary NIC count for the user nodes')
+param userSecondaryNicCount int
+
 @description('Min replicas for the infra worker nodes')
 param infraAgentMinCount int
 
@@ -373,6 +376,7 @@ module mgmtCluster '../modules/aks-cluster-base.bicep' = {
       ? csvToArray(userAgentPoolZones)
       : locationAvailabilityZoneList
     userZoneRedundantMode: userZoneRedundantMode
+    userSecondaryNicCount: userSecondaryNicCount
     infraAgentPoolName: infraAgentPoolName
     infraAgentMinCount: infraAgentMinCount
     infraAgentMaxCount: infraAgentMaxCount

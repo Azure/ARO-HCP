@@ -495,7 +495,7 @@ mgmt:
     userAgentPool:
       maxCount: 14
       minCount: 3
-      name: user
+      name: userswft
       osDiskSizeGB: 100
       poolCount: 3
       secondaryNicCount: 7
