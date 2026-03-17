@@ -7,4 +7,4 @@ database('ServiceLogs').table('backendLogs')
 | where log.msg has 'dumping resourceID' and log.msg has 'hcpOpenShiftControllers'
 | extend controller_name = extract("/hcpOpenShiftControllers/([^\\/]+)", 1, tostring(log.currentResourceID))
 | mv-expand condition = log.content.properties.status.conditions
-| project timestamp, log, cluster, condition.lastTransitionTime, controller_name, condition.type, condition.status, condition.reason, condition.message;
+| project timestamp, log, cluster, condition.lastTransitionTime, controller_name, condition.type, condition.status, condition.reason, condition.message

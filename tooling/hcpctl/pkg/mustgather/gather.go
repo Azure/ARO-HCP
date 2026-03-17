@@ -16,6 +16,7 @@ package mustgather
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -27,6 +28,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	azkquery "github.com/Azure/azure-kusto-go/azkustodata/query"
+	"github.com/Azure/azure-kusto-go/azkustodata/types"
 
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/kusto"
 )
@@ -73,11 +75,14 @@ type RowOutputFunc func(ctx context.Context, logLineChan chan *NormalizedLogLine
 //			string(logLine.Log))
 //	}
 type NormalizedLogLine struct {
-	Log           []byte    `kusto:"log"`
+	// Log           []byte          `kusto:"log"`
 	Cluster       string    `kusto:"cluster"`
 	Namespace     string    `kusto:"namespace_name"`
 	ContainerName string    `kusto:"container_name"`
 	Timestamp     time.Time `kusto:"timestamp"`
+
+	// We serialize the log to a map[string]any so that we can add extra columns to the log without having to change the schema
+	Log *map[string]any `kusto:"-"`
 }
 
 // GathererOptions represents the options for the Gatherer
@@ -274,28 +279,37 @@ func cliOutputFunc(ctx context.Context, logLineChan chan *NormalizedLogLine, que
 	for {
 		select {
 		case <-ctx.Done():
+			fmt.Println("Context done")
 			return ctx.Err()
 		case logLine, ok := <-logLineChan:
 			if !ok {
+				fmt.Println("Log line channel closed")
 				return allErrors
 			}
 			var fileName string
 			if queryType == QueryTypeKubernetesEvents || queryType == QueryTypeSystemdLogs || queryType == QueryTypeCustomLogs {
-				fileName = fmt.Sprintf("%s-%s.log", logLine.Cluster, queryType)
+				fileName = fmt.Sprintf("%s-%s.jsonl", logLine.Cluster, queryType)
 			} else {
-				fileName = fmt.Sprintf("%s-%s-%s.log", logLine.Cluster, logLine.Namespace, logLine.ContainerName)
+				fileName = fmt.Sprintf("%s-%s-%s.jsonl", logLine.Cluster, logLine.Namespace, logLine.ContainerName)
 			}
 
 			file, ok := openedFiles[fileName]
 			if !ok {
 				newFile, err := os.Create(path.Join(outputPath, directory, fileName))
 				if err != nil {
+					fmt.Println("Failed to create output file: ", fileName, err)
 					return errors.Join(allErrors, fmt.Errorf("failed to create output file: %w", err))
 				}
 				openedFiles[fileName] = newFile
 				file = newFile
 			}
-			if _, err := fmt.Fprintf(file, "%s\n", string(logLine.Log)); err != nil {
+			thisLog, err := json.Marshal(*logLine.Log)
+			if err != nil {
+				fmt.Println("Failed to marshal log line: ", err)
+				allErrors = errors.Join(allErrors, fmt.Errorf("failed to marshal log line: %w", err))
+			}
+			if _, err := fmt.Fprintf(file, "%s\n", string(thisLog)); err != nil {
+				fmt.Println("Failed to write to file: ", fileName, err)
 				allErrors = errors.Join(allErrors, fmt.Errorf("failed to write to file %s: %w", fileName, err))
 			}
 		}
@@ -375,6 +389,7 @@ func (g *Gatherer) GatherLogs(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to build custom logs query: %w", err)
 	}
+	fmt.Println("Custom queries: ", customQueries)
 	if err := g.queryAndWriteToFile(ctx, QueryTypeCustomLogs, customQueries); err != nil {
 		gatherErrors = errors.Join(gatherErrors, fmt.Errorf("failed to execute custom logs query: %w", err))
 	}
@@ -495,7 +510,7 @@ func (g *Gatherer) queryAndWriteToFile(ctx context.Context, queryType QueryType,
 	queryOutputChannel := make(chan azkquery.Row)
 	logLineChan := make(chan *NormalizedLogLine)
 
-	logger.V(6).Info("Executing query", "queryType", queryType, "queries", len(queries), "queries", queries)
+	logger.V(6).Info("Executing query", "queryType", queryType, "queryCount", len(queries))
 
 	queryGroup, queryCtx := errgroup.WithContext(ctx)
 	queryGroup.Go(func() error {
@@ -520,6 +535,16 @@ func (g *Gatherer) queryAndWriteToFile(ctx context.Context, queryType QueryType,
 	return nil
 }
 
+// knownColumns is the set of column names that are deserialized into
+// NormalizedLogLine's typed fields via row.ToStruct. Any column not in
+// this set will be placed into the Extra map.
+var knownColumns = map[string]struct{}{
+	"cluster":        {},
+	"namespace_name": {},
+	"container_name": {},
+	"timestamp":      {},
+}
+
 func (g *Gatherer) convertRows(ctx context.Context, rowChannel <-chan azkquery.Row, outPutChannel chan<- *NormalizedLogLine) error {
 	for {
 		select {
@@ -533,6 +558,30 @@ func (g *Gatherer) convertRows(ctx context.Context, rowChannel <-chan azkquery.R
 			if err := row.ToStruct(normalizedLogLine); err != nil {
 				return fmt.Errorf("failed to convert row to struct: %w", err)
 			}
+
+			columns := row.Columns()
+			values := row.Values()
+			log := make(map[string]any, len(columns))
+			for i, col := range columns {
+				if _, ok := knownColumns[col.Name()]; !ok {
+					if col.Name() == "log" && values[i].GetType() == types.Dynamic {
+						var logAsInterface = values[i].GetValue()
+						var logMap map[string]any
+						if logAsBytes, ok := logAsInterface.([]byte); ok {
+							err := json.Unmarshal(logAsBytes, &logMap)
+							if err == nil {
+								log[col.Name()] = logMap
+								continue
+							}
+						}
+					}
+					log[col.Name()] = values[i].String()
+				}
+			}
+			if len(log) > 0 {
+				normalizedLogLine.Log = &log
+			}
+
 			select {
 			case <-ctx.Done():
 				return ctx.Err()
