@@ -71,8 +71,9 @@ type Target struct {
 // Validate checks if the Source configuration is valid
 func (s *Source) Validate() error {
 	if s.GitHubLatestRelease != "" {
-		// GitHub latest release: require "owner/repo" format
-		if !strings.Contains(s.GitHubLatestRelease, "/") || strings.Count(s.GitHubLatestRelease, "/") != 1 {
+		// GitHub latest release: require "owner/repo" format with non-empty parts
+		parts := strings.SplitN(s.GitHubLatestRelease, "/", 2)
+		if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
 			return fmt.Errorf("githubLatestRelease must be in format owner/repo (e.g. istio/istio)")
 		}
 		// Registry-specific fields are not allowed with githubLatestRelease
@@ -187,6 +188,13 @@ func Load(configPath string) (*Config, error) {
 		}
 		if err := imageConfig.Source.Validate(); err != nil {
 			return nil, fmt.Errorf("invalid configuration for image %q: %w", name, err)
+		}
+		if imageConfig.Source.GitHubLatestRelease != "" {
+			for _, target := range imageConfig.Targets {
+				if strings.HasSuffix(target.JsonPath, ".digest") || strings.HasSuffix(target.JsonPath, ".sha") {
+					return nil, fmt.Errorf("image %q: githubLatestRelease targets must not use .digest or .sha paths (got %q)", name, target.JsonPath)
+				}
+			}
 		}
 	}
 

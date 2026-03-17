@@ -66,10 +66,7 @@ func (u *Updater) UpdateImages(ctx context.Context) error {
 	}
 
 	logger.V(1).Info("starting image updates", "totalImages", len(u.Config.Images))
-	imageNum := 0
-	updatedCount := 0
 	for name, imageConfig := range u.Config.Images {
-		imageNum++
 		logger.V(2).Info("processing image", "name", name, "source", imageConfig.Source.SourceDescription(), "tag", imageConfig.Source.TagInfo())
 
 		imageInfo, err := u.fetchLatestValue(ctx, imageConfig.Source)
@@ -80,12 +77,9 @@ func (u *Updater) UpdateImages(ctx context.Context) error {
 		logger.V(2).Info("found latest tag", "name", name, "tag", imageInfo.Name, "digest", imageInfo.Digest)
 
 		for _, target := range imageConfig.Targets {
-			updated, err := u.ProcessImageUpdates(ctx, name, imageInfo, target)
+			_, err := u.ProcessImageUpdates(ctx, name, imageInfo, target, imageConfig.Source)
 			if err != nil {
 				return fmt.Errorf("failed to update image %s: %w", name, err)
-			}
-			if updated {
-				updatedCount++
 			}
 		}
 	}
@@ -211,7 +205,7 @@ func (u *Updater) fetchLatestValue(ctx context.Context, source config.Source) (*
 
 // ProcessImageUpdates sets up the updates needed for a specific image and target
 // Returns true if an update was needed/applied, false otherwise
-func (u *Updater) ProcessImageUpdates(ctx context.Context, name string, tag *clients.Tag, target config.Target) (bool, error) {
+func (u *Updater) ProcessImageUpdates(ctx context.Context, name string, tag *clients.Tag, target config.Target, source config.Source) (bool, error) {
 	logger, err := logr.FromContext(ctx)
 	if err != nil {
 		return false, fmt.Errorf("logger not found in context: %w", err)
@@ -231,15 +225,19 @@ func (u *Updater) ProcessImageUpdates(ctx context.Context, name string, tag *cli
 
 	logger.V(2).Info("Current digest", "name", name, "currentDigest", currentDigest)
 
-	// .sha paths store hash only; .digest and others keep full value or use tag/version
-	newDigest := tag.Digest
-	if strings.HasSuffix(target.JsonPath, ".sha") {
-		newDigest = strings.TrimPrefix(tag.Digest, "sha256:")
-	} else if !strings.HasSuffix(target.JsonPath, ".digest") {
-		if tag.Version != "" {
-			newDigest = tag.Version
-		} else {
+	var newDigest string
+	if source.GitHubLatestRelease != "" {
+		if strings.HasSuffix(target.JsonPath, ".digest") || strings.HasSuffix(target.JsonPath, ".sha") {
+			return false, fmt.Errorf("githubLatestRelease targets must not use .digest or .sha paths (got %q)", target.JsonPath)
+		}
+		newDigest = tag.Version
+		if newDigest == "" {
 			newDigest = tag.Name
+		}
+	} else {
+		newDigest = tag.Digest
+		if strings.HasSuffix(target.JsonPath, ".sha") {
+			newDigest = strings.TrimPrefix(tag.Digest, "sha256:")
 		}
 	}
 

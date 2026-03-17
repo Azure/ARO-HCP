@@ -86,10 +86,8 @@ func TestGetLatestRelease(t *testing.T) {
 			}))
 			defer srv.Close()
 
-			// Override the API base for testing
-			origBase := githubAPIBaseURL
-			defer func() { setGitHubAPIBase(origBase) }()
-			setGitHubAPIBase(srv.URL)
+			origBase := SetGitHubAPIBase(srv.URL)
+			defer func() { SetGitHubAPIBase(origBase) }()
 
 			release, err := GetLatestRelease(context.Background(), "istio/istio")
 			if tt.wantErr {
@@ -122,9 +120,8 @@ func TestGetLatestRelease_AuthHeader(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	origBase := githubAPIBaseURL
-	defer func() { setGitHubAPIBase(origBase) }()
-	setGitHubAPIBase(srv.URL)
+	origBase := SetGitHubAPIBase(srv.URL)
+	defer func() { SetGitHubAPIBase(origBase) }()
 
 	t.Run("with GITHUB_TOKEN", func(t *testing.T) {
 		t.Setenv("GITHUB_TOKEN", "test-token-123")

@@ -26,9 +26,17 @@ import (
 
 var githubAPIBaseURL = "https://api.github.com"
 
-func setGitHubAPIBase(url string) { githubAPIBaseURL = url }
+// githubHTTPClient is reused across calls for connection pooling.
+var githubHTTPClient = &http.Client{Timeout: 15 * time.Second}
 
-type githubLatestReleaseResponse struct {
+// SetGitHubAPIBase overrides the GitHub API base URL (for testing).
+func SetGitHubAPIBase(url string) string {
+	old := githubAPIBaseURL
+	githubAPIBaseURL = url
+	return old
+}
+
+type githubReleaseResponse struct {
 	TagName     string    `json:"tag_name"`
 	PublishedAt time.Time `json:"published_at"`
 }
@@ -39,23 +47,31 @@ type GitHubRelease struct {
 	PublishedAt time.Time
 }
 
-// GetLatestRelease fetches the latest release from a GitHub repository,
-// returning the version tag and the publish date.
-// It uses the GITHUB_TOKEN environment variable for authentication if available,
-// which increases the API rate limit from 60 to 5,000 requests per hour.
-func GetLatestRelease(ctx context.Context, ownerRepo string) (*GitHubRelease, error) {
-	url := githubAPIBaseURL + "/repos/" + ownerRepo + "/releases/latest"
+// newGitHubRequest creates a GitHub API request with standard headers and optional auth.
+func newGitHubRequest(ctx context.Context, url string) (*http.Request, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		return nil, fmt.Errorf("github latest release: %w", err)
+		return nil, err
 	}
 	req.Header.Set("Accept", "application/vnd.github.v3+json")
 	req.Header.Set("User-Agent", "ARO-HCP-image-updater")
 	if token := os.Getenv("GITHUB_TOKEN"); token != "" {
 		req.Header.Set("Authorization", "Bearer "+token)
 	}
-	client := &http.Client{Timeout: 15 * time.Second}
-	resp, err := client.Do(req)
+	return req, nil
+}
+
+// GetLatestRelease fetches the latest release from a GitHub repository,
+// returning the version tag and the publish date.
+// It uses the GITHUB_TOKEN environment variable for authentication if available,
+// which increases the API rate limit from 60 to 5,000 requests per hour.
+func GetLatestRelease(ctx context.Context, ownerRepo string) (*GitHubRelease, error) {
+	url := githubAPIBaseURL + "/repos/" + ownerRepo + "/releases/latest"
+	req, err := newGitHubRequest(ctx, url)
+	if err != nil {
+		return nil, fmt.Errorf("github latest release: %w", err)
+	}
+	resp, err := githubHTTPClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("github latest release: %w", err)
 	}
@@ -63,7 +79,7 @@ func GetLatestRelease(ctx context.Context, ownerRepo string) (*GitHubRelease, er
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("github latest release: %s returned %d", url, resp.StatusCode)
 	}
-	var r githubLatestReleaseResponse
+	var r githubReleaseResponse
 	if err := json.NewDecoder(resp.Body).Decode(&r); err != nil {
 		return nil, fmt.Errorf("github latest release: decode: %w", err)
 	}

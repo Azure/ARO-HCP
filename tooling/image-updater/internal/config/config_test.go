@@ -646,6 +646,52 @@ images:
 			wantErrMsg: "group is required",
 		},
 		{
+			name: "invalid config: githubLatestRelease with .digest target",
+			setupFile: func(t *testing.T) string {
+				tmpDir := t.TempDir()
+				configPath := filepath.Join(tmpDir, "config.yaml")
+				content := `
+images:
+  test:
+    group: test-group
+    source:
+      githubLatestRelease: "owner/repo"
+    targets:
+      - filePath: test.yaml
+        jsonPath: image.digest
+`
+				if err := os.WriteFile(configPath, []byte(content), 0644); err != nil {
+					t.Fatalf("failed to create config file: %v", err)
+				}
+				return configPath
+			},
+			wantErr:    true,
+			wantErrMsg: "must not use .digest or .sha paths",
+		},
+		{
+			name: "invalid config: githubLatestRelease with .sha target",
+			setupFile: func(t *testing.T) string {
+				tmpDir := t.TempDir()
+				configPath := filepath.Join(tmpDir, "config.yaml")
+				content := `
+images:
+  test:
+    group: test-group
+    source:
+      githubLatestRelease: "owner/repo"
+    targets:
+      - filePath: test.yaml
+        jsonPath: image.sha
+`
+				if err := os.WriteFile(configPath, []byte(content), 0644); err != nil {
+					t.Fatalf("failed to create config file: %v", err)
+				}
+				return configPath
+			},
+			wantErr:    true,
+			wantErrMsg: "must not use .digest or .sha paths",
+		},
+		{
 			name: "invalid config: both tag and tagPattern",
 			setupFile: func(t *testing.T) string {
 				tmpDir := t.TempDir()
@@ -981,6 +1027,22 @@ func TestSource_Validate(t *testing.T) {
 			name: "invalid: githubLatestRelease bad format",
 			source: Source{
 				GitHubLatestRelease: "istio",
+			},
+			wantErr:    true,
+			wantErrMsg: "owner/repo",
+		},
+		{
+			name: "invalid: githubLatestRelease bad format - trailing slash",
+			source: Source{
+				GitHubLatestRelease: "istio/",
+			},
+			wantErr:    true,
+			wantErrMsg: "owner/repo",
+		},
+		{
+			name: "invalid: githubLatestRelease bad format - leading slash",
+			source: Source{
+				GitHubLatestRelease: "/istio",
 			},
 			wantErr:    true,
 			wantErrMsg: "owner/repo",
