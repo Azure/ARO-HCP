@@ -266,6 +266,10 @@ defaults:
     crossTenantSecurityGroup: ""
     svcWorkspaceName: 'services-{{ .ctx.region }}'
     hcpWorkspaceName: 'hcps-{{ .ctx.region }}'
+    # Azure Monitor Workspace ingestion limits
+    # 2M initial limit, bump per env when hitting 50% utilization (Azure requires <200% increase)
+    maxActiveTimeSeries: !!int "2000000"
+    maxEventsPerMinute: !!int "2000000"
     alertRuleOwningTeamTag: ""
     alertsEnabled: false
     icm:

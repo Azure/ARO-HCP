@@ -2673,6 +2673,14 @@
             "sre",
             "sl"
           ]
+        },
+        "maxActiveTimeSeries": {
+          "type": "integer",
+          "description": "Maximum active time series limit for Azure Monitor Workspace (2M initial, bump when hitting 50% utilization)"
+        },
+        "maxEventsPerMinute": {
+          "type": "integer",
+          "description": "Maximum events per minute limit for Azure Monitor Workspace (2M initial, bump when hitting 50% utilization)"
         }
       },
       "additionalProperties": false,

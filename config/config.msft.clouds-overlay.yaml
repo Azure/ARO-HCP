@@ -4,6 +4,10 @@ clouds:
       int:
         # this is the MSFT INT environment
         defaults:
+          # Monitoring - Int needs higher limits
+          monitoring:
+            maxActiveTimeSeries: !!int "4000000"
+            maxEventsPerMinute: !!int "4000000"
           # E2E
           e2e:
             regionTest:

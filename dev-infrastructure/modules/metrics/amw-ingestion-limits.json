@@ -1,0 +1,63 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep",
+      "version": "0.41.2.15936",
+      "templateHash": "9956572799390938789"
+    }
+  },
+  "parameters": {
+    "azureMonitorWorkspaceName": {
+      "type": "string",
+      "metadata": {
+        "description": "Name of the Azure Monitor Workspace"
+      }
+    },
+    "location": {
+      "type": "string",
+      "metadata": {
+        "description": "Location of the Azure Monitor Workspace"
+      }
+    },
+    "maxActiveTimeSeries": {
+      "type": "int",
+      "defaultValue": 10000000,
+      "metadata": {
+        "description": "Maximum active time series limit (10M for 100 HCPs, max 20M via API)"
+      }
+    },
+    "maxEventsPerMinute": {
+      "type": "int",
+      "defaultValue": 10000000,
+      "metadata": {
+        "description": "Maximum events per minute limit (10M for 100 HCPs, max 20M via API)"
+      }
+    }
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Monitor/accounts/metricsContainers",
+      "apiVersion": "2025-10-03-preview",
+      "name": "[format('{0}/{1}', parameters('azureMonitorWorkspaceName'), 'default')]",
+      "location": "[parameters('location')]",
+      "properties": {
+        "limits": {
+          "maxActiveTimeSeries": "[parameters('maxActiveTimeSeries')]",
+          "maxEventsPerMinute": "[parameters('maxEventsPerMinute')]"
+        }
+      }
+    }
+  ],
+  "outputs": {
+    "maxActiveTimeSeries": {
+      "type": "int",
+      "value": "[parameters('maxActiveTimeSeries')]"
+    },
+    "maxEventsPerMinute": {
+      "type": "int",
+      "value": "[parameters('maxEventsPerMinute')]"
+    }
+  }
+}
