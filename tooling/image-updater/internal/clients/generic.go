@@ -282,15 +282,14 @@ func (c *GenericRegistryClient) GetArchSpecificDigest(ctx context.Context, repos
 			continue
 		}
 
-		// If multiArch is requested, return the multi-arch manifest list digest
-		if wantMultiArch && desc.MediaType.IsIndex() {
+		isMultiArch := desc.MediaType.IsIndex()
+
+		if wantMultiArch && isMultiArch {
 			logger.V(2).Info("found multi-arch manifest", "tag", tag.Name, "mediaType", desc.MediaType, "digest", desc.Digest.String())
 			tag.Digest = desc.Digest.String()
 			tag.LastModified = extractTimestampFromMultiArchManifest(desc, tag.Name, tag.LastModified)
 			return &tag, nil
-		}
-
-		if desc.MediaType.IsIndex() {
+		} else if !wantMultiArch && isMultiArch {
 			logger.V(2).Info("skipping multi-arch manifest", "tag", tag.Name, "mediaType", desc.MediaType)
 			continue
 		}

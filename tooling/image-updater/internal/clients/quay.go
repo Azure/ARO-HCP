@@ -491,14 +491,13 @@ func (c *QuayClient) GetArchSpecificDigest(ctx context.Context, repository strin
 			descriptorCache[tag.Name] = desc
 		}
 
-		// If multiArch is requested, return the multi-arch manifest list digest
-		if wantMultiArch && desc.MediaType.IsIndex() {
+		isMultiArch := desc.MediaType.IsIndex()
+
+		if wantMultiArch && isMultiArch {
 			logger.V(2).Info("found multi-arch manifest", "image", repository, "tag", tag.Name, "mediaType", desc.MediaType, "digest", desc.Digest.String(), "date", tag.LastModified.Format("2006-01-02 15:04"))
 			tag.Digest = desc.Digest.String()
 			return &tag, nil
-		}
-
-		if desc.MediaType.IsIndex() {
+		} else if !wantMultiArch && isMultiArch {
 			logger.V(2).Info("skipping multi-arch manifest", "tag", tag.Name, "mediaType", desc.MediaType)
 			continue
 		}
