@@ -1,0 +1,26 @@
+// HyperShift: this component runs on the management cluster and turns a request for a cluster (a HostedCluster CR) into
+// the running OpenShift control plane. The logs in this query are dumped from the back-channel from Maestro, so if we see
+// anything here, we know that Maestro is shipping state & status back and forth. The query shows conditions on the HostedCluster,
+// which should pinpoint which part of cluster provisioning is having issues. In addition to this view, check the Kubernetes
+// events for the Pods that make up the HostedCluster.
+let _cs_cluster_id = toscalar(
+    database('ServiceLogs').table('clustersServiceLogs')
+    | where timestamp between ({{.TimestampMin | kqlDatetime}} .. {{.TimestampMax | kqlDatetime}})
+    | where resource_id has {{.ResourceGroupName}}
+    | where isnotempty(cid)
+    | distinct tostring(cid)
+    | limit 1
+);
+database('ServiceLogs').table('clustersServiceLogs')
+| where timestamp between ({{.TimestampMin | kqlDatetime}} .. {{.TimestampMax | kqlDatetime}})
+| where resource_id has {{.ResourceGroupName}}
+| where msg has 'ManifestWork for cluster'
+| extend manifest_work = parse_json(replace_string(tostring(msg), strcat("ManifestWork for cluster '",_cs_cluster_id, "': "), ""))
+| mv-expand manifest = manifest_work.status.resourceStatus.manifests
+| where manifest.resourceMeta.kind == 'HostedCluster'
+| mv-expand condition = manifest.statusFeedback.values
+| extend condition_name = extract(@"^([^-]+)", 1, tostring(condition.name))
+| extend condition_field = extract(@"([^-]+)$", 1, tostring(condition.name))
+| where condition_field in ("Reason", "Status", "Message")
+| project timestamp, condition_name, condition_field, condition_value = tostring(condition.fieldValue.['string'])
+| evaluate pivot(condition_field, any(condition_value))

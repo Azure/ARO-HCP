@@ -22,6 +22,9 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
 
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+
+	"github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/kusto"
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/mustgather"
 )
 
@@ -34,6 +37,7 @@ type RawQueryOptions struct {
 	SkipHostedControlPlaneLogs bool   // Skip hosted control plane logs
 	SkipKubernetesEventsLogs   bool   // Skip Kubernetes events logs
 	CollectSystemdLogs         bool   // Collect Systemd logs
+	SkipCustomLogs             bool   // Skip Custom logs
 }
 
 // DefaultQueryOptions returns a new RawQueryOptions struct initialized with sensible defaults.
@@ -55,7 +59,7 @@ func BindQueryOptions(opts *RawQueryOptions, cmd *cobra.Command) error {
 	cmd.Flags().BoolVar(&opts.SkipHostedControlPlaneLogs, "skip-hcp-logs", opts.SkipHostedControlPlaneLogs, "Do not gather customer (ocm namespaces) logs")
 	cmd.Flags().BoolVar(&opts.SkipKubernetesEventsLogs, "skip-kubernetes-events-logs", opts.SkipKubernetesEventsLogs, "Do not gather Kubernetes events logs")
 	cmd.Flags().BoolVar(&opts.CollectSystemdLogs, "collect-systemd-logs", opts.CollectSystemdLogs, "Collect Systemd logs")
-
+	cmd.Flags().BoolVar(&opts.SkipCustomLogs, "skip-custom-logs", opts.SkipCustomLogs, "Skip Custom logs")
 	cmd.MarkFlagsMutuallyExclusive("subscription-id", "resource-id")
 	cmd.MarkFlagsMutuallyExclusive("resource-group", "resource-id")
 
@@ -69,7 +73,7 @@ type ValidatedQueryOptions struct {
 	*RawQueryOptions
 
 	KustoEndpoint *url.URL
-	QueryOptions  mustgather.QueryOptions
+	QueryOptions  kusto.QueryOptions
 }
 
 // Validate performs comprehensive validation of all query input parameters.
@@ -91,12 +95,24 @@ func (o *RawQueryOptions) Validate(ctx context.Context) (*ValidatedQueryOptions,
 		logger.Info("warning: both resource-id and resource-group/subscription-id are provided, will use resource-id to gather cluster ID")
 	}
 
+	subscriptionID := o.SubscriptionID
+	resourceGroupName := o.ResourceGroup
+
+	if o.ResourceId != "" {
+		res, err := azcorearm.ParseResourceID(o.ResourceId)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse resourceID: %w", err)
+		}
+		subscriptionID = res.SubscriptionID
+		resourceGroupName = res.ResourceGroupName
+	}
+
 	return &ValidatedQueryOptions{
 		RawQueryOptions: o,
 		KustoEndpoint:   kustoEndpoint,
-		QueryOptions: mustgather.QueryOptions{
-			SubscriptionId:    o.SubscriptionID,
-			ResourceGroupName: o.ResourceGroup,
+		QueryOptions: kusto.QueryOptions{
+			SubscriptionId:    subscriptionID,
+			ResourceGroupName: resourceGroupName,
 			TimestampMin:      o.TimestampMin,
 			TimestampMax:      o.TimestampMax,
 			Limit:             o.Limit,
@@ -117,7 +133,7 @@ func (o *ValidatedQueryOptions) Complete(ctx context.Context) (*CompletedQueryOp
 		return nil, err
 	}
 
-	if err := createOutputDirectories(o.OutputPath, o.SkipHostedControlPlaneLogs, o.SkipKubernetesEventsLogs, o.CollectSystemdLogs); err != nil {
+	if err := createOutputDirectories(o.OutputPath, o.SkipHostedControlPlaneLogs, o.SkipKubernetesEventsLogs, o.CollectSystemdLogs, o.SkipCustomLogs); err != nil {
 		return nil, err
 	}
 
@@ -127,7 +143,7 @@ func (o *ValidatedQueryOptions) Complete(ctx context.Context) (*CompletedQueryOp
 	}, nil
 }
 
-func (opts *RawQueryOptions) Run(ctx context.Context, runLegacy bool) error {
+func (opts *RawQueryOptions) Run(ctx context.Context) error {
 	validated, err := opts.Validate(ctx)
 	if err != nil {
 		return err
@@ -136,10 +152,6 @@ func (opts *RawQueryOptions) Run(ctx context.Context, runLegacy bool) error {
 	completed, err := validated.Complete(ctx)
 	if err != nil {
 		return err
-	}
-
-	if runLegacy {
-		return completed.RunLegacy(ctx)
 	}
 
 	return completed.RunQuery(ctx)

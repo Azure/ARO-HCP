@@ -27,7 +27,7 @@ import (
 )
 
 type KustoClient interface {
-	ExecutePreconfiguredQuery(ctx context.Context, query *ConfigurableQuery, outputChannel chan<- TaggedRow) (*QueryResult, error)
+	ExecutePreconfiguredQuery(ctx context.Context, query Query, outputChannel chan<- TaggedRow) (*QueryResult, error)
 	Close() error
 }
 
@@ -56,6 +56,7 @@ type QueryStats struct {
 type TaggedRow struct {
 	Row       azkquery.Row
 	QueryName string
+	QueryType QueryType
 }
 
 func KustoEndpoint(clusterName, region string) (*url.URL, error) {
@@ -91,18 +92,17 @@ func NewClient(endpoint *url.URL, queryTimeout time.Duration) (*Client, error) {
 }
 
 // ExecutePreconfiguredQuery executes a KQL query against the Azure Data Explorer cluster
-func (c *Client) ExecutePreconfiguredQuery(ctx context.Context, query *ConfigurableQuery, outputChannel chan<- TaggedRow) (*QueryResult, error) {
+func (c *Client) ExecutePreconfiguredQuery(ctx context.Context, query Query, outputChannel chan<- TaggedRow) (*QueryResult, error) {
 	queryCtx, cancel := context.WithTimeout(ctx, c.QueryTimeout)
 	defer cancel()
 
 	logger := logr.FromContextOrDiscard(ctx)
 
-	logger.V(1).Info("Executing query on database", "queryName", query.Name, "database", query.Database)
+	logger.V(1).Info("Executing query on database", "queryName", query.GetName(), "database", query.GetDatabase())
 
-	logger.V(2).Info("Query", "query", query.Query.String())
-	logger.V(2).Info("Parameters", "parameters", query.Parameters.ToParameterCollection())
+	logger.V(2).Info("Query", "query", query.GetQuery().String())
 
-	dataset, err := c.kustoClient.IterativeQuery(queryCtx, query.Database, query.Query, azkustodata.QueryParameters(query.Parameters))
+	dataset, err := c.kustoClient.IterativeQuery(queryCtx, query.GetDatabase(), query.GetQuery())
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute query: %w", err)
 	}
@@ -131,7 +131,7 @@ func (c *Client) ExecutePreconfiguredQuery(ctx context.Context, query *Configura
 		logger.V(8).Info("Processing row", "rowNumber", totalRows)
 		row := row.Row()
 		if row == nil {
-			if query.Unlimited {
+			if query.IsUnlimited() {
 				logger.Error(fmt.Errorf("query is unlimited and result is nil, most likely a serverside error occured. Try rerunning the query with limits"), "error while getting result")
 			}
 			continue
@@ -143,7 +143,7 @@ func (c *Client) ExecutePreconfiguredQuery(ctx context.Context, query *Configura
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
-		case outputChannel <- TaggedRow{Row: row, QueryName: query.Name}:
+		case outputChannel <- TaggedRow{Row: row, QueryName: query.GetName(), QueryType: query.GetQueryType()}:
 		}
 		totalRows++
 		dataSize += int64(len(fmt.Sprintf("%v", row)))
@@ -151,7 +151,7 @@ func (c *Client) ExecutePreconfiguredQuery(ctx context.Context, query *Configura
 
 	executionTime := time.Since(startTime)
 
-	logger.V(1).Info("Query completed", "query", query.Name, "rows", totalRows, "KiloBytes", dataSize/1024, "executionTime", executionTime)
+	logger.V(1).Info("Query completed", "query", query.GetName(), "rows", totalRows, "KiloBytes", dataSize/1024, "executionTime", executionTime)
 
 	return &QueryResult{
 		Columns: columns,

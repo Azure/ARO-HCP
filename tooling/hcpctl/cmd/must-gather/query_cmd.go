@@ -16,7 +16,6 @@ package mustgather
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
@@ -36,7 +35,7 @@ func newQueryCommand() (*cobra.Command, error) {
 		SilenceErrors:    true,
 		TraverseChildren: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return opts.Run(cmd.Context(), false)
+			return opts.Run(cmd.Context())
 		},
 		CompletionOptions: cobra.CompletionOptions{
 			HiddenDefaultCmd: true,
@@ -58,23 +57,12 @@ func (opts *CompletedQueryOptions) RunQuery(ctx context.Context) error {
 		}
 	}()
 
-	queryOptions, err := mustgather.NewQueryOptions(opts.SubscriptionID, opts.ResourceGroup, opts.ResourceId, opts.TimestampMin, opts.TimestampMax, opts.Limit)
-	if err != nil {
-		return fmt.Errorf("failed to create query options: %w", err)
-	}
-
-	gatherer := mustgather.NewCliGatherer(opts.QueryClient, opts.OutputPath, ServicesLogDirectory, HostedControlPlaneLogDirectory, mustgather.GathererOptions{
-		QueryOptions:               queryOptions,
+	gatherer := mustgather.NewCliGatherer(opts.QueryClient, opts.OutputPath, ServicesLogDirectory, HostedControlPlaneLogDirectory, CustomLogsDirectory, mustgather.GathererOptions{
 		SkipHostedControlPlaneLogs: opts.SkipHostedControlPlaneLogs,
 		SkipKubernetesEventsLogs:   opts.SkipKubernetesEventsLogs,
 		CollectSystemdLogs:         opts.CollectSystemdLogs,
-		GatherInfraLogs:            false,
-	})
+		QueryOptions:               &opts.QueryOptions,
+	}, false)
 
-	err = gatherer.GatherLogs(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to gather logs: %w", err)
-	}
-
-	return nil
+	return gatherer.GatherLogs(ctx)
 }

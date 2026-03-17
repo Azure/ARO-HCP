@@ -85,7 +85,7 @@ func (o *ValidatedInfraQueryOptions) Complete(ctx context.Context) (*CompletedIn
 		return nil, err
 	}
 
-	if err := createOutputDirectories(o.OutputPath, true, false, false); err != nil {
+	if err := createOutputDirectories(o.OutputPath, true, false, false, true); err != nil {
 		return nil, err
 	}
 

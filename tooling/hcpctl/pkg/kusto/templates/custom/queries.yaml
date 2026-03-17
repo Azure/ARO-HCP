@@ -1,0 +1,32 @@
+- name: backendControllerConditions
+  database: ServiceLogs
+  queryType: custom-logs
+  templatePath: templates/custom/backend_controller_conditions.kql.gotmpl
+- name: clustersServicePhases
+  database: ServiceLogs
+  queryType: custom-logs
+  templatePath: templates/custom/clusters_service_phases.kql.gotmpl
+- name: debugQueries
+  database: ServiceLogs
+  queryType: custom-logs
+  children:
+    - name: debugFrontendLogs
+      templatePath: templates/custom/debug_frontend_logs.kql.gotmpl
+    - name: debugBackendConditions
+      templatePath: templates/custom/debug_backend_conditions.kql.gotmpl
+    - name: debugCsPhases
+      templatePath: templates/custom/debug_cs_phases.kql.gotmpl
+    - name: debugHypershiftConditions
+      templatePath: templates/custom/debug_hypershift_conditions.kql.gotmpl
+    - name: debugControlPlaneEvents
+      templatePath: templates/custom/debug_control_plane_events.kql.gotmpl
+- name: detailedServiceLogs
+  database: ServiceLogs
+  queryType: custom-logs
+  children:
+    - name: detailedApiLayerLogs
+      templatePath: templates/custom/detailed_api_layer_logs.kql.gotmpl
+    - name: detailedClusterMgmtLogs
+      templatePath: templates/custom/detailed_cluster_mgmt_logs.kql.gotmpl
+    - name: detailedInfraOrchestrationLogs
+      templatePath: templates/custom/detailed_infra_orchestration_logs.kql.gotmpl

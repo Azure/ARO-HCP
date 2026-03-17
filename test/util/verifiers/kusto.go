@@ -74,22 +74,19 @@ func (v verifyMustGatherLogsImpl) Verify(ctx context.Context) error {
 
 	queryClient := mustgather.NewQueryClientWithFileWriter(kustoClient, v.config.QueryTimeout, "", nil)
 
-	queryOptions, err := mustgather.NewQueryOptions(
-		v.config.SubscriptionID,
-		v.config.ResourceGroup,
-		"",                            // resourceId
-		time.Now().Add(-24*time.Hour), // timestampMin
-		time.Now(),                    // timestampMax
-		-1,                            // limit: -1 means no truncation
-	)
-	if err != nil {
-		return fmt.Errorf("failed to create query options: %w", err)
+	queryOptions := kusto.QueryOptions{
+		SubscriptionId:    v.config.SubscriptionID,
+		ResourceGroupName: v.config.ResourceGroup,
+		InfraClusterName:  "",
+		TimestampMin:      time.Now().Add(-24 * time.Hour),
+		TimestampMax:      time.Now(),
+		Limit:             -1,
 	}
 
 	foundLogSources := make(map[string]bool)
 	var foundMutex sync.Mutex
 
-	outputFunc := func(ctx context.Context, logLineChan chan *mustgather.NormalizedLogLine, queryType mustgather.QueryType, options mustgather.RowOutputOptions) error {
+	outputFunc := func(ctx context.Context, logLineChan chan *mustgather.NormalizedLogLine, options mustgather.RowOutputOptions) error {
 		for logLine := range logLineChan {
 			// Create a key for namespace/container combination
 			key := fmt.Sprintf("%s/%s", logLine.Namespace, logLine.ContainerName)
@@ -107,7 +104,7 @@ func (v verifyMustGatherLogsImpl) Verify(ctx context.Context) error {
 		mustgather.GathererOptions{
 			SkipHostedControlPlaneLogs: false,
 			SkipKubernetesEventsLogs:   true,
-			QueryOptions:               queryOptions,
+			QueryOptions:               &queryOptions,
 		},
 	)
 

@@ -103,24 +103,19 @@ func (c *KustoLogsCurrentCollector) CollectMetricValues(ctx context.Context) {
 
 		queryClient := mustgather.NewQueryClientWithFileWriter(c.kustoClient, KustoLogsCurrentQueryTimeout, "", nil)
 
-		queryOptions, err := mustgather.NewInfraQueryOptions(
-			clusterName,
-			time.Now().Add(-120*time.Minute),
-			time.Now(),
-			-1,
-		)
-		if err != nil {
-			c.errorCounter.Inc()
-			logger.Error(err, "Failed to create query options", "cluster", clusterName)
-			continue
+		queryOptions := kusto.QueryOptions{
+			InfraClusterName: clusterName,
+			TimestampMin:     time.Now().Add(-120 * time.Minute),
+			TimestampMax:     time.Now(),
+			Limit:            -1,
 		}
 
 		foundLogSources := make(map[string]time.Time)
 		var foundMutex sync.Mutex
 
-		outputFunc := func(ctx context.Context, logLineChan chan *mustgather.NormalizedLogLine, queryType mustgather.QueryType, options mustgather.RowOutputOptions) error {
+		outputFunc := func(ctx context.Context, logLineChan chan *mustgather.NormalizedLogLine, options mustgather.RowOutputOptions) error {
 			for logLine := range logLineChan {
-				key := logLine.TableName
+				key := logLine.QueryName
 				foundMutex.Lock()
 				if _, ok := foundLogSources[key]; !ok {
 					foundLogSources[key] = logLine.Timestamp
@@ -132,7 +127,7 @@ func (c *KustoLogsCurrentCollector) CollectMetricValues(ctx context.Context) {
 
 		gathererOptions := mustgather.GathererOptions{
 			GatherInfraLogs: true,
-			QueryOptions:    queryOptions,
+			QueryOptions:    &queryOptions,
 		}
 
 		gatherer := mustgather.NewGatherer(

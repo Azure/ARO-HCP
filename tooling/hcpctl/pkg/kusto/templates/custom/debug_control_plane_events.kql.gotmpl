@@ -1,0 +1,14 @@
+// Control Plane Events: these events expose what the management cluster is doing while running the Pods that make up the
+// control plane of the ARO HCP cluster.
+let _cs_cluster_id = toscalar(
+    database('ServiceLogs').table('clustersServiceLogs')
+    | where timestamp between ({{.TimestampMin | kqlDatetime}} .. {{.TimestampMax | kqlDatetime}})
+    | where resource_id has {{.ResourceGroupName}}
+    | where isnotempty(cid)
+    | distinct tostring(cid)
+    | limit 1
+);
+database('ServiceLogs').table('kubernetesEvents')
+| where timestamp between ({{.TimestampMin | kqlDatetime}} .. {{.TimestampMax | kqlDatetime}})
+| where eventNamespace has _cs_cluster_id
+| project timestamp, objectKind, objectName, reason, message, firstSeen, lastSeen
