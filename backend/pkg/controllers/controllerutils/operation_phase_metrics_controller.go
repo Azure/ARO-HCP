@@ -198,9 +198,9 @@ func (c *OperationPhaseMetricsController) setMetrics(ctx context.Context, op *ap
 	// Set current state.
 	promLabels := prometheus.Labels{
 		"resource_id_hash": hash,
-		"resource_type":     resourceType,
-		"operation_type":    operationType,
-		"phase":             phase,
+		"resource_type":    resourceType,
+		"operation_type":   operationType,
+		"phase":            phase,
 	}
 	c.phaseInfo.With(promLabels).Set(1.0)
 
