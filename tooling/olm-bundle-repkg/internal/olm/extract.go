@@ -104,7 +104,7 @@ func ExtractOLMManifestsDirectory(_ context.Context, manifestsDir string) (
 	objects []unstructured.Unstructured, reg convert.RegistryV1, err error,
 ) {
 	// Check if directory exists
-	if _, err := os.Stat(manifestsDir); os.IsNotExist(err) {
+	if _, err := os.Stat(manifestsDir); errors.Is(err, os.ErrNotExist) {
 		return nil, reg, fmt.Errorf("manifests directory does not exist: %s", manifestsDir)
 	}
 

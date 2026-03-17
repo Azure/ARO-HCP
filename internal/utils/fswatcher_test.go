@@ -16,6 +16,7 @@ package utils
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -55,7 +56,7 @@ func atomicUpdateFile(t *testing.T, dir, filename, version, content string) {
 	require.NoError(t, err)
 
 	secretLink := filepath.Join(dir, filename)
-	if _, err := os.Lstat(secretLink); os.IsNotExist(err) {
+	if _, err := os.Lstat(secretLink); errors.Is(err, os.ErrNotExist) {
 		err = os.Symlink(filepath.Join("..data", filename), secretLink)
 		require.NoError(t, err)
 	}

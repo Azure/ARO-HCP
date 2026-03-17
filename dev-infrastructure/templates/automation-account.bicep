@@ -154,7 +154,7 @@ module permissions '../modules/automation-account/permissions.bicep' = {
   }
 }
 
-module resouceCleanup '../modules/automation-account/runbook.bicep' = {
+module resourceCleanup '../modules/automation-account/runbook.bicep' = {
   name: 'resourceCleanup'
   params: {
     automationAccountName: automationAccount.outputs.name

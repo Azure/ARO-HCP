@@ -814,7 +814,7 @@ func (state *leasedIdentityPoolState) writeUnlocked() error {
 	}
 
 	cleanupTemp := func() {
-		if err := os.Remove(tmp.Name()); err != nil && !os.IsNotExist(err) {
+		if err := os.Remove(tmp.Name()); err != nil && !errors.Is(err, os.ErrNotExist) {
 			ginkgo.GinkgoLogr.Info("WARN: failed to remove temporary managed identities pool state file", "error", err)
 		}
 	}

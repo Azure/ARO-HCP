@@ -18,6 +18,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -94,7 +95,7 @@ var _ = Describe("Customer", func() {
 
 			By("checking pull secret file exists")
 			pullSecretFilePath := filepath.Join(tc.PullSecretPath(), "pull-secret")
-			if _, err := os.Stat(pullSecretFilePath); os.IsNotExist(err) {
+			if _, err := os.Stat(pullSecretFilePath); errors.Is(err, os.ErrNotExist) {
 				Skip(fmt.Sprintf("Pull secret file not found at %s, skipping test", pullSecretFilePath))
 			}
 

@@ -13,7 +13,7 @@ output azureKeyvaultSecretsProviderIdentityClientId string = aksCluster.properti
 
 output azureAksManagementClusterResourceId string = aksCluster.id
 
-// Why not retreive the account name from config/config.yaml?
+// Why not retrieve the account name from config/config.yaml?
 // Because the config could contain account name with an upper case (regionShortName), storage accounts must be lower case.
 resource hcpBackupsStorageAccount 'Microsoft.Storage/storageAccounts@2023-01-01' existing = {
   name: backupsStorageAccountName

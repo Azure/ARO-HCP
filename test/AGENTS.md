@@ -81,7 +81,7 @@
 
 * **Go Workspace:** Module tests are managed within a Go workspace, which means that the `go.sum` and `go.mod` files for all modules in the workspace maintain synchronized versions of their shared imported modules. The modules included in the Go Workspace are specified in the `go.work` file.
 * **Linting:** The ARO HCP project utilizes `golangci-lint` for linting. This is executed for Pull Requests via the `ci-go` GitHub workflow's `lint` step. To perform local linting, run make lint from the repository's root directory.
-* **Makefile:** The `Makefile` in the repository's root directory includes an `all-tidy` rule. This rule guarantees the correct implementation of the golang mechanisms and enforces the licence header.
+* **Makefile:** The `Makefile` in the repository's root directory includes an `all-tidy` rule. This rule guarantees the correct implementation of the golang mechanisms and enforces the license header.
 
 ## Azure Location
 

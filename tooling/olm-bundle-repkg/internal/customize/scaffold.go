@@ -15,6 +15,7 @@
 package customize
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -31,7 +32,7 @@ func LoadScaffoldTemplates(scaffoldDir string) ([]unstructured.Unstructured, err
 	}
 
 	// If a scaffold directory is explicitly provided, it must exist
-	if _, err := os.Stat(scaffoldDir); os.IsNotExist(err) {
+	if _, err := os.Stat(scaffoldDir); errors.Is(err, os.ErrNotExist) {
 		return nil, fmt.Errorf("scaffold directory does not exist: %s", scaffoldDir)
 	}
 

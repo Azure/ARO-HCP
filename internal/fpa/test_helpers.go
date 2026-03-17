@@ -22,6 +22,7 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"math/big"
 	"os"
@@ -111,7 +112,7 @@ func atomicUpdateCert(t *testing.T, dir, filename string, serialNumber int64) {
 	require.NoError(t, err)
 
 	secretLink := filepath.Join(dir, filename)
-	if _, err := os.Lstat(secretLink); os.IsNotExist(err) {
+	if _, err := os.Lstat(secretLink); errors.Is(err, os.ErrNotExist) {
 		err = os.Symlink(filepath.Join("..data", filename), secretLink)
 		require.NoError(t, err)
 	}
