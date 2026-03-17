@@ -289,8 +289,8 @@ func (c *GenericRegistryClient) GetArchSpecificDigest(ctx context.Context, repos
 			tag.Digest = desc.Digest.String()
 			tag.LastModified = extractTimestampFromMultiArchManifest(desc, tag.Name, tag.LastModified)
 			return &tag, nil
-		} else if !wantMultiArch && isMultiArch {
-			logger.V(2).Info("skipping multi-arch manifest", "tag", tag.Name, "mediaType", desc.MediaType)
+		} else if wantMultiArch != isMultiArch {
+			logger.V(2).Info("skipping manifest due to multiArch mismatch", "tag", tag.Name, "wantMultiArch", wantMultiArch, "isMultiArch", isMultiArch)
 			continue
 		}
 

@@ -188,8 +188,8 @@ func (c *ACRClient) GetArchSpecificDigest(ctx context.Context, repository string
 			logger.V(2).Info("found multi-arch manifest", "tag", tag.Name, "relatedArtifacts", len(manifest.RelatedArtifacts), "digest", tag.Digest)
 			tag.Version = extractVersionLabel(ctx, c.registryURL, repository, tag.Name, versionLabel, c.useAuth)
 			return &tag, nil
-		} else if !wantMultiArch && isMultiArch {
-			logger.V(2).Info("skipping multi-arch manifest", "tag", tag.Name, "relatedArtifacts", len(manifest.RelatedArtifacts))
+		} else if wantMultiArch != isMultiArch {
+			logger.V(2).Info("skipping manifest due to multiArch mismatch", "tag", tag.Name, "wantMultiArch", wantMultiArch, "isMultiArch", isMultiArch)
 			continue
 		}
 
