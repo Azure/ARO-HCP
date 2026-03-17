@@ -494,11 +494,12 @@ mgmt:
       zones: ""
     userAgentPool:
       maxCount: 14
-      minCount: 4
+      minCount: 3
       name: user
       osDiskSizeGB: 100
       poolCount: 3
-      vmSize: Standard_D8ds_v5
+      secondaryNicCount: 7
+      vmSize: Standard_D16ds_v5
       zoneRedundantMode: Auto
       zones: ""
     vnetAddressPrefix: 10.128.0.0/14

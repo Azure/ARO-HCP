@@ -501,6 +501,7 @@ defaults:
         poolCount: 3
         zones: ""
         zoneRedundantMode: "Auto"
+        secondaryNicCount: 7
       infraAgentPool:
         name: 'infra'
         minCount: 1
@@ -1066,7 +1067,7 @@ clouds:
           - '*.hcp.osadev.cloud'
           - '*.hcpsvc.osadev.cloud'
         aks:
-          # MGMTM AKS nodepools - big enough for 2 HCPs
+          # MGMTM AKS nodepools - big enough for 1 HCPs
           systemAgentPool:
             vmSize: 'Standard_E8s_v3'
             maxCount: 4
@@ -1075,6 +1076,7 @@ clouds:
             maxCount: 14
             vmSize: 'Standard_D4s_v3'
             osDiskSizeGB: 100
+            secondaryNicCount: 1
           infraAgentPool:
             poolCount: 2
             vmSize: 'Standard_D2s_v3'
@@ -1134,6 +1136,7 @@ clouds:
                 minCount: 1
                 maxCount: 3
                 vmSize: 'Standard_D16s_v3'
+                secondaryNicCount: 7
                 osDiskSizeGB: 128
           # DNS
           dns:
@@ -1186,6 +1189,7 @@ clouds:
                 minCount: 1
                 maxCount: 3
                 vmSize: 'Standard_D16s_v3'
+                secondaryNicCount: 7
                 osDiskSizeGB: 128
           # Geneva
           geneva:
@@ -1308,6 +1312,7 @@ clouds:
                 maxCount: 6
                 osDiskSizeGB: 100
                 vmSize: Standard_D4s_v3
+                secondaryNicCount: 1
             jaeger:
               deploy: false
             applyKubeletFixes: false
@@ -1342,6 +1347,7 @@ clouds:
                 maxCount: 3
                 vmSize: 'Standard_D16s_v3'
                 osDiskSizeGB: 128
+                secondaryNicCount: 7
         regions:
           westus3:
             monitoring:
@@ -1391,6 +1397,7 @@ clouds:
                 maxCount: 3
                 vmSize: 'Standard_D16s_v3'
                 osDiskSizeGB: 128
+                secondaryNicCount: 7
               enableSwiftV2Vnet: true
               enableSwiftV2Nodepools: true
             jaeger:
@@ -1465,9 +1472,10 @@ clouds:
                 vmSize: Standard_D4ds_v5
               userAgentPool:
                 maxCount: 14
-                minCount: 4
+                minCount: 3
                 osDiskSizeGB: 100
-                vmSize: Standard_D8ds_v5
+                vmSize: Standard_D16ds_v5
+                secondaryNicCount: 7
               infraAgentPool:
                 vmSize: Standard_D4ds_v5
             jaeger:

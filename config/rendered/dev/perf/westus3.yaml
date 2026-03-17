@@ -498,6 +498,7 @@ mgmt:
       name: user
       osDiskSizeGB: 128
       poolCount: 3
+      secondaryNicCount: 7
       vmSize: Standard_D16s_v3
       zoneRedundantMode: Auto
       zones: ""
