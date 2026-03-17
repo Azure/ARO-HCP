@@ -1,12 +1,12 @@
 acm:
   mce:
     bundle:
-      digest: sha256:15ce23b87cee8014f12413de4da05c2412daccec57a25470df578b0055ac9d31
+      digest: sha256:d97de97f8884e460d2b5d1ffa4ea334785ce2c95e97c748b0dd02604d44d25c4
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-210
   operator:
     bundle:
-      digest: sha256:0ba7a7e214131dbdbf0b7a700a3108fef99557001b232e2d06bedbf71700839c
+      digest: sha256:4a197502b8bb4b1196f4602f8d93ef4f244c05a85421a9a3ee9cd555668431fe
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-215
 acr:
@@ -35,7 +35,7 @@ adminApi:
     issuer: Self
     name: admin-api-cert-perf-usw3ptest
   image:
-    digest: sha256:201e349115055b99c24f5906f41362fdd574492d2cb21f2f95e144e112b5d59a
+    digest: sha256:5d228d696b15f4599795cc0cc478f54507d1cd024f190127ed1e90abd7882472
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpadminapi
   k8s:
@@ -78,7 +78,7 @@ backend:
     tlsCertificatesIssuer: Self
   exitOnPanic: true
   image:
-    digest: sha256:425c9d259241082a09cbf050197b46fb9f59366e2172ae694365f3e3cedaeae2
+    digest: sha256:9d1b0d272b22e3ec3fb4cd7b1bfef604ce64d37b7632155331394dedf80ce286
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpbackend
   k8s:
@@ -137,7 +137,7 @@ clustersService:
   deployDebugJobs: false
   environment: arohcpperf
   image:
-    digest: sha256:6ec7ecb11515ea6f8be560c4c043b518ef5c5ccc2a0aaafb2a45ee79c25a9d80
+    digest: sha256:9ef5542559db90cb995b02a11c0dc34395c5161269cb9dd05eae95ef2362f866
     registry: quay.io
     repository: app-sre/aro-hcp-clusters-service
   k8s:
@@ -183,7 +183,7 @@ clustersService:
     exporter: ""
 customExporter:
   image:
-    digest: sha256:e396b4ebace09185189b552300387e4274f5eb6d710371c0f61d0cccd96a6931
+    digest: sha256:51eeeaa1ec6d6ca582d79db35592978d25f2bece1fa8cb1dbdf754090476cfb3
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpmetrics
   k8s:
@@ -239,7 +239,7 @@ frontend:
     zoneRedundantMode: Auto
   exitOnPanic: true
   image:
-    digest: sha256:3baf7a67f595291c09786db2a979756177a1b751bca7ed19891ddd0e4e1b4bcf
+    digest: sha256:692e12c47525eadf69429f1ce29c29db9932bf46e273b9356eeb4f766241798c
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpfrontend
   k8s:
@@ -348,7 +348,7 @@ global:
 hypershift:
   additionalInstallArg: --enable-cpo-overrides
   image:
-    digest: sha256:98bc83c5fda9a3e95017a11c8b4e0e683a0bd46b102910577c09a5e50b483f84
+    digest: sha256:d3ef62e1dc9dc4d7d00559116e2b3b390105545135525b60f711f9de30ae6310
     registry: quay.io
     repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
   limitClusterSizes: true
@@ -359,7 +359,7 @@ imageSync:
   ocMirror:
     enabled: true
     image:
-      digest: sha256:613c7d4cc714ddeefe94a9d497ae3bf2a0be7c1562acc772120657a15b1c112c
+      digest: sha256:7a943490447c4c1b05ba71bc1f817084d3a33d8dbd7cd67681621557c0268517
       registry: arohcpsvcdev.azurecr.io
       repository: image-sync/oc-mirror
     jobNamePrefix: ""
@@ -541,7 +541,7 @@ mgmt:
       image:
         registry: mcr.microsoft.com/oss/v2
         repository: prometheus/prometheus
-        sha: dca4b35f73046dc4803c0160c2e6be5a1736a716b26ef35590864d36dfdf950a
+        sha: 62546012f4aea03c3df3ebd93926d54f7453c90a6fffb6a9f1241730d1f8ba11
       replicas: 2
       resources:
         limits:
@@ -740,7 +740,7 @@ sessiongate:
     issuer: Self
     name: sessiongate-cert-perf-usw3ptest
   image:
-    digest: sha256:7562d74ab589eff988663354f1eed71ee77bf545c870fd0dee8c1a217753f9be
+    digest: sha256:3e48f337997a67fd744044bfb87bd2c2fc75f685838cce8bb23118cc23bb99db
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpsessiongate
   k8s:
@@ -834,7 +834,7 @@ svc:
       image:
         registry: mcr.microsoft.com/oss/v2
         repository: prometheus/prometheus
-        sha: dca4b35f73046dc4803c0160c2e6be5a1736a716b26ef35590864d36dfdf950a
+        sha: 62546012f4aea03c3df3ebd93926d54f7453c90a6fffb6a9f1241730d1f8ba11
       replicas: 2
       resources:
         limits:
