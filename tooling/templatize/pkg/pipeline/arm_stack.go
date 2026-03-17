@@ -16,7 +16,10 @@ package pipeline
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
+	"strings"
 
 	"github.com/go-logr/logr"
 
@@ -29,8 +32,50 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 )
 
-// runArmStackStep transforms a .bicep + .bicepparam into an ARM deployment stack, creates or updates the stack based on the
-// step name, and waits for the stack to finish deploying. This logic is a transliteration of the equivalent logic in the `az` CLI:
+// generateDeploymentStackName creates a deployment stack name based on:
+// service group / resource group / step name / cloud / env / region / stamp
+// This ensures the name is stable over time while being unique across deployment contexts.
+// The full name is hashed to ensure it fits within Azure's 90-character limit for deployment stack names.
+func generateDeploymentStackName(serviceGroup, resourceGroup, stepName, cloud, environment, region, stamp string) string {
+	parts := []string{
+		serviceGroup,
+		resourceGroup,
+		stepName,
+		cloud,
+		environment,
+		region,
+		stamp,
+	}
+
+	fullName := strings.Join(parts, "-")
+
+	// Azure deployment stack names have a 90-character limit
+	// If the full name exceeds this, use a readable prefix + hash for uniqueness
+	const maxLength = 90
+	const hashLength = 12
+
+	if len(fullName) <= maxLength {
+		return fullName
+	}
+
+	// Create a hash of the full name for uniqueness
+	hash := sha256.Sum256([]byte(fullName))
+	hashStr := hex.EncodeToString(hash[:])[:hashLength]
+
+	// Use as much of the full name as possible while leaving room for separator and hash
+	prefixLength := maxLength - hashLength - 1 // -1 for the separator dash
+	prefix := fullName
+	if len(fullName) > prefixLength {
+		prefix = fullName[:prefixLength]
+	}
+
+	return prefix + "-" + hashStr
+}
+
+// runArmStackStep transforms a .bicep + .bicepparam into an ARM deployment stack. The deployment stack name is
+// generated from: service group / resource group / step name / cloud / env / region / stamp. This ensures the
+// name remains stable over time (required for deployment stacks) while being unique across environments and regions.
+// This logic is a transliteration of the equivalent logic in the `az` CLI:
 // https://github.com/Azure/azure-cli/blob/cf11272c36d2680a65bd775e10d338afa3a8b902/src/azure-cli/azure/cli/command_modules/resource/custom.py#L1396-L1405
 func runArmStackStep(
 	ctx context.Context,
@@ -39,6 +84,8 @@ func runArmStackStep(
 	id graph.Identifier,
 	step *types.ARMStackStep,
 	state *ExecutionState,
+	environment string,
+	stamp string,
 ) (Output, DetailsProducer, error) {
 	logger := logr.FromContextOrDiscard(ctx)
 
@@ -62,6 +109,17 @@ func runArmStackStep(
 	if err := ensureResourceGroupExists(ctx, resourceGroupClient, executionTarget.GetRegion(), executionTarget.GetResourceGroup(), !options.NoPersist); err != nil {
 		return nil, nil, fmt.Errorf("failed to ensure resource group exists: %w", err)
 	}
+
+	// Generate deployment stack name using the full context
+	deploymentStackName := generateDeploymentStackName(
+		id.ServiceGroup,
+		id.ResourceGroup,
+		step.StepName(),
+		options.Cloud,
+		environment,
+		executionTarget.GetRegion(),
+		stamp,
+	)
 
 	state.RLock()
 	inputValues, err := getInputValues(id.ServiceGroup, step.Variables, options.Configuration, state.Outputs)
@@ -109,7 +167,7 @@ func runArmStackStep(
 		Stack:           &stack,
 		DeploymentLevel: step.DeploymentLevel,
 		ResourceGroup:   executionTarget.GetResourceGroup(),
-		StepName:        step.StepName(),
+		StepName:        deploymentStackName,
 	}
 
 	_, skip, commit, err := checkCachedOutput[ArmOutput](logger, inputs, options.StepCacheDir)
@@ -124,9 +182,9 @@ func runArmStackStep(
 	var details DetailsProducer
 	switch step.DeploymentLevel {
 	case "Subscription":
-		details = DetermineOperationsForSubscriptionDeployment(operationsClient, step.StepName())
+		details = DetermineOperationsForSubscriptionDeployment(operationsClient, deploymentStackName)
 		stack.Location = ptr.To(executionTarget.GetRegion())
-		poller, err := stackClient.BeginCreateOrUpdateAtSubscription(ctx, step.StepName(), stack, nil)
+		poller, err := stackClient.BeginCreateOrUpdateAtSubscription(ctx, deploymentStackName, stack, nil)
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to create or update deployment stack at subscription scope: %w", err)
 		}
@@ -136,8 +194,8 @@ func runArmStackStep(
 		}
 		output = result.DeploymentStack
 	case "ResourceGroup":
-		details = DetermineOperationsForResourceGroupDeployment(operationsClient, executionTarget.GetResourceGroup(), step.StepName())
-		poller, err := stackClient.BeginCreateOrUpdateAtResourceGroup(ctx, executionTarget.GetResourceGroup(), step.StepName(), stack, nil)
+		details = DetermineOperationsForResourceGroupDeployment(operationsClient, executionTarget.GetResourceGroup(), deploymentStackName)
+		poller, err := stackClient.BeginCreateOrUpdateAtResourceGroup(ctx, executionTarget.GetResourceGroup(), deploymentStackName, stack, nil)
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to create or update deployment stack at resource group scope: %w", err)
 		}

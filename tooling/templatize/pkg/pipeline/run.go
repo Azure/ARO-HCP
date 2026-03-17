@@ -59,6 +59,8 @@ type PipelineRunOptions struct {
 
 	Step                  string
 	Region                string
+	Environment           string
+	Stamp                 string
 	SubsciptionLookupFunc SubscriptionLookup
 
 	TopologyDir string
@@ -87,6 +89,8 @@ type StepRunOptions struct {
 	BaseRunOptions
 	PipelineDirectory string
 	RetryAttempt      int // 0 for first attempt, >0 for retries
+	Environment       string
+	Stamp             string
 }
 
 type Output interface {
@@ -677,6 +681,8 @@ func executeNode(logger logr.Logger, executor Executor, graphCtx *graph.Graph, n
 				BaseRunOptions:    options.BaseRunOptions,
 				PipelineDirectory: filepath.Join(options.TopologyDir, filepath.Dir(graphCtx.Services[node.ServiceGroup].PipelinePath)),
 				RetryAttempt:      runCount,
+				Environment:       options.Environment,
+				Stamp:             options.Stamp,
 			}, state)
 			runCount++
 			if shouldRetryError(logger, step, stepRunErr) {
@@ -816,7 +822,7 @@ func RunStep(id graph.Identifier, s types.Step, ctx context.Context, executionTa
 		}
 		return output, details, nil
 	case *types.ARMStackStep:
-		output, details, err := runArmStackStep(ctx, options, executionTarget, id, step, state)
+		output, details, err := runArmStackStep(ctx, options, executionTarget, id, step, state, options.Environment, options.Stamp)
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to run ARM step: %w", err)
 		}

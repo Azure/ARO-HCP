@@ -145,6 +145,8 @@ func TestMockedPipelineRun(t *testing.T) {
 		BaseRunOptions: BaseRunOptions{
 			BicepClient: lspClient,
 		},
+		Environment: "test-env",
+		Stamp:       "1",
 		SubsciptionLookupFunc: func(_ context.Context, _ string) (string, error) {
 			return "test", nil
 		},
@@ -298,6 +300,8 @@ func TestMockedPipelineRunError(t *testing.T) {
 		BaseRunOptions: BaseRunOptions{
 			BicepClient: lspClient,
 		},
+		Environment: "test-env",
+		Stamp:       "1",
 		SubsciptionLookupFunc: func(_ context.Context, _ string) (string, error) {
 			return "test", nil
 		},
@@ -361,6 +365,8 @@ func TestPipelineRun(t *testing.T) {
 				TEST_SUBSCRIPTION_ID: "test",
 			},
 		},
+		Environment: "test-env",
+		Stamp:       "1",
 		SubsciptionLookupFunc: func(_ context.Context, _ string) (string, error) {
 			return "test", nil
 		},
