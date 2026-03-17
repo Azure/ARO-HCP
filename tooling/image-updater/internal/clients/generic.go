@@ -251,6 +251,8 @@ func (c *GenericRegistryClient) GetArchSpecificDigest(ctx context.Context, repos
 					logger.V(2).Info("extracted version from label", "tag", tag.Name, "label", versionLabel, "version", tag.Version)
 				}
 			}
+		} else if desc.MediaType.IsIndex() {
+			tag.LastModified = extractTimestampFromMultiArchManifest(desc, tag.Name, tag.LastModified)
 		}
 
 		tag.Digest = desc.Digest.String()
