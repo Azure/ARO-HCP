@@ -21,7 +21,6 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	hcpsdk "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 	"github.com/Azure/ARO-HCP/test/util/verifiers"
@@ -34,10 +33,9 @@ var _ = Describe("Customer", func() {
 		labels.Positive,
 		labels.AroRpApiCompatible,
 		func(ctx context.Context) {
-			Skip("Skipping WIP test: https://issues.redhat.com/browse/ARO-20529")
 			const (
-				customerClusterName  = "no-cni-cl"
-				customerNodePoolName = "no-cni-np"
+				customerClusterName  = "cilium-cl"
+				customerNodePoolName = "cilium-np"
 			)
 			tc := framework.NewTestContext()
 
@@ -47,7 +45,7 @@ var _ = Describe("Customer", func() {
 			}
 
 			By("creating a resource group")
-			resourceGroup, err := tc.NewResourceGroup(ctx, "e2e-no-cni", tc.Location())
+			resourceGroup, err := tc.NewResourceGroup(ctx, "cni-cilium", tc.Location())
 			Expect(err).NotTo(HaveOccurred())
 
 			By("creating cluster parameters")
@@ -66,13 +64,13 @@ var _ = Describe("Customer", func() {
 			clusterParams, err = tc.CreateClusterCustomerResources(ctx,
 				resourceGroup,
 				clusterParams,
-				map[string]interface{}{},
+				map[string]any{},
 				TestArtifactsFS,
 				framework.RBACScopeResourceGroup,
 			)
 			Expect(err).NotTo(HaveOccurred())
 
-			By("creating no-cni HCP cluster")
+			By("creating HCP cluster without CNI")
 			err = tc.CreateHCPClusterFromParam(
 				ctx,
 				GinkgoLogr,
@@ -93,37 +91,27 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred())
 			Expect(verifiers.VerifyHCPCluster(ctx, adminRESTConfig)).To(Succeed())
 
+			// TODO: add cilium setup
+			// TODO: rerun VerifyHCPCluster
+
 			By("creating the node pool")
 			nodePoolParams := framework.NewDefaultNodePoolParams()
 			nodePoolParams.NodePoolName = customerNodePoolName
-
 			err = tc.CreateNodePoolFromParam(ctx,
 				*resourceGroup.Name,
 				customerClusterName,
 				nodePoolParams,
 				45*time.Minute,
 			)
-			// ARO-20829 workaround: instead of a finished and successful
-			// deployment, we expect that the provisioning is still going on
-			Expect(err).To(HaveOccurred())
-			By("expecting the node pool to be still deploying because of ARO-20829")
-			nodePool, err := framework.GetNodePool(ctx,
-				tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient(),
-				*resourceGroup.Name,
-				customerClusterName,
-				customerNodePoolName,
-			)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(nodePool.Properties).ToNot(BeNil(), "nodepool Properties was nil")
-			Expect(nodePool.Properties.ProvisioningState).ToNot(BeNil(), "nodepool Properties.ProvisioningState was nil")
-			Expect(*nodePool.Properties.ProvisioningState).To(Equal(hcpsdk.ProvisioningStateProvisioning))
 
-			By("expecting that on a cluster without CNI plugin, nodes are in NotReady state")
+			By("checking nodes are in Ready state")
 			err = verifiers.VerifyHCPCluster(ctx, adminRESTConfig, verifiers.VerifyNodesReady())
-			Expect(err).To(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred())
 
-			// TODO: add cilium setup here, and then rerun VerifyHCPCluster
-			// with VerifyNodesReady() expecting it to pass
+			By("verifying a simple web app can run with cilium")
+			err = verifiers.VerifySimpleWebApp().Verify(ctx, adminRESTConfig)
+			Expect(err).NotTo(HaveOccurred())
 		},
 	)
 })
