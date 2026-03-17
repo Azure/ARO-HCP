@@ -28,6 +28,8 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/sync/errgroup"
 
+	azkquery "github.com/Azure/azure-kusto-go/azkustodata/query"
+
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/kusto"
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/mustgather"
 )
@@ -121,10 +123,10 @@ func executeKubeSystemHostedControlPlaneLogsQuery(ctx context.Context, opts *Com
 }
 
 func castQueryAndWriteToFile(ctx context.Context, opts *CompletedQueryOptions, targetDirectory string, queries []*kusto.ConfigurableQuery) error {
-	castFunction := func(input kusto.TaggedRow) (*LegacyNormalizedLogLine, error) {
+	castFunction := func(input azkquery.Row) (*LegacyNormalizedLogLine, error) {
 		// can directly cast, cause the row is already normalized
 		legacyLogLine := &KubesystemLogsRow{}
-		if err := input.Row.ToStruct(legacyLogLine); err != nil {
+		if err := input.ToStruct(legacyLogLine); err != nil {
 			return nil, fmt.Errorf("failed to convert row to struct: %w", err)
 		}
 		err := processKubesystemLogsRow(legacyLogLine)
@@ -168,8 +170,9 @@ func GetKubeSystemHostedControlPlaneLogsQuery(opts *CompletedQueryOptions) []*ku
 	return queries
 }
 
-func queryAndWriteToFile(ctx context.Context, opts *CompletedQueryOptions, targetDirectory string, castFunction func(input kusto.TaggedRow) (*LegacyNormalizedLogLine, error), queries []*kusto.ConfigurableQuery) error {
-	queryOutputChannel := make(chan kusto.TaggedRow)
+func queryAndWriteToFile(ctx context.Context, opts *CompletedQueryOptions, targetDirectory string, castFunction func(input azkquery.Row) (*LegacyNormalizedLogLine, error), queries []*kusto.ConfigurableQuery) error {
+	// logger := logr.FromContextOrDiscard(ctx)
+	queryOutputChannel := make(chan azkquery.Row)
 
 	queryGroup := new(errgroup.Group)
 	queryGroup.Go(func() error {
@@ -191,11 +194,11 @@ func queryAndWriteToFile(ctx context.Context, opts *CompletedQueryOptions, targe
 	return nil
 }
 
-func writeNormalizedLogsToFile(outputChannel chan kusto.TaggedRow, castFunction func(input kusto.TaggedRow) (*LegacyNormalizedLogLine, error), outputPath string, directory string) error {
+func writeNormalizedLogsToFile(outputChannel chan azkquery.Row, castFunction func(input azkquery.Row) (*LegacyNormalizedLogLine, error), outputPath string, directory string) error {
 	openedFiles := make(map[string]*os.File)
 	var allErrors error
-	for tagged := range outputChannel {
-		normalizedRow, err := castFunction(tagged)
+	for row := range outputChannel {
+		normalizedRow, err := castFunction(row)
 		if err != nil {
 			return fmt.Errorf("failed to cast row: %w", err)
 		}
@@ -217,14 +220,14 @@ func writeNormalizedLogsToFile(outputChannel chan kusto.TaggedRow, castFunction 
 }
 
 func executeClusterIdQuery(ctx context.Context, opts *CompletedQueryOptions, query *kusto.ConfigurableQuery) ([]string, error) {
-	outputChannel := make(chan kusto.TaggedRow)
+	outputChannel := make(chan azkquery.Row)
 	allClusterIds := make([]string, 0)
 
 	g := new(errgroup.Group)
 	g.Go(func() error {
 		for row := range outputChannel {
 			cidRow := &mustgather.ClusterIdRow{}
-			if err := row.Row.ToStruct(cidRow); err != nil {
+			if err := row.ToStruct(cidRow); err != nil {
 				return fmt.Errorf("failed to convert row to struct: %w", err)
 			}
 			if cidRow.ClusterId != "" {

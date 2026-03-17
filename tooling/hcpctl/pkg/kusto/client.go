@@ -27,7 +27,7 @@ import (
 )
 
 type KustoClient interface {
-	ExecutePreconfiguredQuery(ctx context.Context, query *ConfigurableQuery, outputChannel chan<- TaggedRow) (*QueryResult, error)
+	ExecutePreconfiguredQuery(ctx context.Context, query *ConfigurableQuery, outputChannel chan<- azkquery.Row) (*QueryResult, error)
 	Close() error
 }
 
@@ -51,11 +51,6 @@ type QueryStats struct {
 	ExecutionTime time.Duration
 	TotalRows     int
 	DataSize      int64
-}
-
-type TaggedRow struct {
-	Row       azkquery.Row
-	QueryName string
 }
 
 func KustoEndpoint(clusterName, region string) (*url.URL, error) {
@@ -91,7 +86,7 @@ func NewClient(endpoint *url.URL, queryTimeout time.Duration) (*Client, error) {
 }
 
 // ExecutePreconfiguredQuery executes a KQL query against the Azure Data Explorer cluster
-func (c *Client) ExecutePreconfiguredQuery(ctx context.Context, query *ConfigurableQuery, outputChannel chan<- TaggedRow) (*QueryResult, error) {
+func (c *Client) ExecutePreconfiguredQuery(ctx context.Context, query *ConfigurableQuery, outputChannel chan<- azkquery.Row) (*QueryResult, error) {
 	queryCtx, cancel := context.WithTimeout(ctx, c.QueryTimeout)
 	defer cancel()
 
@@ -143,7 +138,7 @@ func (c *Client) ExecutePreconfiguredQuery(ctx context.Context, query *Configura
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
-		case outputChannel <- TaggedRow{Row: row, QueryName: query.Name}:
+		case outputChannel <- row:
 		}
 		totalRows++
 		dataSize += int64(len(fmt.Sprintf("%v", row)))

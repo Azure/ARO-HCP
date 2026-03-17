@@ -26,6 +26,8 @@ import (
 	"github.com/go-logr/logr"
 	"golang.org/x/sync/errgroup"
 
+	azkquery "github.com/Azure/azure-kusto-go/azkustodata/query"
+
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/kusto"
 )
 
@@ -76,7 +78,6 @@ type NormalizedLogLine struct {
 	Namespace     string    `kusto:"namespace_name"`
 	ContainerName string    `kusto:"container_name"`
 	Timestamp     time.Time `kusto:"timestamp"`
-	TableName     string    // source Kusto table, set by the gatherer pipeline
 }
 
 // GathererOptions represents the options for the Gatherer
@@ -221,7 +222,7 @@ func NewGatherer(queryClient QueryClientInterface, outputFunc RowOutputFunc, out
 		outputFunc:    outputFunc,
 		outputOptions: outputOptions,
 		opts:          opts,
-		infraLogsOnly: opts.GatherInfraLogs,
+		infraLogsOnly: false,
 	}
 }
 
@@ -397,7 +398,7 @@ func (g *Gatherer) gatherInfraLogs(ctx context.Context) error {
 }
 
 func (g *Gatherer) executeQueryAndConvert(ctx context.Context, query *kusto.ConfigurableQuery, targetRow any) ([]any, error) {
-	outputChannel := make(chan kusto.TaggedRow)
+	outputChannel := make(chan azkquery.Row)
 	allRows := make([]any, 0)
 
 	group := new(errgroup.Group)
@@ -406,13 +407,13 @@ func (g *Gatherer) executeQueryAndConvert(ctx context.Context, query *kusto.Conf
 			switch targetRow := targetRow.(type) {
 			case ClusterIdRow:
 				cidRow := targetRow
-				if err := row.Row.ToStruct(&cidRow); err != nil {
+				if err := row.ToStruct(&cidRow); err != nil {
 					return fmt.Errorf("failed to convert row to struct: %w", err)
 				}
 				allRows = append(allRows, cidRow)
 			case ClusterNameRow:
 				clusterNameRow := targetRow
-				if err := row.Row.ToStruct(&clusterNameRow); err != nil {
+				if err := row.ToStruct(&clusterNameRow); err != nil {
 					return fmt.Errorf("failed to convert row to struct: %w", err)
 				}
 				allRows = append(allRows, clusterNameRow)
@@ -439,10 +440,10 @@ func (g *Gatherer) executeQueryAndConvert(ctx context.Context, query *kusto.Conf
 
 func (g *Gatherer) queryAndWriteToFile(ctx context.Context, queryType QueryType, queries []*kusto.ConfigurableQuery) error {
 	logger := logr.FromContextOrDiscard(ctx)
-	queryOutputChannel := make(chan kusto.TaggedRow)
+	queryOutputChannel := make(chan azkquery.Row)
 	logLineChan := make(chan *NormalizedLogLine)
 
-	logger.V(6).Info("Executing query", "queryType", queryType, "queries", len(queries))
+	logger.V(6).Info("Executing query", "queryType", queryType, "queries", len(queries), "queries", queries)
 
 	queryGroup, queryCtx := errgroup.WithContext(ctx)
 	queryGroup.Go(func() error {
@@ -467,24 +468,23 @@ func (g *Gatherer) queryAndWriteToFile(ctx context.Context, queryType QueryType,
 	return nil
 }
 
-func (g *Gatherer) convertRows(ctx context.Context, rowChannel <-chan kusto.TaggedRow, outPutChannel chan<- *NormalizedLogLine) error {
+func (g *Gatherer) convertRows(ctx context.Context, rowChannel <-chan azkquery.Row, outPutChannel chan<- *NormalizedLogLine) error {
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case tagged, ok := <-rowChannel:
+		case row, ok := <-rowChannel:
 			if !ok {
 				return nil
 			}
 			normalizedLogLine := &NormalizedLogLine{}
-			if err := tagged.Row.ToStruct(normalizedLogLine); err != nil {
+			if err := row.ToStruct(normalizedLogLine); err != nil {
 				return fmt.Errorf("failed to convert row to struct: %w", err)
 			}
-			normalizedLogLine.TableName = tagged.QueryName
 			select {
 			case <-ctx.Done():
 				return ctx.Err()
-			case outPutChannel <- normalizedLogLine:
+			case outPutChannel <- normalizedLogLine: // now interruptible
 			}
 		}
 	}

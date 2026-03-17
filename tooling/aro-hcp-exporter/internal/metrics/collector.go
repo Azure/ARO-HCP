@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 
@@ -25,6 +26,23 @@ type CachingCollector interface {
 	Collect(ch chan<- prometheus.Metric)
 	// CollectMetricValues is a loop that collects metrics from the source and adds them to the cache
 	CollectMetricValues(ctx context.Context)
+}
+
+// CreateEnabledCollectors creates a list of enabled collectors
+// It iterates over the enabled collectors and creates the corresponding collector
+func CreateEnabledCollectors(ctx context.Context, subscriptionNames []string, creds azcore.TokenCredential, cacheTTL time.Duration, enabledCollectors []string) ([]CachingCollector, error) {
+	var collectors []CachingCollector
+	for _, collector := range enabledCollectors {
+		switch collector {
+		case ServiceTagUsageCollectorName:
+			publicIPCollector, err := NewServiceTagUsageCollector(ctx, subscriptionNames, creds, cacheTTL)
+			if err != nil {
+				return nil, fmt.Errorf("failed to create public IP collector: %w", err)
+			}
+			collectors = append(collectors, publicIPCollector)
+		}
+	}
+	return collectors, nil
 }
 
 func getSubscriptionIDs(ctx context.Context, creds azcore.TokenCredential, subscriptionNames []string) ([]string, error) {
