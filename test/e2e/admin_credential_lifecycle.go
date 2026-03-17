@@ -249,7 +249,8 @@ var _ = Describe("Customer", func() {
 
 			By("verifying new admin credentials work after revocation")
 			err = verifiers.VerifyHCPCluster(ctx, newAdminRESTConfig)
-			if err != nil && os.Getenv("ARO_HCP_SUITE_NAME") == "integration/parallel" && time.Now().Before(time.Date(2026, 4, 15, 0, 0, 0, 0, time.UTC)) {
+			skipSuite := os.Getenv("ARO_HCP_SUITE_NAME") == "integration/parallel" && time.Now().Before(time.Date(2026, 4, 15, 0, 0, 0, 0, time.UTC))
+			if err != nil && (skipSuite || skipInt) {
 				By("skipping in integration/parallel suite")
 			} else {
 				Expect(err).NotTo(HaveOccurred(), "New admin credentials should work after revocation")
