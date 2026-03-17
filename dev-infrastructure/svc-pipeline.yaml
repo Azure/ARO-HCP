@@ -533,6 +533,10 @@ resourceGroups:
     - resourceGroup: service
       step: mirror-exporter-image
     inputVariables:
+      kustoRegion:
+        resourceGroup: kusto
+        step: output
+        name: kustoRegion
       msiClientId:
         resourceGroup: service
         step: exporter-output

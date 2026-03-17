@@ -48,14 +48,15 @@ func (noWatchListLW) IsWatchListSemanticsUnSupported() bool { return true }
 const (
 	// These durations indicate the maximum time it will take for us to notice a new instance of a particular type.
 	// Remember that these will not fire in order, so it's entirely possible to get an operation for subscription we have no observed.
-	SubscriptionRelistDuration            = 30 * time.Second
-	ClusterRelistDuration                 = 30 * time.Second
-	NodePoolRelistDuration                = 30 * time.Second
-	ExternalAuthRelistDuration            = 30 * time.Second
-	ServiceProviderClusterRelistDuration  = 30 * time.Second
-	ServiceProviderNodePoolRelistDuration = 30 * time.Second
-	ControllerRelistDuration              = 30 * time.Second
-	ActiveOperationsRelistDuration        = 10 * time.Second
+	SubscriptionRelistDuration             = 30 * time.Second
+	ClusterRelistDuration                  = 30 * time.Second
+	NodePoolRelistDuration                 = 30 * time.Second
+	ExternalAuthRelistDuration             = 30 * time.Second
+	ServiceProviderClusterRelistDuration   = 30 * time.Second
+	ServiceProviderNodePoolRelistDuration  = 30 * time.Second
+	ControllerRelistDuration               = 30 * time.Second
+	ManagementClusterContentRelistDuration = 30 * time.Second
+	ActiveOperationsRelistDuration         = 10 * time.Second
 )
 
 // NewSubscriptionInformer creates an unstarted SharedIndexInformer for subscriptions
@@ -288,6 +289,54 @@ func NewServiceProviderClusterInformerWithRelistDuration(lister database.GlobalL
 	return cache.NewSharedIndexInformerWithOptions(
 		noWatchListLW{lw},
 		&api.ServiceProviderCluster{},
+		cache.SharedIndexInformerOptions{
+			ResyncPeriod: 1 * time.Hour, // this is only a default.  Shorter resyncs can be added when registering handlers.
+			Indexers: cache.Indexers{
+				listers.ByCluster: clusterResourceIDIndexFunc,
+			},
+		},
+	)
+}
+
+// NewManagementClusterContentInformer creates an unstarted SharedIndexInformer for management cluster contents
+// with a cluster index using the default relist duration.
+func NewManagementClusterContentInformer(lister database.GlobalLister[api.ManagementClusterContent]) cache.SharedIndexInformer {
+	return NewManagementClusterContentInformerWithRelistDuration(lister, ManagementClusterContentRelistDuration)
+}
+
+// NewManagementClusterContentInformerWithRelistDuration creates an unstarted SharedIndexInformer for management cluster contents
+// with a cluster index and a configurable relist duration.
+func NewManagementClusterContentInformerWithRelistDuration(lister database.GlobalLister[api.ManagementClusterContent], relistDuration time.Duration) cache.SharedIndexInformer {
+	lw := &cache.ListWatch{
+		ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
+			logger := utils.LoggerFromContext(ctx)
+			logger.Info("listing management cluster contents")
+			defer logger.Info("finished listing management cluster contents")
+
+			iter, err := lister.List(ctx, nil)
+			if err != nil {
+				return nil, err
+			}
+
+			list := &api.ManagementClusterContentList{}
+			list.ResourceVersion = "0"
+			for _, mcc := range iter.Items(ctx) {
+				list.Items = append(list.Items, *mcc)
+			}
+			if err := iter.GetError(); err != nil {
+				return nil, err
+			}
+
+			return list, nil
+		},
+		WatchFuncWithContext: func(ctx context.Context, options metav1.ListOptions) (watch.Interface, error) {
+			return NewExpiringWatcher(ctx, relistDuration), nil
+		},
+	}
+
+	return cache.NewSharedIndexInformerWithOptions(
+		noWatchListLW{lw},
+		&api.ManagementClusterContent{},
 		cache.SharedIndexInformerOptions{
 			ResyncPeriod: 1 * time.Hour, // this is only a default.  Shorter resyncs can be added when registering handlers.
 			Indexers: cache.Indexers{

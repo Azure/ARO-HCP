@@ -46,14 +46,15 @@ var (
 
 // ServiceTagUsageCollector is a Prometheus collector that gathers public IP metrics from Azure
 type ServiceTagUsageCollector struct {
-	client *graphquery.ResourceGraphClient
-	cache  *cache.MetricsCache
+	client       *graphquery.ResourceGraphClient
+	cache        *cache.MetricsCache
+	errorCounter prometheus.Counter
 }
 
 var _ CachingCollector = &ServiceTagUsageCollector{}
 
 // NewServiceTagUsageCollector creates a new ServiceTagUsageCollector
-func NewServiceTagUsageCollector(ctx context.Context, subscriptionNames []string, credential azcore.TokenCredential, cacheTTL time.Duration) (*ServiceTagUsageCollector, error) {
+func NewServiceTagUsageCollector(ctx context.Context, subscriptionNames []string, credential azcore.TokenCredential, cacheTTL time.Duration, errorCounter prometheus.Counter) (*ServiceTagUsageCollector, error) {
 	var resourceGraphClient *graphquery.ResourceGraphClient
 	var err error
 
@@ -71,8 +72,9 @@ func NewServiceTagUsageCollector(ctx context.Context, subscriptionNames []string
 	}
 
 	return &ServiceTagUsageCollector{
-		client: resourceGraphClient,
-		cache:  cache.NewMetricsCache(cacheTTL),
+		client:       resourceGraphClient,
+		cache:        cache.NewMetricsCache(cacheTTL),
+		errorCounter: errorCounter,
 	}, nil
 }
 
@@ -85,7 +87,6 @@ func (c *ServiceTagUsageCollector) Describe(ch chan<- *prometheus.Desc) {
 }
 
 func (c *ServiceTagUsageCollector) Collect(ch chan<- prometheus.Metric) {
-	c.cache.GetAllMetrics()
 	for _, metric := range c.cache.GetAllMetrics() {
 		ch <- metric
 	}
@@ -134,6 +135,7 @@ func (c *ServiceTagUsageCollector) CollectMetricValues(ctx context.Context) {
 		Output: &publicIPs,
 	})
 	if err != nil {
+		c.errorCounter.Inc()
 		logger.Error(err, "error collecting public IP addresses")
 		return
 	}
@@ -143,6 +145,7 @@ func (c *ServiceTagUsageCollector) CollectMetricValues(ctx context.Context) {
 		if publicIP.IpTagsString != "[]" {
 			ipTags, err = parseIPTags(publicIP.IpTagsString)
 			if err != nil {
+				c.errorCounter.Inc()
 				logger.Error(err, "error parsing IP tags")
 				continue
 			}
@@ -165,6 +168,7 @@ func (c *ServiceTagUsageCollector) CollectMetricValues(ctx context.Context) {
 				ipTag.ServiceTagValue,
 			))
 			if err != nil {
+				c.errorCounter.Inc()
 				logger.Error(err, "error adding metric to cache")
 				continue
 			}

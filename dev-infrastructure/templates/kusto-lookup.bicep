@@ -35,3 +35,4 @@ output kustoDataIngestionUri string = kustoEnabled ? kusto.properties.dataIngest
 output auditLogsEventHubAuthRuleId string = kustoEnabled
   ? auditLogsEventHubNamespace::diagnosticSettingsAuthRule.id
   : ''
+output kustoRegion string = kustoEnabled ? kusto.location : ''
