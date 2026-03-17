@@ -321,7 +321,7 @@ func (g *Gatherer) GatherLogs(ctx context.Context) error {
 
 	var gatherErrors error
 
-	queryFactory := kusto.NewQueryFactory(false)
+	queryFactory := kusto.NewQueryFactory(kusto.SafeTemplatingMode)
 
 	logger.V(1).Info("Query options", "queryOptions", g.GetQueryOptions())
 
@@ -381,7 +381,7 @@ func (g *Gatherer) GatherLogs(ctx context.Context) error {
 	}
 	logger.V(1).Info("Obtained following clusterNames", "clusterNames", strings.Join(clusterNames, ", "))
 
-	customQueries, err := queryFactory.LoadAllCustomQueries(kusto.NewTemplateDataFromOptions(g.GetQueryOptions(), kusto.WithClusterNames(clusterNames)))
+	customQueries, err := queryFactory.BuildAllCustomQueries(kusto.NewTemplateDataFromOptions(g.GetQueryOptions(), kusto.WithClusterNames(clusterNames)))
 	if err != nil {
 		return fmt.Errorf("failed to build custom logs query: %w", err)
 	}

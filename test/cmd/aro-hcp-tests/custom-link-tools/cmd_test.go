@@ -85,20 +85,20 @@ func decodeQueryFromLinkURL(t *testing.T, linkURL string) string {
 func assertAllServiceLinkQueriesContainTimeWindow(t *testing.T, links []LinkDetails, expectedStart, expectedEnd string) {
 	t.Helper()
 
-	if len(links) != 8 {
-		t.Fatalf("expected 8 service links, got %d", len(links))
+	if len(links) != 12 {
+		t.Fatalf("expected 12 service links, got %d", len(links))
 	}
 
-	startToken := "let _startTime = datetime(\"" + expectedStart + "\");"
-	endToken := "let _endTime = datetime(\"" + expectedEnd + "\");"
+	startDateTime := "datetime(\"" + expectedStart + "\")"
+	endDateTime := "datetime(\"" + expectedEnd + "\")"
 
 	for _, link := range links {
 		decodedQuery := decodeQueryFromLinkURL(t, link.URL)
-		if !strings.Contains(decodedQuery, startToken) {
-			t.Fatalf("link %q does not contain expected start time %q", link.DisplayName, expectedStart)
+		if !strings.Contains(decodedQuery, startDateTime) {
+			t.Fatalf("link %q does not contain expected start time %q\nquery: %s", link.DisplayName, expectedStart, decodedQuery)
 		}
-		if !strings.Contains(decodedQuery, endToken) {
-			t.Fatalf("link %q does not contain expected end time %q", link.DisplayName, expectedEnd)
+		if !strings.Contains(decodedQuery, endDateTime) {
+			t.Fatalf("link %q does not contain expected end time %q\nquery: %s", link.DisplayName, expectedEnd, decodedQuery)
 		}
 	}
 }

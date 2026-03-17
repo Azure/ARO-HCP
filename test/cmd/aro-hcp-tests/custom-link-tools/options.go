@@ -353,36 +353,41 @@ func (o Options) Run(ctx context.Context) error {
 
 	for testName, timing := range timingInfo {
 		for _, rg := range timing.ResourceGroupNames {
-			testFactory := kusto.NewQueryFactory(&kusto.QueryOptions{
+			testFactory := kusto.NewQueryFactory(kusto.UnsafeTemplatingMode)
+			queryOpts := kusto.QueryOptions{
 				ResourceGroupName: rg,
 				TimestampMin:      timing.StartTime,
 				TimestampMax:      timing.EndTime,
 				Limit:             -1,
-			}, true)
+			}
+			templateData := kusto.NewTemplateDataFromOptions(queryOpts)
 
-			hcpQ, err := testFactory.HostedControlPlane()
+			var links []LinkDetails
+
+			hcpQ, err := testFactory.BuildMerged(kusto.HostedControlPlaneLogsQuery, templateData)
 			if err != nil {
 				return utils.TrackError(fmt.Errorf("failed to build hosted control plane query: %w", err))
 			}
-			svcQ, err := testFactory.DetailedServiceLogs()
+			links = append(links, createLink("Hosted Control Plane Logs", hcpQ, o.Kusto))
+
+			detailedQ, err := testFactory.BuildMergedCustomQuery("detailedServiceLogs", templateData)
 			if err != nil {
 				return utils.TrackError(fmt.Errorf("failed to build detailed service logs query: %w", err))
 			}
-			debugQ, err := testFactory.DebugQueries()
+			links = append(links, createLink("Detailed Service Logs", detailedQ, o.Kusto))
+
+			debugQ, err := testFactory.BuildMergedCustomQuery("debugQueries", templateData)
 			if err != nil {
-				return utils.TrackError(fmt.Errorf("failed to build debug queries query: %w", err))
+				return utils.TrackError(fmt.Errorf("failed to build debug queries: %w", err))
 			}
+			links = append(links, createLink("Debug Queries", debugQ, o.Kusto))
 
 			allTestRows = append(allTestRows, TestRow{
 				TestName:          testName,
 				ResourceGroupName: rg,
-				Links: []LinkDetails{
-					createLink("Hosted Control Plane Logs", hcpQ, o.Kusto),
-					createLink("Service Logs", svcQ, o.Kusto),
-					createLink("Debug Queries", debugQ, o.Kusto),
-				},
-				Database: o.Kusto.HostedControlPlaneLogsDatabase,
-				Status:   "tbd",
+				Links:             links,
+				Database:          o.Kusto.HostedControlPlaneLogsDatabase,
+				Status:            "tbd",
 			})
 		}
 	}
@@ -593,54 +598,47 @@ func getServiceLogLinks(logger logr.Logger, steps []pipeline.NodeInfo, testTimin
 		"start", earliestStartTime.Format(time.RFC3339), "startSource", startSource,
 		"end", endTime.Format(time.RFC3339), "endSource", endSource)
 
-	svcFactory := kusto.NewQueryFactory(&kusto.QueryOptions{
+	factory := kusto.NewQueryFactory(kusto.UnsafeTemplatingMode)
+	svcOpts := kusto.QueryOptions{
 		InfraClusterName: svcClusterName,
 		TimestampMin:     earliestStartTime,
 		TimestampMax:     endTime,
 		Limit:            -1,
-	}, true)
-
-	type namedQuery struct {
-		name string
-		def  kusto.QueryDefinition
 	}
 
-	svcQueries := []namedQuery{
-		{"Backend Logs", kusto.BackendLogsQuery},
-		{"Backend Controller Conditions", kusto.BackendControllerConditionsQuery},
-		{"Frontend Logs", kusto.FrontendLogsQuery},
-		{"Clusters Service Logs", kusto.ClustersServiceLogsQuery},
-		{"Clusters Service Phases", kusto.ClustersServicePhasesQuery},
-		{"Maestro Logs", kusto.MaestroLogsQuery},
-	}
-
-	for _, sq := range svcQueries {
-		q, err := svcFactory.Build(sq.def)
+	// Service cluster queries: one per service log table + one merged link per custom query definition
+	serviceTables := []string{"containerLogs", "clustersServiceLogs", "frontendLogs", "backendLogs"}
+	for _, table := range serviceTables {
+		svcTemplateData := kusto.NewTemplateDataFromOptions(svcOpts, kusto.WithTable(table))
+		q, err := factory.BuildMerged(kusto.InfraServiceLogsQuery, svcTemplateData)
 		if err != nil {
-			return nil, fmt.Errorf("failed to build %s query: %w", sq.name, err)
+			return nil, fmt.Errorf("failed to build %s query: %w", table, err)
 		}
-		allLinks = append(allLinks, createLink(sq.name, q, kustoInfo))
+		allLinks = append(allLinks, createLink(table, q, kustoInfo))
 	}
 
-	mgmtFactory := kusto.NewQueryFactory(&kusto.QueryOptions{
+	svcTemplateData := kusto.NewTemplateDataFromOptions(svcOpts, kusto.WithClusterName(svcClusterName))
+	mergedCustomQueries, err := factory.BuildAllMergedCustomQueries(svcTemplateData)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build custom queries: %w", err)
+	}
+	for _, q := range mergedCustomQueries {
+		allLinks = append(allLinks, createLink(q.GetName(), q, kustoInfo))
+	}
+
+	// Management cluster queries
+	mgmtOpts := kusto.QueryOptions{
 		InfraClusterName: mgmtClusterName,
 		TimestampMin:     earliestStartTime,
 		TimestampMax:     endTime,
 		Limit:            -1,
-	}, true)
-
-	mgmtQueries := []namedQuery{
-		{"Hypershift Logs", kusto.HypershiftLogsQuery},
-		{"ACM Logs", kusto.ACMLogsQuery},
 	}
-
-	for _, mq := range mgmtQueries {
-		q, err := mgmtFactory.Build(mq.def)
-		if err != nil {
-			return nil, fmt.Errorf("failed to build %s query: %w", mq.name, err)
-		}
-		allLinks = append(allLinks, createLink(mq.name, q, kustoInfo))
+	mgmtTemplateData := kusto.NewTemplateDataFromOptions(mgmtOpts, kusto.WithTable("containerLogs"))
+	q, err := factory.BuildMerged(kusto.InfraServiceLogsQuery, mgmtTemplateData)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build mgmt container logs query: %w", err)
 	}
+	allLinks = append(allLinks, createLink("mgmt-containerLogs", q, kustoInfo))
 
 	return allLinks, nil
 }

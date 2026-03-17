@@ -152,7 +152,7 @@ func NewTemplateDataFromOptions(queryOptions QueryOptions, options ...TemplateDa
 	return templateData
 }
 
-func (d *TemplateData) PreprocessParameterBindings(useTags bool) map[string]any {
+func (d *TemplateData) PreprocessParameterBindings(templatingMode TemplatingMode) map[string]any {
 	val := reflect.ValueOf(d)
 
 	// If a pointer is passed, get the underlying value
@@ -170,7 +170,7 @@ func (d *TemplateData) PreprocessParameterBindings(useTags bool) map[string]any 
 		field := typ.Field(i)
 		fieldName := field.Name
 
-		if useTags {
+		if templatingMode == SafeTemplatingMode {
 			// Extract the value from the `kqlParameter` tag
 			tagValue := field.Tag.Get("kqlParameter")
 			result[fieldName] = tagValue
@@ -217,22 +217,29 @@ func (d *TemplateData) CreateKQLParameters() *kql.Parameters {
 	return kqlParameters
 }
 
+type TemplatingMode bool
+
+const (
+	SafeTemplatingMode   TemplatingMode = true
+	UnsafeTemplatingMode TemplatingMode = false
+)
+
 // QueryFactory creates Query instances from templates, binding parameters at creation time.
 type QueryFactory struct {
-	UnsafeTemplating       bool
+	TemplatingMode         TemplatingMode
 	MergeStandardProject   bool
 	CustomQueryDefinitions []QueryDefinition
 }
 
 // NewQueryFactory creates a factory with all the shared query parameters.
-func NewQueryFactory(unsafeTemplating bool) *QueryFactory {
+func NewQueryFactory(templatingMode TemplatingMode) *QueryFactory {
 	customQueryDefinitions, err := LoadCustomQueryDefinitions()
 	if err != nil {
 		// Panic here, since this should never happen and is obviously a bug
 		panic(fmt.Errorf("failed to load custom query definitions: %w", err))
 	}
 	return &QueryFactory{
-		UnsafeTemplating:       unsafeTemplating,
+		TemplatingMode:         templatingMode,
 		CustomQueryDefinitions: customQueryDefinitions,
 	}
 }
@@ -256,7 +263,7 @@ func (f *QueryFactory) Build(def QueryDefinition, templateData TemplateData) ([]
 func (f *QueryFactory) buildQuery(name, database, templateName string, data TemplateData, unlimited bool) (*templateQuery, error) {
 	templateString := GetTemplate(templateName)
 
-	parameters := data.PreprocessParameterBindings(!f.UnsafeTemplating)
+	parameters := data.PreprocessParameterBindings(f.TemplatingMode)
 
 	var bufParameters bytes.Buffer
 	tmplParameters, err := template.New("query").Delims("<<", ">>").Parse(templateString)
@@ -284,7 +291,7 @@ func (f *QueryFactory) buildQuery(name, database, templateName string, data Temp
 	builder.AddUnsafe(bufRegular.String())
 
 	var parametersKQL *kql.Parameters
-	if !f.UnsafeTemplating {
+	if f.TemplatingMode == SafeTemplatingMode {
 		parametersKQL = data.CreateKQLParameters()
 	}
 
@@ -297,8 +304,34 @@ func (f *QueryFactory) buildQuery(name, database, templateName string, data Temp
 	}, nil
 }
 
-// LoadCustomQuery loads a single custom query group by name, returning the built queries.
-func (f *QueryFactory) LoadCustomQuery(name string, templateData TemplateData) ([]Query, error) {
+// BuildMerged constructs a single Query from a QueryDefinition by rendering all templates
+// and joining them with newlines. This is useful for generating a single Kusto deep-link
+// that contains multiple query statements.
+func (f *QueryFactory) BuildMerged(def QueryDefinition, templateData TemplateData) (Query, error) {
+	queries, err := f.Build(def, templateData)
+	if err != nil {
+		return nil, err
+	}
+	if len(queries) == 1 {
+		return queries[0], nil
+	}
+	var parts []string
+	for _, q := range queries {
+		parts = append(parts, q.GetQuery().String())
+	}
+	merged := kql.New("")
+	merged.AddUnsafe(strings.Join(parts, "\n\n"))
+	return &templateQuery{
+		name:       def.Name,
+		database:   def.Database,
+		query:      merged,
+		parameters: queries[0].GetParameters(),
+		unlimited:  queries[0].IsUnlimited(),
+	}, nil
+}
+
+// BuildCustomQuery builds a single custom query by name, returning the built queries.
+func (f *QueryFactory) BuildCustomQuery(name string, templateData TemplateData) ([]Query, error) {
 	for _, def := range f.CustomQueryDefinitions {
 		if def.Name == name {
 			return f.Build(def, templateData)
@@ -307,8 +340,8 @@ func (f *QueryFactory) LoadCustomQuery(name string, templateData TemplateData) (
 	return nil, fmt.Errorf("custom query %q not found", name)
 }
 
-// LoadAllCustomQueries loads all custom queries, returning a flat slice of built queries.
-func (f *QueryFactory) LoadAllCustomQueries(templateData TemplateData) ([]Query, error) {
+// BuildAllCustomQueries loads all custom queries, returning a flat slice of built queries.
+func (f *QueryFactory) BuildAllCustomQueries(templateData TemplateData) ([]Query, error) {
 	var queries []Query
 	for _, def := range f.CustomQueryDefinitions {
 		qs, err := f.Build(def, templateData)
@@ -316,6 +349,31 @@ func (f *QueryFactory) LoadAllCustomQueries(templateData TemplateData) ([]Query,
 			return nil, fmt.Errorf("failed to build custom query %q: %w", def.Name, err)
 		}
 		queries = append(queries, qs...)
+	}
+	return queries, nil
+}
+
+// BuildMergedCustomQuery builds a single custom query by name and merges all its
+// templates into a single Query.
+func (f *QueryFactory) BuildMergedCustomQuery(name string, templateData TemplateData) (Query, error) {
+	for _, def := range f.CustomQueryDefinitions {
+		if def.Name == name {
+			return f.BuildMerged(def, templateData)
+		}
+	}
+	return nil, fmt.Errorf("custom query %q not found", name)
+}
+
+// BuildAllMergedCustomQueries builds all custom queries, merging each definition's templates
+// into a single Query per definition.
+func (f *QueryFactory) BuildAllMergedCustomQueries(templateData TemplateData) ([]Query, error) {
+	var queries []Query
+	for _, def := range f.CustomQueryDefinitions {
+		q, err := f.BuildMerged(def, templateData)
+		if err != nil {
+			return nil, fmt.Errorf("failed to build custom query %q: %w", def.Name, err)
+		}
+		queries = append(queries, q)
 	}
 	return queries, nil
 }
