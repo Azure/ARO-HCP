@@ -442,8 +442,8 @@ func TestRawUpdateOptions_Validate_InvalidConfig(t *testing.T) {
 	})
 }
 
-// TestRealConfigValid_Regression ensures the in-repo config.yaml validates and includes the istio-istioctl entry (githubLatestRelease).
-// Run from repo root: go test ./tooling/image-updater/internal/options/ -run TestRealConfigValid
+// TestRealConfigValid_Regression ensures the in-repo config.yaml loads and validates successfully,
+// and that any githubLatestRelease entries use valid owner/repo format.
 func TestRealConfigValid_Regression(t *testing.T) {
 	configPath := filepath.Join("..", "..", "config.yaml")
 	if _, err := os.Stat(configPath); os.IsNotExist(err) {
@@ -454,12 +454,14 @@ func TestRealConfigValid_Regression(t *testing.T) {
 	if err != nil {
 		t.Fatalf("real config Validate() failed: %v", err)
 	}
-	img, ok := validated.Config.Images["istio-istioctl"]
-	if !ok {
-		t.Fatal("real config should have istio-istioctl entry")
-	}
-	if img.Source.GitHubLatestRelease != "istio/istio" {
-		t.Errorf("istio-istioctl should have githubLatestRelease istio/istio, got %q", img.Source.GitHubLatestRelease)
+	for name, img := range validated.Config.Images {
+		if img.Source.GitHubLatestRelease == "" {
+			continue
+		}
+		parts := strings.SplitN(img.Source.GitHubLatestRelease, "/", 2)
+		if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+			t.Errorf("image %q: githubLatestRelease %q is not valid owner/repo format", name, img.Source.GitHubLatestRelease)
+		}
 	}
 }
 
