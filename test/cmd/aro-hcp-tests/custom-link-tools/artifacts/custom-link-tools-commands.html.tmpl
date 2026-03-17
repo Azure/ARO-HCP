@@ -28,6 +28,35 @@
         white-space: pre-wrap;
         word-break: break-all;
     }
+    table.compact {
+        border-collapse: collapse;
+        margin: 5px 10px 15px 10px;
+        font-size: 13px;
+    }
+    table.compact th, table.compact td {
+        border: 1px solid #333;
+        padding: 4px 8px;
+        text-align: left;
+    }
+    table.compact th {
+        background-color: #1a1a1a;
+        color: #4E9AF1;
+    }
+    table.compact td {
+        background-color: #111;
+    }
+    table.compact button {
+        background-color: #333;
+        color: #fff;
+        border: 1px solid #555;
+        border-radius: 3px;
+        padding: 2px 8px;
+        cursor: pointer;
+        font-size: 12px;
+    }
+    table.compact button:hover {
+        background-color: #444;
+    }
   </style>
 </head>
 
@@ -36,6 +65,21 @@
   {{range .Commands}}
   <h3>{{ .Label }}</h3>
   <pre>{{ .Command }}</pre>
+  {{end}}
+
+  {{if .TestCommands}}
+  <h3>Per-test must-gather</h3>
+  <table class="compact">
+    <thead><tr><th>Test</th><th></th></tr></thead>
+    <tbody>
+      {{range .TestCommands}}
+      <tr>
+        <td>{{.TestName}}</td>
+        <td><button onclick="navigator.clipboard.writeText(this.dataset.cmd)" data-cmd="{{.Command}}">Copy</button></td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
   {{end}}
 
   <!-- workaround for spyglass cutting off page bottoms -->
