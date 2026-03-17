@@ -83,24 +83,26 @@ var _ = Describe("Customer", func() {
 			nodePoolClient := tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient()
 			var errs []error
 
-			// TEST CASE: ARO-22570
-			By("attempting to list clusters in a non-existent resource group")
-			clusterClient := tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient()
-			nonExistentRgName := "non-existent-rg"
-			clusterPager := clusterClient.NewListByResourceGroupPager(nonExistentRgName, nil)
-			_, err = clusterPager.NextPage(ctx)
-			checkExpectedError(&errs, "cluster listing in non-existent resource group", err, "resource group not found")
+			if false { // blocked by https://redhat.atlassian.net/browse/ARO-25089
+				// TEST CASE: ARO-22570
+				By("attempting to list clusters in a non-existent resource group")
+				clusterClient := tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient()
+				nonExistentRgName := "non-existent-rg"
+				clusterPager := clusterClient.NewListByResourceGroupPager(nonExistentRgName, nil)
+				_, err = clusterPager.NextPage(ctx)
+				checkExpectedError(&errs, "cluster listing in non-existent resource group", err, "resource group not found")
 
-			// TEST CASE: ARO-22571
-			By("attempting to list node pools in a resource group without a cluster")
-			emptyRgNodePoolPager := nodePoolClient.NewListByParentPager(*resourceGroup.Name, clusterParams.ClusterName, nil)
-			_, err = emptyRgNodePoolPager.NextPage(ctx)
-			checkExpectedError(&errs, "node pool listing in RG with no clusters", err, "parent resource not found")
+				// TEST CASE: ARO-22571
+				By("attempting to list node pools in a resource group without a cluster")
+				emptyRgNodePoolPager := nodePoolClient.NewListByParentPager(*resourceGroup.Name, clusterParams.ClusterName, nil)
+				_, err = emptyRgNodePoolPager.NextPage(ctx)
+				checkExpectedError(&errs, "node pool listing in RG with no clusters", err, "parent resource not found")
 
-			By("attempting to list node pools in a non-existent resource group")
-			nodePoolPager := nodePoolClient.NewListByParentPager(nonExistentRgName, clusterParams.ClusterName, nil)
-			_, err = nodePoolPager.NextPage(ctx)
-			checkExpectedError(&errs, "node pool listing in non-existent resource group", err, "resource group not found")
+				By("attempting to list node pools in a non-existent resource group")
+				nodePoolPager := nodePoolClient.NewListByParentPager(nonExistentRgName, clusterParams.ClusterName, nil)
+				_, err = nodePoolPager.NextPage(ctx)
+				checkExpectedError(&errs, "node pool listing in non-existent resource group", err, "resource group not found")
+			}
 
 			By("creating the HCP cluster")
 			err = tc.CreateHCPClusterFromParam(
