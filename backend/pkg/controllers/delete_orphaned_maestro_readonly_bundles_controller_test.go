@@ -155,6 +155,9 @@ func (p *paginationGlobalListers) ActiveOperations() database.GlobalLister[api.O
 func (p *paginationGlobalListers) Controllers() database.GlobalLister[api.Controller] {
 	return &panicGlobalLister[api.Controller]{}
 }
+func (p *paginationGlobalListers) ManagementClusterContents() database.GlobalLister[api.ManagementClusterContent] {
+	return &panicGlobalLister[api.ManagementClusterContent]{}
+}
 func (p *paginationGlobalListers) ServiceProviderNodePools() database.GlobalLister[api.ServiceProviderNodePool] {
 	return &panicGlobalLister[api.ServiceProviderNodePool]{}
 }
@@ -261,6 +264,9 @@ func (f *alwaysErrorGlobalListers) ActiveOperations() database.GlobalLister[api.
 
 func (f *alwaysErrorGlobalListers) Controllers() database.GlobalLister[api.Controller] {
 	return &alwaysErrorGlobalLister[api.Controller]{err: f.err}
+}
+func (f *alwaysErrorGlobalListers) ManagementClusterContents() database.GlobalLister[api.ManagementClusterContent] {
+	return &alwaysErrorGlobalLister[api.ManagementClusterContent]{err: f.err}
 }
 func (f *alwaysErrorGlobalListers) ServiceProviderNodePools() database.GlobalLister[api.ServiceProviderNodePool] {
 	return &alwaysErrorGlobalLister[api.ServiceProviderNodePool]{err: f.err}
