@@ -248,11 +248,11 @@ func extractTarGz(tarGzPath, destDir string) error {
 		}
 
 		// Create target path, sanitizing against path traversal (Zip Slip)
-		cleanName := filepath.Clean(header.Name)
-		if filepath.IsAbs(cleanName) || strings.HasPrefix(cleanName, ".."+string(filepath.Separator)) || cleanName == ".." {
+		targetPath := filepath.Join(destDir, filepath.Clean(header.Name))
+		rel, err := filepath.Rel(destDir, targetPath)
+		if err != nil || strings.HasPrefix(rel, ".."+string(filepath.Separator)) || rel == ".." {
 			return fmt.Errorf("illegal file path in archive: %s", header.Name)
 		}
-		targetPath := filepath.Join(destDir, cleanName)
 
 		// Create parent directories
 		if err := os.MkdirAll(filepath.Dir(targetPath), 0755); err != nil {
