@@ -235,8 +235,6 @@ var _ = Describe("Customer", func() {
 			}
 
 			By("verifying new admin credentials can still be requested after revocation")
-			// After revocation, new admin credential requests should still work
-			// This validates the revocation endpoint doesn't break the cluster
 			newAdminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster(
 				ctx,
 				clusterClient,
@@ -248,10 +246,11 @@ var _ = Describe("Customer", func() {
 			Expect(newAdminRESTConfig).NotTo(BeNil(), "newAdminRESTConfig was nil after revocation")
 
 			By("verifying new admin credentials work after revocation")
-			if skipInt && os.Getenv("ARO_HCP_SUITE_NAME") == "integration/parallel" && time.Now().Before(time.Date(2026, 4, 15, 0, 0, 0, 0, time.UTC)) {
+			err = verifiers.VerifyHCPCluster(ctx, newAdminRESTConfig)
+			if err != nil && os.Getenv("ARO_HCP_SUITE_NAME") == "integration/parallel" && time.Now().Before(time.Date(2026, 4, 15, 0, 0, 0, 0, time.UTC)) {
 				By("skipping in integration/parallel suite")
 			} else {
-				Expect(verifiers.VerifyHCPCluster(ctx, newAdminRESTConfig)).To(Succeed(), "New admin credentials should work after revocation")
+				Expect(err).NotTo(HaveOccurred(), "New admin credentials should work after revocation")
 			}
 		})
 })
