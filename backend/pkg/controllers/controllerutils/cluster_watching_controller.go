@@ -64,19 +64,8 @@ func NewClusterWatchingController(
 	if informers != nil {
 		clusterInformer, _ := informers.Clusters()
 		serviceProviderInformer, _ := informers.ServiceProviderClusters()
-		err := clusterController.QueueForInformers(resyncDuration, clusterInformer, serviceProviderInformer)
-		if err != nil {
-			panic(err) // coding error
-		}
 		managementClusterContentInformer, _ := informers.ManagementClusterContents()
-		_, err = managementClusterContentInformer.AddEventHandlerWithOptions(
-			cache.ResourceEventHandlerFuncs{
-				AddFunc:    c.EnqueueCosmosAdd,
-				UpdateFunc: c.EnqueueCosmosUpdate,
-			},
-			cache.HandlerOptions{
-				ResyncPeriod: ptr.To(resyncDuration),
-			})
+		err := clusterController.QueueForInformers(resyncDuration, clusterInformer, serviceProviderInformer, managementClusterContentInformer)
 		if err != nil {
 			panic(err) // coding error
 		}
