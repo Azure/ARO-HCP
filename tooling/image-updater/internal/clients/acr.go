@@ -134,7 +134,7 @@ func (c *ACRClient) getClient() *azcontainerregistry.Client {
 	return c.client
 }
 
-func (c *ACRClient) GetArchSpecificDigest(ctx context.Context, repository string, tagPattern string, arch string, multiArch bool, versionLabel string) (*Tag, error) {
+func (c *ACRClient) GetArchSpecificDigest(ctx context.Context, repository string, tagPattern string, arch string, wantMultiArch bool, versionLabel string) (*Tag, error) {
 	logger, err := logr.FromContext(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("logger not found in context: %w", err)
@@ -182,15 +182,14 @@ func (c *ACRClient) GetArchSpecificDigest(ctx context.Context, repository string
 
 		manifest := manifestProps.Manifest
 
-		// If multiArch is requested and this is a multi-arch manifest, return it
-		if multiArch && len(manifest.RelatedArtifacts) > 0 {
+		isMultiArch := len(manifest.RelatedArtifacts) > 0
+
+		if wantMultiArch && isMultiArch {
 			logger.V(2).Info("found multi-arch manifest", "tag", tag.Name, "relatedArtifacts", len(manifest.RelatedArtifacts), "digest", tag.Digest)
 			tag.Version = extractVersionLabel(ctx, c.registryURL, repository, tag.Name, versionLabel, c.useAuth)
 			return &tag, nil
-		}
-
-		if len(manifest.RelatedArtifacts) > 0 {
-			logger.V(2).Info("skipping multi-arch manifest", "tag", tag.Name, "relatedArtifacts", len(manifest.RelatedArtifacts))
+		} else if wantMultiArch != isMultiArch {
+			logger.V(2).Info("skipping manifest due to multiArch mismatch", "tag", tag.Name, "wantMultiArch", wantMultiArch, "isMultiArch", isMultiArch)
 			continue
 		}
 
@@ -209,14 +208,14 @@ func (c *ACRClient) GetArchSpecificDigest(ctx context.Context, repository string
 		logger.V(2).Info("skipping non-matching architecture", "tag", tag.Name, "arch", string(*manifest.Architecture), "os", string(*manifest.OperatingSystem), "wantArch", arch)
 	}
 
-	if multiArch {
+	if wantMultiArch {
 		return nil, fmt.Errorf("no multi-arch manifest found for repository %s", repository)
 	}
 	return nil, fmt.Errorf("no single-arch %s/linux image found for repository %s (all tags are either multi-arch or different architecture)", arch, repository)
 }
 
 // GetDigestForTag fetches the digest for a specific tag without pagination
-func (c *ACRClient) GetDigestForTag(ctx context.Context, repository string, tagName string, arch string, multiArch bool, versionLabel string) (*Tag, error) {
+func (c *ACRClient) GetDigestForTag(ctx context.Context, repository string, tagName string, arch string, wantMultiArch bool, versionLabel string) (*Tag, error) {
 	logger, err := logr.FromContext(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("logger not found in context: %w", err)
@@ -265,7 +264,7 @@ func (c *ACRClient) GetDigestForTag(ctx context.Context, repository string, tagN
 	manifest := manifestProps.Manifest
 
 	// If multiArch is requested, verify this is a multi-arch manifest
-	if multiArch {
+	if wantMultiArch {
 		if len(manifest.RelatedArtifacts) == 0 {
 			return nil, fmt.Errorf("tag %s is not a multi-arch manifest", tagName)
 		}
