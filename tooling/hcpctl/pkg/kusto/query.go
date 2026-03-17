@@ -143,6 +143,7 @@ func NewTemplateDataFromOptions(queryOptions QueryOptions, options ...TemplateDa
 		TimestampMin:       queryOptions.TimestampMin,
 		TimestampMax:       queryOptions.TimestampMax,
 		ClusterName:        queryOptions.InfraClusterName,
+		ClusterNames:       []string{queryOptions.InfraClusterName},
 		SubResourceGroupId: fmt.Sprintf("/subscriptions/%s/resourceGroups/%s", queryOptions.SubscriptionId, queryOptions.ResourceGroupName),
 		ResourceGroupName:  queryOptions.ResourceGroupName,
 	}
@@ -181,6 +182,10 @@ func (d *TemplateData) PreprocessParameterBindings(templatingMode TemplatingMode
 			if field.Type == timeType {
 				t := fieldValue.(time.Time)
 				result[fieldName] = fmt.Sprintf("datetime(\"%s\")", t.UTC().Format(time.RFC3339Nano))
+			} else if field.Type == reflect.TypeOf("") {
+				result[fieldName] = fmt.Sprintf("\"%s\"", fieldValue)
+			} else if field.Type == reflect.TypeOf([]string{}) {
+				result[fieldName] = fmt.Sprintf("\"%s\"", strings.Join(fieldValue.([]string), "\", \""))
 			} else {
 				result[fieldName] = fieldValue
 			}
