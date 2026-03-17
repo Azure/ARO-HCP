@@ -134,7 +134,7 @@ defaults:
     image:
       registry: arohcpsvcdev.azurecr.io
       repository: arohcpmetrics
-      digest: sha256:e396b4ebace09185189b552300387e4274f5eb6d710371c0f61d0cccd96a6931 # 5069dca (2026-03-16 17:21)
+      digest: sha256:51eeeaa1ec6d6ca582d79db35592978d25f2bece1fa8cb1dbdf754090476cfb3 # e1e2890 (2026-03-17 00:03)
   # Secret Sync Controller
   secretSyncController:
     image:
@@ -236,7 +236,7 @@ defaults:
     image:
       registry: quay.io
       repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
-      digest: sha256:98bc83c5fda9a3e95017a11c8b4e0e683a0bd46b102910577c09a5e50b483f84 # a0caff033df064ac286c440d8b0120acfce0beeb (2026-03-16 16:11)
+      digest: sha256:d3ef62e1dc9dc4d7d00559116e2b3b390105545135525b60f711f9de30ae6310 # 1a3320029e1b95a759edc622bf4cffdb60793ffa (2026-03-16 19:57)
     namespace: hypershift
     additionalInstallArg: '--enable-cpo-overrides'
     # By default we set it to empty as this tag is only required for msft environments. We override
@@ -408,7 +408,7 @@ defaults:
         image:
           registry: mcr.microsoft.com/oss/v2
           repository: prometheus/prometheus
-          sha: dca4b35f73046dc4803c0160c2e6be5a1736a716b26ef35590864d36dfdf950a # v3.9.1 (2026-03-05 00:48)
+          sha: 62546012f4aea03c3df3ebd93926d54f7453c90a6fffb6a9f1241730d1f8ba11 # v3.9.1 (2026-03-16 19:46)
         version: ""
         resources:
           requests:
@@ -526,7 +526,7 @@ defaults:
         image:
           registry: mcr.microsoft.com/oss/v2
           repository: prometheus/prometheus
-          sha: dca4b35f73046dc4803c0160c2e6be5a1736a716b26ef35590864d36dfdf950a # v3.9.1 (2026-03-05 00:48)
+          sha: 62546012f4aea03c3df3ebd93926d54f7453c90a6fffb6a9f1241730d1f8ba11 # v3.9.1 (2026-03-16 19:46)
         resources:
           requests:
             cpu: NONE
@@ -557,7 +557,7 @@ defaults:
     image:
       registry: arohcpsvcdev.azurecr.io
       repository: arohcpbackend
-      digest: sha256:425c9d259241082a09cbf050197b46fb9f59366e2172ae694365f3e3cedaeae2 # 5069dca (2026-03-16 17:23)
+      digest: sha256:9d1b0d272b22e3ec3fb4cd7b1bfef604ce64d37b7632155331394dedf80ce286 # e1e2890 (2026-03-17 00:05)
     tracing:
       address: ""
       exporter: ""
@@ -578,7 +578,7 @@ defaults:
     image:
       registry: arohcpsvcdev.azurecr.io
       repository: arohcpadminapi
-      digest: sha256:201e349115055b99c24f5906f41362fdd574492d2cb21f2f95e144e112b5d59a # 5069dca (2026-03-16 17:23)
+      digest: sha256:5d228d696b15f4599795cc0cc478f54507d1cd024f190127ed1e90abd7882472 # e1e2890 (2026-03-17 00:05)
     managedIdentityName: admin-api
     k8s:
       replicas: 2
@@ -591,7 +591,7 @@ defaults:
     image:
       registry: arohcpsvcdev.azurecr.io
       repository: arohcpsessiongate
-      digest: sha256:7562d74ab589eff988663354f1eed71ee77bf545c870fd0dee8c1a217753f9be # 5069dca (2026-03-16 17:23)
+      digest: sha256:3e48f337997a67fd744044bfb87bd2c2fc75f685838cce8bb23118cc23bb99db # e1e2890 (2026-03-17 00:05)
     managedIdentityName: sessiongate
     k8s:
       replicas: 2
@@ -606,7 +606,7 @@ defaults:
     image:
       registry: arohcpsvcdev.azurecr.io
       repository: arohcpfrontend
-      digest: sha256:3baf7a67f595291c09786db2a979756177a1b751bca7ed19891ddd0e4e1b4bcf # 5069dca (2026-03-16 17:22)
+      digest: sha256:692e12c47525eadf69429f1ce29c29db9932bf46e273b9356eeb4f766241798c # e1e2890 (2026-03-17 00:05)
     tracing:
       address: ""
       exporter: ""
@@ -778,18 +778,18 @@ defaults:
       bundle:
         registry: quay.io
         repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-215
-        digest: sha256:0ba7a7e214131dbdbf0b7a700a3108fef99557001b232e2d06bedbf71700839c # v2.15.2-425 (2026-03-16 17:23)
+        digest: sha256:4a197502b8bb4b1196f4602f8d93ef4f244c05a85421a9a3ee9cd555668431fe # v2.15.2-426 (2026-03-16 23:08)
     mce:
       bundle:
         registry: quay.io
         repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-210
-        digest: sha256:15ce23b87cee8014f12413de4da05c2412daccec57a25470df578b0055ac9d31 # v2.10.2-443 (2026-03-16 17:23)
+        digest: sha256:d97de97f8884e460d2b5d1ffa4ea334785ce2c95e97c748b0dd02604d44d25c4 # v2.10.2-444 (2026-03-16 23:07)
   # Cluster Service
   clustersService:
     image:
       registry: quay.io
       repository: app-sre/aro-hcp-clusters-service
-      digest: sha256:6ec7ecb11515ea6f8be560c4c043b518ef5c5ccc2a0aaafb2a45ee79c25a9d80 # cd6f06e353965094880c5d0d770c210fb1e05407 (2026-03-13 22:34)
+      digest: sha256:9ef5542559db90cb995b02a11c0dc34395c5161269cb9dd05eae95ef2362f866 # 1c46e6c1af2f2615c079fa4b6e7661843bdbd4b4 (2026-03-16 19:05)
     # controls how many HCPs can be placed on an MC, sadly not configurable per MC
     provisionShardClusterLimit: 100
     # batch processes
@@ -855,7 +855,7 @@ defaults:
       image:
         registry: arohcpsvcdev.azurecr.io
         repository: image-sync/oc-mirror
-        digest: sha256:613c7d4cc714ddeefe94a9d497ae3bf2a0be7c1562acc772120657a15b1c112c # 5069dca (2026-03-16 17:22)
+        digest: sha256:7a943490447c4c1b05ba71bc1f817084d3a33d8dbd7cd67681621557c0268517 # e1e2890 (2026-03-17 00:05)
       pullSecretName: ocmirror-pull-secret
       operatorVersionsToMirror: "4.18,4.19,4.20"
   # Automation Account
