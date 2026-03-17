@@ -20,7 +20,6 @@ import (
 	"time"
 
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
-	"k8s.io/client-go/util/workqueue"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
@@ -39,10 +38,6 @@ type nodePoolWatchingController struct {
 	syncer NodePoolSyncer
 
 	cosmosClient database.DBClient
-
-	// queue is where incoming work is placed to de-dup and to allow "easy"
-	// rate limited requeues on errors
-	queue workqueue.TypedRateLimitingInterface[HCPNodePoolKey]
 }
 
 // NewNodePoolWatchingController periodically looks up all NodePools and queues them
@@ -61,20 +56,14 @@ func NewNodePoolWatchingController(
 		name:         name,
 		cosmosClient: cosmosClient,
 		syncer:       syncer,
-		queue: workqueue.NewTypedRateLimitingQueueWithConfig(
-			workqueue.DefaultTypedItemBasedRateLimiter[HCPNodePoolKey](),
-			workqueue.TypedRateLimitingQueueConfig[HCPNodePoolKey]{
-				Name: name,
-			},
-		),
 	}
 	nodePoolController := newGenericWatchingController(name, api.NodePoolResourceType, nodePoolSyncer)
 
 	// this happens when unit tests don't want triggering.  This isn't beautiful, but fails to do nothing which is pretty safe.
 	if informers != nil {
 		nodePoolInformer, _ := informers.NodePools()
-		serviceProviderInformer, _ := informers.ServiceProviderClusters()
-		err := nodePoolController.QueueForInformers(resyncDuration, nodePoolInformer, serviceProviderInformer)
+		serviceProviderNodePoolInformer, _ := informers.ServiceProviderNodePools()
+		err := nodePoolController.QueueForInformers(resyncDuration, nodePoolInformer, serviceProviderNodePoolInformer)
 		if err != nil {
 			panic(err) // coding error
 		}
