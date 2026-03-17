@@ -30,8 +30,21 @@ resourceGroups:
         resourceGroup: regional
         step: output
         name: azureMonitoringWorkspaceId
+  - name: hcp-monitoring
+    action: ARMStack
+    template: templates/hcp-monitoring.bicep
+    parameters: configurations/hcp-monitoring.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    actionOnUnmanage: detach
+    bypassStackOutOfSyncError: false
+    variables:
     - name: hcpAzureMonitoringWorkspaceId
       input:
         resourceGroup: regional
         step: output
         name: hcpAzureMonitoringWorkspaceId
+    - name: sreActionGroups
+      input:
+        resourceGroup: regional
+        step: monitoring
+        name: sreActionGroups
