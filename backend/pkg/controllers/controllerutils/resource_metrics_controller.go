@@ -179,9 +179,11 @@ func (c *ResourceMetricsController[T]) syncResource(ctx context.Context, key str
 }
 
 // clusterMetricsHandler implements ResourceMetricsHandler for HCPOpenShiftCluster.
+// Not thread-safe; relies on the controller running with threadiness=1.
 type clusterMetricsHandler struct {
 	provisionState *prometheus.GaugeVec
 	createdTime    *prometheus.GaugeVec
+	lastPhase      map[string]string
 }
 
 // NewClusterMetricsHandler creates a ResourceMetricsHandler for cluster metrics.
@@ -195,6 +197,7 @@ func NewClusterMetricsHandler(r prometheus.Registerer) ResourceMetricsHandler[*a
 			Name: "backend_cluster_created_time_seconds",
 			Help: "Unix timestamp when the cluster was created.",
 		}, []string{"resource_id_hash"}),
+		lastPhase: make(map[string]string),
 	}
 	r.MustRegister(h.provisionState, h.createdTime)
 	return h
@@ -208,12 +211,14 @@ func (h *clusterMetricsHandler) Sync(ctx context.Context, cluster *api.HCPOpenSh
 	hash := ResourceIDHash(resourceID)
 	phase := PhaseLabel(cluster.ServiceProviderProperties.ProvisioningState)
 
-	partialMatch := prometheus.Labels{"resource_id_hash": hash}
-	h.provisionState.DeletePartialMatch(partialMatch)
+	if oldPhase, ok := h.lastPhase[hash]; ok && oldPhase != phase {
+		h.provisionState.Delete(prometheus.Labels{"resource_id_hash": hash, "phase": oldPhase})
+	}
 	h.provisionState.With(prometheus.Labels{
 		"resource_id_hash": hash,
 		"phase":            phase,
 	}).Set(1.0)
+	h.lastPhase[hash] = phase
 
 	createdTimeLabels := prometheus.Labels{"resource_id_hash": hash}
 	if cluster.SystemData != nil && cluster.SystemData.CreatedAt != nil && !cluster.SystemData.CreatedAt.IsZero() {
@@ -231,15 +236,19 @@ func (h *clusterMetricsHandler) Sync(ctx context.Context, cluster *api.HCPOpenSh
 
 func (h *clusterMetricsHandler) Delete(key string) {
 	hash := ResourceIDHash(key)
-	partialMatch := prometheus.Labels{"resource_id_hash": hash}
-	h.provisionState.DeletePartialMatch(partialMatch)
-	h.createdTime.DeletePartialMatch(partialMatch)
+	if oldPhase, ok := h.lastPhase[hash]; ok {
+		h.provisionState.Delete(prometheus.Labels{"resource_id_hash": hash, "phase": oldPhase})
+		delete(h.lastPhase, hash)
+	}
+	h.createdTime.Delete(prometheus.Labels{"resource_id_hash": hash})
 }
 
 // nodePoolMetricsHandler implements ResourceMetricsHandler for HCPOpenShiftClusterNodePool.
+// Not thread-safe; relies on the controller running with threadiness=1.
 type nodePoolMetricsHandler struct {
 	provisionState *prometheus.GaugeVec
 	createdTime    *prometheus.GaugeVec
+	lastPhase      map[string]string
 }
 
 // NewNodePoolMetricsHandler creates a ResourceMetricsHandler for nodepool metrics.
@@ -253,6 +262,7 @@ func NewNodePoolMetricsHandler(r prometheus.Registerer) ResourceMetricsHandler[*
 			Name: "backend_nodepool_created_time_seconds",
 			Help: "Unix timestamp when the node pool was created.",
 		}, []string{"resource_id_hash"}),
+		lastPhase: make(map[string]string),
 	}
 	r.MustRegister(h.provisionState, h.createdTime)
 	return h
@@ -266,12 +276,14 @@ func (h *nodePoolMetricsHandler) Sync(ctx context.Context, np *api.HCPOpenShiftC
 	hash := ResourceIDHash(resourceID)
 	phase := PhaseLabel(np.Properties.ProvisioningState)
 
-	partialMatch := prometheus.Labels{"resource_id_hash": hash}
-	h.provisionState.DeletePartialMatch(partialMatch)
+	if oldPhase, ok := h.lastPhase[hash]; ok && oldPhase != phase {
+		h.provisionState.Delete(prometheus.Labels{"resource_id_hash": hash, "phase": oldPhase})
+	}
 	h.provisionState.With(prometheus.Labels{
 		"resource_id_hash": hash,
 		"phase":            phase,
 	}).Set(1.0)
+	h.lastPhase[hash] = phase
 
 	createdTimeLabels := prometheus.Labels{"resource_id_hash": hash}
 	if np.SystemData != nil && np.SystemData.CreatedAt != nil && !np.SystemData.CreatedAt.IsZero() {
@@ -289,15 +301,19 @@ func (h *nodePoolMetricsHandler) Sync(ctx context.Context, np *api.HCPOpenShiftC
 
 func (h *nodePoolMetricsHandler) Delete(key string) {
 	hash := ResourceIDHash(key)
-	partialMatch := prometheus.Labels{"resource_id_hash": hash}
-	h.provisionState.DeletePartialMatch(partialMatch)
-	h.createdTime.DeletePartialMatch(partialMatch)
+	if oldPhase, ok := h.lastPhase[hash]; ok {
+		h.provisionState.Delete(prometheus.Labels{"resource_id_hash": hash, "phase": oldPhase})
+		delete(h.lastPhase, hash)
+	}
+	h.createdTime.Delete(prometheus.Labels{"resource_id_hash": hash})
 }
 
 // externalAuthMetricsHandler implements ResourceMetricsHandler for HCPOpenShiftClusterExternalAuth.
+// Not thread-safe; relies on the controller running with threadiness=1.
 type externalAuthMetricsHandler struct {
 	provisionState *prometheus.GaugeVec
 	createdTime    *prometheus.GaugeVec
+	lastPhase      map[string]string
 }
 
 // NewExternalAuthMetricsHandler creates a ResourceMetricsHandler for externalauth metrics.
@@ -311,6 +327,7 @@ func NewExternalAuthMetricsHandler(r prometheus.Registerer) ResourceMetricsHandl
 			Name: "backend_externalauth_created_time_seconds",
 			Help: "Unix timestamp when the external auth was created.",
 		}, []string{"resource_id_hash"}),
+		lastPhase: make(map[string]string),
 	}
 	r.MustRegister(h.provisionState, h.createdTime)
 	return h
@@ -324,12 +341,14 @@ func (h *externalAuthMetricsHandler) Sync(ctx context.Context, ea *api.HCPOpenSh
 	hash := ResourceIDHash(resourceID)
 	phase := PhaseLabel(ea.Properties.ProvisioningState)
 
-	partialMatch := prometheus.Labels{"resource_id_hash": hash}
-	h.provisionState.DeletePartialMatch(partialMatch)
+	if oldPhase, ok := h.lastPhase[hash]; ok && oldPhase != phase {
+		h.provisionState.Delete(prometheus.Labels{"resource_id_hash": hash, "phase": oldPhase})
+	}
 	h.provisionState.With(prometheus.Labels{
 		"resource_id_hash": hash,
 		"phase":            phase,
 	}).Set(1.0)
+	h.lastPhase[hash] = phase
 
 	createdTimeLabels := prometheus.Labels{"resource_id_hash": hash}
 	if ea.SystemData != nil && ea.SystemData.CreatedAt != nil && !ea.SystemData.CreatedAt.IsZero() {
@@ -347,7 +366,9 @@ func (h *externalAuthMetricsHandler) Sync(ctx context.Context, ea *api.HCPOpenSh
 
 func (h *externalAuthMetricsHandler) Delete(key string) {
 	hash := ResourceIDHash(key)
-	partialMatch := prometheus.Labels{"resource_id_hash": hash}
-	h.provisionState.DeletePartialMatch(partialMatch)
-	h.createdTime.DeletePartialMatch(partialMatch)
+	if oldPhase, ok := h.lastPhase[hash]; ok {
+		h.provisionState.Delete(prometheus.Labels{"resource_id_hash": hash, "phase": oldPhase})
+		delete(h.lastPhase, hash)
+	}
+	h.createdTime.Delete(prometheus.Labels{"resource_id_hash": hash})
 }

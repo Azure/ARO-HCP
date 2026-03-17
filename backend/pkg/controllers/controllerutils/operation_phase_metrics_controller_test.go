@@ -317,7 +317,7 @@ func TestSetMetrics_VerifiesLabelValues(t *testing.T) {
 	hash := ResourceIDHash(op.GetResourceID().String())
 	expected := fmt.Sprintf(`# HELP backend_resource_operation_phase_info Current phase of each operation (value is always 1).
 # TYPE backend_resource_operation_phase_info gauge
-backend_resource_operation_phase_info{operation_id_hash="%s",operation_type="create",phase="provisioning",resource_type="cluster"} 1
+backend_resource_operation_phase_info{operation_type="create",phase="provisioning",resource_id_hash="%s",resource_type="cluster"} 1
 `, hash)
 
 	err := testutil.CollectAndCompare(c.phaseInfo, strings.NewReader(expected), "backend_resource_operation_phase_info")
@@ -338,7 +338,7 @@ func TestSetMetrics_NilExternalIDUsesUnknownResourceType(t *testing.T) {
 	hash := ResourceIDHash(op.GetResourceID().String())
 	expected := fmt.Sprintf(`# HELP backend_resource_operation_phase_info Current phase of each operation (value is always 1).
 # TYPE backend_resource_operation_phase_info gauge
-backend_resource_operation_phase_info{operation_id_hash="%s",operation_type="create",phase="accepted",resource_type="unknown"} 1
+backend_resource_operation_phase_info{operation_type="create",phase="accepted",resource_id_hash="%s",resource_type="unknown"} 1
 `, hash)
 
 	err := testutil.CollectAndCompare(c.phaseInfo, strings.NewReader(expected), "backend_resource_operation_phase_info")
@@ -369,7 +369,7 @@ func TestSetMetrics_PhaseTransitionDeletesOldSeries(t *testing.T) {
 	hash := ResourceIDHash(op.GetResourceID().String())
 	expected := fmt.Sprintf(`# HELP backend_resource_operation_phase_info Current phase of each operation (value is always 1).
 # TYPE backend_resource_operation_phase_info gauge
-backend_resource_operation_phase_info{operation_id_hash="%s",operation_type="create",phase="provisioning",resource_type="cluster"} 1
+backend_resource_operation_phase_info{operation_type="create",phase="provisioning",resource_id_hash="%s",resource_type="cluster"} 1
 `, hash)
 	err := testutil.CollectAndCompare(c.phaseInfo, strings.NewReader(expected))
 	require.NoError(t, err)

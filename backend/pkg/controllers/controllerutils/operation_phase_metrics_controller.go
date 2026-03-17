@@ -33,7 +33,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
-var labelNames = []string{"operation_id_hash", "resource_type", "operation_type", "phase"}
+var labelNames = []string{"resource_id_hash", "resource_type", "operation_type", "phase"}
 
 // OperationPhaseMetricsController reacts to informer events and maintains
 // per-operation Prometheus gauge metrics using a level-driven approach.
@@ -190,14 +190,14 @@ func (c *OperationPhaseMetricsController) setMetrics(ctx context.Context, op *ap
 	phase := PhaseLabel(op.Status)
 
 	// Delete any existing series for this operation (handles phase transitions).
-	partialMatch := prometheus.Labels{"operation_id_hash": hash}
+	partialMatch := prometheus.Labels{"resource_id_hash": hash}
 	c.phaseInfo.DeletePartialMatch(partialMatch)
 	c.startTime.DeletePartialMatch(partialMatch)
 	c.lastTransitionTime.DeletePartialMatch(partialMatch)
 
 	// Set current state.
 	promLabels := prometheus.Labels{
-		"operation_id_hash": hash,
+		"resource_id_hash": hash,
 		"resource_type":     resourceType,
 		"operation_type":    operationType,
 		"phase":             phase,
@@ -213,7 +213,7 @@ func (c *OperationPhaseMetricsController) setMetrics(ctx context.Context, op *ap
 
 	logger := utils.LoggerFromContext(ctx)
 	logValues := append(
-		utils.LogValues{"operation_id_hash", hash},
+		utils.LogValues{"resource_id_hash", hash},
 		utils.LogValues{}.
 			AddOperationID(op.OperationID.Name).
 			AddLogValuesForResourceID(op.ExternalID).
@@ -226,7 +226,7 @@ func (c *OperationPhaseMetricsController) setMetrics(ctx context.Context, op *ap
 // which is the same value used to compute the hash in setMetrics.
 func (c *OperationPhaseMetricsController) deleteMetricsByKey(key string) {
 	hash := ResourceIDHash(key)
-	partialMatch := prometheus.Labels{"operation_id_hash": hash}
+	partialMatch := prometheus.Labels{"resource_id_hash": hash}
 	c.phaseInfo.DeletePartialMatch(partialMatch)
 	c.startTime.DeletePartialMatch(partialMatch)
 	c.lastTransitionTime.DeletePartialMatch(partialMatch)
