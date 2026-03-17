@@ -86,7 +86,7 @@ spec:
         - name: OPERAND_IMAGE_CLUSTER_PROXY
           value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/cluster-proxy-rhel9@sha256:85870ce5b22119bdcd6afa7e6e696cc5802b76f8ba8af278bb954f834d66aca9'
         - name: OPERAND_IMAGE_CONSOLE_MCE
-          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/console-mce-rhel9@sha256:724fc9dfc35595077b938f0d009add9fffe7ec1b5c7370e4b1f84d1a34094999'
+          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/console-mce-rhel9@sha256:ac4ad5149efad68946698ea5a7a34b1b55962ebe6fc65c01484a102c01f91e08'
         - name: OPERAND_IMAGE_DISCOVERY_OPERATOR
           value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/discovery-rhel9@sha256:02d434ff823485cb742b00506c31b3ada44af17183999c817670744c6327a8b0'
         - name: OPERAND_IMAGE_OPENSHIFT_HIVE
