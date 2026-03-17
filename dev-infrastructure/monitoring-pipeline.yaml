@@ -35,7 +35,7 @@ resourceGroups:
     template: templates/hcp-monitoring.bicep
     parameters: configurations/hcp-monitoring.tmpl.bicepparam
     deploymentLevel: ResourceGroup
-    actionOnUnmanage: detach
+    actionOnUnmanage: delete
     bypassStackOutOfSyncError: false
     variables:
     - name: hcpAzureMonitoringWorkspaceId
@@ -43,7 +43,7 @@ resourceGroups:
         resourceGroup: regional
         step: output
         name: hcpAzureMonitoringWorkspaceId
-    - name: sreActionGroups
+    - name: actionGroups
       input:
         resourceGroup: regional
         step: monitoring
