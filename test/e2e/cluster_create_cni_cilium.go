@@ -91,8 +91,12 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred())
 			Expect(verifiers.VerifyHCPCluster(ctx, adminRESTConfig)).To(Succeed())
 
-			// TODO: add cilium setup
-			// TODO: rerun VerifyHCPCluster
+			By("deploying cilium artefacts and a config")
+			err = verifiers.VerifyCiliumSetup(
+				"1.15.1",
+				clusterParams.Network.PodCIDR,
+				clusterParams.Network.HostPrefix).Verify(ctx, adminRESTConfig)
+			Expect(err).NotTo(HaveOccurred())
 
 			By("creating the node pool")
 			nodePoolParams := framework.NewDefaultNodePoolParams()
