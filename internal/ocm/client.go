@@ -163,6 +163,13 @@ type ClusterServiceClientSpec interface {
 
 	// DeleteProvisionShard sends a DELETE request to delete a provision shard from Cluster Service.
 	DeleteProvisionShard(ctx context.Context, internalID InternalID) error
+	// ListNodePoolUpgradePolicies prepares a GET request to list node pool upgrade policies for a node pool.
+	// Call Items() on the returned iterator in a for/range loop to execute the request and paginate over results,
+	// then call GetError() to check for an iteration error.
+	ListNodePoolUpgradePolicies(nodePoolInternalID InternalID, orderBy string) NodePoolUpgradePolicyListIterator
+
+	// PostNodePoolUpgradePolicy sends a POST request to create a node pool upgrade policy in Cluster Service.
+	PostNodePoolUpgradePolicy(ctx context.Context, nodePoolInternalID InternalID, builder *arohcpv1alpha1.NodePoolUpgradePolicyBuilder) (*arohcpv1alpha1.NodePoolUpgradePolicy, error)
 }
 
 type clusterServiceClient struct {
@@ -727,6 +734,38 @@ func (csc *clusterServiceClient) PostControlPlaneUpgradePolicy(ctx context.Conte
 		return nil, utils.TrackError(err)
 	}
 	policiesAddResponse, err := client.ControlPlaneUpgradePolicies().Add().Body(policy).SendContext(ctx)
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
+	policy, ok = policiesAddResponse.GetBody()
+	if !ok {
+		return nil, fmt.Errorf("empty response body")
+	}
+	return policy, nil
+}
+
+func (csc *clusterServiceClient) ListNodePoolUpgradePolicies(nodePoolInternalID InternalID, orderBy string) NodePoolUpgradePolicyListIterator {
+	client, ok := GetNodePoolClient(nodePoolInternalID, csc.conn)
+	if !ok {
+		return &nodePoolUpgradePolicyListIterator{err: fmt.Errorf("OCM path is not a node pool: %s", nodePoolInternalID)}
+	}
+	policiesListRequest := client.UpgradePolicies().List()
+	if orderBy != "" {
+		policiesListRequest.Parameter("order", orderBy)
+	}
+	return &nodePoolUpgradePolicyListIterator{request: policiesListRequest}
+}
+
+func (csc *clusterServiceClient) PostNodePoolUpgradePolicy(ctx context.Context, nodePoolInternalID InternalID, builder *arohcpv1alpha1.NodePoolUpgradePolicyBuilder) (*arohcpv1alpha1.NodePoolUpgradePolicy, error) {
+	client, ok := GetNodePoolClient(nodePoolInternalID, csc.conn)
+	if !ok {
+		return nil, fmt.Errorf("OCM path is not a node pool: %s", nodePoolInternalID)
+	}
+	policy, err := builder.Build()
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
+	policiesAddResponse, err := client.UpgradePolicies().Add().Body(policy).SendContext(ctx)
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}

@@ -426,3 +426,19 @@ func (csc *clusterServiceClientWithTracing) DeleteProvisionShard(ctx context.Con
 
 	return err
 }
+
+func (csc *clusterServiceClientWithTracing) ListNodePoolUpgradePolicies(nodePoolInternalID InternalID, orderBy string) NodePoolUpgradePolicyListIterator {
+	return csc.csc.ListNodePoolUpgradePolicies(nodePoolInternalID, orderBy)
+}
+
+func (csc *clusterServiceClientWithTracing) PostNodePoolUpgradePolicy(ctx context.Context, nodePoolInternalID InternalID, builder *arohcpv1alpha1.NodePoolUpgradePolicyBuilder) (*arohcpv1alpha1.NodePoolUpgradePolicy, error) {
+	ctx, span := csc.startChildSpan(ctx, "ClusterServiceClient.PostNodePoolUpgradePolicy")
+	defer span.End()
+
+	policy, err := csc.csc.PostNodePoolUpgradePolicy(ctx, nodePoolInternalID, builder)
+	if err != nil {
+		span.RecordError(err)
+	}
+
+	return policy, err
+}
