@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"reflect"
 	"strings"
 	"time"
 
@@ -279,11 +280,9 @@ func cliOutputFunc(ctx context.Context, logLineChan chan *NormalizedLogLine, que
 	for {
 		select {
 		case <-ctx.Done():
-			fmt.Println("Context done")
 			return ctx.Err()
 		case logLine, ok := <-logLineChan:
 			if !ok {
-				fmt.Println("Log line channel closed")
 				return allErrors
 			}
 			var fileName string
@@ -297,7 +296,6 @@ func cliOutputFunc(ctx context.Context, logLineChan chan *NormalizedLogLine, que
 			if !ok {
 				newFile, err := os.Create(path.Join(outputPath, directory, fileName))
 				if err != nil {
-					fmt.Println("Failed to create output file: ", fileName, err)
 					return errors.Join(allErrors, fmt.Errorf("failed to create output file: %w", err))
 				}
 				openedFiles[fileName] = newFile
@@ -305,11 +303,9 @@ func cliOutputFunc(ctx context.Context, logLineChan chan *NormalizedLogLine, que
 			}
 			thisLog, err := json.Marshal(*logLine.Log)
 			if err != nil {
-				fmt.Println("Failed to marshal log line: ", err)
 				allErrors = errors.Join(allErrors, fmt.Errorf("failed to marshal log line: %w", err))
 			}
 			if _, err := fmt.Fprintf(file, "%s\n", string(thisLog)); err != nil {
-				fmt.Println("Failed to write to file: ", fileName, err)
 				allErrors = errors.Join(allErrors, fmt.Errorf("failed to write to file %s: %w", fileName, err))
 			}
 		}
@@ -403,7 +399,7 @@ func (g *Gatherer) GatherLogs(ctx context.Context) error {
 		allKubernetesEventsQueries := make([]kusto.Query, 0)
 		for _, clusterName := range clusterNames {
 			if strings.Contains(clusterName, "mgmt") {
-				queries, err := queryFactory.Build(kusto.KubernetesEventsMgmtQuery, kusto.NewTemplateDataFromOptions(g.GetQueryOptions(), kusto.WithHCPNamespacePrefix(HCPNamespacePrefix), kusto.WithClusterName(clusterName)))
+				queries, err := queryFactory.Build(kusto.KubernetesEventsMgmtQuery, kusto.NewTemplateDataFromOptions(g.GetQueryOptions(), kusto.WithHCPNamespacePrefix(HCPNamespacePrefix), kusto.WithClusterIds(clusterIds), kusto.WithClusterName(clusterName)))
 				if err != nil {
 					return fmt.Errorf("failed to build kubernetes events mgmt query: %w", err)
 				}
@@ -535,17 +531,17 @@ func (g *Gatherer) queryAndWriteToFile(ctx context.Context, queryType QueryType,
 	return nil
 }
 
-// knownColumns is the set of column names that are deserialized into
-// NormalizedLogLine's typed fields via row.ToStruct. Any column not in
-// this set will be placed into the Extra map.
-var knownColumns = map[string]struct{}{
-	"cluster":        {},
-	"namespace_name": {},
-	"container_name": {},
-	"timestamp":      {},
-}
-
 func (g *Gatherer) convertRows(ctx context.Context, rowChannel <-chan azkquery.Row, outPutChannel chan<- *NormalizedLogLine) error {
+	// knownColumns are columns used by must-gather and should not be written to the output
+	knownColumns := make(map[string]struct{})
+	t := reflect.TypeOf(NormalizedLogLine{})
+	for i := range t.NumField() {
+		tag := t.Field(i).Tag.Get("kusto")
+		if tag != "" && tag != "-" {
+			knownColumns[tag] = struct{}{}
+		}
+	}
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -561,7 +557,13 @@ func (g *Gatherer) convertRows(ctx context.Context, rowChannel <-chan azkquery.R
 
 			columns := row.Columns()
 			values := row.Values()
+			// the actual log line
 			log := make(map[string]any, len(columns))
+			// Iterate over the row colums
+			// The expected output is a map where the columns match the query columns, i.e.
+			// - log: the usual log line, as used in standard must-gather queries
+			// - fooBar: any other columns used by i.e. custom queries
+			// We try to deserialize the log line into a map[string]any, if that fails, we use the string representation
 			for i, col := range columns {
 				if _, ok := knownColumns[col.Name()]; !ok {
 					if col.Name() == "log" && values[i].GetType() == types.Dynamic {
