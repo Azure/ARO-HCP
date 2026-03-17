@@ -21,6 +21,8 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
+	"golang.org/x/sync/errgroup"
+
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 	"github.com/Azure/ARO-HCP/test/util/verifiers"
@@ -43,7 +45,6 @@ var _ = Describe("Customer", func() {
 				customerClusterName              = "cx-rg-hcp-cluster"
 				customerNodePool1Name            = "np-1"
 				customerNodePool2Name            = "np-2"
-				customerNodePool2VMSize          = "Standard_D4s_v3"
 			)
 			tc := framework.NewTestContext()
 
@@ -100,31 +101,28 @@ var _ = Describe("Customer", func() {
 			err = verifiers.VerifyHCPCluster(ctx, adminRESTConfig)
 			Expect(err).NotTo(HaveOccurred())
 
-			By("creating the first nodepool")
-			nodePoolParams := framework.NewDefaultNodePoolParams()
-			nodePoolParams.ClusterName = customerClusterName
-			nodePoolParams.NodePoolName = customerNodePool1Name
-			nodePoolParams.Replicas = int32(2)
-			err = tc.CreateNodePoolFromParam(ctx,
-				*resourceGroup.Name,
-				customerClusterName,
-				nodePoolParams,
-				45*time.Minute,
-			)
-			Expect(err).NotTo(HaveOccurred())
+			By("creating both nodepools in parallel")
+			nodePoolParams1 := framework.NewDefaultNodePoolParams()
+			nodePoolParams1.NodePoolName = customerNodePool1Name
+			nodePoolParams1.Replicas = int32(2)
 
-			By("creating the second nodepool")
 			nodePoolParams2 := framework.NewDefaultNodePoolParams()
-			nodePoolParams2.ClusterName = customerClusterName
 			nodePoolParams2.NodePoolName = customerNodePool2Name
-			nodePoolParams2.VMSize = customerNodePool2VMSize
 			nodePoolParams2.Replicas = int32(1)
-			err = tc.CreateNodePoolFromParam(ctx,
-				*resourceGroup.Name,
-				customerClusterName,
-				nodePoolParams2,
-				45*time.Minute,
-			)
+
+			group, groupCtx := errgroup.WithContext(ctx)
+			for _, nodePoolParams := range []framework.NodePoolParams{nodePoolParams1, nodePoolParams2} {
+				group.Go(func() error {
+					return tc.CreateNodePoolFromParam(
+						groupCtx,
+						*resourceGroup.Name,
+						customerClusterName,
+						nodePoolParams,
+						45*time.Minute,
+					)
+				})
+			}
+			err = group.Wait()
 			Expect(err).NotTo(HaveOccurred())
 
 			By("deleting customer resource group to trigger cluster deletion")
@@ -140,8 +138,10 @@ var _ = Describe("Customer", func() {
 			Expect(err.Error()).To(ContainSubstring("ResourceGroupNotFound"))
 
 			By("verifying managed resource group is deleted (404)")
-			_, err = rgClient.Get(ctx, managedResourceGroupName, nil)
-			Expect(err).To(HaveOccurred())
+			Eventually(func() error {
+				_, err = rgClient.Get(ctx, managedResourceGroupName, nil)
+				return err
+			}, 10*time.Minute, 30*time.Second).ShouldNot(Succeed())
 			Expect(err.Error()).To(ContainSubstring("ResourceGroupNotFound"))
 		})
 })
