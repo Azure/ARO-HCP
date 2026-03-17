@@ -124,7 +124,7 @@ func SetDefaultValuesCluster(obj *HcpOpenShiftCluster) {
 		obj.Properties.ClusterImageRegistry = &generated.ClusterImageRegistryProfile{}
 	}
 	if obj.Properties.ClusterImageRegistry.State == nil {
-		obj.Properties.ClusterImageRegistry.State = ptr.To(generated.ClusterImageRegistryProfileStateEnabled)
+		obj.Properties.ClusterImageRegistry.State = ptr.To(generated.ClusterImageRegistryStateEnabled)
 	}
 }
 
@@ -257,7 +257,7 @@ func newClusterImageRegistryProfile(from *api.ClusterImageRegistryProfile) gener
 		return generated.ClusterImageRegistryProfile{}
 	}
 	return generated.ClusterImageRegistryProfile{
-		State: api.PtrOrNil(generated.ClusterImageRegistryProfileState(from.State)),
+		State: api.PtrOrNil(generated.ClusterImageRegistryState(from.State)),
 	}
 }
 
@@ -600,7 +600,7 @@ func normalizeActiveKey(p *generated.KmsKey, out *api.KmsKey) {
 
 func normalizeClusterImageRegistry(p *generated.ClusterImageRegistryProfile, out *api.ClusterImageRegistryProfile) {
 	if p.State != nil {
-		out.State = api.ClusterImageRegistryProfileState(*p.State)
+		out.State = api.ClusterImageRegistryState(*p.State)
 	}
 }
 

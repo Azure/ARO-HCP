@@ -1546,7 +1546,7 @@
             "Disabled"
           ],
           "x-ms-enum": {
-            "name": "ClusterImageRegistryProfileState",
+            "name": "ClusterImageRegistryState",
             "modelAsString": true,
             "values": [
               {

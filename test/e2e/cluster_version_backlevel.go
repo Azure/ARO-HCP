@@ -290,7 +290,7 @@ func buildHCPClusterRequest_4_19(
 				Visibility: to.Ptr(hcpsdk20240610preview.Visibility("Public")),
 			},
 			ClusterImageRegistry: &hcpsdk20240610preview.ClusterImageRegistryProfile{
-				State: to.Ptr(hcpsdk20240610preview.ClusterImageRegistryProfileState("Enabled")),
+				State: to.Ptr(hcpsdk20240610preview.ClusterImageRegistryState("Enabled")),
 			},
 			Etcd: &hcpsdk20240610preview.EtcdProfile{
 				DataEncryption: &hcpsdk20240610preview.EtcdDataEncryptionProfile{

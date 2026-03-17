@@ -497,7 +497,7 @@ func TestClusterValidate(t *testing.T) {
 			tweaks: &api.HCPOpenShiftCluster{
 				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
 					ClusterImageRegistry: api.ClusterImageRegistryProfile{
-						State: api.ClusterImageRegistryProfileState("not enabled"),
+						State: api.ClusterImageRegistryState("not enabled"),
 					},
 				},
 			},

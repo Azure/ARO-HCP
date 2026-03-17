@@ -793,7 +793,7 @@ func validateKmsKey(ctx context.Context, op operation.Operation, fldPath *field.
 }
 
 var (
-	toPlatformClusterImageRegistryState = func(oldObj *api.ClusterImageRegistryProfile) *api.ClusterImageRegistryProfileState {
+	toPlatformClusterImageRegistryState = func(oldObj *api.ClusterImageRegistryProfile) *api.ClusterImageRegistryState {
 		return &oldObj.State
 	}
 )
@@ -801,10 +801,10 @@ var (
 func validateClusterImageRegistryProfile(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *api.ClusterImageRegistryProfile) field.ErrorList {
 	errs := field.ErrorList{}
 
-	//State ClusterImageRegistryProfileState `json:"state,omitempty"`
+	//State ClusterImageRegistryState `json:"state,omitempty"`
 	errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("state"), &newObj.State, safe.Field(oldObj, toPlatformClusterImageRegistryState))...)
 	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("state"), &newObj.State, safe.Field(oldObj, toPlatformClusterImageRegistryState))...)
-	errs = append(errs, validate.Enum(ctx, op, fldPath.Child("state"), &newObj.State, safe.Field(oldObj, toPlatformClusterImageRegistryState), api.ValidClusterImageRegistryProfileStates)...)
+	errs = append(errs, validate.Enum(ctx, op, fldPath.Child("state"), &newObj.State, safe.Field(oldObj, toPlatformClusterImageRegistryState), api.ValidClusterImageRegistryStates)...)
 
 	return errs
 }

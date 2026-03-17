@@ -395,11 +395,11 @@ model ClusterImageRegistryProfile {
    * the cluster. Disabled means the ImageStream-backed image registry will not be present in
    * the cluster. The default is Enabled. */
   @visibility(Lifecycle.Read, Lifecycle.Create)
-  state?: ClusterImageRegistryProfileState = ClusterImageRegistryProfileState.Enabled;
+  state?: ClusterImageRegistryState = ClusterImageRegistryState.Enabled;
 }
 
 /** The desired state of the ImageStream-backed cluster image registry */
-union ClusterImageRegistryProfileState {
+union ClusterImageRegistryState {
   string,
 
   /** The ImageStream-backed image registry will be run as pods on worker nodes */

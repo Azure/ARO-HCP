@@ -733,7 +733,7 @@ func BuildHCPClusterFromParams(
 				AuthorizedCIDRs: parameters.AuthorizedCIDRs,
 			},
 			ClusterImageRegistry: &hcpsdk20240610preview.ClusterImageRegistryProfile{
-				State: to.Ptr(hcpsdk20240610preview.ClusterImageRegistryProfileState(parameters.ImageRegistryState)),
+				State: to.Ptr(hcpsdk20240610preview.ClusterImageRegistryState(parameters.ImageRegistryState)),
 			},
 			Etcd: &hcpsdk20240610preview.EtcdProfile{
 				DataEncryption: &hcpsdk20240610preview.EtcdDataEncryptionProfile{
