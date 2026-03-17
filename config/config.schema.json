@@ -457,6 +457,10 @@
         },
         "zoneRedundantMode": {
           "$ref": "#/definitions/zoneRedundantMode"
+        },
+        "secondaryNicCount": {
+          "type": "number",
+          "description": "Number of secondary NICs for Swift V2 networking."
         }
       },
       "additionalProperties": false,
