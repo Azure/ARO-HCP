@@ -18,6 +18,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -95,7 +96,7 @@ func TestGetLatestRelease(t *testing.T) {
 					t.Fatal("expected error, got nil")
 				}
 				if tt.errContain != "" {
-					if got := err.Error(); !contains(got, tt.errContain) {
+					if got := err.Error(); !strings.Contains(got, tt.errContain) {
 						t.Errorf("error %q should contain %q", got, tt.errContain)
 					}
 				}
@@ -144,17 +145,4 @@ func TestGetLatestRelease_AuthHeader(t *testing.T) {
 			t.Errorf("got Authorization %q, want empty", gotAuth)
 		}
 	})
-}
-
-func contains(s, substr string) bool {
-	return len(s) >= len(substr) && searchString(s, substr)
-}
-
-func searchString(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-	return false
 }

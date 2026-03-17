@@ -77,7 +77,7 @@ func (u *Updater) UpdateImages(ctx context.Context) error {
 		logger.V(2).Info("found latest tag", "name", name, "tag", imageInfo.Name, "digest", imageInfo.Digest)
 
 		for _, target := range imageConfig.Targets {
-			_, err := u.ProcessImageUpdates(ctx, name, imageInfo, target, imageConfig.Source)
+			err := u.ProcessImageUpdates(ctx, name, imageInfo, target, imageConfig.Source)
 			if err != nil {
 				return fmt.Errorf("failed to update image %s: %w", name, err)
 			}
@@ -204,23 +204,22 @@ func (u *Updater) fetchLatestValue(ctx context.Context, source config.Source) (*
 }
 
 // ProcessImageUpdates sets up the updates needed for a specific image and target
-// Returns true if an update was needed/applied, false otherwise
-func (u *Updater) ProcessImageUpdates(ctx context.Context, name string, tag *clients.Tag, target config.Target, source config.Source) (bool, error) {
+func (u *Updater) ProcessImageUpdates(ctx context.Context, name string, tag *clients.Tag, target config.Target, source config.Source) error {
 	logger, err := logr.FromContext(ctx)
 	if err != nil {
-		return false, fmt.Errorf("logger not found in context: %w", err)
+		return fmt.Errorf("logger not found in context: %w", err)
 	}
 
 	logger.V(2).Info("Processing image", "name", name, "tag", tag.Name, "digest", tag.Digest, "version", tag.Version)
 
 	editor, exists := u.YAMLEditors[target.FilePath]
 	if !exists {
-		return false, fmt.Errorf("no YAML editor available for %s", target.FilePath)
+		return fmt.Errorf("no YAML editor available for %s", target.FilePath)
 	}
 
 	line, currentDigest, err := editor.GetUpdate(target.JsonPath)
 	if err != nil {
-		return false, fmt.Errorf("failed to get current digest at path %s: %w", target.JsonPath, err)
+		return fmt.Errorf("failed to get current digest at path %s: %w", target.JsonPath, err)
 	}
 
 	logger.V(2).Info("Current digest", "name", name, "currentDigest", currentDigest)
@@ -228,7 +227,7 @@ func (u *Updater) ProcessImageUpdates(ctx context.Context, name string, tag *cli
 	var newDigest string
 	if source.GitHubLatestRelease != "" {
 		if strings.HasSuffix(target.JsonPath, ".digest") || strings.HasSuffix(target.JsonPath, ".sha") {
-			return false, fmt.Errorf("githubLatestRelease targets must not use .digest or .sha paths (got %q)", target.JsonPath)
+			return fmt.Errorf("githubLatestRelease targets must not use .digest or .sha paths (got %q)", target.JsonPath)
 		}
 		newDigest = tag.Version
 		if newDigest == "" {
@@ -243,7 +242,7 @@ func (u *Updater) ProcessImageUpdates(ctx context.Context, name string, tag *cli
 
 	if currentDigest == newDigest && !u.ForceUpdate {
 		logger.V(2).Info("No update needed - digests match", "name", name)
-		return false, nil
+		return nil
 	}
 
 	if currentDigest == newDigest && u.ForceUpdate {
@@ -282,5 +281,5 @@ func (u *Updater) ProcessImageUpdates(ctx context.Context, name string, tag *cli
 			"tag", tag.Name)
 	}
 
-	return true, nil
+	return nil
 }

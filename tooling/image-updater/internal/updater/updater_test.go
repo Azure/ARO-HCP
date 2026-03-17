@@ -428,7 +428,7 @@ image:
 				OutputFormat:    "table",
 			}
 
-			_, err := u.ProcessImageUpdates(ctx, "test-image", &clients.Tag{Digest: "sha256:newdigest", Name: "v1.0.0"}, tt.target, config.Source{Image: "quay.io/test/app"})
+			err := u.ProcessImageUpdates(ctx, "test-image", &clients.Tag{Digest: "sha256:newdigest", Name: "v1.0.0"}, tt.target, config.Source{Image: "quay.io/test/app"})
 
 			if (err != nil) != tt.wantErr {
 				t.Errorf("ProcessImageUpdates() error = %v, wantErr %v", err, tt.wantErr)
@@ -491,7 +491,7 @@ func TestUpdater_ProcessImageUpdates_GitHubReleaseRejectsDigestAndSHA(t *testing
 
 			source := config.Source{GitHubLatestRelease: "istio/istio"}
 			target := config.Target{FilePath: yamlPath, JsonPath: tt.jsonPath}
-			_, err = u.ProcessImageUpdates(ctx, "test", &clients.Tag{Name: "1.28.3", Version: "1.28.3"}, target, source)
+			err = u.ProcessImageUpdates(ctx, "test", &clients.Tag{Name: "1.28.3", Version: "1.28.3"}, target, source)
 			if err == nil {
 				t.Fatal("expected error, got nil")
 			}
@@ -630,7 +630,7 @@ image:
 			}
 
 			// Process update
-			_, err = u.ProcessImageUpdates(ctx, "test-image", &clients.Tag{Digest: tt.latestDigest, Name: "v1.0.0"}, target, config.Source{Image: "quay.io/test/app"})
+			err = u.ProcessImageUpdates(ctx, "test-image", &clients.Tag{Digest: tt.latestDigest, Name: "v1.0.0"}, target, config.Source{Image: "quay.io/test/app"})
 			if err != nil {
 				t.Fatalf("ProcessImageUpdates() failed: %v", err)
 			}
@@ -815,4 +815,3 @@ config:
 		}
 	})
 }
-
