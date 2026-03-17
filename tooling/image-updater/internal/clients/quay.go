@@ -438,7 +438,7 @@ func (c *QuayClient) getAllTagsViaRegistryAPIWithCache(ctx context.Context, repo
 	return enrichedTags, nil
 }
 
-func (c *QuayClient) GetArchSpecificDigest(ctx context.Context, repository string, tagPattern string, arch string, multiArch bool, versionLabel string) (*Tag, error) {
+func (c *QuayClient) GetArchSpecificDigest(ctx context.Context, repository string, tagPattern string, arch string, wantMultiArch bool, versionLabel string) (*Tag, error) {
 	logger, err := logr.FromContext(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("logger not found in context: %w", err)
@@ -492,7 +492,7 @@ func (c *QuayClient) GetArchSpecificDigest(ctx context.Context, repository strin
 		}
 
 		// If multiArch is requested, return the multi-arch manifest list digest
-		if multiArch && desc.MediaType.IsIndex() {
+		if wantMultiArch && desc.MediaType.IsIndex() {
 			logger.V(2).Info("found multi-arch manifest", "image", repository, "tag", tag.Name, "mediaType", desc.MediaType, "digest", desc.Digest.String(), "date", tag.LastModified.Format("2006-01-02 15:04"))
 			tag.Digest = desc.Digest.String()
 			return &tag, nil
@@ -531,14 +531,14 @@ func (c *QuayClient) GetArchSpecificDigest(ctx context.Context, repository strin
 		logger.V(2).Info("skipping non-matching architecture", "tag", tag.Name, "arch", configFile.Architecture, "os", configFile.OS, "wantArch", arch)
 	}
 
-	if multiArch {
+	if wantMultiArch {
 		return nil, fmt.Errorf("no multi-arch manifest found for repository %s", repository)
 	}
 	return nil, fmt.Errorf("no single-arch %s/linux image found for repository %s (all tags are either multi-arch or different architecture)", arch, repository)
 }
 
 // GetDigestForTag fetches the digest for a specific tag without pagination
-func (c *QuayClient) GetDigestForTag(ctx context.Context, repository string, tagName string, arch string, multiArch bool, versionLabel string) (*Tag, error) {
+func (c *QuayClient) GetDigestForTag(ctx context.Context, repository string, tagName string, arch string, wantMultiArch bool, versionLabel string) (*Tag, error) {
 	logger, err := logr.FromContext(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("logger not found in context: %w", err)
@@ -581,7 +581,7 @@ func (c *QuayClient) GetDigestForTag(ctx context.Context, repository string, tag
 	}
 
 	// If multiArch is requested, return the multi-arch manifest list digest
-	if multiArch {
+	if wantMultiArch {
 		if !desc.MediaType.IsIndex() {
 			return nil, fmt.Errorf("tag %s is not a multi-arch manifest (mediaType: %s)", tagName, desc.MediaType)
 		}

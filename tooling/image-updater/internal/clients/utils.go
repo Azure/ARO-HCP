@@ -28,11 +28,11 @@ import (
 type RegistryClient interface {
 	// GetArchSpecificDigest fetches the latest digest matching a tag pattern
 	// Requires pagination through all tags to find the latest match
-	GetArchSpecificDigest(ctx context.Context, repository string, tagPattern string, arch string, multiArch bool, versionLabel string) (*Tag, error)
+	GetArchSpecificDigest(ctx context.Context, repository string, tagPattern string, arch string, wantMultiArch bool, versionLabel string) (*Tag, error)
 
 	// GetDigestForTag fetches the digest for a specific tag name
 	// More efficient as it doesn't require pagination
-	GetDigestForTag(ctx context.Context, repository string, tag string, arch string, multiArch bool, versionLabel string) (*Tag, error)
+	GetDigestForTag(ctx context.Context, repository string, tag string, arch string, wantMultiArch bool, versionLabel string) (*Tag, error)
 }
 
 type Tag struct {
