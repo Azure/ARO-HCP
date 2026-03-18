@@ -117,8 +117,12 @@ record-nonlocal-e2e: $(GOJQ)
 		$(GOJQ) '[.[] | .SpecReports[]? | select(.State == "passed") | .LeafNodeText] | sort' test/e2e/report.json > ./nonlocal-e2e-specs.txt
 .PHONY: record-nonlocal-e2e
 
-e2e/local: e2e-local/setup
-	$(MAKE) e2e-local/run 
+build-hcpctl:
+	$(MAKE) -C tooling/hcpctl build
+.PHONY: build-hcpctl
+
+e2e/local: e2e-local/setup build-hcpctl
+	$(MAKE) e2e-local/run
 .PHONY: e2e/local
 
 e2e-local/setup:
@@ -143,6 +147,7 @@ e2e-local/run: $(ARO_HCP_TESTS)
 	export SKIP_CERT_VERIFICATION=$${SKIP_CERT_VERIFICATION:-false}; \
 	export FRONTEND_ADDRESS=$${FRONTEND_ADDRESS:-http://localhost:8443}; \
 	export ADMIN_API_ADDRESS=$${ADMIN_API_ADDRESS:-http://localhost:8444}; \
+	export HCPCTL_BINARY="$$(pwd)/tooling/hcpctl/hcpctl"; \
 	mkdir -p "$$ARTIFACT_DIR"; \
 	$(ARO_HCP_TESTS) run-suite "rp-api-compat-all/parallel" --junit-path="$$JUNIT_PATH" --html-path="$$HTML_PATH" --max-concurrency 100
 .PHONY: e2e-local/run
