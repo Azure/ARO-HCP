@@ -29,13 +29,6 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
-// The patch version is managed by Red Hat.
-const (
-	OpenShift419Patch = "7"
-	OpenShift420Patch = "16"
-	OpenShift421Patch = "5"
-)
-
 // CS cluster property keys and values used in the Cluster Service API.
 const (
 	CSPropertyProvisionShardID = "provision_shard_id"
@@ -810,16 +803,11 @@ func NewOpenShiftVersionXYZ(v, cg string) string {
 		// If no patch version provided (X.Y format), append default patch version
 		// Otherwise preserve the provided patch version (X.Y.Z format)
 		if len(parts) == 2 {
-			// TODO: Will change once we support allowing users to select a cluster installation version.
-			// hardcode patch versions for now
-			switch v {
-			case "4.19":
-				parts = append(parts, OpenShift419Patch)
-			case "4.20":
-				parts = append(parts, OpenShift420Patch)
-			case "4.21":
-				parts = append(parts, OpenShift421Patch)
-			default:
+			// Patch version is managed by Red Hat. This will be computed automatically to the latest
+			// as part of https://github.com/Azure/ARO-HCP/pull/4477
+			if patch, ok := map[string]string{"4.19": "25", "4.20": "16", "4.21": "5"}[v]; ok {
+				parts = append(parts, patch)
+			} else {
 				parts = append(parts, "0")
 			}
 		}
