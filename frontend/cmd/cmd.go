@@ -24,6 +24,7 @@ import (
 	"os"
 
 	"github.com/go-logr/logr"
+	"github.com/google/uuid"
 	"github.com/microsoft/go-otel-audit/audit/base"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
@@ -38,9 +39,6 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/tracing/azotel"
 
 	sdk "github.com/openshift-online/ocm-sdk-go"
-
-	"github.com/google/uuid"
-
 	"github.com/openshift/cluster-version-operator/pkg/cincinnati"
 
 	"github.com/Azure/ARO-HCP/frontend/pkg/frontend"

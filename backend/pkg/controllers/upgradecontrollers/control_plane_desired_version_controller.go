@@ -277,4 +277,3 @@ func (c *controlPlaneDesiredVersionSyncer) desiredControlPlaneZVersion(
 
 	return versionpkg.FindLatestVersionInMinor(ctx, cincinnatiClient, channelGroup, targetMinorVersion, activeVersionList)
 }
-

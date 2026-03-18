@@ -22,6 +22,7 @@ import (
 	"strings"
 
 	"github.com/blang/semver/v4"
+
 	sdk "github.com/openshift-online/ocm-sdk-go"
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"

@@ -23,11 +23,11 @@ import (
 	"github.com/google/uuid"
 	"github.com/onsi/ginkgo/v2"
 
-	configv1client "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
-	cvocincinnati "github.com/openshift/cluster-version-operator/pkg/cincinnati"
-
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/rest"
+
+	configv1client "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
+	cvocincinnati "github.com/openshift/cluster-version-operator/pkg/cincinnati"
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/cincinatti"
