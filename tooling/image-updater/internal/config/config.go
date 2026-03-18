@@ -86,6 +86,9 @@ func (s *Source) Validate() error {
 		if s.Architecture != "" || s.MultiArch {
 			return fmt.Errorf("architecture/multiArch must not be set when githubLatestRelease is used")
 		}
+		if s.UseAuth != nil || s.KeyVault != nil || s.VersionLabel != "" {
+			return fmt.Errorf("useAuth/keyVault/versionLabel must not be set when githubLatestRelease is used")
+		}
 		return nil
 	}
 

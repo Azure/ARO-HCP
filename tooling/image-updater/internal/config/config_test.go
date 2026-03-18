@@ -1074,6 +1074,33 @@ func TestSource_Validate(t *testing.T) {
 			wantErr:    true,
 			wantErrMsg: "architecture/multiArch must not be set",
 		},
+		{
+			name: "invalid: githubLatestRelease with useAuth",
+			source: Source{
+				GitHubLatestRelease: "istio/istio",
+				UseAuth:             boolPtr(true),
+			},
+			wantErr:    true,
+			wantErrMsg: "useAuth/keyVault/versionLabel must not be set",
+		},
+		{
+			name: "invalid: githubLatestRelease with keyVault",
+			source: Source{
+				GitHubLatestRelease: "istio/istio",
+				KeyVault:            &KeyVaultConfig{URL: "https://example.vault.azure.net/"},
+			},
+			wantErr:    true,
+			wantErrMsg: "useAuth/keyVault/versionLabel must not be set",
+		},
+		{
+			name: "invalid: githubLatestRelease with versionLabel",
+			source: Source{
+				GitHubLatestRelease: "istio/istio",
+				VersionLabel:        "org.opencontainers.image.revision",
+			},
+			wantErr:    true,
+			wantErrMsg: "useAuth/keyVault/versionLabel must not be set",
+		},
 	}
 
 	for _, tt := range tests {
