@@ -35,7 +35,7 @@ import (
 // generateDeploymentStackName creates a deployment stack name based on:
 // service group / resource group / step name / cloud / env / region / stamp
 // This ensures the name is stable over time while being unique across deployment contexts.
-// The full name is hashed to ensure it fits within Azure's 90-character limit for deployment stack names.
+// The full name is hashed to ensure it fits within Azure's 64-character limit for deployment names.
 func generateDeploymentStackName(serviceGroup, resourceGroup, stepName, cloud, environment, region, stamp string) string {
 	parts := []string{
 		serviceGroup,
@@ -49,9 +49,10 @@ func generateDeploymentStackName(serviceGroup, resourceGroup, stepName, cloud, e
 
 	fullName := strings.Join(parts, "-")
 
-	// Azure deployment stack names have a 90-character limit
+	// Azure deployment names have a 64-character limit (more restrictive than deployment stacks' 90)
+	// Deployment stacks create underlying deployments, so we must use the stricter 64-char limit
 	// If the full name exceeds this, use a readable prefix + hash for uniqueness
-	const maxLength = 90
+	const maxLength = 64
 	const hashLength = 12
 
 	if len(fullName) <= maxLength {
