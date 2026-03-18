@@ -1288,7 +1288,6 @@ func (h *HcpOperatorIdentityRoleSetProperties) UnmarshalJSON(data []byte) error 
 // MarshalJSON implements the json.Marshaller interface for type ImageDigestMirror.
 func (i ImageDigestMirror) MarshalJSON() ([]byte, error) {
 	objectMap := make(map[string]any)
-	populate(objectMap, "id", i.ID)
 	populate(objectMap, "mirrors", i.Mirrors)
 	populate(objectMap, "source", i.Source)
 	return json.Marshal(objectMap)
@@ -1303,9 +1302,6 @@ func (i *ImageDigestMirror) UnmarshalJSON(data []byte) error {
 	for key, val := range rawMsg {
 		var err error
 		switch key {
-		case "id":
-			err = unpopulate(val, "ID", &i.ID)
-			delete(rawMsg, key)
 		case "mirrors":
 			err = unpopulate(val, "Mirrors", &i.Mirrors)
 			delete(rawMsg, key)
@@ -1326,6 +1322,8 @@ func (i *ImageDigestMirror) UnmarshalJSON(data []byte) error {
 func (k KmsEncryptionProfile) MarshalJSON() ([]byte, error) {
 	objectMap := make(map[string]any)
 	populate(objectMap, "activeKey", k.ActiveKey)
+	populate(objectMap, "vaultName", k.VaultName)
+	populate(objectMap, "visibility", k.Visibility)
 	return json.Marshal(objectMap)
 }
 
@@ -1341,6 +1339,12 @@ func (k *KmsEncryptionProfile) UnmarshalJSON(data []byte) error {
 		case "activeKey":
 			err = unpopulate(val, "ActiveKey", &k.ActiveKey)
 			delete(rawMsg, key)
+		case "vaultName":
+			err = unpopulate(val, "VaultName", &k.VaultName)
+			delete(rawMsg, key)
+		case "visibility":
+			err = unpopulate(val, "Visibility", &k.Visibility)
+			delete(rawMsg, key)
 		default:
 			err = fmt.Errorf("unmarshalling type %T, unknown field %q", k, key)
 		}
@@ -1355,9 +1359,7 @@ func (k *KmsEncryptionProfile) UnmarshalJSON(data []byte) error {
 func (k KmsKey) MarshalJSON() ([]byte, error) {
 	objectMap := make(map[string]any)
 	populate(objectMap, "name", k.Name)
-	populate(objectMap, "vaultName", k.VaultName)
 	populate(objectMap, "version", k.Version)
-	populate(objectMap, "visibility", k.Visibility)
 	return json.Marshal(objectMap)
 }
 
@@ -1373,14 +1375,8 @@ func (k *KmsKey) UnmarshalJSON(data []byte) error {
 		case "name":
 			err = unpopulate(val, "Name", &k.Name)
 			delete(rawMsg, key)
-		case "vaultName":
-			err = unpopulate(val, "VaultName", &k.VaultName)
-			delete(rawMsg, key)
 		case "version":
 			err = unpopulate(val, "Version", &k.Version)
-			delete(rawMsg, key)
-		case "visibility":
-			err = unpopulate(val, "Visibility", &k.Visibility)
 			delete(rawMsg, key)
 		default:
 			err = fmt.Errorf("unmarshalling type %T, unknown field %q", k, key)

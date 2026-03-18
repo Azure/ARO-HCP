@@ -365,3 +365,80 @@ func (csc *clusterServiceClientWithTracing) PostControlPlaneUpgradePolicy(ctx co
 
 	return policy, err
 }
+
+func (csc *clusterServiceClientWithTracing) ListProvisionShards() ProvisionShardListIterator {
+	return csc.csc.ListProvisionShards()
+}
+
+func (csc *clusterServiceClientWithTracing) GetProvisionShard(ctx context.Context, provisionShardInternalID InternalID) (*arohcpv1alpha1.ProvisionShard, error) {
+	ctx, span := csc.startChildSpan(ctx, "ClusterServiceClient.GetProvisionShard")
+	defer span.End()
+
+	provisionShard, err := csc.csc.GetProvisionShard(ctx, provisionShardInternalID)
+	if err != nil {
+		span.RecordError(err)
+	} else {
+		tracing.SetProvisionShardAttributes(span, provisionShard)
+	}
+
+	return provisionShard, err
+}
+
+func (csc *clusterServiceClientWithTracing) PostProvisionShard(ctx context.Context, builder *arohcpv1alpha1.ProvisionShardBuilder) (*arohcpv1alpha1.ProvisionShard, error) {
+	ctx, span := csc.startChildSpan(ctx, "ClusterServiceClient.PostProvisionShard")
+	defer span.End()
+
+	provisionShard, err := csc.csc.PostProvisionShard(ctx, builder)
+	if err != nil {
+		span.RecordError(err)
+	} else {
+		tracing.SetProvisionShardAttributes(span, provisionShard)
+	}
+
+	return provisionShard, err
+}
+
+func (csc *clusterServiceClientWithTracing) UpdateProvisionShard(ctx context.Context, internalID InternalID, builder *arohcpv1alpha1.ProvisionShardBuilder) (*arohcpv1alpha1.ProvisionShard, error) {
+	ctx, span := csc.startChildSpan(ctx, "ClusterServiceClient.UpdateProvisionShard")
+	defer span.End()
+
+	provisionShard, err := csc.csc.UpdateProvisionShard(ctx, internalID, builder)
+	if err != nil {
+		span.RecordError(err)
+	} else {
+		tracing.SetProvisionShardAttributes(span, provisionShard)
+	}
+
+	return provisionShard, err
+}
+
+func (csc *clusterServiceClientWithTracing) DeleteProvisionShard(ctx context.Context, internalID InternalID) error {
+	ctx, span := csc.startChildSpan(ctx, "ClusterServiceClient.DeleteProvisionShard")
+	defer span.End()
+
+	span.SetAttributes(
+		tracing.ProvisionShardIDKey.String(internalID.ID()),
+	)
+	err := csc.csc.DeleteProvisionShard(ctx, internalID)
+	if err != nil {
+		span.RecordError(err)
+	}
+
+	return err
+}
+
+func (csc *clusterServiceClientWithTracing) ListNodePoolUpgradePolicies(nodePoolInternalID InternalID, orderBy string) NodePoolUpgradePolicyListIterator {
+	return csc.csc.ListNodePoolUpgradePolicies(nodePoolInternalID, orderBy)
+}
+
+func (csc *clusterServiceClientWithTracing) PostNodePoolUpgradePolicy(ctx context.Context, nodePoolInternalID InternalID, builder *arohcpv1alpha1.NodePoolUpgradePolicyBuilder) (*arohcpv1alpha1.NodePoolUpgradePolicy, error) {
+	ctx, span := csc.startChildSpan(ctx, "ClusterServiceClient.PostNodePoolUpgradePolicy")
+	defer span.End()
+
+	policy, err := csc.csc.PostNodePoolUpgradePolicy(ctx, nodePoolInternalID, builder)
+	if err != nil {
+		span.RecordError(err)
+	}
+
+	return policy, err
+}

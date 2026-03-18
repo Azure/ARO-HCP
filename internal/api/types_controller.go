@@ -20,6 +20,8 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 )
 
+// Controller represents a controller instance in the system.
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type Controller struct {
 	// CosmosMetadata ResourceID is nested under the cluster so that association and cleanup work as expected
 	// it will be the ServiceProviderCluster type and the name default

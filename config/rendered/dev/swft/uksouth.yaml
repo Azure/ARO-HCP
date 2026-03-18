@@ -1,12 +1,12 @@
 acm:
   mce:
     bundle:
-      digest: sha256:9c48f3bd0732f0bb85bad06922fea4ab9188737b4d26576c20a87eddecb35a5c
+      digest: sha256:8b90ed8abb29342e18283e084e24137697bc766006198c0fb2e6be6d008ebed4
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-210
   operator:
     bundle:
-      digest: sha256:a60e1c0c4564a29f4e6086e7d0f24b3fbce03a950b69a6ad1cafae93c0f742e3
+      digest: sha256:409cf06d0cd7b1d18a442aa730f4cb21cc6e1672541942f4e4db002dc69cb4a9
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-215
 acr:
@@ -35,7 +35,7 @@ adminApi:
     issuer: Self
     name: admin-api-cert-swft-lnstest
   image:
-    digest: sha256:51b2556ddc35f88e9f9c97e8933d3d5407ba7e4976b8145f4f63097251f327dd
+    digest: sha256:477fdad512baee0a0aa505875b94d420fca4a7da9c343b2772af6698ca2de776
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpadminapi
   k8s:
@@ -49,7 +49,7 @@ administration:
   sreServiceTag: ""
 aksCommandRuntime:
   image:
-    digest: sha256:1c49cb26c44ce9f846257ca1bae2d275862ebeb31d5529a62a6c4075665fd38f
+    digest: sha256:5d1fc3770795996bc22512c28adf4623ecb8a69eec3018a88e34a87bcba3366a
     registry: mcr.microsoft.com
     repository: aks/command/runtime
 armHelperCertName: armHelperCert2
@@ -58,7 +58,7 @@ armHelperFPAPrincipalId: 47f69502-0065-4d9a-b19b-d403e183d2f4
 arobit:
   forwarder:
     image:
-      digest: sha256:2dd901545bab3c9e216681b34fab33835c392fb5ba54149cc9a8a008df2f97af
+      digest: sha256:33bed43b09e3d2384c7661c74f6ed79ca53b0c25a3e28d77f139a7b9d50fbf1a
       registry: mcr.microsoft.com
       repository: oss/v2/fluent/fluent-bit
   kusto:
@@ -76,8 +76,9 @@ azureRegionAvailabilityZoneCount: 3
 backend:
   azureRuntimeConfig:
     tlsCertificatesIssuer: Self
+  exitOnPanic: true
   image:
-    digest: sha256:0149c3a17b30b7576807df532d817d822481cb5c2c4863f97a8b4cf3862c364e
+    digest: sha256:a99723e80cabe1bc691fcb24ace8694e2bfcefc8a25ea54b5ac4d56908a0ec8b
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpbackend
   k8s:
@@ -92,7 +93,7 @@ backend:
     exporter: ""
 backplaneAPI:
   image:
-    digest: sha256:02dd4de1a3462f679a880b75bd87c09f78ca3a8f06c126b075f5718481e7a730
+    digest: sha256:bfbd903e800a441b68c76a0eda0184c1114a395da58063050cd0305ad0971050
     registry: quay.io
     repository: app-sre/backplane-api
 billing:
@@ -136,7 +137,7 @@ clustersService:
   deployDebugJobs: false
   environment: arohcpswft
   image:
-    digest: sha256:877909c7b876e7cb8dd1d0cdb6485b92e9eb0bdd1494df44a308363b7a44b63b
+    digest: sha256:a474e759a59dbef5aace88246a839f663506123f179441acf705859f6b12f38c
     registry: quay.io
     repository: app-sre/aro-hcp-clusters-service
   k8s:
@@ -182,7 +183,7 @@ clustersService:
     exporter: ""
 customExporter:
   image:
-    digest: sha256:b138301009f792415bbd9283194d5142126db46886f3dd7ecd6f6ba855e53c18
+    digest: sha256:1149c78f18c5fd7b9ce7ec4a649d8208511a19807f00f12adef844513eb8ff92
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpmetrics
   k8s:
@@ -236,8 +237,9 @@ frontend:
     private: false
     resourceContainerMaxScale: 4000
     zoneRedundantMode: Disabled
+  exitOnPanic: true
   image:
-    digest: sha256:a41dc43264f6a909f3ae8b47a9c8ac6256ba7aa5d1122a58b4667393c39e1242
+    digest: sha256:16b0b113ca3a7da52166c24439fbfc8ad56053a66c071be912a0506b29f354e0
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpfrontend
   k8s:
@@ -254,12 +256,14 @@ geneva:
     application:
       manage: true
       name: arohcp-ga-dev
-      ownerIds: d8837611-f550-4f0a-af48-575a7178adfb,c209f8df-52ae-48fb-98ea-380f58b04652,16ea1e12-7ef3-4613-bea4-3d4a20cbc38c,770ce6b0-5afe-472d-ac0d-1fae72acc4e4
+      ownerIds: c209f8df-52ae-48fb-98ea-380f58b04652,16ea1e12-7ef3-4613-bea4-3d4a20cbc38c,770ce6b0-5afe-472d-ac0d-1fae72acc4e4
       useSNI: false
     certificate:
       issuer: Self
       manage: true
       name: genevaAction
+    endpointName: uksouth
+    endpointUrl: ""
     genevaActionsPrincipalId: ""
     keyVault:
       name: arohcpdev-geneva-kv
@@ -268,6 +272,7 @@ geneva:
       tagKey: aroHCPPurpose
       tagValue: geneva-actions
     serviceTag: GenevaActions
+    targetRegion: UK South
   logs:
     adminCertName: geneva-logs-admin
     adminCertificateDomain: geneva.keyvault.aro-hcp-global.azure.com
@@ -305,6 +310,7 @@ global:
     rg: placeholder
   globalMSIName: global-rollout-identity
   keyVault:
+    encryptionKeyName: secretSyncKey
     name: arohcpdev-global
     private: false
     softDelete: true
@@ -342,7 +348,7 @@ global:
 hypershift:
   additionalInstallArg: --enable-cpo-overrides
   image:
-    digest: sha256:4e64c76630a7b0e8fef6d64b3cf16bf108c2000aa985d2feefcdf9fac50e5f27
+    digest: sha256:3597b3a5b89d546f475db3538ee26ac1a8c88a33ff01ee5fe4191e7a9fb468d1
     registry: quay.io
     repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
   limitClusterSizes: true
@@ -353,7 +359,7 @@ imageSync:
   ocMirror:
     enabled: true
     image:
-      digest: sha256:76928811e249708e0108267fa21afe92fd0a5fc5a5d04d911e199d36562fa1b4
+      digest: sha256:f88f7fcbafcadbe0c8a1bc3955b1886953e9c6c2a54db38d4fd0939906d5e066
       registry: arohcpsvcdev.azurecr.io
       repository: image-sync/oc-mirror
     jobNamePrefix: ""
@@ -366,7 +372,7 @@ keyVaultDNSSuffix: vault.azure.net
 kubeEvents:
   enabled: true
   image:
-    digest: sha256:03381595146b77b7635e7f6cdd3e6b0ce2e3971741e3c31644b6be9912817c82
+    digest: sha256:13abf7c11c4701c5f5efbc7dfc0a182924aaf58e263cca00f2a1fa91aa972da3
     registry: kubernetesshared.azurecr.io
     repository: shared/kube-events
 kusto:
@@ -411,7 +417,7 @@ maestro:
     managedIdentityName: maestro-consumer
     sidecar:
       image:
-        digest: sha256:2dccfca276d1e7611442dc997ac15055f76c4caff92b668b40907cdd68fffa14
+        digest: sha256:331aaa0d553e8eec9b69261f1dc6fd74eadc1daec5907287dc5e9bbc3a7e2bc0
         registry: mcr.microsoft.com
         repository: azurelinux/base/nginx
   certDomain: selfsigned.maestro.keyvault.azure.com
@@ -421,7 +427,7 @@ maestro:
     name: arohcp-swft-maestro-lnstest
     private: false
   image:
-    digest: sha256:144f3abdc7e843bf8a59b3b45c9892528e22de6068567fb6cfd26630f33f621e
+    digest: sha256:646dbd891853231e6c3f03b93ec6edc89675d7d9842a836c7c9f750a25766e1e
     registry: quay.io
     repository: redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro
   postgres:
@@ -489,9 +495,10 @@ mgmt:
     userAgentPool:
       maxCount: 3
       minCount: 1
-      name: user
+      name: userswft
       osDiskSizeGB: 128
       poolCount: 3
+      secondaryNicCount: 7
       vmSize: Standard_D16s_v3
       zoneRedundantMode: Auto
       zones: ""
@@ -514,7 +521,7 @@ mgmt:
         image:
           registry: arohcpsvcdev.azurecr.io
           repository: k8s-cache/ingress-nginx/kube-webhook-certgen
-          sha: 7c74a715af2c94cb734785b4d3ea1357b4f02b88e1e123c622a9cb68b62f669c
+          sha: d7e8257f8d8bce64b6df55f81fba92011a6a77269b3350f8b997b152af348dba
     kubeStateMetrics:
       image:
         digest: sha256:17fc37d9fe70a0efa4fdaf609bd03299013faa0fee16b77815469eb37a879e7c
@@ -537,7 +544,7 @@ mgmt:
       image:
         registry: mcr.microsoft.com/oss/v2
         repository: prometheus/prometheus
-        sha: 375d727bf8137d574b5aad4f94881fade0a57556ddf52a3f98322e5d561286af
+        sha: 62546012f4aea03c3df3ebd93926d54f7453c90a6fffb6a9f1241730d1f8ba11
       replicas: 2
       resources:
         limits:
@@ -584,6 +591,7 @@ mgmtKeyVault:
 miMockCertName: msiMockCert2
 miMockClientId: e8723db7-9b9e-46a4-9f7d-64d75c3534f0
 miMockPrincipalId: d6b62dfa-87f5-49b3-bbcb-4a687c4faa96
+miMockTenantId: 64dc69e4-d083-49fc-9569-ebece1dd1408
 mise:
   arm:
     applicationId: e2c2ff5c-e5b4-4e79-8c3e-1da8c48461e7
@@ -597,7 +605,7 @@ mise:
     authorityFQDN: sts.windows.net
     policyLabel: Geneva Actions
   image:
-    digest: sha256:4822b1998fafa4c7ed1e0723dfed8fd0562e1525545327b821e6d9ef29573c74
+    digest: sha256:40b9813f4d56d96efec48a441ff90680ede2ad5891d1384eb66420462a9dc0fe
     repository: mise-1p-container-image
   sessiongate:
     audience: 6dae42f8-4368-4678-94ff-3960e28e3630
@@ -735,7 +743,7 @@ sessiongate:
     issuer: Self
     name: sessiongate-cert-swft-lnstest
   image:
-    digest: sha256:3a857ea56c86e3d09570819a6a5d8925ee99d2b0e8553446bee34dc29b881124
+    digest: sha256:d175c7a189edf2b09eab38d43816f188ae158bd7b4d7892b6ece9d386c56add9
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpsessiongate
   k8s:
@@ -806,7 +814,7 @@ svc:
         image:
           registry: arohcpsvcdev.azurecr.io
           repository: k8s-cache/ingress-nginx/kube-webhook-certgen
-          sha: 7c74a715af2c94cb734785b4d3ea1357b4f02b88e1e123c622a9cb68b62f669c
+          sha: d7e8257f8d8bce64b6df55f81fba92011a6a77269b3350f8b997b152af348dba
     kubeStateMetrics:
       image:
         digest: sha256:17fc37d9fe70a0efa4fdaf609bd03299013faa0fee16b77815469eb37a879e7c
@@ -829,7 +837,7 @@ svc:
       image:
         registry: mcr.microsoft.com/oss/v2
         repository: prometheus/prometheus
-        sha: 375d727bf8137d574b5aad4f94881fade0a57556ddf52a3f98322e5d561286af
+        sha: 62546012f4aea03c3df3ebd93926d54f7453c90a6fffb6a9f1241730d1f8ba11
       replicas: 2
       resources:
         limits:
@@ -878,7 +886,7 @@ velero:
     registry: registry.redhat.io
     repository: oadp/oadp-velero-plugin-for-microsoft-azure-rhel9
   hypershiftPlugin:
-    digest: sha256:f47f2f9099b6ad235ea1187556dc165aef725bcbe2b818ab62bb186ad485961e
+    digest: sha256:381926cbc8ac3a769b17174452453ddc98c731981332374de7a0927617513a96
     registry: registry.redhat.io
     repository: oadp/oadp-hypershift-velero-plugin-rhel9
   server:

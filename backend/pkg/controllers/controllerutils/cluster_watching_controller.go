@@ -102,6 +102,18 @@ func NewClusterWatchingController(
 		if err != nil {
 			panic(err) // coding error
 		}
+		managementClusterContentInformer, _ := informers.ManagementClusterContents()
+		_, err = managementClusterContentInformer.AddEventHandlerWithOptions(
+			cache.ResourceEventHandlerFuncs{
+				AddFunc:    c.enqueueManagementClusterContentAdd,
+				UpdateFunc: c.enqueueManagementClusterContentUpdate,
+			},
+			cache.HandlerOptions{
+				ResyncPeriod: ptr.To(resyncDuration),
+			})
+		if err != nil {
+			panic(err) // coding error
+		}
 	}
 
 	return c
@@ -109,6 +121,11 @@ func NewClusterWatchingController(
 
 func (c *clusterWatchingController) SyncOnce(ctx context.Context, keyObj any) error {
 	key := keyObj.(HCPClusterKey)
+	defer utilruntime.HandleCrash(DegradedControllerPanicHandler(
+		ctx,
+		c.cosmosClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Controllers(key.HCPClusterName),
+		c.name,
+		key.InitialController))
 
 	syncErr := c.syncer.SyncOnce(ctx, key) // we'll handle this is a moment.
 
@@ -220,9 +237,17 @@ func (c *clusterWatchingController) enqueueClusterUpdate(_ interface{}, newObj i
 }
 
 func (c *clusterWatchingController) enqueueServiceProviderClusterAdd(newObj interface{}) {
-	c.EnqueueResourceIDAdd(newObj.(*api.ServiceProviderCluster).CosmosMetadata.ResourceID)
+	c.EnqueueResourceIDAdd(newObj.(*api.ServiceProviderCluster).GetResourceID())
 }
 
 func (c *clusterWatchingController) enqueueServiceProviderClusterUpdate(_ interface{}, newObj interface{}) {
-	c.EnqueueResourceIDAdd(newObj.(*api.ServiceProviderCluster).CosmosMetadata.ResourceID)
+	c.EnqueueResourceIDAdd(newObj.(*api.ServiceProviderCluster).GetResourceID())
+}
+
+func (c *clusterWatchingController) enqueueManagementClusterContentAdd(newObj interface{}) {
+	c.EnqueueResourceIDAdd(newObj.(*api.ManagementClusterContent).GetResourceID())
+}
+
+func (c *clusterWatchingController) enqueueManagementClusterContentUpdate(_ interface{}, newObj interface{}) {
+	c.EnqueueResourceIDAdd(newObj.(*api.ManagementClusterContent).GetResourceID())
 }

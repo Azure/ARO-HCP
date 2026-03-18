@@ -10,6 +10,7 @@ LINT_GOTAGS?='E2Etests'
 TOOLS_BIN_DIR := tooling/bin
 DEPLOY_ENV ?= pers
 CONFIG_FILE ?= config/config.yaml
+export AZURE_TOKEN_CREDENTIALS ?= dev
 
 .DEFAULT_GOAL := all
 

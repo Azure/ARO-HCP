@@ -46,7 +46,8 @@
 			"subnetId": "/subscriptions/b2c3d4e5-0000-0000-0000-afec00000001/resourceGroups/bar/providers/Microsoft.Network/virtualNetworks/vnet/subnets/subnet"
 		},
 		"version": {
-			"channelGroup": "stable"
+			"channelGroup": "stable",
+			"id": "4.20"
 		}
 	},
 	"type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters"

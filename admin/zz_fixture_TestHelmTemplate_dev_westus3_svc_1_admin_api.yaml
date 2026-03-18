@@ -24,6 +24,23 @@ subjects:
   name: admin-api
   namespace: 'aro-hcp-admin-api'
 ---
+# Source: ARO HCP Admin API/templates/admin.metrics.service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: aro-hcp-admin-api-metrics
+  namespace: 'aro-hcp-admin-api'
+  labels:
+    app: admin-api-metrics
+spec:
+  selector:
+    app: admin-api
+  ports:
+  - port: 8444
+    protocol: TCP
+    targetPort: 8444
+    name: metrics
+---
 # Source: ARO HCP Admin API/templates/admin.service.yaml
 apiVersion: v1
 kind: Service
@@ -109,6 +126,8 @@ spec:
           value: "1m"
         - name: MAX_SESSION_TTL
           value: "24h"
+        - name: AZURE_TOKEN_CREDENTIALS
+          value: "WorkloadIdentityCredential"
         ports:
         - containerPort: 8443
           name: http
@@ -184,7 +203,7 @@ spec:
       - command:
         - "/bin/sleep"
         - "infinity"
-        image: mcr.microsoft.com/cbl-mariner/busybox:1.35
+        image: mcr.microsoft.com/cbl-mariner/busybox:2.0
         name: init-container-msg-container-init
         volumeMounts:
         - name: secrets-store01-inline
@@ -244,6 +263,20 @@ spec:
     - name: admin-api
       port: 8443
 ---
+# Source: ARO HCP Admin API/templates/admin.peerauthentication.yaml
+apiVersion: security.istio.io/v1beta1
+kind: PeerAuthentication
+metadata:
+  name: aro-hcp-admin-api-metrics
+  namespace: 'aro-hcp-admin-api'
+spec:
+  selector:
+    matchLabels:
+      app: admin-api
+  portLevelMtls:
+    8444:
+      mode: PERMISSIVE
+---
 # Source: ARO HCP Admin API/templates/admin.fpa.secretproviderclass.yaml
 apiVersion: secrets-store.csi.x-k8s.io/v1
 kind: SecretProviderClass
@@ -299,6 +332,25 @@ spec:
       key: tls.crt
     - objectName: admin-api-cert
       key: tls.key
+---
+# Source: ARO HCP Admin API/templates/admin.servicemonitor.yaml
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: aro-hcp-admin-api
+  namespace: 'aro-hcp-admin-api'
+spec:
+  endpoints:
+  - interval: 30s
+    path: /metrics
+    port: metrics
+    scheme: http
+  namespaceSelector:
+    matchNames:
+    - 'aro-hcp-admin-api'
+  selector:
+    matchLabels:
+      app: admin-api-metrics
 ---
 # Source: ARO HCP Admin API/templates/admin.virtualservice.yaml
 apiVersion: networking.istio.io/v1beta1

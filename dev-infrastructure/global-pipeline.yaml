@@ -33,6 +33,7 @@ resourceGroups:
     - prod
     regions:
     - eastus2euap
+    - uksouth
   steps:
   - name: infra
     action: ARM
@@ -166,7 +167,7 @@ resourceGroups:
     action: SecretSync
     keyVault: '{{ .global.keyVault.name }}'
     configurationFile: 'data/encryptedsecrets.yaml'
-    encryptionKey: 'secretSyncKey'
+    encryptionKey: '{{ .global.keyVault.encryptionKeyName }}'
     dependsOn:
     - resourceGroup: singleton
       step: infra

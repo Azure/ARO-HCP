@@ -646,6 +646,52 @@ images:
 			wantErrMsg: "group is required",
 		},
 		{
+			name: "invalid config: githubLatestRelease with .digest target",
+			setupFile: func(t *testing.T) string {
+				tmpDir := t.TempDir()
+				configPath := filepath.Join(tmpDir, "config.yaml")
+				content := `
+images:
+  test:
+    group: test-group
+    source:
+      githubLatestRelease: "owner/repo"
+    targets:
+      - filePath: test.yaml
+        jsonPath: image.digest
+`
+				if err := os.WriteFile(configPath, []byte(content), 0644); err != nil {
+					t.Fatalf("failed to create config file: %v", err)
+				}
+				return configPath
+			},
+			wantErr:    true,
+			wantErrMsg: "must not use .digest or .sha paths",
+		},
+		{
+			name: "invalid config: githubLatestRelease with .sha target",
+			setupFile: func(t *testing.T) string {
+				tmpDir := t.TempDir()
+				configPath := filepath.Join(tmpDir, "config.yaml")
+				content := `
+images:
+  test:
+    group: test-group
+    source:
+      githubLatestRelease: "owner/repo"
+    targets:
+      - filePath: test.yaml
+        jsonPath: image.sha
+`
+				if err := os.WriteFile(configPath, []byte(content), 0644); err != nil {
+					t.Fatalf("failed to create config file: %v", err)
+				}
+				return configPath
+			},
+			wantErr:    true,
+			wantErrMsg: "must not use .digest or .sha paths",
+		},
+		{
 			name: "invalid config: both tag and tagPattern",
 			setupFile: func(t *testing.T) string {
 				tmpDir := t.TempDir()
@@ -969,6 +1015,91 @@ func TestSource_Validate(t *testing.T) {
 				MultiArch: true,
 			},
 			wantErr: false,
+		},
+		{
+			name: "valid: githubLatestRelease only",
+			source: Source{
+				GitHubLatestRelease: "istio/istio",
+			},
+			wantErr: false,
+		},
+		{
+			name: "invalid: githubLatestRelease bad format",
+			source: Source{
+				GitHubLatestRelease: "istio",
+			},
+			wantErr:    true,
+			wantErrMsg: "owner/repo",
+		},
+		{
+			name: "invalid: githubLatestRelease bad format - trailing slash",
+			source: Source{
+				GitHubLatestRelease: "istio/",
+			},
+			wantErr:    true,
+			wantErrMsg: "owner/repo",
+		},
+		{
+			name: "invalid: githubLatestRelease bad format - leading slash",
+			source: Source{
+				GitHubLatestRelease: "/istio",
+			},
+			wantErr:    true,
+			wantErrMsg: "owner/repo",
+		},
+		{
+			name: "invalid: githubLatestRelease with image",
+			source: Source{
+				GitHubLatestRelease: "istio/istio",
+				Image:               "quay.io/something",
+			},
+			wantErr:    true,
+			wantErrMsg: "image must not be set",
+		},
+		{
+			name: "invalid: githubLatestRelease with tag",
+			source: Source{
+				GitHubLatestRelease: "istio/istio",
+				Tag:                 "v1.0.0",
+			},
+			wantErr:    true,
+			wantErrMsg: "tag/tagPattern must not be set",
+		},
+		{
+			name: "invalid: githubLatestRelease with multiArch",
+			source: Source{
+				GitHubLatestRelease: "istio/istio",
+				MultiArch:           true,
+			},
+			wantErr:    true,
+			wantErrMsg: "architecture/multiArch must not be set",
+		},
+		{
+			name: "invalid: githubLatestRelease with useAuth",
+			source: Source{
+				GitHubLatestRelease: "istio/istio",
+				UseAuth:             boolPtr(true),
+			},
+			wantErr:    true,
+			wantErrMsg: "useAuth/keyVault/versionLabel must not be set",
+		},
+		{
+			name: "invalid: githubLatestRelease with keyVault",
+			source: Source{
+				GitHubLatestRelease: "istio/istio",
+				KeyVault:            &KeyVaultConfig{URL: "https://example.vault.azure.net/"},
+			},
+			wantErr:    true,
+			wantErrMsg: "useAuth/keyVault/versionLabel must not be set",
+		},
+		{
+			name: "invalid: githubLatestRelease with versionLabel",
+			source: Source{
+				GitHubLatestRelease: "istio/istio",
+				VersionLabel:        "org.opencontainers.image.revision",
+			},
+			wantErr:    true,
+			wantErrMsg: "useAuth/keyVault/versionLabel must not be set",
 		},
 	}
 

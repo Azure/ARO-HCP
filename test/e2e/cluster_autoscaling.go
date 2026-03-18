@@ -104,7 +104,7 @@ var _ = Describe("Customer", func() {
 				customerClusterName,
 			)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(got.Properties.Autoscaling).ToNot(BeNil())
+			Expect(got.Properties.Autoscaling).ToNot(BeNil(), "cluster Properties.Autoscaling was nil")
 			Expect(got.Properties.Autoscaling.MaxNodeProvisionTimeSeconds).To(Equal(to.Ptr(autoscalingMaxNodeProvisionTimeSeconds)))
 			Expect(got.Properties.Autoscaling.MaxPodGracePeriodSeconds).To(Equal(to.Ptr(autoscalingMaxPodGracePeriodSeconds)))
 			Expect(got.Properties.Autoscaling.PodPriorityThreshold).To(Equal(to.Ptr(autoscalingPodPriorityThreshold)))

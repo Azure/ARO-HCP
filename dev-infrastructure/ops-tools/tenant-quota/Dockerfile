@@ -10,7 +10,9 @@ COPY dev-infrastructure/ops-tools/tenant-quota/ dev-infrastructure/ops-tools/ten
 COPY internal/ internal/
 ARG TAG
 # https://github.com/microsoft/go/tree/microsoft/main/eng/doc/fips#build-option-to-require-fips-mode
-ENV CGO_ENABLED=1 GOFLAGS='-tags=requirefips'
+# NOTE: starting with go 1.27, GODEBUG=fips140=only can be used at runtime to also reject
+# non-FIPS algorithms. See https://github.com/microsoft/go/tree/microsoft/main/eng/doc/fips
+ENV CGO_ENABLED=1 GOFIPS140=latest
 
 RUN cd dev-infrastructure/ops-tools/tenant-quota && \
     go build -ldflags="-X github.com/Azure/ARO-HCP/internal/version.CommitSHA=${TAG}" -o tenant-quota-collector .

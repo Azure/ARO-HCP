@@ -8,12 +8,13 @@ SESSIONGATE_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 
 # Image
 ARO_HCP_REVISION ?= $(shell git rev-parse HEAD)
+ARO_HCP_COMMIT_TIME := $(shell TZ=UTC git show -s --format=%cd --date=iso-strict-local ${ARO_HCP_REVISION})
 SESSION_GATE_IMAGE_TAG ?= $(shell DETECT_DIRTY_GIT_WORKTREE=${DETECT_DIRTY_GIT_WORKTREE} DEPLOY_ENV=${DEPLOY_ENV} ../generate-tag.sh)
 SESSION_GATE_GENERATED_IMAGE_REPOSITORY = $(shell DEPLOY_ENV=${DEPLOY_ENV} BASELINE_REPO=${SESSION_GATE_IMAGE_REPOSITORY} ../generate-repo.sh)
 SESSION_GATE_TAGGED_IMAGE ?= $(ARO_HCP_IMAGE_REGISTRY)/$(SESSION_GATE_GENERATED_IMAGE_REPOSITORY):$(SESSION_GATE_IMAGE_TAG)
 
 HELMCHART_DIR = deploy
-CONTAINER_TOOL ?= docker
+CONTAINER_ENGINE ?= $(shell command -v podman 2>/dev/null || echo docker)
 BINARY = bin/sessiongate
 SESSION_GATE_SOURCES = $(shell find . -name '*.go' -o -name 'go.mod' -o -name 'go.sum')
 LDFLAGS = -ldflags ""
@@ -46,16 +47,17 @@ run:
 image: Dockerfile $(SESSION_GATE_SOURCES)
 	rm -f $(BINARY)
 	cd $(SESSIONGATE_DIR)/.. && \
-	$(CONTAINER_TOOL) build . --file sessiongate/Dockerfile \
+	$(CONTAINER_ENGINE) build . --file sessiongate/Dockerfile \
 		--build-arg PLATFORM=linux/amd64 \
 		--build-arg ARO_HCP_REVISION=${ARO_HCP_REVISION} \
+		--build-arg ARO_HCP_COMMIT_TIME=${ARO_HCP_COMMIT_TIME} \
 		--build-arg ARO_HCP_IMAGE_TAG=${SESSION_GATE_IMAGE_TAG} \
 		--tag ${SESSION_GATE_TAGGED_IMAGE}
 	touch $@
 
 build-and-push: image
 	az acr login --name ${ARO_HCP_IMAGE_ACR}
-	$(CONTAINER_TOOL) push ${SESSION_GATE_TAGGED_IMAGE}
+	$(CONTAINER_ENGINE) push ${SESSION_GATE_TAGGED_IMAGE}
 .PHONY: build-and-push
 
 OVERRIDE_CONFIG_FILE ?= /tmp/sessiongate-override-config-$(date +%s).yaml

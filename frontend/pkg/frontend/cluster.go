@@ -22,7 +22,9 @@ import (
 	"maps"
 	"net/http"
 	"strings"
+	"time"
 
+	"k8s.io/apimachinery/pkg/api/operation"
 	"k8s.io/utils/ptr"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -34,8 +36,6 @@ import (
 	"github.com/Azure/ARO-HCP/internal/admission"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/api/v20240610preview"
-	"github.com/Azure/ARO-HCP/internal/api/v20251223preview"
 	"github.com/Azure/ARO-HCP/internal/conversion"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -227,7 +227,7 @@ func (f *Frontend) CreateOrUpdateHCPCluster(writer http.ResponseWriter, request 
 	}
 }
 
-func decodeDesiredClusterCreate(ctx context.Context, azureLocation string) (*api.HCPOpenShiftCluster, error) {
+func decodeDesiredClusterCreate(ctx context.Context, azureLocation string, requestHeader http.Header) (*api.HCPOpenShiftCluster, error) {
 	versionedInterface, err := VersionFromContext(ctx)
 	if err != nil {
 		return nil, utils.TrackError(err)
@@ -243,6 +243,10 @@ func decodeDesiredClusterCreate(ctx context.Context, azureLocation string) (*api
 	systemData, err := SystemDataFromContext(ctx)
 	if err != nil {
 		return nil, utils.TrackError(err)
+	}
+	// If for some reason systemData.CreatedAt is not set, we set it to the current time in UTC.
+	if systemData.CreatedAt == nil {
+		systemData.CreatedAt = ptr.To(time.Now().UTC())
 	}
 
 	externalClusterFromRequest := versionedInterface.NewHCPOpenShiftCluster(&api.HCPOpenShiftCluster{})
@@ -265,7 +269,12 @@ func decodeDesiredClusterCreate(ctx context.Context, azureLocation string) (*api
 
 	// set fields that were not included during the conversion, because the user does not provide them or because the
 	// data is determined live on read.
-	newInternalCluster.SystemData = systemData
+	newInternalCluster.SystemData = ensureSystemData(systemData, nil)
+
+	// We set the managed identities data plane identity URL associated to the cluster from the
+	// http header 'X-Ms-Identity-Url'.
+	newInternalCluster.ServiceProviderProperties.ManagedIdentitiesDataPlaneIdentityURL = requestHeader.Get(arm.HeaderNameIdentityURL)
+
 	// Clear the user-assigned identities map since that is reconstructed from Cluster Service data.
 	// TODO we'd like to have the instance complete when we go to validate it.  Right now validation fails if we clear this.
 	// TODO we probably update validation to require this field is cleared.
@@ -312,7 +321,7 @@ func (f *Frontend) createHCPCluster(writer http.ResponseWriter, request *http.Re
 		return utils.TrackError(err)
 	}
 
-	newInternalCluster, err := decodeDesiredClusterCreate(ctx, f.azureLocation)
+	newInternalCluster, err := decodeDesiredClusterCreate(ctx, f.azureLocation, request.Header)
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -320,7 +329,11 @@ func (f *Frontend) createHCPCluster(writer http.ResponseWriter, request *http.Re
 	if mutationErrs := admission.MutateCluster(newInternalCluster, subscription); len(mutationErrs) > 0 {
 		return utils.TrackError(arm.CloudErrorFromFieldErrors(mutationErrs))
 	}
-	validationErrs := validation.ValidateClusterCreate(ctx, newInternalCluster, api.Must(versionedInterface.ValidationPathRewriter(&api.HCPOpenShiftCluster{})))
+	validationOp := operation.Operation{
+		Type:    operation.Create,
+		Options: validation.AFECsToValidationOptions(subscription.GetRegisteredFeatures()),
+	}
+	validationErrs := validation.ValidateCluster(ctx, validationOp, newInternalCluster, nil, api.Must(versionedInterface.ValidationPathRewriter(&api.HCPOpenShiftCluster{})))
 	validationErrs = append(validationErrs, admission.AdmitClusterOnCreate(ctx, newInternalCluster, subscription)...)
 	if err := arm.CloudErrorFromFieldErrors(validationErrs); err != nil {
 		return utils.TrackError(err)
@@ -448,19 +461,6 @@ func decodeDesiredClusterReplace(ctx context.Context, oldInternalCluster *api.HC
 		return nil, utils.TrackError(err)
 	}
 
-	// until we ensure that all records have the version.id set, we need to store it from the external version BEFORE defaulting
-	requestVersionID := ""
-	switch cast := externalClusterFromRequest.(type) {
-	case *v20240610preview.HcpOpenShiftCluster:
-		if cast != nil && cast.Properties != nil && cast.Properties.Version != nil && cast.Properties.Version.ID != nil {
-			requestVersionID = *cast.Properties.Version.ID
-		}
-	case *v20251223preview.HcpOpenShiftCluster:
-		if cast != nil && cast.Properties != nil && cast.Properties.Version != nil && cast.Properties.Version.ID != nil {
-			requestVersionID = *cast.Properties.Version.ID
-		}
-	}
-
 	// Default values
 	if err := externalClusterFromRequest.SetDefaultValues(externalClusterFromRequest); err != nil {
 		return nil, utils.TrackError(err)
@@ -475,9 +475,6 @@ func decodeDesiredClusterReplace(ctx context.Context, oldInternalCluster *api.HC
 	}
 
 	// values a user doesn't have to provide, but are not static defaults (set dynamically during create).  Set these from old value
-	if len(requestVersionID) == 0 {
-		newInternalCluster.CustomerProperties.Version.ID = oldInternalCluster.CustomerProperties.Version.ID
-	}
 	if len(newInternalCluster.CustomerProperties.DNS.BaseDomainPrefix) == 0 {
 		newInternalCluster.CustomerProperties.DNS.BaseDomainPrefix = oldInternalCluster.CustomerProperties.DNS.BaseDomainPrefix
 	}
@@ -493,7 +490,7 @@ func decodeDesiredClusterReplace(ctx context.Context, oldInternalCluster *api.HC
 	//    We do this because if a user has read a value, then modified it, then replaces it, we don't want to produce
 	//    validation errors on status fields that the user isn't trying to modify.
 	conversion.CopyReadOnlyClusterValues(newInternalCluster, oldInternalCluster)
-	newInternalCluster.SystemData = systemData
+	newInternalCluster.SystemData = ensureSystemData(systemData, oldInternalCluster.SystemData)
 
 	// Here the difference between a nil map and an empty map is significant.
 	// If the Tags map is nil, that means it was omitted from the request body,
@@ -568,7 +565,7 @@ func decodeDesiredClusterPatch(ctx context.Context, oldInternalCluster *api.HCPO
 	//    We do this because if a user has read a value, then modified it, then replaces it, we don't want to produce
 	//    validation errors on status fields that the user isn't trying to modify.
 	conversion.CopyReadOnlyClusterValues(newInternalCluster, oldInternalCluster)
-	newInternalCluster.SystemData = systemData
+	newInternalCluster.SystemData = ensureSystemData(systemData, oldInternalCluster.SystemData)
 	// Clear the user-assigned identities map since that is reconstructed from Cluster Service data.
 	// TODO we'd like to have the instance complete when we go to validate it.  Right now validation fails if we clear this.
 	// TODO we probably update validation to require this field is cleared.
@@ -619,7 +616,11 @@ func (f *Frontend) updateHCPClusterInCosmos(ctx context.Context, writer http.Res
 	if mutationErrs := admission.MutateCluster(newInternalCluster, subscription); len(mutationErrs) > 0 {
 		return utils.TrackError(arm.CloudErrorFromFieldErrors(mutationErrs))
 	}
-	validationErrs := validation.ValidateClusterUpdate(ctx, newInternalCluster, oldInternalCluster, api.Must(versionedInterface.ValidationPathRewriter(&api.HCPOpenShiftCluster{})))
+	validationOp := operation.Operation{
+		Type:    operation.Update,
+		Options: validation.AFECsToValidationOptions(subscription.GetRegisteredFeatures()),
+	}
+	validationErrs := validation.ValidateCluster(ctx, validationOp, newInternalCluster, oldInternalCluster, api.Must(versionedInterface.ValidationPathRewriter(&api.HCPOpenShiftCluster{})))
 	if err := arm.CloudErrorFromFieldErrors(validationErrs); err != nil {
 		return utils.TrackError(err)
 	}
@@ -786,8 +787,12 @@ func (f *Frontend) addDeleteClusterToTransaction(ctx context.Context, writer htt
 	// on the resource or child resources, but we need to do some database
 	// bookkeeping to reflect that.
 	err = f.CancelActiveOperations(ctx, transaction, &database.DBClientListActiveOperationDocsOptions{
-		ExternalID:             cluster.ID,
-		IncludeNestedResources: true,
+		ExternalID: cluster.ID,
+		// We don't include operations for resources below clusters (eg. nodepools) because, as part of the deletion flow,
+		// we will process each nested resource directly, delete it and cancel its operations then. If we handle resources
+		// multiple times, then we end up in a situation where the first operation to cancel operations has a matching etag
+		// and the subsequent operations do not have a matching etag, meaning we fail the transaction.
+		IncludeNestedResources: false,
 	})
 	if err != nil {
 		return utils.TrackError(err)
@@ -937,4 +942,42 @@ func (f *Frontend) getInternalClusterFromStorage(ctx context.Context, resourceID
 	internalCluster.ID = resourceID
 
 	return f.readInternalClusterFromClusterService(ctx, internalCluster)
+}
+
+// ensureSystemData tries to use the src systemData
+func ensureSystemData(newObj, oldObj *arm.SystemData) *arm.SystemData {
+	var ret *arm.SystemData
+	if newObj != nil {
+		ret = newObj.DeepCopy()
+	} else {
+		ret = &arm.SystemData{}
+	}
+	if oldObj != nil {
+		ret.CreatedAt = oldObj.CreatedAt
+		ret.CreatedBy = oldObj.CreatedBy
+		ret.CreatedByType = oldObj.CreatedByType
+	}
+
+	if ret.CreatedAt == nil || ret.CreatedAt.IsZero() {
+		ret.CreatedAt = ptr.To(time.Now().UTC())
+	}
+	if len(ret.CreatedBy) == 0 {
+		ret.CreatedBy = "Unknown-ARO-HCP-frontend"
+	}
+	if len(ret.CreatedByType) == 0 {
+		ret.CreatedByType = arm.CreatedByTypeApplication
+	}
+
+	if ret.LastModifiedAt == nil || ret.LastModifiedAt.IsZero() {
+		ret.LastModifiedAt = ptr.To(time.Now().UTC())
+	}
+	if len(ret.LastModifiedBy) == 0 {
+		ret.LastModifiedBy = "Unknown-ARO-HCP-frontend"
+	}
+	if len(ret.LastModifiedByType) == 0 {
+		ret.LastModifiedByType = arm.CreatedByTypeApplication
+	}
+
+	return ret
+
 }

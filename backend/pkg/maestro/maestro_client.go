@@ -14,9 +14,10 @@
 
 package maestro
 
+//go:generate $MOCKGEN -typed -source=maestro_client.go -destination=mock_maestro_client.go -package maestro Client
+
 import (
 	"context"
-	"crypto/tls"
 	"fmt"
 	"net/http"
 	"time"
@@ -80,6 +81,23 @@ func NewClient(
 	return maestroManifestWorksInterface, nil
 }
 
+// MaestroClientBuilder is an interface that allows to build a Maestro Client.
+type MaestroClientBuilder interface {
+	NewClient(ctx context.Context, maestroRESTAPIEndpoint string, maestroGRPCAPIEndpoint string, maestroConsumerName string, maestroSourceID string) (Client, error)
+}
+
+var _ MaestroClientBuilder = (*maestroClientBuilder)(nil)
+
+type maestroClientBuilder struct{}
+
+func (b *maestroClientBuilder) NewClient(ctx context.Context, maestroRESTAPIEndpoint string, maestroGRPCAPIEndpoint string, maestroConsumerName string, maestroSourceID string) (Client, error) {
+	return NewClient(ctx, maestroRESTAPIEndpoint, maestroGRPCAPIEndpoint, maestroConsumerName, maestroSourceID)
+}
+
+func NewMaestroClientBuilder() MaestroClientBuilder {
+	return &maestroClientBuilder{}
+}
+
 // GenerateMaestroSourceID generates a Maestro Source ID of the form "<envName>-<provisionShardID>".
 // The Maestro Source ID is used to identify resources created by a given maestro source. See the `client` type for more details about it.
 // This method can be used to calculate Maestro Source IDs in the same way that Clusters Service does.
@@ -98,6 +116,7 @@ func GenerateMaestroSourceID(envName string, provisionShardID string) string {
 // newRESTClient creates a REST client for the Maestro API. The Maestro REST client
 // allows to perform a subset (but not all) of actions against the Maestro API.
 func newRESTClient(endpoint string) *maestroopenapi.APIClient {
+	httpClientTransport := http.DefaultTransport.(*http.Transport).Clone()
 	maestroRESTClientConfig := &maestroopenapi.Configuration{
 		DefaultHeader: map[string]string{},
 		UserAgent:     "ARO-HCP-Backend",
@@ -107,12 +126,8 @@ func newRESTClient(endpoint string) *maestroopenapi.APIClient {
 		}},
 		OperationServers: map[string]maestroopenapi.ServerConfigurations{},
 		HTTPClient: &http.Client{
-			Transport: &http.Transport{
-				TLSClientConfig: &tls.Config{
-					//nolint:gosec
-					InsecureSkipVerify: true, // TODO pass TLS certs from config
-				}},
-			Timeout: 30 * time.Second,
+			Transport: httpClientTransport,
+			Timeout:   30 * time.Second,
 		},
 	}
 

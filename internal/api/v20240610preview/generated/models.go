@@ -8,14 +8,14 @@ import "time"
 
 // APIProfile - Information about the API of a cluster.
 type APIProfile struct {
-	// The internet visibility of the OpenShift API server
-	Visibility *Visibility
-
 	// READ-ONLY; URL endpoint for the API server
 	URL *string
 
 	// The list of authorized IPv4 CIDR blocks allowed to access the API server. Maximum 500 entries.
 	AuthorizedCIDRs []*string
+
+	// The internet visibility of the OpenShift API server
+	Visibility *Visibility
 }
 
 // AzureResourceManagerCommonTypesManagedServiceIdentityUpdate - Managed service identity (system assigned and/or user assigned
@@ -33,6 +33,9 @@ type AzureResourceManagerCommonTypesManagedServiceIdentityUpdate struct {
 type ClusterAutoscalingProfile struct {
 	// maxNodeProvisionTimeSeconds is the maximum time to wait for node provisioning before considering the provisioning to be
 	// unsuccessful. The default is 900 seconds, or 15 minutes.
+	// Note: The default value is not declared in the API specification because of a TypeSpec bug with updatable fields. The default
+	// value will be declared in a future API version once the TypeSpec bug is
+	// fixed. https://github.com/Azure/typespec-azure/issues/1586
 	MaxNodeProvisionTimeSeconds *int32
 
 	// maxNodesTotal is the maximum allowable number of nodes for the Autoscaler scale out to be operational. The autoscaler will
@@ -42,11 +45,17 @@ type ClusterAutoscalingProfile struct {
 
 	// maxPodGracePeriod is the maximum seconds to wait for graceful pod termination before scaling down a NodePool. The default
 	// is 600 seconds.
+	// Note: The default value is not declared in the API specification because of a TypeSpec bug with updatable fields. The default
+	// value will be declared in a future API version once the TypeSpec bug is
+	// fixed. https://github.com/Azure/typespec-azure/issues/1586
 	MaxPodGracePeriodSeconds *int32
 
-	// podPriorityThreshold enables users to schedule “best-effort” pods, which shouldn’t trigger autoscaler actions, but only
+	// podPriorityThreshold enables users to schedule "best-effort" pods, which shouldn't trigger autoscaler actions, but only
 	// run when there are spare resources available. The default is -10. See the
 	// following for more details: https://github.com/kubernetes/autoscaler/blob/master/cluster-autoscaler/FAQ.md#how-does-cluster-autoscaler-work-with-pod-priority-and-preemption
+	// Note: The default value is not declared in the API specification because of a TypeSpec bug with updatable fields. The default
+	// value will be declared in a future API version once the TypeSpec bug is
+	// fixed. https://github.com/Azure/typespec-azure/issues/1586
 	PodPriorityThreshold *int32
 }
 
@@ -56,7 +65,7 @@ type ClusterImageRegistryProfile struct {
 	// creation and cannot be changed after cluster creation. Enabled means the
 	// ImageStream-backed image registry will be run as pods on worker nodes in the cluster. Disabled means the ImageStream-backed
 	// image registry will not be present in the cluster. The default is Enabled.
-	State *ClusterImageRegistryProfileState
+	State *ClusterImageRegistryState
 }
 
 // ConsoleProfile - Configuration of the cluster web console
@@ -573,10 +582,16 @@ type NodePool struct {
 
 // NodePoolAutoScaling - Node pool autoscaling
 type NodePoolAutoScaling struct {
-	// The maximum number of nodes in the node pool
+	// The maximum number of nodes in the node pool. Validation:
+	// * Minimum: 0 (must be >= min)
+	// * Maximum: 200 (only when availabilityZone is not specified)
+	// * No maximum when availabilityZone is specified
 	Max *int32
 
-	// The minimum number of nodes in the node pool
+	// The minimum number of nodes in the node pool. Validation:
+	// * Minimum: 0
+	// * Maximum: 200 (only when availabilityZone is not specified)
+	// * No maximum when availabilityZone is specified
 	Min *int32
 }
 
@@ -634,7 +649,10 @@ type NodePoolProperties struct {
 	// If unset the cluster nodeDrainTimeoutMinutes value is used as a default.
 	NodeDrainTimeoutMinutes *int32
 
-	// The number of worker nodes, it cannot be used together with autoscaling
+	// The number of worker nodes, it cannot be used together with autoscaling. Validation:
+	// * Minimum: 0
+	// * Maximum: 200 (only when availabilityZone is not specified)
+	// * No maximum when availabilityZone is specified
 	Replicas *int32
 
 	// Taints for the nodes
@@ -664,7 +682,10 @@ type NodePoolPropertiesUpdate struct {
 	// If unset the cluster nodeDrainTimeoutMinutes value is used as a default.
 	NodeDrainTimeoutMinutes *int32
 
-	// The number of worker nodes, it cannot be used together with autoscaling
+	// The number of worker nodes, it cannot be used together with autoscaling. Validation:
+	// * Minimum: 0
+	// * Maximum: 200 (only when availabilityZone is not specified)
+	// * No maximum when availabilityZone is specified
 	Replicas *int32
 
 	// Taints for the nodes
@@ -701,6 +722,10 @@ type NodePoolUpdate struct {
 // NodePoolVersionProfile - Versions represents an OpenShift version.
 type NodePoolVersionProfile struct {
 	// ChannelGroup is the name of the set to which this version belongs. Each version belongs to only a single set.
+	// If not specified, the default value is 'stable'.
+	// Note: The default value is not declared in the API specification because of a TypeSpec bug with updatable fields. The default
+	// value will be declared in a future API version once the TypeSpec bug is
+	// fixed. https://github.com/Azure/typespec-azure/issues/1586
 	ChannelGroup *string
 
 	// ID is the unique identifier of the version.
@@ -1042,6 +1067,10 @@ type UsernameClaimProfileUpdate struct {
 // VersionProfile - Versions represents an OpenShift version.
 type VersionProfile struct {
 	// ChannelGroup is the name of the set to which this version belongs. Each version belongs to only a single set.
+	// If not specified, the default value is 'stable'.
+	// Note: The default value is not declared in the API specification because of a TypeSpec bug with updatable fields. The default
+	// value will be declared in a future API version once the TypeSpec bug is
+	// fixed. https://github.com/Azure/typespec-azure/issues/1586
 	ChannelGroup *string
 
 	// ID is the unique identifier of the version.

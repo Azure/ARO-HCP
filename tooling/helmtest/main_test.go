@@ -23,3 +23,7 @@ import (
 func TestHelmTemplate(t *testing.T) {
 	testrunner.RunTestHelmTemplate(t, "settings.yaml")
 }
+
+func TestACRValues(t *testing.T) {
+	testrunner.RunTestACRValues(t, "settings.yaml")
+}

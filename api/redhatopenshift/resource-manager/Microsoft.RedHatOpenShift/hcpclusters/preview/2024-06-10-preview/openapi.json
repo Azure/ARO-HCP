@@ -1529,7 +1529,7 @@
         "podPriorityThreshold": {
           "type": "integer",
           "format": "int32",
-          "description": "podPriorityThreshold enables users to schedule “best-effort” pods, which shouldn’t trigger autoscaler actions,\nbut only run when there are spare resources available. The default is -10.\nSee the following for more details:\nhttps://github.com/kubernetes/autoscaler/blob/master/cluster-autoscaler/FAQ.md#how-does-cluster-autoscaler-work-with-pod-priority-and-preemption\n\nNote: The default value is not declared in the API specification because\nof a TypeSpec bug with updatable fields. The default value will be\ndeclared in a future API version once the TypeSpec bug is fixed.\nhttps://github.com/Azure/typespec-azure/issues/1586"
+          "description": "podPriorityThreshold enables users to schedule \"best-effort\" pods, which shouldn't trigger autoscaler actions,\nbut only run when there are spare resources available. The default is -10.\nSee the following for more details:\nhttps://github.com/kubernetes/autoscaler/blob/master/cluster-autoscaler/FAQ.md#how-does-cluster-autoscaler-work-with-pod-priority-and-preemption\n\nNote: The default value is not declared in the API specification because\nof a TypeSpec bug with updatable fields. The default value will be\ndeclared in a future API version once the TypeSpec bug is fixed.\nhttps://github.com/Azure/typespec-azure/issues/1586"
         }
       }
     },
@@ -1546,7 +1546,20 @@
             "Disabled"
           ],
           "x-ms-enum": {
-            "modelAsString": true
+            "name": "ClusterImageRegistryState",
+            "modelAsString": true,
+            "values": [
+              {
+                "name": "Enabled",
+                "value": "Enabled",
+                "description": "The ImageStream-backed image registry will be run as pods on worker nodes"
+              },
+              {
+                "name": "Disabled",
+                "value": "Disabled",
+                "description": "The ImageStream-backed image registry will not be present in the cluster"
+              }
+            ]
           },
           "x-ms-mutability": [
             "read",

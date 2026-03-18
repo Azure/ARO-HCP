@@ -212,9 +212,9 @@ func (f *Frontend) routes(r prometheus.Registerer) http.Handler {
 	return mux
 }
 
-func (f *Frontend) metricsRoutes() http.Handler {
+func (f *Frontend) metricsRoutes(gatherer prometheus.Gatherer) http.Handler {
 	mux := http.NewServeMux()
-	mux.Handle("GET /metrics", promhttp.Handler())
+	mux.Handle("GET /metrics", promhttp.HandlerFor(gatherer, promhttp.HandlerOpts{}))
 
 	return mux
 }

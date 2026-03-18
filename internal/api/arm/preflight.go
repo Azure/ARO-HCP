@@ -57,6 +57,7 @@ type DeploymentPreflightResource struct {
 	Identity   json.RawMessage `json:"identity,omitempty"`
 	Properties json.RawMessage `json:"properties,omitempty"`
 	Tags       json.RawMessage `json:"tags,omitempty"`
+	SystemData json.RawMessage `json:"systemData,omitempty"`
 }
 
 // Convert discards the APIVersion, marshals itself back to raw JSON,

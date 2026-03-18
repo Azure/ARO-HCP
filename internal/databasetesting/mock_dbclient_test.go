@@ -777,3 +777,200 @@ func TestMockLockClient(t *testing.T) {
 		t.Fatalf("Failed to release lock: %v", err)
 	}
 }
+
+func TestMockDBClient_addResource(t *testing.T) {
+	ctx := context.Background()
+	mock := NewMockDBClient()
+
+	subscriptionID := "6b690bec-0c16-4ecb-8f67-781caf40bba7"
+	resourceGroupName := "test-rg"
+	clusterName := "test-cluster"
+
+	// Test adding a cluster
+	clusterResourceID := api.Must(azcorearm.ParseResourceID(
+		"/subscriptions/" + subscriptionID +
+			"/resourceGroups/" + resourceGroupName +
+			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + clusterName))
+
+	internalID, err := api.NewInternalID("/api/clusters_mgmt/v1/clusters/abc123")
+	if err != nil {
+		t.Fatalf("Failed to create internal ID: %v", err)
+	}
+
+	cluster := &api.HCPOpenShiftCluster{
+		TrackedResource: arm.TrackedResource{
+			Resource: arm.Resource{
+				ID:   clusterResourceID,
+				Name: clusterName,
+				Type: api.ClusterResourceType.String(),
+			},
+			Location: "eastus",
+		},
+		ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
+			ProvisioningState: arm.ProvisioningStateSucceeded,
+			ClusterServiceID:  internalID,
+		},
+	}
+
+	err = mock.addResource(ctx, cluster)
+	if err != nil {
+		t.Fatalf("Failed to add cluster: %v", err)
+	}
+
+	// Verify cluster was added
+	clusterCRUD := mock.HCPClusters(subscriptionID, resourceGroupName)
+	retrieved, err := clusterCRUD.Get(ctx, clusterName)
+	if err != nil {
+		t.Fatalf("Failed to get cluster: %v", err)
+	}
+	if retrieved.Name != clusterName {
+		t.Errorf("Expected cluster name %s, got %s", clusterName, retrieved.Name)
+	}
+
+	// Test adding a subscription
+	subscriptionResourceID := api.Must(arm.ToSubscriptionResourceID(subscriptionID))
+	subscription := &arm.Subscription{
+		CosmosMetadata: api.CosmosMetadata{
+			ResourceID: subscriptionResourceID,
+		},
+		ResourceID: subscriptionResourceID,
+		State:      arm.SubscriptionStateRegistered,
+	}
+
+	err = mock.addResource(ctx, subscription)
+	if err != nil {
+		t.Fatalf("Failed to add subscription: %v", err)
+	}
+
+	// Verify subscription was added
+	subCRUD := mock.Subscriptions()
+	retrievedSub, err := subCRUD.Get(ctx, subscriptionID)
+	if err != nil {
+		t.Fatalf("Failed to get subscription: %v", err)
+	}
+	if retrievedSub.State != arm.SubscriptionStateRegistered {
+		t.Errorf("Expected state %s, got %s", arm.SubscriptionStateRegistered, retrievedSub.State)
+	}
+
+	// Test adding an unsupported type
+	err = mock.addResource(ctx, "unsupported")
+	if err == nil {
+		t.Error("Expected error for unsupported type")
+	}
+}
+
+func TestNewMockDBClientWithResources(t *testing.T) {
+	ctx := context.Background()
+
+	subscriptionID := "6b690bec-0c16-4ecb-8f67-781caf40bba7"
+	resourceGroupName := "test-rg"
+	clusterName := "test-cluster"
+	nodePoolName := "test-nodepool"
+
+	// Create cluster
+	clusterResourceID := api.Must(azcorearm.ParseResourceID(
+		"/subscriptions/" + subscriptionID +
+			"/resourceGroups/" + resourceGroupName +
+			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + clusterName))
+
+	internalID, err := api.NewInternalID("/api/clusters_mgmt/v1/clusters/abc123")
+	if err != nil {
+		t.Fatalf("Failed to create internal ID: %v", err)
+	}
+
+	cluster := &api.HCPOpenShiftCluster{
+		TrackedResource: arm.TrackedResource{
+			Resource: arm.Resource{
+				ID:   clusterResourceID,
+				Name: clusterName,
+				Type: api.ClusterResourceType.String(),
+			},
+			Location: "eastus",
+		},
+		ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
+			ProvisioningState: arm.ProvisioningStateSucceeded,
+			ClusterServiceID:  internalID,
+		},
+	}
+
+	// Create node pool
+	nodePoolResourceID := api.Must(azcorearm.ParseResourceID(
+		"/subscriptions/" + subscriptionID +
+			"/resourceGroups/" + resourceGroupName +
+			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + clusterName +
+			"/nodePools/" + nodePoolName))
+
+	nodePool := &api.HCPOpenShiftClusterNodePool{
+		TrackedResource: arm.TrackedResource{
+			Resource: arm.Resource{
+				ID:   nodePoolResourceID,
+				Name: nodePoolName,
+				Type: api.NodePoolResourceType.String(),
+			},
+			Location: "eastus",
+		},
+	}
+
+	// Create subscription
+	subscriptionResourceID := api.Must(arm.ToSubscriptionResourceID(subscriptionID))
+	subscription := &arm.Subscription{
+		CosmosMetadata: api.CosmosMetadata{
+			ResourceID: subscriptionResourceID,
+		},
+		ResourceID: subscriptionResourceID,
+		State:      arm.SubscriptionStateRegistered,
+	}
+
+	// Create MockDBClient with all resources
+	mock, err := NewMockDBClientWithResources(ctx, []any{cluster, nodePool, subscription})
+	if err != nil {
+		t.Fatalf("Failed to create mock with resources: %v", err)
+	}
+
+	// Verify cluster
+	clusterCRUD := mock.HCPClusters(subscriptionID, resourceGroupName)
+	retrievedCluster, err := clusterCRUD.Get(ctx, clusterName)
+	if err != nil {
+		t.Fatalf("Failed to get cluster: %v", err)
+	}
+	if retrievedCluster.Name != clusterName {
+		t.Errorf("Expected cluster name %s, got %s", clusterName, retrievedCluster.Name)
+	}
+
+	// Verify node pool
+	nodePoolCRUD := clusterCRUD.NodePools(clusterName)
+	retrievedNP, err := nodePoolCRUD.Get(ctx, nodePoolName)
+	if err != nil {
+		t.Fatalf("Failed to get node pool: %v", err)
+	}
+	if retrievedNP.Name != nodePoolName {
+		t.Errorf("Expected node pool name %s, got %s", nodePoolName, retrievedNP.Name)
+	}
+
+	// Verify subscription
+	subCRUD := mock.Subscriptions()
+	retrievedSub, err := subCRUD.Get(ctx, subscriptionID)
+	if err != nil {
+		t.Fatalf("Failed to get subscription: %v", err)
+	}
+	if retrievedSub.State != arm.SubscriptionStateRegistered {
+		t.Errorf("Expected state %s, got %s", arm.SubscriptionStateRegistered, retrievedSub.State)
+	}
+}
+
+func TestNewMockDBClientWithResources_Error(t *testing.T) {
+	ctx := context.Background()
+
+	// Test with unsupported type
+	_, err := NewMockDBClientWithResources(ctx, []any{"unsupported"})
+	if err == nil {
+		t.Error("Expected error for unsupported type")
+	}
+
+	// Test with nil resource ID
+	clusterWithNilID := &api.HCPOpenShiftCluster{}
+	_, err = NewMockDBClientWithResources(ctx, []any{clusterWithNilID})
+	if err == nil {
+		t.Error("Expected error for cluster with nil resource ID")
+	}
+}

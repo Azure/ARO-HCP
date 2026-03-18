@@ -27,17 +27,19 @@ import (
 
 // Resource Keys
 const (
-	clusterKey      = "clusters"
-	nodePoolKey     = "node_pools"
-	externalAuthKey = "external_auth_config/external_auths"
+	clusterKey        = "clusters"
+	nodePoolKey       = "node_pools"
+	externalAuthKey   = "external_auth_config/external_auths"
+	provisionShardKey = "provision_shards"
 )
 
 var (
 	v1Pattern        = "/api/clusters_mgmt/v1"
 	v1ClusterPattern = path.Join(v1Pattern, clusterKey, "*")
 
-	aroHcpV1Alpha1Pattern        = "/api/aro_hcp/v1alpha1"
-	aroHcpV1Alpha1ClusterPattern = path.Join(aroHcpV1Alpha1Pattern, clusterKey, "*")
+	aroHcpV1Alpha1Pattern               = "/api/aro_hcp/v1alpha1"
+	aroHcpV1Alpha1ClusterPattern        = path.Join(aroHcpV1Alpha1Pattern, clusterKey, "*")
+	aroHcpV1Alpha1ProvisionShardPattern = path.Join(aroHcpV1Alpha1ClusterPattern, provisionShardKey, "*")
 )
 
 func GenerateClusterHREF(clusterName string) string {
@@ -94,6 +96,15 @@ func getAroHCPClusterClient(id InternalID, transport http.RoundTripper) (*arohcp
 	}
 }
 
+func getAroHCPProvisionShardClient(id InternalID, transport http.RoundTripper) (*arohcpv1alpha1.ProvisionShardClient, bool) {
+	switch matchProvisionShardPath(id.Path()) {
+	case aroHcpV1Alpha1ProvisionShardPattern:
+		return arohcpv1alpha1.NewProvisionShardClient(transport, id.Path()), true
+	default:
+		return nil, false
+	}
+}
+
 func matchClusterPath(clusterPath string) string {
 	var thisPath = clusterPath
 	var lastPath string
@@ -103,6 +114,22 @@ func matchClusterPath(clusterPath string) string {
 			return v1ClusterPattern
 		} else if match, _ := path.Match(aroHcpV1Alpha1ClusterPattern, thisPath); match {
 			return aroHcpV1Alpha1ClusterPattern
+		} else {
+			lastPath = thisPath
+			thisPath = path.Dir(thisPath)
+		}
+	}
+
+	return ""
+}
+
+func matchProvisionShardPath(provisionShardPath string) string {
+	var thisPath = provisionShardPath
+	var lastPath string
+
+	for thisPath != lastPath {
+		if match, _ := path.Match(aroHcpV1Alpha1ProvisionShardPattern, thisPath); match {
+			return aroHcpV1Alpha1ProvisionShardPattern
 		} else {
 			lastPath = thisPath
 			thisPath = path.Dir(thisPath)

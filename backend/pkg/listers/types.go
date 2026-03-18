@@ -31,11 +31,16 @@ type BackendListers struct {
 	HCPOpenShiftClusterNodePoolLister     NodePoolLister
 	HCPOpenShiftClusterExternalAuthLister ExternalAuthLister
 	ServiceProviderClusterLister          ServiceProviderClusterLister
+	ServiceProviderNodePoolLister         ServiceProviderNodePoolLister
+	ControllerLister                      ControllerLister
 }
 
-const ByResourceGroup = "byResourceGroup"
-
-const ByCluster = "byCluster"
+const (
+	ByResourceGroup = "byResourceGroup"
+	ByCluster       = "byCluster"
+	ByNodePool      = "byNodePool"
+	ByExternalAuth  = "byExternalAuth"
+)
 
 // listAll retrieves all items from a store, casting each to *T.
 func listAll[T any](store cache.Store) ([]*T, error) {

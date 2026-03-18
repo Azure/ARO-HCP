@@ -65,6 +65,31 @@ func (g *mockGlobalListers) ServiceProviderClusters() database.GlobalLister[api.
 	}
 }
 
+func (g *mockGlobalListers) ServiceProviderNodePools() database.GlobalLister[api.ServiceProviderNodePool] {
+	return &mockTypedGlobalLister[api.ServiceProviderNodePool, database.GenericDocument[api.ServiceProviderNodePool]]{
+		client:       g.client,
+		resourceType: api.ServiceProviderNodePoolResourceType,
+	}
+}
+
+func (g *mockGlobalListers) Controllers() database.GlobalLister[api.Controller] {
+	return &mockControllerGlobalLister{
+		client: g.client,
+		resourceTypes: []azcorearm.ResourceType{
+			api.ClusterControllerResourceType,
+			api.NodePoolControllerResourceType,
+			api.ExternalAuthControllerResourceType,
+		},
+	}
+}
+
+func (g *mockGlobalListers) ManagementClusterContents() database.GlobalLister[api.ManagementClusterContent] {
+	return &mockTypedGlobalLister[api.ManagementClusterContent, database.GenericDocument[api.ManagementClusterContent]]{
+		client:       g.client,
+		resourceType: api.ManagementClusterContentResourceType,
+	}
+}
+
 func (g *mockGlobalListers) Operations() database.GlobalLister[api.Operation] {
 	return &mockTypedGlobalLister[api.Operation, database.GenericDocument[api.Operation]]{
 		client:       g.client,
@@ -173,6 +198,53 @@ func (l *mockActiveOperationsGlobalLister) List(ctx context.Context, options *da
 		if status == arm.ProvisioningStateSucceeded ||
 			status == arm.ProvisioningStateFailed ||
 			status == arm.ProvisioningStateCanceled {
+			continue
+		}
+
+		internalObj, err := database.CosmosGenericToInternal(&cosmosObj)
+		if err != nil {
+			continue
+		}
+
+		ids = append(ids, typedDoc.ID)
+		items = append(items, internalObj)
+	}
+
+	return newMockIterator(ids, items), nil
+}
+
+// mockControllerGlobalLister lists controllers across all partitions.
+type mockControllerGlobalLister struct {
+	client        *MockDBClient
+	resourceTypes []azcorearm.ResourceType
+}
+
+func (l *mockControllerGlobalLister) List(ctx context.Context, options *database.DBClientListResourceDocsOptions) (database.DBClientIterator[api.Controller], error) {
+	allDocs := l.client.GetAllDocuments()
+
+	var ids []string
+	var items []*api.Controller
+
+	for _, data := range allDocs {
+		var typedDoc database.TypedDocument
+		if err := json.Unmarshal(data, &typedDoc); err != nil {
+			continue
+		}
+
+		// check if any of the resourceTypes match the one from the doc
+		resourceTypeMatches := false
+		for _, resourceType := range l.resourceTypes {
+			if strings.EqualFold(typedDoc.ResourceType, resourceType.String()) {
+				resourceTypeMatches = true
+				break
+			}
+		}
+		if !resourceTypeMatches {
+			continue
+		}
+
+		var cosmosObj database.GenericDocument[api.Controller]
+		if err := json.Unmarshal(data, &cosmosObj); err != nil {
 			continue
 		}
 

@@ -32,7 +32,7 @@ import (
 // The patch version is managed by Red Hat.
 const (
 	OpenShift419Patch = "7"
-	OpenShift420Patch = "8"
+	OpenShift420Patch = "15"
 )
 
 // CS cluster property keys and values used in the Cluster Service API.
@@ -145,6 +145,31 @@ type ClusterServiceClientSpec interface {
 
 	// PostControlPlaneUpgradePolicy sends a POST request to create a control plane upgrade policy in Cluster Service.
 	PostControlPlaneUpgradePolicy(ctx context.Context, clusterInternalID InternalID, builder *arohcpv1alpha1.ControlPlaneUpgradePolicyBuilder) (*arohcpv1alpha1.ControlPlaneUpgradePolicy, error)
+
+	// ListProvisionShards prepares a GET request to list provision shards.
+	// Call Items() on the returned iterator in a for/range loop to execute the request and paginate over results,
+	// then call GetError() to check for an iteration error.
+	ListProvisionShards() ProvisionShardListIterator
+
+	// GetProvisionShard sends a GET request to fetch a provision shard from Cluster Service.
+	// The internalID is the internal ID of the provision shard.
+	GetProvisionShard(ctx context.Context, internalID InternalID) (*arohcpv1alpha1.ProvisionShard, error)
+
+	// PostProvisionShard sends a POST request to create a provision shard in Cluster Service.
+	PostProvisionShard(ctx context.Context, builder *arohcpv1alpha1.ProvisionShardBuilder) (*arohcpv1alpha1.ProvisionShard, error)
+
+	// UpdateProvisionShard sends a PATCH request to update a provision shard in Cluster Service.
+	UpdateProvisionShard(ctx context.Context, internalID InternalID, builder *arohcpv1alpha1.ProvisionShardBuilder) (*arohcpv1alpha1.ProvisionShard, error)
+
+	// DeleteProvisionShard sends a DELETE request to delete a provision shard from Cluster Service.
+	DeleteProvisionShard(ctx context.Context, internalID InternalID) error
+	// ListNodePoolUpgradePolicies prepares a GET request to list node pool upgrade policies for a node pool.
+	// Call Items() on the returned iterator in a for/range loop to execute the request and paginate over results,
+	// then call GetError() to check for an iteration error.
+	ListNodePoolUpgradePolicies(nodePoolInternalID InternalID, orderBy string) NodePoolUpgradePolicyListIterator
+
+	// PostNodePoolUpgradePolicy sends a POST request to create a node pool upgrade policy in Cluster Service.
+	PostNodePoolUpgradePolicy(ctx context.Context, nodePoolInternalID InternalID, builder *arohcpv1alpha1.NodePoolUpgradePolicyBuilder) (*arohcpv1alpha1.NodePoolUpgradePolicy, error)
 }
 
 type clusterServiceClient struct {
@@ -252,6 +277,72 @@ func (csc *clusterServiceClient) GetClusterProvisionShard(ctx context.Context, i
 		return nil, fmt.Errorf("empty response body")
 	}
 	return provisionShard, nil
+}
+
+func (csc *clusterServiceClient) ListProvisionShards() ProvisionShardListIterator {
+	provisionShardsListRequest := csc.conn.AroHCP().V1alpha1().ProvisionShards().List()
+	return &provisionShardListIterator{conn: csc.conn, request: provisionShardsListRequest}
+}
+
+func (csc *clusterServiceClient) GetProvisionShard(ctx context.Context, provisionShardInternalID InternalID) (*arohcpv1alpha1.ProvisionShard, error) {
+	client, ok := getAroHCPProvisionShardClient(provisionShardInternalID, csc.conn)
+	if !ok {
+		return nil, fmt.Errorf("OCM path is not a provision shard: %s", provisionShardInternalID)
+	}
+	provisionShardGetResponse, err := client.Get().SendContext(ctx)
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
+	provisionShard, ok := provisionShardGetResponse.GetBody()
+	if !ok {
+		return nil, fmt.Errorf("empty response body")
+	}
+	return provisionShard, nil
+}
+
+func (csc *clusterServiceClient) PostProvisionShard(ctx context.Context, builder *arohcpv1alpha1.ProvisionShardBuilder) (*arohcpv1alpha1.ProvisionShard, error) {
+	provisionShard, err := builder.Build()
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
+	provisionShardsAddResponse, err := csc.conn.AroHCP().V1alpha1().ProvisionShards().Add().Body(provisionShard).SendContext(ctx)
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
+	provisionShard, ok := provisionShardsAddResponse.GetBody()
+	if !ok {
+		return nil, fmt.Errorf("empty response body")
+	}
+	return provisionShard, nil
+}
+
+func (csc *clusterServiceClient) UpdateProvisionShard(ctx context.Context, internalID InternalID, builder *arohcpv1alpha1.ProvisionShardBuilder) (*arohcpv1alpha1.ProvisionShard, error) {
+	provisionShard, err := builder.Build()
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
+	client, ok := getAroHCPProvisionShardClient(internalID, csc.conn)
+	if !ok {
+		return nil, fmt.Errorf("OCM path is not a provision shard: %s", internalID)
+	}
+	clusterUpdateResponse, err := client.Update().Body(provisionShard).SendContext(ctx)
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
+	provisionShard, ok = clusterUpdateResponse.GetBody()
+	if !ok {
+		return nil, fmt.Errorf("empty response body")
+	}
+	return provisionShard, nil
+}
+
+func (csc *clusterServiceClient) DeleteProvisionShard(ctx context.Context, internalID InternalID) error {
+	client, ok := getAroHCPProvisionShardClient(internalID, csc.conn)
+	if !ok {
+		return fmt.Errorf("OCM path is not a provision shard: %s", internalID)
+	}
+	_, err := client.Delete().SendContext(ctx)
+	return utils.TrackError(err)
 }
 
 func (csc *clusterServiceClient) GetClusterInflightChecks(ctx context.Context, internalID InternalID) (*arohcpv1alpha1.InflightCheckList, error) {
@@ -643,6 +734,38 @@ func (csc *clusterServiceClient) PostControlPlaneUpgradePolicy(ctx context.Conte
 		return nil, utils.TrackError(err)
 	}
 	policiesAddResponse, err := client.ControlPlaneUpgradePolicies().Add().Body(policy).SendContext(ctx)
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
+	policy, ok = policiesAddResponse.GetBody()
+	if !ok {
+		return nil, fmt.Errorf("empty response body")
+	}
+	return policy, nil
+}
+
+func (csc *clusterServiceClient) ListNodePoolUpgradePolicies(nodePoolInternalID InternalID, orderBy string) NodePoolUpgradePolicyListIterator {
+	client, ok := GetNodePoolClient(nodePoolInternalID, csc.conn)
+	if !ok {
+		return &nodePoolUpgradePolicyListIterator{err: fmt.Errorf("OCM path is not a node pool: %s", nodePoolInternalID)}
+	}
+	policiesListRequest := client.UpgradePolicies().List()
+	if orderBy != "" {
+		policiesListRequest.Parameter("order", orderBy)
+	}
+	return &nodePoolUpgradePolicyListIterator{request: policiesListRequest}
+}
+
+func (csc *clusterServiceClient) PostNodePoolUpgradePolicy(ctx context.Context, nodePoolInternalID InternalID, builder *arohcpv1alpha1.NodePoolUpgradePolicyBuilder) (*arohcpv1alpha1.NodePoolUpgradePolicy, error) {
+	client, ok := GetNodePoolClient(nodePoolInternalID, csc.conn)
+	if !ok {
+		return nil, fmt.Errorf("OCM path is not a node pool: %s", nodePoolInternalID)
+	}
+	policy, err := builder.Build()
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
+	policiesAddResponse, err := client.UpgradePolicies().Add().Body(policy).SendContext(ctx)
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}

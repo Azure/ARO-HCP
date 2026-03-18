@@ -8,7 +8,9 @@ WORKDIR /app
 COPY . .
 
 # https://github.com/microsoft/go/tree/microsoft/main/eng/doc/fips#build-option-to-require-fips-mode
-ENV CGO_ENABLED=1 GOFLAGS='-tags=requirefips'
+# NOTE: starting with go 1.27, GODEBUG=fips140=only can be used at runtime to also reject
+# non-FIPS algorithms. See https://github.com/microsoft/go/tree/microsoft/main/eng/doc/fips
+ENV CGO_ENABLED=1 GOFIPS140=latest
 ARG ARO_HCP_IMAGE_TAG
 ARG ARO_HCP_REVISION
 RUN make --directory sessiongate build ARO_HCP_IMAGE_TAG=${ARO_HCP_IMAGE_TAG} ARO_HCP_REVISION=${ARO_HCP_REVISION}
@@ -17,6 +19,9 @@ FROM --platform=${PLATFORM} mcr.microsoft.com/azurelinux/distroless/base:3.0
 USER 65532:65532
 WORKDIR /
 COPY --from=builder /app/sessiongate/bin/sessiongate .
-USER 65532:65532
-
+ARG ARO_HCP_REVISION
+ARG ARO_HCP_COMMIT_TIME
+LABEL vcs-ref="${ARO_HCP_REVISION}"
+LABEL vcs-ref-time="${ARO_HCP_COMMIT_TIME}"
+LABEL vcs-url="https://github.com/Azure/ARO-HCP"
 ENTRYPOINT ["/sessiongate", "controller"]

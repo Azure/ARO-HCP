@@ -7,7 +7,8 @@ require (
 	github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp v0.0.0-00010101000000-000000000000
 	github.com/Azure/ARO-HCP/tooling/hcpctl v0.0.0-20260113131010-8f869ff652e6
 	github.com/Azure/ARO-HCP/tooling/templatize v0.0.0-00010101000000-000000000000
-	github.com/Azure/ARO-Tools/tools/prow-job-executor v0.0.0-20260227032723-11f678744bf9
+	github.com/Azure/ARO-Tools/config v0.0.0-20260309172949-8176eed3f66a
+	github.com/Azure/ARO-Tools/tools/prow-job-executor v0.0.0-20260309172949-8176eed3f66a
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v3 v3.0.0-beta.2
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v5 v5.7.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/kusto/armkusto/v2 v2.3.0
@@ -15,20 +16,23 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v6 v6.2.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources v1.2.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armsubscriptions v1.3.0
+	github.com/blang/semver/v4 v4.0.0
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
 	github.com/dusted-go/logging v1.3.0
 	github.com/go-echarts/go-echarts/v2 v2.6.7
-	github.com/golang-jwt/jwt/v5 v5.3.0
+	github.com/golang-jwt/jwt/v5 v5.3.1
+	github.com/google/uuid v1.6.0
 	github.com/onsi/ginkgo/v2 v2.28.1
 	github.com/onsi/gomega v1.39.1
 	github.com/openshift-eng/openshift-tests-extension v0.0.0-20260127124016-0fed2b824818
 	github.com/openshift/api v0.0.0-20260130140113-71e91db96ffc
 	github.com/openshift/client-go v0.0.0-20260108185524-48f4ccfc4e13
+	github.com/openshift/cluster-version-operator v1.0.1-0.20260202115537-557510ea0603
 	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/cobra v1.10.2
-	go.yaml.in/yaml/v2 v2.4.3
-	golang.org/x/crypto v0.47.0
-	golang.org/x/sync v0.19.0
+	go.yaml.in/yaml/v2 v2.4.4
+	golang.org/x/crypto v0.49.0
+	golang.org/x/sync v0.20.0
 	k8s.io/api v0.34.3
 	k8s.io/apimachinery v0.34.3
 	k8s.io/client-go v0.34.3
@@ -50,15 +54,14 @@ require (
 	contrib.go.opencensus.io/exporter/ocagent v0.7.1-0.20200907061046-05415f1de66d // indirect
 	contrib.go.opencensus.io/exporter/prometheus v0.4.2 // indirect
 	dario.cat/mergo v1.0.1 // indirect
-	github.com/Azure/ARO-Tools/config v0.0.0-20260227032723-11f678744bf9 // indirect
-	github.com/Azure/ARO-Tools/pipelines v0.0.0-20260227032723-11f678744bf9 // indirect
-	github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20260227032723-11f678744bf9 // indirect
-	github.com/Azure/ARO-Tools/tools/grafanactl v0.0.0-20260227032723-11f678744bf9 // indirect
-	github.com/Azure/ARO-Tools/tools/helm v0.0.0-20260227032723-11f678744bf9 // indirect
-	github.com/Azure/ARO-Tools/tools/registration v0.0.0-20260227032723-11f678744bf9 // indirect
-	github.com/Azure/ARO-Tools/tools/secret-sync v0.0.0-20260227032723-11f678744bf9 // indirect
-	github.com/Azure/ARO-Tools/tools/yamlwrap v0.0.0-20260227032723-11f678744bf9 // indirect
-	github.com/Azure/azure-kusto-go/azkustodata v1.2.0 // indirect
+	github.com/Azure/ARO-Tools/pipelines v0.0.0-20260309172949-8176eed3f66a // indirect
+	github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20260309172949-8176eed3f66a // indirect
+	github.com/Azure/ARO-Tools/tools/grafanactl v0.0.0-20260309172949-8176eed3f66a // indirect
+	github.com/Azure/ARO-Tools/tools/helm v0.0.0-20260309172949-8176eed3f66a // indirect
+	github.com/Azure/ARO-Tools/tools/registration v0.0.0-20260309172949-8176eed3f66a // indirect
+	github.com/Azure/ARO-Tools/tools/secret-sync v0.0.0-20260309172949-8176eed3f66a // indirect
+	github.com/Azure/ARO-Tools/tools/yamlwrap v0.0.0-20260309172949-8176eed3f66a // indirect
+	github.com/Azure/azure-kusto-go/azkustodata v1.2.1 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice v1.0.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/dashboard/armdashboard v1.2.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/monitor/armmonitor v0.11.0 // indirect
@@ -69,7 +72,7 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azsecrets v1.4.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/internal v1.2.0 // indirect
 	github.com/Azure/go-ansiterm v0.0.0-20250102033503-faa5f7b0171c // indirect
-	github.com/AzureAD/microsoft-authentication-library-for-go v1.6.0 // indirect
+	github.com/AzureAD/microsoft-authentication-library-for-go v1.7.0 // indirect
 	github.com/BurntSushi/toml v1.6.0 // indirect
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/detectors/gcp v1.30.0 // indirect
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/metric v0.53.0 // indirect
@@ -105,7 +108,6 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sts v1.38.0 // indirect
 	github.com/aws/smithy-go v1.24.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
-	github.com/blang/semver/v4 v4.0.0 // indirect
 	github.com/blendle/zapdriver v1.3.1 // indirect
 	github.com/bombsimon/logrusr/v4 v4.1.0 // indirect
 	github.com/bwmarrin/snowflake v0.3.0 // indirect
@@ -114,7 +116,7 @@ require (
 	github.com/chai2010/gettext-go v1.0.3 // indirect
 	github.com/cjwagner/httpcache v0.0.0-20230907212505-d4841bbad466 // indirect
 	github.com/clarketm/json v1.17.1 // indirect
-	github.com/cloudflare/circl v1.6.1 // indirect
+	github.com/cloudflare/circl v1.6.3 // indirect
 	github.com/cncf/xds/go v0.0.0-20251022180443-0feb69152e9f // indirect
 	github.com/cyphar/filepath-securejoin v0.5.0 // indirect
 	github.com/danwakefield/fnmatch v0.0.0-20160403171240-cbb64ac3d964 // indirect
@@ -157,7 +159,6 @@ require (
 	github.com/google/go-querystring v1.1.0 // indirect
 	github.com/google/pprof v0.0.0-20260115054156-294ebfa9ad83 // indirect
 	github.com/google/s2a-go v0.1.9 // indirect
-	github.com/google/uuid v1.6.0 // indirect
 	github.com/google/wire v0.6.0 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.3.6 // indirect
 	github.com/googleapis/gax-go/v2 v2.15.0 // indirect
@@ -208,8 +209,8 @@ require (
 	github.com/mxk/go-flowrate v0.0.0-20140419014527-cca7078d478f // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.1.1 // indirect
-	github.com/openshift-online/ocm-api-model/clientapi v0.0.449 // indirect
-	github.com/openshift-online/ocm-sdk-go v0.1.494 // indirect
+	github.com/openshift-online/ocm-api-model/clientapi v0.0.453 // indirect
+	github.com/openshift-online/ocm-sdk-go v0.1.498 // indirect
 	github.com/openshift/hypershift/api v0.0.0-20260226113135-8ab86680f975 // indirect
 	github.com/peterbourgon/diskv v2.0.1+incompatible // indirect
 	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c // indirect
@@ -225,7 +226,7 @@ require (
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/rubenv/sql-migrate v1.8.0 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
-	github.com/samber/lo v1.52.0 // indirect
+	github.com/samber/lo v1.53.0 // indirect
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.2 // indirect
 	github.com/segmentio/asm v1.1.3 // indirect
 	github.com/segmentio/encoding v0.3.4 // indirect
@@ -253,12 +254,13 @@ require (
 	go.opentelemetry.io/contrib/detectors/gcp v1.38.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.61.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.63.0 // indirect
-	go.opentelemetry.io/otel v1.39.0 // indirect
-	go.opentelemetry.io/otel/metric v1.39.0 // indirect
-	go.opentelemetry.io/otel/sdk v1.39.0 // indirect
-	go.opentelemetry.io/otel/sdk/metric v1.39.0 // indirect
-	go.opentelemetry.io/otel/trace v1.39.0 // indirect
+	go.opentelemetry.io/otel v1.40.0 // indirect
+	go.opentelemetry.io/otel/metric v1.40.0 // indirect
+	go.opentelemetry.io/otel/sdk v1.40.0 // indirect
+	go.opentelemetry.io/otel/sdk/metric v1.40.0 // indirect
+	go.opentelemetry.io/otel/trace v1.40.0 // indirect
 	go.opentelemetry.io/proto/otlp v1.9.0 // indirect
+	go.uber.org/mock v0.6.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.1 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
@@ -266,9 +268,9 @@ require (
 	gocloud.dev v0.40.0 // indirect
 	golang.org/x/exp v0.0.0-20250911091902-df9299821621 // indirect
 	golang.org/x/oauth2 v0.34.0 // indirect
-	golang.org/x/term v0.39.0 // indirect
+	golang.org/x/term v0.41.0 // indirect
 	golang.org/x/time v0.14.0 // indirect
-	golang.org/x/tools v0.41.0 // indirect
+	golang.org/x/tools v0.42.0 // indirect
 	golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da // indirect
 	gomodules.xyz/jsonpatch/v2 v2.5.0 // indirect
 	google.golang.org/api v0.255.0 // indirect
@@ -311,9 +313,9 @@ require (
 	github.com/go-logr/logr v1.4.3
 	github.com/go-task/slim-sprig/v3 v3.0.0 // indirect
 	github.com/google/go-cmp v0.7.0
-	golang.org/x/net v0.49.0
-	golang.org/x/sys v0.40.0
-	golang.org/x/text v0.33.0 // indirect
+	golang.org/x/net v0.52.0
+	golang.org/x/sys v0.42.0
+	golang.org/x/text v0.35.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 

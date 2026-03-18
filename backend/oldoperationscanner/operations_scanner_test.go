@@ -167,6 +167,9 @@ func TestSetDeleteOperationAsCompleted(t *testing.T) {
 						return mockOperationCRUD
 					})
 				mockOperationCRUD.EXPECT().
+					Get(gomock.Any(), operationDoc.OperationID.Name).
+					Return(operationDoc, nil)
+				mockOperationCRUD.EXPECT().
 					Replace(gomock.Any(), gomock.Any(), nil).
 					DoAndReturn(func(ctx context.Context, a *api.Operation, options *azcosmos.ItemOptions) (*api.Operation, error) {
 						operationDoc.NotificationURI = ""
@@ -251,7 +254,7 @@ func TestUpdateOperationStatus(t *testing.T) {
 			updatedOperationStatus:  arm.ProvisioningStateSucceeded,
 			resourceDocPresent:      false,
 			expectAsyncNotification: true,
-			expectError:             true,
+			expectError:             false,
 		},
 		{
 			name:                             "Resource has a different active operation",
@@ -263,7 +266,7 @@ func TestUpdateOperationStatus(t *testing.T) {
 			expectAsyncNotification:          true,
 			expectResourceOperationIDCleared: false,
 			expectResourceProvisioningState:  arm.ProvisioningStateDeleting,
-			expectError:                      true,
+			expectError:                      false,
 		},
 	}
 
@@ -331,20 +334,23 @@ func TestUpdateOperationStatus(t *testing.T) {
 				clusterCopy = *resourceDoc
 			}
 
+			mockTransaction := database.NewMockDBTransaction(ctrl)
+			mockTransactionResult := database.NewMockDBTransactionResult(ctrl)
+
+			// Re-read the operation to trigger ID migration and get a fresh ETag.
 			mockDBClient.EXPECT().
 				Operations(operationDoc.OperationID.SubscriptionID).
 				DoAndReturn(func(s string) database.OperationCRUD {
 					return mockOperationCRUD
 				})
+			mockDBClient.EXPECT().
+				NewTransaction(operationDoc.OperationID.SubscriptionID).
+				Return(mockTransaction)
 			mockOperationCRUD.EXPECT().
-				Replace(gomock.Any(), gomock.Any(), nil).
-				DoAndReturn(func(ctx context.Context, a *api.Operation, options *azcosmos.ItemOptions) (*api.Operation, error) {
-					if operationDoc.Status != tt.updatedOperationStatus {
-						operationDoc.Status = tt.updatedOperationStatus
-						return operationDoc, nil
-					} else {
-						return operationDoc, nil
-					}
+				AddReplaceToTransaction(gomock.Any(), mockTransaction, gomock.Any(), nil).
+				DoAndReturn(func(ctx context.Context, transaction database.DBTransaction, a *api.Operation, opts *azcosmos.TransactionalBatchItemOptions) (string, error) {
+					operationDoc.Status = tt.updatedOperationStatus
+					return operationDoc.GetCosmosUID(), nil
 				})
 			mockDBClient.EXPECT().
 				HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).
@@ -359,19 +365,19 @@ func TestUpdateOperationStatus(t *testing.T) {
 				})
 			if tt.resourceDocPresent && resourceDoc.ServiceProviderProperties.ActiveOperationID == operationDoc.OperationID.Name {
 				mockHCPCluster.EXPECT().
-					Replace(gomock.Any(), gomock.Any(), nil).
-					DoAndReturn(func(ctx context.Context, cluster *api.HCPOpenShiftCluster, options *azcosmos.ItemOptions) (*api.HCPOpenShiftCluster, error) {
-						if resourceDoc.ServiceProviderProperties.ActiveOperationID == operationDoc.OperationID.Name {
-							resourceDoc.ServiceProviderProperties.ProvisioningState = operationDoc.Status
-							if operationDoc.Status.IsTerminal() {
-								resourceDoc.ServiceProviderProperties.ActiveOperationID = ""
-							}
-							return resourceDoc, nil
-						} else {
-							return nil, &azcore.ResponseError{StatusCode: http.StatusPreconditionFailed}
+					AddReplaceToTransaction(gomock.Any(), mockTransaction, gomock.Any(), nil).
+					DoAndReturn(func(ctx context.Context, transaction database.DBTransaction, cluster *api.HCPOpenShiftCluster, opts *azcosmos.TransactionalBatchItemOptions) (string, error) {
+						resourceDoc.ServiceProviderProperties.ProvisioningState = tt.updatedOperationStatus
+						if tt.updatedOperationStatus.IsTerminal() {
+							resourceDoc.ServiceProviderProperties.ActiveOperationID = ""
 						}
-
+						return resourceDoc.GetCosmosData().GetCosmosUID(), nil
 					})
+			}
+			if !tt.expectError {
+				mockTransaction.EXPECT().
+					Execute(gomock.Any(), gomock.Any()).
+					Return(mockTransactionResult, nil)
 			}
 			if tt.expectAsyncNotification {
 				mockDBClient.EXPECT().
@@ -379,6 +385,9 @@ func TestUpdateOperationStatus(t *testing.T) {
 					DoAndReturn(func(s string) database.OperationCRUD {
 						return mockOperationCRUD
 					})
+				mockOperationCRUD.EXPECT().
+					Get(gomock.Any(), operationDoc.OperationID.Name).
+					Return(operationDoc, nil)
 				mockOperationCRUD.EXPECT().
 					Replace(gomock.Any(), gomock.Any(), nil).
 					DoAndReturn(func(ctx context.Context, a *api.Operation, options *azcosmos.ItemOptions) (*api.Operation, error) {

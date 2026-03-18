@@ -65,10 +65,10 @@
               "customerManaged": {
                 "encryptionType": "KMS",
                 "kms": {
+                  "vaultName": "my-cool-vault",
+                  "visibility": "Public",
                   "activeKey": {
-                    "vaultName": "my-cool-vault",
                     "name": "my-cool-key",
-                    "visibility": "Public",
                     "version": "8e73e7d1fd7d4a87b730f676fc77d3a6"
                   }
                 }
@@ -77,7 +77,6 @@
           },
           "imageDigestMirrors": [
             {
-              "id": "image1",
               "source": "registry.example.com/image1",
               "mirrors": [
                 "mirror1.example.com/image1",
@@ -85,7 +84,6 @@
               ]
             },
             {
-              "id": "image2",
               "source": "registry.example.com/image2",
               "mirrors": [
                 "mirror1.example.com/image2"

@@ -3,15 +3,15 @@ module github.com/Azure/ARO-HCP/tooling/templatize
 go 1.25.5
 
 require (
-	github.com/Azure/ARO-Tools/config v0.0.0-20260227032723-11f678744bf9
-	github.com/Azure/ARO-Tools/pipelines v0.0.0-20260227032723-11f678744bf9
-	github.com/Azure/ARO-Tools/testutil v0.0.0-20260227032723-11f678744bf9
-	github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20260227032723-11f678744bf9
-	github.com/Azure/ARO-Tools/tools/grafanactl v0.0.0-20260227032723-11f678744bf9
-	github.com/Azure/ARO-Tools/tools/helm v0.0.0-20260227032723-11f678744bf9
-	github.com/Azure/ARO-Tools/tools/prow-job-executor v0.0.0-20260227032723-11f678744bf9
-	github.com/Azure/ARO-Tools/tools/registration v0.0.0-20260227032723-11f678744bf9
-	github.com/Azure/ARO-Tools/tools/secret-sync v0.0.0-20260227032723-11f678744bf9
+	github.com/Azure/ARO-Tools/config v0.0.0-20260309172949-8176eed3f66a
+	github.com/Azure/ARO-Tools/pipelines v0.0.0-20260309172949-8176eed3f66a
+	github.com/Azure/ARO-Tools/testutil v0.0.0-20260309172949-8176eed3f66a
+	github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20260309172949-8176eed3f66a
+	github.com/Azure/ARO-Tools/tools/grafanactl v0.0.0-20260309172949-8176eed3f66a
+	github.com/Azure/ARO-Tools/tools/helm v0.0.0-20260309172949-8176eed3f66a
+	github.com/Azure/ARO-Tools/tools/prow-job-executor v0.0.0-20260309172949-8176eed3f66a
+	github.com/Azure/ARO-Tools/tools/registration v0.0.0-20260309172949-8176eed3f66a
+	github.com/Azure/ARO-Tools/tools/secret-sync v0.0.0-20260309172949-8176eed3f66a
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.21.0
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.13.1
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v3 v3.0.0-beta.2
@@ -35,7 +35,7 @@ require (
 	github.com/stretchr/testify v1.11.1
 	go.lsp.dev/jsonrpc2 v0.10.0
 	go.lsp.dev/protocol v0.12.0
-	golang.org/x/sync v0.19.0
+	golang.org/x/sync v0.20.0
 	k8s.io/apimachinery v0.34.3
 	k8s.io/client-go v0.34.3
 	k8s.io/utils v0.0.0-20260108192941-914a6e750570
@@ -54,7 +54,8 @@ require (
 	contrib.go.opencensus.io/exporter/ocagent v0.7.1-0.20200907061046-05415f1de66d // indirect
 	contrib.go.opencensus.io/exporter/prometheus v0.4.2 // indirect
 	dario.cat/mergo v1.0.1 // indirect
-	github.com/Azure/ARO-Tools/tools/yamlwrap v0.0.0-20260227032723-11f678744bf9 // indirect
+	github.com/Azure/ARO-Tools/tools/yamlwrap v0.0.0-20260309172949-8176eed3f66a // indirect
+	github.com/Azure/azure-sdk-for-go/sdk/azidentity/cache v0.4.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/internal v1.11.2 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/dashboard/armdashboard v1.2.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/managementgroups/armmanagementgroups v1.2.0 // indirect
@@ -65,7 +66,7 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azsecrets v1.4.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/internal v1.2.0 // indirect
 	github.com/Azure/go-ansiterm v0.0.0-20250102033503-faa5f7b0171c // indirect
-	github.com/AzureAD/microsoft-authentication-library-for-go v1.6.0 // indirect
+	github.com/AzureAD/microsoft-authentication-library-for-go v1.7.0 // indirect
 	github.com/BurntSushi/toml v1.6.0 // indirect
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/detectors/gcp v1.30.0 // indirect
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/metric v0.53.0 // indirect
@@ -110,7 +111,7 @@ require (
 	github.com/cjwagner/httpcache v0.0.0-20230907212505-d4841bbad466 // indirect
 	github.com/clarketm/json v1.17.1 // indirect
 	github.com/cloudevents/sdk-go/v2 v2.16.2 // indirect
-	github.com/cloudflare/circl v1.6.1 // indirect
+	github.com/cloudflare/circl v1.6.3 // indirect
 	github.com/cncf/xds/go v0.0.0-20251022180443-0feb69152e9f // indirect
 	github.com/coreos/go-systemd/v22 v22.6.0 // indirect
 	github.com/cyphar/filepath-securejoin v0.5.0 // indirect
@@ -145,7 +146,7 @@ require (
 	github.com/gobwas/glob v0.2.3 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang-jwt/jwt/v4 v4.5.2 // indirect
-	github.com/golang-jwt/jwt/v5 v5.3.0 // indirect
+	github.com/golang-jwt/jwt/v5 v5.3.1 // indirect
 	github.com/golang/groupcache v0.0.0-20241129210726-2c02b8208cf8 // indirect
 	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/gomodule/redigo v1.8.5 // indirect
@@ -248,27 +249,27 @@ require (
 	go.opentelemetry.io/contrib/exporters/autoexport v0.64.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.61.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.63.0 // indirect
-	go.opentelemetry.io/otel v1.39.0 // indirect
+	go.opentelemetry.io/otel v1.40.0 // indirect
 	go.opentelemetry.io/otel/exporters/stdout/stdoutmetric v1.39.0 // indirect
 	go.opentelemetry.io/otel/exporters/stdout/stdouttrace v1.39.0 // indirect
-	go.opentelemetry.io/otel/metric v1.39.0 // indirect
-	go.opentelemetry.io/otel/sdk v1.39.0 // indirect
-	go.opentelemetry.io/otel/sdk/metric v1.39.0 // indirect
-	go.opentelemetry.io/otel/trace v1.39.0 // indirect
+	go.opentelemetry.io/otel/metric v1.40.0 // indirect
+	go.opentelemetry.io/otel/sdk v1.40.0 // indirect
+	go.opentelemetry.io/otel/sdk/metric v1.40.0 // indirect
+	go.opentelemetry.io/otel/trace v1.40.0 // indirect
 	go.opentelemetry.io/proto/otlp v1.9.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.1 // indirect
-	go.yaml.in/yaml/v2 v2.4.3 // indirect
+	go.yaml.in/yaml/v2 v2.4.4 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	go4.org v0.0.0-20201209231011-d4a079459e60 // indirect
 	gocloud.dev v0.40.0 // indirect
-	golang.org/x/crypto v0.47.0 // indirect
+	golang.org/x/crypto v0.49.0 // indirect
 	golang.org/x/exp v0.0.0-20250911091902-df9299821621 // indirect
-	golang.org/x/net v0.49.0 // indirect
+	golang.org/x/net v0.52.0 // indirect
 	golang.org/x/oauth2 v0.34.0 // indirect
-	golang.org/x/sys v0.40.0 // indirect
-	golang.org/x/term v0.39.0 // indirect
-	golang.org/x/text v0.33.0 // indirect
+	golang.org/x/sys v0.42.0 // indirect
+	golang.org/x/term v0.41.0 // indirect
+	golang.org/x/text v0.35.0 // indirect
 	golang.org/x/time v0.14.0 // indirect
 	golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da // indirect
 	gomodules.xyz/jsonpatch/v2 v2.5.0 // indirect

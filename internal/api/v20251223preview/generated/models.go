@@ -50,7 +50,7 @@ type ClusterAutoscalingProfile struct {
 	// fixed. https://github.com/Azure/typespec-azure/issues/1586
 	MaxPodGracePeriodSeconds *int32
 
-	// podPriorityThreshold enables users to schedule “best-effort” pods, which shouldn’t trigger autoscaler actions, but only
+	// podPriorityThreshold enables users to schedule "best-effort" pods, which shouldn't trigger autoscaler actions, but only
 	// run when there are spare resources available. The default is -10. See the
 	// following for more details: https://github.com/kubernetes/autoscaler/blob/master/cluster-autoscaler/FAQ.md#how-does-cluster-autoscaler-work-with-pod-priority-and-preemption
 	// Note: The default value is not declared in the API specification because of a TypeSpec bug with updatable fields. The default
@@ -65,7 +65,7 @@ type ClusterImageRegistryProfile struct {
 	// creation and cannot be changed after cluster creation. Enabled means the
 	// ImageStream-backed image registry will be run as pods on worker nodes in the cluster. Disabled means the ImageStream-backed
 	// image registry will not be present in the cluster. The default is Enabled.
-	State *ClusterImageRegistryProfileState
+	State *ClusterImageRegistryState
 }
 
 // ConsoleProfile - Configuration of the cluster web console
@@ -494,13 +494,10 @@ type HcpOperatorIdentityRoleSetProperties struct {
 
 // ImageDigestMirror specifies a set of mirror registries to redirect image pulls targeting the specified source registries.
 type ImageDigestMirror struct {
-	// REQUIRED; The unique identifier for this image digest mirror definition
-	ID *string
-
-	// REQUIRED; The set of mirror registries to redirect image pulls to
+	// REQUIRED; Mirrors are one or more image repositories that may also contain the same images.
 	Mirrors []*string
 
-	// REQUIRED; The source image registry to redirect image pulls from
+	// REQUIRED; Source is the image repository that users refer to, e.g. in image pull specifications.
 	Source *string
 }
 
@@ -510,6 +507,12 @@ type ImageDigestMirror struct {
 type KmsEncryptionProfile struct {
 	// REQUIRED; The details of the active key.
 	ActiveKey *KmsKey
+
+	// REQUIRED; vaultName is the name of the keyvault that contains the secret.
+	VaultName *string
+
+	// REQUIRED; visibility of the keyvault that contains the secret.
+	Visibility *KeyVaultVisibility
 }
 
 // KmsKey - A representation of a KeyVault Secret.
@@ -517,14 +520,8 @@ type KmsKey struct {
 	// REQUIRED; name is the name of the keyvault key used for encryption/decryption.
 	Name *string
 
-	// REQUIRED; vaultName is the name of the keyvault that contains the secret.
-	VaultName *string
-
 	// REQUIRED; version contains the version of the key to use.
 	Version *string
-
-	// REQUIRED; visibility of the keyvault that contains the secret.
-	Visibility *KeyVaultVisibility
 }
 
 // Label represents the Kubernetes label

@@ -143,6 +143,10 @@ func CosmosToInternalCluster(cosmosObj *HCPCluster) (*api.HCPOpenShiftCluster, e
 		Location: cosmosObj.InternalState.InternalAPI.Location,
 		Tags:     resourceDoc.Tags,
 	}
+	// we carry over the CosmosETag from the cosmos object to the internal object into a
+	// temporary field until we have inlined and serialized CosmosMetadata in
+	// HCPOpenShiftCluster.
+	internalObj.CosmosETag = cosmosObj.CosmosETag
 	internalObj.Identity = toInternalIdentity(resourceDoc.Identity)
 	internalObj.SystemData = resourceDoc.SystemData
 	internalObj.Tags = copyTags(resourceDoc.Tags)

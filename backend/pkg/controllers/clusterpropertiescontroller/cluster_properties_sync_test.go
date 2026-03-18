@@ -39,34 +39,46 @@ const (
 	testClusterName         = "test-cluster"
 	testClusterServiceIDStr = "/api/clusters_mgmt/v1/clusters/abc123"
 
-	testConsoleURL       = "https://console.example.com"
-	testBaseDomain       = "example.openshiftapps.com"
-	testBaseDomainPrefix = "my-cluster"
+	testConsoleURL         = "https://console.example.com"
+	testBaseDomain         = "example.openshiftapps.com"
+	testBaseDomainPrefix   = "my-cluster"
+	testManagedIdentityURL = "https://dummyhost.identity.azure.net/otherinformation?aqueryarg=somevalue"
+	testAPIURL             = "https://api.example.com:6443"
+	testIssuerURL          = "https://storage.z1.web.core.windows.net/tenant-id/cluster-id"
 )
 
 func TestClusterPropertiesSyncer_SyncOnce(t *testing.T) {
 	testCases := []struct {
-		name                     string
-		existingCluster          *api.HCPOpenShiftCluster
-		csCluster                *arohcpv1alpha1.Cluster
-		expectCSCall             bool
-		expectCosmosUpdate       bool
-		expectedConsoleURL       string
-		expectedBaseDomain       string
-		expectedBaseDomainPrefix string
+		name                       string
+		existingCluster            *api.HCPOpenShiftCluster
+		csCluster                  *arohcpv1alpha1.Cluster
+		expectCSCall               bool
+		expectCosmosUpdate         bool
+		expectedConsoleURL         string
+		expectedBaseDomain         string
+		expectedBaseDomainPrefix   string
+		expectedManagedIdentityURL string
+		expectedAPIURL             string
+		expectedIssuerURL          string
 	}{
 		{
 			name: "short-circuit when all properties already set",
 			existingCluster: newTestCluster(func(c *api.HCPOpenShiftCluster) {
 				c.ServiceProviderProperties.Console.URL = testConsoleURL
 				c.ServiceProviderProperties.DNS.BaseDomain = testBaseDomain
+				c.ServiceProviderProperties.API.URL = testAPIURL
+				c.ServiceProviderProperties.ManagedIdentitiesDataPlaneIdentityURL = testManagedIdentityURL
+				c.ServiceProviderProperties.Platform.IssuerURL = testIssuerURL
 				c.CustomerProperties.DNS.BaseDomainPrefix = testBaseDomainPrefix
 			}),
-			expectCSCall:             false,
-			expectCosmosUpdate:       false,
-			expectedConsoleURL:       testConsoleURL,
-			expectedBaseDomain:       testBaseDomain,
-			expectedBaseDomainPrefix: testBaseDomainPrefix,
+			expectCSCall:               false,
+			expectCosmosUpdate:         false,
+			expectedConsoleURL:         testConsoleURL,
+			expectedBaseDomain:         testBaseDomain,
+			expectedBaseDomainPrefix:   testBaseDomainPrefix,
+			expectedManagedIdentityURL: testManagedIdentityURL,
+			expectedAPIURL:             testAPIURL,
+			expectedIssuerURL:          testIssuerURL,
 		},
 		{
 			name:            "sync all properties from CS when all are missing",
@@ -74,74 +86,188 @@ func TestClusterPropertiesSyncer_SyncOnce(t *testing.T) {
 			csCluster: buildCSCluster(
 				testConsoleURL,
 				testBaseDomain,
+				testAPIURL,
 				testBaseDomainPrefix,
+				testManagedIdentityURL,
+				testIssuerURL,
 			),
-			expectCSCall:             true,
-			expectCosmosUpdate:       true,
-			expectedConsoleURL:       testConsoleURL,
-			expectedBaseDomain:       testBaseDomain,
-			expectedBaseDomainPrefix: testBaseDomainPrefix,
+			expectCSCall:               true,
+			expectCosmosUpdate:         true,
+			expectedConsoleURL:         testConsoleURL,
+			expectedBaseDomain:         testBaseDomain,
+			expectedBaseDomainPrefix:   testBaseDomainPrefix,
+			expectedManagedIdentityURL: testManagedIdentityURL,
+			expectedAPIURL:             testAPIURL,
+			expectedIssuerURL:          testIssuerURL,
 		},
 		{
 			name: "sync only missing Console.URL",
 			existingCluster: newTestCluster(func(c *api.HCPOpenShiftCluster) {
 				c.ServiceProviderProperties.DNS.BaseDomain = testBaseDomain
+				c.ServiceProviderProperties.API.URL = testAPIURL
+				c.ServiceProviderProperties.ManagedIdentitiesDataPlaneIdentityURL = testManagedIdentityURL
+				c.ServiceProviderProperties.Platform.IssuerURL = testIssuerURL
 				c.CustomerProperties.DNS.BaseDomainPrefix = testBaseDomainPrefix
 			}),
 			csCluster: buildCSCluster(
 				testConsoleURL,
 				testBaseDomain,
+				testAPIURL,
 				testBaseDomainPrefix,
+				testManagedIdentityURL,
+				testIssuerURL,
 			),
-			expectCSCall:             true,
-			expectCosmosUpdate:       true,
-			expectedConsoleURL:       testConsoleURL,
-			expectedBaseDomain:       testBaseDomain,
-			expectedBaseDomainPrefix: testBaseDomainPrefix,
+			expectCSCall:               true,
+			expectCosmosUpdate:         true,
+			expectedConsoleURL:         testConsoleURL,
+			expectedBaseDomain:         testBaseDomain,
+			expectedBaseDomainPrefix:   testBaseDomainPrefix,
+			expectedManagedIdentityURL: testManagedIdentityURL,
+			expectedAPIURL:             testAPIURL,
+			expectedIssuerURL:          testIssuerURL,
 		},
 		{
 			name: "sync only missing DNS.BaseDomain",
 			existingCluster: newTestCluster(func(c *api.HCPOpenShiftCluster) {
 				c.ServiceProviderProperties.Console.URL = testConsoleURL
+				c.ServiceProviderProperties.API.URL = testAPIURL
+				c.ServiceProviderProperties.ManagedIdentitiesDataPlaneIdentityURL = testManagedIdentityURL
+				c.ServiceProviderProperties.Platform.IssuerURL = testIssuerURL
 				c.CustomerProperties.DNS.BaseDomainPrefix = testBaseDomainPrefix
 			}),
 			csCluster: buildCSCluster(
 				testConsoleURL,
 				testBaseDomain,
+				testAPIURL,
 				testBaseDomainPrefix,
+				testManagedIdentityURL,
+				testIssuerURL,
 			),
-			expectCSCall:             true,
-			expectCosmosUpdate:       true,
-			expectedConsoleURL:       testConsoleURL,
-			expectedBaseDomain:       testBaseDomain,
-			expectedBaseDomainPrefix: testBaseDomainPrefix,
+			expectCSCall:               true,
+			expectCosmosUpdate:         true,
+			expectedConsoleURL:         testConsoleURL,
+			expectedBaseDomain:         testBaseDomain,
+			expectedBaseDomainPrefix:   testBaseDomainPrefix,
+			expectedManagedIdentityURL: testManagedIdentityURL,
+			expectedAPIURL:             testAPIURL,
+			expectedIssuerURL:          testIssuerURL,
+		},
+		{
+			name: "sync only missing API.URL",
+			existingCluster: newTestCluster(func(c *api.HCPOpenShiftCluster) {
+				c.ServiceProviderProperties.Console.URL = testConsoleURL
+				c.ServiceProviderProperties.DNS.BaseDomain = testBaseDomain
+				c.ServiceProviderProperties.ManagedIdentitiesDataPlaneIdentityURL = testManagedIdentityURL
+				c.ServiceProviderProperties.Platform.IssuerURL = testIssuerURL
+				c.CustomerProperties.DNS.BaseDomainPrefix = testBaseDomainPrefix
+			}),
+			csCluster: buildCSCluster(
+				testConsoleURL,
+				testBaseDomain,
+				testAPIURL,
+				testBaseDomainPrefix,
+				testManagedIdentityURL,
+				testIssuerURL,
+			),
+			expectCSCall:               true,
+			expectCosmosUpdate:         true,
+			expectedConsoleURL:         testConsoleURL,
+			expectedBaseDomain:         testBaseDomain,
+			expectedBaseDomainPrefix:   testBaseDomainPrefix,
+			expectedManagedIdentityURL: testManagedIdentityURL,
+			expectedAPIURL:             testAPIURL,
+			expectedIssuerURL:          testIssuerURL,
 		},
 		{
 			name: "sync only missing DNS.BaseDomainPrefix",
 			existingCluster: newTestCluster(func(c *api.HCPOpenShiftCluster) {
 				c.ServiceProviderProperties.Console.URL = testConsoleURL
 				c.ServiceProviderProperties.DNS.BaseDomain = testBaseDomain
+				c.ServiceProviderProperties.API.URL = testAPIURL
+				c.ServiceProviderProperties.ManagedIdentitiesDataPlaneIdentityURL = testManagedIdentityURL
+				c.ServiceProviderProperties.Platform.IssuerURL = testIssuerURL
 			}),
 			csCluster: buildCSCluster(
 				testConsoleURL,
 				testBaseDomain,
+				testAPIURL,
 				testBaseDomainPrefix,
+				testManagedIdentityURL,
+				testIssuerURL,
 			),
-			expectCSCall:             true,
-			expectCosmosUpdate:       true,
-			expectedConsoleURL:       testConsoleURL,
-			expectedBaseDomain:       testBaseDomain,
-			expectedBaseDomainPrefix: testBaseDomainPrefix,
+			expectCSCall:               true,
+			expectCosmosUpdate:         true,
+			expectedConsoleURL:         testConsoleURL,
+			expectedBaseDomain:         testBaseDomain,
+			expectedBaseDomainPrefix:   testBaseDomainPrefix,
+			expectedManagedIdentityURL: testManagedIdentityURL,
+			expectedAPIURL:             testAPIURL,
+			expectedIssuerURL:          testIssuerURL,
 		},
 		{
-			name:                     "no update when CS returns empty values",
-			existingCluster:          newTestCluster(),
-			csCluster:                buildCSCluster("", "", ""),
-			expectCSCall:             true,
-			expectCosmosUpdate:       false,
-			expectedConsoleURL:       "",
-			expectedBaseDomain:       "",
-			expectedBaseDomainPrefix: "",
+			name:                       "no update when CS returns empty values",
+			existingCluster:            newTestCluster(),
+			csCluster:                  buildCSCluster("", "", "", "", "", ""),
+			expectCSCall:               true,
+			expectCosmosUpdate:         false,
+			expectedConsoleURL:         "",
+			expectedBaseDomain:         "",
+			expectedBaseDomainPrefix:   "",
+			expectedManagedIdentityURL: "",
+			expectedAPIURL:             "",
+			expectedIssuerURL:          "",
+		},
+		{
+			name: "sync only missing ManagedIdentitiesDataPlaneIdentityURL",
+			existingCluster: newTestCluster(func(c *api.HCPOpenShiftCluster) {
+				c.ServiceProviderProperties.Console.URL = testConsoleURL
+				c.ServiceProviderProperties.DNS.BaseDomain = testBaseDomain
+				c.ServiceProviderProperties.API.URL = testAPIURL
+				c.ServiceProviderProperties.Platform.IssuerURL = testIssuerURL
+				c.CustomerProperties.DNS.BaseDomainPrefix = testBaseDomainPrefix
+			}),
+			csCluster: buildCSCluster(
+				testConsoleURL,
+				testBaseDomain,
+				testAPIURL,
+				testBaseDomainPrefix,
+				testManagedIdentityURL,
+				testIssuerURL,
+			),
+			expectCSCall:               true,
+			expectCosmosUpdate:         true,
+			expectedConsoleURL:         testConsoleURL,
+			expectedBaseDomain:         testBaseDomain,
+			expectedBaseDomainPrefix:   testBaseDomainPrefix,
+			expectedManagedIdentityURL: testManagedIdentityURL,
+			expectedAPIURL:             testAPIURL,
+			expectedIssuerURL:          testIssuerURL,
+		},
+		{
+			name: "sync only missing Platform.IssuerURL",
+			existingCluster: newTestCluster(func(c *api.HCPOpenShiftCluster) {
+				c.ServiceProviderProperties.Console.URL = testConsoleURL
+				c.ServiceProviderProperties.DNS.BaseDomain = testBaseDomain
+				c.ServiceProviderProperties.API.URL = testAPIURL
+				c.ServiceProviderProperties.ManagedIdentitiesDataPlaneIdentityURL = testManagedIdentityURL
+				c.CustomerProperties.DNS.BaseDomainPrefix = testBaseDomainPrefix
+			}),
+			csCluster: buildCSCluster(
+				testConsoleURL,
+				testBaseDomain,
+				testAPIURL,
+				testBaseDomainPrefix,
+				testManagedIdentityURL,
+				testIssuerURL,
+			),
+			expectCSCall:               true,
+			expectCosmosUpdate:         true,
+			expectedConsoleURL:         testConsoleURL,
+			expectedBaseDomain:         testBaseDomain,
+			expectedBaseDomainPrefix:   testBaseDomainPrefix,
+			expectedManagedIdentityURL: testManagedIdentityURL,
+			expectedAPIURL:             testAPIURL,
+			expectedIssuerURL:          testIssuerURL,
 		},
 	}
 
@@ -151,12 +277,8 @@ func TestClusterPropertiesSyncer_SyncOnce(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			defer ctrl.Finish()
 
-			// Setup mock DB
-			mockDB := databasetesting.NewMockDBClient()
-
-			// Create the cluster in the mock DB
-			clusterCRUD := mockDB.HCPClusters(testSubscriptionID, testResourceGroupName)
-			_, err := clusterCRUD.Create(ctx, tc.existingCluster, nil)
+			// Setup mock DB with the existing cluster
+			mockDB, err := databasetesting.NewMockDBClientWithResources(ctx, []any{tc.existingCluster})
 			require.NoError(t, err)
 
 			// Setup mock CS client
@@ -185,12 +307,15 @@ func TestClusterPropertiesSyncer_SyncOnce(t *testing.T) {
 			require.NoError(t, err)
 
 			// Verify the cluster state in Cosmos
-			updatedCluster, err := clusterCRUD.Get(ctx, testClusterName)
+			updatedCluster, err := mockDB.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, testClusterName)
 			require.NoError(t, err)
 
 			assert.Equal(t, tc.expectedConsoleURL, updatedCluster.ServiceProviderProperties.Console.URL)
 			assert.Equal(t, tc.expectedBaseDomain, updatedCluster.ServiceProviderProperties.DNS.BaseDomain)
+			assert.Equal(t, tc.expectedAPIURL, updatedCluster.ServiceProviderProperties.API.URL)
 			assert.Equal(t, tc.expectedBaseDomainPrefix, updatedCluster.CustomerProperties.DNS.BaseDomainPrefix)
+			assert.Equal(t, tc.expectedManagedIdentityURL, updatedCluster.ServiceProviderProperties.ManagedIdentitiesDataPlaneIdentityURL)
+			assert.Equal(t, tc.expectedIssuerURL, updatedCluster.ServiceProviderProperties.Platform.IssuerURL)
 		})
 	}
 }
@@ -225,12 +350,34 @@ func newTestCluster(opts ...func(*api.HCPOpenShiftCluster)) *api.HCPOpenShiftClu
 }
 
 // buildCSCluster creates a mock Cluster Service cluster with the given values.
-func buildCSCluster(consoleURL, baseDomain, domainPrefix string) *arohcpv1alpha1.Cluster {
-	cluster, err := arohcpv1alpha1.NewCluster().
+func buildCSCluster(consoleURL, baseDomain, apiURL, domainPrefix, managedIdentityURL, issuerURL string) *arohcpv1alpha1.Cluster {
+	builder := arohcpv1alpha1.NewCluster().
 		Console(arohcpv1alpha1.NewClusterConsole().URL(consoleURL)).
 		DNS(arohcpv1alpha1.NewDNS().BaseDomain(baseDomain)).
-		DomainPrefix(domainPrefix).
-		Build()
+		API(arohcpv1alpha1.NewClusterAPI().URL(apiURL)).
+		DomainPrefix(domainPrefix)
+
+	azureBuilder := arohcpv1alpha1.NewAzure()
+	needsAzure := false
+
+	if managedIdentityURL != "" {
+		azureBuilder = azureBuilder.
+			OperatorsAuthentication(arohcpv1alpha1.NewAzureOperatorsAuthentication().
+				ManagedIdentities(arohcpv1alpha1.NewAzureOperatorsAuthenticationManagedIdentities().
+					ControlPlaneOperatorsManagedIdentities(make(map[string]*arohcpv1alpha1.AzureControlPlaneManagedIdentityBuilder)).
+					DataPlaneOperatorsManagedIdentities(make(map[string]*arohcpv1alpha1.AzureDataPlaneManagedIdentityBuilder)).
+					ManagedIdentitiesDataPlaneIdentityUrl(managedIdentityURL)))
+		needsAzure = true
+	}
+	if issuerURL != "" {
+		azureBuilder = azureBuilder.OidcIssuerUrl(issuerURL)
+		needsAzure = true
+	}
+	if needsAzure {
+		builder = builder.Azure(azureBuilder)
+	}
+
+	cluster, err := builder.Build()
 	if err != nil {
 		panic(err)
 	}

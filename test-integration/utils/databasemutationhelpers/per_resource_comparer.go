@@ -56,6 +56,10 @@ func ResourceInstanceEquals(t *testing.T, expected, actual any) (string, bool) {
 		unstructured.RemoveNestedField(currMap, "cosmosMetadata", "etag")
 		// temporary and not worth tracking
 		unstructured.RemoveNestedField(currMap, "cosmosMetadata", "existingCosmosUID")
+		// createdAt varies on every run, so ignore it (but keep createdBy and createdByType for comparison)
+		unstructured.RemoveNestedField(currMap, "systemData", "createdAt")
+		// lastModifiedAt also varies on every run
+		unstructured.RemoveNestedField(currMap, "systemData", "lastModifiedAt")
 
 		// these are case insensitive
 		if value, ok := currMap["resourceID"].(string); ok && len(value) > 0 {
@@ -112,6 +116,9 @@ func ResourceInstanceEquals(t *testing.T, expected, actual any) (string, bool) {
 			for _, nestedPossiblePrepend := range []string{"", "intermediateResourceDoc"} {
 				unstructured.RemoveNestedField(currMap, prepend(possiblePrepend, prepend(nestedPossiblePrepend, "activeOperationId")...)...) // cluster, nodepool, externalauth
 				unstructured.RemoveNestedField(currMap, prepend(possiblePrepend, prepend(nestedPossiblePrepend, "internalId")...)...)        // cluster, nodepool, externalauth
+				// systemData timestamp fields vary on every run
+				unstructured.RemoveNestedField(currMap, prepend(possiblePrepend, prepend(nestedPossiblePrepend, "systemData", "createdAt")...)...)
+				unstructured.RemoveNestedField(currMap, prepend(possiblePrepend, prepend(nestedPossiblePrepend, "systemData", "lastModifiedAt")...)...)
 			}
 
 			// for controllers

@@ -1,9 +1,11 @@
 BACKEND_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
+CONTAINER_ENGINE ?= $(shell command -v podman 2>/dev/null || echo docker)
 
 -include ../setup-templatize-env.mk
 -include ../.bingo/Variables.mk
 
 ARO_HCP_REVISION ?= $(shell git rev-parse HEAD)
+ARO_HCP_COMMIT_TIME := $(shell TZ=UTC git show -s --format=%cd --date=iso-strict-local ${ARO_HCP_REVISION})
 ARO_HCP_IMAGE_REGISTRY ?= ${ARO_HCP_IMAGE_ACR}.azurecr.io
 BACKEND_IMAGE_TAG ?= $(shell DETECT_DIRTY_GIT_WORKTREE=${DETECT_DIRTY_GIT_WORKTREE} DEPLOY_ENV=${DEPLOY_ENV} ../generate-tag.sh)
 BACKEND_GENERATED_IMAGE_REPOSITORY = $(shell DEPLOY_ENV=${DEPLOY_ENV} BASELINE_REPO=${BACKEND_IMAGE_REPOSITORY} ../generate-repo.sh)
@@ -44,18 +46,21 @@ clean:
 
 image: Dockerfile $(BACKEND_SOURCES) Makefile
 	cd $(BACKEND_DIR)/.. && \
-	docker build . --file backend/Dockerfile \
+	$(CONTAINER_ENGINE) build . --file backend/Dockerfile \
 		--build-arg PLATFORM=linux/amd64 \
 		--build-arg ARO_HCP_REVISION=${ARO_HCP_REVISION} \
+		--build-arg ARO_HCP_COMMIT_TIME=${ARO_HCP_COMMIT_TIME} \
 		--build-arg ARO_HCP_IMAGE_TAG=${BACKEND_IMAGE_TAG} \
 		--tag ${BACKEND_TAGGED_IMAGE}
 
 build-and-push: image $(ORAS)
 	az acr login --name ${ARO_HCP_IMAGE_ACR}
-	docker push ${BACKEND_TAGGED_IMAGE}
+	$(CONTAINER_ENGINE) push ${BACKEND_TAGGED_IMAGE}
 .PHONY: build-and-push
 
-OVERRIDE_CONFIG_FILE ?= /tmp/backend-override-config-$(date +%s).yaml
+# Unix timestamp for this make run; computed once so multiple targets see the same value.
+MAKE_RUN_TS := $(shell date +%s)
+OVERRIDE_CONFIG_FILE ?= /tmp/backend-override-config-$(MAKE_RUN_TS).yaml
 
 record-override: $(YQ) $(ORAS)
 	@az acr login --name ${ARO_HCP_IMAGE_ACR} --expose-token --output tsv --query accessToken | \

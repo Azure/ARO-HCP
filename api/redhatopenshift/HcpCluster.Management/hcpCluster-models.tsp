@@ -97,6 +97,8 @@ model HcpOpenShiftClusterProperties {
    */
   @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
   @added(Versions.v2025_12_23_preview)
+  @identifiers(#["source"])
+  @maxItems(240)
   imageDigestMirrors?: ImageDigestMirror[];
 
   /** nodeDrainTimeoutMinutes is the grace period for how long Pod Disruption Budget-protected workloads will be
@@ -353,7 +355,7 @@ model ClusterAutoscalingProfile {
   @minValue(0)
   maxNodeProvisionTimeSeconds?: int32;
 
-  /** podPriorityThreshold enables users to schedule “best-effort” pods, which shouldn’t trigger autoscaler actions,
+  /** podPriorityThreshold enables users to schedule "best-effort" pods, which shouldn't trigger autoscaler actions,
    * but only run when there are spare resources available. The default is -10.
    * See the following for more details:
    * https://github.com/kubernetes/autoscaler/blob/master/cluster-autoscaler/FAQ.md#how-does-cluster-autoscaler-work-with-pod-priority-and-preemption
@@ -370,16 +372,20 @@ model ClusterAutoscalingProfile {
  * pulls targeting the specified source registries.
  */
 model ImageDigestMirror {
-  /** The unique identifier for this image digest mirror definition */
-  id: string;
+  /** Source is the image repository that users refer to, e.g. in image pull specifications. */
+  source: ImageRepository;
 
-  /** The source image registry to redirect image pulls from */
-  source: string;
-
-  /** The set of mirror registries to redirect image pulls to */
+  /** Mirrors are one or more image repositories that may also contain the same images. */
   @minItems(1)
-  mirrors: string[];
+  @maxItems(255)
+  mirrors: ImageRepository[];
 }
+
+/** ImageRepository describes a repository for container images.
+ * @example quay.io/openshift-release-dev/ocp-release
+ */
+@maxLength(255)
+scalar ImageRepository extends string;
 
 /** OpenShift cluster image registry */
 model ClusterImageRegistryProfile {
@@ -389,7 +395,18 @@ model ClusterImageRegistryProfile {
    * the cluster. Disabled means the ImageStream-backed image registry will not be present in
    * the cluster. The default is Enabled. */
   @visibility(Lifecycle.Read, Lifecycle.Create)
-  state?: "Enabled" | "Disabled" | string = "Enabled";
+  state?: ClusterImageRegistryState = ClusterImageRegistryState.Enabled;
+}
+
+/** The desired state of the ImageStream-backed cluster image registry */
+union ClusterImageRegistryState {
+  string,
+
+  /** The ImageStream-backed image registry will be run as pods on worker nodes */
+  Enabled: "Enabled",
+
+  /** The ImageStream-backed image registry will not be present in the cluster */
+  Disabled: "Disabled",
 }
 
 scalar SubnetResourceId
@@ -456,16 +473,13 @@ model KmsKey {
   /** vaultName is the name of the keyvault that contains the secret. */
   @maxLength(255)
   @minLength(1)
+  @removed(Versions.v2025_12_23_preview)
   vaultName: string;
 
   /** name is the name of the keyvault key used for encryption/decryption. */
   @maxLength(255)
   @minLength(1)
   name: string;
-
-  /** visibility of the keyvault that contains the secret. */
-  @added(Versions.v2025_12_23_preview)
-  visibility: KeyVaultVisibility;
 
   /** version contains the version of the key to use. */
   @maxLength(255)
@@ -529,6 +543,18 @@ model CustomerManagedEncryptionProfile {
  * e.g using the AzureCLI: `az keyvault set-policy -n $KEYVAULT_NAME --key-permissions decrypt encrypt --spn (YOUR APPLICATION CLIENT ID)`
  */
 model KmsEncryptionProfile {
+  /** vaultName is the name of the keyvault that contains the secret. */
+  @visibility(Lifecycle.Read, Lifecycle.Create)
+  @maxLength(255)
+  @minLength(1)
+  @added(Versions.v2025_12_23_preview)
+  vaultName: string;
+
+  /** visibility of the keyvault that contains the secret. */
+  @visibility(Lifecycle.Read, Lifecycle.Create)
+  @added(Versions.v2025_12_23_preview)
+  visibility: KeyVaultVisibility;
+
   /** The details of the active key. */
   @visibility(Lifecycle.Read, Lifecycle.Create)
   activeKey: KmsKey;
@@ -603,12 +629,12 @@ model NodePoolProperties {
    * create nodes in the Nodepool, existing node labels remain unchanged.
    */
   @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
-  @OpenAPI.extension("x-ms-identifiers", #["key", "value"])
+  @identifiers(#["key", "value"])
   labels?: Label[];
 
   /** Taints for the nodes */
   @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
-  @OpenAPI.extension("x-ms-identifiers", #["key", "value", "effect"])
+  @identifiers(#["key", "value", "effect"])
   taints?: Taint[];
 
   /** nodeDrainTimeoutMinutes is the grace period for how long Pod Disruption Budget-protected workloads will be
@@ -644,6 +670,7 @@ model Taint {
   /** The key of the taint
    * @example node-role.kubernetes.io/master
    */
+  #suppress "@azure-tools/typespec-azure-resource-manager/secret-prop" "This is a Kubernetes taint key, not a secret"
   @minLength(1)
   @maxLength(316)
   key: string;
@@ -665,6 +692,7 @@ model Label {
   /** The key of the label
    * @example node-role.kubernetes.io/master
    */
+  #suppress "@azure-tools/typespec-azure-resource-manager/secret-prop" "This is a Kubernetes label key, not a secret"
   key: string;
 
   /** The value of the label */
@@ -874,10 +902,7 @@ model ExternalAuthProperties {
    * There must not be more than 20 entries and entries must have unique namespace/name pairs.
    */
   @maxItems(20)
-  @OpenAPI.extension(
-    "x-ms-identifiers",
-    #["component", "clientId", "extraScopes"]
-  )
+  @identifiers(#["component", "clientId", "extraScopes"])
   clients?: ExternalAuthClientProfile[];
 
   /** External Auth claim
@@ -1043,7 +1068,7 @@ model ExternalAuthClaimProfile {
   mappings: TokenClaimMappingsProfile;
 
   /** The claim validation rules */
-  @OpenAPI.extension("x-ms-identifiers", #["type", "requiredClaim"])
+  @identifiers(#["type", "requiredClaim"])
   validationRules?: TokenClaimValidationRule[];
 }
 

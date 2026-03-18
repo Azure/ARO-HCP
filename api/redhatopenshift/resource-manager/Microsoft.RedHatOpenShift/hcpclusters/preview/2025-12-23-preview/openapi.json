@@ -1529,7 +1529,7 @@
         "podPriorityThreshold": {
           "type": "integer",
           "format": "int32",
-          "description": "podPriorityThreshold enables users to schedule “best-effort” pods, which shouldn’t trigger autoscaler actions,\nbut only run when there are spare resources available. The default is -10.\nSee the following for more details:\nhttps://github.com/kubernetes/autoscaler/blob/master/cluster-autoscaler/FAQ.md#how-does-cluster-autoscaler-work-with-pod-priority-and-preemption\n\nNote: The default value is not declared in the API specification because\nof a TypeSpec bug with updatable fields. The default value will be\ndeclared in a future API version once the TypeSpec bug is fixed.\nhttps://github.com/Azure/typespec-azure/issues/1586"
+          "description": "podPriorityThreshold enables users to schedule \"best-effort\" pods, which shouldn't trigger autoscaler actions,\nbut only run when there are spare resources available. The default is -10.\nSee the following for more details:\nhttps://github.com/kubernetes/autoscaler/blob/master/cluster-autoscaler/FAQ.md#how-does-cluster-autoscaler-work-with-pod-priority-and-preemption\n\nNote: The default value is not declared in the API specification because\nof a TypeSpec bug with updatable fields. The default value will be\ndeclared in a future API version once the TypeSpec bug is fixed.\nhttps://github.com/Azure/typespec-azure/issues/1586"
         }
       }
     },
@@ -1546,7 +1546,20 @@
             "Disabled"
           ],
           "x-ms-enum": {
-            "modelAsString": true
+            "name": "ClusterImageRegistryState",
+            "modelAsString": true,
+            "values": [
+              {
+                "name": "Enabled",
+                "value": "Enabled",
+                "description": "The ImageStream-backed image registry will be run as pods on worker nodes"
+              },
+              {
+                "name": "Disabled",
+                "value": "Disabled",
+                "description": "The ImageStream-backed image registry will not be present in the cluster"
+              }
+            ]
           },
           "x-ms-mutability": [
             "read",
@@ -2272,9 +2285,13 @@
         "imageDigestMirrors": {
           "type": "array",
           "description": "imageDigestMirrors is a set of rules to allow pulling images from a\nmirrored registry by using digest specifications.",
+          "maxItems": 240,
           "items": {
             "$ref": "#/definitions/ImageDigestMirror"
           },
+          "x-ms-identifiers": [
+            "source"
+          ],
           "x-ms-mutability": [
             "read",
             "update",
@@ -2341,9 +2358,13 @@
         "imageDigestMirrors": {
           "type": "array",
           "description": "imageDigestMirrors is a set of rules to allow pulling images from a\nmirrored registry by using digest specifications.",
+          "maxItems": 240,
           "items": {
             "$ref": "#/definitions/ImageDigestMirror"
           },
+          "x-ms-identifiers": [
+            "source"
+          ],
           "x-ms-mutability": [
             "read",
             "update",
@@ -2513,28 +2534,29 @@
       "type": "object",
       "description": "ImageDigestMirror specifies a set of mirror registries to redirect image\npulls targeting the specified source registries.",
       "properties": {
-        "id": {
-          "type": "string",
-          "description": "The unique identifier for this image digest mirror definition"
-        },
         "source": {
-          "type": "string",
-          "description": "The source image registry to redirect image pulls from"
+          "$ref": "#/definitions/ImageRepository",
+          "description": "Source is the image repository that users refer to, e.g. in image pull specifications."
         },
         "mirrors": {
           "type": "array",
-          "description": "The set of mirror registries to redirect image pulls to",
+          "description": "Mirrors are one or more image repositories that may also contain the same images.",
           "minItems": 1,
+          "maxItems": 255,
           "items": {
-            "type": "string"
+            "$ref": "#/definitions/ImageRepository"
           }
         }
       },
       "required": [
-        "id",
         "source",
         "mirrors"
       ]
+    },
+    "ImageRepository": {
+      "type": "string",
+      "description": "ImageRepository describes a repository for container images.",
+      "maxLength": 255
     },
     "KeyVaultVisibility": {
       "type": "string",
@@ -2564,6 +2586,24 @@
       "type": "object",
       "description": "Configure etcd encryption Key Management Service (KMS) key.\nYour Microsoft Entra application used to create the cluster must be authorized to access this keyvault,\ne.g using the AzureCLI: `az keyvault set-policy -n $KEYVAULT_NAME --key-permissions decrypt encrypt --spn (YOUR APPLICATION CLIENT ID)`",
       "properties": {
+        "vaultName": {
+          "type": "string",
+          "description": "vaultName is the name of the keyvault that contains the secret.",
+          "minLength": 1,
+          "maxLength": 255,
+          "x-ms-mutability": [
+            "read",
+            "create"
+          ]
+        },
+        "visibility": {
+          "$ref": "#/definitions/KeyVaultVisibility",
+          "description": "visibility of the keyvault that contains the secret.",
+          "x-ms-mutability": [
+            "read",
+            "create"
+          ]
+        },
         "activeKey": {
           "$ref": "#/definitions/KmsKey",
           "description": "The details of the active key.",
@@ -2574,6 +2614,8 @@
         }
       },
       "required": [
+        "vaultName",
+        "visibility",
         "activeKey"
       ]
     },
@@ -2581,21 +2623,11 @@
       "type": "object",
       "description": "A representation of a KeyVault Secret.",
       "properties": {
-        "vaultName": {
-          "type": "string",
-          "description": "vaultName is the name of the keyvault that contains the secret.",
-          "minLength": 1,
-          "maxLength": 255
-        },
         "name": {
           "type": "string",
           "description": "name is the name of the keyvault key used for encryption/decryption.",
           "minLength": 1,
           "maxLength": 255
-        },
-        "visibility": {
-          "$ref": "#/definitions/KeyVaultVisibility",
-          "description": "visibility of the keyvault that contains the secret."
         },
         "version": {
           "type": "string",
@@ -2605,9 +2637,7 @@
         }
       },
       "required": [
-        "vaultName",
         "name",
-        "visibility",
         "version"
       ]
     },

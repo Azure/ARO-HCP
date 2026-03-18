@@ -187,16 +187,16 @@ func convertEnableEncryptionAtHostToCSBuilder(in api.NodePoolPlatformProfile) *a
 
 func convertClusterImageRegistryStateRPToCS(in api.ClusterImageRegistryProfile) (string, error) {
 	switch in.State {
-	case api.ClusterImageRegistryProfileStateDisabled:
+	case api.ClusterImageRegistryStateDisabled:
 		return csImageRegistryStateDisabled, nil
-	case api.ClusterImageRegistryProfileStateEnabled:
+	case api.ClusterImageRegistryStateEnabled:
 		return csImageRegistryStateEnabled, nil
 	default:
 		return "", conversionError[string](in)
 	}
 }
 
-func convertClusterImageRegistryStateCSToRP(state string) (api.ClusterImageRegistryProfileState, error) {
+func convertClusterImageRegistryStateCSToRP(state string) (api.ClusterImageRegistryState, error) {
 	switch state {
 	case "":
 		// We convert illegal values because zero-value is the state for an object and while the value may not be valid
@@ -205,11 +205,11 @@ func convertClusterImageRegistryStateCSToRP(state string) (api.ClusterImageRegis
 		// in ocm-api-model is different than the expression of unset in canonical golang.
 		return "", nil
 	case csImageRegistryStateDisabled:
-		return api.ClusterImageRegistryProfileStateDisabled, nil
+		return api.ClusterImageRegistryStateDisabled, nil
 	case csImageRegistryStateEnabled:
-		return api.ClusterImageRegistryProfileStateEnabled, nil
+		return api.ClusterImageRegistryStateEnabled, nil
 	default:
-		return "", conversionError[api.ClusterImageRegistryProfileState](state)
+		return "", conversionError[api.ClusterImageRegistryState](state)
 	}
 }
 
@@ -460,7 +460,7 @@ func LegacyCreateInternalClusterFromClusterService(resourceID *azcorearm.Resourc
 				URL: cluster.API().URL(),
 			},
 			Platform: api.ServiceProviderPlatformProfile{
-				IssuerURL: "",
+				IssuerURL: cluster.Azure().OidcIssuerUrl(),
 			},
 		},
 	}
@@ -495,6 +495,9 @@ func LegacyCreateInternalClusterFromClusterService(resourceID *azcorearm.Resourc
 	//   Cluster Service maps but just has operator-to-resourceID pairings.
 	if cluster.Azure().OperatorsAuthentication() != nil {
 		if mi, ok := cluster.Azure().OperatorsAuthentication().GetManagedIdentities(); ok {
+			miDPURL := mi.ManagedIdentitiesDataPlaneIdentityUrl()
+			hcpcluster.ServiceProviderProperties.ManagedIdentitiesDataPlaneIdentityURL = miDPURL
+
 			for operatorName, operatorIdentity := range mi.ControlPlaneOperatorsManagedIdentities() {
 				if hcpcluster.Identity == nil {
 					hcpcluster.Identity = &arm.ManagedServiceIdentity{}
@@ -569,6 +572,7 @@ func SetClusterServiceOnlyFieldsOnCluster(internalCluster *api.HCPOpenShiftClust
 	internalCluster.ServiceProviderProperties.DNS.BaseDomain = clusterServiceCluster.DNS().BaseDomain()
 	internalCluster.ServiceProviderProperties.Console.URL = clusterServiceCluster.Console().URL()
 	internalCluster.ServiceProviderProperties.API.URL = clusterServiceCluster.API().URL()
+	internalCluster.ServiceProviderProperties.Platform.IssuerURL = clusterServiceCluster.Azure().OidcIssuerUrl()
 
 	// the clientID and principalID are currently only known to cluster-service. We'll need to determine them somewhere else.
 	if clusterServiceCluster.Azure().OperatorsAuthentication() != nil {

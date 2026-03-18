@@ -18,6 +18,7 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 
 	"k8s.io/utils/ptr"
 
@@ -168,7 +169,7 @@ func TestValidateNodePoolCreate(t *testing.T) {
 				return np
 			}(),
 			expectErrors: []expectedError{
-				{message: "Malformed version", fieldPath: "properties.version.id"},
+				{message: "Short version cannot contain PreRelease/Build meta data", fieldPath: "properties.version.id"},
 			},
 		},
 		{
@@ -515,7 +516,7 @@ func TestValidateNodePoolCreate(t *testing.T) {
 				return np
 			}(),
 			expectErrors: []expectedError{
-				{message: "Malformed version", fieldPath: "properties.version.id"},
+				{message: "Short version cannot contain PreRelease/Build meta data", fieldPath: "properties.version.id"},
 				{message: "Required value", fieldPath: "properties.platform.vmSize"},
 				{message: "must be greater than or equal to 64", fieldPath: "properties.platform.osDisk.sizeGiB"},
 				{message: "must be greater than or equal to 0", fieldPath: "properties.replicas"},
@@ -1088,7 +1089,7 @@ func TestValidateNodePoolUpdate(t *testing.T) {
 			}(),
 			oldNodePool: createValidNodePool(),
 			expectErrors: []expectedError{
-				{message: "Malformed version", fieldPath: "properties.version.id"},
+				{message: "Short version cannot contain PreRelease/Build meta data", fieldPath: "properties.version.id"},
 			},
 		},
 		{
@@ -1291,6 +1292,14 @@ func createValidNodePool() *api.HCPOpenShiftClusterNodePool {
 	nodePool.Properties.Platform.SubnetID = api.Must(azcorearm.ParseResourceID("/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.Network/virtualNetworks/test-vnet/subnets/test-subnet"))
 	nodePool.Properties.Platform.VMSize = "Standard_D2s_v3"
 	nodePool.Properties.Replicas = 3
+
+	// Add required systemData fields
+	createdAt := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+	nodePool.SystemData = &arm.SystemData{
+		CreatedBy:     "test-user",
+		CreatedByType: arm.CreatedByTypeUser,
+		CreatedAt:     &createdAt,
+	}
 
 	return nodePool
 }

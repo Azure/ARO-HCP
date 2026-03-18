@@ -210,6 +210,11 @@ func (in *DeploymentPreflightResource) DeepCopyInto(out *DeploymentPreflightReso
 		*out = make(json.RawMessage, len(*in))
 		copy(*out, *in)
 	}
+	if in.SystemData != nil {
+		in, out := &in.SystemData, &out.SystemData
+		*out = make(json.RawMessage, len(*in))
+		copy(*out, *in)
+	}
 	return
 }
 

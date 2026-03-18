@@ -25,6 +25,7 @@ param userAgentPoolCount = {{ .mgmt.aks.userAgentPool.poolCount }}
 param userOsDiskSizeGB = {{ .mgmt.aks.userAgentPool.osDiskSizeGB }}
 param userAgentPoolZones = '{{ .mgmt.aks.userAgentPool.zones }}'
 param userZoneRedundantMode = '{{ .mgmt.aks.userAgentPool.zoneRedundantMode }}'
+param userSecondaryNicCount = {{ .mgmt.aks.userAgentPool.secondaryNicCount }}
 param infraAgentPoolName = '{{ .mgmt.aks.infraAgentPool.name }}'
 param infraAgentMinCount = {{ .mgmt.aks.infraAgentPool.minCount }}
 param infraAgentMaxCount = {{ .mgmt.aks.infraAgentPool.maxCount }}

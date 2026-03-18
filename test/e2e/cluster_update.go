@@ -192,8 +192,8 @@ var _ = Describe("Update HCPOpenShiftCluster", func() {
 				Expect(err).NotTo(HaveOccurred())
 
 				By("verifying the tag is present in the update response body")
-				Expect(resp.Tags).ToNot(BeNil())
-				Expect(resp.Tags["test"]).ToNot(BeNil())
+				Expect(resp.Tags).ToNot(BeNil(), "update response Tags was nil")
+				Expect(resp.Tags["test"]).ToNot(BeNil(), "update response Tags[\"test\"] was nil")
 				Expect(*resp.Tags["test"]).To(Equal(val))
 
 				By("verifying the tag is present on the cluster")
@@ -204,8 +204,8 @@ var _ = Describe("Update HCPOpenShiftCluster", func() {
 					clusterName,
 				)
 				Expect(err).NotTo(HaveOccurred())
-				Expect(respGet.Tags).ToNot(BeNil())
-				Expect(respGet.Tags["test"]).ToNot(BeNil())
+				Expect(respGet.Tags).ToNot(BeNil(), "GET response Tags was nil")
+				Expect(respGet.Tags["test"]).ToNot(BeNil(), "GET response Tags[\"test\"] was nil")
 				Expect(*respGet.Tags["test"]).To(Equal(val))
 			},
 		)

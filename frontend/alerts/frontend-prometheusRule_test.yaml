@@ -48,3 +48,56 @@ tests:
   - eval_time: 10m # At this point, the condition has held for 10 minutes
     alertname: FrontendClusterServiceErrorRate
     exp_alerts: []
+# Test: FrontendHighAuditLogErrorRate above 5%
+- interval: 1m
+  input_series:
+  - series: 'otel_audit_log_send_errors_total{job="aro-hcp-frontend-metrics"}'
+    values: "0+6x70" # 6 errors per minute for 70 minutes
+  - series: 'otel_audit_log_records_total{job="aro-hcp-frontend-metrics"}'
+    values: "0+100x70" # 100 records per minute → 6/100 = 6%
+  alert_rule_test:
+  - eval_time: 65m
+    alertname: FrontendHighAuditLogErrorRate
+    exp_alerts:
+    - exp_labels:
+        severity: info
+      exp_annotations:
+        summary: "High Frontend audit log error rate."
+        runbook_url: 'TBD'
+        description: "Audit log error rate is above 5% for the last hour. Current value: 6%."
+# Test: FrontendHighAuditLogErrorRate below 5%
+- interval: 1m
+  input_series:
+  - series: 'otel_audit_log_send_errors_total{job="aro-hcp-frontend-metrics"}'
+    values: "0+2x70" # 2 errors per minute for 70 minutes
+  - series: 'otel_audit_log_records_total{job="aro-hcp-frontend-metrics"}'
+    values: "0+100x70" # 100 records per minute → 2/100 = 2%
+  alert_rule_test:
+  - eval_time: 65m
+    alertname: FrontendHighAuditLogErrorRate
+    exp_alerts: []
+# Test: FrontendAuditLogConnectionDegraded fires when degraded
+- interval: 1m
+  input_series:
+  - series: 'otel_audit_log_connection_degraded{job="aro-hcp-frontend-metrics"}'
+    values: "1x10" # degraded for 10 minutes
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: FrontendAuditLogConnectionDegraded
+    exp_alerts:
+    - exp_labels:
+        job: aro-hcp-frontend-metrics
+        severity: info
+      exp_annotations:
+        summary: "Frontend audit log connection is degraded."
+        runbook_url: 'TBD'
+        description: "The frontend failed to connect to the audit server and is running with a no-op audit client. No audit logs are being sent."
+# Test: FrontendAuditLogConnectionDegraded does not fire when healthy
+- interval: 1m
+  input_series:
+  - series: 'otel_audit_log_connection_degraded{job="aro-hcp-frontend-metrics"}'
+    values: "0x10" # healthy for 10 minutes
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: FrontendAuditLogConnectionDegraded
+    exp_alerts: []

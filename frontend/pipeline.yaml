@@ -113,6 +113,5 @@ resourceGroups:
       errorContainsAny:
       - "500 Internal Server Error"
       - "Internal error occurred"
-      - "context deadline exceeded"
       maximumRetryCount: 3
       durationBetweenRetries: 1m

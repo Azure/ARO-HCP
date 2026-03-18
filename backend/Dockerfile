@@ -10,7 +10,9 @@ WORKDIR /app
 COPY . .
 ARG TAG
 # https://github.com/microsoft/go/tree/microsoft/main/eng/doc/fips#build-option-to-require-fips-mode
-ENV CGO_ENABLED=1 GOFLAGS='-tags=requirefips'
+# NOTE: starting with go 1.27, GODEBUG=fips140=only can be used at runtime to also reject
+# non-FIPS algorithms. See https://github.com/microsoft/go/tree/microsoft/main/eng/doc/fips
+ENV CGO_ENABLED=1 GOFIPS140=latest
 RUN make --directory backend ARO_HCP_IMAGE_TAG=${ARO_HCP_IMAGE_TAG}
 
 
@@ -20,5 +22,8 @@ USER 65532:65532
 WORKDIR /
 COPY --from=builder /app/backend/aro-hcp-backend .
 ARG ARO_HCP_REVISION
+ARG ARO_HCP_COMMIT_TIME
 LABEL vcs-ref="${ARO_HCP_REVISION}"
+LABEL vcs-ref-time="${ARO_HCP_COMMIT_TIME}"
+LABEL vcs-url="https://github.com/Azure/ARO-HCP"
 ENTRYPOINT ["/aro-hcp-backend"]

@@ -1,4 +1,5 @@
 -include ../../setup-templatize-env.mk
+CONTAINER_ENGINE ?= $(shell command -v podman 2>/dev/null || echo docker)
 
 SHELL = /bin/bash
 
@@ -40,15 +41,12 @@ clean:
 .PHONY: clean
 
 image: Dockerfile Makefile
-	docker build . --file Dockerfile \
+	$(CONTAINER_ENGINE) build . --file Dockerfile \
 		--build-arg PLATFORM=linux/amd64 \
 		--tag ${ARO_HCP_EXPORTER_TAGGED_IMAGE}
 .PHONY: image
 
-push:
+build-and-push: image
 	az acr login --name ${ARO_HCP_IMAGE_ACR}
-	docker push ${ARO_HCP_EXPORTER_TAGGED_IMAGE}
-.PHONY: push
-
-build-and-push: image push
+	$(CONTAINER_ENGINE) push ${ARO_HCP_EXPORTER_TAGGED_IMAGE}
 .PHONY: build-and-push

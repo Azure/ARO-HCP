@@ -65,7 +65,7 @@ images:
     group: cs
     source:
       image: quay.io/app-sre/aro-hcp-clusters-service
-      tag: "1beaf19"
+      tag: "latest"
       versionLabel: "vcs-ref"
       useAuth: true
       keyVault:
@@ -73,6 +73,15 @@ images:
         secretName: "component-sync-pull-secret"
     targets:
     - jsonPath: defaults.clustersService.image.digest
+      filePath: ../../config/config.yaml
+  # Custom Exporter image
+  aro-hcp-exporter:
+    group: aro-hcp-exporter
+    source:
+      image: arohcpsvcdev.azurecr.io/arohcpmetrics
+      useAuth: true
+    targets:
+    - jsonPath: defaults.customExporter.image.digest
       filePath: ../../config/config.yaml
   # Frontend and Backend images
   arohcpfrontend:
@@ -310,4 +319,14 @@ images:
     - jsonPath: defaults.svc.prometheus.admissionWebhook.patch.image.sha
       filePath: ../../config/config.yaml
     - jsonPath: defaults.mgmt.prometheus.admissionWebhook.patch.image.sha
+      filePath: ../../config/config.yaml
+  # Istio istioctl version from GitHub latest release (istio/istio).
+  # istioctl is backward-compatible with older control planes and is only used
+  # for `istioctl tag set` in the deployment pipeline.
+  istio-istioctl:
+    group: istio
+    source:
+      githubLatestRelease: "istio/istio"
+    targets:
+    - jsonPath: defaults.svc.istio.istioctlVersion
       filePath: ../../config/config.yaml

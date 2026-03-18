@@ -1,0 +1,65 @@
+{
+	"partitionKey": "6b690bec-0c16-4ecb-8f67-781caf40bba7",
+	"resourceID": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster/nodePools/test-nodepool",
+	"properties": {
+		"cosmosMetadata": {
+			"resourceID": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster/nodePools/test-nodepool"
+		},
+		"intermediateResourceDoc": {
+			"provisioningState": "Deleting",
+			"resourceId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster/nodePools/test-nodepool",
+			"systemData": {
+				"createdBy": "Unknown-ARO-HCP-frontend",
+				"createdByType": "Application",
+				"lastModifiedBy": "Unknown-ARO-HCP-frontend",
+				"lastModifiedByType": "Application"
+			}
+		},
+		"internalState": {
+			"internalAPI": {
+				"location": "fake-location",
+				"properties": {
+					"autoRepair": true,
+					"autoScaling": {
+						"max": 5,
+						"min": 1
+					},
+					"labels": {
+						"label-key": "label-value"
+					},
+					"nodeDrainTimeoutMinutes": 2,
+					"platform": {
+						"enableEncryptionAtHost": false,
+						"osDisk": {
+							"diskStorageAccountType": "Premium_LRS",
+							"sizeGiB": 64
+						},
+						"vmSize": "large"
+					},
+					"taints": [
+						{
+							"effect": "NoExecute",
+							"key": "foo.com/key",
+							"value": "valid"
+						}
+					],
+					"version": {
+						"channelGroup": "stable"
+					}
+				},
+				"serviceProviderProperties": {
+					"clusterServiceID": ""
+				}
+			}
+		},
+		"provisioningState": "Deleting",
+		"resourceId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster/nodePools/test-nodepool",
+		"systemData": {
+			"createdBy": "Unknown-ARO-HCP-frontend",
+			"createdByType": "Application",
+			"lastModifiedBy": "Unknown-ARO-HCP-frontend",
+			"lastModifiedByType": "Application"
+		}
+	},
+	"resourceType": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/nodePools"
+}

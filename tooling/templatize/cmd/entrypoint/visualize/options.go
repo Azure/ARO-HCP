@@ -382,7 +382,7 @@ func (o *Options) Visualize(ctx context.Context) error {
 	waterfall := charts.NewBar()
 	waterfall.SetGlobalOptions(
 		charts.WithInitializationOpts(opts.Initialization{
-			PageTitle: "Timing Analysis",
+			PageTitle: "Component Timing Analysis",
 			Renderer:  "svg",
 			Height:    "1024px",
 		}),
@@ -446,8 +446,11 @@ func (o *Options) Visualize(ctx context.Context) error {
 			logger.Error(err, "failed to close output file")
 		}
 	}()
-	if err := waterfall.Render(output); err != nil {
-		return fmt.Errorf("failed to render output: %w", err)
+	rendered := waterfall.RenderContent()
+	// workaround for spyglass cutting off page bottoms: inject spacer before </body>
+	rendered = bytes.Replace(rendered, []byte("</body>"), []byte(`<div style="height: 30px;"></div>`+"\n"+"</body>"), 1)
+	if _, err := output.Write(rendered); err != nil {
+		return fmt.Errorf("failed to write output: %w", err)
 	}
 
 	logger.Info("Created visualization.", "output", stepFile)

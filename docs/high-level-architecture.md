@@ -2,9 +2,10 @@
 
 This document describes the high level ARO HCP architecture and its various scopes. The goal is to give the reader enough context to understand and work on the infrastructure and service deployment processes of the ARO HCP project.
 
-ARO HCP is a cloud service deployed across multiple Azure regions, with a design that ensures both regional autonomy and global efficiency. Each region operates an independent instance of ARO HCP to maximize reliability, while global services provide supporting infrastructure without introducing availability risks. To structure this, the architecture is divided into two primary scopes:
+ARO HCP is a cloud service deployed across multiple Azure regions, with a design that ensures both regional autonomy and global efficiency. Each region operates an independent instance of ARO HCP to maximize reliability, while global services provide supporting infrastructure without introducing availability risks. To structure this, the architecture is divided into three primary scopes:
 
 - **Regional Scope** – Contains all the components required to operate ARO HCP within a region.
+- **Geography Scope** – Contains all the components shared between regions in the same geography.
 - **Global Scope** – Consists of shared services that support regional instances while maintaining built-in redundancy and resilience across multiple regions.
 
 A high level architecture diagram can be found [here](https://link.excalidraw.com/l/1NnYvmogbSd/2I3z0Ishpo0).
@@ -89,3 +90,18 @@ ARO HCP also relies on global Azure resources to provide **efficient, scalable**
 ### Azure layout
 
 The global resources are deployed into a dedicated Azure subscription. This subscription contains all the resources required to run the global services, including Azure Front Door, Azure Container Registry, container image mirroring and the parent DNS zones for the ARO HCP service.
+
+## Geography Scope
+
+ARO HCP also relies on geography-scoped Kusto clusters according to the Geos defined in the Ev2 configuration: https://github.com/Azure/ARO-Tools/blob/main/config/ev2config/config.yaml
+
+The first region added in a given geography is the region that will deploy the Kusto cluster associated with the geography. For example, the eastus2 rollout creates the Kusto cluster for the "United States" geography. 
+
+### Key Geo Services
+
+- **Kusto**
+  - Stores logs from all clusters in a given geography (see [here](logging.md) for more information)
+
+### Azure layout
+
+The geography-level resources are deployed into the same dedicated global Azure subscription used for global services, with logical separation by geography (for example, one Kusto deployment per geography).

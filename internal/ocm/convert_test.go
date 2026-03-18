@@ -146,6 +146,19 @@ func TestConvertCStoHCPOpenShiftCluster(t *testing.T) {
 			},
 		},
 		{
+			name: "converts OIDC issuer URL from CS Azure",
+			ocmClusterTweaks: arohcpv1alpha1.NewCluster().
+				Azure(arohcpv1alpha1.NewAzure().
+					OidcIssuerUrl("https://storage.z1.web.core.windows.net/tenant-id/cluster-id")),
+			hcpClusterTweaks: &api.HCPOpenShiftCluster{
+				ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
+					Platform: api.ServiceProviderPlatformProfile{
+						IssuerURL: "https://storage.z1.web.core.windows.net/tenant-id/cluster-id",
+					},
+				},
+			},
+		},
+		{
 			name: "converts CS ClusterImageRegistry to ClusterImageRegistryProfile",
 			ocmClusterTweaks: arohcpv1alpha1.NewCluster().
 				ImageRegistry(arohcpv1alpha1.NewClusterImageRegistry().
@@ -154,7 +167,7 @@ func TestConvertCStoHCPOpenShiftCluster(t *testing.T) {
 			hcpClusterTweaks: &api.HCPOpenShiftCluster{
 				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
 					ClusterImageRegistry: api.ClusterImageRegistryProfile{
-						State: api.ClusterImageRegistryProfileStateDisabled,
+						State: api.ClusterImageRegistryStateDisabled,
 					},
 				},
 			},
@@ -209,11 +222,66 @@ func TestConvertCStoHCPOpenShiftCluster(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			csCluster := ocmCluster(t, ocmClusterDefaults(api.TestLocation), tc.ocmClusterTweaks)
 			expectHcpCluster := api.ClusterTestCase(t, tc.hcpClusterTweaks)
+			// SystemData is not set by OCM conversion (it comes from ARM), so clear it from the expected result
+			expectHcpCluster.SystemData = nil
 
 			actualHcpCluster, err := LegacyCreateInternalClusterFromClusterService(resourceID, api.TestLocation, csCluster)
 			require.NoError(t, err)
 
 			assert.Equal(t, expectHcpCluster, actualHcpCluster)
+		})
+	}
+}
+
+func TestSetClusterServiceOnlyFieldsOnCluster(t *testing.T) {
+	testCases := []struct {
+		name           string
+		csCluster      *arohcpv1alpha1.ClusterBuilder
+		initialCluster *api.HCPOpenShiftCluster
+		expectCluster  func(*api.HCPOpenShiftCluster)
+	}{
+		{
+			name: "populates OIDC issuer URL",
+			csCluster: arohcpv1alpha1.NewCluster().
+				Azure(arohcpv1alpha1.NewAzure().
+					OidcIssuerUrl("https://storage.z1.web.core.windows.net/tenant-id/cluster-id")),
+			initialCluster: &api.HCPOpenShiftCluster{},
+			expectCluster: func(c *api.HCPOpenShiftCluster) {
+				assert.Equal(t, "https://storage.z1.web.core.windows.net/tenant-id/cluster-id", c.ServiceProviderProperties.Platform.IssuerURL)
+			},
+		},
+		{
+			name: "populates DNS, Console, API, and OIDC issuer URL",
+			csCluster: arohcpv1alpha1.NewCluster().
+				DNS(arohcpv1alpha1.NewDNS().BaseDomain("example.com")).
+				Console(arohcpv1alpha1.NewClusterConsole().URL("https://console.example.com")).
+				API(arohcpv1alpha1.NewClusterAPI().URL("https://api.example.com")).
+				Azure(arohcpv1alpha1.NewAzure().
+					OidcIssuerUrl("https://oidc.example.com/tenant/cluster")),
+			initialCluster: &api.HCPOpenShiftCluster{},
+			expectCluster: func(c *api.HCPOpenShiftCluster) {
+				assert.Equal(t, "example.com", c.ServiceProviderProperties.DNS.BaseDomain)
+				assert.Equal(t, "https://console.example.com", c.ServiceProviderProperties.Console.URL)
+				assert.Equal(t, "https://api.example.com", c.ServiceProviderProperties.API.URL)
+				assert.Equal(t, "https://oidc.example.com/tenant/cluster", c.ServiceProviderProperties.Platform.IssuerURL)
+			},
+		},
+		{
+			name:           "empty OIDC issuer URL when not set in CS",
+			csCluster:      arohcpv1alpha1.NewCluster(),
+			initialCluster: &api.HCPOpenShiftCluster{},
+			expectCluster: func(c *api.HCPOpenShiftCluster) {
+				assert.Empty(t, c.ServiceProviderProperties.Platform.IssuerURL)
+			},
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			csCluster, err := tc.csCluster.Build()
+			require.NoError(t, err)
+
+			SetClusterServiceOnlyFieldsOnCluster(tc.initialCluster, csCluster)
+			tc.expectCluster(tc.initialCluster)
 		})
 	}
 }
@@ -292,7 +360,7 @@ func TestWithImmutableAttributes(t *testing.T) {
 				},
 			},
 			want: ocmCluster(t, ocmClusterDefaults(api.TestLocation).Version(
-				arohcpv1alpha1.NewVersion().ID("openshift-v4.20.8").ChannelGroup("stable"))),
+				arohcpv1alpha1.NewVersion().ID("openshift-v4.20.15").ChannelGroup("stable"))),
 		},
 	}
 
@@ -307,7 +375,8 @@ func TestWithImmutableAttributes(t *testing.T) {
 				api.TestSubscriptionID,
 				api.TestResourceGroupName,
 				api.TestTenantID,
-				"")
+				api.TestManagedIdentitiesDataPlaneIdentityURL,
+			)
 			require.NoError(t, err)
 			result, err := builder.Build()
 			require.NoError(t, err)
@@ -365,7 +434,7 @@ func ocmClusterDefaults(azureLocation string) *arohcpv1alpha1.ClusterBuilder {
 				ManagedIdentities(arohcpv1alpha1.NewAzureOperatorsAuthenticationManagedIdentities().
 					ControlPlaneOperatorsManagedIdentities(make(map[string]*arohcpv1alpha1.AzureControlPlaneManagedIdentityBuilder)).
 					DataPlaneOperatorsManagedIdentities(make(map[string]*arohcpv1alpha1.AzureDataPlaneManagedIdentityBuilder)).
-					ManagedIdentitiesDataPlaneIdentityUrl(""))).
+					ManagedIdentitiesDataPlaneIdentityUrl(api.TestManagedIdentitiesDataPlaneIdentityURL))).
 			ResourceGroupName(strings.ToLower(api.TestResourceGroupName)).
 			ResourceName(strings.ToLower(api.TestClusterName)).
 			SubnetResourceID(api.TestSubnetResourceID).
@@ -396,7 +465,7 @@ func ocmClusterDefaults(azureLocation string) *arohcpv1alpha1.ClusterBuilder {
 		Region(arohcpv1alpha1.NewCloudRegion().
 			ID(azureLocation)).
 		Version(arohcpv1alpha1.NewVersion().
-			ID("openshift-v4.15.0").
+			ID("openshift-v4.19.7").
 			ChannelGroup("stable")).
 		ImageRegistry(arohcpv1alpha1.NewClusterImageRegistry().
 			State(csImageRegistryStateEnabled))
@@ -1017,7 +1086,7 @@ func TestBuildCSCluster(t *testing.T) {
 			// Create request headers
 			requestHeader := http.Header{}
 			requestHeader.Set(arm.HeaderNameHomeTenantID, api.TestTenantID)
-			requestHeader.Set(arm.HeaderNameIdentityURL, "")
+			requestHeader.Set(arm.HeaderNameIdentityURL, api.TestManagedIdentitiesDataPlaneIdentityURL)
 
 			resourceID, err := azcorearm.ParseResourceID(api.TestClusterResourceID)
 			require.NoError(t, err)

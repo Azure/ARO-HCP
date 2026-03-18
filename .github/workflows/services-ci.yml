@@ -32,112 +32,51 @@ concurrency:
   group: ${{ github.workflow }}-service-ci
   cancel-in-progress: ${{ inputs.cancel-in-progress }}
 jobs:
-  build_push_aro_hcp_exporter:
+  build_push:
     permissions:
       id-token: 'write'
       contents: 'read'
     runs-on: 'ubuntu-latest'
-    steps:
-    - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
-      with:
-        fetch-depth: 1
-    - name: Build aro-hcp-exporter container image
-      run: |
-        cd tooling/aro-hcp-exporter/
-        make image
-    - name: "install azure-cli"
-      if: inputs.push == true
-      uses: "Azure/ARO-HCP@main"
-    - name: 'Az CLI login'
-      if: inputs.push == true
-      uses: azure/login@v2
-      with:
-        client-id: ${{ secrets.AZURE_CLIENT_ID }}
-        tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-        subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-    - name: Push aro-hcp-exporter container image
-      if: inputs.push == true
-      run: |
-        cd tooling/aro-hcp-exporter/
-        make push
-  build_push_frontend:
-    permissions:
-      id-token: 'write'
-      contents: 'read'
-    runs-on: 'ubuntu-latest'
-    steps:
-    - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
-      with:
-        fetch-depth: 1
-    - uses: actions/setup-go@v6
-      with:
-        go-version-file: 'go.work'
-    - name: Build frontend container image
-      run: |
-        cd frontend/
-        make image
-    - name: "install azure-cli"
-      if: inputs.push == true
-      uses: "Azure/ARO-HCP@main"
-    - name: 'Az CLI login'
-      if: inputs.push == true
-      uses: azure/login@v2
-      with:
-        client-id: ${{ secrets.AZURE_CLIENT_ID }}
-        tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-        subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-    - name: Push frontend container image
-      if: inputs.push == true
-      run: |
-        cd frontend/
-        make build-and-push
-  build_push_backend:
-    permissions:
-      id-token: 'write'
-      contents: 'read'
-    runs-on: 'ubuntu-latest'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+        - name: aro-hcp-exporter
+          dir: tooling/aro-hcp-exporter
+          setup_go: true
+          acr_image: arohcpmetrics
+        - name: frontend
+          dir: frontend
+          setup_go: true
+          acr_image: arohcpfrontend
+        - name: backend
+          dir: backend
+          setup_go: true
+          acr_image: arohcpbackend
+        - name: admin-api
+          dir: admin
+          setup_go: true
+          acr_image: arohcpadminapi
+        - name: sessiongate
+          dir: sessiongate
+          setup_go: true
+          acr_image: arohcpsessiongate
+        - name: oc-mirror
+          dir: image-sync/oc-mirror
+          setup_go: false
+          acr_image: image-sync/oc-mirror
     steps:
     - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
       with:
         fetch-depth: 1
     - uses: actions/setup-go@v6
+      if: matrix.setup_go
       with:
         go-version-file: 'go.work'
-    - name: Build backend container image
-      run: |
-        cd backend/
-        make image
-    - name: "install azure-cli"
-      if: inputs.push == true
-      uses: "Azure/ARO-HCP@main"
-    - name: 'Az CLI login'
-      if: inputs.push == true
-      uses: azure/login@v2
-      with:
-        client-id: ${{ secrets.AZURE_CLIENT_ID }}
-        tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-        subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-    - name: Push backend container image
-      if: inputs.push == true
-      run: |
-        cd backend/
-        make build-and-push
-  build_push_admin_api:
-    permissions:
-      id-token: 'write'
-      contents: 'read'
-    runs-on: 'ubuntu-latest'
-    steps:
-    - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
-      with:
-        fetch-depth: 1
-    - uses: actions/setup-go@v6
-      with:
-        go-version-file: 'go.work'
-    - name: Build admin api container image
+    - name: Build ${{ matrix.name }} container image
       if: inputs.push == false
       run: |
-        cd admin/
+        cd ${{ matrix.dir }}
         make image
     - name: "install azure-cli"
       if: inputs.push == true
@@ -149,68 +88,29 @@ jobs:
         client-id: ${{ secrets.AZURE_CLIENT_ID }}
         tenant-id: ${{ secrets.AZURE_TENANT_ID }}
         subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-    - name: Push admin api container image
+    - name: Build and push ${{ matrix.name }} container image
       if: inputs.push == true
       run: |
-        cd admin/
-        make build-and-push
-  build_push_sessiongate:
-    permissions:
-      id-token: 'write'
-      contents: 'read'
-    runs-on: 'ubuntu-latest'
-    steps:
-    - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
-      with:
-        fetch-depth: 1
-    - uses: actions/setup-go@v6
-      with:
-        go-version-file: 'go.work'
-    - name: Build sessiongate container image
-      if: inputs.push == false
+        cd ${{ matrix.dir }}
+        for attempt in 1 2 3; do
+          echo "Push attempt ${attempt}/3"
+          if make build-and-push; then
+            exit 0
+          fi
+          echo "Attempt ${attempt} failed, retrying in 30s..."
+          sleep 30
+        done
+        echo "All push attempts failed"
+        exit 1
+    - name: Verify ${{ matrix.name }} image in ACR
+      if: inputs.push == true
+      env:
+        ACR_NAME: arohcpsvcdev
       run: |
-        cd sessiongate/
-        make image
-    - name: "install azure-cli"
-      if: inputs.push == true
-      uses: "Azure/ARO-HCP@main"
-    - name: 'Az CLI login'
-      if: inputs.push == true
-      uses: azure/login@v2
-      with:
-        client-id: ${{ secrets.AZURE_CLIENT_ID }}
-        tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-        subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-    - name: Push sessiongate container image
-      if: inputs.push == true
-      run: |
-        cd sessiongate/
-        make build-and-push
-  build_push_ocmirror:
-    permissions:
-      id-token: 'write'
-      contents: 'read'
-    runs-on: 'ubuntu-latest'
-    steps:
-    - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
-      with:
-        fetch-depth: 1
-    - name: Build oc-mirror container image
-      run: |
-        cd image-sync/oc-mirror
-        make image
-    - name: "install azure-cli"
-      if: inputs.push == true
-      uses: "Azure/ARO-HCP@main"
-    - name: 'Az CLI login'
-      if: inputs.push == true
-      uses: azure/login@v2
-      with:
-        client-id: ${{ secrets.AZURE_CLIENT_ID }}
-        tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-        subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-    - name: Push oc-mirror container image
-      if: inputs.push == true
-      run: |
-        cd image-sync/oc-mirror
-        make push
+        TAG=$(./generate-tag.sh)
+        echo "Verifying ${{ matrix.acr_image }}:${TAG} in ${ACR_NAME}"
+        az acr manifest show \
+          --registry "${ACR_NAME}" \
+          --name "${{ matrix.acr_image }}:${TAG}" \
+          --output none
+        echo "Verified ${{ matrix.acr_image }}:${TAG}"

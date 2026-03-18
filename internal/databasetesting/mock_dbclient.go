@@ -170,6 +170,12 @@ func (m *MockDBClient) ServiceProviderNodePools(subscriptionID, resourceGroupNam
 	return newMockServiceProviderNodePoolCRUD(m, nodePoolResourceID)
 }
 
+// ManagementClusterContents returns a CRUD interface for management cluster content resources.
+func (m *MockDBClient) ManagementClusterContents(subscriptionID, resourceGroupName, clusterName string) database.ManagementClusterContentCRUD {
+	clusterResourceID := database.NewClusterResourceID(subscriptionID, resourceGroupName, clusterName)
+	return newMockManagementClusterContentCRUD(m, clusterResourceID)
+}
+
 // LoadFromDirectory loads cosmos-record context data from a directory.
 // It reads all JSON files that match the pattern for "load" directories.
 func (m *MockDBClient) LoadFromDirectory(dirPath string) error {
@@ -317,6 +323,18 @@ func (m *MockDBClient) GetAllDocuments() map[string]json.RawMessage {
 
 	result := make(map[string]json.RawMessage, len(m.documents))
 	for k, v := range m.documents {
+		result[k] = v
+	}
+	return result
+}
+
+// GetBillingDocuments returns a copy of all billing documents (for testing purposes).
+func (m *MockDBClient) GetBillingDocuments() map[string]*database.BillingDocument {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	result := make(map[string]*database.BillingDocument, len(m.billing))
+	for k, v := range m.billing {
 		result[k] = v
 	}
 	return result

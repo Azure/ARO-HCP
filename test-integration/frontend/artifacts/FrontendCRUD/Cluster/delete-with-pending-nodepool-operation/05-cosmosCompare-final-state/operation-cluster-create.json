@@ -1,0 +1,11 @@
+{
+	"partitionKey": "6b690bec-0c16-4ecb-8f67-781caf40bba7",
+	"properties": {
+		"externalId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster",
+		"request": "Create",
+		"status": "Succeeded",
+		"tenantId": "00000000-0000-0000-0000-000000000000"
+	},
+	"resourceType": "Microsoft.RedHatOpenShift/hcpOperationStatuses",
+	"ttl": 604800
+}

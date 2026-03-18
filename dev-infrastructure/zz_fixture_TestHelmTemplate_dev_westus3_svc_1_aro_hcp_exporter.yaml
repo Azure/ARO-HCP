@@ -72,6 +72,9 @@ spec:
         - name: metrics
           containerPort: 8080
           protocol: TCP
+        env:
+        - name: AZURE_TOKEN_CREDENTIALS
+          value: "prod"
         livenessProbe:
           httpGet:
             path: /metrics

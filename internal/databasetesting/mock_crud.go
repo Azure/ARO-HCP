@@ -391,6 +391,17 @@ func (m *mockResourceCRUD[InternalAPIType, CosmosAPIType]) AddCreateToTransactio
 }
 
 func (m *mockResourceCRUD[InternalAPIType, CosmosAPIType]) AddReplaceToTransaction(ctx context.Context, transaction database.DBTransaction, newObj *InternalAPIType, opts *azcosmos.TransactionalBatchItemOptions) (string, error) {
+	cosmosPersistable, ok := any(newObj).(arm.CosmosPersistable)
+	if !ok {
+		return "", fmt.Errorf("type %T does not implement CosmosPersistable", newObj)
+	}
+
+	// do a get first to ensure the ID is migrated
+	cosmosData := cosmosPersistable.GetCosmosData()
+	if _, err := m.Get(ctx, cosmosData.GetResourceID().Name); err != nil {
+		return "", err
+	}
+
 	cosmosObj, err := database.InternalToCosmos[InternalAPIType, CosmosAPIType](newObj)
 	if err != nil {
 		return "", fmt.Errorf("failed to convert to cosmos type: %w", err)
@@ -401,12 +412,6 @@ func (m *mockResourceCRUD[InternalAPIType, CosmosAPIType]) AddReplaceToTransacti
 		return "", fmt.Errorf("failed to marshal cosmos object: %w", err)
 	}
 
-	cosmosPersistable, ok := any(newObj).(arm.CosmosPersistable)
-	if !ok {
-		return "", fmt.Errorf("type %T does not implement CosmosPersistable", newObj)
-	}
-
-	cosmosData := cosmosPersistable.GetCosmosData()
 	cosmosID := cosmosData.GetCosmosUID()
 	expectedETag := cosmosData.CosmosETag
 
@@ -678,6 +683,20 @@ func newMockServiceProviderNodePoolCRUD(client *MockDBClient, parentResourceID *
 }
 
 var _ database.ServiceProviderNodePoolCRUD = &mockServiceProviderNodePoolCRUD{}
+
+// mockManagementClusterContentCRUD implements database.ManagementClusterContentCRUD.
+type mockManagementClusterContentCRUD struct {
+	*mockResourceCRUD[api.ManagementClusterContent, database.GenericDocument[api.ManagementClusterContent]]
+}
+
+func newMockManagementClusterContentCRUD(client *MockDBClient, parentResourceID *azcorearm.ResourceID) *mockManagementClusterContentCRUD {
+	return &mockManagementClusterContentCRUD{
+		mockResourceCRUD: newMockResourceCRUD[api.ManagementClusterContent, database.GenericDocument[api.ManagementClusterContent]](
+			client, parentResourceID, api.ManagementClusterContentResourceType),
+	}
+}
+
+var _ database.ManagementClusterContentCRUD = &mockManagementClusterContentCRUD{}
 
 // mockUntypedCRUD implements database.UntypedResourceCRUD.
 type mockUntypedCRUD struct {
