@@ -403,6 +403,73 @@ func TestPreExistingDataCluster(t *testing.T) {
 	}
 }
 
+// TestKMSVisibilityDefaultsToPublic verifies that KMS Visibility defaults to
+// Public when a cluster has KMS encryption configured but no visibility set.
+// This scenario occurs when clusters are created via v2024_06_10_preview, which
+// doesn't expose the visibility field and assumes public KeyVaults.
+func TestKMSVisibilityDefaultsToPublic(t *testing.T) {
+	resourceID := api.Must(azcorearm.ParseResourceID(
+		"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster",
+	))
+
+	// Simulate a cluster created via v2024_06_10_preview with KMS encryption
+	// but no visibility field (since that version doesn't have it).
+	preExistingDoc := &HCPCluster{
+		TypedDocument: TypedDocument{
+			BaseDocument: BaseDocument{ID: "test-doc-id"},
+			ResourceID:   resourceID,
+		},
+		HCPClusterProperties: HCPClusterProperties{
+			ResourceDocument: &ResourceDocument{
+				ResourceID:        resourceID,
+				InternalID:        api.Must(api.NewInternalID("/api/aro_hcp/v1alpha1/clusters/test-cluster")),
+				ProvisioningState: arm.ProvisioningStateSucceeded,
+			},
+			InternalState: ClusterInternalState{
+				InternalAPI: api.HCPOpenShiftCluster{
+					CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
+						Etcd: api.EtcdProfile{
+							DataEncryption: api.EtcdDataEncryptionProfile{
+								KeyManagementMode: api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged,
+								CustomerManaged: &api.CustomerManagedEncryptionProfile{
+									EncryptionType: api.CustomerManagedEncryptionTypeKMS,
+									Kms: &api.KmsEncryptionProfile{
+										ActiveKey: api.KmsKey{
+											Name:      "test-key",
+											VaultName: "test-vault",
+											Version:   "v1",
+										},
+										// Visibility intentionally not set (empty string)
+										Visibility: "",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	internalCluster, err := CosmosToInternalCluster(preExistingDoc)
+	if err != nil {
+		t.Fatalf("CosmosToInternalCluster failed: %v", err)
+	}
+
+	// Verify KMS Visibility was defaulted to Public
+	if internalCluster.CustomerProperties.Etcd.DataEncryption.CustomerManaged == nil {
+		t.Fatal("CustomerManaged is nil")
+	}
+	if internalCluster.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms == nil {
+		t.Fatal("Kms is nil")
+	}
+	if internalCluster.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.Visibility != api.KeyVaultVisibilityPublic {
+		t.Errorf("got Visibility = %q, want %q",
+			internalCluster.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.Visibility,
+			api.KeyVaultVisibilityPublic)
+	}
+}
+
 // TestPreExistingDataNodePool verifies that CosmosToInternalNodePool applies
 // canonical defaults when reading a Cosmos document that predates the
 // introduction of DiskStorageAccountType.
