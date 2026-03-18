@@ -377,7 +377,7 @@ kubeEvents:
     repository: shared/kube-events
 kusto:
   adminGroups: ""
-  allowedFqdnList: []
+  allowedFqdnList: ""
   auditLogsEventHub:
     authRuleName: SendRule
     kustoConsumerGroupName: AuditLogsToKusto

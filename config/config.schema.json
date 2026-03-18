@@ -1898,11 +1898,8 @@
           "maxLength": 22
         },
         "allowedFqdnList": {
-          "type": "array",
-          "description": "List of allowed FQDNs for Kusto cross-cluster callout policy, enabling entity group queries across clusters.",
-          "items": {
-            "type": "string"
-          }
+          "type": "string",
+          "description": "Comma-separated list of allowed FQDNs for Kusto cross-cluster callout policy, enabling entity group queries across clusters."
         },
         "auditLogsEventHub": {
           "type": "object",

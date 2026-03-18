@@ -224,7 +224,7 @@ defaults:
     hostedControlPlaneLogsDatabase: "HostedControlPlaneLogs"
     adminGroups: ""
     viewerGroups: ""
-    allowedFqdnList: []
+    allowedFqdnList: ""
     sku: ""
     tier: ""
     auditLogsEventHub:

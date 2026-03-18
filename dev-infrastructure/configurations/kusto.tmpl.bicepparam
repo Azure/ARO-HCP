@@ -22,9 +22,7 @@ param autoScaleMax = {{ .kusto.autoScaleMax }}
 
 param enableAutoScale = {{ .kusto.enableAutoScale }}
 
-param allowedFqdnList = [{{ range .kusto.allowedFqdnList }}
-  '{{ . }}'{{ end }}
-]
+param allowedFqdnList = '{{ .kusto.allowedFqdnList }}'
 
 param auditLogsEventHubNamespaceName = '{{ .kusto.auditLogsEventHub.namespace }}'
 
